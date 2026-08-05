@@ -30,6 +30,10 @@ void net_init(net_state_t *net) {
     net->rx_bytes = 0;
     net->tx_bytes = 0;
     dhcp_init(&net->dhcp, 0, 0);
+    net->dns.pending = false;
+    net->dns.resolved = false;
+    net->dns.name[0] = 0;
+    for (int i = 0; i < NET_IP_LEN; i++) { net->dns.ip[i] = 0; net->dns_server[i] = 0; }
 
     for (uint32_t i = 0; i < NET_MAX_INTERFACES; i++) {
         net->interfaces[i].up = false;
@@ -473,6 +477,20 @@ void net_handle_udp(net_state_t *net, net_interface_t *iface, const ip_header_t 
         return;
     }
 
+    /* A DNS answer must come back from the server we asked, on the port we
+     * asked from. Checking the source address is cheap and rules out anyone
+     * who cannot see or spoof that address. */
+    if (net->dns.pending && dst_port == net->dns.port && src_port == DNS_PORT) {
+        bool from_server = true;
+        for (int i = 0; i < NET_IP_LEN; i++)
+            if (ip->src_ip[i] != net->dns_server[i]) from_server = false;
+        if (from_server) {
+            net_dns_handle(net, data + sizeof(udp_header_t),
+                           len - (uint32_t)sizeof(udp_header_t));
+            return;
+        }
+    }
+
     for (uint32_t i = 0; i < net->num_sockets; i++) {
         socket_t *s = &net->sockets[i];
         if (!s->active || s->type != SOCK_UDP) continue;
@@ -669,21 +687,40 @@ int32_t net_m5_recv(net_state_t *net, int32_t sock, void *data, uint32_t max_len
     return (int32_t)data_len;
 }
 
+/* ---- unpredictability, and its honest default ----
+ * See net_set_entropy() in net.h. The fallback below distinguishes successive
+ * transactions; it does NOT resist an off-path attacker who can guess ids. */
+static uint32_t (*g_entropy_src)(void) = 0;
+
+void net_set_entropy(uint32_t (*src)(void)) { g_entropy_src = src; }
+
+static uint32_t net_rand(net_state_t *net, const net_interface_t *iface) {
+    if (g_entropy_src) return g_entropy_src();
+    static uint32_t counter = 0;
+    uint32_t v = 0x5A585620u;                      /* "ZXV " */
+    if (iface) for (int i = 0; i < NET_MAC_LEN; i++) v = v * 31u + iface->mac[i];
+    v ^= (net->rx_packets << 16) ^ net->tx_packets;
+    v ^= (++counter) * 2654435761u;
+    v ^= v >> 15; v *= 2246822519u; v ^= v >> 13;
+    return v;
+}
+
 /* ===================== DHCP =====================
  * The bootstrap cannot go through the socket API: it must transmit from
  * 0.0.0.0 to 255.255.255.255 at a point where the interface has no address
  * and ARP cannot resolve anything. So it builds its own frame. */
 
-static void dhcp_tx(net_state_t *net, net_interface_t *iface,
-                    const uint8_t *payload, uint32_t plen) {
+/* One raw UDP emitter, used by both bootstrap protocols. Explicit source and
+ * destination addresses and an explicit next-hop MAC, because at this level
+ * neither "our address" nor "resolve the destination" can be assumed. */
+static void udp_tx_raw(net_state_t *net, net_interface_t *iface,
+                       const uint8_t *src_ip, const uint8_t *dst_ip,
+                       const uint8_t *dst_mac, uint16_t sport, uint16_t dport,
+                       const uint8_t *payload, uint32_t plen) {
     if (!iface->tx_callback || plen == 0) return;
     uint32_t l4 = (uint32_t)sizeof(udp_header_t) + plen;
     uint32_t total = (uint32_t)sizeof(eth_header_t) + (uint32_t)sizeof(ip_header_t) + l4;
     if (total > NET_TX_BUFFER_SIZE) return;
-
-    static const uint8_t bcast_mac[NET_MAC_LEN] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
-    static const uint8_t any_ip[NET_IP_LEN]     = {0,0,0,0};
-    static const uint8_t bcast_ip[NET_IP_LEN]   = {255,255,255,255};
 
     uint8_t pkt[NET_TX_BUFFER_SIZE];
     mem_set(pkt, 0, total);
@@ -691,27 +728,30 @@ static void dhcp_tx(net_state_t *net, net_interface_t *iface,
     ip_header_t  *ip  = (ip_header_t *)(pkt + sizeof(eth_header_t));
     udp_header_t *udp = (udp_header_t *)((uint8_t *)ip + sizeof(ip_header_t));
 
-    net_build_eth(eth, bcast_mac, iface->mac, ETH_TYPE_IP);
-    net_build_ip(ip, any_ip, bcast_ip, IP_PROTO_UDP,
+    net_build_eth(eth, dst_mac, iface->mac, ETH_TYPE_IP);
+    net_build_ip(ip, src_ip, dst_ip, IP_PROTO_UDP,
                  (uint16_t)(sizeof(ip_header_t) + l4));
-    net_build_udp(udp, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (uint16_t)l4);
+    net_build_udp(udp, sport, dport, (uint16_t)l4);
     mem_copy(pkt + total - plen, payload, plen);
-    net_udp_finish(udp, any_ip, bcast_ip, l4);
+    net_udp_finish(udp, src_ip, dst_ip, l4);
 
     iface->tx_callback(pkt, total);
     net->tx_packets++;
     net->tx_bytes += total;
 }
 
+static void dhcp_tx(net_state_t *net, net_interface_t *iface,
+                    const uint8_t *payload, uint32_t plen) {
+    static const uint8_t bcast_mac[NET_MAC_LEN] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+    static const uint8_t any_ip[NET_IP_LEN]     = {0,0,0,0};
+    static const uint8_t bcast_ip[NET_IP_LEN]   = {255,255,255,255};
+    udp_tx_raw(net, iface, any_ip, bcast_ip, bcast_mac,
+               DHCP_CLIENT_PORT, DHCP_SERVER_PORT, payload, plen);
+}
+
 void net_dhcp_discover(net_state_t *net, net_interface_t *iface) {
     if (!net || !iface) return;
-    /* The transaction id only has to distinguish concurrent exchanges on the
-     * link; it is NOT a security boundary and this is not a CSPRNG. Mixing the
-     * MAC with the live packet counters at least keeps successive attempts
-     * from reusing one id, so a stale reply cannot be mistaken for a fresh one. */
-    uint32_t xid = 0x5A585620u;                     /* "ZXV " */
-    for (int i = 0; i < NET_MAC_LEN; i++) xid = xid * 31u + iface->mac[i];
-    xid ^= (net->rx_packets << 16) ^ net->tx_packets;
+    uint32_t xid = net_rand(net, iface);
     if (xid == 0) xid = 1;
 
     dhcp_init(&net->dhcp, iface->mac, xid);
@@ -739,16 +779,94 @@ void net_dhcp_handle(net_state_t *net, net_interface_t *iface, const uint8_t *da
         if (net->dhcp.gateway[0] | net->dhcp.gateway[1] |
             net->dhcp.gateway[2] | net->dhcp.gateway[3])
             mem_copy(iface->gateway, net->dhcp.gateway, NET_IP_LEN);
+        if (net->dhcp.dns[0] | net->dhcp.dns[1] | net->dhcp.dns[2] | net->dhcp.dns[3])
+            mem_copy(net->dns_server, net->dhcp.dns, NET_IP_LEN);
     }
 }
 
-/* DNS */
+/* ===================== DNS ===================== */
+
+static uint32_t str_copy_bounded(char *dst, const char *src, uint32_t cap) {
+    uint32_t i = 0;
+    while (src[i] && i + 1u < cap) { dst[i] = src[i]; i++; }
+    dst[i] = 0;
+    return src[i] ? 0 : i;    /* 0 means it did not fit */
+}
+
+/* Next hop for `dst`: the host itself when it shares our subnet, otherwise the
+ * gateway. Returns false when the MAC is not in the ARP cache — the caller
+ * should let the request it just triggered resolve and try again. */
+static bool next_hop_mac(net_state_t *net, const net_interface_t *iface,
+                         const uint8_t *dst, uint8_t *mac_out) {
+    bool on_link = true;
+    for (int i = 0; i < NET_IP_LEN; i++)
+        if ((dst[i] & iface->netmask[i]) != (iface->ip[i] & iface->netmask[i]))
+            on_link = false;
+    const uint8_t *hop = on_link ? dst : iface->gateway;
+    return net_arp_lookup(net, hop, mac_out);
+}
+
+int32_t net_dns_query(net_state_t *net, net_interface_t *iface, const char *hostname) {
+    if (!net || !iface || !hostname) return -1;
+    if (net->dns.resolved && dns_name_eq(net->dns.name, hostname)) return 1;
+    if (!(net->dns_server[0] | net->dns_server[1] |
+          net->dns_server[2] | net->dns_server[3])) return -1;   /* nobody to ask */
+
+    if (str_copy_bounded(net->dns.name, hostname, DNS_MAX_NAME) == 0) return -1;
+
+    /* Both the id and the source port must be unpredictable — they are the
+     * only thing an off-path forger has to guess. */
+    uint32_t r = net_rand(net, iface);
+    net->dns.id   = (uint16_t)(r >> 16);
+    net->dns.port = (uint16_t)(49152u + (r & 0x3FFFu));
+    net->dns.pending  = true;
+    net->dns.resolved = false;
+
+    uint8_t msg[DNS_MAX_MSG];
+    uint32_t n = dns_build_query(msg, sizeof msg, hostname, net->dns.id);
+    if (n == 0) { net->dns.pending = false; return -1; }
+
+    uint8_t hop_mac[NET_MAC_LEN];
+    if (!next_hop_mac(net, iface, net->dns_server, hop_mac)) {
+        /* Not resolved yet: ask, and let the caller retry once ARP settles. */
+        bool on_link = true;
+        for (int i = 0; i < NET_IP_LEN; i++)
+            if ((net->dns_server[i] & iface->netmask[i]) !=
+                (iface->ip[i] & iface->netmask[i])) on_link = false;
+        net_arp_request(net, iface, on_link ? net->dns_server : iface->gateway);
+        return 0;
+    }
+
+    udp_tx_raw(net, iface, iface->ip, net->dns_server, hop_mac,
+               net->dns.port, DNS_PORT, msg, n);
+    return 0;
+}
+
+int32_t net_dns_result(net_state_t *net, const char *hostname, uint8_t *ip_out) {
+    if (!net || !hostname || !ip_out) return 0;
+    if (!net->dns.resolved || !dns_name_eq(net->dns.name, hostname)) return 0;
+    mem_copy(ip_out, net->dns.ip, NET_IP_LEN);
+    return 1;
+}
+
 void net_dns_resolve(net_state_t *net, net_interface_t *iface, const char *hostname,
                       uint8_t *ip_out) {
-    (void)net; (void)iface; (void)hostname;
     if (ip_out) { ip_out[0] = 0; ip_out[1] = 0; ip_out[2] = 0; ip_out[3] = 0; }
+    if (!net || !iface || !hostname) return;
+    if (net_dns_query(net, iface, hostname) == 1 && ip_out)
+        mem_copy(ip_out, net->dns.ip, NET_IP_LEN);
 }
 
 void net_dns_handle(net_state_t *net, const uint8_t *data, uint32_t len) {
-    (void)net; (void)data; (void)len;
+    if (!net || !data || !net->dns.pending) return;
+    uint8_t ip[NET_IP_LEN];
+    uint32_t ttl = 0;
+    /* dns_parse_response checks the id AND that the question echoes the name
+     * we asked about, so a reply for a different lookup cannot land here. */
+    if (dns_parse_response(data, len, net->dns.id, net->dns.name, ip, &ttl) != DNS_OK)
+        return;
+    mem_copy(net->dns.ip, ip, NET_IP_LEN);
+    net->dns.ttl = ttl;
+    net->dns.pending = false;
+    net->dns.resolved = true;
 }

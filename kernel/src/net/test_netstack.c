@@ -365,6 +365,127 @@ int main(void) {
         }
     }
 
+    /* ================= DNS through the real stack =================
+     * The lookup only works if DHCP handed us a server, ARP found the next
+     * hop, the query left with the right ports, and the answer was accepted
+     * from the right source and no other. */
+    {
+        net_state_t net; net_init(&net);
+        uint8_t mac[6] = {0x52,0x54,0x00,0x12,0x34,0x56};
+        uint8_t ip[4]={10,0,2,15}, gw[4]={10,0,2,2}, nm[4]={255,255,255,0};
+        int32_t ifi = net_register_interface(&net,"eth0",NET_IF_ETHERNET,mac,ip,gw,nm,cap_tx,0);
+        net_interface_t *nif = &net.interfaces[ifi];
+        const char *host = "zxv.example.com";
+        uint8_t out[4];
+
+        cap_reset();
+        CHECK(net_dns_query(&net, nif, host) == -1,
+              "with no DNS server known, a lookup fails instead of guessing");
+        CHECK(g_tx_count == 0, "and nothing is transmitted");
+
+        /* a server, but its MAC is unknown: the stack must ARP, not send blind */
+        net.dns_server[0]=10; net.dns_server[1]=0; net.dns_server[2]=2; net.dns_server[3]=3;
+        cap_reset();
+        CHECK(net_dns_query(&net, nif, host) == 0, "the lookup starts");
+        CHECK(g_tx_count == 1 && be16(g_tx[0] + 12) == 0x0806,
+              "an unknown next hop produces an ARP REQUEST, not a blind query");
+
+        /* now teach it the MAC and ask again */
+        uint8_t srvmac[6] = {0x52,0x55,0x0a,0x00,0x02,0x03};
+        net_arp_add(&net, net.dns_server, srvmac);
+        cap_reset();
+        CHECK(net_dns_query(&net, nif, host) == 0, "the lookup is sent");
+        CHECK(g_tx_count == 1, "exactly one query frame goes out");
+        const uint8_t *Q = g_tx[0];
+        uint32_t Qn = g_tx_len[0];
+        CHECK(memcmp(Q, srvmac, 6) == 0, "addressed to the DNS server's MAC");
+        CHECK(Q[30]==10 && Q[31]==0 && Q[32]==2 && Q[33]==3,
+              "destination IP is the DHCP-supplied resolver 10.0.2.3");
+        CHECK(be16(Q + 36) == 53, "destination port is 53");
+        CHECK(be16(Q + 34) >= 49152, "the source port is ephemeral, not fixed");
+        {
+            uint8_t s[4]={10,0,2,15}, d[4]={10,0,2,3};
+            CHECK(net_l4_checksum(s, d, IP_PROTO_UDP, Q + 34, Qn - 34) == 0,
+                  "the query's UDP checksum verifies");
+        }
+        uint16_t qid  = be16(Q + 42);
+        uint16_t sprt = be16(Q + 34);
+        CHECK((Q[44] & 0x01) != 0, "recursion is requested");
+
+        /* ---- a forged answer from the WRONG source must not be believed ---- */
+        uint8_t f[256]; uint32_t fl;
+        {
+            /* build the answer body once; vary only the envelope */
+            uint8_t body[128];
+            memset(body, 0, sizeof body);
+            body[0]=(uint8_t)(qid>>8); body[1]=(uint8_t)qid;
+            body[2]=0x81; body[3]=0x80; body[5]=1; body[7]=1;
+            uint32_t a = 12;
+            const char *n = host;
+            while (*n) {
+                uint32_t l = 0; while (n[l] && n[l] != '.') l++;
+                body[a++] = (uint8_t)l;
+                for (uint32_t i=0;i<l;i++) body[a++] = (uint8_t)n[i];
+                n += l; if (*n=='.') n++;
+            }
+            body[a++]=0; body[a++]=0; body[a++]=1; body[a++]=0; body[a++]=1;
+            body[a++]=0xC0; body[a++]=12;
+            body[a++]=0; body[a++]=1; body[a++]=0; body[a++]=1;
+            body[a++]=0; body[a++]=0; body[a++]=0; body[a++]=60;
+            body[a++]=0; body[a++]=4;
+            body[a++]=93; body[a++]=184; body[a++]=216; body[a++]=34;
+            uint32_t blen = a;
+
+            /* envelope helper: src_ip4 chooses who it claims to be from */
+            #define MK(SRC4, SPORT) do {                                        \
+                memset(f, 0, sizeof f);                                          \
+                memcpy(f, mac, 6); memcpy(f + 6, srvmac, 6);                     \
+                f[12]=0x08; f[13]=0x00;                                          \
+                uint8_t *iph=f+14, *udh=iph+20;                                  \
+                uint32_t l4=8+blen;                                              \
+                iph[0]=0x45; iph[2]=(uint8_t)((20+l4)>>8); iph[3]=(uint8_t)(20+l4);\
+                iph[8]=64; iph[9]=17;                                            \
+                iph[12]=10; iph[13]=0; iph[14]=2; iph[15]=(SRC4);                \
+                iph[16]=10; iph[17]=0; iph[18]=2; iph[19]=15;                     \
+                { uint16_t h=net_checksum(iph,20);                               \
+                  iph[10]=(uint8_t)(h>>8); iph[11]=(uint8_t)(h&0xff); }           \
+                udh[0]=0; udh[1]=53;                                             \
+                udh[2]=(uint8_t)((SPORT)>>8); udh[3]=(uint8_t)(SPORT);           \
+                udh[4]=(uint8_t)(l4>>8); udh[5]=(uint8_t)l4;                     \
+                memcpy(udh+8, body, blen);                                       \
+                fl = 14+20+l4;                                                   \
+            } while (0)
+
+            MK(99, sprt);                    /* claims to be 10.0.2.99 */
+            net_handle_eth(&net, nif, f, fl);
+            CHECK(net_dns_result(&net, host, out) == 0,
+                  "an answer from an address that is NOT our resolver is refused");
+
+            MK(3, (uint16_t)(sprt ^ 0x0001)); /* right server, wrong port */
+            net_handle_eth(&net, nif, f, fl);
+            CHECK(net_dns_result(&net, host, out) == 0,
+                  "an answer to a port we did not ask from is refused");
+
+            MK(3, sprt);                      /* right server, wrong id */
+            f[42] ^= 0xFF;
+            net_handle_eth(&net, nif, f, fl);
+            CHECK(net_dns_result(&net, host, out) == 0,
+                  "an answer carrying the wrong transaction id is refused");
+
+            MK(3, sprt);                      /* the genuine article */
+            net_handle_eth(&net, nif, f, fl);
+            CHECK(net_dns_result(&net, host, out) == 1,
+                  "the genuine answer resolves the name");
+            CHECK(out[0]==93 && out[1]==184 && out[2]==216 && out[3]==34,
+                  "zxv.example.com -> 93.184.216.34");
+            #undef MK
+        }
+        CHECK(net_dns_result(&net, "other.example.com", out) == 0,
+              "the cached answer is not handed back for a different name");
+        CHECK(net_dns_query(&net, nif, host) == 1,
+              "asking again is answered from what we already learned");
+    }
+
     printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
     return failures?1:0;
 }

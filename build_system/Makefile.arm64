@@ -143,6 +143,7 @@ KERNEL_SRCS = \
     kernel/src/blockdev/blockdev.c \
     kernel/src/net/net.c \
     kernel/src/net/dhcp.c \
+    kernel/src/net/dns.c \
     kernel/src/net/m5route.c \
     kernel/src/vino/vino.c \
     kernel/src/vena/vena.c \

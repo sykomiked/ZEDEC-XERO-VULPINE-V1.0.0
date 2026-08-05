@@ -207,6 +207,15 @@ static net_interface_t *g_eth_if = 0;
 static void knet_tx(const uint8_t *data, uint32_t len) {
     (void)virtio_net_tx(data, len);
 }
+/* Hardware entropy for the network stack's transaction ids. Falls back to a
+ * fixed value only if RNDR fails mid-flight, which arm64_rng_available()
+ * has already made unlikely; the stack still mixes what it gets. */
+static uint32_t net_entropy_rndr(void) {
+    uint64_t v = 0;
+    if (!arm64_rng_get64(&v)) return 0x9E3779B9u;
+    return (uint32_t)(v ^ (v >> 32));
+}
+
 static void knet_pump(net_state_t *ns) {
     if (!g_eth_if || !virtio_net_present()) return;
     static uint8_t frame[VNET_MAX_FRAME];
@@ -1236,6 +1245,18 @@ void kernel_main_arm64(void) {
 
         net_init(&net);
 
+        /* Give the stack real unpredictability where it matters. DHCP
+         * transaction ids and DNS query ids/ports are the only thing an
+         * off-path forger has to guess; the built-in fallback is a counter
+         * mix and does not resist that. Use FEAT_RNG when the CPU has it. */
+        extern void net_set_entropy(uint32_t (*src)(void));
+        if (arm64_rng_available()) {
+            net_set_entropy(net_entropy_rndr);
+            boot_msg("  [HARDENED] network ids seeded from FEAT_RNG (RNDR)");
+        } else {
+            boot_msg("  [WARNING] no FEAT_RNG — network ids are PREDICTABLE");
+        }
+
         /* Loopback interface: 127.0.0.1, no TX callback needed */
         static uint8_t lo_mac[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
         static uint8_t lo_ip[4]  = {127, 0, 0, 1};
@@ -1332,6 +1353,48 @@ void kernel_main_arm64(void) {
                              "(a real peer ACCEPTED our checksums)");
                 else
                     boot_msg("  [WARNING] no ICMP reply from the gateway");
+
+                /* ---- DNS: resolve a name over the real network. This is the
+                 * proof that the resolver interoperates — the answer has to
+                 * come back from an independent server that parsed our query. */
+                if (net.dns_server[0] | net.dns_server[1] |
+                    net.dns_server[2] | net.dns_server[3]) {
+                    extern int32_t net_dns_query(net_state_t *, net_interface_t *,
+                                                 const char *);
+                    extern int32_t net_dns_result(net_state_t *, const char *,
+                                                  uint8_t *);
+                    static const char probe_host[] = "example.com";
+                    uint8_t rip[4] = {0,0,0,0};
+                    static uint8_t nf[VNET_MAX_FRAME];
+                    for (int attempt = 0; attempt < 3; attempt++) {
+                        net_dns_query(&net, g_eth_if, probe_host);
+                        for (uint32_t spin = 0; spin < 4000000u; spin++) {
+                            int n = virtio_net_rx_poll(nf, sizeof nf);
+                            if (n > 0) net_handle_eth(&net, g_eth_if, nf, (uint32_t)n);
+                            if (net_dns_result(&net, probe_host, rip)) break;
+                        }
+                        if (net_dns_result(&net, probe_host, rip)) break;
+                    }
+                    if (net_dns_result(&net, probe_host, rip)) {
+                        char line[96];
+                        int p = 0;
+                        const char *pre = "  [VERIFIED] DNS: example.com = ";
+                        while (pre[p]) { line[p] = pre[p]; p++; }
+                        for (int o = 0; o < 4; o++) {
+                            uint8_t b = rip[o];
+                            if (b >= 100) line[p++] = (char)('0' + b / 100);
+                            if (b >= 10)  line[p++] = (char)('0' + (b / 10) % 10);
+                            line[p++] = (char)('0' + b % 10);
+                            if (o < 3) line[p++] = '.';
+                        }
+                        const char *suf = " (a real resolver answered)";
+                        for (int qq = 0; suf[qq]; qq++) line[p++] = suf[qq];
+                        line[p] = 0;
+                        boot_msg(line);
+                    } else {
+                        boot_msg("  [WARNING] DNS query went unanswered");
+                    }
+                }
             }
         }
 

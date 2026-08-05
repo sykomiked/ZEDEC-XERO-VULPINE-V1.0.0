@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "dhcp.h"
+#include "dns.h"
 
 #define NET_MAX_INTERFACES  4
 #define NET_MAX_SOCKETS     64
@@ -181,6 +182,18 @@ typedef struct net_state {
     /* DHCP bootstrap state — one exchange at a time */
     dhcp_client_t dhcp;
 
+    /* DNS: one outstanding lookup, plus the last answer */
+    struct {
+        uint16_t id;                 /* transaction id we asked with     */
+        uint16_t port;               /* our ephemeral source port        */
+        char     name[DNS_MAX_NAME];
+        uint8_t  ip[NET_IP_LEN];
+        uint32_t ttl;
+        bool     pending;
+        bool     resolved;
+    } dns;
+    uint8_t dns_server[NET_IP_LEN];  /* learned from DHCP option 6 */
+
     /* Stats */
     uint32_t rx_packets;
     uint32_t tx_packets;
@@ -259,7 +272,30 @@ void net_icmp_echo(net_state_t *net, net_interface_t *iface, const uint8_t *dst_
 void net_dhcp_discover(net_state_t *net, net_interface_t *iface);
 void net_dhcp_handle(net_state_t *net, net_interface_t *iface, const uint8_t *data, uint32_t len);
 
-/* DNS */
+/* Install a source of unpredictable 32-bit values.
+ *
+ * DHCP transaction ids and DNS query ids/source ports are spoofing boundaries:
+ * an attacker who can PREDICT them can forge an answer that beats the real
+ * server. The built-in default mixes the MAC with live packet counters — that
+ * is enough to keep successive transactions distinct, and it is NOT enough
+ * against an off-path attacker. The arch layer should install a real source
+ * (on ARM64, FEAT_RNG/RNDR). Passing 0 restores the weak default. */
+void net_set_entropy(uint32_t (*src)(void));
+
+/* DNS.
+ *
+ * Resolution is asynchronous — a query goes out and the answer arrives in a
+ * later frame — so the caller pumps received frames through net_handle_eth()
+ * and then reads the result, exactly as the DHCP bootstrap does.
+ *
+ * net_dns_query:  send a query for `hostname`.
+ *                 1 = already resolved, 0 = query sent, -1 = cannot ask.
+ * net_dns_result: 1 and fills ip_out once the answer has arrived, else 0. */
+int32_t net_dns_query(net_state_t *net, net_interface_t *iface, const char *hostname);
+int32_t net_dns_result(net_state_t *net, const char *hostname, uint8_t *ip_out);
+
+/* Convenience: fills ip_out with the answer if we already have it, otherwise
+ * writes 0.0.0.0 and starts a lookup. */
 void net_dns_resolve(net_state_t *net, net_interface_t *iface, const char *hostname,
                       uint8_t *ip_out);
 void net_dns_handle(net_state_t *net, const uint8_t *data, uint32_t len);
