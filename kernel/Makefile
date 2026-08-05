@@ -660,6 +660,11 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
+	echo "=== The Mage's Hats: security authorization boundary (hat suites) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/mage -Isrc/robin_debanks \
+		src/mage/test_mage.c src/mage/mage.c src/robin_debanks/sha256.c \
+		-o /tmp/test_mage -lm && \
+		/tmp/test_mage && echo "[PASS] test_mage" || { echo "[FAIL] test_mage"; exit 1; }; \
 	echo "=== fs_snprintf: kernel-wide bounded formatter (4 overflow fixes) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Wno-macro-redefined -DTEST_HOST -Iinclude \
 		src/legal_engine/test_fs_snprintf.c -o /tmp/test_fs_snprintf -lm && \
@@ -705,6 +710,23 @@ verify-all: test
 		src/net/test_netstack.c src/net/net.c src/net/dhcp.c src/net/dns.c src/net/tcp.c src/net/m5route.c src/iphase/iphase_core.c src/iphase/iphase.c \
 		-o /tmp/test_netstack -lm && \
 		/tmp/test_netstack && echo "[PASS] test_netstack" || { echo "[FAIL] test_netstack"; exit 1; }; \
+	echo "=== Event clock: logical ordinals, measured drift, saturating ns math ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/clock -Isrc/edp_risk -Isrc/surplus \
+		src/clock/test_event_clock.c src/clock/event_clock.c \
+		-o /tmp/test_event_clock -lm && \
+		/tmp/test_event_clock && echo "[PASS] test_event_clock" || { echo "[FAIL] test_event_clock"; exit 1; }; \
+	echo "=== Audio mixer: exact sample values, clipping, wild ring cursors ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/audio -Isrc/edp_risk -Isrc/surplus -Isrc/crit168 \
+		src/audio/test_audio.c src/audio/audio.c src/edp_risk/edp_risk.c src/surplus/surplus.c \
+		-o /tmp/test_audio -lm && \
+		/tmp/test_audio > /dev/null && echo "[PASS] test_audio" || { echo "[FAIL] test_audio"; exit 1; }; \
+	echo "=== Audio mixer under ASan+UBSan (malformed/truncated input) ==="; \
+	cc -std=c11 -Wall -Werror -Wextra -O1 -g -fsanitize=address,undefined -DTEST_HOST \
+		-Iinclude -Isrc/audio -Isrc/edp_risk -Isrc/surplus -Isrc/crit168 \
+		src/audio/test_audio.c src/audio/audio.c src/edp_risk/edp_risk.c src/surplus/surplus.c \
+		-o /tmp/test_audio_san -lm && \
+		ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/test_audio_san > /dev/null && \
+		echo "[PASS] test_audio_san" || { echo "[FAIL] test_audio_san"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).
@@ -723,6 +745,12 @@ fuzz:
 		tests/fuzz/fuzz_zxvfs.c src/zxvfs/zxvfs.c \
 		-o /tmp/fuzz_zxvfs && /tmp/fuzz_zxvfs $(FUZZ_ZXVFS_ITERS) \
 		|| { echo "[FAIL] fuzz_zxvfs"; exit 1; }; \
+	echo "=== event_clock under ASan+UBSan (200k randomised API sequences) ==="; \
+	cc $(SAN_FLAGS) -fno-sanitize-recover=all -std=c11 -DTEST_HOST \
+		-Iinclude -Isrc/clock -Isrc/edp_risk -Isrc/surplus \
+		src/clock/test_event_clock.c src/clock/event_clock.c \
+		-o /tmp/san_event_clock -lm && /tmp/san_event_clock > /dev/null \
+		|| { echo "[FAIL] san_event_clock"; exit 1; }; \
 	echo "*** FUZZ SUITE PASSED ***"
 
 # Experimental / Stage-9 tests that are not yet required for G1 build integrity
