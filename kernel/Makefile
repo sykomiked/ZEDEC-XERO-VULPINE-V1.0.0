@@ -639,6 +639,17 @@ verify-all: test
 		src/holodeck/test_swarm.c src/holodeck/swarm.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
 		-o /tmp/test_swarm -lm && \
 		/tmp/test_swarm && echo "[PASS] test_swarm" || { echo "[FAIL] test_swarm"; exit 1; }; \
+	echo "=== Community Chest (Ed25519-verified app registry) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/count_house -Isrc/porter_house -Isrc/edp_risk -Isrc/telemetry -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/vino -Isrc/identity -Isrc/finance -Isrc/license -Isrc/net -Isrc/predictive -Isrc/situation -Isrc/axiom_matrix -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/dual_space -Isrc/lattice -Isrc/community_chest -Isrc/sched -Isrc/mm \
+		src/community_chest/test_community_chest.c src/community_chest/community_chest.c src/vino/vino.c src/count_house/count_house.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c src/lpres/lpres_core.c src/rmag/rmag_core.c src/rmag/rmag.c src/oseq/oseq_core.c \
+		-o /tmp/test_community_chest -lm && \
+		/tmp/test_community_chest && echo "[PASS] test_community_chest" || { echo "[FAIL] test_community_chest"; exit 1; }; \
+	echo "=== Holodeck viewing governed by its den (swarm+denconnect) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/holodeck -Isrc/denconnect -Isrc/chiglet -Isrc/surplus -Isrc/robin_debanks \
+		src/holodeck/test_viewing.c src/holodeck/viewing.c src/holodeck/swarm.c \
+		src/denconnect/denconnect.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
+		-o /tmp/test_viewing -lm && \
+		/tmp/test_viewing && echo "[PASS] test_viewing" || { echo "[FAIL] test_viewing"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).
