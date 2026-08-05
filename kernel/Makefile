@@ -695,7 +695,7 @@ verify-all: test
 		/tmp/test_truetype && echo "[PASS] test_truetype" || { echo "[FAIL] test_truetype"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
-		src/font/test_font.c src/font/font.c src/font/script.c \
+		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \
 		-o /tmp/test_font -lm && \
 		/tmp/test_font && echo "[PASS] test_font" || { echo "[FAIL] test_font"; exit 1; }; \
 	echo "=== zxpkg: native Tri-Space package (.zxvc/.cedez/.cedec) ==="; \
