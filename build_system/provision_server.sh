@@ -27,7 +27,9 @@ DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends 
   build-essential \
   gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
   gcc-x86-64-linux-gnu binutils-x86-64-linux-gnu \
-  qemu-system-arm qemu-system-x86 qemu-utils \
+  gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu \
+  qemu-system-arm qemu-system-x86 qemu-system-misc qemu-utils \
+  nasm \
   clang llvm lld \
   make cmake pkg-config \
   git python3 python3-pip \
@@ -39,9 +41,12 @@ log "versions"
 gcc --version | head -1
 aarch64-linux-gnu-gcc --version | head -1
 x86_64-linux-gnu-gcc --version | head -1 || true
+riscv64-linux-gnu-gcc --version | head -1
 clang --version | head -1
 qemu-system-aarch64 --version | head -1
 qemu-system-x86_64 --version | head -1
+qemu-system-riscv64 --version | head -1
+nasm --version
 python3 --version
 git --version
 

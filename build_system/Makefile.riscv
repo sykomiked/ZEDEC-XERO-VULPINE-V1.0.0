@@ -13,7 +13,7 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 CFLAGS = -Wall -Wextra -O2 -ffreestanding -nostdlib -nostdinc \
          -fno-stack-protector -fno-pie -no-pie \
          -include kernel/include/freestanding.h \
-         -isystem /usr/lib/gcc-cross/riscv64-linux-gnu/13/include \
+         -isystem $(shell $(CC) -print-file-name=include) \
          -march=rv64imafd_zicsr -mabi=lp64d \
          -mcmodel=medany \
          -Ikernel/include -Ikernel/src -Ikernel/arch/riscv -Ikernel/boot \
@@ -36,7 +36,7 @@ CFLAGS = -Wall -Wextra -O2 -ffreestanding -nostdlib -nostdinc \
          -Ikernel/src/crit168 -Ikernel/include/freestanding_stubs
 
 LDFLAGS = -T kernel/arch/riscv/linker.ld -nostdlib -static
-LIBGCC = /usr/lib/gcc-cross/riscv64-linux-gnu/13/libgcc.a
+LIBGCC = $(shell $(CC) -print-libgcc-file-name)
 
 RISCV_ARCH_OBJS = \
     kernel/arch/riscv/boot.o \

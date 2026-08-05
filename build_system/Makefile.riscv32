@@ -13,7 +13,7 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 CFLAGS = -Wall -Wextra -O2 -ffreestanding -nostdlib -nostdinc \
          -fno-stack-protector -fno-pie -no-pie \
          -include kernel/include/freestanding.h \
-         -isystem /usr/lib/gcc-cross/riscv64-linux-gnu/13/include \
+         -isystem $(shell $(CC) -print-file-name=include) \
          -march=rv32imafd_zicsr -mabi=ilp32d \
          -mcmodel=medany \
          -Ikernel/include -Ikernel/src -Ikernel/arch/riscv -Ikernel/boot \

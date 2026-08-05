@@ -1,0 +1,577 @@
+# ============================================================================
+# ZXV / ZEDEC pqOS — DEVELOPMENT MAP
+#
+# A LAYERED ARCHITECTURAL MAP: every layer of the system, what exists, what is
+# missing, and — for each component — the EXACT build-integration point so a
+# cross-compiling server can compile it and integrate it into the OS.
+#
+# This is the structural companion to:
+#   ROADMAP.md                 (tracks, sequencing, phases)
+#   AGENT_HANDOFF_SCHEMA.yaml  (work order, acceptance criteria)
+#   CANONICAL.md               (source-of-truth ruling)
+# ============================================================================
+map:
+  id: zxv-development-map
+  version: 1.0.0
+  generated: 2026-08-05
+  git_head: e777d85
+  canonical_tree: 05_KERNEL
+  purpose: >-
+    Show the complete intended architecture layer by layer, mark what is built
+    versus missing, and give every component its build-integration contract so
+    a cross-compile server can slot it into the OS without guesswork.
+
+# ----------------------------------------------------------------------------
+# MEASURED INVENTORY — extracted mechanically from the tree, not remembered.
+# Method is stated so the numbers can be re-derived and challenged.
+# ----------------------------------------------------------------------------
+inventory:
+  measured_on: 2026-08-05
+  method: |
+    Enumerated kernel/src/*/ directories; a module counts as "in the ARM64
+    kernel" if one of its non-test .c files appears in build_system/Makefile.arm64;
+    it counts as "gated" if one of its test files' basenames appears in
+    kernel/Makefile. Test-name matching is imperfect (e.g. appkit is gated via
+    test_doc, fractal via test_zorder), so GATED COUNTS ARE APPROXIMATE AND
+    CONSERVATIVE — treat them as a floor, not a precise figure.
+  totals:
+    module_directories: 115
+    compiled_into_arm64_kernel: 81
+    header_only_stubs: 7            # declared interface, ZERO implementation
+    verify_all_assertions: 736
+    verify_all_failures: 0
+    arm64_compiler_warnings: 0
+    arm64_boot_acceptance: "100/100"
+    kernel_binary_bytes: 196672
+  arch_source_files:
+    arm64: 13      # the mature target
+    x86_64: 3      # bootstrap only
+    riscv: 4       # experimental
+    arm/arm32: "legacy, not on the critical path"
+
+  # The three findings that most shape what "100%" requires:
+  headline_gaps:
+    - id: GAP-COVERAGE
+      severity: high
+      finding: >-
+        A large share of the modules compiled into the shipping ARM64 kernel
+        have no test wired into verify-all. Roughly 30 modules are confidently
+        both in-kernel and gated; the rest of the 81 in-kernel modules are
+        either untested or have a test that was never wired in. Untested code
+        in a shipping binary is the single biggest quality gap in the tree.
+      cheapest_win: >-
+        ~12 modules ALREADY HAVE a written test that is simply not referenced
+        by kernel/Makefile (ai_layer, community_chest, count_house,
+        el0_userspace, event_sched, hardware, immigration, mesh_net,
+        mesh_token, prism_break, quantum, robin_debanks). Wiring those in is
+        pure integration work with immediate coverage gain.
+    - id: GAP-PQ
+      severity: high
+      finding: >-
+        src/mlkem (14 .c files — the ML-KEM post-quantum KEM) is validated on
+        the host in verify-all but is NOT compiled into the ARM64 kernel and no
+        other module calls it. The "post-quantum OS" property therefore rests
+        on a component that is not integrated into the OS.
+      required: >-
+        Compile mlkem into the kernel and route at least one real security
+        operation (key establishment for signed packages or the P2P transport)
+        through it, with a KAT proving it runs on-target.
+    - id: GAP-STUBS
+      severity: medium
+      finding: >-
+        7 modules are header-only with zero implementation — audio, bluetooth,
+        browser, clock, epu, video, wifi. They declare an interface the system
+        does not have. Each is either a real component to build or should be
+        removed so the architecture does not overstate itself.
+
+# ----------------------------------------------------------------------------
+# THE INTEGRATION CONTRACT
+# This is what the cross-compiling server needs: the exact, mechanical
+# procedure to take a component and make it part of the OS.
+# ----------------------------------------------------------------------------
+integration_contract:
+  build_entry_points:
+    arm64_kernel:
+      file: build_system/Makefile.arm64
+      how_to_add_a_kernel_module: |
+        1. Add the include dir to the CFLAGS include list:
+             -Ikernel/src/<module>
+        2. Add each non-test .c to KERNEL_SRCS:
+             kernel/src/<module>/<file>.c \
+        3. If it is an ARCH driver (arch/arm64/*.c), add its .o to ARCH_OBJS
+           instead:
+             kernel/arch/arm64/<driver>.o \
+        4. Rebuild clean:  find kernel -name '*.o' -delete && make -f build_system/Makefile.arm64
+        5. Confirm ZERO new warnings and that the binary still boots.
+      constraints:
+        - "freestanding: no libc, no malloc, no floating point"
+        - "a module unused by the kernel is stripped by --gc-sections; it is not
+           'on target' until something actually calls it"
+    x86_64_kernel:
+      file: build_system/Makefile.x86_64
+      status: "exists (with build_x86_64.sh + Dockerfile.x86_64) but the kernel
+               is BOOTSTRAP ONLY — no ring-3, preemption, virtio, ZXVFS, or P-TERM"
+    host_test_gate:
+      file: kernel/Makefile          # target: verify-all
+      how_to_wire_a_test: |
+        Append a stanza before the final "ALL STAGE-1 CHECKS PASSED" echo:
+
+          echo "=== <human description> ==="; \
+          gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST <-I flags> \
+            src/<module>/test_<name>.c src/<module>/<name>.c <deps...> \
+            -o /tmp/test_<name> -lm && \
+            /tmp/test_<name> && echo "[PASS] test_<name>" || { echo "[FAIL] test_<name>"; exit 1; }; \
+
+        Rules that are NOT optional:
+          -Werror                       (the gate must stay warning-free)
+          -DTEST_HOST                   (host build of surplus_real_t)
+          the test must assert VALUES, not merely that a call returned
+      known_include_dependencies:
+        surplus_users:   "-Isrc/surplus"
+        rmag_or_lpres:   "-Isrc/event_space -Iinclude   # they include event_space.h"
+        anything_hashing:"-Isrc/robin_debanks           # sha256/ed25519"
+        zxvfs_tests:     "-DZXVFS_HOST -Iinclude -Isrc/zxvfs"
+  verification_after_any_integration:
+    - "make -C kernel verify-all            # count must not drop"
+    - "make -f build_system/Makefile.arm64  # zero warnings (ignore linker build-id note)"
+    - "QEMU boot -> BOOT_OK"
+    - "for memory-touching code: rebuild the test with -fsanitize=address,undefined"
+
+# ----------------------------------------------------------------------------
+# THE LAYER STACK — the architecture, bottom to top.
+# status: complete | partial | stub | missing
+# ----------------------------------------------------------------------------
+layers:
+
+  - id: L0
+    name: Hardware / Silicon
+    status: missing
+    intent: "physical machine the OS runs on"
+    components:
+      - name: Reference ARM64 board (off-the-shelf SoM)
+        status: missing
+        note: "MUST come first; do NOT gate the software MVP on custom silicon"
+        to_100: "10 devices booting one signed release, per-device identity, factory test"
+      - name: Germanium chip / EPU / fractal-ID silicon
+        status: missing
+        maturity: research
+        note: >-
+          Parallel research profile, evidence-gated, never an MVP dependency.
+          Today 'fractal computing' honestly means Z-order locality with a
+          MEASURED 32% reduction in data movement (and a 1.00x uniform-traffic
+          control that keeps the claim honest).
+      - name: Manufacturing pack (schematics, BOM, EVT/DVT/PVT, compliance)
+        status: missing
+        depends_on: "software proving the interface contracts first (L1)"
+
+  - id: L1
+    name: Architecture / Boot / Drivers
+    status: partial
+    intent: "bring the machine up and talk to devices"
+    integration_point: "build_system/Makefile.arm64 :: ARCH_OBJS"
+    components:
+      - name: ARM64 boot + MMU + exceptions + GICv3 + generic timer
+        status: complete
+        files: [arch/arm64/boot.s, arm64_mmu.c, arm64_exceptions.c, gicv3.c, arm64_timer.c]
+      - name: PL011 UART console
+        status: complete
+      - name: virtio-blk (persistent storage transport)
+        status: complete
+      - name: virtio split-virtqueue engine (src/virtio/vring)
+        status: complete
+        note: >-
+          Portable, MMIO-free, host-tested: 20,000 chains through both ring wrap
+          points, free list intact, ASan/UBSan clean. Shared by all virtio drivers.
+      - name: virtio-net NIC
+        status: partial
+        blocker: "MMIO probe does not match QEMU's virtio-net device; driver
+                  builds, links, boots, but no frame has moved"
+        to_100: "probe matches + a frame actually transmitted AND received"
+        priority: P0
+        unblocks: [L4-networking, L6-denconnect, L6-holodeck, L5-fabric]
+      - name: Entropy (FEAT_RNG/RNDR)
+        status: partial
+        gap: "no DRBG, no continuous health test across calls, no fail-closed
+              policy when entropy is unavailable"
+      - name: Framebuffer + display
+        status: missing
+        blocks: [L7-shell, L6-holodeck]
+      - name: Input (keyboard / mouse / touch)
+        status: missing
+        note: "x86 stubs exist (src/keyboard, src/mouse); no ARM64 path"
+        blocks: [L7-shell]
+      - name: Audio / Wi-Fi / Bluetooth / USB / NVMe
+        status: stub
+        note: "header-only declarations with no implementation"
+      - name: x86-64 arch layer
+        status: partial
+        detail: "3 arch .c files vs ARM64's 13; bootstrap boot only"
+        to_100: "ring-3, preemption, virtio-blk, ZXVFS, P-TERM, ELF/ZSP, A/B"
+
+  - id: L2
+    name: Kernel Core (the six-phase logic + runtime)
+    status: complete
+    intent: "the event-sequence machine everything else stands on"
+    integration_point: "build_system/Makefile.arm64 :: KERNEL_SRCS"
+    components:
+      - name: "OSEQ — causal ordering"
+        status: complete
+      - name: "RMAG — exact rational resource/value accounting"
+        status: complete
+      - name: "LPRES — four-valued evidence (TRUE/FALSE/NEITHER/BOTH)"
+        status: complete
+      - name: "IPHASE — relation and route projection"
+        status: complete
+      - name: "CHOICE — bounded deterministic decision"
+        status: complete
+      - name: "PHASE_COORD — commit/veto/defer gates"
+        status: complete
+      - name: "Surplus/ISF core (Q32.32 fixed point)"
+        status: complete
+        warning: >-
+          surplus_real_t is `double` under -DTEST_HOST but int64 Q32.32 on
+          target. NEVER hand-roll conversions — a host test can pass while the
+          target is silently zero. This bug shipped once and is now regression-tested.
+      - name: "Scheduler, MM, EL0 userspace, syscalls (capability-gated, W^X)"
+        status: partial
+        gap: "copy_to_user, SYS_SEND bounce buffer, SYS_OPEN/CLOSE handlers,
+              fault-safe recovery, syscall fuzzing"
+      - name: "Cellular multikernel (CELL-001)"
+        status: partial
+        gap: >-
+          Cells are structs in ONE address space; a cell can go ACTIVE with no
+          execution backend; auth is digest-equality not signature; crit168
+          digest is an explicit XOR placeholder.
+        to_100: "process/VM-enforced boundary + attestation + real digest +
+                 a demo of one cell dying while a sibling completes"
+
+  - id: L3
+    name: Storage & Trust
+    status: partial
+    components:
+      - name: "ZXVFS journaled filesystem (+ crash recovery)"
+        status: complete
+        limits: "64 files, 32-byte names, ~7.5 KiB/file, no directories/permissions —
+                 a good bring-up filesystem, NOT a consumer filesystem"
+        to_100: "scalable user-data filesystem with directories, permissions,
+                 large files, fsck, encryption-at-rest"
+      - name: "ELF64 loader + W^X segment mapping"
+        status: complete
+      - name: "ZSP signed packages (Ed25519 + SHA-256)"
+        status: partial
+        gap: >-
+          The signed preimage covers only {magic, length, payload hash}. It does
+          NOT bind identity, version, architecture, ABI, key id, capabilities,
+          or expiry — and A/B sets version = active+1, so an OLD validly-signed
+          package can be reintroduced as new.
+        to_100: "ZSP v2 with full metadata + monotonic anti-rollback"
+      - name: "A/B update with probation + rollback"
+        status: partial
+        gap: "protects ONE APPLICATION only — not bootloader, kernel, or system image"
+      - name: "zBIOS measured-boot attestation (10 keys, hash chain)"
+        status: complete
+        note: "model-level; a real hardware root of trust (TPM/secure element) is L0 work"
+      - name: "Chronicle — durable tamper-evident judgment ledger"
+        status: complete
+        note: >-
+          Hash-chained (commits AND rejections), tamper-evident, self-resolving
+          (a deferred event auto-commits when corroboration arrives), persisted
+          to ZXVFS, survives power loss, replayable.
+        to_100: "canonical cross-ISA event digest so ARM64 and x86-64 produce
+                 identical trace hashes"
+      - name: "ML-KEM 768 post-quantum KEM"
+        status: partial
+        gap: "HOST-VALIDATED ONLY — not compiled into the kernel, nothing calls it"
+        priority: P0
+        to_100: "compile into KERNEL_SRCS + route a real key establishment
+                 through it + on-target KAT"
+
+  - id: L4
+    name: Networking
+    status: partial
+    blocked_by: L1-virtio-net
+    components:
+      - name: "Protocol structures + loopback (src/net)"
+        status: partial
+        note: "6 .c files, ~3.8k lines; not driven by a real NIC yet"
+      - name: "ARP / IP / ICMP / UDP / TCP over a real interface"
+        status: missing
+      - name: "DHCP / DNS / time"
+        status: missing
+      - name: "TLS 1.3 client"
+        status: missing
+        note: "MUST reuse audited crypto (src/robin_debanks); do not write new crypto"
+      - name: "Firewall + per-app network capability policy"
+        status: missing
+    to_100: "DHCP lease, DNS resolve, TCP to a reference server, TLS with
+             cert-validation negatives (bad/expired/wrong-name), packet fuzzing"
+
+  - id: L5
+    name: Distributed Fabric
+    status: missing
+    blocked_by: L4
+    intent: "every device a node; no centralized choke points"
+    components:
+      - name: "Content-addressed store (IPFS-style chunks by hash)"
+        status: missing
+        reuse: "crit168/SHA + zxvfs — do not invent a new hash"
+      - name: "Per-object access tiers PUBLIC / PRIVATE / SELECT"
+        status: missing
+        note: "mirrors Den Connect visibility; capability + Ed25519 identity"
+      - name: "Peer discovery / DHT / NAT traversal"
+        status: missing
+      - name: "Delay-tolerant store-and-forward (degraded conditions)"
+        status: missing
+        note: "this is what serves rescue/military/field users honestly"
+      - name: "P2P email (serverless)"
+        status: missing
+      - name: "p2p_caracho transport (existing, 1.2k lines)"
+        status: partial
+        gap: "NOT compiled into the kernel and has NO test"
+
+  - id: L6
+    name: Services & Applications
+    status: partial
+    intent: "user-facing value, built by COMPOSING tested modules"
+    composition_pattern: |
+      PROVEN — an app is a .c that includes lower module headers and SEQUENCES
+      their tested functions, adding NO new machinery; the interesting behavior
+      is emergent. Three flagships already demonstrate it:
+        Wyrmgate  = rmag + lpres + chiglet + surplus   (six-fold Tri-Space judgment)
+        WyvernEye = refinery + wyrmgate                (intent forged, then judged)
+        Chronicle = wyrmgate + sha256 + zxvfs          (durable tamper-evident memory)
+    components:
+      - name: "Wyrmgate — six-fold Tri-Space judgment"
+        status: complete
+      - name: "WyvernEye — intent forged then judged"
+        status: complete
+        property: "a LONE assertion defers (R=1); corroborated intent commits —
+                   one confident voice cannot compel the system"
+      - name: "Chiglet — ISF decision runtime (native AI)"
+        status: complete
+        honest: "NOT an LLM and not a neural network; its value is calibrated
+                 abstention and duplication resistance"
+      - name: "Cards / ZCA / sigil — activation cards as Chiglet modules"
+        status: complete
+      - name: "Magitech Refinery — any-language text -> sigil -> shareable preset"
+        status: complete
+      - name: "Concord — ISF non-coercive social matching"
+        status: complete
+        properties: "complementary pairing, symmetric divides (no one-way spying),
+                     rehabilitative quarantine, sociability budgets"
+      - name: "Den Connect — sovereign node governance + fleet + audit log"
+        status: partial
+        gap: "needs the transport (L4) to actually connect nodes"
+        to_100: "two nodes exchange chat; posts judged by Wyrmgate and recorded
+                 in the Chronicle; Concord introductions between real users"
+      - name: "Smaug's Abacus + rational — exact money / multilateral clearing"
+        status: complete
+      - name: "Lightning Rod — COBOL/Fortran representation adapters"
+        status: complete
+      - name: "AppKit + Writer — document model"
+        status: complete
+      - name: "P-TERM — phase-tick multi-terminal"
+        status: complete
+      - name: "The Ledger (abacus + rmag + wyrmgate + chronicle)"
+        status: missing
+      - name: "The Archivist / Recovery + Disrepair utility + trash + storage manager"
+        status: missing
+        note: "build on src/event_space/self_healing.c + self_audit.c"
+      - name: "The Holodeck — media player + live production + watch parties"
+        status: missing
+        honest_limits: >-
+          Cannot port VLC (millions of lines of GPL desktop code) — build a
+          native VLC-INSPIRED pipeline. Real codecs are large and patent-
+          encumbered; start with permissive formats and state exactly which are
+          supported. GPU decode needs L1 drivers. The watch-party SYNC CLOCK is
+          buildable NOW on the event-sequence model.
+      - name: "Doctor Quacksworth — lightweight native security suite"
+        status: missing
+        approach: "verify signatures/capabilities (cheap) rather than heuristic
+                   scanning (CPU-hogging); never claim 'unhackable'"
+      - name: "Portable identity (one keypair across devices)"
+        status: missing
+        severity: "FUNDAMENTAL — implied everywhere, exists nowhere"
+      - name: "Universal binary compatibility (PE/Mach-O/ELF/mobile)"
+        status: missing
+        honest: >-
+          same-ISA -> syscall-translation personalities (genuinely no emulation);
+          foreign-ISA -> JIT/AOT translation (unavoidable, physics). Report
+          per-program coverage; never promise 'runs everything'.
+      - name: "On-demand partial emulation + gaming (Steam-class)"
+        status: missing
+
+  - id: L7
+    name: Experience / Shell
+    status: missing
+    blocked_by: [L1-framebuffer, L1-input]
+    components:
+      - name: "Display compositor (CPU first, GPU later)"
+        status: missing
+      - name: "Desktop session + service manager"
+        status: missing
+      - name: "Core apps: Files, Notes, Settings, Update/Recovery, Diagnostics"
+        status: missing
+      - name: "Shimmer ambient field"
+        status: complete
+        note: "event-driven caustic light field; renders correctly, not yet composited"
+      - name: "Hypercube spatial UI"
+        status: partial
+        rule: "an EFFECTS layer over accessible 2D — never a replacement"
+      - name: "Accessibility (screen reader, keyboard-only, reduced motion)"
+        status: missing
+        note: "a requirement, not an extra"
+      - name: "Localization (200+ languages incl. indigenous)"
+        status: missing
+
+  - id: L8
+    name: Developer Platform (the native toolchain)
+    status: partial
+    critical_honesty: >-
+      ZXV IS CURRENTLY BUILT BY GCC FROM .c/.h FILES. The native compiler
+      (Sutra + MacGyver contra-compiler) and the positive/negative/neutral
+      Tri-Space file schema (.36n9/.9n63/.0n0 -> .zedec/.cedez) exist as a
+      PROTOTYPE and are NOT self-hosting. This is the correct bootstrap order —
+      you cannot compile a kernel with a compiler that does not exist yet — but
+      "the OS builds itself with its own native compiler" is NOT TRUE TODAY.
+    components:
+      - name: "Sutra language (lexer/parser/runtime)"
+        status: partial
+        note: "10 .c files, 7 tests, gated in verify-all; HOST-ONLY (correct)"
+      - name: "MacGyver compiler / contra-compiler"
+        status: partial
+        gap: "not in the kernel build; test exists"
+      - name: "Tri-Space artifact registry (.36n9/.9n63/.0n0)"
+        status: partial
+      - name: "Event IR + ARM64/x86-64 codegen"
+        status: missing
+      - name: "Debugger, source maps, formatter, linter"
+        status: missing
+      - name: "SDK + package repository"
+        status: missing
+      - name: "Orbital Elevator — signed versioned compatibility routes"
+        status: partial
+        rule: "explicit tested routes with VISIBLE degradation; no 'universal
+               compatibility' claims"
+    to_100: "one nontrivial signed application built END-TO-END by the native
+             toolchain, reproducible on two hosts — then discuss self-hosting"
+
+  - id: L9
+    name: Evidence / Release / Commercial
+    status: partial
+    components:
+      - name: "Git baseline, zero secrets committed"
+        status: complete
+      - name: "verify-all gate (736 assertions)"
+        status: partial
+        gap: "does not cover most in-kernel modules (see GAP-COVERAGE)"
+      - name: "Zero-warning build"
+        status: complete
+        to_100: "flip to -Werror so it cannot regress"
+      - name: "Boot acceptance (100/100)"
+        status: complete
+      - name: "Fuzzers (ELF, ZXVFS) under sanitizers"
+        status: complete
+      - name: "Reproducible builds across two independent hosts"
+        status: missing
+      - name: "Release capsule generated from one signed commit"
+        status: missing
+        note: "package via `git archive` of a signed tag — NEVER a raw zip; a raw
+               zip previously captured the gitignored dev signing key"
+      - name: "Claim ledger (verified/partial/planned/hypothesis/prohibited)"
+        status: missing
+      - name: "Tata Electronics pitch + reconciled legal terms"
+        status: missing
+        blocker: "existing documents CONTRADICT each other on advance amount,
+                  royalties, territory, exclusivity, and patent status"
+
+# ----------------------------------------------------------------------------
+# ARCHITECTURE COVERAGE MATRIX — where each ISA stands
+# ----------------------------------------------------------------------------
+arch_matrix:
+  columns: [arm64, x86_64, riscv]
+  rows:
+    boot:                 [complete, bootstrap, experimental]
+    mmu_paging:           [complete, partial,   missing]
+    interrupts_timer:     [complete, partial,   missing]
+    el0_ring3_userspace:  [complete, missing,   missing]
+    preemptive_scheduling:[complete, missing,   missing]
+    virtio_blk:           [complete, missing,   missing]
+    virtio_net:           [partial,  missing,   missing]
+    zxvfs:                [complete, missing,   missing]
+    elf_zsp_execution:    [complete, missing,   missing]
+    ab_update:            [complete, missing,   missing]
+    pterm_shell:          [complete, missing,   missing]
+  note: "MVP requires ARM64 and x86-64 to pass the SAME acceptance suite."
+
+# ----------------------------------------------------------------------------
+# WHAT "100%" MEANS — the completion metrics, each with a measurable test
+# ----------------------------------------------------------------------------
+completeness_metrics:
+  - metric: test_coverage_of_shipping_code
+    now: "~30 of 81 in-kernel modules confidently gated"
+    hundred_percent: "every module compiled into the kernel has a gated test
+                      asserting real values"
+    measure: "the inventory script in this file, re-run"
+  - metric: build_hygiene
+    now: "0 warnings, not -Werror enforced"
+    hundred_percent: "-Werror on host and both cross targets; CI fails on any warning"
+  - metric: boot_reliability
+    now: "100/100 ARM64"
+    hundred_percent: "100/100 on ARM64 AND x86-64 from one commit"
+  - metric: cross_isa_parity
+    now: "ARM64 complete; x86-64 bootstrap only"
+    hundred_percent: "identical acceptance suite passes on both; identical
+                      13-phase semantic trace hash"
+  - metric: security_posture
+    now: "red-team passed (19 findings fixed); 5 structural P0s open"
+    hundred_percent: "A1-A5 closed; syscall + package fuzzing >=1M cases each;
+                      0 open critical/high findings"
+  - metric: post_quantum
+    now: "ML-KEM host-validated, NOT in the kernel"
+    hundred_percent: "compiled in, a real operation routed through it, on-target KAT"
+  - metric: durability
+    now: "Chronicle survives power loss; ZXVFS journal replays"
+    hundred_percent: ">=10,000 randomized power-cut runs across install + update
+                      + transaction, zero unrecoverable"
+  - metric: reproducibility
+    now: "same-host deterministic"
+    hundred_percent: "two independent hosts produce bit-identical artifacts"
+  - metric: evidence_integrity
+    now: "provenance/SBOM stale vs current build"
+    hundred_percent: "capsule generated from one signed commit; packaging FAILS
+                      on any stale hash or claim; 0 secrets in the artifact"
+  - metric: architectural_honesty
+    now: "claims corrected in-tree; no claim ledger yet"
+    hundred_percent: "every external claim tagged and evidence-linked"
+
+# ----------------------------------------------------------------------------
+# SERVER INTEGRATION PLAN — ordered so each step unblocks the next
+# ----------------------------------------------------------------------------
+server_integration_plan:
+  - step: 1
+    action: "provision + reproduce the baseline (736 / 0 warnings / boot)"
+    script: "build_system/provision_server.sh then build_system/session_build.sh"
+    why: "never build on an unverified environment"
+  - step: 2
+    action: "wire the ~12 already-written-but-ungated tests into verify-all"
+    why: "immediate coverage gain, pure integration, no new code"
+    integration_point: "kernel/Makefile :: verify-all"
+  - step: 3
+    action: "integrate mlkem into KERNEL_SRCS + route one real operation through it"
+    why: "closes GAP-PQ; the post-quantum property becomes real"
+  - step: 4
+    action: "fix the virtio-net probe; prove a frame moves"
+    why: "keystone — unblocks L4, L5, L6 networking, Holodeck"
+  - step: 5
+    action: "network stack -> DHCP, DNS, TCP, TLS 1.3"
+  - step: 6
+    action: "x86-64 parity (Makefile.x86_64 exists; bring the modern stack over)"
+    why: "MVP gate; easier on Linux than macOS"
+  - step: 7
+    action: "clean-room reproducibility: two hosts, identical hashes"
+  - step: 8
+    action: "long soak: 100+ boots, heavy ELF/ZXVFS fuzzing under sanitizers"
+  - step: 9
+    action: "resolve the 7 header-only stubs — implement or delete"
+    why: "the architecture must not declare what it does not have"
