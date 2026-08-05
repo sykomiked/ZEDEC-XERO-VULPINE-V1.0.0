@@ -1,0 +1,128 @@
+ZEDEC XERO VULPINE (ZXV)
+VOVINA SHAKINA M5 Axiomatic Kernel
+
+Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+All Rights Reserved.
+
+Licensed under the Open Piracy License v1.1 (LicenseRef-OPL-1.1),
+the Streisand Engine License v3.3 (LicenseRef-SEL-3.3), the Royal Writ
+of the Sicilian Crown (LicenseRef-Royal-Writ-Sicilian-Crown-1.0), and
+the Creative Commons Attribution-ShareAlike 4.0 International License
+(CC-BY-SA-4.0). See the LICENSE file at the repository root.
+
+--------------------------------------------------------------------------
+REQUIRED ATTRIBUTION
+--------------------------------------------------------------------------
+
+If you redistribute this Work or a Derived Work, in Source Form or Object
+Form, you must convey the following attribution — in your source
+distribution, your documentation, or a display where such notices
+customarily appear (About box, --version output, boot banner):
+
+    ZEDEC XERO VULPINE (ZXV) / VOVINA SHAKINA M5 Axiomatic Kernel
+    Copyright (c) Michael Laurence Curzi and 36N9 Genetics, LLC
+    Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian
+    Crown, and CC BY-SA 4.0
+
+You may format it to match your product's style, and you may render it in
+any language provided the names are unaltered. You may not reduce it to a
+bare hyperlink or to "and others".
+
+See OPL-1.1 Article 3 for the full requirement, including the
+proportionality allowance for constrained displays (Art. 3.8).
+
+--------------------------------------------------------------------------
+MUTUAL SOVEREIGN RECOGNITION
+--------------------------------------------------------------------------
+
+The Royal Writ of the Sicilian Crown recognises every user of this Work as a
+sovereign individual, without application, fee, condition of belief, or
+recognition by any state.
+
+That recognition is RECIPROCAL. In accepting it you extend the identical
+recognition to every other individual: respect their boundaries, keep any
+withdrawal symmetric rather than one-way, and instrumentalise no one.
+
+This is a reciprocity term of the same character as share-alike. It applies
+to every user identically and excludes no person, group, nation, industry,
+or field of endeavour. See Royal Writ §1.2 and §1.3, and OPL-1.1 Art. 12.5.
+
+The behaviour it describes is implemented in this repository — see
+src/concord/ (Interaction Surplus Framework, complementary pairing,
+symmetric divides) and src/denconnect/ (sovereign node governance).
+
+--------------------------------------------------------------------------
+TRADEMARKS
+--------------------------------------------------------------------------
+
+"ZEDEC", "ZEDEC XERO VULPINE", "ZXV", "VOVINA SHAKINA", "36N9 Genetics",
+"Streisand Engine", and associated logos are marks of their respective
+owners and are NOT licensed by the license stack.
+
+Truthful descriptive use is permitted ("built on ZXV", "a fork of ZXV").
+Use implying official status or endorsement is not. See OPL-1.1 Article 6.
+
+--------------------------------------------------------------------------
+CRYPTOGRAPHIC CONTENT
+--------------------------------------------------------------------------
+
+This Work contains cryptographic software:
+
+    ML-KEM-768             post-quantum key encapsulation (FIPS 203)
+    X25519                 elliptic-curve key agreement (RFC 7748)
+    ChaCha20-Poly1305      authenticated encryption (RFC 8439)
+    AES-256-GCM            authenticated encryption
+    Ed25519                signature verification
+    SHA-256                hashing (FIPS 180-4)
+    SHA-3 / SHAKE          hashing and XOF (FIPS 202)
+    HKDF / HMAC-SHA256     key derivation (RFC 5869 / RFC 2104)
+    TLS 1.3 key schedule   RFC 8446
+
+Import, possession, use, export, and re-export of cryptographic software is
+regulated in some jurisdictions. Compliance is the redistributor's
+responsibility. The Licensor imposes no export restriction of its own.
+
+These implementations are verified against published test vectors from the
+relevant RFCs and NIST publications. They have NOT been independently
+audited or certified, and verification against test vectors does not
+establish resistance to side-channel attack, fault injection, or an
+adversary with physical access. See OPL-1.1 Article 10.
+
+--------------------------------------------------------------------------
+NO WARRANTY / NOT SAFETY QUALIFIED
+--------------------------------------------------------------------------
+
+This Work is provided "AS IS" without warranty of any kind. It is not
+certified for, and is not qualified for use in, medical devices, aviation,
+rail, maritime, nuclear facilities, life support, vehicle control, weapons
+systems, or any application where failure could cause death, injury, or
+severe environmental damage.
+
+See OPL-1.1 Articles 8 and 9, including the mandatory-law carve-outs at
+Article 9.2 which preserve liability for intent, gross negligence, and
+personal injury where local law so requires.
+
+--------------------------------------------------------------------------
+THIRD-PARTY MATERIAL
+--------------------------------------------------------------------------
+
+Where this Work incorporates material authored by others, that material
+remains under its own license and its own copyright notice, which is
+retained in the relevant file. Nothing in this NOTICE claims authorship of
+third-party material.
+
+Algorithms implemented from public specifications (IETF RFCs, NIST FIPS
+publications, WIPO and ISO standards) are implemented from those public
+specifications. The specifications are the property of their publishers;
+these implementations are original work under the license stack above.
+
+--------------------------------------------------------------------------
+CONTRIBUTORS
+--------------------------------------------------------------------------
+
+Michael Laurence Curzi <mlcurzi@gmail.com>  —  author, architect
+36N9 Genetics, LLC                          —  rights holder
+
+Contributors retain copyright in their own contributions and license them
+inbound under the same stack (OPL-1.1 Article 7). Add yourself here when you
+contribute; your name stays on your work.

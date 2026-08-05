@@ -1,7 +1,10 @@
 /* kernel_main_x86_64.h — x86-64 kernel boot entry
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 #ifndef KERNEL_MAIN_X86_64_H
 #define KERNEL_MAIN_X86_64_H

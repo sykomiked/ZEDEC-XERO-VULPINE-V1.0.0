@@ -19,7 +19,10 @@
  *    pages.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)  (ZXV persistence slice)
- * License: SEL-3.3
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 #include <stdint.h>
 #include <stdbool.h>

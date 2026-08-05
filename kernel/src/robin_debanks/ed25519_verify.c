@@ -5,7 +5,10 @@
  * ed25519_verify.h interface and the embedded public verification keys.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 for wrapper; orlp/ed25519 is public domain.
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 #include "ed25519_verify.h"
 

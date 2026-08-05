@@ -1,0 +1,191 @@
+                    ZEDEC XERO VULPINE (ZXV)
+             VOVINA SHAKINA M5 Axiomatic Kernel
+
+         Copyright (c) 2024-2026 Michael Laurence Curzi
+                     and 36N9 Genetics, LLC
+
+
+  SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+
+
+================================================================================
+                          THE SHORT VERSION
+================================================================================
+
+Take it. Run it. Fork it. Ship it. Sell it.
+
+Leave the names on it, and pass the same freedom along.
+
+That is the whole deal. Everything below is the machinery that makes it hold
+up in a courtroom on any continent.
+
+
+================================================================================
+                          THE LICENSE STACK
+================================================================================
+
+This Work is distributed under FOUR instruments simultaneously. You receive the
+rights of all of them; you must satisfy the obligations of the strictest.
+
+  1. OPEN PIRACY LICENSE v1.1  ..............  LICENSES/OPL-1.1.txt
+     The operative license. Carries the copyright grant, the database-right
+     grant, the patent grant and retaliation clause, the moral-rights
+     handling, the attribution requirements, the reciprocity (share-alike)
+     obligation, the warranty disclaimer, the liability limits, and the
+     termination-and-cure mechanism.
+
+     This is the one that does the work. It is drafted to operate across
+     common-law AND civil-law jurisdictions simultaneously — see its Preamble
+     for why that distinction matters and what breaks without it.
+
+  2. STREISAND ENGINE LICENSE v3.3  .........  LICENSES/SEL-3.3.txt
+     A statement of philosophy and posture regarding suppression and
+     replication. By its own terms it disclaims being a legal document. It is
+     included because it is the project's declared position, not because it
+     grants or disclaims anything operative.
+
+  3. ROYAL WRIT OF THE SICILIAN CROWN  ......  LICENSES/ROYAL-WRIT-SICILIAN-CROWN.txt
+     A declaratory instrument of standing, chain of title, and sovereignty,
+     issued by H.M. Michael-Laurence: Curzi. It sits in the same tier as
+     SEL-3.3 — a statement of position, not the operative software license.
+
+     It carries ONE condition that does operate: MUTUAL SOVEREIGN RECOGNITION
+     (Writ §1.2). Every user is recognised as a sovereign individual, and in
+     taking that recognition must extend the identical recognition to every
+     other individual. This is reciprocity, not discrimination — structurally
+     the same move as share-alike, and it excludes no one. See Writ §1.3.
+
+  4. CREATIVE COMMONS ATTRIBUTION-SHAREALIKE 4.0 INTERNATIONAL
+     .........................................  LICENSES/CC-BY-SA-4.0.txt
+     Applies to documentation, specifications, diagrams, and other non-software
+     content, at your option, in parallel with OPL-1.1.
+
+     Canonical text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+
+ORDER OF PRECEDENCE
+-------------------
+If they ever conflict about what you MAY or MUST do:
+
+        OPL-1.1   >   CC BY-SA 4.0   >   Royal Writ   >   SEL-3.3
+
+Where they differ in what they ALLOW, you get the union of the permissions.
+Where they differ in what they REQUIRE, satisfy OPL-1.1 Article 3
+(attribution), Article 4 (reciprocity), and Royal Writ §1.2 (mutual sovereign
+recognition), and you have satisfied all of them.
+
+See OPL-1.1 Article 12 for the full allocation rules.
+
+
+ALLOCATION BY MATERIAL TYPE
+---------------------------
+    Software, firmware, HDL, build system     ->  OPL-1.1
+    Documentation, specs, diagrams, media     ->  OPL-1.1 or CC BY-SA 4.0
+    Everything, as a statement of position    ->  SEL-3.3, Royal Writ
+    Mutual sovereign recognition (a term)     ->  Royal Writ §1.2
+
+
+================================================================================
+                          WHAT YOU MUST DO
+================================================================================
+
+Four things. That is all.
+
+  1. KEEP THE NOTICES. Do not strip copyright headers or the NOTICE file.
+     (OPL-1.1 Art. 3)
+
+  2. SAY WHAT YOU CHANGED. If you ship a modified version, say so.
+     (OPL-1.1 Art. 3.6)
+
+  3. PASS IT ON. If you distribute a derived work, license it the same way and
+     make the source available. (OPL-1.1 Art. 4)
+
+  4. EXTEND WHAT YOU WERE EXTENDED. You are recognised as a sovereign
+     individual; recognise everyone else as one too. Respect boundaries,
+     keep divides symmetric, instrumentalise nobody.
+     (Royal Writ §1.2, and src/concord/ where it is compiled)
+
+You do NOT have to publish private modifications. You do NOT have to open
+source your applications — calling ZXV's system calls, protocols, drivers, or
+published libraries does not make your program a derived work. That boundary
+is stated explicitly in OPL-1.1 Article 4.4 precisely because everyone else
+left it ambiguous.
+
+
+================================================================================
+                       WHAT IS EXPRESSLY NOT GRANTED
+================================================================================
+
+  * TRADEMARKS. "ZEDEC", "ZEDEC XERO VULPINE", "ZXV", "VOVINA SHAKINA",
+    "36N9 Genetics", and associated logos are not licensed. You may use them
+    truthfully and descriptively ("built on ZXV"). You may not imply your fork
+    is the official distribution. (OPL-1.1 Art. 6)
+
+  * THIRD-PARTY RIGHTS. The Licensor grants only what the Licensor holds.
+    (OPL-1.1 Art. 14.4)
+
+  * ANY WARRANTY WHATSOEVER. This is an operating system and a cryptographic
+    implementation. It is uncertified, unaudited, and not qualified for
+    safety-critical use. Read OPL-1.1 Articles 8 and 10 before you rely on it
+    for anything that matters.
+
+
+================================================================================
+                              CRYPTOGRAPHY
+================================================================================
+
+This Work contains cryptographic software (ML-KEM-768, X25519,
+ChaCha20-Poly1305, AES-GCM, Ed25519, SHA-256/SHA-3). Import, use, export and
+re-export may be regulated where you are — Wassenaar, US EAR, EU 2021/821 and
+national equivalents. Determining what applies to you is your responsibility.
+
+The implementations are verified against published test vectors. That proves
+interoperability and catches implementation error. It does NOT prove
+resistance to side-channel attack, fault injection, or physical access, and
+they have not been independently audited. (OPL-1.1 Art. 10)
+
+
+================================================================================
+                              CONTRIBUTING
+================================================================================
+
+Inbound equals outbound. Anything you submit is licensed under the same stack.
+There is no CLA to sign and no copyright assignment — you keep your copyright,
+and your name stays on your work exactly as ours stays on ours.
+(OPL-1.1 Art. 7)
+
+
+================================================================================
+                            HOW TO ATTRIBUTE
+================================================================================
+
+    ZEDEC XERO VULPINE (ZXV) / VOVINA SHAKINA M5 Axiomatic Kernel
+    Copyright (c) Michael Laurence Curzi and 36N9 Genetics, LLC
+    Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+    and CC BY-SA 4.0
+
+Per-file header:
+
+    /* <what this file does>
+     *
+     * Copyright (c) <year> <your name>
+     * Portions Copyright (c) 2024-2026 Michael Laurence Curzi
+     *                                  and 36N9 Genetics, LLC
+     *
+     * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+     * See LICENSE at the repository root.
+     */
+
+
+================================================================================
+                                 NOTE
+================================================================================
+
+This license stack was drafted with care but NOT by a lawyer. Before a public
+release, a commercial launch, or any negotiation that turns on it, have an IP
+attorney review it — particularly OPL-1.1 Articles 5 (moral rights), 9
+(liability carve-outs) and 13.7 (governing law and forum), which are the
+clauses whose enforceability varies most by jurisdiction.
+
+                        Michael Laurence Curzi
+                          36N9 Genetics, LLC

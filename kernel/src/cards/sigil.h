@@ -49,7 +49,10 @@
  * Freestanding: integer only, no libc, no allocation, no float.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)  (ZXV sigil-circuit slice)
- * License: SEL-3.3
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 #ifndef ZXV_SIGIL_H
 #define ZXV_SIGIL_H

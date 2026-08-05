@@ -26,7 +26,10 @@
  *   PC: Phase/photonic carrier (digital/quantum — like photonic current)
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 #ifndef JDR_PIRATENET_H
 #define JDR_PIRATENET_H
