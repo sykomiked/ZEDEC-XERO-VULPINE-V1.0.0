@@ -567,6 +567,12 @@ verify-all: test
 		src/rmag/rmag.c src/lpres/lpres.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
 		-o /tmp/test_wyverneye -lm && \
 		/tmp/test_wyverneye && echo "[PASS] test_wyverneye" || { echo "[FAIL] test_wyverneye"; exit 1; }; \
+	echo "=== Chronicle: hash-chained, self-resolving judgment ledger ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/chronicle -Isrc/wyrmgate -Isrc/rmag -Isrc/lpres -Isrc/chiglet -Isrc/surplus -Isrc/robin_debanks -Isrc/event_space -Iinclude \
+		src/chronicle/test_chronicle.c src/chronicle/chronicle.c src/wyrmgate/wyrmgate.c \
+		src/rmag/rmag.c src/lpres/lpres.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
+		-o /tmp/test_chronicle -lm && \
+		/tmp/test_chronicle && echo "[PASS] test_chronicle" || { echo "[FAIL] test_chronicle"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).
