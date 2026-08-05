@@ -573,6 +573,12 @@ verify-all: test
 		src/rmag/rmag.c src/lpres/lpres.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
 		-o /tmp/test_chronicle -lm && \
 		/tmp/test_chronicle && echo "[PASS] test_chronicle" || { echo "[FAIL] test_chronicle"; exit 1; }; \
+	echo "=== Chronicle durability: survives reboot + power loss (chronicle+zxvfs) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -DZXVFS_HOST -Isrc/chronicle -Isrc/wyrmgate -Isrc/rmag -Isrc/lpres -Isrc/chiglet -Isrc/surplus -Isrc/robin_debanks -Isrc/event_space -Isrc/zxvfs -Iinclude \
+		src/chronicle/test_chronicle_persist.c src/chronicle/chronicle_persist.c src/chronicle/chronicle.c src/wyrmgate/wyrmgate.c \
+		src/rmag/rmag.c src/lpres/lpres.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c src/zxvfs/zxvfs.c \
+		-o /tmp/test_chronicle_persist -lm && \
+		/tmp/test_chronicle_persist && echo "[PASS] test_chronicle_persist" || { echo "[FAIL] test_chronicle_persist"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).

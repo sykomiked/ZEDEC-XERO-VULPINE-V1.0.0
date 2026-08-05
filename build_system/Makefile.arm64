@@ -128,6 +128,7 @@ KERNEL_SRCS = \
     kernel/src/wyrmgate/wyrmgate.c \
     kernel/src/wyverneye/wyverneye.c \
     kernel/src/chronicle/chronicle.c \
+    kernel/src/chronicle/chronicle_persist.c \
     kernel/src/blockdev/blockdev.c \
     kernel/src/net/net.c \
     kernel/src/net/m5route.c \
