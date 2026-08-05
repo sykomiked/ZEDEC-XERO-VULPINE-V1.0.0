@@ -200,6 +200,23 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../src/appkit/doc.h"       /* AppKit document model (Writer et al) */
 #include "../src/refinery/refinery.h" /* Magitech Refinery: text -> sigil card */
 #include "../userapp/hello_signed.h" /* root pubkey + signed .zsp, seeded to disk */
+/* Bridge between the TCP/IP stack and the virtio-net driver. The stack calls
+ * knet_tx to put a fully-built frame on the wire; knet_pump drains received
+ * frames into the stack. Kept here (arch layer) so src/net stays portable. */
+static net_interface_t *g_eth_if = 0;
+static void knet_tx(const uint8_t *data, uint32_t len) {
+    (void)virtio_net_tx(data, len);
+}
+static void knet_pump(net_state_t *ns) {
+    if (!g_eth_if || !virtio_net_present()) return;
+    static uint8_t frame[VNET_MAX_FRAME];
+    for (uint32_t i = 0; i < 8; i++) {           /* bounded per cycle */
+        int n = virtio_net_rx_poll(frame, sizeof frame);
+        if (n <= 0) break;
+        net_handle_eth(ns, g_eth_if, frame, (uint32_t)n);
+    }
+}
+
 static block_device_t g_vblk;
 static zxvfs_t g_zxvfs;
 static bool g_zxvfs_ready = false;
@@ -1226,6 +1243,49 @@ void kernel_main_arm64(void) {
         net_register_interface(&net, "lo", NET_IF_LOOPBACK,
                                 lo_mac, lo_ip, lo_ip, lo_mask, 0, 0);
 
+        /* Bind the real virtio-net NIC to the stack so ARP/ICMP/UDP/TCP are
+         * driven by actual hardware rather than only loopback. QEMU user-mode
+         * networking gives us 10.0.2.15 with the gateway at 10.0.2.2. */
+        if (virtio_net_present()) {
+            static uint8_t eth_ip[4]   = {10, 0, 2, 15};
+            static uint8_t eth_gw[4]   = {10, 0, 2, 2};
+            static uint8_t eth_mask[4] = {255, 255, 255, 0};
+            int32_t ei = net_register_interface(&net, "eth0", NET_IF_ETHERNET,
+                                                virtio_net_mac(), eth_ip, eth_gw,
+                                                eth_mask, knet_tx, 0);
+            if (ei >= 0) {
+                g_eth_if = &net.interfaces[ei];
+                boot_msg("  [BOUND] eth0 10.0.2.15 -> virtio-net (ARP/ICMP live)");
+
+                /* PING THE GATEWAY. This is the end-to-end proof that the
+                 * stack interoperates: an independent peer (QEMU's user-mode
+                 * gateway) must accept our IP and ICMP checksums, or it
+                 * silently discards the request and no reply ever comes. */
+                extern void net_icmp_echo(net_state_t *ns, net_interface_t *nif,
+                                          const uint8_t *dst_ip,
+                                          const void *payload, uint32_t plen);
+                static const uint8_t probe[16] = "ZXV-PING-000001";
+                net_arp_add(&net, eth_gw, (const uint8_t *)"\x52\x55\x0a\x00\x02\x02");
+                net_icmp_echo(&net, g_eth_if, eth_gw, probe, sizeof probe);
+
+                bool replied = false;
+                static uint8_t rf[VNET_MAX_FRAME];
+                for (uint32_t spin = 0; spin < 2000000u && !replied; spin++) {
+                    int n = virtio_net_rx_poll(rf, sizeof rf);
+                    if (n < 34) continue;
+                    /* IPv4 + ICMP + type 0 (echo reply) addressed to us */
+                    if (rf[12] == 0x08 && rf[13] == 0x00 && rf[23] == 1 && rf[34] == 0)
+                        replied = true;
+                    net_handle_eth(&net, g_eth_if, rf, (uint32_t)n);
+                }
+                if (replied)
+                    boot_msg("  [VERIFIED] ICMP: gateway replied to our ping "
+                             "(a real peer ACCEPTED our checksums)");
+                else
+                    boot_msg("  [WARNING] no ICMP reply from the gateway");
+            }
+        }
+
         m5_router_init(&router, 0);
         boot_msg("  [INITIALIZED] TCP/IP stack + M5 omni-router + loopback (127.0.0.1)");
     }
@@ -1427,6 +1487,12 @@ void kernel_main_arm64(void) {
  * =================================================================== */
 void kernel_event_cycle_run(void) {
     phase_coordinator_tick(&tick);
+
+    /* Service the NIC every event cycle: received frames are fed to the
+     * TCP/IP stack, which answers ARP and ICMP. This is what makes the OS
+     * pingable from the host — networking driven by the event sequence
+     * rather than a separate clock. */
+    knet_pump(&net);
 
     /* Event-Driven Scheduler: replenish event budgets, post events
      * from the tick to tasks, and dispatch. */

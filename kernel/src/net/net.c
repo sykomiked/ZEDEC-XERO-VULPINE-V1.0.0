@@ -105,6 +105,15 @@ uint16_t net_checksum(const uint8_t *data, uint32_t len) {
     return (uint16_t)(~sum & 0xFFFF);
 }
 
+/* net_checksum() returns a HOST-order value, but every checksum field lives in
+ * a packed NETWORK-order header. Assigning the raw result byte-swaps it on a
+ * little-endian machine, so the packet carries a wrong checksum and any real
+ * peer silently discards it. This helper does the one conversion that keeps
+ * emitted packets interoperable. */
+static inline uint16_t ck_net(uint16_t host_ck) {
+    return (uint16_t)((host_ck >> 8) | (host_ck << 8));
+}
+
 uint16_t net_ip_checksum(const ip_header_t *ip) {
     return net_checksum((const uint8_t *)ip, sizeof(ip_header_t));
 }
@@ -126,7 +135,7 @@ void net_build_ip(ip_header_t *ip, const uint8_t *src, const uint8_t *dst, uint8
     ip->checksum = 0;
     mem_copy(ip->src_ip, src, NET_IP_LEN);
     mem_copy(ip->dst_ip, dst, NET_IP_LEN);
-    ip->checksum = net_ip_checksum(ip);
+    ip->checksum = ck_net(net_ip_checksum(ip));
 }
 
 void net_build_tcp(tcp_header_t *tcp, uint16_t src_port, uint16_t dst_port,
@@ -221,7 +230,7 @@ void net_icmp_echo(net_state_t *net, net_interface_t *iface, const uint8_t *dst_
     icmp->rest = 0;
     if (data && len > 0)
         mem_copy(pkt + sizeof(eth_header_t) + sizeof(ip_header_t) + sizeof(icmp_header_t), data, len);
-    icmp->checksum = net_checksum((uint8_t *)icmp, sizeof(icmp_header_t) + len);
+    icmp->checksum = ck_net(net_checksum((uint8_t *)icmp, sizeof(icmp_header_t) + len));
 
     iface->tx_callback(pkt, total);
     net->tx_packets++;
@@ -233,6 +242,25 @@ void net_handle_eth(net_state_t *net, net_interface_t *iface, const uint8_t *dat
     if (len < sizeof(eth_header_t)) return;
     eth_header_t *eth = (eth_header_t *)data;
     uint16_t eth_type = (eth->eth_type >> 8) | (eth->eth_type << 8);
+
+    /* Learn the sender's hardware address from ANY incoming IP frame.
+     * Without this, a reply is only possible to a peer that happens to be in
+     * the ARP cache already: net_handle_icmp (and the TCP/UDP send paths)
+     * call net_arp_lookup and SILENTLY DROP the response when it misses. The
+     * sender's MAC is right here in the frame we just received, so record it.
+     * This is ordinary stack behaviour (cf. RFC 826's update rule) and it is
+     * what makes an unsolicited ping answerable. */
+    if ((eth_type == ETH_TYPE_IP || eth_type == ETH_TYPE_M5) &&
+        len >= sizeof(eth_header_t) + 20) {
+        const uint8_t *iph = data + sizeof(eth_header_t);
+        const uint8_t *src_ip = iph + 12;               /* IPv4 source address */
+        bool bcast = true, zero = true;
+        for (int i = 0; i < 6; i++) {
+            if (eth->src_mac[i] != 0xFF) bcast = false;
+            if (eth->src_mac[i] != 0x00) zero = false;
+        }
+        if (!bcast && !zero) net_arp_add(net, src_ip, eth->src_mac);
+    }
 
     switch (eth_type) {
         case ETH_TYPE_ARP: net_handle_arp(net, iface, data + sizeof(eth_header_t), len - sizeof(eth_header_t)); break;
@@ -282,6 +310,18 @@ void net_handle_ip(net_state_t *net, net_interface_t *iface, const uint8_t *data
     uint8_t ihl = (ip->version_ihl & 0x0F) * 4;
     if (ihl < 20 || len < ihl) return;
 
+    /* Only process datagrams addressed to this interface (or broadcast).
+     * Without this the stack answered pings sent to ANY address, which is
+     * both wrong and a reflection/amplification vector. */
+    {
+        bool for_us = true, bcast = true;
+        for (int i = 0; i < NET_IP_LEN; i++) {
+            if (ip->dst_ip[i] != iface->ip[i]) for_us = false;
+            if (ip->dst_ip[i] != 0xFF)         bcast  = false;
+        }
+        if (!for_us && !bcast) return;
+    }
+
     const uint8_t *payload = data + ihl;
     uint32_t payload_len = len - ihl;
 
@@ -317,7 +357,7 @@ void net_handle_icmp(net_state_t *net, net_interface_t *iface, const ip_header_t
             mem_copy((uint8_t *)resp_icmp, data, len);
             resp_icmp->type = 0; /* Echo Reply */
             resp_icmp->checksum = 0;
-            resp_icmp->checksum = net_checksum((uint8_t *)resp_icmp, len);
+            resp_icmp->checksum = ck_net(net_checksum((uint8_t *)resp_icmp, len));
 
             iface->tx_callback(pkt, total);
             net->tx_packets++;
