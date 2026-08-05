@@ -579,6 +579,11 @@ verify-all: test
 		src/rmag/rmag.c src/lpres/lpres.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c src/zxvfs/zxvfs.c \
 		-o /tmp/test_chronicle_persist -lm && \
 		/tmp/test_chronicle_persist && echo "[PASS] test_chronicle_persist" || { echo "[FAIL] test_chronicle_persist"; exit 1; }; \
+	echo "=== virtio split-virtqueue engine (vring) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/virtio \
+		src/virtio/test_vring.c src/virtio/vring.c \
+		-o /tmp/test_vring && \
+		/tmp/test_vring && echo "[PASS] test_vring" || { echo "[FAIL] test_vring"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).

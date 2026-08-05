@@ -190,6 +190,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 
 /* Persistent storage: virtio-blk device + ZXVFS journaled filesystem. */
 #include "virtio_blk.h"
+#include "virtio_net.h"
 #include "entropy.h"
 #include "../src/zxvfs/zxvfs.h"
 #include "../src/loader/zsp.h"       /* signed-package verification */
@@ -1104,6 +1105,25 @@ void kernel_main_arm64(void) {
         }
     } else {
         boot_msg("  [SKIP] no virtio-blk device (start QEMU with -drive to enable)");
+    }
+
+    /* Phase 17c-net: virtio-net NIC over the tested split-virtqueue engine.
+     * Brings up RX/TX queues so the TCP/IP stack below has a real interface.
+     * Absent unless QEMU is started with a -netdev + virtio-net-device. */
+    if (virtio_net_init()) {
+        const uint8_t *m = virtio_net_mac();
+        boot_msg("  [DRIVER ONLINE] virtio-net NIC (RX/TX queues ready)");
+        uart_puts("    MAC ");
+        for (int i = 0; i < 6; i++) {
+            const char *hex = "0123456789abcdef";
+            char c[3] = { hex[(m[i] >> 4) & 0xF], hex[m[i] & 0xF], 0 };
+            uart_puts(c); if (i < 5) uart_puts(":");
+        }
+        uart_puts("\r\n");
+        if (virtio_net_selftest())
+            boot_msg("  [VERIFIED] virtio-net self-check (queues bound, RX posted)");
+    } else {
+        boot_msg("  [SKIP] no virtio-net device (add -netdev+virtio-net-device to enable)");
     }
 
     /* Phase 17c-bis: Network Stack — TCP/IP with loopback interface.
