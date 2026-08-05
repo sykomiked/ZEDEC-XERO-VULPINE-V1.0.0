@@ -67,55 +67,67 @@ int main(void) {
     CHECK(mage_authorize(&m, MAGE_HAT_CLEAR, MAGE_CAP_HARDEN, OWN, 100) == MAGE_DENY,
           "CLEAR may NOT HARDEN — it touches nothing");
 
-    /* ---------- THE CORE SAFETY PROPERTY: offense needs an engagement ---------- */
-    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_EXPLOIT, OWN, 100) == MAGE_NEEDS_ENGAGEMENT,
-          "WHITE cannot EXPLOIT without an engagement — not even on our own asset");
-    CHECK(mage_authorize(&m, MAGE_HAT_RED, MAGE_CAP_SCAN, OWN, 100) == MAGE_NEEDS_ENGAGEMENT,
-          "RED cannot SCAN without an engagement");
-    CHECK(mage_authorize(&m, MAGE_HAT_BLACK, MAGE_CAP_EXPLOIT, OWN, 100) == MAGE_NEEDS_ENGAGEMENT,
-          "BLACK cannot EXPLOIT without an engagement — the hat is not a licence");
+    /* ---------- YOUR OWN ARCHITECTURE: offense is frictionless ----------
+     * This is the corrected model. Requiring ceremony to test your OWN system
+     * is itself a weakness — it leaves your systems untested and the network
+     * brittle. So offense on an asset you OWN is always permitted, for every
+     * hat including black, with no engagement. It is still audited. */
+    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_EXPLOIT, OWN, 100) == MAGE_ALLOW,
+          "WHITE may EXPLOIT our OWN asset with no ceremony");
+    CHECK(mage_authorize(&m, MAGE_HAT_RED, MAGE_CAP_SCAN, OWN, 100) == MAGE_ALLOW,
+          "RED may SCAN our OWN asset freely");
+    CHECK(mage_authorize(&m, MAGE_HAT_BLACK, MAGE_CAP_EXPLOIT, OWN, 100) == MAGE_ALLOW,
+          "BLACK may EXPLOIT our OWN asset — attacking your own system on purpose "
+          "is exactly how it gets stronger, and must never be blocked");
+    CHECK(mage_authorize(&m, MAGE_HAT_BLACK, MAGE_CAP_EXFIL, OWN, 100) == MAGE_ALLOW,
+          "every offensive capability is available against our own architecture");
 
-    /* ---------- self-authorize testing of our OWN architecture ---------- */
-    uint64_t scope[1] = { OWN };
+    /* ---------- SOMEONE ELSE'S SYSTEM: consent required ----------
+     * The ONLY boundary. A target we do not own needs the owner's signed
+     * engagement — this is what keeps the identical tool from reaching a party
+     * that did not agree to be tested. */
     mage_roe_t roe = MAGE_ROE_BIT(MAGE_CAP_SCAN) | MAGE_ROE_BIT(MAGE_CAP_EXPLOIT) |
                      MAGE_ROE_BIT(MAGE_CAP_EXFIL);
-    uint32_t eng = mage_engage_self(&m, scope, 1, roe, 50, 150);
-    CHECK(eng != 0, "we may self-authorize an engagement over our OWN asset");
-    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_EXPLOIT, OWN, 100) == MAGE_ALLOW,
-          "now WHITE may EXPLOIT the owned asset inside the window");
-    CHECK(mage_authorize(&m, MAGE_HAT_BLACK, MAGE_CAP_EXPLOIT, OWN, 100) == MAGE_ALLOW,
-          "and BLACK may too — this is 'attack my own system on purpose'");
+    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_EXPLOIT, OTHER, 100) == MAGE_NEEDS_ENGAGEMENT,
+          "offense against an asset we do NOT own is refused without consent");
+    CHECK(mage_authorize(&m, MAGE_HAT_BLACK, MAGE_CAP_EXPLOIT, OTHER, 100) == MAGE_NEEDS_ENGAGEMENT,
+          "black hat gets no special pass against a non-consenting party");
+    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_EXPLOIT, 0x9999ull, 100) == MAGE_NEEDS_ENGAGEMENT,
+          "an UNKNOWN, unregistered target is treated as not-owned — you must "
+          "register-as-owned or hold consent");
 
-    /* ---------- but ONLY our own asset, ONLY in window, ONLY permitted caps ---------- */
+    /* the self-engagement session record still may only cover owned assets */
     CHECK(mage_engage_self(&m, (uint64_t[]){OTHER}, 1, roe, 50, 150) == 0,
-          "we may NOT self-authorize an engagement over an asset we do not own "
-          "(the boundary that stops this being a weapon)");
-    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_EXPLOIT, OTHER, 100) == MAGE_OUT_OF_SCOPE,
-          "the engagement does NOT cover OTHER -> OUT_OF_SCOPE");
-    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_EXPLOIT, OWN, 200) == MAGE_EXPIRED,
-          "past the window -> EXPIRED");
-    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_EXPLOIT, OWN, 40) == MAGE_EXPIRED,
-          "before the window -> EXPIRED (not yet valid)");
-    CHECK(mage_authorize(&m, MAGE_HAT_WHITE, MAGE_CAP_C2, OWN, 100) == MAGE_NEEDS_ENGAGEMENT,
-          "a capability the ROE does not permit (C2) is still refused");
+          "a self-authorized session may NOT be opened over an asset we do not own");
+    CHECK(mage_engage_self(&m, (uint64_t[]){OWN}, 1, roe, 50, 150) != 0,
+          "but it may over an asset we own (a scoped, audited testing session)");
 
-    /* ---------- signed external authorization ---------- */
+    /* ---------- signed external authorization (consent to test someone else) ---------- */
     {
         static mage_ctx_t s; mage_init(&s);
-        mage_asset_add(&s, OTHER, false);          /* not ours, but authorized externally */
+        mage_asset_add(&s, OTHER, false);          /* not ours; the owner will authorize */
         uint8_t pk[32]; memset(pk, 0x07, 32);
         uint8_t goodsig[64]; memset(goodsig, 0, 64); goodsig[0] = 0xAB;
         uint8_t badsig[64];  memset(badsig, 0, 64); badsig[0] = 0x00;
 
+        CHECK(mage_authorize(&s, MAGE_HAT_RED, MAGE_CAP_EXPLOIT, OTHER, 500) == MAGE_NEEDS_ENGAGEMENT,
+              "without the owner's engagement, offense against their system is refused");
         CHECK(mage_engage_signed(&s, (uint64_t[]){OTHER}, 1, roe, 0, 1000, pk, goodsig) == 0,
               "a signed engagement is refused when NO verifier is installed");
         mage_set_verifier(&s, verify_stub);
         CHECK(mage_engage_signed(&s, (uint64_t[]){OTHER}, 1, roe, 0, 1000, pk, badsig) == 0,
               "a FORGED signature is refused");
         uint32_t se = mage_engage_signed(&s, (uint64_t[]){OTHER}, 1, roe, 0, 1000, pk, goodsig);
-        CHECK(se != 0, "a validly-signed engagement is accepted");
+        CHECK(se != 0, "a validly-signed engagement (the owner's consent) is accepted");
         CHECK(mage_authorize(&s, MAGE_HAT_RED, MAGE_CAP_EXPLOIT, OTHER, 500) == MAGE_ALLOW,
-              "and it authorizes offense against the externally-authorized target");
+              "and NOW offense against their system is authorized, in-window, in-scope");
+        CHECK(mage_authorize(&s, MAGE_HAT_RED, MAGE_CAP_EXPLOIT, OTHER, 2000) == MAGE_EXPIRED,
+              "past the consented window -> EXPIRED");
+        CHECK(mage_authorize(&s, MAGE_HAT_RED, MAGE_CAP_C2, OTHER, 500) == MAGE_NEEDS_ENGAGEMENT,
+              "a capability outside the owner's rules of engagement (C2) is refused");
+        CHECK(mage_authorize(&s, MAGE_HAT_RED, MAGE_CAP_EXPLOIT, 0x7777ull, 500) == MAGE_OUT_OF_SCOPE,
+              "a target outside the consented scope is refused (OUT_OF_SCOPE: an "
+              "engagement exists but does not cover this target)");
     }
 
     /* ---------- green is sandboxed, contained is contained ---------- */

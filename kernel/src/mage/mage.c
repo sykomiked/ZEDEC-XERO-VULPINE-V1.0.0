@@ -234,6 +234,17 @@ static bool scope_has(const mage_engagement_t *e, uint64_t target) {
     return false;
 }
 
+/* True iff `target` is a registered asset this node controls. Note the
+ * boundary, stated honestly: the registry is authoritative for what THIS node
+ * owns. In a multi-party network, an asset must be established as owned by den
+ * governance / proof of control BEFORE it is registered owned here — this
+ * function enforces the authorization decision given an authoritative
+ * registry, it does not by itself establish ownership. */
+static bool mage_asset_owned(mage_ctx_t *m, uint64_t target) {
+    mage_asset_t *a = mage_asset_get(m, target);
+    return a && a->owned;
+}
+
 /* ===================== the decision ===================== */
 
 mage_decision_t mage_authorize(mage_ctx_t *m, mage_hat_t hat, mage_cap_t cap,
@@ -252,8 +263,18 @@ mage_decision_t mage_authorize(mage_ctx_t *m, mage_hat_t hat, mage_cap_t cap,
         dec = MAGE_ALLOW;                         /* open defensive/audit cap   */
     } else if (m->contained[hat]) {
         dec = MAGE_CONTAINED;                     /* offensive while contained  */
+    } else if (mage_asset_owned(m, target)) {
+        /* YOUR OWN ARCHITECTURE. Offensive testing of an asset you control is
+         * ALWAYS permitted — no engagement, no ceremony — because friction
+         * here is itself a security weakness: a system you cannot freely
+         * attack is a system you never harden, and a network of untested nodes
+         * is brittle. This is the encouraged path. It is still audited. */
+        dec = MAGE_ALLOW;
     } else {
-        /* GATED: needs an active, authorized, in-scope, in-window engagement. */
+        /* SOMEONE ELSE'S SYSTEM. A target you do not own requires the owner's
+         * signed engagement — scoped, time-boxed, and rule-limited. This is the
+         * ONLY boundary, and it is the consent boundary: it keeps the identical
+         * tool from reaching a party that did not agree to be tested. */
         bool saw_expired = false, saw_out_of_scope = false;
         dec = MAGE_NEEDS_ENGAGEMENT;
         for (uint32_t i = 0; i < MAGE_MAX_ENGAGEMENTS; i++) {
