@@ -11,13 +11,14 @@ OBJCOPY = $(CROSS)objcopy
 
 CFLAGS = -march=armv7-a -marm -ffreestanding -nostdlib \
          -O2 -Wall -Wextra -std=c11 -fno-stack-protector \
-         -Ikernel/include -Ikernel/arch/arm32 \
+         -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/arch/arm32 \
          -Ikernel/src -Ikernel/compat \
          -Ikernel/src/plnp -Ikernel/src/smap -Ikernel/src/decent \
          -Ikernel/src/recon -Ikernel/src/hdcm -Ikernel/src/gematria \
          -Ikernel/src/dualtrack -Ikernel/src/superpos \
          -Ikernel/src/pungent -Ikernel/src/ascent \
          -Ikernel/src/lattice -Ikernel/src/pterm -Ikernel/src/xedit \
+         -Ikernel/src/clock \
          -Ikernel/src/crypto_wallet -Ikernel/src/nlb \
          -Ikernel/src/license -Ikernel/src/surplus -Ikernel/src/edp_risk \
          -Ikernel/src/predictive -Ikernel/src/situation \
@@ -71,6 +72,7 @@ KERNEL_SRC = \
     kernel/src/crypto_wallet/crypto_wallet.c \
     kernel/src/nlb/nlb.c \
     kernel/src/pterm/pterm.c \
+    kernel/src/clock/event_clock.c \
     kernel/src/xedit/xedit.c \
     kernel/src/lattice/lattice.c \
     kernel/src/pungent/pungent.c \
