@@ -70,7 +70,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/abacus \
          -Ikernel/src/lightningrod \
          -Ikernel/src/bios \
-         -Ikernel/src/chiglet -Ikernel/src/cards -Ikernel/src/refinery -Ikernel/src/concord
+         -Ikernel/src/chiglet -Ikernel/src/cards -Ikernel/src/refinery -Ikernel/src/concord -Ikernel/src/wyrmgate
 
 LDFLAGS = -T kernel/arch/arm64/linker.ld -nostdlib -static -Wl,--gc-sections
 LIBGCC = $(shell $(CC) -print-libgcc-file-name 2>/dev/null || echo /usr/lib/gcc-cross/aarch64-linux-gnu/13/libgcc.a)
@@ -124,6 +124,8 @@ KERNEL_SRCS = \
     kernel/src/refinery/enochian.c \
     kernel/src/refinery/refinery.c \
     kernel/src/concord/concord.c \
+    kernel/src/p2p_caracho/caracho_gov.c \
+    kernel/src/wyrmgate/wyrmgate.c \
     kernel/src/blockdev/blockdev.c \
     kernel/src/net/net.c \
     kernel/src/net/m5route.c \
