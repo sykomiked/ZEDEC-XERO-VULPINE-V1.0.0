@@ -665,6 +665,11 @@ verify-all: test
 		src/tls/test_hkdf.c src/tls/hkdf.c src/robin_debanks/sha256.c \
 		-o /tmp/test_hkdf -lm && \
 		/tmp/test_hkdf && echo "[PASS] test_hkdf" || { echo "[FAIL] test_hkdf"; exit 1; }; \
+	echo "=== TLS 1.3 record layer: AAD-is-the-header, inner type, seq/nonce ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tls \
+		src/tls/test_record.c src/tls/record.c src/tls/aead.c \
+		-o /tmp/test_record -lm && \
+		/tmp/test_record && echo "[PASS] test_record" || { echo "[FAIL] test_record"; exit 1; }; \
 	echo "=== ChaCha20-Poly1305 AEAD: RFC 8439 vectors + tamper rejection ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tls \
 		src/tls/test_aead.c src/tls/aead.c \
