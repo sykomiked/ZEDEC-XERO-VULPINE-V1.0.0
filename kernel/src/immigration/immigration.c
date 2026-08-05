@@ -79,7 +79,7 @@ int32_t immig_apply_visa(immigration_t *im, const char *name,
     if (signature) memcpy(d->signature, signature, IMMIG_SIG_LEN);
 
     /* Verify signature */
-    d->sig_verified = immig_verify_sig(d);
+    d->sig_verified = im->verify_sig ? im->verify_sig(d) : immig_verify_sig(d);
     if (!d->sig_verified) {
         d->state = IMMIG_DAEMON_REJECTED;
         im->num_daemons++;
@@ -121,7 +121,7 @@ bool immig_verify_daemon(immigration_t *im, uint32_t daemon_id) {
     if (!im) return false;
     immig_daemon_t *d = immig_get_daemon(im, daemon_id);
     if (!d) return false;
-    d->sig_verified = immig_verify_sig(d);
+    d->sig_verified = im->verify_sig ? im->verify_sig(d) : immig_verify_sig(d);
     if (d->sig_verified && d->state == IMMIG_DAEMON_REJECTED) {
         d->state = IMMIG_DAEMON_GRANTED;
         im->total_rejected--;

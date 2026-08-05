@@ -17,6 +17,29 @@
 
 
 /* Compute a valid HMAC-SHA256 immigration signature for test daemons */
+
+/* TEST VERIFIER — see the note in test_count_house.c.
+ * immig_verify_sig performs real Ed25519 verification against the embedded
+ * IMMIGRATION public key; its private key is held offline and is deliberately
+ * not compiled in, so a host test cannot mint a valid signature. The API
+ * exposes an injectable verify_sig hook for exactly this; we install one that
+ * checks the same HMAC construction the test signs with, exercising the
+ * visa/coverage logic without weakening the production Ed25519 path.
+ * (This test signed HMAC and called the default verifier; when the
+ * implementation was upgraded HMAC -> Ed25519 the test was left behind and
+ * failed silently, because it was never wired into verify-all.) */
+static bool test_verify_hmac(const immig_daemon_t *d) {
+    if (!d) return false;
+    uint8_t msg[21 + 32 + 21]; uint32_t pos = 0;
+    for (uint32_t i = 0; i < 21; i++) msg[pos++] = d->content_hash[i];
+    for (uint32_t i = 0; i < 32; i++) msg[pos++] = d->pubkey[i];
+    for (uint32_t i = 0; i < 21; i++) msg[pos++] = d->daemon_id.bytes[i];
+    uint8_t expect[32];
+    crypto_hmac_sha256(msg, pos, CRYPTO_AUTHORITY_KEY_IMMIGRATION, expect);
+    for (uint32_t i = 0; i < 32; i++) if (expect[i] != d->signature[i]) return false;
+    return true;
+}
+
 static void compute_immig_sig(const uint8_t *content_hash, const uint8_t *pubkey,
                               const uint8_t *daemon_id_bytes, uint8_t sig[64]) {
     uint8_t msg[21 + 32 + 21]; /* content_hash + pubkey + daemon_id */
@@ -57,6 +80,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
         assert(im.device_id == 1);
         assert(im.num_daemons == 0);
         assert(im.porter == &ph);
@@ -68,6 +92,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         word168_t id = make_id(1);
         uint8_t sig1[IMMIG_SIG_LEN]; compute_immig_sig(hash, pubkey, id.bytes, sig1);
@@ -90,6 +115,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         word168_t id = make_id(2);
         int32_t did = immig_apply_visa(&im, "malware", IMMIG_VISA_WORKER,
@@ -108,6 +134,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         word168_t id = make_id(3);
         uint8_t sig3[IMMIG_SIG_LEN]; compute_immig_sig(hash, pubkey, id.bytes, sig3);
@@ -127,6 +154,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         word168_t id = make_id(4);
         uint8_t sig4[IMMIG_SIG_LEN]; compute_immig_sig(hash, pubkey, id.bytes, sig4);
@@ -142,6 +170,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         word168_t id = make_id(5);
         uint8_t sig5[IMMIG_SIG_LEN]; compute_immig_sig(hash, pubkey, id.bytes, sig5);
@@ -165,6 +194,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         word168_t id = make_id(6);
         uint8_t sig6[IMMIG_SIG_LEN]; compute_immig_sig(hash, pubkey, id.bytes, sig6);
@@ -185,6 +215,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         word168_t id = make_id(7);
         uint8_t sig7[IMMIG_SIG_LEN]; compute_immig_sig(hash, pubkey, id.bytes, sig7);
@@ -214,6 +245,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         for (uint32_t i = 0; i < IMMIG_MAX_DAEMONS; i++) {
             word168_t id = make_id((uint8_t)(i + 100));
@@ -243,6 +275,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         immigration_t im;
         immig_init(&im, 1, &ph);
+        im.verify_sig = test_verify_hmac;
 
         /* Grant 2, reject 1 */
         word168_t id1 = make_id(10);

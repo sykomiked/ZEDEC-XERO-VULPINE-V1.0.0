@@ -139,6 +139,12 @@ typedef struct community_chest {
     uint64_t voucher_float;           /* total voucher float in circulation */
     uint64_t voucher_cashin_total;    /* total external currency converted in */
     uint64_t voucher_cashout_total;   /* total vouchers redeemed out */
+
+    /* Pluggable signature verification (mirrors count_house_t.verify_sig).
+     * NULL = the built-in Ed25519 ASYMMETRIC verification against the embedded
+     * public key, whose private key is held offline. Override to supply a
+     * different trust root, or in tests that cannot mint a real signature. */
+    bool (*verify_sig)(const cc_app_t *entry);
 } community_chest_t;
 
 /* ===== API ===== */

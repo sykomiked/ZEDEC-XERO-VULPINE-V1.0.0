@@ -174,6 +174,12 @@ typedef struct ai_engine {
     /* M5 coordinates */
     m5_coords_t m5;
     surplus_real_t coverage_ratio;
+
+    /* Pluggable signature verification (mirrors count_house_t.verify_sig).
+     * NULL = the built-in Ed25519 ASYMMETRIC verification against the embedded
+     * public key, whose private key is held offline. Override to supply a
+     * different trust root, or in tests that cannot mint a real signature. */
+    bool (*verify_sig)(const ai_model_t *entry);
 } ai_engine_t;
 
 /* ===== API ===== */

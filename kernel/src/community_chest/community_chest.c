@@ -105,7 +105,7 @@ int32_t cc_list_app(community_chest_t *cc, const char *name,
     app->seeder_count = 1; /* listing node is first seeder */
 
     /* Verify signature */
-    app->sig_verified = cc_default_verify_sig(app);
+    app->sig_verified = cc->verify_sig ? cc->verify_sig(app) : cc_default_verify_sig(app);
     if (!app->sig_verified) {
         app->state = CC_APP_REJECTED;
         cc->num_apps++;
@@ -127,7 +127,7 @@ bool cc_verify_app(community_chest_t *cc, uint32_t app_id) {
     if (!cc) return false;
     cc_app_t *app = cc_get_app(cc, app_id);
     if (!app) return false;
-    app->sig_verified = cc_default_verify_sig(app);
+    app->sig_verified = cc->verify_sig ? cc->verify_sig(app) : cc_default_verify_sig(app);
     if (app->sig_verified && app->state == CC_APP_REJECTED) {
         app->state = CC_APP_LISTED;
     }

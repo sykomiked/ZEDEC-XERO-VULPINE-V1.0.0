@@ -16,6 +16,26 @@
 #include <math.h>
 #include "../robin_debanks/crypto_verify.h"
 
+/* TEST VERIFIER — see the note in test_count_house.c. The production path is
+ * real Ed25519 against an embedded public key whose private key is held
+ * offline, so a host test cannot mint a valid signature. The API exposes an
+ * injectable verify_sig hook for exactly this case; we install one checking
+ * the same HMAC construction the test signs with, which exercises the module's
+ * logic without weakening the production path. (These tests signed HMAC and
+ * called the default verifier; when the implementation was upgraded
+ * HMAC -> Ed25519 they were left behind and failed silently, because they were
+ * never wired into verify-all.) */
+static bool test_verify_hmac(const cc_app_t *e) {
+    if (!e) return false;
+    uint8_t msg[128]; uint32_t pos = 0;
+    for (uint32_t i = 0; i < 64 && e->name[i]; i++) msg[pos++] = (uint8_t)e->name[i];
+    for (uint32_t i = 0; i < 32 && pos < sizeof(msg); i++) msg[pos++] = e->dev_pubkey[i];
+    uint8_t expect[32];
+    crypto_hmac_sha256(msg, pos, CRYPTO_AUTHORITY_KEY_COMMUNITY_CHEST, expect);
+    for (uint32_t i = 0; i < 32; i++) if (expect[i] != e->signature[i]) return false;
+    return true;
+}
+
 static int feq(double a, double b, double eps) {
     double diff = fabs(a - b);
     double scale = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
@@ -53,6 +73,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "ZEDEC:community-chest");
+        cc.verify_sig = test_verify_hmac;
         assert(cc.device_id == 1);
         assert(strcmp(cc.name, "ZEDEC:community-chest") == 0);
         assert(cc.num_apps == 0);
@@ -63,6 +84,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
 
         word168_t dev = make_dev(1);
         uint8_t sig1[CC_SIG_LEN]; compute_cc_sig("MeshChat", pubkey, sig1);
@@ -86,6 +108,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(2);
         int32_t id = cc_list_app(&cc, "BadApp", "Malicious", "EvilDev",
                                    &dev, pubkey, hash, zero_sig,
@@ -100,6 +123,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(3);
         uint8_t sig3[CC_SIG_LEN]; compute_cc_sig("Tool", pubkey, sig3);
         int32_t id = cc_list_app(&cc, "Tool", "Utility", "DevB",
@@ -122,6 +146,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(4);
         uint8_t sig4[CC_SIG_LEN]; compute_cc_sig("ProTool", pubkey, sig4);
         int32_t id = cc_list_app(&cc, "ProTool", "Pro utility", "DevC",
@@ -180,6 +205,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(5);
         uint8_t sig5[CC_SIG_LEN]; compute_cc_sig("Free", pubkey, sig5);
         int32_t id = cc_list_app(&cc, "Free", "Free app", "DevD",
@@ -192,6 +218,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(6);
         uint8_t sig6[CC_SIG_LEN]; compute_cc_sig("OldApp", pubkey, sig6);
         int32_t id = cc_list_app(&cc, "OldApp", "Deprecated", "DevE",
@@ -206,6 +233,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(7);
         uint8_t sig7[CC_SIG_LEN]; compute_cc_sig("QuantumAI", pubkey, sig7);
         int32_t id = cc_list_app(&cc, "QuantumAI", "Post-quantum AI model", "AI_Lab",
@@ -221,6 +249,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(8);
 
         for (uint32_t i = 0; i < CC_MAX_APPS; i++) {
@@ -251,6 +280,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(9);
 
         /* List two apps */
@@ -284,6 +314,7 @@ int main(void) {
         static vino_ledger_t vino;
         vino_init(&vino, 1);
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         cc_link_vino(&cc, &vino);
 
         uint64_t credited = cc_voucher_cash_in(&cc, "alice", 5000, CAP_FINANCIAL);
@@ -302,6 +333,7 @@ int main(void) {
         static vino_ledger_t vino;
         vino_init(&vino, 1);
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         cc_link_vino(&cc, &vino);
 
         cc_voucher_cash_in(&cc, "bob", 3000, CAP_FINANCIAL);
@@ -320,6 +352,7 @@ int main(void) {
         static vino_ledger_t vino;
         vino_init(&vino, 1);
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         cc_link_vino(&cc, &vino);
 
         /* User cashes in 10000 vouchers */
@@ -354,6 +387,7 @@ int main(void) {
         static vino_ledger_t vino;
         vino_init(&vino, 1);
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         cc_link_vino(&cc, &vino);
 
         cc_voucher_cash_in(&cc, "dave", 500, CAP_FINANCIAL);
@@ -373,6 +407,7 @@ int main(void) {
     {
         community_chest_t cc;
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(12);
         uint8_t sig12[CC_SIG_LEN]; compute_cc_sig("App", pubkey, sig12);
         int32_t id = cc_list_app(&cc, "App", "desc", "dev",
@@ -389,6 +424,7 @@ int main(void) {
         static vino_ledger_t vino;
         vino_init(&vino, 1);
         cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
         cc_link_vino(&cc, &vino);
 
         word168_t dev = make_dev(13);

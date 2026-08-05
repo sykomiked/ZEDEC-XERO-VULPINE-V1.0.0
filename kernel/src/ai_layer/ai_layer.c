@@ -85,7 +85,7 @@ int32_t ai_register_model(ai_engine_t *ai, const char *name,
     m->param_count = param_count;
     m->memory_bytes = memory_bytes;
 
-    m->sig_verified = ai_default_verify_sig(m);
+    m->sig_verified = ai->verify_sig ? ai->verify_sig(m) : ai_default_verify_sig(m);
     if (!m->sig_verified) {
         m->state = AI_MODEL_REJECTED;
         ai->num_models++;
@@ -103,7 +103,7 @@ bool ai_verify_model(ai_engine_t *ai, uint32_t model_id) {
     if (!ai) return false;
     ai_model_t *m = ai_get_model(ai, model_id);
     if (!m) return false;
-    m->sig_verified = ai_default_verify_sig(m);
+    m->sig_verified = ai->verify_sig ? ai->verify_sig(m) : ai_default_verify_sig(m);
     if (m->sig_verified && m->state == AI_MODEL_REJECTED) {
         m->state = AI_MODEL_LOADED;
     }

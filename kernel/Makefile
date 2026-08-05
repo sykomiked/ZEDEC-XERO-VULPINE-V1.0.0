@@ -624,6 +624,16 @@ verify-all: test
 		src/hardware/test_dlp_projector.c src/hardware/dlp_projector.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
 		-o /tmp/test_dlp_projector -lm && \
 		/tmp/test_dlp_projector && echo "[PASS] test_dlp_projector" || { echo "[FAIL] test_dlp_projector"; exit 1; }; \
+	echo "=== Immigration daemon visas (Ed25519-verified) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/count_house -Isrc/porter_house -Isrc/edp_risk -Isrc/telemetry -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/vino -Isrc/identity -Isrc/finance -Isrc/license -Isrc/net -Isrc/predictive -Isrc/situation -Isrc/axiom_matrix -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/dual_space -Isrc/lattice -Isrc/immigration -Isrc/ai_layer -Isrc/mesh_net \
+		src/immigration/test_immigration.c src/immigration/immigration.c src/count_house/count_house.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_immigration -lm && \
+		/tmp/test_immigration && echo "[PASS] test_immigration" || { echo "[FAIL] test_immigration"; exit 1; }; \
+	echo "=== AI layer signed model registry (Ed25519-verified) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/count_house -Isrc/porter_house -Isrc/edp_risk -Isrc/telemetry -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/vino -Isrc/identity -Isrc/finance -Isrc/license -Isrc/net -Isrc/predictive -Isrc/situation -Isrc/axiom_matrix -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/dual_space -Isrc/lattice -Isrc/immigration -Isrc/ai_layer -Isrc/mesh_net \
+		src/ai_layer/test_ai_layer.c src/ai_layer/ai_layer.c src/count_house/count_house.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_ai_layer -lm && \
+		/tmp/test_ai_layer && echo "[PASS] test_ai_layer" || { echo "[FAIL] test_ai_layer"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).

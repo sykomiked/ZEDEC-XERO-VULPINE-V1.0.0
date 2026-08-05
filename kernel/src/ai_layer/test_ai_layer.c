@@ -15,6 +15,26 @@
 #include <math.h>
 #include "../robin_debanks/crypto_verify.h"
 
+/* TEST VERIFIER — see the note in test_count_house.c. The production path is
+ * real Ed25519 against an embedded public key whose private key is held
+ * offline, so a host test cannot mint a valid signature. The API exposes an
+ * injectable verify_sig hook for exactly this case; we install one checking
+ * the same HMAC construction the test signs with, which exercises the module's
+ * logic without weakening the production path. (These tests signed HMAC and
+ * called the default verifier; when the implementation was upgraded
+ * HMAC -> Ed25519 they were left behind and failed silently, because they were
+ * never wired into verify-all.) */
+static bool test_verify_hmac(const ai_model_t *e) {
+    if (!e) return false;
+    uint8_t msg[128]; uint32_t pos = 0;
+    for (uint32_t j=0; j<64 && e->name[j]; j++) msg[pos++]=(uint8_t)e->name[j];
+    for (uint32_t j=0; j<AI_PUBKEY_LEN && pos<sizeof(msg); j++) msg[pos++]=e->provider_pubkey[j];
+    uint8_t expect[32];
+    crypto_hmac_sha256(msg, pos, CRYPTO_AUTHORITY_KEY_AI_LAYER, expect);
+    for (uint32_t i = 0; i < 32; i++) if (expect[i] != e->signature[i]) return false;
+    return true;
+}
+
 static int feq(double a, double b, double eps) {
     double diff = fabs(a - b);
     double scale = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
@@ -54,6 +74,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         ai_engine_t ai;
         ai_init(&ai, 1, "ZEDEC:ai-layer", &ph);
+        ai.verify_sig = test_verify_hmac;
         assert(ai.device_id == 1);
         assert(ai.num_models == 0);
         assert(ai.num_tasks == 0);
@@ -66,6 +87,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         ai_engine_t ai;
         ai_init(&ai, 1, "ai", &ph);
+        ai.verify_sig = test_verify_hmac;
 
         word168_t provider = make_peer(1);
         uint8_t sig1[AI_SIG_LEN]; compute_ai_sig("QuantumLLM", pubkey, sig1);
@@ -88,6 +110,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         ai_engine_t ai;
         ai_init(&ai, 1, "ai", &ph);
+        ai.verify_sig = test_verify_hmac;
 
         word168_t provider = make_peer(2);
         int32_t id = ai_register_model(&ai, "BadModel", AI_MODEL_VISION,
@@ -104,6 +127,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         ai_engine_t ai;
         ai_init(&ai, 1, "ai", &ph);
+        ai.verify_sig = test_verify_hmac;
 
         word168_t provider = make_peer(3);
         uint8_t sig3[AI_SIG_LEN]; compute_ai_sig("VisionModel", pubkey, sig3);
@@ -140,6 +164,7 @@ int main(void) {
 
         ai_engine_t ai;
         ai_init(&ai, 1, "ai", &ph);
+        ai.verify_sig = test_verify_hmac;
 
         word168_t provider = make_peer(4);
         uint8_t sig4[AI_SIG_LEN]; compute_ai_sig("RemoteLLM", pubkey, sig4);
@@ -178,6 +203,7 @@ int main(void) {
 
         ai_engine_t ai;
         ai_init(&ai, 1, "ai", &ph);
+        ai.verify_sig = test_verify_hmac;
 
         word168_t provider = make_peer(5);
         uint8_t sig5[AI_SIG_LEN]; compute_ai_sig("Model", pubkey, sig5);
@@ -199,6 +225,7 @@ int main(void) {
 
         ai_engine_t ai;
         ai_init(&ai, 1, "ai", &ph);
+        ai.verify_sig = test_verify_hmac;
 
         word168_t provider = make_peer(6);
         uint8_t sig6[AI_SIG_LEN]; compute_ai_sig("Model", pubkey, sig6);
@@ -230,6 +257,7 @@ int main(void) {
         porter_house_init(&ph, 1, "porter");
         ai_engine_t ai;
         ai_init(&ai, 1, "ai", &ph);
+        ai.verify_sig = test_verify_hmac;
 
         word168_t provider = make_peer(7);
         uint8_t sigL[AI_SIG_LEN]; compute_ai_sig("LLM", pubkey, sigL);
@@ -266,6 +294,7 @@ int main(void) {
         porter_house_seal_port(&ph, AI_REMOTE_PORT, PH_SEAL_OPEN, 0);
         ai_engine_t ai;
         ai_init(&ai, 1, "ai", &ph);
+        ai.verify_sig = test_verify_hmac;
 
         word168_t provider = make_peer(8);
         uint8_t sig8[AI_SIG_LEN]; compute_ai_sig("Model", pubkey, sig8);
