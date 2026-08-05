@@ -113,4 +113,11 @@ bool font_glyph(const font_registry_t *r, int32_t face, uint32_t cp,
 /* True if the builtin diagnostic set can draw this codepoint (ASCII subset). */
 bool font_builtin_has(uint32_t cp);
 
+/* Bind a parsed TrueType font (a ttf_font_t*, passed as void* to avoid a hard
+ * header dependency) as the registry's glyph backend, so font_glyph() renders
+ * real outlines through the TrueType rasteriser (src/font/truetype). This is
+ * the single-font binding; per-face font selection (resolving each face to its
+ * own file) is the boot integration on top of it. */
+void font_bind_ttf(font_registry_t *r, void *ttf_font);
+
 #endif /* ZXV_FONT_H */

@@ -683,6 +683,11 @@ verify-all: test
 		src/font/test_script.c src/font/script.c \
 		-o /tmp/test_script -lm && \
 		/tmp/test_script && echo "[PASS] test_script" || { echo "[FAIL] test_script"; exit 1; }; \
+	echo "=== TrueType rasteriser + full font stack (registry -> glyph pixels) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
+		src/font/test_truetype.c src/font/truetype.c src/font/font.c src/font/script.c \
+		-o /tmp/test_truetype -lm && \
+		/tmp/test_truetype && echo "[PASS] test_truetype" || { echo "[FAIL] test_truetype"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_font.c src/font/font.c src/font/script.c \

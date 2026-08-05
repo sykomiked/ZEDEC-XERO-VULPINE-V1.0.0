@@ -123,3 +123,19 @@ bool font_glyph(const font_registry_t *r, int32_t face, uint32_t cp,
     }
     return false;   /* no glyph available — never fabricate one */
 }
+
+/* ---- TrueType glyph backend binding ---- */
+#include "truetype.h"
+static int font_ttf_raster(const font_face_t *face, uint32_t cp,
+                           uint8_t *bitmap, uint32_t w, uint32_t h, void *ctx) {
+    (void)face;
+    ttf_font_t *ttf = (ttf_font_t *)ctx;
+    if (!ttf) return -1;
+    /* the glyph height is the box height; the rasteriser fits the em to it */
+    return ttf_render_cp(ttf, cp, h, bitmap, w, h) ? 0 : -1;
+}
+void font_bind_ttf(font_registry_t *r, void *ttf_font) {
+    if (!r) return;
+    font_glyph_ops_t ops = { font_ttf_raster, ttf_font };
+    font_set_glyph_ops(r, &ops);
+}
