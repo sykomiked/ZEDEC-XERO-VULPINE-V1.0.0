@@ -1,0 +1,728 @@
+# ============================================================================
+# ZXV / ZEDEC pqOS — AGENT HANDOFF SCHEMA
+# A complete, executable work order for an autonomous agent with server access.
+# ============================================================================
+schema:
+  id: zxv-agent-handoff
+  version: 1.0.0
+  generated: 2026-08-05
+  generated_by: prior engineering session (Claude)
+  target_repo: /path/to/VIT_INDIA_PROPOSAL
+  canonical_tree: 05_KERNEL            # see CANONICAL.md — the ONLY source of truth
+  git_head_at_handoff: 435c413
+  companion_documents:
+    - CANONICAL.md          # source-of-truth ruling; archived trees
+    - ROADMAP.md            # tracks A-I, sequencing, MVP gate definitions
+    - AGENT_HANDOFF_SCHEMA.yaml  # this file (the work order)
+
+# ----------------------------------------------------------------------------
+# 0. GROUND TRUTH — verify these numbers BEFORE claiming any progress.
+#    If your measured baseline differs, STOP and report; do not proceed on
+#    assumptions. Every number here was measured, not remembered.
+# ----------------------------------------------------------------------------
+baseline_state:
+  verify_all_assertions: 736         # `make -C kernel verify-all | grep -c '^\[PASS\]'`
+  verify_all_failures: 0
+  arm64_compiler_warnings: 0         # excluding the harmless linker build-id note
+  arm64_boot_acceptance: "100/100 BOOT_OK"
+  kernel_binary_bytes: 196672
+  git_branch: main
+  secrets_in_git: 0                  # root_priv.pem is gitignored, NOT committed
+  external_audit_score: "5.7/10 (Proposal-9 audit; 'advanced pre-alpha with an
+                          emulated vertical slice; not yet a defensible MVP')"
+
+  verify_baseline_commands:
+    - "cd 05_KERNEL && make -C kernel verify-all 2>&1 | grep -c '^\\[PASS\\]'   # expect 736"
+    - "cd 05_KERNEL && make -f build_system/Makefile.arm64 2>&1 | grep 'warning:' | grep -v build-id | wc -l  # expect 0"
+    - "cd 05_KERNEL && git ls-files | grep -E '\\.pem$|\\.key$' | wc -l   # expect 0"
+
+# ----------------------------------------------------------------------------
+# 1. NON-NEGOTIABLE RULES. These exist because this project has been burned by
+#    each failure mode listed. Violating one invalidates the work.
+# ----------------------------------------------------------------------------
+rules:
+  honesty:
+    - "NEVER claim a feature works without running it. Paste real command output."
+    - "A test that passes because it asserts nothing is WORSE than no test.
+       Assert VALUES, not just that a function returned."
+    - "If you cannot finish something, say so explicitly and leave it marked
+       [partial] with the exact blocker. Do not silently narrow scope."
+    - "Distinguish: built+tested vs. compiles vs. designed. Use the maturity
+       labels from ROADMAP.md."
+    - "Never claim 'zero warnings', 'N/N boots', or an assertion count you did
+       not just measure in this session."
+  engineering:
+    - "Freestanding kernel: NO libc, NO malloc, NO floating point on target."
+    - "surplus_real_t is `double` under -DTEST_HOST but int64 Q32.32 on target.
+       NEVER hand-roll fixed-point conversions — use SR_DIV/SR_FROM_INT. A host
+       test can pass while the target is silently wrong. This bug shipped once."
+    - "Every new module: header with a WHY comment, .c, a host test asserting
+       real values, wired into `kernel/Makefile` verify-all AND (if it belongs
+       in the kernel) `build_system/Makefile.arm64`."
+    - "Build must stay warning-free. Do not add warnings; do not silence them
+       with casts — fix the cause or mark intent (__attribute__((unused)),
+       (void)param, nonstring) with a comment explaining why."
+    - "Untrusted input (network, disk, packages, cards, user pointers) must be
+       bounds-checked at the boundary. Assume hostile."
+  process:
+    - "Commit after each completed unit with a message explaining WHY."
+    - "Re-run the full gate (verify-all + build + boot) before every commit."
+    - "Never `git push --force`. Never rewrite history. Never commit secrets."
+    - "Do NOT delete zxv_os/, zxv_complete/, zxv_sdk/ — owner directive; they
+       are archived, marked, and referenced by no build script."
+
+# ----------------------------------------------------------------------------
+# 2. ANTI-FABRICATION — how each claim must be PROVEN. Cite the exact command
+#    and paste its output. Claims without evidence are rejected.
+# ----------------------------------------------------------------------------
+evidence_contract:
+  claim_types:
+    host_test_passes:
+      prove_with: "the gcc command + the test's own PASS/FAIL output"
+    kernel_builds:
+      prove_with: "make output + `ls -la kernel_arm64.bin` + warning count"
+    kernel_boots:
+      prove_with: "QEMU invocation + the grep'd BOOT_OK line"
+    driver_works:
+      prove_with: "boot log showing the driver's ONLINE/VERIFIED line, AND a
+                   functional round-trip (e.g. a frame sent and received)"
+    memory_safe:
+      prove_with: "the same test rebuilt with -fsanitize=address,undefined and
+                   run clean"
+    performance_claim:
+      prove_with: "a measurement WITH a control case (e.g. Z-order locality is
+                   32% fewer hops on structured traffic AND 1.00x on uniform —
+                   the control is what makes it honest)"
+  forbidden_substitutions:
+    - "source file exists           -> feature works"
+    - "unit test passes             -> boot-integrated"
+    - "compiles                     -> runs"
+    - "host test passes             -> target correct (see the Q32.32 trap)"
+    - "simulation                   -> hardware validated"
+    - "checksum matches             -> origin authenticated"
+    - "no error printed             -> success"
+
+# ----------------------------------------------------------------------------
+# 3. SERVER SESSION — the box is BLANK. Provision, then build. Scripts exist.
+# ----------------------------------------------------------------------------
+server_session:
+  connection: "the human sets up SSH; the agent must NEVER handle private keys"
+  time_budget_hours: 7
+  scripts_ready:
+    provision: "bash 05_KERNEL/build_system/provision_server.sh"
+    full_build: "bash 05_KERNEL/build_system/session_build.sh"
+  priority_order:
+    - id: S1
+      what: "Provision toolchain, verify each tool"
+      why: "everything depends on it"
+      minutes: 20
+    - id: S2
+      what: "Reproduce the baseline (736 assertions, 0 warnings, boot)"
+      why: "prove the environment before changing anything"
+      minutes: 20
+    - id: S3
+      what: "Fix the virtio-net probe (see task B1 — the one KNOWN-OPEN item)"
+      why: "keystone; unblocks all networked features"
+      minutes: 90
+    - id: S4
+      what: "x86-64 parity build (Track G1)"
+      why: "MVP gate; easier on Linux than macOS"
+      minutes: 120
+    - id: S5
+      what: "Clean-room reproducibility: two independent builds, identical hashes"
+      why: "closes audit P0-5"
+      minutes: 40
+    - id: S6
+      what: "Long soak: 100+ boots, heavy ELF/ZXVFS fuzzing under sanitizers"
+      why: "cheap on a server, expensive on a laptop"
+      minutes: 60
+
+# ----------------------------------------------------------------------------
+# 4. THE WORK — every remaining item. Ordered by dependency, not by appeal.
+#    status: done | partial | planned | research
+# ----------------------------------------------------------------------------
+work_items:
+
+  # ===== TRACK B — NETWORKING (do first; everything social depends on it) ====
+  - id: B1
+    title: "virtio-net probe fix + functional round-trip"
+    status: partial
+    priority: P0
+    files: ["kernel/arch/arm64/virtio_net.c", "kernel/src/virtio/vring.c"]
+    context: |
+      The split-virtqueue engine (src/virtio/vring) is DONE and heavily tested:
+      20,000 chains through both ring wrap points, free list intact, ASan/UBSan
+      clean, 21 assertions in verify-all. The ARM64 driver builds warning-free,
+      links, and boots.
+      KNOWN OPEN: the MMIO probe does not match QEMU's virtio-net device. Local
+      testing with `-device virtio-net-device,netdev=n0` hit the SKIP path. The
+      scan finds a device with id 1 at a slot but the bring-up does not complete.
+      Investigate: VERSION==2 check, slot stride (0x200), device-id read timing,
+      and whether QEMU presents the NIC as a PCI device instead of MMIO on this
+      machine type (may need `-machine virt` MMIO transport or virtio-pci).
+    acceptance:
+      - "boot log shows '[DRIVER ONLINE] virtio-net' and a non-zero MAC"
+      - "virtio_net_selftest() returns true in the boot banner"
+      - "FUNCTIONAL PROOF: transmit a frame and observe it (e.g. an ARP request
+         captured on the host side, or a loopback frame received back). A driver
+         that initializes but never moves a byte is NOT done."
+    unblocks: [B2, C1, D1, D3, D4, C5]
+
+  - id: B2
+    title: "Network stack: ARP/IP/ICMP/UDP/TCP, DHCP, DNS, TLS 1.3 client"
+    status: planned
+    priority: P0
+    depends_on: [B1]
+    context: |
+      src/net/ has protocol structures + a loopback interface already. Wire the
+      real NIC to it, then build up. Reuse the audited crypto (src/robin_debanks)
+      for TLS — do NOT write new crypto.
+    acceptance:
+      - "DHCP obtains a lease in QEMU user-mode networking"
+      - "DNS resolves a name; ICMP ping round-trips"
+      - "TCP connects and transfers to a reference server"
+      - "TLS 1.3 to a real endpoint; certificate validation rejects bad/expired/
+         wrong-name certs (test all three)"
+      - "malformed-packet fuzzing does not fault the kernel"
+
+  # ===== TRACK A — SECURITY P0s (the gate to any partner) ====================
+  - id: A1
+    title: "Finish the EL0 user-copy boundary"
+    status: partial
+    priority: P0
+    files: ["kernel/arch/arm64/el0_userspace.c"]
+    context: |
+      DONE already: SYS_RECV now validates the destination page is WRITABLE
+      (proc_user_range_check(..., need_write=true)) — a red-team finding.
+      REMAINING: fault-safe copy_to_user; SYS_SEND should copy into a bounded
+      kernel buffer rather than passing the raw user pointer to ipc_send;
+      SYS_OPEN/SYS_CLOSE are capability-classified but have NO handlers (must
+      either implement or return a stable ENOSYS); copy_from_user has no guarded
+      fault recovery.
+    acceptance:
+      - "kernel never dereferences an untrusted user pointer directly"
+      - "a read-only or unmapped buffer returns EFAULT, never faults EL1"
+      - "cross-page partial mappings return EFAULT with NO partial effect"
+      - "unknown syscalls return a stable ENOSYS"
+      - "syscall fuzzer: >=1,000,000 cases, no kernel fault"
+
+  - id: A2
+    title: "ZSP v2 signed packages + cryptographic anti-rollback"
+    status: planned
+    priority: P0
+    files: ["kernel/src/loader/zsp.c", "kernel/src/loader/abupdate.c"]
+    context: |
+      Current ZSP signs only {magic, payload_len, payload_hash}. It does NOT
+      bind identity, version, architecture, ABI, key id, capabilities, or expiry.
+      Worse: ab_stage_update sets version = active+1, so an OLD but validly
+      signed package can be reintroduced as 'new'.
+    acceptance:
+      - "signed preimage covers: package id, semantic version, architecture,
+         kernel ABI, signing key id, capabilities, dependencies, expiry,
+         monotonic security version"
+      - "an old signed package below the security floor is REJECTED"
+      - "wrong architecture/ABI rejected BEFORE mapping"
+      - "expired or revoked signer rejected"
+      - "production profile refuses raw unsigned .elf (dev bypass must be explicit)"
+      - "parser fuzzed >=1,000,000 cases without defect"
+
+  - id: A3
+    title: "Signed path-safe installer + SYSTEM-level A/B with recovery"
+    status: planned
+    priority: P0
+    files: ["build_system/install_zxv.py", "build_system/transactional_disk.py"]
+    context: |
+      The installer trusts an UNSIGNED JSON manifest and checks hashes from that
+      same manifest (an attacker replaces both). Paths are not confined: absolute
+      paths, '..', and symlinks can escape. It writes payloads BEFORE persisting
+      the rollback journal, and never fsyncs. A/B protects only ONE APPLICATION —
+      not the bootloader, kernel, or system image.
+    acceptance:
+      - "unsigned or under-threshold metadata is REJECTED before any payload parse"
+      - "malicious-manifest suite: 0 escapes outside the target image"
+      - "journal + fsync BEFORE any target mutation"
+      - "power cut at EVERY transition -> old OR new system boots, never broken"
+      - "immutable recovery environment boots when both slots fail"
+      - ">=10,000 randomized interruption runs pass"
+
+  - id: A4
+    title: "Real protected cell backend (not a struct flag)"
+    status: planned
+    priority: P0
+    files: ["kernel/src/cellular_multikernel/cellular_multikernel.c"]
+    context: |
+      Cells are structs in ONE address space. cell_fabric_execute can mark a cell
+      ACTIVE with no execution backend bound. Authentication compares caller-
+      supplied digest bytes (not a signature). crit168_from_digest is an explicit
+      XOR-fold PLACEHOLDER. The transport assigns event_id = 0.
+      Red-team already fixed: unvalidated transport_count OOB (CRITICAL), stale
+      execution context leak, DEFER/COMPENSATE counted as commit approvals,
+      RECOVERING kept live routes, route-table exhaustion. Do not regress these.
+    acceptance:
+      - "a cell without an execution backend CANNOT become ACTIVE"
+      - "cell boundary enforced by process/VM (not a flag)"
+      - "digest-equality auth replaced by signature/attestation"
+      - "XOR placeholder replaced by a real cryptographic digest"
+      - "DEMO: kill one cell mid-transaction; a sibling completes and persists;
+         the coordinator restarts/replays the killed one"
+
+  - id: A5
+    title: "Entropy + key lifecycle"
+    status: planned
+    priority: P1
+    context: |
+      RNDR is detected with an honest fallback message, but there is no DRBG, no
+      continuous health test across calls (prev is a local), no reseed policy, no
+      secure key store, no zeroization proof, no rotation/revocation/recovery.
+      On QEMU without RNDR it warns and CONTINUES initializing security-sensitive
+      vault behavior with predictable material.
+    acceptance:
+      - "production profile FAILS CLOSED (refuses secret creation) without
+         trustworthy entropy; test profile uses an explicitly seeded DRBG"
+      - "continuous health test persists across calls; repeated-output trips it"
+      - "0 nonce reuse across a reboot/restore campaign"
+      - "documented offline root ceremony + revocation list"
+
+  - id: A6
+    title: "Flip build to -Werror"
+    status: planned
+    priority: P2
+    context: "Build is currently warning-free (104 -> 0) but not -Werror enforced."
+    acceptance: ["ARM64 + host builds pass with -Werror; CI fails on any warning"]
+
+  # ===== TRACK G — CROSS-ISA PARITY (MVP gate) ==============================
+  - id: G1
+    title: "x86-64 feature parity"
+    status: partial
+    priority: P0
+    context: |
+      x86-64 is a BOOTSTRAP demo only. It lacks ring-3 user mode, preemption,
+      virtio-blk, ZXVFS, P-TERM, ELF/ZSP execution, and A/B — all of which ARM64
+      has. A prior session found the source-built x86 kernel reboot-loops after
+      E0006 (hypothesis: boot.asm paging maps too small a window for .bss).
+    acceptance:
+      - "x86-64 passes the SAME mandatory acceptance suite as ARM64"
+      - "CI builds AND boots both ISAs from one commit"
+      - "no staged binary without reproducible source"
+
+  - id: G2
+    title: "Durable 13-phase transaction with cross-ISA identical trace"
+    status: partial
+    priority: P0
+    depends_on: [G1, A4]
+    context: |
+      Chronicle (src/chronicle) ALREADY provides the durable, hash-chained,
+      self-resolving judgment ledger — persisted to ZXVFS, survives power loss,
+      tamper-evident, replayable. Wyrmgate provides the six-fold judgment.
+      REMAINING: wire the real OSEQ/IPHASE/phase_coord registries, and make the
+      event digest CANONICAL so ARM64 and x86-64 produce the SAME trace hash
+      (today it hashes surplus_real_t at native width: int64 on target, double
+      on host — so cross-ISA equality is NOT yet achievable).
+    acceptance:
+      - "one signed application request produces a complete 13-phase trace"
+      - "power interrupted at every commit point; replay yields the same result"
+      - "ARM64 and x86-64 semantic trace hashes MATCH"
+
+  # ===== TRACK C — APPLICATIONS (compose existing modules) ==================
+  - id: C0
+    title: "Composition pattern (READ THIS BEFORE BUILDING ANY APP)"
+    status: done
+    context: |
+      Three flagships already prove the pattern: an app is a .c that includes
+      lower module headers and SEQUENCES their tested functions, adding NO new
+      machinery — the interesting behavior is emergent.
+        Wyrmgate   = rmag + lpres + chiglet + surplus  (six-fold Tri-Space judgment)
+        WyvernEye  = refinery + wyrmgate                (intent forged, then judged)
+        Chronicle  = wyrmgate + sha256 (+ zxvfs)        (durable tamper-evident memory)
+      Follow this pattern. Do not reimplement what a module already does.
+
+  - id: C1
+    title: "Den Connect node — the P2P social server"
+    status: partial
+    priority: P1
+    depends_on: [B1, B2]
+    context: |
+      DONE: src/denconnect — sovereign governance (operator-defined privilege
+      bitmasks, PUBLIC/PRIVATE/SELECT visibility, bans, no privilege escalation),
+      a tamper-evident MODERATION AUDIT LOG (hash-chained; editing history is
+      detected), and a DEN FLEET (one operator runs several ISOLATED dens; a ban
+      in one never leaks to another — that isolation IS the privacy model).
+      DONE: src/concord — ISF-driven non-coercive matching (complementary
+      pairing, symmetric divides with no one-way spying, rehabilitative
+      quarantine, sociability budgets).
+      REMAINING: the transport (needs B1/B2), wiring posts through Wyrmgate and
+      recording them to Chronicle, and a UI.
+    acceptance:
+      - "two nodes connect over real networking and exchange chat"
+      - "a post is judged by Wyrmgate and recorded in the Chronicle"
+      - "Concord introductions run between real connected users"
+
+  - id: C2
+    title: "The Ledger — exact money, judged and recorded"
+    status: planned
+    priority: P2
+    context: "Compose abacus + rational + wyrmgate + chronicle."
+    acceptance:
+      - "every transaction judged for value conservation before commit"
+      - "the ledger survives power loss and verifies"
+      - "20-member clearing reduces gross/transfers (measure it)"
+
+  - id: C3
+    title: "The Archivist / Recovery + Disrepair utility + trash + storage manager"
+    status: planned
+    priority: P1
+    context: |
+      Owner request: a Disk-Utility-class but MORE comprehensive tool, plus a
+      rubbish bin for deleted files and a storage manager. Build on the existing
+      src/event_space/self_healing.c + self_audit.c and the CELL-001 fabric.
+    acceptance:
+      - "fsck-class verify/repair for ZXVFS (journal, inode, superblock, orphans)"
+      - "trash bin with restore + empty + reclaimable-space accounting"
+      - "storage manager: usage by file/type, largest files, cleanup"
+      - "subsystem health dashboard (fabric, entropy, crypto KATs, A/B slots)"
+
+  - id: C4
+    title: "The Companion — Chiglet across a person's devices"
+    status: partial
+    priority: P2
+    context: |
+      DONE: src/chiglet (ISF mixture-of-experts; duplicate experts CANNOT
+      manufacture confidence — R stays 1), src/cards (cards as experts;
+      breadth beats depth), and con_companion_* in src/concord (linking the same
+      companion into several devices raises reach only when they bring DIFFERENT
+      experience: 5 diverse -> R=5, 5 redundant -> R=1).
+      REMAINING: bind to a portable identity (C8) and a real multi-device sync.
+    acceptance: ["the same companion, linked on two machines, measurably gains reach"]
+
+  - id: C5
+    title: "The Holodeck — media player + live production + watch parties"
+    status: planned
+    priority: P2
+    depends_on: [B2, B3]
+    context: |
+      Owner request: VLC-INSPIRED (cannot port VLC — millions of lines of GPL
+      desktop code). Native pipeline: demux -> decode -> render. PLUS
+      Streamlabs-Pro-style LIVE production (scenes, sources, overlays, mixing,
+      streaming out) and editing. PLUS synchronized WATCH PARTIES across a den.
+      Delivery: content-addressed IPFS-style chunks combined with classic P2P.
+      HONEST LIMITS: real codecs (H.264/AV1) are large and patent-encumbered —
+      start with permissive formats (Opus/VP8/AV1) and state exactly which are
+      supported. Hardware-accelerated decode needs GPU drivers (B3).
+      The watch-party SYNC CLOCK is buildable NOW on the event-sequence model.
+    acceptance:
+      - "playback of at least one real container+codec, stated explicitly"
+      - "two clients in a den stay synchronized within a stated tolerance"
+      - "live capture -> encode -> stream to a second node"
+
+  - id: C6
+    title: "Doctor Quacksworth — lightweight native security suite"
+    status: planned
+    priority: P2
+    depends_on: [A2]
+    context: |
+      Owner request: antivirus/security that does NOT bog down the machine
+      (traditional AV behaves like a virus on CPU). ZXV's advantage: capability
+      model + W^X + signed execution mean most threats are structurally
+      prevented, so verification is cheap (check signatures/capabilities) rather
+      than heuristic scanning. Plus web/malicious-site protection.
+      HONEST: frame as defense-in-depth. Never claim 'unhackable'.
+    acceptance:
+      - "unsigned/over-privileged code refused with a clear reason"
+      - "measured CPU overhead during normal use (state the number)"
+
+  - id: C7
+    title: "Consumer shell — desktop, service manager, core apps"
+    status: planned
+    priority: P2
+    depends_on: [B3, B4]
+    context: |
+      P-TERM stays FIRST-CLASS (it is the recovery interface). Hypercube is an
+      EFFECTS layer over accessible 2D — never a replacement. Reduced-motion and
+      screen-reader support are requirements, not extras.
+    acceptance:
+      - "cold boot to interactive shell within a stated target"
+      - "terminal remains usable when the graphical shell crashes"
+      - "keyboard-only and reduced-motion paths pass"
+
+  - id: C8
+    title: "Portable identity (FUNDAMENTAL — currently missing)"
+    status: planned
+    priority: P1
+    context: |
+      One keypair binding a person's Chiglet, cards, Concord profile, and their
+      Den Connect accounts across devices. Implied everywhere; exists nowhere.
+    acceptance:
+      - "one identity authenticates to two dens and carries the companion"
+      - "key rotation preserves continuity; revocation is honored"
+
+  # ===== TRACK D — DISTRIBUTED FABRIC =======================================
+  - id: D1
+    title: "Content-addressed store + access tiers"
+    status: planned
+    priority: P1
+    depends_on: [B2]
+    context: |
+      Owner request: IPFS-like — every device a node, chunks addressed by hash.
+      Per-object tiers PUBLIC / PRIVATE / SELECT mirroring den visibility.
+      Reuse crit168/SHA + zxvfs; do not invent a new hash.
+    acceptance:
+      - "a file chunked, addressed by hash, fetched from a peer, reassembled,
+         and verified byte-for-byte"
+      - "PRIVATE is unreadable by a non-owner; SELECT only by named identities"
+
+  - id: D2
+    title: "Mass networking: discovery, NAT traversal, delay-tolerant transport"
+    status: planned
+    priority: P2
+    depends_on: [D1]
+    context: |
+      Owner intent: 'indestructible — no centralized choke points', usable by
+      civilians, professionals, military, and disaster-response in degraded
+      conditions. That means store-and-forward / DTN behavior, not just live P2P.
+      HONEST: measure partition tolerance; do not claim indestructibility.
+    acceptance:
+      - "two nodes exchange data with no central server"
+      - "a partitioned node syncs when reconnected (state the delay tolerance)"
+
+  - id: D3
+    title: "P2P email (serverless, delay-tolerant)"
+    status: planned
+    priority: P2
+    depends_on: [D2, C8]
+    acceptance: ["a message delivered node-to-node with no server; survives an
+                  offline period and arrives on reconnect"]
+
+  # ===== TRACK E — COMPATIBILITY (large; honest limits) ====================
+  - id: E1
+    title: "Universal binary compatibility layer"
+    status: planned
+    priority: P2
+    context: |
+      Owner request: run Windows/macOS/Linux/mobile apps 'without the heavy cost
+      of emulation'. THE HONEST ARCHITECTURE:
+        same-ISA  -> syscall-translation personalities (Wine/WSL1/Darling-style).
+                     This genuinely avoids emulation.
+        foreign-ISA -> JIT/AOT binary translation (Rosetta-style). This CANNOT be
+                     avoided; physics. Do NOT promise otherwise.
+      Deliver per-program COVERAGE MEASUREMENT, not a blanket 'runs everything'.
+      Also: ASCW 3D-framework compatibility WITHOUT exposing those frameworks in
+      the OS (owner directive — compatible as a complement, not a dependency).
+    acceptance:
+      - "one real same-ISA foreign binary runs via personality translation"
+      - "coverage per program is reported honestly (what worked, what didn't)"
+
+  - id: E2
+    title: "On-demand partial emulation"
+    status: planned
+    priority: P3
+    depends_on: [E1]
+    context: |
+      Owner request: emulate only the PARTS needed to run a given program (a
+      library-OS approach), not a whole OS. JIT only the foreign-ISA paths that
+      actually execute. Console-game profiles included.
+    acceptance: ["one legacy program runs with a measured subset of the original
+                  OS surface provided; report the subset"]
+
+  - id: E3
+    title: "Gaming: Steam-class integration + layered-depth rendering"
+    status: planned
+    priority: P3
+    depends_on: [E1, B3]
+    context: |
+      Owner request: high-spec gaming; 'graphics off the charts' via LAYERED
+      negative colors + tints/shades for efficient depth and contrast (extends
+      src/shimmer). Real GPU gaming needs GPU drivers — gated behind hardware.
+    acceptance: ["the layered-depth technique demonstrated with a measured
+                  cost/benefit vs. a naive renderer"]
+
+  # ===== TRACK F — DEVELOPER PLATFORM / THE NATIVE COMPILER ================
+  - id: F1
+    title: "Sutra v1 + Tri-Space artifacts (THE NATIVE COMPILER)"
+    status: partial
+    priority: P2
+    context: |
+      IMPORTANT HONESTY: ZXV is currently built by GCC from .c/.h files. The
+      native compiler (Sutra + MacGyver compiler/contra-compiler) and the
+      positive/negative/neutral file schema (.36n9/.9n63/.0n0 -> .zedec/.cedez)
+      exist as a PROTOTYPE (src/sutra, src/macgyver, tests present) and are NOT
+      self-hosting. This is the correct bootstrap order — you cannot compile a
+      kernel with a compiler that does not exist yet — but it means 'the OS is
+      built with its own native compiler' is NOT TRUE TODAY. Do not claim it.
+      Path: freeze v1 grammar -> typed semantics -> emit Event IR -> ARM64 and
+      x86-64 targets -> diagnostics/debugger/formatter -> build ONE nontrivial
+      signed app entirely through the toolchain -> only then discuss self-hosting.
+    acceptance:
+      - "one nontrivial application built end-to-end by the native toolchain"
+      - "positive/negative/neutral members produced from ONE source graph and
+         cryptographically bound (substitution rejected)"
+      - "reproducible on two hosts"
+
+  - id: F2
+    title: "Orbital Elevator — evidence-bounded compatibility routes"
+    status: partial
+    priority: P3
+    context: "Signed, versioned routes with VISIBLE degradation. No 'universal
+              compatibility' claims — explicit, tested routes only."
+    acceptance: ["one real API v1->v2 adapter with loss/permission semantics and
+                  rollback; ambiguous conversions surface as S0"]
+
+  # ===== TRACK H — HARDWARE =================================================
+  - id: H1
+    title: "Reference board bring-up (off-the-shelf ARM64)"
+    status: planned
+    priority: P2
+    context: |
+      CRITICAL SEQUENCING: do NOT gate the software MVP on custom silicon. Bring
+      the stack up on a supported off-the-shelf ARM64 SoM first. The way to
+      improve the hardware story TODAY is to build the drivers (B1-B4) that prove
+      the interface contracts — then a manufacturer can trust the schematics.
+    acceptance: ["10 devices boot the same signed release; per-device identity"]
+
+  - id: H2
+    title: "Germanium chip / EPU / fractal-ID"
+    status: research
+    priority: P4
+    context: |
+      Owner interest. Keep as a PARALLEL research profile, evidence-gated, never
+      a dependency of the MVP. 'Fractal computing' currently means Z-order
+      locality with a MEASURED 32% reduction in data movement on structured
+      traffic and 1.00x on uniform traffic (the honesty control) — keep claims at
+      that level unless new measurements justify more.
+
+  - id: H3
+    title: "Manufacturing pack (schematics, BOM, EVT/DVT/PVT, compliance)"
+    status: planned
+    priority: P3
+    depends_on: [H1]
+    context: "Produced AFTER software proves the interfaces, not before."
+
+  # ===== TRACK I — EVIDENCE / RELEASE / COMMERCIAL =========================
+  - id: I1
+    title: "One accurate release capsule"
+    status: planned
+    priority: P0
+    context: |
+      Audit P0-5: staged cell binaries do not match current builds; PROVENANCE
+      checksums and the source SBOM are stale; evidence reports describe an older
+      state. A recipient cannot answer 'which exact source constitutes this
+      release?'.
+      ALSO: package via `git archive` of a signed tag — NEVER a raw zip of the
+      working tree. A raw zip captured the gitignored dev signing key in a prior
+      release (audit P0-1). The key is gitignored and NOT in git; keep it that way.
+    acceptance:
+      - "binaries, SBOM, provenance, test reports, and claim ledger all generated
+         from ONE clean signed commit"
+      - "packaging FAILS if any hash, claim, or document references another state"
+      - "0 secrets in the release artifact (scan it)"
+
+  - id: I2
+    title: "Claim ledger"
+    status: planned
+    priority: P1
+    context: |
+      Every external claim tagged verified | partial | planned | hypothesis |
+      prohibited, each linked to evidence. Known claims requiring correction (do
+      not restate them as fact):
+        'quantum-resistant via magnetic geometry' -> category error; PQ security
+          comes from ML-KEM only
+        'fractal computing' -> Z-order locality, 32% measured with a 1.00x control
+        'zero packet loss' -> unachievable; state bounded recoverable loss
+        'mathematically immortal' -> not an engineering property
+        'Chiglet is an AI model' -> it is an ISF decision runtime, NOT an LLM
+        'sigils are a working processor' -> the circuit MODEL is real and tested;
+          no silicon executes it
+        CrimsonScale medical claims -> require a regulatory pathway; research only
+    acceptance: ["every external sentence links to evidence or a limitation"]
+
+  - id: I3
+    title: "Tata Electronics pitch + reconciled legal terms"
+    status: planned
+    priority: P1
+    depends_on: [I1, I2]
+    context: |
+      Owner intent: EXCLUSIVE WORLDWIDE production + global distribution, with
+      the opportunity to patent the architecture through the ESTABLISHED DUBAI
+      FOUNDATION structure. Research Tata Electronics' actual business model and
+      capabilities and customize both the pitch AND the legal documents to them.
+      BLOCKER (audit P0-8): the existing documents CONTRADICT each other —
+      Rs 2,00,000/week vs Rs 20,00,000/week advance; 100% hardware revenue to VIT
+      vs 20%+5% royalties; India-only vs worldwide territory; exclusive scope
+      differs by document; patent status overstated. These MUST be reconciled
+      into ONE counsel-reviewed term sheet before any partner circulation.
+      This is not legal advice; a lawyer must review.
+    acceptance:
+      - "0 conflicting terms across all documents"
+      - "every external company/program/patent claim has a current source"
+      - "financial model has units, ASP, BOM/COGS, probability, and cash timing"
+
+  - id: I4
+    title: "Regenerate partner PDFs"
+    status: planned
+    priority: P3
+    context: "All 13 PDFs are byte-identical to Proposal 8; missing Devanagari
+              glyphs and layout defects remain. Embed Noto Sans + Noto Sans
+              Devanagari; add an executive evidence dashboard; visual regression."
+
+# ----------------------------------------------------------------------------
+# 5. RECOMMENDED EXECUTION ORDER (dependency-correct, highest leverage first)
+# ----------------------------------------------------------------------------
+execution_order:
+  - "S1-S2  provision + reproduce baseline (NEVER skip; proves the environment)"
+  - "B1     virtio-net probe fix + functional round-trip"
+  - "B2     network stack -> DHCP/DNS/TCP/TLS"
+  - "A1     finish user-copy boundary + syscall fuzzing"
+  - "A2     ZSP v2 + anti-rollback"
+  - "A3     signed path-safe installer + system A/B + power-cut campaign"
+  - "G1     x86-64 parity"
+  - "A4     real protected cell backend"
+  - "G2     durable 13-phase + cross-ISA canonical trace"
+  - "I1     one accurate release capsule (now the claims are true)"
+  - "C1     Den Connect node over real networking"
+  - "D1/D2  content-addressed store + mass networking"
+  - "C3/C8  recovery utility + portable identity"
+  - "C5/C6/C7  Holodeck, security suite, consumer shell"
+  - "E1/E2/E3  compatibility, partial emulation, gaming"
+  - "F1     native compiler toward self-hosting"
+  - "H1/H3  reference board, then the manufacturing pack"
+  - "I2/I3/I4  claim ledger, Tata pitch, PDFs"
+
+# ----------------------------------------------------------------------------
+# 6. DEFINITION OF DONE (from the external audit — the real bar)
+# ----------------------------------------------------------------------------
+definition_of_done:
+  technical_mvp: |
+    An independent engineer can: install one threshold-signed ZXV release from
+    bootable media onto blank ARM64 AND x86-64 virtual disks; boot a protected
+    user-space session; use P-TERM; persist files; execute only signed
+    applications; submit and recover one full durable 13-phase Tri-Space
+    transaction; kill and restart one protected service cell without losing
+    sibling state; interrupt an A/B system update at every transition and
+    recover; reach a TLS endpoint; and reproduce the entire evidence capsule
+    from the signed source commit with zero warnings, mismatches, skipped
+    mandatory tests, bundled secrets, or unsupported claims.
+  partner_ready: "technical MVP + ONE counsel-reviewed term sheet + verified
+                  claims + a named reference board + a costed plan"
+  note: |
+    No architecture earns a permanent 10/10. The operational equivalent is
+    CONTINUOUS CONFORMANCE: every promoted subsystem satisfies its current
+    threat, evidence, safety, legal, and lifecycle gates; a regression
+    automatically demotes the release; research stays labeled and isolated
+    until independently validated.
+
+# ----------------------------------------------------------------------------
+# 7. REPORTING — what to hand back
+# ----------------------------------------------------------------------------
+reporting:
+  per_item:
+    - "item id + final status (done | partial | blocked)"
+    - "the exact commands run and their real output"
+    - "assertion count before and after"
+    - "what you did NOT finish and precisely why"
+  session_end:
+    - "verify-all count, warning count, boot acceptance — all freshly measured"
+    - "git log of everything committed"
+    - "an honest list of every remaining open item"
+  forbidden:
+    - "summarizing work you did not run"
+    - "reporting a number you did not measure this session"
+    - "marking an item done when a sub-acceptance criterion failed"
