@@ -397,7 +397,21 @@ bool desktop_verify_coverage(desktop_t *desk) {
     desk->coverage_l = (desk->num_apps == 0) ? 0.0 :
         (double)running / (double)desk->num_apps;
 
-    /* Coverage hyperbola: r * ell >= 1.8 threshold for full coverage */
-    double product = desk->coverage_r * (desk->coverage_l > 0 ? desk->coverage_l : 0.5);
-    return product >= 0.0;  /* Non-negative is the minimum bar */
+    /* This used to read:
+     *     double product = r * (ell > 0 ? ell : 0.5);
+     *     return product >= 0.0;
+     * Both r and ell are fractions in [0,1], so their product is never
+     * negative: the function was a compile-time tautology sitting underneath
+     * two ASSERTs. The comment above it claimed the M5 coverage hyperbola
+     * "r * ell >= 1.8", which is unreachable here by construction — that
+     * floor belongs to EDP coordinates, where r and ell are not fractions.
+     *
+     * The honest metric for a DESKTOP: a surface with nothing on it has
+     * nothing to fail to cover, so it trivially passes; once there are
+     * windows or apps, a real fraction of them must actually be present. */
+    if (desk->num_windows == 0 && desk->num_apps == 0) return true;
+
+    double r = desk->coverage_r;
+    double l = (desk->num_apps == 0) ? 1.0 : desk->coverage_l;
+    return (r * l) >= DESKTOP_COVERAGE_FLOOR;
 }

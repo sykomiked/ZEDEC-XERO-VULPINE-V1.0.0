@@ -99,3 +99,57 @@ void sha256(const uint8_t *data, size_t len, uint8_t out[SHA256_DIGEST_LEN]) {
         out[i * 4 + 3] = (uint8_t)(h[i]);
     }
 }
+
+/* ===================== streaming API ===================== */
+
+void sha256_init(sha256_ctx_t *c) {
+    if (!c) return;
+    c->h[0] = 0x6a09e667; c->h[1] = 0xbb67ae85;
+    c->h[2] = 0x3c6ef372; c->h[3] = 0xa54ff53a;
+    c->h[4] = 0x510e527f; c->h[5] = 0x9b05688c;
+    c->h[6] = 0x1f83d9ab; c->h[7] = 0x5be0cd19;
+    c->buf_len = 0;
+    c->total = 0;
+}
+
+void sha256_update(sha256_ctx_t *c, const uint8_t *data, size_t len) {
+    if (!c || !data) return;
+    c->total += len;
+
+    /* top up a partial block first */
+    if (c->buf_len) {
+        size_t take = 64 - c->buf_len;
+        if (take > len) take = len;
+        for (size_t i = 0; i < take; i++) c->buf[c->buf_len + i] = data[i];
+        c->buf_len += take;
+        data += take; len -= take;
+        if (c->buf_len == 64) { sha256_block(c->h, c->buf); c->buf_len = 0; }
+    }
+    /* then whole blocks straight from the caller's buffer */
+    while (len >= 64) { sha256_block(c->h, data); data += 64; len -= 64; }
+    /* and keep the remainder */
+    for (size_t i = 0; i < len; i++) c->buf[c->buf_len++] = data[i];
+}
+
+void sha256_final(sha256_ctx_t *c, uint8_t out[SHA256_DIGEST_LEN]) {
+    if (!c || !out) return;
+    uint64_t bits = c->total * 8u;
+
+    uint8_t pad[128];
+    size_t rem = c->buf_len;
+    for (size_t i = 0; i < rem; i++) pad[i] = c->buf[i];
+    pad[rem] = 0x80;
+    size_t total_len = (rem < 56) ? 64 : 128;
+    for (size_t i = rem + 1; i < total_len - 8; i++) pad[i] = 0;
+    for (int i = 0; i < 8; i++)
+        pad[total_len - 1 - (size_t)i] = (uint8_t)(bits >> (8 * i));
+
+    for (size_t off = 0; off < total_len; off += 64) sha256_block(c->h, pad + off);
+
+    for (int i = 0; i < 8; i++) {
+        out[i * 4 + 0] = (uint8_t)(c->h[i] >> 24);
+        out[i * 4 + 1] = (uint8_t)(c->h[i] >> 16);
+        out[i * 4 + 2] = (uint8_t)(c->h[i] >> 8);
+        out[i * 4 + 3] = (uint8_t)(c->h[i]);
+    }
+}

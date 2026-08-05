@@ -213,6 +213,14 @@ int desktop_handle_mouse(desktop_t *desk, int32_t x, int32_t y, uint8_t buttons)
 int desktop_handle_key(desktop_t *desk, uint8_t keycode, bool pressed);
 
 /* Coverage */
+/* The fraction of (visible windows) x (running apps) a desktop must reach to
+ * count as covered. This is NOT the M5 coverage hyperbola floor of 1.8 — both
+ * inputs here are fractions in [0,1], so a product of 1.8 is unreachable and
+ * a check against it would be either always-true or always-false. */
+#define DESKTOP_COVERAGE_FLOOR 0.5
+
+/* True when the desktop is adequately covered. An empty desktop passes: there
+ * is nothing on it to fail to cover. */
 bool desktop_verify_coverage(desktop_t *desk);
 
 #endif /* DESKTOP_H */

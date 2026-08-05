@@ -16,7 +16,6 @@ void crypto_hmac_sha256(const uint8_t *data, size_t data_len,
     uint8_t k_ipad[HMAC_BLOCK_SIZE];
     uint8_t k_opad[HMAC_BLOCK_SIZE];
     uint8_t inner_hash[32];
-    uint8_t inner_input[HMAC_BLOCK_SIZE + 256]; /* key_block + data, capped */
     uint8_t outer_input[HMAC_BLOCK_SIZE + 32];
 
     /* Normalize key to block size */
@@ -33,12 +32,22 @@ void crypto_hmac_sha256(const uint8_t *data, size_t data_len,
         k_opad[i] = k_block[i] ^ 0x5c;
     }
 
-    /* Inner: H(K ^ ipad || data) */
-    size_t copy_len = data_len;
-    if (copy_len > 256) copy_len = 256; /* safety cap */
-    for (size_t i = 0; i < HMAC_BLOCK_SIZE; i++) inner_input[i] = k_ipad[i];
-    for (size_t i = 0; i < copy_len; i++) inner_input[HMAC_BLOCK_SIZE + i] = data[i];
-    sha256(inner_input, HMAC_BLOCK_SIZE + copy_len, inner_hash);
+    /* Inner: H(K ^ ipad || data), STREAMED.
+     *
+     * This previously staged the message into inner_input[64 + 256] with a
+     * "safety cap" that clamped copy_len to 256 — and then hashed only that
+     * much. A 400-byte payload had its last 144 bytes excluded from the MAC
+     * while crypto_verify_hmac() still returned true, so an attacker could
+     * rewrite the tail of any authenticated message freely. The header
+     * documents no such limit and cites RFC 2104, which has none.
+     *
+     * Streaming removes the staging buffer, so there is no cap to get wrong
+     * and no fixed-size copy to overflow. */
+    sha256_ctx_t ictx;
+    sha256_init(&ictx);
+    sha256_update(&ictx, k_ipad, HMAC_BLOCK_SIZE);
+    sha256_update(&ictx, data, data_len);
+    sha256_final(&ictx, inner_hash);
 
     /* Outer: H(K ^ opad || inner_hash) */
     for (size_t i = 0; i < HMAC_BLOCK_SIZE; i++) outer_input[i] = k_opad[i];

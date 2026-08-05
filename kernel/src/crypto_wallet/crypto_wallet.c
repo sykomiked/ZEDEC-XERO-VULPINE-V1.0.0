@@ -149,13 +149,8 @@ void cw_hmac_sha256(const uint8_t *key, uint32_t key_len,
     uint8_t k_ipad[SHA256_BLOCK_SIZE];
     uint8_t k_opad[SHA256_BLOCK_SIZE];
     uint8_t inner_hash[SHA256_DIGEST_SIZE];
-    /* Combined buffer must fit: max(SHA256_BLOCK_SIZE + data_len, SHA256_BLOCK_SIZE + SHA256_DIGEST_SIZE) */
-    uint32_t combined_len = SHA256_BLOCK_SIZE + (data_len > SHA256_DIGEST_SIZE ? data_len : SHA256_DIGEST_SIZE);
-    uint8_t combined[256];  /* Stack buffer — sufficient for SHA256_BLOCK_SIZE + 128 max */
+    uint8_t combined[SHA256_BLOCK_SIZE + SHA256_DIGEST_SIZE];
     uint32_t i;
-
-    /* Clamp to stack buffer size */
-    if (combined_len > sizeof(combined)) combined_len = sizeof(combined);
 
     /* Prepare key block */
     memset(k_block, 0, SHA256_BLOCK_SIZE);
@@ -171,10 +166,21 @@ void cw_hmac_sha256(const uint8_t *key, uint32_t key_len,
         k_opad[i] = k_block[i] ^ 0x5c;
     }
 
-    /* Inner hash: H(K_ipad || data) */
-    memcpy(combined, k_ipad, SHA256_BLOCK_SIZE);
-    memcpy(combined + SHA256_BLOCK_SIZE, data, data_len);
-    cw_sha256(combined, SHA256_BLOCK_SIZE + data_len, inner_hash);
+    /* Inner hash: H(K_ipad || data), STREAMED.
+     *
+     * This previously staged K_ipad || data into a 256-byte stack buffer.
+     * A combined_len was computed and clamped to sizeof(combined) — and then
+     * NEVER USED: the memcpy below it copied `data_len` bytes regardless. Any
+     * data_len above 192 smashed the stack, and the clamp that was supposed
+     * to prevent it was dead code. Streaming removes the buffer entirely, so
+     * there is nothing to overflow and nothing to truncate. */
+    {
+        sha256_ctx_t ictx;
+        sha256_init(&ictx);
+        sha256_update(&ictx, k_ipad, SHA256_BLOCK_SIZE);
+        sha256_update(&ictx, data, data_len);
+        sha256_final(&ictx, inner_hash);
+    }
 
     /* Outer hash: H(K_opad || inner_hash) */
     memcpy(combined, k_opad, SHA256_BLOCK_SIZE);

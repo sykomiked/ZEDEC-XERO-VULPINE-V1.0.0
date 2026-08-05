@@ -79,8 +79,13 @@ void acpi_init(acpi_state_t *state) {
         if (tbl && acpi_checksum(tbl, tbl->length) == 0) {
             state->tables[state->num_tables++] = tbl;
 
-            if (tbl->signature[0] == 'M' && tbl->signature[1] == 'A' &&
-                tbl->signature[2] == 'D' && tbl->signature[3] == 'T') {
+            /* The Multiple APIC Description Table's on-disk signature is
+             * "APIC", not "MADT" — MADT is only its prose name. Matching
+             * "MADT" meant has_madt and local_apic_addr were dead outputs on
+             * every real machine and every emulator, which would have been a
+             * quiet trap for whoever writes the APIC driver. */
+            if (tbl->signature[0] == 'A' && tbl->signature[1] == 'P' &&
+                tbl->signature[2] == 'I' && tbl->signature[3] == 'C') {
                 acpi_madt_t *madt = (acpi_madt_t *)tbl;
                 state->local_apic_addr = madt->local_apic_addr;
                 state->has_madt = true;

@@ -33,8 +33,17 @@ int main(void) {
             0x85,0x5f,0x08,0x6e,0x3e,0x9d,0x52,0x5b,0x46,0xbf,0xe2,0x45,0x11,0x43,0x15,0x32
         };
         print_hex("SHA3-256('abc')", digest, 32);
-        printf("(note: if this fails but SHA3-256('') passes, cross-check the 'abc' vector separately -- '' is the primary validation target)\n");
-        if (memcmp(digest, expected, 32) != 0) { printf("INFO: SHA3-256('abc') mismatch vs tentative vector\n"); }
+        /* This vector is NOT tentative: 3a985da7...11431532 is the standard
+         * NIST value for SHA3-256("abc"), and it is the ONLY check here that
+         * exercises absorption with real message bytes — SHA3-256("") hits
+         * only the padding path. It previously routed a mismatch to a
+         * printf("INFO:") without touching `failures`, so a broken Keccak
+         * printed "ALL KECCAK VALIDATION TESTS PASSED" and exited 0. Every
+         * ML-KEM key in the system derives from this primitive. */
+        if (memcmp(digest, expected, 32) != 0) {
+            printf("FAIL: SHA3-256('abc') does not match the NIST vector\n");
+            failures++;
+        }
         else printf("PASS: SHA3-256('abc')\n");
     }
 

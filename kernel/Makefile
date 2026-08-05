@@ -660,6 +660,12 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
+	echo "=== HMAC full-message coverage (regression: 256-byte auth bypass) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/robin_debanks \
+		src/robin_debanks/test_hmac_fullcover.c src/robin_debanks/crypto_verify.c \
+		src/robin_debanks/sha256.c \
+		-o /tmp/test_hmac_fullcover -lm && \
+		/tmp/test_hmac_fullcover && echo "[PASS] test_hmac_fullcover" || { echo "[FAIL] test_hmac_fullcover"; exit 1; }; \
 	echo "=== TLS 1.3 key schedule: RFC 4231 / 5869 / 8448 published vectors ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tls -Isrc/robin_debanks \
 		src/tls/test_hkdf.c src/tls/hkdf.c src/robin_debanks/sha256.c \
