@@ -660,6 +660,16 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
+	echo "=== multi-language text: UTF-8 + script itemization + direction ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
+		src/font/test_script.c src/font/script.c \
+		-o /tmp/test_script -lm && \
+		/tmp/test_script && echo "[PASS] test_script" || { echo "[FAIL] test_script"; exit 1; }; \
+	echo "=== font registry: script->face resolution + glyph boundary ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
+		src/font/test_font.c src/font/font.c src/font/script.c \
+		-o /tmp/test_font -lm && \
+		/tmp/test_font && echo "[PASS] test_font" || { echo "[FAIL] test_font"; exit 1; }; \
 	echo "=== zxpkg: native Tri-Space package (.zxvc/.cedez/.cedec) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zxpkg -Isrc/trispace -Isrc/robin_debanks \
 		src/zxpkg/test_zxpkg.c src/zxpkg/zxpkg.c src/trispace/trispace.c src/robin_debanks/sha256.c \
