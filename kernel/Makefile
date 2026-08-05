@@ -545,6 +545,11 @@ verify-all: test
 		src/cards/sigil.c src/cards/zca.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
 		-o /tmp/test_refinery -lm && \
 		/tmp/test_refinery && echo "[PASS] test_refinery" || { echo "[FAIL] test_refinery"; exit 1; }; \
+	echo "=== Concord: ISF-driven non-coercive social matching ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/concord -Isrc/chiglet -Isrc/surplus \
+		src/concord/test_concord.c src/concord/concord.c src/chiglet/chiglet.c src/surplus/surplus.c \
+		-o /tmp/test_concord -lm && \
+		/tmp/test_concord && echo "[PASS] test_concord" || { echo "[FAIL] test_concord"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).
