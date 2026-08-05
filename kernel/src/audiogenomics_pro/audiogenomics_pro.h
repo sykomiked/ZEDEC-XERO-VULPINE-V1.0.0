@@ -111,8 +111,20 @@ typedef struct agp_pipeline_config {
     bool normalize_output;
 } agp_pipeline_config_t;
 
+/* A codon is exactly three bases with NO NUL terminator by design — these
+ * arrays are intentionally non-strings. `nonstring` documents that and
+ * silences -Wunterminated-string-initialization without changing layout. */
+#if defined(__has_attribute)
+#  if __has_attribute(nonstring)
+#    define ZXV_NONSTRING __attribute__((nonstring))
+#  endif
+#endif
+#ifndef ZXV_NONSTRING
+#  define ZXV_NONSTRING
+#endif
+
 typedef struct agp_genetic_code {
-    char codon[3];
+    char codon[3] ZXV_NONSTRING;
     char amino_acid;
 } agp_genetic_code_t;
 

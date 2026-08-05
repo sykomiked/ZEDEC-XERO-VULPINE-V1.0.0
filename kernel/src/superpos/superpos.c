@@ -25,7 +25,7 @@ static void sp_memset(void *dst, int v, uint32_t n) {
     for (i = 0; i < n; i++) d[i] = (uint8_t)v;
 }
 
-static void sp_memcpy(void *dst, const void *src, uint32_t n) {
+static __attribute__((unused)) void sp_memcpy(void *dst, const void *src, uint32_t n) {
     uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src; uint32_t i;
     for (i = 0; i < n; i++) d[i] = s[i];
 }
@@ -34,7 +34,7 @@ static void sp_strcpy(char *dst, const char *src) {
     uint32_t i = 0; while (src[i]) { dst[i] = src[i]; i++; } dst[i] = '\0';
 }
 
-static int sp_strcmp(const char *a, const char *b) {
+static __attribute__((unused)) int sp_strcmp(const char *a, const char *b) {
     uint32_t i = 0; while (a[i] && b[i]) {
         if (a[i] != b[i]) return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
         i++;
@@ -43,11 +43,11 @@ static int sp_strcmp(const char *a, const char *b) {
 }
 
 /* Fixed-point arithmetic: amplitude_scale = 1000 means 1.0 */
-static int32_t sp_imul(int32_t a, int32_t b) {
+static __attribute__((unused)) int32_t sp_imul(int32_t a, int32_t b) {
     return (a * b) / (int32_t)SP_AMPLITUDE_SCALE;
 }
 
-static int32_t sp_isqrt(int64_t v) {
+static __attribute__((unused)) int32_t sp_isqrt(int64_t v) {
     if (v <= 0) return 0;
     int32_t lo = 0, hi = 46340; /* sqrt(2^31) */
     while (lo < hi) {

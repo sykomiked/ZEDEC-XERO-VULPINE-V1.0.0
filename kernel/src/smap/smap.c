@@ -37,7 +37,7 @@ static int sm_memcmp(const void *a, const void *b, uint32_t n) {
     return 0;
 }
 
-static uint32_t sm_strlen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
+static __attribute__((unused)) uint32_t sm_strlen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
 
 static void sm_strcpy(char *dst, const char *src) {
     uint32_t i = 0; while (src[i]) { dst[i] = src[i]; i++; } dst[i] = '\0';

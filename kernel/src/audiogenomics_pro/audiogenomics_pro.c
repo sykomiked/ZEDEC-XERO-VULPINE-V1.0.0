@@ -51,7 +51,7 @@ static const agp_genetic_code_t s_genetic_code[64] = {
 };
 
 /* Reverse genetic code (amino acid -> preferred codon, RNA) */
-static const char s_aa_to_codon[26] = {
+static __attribute__((unused)) const char s_aa_to_codon[26] = {
     'A', 'R', 'N', 'D', 'C', 'E', 'Q', 'G', 'H', 'I',
     'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V',
     'S', 'N', '*', 'R', 'A', 'L'
@@ -169,7 +169,6 @@ uint32_t agp_text_to_dna_hebrew(const char *text, char *out, uint32_t out_max,
      * In full implementation, would use proper Hebrew mapping. */
     uint32_t len = 0;
     const char *p = text;
-    const char *map = (mode == AGP_MODE_RNA) ? s_bin_to_rna : s_bin_to_dna;
 
     while (*p && len + 3 <= out_max) {
         uint32_t gem_val = ((uint32_t)(uint8_t)*p++) % 27;
@@ -902,6 +901,7 @@ int agp_run_pipeline(const agp_pipeline_config_t *cfg,
 /* ===== Reporting ===== */
 
 void agp_print_info(const agp_pipeline_config_t *cfg) {
+(void)cfg;
 #ifdef TEST_HOST
     printf("=== Audio Genomics Pro Configuration ===\n");
     printf("  Sample rate:    %u Hz\n", cfg->sample_rate);

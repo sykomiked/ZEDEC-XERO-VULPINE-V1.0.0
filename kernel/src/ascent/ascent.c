@@ -25,13 +25,13 @@ static void asc_memset(void *dst, int v, uint32_t n) {
     for (i = 0; i < n; i++) d[i] = (uint8_t)v;
 }
 
-static uint32_t asc_strlen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
+static __attribute__((unused)) uint32_t asc_strlen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
 
 static void asc_strcpy(char *dst, const char *src) {
     uint32_t i = 0; while (src[i]) { dst[i] = src[i]; i++; } dst[i] = '\0';
 }
 
-static int asc_strcmp(const char *a, const char *b) {
+static __attribute__((unused)) int asc_strcmp(const char *a, const char *b) {
     uint32_t i = 0; while (a[i] && b[i]) {
         if (a[i] != b[i]) return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
         i++;

@@ -32,7 +32,7 @@ static void pc_strcpy(char *dst, const char *src) {
     uint32_t i = 0; while (src[i]) { dst[i] = src[i]; i++; } dst[i] = '\0';
 }
 
-static int pc_strcmp(const char *a, const char *b) {
+static __attribute__((unused)) int pc_strcmp(const char *a, const char *b) {
     uint32_t i = 0; while (a[i] && b[i]) {
         if (a[i] != b[i]) return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
         i++;
@@ -230,6 +230,7 @@ int pungent_tunnel_close(pungent_t *pc, uint32_t tunnel_idx) {
 
 int pungent_tunnel_send(pungent_t *pc, uint32_t tunnel_idx,
                          const uint8_t *data, uint32_t len) {
+    (void)data;
     if (tunnel_idx >= pc->num_tunnels || !pc->tunnels[tunnel_idx].active) return -1;
     pc_tunnel_t *t = &pc->tunnels[tunnel_idx];
     t->bytes_sent += len;

@@ -4,7 +4,7 @@
  */
 #include "m5route.h"
 
-static int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
+static __attribute__((unused)) int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
 static int str_cmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
@@ -321,6 +321,7 @@ void m5_addr_from_ipv4(m5_address_t *maa, const uint8_t ip[4], uint16_t port) {
 }
 
 void m5_addr_from_ipv6(m5_address_t *maa, const uint8_t ip[16], uint16_t port) {
+    (void)port;
     mem_set(maa, 0, sizeof(*maa));
     maa->proto = M5_PROTO_IPV6;
     int j = 0;

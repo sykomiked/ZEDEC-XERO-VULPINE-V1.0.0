@@ -6,7 +6,7 @@
 #include "../oseq/oseq_core.h"
 #include "../../include/m5_types.h"
 
-static int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
+static __attribute__((unused)) int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
 static void str_copy(char *d, const char *s) { int i = 0; while (s[i]) { d[i] = s[i]; i++; } d[i] = 0; }
 static int str_cmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
@@ -105,6 +105,7 @@ int32_t vfs_write(vfs_state_t *vfs, int32_t fd, const void *buf, uint32_t len) {
 }
 
 int32_t vfs_list_dir(vfs_state_t *vfs, const char *path, vfs_node_t *out, uint32_t max_entries) {
+    (void)path;
     for (uint32_t i = 0; i < vfs->num_mounts; i++) {
         if (!vfs->mounts[i].active) continue;
         if (vfs->mounts[i].type == VFS_MOUNT_FAT32 && vfs->mounts[i].fs_data) {

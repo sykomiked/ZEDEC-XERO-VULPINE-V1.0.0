@@ -14,7 +14,7 @@ static void bitmap_clear(uint32_t *bm, uint32_t bit) {
     bm[bit / 32] &= ~(1 << (bit % 32));
 }
 
-static bool bitmap_test(const uint32_t *bm, uint32_t bit) {
+static __attribute__((unused)) bool bitmap_test(const uint32_t *bm, uint32_t bit) {
     return (bm[bit / 32] & (1 << (bit % 32))) != 0;
 }
 

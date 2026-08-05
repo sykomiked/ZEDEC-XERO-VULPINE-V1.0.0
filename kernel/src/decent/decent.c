@@ -42,7 +42,7 @@ static void dc_strcpy(char *dst, const char *src) {
     uint32_t i = 0; while (src[i]) { dst[i] = src[i]; i++; } dst[i] = '\0';
 }
 
-static int dc_strcmp(const char *a, const char *b) {
+static __attribute__((unused)) int dc_strcmp(const char *a, const char *b) {
     uint32_t i = 0; while (a[i] && b[i]) {
         if (a[i] != b[i]) return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
         i++;

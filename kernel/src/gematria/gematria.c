@@ -32,11 +32,11 @@ static void gm_memcpy(void *dst, const void *src, uint32_t n) {
 
 static uint32_t gm_strlen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
 
-static void gm_strcpy(char *dst, const char *src) {
+static __attribute__((unused)) void gm_strcpy(char *dst, const char *src) {
     uint32_t i = 0; while (src[i]) { dst[i] = src[i]; i++; } dst[i] = '\0';
 }
 
-static int gm_strcmp(const char *a, const char *b) {
+static __attribute__((unused)) int gm_strcmp(const char *a, const char *b) {
     uint32_t i = 0; while (a[i] && b[i]) {
         if (a[i] != b[i]) return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
         i++;
@@ -237,6 +237,7 @@ gem_punct_t gematria_detect_punct(char c) {
 int gematria_to_fock(gematria_t *g, const gem_word_t *word,
                      const hdcm_vector_t *language_base,
                      hdcm_vector_t *out_vector) {
+    (void)g;
     if (!word || !out_vector) return -1;
 
     /* Generate vector from gematria value as seed */
@@ -269,6 +270,7 @@ int gematria_to_fock(gematria_t *g, const gem_word_t *word,
 
 int gematria_sentence_to_fock(gematria_t *g, const gem_sentence_t *sentence,
                                hdcm_vector_t *out_vector) {
+    (void)g;
     if (!sentence || !out_vector) return -1;
 
     if (sentence->num_words == 0) {

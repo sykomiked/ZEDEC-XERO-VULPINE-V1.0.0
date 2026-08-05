@@ -21,7 +21,7 @@
 /* ===== String helpers (freestanding-safe) ===== */
 
 #ifndef TEST_HOST
-static size_t pterm_strlen(const char *s) {
+static __attribute__((unused)) size_t pterm_strlen(const char *s) {
     size_t n = 0;
     while (s[n]) n++;
     return n;

@@ -27,7 +27,8 @@ static void *zmemset(void *d, int c, unsigned long n) {
 }
 static void *zmemcpy(void *d, const void *s, unsigned long n) {
     unsigned char *pd = d; const unsigned char *ps = s;
-    while (n--) *pd++ = *ps++; return d;
+    while (n--) *pd++ = *ps++;
+    return d;
 }
 #endif
 

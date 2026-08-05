@@ -400,7 +400,6 @@ int nlb_branch_correct(nlb_session_t *s, uint32_t branch_idx) {
 
 bool nlb_check_convergence(nlb_session_t *s) {
     uint32_t i;
-    bool all_passed = true;
     bool any_passed = false;
 
     for (i = 0; i < s->num_branches; i++) {
@@ -408,7 +407,6 @@ bool nlb_check_convergence(nlb_session_t *s) {
             s->branches[i].state == NLB_BRANCH_MERGED) {
             any_passed = true;
         } else if (s->branches[i].state == NLB_BRANCH_FAILED) {
-            all_passed = false;
         }
     }
 

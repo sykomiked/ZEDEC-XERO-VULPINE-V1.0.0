@@ -30,7 +30,7 @@ static void plnp_memcpy(void *dst, const void *src, uint32_t n) {
     for (i = 0; i < n; i++) d[i] = s[i];
 }
 
-static int plnp_memcmp(const void *a, const void *b, uint32_t n) {
+static __attribute__((unused)) int plnp_memcmp(const void *a, const void *b, uint32_t n) {
     const uint8_t *pa = a, *pb = b; uint32_t i;
     for (i = 0; i < n; i++) if (pa[i] != pb[i]) return (int)pa[i] - (int)pb[i];
     return 0;

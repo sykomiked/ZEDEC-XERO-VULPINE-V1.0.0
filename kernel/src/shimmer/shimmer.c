@@ -114,9 +114,12 @@ uint8_t shimmer_sample(const shimmer_t *s, int32_t x, int32_t y) {
 
 /* ARGB helpers kept local so this module has no dependencies. */
 static uint32_t argb(uint32_t a, int32_t r, int32_t g, int32_t b) {
-    if (r < 0) r = 0; if (r > 255) r = 255;
-    if (g < 0) g = 0; if (g > 255) g = 255;
-    if (b < 0) b = 0; if (b > 255) b = 255;
+    if (r < 0) r = 0;
+    if (r > 255) r = 255;
+    if (g < 0) g = 0;
+    if (g > 255) g = 255;
+    if (b < 0) b = 0;
+    if (b > 255) b = 255;
     return (a << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 

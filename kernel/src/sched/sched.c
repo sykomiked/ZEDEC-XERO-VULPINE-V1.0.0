@@ -9,7 +9,7 @@
 #include "../lpres/lpres_core.h"
 #include "../../include/m5_types.h"
 
-static int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
+static __attribute__((unused)) int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
 static void str_copy(char *d, const char *s) { int i = 0; while (s[i]) { d[i] = s[i]; i++; } d[i] = 0; }
 
 void sched_init(scheduler_t *sched) {

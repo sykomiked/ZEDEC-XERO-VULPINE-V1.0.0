@@ -72,11 +72,7 @@ void pterm_cmd_vmstat(pterm_t *t) {
     pterm_write_attr(t, "Phase-tick: 10ms | Sched: 5-state\n", PTERM_ATTR_NORMAL);
     pterm_write_attr(t, "Memory: 256MB total, 248MB free\n", PTERM_ATTR_GREEN);
 #else
-    char buf[128];
-    /* Real memory stats from the scheduler */
-    int n = 0;
-    n += fs_snprintf ? 0 : 0; /* use our own formatting */
-
+    /* memory stats printed with our own tiny integer formatting */
     pterm_write_attr(t, "Scheduler: ", PTERM_ATTR_BRIGHT);
     pterm_write_attr(t, sched.initialized ? "ONLINE" : "OFFLINE", PTERM_ATTR_GREEN);
     pterm_write(t, "  tasks=");

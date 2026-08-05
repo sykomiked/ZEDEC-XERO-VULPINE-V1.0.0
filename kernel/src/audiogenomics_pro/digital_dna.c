@@ -665,6 +665,7 @@ void ddna_grid_animate(ddna_consonant_grid_t *grid,
                         uint32_t sample_rate,
                         agp_waveform_t wave,
                         agp_audio_buffer_t *out) {
+    (void)wave;
     if (!grid || !genome || !out || genome->length == 0) {
         if (out) out->length = 0;
         return;

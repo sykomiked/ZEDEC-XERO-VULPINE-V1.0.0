@@ -7,8 +7,8 @@
 #include "../iphase/iphase_core.h"
 #include "../../include/m5_types.h"
 
-static int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
-static int str_cmp(const char *a, const char *b) {
+static __attribute__((unused)) int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
+static __attribute__((unused)) int str_cmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
 }

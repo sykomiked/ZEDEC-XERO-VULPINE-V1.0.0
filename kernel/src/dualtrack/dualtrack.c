@@ -30,7 +30,7 @@ static void dt_memcpy(void *dst, const void *src, uint32_t n) {
     for (i = 0; i < n; i++) d[i] = s[i];
 }
 
-static uint32_t dt_strlen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
+static __attribute__((unused)) uint32_t dt_strlen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
 
 static void dt_strcpy(char *dst, const char *src) {
     uint32_t i = 0; while (src[i]) { dst[i] = src[i]; i++; } dst[i] = '\0';
