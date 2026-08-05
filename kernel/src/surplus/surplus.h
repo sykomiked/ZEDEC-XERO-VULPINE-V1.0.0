@@ -54,7 +54,10 @@ typedef int64_t surplus_real_t;
 #define SR_SHIFT       32
 #define SR_ONE         ((int64_t)1 << SR_SHIFT)
 #define SR_ZERO        ((int64_t)0)
-#define SR_FROM_INT(x) ((int64_t)(x) << SR_SHIFT)
+/* Multiply, not left-shift: `(int64_t)x << 32` is UB when x is negative,
+ * which sr_ln() hits for every argument < 1 (red-team). Multiply by SR_ONE
+ * is defined for negatives and identical for non-negatives. */
+#define SR_FROM_INT(x) ((int64_t)(x) * SR_ONE)
 #define SR_FROM_FLOAT(x) ((int64_t)((x) * (double)SR_ONE))
 #define SR_ADD(a,b)    ((a)+(b))
 #define SR_SUB(a,b)    ((a)-(b))
@@ -86,40 +89,45 @@ static inline int64_t sr_mul_impl(int64_t a, int64_t b) {
  */
 static inline int64_t sr_div_impl(int64_t a, int64_t b) {
     if (b == 0) return 0;
-    return (int64_t)(((__int128)a << 32) / (__int128)b);
+    /* Scale by SR_ONE with a MULTIPLY, not a left-shift: shifting a signed
+     * __int128 that is negative is UB, and this is the divide primitive that
+     * runs on the real AArch64 target (red-team). Multiply is well-defined
+     * for negative operands and produces the identical value for positives. */
+    return (int64_t)(((__int128)a * ((__int128)1 << 32)) / (__int128)b);
 }
 #else
 /* Fallback for true 32-bit targets without __int128. */
 static inline int64_t sr_mul_impl(int64_t a, int64_t b) {
-    int neg = 0;
-    if (a < 0) { a = -a; neg = !neg; }
-    if (b < 0) { b = -b; neg = !neg; }
-    uint32_t al = (uint32_t)a;
-    uint32_t ah = (uint32_t)(a >> 32);
-    uint32_t bl = (uint32_t)b;
-    uint32_t bh = (uint32_t)(b >> 32);
-    int64_t result = (int64_t)ah * bl + (int64_t)al * bh + ((int64_t)al * bl >> 32);
-    result += (int64_t)ah * bh << 32;
-    return neg ? -result : result;
+    /* Negate through unsigned so INT64_MIN does not trigger signed-overflow
+     * UB (red-team). Magnitudes are computed as uint64_t. */
+    int neg = (a < 0) ^ (b < 0);
+    uint64_t ua = (a < 0) ? (uint64_t)0 - (uint64_t)a : (uint64_t)a;
+    uint64_t ub = (b < 0) ? (uint64_t)0 - (uint64_t)b : (uint64_t)b;
+    uint32_t al = (uint32_t)ua;
+    uint32_t ah = (uint32_t)(ua >> 32);
+    uint32_t bl = (uint32_t)ub;
+    uint32_t bh = (uint32_t)(ub >> 32);
+    uint64_t result = (uint64_t)ah * bl + (uint64_t)al * bh + ((uint64_t)al * bl >> 32);
+    result += (uint64_t)ah * bh << 32;
+    return neg ? -(int64_t)result : (int64_t)result;
 }
 
 static inline int64_t sr_div_impl(int64_t a, int64_t b) {
     if (b == 0) return 0;
-    int neg = 0;
-    if (a < 0) { a = -a; neg = !neg; }
-    if (b < 0) { b = -b; neg = !neg; }
-    /* Restoring long division, 32 fractional bits at a time — never
-     * shifts a value that can overflow (unlike the original). */
-    int64_t q = a / b;
-    int64_t r = a % b;
-    int64_t frac = 0;
+    int neg = (a < 0) ^ (b < 0);
+    uint64_t ua = (a < 0) ? (uint64_t)0 - (uint64_t)a : (uint64_t)a;
+    uint64_t ub = (b < 0) ? (uint64_t)0 - (uint64_t)b : (uint64_t)b;
+    /* Restoring long division on unsigned magnitudes, 32 fractional bits at
+     * a time — never shifts a signed value that can overflow. */
+    uint64_t q = ua / ub;
+    uint64_t r = ua % ub;
+    uint64_t frac = 0;
     for (int i = 0; i < 32; i++) {
-        r <<= 1;                 /* r < b <= 2^63, so r<<1 stays in range
-                                  * for the operand magnitudes used here */
+        r <<= 1;                 /* r < ub <= 2^63, so r<<1 stays in range */
         frac <<= 1;
-        if (r >= b) { r -= b; frac |= 1; }
+        if (r >= ub) { r -= ub; frac |= 1; }
     }
-    int64_t result = (q << 32) + frac;
+    int64_t result = (int64_t)((q << 32) + frac);
     return neg ? -result : result;
 }
 #endif

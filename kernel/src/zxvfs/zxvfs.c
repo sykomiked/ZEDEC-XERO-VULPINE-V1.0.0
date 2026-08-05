@@ -63,10 +63,20 @@ static int wr(zxvfs_t *fs, uint32_t lba, const uint8_t *buf) {
 
 /* ---- journal ---- */
 
+/* A checkpoint target is only ever a metadata-or-data sector. On replay the
+ * header is untrusted (a torn/crafted journal), so an unchecked target_lba is
+ * a write-what-where primitive (red-team). Only this region is legal. */
+static int journal_target_ok(uint32_t lba) {
+    return lba >= ZXVFS_INODE_SECTOR && lba < ZXVFS_TOTAL_SECTORS;
+}
+
 /* Apply (checkpoint) all staged sectors to their final homes. Idempotent. */
 static int journal_checkpoint(zxvfs_t *fs, const zxvfs_journal_hdr_t *h) {
     uint8_t sec[BLOCKDEV_SECTOR_SIZE];
-    for (uint32_t i = 0; i < h->count && i < ZXVFS_JOURNAL_MAX; i++) {
+    if (h->count > ZXVFS_JOURNAL_MAX) return -1;      /* corrupt header */
+    for (uint32_t i = 0; i < h->count; i++)
+        if (!journal_target_ok(h->target_lba[i])) return -1;   /* refuse OOB */
+    for (uint32_t i = 0; i < h->count; i++) {
         if (rd(fs, ZXVFS_JSTAGE_SECTOR + i, sec) != 0) return -1;
         if (wr(fs, h->target_lba[i], sec) != 0) return -1;
     }
@@ -119,10 +129,18 @@ static int journal_recover(zxvfs_t *fs) {
     zxvfs_journal_hdr_t *h = (zxvfs_journal_hdr_t *)sec;
     if (h->magic != ZXVFS_JRNL_MAGIC) return 0;      /* uninitialized */
     if (!h->committed) return 0;                     /* nothing to redo */
-    if (h->count > ZXVFS_JOURNAL_MAX) return 0;      /* corrupt: ignore */
+    if (h->count == 0 || h->count > ZXVFS_JOURNAL_MAX) return 0; /* corrupt */
     if (h->checksum != jchecksum(h)) return 0;       /* torn commit: ignore */
 
-    if (journal_checkpoint(fs, h) != 0) return -1;
+    /* A valid checksum only proves the header is intact, NOT that its targets
+     * are legal — an attacker (or a bug) could commit a journal aimed off the
+     * metadata/data region. Discard such a journal instead of replaying a
+     * write-what-where (red-team); a legitimate transaction never targets
+     * outside this region. */
+    for (uint32_t i = 0; i < h->count; i++)
+        if (!journal_target_ok(h->target_lba[i])) return journal_clear(fs);
+
+    if (journal_checkpoint(fs, h) != 0) return -1;   /* real I/O error */
     fs->journal_replays++;
     return journal_clear(fs);
 }
@@ -203,6 +221,14 @@ int zxvfs_mount(zxvfs_t *fs, block_device_t *dev) {
     if (rd(fs, ZXVFS_SB_SECTOR, sec) != 0) return -1;
     zxvfs_superblock_t *sb = (zxvfs_superblock_t *)sec;
     if (sb->magic != ZXVFS_MAGIC || sb->version != ZXVFS_VERSION) return -2;
+    /* This is a FIXED-LAYOUT filesystem: the on-disk geometry MUST match the
+     * compile-time constants. Trusting a crafted superblock's data_sector
+     * would redirect file writes onto metadata (red-team). Reject any disk
+     * whose geometry disagrees, so every later fs->sb.* use is safe. */
+    if (sb->total_sectors != ZXVFS_TOTAL_SECTORS ||
+        sb->inode_sector  != ZXVFS_INODE_SECTOR  ||
+        sb->data_sector   != ZXVFS_DATA_SECTOR   ||
+        sb->inode_count   != ZXVFS_MAX_FILES) return -2;
     zmemcpy(&fs->sb, sb, sizeof(fs->sb));
 
     /* crash recovery before any read/write */
@@ -271,13 +297,19 @@ int zxvfs_read(zxvfs_t *fs, const char *name, uint8_t *buf, uint32_t max) {
     zxvfs_inode_t in;
     if (load_inode(fs, (uint32_t)idx, &in) != 0) return -3;
 
+    /* Do NOT trust in.size / in.first_sector: a crafted inode could name a
+     * size or start LBA that reads past this file's extent and leaks other
+     * files' data (red-team). Clamp size to the extent and recompute the
+     * extent base from the inode index — the fixed layout, not the inode. */
     uint32_t len = in.size;
+    if (len > ZXVFS_FILE_MAX_BYTES) len = ZXVFS_FILE_MAX_BYTES;
     if (len > max) len = max;
+    uint32_t base = fs->sb.data_sector + (uint32_t)idx * ZXVFS_FILE_MAX_SECTORS;
     uint32_t got = 0;
     uint8_t sec[BLOCKDEV_SECTOR_SIZE];
     uint32_t s = 0;
-    while (got < len) {
-        if (rd(fs, in.first_sector + s, sec) != 0) return -4;
+    while (got < len && s < ZXVFS_FILE_MAX_SECTORS) {
+        if (rd(fs, base + s, sec) != 0) return -4;
         uint32_t chunk = len - got;
         if (chunk > BLOCKDEV_SECTOR_SIZE) chunk = BLOCKDEV_SECTOR_SIZE;
         zmemcpy(buf + got, sec, chunk);

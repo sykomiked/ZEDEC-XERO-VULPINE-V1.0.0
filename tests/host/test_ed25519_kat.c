@@ -79,6 +79,36 @@ void test_kat_tampered_signature(void) {
     PASS();
 }
 
+/* Red-team regression (2026-08-04): signature malleability. The same
+ * signature re-encoded as (R, S+L) must be REJECTED — the canonical-S gate
+ * requires S < L. Before the fix, orlp verify accepted the malleable form. */
+void test_kat_malleable_S_rejected(void) {
+    TEST("reject malleable (R, S+L) re-encoding");
+    uint8_t pubkey[ED25519_PUBLIC_KEY_LEN];
+    uint8_t sig[ED25519_SIGNATURE_LEN];
+    if (!hex2bytes(kat_pubkey_hex, pubkey, sizeof(pubkey))) FAIL("bad hex pubkey");
+    if (!hex2bytes(kat_sig_hex, sig, sizeof(sig))) FAIL("bad hex signature");
+    /* sanity: the genuine signature still verifies */
+    if (!ed25519_verify((const uint8_t *)kat_msg, strlen(kat_msg), sig, pubkey))
+        FAIL("baseline valid signature rejected");
+    /* add L (little-endian group order) to S = sig[32..63] */
+    static const uint8_t L[32] = {
+        0xed,0xd3,0xf5,0x5c,0x1a,0x63,0x12,0x58,
+        0xd6,0x9c,0xf7,0xa2,0xde,0xf9,0xde,0x14,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x10
+    };
+    uint16_t carry = 0;
+    for (int i = 0; i < 32; i++) {
+        carry += (uint16_t)sig[32 + i] + L[i];
+        sig[32 + i] = (uint8_t)(carry & 0xff);
+        carry >>= 8;
+    }
+    if (ed25519_verify((const uint8_t *)kat_msg, strlen(kat_msg), sig, pubkey))
+        FAIL("malleable S+L signature accepted");
+    PASS();
+}
+
 void test_long_message(void) {
     TEST("verify over a 1000-byte message (no truncation)");
     uint8_t pubkey[ED25519_PUBLIC_KEY_LEN];
@@ -137,6 +167,7 @@ int main(void) {
     test_kat_valid_signature();
     test_kat_tampered_message();
     test_kat_tampered_signature();
+    test_kat_malleable_S_rejected();
     test_long_message();
     test_empty_message();
     test_sc_reduce_zero();

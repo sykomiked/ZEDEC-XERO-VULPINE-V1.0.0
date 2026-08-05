@@ -120,6 +120,22 @@ s4:
         check(ok, "f'(0) = N-1 (sharp Lipschitz constant)");
     }
 
+    /* red-team regression: block-count guard + negative-arg ln (fixed-point
+     * path only). N<2 has zero surplus; N==0 must NOT wrap (N-1) to a huge
+     * value and overflow SR_FROM_INT. sr_ln of x<1 must not shift-UB. */
+    {
+        check(surplus_f(SR_FROM_FLOAT(0.5), 0) == SR_ZERO,
+              "S-guard: f(u,0) = 0 (no unsigned (N-1) wrap / overflow)");
+        check(surplus_f(SR_FROM_FLOAT(0.5), 1) == SR_ZERO,
+              "S-guard: f(u,1) = 0 (single block, zero surplus)");
+        /* ln of a value < 1 exercises the negative-exponent path safely */
+        double half = D(sr_ln(SR_FROM_FLOAT(0.5)));
+        check(approx(half, log(0.5), 1e-3), "sr_ln(0.5) ~ -0.693 (no shift UB)");
+        /* division with a negative operand must be exact, not UB */
+        check(approx(D(SR_DIV(SR_FROM_INT(-1), SR_FROM_INT(4))), -0.25, 1e-6),
+              "SR_DIV(-1,4) = -0.25 exactly (no signed __int128 shift)");
+    }
+
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS",
            failures);
     return failures ? 1 : 0;

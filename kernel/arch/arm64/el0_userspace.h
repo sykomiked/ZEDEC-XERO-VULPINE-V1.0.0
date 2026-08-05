@@ -203,6 +203,10 @@ int32_t proc_create_from_elf(proc_scheduler_t *ps, const char *name,
  * buffer. Any syscall that dereferences a user pointer must gate on
  * these (audit finding P0-1). */
 bool proc_user_range_ok(user_proc_t *proc, uint64_t va, uint64_t len);
+/* As above, but when need_write is true also requires each page be writable
+ * at EL0 (AP[2] clear) — use for any buffer EL1 will write into. */
+bool proc_user_range_check(user_proc_t *proc, uint64_t va, uint64_t len,
+                           bool need_write);
 int  copy_from_user(user_proc_t *proc, void *dst, uint64_t user_va,
                     uint64_t len);
 

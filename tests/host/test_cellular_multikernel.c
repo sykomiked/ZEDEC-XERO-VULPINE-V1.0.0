@@ -455,6 +455,82 @@ static void test_cell_execution(void) {
     PASS();
 }
 
+/* Red-team regressions (2026-08-04). Each asserts a fix for a confirmed
+ * finding; run the suite under -fsanitize=address,undefined to prove the
+ * critical OOB is gone. */
+void test_redteam_untrusted_discovery(void) {
+    TEST("red-team: untrusted discovery input is bounds-checked");
+    cell_fabric_t fab; cell_fabric_init(&fab);
+
+    /* CRITICAL: an out-of-range transport_count must be REJECTED, not looped
+     * over transports[4] (OOB read/write across the fabric). */
+    cell_t evil; make_cell(&evil, "evil-io", CELL_ARCH_ARM64, 0);
+    evil.transport_count = 255;
+    if (cell_fabric_discover(&fab, &evil)) FAIL("transport_count=255 admitted");
+    if (fab.cell_count != 0) FAIL("evil cell entered the fabric");
+
+    /* out-of-range schema count likewise rejected */
+    cell_t evil2; make_cell(&evil2, "evil-schema", CELL_ARCH_ARM64, 0);
+    evil2.supported_schema_count = 200;
+    if (cell_fabric_discover(&fab, &evil2)) FAIL("schema_count=200 admitted");
+
+    /* a cell_id with no NUL terminator is rejected (used as a C string) */
+    cell_t evil3; make_cell(&evil3, "x", CELL_ARCH_ARM64, 0);
+    for (int i = 0; i < CELL_NAME_LEN; i++) evil3.cell_id[i] = 'A';
+    if (cell_fabric_discover(&fab, &evil3)) FAIL("non-terminated cell_id admitted");
+
+    /* a well-formed cell still admits */
+    cell_t good; make_cell(&good, "good-io", CELL_ARCH_ARM64, 0);
+    if (!cell_fabric_discover(&fab, &good)) FAIL("good cell rejected");
+    PASS();
+}
+
+void test_redteam_triad_votes(void) {
+    TEST("red-team: only an explicit commit approves a triad lane");
+    /* defer(0) must NOT approve; compensate(3) must block distinctly. */
+    triad_commit_state_t st; triad_commit_reset(&st, 77, 1000);
+    fabric_event_t defer_p = { .triad_id=77, .ordinal=1, .lane=0, .decision=0 };
+    triad_commit_update(&st, &defer_p);
+    if (st.lane_received[0]) FAIL("defer counted as a lane vote");
+    if (st.commit_decision != 0) FAIL("defer moved the decision");
+
+    triad_commit_state_t st2; triad_commit_reset(&st2, 78, 1000);
+    fabric_event_t comp = { .triad_id=78, .ordinal=1, .lane=0, .decision=3 };
+    triad_commit_update(&st2, &comp);
+    if (st2.commit_decision != 3) FAIL("compensate did not set decision=3");
+
+    /* three defers never manufacture a commit */
+    triad_commit_state_t st3; triad_commit_reset(&st3, 79, 1000);
+    for (uint8_t l = 0; l < 3; l++) {
+        fabric_event_t d = { .triad_id=79, .ordinal=(uint32_t)(l+1), .lane=l, .decision=0 };
+        triad_commit_update(&st3, &d);
+    }
+    if (st3.commit_decision == 1) FAIL("defers produced a commit token");
+    PASS();
+}
+
+void test_redteam_route_reclaim(void) {
+    TEST("red-team: recovering cell drops routes; slots are reclaimed");
+    cell_fabric_t fab; cell_fabric_init(&fab);
+    cell_t c; make_cell(&c, "io", CELL_ARCH_ARM64, 0);
+    cell_fabric_discover(&fab, &c);
+    cell_fabric_authenticate(&fab, "io", dummy_digest);
+    cell_fabric_admit(&fab, "io");
+    cell_fabric_activate(&fab, "io");
+    /* fill routes across many fault/recover cycles; must not exhaust */
+    for (int cycle = 0; cycle < CELL_MAX_ROUTES * 3; cycle++) {
+        cell_route_t r; memset(&r, 0, sizeof(r));
+        r.phase_id = (uint32_t)cycle; r.phase_version = 1;
+        strncpy(r.target_cell, "io", CELL_NAME_LEN-1);
+        if (!cell_fabric_add_route(&fab, &r)) FAIL("route table exhausted (no reclaim)");
+        /* recovering must tombstone this cell's routes */
+        cell_fabric_handle_fault(&fab, "io", CELL_HEALTH_RECOVERING);
+        if (cell_fabric_route_lookup(&fab, (uint32_t)cycle, 1) != NULL)
+            FAIL("route still live after RECOVERING");
+    }
+    PASS();
+}
+
 int main(void) {
     printf("=== Cellular Multikernel (CELL-001) Evidence Tests ===\n\n");
     test_fabric_init();
@@ -469,6 +545,9 @@ int main(void) {
     test_recovery_incarnation_replacement();
     test_recovery_suspends_execution_and_scrubs_metadata();
     test_cell_execution();
+    test_redteam_untrusted_discovery();
+    test_redteam_triad_votes();
+    test_redteam_route_reclaim();
 
     printf("\n=== Results: %d/%d tests passed ===\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

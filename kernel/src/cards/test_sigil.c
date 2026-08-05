@@ -127,6 +127,25 @@ int main(void) {
               "an unreachable component is still scheduled, never dropped");
     }
 
+    /* ---------- red-team regression: entry index must not be truncated ----
+     * entry>=256 whose low byte was < n_nodes used to pass the guard and
+     * then `seen[e0]` wrote out of bounds on a 32-byte stack array. It must
+     * now fall back to the canonical entry and schedule cleanly. Run this
+     * file under -fsanitize=address,undefined to prove no OOB. */
+    {
+        sigil_t s; sig_init(&s, 9);
+        sig_add_node(&s,0,0); sig_add_node(&s,1,0);
+        sig_add_node(&s,2,0); sig_add_node(&s,3,0);
+        sig_add_edge(&s,0,1); sig_add_edge(&s,1,2); sig_add_edge(&s,2,3);
+        sig_schedule_t sc;
+        CHECK(sig_schedule(&s, 256, &sc),
+              "entry=256 (low byte 0 < n_nodes) is accepted via safe fallback");
+        CHECK(sc.n_scheduled == 4,
+              "and every node scheduled exactly once (no OOB, no double-count)");
+        CHECK(sig_schedule(&s, 100000, &sc) && sc.n_scheduled == 4,
+              "a large entry also falls back safely");
+    }
+
     /* ---------- structural guards ---------- */
     {
         sigil_t s; sig_init(&s, 2);

@@ -44,11 +44,33 @@ void sc_reduce(const uint8_t k[64], uint8_t out[32]) {
     for (int i = 0; i < 32; i++) out[i] = buf[i];
 }
 
+/* Reject a non-canonical scalar S (signature[32..63]): unless S < L, the
+ * value (R, S+L) is a second valid encoding of the same signature —
+ * malleability (red-team). L is the group order, little-endian. */
+static bool ed25519_s_is_canonical(const uint8_t s[32]) {
+    static const uint8_t L[32] = {
+        0xed,0xd3,0xf5,0x5c,0x1a,0x63,0x12,0x58,
+        0xd6,0x9c,0xf7,0xa2,0xde,0xf9,0xde,0x14,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x10
+    };
+    /* constant-time s < L : walk most-significant byte first */
+    int lt = 0, gt = 0;
+    for (int i = 31; i >= 0; i--) {
+        int below = (s[i] < L[i]);
+        int above = (s[i] > L[i]);
+        lt |= below & ~gt;   /* first differing byte decides */
+        gt |= above & ~lt;
+    }
+    return lt != 0;          /* strictly less than L */
+}
+
 bool ed25519_verify(const uint8_t *message, size_t message_len,
                     const uint8_t signature[ED25519_SIGNATURE_LEN],
                     const uint8_t pubkey[ED25519_PUBLIC_KEY_LEN]) {
     if (!signature || !pubkey) return false;
     if (message_len > 0 && !message) return false;
+    if (!ed25519_s_is_canonical(signature + 32)) return false;  /* anti-malleability */
     return orlp_ed25519_verify(signature, message, message_len, pubkey) == 1;
 }
 

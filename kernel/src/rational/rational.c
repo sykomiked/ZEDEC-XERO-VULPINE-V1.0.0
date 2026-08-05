@@ -155,8 +155,9 @@ rat_t rat_from_string(const char *s) {
         s++;
         int64_t d = 0; bool anyd = false;
         while (is_digit(*s)) {
-            if (d > (I64_MAX - 9) / 10) return invalid();
-            d = d * 10 + (*s - '0'); s++; anyd = true;
+            int64_t dig = *s - '0';   /* digit-exact bound, matching numerator */
+            if (d > (I64_MAX - dig) / 10) return invalid();
+            d = d * 10 + dig; s++; anyd = true;
         }
         if (!any || !anyd || d == 0) return invalid();
         if (!at_end(s)) return invalid();      /* trailing garbage is an error */

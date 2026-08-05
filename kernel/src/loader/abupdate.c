@@ -16,7 +16,13 @@ static ab_result_t save_state(zxvfs_t *fs, const ab_state_t *st) {
 ab_result_t ab_init(zxvfs_t *fs, ab_state_t *st) {
     if (!fs || !st) return AB_ERR_STATE;
     int n = zxvfs_read(fs, STATE_FILE, (uint8_t *)st, sizeof(*st));
-    if (n == (int)sizeof(*st) && st->magic == AB_STATE_MAGIC)
+    /* The persisted state is on untrusted media. active_slot indexes
+     * SLOT_FILE[2] and version[2]; an out-of-range value read back verbatim
+     * is an OOB array access (red-team). Accept only a well-formed record;
+     * anything else falls through to a clean fresh install. */
+    if (n == (int)sizeof(*st) && st->magic == AB_STATE_MAGIC &&
+        st->active_slot <= 1 &&
+        (st->probation_slot <= 1 || st->probation_slot == AB_SLOT_NONE))
         return AB_OK;
     /* Fresh install: slot A active, nothing on probation. */
     for (uint32_t i = 0; i < sizeof(*st); i++) ((uint8_t *)st)[i] = 0;

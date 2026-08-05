@@ -151,6 +151,51 @@ int main(void) {
     CHECK(n == 3 && memcmp(buf, "NEW", 3) == 0,
           "committed txn recovered as NEW (crash consistency)");
 
+    /* ---- red-team regression: untrusted on-disk structures (2026-08-04) ---- */
+    g_crash_after = -1; g_crashed = 0; g_writes = 0;
+
+    /* (a) a superblock with tampered geometry must be REJECTED at mount —
+     * trusting data_sector would redirect writes onto metadata. */
+    {
+        zxvfs_superblock_t sb;
+        memcpy(&sb, g_disk[ZXVFS_SB_SECTOR], sizeof(sb));
+        uint32_t good_ds = sb.data_sector;
+        sb.data_sector = good_ds + 3;              /* lie about the layout */
+        memcpy(g_disk[ZXVFS_SB_SECTOR], &sb, sizeof(sb));
+        zxvfs_t bad;
+        CHECK(zxvfs_mount(&bad, &dev) != 0,
+              "red-team: superblock with wrong data_sector is REJECTED");
+        sb.data_sector = good_ds;                  /* restore for later checks */
+        memcpy(g_disk[ZXVFS_SB_SECTOR], &sb, sizeof(sb));
+        zxvfs_t okfs;
+        CHECK(zxvfs_mount(&okfs, &dev) == 0, "genuine superblock still mounts");
+    }
+
+    /* (b) a journal with a VALID checksum but an OUT-OF-RANGE target must be
+     * discarded, never replayed — otherwise it is a write-what-where. */
+    {
+        uint32_t evil_lba = 0;                     /* the superblock sector — off-limits */
+        uint8_t before[BLOCKDEV_SECTOR_SIZE];
+        memcpy(before, g_disk[evil_lba], BLOCKDEV_SECTOR_SIZE);
+
+        zxvfs_journal_hdr_t h; memset(&h, 0, sizeof(h));
+        h.magic = ZXVFS_JRNL_MAGIC; h.committed = 1; h.txn_id = 999; h.count = 1;
+        h.target_lba[0] = evil_lba;
+        /* reproduce jchecksum so the header looks intact */
+        uint32_t c = 0x9E3779B9u ^ h.txn_id ^ (h.count * 2654435761u);
+        for (uint32_t i = 0; i < h.count; i++) c = (c * 16777619u) ^ h.target_lba[i];
+        h.checksum = c;
+        /* stage a poison payload the attacker wants written to sector 0 */
+        memset(g_disk[ZXVFS_JSTAGE_SECTOR], 0xEE, BLOCKDEV_SECTOR_SIZE);
+        memcpy(g_disk[ZXVFS_JHDR_SECTOR], &h, sizeof(h));
+
+        zxvfs_t rf;
+        CHECK(zxvfs_mount(&rf, &dev) == 0,
+              "red-team: a malicious journal is discarded, mount still succeeds");
+        CHECK(memcmp(g_disk[evil_lba], before, BLOCKDEV_SECTOR_SIZE) == 0,
+              "red-team: OUT-OF-RANGE journal target was NOT written (no write-what-where)");
+    }
+
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS",
            failures);
     return failures ? 1 : 0;

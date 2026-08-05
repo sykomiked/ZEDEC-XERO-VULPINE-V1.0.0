@@ -477,7 +477,8 @@ int32_t proc_create(proc_scheduler_t *ps, const char *name,
  * pointer, so a hostile EL0 program cannot make EL1 read or write
  * arbitrary kernel addresses (audit finding P0-1). Returns true if the
  * whole range is safe to touch. */
-bool proc_user_range_ok(user_proc_t *proc, uint64_t va, uint64_t len) {
+bool proc_user_range_check(user_proc_t *proc, uint64_t va, uint64_t len,
+                           bool need_write) {
     if (!proc || !proc->l0_table) return false;
     if (len == 0) return true;
     if (va + len < va) return false;                 /* overflow */
@@ -493,8 +494,17 @@ bool proc_user_range_ok(user_proc_t *proc, uint64_t va, uint64_t len) {
         if (!(pte & PTE_VALID)) return false;
         /* AP[1] (bit 6) must be set = EL0-accessible. */
         if (!(pte & (1ULL << 6))) return false;
+        /* When EL1 will WRITE the buffer, AP[2] (bit 7) must be clear =
+         * writable. Without this, a read-only RECV buffer faulted at EL1
+         * and (via the fail-closed abort handler) halted the kernel — a
+         * user-triggered DoS (red-team). Reject it as EFAULT instead. */
+        if (need_write && (pte & (1ULL << 7))) return false;
     }
     return true;
+}
+
+bool proc_user_range_ok(user_proc_t *proc, uint64_t va, uint64_t len) {
+    return proc_user_range_check(proc, va, len, false);
 }
 
 /* Copy `len` bytes from a validated user VA into a kernel buffer.
@@ -767,16 +777,19 @@ int32_t ipc_recv(proc_scheduler_t *ps, uint32_t sender_pid,
             for (uint32_t j = 0; j < copy_len; j++)
                 buffer[j] = msg->payload[j];
 
-            /* Remove message by compacting the queue */
-            uint32_t read = idx;
-            while (read != q->head) {
-                uint32_t next = (read + 1) % IPC_QUEUE_DEPTH;
-                if (next == q->head) break;
-                q->messages[read] = q->messages[next];
-                read = next;
+            /* Remove the message at idx by shifting the messages after it
+             * back one slot. Bound the shift by the true COUNT, not by head:
+             * when the queue is full head==tail, so head is not a usable end
+             * sentinel and the old loop duplicated one message and dropped
+             * another (red-team). Invariant kept: head == (tail+count)%DEPTH. */
+            uint32_t off = (idx - q->tail + IPC_QUEUE_DEPTH) % IPC_QUEUE_DEPTH;
+            for (uint32_t k = off; k + 1 < q->count; k++) {
+                uint32_t a = (q->tail + k) % IPC_QUEUE_DEPTH;
+                uint32_t b = (q->tail + k + 1) % IPC_QUEUE_DEPTH;
+                q->messages[a] = q->messages[b];
             }
-            q->head = (q->head - 1 + IPC_QUEUE_DEPTH) % IPC_QUEUE_DEPTH;
             q->count--;
+            q->head = (q->tail + q->count) % IPC_QUEUE_DEPTH;
             return (int32_t)copy_len;
         }
         idx = (idx + 1) % IPC_QUEUE_DEPTH;
@@ -1016,10 +1029,10 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
             /* args[0]=sender_pid(0=any), args[1]=buf_ptr, args[2]=max_len */
             {
                 /* P0-1: the receive buffer is a user pointer EL1 will WRITE —
-                 * validate the range is mapped and EL0-accessible first. */
+                 * validate the range is mapped, EL0-accessible, AND WRITABLE. */
                 if (args[2] > IPC_MAX_PAYLOAD ||
-                    !proc_user_range_ok(curr, args[1], args[2])) {
-                    ctx->x[0] = (uint64_t)-2;   /* EFAULT / too big */
+                    !proc_user_range_check(curr, args[1], args[2], true)) {
+                    ctx->x[0] = (uint64_t)-2;   /* EFAULT / too big / read-only */
                     return;
                 }
                 int32_t ret = ipc_recv(ps, (uint32_t)args[0],

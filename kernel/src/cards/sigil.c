@@ -128,7 +128,11 @@ int32_t sig_entry(const sigil_t *s) {
  * has no dependency on the entry and must not be left unscheduled. */
 bool sig_schedule(const sigil_t *s, int32_t entry, sig_schedule_t *out) {
     if (!s || !out || s->n_nodes == 0) return false;
-    int32_t e0 = (entry >= 0 && (uint8_t)entry < s->n_nodes) ? entry : sig_entry(s);
+    /* Compare the UNTRUNCATED value actually used — the old (uint8_t) cast
+     * let entry>=256 whose low byte is < n_nodes pass the guard, then
+     * `seen[e0]` wrote out of bounds on the 32-byte stack array (red-team
+     * HIGH). No truncation: bound the full int32 against n_nodes. */
+    int32_t e0 = (entry >= 0 && entry < (int32_t)s->n_nodes) ? entry : sig_entry(s);
     if (e0 < 0) return false;
 
     bool seen[SIG_MAX_NODES];

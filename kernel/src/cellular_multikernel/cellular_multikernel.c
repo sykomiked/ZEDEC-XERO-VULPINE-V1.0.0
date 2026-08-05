@@ -109,6 +109,19 @@ bool cell_fabric_discover(cell_fabric_t *fabric, const cell_t *candidate) {
 
     /* Reject empty cell IDs. */
     if (candidate->cell_id[0] == '\0') return false;
+    /* The candidate is UNTRUSTED discovery input. Its cell_id must be a
+     * terminated C string (it is used as one throughout), and its count
+     * fields must fit their fixed arrays before ANY loop dereferences them
+     * — an unclamped transport_count/schema_count is a control-plane
+     * memory-corruption primitive (red-team CRITICAL, 2026-08-04). */
+    {
+        bool terminated = false;
+        for (uint32_t i = 0; i < CELL_NAME_LEN; i++)
+            if (candidate->cell_id[i] == '\0') { terminated = true; break; }
+        if (!terminated) return false;
+    }
+    if (candidate->transport_count > CELL_MAX_ENDPOINTS) return false;
+    if (candidate->supported_schema_count > CELL_MAX_SCHEMAS) return false;
 
     /* A higher-incarnation contract may replace a failed / quarantined /
      * recovering / degraded cell.  This is the control-plane recovery path
@@ -140,7 +153,7 @@ bool cell_fabric_discover(cell_fabric_t *fabric, const cell_t *candidate) {
         if (slot->incarnation > fabric->control_plane_incarnation)
             fabric->control_plane_incarnation = slot->incarnation;
 
-        for (uint8_t i = 0; i < slot->transport_count; i++) {
+        for (uint8_t i = 0; i < slot->transport_count && i < CELL_MAX_ENDPOINTS; i++) {
             if (slot->transports[i].incarnation == 0)
                 slot->transports[i].incarnation = slot->incarnation;
         }
@@ -159,7 +172,7 @@ bool cell_fabric_discover(cell_fabric_t *fabric, const cell_t *candidate) {
     if (slot->incarnation > fabric->control_plane_incarnation)
         fabric->control_plane_incarnation = slot->incarnation;
 
-    for (uint8_t i = 0; i < slot->transport_count; i++) {
+    for (uint8_t i = 0; i < slot->transport_count && i < CELL_MAX_ENDPOINTS; i++) {
         if (slot->transports[i].incarnation == 0)
             slot->transports[i].incarnation = slot->incarnation;
     }
@@ -243,6 +256,12 @@ cell_state_t cell_fabric_execute(cell_fabric_t *fabric, const char *cell_id,
         return cell->state;
     }
 
+    /* Re-executing an already-running cell would create a second backend
+     * context and orphan the first (leaked task_id — red-team HIGH). Stop
+     * the prior context before starting a new one. */
+    if (cell->is_executing)
+        cell_stop_execution(fabric, cell);
+
     if (entry) {
         cell->entry_point = entry;
         cell->entry_arg = arg;
@@ -310,6 +329,13 @@ bool cell_fabric_handle_fault(cell_fabric_t *fabric, const char *cell_id,
     if (new_health == CELL_HEALTH_RECOVERING) {
         cell->state = CELL_STATE_RECOVERING;
         cell_stop_execution(fabric, cell);
+        /* A recovering cell must not keep live routes — traffic would flow
+         * to a stopped cell (red-team MEDIUM). Tombstone them exactly as the
+         * fail-stop path does; they are re-established on re-admission. */
+        for (uint8_t i = 0; i < fabric->route_count; i++) {
+            if (cell_id_eq(fabric->routes[i].target_cell, cell_id))
+                fabric->routes[i].target_cell[0] = '\0';
+        }
     }
     return true;
 }
@@ -317,10 +343,19 @@ bool cell_fabric_handle_fault(cell_fabric_t *fabric, const char *cell_id,
 /* ---- Routing ---- */
 
 bool cell_fabric_add_route(cell_fabric_t *fabric, const cell_route_t *route) {
-    if (!fabric || !route || fabric->route_count >= CELL_MAX_ROUTES)
-        return false;
+    if (!fabric || !route) return false;
     if (route->target_cell[0] == '\0') return false;
 
+    /* Reclaim a tombstoned slot first — otherwise repeated fault/recover
+     * cycles exhaust the table permanently even though live routes are few
+     * (red-team MEDIUM). */
+    for (uint8_t i = 0; i < fabric->route_count; i++) {
+        if (fabric->routes[i].target_cell[0] == '\0') {
+            memcpy(&fabric->routes[i], route, sizeof(*route));
+            return true;
+        }
+    }
+    if (fabric->route_count >= CELL_MAX_ROUTES) return false;
     memcpy(&fabric->routes[fabric->route_count], route, sizeof(*route));
     fabric->route_count++;
     return true;
@@ -398,12 +433,22 @@ bool triad_commit_update(triad_commit_state_t *st, const fabric_event_t *ev) {
 
     if (ev->lane > 2) return false;
 
-    /* A lane cannot deliver more than one vote per triad */
+    /* Defer (0) is NOT a vote: the lane stays undecided and may vote later.
+     * Counting it — or compensate(3) — as approval was the bug (red-team
+     * MEDIUM). Only an explicit commit(1) approves a lane. */
+    if (ev->decision == 0) return true;                 /* defer: no effect */
+
+    /* A lane cannot deliver more than one FINAL vote per triad */
     if (st->lane_received[ev->lane]) return false;
     st->lane_received[ev->lane] = true;
 
-    bool lane_ok = (ev->decision != 2); /* not a reject */
-    switch (ev->lane) {
+    if (ev->decision == 3) {          /* compensate: blocks commit distinctly */
+        st->commit_decision = 3;
+        return true;
+    }
+
+    bool lane_ok = (ev->decision == 1); /* commit is the ONLY approval; */
+    switch (ev->lane) {                 /* reject(2)/unknown fall through as veto */
     case 0:
         st->s_plus_ok = lane_ok;
         break;

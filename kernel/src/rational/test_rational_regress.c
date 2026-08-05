@@ -16,6 +16,9 @@ static void audit_round_two(void) {
     CK(rat_cmp(inv, inv) == 0, "two invalids compare equal");
     /* #6: digit-exact bounds */
     CK(rat_from_string("9223372036854775807").valid, "I64_MAX itself parses");
+    CK(rat_from_string("1/9223372036854775807").valid,
+       "denominator I64_MAX parses (digit-exact bound; red-team)");
+    CK(!rat_from_string("1/9223372036854775808").valid, "denominator I64_MAX+1 refuses");
     CK(!rat_from_string("9223372036854775808").valid, "I64_MAX+1 refuses");
     CK(rat_from_string("0.1000000000000000000000").valid,
        "trailing zeros past 18 places stay exact and accepted");

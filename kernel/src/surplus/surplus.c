@@ -69,10 +69,15 @@ surplus_real_t surplus_u(const surplus_real_t *x, const surplus_real_t *y, uint3
 }
 
 surplus_real_t surplus_f(surplus_real_t u, uint32_t N) {
-    /* f(u) = ln(1 + (N-1)*u) */
+    /* f(u) = ln(1 + (N-1)*u).  N is a block count: N<2 has zero surplus.
+     * Guard first — N==0 made the unsigned (N-1) wrap to 4294967295 and
+     * SR_FROM_INT of that overflowed to garbage (red-team). Also reject an
+     * N so large that (N-1) in Q32.32 would overflow. */
+    if (N < 2) return SR_ZERO;
+    if (N - 1 > 0x7FFFFFFFu) return SR_ZERO;
     if (u < 0) u = SR_ZERO;
     if (u > SR_ONE) u = SR_ONE;
-    surplus_real_t inner = SR_ADD(SR_ONE, SR_MUL(SR_FROM_INT(N - 1), u));
+    surplus_real_t inner = SR_ADD(SR_ONE, SR_MUL(SR_FROM_INT((int64_t)N - 1), u));
     return SR_LN(inner);
 }
 
