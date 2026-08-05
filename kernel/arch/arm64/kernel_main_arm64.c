@@ -1170,6 +1170,37 @@ void kernel_main_arm64(void) {
         uart_puts("\r\n");
         if (virtio_net_selftest())
             boot_msg("  [VERIFIED] virtio-net self-check (queues bound, RX posted)");
+        /* Prove a frame actually MOVES, not merely that the queues bound: send
+         * a broadcast ARP request for the QEMU user-net gateway (10.0.2.2)
+         * from 10.0.2.15. A driver that initialises but never shifts a byte is
+         * not a working NIC — this is the difference. */
+        {
+            static uint8_t arp[42];
+            for (uint32_t i = 0; i < 6; i++) arp[i] = 0xFF;          /* dst broadcast */
+            for (uint32_t i = 0; i < 6; i++) arp[6 + i] = m[i];      /* src = our MAC */
+            arp[12] = 0x08; arp[13] = 0x06;                          /* ethertype ARP */
+            arp[14] = 0x00; arp[15] = 0x01;                          /* HTYPE ethernet */
+            arp[16] = 0x08; arp[17] = 0x00;                          /* PTYPE IPv4 */
+            arp[18] = 6;    arp[19] = 4;                             /* HLEN/PLEN */
+            arp[20] = 0x00; arp[21] = 0x01;                          /* OPER request */
+            for (uint32_t i = 0; i < 6; i++) arp[22 + i] = m[i];     /* sender MAC */
+            arp[28] = 10; arp[29] = 0; arp[30] = 2; arp[31] = 15;    /* sender 10.0.2.15 */
+            for (uint32_t i = 0; i < 6; i++) arp[32 + i] = 0x00;     /* target MAC */
+            arp[38] = 10; arp[39] = 0; arp[40] = 2; arp[41] = 2;     /* target 10.0.2.2 */
+            if (virtio_net_tx(arp, sizeof arp) == 0)
+                boot_msg("  [VERIFIED] virtio-net TX: ARP request transmitted (device consumed it)");
+            else
+                boot_msg("  [WARNING] virtio-net TX failed");
+            /* poll briefly for the reply the gateway should send back */
+            static uint8_t rxf[VNET_MAX_FRAME];
+            for (uint32_t spin = 0; spin < 400000u; spin++) {
+                int n = virtio_net_rx_poll(rxf, sizeof rxf);
+                if (n > 0) {
+                    boot_msg("  [VERIFIED] virtio-net RX: a frame was received");
+                    break;
+                }
+            }
+        }
     } else {
         boot_msg("  [SKIP] no virtio-net device (add -netdev+virtio-net-device to enable)");
     }

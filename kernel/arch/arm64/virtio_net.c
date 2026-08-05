@@ -121,8 +121,19 @@ bool virtio_net_init(void) {
     for (uint32_t i = 0; i < bp->virtio_mmio_count; i++) {
         uint64_t base = bp->virtio_mmio_base + (uint64_t)i * 0x200;
         if (*(volatile uint32_t *)(base + VMMIO_MAGIC) != VMAGIC) continue;
-        if (*(volatile uint32_t *)(base + VMMIO_VERSION) != 2) continue;
-        if (*(volatile uint32_t *)(base + VMMIO_DEVICE_ID) != VDEV_NET) continue;
+        uint32_t ver = *(volatile uint32_t *)(base + VMMIO_VERSION);
+        uint32_t did = *(volatile uint32_t *)(base + VMMIO_DEVICE_ID);
+        if (did != VDEV_NET) continue;
+        if (ver != 2) {
+            /* QEMU defaults virtio-mmio to LEGACY (v1), whose register layout
+             * differs (QUEUE_PFN + guest page size instead of split
+             * desc/avail/used addresses). Start QEMU with
+             *   -global virtio-mmio.force-legacy=false
+             * to get a modern device. Legacy support is a separate driver. */
+            uart_puts("[virtio-net] legacy (v1) device — needs "
+                      "-global virtio-mmio.force-legacy=false\r\n");
+            continue;
+        }
         s_mmio = base; break;
     }
     if (!s_mmio) return false;
@@ -142,15 +153,16 @@ bool virtio_net_init(void) {
 
     mmio_w32(VMMIO_STATUS, VS_ACK | VS_DRIVER | VS_FEATURES_OK);
     if (!(mmio_r32(VMMIO_STATUS) & VS_FEATURES_OK)) {
+        uart_puts("[vnet] FEATURES_OK rejected\r\n");
         mmio_w32(VMMIO_STATUS, VS_FAILED); s_mmio = 0; return false;
     }
 
     uint32_t qmax = (mmio_w32(VMMIO_QUEUE_SEL, 0), mmio_r32(VMMIO_QUEUE_NUM_MAX));
-    if (qmax < QDEPTH) { s_mmio = 0; return false; }
+    if (qmax < QDEPTH) { uart_puts("[vnet] queue too small\r\n"); s_mmio = 0; return false; }
 
     if (!vring_init(&s_rx, rx_desc, &rx_avail, &rx_used, (uint16_t)QDEPTH) ||
         !vring_init(&s_tx, tx_desc, &tx_avail, &tx_used, (uint16_t)QDEPTH)) {
-        s_mmio = 0; return false;
+        uart_puts("[vnet] vring_init failed\r\n"); s_mmio = 0; return false;
     }
     setup_queue(0, rx_desc, &rx_avail, &rx_used);
     setup_queue(1, tx_desc, &tx_avail, &tx_used);

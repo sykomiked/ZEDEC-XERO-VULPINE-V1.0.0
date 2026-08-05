@@ -64,6 +64,13 @@ Boot a target directly under QEMU, e.g.:
   qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a53 -m 256M \
     -nographic -kernel images/zxv-arm64.bin
 
+With NETWORKING (note the force-legacy flag — QEMU defaults virtio-mmio to
+legacy v1, and this kernel's virtio drivers are modern/VIRTIO-1.0 only):
+  qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a53 -m 256M -nographic \
+    -global virtio-mmio.force-legacy=false \
+    -netdev user,id=n0 -device virtio-net-device,netdev=n0 \
+    -kernel images/zxv-arm64.bin
+
 With persistent storage:
   qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a53 -m 256M -nographic \
     -drive file=zxv-disk-arm64.img,if=none,format=raw,id=d0 \
