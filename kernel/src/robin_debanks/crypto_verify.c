@@ -63,7 +63,10 @@ bool crypto_verify_hmac(const uint8_t *data, size_t data_len,
 /* Authority keys — derived from SHA-256 of a domain-separation string.
  * These are NOT all-zero, NOT trivially guessable, and compile-time fixed.
  * In production: provisioned at manufacture, rotatable via signed update. */
-static void derive_auth_key(const char *domain, uint8_t out[32]) {
+/* Retained helper: used by callers that derive a per-domain authority key.
+ * Marked unused so translation units that only need the key TABLES (the
+ * common case for host tests) stay warning-clean under -Werror. */
+static __attribute__((unused)) void derive_auth_key(const char *domain, uint8_t out[32]) {
     /* Simple deterministic derivation: SHA-256(domain string) */
     const uint8_t *d = (const uint8_t *)domain;
     size_t len = 0;

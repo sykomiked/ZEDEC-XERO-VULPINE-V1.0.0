@@ -191,6 +191,8 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 /* Persistent storage: virtio-blk device + ZXVFS journaled filesystem. */
 #include "virtio_blk.h"
 #include "virtio_net.h"
+#include "../src/mlkem/mlkem768.h"   /* post-quantum KEM (NIST ML-KEM-768) */
+#include "../src/trispace/trispace.h" /* Tri-Space artifact triad binding */
 #include "entropy.h"
 #include "../src/zxvfs/zxvfs.h"
 #include "../src/loader/zsp.h"       /* signed-package verification */
@@ -1105,6 +1107,52 @@ void kernel_main_arm64(void) {
         }
     } else {
         boot_msg("  [SKIP] no virtio-blk device (start QEMU with -drive to enable)");
+    }
+
+    /* Phase 17c-pq: POST-QUANTUM self-check, ON TARGET.
+     * ML-KEM-768 (the NIST standard lattice KEM) is where ZXV's post-quantum
+     * property actually lives. Running a full keygen/encaps/decaps round trip
+     * at boot proves it EXECUTES on the target — not merely that it was
+     * validated on a host — and keeps --gc-sections from stripping it. */
+    boot_msg("[BOOT] Post-quantum key establishment (ML-KEM-768)...");
+    {
+        static uint8_t ek[MLKEM768_EK_BYTES], dk[MLKEM768_DK_BYTES];
+        static uint8_t ct[MLKEM768_CT_BYTES];
+        static uint8_t ss_a[MLKEM768_SS_BYTES], ss_b[MLKEM768_SS_BYTES];
+        static uint8_t d[32], z[32], m[32];
+        /* Deterministic seeds for a boot self-check. Real key material must
+         * come from the entropy service; this is a KAT, not a live key. */
+        for (uint32_t i = 0; i < 32; i++) { d[i] = (uint8_t)(i + 1); z[i] = (uint8_t)(i + 65); m[i] = (uint8_t)(i * 7 + 3); }
+        mlkem768_keygen(d, z, ek, dk);
+        mlkem768_encaps(ek, m, ct, ss_a);
+        mlkem768_decaps(dk, ct, ss_b);
+        bool agree = true;
+        for (uint32_t i = 0; i < MLKEM768_SS_BYTES; i++) if (ss_a[i] != ss_b[i]) agree = false;
+        if (agree)
+            boot_msg("  [VERIFIED] ML-KEM-768 round trip: both parties derived the same secret");
+        else
+            boot_msg("  [WARNING] ML-KEM-768 shared secrets DISAGREE — PQ path unsound");
+    }
+
+    /* Phase 17c-tri: Tri-Space artifact triad — ZXV's native module format.
+     * Binds S+/S-/S0 so a release cannot lose its own undo path. */
+    {
+        static tri_triad_t t;
+        static uint8_t tid[TRI_ID_LEN], src[TRI_DIGEST_LEN];
+        static uint8_t dp[TRI_DIGEST_LEN], dn[TRI_DIGEST_LEN], du[TRI_DIGEST_LEN];
+        for (uint32_t i = 0; i < 32; i++) {
+            tid[i] = (uint8_t)(i + 2); src[i] = (uint8_t)(i * 3 + 1);
+            dp[i] = (uint8_t)(i + 11); dn[i] = (uint8_t)(i + 22); du[i] = (uint8_t)(i + 33);
+        }
+        tri_init(&t, tid, src);
+        t.inverse_kind = TRI_INV_RESTORING;
+        tri_set_member(&t, TRI_POSITIVE, dp, 1u, false, false);
+        tri_set_member(&t, TRI_NEGATIVE, dn, 1u, false, false);  /* subset of S+ */
+        tri_set_member(&t, TRI_NEUTRAL,  du, 0u, false, false);  /* no effect */
+        if (tri_bind(&t) && tri_verify(&t) && tri_may_release(&t))
+            boot_msg("  [VERIFIED] Tri-Space triad bound (.n9n63/.9n63/.0n0 -> .zxvc/.cedez/.cedec)");
+        else
+            boot_msg("  [WARNING] Tri-Space triad failed to bind");
     }
 
     /* Phase 17c-net: virtio-net NIC over the tested split-virtqueue engine.

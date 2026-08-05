@@ -584,6 +584,46 @@ verify-all: test
 		src/virtio/test_vring.c src/virtio/vring.c \
 		-o /tmp/test_vring && \
 		/tmp/test_vring && echo "[PASS] test_vring" || { echo "[FAIL] test_vring"; exit 1; }; \
+	echo "=== Tri-Space artifact triad (ZXV native module format) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/trispace -Isrc/robin_debanks \
+		src/trispace/test_trispace.c src/trispace/trispace.c src/robin_debanks/sha256.c \
+		-o /tmp/test_trispace -lm && \
+		/tmp/test_trispace && echo "[PASS] test_trispace" || { echo "[FAIL] test_trispace"; exit 1; }; \
+	echo "=== Count House stash/valuation (Ed25519-verified deposits) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/chiglet -Isrc/trispace -Isrc/porter_house -Isrc/vino -Isrc/vena -Isrc/count_house -Isrc/mesh_token -Isrc/community_chest -Isrc/telemetry -Isrc/finance -Isrc/identity -Isrc/license -Isrc/net -Isrc/quantum -Isrc/hardware -Isrc/mesh_net -Isrc/immigration -Isrc/ai_layer -Isrc/prism_break -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/axiom_matrix -Isrc/dual_space -Isrc/lattice \
+		src/count_house/test_count_house.c src/count_house/count_house.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_count_house -lm && \
+		/tmp/test_count_house && echo "[PASS] test_count_house" || { echo "[FAIL] test_count_house"; exit 1; }; \
+	echo "=== Mesh token ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/chiglet -Isrc/trispace -Isrc/porter_house -Isrc/vino -Isrc/vena -Isrc/count_house -Isrc/mesh_token -Isrc/community_chest -Isrc/telemetry -Isrc/finance -Isrc/identity -Isrc/license -Isrc/net -Isrc/quantum -Isrc/hardware -Isrc/mesh_net -Isrc/immigration -Isrc/ai_layer -Isrc/prism_break -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/axiom_matrix -Isrc/dual_space -Isrc/lattice \
+		src/mesh_token/test_mesh_token.c src/mesh_token/mesh_token.c src/count_house/count_house.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_mesh_token -lm && \
+		/tmp/test_mesh_token && echo "[PASS] test_mesh_token" || { echo "[FAIL] test_mesh_token"; exit 1; }; \
+	echo "=== Mesh networking ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/chiglet -Isrc/trispace -Isrc/porter_house -Isrc/vino -Isrc/vena -Isrc/count_house -Isrc/mesh_token -Isrc/community_chest -Isrc/telemetry -Isrc/finance -Isrc/identity -Isrc/license -Isrc/net -Isrc/quantum -Isrc/hardware -Isrc/mesh_net -Isrc/immigration -Isrc/ai_layer -Isrc/prism_break -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/axiom_matrix -Isrc/dual_space -Isrc/lattice \
+		src/mesh_net/test_mesh_net.c src/mesh_net/mesh_net.c src/count_house/count_house.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_mesh_net -lm && \
+		/tmp/test_mesh_net && echo "[PASS] test_mesh_net" || { echo "[FAIL] test_mesh_net"; exit 1; }; \
+	echo "=== Prism Break ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/chiglet -Isrc/trispace -Isrc/porter_house -Isrc/vino -Isrc/vena -Isrc/count_house -Isrc/mesh_token -Isrc/community_chest -Isrc/telemetry -Isrc/finance -Isrc/identity -Isrc/license -Isrc/net -Isrc/quantum -Isrc/hardware -Isrc/mesh_net -Isrc/immigration -Isrc/ai_layer -Isrc/prism_break -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/axiom_matrix -Isrc/dual_space -Isrc/lattice \
+		src/prism_break/test_prism_break.c src/prism_break/prism_break.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_prism_break -lm && \
+		/tmp/test_prism_break && echo "[PASS] test_prism_break" || { echo "[FAIL] test_prism_break"; exit 1; }; \
+	echo "=== Event scheduler ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/chiglet -Isrc/trispace -Isrc/porter_house -Isrc/vino -Isrc/vena -Isrc/count_house -Isrc/mesh_token -Isrc/community_chest -Isrc/telemetry -Isrc/finance -Isrc/identity -Isrc/license -Isrc/net -Isrc/quantum -Isrc/hardware -Isrc/mesh_net -Isrc/immigration -Isrc/ai_layer -Isrc/prism_break -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/axiom_matrix -Isrc/dual_space -Isrc/lattice \
+		src/event_sched/test_event_sched.c src/event_sched/event_sched.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_event_sched -lm && \
+		/tmp/test_event_sched && echo "[PASS] test_event_sched" || { echo "[FAIL] test_event_sched"; exit 1; }; \
+	echo "=== Quantum device model ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/chiglet -Isrc/trispace -Isrc/porter_house -Isrc/vino -Isrc/vena -Isrc/count_house -Isrc/mesh_token -Isrc/community_chest -Isrc/telemetry -Isrc/finance -Isrc/identity -Isrc/license -Isrc/net -Isrc/quantum -Isrc/hardware -Isrc/mesh_net -Isrc/immigration -Isrc/ai_layer -Isrc/prism_break -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/axiom_matrix -Isrc/dual_space -Isrc/lattice \
+		src/quantum/test_quantum_device.c src/quantum/quantum_device.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_quantum_device -lm && \
+		/tmp/test_quantum_device && echo "[PASS] test_quantum_device" || { echo "[FAIL] test_quantum_device"; exit 1; }; \
+	echo "=== DLP projector (hardware model) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/chiglet -Isrc/trispace -Isrc/porter_house -Isrc/vino -Isrc/vena -Isrc/count_house -Isrc/mesh_token -Isrc/community_chest -Isrc/telemetry -Isrc/finance -Isrc/identity -Isrc/license -Isrc/net -Isrc/quantum -Isrc/hardware -Isrc/mesh_net -Isrc/immigration -Isrc/ai_layer -Isrc/prism_break -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/axiom_matrix -Isrc/dual_space -Isrc/lattice \
+		src/hardware/test_dlp_projector.c src/hardware/dlp_projector.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
+		-o /tmp/test_dlp_projector -lm && \
+		/tmp/test_dlp_projector && echo "[PASS] test_dlp_projector" || { echo "[FAIL] test_dlp_projector"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).

@@ -25,7 +25,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Dmalloc=fs_malloc -Dcalloc=fs_calloc \
          -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -include kernel/include/freestanding.h \
-         -Ikernel/include -Ikernel/src -Ikernel/arch/arm64 -Ikernel/src/virtio -Ikernel/boot \
+         -Ikernel/include -Ikernel/src -Ikernel/arch/arm64 -Ikernel/src/virtio -Ikernel/src/trispace -Ikernel/src/mlkem -Ikernel/boot \
          -Ikernel/src/plnp -Ikernel/src/smap -Ikernel/src/decent \
          -Ikernel/src/recon -Ikernel/src/hdcm -Ikernel/src/gematria \
          -Ikernel/src/dualtrack -Ikernel/src/superpos \
@@ -95,6 +95,13 @@ ARM64_ARCH_OBJS = \
 # Shared kernel source objects (platform-independent)
 KERNEL_SRCS = \
     kernel/src/virtio/vring.c \
+    kernel/src/mlkem/keccak.c \
+    kernel/src/mlkem/mlkem768.c \
+    kernel/src/mlkem/mlkem_encode.c \
+    kernel/src/mlkem/mlkem_sample.c \
+    kernel/src/mlkem/mlkem_ntt.c \
+    kernel/src/mlkem/mlkem_kpe.c \
+    kernel/src/trispace/trispace.c \
     kernel/src/oseq/oseq_core.c \
     kernel/src/rmag/rmag_core.c \
     kernel/src/lpres/lpres_core.c \

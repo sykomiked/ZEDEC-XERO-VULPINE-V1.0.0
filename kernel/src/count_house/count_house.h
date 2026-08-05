@@ -116,7 +116,10 @@ typedef struct count_house {
 
     /* Pluggable signature verification. Return true iff proof_sig is a
      * valid signature by peer_pubkey over (peer_node_id || token_balance).
-     * NULL = ch_default_verify_sig (HMAC-SHA256 verification, NOT secure). */
+     * NULL = ch_default_verify_sig, which performs Ed25519 ASYMMETRIC
+     * verification against the embedded PUBLIC key (the private key is held
+     * offline). Override this hook to supply a different trust root, or in
+     * tests that cannot produce a real Ed25519 signature. */
     bool (*verify_sig)(const stash_bucket_t *bucket);
 
     /* ===== Fractal scaling fields ===== */
@@ -131,8 +134,12 @@ typedef struct count_house {
 
 void count_house_init(count_house_t *ch, uint32_t device_id, const char *name);
 
-/* Placeholder verifier: verifies HMAC-SHA256 against kernel authority key. Documented
- * as non-cryptographic; replace ch->verify_sig for real security. */
+/* Default verifier: Ed25519 asymmetric verification of proof_sig over
+ * (peer_node_id || token_balance) against the embedded COUNT_HOUSE public
+ * key. This is real public-key verification — the corresponding private key
+ * is held offline and never compiled in. (It replaced an earlier HMAC
+ * placeholder; callers needing a different trust root override
+ * count_house_t.verify_sig.) */
 bool ch_default_verify_sig(const stash_bucket_t *bucket);
 
 /* Deposit peer tokens into (or top up) a Stash Bucket. proof_sig must

@@ -30,6 +30,28 @@ static const uint8_t ZERO_SIG[CH_PROOF_SIG_LEN] = { 0 };
 static const uint8_t PUBKEY_A[CH_PUBKEY_LEN] = { 0xAA };
 
 /* Compute a valid HMAC-SHA256 count_house signature for test buckets */
+/* TEST VERIFIER.
+ * ch_default_verify_sig performs real Ed25519 verification against the
+ * embedded COUNT_HOUSE public key, whose private key is held offline and is
+ * deliberately not compiled in — so a host test cannot mint a valid
+ * signature. The API anticipates exactly this and exposes an injectable
+ * verify_sig hook; we install one that checks the same HMAC construction the
+ * test signs with, which lets these cases exercise the DEPOSIT/TRUST/BALANCE
+ * logic without weakening the production Ed25519 path.
+ * (This test previously signed HMAC and called the default verifier; when the
+ * implementation was upgraded HMAC -> Ed25519 the test was left behind and
+ * silently failed, because it was never wired into verify-all.) */
+static bool test_verify_hmac(const stash_bucket_t *bucket) {
+    if (!bucket) return false;
+    uint8_t msg[21 + 8]; uint32_t pos = 0;
+    for (uint32_t i = 0; i < 21; i++) msg[pos++] = bucket->peer_node_id.bytes[i];
+    for (uint32_t i = 0; i < 8; i++) msg[pos++] = (uint8_t)(bucket->token_balance >> (i*8));
+    uint8_t expect[32];
+    crypto_hmac_sha256(msg, pos, CRYPTO_AUTHORITY_KEY_COUNT_HOUSE, expect);
+    for (uint32_t i = 0; i < 32; i++) if (expect[i] != bucket->proof_sig[i]) return false;
+    return true;
+}
+
 static void compute_ch_sig(const word168_t *peer_id, uint64_t balance, uint8_t sig[CH_PROOF_SIG_LEN]) {
     uint8_t msg[21 + 8]; uint32_t pos = 0;
     for (uint32_t i = 0; i < 21; i++) msg[pos++] = peer_id->bytes[i];
@@ -61,8 +83,12 @@ int main(void) {
         assert(!ch_default_verify_sig(&b)); /* all-zero sig rejected */
         assert(!ch_default_verify_sig(0));  /* NULL-safe */
         b.proof_sig[10] = 1;
-        assert(!ch_default_verify_sig(&b));  /* any nonzero byte accepted */
+        assert(!ch_default_verify_sig(&b));  /* a junk signature is REJECTED by Ed25519 */
     }
+
+    /* From here on, install the test verifier so the deposit/trust/balance
+     * logic can be exercised without a private Ed25519 key. */
+    ch.verify_sig = test_verify_hmac;
 
     /* ===== deposit: new peer, valid signature ===== */
     word168_t peerA = make_peer(1);
@@ -134,6 +160,7 @@ int main(void) {
     {
         count_house_t cap;
         count_house_init(&cap, 9, "CapTest");
+        cap.verify_sig = test_verify_hmac;
         for (uint32_t i = 0; i < CH_MAX_STASH_BUCKETS; i++) {
             word168_t p = make_peer((uint8_t)(i + 1));
             uint8_t sigcap[CH_PROOF_SIG_LEN]; compute_ch_sig(&p, 10, sigcap);
@@ -150,6 +177,7 @@ int main(void) {
     {
         count_house_t v;
         count_house_init(&v, 1, "ValTest");
+        v.verify_sig = test_verify_hmac;
         word168_t p1 = make_peer(10), p2 = make_peer(20);
         uint8_t sigv1[CH_PROOF_SIG_LEN]; compute_ch_sig(&p1, 1000, sigv1);
         uint8_t sigv2[CH_PROOF_SIG_LEN]; compute_ch_sig(&p2, 2000, sigv2);
@@ -179,6 +207,7 @@ int main(void) {
     {
         count_house_t t;
         count_house_init(&t, 2, "IrqTest");
+        t.verify_sig = test_verify_hmac;
         word168_t p = make_peer(5);
         uint8_t sigt[CH_PROOF_SIG_LEN]; compute_ch_sig(&p, 1000, sigt);
         count_house_deposit(&t, &p, PUBKEY_A, 1000, sigt); /* trust 150 -> weighted 150 */
@@ -206,6 +235,7 @@ int main(void) {
     {
         count_house_t m;
         count_house_init(&m, 4, "MintTest");
+        m.verify_sig = test_verify_hmac;
         word168_t p = make_peer(7);
         uint8_t sigm[CH_PROOF_SIG_LEN]; compute_ch_sig(&p, 1000, sigm);
         count_house_deposit(&m, &p, PUBKEY_A, 1000, sigm); /* weighted = 150 */
@@ -227,6 +257,7 @@ int main(void) {
     {
         count_house_t a;
         count_house_init(&a, 5, "AuditTest");
+        a.verify_sig = test_verify_hmac;
         assert(count_house_audit(&a)); /* zero supply, ZPD path, not flagged */
 
         word168_t p = make_peer(9);
