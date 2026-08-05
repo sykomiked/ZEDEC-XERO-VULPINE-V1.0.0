@@ -660,6 +660,11 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
+	echo "=== The Reality Engine: sigil circuits computing against live variables ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/reality -Isrc/cards \
+		src/reality/test_reality.c src/reality/reality.c src/cards/sigil.c \
+		-o /tmp/test_reality -lm && \
+		/tmp/test_reality && echo "[PASS] test_reality" || { echo "[FAIL] test_reality"; exit 1; }; \
 	echo "=== The Mage's Hats: security authorization boundary (hat suites) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/mage -Isrc/robin_debanks \
 		src/mage/test_mage.c src/mage/mage.c src/robin_debanks/sha256.c \
@@ -710,6 +715,11 @@ verify-all: test
 		src/net/test_netstack.c src/net/net.c src/net/dhcp.c src/net/dns.c src/net/tcp.c src/net/m5route.c src/iphase/iphase_core.c src/iphase/iphase.c \
 		-o /tmp/test_netstack -lm && \
 		/tmp/test_netstack && echo "[PASS] test_netstack" || { echo "[FAIL] test_netstack"; exit 1; }; \
+	echo "=== Browser: RFC 3986 URLs, HTTP/1.1 framing, hostile HTML, layout ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/browser -Isrc/surplus -Isrc/edp_risk \
+		src/browser/test_browser.c src/browser/browser.c src/surplus/surplus.c src/edp_risk/edp_risk.c \
+		-o /tmp/test_browser -lm && \
+		/tmp/test_browser > /dev/null && echo "[PASS] test_browser" || { echo "[FAIL] test_browser"; exit 1; }; \
 	echo "=== Event clock: logical ordinals, measured drift, saturating ns math ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/clock -Isrc/edp_risk -Isrc/surplus \
 		src/clock/test_event_clock.c src/clock/event_clock.c \
@@ -751,6 +761,13 @@ fuzz:
 		src/clock/test_event_clock.c src/clock/event_clock.c \
 		-o /tmp/san_event_clock -lm && /tmp/san_event_clock > /dev/null \
 		|| { echo "[FAIL] san_event_clock"; exit 1; }; \
+	echo "=== browser under ASan+UBSan (URL/HTTP/HTML parsers, exact-size heap) ==="; \
+	cc $(SAN_FLAGS) -fno-sanitize-recover=all -std=c11 -DTEST_HOST \
+		-Iinclude -Isrc/browser -Isrc/surplus -Isrc/edp_risk \
+		src/browser/test_browser.c src/browser/browser.c src/surplus/surplus.c \
+		src/edp_risk/edp_risk.c \
+		-o /tmp/san_browser -lm && /tmp/san_browser > /dev/null \
+		|| { echo "[FAIL] san_browser"; exit 1; }; \
 	echo "*** FUZZ SUITE PASSED ***"
 
 # Experimental / Stage-9 tests that are not yet required for G1 build integrity
