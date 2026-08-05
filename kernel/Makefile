@@ -693,6 +693,12 @@ verify-all: test
 		src/zxpkg/test_zxpkg.c src/zxpkg/zxpkg.c src/trispace/trispace.c src/robin_debanks/sha256.c \
 		-o /tmp/test_zxpkg -lm && \
 		/tmp/test_zxpkg && echo "[PASS] test_zxpkg" || { echo "[FAIL] test_zxpkg"; exit 1; }; \
+	echo "=== signed native release: Tri-Space triad + Ed25519 provenance (ZSP) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zxpkg -Isrc/trispace -Isrc/robin_debanks -Isrc/loader \
+		src/zxpkg/test_zxrelease.c src/zxpkg/zxpkg.c src/trispace/trispace.c \
+		src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/loader/zsp.c \
+		-o /tmp/test_zxrelease -lm && \
+		/tmp/test_zxrelease && echo "[PASS] test_zxrelease" || { echo "[FAIL] test_zxrelease"; exit 1; }; \
 	echo "=== The Reality Engine: sigil circuits computing against live variables ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/reality -Isrc/cards \
 		src/reality/test_reality.c src/reality/reality.c src/cards/sigil.c \

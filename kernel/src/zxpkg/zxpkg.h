@@ -120,4 +120,31 @@ tri_quarantine_t zxpkg_verify_triad(const uint8_t *pos, uint32_t pos_len,
 /* Canonical compiled extension for a role: .zxvc / .cedez / .cedec */
 const char *zxpkg_extension(tri_role_t role);
 
+/* ===================== release signing (provenance) =====================
+ *
+ * zxpkg_verify_triad proves a triad is INTACT and internally consistent, but
+ * a whole triad can be re-issued. Binding it to a release IDENTITY is the ZSP
+ * layer (src/loader/zsp): a release carries a ZSP envelope whose signed payload
+ * IS the triad's 32-byte seal. A verifier that also checks that envelope knows
+ * not just that the triad is intact but that THIS root key released THIS exact
+ * triad. Signing is offline (the kernel only verifies); this is the verify side.
+ */
+typedef enum {
+    ZXREL_OK = 0,          /* intact AND signed by the root over this seal   */
+    ZXREL_TRIAD_BAD,       /* the triad itself does not verify               */
+    ZXREL_UNSIGNED,        /* the ZSP envelope is malformed / not present    */
+    ZXREL_BAD_SIG,         /* the signature is not from the root key         */
+    ZXREL_SEAL_MISMATCH    /* signed, but over a DIFFERENT triad's seal      */
+} zxrel_t;
+
+/* Verify a signed release: the triad must verify, the ZSP envelope must verify
+ * against `root_pubkey`, and its signed payload must equal the triad's seal. */
+zxrel_t zxpkg_verify_release(const uint8_t *pos, uint32_t pos_len,
+                             const uint8_t *neg, uint32_t neg_len,
+                             const uint8_t *neu, uint32_t neu_len,
+                             const uint8_t *zsp, uint32_t zsp_len,
+                             const uint8_t root_pubkey[32]);
+
+const char *zxrel_strerror(zxrel_t r);
+
 #endif /* ZXV_ZXPKG_H */

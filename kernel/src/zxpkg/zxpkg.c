@@ -1,6 +1,7 @@
 /* zxpkg.c — the on-disk native package. See zxpkg.h. */
 #include "zxpkg.h"
 #include "../robin_debanks/sha256.h"
+#include "../loader/zsp.h"
 
 static void put32le(uint8_t *p, uint32_t v) {
     p[0]=(uint8_t)v; p[1]=(uint8_t)(v>>8); p[2]=(uint8_t)(v>>16); p[3]=(uint8_t)(v>>24);
@@ -156,4 +157,41 @@ tri_quarantine_t zxpkg_verify_triad(const uint8_t *pos, uint32_t pos_len,
     if (q != TRI_Q_NONE) return q;                  /* a requirement now fails  */
     if (!eq(seal, m[0].seal, TRI_DIGEST_LEN)) return TRI_Q_SEAL_MISMATCH;
     return TRI_Q_NONE;                              /* intact and releasable    */
+}
+
+const char *zxrel_strerror(zxrel_t r) {
+    switch (r) {
+    case ZXREL_OK:            return "signed release verified";
+    case ZXREL_TRIAD_BAD:     return "triad does not verify";
+    case ZXREL_UNSIGNED:      return "no valid signature envelope";
+    case ZXREL_BAD_SIG:       return "signature not from the root key";
+    case ZXREL_SEAL_MISMATCH: return "signed over a different triad's seal";
+    }
+    return "unknown";
+}
+
+zxrel_t zxpkg_verify_release(const uint8_t *pos, uint32_t pos_len,
+                             const uint8_t *neg, uint32_t neg_len,
+                             const uint8_t *neu, uint32_t neu_len,
+                             const uint8_t *zsp, uint32_t zsp_len,
+                             const uint8_t root_pubkey[32]) {
+    /* 1. the triad must be intact and releasable */
+    if (zxpkg_verify_triad(pos, pos_len, neg, neg_len, neu, neu_len) != TRI_Q_NONE)
+        return ZXREL_TRIAD_BAD;
+
+    /* recover the seal every member carries (they agree; verify_triad checked) */
+    zxpkg_member_t m;
+    if (!zxpkg_read(pos, pos_len, &m)) return ZXREL_TRIAD_BAD;
+
+    /* 2. the ZSP envelope must verify against the root key */
+    const uint8_t *payload = 0; uint32_t plen = 0;
+    zsp_result_t zr = zsp_verify(zsp, zsp_len, root_pubkey, &payload, &plen);
+    if (zr == ZSP_ERR_SIG) return ZXREL_BAD_SIG;
+    if (zr != ZSP_OK)      return ZXREL_UNSIGNED;
+
+    /* 3. and it must be a signature over THIS triad's seal, not another's */
+    if (plen != TRI_DIGEST_LEN || !eq(payload, m.seal, TRI_DIGEST_LEN))
+        return ZXREL_SEAL_MISMATCH;
+
+    return ZXREL_OK;
 }

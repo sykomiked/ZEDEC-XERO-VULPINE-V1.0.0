@@ -106,6 +106,22 @@ if has_stage package; then
   shopt -u nullglob
 fi
 
+# ---------- 3b. sign (optional; needs the offline root key) ----------
+if has_stage package && [ -n "${ROOT_KEY:-}" ]; then
+  stage "3b. sign — bind a release identity to each triad seal (offline root key)"
+  if [ -f "$ROOT_KEY" ]; then
+    shopt -s nullglob
+    for seal in "$DIST"/*.seal; do
+      if bash build_system/sign_release.sh "$seal" "$ROOT_KEY" "${seal%.seal}.zsp" >>"$DIST/sign.log" 2>&1; then
+        ok "signed $(basename "${seal%.seal}").zsp"
+      else printf '%s  [FAIL]%s sign %s\n' "$c_red" "$c_off" "$(basename "$seal")"; fi
+    done
+    shopt -u nullglob
+  else skip "ROOT_KEY=$ROOT_KEY not found — releases left unsigned"; fi
+elif has_stage package; then
+  skip "signing (set ROOT_KEY=/path/to/root-ed25519.pem to sign releases)"
+fi
+
 # ---------- 4. universal disc ----------
 if has_stage disc; then
   stage "4. disc — single universal install disc (UEFI multi-arch)"

@@ -113,6 +113,11 @@ int main(int argc, char **argv) {
         free(img); return 1;
     }
 
+    /* Emit the seal so an OFFLINE signer can bind a release identity to it
+     * (build_system/sign_release.sh -> a ZSP envelope the kernel verifies). */
+    { char sp[4096]; snprintf(sp, sizeof sp, "%s.seal", base);
+      if (spew(sp, seal, TRI_DIGEST_LEN) == 0) printf("  wrote %s (seal for offline signing)\n", sp); }
+
     /* write the three members */
     uint32_t cap = ZXPKG_HDR_LEN + imgn + 4096;
     unsigned char *out = (unsigned char *)malloc(cap);
