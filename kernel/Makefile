@@ -560,6 +560,13 @@ verify-all: test
 		src/wyrmgate/test_wyrmgate.c src/wyrmgate/wyrmgate.c src/rmag/rmag.c src/lpres/lpres.c src/chiglet/chiglet.c src/surplus/surplus.c \
 		-o /tmp/test_wyrmgate -lm && \
 		/tmp/test_wyrmgate && echo "[PASS] test_wyrmgate" || { echo "[FAIL] test_wyrmgate"; exit 1; }; \
+	echo "=== WyvernEye: intent forged then judged (refinery+wyrmgate composed) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/wyverneye -Isrc/refinery -Isrc/wyrmgate -Isrc/cards -Isrc/rmag -Isrc/lpres -Isrc/chiglet -Isrc/surplus -Isrc/robin_debanks -Isrc/event_space -Iinclude \
+		src/wyverneye/test_wyverneye.c src/wyverneye/wyverneye.c src/wyrmgate/wyrmgate.c \
+		src/refinery/refinery.c src/refinery/enochian.c src/cards/sigil.c src/cards/zca.c \
+		src/rmag/rmag.c src/lpres/lpres.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
+		-o /tmp/test_wyverneye -lm && \
+		/tmp/test_wyverneye && echo "[PASS] test_wyverneye" || { echo "[FAIL] test_wyverneye"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).
