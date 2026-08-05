@@ -634,6 +634,11 @@ verify-all: test
 		src/ai_layer/test_ai_layer.c src/ai_layer/ai_layer.c src/count_house/count_house.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
 		-o /tmp/test_ai_layer -lm && \
 		/tmp/test_ai_layer && echo "[PASS] test_ai_layer" || { echo "[FAIL] test_ai_layer"; exit 1; }; \
+	echo "=== Holodeck swarm: watching together makes it faster ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/holodeck -Isrc/chiglet -Isrc/surplus -Isrc/robin_debanks \
+		src/holodeck/test_swarm.c src/holodeck/swarm.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
+		-o /tmp/test_swarm -lm && \
+		/tmp/test_swarm && echo "[PASS] test_swarm" || { echo "[FAIL] test_swarm"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).

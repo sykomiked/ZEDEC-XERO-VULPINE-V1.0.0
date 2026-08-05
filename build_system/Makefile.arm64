@@ -25,7 +25,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Dmalloc=fs_malloc -Dcalloc=fs_calloc \
          -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -include kernel/include/freestanding.h \
-         -Ikernel/include -Ikernel/src -Ikernel/arch/arm64 -Ikernel/src/virtio -Ikernel/src/trispace -Ikernel/src/mlkem -Ikernel/boot \
+         -Ikernel/include -Ikernel/src -Ikernel/arch/arm64 -Ikernel/src/virtio -Ikernel/src/trispace -Ikernel/src/holodeck -Ikernel/src/mlkem -Ikernel/boot \
          -Ikernel/src/plnp -Ikernel/src/smap -Ikernel/src/decent \
          -Ikernel/src/recon -Ikernel/src/hdcm -Ikernel/src/gematria \
          -Ikernel/src/dualtrack -Ikernel/src/superpos \
@@ -102,6 +102,7 @@ KERNEL_SRCS = \
     kernel/src/mlkem/mlkem_ntt.c \
     kernel/src/mlkem/mlkem_kpe.c \
     kernel/src/trispace/trispace.c \
+    kernel/src/holodeck/swarm.c \
     kernel/src/oseq/oseq_core.c \
     kernel/src/rmag/rmag_core.c \
     kernel/src/lpres/lpres_core.c \
