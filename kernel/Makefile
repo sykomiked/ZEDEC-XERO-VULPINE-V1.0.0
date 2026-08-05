@@ -660,6 +660,11 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
+	echo "=== theme + icons: tokenized palette, per-system vector icons ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/icon -Isrc/theme \
+		src/icon/test_icon.c src/icon/icon.c src/theme/theme.c \
+		-o /tmp/test_icon -lm && \
+		/tmp/test_icon && echo "[PASS] test_icon" || { echo "[FAIL] test_icon"; exit 1; }; \
 	echo "=== multi-language text: UTF-8 + script itemization + direction ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_script.c src/font/script.c \
