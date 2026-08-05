@@ -660,6 +660,16 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
+	echo "=== TLS 1.3 key schedule: RFC 4231 / 5869 / 8448 published vectors ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tls -Isrc/robin_debanks \
+		src/tls/test_hkdf.c src/tls/hkdf.c src/robin_debanks/sha256.c \
+		-o /tmp/test_hkdf -lm && \
+		/tmp/test_hkdf && echo "[PASS] test_hkdf" || { echo "[FAIL] test_hkdf"; exit 1; }; \
+	echo "=== X25519: RFC 7748 vectors incl. the 1000-round iterated test ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tls \
+		src/tls/test_x25519.c src/tls/x25519.c \
+		-o /tmp/test_x25519 -lm && \
+		/tmp/test_x25519 && echo "[PASS] test_x25519" || { echo "[FAIL] test_x25519"; exit 1; }; \
 	echo "=== TCP endpoint: handshake, retransmit, seq wrap, hostile segments ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/net \
 		src/net/test_tcp.c src/net/tcp.c \
