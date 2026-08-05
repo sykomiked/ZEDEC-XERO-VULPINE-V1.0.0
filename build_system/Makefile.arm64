@@ -70,7 +70,8 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/abacus \
          -Ikernel/src/lightningrod \
          -Ikernel/src/bios \
-         -Ikernel/src/chiglet -Ikernel/src/cards -Ikernel/src/refinery -Ikernel/src/concord -Ikernel/src/wyrmgate -Ikernel/src/wyverneye -Ikernel/src/chronicle
+         -Ikernel/src/chiglet -Ikernel/src/cards -Ikernel/src/refinery -Ikernel/src/concord -Ikernel/src/wyrmgate -Ikernel/src/wyverneye -Ikernel/src/chronicle \
+         -Ikernel/src/deploy -Ikernel/src/theme -Ikernel/src/icon -Ikernel/src/font -Ikernel/src/bridge -Ikernel/src/update -Ikernel/src/mage -Ikernel/src/reality -Ikernel/src/bootfeat
 
 LDFLAGS = -T kernel/arch/arm64/linker.ld -nostdlib -static -Wl,--gc-sections
 LIBGCC = $(shell $(CC) -print-libgcc-file-name 2>/dev/null || echo /usr/lib/gcc-cross/aarch64-linux-gnu/13/libgcc.a)
@@ -211,7 +212,18 @@ KERNEL_SRCS = \
     kernel/src/event_transport/event_transport.c \
     kernel/src/hypercube/hypercube_scene.c \
     kernel/src/yantra/yantra_fabric.c \
-    kernel/src/dual_space/dual_space.c
+    kernel/src/dual_space/dual_space.c \
+    kernel/src/deploy/deploy.c \
+    kernel/src/theme/theme.c \
+    kernel/src/icon/icon.c \
+    kernel/src/font/script.c \
+    kernel/src/font/font.c \
+    kernel/src/font/truetype.c \
+    kernel/src/bridge/bridge.c \
+    kernel/src/update/update.c \
+    kernel/src/mage/mage.c \
+    kernel/src/reality/reality.c \
+    kernel/src/bootfeat/boot_features.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
 

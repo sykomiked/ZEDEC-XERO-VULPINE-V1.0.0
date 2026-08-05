@@ -57,6 +57,7 @@ extern void arm64_mmu_init(void);
 #include "el0_userspace.h"
 #include "boot_evidence.h"
 #include "boot_banner.h"
+#include "boot_features.h"
 #include "../src/event_space/event_space.h"
 #include "../src/orbital_elevator/orbital_elevator.h"
 #include "../src/constellation/constellation_coordinator.h"
@@ -1619,6 +1620,11 @@ void kernel_main_arm64(void) {
     el0_set_event_cycle_hook(kernel_event_cycle_run);
     boot_msg("  [UNIFIED] kernel event cycle bridged to timer tick during EL0");
 #endif
+
+    /* Phase 22: Platform layer — deploy/theme/icon/font/bridge/update/mage/
+     * reality brought up on top of the M5 core. Emitted raw (its own lines),
+     * in phase-tick order, no wall-clock read. cores/mem 0 => probe-default. */
+    boot_features_init(uart_puts, 0, 0);
 
     /* Phase 18: Enable interrupts and enter event loop */
     boot_msg("\n[BOOT] ZEDEC pqOS [ARM64] — All systems online.");
