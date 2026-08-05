@@ -660,9 +660,14 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
-	echo "=== TCP/IP stack: RFC-1071 checksums, ARP, ICMP, DHCP, DNS (was untested) ==="; \
+	echo "=== TCP endpoint: handshake, retransmit, seq wrap, hostile segments ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/net \
+		src/net/test_tcp.c src/net/tcp.c \
+		-o /tmp/test_tcp -lm && \
+		/tmp/test_tcp && echo "[PASS] test_tcp" || { echo "[FAIL] test_tcp"; exit 1; }; \
+	echo "=== TCP/IP stack: RFC-1071 checksums, ARP, ICMP, DHCP, DNS, TCP sockets ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/net -Isrc/crit168 -Isrc/event_space -Isrc/surplus -Isrc/iphase \
-		src/net/test_netstack.c src/net/net.c src/net/dhcp.c src/net/dns.c src/net/m5route.c src/iphase/iphase_core.c src/iphase/iphase.c \
+		src/net/test_netstack.c src/net/net.c src/net/dhcp.c src/net/dns.c src/net/tcp.c src/net/m5route.c src/iphase/iphase_core.c src/iphase/iphase.c \
 		-o /tmp/test_netstack -lm && \
 		/tmp/test_netstack && echo "[PASS] test_netstack" || { echo "[FAIL] test_netstack"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="

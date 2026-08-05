@@ -207,6 +207,30 @@ static net_interface_t *g_eth_if = 0;
 static void knet_tx(const uint8_t *data, uint32_t len) {
     (void)virtio_net_tx(data, len);
 }
+/* Monotonic milliseconds from the architected virtual counter. Independent of
+ * the timer interrupt, so it is usable before and during device bring-up. */
+static uint64_t mono_ms(void) {
+    uint64_t cnt, frq;
+    __asm__ volatile("mrs %0, CNTVCT_EL0" : "=r"(cnt));
+    __asm__ volatile("mrs %0, CNTFRQ_EL0" : "=r"(frq));
+    if (!frq) return 0;
+    return (cnt / (frq / 1000u));
+}
+
+/* Pace net_tcp_tick() at the ~200 ms its contract requires. Calling it every
+ * poll iteration retransmits each segment long before the round trip can
+ * complete — the capture showed every packet going out twice. */
+static void knet_tcp_pace(net_state_t *ns) {
+    static uint64_t next_ms = 0;
+    uint64_t now = mono_ms();
+    /* Arm the first interval instead of firing on the first call — otherwise
+     * the SYN is retransmitted milliseconds after it was sent. */
+    if (!next_ms) { next_ms = now + 200u; return; }
+    if (now < next_ms) return;
+    next_ms = now + 200u;
+    net_tcp_tick(ns);
+}
+
 /* Hardware entropy for the network stack's transaction ids. Falls back to a
  * fixed value only if RNDR fails mid-flight, which arm64_rng_available()
  * has already made unlikely; the stack still mixes what it gets. */
@@ -1391,6 +1415,62 @@ void kernel_main_arm64(void) {
                         for (int qq = 0; suf[qq]; qq++) line[p++] = suf[qq];
                         line[p] = 0;
                         boot_msg(line);
+                        /* ---- TCP: fetch over the real internet. This is the
+                         * hardest external anchor available: an independent
+                         * web server has to accept our SYN, our sequence
+                         * numbers and our pseudo-header checksums, and answer.
+                         * Nothing about that can be faked locally. */
+                        int32_t sk = net_socket(&net, SOCK_TCP);
+                        if (sk >= 0 && net_connect(&net, sk, rip, 80) == 0) {
+                            static uint8_t tf[VNET_MAX_FRAME];
+                            static uint8_t body[512];
+                            static const char req[] =
+                                "GET / HTTP/1.0\r\nHost: example.com\r\n"
+                                "User-Agent: ZXV\r\nConnection: close\r\n\r\n";
+                            bool sent = false;
+                            int32_t got = -1;
+                            /* Poll in SHORT bursts. The retransmit pacer is
+                             * time-based, so a long burst between calls means
+                             * the 200 ms gate has already expired every time it
+                             * is consulted and every segment goes out twice. */
+                            for (uint32_t round = 0; round < 20000u && got < 0; round++) {
+                                for (uint32_t spin = 0; spin < 200u; spin++) {
+                                    int n = virtio_net_rx_poll(tf, sizeof tf);
+                                    if (n > 0) net_handle_eth(&net, g_eth_if, tf, (uint32_t)n);
+                                }
+                                if (!sent &&
+                                    net.sockets[sk].tcp_state == TCP_ESTABLISHED) {
+                                    if (net_send(&net, sk, req,
+                                                 (uint32_t)(sizeof req - 1)) > 0)
+                                        sent = true;
+                                }
+                                if (sent) got = net_recv(&net, sk, body, sizeof body - 1);
+                                knet_tcp_pace(&net);
+                            }
+                            if (got > 4 && body[0]=='H' && body[1]=='T' &&
+                                body[2]=='T' && body[3]=='P') {
+                                body[got < (int32_t)sizeof body ? got : 0] = 0;
+                                char line[80];
+                                int p = 0;
+                                const char *pre = "  [VERIFIED] TCP: ";
+                                while (pre[p]) { line[p] = pre[p]; p++; }
+                                /* the server's status line, up to the CR */
+                                for (int k = 0; k < got && k < 40 &&
+                                                body[k] != '\r' && body[k] != '\n'; k++)
+                                    line[p++] = (char)body[k];
+                                const char *suf = " <- a real web server";
+                                for (int k = 0; suf[k]; k++) line[p++] = suf[k];
+                                line[p] = 0;
+                                boot_msg(line);
+                            } else if (net.sockets[sk].tcp_state == TCP_ESTABLISHED ||
+                                       sent) {
+                                boot_msg("  [WARNING] TCP connected but no HTTP "
+                                         "response arrived");
+                            } else {
+                                boot_msg("  [WARNING] TCP handshake did not complete");
+                            }
+                            net_close(&net, sk);
+                        }
                     } else {
                         boot_msg("  [WARNING] DNS query went unanswered");
                     }

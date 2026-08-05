@@ -10,9 +10,14 @@
 #include <stdbool.h>
 #include "dhcp.h"
 #include "dns.h"
+#include "tcp.h"
 
 #define NET_MAX_INTERFACES  4
 #define NET_MAX_SOCKETS     64
+/* TCP connections live in their own, much smaller pool: a tcp_conn_t carries
+ * send and receive buffers, so one per socket would put ~400 KB of .bss in the
+ * kernel image for connections that will never exist. */
+#define NET_MAX_TCP_CONNS   8
 #define NET_MAX_CONNECTIONS 32
 #define NET_RX_BUFFER_SIZE  2048
 #define NET_TX_BUFFER_SIZE  2048
@@ -149,7 +154,8 @@ typedef struct m5_net_header {
 
 typedef struct socket {
     socket_type_t type;
-    tcp_state_t tcp_state;
+    tcp_state_t tcp_state;      /* mirror of the real state, for reporting */
+    int32_t tcp_idx;            /* index into net_state_t.tcp_conns, -1 = none */
     uint8_t local_ip[NET_IP_LEN];
     uint16_t local_port;
     uint8_t remote_ip[NET_IP_LEN];
@@ -194,6 +200,11 @@ typedef struct net_state {
     } dns;
     uint8_t dns_server[NET_IP_LEN];  /* learned from DHCP option 6 */
 
+    /* TCP connection pool */
+    tcp_conn_t tcp_conns[NET_MAX_TCP_CONNS];
+    bool       tcp_used[NET_MAX_TCP_CONNS];
+    net_interface_t *tcp_iface[NET_MAX_TCP_CONNS];  /* where each one lives */
+
     /* Stats */
     uint32_t rx_packets;
     uint32_t tx_packets;
@@ -218,6 +229,10 @@ int32_t net_accept(net_state_t *net, int32_t sock);
 int32_t net_send(net_state_t *net, int32_t sock, const void *data, uint32_t len);
 int32_t net_recv(net_state_t *net, int32_t sock, void *data, uint32_t max_len);
 int32_t net_close(net_state_t *net, int32_t sock);
+
+/* Drive TCP retransmission and TIME_WAIT expiry. Call from the event loop;
+ * without it, a lost segment is never resent and a connection stalls forever. */
+void net_tcp_tick(net_state_t *net);
 
 /* M5 axiomatic send/recv with metadata */
 int32_t net_m5_send(net_state_t *net, int32_t sock, const void *data, uint32_t len,

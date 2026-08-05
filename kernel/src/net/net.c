@@ -21,6 +21,17 @@ static void mem_set(void *d, int c, uint32_t n) {
     for (uint32_t i = 0; i < n; i++) dst[i] = (uint8_t)c;
 }
 
+static bool next_hop_mac(net_state_t *net, const net_interface_t *iface,
+                         const uint8_t *dst, uint8_t *mac_out);
+static uint32_t net_rand(net_state_t *net, const net_interface_t *iface);
+static void ip_tx_raw(net_state_t *net, net_interface_t *iface,
+                      const uint8_t *src_ip, const uint8_t *dst_ip,
+                      const uint8_t *dst_mac, uint8_t proto,
+                      const uint8_t *l4, uint32_t l4len);
+static int32_t tcp_alloc(net_state_t *net);
+static void tcp_free(net_state_t *net, int32_t idx);
+static net_interface_t *tcp_pick_iface(net_state_t *net);
+
 void net_init(net_state_t *net) {
     net->num_interfaces = 0;
     net->num_sockets = 0;
@@ -43,8 +54,13 @@ void net_init(net_state_t *net) {
         net->sockets[i].active = false;
         net->sockets[i].type = SOCK_UNUSED;
         net->sockets[i].tcp_state = TCP_CLOSED;
+        net->sockets[i].tcp_idx = -1;
         net->sockets[i].rx_ready = false;
         net->sockets[i].rx_len = 0;
+    }
+    for (uint32_t i = 0; i < NET_MAX_TCP_CONNS; i++) {
+        net->tcp_used[i] = false;
+        net->tcp_iface[i] = 0;
     }
 }
 
@@ -351,8 +367,18 @@ void net_handle_ip(net_state_t *net, net_interface_t *iface, const uint8_t *data
     uint8_t ihl = (ip->version_ihl & 0x0F) * 4;
     if (ihl < 20 || len < ihl) return;
 
+    /* The DATAGRAM length comes from the IP header, never from the frame.
+     * Ethernet pads any frame shorter than 60 bytes, so a bare TCP ACK arrives
+     * with trailing padding; folding that into a transport checksum makes it
+     * fail and the segment is silently dropped. That is exactly what stopped
+     * the handshake with a real peer while every local test passed, because a
+     * test harness builds exact-length frames and never pads. */
+    uint16_t total_len = (uint16_t)((ip->total_len >> 8) | (ip->total_len << 8));
+    if (total_len < ihl) return;          /* header claims less than itself */
+    if (total_len > len) return;          /* truncated in transit */
+
     const uint8_t *payload = data + ihl;
-    uint32_t payload_len = len - ihl;
+    uint32_t payload_len = (uint32_t)total_len - ihl;
 
     /* Only process datagrams addressed to this interface (or broadcast).
      * Without this the stack answered pings sent to ANY address, which is
@@ -419,46 +445,94 @@ void net_handle_icmp(net_state_t *net, net_interface_t *iface, const ip_header_t
     }
 }
 
+/* Keep the reporting mirror in step with the real state machine. */
+static void tcp_mirror(socket_t *s, const tcp_conn_t *c) {
+    switch (c->state) {
+    case TCPS_CLOSED:      s->tcp_state = TCP_CLOSED;      break;
+    case TCPS_LISTEN:      s->tcp_state = TCP_LISTEN;      break;
+    case TCPS_SYN_SENT:    s->tcp_state = TCP_SYN_SENT;    break;
+    case TCPS_SYN_RCVD:    s->tcp_state = TCP_SYN_RCVD;    break;
+    case TCPS_ESTABLISHED: s->tcp_state = TCP_ESTABLISHED; break;
+    case TCPS_FIN_WAIT_1:  s->tcp_state = TCP_FIN_WAIT_1;  break;
+    case TCPS_FIN_WAIT_2:  s->tcp_state = TCP_FIN_WAIT_2;  break;
+    case TCPS_CLOSE_WAIT:  s->tcp_state = TCP_CLOSE_WAIT;  break;
+    case TCPS_CLOSING:     s->tcp_state = TCP_CLOSING;     break;
+    case TCPS_LAST_ACK:    s->tcp_state = TCP_LAST_ACK;    break;
+    case TCPS_TIME_WAIT:   s->tcp_state = TCP_TIME_WAIT;   break;
+    }
+    mem_copy(s->remote_ip, c->remote_ip, NET_IP_LEN);
+    s->remote_port = c->remote_port;
+    s->seq_num = c->snd_nxt;
+    s->ack_num = c->rcv_nxt;
+    s->rx_ready = c->rx_len > 0;
+    s->rx_len = c->rx_len;
+}
+
+/* Send whatever the state machine produced, to the connection's peer. */
+static void tcp_emit(net_state_t *net, int32_t idx, const uint8_t *seg, uint32_t n) {
+    if (n == 0 || idx < 0) return;
+    tcp_conn_t *c = &net->tcp_conns[idx];
+    net_interface_t *iface = net->tcp_iface[idx];
+    if (!iface) return;
+    uint8_t mac[NET_MAC_LEN];
+    if (!next_hop_mac(net, iface, c->remote_ip, mac)) {
+        net_arp_request(net, iface, c->remote_ip);
+        return;                      /* the retransmit timer will try again */
+    }
+    ip_tx_raw(net, iface, c->local_ip, c->remote_ip, mac, IP_PROTO_TCP, seg, n);
+}
+
 void net_handle_tcp(net_state_t *net, net_interface_t *iface, const ip_header_t *ip,
                      const uint8_t *data, uint32_t len) {
-    (void)iface;
     if (len < sizeof(tcp_header_t)) return;
-    tcp_header_t *tcp = (tcp_header_t *)data;
-    uint16_t dst_port = (tcp->dst_port >> 8) | (tcp->dst_port << 8);
-    uint16_t src_port = (tcp->src_port >> 8) | (tcp->src_port << 8);
-    uint16_t flags = tcp->data_offset_flags & 0x3F;
+    const tcp_header_t *tcp = (const tcp_header_t *)data;
+    uint16_t dst_port = (uint16_t)((tcp->dst_port >> 8) | (tcp->dst_port << 8));
+    uint16_t src_port = (uint16_t)((tcp->src_port >> 8) | (tcp->src_port << 8));
 
-    /* Find matching socket */
-    for (uint32_t i = 0; i < net->num_sockets; i++) {
+    /* The checksum is not optional for TCP: a peer that computed one expects
+     * us to verify it, and a corrupted segment must not reach the state
+     * machine. Reject rather than repair. */
+    if (net_l4_checksum(ip->src_ip, ip->dst_ip, IP_PROTO_TCP, data, len) != 0) return;
+
+    for (uint32_t i = 0; i < NET_MAX_SOCKETS; i++) {
         socket_t *s = &net->sockets[i];
-        if (!s->active || s->type != SOCK_TCP) continue;
+        if (!s->active || s->type != SOCK_TCP || s->tcp_idx < 0) continue;
         if (s->local_port != dst_port) continue;
+        tcp_conn_t *c = &net->tcp_conns[s->tcp_idx];
 
-        if (flags & TCP_FLAG_SYN) {
-            if (s->tcp_state == TCP_LISTEN) {
-                s->tcp_state = TCP_SYN_RCVD;
-                s->remote_port = src_port;
-                mem_copy(s->remote_ip, ip->src_ip, NET_IP_LEN);
-                s->seq_num = 1000;
-                s->ack_num = tcp->seq_num + 1;
-            }
-        } else if (flags & TCP_FLAG_ACK) {
-            if (s->tcp_state == TCP_SYN_RCVD) {
-                s->tcp_state = TCP_ESTABLISHED;
-            }
-        } else if (flags & TCP_FLAG_FIN) {
-            s->tcp_state = TCP_CLOSE_WAIT;
+        /* An established connection only accepts segments from its own peer. */
+        if (c->state != TCPS_LISTEN) {
+            bool same = true;
+            for (int k = 0; k < NET_IP_LEN; k++)
+                if (c->remote_ip[k] != ip->src_ip[k]) same = false;
+            if (!same || c->remote_port != src_port) continue;
+        } else {
+            /* A listener learns its peer's address from the IP header — the
+             * TCP module never sees it. */
+            mem_copy(c->remote_ip, ip->src_ip, NET_IP_LEN);
         }
 
-        if (len > sizeof(tcp_header_t) && s->tcp_state == TCP_ESTABLISHED) {
-            uint32_t data_len = len - sizeof(tcp_header_t);
-            if (data_len > 0 && data_len <= NET_RX_BUFFER_SIZE) {
-                mem_copy(s->rx_buf, data + sizeof(tcp_header_t), data_len);
-                s->rx_len = data_len;
-                s->rx_ready = true;
-            }
-        }
-        break;
+        net->tcp_iface[s->tcp_idx] = iface;
+        uint8_t out[NET_TX_BUFFER_SIZE];
+        uint32_t n = tcp_input(c, data, len, out, sizeof out);
+        tcp_emit(net, s->tcp_idx, out, n);
+        tcp_mirror(s, c);
+        return;
+    }
+}
+
+void net_tcp_tick(net_state_t *net) {
+    if (!net) return;
+    for (uint32_t i = 0; i < NET_MAX_TCP_CONNS; i++) {
+        if (!net->tcp_used[i]) continue;
+        uint8_t out[NET_TX_BUFFER_SIZE];
+        uint32_t n = tcp_tick(&net->tcp_conns[i], out, sizeof out);
+        tcp_emit(net, (int32_t)i, out, n);
+    }
+    for (uint32_t i = 0; i < NET_MAX_SOCKETS; i++) {
+        socket_t *s = &net->sockets[i];
+        if (s->active && s->type == SOCK_TCP && s->tcp_idx >= 0)
+            tcp_mirror(s, &net->tcp_conns[s->tcp_idx]);
     }
 }
 
@@ -509,12 +583,38 @@ void net_handle_udp(net_state_t *net, net_interface_t *iface, const ip_header_t 
 }
 
 /* Socket API */
+static int32_t tcp_alloc(net_state_t *net) {
+    for (uint32_t i = 0; i < NET_MAX_TCP_CONNS; i++)
+        if (!net->tcp_used[i]) {
+            net->tcp_used[i] = true;
+            net->tcp_iface[i] = 0;
+            tcp_init(&net->tcp_conns[i], 0, 0, 0, 0, 0);
+            return (int32_t)i;
+        }
+    return -1;
+}
+
+static void tcp_free(net_state_t *net, int32_t idx) {
+    if (idx < 0 || (uint32_t)idx >= NET_MAX_TCP_CONNS) return;
+    net->tcp_used[idx] = false;
+    net->tcp_iface[idx] = 0;
+}
+
+static net_interface_t *tcp_pick_iface(net_state_t *net) {
+    for (uint32_t i = 0; i < net->num_interfaces; i++)
+        if (net->interfaces[i].up && net->interfaces[i].type == NET_IF_ETHERNET &&
+            net->interfaces[i].tx_callback)
+            return &net->interfaces[i];
+    return 0;
+}
+
 int32_t net_socket(net_state_t *net, socket_type_t type) {
     for (uint32_t i = 0; i < NET_MAX_SOCKETS; i++) {
         if (!net->sockets[i].active) {
             net->sockets[i].active = true;
             net->sockets[i].type = type;
             net->sockets[i].tcp_state = TCP_CLOSED;
+            net->sockets[i].tcp_idx = -1;
             net->sockets[i].rx_ready = false;
             net->sockets[i].rx_len = 0;
             net->sockets[i].local_port = 0;
@@ -547,10 +647,29 @@ int32_t net_connect(net_state_t *net, int32_t sock, const uint8_t *ip, uint16_t 
 
     mem_copy(s->remote_ip, ip, NET_IP_LEN);
     s->remote_port = port;
-    if (s->type == SOCK_TCP) {
-        s->tcp_state = TCP_SYN_SENT;
-        /* Would send SYN packet here */
-    }
+
+    if (s->type != SOCK_TCP) return 0;
+
+    net_interface_t *iface = tcp_pick_iface(net);
+    if (!iface) return -1;
+    if (s->tcp_idx < 0) s->tcp_idx = tcp_alloc(net);
+    if (s->tcp_idx < 0) return -1;                  /* connection pool full */
+
+    /* An ephemeral local port if the caller did not bind one, and an initial
+     * sequence number from the entropy source — a predictable ISS lets someone
+     * who can guess the four-tuple inject data into a connection they cannot
+     * see. */
+    uint32_t r = net_rand(net, iface);
+    if (!s->local_port) s->local_port = (uint16_t)(49152u + (r & 0x3FFFu));
+
+    tcp_conn_t *c = &net->tcp_conns[s->tcp_idx];
+    tcp_init(c, iface->ip, s->local_port, ip, port, net_rand(net, iface));
+    net->tcp_iface[s->tcp_idx] = iface;
+
+    uint8_t out[NET_TX_BUFFER_SIZE];
+    uint32_t n = tcp_connect(c, out, sizeof out);
+    tcp_emit(net, s->tcp_idx, out, n);
+    tcp_mirror(s, c);
     return 0;
 }
 
@@ -561,16 +680,32 @@ int32_t net_bind(net_state_t *net, int32_t sock, uint16_t port) {
 }
 
 int32_t net_listen(net_state_t *net, int32_t sock, uint32_t backlog) {
-    (void)backlog;
+    (void)backlog;   /* one connection at a time; see NET_MAX_TCP_CONNS */
     if (sock < 0 || (uint32_t)sock >= NET_MAX_SOCKETS) return -1;
-    if (net->sockets[sock].type != SOCK_TCP) return -1;
-    net->sockets[sock].tcp_state = TCP_LISTEN;
+    socket_t *s = &net->sockets[sock];
+    if (!s->active || s->type != SOCK_TCP || !s->local_port) return -1;
+
+    net_interface_t *iface = tcp_pick_iface(net);
+    if (s->tcp_idx < 0) s->tcp_idx = tcp_alloc(net);
+    if (s->tcp_idx < 0) return -1;
+
+    tcp_conn_t *c = &net->tcp_conns[s->tcp_idx];
+    tcp_init(c, iface ? iface->ip : 0, s->local_port, 0, 0,
+             net_rand(net, iface));
+    tcp_listen(c);
+    net->tcp_iface[s->tcp_idx] = iface;
+    s->tcp_state = TCP_LISTEN;
     return 0;
 }
 
+/* The listening socket BECOMES the connection when a handshake completes —
+ * there is no separate accepted socket, because the pool holds one connection
+ * per listener. Returns the same socket once it is established, -1 until then. */
 int32_t net_accept(net_state_t *net, int32_t sock) {
-    (void)net; (void)sock;
-    return -1; /* Not implemented in this iteration */
+    if (sock < 0 || (uint32_t)sock >= NET_MAX_SOCKETS) return -1;
+    socket_t *s = &net->sockets[sock];
+    if (!s->active || s->type != SOCK_TCP || s->tcp_idx < 0) return -1;
+    return tcp_is_established(&net->tcp_conns[s->tcp_idx]) ? sock : -1;
 }
 
 int32_t net_send(net_state_t *net, int32_t sock, const void *data, uint32_t len) {
@@ -596,23 +731,19 @@ int32_t net_send(net_state_t *net, int32_t sock, const void *data, uint32_t len)
 
     uint32_t total;
     if (s->type == SOCK_TCP) {
-        total = sizeof(eth_header_t) + sizeof(ip_header_t) + sizeof(tcp_header_t) + len;
-        if (total > NET_TX_BUFFER_SIZE) return -1;
-        uint8_t pkt[NET_TX_BUFFER_SIZE];
-        eth_header_t *eth = (eth_header_t *)pkt;
-        ip_header_t *ip = (ip_header_t *)(pkt + sizeof(eth_header_t));
-        tcp_header_t *tcp = (tcp_header_t *)((uint8_t *)ip + sizeof(ip_header_t));
-
-        net_build_eth(eth, dst_mac, iface->mac, ETH_TYPE_IP);
-        net_build_ip(ip, iface->ip, s->remote_ip, IP_PROTO_TCP,
-                     (uint16_t)(sizeof(ip_header_t) + sizeof(tcp_header_t) + len));
-        net_build_tcp(tcp, s->local_port, s->remote_port, s->seq_num, s->ack_num,
-                      TCP_FLAG_ACK | TCP_FLAG_PSH, 4096);
-        if (data && len > 0)
-            mem_copy(pkt + total - len, data, len);
-        net_tcp_finish(tcp, iface->ip, s->remote_ip, sizeof(tcp_header_t) + len);
-
-        iface->tx_callback(pkt, total);
+        /* TCP goes through the real state machine: it decides how much can be
+         * sent, keeps the bytes for retransmission and stamps the sequence
+         * numbers. Writing a segment by hand here is what made the old path
+         * produce something no peer would accept. */
+        if (s->tcp_idx < 0) return -1;
+        tcp_conn_t *c = &net->tcp_conns[s->tcp_idx];
+        uint8_t out[NET_TX_BUFFER_SIZE];
+        uint32_t used = 0;
+        uint32_t n = tcp_send(c, (const uint8_t *)data, len, out, sizeof out, &used);
+        if (n == 0) return -1;        /* not established, or window closed */
+        tcp_emit(net, s->tcp_idx, out, n);
+        tcp_mirror(s, c);
+        return (int32_t)used;
     } else {
         total = sizeof(eth_header_t) + sizeof(ip_header_t) + sizeof(udp_header_t) + len;
         if (total > NET_TX_BUFFER_SIZE) return -1;
@@ -642,8 +773,16 @@ int32_t net_send(net_state_t *net, int32_t sock, const void *data, uint32_t len)
 int32_t net_recv(net_state_t *net, int32_t sock, void *data, uint32_t max_len) {
     if (sock < 0 || (uint32_t)sock >= NET_MAX_SOCKETS) return -1;
     socket_t *s = &net->sockets[sock];
-    if (!s->active || !s->rx_ready) return -1;
+    if (!s->active) return -1;
 
+    if (s->type == SOCK_TCP && s->tcp_idx >= 0) {
+        tcp_conn_t *c = &net->tcp_conns[s->tcp_idx];
+        uint32_t n = tcp_read(c, (uint8_t *)data, max_len);
+        tcp_mirror(s, c);
+        return n ? (int32_t)n : -1;
+    }
+
+    if (!s->rx_ready) return -1;
     uint32_t copy_len = s->rx_len;
     if (copy_len > max_len) copy_len = max_len;
     mem_copy(data, s->rx_buf, copy_len);
@@ -654,8 +793,26 @@ int32_t net_recv(net_state_t *net, int32_t sock, void *data, uint32_t max_len) {
 
 int32_t net_close(net_state_t *net, int32_t sock) {
     if (sock < 0 || (uint32_t)sock >= NET_MAX_SOCKETS) return -1;
-    net->sockets[sock].active = false;
-    net->sockets[sock].tcp_state = TCP_CLOSED;
+    socket_t *s = &net->sockets[sock];
+
+    if (s->type == SOCK_TCP && s->tcp_idx >= 0) {
+        tcp_conn_t *c = &net->tcp_conns[s->tcp_idx];
+        uint8_t out[NET_TX_BUFFER_SIZE];
+        /* An orderly close: send a FIN and let the exchange finish. Tearing
+         * the socket down here would leave the peer waiting on a connection
+         * that will never answer. */
+        uint32_t n = tcp_close(c, out, sizeof out);
+        if (n) {
+            tcp_emit(net, s->tcp_idx, out, n);
+            tcp_mirror(s, c);
+            return 0;                 /* the socket stays until it drains */
+        }
+        tcp_free(net, s->tcp_idx);
+        s->tcp_idx = -1;
+    }
+
+    s->active = false;
+    s->tcp_state = TCP_CLOSED;
     return 0;
 }
 
@@ -710,34 +867,46 @@ static uint32_t net_rand(net_state_t *net, const net_interface_t *iface) {
  * 0.0.0.0 to 255.255.255.255 at a point where the interface has no address
  * and ARP cannot resolve anything. So it builds its own frame. */
 
-/* One raw UDP emitter, used by both bootstrap protocols. Explicit source and
- * destination addresses and an explicit next-hop MAC, because at this level
- * neither "our address" nor "resolve the destination" can be assumed. */
-static void udp_tx_raw(net_state_t *net, net_interface_t *iface,
-                       const uint8_t *src_ip, const uint8_t *dst_ip,
-                       const uint8_t *dst_mac, uint16_t sport, uint16_t dport,
-                       const uint8_t *payload, uint32_t plen) {
-    if (!iface->tx_callback || plen == 0) return;
-    uint32_t l4 = (uint32_t)sizeof(udp_header_t) + plen;
-    uint32_t total = (uint32_t)sizeof(eth_header_t) + (uint32_t)sizeof(ip_header_t) + l4;
+/* Put an already-built transport segment into an IP packet and transmit it.
+ * Explicit source and destination addresses and an explicit next-hop MAC,
+ * because at this level neither "our address" nor "resolve the destination"
+ * can be assumed. */
+static void ip_tx_raw(net_state_t *net, net_interface_t *iface,
+                      const uint8_t *src_ip, const uint8_t *dst_ip,
+                      const uint8_t *dst_mac, uint8_t proto,
+                      const uint8_t *l4, uint32_t l4len) {
+    if (!iface || !iface->tx_callback || l4len == 0) return;
+    uint32_t total = (uint32_t)sizeof(eth_header_t) +
+                     (uint32_t)sizeof(ip_header_t) + l4len;
     if (total > NET_TX_BUFFER_SIZE) return;
 
     uint8_t pkt[NET_TX_BUFFER_SIZE];
     mem_set(pkt, 0, total);
     eth_header_t *eth = (eth_header_t *)pkt;
     ip_header_t  *ip  = (ip_header_t *)(pkt + sizeof(eth_header_t));
-    udp_header_t *udp = (udp_header_t *)((uint8_t *)ip + sizeof(ip_header_t));
 
     net_build_eth(eth, dst_mac, iface->mac, ETH_TYPE_IP);
-    net_build_ip(ip, src_ip, dst_ip, IP_PROTO_UDP,
-                 (uint16_t)(sizeof(ip_header_t) + l4));
-    net_build_udp(udp, sport, dport, (uint16_t)l4);
-    mem_copy(pkt + total - plen, payload, plen);
-    net_udp_finish(udp, src_ip, dst_ip, l4);
+    net_build_ip(ip, src_ip, dst_ip, proto,
+                 (uint16_t)(sizeof(ip_header_t) + l4len));
+    mem_copy(pkt + sizeof(eth_header_t) + sizeof(ip_header_t), l4, l4len);
 
     iface->tx_callback(pkt, total);
     net->tx_packets++;
     net->tx_bytes += total;
+}
+
+static void udp_tx_raw(net_state_t *net, net_interface_t *iface,
+                       const uint8_t *src_ip, const uint8_t *dst_ip,
+                       const uint8_t *dst_mac, uint16_t sport, uint16_t dport,
+                       const uint8_t *payload, uint32_t plen) {
+    uint32_t l4 = (uint32_t)sizeof(udp_header_t) + plen;
+    if (plen == 0 || l4 > NET_TX_BUFFER_SIZE) return;
+    uint8_t seg[NET_TX_BUFFER_SIZE];
+    udp_header_t *udp = (udp_header_t *)seg;
+    net_build_udp(udp, sport, dport, (uint16_t)l4);
+    mem_copy(seg + sizeof(udp_header_t), payload, plen);
+    net_udp_finish(udp, src_ip, dst_ip, l4);
+    ip_tx_raw(net, iface, src_ip, dst_ip, dst_mac, IP_PROTO_UDP, seg, l4);
 }
 
 static void dhcp_tx(net_state_t *net, net_interface_t *iface,

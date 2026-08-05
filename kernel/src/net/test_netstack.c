@@ -27,6 +27,19 @@ static void cap_tx(const uint8_t *d, uint32_t len) {
 }
 static void cap_reset(void) { g_tx_count = 0; }
 
+/* a second capture, for the far end when two stacks are wired together */
+static uint8_t  g2_tx[4][2048];
+static uint32_t g2_tx_len[4];
+static uint32_t g2_tx_count = 0;
+static void cap_tx2(const uint8_t *d, uint32_t len) {
+    if (g2_tx_count >= 4) return;
+    if (len > sizeof g2_tx[0]) len = sizeof g2_tx[0];
+    memcpy(g2_tx[g2_tx_count], d, len);
+    g2_tx_len[g2_tx_count] = len;
+    g2_tx_count++;
+}
+static void cap2_reset(void) { g2_tx_count = 0; }
+
 static uint16_t be16(const uint8_t *p) { return (uint16_t)((p[0] << 8) | p[1]); }
 
 int main(void) {
@@ -484,6 +497,193 @@ int main(void) {
               "the cached answer is not handed back for a different name");
         CHECK(net_dns_query(&net, nif, host) == 1,
               "asking again is answered from what we already learned");
+    }
+
+    /* ================= TCP through the socket API =================
+     * Two complete stacks, each with its own interface, wired to each other.
+     * A byte only arrives if the whole path is right: ARP, IP, the TCP state
+     * machine, the pseudo-header checksum, and the socket layer. */
+    {
+        static net_state_t s1, s2;                 /* large: keep off the stack */
+        net_init(&s1); net_init(&s2);
+        uint8_t m1[6]={0x02,0,0,0,0,1}, m2[6]={0x02,0,0,0,0,2};
+        uint8_t i1[4]={10,0,2,15}, i2[4]={10,0,2,99};
+        uint8_t nm2[4]={255,255,255,0};
+        int32_t f1 = net_register_interface(&s1,"eth0",NET_IF_ETHERNET,m1,i1,i2,nm2,cap_tx,0);
+        int32_t f2 = net_register_interface(&s2,"eth0",NET_IF_ETHERNET,m2,i2,i1,nm2,cap_tx2,0);
+        net_interface_t *n1 = &s1.interfaces[f1], *n2 = &s2.interfaces[f2];
+        net_arp_add(&s1, i2, m2);
+        net_arp_add(&s2, i1, m1);
+
+        int32_t srv = net_socket(&s2, SOCK_TCP);
+        CHECK(srv >= 0 && net_bind(&s2, srv, 8080) == 0, "a server socket binds to 8080");
+        CHECK(net_listen(&s2, srv, 1) == 0, "and listens");
+        CHECK(net_accept(&s2, srv) == -1, "accept() reports nothing before a handshake");
+
+        int32_t cli = net_socket(&s1, SOCK_TCP);
+        cap_reset(); cap2_reset();
+        CHECK(net_connect(&s1, cli, i2, 8080) == 0, "the client connects");
+        CHECK(g_tx_count == 1, "connect() PUT A SYN ON THE WIRE "
+                               "(the old code emitted nothing at all)");
+        CHECK((g_tx[0][14+20+13] & 0x02) != 0, "the frame carries the SYN flag");
+        CHECK(g_tx[0][14+9] == IP_PROTO_TCP, "IP protocol is TCP (6)");
+        CHECK(net_l4_checksum(i1, i2, IP_PROTO_TCP, g_tx[0]+34, g_tx_len[0]-34) == 0,
+              "the SYN's TCP checksum verifies");
+
+        /* pump the handshake: whatever one side sends, hand to the other */
+        {
+            uint8_t f[2048]; uint32_t fl;
+            for (int round = 0; round < 8; round++) {
+                if (g_tx_count) {
+                    fl = g_tx_len[0]; memcpy(f, g_tx[0], fl); cap_reset(); cap2_reset();
+                    net_handle_eth(&s2, n2, f, fl);
+                } else if (g2_tx_count) {
+                    fl = g2_tx_len[0]; memcpy(f, g2_tx[0], fl); cap_reset(); cap2_reset();
+                    net_handle_eth(&s1, n1, f, fl);
+                } else break;
+            }
+        }
+        CHECK(net_accept(&s2, srv) == srv, "the server sees an ESTABLISHED connection");
+        CHECK(s1.sockets[cli].tcp_state == TCP_ESTABLISHED,
+              "and so does the client");
+
+        /* ---- ETHERNET PADDING must not reach the transport ----
+         * Any frame shorter than 60 bytes is padded on a real link. If those
+         * padding bytes are folded into the TCP checksum the segment is
+         * discarded and the connection stalls — which is precisely what a
+         * harness that builds exact-length frames will never catch. */
+        {
+            cap_reset(); cap2_reset();
+            net_send(&s1, cli, "hi", 2);
+            uint8_t f[2048];
+            uint32_t fl = g_tx_len[0];
+            memcpy(f, g_tx[0], fl);
+            cap_reset(); cap2_reset();
+            uint32_t padded = fl < 60 ? 60 : fl + 6;
+            for (uint32_t i = fl; i < padded; i++) f[i] = 0xAA;   /* junk padding */
+            net_handle_eth(&s2, n2, f, padded);
+            uint8_t hb[8];
+            CHECK(net_recv(&s2, srv, hb, sizeof hb) == 2 && hb[0]=='h' && hb[1]=='i',
+                  "a PADDED frame still delivers exactly the datagram the IP "
+                  "header describes");
+            /* and drain the ACK so the stream stays in step */
+            fl = g2_tx_len[0]; memcpy(f, g2_tx[0], fl);
+            cap_reset(); cap2_reset();
+            net_handle_eth(&s1, n1, f, fl);
+        }
+        {   /* the converse: a frame SHORTER than the header claims is truncated
+             * and must be dropped, not read past */
+            cap_reset(); cap2_reset();
+            net_send(&s1, cli, "zz", 2);
+            uint8_t f[2048];
+            uint32_t fl = g_tx_len[0];
+            memcpy(f, g_tx[0], fl);
+            cap_reset(); cap2_reset();
+            net_handle_eth(&s2, n2, f, fl - 4);      /* claim more than is present */
+            uint8_t zb[8];
+            CHECK(net_recv(&s2, srv, zb, sizeof zb) == -1,
+                  "a frame shorter than its IP total_length is DROPPED");
+            /* deliver it properly so the connection is not left stuck */
+            net_handle_eth(&s2, n2, f, fl);
+            CHECK(net_recv(&s2, srv, zb, sizeof zb) == 2,
+                  "and the intact retransmission is accepted");
+            fl = g2_tx_len[0]; memcpy(f, g2_tx[0], fl);
+            cap_reset(); cap2_reset();
+            net_handle_eth(&s1, n1, f, fl);
+        }
+
+        /* ---- send a byte stream across ---- */
+        const char *req = "GET /zxv HTTP/1.0\r\n\r\n";
+        uint32_t rl = (uint32_t)strlen(req);
+        cap_reset(); cap2_reset();
+        CHECK(net_send(&s1, cli, req, rl) == (int32_t)rl, "the client sends a request");
+        CHECK(g_tx_count == 1, "one segment goes out");
+        {
+            uint8_t f[2048]; uint32_t fl = g_tx_len[0];
+            memcpy(f, g_tx[0], fl); cap_reset(); cap2_reset();
+            net_handle_eth(&s2, n2, f, fl);
+        }
+        uint8_t got[64];
+        int32_t g = net_recv(&s2, srv, got, sizeof got);
+        CHECK(g == (int32_t)rl && memcmp(got, req, rl) == 0,
+              "the server receives EXACTLY the bytes the client sent");
+        CHECK(g2_tx_count == 1, "and acknowledges them");
+
+        /* the ACK must clear the client's retransmit buffer */
+        {
+            uint8_t f[2048]; uint32_t fl = g2_tx_len[0];
+            memcpy(f, g2_tx[0], fl); cap_reset(); cap2_reset();
+            net_handle_eth(&s1, n1, f, fl);
+        }
+        CHECK(s1.tcp_conns[s1.sockets[cli].tcp_idx].retx_len == 0,
+              "the acknowledgement clears the client's retransmit buffer");
+
+        /* ---- a reply in the other direction ---- */
+        const char *resp = "HTTP/1.0 200 OK\r\n\r\nzxv";
+        uint32_t pl = (uint32_t)strlen(resp);
+        cap_reset(); cap2_reset();
+        CHECK(net_send(&s2, srv, resp, pl) == (int32_t)pl, "the server replies");
+        {
+            uint8_t f[2048]; uint32_t fl = g2_tx_len[0];
+            memcpy(f, g2_tx[0], fl); cap_reset(); cap2_reset();
+            net_handle_eth(&s1, n1, f, fl);
+        }
+        int32_t g2 = net_recv(&s1, cli, got, sizeof got);
+        CHECK(g2 == (int32_t)pl && memcmp(got, resp, pl) == 0,
+              "the client receives the reply intact — a full round trip");
+
+        /* ---- a corrupted segment must be dropped, not processed ---- */
+        cap_reset(); cap2_reset();
+        net_send(&s1, cli, "X", 1);
+        {
+            uint8_t f[2048]; uint32_t fl = g_tx_len[0];
+            memcpy(f, g_tx[0], fl); cap_reset(); cap2_reset();
+            f[fl - 1] ^= 0xFF;                 /* flip a payload bit */
+            net_handle_eth(&s2, n2, f, fl);
+            CHECK(net_recv(&s2, srv, got, sizeof got) == -1,
+                  "a segment whose TCP checksum fails is DROPPED, not delivered");
+        }
+
+        /* ---- close, with the dropped "X" still outstanding ----
+         * The corrupted segment above was a real loss: the server has not seen
+         * "X", so it must NOT act on a FIN that sits behind it. Recovery has
+         * to come from retransmission. */
+        cap_reset(); cap2_reset();
+        net_close(&s1, cli);
+        CHECK(g_tx_count == 1 && (g_tx[0][14+20+13] & 0x01) != 0,
+              "close() emits a FIN rather than silently dropping the socket");
+        {
+            uint8_t f[2048]; uint32_t fl = g_tx_len[0];
+            memcpy(f, g_tx[0], fl); cap_reset(); cap2_reset();
+            net_handle_eth(&s2, n2, f, fl);
+        }
+        CHECK(s2.sockets[srv].tcp_state == TCP_ESTABLISHED,
+              "a FIN that arrives BEFORE the data it follows is not acted on — "
+              "the lost byte must come first");
+
+        /* let the retransmission timer recover the lost byte, then finish */
+        {
+            uint8_t f[2048]; uint32_t fl;
+            for (int round = 0; round < 40; round++) {
+                cap_reset(); cap2_reset();
+                net_tcp_tick(&s1);
+                net_tcp_tick(&s2);
+                for (int hop = 0; hop < 8; hop++) {
+                    if (g_tx_count) {
+                        fl = g_tx_len[0]; memcpy(f, g_tx[0], fl); cap_reset(); cap2_reset();
+                        net_handle_eth(&s2, n2, f, fl);
+                    } else if (g2_tx_count) {
+                        fl = g2_tx_len[0]; memcpy(f, g2_tx[0], fl); cap_reset(); cap2_reset();
+                        net_handle_eth(&s1, n1, f, fl);
+                    } else break;
+                }
+                if (s2.sockets[srv].tcp_state == TCP_CLOSE_WAIT) break;
+            }
+        }
+        CHECK(net_recv(&s2, srv, got, sizeof got) == 1 && got[0] == 'X',
+              "the RETRANSMISSION delivers the byte the corrupted segment lost");
+        CHECK(s2.sockets[srv].tcp_state == TCP_CLOSE_WAIT,
+              "and only then does the server act on the FIN");
     }
 
     printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
