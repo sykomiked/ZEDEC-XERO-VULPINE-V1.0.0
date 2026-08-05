@@ -689,8 +689,9 @@ verify-all: test
 		-o /tmp/test_font -lm && \
 		/tmp/test_font && echo "[PASS] test_font" || { echo "[FAIL] test_font"; exit 1; }; \
 	echo "=== zxpkg: native Tri-Space package (.zxvc/.cedez/.cedec) ==="; \
-	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zxpkg -Isrc/trispace -Isrc/robin_debanks \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zxpkg -Isrc/trispace -Isrc/robin_debanks -Isrc/loader \
 		src/zxpkg/test_zxpkg.c src/zxpkg/zxpkg.c src/trispace/trispace.c src/robin_debanks/sha256.c \
+		src/robin_debanks/ed25519_verify.c src/loader/zsp.c \
 		-o /tmp/test_zxpkg -lm && \
 		/tmp/test_zxpkg && echo "[PASS] test_zxpkg" || { echo "[FAIL] test_zxpkg"; exit 1; }; \
 	echo "=== decentralized opt-in content-addressed update system ==="; \
