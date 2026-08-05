@@ -124,7 +124,7 @@ KERNEL_SRCS = \
     kernel/src/refinery/enochian.c \
     kernel/src/refinery/refinery.c \
     kernel/src/concord/concord.c \
-    kernel/src/p2p_caracho/caracho_gov.c \
+    kernel/src/denconnect/denconnect.c \
     kernel/src/wyrmgate/wyrmgate.c \
     kernel/src/wyverneye/wyverneye.c \
     kernel/src/chronicle/chronicle.c \

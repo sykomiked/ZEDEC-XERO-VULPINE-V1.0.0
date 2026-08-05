@@ -550,11 +550,11 @@ verify-all: test
 		src/concord/test_concord.c src/concord/concord.c src/chiglet/chiglet.c src/surplus/surplus.c \
 		-o /tmp/test_concord -lm && \
 		/tmp/test_concord && echo "[PASS] test_concord" || { echo "[FAIL] test_concord"; exit 1; }; \
-	echo "=== Carracho sovereign-node governance ==="; \
-	gcc -std=c11 -Wall -Werror -Wextra -Isrc/p2p_caracho \
-		src/p2p_caracho/test_caracho_gov.c src/p2p_caracho/caracho_gov.c \
-		-o /tmp/test_caracho_gov && \
-		/tmp/test_caracho_gov && echo "[PASS] test_caracho_gov" || { echo "[FAIL] test_caracho_gov"; exit 1; }; \
+	echo "=== Den Connect sovereign-node governance ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/denconnect -Isrc/robin_debanks \
+		src/denconnect/test_denconnect.c src/denconnect/denconnect.c src/robin_debanks/sha256.c \
+		-o /tmp/test_denconnect && \
+		/tmp/test_denconnect && echo "[PASS] test_denconnect" || { echo "[FAIL] test_denconnect"; exit 1; }; \
 	echo "=== Wyrmgate: composed six-fold Tri-Space judgment (rmag+lpres+chiglet) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/wyrmgate -Isrc/rmag -Isrc/lpres -Isrc/chiglet -Isrc/surplus -Isrc/event_space -Iinclude \
 		src/wyrmgate/test_wyrmgate.c src/wyrmgate/wyrmgate.c src/rmag/rmag.c src/lpres/lpres.c src/chiglet/chiglet.c src/surplus/surplus.c \
