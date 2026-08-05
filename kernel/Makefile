@@ -693,6 +693,11 @@ verify-all: test
 		src/zxpkg/test_zxpkg.c src/zxpkg/zxpkg.c src/trispace/trispace.c src/robin_debanks/sha256.c \
 		-o /tmp/test_zxpkg -lm && \
 		/tmp/test_zxpkg && echo "[PASS] test_zxpkg" || { echo "[FAIL] test_zxpkg"; exit 1; }; \
+	echo "=== deployment profiles: laptop -> supercomputer, one OS ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/deploy \
+		src/deploy/test_deploy.c src/deploy/deploy.c \
+		-o /tmp/test_deploy -lm && \
+		/tmp/test_deploy && echo "[PASS] test_deploy" || { echo "[FAIL] test_deploy"; exit 1; }; \
 	echo "=== signed native release: Tri-Space triad + Ed25519 provenance (ZSP) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zxpkg -Isrc/trispace -Isrc/robin_debanks -Isrc/loader \
 		src/zxpkg/test_zxrelease.c src/zxpkg/zxpkg.c src/trispace/trispace.c \
