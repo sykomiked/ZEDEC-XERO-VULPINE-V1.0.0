@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "dhcp.h"
 
 #define NET_MAX_INTERFACES  4
 #define NET_MAX_SOCKETS     64
@@ -177,6 +178,9 @@ typedef struct net_state {
     uint8_t arp_cache_mac[16][NET_MAC_LEN];
     uint32_t arp_cache_count;
 
+    /* DHCP bootstrap state — one exchange at a time */
+    dhcp_client_t dhcp;
+
     /* Stats */
     uint32_t rx_packets;
     uint32_t tx_packets;
@@ -222,6 +226,20 @@ void net_handle_udp(net_state_t *net, net_interface_t *iface, const ip_header_t 
 /* Utility functions */
 uint16_t net_checksum(const uint8_t *data, uint32_t len);
 uint16_t net_ip_checksum(const ip_header_t *ip);
+
+/* Transport checksum (RFC 768 / RFC 793): the one's-complement sum spans a
+ * 12-byte pseudo-header — source, destination, a zero byte, the protocol and
+ * the transport length — as well as the transport header and payload.
+ * Returns a HOST-order value; use net_udp_finish/net_tcp_finish to store it. */
+uint16_t net_l4_checksum(const uint8_t *src_ip, const uint8_t *dst_ip,
+                         uint8_t proto, const uint8_t *l4, uint32_t l4_len);
+
+/* Fill in the checksum field after the payload is in place. `l4_len` counts
+ * the transport header plus payload. */
+void net_udp_finish(udp_header_t *udp, const uint8_t *src_ip, const uint8_t *dst_ip,
+                    uint32_t l4_len);
+void net_tcp_finish(tcp_header_t *tcp, const uint8_t *src_ip, const uint8_t *dst_ip,
+                    uint32_t l4_len);
 void net_build_eth(eth_header_t *eth, const uint8_t *dst, const uint8_t *src, uint16_t type);
 void net_build_ip(ip_header_t *ip, const uint8_t *src, const uint8_t *dst, uint8_t proto, uint16_t len);
 void net_build_tcp(tcp_header_t *tcp, uint16_t src_port, uint16_t dst_port,

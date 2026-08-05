@@ -142,6 +142,7 @@ KERNEL_SRCS = \
     kernel/src/chronicle/chronicle_persist.c \
     kernel/src/blockdev/blockdev.c \
     kernel/src/net/net.c \
+    kernel/src/net/dhcp.c \
     kernel/src/net/m5route.c \
     kernel/src/vino/vino.c \
     kernel/src/vena/vena.c \

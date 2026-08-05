@@ -209,6 +209,162 @@ int main(void) {
         CHECK(1, "malformed and truncated frames did not crash the stack");
     }
 
+    /* ================= transport checksum (RFC 768 pseudo-header) =================
+     * External anchor: a UDP datagram from 192.168.0.1 to 192.168.0.199,
+     * ports 0xc350 -> 0x0035, length 8, no payload. Verified the way a
+     * receiver does it — recomputing over header+checksum must yield 0. */
+    {
+        uint8_t src[4] = {192,168,0,1}, dst[4] = {192,168,0,199};
+        uint8_t udp[8] = { 0xc3,0x50, 0x00,0x35, 0x00,0x08, 0x00,0x00 };
+        uint16_t ck = net_l4_checksum(src, dst, IP_PROTO_UDP, udp, 8);
+        udp[6] = (uint8_t)(ck >> 8); udp[7] = (uint8_t)(ck & 0xff);
+        CHECK(net_l4_checksum(src, dst, IP_PROTO_UDP, udp, 8) == 0,
+              "a UDP checksum verifies to zero at the receiver");
+        /* the pseudo-header genuinely participates: change one address bit
+         * and the same bytes must no longer verify */
+        dst[3] = 200;
+        CHECK(net_l4_checksum(src, dst, IP_PROTO_UDP, udp, 8) != 0,
+              "the checksum covers the IP addresses, not just the payload");
+        dst[3] = 199;
+        /* and so does the protocol number — UDP and TCP must not agree */
+        CHECK(net_l4_checksum(src, dst, IP_PROTO_TCP, udp, 8) != 0,
+              "the checksum covers the protocol number");
+        /* odd-length payload is padded, not dropped */
+        uint8_t odd[9] = { 0xc3,0x50, 0x00,0x35, 0x00,0x09, 0x00,0x00, 0x41 };
+        uint16_t ock = net_l4_checksum(src, dst, IP_PROTO_UDP, odd, 9);
+        odd[6] = (uint8_t)(ock >> 8); odd[7] = (uint8_t)(ock & 0xff);
+        CHECK(net_l4_checksum(src, dst, IP_PROTO_UDP, odd, 9) == 0,
+              "an odd-length datagram checksums correctly");
+    }
+
+    /* ================= DHCP through the real stack =================
+     * Not the client in isolation — the whole path: the frame the stack puts
+     * on the wire, and the interface configuration it ends up with. */
+    {
+        net_state_t net; net_init(&net);
+        uint8_t mac[6] = {0x52,0x54,0x00,0x12,0x34,0x56};
+        uint8_t zero_ip[4] = {0,0,0,0};
+        int32_t ifi = net_register_interface(&net, "eth0", NET_IF_ETHERNET,
+                                             mac, zero_ip, zero_ip, zero_ip, cap_tx, 0);
+        net_interface_t *nif = &net.interfaces[ifi];
+
+        cap_reset();
+        net_dhcp_discover(&net, nif);
+        CHECK(g_tx_count == 1, "net_dhcp_discover actually transmits a frame "
+                               "(it used to be an empty stub)");
+        const uint8_t *d = g_tx[0];
+        uint32_t dl = g_tx_len[0];
+        CHECK(dl == 14 + 20 + 8 + 250, "DISCOVER frame is eth+ip+udp+dhcp");
+        CHECK(memcmp(d, "\xff\xff\xff\xff\xff\xff", 6) == 0,
+              "it goes to the ethernet broadcast address");
+        CHECK(memcmp(d + 6, mac, 6) == 0, "from our MAC");
+        CHECK(be16(d + 12) == 0x0800, "it is IPv4");
+        CHECK(d[26]==0 && d[27]==0 && d[28]==0 && d[29]==0,
+              "source IP is 0.0.0.0 — we do not have one yet");
+        CHECK(d[30]==255 && d[31]==255 && d[32]==255 && d[33]==255,
+              "destination IP is the limited broadcast 255.255.255.255");
+        CHECK(net_checksum(d + 14, 20) == 0, "the IP header checksum verifies");
+        CHECK(be16(d + 34) == 68 && be16(d + 36) == 67,
+              "UDP 68 -> 67, the BOOTP ports");
+        {   /* the UDP checksum must verify against the pseudo-header we sent */
+            uint8_t s0[4] = {0,0,0,0}, b1[4] = {255,255,255,255};
+            CHECK(net_l4_checksum(s0, b1, IP_PROTO_UDP, d + 34, dl - 34) == 0,
+                  "the UDP checksum verifies (a zero checksum would be legal "
+                  "but unverifiable)");
+        }
+        CHECK(d[42] == 1 && d[42+236]==0x63 && d[42+239]==0x63,
+              "the payload is a BOOTREQUEST carrying the DHCP magic cookie");
+        uint32_t xid = ((uint32_t)d[46]<<24)|((uint32_t)d[47]<<16)|
+                       ((uint32_t)d[48]<<8)|d[49];
+
+        /* --- the server OFFERs; the stack must answer with a REQUEST --- */
+        uint8_t frame[600];
+        uint32_t flen;
+        {
+            memset(frame, 0, sizeof frame);
+            memcpy(frame, mac, 6);
+            uint8_t srvmac[6] = {0x52,0x55,0x0a,0x00,0x02,0x02};
+            memcpy(frame + 6, srvmac, 6);
+            frame[12]=0x08; frame[13]=0x00;
+            uint8_t *iph = frame + 14;
+            uint8_t *udph = iph + 20;
+            uint8_t *bp = udph + 8;
+            /* BOOTREPLY offering 10.0.2.15 from server 10.0.2.2 */
+            bp[0]=2; bp[1]=1; bp[2]=6;
+            bp[4]=(uint8_t)(xid>>24); bp[5]=(uint8_t)(xid>>16);
+            bp[6]=(uint8_t)(xid>>8);  bp[7]=(uint8_t)xid;
+            bp[16]=10; bp[17]=0; bp[18]=2; bp[19]=15;      /* yiaddr */
+            memcpy(bp + 28, mac, 6);
+            bp[236]=0x63; bp[237]=0x82; bp[238]=0x53; bp[239]=0x63;
+            uint32_t o = 240;
+            bp[o++]=53; bp[o++]=1; bp[o++]=2;              /* OFFER */
+            bp[o++]=54; bp[o++]=4; bp[o++]=10; bp[o++]=0; bp[o++]=2; bp[o++]=2;
+            bp[o++]=1;  bp[o++]=4; bp[o++]=255; bp[o++]=255; bp[o++]=255; bp[o++]=0;
+            bp[o++]=3;  bp[o++]=4; bp[o++]=10; bp[o++]=0; bp[o++]=2; bp[o++]=2;
+            bp[o++]=6;  bp[o++]=4; bp[o++]=10; bp[o++]=0; bp[o++]=2; bp[o++]=3;
+            bp[o++]=51; bp[o++]=4; bp[o++]=0; bp[o++]=0; bp[o++]=0x0e; bp[o++]=0x10;
+            bp[o++]=255;
+            uint32_t l4 = 8 + o;
+            udph[0]=0; udph[1]=67; udph[2]=0; udph[3]=68;
+            udph[4]=(uint8_t)(l4>>8); udph[5]=(uint8_t)l4;
+            iph[0]=0x45; iph[2]=(uint8_t)((20+l4)>>8); iph[3]=(uint8_t)(20+l4);
+            iph[8]=64; iph[9]=17;
+            iph[12]=10; iph[13]=0; iph[14]=2; iph[15]=2;
+            /* the server BROADCASTS the reply, as the broadcast flag asked */
+            iph[16]=255; iph[17]=255; iph[18]=255; iph[19]=255;
+            uint16_t hck = net_checksum(iph, 20);
+            iph[10]=(uint8_t)(hck>>8); iph[11]=(uint8_t)(hck&0xff);
+            flen = 14 + 20 + l4;
+        }
+        cap_reset();
+        net_handle_eth(&net, nif, frame, flen);
+        CHECK(g_tx_count == 1, "an OFFER provokes exactly one reply");
+        CHECK(!dhcp_is_bound(&net.dhcp), "and the lease is not bound yet");
+        if (g_tx_count == 1) {
+            const uint8_t *r = g_tx[0] + 42;
+            const uint8_t *v = 0;
+            uint32_t rl = g_tx_len[0] - 42;
+            CHECK(dhcp_get_option(r, rl, DHCP_OPT_MSGTYPE, &v)==1 && v[0]==DHCP_REQUEST,
+                  "the reply is a DHCP REQUEST");
+            CHECK(dhcp_get_option(r, rl, DHCP_OPT_REQUESTED, &v)==4 &&
+                  v[0]==10 && v[3]==15, "it requests the offered 10.0.2.15");
+            CHECK(memcmp(g_tx[0], "\xff\xff\xff\xff\xff\xff", 6) == 0,
+                  "the REQUEST is BROADCAST, so losing servers free their offers");
+        }
+        CHECK(nif->ip[0]==0 && nif->ip[3]==0,
+              "the interface is still unconfigured — an OFFER is not a lease");
+
+        /* --- the server ACKs; the interface must adopt the lease --- */
+        frame[14 + 20 + 8 + 242] = 5;   /* option 53 value: OFFER -> ACK */
+        cap_reset();
+        net_handle_eth(&net, nif, frame, flen);
+        CHECK(dhcp_is_bound(&net.dhcp), "the ACK binds the lease");
+        CHECK(nif->ip[0]==10 && nif->ip[1]==0 && nif->ip[2]==2 && nif->ip[3]==15,
+              "the INTERFACE now carries 10.0.2.15 — no longer hard-coded");
+        CHECK(nif->netmask[0]==255 && nif->netmask[3]==0, "netmask adopted from the lease");
+        CHECK(nif->gateway[0]==10 && nif->gateway[3]==2, "gateway adopted from the lease");
+        CHECK(net.dhcp.lease_secs == 3600, "lease time recorded");
+
+        /* the address filter must now be back in force */
+        {
+            uint8_t png[42];
+            memset(png, 0, sizeof png);
+            memcpy(png, mac, 6);
+            png[12]=0x08; png[13]=0x00;
+            uint8_t *iph = png + 14;
+            iph[0]=0x45; iph[3]=28; iph[8]=64; iph[9]=1;
+            iph[12]=10; iph[15]=99;
+            iph[16]=10; iph[17]=0; iph[18]=2; iph[19]=200;  /* someone else */
+            uint16_t hck = net_checksum(iph, 20);
+            iph[10]=(uint8_t)(hck>>8); iph[11]=(uint8_t)(hck&0xff);
+            iph[20+0]=8;
+            cap_reset();
+            net_handle_eth(&net, nif, png, sizeof png);
+            CHECK(g_tx_count == 0,
+                  "once configured, traffic for another host is dropped again");
+        }
+    }
+
     printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
     return failures?1:0;
 }

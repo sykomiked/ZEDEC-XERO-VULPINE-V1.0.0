@@ -29,6 +29,7 @@ void net_init(net_state_t *net) {
     net->tx_packets = 0;
     net->rx_bytes = 0;
     net->tx_bytes = 0;
+    dhcp_init(&net->dhcp, 0, 0);
 
     for (uint32_t i = 0; i < NET_MAX_INTERFACES; i++) {
         net->interfaces[i].up = false;
@@ -116,6 +117,42 @@ static inline uint16_t ck_net(uint16_t host_ck) {
 
 uint16_t net_ip_checksum(const ip_header_t *ip) {
     return net_checksum((const uint8_t *)ip, sizeof(ip_header_t));
+}
+
+uint16_t net_l4_checksum(const uint8_t *src_ip, const uint8_t *dst_ip,
+                         uint8_t proto, const uint8_t *l4, uint32_t l4_len) {
+    uint32_t sum = 0;
+    /* pseudo-header: src, dst, zero, protocol, length */
+    sum += ((uint32_t)src_ip[0] << 8) | src_ip[1];
+    sum += ((uint32_t)src_ip[2] << 8) | src_ip[3];
+    sum += ((uint32_t)dst_ip[0] << 8) | dst_ip[1];
+    sum += ((uint32_t)dst_ip[2] << 8) | dst_ip[3];
+    sum += proto;
+    sum += l4_len & 0xFFFFu;
+    for (uint32_t i = 0; i < l4_len; i += 2) {
+        uint16_t w = (uint16_t)l4[i] << 8;
+        if (i + 1 < l4_len) w |= l4[i + 1];
+        sum += w;
+    }
+    while (sum >> 16) sum = (sum & 0xFFFF) + (sum >> 16);
+    return (uint16_t)(~sum & 0xFFFF);
+}
+
+void net_udp_finish(udp_header_t *udp, const uint8_t *src_ip, const uint8_t *dst_ip,
+                    uint32_t l4_len) {
+    udp->checksum = 0;
+    uint16_t ck = net_l4_checksum(src_ip, dst_ip, IP_PROTO_UDP, (const uint8_t *)udp, l4_len);
+    /* RFC 768: a computed zero is transmitted as all ones, because zero on the
+     * wire means "no checksum" and would disable verification entirely. */
+    if (ck == 0) ck = 0xFFFF;
+    udp->checksum = ck_net(ck);
+}
+
+void net_tcp_finish(tcp_header_t *tcp, const uint8_t *src_ip, const uint8_t *dst_ip,
+                    uint32_t l4_len) {
+    tcp->checksum = 0;
+    tcp->checksum = ck_net(net_l4_checksum(src_ip, dst_ip, IP_PROTO_TCP,
+                                           (const uint8_t *)tcp, l4_len));
 }
 
 void net_build_eth(eth_header_t *eth, const uint8_t *dst, const uint8_t *src, uint16_t type) {
@@ -310,6 +347,9 @@ void net_handle_ip(net_state_t *net, net_interface_t *iface, const uint8_t *data
     uint8_t ihl = (ip->version_ihl & 0x0F) * 4;
     if (ihl < 20 || len < ihl) return;
 
+    const uint8_t *payload = data + ihl;
+    uint32_t payload_len = len - ihl;
+
     /* Only process datagrams addressed to this interface (or broadcast).
      * Without this the stack answered pings sent to ANY address, which is
      * both wrong and a reflection/amplification vector. */
@@ -319,11 +359,20 @@ void net_handle_ip(net_state_t *net, net_interface_t *iface, const uint8_t *data
             if (ip->dst_ip[i] != iface->ip[i]) for_us = false;
             if (ip->dst_ip[i] != 0xFF)         bcast  = false;
         }
-        if (!for_us && !bcast) return;
+        if (!for_us && !bcast) {
+            /* An interface that has no address of its own cannot filter by
+             * address — and that is precisely the window in which DHCP runs,
+             * since a server may unicast the reply to the address it is about
+             * to lease us. Let the bootstrap reply through and NOTHING else,
+             * so the reflection surface stays closed. */
+            bool unconfigured = !(iface->ip[0] | iface->ip[1] |
+                                  iface->ip[2] | iface->ip[3]);
+            bool bootstrap = unconfigured && ip->protocol == IP_PROTO_UDP &&
+                             payload_len >= sizeof(udp_header_t) &&
+                             (uint16_t)((payload[2] << 8) | payload[3]) == DHCP_CLIENT_PORT;
+            if (!bootstrap) return;
+        }
     }
-
-    const uint8_t *payload = data + ihl;
-    uint32_t payload_len = len - ihl;
 
     switch (ip->protocol) {
         case IP_PROTO_ICMP: net_handle_icmp(net, iface, ip, payload, payload_len); break;
@@ -411,11 +460,18 @@ void net_handle_tcp(net_state_t *net, net_interface_t *iface, const ip_header_t 
 
 void net_handle_udp(net_state_t *net, net_interface_t *iface, const ip_header_t *ip,
                      const uint8_t *data, uint32_t len) {
-    (void)iface;
     if (len < sizeof(udp_header_t)) return;
     udp_header_t *udp = (udp_header_t *)data;
     uint16_t dst_port = (udp->dst_port >> 8) | (udp->dst_port << 8);
     uint16_t src_port = (udp->src_port >> 8) | (udp->src_port << 8);
+
+    /* The DHCP client owns port 68 — it runs below the socket layer because it
+     * has to send from 0.0.0.0 before any socket could be bound. */
+    if (dst_port == DHCP_CLIENT_PORT) {
+        net_dhcp_handle(net, iface, data + sizeof(udp_header_t),
+                        len - (uint32_t)sizeof(udp_header_t));
+        return;
+    }
 
     for (uint32_t i = 0; i < net->num_sockets; i++) {
         socket_t *s = &net->sockets[i];
@@ -536,6 +592,7 @@ int32_t net_send(net_state_t *net, int32_t sock, const void *data, uint32_t len)
                       TCP_FLAG_ACK | TCP_FLAG_PSH, 4096);
         if (data && len > 0)
             mem_copy(pkt + total - len, data, len);
+        net_tcp_finish(tcp, iface->ip, s->remote_ip, sizeof(tcp_header_t) + len);
 
         iface->tx_callback(pkt, total);
     } else {
@@ -553,6 +610,7 @@ int32_t net_send(net_state_t *net, int32_t sock, const void *data, uint32_t len)
                       (uint16_t)(sizeof(udp_header_t) + len));
         if (data && len > 0)
             mem_copy(pkt + total - len, data, len);
+        net_udp_finish(udp, iface->ip, s->remote_ip, sizeof(udp_header_t) + len);
 
         iface->tx_callback(pkt, total);
     }
@@ -611,15 +669,77 @@ int32_t net_m5_recv(net_state_t *net, int32_t sock, void *data, uint32_t max_len
     return (int32_t)data_len;
 }
 
-/* DHCP */
+/* ===================== DHCP =====================
+ * The bootstrap cannot go through the socket API: it must transmit from
+ * 0.0.0.0 to 255.255.255.255 at a point where the interface has no address
+ * and ARP cannot resolve anything. So it builds its own frame. */
+
+static void dhcp_tx(net_state_t *net, net_interface_t *iface,
+                    const uint8_t *payload, uint32_t plen) {
+    if (!iface->tx_callback || plen == 0) return;
+    uint32_t l4 = (uint32_t)sizeof(udp_header_t) + plen;
+    uint32_t total = (uint32_t)sizeof(eth_header_t) + (uint32_t)sizeof(ip_header_t) + l4;
+    if (total > NET_TX_BUFFER_SIZE) return;
+
+    static const uint8_t bcast_mac[NET_MAC_LEN] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+    static const uint8_t any_ip[NET_IP_LEN]     = {0,0,0,0};
+    static const uint8_t bcast_ip[NET_IP_LEN]   = {255,255,255,255};
+
+    uint8_t pkt[NET_TX_BUFFER_SIZE];
+    mem_set(pkt, 0, total);
+    eth_header_t *eth = (eth_header_t *)pkt;
+    ip_header_t  *ip  = (ip_header_t *)(pkt + sizeof(eth_header_t));
+    udp_header_t *udp = (udp_header_t *)((uint8_t *)ip + sizeof(ip_header_t));
+
+    net_build_eth(eth, bcast_mac, iface->mac, ETH_TYPE_IP);
+    net_build_ip(ip, any_ip, bcast_ip, IP_PROTO_UDP,
+                 (uint16_t)(sizeof(ip_header_t) + l4));
+    net_build_udp(udp, DHCP_CLIENT_PORT, DHCP_SERVER_PORT, (uint16_t)l4);
+    mem_copy(pkt + total - plen, payload, plen);
+    net_udp_finish(udp, any_ip, bcast_ip, l4);
+
+    iface->tx_callback(pkt, total);
+    net->tx_packets++;
+    net->tx_bytes += total;
+}
+
 void net_dhcp_discover(net_state_t *net, net_interface_t *iface) {
-    (void)net; (void)iface;
-    /* Would build and send DHCP DISCOVER packet via UDP port 67 */
+    if (!net || !iface) return;
+    /* The transaction id only has to distinguish concurrent exchanges on the
+     * link; it is NOT a security boundary and this is not a CSPRNG. Mixing the
+     * MAC with the live packet counters at least keeps successive attempts
+     * from reusing one id, so a stale reply cannot be mistaken for a fresh one. */
+    uint32_t xid = 0x5A585620u;                     /* "ZXV " */
+    for (int i = 0; i < NET_MAC_LEN; i++) xid = xid * 31u + iface->mac[i];
+    xid ^= (net->rx_packets << 16) ^ net->tx_packets;
+    if (xid == 0) xid = 1;
+
+    dhcp_init(&net->dhcp, iface->mac, xid);
+    uint8_t msg[DHCP_MAX_LEN];
+    uint32_t n = dhcp_build_discover(&net->dhcp, msg, sizeof msg);
+    dhcp_tx(net, iface, msg, n);
 }
 
 void net_dhcp_handle(net_state_t *net, net_interface_t *iface, const uint8_t *data, uint32_t len) {
-    (void)net; (void)iface; (void)data; (void)len;
-    /* Would parse DHCP OFFER/ACK and configure interface */
+    if (!net || !iface) return;
+    uint32_t type = dhcp_input(&net->dhcp, data, len);
+
+    if (type == DHCP_OFFER) {
+        uint8_t msg[DHCP_MAX_LEN];
+        uint32_t n = dhcp_build_request(&net->dhcp, msg, sizeof msg);
+        dhcp_tx(net, iface, msg, n);
+    } else if (type == DHCP_ACK && dhcp_is_bound(&net->dhcp)) {
+        /* The lease is committed — adopt it. Only overwrite the netmask and
+         * gateway if the server actually supplied them; an all-zero option
+         * would otherwise blank a working configuration. */
+        mem_copy(iface->ip, net->dhcp.ip, NET_IP_LEN);
+        if (net->dhcp.netmask[0] | net->dhcp.netmask[1] |
+            net->dhcp.netmask[2] | net->dhcp.netmask[3])
+            mem_copy(iface->netmask, net->dhcp.netmask, NET_IP_LEN);
+        if (net->dhcp.gateway[0] | net->dhcp.gateway[1] |
+            net->dhcp.gateway[2] | net->dhcp.gateway[3])
+            mem_copy(iface->gateway, net->dhcp.gateway, NET_IP_LEN);
+    }
 }
 
 /* DNS */

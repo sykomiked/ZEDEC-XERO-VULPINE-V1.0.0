@@ -1244,18 +1244,66 @@ void kernel_main_arm64(void) {
                                 lo_mac, lo_ip, lo_ip, lo_mask, 0, 0);
 
         /* Bind the real virtio-net NIC to the stack so ARP/ICMP/UDP/TCP are
-         * driven by actual hardware rather than only loopback. QEMU user-mode
-         * networking gives us 10.0.2.15 with the gateway at 10.0.2.2. */
+         * driven by actual hardware rather than only loopback. The address is
+         * NOT assumed: the interface comes up unnumbered and DHCP asks for
+         * one. A machine that only works on a network whose numbering it was
+         * told in advance is not networked. */
         if (virtio_net_present()) {
-            static uint8_t eth_ip[4]   = {10, 0, 2, 15};
-            static uint8_t eth_gw[4]   = {10, 0, 2, 2};
-            static uint8_t eth_mask[4] = {255, 255, 255, 0};
+            static uint8_t eth_ip[4]   = {0, 0, 0, 0};
+            static uint8_t eth_gw[4]   = {0, 0, 0, 0};
+            static uint8_t eth_mask[4] = {0, 0, 0, 0};
             int32_t ei = net_register_interface(&net, "eth0", NET_IF_ETHERNET,
                                                 virtio_net_mac(), eth_ip, eth_gw,
                                                 eth_mask, knet_tx, 0);
             if (ei >= 0) {
                 g_eth_if = &net.interfaces[ei];
-                boot_msg("  [BOUND] eth0 10.0.2.15 -> virtio-net (ARP/ICMP live)");
+                boot_msg("  [BOUND] eth0 -> virtio-net (unnumbered; asking DHCP)");
+
+                /* ---- DHCP: obtain a lease from whatever server is out there.
+                 * The exchange is driven here rather than in a thread: send
+                 * DISCOVER, then pump received frames through the stack, which
+                 * answers the OFFER with a REQUEST and adopts the ACK. */
+                extern void net_dhcp_discover(net_state_t *ns, net_interface_t *nif);
+                static uint8_t df[VNET_MAX_FRAME];
+                for (int attempt = 0; attempt < 3 && !dhcp_is_bound(&net.dhcp); attempt++) {
+                    net_dhcp_discover(&net, g_eth_if);
+                    for (uint32_t spin = 0;
+                         spin < 3000000u && !dhcp_is_bound(&net.dhcp); spin++) {
+                        int n = virtio_net_rx_poll(df, sizeof df);
+                        if (n > 0) net_handle_eth(&net, g_eth_if, df, (uint32_t)n);
+                    }
+                }
+
+                if (dhcp_is_bound(&net.dhcp)) {
+                    char line[96];
+                    int p = 0;
+                    const char *pre = "  [LEASED] eth0 = ";
+                    while (pre[p]) { line[p] = pre[p]; p++; }
+                    for (int o = 0; o < 4; o++) {
+                        uint8_t b = g_eth_if->ip[o];
+                        if (b >= 100) line[p++] = (char)('0' + b / 100);
+                        if (b >= 10)  line[p++] = (char)('0' + (b / 10) % 10);
+                        line[p++] = (char)('0' + b % 10);
+                        if (o < 3) line[p++] = '.';
+                    }
+                    const char *suf = " via DHCP (a real server granted it)";
+                    for (int q = 0; suf[q]; q++) line[p++] = suf[q];
+                    line[p] = 0;
+                    boot_msg(line);
+                    for (int o = 0; o < 4; o++) eth_gw[o] = g_eth_if->gateway[o];
+                } else {
+                    /* No server answered. Fall back to the QEMU user-mode
+                     * numbering so the rest of the boot still has a network,
+                     * and say plainly that this address was assumed. */
+                    g_eth_if->ip[0]=10; g_eth_if->ip[1]=0;
+                    g_eth_if->ip[2]=2;  g_eth_if->ip[3]=15;
+                    g_eth_if->gateway[0]=10; g_eth_if->gateway[1]=0;
+                    g_eth_if->gateway[2]=2;  g_eth_if->gateway[3]=2;
+                    g_eth_if->netmask[0]=255; g_eth_if->netmask[1]=255;
+                    g_eth_if->netmask[2]=255; g_eth_if->netmask[3]=0;
+                    eth_gw[0]=10; eth_gw[1]=0; eth_gw[2]=2; eth_gw[3]=2;
+                    boot_msg("  [WARNING] no DHCP lease — ASSUMING 10.0.2.15");
+                }
 
                 /* PING THE GATEWAY. This is the end-to-end proof that the
                  * stack interoperates: an independent peer (QEMU's user-mode
@@ -1265,7 +1313,8 @@ void kernel_main_arm64(void) {
                                           const uint8_t *dst_ip,
                                           const void *payload, uint32_t plen);
                 static const uint8_t probe[16] = "ZXV-PING-000001";
-                net_arp_add(&net, eth_gw, (const uint8_t *)"\x52\x55\x0a\x00\x02\x02");
+                if (!net_arp_lookup(&net, eth_gw, (uint8_t[6]){0}))
+                    net_arp_add(&net, eth_gw, (const uint8_t *)"\x52\x55\x0a\x00\x02\x02");
                 net_icmp_echo(&net, g_eth_if, eth_gw, probe, sizeof probe);
 
                 bool replied = false;

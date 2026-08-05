@@ -650,9 +650,14 @@ verify-all: test
 		src/denconnect/denconnect.c src/chiglet/chiglet.c src/surplus/surplus.c src/robin_debanks/sha256.c \
 		-o /tmp/test_viewing -lm && \
 		/tmp/test_viewing && echo "[PASS] test_viewing" || { echo "[FAIL] test_viewing"; exit 1; }; \
-	echo "=== TCP/IP stack: RFC-1071 checksums, ARP, ICMP (was untested) ==="; \
-	gcc -std=c11 -w -DTEST_HOST -Iinclude -Isrc/net -Isrc/crit168 -Isrc/event_space -Isrc/surplus -Isrc/iphase \
-		src/net/test_netstack.c src/net/net.c src/net/m5route.c src/iphase/iphase_core.c src/iphase/iphase.c \
+	echo "=== DHCP client: RFC 2131 wire format (was an empty stub) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/net \
+		src/net/test_dhcp.c src/net/dhcp.c \
+		-o /tmp/test_dhcp -lm && \
+		/tmp/test_dhcp && echo "[PASS] test_dhcp" || { echo "[FAIL] test_dhcp"; exit 1; }; \
+	echo "=== TCP/IP stack: RFC-1071 checksums, ARP, ICMP, DHCP (was untested) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/net -Isrc/crit168 -Isrc/event_space -Isrc/surplus -Isrc/iphase \
+		src/net/test_netstack.c src/net/net.c src/net/dhcp.c src/net/m5route.c src/iphase/iphase_core.c src/iphase/iphase.c \
 		-o /tmp/test_netstack -lm && \
 		/tmp/test_netstack && echo "[PASS] test_netstack" || { echo "[FAIL] test_netstack"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
