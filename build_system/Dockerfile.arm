@@ -1,0 +1,24 @@
+# Dockerfile.arm — ZEDEC pqOS ARM Kernel Build Environment
+# Cross-compiles the VOVINA SHAKINA kernel to ARM (ARMv7-A Cortex-A15)
+# for QEMU virt machine
+# Author: H.M. Michael-Laurence: Curzi (c)
+FROM --platform=linux/amd64 ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies including ARM cross-compiler
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc-arm-none-eabi \
+    binutils-arm-none-eabi \
+    qemu-system-arm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create build workspace
+WORKDIR /zedec-build
+
+# Copy kernel source
+COPY . /zedec-build/
+
+# Default: build ARM kernel
+CMD ["bash", "build_arm.sh"]

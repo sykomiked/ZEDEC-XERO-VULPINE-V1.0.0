@@ -1,0 +1,25 @@
+# Dockerfile.x86_64 — ZEDEC pqOS x86_64 (64-bit) Build Environment
+# Cross-compiles the VOVINA SHAKINA kernel to x86_64 and builds a bootable ISO
+# Author: H.M. Michael-Laurence: Curzi (c)
+
+FROM --platform=linux/amd64 ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc-multilib \
+    g++-multilib \
+    nasm \
+    xorriso \
+    grub-pc-bin \
+    grub-common \
+    qemu-system-x86 \
+    mtools \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /zedec-build
+
+COPY . /zedec-build/
+
+CMD ["bash", "build_x86_64.sh"]

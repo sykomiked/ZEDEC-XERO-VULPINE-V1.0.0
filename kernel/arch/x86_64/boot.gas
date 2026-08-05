@@ -1,0 +1,151 @@
+/* boot.s — x86-64 multiboot2 entry
+ *
+ * Author: H.M. Michael-Laurence: Curzi (c)
+ * License: SEL-3.3
+ */
+
+.set MB_MAGIC,     0x1BADB002
+.set MB_FLAGS,     0x00010000          /* provide load base/entry fields */
+.set MB_CHECKSUM,  -(MB_MAGIC + MB_FLAGS)
+
+.code32
+
+.section .text.boot, "ax"
+.balign 8
+
+.global _start
+_start:
+    /* Multiboot1 header with address fields.  QEMU -kernel loads the raw
+     * image at load_addr and jumps to entry_addr. */
+    .long MB_MAGIC
+    .long MB_FLAGS
+    .long MB_CHECKSUM
+    .long _start                        /* header_addr */
+    .long 0x100000                      /* load_addr */
+    .long 0                             /* load_end_addr: 0 means whole file */
+    .long 0                             /* bss_end_addr: 0 means no extra BSS */
+    .long _entry32                      /* entry_addr */
+
+.balign 0x1000
+/* Temporary identity page tables.  4-level page tables for x86-64. */
+pt_l4:
+    .space 4096
+pt_l3:
+    .space 4096
+pt_l2:
+    .space 4096
+pt_l1:
+    .space 4096
+
+.balign 16
+gdt64:
+    .quad 0x0000000000000000                    /* null */
+    .quad 0x00209A0000000000                    /* 64-bit kernel code, execute/read, L=1 */
+    .quad 0x0000920000000000                    /* 64-bit kernel data */
+gdt64_ptr:
+    .word gdt64_ptr - gdt64 - 1
+    .quad gdt64
+
+/* Far jump target for switching to the 64-bit code segment. */
+.balign 8
+far_jmp_target:
+    .long _entry64
+    .word 0x08
+
+/* 32-bit entry point from multiboot2 loader */
+.balign 16
+.global _entry32
+_entry32:
+    /* Multiboot1 sets us up in 32-bit protected mode with a flat GDT. */
+    cli
+
+    /* Zero BSS */
+    movl $__bss_start, %edi
+    movl $__bss_end, %ecx
+    subl %edi, %ecx
+    shrl $2, %ecx
+    xorl %eax, %eax
+    rep stosl
+
+    /* Set up temporary 64-bit page tables: 1GB identity mapping. */
+    /* L1: map first 2MB with 4KB pages (we only need a few). */
+    movl $pt_l1, %edi
+    movl $0x03, %eax                /* P | RW */
+    movl $512, %ecx
+1:
+    movl %eax, (%edi)
+    addl $8, %edi
+    addl $0x1000, %eax
+    loop 1b
+
+    /* L2 -> L1 */
+    movl $pt_l2, %edi
+    movl $pt_l1, %eax
+    orl $0x03, %eax
+    movl %eax, (%edi)
+
+    /* L3 -> L2 */
+    movl $pt_l3, %edi
+    movl $pt_l2, %eax
+    orl $0x03, %eax
+    movl %eax, (%edi)
+
+    /* L4 -> L3 */
+    movl $pt_l4, %edi
+    movl $pt_l3, %eax
+    orl $0x03, %eax
+    movl %eax, (%edi)
+
+    /* Load PML4 into CR3 */
+    movl $pt_l4, %eax
+    movl %eax, %cr3
+
+    /* Enable PAE and PGE */
+    movl %cr4, %eax
+    orl $0x20, %eax
+    orl $0x80, %eax
+    movl %eax, %cr4
+
+    /* Read EFER, set LME */
+    movl $0xC0000080, %ecx
+    rdmsr
+    orl $0x100, %eax
+    wrmsr
+
+    /* Enable paging and protected mode in CR0 */
+    movl %cr0, %eax
+    orl $0x80000000, %eax
+    movl %eax, %cr0
+
+    /* Load 64-bit GDT and far-jump to long mode.
+     * In 32-bit code we use a 32-bit base register and a memory far pointer. */
+    movl $gdt64_ptr, %eax
+    lgdt (%eax)
+    ljmp *far_jmp_target
+
+.code64
+.global _entry64
+_entry64:
+    /* Now in 64-bit long mode.  Set up segment registers. */
+    movw $0x10, %ax
+    movw %ax, %ds
+    movw %ax, %es
+    movw %ax, %fs
+    movw %ax, %gs
+    movw %ax, %ss
+
+    /* Set up a temporary stack at the top of the identity-mapped region. */
+    movq $__stack_top, %rsp
+
+    /* Save multiboot2 info pointer from %ebx (32-bit) and magic from %eax. */
+    movl %eax, %edi
+    movq %rbx, %rsi
+
+    /* Jump to C. */
+    call kernel_main_x86_64
+
+    /* Should not return. */
+    cli
+2:
+    hlt
+    jmp 2b

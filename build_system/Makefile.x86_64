@@ -1,0 +1,65 @@
+# Makefile.x86_64 — ZEDEC pqOS x86-64 kernel build
+#
+# Builds a multiboot2 x86-64 kernel image using gcc/binutils.
+# Intended for use inside the Dockerfile.x86_64 container, or on any
+# host with an x86_64-elf or native x86_64 toolchain.
+
+CROSS_PREFIX := x86_64-elf-
+
+# Use the x86_64-elf cross toolchain if available; otherwise the host toolchain.
+# This must override any inherited environment CC/OBJCOPY (e.g. build-essential
+# containers set CC=cc), but a command-line override still takes precedence.
+CC      := $(if $(shell which $(CROSS_PREFIX)gcc 2>/dev/null),$(CROSS_PREFIX)gcc,gcc)
+LD      := $(if $(shell which $(CROSS_PREFIX)ld 2>/dev/null),$(CROSS_PREFIX)ld,ld)
+OBJCOPY := $(if $(shell which $(CROSS_PREFIX)objcopy 2>/dev/null),$(CROSS_PREFIX)objcopy,objcopy)
+
+CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
+           -fno-stack-protector -fno-pie -no-pie -fno-builtin \
+           -ffunction-sections -fdata-sections -fcf-protection=none \
+           -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen \
+           -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy \
+           -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp \
+           -include kernel/include/freestanding.h \
+           -Ikernel/include \
+           -Ikernel/include/freestanding_stubs \
+           -Ikernel/arch/x86_64 \
+           -Ikernel/src/cellular_multikernel \
+           -Ikernel/src/robin_debanks
+
+LDFLAGS := -T kernel/arch/x86_64/linker64.ld -nostdlib -static -Wl,--gc-sections
+
+SRCS := \
+    kernel/arch/x86_64/uart_16550.c \
+    kernel/arch/x86_64/boot_evidence.c \
+    kernel/arch/x86_64/kernel_main_x86_64.c \
+    kernel/src/cellular_multikernel/cellular_multikernel.c \
+    kernel/src/robin_debanks/sha256.c \
+    kernel/freestanding.c
+
+OBJDIR := build/x86_64
+OBJS   := $(OBJDIR)/kernel/arch/x86_64/boot.o \
+          $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
+
+all: kernel_x86_64.bin
+
+$(OBJDIR)/kernel/arch/x86_64/boot.o: kernel/arch/x86_64/boot.asm
+	@mkdir -p $(dir $@)
+	nasm -f elf64 $< -o $@
+
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+kernel_x86_64.elf: $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^
+
+kernel_x86_64.bin: kernel_x86_64.elf
+	$(OBJCOPY) -O binary $< $@
+
+clean:
+	rm -rf $(OBJDIR) kernel_x86_64.elf kernel_x86_64.bin
+
+boot: kernel_x86_64.bin
+	qemu-system-x86_64 -kernel kernel_x86_64.bin -m 256M -nographic -serial mon:stdio
+
+.PHONY: all clean boot

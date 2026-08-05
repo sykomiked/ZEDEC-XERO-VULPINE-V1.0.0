@@ -1,0 +1,151 @@
+
+ZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA) [ARM64]
+Edition: ZEDEC XERO VULPINE (ZXV)
+==================================================
+
+License: SEL-3.3 — Streisand Engine License
+Author: H.M. Michael-Laurence: Curzi (c)
+36N9 Genetics, LLC — Irrevocable, Interdimensional
+
+[E0001] [BOOT] MMU/paging...
+[E0002]   [DRIVER ONLINE] Identity mapping (1GB, 4KB granule)
+[E0003] [BOOT] GICv3 interrupt controller...
+[E0004]   [DRIVER ONLINE] GICv3 distributor + redistributor
+[E0005] [BOOT] Generic timer...
+[E0006]   [DRIVER ONLINE] Timer at 100 Hz
+[E0007] [BOOT] M5 Kernel subsystems...
+[E0008]   [INITIALIZED] Phase Coordinator (EXEC_DC)
+[E0009]   [INITIALIZED] RMAG (256 slots)
+[E0010]   [INITIALIZED] LPRES
+[E0011]   [INITIALIZED] IPHASE
+[E0012]   [INITIALIZED] CHOICE
+[E0013]   [INITIALIZED] OSEQ
+  cycle 1: omega=0
+  cycle 2: omega=0
+  cycle 3: omega=0
+  cycle 4: omega=0
+  cycle 5: omega=0
+[E0014] [BOOT] EDP risk calculus + ISF + predictive model...
+[E0015]   [INITIALIZED] EDP operators + Fibonacci algebra + ISF surplus
+[E0016] [BOOT] Tactical/strategic situation modeler...
+[E0017]   [REGISTERED] 15 domains + cross-domain contagion
+[E0018] [BOOT] Nine-capital triple ledger system...
+[E0019]   [REGISTERED] 9 capital types + floating vouchers + conventional compat
+[E0020] [BOOT] Financial instruments suite...
+[E0021]   [REGISTERED] 20 instrument types + M5 valuation + Greeks
+[E0022] [BOOT] Dragon/Phoenix/Thunderbird payment rails...
+[E0023]   [REGISTERED] 3 rails + conventional network compat
+[E0024] [BOOT] Web2-Web3 cryptocurrency bridge...
+[E0025]   [REGISTERED] 35 chains + 11 smart contract languages + dual-directional
+[E0026] [SKIP] National identity registry (KERNEL_SIM_DEVICES=0)
+[E0027] [BOOT] JDR PirateNet harmonic hum carrier...
+[E0028]   [REGISTERED] 22 frequency bands + harmonic hum + FHSS
+[E0029] [SKIP] Quantum/exotic-matter research sandbox (KERNEL_SIM_DEVICES=0)
+[E0030] [BOOT] Hardware-as-code RTL device framework...
+[E0031]   [REGISTERED] Chisel/SystemVerilog/VHDL + AXI4/APB/AHB + second quantization
+[E0032] [BOOT] DLP pico projector (hardware-as-code)...
+[E0033]   [INITIALIZED] 854x480 native -> 1708x960 apparent (4-way pixel-shift)
+[E0034]   [SIMULATED] Laser AF (0.5-4m) + keystone + complementary-color dither
+[E0035] [BOOT] Vino decentralized bank node...
+[E0036]   [INITIALIZED] Triple ledger + nine capital + ISO 20022
+[E0037] [BOOT] Count House fractal-reserve valuation engine...
+[E0038]   [INITIALIZED] Scale-0 Stash Buckets + anti-Sybil + Fibonacci mint curve (allowance=
+1000)
+[E0039] [BOOT] Porter House port-seal firewall...
+[E0040]   [INITIALIZED] Port-seal firewall: 8800=TRUSTED(500) 9090=ALLOWLIST 23=CLOSED
+[E0041] [BOOT] Mesh-Token external settlement via Porter House...
+[E0042]   [INITIALIZED] Porter House-gated settlement on port 8800 + Count House valuation
+[E0043] [BOOT] Community Chest P2P app store + Vino Floating Vouchers...
+[E0044]   [REGISTERED] P2P marketplace + Vino voucher clearing (dev 70-85% / platform 15-24% / 36N9 20%)
+[E0045] [BOOT] AI integration layer + remote compute...
+[E0046]   [REGISTERED] On-device inference + Porter House-gated remote compute (port 8900)
+[E0047] [BOOT] P2P mesh network layer (user-created networks + trade routes)...
+[E0048]   [REGISTERED] User mesh networks + trade routes + federation (port 8800)
+[E0049] [BOOT] Immigration enforcement + Robin DeBanks vault...
+[E0050]   [STRUCTURE READY] Vault key derived from hardware entropy (per-boot unique)
+[E0051]   [INITIALIZED] Daemon visa system + encrypted vault (per-boot key derivation)
+[E0052] [BOOT] Vena application runtime...
+[E0053]   [INITIALIZED] M5 Axiomatic app loader + 31 languages
+[E0054] [BOOT] Event-driven scheduler (per-task event budget + WFI tickless idle)...
+[E0055]   [INITIALIZED] 3 event-budget tasks + PMU cycle cost proxy + tickless WFI
+[E0056] [BOOT] Event-space infrastructure (sequencer + domains + self-audit + self-healing)...
+[E0057]   [INITIALIZED] 4 event domains (storage/network/display/input)
+[E0058]   [AUDIT] Initial system audit: PASS
+[E0059]   [PILOT] Event enqueued to storage domain — pipeline verified
+[E0060] [BOOT] Orbital Elevator (schema registry + compatibility graph + adapters)...
+[E0061]   [INITIALIZED] 3 schemas (10 versions) + 3 orbit manifests
+[E0062] [BOOT] Constellation Coordinator (node registry + routing + health)...
+[E0063]   [INITIALIZED] 1 node (self) + 3 executors + 3 routes
+[E0064] [BOOT] Event Transport (channel abstraction + delivery)...
+[E0065]   [INITIALIZED] 1 loopback channel (local transport)
+[E0066] [BOOT] Hypercube Scene Architecture (scene graph + projection + degradation)...
+[E0067]   [INITIALIZED] 4 scene cells (terminal/files/network/notifications)
+[E0068]   [SCENE] Projected to 2D_NORMAL — terminal focused
+[E0069] [BOOT] Yantra Fabric (device registry + capability states + digital twin)...
+[E0070]   [INITIALIZED] 4 devices (uart/gic/projector/framebuffer)
+[E0071]   [YANTRA] Capability levels: uart=EMULATED gic=EMULATED projector=MODEL_ONLY fb=EMULATED
+[E0072] [BOOT] Tri-Space Programming (triad registry + linter + S0 quarantine)...
+[E0073]   [INITIALIZED] 2 tri-space triads (storage=RESTORING+S0, network=CONSTRAINING+S0)
+[E0074] [BOOT] Holographic data system...
+[E0075]   [REGISTERED] .36n9 + .9n63 + .36m9 + .9m63 + .zedei + .iedez + .zedec + .cedez + .0n0 + .0m0 + .zedez + .cedec file types
+[E0076] [BOOT] Prism Break holographic touchscreen shader...
+[E0077]   [INITIALIZED] 6-layer compositor (prism + scanlines + ripples + aberration)
+[E0078] [BOOT] Virtual filesystem (VFS + FAT32 RAM disk)...
+[E0079]   [MOUNTED] FAT32 RAM disk (16MB) at /
+[E0080] [BOOT] Persistent storage (virtio-blk + ZXVFS journaled FS)...
+[E0081]   [DRIVER ONLINE] virtio-blk device found
+[E0082]   [FORMAT] blank disk — writing fresh ZXVFS
+[E0083]   [MOUNTED] ZXVFS — persistent. Shell: write/cat/ls-p/rm/sync
+[E0084]   [SEEDED] hello.elf written to disk — try 'run hello.elf'
+[E0085] [BOOT] Network stack (TCP/IP + M5 router + loopback)...
+[E0086]   [INITIALIZED] TCP/IP stack + M5 omni-router + loopback (127.0.0.1)
+[E0087] [BOOT] EL0 user space (per-process page tables + preemptive scheduler)...
+[E0088]   [EL0] scheduler initialized
+[E0089]   [EL0] TCR_EL1 configured (T0SZ=24, T1SZ=0, 4KB granule)
+[E0090]   [EL0] TTBR1_EL1 identity mapping confirmed
+[E0091]   [EL0] exception handler linked to scheduler
+[EL0] proc_create slot=0 pid=1 ctx.pc=0x0000000000010000 first=0xD2800002D2800061 off100=0xD4000001D2800148 off108=0xF100341FB40006C0 off110=0x54000481FA4A1804
+[EL0] proc_create slot=1 pid=2 ctx.pc=0x0000000000010000 first=0xD2800048D10203FF off100=0xD2800C4054000581 off108=0xD2800F20D4000001 off110=0xD2800CA0D4000001
+[E0092]   [DRIVER ONLINE] EL0: process + P-TERM user shell created — entering EL0
+[E0093] [BOOT] Cellular Multikernel (CELL-001): fabric discovery and admission...
+[E0094]   [INITIALIZED] 3 ARM64 cells active (coord, k1k6, io) with phase routes
+[E0095]   [FAULT CONTAINED] arm64-io fail-stopped; routes revoked; fabric survives
+[E0096]   [RECOVERED] arm64-io re-admitted with incarnation=2 and new routes
+[E0097] [BOOT] P-TERM engine (kernel-side shell backend)...
+[E0098]   [INITIALIZED] serial console + command suite (type 'help')
+[E0099]   [UNIFIED] kernel event cycle bridged to timer tick during EL0
+[E0100] 
+[BOOT] ZEDEC pqOS [ARM64] — All systems online.
+[E0101] [BOOT_OK] Phase E0082 complete; kernel_main reached; EL0 ready
+
+[E0102] [BOOT] Entering event cycle...
+
+
+[BOOT] Evidence measurement: 00000000000000EA000000000000007300000000000000C200000000000000E700000000000000F5000000000000008000000000000000FC00000000000000D2000000000000004800000000000000F600000000000000C900000000000000F70000000000000059000000000000006A00000000000000A700000000000000530000000000000059000000000000001D00000000000000A300000000000000CF000000000000001A000000000000007E00000000000000DF00000000000000B3000000000000004F00000000000000AE0000000000000056000000000000007B0000000000000068000000000000003E00000000000000EE000000000000005E
+[BOOT] Evidence count: 102 messages recorded
+A
+P-TERM/EL0
+> AAAA[EVENT-SPACE] self-healing action: 4 faults=0 quarantined=0 recovered=0
+ls-p
+  hello.elf  (5504 bytes)
+> write notes.txt persisted config line one
+wrote 25 bytes to notes.txt (persisted)
+> run hello.elf
+run: launched pid=3 (hello.elf)
+> 
++--------------------------------------------------+
+|  Hello from a REAL ELF, loaded off ZXVFS disk.   |
+|  Running at EL0 in its own address space.        |
++--------------------------------------------------+
+my pid = 3
+cat notes.txt
+persisted config line one
+> ls-p
+  hello.elf  (5504 bytes)
+  notes.txt  (25 bytes)
+> uptime
+uptime: ticks=848 (~8s @100Hz)  event_cycles=848
+> exit
+bye
+[EL0] all user processes exited — EL1 idle
+qemu-system-aarch64: terminating on signal 15 from pid 41093 (<unknown process>)

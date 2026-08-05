@@ -1,0 +1,118 @@
+{
+  "title": "VOVINA SHAKINA: A Paraconsistent Axiomatic Operating System Kernel with Holographic Data Architecture Based on the Five-Dimensional Curzi Manifold (M⁵)",
+  "description": "<p><strong>VOVINA SHAKINA</strong> is the reference implementation of the ZEDEC pqOS — a bare-metal operating system kernel constructed on the M⁵-Axiomatic architecture derived from the Curzi Manifold. It is the first operating system to implement five distinct axiomatic number types as first-class kernel subsystems, each with its own BIOS-stage boot sequence, harmonized through a single phase-coordinated tick governed by the Coverage Hyperbola invariant (r · ℓ ≥ 1.8).</p><p>The kernel assigns each axis of a five-dimensional logical space its own native number type: ordinal integers (OSEQ — Ordinal Sequencer), exact rational numbers (RMAG — Rational Magnitude Engine), paraconsistent trits {⊤, ⊥, ⊥̸} (LPRES — Logical Presence Attestor), complex phase floats (IPHASE — Imaginary Phase Router), and deterministic collapse operators (CHOICE — Choice-Collapse Scheduler). Conventional kernels collapse all axes into binary machine words — a dimensional collapse that destroys information required for correct sequencing, exact accounting, paraconsistent reasoning, relational routing, and deterministic choice resolution.</p><p>The system integrates 19 subsystems across 14 boot phases, including: a holographic data system with five specialized file types (.36n9 positive space, .9n63 negative space, .36m9 dataset, .zedei renderer, .zedec container); a decentralized financial ledger (Vino) with nine forms of capital, 20 payment rails, and ISO 20022 compliance; a multi-protocol network stack with 20 protocol adapters including DTMF, Morse code, AX.25/APRS, cellular 5G, satellite, and quantum/laser/neutrino; a multi-language application runtime (Vena) supporting 31 programming languages; and a 168-bit universal word with CRIT waveform transform for lossless data encoding.</p><p>The kernel boots from a GRUB multiboot ISO (5.0 MB) and passes deterministic anti-collapse verification (91/91 files), host-side test suites (114 assertions), and QEMU boot testing (all 14 phases complete successfully).</p>",
+  "upload_type": "software",
+  "publication_type": "software",
+  "creators": [
+    {
+      "name": "Curzi, H.M. Michael-Laurence",
+      "affiliation": "ZEDEC Platform",
+      "orcid": ""
+    }
+  ],
+  "keywords": [
+    "operating system",
+    "kernel",
+    "paraconsistent logic",
+    "axiomatic architecture",
+    "holographic data system",
+    "rational arithmetic",
+    "complex phase routing",
+    "deterministic choice-collapse",
+    "multiboot",
+    "bare-metal",
+    "x86",
+    "Curzi Manifold",
+    "M5 axiomatic",
+    "Coverage Hyperbola",
+    "FS-PRA",
+    "168-bit universal word",
+    "CRIT transform",
+    "decentralized ledger",
+    "ISO 20022",
+    "freestanding C"
+  ],
+  "subjects": [
+    {
+      "term": "Operating Systems",
+      "identifier": "https://id.loc.gov/authorities/subjects/sh85095139",
+      "scheme": "url"
+    },
+    {
+      "term": "Paraconsistent Logic",
+      "identifier": "https://id.loc.gov/authorities/subjects/sh2002008493",
+      "scheme": "url"
+    },
+    {
+      "term": "Non-Euclidean Geometry",
+      "identifier": "https://id.loc.gov/authorities/subjects/sh85092923",
+      "scheme": "url"
+    },
+    {
+      "term": "Number Theory",
+      "identifier": "https://id.loc.gov/authorities/subjects/sh85093191",
+      "scheme": "url"
+    },
+    {
+      "term": "Computer Architecture",
+      "identifier": "https://id.loc.gov/authorities/subjects/sh85029507",
+      "scheme": "url"
+    }
+  ],
+  "language": "eng",
+  "version": "1.0.0",
+  "access_right": "open",
+  "license": "MIT",
+  "communities": [
+    {
+      "identifier": "software"
+    }
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/36n9/VOVINA_SHAKINA",
+      "relation": "isSourceOf",
+      "scheme": "url"
+    }
+  ],
+  "dates": [
+    {
+      "start": "2026-07-24",
+      "end": "2026-07-24",
+      "type": "Issued"
+    }
+  ],
+  "method": "The kernel was developed using a nonlinear build pipeline integrating deterministic anti-collapse static analysis (edp_axiom_verifier.py, 16 verification checks), host-side test suites (114 assertions across 3 test suites), and Docker-based x86_64 cross-compilation with GRUB multiboot1 ISO generation. The M⁵ axiomatic logic is systemically wired through all OS subsystems: the Phase Coordinator drives a 10ms tick feeding Coverage Hyperbola checks to the scheduler, RMAG exact rational accounting to the memory manager and financial ledger, LPRES paraconsistent attestation to the VFS and transaction validation, IPHASE complex phase routing to the network stack, and CHOICE deterministic collapse resolution to the application runtime. Telemetry self-observation feeds back into CHOICE via Fibonacci-bounded recursion.",
+  "references": [
+    "Curzi, H.M.M. (2026). M5-Axiomatic Kernel Specification. ZEDEC Platform.",
+    "Curzi, H.M.M. (2026). EDP Compendium: Ten Governing Constraints. ZEDEC Platform.",
+    "Curzi, H.M.M. (2026). OS Lattice Layer Specification. ZEDEC Platform.",
+    "Curzi, H.M.M. (2026). VOVINA SHAKINA Technical White Paper. ZEDEC Platform."
+  ],
+  "contributors": [
+    {
+      "name": "Curzi, H.M. Michael-Laurence",
+      "type": "ContactPerson",
+      "affiliation": "ZEDEC Platform"
+    }
+  ],
+  "rights": [
+    {
+      "title": {
+        "en": "MIT License"
+      },
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  ],
+  "funding": [
+    {
+      "funder": {
+        "name": "ZEDEC Platform",
+        "awardNumber": "",
+        "title": {
+          "en": "Independent research"
+        }
+      }
+    }
+  ]
+}

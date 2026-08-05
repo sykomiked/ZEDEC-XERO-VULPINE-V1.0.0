@@ -1,0 +1,230 @@
+/* sched.c — Process Scheduler Implementation
+ * Round-robin with M5 priority weighting. Context switch saves/restores
+ * esp/ebp/eip on the kernel stack.
+ * Author: H.M. Michael-Laurence: Curzi (c)
+ */
+#include "sched.h"
+#include "../phase_coord/phase_coordinator.h"
+#include "../rmag/rmag_core.h"
+#include "../lpres/lpres_core.h"
+#include "../../include/m5_types.h"
+
+static int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
+static void str_copy(char *d, const char *s) { int i = 0; while (s[i]) { d[i] = s[i]; i++; } d[i] = 0; }
+
+void sched_init(scheduler_t *sched) {
+    sched->num_tasks = 0;
+    sched->current_task = 0;
+    sched->next_pid = 1;
+    sched->ticks = 0;
+    sched->initialized = true;
+
+    for (uint32_t i = 0; i < MAX_TASKS; i++) {
+        sched->tasks[i].state = TASK_UNUSED;
+        sched->tasks[i].id = 0;
+    }
+}
+
+int32_t sched_create_task(scheduler_t *sched, const char *name, task_type_t type,
+                           void (*entry_point)(void), uint32_t priority) {
+    if (sched->num_tasks >= MAX_TASKS) return -1;
+
+    uint32_t slot = 0;
+    for (uint32_t i = 0; i < MAX_TASKS; i++) {
+        if (sched->tasks[i].state == TASK_UNUSED) {
+            slot = i;
+            break;
+        }
+    }
+
+    task_t *task = &sched->tasks[slot];
+    task->id = sched->next_pid++;
+    str_copy(task->name, name);
+    task->state = TASK_READY;
+    task->type = type;
+    task->parent_id = 0;
+    task->sleep_until = 0;
+    task->exit_code = 0;
+    task->priority = priority;
+    task->omega = 0;
+    task->phase = 0;
+    task->collapse_count = 0;
+    task->cpu_time_ms = 0;
+
+    /* Set up initial stack: entry_point at top, then a return to terminate */
+    uint32_t stack_top = (uint32_t)(uintptr_t)&task->stack[KERNEL_STACK_SIZE / 4];
+    task->esp = stack_top - 12;
+    task->ebp = task->esp;
+    task->eip = (uint32_t)(uintptr_t)entry_point;
+
+    /* Stack layout: [entry_point] [sched_terminate_addr] [flags] */
+    uint32_t *sp = (uint32_t *)(uintptr_t)task->esp;
+    sp[0] = task->eip;
+    sp[1] = 0;  /* return address placeholder */
+    sp[2] = 0x202; /* EFLAGS with IF set */
+
+    sched->num_tasks++;
+    return (int32_t)task->id;
+}
+
+void sched_switch(scheduler_t *sched) {
+    if (sched->num_tasks == 0) return;
+
+    task_t *curr = &sched->tasks[sched->current_task];
+    if (curr->state == TASK_RUNNING)
+        curr->state = TASK_READY;
+
+    /* Find next ready task with highest priority (M5 omega-weighted) */
+    uint32_t best = sched->current_task;
+    uint32_t best_score = 0;
+    for (uint32_t i = 1; i <= MAX_TASKS; i++) {
+        uint32_t idx = (sched->current_task + i) % MAX_TASKS;
+        task_t *t = &sched->tasks[idx];
+        if (t->state == TASK_READY) {
+            /* M5 priority: omega + priority weighting */
+            uint32_t score = t->priority + (t->omega % 8) + 1;
+            if (score > best_score || best == sched->current_task) {
+                best_score = score;
+                best = idx;
+            }
+        }
+    }
+
+    if (sched->tasks[best].state != TASK_READY) return;
+
+    sched->current_task = best;
+    sched->tasks[best].state = TASK_RUNNING;
+    sched->tasks[best].omega++;
+
+    /* Context switch would happen here via asm:
+     * save current esp/ebp/eip, load new ones
+     * For now, this is a cooperative stub
+     */
+}
+
+void sched_yield(scheduler_t *sched) {
+    sched_switch(sched);
+}
+
+void sched_tick(scheduler_t *sched) {
+    sched->ticks++;
+
+    /* M5 Phase Coordinator: verify coverage hyperbola before scheduling */
+    /* r * l >= 1.8 — RMAG magnitude * LPRES presence must hold */
+    task_t *curr = sched_current(sched);
+    if (curr) {
+        rational_t r = rmag_get_quota((ordinal_t)curr->id);
+        trit_t ell = lpres_get_presence((ordinal_t)curr->id);
+        double coverage = rational_mag(r) * trit_to_ell(ell);
+        if (coverage < 1.8) {
+            /* Coverage violation: task lacks sufficient attestation.
+             * Do NOT schedule this task — yield instead. */
+            curr->collapse_count++;
+            sched_switch(sched);
+            return;
+        }
+        curr->phase = (uint32_t)(coverage * 1000);
+    }
+
+    if (sched->ticks % 10 == 0) {
+        sched_switch(sched);
+    }
+
+    /* Wake sleeping tasks — LPRES attestation required for wakeup */
+    for (uint32_t i = 0; i < MAX_TASKS; i++) {
+        if (sched->tasks[i].state == TASK_SLEEPING &&
+            sched->ticks >= sched->tasks[i].sleep_until) {
+            trit_t presence = lpres_get_presence((ordinal_t)sched->tasks[i].id);
+            if (presence != TRIT_FALSE) {
+                sched->tasks[i].state = TASK_READY;
+            }
+        }
+    }
+}
+
+void sched_block(scheduler_t *sched, uint32_t task_id) {
+    task_t *t = sched_get_task(sched, task_id);
+    if (t) t->state = TASK_BLOCKED;
+}
+
+void sched_unblock(scheduler_t *sched, uint32_t task_id) {
+    task_t *t = sched_get_task(sched, task_id);
+    if (t && t->state == TASK_BLOCKED) t->state = TASK_READY;
+}
+
+void sched_sleep(scheduler_t *sched, uint32_t task_id, uint32_t ms) {
+    task_t *t = sched_get_task(sched, task_id);
+    if (t) {
+        t->state = TASK_SLEEPING;
+        t->sleep_until = (uint32_t)(sched->ticks + ms / 10);
+    }
+}
+
+void sched_terminate(scheduler_t *sched, uint32_t task_id, int32_t exit_code) {
+    task_t *t = sched_get_task(sched, task_id);
+    if (t) {
+        t->state = TASK_TERMINATED;
+        t->exit_code = exit_code;
+        sched->num_tasks--;
+        if (sched->current_task == task_id)
+            sched_switch(sched);
+    }
+}
+
+task_t *sched_current(scheduler_t *sched) {
+    if (sched->num_tasks == 0) return 0;
+    return &sched->tasks[sched->current_task];
+}
+
+task_t *sched_get_task(scheduler_t *sched, uint32_t task_id) {
+    for (uint32_t i = 0; i < MAX_TASKS; i++) {
+        if (sched->tasks[i].id == task_id && sched->tasks[i].state != TASK_UNUSED)
+            return &sched->tasks[i];
+    }
+    return 0;
+}
+
+/* Append a decimal number to buf at position *pos (no NUL). */
+static void list_put_dec(char *buf, uint32_t *pos, uint64_t val) {
+    char tmp[20];
+    int ti = 0;
+    if (val == 0) tmp[ti++] = '0';
+    while (val > 0) { tmp[ti++] = (char)('0' + (val % 10)); val /= 10; }
+    while (ti > 0) buf[(*pos)++] = tmp[--ti];
+}
+
+static const char *task_state_name(task_state_t st) {
+    switch (st) {
+        case TASK_READY:      return "READY   ";
+        case TASK_RUNNING:    return "RUNNING ";
+        case TASK_BLOCKED:    return "BLOCKED ";
+        case TASK_SLEEPING:   return "SLEEPING";
+        case TASK_TERMINATED: return "TERM    ";
+        default:              return "UNKNOWN ";
+    }
+}
+
+void sched_list_tasks(scheduler_t *sched, void (*print)(void *ctx, const char *s), void *ctx) {
+    if (!sched || !print) return;
+    for (uint32_t i = 0; i < MAX_TASKS; i++) {
+        const task_t *t = &sched->tasks[i];
+        if (t->state == TASK_UNUSED) continue;
+
+        char row[96];
+        uint32_t pos = 0;
+        list_put_dec(row, &pos, t->id);
+        while (pos < 5) row[pos++] = ' ';
+        const char *st = task_state_name(t->state);
+        for (uint32_t j = 0; st[j]; j++) row[pos++] = st[j];
+        row[pos++] = ' '; row[pos++] = ' ';
+        for (uint32_t j = 0; t->name[j] && j < TASK_NAME_LEN; j++)
+            row[pos++] = t->name[j];
+        while (pos < 34) row[pos++] = ' ';
+        row[pos++] = 'p'; row[pos++] = 'r'; row[pos++] = 'i'; row[pos++] = 'o';
+        row[pos++] = '=';
+        list_put_dec(row, &pos, t->priority);
+        row[pos++] = '\n';
+        row[pos] = '\0';
+        print(ctx, row);
+    }
+}

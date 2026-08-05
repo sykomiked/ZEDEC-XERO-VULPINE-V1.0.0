@@ -1,0 +1,26 @@
+# Dockerfile.riscv — RISC-V cross-compilation environment for VOVINA SHAKINA
+#
+# Builds the ZEDEC pqOS kernel for RISC-V 64-bit using
+# riscv64-linux-gnu-gcc cross-compiler.
+#
+# Author: H.M. Michael-Laurence: Curzi (c)
+# License: SEL-3.3
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    gcc-riscv64-linux-gnu \
+    binutils-riscv64-linux-gnu \
+    make \
+    qemu-system-riscv64 \
+    python3 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY . /build/
+
+CMD ["bash", "-c", "make -f Makefile.riscv CROSS_COMPILE=riscv64-linux-gnu- clean && make -f Makefile.riscv CROSS_COMPILE=riscv64-linux-gnu- all && riscv64-linux-gnu-objdump -f kernel_riscv.elf | head -5 && echo RISCV_BUILD_DONE"]

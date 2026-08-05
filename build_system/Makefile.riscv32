@@ -1,0 +1,130 @@
+# Makefile.riscv32 — RISC-V 32-bit build for VOVINA SHAKINA kernel
+#
+# Cross-compiles the ZEDEC pqOS kernel for RISC-V 32 (QEMU virt).
+#
+# Author: H.M. Michael-Laurence: Curzi (c)
+# License: SEL-3.3
+
+CROSS_COMPILE ?= riscv32-linux-gnu-
+CC = $(CROSS_COMPILE)gcc
+LD = $(CROSS_COMPILE)ld
+OBJCOPY = $(CROSS_COMPILE)objcopy
+
+CFLAGS = -Wall -Wextra -O2 -ffreestanding -nostdlib -nostdinc \
+         -fno-stack-protector -fno-pie -no-pie \
+         -include kernel/include/freestanding.h \
+         -isystem /usr/lib/gcc-cross/riscv64-linux-gnu/13/include \
+         -march=rv32imafd_zicsr -mabi=ilp32d \
+         -mcmodel=medany \
+         -Ikernel/include -Ikernel/src -Ikernel/arch/riscv -Ikernel/boot \
+         -Ikernel/src/plnp -Ikernel/src/smap -Ikernel/src/decent \
+         -Ikernel/src/recon -Ikernel/src/hdcm -Ikernel/src/gematria \
+         -Ikernel/src/dualtrack -Ikernel/src/superpos \
+         -Ikernel/src/pungent -Ikernel/src/ascent \
+         -Ikernel/src/lattice -Ikernel/src/pterm -Ikernel/src/xedit \
+         -Ikernel/src/crypto_wallet -Ikernel/src/nlb \
+         -Ikernel/src/license -Ikernel/src/surplus -Ikernel/src/edp_risk \
+         -Ikernel/src/predictive -Ikernel/src/situation \
+         -Ikernel/src/finance -Ikernel/src/identity \
+         -Ikernel/src/quantum -Ikernel/src/hardware \
+         -Ikernel/src/audiogenomics_pro \
+         -Ikernel/src/synthesis -Ikernel/compat \
+         -Ikernel/src/vino -Ikernel/src/vena -Ikernel/src/holographic \
+         -Ikernel/src/axiom_matrix -Ikernel/src/telemetry \
+         -Ikernel/src/oseq -Ikernel/src/rmag -Ikernel/src/lpres \
+         -Ikernel/src/iphase -Ikernel/src/choice -Ikernel/src/phase_coord \
+         -Ikernel/src/crit168 -Ikernel/include/freestanding_stubs
+
+LDFLAGS = -T kernel/arch/riscv/linker.ld -nostdlib -static -march=rv32imafd_zicsr -mabi=ilp32d
+LIBGCC =
+
+RISCV_ARCH_OBJS = \
+    kernel/arch/riscv/boot.o \
+    kernel/arch/riscv/uart_ns16550.o \
+    kernel/arch/riscv/plic.o \
+    kernel/arch/riscv/riscv_timer.o \
+    kernel/arch/riscv/kernel_main_riscv.o
+
+KERNEL_SRCS = \
+    kernel/src/oseq/oseq_core.c \
+    kernel/src/rmag/rmag_core.c \
+    kernel/src/lpres/lpres_core.c \
+    kernel/src/iphase/iphase_core.c \
+    kernel/src/choice/choice_core.c \
+    kernel/src/phase_coord/phase_coordinator.c \
+    kernel/src/telemetry/telemetry_core.c \
+    kernel/src/axiom_matrix/axiom_matrix_core.c \
+    kernel/src/crit168/crit_168_word.c \
+    kernel/src/mm/mm.c \
+    kernel/src/sched/sched.c \
+    kernel/src/vfs/vfs.c \
+    kernel/src/net/net.c \
+    kernel/src/net/m5route.c \
+    kernel/src/vino/vino.c \
+    kernel/src/vena/vena.c \
+    kernel/src/holographic/holo.c \
+    kernel/src/license/license.c \
+    kernel/src/surplus/surplus.c \
+    kernel/src/edp_risk/edp_risk.c \
+    kernel/src/predictive/predictive_model.c \
+    kernel/src/situation/situation_model.c \
+    kernel/src/finance/triple_ledger.c \
+    kernel/src/finance/financial.c \
+    kernel/src/finance/rails.c \
+    kernel/src/finance/crypto_bridge.c \
+    kernel/src/identity/identity.c \
+    kernel/src/quantum/quantum_device.c \
+    kernel/src/hardware/rtl_device.c \
+    kernel/src/net/jdr_piratenet.c \
+    kernel/src/synthesis/synthesis_engine.c \
+    kernel/src/crypto_wallet/crypto_wallet.c \
+    kernel/src/nlb/nlb.c \
+    kernel/src/pterm/pterm.c \
+    kernel/src/xedit/xedit.c \
+    kernel/src/lattice/lattice.c \
+    kernel/src/pungent/pungent.c \
+    kernel/src/ascent/ascent.c \
+    kernel/src/plnp/plnp.c \
+    kernel/src/smap/smap.c \
+    kernel/src/decent/decent.c \
+    kernel/src/recon/recon.c \
+    kernel/src/hdcm/hdcm.c \
+    kernel/src/gematria/gematria.c \
+    kernel/src/dualtrack/dualtrack.c \
+    kernel/src/superpos/superpos.c \
+    kernel/src/audiogenomics_pro/audiogenomics_pro.c \
+    kernel/src/audiogenomics_pro/digital_dna.c \
+    kernel/src/audiogenomics_pro/architectural_directives.c \
+    kernel/compat/compat_layer.c \
+    kernel/compat/softfloat_stubs.c
+
+KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
+
+TARGET = kernel_riscv32.elf
+TARGET_BIN = kernel_riscv32.bin
+
+.PHONY: all clean run
+
+all: $(TARGET) $(TARGET_BIN)
+
+$(TARGET): $(RISCV_ARCH_OBJS) $(KERNEL_OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^ $(LIBGCC)
+
+$(TARGET_BIN): $(TARGET)
+	$(OBJCOPY) -O binary $< $@
+
+kernel/arch/riscv/%.o: kernel/arch/riscv/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+kernel/arch/riscv/boot.o: kernel/arch/riscv/boot_rv32.s
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+kernel/src/%.o: kernel/src/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+run: $(TARGET)
+	qemu-system-riscv32 -M virt -cpu rv32 -m 256M \
+		-kernel $(TARGET) -nographic -serial mon:stdio
+
+clean:
+	rm -f $(RISCV_ARCH_OBJS) $(KERNEL_OBJS) $(TARGET) $(TARGET_BIN)

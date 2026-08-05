@@ -1,0 +1,30 @@
+# Dockerfile.arm64 — ARM64 cross-compilation environment for VOVINA SHAKINA
+#
+# Builds the ZEDEC pqOS kernel for AArch64 (ARM64) using
+# aarch64-linux-gnu-gcc cross-compiler.
+#
+# Author: H.M. Michael-Laurence: Curzi (c)
+# License: SEL-3.3
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    gcc-aarch64-linux-gnu \
+    binutils-aarch64-linux-gnu \
+    make \
+    qemu-system-arm \
+    qemu-system-aarch64 \
+    python3 \
+    python3-pip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy kernel source
+COPY . /build/
+
+# Default: build ARM64 kernel at runtime (not during image build for faster iteration)
+CMD ["bash", "-c", "make -f build_system/Makefile.arm64 CROSS_COMPILE=aarch64-linux-gnu- clean && make -f build_system/Makefile.arm64 CROSS_COMPILE=aarch64-linux-gnu- all && aarch64-linux-gnu-objdump -f kernel_arm64.elf | head -5 && echo ARM64_BUILD_DONE"]

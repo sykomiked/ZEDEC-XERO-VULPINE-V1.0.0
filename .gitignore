@@ -1,0 +1,45 @@
+# macOS metadata
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+
+# Xcode / debug symbols
+*.dSYM
+*.dSYM.zip
+
+# Build artifacts
+*.o
+*.a
+*.elf
+*.bin
+*.iso
+*.img
+*.map
+*.lst
+
+# Kernel images
+kernel_arm64.elf
+kernel_arm64.bin
+vovina_shakina_x86_64.bin
+vovina_shakina_x86_64.iso
+
+# Generated directories
+iso/
+build/
+dist/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test output
+/tmp/test_*
+
+# Local configuration / secrets
+.env
+*.key
+*.pem

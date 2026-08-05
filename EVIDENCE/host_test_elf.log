@@ -1,0 +1,18 @@
+=== ELF64 loader tests ===
+[PASS] valid RX exec loads
+[PASS] entry point correct
+[PASS] segment is RX (not writable)
+[PASS] bad magic rejected
+[PASS] 32-bit ELF rejected
+[PASS] non-AArch64 rejected
+[PASS] non-static (ET_DYN) rejected
+[PASS] W+X segment rejected (W^X)
+[PASS] vaddr below window rejected
+[PASS] segment past window ceiling rejected
+[PASS] filesz past EOF rejected
+[PASS] overflowing p_offset rejected
+[PASS] truncated image rejected
+[PASS] entry outside segments rejected
+[PASS] mapper rejection propagates
+
+ALL PASS: 0 failure(s)

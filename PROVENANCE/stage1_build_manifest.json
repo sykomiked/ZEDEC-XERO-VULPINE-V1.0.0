@@ -1,0 +1,36 @@
+{
+  "product": "ZEDEC pqOS",
+  "edition": "VOVINA SHAKINA M5 Axiomatic Kernel",
+  "stage": "Stage 1 + CELL-001",
+  "build_host": "darwin-arm64",
+  "build_date_utc": "2026-08-04T04:55:00Z",
+  "targets": [
+    {
+      "architecture": "aarch64",
+      "toolchain": "aarch64-linux-gnu-gcc 15.2.0",
+      "makefile": "build_system/Makefile.arm64",
+      "outputs": [
+        {
+          "path": "kernel_arm64.elf",
+          "sha256": "cfeffc0a4f4ba1a145ec6f5eea22dcbcba588e457ee180ea205f649a601a9f79"
+        },
+        {
+          "path": "kernel_arm64.bin",
+          "sha256": "dca0d04c6db32c0d317ba6dd6420405cb485ad88e6f9eb8725d1fbd0c53b072d"
+        }
+      ],
+      "boot_evidence": "EVIDENCE/arm64_boot_trace.log",
+      "boot_status": "BOOT_OK with CELL-001 multi-cell demonstration"
+    }
+  ],
+  "verification": {
+    "verify_all": "PASS",
+    "cellular_multikernel_host_test": "9/9 PASS",
+    "qemu_arm64_boot": "BOOT_OK and repeated heartbeat"
+  },
+  "known_limitations": [
+    "x86-64 architecture port not yet rebuilt for the new kernel/ layout",
+    "EL0 userspace and timer IRQ paths remain gated (Stage 8/9)",
+    "Ed25519 KAT retained as experimental Stage-9 item"
+  ]
+}

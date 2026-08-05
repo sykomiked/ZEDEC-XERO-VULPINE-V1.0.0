@@ -1,0 +1,29 @@
+=== ZXVFS host tests ===
+total_sectors=986 (493.0 KB disk)
+[PASS] format
+[PASS] mount
+[PASS] empty after format
+[PASS] write readme.txt
+[PASS] read back readme.txt matches
+[PASS] one file
+[PASS] overwrite readme.txt
+[PASS] read back overwritten content
+[PASS] still one file after overwrite
+[PASS] write config.ini
+[PASS] list shows two files
+[PASS] unlink config.ini
+[PASS] one file after unlink
+[PASS] removed file is gone
+[PASS] write 3000-byte file
+[PASS] read back multi-sector file matches
+[PASS] remount (reboot)
+[PASS] data survived reboot
+[PASS] unlink survived reboot
+[PASS] crash baseline OLD
+[PASS] txn has a post-commit phase
+[PASS] write interrupted by simulated power loss
+[PASS] remount after crash
+[PASS] journal was replayed on mount
+[PASS] committed txn recovered as NEW (crash consistency)
+
+ALL PASS: 0 failure(s)
