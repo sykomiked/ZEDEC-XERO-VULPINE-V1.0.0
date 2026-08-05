@@ -693,6 +693,11 @@ verify-all: test
 		src/zxpkg/test_zxpkg.c src/zxpkg/zxpkg.c src/trispace/trispace.c src/robin_debanks/sha256.c \
 		-o /tmp/test_zxpkg -lm && \
 		/tmp/test_zxpkg && echo "[PASS] test_zxpkg" || { echo "[FAIL] test_zxpkg"; exit 1; }; \
+	echo "=== decentralized opt-in content-addressed update system ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/update -Isrc/robin_debanks \
+		src/update/test_update.c src/update/update.c src/robin_debanks/sha256.c \
+		-o /tmp/test_update -lm && \
+		/tmp/test_update && echo "[PASS] test_update" || { echo "[FAIL] test_update"; exit 1; }; \
 	echo "=== deployment profiles: laptop -> supercomputer, one OS ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/deploy \
 		src/deploy/test_deploy.c src/deploy/deploy.c \
