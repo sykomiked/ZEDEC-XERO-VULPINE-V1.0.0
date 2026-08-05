@@ -660,6 +660,19 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
+	echo "=== driver subsystems: wifi / bluetooth / video / epu (hardened) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/wifi -Isrc/edp_risk -Isrc/surplus \
+		src/wifi/test_wifi.c src/wifi/wifi.c -o /tmp/test_wifi -lm && \
+		/tmp/test_wifi && echo "[PASS] test_wifi" || { echo "[FAIL] test_wifi"; exit 1; }; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/bluetooth -Isrc/edp_risk -Isrc/surplus \
+		src/bluetooth/test_bluetooth.c src/bluetooth/bluetooth.c src/surplus/surplus.c -o /tmp/test_bluetooth -lm && \
+		/tmp/test_bluetooth && echo "[PASS] test_bluetooth" || { echo "[FAIL] test_bluetooth"; exit 1; }; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/video -Isrc/edp_risk -Isrc/surplus \
+		src/video/test_video.c src/video/video.c -o /tmp/test_video -lm && \
+		/tmp/test_video && echo "[PASS] test_video" || { echo "[FAIL] test_video"; exit 1; }; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/epu -Isrc/edp_risk -Isrc/surplus \
+		src/epu/test_epu_device.c src/epu/epu_device.c src/surplus/surplus.c -o /tmp/test_epu -lm && \
+		/tmp/test_epu && echo "[PASS] test_epu" || { echo "[FAIL] test_epu"; exit 1; }; \
 	echo "=== theme + icons: tokenized palette, per-system vector icons ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/icon -Isrc/theme \
 		src/icon/test_icon.c src/icon/icon.c src/theme/theme.c \
