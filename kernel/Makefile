@@ -660,6 +660,15 @@ verify-all: test
 		src/net/test_dns.c src/net/dns.c \
 		-o /tmp/test_dns -lm && \
 		/tmp/test_dns && echo "[PASS] test_dns" || { echo "[FAIL] test_dns"; exit 1; }; \
+	echo "=== fs_snprintf: kernel-wide bounded formatter (4 overflow fixes) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Wno-macro-redefined -DTEST_HOST -Iinclude \
+		src/legal_engine/test_fs_snprintf.c -o /tmp/test_fs_snprintf -lm && \
+		/tmp/test_fs_snprintf && echo "[PASS] test_fs_snprintf" || { echo "[FAIL] test_fs_snprintf"; exit 1; }; \
+	echo "=== legal_auto_respond: no unearned claims, no overflow ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Wno-macro-redefined -DTEST_HOST -Iinclude -Isrc/legal_engine \
+		src/legal_engine/test_legal_response.c src/legal_engine/legal_engine_ext.c \
+		src/legal_engine/legal_engine.c -o /tmp/test_legal_response -lm && \
+		/tmp/test_legal_response && echo "[PASS] test_legal_response" || { echo "[FAIL] test_legal_response"; exit 1; }; \
 	echo "=== HMAC full-message coverage (regression: 256-byte auth bypass) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/robin_debanks \
 		src/robin_debanks/test_hmac_fullcover.c src/robin_debanks/crypto_verify.c \

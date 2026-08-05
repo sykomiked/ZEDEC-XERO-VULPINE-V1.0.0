@@ -173,7 +173,7 @@ const legal_nation_t *legal_engine_get_nation(legal_engine_t *engine,
 int legal_engine_list_nations(legal_engine_t *engine,
                               legal_nation_t *nations, int max) {
     if (!engine || !nations) return 0;
-    int count = engine->nation_count < max ? engine->nation_count : max;
+    int count = (int)engine->nation_count < max ? (int)engine->nation_count : max;
     for (int i = 0; i < count; i++)
         nations[i] = engine->nations[i];
     return count;
@@ -292,6 +292,7 @@ int legal_gen_risk_assessment(legal_engine_t *engine, const char *nation_code,
 int legal_gen_implementation(legal_engine_t *engine, const char *nation_code,
                              legal_lang_t lang, legal_document_t *doc) {
     if (!engine || !doc) return -1;
+    (void)nation_code;   /* the generated text is jurisdiction-neutral */
     fs_memset(doc, 0, sizeof(*doc));
     doc->type = LEGAL_DOC_IMPLEMENTATION;
     doc->lang = lang;
@@ -382,26 +383,40 @@ int legal_gen_default_agreement(legal_engine_t *engine,
                                     "Server Operator", lang);
 }
 
+/* legal_customize_agreement() called le_strstr(), which does not exist
+ * anywhere in the tree — an implicit declaration that would be an undefined
+ * symbol at link time on a freestanding target. Bounded, no libc. */
+static const char *le_strstr(const char *hay, const char *needle) {
+    if (!hay || !needle) return 0;
+    if (!*needle) return hay;
+    for (const char *p = hay; *p; p++) {
+        const char *a = p, *b = needle;
+        while (*a && *b && *a == *b) { a++; b++; }
+        if (!*b) return p;
+    }
+    return 0;
+}
+
 int legal_customize_agreement(legal_user_agreement_t *ua,
                               const char *field, const char *value) {
     if (!ua || !field || !value) return -1;
-    if (fs_strstr(field, "access") || fs_strstr(field, "rule"))
+    if (le_strstr(field, "access") || le_strstr(field, "rule"))
         safe_strncpy(ua->access_rules, value, LEGAL_MAX_TEXT);
-    else if (fs_strstr(field, "data") || fs_strstr(field, "privacy"))
+    else if (le_strstr(field, "data") || le_strstr(field, "privacy"))
         safe_strncpy(ua->data_policy, value, LEGAL_MAX_TEXT);
-    else if (fs_strstr(field, "prohibit"))
+    else if (le_strstr(field, "prohibit"))
         safe_strncpy(ua->prohibited_uses, value, LEGAL_MAX_TEXT);
-    else if (fs_strstr(field, "liability"))
+    else if (le_strstr(field, "liability"))
         safe_strncpy(ua->liability, value, LEGAL_MAX_TEXT);
-    else if (fs_strstr(field, "dispute"))
+    else if (le_strstr(field, "dispute"))
         safe_strncpy(ua->dispute_resolution, value, LEGAL_MAX_TEXT);
-    else if (fs_strstr(field, "terminat"))
+    else if (le_strstr(field, "terminat"))
         safe_strncpy(ua->termination, value, LEGAL_MAX_TEXT);
-    else if (fs_strstr(field, "jurisdict"))
+    else if (le_strstr(field, "jurisdict"))
         safe_strncpy(ua->sovereign_jurisdiction, value, LEGAL_MAX_NAME);
-    else if (fs_strstr(field, "custom"))
+    else if (le_strstr(field, "custom"))
         safe_strncpy(ua->custom_clauses, value, LEGAL_MAX_TEMPLATE);
-    else if (fs_strstr(field, "operator"))
+    else if (le_strstr(field, "operator"))
         safe_strncpy(ua->operator, value, LEGAL_MAX_NAME);
     else
         return -2;

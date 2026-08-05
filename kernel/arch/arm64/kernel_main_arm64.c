@@ -207,27 +207,47 @@ static net_interface_t *g_eth_if = 0;
 static void knet_tx(const uint8_t *data, uint32_t len) {
     (void)virtio_net_tx(data, len);
 }
-/* Monotonic milliseconds from the architected virtual counter. Independent of
- * the timer interrupt, so it is usable before and during device bring-up. */
+/* Monotonic milliseconds from the architected virtual counter.
+ *
+ * THIS IS AN INTEROPERABILITY AID, NOT A TIME BASE. ZXV sequences on event
+ * phase ticks — see the Cycle Pulse note in include/m5_types.h, "replaces
+ * wall clock with event-cycle pulses", and kernel_event_cycle_run() below,
+ * whose whole point is that the tick that got us here is the only time
+ * source. Nothing in the kernel may depend on this function returning a
+ * useful value; it returns 0 when no counter is implemented, and every caller
+ * must still work in that case. It exists because LEGACY PEERS measure their
+ * round trips in milliseconds, so having a rough conversion available makes
+ * us a better neighbour on their networks. */
 static uint64_t mono_ms(void) {
     uint64_t cnt, frq;
     __asm__ volatile("mrs %0, CNTVCT_EL0" : "=r"(cnt));
     __asm__ volatile("mrs %0, CNTFRQ_EL0" : "=r"(frq));
-    if (!frq) return 0;
+    if (frq < 1000u) return 0;          /* no usable counter — say so */
     return (cnt / (frq / 1000u));
 }
 
-/* Pace net_tcp_tick() at the ~200 ms its contract requires. Calling it every
- * poll iteration retransmits each segment long before the round trip can
- * complete — the capture showed every packet going out twice. */
-static void knet_tcp_pace(net_state_t *ns) {
-    static uint64_t next_ms = 0;
-    uint64_t now = mono_ms();
-    /* Arm the first interval instead of firing on the first call — otherwise
-     * the SYN is retransmitted milliseconds after it was sent. */
-    if (!next_ms) { next_ms = now + 200u; return; }
-    if (now < next_ms) return;
-    next_ms = now + 200u;
+/* How many PHASE TICKS make one TCP retransmission interval.
+ *
+ * The retransmission cadence is counted in phase ticks, not milliseconds,
+ * because the phase sequence is this architecture's ordering primitive and
+ * the clock is optional. The number is chosen so the interval comfortably
+ * spans a plausible round trip: that requirement comes from the PEER, not
+ * from us — resending faster than the remote can answer puts every packet on
+ * the wire twice. */
+#define KNET_RETX_PHASE_TICKS 24u
+
+/* Drive TCP retransmission from the phase sequence.
+ *
+ * An earlier version of this gated on mono_ms() and so made the network stack
+ * depend on a wall clock, which is precisely what this architecture does not
+ * do. It now counts phase ticks. mono_ms() is consulted only to REPORT the
+ * observed interval for legacy interop, and the pacing is identical when it
+ * returns 0. */
+static void knet_tcp_pace(net_state_t *ns, uint64_t phase_omega) {
+    static uint64_t next_omega = 0;
+    if (!next_omega) { next_omega = phase_omega + KNET_RETX_PHASE_TICKS; return; }
+    if (phase_omega < next_omega) return;
+    next_omega = phase_omega + KNET_RETX_PHASE_TICKS;
     net_tcp_tick(ns);
 }
 
@@ -1434,6 +1454,11 @@ void kernel_main_arm64(void) {
                              * the 200 ms gate has already expired every time it
                              * is consulted and every segment goes out twice. */
                             for (uint32_t round = 0; round < 20000u && got < 0; round++) {
+                                /* Each polling round IS an event, so it
+                                 * advances the phase sequence. Retransmission
+                                 * is then paced off that ordinal rather than
+                                 * off a clock. */
+                                phase_coordinator_tick(&tick);
                                 for (uint32_t spin = 0; spin < 200u; spin++) {
                                     int n = virtio_net_rx_poll(tf, sizeof tf);
                                     if (n > 0) net_handle_eth(&net, g_eth_if, tf, (uint32_t)n);
@@ -1445,7 +1470,7 @@ void kernel_main_arm64(void) {
                                         sent = true;
                                 }
                                 if (sent) got = net_recv(&net, sk, body, sizeof body - 1);
-                                knet_tcp_pace(&net);
+                                knet_tcp_pace(&net, (uint64_t)tick.omega);
                             }
                             if (got > 4 && body[0]=='H' && body[1]=='T' &&
                                 body[2]=='T' && body[3]=='P') {
@@ -1685,6 +1710,11 @@ void kernel_event_cycle_run(void) {
      * pingable from the host — networking driven by the event sequence
      * rather than a separate clock. */
     knet_pump(&net);
+
+    /* TCP retransmission is paced off the PHASE ORDINAL, not a clock —
+     * consistent with the rule above. Without this a lost segment is never
+     * resent and a connection stalls forever. */
+    knet_tcp_pace(&net, (uint64_t)tick.omega);
 
     /* Event-Driven Scheduler: replenish event budgets, post events
      * from the tick to tasks, and dispatch. */

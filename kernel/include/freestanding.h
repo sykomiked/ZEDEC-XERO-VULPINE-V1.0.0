@@ -215,57 +215,109 @@ static inline double fs_atan2(double y, double x) {
 /* cabs/cexp are provided by freestanding_stubs/complex.h */
 
 /* Minimal snprintf for freestanding mode — supports %s, %d, %u, %x, %c */
+/* Bounded formatter.
+ *
+ * THREE BUGS WERE FIXED HERE, all of them buffer overflows in a helper the
+ * whole kernel formats through:
+ *
+ *  1. `case '%'` and the `default:` case wrote one and TWO bytes respectively
+ *     with NO bounds check, so an unrecognised conversion could write past
+ *     the caller's buffer. This is reachable from any caller that uses a
+ *     conversion this function does not implement.
+ *  2. The '-' sign in %d was emitted without a bounds check.
+ *  3. `max == 0` made the loop condition `pos < max - 1` compare against
+ *     SIZE_MAX, so a zero-length buffer was treated as unbounded.
+ *
+ *  ...and one silent correctness bug: there was no 'l'/'ll' length modifier,
+ *  so "%llu" fell through to `default:`, printed a literal "%l", left "lu" in
+ *  the output, and — worst of all — never consumed the 64-bit argument, so
+ *  EVERY SUBSEQUENT conversion in the same call read the wrong vararg.
+ *
+ * Returns the number of characters actually written (never >= max), and the
+ * buffer is always NUL-terminated when max > 0.
+ */
 static inline int fs_snprintf(char *buf, size_t max, const char *fmt, ...) {
     va_list args;
+    if (!buf || max == 0) return 0;
+    if (!fmt) { buf[0] = '\0'; return 0; }
     va_start(args, fmt);
     size_t pos = 0;
-    while (*fmt && pos < max - 1) {
+/* NOTE: the guard means a side-effecting ARGUMENT would only be evaluated
+ * while there is room. Never write FS_PUT(x[--t]) — the decrement would stop
+ * happening the moment the buffer filled, and the enclosing loop would spin
+ * forever. Callers below decrement first, then emit. */
+#define FS_PUT(c) do { if (pos + 1 < max) buf[pos++] = (char)(c); } while (0)
+    while (*fmt && pos + 1 < max) {
         if (*fmt == '%') {
             fmt++;
+            /* length modifiers: h, hh, l, ll, z — parsed so the matching
+             * va_arg type is used and the argument list stays aligned */
+            int longness = 0;
+            while (*fmt == 'l') { longness++; fmt++; }
+            if (*fmt == 'z') { longness = 2; fmt++; }
+            while (*fmt == 'h') { fmt++; }
             switch (*fmt) {
                 case 's': {
                     const char *s = va_arg(args, const char*);
-                    while (*s && pos < max - 1) buf[pos++] = *s++;
+                    if (!s) s = "(null)";
+                    while (*s && pos + 1 < max) buf[pos++] = *s++;
                     break;
                 }
-                case 'd': {
-                    int v = va_arg(args, int);
-                    if (v < 0) { buf[pos++] = '-'; v = -v; }
-                    char tmp[16]; int t = 0;
-                    if (v == 0) tmp[t++] = '0';
-                    while (v > 0 && t < 16) { tmp[t++] = '0' + (v % 10); v /= 10; }
-                    while (t > 0 && pos < max - 1) buf[pos++] = tmp[--t];
+                case 'd': case 'i': {
+                    long long v = (longness >= 2) ? va_arg(args, long long)
+                                : (longness == 1) ? (long long)va_arg(args, long)
+                                                  : (long long)va_arg(args, int);
+                    unsigned long long uv;
+                    if (v < 0) { FS_PUT('-'); uv = (unsigned long long)(-(v + 1)) + 1ull; }
+                    else uv = (unsigned long long)v;
+                    char tmp[24]; int t = 0;
+                    if (uv == 0) tmp[t++] = '0';
+                    while (uv > 0 && t < 24) { tmp[t++] = (char)('0' + (uv % 10)); uv /= 10; }
+                    while (t > 0) { t--; FS_PUT(tmp[t]); }
                     break;
                 }
                 case 'u': {
-                    unsigned v = va_arg(args, unsigned);
-                    char tmp[16]; int t = 0;
+                    unsigned long long v = (longness >= 2) ? va_arg(args, unsigned long long)
+                                         : (longness == 1) ? (unsigned long long)va_arg(args, unsigned long)
+                                                           : (unsigned long long)va_arg(args, unsigned);
+                    char tmp[24]; int t = 0;
                     if (v == 0) tmp[t++] = '0';
-                    while (v > 0 && t < 16) { tmp[t++] = '0' + (v % 10); v /= 10; }
-                    while (t > 0 && pos < max - 1) buf[pos++] = tmp[--t];
+                    while (v > 0 && t < 24) { tmp[t++] = (char)('0' + (v % 10)); v /= 10; }
+                    while (t > 0) { t--; FS_PUT(tmp[t]); }
                     break;
                 }
-                case 'x': {
-                    unsigned v = va_arg(args, unsigned);
-                    char tmp[16]; int t = 0;
+                case 'x': case 'X': case 'p': {
+                    unsigned long long v = (*fmt == 'p') ? (unsigned long long)(uintptr_t)va_arg(args, void*)
+                                         : (longness >= 2) ? va_arg(args, unsigned long long)
+                                         : (longness == 1) ? (unsigned long long)va_arg(args, unsigned long)
+                                                           : (unsigned long long)va_arg(args, unsigned);
+                    char tmp[24]; int t = 0;
+                    int upper = (*fmt == 'X');
                     if (v == 0) tmp[t++] = '0';
-                    while (v > 0 && t < 16) { int d = v % 16; tmp[t++] = d < 10 ? '0' + d : 'a' + d - 10; v /= 16; }
-                    while (t > 0 && pos < max - 1) buf[pos++] = tmp[--t];
+                    while (v > 0 && t < 24) {
+                        int d = (int)(v % 16);
+                        tmp[t++] = (char)(d < 10 ? '0' + d : (upper ? 'A' : 'a') + d - 10);
+                        v /= 16;
+                    }
+                    while (t > 0) { t--; FS_PUT(tmp[t]); }
                     break;
                 }
                 case 'c': {
                     char c = (char)va_arg(args, int);
-                    if (pos < max - 1) buf[pos++] = c;
+                    FS_PUT(c);
                     break;
                 }
-                case '%': buf[pos++] = '%'; break;
-                default: buf[pos++] = '%'; buf[pos++] = *fmt; break;
+                case '%': FS_PUT('%'); break;
+                case '\0': FS_PUT('%'); goto done;
+                default:  FS_PUT('%'); FS_PUT(*fmt); break;
             }
         } else {
-            buf[pos++] = *fmt;
+            FS_PUT(*fmt);
         }
         fmt++;
     }
+done:
+#undef FS_PUT
     buf[pos] = '\0';
     va_end(args);
     return (int)pos;

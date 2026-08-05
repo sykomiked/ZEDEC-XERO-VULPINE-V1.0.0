@@ -281,6 +281,46 @@ typedef struct {
     uint64_t assessed_tick;
 } legal_risk_assessment_t;
 
+/* ============================================================
+ * Enforcement record
+ *
+ * WHY THIS TYPE EXISTS
+ * --------------------
+ * legal_auto_respond() used to emit a formal notice asserting, in the PAST
+ * TENSE, that six enforcement actions "have been executed": access revoked,
+ * the node isolated into a G0 shadow block, an entry written to an immutable
+ * ledger, a phi seal applied, a notice broadcast to the P2P mesh, and
+ * friendliness adjusted across all connected nodes. None of it happened. The
+ * function's entire body was string formatting. An operator forwarding that
+ * document to a counterparty would have been transmitting a false statement
+ * of fact.
+ *
+ * The fix is not to soften the wording. It is to make the engine ACTUALLY DO
+ * what it is capable of doing, record it here, and then report exactly that —
+ * and to list everything it cannot do as a RECOMMENDATION requiring an
+ * operator, clearly separated from what was carried out.
+ *
+ * What the engine can genuinely do, in process, is set an access level and an
+ * LPRES containment state and stamp when it did so. That is what this record
+ * holds, and it is queryable via legal_enforcement_get() so a caller can
+ * verify the notice against the state rather than trusting the prose.
+ * ============================================================ */
+
+typedef enum {
+    LEGAL_ACCESS_FULL = 0,
+    LEGAL_ACCESS_GUEST,      /* reduced privileges                        */
+    LEGAL_ACCESS_REVOKED     /* no data access                            */
+} legal_access_level_t;
+
+typedef struct {
+    uint32_t watcher_id;
+    uint8_t  in_use;
+    legal_access_level_t access;   /* what was actually applied           */
+    uint8_t  lpres_state;          /* containment state actually set      */
+    uint8_t  notice_issued;        /* a formal notice was generated       */
+    uint64_t enforced_tick;        /* when                                */
+} legal_enforcement_t;
+
 /* Extended legal engine state with treaty/precedent/DAO/arbitrage */
 typedef struct {
     legal_nation_t nations[LEGAL_MAX_NATIONS];
@@ -301,6 +341,9 @@ typedef struct {
     /* Active risk assessments */
     legal_risk_assessment_t risk_assessments[64];
     uint32_t risk_count;
+    /* Enforcement actually applied — see legal_enforcement_t above */
+    legal_enforcement_t enforcements[64];
+    uint32_t enforcement_count;
 } legal_engine_ext_t;
 
 /* ============================================================
@@ -407,9 +450,32 @@ int legal_lpres_eval(legal_engine_ext_t *engine, uint32_t watcher_id,
 int legal_lpres_recover(legal_engine_ext_t *engine, uint32_t watcher_id,
                         uint8_t lpres_state);
 
-/* Autonomous legal response — issue formal notices, revoke access */
+/* Autonomous legal response.
+ *
+ * Applies the enforcement the engine is actually capable of — an access level
+ * and an LPRES containment state — records it in engine->enforcements, and
+ * writes a formal notice that reports THAT, and only that, as carried out.
+ * Anything requiring a component the engine does not drive (ledger, mesh
+ * broadcast, cross-node reputation) appears under a separate RECOMMENDED
+ * heading marked as requiring an operator.
+ *
+ * Returns the number of characters written, or negative on error. The notice
+ * is always NUL-terminated and never exceeds buf_len.
+ *
+ * Verify the notice against the state with legal_enforcement_get(): if the
+ * document says access was revoked, that call will show it. */
 int legal_auto_respond(legal_engine_ext_t *engine, uint32_t watcher_id,
                        char *response_buf, uint16_t buf_len);
+
+/* Read back what enforcement was actually applied to a watcher.
+ * Returns 0 and fills *out if a record exists, -1 if none. */
+int legal_enforcement_get(const legal_engine_ext_t *engine, uint32_t watcher_id,
+                          legal_enforcement_t *out);
+
+/* The access level currently in force for a watcher. Defaults to
+ * LEGAL_ACCESS_FULL when no enforcement has been applied. */
+legal_access_level_t legal_access_level(const legal_engine_ext_t *engine,
+                                        uint32_t watcher_id);
 
 /* Compliance audit — check all active treaties and agreements */
 int legal_compliance_audit(legal_engine_ext_t *engine, char *buf,

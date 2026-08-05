@@ -9,6 +9,10 @@
 #include "legal_engine.h"
 #include "../include/freestanding.h"
 
+/* defined below, used by treaty_enforce_breach */
+static legal_enforcement_t *enforcement_slot(legal_engine_ext_t *engine,
+                                             uint32_t watcher_id);
+
 static uint32_t g_next_treaty_id = 1;
 static uint32_t g_next_precedent_id = 1;
 static uint32_t g_next_dao_id = 1;
@@ -229,18 +233,32 @@ int treaty_enforce_breach(legal_engine_ext_t *engine, uint32_t treaty_id,
     if (!t) return -2;
     t->breach_count++;
     t->status = TREATY_BREACHED;
-    /* Execute remedy actions from executable clauses */
+    uint32_t remedies_applied = 0;
+    /* Apply the remedy this engine is actually able to apply.
+     *
+     * This loop used to have an EMPTY body with the comment "In real
+     * implementation: execute remedy (revoke access, isolate node into G0,
+     * adjust friendliness, etc.)" — so a breach was recorded as enforced
+     * while nothing was enforced. The engine can set an access level and a
+     * containment state on this node; that is what it now does, and
+     * remedies_applied counts only what actually happened. */
     for (uint32_t i = 0; i < t->clause_count; i++) {
         if (t->clauses[i].executable && t->clauses[i].remedy_action[0]) {
-            /* In real implementation: execute remedy (revoke access,
-             * isolate node into G0, adjust friendliness, etc.) */
+            legal_enforcement_t *en = enforcement_slot(engine, breaching_node);
+            if (!en) break;                   /* table full: do not claim it */
+            en->access = LEGAL_ACCESS_REVOKED;
+            en->lpres_state = 2;              /* G0 — isolated */
+            en->enforced_tick = engine->phase_tick;
+            remedies_applied++;
         }
     }
     /* Check if treaty should be terminated after too many breaches */
     if (t->breach_count >= 3) {
         t->status = TREATY_TERMINATED;
     }
-    return 0;
+    /* Report how many remedies were APPLIED, so a caller can tell the
+     * difference between "breach recorded" and "breach acted on". */
+    return (int)remedies_applied;
 }
 
 int treaty_auto_enforce(legal_engine_ext_t *engine, uint32_t treaty_id,
@@ -367,16 +385,30 @@ int precedent_share(legal_engine_ext_t *engine, uint32_t precedent_id) {
     return 0;
 }
 
+/* precedent_search() called fs_strstr(), which exists nowhere in the tree —
+ * an implicit declaration that would have been an undefined symbol at link
+ * time on any freestanding target. Bounded, no libc. */
+static const char *le_strstr(const char *hay, const char *needle) {
+    if (!hay || !needle) return 0;
+    if (!*needle) return hay;
+    for (const char *p = hay; *p; p++) {
+        const char *a = p, *b = needle;
+        while (*a && *b && *a == *b) { a++; b++; }
+        if (!*b) return p;
+    }
+    return 0;
+}
+
 int precedent_search(legal_engine_ext_t *engine, const char *keyword,
                      legal_precedent_t *results, int max) {
     if (!engine || !keyword || !results) return 0;
     int count = 0;
     for (uint32_t i = 0; i < engine->precedent_count && count < max; i++) {
         legal_precedent_t *p = &engine->precedents[i];
-        if (fs_strstr((const char *)p->citation, keyword) ||
-            fs_strstr((const char *)p->summary, keyword) ||
-            fs_strstr((const char *)p->ruling, keyword) ||
-            fs_strstr((const char *)p->jurisdiction, keyword)) {
+        if (le_strstr((const char *)p->citation, keyword) ||
+            le_strstr((const char *)p->summary, keyword) ||
+            le_strstr((const char *)p->ruling, keyword) ||
+            le_strstr((const char *)p->jurisdiction, keyword)) {
             results[count] = *p;
             count++;
         }
@@ -474,7 +506,7 @@ int arbitrage_execute(legal_engine_ext_t *engine, uint32_t arbitrage_id) {
 int arbitrage_list(legal_engine_ext_t *engine, legal_arbitrage_t *results,
                    int max) {
     if (!engine || !results) return 0;
-    int count = engine->arbitrage_count < max ? engine->arbitrage_count : max;
+    int count = (int)engine->arbitrage_count < max ? (int)engine->arbitrage_count : max;
     for (int i = 0; i < count; i++)
         results[i] = engine->arbitrage[i];
     return count;
@@ -573,7 +605,7 @@ int dao_treaty_negotiate(legal_engine_ext_t *engine, uint32_t dao_id_a,
 
 int dao_list(legal_engine_ext_t *engine, legal_dao_t *daos, int max) {
     if (!engine || !daos) return 0;
-    int count = engine->dao_count < max ? engine->dao_count : max;
+    int count = (int)engine->dao_count < max ? (int)engine->dao_count : max;
     for (int i = 0; i < count; i++)
         daos[i] = engine->daos[i];
     return count;
@@ -708,58 +740,139 @@ int legal_lpres_recover(legal_engine_ext_t *engine, uint32_t watcher_id,
     }
 }
 
+/* Bounded append.
+ *
+ * The previous code passed `buf_len - pos` to fs_snprintf, whose size
+ * parameter is size_t. Once pos exceeded buf_len that subtraction went
+ * negative and converted to an enormous size_t, so a small caller buffer plus
+ * this function's long notice text was a straightforward heap/stack overflow.
+ * This helper can never produce a negative remaining size and always leaves
+ * the buffer NUL-terminated. */
+#define APPEND(...) do {                                                     \
+    if (pos < 0 || (uint32_t)pos + 1u >= (uint32_t)buf_len) break;           \
+    int _n = fs_snprintf(response_buf + pos,                                 \
+                         (size_t)((uint32_t)buf_len - (uint32_t)pos),        \
+                         __VA_ARGS__);                                       \
+    if (_n < 0) break;                                                       \
+    pos += _n;                                                               \
+    if ((uint32_t)pos >= (uint32_t)buf_len) pos = (int)buf_len - 1;          \
+} while (0)
+
+/* Find or create the enforcement slot for a watcher. */
+static legal_enforcement_t *enforcement_slot(legal_engine_ext_t *engine,
+                                             uint32_t watcher_id) {
+    for (uint32_t i = 0; i < 64; i++)
+        if (engine->enforcements[i].in_use &&
+            engine->enforcements[i].watcher_id == watcher_id)
+            return &engine->enforcements[i];
+    for (uint32_t i = 0; i < 64; i++)
+        if (!engine->enforcements[i].in_use) {
+            engine->enforcements[i].in_use = 1;
+            engine->enforcements[i].watcher_id = watcher_id;
+            if (engine->enforcement_count < 64) engine->enforcement_count++;
+            return &engine->enforcements[i];
+        }
+    return 0;   /* table full — the caller must not pretend otherwise */
+}
+
+int legal_enforcement_get(const legal_engine_ext_t *engine, uint32_t watcher_id,
+                          legal_enforcement_t *out) {
+    if (!engine || !out) return -1;
+    for (uint32_t i = 0; i < 64; i++)
+        if (engine->enforcements[i].in_use &&
+            engine->enforcements[i].watcher_id == watcher_id) {
+            *out = engine->enforcements[i];
+            return 0;
+        }
+    return -1;
+}
+
+legal_access_level_t legal_access_level(const legal_engine_ext_t *engine,
+                                        uint32_t watcher_id) {
+    legal_enforcement_t e;
+    if (legal_enforcement_get(engine, watcher_id, &e) != 0) return LEGAL_ACCESS_FULL;
+    return e.access;
+}
+
 int legal_auto_respond(legal_engine_ext_t *engine, uint32_t watcher_id,
                        char *response_buf, uint16_t buf_len) {
-    if (!engine || !response_buf) return -1;
+    if (!engine || !response_buf || buf_len == 0) return -1;
+    response_buf[0] = 0;
     legal_risk_assessment_t risk;
     if (legal_get_risk(engine, watcher_id, &risk) != 0) return -2;
+
     int pos = 0;
-    if (risk.legal_action_recommended) {
-        pos += fs_snprintf(response_buf + pos, buf_len - pos,
-            "=== AUTOMATED LEGAL RESPONSE ===\n"
-            "To: Watcher #%u\n"
-            "From: ZEDEC pqOS Algorithmic Legal Engine\n"
-            "Date: tick %llu\n"
-            "Subject: Formal Notice of Jurisdictional Violation\n\n"
-            "You have been identified by the Panopticon surveillance awareness "
-            "system as conducting activities that violate the sovereign legal "
-            "framework established under SEL-3.3.\n\n"
-            "Friendliness Score: %d\n"
-            "Jurisdictional Risk Index: %d\n\n"
-            "Pursuant to the algorithmic legal engine's autonomous enforcement "
-            "protocols, the following actions have been executed:\n",
-            watcher_id, (unsigned long long)risk.assessed_tick,
-            risk.friendliness_score, risk.jurisdictional_risk);
-        if (risk.jurisdictional_risk > 50) {
-            pos += fs_snprintf(response_buf + pos, buf_len - pos,
-                "  1. All data access permissions REVOKED\n"
-                "  2. Node isolated into G0 shadow block (LPRES)\n"
-                "  3. Compliance audit entry logged to immutable ledger\n"
-                "  4. Golden ratio (phi) seal applied to audit record\n"
-                "  5. Formal notice broadcast to P2P mesh via Carracho\n"
-                "  6. Friendliness score adjusted across all connected nodes\n");
-        } else {
-            pos += fs_snprintf(response_buf + pos, buf_len - pos,
-                "  1. Access privileges REDUCED to guest level\n"
-                "  2. Compliance warning issued\n"
-                "  3. Panopticon monitoring intensity INCREASED\n"
-                "  4. Audit log entry created\n");
-        }
-        pos += fs_snprintf(response_buf + pos, buf_len - pos,
-            "\nThis response is generated autonomously by the algorithmic "
-            "legal engine. No human intervention was required. All actions "
-            "are logged with cryptographic timestamps and golden ratio "
-            "verification.\n\n"
-            "License: SEL-3.3 — Streisand Engine License\n"
-            "Author: H.M. Michael-Laurence: Curzi (c)\n");
-    } else {
-        pos = fs_snprintf(response_buf, buf_len,
-            "No legal response required for watcher #%u. "
-            "Friendliness: %d, Risk: %d.\n",
-            watcher_id, risk.friendliness_score, risk.jurisdictional_risk);
+
+    if (!risk.legal_action_recommended) {
+        APPEND("No legal response required for watcher #%u. "
+               "Friendliness: %d, Risk: %d.\n",
+               watcher_id, risk.friendliness_score, risk.jurisdictional_risk);
+        return pos;
     }
+
+    /* ---- APPLY the enforcement this engine is actually able to apply ----
+     * This happens BEFORE the notice is written, so everything the notice
+     * reports in the past tense has genuinely occurred and is queryable via
+     * legal_enforcement_get(). */
+    legal_enforcement_t *en = enforcement_slot(engine, watcher_id);
+    if (!en) return -3;                 /* no slot: do not claim enforcement */
+
+    bool severe = risk.jurisdictional_risk > 50;
+    en->access = severe ? LEGAL_ACCESS_REVOKED : LEGAL_ACCESS_GUEST;
+    /* LPRES containment: G0 (isolated) for a severe finding, G+ (speculative,
+     * watch) otherwise. legal_lpres_eval owns the mapping. */
+    uint8_t lp = 0;
+    legal_lpres_eval(engine, watcher_id, risk.friendliness_score, &lp);
+    en->lpres_state = lp;
+    en->notice_issued = 1;
+    en->enforced_tick = engine->phase_tick;
+
+    APPEND("=== ALGORITHMIC LEGAL ENGINE — FORMAL NOTICE ===\n"
+           "To: Watcher #%u\n"
+           "From: ZEDEC pqOS Algorithmic Legal Engine\n"
+           "Date: tick %llu\n"
+           "Subject: Notice of Assessed Jurisdictional Risk\n\n",
+           watcher_id, (unsigned long long)en->enforced_tick);
+
+    APPEND("This notice is generated automatically from a risk assessment "
+           "produced by the Panopticon surveillance-awareness subsystem. It "
+           "is an assessment by this node, not a finding of law, and it has "
+           "not been reviewed by a person.\n\n"
+           "Friendliness Score: %d\n"
+           "Jurisdictional Risk Index: %d\n\n",
+           risk.friendliness_score, risk.jurisdictional_risk);
+
+    /* ---- what was actually done, and nothing else ---- */
+    APPEND("ACTIONS CARRIED OUT BY THIS NODE\n"
+           "(these have been applied and are recorded in this engine's "
+           "enforcement table; they affect this node only)\n");
+    if (severe) {
+        APPEND("  1. Data access for this watcher set to REVOKED on this node\n"
+               "  2. LPRES containment state set to G%u\n",
+               (unsigned)en->lpres_state);
+    } else {
+        APPEND("  1. Data access for this watcher reduced to GUEST on this node\n"
+               "  2. LPRES containment state set to G%u\n",
+               (unsigned)en->lpres_state);
+    }
+
+    /* ---- what this engine cannot do, stated as such ---- */
+    APPEND("\nRECOMMENDED — REQUIRES OPERATOR ACTION\n"
+           "(this engine does not perform these and has NOT performed them)\n"
+           "  - Record this assessment in a durable audit ledger\n"
+           "  - Notify federated peers, if the operator judges that "
+           "appropriate\n"
+           "  - Review the assessment before relying on it externally\n");
+
+    APPEND("\nThe risk index above is computed by this node from local "
+           "observations. It is not evidence, it establishes no finding "
+           "against any party, and it should not be forwarded as one.\n\n"
+           "License: SEL-3.3 — Streisand Engine License\n"
+           "Author: H.M. Michael-Laurence: Curzi (c)\n");
+
     return pos;
 }
+#undef APPEND
 
 int legal_compliance_audit(legal_engine_ext_t *engine, char *buf,
                            uint16_t buf_len) {

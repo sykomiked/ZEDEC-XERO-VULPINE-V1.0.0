@@ -155,16 +155,25 @@ uint32_t tcp_close(tcp_conn_t *c, uint8_t *out, uint32_t cap);
 /* Abort: writes a RST and moves to CLOSED. */
 uint32_t tcp_reset(tcp_conn_t *c, uint8_t *out, uint32_t cap);
 
-/* Call periodically. Retransmits unacknowledged data with backoff, and expires
- * TIME_WAIT. Returns the length of any segment to send. After TCP_MAX_RETX
- * attempts the connection is declared dead (state CLOSED, reset = true).
+/* Advance the retransmission timer by ONE INTERVAL. Retransmits unacknowledged
+ * data with backoff, expires TIME_WAIT, and returns the length of any segment
+ * to send. After TCP_MAX_RETX attempts the connection is declared dead
+ * (state CLOSED, reset = true).
  *
- * ONE TICK MUST BE ROUGHLY 200 ms. This is a real contract, not a hint: the
- * first retransmission happens one tick after a segment goes unacknowledged,
- * so calling this in a tight polling loop retransmits every segment before the
- * round trip can possibly complete — every packet goes out twice and half the
- * link's bandwidth is wasted. The caller owns the clock; drive it from a
- * monotonic counter, not from loop iterations. */
+ * THE UNIT IS AN INTERVAL, NOT A MILLISECOND. This module has no clock and
+ * asks for none: ZXV is an event-phase architecture, and a wall clock is an
+ * interoperability convenience, never a dependency (see the Cycle Pulse note
+ * in include/m5_types.h — "replaces wall clock with event-cycle pulses").
+ * The caller decides what an interval is by choosing how often to call this,
+ * and on ZXV that decision is made in PHASE TICKS.
+ *
+ * The one thing the caller must respect is a property of the PEER, not of us:
+ * a retransmission interval shorter than the remote round trip resends every
+ * segment before an acknowledgement could possibly arrive, so each packet goes
+ * out twice and half the link is wasted. Choose an interval that spans a
+ * plausible round trip for the link. If a wall clock happens to be available
+ * it may be used to CALIBRATE that choice for a legacy peer — but nothing
+ * here requires one, and the phase sequence alone is sufficient. */
 uint32_t tcp_tick(tcp_conn_t *c, uint8_t *out, uint32_t cap);
 
 /* Copy up to `cap` bytes of received data out; returns how many. */
