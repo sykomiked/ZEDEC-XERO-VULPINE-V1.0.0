@@ -53,6 +53,8 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/immigration \
          -Ikernel/src/robin_debanks \
          -Ikernel/src/prism_break \
+         -Ikernel/src/vbe \
+         -Ikernel/src/desktop \
          -Ikernel/src/cellular_multikernel \
          -Ikernel/src/event_space \
          -Ikernel/src/orbital_elevator \
@@ -94,6 +96,7 @@ ARM64_ARCH_OBJS = \
     kernel/arch/arm64/ramdisk.o \
     kernel/arch/arm64/virtio_blk.o \
     kernel/arch/arm64/virtio_net.o \
+    kernel/arch/arm64/virtio_input.o \
     kernel/arch/arm64/entropy.o
 
 # Shared kernel source objects (platform-independent)
@@ -179,6 +182,9 @@ KERNEL_SRCS = \
     kernel/src/robin_debanks/sha256.c \
     kernel/src/robin_debanks/ed25519_verify.c \
     kernel/src/prism_break/prism_break.c \
+    kernel/src/video/ramfb.c \
+    kernel/src/vbe/vbe.c \
+    kernel/src/desktop/zxv_shell.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \
     kernel/src/net/jdr_piratenet.c \
     kernel/src/synthesis/synthesis_engine.c \

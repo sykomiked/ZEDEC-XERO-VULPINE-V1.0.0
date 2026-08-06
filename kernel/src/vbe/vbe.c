@@ -178,9 +178,40 @@ void vbe_clear_screen(vbe_state_t *vbe, uint32_t color) {
     vbe_fill_rect(vbe, 0, 0, vbe->width, vbe->height, color);
 }
 
+/* Scaled + optionally-transparent text. scale>=1 magnifies the 8x16 glyph as
+ * scale*scale blocks; draw_bg==0 leaves the background pixels untouched (so text
+ * floats over the compositor). Used by the desktop shell for the wordmark. */
+void vbe_draw_text_ex(vbe_state_t *vbe, int32_t x, int32_t y, const char *str,
+                      uint32_t fg, uint32_t bg, int32_t scale, int draw_bg) {
+    if (scale < 1) scale = 1;
+    int32_t cx = x;
+    while (*str) {
+        /* font8x16 is indexed from ASCII 0x20 (space): entry i is glyph (i+32).
+         * This VGA face's lowercase glyphs are unreliable, so fold a..z to A..Z
+         * (the ZXV shell reads clean in the uppercase face). */
+        uint8_t raw = (uint8_t)*str;
+        if (raw >= 'a' && raw <= 'z') raw = (uint8_t)(raw - 32);
+        int32_t ch = (int32_t)raw - 32;
+        if (ch < 0 || ch >= 128) ch = 0;
+        for (int32_t row = 0; row < 16; row++) {
+            uint8_t bits = font8x16[ch][row];
+            for (int32_t col = 0; col < 8; col++) {
+                int on = (bits & (0x80 >> col)) != 0;
+                if (!on && !draw_bg) continue;
+                uint32_t color = on ? fg : bg;
+                for (int32_t sy = 0; sy < scale; sy++)
+                    for (int32_t sx = 0; sx < scale; sx++)
+                        vbe_set_pixel(vbe, cx + col * scale + sx, y + row * scale + sy, color);
+            }
+        }
+        cx += 8 * scale;
+        str++;
+    }
+}
+
 void vbe_draw_char(vbe_state_t *vbe, int32_t x, int32_t y, char c, uint32_t fg, uint32_t bg) {
-    uint8_t ch = (uint8_t)c;
-    if (ch >= 128) ch = 0;
+    int32_t ch = (int32_t)(uint8_t)c - 32;   /* font8x16 starts at ASCII 0x20 */
+    if (ch < 0 || ch >= 128) ch = 0;
     for (int32_t row = 0; row < 16; row++) {
         uint8_t bits = font8x16[ch][row];
         for (int32_t col = 0; col < 8; col++) {

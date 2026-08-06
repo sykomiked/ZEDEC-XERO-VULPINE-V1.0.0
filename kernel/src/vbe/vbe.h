@@ -38,6 +38,8 @@ void vbe_fill_rect(vbe_state_t *vbe, int32_t x, int32_t y, int32_t w, int32_t h,
 void vbe_draw_line(vbe_state_t *vbe, int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t color);
 void vbe_clear_screen(vbe_state_t *vbe, uint32_t color);
 void vbe_draw_char(vbe_state_t *vbe, int32_t x, int32_t y, char c, uint32_t fg, uint32_t bg);
+void vbe_draw_text_ex(vbe_state_t *vbe, int32_t x, int32_t y, const char *str,
+                      uint32_t fg, uint32_t bg, int32_t scale, int draw_bg);
 void vbe_draw_string(vbe_state_t *vbe, int32_t x, int32_t y, const char *str, uint32_t fg, uint32_t bg);
 
 #define RGB(r,g,b) (((uint32_t)(r) << 16) | ((uint32_t)(g) << 8) | (uint32_t)(b))

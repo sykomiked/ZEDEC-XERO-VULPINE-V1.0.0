@@ -89,6 +89,15 @@ extern void el0_set_scheduler(proc_scheduler_t *ps);
 #include "../src/immigration/immigration.h"
 #include "../src/robin_debanks/robin_debanks.h"
 #include "../src/prism_break/prism_break.h"
+#include "../src/video/ramfb.h"      /* universal QEMU scanout (fw_cfg ramfb) */
+#include "../src/vbe/vbe.h"          /* framebuffer draw primitives            */
+#include "../src/desktop/zxv_shell.h"/* the ZEDEC pqOS desktop shell           */
+/* virtio-input driver (arch/arm64/virtio_input.c) — mouse/tablet/keyboard */
+extern bool     virtio_input_probe(void);
+extern void     virtio_input_poll(void);
+extern void     virtio_input_get(int32_t *x, int32_t *y, uint32_t *buttons);
+extern void     virtio_input_set_bounds(int32_t w, int32_t h);
+extern uint32_t virtio_input_device_count(void);
 #include "../src/net/jdr_piratenet.h"
 
 /* KERNEL_SIM_DEVICES gates subsystems that model devices/claims with no
@@ -164,6 +173,7 @@ static mesh_net_t mesh_net;
 static immigration_t immigration;
 static robin_vault_t robin_vault;
 static prism_break_t prism_break;
+static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives redraw */
 static ev_scheduler_t evs;
 static ev_sequencer_t ev_seq;
 static ev_audit_t ev_audit;
@@ -222,7 +232,7 @@ static void knet_tx(const uint8_t *data, uint32_t len) {
  * must still work in that case. It exists because LEGACY PEERS measure their
  * round trips in milliseconds, so having a rough conversion available makes
  * us a better neighbour on their networks. */
-static uint64_t mono_ms(void) {
+static uint64_t __attribute__((unused)) mono_ms(void) {
     uint64_t cnt, frq;
     __asm__ volatile("mrs %0, CNTVCT_EL0" : "=r"(cnt));
     __asm__ volatile("mrs %0, CNTFRQ_EL0" : "=r"(frq));
@@ -1109,8 +1119,40 @@ void kernel_main_arm64(void) {
      * touch ripples (expanding wavefronts), chromatic aberration, and
      * vignette. All integer math, no GPU required. */
     boot_msg("[BOOT] Prism Break holographic touchscreen shader...");
-    pb_init(&prism_break, 854, 480);
+    pb_init(&prism_break, 1280, 720);   /* 720p — stride is a multiple of 16 (no shear) */
     boot_msg("  [INITIALIZED] 6-layer compositor (prism + scanlines + ripples + aberration)");
+
+    /* Phase 17b+: bind a REAL display. Render one frame, then hand its linear
+     * framebuffer to QEMU's ramfb scanout over fw_cfg. Universal: the same
+     * device exists on arm64/x86_64/riscv 'virt'. Requires -device ramfb; if it
+     * is absent, ramfb_init fails and we stay on the serial console (honest). */
+    boot_msg("[BOOT] ramfb display scanout (fw_cfg)...");
+    pb_render_frame(&prism_break);
+    {
+        uint32_t *fb = pb_get_framebuffer(&prism_break);
+        int rc = ramfb_init(fb, 1280, 720);
+        if (rc == 0) {
+            /* Draw the ZEDEC pqOS desktop over the prism background, then it is
+             * live on screen (ramfb scans this same buffer out continuously). */
+            static vbe_state_t g_vbe;
+            vbe_init_fb(&g_vbe, 1280, 720, 32, (uint32_t)(uintptr_t)fb);
+            zxv_shell_render(&g_vbe, 632, 360, prism_break.frames_rendered);
+            g_desktop_vbe = &g_vbe;   /* the event loop keeps animating it */
+            boot_msg("  [DRIVER ONLINE] ramfb 1280x720 — ZEDEC desktop is on screen");
+            /* virtio-input: one driver -> mouse + tablet + keyboard on any
+             * hypervisor. Makes the desktop clickable. */
+            if (virtio_input_probe()) {
+                virtio_input_set_bounds(1280, 720);
+                boot_msg("  [DRIVER ONLINE] virtio-input — pointer + keyboard live");
+            } else {
+                boot_msg("  [SKIP] no virtio-input (add -device virtio-tablet-device)");
+            }
+        } else if (rc == -2) {
+            boot_msg("  [SKIP] no ramfb device (launch QEMU with -device ramfb)");
+        } else {
+            boot_msg("  [SKIP] ramfb init failed; staying on serial console");
+        }
+    }
 
     /* Phase 17c: Virtual Filesystem + RAM Disk
      * Mounts a FAT32-formatted RAM disk as the root filesystem.
@@ -1789,6 +1831,18 @@ void kernel_event_cycle_run(void) {
     /* External-clock bridge: the projector's subframe timing is
      * bridged as one tick per event cycle, never a wall-clock poll. */
     dlp_projector_tick(&projector);
+
+    /* Desktop: poll the mouse/keyboard and repaint so the pointer tracks the
+     * device. Throttled (every 4th cycle) to keep the compositor light; the
+     * prism background is re-rendered then the shell is drawn over it with the
+     * live cursor position. */
+    if (g_desktop_vbe && (g_event_cycle % 4 == 0)) {
+        virtio_input_poll();
+        int32_t cx = 0, cy = 0; uint32_t btn = 0;
+        virtio_input_get(&cx, &cy, &btn);
+        pb_render_frame(&prism_break);
+        zxv_shell_render(g_desktop_vbe, cx, cy, prism_break.frames_rendered);
+    }
 
     if (g_auto_stats && g_event_cycle % 100 == 0) {
         uart_puts("tick: omega=");
