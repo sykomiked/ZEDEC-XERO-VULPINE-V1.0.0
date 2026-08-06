@@ -185,9 +185,52 @@ static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives red
 #define ZXV_FB_W 1280u
 #define ZXV_FB_H 720u
 static uint32_t g_scanout[ZXV_FB_W * ZXV_FB_H] __attribute__((aligned(64)));
+
+/* ---- holographic present: color <-> anti-color, grounded in Tri-Space ----
+ * The composed frame is S+ (each colour C). Its per-channel complement 255-C is
+ * S- (the honest inverse). A phase-tick interference field v(x,y) picks the local
+ * valence: v>0 leans to S+ (its colour), v<0 to S- (its anti-colour), v~0 to S0.
+ * The transform is nonlinear and complement-based: out = C + v*(255-2C)>>k. The
+ * (255-2C) term is ZERO at mid-grey, so neutral (S0) is stable while colour
+ * breathes toward its negative in travelling waves — the glut (LPRES BOTH) is the
+ * shimmer. Not decoration: it is the kernel's own positive/negative/neutral logic
+ * rendered as light. g_holo on/off + strength are the knobs. */
+static const signed char g_sin64[64] = {
+ 0,10,20,29,38,47,56,63,71,77,83,88,92,96,98,100,100,100,98,96,92,88,83,77,71,63,56,47,38,29,20,10,
+ 0,-10,-20,-29,-38,-47,-56,-63,-71,-77,-83,-88,-92,-96,-98,-100,-100,-100,-98,-96,-92,-88,-83,-77,-71,-63,-56,-47,-38,-29,-20,-10};
+static int g_holo = 1;                 /* holographic present on/off */
+static int g_holo_k = 12;              /* shift: bigger = subtler (12 ~= 5%) */
+static uint32_t g_holo_phase = 0;
+static int16_t g_wx[ZXV_FB_W], g_wy[ZXV_FB_H];
+
 static void zxv_present(const uint32_t *back) {
-    uint32_t *d = g_scanout;
-    for (uint32_t i = 0; i < ZXV_FB_W * ZXV_FB_H; i++) d[i] = back[i];
+    if (!g_holo) {                                   /* plain copy path */
+        for (uint32_t i = 0; i < ZXV_FB_W * ZXV_FB_H; i++) g_scanout[i] = back[i];
+        return;
+    }
+    uint32_t ph = g_holo_phase++;
+    /* two travelling waves; their sum at (x,y) is the local valence v */
+    for (uint32_t x = 0; x < ZXV_FB_W; x++) g_wx[x] = g_sin64[((x >> 4) + ph) & 63];
+    for (uint32_t y = 0; y < ZXV_FB_H; y++) g_wy[y] = g_sin64[((y >> 4) - ph + (ph >> 1)) & 63];
+    for (uint32_t y = 0; y < ZXV_FB_H; y++) {
+        int32_t vy = g_wy[y];
+        const uint32_t *br = back + (uint64_t)y * ZXV_FB_W;
+        uint32_t *dr = g_scanout + (uint64_t)y * ZXV_FB_W;
+        for (uint32_t x = 0; x < ZXV_FB_W; x++) {
+            int32_t v = vy + g_wx[x];                 /* [-200,200]: S- .. S0 .. S+ */
+            uint32_t c = br[x];
+            int32_t r = (int32_t)((c >> 16) & 0xFF);
+            int32_t g = (int32_t)((c >> 8) & 0xFF);
+            int32_t b = (int32_t)(c & 0xFF);
+            r += (v * (255 - 2 * r)) >> g_holo_k;     /* toward anti-colour, grey-stable */
+            g += (v * (255 - 2 * g)) >> g_holo_k;
+            b += (v * (255 - 2 * b)) >> g_holo_k;
+            if (r < 0) r = 0; else if (r > 255) r = 255;
+            if (g < 0) g = 0; else if (g > 255) g = 255;
+            if (b < 0) b = 0; else if (b > 255) b = 255;
+            dr[x] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+        }
+    }
 }
 static zxv_shell_state_t g_shell;        /* interactive desktop state (clicks/keys) */
 static ev_scheduler_t evs;
@@ -1863,6 +1906,13 @@ void kernel_event_cycle_run(void) {
         int32_t key;
         while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
         if (g_event_cycle % 6 == 0) {
+            /* The compositor is several ms of work and runs from the timer-IRQ
+             * hook. Mask IRQs for its duration so a nested IRQ can't clobber its
+             * callee-saved registers (which produced wild pointers -> data
+             * aborts). Save+restore DAIF so we don't change the caller's state. */
+            unsigned long daif;
+            __asm__ __volatile__("mrs %0, daif" : "=r"(daif));
+            __asm__ __volatile__("msr daifset, #2" ::: "memory");
             g_desktop_busy = 1;
             int32_t cx = 0, cy = 0; uint32_t btn = 0;
             virtio_input_get(&cx, &cy, &btn);
@@ -1870,6 +1920,7 @@ void kernel_event_cycle_run(void) {
             zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered);
             zxv_present(pb_get_framebuffer(&prism_break));   /* show a COMPLETE frame */
             g_desktop_busy = 0;
+            __asm__ __volatile__("msr daif, %0" :: "r"(daif) : "memory");
         }
     }
 
