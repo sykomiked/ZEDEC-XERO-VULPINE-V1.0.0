@@ -33,4 +33,9 @@ typedef void (*bf_puts_t)(const char *);
  * default so boot still demonstrates the path. */
 unsigned boot_features_init(bf_puts_t puts, unsigned cpu_cores, unsigned mem_mb);
 
+/* Bring up the economy foundation (The One Policy, the nine-form capital
+ * substrate, the Crown and Ministry pillars, the content-addressed spine) on top
+ * of the platform layer. Returns the count that self-checked OK (out of 5). */
+unsigned boot_economy_init(bf_puts_t puts);
+
 #endif /* ZXV_BOOT_FEATURES_H */

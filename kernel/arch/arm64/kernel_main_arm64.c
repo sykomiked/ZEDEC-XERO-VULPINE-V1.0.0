@@ -1625,6 +1625,7 @@ void kernel_main_arm64(void) {
      * reality brought up on top of the M5 core. Emitted raw (its own lines),
      * in phase-tick order, no wall-clock read. cores/mem 0 => probe-default. */
     boot_features_init(uart_puts, 0, 0);
+    boot_economy_init(uart_puts);
 
     /* Phase 18: Enable interrupts and enter event loop */
     boot_msg("\n[BOOT] ZEDEC pqOS [ARM64] — All systems online.");

@@ -218,6 +218,18 @@ test:
 verify-all: test
 	@echo "=== The One Policy: Symbiotic Maxim (void-by-definition) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/onepolicy -Isrc/surplus src/onepolicy/test_onepolicy.c src/onepolicy/onepolicy.c -o /tmp/test_onepolicy -lm && /tmp/test_onepolicy && echo "[PASS] test_onepolicy" || { echo "[FAIL] test_onepolicy"; exit 1; }
+	@echo "=== zcapital: nine-form capital substrate + inalienability wall ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/surplus src/zcapital/test_zcapital.c src/zcapital/zcapital.c -o /tmp/test_zcapital -lm && /tmp/test_zcapital && echo "[PASS] test_zcapital" || { echo "[FAIL] test_zcapital"; exit 1; }
+	@echo "=== ipfs: content-addressed self-certifying get (the smuggler's hold) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/ipfs -Isrc/robin_debanks -Isrc/update -Isrc/bridge -Isrc/surplus src/ipfs/test_ipfs.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/bridge/bridge.c -o /tmp/test_ipfs -lm && /tmp/test_ipfs && echo "[PASS] test_ipfs" || { echo "[FAIL] test_ipfs"; exit 1; }
+	@echo "=== crown: the Sicilian Crown pillar (ISC, 7-step registration, CHN) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/crown -Isrc/zcapital -Isrc/identity -Isrc/robin_debanks -Isrc/onepolicy -Isrc/surplus -Isrc/edp_risk src/crown/test_crown.c src/crown/crown.c src/onepolicy/onepolicy.c src/robin_debanks/ed25519_verify.c src/robin_debanks/sha256.c -o /tmp/test_crown -lm && /tmp/test_crown && echo "[PASS] test_crown" || { echo "[FAIL] test_crown"; exit 1; }
+	@echo "=== ministry: the Illumaheart Foundation pillar (treasury, tribute/gratuity) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/ministry -Isrc/zcapital -Isrc/finance -Isrc/vino -Isrc/surplus -Isrc/onepolicy -Isrc/edp_risk src/ministry/test_ministry.c src/ministry/ministry.c src/finance/triple_ledger.c src/zcapital/zcapital.c src/onepolicy/onepolicy.c -o /tmp/test_ministry -lm && /tmp/test_ministry && echo "[PASS] test_ministry" || { echo "[FAIL] test_ministry"; exit 1; }
+	@echo "=== anti-capture: Crown issues no money, Ministry issues no credentials ==="; \
+	( grep -E '^[[:space:]]*#include' src/crown/crown.c | grep -iE 'ledger|vino|wallet|ministry|finance|voucher|treasury' && { echo "[FAIL] crown.c includes a money header"; exit 1; } ; \
+	  grep -E '^[[:space:]]*#include' src/ministry/ministry.c | grep -iE '"crown' && { echo "[FAIL] ministry.c includes crown"; exit 1; } ; \
+	  echo "[PASS] anti-capture separation holds (corruption would be a build error)" )
 	@echo "=== platform license: four-instrument share-alike stack ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/license src/license/test_license.c src/license/license.c -o /tmp/test_license && /tmp/test_license && echo "[PASS] test_license" || { echo "[FAIL] test_license"; exit 1; }
 	@echo "=== Crypto KATs ==="; \

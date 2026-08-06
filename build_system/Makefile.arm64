@@ -71,7 +71,8 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/lightningrod \
          -Ikernel/src/bios \
          -Ikernel/src/chiglet -Ikernel/src/cards -Ikernel/src/refinery -Ikernel/src/concord -Ikernel/src/wyrmgate -Ikernel/src/wyverneye -Ikernel/src/chronicle \
-         -Ikernel/src/deploy -Ikernel/src/theme -Ikernel/src/icon -Ikernel/src/font -Ikernel/src/bridge -Ikernel/src/update -Ikernel/src/mage -Ikernel/src/reality -Ikernel/src/bootfeat
+         -Ikernel/src/deploy -Ikernel/src/theme -Ikernel/src/icon -Ikernel/src/font -Ikernel/src/bridge -Ikernel/src/update -Ikernel/src/mage -Ikernel/src/reality -Ikernel/src/bootfeat \
+         -Ikernel/src/onepolicy -Ikernel/src/zcapital -Ikernel/src/ipfs -Ikernel/src/crown -Ikernel/src/ministry
 
 LDFLAGS = -T kernel/arch/arm64/linker.ld -nostdlib -static -Wl,--gc-sections
 LIBGCC = $(shell $(CC) -print-libgcc-file-name 2>/dev/null || echo /usr/lib/gcc-cross/aarch64-linux-gnu/13/libgcc.a)
@@ -223,7 +224,12 @@ KERNEL_SRCS = \
     kernel/src/update/update.c \
     kernel/src/mage/mage.c \
     kernel/src/reality/reality.c \
-    kernel/src/bootfeat/boot_features.c
+    kernel/src/bootfeat/boot_features.c \
+    kernel/src/onepolicy/onepolicy.c \
+    kernel/src/zcapital/zcapital.c \
+    kernel/src/ipfs/ipfs.c \
+    kernel/src/crown/crown.c \
+    kernel/src/ministry/ministry.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
 

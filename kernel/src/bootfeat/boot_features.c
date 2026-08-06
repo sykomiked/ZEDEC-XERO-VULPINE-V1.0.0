@@ -15,6 +15,11 @@
 #include "mage.h"
 #include "reality.h"
 #include "sigil.h"
+#include "onepolicy.h"
+#include "zcapital.h"
+#include "crown.h"
+#include "ministry.h"
+#include "ipfs.h"
 
 /* ---- local, libc-free number -> decimal, appended into a small buffer ---- */
 static char *u2s(char *p, unsigned v) {
@@ -25,6 +30,62 @@ static char *u2s(char *p, unsigned v) {
     *p = 0; return p;
 }
 static char *scat(char *p, const char *s) { while (*s) *p++ = *s++; *p = 0; return p; }
+
+/* Economy foundation roll-call: The One Policy, the nine-form capital substrate,
+ * the two anti-capture pillars, and the content-addressed spine. Each line is
+ * only printed after a REAL call succeeds — nothing is asserted for show. */
+unsigned boot_economy_init(bf_puts_t puts) {
+    if (!puts) return 0;
+    unsigned ok = 0;
+    puts("[FEAT] Economy foundation (One Policy + pillars)...\n");
+
+    /* onepolicy: the Symbiotic Maxim admits a fair term and voids usury */
+    {
+        op_term_t fair = {0};
+        fair.give_a = SR_FROM_INT(1); fair.give_b = SR_FROM_INT(1); fair.reciprocal = true;
+        op_term_t usury = fair; usury.interest = SR_FROM_INT(1);
+        if (op_symbiotic_ok(&fair) && !op_symbiotic_ok(&usury)) {
+            puts("  [OK] onepolicy: Symbiotic Maxim active (fair term admitted, usury voided)\n"); ok++;
+        } else puts("  [??] onepolicy\n");
+    }
+    /* zcapital: you cannot buy a Crown form */
+    {
+        zcap_vec_t v = {0}; v.bal[ZCAP_FINANCIAL] = SR_FROM_INT(100);
+        if (zcap_exchange(&v, ZCAP_FINANCIAL, ZCAP_CULTURAL, SR_FROM_INT(1)) == ZCAP_INALIENABLE) {
+            puts("  [OK] zcapital: nine capital forms; Crown capital inalienable (no price on a language)\n"); ok++;
+        } else puts("  [??] zcapital\n");
+    }
+    /* crown: issue a sovereign credential via the 7-step registration */
+    {
+        static crown_t cr; crown_init(&cr);
+        uint8_t subject[32]; for (int i = 0; i < 32; i++) subject[i] = (uint8_t)i;
+        crown_isc_t isc;
+        if (crown_register(&cr, subject, CROWN_ID_DID,
+                           CROWN_CAP_GRIDCHAIN | CROWN_CAP_VINO_SETTLE, &isc) >= 0) {
+            puts("  [OK] crown: the Sicilian Crown issued a sovereign credential (issues no money)\n"); ok++;
+        } else puts("  [??] crown\n");
+    }
+    /* ministry: tribute is exactly 11% (and it issues no credentials) */
+    {
+        if (SR_CMP(ministry_tribute(SR_FROM_INT(100)), SR_FROM_INT(11)) == 0) {
+            puts("  [OK] ministry: the Illumaheart treasury measures value (tribute 11%, issues no papers)\n"); ok++;
+        } else puts("  [??] ministry\n");
+    }
+    /* ipfs: the content address of "abc" is the FIPS-180-4 SHA-256 (ba78...) */
+    {
+        uint8_t cid[32];
+        ipfs_cid_from_bytes((const uint8_t *)"abc", 3, cid);
+        if (cid[0] == 0xba && cid[1] == 0x78) {
+            puts("  [OK] ipfs: content-addressed spine up (your hash is your key)\n"); ok++;
+        } else puts("  [??] ipfs\n");
+    }
+
+    {
+        char line[96]; char *p = scat(line, "[FEAT] economy foundation up: ");
+        p = u2s(p, ok); p = scat(p, "/5 self-checked\n"); puts(line);
+    }
+    return ok;
+}
 
 unsigned boot_features_init(bf_puts_t puts, unsigned cpu_cores, unsigned mem_mb) {
     if (!puts) return 0;
