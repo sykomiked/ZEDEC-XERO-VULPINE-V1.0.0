@@ -241,7 +241,10 @@ KERNEL_SRCS = \
     kernel/src/battering_ram/battering_ram.c \
     kernel/src/finance_markets/finance_markets.c \
     kernel/src/iso20022/iso20022.c \
-    kernel/src/alloc/alloc.c
+    kernel/src/alloc/alloc.c \
+    kernel/src/pirate_fleet/pirate_fleet.c \
+    kernel/src/social_spaces/social.c \
+    kernel/src/reputation/reputation.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
 
