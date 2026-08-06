@@ -175,6 +175,20 @@ static immigration_t immigration;
 static robin_vault_t robin_vault;
 static prism_break_t prism_break;
 static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives redraw */
+
+/* ---- double buffering ----
+ * The compositor draws into the prism BACK buffer, then we present a COMPLETE
+ * frame by copying it to this scanout buffer, which is the ONLY thing QEMU/GOP
+ * scans out. Without this, the screen shows the buffer mid-compose — each region
+ * erased then repainted in turn — which reads as parts flickering independently.
+ * With it, the display only ever holds finished frames. */
+#define ZXV_FB_W 1280u
+#define ZXV_FB_H 720u
+static uint32_t g_scanout[ZXV_FB_W * ZXV_FB_H] __attribute__((aligned(64)));
+static void zxv_present(const uint32_t *back) {
+    uint32_t *d = g_scanout;
+    for (uint32_t i = 0; i < ZXV_FB_W * ZXV_FB_H; i++) d[i] = back[i];
+}
 static zxv_shell_state_t g_shell;        /* interactive desktop state (clicks/keys) */
 static ev_scheduler_t evs;
 static ev_sequencer_t ev_seq;
@@ -1131,15 +1145,15 @@ void kernel_main_arm64(void) {
     boot_msg("[BOOT] ramfb display scanout (fw_cfg)...");
     pb_render_frame(&prism_break);
     {
-        uint32_t *fb = pb_get_framebuffer(&prism_break);
-        int rc = ramfb_init(fb, 1280, 720);
+        uint32_t *fb = pb_get_framebuffer(&prism_break);   /* the BACK buffer */
+        int rc = ramfb_init(g_scanout, 1280, 720);          /* QEMU scans out g_scanout */
         if (rc == 0) {
-            /* Draw the ZEDEC pqOS desktop over the prism background, then it is
-             * live on screen (ramfb scans this same buffer out continuously). */
+            /* Compose into the back buffer, then present a complete frame. */
             static vbe_state_t g_vbe;
             vbe_init_fb(&g_vbe, 1280, 720, 32, (uint32_t)(uintptr_t)fb);
             zxv_shell_init(&g_shell);
             zxv_shell_frame(&g_shell, &g_vbe, 632, 360, 0, prism_break.frames_rendered);
+            zxv_present(fb);
             g_desktop_vbe = &g_vbe;   /* the event loop keeps animating it */
             boot_msg("  [DRIVER ONLINE] ramfb 1280x720 — ZEDEC desktop is on screen");
             /* virtio-input: one driver -> mouse + tablet + keyboard on any
@@ -1854,6 +1868,7 @@ void kernel_event_cycle_run(void) {
             virtio_input_get(&cx, &cy, &btn);
             pb_render_frame(&prism_break);
             zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered);
+            zxv_present(pb_get_framebuffer(&prism_break));   /* show a COMPLETE frame */
             g_desktop_busy = 0;
         }
     }
