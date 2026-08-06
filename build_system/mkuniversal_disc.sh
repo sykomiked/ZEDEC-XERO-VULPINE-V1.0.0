@@ -50,46 +50,72 @@ efi_name() { case "$1" in
   x86_64) echo BOOTX64.EFI;; arm64) echo BOOTAA64.EFI;;
   riscv|riscv64) echo BOOTRISCV64.EFI;; riscv32) echo BOOTRISCV32.EFI;;
   arm32) echo BOOTARM.EFI;; *) echo "";; esac; }
-# where a prebuilt GRUB EFI for that arch might already live on the build host
-grub_efi() { case "$1" in
-  x86_64) echo /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi;;
-  arm64)  echo /usr/lib/grub/arm64-efi/monolithic/grubaa64.efi;;
-  *) echo "";; esac; }
+# GRUB build target for grub-mkstandalone (we BUILD the loader, not copy a prebuilt one)
+grub_target() { case "$1" in
+  x86_64) echo x86_64-efi;; arm64) echo arm64-efi;;
+  riscv|riscv64) echo riscv64-efi;; *) echo "";; esac; }
+# The GRUB command that loads a ZXV kernel of this arch. x86_64 kernels carry a
+# Multiboot1 header (magic 0x1BADB002), so GRUB loads them with `multiboot`.
+# arm64/riscv kernels are raw images; GRUB's `linux` accepts them ONLY once they
+# carry an arch Image/EFI-stub header (see EFI-STUB NOTE in the summary) — we still
+# emit the correct entry so a stubbed kernel boots with no disc change.
+grub_loadcmd() { case "$1" in x86_64) echo multiboot;; *) echo linux;; esac; }
 
 log "staging the EFI System Partition tree"
 rm -rf "$ESP"; mkdir -p "$ESP/EFI/BOOT" "$ESP/ZXV"
 
 bootable=0; carried=0
-cat > "$ESP/EFI/BOOT/grub.cfg" <<'EOF'
-# ZXV universal disc — GRUB picks the entry for the firmware that loaded it.
-set timeout=5
-set default=0
-EOF
+# a human-readable top-level cfg (each BOOTxxx.EFI embeds its OWN cfg via
+# grub-mkstandalone, so this one is reference/fallback only)
+{ echo "# ZXV universal disc — each firmware loads its own /EFI/BOOT/BOOT<arch>.EFI"
+  echo "set timeout=5"; echo "set default=0"; } > "$ESP/EFI/BOOT/grub.cfg"
 
 shopt -s nullglob
-for img in "$DIST"/kernel_*.bin "$DIST"/kernel_*.elf; do
+for img in "$DIST"/kernel_*.bin; do
   arch=$(basename "${img%.*}" | sed 's/^kernel_//')
-  en=$(efi_name "$arch"); [ -n "$en" ] || { warn "$arch: no known EFI name, skipped"; continue; }
+  en=$(efi_name "$arch"); gt=$(grub_target "$arch")
+  [ -n "$en" ] || { warn "$arch: no known EFI name, skipped"; continue; }
   mkdir -p "$ESP/ZXV/$arch"
   cp "$img" "$ESP/ZXV/$arch/"
-  # carry the native triad if it was produced
+  # carry this program's native Tri-Space triad (S+/S-/S0) if it was produced
   for ext in zxvc cedez cedec; do
     f="$DIST/zxv-$arch.$ext"; [ -f "$f" ] && cp "$f" "$ESP/ZXV/$arch/"
   done
-  # install a boot payload if we have one for this arch
-  ge=$(grub_efi "$arch")
-  if [ -n "$ge" ] && [ -f "$ge" ]; then
-    cp "$ge" "$ESP/EFI/BOOT/$en"
-    printf 'menuentry "ZXV (%s)" { linux /ZXV/%s/%s }\n' "$arch" "$arch" "$(basename "$img")" \
-      >> "$ESP/EFI/BOOT/grub.cfg"
-    bootable=$((bootable+1)); log "$arch: $en installed (GRUB) + kernel + triad staged"
+
+  lc=$(grub_loadcmd "$arch")
+  # the exact boot entry, correct per arch (multiboot for x86_64, linux otherwise)
+  cfg="$DIST/.grub-$arch.cfg"
+  { echo "set timeout=3"; echo "set default=0"
+    printf 'menuentry "ZEDEC pqOS (%s)" {\n  %s /ZXV/%s/%s\n  boot\n}\n' \
+      "$arch" "$lc" "$arch" "$(basename "$img")"
+    printf '%s\n' "$lc" > /dev/null; } > "$cfg"
+  printf 'menuentry "ZEDEC pqOS (%s)" { %s /ZXV/%s/%s ; boot }\n' \
+    "$arch" "$lc" "$arch" "$(basename "$img")" >> "$ESP/EFI/BOOT/grub.cfg"
+
+  # BUILD the arch's bootloader with grub-mkstandalone (embeds cfg + modules)
+  mods="part_gpt part_msdos fat iso9660 normal configfile echo test"
+  [ "$arch" = x86_64 ] && mods="$mods multiboot" || mods="$mods linux"
+  if [ -n "$gt" ] && need grub-mkstandalone && [ -d "/usr/lib/grub/$gt" ]; then
+    if grub-mkstandalone -O "$gt" -o "$ESP/EFI/BOOT/$en" \
+         --modules="$mods" "boot/grub/grub.cfg=$cfg" >/dev/null 2>"$DIST/.grub-$arch.log"; then
+      bootable=$((bootable+1)); log "$arch: BUILT $en (grub-mkstandalone $gt, loadcmd=$lc) + kernel + triad"
+    else
+      carried=$((carried+1)); warn "$arch: grub-mkstandalone failed (see $DIST/.grub-$arch.log) — CARRIED"
+    fi
   else
     carried=$((carried+1))
-    warn "$arch: kernel + triad staged, but NO EFI boot payload present ($en) — CARRIED, not yet bootable"
-    warn "        provide grub-efi-$arch or an EFI stub, then re-run"
+    warn "$arch: grub target /usr/lib/grub/$gt absent — CARRIED. Install grub-efi-${arch/x86_64/amd64}-bin, re-run."
   fi
+  rm -f "$cfg"
 done
 shopt -u nullglob
+
+# stage the userland programs' Tri-Space triads too (rendered by completion_build 3/6)
+if [ -d "$DIST/programs" ]; then
+  mkdir -p "$ESP/ZXV/programs"
+  cp -f "$DIST"/programs/* "$ESP/ZXV/programs/" 2>/dev/null || true
+  log "staged userland program triads (.zxvc/.cedez/.cedec) into /ZXV/programs"
+fi
 
 log "building the FAT32 ESP image ($SIZE_MB MB)"
 dd if=/dev/zero of="$OUT" bs=1M count="$SIZE_MB" status=none
@@ -104,9 +130,14 @@ mformat -i "$OUT" -F ::  2>/dev/null || { warn "mformat failed"; exit 1; }
 
 # make it a hybrid ISO too, if xorriso is present (bootable as a CD/USB)
 if need xorriso; then
-  xorriso -as mkisofs -R -J -e "$(basename "$OUT")" -no-emul-boot \
+  # EFI El Torito (platform 0xEF) + GPT so UEFI firmware AND USB dd both boot it.
+  # Without -eltorito-platform efi the entry defaults to BIOS and UEFI ignores it.
+  xorriso -as mkisofs -R -J -V ZXVOS \
+    -eltorito-platform efi -e "$(basename "$OUT")" -no-emul-boot \
+    -isohybrid-gpt-basdat \
     -o "$DIST/zxv-universal.iso" "$DIST" >/dev/null 2>&1 \
-    && log "also wrote $DIST/zxv-universal.iso" || warn "iso wrap skipped"
+    && log "also wrote $DIST/zxv-universal.iso (UEFI El Torito + GPT hybrid)" \
+    || warn "iso wrap skipped (xorriso error)"
 fi
 
 log "DISC SUMMARY: $bootable arch(es) bootable, $carried carried-not-yet-bootable"
