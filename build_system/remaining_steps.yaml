@@ -1,0 +1,152 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+#
+# remaining_steps.yaml — what is LEFT after the three 64-bit kernels are built.
+# Companion to SERVER_HANDOVER.md / handover.json. Governing rule unchanged:
+# no hollow capabilities — OK only when an artifact is produced AND a gate passes.
+
+schema_name: zedec-pqos-remaining-steps
+schema_version: "1.0.0"
+generated: "2026-08-06"
+repo_root_on_server: /home/ionet/ZEDEC_pqOS_CLEAN
+ssh: 'ssh -i ~/.ssh/id_ed25519_cascade ionet@154.54.100.163'
+
+status_so_far:
+  host_verify_all: "PASS (3593/0)"
+  arm64:  "built + boots 3/3 (BOOT_OK)"
+  x86_64: "built (64-bit)"
+  riscv64: "built (64-bit)"
+  device_boot_stretch_test: "virtio-net probe stalls on the server's QEMU version — OPTIONAL, non-blocking (plain boot already passes)"
+  arm32_riscv32: "DEFERRED — 32-bit is embedded-only, not needed for general-purpose targets"
+
+# ---------------------------------------------------------------------------
+# THE ONE DECISION: do you still need the server?
+# ---------------------------------------------------------------------------
+server_decision:
+  keep_binaries_only:
+    needs_server: false
+    action: "Run step 0 (retrieve_artifacts) to pull the 3 kernels to the Mac, then shut the server off. Nothing is lost."
+  finish_the_release:
+    needs_server: true
+    reason: "Steps 2-5 below need a Linux box with cross-toolchains, QEMU-per-arch, and disc tools (xorriso/mtools/grub). The Mac cannot link x86_64/riscv64 or run the multi-arch QEMU boot gate."
+  recompile_after_code_changes:
+    needs_server: true
+    reason: "Any source edit means re-cross-compiling x86_64/riscv64, which needs the toolchains the Mac lacks."
+  recommendation: >
+    Always run step 0 first (pull the binaries to the Mac — cheap insurance).
+    Then: if you only want the 3 kernels, shut it off. If you want the signed
+    universal release now, keep it on and run steps 2-5. You can also shut it
+    off and re-provision a fresh box later with provision_server.sh — the tree
+    is self-contained, so a new box reaches this exact state in one run.
+
+# ---------------------------------------------------------------------------
+# STEPS
+# ---------------------------------------------------------------------------
+steps:
+
+  - id: 0-retrieve-artifacts
+    title: "Pull the 3 built kernels back to the Mac"
+    needs_server: false          # runs FROM the Mac, reads the server
+    blocking: false
+    purpose: "Preserve the compiled binaries locally so the server can be shut off safely."
+    run_from: mac
+    command: |
+      mkdir -p ~/CascadeProjects/VIT_INDIA_PROPOSAL/ZEDEC_pqOS_CLEAN/artifacts
+      rsync -az -e "ssh -i ~/.ssh/id_ed25519_cascade" \
+        --include='kernel_arm64.*' --include='kernel_x86_64.*' --include='kernel_riscv.*' --exclude='*' \
+        ionet@154.54.100.163:/home/ionet/ZEDEC_pqOS_CLEAN/ \
+        ~/CascadeProjects/VIT_INDIA_PROPOSAL/ZEDEC_pqOS_CLEAN/artifacts/
+      file ~/CascadeProjects/VIT_INDIA_PROPOSAL/ZEDEC_pqOS_CLEAN/artifacts/*.elf
+    acceptance: "3 .elf report ELF64 for AArch64 / x86-64 / RISC-V; .bin are non-empty."
+    after_this: "If you only wanted the kernels, you may shut the server off here."
+
+  - id: 1-ci-gate
+    title: "Fail-closed acceptance gate (100 boots)"
+    needs_server: true
+    blocking: true               # the honest 'is it releasable' gate
+    purpose: "Clean build + verify-all + parser fuzzers + 100/100 arm64 boots to BOOT_OK, all under one fail-closed gate."
+    run_from: server
+    command: "cd /home/ionet/ZEDEC_pqOS_CLEAN && bash build_system/ci_gate.sh 100"
+    acceptance: "Gate prints GREEN: build clean, verify-all green, fuzzers green, 100/100 boots."
+    notes: "arm64 only for the boot count — it is the boot-verified target. x86_64/riscv64 boot-testing is step 2b."
+
+  - id: 2a-optional-32bit
+    title: "(Optional) finish the 32-bit builds"
+    needs_server: true
+    blocking: false
+    purpose: "riscv32 + arm32 — embedded/microcontroller editions. Not needed for general-purpose hardware."
+    run_from: server
+    command: |
+      cd /home/ionet/ZEDEC_pqOS_CLEAN
+      make -f build_system/Makefile.riscv32 2>&1 | tail -20
+      # arm32 needs an arm-none-eabi or arm-linux-gnueabihf toolchain:
+      make -f build_system/Makefile.arm32   2>&1 | tail -20
+    acceptance: "kernel_riscv32.bin / kernel_arm32.bin produced, or a recorded reason if skipped."
+    notes: "Deferred by choice. Do this only if you want an embedded target; it does not gate the 64-bit release."
+
+  - id: 2b-multiarch-boot-test
+    title: "(Optional) boot-test x86_64 + riscv64 under QEMU"
+    needs_server: true
+    blocking: false
+    purpose: "Confirm the non-arm64 64-bit kernels reach their BOOT_OK under their own QEMU."
+    run_from: server
+    command: |
+      cd /home/ionet/ZEDEC_pqOS_CLEAN
+      timeout 30 qemu-system-x86_64  -m 256M -nographic -kernel kernel_x86_64.bin 2>&1 | tail -20 || true
+      timeout 30 qemu-system-riscv64 -M virt -m 256M -nographic -kernel kernel_riscv.bin 2>&1 | tail -20 || true
+    acceptance: "Each prints its boot banner and BOOT_OK. NOTE: x86_64 is currently a MINIMAL kernel_main (no ring-3 yet — see handover work-item x86_64-ring3); label it 'boots, kernel-only' until parity is done."
+
+  - id: 3-universal-disc
+    title: "Universal multi-arch disc (UEFI ESP)"
+    needs_server: true
+    blocking: false
+    purpose: "One GPT+FAT32 ESP that boots on multiple arches' firmware."
+    run_from: server
+    prerequisites:
+      - "Linux tools: xorriso, mtools, grub-pc-bin (installed by provision_server.sh)"
+      - "PER-ARCH EFI PAYLOADS at /EFI/BOOT/BOOT{X64,AA64,RISCV64}.EFI — a P0 gap (handover work-item efi-payloads); each kernel must be wrapped as / chainloaded by a UEFI PE binary. NOT built yet."
+    command: "cd /home/ionet/ZEDEC_pqOS_CLEAN && bash build_system/mkuniversal_disc.sh"
+    acceptance: "A disc image that boots on >=2 arches' firmware in QEMU (OVMF for x86_64, AAVMF/edk2 for arm64)."
+    notes: "Blocked until the EFI payloads exist. If you don't need a bootable disc, skip to step 5."
+
+  - id: 4-universal-vm
+    title: "Universal VM images"
+    needs_server: true           # qemu-img; could run on the Mac if qemu-img is installed
+    blocking: false
+    purpose: "zxv.raw + zxv.ova (+ qcow2/vmdk/vhdx/vdi if qemu-img present)."
+    run_from: server
+    prerequisites: ["qemu-img", "the universal disc from step 3 as input"]
+    command: "cd /home/ionet/ZEDEC_pqOS_CLEAN && bash build_system/mkuniversal_vm.sh"
+    acceptance: "zxv.raw + zxv.ova produced; opens in >=1 hypervisor."
+
+  - id: 5-sign-release
+    title: "Sign the native-format release"
+    needs_server: true
+    blocking: true               # the shippable artifact
+    purpose: "Wrap the Tri-Space seal in a ZSP Ed25519 envelope, verifiable on-target against the root key."
+    run_from: server
+    secrets:
+      root_key: "Supplied out-of-band via ROOT_KEY=/secure/root_priv.pem. NEVER in the repo. The gitignored build_system/keys/root_priv.pem is a DEV placeholder — do not ship anything signed with it."
+    command: "cd /home/ionet/ZEDEC_pqOS_CLEAN && ROOT_KEY=/secure/root_priv.pem bash build_system/sign_release.sh"
+    acceptance: "zxpkg_verify_release confirms triad-intact AND signature-vs-real-root-key."
+
+  - id: 6-retrieve-and-teardown
+    title: "Pull final artifacts, then shut the server off"
+    needs_server: false
+    blocking: false
+    purpose: "Bring the disc/VM/signed release to the Mac, then power down the paid box."
+    run_from: mac
+    command: |
+      rsync -az -e "ssh -i ~/.ssh/id_ed25519_cascade" \
+        --include='*.iso' --include='*.raw' --include='*.ova' --include='*.qcow2' \
+        --include='*.zsp' --include='*.seal' --include='kernel_*' --exclude='*' \
+        ionet@154.54.100.163:/home/ionet/ZEDEC_pqOS_CLEAN/ \
+        ~/CascadeProjects/VIT_INDIA_PROPOSAL/ZEDEC_pqOS_CLEAN/artifacts/
+      # then power the ionet instance down from its console / API.
+    acceptance: "All release artifacts on the Mac; server can be destroyed. Re-provision later with provision_server.sh if needed."
+
+# ---------------------------------------------------------------------------
+minimum_to_call_it_done:
+  for_64bit_kernels_only: ["0-retrieve-artifacts"]
+  for_a_verified_release: ["1-ci-gate", "5-sign-release", "6-retrieve-and-teardown"]
+  for_the_full_universal_media: ["1-ci-gate", "3-universal-disc", "4-universal-vm", "5-sign-release", "6-retrieve-and-teardown"]
