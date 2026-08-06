@@ -199,7 +199,7 @@ static const signed char g_sin64[64] = {
  0,10,20,29,38,47,56,63,71,77,83,88,92,96,98,100,100,100,98,96,92,88,83,77,71,63,56,47,38,29,20,10,
  0,-10,-20,-29,-38,-47,-56,-63,-71,-77,-83,-88,-92,-96,-98,-100,-100,-100,-98,-96,-92,-88,-83,-77,-71,-63,-56,-47,-38,-29,-20,-10};
 static int g_holo = 1;                 /* holographic present on/off */
-static int g_holo_k = 12;              /* shift: bigger = subtler (12 ~= 5%) */
+static int g_holo_k = 10;              /* shift: bigger = subtler (10 ~= 12%, visible) */
 static uint32_t g_holo_phase = 0;
 static int16_t g_wx[ZXV_FB_W], g_wy[ZXV_FB_H];
 
