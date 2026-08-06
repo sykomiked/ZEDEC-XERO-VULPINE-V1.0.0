@@ -88,8 +88,12 @@ static uint32_t s_ndev = 0;
 /* shared pointer/keyboard state the desktop reads */
 static int32_t s_cx = 640, s_cy = 360, s_w = 1280, s_h = 720;
 static uint32_t s_btn = 0;              /* bit0 = left, bit1 = right, bit2 = mid */
-static uint32_t s_last_key = 0;
 static uint32_t s_moves = 0, s_clicks = 0;
+
+/* a small ring of typed key-down keycodes the shell drains each frame */
+#define KEYQ_N 64u
+static uint16_t s_keyq[KEYQ_N];
+static uint32_t s_khead = 0, s_ktail = 0;
 
 static inline void mw(struct vin_dev *d, uint32_t off, uint32_t v) {
     *(volatile uint32_t *)(d->mmio + off) = v;
@@ -199,7 +203,10 @@ static void apply(const struct vin_event *e) {
         if (e->code == BTN_LEFT)   { if (e->value) { s_btn |= 1u; s_clicks++; } else s_btn &= ~1u; }
         else if (e->code == BTN_RIGHT)  { if (e->value) s_btn |= 2u; else s_btn &= ~2u; }
         else if (e->code == BTN_MIDDLE) { if (e->value) s_btn |= 4u; else s_btn &= ~4u; }
-        else if (e->value) s_last_key = e->code;   /* keyboard key-down */
+        else if (e->value) {                       /* keyboard key-down -> queue */
+            uint32_t nt = (s_ktail + 1u) % KEYQ_N;
+            if (nt != s_khead) { s_keyq[s_ktail] = e->code; s_ktail = nt; }
+        }
         break;
     default: break;   /* EV_SYN etc. */
     }
@@ -235,6 +242,13 @@ void virtio_input_get(int32_t *x, int32_t *y, uint32_t *buttons) {
     if (x) *x = s_cx;
     if (y) *y = s_cy;
     if (buttons) *buttons = s_btn;
+}
+/* pop one queued keyboard keycode (Linux evdev code), or -1 if none */
+int32_t virtio_input_pop_key(void) {
+    if (s_khead == s_ktail) return -1;
+    uint16_t k = s_keyq[s_khead];
+    s_khead = (s_khead + 1u) % KEYQ_N;
+    return (int32_t)k;
 }
 uint32_t virtio_input_device_count(void) { return s_ndev; }
 uint32_t virtio_input_event_count(void)  { return s_moves + s_clicks; }

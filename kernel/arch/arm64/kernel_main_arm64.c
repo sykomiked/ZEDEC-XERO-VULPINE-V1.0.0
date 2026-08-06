@@ -98,6 +98,7 @@ extern void     virtio_input_poll(void);
 extern void     virtio_input_get(int32_t *x, int32_t *y, uint32_t *buttons);
 extern void     virtio_input_set_bounds(int32_t w, int32_t h);
 extern uint32_t virtio_input_device_count(void);
+extern int32_t  virtio_input_pop_key(void);
 #include "../src/net/jdr_piratenet.h"
 
 /* KERNEL_SIM_DEVICES gates subsystems that model devices/claims with no
@@ -174,6 +175,7 @@ static immigration_t immigration;
 static robin_vault_t robin_vault;
 static prism_break_t prism_break;
 static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives redraw */
+static zxv_shell_state_t g_shell;        /* interactive desktop state (clicks/keys) */
 static ev_scheduler_t evs;
 static ev_sequencer_t ev_seq;
 static ev_audit_t ev_audit;
@@ -1136,7 +1138,8 @@ void kernel_main_arm64(void) {
              * live on screen (ramfb scans this same buffer out continuously). */
             static vbe_state_t g_vbe;
             vbe_init_fb(&g_vbe, 1280, 720, 32, (uint32_t)(uintptr_t)fb);
-            zxv_shell_render(&g_vbe, 632, 360, prism_break.frames_rendered);
+            zxv_shell_init(&g_shell);
+            zxv_shell_frame(&g_shell, &g_vbe, 632, 360, 0, prism_break.frames_rendered);
             g_desktop_vbe = &g_vbe;   /* the event loop keeps animating it */
             boot_msg("  [DRIVER ONLINE] ramfb 1280x720 — ZEDEC desktop is on screen");
             /* virtio-input: one driver -> mouse + tablet + keyboard on any
@@ -1836,12 +1839,16 @@ void kernel_event_cycle_run(void) {
      * device. Throttled (every 4th cycle) to keep the compositor light; the
      * prism background is re-rendered then the shell is drawn over it with the
      * live cursor position. */
-    if (g_desktop_vbe && (g_event_cycle % 4 == 0)) {
+    if (g_desktop_vbe) {
         virtio_input_poll();
-        int32_t cx = 0, cy = 0; uint32_t btn = 0;
-        virtio_input_get(&cx, &cy, &btn);
-        pb_render_frame(&prism_break);
-        zxv_shell_render(g_desktop_vbe, cx, cy, prism_break.frames_rendered);
+        int32_t key;
+        while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
+        if (g_event_cycle % 4 == 0) {
+            int32_t cx = 0, cy = 0; uint32_t btn = 0;
+            virtio_input_get(&cx, &cy, &btn);
+            pb_render_frame(&prism_break);
+            zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered);
+        }
     }
 
     if (g_auto_stats && g_event_cycle % 100 == 0) {
