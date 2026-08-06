@@ -58,6 +58,7 @@
 #define BR_ERR_NOT_FOUND   (-8)   /* no alliance for that outcome_id               */
 #define BR_ERR_STATE       (-9)   /* alliance not in the required state            */
 #define BR_ERR_SETTLEMENT  (-10)  /* a bound vino rail rejected the money leg      */
+#define BR_ERR_NO_RAIL     (-11)  /* a FINANCIAL (money) leg with no rail to back it*/
 
 /* ===== Capacities (fixed, freestanding) ===== */
 #define BR_MAX_ALLIANCES   64u

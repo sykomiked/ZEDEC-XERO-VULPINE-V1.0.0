@@ -112,6 +112,18 @@ uint32_t art_palette_color(const art_palette_t *p, theme_color_t slot) {
     return p->rgb[slot];
 }
 
+/* origin + grid*pitch, computed WIDE then clamped to int32. col/row are 0..255
+ * and pitch is caller-supplied, so col*pitch can overflow int32 (signed-overflow
+ * UB) for a large pitch. The int64 intermediate cannot overflow (255 * 2^31 fits),
+ * and an off-canvas result is harmless — line() and art_fill_rect() clip. We only
+ * need the arithmetic itself to stay defined. */
+static int32_t sigil_coord(int32_t origin, uint8_t grid, int32_t pitch) {
+    int64_t v = (int64_t)origin + (int64_t)grid * (int64_t)pitch;
+    if (v >  2147483647LL) v =  2147483647LL;
+    if (v < -2147483648LL) v = -2147483648LL;
+    return (int32_t)v;
+}
+
 int32_t art_compose_sigil(art_canvas_t *c, const sigil_t *s,
                           int32_t ox, int32_t oy, int32_t pitch,
                           uint8_t node_val, uint8_t edge_val) {
@@ -122,17 +134,17 @@ int32_t art_compose_sigil(art_canvas_t *c, const sigil_t *s,
     for (uint32_t e = 0; e < s->n_edges; e++) {
         uint8_t a = s->edge[e].a, b = s->edge[e].b;
         if (a >= s->n_nodes || b >= s->n_nodes) continue;
-        int32_t ax = ox + (int32_t)s->node[a].col * pitch;
-        int32_t ay = oy + (int32_t)s->node[a].row * pitch;
-        int32_t bx = ox + (int32_t)s->node[b].col * pitch;
-        int32_t by = oy + (int32_t)s->node[b].row * pitch;
+        int32_t ax = sigil_coord(ox, s->node[a].col, pitch);
+        int32_t ay = sigil_coord(oy, s->node[a].row, pitch);
+        int32_t bx = sigil_coord(ox, s->node[b].col, pitch);
+        int32_t by = sigil_coord(oy, s->node[b].row, pitch);
         line(c, ax, ay, bx, by, edge_val);
     }
 
     int32_t drawn = 0;
     for (uint32_t k = 0; k < s->n_nodes; k++) {
-        int32_t cx = ox + (int32_t)s->node[k].col * pitch;
-        int32_t cy = oy + (int32_t)s->node[k].row * pitch;
+        int32_t cx = sigil_coord(ox, s->node[k].col, pitch);
+        int32_t cy = sigil_coord(oy, s->node[k].row, pitch);
         /* A 3x3 nub centred on the node (small, but visibly an operation). */
         art_fill_rect(c, cx - 1, cy - 1, 3, 3, node_val);
         if (cx >= 0 && cy >= 0 &&

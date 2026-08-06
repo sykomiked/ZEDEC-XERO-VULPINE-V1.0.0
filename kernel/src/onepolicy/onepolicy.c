@@ -40,22 +40,22 @@ op_verdict_t op_evaluate(const op_term_t *t) {
     if ((a_harmed && a_worse) || (b_harmed && b_worse))
         return OP_VOID_ASYMMETRIC_HARM;
 
-    /* Reciprocity is the cure: a matched return commitment binds both sides, so
-     * a one-way flow that is answered by a return is symbiotic, not extractive.
-     * Only UNMATCHED flows can be extraction or burden. */
-    if (!t->reciprocal) {
-        const bool a_gives = SR_CMP(t->give_a, SR_ZERO) > 0;
-        const bool b_gives = SR_CMP(t->give_b, SR_ZERO) > 0;
+    const bool a_gives = SR_CMP(t->give_a, SR_ZERO) > 0;
+    const bool b_gives = SR_CMP(t->give_b, SR_ZERO) > 0;
 
-        /* 5. Unilateral extraction — exactly one side conveys value, with no
-         *    return commitment: pure take. (A gift is reciprocal by intent and
-         *    is modelled with reciprocal=true; it is not a "term" the maxim bites.) */
-        if (a_gives != b_gives) return OP_VOID_UNILATERAL_EXTRACTION;
+    /* 5. Unilateral extraction — exactly one side conveys value. This fires
+     *    REGARDLESS of the caller-asserted `reciprocal` flag: a term where value
+     *    flows only one way IS a take, and `reciprocal` is attacker-controlled — an
+     *    exploit sets give_a=100, give_b=0, reciprocal=true precisely to slip a pure
+     *    extraction past the maxim. The modeled VALUES are the ground truth, not the
+     *    flag; a claim of reciprocity that conveys nothing back is a lie. */
+    if (a_gives != b_gives) return OP_VOID_UNILATERAL_EXTRACTION;
 
-        /* 6. Non-reciprocal burden — value flows both ways but nets negative on
-         *    one side, and nothing binds a return to cure it. */
-        if (a_worse || b_worse) return OP_VOID_NONRECIPROCAL_BURDEN;
-    }
+    /* 6. Non-reciprocal burden — value flows both ways but nets negative on one
+     *    side. Here a GENUINE matched return commitment (reciprocal, with both
+     *    sides having actually conveyed value — verified above) can justify a
+     *    temporary imbalance; an UNMATCHED one-way net cannot. */
+    if (!t->reciprocal && (a_worse || b_worse)) return OP_VOID_NONRECIPROCAL_BURDEN;
 
     return OP_VALID;
 }

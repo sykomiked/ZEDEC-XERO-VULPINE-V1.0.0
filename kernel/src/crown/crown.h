@@ -173,9 +173,16 @@ int32_t crown_register(crown_t *cr, const uint8_t subject[32],
 /* Attach an OFFLINE-produced Ed25519 signature to an issued credential. */
 void crown_isc_attach_signature(crown_isc_t *c, const uint8_t sig[64]);
 
-/* Verify the credential: sha256 the preimage, then ed25519_verify it under the
- * Crown public key. A tampered ISC (any signed field, or the sig itself) fails. */
+/* Verify the credential's SIGNATURE ONLY: sha256 the preimage, then ed25519_verify
+ * it under the Crown public key. A tampered ISC (any signed field, or the sig
+ * itself) fails. NOTE: the preimage excludes the mutable `revoked` flag, so a
+ * REVOKED credential still verifies here. To gate access, use crown_isc_is_active. */
 bool crown_isc_verify(const crown_isc_t *c, const uint8_t crown_pubkey[32]);
+
+/* Is the credential currently ACTIVE — i.e. may it authorise an action NOW?
+ * True iff the signature verifies AND the credential is not revoked. This is the
+ * gate callers should use; crown_isc_verify is only the cryptographic half. */
+bool crown_isc_is_active(const crown_isc_t *c, const uint8_t crown_pubkey[32]);
 
 /* Revoke — ALLOWED ONLY on a Symbiotic-Maxim or Return-Doctrine violation.
  * A non-payment (or any coercive) reason is REFUSED via op_grace_of_somalia_ok.

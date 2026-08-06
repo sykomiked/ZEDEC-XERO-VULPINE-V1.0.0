@@ -142,17 +142,6 @@ const uint8_t *soc_post_at(const soc_world_t *w, int32_t space, uint32_t idx,
     return p->bytes;
 }
 
-/* Does `who` share at least one open space with `troll`? Only people who
- * actually gather with the troublemaker can be the ones bothered by them. */
-static bool soc_shares_space(const soc_world_t *w, uint32_t who, uint32_t troll) {
-    for (uint32_t s = 0; s < SOC_MAX_SPACES; s++) {
-        if (!w->space[s].open) continue;
-        if (soc_is_member(w, (int32_t)s, who) && soc_is_member(w, (int32_t)s, troll))
-            return true;
-    }
-    return false;
-}
-
 /* Two quarantined people belong TOGETHER, not apart. If an earlier sort left
  * a divide between the troll and someone who is now also quarantined, lift it
  * so the heckler's corner is one shared corner, not a scatter of solitary
@@ -178,43 +167,39 @@ static void soc_regroup_quarantine(soc_world_t *w, uint32_t troll) {
     con_tick(c, 0);                   /* purge expired divides, no clock drift */
 }
 
+int32_t soc_report(soc_world_t *w, uint32_t reporter, uint32_t subject,
+                   uint32_t duration) {
+    /* A FIRST-PARTY boundary report: `reporter` — the authenticated caller (the OS
+     * session binds who is calling) — states that `subject` crossed a boundary
+     * against THEM. This is the ONLY thing that slides standing toward quarantine;
+     * the platform NEVER reports on anyone's behalf. Distinct reporters accumulate
+     * strikes (concord de-dupes a repeat by the same reporter), so quarantine
+     * takes real consensus, never one person. */
+    if (!w) return SOC_ERR_NULL;
+    con_commons_t *c = &w->commons;
+    if (reporter == subject) return SOC_ERR_NOT_MEMBER;
+    if (!con_get(c, reporter) || !con_get(c, subject)) return SOC_ERR_NOTFOUND;
+    return con_report_boundary(c, reporter, subject, duration) ? SOC_OK
+                                                               : SOC_ERR_NOTFOUND;
+}
+
 int32_t soc_sort(soc_world_t *w, uint32_t troublemaker) {
     if (!w) return SOC_ERR_NULL;
     con_commons_t *c = &w->commons;
     con_person_t *troll = con_get(c, troublemaker);
     if (!troll) return SOC_ERR_NOTFOUND;
 
-    /* Gather the good-standing folks who actually share a room with the troll.
-     * These are the people whose boundaries the repeat troll crossed — and the
-     * only ones we will seat away from them. Fellow quarantined people are
-     * skipped: you don't seat a heckler away from other hecklers. */
-    uint32_t peers[CON_MAX_PEOPLE];
-    uint32_t n_peers = 0;
-    for (uint32_t i = 0; i < CON_MAX_PEOPLE; i++) {
-        if (!c->person[i].present) continue;
-        uint32_t id = c->person[i].id;
-        if (id == troublemaker) continue;
-        if (con_standing(&c->person[i]) == CON_QUARANTINED) continue;
-        if (!soc_shares_space(w, id, troublemaker)) continue;
-        peers[n_peers++] = id;
-    }
-    if (n_peers == 0) return SOC_ERR_NO_PEERS;  /* a room of one — nothing to sort */
-
-    /* Route into quarantine THROUGH concord's own primitive. Each good-standing
-     * peer draws a mutual, temporary boundary (con_report_boundary): the divide
-     * is symmetric (no spying one-way block) and standing slides toward
-     * quarantine. A *repeat* troll has crossed these boundaries more than once,
-     * so we cycle the peers until standing actually lands in quarantine —
-     * concord de-dupes the divides, so this adds strikes, not extra walls.
-     * Bounded: standing can only fall so far. */
-    uint32_t guard = 0;
-    while (con_standing(troll) != CON_QUARANTINED && guard < CON_MAX_PEOPLE * 4u) {
-        for (uint32_t k = 0; k < n_peers && con_standing(troll) != CON_QUARANTINED; k++) {
-            con_report_boundary(c, peers[k], troublemaker, SOC_QUAR_DURATION);
-            troll = con_get(c, troublemaker);   /* revalidate (array is stable, but be safe) */
-        }
-        guard++;
-    }
+    /* soc_sort does NOT impose quarantine and NEVER reports on anyone's behalf —
+     * synthesising peer reports would be a covert strike, the platform
+     * manufacturing consensus against a target who was never actually reported.
+     * Quarantine is earned ONLY through real, first-party soc_report() calls by
+     * peers who genuinely experienced the crossing (and, per concord, only
+     * DISTINCT reporters accumulate strikes). soc_sort's sole job is to SEAT an
+     * ALREADY-quarantined troll with fellow quarantined — the honest "hecklers
+     * together" grouping. A target not yet quarantined by real reports is left
+     * untouched (a covert, one-sided quiet-down is exactly what we refuse). */
+    if (con_standing(troll) != CON_QUARANTINED)
+        return SOC_ERR_NOT_QUARANTINED;
 
     /* Seat this heckler with the other hecklers: lift any troll<->troll divide
      * so quarantined folks share one corner. */

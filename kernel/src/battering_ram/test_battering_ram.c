@@ -144,11 +144,13 @@ int main(void) {
     br_book_credit(&ex, ZCAP_HUMAN, SR_FROM_INT(100));
     surplus_real_t human_before = ex.book.bal[ZCAP_HUMAN];
     surplus_real_t fin_before   = ex.book.bal[ZCAP_FINANCIAL];
-    cross_cap_swap_t big = { ZCAP_HUMAN, ZCAP_FINANCIAL, SR_FROM_INT(200), SR_FROM_INT(1) };
+    surplus_real_t soc_before   = ex.book.bal[ZCAP_SOCIAL];
+    (void)fin_before;
+    cross_cap_swap_t big = { ZCAP_HUMAN, ZCAP_SOCIAL, SR_FROM_INT(200), SR_FROM_INT(1) };
     rc = br_swap_settle(&ex, &big);      /* 200 > 100 held: cannot complete */
     CHECK(rc == BR_ERR_INSUFFICIENT, "A5: infeasible swap refused");
     CHECK(SR_CMP(ex.book.bal[ZCAP_HUMAN], human_before) == 0 &&
-          SR_CMP(ex.book.bal[ZCAP_FINANCIAL], fin_before) == 0,
+          SR_CMP(ex.book.bal[ZCAP_SOCIAL], soc_before) == 0,
           "A5: NEITHER balance moved on the refused swap");
     /* a feasible swap moves BOTH legs at the agreed rate */
     cross_cap_swap_t ok = { ZCAP_HUMAN, ZCAP_SOCIAL, SR_FROM_INT(10), SR_FROM_INT(2) };
@@ -165,6 +167,30 @@ int main(void) {
         CHECK(wr == BR_ERR_RANGE, "A5c: a from==to self-swap is refused (BR_ERR_RANGE)");
         CHECK(SR_CMP(ex.book.bal[ZCAP_HUMAN], human_before) == 0,
               "A5c: no value minted — the Human balance is unchanged");
+    }
+
+    /* ---- Anchor 5d: a FINANCIAL leg with NO rail CANNOT mint money -------- */
+    /* The round-trip mint: with no rail to back it, a favourable agreed_rate on
+     * a money leg would create spendable money from nothing. It must be refused
+     * BEFORE any balance moves — money settles only where a rail can vouch. */
+    {
+        br_exchange_init(&ex);                     /* no rail bound */
+        br_book_credit(&ex, ZCAP_HUMAN, SR_FROM_INT(100));
+        surplus_real_t human_b = ex.book.bal[ZCAP_HUMAN];
+        surplus_real_t fin_b   = ex.book.bal[ZCAP_FINANCIAL];
+        /* feasible (50 <= 100) and lucrative (receive 100 money): still refused */
+        cross_cap_swap_t coin = { ZCAP_HUMAN, ZCAP_FINANCIAL, SR_FROM_INT(50), SR_FROM_INT(2) };
+        int32_t cr = br_swap_settle(&ex, &coin);
+        CHECK(cr == BR_ERR_NO_RAIL,
+              "A5d: a money leg with no rail is REFUSED (BR_ERR_NO_RAIL) — no mint");
+        CHECK(SR_CMP(ex.book.bal[ZCAP_HUMAN], human_b) == 0 &&
+              SR_CMP(ex.book.bal[ZCAP_FINANCIAL], fin_b) == 0,
+              "A5d: NEITHER leg moved — no spendable money minted from nothing");
+        /* the reverse direction (money OUT, no rail) is refused the same way */
+        br_book_credit(&ex, ZCAP_FINANCIAL, SR_FROM_INT(10));
+        cross_cap_swap_t cash_out = { ZCAP_FINANCIAL, ZCAP_HUMAN, SR_FROM_INT(5), SR_FROM_INT(1) };
+        CHECK(br_swap_settle(&ex, &cash_out) == BR_ERR_NO_RAIL,
+              "A5d: money OUT with no rail is refused too (symmetric)");
     }
 
     /* ---- Anchor 5b: settle a money leg THROUGH the vino triple rail ------- */

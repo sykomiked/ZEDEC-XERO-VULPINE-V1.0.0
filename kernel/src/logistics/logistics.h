@@ -110,11 +110,17 @@ typedef struct {
     surplus_real_t margin;                      /* the cut as a fraction (<= 0.11)   */
 } log_split_t;
 
-/* ===== A delivery attestation (SUPPLIED — an ops boundary) ===== */
+/* ===== A delivery attestation (SUPPLIED — an ops boundary) =====
+ * `attestor` is the 32-byte Ed25519 public key of the confirming party; `sig`
+ * is its signature over (contract_id LE64 || delivery_cid || confirmed byte).
+ * log_escrow_release verifies THIS signature via the bound verifier — it never
+ * trusts the bare `confirmed` bool, and never verifies the fact it asserts. */
 typedef struct {
     uint32_t confirming_party;                  /* who attests the crates landed     */
     bool     confirmed;                         /* the attestation asserts delivery  */
     uint8_t  delivery_cid[LOG_CID_LEN];         /* content-address of the evidence   */
+    uint8_t  attestor[32];                      /* Ed25519 pubkey of confirming party*/
+    uint8_t  sig[64];                           /* sig over id||delivery_cid||confirmed*/
 } log_delivery_t;
 
 /* ===== The escrow release result ===== */
@@ -131,12 +137,20 @@ typedef struct {
     surplus_real_t escrow_remaining;    /* what is still held afterward              */
 } log_result_t;
 
+/* ===== Delivery-attestation verifier (ops boundary) =====
+ * Returns true iff `d`'s signature verifies as an attestation of `contract_id`.
+ * Model your real delivery oracle as this function pointer. When UNBOUND (NULL),
+ * log_escrow_release fails CLOSED (LOG_HELD) — a caller-set `confirmed` bool is
+ * never, by itself, proof that the crates landed. */
+typedef bool (*log_deliv_verify_fn)(uint64_t contract_id, const log_delivery_t *d);
+
 /* ===== The logistics state ===== */
 typedef struct {
-    log_contract_t contracts[LOG_MAX_CONTRACTS];
-    log_split_t    splits[LOG_MAX_SPLITS];
-    rep_state_t    rep;                 /* credibility ledger (follow-through badge)  */
-    uint64_t       next_id;             /* next contract id (starts at 1)            */
+    log_contract_t      contracts[LOG_MAX_CONTRACTS];
+    log_split_t         splits[LOG_MAX_SPLITS];
+    rep_state_t         rep;            /* credibility ledger (follow-through badge)  */
+    uint64_t            next_id;        /* next contract id (starts at 1)            */
+    log_deliv_verify_fn verify;         /* delivery verifier (ops boundary); NULL=shut*/
 } log_state_t;
 
 /* ===== Lifecycle ===== */
@@ -184,11 +198,24 @@ int32_t log_subcontract_split(log_state_t *s, uint64_t parent_id,
 int32_t log_escrow_deposit(log_state_t *s, uint64_t contract_id,
                            surplus_real_t amount);
 
-/* Release the escrow — ONLY on a delivery attestation. With `proof` NULL
- * (UNBOUND) or proof->confirmed == false, returns LOG_HELD and leaves the escrow
- * untouched (never auto-released). With a confirmed proof, pays out the whole
- * held amount, marks the contract delivered, and RAISES the credibility of every
- * party (a completed delivery is follow-through). */
+/* Install the delivery-attestation verifier (ops boundary). Until this is set,
+ * log_escrow_release fails CLOSED — the escrow cannot open on an unverified word. */
+void log_set_verifier(log_state_t *s, log_deliv_verify_fn fn);
+
+/* Built-in Ed25519 delivery verifier: recomputes the canonical message
+ * (contract_id LE64 || delivery_cid || confirmed) and checks proof->sig against
+ * proof->attestor. Bind it with log_set_verifier to require real signatures. */
+bool log_ed25519_delivery_verify(uint64_t contract_id, const log_delivery_t *d);
+
+/* Release the escrow — ONLY on a VERIFIED delivery attestation. Returns LOG_HELD
+ * (escrow untouched, never auto-released) unless ALL of these hold:
+ *   - a verifier is bound (log_set_verifier) — UNBOUND fails closed;
+ *   - proof is non-NULL and proof->confirmed is true;
+ *   - proof->confirming_party is one of the contract's parties (no outsider);
+ *   - the contract had a goods witness bound at open (has_proof_cid);
+ *   - the bound verifier accepts proof->sig over id||delivery_cid||confirmed.
+ * Only then does it pay out the whole held amount, mark the contract delivered
+ * (once — idempotent), and RAISE every party's credibility (follow-through). */
 log_result_t log_escrow_release(log_state_t *s, uint64_t contract_id,
                                 const log_delivery_t *proof);
 

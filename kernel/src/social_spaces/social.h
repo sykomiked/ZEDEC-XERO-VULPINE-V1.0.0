@@ -71,7 +71,8 @@ typedef enum {
     SOC_ERR_FULL      = -2,   /* no space/member/post slot (ops bound) */
     SOC_ERR_NOTFOUND  = -3,   /* no such space or person */
     SOC_ERR_NOT_MEMBER= -4,   /* person is not in that space */
-    SOC_ERR_NO_PEERS  = -5    /* nobody to sort against — a room of one */
+    SOC_ERR_NO_PEERS  = -5,   /* nobody to sort against — a room of one */
+    SOC_ERR_NOT_QUARANTINED = -6  /* soc_sort target has not (yet) earned quarantine */
 } soc_result_t;
 
 typedef struct {
@@ -131,6 +132,18 @@ const uint8_t *soc_post_at(const soc_world_t *w, int32_t space, uint32_t idx,
  * troll stays a member of every space and can still post. Returns the size of
  * the heckler's corner they now sit in (count of fellow quarantined people,
  * >=0) or a negative soc_result_t. */
+/* A FIRST-PARTY boundary report: the authenticated caller `reporter` states that
+ * `subject` crossed a boundary against them. The ONLY thing that slides standing
+ * toward quarantine — the platform never reports on anyone's behalf. Distinct
+ * reporters accumulate strikes (a repeat by the same reporter is a no-op), so
+ * quarantine requires real consensus. */
+int32_t soc_report(soc_world_t *w, uint32_t reporter, uint32_t subject, uint32_t duration);
+
+/* Seat an ALREADY-quarantined troublemaker (quarantined via real soc_report()
+ * consensus) with fellow quarantined — the honest "hecklers together" grouping.
+ * It imposes NO quarantine itself and reports on no one's behalf. Returns the
+ * fellow-quarantined count, or SOC_ERR_NOT_QUARANTINED if the target has not yet
+ * earned quarantine through real reports. It removes no one. */
 int32_t soc_sort(soc_world_t *w, uint32_t troublemaker);
 
 #endif /* ZXV_SOCIAL_H */

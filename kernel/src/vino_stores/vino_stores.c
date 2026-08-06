@@ -111,22 +111,39 @@ int32_t vino_ledger_act(vino_stores_t *vs, uint64_t voucher_id,
     vino_voucher_t *v = vino_find(vs, voucher_id);
     if (!v) return VINO_ERR_NOT_FOUND;
 
+    /* --- TERMINAL STATE: a redeemed/retired coin is spent. It must NOT settle
+     * again — without this, re-calling with VINO_REDEEM re-posts all three rails
+     * and pays the retired coin out on every call (double-spend). vino_can_spend
+     * and vino_swap already refuse a redeemed voucher; the value-moving path must
+     * too. Fail closed, no mutation. */
+    if (v->base.redeemed || v->lifecycle == VINO_REDEEM || v->lifecycle == VINO_RETIRE)
+        return VINO_ERR_STATE;
+
     /* --- Usury veto FIRST, before a single byte is written. -----------------
      * Money is equity, never debt. In an honest event the live equity equals
      * the backing net: equity == debit - credit. Any equity claimed ABOVE that
      * net is a return with no backing — interest — and onepolicy does not
-     * recognise it as a term at all. Model it and let the One Policy rule. */
+     * recognise it as a term at all. Model it and let the One Policy rule.
+     *
+     * NOTE (why give_a == give_b == ZERO): a rail post is a ONE-DIRECTIONAL
+     * ledger movement (money in => debit>0, credit==0; money out => the reverse),
+     * NOT a two-party barter. Feeding debit/credit as a deal's give_a/give_b would
+     * trip onepolicy's unilateral-extraction guard on every honest single-sided
+     * post — that guard exists to judge DEAL TERMS, not backing movements (cf. the
+     * battering_ram bare-barter note). We ask the One Policy the ONE question that
+     * actually applies here: is the IMPLIED INTEREST usurious? So we hand it a pure
+     * usury query — no giver, no taker, just the interest — and let step 2 rule. */
     surplus_real_t backing_net = SR_SUB(debit, credit);
     surplus_real_t excess      = SR_SUB(equity, backing_net);
     surplus_real_t implied_interest =
         (SR_CMP(excess, SR_ZERO) > 0) ? excess : SR_ZERO;
 
     op_term_t term;
-    term.give_a               = debit;   /* backing conveyed in            */
-    term.give_b               = credit;  /* claim conveyed out             */
+    term.give_a               = SR_ZERO; /* a ledger post is not a two-party deal */
+    term.give_b               = SR_ZERO; /* => no extraction/burden dimension here */
     term.harm_a               = SR_ZERO;
     term.harm_b               = SR_ZERO;
-    term.interest             = implied_interest;
+    term.interest             = implied_interest;  /* the ONLY thing under test    */
     term.reciprocal           = true;    /* rails answer each other        */
     term.denies_aid           = false;
     term.revoke_for_nonpayment= false;
@@ -258,12 +275,15 @@ uint64_t vino_ladder_denomination(uint32_t rung) {
 int32_t vino_gratuity_112(surplus_real_t yield, surplus_real_t out[6]) {
     if (!out) return VINO_ERR_NULL;
     /* 11 / 11 / 11 / 66 / 1  (+ 12 Shiva buffer) = 112% of yield.
-     * Scale as SR_DIV(SR_MUL(yield, n), 100) so the target does NOT floor to 0
-     * the way an open-coded (yield*n)/100 would (the host-vs-target trap). */
+     * Take the FRACTION FIRST — SR_MUL(yield, SR_DIV(n, 100)) — NOT
+     * SR_DIV(SR_MUL(yield, n), 100): the latter forms yield*66 in Q32.32, whose
+     * integer part OVERFLOWS int64 for a yield above ~32.5M units and wraps the
+     * 66% slice NEGATIVE on the target (invisible to the host double test). The
+     * fraction n/100 is a representable Q32.32 value, so it does not floor to 0. */
     static const int32_t parts[6] = { 11, 11, 11, 66, 1, 12 };
     int i;
     for (i = 0; i < 6; i++) {
-        out[i] = SR_DIV(SR_MUL(yield, SR_FROM_INT(parts[i])), SR_FROM_INT(100));
+        out[i] = SR_MUL(yield, SR_DIV(SR_FROM_INT(parts[i]), SR_FROM_INT(100)));
     }
     return VINO_OK;
 }

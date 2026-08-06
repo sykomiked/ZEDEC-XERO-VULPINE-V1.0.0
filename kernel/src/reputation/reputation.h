@@ -48,11 +48,19 @@
 #define REP_PIG_MAX            9999u   /* pig level saturates here            */
 #define REP_PIG_OVER           9000u   /* strictly above this: "over 9000"    */
 
-/* Per-subject reputation record. One row per known subject id. */
+/* Per-subject reputation record. One row per known subject id.
+ *
+ * INVARIANT — `pig_level` is the RAW accrued count and is NOT a display value.
+ * The counter-intelligence design requires that a subject can NEVER see their
+ * own pig badge (so they cannot game or perform to it), while everyone else
+ * sees it. That rule lives in pig_level_seen_by(): ALL external display MUST go
+ * through it. Do NOT read this field directly to show a level to a viewer — a
+ * bare read leaks the subject's own badge to themselves and defeats the whole
+ * mechanism. Direct access is reserved for reputation.c's own bookkeeping. */
 typedef struct {
     bool     used;
     uint32_t subject;
-    uint32_t pig_level;                 /* 0..REP_PIG_MAX                     */
+    uint32_t pig_level;                 /* RAW 0..REP_PIG_MAX — display via pig_level_seen_by ONLY */
     uint32_t n_badges;
     struct { uint32_t id; uint32_t level; } badge[REP_MAX_BADGES_PER_SUB];
 } rep_entry_t;

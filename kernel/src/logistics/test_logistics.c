@@ -16,6 +16,13 @@ static int g_assertions = 0;
 /* SR equality for the host (double) — integer-valued answers compare exactly. */
 static int sr_eq(surplus_real_t a, surplus_real_t b) { return SR_CMP(a, b) == 0; }
 
+/* A test delivery oracle that ACCEPTS (stands in for a satisfied signature check).
+ * We use it to exercise the release path without a private key to sign with; the
+ * real Ed25519 verifier and the NULL/outsider cases are asserted separately. */
+static bool deliv_stub_ok(uint64_t id, const log_delivery_t *d) {
+    (void)id; (void)d; return true;
+}
+
 int main(void) {
     log_state_t st;
     log_init(&st);
@@ -156,7 +163,43 @@ int main(void) {
     CHECK(sr_eq(cc->escrow_held, SR_FROM_INT(500)), "escrow STILL untouched");
 
     /* ===================================================================== */
-    /* ANCHOR 5b — a delivery proof releases the escrow AND raises credibility. */
+    /* ANCHOR 3b — the escrow FAILS CLOSED: a bare `confirmed` bool is not     */
+    /*  proof. With NO verifier bound, a bad signature, or an outsider          */
+    /*  confirming, the crates have not landed and the escrow stays SHUT.       */
+    /* ===================================================================== */
+    /* (i) confirmed=true but NO verifier bound yet => fail closed. This is the
+     * exact hollow-attestation the red team flagged: it must NOT release. */
+    log_delivery_t claim = (log_delivery_t){0};
+    claim.confirming_party = 7;                 /* a real party on the contract */
+    claim.confirmed = true;
+    for (uint32_t i = 0; i < LOG_CID_LEN; i++) claim.delivery_cid[i] = (uint8_t)i;
+    log_result_t no_oracle = log_escrow_release(&st, (uint64_t)cid, &claim);
+    CHECK(no_oracle.status == LOG_HELD,
+          "confirmed=true with NO verifier bound => LOG_HELD (fails closed)");
+    CHECK(sr_eq(cc->escrow_held, SR_FROM_INT(500)),
+          "a bare confirmed bool releases NOTHING — the hollow attestation is shut out");
+
+    /* (ii) real Ed25519 verifier + a zeroed (bogus) signature => rejected. */
+    log_set_verifier(&st, log_ed25519_delivery_verify);
+    log_result_t badsig = log_escrow_release(&st, (uint64_t)cid, &claim);
+    CHECK(badsig.status == LOG_HELD,
+          "the real Ed25519 verifier REJECTS a bogus signature => LOG_HELD");
+    CHECK(sr_eq(cc->escrow_held, SR_FROM_INT(500)), "escrow untouched by a bad signature");
+
+    /* (iii) an OUTSIDER (not a party) cannot spring the escrow, even with an
+     * accepting oracle — membership is checked before the signature. */
+    log_set_verifier(&st, deliv_stub_ok);
+    log_delivery_t outsider = (log_delivery_t){0};
+    outsider.confirming_party = 999;            /* not in {7,8,9,10} */
+    outsider.confirmed = true;
+    log_result_t stranger = log_escrow_release(&st, (uint64_t)cid, &outsider);
+    CHECK(stranger.status == LOG_HELD,
+          "an outsider's confirmation => LOG_HELD (only a party can witness delivery)");
+    CHECK(sr_eq(cc->escrow_held, SR_FROM_INT(500)), "escrow untouched by an outsider");
+
+    /* ===================================================================== */
+    /* ANCHOR 5b — a VERIFIED delivery proof releases the escrow AND raises     */
+    /*  credibility. The stub oracle stands in for a satisfied signature.       */
     /* ===================================================================== */
     surplus_real_t cred_before = log_credibility(&st, 7);
     CHECK(sr_eq(cred_before, SR_ZERO), "party 7 starts with zero credibility");

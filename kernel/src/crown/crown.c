@@ -103,7 +103,21 @@ bool crown_isc_verify(const crown_isc_t *c, const uint8_t crown_pubkey[32]) {
     uint32_t n = crown_isc_build_preimage(c, buf);
     uint8_t digest[SHA256_DIGEST_LEN];
     sha256(buf, (size_t)n, digest);
+    /* SIGNATURE ONLY. The preimage excludes the mutable `revoked` flag by design,
+     * so a REVOKED credential still bears a valid signature and still returns true
+     * here. Gate ACCESS with crown_isc_is_active(), never with this alone. */
     return ed25519_verify(digest, SHA256_DIGEST_LEN, c->sig, crown_pubkey);
+}
+
+bool crown_isc_is_active(const crown_isc_t *c, const uint8_t crown_pubkey[32]) {
+    /* The credential authorises an action NOW iff its signature verifies AND it
+     * has not been revoked. This is the gate callers want; crown_isc_verify is
+     * the cryptographic half only. Revocation is a registry action (not a
+     * re-signing), so it can never be captured in the signature — it must be
+     * consulted here, on top of a valid signature. */
+    if (!c) return false;
+    if (c->revoked) return false;
+    return crown_isc_verify(c, crown_pubkey);
 }
 
 /* Build the alleged-wrong term for a revocation ground, then let The One Policy

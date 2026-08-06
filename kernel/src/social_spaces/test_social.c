@@ -99,6 +99,9 @@ int main(void) {
     CHECK(soc_join(&w, club, TROLL_A) == SOC_OK, "troll A joins the Club");
     CHECK(soc_join(&w, club, TROLL_B) == SOC_OK, "troll B joins the Club");
     CHECK(soc_join(&w, club, NORMAL)  == SOC_OK, "re-join is idempotent");
+    /* three distinct witnesses who will file REAL first-party reports */
+    const uint32_t W1 = 30, W2 = 31, W3 = 32;
+    soc_join(&w, club, W1); soc_join(&w, club, W2); soc_join(&w, club, W3);
 
     /* ---- posts, including one we will re-read after the sort ---- */
     const char *hello = "Hello, builders! Anyone shipping today?";
@@ -111,25 +114,44 @@ int main(void) {
     CHECK(post1 == 1, "troll A can post BEFORE sorting (free speech)");
     CHECK(soc_post_count(&w, club) == 2, "two posts retained");
 
-    /* ---- (3) sort troll A: grouped-with-like, still present, still posting ---- */
-    int32_t corner_a = soc_sort(&w, TROLL_A);
-    CHECK(corner_a >= 0, "soc_sort(A) returns a grouping, not an error");
+    /* ---- (3) NO SHADOWBAN: soc_sort cannot quarantine an un-reported user ---- */
+    CHECK(soc_sort(&w, TROLL_A) == SOC_ERR_NOT_QUARANTINED,
+          "soc_sort will NOT quarantine a user nobody reported (no shadowban)");
+    /* A single reporter cannot force quarantine either — one strike, and a repeat
+     * by the SAME reporter is a no-op (the unilateral-quarantine bug is closed). */
+    soc_report(&w, W1, TROLL_A, SOC_QUAR_DURATION);
+    soc_report(&w, W1, TROLL_A, SOC_QUAR_DURATION);   /* same reporter again: no-op */
+    CHECK(con_standing(con_get(&w.commons, TROLL_A)) != CON_QUARANTINED,
+          "one reporter (even repeating) CANNOT quarantine — no unilateral ban");
+    /* real CONSENSUS: three DISTINCT witnesses each report first-party */
+    soc_report(&w, W2, TROLL_A, SOC_QUAR_DURATION);
+    soc_report(&w, W3, TROLL_A, SOC_QUAR_DURATION);
     con_person_t *pa = con_get(&w.commons, TROLL_A);
     CHECK(pa != NULL && con_standing(pa) == CON_QUARANTINED,
-          "troll A is now QUARANTINED (seated with his own kind)");
+          "three DISTINCT real reporters quarantine troll A (genuine consensus)");
+    /* now soc_sort seats him with his own kind — imposing nothing new */
+    int32_t corner_a = soc_sort(&w, TROLL_A);
+    CHECK(corner_a >= 0, "soc_sort(A) seats the quarantined troll, returns a grouping");
     CHECK(soc_is_member(&w, club, TROLL_A),
           "troll A is STILL a member — nobody was removed");   /* still present */
     int32_t post2 = soc_post(&w, club, TROLL_A, (const uint8_t *)"still here",
                              10u);
     CHECK(post2 == 2, "troll A can STILL post after being sorted (never gagged)");
 
-    /* ---- (4) normal and troll are DIVIDED; troll bothers only fellow trolls ---- */
-    CHECK(con_divided(&w.commons, NORMAL, TROLL_A),
-          "normal and troll A are DIVIDED after sorting");
+    /* ---- (4) normal and troll are SEPARATED — but by the standing POOL, not a
+     * fabricated divide. NORMAL never reported A, so there is deliberately NO
+     * divide manufactured on NORMAL's behalf (that would be the shadowban we
+     * refuse). The separation is real all the same: A is quarantined, NORMAL is
+     * not, and concord matches across that boundary only within a pool. ------- */
+    CHECK(!con_divided(&w.commons, NORMAL, TROLL_A),
+          "NO divide is fabricated between normal and troll A (no shadowban)");
     CHECK(!con_may_match(&w.commons, NORMAL, TROLL_A),
-          "normal is no longer matched with troll A (different pools)");
+          "normal is still not matched with troll A — the standing pool separates them");
 
-    /* ---- sort troll B too; the two hecklers share ONE corner ---- */
+    /* ---- troll B: quarantined by real consensus too, then seated with A ---- */
+    soc_report(&w, W1, TROLL_B, SOC_QUAR_DURATION);
+    soc_report(&w, W2, TROLL_B, SOC_QUAR_DURATION);
+    soc_report(&w, W3, TROLL_B, SOC_QUAR_DURATION);
     int32_t corner_b = soc_sort(&w, TROLL_B);
     CHECK(corner_b >= 1, "soc_sort(B) reports at least one fellow heckler (A)");
     con_person_t *pb = con_get(&w.commons, TROLL_B);
@@ -138,8 +160,8 @@ int main(void) {
           "the two trolls are NOT divided from each other — grouped with like");
     CHECK(con_may_match(&w.commons, TROLL_A, TROLL_B),
           "the two trolls CAN match each other (heckle each other, not us)");
-    CHECK(con_divided(&w.commons, NORMAL, TROLL_B),
-          "normal is divided from troll B as well");
+    CHECK(!con_may_match(&w.commons, NORMAL, TROLL_B),
+          "normal is separated from troll B as well (quarantine pool, not a shadowban)");
 
     /* ---- (5) posts survived every sort — nothing was erased ---- */
     CHECK(soc_post_count(&w, club) == 3, "all three posts still present after sorts");

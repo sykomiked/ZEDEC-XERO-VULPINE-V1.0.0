@@ -162,12 +162,23 @@ int main(void) {
         CHECK(crown_revoke(&cr, &c, CROWN_REVOKE_NONE) == CROWN_ERR_NO_GROUND,
               "crown_revoke REFUSES an empty ground");
 
-        /* ACCEPTS a Return-Doctrine (fraud root) ground. */
+        /* ACCEPTS a Return-Doctrine (fraud root) ground. Attach the genuine offline
+         * signature first so we can prove verify-vs-active AFTER revocation. */
         crown_isc_t cf; build_signed_isc(&cf);
+        crown_isc_attach_signature(&cf, TEST_CROWN_SIG);
+        CHECK(crown_isc_verify(&cf, TEST_CROWN_PUBKEY) == true,
+              "cf is genuinely signed before revocation");
         CHECK(crown_revoke(&cr, &cf, CROWN_REVOKE_FRAUD_ROOT) == CROWN_OK,
               "crown_revoke ACCEPTS a Return-Doctrine (fraud) ground");
         CHECK(cf.revoked == 1 && cf.revoke_reason == CROWN_REVOKE_FRAUD_ROOT,
               "revoked flag and reason recorded on fraud ground");
+        /* The revoked credential STILL passes signature-only verify (the flag is
+         * outside the preimage) — but crown_isc_is_active() must reject it. This is
+         * the access gate: a revoked ISC authorises NOTHING. */
+        CHECK(crown_isc_verify(&cf, TEST_CROWN_PUBKEY) == true,
+              "a revoked credential still VERIFIES (signature-only, flag not signed)");
+        CHECK(crown_isc_is_active(&cf, TEST_CROWN_PUBKEY) == false,
+              "but crown_isc_is_active REJECTS it — revoked authorises nothing");
 
         /* ACCEPTS a Symbiotic-Maxim (asymmetric harm) ground. */
         crown_isc_t ch; build_signed_isc(&ch);

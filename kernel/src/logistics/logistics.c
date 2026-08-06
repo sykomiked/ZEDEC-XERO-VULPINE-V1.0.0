@@ -4,6 +4,7 @@
  * that stays shut until delivery. No libc, no float on target, no invented facts. */
 
 #include "logistics.h"
+#include "ed25519_verify.h"   /* ed25519_verify — the built-in delivery attestation check */
 
 /* ---- tiny freestanding helpers (no libc dependency) ---- */
 
@@ -58,6 +59,7 @@ void log_init(log_state_t *s) {
     }
     rep_init(&s->rep);
     s->next_id = 1;
+    s->verify = 0;              /* UNBOUND => escrow fails closed until set */
 }
 
 /* ================= (3)+(4) open a contract ================= */
@@ -199,6 +201,30 @@ int32_t log_escrow_deposit(log_state_t *s, uint64_t contract_id,
     return LOG_OK;
 }
 
+void log_set_verifier(log_state_t *s, log_deliv_verify_fn fn) {
+    if (s) s->verify = fn;
+}
+
+bool log_ed25519_delivery_verify(uint64_t contract_id, const log_delivery_t *d) {
+    if (!d) return false;
+    /* Canonical message: contract_id LE64 (8) || delivery_cid (LOG_CID_LEN) ||
+     * confirmed (1). We verify THIS signature — never the fact it asserts. */
+    uint8_t msg[8 + LOG_CID_LEN + 1];
+    uint64_t id = contract_id;
+    for (int i = 0; i < 8; i++) { msg[i] = (uint8_t)(id & 0xFFu); id >>= 8; }
+    for (uint32_t i = 0; i < LOG_CID_LEN; i++) msg[8 + i] = d->delivery_cid[i];
+    msg[8 + LOG_CID_LEN] = d->confirmed ? 1u : 0u;
+    return ed25519_verify(msg, sizeof(msg), d->sig, d->attestor);
+}
+
+/* Is `party` actually a signatory of this contract? An outsider's "it arrived"
+ * is not an attestation — only a counterparty can witness the crates land. */
+static bool log_is_party(const log_contract_t *c, uint32_t party) {
+    for (uint32_t i = 0; i < c->n_parties; i++)
+        if (c->parties[i] == party) return true;
+    return false;
+}
+
 log_result_t log_escrow_release(log_state_t *s, uint64_t contract_id,
                                 const log_delivery_t *proof) {
     log_result_t r;
@@ -212,13 +238,23 @@ log_result_t log_escrow_release(log_state_t *s, uint64_t contract_id,
 
     r.escrow_remaining = c->escrow_held;
 
-    /* THE gate. No attestation (UNBOUND) or an attestation that does not confirm
-     * delivery => the crates have not landed => the escrow stays SHUT. We never
-     * invent a delivery the world did not report. */
-    if (!proof || !proof->confirmed) {
-        r.status = LOG_HELD;
-        return r;
-    }
+    /* THE gate — every clause fails CLOSED (LOG_HELD, escrow untouched). We never
+     * invent a delivery the world did not report, and we never trust a bare word.
+     *
+     *  (a) an attestation must be SUPPLIED and assert delivery;
+     *  (b) the goods must have had a witness bound at open (has_proof_cid) —
+     *      you cannot "deliver" crates nobody ever pinned;
+     *  (c) the confirming party must be ON the contract — an outsider cannot
+     *      spring someone else's escrow;
+     *  (d) a verifier must be BOUND — unverified, `confirmed` is just a bool a
+     *      caller flipped, so with no oracle the escrow stays shut; and
+     *  (e) the verifier must ACCEPT the signature over the canonical message,
+     *      binding this attestation to THIS contract and THIS evidence. */
+    if (!proof || !proof->confirmed)             { r.status = LOG_HELD; return r; }  /* (a) */
+    if (!c->has_proof_cid)                        { r.status = LOG_HELD; return r; }  /* (b) */
+    if (!log_is_party(c, proof->confirming_party)){ r.status = LOG_HELD; return r; }  /* (c) */
+    if (!s->verify)                               { r.status = LOG_HELD; return r; }  /* (d) */
+    if (!s->verify(contract_id, proof))           { r.status = LOG_HELD; return r; }  /* (e) */
 
     /* IDEMPOTENCY: a contract is delivered, paid, and credited exactly ONCE.
      * Without this, re-calling with any confirmed attestation against an already-

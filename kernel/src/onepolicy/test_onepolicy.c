@@ -87,10 +87,18 @@ int main(void) {
         t.reciprocal = false;
         CHECK(op_evaluate(&t) == OP_VOID_UNILATERAL_EXTRACTION,
               "one-way value with no return => VOID_UNILATERAL_EXTRACTION");
-        /* the SAME flow, but with a matched return commitment, is cured */
-        op_term_t bound = t; bound.reciprocal = true;
-        CHECK(op_evaluate(&bound) == OP_VALID,
-              "a matched return commitment cures the one-way flow (reciprocity is the cure)");
+        /* RED TEAM: setting reciprocal=true does NOT cure a one-way flow — the flag
+         * is caller-asserted and cannot override the values. Value flows one way,
+         * so it stays extraction. (An attacker used this to slip a pure take past.) */
+        op_term_t lie = t; lie.reciprocal = true;
+        CHECK(op_evaluate(&lie) == OP_VOID_UNILATERAL_EXTRACTION,
+              "a claimed-reciprocal one-way flow is STILL extraction (the flag cannot lie)");
+        /* the canonical exploit: A conveys 100 and receives literally nothing, but
+         * claims reciprocity. It must be VOID, not VALID. */
+        op_term_t exploit = {0};
+        exploit.give_a = SR_FROM_INT(100); exploit.give_b = SR_ZERO; exploit.reciprocal = true;
+        CHECK(op_evaluate(&exploit) == OP_VOID_UNILATERAL_EXTRACTION,
+              "give_a=100, give_b=0, reciprocal=true => VOID (pure extraction closed)");
     }
 
     /* ---- Maxim (3): non-reciprocal burden — nets negative on one side ---- */

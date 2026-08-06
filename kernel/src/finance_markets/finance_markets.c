@@ -187,19 +187,25 @@ int32_t fm_settle(fm_book_t *book, uint32_t from_acct, uint32_t to_acct,
         for (int j = 0; j < LEDGER_MAX; j++) snap[k].bal[j] = a->balance[j];
     }
 
-    /* Principal leg: from -> to. ell=1.0 (fully attested), phi=0 (no phase). */
+    /* Principal leg: from -> to. ell=1.0 (fully attested), phi=0 (no phase).
+     * triple_ledger_transfer is NOT internally atomic — it posts the from-leg then
+     * the to-leg and can fail after debiting `from`. So the principal leg needs the
+     * SAME rollback the fee leg has: without it, a to-leg failure (e.g. the account
+     * at its 256-entry cap) leaves `from` debited with no offsetting credit — a
+     * partial settlement that breaks conservation. */
     int32_t rc = triple_ledger_transfer(tl, from_acct, to_acct,
                                         CAP_FINANCIAL, amount, SR_ONE, SR_ZERO,
                                         "fm settle: principal");
-    if (rc < 0) return FM_ERR_LEDGER;
+    if (rc < 0) goto rollback;
 
     /* Node fee leg: from -> node fee account. */
     rc = triple_ledger_transfer(tl, from_acct, book->node_fee_acct,
                                 CAP_FINANCIAL, fee, SR_ONE, SR_ZERO,
                                 "fm settle: node fee");
     if (rc < 0) {
-        /* Fee leg failed — reverse the principal leg. Restore the scalars; stale
-         * entry rows past the restored num_entries are logically discarded. */
+    rollback:
+        /* Reverse everything posted so far. Restore the scalars; stale entry rows
+         * past the restored num_entries are logically discarded. */
         tl->total_assets = s_assets; tl->total_liabilities = s_liab;
         tl->total_equity = s_equity; tl->next_entry_id = s_nid;
         for (int k = 0; k < 3; k++) {

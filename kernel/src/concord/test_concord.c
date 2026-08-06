@@ -96,23 +96,32 @@ int main(void) {
     {
         con_commons_t c; con_init(&c);
         surplus_real_t v[CON_DIM];
-        vec(v, 0, 1.0); con_join(&c, 1, v, 200);      /* ordinary member */
+        vec(v, 0, 1.0); con_join(&c, 1, v, 200);      /* ordinary member / witness */
         vec(v, 1, 1.0); con_join(&c, 2, v, 200);      /* the bully */
         vec(v, 2, 1.0); con_join(&c, 3, v, 200);      /* another bully */
+        vec(v, 3, 1.0); con_join(&c, 4, v, 200);      /* a third witness */
+        vec(v, 4, 1.0); con_join(&c, 5, v, 200);      /* a fourth witness */
 
-        /* person 2 crosses boundaries repeatedly -> quarantine */
+        /* Person 2 crosses boundaries against DISTINCT peers. One reporter can
+         * never quarantine anyone: a repeat by the SAME reporter is a no-op, so
+         * quarantine takes REAL consensus. Two distinct hits (−40 each from 100)
+         * only STRAIN; the third distinct reporter clears CON_QUAR_MAX. */
         con_report_boundary(&c, 1, 2, 5);
         con_report_boundary(&c, 3, 2, 5);
-        con_report_boundary(&c, 1, 2, 5);
+        con_report_boundary(&c, 1, 2, 5);   /* SAME reporter again: deliberately a no-op */
+        CHECK(con_standing(con_get(&c, 2)) != CON_QUARANTINED,
+              "two distinct reporters + a repeat only STRAIN — no unilateral quarantine");
+        con_report_boundary(&c, 4, 2, 5);   /* the THIRD distinct reporter tips it */
         con_person_t *bully = con_get(&c, 2);
-        printf("       bully standing after repeated reports: %s (score %d)\n",
+        printf("       bully standing after distinct reports: %s (score %d)\n",
                con_standing_name(con_standing(bully)), bully->standing_score);
-        CHECK(con_standing(bully) == CON_QUARANTINED, "repeated boundary-crossing -> QUARANTINED");
+        CHECK(con_standing(bully) == CON_QUARANTINED,
+              "THREE distinct reporters (real consensus) -> QUARANTINED");
 
-        /* drive person 3 to quarantine too */
+        /* drive person 3 to quarantine too — three DISTINCT reporters again */
         con_report_boundary(&c, 1, 3, 5);
-        con_report_boundary(&c, 2, 3, 5);
-        con_report_boundary(&c, 1, 3, 5);
+        con_report_boundary(&c, 4, 3, 5);
+        con_report_boundary(&c, 5, 3, 5);
         /* let the mutual divides between the bullies expire so matching is
          * about STANDING pools, not the specific incidents */
         con_tick(&c, 6);

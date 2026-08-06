@@ -146,16 +146,20 @@ bool con_report_boundary(con_commons_t *c, uint32_t reporter, uint32_t subject,
     con_person_t *sub = con_get(c, subject);
     if (!sub || !con_getc(c, reporter)) return false;
 
-    /* the divide is MUTUAL and TEMPORARY */
+    /* The divide is MUTUAL and TEMPORARY, and each (reporter,subject) pair counts
+     * ONCE. The standing penalty lives INSIDE this guard: without that, a single
+     * reporter calling repeatedly would stack strikes and quarantine anyone in a
+     * few calls — a unilateral ban. Only DISTINCT reporters (real consensus) can
+     * accumulate enough strikes to quarantine; a repeat by the same reporter is a
+     * no-op. */
     if (!con_divided(c, reporter, subject)) {
         if (c->n_divides >= CON_MAX_DIVIDES) return false;
         con_divide_t *d = &c->divide[c->n_divides++];
         d->a = reporter; d->b = subject; d->expires_at = c->now + duration;
+        /* this distinct reporter's one strike toward the subject's quarantine */
+        sub->standing_score -= CON_BOUNDARY_HIT;
+        if (sub->standing_score < 0) sub->standing_score = 0;
     }
-    /* the subject's standing drops toward quarantine; repeated crossings
-     * accumulate, but time will lift it again */
-    sub->standing_score -= CON_BOUNDARY_HIT;
-    if (sub->standing_score < 0) sub->standing_score = 0;
     return true;
 }
 

@@ -126,6 +126,16 @@ int32_t br_swap_settle(br_exchange_t *ex, const cross_cap_swap_t *s) {
     if (SR_CMP(s->amount, SR_ZERO) < 0) return BR_ERR_RANGE;       /* no negatives */
     if (SR_CMP(s->agreed_rate, SR_ZERO) <= 0) return BR_ERR_RANGE; /* rate supplied, positive */
 
+    /* A FINANCIAL leg is SPENDABLE money — the only capital form that can leave
+     * the exchange as a claim on others. It may settle ONLY THROUGH a bound vino
+     * rail, whose coverage floor actually backs the claim. Without a rail, a
+     * chosen agreed_rate could round-trip FINANCIAL->X->FINANCIAL and MINT
+     * spendable money from nothing (buy X cheap with money, sell X dear for more
+     * money). Non-money barters (HUMAN<->SOCIAL, etc.) are conserved by the book
+     * itself and need no rail. So: money moves only where a rail can vouch for it. */
+    if ((s->from == ZCAP_FINANCIAL || s->to == ZCAP_FINANCIAL) && ex->rail == NULL)
+        return BR_ERR_NO_RAIL;
+
     surplus_real_t received = SR_MUL(s->amount, s->agreed_rate);
 
     /* A cross-capital swap is a conserved principal barter between two DISTINCT
