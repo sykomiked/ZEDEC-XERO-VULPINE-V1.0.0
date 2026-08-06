@@ -72,7 +72,8 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/bios \
          -Ikernel/src/chiglet -Ikernel/src/cards -Ikernel/src/refinery -Ikernel/src/concord -Ikernel/src/wyrmgate -Ikernel/src/wyverneye -Ikernel/src/chronicle \
          -Ikernel/src/deploy -Ikernel/src/theme -Ikernel/src/icon -Ikernel/src/font -Ikernel/src/bridge -Ikernel/src/update -Ikernel/src/mage -Ikernel/src/reality -Ikernel/src/bootfeat \
-         -Ikernel/src/onepolicy -Ikernel/src/zcapital -Ikernel/src/ipfs -Ikernel/src/crown -Ikernel/src/ministry
+         -Ikernel/src/onepolicy -Ikernel/src/zcapital -Ikernel/src/ipfs -Ikernel/src/crown -Ikernel/src/ministry \
+         -Ikernel/src/vino_stores -Ikernel/src/interspace
 
 LDFLAGS = -T kernel/arch/arm64/linker.ld -nostdlib -static -Wl,--gc-sections
 LIBGCC = $(shell $(CC) -print-libgcc-file-name 2>/dev/null || echo /usr/lib/gcc-cross/aarch64-linux-gnu/13/libgcc.a)
@@ -229,7 +230,13 @@ KERNEL_SRCS = \
     kernel/src/zcapital/zcapital.c \
     kernel/src/ipfs/ipfs.c \
     kernel/src/crown/crown.c \
-    kernel/src/ministry/ministry.c
+    kernel/src/ministry/ministry.c \
+    kernel/src/vino_stores/vino_stores.c \
+    kernel/src/interspace/interspace.c \
+    kernel/src/interspace/lex_rhodia.c \
+    kernel/src/interspace/flagstate.c \
+    kernel/src/interspace/federation.c \
+    kernel/src/interspace/minister.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
 

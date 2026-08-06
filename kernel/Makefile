@@ -230,6 +230,10 @@ verify-all: test
 	( grep -E '^[[:space:]]*#include' src/crown/crown.c | grep -iE 'ledger|vino|wallet|ministry|finance|voucher|treasury' && { echo "[FAIL] crown.c includes a money header"; exit 1; } ; \
 	  grep -E '^[[:space:]]*#include' src/ministry/ministry.c | grep -iE '"crown' && { echo "[FAIL] ministry.c includes crown"; exit 1; } ; \
 	  echo "[PASS] anti-capture separation holds (corruption would be a build error)" )
+	@echo "=== vino_stores: dual-rail Vino settlement engine (>=1.8x, no debt) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/vino_stores -Isrc/finance -Isrc/vino -Isrc/surplus -Isrc/onepolicy -Isrc/edp_risk -Isrc/robin_debanks src/vino_stores/test_vino_stores.c src/vino_stores/vino_stores.c src/finance/triple_ledger.c src/onepolicy/onepolicy.c src/edp_risk/edp_risk.c src/robin_debanks/sha256.c -o /tmp/test_vino_stores -lm && /tmp/test_vino_stores && echo "[PASS] test_vino_stores" || { echo "[FAIL] test_vino_stores"; exit 1; }
+	@echo "=== interspace: the space between spaces (Lex Rhodia commons) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/interspace -Isrc/ipfs -Isrc/robin_debanks -Isrc/update -Isrc/bridge -Isrc/onepolicy -Isrc/constellation -Isrc/surplus -Isrc/trispace src/interspace/test_interspace.c src/interspace/interspace.c src/interspace/lex_rhodia.c src/interspace/flagstate.c src/interspace/federation.c src/interspace/minister.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/onepolicy/onepolicy.c src/constellation/constellation_coordinator.c -o /tmp/test_interspace -lm && /tmp/test_interspace && echo "[PASS] test_interspace" || { echo "[FAIL] test_interspace"; exit 1; }
 	@echo "=== platform license: four-instrument share-alike stack ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/license src/license/test_license.c src/license/license.c -o /tmp/test_license && /tmp/test_license && echo "[PASS] test_license" || { echo "[FAIL] test_license"; exit 1; }
 	@echo "=== Crypto KATs ==="; \
