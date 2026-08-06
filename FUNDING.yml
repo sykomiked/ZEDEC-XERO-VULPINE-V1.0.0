@@ -1,0 +1,40 @@
+# FUNDING.yml — how to support ZEDEC XERO VULPINE (ZEDEC pqOS)
+#
+# SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+#
+# This is a project funding manifest. It lives beside the license but is kept
+# strictly SEPARATE from it: the license texts stay pure, enforceable mechanics;
+# the funding/commercial funnel lives here and in README.md (#support-the-architecture).
+# (GitHub's own .github/FUNDING.yml uses a fixed sponsor-platform schema that does
+#  not carry raw wallet addresses; if you host on GitHub, point its `custom:` field
+#  at the README's Support section and keep the real routes here.)
+
+project:    ZEDEC XERO VULPINE (ZEDEC pqOS)
+maintainer: "36N9 Genetics, LLC — H.M. Michael-Laurence: Curzi (c)"
+
+# ---- Commercial dual-licensing: the enterprise off-ramp ----
+# Free forever under the OPL-1.1 four-instrument share-alike stack. Its copyleft
+# means embedding this kernel in a proprietary, closed-source product would require
+# open-sourcing that product. Organizations needing IP protection, custom
+# adaptation, or SLAs can buy a private commercial license from the copyright holder.
+commercial:
+  contact: deal@zedec.ai
+  offers:
+    - Proprietary commercial (dual) license
+    - Joint-venture hardware integration
+    - Architectural consulting + guaranteed SLAs
+
+# ---- Gratuities: grassroots support, no middleman ----
+# Direct decentralized routes. Gratuities fund ongoing red-team audits and
+# hardware cross-compilation.
+crypto:
+  evm:    "0xe673621b36984cb1f74a876b4ba26c4f6ca4e25f"
+  tron:   "TJWpaS3ByovWePBaYgeQTPcfvkEAnRwYam"
+  solana: "AUcWUSpNJdjPe3M7o1MdtxMUPKp67gkGExEpHiQVF26t"
+  sui:    "0x6a66a72ecf7f2aec68250e5d8ff98904f57f3e45fb1df6457fe3168b2539fb11"
+  btc:    "bc1qc9t7nwj8ynph0nhuwygr05u6853kg0mfafxqxn"
+  aptos:  "0x689c200e70586733166b533268bd6c3ed68e295336a13cf6396936196d8c1e82"
+  cosmos: "cosmos19kwdzlr0qfwn7klvwwlmccsecvxezt6rnkm4kh"
+
+vino: "Settlement under the VINO Physical Standard is welcome — contact for terms."
+fiat: "deal@zedec.ai (wire routing on request)"
