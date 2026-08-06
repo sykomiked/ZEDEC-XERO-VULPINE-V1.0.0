@@ -1,6 +1,6 @@
 <!--
 Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
-SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
 -->
 
 # ZEDEC pqOS — Server Cross-Compile Handover Schema
@@ -45,7 +45,9 @@ to do when they don't, and the two subsystems that need real work (§3).
 
 The **arm64 target is the reference build**. It compiles and boots to
 `[E0106] [BOOT_OK]` (EL0 + P-TERM shell) on the dev machine under
-`qemu-system-aarch64`. Everything below is measured, not asserted.
+`qemu-system-aarch64`, with the platform layer (`8/8`) **and** the economy
+foundation (`5/5`) self-checking at boot. Everything below is measured, not
+asserted.
 
 | Layer | Status on handover | How it was verified |
 |---|---|---|
@@ -53,10 +55,12 @@ The **arm64 target is the reference build**. It compiles and boots to
 | Network (DHCP/DNS/TCP), TLS 1.3 (HKDF/X25519/ChaCha20-Poly1305) | ✅ host-tested vs RFC vectors | `make verify-all` |
 | Tri-Space pkg (.zxvc/.cedez/.cedec) + ZSP Ed25519 verify | ✅ host-tested vs openssl sigs | `make verify-all` |
 | **Platform layer** (deploy, theme, icon, font+TrueType, bridge, update, mage, reality) | ✅ **boots on arm64**, host-tested | `[FEAT] … 8/8 self-checked` in boot log + `make verify-all` |
+| **Economy/governance/social layer** (25 modules: onepolicy, zcapital, vino_stores, crown, ministry, battering_ram, finance_markets, iso20022, alloc, logistics, concord, social, reputation, pirate_fleet, pirate_apps, chiglet-suite, orbital_compat, sutra, …) | ✅ **boots on arm64**, host-tested | `[FEAT] economy foundation up: 5/5` in boot log + `make verify-all` |
 | Font system (script itemization + TrueType rasteriser) | ✅ host-tested, known-answer | `test_truetype`, `test_font` |
 | Web2/3/4 bridge (one resolver) | ✅ host-tested | `test_bridge` |
-| Host integrity gate | ✅ **ALL STAGE-1 CHECKS PASSED** (229 sections) | `make verify-all` from `kernel/` |
-| 11 platform modules cross-compile | ✅ x86_64-elf, aarch64-none-elf, armv7-none-eabi (clang) | per-file freestanding compile |
+| Host integrity gate | ✅ **ALL STAGE-1 CHECKS PASSED** (3593 checks, 0 failures) | `make verify-all` from `kernel/` |
+| 5-target cross-compile preflight | ✅ **CLEAN** (arm64 170 files incl. economy layer; x86_64/riscv/riscv32/arm32 compile) | `preflight_all_targets.sh` (clang, compile-only) |
+| Adversarial red-team (two gates) | ✅ **31 findings fixed** (19 kernel-layer `953e3ae` + 12 economy-layer `15f5455`), each with a frozen regression | `make verify-all` under ASan/UBSan |
 
 **Definition of "host-tested":** a native `gcc`/`clang` test binary asserts
 computed values against an external anchor (an RFC vector, an openssl-produced
@@ -110,21 +114,32 @@ wrapped as (or chainloaded by) a UEFI PE binary. Produce the `.EFI` stubs
 (GNU-EFI or a PE64 wrapper that loads the kernel blob) and drop them where the
 script expects. The script documents the exact paths at its top.
 
-### 3c. Wire the platform layer into the non-arm64 arches
-arm64 already boots the platform layer (the `[FEAT]` lines). For each other arch,
-two edits (see [`build_system/platform_layer.mk`](build_system/platform_layer.mk)):
+### 3c. Wire the platform AND economy layers into the non-arm64 arches
+arm64 already boots both layers (the `[FEAT]` lines: platform `8/8`, economy
+`5/5`). x86_64/riscv/arm32 are bring-up/preflight kernels that do **not** yet
+carry them. Each layer is a self-contained includable fragment; wiring is the
+same two-edit pattern per layer:
 ```make
-include build_system/platform_layer.mk
-KERNEL_SRCS += $(PLATFORM_LAYER_SRCS)
-CFLAGS      += $(PLATFORM_LAYER_INC)
+include build_system/platform_layer.mk      # 11 platform modules
+include build_system/economy_layer.mk        # 25 economy/governance/social modules
+KERNEL_SRCS += $(PLATFORM_LAYER_SRCS) $(ECONOMY_LAYER_SRCS)
+CFLAGS      += $(PLATFORM_LAYER_INC)  $(ECONOMY_LAYER_INC)
 ```
 and in that arch's `kernel_main`, just before its BOOT_OK milestone:
 ```c
 #include "boot_features.h"
 boot_features_init(<that_arch_uart_puts>, <cpu_cores_or_0>, <mem_mb_or_0>);
+boot_economy_init(<that_arch_uart_puts>);    // rolls up the 5/5 economy foundation
 ```
-That is the whole integration. Verified portable: all 11 modules compile
-freestanding for x86_64/aarch64/armv7.
+**Order of operations matters.** The economy layer builds ON base modules that
+must already be in that arch's `KERNEL_SRCS` — `finance/triple_ledger`, `surplus`,
+`robin_debanks/{sha256,ed25519_verify}`, `concord`, `chiglet`, `trispace`,
+`constellation`, `identity`, `theme`, `icon`, `cards/sigil`, `tls/hkdf`. The
+x86_64 kernel is currently minimal (§3a), so bring those base modules up first
+(they are already in arm64's list and in `platform_layer.mk`) or the economy
+layer will report undefined symbols — that is a missing base dep, not a bug in
+the fragment. All 25 economy modules already compile freestanding under the
+five-target preflight; the work is linking them onto a full-featured kernel_main.
 
 ---
 
@@ -201,10 +216,24 @@ matrix cell — do not round up. That honesty is the deliverable.
 ## 8. Orientation — where things are
 
 - Canonical source tree: `05_KERNEL/kernel/` (`arch/`, `src/`, `boot/`, `compat/`).
+- **Architecture reference: [`ARCHITECTURE_WHITEPAPER.md`](ARCHITECTURE_WHITEPAPER.md)** —
+  the whole-system design (axioms, the 10 layers, cross-cutting invariants, the two
+  red-team gates, and this build pipeline). Read it first for the *why*; this
+  handover is the *how*. File index: `SUBSYSTEM_INDEX.md`.
 - Reference build: `build_system/Makefile.arm64`. Host gate: `kernel/Makefile`
-  (`make verify-all`).
-- Platform layer entry: `kernel/src/bootfeat/boot_features.c`
-  (`boot_features_init`), called from `kernel/arch/arm64/kernel_main_arm64.c`.
+  (`make verify-all`). Layer fragments: `platform_layer.mk`, `economy_layer.mk`.
+- Platform + economy layer entry: `kernel/src/bootfeat/boot_features.c`
+  (`boot_features_init` and `boot_economy_init`), both called from
+  `kernel/arch/arm64/kernel_main_arm64.c` just before `[BOOT_OK]`.
+- **Red-team guards are load-bearing — never remove them.** Two adversarial gates
+  fixed 31 findings, each with a frozen regression in the relevant `test_*.c`
+  (run under ASan/UBSan by `make verify-all`). The economy-layer invariants to
+  preserve: escrow/settlement ops boundaries verify a *signature + membership* and
+  fail closed when unbound (`log_set_verifier`, `br_distribute`, `crown_isc_is_active`);
+  the One Policy extraction check ignores the caller-set `reciprocal` flag; a
+  ledger post asks a *pure usury query*, not the two-party deal gate; money legs
+  require a bound rail (`BR_ERR_NO_RAIL`); quarantine needs distinct-reporter
+  consensus and `soc_sort` never manufactures it. See the white paper §14.
 - Do **not** treat `zxv_os/`, `zxv_build/`, `zxv_complete/`, `zxv_sdk/`,
   `05_KERNEL/subsystems/` as canonical — they are archived/partial snapshots,
   kept intentionally, not the source of truth.
