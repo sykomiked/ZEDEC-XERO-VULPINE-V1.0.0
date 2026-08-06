@@ -14,7 +14,10 @@
  * - Power efficiency: CPU can truly idle without clock ticks
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  * 36N9 Genetics, LLC
  */
 #ifndef EVENT_CLOCK_H
@@ -137,6 +140,13 @@ typedef struct {
     uint64_t last_sync_ns;
     clock_iface_t last_sync_source;
 
+    /* The interface event_clock_request_sync() was last asked to sync from,
+     * and which has not been served yet. CLOCK_IFACE_NONE means "nothing
+     * outstanding". Cleared by an accepted sync and by entering
+     * CLOCK_DISABLED. This exists so request_sync()'s `source` argument is
+     * recorded rather than merely validated and thrown away. */
+    clock_iface_t pending_sync_source;
+
     /* Internal event sequence (ordinal-based, not time-based) */
     uint64_t event_ordinal;     /* Monotonically increasing event counter */
     uint64_t local_counter;     /* Free-running counter (the time base) */
@@ -144,7 +154,10 @@ typedef struct {
     /* Sync tracking */
     bool needs_sync;
     bool clock_active;
-    uint32_t sync_count;        /* Counts ACCEPTED syncs only */
+    uint32_t sync_count;        /* Counts ACCEPTED syncs only; SATURATES at
+                                 * UINT32_MAX (a wrap to 0 would claim
+                                 * "never synced" on a clock that names a
+                                 * source, which verify_coverage rejects). */
     double drift_ppm;           /* Measured drift */
     double correction_factor;   /* Applied correction */
 
@@ -157,8 +170,16 @@ typedef struct {
     uint64_t tick_interval_ns;
     uint64_t last_tick_ns;      /* Internal ns at the last whole tick boundary */
 
-    /* M5 coordinates. Kept in step by every mutator; event_clock_verify_coverage()
-     * checks them rather than recomputing them, so a stale//corrupt m5 FAILS. */
+    /* M5 coordinates — a DERIVED CACHE of the fields above, rewritten by
+     * every mutator. event_clock_verify_coverage() re-derives all five axes
+     * and compares, so a stale or corrupt m5 FAILS.
+     *
+     * m5.phi is the signed relative drift, drift_ppm/1e6, CLAMPED to
+     * +/-1e9 before conversion. drift_ppm itself is unbounded above and
+     * surplus_real_t is Q32.32 int64 on the target, where the conversion is
+     * undefined once |value| >= 2^31 — so the M5 projection saturates while
+     * the stored drift_ppm does not. Read drift_ppm, not m5.phi, if you
+     * need the raw measurement. */
     m5_coords_t m5;
 } event_clock_t;
 
@@ -183,6 +204,10 @@ uint64_t event_clock_get_ordinal(event_clock_t *clk);
 void event_clock_sync(event_clock_t *clk, uint64_t external_ns, clock_iface_t source);
 uint64_t event_clock_get_time(event_clock_t *clk);
 bool event_clock_needs_sync(event_clock_t *clk);
+
+/* Latch a demand for an external sync and record WHICH interface should
+ * serve it in clk->pending_sync_source. Refused (no latch, no record) in
+ * CLOCK_DISABLED, for CLOCK_IFACE_NONE and for out-of-range sources. */
 void event_clock_request_sync(event_clock_t *clk, clock_iface_t source);
 
 /* Mode management */
@@ -216,6 +241,11 @@ bool event_clock_verify_coverage(event_clock_t *clk);
  *    polls it gets monotonic progress; it does not get real elapsed time
  *    unless the caller drives one event per real tick_interval_ns.
  *    With tick_interval_ns == 0 there is no defined period and it returns 0.
+ *    CAVEAT: it is computed as elapsed_ns / tick_interval_ns, and elapsed_ns
+ *    saturates (see 7). Once local_counter * tick_interval_ns would exceed
+ *    UINT64_MAX the result is LOWER than floor(local_counter *
+ *    correction_factor). It stays monotonic non-decreasing; it stops being
+ *    the exact product.
  *
  * 3. ORDINALS SATURATE, THEY DO NOT WRAP. At UINT64_MAX,
  *    event_clock_next_ordinal() keeps returning UINT64_MAX. The guarantee
@@ -243,7 +273,19 @@ bool event_clock_verify_coverage(event_clock_t *clk);
  *
  * 7. NANOSECOND ARITHMETIC SATURATES at EVENT_CLOCK_NS_CEILING /
  *    UINT64_MAX rather than overflowing. A saturated reading is wrong but
- *    bounded; it is not wrapped.
+ *    bounded; it is not wrapped. Which ceiling applies depends on the path:
+ *    with correction_factor == 1.0 the span is an exact integer product and
+ *    saturates at UINT64_MAX; otherwise it goes through double and saturates
+ *    at EVENT_CLOCK_NS_CEILING. The exact path exists because a double
+ *    product silently drops low bits above 2^53, and a projection documented
+ *    to the nanosecond may not quietly lose hundreds of them.
+ *
+ * 7b. A PERIOD-DRIVEN MODE MAY NOT HAVE ITS PERIOD REMOVED.
+ *    event_clock_set_tick_interval(clk, 0) is REFUSED in CLOCK_PERIODIC and
+ *    CLOCK_HYBRID (no ordinal is spent), because the resulting clock is one
+ *    event_clock_verify_coverage() rejects. Leave those modes first. Zero is
+ *    accepted in CLOCK_DISABLED and CLOCK_EXTERNAL_SYNC, which have no period
+ *    by definition.
  *
  * 8. NOT THREAD/IRQ SAFE. No locks, no atomics. Call it from one context,
  *    or serialise it yourself.

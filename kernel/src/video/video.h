@@ -5,7 +5,10 @@
  * waiting for a scanline retrace and handing a page to a scanout engine.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  * 36N9 Genetics, LLC
  *
  * ===========================================================================
@@ -41,17 +44,29 @@
  *                             field that ever claims a physical scanout is
  *                             video_display_t.scanout_live, and no code path
  *                             sets it true without a bound backend saying so.
+ *                             video_set_mode() also refuses any non-HEADLESS
+ *                             mode when no display resolves (VIDEO_ENODISPLAY):
+ *                             a bound backend must not make "there was nothing
+ *                             to program" read as success.
+ *     And once a display is INACTIVE — which is how a failed connector probe
+ *     leaves it — video_flip(), video_vsync_wait() and video_read_pixel() all
+ *     refuse it, so no acknowledgement from a stale backend and no IRQ latch
+ *     can re-assert scanout_live on a panel that is not there.
  *  2. NO 3D. dev->supports_3d is initialised to false and there is no path
  *     that sets it true. There is no texture unit, shader or depth buffer.
  *  3. NO DMA ENGINE. dma_buffer/dma_size stay NULL/0; blits are CPU copies.
- *  4. NO PALETTE HARDWARE. reg_palette is a recorded value only; the indexed
- *     format here (PIXEL_RGB332) is a fixed 3:3:2 truncation, not a LUT.
+ *  4. NO PALETTE HARDWARE. Nothing in this file ever writes reg_palette or
+ *     programs a LUT; PIXEL_RGB332 is a fixed 3:3:2 truncation, not an index
+ *     into a palette, so there is no colour table to load.
  *  5. The font covers ASCII 32..126 only. Anything else (including UTF-8
  *     continuation bytes) renders as a hollow .notdef box. There is no
  *     kerning, no anti-aliasing, no bidi and no shaping.
  *  6. video_blit() uses a single module-static row buffer, so it is NOT
  *     re-entrant and must not be called from an IRQ handler that could
- *     interrupt another blit. Blits wider than VIDEO_BLIT_MAX_W are refused.
+ *     interrupt another blit. Blits wider than VIDEO_BLIT_MAX_W or taller
+ *     than VIDEO_BLIT_MAX_H are refused outright — BOTH extents are bounded,
+ *     because the blit loops are O(w*h) and an unbounded h would let a single
+ *     hostile call spin the kernel for hours.
  *  7. BLIT_SCALED and BLIT_ROTATED refuse overlapping source/destination
  *     rectangles (they would need a full-surface temporary). BLIT_COPY,
  *     BLIT_ALPHA and BLIT_FLIPPED handle overlap correctly.
@@ -59,11 +74,20 @@
  *     the kernel: lines longer than VIDEO_MAX_LINE_STEPS steps stop early,
  *     circles with r > VIDEO_MAX_RADIUS are refused, draw_text stops after
  *     VIDEO_TEXT_MAX_CHARS characters. Every real display is far below these.
- *  9. In VIDEO_MODE_TEXT_80x25 all 2D raster entry points are inert: the
- *     framebuffer is a character-cell array there, not pixels, so writing
- *     pixels into it would corrupt it.
+ *     A line that stops at the step cap is TRUNCATED, not clipped correctly —
+ *     the pixels past the cap are neither drawn nor counted.
+ *  9. In VIDEO_MODE_TEXT_80x25 all 2D entry points are inert: the framebuffer
+ *     is a character-cell array there, not pixels, so writing pixels into it
+ *     would corrupt it and reading pixels out of it would be fiction.
+ *     video_read_pixel() therefore returns false in that mode too.
  * 10. Coordinates are int32 and clipping is rectangular only. No scissor
  *     stack, no regions, no transforms.
+ * 11. Geometry is capped twice: by the caller-visible dev->max_width /
+ *     max_height, and by the hard VIDEO_HARD_MAX_DIM ceiling that no caller
+ *     can raise. The hard ceiling is what keeps pitch*height inside 32 bits,
+ *     so raising max_width cannot be turned into an integer overflow.
+ * 12. dev->num_displays is treated as UNTRUSTED everywhere: every loop over
+ *     the display array clamps it to VIDEO_MAX_DISPLAYS first.
  */
 #ifndef VIDEO_H
 #define VIDEO_H
@@ -121,7 +145,9 @@ typedef enum {
 #define VIDEO_ENOSCANOUT   (-5)  /* memory work done; nothing drives a panel  */
 #define VIDEO_EBACKEND     (-6)  /* the bound backend reported a failure      */
 #define VIDEO_ENOSPC       (-7)  /* buffer too small for the geometry         */
-#define VIDEO_EOVERLAP     (-8)  /* op cannot handle overlapping rectangles   */
+/* There is deliberately no overlap error code: video_blit() returns void, so
+ * it cannot report one. BLIT_SCALED / BLIT_ROTATED on overlapping rectangles
+ * draw NOTHING — check the rectangles yourself before calling. */
 
 /* ===== Display ===== */
 typedef struct {
@@ -237,7 +263,13 @@ typedef struct {
      * In particular stat_scanout_flips counts flips a backend acknowledged,
      * which is a strict subset of stat_page_flips (pointer swaps). */
     uint64_t stat_pixels_written;   /* pixels stored into a surface */
-    uint64_t stat_pixels_clipped;   /* pixel writes asked for and rejected */
+    /* Pixel writes that were asked for and rejected. Exact for put_pixel,
+     * fill_rect and draw_line (whose whole-primitive reject adds the exact
+     * max(dx,dy)+1 it would have emitted). draw_circle and draw_text do NOT
+     * itemise their whole-primitive trivial rejects — computing that count
+     * would mean running the rasteriser anyway — so this counter is a lower
+     * bound for those two, never an over-count for any of them. */
+    uint64_t stat_pixels_clipped;
     uint64_t stat_page_flips;       /* front/back pointer swaps performed */
     uint64_t stat_scanout_flips;    /* flips a bound backend acknowledged */
     uint64_t stat_vsync_waits;      /* retraces a backend actually waited for */
@@ -253,11 +285,17 @@ typedef struct {
 #define VIDEO_FONT_LAST         126
 #define VIDEO_FONT_GLYPHS       96     /* 95 printable + 1 .notdef */
 #define VIDEO_BLIT_MAX_W        4096
+#define VIDEO_BLIT_MAX_H        4096
 #define VIDEO_MAX_LINE_STEPS    4194304
 #define VIDEO_MAX_RADIUS        65536
 #define VIDEO_TEXT_MAX_CHARS    4096
 #define VIDEO_DEFAULT_MAX_W     4096
 #define VIDEO_DEFAULT_MAX_H     4096
+/* The ceiling no caller can raise (LIMITATIONS 11). dev->max_width and
+ * dev->max_height are plain struct fields, so a caller can set them to
+ * anything; every geometry entry point checks this constant as well, which is
+ * what keeps pitch (<= dim*4) and pitch*height inside 32 bits. */
+#define VIDEO_HARD_MAX_DIM      16384
 
 /* Coverage floor: r and l below are both fractions in [0,1], so demanding
  * their product reach 1.0 demands BOTH be exactly 1 — every active display
@@ -268,11 +306,18 @@ typedef struct {
 
 /* ===== API ===== */
 void video_init(video_device_t *dev, const char *name);
+/* Records the software mode (always) and programs a CRTC (only through a bound
+ * backend). Any mode other than VIDEO_MODE_HEADLESS needs a display to apply
+ * to, so it returns VIDEO_ENODISPLAY when the primary display does not resolve
+ * — a bound backend does NOT turn "there was nothing to program" into OK. */
 int video_set_mode(video_device_t *dev, video_mode_t mode);
 int video_set_resolution(video_device_t *dev, uint32_t display_id,
                          uint32_t w, uint32_t h, uint32_t bpp, pixel_format_t fmt);
 int video_set_framebuffer(video_device_t *dev, uint32_t display_id, void *fb, uint32_t size);
 void *video_get_framebuffer(video_device_t *dev, uint32_t display_id);
+/* Both of these refuse an INACTIVE display with VIDEO_ENODISPLAY: once a probe
+ * has reported the connector gone, no page swap and no backend acknowledgement
+ * may be used to re-assert scanout_live on it. */
 int video_flip(video_device_t *dev, uint32_t display_id);
 int video_vsync_wait(video_device_t *dev, uint32_t display_id);
 
@@ -296,7 +341,10 @@ int video_set_primary(video_device_t *dev, uint32_t display_id);
 video_display_t *video_get_display(video_device_t *dev, uint32_t display_id);
 
 /* IRQ: consumes the latched irq_* flags. Counters advance only for flags that
- * were actually set. */
+ * were actually set. irq_flip_done raises scanout_live only when a bound
+ * backend actually has a flip callback and the display is still active — a
+ * latch alone is not evidence that this file ever handed a page to a scanout
+ * engine. */
 void video_handle_irq(video_device_t *dev);
 
 /* Coverage: see VIDEO_COVERAGE_FLOOR. Returns false for an empty device, for
@@ -314,8 +362,10 @@ bool video_has_backend(const video_device_t *dev);
 
 /* Read a pixel back out of a display's DRAW target, converted to canonical
  * 0xAARRGGBB. Returns false (and leaves *out alone) when the coordinate is
- * outside the surface or no framebuffer is bound. Ignores the clip rectangle:
- * clipping restricts writes, not inspection. */
+ * outside the surface, no framebuffer is bound, the display is inactive, or
+ * the device is in VIDEO_MODE_TEXT_80x25 — where there are no pixels to read
+ * (LIMITATIONS 9), only character cells. Ignores the clip rectangle: clipping
+ * restricts writes, not inspection. */
 bool video_read_pixel(video_device_t *dev, uint32_t display_id,
                       int32_t x, int32_t y, uint32_t *out);
 

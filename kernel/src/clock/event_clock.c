@@ -14,7 +14,10 @@
  *   an orderable event but not every orderable event advances time.
  *
  * Author: 36N9 Genetics, LLC
- * License: SEL-3.3 (kernel component)
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 
 /* Deliberately NO "#include <string.h> / freestanding.h" pair here, unlike
@@ -68,6 +71,47 @@ static uint64_t ec_mul_sat(uint64_t a, uint64_t b) {
     return a * b;
 }
 
+/* Clamp a double into [lo,hi]. NaN maps to lo, because the comparisons are
+ * all false and the final return is taken — callers here only ever pass
+ * values that are already finite, but the clamp must not leak a NaN into
+ * fixed point either. */
+static double ec_clamp(double v, double lo, double hi) {
+    if (v > hi) return hi;
+    if (v >= lo) return v;
+    return lo;
+}
+
+/* Relative-drift value handed to SR_FROM_FLOAT for m5.phi.
+ *
+ * TARGET SAFETY, not cosmetics. On the host surplus_real_t is double and
+ * anything fits. On the target it is Q32.32 int64 and SR_FROM_FLOAT(x) is
+ * (int64_t)(x * 2^32), which is UNDEFINED BEHAVIOUR once |x| * 2^32 leaves
+ * the int64 range — i.e. once |x| >= 2^31. drift_ppm is genuinely unbounded
+ * above (a 1 ns reference span against a 9e18 ns local span measures 9e24
+ * ppm, so phi would be 9e18), so the value MUST be clamped before the
+ * conversion or the target build has UB on a reachable input.
+ *
+ * The clamp is 1e9, comfortably inside 2^31 = 2147483648 and comfortably
+ * outside any drift a real clock can show. drift_ppm itself is stored
+ * unclamped; only the M5 projection saturates. */
+#define EC_M5_PHI_LIMIT  1.0e9
+
+static double ec_m5_phi_of(double drift_ppm) {
+    return ec_clamp(drift_ppm / 1.0e6, -EC_M5_PHI_LIMIT, EC_M5_PHI_LIMIT);
+}
+
+/* Confidence in the time estimate, in [0,1]. Zero until a reference has ever
+ * been supplied; then it decays with measured drift: 0 ppm -> 1.0,
+ * 1e6 ppm -> 0.5. Factored out so verify_coverage() can recompute it. */
+static double ec_m5_ell_of(uint32_t sync_count, double drift_ppm) {
+    if (sync_count == 0) return 0.0;
+    /* Clamped for the same target reason as phi: a corrupt drift_ppm of NaN
+     * propagates through this expression and SR_FROM_FLOAT(NaN) is UB in
+     * Q32.32. The clamp maps NaN to 0.0 — no confidence — which is also the
+     * only honest answer about a clock whose drift is not a number. */
+    return ec_clamp(1.0 / (1.0 + ec_fabs(drift_ppm) / 1.0e6), 0.0, 1.0);
+}
+
 /* ===== The kernel-wide default clock ===== */
 
 static event_clock_t g_default_clock;
@@ -116,22 +160,11 @@ static bool ec_mode_keeps_time(clock_mode_t m) {
  * verification has something independent to check. Every mutator that
  * changes an input here must call this. */
 static void ec_refresh_m5(event_clock_t *clk) {
-    double conf;
-
     clk->m5.omega = (uint32_t)(clk->event_ordinal & 0xFFFFFFFFu);
     clk->m5.r     = SR_FROM_FLOAT(clk->correction_factor);
-
-    /* ell = confidence in the time estimate, in [0,1]. Zero until a
-     * reference has ever been supplied; then it decays with measured drift:
-     * 0 ppm -> 1.0, 1e6 ppm -> 0.5. */
-    if (clk->sync_count == 0) {
-        conf = 0.0;
-    } else {
-        conf = 1.0 / (1.0 + ec_fabs(clk->drift_ppm) / 1.0e6);
-    }
-    clk->m5.ell = SR_FROM_FLOAT(conf);
-    clk->m5.phi = SR_FROM_FLOAT(clk->drift_ppm / 1.0e6);
-    clk->m5.chi = (uint32_t)clk->mode;
+    clk->m5.ell   = SR_FROM_FLOAT(ec_m5_ell_of(clk->sync_count, clk->drift_ppm));
+    clk->m5.phi   = SR_FROM_FLOAT(ec_m5_phi_of(clk->drift_ppm));
+    clk->m5.chi   = (uint32_t)clk->mode;
 }
 
 /* Advance the logical clock by one orderable event. Saturates, never wraps:
@@ -149,6 +182,7 @@ static void ec_reset(event_clock_t *clk, clock_mode_t mode) {
     clk->external_time_ns  = 0;
     clk->last_sync_ns      = 0;
     clk->last_sync_source  = CLOCK_IFACE_NONE;
+    clk->pending_sync_source = CLOCK_IFACE_NONE;
     clk->event_ordinal     = 0;
     clk->local_counter     = 0;
     clk->sync_counter      = 0;
@@ -203,6 +237,13 @@ static uint64_t ec_span_since_sync(const event_clock_t *clk) {
     if (clk->local_counter <= clk->sync_counter) return 0;
 
     events = clk->local_counter - clk->sync_counter;
+    if (clk->correction_factor == 1.0) {
+        /* Exact path, same as ec_internal_elapsed(). Without it the double
+         * product silently drops the low bits above 2^53 and the projection
+         * that the header advertises as nanosecond-exact is off by hundreds
+         * of ns for large event counts. */
+        return ec_mul_sat(events, clk->tick_interval_ns);
+    }
     span = (double)events * (double)clk->tick_interval_ns
            * clk->correction_factor;
     return ec_ns_from_double(span);
@@ -211,6 +252,10 @@ static uint64_t ec_span_since_sync(const event_clock_t *clk) {
 /* Total internal nanoseconds since init: local_counter * interval * factor. */
 static uint64_t ec_internal_elapsed(const event_clock_t *clk) {
     double span;
+    /* Defensive only, and knowingly UNREACHABLE today: the sole caller,
+     * event_clock_get_ticks(), already returns early on a zero interval, so
+     * no test drives this line. It stays so the helper is safe to call from
+     * a second site later; it is not counted as tested behaviour. */
     if (clk->tick_interval_ns == 0) return 0;
     if (clk->correction_factor == 1.0) {
         /* Exact path — avoids losing counts above 2^53 in double. */
@@ -271,8 +316,12 @@ void event_clock_sync(event_clock_t *clk, uint64_t external_ns, clock_iface_t so
     clk->external_time_ns = external_ns;
     clk->sync_counter     = clk->local_counter;
     clk->last_sync_source = source;
-    clk->sync_count++;
+    /* Saturate, do not wrap. A wrap to 0 would claim "never synced" on a
+     * clock that names a sync source, which is a state verify_coverage
+     * rejects — i.e. wrapping would manufacture a corrupt clock. */
+    if (clk->sync_count != UINT32_MAX) clk->sync_count++;
     clk->needs_sync       = false;
+    clk->pending_sync_source = CLOCK_IFACE_NONE;   /* the request is served */
     clk->clock_active     = ec_active_for_mode(clk->mode);
 
     /* A sync is itself an orderable event, so it takes an ordinal — but it
@@ -330,6 +379,10 @@ void event_clock_request_sync(event_clock_t *clk, clock_iface_t source) {
     if (!ec_iface_valid(source) || source == CLOCK_IFACE_NONE) return;
 
     clk->needs_sync   = true;
+    /* RECORD the source, do not merely validate it. A parameter that is
+     * range-checked and then discarded is a hollow signature: the arch
+     * bridge asks "who should I sync from?" and needs the answer back. */
+    clk->pending_sync_source = source;
     clk->clock_active = true;   /* we are about to touch an external interface */
 }
 
@@ -351,6 +404,7 @@ void event_clock_set_mode(event_clock_t *clk, clock_mode_t mode) {
 
     if (mode == CLOCK_DISABLED) {
         clk->needs_sync = false;            /* nothing can satisfy it now */
+        clk->pending_sync_source = CLOCK_IFACE_NONE;  /* and nothing to ask */
     }
     clk->clock_active = ec_active_for_mode(mode);
 
@@ -413,6 +467,14 @@ uint64_t event_clock_get_ticks(event_clock_t *clk) {
 
 void event_clock_set_tick_interval(event_clock_t *clk, uint64_t interval_ns) {
     clk = ec_resolve(clk);
+
+    /* Clearing the period of a mode that IS a period is not a configuration,
+     * it is a broken clock — and it was reachable through this entry point
+     * alone, producing a live clock that event_clock_verify_coverage()
+     * rejects. Refuse it here; drop to CLOCK_EXTERNAL_SYNC or CLOCK_DISABLED
+     * first if you really want no period. */
+    if (interval_ns == 0 && ec_active_for_mode(clk->mode)) return;
+
     if (interval_ns == clk->tick_interval_ns) return;   /* no change, no event */
 
     clk->tick_interval_ns = interval_ns;
@@ -422,10 +484,13 @@ void event_clock_set_tick_interval(event_clock_t *clk, uint64_t interval_ns) {
 
 /* ===== Coverage =====
  *
- * This function CAN fail, and test_event_clock.c makes it fail eight
- * different ways. It checks stored state against the invariants this module
- * claims to maintain; it recomputes nothing, so a corrupted or stale field
- * is caught rather than papered over.
+ * This function CAN fail, and test_event_clock.c drives every one of its
+ * rejection branches to false. It checks STORED state against the invariants
+ * this module claims to maintain. The scalar fields are compared against
+ * each other, never recomputed, so a corrupted or stale field is caught
+ * rather than papered over; the M5 projection is the one thing that IS
+ * recomputed, because m5 is a derived cache and the only useful question
+ * about a cache is whether it still matches its source.
  */
 bool event_clock_verify_coverage(event_clock_t *clk) {
     clk = ec_resolve(clk);
@@ -433,6 +498,7 @@ bool event_clock_verify_coverage(event_clock_t *clk) {
     /* 1. Enumerations are in range. */
     if (!ec_mode_valid(clk->mode)) return false;
     if (!ec_iface_valid(clk->last_sync_source)) return false;
+    if (!ec_iface_valid(clk->pending_sync_source)) return false;
 
     /* 2. Every time-base step is an orderable event, so ordinals lead. */
     if (clk->event_ordinal < clk->local_counter) return false;
@@ -468,14 +534,36 @@ bool event_clock_verify_coverage(event_clock_t *clk) {
     if (clk->mode == CLOCK_DISABLED) {
         if (clk->clock_active) return false;
         if (clk->needs_sync) return false;
+        /* Nothing can serve a request in this mode, so none may be pending. */
+        if (clk->pending_sync_source != CLOCK_IFACE_NONE) return false;
     }
-    if (clk->mode == CLOCK_PERIODIC && clk->tick_interval_ns == 0) return false;
+    /* A period-driven mode keeps the interface engaged between syncs; only
+     * CLOCK_EXTERNAL_SYNC is allowed to be either (it lights up for the
+     * duration of a request and goes dark again on the sync). */
+    if (ec_active_for_mode(clk->mode) && !clk->clock_active) return false;
+    /* BOTH period-driven modes need a period, not just CLOCK_PERIODIC:
+     * ec_active_for_mode() and event_clock_set_mode() already treat
+     * CLOCK_HYBRID as period-driven, so checking only PERIODIC left a
+     * period-less HYBRID clock passing verification. */
+    if (ec_active_for_mode(clk->mode) && clk->tick_interval_ns == 0) return false;
 
-    /* 8. Stored M5 coordinates still describe this clock. */
+    /* 8. Stored M5 coordinates still describe this clock.
+     *
+     * All five axes, not two. m5.r and m5.phi used to be written by every
+     * mutator and checked by nobody, so a stale or corrupt value in either
+     * verified clean — which made the header's "verify_coverage checks them,
+     * so a stale/corrupt m5 FAILS" false for three fifths of the vector.
+     * SR_FROM_FLOAT is deterministic on host (identity) and on target
+     * (truncating multiply by 2^32), so exact equality is the right test on
+     * both. */
     if (clk->m5.omega != (uint32_t)(clk->event_ordinal & 0xFFFFFFFFu)) return false;
     if (clk->m5.chi   != (uint32_t)clk->mode) return false;
+    if (clk->m5.r     != SR_FROM_FLOAT(clk->correction_factor)) return false;
+    if (clk->m5.phi   != SR_FROM_FLOAT(ec_m5_phi_of(clk->drift_ppm))) return false;
     if (clk->m5.ell < SR_ZERO || clk->m5.ell > SR_ONE) return false;
     if (clk->sync_count == 0 && clk->m5.ell != SR_ZERO) return false;
+    if (clk->m5.ell != SR_FROM_FLOAT(ec_m5_ell_of(clk->sync_count,
+                                                  clk->drift_ppm))) return false;
 
     return true;
 }

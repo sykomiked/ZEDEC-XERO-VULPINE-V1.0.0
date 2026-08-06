@@ -123,6 +123,15 @@
  *     M5 economic quantity. The m5 field is mirrored for inspection
  *     only; nothing in this module consumes it.
  *
+ *     Further: activation is ALL-OR-NOTHING. epu_device_activate() turns
+ *     every cell on and epu_device_deactivate() turns every cell off, and
+ *     no API activates one cell, so r is only ever exactly 0.0 or exactly
+ *     1.0. In practice the coverage verdict is therefore driven entirely
+ *     by l, the fraction of qubits that still have coherence budget AND
+ *     fidelity at or above EPU_FIDELITY_FLOOR. Do not read r as a
+ *     continuously varying quantity; it is a device on/off bit wearing a
+ *     fraction's clothes.
+ *
  * L9. THE SOLFEGGIO AND VORTEX FREQUENCY SETS ARE NUMEROLOGY. They are
  *     modelled exactly (the tables and the doubling arithmetic are
  *     correct) but they carry no physical or physiological meaning, and
@@ -134,6 +143,65 @@
  *     bind with epu_bind_sink(). With no sink bound it writes nothing
  *     and reports nothing. It does not fall back to printf, because in
  *     a freestanding kernel there is no printf to fall back to.
+ *     It is NOT a pure observer: it calls epu_refresh_aggregates(),
+ *     epu_recompute_power(), epu_get_system_health() and
+ *     epu_verify_coverage(), so it rewrites the derived fields
+ *     (average_fidelity, total_coherence_us, power_consumption_mw,
+ *     operating_temp_k, coverage_r, coverage_l, m5) from current state.
+ *     Those recomputations are idempotent, but the dump is a "refresh
+ *     and print", not a read-only snapshot.
+ *
+ * L11. TWO OF THE FIVE HEALTH SUB-SCORES CANNOT FAIL IN THIS MODEL, AND
+ *     THAT IS ARITHMETIC, NOT AN OVERSIGHT. The largest draw the model
+ *     can produce is bus 12 mW + 256 cells x 0.25 mW + 8 coils x
+ *     (0.1 A)^2 x 0.05 ohm x 1000 = 12 + 64 + 4 = 80.000 mW exactly,
+ *     against an EPU_POWER_BUDGET_MW of 100. No API can push it higher:
+ *     the cell count is fixed, the coil current is hard-limited to
+ *     EPU_COIL_MAX_A, and epu_get_system_health() recomputes power from
+ *     the arrays before scoring, so poking power_consumption_mw by hand
+ *     does not survive either. Therefore s_pow is ALWAYS exactly 1.0 and
+ *     s_th is always in [1 - 4/300, 1] = [0.98667, 1]. The health score
+ *     is bounded below by (0 + 0 + 0 + 1 + 0.98667)/5 = 0.39733; it can
+ *     never reach 0 for a non-NULL device. The sub-scores that actually
+ *     move are s_cells, s_fid and s_coh. test_epu_device.c derives the
+ *     80.000 mW ceiling by saturating the model rather than assuming it.
+ *
+ * L12. THE SYSTEM-LEVEL AGGREGATES ARE NOT LIVE. epu_system_t's
+ *     system_coherence_us (MIN over devices) and system_fidelity (MEAN
+ *     over devices) are recomputed only by epu_system_create_device()
+ *     and by an explicit epu_system_refresh(). Nothing that mutates a
+ *     device updates them, so after you run gates on sys.devices[i] the
+ *     two system fields are STALE until you call epu_system_refresh().
+ *     They are a snapshot with a refresh button, not a live view.
+ *
+ * L13. NON-FINITE INPUT IS REFUSED, NOT PROPAGATED. Every entry point
+ *     that takes a double rejects NaN and the infinities rather than
+ *     letting them into the model state: the range checks are written in
+ *     the negated form (!(x >= lo && x <= hi)), the clamps send NaN to
+ *     the low bound, and epu_process_emotion() / epu_emotion_to_quantum()
+ *     refuse a non-finite emotion vector outright and count nothing.
+ *
+ * L14. HOST AND TARGET DO NOT USE THE SAME TRANSCENDENTALS, AND THE GAP IS
+ *     MEASURED RATHER THAN ASSUMED. Square roots are computed by this
+ *     module's own epu_sqrt(), which is bit-exact against IEEE-754
+ *     correctly-rounded sqrt and is the SAME code on both host and target,
+ *     so those agree exactly. cos() and sin() are not: on the host they are
+ *     libm, on the target they are freestanding.h's 15-term Taylor series.
+ *     Over the only two argument sets this module uses — the Givens angle
+ *     in [0, pi/2] and the single golden-phase angle 2*pi/phi — the two
+ *     agree to within 4.441e-16 absolute, measured, which is inside every
+ *     tolerance test_epu_device.c asserts (the tightest is 1e-15 on gate
+ *     amplitudes, and the trig-dependent ones are 1e-12/1e-13). The whole
+ *     suite has been run a second time with the target's Taylor cos/sin
+ *     substituted in, and passes identically. Do not tighten a
+ *     trig-dependent tolerance below 1e-14 without re-running that.
+ *
+ * L15. THIS MODULE IS NOT LINKED INTO ANY KERNEL IMAGE. epu_device.c does
+ *     not appear in kernel/Makefile or build_system/Makefile.arm64, and no
+ *     file outside src/epu/ includes epu_device.h. It compiles freestanding
+ *     (verified at -O0, -O1, -O2, -Os and -O3, zero undefined symbols) and
+ *     it has a host test, but nothing calls it. Treat it as a library that
+ *     is ready to be linked, not as running kernel code.
  *
  * ================== ERROR DISCIPLINE ==================
  *
@@ -146,7 +214,10 @@
  * actually occurred.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  * 36N9 Genetics, LLC
  */
 #ifndef EPU_DEVICE_H
@@ -408,12 +479,22 @@ typedef struct {
 void epu_system_init(epu_system_t *sys);
 /* Returns the new device id (1-based), or 0 if full / sys is NULL. */
 uint32_t epu_system_create_device(epu_system_t *sys, const char *name);
+/* Recompute system_coherence_us (MIN over devices — the weakest link
+ * governs) and system_fidelity (MEAN over devices) from the member
+ * devices. Nothing else keeps them current; see L12. No-op for NULL. */
+void epu_system_refresh(epu_system_t *sys);
 
 /* Device lifecycle. init() zeroes and populates nominal values with the
- * cell array and bus OFF; activate() turns them on. */
+ * cell array and bus OFF; activate() turns them on. `name` is copied into
+ * a 64-byte field and TRUNCATED to 63 characters plus a NUL; a NULL name
+ * becomes "epu". */
 void epu_device_init(epu_device_t *dev, uint32_t id, const char *name);
 int epu_device_activate(epu_device_t *dev);    /* EPU_ERR_BUSY if already active */
-int epu_device_deactivate(epu_device_t *dev);  /* EPU_ERR_BUSY if already inactive */
+/* Powers the model down: every cell off, every coil de-energised, every
+ * crystal layer extinguished (an unpowered layer has no resonance, so
+ * epu_crystal_get_resonance() reads 0.0 afterwards), power and IRQ state
+ * re-derived. EPU_ERR_BUSY if already inactive. */
+int epu_device_deactivate(epu_device_t *dev);
 
 /* Seed the measurement PRNG. Call after epu_device_init(), which seeds
  * deterministically from the device id. Same seed => same collapses. */
@@ -445,17 +526,28 @@ double epu_qubit_get_coherence(epu_device_t *dev, uint32_t qubit_id);
 int epu_qubit_apply_gate(epu_device_t *dev, uint32_t qubit_id, uint8_t gate_type);
 
 /* Emotion processing.
- * epu_process_emotion returns the all-zero vector (and counts nothing)
- * if dev or input is NULL or the device is not active. */
+ * epu_process_emotion returns the all-zero vector (and counts nothing,
+ * pushes no trace frame and raises no IRQ) if dev or input is NULL, the
+ * device is not active, or ANY component of the input is NaN or
+ * infinite — see L13. A NaN transform is not a completed transform, so
+ * emotions_processed must not advance for one. */
 emotion_vector_t epu_process_emotion(epu_device_t *dev, const emotion_vector_t *input);
+/* Euclidean norm, or 0.0 for a NULL or non-finite vector. Note that 0.0
+ * is therefore both "the null emotion" and "not a usable vector"; callers
+ * that need to tell them apart must check the components themselves. */
 double epu_compute_emotion_intensity(const emotion_vector_t *v);
-/* Writes EPU_EMOTION_DIMS qubit ids; qubit_ids must have room for that many. */
+/* Writes EPU_EMOTION_DIMS qubit ids; qubit_ids must have room for that
+ * many. EPU_ERR_RANGE for the null or non-finite emotion (neither has a
+ * direction), EPU_ERR_NO_RESOURCE when fewer than EPU_EMOTION_DIMS free
+ * qubits remain — in both cases the caller's array is left untouched. */
 int epu_emotion_to_quantum(epu_device_t *dev, const emotion_vector_t *emotion,
                            uint32_t *qubit_ids);
 
 /* Field coil operations */
 int epu_coil_activate(epu_device_t *dev, uint32_t coil_id, double current);
-/* B at the loop centre in tesla, or EPU_BAD_READING for a bad index. */
+/* |B| at the loop centre in tesla (a MAGNITUDE — the sign of the current
+ * carries the direction, so a negative return is unambiguously an error).
+ * EPU_BAD_READING for a bad index. */
 double epu_coil_compute_field(epu_device_t *dev, uint32_t coil_id);
 /* phi_factor is clamped to [phi^-2, phi^2]; out-of-range ids are ignored. */
 void epu_coil_set_golden_ratio(epu_device_t *dev, uint32_t coil_id, double phi_factor);
@@ -484,8 +576,18 @@ void epu_diagnostic_dump(epu_device_t *dev);
 
 /* Parameter export in HDL syntax — NOT a design, see L7.
  * language is "verilog" or "vhdl" (case-insensitive). Any other value,
- * or a NULL device, returns NULL. */
+ * or a NULL device, returns NULL.
+ *
+ * epu_generate_hdl() writes into one shared static buffer and is NOT
+ * reentrant (L7). epu_generate_hdl_buf() writes into a caller-supplied
+ * buffer and IS reentrant; it returns `buf` on success and NULL if the
+ * device or language is bad, or if `buf`/`cap` cannot hold the whole
+ * skeleton — a truncated skeleton would be a lie dressed as output, so
+ * it is never returned. It writes at most `cap` bytes including the
+ * terminating NUL and never touches buf[cap] or beyond. */
 const char *epu_generate_hdl(epu_device_t *dev, const char *language);
+const char *epu_generate_hdl_buf(epu_device_t *dev, const char *language,
+                                 char *buf, uint32_t cap);
 
 /* Re-evaluate the level-triggered IRQ flags from current state, and
  * acknowledge (clear) the edge-triggered irq_emotion_ready. */

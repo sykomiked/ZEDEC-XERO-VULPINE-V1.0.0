@@ -1,7 +1,10 @@
 /* wifi.c — ZEDEC XERO pqOS IEEE 802.11 STATION/AP subsystem
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  * 36N9 Genetics, LLC
  *
  * The split this file is built around is stated at the top of wifi.h: every
@@ -523,6 +526,12 @@ uint32_t wifi_freq_to_channel(uint32_t freq_mhz) {
     }
     if (freq_mhz >= 5955 && freq_mhz <= 7115 && ((freq_mhz - 5950) % 5) == 0) {
         uint32_t ch = (freq_mhz - 5950) / 5;
+        /* Channel 2 is NOT at 5950 + 2*5 = 5960; it sits alone at 5935, which
+         * the special case above already answered. Letting the arithmetic
+         * branch claim 5960 would return a channel whose own centre frequency
+         * is a different number — the round trip would not close, and a driver
+         * would be handed the contradictory pair (channel 2, 5960 MHz). */
+        if (ch == 2) return 0;
         return ch_valid_6g(ch) ? ch : 0;
     }
     return 0;
@@ -1473,6 +1482,24 @@ int wifi_set_power_save(wifi_device_t *dev, uint32_t iface_id, uint8_t level) {
     return WIFI_OK;
 }
 
+int wifi_set_tx_power(wifi_device_t *dev, uint32_t iface_id, uint8_t dbm) {
+    wifi_interface_t *f = wifi_get_interface(dev, iface_id);
+    if (!f) return WIFI_EINVAL;
+    /* 30 dBm (1 W conducted) is the ceiling essentially every regulatory
+     * domain imposes on these bands; a uint8_t can ask for 255, which is not
+     * a transmit power, it is a typo. */
+    if (dbm > WIFI_MAX_TX_POWER_DBM) return WIFI_EINVAL;
+    /* max_tx_power is 0 ("unknown") until a driver fills it in after binding.
+     * Once it says something, asking for more than the radio can do is a bad
+     * argument rather than something to hand down and hope about. */
+    if (dev->max_tx_power != 0 && dbm > dev->max_tx_power) return WIFI_EINVAL;
+    if (!wifi_has_radio(dev) || !dev->ops->set_tx_power) return WIFI_ENODEV;
+    if (dev->ops->set_tx_power(dev->ops->ctx, dbm) < 0) return WIFI_EIO;
+    /* Recorded only now, because only now is it the radio's actual setting. */
+    dev->reg_tx_power = dbm;
+    return WIFI_OK;
+}
+
 int wifi_tx_packet(wifi_device_t *dev, uint32_t iface_id, const void *data, uint32_t len) {
     wifi_interface_t *f = wifi_get_interface(dev, iface_id);
     if (!f || !data) return WIFI_EINVAL;
@@ -1575,7 +1602,10 @@ int wifi_build_beacon(wifi_device_t *dev, uint32_t iface_id, uint8_t *out, uint3
 
     bool secured = (f->security != WIFI_SEC_OPEN);
     bool two_four = (f->band == WIFI_BAND_2_4GHZ) || (f->channel <= 14);
-    uint32_t rates_n = two_four ? 8u : 8u;
+    /* Both rate sets below are 8 octets long; only their CONTENTS differ
+     * (DSSS+OFDM on 2.4 GHz, OFDM only above it), so the size is a constant
+     * and the length check does not depend on the band. */
+    const uint32_t rates_n = 8u;
     uint32_t need = off + 12 + (2 + slen) + (2 + rates_n) + 3 + (2 + 4) +
                     (secured ? sizeof(WIFI_RSNE_PSK_CCMP) : 0);
     if (cap < need) return WIFI_EMSGSIZE;
@@ -1620,7 +1650,8 @@ int wifi_build_beacon(wifi_device_t *dev, uint32_t iface_id, uint8_t *out, uint3
 /* Management frame ingress — this is what drives the state machine        */
 /* ===================================================================== */
 
-int wifi_rx_mgmt(wifi_device_t *dev, uint32_t iface_id, const uint8_t *frame, uint32_t len) {
+int wifi_rx_mgmt(wifi_device_t *dev, uint32_t iface_id, const uint8_t *frame,
+                 uint32_t len, int16_t rssi) {
     wifi_interface_t *f = wifi_get_interface(dev, iface_id);
     if (!f || !frame) return WIFI_EINVAL;
 
@@ -1638,8 +1669,14 @@ int wifi_rx_mgmt(wifi_device_t *dev, uint32_t iface_id, const uint8_t *frame, ui
     case WIFI_STYPE_BEACON:
     case WIFI_STYPE_PROBE_RESP: {
         wifi_scan_result_t r;
+        /* The RSSI stored in a scan result is the one the CALLER measured for
+         * THIS frame. The interface's own f->rssi belongs to the BSS we are
+         * associated with (and is the -127 "never measured" sentinel before
+         * that), so using it here would stamp every AP we overhear with a
+         * signal strength taken from a different radio path — a fabricated
+         * measurement. The driver has the real per-frame value; it passes it. */
         uint32_t freq = wifi_channel_to_freq(f->channel, f->band);
-        int rc = wifi_parse_beacon(frame, len, f->rssi, freq, &r);
+        int rc = wifi_parse_beacon(frame, len, rssi, freq, &r);
         if (rc != WIFI_OK) return rc;
         rc = wifi_scan_add_result(dev, &r);
         if (rc < 0) return rc;
@@ -1861,14 +1898,23 @@ void wifi_handle_irq(wifi_device_t *dev) {
 
     if (dev->irq_rx_ready && wifi_has_radio(dev)) {
         /* Drain what the radio has, bounded so an ISR cannot spin forever.
-         * Frames larger than the drain buffer are counted as drops rather
-         * than silently truncated. */
+         *
+         * Honesty note: the drain buffer is 1600 bytes and that cap is handed
+         * to rx_poll, so a backend that has a larger frame reports its own
+         * failure (n < 0) rather than handing us a truncated one — this loop
+         * cannot distinguish "too big" from any other backend error, and does
+         * not pretend to. What it MUST NOT do is pull a frame off the radio
+         * and then drop it without saying so, which is why the no-interface
+         * case is checked BEFORE rx_poll and the failed-inject case counts. */
         uint8_t frame[1600];
-        for (int guard = 0; guard < 32; guard++) {
-            int n = dev->ops->rx_poll(dev->ops->ctx, frame, (uint32_t)sizeof frame);
-            if (n <= 0) break;
-            if (dev->num_ifaces == 0) break;
-            if (wifi_rx_inject(dev, 1, frame, (uint32_t)n) != WIFI_OK) break;
+        if (dev->num_ifaces != 0) {
+            for (int guard = 0; guard < 32; guard++) {
+                int n = dev->ops->rx_poll(dev->ops->ctx, frame, (uint32_t)sizeof frame);
+                if (n == 0) break;                  /* nothing waiting */
+                if (n < 0) { dev->ifaces[0].rx_dropped++; break; }
+                /* wifi_rx_inject() counts a refusal as rx_dropped itself. */
+                if (wifi_rx_inject(dev, 1, frame, (uint32_t)n) != WIFI_OK) break;
+            }
         }
         if (dev->rx_used == 0) dev->irq_rx_ready = false;
     }

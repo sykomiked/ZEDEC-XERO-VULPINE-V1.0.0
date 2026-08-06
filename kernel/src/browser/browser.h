@@ -5,7 +5,10 @@
  * request builder + response parser.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  * 36N9 Genetics, LLC
  *
  * ============================ LIMITATIONS ============================
@@ -24,10 +27,13 @@
  *
  * 2. What IS real and fully tested, with no hardware anywhere in the path:
  *        browser_parse_url()      RFC 3986-shaped absolute/relative URL split
- *        browser_resolve_url()    relative -> absolute resolution
+ *        browser_resolve_url()    relative -> absolute resolution, checked
+ *                                 against ALL 42 references in RFC 3986 §5.4
+ *                                 (§5.4.1 normal + §5.4.2 abnormal)
  *        http_build_request()     byte-exact HTTP/1.1 request serialisation
- *        http_parse_response()    status line, folded headers, Content-Length,
- *                                 and chunked transfer decoding (in place)
+ *        http_parse_response()    status line, obs-fold header unfolding
+ *                                 (RFC 7230 §3.2.4), Content-Length, and
+ *                                 chunked transfer decoding (in place)
  *        html_parse()             the tokenizer (see 3)
  *        html_render()            block layout, exact integer pixel boxes
  *        tabs / history / bookmarks / scroll clamping / coverage
@@ -76,6 +82,28 @@
  *     than one slot returns BROWSER_ERR_TOO_LARGE. It is never truncated and
  *     reported as success. BROWSER_MAX_PAGE_SIZE is the ceiling html_parse()
  *     accepts from a caller-owned buffer, not what http_request() can fetch.
+ *     A caller that keeps more than BROWSER_HTTP_POOL_SLOTS responses alive at
+ *     once gets BROWSER_ERR_FULL until it calls http_response_free().
+ *     browser_navigate()/browser_refresh() therefore return the slot as soon
+ *     as the body is tokenized: after a load, tab->response keeps status_code,
+ *     headers, content_type and content_length, but body is NULL and body_len
+ *     is 0. All BROWSER_MAX_TABS tabs can be loaded at the same time.
+ *
+ * 11. THE RETAINED HEADER BLOCK IS 4096 BYTES, THE WIRE IS NOT. Framing is
+ *     always decided from the bytes that arrived, so an oversized header block
+ *     can never mis-frame a body — but http_response_t.headers only keeps the
+ *     first 4095 bytes, and http_get_header() can only search what it kept.
+ *     When the block was longer (or held a NUL), http_response_t.headers_
+ *     truncated is set, and a 0 from http_get_header() then means UNKNOWN
+ *     rather than ABSENT. Check that flag before concluding a header is
+ *     missing.
+ *
+ * 12. FRAMING IS FAIL-CLOSED, NOT BEST-EFFORT. Per RFC 7230 §3.3.3, two
+ *     Content-Length fields whose values differ are rejected with
+ *     BROWSER_ERR_PROTOCOL rather than resolved by "first one wins" — that
+ *     choice is the response-splitting primitive. A non-numeric or negative
+ *     Content-Length, a non-hex chunk size, and a chunk size that would wrap
+ *     32 bits are all refusals too, never a silently empty or short body.
  * =====================================================================
  */
 #ifndef BROWSER_H
@@ -118,6 +146,11 @@
 #define BROWSER_LAYOUT_MARGIN   8u
 #define BROWSER_BLOCK_MARGIN    8u
 #define BROWSER_BASE_FONT_PX    16
+/* Layout ceiling on font_size. html_render() takes a caller-owned tab, so
+ * font_size is untrusted input; above this the line-box arithmetic would wrap
+ * uint32 and report a nonsense content extent. Sizes above it are CLAMPED and
+ * the clamp is written back to the element. */
+#define BROWSER_MAX_FONT_PX     512
 #define BROWSER_IMG_PLACEHOLDER 64u       /* <img> with no width/height attr */
 #define BROWSER_HR_THICKNESS    2u
 #define BROWSER_CHAR_W(fs)      ((uint32_t)(fs) / 2u)
@@ -227,7 +260,22 @@ int browser_parse_url(const char *url, browser_url_t *out);
 /* Resolve `ref` against `base` into `out` (a full URL string, cap bytes).
  * Handles absolute refs, scheme-relative ("//h/p"), root-relative ("/p"),
  * query-only ("?q"), fragment-only ("#f") and path-relative ("a/b", "../c")
- * with "." / ".." collapsing. Returns BROWSER_OK or an error. */
+ * with "." / ".." collapsing.
+ *
+ * Returns BROWSER_OK, BROWSER_ERR_ARG for a NULL/zero-cap argument,
+ * BROWSER_ERR_BAD_URL if base is not absolute or either side does not parse,
+ * or BROWSER_ERR_FULL if the resolved URL does not fit `cap`. It is never OK
+ * with a shortened URL in `out`: a clipped "http://a/b/c/g" is "http://a",
+ * which is a real and fetchable but entirely different address.
+ *
+ * STRICT RFC 3986 §5.2.2: a reference that carries a SCHEME is the target as
+ * it stands, whether or not it has an authority. "g:h" resolves to "g:h", and
+ * "mailto:"/"javascript:"/"data:" references are returned unchanged rather
+ * than merged into the base's path. This is the strict parser of §5.4.2, not
+ * the "backward compatible" one that maps "http:g" to "http://a/b/c/g".
+ *
+ * Normalisation note: an empty path on an authority is serialised as "/", so
+ * "//g" resolves to "http://g/" where RFC 3986 writes "http://g". */
 int browser_resolve_url(const char *base, const char *ref, char *out, uint32_t cap);
 
 /* ===== HTTP response ===== */
@@ -235,6 +283,12 @@ typedef struct {
     uint16_t status_code;
     char status_text[64];
     char headers[4096];        /* raw header block, CRLFs preserved */
+    bool headers_truncated;    /* the block did not fit `headers` (or held a
+                                * NUL). Framing is unaffected — it is read
+                                * from the wire bytes — but http_get_header()
+                                * can then answer 0 for a header that IS
+                                * present. 0 means UNKNOWN, not ABSENT, when
+                                * this is set. */
     uint32_t content_length;   /* value of the Content-Length header, if any */
     char content_type[128];
     uint8_t *body;             /* points INTO the caller's buffer — borrowed */
@@ -357,9 +411,27 @@ browser_tab_t *browser_get_tab(browser_t *browser, uint32_t tab_id);
  * bytes actually arrived and the document parsed; otherwise an error code,
  * with the URL still committed so back/forward stays coherent. */
 int browser_navigate(browser_t *browser, uint32_t tab_id, const char *url);
+
+/* Move one entry along the navigation stack and rewrite the tab's URL/title.
+ * BROWSER_ERR_NO_HISTORY when there is nothing in that direction.
+ * With a transport bound the entry is re-fetched and the fetch result is
+ * returned. With NO transport bound these still return BROWSER_OK, because
+ * the requested work — moving the stack and updating the tab — did happen;
+ * the tab is simply left with an empty DOM and loaded == false. */
 int browser_back(browser_t *browser, uint32_t tab_id);
 int browser_forward(browser_t *browser, uint32_t tab_id);
+
+/* Re-fetch the tab's current URL without touching the navigation stack.
+ * BROWSER_ERR_NO_TRANSPORT when nothing is bound — refresh has no non-network
+ * meaning, so unlike back/forward it does not pretend to have succeeded. */
 int browser_refresh(browser_t *browser, uint32_t tab_id);
+
+/* Ensure the tab is not loading. Idempotent; BROWSER_OK whenever the tab
+ * exists, since that postcondition is then true either way.
+ * IT CANNOT CANCEL A FETCH. http_request() is synchronous, so `loading` is
+ * only ever true inside a call that has not returned yet; on a single-threaded
+ * kernel path there is nothing in flight for this to abort. It clears the flag
+ * and says so — it does not claim to have stopped a transfer. */
 int browser_stop(browser_t *browser, uint32_t tab_id);
 
 /* Scroll by (dx,dy), clamped to [0, content - viewport] on each axis using
@@ -384,7 +456,12 @@ int http_build_request(char *out, uint32_t cap, http_method_t method,
 int http_parse_response(http_response_t *resp, uint8_t *buf, uint32_t len);
 
 /* Copy the value of header `name` (case-insensitive) from an already-parsed
- * response into `out`. Returns the length written, or 0 if absent. */
+ * response into `out`. Returns the length written, or 0.
+ *
+ * 0 means "not found IN THE RETAINED BLOCK". If resp->headers_truncated is
+ * set, the block is short of what arrived and a 0 here is UNKNOWN, not
+ * ABSENT. A value longer than `cap` is truncated, and the return is the
+ * number of bytes written, not the value's true length. */
 uint32_t http_get_header(const http_response_t *resp, const char *name,
                          char *out, uint32_t cap);
 
@@ -406,7 +483,43 @@ void http_response_free(http_response_t *resp);
  * terminated and may contain NUL bytes. Returns BROWSER_OK, or
  * BROWSER_ERR_TRUNCATED if the element table filled before the input ended
  * (the elements written are still valid), or BROWSER_ERR_ARG on bad
- * arguments / len > BROWSER_MAX_PAGE_SIZE. */
+ * arguments / len > BROWSER_MAX_PAGE_SIZE.
+ *
+ * TOKENIZER BEHAVIOUR YOU WILL OBSERVE — stated up front rather than
+ * discovered:
+ *   - Hostile input is the design case. It is a flat index loop: it does not
+ *     recurse, never indexes without a proven bound, and treats every length
+ *     in the document as untrusted. A 100000-deep document costs no stack.
+ *   - EOF INSIDE A TAG DISCARDS THAT TAG (HTML5 "eof-in-tag"), including a
+ *     tag whose attribute quote never closes. This is what makes every prefix
+ *     of a document safe: a half-read tag never becomes a half-true element.
+ *   - An attribute quote that closes LATER swallows everything between,
+ *     including '>' and any markup, exactly as real browsers do.
+ *   - A '<' not followed by a letter, '!' or '/' is literal text, and does
+ *     not split the surrounding character run.
+ *   - <script> and <style> are RAWTEXT: their content is one TEXT token,
+ *     undecoded and uncollapsed, ending only at a properly delimited closing
+ *     tag ("</scriptfoo>" does not close a <script>).
+ *   - A NUL byte in character data, RAWTEXT, a comment or a doctype becomes
+ *     U+FFFD (HTML5). It is NOT a terminator: the rest of the run survives.
+ *   - Entity code points that cannot be encoded — U+0000, a lone surrogate
+ *     (D800..DFFF), anything above U+10FFFF — also become U+FFFD, so every
+ *     text field really is valid UTF-8. An entity with no digits ("&#;") or
+ *     an unknown name stays literal instead.
+ *   - Text tokens are entity-decoded (named/decimal/hex; unknown entities stay
+ *     literal) and whitespace-collapsed to single spaces. A run that is only
+ *     whitespace is DROPPED if it contained a newline (source pretty-printing)
+ *     and KEPT as one space otherwise (a real inter-element space). This is a
+ *     heuristic, not a spec rule.
+ *   - DEVIATION FROM HTML5: an explicit "/>" self-closes ANY element, not
+ *     only foreign content. <span/> emits SELF_CLOSE and opens nothing.
+ *   - Nesting depth is clamped at BROWSER_HTML_MAX_DEPTH. Deeper elements
+ *     still tokenize and their end tags still balance; they simply stop
+ *     tracking inherited formatting below the clamp.
+ *   - Any field that did not fit sets html_element_t.truncated — text, tag
+ *     name, href, src, ALT, the attribute digest, and an attribute NAME too
+ *     long for the 64-byte scratch it is matched in. A truncated href
+ *     additionally leaves is_link false. */
 int html_parse(const char *html, uint32_t len, html_element_t *elements,
                uint32_t max, uint32_t *count);
 
@@ -415,7 +528,9 @@ html_elem_type_t html_tag_type(const char *tag);
 
 /* Lay the tab's token stream out as integer pixel boxes for the given
  * viewport, filling x/y/w/h on every element and content_w/content_h on the
- * tab. Deterministic: same tokens + same viewport => same pixels. */
+ * tab. Deterministic: same tokens + same viewport => same pixels.
+ * font_size above BROWSER_MAX_FONT_PX is clamped, and the clamp is written
+ * back to the element so its box and its declared size agree. */
 int html_render(browser_tab_t *tab, uint32_t viewport_w, uint32_t viewport_h);
 
 /* Bookmarks */
@@ -423,7 +538,11 @@ int browser_add_bookmark(browser_t *browser, const char *title, const char *url)
 int browser_remove_bookmark(browser_t *browser, uint32_t index);
 browser_bookmark_t *browser_get_bookmarks(browser_t *browser, uint32_t *count);
 
-/* History */
+/* History
+ * add_history refuses a url of BROWSER_MAX_URL_LEN or longer with
+ * BROWSER_ERR_ARG rather than storing a prefix — a truncated history entry is
+ * an entry for a different page, and browser_back() would go there.
+ * `title` is display-only and IS truncated to BROWSER_MAX_TITLE_LEN-1. */
 int browser_add_history(browser_t *browser, const char *url, const char *title);
 browser_history_t *browser_get_history(browser_t *browser, uint32_t *count);
 int browser_clear_history(browser_t *browser);

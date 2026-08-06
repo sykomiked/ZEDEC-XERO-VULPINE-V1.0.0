@@ -18,7 +18,10 @@
  * of the order the streams happen to be scanned in.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 
 #ifdef TEST_HOST
@@ -43,20 +46,38 @@ static void au_strcpy(char *dst, const char *src, uint32_t max) {
     dst[i] = '\0';
 }
 
-static int au_strcmp(const char *a, const char *b) {
-    uint32_t i = 0;
-    while (a[i] && b[i]) {
-        if (a[i] != b[i]) return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
-        i++;
+/* Compare a FIXED-SIZE name field against a C string without ever reading past
+ * the end of the field. A field with no NUL in its `max` bytes is not a name at
+ * all — it is corruption — and never matches. (An unbounded strcmp here would
+ * run off mixer[i].name[32] into the adjacent double on a corrupt device.) */
+static bool au_name_eq(const char *field, uint32_t max, const char *want) {
+    for (uint32_t i = 0; i < max; i++) {
+        if (field[i] == '\0') return want[i] == '\0';
+        if (want[i] == '\0') return false;
+        if (field[i] != want[i]) return false;
     }
-    return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
+    return false;               /* unterminated field: corrupt, not a match */
 }
+
+/* The S24/S32 decoders reduce bit depth with a right shift of a NEGATIVE
+ * int32_t. C11 leaves that implementation-defined, so pin it at build time
+ * instead of assuming it; every toolchain this kernel targets arithmetic-shifts,
+ * and C23 makes it mandatory. */
+_Static_assert(((int32_t)-1 >> 1) == (int32_t)-1,
+               "this toolchain does not arithmetic-shift negative integers");
 
 /* Deterministic square root. We do NOT call the toolchain's sqrt(): the host
  * test and the freestanding target must agree bit for bit, and the target's
- * softfloat path is a different implementation. Newton-Raphson on IEEE double
- * converges to the correctly-rounded root for the small, well-conditioned
- * arguments the distance model produces. */
+ * softfloat path is a different implementation.
+ *
+ * ACCURACY, measured rather than asserted: Newton-Raphson from above is
+ * monotone-decreasing and lands EXACTLY on the root for perfect squares (checked
+ * for every n*n, n = 0..100000). For everything else it is within 1 ULP of the
+ * correctly-rounded root — it is NOT correctly rounded, and about a quarter of
+ * arguments differ from libm's sqrt in the last bit. That is fine here: the
+ * result feeds a 1/(1+d) gain that is then rounded to a 16-bit sample, so a
+ * 1-ULP difference cannot change any sample this mixer emits. What matters is
+ * that it is the SAME 1 ULP on host and on target. */
 static double au_sqrt(double x) {
     if (!(x > 0.0)) return 0.0;             /* also catches NaN */
     double r = (x > 1.0) ? x : 1.0;
@@ -116,7 +137,7 @@ bool audio_rate_supported(uint32_t hz) {
 /* ===================== static ring-buffer pool ===================== */
 /* No malloc anywhere in this kernel. Stream rings come from here. A slot is
  * claimed by audio_create_stream and released only when the owning device is
- * re-initialised — see LIMITATION 6. */
+ * re-initialised — see LIMITATION 7. */
 
 static uint8_t g_pool[AUDIO_POOL_SLOTS][AUDIO_STREAM_BUF_SIZE];
 static const audio_device_t *g_pool_owner[AUDIO_POOL_SLOTS];
@@ -163,21 +184,25 @@ static uint32_t st_free(const audio_stream_t *s) {
     return rb_free(s->buffer_head, s->buffer_tail, s->buffer_size);
 }
 
-/* Read `off` bytes past the stream's read cursor. Callers only ever ask for
- * offsets inside the used region, but the bound is enforced here anyway:
- * every index derived from caller data is range-checked before use. */
+/* Read/write `off` bytes past a stream cursor.
+ *
+ * THE INDEX IS REDUCED MODULO buffer_size, not by one conditional subtraction.
+ * A single "if (i >= size) i -= size" is only correct while the cursor itself is
+ * already in range, and audio_stream_t is published in the header, so a cursor
+ * that is NOT in range is a state a caller can hand us. It used to be reachable:
+ * a buffer_head of 0xFFFF0000 on a capture stream turned audio_rx_inject() — the
+ * codec ISR's entry point — into an out-of-bounds write hundreds of megabytes
+ * past the ring. The modulo makes the index unconditionally in [0, buffer_size),
+ * and the 64-bit sum makes the addition itself unable to wrap. */
 static uint8_t st_rd(const audio_stream_t *s, uint32_t off) {
     if (!s->buffer || s->buffer_size == 0 || off >= s->buffer_size) return 0;
-    uint32_t i = s->buffer_tail + off;
-    if (i >= s->buffer_size) i -= s->buffer_size;
+    uint32_t i = (uint32_t)(((uint64_t)s->buffer_tail + off) % s->buffer_size);
     return s->buffer[i];
 }
 
-/* Write `off` bytes past the stream's write cursor. */
 static void st_wr(audio_stream_t *s, uint32_t off, uint8_t b) {
     if (!s->buffer || s->buffer_size == 0 || off >= s->buffer_size) return;
-    uint32_t i = s->buffer_head + off;
-    if (i >= s->buffer_size) i -= s->buffer_size;
+    uint32_t i = (uint32_t)(((uint64_t)s->buffer_head + off) % s->buffer_size);
     s->buffer[i] = b;
 }
 
@@ -190,6 +215,21 @@ static void st_advance_tail(audio_stream_t *s, uint32_t n) {
 
 static uint32_t frame_bytes(const audio_stream_t *s) {
     return audio_format_bytes(s->format) * (uint32_t)s->channels;
+}
+
+/* audio_stream_t is published in the header, so a caller can hand us a stream
+ * whose ring fields are inconsistent. Refuse to operate on one rather than
+ * "succeed" against a NULL buffer (which would advance the cursors and charge
+ * stats.bytes_written for bytes that were stored nowhere) or divide by a zero
+ * buffer_size in st_advance_*. audio_verify_coverage rejects the same states. */
+static bool stream_usable(const audio_stream_t *s) {
+    return s->buffer != 0 &&
+           s->buffer_size > 0 &&
+           /* every ring is one pool slot, so a larger buffer_size is a claim
+            * about memory that was never allocated */
+           s->buffer_size <= AUDIO_STREAM_BUF_SIZE &&
+           s->buffer_head < s->buffer_size &&
+           s->buffer_tail < s->buffer_size;
 }
 
 /* ===================== stream lookup ===================== */
@@ -367,7 +407,19 @@ static uint32_t rx_free(const audio_device_t *d) {
     return rb_free(d->rx_head, d->rx_tail, AUDIO_BUFFER_SIZE);
 }
 
+/* The four DMA cursors are published fields, so they are inputs, not internal
+ * state. Every function below that derives an index from one checks this first
+ * and refuses rather than indexing past a 64 KiB ring. audio_verify_coverage
+ * enforces exactly the same invariant. */
+static bool dma_cursors_ok(const audio_device_t *d) {
+    return d->tx_head < AUDIO_BUFFER_SIZE && d->tx_tail < AUDIO_BUFFER_SIZE &&
+           d->rx_head < AUDIO_BUFFER_SIZE && d->rx_tail < AUDIO_BUFFER_SIZE;
+}
+
 static void tx_push_s16(audio_device_t *d, int16_t v) {
+    /* reduce first, index second — the reverse order wrote out of bounds when
+     * tx_head arrived out of range */
+    d->tx_head %= AUDIO_BUFFER_SIZE;
     d->tx_dma[d->tx_head] = (uint8_t)((uint16_t)v & 0xFFu);
     d->tx_head = (d->tx_head + 1u) % AUDIO_BUFFER_SIZE;
     d->tx_dma[d->tx_head] = (uint8_t)(((uint16_t)v >> 8) & 0xFFu);
@@ -378,11 +430,13 @@ static int32_t rx_read_s16(const audio_device_t *d, uint32_t off) {
     uint32_t i = (d->rx_tail + off) % AUDIO_BUFFER_SIZE;
     uint32_t j = (i + 1u) % AUDIO_BUFFER_SIZE;
     uint32_t v = (uint32_t)d->rx_dma[i] | ((uint32_t)d->rx_dma[j] << 8);
-    return (int32_t)(int16_t)(uint16_t)v;
+    /* mask-and-subtract, not a cast of an out-of-range unsigned value: same
+     * fully-defined sign extension the decoders use */
+    return (int32_t)(v & 0x7FFFu) - ((v & 0x8000u) ? 32768 : 0);
 }
 
 uint32_t audio_tx_pending(const audio_device_t *dev) {
-    return dev ? tx_used(dev) : 0;
+    return (dev && dma_cursors_ok(dev)) ? tx_used(dev) : 0;
 }
 
 /* ===================== mixer routing ===================== */
@@ -538,6 +592,7 @@ int audio_write(audio_device_t *dev, uint32_t stream_id, const void *data, uint3
     audio_stream_t *s = find_stream(dev, stream_id);
     if (!s) return AUDIO_ENOSTREAM;
     if (s->is_capture) return AUDIO_EDIR;
+    if (!stream_usable(s)) return AUDIO_EINVAL;
     if (len == 0) return 0;
 
     uint32_t space = st_free(s);
@@ -558,6 +613,7 @@ int audio_read(audio_device_t *dev, uint32_t stream_id, void *data, uint32_t len
     audio_stream_t *s = find_stream(dev, stream_id);
     if (!s) return AUDIO_ENOSTREAM;
     if (!s->is_capture) return AUDIO_EDIR;
+    if (!stream_usable(s)) return AUDIO_EINVAL;
     if (len == 0) return 0;
 
     uint32_t have = st_used(s);
@@ -648,13 +704,12 @@ int audio_mixer_set_channel(audio_device_t *dev, uint32_t ch, double vol, bool m
     if (!dev) return AUDIO_EINVAL;
     if (ch >= dev->num_mixer_channels || ch >= AUDIO_MAX_MIXER_CH) return AUDIO_EINVAL;
     if (!in01(vol)) return AUDIO_EINVAL;
+    /* Channel 0 IS the master fader. Writing it through a different path than
+     * audio_mixer_set_master() would move reg_volume — which is supposed to be
+     * the codec's attenuation — without ever telling the codec. One path only. */
+    if (ch == AUDIO_CH_MASTER) return audio_mixer_set_master(dev, vol, mute);
     dev->mixer[ch].volume = vol;
     dev->mixer[ch].muted = mute;
-    if (ch == AUDIO_CH_MASTER) {
-        dev->master_volume = vol;
-        dev->master_muted = mute;
-        dev->reg_volume = (uint32_t)au_round_i32(vol * 255.0);
-    }
     return AUDIO_OK;
 }
 
@@ -693,7 +748,8 @@ int audio_mixer_find_channel(const audio_device_t *dev, const char *name) {
     uint32_t n = dev->num_mixer_channels;
     if (n > AUDIO_MAX_MIXER_CH) n = AUDIO_MAX_MIXER_CH;
     for (uint32_t i = 0; i < n; i++)
-        if (au_strcmp(dev->mixer[i].name, name) == 0) return (int)i;
+        if (au_name_eq(dev->mixer[i].name, (uint32_t)sizeof(dev->mixer[i].name), name))
+            return (int)i;
     return AUDIO_ENOSTREAM;
 }
 
@@ -710,6 +766,7 @@ typedef struct {
 
 int audio_mixer_process_n(audio_device_t *dev, uint32_t max_frames) {
     if (!dev) return AUDIO_EINVAL;
+    if (!dma_cursors_ok(dev)) return AUDIO_EINVAL;
     if (dev->reg_sample_rate == 0) return AUDIO_EFORMAT;
     if (max_frames == 0 || max_frames > AUDIO_MIX_MAX_FRAMES)
         max_frames = AUDIO_MIX_MAX_FRAMES;
@@ -726,9 +783,12 @@ int audio_mixer_process_n(audio_device_t *dev, uint32_t max_frames) {
 
     for (uint32_t i = 0; i < ns; i++) {
         audio_stream_t *s = &dev->streams[i];
-        if (s->stream_id == 0 || s->is_capture || !s->active || !s->buffer) continue;
+        if (s->stream_id == 0 || s->is_capture || !s->active) continue;
+        /* Same gate the data path uses: a stream whose ring fields are
+         * inconsistent is skipped, not mixed from. */
+        if (!stream_usable(s)) continue;
         uint32_t fb = frame_bytes(s);
-        if (fb == 0 || s->buffer_size == 0) continue;
+        if (fb == 0) continue;
         if (s->sample_rate == 0) continue;
 
         mixin_t *e = &m[nm];
@@ -805,6 +865,7 @@ void audio_mixer_process(audio_device_t *dev) {
 
 int audio_capture_dispatch(audio_device_t *dev) {
     if (!dev) return AUDIO_EINVAL;
+    if (!dma_cursors_ok(dev)) return AUDIO_EINVAL;
     if (dev->reg_sample_rate == 0) return AUDIO_EFORMAT;
 
     uint32_t n = rx_used(dev) / 4u;            /* device frames available */
@@ -815,7 +876,8 @@ int audio_capture_dispatch(audio_device_t *dev) {
 
     for (uint32_t i = 0; i < ns; i++) {
         audio_stream_t *s = &dev->streams[i];
-        if (s->stream_id == 0 || !s->is_capture || !s->active || !s->buffer) continue;
+        if (s->stream_id == 0 || !s->is_capture || !s->active) continue;
+        if (!stream_usable(s)) continue;
         uint32_t fb = frame_bytes(s);
         if (fb == 0 || s->sample_rate == 0) continue;
 
@@ -864,6 +926,7 @@ int audio_capture_dispatch(audio_device_t *dev) {
 
 int audio_rx_inject(audio_device_t *dev, const uint8_t *pcm, uint32_t n) {
     if (!dev || !pcm) return AUDIO_EINVAL;
+    if (!dma_cursors_ok(dev)) return AUDIO_EINVAL;
     if (n % 4u != 0u) return AUDIO_EINVAL;     /* S16LE stereo frames only */
     if (n == 0) return 0;
 
@@ -875,6 +938,7 @@ int audio_rx_inject(audio_device_t *dev, const uint8_t *pcm, uint32_t n) {
         dev->stats.overruns++;
     }
     for (uint32_t i = 0; i < take; i++) {
+        dev->rx_head %= AUDIO_BUFFER_SIZE;      /* reduce first, index second */
         dev->rx_dma[dev->rx_head] = pcm[i];
         dev->rx_head = (dev->rx_head + 1u) % AUDIO_BUFFER_SIZE;
     }
@@ -901,6 +965,7 @@ bool audio_has_backend(const audio_device_t *dev) {
 
 int audio_dma_flush(audio_device_t *dev) {
     if (!dev) return AUDIO_EINVAL;
+    if (!dma_cursors_ok(dev)) return AUDIO_EINVAL;
     if (!dev->ops) return AUDIO_ENODEV;        /* no silicon: no pretending */
     if (!dev->ops->tx_submit) return AUDIO_ENOSUP;
 
@@ -922,11 +987,15 @@ int audio_dma_flush(audio_device_t *dev) {
 
 int audio_capture_poll(audio_device_t *dev) {
     if (!dev) return AUDIO_EINVAL;
+    if (!dma_cursors_ok(dev)) return AUDIO_EINVAL;
     if (!dev->supports_capture) return AUDIO_ENOSUP;
     if (!dev->ops) return AUDIO_ENODEV;
     if (!dev->ops->rx_poll) return AUDIO_ENOSUP;
 
+    /* Zeroed before the call: a backend that reports more bytes than it wrote
+     * must yield silence, never leftover kernel stack rendered as audio. */
     uint8_t chunk[AUDIO_RX_CHUNK];
+    au_memset(chunk, 0, AUDIO_RX_CHUNK);
     int got = dev->ops->rx_poll(dev->ops->ctx, chunk, AUDIO_RX_CHUNK);
     if (got < 0) return AUDIO_EIO;
     if ((uint32_t)got > AUDIO_RX_CHUNK) return AUDIO_EIO;
@@ -942,12 +1011,13 @@ int audio_capture_poll(audio_device_t *dev) {
 int audio_set_output_rate(audio_device_t *dev, uint32_t hz) {
     if (!dev) return AUDIO_EINVAL;
     if (!audio_rate_supported(hz) || hz > dev->max_sample_rate) return AUDIO_EFORMAT;
-    uint32_t prev = dev->reg_sample_rate;
+    /* Program the codec FIRST and only then move reg_sample_rate, so the two
+     * can never disagree. There is deliberately no rollback here: nothing was
+     * changed yet, so there is nothing to roll back. (An earlier version
+     * "restored" a variable it had never written — code that looked like
+     * recovery and did nothing.) */
     if (dev->ops && dev->ops->set_rate) {
-        if (dev->ops->set_rate(dev->ops->ctx, hz) != 0) {
-            dev->reg_sample_rate = prev;       /* keep software and codec in step */
-            return AUDIO_EIO;
-        }
+        if (dev->ops->set_rate(dev->ops->ctx, hz) != 0) return AUDIO_EIO;
     }
     dev->reg_sample_rate = hz;
     return AUDIO_OK;
@@ -988,12 +1058,14 @@ void audio_clear_status(audio_device_t *dev) {
 int32_t audio_stream_available(const audio_device_t *dev, uint32_t stream_id) {
     const audio_stream_t *s = find_stream_c(dev, stream_id);
     if (!s) return AUDIO_ENOSTREAM;
+    if (!stream_usable(s)) return AUDIO_EINVAL;
     return (int32_t)st_used(s);
 }
 
 int32_t audio_stream_space(const audio_device_t *dev, uint32_t stream_id) {
     const audio_stream_t *s = find_stream_c(dev, stream_id);
     if (!s) return AUDIO_ENOSTREAM;
+    if (!stream_usable(s)) return AUDIO_EINVAL;
     return (int32_t)st_free(s);
 }
 
@@ -1010,6 +1082,11 @@ bool audio_verify_coverage(audio_device_t *dev) {
     /* ---- structural invariants. Any violation is a hard false. ---- */
     if (dev->num_streams > AUDIO_MAX_STREAMS) return false;
     if (dev->num_mixer_channels > AUDIO_MAX_MIXER_CH) return false;
+    /* audio_init() always builds the four fixed channels and there is no API
+     * that removes one, so fewer than four means the struct was corrupted.
+     * (This replaces an "if there are no channels at all, pass" escape hatch —
+     * a branch whose only effect was to let a broken device through.) */
+    if (dev->num_mixer_channels < AUDIO_NUM_DEFAULT_CH) return false;
     if (!in01(dev->master_volume)) return false;
     if (!audio_rate_supported(dev->reg_sample_rate)) return false;
     if (dev->reg_sample_rate > dev->max_sample_rate) return false;
@@ -1063,9 +1140,6 @@ bool audio_verify_coverage(audio_device_t *dev) {
     dev->m5.omega = dev->num_streams;
     dev->m5.r     = SR_FROM_FLOAT(dev->coverage_r);
     dev->m5.ell   = SR_FROM_FLOAT(dev->coverage_l);
-
-    /* A device with no streams AND no mixer channels has nothing to cover. */
-    if (dev->num_streams == 0 && dev->num_mixer_channels == 0) return true;
 
     return (dev->coverage_r * dev->coverage_l) >= AUDIO_COVERAGE_FLOOR;
 }

@@ -1,7 +1,10 @@
 /* audio.h — ZEDEC XERO pqOS Audio Stream + Software Mixer
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  * 36N9 Genetics, LLC
  *
  * WHAT THIS IS
@@ -51,13 +54,25 @@
  *     reverb. y and z affect only the distance term. Calling this "3D" is
  *     generous; it is what the code does.
  *
- *  6. NO DYNAMIC ALLOCATION. Stream ring buffers come from a fixed static pool
+ *  6. THE IN-TREE SQUARE ROOT IS NOT CORRECTLY ROUNDED. It exists so host and
+ *     target agree bit for bit without libm. It is exact on perfect squares and
+ *     within 1 ULP everywhere else; roughly a quarter of arguments differ from
+ *     libm's sqrt in the last bit. That cannot move a 16-bit sample, but do not
+ *     lift it out of this file for anything that needs a real sqrt.
+ *
+ *  7. NO DYNAMIC ALLOCATION. Stream ring buffers come from a fixed static pool
  *     of AUDIO_POOL_SLOTS x AUDIO_STREAM_BUF_SIZE bytes shared by every
  *     audio_device_t in the system. When the pool is empty audio_create_stream
  *     returns 0. A slot is released only by audio_init() on its owning device;
  *     there is no per-stream destroy in this API.
  *
- *  7. NO MIDI, NO SYNTHESIS, NO CODEC (MP3/AAC/Vorbis), NO SRC DITHER, NO
+ *  8. THE MIXER CHANNEL SET IS FIXED. audio_init() creates exactly the four
+ *     channels below and there is no API to add, rename or remove one. Only two
+ *     of them (Master, PCM) are playback channels, so "route a stream to its own
+ *     channel" means one of those two. AUDIO_MAX_MIXER_CH is headroom, not a
+ *     feature.
+ *
+ *  9. NO MIDI, NO SYNTHESIS, NO CODEC (MP3/AAC/Vorbis), NO SRC DITHER, NO
  *     EQUALISER, NO COMPRESSOR. Nothing in this header claims those; this note
  *     exists so nobody infers them from the word "audio".
  * =====================================================================
@@ -142,7 +157,7 @@ typedef struct {
 #define AUDIO_MAX_MIXER_CH   32
 
 /* One ring buffer per pool slot. AUDIO_POOL_SLOTS * AUDIO_STREAM_BUF_SIZE
- * bytes of .bss, shared by every device (LIMITATION 6). */
+ * bytes of .bss, shared by every device (LIMITATION 7). */
 #define AUDIO_STREAM_BUF_SIZE 8192u
 #define AUDIO_POOL_SLOTS      AUDIO_MAX_STREAMS
 
@@ -284,24 +299,34 @@ uint32_t audio_create_stream(audio_device_t *dev, bool capture, audio_format_t f
 
 /* Append up to `len` bytes to a PLAYBACK stream's ring. Returns the number of
  * bytes actually accepted, which may be less than len and may be 0 when the
- * ring is full. Negative on refusal. Short writes are not an error. */
+ * ring is full. Negative on refusal. Short writes are not an error.
+ * AUDIO_EINVAL if the stream's ring fields are inconsistent (NULL buffer, zero
+ * size, cursor out of range) — it will not "accept" bytes into nowhere. */
 int audio_write(audio_device_t *dev, uint32_t stream_id, const void *data, uint32_t len);
 
 /* Drain up to `len` bytes from a CAPTURE stream's ring. Returns bytes copied
- * (may be 0), negative on refusal. */
+ * (may be 0), negative on refusal. Same AUDIO_EINVAL rule as audio_write. */
 int audio_read(audio_device_t *dev, uint32_t stream_id, void *data, uint32_t len);
 
+/* Both reject NaN and infinity: the range tests are written so that any
+ * unordered comparison falls through to AUDIO_EINVAL. */
 int audio_set_volume(audio_device_t *dev, uint32_t stream_id, double vol);
 int audio_set_balance(audio_device_t *dev, uint32_t stream_id, double bal);
-/* Requires dev->supports_3d, else AUDIO_ENOSUP. Rejects NaN. */
+/* Requires dev->supports_3d, else AUDIO_ENOSUP. Rejects NaN and |coord| > 1e9.
+ * Refuses a CAPTURE stream with AUDIO_EDIR — a microphone has no position. */
 int audio_set_3d_position(audio_device_t *dev, uint32_t stream_id, double x, double y, double z);
 int audio_pause(audio_device_t *dev, uint32_t stream_id);
 int audio_resume(audio_device_t *dev, uint32_t stream_id);
 /* Stops AND discards whatever is still buffered for that stream. The stream
- * id stays valid (there is no destroy in this API — LIMITATION 6). */
+ * id stays valid (there is no destroy in this API — LIMITATION 7). */
 int audio_stop(audio_device_t *dev, uint32_t stream_id);
 
 /* ===== Mixer ===== */
+/* Set one mixer channel's gain and mute. ch == AUDIO_CH_MASTER is delegated
+ * verbatim to audio_mixer_set_master() — channel 0 IS the master fader, and
+ * there is exactly one path that moves it, so reg_volume can never claim an
+ * attenuation the codec was never told about. That also means this call can
+ * return AUDIO_EIO for ch 0 when a bound backend refuses the write. */
 int audio_mixer_set_channel(audio_device_t *dev, uint32_t ch, double vol, bool mute);
 /* Also mirrors into mixer[AUDIO_CH_MASTER] and reg_volume, and forwards to
  * ops->set_volume when a backend is bound (AUDIO_EIO if the backend refuses;
@@ -316,7 +341,8 @@ int audio_mixer_find_channel(const audio_device_t *dev, const char *name);
  * reg_sample_rate. Produces at most AUDIO_MIX_MAX_FRAMES frames. */
 void audio_mixer_process(audio_device_t *dev);
 /* Same, bounded: returns the number of stereo frames produced (0 is normal
- * and means "nothing had data"), or a negative AUDIO_E* code. */
+ * and means "nothing had data"), or a negative AUDIO_E* code. max_frames of 0
+ * or anything above AUDIO_MIX_MAX_FRAMES means AUDIO_MIX_MAX_FRAMES. */
 int audio_mixer_process_n(audio_device_t *dev, uint32_t max_frames);
 
 /* ===== Hardware-gated. Every one of these returns AUDIO_ENODEV when no ops
@@ -354,6 +380,8 @@ uint32_t audio_format_bytes(audio_format_t fmt);
  * audio_saturate_s16(60000) == 32767, never -5536. */
 int16_t  audio_saturate_s16(int32_t v);
 bool     audio_rate_supported(uint32_t hz);
+/* Bytes queued / bytes free. AUDIO_ENOSTREAM if there is no such stream,
+ * AUDIO_EINVAL if the stream's ring fields are inconsistent. */
 int32_t  audio_stream_available(const audio_device_t *dev, uint32_t stream_id);
 int32_t  audio_stream_space(const audio_device_t *dev, uint32_t stream_id);
 uint32_t audio_tx_pending(const audio_device_t *dev);
@@ -361,11 +389,24 @@ uint32_t audio_pool_slots_free(void);
 
 /* ===== Coverage =====
  * This is a LIVENESS check, not a config validator, and it is designed to be
- * able to fail — test_audio.c contains cases that make it return false.
- * It returns false when (a) any structural invariant is broken (a ring cursor
- * outside its buffer, a gain outside its range, an unsupported rate on a live
- * stream, a mixer channel routed to a stream that does not exist), or
- * (b) coverage_r * coverage_l falls below AUDIO_COVERAGE_FLOOR, where
+ * able to fail — test_audio.c drives 34 distinct inputs through it that must
+ * return false. There is no "nothing to check, so pass" branch; every exit is
+ * either a named broken invariant or the ratio test.
+ *
+ * It returns false when (a) any of these structural invariants is broken:
+ *      device: num_streams <= 16, 4 <= num_mixer_channels <= 32,
+ *              master_volume in [0,1], reg_sample_rate is a supported rate and
+ *              <= max_sample_rate, tx/rx head and tail inside AUDIO_BUFFER_SIZE,
+ *              reg_format == S16LE
+ *      stream: stream_id != 0, buffer != NULL, 0 < buffer_size <= 8192,
+ *              head and tail < buffer_size, volume in [0,1],
+ *              balance in [-1,1], format in range, channels in {1,2,6,8} and
+ *              <= max_channels, sample_rate supported, rs_phase < 2^48,
+ *              capture only on a capture-capable device, spatial only on a
+ *              3D-capable device
+ *      mixer:  volume in [0,1], name NUL-terminated inside its 32 bytes,
+ *              source_stream either 0 or an existing stream
+ * or (b) coverage_r * coverage_l falls below AUDIO_COVERAGE_FLOOR, where
  *   coverage_r = fraction of allocated streams that could actually put sound
  *                through the mixer right now, and
  *   coverage_l = fraction of mixer channels that are named, unmuted and

@@ -9,7 +9,10 @@
  * capability claimed by a function name.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 
 #ifdef TEST_HOST
@@ -43,6 +46,14 @@ static void vid_strcpy(char *dst, const char *src, uint32_t max) {
 }
 
 static int64_t vid_abs64(int64_t v) { return v < 0 ? -v : v; }
+
+/* dev->num_displays is a plain public field, so it is UNTRUSTED (LIMITATIONS
+ * 12). This is the ONLY thing any loop over dev->displays[] may bound itself
+ * by: two loops here once used the raw count and wrote past displays[3]. */
+static uint32_t vid_ndisp(const video_device_t *dev) {
+    uint32_t n = dev->num_displays;
+    return n > VIDEO_MAX_DISPLAYS ? (uint32_t)VIDEO_MAX_DISPLAYS : n;
+}
 
 /* ===================================================================
  * 8x16 bitmap font
@@ -297,13 +308,15 @@ static bool vid_target(video_device_t *dev, vsurf_t *s) {
     if (!base) return false;
 
     uint32_t bytes = vid_fmt_bytes(d->format);
-    if (d->pitch < d->width * bytes) return false;
-    uint32_t page = d->pitch * d->height;
-    if (page == 0 || page > d->fb_size) return false;
+    /* 64-bit throughout: pitch and width are public fields, so their product
+     * must not be allowed to wrap into a value that passes this test. */
+    if ((uint64_t)d->pitch < (uint64_t)d->width * bytes) return false;
+    uint64_t page = (uint64_t)d->pitch * d->height;
+    if (page == 0 || page > (uint64_t)d->fb_size) return false;
 
     s->base  = base;
     s->pitch = d->pitch;
-    s->limit = page;                /* one page; the other page starts after it */
+    s->limit = (uint32_t)page;      /* one page; the other page starts after it */
     s->w     = (int32_t)d->width;
     s->h     = (int32_t)d->height;
     s->fmt   = d->format;
@@ -418,7 +431,8 @@ void video_unbind_ops(video_device_t *dev) {
     if (!dev) return;
     vid_memset(&dev->ops, 0, (uint32_t)sizeof(dev->ops));
     dev->ops_bound = false;
-    for (uint32_t i = 0; i < dev->num_displays; i++)
+    uint32_t n = vid_ndisp(dev);
+    for (uint32_t i = 0; i < n; i++)
         dev->displays[i].scanout_live = false;   /* nothing drives them now */
 }
 
@@ -432,8 +446,7 @@ bool video_has_backend(const video_device_t *dev) {
 
 video_display_t *video_get_display(video_device_t *dev, uint32_t display_id) {
     if (!dev || display_id == 0) return NULL;
-    uint32_t n = dev->num_displays;
-    if (n > VIDEO_MAX_DISPLAYS) n = VIDEO_MAX_DISPLAYS;   /* bound a corrupt count */
+    uint32_t n = vid_ndisp(dev);                          /* bound a corrupt count */
     for (uint32_t i = 0; i < n; i++)
         if (dev->displays[i].display_id == display_id) return &dev->displays[i];
     return NULL;
@@ -445,6 +458,9 @@ uint32_t video_add_display(video_device_t *dev, uint32_t w, uint32_t h, uint32_t
     if (dev->num_displays > 0 && !dev->supports_multi_display) return 0;
     if (w == 0 || h == 0) return 0;
     if (w > dev->max_width || h > dev->max_height) return 0;
+    /* max_width/max_height are public fields a caller can raise; this one is
+     * not, and it is what keeps pitch and pitch*height inside 32 bits. */
+    if (w > VIDEO_HARD_MAX_DIM || h > VIDEO_HARD_MAX_DIM) return 0;
 
     pixel_format_t fmt;
     if (!vid_fmt_for_bpp(bpp, &fmt)) return 0;
@@ -502,22 +518,30 @@ int video_set_mode(video_device_t *dev, video_mode_t mode) {
     dev->mode = mode;
     dev->reg_mode = (uint32_t)mode;
     /* A mode change invalidates any previous scanout claim. */
-    for (uint32_t i = 0; i < dev->num_displays; i++)
+    uint32_t n = vid_ndisp(dev);
+    for (uint32_t i = 0; i < n; i++)
         dev->displays[i].scanout_live = false;
 
-    if (dev->ops_bound && dev->ops.set_mode) {
-        video_display_t *d = video_get_display(dev, dev->primary_display);
-        if (d) {
-            int r = dev->ops.set_mode(dev->ops.ctx, d->display_id, d->width,
-                                      d->height, d->bpp, d->format);
-            if (r != 0) return VIDEO_EBACKEND;
-            d->scanout_live = true;
-        }
+    video_display_t *d = video_get_display(dev, dev->primary_display);
+
+    /* Every mode but HEADLESS is a claim about a panel, and a claim about a
+     * panel needs a panel. Returning VIDEO_OK here just because a backend
+     * happened to be bound — while skipping the callback entirely, which is
+     * what used to happen with zero displays — is exactly the hollow success
+     * this subsystem is supposed to refuse. */
+    if (mode != VIDEO_MODE_HEADLESS && !d) return VIDEO_ENODISPLAY;
+
+    if (dev->ops_bound && dev->ops.set_mode && d) {
+        int r = dev->ops.set_mode(dev->ops.ctx, d->display_id, d->width,
+                                  d->height, d->bpp, d->format);
+        if (r != 0) return VIDEO_EBACKEND;
+        d->scanout_live = true;
         return VIDEO_OK;
     }
 
-    /* No backend. The software mode is recorded — that part is real — but no
-     * CRTC was touched, and only HEADLESS can honestly call that complete. */
+    /* No backend (or nothing to program). The software mode is recorded —
+     * that part is real — but no CRTC was touched, and only HEADLESS can
+     * honestly call that complete. */
     return (mode == VIDEO_MODE_HEADLESS) ? VIDEO_OK : VIDEO_ENOSCANOUT;
 }
 
@@ -528,6 +552,7 @@ int video_set_resolution(video_device_t *dev, uint32_t display_id,
     if (!d) return VIDEO_ENODISPLAY;
     if (w == 0 || h == 0) return VIDEO_EINVAL;
     if (w > dev->max_width || h > dev->max_height) return VIDEO_EINVAL;
+    if (w > VIDEO_HARD_MAX_DIM || h > VIDEO_HARD_MAX_DIM) return VIDEO_EINVAL;
     if (!vid_fmt_valid(fmt)) return VIDEO_EINVAL;
     if (bpp != vid_fmt_bytes(fmt) * 8u) return VIDEO_EINVAL;
 
@@ -611,6 +636,9 @@ int video_flip(video_device_t *dev, uint32_t display_id) {
     if (!dev) return VIDEO_EINVAL;
     video_display_t *d = video_get_display(dev, display_id);
     if (!d) return VIDEO_ENODISPLAY;
+    /* A connector a probe already reported gone must not be able to re-acquire
+     * a scanout claim through a flip acknowledgement. */
+    if (!d->active) return VIDEO_ENODISPLAY;
     if (!d->double_buffered || !d->backbuffer || !d->framebuffer) return VIDEO_ENOBUF;
 
     /* The page swap is real, happens here, and is observable through
@@ -639,6 +667,7 @@ int video_vsync_wait(video_device_t *dev, uint32_t display_id) {
     if (!dev) return VIDEO_EINVAL;
     video_display_t *d = video_get_display(dev, display_id);
     if (!d) return VIDEO_ENODISPLAY;
+    if (!d->active) return VIDEO_ENODISPLAY;   /* nothing there to retrace */
 
     /* There is no software substitute for a scanline retrace. Without a
      * backend this returns an error rather than a busy-wait that pretends. */
@@ -672,24 +701,33 @@ void video_set_clip(video_device_t *dev, int32_t x, int32_t y, int32_t w, int32_
 bool video_read_pixel(video_device_t *dev, uint32_t display_id,
                       int32_t x, int32_t y, uint32_t *out) {
     if (!dev || !out) return false;
+    /* LIMITATIONS 9: in text mode the buffer holds character cells. Reporting
+     * a "pixel" out of it would be fiction, and it is the same fiction
+     * vid_target() already refuses to write. */
+    if (dev->mode == VIDEO_MODE_TEXT_80x25) return false;
     video_display_t *d = video_get_display(dev, display_id);
     if (!d || !d->active) return false;
     if (!vid_fmt_valid(d->format) || d->pitch == 0) return false;
+    if (d->width == 0 || d->height == 0) return false;
     uint8_t *base = (uint8_t *)((d->double_buffered && d->backbuffer)
                                 ? d->backbuffer : d->framebuffer);
     if (!base) return false;
 
+    uint32_t bytes = vid_fmt_bytes(d->format);
+    if ((uint64_t)d->pitch < (uint64_t)d->width * bytes) return false;
+    uint64_t page = (uint64_t)d->pitch * d->height;
+    if (page == 0 || page > (uint64_t)d->fb_size) return false;
+
     vsurf_t s;
     s.base = base;
     s.pitch = d->pitch;
-    s.limit = d->pitch * d->height;
+    s.limit = (uint32_t)page;
     s.w = (int32_t)d->width;
     s.h = (int32_t)d->height;
     s.fmt = d->format;
-    s.bytes = vid_fmt_bytes(d->format);
+    s.bytes = bytes;
     s.cx0 = s.cy0 = 0; s.cx1 = s.w; s.cy1 = s.h;
     s.blend = false; s.alpha = 255;
-    if (s.limit > d->fb_size) return false;
     return vid_peek(&s, x, y, out);
 }
 
@@ -848,7 +886,12 @@ void video_blit(video_device_t *dev, int32_t dst_x, int32_t dst_y,
     vsurf_t s;
     if (!vid_target(dev, &s)) return;
     if (w <= 0 || h <= 0) return;
-    if (w > VIDEO_BLIT_MAX_W) return;              /* LIMITATIONS 6 */
+    /* LIMITATIONS 6: BOTH extents are bounded. The width bound protects the
+     * static row buffer; the height bound protects the clock — these loops are
+     * O(w*h), and h was previously unbounded, so h = INT32_MAX turned one call
+     * into hours of spinning. It also kept `h * 2` below inside int32, which
+     * UBSan flagged as signed overflow for h >= 0x40000000. */
+    if (w > VIDEO_BLIT_MAX_W || h > VIDEO_BLIT_MAX_H) return;
 
     switch (op) {
         case BLIT_SOLID_FILL:
@@ -913,7 +956,10 @@ void video_blit(video_device_t *dev, int32_t dst_x, int32_t dst_y,
             if (vid_rects_overlap(dst_x, dst_y, (int64_t)w * 2, (int64_t)h * 2,
                                   src_x, src_y, w, h))
                 return;
-            for (int32_t j = 0; j < h * 2; j++) {
+            /* int64 loop bounds: 2*h and 2*w must not depend on the cap above
+             * staying where it is to avoid signed overflow. */
+            const int64_t h2 = (int64_t)h * 2, w2 = (int64_t)w * 2;
+            for (int64_t j = 0; j < h2; j++) {
                 int64_t sy = (int64_t)src_y + (j / 2);
                 int64_t dy = (int64_t)dst_y + j;
                 if (sy < INT32_MIN || sy > INT32_MAX) continue;
@@ -925,7 +971,7 @@ void video_blit(video_device_t *dev, int32_t dst_x, int32_t dst_y,
                                     vid_peek(&s, (int32_t)sx, (int32_t)sy, &v)) ? 1u : 0u;
                     g_blit_row[i] = v;
                 }
-                for (int32_t i = 0; i < w * 2; i++) {
+                for (int64_t i = 0; i < w2; i++) {
                     if (!g_blit_ok[i / 2]) continue;
                     int64_t dx = (int64_t)dst_x + i;
                     if (dx < INT32_MIN || dx > INT32_MAX) continue;
@@ -980,7 +1026,12 @@ void video_handle_irq(video_device_t *dev) {
         dev->irq_flip_done = false;
         dev->stat_irq_flip++;
         video_display_t *d = video_get_display(dev, dev->primary_display);
-        if (d && dev->ops_bound) d->scanout_live = true;
+        /* scanout_live means "pixels are physically being scanned out". A
+         * latch on its own is not evidence of that: it takes a backend that
+         * actually has a flip path (otherwise this file never handed a page to
+         * anything) AND a connector that is still present. */
+        if (d && d->active && dev->ops_bound && dev->ops.flip)
+            d->scanout_live = true;
     }
 
     if (dev->irq_display_change) {
@@ -989,14 +1040,14 @@ void video_handle_irq(video_device_t *dev) {
         /* Re-reading a connector is hardware work. Without a probe callback
          * there is nothing honest to do but record that it happened. */
         if (dev->ops_bound && dev->ops.probe) {
-            uint32_t n = dev->num_displays;
-            if (n > VIDEO_MAX_DISPLAYS) n = VIDEO_MAX_DISPLAYS;
+            uint32_t n = vid_ndisp(dev);
             for (uint32_t i = 0; i < n; i++) {
                 video_display_t *d = &dev->displays[i];
                 uint32_t w = 0, h = 0;
                 int r = dev->ops.probe(dev->ops.ctx, d->display_id, &w, &h);
                 if (r != 0 || w == 0 || h == 0 ||
-                    w > dev->max_width || h > dev->max_height) {
+                    w > dev->max_width || h > dev->max_height ||
+                    w > VIDEO_HARD_MAX_DIM || h > VIDEO_HARD_MAX_DIM) {
                     d->active = false;          /* connector is gone */
                     d->scanout_live = false;
                     continue;
@@ -1006,14 +1057,15 @@ void video_handle_irq(video_device_t *dev) {
                 /* Geometry changed. Adopt it only if the bound buffer still
                  * holds it; otherwise keep the old surface so drawing stays
                  * inside memory we know we own. */
-                uint32_t pitch = w * vid_fmt_bytes(d->format);
-                uint64_t page = (uint64_t)pitch * h;
-                uint64_t need = d->double_buffered ? page * 2u : page;
                 d->scanout_live = false;
+                if (!vid_fmt_valid(d->format)) continue;   /* pitch 0 is not a surface */
+                uint64_t pitch = (uint64_t)w * vid_fmt_bytes(d->format);
+                uint64_t page = pitch * h;
+                uint64_t need = d->double_buffered ? page * 2u : page;
                 if (d->fb_base && need > (uint64_t)d->fb_size) continue;
                 d->width = w;
                 d->height = h;
-                d->pitch = pitch;
+                d->pitch = (uint32_t)pitch;
                 d->page_bytes = (uint32_t)page;
                 if (d->fb_base) {
                     d->framebuffer = d->fb_base;
@@ -1041,8 +1093,7 @@ void video_handle_irq(video_device_t *dev) {
 bool video_verify_coverage(video_device_t *dev) {
     if (!dev) return false;
 
-    uint32_t n = dev->num_displays;
-    if (n > VIDEO_MAX_DISPLAYS) n = VIDEO_MAX_DISPLAYS;
+    uint32_t n = vid_ndisp(dev);
 
     uint32_t active = 0, sane = 0;
     for (uint32_t i = 0; i < n; i++) {

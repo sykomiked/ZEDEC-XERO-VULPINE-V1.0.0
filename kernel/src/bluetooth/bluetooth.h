@@ -48,8 +48,12 @@
  *   reports in HCI Link Key Notification. There is no Secure Simple Pairing,
  *   no numeric comparison, no out-of-band pairing, and no host-side key
  *   derivation or verification. Keys live in RAM only; nothing is persisted.
- *   bt_device_t::paired means "the controller reported authentication
- *   complete", not "this link is cryptographically proven".
+ *   bt_device_t::paired means "the link reached BT_STATE_PAIRED after an HCI
+ *   Authentication Complete", not "this link is cryptographically proven".
+ *   THE PIN IS RETAINED. bt_pair() copies the PIN into bt_device_t::pin and
+ *   it stays there for the life of the record, in cleartext, and is replayed
+ *   automatically on every later PIN Code Request for that peer. There is no
+ *   bt_forget() — clear bt_device_t::pin_len yourself if that matters to you.
  *
  *   L2CAP IS BASIC MODE ONLY. B-frames, MTU configuration, and the fixed
  *   signalling channel 0x0001. No enhanced retransmission mode, no streaming
@@ -61,6 +65,14 @@
  *   NO SCO/eSCO. Only ACL is carried, so HFP voice cannot work even once the
  *   signalling exists.
  *
+ *   STACK APPETITE. The framing path builds whole PDUs in automatic buffers,
+ *   so it is stack-hungry: measured with gcc -fstack-usage on aarch64 -O2, the
+ *   deepest chain is bt_poll (1088) -> bt_hci_ingest (192) ->
+ *   rfcomm_send_frame (1040) -> l2cap_send (2096) -> bt_tx_flush (1136) =
+ *   5552 bytes. That is comfortable on the 1 MB kernel stack this tree boots
+ *   with, but do NOT call bt_poll()/bt_handle_irq() from a small dedicated
+ *   interrupt stack without checking yours first.
+ *
  *   VERIFICATION STATUS. The packet layouts are checked byte-for-byte against
  *   the Core Spec field order in test_bluetooth.c, and the state machines are
  *   driven end-to-end by a loopback controller model in that same file. NONE
@@ -69,7 +81,10 @@
  *   the byte layouts are the part that is actually proven.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  * 36N9 Genetics, LLC
  */
 #ifndef BLUETOOTH_H
@@ -439,7 +454,9 @@ typedef struct {
     uint8_t last_ident;
 } bt_l2cap_chan_t;
 
-#define BT_MAX_CHANNELS 4
+/* SDP is not used, so the worst case is RFCOMM + AVDTP signalling + AVDTP
+ * media + HID control + HID interrupt = 5. One spare. */
+#define BT_MAX_CHANNELS 6
 
 /* ================= Profile session state ================= */
 typedef enum {
@@ -492,8 +509,12 @@ typedef struct {
 
 /* ================= Statistics =================
  * Every counter here increments only after the counted thing actually
- * happened. bytes_tx counts bytes the bound transport ACCEPTED, not bytes the
- * caller handed us. */
+ * happened, and each one names WHICH thing:
+ *   hci_cmds_sent / acl_tx_pkts / bytes_tx  — the bound transport ACCEPTED it.
+ *   l2cap_tx_frames                          — a PDU was framed and QUEUED;
+ *       whether its fragments reached the transport is bytes_tx's business.
+ *   everything else                          — a received packet was parsed
+ *       and acted on, or was rejected. */
 typedef struct {
     uint32_t hci_cmds_sent;
     uint32_t hci_cmds_failed;    /* transport refused, or none was bound */
@@ -688,7 +709,13 @@ int bt_hidp_parse(const uint8_t *buf, uint32_t len, uint8_t *trans_type,
 int bt_a2dp_media_header(uint8_t *buf, uint32_t cap, uint16_t seq, uint32_t ts,
                          uint32_t ssrc, uint8_t frame_count);
 
-/* Class of Device decoding (Assigned Numbers, Baseband). */
+/* Class of Device decoding (Assigned Numbers, Baseband).
+ * PARTIAL BY DESIGN. Only the majors/minors that have a bt_class_t bucket are
+ * decoded: computer, phone, headset (wearable headset / hands-free /
+ * headphones), speaker (loudspeaker), keyboard, mouse, gamepad (joystick /
+ * gamepad), wearable, health. Everything else — including audio MICROPHONE and
+ * PORTABLE AUDIO, peripheral REMOTE CONTROL and every unassigned major —
+ * returns BT_CLASS_UNKNOWN. It is never rounded to the nearest enum. */
 bt_class_t bt_class_from_cod(uint32_t cod);
 
 /* Connection state machine: which transitions the spec allows. */
@@ -729,14 +756,25 @@ int bt_send_data(bluetooth_device_t *dev, const uint8_t *bdaddr, const void *dat
 int bt_recv_data(bluetooth_device_t *dev, uint8_t *bdaddr, void *data, uint32_t max_len);
 
 /* Push queued HCI packets to the transport, credits permitting. Returns the
- * number of packets the transport accepted. */
+ * number of packets the transport accepted (>= 0), BT_ENODEV with no backend
+ * bound, or BT_EPROTO if the transmit ring was found corrupt — in which case
+ * the ring is dropped rather than drained into the controller as garbage. */
 int bt_tx_flush(bluetooth_device_t *dev);
 
-/* Feed one received HCI packet (type + payload, transport framing removed). */
+/* Feed one received HCI packet (type + payload, transport framing removed).
+ * BT_OK means the packet was well-formed and consumed — events this stack has
+ * no behaviour for are consumed silently rather than reported as errors. A
+ * negative return means the bytes were malformed or unroutable. */
 int bt_hci_ingest(bluetooth_device_t *dev, uint8_t pkt_type,
                   const uint8_t *pkt, uint32_t len);
 
-/* Audio (A2DP source) */
+/* Audio (A2DP source).
+ * SINGLE-SINK API: bt_audio_start()/stop()/send() take no address. start()
+ * acts on the FIRST connection slot that has an AVDTP signalling channel,
+ * stop() on the first slot that is actually streaming, and send() on the link
+ * named by dev->audio_handle. With two A2DP peers up at once, which one you
+ * get is slot order, not your choice. Only one stream is tracked
+ * (dev->audio_streaming / audio_handle are per-device, not per-link). */
 int bt_audio_connect(bluetooth_device_t *dev, const uint8_t *bdaddr);
 int bt_audio_start(bluetooth_device_t *dev, uint16_t codec, uint32_t sample_rate);
 int bt_audio_stop(bluetooth_device_t *dev);

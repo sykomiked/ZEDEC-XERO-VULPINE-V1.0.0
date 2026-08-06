@@ -19,7 +19,10 @@
  * HTML is attacker-controlled input.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 
 #ifdef TEST_HOST
@@ -68,6 +71,30 @@ static bool b_copyn(char *dst, uint32_t cap, const char *src, uint32_t n) {
 
 static bool b_copy(char *dst, uint32_t cap, const char *src) {
     return b_copyn(dst, cap, src, src ? b_strlen(src) : 0);
+}
+
+/* Length-delimited copy for text that may legitimately contain NUL bytes.
+ *
+ * b_copyn() stops at the first NUL in the source and reports SUCCESS, which
+ * for a length-delimited HTML buffer means "silently threw away everything
+ * after the NUL and said nothing". HTML5 replaces U+0000 in character data
+ * with U+FFFD, so that is what this does; the caller then really does hold
+ * the whole run, and a `false` return really does mean it did not fit.
+ * Returns true only if the WHOLE source fitted. */
+static bool b_copy_text(char *dst, uint32_t cap, const char *src, uint32_t n) {
+    if (!dst || cap == 0) return false;
+    uint32_t o = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        if (src[i] == '\0') {
+            if (o + 4 > cap) { dst[o] = '\0'; return false; }
+            dst[o++] = (char)0xEF; dst[o++] = (char)0xBF; dst[o++] = (char)0xBD;
+        } else {
+            if (o + 2 > cap) { dst[o] = '\0'; return false; }
+            dst[o++] = src[i];
+        }
+    }
+    dst[o] = '\0';
+    return true;
 }
 
 static char b_lower(char c) {
@@ -211,8 +238,7 @@ static bool field_is_sane(const char *s) {
     return true;
 }
 
-int browser_parse_url(const char *url, browser_url_t *out) {
-    if (!out) return BROWSER_ERR_ARG;
+static int parse_url_inner(const char *url, browser_url_t *out) {
     b_memset(out, 0, sizeof(*out));
     if (!url) return BROWSER_ERR_BAD_URL;
 
@@ -331,13 +357,31 @@ int browser_parse_url(const char *url, browser_url_t *out) {
     return BROWSER_OK;
 }
 
-/* RFC 3986 §5.2.4 remove_dot_segments, iterative and bounded. */
+int browser_parse_url(const char *url, browser_url_t *out) {
+    if (!out) return BROWSER_ERR_ARG;
+    int rc = parse_url_inner(url, out);
+    /* The header promises a zeroed `out` on failure. parse_url_inner() bails
+     * from the middle of the split with the fields it had already filled in
+     * (host, and a path still carrying whatever CRLF payload got it rejected),
+     * so the zeroing has to happen HERE, not only on entry. */
+    if (rc != BROWSER_OK) b_memset(out, 0, sizeof(*out));
+    return rc;
+}
+
+/* RFC 3986 §5.2.4 remove_dot_segments, iterative and bounded.
+ *
+ * ".." pops by scanning the OUTPUT back to the previous '/', so the only
+ * limit on how deep a path may be is `cap`. A previous revision kept a
+ * 64-entry stack of segment offsets and, once that stack saturated, a single
+ * ".." unwound sixteen or more segments at once — silently returning a
+ * DIFFERENT path with no error. `floor_o` is the offset just past the leading
+ * '/', which ".." must never pop through (RFC: an absolute path stays
+ * absolute however many ".." segments precede it). */
 static void url_remove_dots(const char *in, char *out, uint32_t cap) {
-    uint32_t stack[64];
-    uint32_t sp = 0, o = 0, i = 0;
+    uint32_t o = 0, i = 0, floor_o = 0;
     if (cap == 0) return;
     out[0] = '\0';
-    if (in[0] == '/') { if (o + 1 < cap) out[o++] = '/'; i = 1; }
+    if (in[0] == '/') { if (o + 1 < cap) out[o++] = '/'; i = 1; floor_o = o; }
     while (in[i]) {
         uint32_t s = i;
         while (in[i] && in[i] != '/') i++;
@@ -352,19 +396,24 @@ static void url_remove_dots(const char *in, char *out, uint32_t cap) {
             continue;
         }
         if (seglen == 2 && in[s] == '.' && in[s + 1] == '.') {
-            if (sp > 0) { sp--; o = stack[sp]; }
+            if (o > floor_o) {
+                if (out[o - 1] == '/') o--;                  /* off the separator */
+                while (o > floor_o && out[o - 1] != '/') o--; /* to the previous '/' */
+            }
             if (last && !had_slash && o > 0 && out[o - 1] != '/' && o + 1 < cap)
                 out[o++] = '/';
             continue;
         }
-        if (sp < 64) stack[sp++] = o;
         for (uint32_t k = 0; k < seglen && o + 1 < cap; k++) out[o++] = in[s + k];
         if (had_slash && o + 1 < cap) out[o++] = '/';
     }
     out[o < cap ? o : cap - 1] = '\0';
 }
 
-static void url_serialize(const browser_url_t *u, char *out, uint32_t cap) {
+/* Returns false if the URL did not fit in `cap`. A caller that ignored this
+ * would hand back a PREFIX of a URL — a different, usually still-fetchable
+ * address — under a success code. */
+static bool url_serialize(const browser_url_t *u, char *out, uint32_t cap) {
     b_app_t a;
     app_init(&a, out, cap);
     if (u->scheme[0]) { app_str(&a, u->scheme); app_ch(&a, ':'); }
@@ -378,6 +427,7 @@ static void url_serialize(const browser_url_t *u, char *out, uint32_t cap) {
     else if (u->host[0]) app_ch(&a, '/');
     if (u->query[0])    { app_ch(&a, '?'); app_str(&a, u->query); }
     if (u->fragment[0]) { app_ch(&a, '#'); app_str(&a, u->fragment); }
+    return !a.ovf;
 }
 
 int browser_resolve_url(const char *base, const char *ref, char *out, uint32_t cap) {
@@ -399,8 +449,18 @@ int browser_resolve_url(const char *base, const char *ref, char *out, uint32_t c
         browser_url_t r;
         if (browser_parse_url(ref, &r) != BROWSER_OK) return BROWSER_ERR_BAD_URL;
 
-        if (r.absolute) {
+        if (r.scheme[0]) {
+            /* RFC 3986 §5.2.2 first branch: a reference that CARRIES A SCHEME
+             * is already the target, authority or not. Testing r.absolute
+             * (scheme AND host) instead sent every opaque reference —
+             * "mailto:x", "javascript:x", "data:x", the RFC's own "g:h" —
+             * down the path-merge branch, which rewrote it into
+             * "http://<base-host>/<base-dir>/x": a fetchable URL on the base's
+             * own origin that the document never asked for. */
             t = r;
+            char tmp[BROWSER_MAX_URL_LEN];
+            url_remove_dots(t.path, tmp, sizeof(tmp));
+            if (!b_copy(t.path, sizeof(t.path), tmp)) return BROWSER_ERR_BAD_URL;
         } else if (r.host[0]) {
             /* scheme-relative "//host/path" — inherit only the scheme */
             t = r;
@@ -441,7 +501,10 @@ int browser_resolve_url(const char *base, const char *ref, char *out, uint32_t c
         }
     }
 
-    url_serialize(&t, out, cap);
+    /* A URL that did not fit is a DIFFERENT URL, and usually still a fetchable
+     * one ("http://a/b/c/g" clipped to "http://" or "http://a"). Returning
+     * BROWSER_OK with the prefix would be a silent redirect, so refuse. */
+    if (!url_serialize(&t, out, cap)) { out[0] = '\0'; return BROWSER_ERR_FULL; }
     if (out[0] == '\0') return BROWSER_ERR_BAD_URL;
     return BROWSER_OK;
 }
@@ -562,13 +625,78 @@ static uint32_t header_scan(const char *blk, uint32_t blklen, const char *name,
         uint32_t got = 0;
         if (out && cap) {
             for (; got + 1 < cap && v + got < vend; got++) out[got] = blk[v + got];
-            out[got] = '\0';
         } else {
             got = vend - v;
         }
+
+        /* RFC 7230 §3.2.4 obs-fold: a following line that starts with SP or
+         * HTAB CONTINUES this field, and a user agent must replace the fold
+         * with a space. Skipping the continuation instead returned "part1"
+         * for "X-Long: part1 / <SP>part2" — and for Content-Length that is not
+         * cosmetic: "Content-Length: 2\r\n  0000" would frame a 2-byte body
+         * off a header the server did not write. Unfolded here, that same
+         * input becomes the non-numeric "2 0000" and the message is rejected. */
+        while (i < blklen && (blk[i] == ' ' || blk[i] == '\t')) {
+            uint32_t cs = i;
+            while (i < blklen && blk[i] != '\n') i++;
+            uint32_t ce = i;
+            if (ce > cs && blk[ce - 1] == '\r') ce--;
+            if (i < blklen) i++;
+            while (cs < ce && (blk[cs] == ' ' || blk[cs] == '\t')) cs++;
+            while (ce > cs && (blk[ce - 1] == ' ' || blk[ce - 1] == '\t')) ce--;
+            if (out && cap) {
+                if (got + 1 < cap) out[got++] = ' ';
+                for (uint32_t k = cs; k < ce && got + 1 < cap; k++) out[got++] = blk[k];
+            } else {
+                got += 1 + (ce - cs);
+            }
+        }
+        if (out && cap) out[got] = '\0';
         return got;
     }
     return 0;
+}
+
+/* RFC 7230 §3.3.3: a message carrying two Content-Length fields with
+ * DIFFERING values has invalid framing and must be treated as an
+ * unrecoverable error. Silently taking the first (which is what a plain
+ * "find the header" scan does) is the response-splitting primitive: one
+ * length for us, another for anything else reading the same bytes.
+ * Returns true when `name` occurs more than once with values that differ. */
+static bool header_conflicts(const char *blk, uint32_t blklen, const char *name) {
+    uint32_t nlen = b_strlen(name);
+    if (nlen == 0) return false;
+
+    bool seen = false;
+    char first[64];
+    first[0] = '\0';
+
+    uint32_t i = 0;
+    while (i < blklen) {
+        uint32_t ls = i;
+        while (i < blklen && blk[i] != '\n') i++;
+        uint32_t le = i;
+        if (le > ls && blk[le - 1] == '\r') le--;
+        if (i < blklen) i++;
+        if (le == ls) continue;
+
+        uint32_t c = ls;
+        while (c < le && blk[c] != ':') c++;
+        if (c >= le) continue;
+        if (c - ls != nlen) continue;
+        if (!b_ieq_len(blk + ls, nlen, name)) continue;
+
+        uint32_t v = c + 1;
+        while (v < le && (blk[v] == ' ' || blk[v] == '\t')) v++;
+        uint32_t vend = le;
+        while (vend > v && (blk[vend - 1] == ' ' || blk[vend - 1] == '\t')) vend--;
+
+        char cur[64];
+        b_copyn(cur, sizeof(cur), blk + v, vend - v);
+        if (!seen) { b_copy(first, sizeof(first), cur); seen = true; }
+        else if (!b_ieq(first, cur)) return true;
+    }
+    return false;
 }
 
 uint32_t http_get_header(const http_response_t *resp, const char *name,
@@ -694,7 +822,19 @@ int http_parse_response(http_response_t *resp, uint8_t *buf, uint32_t len) {
             hdr_len);
     /* NOTE: only the first sizeof(headers)-1 bytes are retained; the framing
      * headers below are read from the ORIGINAL buffer, so a large header block
-     * cannot change how the body is framed — it only limits http_get_header. */
+     * cannot change how the body is framed — it only limits http_get_header.
+     *
+     * When the retained copy IS short, http_get_header() would answer 0 ("not
+     * present") for a header that is present on the wire. That is a silent
+     * false negative, so it is recorded: headers_truncated says "0 from
+     * http_get_header() means UNKNOWN here, not ABSENT". A NUL byte inside the
+     * block cuts the copy short for the same reason and counts the same way. */
+    resp->headers_truncated = (hdr_len + 1 > sizeof(resp->headers));
+    if (!resp->headers_truncated) {
+        for (uint32_t k = 0; k < hdr_len; k++) {
+            if (buf[hdr_start + k] == 0) { resp->headers_truncated = true; break; }
+        }
+    }
 
     char te[64];
     char cl[32];
@@ -707,6 +847,8 @@ int http_parse_response(http_response_t *resp, uint8_t *buf, uint32_t len) {
 
     bool have_cl = false;
     if (cl_len > 0) {
+        if (header_conflicts((const char *)(buf + hdr_start), hdr_len, "Content-Length"))
+            return BROWSER_ERR_PROTOCOL;
         uint64_t v = 0;
         bool ok = true;
         for (uint32_t k = 0; cl[k]; k++) {
@@ -990,6 +1132,14 @@ static void hp_apply_style(html_element_t *e, const html_style_t *st) {
     e->underline = st->underline;
 }
 
+/* Forward decl: the text accumulator is defined below, but both flush sites
+ * (mid-document and end-of-input) must go through ONE function. They used to
+ * be two copies, and the end-of-input copy had lost the <a> inheritance — so
+ * "<a href=/x>tail" with no closing tag produced text with is_link false and
+ * an empty href, while the identical text before a "</a>" got both. */
+typedef struct textacc textacc_t;
+static void hp_flush_text(htmlp_t *p, textacc_t *ta);
+
 /* UTF-8 encode. Returns bytes written (0..4). */
 static uint32_t utf8_put(uint32_t cp, char *out) {
     if (cp < 0x80) { out[0] = (char)cp; return 1; }
@@ -1037,22 +1187,31 @@ static uint32_t entity_decode(const char *s, uint32_t n, uint32_t i,
     if (j < limit && s[j] == '#') {
         j++;
         uint32_t cp = 0, digits = 0;
+        bool oob = false;
         if (j < limit && (s[j] == 'x' || s[j] == 'X')) {
             j++;
             while (j < limit && b_hexval(s[j]) >= 0) {
-                cp = cp * 16u + (uint32_t)b_hexval(s[j]);
-                if (cp > 0x10FFFF) return 0;
+                if (!oob) {
+                    cp = cp * 16u + (uint32_t)b_hexval(s[j]);
+                    if (cp > 0x10FFFF) oob = true;
+                }
                 j++; digits++;
             }
         } else {
             while (j < limit && b_is_digit(s[j])) {
-                cp = cp * 10u + (uint32_t)(s[j] - '0');
-                if (cp > 0x10FFFF) return 0;
+                if (!oob) {
+                    cp = cp * 10u + (uint32_t)(s[j] - '0');
+                    if (cp > 0x10FFFF) oob = true;
+                }
                 j++; digits++;
             }
         }
         if (digits == 0 || j >= limit || s[j] != ';') return 0;
-        if (cp == 0) return 0;
+        /* HTML5 "numeric character reference end state": NUL, a lone surrogate
+         * and anything above U+10FFFF all become U+FFFD. Encoding a surrogate
+         * directly produced ED A0 80 — CESU-8, not UTF-8 — from a header that
+         * promises UTF-8 output. */
+        if (oob || cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) cp = 0xFFFD;
         *outn = utf8_put(cp, out);
         return (j + 1) - i;
     }
@@ -1071,14 +1230,14 @@ static uint32_t entity_decode(const char *s, uint32_t n, uint32_t i,
 }
 
 /* Text accumulator with whitespace collapsing + entity decoding. */
-typedef struct {
+struct textacc {
     char buf[BROWSER_MAX_TEXT_LEN];
     uint32_t len;
     bool trunc;
     bool last_space;
     bool has_nonspace;
     bool saw_newline;
-} textacc_t;
+};
 
 static void ta_reset(textacc_t *t) {
     t->len = 0; t->trunc = false; t->last_space = false;
@@ -1098,10 +1257,48 @@ static void ta_put_space(textacc_t *t) {
     t->last_space = true;
 }
 
+/* HTML5 replaces U+0000 in character data with U+FFFD. Storing the raw NUL
+ * instead left an embedded terminator in the accumulator, so the token text
+ * ended at the NUL and the rest of the run vanished with `truncated` false. */
 static void ta_put_text(textacc_t *t, const char *s, uint32_t n) {
-    for (uint32_t k = 0; k < n; k++) { ta_putc(t, s[k]); }
+    for (uint32_t k = 0; k < n; k++) {
+        if (s[k] == '\0') {
+            ta_putc(t, (char)0xEF); ta_putc(t, (char)0xBF); ta_putc(t, (char)0xBD);
+        } else {
+            ta_putc(t, s[k]);
+        }
+    }
     t->last_space = false;
     t->has_nonspace = true;
+}
+
+/* Emit the pending character run as one TEXT token, if it is worth keeping.
+ * The ONLY place a TEXT token is produced from the accumulator; both callers
+ * therefore get the same style, the same truncation flag and the same <a>
+ * inheritance. Leaves the accumulator reset. */
+static void hp_flush_text(htmlp_t *p, textacc_t *ta) {
+    if (ta->len == 0) return;
+    bool keep = ta->has_nonspace || !ta->saw_newline;
+    if (keep) {
+        html_element_t *e = hp_emit(p);
+        if (e) {
+            e->kind = HTML_TOK_TEXT;
+            e->type = HTML_TEXT;
+            e->depth = (uint16_t)p->depth;
+            hp_apply_style(e, &p->style[p->depth]);
+            e->truncated = ta->trunc;
+            /* ta->buf never holds a NUL (ta_put_text maps it to U+FFFD), so a
+             * plain bounded copy of ta->len bytes is exact here. */
+            if (!b_copyn(e->text, sizeof(e->text), ta->buf, ta->len))
+                e->truncated = true;
+            int32_t la = p->style[p->depth].link_elem;
+            if (la >= 0 && (uint32_t)la < p->count) {
+                e->is_link = p->els[la].is_link;
+                b_copy(e->href, sizeof(e->href), p->els[la].href);
+            }
+        }
+    }
+    ta_reset(ta);
 }
 
 /* Layout wants each token's exact declared intrinsic size for <img>. */
@@ -1161,7 +1358,7 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
                 e->depth = (uint16_t)p.depth;
                 hp_apply_style(e, &p.style[p.depth]);
                 uint32_t n_raw = stop - start;
-                if (!b_copyn(e->text, sizeof(e->text), html + start, n_raw))
+                if (!b_copy_text(e->text, sizeof(e->text), html + start, n_raw))
                     e->truncated = true;
             }
             i = stop;
@@ -1172,26 +1369,23 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
 
         /* ---------- markup ---------- */
         if (html[i] == '<') {
-            /* Flush any pending text run first. */
-            if (ta.len > 0) {
-                bool keep = ta.has_nonspace || !ta.saw_newline;
-                if (keep) {
-                    html_element_t *e = hp_emit(&p);
-                    if (!e) break;
-                    e->kind = HTML_TOK_TEXT;
-                    e->type = HTML_TEXT;
-                    e->depth = (uint16_t)p.depth;
-                    hp_apply_style(e, &p.style[p.depth]);
-                    e->truncated = ta.trunc;
-                    b_copyn(e->text, sizeof(e->text), ta.buf, ta.len);
-                    int32_t la = p.style[p.depth].link_elem;
-                    if (la >= 0 && (uint32_t)la < p.count) {
-                        e->is_link = elements[la].is_link;
-                        b_copy(e->href, sizeof(e->href), elements[la].href);
-                    }
-                }
-                ta_reset(&ta);
+            /* Classify BEFORE flushing. A '<' that does not begin markup is
+             * ordinary text, and flushing first would split one character run
+             * into two tokens ("a " + "< b > c") for no reason. */
+            bool is_markup = (i + 1 < len) &&
+                             (html[i + 1] == '!' || html[i + 1] == '/' ||
+                              b_is_alpha(html[i + 1]));
+            if (!is_markup) {
+                ta_putc(&ta, '<');
+                ta.has_nonspace = true;
+                ta.last_space = false;
+                i++;
+                continue;
             }
+
+            /* Flush any pending text run first. */
+            hp_flush_text(&p, &ta);
+            if (p.full) break;
 
             /* "<!" — comment, doctype, or bogus comment */
             if (i + 1 < len && html[i + 1] == '!') {
@@ -1211,7 +1405,7 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
                     hp_apply_style(e, &p.style[p.depth]);
                     b_copy(e->tag, sizeof(e->tag), "!--");
                     if (ce > cs) {
-                        if (!b_copyn(e->text, sizeof(e->text), html + cs, ce - cs))
+                        if (!b_copy_text(e->text, sizeof(e->text), html + cs, ce - cs))
                             e->truncated = true;
                     }
                     i = (ce == len) ? len : (ce + 3);
@@ -1233,7 +1427,7 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
                 hp_apply_style(e, &p.style[p.depth]);
                 b_copy(e->tag, sizeof(e->tag), is_doctype ? "!doctype" : "!");
                 if (de > ds) {
-                    if (!b_copyn(e->text, sizeof(e->text), html + ds, de - ds))
+                    if (!b_copy_text(e->text, sizeof(e->text), html + ds, de - ds))
                         e->truncated = true;
                 }
                 i = (de == len) ? len : (de + 1);
@@ -1255,14 +1449,9 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
                     i = (de == len) ? len : (de + 1);
                     continue;
                 }
-            } else if (i + 1 >= len || !b_is_alpha(html[i + 1])) {
-                /* stray '<' — literal text */
-                ta_putc(&ta, '<');
-                ta.has_nonspace = true;
-                ta.last_space = false;
-                i++;
-                continue;
             }
+            /* is_markup guarantees html[i+1] is alphabetic here when it is
+             * neither '!' nor '/', so a start tag name follows. */
 
             /* ---- tag name ---- */
             uint32_t j = ns;
@@ -1282,6 +1471,12 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
             char attrs[BROWSER_MAX_ATTRS_LEN];
             b_app_t aa; app_init(&aa, attrs, sizeof(attrs));
             bool href_fit = true, src_fit = true;
+            /* Any attribute name or value that did not fit its buffer. Without
+             * this, a 100-char attribute NAME was digested as its first 63
+             * characters and a 200-char alt="" was silently cut to 127, both
+             * with truncated == false — i.e. the element claimed to hold
+             * attributes it did not have. */
+            bool attr_trunc = false;
             uint32_t img_w = 0, img_h = 0;
             bool self_close = false;
             bool eof_in_tag = false;
@@ -1305,7 +1500,8 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
                 if (ae == as) { j++; continue; }   /* defensive: never spin */
 
                 char aname[64];
-                b_copyn(aname, sizeof(aname), html + as, ae - as);
+                if (!b_copyn(aname, sizeof(aname), html + as, ae - as))
+                    attr_trunc = true;
 
                 char aval[BROWSER_MAX_HREF_LEN];
                 aval[0] = '\0';
@@ -1330,6 +1526,8 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
                     }
                 }
 
+                if (!aval_fit) attr_trunc = true;
+
                 if (b_ieq(aname, "href")) {
                     b_copy(href, sizeof(href), aval);
                     href_fit = aval_fit;
@@ -1337,7 +1535,9 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
                     b_copy(src, sizeof(src), aval);
                     src_fit = aval_fit;
                 } else if (b_ieq(aname, "alt")) {
-                    b_copy(alt, sizeof(alt), aval);
+                    /* alt is 128 bytes against a 512-byte aval: it can fail to
+                     * fit even when the attribute value itself was captured. */
+                    if (!b_copy(alt, sizeof(alt), aval)) attr_trunc = true;
                 } else if (b_ieq(aname, "width")) {
                     img_w = attr_u32_value(aval);
                 } else if (b_ieq(aname, "height")) {
@@ -1382,7 +1582,7 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
                 e->depth = (uint16_t)p.depth;
                 e->is_block = type_is_block(type);
                 b_copy(e->tag, sizeof(e->tag), name);
-                if (!name_fit) e->truncated = true;
+                if (!name_fit || attr_trunc) e->truncated = true;
                 hp_apply_style(e, &p.style[p.depth]);
                 continue;
             }
@@ -1412,7 +1612,7 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
             b_copy(e->href, sizeof(e->href), href);
             b_copy(e->src, sizeof(e->src), src);
             b_copy(e->alt, sizeof(e->alt), alt);
-            if (!href_fit || !src_fit) e->truncated = true;
+            if (!href_fit || !src_fit || attr_trunc) e->truncated = true;
             if (type == HTML_IMG) { e->w = img_w; e->h = img_h; }
 
             /* A link is only navigable if we hold its href IN FULL. A
@@ -1474,21 +1674,8 @@ int html_parse(const char *html, uint32_t len, html_element_t *elements,
         }
     }
 
-    /* trailing text run */
-    if (!p.full && ta.len > 0) {
-        bool keep = ta.has_nonspace || !ta.saw_newline;
-        if (keep) {
-            html_element_t *e = hp_emit(&p);
-            if (e) {
-                e->kind = HTML_TOK_TEXT;
-                e->type = HTML_TEXT;
-                e->depth = (uint16_t)p.depth;
-                hp_apply_style(e, &p.style[p.depth]);
-                e->truncated = ta.trunc;
-                b_copyn(e->text, sizeof(e->text), ta.buf, ta.len);
-            }
-        }
-    }
+    /* trailing text run — same function, so it inherits <a> too */
+    if (!p.full) hp_flush_text(&p, &ta);
 
     if (count) *count = p.count;
     return p.full ? BROWSER_ERR_TRUNCATED : BROWSER_OK;
@@ -1516,6 +1703,12 @@ int html_render(browser_tab_t *tab, uint32_t viewport_w, uint32_t viewport_h) {
     for (uint32_t idx = 0; idx < tab->num_elements; idx++) {
         html_element_t *e = &tab->elements[idx];
 
+        /* font_size is caller-writable (html_render takes a tab, not a parse
+         * result). Unclamped, font_size = 2e9 made line_h wrap uint32 and the
+         * function reported content_w = 705032720 for a two-word paragraph —
+         * an extent that then drives browser_scroll()'s clamp. The clamp is
+         * written back so no element claims a size the layout did not use. */
+        if (e->font_size > BROWSER_MAX_FONT_PX) e->font_size = BROWSER_MAX_FONT_PX;
         uint32_t fs = (e->font_size > 0) ? (uint32_t)e->font_size
                                          : (uint32_t)BROWSER_BASE_FONT_PX;
         uint32_t cw = BROWSER_CHAR_W(fs); if (cw == 0) cw = 1;
@@ -1737,7 +1930,7 @@ static int tab_layout(browser_t *b, browser_tab_t *t) {
     for (uint32_t i = 0; i < t->num_elements; i++) {
         int64_t fs = (int64_t)t->elements[i].font_size * (int64_t)z / 100;
         if (fs < 1) fs = 1;
-        if (fs > 512) fs = 512;
+        if (fs > BROWSER_MAX_FONT_PX) fs = BROWSER_MAX_FONT_PX;
         t->elements[i].font_size = (int32_t)fs;
         if (!b->images_enabled && t->elements[i].type == HTML_IMG)
             t->elements[i].is_image = false;   /* reserve no box */
@@ -1746,12 +1939,29 @@ static int tab_layout(browser_t *b, browser_tab_t *t) {
                           t->viewport_h ? t->viewport_h : 768);
 }
 
+/* Hand the receive slot back but keep the response METADATA.
+ *
+ * Once the bytes are tokenized into t->elements the raw body is dead weight,
+ * and there are only BROWSER_HTTP_POOL_SLOTS slots against BROWSER_MAX_TABS
+ * tabs. A tab that kept its slot for life would cap the whole browser at two
+ * loaded tabs, so the slot goes back here. After this, response.body is NULL
+ * and response.body_len is 0; status_code, headers, content_type and
+ * content_length survive. */
+static void tab_release_body(browser_tab_t *t) {
+    http_response_t keep = t->response;
+    http_response_free(&t->response);
+    keep.body = (uint8_t *)0;
+    keep.body_len = 0;
+    t->response = keep;
+}
+
 /* Tokenize the tab's fetched body into its element table and lay it out. */
 static int tab_load_document(browser_t *b, browser_tab_t *t) {
     t->num_elements = 0;
     t->title[0] = '\0';
     if (!t->response.body || t->response.body_len == 0) {
         t->loaded = false;
+        tab_release_body(t);
         return BROWSER_OK;
     }
     uint32_t n = t->response.body_len;
@@ -1763,11 +1973,17 @@ static int tab_load_document(browser_t *b, browser_tab_t *t) {
     tab_extract_title(t);
     tab_layout(b, t);
     t->loaded = (cnt > 0);
+    tab_release_body(t);
     return rc;
 }
 
 int browser_add_history(browser_t *b, const char *url, const char *title) {
     if (!b || !url || !url[0]) return BROWSER_ERR_ARG;
+    /* A history entry that does not hold the WHOLE url is a pointer to a
+     * different page: browser_back() would rewrite the tab's URL to the
+     * truncated one and, with a transport bound, fetch it. Refuse instead —
+     * browser_add_bookmark() already refuses, and these must agree. */
+    if (b_strlen(url) >= BROWSER_MAX_URL_LEN) return BROWSER_ERR_ARG;
 
     if (b->history_count > 0) {
         browser_history_t *cur = &b->history[b->history_index];

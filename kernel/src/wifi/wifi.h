@@ -1,7 +1,10 @@
 /* wifi.h — ZEDEC XERO pqOS Wi-Fi (IEEE 802.11) STATION/AP subsystem
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
+ * and CC BY-SA 4.0. See LICENSE at the repository root.
  * 36N9 Genetics, LLC
  *
  * Build note: this header needs -Iinclude -Isrc/edp_risk -Isrc/surplus
@@ -19,7 +22,8 @@
  *       4-address / QoS variants and sequence-control packing
  *     - beacon / probe-response information-element parsing (SSID, DS param,
  *       supported rates, RSN, WPA vendor IE, HT/VHT/HE presence)
- *     - the scan-result table (merge by BSSID, weakest-entry eviction)
+ *     - the scan-result table (merge by BSSID, weakest-entry eviction, and a
+ *       learned SSID that survives a later nameless beacon from the same AP)
  *     - the association state machine, with an explicit legal-transition
  *       table; illegal transitions are refused, not silently applied
  *     - channel <-> frequency mapping for 2.4 / 5 / 6 GHz, against the real
@@ -47,14 +51,25 @@
  *  L1. NO RADIO IS INCLUDED. Binding wifi_ops_t is the whole job of a real
  *      driver. Unbound, this subsystem is a protocol engine, not a NIC.
  *
- *  L2. CRYPTO ANCHORS. SHA-1, HMAC-SHA1 and PBKDF2-HMAC-SHA1 are verified in
- *      test_wifi.c against published vectors (FIPS 180-1 / RFC 2202 /
- *      RFC 6070), and the WPA2 PMK against the three IEEE 802.11i Annex H.4
- *      passphrase-to-PSK vectors. The 802.11i PRF-384 and the PTK split on
- *      top of it are implemented from the specification text and are checked
- *      only STRUCTURALLY (determinism, the Min/Max canonical ordering, key
- *      separation, avalanche) — no published PTK vector is asserted here.
- *      Treat the PTK layer as "believed correct, not vector-anchored".
+ *  L2. CRYPTO ANCHORS, AND WHERE THEY STOP.
+ *      Anchored to published vectors in test_wifi.c:
+ *        - SHA-1            FIPS 180-1 (4 vectors, incl. the 1,000,000-'a')
+ *        - HMAC-SHA1        RFC 2202 cases 1, 2, 3, 6
+ *        - PBKDF2-HMAC-SHA1 RFC 6070 cases 1, 2, 3, 5, 6
+ *        - WPA2 PMK         IEEE 802.11i Annex H.4 cases 1 and 2
+ *      NOT anchored, and deliberately so:
+ *        - 802.11i Annex H.4 case 3 uses a 64-character passphrase, one
+ *          octet outside the 8..63 range the same standard specifies, and
+ *          its expected PSK could not be confirmed from a trusted source
+ *          here. It is not asserted. Six other vectors already pin PBKDF2
+ *          byte-for-byte, so this is a gap in citation, not in confidence.
+ *        - The 802.11i PRF-384 and the PTK split on top of it are
+ *          implemented from the specification text and checked only
+ *          STRUCTURALLY: determinism, the Min/Max canonical ordering, KCK /
+ *          KEK / TK separation, single-bit avalanche on PMK, MAC and nonce,
+ *          and that the PRF output equals HMAC-SHA1(K, label||0x00||data||i)
+ *          concatenated. No published PTK vector is asserted. Treat the PTK
+ *          layer as "believed correct, not vector-anchored".
  *
  *  L3. WPA2-PSK ONLY, SUPPLICANT SIDE ONLY. Key-descriptor version 2
  *      (HMAC-SHA1-128 MIC, CCMP) is implemented. Version 1 (RC4/HMAC-MD5)
@@ -89,9 +104,15 @@
  *      rather than being mis-sized by four bytes.
  *
  *  L9. NO FRAGMENTATION, NO AGGREGATION, NO PS-POLL/TIM HANDLING, NO
- *      ROAMING/FT, NO MESH PEERING, NO P2P/WPS. The corresponding
- *      wifi_mode_t values are accepted as labels for an interface; only
- *      STATION and AP have behaviour behind them.
+ *      ROAMING/FT, NO MESH PEERING, NO P2P/WPS. Only STATION and AP have
+ *      behaviour behind them. Precisely what the mode values do:
+ *        - WIFI_MODE_MESH and WIFI_MODE_MONITOR are REFUSED outright by
+ *          wifi_create_interface() (id 0), because supports_mesh and
+ *          supports_monitor are false and pretending otherwise would be the
+ *          lie this file exists to avoid.
+ *        - WIFI_MODE_ADHOC and WIFI_MODE_P2P are accepted as LABELS only.
+ *          An interface may carry them and may enter BEACONING (ADHOC), but
+ *          no IBSS or P2P protocol is implemented behind either.
  *
  * L10. MAC ADDRESSES. With no hardware to ask, wifi_create_interface()
  *      assigns a deterministic LOCALLY ADMINISTERED address derived from the
@@ -424,6 +445,11 @@ int wifi_start_ap(wifi_device_t *dev, uint32_t iface_id, const char *ssid,
 int wifi_stop_ap(wifi_device_t *dev, uint32_t iface_id);
 int wifi_set_channel(wifi_device_t *dev, uint32_t iface_id, uint32_t channel);
 int wifi_set_power_save(wifi_device_t *dev, uint32_t iface_id, uint8_t level);
+/* Conducted TX power in dBm. Refused above WIFI_MAX_TX_POWER_DBM, and above
+ * dev->max_tx_power once a driver has said what the radio can actually do.
+ * On success dev->reg_tx_power holds what the radio was really set to. */
+#define WIFI_MAX_TX_POWER_DBM 30
+int wifi_set_tx_power(wifi_device_t *dev, uint32_t iface_id, uint8_t dbm);
 int wifi_tx_packet(wifi_device_t *dev, uint32_t iface_id, const void *data, uint32_t len);
 int wifi_rx_packet(wifi_device_t *dev, uint32_t iface_id, void *data, uint32_t max_len);
 
@@ -492,9 +518,19 @@ int wifi_build_deauth(uint8_t *out, uint32_t cap, const uint8_t da[6],
                       uint16_t reason);
 int wifi_build_beacon(wifi_device_t *dev, uint32_t iface_id, uint8_t *out, uint32_t cap);
 
-/* Parse a beacon or probe response into a scan result. freq_mhz is the
- * frequency the frame was heard on (0 = unknown; then the DS param element
- * is trusted and assumed to be 2.4 GHz if <= 14). */
+/* Parse a beacon or probe response into a scan result.
+ *
+ * freq_mhz is the frequency the frame was actually heard on, and when it is
+ * non-zero it WINS: it fixes both channel and band, overriding a stale or
+ * lying DS param element.
+ *
+ * freq_mhz == 0 means "not measured". Then the DS param element is the only
+ * evidence: a channel of 1..14 is reported as 2.4 GHz, anything else as
+ * 5 GHz. Note the honest edge: if the frame carries NO DS param either, then
+ * nothing is known, out->channel is left 0 — an impossible channel, so the
+ * result cannot be connected to (wifi_connect() fails EINVAL on it) — and
+ * out->band falls in the 5 GHz branch by default rather than by evidence.
+ * Pass the measured frequency whenever you have it. */
 int wifi_parse_beacon(const uint8_t *frame, uint32_t len, int16_t rssi,
                       uint32_t freq_mhz, wifi_scan_result_t *out);
 /* Locate an information element in a management frame body. Returns the
@@ -503,8 +539,14 @@ int wifi_find_ie(const uint8_t *ies, uint32_t len, uint8_t id, const uint8_t **v
 
 /* Driver ingress for management frames: drives the association state machine
  * (auth resp -> assoc req, assoc resp -> handshake/connected, deauth -> idle).
- * Returns the management subtype handled, or a negative WIFI_* code. */
-int wifi_rx_mgmt(wifi_device_t *dev, uint32_t iface_id, const uint8_t *frame, uint32_t len);
+ * Returns the management subtype handled, or a negative WIFI_* code.
+ *
+ * `rssi` is the signal strength the radio measured for THIS frame, in dBm. It
+ * is used only for beacons/probe responses, where it becomes the scan result's
+ * rssi. There is no way to derive it here, so it is a parameter rather than a
+ * guess: a scan result never reports a signal strength nobody measured. */
+int wifi_rx_mgmt(wifi_device_t *dev, uint32_t iface_id, const uint8_t *frame,
+                 uint32_t len, int16_t rssi);
 
 /* ===== Crypto primitives (no radio needed; vector-anchored — see L2) ===== */
 #define WIFI_SHA1_LEN 20

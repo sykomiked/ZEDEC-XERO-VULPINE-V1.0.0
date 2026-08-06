@@ -6,9 +6,27 @@
  * drift, every tick count below is asserted against a number worked out by
  * hand from the model documented in event_clock.h.
  *
- * The last section exists because event_clock_verify_coverage() is a
- * verify function, and a verify function that cannot fail is a lie. It
- * drives all seventeen of its rejection branches.
+ * Sections 13 and 17 exist because event_clock_verify_coverage() is a verify
+ * function, and a verify function that cannot fail is a lie. Between them
+ * they drive all 23 of its rejection branches to false.
+ *
+ * Section 17 is the regression wall for defects that were live in this file
+ * and are not allowed back:
+ *   17a  set_tick_interval(0) in PERIODIC/HYBRID built a live clock that
+ *        verify_coverage() rejected — the public API could reach a state its
+ *        own verifier called corrupt.
+ *   17b  request_sync()'s source was range-checked and then thrown away.
+ *   17c  sync_count wrapped uint32 to 0, i.e. to "never synced" on a clock
+ *        that names a sync source.
+ *   17d  m5.r and m5.phi were written by every mutator and checked by none.
+ *   17e/f the M5 projection and the ns cast fed unbounded/NaN doubles into
+ *        conversions that are UB in Q32.32 on the target.
+ *
+ * NOTE ON SANITIZERS: the "negative correction_factor" case in 17f is only
+ * decisive under UBSan. On AArch64 the hardware saturates an out-of-range
+ * float->int conversion to 0, which silently mimics the correct answer, so
+ * removing the guard in ec_ns_from_double() still passes a plain build.
+ * `make fuzz` runs this file under ASan+UBSan for exactly that reason.
  */
 #include <stdio.h>
 #include <string.h>
@@ -571,12 +589,26 @@ int main(void) {
     {
         event_clock_t z;
 
+        /* correction_factor 1.0 -> the EXACT integer path: 1 event of
+         * UINT64_MAX ns saturates the product at UINT64_MAX, and adding the
+         * 1000 ns reference saturates again. */
         event_clock_init(&z, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&z, UINT64_MAX);
         event_clock_sync(&z, 1000, CLOCK_IFACE_RTC);
         (void)event_clock_next_ordinal(&z);
+        CHECK(event_clock_get_time(&z) == UINT64_MAX,
+              "an exact-path span past UINT64_MAX saturates there, it does not wrap");
+
+        /* correction_factor != 1.0 -> the DOUBLE path, which saturates at
+         * the lower EVENT_CLOCK_NS_CEILING: 1 x 1.8446744e19 x 0.5 =
+         * 9.2233720e18 ns, over the 9e18 ceiling. */
+        event_clock_init(&z, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&z, UINT64_MAX);
+        event_clock_apply_correction(&z, 0.5);
+        event_clock_sync(&z, 1000, CLOCK_IFACE_RTC);
+        (void)event_clock_next_ordinal(&z);
         CHECK(event_clock_get_time(&z) == 9000000000000001000ULL,
-              "a span past the ns ceiling clamps to 9e18 + the reference, no overflow");
+              "a double-path span past the ns ceiling clamps to 9e18 + the reference");
 
         event_clock_init(&z, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&z, 1000000000000000000ULL);
@@ -590,6 +622,431 @@ int main(void) {
         z.local_counter = UINT64_MAX;
         CHECK(event_clock_get_ticks(&z) == 6148914691236517205ULL,
               "tick math saturates the ns product then divides: UINT64_MAX/3");
+    }
+
+    /* ===== 16. the projection is exact ABOVE 2^53, not just below it ======
+     *
+     * 2^53 + 1 = 9007199254740993 events of 100 ns is exactly
+     * 900719925474099300 ns. (double)(2^53+1) rounds to 2^53, so a
+     * double-arithmetic projection returns 900719925474099200 — off by
+     * 100 ns while claiming nanosecond accuracy. This is the regression for
+     * that: with correction_factor 1.0 the span must go through the exact
+     * integer path. */
+    {
+        event_clock_t e;
+        event_clock_init(&e, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&e, 100);
+        event_clock_sync(&e, 0, CLOCK_IFACE_RTC);
+        e.local_counter  = 9007199254740993ULL;   /* 2^53 + 1 */
+        e.event_ordinal  = e.local_counter + 8;
+        e.m5.omega = (uint32_t)(e.event_ordinal & 0xFFFFFFFFu);
+        CHECK(event_clock_get_time(&e) == 900719925474099300ULL,
+              "(2^53+1) events x 100 ns projects EXACTLY, not to the nearest 256 ns");
+        CHECK(event_clock_get_time(&e) != 900719925474099200ULL,
+              "and specifically not to the double-rounded 900719925474099200");
+        CHECK(event_clock_get_ticks(&e) == 9007199254740993ULL,
+              "get_ticks agrees with the exact span: 2^53+1 whole ticks");
+        CHECK(event_clock_verify_coverage(&e),
+              "the clock is still coherent after the large-count projection");
+    }
+
+    /* ===== 17. defects this suite exists to keep fixed ====================
+     *
+     * Every case below was a live bug: a state the PUBLIC API could reach
+     * that event_clock_verify_coverage() rejected, a parameter that was
+     * validated and discarded, a counter that wrapped, or a derived field
+     * nothing checked. A verify function that its own API can drive into a
+     * false is not a verifier, it is a tripwire on the caller.
+     */
+    {
+        event_clock_t v;
+
+        /* --- 17a. removing the period of a period-driven mode ---------- */
+        event_clock_init(&v, CLOCK_PERIODIC);
+        CHECK(event_clock_verify_coverage(&v), "a fresh PERIODIC clock verifies");
+        {
+            uint64_t ord = event_clock_get_ordinal(&v);
+            event_clock_set_tick_interval(&v, 0);
+            CHECK(v.tick_interval_ns == EVENT_CLOCK_DEFAULT_TICK_NS,
+                  "set_tick_interval(0) is REFUSED in PERIODIC — the period stands");
+            CHECK(event_clock_get_ordinal(&v) == ord,
+                  "and a refused interval change spends no ordinal");
+            CHECK(event_clock_verify_coverage(&v),
+                  "so a PERIODIC clock cannot be driven into a state coverage rejects");
+        }
+        event_clock_init(&v, CLOCK_HYBRID);
+        event_clock_set_tick_interval(&v, 0);
+        CHECK(v.tick_interval_ns == EVENT_CLOCK_DEFAULT_TICK_NS,
+              "HYBRID refuses it too — both period-driven modes, not just PERIODIC");
+        CHECK(event_clock_verify_coverage(&v), "and HYBRID still verifies");
+
+        /* the same call IS allowed where there is no period to remove */
+        event_clock_init(&v, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&v, 1000);
+        event_clock_set_tick_interval(&v, 0);
+        CHECK(v.tick_interval_ns == 0,
+              "CLOCK_EXTERNAL_SYNC has no period, so clearing it is accepted");
+
+        /* a period-less HYBRID clock must FAIL coverage, symmetrically with
+         * PERIODIC — this branch used to be blind to HYBRID entirely */
+        make_healthy(&v);
+        v.mode = CLOCK_HYBRID; v.m5.chi = (uint32_t)CLOCK_HYBRID;
+        v.clock_active = true; v.tick_interval_ns = 0;
+        CHECK(!event_clock_verify_coverage(&v),
+              "FAILS on a HYBRID clock with no period, not only a PERIODIC one");
+
+        /* a period-driven mode keeps its interface engaged; a dark one is
+         * incoherent (only CLOCK_EXTERNAL_SYNC is allowed to be either) */
+        make_healthy(&v);
+        v.mode = CLOCK_PERIODIC; v.m5.chi = (uint32_t)CLOCK_PERIODIC;
+        v.clock_active = false;
+        CHECK(!event_clock_verify_coverage(&v),
+              "FAILS on a PERIODIC clock whose interface is somehow dark");
+        make_healthy(&v);
+        v.mode = CLOCK_HYBRID; v.m5.chi = (uint32_t)CLOCK_HYBRID;
+        v.clock_active = false;
+        CHECK(!event_clock_verify_coverage(&v),
+              "FAILS on a dark HYBRID clock as well");
+        make_healthy(&v);
+        CHECK(v.mode == CLOCK_EXTERNAL_SYNC && v.clock_active == false &&
+              event_clock_verify_coverage(&v),
+              "but a dark CLOCK_EXTERNAL_SYNC clock is the normal idle case, and passes");
+
+        /* --- 17b. request_sync records its source, it does not just check it */
+        event_clock_init(&v, CLOCK_EXTERNAL_SYNC);
+        CHECK(v.pending_sync_source == CLOCK_IFACE_NONE,
+              "a fresh clock has no outstanding sync request");
+        event_clock_request_sync(&v, CLOCK_IFACE_BLUETOOTH);
+        CHECK(v.pending_sync_source == CLOCK_IFACE_BLUETOOTH,
+              "request_sync RECORDS which interface was asked for, not just that one was");
+        event_clock_request_sync(&v, (clock_iface_t)250);
+        CHECK(v.pending_sync_source == CLOCK_IFACE_BLUETOOTH,
+              "a bogus follow-up request does not overwrite the real one");
+        event_clock_sync(&v, 4242, CLOCK_IFACE_BLUETOOTH);
+        CHECK(v.pending_sync_source == CLOCK_IFACE_NONE,
+              "an accepted sync serves the request and clears it");
+
+        event_clock_init(&v, CLOCK_HYBRID);
+        event_clock_request_sync(&v, CLOCK_IFACE_USB);
+        CHECK(v.pending_sync_source == CLOCK_IFACE_USB, "request pending in HYBRID");
+        event_clock_set_mode(&v, CLOCK_DISABLED);
+        CHECK(v.pending_sync_source == CLOCK_IFACE_NONE,
+              "entering DISABLED drops a request nothing can serve");
+        CHECK(event_clock_verify_coverage(&v),
+              "and the disabled clock verifies rather than holding a dead request");
+
+        event_clock_init(&v, CLOCK_DISABLED);
+        event_clock_request_sync(&v, CLOCK_IFACE_NTP);
+        CHECK(v.pending_sync_source == CLOCK_IFACE_NONE,
+              "a request in DISABLED records nothing at all");
+
+        make_healthy(&v); v.pending_sync_source = (clock_iface_t)77;
+        CHECK(!event_clock_verify_coverage(&v),
+              "FAILS on an out-of-range pending sync source");
+        make_healthy(&v);
+        v.mode = CLOCK_DISABLED; v.m5.chi = (uint32_t)CLOCK_DISABLED;
+        v.clock_active = false; v.needs_sync = false;
+        v.pending_sync_source = CLOCK_IFACE_NTP;
+        CHECK(!event_clock_verify_coverage(&v),
+              "FAILS on a DISABLED clock holding an unserveable pending request");
+
+        /* --- 17c. sync_count saturates instead of wrapping to "never synced" */
+        event_clock_init(&v, CLOCK_EXTERNAL_SYNC);
+        event_clock_sync(&v, 1000, CLOCK_IFACE_NTP);
+        v.sync_count = 0xFFFFFFFFu;
+        event_clock_sync(&v, 2000, CLOCK_IFACE_NTP);
+        CHECK(v.sync_count == 0xFFFFFFFFu,
+              "sync_count SATURATES at UINT32_MAX — it does not wrap to 0");
+        CHECK(v.last_sync_ns == 2000ULL,
+              "and the sync itself was still fully applied at saturation");
+        CHECK(event_clock_verify_coverage(&v),
+              "so a saturated clock is still a coherent clock");
+
+        /* --- 17d. all five M5 axes are checked, not two ----------------- */
+        make_healthy(&v); v.m5.r = SR_FROM_FLOAT(1.75);
+        CHECK(!event_clock_verify_coverage(&v),
+              "FAILS on a stale M5 r that no longer matches correction_factor");
+        make_healthy(&v); v.m5.phi = SR_FROM_FLOAT(-0.25);
+        CHECK(!event_clock_verify_coverage(&v),
+              "FAILS on a stale M5 phi that no longer matches drift_ppm");
+        make_healthy(&v); v.m5.ell = SR_FROM_FLOAT(0.75);
+        CHECK(!event_clock_verify_coverage(&v),
+              "FAILS on an in-range but WRONG M5 ell (0.75 with 0 ppm drift)");
+
+        /* the honest positive control: a real correction really does move r */
+        make_healthy(&v);
+        event_clock_apply_correction(&v, 1.75);
+        CHECK(v.m5.r == SR_FROM_FLOAT(1.75) && event_clock_verify_coverage(&v),
+              "and a genuine correction updates m5.r in step, still verifying");
+
+        /* --- 17e. m5.phi saturates so the Q32.32 target conversion is safe */
+        event_clock_init(&v, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&v, UINT64_MAX);
+        event_clock_sync(&v, 0, CLOCK_IFACE_RTC);
+        (void)event_clock_next_ordinal(&v);
+        {
+            double huge = event_clock_measure_drift(&v, 1);
+            CHECK(huge > 1.0e24,
+                  "a 1 ns reference span against a saturated local span measures ~9e24 ppm");
+            CHECK(v.drift_ppm == huge,
+                  "drift_ppm keeps the raw unclamped measurement");
+            CHECK(v.m5.phi == SR_FROM_FLOAT(1.0e9),
+                  "but m5.phi CLAMPS at 1e9 — |phi|*2^32 must stay inside int64 on target");
+            CHECK(event_clock_verify_coverage(&v),
+                  "and the clamped-phi clock still verifies");
+        }
+    }
+
+    /* ===== 17f. corrupt doubles must not reach a cast ====================
+     *
+     * There is no parser here to feed malformed bytes to, so the equivalent
+     * hostile input is a poisoned double in the struct. Every one of these
+     * would be undefined behaviour if it reached (uint64_t)v or the Q32.32
+     * SR_FROM_FLOAT multiply; each must instead produce a defined, bounded
+     * value. Run under UBSan, where a bad cast is a hard failure.
+     */
+    {
+        event_clock_t p;
+
+        event_clock_init(&p, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&p, 1000);
+        event_clock_sync(&p, 7777, CLOCK_IFACE_RTC);
+        for (int i = 0; i < 50; i++) (void)event_clock_next_ordinal(&p);
+        p.correction_factor = bits_to_double(0x7FF8000000000000ULL);  /* NaN */
+        CHECK(event_clock_get_time(&p) == 7777ULL,
+              "a NaN correction_factor yields a ZERO span, not a garbage cast");
+
+        p.correction_factor = -3.0;                    /* negative span */
+        CHECK(event_clock_get_time(&p) == 7777ULL,
+              "a negative correction_factor yields a zero span, not a wrapped one");
+
+        p.correction_factor = 1.0e300;                 /* past the ns ceiling */
+        CHECK(event_clock_get_time(&p) == EVENT_CLOCK_NS_CEILING + 7777ULL &&
+              EVENT_CLOCK_NS_CEILING + 7777ULL == 9000000000000007777ULL,
+              "an absurd correction_factor clamps at the ns ceiling, not UB");
+
+        /* drift_ppm poisoned in both directions: the M5 projection must stay
+         * inside the Q32.32 range and inside [0,1] for ell */
+        event_clock_init(&p, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&p, 1000);
+        event_clock_sync(&p, 0, CLOCK_IFACE_RTC);
+        p.drift_ppm = -1.0e30;
+        (void)event_clock_next_ordinal(&p);            /* forces a m5 refresh */
+        CHECK(p.m5.phi == SR_FROM_FLOAT(-1.0e9),
+              "a hugely NEGATIVE drift clamps m5.phi at -1e9, the other Q32.32 edge");
+        CHECK(p.m5.ell >= SR_ZERO && p.m5.ell <= SR_ONE,
+              "and m5.ell stays inside [0,1]");
+
+        p.drift_ppm = bits_to_double(0x7FF8000000000000ULL);   /* NaN */
+        (void)event_clock_next_ordinal(&p);
+        CHECK(p.m5.ell == SR_ZERO,
+              "a NaN drift means NO confidence: m5.ell is 0, never a NaN cast");
+        CHECK(p.m5.phi == SR_FROM_FLOAT(-1.0e9),
+              "and NaN phi clamps rather than converting undefined");
+
+        /* the zero-operand path of the saturating multiply */
+        event_clock_init(&p, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&p, 1000);
+        CHECK(event_clock_get_ticks(&p) == 0 && p.last_tick_ns == 0,
+              "zero events at a real interval is 0 ticks and a 0 ns boundary");
+
+        /* the low half of the m5.ell range check in verify_coverage */
+        make_healthy(&p); p.m5.ell = SR_FROM_FLOAT(-0.5);
+        CHECK(!event_clock_verify_coverage(&p),
+              "FAILS on a NEGATIVE M5 ell, not only one above 1.0");
+    }
+
+    /* ===== 18. every entry point really does accept NULL ==================
+     *
+     * The header says EVERY function resolves NULL to the default clock.
+     * Section 14 proved it for nine of them; these are the other five. Each
+     * is checked by an OBSERVABLE effect on the default instance, so a
+     * silent no-op fails.
+     */
+    {
+        event_clock_t *d;
+        event_clock_init(NULL, CLOCK_PERIODIC);
+        d = event_clock_default();
+
+        event_clock_set_mode(NULL, CLOCK_HYBRID);
+        CHECK(d->mode == CLOCK_HYBRID,
+              "set_mode(NULL, ...) really changed the default clock's mode");
+        event_clock_set_tick_interval(NULL, 1000);   /* 1000 ns per event */
+
+        event_clock_request_sync(NULL, CLOCK_IFACE_AUDIO);
+        CHECK(d->pending_sync_source == CLOCK_IFACE_AUDIO,
+              "request_sync(NULL, ...) latched a real request on the default clock");
+        CHECK(event_clock_needs_sync(NULL) == true,
+              "needs_sync(NULL) reads that same demand back");
+
+        event_clock_sync(NULL, 1000000, CLOCK_IFACE_AUDIO);
+        for (int i = 0; i < 1001; i++) (void)event_clock_next_ordinal(NULL);
+        CHECK(near(event_clock_measure_drift(NULL, 2000000), 1000.0),
+              "measure_drift(NULL, ...) measured the default clock: +1000.0 ppm");
+
+        event_clock_apply_correction(NULL, 1.25);
+        CHECK(d->correction_factor == 1.25,
+              "apply_correction(NULL, ...) really wrote the default clock");
+        CHECK(event_clock_verify_coverage(NULL),
+              "the default clock survives all five NULL-routed mutators");
+
+        /* and the resolver is a singleton, not a fresh object each call */
+        CHECK(event_clock_default() == d,
+              "event_clock_default() returns the SAME instance every time");
+    }
+
+    /* ===== 19. get_mode reports every mode, and set_mode is range-checked = */
+    {
+        event_clock_t g;
+        clock_mode_t modes[4] = { CLOCK_DISABLED, CLOCK_EXTERNAL_SYNC,
+                                  CLOCK_PERIODIC, CLOCK_HYBRID };
+        int all = 1;
+        for (int i = 0; i < 4; i++) {
+            event_clock_init(&g, CLOCK_EXTERNAL_SYNC);
+            event_clock_set_mode(&g, modes[i]);
+            if (event_clock_get_mode(&g) != modes[i]) all = 0;
+        }
+        CHECK(all, "get_mode() reports back each of the four modes it was set to");
+
+        event_clock_init(&g, CLOCK_HYBRID);
+        {
+            uint64_t ord = event_clock_get_ordinal(&g);
+            uint64_t lc  = g.local_counter;
+            event_clock_set_mode(&g, (clock_mode_t)123);
+            CHECK(event_clock_get_mode(&g) == CLOCK_HYBRID,
+                  "an out-of-range set_mode is refused — the mode is unchanged");
+            CHECK(event_clock_get_ordinal(&g) == ord && g.local_counter == lc,
+                  "and a refused mode change spends no ordinal and no time");
+        }
+
+        /* set_mode never resets a counter, in either direction */
+        event_clock_init(&g, CLOCK_EXTERNAL_SYNC);
+        for (int i = 0; i < 37; i++) (void)event_clock_next_ordinal(&g);
+        event_clock_set_mode(&g, CLOCK_PERIODIC);
+        event_clock_set_mode(&g, CLOCK_DISABLED);
+        event_clock_set_mode(&g, CLOCK_HYBRID);
+        CHECK(g.local_counter == 37 && event_clock_get_ordinal(&g) == 40,
+              "three mode changes cost 3 ordinals and left the time base at 37");
+    }
+
+    /* ===== 20. the resync latch fires in HYBRID and never in EXTERNAL_SYNC */
+    {
+        event_clock_t y;
+
+        event_clock_init(&y, CLOCK_HYBRID);
+        event_clock_sync(&y, 0, CLOCK_IFACE_RTC);
+        y.local_counter  = y.sync_counter + EVENT_CLOCK_RESYNC_EVENTS - 1;
+        y.event_ordinal  = y.local_counter + 4;
+        CHECK(event_clock_needs_sync(&y) == false,
+              "HYBRID at 999,999 events past the sync is still inside the window");
+        y.local_counter++;
+        CHECK(event_clock_needs_sync(&y) == true,
+              "HYBRID latches the resync demand at exactly 1,000,000 events too");
+
+        event_clock_init(&y, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&y, 1000);
+        event_clock_sync(&y, 0, CLOCK_IFACE_RTC);
+        y.local_counter  = y.sync_counter + 10 * EVENT_CLOCK_RESYNC_EVENTS;
+        y.event_ordinal  = y.local_counter + 4;
+        CHECK(event_clock_needs_sync(&y) == false,
+              "CLOCK_EXTERNAL_SYNC never auto-latches — 10x the window, still quiet");
+        CHECK(event_clock_needs_sync(&y) == false,
+              "and asking twice does not manufacture a demand either");
+    }
+
+    /* ===== 21. wall time may step backwards; ordinals may not ============= */
+    {
+        event_clock_t b;
+        uint64_t ord_before, t_before, t_after;
+
+        event_clock_init(&b, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&b, 1000);
+        event_clock_sync(&b, 5000000000ULL, CLOCK_IFACE_NTP);
+        for (int i = 0; i < 100; i++) (void)event_clock_next_ordinal(&b);
+        t_before   = event_clock_get_time(&b);
+        ord_before = event_clock_get_ordinal(&b);
+        CHECK(t_before == 5000100000ULL, "100 events past a 5 s reference: 5,000,100,000 ns");
+
+        /* NTP steps the reference back by a full second */
+        event_clock_sync(&b, 4000000000ULL, CLOCK_IFACE_NTP);
+        t_after = event_clock_get_time(&b);
+        CHECK(t_after == 4000000000ULL,
+              "wall time really does step BACK with the reference (LIMITATION 4)");
+        CHECK(t_after < t_before, "so get_time() is not monotonic, as documented");
+        CHECK(event_clock_get_ordinal(&b) == ord_before + 1,
+              "but the ordinal only went forward, by the one the sync spent");
+        CHECK(event_clock_verify_coverage(&b),
+              "and a backwards step leaves a coherent clock");
+    }
+
+    /* ===== 22. randomised API stress: no reachable state fails coverage ====
+     *
+     * This module has no parser and no array to overflow, so the analogue of
+     * a fuzz corpus is a long random SEQUENCE of public calls, including
+     * out-of-range enums, NaN/inf corrections and extreme intervals. After
+     * every single call three things must hold: the ordinal never decreases,
+     * ordinals lead the time base, and verify_coverage() still passes. That
+     * last one is the real assertion — it is what caught the PERIODIC
+     * set_tick_interval(0) hole. Run under ASan+UBSan in CI.
+     */
+    {
+        event_clock_t f;
+        uint64_t seed = 0x9E3779B97F4A7C15ULL;
+        uint64_t prev_ord = 0;
+        int monotonic = 1, leads = 1, coherent = 1;
+        long ops = 0;
+
+        event_clock_init(&f, CLOCK_EXTERNAL_SYNC);
+
+        for (int i = 0; i < 200000; i++) {
+            uint64_t rnd;
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+            rnd = seed;
+
+            switch (rnd % 9u) {
+            case 0: (void)event_clock_next_ordinal(&f); break;
+            case 1: event_clock_sync(&f, (rnd >> 8) % 100000000ULL,
+                                     (clock_iface_t)((rnd >> 32) % 256u)); break;
+            case 2: event_clock_set_mode(&f,
+                                     (clock_mode_t)((rnd >> 32) % 8u)); break;
+            case 3: event_clock_request_sync(&f,
+                                     (clock_iface_t)((rnd >> 32) % 256u)); break;
+            case 4: {
+                /* a spread that straddles both limits, plus NaN and +/-inf */
+                double corr;
+                switch ((rnd >> 40) % 6u) {
+                case 0: corr = bits_to_double(0x7FF8000000000000ULL); break;
+                case 1: corr = bits_to_double(0x7FF0000000000000ULL); break;
+                case 2: corr = bits_to_double(0xFFF0000000000000ULL); break;
+                case 3: corr = 0.25 + (double)((rnd >> 16) % 2000u) / 1000.0; break;
+                case 4: corr = -1.0; break;
+                default: corr = 1.0; break;
+                }
+                event_clock_apply_correction(&f, corr);
+                break;
+            }
+            case 5: event_clock_set_tick_interval(&f,
+                                     ((rnd >> 24) % 4u == 0) ? 0
+                                     : (rnd >> 24) % 1000000000ULL); break;
+            case 6: (void)event_clock_get_time(&f); break;
+            case 7: (void)event_clock_get_ticks(&f); break;
+            default: (void)event_clock_measure_drift(&f,
+                                     (rnd >> 8) % 100000000ULL); break;
+            }
+            ops++;
+
+            if (f.event_ordinal < prev_ord)      monotonic = 0;
+            if (f.event_ordinal < f.local_counter) leads = 0;
+            if (!event_clock_verify_coverage(&f))  coherent = 0;
+            prev_ord = f.event_ordinal;
+        }
+        CHECK(ops == 200000, "the stress loop really executed 200,000 operations");
+        CHECK(monotonic, "200,000 random API calls never stepped the ordinal backwards");
+        CHECK(leads, "and ordinals led the time base at every one of them");
+        CHECK(coherent,
+              "and NO sequence of public calls reached a state coverage rejects");
+        CHECK(f.event_ordinal > 20000,
+              "the stress actually exercised the clock (>20,000 ordinals spent)");
     }
 
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
