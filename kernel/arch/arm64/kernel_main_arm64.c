@@ -1839,15 +1839,22 @@ void kernel_event_cycle_run(void) {
      * device. Throttled (every 4th cycle) to keep the compositor light; the
      * prism background is re-rendered then the shell is drawn over it with the
      * live cursor position. */
-    if (g_desktop_vbe) {
+    /* The compositor is heavy and runs from the timer-IRQ hook. A re-entrancy
+     * guard makes sure a nested IRQ can never start a second redraw on top of a
+     * running one (which would smash the shared prism backbuffer and the call
+     * stack). Input polling is cheap and stays outside the guard. */
+    static volatile int g_desktop_busy = 0;
+    if (g_desktop_vbe && !g_desktop_busy) {
         virtio_input_poll();
         int32_t key;
         while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
-        if (g_event_cycle % 4 == 0) {
+        if (g_event_cycle % 6 == 0) {
+            g_desktop_busy = 1;
             int32_t cx = 0, cy = 0; uint32_t btn = 0;
             virtio_input_get(&cx, &cy, &btn);
             pb_render_frame(&prism_break);
             zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered);
+            g_desktop_busy = 0;
         }
     }
 

@@ -183,6 +183,7 @@ void vbe_clear_screen(vbe_state_t *vbe, uint32_t color) {
  * floats over the compositor). Used by the desktop shell for the wordmark. */
 void vbe_draw_text_ex(vbe_state_t *vbe, int32_t x, int32_t y, const char *str,
                       uint32_t fg, uint32_t bg, int32_t scale, int draw_bg) {
+    if (!vbe || !vbe->fb || !str) return;   /* never dereference a null string/fb */
     if (scale < 1) scale = 1;
     int32_t cx = x;
     while (*str) {
@@ -224,6 +225,7 @@ void vbe_draw_char(vbe_state_t *vbe, int32_t x, int32_t y, char c, uint32_t fg, 
 }
 
 void vbe_draw_string(vbe_state_t *vbe, int32_t x, int32_t y, const char *str, uint32_t fg, uint32_t bg) {
+    if (!vbe || !vbe->fb || !str) return;
     int32_t cx = x;
     while (*str) {
         vbe_draw_char(vbe, cx, y, *str, fg, bg);
