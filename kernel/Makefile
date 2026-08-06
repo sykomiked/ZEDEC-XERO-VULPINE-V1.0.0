@@ -216,6 +216,8 @@ test:
 
 # Fail-closed verify-all target: host tests + crypto KATs + ARM64 cross-build check
 verify-all: test
+	@echo "=== The One Policy: Symbiotic Maxim (void-by-definition) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/onepolicy -Isrc/surplus src/onepolicy/test_onepolicy.c src/onepolicy/onepolicy.c -o /tmp/test_onepolicy -lm && /tmp/test_onepolicy && echo "[PASS] test_onepolicy" || { echo "[FAIL] test_onepolicy"; exit 1; }
 	@echo "=== platform license: four-instrument share-alike stack ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/license src/license/test_license.c src/license/license.c -o /tmp/test_license && /tmp/test_license && echo "[PASS] test_license" || { echo "[FAIL] test_license"; exit 1; }
 	@echo "=== Crypto KATs ==="; \
