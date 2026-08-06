@@ -41,13 +41,25 @@ fi
 # ------------------------------------------------------------- boot gate
 step "3/6  ARM64 QEMU boot acceptance (${BOOTS}x)"
 PASS=0
+BOOTLOG=/tmp/zxv_boot.log
 for i in $(seq 1 "$BOOTS"); do
-  if timeout 20 qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a53 -m 256M \
-      -nographic -kernel kernel_arm64.bin 2>&1 | grep -q "BOOT_OK"; then
-    PASS=$((PASS+1))
-  fi
+  timeout 45 qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a53 -m 256M \
+      -nographic -kernel kernel_arm64.bin >"$BOOTLOG" 2>&1 || true
+  if grep -qa "BOOT_OK" "$BOOTLOG"; then PASS=$((PASS+1)); fi
 done
-if [ "$PASS" -eq "$BOOTS" ]; then ok "boot $PASS/$BOOTS"; else bad "boot $PASS/$BOOTS"; fi
+if [ "$PASS" -eq "$BOOTS" ]; then
+  ok "boot $PASS/$BOOTS"
+else
+  bad "boot $PASS/$BOOTS"
+  # A bare "0/N" is useless. Dump WHY the last boot failed so the operator can act.
+  printf '  --- boot diagnostics (why it failed) ---\n'
+  printf '  qemu   : %s\n' "$(qemu-system-aarch64 --version 2>&1 | head -1 || echo 'qemu-system-aarch64 NOT ON PATH')"
+  printf '  binary : %s bytes  %s\n' "$(stat -c%s kernel_arm64.bin 2>/dev/null || echo 0)" \
+         "$([ -s kernel_arm64.bin ] && echo present || echo 'MISSING/EMPTY — build step failed')"
+  printf '  last 30 lines of the failed boot (full log at %s):\n' "$BOOTLOG"
+  tail -30 "$BOOTLOG" | sed 's/^/    | /'
+  printf '  (if BOOT_OK is in the log but not counted: QEMU may be killed by the 45s timeout while flooding output — raise timeout or check for a runtime loop)\n'
+fi
 
 # ------------------------------------------------- boot with net + disk
 step "4/6  boot with virtio-net + virtio-blk attached"
