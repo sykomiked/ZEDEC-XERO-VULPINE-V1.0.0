@@ -244,7 +244,14 @@ KERNEL_SRCS = \
     kernel/src/alloc/alloc.c \
     kernel/src/pirate_fleet/pirate_fleet.c \
     kernel/src/social_spaces/social.c \
-    kernel/src/reputation/reputation.c
+    kernel/src/reputation/reputation.c \
+    kernel/src/art_studio/art_studio.c \
+    kernel/src/games/games.c \
+    kernel/src/voice/voice.c \
+    kernel/src/subterm/subterm.c \
+    kernel/src/orbital_compat/orbital_compat.c \
+    kernel/src/fusion/fusion.c \
+    kernel/src/sovereign_node/sovereign_node.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
 

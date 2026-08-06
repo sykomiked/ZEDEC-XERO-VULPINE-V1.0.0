@@ -94,6 +94,11 @@ zxv_status_t microstate_recognize(microstate_t *self, const microstate_t *peer) 
     compute_writ(peer, w);
     for (uint32_t i = 0; i < ZXV_HASH_LEN; i++)
         if (w[i] != peer->writ_sig[i]) return ZXV_EBADSIG;
+    /* The trailing bytes of the 64-byte writ_sig field are RESERVED and zeroed at
+     * seal (for a future real key backend). Verify the WHOLE field, not just its
+     * meaningful half — otherwise bytes 32..63 are attacker-mutable and ignored. */
+    for (uint32_t i = ZXV_HASH_LEN; i < 64; i++)
+        if (peer->writ_sig[i] != 0) return ZXV_EBADSIG;
 
     /* 3. Admit — the Royal Writ's mutual recognition, made concrete. */
     self->recognized_mask |= (1u << peer->self);

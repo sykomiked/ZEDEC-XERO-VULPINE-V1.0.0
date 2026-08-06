@@ -252,6 +252,20 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/social_spaces -Isrc/concord -Isrc/surplus -Isrc/chiglet src/social_spaces/test_social.c src/social_spaces/social.c src/concord/concord.c src/surplus/surplus.c src/chiglet/chiglet.c -o /tmp/test_social -lm && /tmp/test_social && echo "[PASS] test_social" || { echo "[FAIL] test_social"; exit 1; }
 	@echo "=== reputation: the Pig Badge (over 9000) + earnable badges ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/reputation -Isrc/identity -Isrc/icon -Isrc/theme -Isrc/concord -Isrc/surplus -Isrc/edp_risk src/reputation/test_reputation.c src/reputation/reputation.c -o /tmp/test_reputation -lm && /tmp/test_reputation && echo "[PASS] test_reputation" || { echo "[FAIL] test_reputation"; exit 1; }
+	@echo "=== test_art_studio ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/art_studio -Isrc/theme -Isrc/icon -Isrc/cards -Isrc/font -Isrc/ipfs -Isrc/robin_debanks -Isrc/update -Isrc/bridge -Isrc/surplus src/art_studio/test_art_studio.c src/art_studio/art_studio.c src/theme/theme.c src/cards/sigil.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/bridge/bridge.c -o /tmp/test_art_studio -lm && /tmp/test_art_studio && echo "[PASS] test_art_studio" || { echo "[FAIL] test_art_studio"; exit 1; }
+	@echo "=== test_games ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/games -Isrc/chiglet -Isrc/ipfs -Isrc/robin_debanks -Isrc/update -Isrc/bridge -Isrc/surplus -Isrc/cards -Isrc/edp_risk src/games/test_games.c src/games/games.c src/chiglet/chiglet.c src/surplus/surplus.c src/ipfs/ipfs.c src/bridge/bridge.c src/robin_debanks/sha256.c -o /tmp/test_games -lm && /tmp/test_games && echo "[PASS] test_games" || { echo "[FAIL] test_games"; exit 1; }
+	@echo "=== test_voice ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/voice -Isrc/audio -Isrc/chiglet -Isrc/surplus -Isrc/edp_risk -Isrc/cards src/voice/test_voice.c src/voice/voice.c src/chiglet/chiglet.c src/surplus/surplus.c -o /tmp/test_voice -lm && /tmp/test_voice && echo "[PASS] test_voice" || { echo "[FAIL] test_voice"; exit 1; }
+	@echo "=== test_subterm ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/subterm src/subterm/test_subterm.c src/subterm/subterm.c -o /tmp/test_subterm -lm && /tmp/test_subterm && echo "[PASS] test_subterm" || { echo "[FAIL] test_subterm"; exit 1; }
+	@echo "=== test_orbital_compat ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/orbital_compat -Isrc/lightningrod -Isrc/rational -Isrc/surplus -Isrc/wyverneye src/orbital_compat/test_orbital_compat.c src/orbital_compat/orbital_compat.c src/lightningrod/lightningrod.c src/rational/rational.c -o /tmp/test_orbital_compat -lm && /tmp/test_orbital_compat && echo "[PASS] test_orbital_compat" || { echo "[FAIL] test_orbital_compat"; exit 1; }
+	@echo "=== test_fusion ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/fusion -Isrc/trispace -Isrc/robin_debanks src/fusion/test_fusion.c src/fusion/fusion.c src/trispace/trispace.c src/robin_debanks/sha256.c -o /tmp/test_fusion -lm && /tmp/test_fusion && echo "[PASS] test_fusion" || { echo "[FAIL] test_fusion"; exit 1; }
+	@echo "=== test_sovereign_node ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/sovereign_node -Isrc/interspace -Isrc/ipfs -Isrc/robin_debanks -Isrc/onepolicy -Isrc/constellation -Isrc/surplus -Isrc/trispace -Isrc/update -Isrc/bridge src/sovereign_node/test_sovereign_node.c src/sovereign_node/sovereign_node.c src/interspace/federation.c src/ipfs/ipfs.c src/robin_debanks/sha256.c -o /tmp/test_sovereign_node -lm && /tmp/test_sovereign_node && echo "[PASS] test_sovereign_node" || { echo "[FAIL] test_sovereign_node"; exit 1; }
 	@echo "=== platform license: four-instrument share-alike stack ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/license src/license/test_license.c src/license/license.c -o /tmp/test_license && /tmp/test_license && echo "[PASS] test_license" || { echo "[FAIL] test_license"; exit 1; }
 	@echo "=== Crypto KATs ==="; \

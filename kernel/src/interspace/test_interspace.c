@@ -247,6 +247,14 @@ static void test_federation(void) {
     CHECK(microstate_recognize(&A3, &Bbad) == ZXV_EBADSIG, "bad writ sig -> EBADSIG");
     CHECK(!microstate_is_recognized(&A3, 1), "a rejected peer is NOT admitted");
 
+    /* forging a byte in the RESERVED tail (32..63) of the 64-byte writ_sig must
+     * ALSO be rejected — the whole advertised field is verified, not just [0..31]. */
+    microstate_t Btail = B;
+    Btail.writ_sig[40] = 0xEE;
+    microstate_t A4; microstate_constitute(&A4, 0, charterA, sizeof(charterA));
+    CHECK(microstate_recognize(&A4, &Btail) == ZXV_EBADSIG,
+          "a forged byte in the reserved writ_sig tail -> EBADSIG (whole field verified)");
+
     /* substituted charter -> identity no longer recomputes -> ECHARTER */
     microstate_t Bcharter = B;
     Bcharter.charter_cid[0] ^= 0xFF;    /* identity_cid no longer matches */
