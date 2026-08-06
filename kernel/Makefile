@@ -216,6 +216,8 @@ test:
 
 # Fail-closed verify-all target: host tests + crypto KATs + ARM64 cross-build check
 verify-all: test
+	@echo "=== platform license: four-instrument share-alike stack ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/license src/license/test_license.c src/license/license.c -o /tmp/test_license && /tmp/test_license && echo "[PASS] test_license" || { echo "[FAIL] test_license"; exit 1; }
 	@echo "=== Crypto KATs ==="; \
 	for t in src/robin_debanks/test_aes_gcm src/robin_debanks/test_sha256; do \
 		base=$$(basename $$t); \

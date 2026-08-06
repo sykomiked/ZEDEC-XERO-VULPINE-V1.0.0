@@ -444,8 +444,8 @@ void kernel_main_arm64(void) {
     uart_puts("36N9 Genetics, LLC  |  ACOTO · SMIC · CIS\n");
     uart_puts("==================================================\n\n");
 
-    /* Phase 0: License banner */
-    uart_puts("License: SEL-3.3 — Streisand Engine License\n");
+    /* Phase 0: License banner — the four-instrument share-alike stack */
+    uart_puts("License: OPL-1.1 + CC BY-SA 4.0 + Royal Writ + SEL-3.3 (share-alike, travels together)\n");
     uart_puts("Author: H.M. Michael-Laurence: Curzi (c)\n");
     uart_puts("36N9 Genetics, LLC — Irrevocable, Interdimensional\n\n");
 

@@ -1,9 +1,12 @@
-/* license.c — Triple License implementation (SEL-3.3 + CC BY 4.0 + OPL v1.1)
- * Embeds the full text of all three licenses into the kernel binary.
+/* license.c — the four-instrument SHARE-ALIKE stack (OPL-1.1 + CC BY-SA 4.0 +
+ * Royal Writ + SEL-3.3). Embeds the full text of the four instruments into the
+ * kernel binary. They travel together: a derivative carries all four, with
+ * attribution — that is the strengthened copyleft the platform runs on.
  *
- * Primary:   Streisand Engine License (SEL-3.3)
- * Secondary: Creative Commons Attribution 4.0 International (CC BY 4.0)
- * Tertiary:  Open Piracy License (OPL v1.1)
+ * Operative:    Open Piracy License (OPL v1.1)
+ * Share-alike:  Creative Commons Attribution-ShareAlike 4.0 International
+ * Reciprocity:  Royal Writ of the Sicilian Crown (mutual sovereign recognition)
+ * Declaratory:  Streisand Engine License (SEL-3.3)
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * 36N9 Genetics, LLC — Irrevocable, Interdimensional
@@ -100,24 +103,25 @@ static const char *sel_full_text =
     "========================================\n"
     "\n";
 
-/* ===== Secondary License: CC BY 4.0 Full Text ===== */
+/* ===== Share-Alike Instrument: CC BY-SA 4.0 Full Text ===== */
 static const char *cc_full_text =
     "========================================\n"
-    "  SECONDARY LICENSE: CC BY 4.0\n"
-    "  Creative Commons Attribution 4.0\n"
-    "  International License\n"
-    "  https://creativecommons.org/licenses/by/4.0/\n"
+    "  SHARE-ALIKE LICENSE: CC BY-SA 4.0\n"
+    "  Creative Commons Attribution-ShareAlike\n"
+    "  4.0 International License\n"
+    "  https://creativecommons.org/licenses/by-sa/4.0/\n"
     "========================================\n"
     "\n"
     "  By exercising the Licensed Rights (defined below),\n"
     "  You accept and agree to be bound by the terms and\n"
-    "  conditions of this Creative Commons Attribution 4.0\n"
-    "  International Public License.\n"
+    "  conditions of this Creative Commons Attribution-\n"
+    "  ShareAlike 4.0 International Public License.\n"
     "\n"
     "SECTION 1. DEFINITIONS:\n"
     "  'Adapted Material': material subject to copyright\n"
     "  and similar rights that is derived from or based\n"
     "  upon the Licensed Material.\n"
+    "  'License Elements': Attribution and ShareAlike.\n"
     "  'Licensor': 36N9 Genetics, LLC (Michael Laurence\n"
     "  Curzi) — the individual or entity granting rights.\n"
     "\n"
@@ -136,17 +140,67 @@ static const char *cc_full_text =
     "    Entity: 36N9 Genetics, LLC\n"
     "    Email:  admin@zedec.ai\n"
     "  Provide a link to the license:\n"
-    "    https://creativecommons.org/licenses/by/4.0/\n"
+    "    https://creativecommons.org/licenses/by-sa/4.0/\n"
     "  Indicate if changes were made.\n"
-    "  No additional restrictions may be applied.\n"
     "\n"
-    "SECTION 4. NO WARRANTIES:\n"
+    "SECTION 4. SHARE-ALIKE (REQUIRED):\n"
+    "  If You Share Adapted Material You produce, You must\n"
+    "  license it under CC BY-SA 4.0 (or a compatible\n"
+    "  license) AND, on this platform, convey it together\n"
+    "  with the whole ZXV instrument stack (OPL-1.1, the\n"
+    "  Royal Writ, and SEL-3.3). You may not strip any\n"
+    "  instrument off, and You may not add restrictions\n"
+    "  that narrow the rights granted here.\n"
+    "\n"
+    "SECTION 5. NO WARRANTIES:\n"
     "  The Licensed Material is offered 'as-is'.\n"
     "  The Licensor makes no warranties.\n"
     "\n"
-    "SECTION 5. LIMITATION OF LIABILITY:\n"
+    "SECTION 6. LIMITATION OF LIABILITY:\n"
     "  The Licensor shall not be liable for any damages.\n"
     "\n"
+    "========================================\n"
+    "\n";
+
+/* ===== Reciprocity Instrument: Royal Writ of the Sicilian Crown ===== */
+static const char *royal_writ_full_text =
+    "========================================\n"
+    "  RECIPROCITY: ROYAL WRIT\n"
+    "  Of the Sicilian Crown\n"
+    "  Mutual Sovereign Recognition\n"
+    "  Regnum Siciliae · fl. 1130 · A.D. MMXXVI\n"
+    "========================================\n"
+    "\n"
+    "  Issued by H.M. Michael-Laurence: Curzi,\n"
+    "  under the auspices of 36N9 Genetics, LLC.\n"
+    "\n"
+    "STATUS (READ FIRST):\n"
+    "  This Writ GRANTS nothing and RESTRICTS nothing that\n"
+    "  OPL-1.1 or CC BY-SA 4.0 already govern. It is a\n"
+    "  declaratory instrument of recognition. Where it\n"
+    "  would ever narrow a permission, the operative\n"
+    "  licenses win (precedence: OPL > CC BY-SA > Writ > SEL).\n"
+    "\n"
+    "SECTION 1.2  MUTUAL SOVEREIGN RECOGNITION:\n"
+    "  Every user of this platform is recognised as a\n"
+    "  sovereign individual — and grants that same\n"
+    "  recognition to every other user in return. The\n"
+    "  recognition is RECIPROCAL by construction: to hold\n"
+    "  it You extend it. This is a reciprocity term of the\n"
+    "  same character as share-alike, and it excludes no\n"
+    "  one — not by race, creed, nation, or field of\n"
+    "  endeavour.\n"
+    "\n"
+    "SECTION 1.3  NO CROWN ABOVE ANOTHER:\n"
+    "  The recognition is horizontal. No sovereign here\n"
+    "  outranks another; the Crown claims no dominion over\n"
+    "  a user that a user does not equally claim in return.\n"
+    "\n"
+    "SECTION 6  SEVERABILITY:\n"
+    "  If any clause of this Writ is struck, the remainder\n"
+    "  and the other three instruments stand undisturbed.\n"
+    "\n"
+    "  BY THE AUTHORITY OF THE SICILIAN CROWN.\n"
     "========================================\n"
     "\n";
 
@@ -226,9 +280,10 @@ void license_print(void) {
 }
 
 void license_print_all(void) {
-    puts_impl(sel_full_text);
-    puts_impl(cc_full_text);
-    puts_impl(opl_full_text);
+    puts_impl(opl_full_text);        /* operative first (highest precedence) */
+    puts_impl(cc_full_text);         /* share-alike                          */
+    puts_impl(royal_writ_full_text); /* reciprocity                          */
+    puts_impl(sel_full_text);        /* declaratory                          */
 }
 
 const char *license_get_version(void) {
@@ -241,24 +296,62 @@ const char *license_get_issuer(void) {
 
 const char *license_get_name(license_id_t id) {
     switch (id) {
-        case LICENSE_SEL_33:  return SEL_VERSION " — Streisand Engine License";
-        case LICENSE_CC_BY_4: return CC_VERSION " — Creative Commons Attribution 4.0";
-        case LICENSE_OPL_11:  return OPL_VERSION " — Open Piracy License";
-        default:              return "Unknown License";
+        case LICENSE_OPL_11:     return OPL_VERSION " — Open Piracy License";
+        case LICENSE_CC_BY_SA_4: return CC_VERSION " — Creative Commons Attribution-ShareAlike 4.0";
+        case LICENSE_ROYAL_WRIT: return RW_VERSION;
+        case LICENSE_SEL_33:     return SEL_VERSION " — Streisand Engine License";
+        default:                 return "Unknown License";
     }
 }
 
 const char *license_get_full_text(license_id_t id) {
     switch (id) {
-        case LICENSE_SEL_33:  return sel_full_text;
-        case LICENSE_CC_BY_4: return cc_full_text;
-        case LICENSE_OPL_11:  return opl_full_text;
-        default:              return "";
+        case LICENSE_OPL_11:     return opl_full_text;
+        case LICENSE_CC_BY_SA_4: return cc_full_text;
+        case LICENSE_ROYAL_WRIT: return royal_writ_full_text;
+        case LICENSE_SEL_33:     return sel_full_text;
+        default:                 return "";
     }
 }
 
 const char *license_get_attribution(void) {
     return "Author: H.M. Michael-Laurence: Curzi (c) | "
            "36N9 Genetics, LLC | admin@zedec.ai | "
-           "SEL-3.3 + CC BY 4.0 + OPL v1.1";
+           "OPL-1.1 + CC BY-SA 4.0 + Royal Writ + SEL-3.3";
+}
+
+const char *license_spdx_bundle(void) {
+    return LICENSE_SPDX_BUNDLE;
+}
+
+bool license_is_share_alike(license_id_t id) {
+    switch (id) {
+        case LICENSE_OPL_11:     return true;   /* operative copyleft            */
+        case LICENSE_CC_BY_SA_4: return true;   /* the share-alike element       */
+        case LICENSE_ROYAL_WRIT: return true;   /* §1.2 reciprocity, share-alike form */
+        case LICENSE_SEL_33:     return false;  /* declaratory, no carry-forward duty */
+        default:                 return false;
+    }
+}
+
+bool license_travels_together(license_id_t id) {
+    /* The whole bundle travels together — no instrument may be dropped from a
+     * derivative. The SEL rides along as a conveyed statement of position. */
+    switch (id) {
+        case LICENSE_OPL_11:
+        case LICENSE_CC_BY_SA_4:
+        case LICENSE_ROYAL_WRIT:
+        case LICENSE_SEL_33:     return true;
+        default:                 return false;
+    }
+}
+
+int license_precedence_rank(license_id_t id) {
+    switch (id) {
+        case LICENSE_OPL_11:     return 0;  /* highest */
+        case LICENSE_CC_BY_SA_4: return 1;
+        case LICENSE_ROYAL_WRIT: return 2;
+        case LICENSE_SEL_33:     return 3;  /* lowest  */
+        default:                 return 99;
+    }
 }
