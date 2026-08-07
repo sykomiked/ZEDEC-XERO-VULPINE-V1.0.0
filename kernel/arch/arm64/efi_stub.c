@@ -44,16 +44,69 @@ unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
     if(s!=0 || !gop){ uputs("GOP: not found status="); uhex(s); uputs("\r\n"); for(;;)__asm__("wfi"); }
     u64 fb = gop->Mode->FrameBufferBase;
     u32 w = gop->Mode->Info->HRes, h = gop->Mode->Info->VRes, pps = gop->Mode->Info->PixPerScan;
+    u32 pixfmt = gop->Mode->Info->PixFmt;
     uputs("GOP fb="); uhex(fb); uputs(" res="); udec(w); uputc('x'); udec(h);
-    uputs(" stride="); udec(pps); uputs("\r\n");
-    /* fill the framebuffer: ZXV gold-ish gradient with a red bar — proves we can draw */
-    volatile u32 *p=(volatile u32*)fb;
-    for(u32 y=0;y<h;y++) for(u32 x=0;x<w;x++){
-        u32 c = ((y*0xE6/h)<<16)|((y*0xC1/h)<<8)|0x16;      /* gold gradient (XRGB) */
-        if(y<40 || y>h-40) c=0x6E1417;                       /* red bars top/bottom */
-        p[y*pps+x]=c;
+    uputs(" stride="); udec(pps); uputs(" fmt="); udec(pixfmt); uputs("\r\n");
+
+    /* Publish the boot-handoff record 64KB below the kernel (0x40070000). The
+     * kernel checks this magic at boot and adopts the GOP fb instead of ramfb.
+     * Written while boot services are live; it is plain RAM, below the kernel
+     * image so BSS-clear cannot wipe it. Layout mirrors zxv_bootinfo_t. */
+    *(volatile u64*)0x40070000ULL = 0x5A585642464F4F49ULL;  /* ZXV_BOOTINFO_MAGIC */
+    *(volatile u64*)0x40070008ULL = fb;
+    *(volatile u32*)0x40070010ULL = w;
+    *(volatile u32*)0x40070014ULL = h;
+    *(volatile u32*)0x40070018ULL = pps;
+    *(volatile u32*)0x4007001CULL = pixfmt;
+    uputs("handoff record published @0x40070000\r\n");
+
+    /* ---- GetMemoryMap + ExitBootServices (spec 7.4) ---- */
+    typedef EFI_STATUS (*GMM)(u64*, void*, u64*, u64*, u32*);
+    typedef EFI_STATUS (*EBS)(EFI_HANDLE, u64);
+    typedef EFI_STATUS (*AP)(u32, u64, void**);
+    GMM GetMemoryMap    = (GMM)st->BootSvc->GetMemoryMap;
+    EBS ExitBootServices= (EBS)st->BootSvc->ExitBootServices;
+    AP  AllocatePool    = (AP)st->BootSvc->AllocatePool;
+    u64 msz=0, mkey=0, dsz=0; u32 dver=0; void *mmap=0;
+    GetMemoryMap(&msz,0,&mkey,&dsz,&dver);      /* sizing call (returns TOO_SMALL) */
+    msz += 4*dsz;                                /* headroom for map growth        */
+    AllocatePool(2 /*EfiLoaderData*/, msz, &mmap);
+    GetMemoryMap(&msz,mmap,&mkey,&dsz,&dver);    /* real map + key                 */
+    EFI_STATUS es = ExitBootServices(image, mkey);
+    if(es){                                      /* map moved: refresh key, retry  */
+        GetMemoryMap(&msz,mmap,&mkey,&dsz,&dver);
+        es = ExitBootServices(image, mkey);
     }
-    uputs("GOP: framebuffer filled. Spinning.\r\n");
+    /* Boot services are gone. The PL011 UART @0x09000000 still works (bare metal). */
+    uputs("ExitBootServices ok\r\n");
+
+    /* ---- copy the embedded kernel to its non-PIC link address 0x40080000 ---- */
+    extern u8 _kernel_blob_start[]; extern u8 _kernel_blob_end[];
+    u64 ksize = (u64)(_kernel_blob_end - _kernel_blob_start);
+    u8 *src = _kernel_blob_start, *dst = (u8*)0x40080000ULL;
+    for(u64 i=0;i<ksize;i++) dst[i]=src[i];
+    uputs("kernel copied ("); udec(ksize); uputs(" bytes)\r\n");
+
+    /* clean D-cache to PoC over [handoff .. kernel_end], invalidate I-cache, so
+     * the MMU-off kernel sees the real bytes in RAM. */
+    for(u64 a=0x40070000ULL; a<0x40080000ULL+ksize; a+=64)
+        __asm__ __volatile__("dc cvac, %0" :: "r"(a) : "memory");
+    __asm__ __volatile__("dsb sy\n ic iallu\n dsb sy\n isb" ::: "memory");
+
+    uputs(">>> handing off to ZXV kernel (MMU off) <<<\r\n");
+    /* Option A: disable MMU + caches (clear SCTLR_EL1 M/C/I) so the kernel runs
+     * exactly its tested -kernel path (enters el1_entry MMU-off; arm64_mmu_init
+     * builds and enables its own tables), then branch to 0x40080000. */
+    __asm__ __volatile__(
+        "mrs x0, sctlr_el1\n"
+        "bic x0, x0, #1\n"        /* M: MMU off      */
+        "bic x0, x0, #4\n"        /* C: D-cache off  */
+        "bic x0, x0, #4096\n"     /* I: I-cache off  */
+        "msr sctlr_el1, x0\n"
+        "isb\n"
+        "movz x2, #0x4008, lsl #16\n"   /* x2 = 0x40080000 (kernel _start) */
+        "br x2\n"
+        ::: "x0","x2","memory");
     for(;;) __asm__ __volatile__("wfi");
     return 0;
 }

@@ -54,7 +54,9 @@ _start:
     /* Already at EL1 or lower — proceed directly */
     b el1_entry
 
-/* ---- EL1 Entry Point ---- */
+/* ---- EL1 Entry Point ----
+ * Reached at EL1 with the MMU OFF, whether QEMU -kernel loaded us here directly
+ * or the EFI stub (BOOTAA64.EFI) copied us to 0x40080000 and branched MMU-off. */
 el1_entry:
     /* ---- Step 2: Set up VBAR_EL1 (Vector Base Address) ---- */
     adr x0, vector_table

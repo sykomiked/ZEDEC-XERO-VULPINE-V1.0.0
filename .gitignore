@@ -46,3 +46,8 @@ dist/
 
 # header-dependency files from -MMD
 *.d
+
+# EFI application build artifacts
+BOOTAA64.EFI
+*.efi
+kernel/arch/arm64/efi_stub.elf

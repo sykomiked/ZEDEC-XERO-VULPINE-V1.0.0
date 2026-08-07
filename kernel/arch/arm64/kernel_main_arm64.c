@@ -92,6 +92,7 @@ extern void el0_set_scheduler(proc_scheduler_t *ps);
 #include "../src/video/ramfb.h"      /* universal QEMU scanout (fw_cfg ramfb) */
 #include "../src/vbe/vbe.h"          /* framebuffer draw primitives            */
 #include "../src/desktop/zxv_shell.h"/* the ZEDEC pqOS desktop shell           */
+#include "zxv_bootinfo.h"            /* UEFI boot handoff (GOP framebuffer)     */
 /* virtio-input driver (arch/arm64/virtio_input.c) — mouse/tablet/keyboard */
 extern bool     virtio_input_probe(void);
 extern void     virtio_input_poll(void);
@@ -209,6 +210,13 @@ static int g_holo = 1;                 /* holographic present on/off */
 static int g_holo_k = 10;              /* shift: bigger = subtler (10 ~= 12%, visible) */
 static uint32_t g_holo_phase = 0;
 
+/* ---- UEFI GOP framebuffer (bare-metal boot via BOOTAA64.EFI) ----
+ * 0 on the QEMU -kernel path (ramfb). When the EFI stub published a handoff
+ * record, these hold the firmware's linear framebuffer and zxv_present blits
+ * the composed 1280x720 frame into it (scaled, R/B-swapped for GOP fmt 0). */
+static uint32_t *g_gop_fb = 0;
+static uint32_t  g_gop_w = 0, g_gop_h = 0, g_gop_stride = 0, g_gop_pixfmt = 0;
+
 /* ---- the FIELD: per-16px-tile phase + depth painted by the shell ----
  * g_fphase[ti] shifts each OBJECT's shimmer in TIME (its own breathing phase, so
  * objects flicker independently — deliberately, not by accident). g_fdepth[ti] is
@@ -260,6 +268,22 @@ static void zxv_present(const uint32_t *back) {
             if (g < 0) g = 0; else if (g > 255) g = 255;
             if (b < 0) b = 0; else if (b > 255) b = 255;
             dr[x] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+        }
+    }
+    /* Bare-metal UEFI path: also blit the composed frame into the firmware GOP
+     * fb (nearest-neighbour scale to its resolution, R/B swap for GOP fmt 0).
+     * g_gop_fb == 0 on the -kernel path, so this is skipped entirely there. */
+    if (g_gop_fb) {
+        for (uint32_t gy = 0; gy < g_gop_h; gy++) {
+            uint32_t sy = gy * ZXV_FB_H / g_gop_h;
+            const uint32_t *sr = g_scanout + (uint64_t)sy * ZXV_FB_W;
+            uint32_t *dr = g_gop_fb + (uint64_t)gy * g_gop_stride;
+            for (uint32_t gx = 0; gx < g_gop_w; gx++) {
+                uint32_t c = sr[gx * ZXV_FB_W / g_gop_w];
+                if (g_gop_pixfmt == ZXV_PIXFMT_RGB)                 /* swap R<->B */
+                    c = (c & 0xFF00FF00u) | ((c >> 16) & 0xFF) | ((c & 0xFF) << 16);
+                dr[gx] = c;
+            }
         }
     }
 }
@@ -1220,7 +1244,20 @@ void kernel_main_arm64(void) {
     pb_render_frame(&prism_break);
     {
         uint32_t *fb = pb_get_framebuffer(&prism_break);   /* the BACK buffer */
-        int rc = ramfb_init(g_scanout, 1280, 720);          /* QEMU scans out g_scanout */
+        /* UEFI boot? If the EFI stub published a GOP handoff record, adopt the
+         * firmware's linear framebuffer and DON'T touch ramfb (the firmware owns
+         * the scanout). Otherwise the normal QEMU -kernel ramfb path. */
+        {
+            volatile zxv_bootinfo_t *bi = (volatile zxv_bootinfo_t *)ZXV_BOOTINFO_ADDR;
+            if (bi->magic == ZXV_BOOTINFO_MAGIC && bi->fb) {
+                g_gop_fb     = (uint32_t *)(uintptr_t)bi->fb;
+                g_gop_w      = bi->width;
+                g_gop_h      = bi->height;
+                g_gop_stride = bi->stride ? bi->stride : bi->width;
+                g_gop_pixfmt = bi->pixfmt;
+            }
+        }
+        int rc = g_gop_fb ? 0 : ramfb_init(g_scanout, 1280, 720);  /* GOP: skip ramfb */
         if (rc == 0) {
             /* Compose into the back buffer, then present a complete frame. */
             static vbe_state_t g_vbe;
@@ -1229,7 +1266,10 @@ void kernel_main_arm64(void) {
             zxv_shell_frame(&g_shell, &g_vbe, 632, 360, 0, prism_break.frames_rendered, g_fphase, g_fdepth);
             zxv_present(fb);
             g_desktop_vbe = &g_vbe;   /* the event loop keeps animating it */
-            boot_msg("  [DRIVER ONLINE] ramfb 1280x720 — ZEDEC desktop is on screen");
+            if (g_gop_fb)
+                boot_msg("  [DRIVER ONLINE] UEFI GOP framebuffer — ZEDEC desktop is on screen");
+            else
+                boot_msg("  [DRIVER ONLINE] ramfb 1280x720 — ZEDEC desktop is on screen");
             /* virtio-input: one driver -> mouse + tablet + keyboard on any
              * hypervisor. Makes the desktop clickable. */
             if (virtio_input_probe()) {
