@@ -296,6 +296,17 @@ void proc_restore_el0(cpu_context_t *ctx) {
      * so the base is not clobbered before the remaining loads. */
     register uint64_t *base __asm__("x0") = &ctx->x[0];
     __asm__ __volatile__(
+        /* Reset SP_EL1 to the top of the kernel stack BEFORE returning to EL0.
+         * This ERET abandons the ENTIRE EL1 exception call chain (the vector's
+         * SAVE_REGS frame + every handler frame down to here) and never returns
+         * through the vector's RESTORE_REGS. Without this reset, SP_EL1 drifts
+         * DOWN by one exception frame on every context switch and — after tens
+         * of seconds at 100Hz — overflows the 1MB kernel stack into .rodata
+         * (silently poisoning cursor()'s sprite table -> random data aborts) and
+         * .text. x1 is scratch here, then immediately reloaded with its EL0 value. */
+        "adrp x1, _stack_top\n"
+        "add  x1, x1, :lo12:_stack_top\n"
+        "mov  sp, x1\n"
         "ldr x1, [x0, #8]\n"
         "ldr x2, [x0, #16]\n"
         "ldr x3, [x0, #24]\n"

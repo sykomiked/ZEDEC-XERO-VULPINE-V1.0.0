@@ -29,6 +29,7 @@ SECTIONS
 
     /* QEMU virt machine loads kernel at 0x40080000 */
     . = 0x40080000;
+    _text_start = .;            /* start of the immutable core (.text + .rodata) */
 
     .text : {
         /* Boot code first */
@@ -51,6 +52,7 @@ SECTIONS
      * both PT_LOAD segments report the same VirtAddr and QEMU refuses
      * to load the kernel ("ROM regions overlapping"). */
     . = ALIGN(0x10000);
+    _data_start = .;            /* start of volatile state (.data/.bss/stack) — RW */
 
     .data : {
         *(.data)

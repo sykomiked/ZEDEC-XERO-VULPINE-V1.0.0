@@ -268,6 +268,8 @@ serror_handler_lower_aarch32:
 /* ---- Stack space ---- */
 .section .bss
 .align 12
+.global _stack_top          /* exported: proc_restore_el0 resets SP_EL1 to it */
+.global _stack_bottom
 _stack_bottom:
     .skip 1048576           /* 1MB stack */
 _stack_top:

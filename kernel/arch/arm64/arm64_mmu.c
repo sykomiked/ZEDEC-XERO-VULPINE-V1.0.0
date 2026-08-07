@@ -46,6 +46,17 @@
 static uint64_t l0_table[TABLE_ENTRIES] __attribute__((aligned(4096)));
 static uint64_t l1_table[TABLE_ENTRIES] __attribute__((aligned(4096)));
 static uint64_t l2_table[TABLE_ENTRIES] __attribute__((aligned(4096)));
+/* Fine-grained tables for the first RAM GB so the IMMUTABLE CORE (.text +
+ * .rodata) can be mapped READ-ONLY (W^X). A stray/out-of-bounds write to it
+ * then faults AT THE WRITER's PC instead of silently corrupting it (which had
+ * poisoned cursor()'s const sprite table and produced a delayed, run-varying
+ * data abort). kernel_ram_l2 refines the RAM GB into 2MB blocks; block 0 (the
+ * kernel image) is refined again to 4KB pages by kernel_l3. */
+static uint64_t kernel_ram_l2[TABLE_ENTRIES] __attribute__((aligned(4096)));
+static uint64_t kernel_l3[TABLE_ENTRIES]     __attribute__((aligned(4096)));
+/* Linker-provided immutable-core bounds (page-aligned: .data is ALIGN(0x10000)). */
+extern char _text_start[];
+extern char _data_start[];
 
 /* Copy the kernel's identity L2 table and the 1GB block at 0x40000000
  * so a per-process page table can include the kernel mapping while
@@ -105,9 +116,42 @@ void arm64_mmu_init(void) {
      * enabled, causing an immediate Level-1 instruction-abort loop. */
     uint64_t ram_base_gb = bp->ram_base / (1024ULL * 1024 * 1024);
     for (i = (int)ram_base_gb; i < (int)ram_base_gb + 4 && i < TABLE_ENTRIES; i++) {
+        if (i == (int)ram_base_gb) {
+            /* First RAM GB via a table (not a 1GB block) so we can enforce W^X
+             * on the kernel image that lives in its first 2MB. */
+            l1_table[i] = ((uint64_t)kernel_ram_l2) | PTE_TABLE | PTE_VALID;
+            continue;
+        }
         uint64_t base = (uint64_t)i * (1024 * 1024 * 1024);
         l1_table[i] = base | PTE_ATTR_NORMAL | PTE_AF | PTE_SH_INNER
                             | PTE_BLOCK | PTE_VALID | PTE_AP_RW;
+    }
+
+    /* kernel_ram_l2: 512 x 2MB over the first RAM GB. Block 0 (the 2MB holding
+     * the kernel image) is refined to 4KB pages (kernel_l3); the rest stay 2MB
+     * Normal RW blocks (they hold .bss / free RAM). */
+    {
+        uint64_t ram_gb = ram_base_gb * (1024ULL * 1024 * 1024);   /* e.g. 0x40000000 */
+        for (i = 0; i < TABLE_ENTRIES; i++) {
+            uint64_t addr = ram_gb + (uint64_t)i * (2 * 1024 * 1024);
+            if (i == 0)
+                kernel_ram_l2[i] = ((uint64_t)kernel_l3) | PTE_TABLE | PTE_VALID;
+            else
+                kernel_ram_l2[i] = addr | PTE_ATTR_NORMAL | PTE_AF | PTE_SH_INNER
+                                        | PTE_BLOCK | PTE_VALID | PTE_AP_RW;
+        }
+        /* kernel_l3: 512 x 4KB over block 0. Pages in [_text_start,_data_start)
+         * (= .text + .rodata) are READ-ONLY — the immutable core; everything
+         * else in the block (low RAM below the kernel, and .data/.bss/stack/
+         * page-tables above) is RW. .text stays executable (PXN unset). */
+        uint64_t ro_lo = (uint64_t)_text_start;   /* 0x40080000 */
+        uint64_t ro_hi = (uint64_t)_data_start;   /* 0x400c0000, page-aligned */
+        for (i = 0; i < TABLE_ENTRIES; i++) {
+            uint64_t addr = ram_gb + (uint64_t)i * 4096;
+            uint64_t ap = (addr >= ro_lo && addr < ro_hi) ? PTE_AP_RO : PTE_AP_RW;
+            kernel_l3[i] = addr | PTE_ATTR_NORMAL | PTE_AF | PTE_SH_INNER
+                                | PTE_PAGE | PTE_VALID | ap;
+        }
     }
 
     /* L2: 512 entries × 2MB = 1GB identity mapping. Device windows are

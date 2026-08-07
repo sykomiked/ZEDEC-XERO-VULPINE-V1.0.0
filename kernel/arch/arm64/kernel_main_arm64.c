@@ -1976,42 +1976,52 @@ void kernel_event_cycle_run(void) {
      * device. Throttled (every 4th cycle) to keep the compositor light; the
      * prism background is re-rendered then the shell is drawn over it with the
      * live cursor position. */
-    /* The compositor is heavy and runs from the timer-IRQ hook. A re-entrancy
-     * guard makes sure a nested IRQ can never start a second redraw on top of a
-     * running one (which would smash the shared prism backbuffer and the call
-     * stack). Input polling is cheap and stays outside the guard. */
+    /* The whole desktop block (input polling AND the compositor) must be
+     * NON-RE-ENTRANT. This hook is driven from BOTH the EL1 timer IRQ
+     * (irq_handler_c) and the EL0 timer IRQ (el0_irq_handler_c), so while the
+     * unmasked input section runs, a timer IRQ can re-enter the event cycle. If
+     * the busy flag is claimed late (inside the compositor), that re-entry sails
+     * past the guard and runs a SECOND input-poll + redraw on top of the first —
+     * clobbering the compositor's stack/registers, which surfaced as wild
+     * near-null pointers in cursor()/vbe_draw_text_ex(). Claim the flag ATOMICALLY
+     * up front (mask IRQs, test-and-set, restore) so any re-entrant tick skips
+     * the entire block. */
     static volatile int g_desktop_busy = 0;
-    if (g_desktop_vbe && !g_desktop_busy) {
-        virtio_bus_poll();   /* drive every registered class driver's poll (input, ...) */
-        int32_t key;
-        while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
-        /* Latch fast taps EVERY cycle from the driver's exact press counter, not the
-         * every-6th-cycle button level (which misses sub-60ms clicks). */
-        static uint32_t g_pending_click = 0;
-        g_pending_click += virtio_input_pop_clicks();
-        if (g_event_cycle % 6 == 0) {
-            /* The compositor is several ms of work and runs from the timer-IRQ
-             * hook. Mask IRQs for its duration so a nested IRQ can't clobber its
-             * callee-saved registers (which produced wild pointers -> data
-             * aborts). Save+restore DAIF so we don't change the caller's state. */
-            unsigned long daif;
-            __asm__ __volatile__("mrs %0, daif" : "=r"(daif));
-            __asm__ __volatile__("msr daifset, #2" ::: "memory");
-            g_desktop_busy = 1;
-            int32_t cx = 0, cy = 0; uint32_t btn = 0;
-            virtio_input_get(&cx, &cy, &btn);
-            /* Surface any tap that happened since the last frame as a click edge,
-             * even if the button level already returned to 0 between samples. */
-            if (g_pending_click) { btn |= 1u; g_pending_click = 0; }
-            /* Only the base desktop (view 0) shows the prism wallpaper; the lattice
-             * and space planes clear the whole screen themselves, so rendering the
-             * 6-layer prism there is a full-screen pass thrown away. Skip it — this
-             * halves the IRQ-masked critical section in those views. */
-            if (g_shell.view == 0) pb_render_frame(&prism_break);
-            zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered, g_fphase, g_fdepth);
-            zxv_present(pb_get_framebuffer(&prism_break));   /* show a COMPLETE frame */
+    if (g_desktop_vbe) {
+        unsigned long d0;
+        __asm__ __volatile__("mrs %0, daif" : "=r"(d0));
+        __asm__ __volatile__("msr daifset, #2" ::: "memory");
+        int reentrant = g_desktop_busy;
+        g_desktop_busy = 1;
+        __asm__ __volatile__("msr daif, %0" :: "r"(d0) : "memory");
+        if (!reentrant) {
+            virtio_bus_poll();   /* drive every registered class driver's poll (input, ...) */
+            int32_t key;
+            while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
+            /* Latch fast taps EVERY cycle from the driver's exact press counter, not the
+             * every-6th-cycle button level (which misses sub-60ms clicks). */
+            static uint32_t g_pending_click = 0;
+            g_pending_click += virtio_input_pop_clicks();
+            if (g_event_cycle % 6 == 0) {
+                /* The compositor is several ms of work; mask IRQs for its duration
+                 * too, so it also can't be preempted mid-draw. */
+                unsigned long daif;
+                __asm__ __volatile__("mrs %0, daif" : "=r"(daif));
+                __asm__ __volatile__("msr daifset, #2" ::: "memory");
+                int32_t cx = 0, cy = 0; uint32_t btn = 0;
+                virtio_input_get(&cx, &cy, &btn);
+                /* Surface any tap that happened since the last frame as a click edge,
+                 * even if the button level already returned to 0 between samples. */
+                if (g_pending_click) { btn |= 1u; g_pending_click = 0; }
+                /* Only the base desktop (view 0) shows the prism wallpaper; the lattice
+                 * and space planes clear the whole screen themselves, so rendering the
+                 * 6-layer prism there is a full-screen pass thrown away. Skip it. */
+                if (g_shell.view == 0) pb_render_frame(&prism_break);
+                zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered, g_fphase, g_fdepth);
+                zxv_present(pb_get_framebuffer(&prism_break));   /* show a COMPLETE frame */
+                __asm__ __volatile__("msr daif, %0" :: "r"(daif) : "memory");
+            }
             g_desktop_busy = 0;
-            __asm__ __volatile__("msr daif, %0" :: "r"(daif) : "memory");
         }
     }
 
