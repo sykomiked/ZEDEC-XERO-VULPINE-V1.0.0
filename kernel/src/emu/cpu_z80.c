@@ -140,8 +140,146 @@ static int cond_met(cpu_z80_t *c, int cc) {
     }
 }
 
+/* ---- port I/O wrappers ---- */
+static inline uint8_t z80_in(cpu_z80_t *c, uint16_t port){ return c->in ? c->in(c, port) : 0xFFu; }
+static inline void    z80_out(cpu_z80_t *c, uint16_t port, uint8_t v){ if (c->out) c->out(c, port, v); }
+
+/* set S Z 5 3 P flags from a result, plus an explicit carry (for rotates/shifts) */
+static uint8_t z80_szpc(cpu_z80_t *c, uint8_t r, int carry){
+    uint8_t f = 0;
+    if (r & 0x80) f |= Z80_S;
+    if (r == 0)   f |= Z80_Z;
+    f |= (r & (Z80_F5 | Z80_F3));
+    if (parity8(r)) f |= Z80_PV;
+    if (carry) f |= Z80_C;
+    c->f = f; return r;
+}
+
+/* ---- CB prefix: rotates/shifts + BIT/RES/SET ---- */
+static void do_cb(cpu_z80_t *c){
+    uint8_t op = fetch(c);
+    int reg = op & 7, y = (op >> 3) & 7, x = op >> 6;
+    uint8_t v = reg_get(c, reg), r = v, co = 0;
+    if (x == 0){
+        switch (y){
+            case 0: co = v >> 7; r = (uint8_t)((v << 1) | co); break;            /* RLC */
+            case 1: co = v & 1;  r = (uint8_t)((v >> 1) | (co << 7)); break;      /* RRC */
+            case 2: co = v >> 7; r = (uint8_t)((v << 1) | ((c->f & Z80_C)?1:0)); break; /* RL */
+            case 3: co = v & 1;  r = (uint8_t)((v >> 1) | (((c->f & Z80_C)?1:0) << 7)); break; /* RR */
+            case 4: co = v >> 7; r = (uint8_t)(v << 1); break;                    /* SLA */
+            case 5: co = v & 1;  r = (uint8_t)((v >> 1) | (v & 0x80)); break;     /* SRA */
+            case 6: co = v >> 7; r = (uint8_t)((v << 1) | 1); break;              /* SLL (undoc) */
+            default:co = v & 1;  r = (uint8_t)(v >> 1); break;                    /* SRL */
+        }
+        z80_szpc(c, r, co); reg_set(c, reg, r);
+    } else if (x == 1){                                                          /* BIT b,r */
+        uint8_t bit = v & (uint8_t)(1u << y);
+        uint8_t f = (uint8_t)(c->f & Z80_C) | Z80_H;
+        if (bit == 0) f |= (Z80_Z | Z80_PV);
+        if (y == 7 && bit) f |= Z80_S;
+        f |= (v & (Z80_F5 | Z80_F3));
+        c->f = f;
+    } else if (x == 2){                                                          /* RES */
+        reg_set(c, reg, (uint8_t)(v & ~(1u << y)));
+    } else {                                                                     /* SET */
+        reg_set(c, reg, (uint8_t)(v | (1u << y)));
+    }
+}
+
+/* 16-bit ADC/SBC HL,dd */
+static void adc_hl(cpu_z80_t *c, uint16_t v){
+    uint16_t hl = HL(c); int cf = (c->f & Z80_C) ? 1 : 0;
+    unsigned r = (unsigned)hl + v + cf; uint8_t f = 0;
+    if ((r & 0xFFFF) == 0) f |= Z80_Z; if (r & 0x8000) f |= Z80_S;
+    if (((hl & 0x0FFF) + (v & 0x0FFF) + cf) > 0x0FFF) f |= Z80_H;
+    if (r > 0xFFFF) f |= Z80_C;
+    if ((~(hl ^ v) & (hl ^ r) & 0x8000)) f |= Z80_PV;
+    f |= (uint8_t)((r >> 8) & (Z80_F5 | Z80_F3));
+    c->f = f; setHL(c, (uint16_t)r);
+}
+static void sbc_hl(cpu_z80_t *c, uint16_t v){
+    uint16_t hl = HL(c); int cf = (c->f & Z80_C) ? 1 : 0;
+    int r = (int)hl - v - cf; uint8_t f = Z80_N;
+    if ((r & 0xFFFF) == 0) f |= Z80_Z; if (r & 0x8000) f |= Z80_S;
+    if (((hl & 0x0FFF) - (v & 0x0FFF) - cf) < 0) f |= Z80_H;
+    if (r < 0) f |= Z80_C;
+    if (((hl ^ v) & (hl ^ (unsigned)r) & 0x8000)) f |= Z80_PV;
+    f |= (uint8_t)(((unsigned)r >> 8) & (Z80_F5 | Z80_F3));
+    c->f = f; setHL(c, (uint16_t)r);
+}
+static void ld_a_ir(cpu_z80_t *c, uint8_t v){   /* LD A,I / LD A,R flags */
+    uint8_t f = (uint8_t)(c->f & Z80_C);
+    if (v & 0x80) f |= Z80_S; if (v == 0) f |= Z80_Z;
+    f |= (v & (Z80_F5 | Z80_F3));
+    if (c->iff2) f |= Z80_PV;
+    c->f = f; c->a = v;
+}
+/* block move LDI/LDD/LDIR/LDDR */
+static int block_ld(cpu_z80_t *c, int dir, int repeat){
+    uint8_t v = rd(c, HL(c)); wr(c, DE(c), v);
+    setHL(c, (uint16_t)(HL(c) + dir)); setDE(c, (uint16_t)(DE(c) + dir));
+    setBC(c, (uint16_t)(BC(c) - 1));
+    c->f = (uint8_t)(c->f & (Z80_S | Z80_Z | Z80_C)) | (BC(c) != 0 ? Z80_PV : 0);
+    if (repeat && BC(c) != 0){ c->pc -= 2; return 21; }   /* re-execute ED xx */
+    return 16;
+}
+
+/* ---- ED prefix ---- */
+static int do_ed(cpu_z80_t *c){
+    uint8_t op = fetch(c);
+    switch (op){
+        case 0x46: case 0x66: c->im = 0; return 8;
+        case 0x56: case 0x76: c->im = 1; return 8;
+        case 0x5E: case 0x7E: c->im = 2; return 8;
+        case 0x47: c->i = c->a; return 9;                 /* LD I,A */
+        case 0x4F: c->r = c->a; return 9;                 /* LD R,A */
+        case 0x57: ld_a_ir(c, c->i); return 9;            /* LD A,I */
+        case 0x5F: ld_a_ir(c, c->r); return 9;            /* LD A,R */
+        case 0x4D: c->pc = pop16(c); c->iff1 = c->iff2; return 14;  /* RETI */
+        case 0x45: case 0x55: case 0x65: case 0x75:
+                   c->pc = pop16(c); c->iff1 = c->iff2; return 14;  /* RETN */
+        case 0x44: case 0x54: case 0x64: case 0x74: {      /* NEG */
+                   uint8_t a = c->a; c->a = 0; alu_sub(c, a, 0); return 8; }
+        case 0x4A: adc_hl(c, BC(c)); return 15; case 0x5A: adc_hl(c, DE(c)); return 15;
+        case 0x6A: adc_hl(c, HL(c)); return 15; case 0x7A: adc_hl(c, c->sp); return 15;
+        case 0x42: sbc_hl(c, BC(c)); return 15; case 0x52: sbc_hl(c, DE(c)); return 15;
+        case 0x62: sbc_hl(c, HL(c)); return 15; case 0x72: sbc_hl(c, c->sp); return 15;
+        case 0x43: { uint16_t a = fetch16(c); wr(c,a,c->c); wr(c,a+1,c->b); return 20; } /* LD (nn),BC */
+        case 0x53: { uint16_t a = fetch16(c); wr(c,a,c->e); wr(c,a+1,c->d); return 20; }
+        case 0x63: { uint16_t a = fetch16(c); wr(c,a,c->l); wr(c,a+1,c->h); return 20; }
+        case 0x73: { uint16_t a = fetch16(c); wr(c,a,(uint8_t)c->sp); wr(c,a+1,(uint8_t)(c->sp>>8)); return 20; }
+        case 0x4B: { uint16_t a = fetch16(c); setBC(c,(uint16_t)(rd(c,a)|(rd(c,a+1)<<8))); return 20; }
+        case 0x5B: { uint16_t a = fetch16(c); setDE(c,(uint16_t)(rd(c,a)|(rd(c,a+1)<<8))); return 20; }
+        case 0x6B: { uint16_t a = fetch16(c); setHL(c,(uint16_t)(rd(c,a)|(rd(c,a+1)<<8))); return 20; }
+        case 0x7B: { uint16_t a = fetch16(c); c->sp = (uint16_t)(rd(c,a)|(rd(c,a+1)<<8)); return 20; }
+        case 0xA0: return block_ld(c, +1, 0);             /* LDI  */
+        case 0xA8: return block_ld(c, -1, 0);             /* LDD  */
+        case 0xB0: return block_ld(c, +1, 1);             /* LDIR */
+        case 0xB8: return block_ld(c, -1, 1);             /* LDDR */
+        case 0x40: case 0x48: case 0x50: case 0x58: case 0x60: case 0x68: case 0x78: {
+                   uint8_t v = z80_in(c, BC(c)); int reg = (op >> 3) & 7;
+                   if (reg != 6) reg_set(c, reg, v); z80_szpc(c, v, (c->f & Z80_C) ? 1 : 0); return 12; }
+        case 0x41: case 0x49: case 0x51: case 0x59: case 0x61: case 0x69: case 0x79: {
+                   int reg = (op >> 3) & 7; uint8_t v = (reg == 6) ? 0 : reg_get(c, reg);
+                   z80_out(c, BC(c), v); return 12; }
+        default: c->illegal++; return 8;
+    }
+}
+
+void cpu_z80_int(cpu_z80_t *c){
+    if (!c->iff1) return;
+    c->halted = 0; c->iff1 = c->iff2 = 0;
+    push16(c, c->pc);
+    if (c->im == 2){ uint16_t v = (uint16_t)((c->i << 8) | 0xFF);
+                     c->pc = (uint16_t)(rd(c, v) | (rd(c, v+1) << 8)); }
+    else c->pc = 0x0038u;                                 /* IM0/IM1 -> RST 38 */
+    c->cycles += 13;
+}
+
 void cpu_z80_reset(cpu_z80_t *c) {
     c->a = c->f = c->b = c->c = c->d = c->e = c->h = c->l = 0;
+    c->a2 = c->f2 = c->b2 = c->c2 = c->d2 = c->e2 = c->h2 = c->l2 = 0;
+    c->ix = c->iy = 0; c->i = c->r = 0; c->im = 0;
     c->sp = 0xFFFF; c->pc = 0;
     c->iff1 = c->iff2 = 0; c->halted = 0;
     c->cycles = 0; c->jammed = 0; c->last_opcode = 0; c->illegal = 0;
@@ -278,9 +416,19 @@ int cpu_z80_step(cpu_z80_t *c) {
         case 0xFB: c->iff1 = c->iff2 = 1; cyc = 4; break;                  /* EI */
         case 0xE9: c->pc = HL(c); cyc = 4; break;                          /* JP (HL) */
         case 0xF9: c->sp = HL(c); cyc = 6; break;                          /* LD SP,HL */
-        /* Prefix pages we don't decode yet: flag + treat as NOP so the Game
-         * Master logs the gap rather than executing garbage. */
-        case 0xCB: case 0xED: case 0xDD: case 0xFD:
+        case 0xDB: { uint8_t n = fetch(c); c->a = z80_in(c, (uint16_t)((c->a << 8) | n)); cyc = 11; } break; /* IN A,(n) */
+        case 0xD3: { uint8_t n = fetch(c); z80_out(c, (uint16_t)((c->a << 8) | n), c->a); cyc = 11; } break; /* OUT (n),A */
+        case 0x08: { uint8_t t; t=c->a;c->a=c->a2;c->a2=t; t=c->f;c->f=c->f2;c->f2=t; cyc=4; } break; /* EX AF,AF' */
+        case 0xD9: { uint8_t t;                                            /* EXX */
+                     t=c->b;c->b=c->b2;c->b2=t; t=c->c;c->c=c->c2;c->c2=t;
+                     t=c->d;c->d=c->d2;c->d2=t; t=c->e;c->e=c->e2;c->e2=t;
+                     t=c->h;c->h=c->h2;c->h2=t; t=c->l;c->l=c->l2;c->l2=t; cyc=4; } break;
+        case 0xE3: { uint8_t lo=rd(c,c->sp), hi=rd(c,c->sp+1);             /* EX (SP),HL */
+                     wr(c,c->sp,c->l); wr(c,c->sp+1,c->h); c->l=lo; c->h=hi; cyc=19; } break;
+        case 0xCB: cyc = 8; do_cb(c); break;                              /* CB: bit/rotate ops */
+        case 0xED: cyc = do_ed(c); break;                                 /* ED: extended ops   */
+        /* DD/FD (IX/IY) not decoded yet — flag + skip so garbage doesn't run. */
+        case 0xDD: case 0xFD:
             (void)fetch(c); c->illegal++; cyc = 8; break;
         default:
             c->illegal++; cyc = 4; break;   /* any remaining unimplemented opcode */

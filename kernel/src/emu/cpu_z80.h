@@ -11,14 +11,16 @@
  * is how the kernel's non-binary logic states (LPRES four-valued / Tri-Space /
  * phase) get exercised. See emu_relate.c.
  *
- * Scope: the unprefixed 8-bit ISA — 8/16-bit loads, the full A-ALU group
- * (ADD/ADC/SUB/SBC/AND/XOR/OR/CP, register + immediate), INC/DEC, ADD HL,dd,
- * rotates (RLCA/RRCA/RLA/RRA), JP/JR/DJNZ/CALL/RET (+ conditionals),
- * PUSH/POP, EX DE,HL, SCF/CCF/CPL/DI/EI/NOP/HALT. The CB/ED/DD/FD prefix
- * pages (bit ops, block ops, IX/IY) are NOT yet decoded — an unknown prefix is
- * flagged (illegal++) and treated as a NOP so the Game Master can log it rather
- * than crash. Freestanding + integer-only. Bus is a callback pair, like the
- * 6502 core, so the same CPU maps onto every Z80 system by swapping read/write.
+ * Scope: the base 8-bit ISA plus the CB and ED prefix pages and port I/O —
+ * 8/16-bit loads, the full A-ALU group, INC/DEC, ADD/ADC/SBC HL,dd, rotates,
+ * JP/JR/DJNZ/CALL/RET (+ conditionals), PUSH/POP, EX DE,HL / EX AF,AF' / EXX /
+ * EX (SP),HL, SCF/CCF/CPL/DI/EI/IM/NOP/HALT, IN/OUT (n) and (C), CB (RLC..SRL,
+ * BIT/RES/SET), ED (LDI/LDD/LDIR/LDDR, IM 0/1/2, NEG, 16-bit ADC/SBC HL,
+ * LD (nn),dd / LD dd,(nn), RETI/RETN, LD A,I/R), and cpu_z80_int() for the
+ * maskable interrupt (IM1 = RST $38). The DD/FD (IX/IY) prefix pages are NOT
+ * yet decoded — flagged (illegal++) and skipped so the Game Master logs the gap
+ * rather than crashing. Freestanding + integer-only. Bus + port I/O are callback
+ * pairs, so the same CPU maps onto every Z80 system by swapping them.
  */
 #ifndef ZXV_CPU_Z80_H
 #define ZXV_CPU_Z80_H
@@ -38,18 +40,28 @@
 
 typedef struct cpu_z80 {
     uint8_t  a, f, b, c, d, e, h, l;   /* main register file            */
+    uint8_t  a2, f2, b2, c2, d2, e2, h2, l2; /* alternate set (EX AF/EXX) */
+    uint16_t ix, iy;                   /* index registers (DD/FD)        */
+    uint8_t  i, r;                     /* interrupt vector / refresh     */
     uint16_t sp, pc;                   /* stack pointer, program counter */
     uint8_t  iff1, iff2;               /* interrupt enable latches       */
+    uint8_t  im;                       /* interrupt mode 0/1/2           */
     uint8_t  halted;                   /* set by HALT                    */
     uint64_t cycles;                   /* total T-states executed        */
     uint8_t (*read)(struct cpu_z80 *c, uint16_t addr);
     void    (*write)(struct cpu_z80 *c, uint16_t addr, uint8_t val);
+    /* Port I/O (Z80 IN/OUT). NULL => IN reads 0xFF, OUT is a no-op. */
+    uint8_t (*in)(struct cpu_z80 *c, uint16_t port);
+    void    (*out)(struct cpu_z80 *c, uint16_t port, uint8_t val);
     void    *ctx;
     /* Game Master diagnostics. */
     uint8_t  jammed;
     uint8_t  last_opcode;
     uint32_t illegal;                  /* undecoded/prefixed opcodes seen */
 } cpu_z80_t;
+
+/* Deliver a maskable interrupt (IM1 = RST $38). Taken only if iff1 set. */
+void cpu_z80_int(cpu_z80_t *c);
 
 /* Reset: PC=0, SP=$FFFF, interrupts disabled, flags cleared. */
 void     cpu_z80_reset(cpu_z80_t *c);

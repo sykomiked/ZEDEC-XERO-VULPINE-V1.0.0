@@ -8,8 +8,11 @@
 #include <string.h>
 
 static uint8_t g_mem[65536];
+static uint8_t g_ports[65536];
 static uint8_t bus_rd(cpu_z80_t *c, uint16_t a) { (void)c; return g_mem[a]; }
 static void    bus_wr(cpu_z80_t *c, uint16_t a, uint8_t v) { (void)c; g_mem[a] = v; }
+static uint8_t port_in(cpu_z80_t *c, uint16_t p) { (void)c; return g_ports[p]; }
+static void    port_out(cpu_z80_t *c, uint16_t p, uint8_t v) { (void)c; g_ports[p] = v; }
 
 static int fails = 0;
 #define CHECK(cond) do { if (!(cond)) { printf("  FAIL line %d: %s\n", __LINE__, #cond); fails++; } } while (0)
@@ -74,7 +77,42 @@ int main(void) {
       load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
       CHECK(c.a == 0x80); CHECK(c.f & Z80_S); CHECK(c.f & Z80_PV); CHECK(c.f & Z80_H); }
 
-    if (fails == 0) printf("test_cpu_z80: ALL PASS (8 programs, Z80 8-bit ISA + SZ5H3PNC flag model)\n");
+    /* 9. LDIR: copy 3 bytes $1000->$2000 */
+    { const uint8_t p[] = { 0x21,0x00,0x10, 0x11,0x00,0x20, 0x01,0x03,0x00, 0xED,0xB0, 0x76 };
+      load(p, sizeof p);
+      g_mem[0x1000]=0xAA; g_mem[0x1001]=0xBB; g_mem[0x1002]=0xCC;
+      newcpu(&c); cpu_z80_run(&c, 500);
+      CHECK(g_mem[0x2000]==0xAA); CHECK(g_mem[0x2001]==0xBB); CHECK(g_mem[0x2002]==0xCC);
+      CHECK(c.b==0 && c.c==0); }
+
+    /* 10. CB SET/BIT/RES: SET 7,B -> $80; BIT 7,B -> Z clear; RES 7,B -> $00 */
+    { const uint8_t p[] = { 0x06,0x00, 0xCB,0xF8, 0xCB,0x78, 0xCB,0xB8, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.b==0x00); }                       /* after RES 7 of $80 */
+
+    /* 11. CB RLC C: $81 -> $03 with carry set */
+    { const uint8_t p[] = { 0x0E,0x81, 0xCB,0x01, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.c==0x03); CHECK(c.f & Z80_C); }
+
+    /* 12. OUT (C),A / IN A,(C): round-trip through port $0010 */
+    { const uint8_t p[] = { 0x01,0x10,0x00, 0x3E,0x5A, 0xED,0x79, 0x3E,0x00, 0xED,0x78, 0x76 };
+      load(p, sizeof p); for(int i=0;i<65536;i++) g_ports[i]=0;
+      newcpu(&c); c.in=port_in; c.out=port_out; cpu_z80_run(&c, 100);
+      CHECK(g_ports[0x0010]==0x5A); CHECK(c.a==0x5A); }
+
+    /* 13. EXX: swap-and-swap-back preserves the original B */
+    { const uint8_t p[] = { 0x06,0x11, 0xD9, 0x06,0x22, 0xD9, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.b==0x11); }
+
+    /* 14. cpu_z80_int (IM1): pushes PC, vectors to $0038 */
+    { newcpu(&c); c.iff1=1; c.im=1; c.pc=0x1234; c.sp=0x3000;
+      cpu_z80_int(&c);
+      CHECK(c.pc==0x0038); CHECK(c.iff1==0);
+      CHECK(g_mem[0x2FFE]==0x34 && g_mem[0x2FFF]==0x12); }  /* pushed $1234 */
+
+    if (fails == 0) printf("test_cpu_z80: ALL PASS (14 programs, +CB/ED/ports/EXX/INT)\n");
     else            printf("test_cpu_z80: %d CHECK(S) FAILED\n", fails);
     return fails ? 1 : 0;
 }
