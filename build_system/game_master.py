@@ -55,11 +55,15 @@ def run_one(rom, system, kernel, elf, secs, symbolize):
     for p in (ser, qmp):
         try: os.unlink(p)
         except OSError: pass
+    # QEMU uses ',' as its -drive option separator, so a literal comma in the ROM
+    # path (No-Intro names are full of "(USA, Europe)") must be doubled or QEMU
+    # truncates the filename and exits — a harness artifact, NOT a kernel fault.
+    rom_q = rom.replace(",", ",,")
     q = subprocess.Popen(
         ["qemu-system-aarch64", "-M", "virt,gic-version=3", "-cpu", "cortex-a53", "-m", "512",
          "-global", "virtio-mmio.force-legacy=false", "-device", "ramfb",
          "-device", "virtio-tablet-device", "-device", "virtio-keyboard-device",
-         "-drive", f"if=none,file={rom},format=raw,id=gm0,readonly=on",
+         "-drive", f"if=none,file={rom_q},format=raw,id=gm0,readonly=on",
          "-device", "virtio-blk-device,drive=gm0",
          "-display", "none",
          "-chardev", f"socket,id=s0,path={ser},server=on,wait=off", "-serial", "chardev:s0",
