@@ -23,11 +23,16 @@ KERNEL=kernel_arm64.bin
 command -v "$QEMU" >/dev/null 2>&1 || {
   echo "!! $QEMU not found. Install QEMU (macOS: brew install qemu)."; exit 1; }
 
-if [ "${BUILD:-0}" = "1" ] || [ ! -f "$KERNEL" ]; then
-  echo "==> building the kernel ($KERNEL)..."
-  make -f build_system/Makefile.arm64 all >/tmp/zxv_desktop_build.log 2>&1 || {
-    echo "!! build failed — see /tmp/zxv_desktop_build.log"; tail -20 /tmp/zxv_desktop_build.log; exit 1; }
+# Always build (incrementally) so you never launch a STALE kernel. -MMD tracks
+# header deps, so `make all` rebuilds exactly what changed and is a fast no-op
+# when the tree is current. BUILD=1 forces a full clean rebuild.
+if [ "${BUILD:-0}" = "1" ]; then
+  echo "==> clean rebuild (BUILD=1)..."
+  make -f build_system/Makefile.arm64 clean >/dev/null 2>&1
 fi
+echo "==> building the kernel ($KERNEL)..."
+make -f build_system/Makefile.arm64 all >/tmp/zxv_desktop_build.log 2>&1 || {
+  echo "!! build failed — see /tmp/zxv_desktop_build.log"; tail -20 /tmp/zxv_desktop_build.log; exit 1; }
 
 # pick a graphical display backend for this host
 case "$(uname -s)" in
