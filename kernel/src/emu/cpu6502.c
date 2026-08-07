@@ -74,7 +74,7 @@ static uint8_t ror(cpu6502_t *c, uint8_t v) { uint8_t cin = c->p & C ? 0x80 : 0;
 
 void cpu6502_reset(cpu6502_t *c) {
     c->sp = 0xFD; c->p = U | I; c->a = c->x = c->y = 0;
-    c->pc = rd16(c, 0xFFFC); c->cycles = 0; c->jammed = 0;
+    c->pc = rd16(c, 0xFFFC); c->cycles = 0; c->jammed = 0; c->illegal = 0;
 }
 void cpu6502_nmi(cpu6502_t *c) {
     push(c, (uint8_t)(c->pc >> 8)); push(c, (uint8_t)c->pc);
@@ -260,8 +260,11 @@ int cpu6502_step(cpu6502_t *c) {
     default:
         /* Undocumented/illegal opcode. For dataset stress we keep executing as a
          * 1-byte NOP but flag it, so the Game Master can log illegal-opcode
-         * density per ROM rather than jamming on the first stray byte. */
+         * density per ROM rather than jamming on the first stray byte. The
+         * illegal RATE is how the game runner tells real code (near 0%) from
+         * random data (~50%). */
         c->jammed = 0;
+        c->illegal++;
         break;
     }
 

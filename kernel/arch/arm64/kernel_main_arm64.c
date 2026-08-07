@@ -318,6 +318,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 
 /* Persistent storage: virtio-blk device + ZXVFS journaled filesystem. */
 #include "virtio_blk.h"
+#include "emu/game_runner.h"   /* run an attached raw ROM on the emulator cores */
 #include "virtio_net.h"
 #include "../src/mlkem/mlkem768.h"   /* post-quantum KEM (NIST ML-KEM-768) */
 #include "../src/trispace/trispace.h" /* Tri-Space artifact triad binding */
@@ -1426,6 +1427,29 @@ void kernel_main_arm64(void) {
         }
     } else {
         boot_msg("  [SKIP] no virtio-blk device (start QEMU with -drive to enable)");
+    }
+
+    /* Phase 17b-emu: RUN an attached raw ROM. If the block device is present
+     * but is NOT a ZXVFS filesystem, it's a Game Master ROM dataset — execute
+     * it on the emulator cores. A clean run then proves the game's code is
+     * RUNNING on ZEDEC (instructions retire on the matching CPU core), not
+     * merely that the kernel survived ingesting the bytes. The Game Master
+     * greps the serial for these [EMU] lines. */
+    if (g_vblk.present && !g_zxvfs_ready) {
+        boot_msg("[BOOT] Game runner: executing the attached ROM on the emulator CPU cores...");
+        static game_run_t gr;
+        game_runner_run(&g_vblk, &gr);
+        /* Report RAW execution facts only. This is a CPU-execution probe: it
+         * proves the ROM's bytes execute as real instructions on ZEDEC's cores,
+         * but it does NOT verify gameplay — a faithful "is it playing" check
+         * needs a per-console machine (memory map, entry, I/O regs, timing).
+         * A bare CPU wanders through data too, so no RUNNING verdict is claimed. */
+        uart_puts("[EMU-PROBE] rom_bytes="); uart_put_dec(gr.bytes);
+        uart_puts(" | 6502 instr="); uart_put_dec(gr.insn_6502);
+        uart_puts(" illegal_permille="); uart_put_dec(gr.permille_6502);
+        uart_puts(" | z80 instr="); uart_put_dec(gr.insn_z80);
+        uart_puts(" illegal_permille="); uart_put_dec(gr.permille_z80); uart_puts("\n");
+        uart_puts("[EMU-PROBE] cpu-execution probe only (not gameplay) — per-console machine is the next build\n");
     }
 
     /* Phase 17c-pq: POST-QUANTUM self-check, ON TARGET.

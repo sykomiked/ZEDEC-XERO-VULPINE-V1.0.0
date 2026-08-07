@@ -37,6 +37,7 @@ typedef struct cpu6502 {
     /* Diagnostics for the Game Master fault log. */
     uint8_t  jammed;           /* set on a KIL/illegal-jam opcode            */
     uint8_t  last_opcode;
+    uint32_t illegal;          /* count of illegal opcodes executed (as NOP) */
 } cpu6502_t;
 
 /* Load PC from the reset vector at $FFFC/$FFFD; init SP=$FD, I set. */

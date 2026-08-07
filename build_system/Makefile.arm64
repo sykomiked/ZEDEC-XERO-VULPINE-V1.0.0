@@ -109,6 +109,7 @@ KERNEL_SRCS = \
     kernel/src/emu/emu6502.c \
     kernel/src/emu/cpu_z80.c \
     kernel/src/emu/emu_relate.c \
+    kernel/src/emu/game_runner.c \
     kernel/src/mlkem/keccak.c \
     kernel/src/mlkem/mlkem768.c \
     kernel/src/mlkem/mlkem_encode.c \
