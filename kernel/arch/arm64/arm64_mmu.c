@@ -54,6 +54,17 @@ static uint64_t l2_table[TABLE_ENTRIES] __attribute__((aligned(4096)));
  * kernel image) is refined again to 4KB pages by kernel_l3. */
 static uint64_t kernel_ram_l2[TABLE_ENTRIES] __attribute__((aligned(4096)));
 static uint64_t kernel_l3[TABLE_ENTRIES]     __attribute__((aligned(4096)));
+
+/* Expose the kernel's L1 entries so USER page tables can share the kernel's
+ * identity mapping (VA 1-4GB, where kernel code/data/RAM live). Without this,
+ * switching TTBR0 to a user table unmaps the kernel and the very next kernel
+ * memory access faults — the proc_enter_el0 +0x50 / FAR=0x40 bug the Game
+ * Master found. The kernel PTEs are EL1-only (PTE_AP_RW, no _EL0), so mapping
+ * them into a user table does NOT grant EL0 any access — isolation is kept. */
+uint64_t arm64_mmu_kernel_l1(int idx) {
+    if (idx < 0 || idx >= TABLE_ENTRIES) return 0;
+    return l1_table[idx];
+}
 /* Linker-provided immutable-core bounds (page-aligned: .data is ALIGN(0x10000)). */
 extern char _text_start[];
 extern char _data_start[];
@@ -64,8 +75,16 @@ extern char _data_start[];
 void arm64_copy_pt_template(uint64_t *l2_dst, uint64_t *l1_block_1gb) {
     for (int i = 0; i < TABLE_ENTRIES; i++)
         l2_dst[i] = l2_table[i];
-    if (l1_block_1gb)
-        *l1_block_1gb = l1_table[1];  /* 0x40000000-0x7FFFFFFF 1GB normal */
+    /* Map the WHOLE kernel RAM range (VA 1-4GB), not just the first GB, so the
+     * kernel stays fully mapped after a TTBR0 switch to this user table — the
+     * root cause of the proc_enter_el0 +0x50 fault the Game Master found was the
+     * kernel becoming unmapped mid-context-restore. l1_block_1gb points at the
+     * user's l1[1]; l1[1..3] cover 0x40000000-0xFFFFFFFF (kernel image + RAM). */
+    if (l1_block_1gb) {
+        l1_block_1gb[0] = l1_table[1];   /* VA 1-2GB: kernel image + first RAM GB */
+        l1_block_1gb[1] = l1_table[2];   /* VA 2-3GB */
+        l1_block_1gb[2] = l1_table[3];   /* VA 3-4GB */
+    }
 }
 
 /* True if the 2MB block [block_start, block_start+2MB) overlaps the

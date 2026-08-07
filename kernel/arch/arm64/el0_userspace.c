@@ -29,6 +29,7 @@ extern void uart_put_dec(uint64_t val);
 /* Import the kernel's identity L2 template so per-process page tables can
  * include the kernel mapping while still overlaying 4KB user pages. */
 extern void arm64_copy_pt_template(uint64_t *l2_dst, uint64_t *l1_block_1gb);
+extern uint64_t arm64_mmu_kernel_l1(int idx);  /* kernel L1 entry, to keep the kernel mapped in user tables */
 
 /* Static page table storage for user processes.
  * Each process gets one L0 table (512 entries × 8 bytes = 4KB).
@@ -157,6 +158,16 @@ bool proc_map_page(user_proc_t *proc, uint64_t va, uint64_t pa,
     /* L1[0] → L2 table (maps VA 0 – 1GB) */
     if (!(l1[0] & PTE_VALID)) {
         l1[0] = ((uint64_t)l2) | PTE_TABLE | PTE_VALID;
+    }
+
+    /* Keep the KERNEL mapped in this user table (VA 1-4GB = L1[1..3]). Without
+     * this, switching TTBR0 here unmaps the kernel and the next kernel access
+     * (e.g. proc_enter_el0 restoring the register context) faults. Idempotent:
+     * shares the kernel's own L2 tables, which are EL1-only so EL0 gains nothing. */
+    if (!(l1[1] & PTE_VALID)) {
+        l1[1] = arm64_mmu_kernel_l1(1);
+        l1[2] = arm64_mmu_kernel_l1(2);
+        l1[3] = arm64_mmu_kernel_l1(3);
     }
 
     /* L2 index: which 2MB block within the first 1GB */
