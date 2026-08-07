@@ -8,6 +8,7 @@
 #include "virtio_net.h"
 #include "board_profile.h"
 #include "../../src/virtio/vring.h"
+#include "virtio_bus.h"   /* omni-driver engine: shared scan + class registry */
 
 void uart_puts(const char *s);
 
@@ -114,29 +115,12 @@ static void rx_refill_one(uint32_t slot) {
     }
 }
 
-bool virtio_net_init(void) {
-    const board_profile_t *bp = board_get_profile();
-    if (!bp->virtio_mmio_base) return false;
-
-    for (uint32_t i = 0; i < bp->virtio_mmio_count; i++) {
-        uint64_t base = bp->virtio_mmio_base + (uint64_t)i * 0x200;
-        if (*(volatile uint32_t *)(base + VMMIO_MAGIC) != VMAGIC) continue;
-        uint32_t ver = *(volatile uint32_t *)(base + VMMIO_VERSION);
-        uint32_t did = *(volatile uint32_t *)(base + VMMIO_DEVICE_ID);
-        if (did != VDEV_NET) continue;
-        if (ver != 2) {
-            /* QEMU defaults virtio-mmio to LEGACY (v1), whose register layout
-             * differs (QUEUE_PFN + guest page size instead of split
-             * desc/avail/used addresses). Start QEMU with
-             *   -global virtio-mmio.force-legacy=false
-             * to get a modern device. Legacy support is a separate driver. */
-            uart_puts("[virtio-net] legacy (v1) device — needs "
-                      "-global virtio-mmio.force-legacy=false\r\n");
-            continue;
-        }
-        s_mmio = base; break;
-    }
-    if (!s_mmio) return false;
+/* Bring up ONE virtio-net device at the given base (an omni-bus registry cell).
+ * The feature negotiation below reads DEVICE_FEATURES to accept the MAC — this
+ * is the per-driver seam that MUST stay inside each cell, not hoisted to the bus. */
+static bool net_init_slot(uint64_t base) {
+    if (s_up) return false;                /* singleton: already have a NIC */
+    s_mmio = base;
 
     mmio_w32(VMMIO_STATUS, 0);
     mmio_w32(VMMIO_STATUS, VS_ACK);
@@ -176,6 +160,16 @@ bool virtio_net_init(void) {
     for (uint32_t i = 0; i < QDEPTH - 1u; i++) rx_refill_one(i);
 
     s_up = true;
+    return true;
+}
+static const virtio_driver_t NET_DRV = { VDEV_NET, "virtio-net", net_init_slot, 0 };
+
+/* Scan the shared virtio-mmio bus for a NIC and bring it up. */
+bool virtio_net_init(void) {
+    uint64_t base;
+    if (virtio_mmio_find(VDEV_NET, 0, &base) < 0) return false;
+    if (!net_init_slot(base)) return false;
+    virtio_register_driver(&NET_DRV);
     return true;
 }
 

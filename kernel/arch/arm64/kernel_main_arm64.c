@@ -103,6 +103,9 @@ extern uint32_t virtio_input_pop_clicks(void);
 /* virtio-snd driver (arch/arm64/virtio_snd.c) — native audio output */
 extern bool     virtio_snd_init(void);
 extern void     virtio_snd_chime(void);
+/* omni-driver engine (src/virtio/virtio_bus.c) — declarative class registry */
+extern void     virtio_bus_poll(void);
+extern uint32_t virtio_bus_driver_count(void);
 #include "../src/net/jdr_piratenet.h"
 
 /* KERNEL_SIM_DEVICES gates subsystems that model devices/claims with no
@@ -1939,7 +1942,7 @@ void kernel_event_cycle_run(void) {
      * stack). Input polling is cheap and stays outside the guard. */
     static volatile int g_desktop_busy = 0;
     if (g_desktop_vbe && !g_desktop_busy) {
-        virtio_input_poll();
+        virtio_bus_poll();   /* drive every registered class driver's poll (input, ...) */
         int32_t key;
         while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
         /* Latch fast taps EVERY cycle from the driver's exact press counter, not the

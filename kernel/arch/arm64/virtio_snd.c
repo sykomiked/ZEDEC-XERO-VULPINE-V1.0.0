@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include "board_profile.h"
 #include "virtio_snd.h"
+#include "virtio_bus.h"   /* omni-driver engine: shared scan + class registry */
 
 extern void uart_puts(const char *s);
 extern void uart_put_dec(uint64_t v);
@@ -228,19 +229,11 @@ static void gen_chime(void) {
     }
 }
 
-bool virtio_snd_init(void) {
-    const board_profile_t *bp = board_get_profile();
-    if (!bp->virtio_mmio_base) return false;
-    for (uint32_t i = 0; i < bp->virtio_mmio_count; i++) {
-        uint64_t base = bp->virtio_mmio_base + (uint64_t)i * 0x200;
-        if (*(volatile uint32_t *)(base + VMMIO_MAGIC) != VMAGIC) continue;
-        if (*(volatile uint32_t *)(base + VMMIO_DEVICE_ID) != VDEV_SND) continue;
-        if (*(volatile uint32_t *)(base + VMMIO_VERSION) != 2) {
-            uart_puts("  [virtio-snd] slot "); uart_put_dec(i);
-            uart_puts(" is legacy (v1) — need -global virtio-mmio.force-legacy=false\n");
-            continue;
-        }
-        s_base = base;
+/* Bring up ONE virtio-snd device at the given mmio base (a fault-contained cell:
+ * does its own handshake + queue setup, returns false on any failure). */
+static bool snd_init_slot(uint64_t base) {
+    if (s_ready) return false;             /* already have an output stream (singleton) */
+    s_base = base;
 
         /* handshake: reset -> ACK -> DRIVER -> features(VERSION_1) -> FEATURES_OK */
         mw(VMMIO_STATUS, 0);
@@ -249,10 +242,10 @@ bool virtio_snd_init(void) {
         mw(VMMIO_DRIVER_FEATURES_SEL, 0); mw(VMMIO_DRIVER_FEATURES, 0);
         mw(VMMIO_DRIVER_FEATURES_SEL, 1); mw(VMMIO_DRIVER_FEATURES, 1u << (VIRTIO_F_VERSION_1 - 32));
         mw(VMMIO_STATUS, VS_ACK | VS_DRIVER | VS_FEATURES_OK);
-        if (!(mr(VMMIO_STATUS) & VS_FEATURES_OK)) { mw(VMMIO_STATUS, VS_FAILED); s_base = 0; continue; }
+        if (!(mr(VMMIO_STATUS) & VS_FEATURES_OK)) { mw(VMMIO_STATUS, VS_FAILED); s_base = 0; return false; }
 
         if (!setup_q(&s_ctl, 0) || !setup_q(&s_tx, 2)) {
-            uart_puts("  [virtio-snd] queue setup failed\n"); s_base = 0; continue;
+            uart_puts("  [virtio-snd] queue setup failed\n"); s_base = 0; return false;
         }
         mw(VMMIO_STATUS, VS_ACK | VS_DRIVER | VS_FEATURES_OK | VS_DRIVER_OK);
 
@@ -281,12 +274,21 @@ bool virtio_snd_init(void) {
         if (ctl_txn(&s_ph, sizeof(s_ph), s_resp, sizeof(uint32_t)) != VSND_S_OK) {
             uart_puts("  [virtio-snd] PREPARE failed\n"); s_base = 0; return false;
         }
-        s_ready = 1;
-        uart_puts("  [DRIVER ONLINE] virtio-snd — PCM output stream ready (id ");
-        uart_put_dec((uint64_t)s_stream); uart_puts(")\n");
-        return true;
-    }
-    return false;
+    s_ready = 1;
+    uart_puts("  [DRIVER ONLINE] virtio-snd — PCM output stream ready (id ");
+    uart_put_dec((uint64_t)s_stream); uart_puts(")\n");
+    return true;
+}
+
+/* This class driver as an omni-bus registry cell (no per-cycle poll). */
+static const virtio_driver_t SND_DRV = { VDEV_SND, "virtio-snd", snd_init_slot, 0 };
+
+bool virtio_snd_init(void) {
+    uint64_t base;
+    if (virtio_mmio_find(VDEV_SND, 0, &base) < 0) return false;   /* graceful: no device */
+    if (!snd_init_slot(base)) return false;
+    virtio_register_driver(&SND_DRV);
+    return true;
 }
 
 void virtio_snd_chime(void) {

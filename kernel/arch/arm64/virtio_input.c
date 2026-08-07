@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "board_profile.h"
+#include "virtio_bus.h"   /* omni-driver engine: shared scan + class registry */
 
 extern void uart_puts(const char *s);
 extern void uart_put_dec(uint64_t v);
@@ -157,29 +158,29 @@ static bool vin_bringup(struct vin_dev *d) {
     return true;
 }
 
-/* Scan the virtio-mmio slots for EVERY virtio-input device and bring each up. */
+/* Bring up ONE virtio-input device at the given base (an omni-bus registry cell). */
+static bool input_init_slot(uint64_t base) {
+    if (s_ndev >= VIN_MAX) return false;
+    struct vin_dev *d = &s_dev[s_ndev];
+    d->mmio = base;
+    if (!vin_bringup(d)) { uart_puts("  [virtio-input] bringup FAILED\n"); return false; }
+    s_ndev++;
+    return true;
+}
+void virtio_input_poll(void);   /* forward decl for the cell vtable */
+static const virtio_driver_t INPUT_DRV = { VDEV_INPUT, "virtio-input", input_init_slot, virtio_input_poll };
+
+/* Scan the shared virtio-mmio bus for EVERY virtio-input device and bring each up. */
 bool virtio_input_probe(void) {
-    const board_profile_t *bp = board_get_profile();
-    if (!bp->virtio_mmio_base) return false;
     s_ndev = 0;
-    for (uint32_t i = 0; i < bp->virtio_mmio_count && s_ndev < VIN_MAX; i++) {
-        uint64_t base = bp->virtio_mmio_base + (uint64_t)i * 0x200;
-        if (*(volatile uint32_t *)(base + VMMIO_MAGIC) != VMAGIC) continue;
-        uint32_t id = *(volatile uint32_t *)(base + VMMIO_DEVICE_ID);
-        uint32_t ver = *(volatile uint32_t *)(base + VMMIO_VERSION);
-        if (id != VDEV_INPUT) continue;
-        if (ver != 2) {   /* modern-only, like virtio_blk */
-            uart_puts("  [virtio-input] slot "); uart_put_dec(i);
-            uart_puts(" is legacy (v1) — launch QEMU with"
-                      " -global virtio-mmio.force-legacy=false\n");
-            continue;
-        }
-        struct vin_dev *d = &s_dev[s_ndev];
-        d->mmio = base;
-        if (vin_bringup(d)) { s_ndev++; uart_puts("  [virtio-input] brought up slot "); uart_put_dec(i); uart_puts("\n"); }
-        else uart_puts("  [virtio-input] bringup FAILED\n");
+    uint64_t base; uint32_t from = 0; int slot;
+    while (s_ndev < VIN_MAX && (slot = virtio_mmio_find(VDEV_INPUT, from, &base)) >= 0) {
+        from = (uint32_t)slot + 1;
+        if (input_init_slot(base)) { uart_puts("  [virtio-input] brought up slot "); uart_put_dec((uint64_t)slot); uart_puts("\n"); }
     }
-    return s_ndev > 0;
+    if (s_ndev == 0) return false;
+    virtio_register_driver(&INPUT_DRV);
+    return true;
 }
 
 void virtio_input_set_bounds(int32_t w, int32_t h) {

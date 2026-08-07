@@ -28,6 +28,7 @@
 #include <stdbool.h>
 #include "board_profile.h"
 #include "../include/blockdev.h"
+#include "virtio_bus.h"   /* omni-driver engine: shared scan + class registry */
 
 extern void uart_puts(const char *s);
 extern void uart_put_hex(uint64_t val);
@@ -144,25 +145,10 @@ static inline void invalidate(const void *p, uint32_t len) {
     __asm__ __volatile__("dsb sy" ::: "memory");
 }
 
-/* Scan the virtio-mmio slots for a block device and bring it up. */
-static bool virtio_blk_probe(void) {
-    const board_profile_t *bp = board_get_profile();
-    if (!bp->virtio_mmio_base) return false;
-
-    for (uint32_t i = 0; i < bp->virtio_mmio_count; i++) {
-        uint64_t base = bp->virtio_mmio_base + (uint64_t)i * 0x200;
-        if (*(volatile uint32_t *)(base + VMMIO_MAGIC) != VMAGIC) continue;
-        uint32_t ver = *(volatile uint32_t *)(base + VMMIO_VERSION);
-        uint32_t dev = *(volatile uint32_t *)(base + VMMIO_DEVICE_ID);
-        if (dev != VDEV_BLOCK) continue;
-        if (ver != 2) {
-            uart_puts("[virtio-blk] found legacy (v1) device — unsupported, skipping\n");
-            continue;
-        }
-        s_mmio = base;
-        break;
-    }
-    if (!s_mmio) return false;
+/* Bring up ONE virtio-blk device at the given base (an omni-bus registry cell). */
+static bool blk_init_slot(uint64_t base) {
+    if (s_mmio) return false;              /* singleton: already have a block device */
+    s_mmio = base;
 
     /* --- init handshake (spec 3.1.1) --- */
     mmio_w32(VMMIO_STATUS, 0);                       /* reset */
@@ -210,6 +196,16 @@ static bool virtio_blk_probe(void) {
     s_avail.idx = 0;
     s_used.idx = 0;
     s_last_used = 0;
+    return true;
+}
+static const virtio_driver_t BLK_DRV = { VDEV_BLOCK, "virtio-blk", blk_init_slot, 0 };
+
+/* Scan the shared virtio-mmio bus for a block device and bring it up. */
+static bool virtio_blk_probe(void) {
+    uint64_t base;
+    if (virtio_mmio_find(VDEV_BLOCK, 0, &base) < 0) return false;
+    if (!blk_init_slot(base)) return false;
+    virtio_register_driver(&BLK_DRV);
     return true;
 }
 

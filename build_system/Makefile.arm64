@@ -104,6 +104,7 @@ ARM64_ARCH_OBJS = \
 # Shared kernel source objects (platform-independent)
 KERNEL_SRCS = \
     kernel/src/virtio/vring.c \
+    kernel/src/virtio/virtio_bus.c \
     kernel/src/mlkem/keccak.c \
     kernel/src/mlkem/mlkem768.c \
     kernel/src/mlkem/mlkem_encode.c \
