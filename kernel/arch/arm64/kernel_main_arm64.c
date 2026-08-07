@@ -1240,6 +1240,43 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] 6502 self-check FAILED");
     }
 
+    /* Phase 17a3: M5-RELATE — the non-binary logic test. Two NON-COMPATIBLE
+     * cores (6502 + Z80) run in parallel on a shared truth; their RELATIONSHIP
+     * is measured as a point in the M5 event space, decomposed along the five
+     * PERPENDICULAR axes. The logical (ell) axis is a real trit_t, so agreement
+     * is TRUE and contradiction is a charged GLUT — the other states of logic
+     * the kernel exists to hold. This is core #2 online + the relationship rig. */
+    boot_msg("[BOOT] M5-RELATE: parallel non-compatible cores (6502 <-> Z80) through the event space...");
+    {
+        /* Call through a tiny scalar shim (emu_relate.c) so we don't have to
+         * mirror emu_relation_t's phase_t/complex layout here. */
+        extern int  emu_relate_probe_summary(unsigned *res_a, unsigned *res_b,
+                                             unsigned *instr_a, unsigned *instr_b,
+                                             unsigned long long *cyc_a, unsigned long long *cyc_b,
+                                             int *ell, int *charge);
+        unsigned ra=0, rb=0, ia=0, ib=0; unsigned long long ca=0, cb=0; int ell=0, chg=0;
+        int concord = emu_relate_probe_summary(&ra,&rb,&ia,&ib,&ca,&cb,&ell,&chg);
+        unsigned domega = (ia >= ib) ? (ia - ib) : (ib - ia);
+        uart_puts("[E....]   [w] ordinal distance: 6502="); uart_put_dec(ia);
+        uart_puts(" instr, Z80="); uart_put_dec(ib); uart_puts(" instr -> delta ");
+        uart_put_dec(domega); uart_puts("\n");
+        uart_puts("[E....]   [r] rational concord: 6502="); uart_put_dec(ra);
+        uart_puts(" Z80="); uart_put_dec(rb); uart_puts("\n");
+        uart_puts("[E....]   [phi] phase torsion: 6502="); uart_put_dec(ca);
+        uart_puts(" cyc, Z80="); uart_put_dec(cb); uart_puts(" T (complex-plane skew)\n");
+        const char *label =
+            (ell == TRIT_TRUE)       ? "TRUE (concord) — orthogonal architectures agree" :
+            (ell == TRIT_GLUT_PLUS)  ? "GLUT+ (contradiction, excess)" :
+            (ell == TRIT_GLUT_MINUS) ? "GLUT- (contradiction, deficit)" :
+            (ell == TRIT_FALSE)      ? "FALSE (absence/gap)" : "GLUT (superposition)";
+        uart_puts("[E....]   [l] four-valued logic: "); uart_puts(label); uart_puts("\n");
+        (void)chg;
+        if (concord)
+            boot_msg("  [DRIVER ONLINE] Z80 core online; non-binary relationship measured; axes perpendicular");
+        else
+            boot_msg("  [NOTE] cores did not concord this run — logged as a GLUT/gap for the Game Master");
+    }
+
     /* Phase 17b: Prism Break Holographic Touchscreen Shader —
      * fixed-function framebuffer compositor producing prism/refraction
      * holographic visual effect. 6 compositing layers: base color,
