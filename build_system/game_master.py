@@ -29,7 +29,7 @@
 #   python3 build_system/game_master.py \
 #       --roms /abs/path/to/GAMEMASTER --stratify 33000 --polarity split \
 #       --n 8 --secs 3 --maxmb 8 --logdir /abs/path/to/logs
-import argparse, os, sys, json, time, socket, subprocess, signal, hashlib, math, threading, queue, tempfile, re
+import argparse, os, sys, json, time, socket, subprocess, signal, hashlib, math, threading, queue, tempfile, re, shutil
 from collections import Counter
 
 _NEG = bytes(0xFF ^ i for i in range(256))   # byte-complement table for negative space
@@ -222,6 +222,7 @@ def write_summary(path, results, meta):
     L.append(f"generated: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     L.append(f"corpus: {meta['roms']}   stratify={meta['stratify']} polarity={meta['polarity']} "
              f"secs/rom={meta['secs']} parallel={meta['n']} maxmb={meta['maxmb']}")
+    L.append(f"kernel sha256[:16]: {meta.get('kbin','?')}  (binary+elf preserved in this logdir)")
     L.append("")
     L.append(f"RUNS: {n}")
     for k, v in st.most_common(): L.append(f"  {k}: {v}")
@@ -260,10 +261,11 @@ def main():
                     help="S+/S- assignment: split=~50/50 per system")
     ap.add_argument("--maxmb", type=int, default=8, help="skip ROMs larger than this (MB)")
     ap.add_argument("--limit", type=int, default=0, help="max ROMs after selection (0=all)")
+    ap.add_argument("--sample", default="", help="newline-separated explicit ROM paths (targeted repro)")
     ap.add_argument("--logdir", default="", help="auto-log dir (JSONL + per-fault serial + summary)")
     a = ap.parse_args()
 
-    if not a.roms or not os.path.isdir(a.roms):
+    if not a.sample and (not a.roms or not os.path.isdir(a.roms)):
         print(f"[game master] ERROR: --roms dir not found: {a.roms!r}"); sys.exit(2)
     symbolize = nm_symbolizer(a.elf)
     logdir = a.logdir or os.path.join(os.getcwd(), "gamemaster_logs_" + time.strftime("%Y%m%d_%H%M%S"))
@@ -271,7 +273,24 @@ def main():
     logpath = os.path.join(logdir, "runs.jsonl")
     summ = os.path.join(logdir, "summary.txt")
 
-    if a.stratify:
+    # Preserve the EXACT kernel binary + ELF used, so any fault's ELR can always
+    # be mapped back to source even after the tree is rebuilt. Without this a
+    # fault's "func +0xNN" becomes unmappable once kernel_arm64.elf changes.
+    kbin_hash = "?"
+    try:
+        with open(a.kernel, "rb") as fh: kbin_hash = hashlib.sha256(fh.read()).hexdigest()[:16]
+        for src in (a.kernel, a.elf):
+            dst = os.path.join(logdir, os.path.basename(src))
+            if os.path.exists(src) and not os.path.exists(dst): shutil.copy2(src, dst)
+        # symbolize against the PRESERVED elf copy so it survives rebuilds
+        elf_copy = os.path.join(logdir, os.path.basename(a.elf))
+        if os.path.exists(elf_copy): symbolize = nm_symbolizer(elf_copy)
+    except Exception as e:
+        print(f"[game master] WARN: could not preserve kernel build: {e}")
+
+    if a.sample:
+        roms = [(p, os.path.basename(os.path.dirname(p))) for p in a.sample.splitlines() if p.strip()]
+    elif a.stratify:
         roms, systems = stratified(a.roms, a.stratify, a.maxmb)
     else:
         roms = []
@@ -298,8 +317,8 @@ def main():
             except Exception: pass
     todo = [t for t in plan if (t[0] + "|" + t[2]) not in done]
     meta = {"roms": a.roms, "stratify": a.stratify, "polarity": a.polarity,
-            "secs": a.secs, "n": a.n, "maxmb": a.maxmb}
-    print(f"[game master] logdir: {logdir}")
+            "secs": a.secs, "n": a.n, "maxmb": a.maxmb, "kbin": kbin_hash}
+    print(f"[game master] logdir: {logdir}   kernel sha256[:16]={kbin_hash} (binary+elf preserved here)")
     print(f"[game master] selected={len(plan)} (S+={sum(1 for t in plan if t[2]=='S+')} "
           f"S-={sum(1 for t in plan if t[2]=='S-')})  to-run={len(todo)} "
           f"(skipped {len(plan)-len(todo)} already done)  parallel={a.n} secs/rom={a.secs}")
