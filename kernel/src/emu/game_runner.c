@@ -89,7 +89,8 @@ static void run_6502(uint32_t len, uint32_t *insn, uint32_t *ill, uint16_t *pc, 
 static void run_z80(uint32_t len, uint32_t *insn, uint32_t *ill, uint16_t *pc, uint8_t *jam){
     for (int i = 0; i < 65536; i++) g_mem[i] = 0;
     for (uint32_t i = 0; i < len && i < 65536u; i++) g_mem[i] = g_raw[i];
-    cpu_z80_t c; c.read = rdz; c.write = wrz; c.ctx = g_mem;
+    cpu_z80_t c; for (unsigned k = 0; k < sizeof c; k++) ((uint8_t*)&c)[k] = 0;
+    c.read = rdz; c.write = wrz; c.ctx = g_mem;   /* in/out stay NULL (zeroed) */
     cpu_z80_reset(&c);
     uint32_t n = 0;
     while (n < GR_BUDGET && !c.jammed && !c.halted){ if (cpu_z80_step(&c) == 0) break; n++; }

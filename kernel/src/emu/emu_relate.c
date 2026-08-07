@@ -118,7 +118,8 @@ static void run_z80(uint32_t *res, int *done, uint32_t *instr, uint64_t *cyc) {
     for (int i = 0; i < 65536; i++) mem_b[i] = 0;
     for (unsigned i = 0; i < sizeof PROG_Z80; i++) mem_b[i] = PROG_Z80[i];
     mem_b[RESULT_CELL] = SENTINEL;
-    cpu_z80_t c; c.read = b_rd; c.write = b_wr; c.ctx = mem_b;
+    cpu_z80_t c; for (unsigned k = 0; k < sizeof c; k++) ((uint8_t*)&c)[k] = 0;
+    c.read = b_rd; c.write = b_wr; c.ctx = mem_b;   /* in/out stay NULL (zeroed) */
     cpu_z80_reset(&c);
     uint32_t steps = 0;
     while (steps < 100000u && !c.jammed && !c.halted && mem_b[RESULT_CELL] == SENTINEL) {
