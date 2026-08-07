@@ -285,6 +285,10 @@ def main():
         # symbolize against the PRESERVED elf copy so it survives rebuilds
         elf_copy = os.path.join(logdir, os.path.basename(a.elf))
         if os.path.exists(elf_copy): symbolize = nm_symbolizer(elf_copy)
+        # BOOT the preserved binary copy (not the live file), so rebuilding the
+        # kernel mid-campaign can never change what this run is testing.
+        bin_copy = os.path.join(logdir, os.path.basename(a.kernel))
+        if os.path.exists(bin_copy): a.kernel = bin_copy
     except Exception as e:
         print(f"[game master] WARN: could not preserve kernel build: {e}")
 
