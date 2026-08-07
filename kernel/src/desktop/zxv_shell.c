@@ -220,13 +220,20 @@ static void run_cmd(zxv_shell_state_t *st){
     st->cmdlen=0; st->cmd[0]=0;
 }
 
-/* Linux evdev keycode -> lowercase ASCII (0 = ignore) */
+/* Linux evdev keycode -> lowercase ASCII (0 = ignore).
+ * Indices are evdev codes (linux/input-event-codes.h): KEY_SPACE=57, not 56.
+ * The old table put ' ' at 56 (KEY_LEFTALT), so the space bar was dead and
+ * ',' '=' '[' ']' ';' '\'' '\\' produced nothing. Full row, correctly indexed. */
 static char keymap(int32_t k){
     static const char row[64]={
-    /*0*/ 0,0,'1','2','3','4','5','6','7','8','9','0','-',0,'\b',0,
-    /*16*/ 'q','w','e','r','t','y','u','i','o','p',0,0,'\n',0,'a','s',
-    /*32*/ 'd','f','g','h','j','k','l',0,0,0,0,0,'z','x','c','v',
-    /*48*/ 'b','n','m',0,'.','/',0,0,' ',0,0,0,0,0,0,0 };
+    /*0  RESERVED,ESC,1..0,-,=,BKSP,TAB */
+          0, 0, '1','2','3','4','5','6','7','8','9','0','-','=','\b', 0,
+    /*16 q..p,[,],ENTER,LCTRL,a,s */
+          'q','w','e','r','t','y','u','i','o','p','[',']','\n', 0, 'a','s',
+    /*32 d..l,;,',`,LSHIFT,\,z..v */
+          'd','f','g','h','j','k','l',';','\'','`', 0, '\\','z','x','c','v',
+    /*48 b,n,m,COMMA,.,/,RSHIFT,KP*,LALT,SPACE,CAPS,F1..F5 */
+          'b','n','m',',','.','/', 0, '*', 0, ' ', 0, 0, 0, 0, 0, 0 };
     if(k<0||k>=64) return 0; return row[k];
 }
 
