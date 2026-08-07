@@ -224,6 +224,26 @@ static int block_ld(cpu_z80_t *c, int dir, int repeat){
     return 16;
 }
 
+/* block I/O: OUTI/OUTD/OTIR/OTDR and INI/IND/INIR/INDR */
+static int block_out(cpu_z80_t *c, int dir, int repeat){
+    uint8_t v = rd(c, HL(c));
+    c->b--;
+    z80_out(c, BC(c), v);
+    setHL(c, (uint16_t)(HL(c) + dir));
+    c->f = (uint8_t)(c->f & Z80_C) | Z80_N | (c->b == 0 ? Z80_Z : 0);
+    if (repeat && c->b != 0){ c->pc -= 2; return 21; }
+    return 16;
+}
+static int block_in(cpu_z80_t *c, int dir, int repeat){
+    uint8_t v = z80_in(c, BC(c));
+    wr(c, HL(c), v);
+    c->b--;
+    setHL(c, (uint16_t)(HL(c) + dir));
+    c->f = (uint8_t)(c->f & Z80_C) | Z80_N | (c->b == 0 ? Z80_Z : 0);
+    if (repeat && c->b != 0){ c->pc -= 2; return 21; }
+    return 16;
+}
+
 /* ---- ED prefix ---- */
 static int do_ed(cpu_z80_t *c){
     uint8_t op = fetch(c);
@@ -256,6 +276,14 @@ static int do_ed(cpu_z80_t *c){
         case 0xA8: return block_ld(c, -1, 0);             /* LDD  */
         case 0xB0: return block_ld(c, +1, 1);             /* LDIR */
         case 0xB8: return block_ld(c, -1, 1);             /* LDDR */
+        case 0xA3: return block_out(c, +1, 0);            /* OUTI */
+        case 0xAB: return block_out(c, -1, 0);            /* OUTD */
+        case 0xB3: return block_out(c, +1, 1);            /* OTIR */
+        case 0xBB: return block_out(c, -1, 1);            /* OTDR */
+        case 0xA2: return block_in(c, +1, 0);             /* INI  */
+        case 0xAA: return block_in(c, -1, 0);             /* IND  */
+        case 0xB2: return block_in(c, +1, 1);             /* INIR */
+        case 0xBA: return block_in(c, -1, 1);             /* INDR */
         case 0x40: case 0x48: case 0x50: case 0x58: case 0x60: case 0x68: case 0x78: {
                    uint8_t v = z80_in(c, BC(c)); int reg = (op >> 3) & 7;
                    if (reg != 6) reg_set(c, reg, v); z80_szpc(c, v, (c->f & Z80_C) ? 1 : 0); return 12; }
