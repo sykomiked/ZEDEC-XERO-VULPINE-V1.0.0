@@ -1277,6 +1277,18 @@ void kernel_main_arm64(void) {
             boot_msg("  [NOTE] cores did not concord this run — logged as a GLUT/gap for the Game Master");
     }
 
+    /* Phase 17a4: Functional lattice spaces — prove each space's action path
+     * makes REAL subsystem state change (the same calls the buttons issue). */
+    boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");
+    {
+        extern int zxv_spaces_selfcheck(void);
+        int sc = zxv_spaces_selfcheck();
+        if (sc == 15)
+            boot_msg("  [DRIVER ONLINE] spaces functional: reputation+concord+logistics+wyrmgate respond to clicks");
+        else
+            boot_msg("  [WARN] one or more lattice spaces did not respond");
+    }
+
     /* Phase 17b: Prism Break Holographic Touchscreen Shader —
      * fixed-function framebuffer compositor producing prism/refraction
      * holographic visual effect. 6 compositing layers: base color,

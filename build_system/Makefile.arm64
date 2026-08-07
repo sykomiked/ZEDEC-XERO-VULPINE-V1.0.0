@@ -120,6 +120,7 @@ KERNEL_SRCS = \
     kernel/src/holodeck/viewing.c \
     kernel/src/oseq/oseq_core.c \
     kernel/src/rmag/rmag_core.c \
+    kernel/src/rmag/rmag.c \
     kernel/src/lpres/lpres_core.c \
     kernel/src/iphase/iphase_core.c \
     kernel/src/choice/choice_core.c \

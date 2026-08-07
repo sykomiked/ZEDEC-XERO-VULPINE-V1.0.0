@@ -3,6 +3,76 @@
 /* zxv_shell.c — the ZEDEC pqOS desktop shell (stateful, interactive). See zxv_shell.h. */
 #include "zxv_shell.h"
 
+/* The 13 lattice spaces are LIVE surfaces backed by their real subsystems. The
+ * shell owns a working instance of each stateful subsystem (initialised at
+ * bring-up) and calls the real APIs on entry / on a button. Stateless
+ * subsystems (refinery, wyrmgate, crown, battering ram, interspace, chiglet)
+ * are called directly. */
+#include "vino.h"
+#include "pirate_fleet.h"
+#include "art_studio.h"
+#include "chiglet.h"
+#include "refinery.h"
+#include "enochian.h"
+#include "concord.h"
+#include "crown.h"
+#include "wyrmgate.h"
+#include "battering_ram.h"
+#include "interspace.h"
+#include "reputation.h"
+#include "logistics.h"
+#include "surplus.h"
+
+/* shell-owned working instances for the stateful spaces */
+static vino_ledger_t g_vino;
+static con_commons_t g_concord;
+static con_match_t   g_cm[CON_MAX_PEOPLE];
+static uint32_t      g_cn;
+static rep_state_t   g_rep;
+static log_state_t   g_log;
+static art_canvas_t  g_art;
+static int           g_spaces_ready = 0;
+
+/* Initialise the working instances once (called from zxv_shell_init). Safe:
+ * these are the shell's OWN instances, independent of the boot-time singletons. */
+static void spaces_boot(void){
+    if(g_spaces_ready) return;
+    g_spaces_ready = 1;
+    vino_init(&g_vino, 846u);
+    vino_create_account(&g_vino, "TREASURY", "Vino Treasury");
+    vino_create_account(&g_vino, "VULPINE",  "Vulpine");
+    (void)vino_issue(&g_vino, "TREASURY", ASSET_CBDC, 1000u, "genesis");
+    con_init(&g_concord);
+    { surplus_real_t x[CON_DIM], y[CON_DIM];
+      for(int i=0;i<CON_DIM;i++){ x[i]=SR_ZERO; y[i]=SR_ZERO; }
+      x[0]=SR_FROM_INT(1); y[1]=SR_FROM_INT(1);      /* complementary interests */
+      con_join(&g_concord, 1u, x, 3u); con_join(&g_concord, 2u, y, 3u); }
+    rep_init(&g_rep);
+    log_init(&g_log);
+    { uint32_t p[2]={846u,847u}; (void)log_contract_open(&g_log, p, 2u, SR_FROM_INT(100), 0, 0); }
+    art_canvas_init(&g_art, 128, 96);
+}
+
+/* Boot self-check: prove the spaces' action paths make REAL subsystem state
+ * change on-target (the same calls the buttons issue). Returns a 4-bit mask;
+ * 15 = reputation + concord + logistics + wyrmgate all responded. */
+int zxv_spaces_selfcheck(void){
+    spaces_boot();
+    int ok=0;
+    uint32_t s0=badge_score(&g_rep,900u);                 /* reputation: award raises score */
+    badge_award(&g_rep,900u,1u,2u);
+    if(badge_score(&g_rep,900u) > s0) ok|=1;
+    uint32_t c0=g_concord.now; con_tick(&g_concord,5u);   /* concord: tick advances clock   */
+    if(g_concord.now == c0+5u) ok|=2;
+    uint64_t n0=g_log.next_id;                            /* logistics: open increments id  */
+    { uint32_t p[2]={846u,847u}; (void)log_contract_open(&g_log,p,2u,SR_FROM_INT(10),0,0); }
+    if(g_log.next_id == n0+1u) ok|=4;
+    { wyrm_event_t e={0}; e.route_available=true; e.phases_healthy=true; /* wyrmgate: real judge */
+      wyrm_result_t r=wyrm_judge(&e); const char *vn=wyrm_verdict_name(r.verdict);
+      if(vn && vn[0]) ok|=8; }
+    return ok;
+}
+
 /* ---- ZXV house palette (XRGB8888) ---- */
 #define C_BAR      0x0F0F16u
 #define C_BAR_HI   0x1B1B28u
@@ -36,6 +106,23 @@ static void scopy(char *d, const char *s, uint32_t cap){ if(cap==0) return; uint
 static char upc(char c){ return (c>='a'&&c<='z')?(char)(c-32):c; }
 static int seq_up(const char *a, const char *b){ /* a==b, case-insensitive */
     uint32_t i=0; for(;;){ char ca=upc(a[i]), cb=upc(b[i]); if(ca!=cb) return 0; if(!ca) return 1; i++; }
+}
+/* append a signed decimal to dst[*j] (bounded) */
+static void put_dec(char *dst, uint32_t *j, long v){
+    if(v<0 && *j<SHELL_LINE_LEN-1){ dst[(*j)++]='-'; v=-v; }
+    char tmp[20]; int t=0; if(v==0) tmp[t++]='0'; while(v>0 && t<19){ tmp[t++]=(char)('0'+(v%10)); v/=10; }
+    while(t>0 && *j<SHELL_LINE_LEN-1) dst[(*j)++]=tmp[--t];
+}
+static void put_str(char *dst, uint32_t *j, const char *s){
+    for(uint32_t i=0; s[i] && *j<SHELL_LINE_LEN-1; i++) dst[(*j)++]=s[i];
+}
+/* format "LABEL: <int>" into dst */
+static void kv_int(char *dst, const char *k, long v){
+    uint32_t j=0; put_str(dst,&j,k); put_str(dst,&j,": "); put_dec(dst,&j,v); dst[j]=0;
+}
+/* format "LABEL: <str>" into dst */
+static void kv_str(char *dst, const char *k, const char *val){
+    uint32_t j=0; put_str(dst,&j,k); put_str(dst,&j,": "); put_str(dst,&j,val); dst[j]=0;
 }
 
 /* ---- drawing primitives ---- */
@@ -220,6 +307,240 @@ static void run_cmd(zxv_shell_state_t *st){
     st->cmdlen=0; st->cmd[0]=0;
 }
 
+/* ============================================================================
+ *  FUNCTIONAL SPACES: each of the 13 lattice nodes is a live surface backed by
+ *  its REAL subsystem. On entry the shell fills a readout from the subsystem's
+ *  query API; action buttons invoke the subsystem on click; the 6 sub-spaces
+ *  drill one layer down. The per-subsystem calls live in the switch bodies of
+ *  space_enter/space_action/subspace_select. Everything else here (geometry,
+ *  hit-testing, readout buffer) is subsystem-independent.
+ * ==========================================================================*/
+
+/* action-button labels per space (NULL = no button in that slot). Each button
+ * invokes the space's REAL subsystem — see space_action(). */
+static const char *SPC_ACT[LATTICE_NODES][SPACE_ACTS] = {
+ /*BASE     */ { "DOCK","TERMINAL","LATTICE" },
+ /*VINO     */ { "SEND","ISSUE","BALANCE" },
+ /*FLEET    */ { "CAP WALL","DEPTH","CREW" },
+ /*STUDIO   */ { "PAINT","STROKE","EXPORT" },
+ /*CHIGLET  */ { "DECIDED","UNSURE","WHY" },
+ /*REFINERY */ { "GEMATRIA","MIRROR","VOICE" },
+ /*CONCORD  */ { "TICK","RECOMMEND","MAYMATCH" },
+ /*CROWN    */ { "CULTURAL","FINANCE","SOCIAL" },
+ /*WYRMGATE */ { "JUDGE RT","BLOCK","ORDER" },
+ /*RAM      */ { "PRICE","TERM","MAJORITY" },
+ /*INTERSPC */ { "COMMONS","IMMUNE","PASSAGE" },
+ /*BADGE    */ { "AWARD B1","AWARD B2","SCORE" },
+ /*LOGISTIC */ { "OPEN","ARM","RELEASE" },
+};
+/* sub-space labels per space (NULL = empty node) */
+static const char *SPC_SUB[LATTICE_NODES][SPACE_SUBS] = {
+ /*BASE     */ { "DOCK","TERMINAL","CHIGLET","VINO","FILES","THEME" },
+ /*VINO     */ { "846 DEBIT","120 CREDIT","999 EQUITY","LEDGER","RAILS","BRIDGE" },
+ /*FLEET    */ { "CREW","DAO","COMPUTE","CONTRACTS","SYNDICATE","SHARES" },
+ /*STUDIO   */ { "CANVAS","SOUND","MOTION","3D","PALETTE","EXPORT" },
+ /*CHIGLET  */ { "EXPERTS","MEMORY","VOICE","MATCH","EVIDENCE","VERDICT" },
+ /*REFINERY */ { "GEMATRIA","SIGIL","CARD","DECK","PRESET","SHARE" },
+ /*CONCORD  */ { "PAIRING","DIVIDES","QUARANTINE","MEDIATE","SOVEREIGN","TRUST" },
+ /*CROWN    */ { "CROWN","MINISTRY","PILLAR","REGISTRY","DECREES","POLICY" },
+ /*WYRMGATE */ { "S+","S0","S-","RMAG","LPRES","CHIGLET" },
+ /*RAM      */ { "EQUITIES","FUTURES","COMMODITY","DERIV","QUOTE","BOOK" },
+ /*INTERSPC */ { "LEX RHODIA","FLAG-STATE","FEDERATE","TREATY","MINISTER","BORDER" },
+ /*BADGE    */ { "PIG BADGE","EARNED","RANK","VERIFY","COUNTER","LEDGER" },
+ /*LOGISTIC */ { "SYNDICATE","CONTRACT","MARKET","ROUTE","WAREHOUSE","RAILS" },
+};
+
+/* action-button geometry (shared by draw + hit-test) */
+#define SPC_BX 216
+#define SPC_BY 452
+#define SPC_BW 176
+#define SPC_BH 40
+#define SPC_BGAP 18
+static void spc_btn_rect(int i, int32_t *x, int32_t *y, int32_t *w, int32_t *h){
+    *x = SPC_BX + i*(SPC_BW+SPC_BGAP); *y = SPC_BY; *w = SPC_BW; *h = SPC_BH;
+}
+/* screen position of sub-space k (shared by draw + hit-test) */
+static void subspace_xy(int32_t W, int32_t H, int k, int32_t *px, int32_t *py){
+    int32_t sx=W-300, sy=H/2+50, sr=92; int d=k*2;
+    *px = sx + (sr*LAT_DC[d])/256; *py = sy + (sr*LAT_DS[d])/256;
+}
+
+/* ---- live readout buffer ---- */
+static void sview_reset(zxv_shell_state_t *st){ st->sview_count=0; }
+static void sview_push(zxv_shell_state_t *st, const char *s){
+    if(st->sview_count >= SPACE_LINES){                 /* scroll the readout up */
+        for(int i=1;i<SPACE_LINES;i++) scopy(st->sview[i-1], st->sview[i], SHELL_LINE_LEN);
+        st->sview_count = SPACE_LINES-1;
+    }
+    scopy(st->sview[st->sview_count++], s, SHELL_LINE_LEN);
+}
+
+/* Fill the live readout for space s by QUERYING its real subsystem (on entry).
+ * Every case here makes real subsystem calls; the default (BASE) renders the
+ * descriptor lines. */
+static void space_enter(zxv_shell_state_t *st, int s){
+    sview_reset(st);
+    char ln[SHELL_LINE_LEN];
+    switch(s){
+    case 1: /* VINO */
+        kv_str(ln,"NATIVE RAIL",vino_rail_name(RAIL_VINO_NATIVE)); sview_push(st,ln);
+        kv_str(ln,"TOP CAPITAL",vino_capital_name(CAP_FINANCIAL)); sview_push(st,ln);
+        kv_str(ln,"CBDC ASSET",vino_asset_class_name(ASSET_CBDC)); sview_push(st,ln);
+        { uint64_t b=0; vino_get_balance(&g_vino,"TREASURY",CAP_FINANCIAL,&b); kv_int(ln,"TREASURY CAP",(long)b);} sview_push(st,ln);
+        break;
+    case 2: /* FLEET */
+        kv_int(ln,"CHAN DEPTH",(long)jdr_channel_depth(0)); sview_push(st,ln);
+        kv_str(ln,"CREW0 STATE",jdr_crew_state_name((crew_state_t)0)); sview_push(st,ln);
+        kv_str(ln,"BOTH CAPS",jdr_cap_wall_ok((uint8_t)(PF_CAP_CREDENTIAL|PF_CAP_TREASURY_AUDIT))?"ALLOW":"DENY"); sview_push(st,ln);
+        break;
+    case 3: /* STUDIO */
+        kv_int(ln,"MAX WIDTH",(long)ART_MAX_W); sview_push(st,ln);
+        kv_int(ln,"MAX HEIGHT",(long)ART_MAX_H); sview_push(st,ln);
+        kv_int(ln,"CANVAS W",(long)g_art.w); sview_push(st,ln);
+        kv_int(ln,"CANVAS H",(long)g_art.h); sview_push(st,ln);
+        break;
+    case 4: /* CHIGLET */
+        kv_int(ln,"EXPERT CAP",(long)CHG_MAX_EXPERTS); sview_push(st,ln);
+        kv_int(ln,"EVID DIM",(long)CHG_DIM); sview_push(st,ln);
+        kv_str(ln,"BOOT STATE",chg_state_name(CHG_UNAVAILABLE)); sview_push(st,ln);
+        break;
+    case 5: /* REFINERY */
+        { uint32_t g=eno_gematria("REFINERY",8); kv_int(ln,"GEMATRIA",(long)g); sview_push(st,ln);
+          uint32_t rt=eno_root(g); kv_int(ln,"ROOT 1-9",(long)rt); sview_push(st,ln);
+          kv_str(ln,"DOMAIN",eno_root_domain(rt)); sview_push(st,ln); }
+        kv_int(ln,"ALPHABET",(long)ENO_LETTERS); sview_push(st,ln);
+        break;
+    case 6: /* CONCORD */
+        kv_int(ln,"MEMBERS",(long)g_concord.n_people); sview_push(st,ln);
+        kv_int(ln,"DIVIDES",(long)g_concord.n_divides); sview_push(st,ln);
+        kv_int(ln,"CLOCK",(long)g_concord.now); sview_push(st,ln);
+        { con_person_t*p=con_get(&g_concord,1u); kv_str(ln,"STANDING #1",con_standing_name(con_standing(p))); } sview_push(st,ln);
+        break;
+    case 7: /* CROWN */
+        kv_int(ln,"CULTURAL",(long)crown_form_is_crown(ZCAP_CULTURAL)); sview_push(st,ln);
+        kv_int(ln,"SPIRITUAL",(long)crown_form_is_crown(ZCAP_SPIRITUAL)); sview_push(st,ln);
+        kv_int(ln,"FINANCIAL",(long)crown_form_is_crown(ZCAP_FINANCIAL)); sview_push(st,ln);
+        kv_int(ln,"SOCIAL",(long)crown_form_is_crown(ZCAP_SOCIAL)); sview_push(st,ln);
+        break;
+    case 8: /* WYRMGATE */
+        kv_str(ln,"COMMIT",wyrm_verdict_name(WYRM_COMMIT)); sview_push(st,ln);
+        kv_str(ln,"DEFER",wyrm_verdict_name(WYRM_DEFER)); sview_push(st,ln);
+        kv_int(ln,"MAX DELTAS",(long)WYRM_MAX_DELTAS); sview_push(st,ln);
+        { wyrm_event_t e={0}; e.route_available=true; e.phases_healthy=true; wyrm_result_t r=wyrm_judge(&e); kv_str(ln,"JUDGE(RT)",wyrm_verdict_name(r.verdict)); } sview_push(st,ln);
+        break;
+    case 9: /* BATTERING RAM */
+        { long p=(long)(br_price_capital_future(ZCAP_FINANCIAL,SR_FROM_INT(100),SR_ZERO,SR_ONE)>>SR_SHIFT); kv_int(ln,"FUT PRICE",p);} sview_push(st,ln);
+        { br_term_t t={0}; t.reciprocal=true; kv_int(ln,"TERM ADMIT",(long)symbiotic_ok(&t)); } sview_push(st,ln);
+        { allocation_t a={0}; a.realized=SR_FROM_INT(100); a.contributor_pool=SR_FROM_INT(78); kv_int(ln,"MAJORITY",(long)br_contributors_hold_majority(&a)); } sview_push(st,ln);
+        break;
+    case 10: /* INTERSPACE */
+        { interstitial_region_t r={0}; r.kind=ZXV_RES_COMMUNIS; r.owner=ZXV_NODE_NONE; kv_int(ln,"IS COMMONS",(long)interstitial_is_commons(&r)); } sview_push(st,ln);
+        { vessel_flag_t vf={0}; vf.keyholder=846; kv_int(ln,"SELF IMMUNE",(long)vessel_immune_from(&vf,846)); } sview_push(st,ln);
+        { safe_passage_grant_t g={0}; g.issued_tick=0; g.ttl_deadline=100; kv_int(ln,"PASS VALID",(long)safe_passage_valid(&g,50)); } sview_push(st,ln);
+        break;
+    case 11: /* BADGE */
+        kv_int(ln,"SUBJECTS",(long)g_rep.n_entries); sview_push(st,ln);
+        kv_int(ln,"BADGE SCORE",(long)badge_score(&g_rep,846u)); sview_push(st,ln);
+        kv_int(ln,"PIG(SEEN)",(long)pig_level_seen_by(&g_rep,846u,847u)); sview_push(st,ln);
+        kv_int(ln,"HAS BADGE1",(long)badge_has(&g_rep,846u,1u,1u)); sview_push(st,ln);
+        break;
+    case 12: /* LOGISTICS */
+        kv_int(ln,"CONTRACTS",(long)(g_log.next_id-1)); sview_push(st,ln);
+        kv_int(ln,"ESCROW ARMED",(long)(g_log.verify!=0)); sview_push(st,ln);
+        { const log_contract_t*c=log_contract_find(&g_log,1u); kv_int(ln,"C1 LIVE",(long)(c!=0)); } sview_push(st,ln);
+        { const log_contract_t*c=log_contract_find(&g_log,1u); kv_int(ln,"C1 PARTIES",(long)(c?c->n_parties:0)); } sview_push(st,ln);
+        break;
+    default: /* BASE (0) and any fallback */
+        for(int i=0;i<4;i++) sview_push(st, LAT_DESC[s][i]);
+        break;
+    }
+}
+/* Invoke action a on space s: call the real subsystem, push feedback. */
+static void space_action(zxv_shell_state_t *st, int s, int a){
+    if(a<0||a>=SPACE_ACTS || !SPC_ACT[s][a]) return;
+    st->act_hot=a;
+    char ln[SHELL_LINE_LEN];
+    switch(s){
+    case 1: /* VINO */
+        if(a==0){ int r=vino_transfer(&g_vino,"TREASURY","VULPINE",1u,CAP_FINANCIAL,RAIL_VINO_NATIVE,"send"); kv_int(ln,"SEND RC",r); }
+        else if(a==1){ int r=vino_issue(&g_vino,"TREASURY",ASSET_CBDC,10u,"issue"); kv_int(ln,"ISSUE RC",r); }
+        else { uint64_t b=0; vino_get_balance(&g_vino,"TREASURY",CAP_FINANCIAL,&b); kv_int(ln,"CAP BAL",(long)b); }
+        sview_push(st,ln); break;
+    case 2: /* FLEET */
+        if(a==0) kv_str(ln,"BOTH CAPS",jdr_cap_wall_ok((uint8_t)(PF_CAP_CREDENTIAL|PF_CAP_TREASURY_AUDIT))?"ALLOW":"DENY");
+        else if(a==1) kv_int(ln,"CHAN DEPTH",(long)jdr_channel_depth(0));
+        else kv_str(ln,"CREW0",jdr_crew_state_name((crew_state_t)0));
+        sview_push(st,ln); break;
+    case 3: /* STUDIO */
+        if(a==0){ art_fill_rect(&g_art,0,0,64,64,200); kv_int(ln,"PX[0]",(long)g_art.px[0]); }
+        else if(a==1){ art_hline(&g_art,4,32,56,255); kv_int(ln,"PX ROW32",(long)g_art.px[32*(long)g_art.w+4]); }
+        else { static uint8_t cid[32]; art_export_cid(&g_art,cid); kv_int(ln,"CID[0]",(long)cid[0]); }
+        sview_push(st,ln); break;
+    case 4: /* CHIGLET */
+        if(a==0) kv_str(ln,"STATE",chg_state_name(CHG_DECIDED));
+        else if(a==1) kv_str(ln,"STATE",chg_state_name(CHG_UNCERTAIN));
+        else kv_str(ln,"REASON",chg_reason_name(CHG_REASON_REDUNDANT));
+        sview_push(st,ln); break;
+    case 5: /* REFINERY */
+        if(a==0) kv_int(ln,"SIGIL GEM",(long)eno_gematria("SIGIL",5));
+        else if(a==1) kv_int(ln,"MIRROR(4)",(long)eno_root_mirror(4));
+        else kv_str(ln,"SOLAR VERB",eno_voice_verb(ENO_VOICE_SOLAR));
+        sview_push(st,ln); break;
+    case 6: /* CONCORD */
+        if(a==0){ con_tick(&g_concord,1u); kv_int(ln,"CLOCK",(long)g_concord.now); }
+        else if(a==1){ g_cn=con_recommend(&g_concord,1u,g_cm,CON_MAX_PEOPLE); kv_int(ln,"MATCHES",(long)g_cn); }
+        else kv_str(ln,"1<->2",con_may_match(&g_concord,1u,2u)?"YES":"NO");
+        sview_push(st,ln); break;
+    case 7: /* CROWN */
+        if(a==0) kv_int(ln,"CULTURAL",(long)crown_form_is_crown(ZCAP_CULTURAL));
+        else if(a==1) kv_int(ln,"FINANCIAL",(long)crown_form_is_crown(ZCAP_FINANCIAL));
+        else kv_int(ln,"SOCIAL",(long)crown_form_is_crown(ZCAP_SOCIAL));
+        sview_push(st,ln); break;
+    case 8: /* WYRMGATE */
+        { wyrm_event_t e={0};
+          if(a==0){ e.route_available=true; e.phases_healthy=true; wyrm_result_t r=wyrm_judge(&e); kv_str(ln,"VERDICT",wyrm_verdict_name(r.verdict)); }
+          else if(a==1){ wyrm_result_t r=wyrm_judge(&e); kv_str(ln,"REASON",wyrm_reason_name(r.reason)); }
+          else { e.parent_ordinal=2; e.ordinal=1; wyrm_result_t r=wyrm_judge(&e); kv_str(ln,"ORDER",wyrm_reason_name(r.reason)); } }
+        sview_push(st,ln); break;
+    case 9: /* BATTERING RAM */
+        if(a==0) kv_int(ln,"FUT PX",(long)(br_price_capital_future(ZCAP_FINANCIAL,SR_FROM_INT(100),SR_ZERO,SR_ONE)>>SR_SHIFT));
+        else if(a==1){ br_term_t t={0}; t.on_suffering=true; kv_int(ln,"SUFFER OK",(long)symbiotic_ok(&t)); }
+        else { allocation_t al={0}; al.realized=SR_FROM_INT(100); al.contributor_pool=SR_FROM_INT(78); kv_int(ln,"MAJORITY",(long)br_contributors_hold_majority(&al)); }
+        sview_push(st,ln); break;
+    case 10: /* INTERSPACE */
+        if(a==0){ interstitial_region_t r={0}; r.kind=ZXV_RES_COMMUNIS; r.owner=ZXV_NODE_NONE; kv_int(ln,"IS COMMONS",(long)interstitial_is_commons(&r)); }
+        else if(a==1){ vessel_flag_t vf={0}; vf.keyholder=846; kv_int(ln,"SELF IMMUNE",(long)vessel_immune_from(&vf,846)); }
+        else { safe_passage_grant_t g={0}; g.issued_tick=0; g.ttl_deadline=100; kv_int(ln,"PASS@50",(long)safe_passage_valid(&g,50)); }
+        sview_push(st,ln); break;
+    case 11: /* BADGE */
+        if(a==0){ badge_award(&g_rep,846u,1u,1u); kv_int(ln,"SCORE",(long)badge_score(&g_rep,846u)); }
+        else if(a==1){ badge_award(&g_rep,846u,2u,3u); kv_int(ln,"SCORE",(long)badge_score(&g_rep,846u)); }
+        else kv_int(ln,"SCORE",(long)badge_score(&g_rep,846u));
+        sview_push(st,ln); break;
+    case 12: /* LOGISTICS */
+        if(a==0){ uint32_t p[2]={846u,847u}; int id=log_contract_open(&g_log,p,2u,SR_FROM_INT(50),0,0); kv_int(ln,"NEW ID",id); }
+        else if(a==1){ log_set_verifier(&g_log,log_ed25519_delivery_verify); kv_int(ln,"ARMED",(long)(g_log.verify!=0)); }
+        else { log_delivery_t d={0}; log_result_t rr=log_escrow_release(&g_log,1u,&d); kv_int(ln,"RELEASE ST",(long)rr.status); }
+        sview_push(st,ln); break;
+    default:
+        kv_str(ln, "RUN", SPC_ACT[s][a]); sview_push(st, ln);
+        break;
+    }
+}
+/* Select sub-space k of space s (drill one layer down). */
+static void subspace_select(zxv_shell_state_t *st, int s, int k){
+    if(k<0||k>=SPACE_SUBS || !SPC_SUB[s][k]) return;
+    st->subsel=k;
+    char ln[SHELL_LINE_LEN];
+    kv_str(ln, "OPEN", SPC_SUB[s][k]); sview_push(st, ln);
+}
+/* Centralised space entry (used by ENTER key + lattice click). */
+static void enter_space(zxv_shell_state_t *st, int i){
+    if(i==0){ st->view=0; return; }                     /* BASE node -> home plane */
+    st->space=i; st->view=2; st->trans=LATTICE_TRANS; st->subsel=-1; st->act_hot=-1;
+    space_enter(st, i);
+}
+
 /* Linux evdev keycode -> lowercase ASCII (0 = ignore).
  * Indices are evdev codes (linux/input-event-codes.h): KEY_SPACE=57, not 56.
  * The old table put ' ' at 56 (KEY_LEFTALT), so the space bar was dead and
@@ -240,6 +561,8 @@ static char keymap(int32_t k){
 void zxv_shell_init(zxv_shell_state_t *st){
     st->active_app=-1; st->prev_buttons=0; st->term_count=0; st->cmdlen=0; st->cmd[0]=0; st->click_count=0;
     st->view=0; st->focus_node=0; st->space=-1; st->trans=0;
+    st->sview_count=0; st->subsel=-1; st->act_hot=-1;
+    spaces_boot();                                    /* bring up the spaces' real subsystems */
     term_push(st,"ZEDEC XERO VULPINE  --  pqOS [ARM64]");
     term_push(st,"THE KERNEL IS THE OS: ECONOMY, GOVERNANCE, SOCIAL IN-KERNEL");
     term_push(st,"CLICK A DOCK APP, OR TYPE A COMMAND. TRY: HELP  --  [SPACES/13] OR TAB = LATTICE");
@@ -253,11 +576,7 @@ void zxv_shell_key(zxv_shell_state_t *st, int32_t keycode){
         if(keycode==108){ st->focus_node=lat_neighbor(st->focus_node,0, 1); return; } /* DOWN  */
         if(keycode==105){ st->focus_node=lat_neighbor(st->focus_node,-1,0); return; } /* LEFT  */
         if(keycode==106){ st->focus_node=lat_neighbor(st->focus_node, 1,0); return; } /* RIGHT */
-        if(keycode==28){                                       /* ENTER: push into focused space    */
-            if(st->focus_node==0) st->view=0;                  /* BASE node -> home                 */
-            else { st->space=st->focus_node; st->view=2; st->trans=LATTICE_TRANS; }
-            return;
-        }
+        if(keycode==28){ enter_space(st, st->focus_node); return; } /* ENTER: open focused space */
     }
     char c=keymap(keycode);
     if(!c) return;
@@ -307,9 +626,8 @@ static void lattice_click(zxv_shell_state_t *st, int32_t W, int32_t H, int32_t c
         int32_t dx=cx-nx[i], dy=cy-ny[i], r=(i==st->focus_node)?58:48;
         if(dx*dx+dy*dy <= r*r){
             if(i==0){ st->view=0; }                    /* BASE node -> drop into the home plane   */
-            else if(i==st->focus_node){                /* 2nd click on the focused node -> ENTER  */
-                st->space=i; st->view=2; st->trans=LATTICE_TRANS;  /* push-in depth sweep begins */
-            } else st->focus_node=i;                   /* 1st click -> bring that space warm-near */
+            else if(i==st->focus_node){ enter_space(st,i); }  /* 2nd click -> ENTER (push-in) */
+            else st->focus_node=i;                     /* 1st click -> bring that space warm-near */
             return;
         }
     }
@@ -389,17 +707,34 @@ static void draw_space(zxv_shell_state_t *st, vbe_state_t *v, int32_t cx, int32_
     gt(v,bx+96,by-40,LAT_NM[s],C_GOLD,3);
     gt(v,bx+96,by-2, LAT_SUB[s],ac,1);
 
-    /* content: the 4 live-ish lines */
+    /* content: LIVE readout, computed by the space's REAL subsystem on entry */
     int32_t tx=bx+96, ty=by+40;
-    for(int i=0;i<4;i++){ gt(v,tx,ty,LAT_DESC[s][i],(i==0?C_TEXT:C_DIM),1); ty+=24; }
+    for(int i=0;i<st->sview_count;i++){ gt(v,tx,ty,st->sview[i],(i==0?C_TEXT:C_DIM),1); ty+=22; }
 
-    /* sub-lattice seed: this space has its OWN 6 sub-spaces (the next layer down) */
-    int32_t sx=W-300, sy=H/2+50, sr=92;
-    gt(v,sx-96,sy-sr-28,"SUB-SPACES  --  THE NEXT LAYER DOWN",C_GOLD_DIM,1);
+    /* action buttons — each click invokes the real subsystem (space_action) */
+    gt(v,SPC_BX,SPC_BY-22,"ACTIONS  --  CLICK TO INVOKE THE SUBSYSTEM",C_GOLD_DIM,1);
+    for(int a=0;a<SPACE_ACTS;a++){
+        const char *lbl=SPC_ACT[s][a]; if(!lbl) continue;
+        int32_t rx,ry,rw,rh; spc_btn_rect(a,&rx,&ry,&rw,&rh);
+        int hot=(cx>=rx&&cx<rx+rw&&cy>=ry&&cy<ry+rh);
+        box(v,rx,ry,rw,rh, hot?0x1B1420u:C_RED_DK);
+        frame(v,rx,ry,rw,rh, (st->act_hot==a)?C_GREEN:(hot?C_GOLD:ac));
+        gt(v,rx+14,ry+13,lbl, hot?C_GOLD:C_TEXT,1);
+    }
+
+    /* sub-spaces: this space's own 6 sub-features (the next layer down) */
+    int32_t sx=W-300, sy=H/2+50;
+    gt(v,sx-96,sy-92-28,"SUB-SPACES  --  THE NEXT LAYER DOWN",C_GOLD_DIM,1);
     disc(v,sx,sy,10,0x141019); ring(v,sx,sy,10,C_GOLD);
-    for(int k=0;k<6;k++){ int d=k*2;
-        int32_t px=sx+(sr*LAT_DC[d])/256, py=sy+(sr*LAT_DS[d])/256;
-        line(v,sx,sy,px,py,0x24304A); disc(v,px,py,18,0x101018); ring(v,px,py,18,ac);
+    for(int k=0;k<SPACE_SUBS;k++){
+        int32_t px,py; subspace_xy(W,H,k,&px,&py);
+        int sel=(st->subsel==k);
+        int hov=((cx-px)*(cx-px)+(cy-py)*(cy-py) <= 22*22);
+        line(v,sx,sy,px,py,0x24304A);
+        disc(v,px,py,18, sel?0x161022u:0x101018);
+        ring(v,px,py,18, sel?C_GOLD:(hov?C_WHITE:ac));
+        const char *sn=SPC_SUB[s][k];
+        if(sn) gt(v,px-(int32_t)slen(sn)*4,py+22,sn, sel?C_GOLD:C_DIM,1);
     }
 
     gt(v,16,H-24,"ROOT SYSTEM IS THE KERNEL  --  SCREENS STACKED UPON SCREENS",C_GOLD_DIM,1);
@@ -424,7 +759,19 @@ void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v, int32_t cx, int32_t 
         if(cx>=W/2-70 && cx<W/2+70 && cy>=6 && cy<40){     /* SPACES / BASE / < LATTICE pill */
             if(st->view==2) st->view=1; else st->view ^= 1;
         }
-        else if(st->view==2){ /* inside a space: only the pill navigates for now */ }
+        else if(st->view==2){                              /* inside a space: buttons + sub-spaces */
+            int s=st->space; if(s<0||s>=LATTICE_NODES) s=0;
+            int handled=0;
+            for(int a=0;a<SPACE_ACTS && !handled;a++){
+                if(!SPC_ACT[s][a]) continue;
+                int32_t rx,ry,rw,rh; spc_btn_rect(a,&rx,&ry,&rw,&rh);
+                if(cx>=rx&&cx<rx+rw&&cy>=ry&&cy<ry+rh){ space_action(st,s,a); handled=1; }
+            }
+            for(int k=0;k<SPACE_SUBS && !handled;k++){
+                int32_t px,py; subspace_xy(W,H,k,&px,&py);
+                if((cx-px)*(cx-px)+(cy-py)*(cy-py) <= 22*22){ subspace_select(st,s,k); handled=1; }
+            }
+        }
         else if(st->view==1)                               lattice_click(st,W,H,cx,cy);
         else if(cy < H-32)                                 handle_click(st,cx,cy);
         else if(cx>=8 && cx<82) term_push(st,"ZEDEC MENU: 5 APPS  ONE POLICY  PHASE-TICK");

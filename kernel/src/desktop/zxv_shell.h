@@ -35,6 +35,13 @@
 #define FIELD_TX 80             /* 1280 / 16 */
 #define FIELD_TY 45             /*  720 / 16 */
 
+/* An open space is a live surface: SPACE_LINES of readout filled by calling the
+ * space's REAL subsystem on entry / on an action, up to SPACE_ACTS action
+ * buttons, and 6 sub-spaces (the next layer of the tree). */
+#define SPACE_LINES 6
+#define SPACE_ACTS  3
+#define SPACE_SUBS  6
+
 typedef struct {
     int32_t  active_app;                              /* highlighted dock app, -1 none */
     uint32_t prev_buttons;                            /* for click-edge detection      */
@@ -47,6 +54,11 @@ typedef struct {
     int32_t  focus_node;                              /* 0..12 focused lattice node    */
     int32_t  space;                                   /* open space node when view==2  */
     int32_t  trans;                                   /* push-in transition frames left */
+    /* --- functional space state --- */
+    char     sview[SPACE_LINES][SHELL_LINE_LEN];      /* live readout of the open space */
+    int32_t  sview_count;
+    int32_t  subsel;                                  /* selected sub-space 0..5, -1 none */
+    int32_t  act_hot;                                 /* last action pressed (highlight)  */
 } zxv_shell_state_t;
 
 /* push-in transition length (frames): a depth sweep far->near when entering a space */
