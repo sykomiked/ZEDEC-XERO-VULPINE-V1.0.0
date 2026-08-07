@@ -16,6 +16,7 @@ KERNEL_SIM_DEVICES ?= 0
 CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -fno-stack-protector -fno-pie -no-pie -fno-builtin \
          -ffunction-sections -fdata-sections \
+         -MMD -MP \
          -DKERNEL_SIM_DEVICES=$(KERNEL_SIM_DEVICES) \
          -DENABLE_EL0_USERSPACE=1 -DENABLE_TICK_IRQ=1 \
          -DENABLE_EVENT_LOOP=1 \
@@ -267,6 +268,14 @@ KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
 TARGET = kernel_arm64.elf
 TARGET_BIN = kernel_arm64.bin
 
+# Auto-generated header dependencies (from -MMD -MP): rebuild any .o when a
+# header it includes changes. Without this, editing a struct in a .h left stale
+# .o files carrying the OLD layout — a silent, ugly class of bug (a shell struct
+# grew two fields but kernel_main.o kept the old size, so writes landed in
+# adjacent memory). Never again.
+DEPS = $(ARM64_ARCH_OBJS:.o=.d) $(KERNEL_OBJS:.o=.d)
+-include $(DEPS)
+
 .PHONY: all clean run
 
 all: $(TARGET) $(TARGET_BIN)
@@ -293,4 +302,4 @@ run: $(TARGET)
 		-kernel $(TARGET) -nographic -serial mon:stdio
 
 clean:
-	rm -f $(ARM64_ARCH_OBJS) $(KERNEL_OBJS) $(TARGET) $(TARGET_BIN)
+	rm -f $(ARM64_ARCH_OBJS) $(KERNEL_OBJS) $(DEPS) $(TARGET) $(TARGET_BIN)

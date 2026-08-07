@@ -43,3 +43,6 @@ dist/
 .env
 *.key
 *.pem
+
+# header-dependency files from -MMD
+*.d

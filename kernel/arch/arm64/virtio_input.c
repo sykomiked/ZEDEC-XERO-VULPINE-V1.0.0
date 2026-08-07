@@ -252,3 +252,13 @@ int32_t virtio_input_pop_key(void) {
 }
 uint32_t virtio_input_device_count(void) { return s_ndev; }
 uint32_t virtio_input_event_count(void)  { return s_moves + s_clicks; }
+
+/* Left-button PRESSES since the last call (delta of the monotonic press counter).
+ * Lets the compositor catch fast taps that begin and end between two of its
+ * ~16.7Hz button-level samples, which the level alone (virtio_input_get) drops. */
+uint32_t virtio_input_pop_clicks(void) {
+    static uint32_t s_last = 0;
+    uint32_t now = s_clicks, delta = now - s_last;
+    s_last = now;
+    return delta;
+}

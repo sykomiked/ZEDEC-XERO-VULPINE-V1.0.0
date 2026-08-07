@@ -99,6 +99,7 @@ extern void     virtio_input_get(int32_t *x, int32_t *y, uint32_t *buttons);
 extern void     virtio_input_set_bounds(int32_t w, int32_t h);
 extern uint32_t virtio_input_device_count(void);
 extern int32_t  virtio_input_pop_key(void);
+extern uint32_t virtio_input_pop_clicks(void);
 #include "../src/net/jdr_piratenet.h"
 
 /* KERNEL_SIM_DEVICES gates subsystems that model devices/claims with no
@@ -201,7 +202,19 @@ static const signed char g_sin64[64] = {
 static int g_holo = 1;                 /* holographic present on/off */
 static int g_holo_k = 10;              /* shift: bigger = subtler (10 ~= 12%, visible) */
 static uint32_t g_holo_phase = 0;
-static int16_t g_wx[ZXV_FB_W], g_wy[ZXV_FB_H];
+
+/* ---- the FIELD: per-16px-tile phase + depth painted by the shell ----
+ * g_fphase[ti] shifts each OBJECT's shimmer in TIME (its own breathing phase, so
+ * objects flicker independently — deliberately, not by accident). g_fdepth[ti] is
+ * 0=near..255=far: chromostereopsis pushes near tiles WARM (+red/-blue) and far
+ * tiles COOL (-red/+blue) — real optics that read as depth on a flat plane. The
+ * shell fills these each frame; zxv_present reads them. This is the 2D base plane
+ * given deliberate M5 depth — the foundation we build layers up from. */
+static uint8_t  g_fphase[FIELD_TX * FIELD_TY];
+static uint8_t  g_fdepth[FIELD_TX * FIELD_TY];
+static int16_t  g_tval[FIELD_TX * FIELD_TY];   /* per-tile valence,  precomputed per frame */
+static int16_t  g_tdz [FIELD_TX * FIELD_TY];   /* per-tile depth-z,  precomputed per frame */
+static int      g_depth_k = 36;                /* chromostereopsis strength (0=flat)       */
 
 static void zxv_present(const uint32_t *back) {
     if (!g_holo) {                                   /* plain copy path */
@@ -209,22 +222,34 @@ static void zxv_present(const uint32_t *back) {
         return;
     }
     uint32_t ph = g_holo_phase++;
-    /* two travelling waves; their sum at (x,y) is the local valence v */
-    for (uint32_t x = 0; x < ZXV_FB_W; x++) g_wx[x] = g_sin64[((x >> 4) + ph) & 63];
-    for (uint32_t y = 0; y < ZXV_FB_H; y++) g_wy[y] = g_sin64[((y >> 4) - ph + (ph >> 1)) & 63];
+    /* precompute per-tile valence (object-phased wave) + depth-z — 3600 tiles */
+    for (uint32_t ty = 0; ty < FIELD_TY; ty++) {
+        for (uint32_t tx = 0; tx < FIELD_TX; tx++) {
+            uint32_t ti  = ty * FIELD_TX + tx;
+            uint32_t phx = ph + (uint32_t)g_fphase[ti];        /* object's own time phase */
+            int32_t  val = g_sin64[(tx + phx) & 63]
+                         + g_sin64[(ty - phx + (phx >> 1)) & 63]; /* [-200,200]: S- .. S+ */
+            g_tval[ti] = (int16_t)val;
+            g_tdz [ti] = (int16_t)(128 - (int32_t)g_fdepth[ti]); /* >0 near, <0 far */
+        }
+    }
     for (uint32_t y = 0; y < ZXV_FB_H; y++) {
-        int32_t vy = g_wy[y];
+        uint32_t row_ti = (y >> 4) * FIELD_TX;
         const uint32_t *br = back + (uint64_t)y * ZXV_FB_W;
         uint32_t *dr = g_scanout + (uint64_t)y * ZXV_FB_W;
         for (uint32_t x = 0; x < ZXV_FB_W; x++) {
-            int32_t v = vy + g_wx[x];                 /* [-200,200]: S- .. S0 .. S+ */
+            uint32_t ti = row_ti + (x >> 4);
+            int32_t v  = g_tval[ti];                  /* this object's valence  */
+            int32_t dz = g_tdz[ti];                   /* this object's depth-z  */
             uint32_t c = br[x];
             int32_t r = (int32_t)((c >> 16) & 0xFF);
             int32_t g = (int32_t)((c >> 8) & 0xFF);
             int32_t b = (int32_t)(c & 0xFF);
-            r += (v * (255 - 2 * r)) >> g_holo_k;     /* toward anti-colour, grey-stable */
+            r += (v * (255 - 2 * r)) >> g_holo_k;     /* shimmer: toward anti-colour, grey-stable */
             g += (v * (255 - 2 * g)) >> g_holo_k;
             b += (v * (255 - 2 * b)) >> g_holo_k;
+            r += (dz * g_depth_k) >> 8;               /* chromostereopsis: near warm / far cool */
+            b -= (dz * g_depth_k) >> 8;
             if (r < 0) r = 0; else if (r > 255) r = 255;
             if (g < 0) g = 0; else if (g > 255) g = 255;
             if (b < 0) b = 0; else if (b > 255) b = 255;
@@ -1193,9 +1218,9 @@ void kernel_main_arm64(void) {
         if (rc == 0) {
             /* Compose into the back buffer, then present a complete frame. */
             static vbe_state_t g_vbe;
-            vbe_init_fb(&g_vbe, 1280, 720, 32, (uint32_t)(uintptr_t)fb);
+            vbe_init_fb(&g_vbe, 1280, 720, 32, (uintptr_t)fb);
             zxv_shell_init(&g_shell);
-            zxv_shell_frame(&g_shell, &g_vbe, 632, 360, 0, prism_break.frames_rendered);
+            zxv_shell_frame(&g_shell, &g_vbe, 632, 360, 0, prism_break.frames_rendered, g_fphase, g_fdepth);
             zxv_present(fb);
             g_desktop_vbe = &g_vbe;   /* the event loop keeps animating it */
             boot_msg("  [DRIVER ONLINE] ramfb 1280x720 — ZEDEC desktop is on screen");
@@ -1905,6 +1930,10 @@ void kernel_event_cycle_run(void) {
         virtio_input_poll();
         int32_t key;
         while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
+        /* Latch fast taps EVERY cycle from the driver's exact press counter, not the
+         * every-6th-cycle button level (which misses sub-60ms clicks). */
+        static uint32_t g_pending_click = 0;
+        g_pending_click += virtio_input_pop_clicks();
         if (g_event_cycle % 6 == 0) {
             /* The compositor is several ms of work and runs from the timer-IRQ
              * hook. Mask IRQs for its duration so a nested IRQ can't clobber its
@@ -1916,8 +1945,15 @@ void kernel_event_cycle_run(void) {
             g_desktop_busy = 1;
             int32_t cx = 0, cy = 0; uint32_t btn = 0;
             virtio_input_get(&cx, &cy, &btn);
-            pb_render_frame(&prism_break);
-            zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered);
+            /* Surface any tap that happened since the last frame as a click edge,
+             * even if the button level already returned to 0 between samples. */
+            if (g_pending_click) { btn |= 1u; g_pending_click = 0; }
+            /* Only the base desktop (view 0) shows the prism wallpaper; the lattice
+             * and space planes clear the whole screen themselves, so rendering the
+             * 6-layer prism there is a full-screen pass thrown away. Skip it — this
+             * halves the IRQ-masked critical section in those views. */
+            if (g_shell.view == 0) pb_render_frame(&prism_break);
+            zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered, g_fphase, g_fdepth);
             zxv_present(pb_get_framebuffer(&prism_break));   /* show a COMPLETE frame */
             g_desktop_busy = 0;
             __asm__ __volatile__("msr daif, %0" :: "r"(daif) : "memory");

@@ -126,7 +126,7 @@ void vbe_init(vbe_state_t *vbe, uint16_t width, uint16_t height, uint8_t bpp) {
     vbe_init_fb(vbe, width, height, bpp, 0xE0000000);
 }
 
-void vbe_init_fb(vbe_state_t *vbe, uint16_t width, uint16_t height, uint8_t bpp, uint32_t fb_addr) {
+void vbe_init_fb(vbe_state_t *vbe, uint16_t width, uint16_t height, uint8_t bpp, uintptr_t fb_addr) {
     vbe->width = width;
     vbe->height = height;
     vbe->bpp = bpp;
@@ -152,10 +152,20 @@ uint32_t vbe_get_pixel(vbe_state_t *vbe, int32_t x, int32_t y) {
 }
 
 void vbe_fill_rect(vbe_state_t *vbe, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
-    for (int32_t dy = 0; dy < h; dy++) {
-        for (int32_t dx = 0; dx < w; dx++) {
-            vbe_set_pixel(vbe, x + dx, y + dy, color);
-        }
+    /* Clip the rectangle ONCE, then fill with tight per-row writes straight into
+     * the framebuffer — no per-pixel call/branch. A full-screen clear drops from
+     * ~921,600 clipped vbe_set_pixel calls to ~720 straight row fills. */
+    int32_t W = (int32_t)vbe->width, H = (int32_t)vbe->height;
+    int32_t x0 = x, y0 = y, x1 = x + w, y1 = y + h;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > W) x1 = W;
+    if (y1 > H) y1 = H;
+    if (x0 >= x1 || y0 >= y1) return;
+    uint32_t *fb = vbe->fb;
+    for (int32_t yy = y0; yy < y1; yy++) {
+        uint32_t *row = fb + (int64_t)yy * W + x0;
+        for (int32_t xx = x0; xx < x1; xx++) *row++ = color;
     }
 }
 

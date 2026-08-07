@@ -14,7 +14,7 @@ typedef struct vbe_mode_info {
     uint16_t width;
     uint16_t height;
     uint8_t  bpp;
-    uint32_t framebuffer_addr;
+    uintptr_t framebuffer_addr;   /* full pointer width: real GOP FBs can be >4GiB */
     uint32_t pitch;
     uint8_t  memory_model;
     bool     valid;
@@ -31,7 +31,7 @@ typedef struct vbe_state {
 } vbe_state_t;
 
 void vbe_init(vbe_state_t *vbe, uint16_t width, uint16_t height, uint8_t bpp);
-void vbe_init_fb(vbe_state_t *vbe, uint16_t width, uint16_t height, uint8_t bpp, uint32_t fb_addr);
+void vbe_init_fb(vbe_state_t *vbe, uint16_t width, uint16_t height, uint8_t bpp, uintptr_t fb_addr);
 void vbe_set_pixel(vbe_state_t *vbe, int32_t x, int32_t y, uint32_t color);
 uint32_t vbe_get_pixel(vbe_state_t *vbe, int32_t x, int32_t y);
 void vbe_fill_rect(vbe_state_t *vbe, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
