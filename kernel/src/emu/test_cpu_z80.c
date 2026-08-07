@@ -112,7 +112,37 @@ int main(void) {
       CHECK(c.pc==0x0038); CHECK(c.iff1==0);
       CHECK(g_mem[0x2FFE]==0x34 && g_mem[0x2FFF]==0x12); }  /* pushed $1234 */
 
-    if (fails == 0) printf("test_cpu_z80: ALL PASS (14 programs, +CB/ED/ports/EXX/INT)\n");
+    /* 15. LD IX,nn / INC IX / DEC IX */
+    { const uint8_t p[] = { 0xDD,0x21,0x34,0x12, 0xDD,0x23, 0xDD,0x2B, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.ix==0x1234); }
+
+    /* 16. LD (IX+5),$99 / LD A,(IX+5) */
+    { const uint8_t p[] = { 0xDD,0x21,0x00,0x20, 0xDD,0x36,0x05,0x99, 0xDD,0x7E,0x05, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.a==0x99); CHECK(g_mem[0x2005]==0x99); }
+
+    /* 17. ADD IX,DE */
+    { const uint8_t p[] = { 0xDD,0x21,0x00,0x01, 0x11,0x20,0x00, 0xDD,0x19, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.ix==0x0120); }
+
+    /* 18. LD IXH,n / LD B,IXH (undocumented index-half regs) */
+    { const uint8_t p[] = { 0xDD,0x26,0xAB, 0xDD,0x44, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.b==0xAB); }
+
+    /* 19. PUSH IX / POP HL */
+    { const uint8_t p[] = { 0x31,0x00,0x30, 0xDD,0x21,0xEF,0xBE, 0xDD,0xE5, 0xE1, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.h==0xBE); CHECK(c.l==0xEF); }
+
+    /* 20. DDCB SET 0,(IX+0) then LD A,(IX+0) */
+    { const uint8_t p[] = { 0xDD,0x21,0x00,0x21, 0xDD,0x36,0x00,0x00, 0xDD,0xCB,0x00,0xC6, 0xDD,0x7E,0x00, 0x76 };
+      load(p, sizeof p); newcpu(&c); cpu_z80_run(&c, 100);
+      CHECK(c.a==0x01); CHECK(g_mem[0x2100]==0x01); }
+
+    if (fails == 0) printf("test_cpu_z80: ALL PASS (20 programs, +CB/ED/DD/FD/ports/EXX/INT)\n");
     else            printf("test_cpu_z80: %d CHECK(S) FAILED\n", fails);
     return fails ? 1 : 0;
 }

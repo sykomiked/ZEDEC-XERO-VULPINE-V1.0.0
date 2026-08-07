@@ -266,6 +266,105 @@ static int do_ed(cpu_z80_t *c){
     }
 }
 
+/* 16-bit ADD IX/IY,dd */
+static void idx_add(cpu_z80_t *c, uint16_t *idx, uint16_t v){
+    uint16_t hl = *idx; unsigned r = (unsigned)hl + v;
+    uint8_t f = (uint8_t)(c->f & (Z80_S | Z80_Z | Z80_PV));
+    if (((hl & 0x0FFF) + (v & 0x0FFF)) > 0x0FFF) f |= Z80_H;
+    if (r > 0xFFFF) f |= Z80_C;
+    f |= (uint8_t)((r >> 8) & (Z80_F5 | Z80_F3));
+    c->f = f; *idx = (uint16_t)r;
+}
+/* DDCB / FDCB: rotate/shift/bit/res/set on the byte at (IX+d) */
+static void do_ddcb(cpu_z80_t *c, uint16_t a, uint8_t op){
+    int y = (op >> 3) & 7, x = op >> 6;
+    uint8_t v = rd(c, a), r = v, co = 0;
+    if (x == 0){
+        switch (y){
+            case 0: co = v >> 7; r = (uint8_t)((v << 1) | co); break;
+            case 1: co = v & 1;  r = (uint8_t)((v >> 1) | (co << 7)); break;
+            case 2: co = v >> 7; r = (uint8_t)((v << 1) | ((c->f & Z80_C)?1:0)); break;
+            case 3: co = v & 1;  r = (uint8_t)((v >> 1) | (((c->f & Z80_C)?1:0) << 7)); break;
+            case 4: co = v >> 7; r = (uint8_t)(v << 1); break;
+            case 5: co = v & 1;  r = (uint8_t)((v >> 1) | (v & 0x80)); break;
+            case 6: co = v >> 7; r = (uint8_t)((v << 1) | 1); break;
+            default:co = v & 1;  r = (uint8_t)(v >> 1); break;
+        }
+        z80_szpc(c, r, co); wr(c, a, r);
+    } else if (x == 1){
+        uint8_t bit = v & (uint8_t)(1u << y);
+        uint8_t f = (uint8_t)(c->f & Z80_C) | Z80_H;
+        if (bit == 0) f |= (Z80_Z | Z80_PV);
+        if (y == 7 && bit) f |= Z80_S;
+        c->f = f;
+    } else if (x == 2){ wr(c, a, (uint8_t)(v & ~(1u << y))); }
+    else            { wr(c, a, (uint8_t)(v |  (1u << y))); }
+}
+/* DD/FD prefix: the following opcode uses IX/IY (and (IX+d)) in place of HL. */
+static int do_index(cpu_z80_t *c, uint16_t *idx){
+    uint8_t op = fetch(c);
+    /* LD r,r' block with index substitution */
+    if (op >= 0x40 && op <= 0x7F && op != 0x76){
+        int dst = (op >> 3) & 7, src = op & 7;
+        if (src == 6 || dst == 6){                 /* one side is (IX+d) */
+            int8_t d = (int8_t)fetch(c); uint16_t a = (uint16_t)(*idx + d);
+            if (src == 6) reg_set(c, dst, rd(c, a));   /* register side stays normal H/L */
+            else          wr(c, a, reg_get(c, src));
+            return 19;
+        }
+        uint8_t v = (src == 4) ? (uint8_t)(*idx >> 8) : (src == 5) ? (uint8_t)*idx : reg_get(c, src);
+        if (dst == 4)      *idx = (uint16_t)((*idx & 0x00FF) | (v << 8));
+        else if (dst == 5) *idx = (uint16_t)((*idx & 0xFF00) | v);
+        else               reg_set(c, dst, v);
+        return 8;
+    }
+    /* ALU A,(IX+d) / A,IXH / A,IXL */
+    if (op >= 0x80 && op <= 0xBF){
+        int rsel = op & 7; uint8_t v; int cyc = 8;
+        if (rsel == 6){ int8_t d = (int8_t)fetch(c); v = rd(c, (uint16_t)(*idx + d)); cyc = 19; }
+        else if (rsel == 4) v = (uint8_t)(*idx >> 8);
+        else if (rsel == 5) v = (uint8_t)*idx;
+        else v = reg_get(c, rsel);
+        switch ((op >> 3) & 7){
+            case 0: alu_add(c, v, 0); break; case 1: alu_add(c, v, 1); break;
+            case 2: alu_sub(c, v, 0); break; case 3: alu_sub(c, v, 1); break;
+            case 4: alu_and(c, v);    break; case 5: alu_xor(c, v);    break;
+            case 6: alu_or(c, v);     break; default: alu_cp(c, v);    break;
+        }
+        return cyc;
+    }
+    switch (op){
+        case 0x21: *idx = fetch16(c); return 14;                 /* LD IX,nn   */
+        case 0x22: { uint16_t a = fetch16(c); wr(c,a,(uint8_t)*idx); wr(c,a+1,(uint8_t)(*idx>>8)); return 20; }
+        case 0x2A: { uint16_t a = fetch16(c); *idx = (uint16_t)(rd(c,a)|(rd(c,a+1)<<8)); return 20; }
+        case 0x23: (*idx)++; return 10;                          /* INC IX     */
+        case 0x2B: (*idx)--; return 10;                          /* DEC IX     */
+        case 0x09: idx_add(c, idx, BC(c)); return 15;
+        case 0x19: idx_add(c, idx, DE(c)); return 15;
+        case 0x29: idx_add(c, idx, *idx);  return 15;
+        case 0x39: idx_add(c, idx, c->sp); return 15;
+        case 0x24: { uint8_t v = alu_inc(c,(uint8_t)(*idx>>8)); *idx=(uint16_t)((*idx&0x00FF)|(v<<8)); return 8; }
+        case 0x25: { uint8_t v = alu_dec(c,(uint8_t)(*idx>>8)); *idx=(uint16_t)((*idx&0x00FF)|(v<<8)); return 8; }
+        case 0x2C: { uint8_t v = alu_inc(c,(uint8_t)*idx); *idx=(uint16_t)((*idx&0xFF00)|v); return 8; }
+        case 0x2D: { uint8_t v = alu_dec(c,(uint8_t)*idx); *idx=(uint16_t)((*idx&0xFF00)|v); return 8; }
+        case 0x26: *idx=(uint16_t)((*idx&0x00FF)|(fetch(c)<<8)); return 11;   /* LD IXH,n */
+        case 0x2E: *idx=(uint16_t)((*idx&0xFF00)|fetch(c)); return 11;        /* LD IXL,n */
+        case 0x34: { int8_t d=(int8_t)fetch(c); uint16_t a=(uint16_t)(*idx+d); wr(c,a,alu_inc(c,rd(c,a))); return 23; }
+        case 0x35: { int8_t d=(int8_t)fetch(c); uint16_t a=(uint16_t)(*idx+d); wr(c,a,alu_dec(c,rd(c,a))); return 23; }
+        case 0x36: { int8_t d=(int8_t)fetch(c); uint8_t n=fetch(c); wr(c,(uint16_t)(*idx+d),n); return 19; }
+        case 0xE9: c->pc = *idx; return 8;                        /* JP (IX)    */
+        case 0xF9: c->sp = *idx; return 10;                       /* LD SP,IX   */
+        case 0xE5: push16(c, *idx); return 15;                    /* PUSH IX    */
+        case 0xE1: *idx = pop16(c); return 14;                    /* POP IX     */
+        case 0xE3: { uint16_t lo=rd(c,c->sp), hi=rd(c,c->sp+1);   /* EX (SP),IX */
+                     wr(c,c->sp,(uint8_t)*idx); wr(c,c->sp+1,(uint8_t)(*idx>>8));
+                     *idx=(uint16_t)(lo|(hi<<8)); return 23; }
+        case 0xCB: { int8_t d=(int8_t)fetch(c); uint16_t a=(uint16_t)(*idx+d);
+                     uint8_t sub=fetch(c); do_ddcb(c, a, sub); return 23; }
+        default: c->illegal++; return 8;
+    }
+}
+
 void cpu_z80_int(cpu_z80_t *c){
     if (!c->iff1) return;
     c->halted = 0; c->iff1 = c->iff2 = 0;
@@ -427,9 +526,8 @@ int cpu_z80_step(cpu_z80_t *c) {
                      wr(c,c->sp,c->l); wr(c,c->sp+1,c->h); c->l=lo; c->h=hi; cyc=19; } break;
         case 0xCB: cyc = 8; do_cb(c); break;                              /* CB: bit/rotate ops */
         case 0xED: cyc = do_ed(c); break;                                 /* ED: extended ops   */
-        /* DD/FD (IX/IY) not decoded yet — flag + skip so garbage doesn't run. */
-        case 0xDD: case 0xFD:
-            (void)fetch(c); c->illegal++; cyc = 8; break;
+        case 0xDD: cyc = do_index(c, &c->ix); break;                      /* DD: IX ops */
+        case 0xFD: cyc = do_index(c, &c->iy); break;                      /* FD: IY ops */
         default:
             c->illegal++; cyc = 4; break;   /* any remaining unimplemented opcode */
     }
