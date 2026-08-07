@@ -1226,6 +1226,20 @@ void kernel_main_arm64(void) {
     holo_init(&holo);
     boot_msg("  [REGISTERED] .36n9 + .9n63 + .36m9 + .9m63 + .zedei + .iedez + .zedec + .cedez + .0n0 + .0m0 + .zedez + .cedec file types");
 
+    /* Phase 17a2: Unified emulator — core #1 of the multi-architecture fleet.
+     * The Game Master QC test runs many non-compatible legacy systems in
+     * parallel and measures their relationships through the M5 event space;
+     * this is the first CPU core (MOS 6502 -> NES, Atari, C64, Apple II, ...). */
+    boot_msg("[BOOT] Unified emulator (MOS 6502 core, first of the multi-arch fleet)...");
+    {
+        extern int emu6502_selfcheck(void);
+        int sc = emu6502_selfcheck();
+        if (sc == 15)
+            boot_msg("  [DRIVER ONLINE] 6502 core self-check OK (sum 1..5 = 15) — Game Master QC ready");
+        else
+            boot_msg("  [WARN] 6502 self-check FAILED");
+    }
+
     /* Phase 17b: Prism Break Holographic Touchscreen Shader —
      * fixed-function framebuffer compositor producing prism/refraction
      * holographic visual effect. 6 compositing layers: base color,

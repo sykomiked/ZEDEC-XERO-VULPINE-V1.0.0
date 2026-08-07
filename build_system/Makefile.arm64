@@ -105,6 +105,8 @@ ARM64_ARCH_OBJS = \
 KERNEL_SRCS = \
     kernel/src/virtio/vring.c \
     kernel/src/virtio/virtio_bus.c \
+    kernel/src/emu/cpu6502.c \
+    kernel/src/emu/emu6502.c \
     kernel/src/mlkem/keccak.c \
     kernel/src/mlkem/mlkem768.c \
     kernel/src/mlkem/mlkem_encode.c \
