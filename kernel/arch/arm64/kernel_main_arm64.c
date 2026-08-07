@@ -1291,6 +1291,21 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] NES self-check did not come up running");
     }
 
+    /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
+     * only if it is geometrically sound: set/Fibonacci chains (vertical +
+     * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
+     * perpendicularity, and >3-valued logic. If it is not structural geometry,
+     * it is not structural. This is the QC bar beyond "no fault". */
+    boot_msg("[BOOT] Structural congruence — geometry/complex-plane/set-theory gate...");
+    {
+        extern int m5_congruence_selfcheck(void);
+        int cm = m5_congruence_selfcheck();
+        if (cm == 15)
+            boot_msg("  [DRIVER ONLINE] CONGRUENT — Fibonacci sets, complex plane, perpendicular axes, >3-valued logic all sound");
+        else
+            boot_msg("  [WARN] structural congruence incomplete — a geometric axiom did not hold");
+    }
+
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
      * makes REAL subsystem state change (the same calls the buttons issue). */
     boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");
