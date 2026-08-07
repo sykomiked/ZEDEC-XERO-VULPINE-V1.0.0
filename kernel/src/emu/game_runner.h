@@ -25,6 +25,12 @@ typedef struct game_run {
     uint32_t best_insn;                      /* instructions on the running core */
     uint16_t best_core;                      /* 6502 or 80 (0 if none)         */
     uint8_t  running;                        /* 1 if a core is genuinely running */
+    /* NES machine result (when the image is iNES) — a REAL running verdict */
+    uint8_t  is_nes;                         /* 1 if the image is an iNES ROM  */
+    uint8_t  nes_running;                    /* 1 if the game came up running  */
+    uint32_t nes_ppu_writes;                 /* PPU register writes            */
+    uint32_t nes_vblank_polls;               /* $2002 reads                    */
+    uint32_t nes_nmis;                       /* vblank NMIs taken              */
 } game_run_t;
 
 /* Read up to 64KB of the raw device, execute it on the 6502 and Z80 cores, and

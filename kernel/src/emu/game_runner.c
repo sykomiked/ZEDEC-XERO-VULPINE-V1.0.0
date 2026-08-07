@@ -20,6 +20,9 @@
 #include "game_runner.h"
 #include "cpu6502.h"
 #include "cpu_z80.h"
+#include "nes.h"
+
+static nes_t g_nes;   /* the NES machine (mapper 0) for iNES images */
 
 static uint8_t g_raw[65536];      /* raw ROM bytes as read from the device   */
 static uint8_t g_mem[65536];      /* per-core address space (rebuilt each run) */
@@ -104,6 +107,21 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
     uint32_t bytes = load_rom(dev);
     out->bytes = bytes;
     if (bytes == 0) return 0;
+    /* If this is an iNES image, run it on the real NES machine (mapper 0) — that
+     * gives a genuine "is the game running" verdict (PPU configured + vblank/NMI
+     * driven), not the bare-CPU probe that can't tell code from data. */
+    if (nes_is_ines(g_raw, bytes) && nes_load_ines(&g_nes, g_raw, bytes)){
+        nes_run(&g_nes, 300000u, 2000u);
+        out->is_nes = 1;
+        out->nes_running    = (uint8_t)nes_is_running(&g_nes);
+        out->nes_ppu_writes = g_nes.ppu_reg_writes;
+        out->nes_vblank_polls = g_nes.ppu_status_reads;
+        out->nes_nmis       = g_nes.nmis_taken;
+        out->running        = out->nes_running;
+        out->best_core      = 6502;
+        out->best_insn      = g_nes.insn;
+        return out->running;
+    }
     run_6502(bytes, &out->insn_6502, &out->ill_6502, &out->pc_6502, &out->jam_6502);
     run_z80 (bytes, &out->insn_z80,  &out->ill_z80,  &out->pc_z80,  &out->jam_z80);
     out->permille_6502 = out->insn_6502 ? (uint16_t)((uint64_t)out->ill_6502 * 1000u / out->insn_6502) : 1000;

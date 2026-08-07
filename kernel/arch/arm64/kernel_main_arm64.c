@@ -1278,6 +1278,19 @@ void kernel_main_arm64(void) {
             boot_msg("  [NOTE] cores did not concord this run — logged as a GLUT/gap for the Game Master");
     }
 
+    /* Phase 17a5: NES machine (mapper 0) — the first faithful per-console
+     * emulator. A built-in minimal NES program proves the machine runs a real
+     * NES init pattern (stack, PPU config, vblank poll, NMI) ON TARGET, so an
+     * attached .nes ROM gets a genuine "is it running" verdict, not a probe. */
+    boot_msg("[BOOT] NES machine (mapper 0) — first faithful per-console emulator...");
+    {
+        extern int nes_selfcheck(void);
+        if (nes_selfcheck())
+            boot_msg("  [DRIVER ONLINE] NES self-check OK — synthetic game reached its vblank loop");
+        else
+            boot_msg("  [WARN] NES self-check did not come up running");
+    }
+
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
      * makes REAL subsystem state change (the same calls the buttons issue). */
     boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");
@@ -1444,12 +1457,22 @@ void kernel_main_arm64(void) {
          * but it does NOT verify gameplay — a faithful "is it playing" check
          * needs a per-console machine (memory map, entry, I/O regs, timing).
          * A bare CPU wanders through data too, so no RUNNING verdict is claimed. */
-        uart_puts("[EMU-PROBE] rom_bytes="); uart_put_dec(gr.bytes);
-        uart_puts(" | 6502 instr="); uart_put_dec(gr.insn_6502);
-        uart_puts(" illegal_permille="); uart_put_dec(gr.permille_6502);
-        uart_puts(" | z80 instr="); uart_put_dec(gr.insn_z80);
-        uart_puts(" illegal_permille="); uart_put_dec(gr.permille_z80); uart_puts("\n");
-        uart_puts("[EMU-PROBE] cpu-execution probe only (not gameplay) — per-console machine is the next build\n");
+        if (gr.is_nes) {
+            /* Real NES machine (mapper 0): a genuine running verdict. */
+            uart_puts("[NES] ");
+            uart_puts(gr.nes_running ? "RUNNING on ZEDEC" : "did not come up");
+            uart_puts(" — ppu_writes="); uart_put_dec(gr.nes_ppu_writes);
+            uart_puts(" vblank_polls="); uart_put_dec(gr.nes_vblank_polls);
+            uart_puts(" nmis="); uart_put_dec(gr.nes_nmis); uart_puts("\n");
+        } else {
+            /* Non-iNES: bare CPU-execution probe (facts only, no gameplay verdict). */
+            uart_puts("[EMU-PROBE] rom_bytes="); uart_put_dec(gr.bytes);
+            uart_puts(" | 6502 instr="); uart_put_dec(gr.insn_6502);
+            uart_puts(" illegal_permille="); uart_put_dec(gr.permille_6502);
+            uart_puts(" | z80 instr="); uart_put_dec(gr.insn_z80);
+            uart_puts(" illegal_permille="); uart_put_dec(gr.permille_z80); uart_puts("\n");
+            uart_puts("[EMU-PROBE] cpu-execution probe only (not gameplay) — per-console machine per arch is the next build\n");
+        }
     }
 
     /* Phase 17c-pq: POST-QUANTUM self-check, ON TARGET.
