@@ -98,6 +98,7 @@ ARM64_ARCH_OBJS = \
     kernel/arch/arm64/virtio_blk.o \
     kernel/arch/arm64/virtio_net.o \
     kernel/arch/arm64/virtio_input.o \
+    kernel/arch/arm64/virtio_snd.o \
     kernel/arch/arm64/entropy.o
 
 # Shared kernel source objects (platform-independent)

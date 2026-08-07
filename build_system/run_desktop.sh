@@ -37,12 +37,24 @@ case "$(uname -s)" in
   *)      DISPLAY_ARG="" ;;
 esac
 
+# pick an audio backend so the boot chime (virtio-snd) is audible (NO_AUDIO=1 to mute)
+AUDIO_ARG=""
+if [ "${NO_AUDIO:-0}" != "1" ]; then
+  case "$(uname -s)" in
+    Darwin) AUDIO_ARG="-audiodev coreaudio,id=snd0 -device virtio-sound-device,audiodev=snd0" ;;
+    Linux)  if "$QEMU" -audiodev help 2>/dev/null | grep -q pipewire; then AB=pipewire;
+            elif "$QEMU" -audiodev help 2>/dev/null | grep -q pa; then AB=pa; else AB=sdl; fi
+            AUDIO_ARG="-audiodev ${AB},id=snd0 -device virtio-sound-device,audiodev=snd0" ;;
+  esac
+fi
+
 echo "==> booting the ZEDEC pqOS desktop"
 echo "    (a window opens with the desktop; move the mouse, click a dock app, type in the terminal)"
-echo "    serial log + monitor are on this terminal; close the window or Ctrl-C to quit."
+echo "    a boot chime plays through virtio-snd; serial log + monitor are on this terminal."
 exec "$QEMU" -M virt,gic-version=3 -cpu cortex-a53 -m "${MEM}" \
   -global virtio-mmio.force-legacy=false \
   -device ramfb \
   -device virtio-tablet-device -device virtio-keyboard-device \
+  $AUDIO_ARG \
   $DISPLAY_ARG -serial mon:stdio \
   -kernel "$KERNEL"

@@ -100,6 +100,9 @@ extern void     virtio_input_set_bounds(int32_t w, int32_t h);
 extern uint32_t virtio_input_device_count(void);
 extern int32_t  virtio_input_pop_key(void);
 extern uint32_t virtio_input_pop_clicks(void);
+/* virtio-snd driver (arch/arm64/virtio_snd.c) — native audio output */
+extern bool     virtio_snd_init(void);
+extern void     virtio_snd_chime(void);
 #include "../src/net/jdr_piratenet.h"
 
 /* KERNEL_SIM_DEVICES gates subsystems that model devices/claims with no
@@ -1231,6 +1234,15 @@ void kernel_main_arm64(void) {
                 boot_msg("  [DRIVER ONLINE] virtio-input — pointer + keyboard live");
             } else {
                 boot_msg("  [SKIP] no virtio-input (add -device virtio-tablet-device)");
+            }
+            /* virtio-snd: native audio over the same virtio-mmio transport. Plays
+             * a boot chime if a sound device is present (add -audiodev ... plus
+             * -device virtio-sound-device,audiodev=...). Absent => graceful skip. */
+            if (virtio_snd_init()) {
+                virtio_snd_chime();
+                boot_msg("  [DRIVER ONLINE] virtio-snd — audio output live");
+            } else {
+                boot_msg("  [SKIP] no virtio-snd (add -device virtio-sound-device)");
             }
         } else if (rc == -2) {
             boot_msg("  [SKIP] no ramfb device (launch QEMU with -device ramfb)");
