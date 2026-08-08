@@ -31,6 +31,7 @@ ab_result_t ab_init(zxvfs_t *fs, ab_state_t *st) {
     st->probation_slot = AB_SLOT_NONE;
     st->version[0] = 1;
     st->version[1] = 0;
+    st->rollback_floor = 0;
     return save_state(fs, st);
 }
 
@@ -40,17 +41,38 @@ ab_result_t ab_stage_update(zxvfs_t *fs, ab_state_t *st,
     if (!fs || !st || !zsp) return AB_ERR_STATE;
 
     /* Verify BEFORE touching any slot — a bad update must not perturb
-     * the running system at all. */
+     * the running system at all. A ZSP v2 package is verified with the
+     * monotonic anti-rollback FLOOR enforced (P0-6): a validly-signed but
+     * OLD package (version < floor) is rejected here, so it can never be
+     * re-staged to look "newer" via the old active+1 counter. Its
+     * authenticated version becomes the slot's version. A legacy v1 package
+     * keeps the old active+1 counter (no anti-rollback — production signs v2). */
     const uint8_t *payload; uint32_t plen;
-    if (zsp_verify(zsp, len, root_pubkey, &payload, &plen) != ZSP_OK)
-        return AB_ERR_VERIFY;
+    uint32_t new_version;
+    if (len >= 4 && zsp[0] == ZSP_MAGIC0 && zsp[1] == ZSP_MAGIC1 &&
+        zsp[2] == ZSP_MAGIC2 && zsp[3] == ZSP2_MAGIC3) {
+        zsp_meta_t meta;
+        zsp_result_t r = zsp_verify2(zsp, len, root_pubkey, st->rollback_floor,
+                                     ZSP_ARCH_ANY, &meta, &payload, &plen);
+        if (r == ZSP_ERR_ROLLBACK) return AB_ERR_ROLLBACK;
+        if (r != ZSP_OK)           return AB_ERR_VERIFY;
+        new_version = meta.version;
+    } else {
+        if (zsp_verify(zsp, len, root_pubkey, &payload, &plen) != ZSP_OK)
+            return AB_ERR_VERIFY;
+        new_version = st->version[st->active_slot] + 1;
+    }
 
     uint8_t target = st->active_slot ? 0 : 1;   /* the inactive slot */
+    /* Durability ordering (P0-3): the payload is written to the INACTIVE slot
+     * (never the live one) and its journaled write commits BEFORE the state
+     * record is updated to point probation at it. A crash between the two leaves
+     * state still referencing only the known-good active slot. */
     if (zxvfs_write(fs, SLOT_FILE[target], zsp, len) != 0)
         return AB_ERR_IO;
 
     st->probation_slot = target;
-    st->version[target] = st->version[st->active_slot] + 1;
+    st->version[target] = new_version;
     st->probation_remaining = AB_DEFAULT_PROBATION;
     return save_state(fs, st);
 }
@@ -83,6 +105,10 @@ ab_result_t ab_confirm(zxvfs_t *fs, ab_state_t *st) {
     st->probation_slot = AB_SLOT_NONE;
     st->probation_remaining = 0;
     st->promotions++;
+    /* P0-6: once a version is confirmed good, raise the monotonic floor to it so
+     * no older (even validly-signed) package can ever be staged again. */
+    if (st->version[st->active_slot] > st->rollback_floor)
+        st->rollback_floor = st->version[st->active_slot];
     return save_state(fs, st);
 }
 

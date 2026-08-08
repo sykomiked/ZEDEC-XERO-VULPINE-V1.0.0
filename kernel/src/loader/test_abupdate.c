@@ -20,6 +20,8 @@
 #include "abupdate.h"
 #include "zsp.h"
 #include "hello_signed.h"
+#include "abv2_fixtures_hi.h"   /* ZSP v2, version=10, arch=arm64 */
+#include "abv2_fixtures_lo.h"   /* ZSP v2, version=5,  arch=arm64 */
 
 #define DISK_SECTORS ZXVFS_TOTAL_SECTORS
 static uint8_t g_disk[DISK_SECTORS][BLOCKDEV_SECTOR_SIZE];
@@ -91,6 +93,26 @@ int main(void) {
     CHECK(ab_init(&fs2,&st2)==AB_OK && st2.active_slot==good_active
           && st2.promotions==1 && st2.rollbacks==1,
           "A/B state survived reboot, consistent");
+
+    /* ---- P0-6 anti-rollback in the A/B flow (uses the remounted fs2/st2) ---- */
+    /* Stage + confirm a v2 package at version 10; the floor rises to 10. */
+    CHECK(ab_stage_update(&fs2,&st2,abv2hi_zsp,abv2hi_zsp_len,abv2hi_root_pubkey)==AB_OK,
+          "stage v2 version=10");
+    { uint8_t s = st2.probation_slot; CHECK(st2.version[s]==10, "authenticated version 10 recorded"); }
+    CHECK(ab_confirm(&fs2,&st2)==AB_OK && st2.rollback_floor==10,
+          "confirm v10 raises the anti-rollback floor to 10");
+    /* A validly-signed OLD package (version 5) is now refused. */
+    CHECK(ab_stage_update(&fs2,&st2,abv2lo_zsp,abv2lo_zsp_len,abv2lo_root_pubkey)==AB_ERR_ROLLBACK,
+          "v2 version=5 below floor 10 is REJECTED (anti-rollback)");
+    CHECK(st2.probation_slot==AB_SLOT_NONE, "rejected rollback left probation clear");
+    /* Re-staging at the floor (version 10) is still allowed. */
+    CHECK(ab_stage_update(&fs2,&st2,abv2hi_zsp,abv2hi_zsp_len,abv2hi_root_pubkey)==AB_OK,
+          "v2 version=10 at the floor is accepted");
+    /* the floor persists across another reboot */
+    { zxvfs_t fs3; ab_state_t st3;
+      CHECK(zxvfs_mount(&fs3,&dev)==0, "remount again");
+      CHECK(ab_init(&fs3,&st3)==AB_OK && st3.rollback_floor==10,
+            "anti-rollback floor survived reboot"); }
 
     printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
     return failures?1:0;

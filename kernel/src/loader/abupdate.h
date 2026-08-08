@@ -32,7 +32,7 @@
 #include <stdbool.h>
 #include "../zxvfs/zxvfs.h"
 
-#define AB_STATE_MAGIC   0x41425544u   /* 'ABUD' */
+#define AB_STATE_MAGIC   0x41425545u   /* 'ABUE' — state format v2 (adds rollback_floor) */
 #define AB_SLOT_NONE     0xFF
 #define AB_DEFAULT_PROBATION 1         /* runs to survive before auto-confirm option */
 
@@ -41,10 +41,12 @@ typedef struct {
     uint8_t  active_slot;     /* 0=A, 1=B — the known-good slot in use */
     uint8_t  probation_slot;  /* 0/1 on probation, or AB_SLOT_NONE */
     uint8_t  _pad0[2];
-    uint32_t version[2];      /* version counter per slot */
+    uint32_t version[2];      /* authenticated version per slot (from the ZSP header) */
     uint32_t probation_remaining; /* ab_boot_tick decrements; 0 => rollback */
     uint32_t rollbacks;       /* stats: auto-rollbacks performed */
     uint32_t promotions;      /* stats: confirmed promotions */
+    uint32_t rollback_floor;  /* monotonic anti-rollback floor (P0-6): no v2 package
+                               * below this version may ever be staged again */
 } ab_state_t;
 
 typedef enum {
@@ -53,6 +55,7 @@ typedef enum {
     AB_ERR_VERIFY   = -2,   /* new package failed signature/hash — rejected */
     AB_ERR_NONE     = -3,   /* nothing on probation to confirm/rollback */
     AB_ERR_STATE    = -4,
+    AB_ERR_ROLLBACK = -5,   /* v2 package version below the anti-rollback floor */
 } ab_result_t;
 
 /* Load A/B state from ZXVFS, or initialize it (slot A active) if absent. */
