@@ -99,6 +99,13 @@ Run the Game Master over the corpus; for each game capture its mechanics vector
 of DISTINCT mechanic-universes across all runnable games (Chiglet's k_distinct).
 
 **Phase B — Chiglet MVP training.**
+Synthesis foundation built (`emu/megarom_synth.{c,h}`): the MegaROM's MECHANICS
+come from ALL runnable games (deduped to the distinct best via Chiglet's ISF)
+and its STORIES from the story-capable NES/SNES-era+ subset (`gu_story_capable`:
+substantial content + structured display/interrupt flow) — classics are
+mechanics-only. Boot: "synthesis: N distinct mechanics + M story contributor(s),
+presented beyond-PS6". Presentation is decoupled from source generation and
+rendered through `holo_shade` (beyond-PS6 holographic graphics). NEXT: 
 Label the distinct mechanic-universes (genre/mechanic class), build Chiglet
 prototypes, and train toward a DECIDED classifier over game universes. Extend to
 character-relationship datasets for story-era games (harder; needs game-content

@@ -1362,6 +1362,26 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a10: MEGAROM SYNTHESIS — the MegaROM's mechanics AND stories come
+     * from the whole 144k+ corpus (mechanics from all games, deduped to the
+     * distinct best; stories from the story-capable NES/SNES-era+ subset), but
+     * it is presented far beyond those generations: beyond-PS6 holographic
+     * graphics via holo_shade — content decoupled from source generation. */
+    boot_msg("[BOOT] MegaROM synthesis — corpus mechanics + stories, beyond-PS6 render...");
+    {
+        extern int megarom_synth_selfcheck(uint32_t *d, uint32_t *s);
+        uint32_t d = 0, s = 0;
+        if (megarom_synth_selfcheck(&d, &s)) {
+            uart_puts("[E....]   [DRIVER ONLINE] synthesis: ");
+            uart_put_dec(d);
+            uart_puts(" distinct mechanics + ");
+            uart_put_dec(s);
+            uart_puts(" story contributor(s), presented beyond-PS6\n");
+        } else {
+            boot_msg("  [WARN] MegaROM synthesis did not verify");
+        }
+    }
+
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
      * makes REAL subsystem state change (the same calls the buttons issue). */
     boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");
