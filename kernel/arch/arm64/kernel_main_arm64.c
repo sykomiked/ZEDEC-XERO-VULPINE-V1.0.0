@@ -1499,6 +1499,24 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a5o: Dimensional Fold — the flatten/unflatten mechanic generalized
+     * beyond graphics. The SAME two-way keyed map (identity/hash + prime lock +
+     * Fibonacci recovery + phi alignment) becomes lossless COMPRESSION (fold data
+     * to a coarse identity + sparse nested shells), symmetric ENCRYPTION (SHA-256d
+     * keystream seal/open), and a reversible nested transform — all round-trip. */
+    boot_msg("[BOOT] Dimensional Fold — compression + encryption + identity from the same fold mechanic...");
+    {
+        extern int dimfold_selfcheck(uint32_t *ratio_permille_out);
+        uint32_t ratio = 0;
+        if (dimfold_selfcheck(&ratio)){
+            uart_puts("[E....]   [DRIVER ONLINE] fold/unfold, compress/expand, seal/open all lossless; self-similar data -> ");
+            uart_put_dec(ratio);
+            uart_puts(" permille (compressed); prime=SHA256d lock, Fibonacci=recovery, phi=alignment\n");
+        } else {
+            boot_msg("  [WARN] Dimensional Fold did not round-trip");
+        }
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
