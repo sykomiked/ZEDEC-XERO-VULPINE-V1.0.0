@@ -3,13 +3,57 @@
 /* snes.c — LoROM SNES machine around the 65816. See snes.h. */
 #include "snes.h"
 
-/* LoROM: banks $00-$7D and $80-$FF, offset $8000-$FFFF hold 32KB ROM pages;
- * WRAM at $7E-$7F; low RAM ($0000-$1FFF) mirrored in banks $00-$3F/$80-$BF;
- * the register file at $2100-$21FF and $4200-$44FF. */
-static uint32_t lorom_off(uint32_t addr){
-    uint8_t bank = (addr >> 16) & 0xFF;
-    uint16_t off = addr & 0xFFFF;
-    return (uint32_t)((bank & 0x7F) << 15) | (off & 0x7FFF);
+/* Two mappings share the same WRAM ($7E-$7F), the low-RAM mirror ($0000-$1FFF in
+ * banks $00-$3F/$80-$BF), and the register file ($2100-$21FF, $4200-$44FF). They
+ * differ only in how ROM is placed:
+ *   LoROM: banks $00-$7D/$80-$FF, offset $8000-$FFFF hold 32KB ROM pages
+ *          -> ROM offset = ((bank & 0x7F) << 15) | (off & 0x7FFF).
+ *   HiROM: banks $C0-$FF (and $40-$7D) map the FULL 64KB linearly; the system
+ *          banks' $8000-$FFFF window is the upper half of the same 64KB bank
+ *          -> ROM offset = ((bank & 0x3F) << 16) | off. Header + vectors live at
+ *          $FFC0/$FFFC (ROM offset 0xFFC0/0xFFFC), not $7FC0/$7FFC.
+ * Returns 1 and sets *ro if the address is ROM, else 0. */
+static int rom_offset(const snes_t *s, uint8_t bank, uint16_t off, uint32_t *ro){
+    if (s->hirom){
+        if (bank >= 0xC0){ *ro = ((uint32_t)(bank - 0xC0) << 16) | off; return 1; }
+        if (bank >= 0x40 && bank <= 0x7D){ *ro = ((uint32_t)(bank - 0x40) << 16) | off; return 1; }
+        if (off >= 0x8000){ *ro = ((uint32_t)(bank & 0x3F) << 16) | off; return 1; }
+        return 0;
+    }
+    if (off >= 0x8000 || bank >= 0xC0){ *ro = ((uint32_t)(bank & 0x7F) << 15) | (off & 0x7FFF); return 1; }
+    return 0;
+}
+
+/* Minimal general-purpose DMA. Writing $420B (MDMAEN) kicks the enabled channels.
+ * Each channel transfers DAS bytes from the A-bus (24-bit source) to the B-bus
+ * register ($2100 + BBAD), stepping the source per the mode/increment bits and
+ * cycling the B-bus register through the transfer-mode pattern. HDMA + timing are
+ * out of scope; this is enough to run WRAM clears and VRAM uploads so games get
+ * past init. Bounded by a guard so a bad descriptor cannot hang the run. */
+static void snes_run_dma(snes_t *s, uint8_t enable){
+    static const uint8_t pat[8][4]    = {{0,0,0,0},{0,1,0,1},{0,0,0,0},{0,0,1,1},
+                                         {0,1,2,3},{0,1,0,1},{0,0,0,0},{0,0,1,1}};
+    static const uint8_t patlen[8]    = {1,2,1,2,4,2,1,2};
+    for (int ch = 0; ch < 8; ch++){
+        if (!(enable & (1u << ch))) continue;
+        uint8_t *d = &s->dma[ch * 0x10];
+        uint8_t  dmap = d[0], bbad = d[1];
+        uint32_t a1 = (uint32_t)d[2] | ((uint32_t)d[3] << 8) | ((uint32_t)d[4] << 16);
+        uint32_t das = (uint32_t)d[5] | ((uint32_t)d[6] << 8); if (das == 0) das = 0x10000;
+        int inc  = (dmap & 0x08) ? 0 : ((dmap & 0x10) ? -1 : 1);   /* fixed / dec / inc */
+        int mode = dmap & 0x07;
+        uint32_t guard = 0; int pi = 0;
+        while (das > 0 && guard < 0x20000){
+            uint8_t v = s->cpu.read(&s->cpu, a1 & 0xFFFFFF);
+            uint16_t target = 0x2100 | ((bbad + pat[mode][pi]) & 0xFF);
+            s->cpu.write(&s->cpu, (uint32_t)target, v);          /* B-bus -> $21xx */
+            a1 = (a1 & 0xFF0000) | ((a1 + inc) & 0xFFFF);
+            pi = (pi + 1) % patlen[mode];
+            das--; guard++;
+        }
+        d[2] = a1 & 0xFF; d[3] = (a1 >> 8) & 0xFF; d[5] = 0; d[6] = 0;  /* write-back */
+        s->dma_runs++;
+    }
 }
 
 static uint8_t snes_read(cpu65816_t *c, uint32_t addr){
@@ -21,18 +65,17 @@ static uint8_t snes_read(cpu65816_t *c, uint32_t addr){
         return s->wram[((bank - 0x7E) << 16) | off];
 
     int sys = (bank <= 0x3F) || (bank >= 0x80 && bank <= 0xBF);
-    if (sys){
+    if (sys && off < 0x8000){
         if (off < 0x2000) return s->wram[off];                 /* low RAM mirror  */
         if (off >= 0x2140 && off <= 0x2143){ s->apu_reads++; return s->apu[off - 0x2140]; } /* APU stub */
         if (off >= 0x2100 && off <= 0x21FF) return 0;          /* other PPU regs  */
         if (off == 0x4210){ uint8_t v = (s->vblank ? 0x80 : 0) | 0x02; s->vblank = 0; return v; } /* RDNMI */
         if (off == 0x4212) return s->vblank ? 0x80 : 0;        /* HVBJOY vblank   */
         if (off >= 0x4200 && off <= 0x44FF) return 0;          /* CPU/DMA regs    */
+        return 0;
     }
-    if (off >= 0x8000 || bank >= 0xC0){                        /* ROM             */
-        uint32_t o = lorom_off(addr);
-        return s->rom_size ? s->rom[o % s->rom_size] : 0;
-    }
+    uint32_t o;
+    if (rom_offset(s, bank, off, &o)) return s->rom_size ? s->rom[o % s->rom_size] : 0;
     return 0;
 }
 
@@ -44,43 +87,64 @@ static void snes_write(cpu65816_t *c, uint32_t addr, uint8_t val){
     if (bank == 0x7E || bank == 0x7F){ s->wram[((bank - 0x7E) << 16) | off] = val; return; }
 
     int sys = (bank <= 0x3F) || (bank >= 0x80 && bank <= 0xBF);
-    if (sys){
+    if (sys && off < 0x8000){
         if (off < 0x2000){ s->wram[off] = val; return; }       /* low RAM mirror  */
         if (off >= 0x2100 && off <= 0x213F){                   /* PPU registers   */
             s->ppu_writes++;
             if (off == 0x2100) s->inidisp = val;
             return;
         }
+        if (off >= 0x2140 && off <= 0x2143){ s->apu[off - 0x2140] = val; return; } /* APU echo */
+        if (off >= 0x2144 && off <= 0x21FF) return;            /* other APU ports */
         if (off >= 0x4200 && off <= 0x421F){                   /* CPU registers   */
             s->cpu_reg_writes++;
             if (off == 0x4200){ s->nmitimen = val; s->nmi_enabled = (val >> 7) & 1; }
+            if (off == 0x420B){ snes_run_dma(s, val); }        /* MDMAEN: kick DMA */
             return;
         }
-        if (off >= 0x2140 && off <= 0x2143){ s->apu[off - 0x2140] = val; return; } /* APU echo */
-        if (off >= 0x2144 && off <= 0x21FF) return;            /* other APU ports */
-        if (off >= 0x4300 && off <= 0x44FF) return;            /* DMA registers   */
+        if (off >= 0x4300 && off <= 0x437F){ s->dma[off - 0x4300] = val; return; } /* DMA chan */
+        if (off >= 0x4380 && off <= 0x44FF) return;            /* other regs      */
+        return;
     }
-    /* writes to ROM space are ignored */
+    /* writes to ROM space (and HiROM full banks) are ignored */
 }
 
-int snes_is_lorom(const uint8_t *img, uint32_t len){
+/* A header (at $7FC0 for LoROM, $FFC0 for HiROM) is good if its checksum and
+ * complement (offset +$1C / +$1E) XOR to $FFFF. */
+static int hdr_good(const uint8_t *h, uint32_t hbase){
+    uint16_t comp  = h[hbase + 0x1C] | (h[hbase + 0x1D] << 8);
+    uint16_t chk   = h[hbase + 0x1E] | (h[hbase + 0x1F] << 8);
+    return ((uint16_t)(comp ^ chk) == 0xFFFF) && ((comp | chk) != 0);
+}
+
+int snes_detect(const uint8_t *img, uint32_t len){
     if (!img || len < 0x8000) return 0;
     uint32_t base = (len % 0x8000 == 512) ? 512 : 0;           /* copier header   */
     if (len - base < 0x8000) return 0;
-    /* LoROM header sits at $7FC0; the checksum + complement at $7FDC..$7FDF sum
-     * to $FFFF on a good ROM. Also the reset vector ($7FFC) should point high. */
     const uint8_t *h = img + base;
-    uint16_t comp = h[0x7FDC] | (h[0x7FDD] << 8);
-    uint16_t chk  = h[0x7FDE] | (h[0x7FDF] << 8);
-    uint16_t reset = h[0x7FFC] | (h[0x7FFD] << 8);
-    if ((uint16_t)(comp ^ chk) == 0xFFFF && (comp | chk) != 0) return 1;
-    if (reset >= 0x8000) return 1;                             /* fallback signal */
+    int lo = hdr_good(h, 0x7FC0);
+    int hi = (len - base >= 0x10000) ? hdr_good(h, 0xFFC0) : 0;
+    if (lo && !hi) return 1;
+    if (hi && !lo) return 2;
+    if (lo && hi)  return (h[0x7FD5] & 1) ? 2 : 1;             /* mode byte breaks tie */
+    /* No valid checksum: use the map-mode byte + a plausible reset vector. */
+    if (len - base >= 0x10000){
+        uint16_t rhi = h[0xFFFC] | (h[0xFFFD] << 8);
+        if ((h[0xFFD5] & 1) && rhi >= 0x8000) return 2;
+    }
+    uint16_t rlo = h[0x7FFC] | (h[0x7FFD] << 8);
+    if (rlo >= 0x8000) return 1;
     return 0;
 }
 
+int snes_is_lorom(const uint8_t *img, uint32_t len){ return snes_detect(img, len) == 1; }
+int snes_is_snes (const uint8_t *img, uint32_t len){ return snes_detect(img, len) != 0; }
+
 int snes_load(snes_t *s, const uint8_t *img, uint32_t len){
     if (!img || len < 0x8000) return 0;
+    int mapper = snes_detect(img, len);
     for (unsigned i = 0; i < sizeof *s; i++) ((uint8_t*)s)[i] = 0;
+    s->hirom = (mapper == 2) ? 1 : 0;
     uint32_t base = (len % 0x8000 == 512) ? 512 : 0;
     uint32_t n = len - base;
     if (n > SNES_ROM_CAP) n = SNES_ROM_CAP;

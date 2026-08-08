@@ -22,7 +22,7 @@
 #include <stdint.h>
 #include "cpu65816.h"
 
-#define SNES_ROM_CAP  0x80000   /* 512KB window — bank-0 init always fits       */
+#define SNES_ROM_CAP  0x400000  /* 4MB — holds a full HiROM game (CT/FF6 are 4MB) */
 #define SNES_WRAM     0x20000   /* 128KB $7E0000-$7FFFFF                          */
 
 typedef struct snes {
@@ -30,6 +30,7 @@ typedef struct snes {
     uint8_t    wram[SNES_WRAM];
     uint8_t    rom[SNES_ROM_CAP];
     uint32_t   rom_size;          /* actual bytes copied (<= cap)                 */
+    uint8_t    hirom;             /* 0 = LoROM mapping, 1 = HiROM mapping          */
     /* CPU-visible register shadow + behavioural observation */
     uint8_t    inidisp;           /* last $2100                                   */
     uint8_t    nmitimen;          /* last $4200                                   */
@@ -47,10 +48,23 @@ typedef struct snes {
     uint8_t    apu[4];            /* $2140-$2143 latches ($AA/$BB ready at reset)  */
     uint32_t   apu_reads;         /* diagnostics: reads of the APU ports          */
     uint8_t    settled;           /* CPU ended in a tight loop (not wandering)    */
+    /* Minimal general-purpose DMA ($4300-$437F shadow, triggered by $420B). Real
+     * games — HiROM RPGs especially — clear WRAM and upload to VRAM/PPU through
+     * DMA, so without it they stall in init. We execute the byte transfer to the
+     * B-bus register ($2100+); HDMA and timing are not modelled. */
+    uint8_t    dma[0x80];         /* $4300-$437F channel registers                */
+    uint32_t   dma_runs;          /* diagnostics: DMA transfers executed          */
 } snes_t;
 
-/* Heuristic: does this image look like a LoROM SNES ROM? (copier header aware) */
+/* Detect the mapper from the header/checksum: 0 = not SNES, 1 = LoROM, 2 = HiROM
+ * (copier-header aware; compares the $7FC0 vs $FFC0 headers). */
+int  snes_detect(const uint8_t *img, uint32_t len);
+
+/* Convenience: 1 if the image looks like a LoROM SNES ROM (== snes_detect==1). */
 int  snes_is_lorom(const uint8_t *img, uint32_t len);
+
+/* 1 if the image looks like any SNES ROM (LoROM or HiROM). */
+int  snes_is_snes(const uint8_t *img, uint32_t len);
 
 /* Load a ROM image (strips a 512-byte copier header if present). Returns 1 ok. */
 int  snes_load(snes_t *s, const uint8_t *img, uint32_t len);

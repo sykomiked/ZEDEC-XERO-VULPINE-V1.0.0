@@ -24,7 +24,8 @@
 #include "snes.h"
 
 static nes_t  g_nes;   /* the NES machine (mapper 0) for iNES images  */
-static snes_t g_snes;  /* the SNES machine (LoROM) for .sfc/.smc      */
+static snes_t g_snes;  /* the SNES machine (LoROM/HiROM) for .sfc/.smc */
+static uint8_t g_snes_img[SNES_ROM_CAP];  /* full-ROM buffer (HiROM games jump to high banks) */
 
 static uint8_t g_raw[65536];      /* raw ROM bytes as read from the device   */
 static uint8_t g_mem[65536];      /* per-core address space (rebuilt each run) */
@@ -46,6 +47,20 @@ static uint32_t load_rom(block_device_t *dev){
     for (uint32_t s = 0; s < secs; s++){
         if (dev->read_sector(dev, s, sec) != 0) break;
         for (int i = 0; i < 512 && got < 65536; i++) g_raw[got++] = sec[i];
+    }
+    return got;
+}
+
+/* Read the WHOLE device (capped) into dst. SNES HiROM games jump straight to
+ * high banks, so the 64KB probe read is not enough — they need the full ROM. */
+static uint32_t load_rom_full(block_device_t *dev, uint8_t *dst, uint32_t cap){
+    if (!dev || !dev->read_sector) return 0;
+    uint32_t maxsec = cap / 512;
+    uint32_t secs = dev->total_sectors; if (secs > maxsec) secs = maxsec;
+    uint32_t got = 0; uint8_t sec[512];
+    for (uint32_t s = 0; s < secs; s++){
+        if (dev->read_sector(dev, s, sec) != 0) break;
+        for (int i = 0; i < 512 && got < cap; i++) dst[got++] = sec[i];
     }
     return got;
 }
@@ -125,20 +140,25 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
         out->best_insn      = g_nes.insn;
         return out->running;
     }
-    /* If it looks like a LoROM SNES image, run it on the 65816 machine. The
-     * behavioural verdict (native mode + PPU configured + NMI taken) is the real
-     * signal; a mis-routed non-SNES image simply reports running=0. */
-    if (snes_is_lorom(g_raw, bytes) && snes_load(&g_snes, g_raw, bytes)){
-        snes_run(&g_snes, 300000u, 1500u);
-        out->is_snes             = 1;
-        out->snes_running        = (uint8_t)snes_is_running(&g_snes);
-        out->snes_ppu_writes     = g_snes.ppu_writes;
-        out->snes_cpu_reg_writes = g_snes.cpu_reg_writes;
-        out->snes_nmis           = g_snes.nmis_taken;
-        out->running             = out->snes_running;
-        out->best_core           = 816;
-        out->best_insn           = g_snes.insn;
-        return out->running;
+    /* If it looks like an SNES image (LoROM or HiROM), run it on the 65816
+     * machine. The behavioural verdict (native mode + settled + NMI loop / APU
+     * handshake) is the real signal; a mis-routed image simply reports running=0. */
+    if (snes_is_snes(g_raw, bytes)){
+        /* Re-read the FULL ROM (up to 4MB) so HiROM games that jump to high banks
+         * execute real code, not a wrapped truncation. */
+        uint32_t full = load_rom_full(dev, g_snes_img, SNES_ROM_CAP);
+        if (full >= 0x8000 && snes_load(&g_snes, g_snes_img, full)){
+            snes_run(&g_snes, 300000u, 1500u);
+            out->is_snes             = 1;
+            out->snes_running        = (uint8_t)snes_is_running(&g_snes);
+            out->snes_ppu_writes     = g_snes.ppu_writes;
+            out->snes_cpu_reg_writes = g_snes.cpu_reg_writes;
+            out->snes_nmis           = g_snes.nmis_taken;
+            out->running             = out->snes_running;
+            out->best_core           = 816;
+            out->best_insn           = g_snes.insn;
+            return out->running;
+        }
     }
     run_6502(bytes, &out->insn_6502, &out->ill_6502, &out->pc_6502, &out->jam_6502);
     run_z80 (bytes, &out->insn_z80,  &out->ill_z80,  &out->pc_z80,  &out->jam_z80);
