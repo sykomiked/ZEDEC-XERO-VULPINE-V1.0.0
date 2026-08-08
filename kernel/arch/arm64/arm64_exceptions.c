@@ -125,7 +125,6 @@ static const char *ec_name(uint32_t ec) {
  * report it and halt with interrupts masked (the default PSTATE on
  * synchronous-exception entry) rather than silently spin. */
 void exception_handler(void *frame, uint64_t type, uint64_t esr) {
-    (void)frame;
     (void)type;
     uint32_t ec = (uint32_t)((esr >> 26) & 0x3F);
     uint64_t iss = esr & 0x1FFFFFFULL;
@@ -167,6 +166,20 @@ void exception_handler(void *frame, uint64_t type, uint64_t esr) {
     uart_put_hex(mair);
     uart_puts("  SCTLR_EL1=0x");
     uart_put_hex(sctlr);
+    /* Dump the saved GP register frame (SAVE_REGS stored x0-x30). This turns a
+     * rare, non-reproducible wild-address fault into ground truth: it names
+     * exactly which register holds the poison value (e.g. the kernel_main
+     * +0x24d0 scan-loop fault whose FAR=0x7A0... implies an index/base register
+     * of ~0xCCCCCCCC). x0 = w0 in a 32-bit op, etc. */
+    if (frame) {
+        uint64_t *r = (uint64_t *)frame;
+        for (int i = 0; i < 31; i++) {
+            uart_puts((i % 4 == 0) ? "\n  x" : " x");
+            uart_put_dec((uint64_t)i);
+            uart_puts("=0x");
+            uart_put_hex(r[i]);
+        }
+    }
     uart_puts("\n[FAULT] Halting.\n");
 
     while (1) {
