@@ -44,7 +44,7 @@ static void spaces_boot(void){
     (void)vino_issue(&g_vino, "TREASURY", ASSET_CBDC, 1000u, "genesis");
     con_init(&g_concord);
     { surplus_real_t x[CON_DIM], y[CON_DIM];
-      for(int i=0;i<CON_DIM;i++){ x[i]=SR_ZERO; y[i]=SR_ZERO; }
+      for(int i=0;i<(int)CON_DIM;i++){ x[i]=SR_ZERO; y[i]=SR_ZERO; }
       x[0]=SR_FROM_INT(1); y[1]=SR_FROM_INT(1);      /* complementary interests */
       con_join(&g_concord, 1u, x, 3u); con_join(&g_concord, 2u, y, 3u); }
     rep_init(&g_rep);
@@ -451,7 +451,8 @@ static void space_enter(zxv_shell_state_t *st, int s){
         { const log_contract_t*c=log_contract_find(&g_log,1u); kv_int(ln,"C1 PARTIES",(long)(c?c->n_parties:0)); } sview_push(st,ln);
         break;
     default: /* BASE (0) and any fallback */
-        for(int i=0;i<4;i++) sview_push(st, LAT_DESC[s][i]);
+        if ((unsigned)s < 13)   /* LAT_DESC is [13][4] — guard a bad space id */
+            for(int i=0;i<4;i++) sview_push(st, LAT_DESC[s][i]);
         break;
     }
 }

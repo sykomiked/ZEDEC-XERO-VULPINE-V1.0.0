@@ -18,10 +18,17 @@ KERNEL_SIM_DEVICES ?= 0
 # NOT the FP/SIMD register file, so any live state the compiler parks in NEON
 # v-registers is clobbered when a timer IRQ preempts kernel code -> wild faults
 # (the kernel_main scan-loop poison-index bug, #41). Scalar FP is still allowed.
+# -Wno-misleading-indentation: the codebase uses an intentional ultra-dense
+# single-line style (opcode-decode tables, one-line guards) that trips this pure
+# whitespace/style warning; it is never a correctness signal here. ALL correctness
+# warnings (-Wall -Wextra) stay ON, and the substantive ones (-Wsign-compare,
+# -Wtautological-compare) were fixed rather than suppressed. Same rationale as the
+# Linux kernel disabling this one sub-warning.
 CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -fno-stack-protector -fno-pie -no-pie -fno-builtin \
          -ffunction-sections -fdata-sections \
          -fno-tree-vectorize -fno-tree-slp-vectorize \
+         -Wno-misleading-indentation \
          -MMD -MP \
          -DKERNEL_SIM_DEVICES=$(KERNEL_SIM_DEVICES) \
          -DENABLE_EL0_USERSPACE=1 -DENABLE_TICK_IRQ=1 \
@@ -85,7 +92,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/vino_stores -Ikernel/src/interspace -Ikernel/src/broker -Ikernel/src/battering_ram -Ikernel/src/tls -Ikernel/src/finance_markets -Ikernel/src/iso20022 -Ikernel/src/alloc \
          -Ikernel/src/pirate_fleet -Ikernel/src/social_spaces -Ikernel/src/reputation -Ikernel/src/art_studio -Ikernel/src/games -Ikernel/src/voice -Ikernel/src/subterm -Ikernel/src/orbital_compat -Ikernel/src/fusion -Ikernel/src/sovereign_node -Ikernel/src/logistics -Ikernel/src/pirate_apps
 
-LDFLAGS = -T kernel/arch/arm64/linker.ld -nostdlib -static -Wl,--gc-sections
+LDFLAGS = -T kernel/arch/arm64/linker.ld -nostdlib -static -Wl,--gc-sections -Wl,--build-id=none
 LIBGCC = $(shell $(CC) -print-libgcc-file-name 2>/dev/null || echo /usr/lib/gcc-cross/aarch64-linux-gnu/13/libgcc.a)
 
 # ARM64 arch-specific objects

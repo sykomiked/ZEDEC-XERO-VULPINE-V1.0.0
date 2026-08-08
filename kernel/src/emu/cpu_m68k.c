@@ -311,7 +311,7 @@ int cpu_m68k_step(cpu_m68k_t *c){
             ea_t ea; decode_ea(c,(op>>3)&7,op&7,2,&ea); uint32_t v=read_ea(c,&ea,2);
             v=do_shift(c,type,dir,v,1,2); write_ea(c,&ea,2,v); return 8; }
         int sz=1<<((op>>6)&3); int dir=(op>>8)&1; int ir=(op>>5)&1; int cr=(op>>9)&7; int type=(op>>3)&3;
-        int cnt = ir ? (c->d[cr]&63) : (cr==0?8:cr);
+        int cnt = ir ? (int)(c->d[cr]&63) : (cr==0?8:cr);
         int reg=op&7; uint32_t v=c->d[reg]&msk(sz);
         v=do_shift(c,type,dir,v,cnt,sz);
         c->d[reg]=(c->d[reg]&~msk(sz))|(v&msk(sz));
@@ -336,7 +336,7 @@ int cpu_m68k_step(cpu_m68k_t *c){
         if ((op&0xFFF8)==0x4840){ int reg=op&7; uint32_t v=c->d[reg]; c->d[reg]=(v>>16)|(v<<16); /* SWAP (mode 0) */
             setNZ(c,c->d[reg],4); c->sr&=~(M68_V|M68_C); return 4; }
         if ((op&0xFFC0)==0x4840){ ea_t ea; decode_ea(c,(op>>3)&7,op&7,4,&ea); push32(c,ea.addr); return 12; } /* PEA */
-        if ((op&0xFFB8)==0x4880 || (op&0xFFB8)==0x48C0){ int reg=op&7; int sz=(op&0x40)?4:2; /* EXT (mode 0) */
+        if ((op&0xFFB8)==0x4880){ int reg=op&7; int sz=(op&0x40)?4:2; /* EXT.W/EXT.L (mask ignores the size bit) */
             if ((op&0x38)==0){
                 if (sz==2){ uint32_t v=(uint32_t)(int32_t)(int8_t)(c->d[reg]&0xFF); c->d[reg]=(c->d[reg]&0xFFFF0000)|(v&0xFFFF); setNZ(c,v,2);}
                 else { c->d[reg]=(uint32_t)(int32_t)(int16_t)(c->d[reg]&0xFFFF); setNZ(c,c->d[reg],4);}
