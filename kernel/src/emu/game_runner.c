@@ -22,10 +22,12 @@
 #include "cpu_z80.h"
 #include "nes.h"
 #include "snes.h"
+#include "gb.h"
 
 static nes_t  g_nes;   /* the NES machine (mapper 0) for iNES images  */
 static snes_t g_snes;  /* the SNES machine (LoROM/HiROM) for .sfc/.smc */
-static uint8_t g_snes_img[SNES_ROM_CAP];  /* full-ROM buffer (HiROM games jump to high banks) */
+static gb_t   g_gb;    /* the Game Boy machine for .gb/.gbc            */
+static uint8_t g_snes_img[SNES_ROM_CAP];  /* full-ROM buffer (also used for GB/other) */
 
 static uint8_t g_raw[65536];      /* raw ROM bytes as read from the device   */
 static uint8_t g_mem[65536];      /* per-core address space (rebuilt each run) */
@@ -139,6 +141,24 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
         out->best_core      = 6502;
         out->best_insn      = g_nes.insn;
         return out->running;
+    }
+    /* If it carries the Nintendo logo, it is a Game Boy cartridge — run it on the
+     * LR35902 machine. The logo is an exact 16-byte match, so this route is only
+     * taken by real GB ROMs. */
+    if (gb_is_gb(g_raw, bytes)){
+        uint32_t full = load_rom_full(dev, g_snes_img, GB_ROM_CAP);
+        if (full >= 0x150 && gb_load(&g_gb, g_snes_img, full)){
+            gb_run(&g_gb, 400000u);
+            out->is_gb       = 1;
+            out->gb_running  = (uint8_t)gb_is_running(&g_gb);
+            out->gb_io_writes = g_gb.io_writes;
+            out->gb_vblanks  = g_gb.vblanks;
+            out->gb_lcd_on   = g_gb.lcd_on;
+            out->running     = out->gb_running;
+            out->best_core   = 8080;
+            out->best_insn   = g_gb.insn;
+            return out->running;
+        }
     }
     /* If it looks like an SNES image (LoROM or HiROM), run it on the 65816
      * machine. The behavioural verdict (native mode + settled + NMI loop / APU

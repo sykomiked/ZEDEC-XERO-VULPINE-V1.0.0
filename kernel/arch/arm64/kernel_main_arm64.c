@@ -1304,6 +1304,18 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] SNES self-check did not come up running");
     }
 
+    /* Phase 17a5c: Game Boy machine (LR35902) — the story-rich handheld slice.
+     * The synthetic cartridge must turn the LCD on, drive the I/O file, and take
+     * its VBlank interrupt. */
+    boot_msg("[BOOT] Game Boy machine (LR35902) — the story-rich handheld era...");
+    {
+        extern int gb_selfcheck(void);
+        if (gb_selfcheck())
+            boot_msg("  [DRIVER ONLINE] Game Boy self-check OK — LCD on, I/O driven, VBlank interrupt taken");
+        else
+            boot_msg("  [WARN] Game Boy self-check did not come up running");
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
@@ -1673,6 +1685,13 @@ void kernel_main_arm64(void) {
             uart_puts(" — ppu_writes="); uart_put_dec(gr.snes_ppu_writes);
             uart_puts(" cpu_reg_writes="); uart_put_dec(gr.snes_cpu_reg_writes);
             uart_puts(" nmis="); uart_put_dec(gr.snes_nmis); uart_puts("\n");
+        } else if (gr.is_gb) {
+            /* Real Game Boy machine (LR35902): a genuine running verdict. */
+            uart_puts("[GB] ");
+            uart_puts(gr.gb_running ? "RUNNING on ZEDEC" : "did not come up");
+            uart_puts(" — lcd_on="); uart_put_dec(gr.gb_lcd_on);
+            uart_puts(" io_writes="); uart_put_dec(gr.gb_io_writes);
+            uart_puts(" vblanks="); uart_put_dec(gr.gb_vblanks); uart_puts("\n");
         } else {
             /* Non-iNES: bare CPU-execution probe (facts only, no gameplay verdict). */
             uart_puts("[EMU-PROBE] rom_bytes="); uart_put_dec(gr.bytes);

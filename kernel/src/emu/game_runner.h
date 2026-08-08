@@ -39,6 +39,12 @@ typedef struct game_run {
     uint32_t snes_ppu_writes;                /* $2100-$213F writes             */
     uint32_t snes_cpu_reg_writes;            /* $4200-$421F writes             */
     uint32_t snes_nmis;                      /* vblank NMIs taken              */
+    /* Game Boy machine result (image carries the Nintendo logo) */
+    uint8_t  is_gb;                          /* 1 if a Game Boy cartridge      */
+    uint8_t  gb_running;                     /* 1 if the game came up running  */
+    uint32_t gb_io_writes;                   /* $FF00-$FF7F writes             */
+    uint32_t gb_vblanks;                     /* VBlank interrupts taken        */
+    uint8_t  gb_lcd_on;                      /* LCD was enabled                */
 } game_run_t;
 
 /* Read up to 64KB of the raw device, execute it on the 6502 and Z80 cores, and
