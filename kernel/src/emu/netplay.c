@@ -49,12 +49,13 @@ int netplay_selfcheck(uint32_t *relation_permille_out, int *peers_out){
     if (jr != 0) return 0;
     if (peers_out) *peers_out = 2;
 
-    /* Each peer is a USER operating ALONGSIDE their AI companion — the NetNavi
-     * model (Mega Man Battle Network / Rockman EXE): the system plays with you,
-     * not merely under you. The Navi is Chiglet. Per this system's ISF principle,
-     * a strong partnership is COMPLEMENTARY, not a mirror — the Navi is valuable
+    /* Each peer is a USER operating ALONGSIDE their AI companion — CHIGLET, our
+     * own companion (ref: the operate-alongside-companion archetype from Battle
+     * Network-style games — development reference only): the system plays WITH
+     * you, not merely under you. Per this system's ISF principle, a strong
+     * partnership is COMPLEMENTARY, not a mirror — the companion is valuable
      * because it is perpendicular to the user, covering blind spots. So the
-     * user<->Navi bond is measured the same way as expert orthogonality:
+     * user<->Chiglet bond is measured the same way as expert orthogonality:
      * chg_interaction high = complementary (good partner), ~0 = redundant clone. */
     surplus_real_t userA[GU_DIM] = { SR_FROM_FLOAT(0.8),SR_FROM_FLOAT(0.9),SR_FROM_FLOAT(0.7),SR_FROM_FLOAT(0.3),
                                      SR_FROM_FLOAT(0.6),SR_FROM_FLOAT(0.8),SR_FROM_FLOAT(0.5),SR_FROM_FLOAT(0.3) };

@@ -1417,11 +1417,49 @@ void kernel_main_arm64(void) {
         if (netplay_selfcheck(&rel, &peers)) {
             uart_puts("[E....]   [DRIVER ONLINE] P2P session: ");
             uart_put_dec((uint32_t)peers);
-            uart_puts(" peers joined the mesh, user<->Navi + cross-peer link hold (rel ");
+            uart_puts(" peers joined the mesh, user<->Chiglet + cross-peer link hold (rel ");
             uart_put_dec(rel);
             uart_puts(" permille) — distributed multiverse\n");
         } else {
             boot_msg("  [WARN] netplay P2P session did not hold");
+        }
+    }
+
+    /* Phase 17a3c: Console mechanic-innovation trajectory — every generation
+     * innovates a NEW signature mechanic (ref: outer/spatial, inner-space,
+     * hybrid-form, network) yet builds along ONE continuous lineage. Proves our
+     * own generation table is diverse AND continuous — the path the MegaROM
+     * inherits. Proprietary generation names; real consoles are dev references. */
+    boot_msg("[BOOT] Console trajectory — distinct innovation on one lineage...");
+    {
+        extern int console_trajectory_selfcheck(uint32_t *d, uint32_t *ncp);
+        uint32_t d = 0, ncp = 0;
+        if (console_trajectory_selfcheck(&d, &ncp)) {
+            uart_puts("[E....]   [DRIVER ONLINE] trajectory: ");
+            uart_put_dec(d);
+            uart_puts(" distinct innovations, one continuous lineage (Nintendo-line continuity ");
+            uart_put_dec(ncp);
+            uart_puts(" permille)\n");
+        } else {
+            boot_msg("  [WARN] console trajectory not coherent");
+        }
+    }
+
+    /* Phase 17a3d: Break potency — every game/magic system has a way to become
+     * brazenly OVER-POTENT (synergy stacks, feedback loops). We catalog those
+     * break-vectors AND use the same detector as the sandbox guardrail so a
+     * mechanic-mod can never take over the system. */
+    boot_msg("[BOOT] Break potency — over-potence detector + sandbox guardrail...");
+    {
+        extern int break_potency_selfcheck(uint32_t *ratio_permille);
+        uint32_t rp = 0;
+        if (break_potency_selfcheck(&rp)) {
+            uart_puts("[E....]   [DRIVER ONLINE] break detector: safe/synergy/feedback separated"
+                      " (synergy build ");
+            uart_put_dec(rp);
+            uart_puts(" permille of base -> broken, contain it)\n");
+        } else {
+            boot_msg("  [WARN] break-potency detector misclassified");
         }
     }
 

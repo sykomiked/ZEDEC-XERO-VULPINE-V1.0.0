@@ -11,13 +11,18 @@
  * KEY REFRAME (per design intent): a networked session here is NOT merely "play
  * a game together." Video-game interfaces have something ordinary computers lack
  * — a PLAYABLE user interface — and the networked version of that is PRODUCTIVITY
- * together: people doing real-world WORK inside a shared, playable space (what
- * Second Life reached for). So a netplay session is a productive P2P workspace.
+ * together: people doing real-world WORK inside a shared, playable space (ref: the
+ * shared-virtual-workspace ambition of early metaverse experiments — reference
+ * only). So a netplay session is a productive P2P workspace.
  * That workspace already exists in this kernel as the JDR Pirate Fleet
  * (jdr_channel_* — a P2P work crew with affinity matching); netplay is the
  * game-universe front to the same distributed substrate: the session carries
  * both PLAY state and WORK, and relates peers by game-universe AND by work
- * affinity across the mesh — the distributed multiverse as a shared workshop. */
+ * affinity across the mesh — the distributed multiverse as a shared workshop.
+ *
+ * The AI in the session is CHIGLET (our own companion — the system plays WITH
+ * you, not under you; ref: the operate-alongside-companion archetype from
+ * Battle Network-style games, used here strictly as a development reference). */
 #ifndef ZXV_NETPLAY_H
 #define ZXV_NETPLAY_H
 
