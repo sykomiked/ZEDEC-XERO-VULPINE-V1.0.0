@@ -1479,18 +1479,19 @@ void kernel_main_arm64(void) {
 
     /* Phase 17a5n: the ROM library revisited through the ladder. The ROM-era
      * consoles all live at 2d (the plane); the graphics engines climb to 3d/4d.
-     * The 2D->3D lift is the GOLDEN LOGARITHMIC SPIRAL (radius x PHI per quarter
-     * turn) — the phi recurrence of the ladder, NOT extrusion and NOT a linear
-     * rigid spin. Each old game rolls into a self-similar 3D scroll (the MegaROM
-     * holographic form) without inventing content that was never there. */
-    boot_msg("[BOOT] ROMs on the ladder — 2d plane rolled to 3d by the golden spiral...");
+     * The 2D->3D lift is FRACTAL — not a single curve but a RECURSION: the game
+     * frame nested into itself, each level scaled by phi^-i and turned by the
+     * golden angle (2pi/phi^2), differentially sheared into depth. A Droste tunnel
+     * that reveals the same pattern at every zoom (sublattices of Fibonacci within
+     * Fibonacci) — the MegaROM holographic form, NOT extrusion, NOT a linear spin. */
+    boot_msg("[BOOT] ROMs on the ladder — 2d plane lifted to 3d by the FRACTAL golden spiral...");
     {
         extern int rom_dimensions_selfcheck(uint32_t *rom2d_out);
         uint32_t r2 = 0;
         if (rom_dimensions_selfcheck(&r2)){
             uart_puts("[E....]   [DRIVER ONLINE] ");
             uart_put_dec(r2);
-            uart_puts(" ROM consoles at 2d; engines climb 3d->4d; 2D->3D by golden-spiral roll (phi/quarter-turn)\n");
+            uart_puts(" ROM consoles at 2d; engines climb 3d->4d; 2D->3D by fractal golden-angle recursion (self-similar Droste, phi^-i per level)\n");
         } else {
             boot_msg("  [WARN] ROM->ladder lift not coherent");
         }
