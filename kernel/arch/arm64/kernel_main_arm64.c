@@ -1382,6 +1382,27 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a11: STORY UNIFICATION — the logic test. Take the diverse
+     * story-bearing consoles (NES..SNES..N64..handhelds; pre-story Atari
+     * excluded) and prove the M5/Chiglet logic HOLDS their diversity AND unifies
+     * them into ONE connected universe (distinct archetypes + a relationship
+     * graph). Console-era signatures are priors; real vast diversity lives at
+     * the game/genre level (the online-dedup megarom_extract corpus tool). */
+    boot_msg("[BOOT] Story unification — diverse story consoles into one universe...");
+    {
+        extern int story_mechanics_selfcheck(uint32_t *d, uint32_t *c);
+        uint32_t d = 0, c = 0;
+        if (story_mechanics_selfcheck(&d, &c)) {
+            uart_puts("[E....]   [DRIVER ONLINE] story logic: 6 consoles -> ");
+            uart_put_dec(d);
+            uart_puts(" distinct archetypes, coherence ");
+            uart_put_dec(c);
+            uart_puts(" permille — diversity held AND unified\n");
+        } else {
+            boot_msg("  [WARN] story unification did not hold");
+        }
+    }
+
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
      * makes REAL subsystem state change (the same calls the buttons issue). */
     boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");

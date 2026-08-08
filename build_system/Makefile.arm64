@@ -120,6 +120,7 @@ KERNEL_SRCS = \
     kernel/src/emu/holo.c \
     kernel/src/emu/megarom.c \
     kernel/src/emu/megarom_synth.c \
+    kernel/src/emu/story_mechanics.c \
     kernel/src/emu/nes.c \
     kernel/src/emu/game_runner.c \
     kernel/src/mlkem/keccak.c \
