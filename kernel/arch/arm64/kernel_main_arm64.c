@@ -1477,6 +1477,25 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a5n: the ROM library revisited through the ladder. The ROM-era
+     * consoles all live at 2d (the plane); the graphics engines climb to 3d/4d.
+     * The 2D->3D lift is the GOLDEN LOGARITHMIC SPIRAL (radius x PHI per quarter
+     * turn) — the phi recurrence of the ladder, NOT extrusion and NOT a linear
+     * rigid spin. Each old game rolls into a self-similar 3D scroll (the MegaROM
+     * holographic form) without inventing content that was never there. */
+    boot_msg("[BOOT] ROMs on the ladder — 2d plane rolled to 3d by the golden spiral...");
+    {
+        extern int rom_dimensions_selfcheck(uint32_t *rom2d_out);
+        uint32_t r2 = 0;
+        if (rom_dimensions_selfcheck(&r2)){
+            uart_puts("[E....]   [DRIVER ONLINE] ");
+            uart_put_dec(r2);
+            uart_puts(" ROM consoles at 2d; engines climb 3d->4d; 2D->3D by golden-spiral roll (phi/quarter-turn)\n");
+        } else {
+            boot_msg("  [WARN] ROM->ladder lift not coherent");
+        }
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
@@ -1716,8 +1735,14 @@ void kernel_main_arm64(void) {
             vbe_init_fb(&g_vbe, 1280, 720, 32, (uintptr_t)fb);
             zxv_shell_init(&g_shell);
             zxv_shell_frame(&g_shell, &g_vbe, 632, 360, 0, prism_break.frames_rendered, g_fphase, g_fdepth);
+            /* Boot INTO the Dimensional Desktop: the 13 lattice spaces as the
+             * 0d-13d ladder (13d = the universal container / MegaROM), laid out by
+             * the golden angle. This is the live boot image on ramfb. */
+            { extern void lattice_dim_render(uint32_t *fb, int w, int h);
+              lattice_dim_render(fb, 1280, 720); }
             zxv_present(fb);
             g_desktop_vbe = &g_vbe;   /* the event loop keeps animating it */
+            boot_msg("  [DRIVER ONLINE] Dimensional Desktop on screen — 13 spaces as the 0d-13d ladder");
             if (g_gop_fb)
                 boot_msg("  [DRIVER ONLINE] UEFI GOP framebuffer — ZEDEC desktop is on screen");
             else
