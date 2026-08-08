@@ -1316,6 +1316,18 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] Game Boy self-check did not come up running");
     }
 
+    /* Phase 17a5d: Game Boy Advance machine (ARM7TDMI, ARM+THUMB) — the modern
+     * handheld era. The synthetic cartridge must configure the display, drive the
+     * I/O file, and poll VCOUNT for VBlank. */
+    boot_msg("[BOOT] Game Boy Advance machine (ARM7TDMI) — the 32-bit handheld era...");
+    {
+        extern int gba_selfcheck(void);
+        if (gba_selfcheck())
+            boot_msg("  [DRIVER ONLINE] Game Boy Advance self-check OK — display configured, I/O driven, VCOUNT polled");
+        else
+            boot_msg("  [WARN] Game Boy Advance self-check did not come up running");
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
@@ -1692,6 +1704,13 @@ void kernel_main_arm64(void) {
             uart_puts(" — lcd_on="); uart_put_dec(gr.gb_lcd_on);
             uart_puts(" io_writes="); uart_put_dec(gr.gb_io_writes);
             uart_puts(" vblanks="); uart_put_dec(gr.gb_vblanks); uart_puts("\n");
+        } else if (gr.is_gba) {
+            /* Real Game Boy Advance machine (ARM7TDMI): a genuine running verdict. */
+            uart_puts("[GBA] ");
+            uart_puts(gr.gba_running ? "RUNNING on ZEDEC" : "did not come up");
+            uart_puts(" — io_writes="); uart_put_dec(gr.gba_io_writes);
+            uart_puts(" vcount_reads="); uart_put_dec(gr.gba_vcount_reads);
+            uart_puts(" vblank_irqs="); uart_put_dec(gr.gba_vblank_irqs); uart_puts("\n");
         } else {
             /* Non-iNES: bare CPU-execution probe (facts only, no gameplay verdict). */
             uart_puts("[EMU-PROBE] rom_bytes="); uart_put_dec(gr.bytes);

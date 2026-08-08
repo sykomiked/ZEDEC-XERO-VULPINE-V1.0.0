@@ -23,11 +23,13 @@
 #include "nes.h"
 #include "snes.h"
 #include "gb.h"
+#include "gba.h"
 
 static nes_t  g_nes;   /* the NES machine (mapper 0) for iNES images  */
 static snes_t g_snes;  /* the SNES machine (LoROM/HiROM) for .sfc/.smc */
 static gb_t   g_gb;    /* the Game Boy machine for .gb/.gbc            */
-static uint8_t g_snes_img[SNES_ROM_CAP];  /* full-ROM buffer (also used for GB/other) */
+static gba_t  g_gba;   /* the Game Boy Advance machine for .gba        */
+static uint8_t g_full_img[GBA_ROM_CAP];   /* full-ROM buffer (largest console cap) */
 
 static uint8_t g_raw[65536];      /* raw ROM bytes as read from the device   */
 static uint8_t g_mem[65536];      /* per-core address space (rebuilt each run) */
@@ -146,8 +148,8 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
      * LR35902 machine. The logo is an exact 16-byte match, so this route is only
      * taken by real GB ROMs. */
     if (gb_is_gb(g_raw, bytes)){
-        uint32_t full = load_rom_full(dev, g_snes_img, GB_ROM_CAP);
-        if (full >= 0x150 && gb_load(&g_gb, g_snes_img, full)){
+        uint32_t full = load_rom_full(dev, g_full_img, GB_ROM_CAP);
+        if (full >= 0x150 && gb_load(&g_gb, g_full_img, full)){
             gb_run(&g_gb, 400000u);
             out->is_gb       = 1;
             out->gb_running  = (uint8_t)gb_is_running(&g_gb);
@@ -160,14 +162,32 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
             return out->running;
         }
     }
+    /* If it has a GBA cartridge header (logo + $96 + ARM branch entry), run it on
+     * the ARM7TDMI machine. Header check is very specific, so only real GBA ROMs
+     * route here. */
+    if (gba_is_gba(g_raw, bytes)){
+        uint32_t full = load_rom_full(dev, g_full_img, GBA_ROM_CAP);
+        if (full >= 0xC0 && gba_load(&g_gba, g_full_img, full)){
+            gba_run(&g_gba, 500000u);
+            out->is_gba          = 1;
+            out->gba_running     = (uint8_t)gba_is_running(&g_gba);
+            out->gba_io_writes   = g_gba.io_writes;
+            out->gba_vcount_reads = g_gba.vcount_reads;
+            out->gba_vblank_irqs = g_gba.vblank_irqs;
+            out->running         = out->gba_running;
+            out->best_core       = 7;   /* ARM7 */
+            out->best_insn       = g_gba.insn;
+            return out->running;
+        }
+    }
     /* If it looks like an SNES image (LoROM or HiROM), run it on the 65816
      * machine. The behavioural verdict (native mode + settled + NMI loop / APU
      * handshake) is the real signal; a mis-routed image simply reports running=0. */
     if (snes_is_snes(g_raw, bytes)){
         /* Re-read the FULL ROM (up to 4MB) so HiROM games that jump to high banks
          * execute real code, not a wrapped truncation. */
-        uint32_t full = load_rom_full(dev, g_snes_img, SNES_ROM_CAP);
-        if (full >= 0x8000 && snes_load(&g_snes, g_snes_img, full)){
+        uint32_t full = load_rom_full(dev, g_full_img, SNES_ROM_CAP);
+        if (full >= 0x8000 && snes_load(&g_snes, g_full_img, full)){
             snes_run(&g_snes, 300000u, 1500u);
             out->is_snes             = 1;
             out->snes_running        = (uint8_t)snes_is_running(&g_snes);

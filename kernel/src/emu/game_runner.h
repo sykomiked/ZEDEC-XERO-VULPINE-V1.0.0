@@ -45,6 +45,12 @@ typedef struct game_run {
     uint32_t gb_io_writes;                   /* $FF00-$FF7F writes             */
     uint32_t gb_vblanks;                     /* VBlank interrupts taken        */
     uint8_t  gb_lcd_on;                      /* LCD was enabled                */
+    /* Game Boy Advance machine result (image has a GBA cartridge header) */
+    uint8_t  is_gba;                         /* 1 if a GBA cartridge           */
+    uint8_t  gba_running;                    /* 1 if the game came up running  */
+    uint32_t gba_io_writes;                  /* $04000000-$040003FF writes     */
+    uint32_t gba_vcount_reads;               /* VCOUNT polls                   */
+    uint32_t gba_vblank_irqs;                /* VBlank IRQs dispatched         */
 } game_run_t;
 
 /* Read up to 64KB of the raw device, execute it on the 6502 and Z80 cores, and
