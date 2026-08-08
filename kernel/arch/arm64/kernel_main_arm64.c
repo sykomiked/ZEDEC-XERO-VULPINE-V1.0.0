@@ -319,6 +319,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 /* Persistent storage: virtio-blk device + ZXVFS journaled filesystem. */
 #include "virtio_blk.h"
 #include "emu/game_runner.h"   /* run an attached raw ROM on the emulator cores */
+#include "emu/megarom.h"       /* console model: MegaROMs as the bootable UI     */
 #include "virtio_net.h"
 #include "../src/mlkem/mlkem768.h"   /* post-quantum KEM (NIST ML-KEM-768) */
 #include "../src/trispace/trispace.h" /* Tri-Space artifact triad binding */
@@ -1340,6 +1341,25 @@ void kernel_main_arm64(void) {
             boot_msg("  [DRIVER ONLINE] holo shader sound — near=warm, far=cool, grey-stable, anti-colour clamped");
         else
             boot_msg("  [WARN] holographic shader optics did not verify");
+    }
+
+    /* Phase 17a9: CONSOLE MODEL — the interface resembles a game console, and
+     * MegaROMs ARE the bootable UI. Register the 13-space lattice desktop as
+     * MegaROM #0; the console front-end lists + boots MegaROM UI layers like
+     * cartridges. This is the registry/selector — the console's cartridge slot. */
+    boot_msg("[BOOT] Console model — MegaROMs as the bootable UI...");
+    {
+        static const megarom_t desktop_rom = {
+            "ZEDEC DESKTOP", "the 13-space lattice — root UI plane", MR_KIND_DESKTOP, 0
+        };
+        int slot = megarom_register(&desktop_rom);
+        if (megarom_selfcheck()) {
+            uart_puts("[E....]   [DRIVER ONLINE] console cartridge registry — desktop is MegaROM #");
+            uart_put_dec((uint64_t)slot);
+            uart_puts("; boot-selector verified\n");
+        } else {
+            boot_msg("  [WARN] MegaROM console registry did not verify");
+        }
     }
 
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
