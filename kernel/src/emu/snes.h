@@ -66,6 +66,9 @@ int  snes_is_lorom(const uint8_t *img, uint32_t len);
 /* 1 if the image looks like any SNES ROM (LoROM or HiROM). */
 int  snes_is_snes(const uint8_t *img, uint32_t len);
 
+/* Checksum-strict variant for routing (no loose reset-vector fallback). */
+int  snes_is_snes_strict(const uint8_t *img, uint32_t len);
+
 /* Load a ROM image (strips a 512-byte copier header if present). Returns 1 ok. */
 int  snes_load(snes_t *s, const uint8_t *img, uint32_t len);
 

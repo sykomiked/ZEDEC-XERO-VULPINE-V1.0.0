@@ -57,6 +57,11 @@ typedef struct game_run {
     uint32_t gen_vdp_reg_writes;             /* VDP register writes            */
     uint32_t gen_vdp_data_writes;            /* VDP data-port writes           */
     uint32_t gen_vblank_irqs;                /* VBlank IRQs dispatched         */
+    /* PC Engine machine result (HuCard heuristic) */
+    uint8_t  is_pce;                         /* 1 if a HuCard ROM              */
+    uint8_t  pce_running;                    /* 1 if the game came up running  */
+    uint32_t pce_vdc_writes;                 /* VDC register/port writes       */
+    uint32_t pce_vblank_irqs;                /* VBlank IRQ1s dispatched         */
 } game_run_t;
 
 /* Read up to 64KB of the raw device, execute it on the 6502 and Z80 cores, and

@@ -25,12 +25,14 @@
 #include "gb.h"
 #include "gba.h"
 #include "genesis.h"
+#include "pce.h"
 
 static nes_t     g_nes;   /* the NES machine (mapper 0) for iNES images  */
 static snes_t    g_snes;  /* the SNES machine (LoROM/HiROM) for .sfc/.smc */
 static gb_t      g_gb;    /* the Game Boy machine for .gb/.gbc            */
 static gba_t     g_gba;   /* the Game Boy Advance machine for .gba        */
 static genesis_t g_gen;   /* the Sega Genesis machine for .md/.bin/.gen   */
+static pce_t     g_pce;   /* the PC Engine machine for .pce               */
 static uint8_t g_full_img[GBA_ROM_CAP];   /* full-ROM buffer (largest console cap) */
 
 static uint8_t g_raw[65536];      /* raw ROM bytes as read from the device   */
@@ -201,8 +203,9 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
     }
     /* If it looks like an SNES image (LoROM or HiROM), run it on the 65816
      * machine. The behavioural verdict (native mode + settled + NMI loop / APU
-     * handshake) is the real signal; a mis-routed image simply reports running=0. */
-    if (snes_is_snes(g_raw, bytes)){
+     * handshake) is the real signal; a mis-routed image simply reports running=0.
+     * Checksum-strict so headerless HuCards fall through to the PC Engine. */
+    if (snes_is_snes_strict(g_raw, bytes)){
         /* Re-read the FULL ROM (up to 4MB) so HiROM games that jump to high banks
          * execute real code, not a wrapped truncation. */
         uint32_t full = load_rom_full(dev, g_full_img, SNES_ROM_CAP);
@@ -216,6 +219,23 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
             out->running             = out->snes_running;
             out->best_core           = 816;
             out->best_insn           = g_snes.insn;
+            return out->running;
+        }
+    }
+    /* HuCard heuristic (reset vector points high) — tried LAST, after the specific
+     * detectors, since PC Engine ROMs carry no magic string. Run it on the
+     * HuC6280 machine; a mis-routed image simply reports running=0. */
+    if (pce_is_pce(g_raw, bytes)){
+        uint32_t full = load_rom_full(dev, g_full_img, PCE_ROM_CAP);
+        if (full >= 0x2000 && pce_load(&g_pce, g_full_img, full)){
+            pce_run(&g_pce, 400000u);
+            out->is_pce         = 1;
+            out->pce_running    = (uint8_t)pce_is_running(&g_pce);
+            out->pce_vdc_writes = g_pce.vdc_writes;
+            out->pce_vblank_irqs = g_pce.vblank_irqs;
+            out->running        = out->pce_running;
+            out->best_core      = 6280;
+            out->best_insn      = g_pce.insn;
             return out->running;
         }
     }

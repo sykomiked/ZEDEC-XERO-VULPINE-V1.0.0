@@ -1340,6 +1340,18 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] Genesis self-check did not come up running");
     }
 
+    /* Phase 17a5f: PC Engine / TurboGrafx-16 machine (HuC6280) — a 65C02 superset
+     * with bank paging. The synthetic HuCard must map its banks, program the VDC
+     * (ST0-2), and reach its frame loop. */
+    boot_msg("[BOOT] PC Engine machine (HuC6280) — bank-paged 65C02 superset...");
+    {
+        extern int pce_selfcheck(void);
+        if (pce_selfcheck())
+            boot_msg("  [DRIVER ONLINE] PC Engine self-check OK — banks mapped, VDC programmed, frame loop reached");
+        else
+            boot_msg("  [WARN] PC Engine self-check did not come up running");
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
@@ -1730,6 +1742,12 @@ void kernel_main_arm64(void) {
             uart_puts(" — vdp_reg_writes="); uart_put_dec(gr.gen_vdp_reg_writes);
             uart_puts(" vdp_data_writes="); uart_put_dec(gr.gen_vdp_data_writes);
             uart_puts(" vblank_irqs="); uart_put_dec(gr.gen_vblank_irqs); uart_puts("\n");
+        } else if (gr.is_pce) {
+            /* Real PC Engine machine (HuC6280): a genuine running verdict. */
+            uart_puts("[PCE] ");
+            uart_puts(gr.pce_running ? "RUNNING on ZEDEC" : "did not come up");
+            uart_puts(" — vdc_writes="); uart_put_dec(gr.pce_vdc_writes);
+            uart_puts(" vblank_irqs="); uart_put_dec(gr.pce_vblank_irqs); uart_puts("\n");
         } else {
             /* Non-iNES: bare CPU-execution probe (facts only, no gameplay verdict). */
             uart_puts("[EMU-PROBE] rom_bytes="); uart_put_dec(gr.bytes);

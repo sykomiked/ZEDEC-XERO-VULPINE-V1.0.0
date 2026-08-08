@@ -140,6 +140,19 @@ int snes_detect(const uint8_t *img, uint32_t len){
 int snes_is_lorom(const uint8_t *img, uint32_t len){ return snes_detect(img, len) == 1; }
 int snes_is_snes (const uint8_t *img, uint32_t len){ return snes_detect(img, len) != 0; }
 
+/* Checksum-strict detection for ROUTING: only the $7FC0/$FFC0 header-checksum
+ * path, never the loose reset-vector fallback (which collides with headerless
+ * raw-ROM consoles like the PC Engine). Real SNES ROMs carry a valid checksum. */
+int snes_is_snes_strict(const uint8_t *img, uint32_t len){
+    if (!img || len < 0x8000) return 0;
+    uint32_t base = (len % 0x8000 == 512) ? 512 : 0;
+    if (len - base < 0x8000) return 0;
+    const uint8_t *h = img + base;
+    int lo = hdr_good(h, 0x7FC0);
+    int hi = (len - base >= 0x10000) ? hdr_good(h, 0xFFC0) : 0;
+    return (lo || hi) ? 1 : 0;
+}
+
 int snes_load(snes_t *s, const uint8_t *img, uint32_t len){
     if (!img || len < 0x8000) return 0;
     int mapper = snes_detect(img, len);
