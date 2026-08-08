@@ -124,6 +124,7 @@ KERNEL_SRCS = \
     kernel/src/emu/genesis.c \
     kernel/src/emu/cpu_huc6280.c \
     kernel/src/emu/pce.c \
+    kernel/src/emu/render_lineage.c \
     kernel/src/emu/emu_relate.c \
     kernel/src/emu/congruence.c \
     kernel/src/emu/game_universe.c \

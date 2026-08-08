@@ -1352,6 +1352,26 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] PC Engine self-check did not come up running");
     }
 
+    /* Phase 17a5g: Graphics-engine lineage — the PS1-and-beyond pivot. Past the
+     * 5th generation the story corpus is saturated but GRAPHICS evolved, and that
+     * era's graphics run on ENGINES. We integrate OPEN-SOURCE engines (id Tech /
+     * Doom-Quake family GPL, Godot MIT) as bootable graphics MegaROMs; proprietary
+     * engines (Unreal's EULA) are refused. Prove the open evolution is coherent. */
+    boot_msg("[BOOT] Graphics-engine lineage — open engines, the graphics evolution...");
+    {
+        extern int render_lineage_selfcheck(uint32_t *d, uint32_t *c);
+        uint32_t d = 0, c = 0;
+        if (render_lineage_selfcheck(&d, &c)){
+            uart_puts("[E....]   [DRIVER ONLINE] engine lineage: ");
+            uart_put_dec(d);
+            uart_puts(" distinct open renderers, continuous evolution (");
+            uart_put_dec(c);
+            uart_puts(" permille) — proprietary refused\n");
+        } else {
+            boot_msg("  [WARN] graphics-engine lineage not coherent");
+        }
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
