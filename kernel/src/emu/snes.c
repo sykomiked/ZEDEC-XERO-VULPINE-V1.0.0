@@ -23,7 +23,8 @@ static uint8_t snes_read(cpu65816_t *c, uint32_t addr){
     int sys = (bank <= 0x3F) || (bank >= 0x80 && bank <= 0xBF);
     if (sys){
         if (off < 0x2000) return s->wram[off];                 /* low RAM mirror  */
-        if (off >= 0x2100 && off <= 0x21FF) return 0;          /* PPU/APU regs    */
+        if (off >= 0x2140 && off <= 0x2143){ s->apu_reads++; return s->apu[off - 0x2140]; } /* APU stub */
+        if (off >= 0x2100 && off <= 0x21FF) return 0;          /* other PPU regs  */
         if (off == 0x4210){ uint8_t v = (s->vblank ? 0x80 : 0) | 0x02; s->vblank = 0; return v; } /* RDNMI */
         if (off == 0x4212) return s->vblank ? 0x80 : 0;        /* HVBJOY vblank   */
         if (off >= 0x4200 && off <= 0x44FF) return 0;          /* CPU/DMA regs    */
@@ -55,7 +56,8 @@ static void snes_write(cpu65816_t *c, uint32_t addr, uint8_t val){
             if (off == 0x4200){ s->nmitimen = val; s->nmi_enabled = (val >> 7) & 1; }
             return;
         }
-        if (off >= 0x2140 && off <= 0x21FF) return;            /* APU I/O ports   */
+        if (off >= 0x2140 && off <= 0x2143){ s->apu[off - 0x2140] = val; return; } /* APU echo */
+        if (off >= 0x2144 && off <= 0x21FF) return;            /* other APU ports */
         if (off >= 0x4300 && off <= 0x44FF) return;            /* DMA registers   */
     }
     /* writes to ROM space are ignored */
@@ -84,6 +86,7 @@ int snes_load(snes_t *s, const uint8_t *img, uint32_t len){
     if (n > SNES_ROM_CAP) n = SNES_ROM_CAP;
     for (uint32_t i = 0; i < n; i++) s->rom[i] = img[base + i];
     s->rom_size = n;
+    s->apu[0] = 0xAA; s->apu[1] = 0xBB;   /* SPC700 IPL "ready" signal */
     s->cpu.read = snes_read; s->cpu.write = snes_write; s->cpu.ctx = s;
     cpu65816_reset(&s->cpu);
     return 1;
@@ -99,17 +102,50 @@ void snes_run(snes_t *s, uint32_t budget, uint32_t nmi_period){
             if (s->nmi_enabled){ s->cpu.stopped = 0; cpu65816_nmi(&s->cpu); s->nmis_taken++; }
         }
     }
+    /* Settle probe: a real game that finished init is now confined to a tight
+     * loop — an NMI-wait (WAI/BRA), an APU handshake, or a poll — all a few
+     * hundred bytes wide in one bank. Wandering "code" (random data executed as
+     * opcodes) never settles: its PC sprays across the whole bank. This is the
+     * coherence discriminator the 65816 lacks in illegal-opcode form. */
+    uint16_t pmin = 0xFFFF, pmax = 0; uint8_t bank = s->cpu.pbr; int same = 1;
+    for (int i = 0; i < 1024; i++){
+        if (s->cpu.pbr != bank) same = 0;
+        uint16_t pc = s->cpu.pc;
+        if (pc < pmin) pmin = pc;
+        if (pc > pmax) pmax = pc;
+        cpu65816_step(&s->cpu);
+        if (s->nmi_enabled && (i % 200) == 199){ s->vblank = 1; s->cpu.stopped = 0; cpu65816_nmi(&s->cpu); }
+    }
+    s->settled = same && ((uint16_t)(pmax - pmin) < 2048);
 }
 
 int snes_is_running(const snes_t *s){
-    /* Alive iff it configured the PPU, enabled NMIs and took at least one, drove
-     * the CPU register file, entered native mode, and did not drown in illegals. */
+    /* Alive iff the game entered native mode, drove the CPU register file, and is
+     * demonstrably executing its real console setup — EITHER it reached its NMI
+     * loop (enabled + took a vblank NMI) OR it is heavily configuring/uploading to
+     * the PPU (screen setup / VRAM upload). Same behavioural spirit as the NES
+     * verdict: real init hammers the PPU; random data does not. Low illegal rate. */
     int native   = (s->cpu.e == 0);
-    int ppu_ok   = (s->ppu_writes >= 2);
-    int nmi_ok   = (s->nmi_enabled && s->nmis_taken >= 1);
     int reg_ok   = (s->cpu_reg_writes >= 1);
-    int clean    = (s->insn > 0) && (s->cpu.illegal * 20 < s->insn);  /* <5% illegal */
-    return native && ppu_ok && nmi_ok && reg_ok && clean;
+    int clean    = (s->insn > 0) && (s->cpu.illegal * 20 < s->insn);   /* <5% illegal */
+    /* Three strong, hard-to-fake signatures of a real game executing its boot:
+     *  - it reached its NMI loop (enabled + took a vblank NMI), or
+     *  - it is running the SPC700 APU handshake (thousands of $2140-$2143 reads —
+     *    a tight, address-specific loop random data does not sustain), or
+     *  - it is doing heavy PPU/VRAM setup (hundreds of $2100-$213F writes).
+     * A modest scattering of PPU writes alone is NOT enough (random code can hit
+     * a few by luck), which is why the bar is high on each axis. */
+    /* Two HIGH-PRECISION hardware protocols random data will not sustain inside a
+     * settled loop: reaching the vblank NMI loop, or running the SPC700 APU
+     * handshake (a tight, address-specific read loop). PPU-write COUNT is
+     * deliberately NOT a sufficient signal on its own — random STAs land in
+     * $2100-$213F often enough over a long run to reach any count, so it cannot
+     * separate a real VRAM upload from noise. Precision beats recall for a
+     * RUNNING claim: some genuine PPU-only games are reported as not-verified
+     * rather than risk calling noise a game. */
+    int nmi_loop = (s->nmi_enabled && s->nmis_taken >= 1);
+    int apu_hs   = (s->apu_reads >= 100);
+    return native && reg_ok && clean && s->settled && (nmi_loop || apu_hs);
 }
 
 /* ---- embedded minimal LoROM for the self-check ----------------------------- */

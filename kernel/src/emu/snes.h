@@ -39,6 +39,14 @@ typedef struct snes {
     uint32_t   nmis_taken;        /* vblank NMIs delivered                        */
     uint32_t   insn;              /* instructions executed                        */
     uint8_t    nmi_enabled;       /* $4200 bit7 latched                           */
+    /* Minimal APU ($2140-$2143) handshake stub. Real SNES games upload a program
+     * to the SPC700 and spin on this port protocol before enabling NMI; with no
+     * audio CPU the reads would read 0 forever and the game hangs in init. We
+     * echo writes and present the IPL "ready" signal ($AA/$BB) so the handshake
+     * completes and the game proceeds. This is a STUB, not an SPC700. */
+    uint8_t    apu[4];            /* $2140-$2143 latches ($AA/$BB ready at reset)  */
+    uint32_t   apu_reads;         /* diagnostics: reads of the APU ports          */
+    uint8_t    settled;           /* CPU ended in a tight loop (not wandering)    */
 } snes_t;
 
 /* Heuristic: does this image look like a LoROM SNES ROM? (copier header aware) */
