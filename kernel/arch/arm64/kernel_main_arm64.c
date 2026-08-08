@@ -1463,6 +1463,24 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a3e: Mechanic-mod admission — a mod may change mechanics but must
+     * not take over the system. The gate runs the mod through the break detector:
+     * bounded -> admitted at full strength; over-potent -> CONTAINED (capped
+     * sandbox). This makes "change mechanics without taking over" real policy. */
+    boot_msg("[BOOT] Mechanic-mod admission — admit bounded, contain over-potent...");
+    {
+        extern int mechanic_mod_selfcheck(uint32_t *cap_permille);
+        uint32_t cap = 0;
+        if (mechanic_mod_selfcheck(&cap)) {
+            uart_puts("[E....]   [DRIVER ONLINE] mod gate: modest mod admitted,"
+                      " god-stack CONTAINED (capped at ");
+            uart_put_dec(cap);
+            uart_puts(" permille of raw) — cannot take over\n");
+        } else {
+            boot_msg("  [WARN] mechanic-mod admission gate misjudged");
+        }
+    }
+
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
      * makes REAL subsystem state change (the same calls the buttons issue). */
     boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");

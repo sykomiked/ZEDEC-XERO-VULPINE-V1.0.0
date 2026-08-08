@@ -75,6 +75,35 @@ Chiglet training proceed in parallel.
   shader extracted from `zxv_present` — colour/anti-colour phase-tick shimmer +
   chromostereopsis (near warm / far cool). Verified optics, reusable by every
   layer. Boot: "holo shader sound — near=warm, far=cool, grey-stable".
+- **Story unification** (`emu/story_mechanics.{c,h}`): story-bearing consoles as
+  8-dim story-mechanics signatures; the ISF holds their diversity and unifies
+  them into one connected universe. Boot: "6 consoles → 5 distinct archetypes,
+  coherence 63 permille". (Honest: era-capability priors, not parsed plots.)
+- **Netplay bridge** (`emu/netplay.{c,h}`): the FAR SIDE of the bridge — modern
+  networked play (PS2-online forward) adapted into our P2P DISTRIBUTED model on
+  the real `mesh_net` + Porter House stack. A game universe = a P2P session peers
+  join directly; each peer is a user + **Chiglet** operating ALONGSIDE them (the
+  play-with-you companion; complementary per ISF, not a mirror); the session
+  relates peers across the mesh = the distributed multiverse, a productivity-
+  capable workspace. Boot: "2 peers joined, user↔Chiglet + cross-peer link hold
+  (189 permille)". Next: two-physical-node transport via `mn_send_data`.
+- **Console-innovation trajectory** (`emu/console_trajectory.{c,h}`): every
+  generation innovates a NEW signature mechanic (outer/spatial, inner-space,
+  hybrid-form, network) yet builds one continuous lineage. Our own generation
+  names (Hearth/Loom/Pillar/Aura/Mirror/Chimera/Relay/MeshHD/Forge/Prism/Aether);
+  real consoles are `/* ref: */` dev references only. Boot: "7 distinct
+  innovations, one lineage; sub-lineage continuity 120 permille".
+- **Break-potency detector** (`emu/break_potency.{c,h}`): every game/magic system
+  has a way to become brazenly OVER-POTENT — synergy stacks (ratio>1.5) and
+  feedback loops (gain≥1). The SAME detector is the **sandbox guardrail** for
+  mechanic-mods (`broken` = the cap/contain signal). Boot: "safe/synergy/feedback
+  separated (synergy build 1899 permille → broken, contain it)".
+- **Mechanic-mod admission gate** (`emu/mechanic_mod.{c,h}`): the real policy that
+  lets a mod change mechanics WITHOUT taking over the system. Runs the mod through
+  `break_potency`; bounded → ADMITTED at full strength; over-potent → CONTAINED
+  with its potency capped back to the additive base (the emergent synergy denied,
+  the parts kept). Produces the verdict + cap the EL0/W^X sandbox enforces. Boot:
+  "modest mod admitted, god-stack CONTAINED (capped at 2699 permille of raw)".
 
 ## Cross-cutting requirements (apply to the whole OS + every MegaROM layer)
 
@@ -146,17 +175,33 @@ render+input hooks driven through `holo_shade`.
 
 ## Resume checklist (start here after the break)
 
-1. `cd 05_KERNEL && git log --oneline -15` — see the latest emu/debug commits.
-2. Check the campaign: newest `gamemaster_logs_33k_v*/summary.txt`; the preserved
-   `kernel_arm64.elf` in that dir maps any fault to source.
-3. **Open debug:** task #41 — `kernel_main +0x24d0` scan-loop wild-index fault
-   (FAR=0x7A0…, `w0≈0xCCCCCCCC`). The fault handler now **dumps x0–x30**; grab a
-   `fault_*.log` that shows `kernel_main` and read the register dump to see which
-   register is poison. Then fix precisely. (`proc_enter_el0` fault already FIXED
-   + verified via IRQ-atomicity — commit `d5f7e95`.)
-4. **Next build:** Phase A wiring — have `game_master.py` (or an in-kernel pass)
-   emit each game's `game_universe_vector` into a corpus file, then feed batches
-   to `chg_effective_experts` to accumulate the distinct-mechanic set.
+1. `cd 05_KERNEL && git log --oneline -15` — see the latest emu commits
+   (`bcc225f` trajectory+break-potency, `95d413d` netplay).
+2. Check the campaign: newest `gamemaster_logs_33k_v*/runs.jsonl` + `summary.txt`.
+   As of this save point: **v9 at 2,920 runs, 0 faults** — both kernel faults
+   (`proc_enter_el0` IRQ-atomicity `d5f7e95`; `kernel_main` NEON-not-saved-across-
+   IRQ, `-fno-tree-vectorize`) FIXED and holding. The preserved `kernel_arm64.elf`
+   in each logdir maps any future fault to source.
+3. **Both original kernel faults are CLOSED** (tasks #39, #41). Regression gate
+   green: `cd kernel && make verify-all` → "ALL STAGE-1 CHECKS PASSED"; a clean
+   boot reaches `BOOT_OK` (QEMU flags: `-M virt,gic-version=3 -cpu cortex-a53` —
+   gic-version=3 is REQUIRED or GICv3 init data-aborts early).
+4. **Next builds (clean resume points), in priority order:**
+   a. ~~mechanic-mod admission gate~~ **DONE** (`emu/mechanic_mod.{c,h}`) — the
+      admission POLICY + potency cap are built and boot-verified. Remaining:
+      have the EL0/process + W^X machinery actually ENFORCE the returned cap on a
+      loaded mod (physical sandbox), and add a `megarom`/`game_runner` hook that
+      calls `mechanic_mod_admit` before activating a loaded mechanic-mod.
+   b. **Phase A wiring:** have `game_master.py` (or an in-kernel pass) emit each
+      game's `game_universe_vector` into a corpus file, feed batches to
+      `chg_effective_experts` for the distinct-mechanic set, and run each vector
+      through `break_potency` to catalog its break-vectors.
+   c. **65816 core → SNES machine** (task #43, 3,466 story games) — next faithful
+      per-console machine; unlocks SNES story extraction for Chiglet.
+   d. **Two-node netplay:** `mn_send_data` transport between two QEMU instances so
+      the distributed multiverse runs over a real wire, not just in one process.
 5. Mirror every kernel change to `ZEDEC_pqOS_CLEAN`; commit in `05_KERNEL`.
-6. 32-bit builds remain blocked pending the cross-compiler recompile (Linux
+6. **Naming rule:** game/console/franchise names are DEV REFERENCES ONLY (`ref:`
+   in comments); shipped features use our own names. See memory `zxv-proprietary-naming`.
+7. 32-bit builds remain blocked pending the cross-compiler recompile (Linux
    handover track) — stay on ARM64 for now.

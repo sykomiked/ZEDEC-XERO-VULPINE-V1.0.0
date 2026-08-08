@@ -126,6 +126,7 @@ KERNEL_SRCS = \
     kernel/src/emu/netplay.c \
     kernel/src/emu/console_trajectory.c \
     kernel/src/emu/break_potency.c \
+    kernel/src/emu/mechanic_mod.c \
     kernel/src/mlkem/keccak.c \
     kernel/src/mlkem/mlkem768.c \
     kernel/src/mlkem/mlkem_encode.c \
