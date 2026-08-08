@@ -1292,6 +1292,18 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] NES self-check did not come up running");
     }
 
+    /* Phase 17a5b: SNES machine (LoROM) — the 65816 core's console, unlocking the
+     * story-rich 16-bit era. The synthetic LoROM must enter native mode, force-
+     * blank + configure the PPU, enable the vblank NMI, and run its NMI handler. */
+    boot_msg("[BOOT] SNES machine (LoROM) — 65816 core, the 16-bit story era...");
+    {
+        extern int snes_selfcheck(void);
+        if (snes_selfcheck())
+            boot_msg("  [DRIVER ONLINE] SNES self-check OK — game went native, configured PPU, took its vblank NMI");
+        else
+            boot_msg("  [WARN] SNES self-check did not come up running");
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
