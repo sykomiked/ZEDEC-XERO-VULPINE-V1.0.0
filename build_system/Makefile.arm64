@@ -123,6 +123,7 @@ KERNEL_SRCS = \
     kernel/src/emu/story_mechanics.c \
     kernel/src/emu/nes.c \
     kernel/src/emu/game_runner.c \
+    kernel/src/emu/netplay.c \
     kernel/src/mlkem/keccak.c \
     kernel/src/mlkem/mlkem768.c \
     kernel/src/mlkem/mlkem_encode.c \

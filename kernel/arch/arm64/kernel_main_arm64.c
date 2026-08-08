@@ -1403,6 +1403,28 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a3b: The far side of the bridge — modern NETWORKED play (PS2-online
+     * forward, PS3/360/PS4/5/6, Steam-style PC) adapted into our P2P DISTRIBUTED
+     * model. A game universe becomes a P2P mesh session peers JOIN directly (no
+     * central server); each peer is a USER operating ALONGSIDE their AI companion
+     * (the NetNavi model — Chiglet plays WITH you, not under you), and the session
+     * relates peers across the mesh — the distributed multiverse as a shared,
+     * productivity-capable workspace. */
+    boot_msg("[BOOT] Netplay bridge — modern networked play, done P2P...");
+    {
+        extern int netplay_selfcheck(uint32_t *rel, int *peers);
+        uint32_t rel = 0; int peers = 0;
+        if (netplay_selfcheck(&rel, &peers)) {
+            uart_puts("[E....]   [DRIVER ONLINE] P2P session: ");
+            uart_put_dec((uint32_t)peers);
+            uart_puts(" peers joined the mesh, user<->Navi + cross-peer link hold (rel ");
+            uart_put_dec(rel);
+            uart_puts(" permille) — distributed multiverse\n");
+        } else {
+            boot_msg("  [WARN] netplay P2P session did not hold");
+        }
+    }
+
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
      * makes REAL subsystem state change (the same calls the buttons issue). */
     boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");
