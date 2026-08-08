@@ -111,6 +111,7 @@ KERNEL_SRCS = \
     kernel/src/emu/emu_relate.c \
     kernel/src/emu/congruence.c \
     kernel/src/emu/game_universe.c \
+    kernel/src/emu/holo.c \
     kernel/src/emu/nes.c \
     kernel/src/emu/game_runner.c \
     kernel/src/mlkem/keccak.c \

@@ -1327,6 +1327,21 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a8: HOLOGRAPHIC rendering primitive. The depth-on-a-flat-screen
+     * effect (colour/anti-colour shimmer + chromostereopsis warm=near/cool=far)
+     * that zxv_present already applies, extracted as a reusable, verified
+     * primitive so every layer — games, the MegaROM, UI-as-MegaROMs — renders
+     * with the same nonlinear holographic shading. Toward beyond-PS6 depth on
+     * ordinary 2D displays, no glasses. */
+    boot_msg("[BOOT] Holographic render primitive (chromostereopsis + anti-colour)...");
+    {
+        extern int holo_selfcheck(void);
+        if (holo_selfcheck())
+            boot_msg("  [DRIVER ONLINE] holo shader sound — near=warm, far=cool, grey-stable, anti-colour clamped");
+        else
+            boot_msg("  [WARN] holographic shader optics did not verify");
+    }
+
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
      * makes REAL subsystem state change (the same calls the buttons issue). */
     boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");
