@@ -216,6 +216,17 @@ void proc_switch_address_space(user_proc_t *proc) {
 void proc_enter_el0(user_proc_t *proc) {
     if (!proc) return;
 
+    /* Mask IRQ for the whole EL1 critical section below: the SP_EL0/ELR/SPSR
+     * setup, the address-space switch, and the register-file restore + ERET must
+     * be ATOMIC. Unlike its twin proc_restore_el0 — which runs INSIDE the timer
+     * IRQ where IRQs are already masked — proc_enter_el0 is called from the main
+     * loop with IRQs UNMASKED (the fault's SPSR had I=0). A timer IRQ could
+     * therefore preempt the non-atomic restore and corrupt the in-flight context,
+     * producing the proc_enter_el0 +0x50 data abort with proc=0 that the Game
+     * Master caught. The ERET restores SPSR_EL1=0, which re-enables IRQs for EL0,
+     * so this masks ONLY the kernel-side critical section. */
+    __asm__ __volatile__("msr daifset, #2" ::: "memory");
+
     /* Set SP_EL0 to the process's stack pointer */
     __asm__ __volatile__("msr sp_el0, %0" :: "r"(proc->ctx.sp));
 
