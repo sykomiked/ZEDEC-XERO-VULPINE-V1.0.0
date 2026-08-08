@@ -110,6 +110,7 @@ KERNEL_SRCS = \
     kernel/src/emu/cpu_z80.c \
     kernel/src/emu/emu_relate.c \
     kernel/src/emu/congruence.c \
+    kernel/src/emu/game_universe.c \
     kernel/src/emu/nes.c \
     kernel/src/emu/game_runner.c \
     kernel/src/mlkem/keccak.c \

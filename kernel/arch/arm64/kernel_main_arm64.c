@@ -1306,6 +1306,27 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] structural congruence incomplete — a geometric axiom did not hold");
     }
 
+    /* Phase 17a7: GAME UNIVERSES -> Chiglet multiverse. Each game is a state
+     * with its own mechanics; Chiglet's ISF holds many at once and counts the
+     * DISTINCT ones, collapsing duplicates. This is the first stone of the
+     * MegaROM: extract every game's mechanics, keep the distinct best, drop the
+     * duplicates. The orthogonality it weights by is the same perpendicularity
+     * the M5 axes and the congruence gate are built on. */
+    boot_msg("[BOOT] Game universes -> Chiglet multiverse (MegaROM mechanic dedup)...");
+    {
+        extern int game_universe_selfcheck(uint32_t *d3, uint32_t *d4);
+        uint32_t d3 = 0, d4 = 0;
+        if (game_universe_selfcheck(&d3, &d4)) {
+            uart_puts("[E....]   [DRIVER ONLINE] multiverse holds ");
+            uart_put_dec(d3);
+            uart_puts(" distinct game universes; a duplicate collapsed (");
+            uart_put_dec(d4);
+            uart_puts(" with the clone) — mechanic dedup online\n");
+        } else {
+            boot_msg("  [WARN] game-universe multiverse dedup did not hold");
+        }
+    }
+
     /* Phase 17a4: Functional lattice spaces — prove each space's action path
      * makes REAL subsystem state change (the same calls the buttons issue). */
     boot_msg("[BOOT] Lattice spaces: wiring the 13 to their real subsystems...");
