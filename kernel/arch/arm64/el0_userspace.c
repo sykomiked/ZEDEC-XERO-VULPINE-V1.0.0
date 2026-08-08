@@ -568,6 +568,22 @@ int copy_from_user(user_proc_t *proc, void *dst, uint64_t user_va,
     return 0;
 }
 
+/* Copy `len` bytes from a kernel buffer OUT to a validated user VA. Symmetric to
+ * copy_from_user, but the destination is checked WRITABLE (AP[2] clear) as well as
+ * mapped + EL0-accessible — so EL1 never writes through a read-only or unmapped
+ * user pointer (which the fail-closed abort handler would turn into a kernel halt,
+ * i.e. a user-triggered DoS). Validate-then-copy is the fault-safe discipline:
+ * the range is proven good before a single byte is written, and SVC runs IRQ-masked
+ * so the mapping cannot change underneath us (no TOCTOU). Returns 0 / -1 (EFAULT). */
+int copy_to_user(user_proc_t *proc, uint64_t user_va, const void *src,
+                 uint64_t len) {
+    if (!proc_user_range_check(proc, user_va, len, true)) return -1;
+    const uint8_t *s = (const uint8_t *)src;
+    uint8_t *d = (uint8_t *)user_va;
+    for (uint64_t i = 0; i < len; i++) d[i] = s[i];
+    return 0;
+}
+
 /* ---- ELF loader integration ---- */
 
 /* Per-load mapper context. */
@@ -1057,17 +1073,23 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
         case SYS_SEND:
             /* args[0]=dest_pid, args[1]=msg_ptr, args[2]=length */
             {
-                /* P0-1: the message buffer is a user pointer — validate the
-                 * whole [ptr, ptr+len) range is mapped and EL0-accessible in
-                 * the caller before EL1 reads it. */
-                if (args[2] > IPC_MAX_PAYLOAD ||
-                    !proc_user_range_ok(curr, args[1], args[2])) {
-                    ctx->x[0] = (uint64_t)-2;   /* EFAULT / too big */
+                /* P0-4: copy the payload into a KERNEL buffer before the send,
+                 * rather than handing ipc_send a live user pointer. copy_from_user
+                 * validates [ptr,ptr+len) is mapped + EL0-accessible and copies it
+                 * atomically w.r.t. the (IRQ-masked) syscall, so the transfer never
+                 * depends on user memory staying mapped and there is no TOCTOU
+                 * between the check and the read. */
+                if (args[2] > IPC_MAX_PAYLOAD) {
+                    ctx->x[0] = (uint64_t)-2;   /* too big */
+                    return;
+                }
+                uint8_t kbuf[IPC_MAX_PAYLOAD];
+                if (copy_from_user(curr, kbuf, args[1], args[2]) != 0) {
+                    ctx->x[0] = (uint64_t)-2;   /* EFAULT */
                     return;
                 }
                 int32_t ret = ipc_send(ps, (uint32_t)args[0],
-                                        (const uint8_t *)args[1],
-                                        (uint32_t)args[2]);
+                                        kbuf, (uint32_t)args[2]);
                 ctx->x[0] = (uint64_t)ret;
             }
             return;
@@ -1104,6 +1126,16 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
                     }
                 }
             }
+            return;
+
+        case SYS_OPEN:
+        case SYS_CLOSE:
+            /* P0-4: recognised syscalls, deliberately not implemented in this MVP
+             * (file access is via the P-TERM shell + ZXVFS, not a raw EL0 fd API).
+             * Return a distinct ENOSYS (-38) so callers see "not implemented",
+             * NOT the -1 "unknown syscall" — and never fall through to a raw
+             * user-pointer dereference. The CAP_FS gate still applies above. */
+            ctx->x[0] = (uint64_t)-38;   /* ENOSYS */
             return;
 
         default:

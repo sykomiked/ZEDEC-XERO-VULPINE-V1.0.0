@@ -212,6 +212,9 @@ bool proc_user_range_check(user_proc_t *proc, uint64_t va, uint64_t len,
                            bool need_write);
 int  copy_from_user(user_proc_t *proc, void *dst, uint64_t user_va,
                     uint64_t len);
+/* Copy OUT to a validated + WRITABLE user VA (kernel -> user). 0 / -1 (EFAULT). */
+int  copy_to_user(user_proc_t *proc, uint64_t user_va, const void *src,
+                  uint64_t len);
 
 /* Map a page in a process's page table */
 bool proc_map_page(user_proc_t *proc, uint64_t va, uint64_t pa,
