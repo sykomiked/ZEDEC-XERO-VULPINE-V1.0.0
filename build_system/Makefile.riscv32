@@ -16,24 +16,37 @@ CFLAGS = -Wall -Wextra -O2 -ffreestanding -nostdlib -nostdinc \
          -isystem $(shell $(CC) -print-file-name=include) \
          -march=rv32imafd_zicsr -mabi=ilp32d \
          -mcmodel=medany \
-         -Ikernel/include -Ikernel/src -Ikernel/arch/riscv -Ikernel/boot \
-         -Ikernel/src/plnp -Ikernel/src/smap -Ikernel/src/decent \
-         -Ikernel/src/recon -Ikernel/src/hdcm -Ikernel/src/gematria \
-         -Ikernel/src/dualtrack -Ikernel/src/superpos \
-         -Ikernel/src/pungent -Ikernel/src/ascent \
-         -Ikernel/src/lattice -Ikernel/src/pterm -Ikernel/src/xedit \
-         -Ikernel/src/crypto_wallet -Ikernel/src/nlb \
-         -Ikernel/src/license -Ikernel/src/surplus -Ikernel/src/edp_risk \
-         -Ikernel/src/predictive -Ikernel/src/situation \
-         -Ikernel/src/finance -Ikernel/src/identity \
-         -Ikernel/src/quantum -Ikernel/src/hardware \
-         -Ikernel/src/audiogenomics_pro \
-         -Ikernel/src/synthesis -Ikernel/compat \
-         -Ikernel/src/vino -Ikernel/src/vena -Ikernel/src/holographic \
-         -Ikernel/src/axiom_matrix -Ikernel/src/telemetry \
-         -Ikernel/src/oseq -Ikernel/src/rmag -Ikernel/src/lpres \
-         -Ikernel/src/iphase -Ikernel/src/choice -Ikernel/src/phase_coord \
-         -Ikernel/src/crit168 -Ikernel/include/freestanding_stubs
+         -Ikernel/arch/arm64 -Ikernel/arch/riscv -Ikernel/boot -Ikernel/compat \
+         -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/src -Ikernel/src/abacus \
+         -Ikernel/src/ai_layer -Ikernel/src/alloc -Ikernel/src/appkit -Ikernel/src/art_studio \
+         -Ikernel/src/ascent -Ikernel/src/audiogenomics_pro -Ikernel/src/axiom_matrix -Ikernel/src/battering_ram \
+         -Ikernel/src/bios -Ikernel/src/bootfeat -Ikernel/src/bridge -Ikernel/src/broker \
+         -Ikernel/src/cards -Ikernel/src/cellular_multikernel -Ikernel/src/chiglet -Ikernel/src/choice \
+         -Ikernel/src/chronicle -Ikernel/src/community_chest -Ikernel/src/concord -Ikernel/src/constellation \
+         -Ikernel/src/count_house -Ikernel/src/crit168 -Ikernel/src/crown -Ikernel/src/crypto_wallet \
+         -Ikernel/src/decent -Ikernel/src/denconnect -Ikernel/src/deploy -Ikernel/src/desktop \
+         -Ikernel/src/dual_space -Ikernel/src/dualtrack -Ikernel/src/edp_risk -Ikernel/src/event_sched \
+         -Ikernel/src/event_space -Ikernel/src/event_transport -Ikernel/src/finance -Ikernel/src/finance_markets \
+         -Ikernel/src/font -Ikernel/src/fractal -Ikernel/src/fusion -Ikernel/src/games \
+         -Ikernel/src/gematria -Ikernel/src/hardware -Ikernel/src/hdcm -Ikernel/src/holodeck \
+         -Ikernel/src/holographic -Ikernel/src/hypercube -Ikernel/src/icon -Ikernel/src/identity \
+         -Ikernel/src/immigration -Ikernel/src/interspace -Ikernel/src/ipfs -Ikernel/src/iphase \
+         -Ikernel/src/iso20022 -Ikernel/src/lattice -Ikernel/src/license -Ikernel/src/lightningrod \
+         -Ikernel/src/loader -Ikernel/src/logistics -Ikernel/src/lpres -Ikernel/src/mage \
+         -Ikernel/src/mesh_net -Ikernel/src/mesh_token -Ikernel/src/ministry -Ikernel/src/mlkem \
+         -Ikernel/src/net -Ikernel/src/nlb -Ikernel/src/onepolicy -Ikernel/src/orbital_compat \
+         -Ikernel/src/orbital_elevator -Ikernel/src/oseq -Ikernel/src/phase_coord -Ikernel/src/pirate_apps \
+         -Ikernel/src/pirate_fleet -Ikernel/src/plnp -Ikernel/src/porter_house -Ikernel/src/predictive \
+         -Ikernel/src/prism_break -Ikernel/src/pterm -Ikernel/src/pungent -Ikernel/src/quantum \
+         -Ikernel/src/rational -Ikernel/src/reality -Ikernel/src/recon -Ikernel/src/refinery \
+         -Ikernel/src/reputation -Ikernel/src/rmag -Ikernel/src/robin_debanks -Ikernel/src/shimmer \
+         -Ikernel/src/situation -Ikernel/src/smap -Ikernel/src/social_spaces -Ikernel/src/sovereign_node \
+         -Ikernel/src/subterm -Ikernel/src/superpos -Ikernel/src/surplus -Ikernel/src/synthesis \
+         -Ikernel/src/telemetry -Ikernel/src/theme -Ikernel/src/tls -Ikernel/src/trispace \
+         -Ikernel/src/update -Ikernel/src/vbe -Ikernel/src/vena -Ikernel/src/vino \
+         -Ikernel/src/vino_stores -Ikernel/src/virtio -Ikernel/src/voice -Ikernel/src/wyrmgate \
+         -Ikernel/src/wyverneye -Ikernel/src/xedit -Ikernel/src/yantra -Ikernel/src/zcapital \
+         -Ikernel/src/zxvfs
 
 LDFLAGS = -T kernel/arch/riscv/linker.ld -nostdlib -static -march=rv32imafd_zicsr -mabi=ilp32d
 LIBGCC =
@@ -46,55 +59,196 @@ RISCV_ARCH_OBJS = \
     kernel/arch/riscv/kernel_main_riscv.o
 
 KERNEL_SRCS = \
-    kernel/src/oseq/oseq_core.c \
-    kernel/src/rmag/rmag_core.c \
-    kernel/src/lpres/lpres_core.c \
-    kernel/src/iphase/iphase_core.c \
-    kernel/src/choice/choice_core.c \
-    kernel/src/phase_coord/phase_coordinator.c \
-    kernel/src/telemetry/telemetry_core.c \
-    kernel/src/axiom_matrix/axiom_matrix_core.c \
-    kernel/src/crit168/crit_168_word.c \
-    kernel/src/mm/mm.c \
-    kernel/src/sched/sched.c \
-    kernel/src/vfs/vfs.c \
-    kernel/src/net/net.c \
-    kernel/src/net/m5route.c \
-    kernel/src/vino/vino.c \
-    kernel/src/vena/vena.c \
-    kernel/src/holographic/holo.c \
-    kernel/src/license/license.c \
-    kernel/src/surplus/surplus.c \
-    kernel/src/edp_risk/edp_risk.c \
-    kernel/src/predictive/predictive_model.c \
-    kernel/src/situation/situation_model.c \
-    kernel/src/finance/triple_ledger.c \
-    kernel/src/finance/financial.c \
-    kernel/src/finance/rails.c \
-    kernel/src/finance/crypto_bridge.c \
-    kernel/src/identity/identity.c \
-    kernel/src/quantum/quantum_device.c \
-    kernel/src/hardware/rtl_device.c \
-    kernel/src/net/jdr_piratenet.c \
-    kernel/src/synthesis/synthesis_engine.c \
-    kernel/src/crypto_wallet/crypto_wallet.c \
-    kernel/src/nlb/nlb.c \
-    kernel/src/pterm/pterm.c \
-    kernel/src/xedit/xedit.c \
-    kernel/src/lattice/lattice.c \
-    kernel/src/pungent/pungent.c \
+    kernel/src/abacus/abacus.c \
+    kernel/src/ai_layer/ai_layer.c \
+    kernel/src/alloc/alloc.c \
+    kernel/src/appkit/doc.c \
+    kernel/src/art_studio/art_studio.c \
     kernel/src/ascent/ascent.c \
-    kernel/src/plnp/plnp.c \
-    kernel/src/smap/smap.c \
-    kernel/src/decent/decent.c \
-    kernel/src/recon/recon.c \
-    kernel/src/hdcm/hdcm.c \
-    kernel/src/gematria/gematria.c \
-    kernel/src/dualtrack/dualtrack.c \
-    kernel/src/superpos/superpos.c \
+    kernel/src/audiogenomics_pro/architectural_directives.c \
     kernel/src/audiogenomics_pro/audiogenomics_pro.c \
     kernel/src/audiogenomics_pro/digital_dna.c \
-    kernel/src/audiogenomics_pro/architectural_directives.c \
+    kernel/src/axiom_matrix/axiom_matrix_core.c \
+    kernel/src/battering_ram/battering_ram.c \
+    kernel/src/bios/zbios.c \
+    kernel/src/blockdev/blockdev.c \
+    kernel/src/bootfeat/boot_features.c \
+    kernel/src/bridge/bridge.c \
+    kernel/src/broker/broker.c \
+    kernel/src/cards/cards.c \
+    kernel/src/cards/sigil.c \
+    kernel/src/cards/zca.c \
+    kernel/src/cellular_multikernel/cellular_multikernel.c \
+    kernel/src/chiglet/chiglet.c \
+    kernel/src/choice/choice_core.c \
+    kernel/src/chronicle/chronicle.c \
+    kernel/src/chronicle/chronicle_persist.c \
+    kernel/src/community_chest/community_chest.c \
+    kernel/src/concord/concord.c \
+    kernel/src/constellation/constellation_coordinator.c \
+    kernel/src/count_house/count_house.c \
+    kernel/src/crit168/crit_168_word.c \
+    kernel/src/crown/crown.c \
+    kernel/src/crypto_wallet/crypto_wallet.c \
+    kernel/src/decent/decent.c \
+    kernel/src/denconnect/denconnect.c \
+    kernel/src/deploy/deploy.c \
+    kernel/src/desktop/zxv_shell.c \
+    kernel/src/dual_space/dual_space.c \
+    kernel/src/dualtrack/dualtrack.c \
+    kernel/src/edp_risk/edp_risk.c \
+    kernel/src/emu/break_potency.c \
+    kernel/src/emu/cinder.c \
+    kernel/src/emu/congruence.c \
+    kernel/src/emu/console_trajectory.c \
+    kernel/src/emu/cpu6502.c \
+    kernel/src/emu/cpu65816.c \
+    kernel/src/emu/cpu_arm7.c \
+    kernel/src/emu/cpu_huc6280.c \
+    kernel/src/emu/cpu_lr35902.c \
+    kernel/src/emu/cpu_m68k.c \
+    kernel/src/emu/cpu_z80.c \
+    kernel/src/emu/dimensional_ladder.c \
+    kernel/src/emu/dimfold.c \
+    kernel/src/emu/emu6502.c \
+    kernel/src/emu/emu_relate.c \
+    kernel/src/emu/game_runner.c \
+    kernel/src/emu/game_universe.c \
+    kernel/src/emu/gb.c \
+    kernel/src/emu/gba.c \
+    kernel/src/emu/genesis.c \
+    kernel/src/emu/helion.c \
+    kernel/src/emu/holo.c \
+    kernel/src/emu/lattice_dimensions.c \
+    kernel/src/emu/mechanic_mod.c \
+    kernel/src/emu/megarom.c \
+    kernel/src/emu/megarom_synth.c \
+    kernel/src/emu/nes.c \
+    kernel/src/emu/netplay.c \
+    kernel/src/emu/pce.c \
+    kernel/src/emu/quill.c \
+    kernel/src/emu/radial_map.c \
+    kernel/src/emu/render_lineage.c \
+    kernel/src/emu/rom_dimensions.c \
+    kernel/src/emu/snes.c \
+    kernel/src/emu/story_mechanics.c \
+    kernel/src/event_sched/event_sched.c \
+    kernel/src/event_space/event_envelope.c \
+    kernel/src/event_space/event_sequencer.c \
+    kernel/src/event_space/self_audit.c \
+    kernel/src/event_space/self_healing.c \
+    kernel/src/event_transport/event_transport.c \
+    kernel/src/fat32/fat32.c \
+    kernel/src/finance/crypto_bridge.c \
+    kernel/src/finance/financial.c \
+    kernel/src/finance/rails.c \
+    kernel/src/finance/triple_ledger.c \
+    kernel/src/finance_markets/finance_markets.c \
+    kernel/src/font/font.c \
+    kernel/src/font/script.c \
+    kernel/src/font/truetype.c \
+    kernel/src/fractal/zorder.c \
+    kernel/src/fusion/fusion.c \
+    kernel/src/games/games.c \
+    kernel/src/gematria/gematria.c \
+    kernel/src/hardware/dlp_projector.c \
+    kernel/src/hardware/rtl_device.c \
+    kernel/src/hdcm/hdcm.c \
+    kernel/src/holodeck/swarm.c \
+    kernel/src/holodeck/viewing.c \
+    kernel/src/holographic/holo.c \
+    kernel/src/hypercube/hypercube_scene.c \
+    kernel/src/icon/icon.c \
+    kernel/src/identity/identity.c \
+    kernel/src/immigration/immigration.c \
+    kernel/src/interspace/federation.c \
+    kernel/src/interspace/flagstate.c \
+    kernel/src/interspace/interspace.c \
+    kernel/src/interspace/lex_rhodia.c \
+    kernel/src/interspace/minister.c \
+    kernel/src/ipfs/ipfs.c \
+    kernel/src/iphase/iphase_core.c \
+    kernel/src/iso20022/iso20022.c \
+    kernel/src/lattice/lattice.c \
+    kernel/src/license/license.c \
+    kernel/src/lightningrod/lightningrod.c \
+    kernel/src/loader/abupdate.c \
+    kernel/src/loader/elf.c \
+    kernel/src/loader/zsp.c \
+    kernel/src/logistics/logistics.c \
+    kernel/src/lpres/lpres_core.c \
+    kernel/src/mage/mage.c \
+    kernel/src/mesh_net/mesh_net.c \
+    kernel/src/mesh_token/mesh_token.c \
+    kernel/src/ministry/ministry.c \
+    kernel/src/mlkem/keccak.c \
+    kernel/src/mlkem/mlkem768.c \
+    kernel/src/mlkem/mlkem_encode.c \
+    kernel/src/mlkem/mlkem_kpe.c \
+    kernel/src/mlkem/mlkem_ntt.c \
+    kernel/src/mlkem/mlkem_sample.c \
+    kernel/src/mm/mm.c \
+    kernel/src/net/dhcp.c \
+    kernel/src/net/dns.c \
+    kernel/src/net/jdr_piratenet.c \
+    kernel/src/net/m5route.c \
+    kernel/src/net/net.c \
+    kernel/src/net/tcp.c \
+    kernel/src/nlb/nlb.c \
+    kernel/src/onepolicy/onepolicy.c \
+    kernel/src/orbital_compat/orbital_compat.c \
+    kernel/src/orbital_elevator/orbital_elevator.c \
+    kernel/src/oseq/oseq_core.c \
+    kernel/src/phase_coord/phase_coordinator.c \
+    kernel/src/pirate_apps/pirate_apps.c \
+    kernel/src/pirate_fleet/pirate_fleet.c \
+    kernel/src/plnp/plnp.c \
+    kernel/src/porter_house/porter_house.c \
+    kernel/src/predictive/predictive_model.c \
+    kernel/src/prism_break/prism_break.c \
+    kernel/src/pterm/pterm.c \
+    kernel/src/pterm/pterm_commands.c \
+    kernel/src/pterm/pterm_mux.c \
+    kernel/src/pungent/pungent.c \
+    kernel/src/quantum/quantum_device.c \
+    kernel/src/rational/rational.c \
+    kernel/src/reality/reality.c \
+    kernel/src/recon/recon.c \
+    kernel/src/refinery/enochian.c \
+    kernel/src/refinery/refinery.c \
+    kernel/src/reputation/reputation.c \
+    kernel/src/rmag/rmag.c \
+    kernel/src/rmag/rmag_core.c \
+    kernel/src/robin_debanks/aes256_gcm.c \
+    kernel/src/robin_debanks/ed25519_verify.c \
+    kernel/src/robin_debanks/robin_debanks.c \
+    kernel/src/robin_debanks/sha256.c \
+    kernel/src/sched/sched.c \
+    kernel/src/shimmer/shimmer.c \
+    kernel/src/situation/situation_model.c \
+    kernel/src/smap/smap.c \
+    kernel/src/social_spaces/social.c \
+    kernel/src/sovereign_node/sovereign_node.c \
+    kernel/src/subterm/subterm.c \
+    kernel/src/superpos/superpos.c \
+    kernel/src/surplus/surplus.c \
+    kernel/src/synthesis/synthesis_engine.c \
+    kernel/src/telemetry/telemetry_core.c \
+    kernel/src/theme/theme.c \
+    kernel/src/trispace/trispace.c \
+    kernel/src/update/update.c \
+    kernel/src/vbe/vbe.c \
+    kernel/src/vena/vena.c \
+    kernel/src/vfs/vfs.c \
+    kernel/src/vino/vino.c \
+    kernel/src/vino_stores/vino_stores.c \
+    kernel/src/voice/voice.c \
+    kernel/src/wyrmgate/wyrmgate.c \
+    kernel/src/wyverneye/wyverneye.c \
+    kernel/src/xedit/xedit.c \
+    kernel/src/yantra/yantra_fabric.c \
+    kernel/src/zcapital/zcapital.c \
+    kernel/src/zxvfs/zxvfs.c \
     kernel/compat/compat_layer.c \
     kernel/compat/softfloat_stubs.c
 

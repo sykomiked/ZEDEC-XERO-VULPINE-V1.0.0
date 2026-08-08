@@ -286,11 +286,16 @@ void tribute_split(uint64_t amount, const uint8_t weights[5], uint64_t out[5]) {
 
     uint64_t rem[5];
     uint64_t allocated = 0;
+    /* Exact amount*weight/W without a 128-bit intermediate (armv7 has no
+     * __uint128_t). Write amount = q*W + r (r < W); then
+     *   (amount*w)/W = q*w + (r*w)/W,   (amount*w)%W = (r*w)%W.
+     * Every term stays in uint64: w <= W (W is the sum of weights) so q*w <= amount,
+     * and r*w < W*255 <= 1275*255. */
+    const uint64_t q = amount / W, r = amount % W;
     for (int i = 0; i < 5; i++) {
-        /* 128-bit intermediate so amount * weight never overflows uint64. */
-        __uint128_t prod = (__uint128_t)amount * (__uint128_t)weights[i];
-        out[i] = (uint64_t)(prod / W);
-        rem[i] = (uint64_t)(prod % W);
+        const uint64_t w = (uint64_t)weights[i];
+        out[i] = q * w + (r * w) / W;
+        rem[i] = (r * w) % W;
         allocated += out[i];
     }
     /* Distribute the leftover units to the largest remainders (Hamilton). The
