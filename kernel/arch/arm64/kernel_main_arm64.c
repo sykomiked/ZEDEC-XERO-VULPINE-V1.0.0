@@ -1388,6 +1388,21 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a5i: Quill — the second engine MegaROM, the id Tech 2 leap to TRUE
+     * polygonal 3D: a z-buffered triangle rasterizer with perspective-correct
+     * texturing and lightmaps (baked lighting), still in the holographic idiom. */
+    boot_msg("[BOOT] Quill — id Tech 2-class polygonal renderer (z-buffer + lightmaps)...");
+    {
+        extern int  quill_selfcheck(void);
+        extern void quill_register_megarom(void);
+        if (quill_selfcheck()){
+            quill_register_megarom();
+            boot_msg("  [DRIVER ONLINE] Quill renders — z-buffered polygons, perspective texture, lightmaps, holo depth; registered as a graphics MegaROM");
+        } else {
+            boot_msg("  [WARN] Quill did not render a coherent frame");
+        }
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
