@@ -1372,6 +1372,22 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a5h: Cinder — the first engine MegaROM actually RUNNING. An id
+     * Tech 1-class column raycaster, built from scratch (GPL-clean), rendering a
+     * textured 3D world in the system's holographic idiom (near warm / far cool).
+     * Turns the engine lineage from a catalog into a running renderer. */
+    boot_msg("[BOOT] Cinder — id Tech 1-class renderer, the first engine MegaROM...");
+    {
+        extern int  cinder_selfcheck(void);
+        extern void cinder_register_megarom(void);
+        if (cinder_selfcheck()){
+            cinder_register_megarom();
+            boot_msg("  [DRIVER ONLINE] Cinder renders — textured 3D raycast with holo depth (near warm/far cool); registered as a graphics MegaROM");
+        } else {
+            boot_msg("  [WARN] Cinder did not render a coherent frame");
+        }
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
