@@ -116,9 +116,14 @@ system** (sandboxed, capability-gated — reuse the W^X + EL0 + capability model
 Backward: the 84 ROM-era consoles. Forward: RAM/disc-model, then modern engines
 via primitive adapters (long tail).
 
-**Phase E — UI layers as MegaROMs.**
-Package UI layers (starting with the 13-space lattice desktop) as bootable
-MegaROMs on the kernel — the video-game-style OS face.
+**Phase E — UI layers as MegaROMs (console model).** [foundation built]
+The interface resembles a **game console**; MegaROMs ARE the bootable UI — each
+a UI layer you boot like a cartridge. `emu/megarom.{c,h}` is the console's
+cartridge slot: a registry + boot selector (`megarom_register/boot/current`).
+The 13-space lattice desktop is **MegaROM #0**. Next: a console front-end screen
+that lists registered MegaROMs and boots between them; then package the desktop
+(and each new UI layer / game) as a real bootable MegaROM with its own
+render+input hooks driven through `holo_shade`.
 
 ## Resume checklist (start here after the break)
 
