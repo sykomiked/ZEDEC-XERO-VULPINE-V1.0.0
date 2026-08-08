@@ -558,6 +558,12 @@ verify-all: test
 			-o /tmp/test_zsp -lm && \
 			/tmp/test_zsp && echo "[PASS] test_zsp" || { echo "[FAIL] test_zsp"; exit 1; }; \
 	else echo "[SKIP] test_zsp (run build_system/build_signed_app.sh to generate hello_signed.h)"; fi; \
+	echo "=== ZSP v2 enforced verification (version/arch/key-id + anti-rollback) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/loader -Isrc/robin_debanks \
+		src/loader/test_zsp2.c src/loader/zsp.c \
+		src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c \
+		-o /tmp/test_zsp2 -lm && \
+		/tmp/test_zsp2 && echo "[PASS] test_zsp2" || { echo "[FAIL] test_zsp2"; exit 1; }; \
 	echo "=== A/B signed update + probation + auto-rollback ==="; \
 	if [ -f userapp/hello_signed.h ]; then \
 		gcc -std=c11 -Wall -Werror -Wextra -DZXVFS_HOST -Isrc/loader -Isrc/zxvfs -Isrc/robin_debanks -Iinclude -Iuserapp \

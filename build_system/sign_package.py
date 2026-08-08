@@ -20,15 +20,55 @@ Usage:
 """
 import sys, struct, hashlib, subprocess, os
 
+ARCH_IDS = {"any":0,"arm64":1,"x86_64":2,"riscv64":3,"riscv32":4,"arm32":5}
+
+def build_preimage_v2(payload, pub, version, arch, abi, caps, name):
+    """ZSP v2 signed preimage (96 bytes) — see zsp.h."""
+    sha = hashlib.sha256(payload).digest()
+    key_id = hashlib.sha256(pub).digest()[:8]
+    identity = hashlib.sha256(b"zxv-package:" + name.encode()).digest()
+    hdr = b"ZSP2"
+    hdr += struct.pack("<H", 96)               # hdr_len (preimage length)
+    hdr += struct.pack("<H", abi)              # abi
+    hdr += struct.pack("<I", version)          # version (anti-rollback)
+    hdr += struct.pack("<H", arch)             # arch
+    hdr += struct.pack("<H", 0)                # reserved
+    hdr += struct.pack("<I", caps)             # caps
+    hdr += struct.pack("<I", len(payload))     # payload_len
+    hdr += key_id                              # key_id[8]
+    hdr += identity                            # identity[32]
+    hdr += sha                                 # sha256[32]
+    assert len(hdr) == 96, len(hdr)
+    return hdr
+
 def main():
-    if len(sys.argv) != 7:
+    argv = sys.argv[1:]
+    # optional flags (v2): --v2 --version=N --arch=NAME --caps=N --abi=N --name=STR
+    v2 = False; version = 1; arch = 0; caps = 0; abi = 1; name = "app"
+    pos = []
+    for a in argv:
+        if a == "--v2": v2 = True
+        elif a.startswith("--version="): version = int(a.split("=",1)[1], 0)
+        elif a.startswith("--arch="):
+            v = a.split("=",1)[1]; arch = ARCH_IDS.get(v, int(v,0) if v.isdigit() else 0); v2 = True
+        elif a.startswith("--caps="): caps = int(a.split("=",1)[1], 0)
+        elif a.startswith("--abi="): abi = int(a.split("=",1)[1], 0)
+        elif a.startswith("--name="): name = a.split("=",1)[1]
+        else: pos.append(a)
+    if len(pos) != 6:
         print(__doc__); sys.exit(2)
-    payload_path, priv_pem, pub_bin, out_zsp, out_h, sym = sys.argv[1:7]
+    payload_path, priv_pem, pub_bin, out_zsp, out_h, sym = pos
 
     payload = open(payload_path, "rb").read()
-    sha = hashlib.sha256(payload).digest()
-    magic = b"ZSP1"
-    preimage = magic + struct.pack("<I", len(payload)) + sha  # 40 bytes
+    pub = open(pub_bin, "rb").read()
+    assert len(pub) == 32, f"bad pubkey len {len(pub)}"
+
+    if v2:
+        preimage = build_preimage_v2(payload, pub, version, arch, abi, caps, name)
+    else:
+        sha = hashlib.sha256(payload).digest()
+        magic = b"ZSP1"
+        preimage = magic + struct.pack("<I", len(payload)) + sha  # 40 bytes
 
     # Sign the 40-byte preimage with Ed25519 (pure, raw input).
     pre_tmp = out_zsp + ".pre"
@@ -42,9 +82,6 @@ def main():
 
     pkg = preimage + sig + payload
     open(out_zsp, "wb").write(pkg)
-
-    pub = open(pub_bin, "rb").read()
-    assert len(pub) == 32, f"bad pubkey len {len(pub)}"
 
     def carr(name, data):
         out = [f"static const unsigned char {name}[] = {{"]
