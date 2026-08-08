@@ -1,157 +1,321 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "schema_name": "zedec-pqos-server-handover",
-  "schema_version": "1.1.0",
-  "architecture_whitepaper": "ARCHITECTURE_WHITEPAPER.md",
-  "generated_for": "AI operator running the cross-compile on a Linux server",
-  "generated_from": "development session on Apple Silicon (arm64 macOS)",
-  "repo_root": "05_KERNEL",
-  "governing_rule": "no hollow capabilities: SKIP = missing toolchain, FAIL = compile/link error, OK = artifact produced AND gate passed. Never round up.",
-  "human_doc": "SERVER_HANDOVER.md",
-
-  "reference_build": {
-    "target": "arm64",
-    "makefile": "build_system/Makefile.arm64",
-    "boots": true,
-    "boot_milestone": "[E0106] [BOOT_OK] — EL0 + P-TERM shell",
-    "qemu": "qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a53 -m 256M -kernel kernel_arm64.elf -nographic -serial mon:stdio"
-  },
-
-  "host_gate": {
-    "command": "make verify-all",
-    "cwd": "05_KERNEL/kernel",
-    "status": "ALL STAGE-1 CHECKS PASSED",
-    "checks": 3593,
-    "failures": 0,
-    "note": "native gcc/clang tests assert against external anchors (RFC vectors, openssl sigs, known-answer geometry) under ASan+UBSan"
-  },
-
-  "preflight": {
-    "command": "bash build_system/preflight_all_targets.sh",
-    "status": "CLEAN",
-    "note": "clang compile-only, all 5 targets. arm64 = 170 files incl. the full economy layer; x86_64/riscv/riscv32/arm32 compile.",
-    "targets_compiled": { "arm64": 170, "x86_64": 6, "riscv": 55, "riscv32": 55, "arm32": 53 }
-  },
-
-  "red_team": {
-    "note": "load-bearing guards — never remove; regressions live in the per-module test_*.c under ASan/UBSan",
-    "gates": [
-      { "name": "kernel-layer", "commit": "953e3ae", "confirmed_fixed": 19, "refuted": 1 },
-      { "name": "economy-layer", "commit": "15f5455", "confirmed_fixed": 12,
-        "critical": "logistics escrow released + minted reputation on a bare caller-set confirmed bool; now requires a bound Ed25519 delivery verifier + contract-party membership + goods witness, fails closed when unbound",
-        "invariants_to_preserve": [
-          "escrow/settlement ops boundaries verify signature + membership and fail closed when unbound (log_set_verifier, br_distribute, crown_isc_is_active)",
-          "onepolicy unilateral-extraction check fires on modeled values regardless of the caller-set reciprocal flag",
-          "a ledger post asks a pure usury query (give_a=give_b=0, interest only), never the two-party deal gate",
-          "money (FINANCIAL) swap legs require a bound rail (BR_ERR_NO_RAIL)",
-          "quarantine needs distinct-reporter consensus; soc_sort never manufactures it (no shadowban)"
-        ]
-      }
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "schema_name": "zedec-pqos-server-handover",
+ "schema_version": "1.2.0",
+ "architecture_whitepaper": "ARCHITECTURE_WHITEPAPER.md",
+ "generated_for": "AI operator running the cross-compile on a Linux server",
+ "generated_from": "development session on Apple Silicon (arm64 macOS)",
+ "repo_root": "05_KERNEL",
+ "governing_rule": "no hollow capabilities: SKIP = missing toolchain, FAIL = compile/link error, OK = artifact produced AND gate passed. Never round up.",
+ "human_doc": "SERVER_HANDOVER.md",
+ "reference_build": {
+  "target": "arm64",
+  "makefile": "build_system/Makefile.arm64",
+  "boots": true,
+  "boot_milestone": "[E0106] [BOOT_OK] \u2014 EL0 + P-TERM shell",
+  "qemu": "qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a53 -m 256M -kernel kernel_arm64.elf -nographic -serial mon:stdio"
+ },
+ "host_gate": {
+  "command": "make verify-all",
+  "cwd": "05_KERNEL/kernel",
+  "status": "ALL STAGE-1 CHECKS PASSED (incl. test_zsp2, install_security, extended test_abupdate)",
+  "checks": 3593,
+  "failures": 0,
+  "note": "native gcc/clang tests assert against external anchors (RFC vectors, openssl sigs, known-answer geometry) under ASan+UBSan"
+ },
+ "preflight": {
+  "command": "bash build_system/preflight_all_targets.sh",
+  "status": "CLEAN",
+  "note": "clang compile-only, all 5 targets. arm64 = 170 files incl. the full economy layer; x86_64/riscv/riscv32/arm32 compile.",
+  "targets_compiled": {
+   "arm64": 170,
+   "x86_64": 6,
+   "riscv": 55,
+   "riscv32": 55,
+   "arm32": 53
+  }
+ },
+ "red_team": {
+  "note": "load-bearing guards \u2014 never remove; regressions live in the per-module test_*.c under ASan/UBSan",
+  "gates": [
+   {
+    "name": "kernel-layer",
+    "commit": "953e3ae",
+    "confirmed_fixed": 19,
+    "refuted": 1
+   },
+   {
+    "name": "economy-layer",
+    "commit": "15f5455",
+    "confirmed_fixed": 12,
+    "critical": "logistics escrow released + minted reputation on a bare caller-set confirmed bool; now requires a bound Ed25519 delivery verifier + contract-party membership + goods witness, fails closed when unbound",
+    "invariants_to_preserve": [
+     "escrow/settlement ops boundaries verify signature + membership and fail closed when unbound (log_set_verifier, br_distribute, crown_isc_is_active)",
+     "onepolicy unilateral-extraction check fires on modeled values regardless of the caller-set reciprocal flag",
+     "a ledger post asks a pure usury query (give_a=give_b=0, interest only), never the two-party deal gate",
+     "money (FINANCIAL) swap legs require a bound rail (BR_ERR_NO_RAIL)",
+     "quarantine needs distinct-reporter consensus; soc_sort never manufactures it (no shadowban)"
     ]
+   }
+  ]
+ },
+ "targets": [
+  {
+   "name": "arm64",
+   "makefile": "build_system/Makefile.arm64",
+   "toolchain": "gcc-aarch64-linux-gnu",
+   "local_status": "OK_BOOTS",
+   "server_action": "rebuild, confirm parity"
   },
-
-  "targets": [
-    { "name": "arm64",   "makefile": "build_system/Makefile.arm64",   "toolchain": "gcc-aarch64-linux-gnu",        "local_status": "OK_BOOTS",        "server_action": "rebuild, confirm parity" },
-    { "name": "x86_64",  "makefile": "build_system/Makefile.x86_64",  "toolchain": "gcc-x86-64-linux-gnu",         "local_status": "COMPILES_KERNEL_ONLY", "server_action": "IMPLEMENT ring-3 parity (see work_items[0])" },
-    { "name": "riscv",   "makefile": "build_system/Makefile.riscv",   "toolchain": "gcc-riscv64-linux-gnu",        "local_status": "UNLINKABLE_LOCALLY", "server_action": "build + boot-test" },
-    { "name": "riscv32", "makefile": "build_system/Makefile.riscv32", "toolchain": "gcc-riscv64-linux-gnu multilib","local_status": "UNLINKABLE_LOCALLY", "server_action": "build + boot-test" },
-    { "name": "arm32",   "makefile": "build_system/Makefile.arm32",   "toolchain": "gcc-arm-linux-gnueabihf",      "local_status": "COMPILES",        "server_action": "build + boot-test" }
+  {
+   "name": "x86_64",
+   "makefile": "build_system/Makefile.x86_64",
+   "toolchain": "gcc-x86-64-linux-gnu",
+   "local_status": "COMPILES_KERNEL_ONLY",
+   "server_action": "IMPLEMENT ring-3 parity (see work_items[0])"
+  },
+  {
+   "name": "riscv",
+   "makefile": "build_system/Makefile.riscv",
+   "toolchain": "gcc-riscv64-linux-gnu",
+   "local_status": "UNLINKABLE_LOCALLY",
+   "server_action": "build + boot-test (bring-up)"
+  },
+  {
+   "name": "riscv32",
+   "makefile": "build_system/Makefile.riscv32",
+   "toolchain": "gcc-riscv64-linux-gnu multilib",
+   "local_status": "COMPILE_PARITY_full_subsystems",
+   "server_action": "build 32-bit arch layer (el0-equiv/virtio/ramfb) + link + boot"
+  },
+  {
+   "name": "arm32",
+   "makefile": "build_system/Makefile.arm32",
+   "toolchain": "gcc-arm-linux-gnueabihf",
+   "local_status": "COMPILE_PARITY_full_subsystems",
+   "server_action": "build 32-bit arch layer (el0-equiv/virtio/ramfb) + link + boot"
+  }
+ ],
+ "platform_layer": {
+  "description": "arch-neutral modules on top of the M5 core; wired + booting on arm64 ([FEAT] 8/8 self-checked)",
+  "entry_point": "boot_features_init(puts, cpu_cores, mem_mb)",
+  "entry_file": "kernel/src/bootfeat/boot_features.c",
+  "makefile_fragment": "build_system/platform_layer.mk",
+  "cross_compile_verified": [
+   "x86_64-elf",
+   "aarch64-none-elf",
+   "armv7-none-eabi"
   ],
-
-  "platform_layer": {
-    "description": "arch-neutral modules on top of the M5 core; wired + booting on arm64 ([FEAT] 8/8 self-checked)",
-    "entry_point": "boot_features_init(puts, cpu_cores, mem_mb)",
-    "entry_file": "kernel/src/bootfeat/boot_features.c",
-    "makefile_fragment": "build_system/platform_layer.mk",
-    "cross_compile_verified": ["x86_64-elf", "aarch64-none-elf", "armv7-none-eabi"],
-    "modules": ["deploy", "theme", "icon", "font(script+font+truetype)", "bridge", "update", "mage", "reality"],
-    "integration_per_arch": [
-      "include build_system/platform_layer.mk; KERNEL_SRCS += $(PLATFORM_LAYER_SRCS); CFLAGS += $(PLATFORM_LAYER_INC)",
-      "call boot_features_init(<arch_uart_puts>,0,0) from that arch's kernel_main before BOOT_OK"
-    ]
-  },
-
-  "economy_layer": {
-    "description": "pirate-economy / governance / social / creative modules on top of the base; wired + booting on arm64 ([FEAT] economy foundation up: 5/5)",
-    "entry_point": "boot_economy_init(puts)",
-    "entry_file": "kernel/src/bootfeat/boot_features.c",
-    "makefile_fragment": "build_system/economy_layer.mk",
-    "module_count": 25,
-    "modules": ["onepolicy","zcapital","ipfs","crown","ministry","vino_stores","interspace(5 files)","broker","battering_ram","finance_markets","iso20022","alloc","pirate_fleet","social_spaces","reputation","art_studio","games","voice","subterm","orbital_compat","fusion","sovereign_node","logistics","pirate_apps"],
-    "cross_compile_verified": ["aarch64-none-elf (boots)", "x86_64-elf (compiles)", "riscv/arm32 (compiles)"],
-    "base_deps_required_first": ["finance/triple_ledger","surplus","robin_debanks/sha256","robin_debanks/ed25519_verify","concord","chiglet","trispace","constellation","identity","theme","icon","cards/sigil","tls/hkdf"],
-    "integration_per_arch": [
-      "include build_system/economy_layer.mk; KERNEL_SRCS += $(ECONOMY_LAYER_SRCS); CFLAGS += $(ECONOMY_LAYER_INC)",
-      "ensure base_deps_required_first are already in that arch's KERNEL_SRCS (else undefined symbols = missing base dep, not a fragment bug)",
-      "call boot_economy_init(<arch_uart_puts>) from that arch's kernel_main before BOOT_OK"
-    ]
-  },
-
-  "build_sequence": [
-    { "step": 1, "cmd": "bash build_system/provision_server.sh",       "purpose": "install toolchains", "installs": ["gcc-aarch64-linux-gnu","gcc-x86-64-linux-gnu","gcc-riscv64-linux-gnu","gcc-arm-linux-gnueabihf","clang","llvm","qemu-system-*","xorriso","mtools","grub-pc-bin"] },
-    { "step": 2, "cmd": "bash build_system/preflight_all_targets.sh",  "purpose": "clang compile-only smoke test of every target", "fail_means": "a target WILL fail to link on the server" },
-    { "step": 3, "cmd": "bash build_system/build_all_targets.sh",      "purpose": "link every target that has a toolchain; prints honest OK/FAIL/SKIP matrix", "env": "TARGETS=\"arm64 x86_64 riscv riscv32 arm32\", BOOT=1 to also QEMU-boot" },
-    { "step": 4, "cmd": "bash build_system/ci_gate.sh 100",            "purpose": "fail-closed gate: clean build + verify-all + fuzzers + 100 boots to BOOT_OK" },
-    { "step": 5, "cmd": "bash build_system/mkuniversal_disc.sh",       "purpose": "one GPT+FAT32 ESP disc, per-arch /EFI/BOOT/BOOT{X64,AA64,RISCV64}.EFI", "blocked_by": "work_items[1] (EFI payloads)" },
-    { "step": 6, "cmd": "bash build_system/mkuniversal_vm.sh",         "purpose": "zxv.raw + zxv.ova (+ qcow2/vmdk/vhdx/vdi if qemu-img)", "note": "conversion path proven with qemu-img; needs real disc as input" },
-    { "step": 7, "cmd": "ROOT_KEY=/secure/root_priv.pem bash build_system/sign_release.sh", "purpose": "ZSP Ed25519 envelope over the Tri-Space seal", "secret": "root key supplied out-of-band, NEVER in repo" }
+  "modules": [
+   "deploy",
+   "theme",
+   "icon",
+   "font(script+font+truetype)",
+   "bridge",
+   "update",
+   "mage",
+   "reality"
   ],
-
-  "work_items": [
-    {
-      "id": "x86_64-ring3",
-      "priority": "P0",
-      "title": "x86_64 ring-3 parity",
-      "detail": "kernel/arch/x86_64 has a minimal kernel_main only. Add PML4 page tables + user/supervisor split, a syscall/sysret entry mirroring the arm64 SVC path, and ring-3 process bring-up mirroring arch/arm64/el0_userspace.c. Then wire the platform layer and confirm BOOT_OK under qemu-system-x86_64.",
-      "until_done_report_as": "x86_64 boots, kernel-only (NOT full parity)"
-    },
-    {
-      "id": "efi-payloads",
-      "priority": "P0",
-      "title": "EFI boot payloads for the universal disc",
-      "detail": "Produce per-arch UEFI PE binaries at /EFI/BOOT/BOOTX64.EFI, BOOTAA64.EFI, BOOTRISCV64.EFI (GNU-EFI or a PE64 wrapper that chainloads the kernel blob). mkuniversal_disc.sh documents the exact paths.",
-      "test": "boot the disc under OVMF (x86_64) and AAVMF/edk2 (arm64) in QEMU"
-    },
-    {
-      "id": "wire-platform-nonarm64",
-      "priority": "P1",
-      "title": "Wire platform layer into x86_64/riscv/arm32",
-      "detail": "Two-line Makefile include (platform_layer.mk) + one boot_features_init call per arch. Verified portable.",
-      "test": "[FEAT] N/8 self-checked line appears in each arch boot log"
-    },
-    {
-      "id": "wire-economy-nonarm64",
-      "priority": "P2",
-      "title": "Wire economy layer into x86_64/riscv/arm32 (optional; arm64 is the full target)",
-      "detail": "include economy_layer.mk + boot_economy_init per arch. PREREQUISITE: economy_layer.base_deps_required_first must already be in that arch's KERNEL_SRCS (the non-arm64 kernels are currently minimal/partial, so bring the base modules up first). All 25 modules already compile freestanding under preflight.",
-      "test": "[FEAT] economy foundation up: 5/5 line appears in that arch boot log",
-      "note": "arm64 already carries the full economy layer and boots it; the other arches are bring-up/preflight targets where this is opt-in."
-    }
+  "integration_per_arch": [
+   "include build_system/platform_layer.mk; KERNEL_SRCS += $(PLATFORM_LAYER_SRCS); CFLAGS += $(PLATFORM_LAYER_INC)",
+   "call boot_features_init(<arch_uart_puts>,0,0) from that arch's kernel_main before BOOT_OK"
+  ]
+ },
+ "economy_layer": {
+  "description": "pirate-economy / governance / social / creative modules on top of the base; wired + booting on arm64 ([FEAT] economy foundation up: 5/5)",
+  "entry_point": "boot_economy_init(puts)",
+  "entry_file": "kernel/src/bootfeat/boot_features.c",
+  "makefile_fragment": "build_system/economy_layer.mk",
+  "module_count": 25,
+  "modules": [
+   "onepolicy",
+   "zcapital",
+   "ipfs",
+   "crown",
+   "ministry",
+   "vino_stores",
+   "interspace(5 files)",
+   "broker",
+   "battering_ram",
+   "finance_markets",
+   "iso20022",
+   "alloc",
+   "pirate_fleet",
+   "social_spaces",
+   "reputation",
+   "art_studio",
+   "games",
+   "voice",
+   "subterm",
+   "orbital_compat",
+   "fusion",
+   "sovereign_node",
+   "logistics",
+   "pirate_apps"
   ],
-
-  "native_formats": {
-    "artifacts": { "S+": ".zxvc", "S-": ".cedez", "S0": ".cedec" },
-    "seal_tool": "build_system/mkzxpkg.c (cc -O2 -o mkzxpkg)",
-    "sign_tool": "build_system/sign_release.sh (magic ZSP1)",
-    "verify_on_target": "zxpkg_verify_release — triad-intact AND signature-vs-root-key",
-    "contingency_doctrine": "loader + ops boundaries fail closed, never fake: malformed artifact -> not-bound + diagnostic, never silent wrong result. Fuzzers (ELF, ZXVFS, ASan+UBSan) guard this."
-  },
-
-  "secrets": {
-    "root_key": { "in_repo": false, "env": "ROOT_KEY", "dev_placeholder": "build_system/keys/root_priv.pem (gitignored, DEV ONLY)" },
-    "ssh_keys_prior_session": "COMPROMISED — rotate",
-    "rule": "never paste any private key/credential into an AI prompt; hold keys on the server, out-of-band"
-  },
-
-  "acceptance_criteria": [
-    "preflight: every target compiles",
-    "build_all_targets: arm64 + x86_64 link (riscv/arm32 OK-or-SKIP-with-reason)",
-    "ci_gate 100: build + verify-all + fuzz + 100/100 boots green",
-    "x86_64 boots under qemu-system-x86_64 (label kernel-only vs full parity)",
-    "universal disc boots >=2 arches' firmware in QEMU",
-    "universal vm: zxv.raw + zxv.ova produced, opens in >=1 hypervisor",
-    "signed native-format release verifies against the REAL root key"
+  "cross_compile_verified": [
+   "aarch64-none-elf (boots)",
+   "x86_64-elf (compiles)",
+   "riscv/arm32 (compiles)"
   ],
-
-  "do_not_touch_as_canonical": ["zxv_os", "zxv_build", "zxv_complete", "zxv_sdk", "05_KERNEL/subsystems"]
+  "base_deps_required_first": [
+   "finance/triple_ledger",
+   "surplus",
+   "robin_debanks/sha256",
+   "robin_debanks/ed25519_verify",
+   "concord",
+   "chiglet",
+   "trispace",
+   "constellation",
+   "identity",
+   "theme",
+   "icon",
+   "cards/sigil",
+   "tls/hkdf"
+  ],
+  "integration_per_arch": [
+   "include build_system/economy_layer.mk; KERNEL_SRCS += $(ECONOMY_LAYER_SRCS); CFLAGS += $(ECONOMY_LAYER_INC)",
+   "ensure base_deps_required_first are already in that arch's KERNEL_SRCS (else undefined symbols = missing base dep, not a fragment bug)",
+   "call boot_economy_init(<arch_uart_puts>) from that arch's kernel_main before BOOT_OK"
+  ]
+ },
+ "build_sequence": [
+  {
+   "step": 1,
+   "cmd": "bash build_system/provision_server.sh",
+   "purpose": "install toolchains",
+   "installs": [
+    "gcc-aarch64-linux-gnu",
+    "gcc-x86-64-linux-gnu",
+    "gcc-riscv64-linux-gnu",
+    "gcc-arm-linux-gnueabihf",
+    "clang",
+    "llvm",
+    "qemu-system-*",
+    "xorriso",
+    "mtools",
+    "grub-pc-bin"
+   ]
+  },
+  {
+   "step": 2,
+   "cmd": "bash build_system/preflight_all_targets.sh",
+   "purpose": "clang compile-only smoke test of every target",
+   "fail_means": "a target WILL fail to link on the server"
+  },
+  {
+   "step": 3,
+   "cmd": "bash build_system/build_all_targets.sh",
+   "purpose": "link every target that has a toolchain; prints honest OK/FAIL/SKIP matrix",
+   "env": "TARGETS=\"arm64 x86_64 riscv riscv32 arm32\", BOOT=1 to also QEMU-boot"
+  },
+  {
+   "step": 4,
+   "cmd": "bash build_system/ci_gate.sh 100",
+   "purpose": "fail-closed gate: clean build + verify-all + fuzzers + 100 boots to BOOT_OK"
+  },
+  {
+   "step": 5,
+   "cmd": "bash build_system/mkuniversal_disc.sh",
+   "purpose": "one GPT+FAT32 ESP disc, per-arch /EFI/BOOT/BOOT{X64,AA64,RISCV64}.EFI",
+   "blocked_by": "work_items[1] (EFI payloads)"
+  },
+  {
+   "step": 6,
+   "cmd": "bash build_system/mkuniversal_vm.sh",
+   "purpose": "zxv.raw + zxv.ova (+ qcow2/vmdk/vhdx/vdi if qemu-img)",
+   "note": "conversion path proven with qemu-img; needs real disc as input"
+  },
+  {
+   "step": 7,
+   "cmd": "ROOT_KEY=/secure/root_priv.pem bash build_system/sign_release.sh",
+   "purpose": "ZSP Ed25519 envelope over the Tri-Space seal",
+   "secret": "root key supplied out-of-band, NEVER in repo"
+  }
+ ],
+ "work_items": [
+  {
+   "id": "x86_64-ring3",
+   "priority": "P0",
+   "title": "x86_64 ring-3 parity",
+   "detail": "kernel/arch/x86_64 has a minimal kernel_main only. Add PML4 page tables + user/supervisor split, a syscall/sysret entry mirroring the arm64 SVC path, and ring-3 process bring-up mirroring arch/arm64/el0_userspace.c. Then wire the platform layer and confirm BOOT_OK under qemu-system-x86_64.",
+   "until_done_report_as": "x86_64 boots, kernel-only (NOT full parity)"
+  },
+  {
+   "id": "efi-payloads",
+   "priority": "P0",
+   "title": "EFI boot payloads for the universal disc",
+   "detail": "Produce per-arch UEFI PE binaries at /EFI/BOOT/BOOTX64.EFI, BOOTAA64.EFI, BOOTRISCV64.EFI (GNU-EFI or a PE64 wrapper that chainloads the kernel blob). mkuniversal_disc.sh documents the exact paths.",
+   "test": "boot the disc under OVMF (x86_64) and AAVMF/edk2 (arm64) in QEMU"
+  },
+  {
+   "id": "wire-platform-nonarm64",
+   "priority": "P1",
+   "title": "Wire platform layer into x86_64/riscv/arm32",
+   "detail": "Two-line Makefile include (platform_layer.mk) + one boot_features_init call per arch. Verified portable.",
+   "test": "[FEAT] N/8 self-checked line appears in each arch boot log"
+  },
+  {
+   "id": "wire-economy-nonarm64",
+   "priority": "P2",
+   "title": "Wire economy layer into x86_64/riscv/arm32 (optional; arm64 is the full target)",
+   "detail": "include economy_layer.mk + boot_economy_init per arch. PREREQUISITE: economy_layer.base_deps_required_first must already be in that arch's KERNEL_SRCS (the non-arm64 kernels are currently minimal/partial, so bring the base modules up first). All 25 modules already compile freestanding under preflight.",
+   "test": "[FEAT] economy foundation up: 5/5 line appears in that arch boot log",
+   "note": "arm64 already carries the full economy layer and boots it; the other arches are bring-up/preflight targets where this is opt-in."
+  }
+ ],
+ "native_formats": {
+  "artifacts": {
+   "S+": ".zxvc",
+   "S-": ".cedez",
+   "S0": ".cedec"
+  },
+  "seal_tool": "build_system/mkzxpkg.c (cc -O2 -o mkzxpkg)",
+  "sign_tool": "build_system/sign_release.sh (magic ZSP1)",
+  "verify_on_target": "zxpkg_verify_release \u2014 triad-intact AND signature-vs-root-key",
+  "contingency_doctrine": "loader + ops boundaries fail closed, never fake: malformed artifact -> not-bound + diagnostic, never silent wrong result. Fuzzers (ELF, ZXVFS, ASan+UBSan) guard this."
+ },
+ "secrets": {
+  "root_key": {
+   "in_repo": false,
+   "env": "ROOT_KEY",
+   "dev_placeholder": "build_system/keys/root_priv.pem (gitignored, DEV ONLY)"
+  },
+  "ssh_keys_prior_session": "COMPROMISED \u2014 rotate",
+  "rule": "never paste any private key/credential into an AI prompt; hold keys on the server, out-of-band"
+ },
+ "acceptance_criteria": [
+  "preflight: every target compiles",
+  "build_all_targets: arm64 + x86_64 link (riscv/arm32 OK-or-SKIP-with-reason)",
+  "ci_gate 100: build + verify-all + fuzz + 100/100 boots green",
+  "x86_64 boots under qemu-system-x86_64 (label kernel-only vs full parity)",
+  "universal disc boots >=2 arches' firmware in QEMU",
+  "universal vm: zxv.raw + zxv.ova produced, opens in >=1 hypervisor",
+  "signed native-format release verifies against the REAL root key"
+ ],
+ "do_not_touch_as_canonical": [
+  "zxv_os",
+  "zxv_build",
+  "zxv_complete",
+  "zxv_sdk",
+  "05_KERNEL/subsystems"
+ ],
+ "phase_a_hardening": {
+  "done_on_mac_host_verifiable": {
+   "commit": "bcf1c5f",
+   "P0-2_installer": "manifest Ed25519-authenticated (fail-closed) + path/symlink confinement; verify-all install_security; sign_manifest.sh",
+   "P0-4_user_copy": "copy_to_user + SYS_SEND copies-to-kernel + SYS_OPEN/CLOSE ENOSYS",
+   "P0-6_signed_exec": "ZSP v2 rich signed header + zsp_verify2 + monotonic anti-rollback floor; test_zsp2",
+   "P0-3_durability_partial": "A/B persists rollback_floor, records authenticated version, crash-ordered writes; test_abupdate extended",
+   "warnings": "arm64 build 0 warnings (compiler+linker); correctness warnings stay ON",
+   "preflight": "CLEAN all 5 targets; 32-bit arm32/riscv32 full portable subsystem parity (broker __uint128 fixed)"
+  },
+  "remaining_for_server": [
+   "x86_64 ring-3 parity (work_items x86_64-ring3)",
+   "32-bit arch layer (el0-equiv/virtio/ramfb) + link + boot for arm32/riscv32/riscv",
+   "EFI payloads (work_items efi-payloads)",
+   "A/B for kernel+bootloader images (not just app slot)",
+   "universal disc + VM images; offline root key + signed release; ci_gate 100"
+  ]
+ }
 }

@@ -9,6 +9,30 @@ SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Roya
 **From: the development session on Apple Silicon (arm64 macOS).**
 **Repo root for every command below: `05_KERNEL/` (the git root).**
 
+## Phase A hardening — DONE on the Mac before this handover (2026-08-08)
+
+The following were completed and verified host-side (see `PROVENANCE/REMAINING_WORK_MAP.md`
+and commit `bcf1c5f`). You are receiving an already-MVP-hardened tree:
+
+- **Preflight CLEAN** across all 5 targets. **arm64 build has 0 warnings** (compiler + linker).
+- **32-bit source/compile parity**: `arm32` (194 files) and `riscv32` (196) now carry the
+  full portable subsystem set (was ~50). One real 32-bit bug fixed (`broker.c` `__uint128_t`).
+  Only 3 arch-dependent files deferred to you (`el0_sched`, `video/ramfb`, `virtio_bus`).
+- **Security P0s** (host/arm64-verified, all in `verify-all`):
+  - P0-4 EL0 user-copy: `copy_to_user`, SYS_SEND copies-to-kernel, SYS_OPEN/CLOSE ENOSYS.
+  - P0-6 signed-exec: **ZSP v2** rich authenticated header (version/arch/abi/caps/key-id/
+    identity) + `zsp_verify2` + **monotonic anti-rollback floor** (`test_zsp2`).
+  - P0-3 durability (partial): A/B persists the rollback floor + authenticated version,
+    crash-ordered writes (`test_abupdate` extended). *A/B for kernel+bootloader images is
+    still yours (needs the boot payloads).*
+  - P0-2 installer: manifest **Ed25519-authenticated, fail-closed** + path/symlink
+    confinement (`install_security` in verify-all; `sign_manifest.sh`).
+
+**Your P0s remain**: x86_64 ring-3 parity, the 32-bit **arch layer + link + boot**, EFI
+payloads, universal disc/VM, and the offline-key signed release. See `work_items` below.
+
+---
+
 This document is the contract. It says exactly what is already proven, what you
 must do, the order to do it in, and how to know you succeeded. It is written to
 the project's governing rule: **no hollow capabilities** — never report a target
