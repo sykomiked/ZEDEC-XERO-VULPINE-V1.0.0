@@ -239,6 +239,17 @@ void proc_enter_el0(user_proc_t *proc) {
      * base.  The user x0 value is at offset 0 of the context array. */
     register uint64_t *base __asm__("x0") = &proc->ctx.x[0];
     __asm__ __volatile__(
+        /* Reset SP_EL1 to the top of the kernel stack before ERET — identical to
+         * proc_restore_el0. This function's prologue pushes a frame it NEVER pops
+         * (it ERETs away), so without this reset SP_EL1 drifts DOWN by ~96 bytes
+         * on every context switch through here and eventually overflows the 1MB
+         * kernel stack into .rodata/.text, corrupting code/data and producing
+         * wild control-flow faults — the proc_enter_el0 +0x4c wild-jump the Game
+         * Master caught (which the earlier MMU change did NOT fix). x1 is scratch,
+         * immediately reloaded with its EL0 value below. */
+        "adrp x1, _stack_top\n"
+        "add  x1, x1, :lo12:_stack_top\n"
+        "mov  sp, x1\n"
         "ldr x1, [x0, #8]\n"
         "ldr x2, [x0, #16]\n"
         "ldr x3, [x0, #24]\n"
