@@ -157,10 +157,62 @@ def verify_digest(path, expected):
     return False, f"expected {expected_hex}, got {digest}"
 
 
+class InstallSecurityError(Exception):
+    """A path escaped its confinement, or the manifest failed authentication."""
+
+
+def safe_join(base: Path, rel: str) -> Path:
+    """Join `rel` (from the UNTRUSTED manifest) onto `base` and PROVE the result
+    stays inside `base` — defeating `../` traversal, absolute paths, and symlink
+    escapes (audit P0-2). Returns the confined absolute path or raises."""
+    if rel is None:
+        raise InstallSecurityError("payload path missing")
+    rel = str(rel)
+    if rel.startswith("/") or rel.startswith("\\") or (len(rel) > 1 and rel[1] == ":"):
+        raise InstallSecurityError(f"absolute payload path rejected: {rel!r}")
+    if ".." in Path(rel).parts:
+        raise InstallSecurityError(f"'..' in payload path rejected: {rel!r}")
+    base_r = base.resolve()
+    # Resolve against the base, following any symlinks, then confirm containment.
+    cand = (base_r / rel).resolve()
+    if cand != base_r and base_r not in cand.parents:
+        raise InstallSecurityError(f"payload path escapes target: {rel!r} -> {cand}")
+    return cand
+
+
+def verify_manifest_signature(manifest_path: Path, pubkey_pem: Path,
+                              allow_unsigned: bool):
+    """Authenticate the manifest BEFORE trusting the digests inside it (audit P0-2:
+    the manifest was previously loaded unsigned, so swapping it swapped the very
+    digests meant to guard the payloads). Expects a detached raw Ed25519 signature
+    at `<manifest>.sig` verified against `pubkey_pem`. Fail-closed unless the
+    operator explicitly passes allow_unsigned (dev only)."""
+    sig_path = manifest_path.with_suffix(manifest_path.suffix + ".sig")
+    if not sig_path.exists() or not pubkey_pem or not Path(pubkey_pem).exists():
+        if allow_unsigned:
+            sys.stderr.write(
+                "WARNING: installing with an UNSIGNED manifest (--allow-unsigned). "
+                "A release bundle MUST ship a signed manifest.\n")
+            return
+        raise InstallSecurityError(
+            "manifest is not signed (missing .sig or root pubkey); refusing. "
+            "Pass --allow-unsigned for dev bundles.")
+    r = subprocess.run(
+        ["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", str(pubkey_pem),
+         "-rawin", "-in", str(manifest_path), "-sigfile", str(sig_path)],
+        capture_output=True, text=True)
+    if r.returncode != 0:
+        raise InstallSecurityError(
+            f"manifest signature INVALID (not signed by the root key): "
+            f"{r.stderr.strip() or r.stdout.strip()}")
+
+
 def stage_payload(bundle_dir, p, target_dir, dry_run):
     """Copy a payload artifact into the target tree if its digest validates."""
-    src = bundle_dir / p["path"]
-    dst = target_dir / p["path"]
+    # P0-2: confine both the source (inside the bundle) and the destination
+    # (inside the target) — the path comes from the untrusted manifest.
+    src = safe_join(bundle_dir, p.get("path"))
+    dst = safe_join(target_dir, p.get("path"))
     if not src.exists():
         return False, f"source artifact not found: {src}"
 
@@ -180,7 +232,8 @@ def stage_payload(bundle_dir, p, target_dir, dry_run):
     }
 
 
-def install(bundle_dir, target_dir, overrides, dry_run=False, install_to=None):
+def install(bundle_dir, target_dir, overrides, dry_run=False, install_to=None,
+            allow_unsigned=False, root_pubkey=None):
     """Run platform detection, payload selection, verify, stage, and optionally install."""
     bundle_dir = Path(bundle_dir).resolve()
     target_dir = Path(target_dir).resolve()
@@ -190,6 +243,16 @@ def install(bundle_dir, target_dir, overrides, dry_run=False, install_to=None):
 
     if not manifest_path.exists():
         raise FileNotFoundError(f"Bundle manifest not found: {manifest_path}")
+
+    # P0-2: authenticate the manifest BEFORE trusting anything inside it. The root
+    # pubkey defaults to one shipped in the bundle; --root-pubkey overrides it.
+    if root_pubkey is None:
+        for cand in (bundle_dir / "PROVENANCE" / "root_pub.pem",
+                     bundle_dir / "root_pub.pem"):
+            if cand.exists():
+                root_pubkey = cand
+                break
+    verify_manifest_signature(manifest_path, root_pubkey, allow_unsigned)
 
     with open(manifest_path, "r") as f:
         manifest = json.load(f)
@@ -254,6 +317,53 @@ def finalize_install(target: str) -> dict:
     }
 
 
+def _selftest():
+    """Security self-checks for P0-2: path confinement + fail-closed manifest auth."""
+    import tempfile
+    fails = 0
+    def check(cond, msg):
+        nonlocal fails
+        print(("[PASS] " if cond else "[FAIL] ") + msg)
+        if not cond:
+            fails += 1
+    base = Path(tempfile.mkdtemp())
+    # traversal / absolute / symlink escapes must all be rejected
+    for bad in ("../etc/passwd", "../../root/.ssh/authorized_keys",
+                "/etc/cron.d/x", "a/../../b", "\\windows\\system32"):
+        try:
+            safe_join(base, bad); check(False, f"escape allowed: {bad!r}")
+        except InstallSecurityError:
+            check(True, f"blocked path escape: {bad!r}")
+    # a genuine relative path is allowed
+    try:
+        p = safe_join(base, "EFI/BOOT/BOOTAA64.EFI")
+        check(str(p).startswith(str(base.resolve())), "legit relative path confined to base")
+    except InstallSecurityError:
+        check(False, "legit relative path wrongly rejected")
+    # symlink that points outside base is rejected
+    outside = Path(tempfile.mkdtemp())
+    link = base / "sneaky"
+    try:
+        os.symlink(outside, link)
+        try:
+            safe_join(base, "sneaky/x"); check(False, "symlink escape allowed")
+        except InstallSecurityError:
+            check(True, "blocked symlink escape")
+    except OSError:
+        check(True, "symlink unsupported here (skipped)")
+    # unsigned manifest is refused unless allow_unsigned
+    m = base / "manifest.json"; m.write_text("{}")
+    try:
+        verify_manifest_signature(m, None, allow_unsigned=False)
+        check(False, "unsigned manifest accepted")
+    except InstallSecurityError:
+        check(True, "unsigned manifest refused (fail-closed)")
+    verify_manifest_signature(m, None, allow_unsigned=True)  # must not raise
+    check(True, "unsigned manifest allowed only with --allow-unsigned")
+    print(("\nALL PASS" if not fails else f"\nFAILED: {fails}") + " installer security self-check")
+    return 1 if fails else 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="Universal ZXV cell installer")
     parser.add_argument(
@@ -290,8 +400,22 @@ def main():
         default="install",
         help="Action to perform: install (default) or finalize an existing install",
     )
+    parser.add_argument(
+        "--root-pubkey", default=None,
+        help="PEM Ed25519 root public key to authenticate the bundle manifest",
+    )
+    parser.add_argument(
+        "--allow-unsigned", action="store_true",
+        help="DEV ONLY: install even if the manifest is not signed (fail-open)",
+    )
+    parser.add_argument(
+        "--selftest", action="store_true",
+        help="Run the installer security self-checks (path confinement + manifest auth) and exit",
+    )
 
     args = parser.parse_args()
+    if args.selftest:
+        return _selftest()
     overrides = {
         "arch": args.arch,
         "firmware": args.firmware,
@@ -303,7 +427,8 @@ def main():
             parser.error("--install-to is required for finalize action")
         report = finalize_install(args.install_to)
     else:
-        report = install(args.bundle_dir, args.target_dir, overrides, args.dry_run, args.install_to)
+        report = install(args.bundle_dir, args.target_dir, overrides, args.dry_run,
+                         args.install_to, args.allow_unsigned, args.root_pubkey)
 
     with open(args.report, "w") as f:
         json.dump(report, f, indent=2)

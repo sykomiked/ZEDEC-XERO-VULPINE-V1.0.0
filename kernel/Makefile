@@ -564,6 +564,11 @@ verify-all: test
 		src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c \
 		-o /tmp/test_zsp2 -lm && \
 		/tmp/test_zsp2 && echo "[PASS] test_zsp2" || { echo "[FAIL] test_zsp2"; exit 1; }; \
+	echo "=== Installer security (P0-2: path confinement + manifest auth) ==="; \
+	if [ -f ../install/install_zxv.py ]; then \
+		python3 ../install/install_zxv.py --selftest \
+			&& echo "[PASS] install_security" || { echo "[FAIL] install_security"; exit 1; }; \
+	else echo "[SKIP] install_security (installer not present)"; fi; \
 	echo "=== A/B signed update + probation + auto-rollback ==="; \
 	if [ -f userapp/hello_signed.h ]; then \
 		gcc -std=c11 -Wall -Werror -Wextra -DZXVFS_HOST -Isrc/loader -Isrc/zxvfs -Isrc/robin_debanks -Iinclude -Iuserapp \
