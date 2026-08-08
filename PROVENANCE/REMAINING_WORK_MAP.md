@@ -25,7 +25,13 @@ hardening P0s for a *defensible* MVP, and (d) one business/legal item.
 | **arm64** | full product, boots | rebuild, confirm bit-parity |
 | **x86_64** | **kernel-only** (~160-line main) | **P0: ring-3 parity** — PML4 page tables + user/supervisor split, syscall/sysret mirroring the arm64 SVC path, ring-3 process bring-up mirroring `el0_userspace.c`, wire platform layer → BOOT_OK under `qemu-system-x86_64`. Biggest single remaining piece. |
 | **riscv / riscv32** | compile clean, unlinkable here | build + boot-test on server (bring-up kernels) |
-| **arm32** | compiles (52 files) but **49 undefined symbols** | partial bring-up — missing audio/browser/bt/dhcp/desktop/crypto/etc. See §2. |
+| **arm32 / riscv32** | ✅ **source/compile parity done** (arm32 194 files, riscv32 196) | build 32-bit arch layer (el0-equiv/virtio/ramfb) + link + boot. See §2. |
+
+> **Progress 2026-08-08 (commit d179f5b):** arm32/riscv32 brought to the full portable
+> subsystem set (142 of 144 missing modules were arch-neutral). One real 32-bit bug fixed
+> (`broker.c` `__uint128_t` → exact uint64). Preflight CLEAN across all 5 targets. What
+> remains for 32-bit is the **arch layer + link + boot on the server** (~33 arch-layer link
+> symbols: el0/virtio/ramfb/framebuffer).
 
 ## 2. The 32-bit decision (needs your call)
 
