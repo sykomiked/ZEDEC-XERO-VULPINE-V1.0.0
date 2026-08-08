@@ -127,6 +127,9 @@ KERNEL_SRCS = \
     kernel/src/emu/render_lineage.c \
     kernel/src/emu/cinder.c \
     kernel/src/emu/quill.c \
+    kernel/src/emu/helion.c \
+    kernel/src/emu/dimensional_ladder.c \
+    kernel/src/emu/radial_map.c \
     kernel/src/emu/emu_relate.c \
     kernel/src/emu/congruence.c \
     kernel/src/emu/game_universe.c \

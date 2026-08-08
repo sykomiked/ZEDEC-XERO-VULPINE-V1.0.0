@@ -1403,6 +1403,60 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a5j: Helion — 2D->3D expansion by SPIRAL LOGIC, not extrusion. Every
+     * object has its own spin (molecular spin at macro scale); the spin IS the
+     * spiral; it is spiral relative to the object's event-space trajectory; and it
+     * is PERPENDICULAR to the environment's spin (the M5 orthogonality). The spin
+     * carries the object's 2D extent into the third dimension — a helix, never a
+     * flat plank. This is the correct primitive for lifting 2D content into 3D. */
+    boot_msg("[BOOT] Helion — spiral-logic 2D->3D expansion (spin, not extrusion)...");
+    {
+        extern int helion_selfcheck(uint32_t *perp);
+        uint32_t perp = 0;
+        if (helion_selfcheck(&perp)){
+            uart_puts("[E....]   [DRIVER ONLINE] spiral logic holds — object spin PERPENDICULAR to environment"
+                      " (dot ");
+            uart_put_dec(perp);
+            uart_puts(" permille), 2D lifted into 3D as a helix, not extruded\n");
+        } else {
+            boot_msg("  [WARN] Helion spiral-logic expansion did not hold");
+        }
+    }
+
+    /* Phase 17a5k: the dimensional ladder — 0d..13d and beyond. The Fibonacci-
+     * numbered dimensions are the PRIME (primary) dimensions, unbounded past 13
+     * (21,34,55,89,144,…, a transfinite construct); one ratio, PHI, repeats every
+     * pattern micro<->macro in Hermetic correspondence. */
+    boot_msg("[BOOT] Dimensional ladder — Fibonacci-prime dims, PHI micro<->macro...");
+    {
+        extern int dimensional_ladder_selfcheck(uint32_t *primes, uint32_t *phi);
+        uint32_t pr = 0, phi = 0;
+        if (dimensional_ladder_selfcheck(&pr, &phi)){
+            uart_puts("[E....]   [DRIVER ONLINE] ladder coherent — ");
+            uart_put_dec(pr);
+            uart_puts(" Fibonacci-prime dimensions (unbounded), 13/8 -> PHI ");
+            uart_put_dec(phi);
+            uart_puts(" permille, micro<->macro correspondence holds\n");
+        } else {
+            boot_msg("  [WARN] dimensional ladder not coherent");
+        }
+    }
+
+    /* Phase 17a5l: the radial prime x Fibonacci field — graphics from the
+     * principle. Golden-angle (360/PHI^2) phyllotaxis sphere packing, primes and
+     * Fibonacci cross-referenced, fractal sublattices nested at Fibonacci seeds. */
+    boot_msg("[BOOT] Radial map — prime x Fibonacci field, golden-angle packing...");
+    {
+        extern int  radial_map_selfcheck(void);
+        extern void radial_map_register_megarom(void);
+        if (radial_map_selfcheck()){
+            radial_map_register_megarom();
+            boot_msg("  [DRIVER ONLINE] radial field renders — primes on the spiral arms, Fibonacci on the golden ray, fractal sublattices; registered as a MegaROM");
+        } else {
+            boot_msg("  [WARN] radial map did not render a coherent field");
+        }
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
