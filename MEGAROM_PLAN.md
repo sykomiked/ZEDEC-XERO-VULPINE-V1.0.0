@@ -71,6 +71,25 @@ Chiglet training proceed in parallel.
 - **The 13-space lattice desktop** (`kernel/src/desktop/zxv_shell.c`): a
   phase-tick, stacked-screens, video-game-style UI; each space calls a real
   subsystem. The seed of "UI layers as bootable MegaROMs".
+- **Holographic render primitive** (`emu/holo.{c,h}`): the depth-on-a-flat-screen
+  shader extracted from `zxv_present` — colour/anti-colour phase-tick shimmer +
+  chromostereopsis (near warm / far cool). Verified optics, reusable by every
+  layer. Boot: "holo shader sound — near=warm, far=cool, grey-stable".
+
+## Cross-cutting requirements (apply to the whole OS + every MegaROM layer)
+
+- **Holographic, nonlinear rendering — toward beyond-PS6.** Classic games are
+  the grounding, but the engine must scale to beyond-PlayStation-6-level
+  graphics. The holographic effect is achieved on ordinary 2D screens via
+  `holo_shade` (colour/anti-colour + chromostereopsis), driven by the nonlinear
+  phase-tick field — no glasses, no special panel. Path: per-object depth →
+  per-primitive depth → a full nonlinear rendering engine the MegaROM composes.
+- **Device-adaptive, auto-configuring.** One OS that detects the device and
+  configures itself: **phone, tablet, laptop, desktop, and server.** Detect the
+  framebuffer resolution (ramfb/GOP already reports it) and the input class
+  (virtio touch/tablet vs mouse+keyboard vs headless) at boot, and pick the
+  layout, input model, and (for server) a headless/no-GUI profile. Server config
+  also ties into the Linux cross-compile handover (`SERVER_HANDOVER.md`).
 
 ## The phased path
 
