@@ -13,9 +13,15 @@ OBJDUMP = $(CROSS_COMPILE)objdump
 
 KERNEL_SIM_DEVICES ?= 0
 
+# NOTE: -fno-tree-vectorize/-fno-tree-slp-vectorize below are REQUIRED for
+# correctness, not speed: the IRQ vector (boot.s SAVE_REGS) saves only x0-x30,
+# NOT the FP/SIMD register file, so any live state the compiler parks in NEON
+# v-registers is clobbered when a timer IRQ preempts kernel code -> wild faults
+# (the kernel_main scan-loop poison-index bug, #41). Scalar FP is still allowed.
 CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -fno-stack-protector -fno-pie -no-pie -fno-builtin \
          -ffunction-sections -fdata-sections \
+         -fno-tree-vectorize -fno-tree-slp-vectorize \
          -MMD -MP \
          -DKERNEL_SIM_DEVICES=$(KERNEL_SIM_DEVICES) \
          -DENABLE_EL0_USERSPACE=1 -DENABLE_TICK_IRQ=1 \
