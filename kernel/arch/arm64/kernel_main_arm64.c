@@ -1457,6 +1457,26 @@ void kernel_main_arm64(void) {
         }
     }
 
+    /* Phase 17a5m: the Dimensional Desktop — the 13 lattice spaces DRIVEN by the
+     * ladder (each space 0d..12d), and the desktop itself is 13d, the universal
+     * container = THE MegaROM that holds the 13 spaces and the graphics MegaROMs.
+     * The pattern is universal: the same PHI ladder that structures the cosmos
+     * structures the desktop, in micro<->macro correspondence. */
+    boot_msg("[BOOT] Dimensional Desktop — 13 spaces from the ladder, 13d = the MegaROM...");
+    {
+        extern int  lattice_dim_selfcheck(uint32_t *primaries);
+        extern void lattice_dim_register_megarom(void);
+        uint32_t pr = 0;
+        if (lattice_dim_selfcheck(&pr)){
+            lattice_dim_register_megarom();
+            uart_puts("[E....]   [DRIVER ONLINE] 13 spaces bound 0d..12d (");
+            uart_put_dec(pr);
+            uart_puts(" primary/Fibonacci); desktop = 13d universal container, registered as THE MegaROM\n");
+        } else {
+            boot_msg("  [WARN] dimensional desktop binding not coherent");
+        }
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
