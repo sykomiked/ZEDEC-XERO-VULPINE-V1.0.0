@@ -31,6 +31,14 @@ typedef struct game_run {
     uint32_t nes_ppu_writes;                 /* PPU register writes            */
     uint32_t nes_vblank_polls;               /* $2002 reads                    */
     uint32_t nes_nmis;                       /* vblank NMIs taken              */
+    /* SNES machine result (when the image is LoROM) — a REAL running verdict.
+     * LoROM bank $00 (reset vector + init) sits in the first 32KB, so the 64KB
+     * read is enough to run init and observe the game come alive. */
+    uint8_t  is_snes;                        /* 1 if the image looks like LoROM */
+    uint8_t  snes_running;                   /* 1 if the game came up running  */
+    uint32_t snes_ppu_writes;                /* $2100-$213F writes             */
+    uint32_t snes_cpu_reg_writes;            /* $4200-$421F writes             */
+    uint32_t snes_nmis;                      /* vblank NMIs taken              */
 } game_run_t;
 
 /* Read up to 64KB of the raw device, execute it on the 6502 and Z80 cores, and

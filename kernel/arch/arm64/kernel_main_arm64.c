@@ -1666,6 +1666,13 @@ void kernel_main_arm64(void) {
             uart_puts(" — ppu_writes="); uart_put_dec(gr.nes_ppu_writes);
             uart_puts(" vblank_polls="); uart_put_dec(gr.nes_vblank_polls);
             uart_puts(" nmis="); uart_put_dec(gr.nes_nmis); uart_puts("\n");
+        } else if (gr.is_snes) {
+            /* Real SNES machine (LoROM): a genuine running verdict. */
+            uart_puts("[SNES] ");
+            uart_puts(gr.snes_running ? "RUNNING on ZEDEC" : "did not come up");
+            uart_puts(" — ppu_writes="); uart_put_dec(gr.snes_ppu_writes);
+            uart_puts(" cpu_reg_writes="); uart_put_dec(gr.snes_cpu_reg_writes);
+            uart_puts(" nmis="); uart_put_dec(gr.snes_nmis); uart_puts("\n");
         } else {
             /* Non-iNES: bare CPU-execution probe (facts only, no gameplay verdict). */
             uart_puts("[EMU-PROBE] rom_bytes="); uart_put_dec(gr.bytes);

@@ -21,8 +21,10 @@
 #include "cpu6502.h"
 #include "cpu_z80.h"
 #include "nes.h"
+#include "snes.h"
 
-static nes_t g_nes;   /* the NES machine (mapper 0) for iNES images */
+static nes_t  g_nes;   /* the NES machine (mapper 0) for iNES images  */
+static snes_t g_snes;  /* the SNES machine (LoROM) for .sfc/.smc      */
 
 static uint8_t g_raw[65536];      /* raw ROM bytes as read from the device   */
 static uint8_t g_mem[65536];      /* per-core address space (rebuilt each run) */
@@ -121,6 +123,21 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
         out->running        = out->nes_running;
         out->best_core      = 6502;
         out->best_insn      = g_nes.insn;
+        return out->running;
+    }
+    /* If it looks like a LoROM SNES image, run it on the 65816 machine. The
+     * behavioural verdict (native mode + PPU configured + NMI taken) is the real
+     * signal; a mis-routed non-SNES image simply reports running=0. */
+    if (snes_is_lorom(g_raw, bytes) && snes_load(&g_snes, g_raw, bytes)){
+        snes_run(&g_snes, 300000u, 1500u);
+        out->is_snes             = 1;
+        out->snes_running        = (uint8_t)snes_is_running(&g_snes);
+        out->snes_ppu_writes     = g_snes.ppu_writes;
+        out->snes_cpu_reg_writes = g_snes.cpu_reg_writes;
+        out->snes_nmis           = g_snes.nmis_taken;
+        out->running             = out->snes_running;
+        out->best_core           = 816;
+        out->best_insn           = g_snes.insn;
         return out->running;
     }
     run_6502(bytes, &out->insn_6502, &out->ill_6502, &out->pc_6502, &out->jam_6502);
