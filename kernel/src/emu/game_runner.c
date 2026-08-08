@@ -24,11 +24,13 @@
 #include "snes.h"
 #include "gb.h"
 #include "gba.h"
+#include "genesis.h"
 
-static nes_t  g_nes;   /* the NES machine (mapper 0) for iNES images  */
-static snes_t g_snes;  /* the SNES machine (LoROM/HiROM) for .sfc/.smc */
-static gb_t   g_gb;    /* the Game Boy machine for .gb/.gbc            */
-static gba_t  g_gba;   /* the Game Boy Advance machine for .gba        */
+static nes_t     g_nes;   /* the NES machine (mapper 0) for iNES images  */
+static snes_t    g_snes;  /* the SNES machine (LoROM/HiROM) for .sfc/.smc */
+static gb_t      g_gb;    /* the Game Boy machine for .gb/.gbc            */
+static gba_t     g_gba;   /* the Game Boy Advance machine for .gba        */
+static genesis_t g_gen;   /* the Sega Genesis machine for .md/.bin/.gen   */
 static uint8_t g_full_img[GBA_ROM_CAP];   /* full-ROM buffer (largest console cap) */
 
 static uint8_t g_raw[65536];      /* raw ROM bytes as read from the device   */
@@ -177,6 +179,23 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
             out->running         = out->gba_running;
             out->best_core       = 7;   /* ARM7 */
             out->best_insn       = g_gba.insn;
+            return out->running;
+        }
+    }
+    /* If the ROM header carries "SEGA", it is a Genesis / Mega Drive cartridge —
+     * run it on the 68000 machine. */
+    if (genesis_is_genesis(g_raw, bytes)){
+        uint32_t full = load_rom_full(dev, g_full_img, GEN_ROM_CAP);
+        if (full >= 0x200 && genesis_load(&g_gen, g_full_img, full)){
+            genesis_run(&g_gen, 400000u);
+            out->is_genesis        = 1;
+            out->gen_running       = (uint8_t)genesis_is_running(&g_gen);
+            out->gen_vdp_reg_writes = g_gen.vdp_reg_writes;
+            out->gen_vdp_data_writes = g_gen.vdp_data_writes;
+            out->gen_vblank_irqs   = g_gen.vblank_irqs;
+            out->running           = out->gen_running;
+            out->best_core         = 68;   /* 68000 */
+            out->best_insn         = g_gen.insn;
             return out->running;
         }
     }

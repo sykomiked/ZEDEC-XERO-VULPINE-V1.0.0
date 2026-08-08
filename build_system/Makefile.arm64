@@ -120,6 +120,8 @@ KERNEL_SRCS = \
     kernel/src/emu/gb.c \
     kernel/src/emu/cpu_arm7.c \
     kernel/src/emu/gba.c \
+    kernel/src/emu/cpu_m68k.c \
+    kernel/src/emu/genesis.c \
     kernel/src/emu/emu_relate.c \
     kernel/src/emu/congruence.c \
     kernel/src/emu/game_universe.c \

@@ -1328,6 +1328,18 @@ void kernel_main_arm64(void) {
             boot_msg("  [WARN] Game Boy Advance self-check did not come up running");
     }
 
+    /* Phase 17a5e: Sega Genesis / Mega Drive machine (Motorola 68000) — the
+     * marquee 16-bit story console. The synthetic cartridge must program the VDP
+     * register file, upload data, and reach its frame loop. */
+    boot_msg("[BOOT] Sega Genesis machine (Motorola 68000) — the 16-bit Sega era...");
+    {
+        extern int genesis_selfcheck(void);
+        if (genesis_selfcheck())
+            boot_msg("  [DRIVER ONLINE] Genesis self-check OK — VDP programmed, data uploaded, frame loop reached");
+        else
+            boot_msg("  [WARN] Genesis self-check did not come up running");
+    }
+
     /* Phase 17a6: STRUCTURAL CONGRUENCE — the geometry gate. A state is valid
      * only if it is geometrically sound: set/Fibonacci chains (vertical +
      * horizontal), the complex plane (perpendicular real·imaginary), M5-axis
@@ -1711,6 +1723,13 @@ void kernel_main_arm64(void) {
             uart_puts(" — io_writes="); uart_put_dec(gr.gba_io_writes);
             uart_puts(" vcount_reads="); uart_put_dec(gr.gba_vcount_reads);
             uart_puts(" vblank_irqs="); uart_put_dec(gr.gba_vblank_irqs); uart_puts("\n");
+        } else if (gr.is_genesis) {
+            /* Real Sega Genesis machine (68000): a genuine running verdict. */
+            uart_puts("[GENESIS] ");
+            uart_puts(gr.gen_running ? "RUNNING on ZEDEC" : "did not come up");
+            uart_puts(" — vdp_reg_writes="); uart_put_dec(gr.gen_vdp_reg_writes);
+            uart_puts(" vdp_data_writes="); uart_put_dec(gr.gen_vdp_data_writes);
+            uart_puts(" vblank_irqs="); uart_put_dec(gr.gen_vblank_irqs); uart_puts("\n");
         } else {
             /* Non-iNES: bare CPU-execution probe (facts only, no gameplay verdict). */
             uart_puts("[EMU-PROBE] rom_bytes="); uart_put_dec(gr.bytes);

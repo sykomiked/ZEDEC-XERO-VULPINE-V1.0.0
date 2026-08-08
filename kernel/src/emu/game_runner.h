@@ -51,6 +51,12 @@ typedef struct game_run {
     uint32_t gba_io_writes;                  /* $04000000-$040003FF writes     */
     uint32_t gba_vcount_reads;               /* VCOUNT polls                   */
     uint32_t gba_vblank_irqs;                /* VBlank IRQs dispatched         */
+    /* Sega Genesis machine result (ROM header carries "SEGA") */
+    uint8_t  is_genesis;                     /* 1 if a Genesis/Mega Drive ROM  */
+    uint8_t  gen_running;                    /* 1 if the game came up running  */
+    uint32_t gen_vdp_reg_writes;             /* VDP register writes            */
+    uint32_t gen_vdp_data_writes;            /* VDP data-port writes           */
+    uint32_t gen_vblank_irqs;                /* VBlank IRQs dispatched         */
 } game_run_t;
 
 /* Read up to 64KB of the raw device, execute it on the 6502 and Z80 cores, and
