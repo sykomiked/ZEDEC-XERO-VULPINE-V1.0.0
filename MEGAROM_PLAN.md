@@ -93,7 +93,19 @@ Chiglet training proceed in parallel.
 
 ## The phased path
 
-**Phase A — Mechanic corpus (in progress).**
+**Phase A — Mechanic corpus (STARTED — tool built, running).**
+`tools/megarom_extract.c` runs real ROMs through the emulator machines,
+extracts each game's 8-dim mechanics (`game_universe_vector`), and produces
+TWO corpora via ONLINE dedup (each game vs the growing palette, so it scales
+to 144k): (1) the deduplicated MECHANIC PALETTE (the MegaROM's mechanic set),
+and (2) the SOCIAL/STORY training set for Chiglet — story-capable games only
+(`gu_story_capable`), in Sutra rationals. First run: 637 real NES games ->
+10 DISTINCT mechanic classes + 512 story contributors
+(`megarom_corpus/megarom_palette_nes.sutra`, `chiglet_social_nes.sutra`).
+NEXT: extend to SMS/Z80 + the zipped corpus (needs unzip), tune the merge
+threshold for richer palettes, and feed the social set to Chiglet (Phase B).
+
+**Phase A-orig — Mechanic corpus (superseded by the above).**
 Run the Game Master over the corpus; for each game capture its mechanics vector
 (`game_universe_vector`) alongside the fault result. Output: a deduplicated set
 of DISTINCT mechanic-universes across all runnable games (Chiglet's k_distinct).

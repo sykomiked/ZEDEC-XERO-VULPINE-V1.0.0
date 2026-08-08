@@ -1,0 +1,513 @@
+# Chiglet social/story training set (story-era games only), Sutra rationals
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Rs Beta (J).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Arcade II by Ultimate7 (R.B.I. Baseball H
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Rockman Claw (J).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.633 0.800 0.300  # Super Mario Bros. - Remix 2 - The New Adventures
+STORY 1.000 1.000 0.513 0.050 0.000 1.000 0.800 0.300  # Snake Rattle N Roll - Isometric Controls (U).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 91-92 by Bgiadam (Hack).nes
+STORY 1.000 1.000 1.000 1.000 0.073 1.000 0.800 0.300  # Darkwing Duck Advance.nes
+STORY 1.000 0.678 0.113 0.025 0.987 1.000 0.200 0.300  # Dragon Warrior - Chocobo DW V0.3 (Dragon Warrior
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Powa 1 (U).nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - 133TMAN V1.0 by Clomax Dominion (Mega 
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # MegaMan IV - After In Indonesia.nes
+STORY 1.000 1.000 1.000 0.641 0.080 1.000 0.800 0.300  # Super Mario Bros. - Special X1.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Best of The Decades by The Ros
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 84-85 by Bgiadam (Hack).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Ever (U).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2003-2004 MidSeason by Jeid (Ha
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # MegaMan IV - Gadget Master.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Rockman Last (J).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2k6 - Central Divison Teams (Hac
+STORY 1.000 0.991 0.353 0.105 0.953 1.000 0.800 0.300  # Ultimate Bugs Bunny Crazy Castle V1.1, The by Fr
+STORY 1.000 1.000 0.418 0.053 0.927 0.625 0.800 0.300  # Arkanoid - Annoid (Arkanoid Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2002 Edit by SBlueman (Hack).ne
+STORY 1.000 1.000 0.567 0.101 0.947 1.000 0.800 0.300  # Rockman 5 - Air Sliding (J).nes
+STORY 1.000 1.000 0.865 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - Lady Opera Swf Panic.nes
+STORY 1.000 1.000 1.000 0.051 0.000 1.000 0.800 0.300  # Double Dragon - Easy Type (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Marios Moon Adventure.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Rose Bowl 2002 V1.95reg by Jeff Gaffney (T
+STORY 1.000 1.000 0.987 0.064 0.927 1.000 0.800 0.300  # Gradius - Luidius (Gradius Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 99 NFL (Hack).nes
+STORY 1.000 1.000 1.000 0.031 0.447 0.625 0.800 0.300  # 1942 Cold Winter.nes
+STORY 1.000 0.996 0.074 1.000 0.973 1.000 0.800 0.300  # Castlevania - Reborn.nes
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Skel's Revenge v0.9b (Hack).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - Ultra.nes
+STORY 1.000 1.000 0.420 0.050 0.920 1.000 0.800 0.300  # Adventures of Lolo 2 Challenge Edition (U) [!].n
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 1980-1984 World Series by The Ro
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Spudd The Journey Home.nes
+STORY 1.000 0.996 0.074 1.000 0.973 1.000 0.800 0.300  # Castlevania - Stairs Of Doom (U) (PRG1) [!].nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Rose Bowl 2001 1-AA College Football Editi
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Challenger V0.87 (Metroid Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2003 MidSeason by Elway7 (Hack)
+STORY 1.000 1.000 0.420 0.050 0.920 1.000 0.800 0.300  # Adventures of Lolo 2 Remix (Hack).nes
+STORY 1.000 1.000 0.863 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - Toadettes Christmas Adventur
+STORY 1.000 0.980 0.113 0.025 0.987 1.000 0.800 0.300  # Dragon Warrior - Dragoon X Final by Sliver X (Or
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Mega133TMAN V1.0 by Clomax Dominion (M
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Peercast (J).nes
+STORY 1.000 1.000 1.000 0.225 0.853 1.000 0.800 0.300  # Bases Loaded 2004 Newer by GRG (Bases Loaded 3 H
+STORY 1.000 0.998 0.951 0.021 0.920 1.000 0.800 0.300  # Tecmo Super Bowl NFL 2011-2012 Bruddog.nes
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Orchestra of Despair v2 (Hack).nes
+STORY 1.000 1.000 1.000 0.056 0.940 1.000 0.800 0.300  # Super Mario Bros. 2 - 2nd Run by Recovery1 (SMB2
+STORY 1.000 0.552 0.728 0.053 0.860 1.000 0.200 0.300  # Bionic Commando 99 by Chris Covell (Bionic Comma
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Wily's Conquest V0.46 by Clomax Domini
+STORY 1.000 1.000 0.866 1.000 0.180 0.633 0.800 0.300  # Super Mario Bros. - Millenium Mario v1.0 FINAL.n
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - 2003RBI by brisco (R.B.I. Base
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - AFF Challenge Redone.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1983-1984 - BO FB Offtackle Lef
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # Rockman 5 - KT (J).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - MegaMan In Java Island.nes
+STORY 1.000 1.000 1.000 0.051 0.000 1.000 0.800 0.300  # Double Dragon (U) (Easy Type Hack).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Grey Zone (J).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2006 - AFC Championship by Sobh
+STORY 1.000 1.000 0.547 0.050 0.000 1.000 0.800 0.300  # Tecmo Bowl 2005-2006 - Playoff Edition by Arnie0
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # Rockman 4 - DX (J).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 83-84 by Bgiadam (Hack).nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Origin 2.1.1.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Best of All Decades by tigerma
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - JUN Mario 1.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Frank's 1st.nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Ridley X 2 (U).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # Rockman 3 - Overdrive (J).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - The Revenge of the Eight Robot Mast
+STORY 1.000 1.000 1.000 0.075 0.973 1.000 0.800 0.300  # Rockman 6 - Ridley X Hack 1 (J).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Powa 2 Hard Version (U).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - Rockman Z (J).nes
+STORY 1.000 1.000 0.796 1.000 0.153 0.625 0.800 0.300  # Super Mario Bros. - VS. Airman VerD.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Waluigi's Adventure.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1968 Even Team - Online Tecmo T
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2005 v.B by Sobhi Youssef (Hack
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Wart's Invasion (Metroid Hack).nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Invasion (U).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - Eight Beasts 2 V2.01 by Matrixz (Me
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Bloody Adventures V0.61 (CV Hack).
+STORY 1.000 1.000 1.000 0.168 0.960 1.000 0.800 0.300  # Destiny of an Emperor - Ludmeisters Remix V2.nes
+STORY 1.000 1.000 0.567 0.101 0.947 1.000 0.800 0.300  # Rockman 5 - Blues no Chousen (J).nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Project Ridien (U) [!].nes
+STORY 1.000 0.991 0.574 0.972 0.047 1.000 0.800 0.300  # Kero Kero Keroppi no Daibouken 2 - Adoventoro Tc
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - USA vs Canada (R.B.I. Baseball
+STORY 1.000 1.000 1.000 0.136 0.673 1.000 0.800 0.300  # Strider - Matic Unit (U).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - The Return (U).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl X Olympics (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Hiro Mario 2.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Super Loco Spoof.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - V2 by Zerosiki (SMB1 Hack).n
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Greats of College Baseball by 
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Xmas Edition.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mario Mania.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Dash (J).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo NCAA 2000 (Tecmo Super Bowl Hack).nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Challenge.nes
+STORY 1.000 1.000 0.074 0.130 0.973 1.000 0.800 0.300  # Castlevania - Fan Edition (Hack).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - RBI03 Revised (R.B.I. Baseball
+STORY 1.000 1.000 0.420 0.050 0.920 1.000 0.800 0.300  # Adventures of Lolo 2 Googie Maps (U) [!].nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - FullMoon.nes
+STORY 1.000 1.000 0.349 0.053 0.900 0.625 0.800 0.300  # Dig Dug II - Blob Buster V1.0 by BMF54123 (Dig D
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan - 1977 (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo NFL Dynasties V3.0 by Ren6175 (Tecmo Super
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - 2005 Special.nes
+STORY 1.000 1.000 0.866 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - Extended.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Next 2.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl - Rose Bowl 2004 by TECMOROX8 (
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2003 Edit by SBlueman (Hack).ne
+STORY 1.000 1.000 1.000 1.000 0.487 1.000 0.800 0.300  # Buggy Popper - Nishitetsu Busjack (Buggy Popper 
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Omega (Metroid Hack).nes
+STORY 1.000 0.968 0.625 0.067 0.900 1.000 0.800 0.300  # Bubble Bobble - New Levels (Bubble Bobble Hack).
+STORY 1.000 1.000 1.000 0.051 0.000 1.000 0.800 0.300  # Double Dragon (U) (Hard Type Hack).nes
+STORY 1.000 0.552 0.728 0.053 0.860 1.000 0.200 0.300  # Bionic Commando Winter Theme (V0.1) by Matrixz (
+STORY 1.000 0.972 0.569 0.405 0.860 1.000 0.800 0.300  # Rush'n Attack - G Version by Googie.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl (2003 Edit) by SBlueman (Hack).
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1996 by Denny (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2007 by Drum (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl X World League (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Sirius Mario Bros 6.nes
+STORY 1.000 1.000 1.000 0.811 0.120 1.000 0.800 0.300  # R.B.I. Baseball 3 2006 by pmeth (Hack).nes
+STORY 1.000 0.669 1.000 0.255 0.000 1.000 0.200 0.300  # Destiny of an Emperor - Yuan Shaos Revenge.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.633 0.800 0.300  # Super Mario Bros. - The Super Adventures - Part 
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 1993 - National League by demyst
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - RBI Arcade (R.B.I. Baseball Ha
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Insectduels 6th Anniversary 
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Arcade Best of Rest (R.B.I. Ba
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl NCAA 2004 (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Strange Mario Bros The Lost 
+STORY 1.000 0.998 0.477 0.055 0.013 1.000 0.800 0.300  # Bubble Bobble Madness by Weasel (Bubble Bobble H
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Hiro Mario.nes
+STORY 1.000 1.000 1.000 1.000 0.087 1.000 0.800 0.300  # Darkwing Duck - The New Levels.nes
+STORY 1.000 1.000 1.000 0.168 0.513 1.000 0.800 0.300  # MegaMan V - Indonesian Artifact (U).nes
+STORY 1.000 1.000 1.000 0.641 0.080 1.000 0.800 0.300  # Super Mario Bros. - Special Edition.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Fedsvd MLB (R.B.I. Baseball Ha
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # Rockman 3 - Eon of Dream Pt3 (J).nes
+STORY 1.000 1.000 0.868 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mario Bash.nes
+STORY 1.000 0.715 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Bass Dr. W.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl Indiana High School Association
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2004 Week 12 Complete Team (Hac
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1995 Post Season by Bgiadam (Ha
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - College World Series by bushle
+STORY 1.000 0.992 1.000 0.114 0.000 1.000 0.800 0.300  # Double Dragon II - Boss Edition by shinwa (Hack)
+STORY 1.000 0.798 0.822 0.055 0.127 0.633 0.200 0.300  # Super Mario Bros. - The New Super Adventure.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - The Stronghold.nes
+STORY 1.000 1.000 0.868 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Peaches Cream.nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Powa 2 (U).nes
+STORY 1.000 1.000 0.391 0.046 0.987 0.626 0.800 0.300  # Binary Land - Links Desert Escape (J) [!].nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1991 by SBlueman (Hack).nes
+STORY 1.000 1.000 0.865 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Toad's Treasure Quest by Ale
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Unused GFX Tiles & 99 Energy Units by 
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1987-88 Season by Elway7 (Hack)
+STORY 1.000 1.000 0.073 0.057 0.967 1.000 0.800 0.300  # Castlevania - Extreme.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mario Evolution 2.nes
+STORY 1.000 0.999 0.562 0.101 0.947 1.000 0.800 0.300  # MegaMan V - Time Attack V0.311 by Matrixz (Hack)
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Gone Wrong (Metroid Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - HF 2.nes
+STORY 1.000 1.000 0.870 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Sirius Mario Bros 5.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - Rockman No Constancy Normal Edition
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Sirius Mario Bros 4.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Junk Mario V1.1.nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Genocide (Metroid Hack).nes
+STORY 1.000 1.000 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - Maverick Revenge 2 (U).nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - MegaMari.nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - X V1.0 (Metroid Hack).nes
+STORY 1.000 1.000 1.000 0.075 0.973 1.000 0.800 0.300  # Rockman 6 - Luokeren 9 MAX Emeng De Zhongjie (J)
+STORY 1.000 1.000 1.000 1.000 0.087 1.000 0.800 0.300  # Chip 'n Dale Rescue Rangers - Roket Type V2 .nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl X Arena Football League 3 (Hack
+STORY 1.000 1.000 0.558 0.026 0.953 0.625 0.800 0.300  # Wrecking Crew V1.1 by Macbee (Wrecking Crew Hack
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Excite Mario Bros.nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Master v1.0 by Chris Allen (Metroid Ha
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Mutation (Metroid Hack).nes
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - RidleyX 1 Hack.nes
+STORY 1.000 1.000 0.547 0.050 0.000 1.000 0.800 0.300  # Tecmo Bowl 97 Special Edition (Hack).nes
+STORY 1.000 1.000 0.600 0.060 0.927 1.000 0.800 0.300  # Moai-kun - Mario-kun (Moai-kun Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Bowser vs Wario by Icegoom.n
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Remix V1.2 (Metroid Hack).nes
+STORY 1.000 0.996 0.074 1.000 0.973 1.000 0.800 0.300  # Castlevania - Prelude Of Darkness (Normal Type).
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Alpha (Mega Man Hack).nes
+STORY 1.000 1.000 0.418 0.053 0.927 0.625 0.800 0.300  # Arkanoid - Nittere Brand Arkanoid by Rinkaku (Ar
+STORY 1.000 1.000 0.363 1.000 0.953 1.000 0.800 0.300  # Baseball Stars 2005 Pennant Race by GRG (Hack).n
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # MegaMan IV - C4 (U).nes
+STORY 1.000 1.000 0.858 0.047 0.920 0.624 0.800 0.300  # Ice Climber MacBee (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - And the 32 Lost Levels.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2000 All-GameFAQS SE by Nester 
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - EX V1.0 by The Elite Hacking Force (Me
+STORY 1.000 1.000 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - Indonesia (U).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2002 - All Star Teams by Moats77
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Sirius Mario Bros 1.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 1993 - American League by demyst
+STORY 1.000 1.000 1.000 0.051 0.567 1.000 0.800 0.300  # Nekketsu Kouha - Kunio-kun (Girl Version Hack).n
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2003 Graphics Hack by GRG (Hack
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Samus - Mother Brain Returns (U).nes
+STORY 1.000 1.000 0.865 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - Unlimited.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2006 v.final by mattjones18 (Ha
+STORY 1.000 1.000 0.869 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Platina.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Strange Mario Brothers - The
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Pencilvania (CV Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Special Design Mario.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Joho Boshu Edition (J).nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Kamikaze Megaman (Mega Man Hack).nes
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Opposing Bloodlines by Redrum (Hac
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # Rockman 4 - Ridley X Hack 1 (J).nes
+STORY 1.000 0.985 1.000 0.050 0.000 1.000 0.800 0.300  # Kid Icarus - Retold Edition.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - NEO (J).nes
+STORY 1.000 0.998 0.951 0.021 0.920 1.000 0.800 0.300  # Tecmo Super Bowl - 2014.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Arena Football League Season Zero (Tecmo S
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo NFL Dynasties by SBlueman (Tecmo Super Bow
+STORY 1.000 1.000 0.633 0.077 0.827 0.625 0.800 0.300  # Big Kids Pro-Wrestling by RyanVG (TTW Hack).nes
+STORY 1.000 1.000 1.000 0.075 0.973 1.000 0.800 0.300  # MegaMan VI - Showdown VI (Megaman VI Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - XXXX.nes
+STORY 1.000 1.000 0.000 1.000 0.967 1.000 0.800 0.300  # Tecmo Bowl 1998 by GRG (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1993 Edit by SBlueman (Hack).ne
+STORY 1.000 1.000 0.868 1.000 0.180 0.633 0.800 0.300  # Super Mario Bros. - Extreme Danger Bros.nes
+STORY 1.000 0.715 0.113 0.025 0.987 1.000 0.200 0.300  # Dragon Warrior (U) (PRG0) [!] - Special Edition 
+STORY 1.000 1.000 0.865 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Kamikaze DX.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl (2000 Edit) by SBlueman (Hack).
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Dr.Wily Visits Indonesia (U).nes
+STORY 1.000 1.000 0.867 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Challenge Googie.nes
+STORY 1.000 1.000 0.363 1.000 0.953 1.000 0.800 0.300  # Baseball Stars 1989 by Ignarant (Hack).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - Wily's Conquest 2 v0.71b (Megaman I
+STORY 1.000 1.000 1.000 0.051 0.000 1.000 0.800 0.300  # Double Dragon - Hard Type (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mario In Time is Ticking.nes
+STORY 1.000 1.000 1.000 0.063 0.940 1.000 0.800 0.300  # Super Mario Bros. 2 - Transformers Episode 2 - R
+STORY 1.000 1.000 0.870 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Sirius Mario Bros 3.nes
+STORY 1.000 0.955 0.174 0.105 0.960 1.000 0.800 0.300  # Spaceship Invasion by Seth (Zombie Nation Hack).
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Project Recovery Mario's Rel
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl X XFL (Hack).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2004 by Fryak (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Alcatraz.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Rockman Plus! (J).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # Rockman 3 - Extra (J).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Sirius Mario Bros 2.nes
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Dracula's Revenge (Hack).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 1989 - All Star Teams by Moats77
+STORY 1.000 0.552 0.728 0.053 0.860 1.000 0.200 0.300  # Bionic Hippy Commando (Bionic Commando Hack).nes
+STORY 1.000 1.000 0.567 0.101 0.947 1.000 0.800 0.300  # Rockman 5 - Wily's Dream Space (J).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Ridley X 1 (U).nes
+STORY 1.000 1.000 1.000 0.075 0.973 1.000 0.800 0.300  # Rockman 6 - RE (J).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl NCAA 2001 (Hack).nes
+STORY 1.000 1.000 0.402 1.000 0.487 1.000 0.800 0.300  # Ghosts 'N Goblins Hardtype (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl NCAA Rose Bowl 2006 by bigjim28
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Luigi's Chronicles Ver B by 
+STORY 1.000 0.995 1.000 0.050 0.000 1.000 0.800 0.300  # Downtown - Nekketsu Monogatari Girl Version (Hac
+STORY 1.000 1.000 0.866 1.000 0.180 0.633 0.800 0.300  # Super Mario Bros. - TKB 2.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - 2nd by Googie.nes
+STORY 1.000 0.998 0.951 0.021 0.920 1.000 0.800 0.300  # TECMO SUPER BOWL XLVII 2013RU9TCPB.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - 88 89 Diff Teams (R.B.I. Baseb
+STORY 1.000 0.981 0.625 0.067 0.900 1.000 0.800 0.300  # Bubble Bobble by John's Program (Bubble Bobble H
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1990 Edit by SBlueman (Hack).ne
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # Rockman 4 - Luokeren 8 Emeng De Kaishi (J).nes
+STORY 1.000 0.971 0.055 0.058 0.967 1.000 0.800 0.300  # Castlevania II - Simon's Quest FIXED Version.nes
+STORY 1.000 1.000 0.415 0.057 0.940 1.000 0.800 0.300  # Gradius II Arcade Conversion V0.8.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl (U) ('98 NFL Season Hack).nes
+STORY 1.000 1.000 0.398 0.107 0.927 1.000 0.800 0.300  # Rockman 3 - Burst Chaser.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - Adventures of Bass 2.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Kirby Adventure 2.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Kamikaze 1.nes
+STORY 1.000 1.000 0.302 0.050 0.953 1.000 0.800 0.300  # Adventures of Lolo Challenge Edition (U) [!].nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo NCAA (2001 Edit) by SBlueman (Tecmo Super 
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # Rockman 4 - Luokeren 7 Xiyang Xia De Zhandou (J)
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Curse of suffering.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1962 Edit by Denny, Jstout & El
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl (1993 Edit) by SBlueman (Hack).
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - Fly by Matrixz (Hack).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # Rockman 3 - Bass (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Players Circuit - Masters TSB (Tecmo Super
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2k5 (Hack).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - Rockman No Constancy Hard Edition (
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl (1991 Edit) (Hack).nes
+STORY 1.000 1.000 1.000 0.974 0.000 1.000 0.800 0.300  # Gauntlet - Final Fantasy Epic V0.03 Final by Sli
+STORY 1.000 0.968 0.625 0.067 0.900 1.000 0.800 0.300  # Bubble Bobble - Arcade Version (U) [!].nes
+STORY 1.000 0.998 0.353 0.105 0.953 1.000 0.800 0.300  # Bugs Bunny Crazy Castle - Second Ultimate Bugs B
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Frank's Third Ultimate Hack.
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Slumber of Darkness V1.2.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Justin and Friends V1.1 by T
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2002-2003 by Bruddog (Hack).nes
+STORY 1.000 1.000 0.865 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Toads Treasure Quest.nes
+STORY 1.000 1.000 0.961 0.050 0.880 1.000 0.800 0.300  # Super Dodge Ball V1.00 by akatranslations (4 Pla
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2004 Playoff Teams - Fixed by Sc
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - World Cup v.5 by skeletorsamba
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Wed Of Slasher (J).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Mexican League 1979 - Northern
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - KamiKaze 2.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - McGrath's Super Bom (R.B.I. Ba
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Shadows (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Next.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Wario Bros..nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Square Root of 5.nes
+STORY 1.000 1.000 0.867 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Kamikaze 3.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Bowser's Jumping Challenge V
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Remix 3 The Link Adventures.
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - 2.5 Small Apple Ver (J).nes
+STORY 1.000 1.000 0.132 0.178 0.953 1.000 0.800 0.300  # Astyanax Remix by Googie (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Funny Princess by Ultimessia
+STORY 1.000 1.000 0.418 0.053 0.927 0.625 0.800 0.300  # Arkanoid - Teknoid (Arkanoid Hack).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Claw 2 (J).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2002 v.3 by MarquisEXB (Hack).ne
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # MegaMan IV - Ridley X Hack 1 (U).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl X Globe Bowl (Hack).nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Rockman Kai (J).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl (2001 Edit) by SBlueman (Hack).
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # Rockman 5 - Dood in Wily's Last (J).nes
+STORY 1.000 1.000 0.170 0.000 0.980 0.625 0.800 0.300  # Pegs.nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Captive by SPJ.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Stomp on Brothers Head.nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Deluxe v1.1 (Metroid Hack).nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Rockman NEO (Rockman Hack).nes
+STORY 1.000 1.000 1.000 0.156 0.860 0.625 0.800 0.300  # Ms.Pac-Man - Blob Munchers (U).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 32 Teams by Bruddog (Hack).nes
+STORY 1.000 1.000 0.868 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Kirikaze Oogarasu Edition.ne
+STORY 1.000 1.000 1.000 0.053 0.680 1.000 0.800 0.300  # Metroid - MDBtroid (U) [!].nes
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Poisonous Offering (CV PRG1 Hack).
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Revisited v4.3.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - 5000 by Frantik.nes
+STORY 1.000 1.000 0.547 0.050 0.000 1.000 0.800 0.300  # Tecmo Bowl 2007-2008 by kefkaroth (Hack).nes
+STORY 1.000 0.999 1.000 0.050 0.000 1.000 0.800 0.300  # Kid Icarus - NES Land Journey (Kid Icarus Hack).
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Rockman E (J).nes
+STORY 1.000 1.000 0.509 0.060 0.933 1.000 0.800 0.300  # Teenage Mutant Ninja Turtles - Ultimate Edition 
+STORY 1.000 1.000 1.000 1.000 0.087 1.000 0.800 0.300  # Chip 'n Dale Rescue Rangers - Alternative.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl (2002 Edit) by SBlueman (Hack).
+STORY 1.000 1.000 0.567 0.101 0.947 1.000 0.800 0.300  # Rockman 5 - JohoBoshu 1 (J).nes
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Red Scale (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Peach and Daisy and The Roya
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Exhaust (J).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Rise & Fall of Dr.Wily (U).nes
+STORY 1.000 1.000 0.418 0.053 0.927 0.625 0.800 0.300  # Arkanoid 98 (Arkanoid Hack).nes
+STORY 1.000 1.000 0.868 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mushroom Nightmare Final 2.0
+STORY 1.000 0.707 0.041 0.057 0.967 1.000 0.200 0.300  # Castlevania II - Dishonor Thy Father.nes
+STORY 1.000 1.000 0.667 0.060 0.907 1.000 0.800 0.300  # Contra - Super Contra II.nes
+STORY 1.000 1.000 1.000 0.063 0.940 1.000 0.800 0.300  # Super Mario Bros. 2 - Subcon 2000 Edition (U).ne
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Spartan Bros.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.633 0.800 0.300  # Super Mario Bros. - Mario Fan by M.K.H.nes
+STORY 1.000 1.000 1.000 0.077 0.513 0.625 0.800 0.300  # Battle City - Binary City (J).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - GX.nes
+STORY 1.000 1.000 1.000 0.027 0.247 1.000 0.800 0.300  # Attack Animal Gakuen by Rinkaku (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2003 NFL (Hack).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Greats of All Times (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2004 PostSeason Newer by GRG (H
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - High Speed Megaman (Mega Man Hack).nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Rockman RX.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Curse From the Outskirts Red
+STORY 1.000 1.000 1.000 0.054 0.720 1.000 0.800 0.300  # Metroid - Quest V3.0.nes
+STORY 1.000 1.000 0.795 1.000 0.153 1.000 0.800 0.300  # Super Mario Bros. - VS. Airman.nes
+STORY 1.000 1.000 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - Hyperion.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2k6 - Western Divison Teams (Hac
+STORY 1.000 1.000 0.422 0.053 0.927 0.750 0.800 0.300  # Arkanoid - Dimension of Doh (Hack).nes
+STORY 1.000 1.000 1.000 0.156 0.860 0.625 0.800 0.300  # Ms.Pac-Man - Pac Man 3D (U).nes
+STORY 1.000 1.000 1.000 0.051 0.940 1.000 0.800 0.300  # Super Mario Bros. 2 - Legend of The Blob Bros. (
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mushroom Kingdom Chaos.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Bowsers Castle.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Atario Bros.nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Showdown I (Mega Man Hack).nes
+STORY 1.000 0.976 0.113 0.026 0.987 1.000 0.800 0.300  # Dragon Warrior - Dragoon X Omega V2.0f Gold.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - SP (J).nes
+STORY 1.000 1.000 0.547 0.050 0.000 1.000 0.800 0.300  # Tecmo Bowl 2006 by drummer4god (Hack).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Yender Code (J).nes
+STORY 1.000 1.000 0.863 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - Toads Christmas Adventure 1.
+STORY 1.000 0.962 0.090 0.054 0.967 1.000 0.800 0.300  # Ninja Gaiden - Evil Edition (U) [!].nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1990-1991 v.3(1st16) by Bruddog
+STORY 1.000 1.000 0.302 0.050 0.953 1.000 0.800 0.300  # Adventures of Lolo - Kopio (Lolo1 Hack).nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Revenge (U).nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - M (Metroid Hack).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Chaos (J).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - X (Mega Man 2 Hack).nes
+STORY 1.000 0.996 0.074 1.000 0.973 1.000 0.800 0.300  # Castlevania - Overflow Darkness English.nes
+STORY 1.000 1.000 0.776 0.088 0.907 1.000 0.800 0.300  # R.B.I. Baseball 3 with Cardinals '85 (Hack).nes
+STORY 1.000 1.000 1.000 0.168 0.960 1.000 0.800 0.300  # Destiny of an Emperor - Rise of Ieyasu V2.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - HF.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl (1990 Edit) by SBlueman (Hack).
+STORY 1.000 0.999 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Remix (CV PRG1 Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - Ninja Insanity.nes
+STORY 1.000 1.000 0.868 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Messeed Up World of Weirdnes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2005 by Beefmaster (Hack).nes
+STORY 1.000 1.000 0.314 0.054 0.967 0.625 0.800 0.300  # Hydlide Special by Y.Project (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1990 Redux v1.0 by SBlueman (Ha
+STORY 1.000 1.000 1.000 0.974 0.000 1.000 0.800 0.300  # Gauntlet - Blink 2 - Lost in Tokyo (Gauntlet Hac
+STORY 1.000 1.000 0.507 0.067 0.953 0.625 0.800 0.300  # Spy vs. Spy - Mario Spy Vs Spy.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.633 0.800 0.300  # Super Mario Bros. - Remix The New Adventures.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Toad's Adventure - Where's M
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2004-05 Post Season V3 (Hack).n
+STORY 1.000 1.000 0.868 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Rebirth.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mikamari 3.nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - (Enemy Lifebar Hack).nes
+STORY 1.000 1.000 0.363 1.000 0.953 1.000 0.800 0.300  # Baseball Stars 1991 by GRG (Baseball Stars Hack)
+STORY 1.000 1.000 1.000 0.056 0.940 1.000 0.800 0.300  # Super Mario Bros. 2 - Christmas Edition by BMF54
+STORY 1.000 1.000 0.870 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - After World 8.nes
+STORY 1.000 1.000 0.310 0.053 0.953 0.625 0.800 0.300  # Seicross - Graros (Seicross Hack).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - NEO (Megaman II Hack).nes
+STORY 1.000 1.000 1.000 0.156 0.860 0.625 0.800 0.300  # Pac-Man 3 by DahrkDaiz (Ms. Pac-Man Hack).nes
+STORY 1.000 0.715 0.113 0.025 0.987 1.000 0.200 0.300  # Dragon Warrior - Super Mario Remix 2 v1.0 (Incom
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Hacked Mario Bros by Alexey2
+STORY 1.000 1.000 0.420 0.050 0.920 1.000 0.800 0.300  # Adventures of Lolo 2 CSTutor Full Hack (U) [!].n
+STORY 1.000 0.689 0.702 0.067 0.927 1.000 0.200 0.300  # Super Contra - Hells Edition.nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Hedgehog Trap! - HARD (U).nes
+STORY 1.000 1.000 0.866 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - All-Star Levels by AP (V1.03
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - MegaMan in SMB1.nes
+STORY 1.000 1.000 0.940 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - Hyper Mario Bros R by MHS.ne
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # MegaMan IV - Ridley X Hack 2 (U).nes
+STORY 1.000 1.000 0.866 1.000 0.180 1.000 0.800 0.300  # Super Mario Bros. - Evolution V2.nes
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - 2000.nes
+STORY 1.000 0.998 0.951 0.021 0.920 1.000 0.800 0.300  # Tecmo Super Bowl NFL 2010 Drummer.nes
+STORY 1.000 0.999 0.517 0.072 0.427 1.000 0.800 0.300  # Baseball Simulator 2013.nes
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Hells Fury Easy (U) (PRG1) [!].nes
+STORY 1.000 1.000 1.000 0.999 0.987 1.000 0.800 0.300  # Final Fantasy II - Demonic Pandemonium.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Super Duper Mario Bros.nes
+STORY 1.000 0.707 0.041 0.057 0.967 1.000 0.200 0.300  # Castlevania II - Vengence on Hell V1.0d (CV2 Hac
+STORY 1.000 1.000 0.418 0.053 0.927 0.625 0.800 0.300  # Arkanoid - Bigball (Arkanoid Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Frank's 2nd.nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Reloaded V1.2.nes
+STORY 1.000 1.000 0.547 0.050 0.000 1.000 0.800 0.300  # Tecmo Bowl 2005-2006 by Kefkaroth (Hack).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Hedgehog Trap! - NORMAL (U).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Final Quest.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - !.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mikamari 2.nes
+STORY 1.000 0.998 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - RidleyX 2 Hack.nes
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - RidleyX 3 Hack.nes
+STORY 1.000 1.000 0.156 0.074 0.973 1.000 0.800 0.300  # Adventures of Lolo 3 Eggerland Mystery Hack [!].
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2006-2007 v3updatedrosters by d
+STORY 1.000 1.000 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Hells Fury (U) (PRG1) [!].nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo NCAA 1999 (Tecmo Super Bowl Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 1968 by Carther (Hack).nes
+STORY 1.000 1.000 0.132 0.178 0.953 1.000 0.800 0.300  # Astyanax - The Movie.nes
+STORY 1.000 1.000 1.000 0.065 0.147 0.625 0.800 0.300  # Elevator Action - Matrix, The (Elevator Action H
+STORY 1.000 1.000 0.867 0.913 0.180 1.000 0.800 0.300  # Super Mario Bros. - Extra Mario Bros..nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 90-91 by Bgiadam (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Rose Bowl NCAA 2002 - Alternate V1-95 (Tec
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Dash Hard Version (J).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - TKB.nes
+STORY 1.000 1.000 0.705 0.051 0.007 1.000 0.800 0.300  # Super Mario Bros. - Lost Levels.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Best of 1990s v.1 by MarquisEX
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Repository Knobs by gary22fret (Hack).nes
+STORY 1.000 1.000 1.000 0.168 0.960 1.000 0.800 0.300  # Destiny of an Emperor - Rise of Lu Bu V2.nes
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # Rockman 5 - 5 to 7 Graphics V1.0 by Dark Mark (R
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # Rockman 3 - Alpha (J).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - Rockman EXILE (J).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mario in Zebes.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Mexican League 1979 - Southern
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - TSI (Metroid Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mikamari 1.nes
+STORY 1.000 1.000 0.868 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Strange Mario Bros 1.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Deus Ex Machina (J).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Break Man 3 (U).nes
+STORY 1.000 0.996 0.074 1.000 0.973 1.000 0.800 0.300  # Castlevania - Prelude Of Darkness (Hard Type).ne
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # Rockman 3 - Luokeren MAX 2 Jiaomie (J).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mikamari 5.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl NCAA 2006 by RedRageCard (Hack)
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Decade Legends v3 by skeletors
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Rockman 2000 (J).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2001 Edit by SBlueman (Hack).ne
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # Rockman 3 - Peercast 2 V1.1 (J).nes
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - Elecman V (U).nes
+STORY 1.000 1.000 1.000 0.075 0.973 1.000 0.800 0.300  # Rockman 6 - Mr.X Returns (J).nes
+STORY 1.000 0.998 0.951 0.021 0.920 1.000 0.800 0.300  # Tecmo Super Bowl NFL 2008 XLIII.nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Min (J).nes
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # MegaMan IV - Maverick Revenge.nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Googies Megamix.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2004 Playoff Teams by JerryD (Ha
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - The Mario Bros Shroom Trip.n
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2000 (Hack).nes
+STORY 1.000 1.000 0.871 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mr.Sandman.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Best of 1970s v.2 by MarquisEX
+STORY 1.000 1.000 0.547 0.050 0.000 1.000 0.800 0.300  # Tecmo Bowl 2004-05 (Hack).nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Battle Of Gamma (U).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # MegaMan II - AVGN Vs Dr.Wly.nes
+STORY 1.000 0.999 0.567 0.101 0.947 1.000 0.800 0.300  # MegaMan V - Cutterblade Megaman by Matrixz (Mega
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - The 32 Lost Levels.nes
+STORY 1.000 1.000 0.868 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Hoshi ni Negai o by Ki.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - SUICIDEXTREME.nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Luigi and the Christmas Ques
+STORY 1.000 0.968 0.625 0.067 0.900 1.000 0.800 0.300  # Bubble Bobble - New Quest (Bubble Bobble Hack).n
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Rose Bowl 1998 College (Tecmo Super Bowl H
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Rockman 2nd (J).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mikamari 4.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - All Time Teams of the 20th Cen
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl X World & USFL (Hack).nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - Bytes Adventure.nes
+STORY 1.000 1.000 1.000 0.168 0.960 1.000 0.800 0.300  # Destiny of an Emporor - Dragon Destiny V0.12 (De
+STORY 1.000 0.972 0.569 0.405 0.860 1.000 0.800 0.300  # Rush'n Attack - Ultra Difficult Edition.nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 2006 by GRG (Hack).nes
+STORY 1.000 1.000 0.600 0.060 0.927 1.000 0.800 0.300  # Moai-kun - Luigi-Kun by Googie (J).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Ende's Super Mario Bros Hack
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball 2k6 - Eastern Divison Teams (Hac
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Hard Core Elite (Metroid Hack).nes
+STORY 1.000 1.000 1.000 0.101 0.947 1.000 0.800 0.300  # MegaMan V - Random Palette by Matrixz (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Mortal Kombat Bros Sub Zero 
+STORY 1.000 1.000 0.133 0.061 0.973 1.000 0.800 0.300  # Batman V1.2 by Macbee (fixed colors).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl 98 NFL Season (Hack).nes
+STORY 1.000 0.834 1.000 0.000 0.000 1.000 0.200 0.300  # MegaMan - In the Mushroom Kingdom (Megaman Hack)
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # MegaMan IV - Eons of dreams part 4 (U).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - SUICIDEXTREME 2.nes
+STORY 1.000 0.996 0.074 1.000 0.973 1.000 0.800 0.300  # Castlevania - Retold V2.0 (U) (PRG1) [!].nes
+STORY 1.000 1.000 0.619 0.106 0.913 1.000 0.800 0.300  # MegaMan V - Remix by Matrixz (Hack).nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - Greats of 1980s by Ryno (Hack)
+STORY 1.000 1.000 0.401 0.103 0.947 1.000 0.800 0.300  # MegaMan IV - Ridley X Hack 3 (U).nes
+STORY 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Easy (Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - SUICIDEXTREME 3.nes
+STORY 1.000 0.998 0.074 0.057 0.973 1.000 0.800 0.300  # Castlevania - Chorus of Mysteries v2 (Castlevani
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Super Mushroom.nes
+STORY 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Baseball - CAE 2005 (R.B.I. Baseball Hack
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Planet (Metroid Hack).nes
+STORY 1.000 1.000 1.000 0.046 0.920 0.750 0.800 0.300  # Kaison Star Force (Hack).nes
+STORY 1.000 0.999 1.000 0.021 0.887 1.000 0.800 0.300  # Tecmo Super Bowl - TFA Super Bowl (Tecmo Super B
+STORY 1.000 1.000 0.020 0.054 0.960 1.000 0.800 0.300  # Blades of Steel - S. American Championship (Hack
+STORY 1.000 1.000 1.000 0.053 0.720 1.000 0.800 0.300  # Metroid - Adventure.nes
+STORY 1.000 1.000 0.399 0.107 0.933 1.000 0.800 0.300  # MegaMan III - Hedgehog Trap! - EASY (U).nes
+STORY 1.000 1.000 0.867 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Giabbit.nes
+STORY 1.000 1.000 0.865 1.000 0.180 0.750 0.800 0.300  # Super Mario Bros. - TowerRE (Mario Tower).nes
+STORY 1.000 0.996 0.074 1.000 0.973 1.000 0.800 0.300  # Castlevania - Prelude Of Darkness (Easy Type).ne
+STORY 1.000 1.000 1.000 0.062 0.940 1.000 0.800 0.300  # Super Mario Bros. 2 - Pokemon (SMB2 Hack).nes
+STORY 1.000 1.000 0.866 1.000 0.180 0.625 0.800 0.300  # Super Mario Bros. - Killers (V6.0).nes

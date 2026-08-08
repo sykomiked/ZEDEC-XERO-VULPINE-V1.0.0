@@ -1,0 +1,11 @@
+# MegaROM mechanic palette (distinct, Chiglet-orthogonal). dims: exec purity display frame irq content live arch
+MECH 1.000 1.000 1.000 0.000 0.000 1.000 0.800 0.300  # Rockman 2 - Rs Beta (J).nes
+MECH 1.000 1.000 0.201 0.025 0.980 0.375 0.800 0.300  # Golf - Kiss Goes Golfing starring Paul Stanley (
+MECH 1.000 0.999 1.000 0.088 0.833 1.000 0.800 0.300  # R.B.I. Arcade II by Ultimate7 (R.B.I. Baseball H
+MECH 1.000 1.000 0.003 0.075 0.000 1.000 0.800 0.300  # Guardian Legend - Secret Edition 3.3.nes
+MECH 1.000 1.000 0.866 1.000 0.180 0.633 0.800 0.300  # Super Mario Bros. - Remix 2 - The New Adventures
+MECH 1.000 0.678 0.113 0.025 0.987 1.000 0.200 0.300  # Dragon Warrior - Chocobo DW V0.3 (Dragon Warrior
+MECH 1.000 1.000 0.113 1.000 0.000 0.625 0.800 0.300  # Battle City - Warsaw City V4.5 (J).nes
+MECH 1.000 0.642 0.000 0.723 0.000 1.000 0.200 0.300  # Zelda II - Part 3 Easy by The_IcePenguin V1.9 (U
+MECH 1.000 0.996 0.074 1.000 0.973 1.000 0.800 0.300  # Castlevania - Reborn.nes
+MECH 1.000 0.606 0.258 0.050 0.007 0.633 0.200 0.300  # Super Mario Bros. - Yoshi's Quest.nes
