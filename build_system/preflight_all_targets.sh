@@ -107,7 +107,18 @@ srcs_from_mk() {
       }
       if ($0 !~ /\\[ \t]*$/) collecting=0
     }
-  ' "$1" | sort -u
+  ' "$1" | sort -u | drop_asm_backed
+}
+
+# An .o listed in an OBJS var may be built from a .S (assembly), not a .c — e.g.
+# the EFI stub's efi_header.S / efi_kernel_blob.S. Mapping those .o -> .c yields a
+# phantom source. Drop any X.c whose sibling X.S exists (it is an assembly object).
+drop_asm_backed() {
+  while IFS= read -r f; do
+    [ -f "${f%.c}.S" ] && continue
+    [ -f "${f%.c}.s" ] && continue
+    printf '%s\n' "$f"
+  done
 }
 
 # Self-check: every kernel .c/.o path mentioned anywhere in the Makefile should
@@ -116,7 +127,7 @@ srcs_from_mk() {
 parser_coverage_check() {
   local mk="$1" parsed="$2"
   local mentioned
-  mentioned="$(grep -oE 'kernel/[A-Za-z0-9_./-]+\.[co]' "$mk" | sed 's/\.o$/.c/' | grep -v '/boot\.c$' | sort -u)"
+  mentioned="$(grep -oE 'kernel/[A-Za-z0-9_./-]+\.[co]' "$mk" | sed 's/\.o$/.c/' | grep -v '/boot\.c$' | sort -u | drop_asm_backed)"
   comm -23 <(printf '%s\n' "$mentioned") <(printf '%s\n' "$parsed" | sort -u)
 }
 
