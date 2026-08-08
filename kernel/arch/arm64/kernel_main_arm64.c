@@ -1509,9 +1509,9 @@ void kernel_main_arm64(void) {
         extern int dimfold_selfcheck(uint32_t *ratio_permille_out);
         uint32_t ratio = 0;
         if (dimfold_selfcheck(&ratio)){
-            uart_puts("[E....]   [DRIVER ONLINE] fold/unfold, compress/expand, seal/open all lossless; self-similar data -> ");
+            uart_puts("[E....]   [DRIVER ONLINE] dimensional elevator (all filetypes, lossless + integrity-verified, never bloats; frequency bands + multi-channel manifest); self-similar data -> ");
             uart_put_dec(ratio);
-            uart_puts(" permille (compressed); prime=SHA256d lock, Fibonacci=recovery, phi=alignment\n");
+            uart_puts(" permille; fold/compress/seal round-trip; prime=SHA256d lock, Fibonacci=recovery, phi=alignment\n");
         } else {
             boot_msg("  [WARN] Dimensional Fold did not round-trip");
         }

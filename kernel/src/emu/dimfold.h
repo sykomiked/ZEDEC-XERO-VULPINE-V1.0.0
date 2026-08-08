@@ -54,8 +54,50 @@ void dimfold_seal(uint8_t *data, int n, const uint8_t *key, int keylen);
 void dimfold_open(uint8_t *data, int n, const uint8_t *key, int keylen);
 
 /* ---- 4. IDENTITY ----------------------------------------------------------- */
-/* The thing's identity = SHA-256d (the prime lock) over its bytes. */
+/* The thing's identity = SHA-256d (the prime lock) over its bytes. NOTE: a hash
+ * is ONE-WAY by design and CANNOT be reversed to the file (infinitely many files
+ * share any digest). Here it is used only as an INTEGRITY fingerprint. */
 void dimfold_identity(const uint8_t *data, int n, uint8_t out[32]);
+
+/* ---- 5. DIMENSIONAL ELEVATOR (reversible codec for ANY filetype) ------------ *
+ * The honest "reversible hash": NOT a crypto hash (those can't be reversed), but a
+ * reversible transform that RAISES a whole file up through the φ/prime/Fibonacci
+ * fold and LOWERS it back, KEEPING every shell so nothing is lost. Works on
+ * arbitrary-length data of any type (graphics, text, binaries) by chunking. The
+ * container carries the SHA-256d identity so `descend` VERIFIES the reconstruction
+ * bit-for-bit (returns 0 if the integrity fingerprint does not match). */
+int  dimfold_elevate(const uint8_t *in, int n, uint8_t *out, int out_cap);
+int  dimfold_descend(const uint8_t *in, int n, uint8_t *out, int out_cap);
+int  dimfold_elevate_bound(int n);   /* safe out_cap for elevating n bytes       */
+
+/* ---- 6. BANDS + CHANNELS (frequency subbands; multiplexed data types) ------- *
+ * The fold IS a frequency decomposition: after dimfold_fold, the coefficients are
+ * BANDS — a[0] is the DC (lowest) band, then successive detail bands, each twice
+ * the width of the last (higher and higher frequency). Band `b` occupies the
+ * coefficient index range [lo,hi). */
+int  dimfold_band_count(int n);                       /* = log2(n) + 1            */
+void dimfold_band_range(int n, int band, int *lo, int *hi);
+
+/* A CHANNEL is one data stream of a given type. dimfold_pack multiplexes several
+ * channels — each independently elevated into its own bands — into one container
+ * with a MANIFEST (type + length per channel: the "matrix assembly instructions").
+ * dimfold_unpack follows the manifest to reassemble every channel, each integrity-
+ * verified, and fills `slots` with where each landed. Different data types can ride
+ * different channels/bands and each is stored folded or raw, whichever is smaller. */
+/* A channel's `type` carries the OS's SPACE POLARITY — the positive / neutral /
+ * negative space file types. Values mirror trispace.h tri_role_t exactly, so a
+ * channel IS a tri-space member: S+ provides (the plug), S- needs (the socket),
+ * S0 glue/metadata. A packed container multiplexes all three polarities and the
+ * manifest records each channel's polarity for exact reassembly. */
+#define DIMFOLD_POSITIVE 0   /* S+  positive space — provides / the plug   */
+#define DIMFOLD_NEGATIVE 1   /* S-  negative space — needs / the socket    */
+#define DIMFOLD_NEUTRAL  2   /* S0  neutral space  — glue / metadata       */
+
+typedef struct { const uint8_t *data; int len; uint8_t type; } dimfold_channel_t;
+typedef struct { uint8_t type; int offset; int len; }          dimfold_slot_t;
+int  dimfold_pack(const dimfold_channel_t *ch, int nch, uint8_t *out, int out_cap);
+int  dimfold_unpack(const uint8_t *in, int n, uint8_t *out, int out_cap,
+                    dimfold_slot_t *slots, int max_slots);   /* returns #channels */
 
 /* On-target self-check: fold/unfold, compress/expand, and seal/open all round-trip
  * losslessly; the Fibonacci recovery key aligns to φ. Returns 1 on pass and writes
