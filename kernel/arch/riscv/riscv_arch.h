@@ -80,12 +80,13 @@ static inline uint64_t mmio_read64(uint64_t addr) {
 
 /* ===== CPU control ===== */
 
+/* S-mode (booted by OpenSBI): use sstatus.SIE (bit 1), not mstatus.MIE. */
 static inline void enable_irq(void) {
-    __asm__ __volatile__("csrs mstatus, 0x8");  /* MIE bit */
+    __asm__ __volatile__("csrs sstatus, 0x2");  /* SIE bit */
 }
 
 static inline void disable_irq(void) {
-    __asm__ __volatile__("csrc mstatus, 0x8");
+    __asm__ __volatile__("csrc sstatus, 0x2");
 }
 
 static inline void halt(void) {

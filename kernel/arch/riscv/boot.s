@@ -12,9 +12,13 @@
 .section .text.boot
 .global _start
 _start:
-    /* Read hart ID; if not hart 0, park */
-    csrr t0, mhartid
-    bnez t0, park
+    /* Booted by OpenSBI in S-mode (qemu-system-riscv64 -M virt, default -bios).
+     * OpenSBI passes the hart id in a0 and the DTB pointer in a1. We use the
+     * SUPERVISOR CSRs (stvec/scause), NOT the machine CSRs (mhartid/mtvec/mcause),
+     * which are illegal in S-mode. */
+
+    /* Hart id is in a0 (from OpenSBI); if not hart 0, park */
+    bnez a0, park
 
     /* Set up stack */
     la sp, __stack_top
@@ -29,9 +33,9 @@ clear_bss:
     j clear_bss
 bss_done:
 
-    /* Set up trap vector (direct mode) */
+    /* Set up the S-mode trap vector (direct mode) */
     la t0, trap_vector
-    csrw mtvec, t0
+    csrw stvec, t0
 
     /* Call kernel_main_riscv */
     call kernel_main_riscv
@@ -60,8 +64,8 @@ trap_vector:
     sd a6, 96(sp)
     sd a7, 104(sp)
 
-    /* Read mcause */
-    csrr a0, mcause
+    /* Read scause (S-mode) */
+    csrr a0, scause
     /* Call trap handler C function */
     call riscv_trap_handler
 
@@ -83,4 +87,4 @@ trap_vector:
     addi sp, sp, 256
 
     /* Return from trap */
-    mret
+    sret

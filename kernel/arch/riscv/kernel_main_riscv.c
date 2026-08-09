@@ -35,11 +35,11 @@ void riscv_trap_handler(uint64_t mcause) {
     int is_interrupt = (mcause & 0x8000000000000000ULL) != 0;
     
     if (is_interrupt) {
-        if (code == 7) {
-            /* Machine timer interrupt */
+        if (code == 5) {
+            /* Supervisor timer interrupt (S-mode under OpenSBI) */
             riscv_timer_handler();
-        } else if (code == 11) {
-            /* Machine external interrupt (PLIC) */
+        } else if (code == 9) {
+            /* Supervisor external interrupt (PLIC) */
             plic_handle_irq();
         }
     }
