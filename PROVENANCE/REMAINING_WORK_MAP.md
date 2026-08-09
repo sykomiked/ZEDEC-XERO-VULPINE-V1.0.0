@@ -76,11 +76,27 @@ into the 32-bit source lists (that is why they "didn't work" before). Three hone
 
 ## 3. Installer / distribution / signing (P0)
 
-- **EFI payloads per-arch** — `BOOTX64.EFI` / `BOOTAA64.EFI` / `BOOTRISCV64.EFI`. arm64 EFI
-  stub already exists; need the others. Universal disc is blocked on this.
-- **Universal disc** (`mkuniversal_disc.sh`) + **VM images** (`mkuniversal_vm.sh`: zxv.raw /
-  ova / qcow2 / vmdk / vhdx). Scripts are written and the conversion path is proven; blocked
-  on EFI payloads + a real disc input.
+- **EFI payloads per-arch — DONE for both UEFI-capable arches (2026-08-09).**
+  - `BOOTX64.EFI` (**new**): PE/COFF Machine=0x8664, ms_abi stub, plus a long-mode →
+    32-bit-protected-mode trampoline (UEFI hands off in long mode; the kernel is Multiboot1
+    entered at `_entry32`). Reserves 0x100000, ExitBootServices, copies the embedded kernel,
+    jumps. **Verified on OVMF → `[BOOT_OK]` with ring-3 live.**
+  - `BOOTAA64.EFI` (**fixed**): the stub copied the kernel to 0x40080000 — exactly where
+    AAVMF had loaded the EFI image — so it overwrote its own running code (Undefined
+    Instruction at 0x40080000). Now stages the kernel into firmware-allocated memory and
+    runs the final copy+jump from a **relocated trampoline** (`efi_tramp.S`).
+    **Verified on AAVMF → EL0 + P-TERM + "UEFI GOP framebuffer — ZEDEC desktop is on screen".**
+    (This also closes §6's "arm64 EFI stub + GOP → boot-to-desktop under UEFI".)
+  - `BOOTRISCV64.EFI`: **firmware-blocked, not code-blocked.** The box has no RISC-V UEFI
+    firmware (only OpenSBI) and no `grub-riscv64-efi` target, so there is nothing to verify a
+    payload against. riscv64/riscv32 boot natively via OpenSBI today.
+- **Universal disc — DONE and demonstrated.** `mkuniversal_disc.sh` now prefers a native
+  self-contained `BOOT<arch>.EFI` over building a GRUB loader. **ONE `dist/zxv-universal.img`
+  boots to `BOOT_OK` on BOTH x86_64 (OVMF) and arm64 (AAVMF)** — the multi-arch claim
+  demonstrated, not asserted. All 5 kernels are carried under `/ZXV/<arch>/`; riscv64/riscv32/
+  arm32 are reported CARRIED (not bootable) rather than claimed.
+- **VM images** (`mkuniversal_vm.sh`: zxv.raw / ova / qcow2 / vmdk / vhdx) — the disc is also a
+  valid raw disk, so this is now unblocked.
 - **Signed release with the REAL root key** — generate the root key **offline on the server**;
   the dev key in the tree is compromised and must never ship (`sign_release.sh`).
 
