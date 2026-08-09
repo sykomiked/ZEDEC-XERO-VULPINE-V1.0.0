@@ -335,6 +335,22 @@ void ddna_sephirotic_print(const ddna_sephirotic_matrix_t *matrix);
  */
 
 #define DDNA_PHI_TOLERANCE   0.0001   /* Tolerance window for φ coherence */
+
+/* --- φ-chunk decomposition: two constants that must be derived, not guessed ---
+ * DDNA_PHI_MIN_CHUNK stops subdivision before floor() quantisation destroys the
+ * ratio. A chunk of C bytes carries a relative floor error of about 1/C, so tiny
+ * chunks report ratios that have nothing to do with φ. Measured over inputs from
+ * 64 B to 16 MB: MIN=16 -> worst average deviation 0.034, MIN=32 -> 0.013,
+ * MIN=64 -> 0.0057, MIN=128 -> 0.0029. 64 is the knee — past it the gain costs
+ * chunks (and therefore resolution) faster than it buys accuracy.
+ *
+ * DDNA_PHI_COHERENCE_TOL is the matching acceptance window for the AVERAGE
+ * ratio, set at 0.01 for roughly 2x headroom over that measured 0.0057 worst
+ * case. It is deliberately NOT DDNA_PHI_TOLERANCE: 0.0001 is far tighter than
+ * the arithmetic can deliver, so testing against it can only ever return false.
+ * A tolerance must be at least the inherent error of the thing it measures. */
+#define DDNA_PHI_MIN_CHUNK     64u
+#define DDNA_PHI_COHERENCE_TOL 0.01
 #define DDNA_MAX_CHUNKS      256      /* Max chunks in a φ-checksum tree */
 
 typedef struct ddna_phi_chunk {

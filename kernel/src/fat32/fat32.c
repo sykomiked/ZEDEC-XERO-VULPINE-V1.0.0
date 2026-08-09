@@ -88,8 +88,17 @@ int fat32_read_dir(fat32_state_t *fs, uint32_t cluster) {
         uint32_t num_entries = fs->bytes_per_cluster / sizeof(fat32_dirent_t);
 
         for (uint32_t i = 0; i < num_entries && fs->num_files < FAT32_MAX_FILES; i++) {
-            if (entries[i].name[0] == 0x00) break;
-            if (entries[i].name[0] == 0xE5) continue;
+            /* `name` is char[11], and plain char is SIGNED on x86/-m32 while it
+             * is UNSIGNED on AArch64. Comparing it against 0xE5 (229) directly
+             * is always false where char is signed — its range stops at 127 — so
+             * the deleted-entry skip below silently vanished on x86 and every
+             * tombstone was imported as a live file, leaking the cluster chains
+             * of deleted files and burning FAT32_MAX_FILES slots. The same
+             * source therefore behaved DIFFERENTLY per architecture. Read the
+             * byte as a byte; do not rely on char's signedness. */
+            uint8_t name0 = (uint8_t)entries[i].name[0];
+            if (name0 == 0x00) break;      /* end of directory */
+            if (name0 == 0xE5) continue;   /* deleted entry */
             if (entries[i].attr == FAT32_ATTR_LFN) continue;
 
             fat32_file_t *f = &fs->files[fs->num_files++];

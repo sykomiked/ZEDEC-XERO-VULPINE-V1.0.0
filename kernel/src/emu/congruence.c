@@ -48,11 +48,41 @@ static int cong_complex_plane(void){
     struct { long r,i,m2; } t[] = { {3,4,25},{5,12,169},{8,15,289},{20,21,841},{0,7,49},{9,0,81} };
     for (unsigned k=0;k<sizeof t/sizeof t[0];k++)
         if (t[k].r*t[k].r + t[k].i*t[k].i != t[k].m2) return 0;
-    /* rotating a vector onto either axis preserves |z|² (congruence under the
-     * complex-plane structure): (3,4) and (5,0) and (0,5) are all magnitude 25 */
-    if (3*3+4*4 != 5*5 || 5*5+0 != 25 || 0+5*5 != 25) return 0;
-    /* orthogonal basis: e_r·e_i = 0 (the defining perpendicularity) */
-    if ((1*0 + 0*1) != 0) return 0;
+    /* A CONSTANT-FOLDING TRAP, and why the next two checks are written this way.
+     * These two properties were previously written as `3*3+4*4 != 5*5` and
+     * `(1*0 + 0*1) != 0` — every operand a literal. The compiler folds those to
+     * a constant before the program runs, so the branches were unreachable and
+     * `cong_complex_plane` returned 1 unconditionally. It verified the C
+     * constant folder, not the substrate, and it reported a PASS at boot for
+     * doing so. A self-check whose inputs are literals is not a check.
+     * Both are now swept over COMPUTED values, so a real regression fails them. */
+
+    /* Rotation invariance. A quarter turn is (r,i) -> (-i,r) and a half turn is
+     * (r,i) -> (-r,-i); neither may change |z|². Perpendicularity is exactly the
+     * absence of a cross term, so if a cross term ever appeared these would move. */
+    for (long r = -12; r <= 12; r++) {
+        for (long i = -12; i <= 12; i++) {
+            long m2 = r*r + i*i;
+            if ((-i)*(-i) + r*r != m2) return 0;   /* +90° */
+            if (i*i + (-r)*(-r) != m2) return 0;   /* -90° */
+            if ((-r)*(-r) + (-i)*(-i) != m2) return 0; /* 180° */
+        }
+    }
+
+    /* Norm multiplicativity — the Brahmagupta-Fibonacci two-square identity:
+     *     (a²+b²)(c²+d²) = (ac-bd)² + (ad+bc)²
+     * This IS the statement that |z·w|² = |z|²·|w|², i.e. that composing two
+     * rotations-and-scalings keeps the axes perpendicular. It is the strongest
+     * integer-exact congruence available here, and it is the Fibonacci identity,
+     * so [2] rests on the same rule as [1] rather than on a separate assertion. */
+    for (long a = -7; a <= 7; a++)
+    for (long b = -7; b <= 7; b++)
+    for (long c = -7; c <= 7; c++)
+    for (long d = -7; d <= 7; d++) {
+        long lhs = (a*a + b*b) * (c*c + d*d);
+        long re  = a*c - b*d, im = a*d + b*c;
+        if (re*re + im*im != lhs) return 0;
+    }
     return 1;
 }
 
