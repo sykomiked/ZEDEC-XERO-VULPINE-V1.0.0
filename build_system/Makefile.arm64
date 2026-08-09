@@ -343,10 +343,11 @@ $(TARGET_BIN): $(TARGET)
 # .incbin'd from kernel_arm64.bin, so that must be built first (it is a dep).
 # Stub is -fno-pic (PC-relative adrp/add, no runtime relocs) + no FP/NEON.
 EFI_APP = BOOTAA64.EFI
-EFI_OBJS = kernel/arch/arm64/efi_header.o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_kernel_blob.o
-$(EFI_APP): $(TARGET_BIN) kernel/arch/arm64/efi_stub.c kernel/arch/arm64/efi_header.S kernel/arch/arm64/efi_kernel_blob.S build_system/efi_stub.ld
+EFI_OBJS = kernel/arch/arm64/efi_header.o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_tramp.o kernel/arch/arm64/efi_kernel_blob.o
+$(EFI_APP): $(TARGET_BIN) kernel/arch/arm64/efi_stub.c kernel/arch/arm64/efi_header.S kernel/arch/arm64/efi_tramp.S kernel/arch/arm64/efi_kernel_blob.S build_system/efi_stub.ld
 	$(CC) -c -O2 -ffreestanding -fno-pic -fno-stack-protector -mgeneral-regs-only -o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_stub.c
 	$(CC) -c -o kernel/arch/arm64/efi_header.o kernel/arch/arm64/efi_header.S
+	$(CC) -c -o kernel/arch/arm64/efi_tramp.o kernel/arch/arm64/efi_tramp.S
 	$(CC) -c -o kernel/arch/arm64/efi_kernel_blob.o kernel/arch/arm64/efi_kernel_blob.S
 	$(LD) -T build_system/efi_stub.ld -o kernel/arch/arm64/efi_stub.elf $(EFI_OBJS)
 	@END=$$($(CROSS_COMPILE)nm kernel/arch/arm64/efi_stub.elf | awk '/ __image_end$$/{print "0x"$$1}'); \

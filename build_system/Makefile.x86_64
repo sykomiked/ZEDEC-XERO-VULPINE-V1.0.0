@@ -290,9 +290,41 @@ kernel_x86_64.bin: kernel_x86_64.elf
 	$(OBJCOPY) -O binary $< $@
 
 clean:
-	rm -rf $(OBJDIR) kernel_x86_64.elf kernel_x86_64.bin
+	rm -rf $(OBJDIR) kernel_x86_64.elf kernel_x86_64.bin BOOTX64.EFI kernel/arch/x86_64/efi_*.o kernel/arch/x86_64/efi_stub.elf
 
 boot: kernel_x86_64.bin
 	qemu-system-x86_64 -kernel kernel_x86_64.bin -m 256M -nographic -serial mon:stdio
+
+# ---- BOOTX64.EFI: self-contained UEFI app that embeds the flat kernel ----
+# UEFI hands off in long mode; the kernel is Multiboot1 (32-bit PM at _entry32),
+# so efi_trampoline.S drops long mode -> 32-bit PM before jumping in. Relocs are
+# stripped, so the C stub is compiled -fpie (rip-relative) with hidden symbols;
+# ms_abi is set on efi_main + every UEFI call (Microsoft x64 ABI). The blob is
+# .incbin'd, so kernel_x86_64.bin must exist first.
+EFI_APP_X64 = BOOTX64.EFI
+EFI_X64_OBJS = kernel/arch/x86_64/efi_header.o kernel/arch/x86_64/efi_stub.o \
+               kernel/arch/x86_64/efi_trampoline.o kernel/arch/x86_64/efi_kernel_blob.o
+EFI_STUB_CFLAGS = -O2 -ffreestanding -fpie -fvisibility=hidden \
+                  -mno-red-zone -mgeneral-regs-only -fno-stack-protector -fno-asynchronous-unwind-tables
+$(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/x86_64/efi_header.S \
+                kernel/arch/x86_64/efi_trampoline.S kernel/arch/x86_64/efi_kernel_blob.S build_system/efi_stub.ld
+	$(CC) $(EFI_STUB_CFLAGS) -c -o kernel/arch/x86_64/efi_stub.o kernel/arch/x86_64/efi_stub.c
+	$(CC) -c -o kernel/arch/x86_64/efi_header.o kernel/arch/x86_64/efi_header.S
+	$(CC) -c -o kernel/arch/x86_64/efi_trampoline.o kernel/arch/x86_64/efi_trampoline.S
+	$(CC) -c -o kernel/arch/x86_64/efi_kernel_blob.o kernel/arch/x86_64/efi_kernel_blob.S
+	@# The code MUST be position-independent (no .reloc section is emitted, and UEFI
+	@# relocates the image). Verify the compiled stub/trampoline use only PC-relative
+	@# addressing — any absolute (R_X86_64_32/32S/64) or GOT reloc in code would break
+	@# once UEFI loads us at a base other than the link address.
+	@if objdump -r kernel/arch/x86_64/efi_stub.o kernel/arch/x86_64/efi_trampoline.o \
+	     | grep -qE "R_X86_64_(32|32S|64|GOT|GOTPCREL)"; then \
+	   echo "  [EFI][x64] ERROR: non-PC-relative addressing in stub code — not position-independent"; \
+	   objdump -r kernel/arch/x86_64/efi_stub.o kernel/arch/x86_64/efi_trampoline.o | grep -E "R_X86_64_(32|32S|64|GOT|GOTPCREL)"; exit 1; fi
+	$(LD) -T build_system/efi_stub.ld -o kernel/arch/x86_64/efi_stub.elf $(EFI_X64_OBJS)
+	@END=$$(nm kernel/arch/x86_64/efi_stub.elf | awk '/ __image_end$$/{print "0x"$$1}'); \
+	 $(OBJCOPY) -O binary --pad-to=$$END kernel/arch/x86_64/efi_stub.elf $(EFI_APP_X64); \
+	 echo "  [EFI][x64] $(EFI_APP_X64) padded to SizeOfImage $$END"
+
+efi: $(EFI_APP_X64)
 
 .PHONY: all clean boot
