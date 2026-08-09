@@ -252,6 +252,7 @@ KERNEL_SRC = \
     kernel/src/zcapital/zcapital.c \
     kernel/src/zxvfs/zxvfs.c \
     kernel/src/tls/hkdf.c \
+    kernel/src/bringup/arch_globals.c \
     kernel/freestanding.c \
     kernel/compat/compat_layer.c
 
