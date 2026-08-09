@@ -147,7 +147,7 @@ which means the organism *acts on its world* rather than only inhabiting it.
 | **eyes** | perception at distance | WyvernEye | built |
 | **heart** | the pump; rhythm | phase-tick clock | built |
 | **lungs** | exchange with outside | virtio, block/net devices | built |
-| **digestive tract** | foreign matter → usable substance |  **own format only — no foreign codecs** | **own format only — no foreign codecs** |
+| **digestive tract** | foreign matter → usable substance | `zmedia` + **`ubh.c` in reserve** | organ exists, tissue unattached |
 | **immune system** | detect non-self, quarantine, remember | red-team gates, S0 quarantine, Pig Badge | built |
 | **integument / scales** | the boundary itself | ZAB capabilities, tri-space binding | built |
 | **hands** | manipulate the world | shell, AppKit, tools | built |
