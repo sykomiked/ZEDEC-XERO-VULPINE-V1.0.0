@@ -99,14 +99,77 @@ x86_syscall_isr:
  * unwinds to the kernel like SYS_EXIT so the test reports failure. Otherwise (a
  * fault in ordinary kernel code) it reports and halts — a clean diagnostic stop
  * instead of a silent triple-fault reboot. The interrupt frame top holds RIP. */
-.global x86_exc_isr
-x86_exc_isr:
+/* Per-vector stubs: push a uniform [vector][errcode] then a common handler, so we
+ * always know which exception fired and its faulting RIP. */
+.macro EXC_NOERR n
+.global x86_exc_\n
+x86_exc_\n:
+    pushq $0
+    pushq $\n
+    jmp   x86_exc_common
+.endm
+.macro EXC_ERR n
+.global x86_exc_\n
+x86_exc_\n:
+    pushq $\n
+    jmp   x86_exc_common
+.endm
+EXC_NOERR 0
+EXC_NOERR 1
+EXC_NOERR 2
+EXC_NOERR 3
+EXC_NOERR 4
+EXC_NOERR 5
+EXC_NOERR 6
+EXC_NOERR 7
+EXC_ERR   8
+EXC_NOERR 9
+EXC_ERR   10
+EXC_ERR   11
+EXC_ERR   12
+EXC_ERR   13
+EXC_ERR   14
+EXC_NOERR 15
+EXC_NOERR 16
+EXC_ERR   17
+EXC_NOERR 18
+EXC_NOERR 19
+EXC_NOERR 20
+EXC_ERR   21
+EXC_NOERR 22
+EXC_NOERR 23
+EXC_NOERR 24
+EXC_NOERR 25
+EXC_NOERR 26
+EXC_NOERR 27
+EXC_NOERR 28
+EXC_NOERR 29
+EXC_NOERR 30
+EXC_NOERR 31
+
+x86_exc_common:
+    /* stack now: [vector][errcode][RIP][CS][RFLAGS]... */
     movq $-1, x86_last_exc(%rip)
+    movq 0(%rsp), %rdi              /* vector    */
+    movq 16(%rsp), %rsi             /* RIP       */
+    call x86_exc_report
     movq g_ring3_active(%rip), %rax
     testq %rax, %rax
     jnz   x86_ring3_return          /* fault inside the ring-3 test: recover */
-    movq (%rsp), %rdi               /* first frame word (RIP or error code) */
-    call x86_exc_report
 1:  cli
     hlt
     jmp  1b
+
+.section .rodata
+.balign 8
+.global x86_exc_table
+x86_exc_table:
+    .quad x86_exc_0,  x86_exc_1,  x86_exc_2,  x86_exc_3
+    .quad x86_exc_4,  x86_exc_5,  x86_exc_6,  x86_exc_7
+    .quad x86_exc_8,  x86_exc_9,  x86_exc_10, x86_exc_11
+    .quad x86_exc_12, x86_exc_13, x86_exc_14, x86_exc_15
+    .quad x86_exc_16, x86_exc_17, x86_exc_18, x86_exc_19
+    .quad x86_exc_20, x86_exc_21, x86_exc_22, x86_exc_23
+    .quad x86_exc_24, x86_exc_25, x86_exc_26, x86_exc_27
+    .quad x86_exc_28, x86_exc_29, x86_exc_30, x86_exc_31
+.text

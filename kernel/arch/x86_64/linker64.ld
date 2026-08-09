@@ -42,6 +42,7 @@ SECTIONS
 
     .bss : {
         __bss_start = .;
+        *(.bss.user)      /* ring-3 user code+stack, kept < 2 MB (4 KB-page region) */
         *(.bss)
         *(.bss.*)
         *(COMMON)
@@ -51,6 +52,8 @@ SECTIONS
     . = ALIGN(0x1000);
     __kernel_end = .;
 
-    /* Stack grows down from 0x200000; first 2MB are identity-mapped. */
-    __stack_top = 0x200000;
+    /* Kernel stack sits ABOVE the (now large) BSS, not at a fixed 2MB — the full
+     * subsystem set's static tables push .bss well past 2MB. */
+    . = . + 0x80000;          /* 512 KB kernel stack */
+    __stack_top = .;
 }

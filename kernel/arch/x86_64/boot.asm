@@ -65,7 +65,9 @@ _entry32:
     xor  eax, eax
     rep  stosd
 
-    ; Set up 2MB identity page tables.
+    ; Identity-map the first 1 GB. The full subsystem set's .bss reaches far past
+    ; 2 MB, so we map 1 GB: L2[0] -> pt_l1 (first 2 MB as 4 KB pages, for ring-3's
+    ; fine-grained U/S), L2[1..511] -> 2 MB huge pages covering 2 MB .. 1 GB.
     mov  edi, pt_l1
     mov  eax, 0x03                  ; P | RW
     mov  ecx, 512
@@ -75,10 +77,21 @@ _entry32:
     add  eax, 0x1000
     loop .pt_l1_loop
 
+    ; L2[0] -> pt_l1
     mov  edi, pt_l2
     mov  eax, pt_l1
     or   eax, 0x03
     mov  [edi], eax
+    ; L2[1..511] -> 2 MB huge pages starting at 2 MB
+    add  edi, 8
+    mov  eax, 0x200000             ; physical base of the first huge page (2 MB)
+    or   eax, 0x83                 ; P | RW | PS (2 MB page)
+    mov  ecx, 511
+.pt_l2_loop:
+    mov  [edi], eax
+    add  edi, 8
+    add  eax, 0x200000            ; next 2 MB
+    loop .pt_l2_loop
 
     mov  edi, pt_l3
     mov  eax, pt_l2
