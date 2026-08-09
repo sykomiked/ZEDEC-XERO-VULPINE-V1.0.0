@@ -144,6 +144,20 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     boot_msg("[BOOT] Initializing COM1 serial console");
     boot_msg("  [DRIVER ONLINE] 16550A COM1 at 0x3F8");
 
+    /* Ring-3 (user-mode) parity — mirrors the arm64 EL0 path. Runs FIRST so it is
+     * isolated from the rest of bring-up during development. */
+    boot_msg("[BOOT] Ring-3 user-mode bring-up (GDT/TSS/IDT + int 0x80 syscall)...");
+    {
+        extern void x86_ring3_init(void);
+        extern int  x86_ring3_selftest(void);
+        x86_ring3_init();
+        boot_msg("  [.] entering ring 3...");
+        if (x86_ring3_selftest())
+            boot_msg("  [DRIVER ONLINE] ring-3 process ran, SYS_WRITE serviced, SYS_EXIT returned to ring 0 — user/kernel split live");
+        else
+            boot_msg("  [WARN] ring-3 self-test faulted");
+    }
+
     cell_fabric_boot_init();
 
     boot_msg("\n[BOOT] ZEDEC pqOS [x86-64] — All systems online.");

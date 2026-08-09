@@ -131,6 +131,17 @@ _entry64:
     ; Set up a temporary stack.
     mov  rsp, __stack_top
 
+    ; Enable SSE — the SysV x86-64 ABI + gcc emit SSE (movdqa/xmm) for struct
+    ; copies and doubles; without this the first such instruction #UDs. Clear
+    ; CR0.EM (bit 2), set CR0.MP (bit 1); set CR4.OSFXSR (bit 9) + OSXMMEXCPT (10).
+    mov  rax, cr0
+    and  ax, 0xFFFB
+    or   ax, 0x0002
+    mov  cr0, rax
+    mov  rax, cr4
+    or   ax, 0x0600
+    mov  cr4, rax
+
     ; Save multiboot1 magic and info pointer.
     mov  edi, eax
     mov  rsi, rbx

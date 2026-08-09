@@ -31,6 +31,7 @@ LDFLAGS := -T kernel/arch/x86_64/linker64.ld -nostdlib -static -Wl,--gc-sections
 SRCS := \
     kernel/arch/x86_64/uart_16550.c \
     kernel/arch/x86_64/boot_evidence.c \
+    kernel/arch/x86_64/ring3.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \
     kernel/src/robin_debanks/sha256.c \
@@ -38,6 +39,7 @@ SRCS := \
 
 OBJDIR := build/x86_64
 OBJS   := $(OBJDIR)/kernel/arch/x86_64/boot.o \
+          $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o \
           $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 all: kernel_x86_64.bin
@@ -45,6 +47,10 @@ all: kernel_x86_64.bin
 $(OBJDIR)/kernel/arch/x86_64/boot.o: kernel/arch/x86_64/boot.asm
 	@mkdir -p $(dir $@)
 	nasm -f elf64 $< -o $@
+
+$(OBJDIR)/kernel/arch/x86_64/ring3_asm.o: kernel/arch/x86_64/ring3_asm.S
+	@mkdir -p $(dir $@)
+	$(CC) -ffreestanding -fno-pie -c $< -o $@
 
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
