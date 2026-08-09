@@ -20,12 +20,13 @@ hardening P0s for a *defensible* MVP, and (d) one business/legal item.
 
 ## 1. Cross-compile the other architectures — THE LINUX SERVER JOB
 
-| Arch | Today | Server action |
+| Arch | Server status (2026-08-08, real toolchains) | Remaining |
 |------|-------|---------------|
-| **arm64** | full product, boots | rebuild, confirm bit-parity |
-| **x86_64** | **kernel-only** (~160-line main) | **P0: ring-3 parity** — PML4 page tables + user/supervisor split, syscall/sysret mirroring the arm64 SVC path, ring-3 process bring-up mirroring `el0_userspace.c`, wire platform layer → BOOT_OK under `qemu-system-x86_64`. Biggest single remaining piece. |
-| **riscv / riscv32** | compile clean, unlinkable here | build + boot-test on server (bring-up kernels) |
-| **arm32 / riscv32** | ✅ **source/compile parity done** (arm32 194 files, riscv32 196) | build 32-bit arch layer (el0-equiv/virtio/ramfb) + link + boot. See §2. |
+| **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** on the server | done (flagship) |
+| **riscv32** | ✅ **LINKS** (976 KB, full subsystem set) | boot needs OpenSBI-rv32 firmware (build from source) or M-mode relink |
+| **arm32** | compiles all 195 files; **20 undefined** left | modernise `kernel_main_arm32.c` (stale `*_init` API); then links |
+| **x86_64** | ✅ **links (kernel-only)** via native gcc | **ring-3 parity** (PML4 + syscall/sysret + ring-3, mirroring `el0_userspace.c`) — biggest piece |
+| **riscv (64)** | still on the OLD partial source list | apply the parity treatment; boots via the present OpenSBI-riscv64 |
 
 > **Progress 2026-08-08 (commit d179f5b):** arm32/riscv32 brought to the full portable
 > subsystem set (142 of 144 missing modules were arch-neutral). One real 32-bit bug fixed
