@@ -890,6 +890,11 @@ verify-all: test
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \
+	echo "=== Syscall ABI: one table, permanent numbers, capability per call ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/syscall src/syscall/test_syscall.c \
+		src/syscall/syscall.c -o /tmp/test_sc && /tmp/test_sc > /tmp/test_sc.log 2>&1 && \
+		echo "[PASS] test_syscall ($$(grep -c '\[PASS\]' /tmp/test_sc.log) checks)" || \
+		{ cat /tmp/test_sc.log; echo "[FAIL] test_syscall"; exit 1; }; \
 	echo "=== Display: negotiate a mode (incl 4K/8K), compose NATIVELY, scale the UI ==="; \
 	for cfg in "" "-DZXV_DISPLAY_MAX_W=3840 -DZXV_DISPLAY_MAX_H=2160" "-DZXV_DISPLAY_MAX_W=7680 -DZXV_DISPLAY_MAX_H=4320"; do \
 	  gcc -std=c11 -Wall -Werror -Wextra $$cfg -Isrc/display src/display/test_display.c \

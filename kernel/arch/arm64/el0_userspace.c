@@ -15,6 +15,16 @@
  * and CC BY-SA 4.0. See LICENSE at the repository root.
  */
 #include "el0_userspace.h"
+#include "../../src/syscall/syscall.h"
+
+/* The ABI's capability bits and this arch's per-process bits are the SAME
+ * numbers, and must stay so: the table decides permission using the ABI names
+ * while the scheduler stores the arch names. If they ever diverge the gate
+ * would silently check the wrong bit, so the divergence is a build error. */
+typedef char zxv_cap_agree[
+    (CAP_WRITE == ZSC_CAP_WRITE && CAP_PROC == ZSC_CAP_PROC &&
+     CAP_EXEC  == ZSC_CAP_EXEC  && CAP_IPC  == ZSC_CAP_IPC  &&
+     CAP_FS    == ZSC_CAP_FS) ? 1 : -1];
 #include "arm64_arch.h"
 #include "../src/loader/elf.h"
 
@@ -887,27 +897,26 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
     user_proc_t *curr = proc_current(ps);
     if (!curr) return;
 
-    /* Capability gate: map each syscall to the capability it needs, and
-     * deny (-EPERM) if the calling process lacks it. EXIT/GETPID/YIELD/
-     * SLEEP act only on the caller itself and need CAP_PROC. */
-    uint32_t need = 0;
-    switch (syscall_num) {
-        case SYS_WRITE:              need = CAP_WRITE; break;
-        case SYS_EXIT: case SYS_GETPID:
-        case SYS_YIELD: case SYS_SLEEP: need = CAP_PROC; break;
-        case SYS_EXEC:               need = CAP_EXEC; break;
-        case SYS_SEND: case SYS_RECV: need = CAP_IPC; break;
-        case SYS_OPEN: case SYS_READ:
-        case SYS_CLOSE:              need = CAP_FS; break;
-        default:                     need = 0; break;
+    /* Capability gate, decided by the ABI TABLE (src/syscall/syscall.h) rather
+     * than by a switch here. Two things this fixes:
+     *   - the old switch had `default: need = 0`, so an UNKNOWN syscall number
+     *     required no capability at all. A default in a permission check grants
+     *     or denies by accident; the table has no default, and an unknown or
+     *     reserved number is ENOSYS before any capability question is asked.
+     *   - every architecture now consults the same table, so arm64 and x86_64
+     *     cannot drift apart on who is allowed to do what. */
+    int permit = zxv_syscall_permit((uint32_t)syscall_num, curr->capabilities);
+    if (permit == ZXV_ENOSYS) {
+        ctx->x[0] = (uint64_t)(int64_t)ZXV_ENOSYS;
+        return;
     }
-    if (need && !(curr->capabilities & need)) {
+    if (permit != ZXV_OK) {
         uart_puts("[EL0][EPERM] pid=");
         uart_put_dec((uint64_t)curr->pid);
         uart_puts(" denied syscall ");
         uart_put_dec(syscall_num);
         uart_puts(" (missing capability)\n");
-        ctx->x[0] = (uint64_t)-3;   /* -EPERM */
+        ctx->x[0] = (uint64_t)(int64_t)ZXV_EPERM;
         return;
     }
 
