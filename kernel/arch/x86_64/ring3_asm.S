@@ -150,12 +150,15 @@ EXC_NOERR 31
 x86_exc_common:
     /* stack now: [vector][errcode][RIP][CS][RFLAGS]... */
     movq $-1, x86_last_exc(%rip)
-    movq 0(%rsp), %rdi              /* vector    */
-    movq 16(%rsp), %rsi             /* RIP       */
-    call x86_exc_report
+    /* Recover FIRST if we faulted inside the ring-3 self-test — do no risky work
+     * (no C call) that could fault again and escalate to a #DF. */
     movq g_ring3_active(%rip), %rax
     testq %rax, %rax
-    jnz   x86_ring3_return          /* fault inside the ring-3 test: recover */
+    jnz   x86_ring3_return
+    /* Otherwise: a fault in ordinary kernel code — report it and halt. */
+    movq 0(%rsp), %rdi              /* vector */
+    movq 16(%rsp), %rsi             /* RIP    */
+    call x86_exc_report
 1:  cli
     hlt
     jmp  1b
