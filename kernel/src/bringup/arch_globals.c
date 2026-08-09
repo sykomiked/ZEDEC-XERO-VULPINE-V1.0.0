@@ -27,3 +27,7 @@ extern void uart_puts(const char *s);
 /* Headless framebuffer text output = serial. The graphical framebuffer path is
  * arch-layer work (ramfb/vbe) brought up per-arch later. */
 void fb_puts(const char *s) { uart_puts(s); }
+
+/* libgcc's integer-divide helpers call raise() on divide-by-zero. A freestanding
+ * kernel has no signals; provide a no-op so the runtime library links. */
+int raise(int sig) { (void)sig; return 0; }

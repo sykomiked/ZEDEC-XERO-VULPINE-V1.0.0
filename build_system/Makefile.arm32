@@ -17,7 +17,8 @@ AS = $(CROSS)as
 LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
-CFLAGS = -march=armv7-a -marm -mfloat-abi=soft -ffreestanding -fno-math-errno -nostdlib \
+CFLAGS = -march=armv7-a -marm -mfpu=vfpv3-d16 -mfloat-abi=hard -ffreestanding -fno-math-errno -nostdlib \
+         -include kernel/include/freestanding.h \
          -O2 -Wall -Wextra -std=c11 -fno-stack-protector \
          -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/arch/arm32 \
@@ -56,6 +57,7 @@ CFLAGS = -march=armv7-a -marm -mfloat-abi=soft -ffreestanding -fno-math-errno -n
          -Ikernel/src/zcapital -Ikernel/src/zxvfs
 
 LDFLAGS = -T kernel/arch/arm32/linker.ld -nostdlib -static
+LIBGCC = $(shell $(CC) -print-libgcc-file-name)
 
 KERNEL_SRC = \
     kernel/arch/arm32/uart_pl011.c \
@@ -268,7 +270,7 @@ $(ASM_OBJ): kernel/arch/arm32/boot.s
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 zedec_xero_arm32.elf: $(ASM_OBJ) $(KERNEL_OBJ)
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBGCC)
 
 clean:
 	rm -f $(KERNEL_OBJ) $(ASM_OBJ) zedec_xero_arm32.elf
