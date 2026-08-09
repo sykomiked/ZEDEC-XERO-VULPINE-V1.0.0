@@ -236,6 +236,7 @@ KERNEL_SRCS = \
     kernel/src/robin_debanks/ed25519_verify.c \
     kernel/src/prism_break/prism_break.c \
     kernel/src/video/ramfb.c \
+    kernel/src/display/display.c \
     kernel/src/vbe/vbe.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \

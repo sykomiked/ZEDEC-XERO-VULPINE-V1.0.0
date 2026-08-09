@@ -89,7 +89,8 @@ extern void el0_set_scheduler(proc_scheduler_t *ps);
 #include "../src/immigration/immigration.h"
 #include "../src/robin_debanks/robin_debanks.h"
 #include "../src/prism_break/prism_break.h"
-#include "../src/video/ramfb.h"      /* universal QEMU scanout (fw_cfg ramfb) */
+#include "../src/video/ramfb.h"
+#include "../src/display/display.h"      /* universal QEMU scanout (fw_cfg ramfb) */
 #include "../src/vbe/vbe.h"          /* framebuffer draw primitives            */
 #include "../src/desktop/zxv_shell.h"/* the ZEDEC pqOS desktop shell           */
 #include "zxv_bootinfo.h"            /* UEFI boot handoff (GOP framebuffer)     */
@@ -190,9 +191,12 @@ static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives red
  * scans out. Without this, the screen shows the buffer mid-compose — each region
  * erased then repainted in turn — which reads as parts flickering independently.
  * With it, the display only ever holds finished frames. */
-#define ZXV_FB_W 1280u
-#define ZXV_FB_H 720u
+#define ZXV_FB_W ZXV_DISPLAY_MAX_W
+#define ZXV_FB_H ZXV_DISPLAY_MAX_H
 static uint32_t g_scanout[ZXV_FB_W * ZXV_FB_H] __attribute__((aligned(64)));
+/* The negotiated display mode. Every consumer reads THIS instead of a literal,
+ * so one desktop adapts to whatever screen it is given. */
+static zxv_display_t g_disp;
 
 /* ---- holographic present: color <-> anti-color, grounded in Tri-Space ----
  * The composed frame is S+ (each colour C). Its per-channel complement 255-C is
@@ -1725,7 +1729,7 @@ void kernel_main_arm64(void) {
      * touch ripples (expanding wavefronts), chromatic aberration, and
      * vignette. All integer math, no GPU required. */
     boot_msg("[BOOT] Prism Break holographic touchscreen shader...");
-    pb_init(&prism_break, 1280, 720);   /* 720p — stride is a multiple of 16 (no shear) */
+    pb_init(&prism_break, ZXV_FB_W, ZXV_FB_H); /* max scanout; width is 16-aligned (no shear) */
     boot_msg("  [INITIALIZED] 6-layer compositor (prism + scanlines + ripples + aberration)");
 
     /* Phase 17b+: bind a REAL display. Render one frame, then hand its linear
@@ -1749,29 +1753,44 @@ void kernel_main_arm64(void) {
                 g_gop_pixfmt = bi->pixfmt;
             }
         }
-        int rc = g_gop_fb ? 0 : ramfb_init(g_scanout, 1280, 720);  /* GOP: skip ramfb */
+        /* Negotiate ONCE. If the firmware owns the scanout we adopt its exact
+         * geometry and compose natively into it; otherwise we take the largest
+         * mode our scanout can back. Nothing below hardcodes a resolution. */
+        if (zxv_display_negotiate(&g_disp, g_gop_w, g_gop_h, g_gop_stride, 0, 0) != 0) {
+            /* Refused rather than clamped: fall back to a mode we can back. */
+            (void)zxv_display_negotiate(&g_disp, 0, 0, 0, 1280, 720);
+        }
+        int rc = g_gop_fb ? 0 : ramfb_init(g_scanout, g_disp.w, g_disp.h);
         if (rc == 0) {
             /* Compose into the back buffer, then present a complete frame. */
             static vbe_state_t g_vbe;
-            vbe_init_fb(&g_vbe, 1280, 720, 32, (uintptr_t)fb);
+            vbe_init_fb(&g_vbe, g_disp.w, g_disp.h, 32, (uintptr_t)fb);
             zxv_shell_init(&g_shell);
-            zxv_shell_frame(&g_shell, &g_vbe, 632, 360, 0, prism_break.frames_rendered, g_fphase, g_fdepth);
+            zxv_shell_frame(&g_shell, &g_vbe, (int)(g_disp.w/2 - 8), (int)(g_disp.h/2), 0, prism_break.frames_rendered, g_fphase, g_fdepth);
             /* Boot INTO the Dimensional Desktop: the 13 lattice spaces as the
              * 0d-13d ladder (13d = the universal container / MegaROM), laid out by
              * the golden angle. This is the live boot image on ramfb. */
             { extern void lattice_dim_render(uint32_t *fb, int w, int h);
-              lattice_dim_render(fb, 1280, 720); }
+              lattice_dim_render(fb, (int)g_disp.w, (int)g_disp.h); }
             zxv_present(fb);
             g_desktop_vbe = &g_vbe;   /* the event loop keeps animating it */
             boot_msg("  [DRIVER ONLINE] Dimensional Desktop on screen — 13 spaces as the 0d-13d ladder");
             if (g_gop_fb)
                 boot_msg("  [DRIVER ONLINE] UEFI GOP framebuffer — ZEDEC desktop is on screen");
             else
-                boot_msg("  [DRIVER ONLINE] ramfb 1280x720 — ZEDEC desktop is on screen");
+            {   /* report the mode we ACTUALLY negotiated, not a literal */
+                    char m[96]; uint32_t o = 0;
+                    const char *pre = "  [DRIVER ONLINE] ramfb ";
+                    for (const char *q = pre; *q && o < 60; q++) m[o++] = *q;
+                    const char *nm = g_disp.name ? g_disp.name : "?";
+                    for (const char *q = nm; *q && o < 78; q++) m[o++] = *q;
+                    const char *suf = " — ZEDEC desktop is on screen";
+                    for (const char *q = suf; *q && o < 95; q++) m[o++] = *q;
+                    m[o] = 0; boot_msg(m); }
             /* virtio-input: one driver -> mouse + tablet + keyboard on any
              * hypervisor. Makes the desktop clickable. */
             if (virtio_input_probe()) {
-                virtio_input_set_bounds(1280, 720);
+                virtio_input_set_bounds(g_disp.w, g_disp.h);
                 boot_msg("  [DRIVER ONLINE] virtio-input — pointer + keyboard live");
             } else {
                 boot_msg("  [SKIP] no virtio-input (add -device virtio-tablet-device)");

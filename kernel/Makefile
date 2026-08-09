@@ -890,6 +890,13 @@ verify-all: test
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \
+	echo "=== Display: negotiate a mode (incl 4K/8K), compose NATIVELY, scale the UI ==="; \
+	for cfg in "" "-DZXV_DISPLAY_MAX_W=3840 -DZXV_DISPLAY_MAX_H=2160" "-DZXV_DISPLAY_MAX_W=7680 -DZXV_DISPLAY_MAX_H=4320"; do \
+	  gcc -std=c11 -Wall -Werror -Wextra $$cfg -Isrc/display src/display/test_display.c \
+	    src/display/display.c -o /tmp/test_disp && /tmp/test_disp > /tmp/test_disp.log 2>&1 || \
+	    { cat /tmp/test_disp.log; echo "[FAIL] test_display"; exit 1; }; \
+	done; \
+	echo "[PASS] test_display ($$(grep -c '\[PASS\]' /tmp/test_disp.log) checks x3 budgets: QHD/4K/8K)"; \
 	echo "=== Bomb squad: a burning fault is caught and CORRECTED before it detonates ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/bombsquad src/bombsquad/test_bombsquad.c \
 		src/bombsquad/bombsquad.c -o /tmp/test_bs && \
