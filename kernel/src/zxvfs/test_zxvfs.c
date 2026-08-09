@@ -130,10 +130,14 @@ int main(void) {
     g_writes = 0; g_crash_after = -1; g_crashed = 0;
     zxvfs_write(&fs2, "crash.txt", (const uint8_t *)"MID", 3);
     long clean_writes = g_writes;
-    /* txn write order: [stage data][stage inode][commit hdr][ckpt data]
-     *                  [ckpt inode][clear hdr]. Crash right after commit
-     * = after (count staged + 1 commit) writes, before checkpoints. */
-    long commit_point = 2 /*staged*/ + 1 /*commit hdr*/;
+    /* v2 (copy-on-write) write order for a small file:
+     *   [data -> newly allocated sectors, direct, NOT journalled]
+     *   [stage bitmap x ZXVFS_BITMAP_SECTORS][stage inode][commit hdr]
+     *   [checkpoint x3][clear hdr]
+     * Crash right after the commit header = before any checkpoint. Derived
+     * from the format constants so it stays correct if the layout changes. */
+    long commit_point = 1 /*data sector*/ + ZXVFS_BITMAP_SECTORS
+                      + 1 /*inode staged*/ + 1 /*commit hdr*/;
     CHECK(clean_writes > commit_point, "txn has a post-commit phase");
 
     /* Now perform the "NEW" write but crash just after commit. */
@@ -141,8 +145,9 @@ int main(void) {
     int wrc = zxvfs_write(&fs2, "crash.txt", (const uint8_t *)"NEW", 3);
     CHECK(wrc != 0 || g_crashed, "write interrupted by simulated power loss");
 
-    /* Disk now holds: committed journal + stale 'MID' in the data home.
-     * Reboot: mount must replay the journal and yield 'NEW'. */
+    /* Disk now holds: the NEW bytes in freshly allocated sectors that nothing
+     * yet points at, plus a committed journal carrying the inode+bitmap that
+     * WILL point at them. Reboot: replay must publish them, yielding 'NEW'. */
     g_crash_after = -1; g_crashed = 0;
     zxvfs_t fs3;
     CHECK(zxvfs_mount(&fs3, &dev) == 0, "remount after crash");
@@ -194,6 +199,78 @@ int main(void) {
               "red-team: a malicious journal is discarded, mount still succeeds");
         CHECK(memcmp(g_disk[evil_lba], before, BLOCKDEV_SECTOR_SIZE) == 0,
               "red-team: OUT-OF-RANGE journal target was NOT written (no write-what-where)");
+    }
+
+    /* ---------------- v2: extent allocator + positional I/O ---------------- */
+    printf("extent allocator:\n");
+    {   zxvfs_t f; block_device_t d2 = dev;
+        CHECK(zxvfs_format(&d2) == 0 && zxvfs_mount(&f, &d2) == 0, "  format+mount");
+        int free0 = zxvfs_free_sectors(&f);
+        CHECK(free0 == (int)ZXVFS_DATA_SECTORS, "fresh disk reports all sectors free");
+
+        static uint8_t blob[20000];
+        for (uint32_t i = 0; i < sizeof(blob); i++) blob[i] = (uint8_t)(i * 31 + 7);
+        CHECK(zxvfs_write(&f, "big1", blob, sizeof(blob)) == 0,
+              "20000-byte file writes (v1 capped at 7680)");
+        CHECK(zxvfs_size(&f, "big1") == (int)sizeof(blob), "size is exact");
+        static uint8_t rb[20000];
+        CHECK(zxvfs_read(&f, "big1", rb, sizeof(rb)) == (int)sizeof(blob) &&
+              memcmp(rb, blob, sizeof(blob)) == 0, "reads back byte-exact");
+
+        int used = free0 - zxvfs_free_sectors(&f);
+        CHECK(used == (int)((sizeof(blob) + 511) / 512),
+              "allocator consumed exactly the sectors needed, no fixed slot");
+
+        CHECK(zxvfs_unlink(&f, "big1") == 0, "unlink");
+        CHECK(zxvfs_free_sectors(&f) == free0, "unlink returned every sector");
+
+        /* more than v1's 64-file ceiling */
+        char nm[ZXVFS_NAME_LEN]; int made = 0;
+        for (int i = 0; i < 100; i++) {
+            nm[0]='f'; nm[1]=(char)('0'+i/100); nm[2]=(char)('0'+(i/10)%10);
+            nm[3]=(char)('0'+i%10); nm[4]=0;
+            if (zxvfs_write(&f, nm, (const uint8_t *)"x", 1) == 0) made++;
+        }
+        CHECK(made == 100, "100 files coexist (v1 ceiling was 64)");
+        CHECK(zxvfs_count(&f) == 100, "count agrees");
+    }
+
+    printf("positional I/O:\n");
+    {   zxvfs_t f; block_device_t d2 = dev;
+        CHECK(zxvfs_format(&d2) == 0 && zxvfs_mount(&f, &d2) == 0, "  format+mount");
+        static uint8_t base[3000];
+        for (uint32_t i = 0; i < sizeof(base); i++) base[i] = (uint8_t)(i & 0xFF);
+        CHECK(zxvfs_write(&f, "doc", base, sizeof(base)) == 0, "  seed file");
+
+        uint8_t part[64];
+        CHECK(zxvfs_pread(&f, "doc", 1000, part, sizeof(part)) == 64 &&
+              memcmp(part, base + 1000, 64) == 0,
+              "pread at an offset returns exactly that range");
+        CHECK(zxvfs_pread(&f, "doc", 2980, part, sizeof(part)) == 20,
+              "pread clamps at EOF");
+        CHECK(zxvfs_pread(&f, "doc", 5000, part, sizeof(part)) == 0,
+              "pread past EOF returns 0");
+
+        /* overwrite a range that straddles a sector boundary */
+        uint8_t patch[100];
+        for (uint32_t i = 0; i < sizeof(patch); i++) patch[i] = 0xE0;
+        CHECK(zxvfs_pwrite(&f, "doc", 500, patch, sizeof(patch)) == 100,
+              "pwrite across a sector boundary writes every byte");
+        static uint8_t whole[3000];
+        CHECK(zxvfs_read(&f, "doc", whole, sizeof(whole)) == 3000, "  reread");
+        CHECK(memcmp(whole + 500, patch, 100) == 0, "the patched range is exact");
+        CHECK(memcmp(whole, base, 500) == 0 &&
+              memcmp(whole + 600, base + 600, 2400) == 0,
+              "bytes OUTSIDE the patched range are untouched");
+        CHECK(zxvfs_size(&f, "doc") == 3000, "in-place pwrite did not change size");
+
+        /* growth */
+        CHECK(zxvfs_pwrite(&f, "doc", 3000, patch, 100) == 100, "pwrite can grow");
+        CHECK(zxvfs_size(&f, "doc") == 3100, "size grew to the new end");
+        CHECK(zxvfs_pread(&f, "doc", 3000, part, 64) == 64 && part[0] == 0xE0,
+              "the grown region reads back");
+        CHECK(zxvfs_pwrite(&f, "doc", 9999, patch, 10) < 0,
+              "pwrite past EOF is refused (no sparse holes)");
     }
 
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS",
