@@ -18,12 +18,14 @@ static volatile uint64_t timer_ticks = 0;
 /* S-mode (OpenSBI) timer: read the `time` CSR (rdtime) and program the next tick
  * via the SBI set_timer call instead of poking the CLINT mtimecmp directly (which
  * a supervisor-mode kernel under OpenSBI is not permitted to do). */
+/* Use register-width `unsigned long` (XLEN): 64-bit on rv64, 32-bit on rv32 — a
+ * uint64_t won't fit a single register on rv32. (rv32 SBI-boot is a later item.) */
 static inline uint64_t rd_time(void) {
-    uint64_t t; __asm__ __volatile__("rdtime %0" : "=r"(t)); return t;
+    unsigned long t; __asm__ __volatile__("rdtime %0" : "=r"(t)); return (uint64_t)t;
 }
 static inline void sbi_set_timer(uint64_t next) {
-    register uint64_t a0 asm("a0") = next;
-    register uint64_t a7 asm("a7") = 0;   /* SBI legacy set_timer (EID 0) */
+    register unsigned long a0 asm("a0") = (unsigned long)next;
+    register unsigned long a7 asm("a7") = 0;   /* SBI legacy set_timer (EID 0) */
     __asm__ __volatile__("ecall" : "+r"(a0) : "r"(a7) : "memory");
 }
 
