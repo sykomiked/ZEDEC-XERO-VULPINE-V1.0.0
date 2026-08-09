@@ -1,4 +1,5 @@
 #include "axiom_matrix_core.h"
+#include "e8.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,12 +40,46 @@ bool axiom_matrix_is_symmetric(const axiom_matrix_t *m, isometry_id_t isometry) 
                     return false;
             }
             return true;
-        default:
+        case ISOMETRY_LIFT_M8: {
+            /* The M5 -> M8 lift, implemented in src/e8 via the icosian
+             * construction of E8 (phi -> icosahedron -> 600-cell -> icosian
+             * ring -> E8, the provably optimal 8-dimensional sphere packing).
+             *
+             * Two things must hold for a matrix to be symmetric under it, and
+             * both are checked rather than assumed:
+             *
+             *   1. the lift must actually BE an isometry. e8_selfcheck()
+             *      recomputes the Gram matrix from the basis quaternions,
+             *      proves unimodularity by exact integer elimination, confirms
+             *      2I closure and the 240-root count, and verifies the phi^2
+             *      shell identity. If the geometry is broken there is nothing
+             *      to be symmetric under, so we answer false rather than pass.
+             *   2. the form must be Hermitian, because an isometric embedding
+             *      carries the form along with it — a non-Hermitian form does
+             *      not survive the lift as a form. */
+            if (e8_selfcheck() != 0) return false;
             for (uint64_t i = 0; i < m->size; i++) {
                 if (m->entries[i] != 0.0 && conj(m->entries[i]) != m->entries[i])
                     return false;
             }
             return true;
+        }
+
+        case ISOMETRY_LIFT_M13:
+        case ISOMETRY_PROJECT_BACK:
+            /* NOT IMPLEMENTED, AND SAYING SO. These previously fell into a
+             * `default` that ran the Hermitian test and returned true — an
+             * unearned pass for a transform with no implementation, which is
+             * the same class of defect as a self-check built from literals.
+             * Attesting symmetry under a map we do not have is a lie, so we
+             * decline. (M13 is the natural next build: cyc13_t in
+             * src/sephirot already provides an exact 13-dimensional lattice
+             * with a Galois group, which is what the lift would land in.) */
+            return false;
+
+        default:
+            /* An unknown isometry is not a licence to guess. */
+            return false;
     }
 }
 

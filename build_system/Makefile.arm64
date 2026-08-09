@@ -40,7 +40,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Dmalloc=fs_malloc -Dcalloc=fs_calloc \
          -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -include kernel/include/freestanding.h \
-         -Ikernel/include -Ikernel/src -Ikernel/arch/arm64 -Ikernel/src/virtio -Ikernel/src/trispace -Ikernel/src/holodeck -Ikernel/src/denconnect -Ikernel/src/mlkem -Ikernel/boot \
+         -Ikernel/include -Ikernel/src -Ikernel/src/e8 -Ikernel/arch/arm64 -Ikernel/src/virtio -Ikernel/src/trispace -Ikernel/src/holodeck -Ikernel/src/denconnect -Ikernel/src/mlkem -Ikernel/boot \
          -Ikernel/src/plnp -Ikernel/src/smap -Ikernel/src/decent \
          -Ikernel/src/recon -Ikernel/src/hdcm -Ikernel/src/gematria \
          -Ikernel/src/dualtrack -Ikernel/src/superpos \
@@ -173,6 +173,8 @@ KERNEL_SRCS = \
     kernel/src/phase_coord/phase_coordinator.c \
     kernel/src/telemetry/telemetry_core.c \
     kernel/src/axiom_matrix/axiom_matrix_core.c \
+    kernel/src/e8/zphi.c \
+    kernel/src/e8/e8.c \
     kernel/src/crit168/crit_168_word.c \
     kernel/src/mm/mm.c \
     kernel/src/sched/sched.c \
