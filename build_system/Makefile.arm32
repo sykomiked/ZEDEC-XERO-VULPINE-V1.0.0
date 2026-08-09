@@ -16,7 +16,7 @@ AS = $(CROSS)as
 LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
-CFLAGS = -march=armv7-a -marm -ffreestanding -nostdlib \
+CFLAGS = -march=armv7-a -marm -ffreestanding -fno-math-errno -nostdlib \
          -O2 -Wall -Wextra -std=c11 -fno-stack-protector \
          -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/arch/arm32 \
          -Ikernel/src -Ikernel/compat \

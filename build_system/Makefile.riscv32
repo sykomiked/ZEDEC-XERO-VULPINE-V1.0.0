@@ -10,7 +10,7 @@ CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
-CFLAGS = -Wall -Wextra -O2 -ffreestanding -nostdlib -nostdinc \
+CFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -nostdinc \
          -fno-stack-protector -fno-pie -no-pie \
          -include kernel/include/freestanding.h \
          -isystem $(shell $(CC) -print-file-name=include) \

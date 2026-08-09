@@ -13,7 +13,7 @@ CC      := $(if $(shell which $(CROSS_PREFIX)gcc 2>/dev/null),$(CROSS_PREFIX)gcc
 LD      := $(if $(shell which $(CROSS_PREFIX)ld 2>/dev/null),$(CROSS_PREFIX)ld,ld)
 OBJCOPY := $(if $(shell which $(CROSS_PREFIX)objcopy 2>/dev/null),$(CROSS_PREFIX)objcopy,objcopy)
 
-CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
+CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -fno-stack-protector -fno-pie -no-pie -fno-builtin \
            -ffunction-sections -fdata-sections -fcf-protection=none \
            -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen \

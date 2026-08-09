@@ -28,6 +28,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -fno-stack-protector -fno-pie -no-pie -fno-builtin \
          -ffunction-sections -fdata-sections \
          -fno-tree-vectorize -fno-tree-slp-vectorize \
+         -fno-math-errno \
          -Wno-misleading-indentation \
          -MMD -MP \
          -DKERNEL_SIM_DEVICES=$(KERNEL_SIM_DEVICES) \
