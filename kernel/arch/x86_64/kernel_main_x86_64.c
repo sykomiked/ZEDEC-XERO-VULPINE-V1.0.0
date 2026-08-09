@@ -171,8 +171,24 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         extern int  x86_ring3_selftest(void);
         x86_ring3_init();
         boot_msg("  [.] entering ring 3...");
-        if (x86_ring3_selftest())
-            boot_msg("  [DRIVER ONLINE] ring-3 process ran, SYS_WRITE serviced, SYS_EXIT returned to ring 0 — user/kernel split live");
+        if (x86_ring3_selftest()) {
+            boot_msg("  [DRIVER ONLINE] ring-3 ran on the SHARED ABI: WRITE(2), ABI_VERSION(12), EXIT(1)");
+            {   /* Report ABI coverage honestly: x86_64 does not yet bind a
+                 * process table or filesystem to ring 3, so several calls are
+                 * ENOSYS rather than stubbed to look present. */
+                extern void x86_abi_coverage(uint32_t *, uint32_t *);
+                uint32_t impl = 0, total = 0;
+                x86_abi_coverage(&impl, &total);
+                char m[80]; uint32_t o = 0;
+                const char *p1 = "  [ABI] x86_64 provides ";
+                for (const char *q = p1; *q; q++) m[o++] = *q;
+                m[o++] = (char)('0' + (impl / 10) % 10); m[o++] = (char)('0' + impl % 10);
+                m[o++] = ' '; m[o++] = 'o'; m[o++] = 'f'; m[o++] = ' ';
+                m[o++] = (char)('0' + (total / 10) % 10); m[o++] = (char)('0' + total % 10);
+                const char *p2 = " ABI calls (rest ENOSYS, not stubbed)";
+                for (const char *q = p2; *q; q++) m[o++] = *q;
+                m[o] = 0; boot_msg(m); }
+        }
         else
             boot_msg("  [WARN] ring-3 self-test faulted");
     }

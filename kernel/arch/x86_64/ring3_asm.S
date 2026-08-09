@@ -12,7 +12,9 @@
 .balign 8
 saved_kernel_rsp:  .quad 0        /* main kernel RSP to return to on SYS_EXIT   */
 sc_num:            .quad 0        /* syscall number scratch                     */
-sc_arg:            .quad 0        /* syscall arg0 scratch                       */
+sc_arg:            .quad 0        /* syscall arg0 scratch (user rdi)            */
+sc_arg1:           .quad 0        /* syscall arg1 scratch (user rsi)            */
+sc_arg2:           .quad 0        /* syscall arg2 scratch (user rdx)            */
 .global x86_last_exc
 x86_last_exc:      .quad 0        /* vector of the last CPU exception (or -1)   */
 .global x86_exc_vec
@@ -73,11 +75,16 @@ x86_ring3_return:
  * having pushed SS,RSP,RFLAGS,CS,RIP. rax = syscall number, rdi = arg0. */
 .global x86_syscall_isr
 x86_syscall_isr:
-    cmpq $2, %rax             /* SYS_EXIT -> back to the kernel */
+    cmpq $1, %rax             /* ZXV_SYS_EXIT (1, shared ABI) -> back to the kernel */
     je   x86_ring3_return
 
+    /* Capture the user's argument registers BEFORE anything clobbers them.
+     * The ABI passes args in rdi/rsi/rdx; the dispatch call itself uses those
+     * same registers under SysV, so they must be stashed first. */
     movq %rax, sc_num(%rip)
     movq %rdi, sc_arg(%rip)
+    movq %rsi, sc_arg1(%rip)
+    movq %rdx, sc_arg2(%rip)
     /* preserve the caller-saved regs across the C dispatch + IRETQ back to user */
     push %rdi
     push %rsi
@@ -87,8 +94,10 @@ x86_syscall_isr:
     push %r9
     push %r10
     push %r11
-    movq sc_num(%rip), %rdi
-    movq sc_arg(%rip), %rsi
+    movq sc_num(%rip),  %rdi   /* SysV arg1: syscall number */
+    movq sc_arg(%rip),  %rsi   /* SysV arg2: user rdi       */
+    movq sc_arg1(%rip), %rdx   /* SysV arg3: user rsi       */
+    movq sc_arg2(%rip), %rcx   /* SysV arg4: user rdx       */
     call x86_syscall_dispatch
     pop %r11
     pop %r10

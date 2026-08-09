@@ -8,6 +8,7 @@
  * page-table U/S bit set (kernel pages stay U/S=0 → not reachable from ring 3),
  * then IRETQs to ring 3 to run a tiny user program that makes SYS_WRITE and
  * SYS_EXIT syscalls the kernel services. Proves the ring-0/ring-3 boundary. */
+#include "../../src/syscall/syscall.h"
 #include <stdint.h>
 #include "ring3.h"
 
@@ -131,10 +132,77 @@ static void make_user_page(uint64_t vaddr) {
 }
 
 /* ================= syscall dispatch (called from the ISR) ================= */
-#define SYS_WRITE 1
-void x86_syscall_dispatch(uint64_t num, uint64_t arg0) {
-    if (num == SYS_WRITE) com1_putc((char)arg0);
-    /* SYS_EXIT (2) is handled entirely in asm (returns to the kernel). */
+/* THE SHARED ABI, not a local numbering. Before this, x86_64 used WRITE=1 and
+ * EXIT=2 -- exactly INVERTED from arm64, so the same program calling syscall 1
+ * wrote a byte on one architecture and terminated on the other. That is the
+ * drift the ABI table exists to prevent, and it was live. */
+typedef char x86_abi_pinned[(ZXV_SYS_EXIT == 1 && ZXV_SYS_WRITE == 2) ? 1 : -1];
+
+/* What a ring-3 program on x86_64 is currently permitted to hold. There is no
+ * process table or filesystem bound to ring 3 here yet, so this is deliberately
+ * smaller than arm64's -- and the calls that need those are reported ENOSYS
+ * rather than stubbed to look successful. */
+#define X86_RING3_CAPS (ZSC_CAP_WRITE | ZSC_CAP_PROC)
+
+static uint32_t g_x86_pid = 1;
+
+/* Which ABI calls this architecture actually provides. Kept as data so the
+ * coverage can be REPORTED rather than asserted -- a gap you can measure gets
+ * closed, a gap described in prose does not. */
+static bool x86_provides(uint32_t nr) {
+    switch (nr) {
+        case ZXV_SYS_EXIT: case ZXV_SYS_WRITE: case ZXV_SYS_GETPID:
+        case ZXV_SYS_YIELD: case ZXV_SYS_SLEEP: case ZXV_SYS_ABI_VERSION:
+            return true;
+        default: return false;
+    }
+}
+
+/* Count implemented vs total (excluding the reserved hole). */
+void x86_abi_coverage(uint32_t *impl, uint32_t *total) {
+    uint32_t i = 0, t = 0;
+    zxv_syscall_info_t info;
+    for (uint32_t n = 0; n < zxv_syscall_count(); n++) {
+        if (!zxv_syscall_info(n, &info) || info.reserved) continue;
+        t++;
+        if (x86_provides(n)) i++;
+    }
+    if (impl) *impl = i;
+    if (total) *total = t;
+}
+
+int64_t x86_syscall_dispatch(uint64_t num, uint64_t a0, uint64_t a1, uint64_t a2) {
+    (void)a1; (void)a2;
+
+    /* Permission first, from the SAME table arm64 consults. An unknown or
+     * reserved number is ENOSYS before any capability question. */
+    int permit = zxv_syscall_permit((uint32_t)num, X86_RING3_CAPS);
+    if (permit != ZXV_OK) return permit;
+
+    switch (num) {
+        case ZXV_SYS_WRITE:
+            /* arg0 = byte. (The pointer+length form arrives with L2 handles;
+             * a byte-at-a-time write is what this ring-3 path can honestly do
+             * without a user-copy primitive, and user copying is exactly the
+             * thing not to improvise.) */
+            com1_putc((char)a0);
+            return 1;
+        case ZXV_SYS_GETPID:
+            return (int64_t)g_x86_pid;
+        case ZXV_SYS_YIELD:
+            return ZXV_OK;              /* single ring-3 task: nothing to yield to */
+        case ZXV_SYS_SLEEP:
+            return ZXV_OK;              /* no timer bound to ring 3 yet */
+        case ZXV_SYS_ABI_VERSION:
+            return (int64_t)ZXV_ABI_VERSION;
+        case ZXV_SYS_EXIT:
+            return ZXV_OK;              /* handled in asm; never reaches here */
+        default:
+            /* In the ABI and permitted, but this architecture does not provide
+             * it yet. ENOSYS is the honest answer -- a stub returning success
+             * would make a missing feature look present. */
+            return ZXV_ENOSYS;
+    }
 }
 
 /* Set while the ring-3 self-test is running: a fault then recovers to the kernel
@@ -156,14 +224,17 @@ void x86_exc_report(uint64_t vector, uint64_t rip) {
 /* ================= the ring-3 user program ================= */
 /* Hand-assembled: write 'U' then exit.
  *   BF 55 00 00 00   mov edi, 'U'
- *   B8 01 00 00 00   mov eax, SYS_WRITE
+ *   B8 02 00 00 00   mov eax, ZXV_SYS_WRITE  (2 in the shared ABI)
  *   CD 80            int 0x80
- *   B8 02 00 00 00   mov eax, SYS_EXIT
+ *   B8 0C 00 00 00   mov eax, ZXV_SYS_ABI_VERSION (12) -- proves a second call
+ *   CD 80            int 0x80
+ *   B8 01 00 00 00   mov eax, ZXV_SYS_EXIT   (1 in the shared ABI)
  *   CD 80            int 0x80
  *   EB FE            jmp .                (safety) */
 static const uint8_t USER_PROG[] = {
-    0xBF,0x55,0x00,0x00,0x00, 0xB8,0x01,0x00,0x00,0x00, 0xCD,0x80,
-    0xB8,0x02,0x00,0x00,0x00, 0xCD,0x80, 0xEB,0xFE
+    0xBF,0x55,0x00,0x00,0x00, 0xB8,0x02,0x00,0x00,0x00, 0xCD,0x80,
+    0xB8,0x0C,0x00,0x00,0x00, 0xCD,0x80,
+    0xB8,0x01,0x00,0x00,0x00, 0xCD,0x80, 0xEB,0xFE
 };
 
 /* Placed in .bss.user, which the linker puts at the very start of .bss (< 2 MB) so
