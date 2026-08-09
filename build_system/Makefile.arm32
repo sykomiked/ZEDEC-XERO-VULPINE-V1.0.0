@@ -10,14 +10,16 @@
 #   el0_userspace/el0_sched.c  video/ramfb.c  virtio/virtio_bus.c (+ vring.c)
 # Everything else is arch-neutral freestanding C and compiles for armv7.
 
-CROSS = arm-none-eabi-
+# gcc 11 (freestanding; avoids arm-none-eabi 10.3 _Complex header bug)
+CROSS = arm-linux-gnueabihf-
 CC = $(CROSS)gcc
 AS = $(CROSS)as
 LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
-CFLAGS = -march=armv7-a -marm -ffreestanding -fno-math-errno -nostdlib \
+CFLAGS = -march=armv7-a -marm -mfloat-abi=soft -ffreestanding -fno-math-errno -nostdlib \
          -O2 -Wall -Wextra -std=c11 -fno-stack-protector \
+         -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/arch/arm32 \
          -Ikernel/src -Ikernel/compat \
          -Ikernel/arch/arm32 -Ikernel/arch/arm64 -Ikernel/boot -Ikernel/compat \
@@ -249,6 +251,8 @@ KERNEL_SRC = \
     kernel/src/yantra/yantra_fabric.c \
     kernel/src/zcapital/zcapital.c \
     kernel/src/zxvfs/zxvfs.c \
+    kernel/src/tls/hkdf.c \
+    kernel/freestanding.c \
     kernel/compat/compat_layer.c
 
 KERNEL_OBJ = $(KERNEL_SRC:.c=.o)

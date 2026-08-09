@@ -5,7 +5,8 @@
 # Author: H.M. Michael-Laurence: Curzi (c)
 # License: SEL-3.3
 
-CROSS_COMPILE ?= riscv32-linux-gnu-
+# rv32 via multilib (-march=rv32 in CFLAGS below)
+CROSS_COMPILE ?= riscv64-linux-gnu-
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
@@ -16,6 +17,7 @@ CFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -nostdinc \
          -isystem $(shell $(CC) -print-file-name=include) \
          -march=rv32imafd_zicsr -mabi=ilp32d \
          -mcmodel=medany \
+         -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -Ikernel/arch/arm64 -Ikernel/arch/riscv -Ikernel/boot -Ikernel/compat \
          -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/src -Ikernel/src/abacus \
          -Ikernel/src/ai_layer -Ikernel/src/alloc -Ikernel/src/appkit -Ikernel/src/art_studio \
@@ -250,6 +252,8 @@ KERNEL_SRCS = \
     kernel/src/zcapital/zcapital.c \
     kernel/src/zxvfs/zxvfs.c \
     kernel/compat/compat_layer.c \
+    kernel/src/tls/hkdf.c \
+    kernel/freestanding.c \
     kernel/compat/softfloat_stubs.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
