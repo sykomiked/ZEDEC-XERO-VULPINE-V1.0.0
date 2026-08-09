@@ -890,6 +890,12 @@ verify-all: test
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \
+	echo "=== MegaROM: observed dynamics -> Sutra schemas (no title content carried) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/megarom src/megarom/test_mrschema.c \
+		src/megarom/mrschema.c -o /tmp/test_mrs && \
+		/tmp/test_mrs > /tmp/test_mrs.log 2>&1 && \
+		echo "[PASS] test_mrschema ($$(grep -c '\[PASS\]' /tmp/test_mrs.log) checks)" || \
+		{ cat /tmp/test_mrs.log; echo "[FAIL] test_mrschema"; exit 1; }; \
 	echo "=== ZXVFS crash fuzzer: fsck oracle over randomized workloads ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/zxvfs src/zxvfs/test_zxvfs_fuzz.c \
 		src/zxvfs/zxvfs_tri.c src/zxvfs/zxvfs.c src/trispace/trispace.c \
