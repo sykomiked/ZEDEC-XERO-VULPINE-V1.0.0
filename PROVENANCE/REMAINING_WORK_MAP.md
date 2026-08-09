@@ -97,8 +97,18 @@ into the 32-bit source lists (that is why they "didn't work" before). Three hone
   arm32 are reported CARRIED (not bootable) rather than claimed.
 - **VM images** (`mkuniversal_vm.sh`: zxv.raw / ova / qcow2 / vmdk / vhdx) — the disc is also a
   valid raw disk, so this is now unblocked.
-- **Signed release with the REAL root key** — generate the root key **offline on the server**;
-  the dev key in the tree is compromised and must never ship (`sign_release.sh`).
+- **Signed release chain — BUILT AND TESTED (2026-08-09); one human step remains.**
+  `keyceremony_root.sh` (air-gapped mint, refuses a networked host) -> `release_request.sh`
+  (build host, no key, digest-only) -> `sign_release_offline.sh` (air-gapped, explicit
+  confirmation, refuses passphrase-less keys) -> `verify_release.sh` (fail-closed: pinned
+  key-id, signature, every digest+size). Only the digest list crosses the air gap.
+  Gated in `verify-all`: 7 release-signing checks (6 negative, incl. the key-substitution
+  attack) + 11 installer checks. **Also fixed a real hole: the installer trusted a pubkey
+  shipped INSIDE the bundle it was verifying** — now pinned.
+  **REMAINING (only the owner can do this): mint the production root key on an air-gapped
+  machine and pin the anchor** — see `PROVENANCE/RELEASE_SIGNING.md`. Deliberately not done
+  here: a root key minted on the rented build box, or by an automated session, is
+  compromised from birth. The in-tree dev key is unencrypted and is now refused outright.
 
 ## 4. Security hardening for a defensible MVP (Proposal-9 P0s)
 
