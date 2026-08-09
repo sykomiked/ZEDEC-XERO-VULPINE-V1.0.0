@@ -215,6 +215,8 @@ test:
 	fi
 
 # Fail-closed verify-all target: host tests + crypto KATs + ARM64 cross-build check
+FUZZ_FS_ITERS ?= 3000
+
 verify-all: test
 	@echo "=== The One Policy: Symbiotic Maxim (void-by-definition) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/onepolicy -Isrc/surplus src/onepolicy/test_onepolicy.c src/onepolicy/onepolicy.c -o /tmp/test_onepolicy -lm && /tmp/test_onepolicy && echo "[PASS] test_onepolicy" || { echo "[FAIL] test_onepolicy"; exit 1; }
@@ -888,6 +890,14 @@ verify-all: test
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \
+	echo "=== ZXVFS crash fuzzer: fsck oracle over randomized workloads ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/zxvfs src/zxvfs/test_zxvfs_fuzz.c \
+		src/zxvfs/zxvfs_tri.c src/zxvfs/zxvfs.c src/trispace/trispace.c \
+		src/robin_debanks/sha256.c src/zab/zab.c src/zab/zab_exec.c \
+		src/invproof/invproof.c -o /tmp/test_zxvfs_fuzz && \
+		/tmp/test_zxvfs_fuzz $(FUZZ_FS_ITERS) > /tmp/test_zxvfs_fuzz.log 2>&1 && \
+		echo "[PASS] test_zxvfs_fuzz ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_fuzz.log) checks, $(FUZZ_FS_ITERS) iters)" || \
+		{ cat /tmp/test_zxvfs_fuzz.log; echo "[FAIL] test_zxvfs_fuzz"; exit 1; }; \
 	echo "=== Release signing: offline-root chain refuses tamper/wrong-key/unsigned ==="; \
 	bash ../build_system/test_release_signing.sh > /tmp/test_relsign.log 2>&1 && \
 		echo "[PASS] test_release_signing ($$(grep -c '\[PASS\]' /tmp/test_relsign.log) checks)" || \
