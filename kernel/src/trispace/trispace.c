@@ -159,6 +159,7 @@ const char *tri_quarantine_reason(tri_quarantine_t q) {
     case TRI_Q_BAD_INVERSE_CLAIM: return "irreversible effect claims an exact inverse";
     case TRI_Q_UNPROVEN_INVERSE:  return "generated S- presented as a proven inverse";
     case TRI_Q_SEAL_MISMATCH:     return "a member was substituted or altered";
+    case TRI_Q_CAP_MISDECLARED:   return "code carries capabilities it did not declare";
     default:                      return "?";
     }
 }

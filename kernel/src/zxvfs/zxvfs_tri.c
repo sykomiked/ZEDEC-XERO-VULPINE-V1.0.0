@@ -11,6 +11,7 @@
  */
 #include "zxvfs_tri.h"
 #include "../robin_debanks/sha256.h"
+#include "../zab/zab.h"
 
 /* ---- local freestanding helpers (mirroring zxvfs.c's house style) ---- */
 static void tmemset(void *d, int c, unsigned long n) {
@@ -127,9 +128,31 @@ int zxvfs_tri_write(zxvfs_t *fs, const char *name, const zxvfs_tri_spec_t *spec)
     for (int r = 0; r < 3; r++)
         sha256(spec->data[r], spec->len[r], digest[r]);
 
-    /* Requirements 2-5, enforced by trispace.c — the single source of truth. */
-    if (!bind_triad(&t, spec, digest))
+    /* DERIVE each member's capability set from the artifact itself, and check
+     * the declaration against it. Requirements 2 and 3 are then enforced on
+     * what the code CAN DO, not on a number the author supplied — an S- that
+     * declares nothing while containing POST/SEND is caught here.
+     *
+     * An artifact whose capabilities cannot be established (a malformed ZAB
+     * program) is refused outright: "unanalysable" must never mean "trusted". */
+    zxvfs_tri_spec_t eff = *spec;
+    for (int r = 0; r < 3; r++) {
+        uint32_t derived = 0; zab_result_t why;
+        if (!zab_artifact_capabilities(spec->data[r], spec->len[r], &derived, &why))
+            return rule_err(TRI_Q_CAP_MISDECLARED);
+        /* Carrying MORE than declared is the dangerous direction: the artifact
+         * does things it never admitted to. (Over-declaring is merely sloppy,
+         * and the derived set is used regardless, so it cannot grant power.) */
+        if ((derived & ~spec->capability_set[r]) != 0)
+            return rule_err(TRI_Q_CAP_MISDECLARED);
+        eff.capability_set[r] = derived;
+    }
+
+    /* Requirements 2-5, enforced by trispace.c — the single source of truth,
+     * now fed the DERIVED capabilities. */
+    if (!bind_triad(&t, &eff, digest))
         return rule_err(t.quarantine);       /* nothing written; FS untouched */
+    spec = &eff;   /* the descriptor records what was actually enforced */
 
     /* Role payloads first. They are inert until a descriptor names them. */
     for (int r = 0; r < 3; r++) {

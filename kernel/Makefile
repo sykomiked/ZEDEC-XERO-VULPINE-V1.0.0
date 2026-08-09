@@ -864,10 +864,15 @@ verify-all: test
 		-o /tmp/test_audio_san -lm && \
 		ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/test_audio_san > /dev/null && \
 		echo "[PASS] test_audio_san" || { echo "[FAIL] test_audio_san"; exit 1; }; \
+	echo "=== ZAB capability verifier: capabilities DERIVED from bytecode, not declared ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/zab src/zab/test_zab.c src/zab/zab.c \
+		-o /tmp/test_zab && /tmp/test_zab > /tmp/test_zab.log 2>&1 && \
+		echo "[PASS] test_zab ($$(grep -c '\[PASS\]' /tmp/test_zab.log) checks)" || \
+		{ cat /tmp/test_zab.log; echo "[FAIL] test_zab"; exit 1; }; \
 	echo "=== Tri-Space native storage: triad atomicity under exhaustive crash injection ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/zxvfs \
 		src/zxvfs/test_zxvfs_tri.c src/zxvfs/zxvfs_tri.c src/zxvfs/zxvfs.c \
-		src/trispace/trispace.c src/robin_debanks/sha256.c -o /tmp/test_zxvfs_tri && \
+		src/trispace/trispace.c src/robin_debanks/sha256.c src/zab/zab.c -o /tmp/test_zxvfs_tri && \
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \

@@ -76,7 +76,8 @@ typedef enum {
     TRI_Q_NEUTRAL_HAS_EFFECT,   /* S0 holds production-effect capability      */
     TRI_Q_BAD_INVERSE_CLAIM,    /* irreversible effect claims an exact inverse*/
     TRI_Q_UNPROVEN_INVERSE,     /* generated S- presented as a proven inverse */
-    TRI_Q_SEAL_MISMATCH         /* a member was substituted or altered        */
+    TRI_Q_SEAL_MISMATCH,        /* a member was substituted or altered        */
+    TRI_Q_CAP_MISDECLARED       /* code carries capability it never declared   */
 } tri_quarantine_t;
 
 typedef struct {

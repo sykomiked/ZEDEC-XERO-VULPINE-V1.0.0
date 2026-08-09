@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "zxvfs_tri.h"
+#include "../zab/zab.h"
 
 #define DISK_SECTORS ZXVFS_TOTAL_SECTORS
 static uint8_t g_disk[DISK_SECTORS][BLOCKDEV_SECTOR_SIZE];
@@ -58,19 +59,53 @@ static int failures = 0;
     if (!(cond)) { printf("  [FAIL] %s\n", msg); failures++; } \
     else         { printf("  [PASS] %s\n", msg); } } while (0)
 
-/* ---- a well-formed triad fixture ---- */
-static const uint8_t S_PLUS[]  = "S+ : transfer(from,to,amount) -- what it DOES";
-static const uint8_t S_MINUS[] = "S- : reverse(to,from,amount) -- the undo path";
-static const uint8_t S_ZERO[]  = "S0 : unresolved -- rounding policy undecided";
+/* ---- a well-formed triad fixture, built from REAL ZAB programs ----
+ * Capabilities are now DERIVED from these instruction streams, so the fixture
+ * has to be actual bytecode: plain text would derive the empty set and make
+ * every capability case vacuous. */
+static uint8_t P_PLUS[128], P_MINUS[128], P_ZERO[128];
+static uint32_t L_PLUS, L_MINUS, L_ZERO;
+
+static uint32_t mkprog(uint8_t *out, const uint8_t *ops, uint16_t n) {
+    zab_ins_t ins[32]; zab_header_t h;
+    for (uint16_t i = 0; i < n; i++) { ins[i].op = ops[i]; ins[i].a = 0; ins[i].b = 0; }
+    h.magic = ZAB_MAGIC; h.version = ZAB_VERSION; h.count = n; h.seal = 0;
+    uint32_t seal = zab_compute_seal(&h, ins, n), o = 0;
+    out[o++] = (uint8_t)(ZAB_MAGIC);       out[o++] = (uint8_t)(ZAB_MAGIC >> 8);
+    out[o++] = (uint8_t)(ZAB_MAGIC >> 16); out[o++] = (uint8_t)(ZAB_MAGIC >> 24);
+    out[o++] = (uint8_t)(ZAB_VERSION);     out[o++] = (uint8_t)(ZAB_VERSION >> 8);
+    out[o++] = (uint8_t)(n);               out[o++] = (uint8_t)(n >> 8);
+    out[o++] = (uint8_t)(seal);            out[o++] = (uint8_t)(seal >> 8);
+    out[o++] = (uint8_t)(seal >> 16);      out[o++] = (uint8_t)(seal >> 24);
+    for (uint16_t i = 0; i < n; i++) {
+        out[o++] = ins[i].op; out[o++] = ins[i].a;
+        out[o++] = (uint8_t)(ins[i].b); out[o++] = (uint8_t)(ins[i].b >> 8);
+    }
+    return o;
+}
+
+static void build_fixture(void) {
+    /* S+ posts to the ledger and mutates state; S- posts the reversing entry
+     * (a strict subset); S0 is INERT. trispace.c requires S0's capability set
+     * to be exactly zero -- stricter than "no production effect" -- so the
+     * unresolved remainder may not even observe until a policy resolves it. */
+    const uint8_t plus[]  = { ZAB_OP_READ, ZAB_OP_POST, ZAB_OP_WRITE, ZAB_OP_END };
+    const uint8_t minus[] = { ZAB_OP_POST, ZAB_OP_END };
+    const uint8_t zero[]  = { ZAB_OP_NOP, ZAB_OP_END };
+    L_PLUS  = mkprog(P_PLUS,  plus,  4);
+    L_MINUS = mkprog(P_MINUS, minus, 2);
+    L_ZERO  = mkprog(P_ZERO,  zero,  2);
+}
 
 static void spec_default(zxvfs_tri_spec_t *s) {
     memset(s, 0, sizeof(*s));
-    s->data[TRI_POSITIVE] = S_PLUS;  s->len[TRI_POSITIVE] = (uint32_t)sizeof(S_PLUS);
-    s->data[TRI_NEGATIVE] = S_MINUS; s->len[TRI_NEGATIVE] = (uint32_t)sizeof(S_MINUS);
-    s->data[TRI_NEUTRAL]  = S_ZERO;  s->len[TRI_NEUTRAL]  = (uint32_t)sizeof(S_ZERO);
-    s->capability_set[TRI_POSITIVE] = 0x7;   /* S+ may do 3 things            */
-    s->capability_set[TRI_NEGATIVE] = 0x3;   /* S- a subset of them           */
-    s->capability_set[TRI_NEUTRAL]  = 0x0;   /* S0 may do nothing             */
+    s->data[TRI_POSITIVE] = P_PLUS;  s->len[TRI_POSITIVE] = L_PLUS;
+    s->data[TRI_NEGATIVE] = P_MINUS; s->len[TRI_NEGATIVE] = L_MINUS;
+    s->data[TRI_NEUTRAL]  = P_ZERO;  s->len[TRI_NEUTRAL]  = L_ZERO;
+    /* declared == what the bytecode actually carries */
+    s->capability_set[TRI_POSITIVE] = ZAB_CAP_READ_STATE|ZAB_CAP_LEDGER|ZAB_CAP_WRITE_STATE;
+    s->capability_set[TRI_NEGATIVE] = ZAB_CAP_LEDGER;
+    s->capability_set[TRI_NEUTRAL]  = ZAB_CAP_NONE;
     s->inverse_kind = TRI_INV_EXACT;
     s->effect_is_irreversible = false;
     for (uint32_t i = 0; i < TRI_ID_LEN; i++) s->triad_id[i] = (uint8_t)(i + 1);
@@ -88,6 +123,7 @@ int main(void) {
     block_device_t dev; zxvfs_t fs; zxvfs_tri_spec_t spec;
     static uint8_t buf[ZXVFS_FILE_MAX_BYTES];
     dev_init(&dev);
+    build_fixture();
 
     printf("Tri-Space native storage (zxvfs_tri)\n");
 
@@ -99,7 +135,7 @@ int main(void) {
     CHECK(zxvfs_tri_state(&fs, "ledger") == ZXVFS_TRI_BOUND, "state is BOUND");
     CHECK(zxvfs_tri_open(&fs, "ledger", 0) == 0, "opens and fully verifies");
     int n = zxvfs_tri_read_role(&fs, "ledger", TRI_NEGATIVE, buf, sizeof(buf));
-    CHECK(n == (int)sizeof(S_MINUS) && memcmp(buf, S_MINUS, sizeof(S_MINUS)) == 0,
+    CHECK(n == (int)L_MINUS && memcmp(buf, P_MINUS, L_MINUS) == 0,
           "S- payload reads back byte-exact");
 
     /* survives a remount */
@@ -109,24 +145,41 @@ int main(void) {
 
     /* ---------------- the five requirements ---------------- */
     printf("the five hard requirements (all must be REFUSED):\n");
-    struct { const char *what; tri_quarantine_t why; void (*mut)(zxvfs_tri_spec_t *); } cases[] = {
-        { "1. missing member refused", TRI_Q_MISSING_MEMBER, 0 },
-        { "2. S- over-capable refused", TRI_Q_NEG_OVER_CAPABLE, 0 },
-        { "3. S0 with production capability refused", TRI_Q_NEUTRAL_HAS_EFFECT, 0 },
-        { "4. irreversible claiming exact inverse refused", TRI_Q_BAD_INVERSE_CLAIM, 0 },
-        { "5. generated S- claiming proven inverse refused", TRI_Q_UNPROVEN_INVERSE, 0 },
+    /* Cases 2 and 3 are now expressed as BYTECODE, not as declared numbers:
+     * the S- actually contains SEND/SPAWN its S+ never had, and the S0 actually
+     * contains a ledger POST. Declarations are set to match, so these test the
+     * real rules rather than the (now-derived) declaration. Case 6 is the lie. */
+    static uint8_t P_GREEDY[128], P_ACTIVE0[128]; static uint32_t L_GREEDY, L_ACTIVE0;
+    { const uint8_t greedy[]  = { ZAB_OP_POST, ZAB_OP_SEND, ZAB_OP_SPAWN, ZAB_OP_END };
+      const uint8_t active0[] = { ZAB_OP_POST, ZAB_OP_END };
+      L_GREEDY  = mkprog(P_GREEDY,  greedy,  4);
+      L_ACTIVE0 = mkprog(P_ACTIVE0, active0, 2); }
+
+    struct { const char *what; tri_quarantine_t why; } cases[] = {
+        { "1. missing member refused", TRI_Q_MISSING_MEMBER },
+        { "2. S- carrying capabilities S+ lacks refused", TRI_Q_NEG_OVER_CAPABLE },
+        { "3. S0 containing a production effect refused", TRI_Q_NEUTRAL_HAS_EFFECT },
+        { "4. irreversible claiming exact inverse refused", TRI_Q_BAD_INVERSE_CLAIM },
+        { "5. generated S- claiming proven inverse refused", TRI_Q_UNPROVEN_INVERSE },
+        { "6. S- that LIES about its capabilities refused", TRI_Q_CAP_MISDECLARED },
     };
-    for (int c = 0; c < 5; c++) {
+    for (int c = 0; c < 6; c++) {
         CHECK(fresh_fs(&fs, &dev) == 0, "  (reset)");
         spec_default(&spec);
         switch (c) {
             case 0: spec.data[TRI_NEGATIVE] = 0; break;
-            case 1: spec.capability_set[TRI_NEGATIVE] = 0xF; break;   /* > S+ 0x7 */
-            case 2: spec.capability_set[TRI_NEUTRAL]  = 0x1; break;
+            case 1: spec.data[TRI_NEGATIVE] = P_GREEDY; spec.len[TRI_NEGATIVE] = L_GREEDY;
+                    spec.capability_set[TRI_NEGATIVE] =
+                        ZAB_CAP_LEDGER|ZAB_CAP_NET|ZAB_CAP_SPAWN; break;
+            case 2: spec.data[TRI_NEUTRAL] = P_ACTIVE0; spec.len[TRI_NEUTRAL] = L_ACTIVE0;
+                    spec.capability_set[TRI_NEUTRAL] = ZAB_CAP_LEDGER; break;
             case 3: spec.effect_is_irreversible = true;
                     spec.inverse_kind = TRI_INV_EXACT; break;
             case 4: spec.generated[TRI_NEGATIVE] = true;
                     spec.claims_proven_inverse[TRI_NEGATIVE] = true; break;
+            case 5: /* the artifact posts to the ledger but declares nothing */
+                    spec.data[TRI_NEGATIVE] = P_GREEDY; spec.len[TRI_NEGATIVE] = L_GREEDY;
+                    spec.capability_set[TRI_NEGATIVE] = ZAB_CAP_NONE; break;
         }
         int rc = zxvfs_tri_write(&fs, "bad", &spec);
         int refused = ZXVFS_TRI_IS_RULE_ERR(rc) && ZXVFS_TRI_REASON(rc) == cases[c].why;
