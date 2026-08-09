@@ -12,6 +12,7 @@
 #include "zxvfs_tri.h"
 #include "../robin_debanks/sha256.h"
 #include "../zab/zab.h"
+#include "../invproof/invproof.h"
 
 /* ---- local freestanding helpers (mirroring zxvfs.c's house style) ---- */
 static void tmemset(void *d, int c, unsigned long n) {
@@ -146,6 +147,24 @@ int zxvfs_tri_write(zxvfs_t *fs, const char *name, const zxvfs_tri_spec_t *spec)
         if ((derived & ~spec->capability_set[r]) != 0)
             return rule_err(TRI_Q_CAP_MISDECLARED);
         eff.capability_set[r] = derived;
+    }
+
+    /* A claim of a PROVEN EXACT inverse must be backed by a witness that
+     * actually verifies — applied, not asserted. This is what makes
+     * requirement 5 ("an auto-derived undo is a draft, not a proof") bite:
+     * presenting a proven inverse now costs a proof. */
+    if (spec->claims_proven_inverse[TRI_NEGATIVE] &&
+        spec->inverse_kind == TRI_INV_EXACT) {
+        static uint8_t recovered[ZXVFS_FILE_MAX_BYTES];
+        if (!spec->proof_state || spec->proof_state_len == 0)
+            return rule_err(TRI_Q_UNPROVEN_INVERSE);   /* claim with no witness */
+        if (spec->proof_state_len > sizeof(recovered))
+            return -3;
+        zxi_result_t vr = zxi_verify(spec->data[TRI_NEGATIVE], spec->len[TRI_NEGATIVE],
+                                     spec->proof_state, spec->proof_state_len,
+                                     recovered, (uint32_t)sizeof(recovered));
+        if (vr != ZXI_OK)
+            return rule_err(TRI_Q_UNPROVEN_INVERSE);   /* the undo does not undo */
     }
 
     /* Requirements 2-5, enforced by trispace.c — the single source of truth,

@@ -23,6 +23,7 @@
 #include <string.h>
 #include "zxvfs_tri.h"
 #include "../zab/zab.h"
+#include "../invproof/invproof.h"
 
 #define DISK_SECTORS ZXVFS_TOTAL_SECTORS
 static uint8_t g_disk[DISK_SECTORS][BLOCKDEV_SECTOR_SIZE];
@@ -190,6 +191,55 @@ int main(void) {
     }
 
     /* ---------------- tamper detection + durable quarantine ---------------- */
+    /* ---------------- proven inverse must carry a real proof ---------------- */
+    printf("proven inverse (a claim now costs a proof):\n");
+    {   static uint8_t st_before[256], st_after[256], witness[1024];
+        for (uint32_t i = 0; i < 256; i++) { st_before[i] = (uint8_t)(i*5+1); st_after[i] = st_before[i]; }
+        st_after[9] = 0x77; st_after[200] = 0x33;
+        int wl = zxi_build(st_before, st_after, 256, witness, sizeof(witness));
+
+        /* (a) claiming a proven inverse with NO witness at all */
+        CHECK(fresh_fs(&fs, &dev) == 0, "  (reset)");
+        spec_default(&spec);
+        spec.claims_proven_inverse[TRI_NEGATIVE] = true;
+        spec.inverse_kind = TRI_INV_EXACT;
+        int r1 = zxvfs_tri_write(&fs, "prov", &spec);
+        CHECK(ZXVFS_TRI_IS_RULE_ERR(r1) && ZXVFS_TRI_REASON(r1) == TRI_Q_UNPROVEN_INVERSE,
+              "claiming a proven inverse with no witness is refused");
+
+        /* (b) a REAL witness as the S- payload: the claim is honoured */
+        CHECK(fresh_fs(&fs, &dev) == 0, "  (reset)");
+        spec_default(&spec);
+        spec.data[TRI_NEGATIVE] = witness; spec.len[TRI_NEGATIVE] = (uint32_t)wl;
+        spec.capability_set[TRI_NEGATIVE] = ZAB_CAP_NONE;  /* a witness is data */
+        spec.claims_proven_inverse[TRI_NEGATIVE] = true;
+        spec.inverse_kind = TRI_INV_EXACT;
+        spec.proof_state = st_after; spec.proof_state_len = 256;
+        CHECK(zxvfs_tri_write(&fs, "prov", &spec) == 0,
+              "a witness that VERIFIES is accepted as a proven inverse");
+
+        /* (c) the undo that does not undo — well-formed, wrong result */
+        CHECK(fresh_fs(&fs, &dev) == 0, "  (reset)");
+        static uint8_t bad_wit[1024];
+        memcpy(bad_wit, witness, (uint32_t)wl);
+        bad_wit[ZXI_HDR_BYTES + 6] ^= 0x01;      /* corrupt one delta byte */
+        { uint32_t sm = 2166136261u;             /* reseal so it stays well-formed */
+          for (int i = 0; i < wl; i++) { if (i >= 84 && i < 88) continue;
+              sm ^= bad_wit[i]; sm *= 16777619u; }
+          if (!sm) sm = 1u;
+          bad_wit[84]=(uint8_t)sm; bad_wit[85]=(uint8_t)(sm>>8);
+          bad_wit[86]=(uint8_t)(sm>>16); bad_wit[87]=(uint8_t)(sm>>24); }
+        spec_default(&spec);
+        spec.data[TRI_NEGATIVE] = bad_wit; spec.len[TRI_NEGATIVE] = (uint32_t)wl;
+        spec.capability_set[TRI_NEGATIVE] = ZAB_CAP_NONE;
+        spec.claims_proven_inverse[TRI_NEGATIVE] = true;
+        spec.inverse_kind = TRI_INV_EXACT;
+        spec.proof_state = st_after; spec.proof_state_len = 256;
+        int r3 = zxvfs_tri_write(&fs, "prov", &spec);
+        CHECK(ZXVFS_TRI_IS_RULE_ERR(r3) && ZXVFS_TRI_REASON(r3) == TRI_Q_UNPROVEN_INVERSE,
+              "an undo that does NOT restore the prior state is refused");
+    }
+
     printf("tamper detection:\n");
     CHECK(fresh_fs(&fs, &dev) == 0, "  (reset)");
     spec_default(&spec);

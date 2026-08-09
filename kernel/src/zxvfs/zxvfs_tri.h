@@ -116,6 +116,15 @@ typedef struct {
     bool           effect_is_irreversible;
     uint8_t        triad_id[TRI_ID_LEN];
     uint8_t        source_graph_digest[TRI_DIGEST_LEN];
+
+    /* PROOF OF INVERSE (required when S- claims a proven EXACT inverse).
+     * `proof_state` is the post-state S+ produced. The S- payload must be a ZXI
+     * inverse witness for it, and it is VERIFIED BY APPLYING IT at bind time:
+     * the undo must land byte-exactly on the recorded prior state. Without
+     * this, "proven" is just a boolean the author set. See invproof.h for what
+     * a witness does and does not prove. */
+    const uint8_t *proof_state;
+    uint32_t       proof_state_len;
 } zxvfs_tri_spec_t;
 
 /* The on-disk descriptor — written last, and the sole proof a triad exists.
