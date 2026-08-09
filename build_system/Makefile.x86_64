@@ -23,7 +23,7 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -include kernel/include/freestanding.h \
            -Ikernel/arch/arm64 -Ikernel/arch/x86_64 -Ikernel/boot \
            -Ikernel/compat -Ikernel/include -Ikernel/include/freestanding_stubs \
-           -Ikernel/src -Ikernel/src/e8 -Ikernel/src/abacus -Ikernel/src/ai_layer \
+           -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/src/abacus -Ikernel/src/ai_layer \
            -Ikernel/src/alloc -Ikernel/src/appkit -Ikernel/src/art_studio \
            -Ikernel/src/ascent -Ikernel/src/audiogenomics_pro -Ikernel/src/axiom_matrix \
            -Ikernel/src/battering_ram -Ikernel/src/bios -Ikernel/src/bootfeat \
@@ -82,6 +82,7 @@ SRCS := \
     kernel/src/axiom_matrix/axiom_matrix_core.c \
     kernel/src/e8/zphi.c \
     kernel/src/e8/e8.c \
+    kernel/src/mixmat/mixmat.c \
     kernel/src/battering_ram/battering_ram.c \
     kernel/src/bios/zbios.c \
     kernel/src/blockdev/blockdev.c \

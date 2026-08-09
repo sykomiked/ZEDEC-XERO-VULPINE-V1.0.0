@@ -22,7 +22,7 @@ CFLAGS = -march=armv7-a -marm -mfpu=vfpv3-d16 -mfloat-abi=hard -ffreestanding -f
          -O2 -Wall -Wextra -std=c11 -fno-stack-protector \
          -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/arch/arm32 \
-         -Ikernel/src -Ikernel/src/e8 -Ikernel/compat \
+         -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/compat \
          -Ikernel/arch/arm32 -Ikernel/arch/arm64 -Ikernel/boot -Ikernel/compat \
          -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/src -Ikernel/src/abacus \
          -Ikernel/src/ai_layer -Ikernel/src/alloc -Ikernel/src/appkit -Ikernel/src/apps \
@@ -74,6 +74,7 @@ KERNEL_SRC = \
     kernel/src/axiom_matrix/axiom_matrix_core.c \
     kernel/src/e8/zphi.c \
     kernel/src/e8/e8.c \
+    kernel/src/mixmat/mixmat.c \
     kernel/src/battering_ram/battering_ram.c \
     kernel/src/bios/zbios.c \
     kernel/src/blockdev/blockdev.c \
