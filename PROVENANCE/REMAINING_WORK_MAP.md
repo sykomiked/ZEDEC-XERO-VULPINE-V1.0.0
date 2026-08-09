@@ -26,12 +26,12 @@ hardening P0s for a *defensible* MVP, and (d) one business/legal item.
 |------|-------|---------------|
 | **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** + EL0 | — (flagship, done) |
 | **x86_64** | ✅ **BOOTS + RING-3 + FULL SUBSYSTEM SET (196 files) initialized** (M5 core, [FEAT] platform 8/8, economy 5/5) | full boot-parity with arm64 |
-| **riscv32** | ✅ **LINKS** (976 KB) | OpenSBI-rv32 (build from source) or M-mode reset-vector debug |
-| **riscv64** | ✅ **LINKS** (934 KB) | M-mode boot: boot.s is M-mode (mhartid/mtvec) but load addr was SBI's; relink 0x80000000 + `-bios none` + UART debug |
+| **riscv32** | ✅ **LINKS** (976 KB); shares the S-mode port | OpenSBI-rv32 firmware (build from source); rv32 SBI-timer 64-bit split |
+| **riscv64** | ✅ **BOOTS (OpenSBI/S-mode)** — all phases + live 100 Hz event loop | — (done) |
 | **arm32** | ✅ **LINKS** (983 KB) | move base versatilepb→virt (0x40000000) or run `-M versatilepb` |
 
-**2 of 5 arches fully boot AT PARITY (arm64, x86_64): both boot to BOOT_OK with a working
-user/kernel privilege split AND the full subsystem set initialized (platform 8/8 + economy 5/5).**
+**3 of 5 arches fully boot: arm64, x86_64 (both BOOT_OK + user/kernel split + platform 8/8 +
+economy 5/5), and riscv64 (OpenSBI/S-mode: all 17 phases + a live 100 Hz timer-ticking event loop).**
 x86_64 ring-3 done: GDT/TSS/IDT + int 0x80 syscall + U/S user pages + IRETQ; a ring-3
 program runs, syscalls, and returns. (Also fixed: SSE was never enabled → x86_64 had
 been triple-faulting at gcc's first `movdqa`, so it never reached BOOT_OK before.)
