@@ -890,6 +890,12 @@ verify-all: test
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \
+	echo "=== Bomb squad: a burning fault is caught and CORRECTED before it detonates ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/bombsquad src/bombsquad/test_bombsquad.c \
+		src/bombsquad/bombsquad.c -o /tmp/test_bs && \
+		/tmp/test_bs > /tmp/test_bs.log 2>&1 && \
+		echo "[PASS] test_bombsquad ($$(grep -c '\[PASS\]' /tmp/test_bs.log) checks)" || \
+		{ cat /tmp/test_bs.log; echo "[FAIL] test_bombsquad"; exit 1; }; \
 	echo "=== Tri-Space media codec: lossy S+ plus S- restores the original EXACTLY ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/codec src/codec/test_zmedia.c \
 		src/codec/zmedia.c src/invproof/invproof.c src/robin_debanks/sha256.c \
