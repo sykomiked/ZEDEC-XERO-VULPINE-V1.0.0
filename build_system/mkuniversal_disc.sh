@@ -82,6 +82,19 @@ for img in "$DIST"/kernel_*.bin; do
     f="$DIST/zxv-$arch.$ext"; [ -f "$f" ] && cp "$f" "$ESP/ZXV/$arch/"
   done
 
+  # PREFER a native ZXV EFI stub if one was built for this arch. A stub is a
+  # self-contained EFI application that already embeds its kernel, so it needs
+  # no GRUB, no config and no filesystem driver — the firmware loads it and it
+  # boots straight to the ZXV kernel. (x86_64: BOOTX64.EFI, verified booting to
+  # BOOT_OK on OVMF; arm64: BOOTAA64.EFI, verified on AAVMF booting to EL0 +
+  # P-TERM with the desktop on the UEFI GOP framebuffer.)
+  if [ -f "$en" ]; then
+    cp "$en" "$ESP/EFI/BOOT/$en"
+    bootable=$((bootable+1))
+    log "$arch: installed native ZXV EFI stub $en (self-contained, embeds kernel) + kernel + triad"
+    continue
+  fi
+
   lc=$(grub_loadcmd "$arch")
   # the exact boot entry, correct per arch (multiboot for x86_64, linux otherwise)
   cfg="$DIST/.grub-$arch.cfg"
@@ -92,7 +105,7 @@ for img in "$DIST"/kernel_*.bin; do
   printf 'menuentry "ZEDEC pqOS (%s)" { %s /ZXV/%s/%s ; boot }\n' \
     "$arch" "$lc" "$arch" "$(basename "$img")" >> "$ESP/EFI/BOOT/grub.cfg"
 
-  # BUILD the arch's bootloader with grub-mkstandalone (embeds cfg + modules)
+  # Otherwise BUILD the arch's bootloader with grub-mkstandalone (embeds cfg + modules)
   mods="part_gpt part_msdos fat iso9660 normal configfile echo test"
   [ "$arch" = x86_64 ] && mods="$mods multiboot" || mods="$mods linux"
   if [ -n "$gt" ] && need grub-mkstandalone && [ -d "/usr/lib/grub/$gt" ]; then
