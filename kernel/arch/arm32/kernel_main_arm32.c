@@ -1,146 +1,116 @@
-/* kernel_main_arm32.c — ARM32 kernel entry point for ZEDEC XERO pqOS
+/* kernel_main_arm32.c — ARM32 (AArch32) kernel entry point for ZEDEC XERO pqOS.
+ *
+ * Rewritten 2026-08-08 to use the CURRENT subsystem APIs (the previous version
+ * called an init API — m5_kernel_init/isf_init/*_device_init/desktop_init/… — that
+ * no longer exists). This mirrors kernel_main_riscv.c's proven init sequence, with
+ * the arm32 arch wrappers (PL011 UART + WFI event loop). Core bring-up profile.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
  */
 #include "arm32_arch.h"
 
+/* Arch UART (kernel/arch/arm32/uart_pl011.c) */
 extern void uart_init(void);
 extern void uart_puts(const char *s);
-extern void uart_hex(uint32_t val);
 extern void uart_dec(uint32_t val);
 
-/* License */
 extern void license_print_all(void);
 
-/* M5 subsystems (same as x86) */
-extern void m5_kernel_init(void);
-extern void phase_coordinator_init(void *tick, int profile);
-extern void isf_init(void);
-extern void edp_risk_init(void);
-extern void predictive_model_init(void);
-extern void situation_model_init(void);
-extern void triple_ledger_init(void);
-extern void financial_instruments_init(void);
-extern void identity_system_init(void);
-extern void payment_rails_init(void);
-extern void crypto_bridge_init(void);
-extern void quantum_device_init(void);
-extern void rtl_device_init(void);
-extern void jdr_piratenet_init(void);
-extern void epu_device_init(void);
-extern void synthesis_engine_init(void *engine, uint32_t id, const char *name);
-extern void audio_init(void *dev, int type, const char *name);
-extern void video_init(void *dev, const char *name);
-extern void wifi_init(void *dev, const char *name);
-extern void bt_init(void *dev, const char *name);
-extern void browser_init(void *browser, const char *name);
-extern void desktop_init(void *desk, uint32_t w, uint32_t h, uint32_t bpp);
-extern void event_clock_init(void *clk, int mode);
+/* Current M5 + platform subsystem APIs (same set kernel_main_riscv.c links). */
+#include "../src/oseq/oseq_core.h"
+#include "../src/rmag/rmag_core.h"
+#include "../src/lpres/lpres_core.h"
+#include "../src/iphase/iphase_core.h"
+#include "../src/choice/choice_core.h"
+#include "../src/phase_coord/phase_coordinator.h"
+#include "../src/predictive/predictive_model.h"
+#include "../src/finance/triple_ledger.h"
+#include "../src/finance/financial.h"
+#include "../src/finance/rails.h"
+#include "../src/finance/crypto_bridge.h"
+#include "../src/identity/identity.h"
+#include "../src/quantum/quantum_device.h"
+#include "../src/hardware/rtl_device.h"
+#include "../src/net/jdr_piratenet.h"
+#include "../src/vino/vino.h"
+#include "../src/vena/vena.h"
+#include "../src/holographic/holo.h"
+
+static void boot_msg(const char *m) { uart_puts(m); uart_puts("\n"); }
 
 void kernel_main_arm32(void) {
     uart_init();
-
-    uart_puts("\n\n");
-    uart_puts("========================================\n");
-    uart_puts("  ZEDEC XERO pqOS v0.0.0\n");
-    uart_puts("  ARM32 (AArch32) Edition\n");
-    uart_puts("  36N9 Genetics, LLC\n");
-    uart_puts("  Michael Laurence Curzi\n");
-    uart_puts("========================================\n\n");
-
-    /* Print all licenses */
-    uart_puts("[BOOT] Printing licenses...\n");
+    uart_puts("\nZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA) [ARM32]\n");
+    uart_puts("==================================================\n\n");
+    uart_puts("License: SEL-3.3 — Streisand Engine License\n");
+    uart_puts("Author: H.M. Michael-Laurence: Curzi (c)\n");
+    uart_puts("36N9 Genetics, LLC\n\n");
     license_print_all();
 
-    /* Initialize M5 kernel core */
-    uart_puts("[BOOT] Initializing M5 kernel core...\n");
-    m5_kernel_init();
+    /* M5 core */
+    boot_msg("[BOOT] M5 Kernel subsystems...");
+    phase_tick_t tick;
+    phase_coordinator_init(&tick, EXEC_DC);
+    rmag_init(256);
+    lpres_init();
+    iphase_init();
+    choice_handoff();
+    oseq_state_t oseq;
+    oseq_init(&oseq);
+    oseq_register_device(&oseq, "core");
+    boot_msg("  [OK] phase/rmag/lpres/iphase/choice/oseq");
 
-    /* Event-driven clock (external sync only) */
-    uart_puts("[BOOT] Initializing event-driven clock...\n");
-    event_clock_init(0, 1); /* CLOCK_EXTERNAL_SYNC */
+    for (int i = 0; i < 5; i++) phase_coordinator_tick(&tick);
 
-    /* M5 subsystems */
-    uart_puts("[BOOT] Initializing ISF...\n");
-    isf_init();
-    uart_puts("[BOOT] Initializing EDP risk...\n");
-    edp_risk_init();
-    uart_puts("[BOOT] Initializing predictive model...\n");
-    predictive_model_init();
-    uart_puts("[BOOT] Initializing situation model...\n");
-    situation_model_init();
+    /* Predictive + situation */
+    boot_msg("[BOOT] EDP risk + ISF + predictive model...");
+    predictive_config_t pred_cfg; predictive_config_init(&pred_cfg);
+    boot_msg("  [OK] EDP operators + Fibonacci algebra + ISF surplus");
 
-    /* Financial */
-    uart_puts("[BOOT] Initializing triple ledger...\n");
-    triple_ledger_init();
-    uart_puts("[BOOT] Initializing financial instruments...\n");
-    financial_instruments_init();
-    uart_puts("[BOOT] Initializing payment rails...\n");
-    payment_rails_init();
-    uart_puts("[BOOT] Initializing crypto bridge...\n");
-    crypto_bridge_init();
+    /* Nine-capital triple ledger */
+    boot_msg("[BOOT] Nine-capital triple ledger...");
+    static triple_ledger_t tl; triple_ledger_init(&tl);
+    triple_ledger_create_account(&tl, 1, CAP_FINANCIAL,  "Genesis:Financial");
+    triple_ledger_create_account(&tl, 1, CAP_HUMAN,      "Genesis:Human");
+    triple_ledger_create_account(&tl, 1, CAP_ECOLOGICAL, "Genesis:Ecological");
+    boot_msg("  [OK] 9 capital types");
 
-    /* Identity */
-    uart_puts("[BOOT] Initializing identity system...\n");
-    identity_system_init();
+    boot_msg("[BOOT] Financial instruments + payment rails + crypto bridge...");
+    static portfolio_t portfolio;   portfolio_init(&portfolio);
+    static rail_system_t rail_sys;  rail_system_init(&rail_sys);
+    static bridge_registry_t br;    bridge_registry_init(&br);
+    boot_msg("  [OK] instruments + 3 rails + bridge");
 
-    /* Quantum & hardware */
-    uart_puts("[BOOT] Initializing quantum device...\n");
-    quantum_device_init();
-    uart_puts("[BOOT] Initializing RTL device...\n");
-    rtl_device_init();
+    boot_msg("[BOOT] Identity + quantum + RTL + JDR PirateNet...");
+    static identity_registry_t id_reg; identity_registry_init(&id_reg);
+    static quantum_system_t qsys;      quantum_system_init(&qsys);
+    static rtl_registry_t rtl_reg;     rtl_registry_init(&rtl_reg);
+    static jdr_network_t jdr_net;      jdr_network_init(&jdr_net);
+    jdr_register_node(&jdr_net, 1);
+    jdr_transceiver_create(&jdr_net, 145000000, 12500,
+        JDR_BAND_VHF, JDR_MOD_FM, JDR_EXEC_AC, "JDR-ARM32-001");
+    boot_msg("  [OK] identity/quantum/rtl/jdr");
 
-    /* Network */
-    uart_puts("[BOOT] Initializing JDR PirateNet...\n");
-    jdr_piratenet_init();
+    boot_msg("[BOOT] Vino bank + Vena runtime + holographic data...");
+    static vino_ledger_t vino; vino_init(&vino, 1);
+    vino_create_account(&vino, "ZEDEC:node:arm32:0001", "Genesis Account");
+    vino_set_validator(&vino, true, 1000000);
+    static vena_runtime_t vena; vena_init(&vena, &vino);
+    vena_set_language(&vena, LANG_M5_AXIOMATIC);
+    static holo_ctx_t holo; holo_init(&holo);
+    boot_msg("  [OK] vino/vena/holo");
 
-    /* EPU */
-    uart_puts("[BOOT] Initializing EPU...\n");
-    epu_device_init();
+    boot_msg("\n[BOOT_OK] ZEDEC pqOS [ARM32] — core online. Entering event cycle.\n");
 
-    /* Synthesis engine */
-    uart_puts("[BOOT] Initializing synthesis engine...\n");
-    synthesis_engine_init(0, 0, "ZEDEC-Synth");
-
-    /* Drivers */
-    uart_puts("[BOOT] Initializing audio driver...\n");
-    audio_init(0, 1, "ARM32-Audio"); /* HDA */
-    uart_puts("[BOOT] Initializing video driver...\n");
-    video_init(0, "ARM32-Video");
-    uart_puts("[BOOT] Initializing Wi-Fi driver...\n");
-    wifi_init(0, "ARM32-WiFi");
-    uart_puts("[BOOT] Initializing Bluetooth driver...\n");
-    bt_init(0, "ARM32-Bluetooth");
-
-    /* Desktop */
-    uart_puts("[BOOT] Initializing desktop environment...\n");
-    desktop_init(0, 1024, 768, 32);
-
-    /* Browser */
-    uart_puts("[BOOT] Initializing web browser...\n");
-    browser_init(0, "ZEDEC-Browser");
-
-    uart_puts("\n[BOOT] ZEDEC XERO pqOS v0.0.0 ARM32 boot complete!\n");
-    uart_puts("[BOOT] All subsystems initialized.\n");
-    uart_puts("[BOOT] Event-driven clock active (external sync mode).\n\n");
-
-    /* Event loop */
-    uart_puts("[KERNEL] Entering event loop...\n");
-    uint32_t event_count = 0;
+    uint32_t cycle = 0;
     while (1) {
         arm32_disable_irq();
-        /* Wait for events (WFI = Wait For Interrupt) */
         __asm__ volatile ("wfi");
         arm32_enable_irq();
-        event_count++;
-        if (event_count % 1000 == 0) {
-            uart_puts("[KERNEL] Event count: ");
-            uart_dec(event_count);
-            uart_puts("\n");
-        }
+        phase_coordinator_tick(&tick);
+        if (cycle % 1000 == 0) { uart_puts("tick: omega="); uart_dec(tick.omega); uart_puts("\n"); }
+        cycle++;
     }
 }

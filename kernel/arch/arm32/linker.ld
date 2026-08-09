@@ -7,9 +7,13 @@
  */
 ENTRY(_start)
 
+/* 256M holds the full subsystem set's static data (the emu/MegaROM/game_universe
+ * tables are large); the previous 128M overflowed .bss. Boot on the server with
+ * qemu-system-arm -m 512M. NOTE: ORIGIN here is the versatilepb base; a QEMU
+ * `virt` boot needs the base moved to 0x40000000 (arch bring-up follow-up). */
 MEMORY
 {
-    RAM (rwx) : ORIGIN = 0x00010000, LENGTH = 128M
+    RAM (rwx) : ORIGIN = 0x00010000, LENGTH = 256M
 }
 
 SECTIONS
