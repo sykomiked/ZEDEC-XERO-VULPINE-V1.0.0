@@ -24,11 +24,16 @@ hardening P0s for a *defensible* MVP, and (d) one business/legal item.
 
 | Arch | Server status | Boot remaining |
 |------|-------|---------------|
-| **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** | — (flagship, done) |
-| **x86_64** | ✅ links (kernel-only) via native gcc | **ring-3 parity** (PML4 + syscall/sysret + ring-3, mirroring `el0_userspace.c`) — biggest piece |
+| **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** + EL0 | — (flagship, done) |
+| **x86_64** | ✅ **BOOTS (`BOOT_OK`) + RING-3** | full parity: wire the subsystem set (currently kernel-only), enlarge paging past 2 MB |
 | **riscv32** | ✅ **LINKS** (976 KB) | OpenSBI-rv32 (build from source) or M-mode reset-vector debug |
 | **riscv64** | ✅ **LINKS** (934 KB) | M-mode boot: boot.s is M-mode (mhartid/mtvec) but load addr was SBI's; relink 0x80000000 + `-bios none` + UART debug |
 | **arm32** | ✅ **LINKS** (983 KB) | move base versatilepb→virt (0x40000000) or run `-M versatilepb` |
+
+**2 of 5 arches fully boot (arm64, x86_64), both with a user/kernel privilege split.**
+x86_64 ring-3 done: GDT/TSS/IDT + int 0x80 syscall + U/S user pages + IRETQ; a ring-3
+program runs, syscalls, and returns. (Also fixed: SSE was never enabled → x86_64 had
+been triple-faulting at gcc's first `movdqa`, so it never reached BOOT_OK before.)
 
 > **Progress 2026-08-08 (commit d179f5b):** arm32/riscv32 brought to the full portable
 > subsystem set (142 of 144 missing modules were arch-neutral). One real 32-bit bug fixed
