@@ -20,13 +20,15 @@ hardening P0s for a *defensible* MVP, and (d) one business/legal item.
 
 ## 1. Cross-compile the other architectures — THE LINUX SERVER JOB
 
-| Arch | Server status (2026-08-08, real toolchains) | Remaining |
+**ALL 5 TARGETS LINK/BUILD on the server (2026-08-08, real toolchains).** Full-parity link achieved across every architecture; per-arch *boot* bring-up is the next layer.
+
+| Arch | Server status | Boot remaining |
 |------|-------|---------------|
-| **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** on the server | done (flagship) |
-| **riscv32** | ✅ **LINKS** (976 KB, full subsystem set) | boot needs OpenSBI-rv32 firmware (build from source) or M-mode relink |
-| **arm32** | compiles all 195 files; **20 undefined** left | modernise `kernel_main_arm32.c` (stale `*_init` API); then links |
-| **x86_64** | ✅ **links (kernel-only)** via native gcc | **ring-3 parity** (PML4 + syscall/sysret + ring-3, mirroring `el0_userspace.c`) — biggest piece |
-| **riscv (64)** | still on the OLD partial source list | apply the parity treatment; boots via the present OpenSBI-riscv64 |
+| **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** | — (flagship, done) |
+| **x86_64** | ✅ links (kernel-only) via native gcc | **ring-3 parity** (PML4 + syscall/sysret + ring-3, mirroring `el0_userspace.c`) — biggest piece |
+| **riscv32** | ✅ **LINKS** (976 KB) | OpenSBI-rv32 (build from source) or M-mode reset-vector debug |
+| **riscv64** | ✅ **LINKS** (934 KB) | M-mode boot: boot.s is M-mode (mhartid/mtvec) but load addr was SBI's; relink 0x80000000 + `-bios none` + UART debug |
+| **arm32** | ✅ **LINKS** (983 KB) | move base versatilepb→virt (0x40000000) or run `-M versatilepb` |
 
 > **Progress 2026-08-08 (commit d179f5b):** arm32/riscv32 brought to the full portable
 > subsystem set (142 of 144 missing modules were arch-neutral). One real 32-bit bug fixed
