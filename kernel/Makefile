@@ -890,6 +890,12 @@ verify-all: test
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \
+	echo "=== Tri-Space media codec: lossy S+ plus S- restores the original EXACTLY ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/codec src/codec/test_zmedia.c \
+		src/codec/zmedia.c src/invproof/invproof.c src/robin_debanks/sha256.c \
+		-o /tmp/test_zm && /tmp/test_zm > /tmp/test_zm.log 2>&1 && \
+		echo "[PASS] test_zmedia ($$(grep -c '\[PASS\]' /tmp/test_zm.log) checks)" || \
+		{ cat /tmp/test_zm.log; echo "[FAIL] test_zmedia"; exit 1; }; \
 	echo "=== MegaROM: observed dynamics -> Sutra schemas (no title content carried) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/megarom src/megarom/test_mrschema.c \
 		src/megarom/mrschema.c -o /tmp/test_mrs && \

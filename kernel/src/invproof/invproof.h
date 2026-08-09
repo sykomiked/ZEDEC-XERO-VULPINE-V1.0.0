@@ -75,7 +75,11 @@
 #define ZXI_MAGIC     0x5A584931u   /* 'ZXI1' */
 #define ZXI_VERSION   1u
 #define ZXI_DIGEST    32u
-#define ZXI_MAX_RUNS  1024u
+/* A witness costs ZXI_RUN_HDR per run plus the differing bytes, so it is cheap
+ * for CLUSTERED differences and expensive for SCATTERED ones. Media residuals
+ * are the scattered case at high quality (isolated +/-1 noise across the whole
+ * frame), which is why this bound is generous rather than tight. */
+#define ZXI_MAX_RUNS  8192u
 #define ZXI_HDR_BYTES 88u   /* magic4 ver2 kind2 state_len4 runs4 d_before32
                              * d_after32 seal4 = 88 */
 #define ZXI_RUN_HDR   6u    /* offset4 + len2 */
