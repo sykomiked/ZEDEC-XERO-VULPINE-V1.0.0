@@ -2,6 +2,7 @@
  * Author: H.M. Michael-Laurence: Curzi (c)
  */
 #include "vena.h"
+#include "../zab/zab_exec.h"
 #include "../choice/choice_core.h"
 #include "../../include/m5_types.h"
 
@@ -50,17 +51,69 @@ int32_t vena_register_contract(vena_runtime_t *vr, const char *name,
     return (int32_t)vr->num_contracts++;
 }
 
+/* ---- the ZAB host: what a contract may actually touch ----
+ * A contract's whole writable surface is the vino ledger it was deployed
+ * against. Handlers are provided ONLY for the effects that make sense here;
+ * everything else is left NULL, so a contract carrying SEND or SPAWN is stopped
+ * by the VM with NO_HOST rather than by a check someone had to remember. */
+typedef struct { vena_runtime_t *vr; vena_contract_t *c; } vena_hostctx_t;
+
+static int vh_read(void *cx, uint8_t a, uint16_t b) {
+    vena_hostctx_t *h = cx; (void)a; (void)b;
+    return (h && h->vr && h->vr->ledger) ? 0 : -1;
+}
+static int vh_post(void *cx, uint8_t a, uint16_t b) {
+    vena_hostctx_t *h = cx; (void)a; (void)b;
+    if (!h || !h->vr || !h->vr->ledger) return -1;
+    h->vr->ledger->num_audit++;   /* the contract effect: an audit entry */
+    return 0;
+}
+static int vh_observe(void *cx, uint8_t a, uint16_t b) { (void)cx;(void)a;(void)b; return 0; }
+
 int32_t vena_execute_contract(vena_runtime_t *vr, uint32_t id,
                                const char *args, char *result, uint32_t max_result) {
-    if (id >= vr->num_contracts || !vr->contracts[id].active) return -1;
+    if (!vr || id >= vr->num_contracts || !vr->contracts[id].active) return -1;
     vena_contract_t *c = &vr->contracts[id];
-    c->call_count++;
-    c->gas_used += 100;
-    vr->contracts_executed++;
-    vr->total_gas += 100;
-    if (result && max_result > 0) result[0] = 0;
     (void)args;
-    return 0;
+    if (result && max_result > 0) result[0] = 0;
+
+    /* If the contract carries a ZAB program, RUN IT -- capabilities derived
+     * from its own instructions and enforced per instruction by the VM. A
+     * contract can no longer claim an authority it does not contain, and it
+     * cannot exceed what its deployment granted. */
+    const uint8_t *code = (const uint8_t *)c->code;
+    uint32_t derived = 0;
+    if (zab_derive_capabilities(code, VENA_CODE_LEN, &derived) == ZAB_OK) {
+        vena_hostctx_t hc = { vr, c };
+        zab_host_t host;
+        for (unsigned i = 0; i < sizeof(host); i++) ((uint8_t *)&host)[i] = 0;
+        host.read_state = vh_read;
+        host.ledger_post = vh_post;
+        host.observe = vh_observe;
+        host.ctx = &hc;
+
+        /* The grant is what this runtime permits, intersected by the VM with
+         * what the program contains. Ledger + read + observe, nothing else. */
+        uint32_t granted = ZAB_CAP_LEDGER | ZAB_CAP_READ_STATE | ZAB_CAP_OBSERVE;
+        zab_exec_t ex;
+        zab_exec_result_t r = zab_execute(code, VENA_CODE_LEN, granted, &host, &ex);
+
+        c->call_count++;
+        c->gas_used += 10u + ex.effects * 100u;   /* gas tracks REAL effects */
+        vr->contracts_executed++;
+        vr->total_gas += 10u + ex.effects * 100u;
+        if (r != ZABX_OK) return -2;              /* denied / failed: report it */
+        return 0;
+    }
+
+    /* Not ZAB bytecode. Accounted, but NOT pretended to have executed -- a
+     * contract in a language with no runtime does nothing, and saying so is
+     * better than returning success. */
+    c->call_count++;
+    c->gas_used += 10;
+    vr->contracts_executed++;
+    vr->total_gas += 10;
+    return -3;
 }
 
 int32_t vena_load_app(vena_runtime_t *vr, const char *name, app_type_t type,

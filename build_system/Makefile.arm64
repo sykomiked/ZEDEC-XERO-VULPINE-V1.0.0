@@ -78,7 +78,8 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/hypercube \
          -Ikernel/src/yantra \
          -Ikernel/src/dual_space \
-         -Ikernel/src/zxvfs \
+         -Ikernel/src/zxvfs -Ikernel/src/zab -Ikernel/src/invproof \
+         -Ikernel/src/codec -Ikernel/src/bombsquad -Ikernel/src/megarom -Ikernel/src/display \
          -Ikernel/src/loader \
          -Ikernel/src/appkit \
          -Ikernel/src/shimmer \
@@ -237,6 +238,13 @@ KERNEL_SRCS = \
     kernel/src/prism_break/prism_break.c \
     kernel/src/video/ramfb.c \
     kernel/src/display/display.c \
+    kernel/src/zab/zab.c \
+    kernel/src/zab/zab_exec.c \
+    kernel/src/invproof/invproof.c \
+    kernel/src/codec/zmedia.c \
+    kernel/src/bombsquad/bombsquad.c \
+    kernel/src/megarom/mrschema.c \
+    kernel/src/zxvfs/zxvfs_tri.c \
     kernel/src/vbe/vbe.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \

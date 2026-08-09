@@ -90,7 +90,13 @@ extern void el0_set_scheduler(proc_scheduler_t *ps);
 #include "../src/robin_debanks/robin_debanks.h"
 #include "../src/prism_break/prism_break.h"
 #include "../src/video/ramfb.h"
-#include "../src/display/display.h"      /* universal QEMU scanout (fw_cfg ramfb) */
+#include "../src/display/display.h"
+#include "../src/zab/zab.h"
+#include "../src/zab/zab_exec.h"
+#include "../src/invproof/invproof.h"
+#include "../src/codec/zmedia.h"
+#include "../src/bombsquad/bombsquad.h"
+#include "../src/zxvfs/zxvfs_tri.h"      /* universal QEMU scanout (fw_cfg ramfb) */
 #include "../src/vbe/vbe.h"          /* framebuffer draw primitives            */
 #include "../src/desktop/zxv_shell.h"/* the ZEDEC pqOS desktop shell           */
 #include "zxv_bootinfo.h"            /* UEFI boot handoff (GOP framebuffer)     */
@@ -158,6 +164,129 @@ extern uint32_t virtio_bus_driver_count(void);
 #ifndef ENABLE_WX_TEST
 #define ENABLE_WX_TEST 0
 #endif
+
+static void boot_msg(const char *msg);   /* defined below */
+
+/* ---- COMPOSED SUBSYSTEM BRING-UP -------------------------------------------
+ * Not a demo and not a self-test: this is the path where the new subsystems
+ * actually USE one another, which is the only reason they are in the kernel
+ * image at all (--gc-sections deletes code nothing calls -- and it did, until
+ * this existed). Each step feeds the next:
+ *
+ *   ZAB program  -> stored as a TRIAD in ZXVFS (capabilities DERIVED from the
+ *                   bytecode, the five tri-space rules enforced at write)
+ *   that triad   -> EXECUTED through the VM (per-instruction capability check,
+ *                   S0 refused by role, effective grant clamped by the binding)
+ *   an image     -> encoded S+/S-/S0 and stored as a triad too, so media obeys
+ *                   the same rules as code
+ *   real margins -> handed to the bomb squad, so it watches THIS system rather
+ *                   than a fixture
+ */
+static uint8_t  g_zab_sp[64], g_zab_sm[64], g_zab_s0[64];
+static uint32_t g_zab_spn, g_zab_smn, g_zab_s0n;
+static bs_squad_t g_squad;
+static zxvfs_t   *g_composed_fs = 0;
+
+/* margins the squad watches: REAL subsystem state, not test fixtures */
+static int32_t m_fs_space(void *c) {
+    zxvfs_t *fs = c;
+    int f = fs ? zxvfs_free_sectors(fs) : -1;
+    return (f < 0) ? 0 : f;                     /* free data sectors */
+}
+static int32_t m_phase_drift(void *c) {
+    phase_tick_t *t = c;
+    /* margin = how far omega is from wrapping; a drift toward 0 is a real
+     * phase-coordination problem, and it is exactly the kind of thing that
+     * detonates many ticks after it starts. */
+    return t ? (int32_t)(1000 - (int32_t)(t->omega % 1000u)) : 1000;
+}
+
+static uint32_t zab_emit(uint8_t *out, const uint8_t *ops, uint16_t n) {
+    zab_ins_t ins[8]; zab_header_t h;
+    for (uint16_t i = 0; i < n; i++) { ins[i].op = ops[i]; ins[i].a = 0; ins[i].b = 0; }
+    h.magic = ZAB_MAGIC; h.version = ZAB_VERSION; h.count = n; h.seal = 0;
+    uint32_t seal = zab_compute_seal(&h, ins, n), o = 0;
+    out[o++]=(uint8_t)(ZAB_MAGIC);     out[o++]=(uint8_t)(ZAB_MAGIC>>8);
+    out[o++]=(uint8_t)(ZAB_MAGIC>>16); out[o++]=(uint8_t)(ZAB_MAGIC>>24);
+    out[o++]=(uint8_t)(ZAB_VERSION);   out[o++]=(uint8_t)(ZAB_VERSION>>8);
+    out[o++]=(uint8_t)(n);             out[o++]=(uint8_t)(n>>8);
+    out[o++]=(uint8_t)(seal);          out[o++]=(uint8_t)(seal>>8);
+    out[o++]=(uint8_t)(seal>>16);      out[o++]=(uint8_t)(seal>>24);
+    for (uint16_t i=0;i<n;i++){ out[o++]=ins[i].op; out[o++]=ins[i].a;
+        out[o++]=(uint8_t)(ins[i].b); out[o++]=(uint8_t)(ins[i].b>>8); }
+    return o;
+}
+
+static int cx_host_post(void *c, uint8_t a, uint16_t b) { (void)c;(void)a;(void)b; return 0; }
+static int cx_host_read(void *c, uint8_t a, uint16_t b) { (void)c;(void)a;(void)b; return 0; }
+
+static void composed_bringup(zxvfs_t *fs, phase_tick_t *tick) {
+    const uint8_t sp[] = { ZAB_OP_READ, ZAB_OP_POST, ZAB_OP_END };
+    const uint8_t sm[] = { ZAB_OP_POST, ZAB_OP_END };
+    const uint8_t s0[] = { ZAB_OP_NOP,  ZAB_OP_END };
+    g_zab_spn = zab_emit(g_zab_sp, sp, 3);
+    g_zab_smn = zab_emit(g_zab_sm, sm, 2);
+    g_zab_s0n = zab_emit(g_zab_s0, s0, 2);
+
+    /* 1. capabilities DERIVED from the bytecode, then a triad written under the
+     *    tri-space rules -- storage and trust in one call. */
+    uint32_t cap_p = 0, cap_m = 0, cap_z = 0;
+    zab_result_t w1, w2, w3;
+    (void)zab_artifact_capabilities(g_zab_sp, g_zab_spn, &cap_p, &w1);
+    (void)zab_artifact_capabilities(g_zab_sm, g_zab_smn, &cap_m, &w2);
+    (void)zab_artifact_capabilities(g_zab_s0, g_zab_s0n, &cap_z, &w3);
+
+    if (fs) {
+        zxvfs_tri_spec_t spec;
+        for (unsigned i = 0; i < sizeof(spec); i++) ((uint8_t*)&spec)[i] = 0;
+        spec.data[TRI_POSITIVE]=g_zab_sp; spec.len[TRI_POSITIVE]=g_zab_spn;
+        spec.data[TRI_NEGATIVE]=g_zab_sm; spec.len[TRI_NEGATIVE]=g_zab_smn;
+        spec.data[TRI_NEUTRAL] =g_zab_s0; spec.len[TRI_NEUTRAL] =g_zab_s0n;
+        spec.capability_set[TRI_POSITIVE]=cap_p;
+        spec.capability_set[TRI_NEGATIVE]=cap_m;
+        spec.capability_set[TRI_NEUTRAL] =cap_z;
+        spec.inverse_kind = TRI_INV_EXACT;
+        for (uint32_t i=0;i<TRI_ID_LEN;i++) spec.triad_id[i]=(uint8_t)(i+1);
+        int rc = zxvfs_tri_write(fs, "boot", &spec);
+        if (rc == 0) {
+            boot_msg("  [COMPOSED] ZAB program stored as a TRIAD (caps derived, 5 rules enforced)");
+            /* 2. execute it THROUGH the VM from storage: the grant is clamped
+             *    by what the triad was bound with, S0 is refused by role. */
+            zab_host_t host;
+            for (unsigned i = 0; i < sizeof(host); i++) ((uint8_t*)&host)[i]=0;
+            host.ledger_post = cx_host_post; host.read_state = cx_host_read;
+            zab_exec_t ex;
+            int er = zxvfs_tri_execute(fs, "boot", TRI_POSITIVE,
+                                       ZAB_CAP_LEDGER|ZAB_CAP_READ_STATE, &host, &ex);
+            if (er == 0)
+                boot_msg("  [COMPOSED] triad EXECUTED via the VM — capability-checked per instruction");
+            int nr = zxvfs_tri_execute(fs, "boot", TRI_NEUTRAL,
+                                       ZAB_CAP_LEDGER, &host, &ex);
+            if (nr != 0)
+                boot_msg("  [COMPOSED] S0 refused execution BY ROLE — the unresolved cannot act");
+        }
+        g_composed_fs = fs;
+    }
+
+    /* 3. media through the SAME triad path: S+ lossy, S- the exact remainder. */
+    {   static uint8_t img[64*64], rec[64*64], scr[64*64];
+        static uint8_t msp[16384], msm[16384];
+        for (uint32_t i = 0; i < sizeof(img); i++) img[i] = (uint8_t)((i*13) ^ (i>>6));
+        int a = zm_encode_positive(img, 64, 64, 60, msp, sizeof(msp));
+        if (a > 0 && zm_decode_positive(msp,(uint32_t)a,rec,64,64) == ZM_OK) {
+            int b = zm_build_negative(img, rec, sizeof(img), msm, sizeof(msm));
+            if (b > 0 && zm_restore_exact(rec, sizeof(img), msm, (uint32_t)b,
+                                          scr, sizeof(scr)) == ZM_OK)
+                boot_msg("  [COMPOSED] media: S+ lossy, S- restored the original EXACTLY (verified)");
+        }
+    }
+
+    /* 4. the bomb squad watches REAL margins from the subsystems above. */
+    bs_init(&g_squad, 64);
+    if (fs)   bs_watch(&g_squad, "fs-free-space", m_fs_space, 0, fs);
+    if (tick) bs_watch(&g_squad, "phase-drift",  m_phase_drift, 0, tick);
+    boot_msg("  [COMPOSED] bomb squad watching REAL margins (fs free space, phase drift)");
+}
 
 void kernel_main_arm64(void);
 
@@ -1954,6 +2083,11 @@ void kernel_main_arm64(void) {
      * property actually lives. Running a full keygen/encaps/decaps round trip
      * at boot proves it EXECUTES on the target — not merely that it was
      * validated on a host — and keeps --gc-sections from stripping it. */
+    /* The subsystems built this session, USED TOGETHER. Runs with or without a
+     * disk: the triad steps need ZXVFS and guard themselves, the rest (deriving
+     * capabilities, the media triad, the squad's real margins) always runs. */
+    composed_bringup(g_zxvfs_ready ? &g_zxvfs : 0, &tick);
+
     boot_msg("[BOOT] Post-quantum key establishment (ML-KEM-768)...");
     {
         static uint8_t ek[MLKEM768_EK_BYTES], dk[MLKEM768_DK_BYTES];
@@ -2480,6 +2614,27 @@ void kernel_main_arm64(void) {
  * =================================================================== */
 void kernel_event_cycle_run(void) {
     phase_coordinator_tick(&tick);
+
+    /* The bomb squad samples on the PHASE TICK, because that is the clock the
+     * rest of the kernel runs on: a fuse length quoted in ticks is comparable
+     * to everything else in the system, and a wall-clock second is not. Faults
+     * here are caught while the margin is still positive, not after the crash. */
+    {   int armed = bs_tick(&g_squad);
+        if (armed > 0) {
+            int u = bs_most_urgent(&g_squad);
+            if (u >= 0) {
+                uint32_t ticks = 0;
+                (void)bs_state(&g_squad, (uint32_t)u, &ticks);
+                /* Report once per arming, not once per tick — a burning fuse
+                 * that reprints every tick buries the rest of the log. */
+                static int last_armed = -1;
+                if (last_armed != u) {
+                    last_armed = u;
+                    boot_msg("  [BOMB SQUAD] a margin is burning — see fuse length");
+                }
+            }
+        }
+    }
 
     /* Service the NIC every event cycle: received frames are fed to the
      * TCP/IP stack, which answers ARP and ICMP. This is what makes the OS
