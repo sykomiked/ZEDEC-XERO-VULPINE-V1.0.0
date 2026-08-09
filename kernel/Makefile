@@ -869,6 +869,12 @@ verify-all: test
 		-o /tmp/test_zab && /tmp/test_zab > /tmp/test_zab.log 2>&1 && \
 		echo "[PASS] test_zab ($$(grep -c '\[PASS\]' /tmp/test_zab.log) checks)" || \
 		{ cat /tmp/test_zab.log; echo "[FAIL] test_zab"; exit 1; }; \
+	echo "=== ZAB VM: an effect happens only if granted AND the host provides it ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/zab src/zab/test_zab_exec.c \
+		src/zab/zab_exec.c src/zab/zab.c -o /tmp/test_zab_exec && \
+		/tmp/test_zab_exec > /tmp/test_zab_exec.log 2>&1 && \
+		echo "[PASS] test_zab_exec ($$(grep -c '\[PASS\]' /tmp/test_zab_exec.log) checks)" || \
+		{ cat /tmp/test_zab_exec.log; echo "[FAIL] test_zab_exec"; exit 1; }; \
 	echo "=== ZXI inverse witness: a proven inverse must APPLY, not merely claim ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/invproof src/invproof/test_invproof.c \
 		src/invproof/invproof.c src/robin_debanks/sha256.c -o /tmp/test_invproof && \
@@ -878,7 +884,7 @@ verify-all: test
 	echo "=== Tri-Space native storage: triad atomicity under exhaustive crash injection ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/zxvfs \
 		src/zxvfs/test_zxvfs_tri.c src/zxvfs/zxvfs_tri.c src/zxvfs/zxvfs.c \
-		src/trispace/trispace.c src/robin_debanks/sha256.c src/zab/zab.c src/invproof/invproof.c -o /tmp/test_zxvfs_tri && \
+		src/trispace/trispace.c src/robin_debanks/sha256.c src/zab/zab.c src/zab/zab_exec.c src/invproof/invproof.c -o /tmp/test_zxvfs_tri && \
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \

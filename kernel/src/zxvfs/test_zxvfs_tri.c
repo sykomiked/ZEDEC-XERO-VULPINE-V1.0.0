@@ -24,6 +24,7 @@
 #include "zxvfs_tri.h"
 #include "../zab/zab.h"
 #include "../invproof/invproof.h"
+#include "../zab/zab_exec.h"
 
 #define DISK_SECTORS ZXVFS_TOTAL_SECTORS
 static uint8_t g_disk[DISK_SECTORS][BLOCKDEV_SECTOR_SIZE];
@@ -53,6 +54,23 @@ static void dev_init(block_device_t *dev) {
     dev->total_sectors = DISK_SECTORS;
     dev->read_sector = mem_read;
     dev->write_sector = mem_write;
+}
+
+/* ---- a host for the execution tests ---- */
+static int HX_read, HX_post, HX_write, HX_send, HX_fail_post;
+static int hx_read (void*c,uint8_t a,uint16_t b){(void)c;(void)a;(void)b;HX_read++;return 0;}
+/* HX_fail_post is a COUNTDOWN of posts to reject, so a transient failure (the
+ * realistic rollback case) can be told apart from a ledger that is simply down
+ * -- in which case the undo fails too, and that must be reported, not hidden. */
+static int hx_post (void*c,uint8_t a,uint16_t b){(void)c;(void)a;(void)b;HX_post++;
+                                                 if (HX_fail_post > 0) { HX_fail_post--; return -1; }
+                                                 return 0;}
+static int hx_write(void*c,uint8_t a,uint16_t b){(void)c;(void)a;(void)b;HX_write++;return 0;}
+static int hx_send (void*c,uint8_t a,uint16_t b){(void)c;(void)a;(void)b;HX_send++;return 0;}
+static zab_host_t exec_host(void){
+    zab_host_t h; memset(&h,0,sizeof(h));
+    h.read_state=hx_read; h.ledger_post=hx_post; h.write_state=hx_write; h.net_send=hx_send;
+    return h;
 }
 
 static int failures = 0;
@@ -258,6 +276,72 @@ int main(void) {
           "quarantine survives reboot (verdict is durable)");
     CHECK(zxvfs_tri_read_role(&fs2, "ledger", TRI_POSITIVE, buf, sizeof(buf)) < 0,
           "quarantined triad yields NO payload (S+ is gated too)");
+
+    /* ---------------- execution ---------------- */
+    printf("execution of a stored triad:\n");
+    {   zab_host_t h = exec_host(); zab_exec_t ex;
+        CHECK(fresh_fs(&fs, &dev) == 0, "  (reset)");
+        spec_default(&spec);
+        CHECK(zxvfs_tri_write(&fs, "ledger", &spec) == 0, "  triad stored");
+
+        HX_read=HX_post=HX_write=HX_send=HX_fail_post=0;
+        int r = zxvfs_tri_execute(&fs, "ledger", TRI_POSITIVE,
+                                  ZAB_CAP_ALL, &h, &ex);
+        CHECK(r == (int)ZABX_OK && HX_read==1 && HX_post==1 && HX_write==1,
+              "S+ executes and its effects fire");
+
+        /* S0 is not executable, ever */
+        HX_read=HX_post=HX_write=0;
+        int r0 = zxvfs_tri_execute(&fs, "ledger", TRI_NEUTRAL, ZAB_CAP_ALL, &h, &ex);
+        CHECK(ZXVFS_TRI_IS_RULE_ERR(r0) &&
+              ZXVFS_TRI_REASON(r0) == TRI_Q_NEUTRAL_HAS_EFFECT,
+              "S0 is refused execution BY ROLE (never acts on the world)");
+
+        /* the caller cannot exceed what the triad was bound with */
+        HX_read=HX_post=HX_write=HX_send=0;
+        int r2 = zxvfs_tri_execute(&fs, "ledger", TRI_NEGATIVE, ZAB_CAP_ALL, &h, &ex);
+        CHECK(r2 == (int)ZABX_OK && HX_post == 1 && HX_send == 0,
+              "S- runs only within the capabilities it was bound with");
+
+        /* a QUARANTINED triad is not executable */
+        static uint8_t evil2[] = "tampered";
+        CHECK(zxvfs_write(&fs, "ledger.cedez", evil2, (uint32_t)sizeof(evil2)) == 0,
+              "  S- tampered");
+        HX_read=HX_post=HX_write=0;
+        int r3 = zxvfs_tri_execute(&fs, "ledger", TRI_POSITIVE, ZAB_CAP_ALL, &h, &ex);
+        CHECK(r3 != (int)ZABX_OK && HX_read == 0,
+              "a tampered/quarantined triad cannot be executed at all");
+    }
+
+    printf("bound rollback:\n");
+    {   zab_host_t h = exec_host(); zab_exec_t fwd, und;
+        CHECK(fresh_fs(&fs, &dev) == 0, "  (reset)");
+        spec_default(&spec);
+        CHECK(zxvfs_tri_write(&fs, "ledger", &spec) == 0, "  triad stored");
+
+        /* S+ succeeds -> no undo runs */
+        HX_read=HX_post=HX_write=HX_send=HX_fail_post=0;
+        int ok = zxvfs_tri_execute_with_undo(&fs, "ledger", ZAB_CAP_ALL, &h, &fwd, &und);
+        CHECK(ok == 0 && HX_post == 1, "S+ succeeding runs no undo");
+
+        /* S+ fails transiently -> S- runs automatically and completes */
+        HX_read=HX_post=HX_write=HX_send=0; HX_fail_post=1;
+        int rb = zxvfs_tri_execute_with_undo(&fs, "ledger", ZAB_CAP_ALL, &h, &fwd, &und);
+        CHECK(rb == ZXVFS_TRI_ROLLED_BACK,
+              "S+ failing triggers the BOUND undo automatically");
+        CHECK(fwd.result == ZABX_ERR_HOST_FAILED && fwd.effects == 1,
+              "the forward log reports exactly what ran before the failure");
+        CHECK(und.result == ZABX_OK && und.effects == 1,
+              "the undo actually ran to completion");
+
+        /* the honest bad case: the ledger is down, so the UNDO fails too. That
+         * must be reported distinctly -- a rollback that did not happen must
+         * never be reported as a rollback. */
+        HX_read=HX_post=HX_write=HX_send=0; HX_fail_post=99;
+        int rb2 = zxvfs_tri_execute_with_undo(&fs, "ledger", ZAB_CAP_ALL, &h, &fwd, &und);
+        CHECK(rb2 != ZXVFS_TRI_ROLLED_BACK && rb2 < 0,
+              "an undo that ALSO fails is reported, not passed off as rolled back");
+    }
 
     /* ---------------- exhaustive crash injection ---------------- */
     printf("exhaustive crash injection (the core invariant):\n");

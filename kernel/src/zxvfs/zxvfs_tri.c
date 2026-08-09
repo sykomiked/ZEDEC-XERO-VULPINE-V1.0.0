@@ -13,6 +13,7 @@
 #include "../robin_debanks/sha256.h"
 #include "../zab/zab.h"
 #include "../invproof/invproof.h"
+#include "../zab/zab_exec.h"
 
 /* ---- local freestanding helpers (mirroring zxvfs.c's house style) ---- */
 static void tmemset(void *d, int c, unsigned long n) {
@@ -292,4 +293,53 @@ int zxvfs_tri_unlink(zxvfs_t *fs, const char *name) {
         (void)zxvfs_unlink(fs, n);          /* best-effort; may already be gone */
     }
     return 0;
+}
+
+/* -------------------------------------------------------------- execute --- */
+int zxvfs_tri_execute(zxvfs_t *fs, const char *name, tri_role_t role,
+                      uint32_t granted, const zab_host_t *host,
+                      zab_exec_t *out) {
+    static uint8_t code[ZXVFS_FILE_MAX_BYTES];
+    zxvfs_tri_desc_t d;
+
+    if (!fs || !name || !host) return -1;
+
+    /* S0 can never act. This is checked by ROLE, not by hoping its capability
+     * set is empty — requirement 3 is a statement about what S0 IS, and should
+     * not depend on a field being correctly populated. */
+    if (role == TRI_NEUTRAL) return rule_err(TRI_Q_NEUTRAL_HAS_EFFECT);
+    if ((int)role < 0 || (int)role > 2) return -1;
+
+    /* Full verification gate: a quarantined or tampered triad is not runnable. */
+    int rc = zxvfs_tri_open(fs, name, &d);
+    if (rc != 0) return rc;
+
+    int n = zxvfs_tri_read_role(fs, name, role, code, (uint32_t)sizeof(code));
+    if (n <= 0) return -2;
+
+    /* The caller cannot grant an artifact more than it was bound with. */
+    uint32_t effective = granted & d.capability_set[(int)role];
+    return (int)zab_execute(code, (uint32_t)n, effective, host, out);
+}
+
+int zxvfs_tri_execute_with_undo(zxvfs_t *fs, const char *name,
+                                uint32_t granted, const zab_host_t *host,
+                                zab_exec_t *fwd, zab_exec_t *undo) {
+    zxvfs_tri_desc_t d;
+    if (!fs || !name || !host) return -1;
+    int rc = zxvfs_tri_open(fs, name, &d);
+    if (rc != 0) return rc;
+
+    int fr = zxvfs_tri_execute(fs, name, TRI_POSITIVE, granted, host, fwd);
+    if (fr == (int)ZABX_OK) return 0;              /* nothing to undo */
+
+    /* Some inverse kinds have no undo to run; pretending otherwise would be
+     * worse than reporting the failure. */
+    tri_inverse_kind_t k = (tri_inverse_kind_t)d.inverse_kind;
+    if (k == TRI_INV_OBSERVATIONAL || k == TRI_INV_CONSTRAINING)
+        return -3;
+
+    int ur = zxvfs_tri_execute(fs, name, TRI_NEGATIVE, granted, host, undo);
+    if (ur != (int)ZABX_OK) return -4;             /* the undo itself failed */
+    return ZXVFS_TRI_ROLLED_BACK;
 }

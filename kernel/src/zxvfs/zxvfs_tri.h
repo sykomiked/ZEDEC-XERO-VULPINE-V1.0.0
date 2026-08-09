@@ -82,6 +82,7 @@
 #include <stdbool.h>
 #include "zxvfs.h"
 #include "../trispace/trispace.h"
+#include "../zab/zab_exec.h"
 
 #define ZXVFS_TRI_MAGIC    0x5A545249u   /* 'ZTRI' */
 #define ZXVFS_TRI_VERSION  1u
@@ -172,5 +173,40 @@ zxvfs_tri_state_t zxvfs_tri_state(zxvfs_t *fs, const char *name);
  * role payloads. A crash mid-unlink leaves orphan role files, never a
  * descriptor pointing at bytes that are gone. Returns 0 on success. */
 int zxvfs_tri_unlink(zxvfs_t *fs, const char *name);
+
+/* ---- execution -----------------------------------------------------------
+ * Running a stored artifact. The triad must open clean (digests + seal), so a
+ * quarantined or tampered triad is not executable at all — verification is not
+ * a separate step a caller can forget.
+ *
+ * S0 IS NEVER EXECUTABLE. The unresolved remainder cannot act on the world by
+ * definition (requirement 3), so this refuses TRI_NEUTRAL outright rather than
+ * relying on its capability set happening to be empty.
+ *
+ * The effective grant is `granted` INTERSECTED with the capabilities the
+ * descriptor recorded for that role — a caller cannot hand an artifact more
+ * authority than it was bound with. */
+int zxvfs_tri_execute(zxvfs_t *fs, const char *name, tri_role_t role,
+                      uint32_t granted, const zab_host_t *host,
+                      zab_exec_t *out);
+
+/* Run S+ and, if it fails, run S- to undo — the payoff of binding an undo to
+ * an action: rollback is always available because it could not have been
+ * shipped without one.
+ *
+ * HONEST LIMIT: S- is the inverse of the COMPLETE effect of S+. Applying it
+ * after a PARTIAL failure assumes S- is safe on a partially-applied state,
+ * which the author must ensure (and is why TRI_INV_COMPENSATING exists as a
+ * kind distinct from TRI_INV_EXACT). `fwd` reports exactly which effects ran
+ * before the failure so a caller needing finer recovery can drive it itself.
+ * Rollback is REFUSED for inverse kinds that have no undo (OBSERVATIONAL,
+ * CONSTRAINING) — there is nothing honest to run.
+ *
+ * Returns 0 if S+ succeeded (no rollback needed), ZXVFS_TRI_ROLLED_BACK if S+
+ * failed and S- completed, or <0 if S+ failed and the undo did not. */
+#define ZXVFS_TRI_ROLLED_BACK 1
+int zxvfs_tri_execute_with_undo(zxvfs_t *fs, const char *name,
+                                uint32_t granted, const zab_host_t *host,
+                                zab_exec_t *fwd, zab_exec_t *undo);
 
 #endif /* ZXVFS_TRI_H */
