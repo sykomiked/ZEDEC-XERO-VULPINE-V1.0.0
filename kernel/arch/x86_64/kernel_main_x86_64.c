@@ -173,6 +173,19 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         boot_msg("  [.] entering ring 3...");
         if (x86_ring3_selftest()) {
             boot_msg("  [DRIVER ONLINE] ring-3 ran on the SHARED ABI: WRITE(2), ABI_VERSION(12), EXIT(1)");
+            {   /* The ARGUMENT PATH, tested. Three distinct values were loaded
+                 * into rdi/rsi/rdx by the ring-3 program; all three must have
+                 * reached the dispatcher. This is the regression net for a bug
+                 * that was previously caught only by re-reading the assembly. */
+                extern uint32_t x86_ring3_argcheck(void);
+                uint32_t bad = x86_ring3_argcheck();
+                if (bad == 0)
+                    boot_msg("  [VERIFIED] syscall args: all 3 registers (rdi/rsi/rdx) reached the kernel");
+                else if (bad == 6u)
+                    boot_msg("  [FAIL] syscall args: arg1+arg2 LOST — the ISR is not capturing them");
+                else
+                    boot_msg("  [FAIL] syscall args: a register did not survive the ring-3 transition");
+            }
             {   /* Report ABI coverage honestly: x86_64 does not yet bind a
                  * process table or filesystem to ring 3, so several calls are
                  * ENOSYS rather than stubbed to look present. */

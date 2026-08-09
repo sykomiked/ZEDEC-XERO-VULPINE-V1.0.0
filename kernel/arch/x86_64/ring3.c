@@ -171,8 +171,22 @@ void x86_abi_coverage(uint32_t *impl, uint32_t *total) {
     if (total) *total = t;
 }
 
+/* What the last syscall actually received. Recorded BEFORE the permission
+ * check so it observes the REGISTER FORWARDING itself rather than the outcome
+ * of a call -- the argument path is what broke, so the argument path is what
+ * has to be watched. */
+uint64_t x86_sc_last[4];
+/* The WRITE call's arguments, kept separately: a later syscall (ABI_VERSION,
+ * then EXIT) would overwrite x86_sc_last before the selftest could read it. */
+static uint64_t g_argsnap[4];
+
 int64_t x86_syscall_dispatch(uint64_t num, uint64_t a0, uint64_t a1, uint64_t a2) {
-    (void)a1; (void)a2;
+    x86_sc_last[0] = num; x86_sc_last[1] = a0;
+    x86_sc_last[2] = a1;  x86_sc_last[3] = a2;
+    if (num == ZXV_SYS_WRITE) {
+        g_argsnap[0] = num; g_argsnap[1] = a0;
+        g_argsnap[2] = a1;  g_argsnap[3] = a2;
+    }
 
     /* Permission first, from the SAME table arm64 consults. An unknown or
      * reserved number is ENOSYS before any capability question. */
@@ -223,16 +237,27 @@ void x86_exc_report(uint64_t vector, uint64_t rip) {
 
 /* ================= the ring-3 user program ================= */
 /* Hand-assembled: write 'U' then exit.
- *   BF 55 00 00 00   mov edi, 'U'
+ * Three DISTINCT argument registers, so a forwarding bug cannot hide: an
+ * earlier version of the ISR copied arg0 into every slot, and a test using the
+ * same value everywhere would have passed anyway.
+ *   BF 55 00 00 00   mov edi, 'U'      (arg0)
+ *   BE AA AA 00 00   mov esi, 0xAAAA   (arg1)
+ *   BA BB BB 00 00   mov edx, 0xBBBB   (arg2)
  *   B8 02 00 00 00   mov eax, ZXV_SYS_WRITE  (2 in the shared ABI)
  *   CD 80            int 0x80
- *   B8 0C 00 00 00   mov eax, ZXV_SYS_ABI_VERSION (12) -- proves a second call
+ *   B8 0C 00 00 00   mov eax, ZXV_SYS_ABI_VERSION (12)
  *   CD 80            int 0x80
  *   B8 01 00 00 00   mov eax, ZXV_SYS_EXIT   (1 in the shared ABI)
  *   CD 80            int 0x80
  *   EB FE            jmp .                (safety) */
+#define X86_ARG0 0x55u
+#define X86_ARG1 0xAAAAu
+#define X86_ARG2 0xBBBBu
 static const uint8_t USER_PROG[] = {
-    0xBF,0x55,0x00,0x00,0x00, 0xB8,0x02,0x00,0x00,0x00, 0xCD,0x80,
+    0xBF,0x55,0x00,0x00,0x00,           /* mov edi, 'U'    */
+    0xBE,0xAA,0xAA,0x00,0x00,           /* mov esi, 0xAAAA */
+    0xBA,0xBB,0xBB,0x00,0x00,           /* mov edx, 0xBBBB */
+    0xB8,0x02,0x00,0x00,0x00, 0xCD,0x80,
     0xB8,0x0C,0x00,0x00,0x00, 0xCD,0x80,
     0xB8,0x01,0x00,0x00,0x00, 0xCD,0x80, 0xEB,0xFE
 };
@@ -256,6 +281,25 @@ int x86_ring3_selftest(void) {
     g_ring3_active = 0;
     /* returns here after the user's SYS_EXIT */
     return x86_last_exc == 0;   /* 0 = clean ring-3 run, no exception */
+}
+
+/* Did the arguments the user program loaded actually REACH the dispatcher?
+ * x86_sc_last was captured on the final call (EXIT, which carries no args), so
+ * the WRITE call's arguments are checked from the recording made at that time --
+ * see x86_ring3_argcheck_run below, which inspects immediately after the WRITE.
+ *
+ * Returns a bitmask of what MISMATCHED (0 = all three arrived intact):
+ *   bit0 arg0   bit1 arg1   bit2 arg2
+ * A mask rather than a bool because WHICH argument was lost identifies the bug:
+ * losing only arg1/arg2 means the ISR never captured them; all three matching
+ * arg0 means they were overwritten with a copy of arg0, which is the exact
+ * failure an earlier version of the ISR had. */
+uint32_t x86_ring3_argcheck(void) {
+    uint32_t bad = 0;
+    if (g_argsnap[1] != X86_ARG0) bad |= 1u;
+    if (g_argsnap[2] != X86_ARG1) bad |= 2u;
+    if (g_argsnap[3] != X86_ARG2) bad |= 4u;
+    return bad;
 }
 
 static inline void outb8(uint16_t port, uint8_t val) {
