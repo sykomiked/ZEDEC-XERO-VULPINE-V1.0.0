@@ -25,7 +25,7 @@ hardening P0s for a *defensible* MVP, and (d) one business/legal item.
 | Arch | Server status | Boot remaining |
 |------|-------|---------------|
 | **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** + EL0 | — (flagship, done) |
-| **x86_64** | ✅ **BOOTS (`BOOT_OK`) + RING-3** | full parity: wire the subsystem set (currently kernel-only), enlarge paging past 2 MB |
+| **x86_64** | ✅ **BOOTS (`BOOT_OK`) + FULL SUBSYSTEM SET (196 files)** | resolve the ring-3 self-test #DF in the full build (ring-3 proven in kernel-only); actually-init subsystems in kernel_main |
 | **riscv32** | ✅ **LINKS** (976 KB) | OpenSBI-rv32 (build from source) or M-mode reset-vector debug |
 | **riscv64** | ✅ **LINKS** (934 KB) | M-mode boot: boot.s is M-mode (mhartid/mtvec) but load addr was SBI's; relink 0x80000000 + `-bios none` + UART debug |
 | **arm32** | ✅ **LINKS** (983 KB) | move base versatilepb→virt (0x40000000) or run `-M versatilepb` |
