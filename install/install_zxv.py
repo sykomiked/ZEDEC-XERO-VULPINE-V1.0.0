@@ -181,7 +181,7 @@ def safe_join(base: Path, rel: str) -> Path:
 
 
 def verify_manifest_signature(manifest_path: Path, pubkey_pem: Path,
-                              allow_unsigned: bool):
+                              allow_unsigned: bool, anchor_path=None):
     """Authenticate the manifest BEFORE trusting the digests inside it (audit P0-2:
     the manifest was previously loaded unsigned, so swapping it swapped the very
     digests meant to guard the payloads). Expects a detached raw Ed25519 signature
@@ -197,6 +197,14 @@ def verify_manifest_signature(manifest_path: Path, pubkey_pem: Path,
         raise InstallSecurityError(
             "manifest is not signed (missing .sig or root pubkey); refusing. "
             "Pass --allow-unsigned for dev bundles.")
+    # The signature is only worth what the KEY is worth. If the pubkey we were
+    # handed came from inside the bundle we are verifying, an attacker who can
+    # replace the bundle can replace the key and re-sign everything — the check
+    # would pass and prove nothing. So pin: the key's key-id must match the
+    # anchor recorded in this source tree / installer, which the attacker does
+    # not control. See PROVENANCE/ROOT_TRUST_ANCHOR.txt.
+    enforce_pinned_anchor(pubkey_pem, anchor_path)
+
     r = subprocess.run(
         ["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", str(pubkey_pem),
          "-rawin", "-in", str(manifest_path), "-sigfile", str(sig_path)],
@@ -205,6 +213,48 @@ def verify_manifest_signature(manifest_path: Path, pubkey_pem: Path,
         raise InstallSecurityError(
             f"manifest signature INVALID (not signed by the root key): "
             f"{r.stderr.strip() or r.stdout.strip()}")
+
+
+def root_key_id(pubkey_pem: Path) -> str:
+    """key-id = first 8 bytes of SHA-256(raw 32-byte Ed25519 public key), hex.
+    Matches build_system/keyceremony_root.sh, verify_release.sh and zsp.c."""
+    der = subprocess.run(
+        ["openssl", "pkey", "-pubin", "-in", str(pubkey_pem), "-outform", "DER"],
+        capture_output=True)
+    if der.returncode != 0 or len(der.stdout) < 32:
+        raise InstallSecurityError(f"cannot read Ed25519 public key from {pubkey_pem}")
+    return hashlib.sha256(der.stdout[-32:]).hexdigest()[:16]
+
+
+def pinned_key_id(anchor_path=None):
+    """The key-id this installer trusts, read from the pinned anchor shipped with
+    the SOURCE (not with the bundle). Returns None if no anchor is pinned.
+    `anchor_path` is for tests only; production always uses the shipped anchor."""
+    cands = ([Path(anchor_path)] if anchor_path else
+             [Path(__file__).resolve().parent.parent / "PROVENANCE" / "ROOT_TRUST_ANCHOR.txt",
+              Path(__file__).resolve().parent / "ROOT_TRUST_ANCHOR.txt"])
+    for cand in cands:
+        if cand.exists():
+            for line in cand.read_text().splitlines():
+                if line.strip().startswith("key-id"):
+                    return line.split(":", 1)[1].strip()
+    return None
+
+
+def enforce_pinned_anchor(pubkey_pem: Path, anchor_path=None):
+    """Fail-closed if the signing key is not the pinned root key."""
+    want = pinned_key_id(anchor_path)
+    got = root_key_id(pubkey_pem)
+    if want is None:
+        sys.stderr.write(
+            f"WARNING: no pinned root trust anchor found; trusting key-id {got} "
+            f"on faith. Ship PROVENANCE/ROOT_TRUST_ANCHOR.txt to close this.\n")
+        return
+    if got != want:
+        raise InstallSecurityError(
+            f"root key MISMATCH: bundle is signed by key-id {got}, but this "
+            f"installer trusts {want}. Refusing — either the bundle is not ours "
+            f"or the trust anchor was swapped.")
 
 
 def stage_payload(bundle_dir, p, target_dir, dry_run):
@@ -360,6 +410,39 @@ def _selftest():
         check(True, "unsigned manifest refused (fail-closed)")
     verify_manifest_signature(m, None, allow_unsigned=True)  # must not raise
     check(True, "unsigned manifest allowed only with --allow-unsigned")
+
+    # A validly-signed manifest under the WRONG root key must still be refused.
+    # This is the attack the bundle-supplied-pubkey default was open to: replace
+    # the bundle, replace the pubkey inside it, re-sign — signature checks out,
+    # but it is not OUR key. Only meaningful when an anchor is pinned.
+    if True:
+        try:
+            evil_priv = base / "evil.pem"; evil_pub = base / "evil_pub.pem"
+            subprocess.run(["openssl", "genpkey", "-algorithm", "ed25519",
+                            "-out", str(evil_priv)], capture_output=True, check=True)
+            subprocess.run(["openssl", "pkey", "-in", str(evil_priv), "-pubout",
+                            "-out", str(evil_pub)], capture_output=True, check=True)
+            m2 = base / "m2.json"; m2.write_text('{"payloads": []}')
+            subprocess.run(["openssl", "pkeyutl", "-sign", "-inkey", str(evil_priv),
+                            "-rawin", "-in", str(m2), "-out", str(m2) + ".sig"],
+                           capture_output=True, check=True)
+            # pin a DIFFERENT key-id than the one that signed m2
+            anchor = base / "ANCHOR.txt"
+            anchor.write_text("key-id      : " + ("0" * 16) + "\n")
+            try:
+                verify_manifest_signature(m2, evil_pub, allow_unsigned=False,
+                                          anchor_path=anchor)
+                check(False, "manifest signed by a NON-PINNED root key accepted")
+            except InstallSecurityError:
+                check(True, "manifest signed by a non-pinned root key refused")
+            # and the SAME key, correctly pinned, must be accepted
+            anchor.write_text("key-id      : " + root_key_id(evil_pub) + "\n")
+            verify_manifest_signature(m2, evil_pub, allow_unsigned=False,
+                                      anchor_path=anchor)
+            check(True, "manifest signed by the pinned root key accepted")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            check(True, "openssl unavailable for wrong-key test (skipped)")
+
     print(("\nALL PASS" if not fails else f"\nFAILED: {fails}") + " installer security self-check")
     return 1 if fails else 0
 

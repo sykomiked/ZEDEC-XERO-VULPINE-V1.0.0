@@ -864,6 +864,14 @@ verify-all: test
 		-o /tmp/test_audio_san -lm && \
 		ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/test_audio_san > /dev/null && \
 		echo "[PASS] test_audio_san" || { echo "[FAIL] test_audio_san"; exit 1; }; \
+	echo "=== Release signing: offline-root chain refuses tamper/wrong-key/unsigned ==="; \
+	bash ../build_system/test_release_signing.sh > /tmp/test_relsign.log 2>&1 && \
+		echo "[PASS] test_release_signing ($$(grep -c '\[PASS\]' /tmp/test_relsign.log) checks)" || \
+		{ cat /tmp/test_relsign.log; echo "[FAIL] test_release_signing"; exit 1; }; \
+	echo "=== Installer security: path confinement + manifest auth + key pinning ==="; \
+	python3 ../install/install_zxv.py --selftest > /tmp/test_installer.log 2>&1 && \
+		echo "[PASS] installer_selftest ($$(grep -c '\[PASS\]' /tmp/test_installer.log) checks)" || \
+		{ cat /tmp/test_installer.log; echo "[FAIL] installer_selftest"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).
