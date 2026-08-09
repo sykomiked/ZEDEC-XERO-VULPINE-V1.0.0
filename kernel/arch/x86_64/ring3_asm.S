@@ -15,6 +15,10 @@ sc_num:            .quad 0        /* syscall number scratch                     
 sc_arg:            .quad 0        /* syscall arg0 scratch                       */
 .global x86_last_exc
 x86_last_exc:      .quad 0        /* vector of the last CPU exception (or -1)   */
+.global x86_exc_vec
+x86_exc_vec:       .quad 0        /* captured vector of a fault during ring-3   */
+.global x86_exc_rip
+x86_exc_rip:       .quad 0        /* captured faulting RIP during ring-3        */
 
 .text
 
@@ -37,7 +41,8 @@ x86_ring3_enter:
     pushq %rsi                /* RSP  (user stack top) */
     pushfq
     popq %rax
-    orq  $0x200, %rax         /* IF = 1 so the user runs with interrupts on */
+    andq $-513, %rax          /* IF = 0: no hardware IRQ can preempt the ring-3 test
+                               * (int 0x80 is a software interrupt, unaffected by IF) */
     pushq %rax                /* RFLAGS */
     movq $0x1b, %rax          /* user code selector (ucode | RPL 3) */
     pushq %rax                /* CS   */
@@ -150,12 +155,18 @@ EXC_NOERR 31
 x86_exc_common:
     /* stack now: [vector][errcode][RIP][CS][RFLAGS]... */
     movq $-1, x86_last_exc(%rip)
-    /* Recover FIRST if we faulted inside the ring-3 self-test — do no risky work
-     * (no C call) that could fault again and escalate to a #DF. */
+    /* Recover FIRST if we faulted inside the ring-3 self-test — capture vector+RIP
+     * for later reporting but do NO C call here (a re-fault would escalate to #DF). */
     movq g_ring3_active(%rip), %rax
     testq %rax, %rax
-    jnz   x86_ring3_return
-    /* Otherwise: a fault in ordinary kernel code — report it and halt. */
+    jz    .Lkernel_fault
+    movq 0(%rsp), %rax
+    movq %rax, x86_exc_vec(%rip)
+    movq 16(%rsp), %rax
+    movq %rax, x86_exc_rip(%rip)
+    jmp   x86_ring3_return
+.Lkernel_fault:
+    /* a fault in ordinary kernel code — report it and halt. */
     movq 0(%rsp), %rdi              /* vector */
     movq 16(%rsp), %rsi             /* RIP    */
     call x86_exc_report

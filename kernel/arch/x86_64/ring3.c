@@ -179,9 +179,6 @@ int x86_ring3_selftest(void) {
     make_user_page((uint64_t)g_user_stack);
     __asm__ __volatile__("mov %%cr3, %%rax\n\t mov %%rax, %%cr3" : : : "rax");  /* flush TLB */
 
-    uart_puts("  [.] user_code@0x"); put_hex((uint64_t)g_user_code);
-    uart_puts(" bytes="); put_hex(((uint64_t)g_user_code[0]<<8)|g_user_code[1]); uart_puts("\n");
-
     g_ring3_active = 1;
     x86_ring3_enter((uint64_t)g_user_code,
                     (uint64_t)(g_user_stack + sizeof g_user_stack));
@@ -190,8 +187,17 @@ int x86_ring3_selftest(void) {
     return x86_last_exc == 0;   /* 0 = clean ring-3 run, no exception */
 }
 
+static inline void outb8(uint16_t port, uint8_t val) {
+    __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
+}
+
 void x86_ring3_init(void) {
     gdt_tss_init();
     idt_init();
-    uart_puts("  [OK] GDT+TSS (ring-3 segments), IDT (int 0x80 = syscall gate)\n");
+    /* Mask the legacy 8259 PICs. They map IRQ0..7 to vectors 0x08..0x0F by default,
+     * colliding with the CPU exception vectors (IRQ0/timer == vector 8 == #DF), so a
+     * hardware IRQ during ring 3 would masquerade as an exception. */
+    outb8(0x21, 0xFF);
+    outb8(0xA1, 0xFF);
+    uart_puts("  [OK] GDT+TSS (ring-3 segments), IDT (int 0x80 syscall gate), PIC masked\n");
 }

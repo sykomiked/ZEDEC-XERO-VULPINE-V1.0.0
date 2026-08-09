@@ -14,6 +14,25 @@
 #include "boot_evidence.h"
 #include "cellular_multikernel.h"
 
+/* Full subsystem set (all 196 modules are now linked into the x86-64 image). */
+#include "phase_coord/phase_coordinator.h"
+#include "rmag/rmag_core.h"
+#include "lpres/lpres_core.h"
+#include "iphase/iphase_core.h"
+#include "choice/choice_core.h"
+#include "oseq/oseq_core.h"
+#include "predictive/predictive_model.h"
+#include "finance/triple_ledger.h"
+#include "finance/financial.h"
+#include "finance/rails.h"
+#include "finance/crypto_bridge.h"
+#include "identity/identity.h"
+#include "quantum/quantum_device.h"
+#include "vino/vino.h"
+#include "vena/vena.h"
+#include "holographic/holo.h"
+#include "bootfeat/boot_features.h"
+
 static void boot_msg(const char *msg) {
     uint32_t eid = boot_evidence_record(msg);
     uart_puts("[E");
@@ -159,6 +178,34 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     }
 
     cell_fabric_boot_init();
+
+    /* ---- Full subsystem bring-up (mirrors kernel_main_riscv.c/arm32) ---- */
+    boot_msg("[BOOT] M5 core: phase/rmag/lpres/iphase/choice/oseq...");
+    phase_tick_t tick; phase_coordinator_init(&tick, EXEC_DC);
+    rmag_init(256); lpres_init(); iphase_init(); choice_handoff();
+    static oseq_state_t oseq; oseq_init(&oseq); oseq_register_device(&oseq, "core");
+    for (int i = 0; i < 5; i++) phase_coordinator_tick(&tick);
+    boot_msg("  [OK] M5 core online");
+
+    boot_msg("[BOOT] Economy core: ledger/instruments/rails/bridge/identity/quantum...");
+    predictive_config_t pcfg; predictive_config_init(&pcfg);
+    static triple_ledger_t tl; triple_ledger_init(&tl);
+    triple_ledger_create_account(&tl, 1, CAP_FINANCIAL, "Genesis:Financial");
+    static portfolio_t pf; portfolio_init(&pf);
+    static rail_system_t rs; rail_system_init(&rs);
+    static bridge_registry_t br; bridge_registry_init(&br);
+    static identity_registry_t idr; identity_registry_init(&idr);
+    static quantum_system_t qs; quantum_system_init(&qs);
+    static vino_ledger_t vino; vino_init(&vino, 1);
+    vino_create_account(&vino, "ZEDEC:node:x86_64:0001", "Genesis Account");
+    static vena_runtime_t vena; vena_init(&vena, &vino);
+    vena_set_language(&vena, LANG_M5_AXIOMATIC);
+    static holo_ctx_t holo; holo_init(&holo);
+    boot_msg("  [OK] nine-capital ledger + instruments + 3 rails + bridge + identity + vino/vena/holo");
+
+    /* Platform + economy aggregate self-checks (same entry points as arm64). */
+    boot_features_init(uart_puts, 0, 0);
+    boot_economy_init(uart_puts);
 
     boot_msg("\n[BOOT] ZEDEC pqOS [x86-64] — All systems online.");
     boot_msg("[BOOT_OK] Phase E0082 complete; kernel_main reached; Stage-1 kernel loop ready\n");
