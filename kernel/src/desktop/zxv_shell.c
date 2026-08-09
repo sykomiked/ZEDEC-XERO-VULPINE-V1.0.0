@@ -94,11 +94,26 @@ static const char *APP_FILE[SHELL_APPS] = { "WALLET.ZXVC","CREW.ZXVC","ART.ZXVC"
 static const char  APP_GLYPH[SHELL_APPS]= { 'V','F','S','C','R' };
 static const uint32_t APP_ACC[SHELL_APPS]={ C_GOLD, C_RED, C_CYAN, C_GREEN, C_GOLD };
 
-/* dock geometry — shared by hit-test and render */
-#define DOCK_X 26
-#define DOCK_Y 70
-#define DOCK_S 76
-#define DOCK_STEP 118
+/* Dock geometry, at the 1x reference the layout was designed against. Every
+ * use goes through SC() so the dock grows with the panel: on a 4K screen an
+ * unscaled 76px icon is a speck, which is more pixels rather than more detail.
+ * The scale comes from the negotiated display mode (display.h). */
+#define DOCK_X_1X 26
+#define DOCK_Y_1X 70
+#define DOCK_S_1X 76
+#define DOCK_STEP_1X 118
+
+/* UI scale in permille, set from the negotiated mode. 1000 = the reference. */
+static uint32_t g_ui_scale = 1000u;
+void zxv_shell_set_ui_scale(uint32_t permille) {
+    g_ui_scale = (permille >= 500u && permille <= 4000u) ? permille : 1000u;
+}
+static int SC(int v) { return (int)(((int32_t)v * (int32_t)g_ui_scale + 500) / 1000); }
+
+#define DOCK_X    SC(DOCK_X_1X)
+#define DOCK_Y    SC(DOCK_Y_1X)
+#define DOCK_S    SC(DOCK_S_1X)
+#define DOCK_STEP SC(DOCK_STEP_1X)
 
 /* ---- tiny string helpers (no libc) ---- */
 static uint32_t slen(const char *s){ uint32_t n=0; while(s[n]) n++; return n; }

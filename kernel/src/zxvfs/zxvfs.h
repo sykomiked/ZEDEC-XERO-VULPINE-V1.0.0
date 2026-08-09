@@ -176,4 +176,20 @@ int zxvfs_count(zxvfs_t *fs);
 /* Free data sectors remaining (for tests and for ENOSPC diagnostics). */
 int zxvfs_free_sectors(zxvfs_t *fs);
 
+/* ---- allocation locality -------------------------------------------------
+ * First-fit from sector 0 packs the disk tightly, which is fine until churn:
+ * once files are deleted and rewritten, the members of one logical object end
+ * up scattered across the region and reading it walks the whole platter.
+ *
+ * A HINT biases where the search starts, so related files can be asked to
+ * cluster. It is only a hint: if there is no room near it the allocator falls
+ * back to a full scan rather than failing, because correctness must not depend
+ * on locality. Set 0 to restore plain first-fit.
+ *
+ * zxvfs_tri derives its hint from the triad's Z-order (Morton) code, so a
+ * triad's four files cluster and DIFFERENT triads are spread apart instead of
+ * competing for the same sectors. The benefit is measured, not assumed — see
+ * test_zxvfs_locality in the fuzzer suite. */
+void zxvfs_set_alloc_hint(uint32_t data_sector_hint);
+
 #endif /* ZXVFS_H */

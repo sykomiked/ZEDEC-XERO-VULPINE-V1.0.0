@@ -884,9 +884,9 @@ verify-all: test
 		echo "[PASS] test_invproof ($$(grep -c '\[PASS\]' /tmp/test_invproof.log) checks)" || \
 		{ cat /tmp/test_invproof.log; echo "[FAIL] test_invproof"; exit 1; }; \
 	echo "=== Tri-Space native storage: triad atomicity under exhaustive crash injection ==="; \
-	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/zxvfs \
+	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/zxvfs -Isrc/fractal \
 		src/zxvfs/test_zxvfs_tri.c src/zxvfs/zxvfs_tri.c src/zxvfs/zxvfs.c \
-		src/trispace/trispace.c src/robin_debanks/sha256.c src/zab/zab.c src/zab/zab_exec.c src/invproof/invproof.c -o /tmp/test_zxvfs_tri && \
+		src/trispace/trispace.c src/robin_debanks/sha256.c src/zab/zab.c src/zab/zab_exec.c src/invproof/invproof.c src/fractal/zorder.c -o /tmp/test_zxvfs_tri && \
 		/tmp/test_zxvfs_tri > /tmp/test_zxvfs_tri.log 2>&1 && \
 		echo "[PASS] test_zxvfs_tri ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_tri.log) checks)" || \
 		{ cat /tmp/test_zxvfs_tri.log; echo "[FAIL] test_zxvfs_tri"; exit 1; }; \
@@ -916,10 +916,10 @@ verify-all: test
 		echo "[PASS] test_mrschema ($$(grep -c '\[PASS\]' /tmp/test_mrs.log) checks)" || \
 		{ cat /tmp/test_mrs.log; echo "[FAIL] test_mrschema"; exit 1; }; \
 	echo "=== ZXVFS crash fuzzer: fsck oracle over randomized workloads ==="; \
-	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/zxvfs src/zxvfs/test_zxvfs_fuzz.c \
+	gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/zxvfs -Isrc/fractal src/zxvfs/test_zxvfs_fuzz.c \
 		src/zxvfs/zxvfs_tri.c src/zxvfs/zxvfs.c src/trispace/trispace.c \
 		src/robin_debanks/sha256.c src/zab/zab.c src/zab/zab_exec.c \
-		src/invproof/invproof.c -o /tmp/test_zxvfs_fuzz && \
+		src/invproof/invproof.c src/fractal/zorder.c -o /tmp/test_zxvfs_fuzz && \
 		/tmp/test_zxvfs_fuzz $(FUZZ_FS_ITERS) > /tmp/test_zxvfs_fuzz.log 2>&1 && \
 		echo "[PASS] test_zxvfs_fuzz ($$(grep -c '\[PASS\]' /tmp/test_zxvfs_fuzz.log) checks, $(FUZZ_FS_ITERS) iters)" || \
 		{ cat /tmp/test_zxvfs_fuzz.log; echo "[FAIL] test_zxvfs_fuzz"; exit 1; }; \

@@ -74,6 +74,11 @@ void zxv_shell_key(zxv_shell_state_t *st, int32_t keycode);
  * `buttons` bit0 = left. `cx/cy` is the cursor; `tick` drives the caret blink. */
 /* fphase/fdepth are FIELD_TX*FIELD_TY byte maps the shell fills: per-tile phase
  * offset and depth for the holographic present. Pass 0/0 to skip field tagging. */
+/* Set the UI scale from the negotiated display mode (permille; 1000 = 1x).
+ * Without this the dock is drawn at its 1x reference size on every panel, so a
+ * 4K desktop shows the same layout at a quarter of the apparent size. */
+void zxv_shell_set_ui_scale(uint32_t permille);
+
 void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v,
                      int32_t cx, int32_t cy, uint32_t buttons, uint32_t tick,
                      uint8_t *fphase, uint8_t *fdepth);

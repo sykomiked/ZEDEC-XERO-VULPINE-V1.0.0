@@ -65,6 +65,7 @@
 #include <string.h>
 #include "zxvfs_tri.h"
 #include "../zab/zab.h"
+#include "../fractal/zorder.h"
 
 #define DISK_SECTORS ZXVFS_TOTAL_SECTORS
 static uint8_t g_disk[DISK_SECTORS][BLOCKDEV_SECTOR_SIZE];
@@ -248,6 +249,65 @@ int main(int argc, char **argv) {
             printf("  [PASS] soak: %u operations, consistent after every single one\n",
                    soak_ops);
         else return (printf("\nFAILED zxvfs_fuzz: soak\n"), 1);
+    }
+
+    /* ---- LOCALITY: measured against a baseline, per zorder.h's own standard.
+     * "less data movement for the same result, measured against a baseline
+     * placement" -- never "geometry makes it faster". We churn the disk, then
+     * measure how far apart one triad's four files end up, with the Z-order
+     * hint and without it. If the ratio is 1.0 the benefit is absent and this
+     * says so. */
+    {   uint32_t spread_hint = 0, spread_plain = 0;
+        for (int mode = 0; mode < 2; mode++) {
+            rng_state = seed0 ^ 0x5EED10C0u;
+            memset(g_disk, 0, sizeof(g_disk));
+            g_crash_after = -1; g_writes = 0; g_crashed = 0;
+            zxvfs_t lf;
+            if (zxvfs_format(&dev) != 0 || zxvfs_mount(&lf, &dev) != 0) continue;
+            /* churn: fill and free so the free list is fragmented */
+            for (int k = 0; k < 40; k++) {
+                uint32_t len = 512 + rnd_max(4000);
+                fill_payload(len, 0, rnd());
+                zxvfs_write(&lf, FILES[rnd_max(4)], payload, len);
+                if (rnd() & 1) zxvfs_unlink(&lf, FILES[rnd_max(4)]);
+            }
+            zxvfs_tri_spec_t sp; tri_spec(&sp);
+            if (mode == 0) {
+                /* baseline: defeat the hint by pinning it to 0 after tri sets it */
+                zxvfs_set_alloc_hint(0);
+            }
+            zxvfs_tri_write(&lf, "loc0", &sp);
+            /* measure the span of sectors the triad's files occupy */
+            uint32_t lo = 0xFFFFFFFFu, hi = 0;
+            const char *parts[4] = { "loc0.zxvc", "loc0.cedez", "loc0.cedec", "loc0.tri" };
+            uint8_t sec[BLOCKDEV_SECTOR_SIZE];
+            for (uint32_t i = 0; i < ZXVFS_MAX_FILES; i++) {
+                mem_read(&dev, ZXVFS_INODE_SECTOR + i / ZXVFS_INODES_PER_SECTOR, sec);
+                zxvfs_inode_t in;
+                memcpy(&in, sec + (i % ZXVFS_INODES_PER_SECTOR) * sizeof(zxvfs_inode_t), sizeof(in));
+                if (!in.used) continue;
+                int mine = 0;
+                for (int q = 0; q < 4; q++) if (!strcmp(in.name, parts[q])) mine = 1;
+                if (!mine) continue;
+                for (uint32_t e = 0; e < in.nextents; e++) {
+                    uint32_t a = in.extent[e].start, b = a + in.extent[e].count;
+                    if (a < lo) lo = a;
+                    if (b > hi) hi = b;
+                }
+            }
+            uint32_t span = (hi > lo) ? (hi - lo) : 0;
+            if (mode == 0) spread_plain = span; else spread_hint = span;
+        }
+        printf("  locality: triad span %u sectors WITHOUT the hint, %u WITH\n",
+               spread_plain, spread_hint);
+        if (spread_plain == 0 || spread_hint == 0)
+            printf("  [PASS] locality measured (degenerate span, no claim made)\n");
+        else if (spread_hint <= spread_plain)
+            printf("  [PASS] Z-order hint did not worsen locality (%u -> %u)\n",
+                   spread_plain, spread_hint);
+        else
+            printf("  [PASS] locality REPORTED honestly: hint made it worse (%u -> %u)\n",
+                   spread_plain, spread_hint);
     }
 
     uint32_t violations = 0, crashes = 0, recovered_triads = 0;

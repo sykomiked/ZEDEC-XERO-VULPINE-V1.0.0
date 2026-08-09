@@ -14,6 +14,7 @@
 #include "../zab/zab.h"
 #include "../invproof/invproof.h"
 #include "../zab/zab_exec.h"
+#include "../fractal/zorder.h"
 
 /* ---- local freestanding helpers (mirroring zxvfs.c's house style) ---- */
 static void tmemset(void *d, int c, unsigned long n) {
@@ -174,6 +175,18 @@ int zxvfs_tri_write(zxvfs_t *fs, const char *name, const zxvfs_tri_spec_t *spec)
         return rule_err(t.quarantine);       /* nothing written; FS untouched */
     spec = &eff;   /* the descriptor records what was actually enforced */
 
+    /* LOCALITY: bias this triad's four files toward one region of the disk,
+     * using the Z-order (Morton) code of its identity. Morton interleaving is
+     * what makes numerically-near addresses spatially near at every scale, so
+     * distinct triads land in distinct neighbourhoods instead of competing for
+     * the same low sectors, and one triad's members stay together across churn.
+     * Advisory: if the neighbourhood is full the allocator scans normally. */
+    {   uint16_t hx = (uint16_t)((spec->triad_id[0] << 8) | spec->triad_id[1]);
+        uint16_t hy = (uint16_t)((spec->triad_id[2] << 8) | spec->triad_id[3]);
+        uint32_t morton = zo_encode2(hx, hy);
+        zxvfs_set_alloc_hint(morton % ZXVFS_DATA_SECTORS);
+    }
+
     /* Role payloads first. They are inert until a descriptor names them. */
     for (int r = 0; r < 3; r++) {
         if (make_name(rn, name, role_suffix((tri_role_t)r)) != 0) return -2;
@@ -202,7 +215,9 @@ int zxvfs_tri_write(zxvfs_t *fs, const char *name, const zxvfs_tri_spec_t *spec)
     }
     tmemcpy(d.seal, t.seal, TRI_DIGEST_LEN);
 
-    return store_desc(fs, name, &d) == 0 ? 0 : -5;
+    int src = store_desc(fs, name, &d);
+    zxvfs_set_alloc_hint(0);          /* don't bias unrelated later writes */
+    return src == 0 ? 0 : -5;
 }
 
 /* ----------------------------------------------------------------- open --- */

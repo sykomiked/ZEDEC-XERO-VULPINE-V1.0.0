@@ -1895,6 +1895,8 @@ void kernel_main_arm64(void) {
             static vbe_state_t g_vbe;
             vbe_init_fb(&g_vbe, g_disp.w, g_disp.h, 32, (uintptr_t)fb);
             zxv_shell_init(&g_shell);
+            /* the shell lays out at the scale the display negotiated */
+            zxv_shell_set_ui_scale(g_disp.scale_permille);
             zxv_shell_frame(&g_shell, &g_vbe, (int)(g_disp.w/2 - 8), (int)(g_disp.h/2), 0, prism_break.frames_rendered, g_fphase, g_fdepth);
             /* Boot INTO the Dimensional Desktop: the 13 lattice spaces as the
              * 0d-13d ladder (13d = the universal container / MegaROM), laid out by

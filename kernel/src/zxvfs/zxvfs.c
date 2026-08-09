@@ -163,8 +163,22 @@ static uint32_t find_run(uint32_t from, uint32_t want, uint32_t *start) {
 /* Allocate `want` sectors into up to ZXVFS_MAX_EXTENTS extents, marking them
  * used in the in-memory bitmap. Returns extent count, or -1 if the space could
  * not be assembled (too fragmented, or not enough free). */
+/* Where the next allocation prefers to start. Advisory only. */
+static uint32_t g_alloc_hint = 0;
+void zxvfs_set_alloc_hint(uint32_t h) {
+    g_alloc_hint = (h < ZXVFS_DATA_SECTORS) ? h : 0;
+}
+
 static int alloc_extents(uint32_t want, zxvfs_extent_t *out) {
-    uint32_t got = 0, ne = 0, cursor = 0;
+    uint32_t got = 0, ne = 0, cursor = g_alloc_hint;
+    /* Try from the hint first; if that tail cannot satisfy the request, fall
+     * back to a full scan from 0. Locality is a preference, never a
+     * precondition — a filesystem that fails to allocate because it could not
+     * be tidy would be worse than one that is untidy. */
+    if (cursor != 0) {
+        uint32_t probe_start = 0;
+        if (find_run(cursor, want, &probe_start) < want) cursor = 0;
+    }
     while (got < want) {
         if (ne >= ZXVFS_MAX_EXTENTS) return -1;
         uint32_t start = 0;
