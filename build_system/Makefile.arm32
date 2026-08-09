@@ -272,7 +272,11 @@ $(ASM_OBJ): kernel/arch/arm32/boot.s
 zedec_xero_arm32.elf: $(ASM_OBJ) $(KERNEL_OBJ)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBGCC)
 
+run: zedec_xero_arm32.elf
+	qemu-system-arm -M virt -cpu cortex-a15 -m 512M \
+		-kernel zedec_xero_arm32.elf -nographic
+
 clean:
 	rm -f $(KERNEL_OBJ) $(ASM_OBJ) zedec_xero_arm32.elf
 
-.PHONY: all clean
+.PHONY: all clean run

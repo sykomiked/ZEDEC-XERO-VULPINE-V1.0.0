@@ -1,24 +1,24 @@
 /*
  * ARM32 linker script for ZEDEC XERO pqOS
- * Target: versatilepb (Cortex-A9)
+ * Target: qemu-system-arm -M virt (Cortex-A15)
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
  */
 ENTRY(_start)
 
-/* 256M holds the full subsystem set's static data (the emu/MegaROM/game_universe
- * tables are large); the previous 128M overflowed .bss. Boot on the server with
- * qemu-system-arm -m 512M. NOTE: ORIGIN here is the versatilepb base; a QEMU
- * `virt` boot needs the base moved to 0x40000000 (arch bring-up follow-up). */
+/* The `virt` machine places RAM at 0x40000000; QEMU's -kernel loader honors the
+ * ELF's physical address and enters at _start. 256M holds the full subsystem
+ * set's static data (the emu/MegaROM/game_universe tables are large); the old
+ * 128M overflowed .bss. Boot with qemu-system-arm -M virt -cpu cortex-a15 -m 512M. */
 MEMORY
 {
-    RAM (rwx) : ORIGIN = 0x00010000, LENGTH = 256M
+    RAM (rwx) : ORIGIN = 0x40000000, LENGTH = 256M
 }
 
 SECTIONS
 {
-    . = 0x00010000;
+    . = 0x40000000;
 
     .text : {
         *(.text.boot)

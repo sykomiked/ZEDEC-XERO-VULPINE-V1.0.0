@@ -29,11 +29,15 @@ extern void riscv_timer_set_callback(void (*cb)(void));
 extern void riscv_timer_handler(void);
 extern uint64_t riscv_timer_get_ticks(void);
 
-/* Trap handler (called from boot.s) */
-void riscv_trap_handler(uint64_t mcause) {
-    uint64_t code = mcause & 0x7FFFFFFF;
-    int is_interrupt = (mcause & 0x8000000000000000ULL) != 0;
-    
+/* Trap handler (called from boot.s / boot_rv32.s with scause in a0).
+ * Take the cause XLEN-wide: the interrupt flag is the top bit of the register
+ * (bit 63 on rv64, bit 31 on rv32), so a hardcoded 0x8000...ULL mask would
+ * never match on rv32. */
+void riscv_trap_handler(unsigned long scause) {
+    unsigned long int_bit = 1UL << (__riscv_xlen - 1);
+    int is_interrupt = (scause & int_bit) != 0;
+    unsigned long code = scause & ~int_bit;
+
     if (is_interrupt) {
         if (code == 5) {
             /* Supervisor timer interrupt (S-mode under OpenSBI) */

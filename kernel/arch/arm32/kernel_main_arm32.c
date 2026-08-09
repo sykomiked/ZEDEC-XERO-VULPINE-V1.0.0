@@ -104,13 +104,19 @@ void kernel_main_arm32(void) {
 
     boot_msg("\n[BOOT_OK] ZEDEC pqOS [ARM32] — core online. Entering event cycle.\n");
 
+    /* Core bring-up event loop. We pace off the generic-timer virtual counter
+     * (readable at PL1) rather than a timer IRQ — the GIC is not wired up in this
+     * profile, so a bare `wfi` would sleep forever with no wakeup source. */
     uint32_t cycle = 0;
+    uint32_t freq = arm32_cntfrq();
+    uint32_t period = freq ? (freq / 100u) : 625000u;   /* ~100 Hz; fallback 62.5 MHz/100 */
+    uint64_t last = arm32_cntvct();
     while (1) {
-        arm32_disable_irq();
-        __asm__ volatile ("wfi");
-        arm32_enable_irq();
+        uint64_t now;
+        do { now = arm32_cntvct(); } while ((uint32_t)(now - last) < period);
+        last += period;
         phase_coordinator_tick(&tick);
-        if (cycle % 1000 == 0) { uart_puts("tick: omega="); uart_dec(tick.omega); uart_puts("\n"); }
+        if (cycle % 100 == 0) { uart_puts("tick: omega="); uart_dec(tick.omega); uart_puts("\n"); }
         cycle++;
     }
 }

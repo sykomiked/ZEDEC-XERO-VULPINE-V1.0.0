@@ -18,8 +18,27 @@ static volatile uint64_t timer_ticks = 0;
 /* S-mode (OpenSBI) timer: read the `time` CSR (rdtime) and program the next tick
  * via the SBI set_timer call instead of poking the CLINT mtimecmp directly (which
  * a supervisor-mode kernel under OpenSBI is not permitted to do). */
-/* Use register-width `unsigned long` (XLEN): 64-bit on rv64, 32-bit on rv32 — a
- * uint64_t won't fit a single register on rv32. (rv32 SBI-boot is a later item.) */
+/* XLEN-aware: rv64 holds the 64-bit `time` in one register and passes it in a0;
+ * rv32 must read the high half with rdtimeh and split the argument across the
+ * a0(lo)/a1(hi) pair the legacy SBI set_timer (EID 0) expects on 32-bit. */
+#if __riscv_xlen == 32
+static inline uint64_t rd_time(void) {
+    uint32_t lo, hi, hi2;
+    /* Re-read hi if it ticked over between the two reads (counter race). */
+    do {
+        __asm__ __volatile__("rdtimeh %0" : "=r"(hi));
+        __asm__ __volatile__("rdtime  %0" : "=r"(lo));
+        __asm__ __volatile__("rdtimeh %0" : "=r"(hi2));
+    } while (hi != hi2);
+    return ((uint64_t)hi << 32) | lo;
+}
+static inline void sbi_set_timer(uint64_t next) {
+    register unsigned long a0 asm("a0") = (unsigned long)(next & 0xFFFFFFFFu);
+    register unsigned long a1 asm("a1") = (unsigned long)(next >> 32);
+    register unsigned long a7 asm("a7") = 0;   /* SBI legacy set_timer (EID 0) */
+    __asm__ __volatile__("ecall" : "+r"(a0) : "r"(a1), "r"(a7) : "memory");
+}
+#else
 static inline uint64_t rd_time(void) {
     unsigned long t; __asm__ __volatile__("rdtime %0" : "=r"(t)); return (uint64_t)t;
 }
@@ -28,13 +47,15 @@ static inline void sbi_set_timer(uint64_t next) {
     register unsigned long a7 asm("a7") = 0;   /* SBI legacy set_timer (EID 0) */
     __asm__ __volatile__("ecall" : "+r"(a0) : "r"(a7) : "memory");
 }
+#endif
 
 void riscv_timer_init(void) {
     /* 100 Hz tick; the QEMU virt time CSR runs at 10 MHz. */
     timer_interval = 100000;
     sbi_set_timer(rd_time() + timer_interval);
-    /* Enable the SUPERVISOR timer interrupt (sie.STIE, bit 5). */
-    __asm__ __volatile__("csrs sie, %0" :: "r"((uint64_t)0x20));
+    /* Enable the SUPERVISOR timer interrupt (sie.STIE, bit 5). XLEN-width
+     * operand so `csrs` gets one register on both rv32 and rv64. */
+    __asm__ __volatile__("csrs sie, %0" :: "r"((unsigned long)0x20));
 }
 
 void riscv_timer_set_callback(timer_callback_t cb) {

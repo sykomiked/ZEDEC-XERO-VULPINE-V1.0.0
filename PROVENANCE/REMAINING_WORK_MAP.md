@@ -25,16 +25,36 @@ hardening P0s for a *defensible* MVP, and (d) one business/legal item.
 | Arch | Server status | Boot remaining |
 |------|-------|---------------|
 | **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** + EL0 | — (flagship, done) |
-| **x86_64** | ✅ **BOOTS + RING-3 + FULL SUBSYSTEM SET (196 files) initialized** (M5 core, [FEAT] platform 8/8, economy 5/5) | full boot-parity with arm64 |
-| **riscv32** | ✅ **LINKS** (976 KB); shares the S-mode port | OpenSBI-rv32 firmware (build from source); rv32 SBI-timer 64-bit split |
-| **riscv64** | ✅ **BOOTS (OpenSBI/S-mode)** — all phases + live 100 Hz event loop | — (done) |
-| **arm32** | ✅ **LINKS** (983 KB) | move base versatilepb→virt (0x40000000) or run `-M versatilepb` |
+| **x86_64** | ✅ **BOOTS + RING-3 + FULL SUBSYSTEM SET (196 files) initialized** (M5 core, [FEAT] platform 8/8, economy 5/5) | — (done) |
+| **riscv64** | ✅ **BOOTS (OpenSBI/S-mode)** — all 17 phases + live 100 Hz event loop | — (done) |
+| **riscv32** | ✅ **BOOTS (OpenSBI-rv32/S-mode)** — all 17 phases + live 100 Hz event loop | — (done) |
+| **arm32** | ✅ **BOOTS (`-M virt` / `BOOT_OK`)** — full subsystem set + live event loop | — (done) |
 
-**3 of 5 arches fully boot: arm64, x86_64 (both BOOT_OK + user/kernel split + platform 8/8 +
-economy 5/5), and riscv64 (OpenSBI/S-mode: all 17 phases + a live 100 Hz timer-ticking event loop).**
+**ALL 5 of 5 arches now fully boot: arm64, x86_64 (BOOT_OK + user/kernel split + platform 8/8 +
+economy 5/5), riscv64 + riscv32 (OpenSBI/S-mode: all 17 phases + a live 100 Hz timer-ticking
+event loop), and arm32 (`-M virt`: full subsystem set + live event loop).**
 x86_64 ring-3 done: GDT/TSS/IDT + int 0x80 syscall + U/S user pages + IRETQ; a ring-3
 program runs, syscalls, and returns. (Also fixed: SSE was never enabled → x86_64 had
 been triple-faulting at gcc's first `movdqa`, so it never reached BOOT_OK before.)
+
+> **Progress 2026-08-09 — the last two arches boot.** Three distinct 32-bit bugs fixed:
+> 1. **arm32** was linked for the versatilepb base with a versatilepb/MPCore UART, and its
+>    boot never enabled the VFP unit. Retargeted to `qemu-system-arm -M virt` (RAM 0x40000000,
+>    PL011 @ 0x09000000, GICv2), enabled VFP/NEON in `boot.s` (CPACR CP10/11 + FPEXC.EN — the
+>    same class of bug as the x86_64 "SSE never enabled" triple-fault), and re-paced the event
+>    loop off the CP15 generic-timer virtual counter (no GIC needed for the bring-up profile).
+> 2. **riscv32** had no OpenSBI-rv32 firmware (QEMU 6.2 bundles only rv64) and `boot_rv32.s`
+>    was still M-mode. Built OpenSBI rv32 (generic, XLEN=32) from source; converted the rv32
+>    boot to S-mode (a0 hartid / stvec / scause / sret) and made the SBI timer + trap cause
+>    XLEN-aware (rv32 needs rdtimeh and the a0/a1 64-bit split; the interrupt flag is scause
+>    bit 31, not 63).
+> 3. The real rv32 crash was `kernel/compat/softfloat_stubs.c`: the hand-rolled libgcc
+>    replacement (used on rv32, where int64↔double has no native `fcvt.d.l`) defined
+>    conversions as `return (double)i;`, which lowers to a call to the very routine being
+>    defined → infinite self-recursion that marched the stack into OpenSBI's PMP-protected
+>    region and fault-looped. Rewrote every 64-bit int↔float conversion by 32-bit-half
+>    decomposition (native `fcvt.d.wu`/`fcvt.wu.d` only) and replaced the O(quotient)
+>    repeated-subtraction 64-bit division with O(64) binary long division.
 
 > **Progress 2026-08-08 (commit d179f5b):** arm32/riscv32 brought to the full portable
 > subsystem set (142 of 144 missing modules were arch-neutral). One real 32-bit bug fixed

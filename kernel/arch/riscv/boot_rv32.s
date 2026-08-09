@@ -1,6 +1,10 @@
 /* boot_rv32.s — RISC-V 32-bit entry point for VOVINA SHAKINA
  *
- * Same as boot.s but uses 32-bit sw/lw instead of 64-bit sd/ld.
+ * Same structure as boot.s (rv64) but uses 32-bit sw/lw instead of sd/ld.
+ * Booted by OpenSBI in S-mode (qemu-system-riscv32 -M virt, default -bios):
+ * OpenSBI passes the hart id in a0 and the DTB pointer in a1, and we run in
+ * SUPERVISOR mode — so we use the S-mode CSRs (stvec/scause/sret), NOT the
+ * machine CSRs (mhartid/mtvec/mcause/mret), which trap illegally in S-mode.
  *
  * Target: qemu-system-riscv32 -M virt -m 256M
  * Author: H.M. Michael-Laurence: Curzi (c)
@@ -10,14 +14,13 @@
 .section .text.boot
 .global _start
 _start:
-    /* Read hart ID; if not hart 0, park */
-    csrr t0, mhartid
-    bnez t0, park
+    /* Hart id is in a0 (from OpenSBI); if not hart 0, park */
+    bnez a0, park
 
     /* Set up stack */
     la sp, __stack_top
 
-    /* Clear BSS */
+    /* Clear BSS (32-bit stores) */
     la t0, __bss_start
     la t1, __bss_end
 clear_bss:
@@ -27,9 +30,9 @@ clear_bss:
     j clear_bss
 bss_done:
 
-    /* Set up trap vector (direct mode) */
+    /* Set up the S-mode trap vector (direct mode) */
     la t0, trap_vector
-    csrw mtvec, t0
+    csrw stvec, t0
 
     /* Call kernel_main_riscv */
     call kernel_main_riscv
@@ -58,8 +61,8 @@ trap_vector:
     sw a6, 48(sp)
     sw a7, 52(sp)
 
-    /* Read mcause */
-    csrr a0, mcause
+    /* Read scause (S-mode) */
+    csrr a0, scause
     /* Call trap handler C function */
     call riscv_trap_handler
 
@@ -80,5 +83,5 @@ trap_vector:
     lw a7, 52(sp)
     addi sp, sp, 128
 
-    /* Return from trap */
-    mret
+    /* Return from trap (S-mode) */
+    sret

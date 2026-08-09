@@ -12,9 +12,12 @@
 
 #include <stdint.h>
 
-/* ===== MMIO base addresses (versatilepb default) ===== */
-#define ARM32_MMIO_BASE         0x10100000
-#define ARM32_UART0_BASE        (ARM32_MMIO_BASE + 0x1000)
+/* ===== MMIO base addresses (qemu-system-arm -M virt) =====
+ * The `virt` machine has a fixed, discoverable layout: PL011 UART0 at
+ * 0x09000000, GICv2 dist/cpu at 0x08000000/0x08010000, RAM at 0x40000000
+ * (see linker.ld). This replaces the old versatilepb/MPCore addresses, which
+ * never matched a single real QEMU machine. */
+#define ARM32_UART0_BASE        0x09000000
 #define ARM32_UART0_DR          (*(volatile uint32_t *)(ARM32_UART0_BASE + 0x000))
 #define ARM32_UART0_FR          (*(volatile uint32_t *)(ARM32_UART0_BASE + 0x018))
 #define ARM32_UART0_IBRD        (*(volatile uint32_t *)(ARM32_UART0_BASE + 0x024))
@@ -22,9 +25,9 @@
 #define ARM32_UART0_LCRH        (*(volatile uint32_t *)(ARM32_UART0_BASE + 0x02C))
 #define ARM32_UART0_CR          (*(volatile uint32_t *)(ARM32_UART0_BASE + 0x030))
 
-/* GIC (Cortex-A9 MPCore) */
-#define ARM32_GIC_DIST_BASE     0x1E001000
-#define ARM32_GIC_CPU_BASE      0x1E000100
+/* GICv2 (qemu virt) */
+#define ARM32_GIC_DIST_BASE     0x08000000
+#define ARM32_GIC_CPU_BASE      0x08010000
 
 /* Timer (private timer) */
 #define ARM32_TIMER_BASE        0x1E000600
@@ -86,6 +89,21 @@ static inline void arm32_uart_putc(char c) {
 static inline char arm32_uart_getc(void) {
     while (ARM32_UART0_FR & (1 << 4)) { } /* Wait if RX FIFO empty */
     return (char)(ARM32_UART0_DR & 0xFF);
+}
+
+/* ===== Generic timer (ARMv7, CP15) =====
+ * The virtual count (CNTVCT) and its frequency (CNTFRQ) are readable at PL1
+ * with no GIC/interrupt setup, so a bring-up event loop can pace itself off a
+ * real monotonic clock instead of relying on a configured timer IRQ. */
+static inline uint64_t arm32_cntvct(void) {
+    uint32_t lo, hi;
+    __asm__ volatile ("mrrc p15, 1, %0, %1, c14" : "=r"(lo), "=r"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+static inline uint32_t arm32_cntfrq(void) {
+    uint32_t f;
+    __asm__ volatile ("mrc p15, 0, %0, c14, c0, 0" : "=r"(f));
+    return f;
 }
 
 /* ===== Architecture detection ===== */
