@@ -137,24 +137,73 @@ def run_rom(rom, elf, out_dir, log, timeout_s):
     with open(trace, 'w') as f:
         f.write(output)
 
-    # Faults, with the phase tick that was live when they fired. A fault's tick
-    # is not necessarily where the cause is -- record it so the lag can be
-    # measured rather than assumed.
-    faults, tick = [], None
-    for line in output.split('\n'):
-        if '[TICK]' in line:
-            tick = line.strip()[:80]
+    # ---- FUSE ANALYSIS ------------------------------------------------------
+    # A fault manifests at tick T; its CAUSE was at tick T-k. Recording only the
+    # tick at the bang is close to useless -- it names the victim, not the
+    # culprit. So we keep a ring buffer of the lines preceding each fault (the
+    # FUSE WINDOW) and, where the bomb squad has been reporting margins, we find
+    # the first degradation that precedes the bang and call the distance between
+    # them the FUSE LENGTH. That number is the thing worth having: it says how
+    # far back to look, and it is measured rather than assumed.
+    FUSE = 400                      # lines of pre-fault context retained
+    lines = output.split('\n')
+    faults, ring = [], []
+    first_watch = first_armed = None   # bomb-squad margin transitions
+    tick = None
+    for i, line in enumerate(lines):
         low = line.lower()
-        if any(k in low for k in ('panic', 'fault', 'abort', '[fail]', 'exception')):
-            faults.append({'line': line.strip()[:200], 'tick_at_fault': tick})
-    rec['faults'] = faults[:40]
+        if '[tick]' in low:
+            tick = line.strip()[:80]
+        # bomb squad states: SAFE -> WATCH -> ARMED -> BREACHED
+        if first_watch is None and '[watch]' in low:
+            first_watch = i
+        if first_armed is None and '[armed]' in low:
+            first_armed = i
+        if any(k in low for k in ('panic', 'fault', 'abort', '[fail]',
+                                  'exception', '[breached]')):
+            fuse_from = first_armed if first_armed is not None else first_watch
+            faults.append({
+                'at_line': i,
+                'line': line.strip()[:200],
+                'tick_at_fault': tick,
+                # the window BEFORE the bang -- where the cause actually is
+                'fuse_window': [l.strip()[:160] for l in ring[-FUSE:] if l.strip()],
+                # distance from first margin degradation to manifestation
+                'fuse_len_lines': (i - fuse_from) if fuse_from is not None else None,
+                'fuse_origin': ('armed' if first_armed is not None
+                                else 'watch' if first_watch is not None else None),
+            })
+        ring.append(line)
+        if len(ring) > FUSE:
+            ring.pop(0)
+
+    rec['faults'] = faults[:20]
     rec['fault_count'] = len(faults)
     rec['boot_ok'] = 'BOOT_OK' in output
+    rec['first_watch_line'] = first_watch
+    rec['first_armed_line'] = first_armed
+
+    # ---- PASS CLASSIFICATION, and why "no fault" is not "pass" ---------------
+    # A ROM that ran to completion without a bang may still have left a fuse
+    # burning: the bomb squad saw a margin degrade and the run ended before the
+    # breach. Calling that a pass is exactly the error this whole model exists
+    # to prevent, so it gets its own verdict. Only a run with no fault AND no
+    # unresolved margin degradation is CLEAN.
+    if faults:
+        rec['verdict'] = 'FAULT'
+    elif first_armed is not None:
+        rec['verdict'] = 'FUSE_LIT_ARMED'    # degraded to ARMED, never breached
+    elif first_watch is not None:
+        rec['verdict'] = 'FUSE_LIT_WATCH'    # margin moved, did not recover
+    elif status == 'timeout':
+        rec['verdict'] = 'INCONCLUSIVE'      # ran out of time, not a pass
+    else:
+        rec['verdict'] = 'CLEAN'
 
     # Symbols the run announced touching. Requires the kernel to emit
     # [COVER] <symbol> markers; absent that, coverage stays empty and the log
     # says so rather than implying a measurement that did not happen.
-    cover = {l.split('[COVER]', 1)[1].strip() for l in output.split('\n') if '[COVER]' in l}
+    cover = {l.split('[COVER]', 1)[1].strip() for l in lines if '[COVER]' in l}
     rec['covered'] = sorted(cover)
     rec['covered_n'] = len(cover)
     rec['coverage_instrumented'] = bool(cover)
@@ -205,6 +254,20 @@ def report(run_dir):
     print(f'ROMs driven      : {len(roms)}  (early {len(early)} / late {len(late)})')
     print(f'skipped          : {skipped}')
     print(f'faults observed  : {faults}')
+    from collections import Counter
+    verd = Counter(r.get('verdict', '?') for r in roms)
+    print('verdicts         : ' + '  '.join(f'{k}={v}' for k, v in verd.most_common()))
+    lit = verd.get('FUSE_LIT_ARMED', 0) + verd.get('FUSE_LIT_WATCH', 0)
+    if lit:
+        print(f'  ** {lit} run(s) ended with a LIT FUSE -- no bang, but a margin')
+        print(f'     degraded and never recovered. These are NOT passes.')
+    fl = [f['fuse_len_lines'] for r in roms for f in (r.get('faults') or [])
+          if f.get('fuse_len_lines') is not None]
+    if fl:
+        fl.sort()
+        print(f'fuse length (lines from first margin loss to bang):')
+        print(f'  min {fl[0]}  median {fl[len(fl)//2]}  max {fl[-1]}  n={len(fl)}')
+        print(f'  -> look back at least {fl[-1]} lines from any bang for the cause')
     print(f'booted OK        : {sum(1 for r in roms if r.get("boot_ok"))}/{len(roms)}')
     instrumented = sum(1 for r in roms if r.get('coverage_instrumented'))
     print(f'coverage-instrumented runs: {instrumented}/{len(roms)}')
