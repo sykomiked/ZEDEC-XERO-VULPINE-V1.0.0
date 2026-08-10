@@ -17,7 +17,34 @@ estimated. Supersedes the sequencing in SYSTEM_MAP.md §6._
 | (superseded Makefile-based count) | ~~50 (18%)~~ — counted the wrong thing |
 | corpus extracted from QAT | 834 videos, ~180k words, 162 slides read |
 
-### The reserve, re-measured against `nm` — it is 2.6x larger than reported
+### Reachability — the only metric that answers the question
+
+**27% of `kernel/src` is in the running binary.** 628 of 2,301 defined symbols
+are reachable in `kernel_arm64.elf`; **1,673 are discarded** by `--gc-sections`.
+
+Three metrics have been used here, each less wrong than the last:
+
+| metric | said | why it was wrong |
+|---|---|---|
+| Makefile membership | 50 files absent | `--gc-sections` discards unreferenced sections; being in `KERNEL_SRCS` proves nothing |
+| per-file symbol presence | 123 files absent | a file counts as present if **any** symbol survives |
+| **per-symbol reachability** | **1,673 of 2,301 symbols dead (73%)** | — |
+
+Only **30 files** are fully reachable. **125 more are partial** — counted
+"present" by the per-file metric while being mostly dead:
+
+| dead / defined | live | file |
+|---|---|---|
+| 59 / 60 | 1% | `audiogenomics_pro/digital_dna.c` |
+| 48 / 49 | 2% | `holographic/holo.c` |
+| 25 / 26 | 4% | `edp_risk/edp_risk.c` |
+| 23 / 24 | 4% | `surplus/surplus.c` |
+| 33 / 52 | 36% | `dual_space/dual_space.c` |
+
+`surplus.c` is the M5 numeric substrate and 23 of its 24 symbols are dead.
+Run `build_system/measure_reachability.sh` to reproduce.
+
+### The earlier per-file reading, kept for the record
 
 Every earlier reserve figure counted **Makefile membership**, which today proved
 to be the wrong measurement: this build uses `--gc-sections`, so a file can be
