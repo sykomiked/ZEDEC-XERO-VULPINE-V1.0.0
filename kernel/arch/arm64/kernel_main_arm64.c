@@ -1000,7 +1000,14 @@ void kernel_main_arm64(void) {
         boot_msg("                   dev material (predictable). Not for production secrets.");
     }
     robin_init(&robin_vault, 1, vault_key, &porter_house);
-    boot_msg("  [INITIALIZED] Daemon visa system + encrypted vault");
+    /* CLAIM REMOVED. aes256_gcm.c has ZERO text symbols in kernel_arm64.elf --
+     * verify_banners.sh certified this line only because it was matching the
+     * BSS variables robin_vault and vault_key.86 instead of code. There is no
+     * encrypted vault in this binary, and announcing one is a false security
+     * claim in the running system. Restore the wording when the cipher is
+     * genuinely wired and the gate passes on TEXT symbols. */
+    boot_msg("  [INITIALIZED] Daemon visa system");
+    boot_msg("  [ABSENT] vault encryption: AES-256-GCM is not linked into this image");
 
     /* Phase 16: Vena Runtime */
     boot_msg("[BOOT] Vena application runtime...");
@@ -2175,6 +2182,39 @@ void kernel_main_arm64(void) {
         else { boot_msg("  [FAIL] mixmat selfcheck problems: "); uart_put_dec((uint64_t)bad_mix); uart_puts("\n"); }
     }
 
+    boot_msg("[BOOT] Module composition (matrices within matrices)...");
+    {
+        /* A composite IS a module, so composites compose. Verified here on real
+         * registered modules rather than asserted: build a two-part composite
+         * and confirm the internal edge CANCELS -- the requirement one part
+         * needs and the other supplies must not surface on the boundary. That
+         * subtraction is the whole of encapsulation, so it is what gets tested. */
+        modbind_reset();
+        mb_module_t base, user, comp;
+        for (uint32_t i = 0; i < MB_NAME_LEN; i++) { base.name[i] = 0; user.name[i] = 0; }
+        base.name[0]='b'; base.name[1]='a'; base.name[2]='s'; base.name[3]='e';
+        user.name[0]='u'; user.name[1]='s'; user.name[2]='e'; user.name[3]='r';
+        base.n_emits=base.n_ingests=base.n_requires=0; base.n_provides=1;
+        for (uint32_t i=0;i<MB_CAP_NAME_LEN;i++) base.provides[0].name[i]=0;
+        base.provides[0].name[0]='c'; base.provides[0].name[1]='p'; base.provides[0].contract=1;
+        base.ready=MB_HELD; base.registered=false;
+        base.xform.pack=(int(*)(const void*,uint8_t*,uint32_t))0;
+        base.xform.unpack=(int(*)(const uint8_t*,uint32_t,void*))0;
+        user = base;
+        user.name[0]='u'; user.name[1]='s'; user.name[2]='e'; user.name[3]='r';
+        user.n_provides=0; user.n_requires=1; user.requires[0]=base.provides[0];
+        bool ok = modbind_register(&base) && modbind_register(&user);
+        if (ok) {
+            uint32_t ready = modbind_resolve();      /* Huygens fixpoint */
+            const char *parts[2] = { "base", "user" };
+            ok = (ready == 2) && modbind_compose("composite", parts, 2, &comp)
+                 /* the internal edge must have cancelled */
+                 && (comp.n_requires == 0) && (comp.n_provides == 1);
+        }
+        modbind_reset();
+        if (ok) boot_msg("  [OK] composite boundary computed; internal edge cancelled");
+        else    boot_msg("  [FAIL] composition did not cancel its internal edge");
+    }
     boot_msg("[BOOT] Construction rules (modbind)...");
     {
         uint32_t bad = modbind_selfcheck();
