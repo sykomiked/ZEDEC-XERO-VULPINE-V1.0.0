@@ -257,6 +257,10 @@ KERNEL_SRCS = \
     kernel/src/zxvfs/zxvfs.c \
     kernel/compat/compat_layer.c \
     kernel/src/tls/hkdf.c \
+    kernel/src/tls/x25519.c \
+    kernel/src/tls/aead.c \
+    kernel/src/tls/record.c \
+    kernel/src/tls/handshake.c \
     kernel/src/bringup/arch_globals.c \
     kernel/freestanding.c \
     kernel/compat/softfloat_stubs.c

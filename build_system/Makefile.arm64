@@ -178,6 +178,11 @@ KERNEL_SRCS = \
     kernel/src/e8/e8.c \
     kernel/src/mixmat/mixmat.c \
     kernel/src/modbind/modbind.c \
+    kernel/src/tls/hkdf.c \
+    kernel/src/tls/x25519.c \
+    kernel/src/tls/aead.c \
+    kernel/src/tls/record.c \
+    kernel/src/tls/handshake.c \
     kernel/src/crit168/crit_168_word.c \
     kernel/src/mm/mm.c \
     kernel/src/sched/sched.c \
