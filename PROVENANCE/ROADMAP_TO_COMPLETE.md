@@ -63,13 +63,20 @@ GF(5) and items 5–6 are unblocked. Commit `ba852b9`.
 Undifferentiated is fine. **Half-differentiated makes the rest of the system plan
 around a capability that is not there.**
 
-1. **TLS — LINKED, NOT PROVEN.** All five units now link on all five arches
-   (commit `8c70a4c`); vendor tests pass (`x25519`, `aead`, `record`+`aead`,
-   `hkdf`+`sha256`). **Linked is not working:** no handshake has completed
-   against a real endpoint, and `nm kernel_arm64.elf | grep -c tls_` is **0**
-   because the shipped ELF predates the link. Two open items — rebuild and
-   confirm the symbols land, then exercise end to end. Until then no TLS claim
-   may appear in a banner or doc.
+1. **TLS — IN THE MAKEFILE, NOT IN THE BINARY.** All five units are in
+   `KERNEL_SRCS` on all five arches (commit `8c70a4c`) and their vendor tests
+   pass. But after a FORCED FULL REBUILD of arm64, `nm kernel_arm64.elf |
+   grep -c tls_` is still **0**. The `.o` files exist with real symbols
+   (x25519.o has 3); `--gc-sections` with `-ffunction-sections
+   -fdata-sections` discards every one, because **nothing calls them**.
+
+   **Adding a file to KERNEL_SRCS is necessary but NOT sufficient.** The same
+   measurement shows 0 symbols for `oseq_dag`, `zphi_`, `e8_`, `mixmat_`,
+   `modbind_` and `trit_canon` — every module added today. They compile, they
+   link, they test, and they are absent from the OS.
+
+   Open: give each a real caller, then re-run
+   `build_system/verify_banners.sh`.
 2. **`fs.c`** — its header is included by all 8 `kernel_main`s and **zero of its
    APIs are called**. Advertisement expressed, tissue not.
 3. **Per-arch asymmetry** — 13 subsystems exist on arm64 only (`syscall`, `zab`,
