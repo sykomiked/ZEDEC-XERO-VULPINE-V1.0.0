@@ -13,6 +13,7 @@
 #define ZXV_SHELL_H
 
 #include <stdint.h>
+#include "display.h"
 #include "vbe.h"
 
 #define SHELL_APPS       5      /* Vino Fleet Studio Chiglet Refinery */
@@ -32,8 +33,30 @@
  * holographic present can give each object its OWN phase (independent shimmer)
  * and its OWN depth (chromostereopsis: warm=near / cool=far). This is the M5
  * state per region — the nonlinear, multi-axiom layer painted deliberately. */
-#define FIELD_TX 80             /* 1280 / 16 */
-#define FIELD_TY 45             /*  720 / 16 */
+/* GEOMETRY IS DERIVED, NEVER FIXED.
+ *
+ * These were `#define FIELD_TX 80 / FIELD_TY 45` -- 1280x720 divided by 16,
+ * hardcoded. On any panel larger than that the tile index runs past the array:
+ * measured at ti = 7279 against 3600 entries, corrupting 43.3% of the first
+ * screen (624 of 1440 rows, reproduced). The defect was never the NUMBERS. It
+ * was that a number existed at all where a device property belongs.
+ *
+ * The panel is not known until zxv_display_negotiate() has run, so the compile
+ * time constant can only be CAPACITY. The live geometry is computed from the
+ * negotiated mode at runtime -- see zxv_shell_set_field_geometry(). Same
+ * discipline as an LCD's own addressing: the controller is told the panel's
+ * dimensions, it does not assume them. */
+#define FIELD_TILE      16u                                   /* tile edge, px */
+#define FIELD_TX_MAX    (ZXV_DISPLAY_MAX_W / FIELD_TILE)       /* capacity only */
+#define FIELD_TY_MAX    (ZXV_DISPLAY_MAX_H / FIELD_TILE)
+#define FIELD_CELLS_MAX (FIELD_TX_MAX * FIELD_TY_MAX)
+
+/* Live tile geometry, derived from the negotiated panel. Both are clamped to
+ * capacity, so a mode larger than the build supports degrades to a smaller
+ * field rather than writing past the array. Returns the cell count in use. */
+uint32_t zxv_shell_set_field_geometry(uint32_t panel_w, uint32_t panel_h);
+uint32_t zxv_shell_field_tx(void);
+uint32_t zxv_shell_field_ty(void);
 
 /* An open space is a live surface: SPACE_LINES of readout filled by calling the
  * space's REAL subsystem on entry / on an action, up to SPACE_ACTS action

@@ -386,10 +386,10 @@ static uint32_t  g_gop_w = 0, g_gop_h = 0, g_gop_stride = 0, g_gop_pixfmt = 0;
  * tiles COOL (-red/+blue) — real optics that read as depth on a flat plane. The
  * shell fills these each frame; zxv_present reads them. This is the 2D base plane
  * given deliberate M5 depth — the foundation we build layers up from. */
-static uint8_t  g_fphase[FIELD_TX * FIELD_TY];
-static uint8_t  g_fdepth[FIELD_TX * FIELD_TY];
-static int16_t  g_tval[FIELD_TX * FIELD_TY];   /* per-tile valence,  precomputed per frame */
-static int16_t  g_tdz [FIELD_TX * FIELD_TY];   /* per-tile depth-z,  precomputed per frame */
+static uint8_t  g_fphase[FIELD_CELLS_MAX];
+static uint8_t  g_fdepth[FIELD_CELLS_MAX];
+static int16_t  g_tval[FIELD_CELLS_MAX];   /* per-tile valence,  precomputed per frame */
+static int16_t  g_tdz [FIELD_CELLS_MAX];   /* per-tile depth-z,  precomputed per frame */
 static int      g_depth_k = 36;                /* chromostereopsis strength (0=flat)       */
 
 static void zxv_present(const uint32_t *back) {
@@ -399,9 +399,11 @@ static void zxv_present(const uint32_t *back) {
     }
     uint32_t ph = g_holo_phase++;
     /* precompute per-tile valence (object-phased wave) + depth-z — 3600 tiles */
-    for (uint32_t ty = 0; ty < FIELD_TY; ty++) {
-        for (uint32_t tx = 0; tx < FIELD_TX; tx++) {
-            uint32_t ti  = ty * FIELD_TX + tx;
+    const uint32_t FTX = zxv_shell_field_tx();   /* derived from the panel */
+    const uint32_t FTY = zxv_shell_field_ty();
+    for (uint32_t ty = 0; ty < FTY; ty++) {
+        for (uint32_t tx = 0; tx < FTX; tx++) {
+            uint32_t ti  = ty * FTX + tx;
             uint32_t phx = ph + (uint32_t)g_fphase[ti];        /* object's own time phase */
             int32_t  val = g_sin64[(tx + phx) & 63]
                          + g_sin64[(ty - phx + (phx >> 1)) & 63]; /* [-200,200]: S- .. S+ */
@@ -410,7 +412,7 @@ static void zxv_present(const uint32_t *back) {
         }
     }
     for (uint32_t y = 0; y < ZXV_FB_H; y++) {
-        uint32_t row_ti = (y >> 4) * FIELD_TX;
+        uint32_t row_ti = (y >> 4) * zxv_shell_field_tx();
         const uint32_t *br = back + (uint64_t)y * ZXV_FB_W;
         uint32_t *dr = g_scanout + (uint64_t)y * ZXV_FB_W;
         for (uint32_t x = 0; x < ZXV_FB_W; x++) {
@@ -1942,6 +1944,9 @@ void kernel_main_arm64(void) {
             zxv_shell_init(&g_shell);
             /* the shell lays out at the scale the display negotiated */
             zxv_shell_set_ui_scale(g_disp.scale_permille);
+            /* Derive tile geometry from the panel that actually negotiated --
+             * this is what stops a fixed 80x45 from indexing past the array. */
+            (void)zxv_shell_set_field_geometry(g_disp.w, g_disp.h);
             zxv_shell_frame(&g_shell, &g_vbe, (int)(g_disp.w/2 - 8), (int)(g_disp.h/2), 0, prism_break.frames_rendered, g_fphase, g_fdepth);
             /* Boot INTO the Dimensional Desktop: the 13 lattice spaces as the
              * 0d-13d ladder (13d = the universal container / MegaROM), laid out by

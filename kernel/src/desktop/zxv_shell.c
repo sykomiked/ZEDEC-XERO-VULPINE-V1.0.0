@@ -23,6 +23,30 @@
 #include "logistics.h"
 #include "surplus.h"
 
+/* ---- DERIVED FIELD GEOMETRY -----------------------------------------------
+ * The process, not the value. These are computed from whatever panel actually
+ * negotiated, and clamped to the compile-time CAPACITY so an oversized mode
+ * degrades to a smaller field instead of writing past the array. Defaults are
+ * capacity, so a caller that forgets to set geometry over-allocates rather than
+ * over-indexes -- the safe direction to be wrong in. */
+static uint32_t g_ftx = FIELD_TX_MAX;
+static uint32_t g_fty = FIELD_TY_MAX;
+
+uint32_t zxv_shell_set_field_geometry(uint32_t panel_w, uint32_t panel_h) {
+    uint32_t tx = (panel_w + FIELD_TILE - 1u) / FIELD_TILE;   /* ceil: a partial
+                                                               * tile is still a
+                                                               * tile to draw */
+    uint32_t ty = (panel_h + FIELD_TILE - 1u) / FIELD_TILE;
+    if (tx == 0u) tx = 1u;
+    if (ty == 0u) ty = 1u;
+    if (tx > FIELD_TX_MAX) tx = FIELD_TX_MAX;   /* clamp, never grow the array */
+    if (ty > FIELD_TY_MAX) ty = FIELD_TY_MAX;
+    g_ftx = tx; g_fty = ty;
+    return g_ftx * g_fty;
+}
+uint32_t zxv_shell_field_tx(void) { return g_ftx; }
+uint32_t zxv_shell_field_ty(void) { return g_fty; }
+
 /* shell-owned working instances for the stateful spaces */
 static vino_ledger_t g_vino;
 static con_commons_t g_concord;
@@ -629,9 +653,9 @@ static void tagf(uint8_t *fp, uint8_t *fd, int32_t x, int32_t y, int32_t w, int3
                  uint8_t phase, uint8_t depth){
     if(!fp||!fd) return;
     int32_t x0=x>>4, y0=y>>4, x1=(x+w+15)>>4, y1=(y+h+15)>>4;
-    if(x0<0){x0=0;} if(y0<0){y0=0;} if(x1>FIELD_TX){x1=FIELD_TX;} if(y1>FIELD_TY){y1=FIELD_TY;}
+    if(x0<0){x0=0;} if(y0<0){y0=0;} if(x1>(int32_t)g_ftx){x1=(int32_t)g_ftx;} if(y1>(int32_t)g_fty){y1=(int32_t)g_fty;}
     for(int32_t ty=y0;ty<y1;ty++) for(int32_t tx=x0;tx<x1;tx++){
-        fp[ty*FIELD_TX+tx]=phase; fd[ty*FIELD_TX+tx]=depth;
+        fp[ty*(int32_t)g_ftx+tx]=phase; fd[ty*(int32_t)g_ftx+tx]=depth;
     }
 }
 
@@ -766,7 +790,7 @@ void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v, int32_t cx, int32_t 
     const int32_t W=(int32_t)v->width, H=(int32_t)v->height;
     /* field map: the background is the deep base plane (far, slow phase); each
      * object overrides its own tiles below — the 2D base with deliberate depth. */
-    if(fphase&&fdepth) for(int32_t i=0;i<FIELD_TX*FIELD_TY;i++){ fphase[i]=0; fdepth[i]=210; }
+    if(fphase&&fdepth) for(int32_t i=0;i<(int32_t)FIELD_CELLS_MAX;i++){ fphase[i]=0; fdepth[i]=210; }
 
     /* --- input: left-click edge --- */
     if((buttons & 1u) && !(st->prev_buttons & 1u)){
