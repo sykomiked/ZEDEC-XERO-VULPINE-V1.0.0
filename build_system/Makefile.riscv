@@ -274,8 +274,28 @@ TARGET_BIN = kernel_riscv.bin
 
 all: $(TARGET) $(TARGET_BIN)
 
+# Banner gate: a boot banner is a claim about `nm`, not about the Makefile.
+# This build discards unreferenced sections (--gc-sections), so a module can be
+# in KERNEL_SRCS, compile, link, pass its tests and still be ABSENT from the
+# binary. Runs inside the link rule so no unchecked ELF can exist.
+# VERIFY_BANNERS=0 bypasses -- for inspecting a broken link, never for shipping.
+VERIFY_BANNERS ?= 1
+
 $(TARGET): $(RISCV_ARCH_OBJS) $(KERNEL_OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBGCC)
+	@if [ "$(VERIFY_BANNERS)" = "1" ]; then \
+		build_system/verify_banners.sh $@ || { \
+			echo ""; \
+			echo "*** BUILD FAILED: a boot banner announces a subsystem that is"; \
+			echo "*** not in $@. Either remove the banner or give the module a"; \
+			echo "*** real caller -- being in KERNEL_SRCS is not enough under"; \
+			echo "*** --gc-sections. See build_system/verify_banners.sh."; \
+			rm -f $@; \
+			exit 1; \
+		}; \
+	else \
+		echo "  [WARN] banner verification BYPASSED (VERIFY_BANNERS=0)"; \
+	fi
 
 $(TARGET_BIN): $(TARGET)
 	$(OBJCOPY) -O binary $< $@

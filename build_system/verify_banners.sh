@@ -24,20 +24,38 @@ check() {  # check <symbol-substring> <what the banner claims>
   fi
 }
 echo "verify_banners: $ELF"
-# NOTE: check the symbol prefix the code ACTUALLY exports, not the marketing
-# name. An earlier revision of this script grepped for "tls_", "chiglet" and
-# "oseq_dag" -- none of which any of those modules export -- so it reported
-# ABSENT for three subsystems that were present. A verifier that checks the
-# wrong name is worse than none: it manufactures false failures and hides real
-# ones. Every entry below was confirmed against `nm` output.
-check x25519  "X25519 key agreement (RFC 7748)"
-check chg_    "Chiglet inference runtime"
-check oseq_   "causal ordering / happens-before"
-check mlkem   "post-quantum key establishment (ML-KEM-768)"
-check vault   "encrypted vault"
-check zxvfs_  "persistent filesystem"
-check hkdf    "TLS 1.3 key schedule"
-check aead    "TLS record AEAD (ChaCha20-Poly1305)"
+# PER-ARCH CHECK LISTS. A fixed list would be WRONG: 13 subsystems are arm64-only
+# (syscall, zab, zxvfs_tri, display, zmedia, invproof, bombsquad, ...), so
+# demanding them on riscv or arm32 would manufacture failures for capabilities
+# those kernels never announce. That is the same defect as checking a symbol
+# name the code does not export -- a verifier that cries wolf gets bypassed, and
+# a bypassed gate protects nothing.
+#
+# Check the symbol prefix the code ACTUALLY exports, not the marketing name.
+# Every arm64 entry below was confirmed against real `nm` output.
+case "$ELF" in
+  *arm64*)
+    check x25519  "X25519 key agreement (RFC 7748)"
+    check chg_    "Chiglet inference runtime"
+    check oseq_   "causal ordering / happens-before"
+    check mlkem   "post-quantum key establishment (ML-KEM-768)"
+    check vault   "encrypted vault"
+    check zxvfs_  "persistent filesystem"
+    check hkdf    "TLS 1.3 key schedule"
+    check aead    "TLS record AEAD (ChaCha20-Poly1305)"
+    ;;
+  *)
+    # PROVISIONAL. These four arches have not been built on this host (no
+    # riscv backend, x86_64 needs nasm), so their banner sets are UNVERIFIED.
+    # Start from the core every kernel_main announces and widen only once each
+    # has actually been built and its banners read. Understating here is the
+    # safe direction: a missing check fails to catch drift, whereas a wrong
+    # check breaks a build that was fine.
+    check mlkem   "post-quantum key establishment (ML-KEM-768)"
+    echo "  NOTE: $ELF uses the PROVISIONAL check list -- widen it once this"
+    echo "        arch has been built and its boot banners audited."
+    ;;
+esac
 echo
 if [ "$fail" -gt 0 ]; then
   echo "FAIL: $fail subsystem(s) announced but absent from the ELF."
