@@ -134,7 +134,7 @@ class Log:
         return rec
 
 
-def run_rom(rom, elf, out_dir, log, timeout_s):
+def run_rom(rom, elf, out_dir, log, timeout_s, console='?'):
     """Drive ZXV with one ROM. Returns the record.
 
     The emulator runs INSIDE the kernel under test, so a ROM that misbehaves
@@ -143,7 +143,8 @@ def run_rom(rom, elf, out_dir, log, timeout_s):
     """
     digest = sha256(rom)
     era = era_of(rom)
-    rec = {'rom_sha256': digest, 'era': era, 'bytes': os.path.getsize(rom)}
+    rec = {'rom_sha256': digest, 'era': era, 'console': console,
+           'bytes': os.path.getsize(rom)}
     trace = os.path.join(out_dir, 'traces', digest[:16] + '.log')
     os.makedirs(os.path.dirname(trace), exist_ok=True)
 
@@ -303,6 +304,23 @@ def report(run_dir):
         print('\nNOTE: no [COVER] markers seen. The kernel is not emitting coverage,')
         print('      so "symbols reached" is 0 because it was NOT MEASURED --')
         print('      not because nothing was reached. Instrument first.')
+    from collections import defaultdict
+    bycon = defaultdict(lambda: defaultdict(int))
+    for r in roms:
+        bycon[r.get('console', '?')][r.get('verdict', '?')] += 1
+    if len(bycon) > 1:
+        print('\nper-console verdicts (the only readable view of an 81-console run):')
+        rows = sorted(bycon.items(), key=lambda kv: -sum(kv[1].values()))
+        print(f'  {"console":<44} {"runs":>6} {"CLEAN":>6} {"FAULT":>6} {"LIT":>5}')
+        for c, v in rows[:25]:
+            tot = sum(v.values())
+            lit = v.get('FUSE_LIT_ARMED', 0) + v.get('FUSE_LIT_WATCH', 0)
+            print(f'  {c[:44]:<44} {tot:>6} {v.get("CLEAN",0):>6} {v.get("FAULT",0):>6} {lit:>5}')
+        allclean = [c for c, v in rows if v.get('CLEAN', 0) == sum(v.values()) and sum(v.values()) > 20]
+        if allclean:
+            print(f'\n  ** {len(allclean)} console(s) reported 100% CLEAN over 20+ runs.')
+            print('  ** Treat that as SUSPICIOUS until coverage proves the ROMs really')
+            print('  ** executed -- a core that no-ops unknown opcodes looks perfect.')
     worst = sorted(roms, key=lambda r: -r.get('fault_count', 0))[:8]
     if worst and worst[0].get('fault_count'):
         print('\nmost fault-dense ROMs (best debugging leads):')
@@ -420,7 +438,12 @@ def main():
         if a.era != 'all' and era_of(real) != a.era:
             if tmp: shutil.rmtree(tmp, ignore_errors=True)
             continue
-        rec = run_rom(real, a.elf, a.out, log, a.timeout)
+        # Console tag comes from the corpus directory. It is OPERATIONAL data --
+        # it lets an 81-console run be diagnosed and sharded per platform. It is
+        # deliberately NOT propagated into the Sutra schema, which stays
+        # digest-identified and content-free.
+        console = os.path.relpath(rom, a.corpus).split(os.sep)[0] if a.corpus else '?'
+        rec = run_rom(real, a.elf, a.out, log, a.timeout, console=console)
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)
         if rec.get('kind') == 'rom':
