@@ -58,7 +58,8 @@ Usage:
   gamedrive.py --corpus DIR --elf kernel_arm64.elf --out RUNDIR [--era early|late|all]
   gamedrive.py --report RUNDIR        # what happened, and what to do next
 """
-import argparse, hashlib, json, os, subprocess, sys, time, glob
+import shutil
+import argparse, hashlib, json, os, subprocess, sys, time, glob, zipfile, tempfile
 
 ERA = {
     # dev references only — never written into a schema
@@ -82,6 +83,32 @@ def elf_symbols(elf):
     except Exception:
         return set()
     return {f[2] for f in (l.split() for l in out.split('\n')) if len(f) >= 3}
+
+
+ALL_EXT = set().union(*ERA.values())
+
+
+def resolve_rom(path):
+    """Corpus entries are mostly .zip with the ROM inside. Extract to a temp file
+    and return (real_path, cleanup) so the era/extension logic works on the ROM
+    rather than on its container. Returns (None, None) if the archive holds
+    nothing we have a core for -- which is a SKIP, not a failure."""
+    if not path.lower().endswith('.zip'):
+        return path, None
+    try:
+        with zipfile.ZipFile(path) as z:
+            cand = [n for n in z.namelist()
+                    if os.path.splitext(n)[1].lower() in ALL_EXT]
+            if not cand:
+                return None, None
+            n = max(cand, key=lambda x: z.getinfo(x).file_size)
+            d = tempfile.mkdtemp(prefix='gamedrive_')
+            out = os.path.join(d, os.path.basename(n))
+            with open(out, 'wb') as f:
+                f.write(z.read(n))
+            return out, d
+    except Exception:
+        return None, None
 
 
 def era_of(path):
@@ -332,9 +359,19 @@ def main():
             print('  empty. Fault-finding still works; reachability triage does not.')
         if a.corpus:
             exts = set().union(*ERA.values())
-            n = sum(1 for p in glob.glob(os.path.join(a.corpus, '**', '*'), recursive=True)
-                    if os.path.isfile(p) and os.path.splitext(p)[1].lower() in exts)
-            print(f'\n  corpus              : {a.corpus} -> {n} ROMs')
+            files = [p for p in glob.glob(os.path.join(a.corpus, '**', '*'), recursive=True)
+                     if os.path.isfile(p)]
+            direct = sum(1 for p in files if os.path.splitext(p)[1].lower() in exts)
+            zips = sum(1 for p in files if p.lower().endswith('.zip'))
+            n = direct + zips
+            print(f'\n  corpus              : {a.corpus}')
+            print(f'    files total       : {len(files)}')
+            print(f'    direct ROMs       : {direct}')
+            print(f'    zip containers    : {zips} (contents resolved at run time)')
+            print(f'    candidates        : {n}')
+            print(f'    NOTE: candidacy is by EXTENSION only. A file whose console has')
+            print(f'    no machine layer in this kernel will still be counted here and')
+            print(f'    then skipped or run meaninglessly -- see the core audit.')
             ok &= n > 0
         else:
             print('\n  corpus              : (not given -- pass --corpus DIR)')
@@ -349,7 +386,8 @@ def main():
 
     exts = set().union(*ERA.values()) if a.era == 'all' else ERA[a.era]
     roms = [p for p in glob.glob(os.path.join(a.corpus, '**', '*'), recursive=True)
-            if os.path.isfile(p) and os.path.splitext(p)[1].lower() in exts]
+            if os.path.isfile(p) and (os.path.splitext(p)[1].lower() in exts
+                                      or p.lower().endswith('.zip'))]
     roms.sort()
     if a.limit:
         roms = roms[:a.limit]
@@ -375,7 +413,16 @@ def main():
         d = sha256(rom)
         if d in done:
             continue
-        rec = run_rom(rom, a.elf, a.out, log, a.timeout)
+        real, tmp = resolve_rom(rom)
+        if real is None:
+            log('skip', rom_sha256=d, reason='archive holds no ROM this system has a core for')
+            continue
+        if a.era != 'all' and era_of(real) != a.era:
+            if tmp: shutil.rmtree(tmp, ignore_errors=True)
+            continue
+        rec = run_rom(real, a.elf, a.out, log, a.timeout)
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
         if rec.get('kind') == 'rom':
             schema_stub(rec, a.out)
         if i % 25 == 0:
