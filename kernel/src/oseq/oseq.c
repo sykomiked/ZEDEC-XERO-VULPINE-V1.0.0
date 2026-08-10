@@ -317,11 +317,30 @@ uint32_t oseq_count_by_status(oseq_registry_t *reg, oseq_status_t status) {
 
 /* ===== Utility ===== */
 
-bool oseq_is_valid_ordinal(uint64_t ordinal) {
+
+/* NAMESPACE SPLIT — READ BEFORE TOUCHING THESE TWO FUNCTIONS.
+ *
+ * oseq_core.c (linked into every kernel image today) exports functions with
+ * these same two names, and they DISAGREE with the versions here:
+ *
+ *     oseq_core.c : oseq_is_valid_ordinal(o) == (o < UINT64_MAX)   -> 0 is VALID
+ *     oseq.c      : oseq_is_valid_ordinal(o) == (o > 0)            -> 0 is NULL
+ *
+ * Both cannot be linked, and picking one silently would change behaviour for
+ * whichever set of callers lost. The DAG here needs 0 to be a null sentinel
+ * (a root event has no causal parent, encoded as parent ordinal 0), while the
+ * existing callers of oseq_core were written against "0 is a real ordinal".
+ *
+ * So the DAG's versions are namespaced `oseq_dag_*` and oseq_core keeps the
+ * plain names. Nothing existing changes behaviour; the DAG gets correct
+ * semantics. Unifying them is a real migration, not a rename, and belongs to
+ * whoever audits oseq_core's callers.
+ */
+bool oseq_dag_is_valid_ordinal(uint64_t ordinal) {
     return ordinal > 0;  /* 0 is reserved as null */
 }
 
-bool oseq_is_later(uint64_t a, uint64_t b) {
+bool oseq_dag_is_later(uint64_t a, uint64_t b) {
     return a > b;
 }
 

@@ -214,6 +214,7 @@ SRCS := \
     kernel/src/orbital_compat/orbital_compat.c \
     kernel/src/orbital_elevator/orbital_elevator.c \
     kernel/src/oseq/oseq_core.c \
+    kernel/src/oseq/oseq.c \
     kernel/src/phase_coord/phase_coordinator.c \
     kernel/src/pirate_apps/pirate_apps.c \
     kernel/src/pirate_fleet/pirate_fleet.c \

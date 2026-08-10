@@ -129,8 +129,8 @@ oseq_event_t *oseq_get_event(oseq_registry_t *reg, uint32_t idx);
 uint32_t oseq_count_by_status(oseq_registry_t *reg, oseq_status_t status);
 
 /* Utility */
-bool oseq_is_valid_ordinal(uint64_t ordinal);
-bool oseq_is_later(uint64_t a, uint64_t b);
+bool oseq_dag_is_valid_ordinal(uint64_t ordinal);
+bool oseq_dag_is_later(uint64_t a, uint64_t b);
 
 /* Name functions */
 const char *oseq_status_name(oseq_status_t status);

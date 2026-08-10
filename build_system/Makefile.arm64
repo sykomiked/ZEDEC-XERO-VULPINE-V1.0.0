@@ -165,6 +165,7 @@ KERNEL_SRCS = \
     kernel/src/holodeck/swarm.c \
     kernel/src/holodeck/viewing.c \
     kernel/src/oseq/oseq_core.c \
+    kernel/src/oseq/oseq.c \
     kernel/src/rmag/rmag_core.c \
     kernel/src/rmag/rmag.c \
     kernel/src/lpres/lpres_core.c \
