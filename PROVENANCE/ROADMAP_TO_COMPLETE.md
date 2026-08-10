@@ -12,8 +12,8 @@ estimated. Supersedes the sequencing in SYSTEM_MAP.md §6._
 | architectures booting | **1 verified (arm64)** — see the matrix below; the earlier "5/5" here was my overclaim |
 | EFI payloads on real firmware | 2 (BOOTX64, BOOTAA64); one disc boots two arches |
 | non-test `.c` in `kernel/src` | 278 |
-| **absent from the arm64 BINARY** | **129 (46%)** — measured with `nm`, see below |
-| lines absent from the binary | **44,229** |
+| **absent from the arm64 BINARY** | **123 (44%)** — measured with `nm`, see below |
+| lines absent from the binary | **40,980** |
 | (superseded Makefile-based count) | ~~50 (18%)~~ — counted the wrong thing |
 | corpus extracted from QAT | 834 videos, ~180k words, 162 slides read |
 
@@ -27,10 +27,13 @@ appear in `kernel_arm64.elf` (1,325 symbols):
 
 | | files | |
 |---|---|---|
-| contribute symbols to the ELF | **149** | genuinely in the OS |
-| compiled, then **discarded** by `--gc-sections` | **64** | in the build, absent from the binary |
+| contribute symbols to the ELF | **155** | genuinely in the OS |
+| compiled, then **discarded** by `--gc-sections` | **58** | in the build, absent from the binary |
 | never compiled at all on arm64 | **65** | not in the build |
-| **absent from the binary** | **129 of 278 (46%)** | **44,229 lines** |
+| **absent from the binary** | **123 of 278 (44%)** | **40,980 lines** |
+
+_(was 129 / 44,229 before `e8`, `zphi`, `mixmat`, `modbind` and the φ checksum
+were given real callers — 6 files and 3,249 lines moved into the binary.)_
 
 **Nearly half the tree is not in the running system** — not a fifth. The
 structural fact stands but is much larger than stated: a module that is not in
@@ -39,11 +42,12 @@ establish that.
 
 Two consequences worth naming:
 
-- **Today's own fixes are mostly not in the binary.** `e8.c` (515 lines),
-  `mixmat.c`, `modbind.c` and `zphi.c` are all in the discarded set — only
-  `x25519`, `oseq`, `chg`, `hkdf` and `aead` got real callers. So the φ
-  decomposition repair in `digital_dna.c` (1,571 lines, 60 symbols, discarded)
-  is **not running**, and neither is the construction-rule enforcer.
+- **Fixed.** `e8` (6 syms), `zphi_` (13), `mixmat_` (10), `modbind_` (4) and
+  the φ checksum `ddna_phi_checksum_compute` (1) now have real callers and are
+  in the binary; `rat_` (10) came with them. Note `ddna_` contributes **one**
+  symbol — the repaired function is live, but the rest of `digital_dna.c`'s 60
+  symbols are still discarded, and `agp_` (audiogenomics_pro) remains at 0.
+  Being in the binary is per-function under `--gc-sections`, not per-file.
 - **This figure is arm64-only.** The other four arches will differ, and cannot
   be measured on this host. Treat 129 as the number for the one target that
   boots.

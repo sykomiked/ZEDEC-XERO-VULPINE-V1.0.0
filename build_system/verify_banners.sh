@@ -43,6 +43,11 @@ case "$ELF" in
     check zxvfs_  "persistent filesystem"
     check hkdf    "TLS 1.3 key schedule"
     check aead    "TLS record AEAD (ChaCha20-Poly1305)"
+    check e8_     "E8 lattice from the icosians"
+    check zphi_   "exact Z[phi] golden integers"
+    check mixmat_ "exact rational mixing matrices"
+    check modbind_ "module construction rules"
+    check ddna_   "phi-proportioned integrity checksum"
     ;;
   *)
     # PROVISIONAL. These four arches have not been built on this host (no

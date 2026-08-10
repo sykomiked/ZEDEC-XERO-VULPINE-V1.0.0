@@ -463,6 +463,10 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "chiglet.h"
 #include "hkdf.h"
 #include "aead.h"
+#include "e8.h"
+#include "mixmat.h"
+#include "modbind.h"
+#include "digital_dna.h"
 #include "../src/loader/zsp.h"       /* signed-package verification */
 #include "../src/loader/abupdate.h"  /* A/B update + probation + rollback */
 #include "../src/appkit/doc.h"       /* AppKit document model (Writer et al) */
@@ -2124,6 +2128,53 @@ void kernel_main_arm64(void) {
         if (ok) { for (int i = 0; i < 32; i++) if (ss_a[i] != ss_b[i]) { ok = false; break; } }
         if (ok) boot_msg("  [OK] X25519 agreement: both sides derived one secret");
         else    boot_msg("  [FAIL] X25519 KAT mismatch -- transport key agreement is BROKEN");
+    }
+
+    /* ---- Exact-algebra + composition self-verification -------------------
+     * These four were compiled and then DISCARDED by --gc-sections because
+     * nothing called them. Measured with nm against kernel_arm64.elf: e8.c
+     * (23 syms), mixmat.c, modbind.c and digital_dna.c (60 syms) contributed
+     * nothing to the binary. Each selfcheck below does real work and returns a
+     * PROBLEM COUNT, so a regression shows up as a number rather than silence. */
+    boot_msg("[BOOT] Exact algebra: Z[phi], E8 lattice, mixing matrices...");
+    {
+        uint32_t bad_e8  = e8_selfcheck();      /* icosians, Gram, 240 roots, phi^2 shells */
+        uint32_t bad_mix = mixmat_selfcheck();  /* stochastic closure + exact fixed point  */
+        if (bad_e8 == 0) boot_msg("  [OK] E8 from the icosians: Gram unimodular, 240 roots, phi^2 shell ratio");
+        else { boot_msg("  [FAIL] E8 lattice selfcheck problems: "); uart_put_dec((uint64_t)bad_e8); uart_puts("\n"); }
+        if (bad_mix == 0) boot_msg("  [OK] mixing matrices: closed under composition, exact stationary vector");
+        else { boot_msg("  [FAIL] mixmat selfcheck problems: "); uart_put_dec((uint64_t)bad_mix); uart_puts("\n"); }
+    }
+
+    boot_msg("[BOOT] Construction rules (modbind)...");
+    {
+        uint32_t bad = modbind_selfcheck();
+        if (bad == 0)
+            boot_msg("  [OK] ORPHAN/STARVED/NO_PORTS/VERSION detected; trit boundary canonical");
+        else { boot_msg("  [FAIL] modbind selfcheck problems: "); uart_put_dec((uint64_t)bad); uart_puts("\n"); }
+    }
+
+    boot_msg("[BOOT] phi-proportioned integrity checksum...");
+    {
+        /* Exercises the repaired decomposition. The defect was threefold: the
+         * tree was ALWAYS exactly 3 chunks for any input (first chunk n/phi and
+         * second 0.618*0.618n sum to 1.000n), the ratio was computed cur/prev
+         * (~0.618) but compared against phi (~1.618) so `coherent` could never
+         * be true, and the tolerance was tighter than the arithmetic can
+         * deliver. Checking chunk count > 3 and exact reconstruction of the
+         * length is what proves the repair is live, not just committed. */
+        static uint8_t buf[4096];
+        for (uint32_t i = 0; i < sizeof buf; i++) buf[i] = (uint8_t)(i * 31u + 7u);
+        static ddna_phi_checksum_t cs;
+        bool ok = (ddna_phi_checksum_compute(buf, sizeof buf, &cs) == 0);
+        if (ok) {
+            uint32_t total = 0;
+            for (uint32_t i = 0; i < cs.num_chunks; i++) total += cs.chunks[i].size;
+            ok = (total == sizeof buf) && (cs.num_chunks > 3u) && cs.coherent;
+        }
+        if (ok) { boot_msg("  [OK] phi decomposition: chunks="); uart_put_dec((uint64_t)cs.num_chunks);
+                  uart_puts(", sizes reconstruct exactly, coherent\n"); }
+        else      boot_msg("  [FAIL] phi checksum did not decompose or did not reconstruct");
     }
 
     boot_msg("[BOOT] TLS 1.3 key schedule + record AEAD...");
