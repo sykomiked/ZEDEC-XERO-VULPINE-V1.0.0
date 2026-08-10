@@ -248,11 +248,41 @@ int decent_did_add_claim(decent_t *d, uint32_t idx) {
     return 0;
 }
 
+/* FAILS CLOSED. This function previously set zk_verified = true unconditionally,
+ * with a comment saying real verification would come later — a security
+ * predicate that could not fail. Anything that later trusted the flag would have
+ * been trusting nothing.
+ *
+ * The defect is deeper than the hardcoded result: THE SIGNATURE ACCEPTS NO
+ * PROOF. Given only a DID index there is nothing to verify, so no correct
+ * implementation of *this* function exists — it cannot succeed honestly. Making
+ * it return false is therefore not a placeholder, it is the accurate answer for
+ * the interface as declared.
+ *
+ * The flag stays false and the call reports DECENT_ENOTIMPL. When real
+ * verification arrives it needs a different entry point that takes a proof, a
+ * verifying key and a public-input vector — see decent_did_zk_verify_proof()
+ * declared alongside, which is the shape the work has to fit. Until then a
+ * caller cannot mistake "we never checked" for "it passed". */
 int decent_did_zk_verify(decent_t *d, uint32_t idx) {
-    if (idx >= d->num_dids) return -1;
-    /* In real implementation: zk-SNARK verification */
-    d->dids[idx].zk_verified = true;
-    return 0;
+    if (!d || idx >= d->num_dids) return -1;
+    d->dids[idx].zk_verified = false;   /* never granted without a proof */
+    return DECENT_ENOTIMPL;
+}
+
+/* The honest interface. Unimplemented, and it refuses rather than pretends:
+ * a verifier that accepts every proof is worse than no verifier, because the
+ * system reports a guarantee it does not have. Returns DECENT_ENOTIMPL and
+ * leaves zk_verified untouched (false). */
+int decent_did_zk_verify_proof(decent_t *d, uint32_t idx,
+                               const uint8_t *proof, uint32_t proof_len,
+                               const uint8_t *vk, uint32_t vk_len,
+                               const uint8_t *public_inputs, uint32_t pi_len) {
+    (void)proof; (void)proof_len; (void)vk; (void)vk_len;
+    (void)public_inputs; (void)pi_len;
+    if (!d || idx >= d->num_dids) return -1;
+    d->dids[idx].zk_verified = false;
+    return DECENT_ENOTIMPL;
 }
 
 /* ===== SDR ===== */

@@ -206,7 +206,23 @@ int decent_matrix_room_send_event(decent_t *d, uint32_t room_idx,
 /* DID */
 int32_t decent_did_create(decent_t *d, const char *label, uint8_t key_index);
 int decent_did_add_claim(decent_t *d, uint32_t idx);
+/* Returned when a capability is DECLARED but not implemented. Distinct from
+ * -1 (bad argument) so a caller can tell "you asked wrongly" from "this system
+ * cannot do that yet". Never conflate either with success. */
+#define DECENT_ENOTIMPL (-2)
+
+/* DEPRECATED AND ALWAYS FAILS. Accepts no proof, so it cannot verify anything;
+ * it leaves zk_verified false and returns DECENT_ENOTIMPL. Kept only so
+ * existing links do not break. Use decent_did_zk_verify_proof(). */
 int decent_did_zk_verify(decent_t *d, uint32_t idx);
+
+/* The honest interface: proof + verifying key + public inputs. Currently
+ * unimplemented and returns DECENT_ENOTIMPL, leaving zk_verified false. A zero
+ * return MUST mean a proof actually verified. */
+int decent_did_zk_verify_proof(decent_t *d, uint32_t idx,
+                               const uint8_t *proof, uint32_t proof_len,
+                               const uint8_t *vk, uint32_t vk_len,
+                               const uint8_t *public_inputs, uint32_t pi_len);
 
 /* SDR */
 int32_t decent_sdr_channel_create(decent_t *d, const char *name, uint32_t freq_hz,
