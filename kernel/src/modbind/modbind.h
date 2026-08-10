@@ -93,7 +93,28 @@ typedef enum {
     MB_ERR_BLOCKED     = 4,  /* uses a form that is not yet sound        */
     MB_ERR_VERSION     = 5,  /* form matches, version does not           */
     MB_ERR_NO_XFORM    = 6,  /* declares a form but supplies no marshaller */
+    MB_ERR_UNPROVIDED  = 7,  /* REQUIRES something nothing PROVIDES        */
+    MB_ERR_CYCLE       = 8,  /* requires-graph has a cycle: never boots    */
+    MB_ERR_CONTRACT    = 9,  /* two providers disagree on contract version */
 } mb_err_t;
+
+/* ---- readiness resolution ------------------------------------------------
+ * No clock, no levels, no barriers. Repeatedly mark ready every module whose
+ * requirements are all provided by an already-ready module, until nothing more
+ * changes. Whatever remains HELD is either genuinely blocked or in a cycle —
+ * and modbind_verify_graph distinguishes those, because they need different
+ * fixes.
+ *
+ * Returns how many modules reached MB_READY. */
+uint32_t modbind_resolve(void);
+
+/* Withdraw a capability (S−). Every module transitively requiring it returns to
+ * MB_HELD — teardown is the reverse edge of bring-up, not a separate mechanism.
+ * Returns how many modules were un-readied. */
+uint32_t modbind_withdraw(const char *capability);
+
+/* Acyclic + fully-provided + contract-consistent. Returns problems found. */
+uint32_t modbind_verify_graph(mb_err_t *first_err, const char **first_name);
 
 /* A module's own translation block. It lives WITH the module, so the kernel
  * never needs to know how to convert anything — it only runs the bus. */
@@ -110,12 +131,52 @@ typedef struct {
     uint16_t  version;
 } mb_port_t;
 
+/* ---- CAPABILITIES: the nonlinear half of this module -----------------------
+ * emits/ingests describe DATA crossing a boundary. provides/requires describe
+ * READINESS, and they are what removes the clock.
+ *
+ * A module does not declare a bring-up LEVEL. It declares what it PROVIDES and
+ * what it REQUIRES, and it becomes ready when its requirements are satisfied --
+ * on whichever core, in whatever order. The dependency graph IS the schedule;
+ * any valid traversal is a valid boot, and two cores may traverse differently
+ * and both be correct. `oseq` (already reachable) decides happens-before.
+ *
+ * TWO PROVIDERS OF ONE CAPABILITY IS NOT A CONFLICT. It is alternative
+ * provision -- mm.c provides mm_ready with no requirements, arm64_mmu provides
+ * the same capability but REQUIRES arm64_el1. A core without an MMU takes the
+ * first and still boots. That is why nothing is deleted for being "redundant".
+ *
+ * The contract VERSION is what keeps that sound: two providers at the same
+ * version are interchangeable; at different versions they are a build failure,
+ * never a runtime coin-toss. This mirrors why MB_ERR_VERSION is reported
+ * separately from MB_ERR_ORPHAN -- the two demand different fixes. */
+#define MB_CAP_NAME_LEN 24u
+#define MB_MAX_CAPS      4u
+
+typedef struct {
+    char     name[MB_CAP_NAME_LEN];   /* e.g. "mm_ready"          */
+    uint16_t contract;                /* providers must agree      */
+} mb_cap_t;
+
+/* Readiness state — the tri-space faces, not a boolean.
+ *   S+ available   S- withdrawable   S0 HELD (requirements unmet) */
+typedef enum {
+    MB_HELD = 0,      /* S0: requirements not yet satisfied — not a failure */
+    MB_READY = 1,     /* S+: provided                                        */
+    MB_WITHDRAWN = 2, /* S-: retracted; dependants return to MB_HELD         */
+} mb_ready_t;
+
 typedef struct {
     char       name[MB_NAME_LEN];
     mb_port_t  emits[MB_MAX_PORTS];
     uint8_t    n_emits;
     mb_port_t  ingests[MB_MAX_PORTS];
     uint8_t    n_ingests;
+    mb_cap_t   provides[MB_MAX_CAPS];
+    uint8_t    n_provides;
+    mb_cap_t   requires[MB_MAX_CAPS];
+    uint8_t    n_requires;
+    mb_ready_t ready;
     module_transform_t xform;
     bool       registered;
 } mb_module_t;

@@ -216,6 +216,168 @@ static mb_module_t mk(const char *nm, mb_form_t emit, mb_form_t ing,
     return m;
 }
 
+
+/* ===== READINESS: the fixpoint that replaces the clock =====================
+ *
+ * THIS LOOP IS A HUYGENS PROPAGATION, and naming it that is not decoration --
+ * it is what makes partial bring-up legible.
+ *
+ * Huygens' Principle (1670): every point a wavefront reaches becomes a SOURCE of
+ * the next wavefront. The wave is continuous; the interactions are quantised.
+ * That is precisely this loop. Every module that becomes MB_READY becomes a
+ * provider, and therefore a source from which the next pass can advance. One
+ * `while (changed)` iteration is one wavefront advance. There is no clock, and
+ * there was never a need for one: the wave does not tick, it propagates.
+ *
+ * Three consequences that follow from the physics and are not obvious from the
+ * code, drawn from the verified extraction in PROVENANCE/QAT_PHYSICS_EXTRACTION.md:
+ *
+ *   1. UNREACHED IS NOT FAILED. A wavefront reaches what it reaches. A module
+ *      the wave never arrives at is MB_HELD -- S0, the unresolved remainder --
+ *      not an error and not a skip. The barrier model had no way to say this,
+ *      which is why it needed to treat "not yet" as a fault.
+ *   2. POTENTIAL BECOMES ACTUAL AT THE INTERACTION. QAT's absorption/emission
+ *      cycle converts potential energy into "the energy of what is actually
+ *      happening". MB_HELD -> MB_READY is that conversion: the capability exists
+ *      as potential until the requirement is met, and the meeting is the event.
+ *   3. THE BOUNDARY IS THE ACTIVE SITE. On the sphere model the 2D surface --
+ *      not the interior -- is where charge lives and where everything occurs.
+ *      Here the requires/provides EDGE is where readiness is decided; the module
+ *      interior does nothing until its boundary condition is satisfied.
+ *
+ * The wavefront also explains why two cores may resolve in different orders and
+ * agree: a wave has no preferred traversal, only a front. `oseq` records the
+ * happens-before that results.
+ * ===========================================================================
+ * modbind_resolve does not walk a list in order. It repeatedly promotes every
+ * module whose requirements are already provided, until a pass changes nothing.
+ * That is a least-fixpoint computation, and it has the properties the barrier
+ * model could not offer:
+ *   - order-independent: registration order cannot change the outcome
+ *   - core-independent: two cores may promote in different orders, same result
+ *   - partial: whatever cannot be satisfied stays MB_HELD (S0), which is an
+ *     honest state rather than a failure or a silent skip
+ * There is no tick, no level and no barrier anywhere in it. */
+
+static bool cap_eq(const mb_cap_t *a, const mb_cap_t *b) {
+    for (uint32_t i = 0; i < MB_CAP_NAME_LEN; i++) {
+        if (a->name[i] != b->name[i]) return false;
+        if (a->name[i] == 0) return true;
+    }
+    return true;
+}
+
+/* Is `cap` provided by some module that is already MB_READY? */
+static bool cap_available(const mb_cap_t *cap) {
+    for (uint32_t i = 0; i < g_n; i++) {
+        if (g_mods[i].ready != MB_READY) continue;
+        for (uint8_t j = 0; j < g_mods[i].n_provides; j++)
+            if (cap_eq(&g_mods[i].provides[j], cap)) return true;
+    }
+    return false;
+}
+
+uint32_t modbind_resolve(void) {
+    /* start everything HELD (S0) -- nothing is ready until shown to be */
+    for (uint32_t i = 0; i < g_n; i++)
+        if (g_mods[i].ready != MB_WITHDRAWN) g_mods[i].ready = MB_HELD;
+
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (uint32_t i = 0; i < g_n; i++) {
+            mb_module_t *m = &g_mods[i];
+            if (m->ready != MB_HELD) continue;
+            bool all = true;
+            for (uint8_t j = 0; j < m->n_requires && all; j++)
+                if (!cap_available(&m->requires[j])) all = false;
+            if (all) { m->ready = MB_READY; changed = true; }
+        }
+    }
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < g_n; i++) if (g_mods[i].ready == MB_READY) n++;
+    return n;
+}
+
+/* S- : withdrawal is the REVERSE EDGE of provision, not a separate mechanism.
+ * Retract the capability, then re-run the fixpoint -- everything that
+ * transitively required it falls back to MB_HELD on its own. This is why the
+ * empty S- column in THIRTEEN_LAYERS.md closes: teardown was impossible under
+ * barriers because barriers only run forwards. */
+uint32_t modbind_withdraw(const char *capability) {
+    if (!capability) return 0;
+    mb_cap_t want; 
+    for (uint32_t i = 0; i < MB_CAP_NAME_LEN; i++) want.name[i] = 0;
+    for (uint32_t i = 0; i < MB_CAP_NAME_LEN && capability[i]; i++)
+        want.name[i] = capability[i];
+    want.contract = 0;
+
+    uint32_t before = 0;
+    for (uint32_t i = 0; i < g_n; i++) if (g_mods[i].ready == MB_READY) before++;
+
+    for (uint32_t i = 0; i < g_n; i++)
+        for (uint8_t j = 0; j < g_mods[i].n_provides; j++)
+            if (cap_eq(&g_mods[i].provides[j], &want))
+                g_mods[i].ready = MB_WITHDRAWN;
+
+    uint32_t after = modbind_resolve();
+    return (before > after) ? (before - after) : 0;
+}
+
+uint32_t modbind_verify_graph(mb_err_t *first_err, const char **first_name) {
+    uint32_t bad = 0;
+    if (first_err)  *first_err = MB_OK;
+    if (first_name) *first_name = (const char *)0;
+    #define NOTE(e, nm) do { if (bad == 0) { if (first_err) *first_err = (e); \
+                             if (first_name) *first_name = (nm); } bad++; } while (0)
+
+    /* 1. every requirement must be provided by SOMEBODY (ready or not) */
+    for (uint32_t i = 0; i < g_n; i++) {
+        for (uint8_t j = 0; j < g_mods[i].n_requires; j++) {
+            bool found = false;
+            for (uint32_t k = 0; k < g_n && !found; k++)
+                for (uint8_t l = 0; l < g_mods[k].n_provides && !found; l++)
+                    if (cap_eq(&g_mods[k].provides[l], &g_mods[i].requires[j]))
+                        found = true;
+            if (!found) NOTE(MB_ERR_UNPROVIDED, g_mods[i].name);
+        }
+    }
+
+    /* 2. ALTERNATIVE PROVISION IS LEGAL; DISAGREEMENT IS NOT. Two providers of
+     *    one capability are interchangeable only at the same contract version.
+     *    Differing versions are a build failure rather than a runtime
+     *    coin-toss whose outcome depends on which module registered first. */
+    for (uint32_t i = 0; i < g_n; i++)
+        for (uint8_t j = 0; j < g_mods[i].n_provides; j++)
+            for (uint32_t k = i + 1; k < g_n; k++)
+                for (uint8_t l = 0; l < g_mods[k].n_provides; l++)
+                    if (cap_eq(&g_mods[i].provides[j], &g_mods[k].provides[l]) &&
+                        g_mods[i].provides[j].contract !=
+                        g_mods[k].provides[l].contract)
+                        NOTE(MB_ERR_CONTRACT, g_mods[k].name);
+
+    /* 3. A cycle never reaches the fixpoint. Detected as: requirements are all
+     *    provided by SOMETHING, yet the module never becomes ready. That
+     *    distinguishes a cycle from a genuinely missing provider -- they need
+     *    different fixes, so they get different errors. */
+    modbind_resolve();
+    for (uint32_t i = 0; i < g_n; i++) {
+        if (g_mods[i].ready != MB_HELD || g_mods[i].n_requires == 0) continue;
+        bool all_declared = true;
+        for (uint8_t j = 0; j < g_mods[i].n_requires && all_declared; j++) {
+            bool found = false;
+            for (uint32_t k = 0; k < g_n && !found; k++)
+                for (uint8_t l = 0; l < g_mods[k].n_provides && !found; l++)
+                    if (cap_eq(&g_mods[k].provides[l], &g_mods[i].requires[j]))
+                        found = true;
+            if (!found) all_declared = false;
+        }
+        if (all_declared) NOTE(MB_ERR_CYCLE, g_mods[i].name);
+    }
+    #undef NOTE
+    return bad;
+}
+
 uint32_t modbind_selfcheck(void) {
     uint32_t bad = 0;
     modbind_reset();
