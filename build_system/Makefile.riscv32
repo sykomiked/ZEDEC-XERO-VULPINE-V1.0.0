@@ -19,7 +19,7 @@ CFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -nostdinc \
          -mcmodel=medany \
          -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -Ikernel/arch/arm64 -Ikernel/arch/riscv -Ikernel/boot -Ikernel/compat \
-         -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/src/modbind -Ikernel/src/abacus \
+         -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/src/mbcomp -Ikernel/src/modbind -Ikernel/src/abacus \
          -Ikernel/src/ai_layer -Ikernel/src/alloc -Ikernel/src/appkit -Ikernel/src/art_studio \
          -Ikernel/src/ascent -Ikernel/src/audiogenomics_pro -Ikernel/src/axiom_matrix -Ikernel/src/battering_ram \
          -Ikernel/src/bios -Ikernel/src/bootfeat -Ikernel/src/bridge -Ikernel/src/broker \
@@ -75,6 +75,7 @@ KERNEL_SRCS = \
     kernel/src/e8/e8.c \
     kernel/src/mixmat/mixmat.c \
     kernel/src/modbind/modbind.c \
+    kernel/src/mbcomp/mbcomp.c \
     kernel/src/battering_ram/battering_ram.c \
     kernel/src/bios/zbios.c \
     kernel/src/blockdev/blockdev.c \
