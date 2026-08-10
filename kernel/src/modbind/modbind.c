@@ -325,6 +325,81 @@ uint32_t modbind_withdraw(const char *capability) {
 }
 
 
+
+/* ===== THE ELECTRICAL MODEL ===============================================
+ * cos over the 13 phases, as permille, integer-only. 13 phases means the phase
+ * difference is (a-b) mod 13, and cos(2*pi*k/13) is tabulated rather than
+ * computed -- freestanding, no libm, and exact enough that a power factor is a
+ * decision rather than an estimate. */
+static const int16_t COS13_PERMILLE[13] = {
+    1000,  885,  568,  121, -355, -749, -971,   /* k = 0..6  */
+    -971, -749, -355,  121,  568,  885           /* k = 7..12 */
+};
+
+uint32_t mb_power_factor(uint8_t phase_a, uint8_t phase_b) {
+    uint32_t k = (uint32_t)((phase_a >= phase_b)
+                            ? (phase_a - phase_b) : (phase_b - phase_a)) % 13u;
+    int32_t c = COS13_PERMILLE[k];
+    /* power factor is |cos| -- a half-cycle inversion still transfers power,
+     * it just arrives with opposite polarity, which the trit sign carries. */
+    return (uint32_t)(c < 0 ? -c : c);
+}
+
+int32_t mb_real_power(const mb_cap_t *provided, const mb_cap_t *required) {
+    if (!provided || !required) return 0;
+    /* VOLTAGE: potential exists only where the two name the same capability.
+     * Different capabilities are not a circuit at all. */
+    if (!cap_eq(provided, required)) return 0;
+    /* A contract mismatch is an OPEN circuit, not a lossy one -- there is no
+     * partial credit for two modules that disagree about what they mean. */
+    if (provided->contract != required->contract) return 0;
+
+    /* CURRENT: the five-level trit amplitude, canonicalised first so the
+     * deprecated GLUT alias cannot present as a sixth level. */
+    trit_t t = trit_canon((trit_t)provided->amplitude);
+    int32_t i_permille;
+    switch (t) {
+        case TRIT_TRUE:           i_permille =  1000; break;
+        case TRIT_GLUT_PLUS:      i_permille =   750; break;
+        case TRIT_GLUT_NEUTRAL:   i_permille =   500; break;
+        case TRIT_GLUT_MINUS:     i_permille =   250; break;
+        case TRIT_FALSE:          i_permille =     0; break;
+        default:                  i_permille =     0; break;
+    }
+    /* P = V * I * cos(dphase). V is unity here (the potential either exists or
+     * it does not, established above), so real power is amplitude scaled by
+     * power factor. */
+    uint32_t pf = mb_power_factor(provided->phase, required->phase);
+    int32_t p = (int32_t)(((int64_t)i_permille * (int64_t)pf) / 1000);
+    /* POLARITY: the trit sign says which half-cycle delivered it. */
+    return (trit_charge(t) < 0) ? -p : p;
+}
+
+/* ===== THE PULSE: a carrier, not a clock ==================================
+ * The system has no clock and it does have a PULSE -- the distinction is the
+ * same one a dial tone makes. A dial tone counts nothing and orders nothing. It
+ * says only: THE LINE IS LIVE. You do not read a time off it; you hear that the
+ * circuit exists, and its absence is the signal that something is wrong.
+ *
+ * That is what a carrier does under AC. It is the continuous wave everything
+ * else modulates onto -- it does not sequence the traffic, it makes traffic
+ * possible. Phase is measured RELATIVE to it, which is exactly why a phase can
+ * be meaningful without any global time existing: two modules do not need to
+ * agree what time it is, only to share a reference tone.
+ *
+ * So the pulse is NOT a tick and must never become one. If anything starts
+ * counting pulses to decide ordering, the clock has been reinvented and the
+ * event-space model is lost. Ordering comes from oseq's happens-before;
+ * readiness from the Huygens fixpoint; the pulse only carries.
+ *
+ * Absence is the information: no carrier means no circuit, which is why silence
+ * on the line is diagnostic rather than merely quiet. */
+static uint32_t g_carrier_live;   /* not a counter -- a presence flag */
+
+void mb_carrier_up(void)   { g_carrier_live = 1u; }
+void mb_carrier_down(void) { g_carrier_live = 0u; }
+bool mb_carrier(void)      { return g_carrier_live != 0u; }
+
 /* ===== COMPOSITION ========================================================= */
 
 static const mb_module_t *find_mod(const char *nm) {

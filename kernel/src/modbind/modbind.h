@@ -155,10 +155,62 @@ typedef struct {
 #define MB_CAP_NAME_LEN 24u
 #define MB_MAX_CAPS      4u
 
+/* ---- THE ELECTRICAL MODEL: Ohm at a module boundary -----------------------
+ * A boundary is not a wire with a cost. It is a circuit, and three quantities
+ * describe it exactly as Ohm's law does:
+ *
+ *   VOLTAGE   the POTENTIAL across the boundary -- a difference exists only
+ *             where something is required and something else provides it.
+ *             No gap, no drive.
+ *   CURRENT   the AMPLITUDE actually flowing. This is the TRIT, and it was
+ *             already a five-level waveform: trit_to_ell gives 1.0 / 0.75 /
+ *             0.5 / 0.25 / 0.0 and trit_to_charge gives +1 / 0 / -1. Rails,
+ *             partials, and a zero crossing -- a multilevel inverter, built
+ *             before anyone called it one.
+ *   IMPEDANCE what opposes flow: the marshalling cost of pack/unpack. Under DC
+ *             this would be plain resistance. It is not, because it is
+ *             PHASE-DEPENDENT -- see below.
+ *
+ * POWER FACTOR IS THE POINT. Real power is V*I*cos(dphase), not V*I. Two modules
+ * perfectly in phase deliver all of it; two a quarter-cycle apart deliver none
+ * while still drawing current. That is the precise description of a boundary
+ * that is CONNECTED AND DOING NO WORK -- which is what 1,674 discarded symbols
+ * and every "linked but never exercised" module actually are. They are not
+ * disconnected. They are reactive.
+ *
+ * And it makes phi a control rather than an ornament: phi is the most irrational
+ * ratio (continued fraction all ones, Hurwitz worst case), so a phi phase offset
+ * NEVER aligns at any harmonic -- a permanently zero power factor, deliberate
+ * isolation. Matched phase couples; phi decouples forever. */
 typedef struct {
-    char     name[MB_CAP_NAME_LEN];   /* e.g. "mm_ready"          */
-    uint16_t contract;                /* providers must agree      */
+    char     name[MB_CAP_NAME_LEN];   /* e.g. "mm_ready"                     */
+    uint16_t contract;                /* providers must agree                */
+    uint8_t  phase;                   /* l13 phase (0..12) this rides on     */
+    uint8_t  amplitude;               /* trit_t: the five-level drive level   */
+    uint8_t  alternating;             /* 1 = both sides swap roles per phase  */
 } mb_cap_t;
+
+/* Real power delivered across a binding, in milliwatt-equivalents (integer, no
+ * float in the kernel). Returns 0 for a binding that carries current but does no
+ * work -- which is a DIFFERENT and more useful answer than "not connected". */
+int32_t mb_real_power(const mb_cap_t *provided, const mb_cap_t *required);
+
+/* Power factor as a permille (0..1000). 1000 = perfectly in phase, all real.
+ * 0 = quadrature, purely reactive, connected and useless. */
+uint32_t mb_power_factor(uint8_t phase_a, uint8_t phase_b);
+
+/* ---- THE PULSE -------------------------------------------------------------
+ * A carrier, like a dial tone: it counts nothing and orders nothing. It says
+ * only that the line is live, and phase is measured relative to it -- which is
+ * how two modules can agree on phase without agreeing what time it is.
+ *
+ * NEVER COUNT IT. The moment anything derives ordering from pulse tallies, the
+ * clock is back and the event-space model is gone. Ordering is oseq's job;
+ * readiness is the fixpoint's; the carrier only makes the circuit exist.
+ * Its ABSENCE is the diagnostic. */
+void mb_carrier_up(void);
+void mb_carrier_down(void);
+bool mb_carrier(void);
 
 /* Readiness state — the tri-space faces, not a boolean.
  *   S+ available   S- withdrawable   S0 HELD (requirements unmet) */
