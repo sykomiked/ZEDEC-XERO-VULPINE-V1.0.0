@@ -293,9 +293,53 @@ def main():
     ap.add_argument('--limit', type=int, default=0)
     ap.add_argument('--timeout', type=int, default=120)
     ap.add_argument('--report')
+    ap.add_argument('--preflight', action='store_true',
+                    help='check the run can produce VALID results before spending hours on it')
     a = ap.parse_args()
     if a.report:
         return report(a.report)
+    if a.preflight:
+        import shutil
+        ok = True
+        print('gamedrive preflight')
+        q = shutil.which('qemu-system-aarch64')
+        print(f'  qemu-system-aarch64 : {q or "MISSING"}'); ok &= bool(q)
+        e = os.path.exists(a.elf)
+        print(f'  kernel elf          : {a.elf} {"" if e else "MISSING"}'); ok &= e
+        # THE CHECK THAT MATTERS. Without margin markers every run reports CLEAN,
+        # so a 144k campaign would return a uniformly false pass. Refuse to let
+        # that be discovered after the fact.
+        marks = {}
+        for m in ('[COVER]', '[WATCH]', '[ARMED]', '[BREACHED]'):
+            n = 0
+            for root, _, fs in os.walk('kernel'):
+                for f in fs:
+                    if f.endswith(('.c', '.h')):
+                        try:
+                            if m in open(os.path.join(root, f), errors='ignore').read(): n += 1
+                        except Exception: pass
+            marks[m] = n
+            print(f'  emits {m:<11}: {n} files')
+        instrumented = marks['[WATCH]'] or marks['[ARMED]']
+        if not instrumented:
+            ok = False
+            print('\n  *** BLOCKED: the kernel emits no bomb-squad margin markers.')
+            print('  *** Every run would classify CLEAN because there is nothing to')
+            print('  *** detect -- a false pass across the whole corpus. Instrument')
+            print('  *** the WATCH/ARMED transitions before starting a long campaign.')
+        if not marks['[COVER]']:
+            print('\n  WARNING: no [COVER] markers -- the coverage product will be')
+            print('  empty. Fault-finding still works; reachability triage does not.')
+        if a.corpus:
+            exts = set().union(*ERA.values())
+            n = sum(1 for p in glob.glob(os.path.join(a.corpus, '**', '*'), recursive=True)
+                    if os.path.isfile(p) and os.path.splitext(p)[1].lower() in exts)
+            print(f'\n  corpus              : {a.corpus} -> {n} ROMs')
+            ok &= n > 0
+        else:
+            print('\n  corpus              : (not given -- pass --corpus DIR)')
+        print('\nPREFLIGHT ' + ('PASS -- safe to start' if ok else 'FAIL -- fix the above first'))
+        return 0 if ok else 1
     if not a.corpus:
         ap.error('--corpus required (or --report RUNDIR)')
 
