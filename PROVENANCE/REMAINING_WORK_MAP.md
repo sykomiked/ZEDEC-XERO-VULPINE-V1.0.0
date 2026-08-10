@@ -25,7 +25,7 @@ hardening P0s for a *defensible* MVP, and (d) one business/legal item.
 | Arch | Server status | Boot remaining |
 |------|-------|---------------|
 | **arm64** | ✅ **BUILDS + BOOTS (`BOOT_OK`)** + EL0 | — (flagship, done) |
-| **x86_64** | ✅ **BOOTS + RING-3 + FULL SUBSYSTEM SET (196 files) initialized** (M5 core, [FEAT] platform 8/8, economy 5/5) | — (done) |
+| **x86_64** | ⚠️ boot trace on record (`EVIDENCE/x86_64_boot_trace.log`) but **NOT reproducible on the dev host**; `handover.json` records `COMPILES_KERNEL_ONLY`. ring3.c is real (318 lines) and built. | re-verify on the build box |
 | **riscv64** | ✅ **BOOTS (OpenSBI/S-mode)** — all 17 phases + live 100 Hz event loop | — (done) |
 | **riscv32** | ✅ **BOOTS (OpenSBI-rv32/S-mode)** — all 17 phases + live 100 Hz event loop | — (done) |
 | **arm32** | ✅ **BOOTS (`-M virt` / `BOOT_OK`)** — full subsystem set + live event loop | — (done) |

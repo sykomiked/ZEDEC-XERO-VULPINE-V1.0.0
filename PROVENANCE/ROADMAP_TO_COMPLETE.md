@@ -9,16 +9,36 @@ estimated. Supersedes the sequencing in SYSTEM_MAP.md §6._
 
 | | |
 |---|---|
-| architectures booting | **5/5** — arm64, x86_64, riscv64, riscv32, arm32 |
+| architectures booting | **1 verified (arm64)** — see the matrix below; the earlier "5/5" here was my overclaim |
 | EFI payloads on real firmware | 2 (BOOTX64, BOOTAA64); one disc boots two arches |
-| non-test `.c` in `kernel/src` | 274 |
-| **in no kernel image on any arch** | **54** (was 55; `oseq.c` now linked) |
-| dead lines those represent | ~22,000 (20% of `kernel/src`) |
+| non-test `.c` in `kernel/src` | 278 |
+| **in no kernel image on any arch** | **50** (was 55; `oseq.c` + 4 TLS units linked) |
+| dead lines those represent | 20,942 (18% of `kernel/src`) |
 | corpus extracted from QAT | 834 videos, ~180k words, 162 slides read |
 
 The single structural fact: **a fifth of the tree is undifferentiated reserve.**
 Not dead — staged (see ORGANISM_ARCHITECTURE.md §3) — but a module that is not
 in an image has not been shown to work in the system.
+
+### Architecture status — corrected
+
+An earlier revision of this file claimed "5/5 architectures booting". That was
+written by carrying forward stale session state without re-checking it against
+`SERVER_HANDOVER.md` and `handover.json`, which said otherwise. It was the
+flattering half of a repo that contained both an honest status document and an
+inaccurate one. Corrected:
+
+| architecture | status | evidence |
+|---|---|---|
+| **arm64** | **BOOTS** — BOOT_OK, EL0, desktop | `EVIDENCE/arm64_boot_trace.log`; reproduced on this host |
+| **x86_64** | boot trace on record, **NOT reproducible here** | `EVIDENCE/x86_64_boot_trace.log` vs `SERVER_HANDOVER.md:104` "compiles, minimal kernel_main"; `handover.json` `COMPILES_KERNEL_ONLY` |
+| **riscv64** | compiles; **not linkable on this host** | `handover.json` `UNLINKABLE_LOCALLY` (host clang lacks the RISCV backend) |
+| **riscv32** | compiles; **not linkable on this host** | as above |
+| **arm32** | compiles; **boot unproven** | `SERVER_HANDOVER.md:107` |
+
+**One architecture is verified booting.** The other four compile to varying
+depths and are unproven on this machine. Re-verification belongs on the Linux
+build box, not here.
 
 ## 1. The blocking defect — fix before anything builds on trit_t
 
@@ -30,21 +50,26 @@ as a legacy alias for `TRIT_GLUT_NEUTRAL = 5`. Consequences, all live:
 - GF(5) requires exactly 5 states, so the multi-valued algebra cannot be built;
 - 59 files already use `TRIT_GLUT`.
 
-**Decision needed from the owner** (asked twice, still unanswered): remove
-`TRIT_GLUT` outright, or keep it as a deprecated input alias that canonicalises
-to `GLUT_NEUTRAL`? I recommend the second — safer for 59 call sites. This gates
-items 5 and 6 below.
+**RESOLVED (owner decision): keep `TRIT_GLUT` as a deprecated alias that
+canonicalises.** Implemented — `trit_canon()`, `trit_is_canonical()`,
+`trit_canon_is_sound()` and `TRIT_CANONICAL_COUNT` in `m5_types.h`; rule is
+*accept it anywhere, never emit it*. All 59 call sites unchanged. `MB_FORM_TRIT`
+is now gated on `!trit_canon_is_sound()` — evidence, not a promise — so it
+re-blocks automatically if a sixth state is ever added without a canonical rule.
+GF(5) and items 5–6 are unblocked. Commit `ba852b9`.
 
 ## 2. Half-expressed organs — the only state biology does not tolerate
 
 Undifferentiated is fine. **Half-differentiated makes the rest of the system plan
 around a capability that is not there.**
 
-1. **TLS — the wings.** `hkdf.c` links on four arches; `x25519.c`, `aead.c`,
-   `record.c`, `handshake.c` link on **none** — 1,136 of 1,272 lines. What ships
-   is key derivation with no key exchange, no cipher, no record layer, no
-   handshake. *The system reports transport security it does not have.* Highest
-   priority in this section.
+1. **TLS — LINKED, NOT PROVEN.** All five units now link on all five arches
+   (commit `8c70a4c`); vendor tests pass (`x25519`, `aead`, `record`+`aead`,
+   `hkdf`+`sha256`). **Linked is not working:** no handshake has completed
+   against a real endpoint, and `nm kernel_arm64.elf | grep -c tls_` is **0**
+   because the shipped ELF predates the link. Two open items — rebuild and
+   confirm the symbols land, then exercise end to end. Until then no TLS claim
+   may appear in a banner or doc.
 2. **`fs.c`** — its header is included by all 8 `kernel_main`s and **zero of its
    APIs are called**. Advertisement expressed, tissue not.
 3. **Per-arch asymmetry** — 13 subsystems exist on arm64 only (`syscall`, `zab`,
@@ -117,8 +142,11 @@ spiral-periodic-table videos — the most direct collision with the owner's own
 
 ## 7. Known defects still open
 
-- `decent.c:251` — `decent_did_zk_verify()` hardcodes `zk_verified = true`.
-  **Security predicate that always passes.** Fix first in this list.
+- ~~`decent.c:251` — `decent_did_zk_verify()` hardcodes `zk_verified = true`.~~
+  **FIXED** (commit `adee831`): fails closed, returns `DECENT_ENOTIMPL`, never
+  sets the flag. The deeper defect was that the signature accepts no proof, so
+  no correct implementation of it exists; `decent_did_zk_verify_proof()` is the
+  honest interface (also unimplemented, also refuses).
 - `smap.c:257` — `smap_reassemble()` never writes `out`, returns positive length
   (uninitialised read).
 - `dao_vote()`, `cell_transport_receive()`, `et_process_pending()` — discard data,
@@ -149,5 +177,6 @@ surface abstraction first.
 6. Algebra chain (§5), then the physics engine constructions (§6)
 7. Per-arch parity, then L2+ (§2.3, §8)
 
-Items 1–3 are correctness and honesty; nothing built above them is trustworthy
-until they land.
+Items 1-3 have landed. Item 4 (truth alignment) is now the gate: the audit
+found this very file overclaiming, so no estimate above it is reliable until it
+passes.

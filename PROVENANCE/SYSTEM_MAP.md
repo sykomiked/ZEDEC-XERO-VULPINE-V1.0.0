@@ -31,7 +31,7 @@ the system — only in a harness that was written to agree with it.
 
 ## 1. What exists (verified this session unless noted)
 
-**Boot & architecture** — all 5 arches boot: arm64 (BOOT_OK + EL0 + desktop),
+**Boot & architecture** — **arm64 boots and is the only verified target** (BOOT_OK + EL0 + desktop). The rest compile to varying depths and are unproven here; see ROADMAP_TO_COMPLETE.md for the per-arch matrix. Formerly stated as "all 5 arches boot":
 x86_64 (ring-3 + full subsystem set), riscv64 + riscv32 (OpenSBI/S-mode),
 arm32 (`-M virt`). EFI payloads BOOTX64/BOOTAA64 verified on OVMF/AAVMF; one
 universal disc boots two architectures.
