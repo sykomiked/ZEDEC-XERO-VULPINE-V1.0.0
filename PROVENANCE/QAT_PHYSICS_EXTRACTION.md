@@ -114,15 +114,43 @@ Stated plainly so nothing downstream inherits them.
 
 - **golden angle ≠ fine structure constant.** 137.507764 vs 137.035999177 —
   **0.344% apart**, different kinds of quantity (an angle in degrees vs a
-  dimensionless coupling). Across 59 slides read in detail, **no equation relates
-  φ to α numerically**; the chain is: analogy → *one real construction* →
-  analogy → analogy. The construction is sound; the identification is asserted.
-  The narration goes further than the slides, stating the result "will always be
-  137" when the construction gives 137.5078. [REFUTED]
+  dimensionless coupling). Across 162 slides read in detail, **no equation
+  relates φ to α numerically**. [REFUTED as an identity]
 
-- **ΔE·Δt ≥ h/2π is not the canonical bound.** Both uncertainty relations are
-  ℏ/2 = h/4π (Robertson for x,p; Mandelstam–Tamm for E,t). His h/2π = ℏ is a
-  factor of 2 high. This matters because the **entire "time is 2-dimensional,
+  **CORRECTION TO MY OWN CRITICISM — he never claimed it was one.** I wrote,
+  from the transcripts, that he "treats them as equal". The slides show
+  otherwise and are more careful than the narration. The decisive slide
+  (`TKJKJGWFKk4/t005`) puts "137.5 Golden Angle" beside a boxed
+  `1/137 = α = e²/4πε₀ħc` and captions it: the golden angle *"forms the
+  potential for the **approximation** 137"*. Elsewhere (`7vJBzi1sojQ/t009`) he
+  writes of *"a mathematical coincidence involving π and the golden ratio φ"*.
+  So the author's own claim is **approximation and coincidence**, not identity.
+  That is an honest claim, and my objection was aimed at a stronger one he does
+  not make. What remains true and load-bearing for us is only this: **the bridge
+  is the word "approximation"** — no factor, no residual, no derivation. So it
+  still may not be encoded as a constant. But the criticism is of the *strength
+  of the evidence*, not of the author's candour.
+
+- **The two most formal-looking φ→137 decks are AI-generated and one is
+  self-refuting.** `NWvjD-mPrxI` ("Geometric Path to 137") derives
+  `N = 4π/Δφ_eff → N = 137` by minimising `E_interf(N) = Σ f(Δθ_ij)` — but `f`
+  is never defined and **the golden angle plays no part in the step that fixes
+  the number**. The same poster asserts `α_QAT = Δφ_a·ℓ/Φ_total = 1/4π = 1/137`,
+  which is **internally false**: 1/4π ≈ 0.0796, not 1/137. And
+  `CZvoI0iLvdY` ("α formulated Geometrically") is a **photograph of a chatbot
+  window** containing no φ, no golden angle and no 137 — only
+  `α = e²/ħc ~ (flux quantum)²/(geometric action quantum)`, a proportionality
+  with no number. Treat both as later accretions, not as his geometry.
+  [REFUTED — and provenance-flagged]
+
+- **ΔE·Δt ≥ h/2π is not the canonical bound, and it is DELIBERATE.** Both
+  uncertainty relations are ℏ/2 = h/4π (Robertson for x,p; Mandelstam–Tamm for
+  E,t). His h/2π = ℏ is a factor of 2 high. This is not a typesetting slip:
+  `UeoWXoM3zyQ/t002` and `9QrJC2y5wN0/t016` print **both forms on one slide** —
+  "uncertainty in space Δx×Δpₓ ≥ h/4π and time ΔE Δt ≥ h/2π" — so the asymmetry
+  is chosen, with position–momentum correct and energy–time doubled. ℏ *is*
+  typeset with its bar in the hand-built decks; only the AI-generated decks lose
+  it (one prints α ≈ e²/4πhc, dropping ε₀ entirely). This matters because the **entire "time is 2-dimensional,
   space is 3-dimensional" argument rests on 2π and 4π differing between the two
   relations** — and canonically they do not. Related: slide agents found **ℏ
   typeset as h on six frames**, including a self-contradictory `h = h/2π`. A
