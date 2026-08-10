@@ -12,13 +12,41 @@ estimated. Supersedes the sequencing in SYSTEM_MAP.md §6._
 | architectures booting | **1 verified (arm64)** — see the matrix below; the earlier "5/5" here was my overclaim |
 | EFI payloads on real firmware | 2 (BOOTX64, BOOTAA64); one disc boots two arches |
 | non-test `.c` in `kernel/src` | 278 |
-| **in no kernel image on any arch** | **50** (was 55; `oseq.c` + 4 TLS units linked) |
-| dead lines those represent | 20,942 (18% of `kernel/src`) |
+| **absent from the arm64 BINARY** | **129 (46%)** — measured with `nm`, see below |
+| lines absent from the binary | **44,229** |
+| (superseded Makefile-based count) | ~~50 (18%)~~ — counted the wrong thing |
 | corpus extracted from QAT | 834 videos, ~180k words, 162 slides read |
 
-The single structural fact: **a fifth of the tree is undifferentiated reserve.**
-Not dead — staged (see ORGANISM_ARCHITECTURE.md §3) — but a module that is not
-in an image has not been shown to work in the system.
+### The reserve, re-measured against `nm` — it is 2.6x larger than reported
+
+Every earlier reserve figure counted **Makefile membership**, which today proved
+to be the wrong measurement: this build uses `--gc-sections`, so a file can be
+in `KERNEL_SRCS`, compile, link, pass its tests and contribute **nothing** to the
+binary. Re-measured by taking each `.o`'s exported symbols and asking whether any
+appear in `kernel_arm64.elf` (1,325 symbols):
+
+| | files | |
+|---|---|---|
+| contribute symbols to the ELF | **149** | genuinely in the OS |
+| compiled, then **discarded** by `--gc-sections` | **64** | in the build, absent from the binary |
+| never compiled at all on arm64 | **65** | not in the build |
+| **absent from the binary** | **129 of 278 (46%)** | **44,229 lines** |
+
+**Nearly half the tree is not in the running system** — not a fifth. The
+structural fact stands but is much larger than stated: a module that is not in
+the *binary* has not been shown to work, and Makefile membership does not
+establish that.
+
+Two consequences worth naming:
+
+- **Today's own fixes are mostly not in the binary.** `e8.c` (515 lines),
+  `mixmat.c`, `modbind.c` and `zphi.c` are all in the discarded set — only
+  `x25519`, `oseq`, `chg`, `hkdf` and `aead` got real callers. So the φ
+  decomposition repair in `digital_dna.c` (1,571 lines, 60 symbols, discarded)
+  is **not running**, and neither is the construction-rule enforcer.
+- **This figure is arm64-only.** The other four arches will differ, and cannot
+  be measured on this host. Treat 129 as the number for the one target that
+  boots.
 
 ### Architecture status — corrected
 
