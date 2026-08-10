@@ -113,6 +113,8 @@ uint32_t modbind_resolve(void);
  * Returns how many modules were un-readied. */
 uint32_t modbind_withdraw(const char *capability);
 
+
+
 /* Acyclic + fully-provided + contract-consistent. Returns problems found. */
 uint32_t modbind_verify_graph(mb_err_t *first_err, const char **first_name);
 
@@ -180,6 +182,37 @@ typedef struct {
     module_transform_t xform;
     bool       registered;
 } mb_module_t;
+
+/* ---- COMPOSITION: matrices within matrices ---------------------------------
+ * A composite is not a new kind of thing. It IS an mb_module_t, one level up,
+ * and that is what makes the recursion terminate-free: composites compose,
+ * because a composite is a module.
+ *
+ * The boundary is COMPUTED, not declared:
+ *     composite.provides = union of the parts' provides
+ *     composite.requires = union of the parts' requires MINUS that union
+ * Internal edges cancel. A requirement one part needs and another part supplies
+ * never appears on the outside -- it was satisfied within. What is left is
+ * exactly the composite's contract with the world.
+ *
+ * This is the same closure `mixmat` proves for row-stochastic matrices: the
+ * product of two is another, so nesting never leaves the class. Here the product
+ * of two modules is another module. That closure is the theorem the whole
+ * "matrices within matrices" architecture rests on -- without it, a composite
+ * would be a different kind of object needing its own rules at every level.
+ *
+ * A USER CAN THEREFORE BUILD A MODULE WITHOUT WRITING CODE: name the parts, and
+ * the boundary follows. What they get back is a first-class module that can be
+ * a part of the next one.
+ *
+ * Returns false if the parts cannot compose -- a contract disagreement between
+ * two parts providing one capability, or more boundary edges than MB_MAX_CAPS.
+ * Refusing is correct: a composite whose boundary was silently truncated would
+ * misreport what it needs. */
+bool modbind_compose(const char *name,
+                     const char *const *part_names, uint32_t n_parts,
+                     mb_module_t *out);
+
 
 /* ---- registry ------------------------------------------------------------ */
 void     modbind_reset(void);

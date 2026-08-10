@@ -324,6 +324,87 @@ uint32_t modbind_withdraw(const char *capability) {
     return (before > after) ? (before - after) : 0;
 }
 
+
+/* ===== COMPOSITION ========================================================= */
+
+static const mb_module_t *find_mod(const char *nm) {
+    for (uint32_t i = 0; i < g_n; i++)
+        if (name_eq(g_mods[i].name, nm)) return &g_mods[i];
+    return (const mb_module_t *)0;
+}
+
+static bool cap_in(const mb_cap_t *set, uint8_t n, const mb_cap_t *c) {
+    for (uint8_t i = 0; i < n; i++) if (cap_eq(&set[i], c)) return true;
+    return false;
+}
+
+bool modbind_compose(const char *name,
+                     const char *const *part_names, uint32_t n_parts,
+                     mb_module_t *out) {
+    if (!name || !part_names || !out || n_parts == 0) return false;
+
+    mb_module_t c;
+    for (uint32_t i = 0; i < MB_NAME_LEN; i++) c.name[i] = 0;
+    for (uint32_t i = 0; i < MB_NAME_LEN && name[i]; i++) c.name[i] = name[i];
+    c.n_emits = c.n_ingests = c.n_provides = c.n_requires = 0;
+    c.ready = MB_HELD;
+    c.registered = false;
+    c.xform.pack = (int (*)(const void *, uint8_t *, uint32_t))0;
+    c.xform.unpack = (int (*)(const uint8_t *, uint32_t, void *))0;
+
+    /* pass 1: gather every provide, and reject a contract disagreement between
+     * two parts. Alternative provision INSIDE one composite is only coherent if
+     * the alternatives agree -- otherwise the composite's own behaviour would
+     * depend on which part resolved first. */
+    for (uint32_t p = 0; p < n_parts; p++) {
+        const mb_module_t *m = find_mod(part_names[p]);
+        if (!m) return false;
+        for (uint8_t j = 0; j < m->n_provides; j++) {
+            for (uint8_t k = 0; k < c.n_provides; k++)
+                if (cap_eq(&c.provides[k], &m->provides[j]) &&
+                    c.provides[k].contract != m->provides[j].contract)
+                    return false;                      /* contract clash */
+            if (cap_in(c.provides, c.n_provides, &m->provides[j])) continue;
+            if (c.n_provides >= MB_MAX_CAPS) return false;
+            c.provides[c.n_provides++] = m->provides[j];
+        }
+    }
+
+    /* pass 2: a requirement satisfied INSIDE the composite is internal and does
+     * not surface. Only what no part supplies becomes the composite's own
+     * requirement. This subtraction is the whole of encapsulation. */
+    for (uint32_t p = 0; p < n_parts; p++) {
+        const mb_module_t *m = find_mod(part_names[p]);
+        for (uint8_t j = 0; j < m->n_requires; j++) {
+            if (cap_in(c.provides, c.n_provides, &m->requires[j])) continue;
+            if (cap_in(c.requires, c.n_requires, &m->requires[j])) continue;
+            if (c.n_requires >= MB_MAX_CAPS) return false;  /* refuse, never truncate */
+            c.requires[c.n_requires++] = m->requires[j];
+        }
+    }
+
+    /* pass 3: data ports surface the same way -- an emitted form some part
+     * ingests is internal traffic and is not the composite's business. */
+    for (uint32_t p = 0; p < n_parts; p++) {
+        const mb_module_t *m = find_mod(part_names[p]);
+        for (uint8_t j = 0; j < m->n_emits; j++) {
+            bool internal = false;
+            for (uint32_t q = 0; q < n_parts && !internal; q++) {
+                const mb_module_t *o = find_mod(part_names[q]);
+                for (uint8_t k = 0; k < o->n_ingests && !internal; k++)
+                    if (o->ingests[k].form == m->emits[j].form &&
+                        o->ingests[k].version == m->emits[j].version)
+                        internal = true;
+            }
+            if (internal || c.n_emits >= MB_MAX_PORTS) continue;
+            c.emits[c.n_emits++] = m->emits[j];
+            if (!c.xform.pack) c.xform.pack = m->xform.pack;
+        }
+    }
+    *out = c;
+    return true;
+}
+
 uint32_t modbind_verify_graph(mb_err_t *first_err, const char **first_name) {
     uint32_t bad = 0;
     if (first_err)  *first_err = MB_OK;
