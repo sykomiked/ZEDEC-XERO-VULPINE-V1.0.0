@@ -24,12 +24,22 @@ check() {  # check <symbol-substring> <what the banner claims>
   fi
 }
 echo "verify_banners: $ELF"
+# NOTE: check the symbol prefix the code ACTUALLY exports, not the marketing
+# name. An earlier revision of this script grepped for "tls_", "chiglet" and
+# "oseq_dag" -- none of which any of those modules export -- so it reported
+# ABSENT for three subsystems that were present. A verifier that checks the
+# wrong name is worse than none: it manufactures false failures and hides real
+# ones. Every entry below was confirmed against `nm` output.
+check x25519  "X25519 key agreement (RFC 7748)"
+check chg_    "Chiglet inference runtime"
+check oseq_   "causal ordering / happens-before"
 check mlkem   "post-quantum key establishment (ML-KEM-768)"
 check vault   "encrypted vault"
 check zxvfs_  "persistent filesystem"
-check tls_    "TLS transport security"
-check chiglet "Chiglet AI runtime"
-check oseq_dag "causal ordering / happens-before"
+# Still absent by design -- NOT called anywhere, so gc-sections drops them.
+# Listed so their absence stays visible rather than forgotten:
+check hkdf    "TLS key schedule (NOT wired -- no caller)"
+check aead    "TLS record encryption (NOT wired -- no caller)"
 echo
 if [ "$fail" -gt 0 ]; then
   echo "FAIL: $fail subsystem(s) announced but absent from the ELF."
