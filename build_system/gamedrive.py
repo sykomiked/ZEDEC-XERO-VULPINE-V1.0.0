@@ -61,11 +61,25 @@ Usage:
 import shutil
 import argparse, hashlib, json, os, subprocess, sys, time, glob, zipfile, tempfile
 
+# Only extensions whose console has a REACHABLE core. Verified against
+# kernel_arm64.elf, not against the Makefile:
+#   .sms/.gg  -- sms.c is in NO Makefile; nm shows 0 sms_ symbols. cpu_z80.c is
+#                linked but orphaned (its only machine is unbuilt).
+#   .n64/.z64 -- no core exists at all.
+# Listing them would schedule ROMs that can never run, consuming campaign slots
+# and reporting nothing.
 ERA = {
     # dev references only — never written into a schema
-    'early': {'.nes', '.sms', '.gb', '.gg', '.pce'},
-    'late':  {'.smc', '.sfc', '.gba', '.md', '.gen', '.n64', '.z64'},
+    'early': {'.nes', '.gb', '.pce'},
+    'late':  {'.smc', '.sfc', '.gba', '.md', '.gen'},
 }
+# Cores that silently no-op unknown opcodes and will therefore report CLEAN
+# having executed almost nothing. Campaign results from these are not evidence.
+SUSPECT_CORES = {'.gba': 'ARM7 core: 16 hex cases for full ARM32+THUMB',
+                 '.md': 'm68k core: 11 hex cases; write_ea discards unhandled writes',
+                 '.gen': 'm68k core: as .md',
+                 '.smc': 'SNES: no SPC700; APU is a 2-byte fake that converts hangs into passes',
+                 '.sfc': 'SNES: as .smc'}
 NM = os.environ.get('NM', 'aarch64-linux-gnu-nm')
 
 
@@ -148,8 +162,17 @@ def run_rom(rom, elf, out_dir, log, timeout_s, console='?'):
     trace = os.path.join(out_dir, 'traces', digest[:16] + '.log')
     os.makedirs(os.path.dirname(trace), exist_ok=True)
 
+    # ROM DELIVERY. The first version passed the path via -append. The kernel
+    # never parses its command line (grep 'gamedrive' kernel/ -> 0 hits), and the
+    # game runner is gated on g_vblk.present (kernel_main_arm64.c:2031), so every
+    # run was a byte-identical boot with an unread string attached: 144,000
+    # copies of one boot log, every ROM 'passing' without ever existing.
+    # build_system/game_master.py:97 already did this correctly; this is a port
+    # of those two lines back.
     cmd = ['qemu-system-aarch64', '-M', 'virt', '-cpu', 'cortex-a72', '-nographic',
-           '-kernel', elf, '-append', f'gamedrive={rom}', '-no-reboot']
+           '-kernel', elf, '-no-reboot',
+           '-drive', f'if=none,file={rom},format=raw,id=gd0,readonly=on',
+           '-device', 'virtio-blk-device,drive=gd0']
     t0 = time.time()
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
@@ -344,7 +367,6 @@ def main():
     if a.report:
         return report(a.report)
     if a.preflight:
-        import shutil
         ok = True
         print('gamedrive preflight')
         q = shutil.which('qemu-system-aarch64')

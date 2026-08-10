@@ -61,6 +61,7 @@ int bs_tick(bs_squad_t *s) {
     for (uint32_t i = 0; i < s->nwatch; i++) {
         bs_watch_t *w = &s->watch[i];
         if (!w->used || !w->margin) continue;
+        const bs_state_t prev = w->state;   /* for transition reporting */
 
         int32_t m = w->margin(w->ctx);
         w->history[w->samples % BS_HISTORY] = m;
@@ -75,11 +76,15 @@ int bs_tick(bs_squad_t *s) {
              * and drown the signal. */
             if (w->state != BS_BREACHED) { w->breached_count++; s->total_breached++; }
             w->state = BS_BREACHED;
+            if (s->report && prev != w->state)
+                s->report(i, w->name, prev, w->state, m, 0);
             continue;
         }
 
         if (w->slope >= 0) {            /* steady or recovering */
             w->state = BS_SAFE;
+            if (s->report && prev != w->state)
+                s->report(i, w->name, prev, w->state, m, 0);
             continue;
         }
 
@@ -107,9 +112,13 @@ int bs_tick(bs_squad_t *s) {
         } else {
             w->state = BS_WATCH;
         }
+        if (s->report && prev != w->state)
+            s->report(i, w->name, prev, w->state, m, w->ticks_to_zero);
     }
     return armed_now;
 }
+
+void bs_set_reporter(bs_squad_t *s, bs_report_fn fn) { if (s) s->report = fn; }
 
 bs_state_t bs_state(const bs_squad_t *s, uint32_t idx, uint32_t *ticks_out) {
     if (!s || idx >= s->nwatch) { if (ticks_out) *ticks_out = 0; return BS_SAFE; }

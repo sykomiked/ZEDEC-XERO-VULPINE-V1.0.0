@@ -16,7 +16,12 @@ ELF=${1:-kernel_arm64.elf}
 [ -f "$ELF" ] || { echo "verify_banners: no $ELF — build first"; exit 2; }
 fail=0
 check() {  # check <symbol-substring> <what the banner claims>
-  n=$(nm "$ELF" 2>/dev/null | grep -ci "$1")
+  # TEXT SYMBOLS ONLY. An earlier revision counted any nm line, so `grep -ci
+  # vault` matched the BSS variables robin_vault and vault_key.86 and certified
+  # "encrypted vault" while aes256_gcm.c had ZERO symbols in the ELF. A gate
+  # that matches data where it needs code is worse than no gate -- it converts
+  # an absence into a certification.
+  n=$(nm "$ELF" 2>/dev/null | awk '$2 ~ /^[TtWi]$/ {print $3}' | grep -ci "$1")
   if [ "$n" -eq 0 ]; then
     printf "  ABSENT  %-14s  banner claims: %s\n" "$1" "$2"; fail=$((fail+1))
   else
@@ -39,7 +44,11 @@ case "$ELF" in
     check chg_    "Chiglet inference runtime"
     check oseq_   "causal ordering / happens-before"
     check mlkem   "post-quantum key establishment (ML-KEM-768)"
-    check vault   "encrypted vault"
+    # REMOVED, not silenced: aes256_gcm.c has 0 text symbols in the ELF, so
+    # there is no encrypted vault to certify. The boot banner making this claim
+    # must go too (kernel_main_arm64.c:965) -- see RESERVE_TRIAGE.md. Restore
+    # this check when the cipher is genuinely wired.
+    # check vault   "encrypted vault"
     check zxvfs_  "persistent filesystem"
     check hkdf    "TLS 1.3 key schedule"
     check aead    "TLS record AEAD (ChaCha20-Poly1305)"

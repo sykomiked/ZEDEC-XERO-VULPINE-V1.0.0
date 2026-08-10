@@ -165,6 +165,34 @@ extern uint32_t virtio_bus_driver_count(void);
 #define ENABLE_WX_TEST 0
 #endif
 
+
+/* Bomb-squad transition reporter -> the boot log.
+ *
+ * Emits ONE line per state CHANGE, never per tick, so a fuse that burns for
+ * thousands of ticks produces two lines (lit, then detonated) rather than a
+ * flood that buries the signal.
+ *
+ * The format is what build_system/gamedrive.py parses to measure FUSE LENGTH --
+ * the distance between the first margin loss and the bang. Before this existed
+ * the harness saw no transitions at all and would have marked every ROM in a
+ * 140,000-file corpus CLEAN: a false pass across the whole campaign. */
+static void bs_marker_report(uint32_t idx, const char *name,
+                             bs_state_t from, bs_state_t to,
+                             int32_t margin, uint32_t ticks_to_zero) {
+    (void)from;
+    const char *tag = (to == BS_BREACHED) ? "[BREACHED]"
+                    : (to == BS_ARMED)    ? "[ARMED]"
+                    : (to == BS_WATCH)    ? "[WATCH]"
+                                          : "[SAFE]";
+    uart_puts(tag); uart_puts(" ");
+    uart_puts(name ? name : "?");
+    uart_puts(" margin="); uart_put_dec((uint64_t)(margin < 0 ? -margin : margin));
+    if (margin < 0) uart_puts("(neg)");
+    uart_puts(" ttz="); uart_put_dec((uint64_t)ticks_to_zero);
+    uart_puts(" idx="); uart_put_dec((uint64_t)idx);
+    uart_puts("\n");
+}
+
 static void boot_msg(const char *msg);   /* defined below */
 
 /* ---- COMPOSED SUBSYSTEM BRING-UP -------------------------------------------
@@ -282,6 +310,7 @@ static void composed_bringup(zxvfs_t *fs, phase_tick_t *tick) {
     }
 
     /* 4. the bomb squad watches REAL margins from the subsystems above. */
+    bs_set_reporter(&g_squad, bs_marker_report);
     bs_init(&g_squad, 64);
     if (fs)   bs_watch(&g_squad, "fs-free-space", m_fs_space, 0, fs);
     if (tick) bs_watch(&g_squad, "phase-drift",  m_phase_drift, 0, tick);

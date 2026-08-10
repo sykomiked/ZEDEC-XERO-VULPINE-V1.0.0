@@ -108,6 +108,10 @@ typedef struct {
     bool         used;
 } bs_watch_t;
 
+typedef void (*bs_report_fn)(uint32_t idx, const char *name,
+                             bs_state_t from, bs_state_t to,
+                             int32_t margin, uint32_t ticks_to_zero);
+
 typedef struct {
     bs_watch_t watch[BS_MAX_WATCH];
     uint32_t   nwatch;
@@ -116,7 +120,19 @@ typedef struct {
     uint32_t   total_armed;
     uint32_t   total_defused;
     uint32_t   total_breached;
+    bs_report_fn report;   /* optional; NULL = silent */
 } bs_squad_t;
+
+/* Optional TRANSITION REPORTER. bombsquad itself stays pure -- no console
+ * dependency, freestanding, testable on the host -- so observation is injected
+ * rather than baked in. Called ONLY when an invariant CHANGES state, never per
+ * tick, so a long-burning fuse produces one line and not a flood.
+ *
+ * This is what makes the fuse visible to an external harness: gamedrive.py
+ * reads [WATCH]/[ARMED]/[BREACHED] out of the boot log to measure fuse LENGTH
+ * -- the distance between first degradation and detonation. Without it every
+ * run looks clean, because there is nothing to see. */
+void bs_set_reporter(bs_squad_t *s, bs_report_fn fn);
 
 void bs_init(bs_squad_t *s, uint32_t horizon /*0 = default*/);
 
