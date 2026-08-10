@@ -352,8 +352,38 @@ DEPS = $(ARM64_ARCH_OBJS:.o=.d) $(KERNEL_OBJS:.o=.d)
 
 all: $(TARGET) $(TARGET_BIN)
 
+# The banner gate runs INSIDE the link rule, not as a separate target, so there
+# is no way to obtain an ELF that has not been checked. A separate `make verify`
+# would just be one more thing to forget -- which is the exact failure this
+# guards against.
+#
+# WHY IT EXISTS: this build uses -ffunction-sections -fdata-sections
+# --gc-sections, so the linker DISCARDS any section nothing references. A module
+# can be in KERNEL_SRCS, compile, link and pass its own tests while being ABSENT
+# from the binary. Measured 2026-08-09: tls/x25519/aead/hkdf, oseq, chiglet all
+# had 0 symbols in the ELF immediately after being added to KERNEL_SRCS. So a
+# boot banner announcing a subsystem is a claim about `nm`, not about the
+# Makefile, and this makes the build prove it.
+#
+# Set VERIFY_BANNERS=0 to bypass. Do that only to inspect a broken link -- never
+# to ship, because bypassing it is exactly how the binary and the banners drift.
+VERIFY_BANNERS ?= 1
+
 $(TARGET): $(ARM64_ARCH_OBJS) $(KERNEL_OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBGCC)
+	@if [ "$(VERIFY_BANNERS)" = "1" ]; then \
+		build_system/verify_banners.sh $@ || { \
+			echo ""; \
+			echo "*** BUILD FAILED: a boot banner announces a subsystem that is"; \
+			echo "*** not in $@. Either remove the banner or give the module a"; \
+			echo "*** real caller -- being in KERNEL_SRCS is not enough under"; \
+			echo "*** --gc-sections. See build_system/verify_banners.sh."; \
+			rm -f $@; \
+			exit 1; \
+		}; \
+	else \
+		echo "  [WARN] banner verification BYPASSED (VERIFY_BANNERS=0)"; \
+	fi
 
 $(TARGET_BIN): $(TARGET)
 	$(OBJCOPY) -O binary $< $@
