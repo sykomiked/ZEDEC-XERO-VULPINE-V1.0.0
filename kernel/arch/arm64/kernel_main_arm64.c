@@ -461,6 +461,8 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "x25519.h"
 #include "oseq.h"
 #include "chiglet.h"
+#include "hkdf.h"
+#include "aead.h"
 #include "../src/loader/zsp.h"       /* signed-package verification */
 #include "../src/loader/abupdate.h"  /* A/B update + probation + rollback */
 #include "../src/appkit/doc.h"       /* AppKit document model (Writer et al) */
@@ -2122,6 +2124,51 @@ void kernel_main_arm64(void) {
         if (ok) { for (int i = 0; i < 32; i++) if (ss_a[i] != ss_b[i]) { ok = false; break; } }
         if (ok) boot_msg("  [OK] X25519 agreement: both sides derived one secret");
         else    boot_msg("  [FAIL] X25519 KAT mismatch -- transport key agreement is BROKEN");
+    }
+
+    boot_msg("[BOOT] TLS 1.3 key schedule + record AEAD...");
+    {
+        /* A REAL derive-then-protect round trip, in the order TLS 1.3 uses it:
+         * HKDF turns a shared secret into traffic keys, ChaCha20-Poly1305 seals
+         * a record under them, and open() must recover the plaintext and REJECT
+         * a tampered tag. That last check is the one that matters -- an AEAD
+         * that opens anything is not an AEAD. */
+        static uint8_t prk[HASH_LEN], secret[HASH_LEN];
+        static const uint8_t ikm[32] = { 0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,
+                                         0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,
+                                         0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,
+                                         0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0b,0x0b };
+        static const uint8_t salt[4] = { 0x00, 0x01, 0x02, 0x03 };
+        hkdf_extract(salt, sizeof salt, ikm, sizeof ikm, prk);
+        /* transcript hash: empty here (no handshake yet), which the
+             * signature allows and which keeps this a pure schedule check. */
+        bool ok = tls13_derive_secret(prk, "c ap traffic",
+                                      (const uint8_t *)0, 0u, secret);
+
+        static uint8_t key[CHACHA20_KEY_LEN], iv[CHACHA20_NONCE_LEN];
+        if (ok) ok = tls13_traffic_keys(secret, key, sizeof key, iv, sizeof iv);
+
+        if (ok) {
+            static const uint8_t aad[5] = { 0x17, 0x03, 0x03, 0x00, 0x10 };
+            static const uint8_t pt[16]  = { 'Z','X','V',' ','r','e','c','o',
+                                             'r','d',' ','t','e','s','t','!' };
+            static uint8_t ct[16], rt[16], tag[POLY1305_TAG_LEN];
+            aead_seal(key, iv, aad, sizeof aad, pt, ct, sizeof pt, tag);
+            ok = aead_open(key, iv, aad, sizeof aad, ct, rt, sizeof ct, tag);
+            if (ok) for (uint32_t i = 0; i < sizeof pt; i++)
+                        if (rt[i] != pt[i]) { ok = false; break; }
+            /* forgery must be refused */
+            if (ok) {
+                static uint8_t bad[POLY1305_TAG_LEN];
+                for (uint32_t i = 0; i < POLY1305_TAG_LEN; i++) bad[i] = (uint8_t)(tag[i] ^ 1u);
+                if (aead_open(key, iv, aad, sizeof aad, ct, rt, sizeof ct, bad)) {
+                    boot_msg("  [FAIL] AEAD accepted a FORGED tag -- record layer is UNSAFE");
+                    ok = false;
+                }
+            }
+        }
+        if (ok) boot_msg("  [OK] HKDF -> traffic keys -> AEAD seal/open; forgery rejected");
+        else    boot_msg("  [FAIL] TLS key schedule or record AEAD did not round-trip");
     }
 
     boot_msg("[BOOT] Causal ordering (oseq DAG, happens-before)...");

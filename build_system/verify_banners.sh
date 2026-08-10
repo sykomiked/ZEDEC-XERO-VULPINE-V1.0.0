@@ -36,10 +36,8 @@ check oseq_   "causal ordering / happens-before"
 check mlkem   "post-quantum key establishment (ML-KEM-768)"
 check vault   "encrypted vault"
 check zxvfs_  "persistent filesystem"
-# Still absent by design -- NOT called anywhere, so gc-sections drops them.
-# Listed so their absence stays visible rather than forgotten:
-check hkdf    "TLS key schedule (NOT wired -- no caller)"
-check aead    "TLS record encryption (NOT wired -- no caller)"
+check hkdf    "TLS 1.3 key schedule"
+check aead    "TLS record AEAD (ChaCha20-Poly1305)"
 echo
 if [ "$fail" -gt 0 ]; then
   echo "FAIL: $fail subsystem(s) announced but absent from the ELF."
