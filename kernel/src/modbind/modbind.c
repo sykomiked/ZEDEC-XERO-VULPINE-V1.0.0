@@ -9,23 +9,24 @@
 static mb_module_t g_mods[MB_MAX_MODULES];
 static uint32_t    g_n;
 
-/* A form is BLOCKED when its representation is not yet sound enough to carry a
- * boundary. Today that is exactly MB_FORM_TRIT: trit_t declares six enumerators
- * for five distinct states (TRIT_GLUT = 2 aliases TRIT_GLUT_NEUTRAL = 5), so
- * marshalling cannot be a bijection — pack(2) and pack(5) must denote one state,
- * and no unpack can then recover which was sent. Rather than let a
- * non-round-trippable boundary exist quietly, we refuse it and say why.
- *
- * This is checked against the ENUM ITSELF, so the day trit_t is repaired the
- * block lifts automatically and cannot be forgotten. */
+/* A form is BLOCKED when its representation is not sound enough to carry a
+ * boundary. MB_FORM_TRIT was blocked while trit_t had two encodings for one
+ * state; it is now gated on canonicalisation being demonstrably sound. */
 static bool form_is_blocked(mb_form_t f) {
     if (f != MB_FORM_TRIT) return false;
-    /* TRIT_GLUT and TRIT_GLUT_NEUTRAL are two DIFFERENT encodings documented as
-     * the SAME state ("Legacy alias for GLUT_NEUTRAL"). While that holds, pack()
-     * is not injective and no unpack() can recover which encoding was sent, so
-     * the boundary cannot round-trip. Collapsing the alias — making the two
-     * equal, or removing TRIT_GLUT — unblocks this automatically. */
-    return (int)TRIT_GLUT != (int)TRIT_GLUT_NEUTRAL;
+    /* UNBLOCKED once canonicalisation is SOUND, not once someone says it is.
+     *
+     * TRIT_GLUT remains a deprecated alias for TRIT_GLUT_NEUTRAL (owner
+     * decision: 59 call sites keep working). That is safe at a boundary only if
+     * every value is canonicalised on the way in, so the boundary carries the
+     * five-element canonical image rather than the six-element enum.
+     *
+     * trit_canon_is_sound() checks exactly that at runtime: the alias collapses,
+     * the map is idempotent, every result is emittable, and the image has
+     * exactly TRIT_CANONICAL_COUNT = 5 members. If any of that regresses -- say
+     * a seventh enumerator is added without a canonical rule -- the form blocks
+     * itself again automatically. Evidence, not a promise. */
+    return !trit_canon_is_sound();
 }
 
 static bool name_eq(const char *a, const char *b) {
@@ -175,7 +176,7 @@ const char *mb_form_name(mb_form_t f) {
         case MB_FORM_BINARY:   return "binary";
         case MB_FORM_TRISPACE: return "trispace";
         case MB_FORM_POLY:     return "poly/F_q";
-        case MB_FORM_TRIT:     return "trit(BLOCKED)";
+        case MB_FORM_TRIT:     return "trit/canonical-5";
         case MB_FORM_PHASE:    return "phase";
         default:               return "?";
     }
@@ -273,8 +274,14 @@ uint32_t modbind_selfcheck(void) {
         mb_module_t t = mk("trituser", MB_FORM_TRIT, MB_FORM_NONE, 1, 0, true);
         mb_module_t s = mk("tritsink", MB_FORM_NONE, MB_FORM_TRIT, 0, 1, true);
         modbind_register(&t); modbind_register(&s);
-        if (modbind_check(&g_mods[0]) != MB_ERR_BLOCKED) bad++;
-        if (modbind_can_bind(&g_mods[0], &g_mods[1], MB_FORM_TRIT)) bad++;
+        /* Canonicalisation is sound, so the trit boundary is now LEGAL. */
+        if (!trit_canon_is_sound()) bad++;
+        if (modbind_check(&g_mods[0]) != MB_OK) bad++;
+        if (!modbind_can_bind(&g_mods[0], &g_mods[1], MB_FORM_TRIT)) bad++;
+        /* and the canonicaliser itself must behave */
+        if (trit_canon(TRIT_GLUT) != TRIT_GLUT_NEUTRAL) bad++;
+        if (trit_is_canonical(TRIT_GLUT)) bad++;
+        if (!trit_is_canonical(TRIT_GLUT_NEUTRAL)) bad++;
     }
     /* Registry hygiene: duplicates and malformed declarations refused. */
     {
