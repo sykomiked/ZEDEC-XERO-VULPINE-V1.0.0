@@ -26,3 +26,29 @@ bool oseq_is_valid_ordinal(const ordinal_t ordinal) {
 bool oseq_is_later(const ordinal_t a, const ordinal_t b) {
     return a > b;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * oseq is what makes the whole event-space model legal: it decides
+ * happens-before WITHOUT a clock, which is exactly the property the readiness
+ * fixpoint relies on. It includes nothing but its own types, so it requires
+ * nothing.
+ *
+ * The bring-up checks the order relation itself rather than any registry state
+ * (the registry instance is owned by whoever calls oseq_init). A relation that
+ * is not strict -- a > b and b > a both true -- would make happens-before
+ * meaningless while every caller kept working, which is the failure mode worth
+ * catching here. */
+#include "zxv_decl.h"
+
+static int oseq_bringup(void) {
+    if (!oseq_is_valid_ordinal((ordinal_t)1)) return -1;
+    if (!oseq_is_later((ordinal_t)2, (ordinal_t)1)) return -1;
+    if (oseq_is_later((ordinal_t)1, (ordinal_t)2)) return -1;   /* antisymmetry */
+    if (oseq_is_later((ordinal_t)1, (ordinal_t)1)) return -1;   /* irreflexive  */
+    return 0;
+}
+
+ZXV_DECLARE(oseq,
+    ZXV_PROVIDES(oseq_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(oseq_bringup));

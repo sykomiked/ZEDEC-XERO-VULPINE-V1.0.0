@@ -52,3 +52,15 @@ bool uvn_equal(uvn_t a, uvn_t b) {
 bool uvn_is_zero(uvn_t a) {
     return cyc13_is_zero(a.v);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES measured from uvn.o's `nm -u` = {cyc13_add, cyc13_equal,
+ * cyc13_is_zero, cyc13_scale, cyc13_zero, rmag_add_quotas}. mantra depends on
+ * this file (U uvn_magnitude), so uvn sits below mantra in the same subtree.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(uvn,
+    ZXV_PROVIDES(uvn_ready),
+    ZXV_REQUIRES(rmag_ready, cyc13_ready),
+    ZXV_NO_BRINGUP);

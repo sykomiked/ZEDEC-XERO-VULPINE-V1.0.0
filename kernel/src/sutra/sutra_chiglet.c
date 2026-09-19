@@ -120,3 +120,18 @@ chiglet_result_t sutra_chiglet_translate(const char *sentence) {
     result.capital = CAP_FINANCIAL;
     return result;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Natural-language sentence -> sutra translation. REQUIRES_NONE is measured
+ * and is worth pausing on: the file is named sutra_chiglet.c, but
+ * sutra_chiglet.o's `nm -u` is EMPTY -- it does not call one chg_* entry
+ * point. The translation table is local. Declaring REQUIRES(chiglet_ready)
+ * from the file name would have been exactly the error this project keeps
+ * catching.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(sutra_chiglet,
+    ZXV_PROVIDES(sutra_chiglet_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

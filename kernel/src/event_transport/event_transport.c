@@ -192,3 +192,19 @@ uint32_t et_process_pending(et_transport_t *et, uint32_t channel_idx) {
 
     return count;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * A channel is addressed by NODE NAME, and the names come from the
+ * constellation registry -- the loopback channel the arch main creates has both
+ * endpoints set to a node id registered there. So the requirement is the
+ * registry, transitively oseq, and the fixpoint derives that second edge
+ * without it being restated here.
+ *
+ * NO BRING-UP YET: the transport instance is caller-owned, same as the
+ * registry it sits on. */
+#include "zxv_decl.h"
+
+ZXV_DECLARE(event_transport,
+    ZXV_PROVIDES(transport_ready),
+    ZXV_REQUIRES(node_registry_ready),
+    ZXV_NO_BRINGUP);

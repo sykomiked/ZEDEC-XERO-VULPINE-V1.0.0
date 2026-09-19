@@ -2172,3 +2172,40 @@ bool bt_verify_coverage(bluetooth_device_t *dev) {
 
     return (dev->coverage_r * dev->coverage_l) >= BT_COVERAGE_FLOOR;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES bt_host_stack_ready -- the HOST half above HCI, which is exactly
+ * what this file contains. There is no radio, and the bring-up says so by
+ * checking the encode/decode identities rather than by trying to page a peer.
+ *
+ * REQUIRES_NONE is measured: bluetooth.o's `nm -u` is {__divti3, __udivti3},
+ * which are libgcc 128-bit division helpers, not module edges.
+ *
+ * The opcode round trip is the right boot check because OGF and OCF are packed
+ * into one 16-bit word (ogf << 10 | ocf); getting that split wrong sends every
+ * command to the wrong controller group, and the symptom would be a silent
+ * controller rather than an obvious fault.
+ */
+#include "zxv_decl.h"
+static int zxvd_bluetooth_bringup(void) {
+    static bluetooth_device_t dev;
+    uint16_t op;
+
+    bt_init(&dev, "zxv-bt");
+    op = bt_hci_opcode(0x03u, 0x0003u);           /* HCI_Reset */
+    if (bt_hci_opcode_ogf(op) != 0x03u)   return -1;
+    if (bt_hci_opcode_ocf(op) != 0x0003u) return -1;
+
+    /* the state machine must refuse what it says it refuses */
+    if (!bt_state_transition_ok(BT_STATE_DISCONNECTED, BT_STATE_CONNECTING))
+        return -1;
+    if (bt_state_transition_ok(BT_STATE_DISCONNECTED, BT_STATE_CONNECTED))
+        return -1;
+    return 0;
+}
+
+ZXV_DECLARE(bluetooth,
+    ZXV_PROVIDES(bt_host_stack_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_bluetooth_bringup));

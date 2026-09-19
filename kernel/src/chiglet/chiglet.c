@@ -270,3 +270,16 @@ const char *chg_reason_name(chg_reason_t r) {
         default:                     return "?";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The native AI runtime. concord.o (chg_interaction, chg_effective_experts)
+ * and holodeck/swarm.o (chg_effective_experts) both reach for it -- which is
+ * why the capability had to exist before social_spaces and viewing could
+ * declare honestly.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(chiglet,
+    ZXV_PROVIDES(chiglet_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

@@ -169,3 +169,14 @@ int32_t ipfs_install_as_bridge_resolver(ipfs_node_t *n, bridge_t *b) {
     b->ops.ctx = n;           /* shared-ctx caveat is documented in the header  */
     return 0;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Content-addressed fetch. pirate_apps.o and broker.o both name
+ * ipfs_get_verify. ipfs.o's own `nm -u` is exactly {sha256} -- the CID.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(ipfs,
+    ZXV_PROVIDES(ipfs_ready),
+    ZXV_REQUIRES(sha256_ready),
+    ZXV_NO_BRINGUP);

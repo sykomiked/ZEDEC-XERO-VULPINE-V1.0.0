@@ -54,3 +54,14 @@ void uart_dec(uint32_t val) {
     }
     uart_puts(&buf[i]);
 }
+
+/* uart_put_dec — the 64-bit decimal helper the shared drivers call.
+ * arm32 already had uart_dec(uint32_t); the portable device layer needs the
+ * 64-bit name, so provide it here rather than narrowing the shared callers. */
+void uart_put_dec(uint64_t val) {
+    if (val == 0) { uart_putc(0x30); return; }
+    char tmp[20];
+    int i = 0;
+    while (val > 0) { tmp[i++] = (char)(0x30 + (val % 10)); val /= 10; }
+    while (i > 0) uart_putc(tmp[--i]);
+}

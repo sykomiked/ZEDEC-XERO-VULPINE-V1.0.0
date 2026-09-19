@@ -293,3 +293,21 @@ const char *rur_op_family_name(rur_op_family_t op) {
         default:                       return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The universal representation lattice (beams, scalar/aggregate types, safe
+ * conversion). REQUIRES_NONE is measured: rur.o's `nm -u` is empty.
+ */
+#include "zxv_decl.h"
+static int zxvd_rur_bringup(void) {
+    static rur_registry_t reg;
+    rur_registry_init(&reg);
+    if (rur_beam_name(RUR_BEAM_RECORD_TRANSACTION) == 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(rur,
+    ZXV_PROVIDES(rur_types_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_rur_bringup));

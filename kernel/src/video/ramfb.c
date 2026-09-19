@@ -5,6 +5,7 @@
  * The fw_cfg data/DMA interface is BIG-ENDIAN on every arch; we byte-swap every
  * multi-byte field. The kernel is identity-mapped, so &struct == its physical
  * address for QEMU's DMA. No libc, no malloc, integer only. */
+#include "zxv_barrier.h"
 #include "ramfb.h"
 
 #define FW_CFG_FILE_DIR       0x0019u
@@ -17,8 +18,22 @@
 static bool g_live = false;
 
 static inline uint16_t be16(uint16_t x) { return (uint16_t)((x >> 8) | (x << 8)); }
-static inline uint32_t be32(uint32_t x) { return __builtin_bswap32(x); }
-static inline uint64_t be64(uint64_t x) { return __builtin_bswap64(x); }
+/* Byte order by construction, not by builtin.
+ *
+ * __builtin_bswap32/64 lower to libgcc calls (__bswapsi2/__bswapdi2) on a
+ * 32-bit target with no byte-swap instruction -- rv32 has none, and no ilp32
+ * libgcc exists in this toolchain. ARMv7 has rev, so arm32 hid the problem.
+ * Written as shifts, each architecture lowers it to whatever it actually has:
+ * rev on ARM, bswap on x86, a byte sequence on rv32. Same source, different
+ * silicon underneath. */
+static inline uint32_t be32(uint32_t x) {
+    return ((x & 0x000000ffu) << 24) | ((x & 0x0000ff00u) <<  8) |
+           ((x & 0x00ff0000u) >>  8) | ((x & 0xff000000u) >> 24);
+}
+static inline uint64_t be64(uint64_t x) {
+    return ((uint64_t)be32((uint32_t)(x & 0xffffffffu)) << 32) |
+           (uint64_t)be32((uint32_t)(x >> 32));
+}
 
 /* fw_cfg DMA descriptor (all fields big-endian) */
 struct fw_cfg_dma { uint32_t control; uint32_t length; uint64_t address; }
@@ -40,13 +55,13 @@ static bool fw_cfg_dma(uint32_t control, uint32_t length, uint64_t buf_phys) {
     g_desc.control = be32(control);
     g_desc.length  = be32(length);
     g_desc.address = be64(buf_phys);
-    __asm__ volatile("dsb sy" ::: "memory");
+    ZXV_DSB();
 
     uint64_t desc = (uint64_t)(uintptr_t)&g_desc;          /* identity-mapped */
     volatile uint32_t *reg = (volatile uint32_t *)(RAMFB_FWCFG_BASE + 0x10);
     reg[0] = be32((uint32_t)(desc >> 32));                 /* high half   */
     reg[1] = be32((uint32_t)(desc & 0xffffffffu));         /* low half triggers */
-    __asm__ volatile("dsb sy" ::: "memory");
+    ZXV_DSB();
 
     /* wait for completion: QEMU clears every control bit but ERROR */
     for (uint32_t spins = 0; spins < 100000000u; spins++) {

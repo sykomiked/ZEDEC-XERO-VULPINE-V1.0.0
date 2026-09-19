@@ -195,3 +195,31 @@ zxrel_t zxpkg_verify_release(const uint8_t *pos, uint32_t pos_len,
 
     return ZXREL_OK;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The package format. All three requirements are measured from zxpkg.o's
+ * `nm -u` = {sha256, tri_bind, tri_compiled_extension, tri_init,
+ * tri_set_member, zsp_verify}: a digest (sha256_ready), the S+/S0/S- triad
+ * binder (trispace_ready, kernel/src/trispace/trispace.c), and the signed
+ * package verifier (zsp_verify_ready, kernel/src/loader/zsp.c). Three modules,
+ * three directories, none of them called zxpkg.
+ *
+ * The bring-up checks that the role->extension map discriminates. A packaging
+ * layer that gives every role the same extension is the tri-space
+ * "packaging-only binding" hole in a different costume.
+ */
+#include "zxv_decl.h"
+static int zxvd_zxpkg_bringup(void) {
+    const char *a = zxpkg_extension(TRI_POSITIVE);
+    const char *b = zxpkg_extension(TRI_NEGATIVE);
+    if (!a || !b) return -1;
+    if (a[0] == b[0] && a[1] == b[1]) return -1;   /* roles must differ */
+    if (zxrel_strerror(ZXREL_OK) == 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(zxpkg,
+    ZXV_PROVIDES(zxpkg_ready),
+    ZXV_REQUIRES(sha256_ready, trispace_ready, zsp_verify_ready),
+    ZXV_BRINGUP(zxvd_zxpkg_bringup));

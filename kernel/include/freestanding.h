@@ -51,6 +51,22 @@ static inline int fs_strcmp(const char *a, const char *b) {
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
 }
 
+/* Substring search. Returns a pointer INTO haystack at the first occurrence of
+ * needle, or NULL. An empty needle matches at position 0, as strstr() does.
+ * Naive O(n*m) on purpose: every caller in this tree searches short protocol
+ * names (panopticon_vpn's "wire"/"ipsec"/"tor" classifier), so the constant
+ * factor of a Boyer-Moore skip table would cost more than it saves. */
+static inline char *fs_strstr(const char *hay, const char *needle) {
+    if (!hay || !needle) return (char*)0;
+    if (!needle[0]) return (char*)hay;
+    for (size_t i = 0; hay[i]; i++) {
+        size_t j = 0;
+        while (needle[j] && hay[i + j] == needle[j]) j++;
+        if (!needle[j]) return (char*)&hay[i];
+    }
+    return (char*)0;
+}
+
 static inline char *fs_strcpy(char *dst, const char *src) {
     size_t i = 0;
     while (src[i]) { dst[i] = src[i]; i++; }

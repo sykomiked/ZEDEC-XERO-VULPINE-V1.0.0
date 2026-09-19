@@ -15,8 +15,12 @@
  *
  * THE ALPHABET OF TWENTY-ONE LETTERS
  * ----------------------------------
- * Each letter carries a gematric value. J, K, W, Y are absent from the
- * canonical alphabet and fold as allographs: J->I, K->C, W->U, Y->I.
+ * Each letter carries a gematric value. J, K and W are absent from the
+ * canonical alphabet and fold as allographs: J->I, K->C, W->U. That fold
+ * table is a kernel-side reconstruction, NOT deck provenance: J, K and W
+ * appear zero times in the 52,095-card corpus, so nothing tests them.
+ * Y is absent too but is NOT folded — it scores as itself, i.e. zero,
+ * because the deck scores it so on all 15 Y-bearing cards (see eno_fold).
  * Verified against seal_24525: OLPIRT HPOU = 54, digital root 9, and the
  * card's printed section mark reads §54.
  *
@@ -68,14 +72,52 @@ typedef enum {
  * characters outside the alphabet (digits, punctuation, other scripts). */
 uint32_t eno_letter_value(char c);
 
-/* Fold an allograph to its canonical letter (J->I, K->C, W->U, Y->I,
- * lowercase -> uppercase). Characters outside the alphabet pass through
- * unchanged — they simply carry no gematria. */
+/* Fold an allograph to its canonical letter (J->I, K->C, W->U, and
+ * lowercase -> uppercase). Y and V are NOT folded — the shipped deck
+ * scores both as themselves, i.e. as zero. Characters outside the
+ * alphabet pass through unchanged — they simply carry no gematria. */
 char eno_fold(char c);
 
 /* Sum of letter values over a text. Any language may be passed in: only
  * characters that fold into the twenty-one letters contribute. */
 uint32_t eno_gematria(const char *text, uint32_t len);
+
+/* ---- polarity: the second channel ------------------------------------
+ * Gematria is a MAGNITUDE and cannot carry a sign. The doubled letters of
+ * the alphabet are polarity pairs: ALPHA names the letter written U
+ * "Vau", and V is its consonant face. U is light (+1), V is shadow (-1).
+ * See PROVENANCE/ENOCHIAN_POLARITY.md. This is [SPEC] — the distinction is
+ * this system's, not Dee's — and it is the letter-level form of the S+/S-/S0
+ * ternary this module already carries at card level (eno_voice_t).
+ *
+ * V's zero MAGNITUDE and its negative CHARGE are one finding, not a
+ * contradiction: 552 of the 52,095 shipped cards carry V and all 552 score
+ * it 0. Light emanates and carries value; shadow carries direction but no
+ * determinate magnitude — which is why VPAAH lifts to VEIL_AIN_SOPH
+ * ("unbounded / unresolved potential") and UPAAH to VEIL_AIN_SOPH_AUR
+ * ("the source of emanation") in dharma/upaah.h.
+ *
+ * W and Y take charge 0 BY OMISSION, which is a default and not a finding:
+ * neither occurs anywhere in the 52,095-card corpus, so no evidence exists.
+ * Gon's faces (I, J, Y) and Veh's (C, K) are deliberately UNCHARGED: see
+ * ENOCHIAN_POLARITY.md §4.1 and §4.3. The charge is ORTHOGRAPHIC, not
+ * moral — it measures which face of Vau a writer chose, nothing more
+ * (measured: LOVE -1, CURSE +1, LIGHT 0). No UI may present it as a
+ * judgement of the intent. */
+
+/* +1 light (U), -1 shadow (V), 0 everything else. Operates on the RAW
+ * character (uppercased only) — deliberately NOT folded, because folding
+ * W->U would charge W as light. */
+int32_t eno_letter_charge(char c);
+
+/* Signed sum of letter charges over a text. Independent of eno_gematria:
+ * magnitude and charge are two channels, not one number. */
+int32_t eno_net_charge(const char *text, uint32_t len);
+
+/* The tri-space role of a net charge. Ordering matches tri_role_t
+ * (TRI_POSITIVE/NEGATIVE/NEUTRAL) and eno_voice_t (SOLAR/LUNAR/AEON):
+ *   >0 -> 0  S+  UPAAH   <0 -> 1  S-  VPAAH   =0 -> 2  S0  PIR */
+uint32_t eno_charge_role(int32_t net);
 
 /* Digital root 1..9. Zero (no alphabet letters at all) yields 9, matching
  * the generation pipeline exactly. */

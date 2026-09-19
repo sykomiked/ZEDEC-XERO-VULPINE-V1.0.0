@@ -135,3 +135,50 @@ l13_phase_t naga_raja_phase(uint32_t task_id) {
     if (!s_engine) return (l13_phase_t)0;
     return dharma_task_phase(&s_engine->dharma, task_id);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * THE ROOT OF THE DHARMA SUBTREE, AND THE ONLY BRING-UP IN IT.
+ *
+ * This is the transitive-GC decision made explicit. Eight other dharma
+ * translation units are declared and none of them is rooted, because under
+ * -ffunction-sections + --gc-sections rooting a leaf puts symbols in the ELF
+ * that nothing calls: `nm` then reports a module that is present and inert,
+ * which reads as integration and is not. naga_raja is the actual caller --
+ * naga_raja_yield runs tantra_run, tantra reaches dharma/karma/mantra/bodhi/
+ * yantra, dharma reaches lpres and upaah's phase7 bridge, and all of them
+ * reach rmag. Rooting HERE pulls that whole chain in behind it; rooting
+ * anywhere else pulls in a fragment.
+ *
+ * REQUIRES measured from naga_raja.o's `nm -u`: tantra_run -> tantra_ready,
+ * dharma_on_* / dharma_task_phase -> dharma_core_ready, lpres_get_presence /
+ * lpres_set_presence -> lpres_ready, rmag_* -> rmag_ready. Four edges, four
+ * capabilities, MB_MAX_CAPS exactly filled.
+ *
+ * The bring-up asks for a phase and a presence for a task that has never
+ * spawned. That is the honest boot-time question: it exercises the scheduler
+ * query path end to end without spawning anything into a scheduler that is
+ * not running yet.
+ */
+#include "zxv_decl.h"
+static int zxvd_naga_raja_bringup(void) {
+    /* MEASURED, THEN CORRECTED. The first version called only
+     * naga_raja_phase/naga_raja_presence, and `nm` on the ELF then showed
+     * tantra, karma, mantra, bodhi and yantra STILL at linked=0: the query
+     * path does not touch the cycle path, so rooting it pulled in nothing but
+     * itself. naga_raja_yield is the operation that runs a cycle -- it calls
+     * tantra_run, which is what reaches the rest of the subtree. It is safe to
+     * call here because its first line is `if (!s_engine) return r`: with no
+     * engine bound the cycle does not execute, while the CALL still keeps the
+     * chain in the image, because --gc-sections retains on references, not on
+     * execution. */
+    (void)naga_raja_yield(0u);
+    (void)naga_raja_phase(0u);
+    (void)naga_raja_presence(0u);
+    return 0;
+}
+
+ZXV_DECLARE(naga_raja,
+    ZXV_PROVIDES(dharma_sched_ready),
+    ZXV_REQUIRES(tantra_ready, dharma_core_ready, lpres_ready, rmag_ready),
+    ZXV_BRINGUP(zxvd_naga_raja_bringup));

@@ -69,3 +69,25 @@ const char *theme_slot_name(theme_color_t s) {
     case THEME_AZURE: return "azure"; default: return "?";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * A true leaf: the palette is a pure table, so it requires nothing and is ready
+ * the moment the graph is walked. Its bring-up is a real check, not a stub --
+ * a theme_init that silently left the palette zeroed would render an all-black
+ * desktop that looks like a display fault rather than a table fault. */
+#include "zxv_decl.h"
+
+static int theme_bringup(void) {
+    theme_t t;
+    theme_init(&t);
+    if (theme_get(&t, THEME_ACCENT) != 0xFF6600u) return -1;
+    if (theme_get(&t, THEME_VOID)   != 0x000000u) return -1;
+    /* hat pigments are independent of the palette and must stay that way */
+    if (theme_hat_color(HATCOL_RED) != 0xCC2233u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(theme,
+    ZXV_PROVIDES(theme_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(theme_bringup));

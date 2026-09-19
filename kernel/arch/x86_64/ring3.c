@@ -316,3 +316,88 @@ void x86_ring3_init(void) {
     outb8(0xA1, 0xFF);
     uart_puts("  [OK] GDT+TSS (ring-3 segments), IDT (int 0x80 syscall gate), PIC masked\n");
 }
+
+/* ---- DECLARATION: x86_64_paging PROVIDES mm_ready ---------------------------
+ * WHY THIS TU AND NOT boot.asm. The kernel's four-level tables are BUILT in
+ * kernel/arch/x86_64/boot.asm (pt_l4 -> pt_l3 -> pt_l2, L2[0] -> pt_l1 4 KB
+ * leaves, L2[1..511] 2 MB huge pages, then CR3/CR4.PAE/EFER.LME/CR0.PG). A
+ * declaration has to live in a C translation unit, and this file is the one
+ * that OWNS those tables afterwards: make_user_page() above reads CR3, walks
+ * L4/L3/L2, splits a 2 MB huge page into a fresh L1 and sets U/S on the leaf.
+ * That is the real page-table work on this architecture, in C, here.
+ *
+ * WHY THE BRING-UP IS NOT `return 0`. CR0.PG alone is worthless evidence on
+ * x86-64: long mode cannot execute a single 64-bit instruction with paging off,
+ * so a bring-up that only checked PG would be true by construction -- it could
+ * never fail, and a check that cannot fail is not a check. So this one WALKS
+ * THE LIVE TABLES from CR3 and asks whether three addresses the kernel is
+ * actually using resolve to a present leaf. That IS falsifiable: boot.asm fills
+ * exactly one L3 and one L2, i.e. it maps the low 1 GB and nothing above it,
+ * while linker64.ld puts .bss "well past 2MB" and then the 512 KB stack above
+ * it. Grow the static tables past 1 GB and __stack_top stops resolving and this
+ * bring-up returns -1 -- which is the honest report, because at that point the
+ * stack the CPU is pushing onto is unmapped.
+ *
+ * Same shape as arm64_mmu_bringup (kernel/arch/arm64/arm64_mmu.c), which reads
+ * SCTLR_EL1.M back off the CPU rather than trusting that init ran.
+ *
+ * PA == VA. The walk dereferences table PHYSICAL addresses as pointers. That is
+ * legal here for exactly the reason make_user_page() already relies on: the
+ * boot map is an identity map. It is the same assumption phys() makes 200 lines
+ * up, not a new one introduced by this declaration.
+ *
+ * REQUIRES NOTHING, and that is a checkable position rather than an omission:
+ * paging is up before the first C instruction runs, so there is no earlier
+ * module for it to depend on. */
+#include "zxv_decl.h"
+
+extern char __kernel_end[];
+extern char __stack_top[];
+
+static inline uint64_t x86_read_cr0(void) {
+    uint64_t v; __asm__ __volatile__("mov %%cr0, %0" : "=r"(v)); return v;
+}
+static inline uint64_t x86_read_cr3(void) {
+    uint64_t v; __asm__ __volatile__("mov %%cr3, %0" : "=r"(v)); return v;
+}
+static inline uint64_t x86_read_cr4(void) {
+    uint64_t v; __asm__ __volatile__("mov %%cr4, %0" : "=r"(v)); return v;
+}
+
+/* Walk the ACTIVE tables for `va`. 0 = it resolves to a present leaf; -1 at the
+ * first level whose entry has P clear. Handles 1 GB (L3.PS) and 2 MB (L2.PS)
+ * leaves as well as 4 KB ones, because the boot map uses two of the three. */
+static int x86_va_resolves(uint64_t va) {
+    const uint64_t *t = (const uint64_t *)(x86_read_cr3() & ~0xFFFULL);
+    uint64_t e = t[(va >> 39) & 0x1FF];
+    if (!(e & 1u)) return -1;                       /* L4 */
+    t = (const uint64_t *)(e & ~0xFFFULL);
+    e = t[(va >> 30) & 0x1FF];
+    if (!(e & 1u)) return -1;                       /* L3 */
+    if (e & 0x80u) return 0;                        /* 1 GB page */
+    t = (const uint64_t *)(e & ~0xFFFULL);
+    e = t[(va >> 21) & 0x1FF];
+    if (!(e & 1u)) return -1;                       /* L2 */
+    if (e & 0x80u) return 0;                        /* 2 MB page */
+    t = (const uint64_t *)(e & ~0xFFFULL);
+    e = t[(va >> 12) & 0x1FF];
+    if (!(e & 1u)) return -1;                       /* L1 leaf */
+    return 0;
+}
+
+static int x86_64_paging_bringup(void) {
+    if (!(x86_read_cr0() & (1ULL << 31))) return -1;   /* CR0.PG  */
+    if (!(x86_read_cr4() & (1ULL << 5)))  return -1;   /* CR4.PAE */
+    /* .text: the code executing right now. */
+    if (x86_va_resolves((uint64_t)(uintptr_t)&x86_ring3_init) != 0) return -1;
+    /* the last byte of the image (end of .bss, past the 2 MB 4 KB-page window) */
+    if (x86_va_resolves((uint64_t)(uintptr_t)__kernel_end - 8u) != 0) return -1;
+    /* the kernel stack the CPU is pushing onto */
+    if (x86_va_resolves((uint64_t)(uintptr_t)__stack_top - 8u) != 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(x86_64_paging,
+    ZXV_PROVIDES(mm_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(x86_64_paging_bringup));

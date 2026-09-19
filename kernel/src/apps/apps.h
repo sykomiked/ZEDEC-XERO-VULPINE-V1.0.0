@@ -20,6 +20,8 @@
 #include "../sched/sched.h"
 #include "../vfs/vfs.h"
 #include "gui.h"
+#include "../sdk/m5_api.h"
+#include "../finance/derivatives.h"
 
 /* ---- Common app framework ---- */
 
@@ -186,6 +188,55 @@ void wallet_handle_key(wallet_app_t *app, char ch);
 void wallet_handle_special(wallet_app_t *app, uint8_t scancode);
 void wallet_render(wallet_app_t *app, gui_desktop_t *gui);
 
+/* ---- Derivatives Exchange ---- */
+typedef struct derivatives_app {
+    app_base_t base;
+    uint32_t mode;
+    uint32_t selected;
+    m5_deriv_contract_t contracts[32];
+    uint32_t num_contracts;
+    temporal_arb_t arbitrage;
+    bool arbitrage_pending;
+} derivatives_app_t;
+
+void derivatives_init(derivatives_app_t *app, uint32_t gui_win, vino_ledger_t *vino, vena_runtime_t *vena);
+void derivatives_handle_key(derivatives_app_t *app, char ch);
+void derivatives_handle_special(derivatives_app_t *app, uint8_t scancode);
+void derivatives_render(derivatives_app_t *app, gui_desktop_t *gui);
+void derivatives_tick(derivatives_app_t *app);
+
+/* ---- Assurance (Pay-It-Forward) ---- */
+typedef struct assurance_app {
+    app_base_t base;
+    uint32_t mode;
+    uint32_t selected;
+    m5_assurance_contract_t assurances[32];
+    uint32_t num_assurances;
+    m5_deriv_contract_t derivatives[16];
+    uint32_t num_derivatives;
+} assurance_app_t;
+
+void assurance_init(assurance_app_t *app, uint32_t gui_win, vino_ledger_t *vino, vena_runtime_t *vena);
+void assurance_handle_key(assurance_app_t *app, char ch);
+void assurance_handle_special(assurance_app_t *app, uint8_t scancode);
+void assurance_render(assurance_app_t *app, gui_desktop_t *gui);
+void assurance_tick(assurance_app_t *app);
+
+/* ---- Treaty Tokenization ---- */
+typedef struct treaty_app {
+    app_base_t base;
+    uint32_t mode;
+    uint32_t selected;
+    m5_treaty_asset_t assets[32];
+    uint32_t num_assets;
+} treaty_app_t;
+
+void treaty_init(treaty_app_t *app, uint32_t gui_win, vino_ledger_t *vino, vena_runtime_t *vena);
+void treaty_handle_key(treaty_app_t *app, char ch);
+void treaty_handle_special(treaty_app_t *app, uint8_t scancode);
+void treaty_render(treaty_app_t *app, gui_desktop_t *gui);
+void treaty_tick(treaty_app_t *app);
+
 /* ---- App launcher — manages all app windows ---- */
 
 typedef struct app_launcher {
@@ -195,6 +246,9 @@ typedef struct app_launcher {
     sysmon_app_t sysmon;
     netcfg_app_t netcfg;
     wallet_app_t wallet;
+    derivatives_app_t derivatives;
+    assurance_app_t assurance;
+    treaty_app_t treaty;
 
     uint32_t num_windows;
     uint32_t active_app;

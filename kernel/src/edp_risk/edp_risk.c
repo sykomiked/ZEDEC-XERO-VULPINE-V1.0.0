@@ -367,3 +367,16 @@ const char *edp_rating_to_alpha(const fib_signed_t *rating) {
         default: return "A";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Exposure/coverage risk. situation_model.o and predictive_model.o both name
+ * edp_compute_risk / edp_coverage_product / edp_coverage_satisfied.
+ * edp_risk.o's own `nm -u` is {sr_sqrt, __divti3, __udivti3}: one real module
+ * edge, into surplus.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(edp_risk,
+    ZXV_PROVIDES(edp_risk_ready),
+    ZXV_REQUIRES(surplus_ready),
+    ZXV_NO_BRINGUP);

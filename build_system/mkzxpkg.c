@@ -2,7 +2,7 @@
  * ZXV Tri-Space triad (.zxvc / .cedez / .cedec).
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * SPDX-License-Identifier: Apache-2.0
  *
  * This is the step that renders a build in ZXV's native format. A conventional
  * build stops at one binary; this takes that binary as the positive space (S+,

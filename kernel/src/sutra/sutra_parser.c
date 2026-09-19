@@ -443,3 +443,15 @@ bool sutra_parse(const char *source, sutra_program_t *prog, uint32_t *err_line, 
     }
     return true;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES(sutra_lex_ready) is measured: sutra_parser.o's `nm -u` is exactly
+ * {sutra_lex_all}. No bring-up -- the parser is reached from the runtime, not
+ * from boot.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(sutra_parser,
+    ZXV_PROVIDES(sutra_parse_ready),
+    ZXV_REQUIRES(sutra_lex_ready),
+    ZXV_NO_BRINGUP);

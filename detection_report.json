@@ -2,7 +2,7 @@
   "installer": "install_zxv.py",
   "bundle": "zxv-v0.1.0-stage2-cell001",
   "platform": {
-    "arch": "x86_64",
+    "arch": "arm64",
     "bitness": 64,
     "firmware": "bios",
     "os": "darwin",
@@ -17,21 +17,22 @@
     }
   },
   "overrides": {
-    "arch": "x86_64",
-    "firmware": "bios",
+    "arch": null,
+    "firmware": null,
     "bitness": null
   },
   "selected_payloads": [
-    "kernel.cell.x86_64"
+    "kernel.cell.arm64"
   ],
   "staged": [
     {
-      "id": "kernel.cell.x86_64",
-      "path": "cells/kernel_x86_64.bin",
-      "digest": "sha256:1f6d431d1cd6e168351cbf294ec01aa3b70d08243540c8b66f45869e140efd43",
+      "id": "kernel.cell.arm64",
+      "path": "cells/kernel_arm64.bin",
+      "digest": "sha256:dca0d04c6db32c0d317ba6dd6420405cb485ad88e6f9eb8725d1fbd0c53b072d",
       "verified": true
     }
   ],
   "failed": [],
+  "installed": [],
   "dry_run": false
 }

@@ -418,3 +418,18 @@ void m5_addr_from_frequency(m5_address_t *maa, uint32_t freq_hz, m5_proto_t modu
     maa->raw_len = 4;
     maa->integrity = 100;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The M-five router. net/radio.o's only undefined symbol is
+ * m5_router_register_adapter, defined here. m5route.o's own `nm -u` is empty.
+ *
+ * THE NAME IS NOT THE EVIDENCE: this file was found by looking up the symbol
+ * radio.o actually needs across every object in the build, not by guessing
+ * that a directory called net/ owns routing.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(m5route,
+    ZXV_PROVIDES(m5_router_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

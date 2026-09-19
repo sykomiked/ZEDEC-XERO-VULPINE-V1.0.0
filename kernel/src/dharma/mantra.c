@@ -18,3 +18,15 @@ rational_t mantra_amplitude(cyc13_t vector) {
     u.v = vector;
     return uvn_magnitude(u); /* exact-rational total magnitude, no double intermediate */
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES measured from mantra.o's `nm -u` = {cyc13_zero, rmag_add_quotas,
+ * uvn_magnitude}: the cyclotomic algebra, quota arithmetic, and its sibling
+ * uvn. Rooted through tantra -> naga_raja, not directly.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(mantra,
+    ZXV_PROVIDES(mantra_ready),
+    ZXV_REQUIRES(rmag_ready, cyc13_ready, uvn_ready),
+    ZXV_NO_BRINGUP);

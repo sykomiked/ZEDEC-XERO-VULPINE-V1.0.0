@@ -203,3 +203,15 @@ sustainability_t predictive_sustainability(const surplus_dynamics_t *dyn,
 }
 
 /* surplus_real_t_max is now defined in surplus.h as a macro */
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * situation_model.o names predictive_count and predictive_nonlinear_risk.
+ * Both requirements below are measured: predictive_model.o's `nm -u` holds
+ * three edp_* symbols and seven surplus_* symbols.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(predictive,
+    ZXV_PROVIDES(predictive_ready),
+    ZXV_REQUIRES(edp_risk_ready, surplus_ready),
+    ZXV_NO_BRINGUP);

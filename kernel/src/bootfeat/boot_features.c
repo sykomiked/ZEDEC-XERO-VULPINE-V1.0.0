@@ -20,6 +20,7 @@
 #include "crown.h"
 #include "ministry.h"
 #include "ipfs.h"
+#include "tvl_bringup.h"
 
 /* ---- local, libc-free number -> decimal, appended into a small buffer ---- */
 static char *u2s(char *p, unsigned v) {
@@ -188,5 +189,15 @@ unsigned boot_features_init(bf_puts_t puts, unsigned cpu_cores, unsigned mem_mb)
         p = u2s(p, ok); p = scat(p, "/8 subsystems self-checked\n");
         puts(line);
     }
+
+    /* TOL VOVINA UPAAH LOT — the game that IS the front end. Its four modules
+     * (geometry frame, rasteriser, complementary-channel stereo, TVUL ROM
+     * container) were in the ELF with NO CALLER; this runs their self-checks
+     * for real. It is deliberately OUTSIDE the "/8 subsystems" tally above so
+     * the platform-layer count keeps meaning what it has always meant — the
+     * roll-call reports its own /4 on its own line. bf_puts_t and tvl_puts_t
+     * are the same signature (void (*)(const char *)). */
+    (void)tvl_bringup((tvl_puts_t)puts);
+
     return ok;
 }

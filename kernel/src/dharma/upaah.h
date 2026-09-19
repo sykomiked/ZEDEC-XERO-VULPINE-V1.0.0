@@ -31,8 +31,13 @@
 #ifndef UPAAH_H
 #define UPAAH_H
 
+/* Relative, not -I-dependent, and deliberately so: refinery.c includes this
+ * header and refinery.c is built on ALL FIVE targets, only one of which ever
+ * carried -Ikernel/src/sephirot. A header that compiles only under one
+ * Makefile's flag list is a trap for the next port. m5_types.h stays a plain
+ * include -- kernel/include is on every target's path by construction. */
 #include "m5_types.h"
-#include "sephirot.h"
+#include "../sephirot/sephirot.h"
 
 bool upaah_applies(trit_t t);      /* true iff trit_charge(t) == +1 */
 l13_phase_t upaah_bridge(trit_t t); /* TRIT_GLUT_PLUS -> VEIL_AIN_SOPH_AUR */

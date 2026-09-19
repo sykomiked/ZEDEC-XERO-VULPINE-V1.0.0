@@ -334,3 +334,18 @@ int32_t vino_msg_to_eth(const vino_transaction_t *txn, char *out, uint32_t max_o
 
 int32_t vino_msg_from_btc(const char *raw, vino_transaction_t *txn) { (void)raw; (void)txn; return 0; }
 int32_t vino_msg_from_eth(const char *raw, vino_transaction_t *txn) { (void)raw; (void)txn; return 0; }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The ledger three sutra files reach for (sutra_capital.o: vino_get_account,
+ * vino_capital_name; sutra_rails.o: vino_msg_to_*; sutra_runtime.o:
+ * vino_transfer). Its own `nm -u` is {lpres_*, rmag_*} and nothing else, so
+ * both requirements below are edges the linker can see, not architecture
+ * opinion: an account balance is an rmag quota, and an account's standing is
+ * an lpres presence.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(vino,
+    ZXV_PROVIDES(vino_ledger_ready),
+    ZXV_REQUIRES(rmag_ready, lpres_ready),
+    ZXV_NO_BRINGUP);

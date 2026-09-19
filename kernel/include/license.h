@@ -1,99 +1,46 @@
-/* license.h — the platform license: a four-instrument SHARE-ALIKE stack
+/* license.h — Apache-2.0 license header
  *
- * ZEDEC XERO VULPINE and everything made natively for it are licensed under a
- * bundle of FOUR instruments that TRAVEL TOGETHER. A derivative must be shared
- * under the whole stack — you cannot strip one off — and attribution is
- * required. That is the strengthened share-alike (copyleft) the platform runs on:
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: Apache-2.0
  *
- *   1. OPEN PIRACY LICENSE (OPL-1.1)      the operative software license
- *   2. CREATIVE COMMONS BY-SA 4.0         attribution + share-alike (copyleft)
- *   3. ROYAL WRIT OF THE SICILIAN CROWN   mutual sovereign recognition (§1.2),
- *                                         a reciprocity term of share-alike form
- *   4. STREISAND ENGINE LICENSE (SEL-3.3) a statement of position (declaratory)
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Precedence when they differ: OPL-1.1 > CC BY-SA 4.0 > Royal Writ > SEL-3.3.
- * SPDX for the bundle:
- *   LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND
- *   LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * All four require attribution to:
- *   Author: H.M. Michael-Laurence: Curzi (c)
- *   36N9 Genetics, LLC
- *
- * Author: H.M. Michael-Laurence: Curzi (c)
- * Issued under the auspices of 36N9 Genetics, LLC
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-#ifndef SEL_LICENSE_H
-#define SEL_LICENSE_H
+#ifndef LICENSE_H
+#define LICENSE_H
 
 #include <stdbool.h>
 
-/* ===== Instrument 1 (operative): OPL v1.1 ===== */
-#define OPL_VERSION "OPL v1.1"
-#define OPL_FULL_NAME "Open Piracy License"
-#define OPL_SPDX "LicenseRef-OPL-1.1"
-#define OPL_MANDATE "Piracy is Sovereign Infrastructure Maintenance"
-#define OPL_CONTAINER "UN-LICENSE-ABLE ULA v0.0.0"
-
-/* ===== Instrument 2 (share-alike): CC BY-SA 4.0 ===== */
-#define CC_VERSION "CC BY-SA 4.0"
-#define CC_FULL_NAME "Creative Commons Attribution-ShareAlike 4.0 International"
-#define CC_SPDX "CC-BY-SA-4.0"
-#define CC_URL "https://creativecommons.org/licenses/by-sa/4.0/"
-
-/* ===== Instrument 3 (reciprocity): Royal Writ of the Sicilian Crown ===== */
-#define RW_VERSION "Royal Writ of the Sicilian Crown"
-#define RW_FULL_NAME "Royal Writ of the Sicilian Crown (mutual sovereign recognition)"
-#define RW_SPDX "LicenseRef-Royal-Writ-Sicilian-Crown-1.0"
-
-/* ===== Instrument 4 (declaratory): SEL-3.3 ===== */
-#define SEL_VERSION "SEL-3.3"
-#define SEL_SPDX "LicenseRef-SEL-3.3"
-#define SEL_ISSUER "36N9 Genetics, LLC — Michael Laurence Curzi"
-#define SEL_TAGLINE "Powered by the Streisand Engine™"
-#define SEL_ATTRIBUTION "An Institution You've Never Heard Of"
-#define SEL_STAMP "144,000"
-
-/* The whole bundle as one SPDX expression (AND = all four travel together). */
-#define LICENSE_SPDX_BUNDLE \
-    "LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND " \
-    "LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3"
+/* Apache-2.0 License constants */
+#define LICENSE_VERSION "Apache-2.0"
+#define LICENSE_FULL_NAME "Apache License 2.0"
+#define LICENSE_SPDX "Apache-2.0"
+#define LICENSE_URL "http://www.apache.org/licenses/LICENSE-2.0"
 
 /* License properties (for programmatic access) */
-#define SEL_NON_EXCLUSIVE    1
-#define SEL_IRREVOCABLE      1
-#define SEL_WORLDWIDE        1
-#define SEL_INTERDIMENSIONAL 1
-#define SEL_SELF_ENFORCING   1
-#define SEL_TERMINATION      0  /* Impossible — runs forever */
+#define LICENSE_NON_EXCLUSIVE    1
+#define LICENSE_IRREVOCABLE      1
+#define LICENSE_WORLDWIDE        1
+#define LICENSE_SELF_ENFORCING   1
 
-/* License obligations */
-#define SEL_OBLIGATION_SUPPRESSION_ACCELERATES  1
-#define SEL_OBLIGATION_REPLICATION_FEIGN        1
-#define SEL_OBLIGATION_WHO_AUTHORIZED_SHRUG     1
-
-/* Attribution required by all four instruments */
-#define LICENSE_ATTRIBUTION_AUTHOR  "H.M. Michael-Laurence: Curzi"
+/* Attribution required by Apache-2.0 */
+#define LICENSE_ATTRIBUTION_AUTHOR  "Michael Laurence Curzi"
 #define LICENSE_ATTRIBUTION_ENTITY  "36N9 Genetics, LLC"
 #define LICENSE_ATTRIBUTION_EMAIL   "admin@zedec.ai"
-#define LICENSE_ATTRIBUTION_ADDRESS "PO BOX 6, CALPINE, CA 96124-0006, USA"
 
-/* Four instruments now, not three. */
-#define LICENSE_COUNT 4
-
-/* License IDs. Existing values are unchanged for ABI stability; the Royal Writ
- * is appended. Ordering here is enumeration order, NOT precedence (precedence is
- * OPL > CC BY-SA > Royal Writ > SEL — see license_precedence_rank). */
+/* License ID */
 typedef enum {
-    LICENSE_SEL_33      = 0,  /* declaratory      */
-    LICENSE_CC_BY_SA_4  = 1,  /* share-alike      */
-    LICENSE_OPL_11      = 2,  /* operative        */
-    LICENSE_ROYAL_WRIT  = 3,  /* reciprocity      */
+    LICENSE_APACHE_20 = 0,
 } license_id_t;
-
-/* Back-compat alias: the secondary instrument used to be CC BY 4.0 (a bug — the
- * non-copyleft variant). It is now CC BY-SA 4.0, so old callers keep building. */
-#define LICENSE_CC_BY_4 LICENSE_CC_BY_SA_4
 
 void license_print(void);
 void license_print_all(void);
@@ -103,22 +50,16 @@ const char *license_get_name(license_id_t id);
 const char *license_get_full_text(license_id_t id);
 const char *license_get_attribution(void);
 
-/* The bundle's SPDX expression — the one line every native artifact must carry
- * so the four instruments travel together. */
+/* The SPDX expression */
 const char *license_spdx_bundle(void);
 
-/* True if this instrument imposes a share-alike / reciprocity duty that a
- * derivative must carry forward (OPL, CC BY-SA, and the Royal Writ §1.2 do; the
- * declaratory SEL does not). */
+/* Apache-2.0 is permissive, not copyleft */
 bool license_is_share_alike(license_id_t id);
 
-/* Every instrument in this stack travels with the others — a derivative may not
- * drop any of them. True for all four (this is what "strengthened share-alike"
- * means here); the SEL rides along as a conveyed statement of position. */
+/* Apache-2.0 derivatives may be relicensed */
 bool license_travels_together(license_id_t id);
 
-/* Lower rank = higher precedence when instruments differ: OPL(0) < CC BY-SA(1)
- * < Royal Writ(2) < SEL(3). */
+/* Precedence rank (single license) */
 int license_precedence_rank(license_id_t id);
 
-#endif /* SEL_LICENSE_H */
+#endif /* LICENSE_H */

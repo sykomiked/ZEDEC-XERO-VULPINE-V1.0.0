@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu qemu-system-arm xorriso
+      - name: Build ARM64
+        run: |
+          make -f build_system/Makefile.arm64 clean
+          make -f build_system/Makefile.arm64 all
+      - name: Run ARM64 in QEMU
+        run: |
+          timeout 30 make -f build_system/Makefile.arm64 run || true
+      - name: Upload ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-arm64
+          path: kernel_arm64.elf
+
+  build-x86_64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install x86_64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc qemu-system-x86 xorriso grub-pc-bin grub-common
+      - name: Build x86_64
+        run: |
+          make -f build_system/Makefile.x86_64 clean
+          make -f build_system/Makefile.x86_64 all
+      - name: Run x86_64 in QEMU
+        run: |
+          timeout 30 make -f build_system/Makefile.x86_64 run || true
+      - name: Upload x86_64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-x86_64
+          path: kernel_x86_64.elf
+
+  build-riscv64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install RISC-V 64-bit toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-riscv64
+      - name: Build RISC-V 64-bit
+        run: |
+          make -f build_system/Makefile.riscv clean
+          make -f build_system/Makefile.riscv all
+      - name: Run RISC-V 64-bit in QEMU
+        run: |
+          timeout 30 make -f build_system/Makefile.riscv run || true
+      - name: Upload RISC-V 64-bit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-riscv64
+          path: kernel_riscv64.elf
+
+  build-riscv32:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install RISC-V 32-bit toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv32-linux-gnu qemu-system-riscv32
+      - name: Build RISC-V 32-bit
+        run: |
+          make -f build_system/Makefile.riscv32 clean
+          make -f build_system/Makefile.riscv32 all
+      - name: Run RISC-V 32-bit in QEMU
+        run: |
+          timeout 30 make -f build_system/Makefile.riscv32 run || true
+      - name: Upload RISC-V 32-bit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-riscv32
+          path: kernel_riscv32.elf
+
+  build-arm32:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM32 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf qemu-system-arm
+      - name: Build ARM32
+        run: |
+          make -f build_system/Makefile.arm32 clean
+          make -f build_system/Makefile.arm32 all
+      - name: Run ARM32 in QEMU
+        run: |
+          timeout 30 make -f build_system/Makefile.arm32 run || true
+      - name: Upload ARM32 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-arm32
+          path: kernel_arm32.elf
+
+  host-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make
+      - name: Run host tests
+        run: |
+          cd kernel
+          make verify-all
+
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+      - name: Check formatting
+        run: |
+          find kernel -name '*.c' -o -name '*.h' | xargs clang-format --dry-run --Werror

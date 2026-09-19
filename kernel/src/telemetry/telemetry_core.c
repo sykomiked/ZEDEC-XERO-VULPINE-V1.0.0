@@ -51,3 +51,26 @@ void run_telemetry_recursion_demo(void) {
     }
     (void)total;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * DECLARED, DELIBERATELY NOT ROOTED -- and for a specific measured reason, not
+ * caution.
+ *
+ * telemetry_core.o's `nm -u` is {__muldc3, axiom_matrix_project_tick,
+ * axiom_matrix_set}. __muldc3 is libgcc's DOUBLE-COMPLEX multiply, from a
+ * `complex` that has not been reformulated in Q32.32 / zphi. That is exactly
+ * the reason crit168/crit_168_word.c is not given a GC root either, and the
+ * same rule has to apply here or the rule means nothing. A bring-up would pull
+ * libgcc's complex arithmetic into a freestanding kernel image through the
+ * back door.
+ *
+ * The declaration still earns its place: it records the capability, so the day
+ * the complex path is rewritten the only change needed is ZXV_NO_BRINGUP ->
+ * ZXV_BRINGUP.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(telemetry,
+    ZXV_PROVIDES(telemetry_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

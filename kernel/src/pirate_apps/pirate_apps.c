@@ -198,3 +198,59 @@ int32_t app_club_say(app_ctx_t *a, int32_t space, uint32_t person,
     if (!a || a->kind != APP_CLUB || !a->club) return SOC_ERR_NULL;
     return soc_post(a->club, space, person, msg, len);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * ROOTING THE CALLER, NOT THE LEAF. pirate_apps.o was measured at linked=0,
+ * dropped=18. It is the top of five separate chains: the Hold -> ipfs, the
+ * Counter -> broker, the Cellar -> vino_stores, the Spyglass ->
+ * finance_markets, the Club -> social_spaces -> concord.
+ *
+ * MB_MAX_CAPS IS 4 AND THIS MODULE HAS 5 EDGES. That is a hard ceiling
+ * (modbind.h:162) and a fifth argument does not compile. The four declared are
+ * the four whose providers are themselves declared. THE FIFTH, WRITTEN DOWN
+ * HERE SO IT IS NOT LOST: finance_markets (U fm_pnl_report,
+ * kernel/src/finance_markets/finance_markets.c) behind app_spyglass_open. It
+ * is undeclared, not absent -- the Spyglass still links, and a reader who
+ * assumes four requirements means four dependencies would be wrong.
+ *
+ * The bring-up opens the Club against a real initialised world, which is the
+ * chain that reaches furthest: pirate_apps -> social_spaces -> concord ->
+ * chiglet.
+ */
+#include "zxv_decl.h"
+static int zxvd_pirate_apps_bringup(void) {
+    static app_ctx_t ctx;
+    static soc_world_t world;
+
+    if (app_status(&ctx) != APP_STATUS_UNBOUND) return -1;
+
+    /* OPENING IS THIS MODULE'S PRIMARY OPERATION -- it is a launcher, and the
+     * five surfaces are the five things it does. All five open functions are
+     * null-safe by inspection (each is `if (!a) return -1` then a guarded
+     * store; app_counter_count and app_spyglass_positions both begin
+     * `if (!a || a->kind != ... || !a-><backend>) return 0u`), so a surface can
+     * be opened with no backend bound and reports honestly instead of faulting.
+     *
+     * WHAT THIS DELIBERATELY DOES NOT DO: call app_hold_fetch,
+     * app_counter_settle or app_cellar_swap. Those are transactions that need a
+     * real backend, and calling them purely to pull ipfs_get_verify and
+     * broker_settle into the image would be inflating `nm` rather than using
+     * the module -- the same sin as a GC root, wearing a function call. */
+    if (app_hold_open(&ctx, 0) < 0)     return -1;   /* the Hold     -> ipfs  */
+    if (app_counter_open(&ctx, 0) < 0)  return -1;   /* the Counter  -> broker */
+    if (app_cellar_open(&ctx, 0) < 0)   return -1;   /* the Cellar   -> vino  */
+    if (app_spyglass_open(&ctx, 0) < 0) return -1;   /* the Spyglass -> fm    */
+
+    /* The Club is the one chain with a real backend available at boot, so it
+     * is opened against an initialised world rather than a null one. */
+    soc_init(&world);
+    if (app_club_open(&ctx, &world) < 0) return -1;
+    if (app_render(&ctx) == 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(pirate_apps,
+    ZXV_PROVIDES(pirate_apps_ready),
+    ZXV_REQUIRES(social_spaces_ready, ipfs_ready, broker_ready, vino_stores_ready),
+    ZXV_BRINGUP(zxvd_pirate_apps_bringup));

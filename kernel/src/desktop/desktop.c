@@ -418,3 +418,33 @@ bool desktop_verify_coverage(desktop_t *desk) {
     double l = (desk->num_apps == 0) ? 1.0 : desk->coverage_l;
     return (r * l) >= DESKTOP_COVERAGE_FLOOR;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES desktop_wm_ready -- the window/taskbar/notification MODEL, which is
+ * what this file is. It is NOT the compositor: desktop/zxv_shell.c is the live
+ * one that already draws through ramfb, and it owns a different API
+ * (zxv_spaces_*). Two files, one directory, two different things; declaring
+ * from the directory name would have merged them.
+ *
+ * REQUIRES_NONE is measured (desktop.o's `nm -u` is empty) and it is worth
+ * stating why that is right rather than an omission: this model never touches
+ * a framebuffer, so it does not require display_mode_ready. Geometry first,
+ * pixels later.
+ */
+#include "zxv_decl.h"
+static int zxvd_desktop_bringup(void) {
+    static desktop_t desk;
+    uint32_t win;
+    desktop_init(&desk, 1024u, 768u, 32u);
+    win = desktop_create_window(&desk, "zxv", 0, 0, 320u, 200u, 0u);
+    if (win == 0u) return -1;
+    if (desktop_get_window(&desk, win) == 0) return -1;
+    if (desktop_focus_window(&desk, win) != 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(desktop,
+    ZXV_PROVIDES(desktop_wm_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_desktop_bringup));

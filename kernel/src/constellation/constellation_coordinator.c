@@ -376,3 +376,18 @@ void cc_update_stats(cc_coordinator_t *cc) {
     /* Stats are maintained inline by other functions;
      * this is a hook for future aggregation. */
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * The node registry: it orders incarnations by oseq sequence numbers rather
+ * than by a clock (cc_check_health takes a current_sequence, never a time), so
+ * oseq_ready is a genuine requirement and not a layering convention.
+ *
+ * NO BRING-UP YET: the coordinator instance is owned by the arch main, which
+ * registers the local node into it at boot. Moving that here is the migration
+ * pass; declaring what it depends on is this one. */
+#include "zxv_decl.h"
+
+ZXV_DECLARE(constellation,
+    ZXV_PROVIDES(node_registry_ready),
+    ZXV_REQUIRES(oseq_ready),
+    ZXV_NO_BRINGUP);

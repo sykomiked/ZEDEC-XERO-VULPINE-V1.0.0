@@ -156,3 +156,27 @@ void sha256_final(sha256_ctx_t *c, uint8_t out[SHA256_DIGEST_LEN]) {
         out[i * 4 + 3] = (uint8_t)(c->h[i]);
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * L0 substrate: a pure function over bytes, with nothing beneath it. It cannot
+ * require anything, and several modules (alloc's content addressing, the CID
+ * layer) require it, so it is the cleanest possible root of the requires-graph.
+ *
+ * The bring-up is the FIPS 180-4 "abc" known-answer test. A hash that compiles
+ * and returns the wrong digest is worse than one that is absent, because every
+ * content address derived from it is then confidently wrong. */
+#include "zxv_decl.h"
+
+static int sha256_bringup(void) {
+    static const uint8_t msg[3]  = { 'a', 'b', 'c' };
+    static const uint8_t want[8] = { 0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea };
+    uint8_t d[SHA256_DIGEST_LEN];
+    sha256(msg, sizeof msg, d);
+    for (uint32_t i = 0; i < sizeof want; i++) if (d[i] != want[i]) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(sha256,
+    ZXV_PROVIDES(sha256_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(sha256_bringup));

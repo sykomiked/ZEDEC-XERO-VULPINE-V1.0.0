@@ -54,3 +54,25 @@ tantra_result_t tantra_run(tantra_engine_t *t) {
     bodhi_state_t b = bodhi_observe(&t->dharma);
     return tantra_paradox_trap(&b);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The engine that drives one dharma cycle. tantra.o's `nm -u` names ELEVEN
+ * symbols across FIVE modules: bodhi_observe, dharma_{advance,emit,init},
+ * karma_cause*, mantra_{amplitude,encode}, yantra_contain.
+ *
+ * MB_MAX_CAPS IS 4 AND THIS MODULE HAS 5 REAL EDGES. A fifth ZXV_REQUIRES
+ * argument does not compile (zxv_decl.h has no ZXV_CAPS5), which is the
+ * correct outcome -- modbind would otherwise read past a 4-element array. The
+ * four declared are the ones that gate a cycle: without dharma_core there is
+ * no set to advance, without karma nothing to cause, without mantra nothing to
+ * encode, without bodhi nothing observed. THE FIFTH, DECLARED NOWHERE AND
+ * WRITTEN DOWN HERE SO IT IS NOT LOST: yantra_ready (yantra_contain). It is
+ * the containment boundary, and it is the one a reader is most likely to
+ * assume is covered.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(tantra,
+    ZXV_PROVIDES(tantra_ready),
+    ZXV_REQUIRES(dharma_core_ready, karma_ready, mantra_ready, bodhi_ready),
+    ZXV_NO_BRINGUP);

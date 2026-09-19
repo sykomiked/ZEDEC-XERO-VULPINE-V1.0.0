@@ -10,12 +10,43 @@ CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
+# ---------------------------------------------------------------------------
+# PARALLEL BY DEFAULT. ASK THE HARDWARE, DO NOT HARDCODE.
+# `nproc` is read at parse time; the fallback of 4 exists only for a host where
+# nproc is absent. Measured on the build box: 12.
+#
+# WHY THIS IS DEFAULTED AND NOT LEFT TO THE CALLER. -j$(nproc) appeared in two
+# helper scripts and NEVER in the main build path, so every build this project
+# ever ran used one core of twelve -- and building one arch at a time is what
+# let four Makefiles drift apart unseen. Parallelism here is a CORRECTNESS
+# instrument before it is a speed one: five arches built side by side is what
+# makes a divergence visible in the same terminal.
+#
+# Verified against GNU Make 4.3 on the box: `MAKEFLAGS += -j` does take effect
+# from inside a makefile (6 x 2s jobs finished in 2.0s), `JOBS=1` serialises it
+# (12.0s), and a command-line `-j2` overrides it (6.0s). Both escape hatches are
+# real, so a bisect or a log-ordering question is one variable away.
+NPROC := $(shell nproc 2>/dev/null || echo 4)
+JOBS  ?= $(NPROC)
+MAKEFLAGS += -j$(JOBS)
+
+# OUT-OF-TREE OBJECTS. Every arch writes under its own build/<arch>/ mirror of
+# the source path, so all five Makefiles can run AT THE SAME TIME. Before this,
+# arm64/riscv/riscv32 wrote kernel/src/x/y.o via $(SRCS:.c=.o) and arm32 via a
+# bare `%.o: %.c`, so the four clobbered each other and a stale foreign-arch .o
+# surfaced as "file format not recognized". That collision is the entire reason
+# ~/zxv/.buildlock exists.
+OBJDIR := build/riscv
+
 CFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -nostdinc \
          -fno-stack-protector -fno-pie -no-pie \
+         -ffunction-sections -fdata-sections \
+         -MMD -MP \
          -include kernel/include/freestanding.h \
          -isystem $(shell $(CC) -print-file-name=include) \
          -march=rv64imafd_zicsr -mabi=lp64d \
          -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
+         -DRAMFB_FWCFG_BASE=0x10100000UL \
          -mcmodel=medany \
          -Ikernel/arch/arm64 -Ikernel/arch/riscv -Ikernel/boot -Ikernel/compat \
          -Ikernel/include -Ikernel/include/freestanding_stubs -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/src/mbcomp -Ikernel/src/modbind -Ikernel/src/abacus \
@@ -25,7 +56,7 @@ CFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -nostdinc \
          -Ikernel/src/cards -Ikernel/src/cellular_multikernel -Ikernel/src/chiglet -Ikernel/src/choice \
          -Ikernel/src/chronicle -Ikernel/src/community_chest -Ikernel/src/concord -Ikernel/src/constellation \
          -Ikernel/src/count_house -Ikernel/src/crit168 -Ikernel/src/crown -Ikernel/src/crypto_wallet \
-         -Ikernel/src/decent -Ikernel/src/denconnect -Ikernel/src/deploy -Ikernel/src/desktop \
+         -Ikernel/src/decent -Ikernel/src/denconnect -Ikernel/src/deploy -Ikernel/src/display -Ikernel/src/desktop \
          -Ikernel/src/dual_space -Ikernel/src/dualtrack -Ikernel/src/edp_risk -Ikernel/src/event_sched \
          -Ikernel/src/event_space -Ikernel/src/event_transport -Ikernel/src/finance -Ikernel/src/finance_markets \
          -Ikernel/src/font -Ikernel/src/fractal -Ikernel/src/fusion -Ikernel/src/games \
@@ -44,20 +75,67 @@ CFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -nostdinc \
          -Ikernel/src/situation -Ikernel/src/smap -Ikernel/src/social_spaces -Ikernel/src/sovereign_node \
          -Ikernel/src/subterm -Ikernel/src/superpos -Ikernel/src/surplus -Ikernel/src/synthesis \
          -Ikernel/src/telemetry -Ikernel/src/theme -Ikernel/src/tls -Ikernel/src/trispace \
-         -Ikernel/src/update -Ikernel/src/vbe -Ikernel/src/vena -Ikernel/src/vino \
+         -Ikernel/src/update -Ikernel/src/vbe -Ikernel/src/zab -Ikernel/src/syscall -Ikernel/src/invproof -Ikernel/src/codec -Ikernel/src/megarom -Ikernel/src/bombsquad -Ikernel/src/video -Ikernel/src/tolvovina -Ikernel/src/vena -Ikernel/src/vino \
          -Ikernel/src/vino_stores -Ikernel/src/virtio -Ikernel/src/voice -Ikernel/src/wyrmgate \
          -Ikernel/src/wyverneye -Ikernel/src/xedit -Ikernel/src/yantra -Ikernel/src/zcapital \
          -Ikernel/src/zxvfs
 
-LDFLAGS = -T kernel/arch/riscv/linker.ld -nostdlib -static
+# --gc-sections, ADDED 2026-08-11. Until this line, this file's banner-gate
+# comment and verify_banners.sh's failure text BOTH asserted that this build
+# "discards unreferenced sections (--gc-sections)" while the link passed no such
+# flag and CFLAGS carried no -ffunction-sections either. Nothing was ever
+# discarded, so every `nm kernel_riscv.elf` count meant "the .o was linked in",
+# never "something reaches it" -- and those counts were quoted next to arm64's,
+# which DO mean reached. Two arches, two different meanings, one column.
+#
+# Both halves were required here, unlike x86_64 where CFLAGS was already right
+# and only the link flag was missing: -ffunction-sections -fdata-sections is
+# added above so the linker has per-function/per-object sections to collect.
+#
+# The linker script was written for this day. kernel/arch/riscv/linker.ld
+# already carries ENTRY(_start) -- which roots *(.text.boot) from boot.s, one
+# section since the assembler gets no -ffunction-sections -- and already wraps
+# .rodata.zxv_decl in KEEP(), its own comment saying KEEP is "inert without
+# --gc-sections ... written anyway, so adding it later cannot silently empty the
+# graph". It also already names .sdata/.sbss/.srodata, whose -fdata-sections
+# forms (.sbss.<name> etc.) the existing *(.s*.*) wildcards match, so no global
+# escapes the boot.s clear_bss walk over [__bss_start, __bss_end).
+#
+# MEASURED (see the build report): text symbols BEFORE -> AFTER, with the two
+# boot logs byte-identical and both reaching [BOOT_OK]. Identical output is the
+# proof the collection was safe: nothing that was executing stopped executing.
+# The symbols that vanish are STAGED MODULES, not dead code -- they return the
+# moment something calls them, and being able to see that difference is the
+# entire point.
+#
+# NO GC ROOTS HERE, deliberately, on Makefile.arm64's rule: -u on a staged
+# module makes `nm` report "present" whether or not any call chain reaches it,
+# which is precisely the confusion verify_banners.sh exists to detect.
+#
+# --build-id=none IS PASSED NOW, matching arm64 and x86_64. It used to be omitted
+# on the reasoning that OpenSBI "reads the real entry from the ELF header ... so
+# the +0x24 offset the build-id note introduces is carried for us". That premise
+# was FALSIFIED 2026-08-11: QEMU 11.0.2 transfers control to the LOAD BASE
+# (0x80200000), not the ELF entry (0x80200024), so the hart executed the
+# allocated .note.gnu.build-id as instructions and died silently right after the
+# OpenSBI banner -- riscv64/riscv32 simply did not boot on a modern QEMU, while
+# QEMU 6.2 on the build box booted the identical ELF to [BOOT_OK].
+# Proof of cause: patching `j _start` over the note at 0x80200000 made the SAME
+# unmodified kernel reach [BOOT_OK] under QEMU 11.
+# Yes, this shifts every address in the image by 0x24 -- that is the point:
+# _start lands ON the load base, so entry-vs-base can no longer disagree. The
+# linker script also /DISCARD/s the note as a belt-and-braces backstop.
+LDFLAGS = -T kernel/arch/riscv/linker.ld -nostdlib -static \
+          -Wl,--build-id=none -Wl,--gc-sections
 LIBGCC = $(shell $(CC) -print-libgcc-file-name)
 
 RISCV_ARCH_OBJS = \
-    kernel/arch/riscv/boot.o \
-    kernel/arch/riscv/uart_ns16550.o \
-    kernel/arch/riscv/plic.o \
-    kernel/arch/riscv/riscv_timer.o \
-    kernel/arch/riscv/kernel_main_riscv.o
+    $(OBJDIR)/kernel/arch/riscv/boot.o \
+    $(OBJDIR)/kernel/arch/riscv/uart_ns16550.o \
+    $(OBJDIR)/kernel/arch/riscv/plic.o \
+    $(OBJDIR)/kernel/arch/riscv/riscv_timer.o \
+    $(OBJDIR)/kernel/arch/riscv/riscv_mmu.o \
+    $(OBJDIR)/kernel/arch/riscv/kernel_main_riscv.o
 
 KERNEL_SRCS = \
     kernel/src/abacus/abacus.c \
@@ -74,10 +152,12 @@ KERNEL_SRCS = \
     kernel/src/e8/e8.c \
     kernel/src/mixmat/mixmat.c \
     kernel/src/modbind/modbind.c \
+    kernel/src/modbind/zxv_decl_gate.c \
     kernel/src/mbcomp/mbcomp.c \
     kernel/src/battering_ram/battering_ram.c \
     kernel/src/bios/zbios.c \
     kernel/src/blockdev/blockdev.c \
+    kernel/src/blockdev/ramdisk.c \
     kernel/src/bootfeat/boot_features.c \
     kernel/src/bridge/bridge.c \
     kernel/src/broker/broker.c \
@@ -100,6 +180,7 @@ KERNEL_SRCS = \
     kernel/src/denconnect/denconnect.c \
     kernel/src/deploy/deploy.c \
     kernel/src/desktop/zxv_shell.c \
+    kernel/src/desktop/render_boot.c \
     kernel/src/dual_space/dual_space.c \
     kernel/src/dualtrack/dualtrack.c \
     kernel/src/edp_risk/edp_risk.c \
@@ -119,6 +200,7 @@ KERNEL_SRCS = \
     kernel/src/emu/emu6502.c \
     kernel/src/emu/emu_relate.c \
     kernel/src/emu/game_runner.c \
+    kernel/src/emu/zxv_cover.c \
     kernel/src/emu/game_universe.c \
     kernel/src/emu/gb.c \
     kernel/src/emu/gba.c \
@@ -223,6 +305,7 @@ KERNEL_SRCS = \
     kernel/src/recon/recon.c \
     kernel/src/refinery/enochian.c \
     kernel/src/refinery/refinery.c \
+    kernel/src/dharma/upaah.c \
     kernel/src/reputation/reputation.c \
     kernel/src/rmag/rmag.c \
     kernel/src/rmag/rmag_core.c \
@@ -246,6 +329,23 @@ KERNEL_SRCS = \
     kernel/src/update/update.c \
     kernel/src/vbe/vbe.c \
     kernel/src/vena/vena.c \
+    kernel/src/tolvovina/tvl_geom.c \
+    kernel/src/tolvovina/tvl_raster.c \
+    kernel/src/tolvovina/tvl_stereo.c \
+    kernel/src/tolvovina/tvl_rom.c \
+    kernel/src/tolvovina/tvl_bringup.c \
+    kernel/src/zab/zab.c \
+    kernel/src/zab/zab_exec.c \
+    kernel/src/syscall/syscall.c \
+    kernel/src/invproof/invproof.c \
+    kernel/src/zxvfs/zxvfs_tri.c \
+    kernel/src/codec/zmedia.c \
+    kernel/src/megarom/mrschema.c \
+    kernel/src/display/display.c \
+    kernel/src/bombsquad/bombsquad.c \
+    kernel/src/virtio/virtio_bus.c \
+    kernel/src/virtio/vring.c \
+    kernel/src/video/ramfb.c \
     kernel/src/vfs/vfs.c \
     kernel/src/vino/vino.c \
     kernel/src/vino_stores/vino_stores.c \
@@ -266,7 +366,26 @@ KERNEL_SRCS = \
     kernel/freestanding.c \
     kernel/compat/softfloat_stubs.c
 
-KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
+KERNEL_OBJS = $(patsubst %.c,$(OBJDIR)/%.o,$(KERNEL_SRCS))
+
+# PARALLEL-SAFE DIRECTORY CREATION. The usual `@mkdir -p $(dir $@)` inside a
+# pattern rule is the classic -j hazard, so the whole directory set is created
+# ONCE here at parse time, before a single recipe runs and therefore before any
+# two jobs can race for the same parent. The in-rule mkdir below is kept as a
+# backstop for anything not in this list; with the directories already present
+# it never does work.
+OBJDIRS := $(sort $(dir $(RISCV_ARCH_OBJS) $(KERNEL_OBJS)))
+$(shell mkdir -p $(OBJDIRS))
+
+# Header dependencies (-MMD -MP). NEWLY REQUIRED, not cosmetic: until now every
+# build began with `find kernel -name '*.o' -delete`, because in-tree objects
+# from another arch had to be swept anyway, and a full rebuild hides missing
+# header deps. Out-of-tree objects PERSIST across builds, which is the point --
+# and that makes a stale .o carrying an old struct layout newly possible here.
+# Makefile.arm64's comment records what that costs: a shell struct grew two
+# fields, kernel_main.o kept the old size, and writes landed in adjacent memory.
+DEPS = $(RISCV_ARCH_OBJS:.o=.d) $(KERNEL_OBJS:.o=.d)
+-include $(DEPS)
 
 TARGET = kernel_riscv.elf
 TARGET_BIN = kernel_riscv.bin
@@ -276,9 +395,12 @@ TARGET_BIN = kernel_riscv.bin
 all: $(TARGET) $(TARGET_BIN)
 
 # Banner gate: a boot banner is a claim about `nm`, not about the Makefile.
-# This build discards unreferenced sections (--gc-sections), so a module can be
-# in KERNEL_SRCS, compile, link, pass its tests and still be ABSENT from the
-# binary. Runs inside the link rule so no unchecked ELF can exist.
+# This build discards unreferenced sections -- CFLAGS passes
+# -ffunction-sections -fdata-sections and LDFLAGS above passes -Wl,--gc-sections
+# -- so a module can be in KERNEL_SRCS, compile, link, pass its tests and still
+# be ABSENT from the binary. That sentence stood here while both flags were
+# missing, from this file's creation until 2026-08-11; see the LDFLAGS comment.
+# Runs inside the link rule so no unchecked ELF can exist.
 # VERIFY_BANNERS=0 bypasses -- for inspecting a broken link, never for shipping.
 VERIFY_BANNERS ?= 1
 
@@ -301,13 +423,19 @@ $(TARGET): $(RISCV_ARCH_OBJS) $(KERNEL_OBJS)
 $(TARGET_BIN): $(TARGET)
 	$(OBJCOPY) -O binary $< $@
 
-kernel/arch/riscv/%.o: kernel/arch/riscv/%.c
+# ONE pattern rule now covers kernel/arch/riscv/*.c, kernel/src/**/*.c,
+# kernel/compat/*.c and kernel/freestanding.c. The last two previously fell
+# through to make's BUILT-IN %.o: %.c rule -- which is not the same recipe, and
+# on this Makefile silently dropped -nostdinc and the -I list's ordering
+# guarantees. Naming every input explicitly removes that quiet second path.
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-kernel/arch/riscv/boot.o: kernel/arch/riscv/boot.s
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-kernel/src/%.o: kernel/src/%.c
+# boot.s is ASSEMBLY and must not get an implicit .c prerequisite, so it is an
+# explicit rule (explicit beats pattern in GNU make).
+$(OBJDIR)/kernel/arch/riscv/boot.o: kernel/arch/riscv/boot.s
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 run: $(TARGET)
@@ -315,4 +443,28 @@ run: $(TARGET)
 		-kernel $(TARGET) -nographic -serial mon:stdio
 
 clean:
-	rm -f $(RISCV_ARCH_OBJS) $(KERNEL_OBJS) $(TARGET) $(TARGET_BIN)
+	rm -rf $(OBJDIR) $(TARGET) $(TARGET_BIN)
+
+# ---- THE DERIVED PHASE TABLE ------------------------------------------------
+# Generated, never committed. build_system/gen_phase_table.sh computes one
+# #define per declared module -- its l13 phase, taken from its DRC layer, and
+# where verify_layers.sh's layer_of() is silent, from the floor its own local
+# includes impose. kernel/include/zxv_decl.h includes the result and ZXV_DECLARE
+# pastes ZXV_PHASE_OF_<module> into the module record, so no phase is ever typed
+# and a new module gets one the moment it is declared.
+#
+# GENERATED AT PARSE TIME, ON PURPOSE, NOT AS A RULE. Every object in this build
+# includes this header, so as a rule it would have to be a prerequisite of ~300
+# targets; miss one and a -j build races a compile against the generator and
+# fails intermittently -- the single worst failure mode to debug. A parse-time
+# $(shell ...) has run to completion before make has decided what to build at
+# all, so no ordering exists to get wrong. It costs ~0.3s and it re-derives on
+# every invocation, which is what keeps the table from going stale.
+#
+# The census goes to $(OBJDIR)/gen/phase_census.txt: a build that silently
+# generated the wrong number of phases would be exactly the invisible drift this
+# whole mechanism exists to remove.
+ZXV_GENDIR    := $(OBJDIR)/gen
+ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
+$(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
+CFLAGS += -I$(ZXV_GENDIR)

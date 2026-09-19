@@ -567,3 +567,35 @@ bool event_clock_verify_coverage(event_clock_t *clk) {
 
     return true;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES_NONE, and that is deliberately NOT what the name suggests.
+ *
+ * The tempting declaration is REQUIRES(oseq_ready) -- this file is about
+ * ordinals and oseq owns happens-before. But event_clock.o's `nm -u` is EMPTY:
+ * it calls nothing, and event_clock_default() hands back its own instance. The
+ * ordinal domain here is self-contained, and wall time only ever enters
+ * through event_clock_sync() from an external interface. Declaring a
+ * requirement the code does not have would have made a module wait for
+ * something it never touches.
+ *
+ * The bring-up checks the one property the whole design rests on: ordinals are
+ * strictly monotonic and start from a known point, with no clock read at all.
+ */
+#include "zxv_decl.h"
+static int zxvd_event_clock_bringup(void) {
+    event_clock_t *clk = event_clock_default();
+    uint64_t a, b;
+    if (!clk) return -1;
+    a = event_clock_next_ordinal(clk);
+    b = event_clock_next_ordinal(clk);
+    if (b <= a) return -1;                        /* ordinals must advance */
+    if (event_clock_get_ordinal(clk) != b) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(event_clock,
+    ZXV_PROVIDES(event_clock_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_event_clock_bringup));

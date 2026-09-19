@@ -61,13 +61,24 @@ int panopticon_register_watcher(panopticon_state_t *state,
                                 panopticon_watcher_type_t type,
                                 const char *name) {
     if (!state) return -1;
-    /* Check if already registered */
+    /* Check if already registered.
+     *
+     * THE PARENTHESES ARE LOAD-BEARING. This was written as
+     *     state->watchers[i].ip[1] == (ip >> 16) & 0xFF
+     * and `==` binds TIGHTER than `&`, so it parsed as
+     *     (state->watchers[i].ip[1] == (ip >> 16)) & 0xFF
+     * -- the stored byte compared against the UNMASKED shifted value. Only the
+     * first line worked, and only by accident: (ip >> 24) is already <= 255.
+     * The other three could not match for any address above 0.0.0.255, so the
+     * "already registered" test silently never fired and every re-registration
+     * of the same watcher burned another slot until the table filled. GCC
+     * flagged it four times as -Wparentheses. */
     for (uint32_t i = 0; i < PANOPTICON_MAX_WATCHERS; i++) {
         if (state->watchers[i].active &&
-            state->watchers[i].ip[0] == (ip >> 24) & 0xFF &&
-            state->watchers[i].ip[1] == (ip >> 16) & 0xFF &&
-            state->watchers[i].ip[2] == (ip >> 8) & 0xFF &&
-            state->watchers[i].ip[3] == ip & 0xFF &&
+            state->watchers[i].ip[0] == ((ip >> 24) & 0xFFu) &&
+            state->watchers[i].ip[1] == ((ip >> 16) & 0xFFu) &&
+            state->watchers[i].ip[2] == ((ip >>  8) & 0xFFu) &&
+            state->watchers[i].ip[3] == (ip & 0xFFu) &&
             state->watchers[i].port == port) {
             state->watchers[i].last_seen = state->phase_tick;
             state->watchers[i].watching_you = 1;
@@ -469,3 +480,39 @@ int panopticon_auto_rate(panopticon_state_t *state, uint32_t id) {
     }
     return -1;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Watcher observation and threat rating. REQUIRES_NONE is measured:
+ * panopticon.o's only undefined symbol is memcpy (redirected to fs_memcpy).
+ * It watches; nothing is foundational to it.
+ */
+#include "zxv_decl.h"
+static int zxvd_panopticon_bringup(void) {
+    static panopticon_state_t st;
+    int id1, id2;
+    if (panopticon_init(&st) != 0) return -1;
+    if (panopticon_tick(&st) != 0) return -1;
+
+    /* THIS IS THE REGRESSION GUARD FOR THE -Wparentheses BUG FIXED ABOVE.
+     * Registering the same address twice must return the SAME id, because the
+     * second call should find the existing entry. With the unparenthesised
+     * comparison the duplicate check could not match for any address above
+     * 0.0.0.255, so this returned two different ids and quietly consumed a
+     * second slot. 10.0.0.1 is chosen deliberately: it is exactly the shape
+     * the broken code got wrong, and a loopback-style low address would have
+     * passed even before the fix. */
+    id1 = panopticon_register_watcher(&st, 0x0A000001u, 443u, WATCHER_NETWORK, "probe");
+    if (id1 < 0) return -1;
+    id2 = panopticon_register_watcher(&st, 0x0A000001u, 443u, WATCHER_NETWORK, "probe");
+    if (id2 != id1) return -1;
+
+    if (panopticon_threat_name(panopticon_get_threat(&st, (uint32_t)id1)) == 0)
+        return -1;
+    return 0;
+}
+
+ZXV_DECLARE(panopticon,
+    ZXV_PROVIDES(panopticon_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_panopticon_bringup));

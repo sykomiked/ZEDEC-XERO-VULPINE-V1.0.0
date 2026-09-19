@@ -23,10 +23,16 @@ extern void uart_puts(const char *s);
 extern void uart_put_hex(uint64_t val);
 extern void uart_put_dec(uint64_t val);
 
-/* GIC driver */
+/* GIC driver. The version is probed from GICD_PIDR2 at runtime (see
+ * gicv3.c), so the boot log below must report what was FOUND rather than
+ * name a version up front -- gic_status_msg()/gic_device_name() return
+ * static strings chosen by that probe. */
 extern void gic_init(void);
 extern void gic_register_handler(uint32_t irq, void (*handler)(void));
 extern void gic_handle_irq(void);
+extern uint32_t gic_get_version(void);
+extern const char *gic_status_msg(void);
+extern const char *gic_device_name(void);
 
 /* Timer driver */
 extern void arm64_timer_init(void);
@@ -482,7 +488,8 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 
 /* Persistent storage: virtio-blk device + ZXVFS journaled filesystem. */
 #include "virtio_blk.h"
-#include "emu/game_runner.h"   /* run an attached raw ROM on the emulator cores */
+#include "emu/game_runner.h"
+#include "../src/emu/zxv_cover.h"   /* run an attached raw ROM on the emulator cores */
 #include "emu/megarom.h"       /* console model: MegaROMs as the bootable UI     */
 #include "virtio_net.h"
 #include "../src/mlkem/mlkem768.h"   /* post-quantum KEM (NIST ML-KEM-768) */
@@ -604,6 +611,59 @@ static void boot_msg(const char *msg) {
     uart_puts("] ");
     uart_puts(msg);
     uart_puts("\n");
+}
+
+/* ---- THE DECLARATION-GRAPH GATE ------------------------------------------
+ * The gate itself is NOT here any more. It lives in
+ * kernel/src/modbind/zxv_decl_gate.c and runs on all five architectures.
+ *
+ * It was inline in this file, which meant it EXECUTED ON ARM64 ALONE while
+ * compiling on five targets -- x86_64, riscv64, riscv32 and arm32 booted
+ * without ever asking whether their declaration graph was sound. Copying the
+ * block into the other four mains would have made four copies of a check whose
+ * whole purpose is to catch drift. So it moved out, whole, and this file keeps
+ * only what is genuinely arm64: the console it is printed through.
+ */
+#include "zxv_decl.h"
+
+/* ---- evidence-preserving console adapter ----------------------------------
+ * zxv_decl_boot_gate takes ONE puts callback and formats its own decimals,
+ * because arm32's main has no put_dec to hand it (see zxv_decl.h). arm64 has
+ * something the other four do not: boot_msg(), which files each status line in
+ * the boot evidence ledger, stamps it [Ennnn], and that ledger is HASHED into
+ * the boot measurement -- so passing raw uart_puts would have silently dropped
+ * eight records and changed the measurement.
+ *
+ * So arm64 hands the gate a line-buffered adapter. A completed line whose first
+ * non-blank character is '[' is a STATUS line and goes through boot_msg exactly
+ * as it did when the block was inline; every other line (the indented counts
+ * and the per-module detail) prints raw. That is precisely the partition the
+ * inline code made by hand, written once as a rule instead of per call site.
+ *
+ * The gate terminates every line it emits, so nothing is ever left buffered. */
+static char     g_gate_line[192];
+static uint32_t g_gate_len;
+
+static void gate_line_flush(void) {
+    uint32_t i = 0;
+    g_gate_line[g_gate_len] = 0;
+    while (i < g_gate_len && g_gate_line[i] == ' ') i++;
+    if (i < g_gate_len && g_gate_line[i] == '[') {
+        boot_msg(g_gate_line);           /* files evidence, adds [Ennnn] and \n */
+    } else {
+        uart_puts(g_gate_line);
+        uart_puts("\n");
+    }
+    g_gate_len = 0;
+}
+
+static void gate_puts(const char *s) {
+    if (!s) return;
+    for (; *s; s++) {
+        if (*s == '\n') { gate_line_flush(); continue; }
+        if (g_gate_len < (uint32_t)(sizeof g_gate_line) - 1u)
+            g_gate_line[g_gate_len++] = *s;
+    }
 }
 
 /* Helper to copy a short string into a fixed-size, zero-padded cell id. */
@@ -730,6 +790,26 @@ void kernel_main_arm64(void) {
     uart_init();
     boot_evidence_init();
 
+    /* ---- RAISE THE CARRIER ------------------------------------------------
+     * FIRST, and silently. The carrier is a dial tone: it counts nothing and
+     * orders nothing, it says only that the line is live -- and mb_real_power
+     * returns 0 while it is down, because phase is measured RELATIVE to the
+     * carrier and with no reference a phase difference denotes nothing.
+     *
+     * That makes this line load-bearing rather than decorative: every
+     * modbind_resolve() in this file -- the composition fixture, modbind_
+     * selfcheck, and the real declaration gate -- computes coupling from real
+     * power, so with the line dead every module carrying a requirement would go
+     * S0 and the gate would report a system that had simply not been switched
+     * on. It goes before all three, not near them.
+     *
+     * It prints nothing on purpose. The carrier's ABSENCE is the diagnostic and
+     * it is already loud where it matters (every requirement held, named
+     * module by module); announcing its presence would be announcing that
+     * nothing is wrong, which is the class of self-certifying report this
+     * subsystem exists to remove. */
+    mb_carrier_up();
+
     /* Boot identity: the 36N9 code-dragon and the ZEDEC XERO VULPINE
      * fox, in the house blueprint style, rendered for the serial
      * console this kernel actually boots on. */
@@ -754,10 +834,10 @@ void kernel_main_arm64(void) {
     boot_msg("  [DRIVER ONLINE] Identity mapping (1GB, 4KB granule)");
 
     /* Phase 3: GIC + Timer */
-    boot_msg("[BOOT] GICv3 interrupt controller...");
-    gic_init();
+    boot_msg("[BOOT] GIC interrupt controller (version probed from GICD_PIDR2)...");
+    gic_init();   /* prints the probe evidence itself, then programs v2 or v3 */
     gic_register_handler(IRQ_TIMER, arm64_timer_handler);
-    boot_msg("  [DRIVER ONLINE] GICv3 distributor + redistributor");
+    boot_msg(gic_status_msg());
 
     boot_msg("[BOOT] Generic timer...");
     arm64_timer_init();
@@ -1256,9 +1336,12 @@ void kernel_main_arm64(void) {
                             "zxv.serial.rx.ready", 0, 2);
     }
 
-    /* Register GICv3 as an EMULATED device */
-    int32_t yf_gic = yf_register_device(&yf, "gicv3", "interrupt-controller",
-                                         YF_EMULATED);
+    /* Register the GIC as an EMULATED device under its PROBED name --
+     * "gicv2" or "gicv3" depending on what GICD_PIDR2 actually reported,
+     * so the hardware model cannot describe a controller this machine
+     * does not have. */
+    int32_t yf_gic = yf_register_device(&yf, gic_device_name(),
+                                         "interrupt-controller", YF_EMULATED);
     if (yf_gic >= 0) {
         yf_device_add_state(&yf, (uint32_t)yf_gic, "active", true);
         yf_device_add_state(&yf, (uint32_t)yf_gic, "inactive", false);
@@ -2073,6 +2156,14 @@ void kernel_main_arm64(void) {
         boot_msg("[BOOT] Game runner: executing the attached ROM on the emulator CPU cores...");
         static game_run_t gr;
         game_runner_run(&g_vblk, &gr);
+        /* COVERAGE. game_runner marked which emulation paths THIS ROM reached;
+         * emit them here, where a console exists. gamedrive.py:268 parses
+         * "[COVER] <name>" into a set, which turns a 5,160-ROM campaign from
+         * "the kernel did not crash" into "these are the paths real ROMs take".
+         * The COUNT is printed too: "0 marked" and "the reporter never ran" are
+         * different facts and a log that cannot separate them is not evidence. */
+        { uint32_t cov_n = zxv_cover_report(uart_puts);
+          uart_puts("[COVER-COUNT] "); uart_put_dec(cov_n); uart_puts("\n"); }
         /* Report RAW execution facts only. This is a CPU-execution probe: it
          * proves the ROM's bytes execute as real instructions on ZEDEC's cores,
          * but it does NOT verify gameplay — a faithful "is it playing" check
@@ -2202,6 +2293,26 @@ void kernel_main_arm64(void) {
         base.n_emits=base.n_ingests=base.n_requires=0; base.n_provides=1;
         for (uint32_t i=0;i<MB_CAP_NAME_LEN;i++) base.provides[0].name[i]=0;
         base.provides[0].name[0]='c'; base.provides[0].name[1]='p'; base.provides[0].contract=1;
+        /* THE ELECTRICAL FIELDS WERE NEVER SET. `base` is an automatic, so
+         * phase/amplitude/alternating carried whatever was on the stack -- and
+         * `user.requires[0] = base.provides[0]` copied the same garbage, which
+         * is the only reason the two ever agreed. That was invisible while
+         * modbind_resolve coupled by comparing NAMES; the instant it started
+         * asking mb_real_power, a stack byte that canonicalised to TRIT_FALSE
+         * would have made this fixture report a composition failure and the
+         * cause would have looked like the composition code. Declared, not
+         * inherited: in phase, fully driven, not alternating. */
+        base.provides[0].phase       = 0u;
+        base.provides[0].amplitude   = (uint8_t)MB_AMP_FULL;
+        base.provides[0].alternating = 0u;
+        /* The module's own l13 phase, declared for the same reason the three
+         * fields above are: `base` is an AUTOMATIC, and modbind_register now
+         * stamps this byte onto every cap that declared MB_PHASE_INHERIT. A
+         * stack byte here would become the phase of a capability. Zero is a
+         * statement, not a default: these fixtures are synthetic, they have no
+         * DRC layer to derive from, and the fixture must be in phase with
+         * itself or it would measure the physics instead of the composition. */
+        base.phase = 0u;
         base.ready=MB_HELD; base.registered=false;
         base.xform.pack=(int(*)(const void*,uint8_t*,uint32_t))0;
         base.xform.unpack=(int(*)(const uint8_t*,uint32_t,void*))0;
@@ -2227,6 +2338,36 @@ void kernel_main_arm64(void) {
             boot_msg("  [OK] ORPHAN/STARVED/NO_PORTS/VERSION detected; trit boundary canonical");
         else { boot_msg("  [FAIL] modbind selfcheck problems: "); uart_put_dec((uint64_t)bad); uart_puts("\n"); }
     }
+
+    /* ==== THE REAL DECLARATION GRAPH, AND ITS GATE ==========================
+     * Everything above this point is SELF-TEST: the composition block builds two
+     * synthetic fixtures and modbind_selfcheck builds seven more, and each ends
+     * by calling modbind_reset(). Nothing real may be registered before this
+     * line or it is erased -- which is why the real graph is populated here,
+     * after the last reset, rather than earlier where it would look tidier.
+     *
+     * From here on there is NO LIST. Modules were not enumerated; they declared
+     * themselves in their own translation units with ZXV_DECLARE, the linker
+     * collected the records into .rodata.zxv_decl, and the walk registers
+     * whatever it finds. Registration order is an accident of the link line and
+     * cannot matter: modbind_resolve computes readiness as a least fixpoint, so
+     * the same graph resolves the same way whatever order it arrived in.
+     *
+     * THE GATE RUNS BEFORE ANY BRING-UP, and that ordering is the whole point.
+     * An unprovided requirement or a cycle would otherwise present as a boot
+     * that stops with nothing to say. Verified first, run second. */
+    /* ONE CALL, FIVE ARCHITECTURES. The sequence (count -> register_all ->
+     * verify_graph -> report every problem by name -> bring up -> report
+     * ran/failed/held/declared-only) was ~90 lines inline right here, and that
+     * is exactly why it only ever ran on arm64. It is one function now, shared
+     * with the other four mains, and the old copy is DELETED rather than left
+     * beside it: two copies of a drift detector are two things to drift.
+     *
+     * The return value is the total problem count. It is deliberately not acted
+     * on here -- the inline version did not halt either, and every fault it
+     * counts has already been printed by name above. Changing that would be a
+     * policy change, not an extraction. */
+    (void)zxv_decl_boot_gate(gate_puts);
 
     boot_msg("[BOOT] phi-proportioned integrity checksum...");
     {

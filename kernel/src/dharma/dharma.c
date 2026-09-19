@@ -224,3 +224,18 @@ l13_phase_t dharma_task_phase(const dharma_set_t *d, uint32_t task_id) {
     }
     return (l13_phase_t)0;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The dharma set itself. REQUIRES measured from dharma.o's `nm -u`:
+ * rmag_get_quota -> rmag_ready, lpres_get_presence -> lpres_ready,
+ * phase7_bridge / phase7_unbridge -> phase7_ready (upaah.c, already wired --
+ * NOT re-wired or duplicated here). karma_* is the fourth edge and is named
+ * below; that fills MB_MAX_CAPS exactly, with nothing padded and nothing
+ * dropped.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(dharma_core,
+    ZXV_PROVIDES(dharma_core_ready),
+    ZXV_REQUIRES(rmag_ready, lpres_ready, phase7_ready, karma_ready),
+    ZXV_NO_BRINGUP);

@@ -53,3 +53,22 @@ rational_t rmag_div_quotas(rational_t a, rational_t b) {
     quotient = rational_normalize(quotient);
     return quotient;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * rmag is the quota arithmetic every dharma/dharana/sephirot file reaches for:
+ * `nm -u` on dharana.o, sephirot.o, chakra.o, karma.o, mantra.o, uvn.o,
+ * naga_raja.o and dharma.o names rmag_add_quotas / rmag_mul_quotas /
+ * rmag_sub_quotas / rmag_get_quota / rmag_set_quota and nothing else across
+ * that boundary. rmag_core.o's own `nm -u` is EMPTY -- it calls out to nothing,
+ * which is why it requires nothing. It is the floor of that subtree.
+ *
+ * NO BRING-UP ON PURPOSE. rmag is a leaf: rooting it here would put its symbols
+ * in the ELF whether or not anything ever computes a quota. It is reachable
+ * exactly when one of its callers is, and that is the honest signal.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(rmag,
+    ZXV_PROVIDES(rmag_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

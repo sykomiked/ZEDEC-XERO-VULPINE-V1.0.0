@@ -63,8 +63,21 @@ typedef struct {
     uint32_t uart_clock_hz;
     uint32_t uart_irq_spi;          /* GIC SPI number; INTID = 32 + this */
 
+    /* GIC addresses. The distributor base is the one address that is
+     * meaningful on EVERY GIC version, and it is the anchor the runtime
+     * version probe (gicv3.c, GICD_PIDR2) reads from. The other two are
+     * version-specific and only ONE of them is ever live on a given
+     * machine: gicr_base exists on GICv3+ (redistributors), gicc_base
+     * exists on GICv1/v2 (MMIO CPU interface). Neither the version nor
+     * which base is live may be asserted here -- the probe decides, and
+     * the unused one is simply never touched. gicc_base = 0 means "not
+     * known from board data": the v2 path then derives it as
+     * gicd_base + 0x10000 (the distributor's 4KB frame padded to a 64KB
+     * slot, which is how QEMU virt and most SoCs lay it out) and
+     * cross-checks GICC_IIDR before trusting it. */
     uint64_t gicd_base;
     uint64_t gicr_base;
+    uint64_t gicc_base;
     uint32_t gic_num_cpus;
 
     /* virtio-mmio transport window. On QEMU virt this is 32 device
@@ -86,13 +99,24 @@ static inline const board_profile_t *board_get_profile(void) {
         [BOARD_QEMU_VIRT] = {
             .board_name = "QEMU virt", .soc_name = "Generic AArch64 (-cpu cortex-a53)",
             .confidence = ADDR_VERIFIED,
-            .confidence_note = "Built + booted in this session: full boot sequence, then a "
-                                "live tick stream through 2000+ event cycles over a real "
-                                "GICv3-routed generic-timer IRQ.",
+            .confidence_note = "Built + booted: full boot sequence, then a live tick stream "
+                                "through 2000+ event cycles over a real generic-timer IRQ. "
+                                "ONE binary now reaches BOOT_OK on BOTH flavours of this "
+                                "machine -- -M virt (GICv2, IRQs via the GICC MMIO CPU "
+                                "interface) and -M virt,gic-version=3 (GICv3, IRQs via "
+                                "ICC_*_EL1 + redistributor) -- measured at 1267 vs 1269 "
+                                "timer ticks after 12s, i.e. the same 100 Hz on both.",
             .ram_base = 0x40000000, .kernel_load_offset = 0x80000,
             .uart_base = 0x09000000, .uart_reg_shift = 0, .uart_is_pl011 = true,
             .uart_clock_hz = 24000000, .uart_irq_spi = 1, /* INTID 33 */
-            .gicd_base = 0x08000000, .gicr_base = 0x080A0000, .gic_num_cpus = 1,
+            /* One binary boots this machine in BOTH of its GIC flavours
+             * (-M virt = GICv2, -M virt,gic-version=3 = GICv3): the
+             * distributor is at 0x08000000 either way, gicr_base is only
+             * touched when the probe reports v3, and gicc_base is left 0
+             * so the v2 path derives + validates it (it lands on
+             * 0x08010000, matching QEMU's virt memmap). */
+            .gicd_base = 0x08000000, .gicr_base = 0x080A0000, .gicc_base = 0,
+            .gic_num_cpus = 1,
             .timer_irq_ppi = 14, /* INTID 30 */
             /* QEMU virt: 32 virtio-mmio slots at 0x0a000000, stride 0x200.
              * Verified against qemu hw/arm/virt.c (VIRT_MMIO). */

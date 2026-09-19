@@ -109,3 +109,19 @@ trit_t karma_react(karma_event_t *k, ordinal_t effect_ordinal, l13_phase_t effec
     k->resolved = true;
     return TRIT_TRUE;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Causal events. REQUIRES(rmag_ready) measured: karma.o's `nm -u` is
+ * {rmag_add_quotas, rmag_div_quotas, rmag_mul_quotas}.
+ *
+ * NO BRING-UP: karma is not the top of this subtree. tantra calls it and
+ * naga_raja calls tantra, so it is rooted by naga_raja's bring-up or not at
+ * all -- which is the honest answer, and the reason no leaf here gets a root
+ * of its own.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(karma,
+    ZXV_PROVIDES(karma_ready),
+    ZXV_REQUIRES(rmag_ready),
+    ZXV_NO_BRINGUP);

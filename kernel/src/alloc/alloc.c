@@ -246,3 +246,21 @@ uint32_t ptoken_balance(const ptoken_ledger_t *l, uint32_t owner) {
         if (!l->entries[i].spent && l->entries[i].owner == owner) n++;
     return n;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * The requirement on sha256_ready is not architectural taste: this file
+ * includes sha256.h (alloc.c:6) and content-addresses every minted token
+ * through it, so a sha256 that is absent or wrong makes every token id wrong.
+ * mm_ready is the other half -- the pool and the ledger are caller-owned
+ * structures that must be mapped before they are touched.
+ *
+ * NO BRING-UP YET: alloc owns no global state at all (every entry point takes
+ * the pool or the ledger as an argument), so there is no instance here to bring
+ * up. Declaring the edge is still worth doing on its own -- it is what makes
+ * "alloc silently stopped hashing" a graph question rather than a mystery. */
+#include "zxv_decl.h"
+
+ZXV_DECLARE(alloc,
+    ZXV_PROVIDES(alloc_ready),
+    ZXV_REQUIRES(mm_ready, sha256_ready),
+    ZXV_NO_BRINGUP);

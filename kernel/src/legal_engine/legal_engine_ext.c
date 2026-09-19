@@ -929,3 +929,22 @@ int legal_compliance_audit(legal_engine_ext_t *engine, char *buf,
         high_risk);
     return pos;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The treaty layer. REQUIRES(legal_engine_ready) is measured rather than
+ * assumed from the shared directory: legal_engine_ext.o's `nm -u` names
+ * legal_engine_init, so this file genuinely stands on the base engine. Two
+ * files in one directory can just as easily be independent -- panopticon.c and
+ * panopticon_vpn.c in this same build are, measurably.
+ */
+#include "zxv_decl.h"
+static int zxvd_treaty_bringup(void) {
+    static legal_engine_ext_t ext;
+    return (treaty_init(&ext) == 0) ? 0 : -1;
+}
+
+ZXV_DECLARE(treaty,
+    ZXV_PROVIDES(treaty_ready),
+    ZXV_REQUIRES(legal_engine_ready),
+    ZXV_BRINGUP(zxvd_treaty_bringup));

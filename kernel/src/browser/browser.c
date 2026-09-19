@@ -2237,3 +2237,34 @@ bool browser_verify_coverage(browser_t *b) {
 
     return (b->coverage_r * b->coverage_l) >= BROWSER_COVERAGE_FLOOR;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES http_client_ready. The header's limitation #1 is explicit that
+ * there is no socket in this module, so the bring-up asserts
+ * http_transport_bound() is FALSE -- the module declares the parser, never the
+ * network.
+ *
+ * REQUIRES_NONE is measured: browser.o's only undefined symbol is memcpy,
+ * which the build redirects to fs_memcpy (freestanding.h), not a module edge.
+ *
+ * URL parsing is the right boot check: browser_resolve_url is verified against
+ * all 42 RFC 3986 SS5.4 references in its own tests, and a split that puts the
+ * host in the path is how a client ends up connecting to the wrong server.
+ */
+#include "zxv_decl.h"
+static int zxvd_browser_bringup(void) {
+    static browser_url_t u;
+    static browser_t br;
+    browser_init(&br, "zxv");
+    if (http_transport_bound()) return -1;        /* there is no socket here */
+    if (browser_parse_url("http://zxv.example:8080/a/b?q=1", &u) != BROWSER_OK)
+        return -1;
+    if (u.port != 8080u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(browser,
+    ZXV_PROVIDES(http_client_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_browser_bringup));

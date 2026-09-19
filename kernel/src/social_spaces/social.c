@@ -216,3 +216,33 @@ int32_t soc_sort(soc_world_t *w, uint32_t troublemaker) {
     }
     return (int32_t)corner;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * ROOTING THE CALLER, NOT THE LEAF. social.o was measured at linked=0,
+ * dropped=9, with 14 con_* call sites. concord is the leaf; social is the
+ * caller. soc_init calls con_init, soc_join calls con_join, soc_report calls
+ * con_report_boundary -- so this bring-up pulls the whole commons in behind
+ * it, and rooting concord instead would have produced a matching engine that
+ * nothing asks a question of.
+ *
+ * REQUIRES(concord_ready) is the entire measured boundary: social.o's `nm -u`
+ * is six con_* symbols and nothing else.
+ */
+#include "zxv_decl.h"
+static int zxvd_social_bringup(void) {
+    static soc_world_t w;
+    int32_t space;
+    soc_init(&w);
+    space = soc_open_space(&w, SOC_SOCIAL_CLUB, "zxv");
+    if (space < 0) return -1;
+    if (soc_join(&w, space, 1u) < 0) return -1;
+    if (!soc_is_member(&w, space, 1u)) return -1;
+    if (soc_is_member(&w, space, 2u))  return -1;   /* membership must bind */
+    return 0;
+}
+
+ZXV_DECLARE(social,
+    ZXV_PROVIDES(social_spaces_ready),
+    ZXV_REQUIRES(concord_ready),
+    ZXV_BRINGUP(zxvd_social_bringup));

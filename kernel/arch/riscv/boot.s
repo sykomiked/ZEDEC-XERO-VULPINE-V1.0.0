@@ -1,10 +1,13 @@
 /* boot.s — RISC-V 64-bit entry point for VOVINA SHAKINA
  *
- * QEMU virt machine loads the kernel at 0x80200000 in M-mode.
- * We set up the stack, initialize BSS, configure mtvec, and
- * call kernel_main_riscv.
+ * Booted by OpenSBI in S-mode (qemu-system-riscv64 -M virt, default -bios).
+ * OpenSBI passes the hart id in a0 and the DTB pointer in a1. We use the
+ * SUPERVISOR CSRs (stvec/scause), NOT the machine CSRs (mhartid/mtvec/mcause),
+ * which are illegal in S-mode.
  *
- * Target: qemu-system-riscv64 -M virt -cpu rv64 -m 256M
+ * The rv32 sibling is boot_rv32.s; keep the two in step.
+ *
+ * Target: qemu-system-riscv64 -M virt
  * Author: H.M. Michael-Laurence: Curzi (c)
  * License: SEL-3.3
  */
@@ -12,18 +15,21 @@
 .section .text.boot
 .global _start
 _start:
-    /* Booted by OpenSBI in S-mode (qemu-system-riscv64 -M virt, default -bios).
-     * OpenSBI passes the hart id in a0 and the DTB pointer in a1. We use the
-     * SUPERVISOR CSRs (stvec/scause), NOT the machine CSRs (mhartid/mtvec/mcause),
-     * which are illegal in S-mode. */
-
     /* Hart id is in a0 (from OpenSBI); if not hart 0, park */
     bnez a0, park
+
+    /* Preserve what the FIRMWARE told us about this machine across the BSS
+     * clear (a0 = hart id, a1 = device-tree blob). s0/s1 are callee-saved and
+     * nothing has run yet, so they survive the loop below. */
+    mv s0, a0
+    mv s1, a1
 
     /* Set up stack */
     la sp, __stack_top
 
-    /* Clear BSS */
+    /* Clear BSS.
+     * linker.ld 16-aligns both ends, so this 8-byte stride divides the range
+     * exactly and cannot overrun __bss_end. */
     la t0, __bss_start
     la t1, __bss_end
 clear_bss:
@@ -32,6 +38,20 @@ clear_bss:
     addi t0, t0, 8
     j clear_bss
 bss_done:
+
+    /* Publish the firmware handoff AFTER the BSS clear, or it would be erased. */
+    la t0, riscv_boot_hart
+    sd s0, 0(t0)
+    la t0, riscv_dtb_addr
+    sd s1, 0(t0)
+
+    /* Enable the FPU before any C runs. The lp64d ABI makes hardware
+     * double-precision mandatory even for struct copies; if sstatus.FS is Off
+     * the first fld raises Illegal Instruction. csrs can only SET bit 13, so FS
+     * ends Initial(01) or Dirty(11), never Off — and it is a nop on a core
+     * without F/D. Do not inherit this from the firmware. */
+    li   t0, 0x2000              /* sstatus.FS = Initial (bits 14:13 = 01) */
+    csrs sstatus, t0
 
     /* Set up the S-mode trap vector (direct mode) */
     la t0, trap_vector
@@ -47,7 +67,10 @@ park:
 /* Trap handler */
 .align 2
 trap_vector:
-    /* Save registers */
+    /* Save the caller-saved registers.
+     * t3-t6 (x28-x31) are caller-saved too and CAN be live in the interrupted
+     * code; riscv_timer_handler tail-calls an arbitrary callback, so leaving
+     * them out silently corrupts whatever we interrupted. */
     addi sp, sp, -256
     sd ra, 0(sp)
     sd gp, 8(sp)
@@ -63,6 +86,10 @@ trap_vector:
     sd a5, 88(sp)
     sd a6, 96(sp)
     sd a7, 104(sp)
+    sd t3, 112(sp)
+    sd t4, 120(sp)
+    sd t5, 128(sp)
+    sd t6, 136(sp)
 
     /* Read scause (S-mode) */
     csrr a0, scause
@@ -84,6 +111,10 @@ trap_vector:
     ld a5, 88(sp)
     ld a6, 96(sp)
     ld a7, 104(sp)
+    ld t3, 112(sp)
+    ld t4, 120(sp)
+    ld t5, 128(sp)
+    ld t6, 136(sp)
     addi sp, sp, 256
 
     /* Return from trap */

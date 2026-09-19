@@ -64,3 +64,16 @@ sutra_audit_result_t sutra_self_audit(const sutra_program_t *prog) {
 
     return SUTRA_AUDIT_PASS;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES(sutra_parse_ready): the audit reads a parsed program.
+ * sutra_selfaudit.o's own `nm -u` is empty because sutra_program_t arrives
+ * from the caller -- the edge is in the type, and it is declared here rather
+ * than left implicit.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(sutra_selfaudit,
+    ZXV_PROVIDES(sutra_audit_ready),
+    ZXV_REQUIRES(sutra_parse_ready),
+    ZXV_NO_BRINGUP);

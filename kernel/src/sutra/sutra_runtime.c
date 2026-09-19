@@ -181,3 +181,18 @@ bool sutra_run(sutra_runtime_t *rt, sutra_program_t *prog) {
     }
     return true;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES measured from sutra_runtime.o's `nm -u`: sutra_check_coverage ->
+ * sutra_capital_ready (defined in sutra_capital.c), sutra_emit_message ->
+ * sutra_rails_ready (sutra_rails.c), vino_transfer -> vino_ledger_ready.
+ * Three edges, three requirements -- each symbol looked up in the build rather
+ * than guessed from the shared sutra_ prefix, which would have made all seven
+ * sutra files look like one module.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(sutra_runtime,
+    ZXV_PROVIDES(sutra_runtime_ready),
+    ZXV_REQUIRES(sutra_capital_ready, sutra_rails_ready, vino_ledger_ready),
+    ZXV_NO_BRINGUP);

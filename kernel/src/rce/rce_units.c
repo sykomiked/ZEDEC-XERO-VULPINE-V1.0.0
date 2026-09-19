@@ -377,3 +377,26 @@ void rce_constants_register_si_defining(rce_constant_registry_t *reg) {
     rce_quantity_set(&q, 9192631770, 0, false, dim, RCE_UNIT_HERTZ);
     rce_constants_register(reg, "cs_hyperfine_frequency", &q, true, "SI 2019");
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * SI dimensional analysis and the defining constants. REQUIRES_NONE is
+ * measured: rce_units.o's `nm -u` is empty.
+ *
+ * The bring-up registers the SI defining constants and looks one back up,
+ * because a constants table that registers nothing still lets every later
+ * lookup return NULL and every conversion silently do nothing.
+ */
+#include "zxv_decl.h"
+static int zxvd_rce_bringup(void) {
+    static rce_constant_registry_t reg;
+    rce_constants_init(&reg);
+    rce_constants_register_si_defining(&reg);
+    if (rce_constants_get(&reg, 0u) == 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(rce_units,
+    ZXV_PROVIDES(rce_units_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_rce_bringup));

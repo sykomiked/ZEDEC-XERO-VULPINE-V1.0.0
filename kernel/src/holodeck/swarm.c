@@ -154,3 +154,16 @@ surplus_real_t swarm_companion_gain(const swarm_companion_t *self,
     return chg_effective_experts((const surplus_real_t (*)[CHG_DIM])ev,
                                  n, CHG_DIM, distinct_out);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The chunk swarm under a viewing. viewing.o names swarm_init / swarm_join /
+ * swarm_capacity_kbps. swarm.o's own `nm -u` is {chg_effective_experts,
+ * sha256} -- so the capacity model is a chiglet call, which is not something
+ * the directory name would ever have told you.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(swarm,
+    ZXV_PROVIDES(swarm_ready),
+    ZXV_REQUIRES(sha256_ready, chiglet_ready),
+    ZXV_NO_BRINGUP);

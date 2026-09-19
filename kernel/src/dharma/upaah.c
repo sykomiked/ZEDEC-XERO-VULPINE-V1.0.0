@@ -1,6 +1,23 @@
 /* upaah.c — UPAAH / VPAAH / PIR implementation. See upaah.h. */
 #include "upaah.h"
 
+/* This module is COMPILED as of build_system/Makefile.arm64, and it has a
+ * real caller: refinery.c maps a forged card's net Enochian charge through
+ * eno_charge_role -> {UPAAH, VPAAH, PIR} and dispatches it here. That is
+ * the whole reason the charge channel exists -- PROVENANCE/ENOCHIAN_POLARITY.md
+ * §6 gives the table (>0 S+ UPAAH VEIL_AIN_SOPH_AUR, <0 S- VPAAH
+ * VEIL_AIN_SOPH, =0 S0 PIR SEPH_YESOD) and §9G says wiring this file in
+ * without a callee leaves the feature dangling.
+ *
+ * NO RETENTION MARKERS. An earlier revision of this change marked every
+ * entry point __attribute__((used, retain)); measured on this toolchain
+ * (aarch64 gcc 11.4 / binutils 2.38) `retain` is IGNORED -- it warns and
+ * emits a plain AX section -- so the module was still absent from the ELF.
+ * The Makefile's GC_ROOTS comment gives the rule this tree settled on:
+ * retention must not be able to impersonate use. An ordinary call chain
+ * from kernel_main is the only thing that counts, and that is what this
+ * module now has. */
+
 bool upaah_applies(trit_t t) { return trit_charge(t) == 1; }
 
 l13_phase_t upaah_bridge(trit_t t) {
@@ -40,3 +57,19 @@ trit_t phase7_unbridge(l13_phase_t phase) {
         default:                return TRIT_FALSE; /* Netzach(7)/Hod(8): OS-native, no kernel-trit equivalent */
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * upaah is the phase-7 bridge. dharma.o's `nm -u` names phase7_bridge and
+ * phase7_unbridge, and this file defines them; its own `nm -u` is empty.
+ *
+ * This module was ALREADY wired and already reachable before this pass. The
+ * declaration adds no code and roots nothing -- it records the edge dharma.c
+ * depends on, so that "dharma silently lost its bridge" becomes a graph
+ * question instead of a mystery.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(upaah,
+    ZXV_PROVIDES(phase7_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

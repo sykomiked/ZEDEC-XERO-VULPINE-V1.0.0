@@ -12,14 +12,32 @@ static const struct { char c; uint8_t v; const char *name; } ALPHA[ENO_LETTERS] 
     {'Z', 7,"Ceph"}
 };
 
+/* Case folding, plus the three allographs that remain UNATTESTED.
+ *
+ * Y IS NOT FOLDED — the shipped deck scores it as itself, i.e. as zero.
+ * Y occurs in 15 of the 52,095 rows of cards/cards.tsv, all of them the
+ * lexeme GNAY. All 15 match Y=0 and ZERO match Y->I: card 17 `GNAY` is
+ * printed 15 (the kernel used to compute 18), card 45795 `GNAY AUMDUEZ`
+ * is printed 58 (the kernel used to compute 61). Scoring the 21 ALPHA
+ * letters with no fold at all reproduces 52,095 / 52,095; with Y->I it
+ * is 52,080 / 52,095. The module's contract is byte-parity with the
+ * physical deck and printed cards cannot be recalled, so the deck is
+ * authoritative where it speaks — and here it speaks.
+ *
+ * J, K and W are KEPT folded and are a deliberate open question, not a
+ * verified rule: they occur ZERO times in the corpus, so the deck cannot
+ * test them in either direction. Removing them would be a guess dressed
+ * as a fix. They stay, and the header no longer calls the table grammar
+ * provenance (GRAMMAR.md is cited there but absent from this tree). V is
+ * likewise unfolded and scores 0; that IS deck-verified — 552 rows carry
+ * V and all 552 match V=0. */
 char eno_fold(char c) {
     if (c >= 'a' && c <= 'z') c = (char)(c - 32);
-    switch (c) {                       /* grammar §1: J,K,W,Y are allographs */
+    switch (c) {                       /* unattested in the deck; see above */
     case 'J': return 'I';
     case 'K': return 'C';
     case 'W': return 'U';
-    case 'Y': return 'I';
-    default:  return c;
+    default:  return c;                /* Y, V and all else pass through */
     }
 }
 
@@ -30,6 +48,50 @@ uint32_t eno_letter_value(char c) {
     return 0;
 }
 
+/* ---- polarity ---------------------------------------------------------
+ * Two entries only. Vau's vowel face is light, its consonant face is
+ * shadow. NOT folded: eno_fold maps W->U, and W must stay neutral.
+ *
+ * This is the CHARGE channel. It sits beside the magnitude above and does
+ * not touch it: ALPHA, eno_fold, eno_letter_value, eno_gematria and
+ * eno_root are unchanged, so every number in the shipped deck and in the
+ * boot self-check (OLPIRT HPOU = 54 / root 9 / {12,5} / 16) is the number
+ * it was. See PROVENANCE/ENOCHIAN_POLARITY.md for the derivation and for
+ * the two schemes that were measured and rejected. */
+static const struct { char c; int8_t q; } CHARGE[2] = { {'U', +1}, {'V', -1} };
+
+/* eno_letter_charge is not marked retained and must not be. Measured on
+ * this toolchain (aarch64 gcc 11.4 / binutils 2.38) __attribute__((retain))
+ * is IGNORED -- it warns and emits a plain AX section -- so the marker buys
+ * nothing but noise, and the Makefile's GC_ROOTS comment states the rule
+ * anyway: retention must not be able to impersonate use. eno_net_charge is
+ * a genuine caller; at -O2 it inlines this body, so the standalone section
+ * is discarded while the CODE ships inside eno_net_charge. That is the
+ * honest state, not a defect to paper over. */
+int32_t eno_letter_charge(char c) {
+    if (c >= 'a' && c <= 'z') c = (char)(c - 32);   /* case only, no fold */
+    for (uint32_t i = 0; i < 2u; i++)
+        if (CHARGE[i].c == c) return (int32_t)CHARGE[i].q;
+    return 0;
+}
+
+int32_t eno_net_charge(const char *text, uint32_t len) {
+    if (!text) return 0;
+    int32_t n = 0;
+    for (uint32_t i = 0; i < len && text[i]; i++)
+        n += eno_letter_charge(text[i]);
+    return n;
+}
+
+uint32_t eno_charge_role(int32_t net) {
+    return (net > 0) ? 0u : (net < 0) ? 1u : 2u;
+}
+
+/* Consequence of unfolding Y: eno_letter_name('Y') now returns "" rather
+ * than "Gon". That is correct and intended — Y is not one of the twenty-
+ * one letters, it carries no gematria, and naming it after I's angel
+ * would assert an identity the deck contradicts. "" is the documented
+ * answer for anything outside the alphabet. */
 const char *eno_letter_name(char c) {
     c = eno_fold(c);
     for (uint32_t i = 0; i < ENO_LETTERS; i++)

@@ -55,7 +55,12 @@ int32_t vena_register_contract(vena_runtime_t *vr, const char *name,
  * A contract's whole writable surface is the vino ledger it was deployed
  * against. Handlers are provided ONLY for the effects that make sense here;
  * everything else is left NULL, so a contract carrying SEND or SPAWN is stopped
- * by the VM with NO_HOST rather than by a check someone had to remember. */
+ * by the VM with NO_HOST rather than by a check someone had to remember.
+ *
+ * The handler table answers "which VERBS"; the scope bound below answers "on
+ * WHICH OBJECT". Both are needed: without the second, every deployed contract
+ * holding ZAB_CAP_LEDGER could post against the whole ledger rather than its
+ * own deployment. */
 typedef struct { vena_runtime_t *vr; vena_contract_t *c; } vena_hostctx_t;
 
 static int vh_read(void *cx, uint8_t a, uint16_t b) {
@@ -95,6 +100,26 @@ int32_t vena_execute_contract(vena_runtime_t *vr, uint32_t id,
         /* The grant is what this runtime permits, intersected by the VM with
          * what the program contains. Ledger + read + observe, nothing else. */
         uint32_t granted = ZAB_CAP_LEDGER | ZAB_CAP_READ_STATE | ZAB_CAP_OBSERVE;
+
+        /* THE OBJECT, not just the verb. A contract's extent is ITSELF: it may
+         * observe, read, and post — on its own deployment — and the audit
+         * trail it posts into is bounded by the ledger's own capacity, so an
+         * instruction cannot address a slot the ledger does not have.
+         *
+         * A contract whose name will not fit a scope name in full does not
+         * run. Truncating would let two contracts share one extent, which is
+         * exactly the wholesale binding this replaces; refusing is the only
+         * answer that keeps an extent meaning one object. */
+        zab_scope_t self;
+        if (!zab_scope_set(&self, c->name, (uint8_t)ZAB_SCOPE_CONTRACT,
+                           granted, 0u, (uint32_t)VINO_MAX_TXNS)) {
+            c->call_count++;
+            vr->contracts_executed++;
+            return -4;                 /* unscopable: it does NOT execute */
+        }
+        host.scopes = &self;
+        host.n_scopes = 1;
+
         zab_exec_t ex;
         zab_exec_result_t r = zab_execute(code, VENA_CODE_LEN, granted, &host, &ex);
 

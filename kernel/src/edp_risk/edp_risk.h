@@ -22,16 +22,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "surplus.h"
+#include "m5_types.h"
 
-/* ===== M⁵ Coordinates ===== */
-
-typedef struct {
-    uint32_t omega;       /* Ordinal axis: position, sequence, priority */
-    surplus_real_t r;     /* Rational axis: magnitude, ratio, price */
-    surplus_real_t ell;   /* Logical axis: existential-import truth ∈ [0,1] */
-    surplus_real_t phi;   /* Imaginary axis: phase, externality loading */
-    uint32_t chi;         /* Choice axis: observer vantage / agent state */
-} m5_coords_t;
+/* m5_coords_t is defined in m5_types.h */
 
 /* Coverage floor constant */
 #define COVERAGE_FLOOR_NUM  18   /* 1.8 = 18/10 */

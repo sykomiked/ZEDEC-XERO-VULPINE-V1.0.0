@@ -169,9 +169,50 @@ def run_rom(rom, elf, out_dir, log, timeout_s, console='?'):
     # copies of one boot log, every ROM 'passing' without ever existing.
     # build_system/game_master.py:97 already did this correctly; this is a port
     # of those two lines back.
+    # -m 512 IS LOAD-BEARING AND WAS MISSING. QEMU's `virt` machine defaults to
+    # 128 MiB. kernel_arm64.elf is only ~800 KB ON DISK but its RW segment
+    # declares MemSiz 0xe7f9998 -- about 243 MiB of BSS -- so QEMU refuses it:
+    #   "kernel 'kernel_arm64.elf' is too large to fit in RAM
+    #    (kernel size 243830440, RAM size 134217728)"
+    # and exits BEFORE executing one instruction.
+    #
+    # MEASURED CONSEQUENCE 2026-09: a 5,160-ROM campaign returned CLEAN=5160,
+    # FAULT=0 -- and "booted OK: 0/5160". Every one of those CLEAN verdicts was
+    # QEMU declining to start, not ZXV surviving a ROM. build_all.sh always
+    # passed -m 512 (build_all.sh:45), which is why the same kernel boots there
+    # and why this never surfaced: the two harnesses disagreed and only one was
+    # ever read closely.
+    #
+    # The report ALREADY prints "booted OK: N/M". If that N is 0, the run proved
+    # nothing regardless of how many CLEANs sit above it. Read that line first.
+    # -global virtio-mmio.force-legacy=false IS REQUIRED. QEMU's `virt` machine
+    # defaults its virtio-mmio transport to LEGACY (VIRTIO 0.9.5). ZXV's driver
+    # is MODERN-ONLY, so virtio_mmio_find(VDEV_BLOCK,...) matches nothing and the
+    # kernel prints
+    #     [SKIP] no virtio-blk device (start QEMU with -drive to enable)
+    # even though -drive and -device were both supplied. The ROM is present on
+    # the command line and absent from the guest.
+    #
+    # MEASURED 2026-09: without this flag the game runner block never executes,
+    # so NO ROM IS EVER EXERCISED and every run records CLEAN. Combined with the
+    # missing -m 512 above, the 5,160-ROM campaign of this date tested nothing at
+    # all. With the flag, virtio-blk attaches and [COVER] markers appear.
     cmd = ['qemu-system-aarch64', '-M', 'virt', '-cpu', 'cortex-a72', '-nographic',
+           '-m', '512',
+           '-global', 'virtio-mmio.force-legacy=false',
            '-kernel', elf, '-no-reboot',
-           '-drive', f'if=none,file={rom},format=raw,id=gd0,readonly=on',
+           # QEMU OPTION PARSING EATS COMMAS. -drive is a comma-separated
+           # option list, so a literal comma inside a FILENAME must be doubled
+           # (",," ) or QEMU parses the rest of the name as options. Measured
+           # 2026-09 on a 13,138-ROM corpus: 2,314 files (17.6%) contain a comma
+           # -- the No-Intro "Jetsons, The - Robot Panic (USA, Europe)" pattern
+           # is everywhere. Unescaped, those ROMs NEVER ATTACH: QEMU warns, the
+           # kernel boots with no cartridge, nothing is exercised, and the run is
+           # recorded CLEAN. That is a FALSE-CLEAN GENERATOR across a sixth of the
+           # corpus -- the campaign reports success for ROMs it never tested.
+           # It also produced the campaign's only "FAULT", which was QEMU's own
+           # warning text matching the fault detector, not a kernel defect.
+           '-drive', f'if=none,file={str(rom).replace(",", ",,")},format=raw,id=gd0,readonly=on',
            '-device', 'virtio-blk-device,drive=gd0']
     t0 = time.time()
     try:
@@ -210,8 +251,26 @@ def run_rom(rom, elf, out_dir, log, timeout_s, console='?'):
             first_watch = i
         if first_armed is None and '[armed]' in low:
             first_armed = i
-        if any(k in low for k in ('panic', 'fault', 'abort', '[fail]',
-                                  'exception', '[breached]')):
+        # A REAL FAULT DUMPS REGISTERS OR PANICS. This used to match the WORDS
+        # 'fault', 'exception' and 'abort' anywhere in the line, which fires on
+        # ordinary boot output:
+        #   [E0166]  [EL0] exception handler linked to scheduler      <- normal
+        #   [E0170]  [FAULT CONTAINED] arm64-io fail-stopped; fabric survives
+        # The second is the CELL-001 self-test DELIBERATELY DEMONSTRATING
+        # containment -- a PASSING test reported as a failure. Measured 2026-09:
+        # a 40-ROM slice returned FAULT=40, every one of them those two lines.
+        #
+        # build_all.sh:179-181 already had this right and says so in a comment:
+        # "a REAL fault dumps registers or panics; [FAULT CONTAINED] is a PASSING
+        # self-test". The two harnesses disagreed and only one had been written
+        # carefully. These are now the SAME patterns, plus the bomb-squad
+        # [BREACHED] marker, which is a real instrumented signal rather than a
+        # word that happens to appear in prose.
+        HARD = ('panic', 'esr_el', 'far_el', 'elr_el', 'scause',
+                'unhandled', 'general protection', '#pf', '[breached]')
+        if 'fault contained' in low:
+            pass                      # passing self-test, never a fault
+        elif any(k in low for k in HARD):
             fuse_from = first_armed if first_armed is not None else first_watch
             faults.append({
                 'at_line': i,
@@ -240,24 +299,42 @@ def run_rom(rom, elf, out_dir, log, timeout_s, console='?'):
     # breach. Calling that a pass is exactly the error this whole model exists
     # to prevent, so it gets its own verdict. Only a run with no fault AND no
     # unresolved margin degradation is CLEAN.
+    # Symbols the run announced touching. Requires the kernel to emit
+    # [COVER] <symbol> markers; absent that, coverage stays empty and the log
+    # says so rather than implying a measurement that did not happen.
+    #
+    # COMPUTED BEFORE THE VERDICT ON PURPOSE. It used to be computed after, which
+    # meant the classifier could not see it and every timeout collapsed to
+    # INCONCLUSIVE -- including runs where the emulated machine had positively
+    # reported that it was running the game. See the RAN verdict below.
+    cover = {l.split('[COVER]', 1)[1].strip() for l in lines if '[COVER]' in l}
+    rec['covered'] = sorted(cover)
+    rec['covered_n'] = len(cover)
+    rec['coverage_instrumented'] = bool(cover)
+
+    # A '*_running' marker is emitted ONLY where the machine model judged itself
+    # genuinely running -- for the NES that means the PPU was configured and
+    # vblank/NMI were actually being driven, not merely that a CPU retired
+    # instructions. That is positive, instrumented evidence and it deserves to be
+    # distinguished from having no evidence at all.
+    ran = any(c.endswith('_running') for c in cover)
+
     if faults:
         rec['verdict'] = 'FAULT'
     elif first_armed is not None:
         rec['verdict'] = 'FUSE_LIT_ARMED'    # degraded to ARMED, never breached
     elif first_watch is not None:
         rec['verdict'] = 'FUSE_LIT_WATCH'    # margin moved, did not recover
+    elif status == 'timeout' and ran:
+        # NOT 'CLEAN': the run did not complete, and this harness never promotes
+        # an unfinished run to a pass. But NOT 'INCONCLUSIVE' either -- that word
+        # means "we do not know", and here we do: the machine ran the game and
+        # said so. Calling this inconclusive understated a measured success.
+        rec['verdict'] = 'RAN'
     elif status == 'timeout':
-        rec['verdict'] = 'INCONCLUSIVE'      # ran out of time, not a pass
+        rec['verdict'] = 'INCONCLUSIVE'      # ran out of time, no depth evidence
     else:
         rec['verdict'] = 'CLEAN'
-
-    # Symbols the run announced touching. Requires the kernel to emit
-    # [COVER] <symbol> markers; absent that, coverage stays empty and the log
-    # says so rather than implying a measurement that did not happen.
-    cover = {l.split('[COVER]', 1)[1].strip() for l in lines if '[COVER]' in l}
-    rec['covered'] = sorted(cover)
-    rec['covered_n'] = len(cover)
-    rec['coverage_instrumented'] = bool(cover)
     return log('rom', trace=trace, **rec)
 
 

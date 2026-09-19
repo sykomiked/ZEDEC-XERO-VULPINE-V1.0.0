@@ -1,6 +1,6 @@
 <!--
 Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
-SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+SPDX-License-Identifier: Apache-2.0
 -->
 
 # ZEDEC pqOS — Server Cross-Compile Handover Schema
@@ -8,6 +8,55 @@ SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Roya
 **For: the AI operator who will run the cross-compile on a Linux server.**
 **From: the development session on Apple Silicon (arm64 macOS).**
 **Repo root for every command below: `05_KERNEL/` (the git root).**
+
+---
+
+## ★ CURRENT DELIVERABLE STATE — 2026-08-11 (READ THIS FIRST; supersedes older sections)
+
+The five-architecture kernel is **assembled and emulation-verified**. One command on the
+Linux box reproduces the whole thing:
+
+```bash
+bash build_system/build_all.sh      # from 05_KERNEL/ on the Linux build box
+```
+
+It cleans (`rm -rf build`), builds all five arches **concurrently** out-of-tree (`-j`), runs
+**both** static gates (DRC `verify_layers.sh` + LVS `verify_banners.sh` per ELF), boots **six**
+QEMU rows for 30 s (`rc=124` == still-running == PASS), and prints the PASS/FAIL matrix.
+Toolchains are **discovered** (each Makefile's own default + `which`), nothing hardcoded.
+
+**Result of the clean run (git `50784c6`):** every row **PASS** —
+
+| row | build | DRC | LVS | boot | BOOT_OK | modbind gate | fault |
+|---|---|---|---|---|---|---|---|
+| arm64 GICv3 | rc0 | PASS | PASS | 124/up | yes | OK (88=88) | none |
+| arm64 GICv2 | rc0 | PASS | PASS | 124/up | yes | OK (88=88) | none |
+| x86_64 | rc0 | PASS | PASS | 124/up | yes | OK (38=38) | none |
+| riscv64 (Sv39) | rc0 | PASS | PASS | 124/up | yes | OK (38=38) | none |
+| riscv32 (Sv32) | rc0 | PASS | PASS | 124/up | yes | OK (38=38) | none |
+| arm32 | rc0 | PASS | PASS | 124/up | yes | OK (39=39) | none¹ |
+
+¹ arm32 `arm32_mmu` reports **S0 HELD** (MMU off, flat-physical) — honest, not a fault.
+
+- **Full provenance:** [`PROVENANCE/KERNEL_DELIVERABLE.md`](PROVENANCE/KERNEL_DELIVERABLE.md)
+  (matrix, per-arch gate detail, available-basis figures, exact QEMU invocations, and an
+  explicit "does NOT claim").
+- **Captured run output:** [`PROVENANCE/build_all_output.txt`](PROVENANCE/build_all_output.txt).
+- **Staged artifacts:** `~/zxv/deliverable/` on the box — five ELF + five `.bin` with sizes and
+  sha256 in `MANIFEST.txt` (mirror: [`PROVENANCE/DELIVERABLE_MANIFEST.txt`](PROVENANCE/DELIVERABLE_MANIFEST.txt)).
+- **Signature:** UNSIGNED (pending). The offline Ed25519 root ceremony is a separate,
+  deliberate step (`sign_release_offline.sh` + `keyceremony_root.sh`) — never minted in a
+  build session, never faked.
+
+**What changed since the 2026-08-08 sections below (now historical):** x86_64 is no longer
+"minimal kernel-only" — it boots with ring-3 (GDT/TSS/IDT + `int 0x80` syscall) and PML4
+paging. riscv/riscv32/arm32 are no longer "unproven locally" — all build, link and boot on
+the box with the runtime modbind gate green. The `x86_64-ring3` P0 work item is **resolved**.
+Still open below: EFI payloads, universal disc/VM, and the signed release. Machine-readable
+mirror of all this: [`build_system/handover.json`](build_system/handover.json) (`deliverable`
+block, schema 1.3.0).
+
+---
 
 ## Phase A hardening — DONE on the Mac before this handover (2026-08-08)
 
@@ -261,8 +310,7 @@ matrix cell — do not round up. That honesty is the deliverable.
 - Do **not** treat `zxv_os/`, `zxv_build/`, `zxv_complete/`, `zxv_sdk/`,
   `05_KERNEL/subsystems/` as canonical — they are archived/partial snapshots,
   kept intentionally, not the source of truth.
-- Licensing: `LICENSE` + `LICENSES/` (OPL-1.1, SEL-3.3, CC BY-SA 4.0, the Royal
-  Writ). SPDX headers are on the sources. Preserve them.
+- Licensing: `LICENSE` (Apache-2.0). SPDX headers are on the sources. Preserve them.
 
 Good building. Keep it honest, keep it fail-closed, and label anything you could
 not verify.

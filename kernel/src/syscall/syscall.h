@@ -41,6 +41,18 @@
  * compatible and bumps the MINOR; changing or withdrawing an existing call is
  * not, and bumps the MAJOR.
  *
+ * WHERE THE TABLE LIVES NOW
+ * -------------------------
+ * The table itself moved to <zxv_syscall_abi.h>, one level BELOW this header,
+ * because this header cannot be the shared one: it declares kernel structs and
+ * prototypes, and a user program that included it would acquire a dependency on
+ * kernel layout -- the flat ABI the project rejects. So the contract sits in
+ * zxv_syscall_abi.h and two views generate from it: this file (kernel:
+ * capabilities, dispatch, self-check) and <zxv_syscall_user.h> (userland:
+ * numbers and version, nothing else). One table, two views, no transcription.
+ * This closed the KERNEL-vs-USERLAND drift that the arch-vs-arch fix above did
+ * not touch: userapp/hello.c used to hand-write SYS_EXIT/WRITE/GETPID/EXEC.
+ *
  * WHAT THIS LAYER DOES NOT DO
  * ---------------------------
  * It does not implement the calls — the arch dispatcher still does that, and it
@@ -64,9 +76,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define ZXV_ABI_MAJOR   1u
-#define ZXV_ABI_MINOR   0u
-#define ZXV_ABI_VERSION ((ZXV_ABI_MAJOR << 16) | ZXV_ABI_MINOR)
+/* The ONE table, plus ZXV_ABI_* and the generated ZXV_SYS_* numbers. Shared
+ * verbatim with userland via <zxv_syscall_user.h>; see that file for why the
+ * split is drawn here and not further up. */
+#include <zxv_syscall_abi.h>
 
 /* Capabilities a syscall can require. These MUST match the per-process
  * capability bits the arch scheduler assigns (arch/arm64/el0_userspace.h
@@ -78,46 +91,11 @@
 #define ZSC_CAP_IPC     (1u << 3)   /* send / recv                 */
 #define ZSC_CAP_FS      (1u << 4)   /* open / read / close         */
 
-/* ---- THE TABLE. Add a syscall HERE and nowhere else. -----------------------
- *   X(number, NAME, capability, arity, "what it does")
- * Numbers are permanent; a withdrawn call becomes RESERVED and keeps its slot.
- * Appending is backwards compatible (bump MINOR); changing an existing row is
- * not (bump MAJOR). */
-#define ZXV_SYSCALL_TABLE(X)                                                   \
-    X( 0, RESERVED0, ZSC_CAP_NONE,  0, "reserved: 0 is never a valid call")    \
-    X( 1, EXIT,      ZSC_CAP_PROC,  1, "terminate the calling process")        \
-    X( 2, WRITE,     ZSC_CAP_WRITE, 2, "write bytes to the console")           \
-    X( 3, GETPID,    ZSC_CAP_PROC,  0, "the caller's process id")              \
-    X( 4, YIELD,     ZSC_CAP_PROC,  0, "give up the rest of this slice")       \
-    X( 5, SLEEP,     ZSC_CAP_PROC,  1, "sleep for n phase ticks")              \
-    X( 6, SEND,      ZSC_CAP_IPC,   3, "send a message to a process")          \
-    X( 7, RECV,      ZSC_CAP_IPC,   2, "receive a message")                    \
-    X( 8, OPEN,      ZSC_CAP_FS,    2, "open a file, returning a handle")      \
-    X( 9, CLOSE,     ZSC_CAP_FS,    1, "close a handle")                       \
-    X(10, READ,      ZSC_CAP_FS,    3, "read from a handle")                   \
-    X(11, EXEC,      ZSC_CAP_EXEC,  2, "run a shell command line")             \
-    X(12, ABI_VERSION, ZSC_CAP_NONE,0, "the ABI version this kernel provides")
+/* ZXV_SYSCALL_TABLE and the generated ZXV_SYS_* numbers come from
+ * <zxv_syscall_abi.h>, included above. Add a syscall THERE and nowhere else. */
 
-/* Generated: the numbers. */
-typedef enum {
-#define ZXV_SC_ENUM(n, name, cap, arity, doc) ZXV_SYS_##name = (n),
-    ZXV_SYSCALL_TABLE(ZXV_SC_ENUM)
-#undef ZXV_SC_ENUM
-    ZXV_SYS__COUNT
-} zxv_syscall_nr_t;
-
-/* Return convention: >= 0 is success (often a value), < 0 is one of these.
- * Negative errors are returned as-is; callers must not treat "non-zero" as
- * failure, because many calls legitimately return a positive result. */
-#define ZXV_OK          0
-#define ZXV_ENOSYS     -1   /* no such syscall in this ABI                */
-#define ZXV_EPERM      -2   /* the caller lacks the required capability   */
-#define ZXV_EINVAL     -3   /* malformed arguments                        */
-#define ZXV_EFAULT     -4   /* a user pointer was not usable              */
-#define ZXV_EAGAIN     -5   /* would block                                */
-#define ZXV_EIO        -6   /* the underlying device or store failed      */
-#define ZXV_ENOENT     -7   /* no such object                             */
-#define ZXV_EABI       -8   /* ABI version mismatch                       */
+/* ZXV_OK / ZXV_E* come from <zxv_syscall_abi.h> as well: they are the values
+ * the caller reads out of x0, so they are shared contract, not kernel state. */
 
 typedef struct {
     uint32_t    nr;

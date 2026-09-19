@@ -18,9 +18,15 @@
 /* ===== QEMU virt platform addresses ===== */
 
 #define UART0_BASE          0x09000000  /* PL011 UART */
-#define GIC_DIST_BASE       0x08000000  /* GICv3 Distributor */
-#define GIC_REDIST_BASE     0x080A0000  /* GICv3 Redistributor */
-#define GIC_CPU_BASE        0x08010000  /* GIC CPU interface (legacy) */
+/* REFERENCE VALUES ONLY -- the QEMU virt map, kept as documentation of
+ * where these blocks sit on the one machine we boot-test daily. No ARM64
+ * C code reads them (verified: zero consumers); the live addresses come
+ * from board_profile.h, and which of them even exist is decided at
+ * runtime by the GICD_PIDR2 probe in gicv3.c (a GICv2 machine has a
+ * GICC and NO redistributor; a GICv3 machine is the exact opposite). */
+#define GIC_DIST_BASE       0x08000000  /* Distributor (same base on v2 and v3) */
+#define GIC_REDIST_BASE     0x080A0000  /* Redistributor -- GICv3 ONLY, unmapped on v2 */
+#define GIC_CPU_BASE        0x08010000  /* GICC MMIO CPU interface -- GICv2 ONLY, unmapped on v3 */
 #define TIMER_BASE          0x09050000  /* Generic timer (via system regs) */
 #define FRAMEBUFFER_BASE    0x3C000000  /* SimpleFB if available */
 
@@ -32,7 +38,23 @@
 #define UART_LCRH           0x2C
 #define UART_CR             0x30
 
-/* GICv3 registers */
+/* ===== GIC registers =====
+ *
+ * The DISTRIBUTOR block below (CTLR/TYPER/ISENABLER/ICENABLER/
+ * IPRIORITYR/ITARGETSR/ICFGR) is common to GICv2 and GICv3 -- same
+ * offsets, same meaning. What actually differs between the two, and
+ * therefore what gicv3.c branches on at RUNTIME after probing
+ * GICD_PIDR2, is:
+ *   (a) frame size -- v1/v2 distributors are 4KB with the ID block at
+ *       0x0FD0-0x0FFC; v3+ widened the frame to 64KB and moved the ID
+ *       block to 0xFFD0-0xFFFC;
+ *   (b) SPI targeting -- v2 uses GICD_ITARGETSR, v3 uses affinity
+ *       routing gated by GICD_CTLR.ARE (which is RES0 on a v2);
+ *   (c) PPI/SGI state -- v2 keeps it in the (per-CPU banked)
+ *       distributor, v3 moved it to a per-CPU redistributor;
+ *   (d) the CPU interface -- v2 is MMIO (GICC_* below), v3 is CPU
+ *       system registers (ICC_*_EL1, written as inline asm in gicv3.c).
+ */
 #define GICD_CTLR           0x000
 /* GICD_CTLR bits when GICD_CTLR.DS=1 (single security state -- the
  * normal case for a non-secure-only boot with no EL3/TrustZone
@@ -48,12 +70,65 @@
 #define GICD_ISENABLER(n)   (0x100 + (n) * 4)
 #define GICD_ICENABLER(n)   (0x180 + (n) * 4)
 #define GICD_IPRIORITYR(n)  (0x400 + (n))
-#define GICD_ITARGETSR(n)   (0x800 + (n))
+#define GICD_ITARGETSR(n)   (0x800 + (n))   /* byte per INTID; RO for INTIDs 0-31 */
 #define GICD_IGROUPR(n)     (0x080 + (n) * 4)
+#define GICD_ICFGR(n)       (0xC00 + (n) * 4)   /* 2 bits per INTID -> 16 INTIDs per word */
+
+/* GICD_TYPER.ITLinesNumber (bits [4:0]): the number of implemented
+ * INTIDs is (ITLinesNumber + 1) * 32, capped by the architecture at
+ * 1020 usable INTIDs (1020-1023 are special). Deriving the SPI count
+ * this way is what replaces the old hardcoded "< 256" loop bounds --
+ * ask the hardware how many lines it has, do not assume. */
+#define GICD_TYPER_ITLINES(v)   (((v) & 0x1F) + 1)
+#define GIC_MAX_INTIDS          1020
+
+/* GICD_PIDR2 architecture revision lives in bits [7:4]: 1 = GICv1,
+ * 2 = GICv2, 3 = GICv3, 4 = GICv4. There are TWO offsets and the order
+ * they are read in is load-bearing:
+ *   - 0x0FE8 is inside the 4KB frame every GICv1/v2 implements, and is
+ *     RES0 (reads 0x00000000) inside a v3 64KB frame. It therefore
+ *     DECODES ON BOTH layouts and must be read FIRST.
+ *   - 0xFFE8 only exists on v3+. Reading it on a GICv2 is a synchronous
+ *     external abort -- the precise fault this probe exists to remove.
+ * Measured, GICD_BASE 0x08000000 on both machines (QEMU 6.2.0 on the
+ * build box; the same values were seen on QEMU 11.0.2 during the
+ * investigation, so this is not a QEMU-version artefact):
+ *   -M virt               -> 0x0FE8 = 0x0000002B (rev 2), 0xFFE8 aborts
+ *   -M virt,gic-version=3 -> 0x0FE8 = 0x00000000 (RES0), 0xFFE8 = 0x0000003B (rev 3)
+ * and the two machines report DIFFERENT line counts from the same
+ * binary (GICD_TYPER: 288 INTIDs on v2, 256 on v3), which is why the
+ * configuration loops below are bounded by GICD_TYPER and not by a
+ * constant. */
+#define GICD_PIDR2_V2       0x0FE8
+#define GICD_PIDR2_V3       0xFFE8
+#define GICD_PIDR2_ARCH(v)  (((v) >> 4) & 0xF)
+
+/* Probed GIC architecture version, as returned by gic_get_version().
+ * UNKNOWN is not a code to shrug at: in that state the driver touches
+ * no GIC register at all rather than guess a register map. */
+#define GIC_VERSION_UNKNOWN 0
+#define GIC_VERSION_V2      2
+#define GIC_VERSION_V3      3
+
+/* ID_AA64PFR0_EL1.GIC, bits [27:24]: 0 = no system-register CPU
+ * interface (so ICC_*_EL1 are UNDEFINED and only a GICv2-style MMIO
+ * CPU interface can be driven), 1 = GICv3/v4.0 sysreg interface,
+ * 3 = GICv4.1. A system-register read can never external-abort, so
+ * this is free corroborating evidence for the probe. */
+#define ID_AA64PFR0_GIC(v)  (((v) >> 24) & 0xF)
 
 #define GICR_CTLR           0x000
 #define GICR_WAKER          0x014
 #define GICR_TYPER          0x008
+/* GICR_TYPER: bit 1 = VLPIS (GICv4 virtual LPIs -> the per-CPU frame is
+ * twice as large), bit 4 = Last (this is the final redistributor in the
+ * region -- the architected stop condition for the discovery walk),
+ * bits [63:32] = Affinity_Value, matched against MPIDR_EL1[31:0] to find
+ * THIS CPU's frame instead of assuming CPU 0 is at gicr_base. */
+#define GICR_TYPER_VLPIS        (1u << 1)
+#define GICR_TYPER_LAST         (1u << 4)
+#define GIC_REDIST_STRIDE       0x20000   /* RD_base + SGI_base (GICv3) */
+#define GIC_REDIST_STRIDE_VLPIS 0x40000   /* + VLPI_base + reserved (GICv4) */
 
 /* GICv3 redistributors are two adjacent 64KB frames: RD_base (control,
  * offset 0) and SGI_base (PPI/SGI config, offset +0x10000). GICR_CTLR/
@@ -69,10 +144,27 @@
 #define GICR_ICENABLER0     0x180
 #define GICR_IPRIORITYR0    0x400
 
-/* GIC CPU interface registers (ICC_) */
-#define ICC_PMR              0xFF0      /* Priority mask (via system reg on GICv3) */
-#define ICC_IAR              0xFF8      /* Interrupt acknowledge (via system reg) */
-#define ICC_EOIR             0xFF4      /* End of interrupt (via system reg) */
+/* GICv2 MMIO CPU interface (GICC_*), reached at board_profile_t.gicc_base.
+ * These replace the ICC_PMR/ICC_IAR/ICC_EOIR macros that used to sit here
+ * with offsets 0xFF0/0xFF8/0xFF4: those were neither the GICv3
+ * system-register encodings (S3_0_C4_C6_0 / S3_0_C12_C12_0 /
+ * S3_0_C12_C12_1, emitted as inline asm in gicv3.c) nor the correct GICC
+ * MMIO offsets, and they had zero consumers -- a live trap for anyone
+ * wiring up the v2 path from this header. */
+#define GICC_CTLR            0x000
+#define GICC_CTLR_ENABLE     (1u << 0)  /* on a GICv2 with the security extensions
+                                          * absent (the QEMU virt case) bit 0 is
+                                          * simply "Enable" for the one group */
+#define GICC_PMR             0x004      /* priority mask: only priorities NUMERICALLY
+                                          * LOWER than this value are signalled */
+#define GICC_BPR             0x008
+#define GICC_IAR             0x00C      /* acknowledge; full word must be echoed to EOIR */
+#define GICC_EOIR            0x010
+#define GICC_IIDR            0x0FC      /* bits [19:16] = architecture version (cross-check) */
+#define GICC_IIDR_ARCH(v)    (((v) >> 16) & 0xF)
+
+#define GIC_INTID_MASK       0x3FF      /* GICC_IAR / ICC_IAR1_EL1 INTID field */
+#define GIC_INTID_SPURIOUS   1023       /* "no pending interrupt" -- must NOT be EOI'd */
 
 /* IRQ numbers for QEMU virt */
 #define IRQ_TIMER           30  /* Generic timer physical timer */

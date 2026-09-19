@@ -287,3 +287,22 @@ int32_t vino_gratuity_112(surplus_real_t yield, surplus_real_t out[6]) {
     }
     return VINO_OK;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The voucher store behind pirate_apps' Cellar (app_cellar_open,
+ * vino_swap_to_physical / vino_swap_to_digital).
+ *
+ * MEASURED BUT NOT DECLARED HERE, and this is a real limit rather than an
+ * oversight: vino_stores.o's `nm -u` also names triple_ledger_create_account /
+ * triple_ledger_post (kernel/src/finance/triple_ledger.c) and op_symbiotic_ok
+ * (kernel/src/onepolicy/onepolicy.c). Neither of those modules declares yet,
+ * and a REQUIRES naming a capability nothing PROVIDES is MB_ERR_UNPROVIDED --
+ * it would fail the gate for the whole kernel, not just for this module. The
+ * two edges are written down here so the next pass has them.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(vino_stores,
+    ZXV_PROVIDES(vino_stores_ready),
+    ZXV_REQUIRES(edp_risk_ready),
+    ZXV_NO_BRINGUP);

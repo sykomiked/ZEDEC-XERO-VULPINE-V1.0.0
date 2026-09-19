@@ -134,3 +134,29 @@ void dharana_array_init(dharana_array_t *arr) {
         sunya_init(&arr->sunya[i], 3 * DHARANA_CLASS_SIZE + i + 1);
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The 112 concentration gates. REQUIRES(rmag_ready) is measured, not thematic:
+ * dharana.o's `nm -u` is exactly {rmag_add_quotas, rmag_mul_quotas,
+ * rmag_sub_quotas} -- every gate threshold is rational quota arithmetic, and
+ * with rmag absent a gate would compare against garbage rather than fail.
+ *
+ * The bring-up stays on the class map, which is pure and total: gate 1 is
+ * Sandhi and gate 112 is the last of the four classes, so an off-by-one in the
+ * 1..112 partition shows up immediately.
+ */
+#include "zxv_decl.h"
+static int zxvd_dharana_bringup(void) {
+    static dharana_array_t arr;
+    dharana_array_init(&arr);
+    if (dharana_class_name(dharana_class_of(1u))   == 0) return -1;
+    if (dharana_class_name(dharana_class_of(112u)) == 0) return -1;
+    if (dharana_class_of(1u) == dharana_class_of(112u))  return -1;
+    return 0;
+}
+
+ZXV_DECLARE(dharana,
+    ZXV_PROVIDES(dharana_gates_ready),
+    ZXV_REQUIRES(rmag_ready),
+    ZXV_BRINGUP(zxvd_dharana_bringup));

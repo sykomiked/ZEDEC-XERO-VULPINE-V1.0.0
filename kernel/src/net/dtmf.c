@@ -525,3 +525,23 @@ int32_t aprs_encode_message(const char *callsign, const char *dest,
     out[j] = 0;
     return (int32_t)j;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * In-band signalling: DTMF, Morse, RTTY, SSTV. REQUIRES_NONE is measured
+ * (dtmf.o's `nm -u` is empty) -- these are generators and detectors over
+ * caller-supplied sample buffers, with no device anywhere in the path.
+ */
+#include "zxv_decl.h"
+static int zxvd_dtmf_bringup(void) {
+    dtmf_init();
+    if (dtmf_get_freqs('5') == 0)  return -1;
+    if (dtmf_get_freqs('?') != 0)  return -1;   /* not a DTMF digit */
+    if (morse_encode_char('e') == 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(dtmf,
+    ZXV_PROVIDES(dtmf_modem_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_dtmf_bringup));

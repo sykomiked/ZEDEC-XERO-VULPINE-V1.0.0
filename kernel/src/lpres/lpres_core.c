@@ -81,3 +81,21 @@ void lpres_set_presence(ordinal_t resource_id, trit_t presence) {
 
     current_cycle++;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The paraconsistent presence lattice. vino.o, dharma.o and naga_raja.o all
+ * name lpres_get_presence / lpres_set_presence / lpres_init in `nm -u`; this
+ * file defines them. Its own `nm -u` is empty.
+ *
+ * NOTE THE SPLIT, because the directory name hides it: lpres_core.c owns the
+ * PRESENCE lattice (lpres_get_presence/lpres_set_presence), while lpres.c --
+ * newly wired in this build -- owns the ATTESTATION registry (lpres_attest,
+ * lpres_safety_gate_clear). Two capabilities, two declarations, one directory.
+ * Declaring one for both would have been a guess from the directory name.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(lpres_core,
+    ZXV_PROVIDES(lpres_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

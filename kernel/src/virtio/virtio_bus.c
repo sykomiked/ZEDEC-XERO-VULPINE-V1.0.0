@@ -102,3 +102,26 @@ int virtio_bus_probe(void) {
     return brought;
 }
 #endif /* !HOST_TEST */
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * The transport layer under every virtio device: it walks the MMIO windows the
+ * board profile declares, so it needs translation in place before it may touch
+ * one -- hence REQUIRES mm_ready, and nothing else.
+ *
+ * The bring-up asks the bus what it can see. A slot count of zero means the
+ * board profile handed us no transport window at all, which is a configuration
+ * fault rather than an absent disk, and is worth separating from "the disk did
+ * not answer". */
+#include "zxv_decl.h"
+
+static int virtio_bus_bringup(void) {
+    if (virtio_mmio_slot_count() == 0u) return -1;
+    /* slot 0 must have a real base -- a zero base is an unfilled profile */
+    if (virtio_mmio_slot_base(0) == 0u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(virtio_bus,
+    ZXV_PROVIDES(virtio_bus_ready),
+    ZXV_REQUIRES(mm_ready),
+    ZXV_BRINGUP(virtio_bus_bringup));

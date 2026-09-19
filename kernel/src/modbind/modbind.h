@@ -68,7 +68,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MB_MAX_MODULES  128u
+/* 192, not 128. The registry is the whole graph, and the census that motivated
+ * this work counts 164 candidate declarers -- at 128 the 165th module would be
+ * REFUSED, and modbind_register refuses by returning plain false with no
+ * diagnostic, so the gate below would then certify a graph missing the very
+ * modules that overflowed. The ceiling has to sit above the population before
+ * declarations start accumulating, not after. */
+#define MB_MAX_MODULES  192u
 #define MB_NAME_LEN      24u
 #define MB_MAX_PORTS      4u   /* emits/ingests declared per module */
 
@@ -105,7 +111,17 @@ typedef enum {
  * and modbind_verify_graph distinguishes those, because they need different
  * fixes.
  *
- * Returns how many modules reached MB_READY. */
+ * Returns how many modules reached MB_READY.
+ *
+ * A REQUIREMENT IS SATISFIED WHEN REAL POWER FLOWS, NOT WHEN A NAME MATCHES.
+ * The predicate is mb_real_power(provided, required) != 0, which folds in the
+ * name (VOLTAGE: no shared capability, no potential), the contract (a mismatch
+ * is an OPEN circuit), the amplitude (CURRENT) and the phase difference (POWER
+ * FACTOR). Two modules that name the same capability a quarter-cycle apart are
+ * CONNECTED AND DOING NO WORK, and the requirer stays MB_HELD -- S0, present but
+ * not coupled. That is not an error, not a skip and not a missing provider; it
+ * is the ordinary behaviour of a nonlinear system, and modbind_hold_reason
+ * below is how a caller tells the three apart. */
 uint32_t modbind_resolve(void);
 
 /* Withdraw a capability (S−). Every module transitively requiring it returns to
@@ -113,7 +129,17 @@ uint32_t modbind_resolve(void);
  * Returns how many modules were un-readied. */
 uint32_t modbind_withdraw(const char *capability);
 
-
+/* Un-withdraw: the modules parked in MB_WITHDRAWN by modbind_withdraw for this
+ * capability return to the fixpoint, and everything that fell to MB_HELD comes
+ * back on its own. Returns how many modules regained MB_READY.
+ *
+ * WHY THIS HAS TO EXIST. modbind_resolve deliberately does NOT reset an
+ * MB_WITHDRAWN module (that is what makes withdrawal stick across a re-resolve),
+ * so without a reverse there is no way out of S− and a withdrawal is permanent.
+ * A teardown that cannot be undone is not a state, it is a demolition -- and it
+ * makes the S− column untestable, because a negative test must leave the system
+ * as it found it. */
+uint32_t modbind_restore(const char *capability);
 
 /* Acyclic + fully-provided + contract-consistent. Returns problems found. */
 uint32_t modbind_verify_graph(mb_err_t *first_err, const char **first_name);
@@ -171,17 +197,20 @@ typedef struct {
  *             this would be plain resistance. It is not, because it is
  *             PHASE-DEPENDENT -- see below.
  *
- * POWER FACTOR IS THE POINT. Real power is V*I*cos(dphase), not V*I. Two modules
- * perfectly in phase deliver all of it; two a quarter-cycle apart deliver none
- * while still drawing current. That is the precise description of a boundary
- * that is CONNECTED AND DOING NO WORK -- which is what 1,674 discarded symbols
- * and every "linked but never exercised" module actually are. They are not
- * disconnected. They are reactive.
+ * POWER FACTOR IS THE POINT. Real power is V*I*pf(dphase) where pf is the OPTICAL
+ * INTERFERENCE fringe (1 + cos dphase)/2, not raw cos. Two modules perfectly in
+ * phase deliver all of it (constructive); two in ANTIPHASE deliver almost none
+ * (destructive, 14 permille) while still drawing current. That is the precise
+ * description of a boundary that is CONNECTED AND DOING (almost) NO WORK -- which
+ * is what 1,674 discarded symbols and every "linked but never exercised" module
+ * actually are. They are not disconnected. They are reactive.
  *
  * And it makes phi a control rather than an ornament: phi is the most irrational
  * ratio (continued fraction all ones, Hurwitz worst case), so a phi phase offset
- * NEVER aligns at any harmonic -- a permanently zero power factor, deliberate
- * isolation. Matched phase couples; phi decouples forever. */
+ * NEVER aligns at any harmonic -- it sits near antiphase, the weakest coupling
+ * the lattice allows. Matched phase couples strongly; phi damps toward the floor.
+ * (The floor is 14 permille, never 0: over 13 discrete phases cos never reaches
+ * -1000, so phase alone attenuates but never fully isolates -- see modbind.c.) */
 typedef struct {
     char     name[MB_CAP_NAME_LEN];   /* e.g. "mm_ready"                     */
     uint16_t contract;                /* providers must agree                */
@@ -190,13 +219,51 @@ typedef struct {
     uint8_t  alternating;             /* 1 = both sides swap roles per phase  */
 } mb_cap_t;
 
+/* ---- THE FIVE DRIVE LEVELS, NAMED AT THE DECLARATION SITE -----------------
+ * `amplitude` is a trit_t, and the numbers below are trit_t's own enumerators
+ * from kernel/include/m5_types.h -- NOT a parallel scale invented here. They are
+ * repeated as plain integers for one reason: zxv_decl.h includes THIS header and
+ * is itself included by 91 declaring translation units, and m5_types.h carries
+ * `double`-returning inlines (trit_to_ell). Pulling scalar FP into every module
+ * that merely wants to name a capability is a cost with no benefit, so the two
+ * are kept in step by _Static_assert in modbind.c instead of by an include --
+ * if anyone renumbers trit_t, the build stops rather than silently rescaling
+ * every capability in the system.
+ *
+ * The permille figures are mb_real_power's own current table, quoted so the
+ * choice of default is checkable at the point of use rather than inferred:
+ *   MB_AMP_FULL  TRIT_TRUE          1000  full drive -- the DEFAULT for ZXV_CAP
+ *   MB_AMP_HIGH  TRIT_GLUT_PLUS      750  constructive superposition, +charge
+ *   MB_AMP_HALF  TRIT_GLUT_NEUTRAL   500  balanced superposition,  no charge
+ *   MB_AMP_LOW   TRIT_GLUT_MINUS     250  destructive superposition, -charge
+ *   MB_AMP_NONE  TRIT_FALSE            0  no drive: DECLARED AND DEAD
+ *
+ * MB_AMP_NONE WAS THE OLD DEFAULT, AND IT WAS A TRAP. ZXV_CAP expanded to
+ * amplitude 0, which canonicalises to TRIT_FALSE, which mb_real_power maps to
+ * i_permille = 0 -- so every capability in the system would have delivered ZERO
+ * REAL POWER the instant the resolver started asking the physics instead of the
+ * name. A capability that is declared is, by the act of declaring it, driven:
+ * the module is asserting it supplies this. Silence is spelled by not declaring,
+ * or by MB_AMP_NONE on purpose. */
+#define MB_AMP_NONE  0u   /* == TRIT_FALSE         */
+#define MB_AMP_FULL  1u   /* == TRIT_TRUE          */
+#define MB_AMP_HIGH  3u   /* == TRIT_GLUT_PLUS     */
+#define MB_AMP_LOW   4u   /* == TRIT_GLUT_MINUS    */
+#define MB_AMP_HALF  5u   /* == TRIT_GLUT_NEUTRAL  */
+
+/* The number of distinct phases the l13 lattice carries. The cos table in
+ * modbind.c is exactly this long; a phase is taken mod this. */
+#define MB_PHASES   13u
+
 /* Real power delivered across a binding, in milliwatt-equivalents (integer, no
  * float in the kernel). Returns 0 for a binding that carries current but does no
  * work -- which is a DIFFERENT and more useful answer than "not connected". */
 int32_t mb_real_power(const mb_cap_t *provided, const mb_cap_t *required);
 
-/* Power factor as a permille (0..1000). 1000 = perfectly in phase, all real.
- * 0 = quadrature, purely reactive, connected and useless. */
+/* Power factor as a permille, the interference fringe (1000 + cos dphase)/2.
+ * 1000 = perfectly in phase (constructive, all real); it falls MONOTONICALLY to
+ * its floor of 14 at antiphase (k=6, destructive). Never 0: 13 is odd, so phase
+ * alone weakens a binding to 14 permille but never opens it. */
 uint32_t mb_power_factor(uint8_t phase_a, uint8_t phase_b);
 
 /* ---- THE PULSE -------------------------------------------------------------
@@ -220,6 +287,25 @@ typedef enum {
     MB_WITHDRAWN = 2, /* S-: retracted; dependants return to MB_HELD         */
 } mb_ready_t;
 
+/* ---- PHASE IS A PROPERTY OF THE MODULE, NOT OF THE CAPABILITY -------------
+ * MEASURED, not argued. Any phase derived from the CAPABILITY token cancels:
+ * provider and requirer compute the same number from the same token, so dphase
+ * is identically 0 on every edge in the graph and nothing differentiates. That
+ * is structural for the whole family of capability-keyed derivations, and it is
+ * why `phase` lives on the module and the capability merely RIDES it.
+ *
+ * A cap declared MB_PHASE_INHERIT is saying "I ride my module's phase", which
+ * is what every ZXV_CAP does. modbind_register resolves it once, at
+ * registration, so nothing downstream ever sees the sentinel: mb_real_power,
+ * mb_power_factor, the gate and the fixpoint all read a concrete 0..12.
+ *
+ * The sentinel is OUTSIDE 0..MB_PHASES-1 on purpose. Using 0 to mean "unset"
+ * would collide with L0, which is a real and heavily populated phase (substrate:
+ * zphi, rat, sha256, rmag, and both MMU providers), and a sentinel that aliases
+ * a legal value is the same defect as TRIT_GLUT aliasing TRIT_GLUT_NEUTRAL --
+ * two encodings for one state, which this header already refuses elsewhere. */
+#define MB_PHASE_INHERIT 0xFFu
+
 typedef struct {
     char       name[MB_NAME_LEN];
     mb_port_t  emits[MB_MAX_PORTS];
@@ -230,10 +316,56 @@ typedef struct {
     uint8_t    n_provides;
     mb_cap_t   requires[MB_MAX_CAPS];
     uint8_t    n_requires;
+    /* The module's own l13 phase (0..MB_PHASES-1). DERIVED, never typed: see
+     * build_system/gen_phase_table.sh, which computes it from the module's DRC
+     * layer and emits one #define per module for ZXV_DECLARE to paste. */
+    uint8_t    phase;
     mb_ready_t ready;
     module_transform_t xform;
     bool       registered;
 } mb_module_t;
+
+/* ---- WHY A MODULE IS HELD -------------------------------------------------
+ * Under name-matching there were only two ways to be stuck, and modbind_verify_
+ * graph inferred one from the absence of the other: nothing provides the name
+ * (UNPROVIDED), otherwise it must be a CYCLE. Coupling by POWER introduces a
+ * THIRD, and it is the common one in a fluid system:
+ *
+ *     A PROVIDER EXISTS AND IS NOT IN PHASE.
+ *
+ * That is not a cycle -- the graph is perfectly acyclic -- and it is not an
+ * unprovided requirement -- the capability is right there. It is a boundary that
+ * carries current and does no work, exactly what the power-factor model exists
+ * to describe. Reporting it as a cycle would turn NORMAL fluid behaviour into a
+ * build failure, which is the precise failure mode a phase model must not have.
+ *
+ * THE REASON PROPAGATES. A module whose provider is itself held out of phase is
+ * not in a cycle either -- it is downstream of one that is not coupled. So the
+ * classification is a fixpoint over the requires-graph, not a local test, and
+ * the ordering is deliberate: a root cause outranks an inherited one, and CYCLE
+ * is what is left when no other explanation survives. */
+typedef enum {
+    MB_HOLD_NONE       = 0,  /* not held, or held with nothing required      */
+    MB_HOLD_UNPROVIDED = 1,  /* a requirement no module names at all         */
+    /* A provider NAMES it and delivers no real power. Every way mb_real_power
+     * can return zero on a name that matches lands here, because they are one
+     * physical statement -- the circuit is open: a contract disagreement, zero
+     * drive (MB_AMP_NONE), or no carrier on the line. */
+    MB_HOLD_PHASE      = 2,
+    /* Its provider is in S− -- deliberately retracted. Also not a defect: it is
+     * the teardown edge doing exactly what it is for, and it must not be
+     * reported as a cycle either, or every negative test of S− would present as
+     * a broken graph. */
+    MB_HOLD_WITHDRAWN  = 3,
+    MB_HOLD_CYCLE      = 4,  /* everything coupled, and still never resolves */
+} mb_hold_t;
+
+/* Why is this module HELD? Valid immediately after modbind_resolve() (or
+ * modbind_verify_graph, which runs it). MB_HOLD_NONE for a ready module. */
+mb_hold_t modbind_hold_reason(const mb_module_t *m);
+
+/* Human-readable, for boot output. Never NULL. */
+const char *mb_hold_name(mb_hold_t h);
 
 /* ---- COMPOSITION: matrices within matrices ---------------------------------
  * A composite is not a new kind of thing. It IS an mb_module_t, one level up,
@@ -273,6 +405,11 @@ void     modbind_reset(void);
 bool     modbind_register(const mb_module_t *m);
 uint32_t modbind_count(void);
 const mb_module_t *modbind_get(uint32_t i);
+/* The registered copy of a module, by name, or NULL. Registration COPIES, so
+ * the declaration a module holds and the registry entry that carries its
+ * readiness are two different objects -- this is how you get from one to the
+ * other without the caller keeping an index. */
+const mb_module_t *modbind_find(const char *name);
 
 /* ---- the construction check ---------------------------------------------
  * Walks every registered module and reports the FIRST problem per module.

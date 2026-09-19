@@ -4,10 +4,24 @@
  * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
  */
 #include "modbind.h"
+#include "zxv_decl.h"
 #include "m5_types.h"
 
 static mb_module_t g_mods[MB_MAX_MODULES];
 static uint32_t    g_n;
+
+/* THE AMPLITUDE SCALE IS trit_t's, NOT A COPY OF IT.
+ * modbind.h spells the five drive levels as plain integers so that zxv_decl.h --
+ * and therefore all 91 declaring translation units -- need not include
+ * m5_types.h and its double-returning inlines. That is only safe if the two
+ * numberings cannot drift, so they are pinned here, in the one translation unit
+ * that sees both. Renumbering trit_t now stops the build instead of silently
+ * rescaling every capability in the system. */
+_Static_assert((int)TRIT_FALSE        == (int)MB_AMP_NONE, "MB_AMP_NONE != TRIT_FALSE");
+_Static_assert((int)TRIT_TRUE         == (int)MB_AMP_FULL, "MB_AMP_FULL != TRIT_TRUE");
+_Static_assert((int)TRIT_GLUT_PLUS    == (int)MB_AMP_HIGH, "MB_AMP_HIGH != TRIT_GLUT_PLUS");
+_Static_assert((int)TRIT_GLUT_MINUS   == (int)MB_AMP_LOW,  "MB_AMP_LOW  != TRIT_GLUT_MINUS");
+_Static_assert((int)TRIT_GLUT_NEUTRAL == (int)MB_AMP_HALF, "MB_AMP_HALF != TRIT_GLUT_NEUTRAL");
 
 /* A form is BLOCKED when its representation is not sound enough to carry a
  * boundary. MB_FORM_TRIT was blocked while trit_t had two encodings for one
@@ -48,10 +62,25 @@ const mb_module_t *modbind_get(uint32_t i) {
     return (i < g_n) ? &g_mods[i] : (const mb_module_t *)0;
 }
 
+/* Registration COPIES (see modbind_register), so the constant declaration a
+ * module carries in .rodata is NOT the entry whose `ready` the fixpoint writes.
+ * This is the bridge between the two. */
+const mb_module_t *modbind_find(const char *name) {
+    if (!name) return (const mb_module_t *)0;
+    for (uint32_t i = 0; i < g_n; i++)
+        if (name_eq(g_mods[i].name, name)) return &g_mods[i];
+    return (const mb_module_t *)0;
+}
+
 bool modbind_register(const mb_module_t *m) {
     if (!m || g_n >= MB_MAX_MODULES) return false;
     if (m->name[0] == 0) return false;
     if (m->n_emits > MB_MAX_PORTS || m->n_ingests > MB_MAX_PORTS) return false;
+    /* The capability counts were NOT bounded here, only the port counts. A
+     * declaration claiming n_provides = 6 was accepted and then read past the
+     * end of a 4-element array by resolve/verify_graph -- a silent out-of-bounds
+     * read in the one component whose job is to catch declaration errors. */
+    if (m->n_provides > MB_MAX_CAPS || m->n_requires > MB_MAX_CAPS) return false;
     for (uint32_t i = 0; i < g_n; i++)
         if (name_eq(g_mods[i].name, m->name)) return false;   /* duplicate */
     /* A declared port of MB_FORM_NONE is a filled-in struct that says nothing;
@@ -64,6 +93,28 @@ bool modbind_register(const mb_module_t *m) {
             m->ingests[i].form >= MB_FORM__COUNT) return false;
     g_mods[g_n] = *m;
     g_mods[g_n].registered = true;
+    /* ---- RESOLVE THE INHERITED PHASE, ONCE, HERE ---------------------------
+     * A capability declared MB_PHASE_INHERIT rides its module's phase. Doing it
+     * at registration rather than at the declaration site is what makes the
+     * derivation possible at all: ZXV_PROVIDES/ZXV_REQUIRES are function-like
+     * macros sitting in ZXV_DECLARE's ARGUMENT LIST, so they are fully expanded
+     * before ZXV_DECLARE's body is ever substituted -- the module name cannot
+     * reach inside them, and no amount of token pasting changes that (verified,
+     * not assumed). ZXV_DECLARE can only stamp the phase on the MODULE, which
+     * is where it belongs anyway.
+     *
+     * This is the single registration path -- modbind_compose's composite comes
+     * through here too -- so there is exactly one place the sentinel dies.
+     * An explicit ZXV_CAP_PHASED phase is 0..12 and is left alone: the escape
+     * hatch stays an escape hatch. */
+    for (uint8_t i = 0; i < g_mods[g_n].n_provides; i++)
+        if (g_mods[g_n].provides[i].phase == MB_PHASE_INHERIT)
+            g_mods[g_n].provides[i].phase =
+                (uint8_t)(g_mods[g_n].phase % MB_PHASES);
+    for (uint8_t i = 0; i < g_mods[g_n].n_requires; i++)
+        if (g_mods[g_n].requires[i].phase == MB_PHASE_INHERIT)
+            g_mods[g_n].requires[i].phase =
+                (uint8_t)(g_mods[g_n].phase % MB_PHASES);
     g_n++;
     return true;
 }
@@ -191,6 +242,12 @@ const char *mb_err_name(mb_err_t e) {
         case MB_ERR_BLOCKED:  return "BLOCKED: form not yet sound (see trit_t)";
         case MB_ERR_VERSION:  return "VERSION: form matches, version does not";
         case MB_ERR_NO_XFORM: return "NO XFORM: declares a form, supplies no marshaller";
+        /* The three graph errors had no names here, so modbind_verify_graph
+         * could not print its own diagnosis -- it would have reported the one
+         * class of failure it exists to find as "?". */
+        case MB_ERR_UNPROVIDED: return "UNPROVIDED: REQUIRES a capability nothing PROVIDES";
+        case MB_ERR_CYCLE:      return "CYCLE: requires-graph closes on itself; never resolves";
+        case MB_ERR_CONTRACT:   return "CONTRACT: two providers of one capability disagree";
         default:              return "?";
     }
 }
@@ -208,6 +265,26 @@ static mb_module_t mk(const char *nm, mb_form_t emit, mb_form_t ing,
     for (uint32_t i = 0; i < MB_NAME_LEN; i++) m.name[i] = 0;
     for (uint32_t i = 0; i < MB_NAME_LEN && nm[i]; i++) m.name[i] = nm[i];
     m.n_emits = 0; m.n_ingests = 0;
+    /* n_provides / n_requires / ready were NEVER set here. These fixtures are
+     * automatics, so all three carried whatever was on the stack, and
+     * modbind_register copied that garbage straight into the registry --
+     * where modbind_resolve and modbind_verify_graph index provides[] and
+     * requires[] by exactly those counts. Nothing noticed, because the checks
+     * this selfcheck runs (ORPHAN/STARVED/VERSION/NO_XFORM) only ever look at
+     * the PORTS. The new MB_MAX_CAPS bound in modbind_register is what made it
+     * visible: it started refusing the fixtures outright. Setting the counts is
+     * the fix; the bound is what turned a latent out-of-bounds read into a
+     * refusal. */
+    m.n_provides = 0; m.n_requires = 0;
+    /* `phase` is the module's own l13 seat and these fixtures are AUTOMATICS,
+     * so leaving it unset would put a stack byte on the module and
+     * modbind_register would stamp that byte onto every MB_PHASE_INHERIT cap.
+     * These fixtures declare no capabilities at all (n_provides = n_requires =
+     * 0), so nothing would read it today -- which is exactly the shape of the
+     * bug the comment above records: fields nobody read until the resolver
+     * started asking the physics. Declared, not inherited. */
+    m.phase = 0;
+    m.ready = MB_HELD;
     if (emit != MB_FORM_NONE) { m.emits[0].form = emit; m.emits[0].version = ev; m.n_emits = 1; }
     if (ing  != MB_FORM_NONE) { m.ingests[0].form = ing; m.ingests[0].version = iv; m.n_ingests = 1; }
     m.xform.pack   = xf ? stub_pack   : (int (*)(const void *, uint8_t *, uint32_t))0;
@@ -267,13 +344,51 @@ static bool cap_eq(const mb_cap_t *a, const mb_cap_t *b) {
     return true;
 }
 
-/* Is `cap` provided by some module that is already MB_READY? */
+/* ---- COUPLING IS A POWER QUESTION, NOT A NAME QUESTION --------------------
+ * This predicate used to be cap_eq alone: a byte-for-byte comparison of two
+ * capability names. That is a HARDCODED EDGE -- rigid, binary, permanent, and
+ * blind to everything the electrical model measures. Two modules that spell a
+ * capability the same way were coupled always and unconditionally, whatever
+ * their contract, their drive level or their phase.
+ *
+ * mb_real_power asks the whole question at once, and each factor is a real
+ * refusal rather than a decoration:
+ *     VOLTAGE  cap_eq -- different capabilities are not a circuit at all
+ *     CONTRACT a disagreement is an OPEN circuit, not a lossy one
+ *     CURRENT  the five-level trit amplitude
+ *     pf(dφ)   the INTERFERENCE fringe (1+cos)/2 over the 13 phases
+ *     CARRIER  no line, no circuit
+ * Non-zero real power is coupling. Zero is not a failure -- it is a boundary
+ * that is present and doing no work, and the requirer stays MB_HELD.
+ *
+ * Sign is deliberately ignored (`!= 0`, not `> 0`): coupling STRENGTH (the phase
+ * relationship, now the interference magnitude, always non-negative) and POLARITY
+ * (which half-cycle delivered it, carried by the trit charge) are separate axes.
+ * A negative-charge binding still couples; the sign only says which way it flows.
+ * Antiphase is now the WEAKEST binding (14 permille), not an inverted-full one. */
 static bool cap_available(const mb_cap_t *cap) {
     for (uint32_t i = 0; i < g_n; i++) {
         if (g_mods[i].ready != MB_READY) continue;
         for (uint8_t j = 0; j < g_mods[i].n_provides; j++)
-            if (cap_eq(&g_mods[i].provides[j], cap)) return true;
+            if (mb_real_power(&g_mods[i].provides[j], cap) != 0) return true;
     }
+    return false;
+}
+
+/* Does ANY module, ready or not, NAME this capability? The old question. */
+static bool cap_named_anywhere(const mb_cap_t *cap) {
+    for (uint32_t i = 0; i < g_n; i++)
+        for (uint8_t j = 0; j < g_mods[i].n_provides; j++)
+            if (cap_eq(&g_mods[i].provides[j], cap)) return true;
+    return false;
+}
+
+/* Does ANY module, ready or not, actually COUPLE with it? The new question. The
+ * gap between these two answers is precisely the held-out-of-phase state. */
+static bool cap_coupled_anywhere(const mb_cap_t *cap) {
+    for (uint32_t i = 0; i < g_n; i++)
+        for (uint8_t j = 0; j < g_mods[i].n_provides; j++)
+            if (mb_real_power(&g_mods[i].provides[j], cap) != 0) return true;
     return false;
 }
 
@@ -299,18 +414,130 @@ uint32_t modbind_resolve(void) {
     return n;
 }
 
+/* ===== WHY A MODULE IS HELD: A FIXPOINT, NOT A LOCAL TEST ==================
+ * modbind_verify_graph used to derive the answer by elimination: if nothing
+ * provides the name it is UNPROVIDED, otherwise it must be a CYCLE. Under power
+ * coupling that elimination is wrong, because a third explanation now exists --
+ * the provider is right there and is simply not in phase.
+ *
+ * And the explanation PROPAGATES. Consider A -> B -> C, where A provides what B
+ * requires but out of phase. B is held-out-of-phase. C's own requirement (B's
+ * capability) is named AND coupled -- B's provide is perfectly in phase with
+ * C -- so a purely local test would call C a CYCLE. There is no cycle anywhere
+ * in that graph. C is held because its provider is, and its reason is B's.
+ *
+ * So the classification is computed as a fixpoint over the requires-graph, with
+ * a strict ordering: a ROOT CAUSE outranks an INHERITED one, and CYCLE is only
+ * what survives when nothing else explains the hold. The enum is numbered in
+ * that order (UNPROVIDED 1 < PHASE 2 < CYCLE 3) and a module's reason only ever
+ * moves DOWNWARD, which is what makes the loop terminate: the value is bounded
+ * below and strictly decreasing per change, so at most 3*g_n changes can occur.
+ *
+ * Static, bounded, no allocation -- the same constraints as the rest of the
+ * file. The array is written by modbind_hold_reason's driver and read by
+ * modbind_verify_graph and the boot gate. */
+static uint8_t g_hold[MB_MAX_MODULES];
+
+static void hold_classify_all(void) {
+    /* Everything held-with-requirements starts at the weakest explanation and
+     * can only be improved on. A ready or requirement-free module has no hold
+     * to explain. */
+    for (uint32_t i = 0; i < g_n; i++)
+        g_hold[i] = (uint8_t)((g_mods[i].ready == MB_HELD && g_mods[i].n_requires > 0)
+                              ? MB_HOLD_CYCLE : MB_HOLD_NONE);
+
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (uint32_t i = 0; i < g_n; i++) {
+            if (g_hold[i] == (uint8_t)MB_HOLD_NONE) continue;
+            uint8_t best = g_hold[i];
+            for (uint8_t j = 0; j < g_mods[i].n_requires; j++) {
+                const mb_cap_t *r = &g_mods[i].requires[j];
+                /* ROOT CAUSE 1: nobody names it. */
+                if (!cap_named_anywhere(r)) { best = (uint8_t)MB_HOLD_UNPROVIDED; break; }
+                /* ROOT CAUSE 2: somebody names it and nobody drives it. */
+                if (!cap_coupled_anywhere(r)) {
+                    if ((uint8_t)MB_HOLD_PHASE < best) best = (uint8_t)MB_HOLD_PHASE;
+                    continue;
+                }
+                /* This requirement IS coupled by somebody. If any of those
+                 * providers is READY the requirement is met and explains
+                 * nothing; otherwise this module is downstream of whatever is
+                 * holding them, and inherits the strongest reason among them. */
+                bool met = false;
+                uint8_t inherited = (uint8_t)MB_HOLD_CYCLE;
+                for (uint32_t k = 0; k < g_n && !met; k++) {
+                    for (uint8_t l = 0; l < g_mods[k].n_provides; l++) {
+                        if (mb_real_power(&g_mods[k].provides[l], r) == 0) continue;
+                        if (g_mods[k].ready == MB_READY) { met = true; break; }
+                        /* ROOT CAUSE 3: the provider was RETRACTED. S− is a
+                         * state, not a fault, and a dependant of a withdrawn
+                         * provider is not in a cycle -- it is waiting for a
+                         * restoration that may never come, which is a different
+                         * fact needing a different fix. */
+                        if (g_mods[k].ready == MB_WITHDRAWN) {
+                            if ((uint8_t)MB_HOLD_WITHDRAWN < inherited)
+                                inherited = (uint8_t)MB_HOLD_WITHDRAWN;
+                            continue;
+                        }
+                        if (g_hold[k] != (uint8_t)MB_HOLD_NONE &&
+                            g_hold[k] < inherited) inherited = g_hold[k];
+                    }
+                }
+                if (!met && inherited < best) best = inherited;
+            }
+            if (best < g_hold[i]) { g_hold[i] = best; changed = true; }
+        }
+    }
+}
+
+mb_hold_t modbind_hold_reason(const mb_module_t *m) {
+    if (!m) return MB_HOLD_NONE;
+    hold_classify_all();
+    for (uint32_t i = 0; i < g_n; i++)
+        if (&g_mods[i] == m || name_eq(g_mods[i].name, m->name))
+            return (mb_hold_t)g_hold[i];
+    return MB_HOLD_NONE;
+}
+
+const char *mb_hold_name(mb_hold_t h) {
+    switch (h) {
+        case MB_HOLD_NONE:       return "not held";
+        case MB_HOLD_UNPROVIDED: return "UNPROVIDED: nothing declares that capability";
+        case MB_HOLD_PHASE:      return "OUT OF PHASE: a provider exists, delivers no real power";
+        case MB_HOLD_WITHDRAWN:  return "WITHDRAWN: its provider is in S-";
+        case MB_HOLD_CYCLE:      return "CYCLE: requirements close on themselves";
+        default:                 return "?";
+    }
+}
+
 /* S- : withdrawal is the REVERSE EDGE of provision, not a separate mechanism.
  * Retract the capability, then re-run the fixpoint -- everything that
  * transitively required it falls back to MB_HELD on its own. This is why the
  * empty S- column in THIRTEEN_LAYERS.md closes: teardown was impossible under
  * barriers because barriers only run forwards. */
-uint32_t modbind_withdraw(const char *capability) {
-    if (!capability) return 0;
-    mb_cap_t want; 
+/* The capability being named, as a fully-initialised mb_cap_t. Every field is
+ * written: `want` used to be an automatic with only name and contract set, so
+ * phase/amplitude/alternating carried whatever was on the stack. That was
+ * harmless while cap_eq looked only at the name, and it is exactly the class of
+ * latent defect that the switch to power coupling turns live -- so it is closed
+ * here rather than left to be discovered by a resolver that reads them. */
+static mb_cap_t cap_by_name(const char *capability) {
+    mb_cap_t want;
     for (uint32_t i = 0; i < MB_CAP_NAME_LEN; i++) want.name[i] = 0;
     for (uint32_t i = 0; i < MB_CAP_NAME_LEN && capability[i]; i++)
         want.name[i] = capability[i];
     want.contract = 0;
+    want.phase = 0;
+    want.amplitude = (uint8_t)MB_AMP_FULL;
+    want.alternating = 0;
+    return want;
+}
+
+uint32_t modbind_withdraw(const char *capability) {
+    if (!capability) return 0;
+    mb_cap_t want = cap_by_name(capability);
 
     uint32_t before = 0;
     for (uint32_t i = 0; i < g_n; i++) if (g_mods[i].ready == MB_READY) before++;
@@ -322,6 +549,35 @@ uint32_t modbind_withdraw(const char *capability) {
 
     uint32_t after = modbind_resolve();
     return (before > after) ? (before - after) : 0;
+}
+
+/* S− -> S0: the reverse of the reverse edge. modbind_resolve refuses to reset an
+ * MB_WITHDRAWN module -- that is what makes a withdrawal survive a re-resolve --
+ * so something has to put the provider back into the fixpoint, or S− is a
+ * one-way door and the column can never be exercised twice.
+ *
+ * This restores only what was withdrawn FOR THIS CAPABILITY: a module parked in
+ * S− is returned to MB_HELD, never straight to MB_READY. Whether it comes back
+ * up is the fixpoint's decision, not this function's -- promoting it directly
+ * would be asserting a readiness nothing re-derived. */
+uint32_t modbind_restore(const char *capability) {
+    if (!capability) return 0;
+    mb_cap_t want = cap_by_name(capability);
+
+    uint32_t before = 0;
+    for (uint32_t i = 0; i < g_n; i++) if (g_mods[i].ready == MB_READY) before++;
+
+    for (uint32_t i = 0; i < g_n; i++) {
+        if (g_mods[i].ready != MB_WITHDRAWN) continue;
+        for (uint8_t j = 0; j < g_mods[i].n_provides; j++)
+            if (cap_eq(&g_mods[i].provides[j], &want)) {
+                g_mods[i].ready = MB_HELD;
+                break;
+            }
+    }
+
+    uint32_t after = modbind_resolve();
+    return (after > before) ? (after - before) : 0;
 }
 
 
@@ -340,13 +596,50 @@ uint32_t mb_power_factor(uint8_t phase_a, uint8_t phase_b) {
     uint32_t k = (uint32_t)((phase_a >= phase_b)
                             ? (phase_a - phase_b) : (phase_b - phase_a)) % 13u;
     int32_t c = COS13_PERMILLE[k];
-    /* power factor is |cos| -- a half-cycle inversion still transfers power,
-     * it just arrives with opposite polarity, which the trit sign carries. */
-    return (uint32_t)(c < 0 ? -c : c);
+    /* POWER FACTOR IS OPTICAL INTERFERENCE, not the AC transformer. Two beams
+     * that share a carrier interfere with intensity I = I0 * cos^2(dphase/2) =
+     * I0 * (1 + cos dphase)/2 -- the Young's-slits / Michelson fringe. So the
+     * factor is the fringe (1000 + cos)/2 in permille: constructive and full
+     * (1000) IN PHASE at k=0, falling MONOTONICALLY to its floor of 14 at
+     * ANTIPHASE (k=6). Antiphase is now the WEAKEST coupling, not a strong one
+     * with inverted polarity -- polarity is a separate axis carried by the trit
+     * sign in mb_real_power, never folded into this magnitude.
+     *
+     * DERIVED, NOT A SECOND TABLE: computed straight from COS13_PERMILLE so the
+     * two cannot drift; modbind_selfcheck pins every value against this formula.
+     * NEVER ZERO: 13 is odd, so cos never reaches exactly -1000; the smallest
+     * (1000 + c) is 1000 + (-971) = 29, and 29/2 = 14 > 0. Integer division
+     * truncates toward zero, deterministically and identically on all five
+     * arches -- no float, no libgcc. (1000 + c) is always positive here so the
+     * cast is well-defined. */
+    return (uint32_t)((1000 + c) / 2);
 }
 
 int32_t mb_real_power(const mb_cap_t *provided, const mb_cap_t *required) {
     if (!provided || !required) return 0;
+    /* NO CARRIER, NO CIRCUIT -- and this is the header's own claim, not a new
+     * policy: "the carrier only makes the circuit exist", "Absence is the
+     * information: no carrier means no circuit, which is why silence on the line
+     * is diagnostic rather than merely quiet."
+     *
+     * The physical argument is the one that decides it. PHASE IS MEASURED
+     * RELATIVE TO THE CARRIER -- that is precisely how two modules agree on a
+     * phase without agreeing what time it is. With no carrier there is no
+     * reference, so `provided->phase - required->phase` is a difference between
+     * two numbers that denote nothing, and a power computed from it would be an
+     * invented measurement. Returning 0 is the honest answer.
+     *
+     * IT IS ALSO THE USEFUL ONE, because it is LOUD: with the line dead every
+     * module carrying a requirement stays MB_HELD and says so by name. A carrier
+     * that made no difference would not be a diagnostic, it would be an
+     * ornament.
+     *
+     * THE COST IS THAT BOOT ORDER BECOMES LOAD-BEARING: mb_carrier_up() must run
+     * before any modbind_resolve(). That is a real obligation and it is PROVEN
+     * rather than asserted -- gate_withdraw_negtest() in zxv_decl_gate.c drops
+     * the carrier on the live graph and shows the whole system falling to S0,
+     * then raises it and shows it come back. */
+    if (!mb_carrier()) return 0;
     /* VOLTAGE: potential exists only where the two name the same capability.
      * Different capabilities are not a circuit at all. */
     if (!cap_eq(provided, required)) return 0;
@@ -366,9 +659,11 @@ int32_t mb_real_power(const mb_cap_t *provided, const mb_cap_t *required) {
         case TRIT_FALSE:          i_permille =     0; break;
         default:                  i_permille =     0; break;
     }
-    /* P = V * I * cos(dphase). V is unity here (the potential either exists or
-     * it does not, established above), so real power is amplitude scaled by
-     * power factor. */
+    /* P = V * I * pf(dphase), where pf is the INTERFERENCE fringe (1000+cos)/2,
+     * not raw cos. V is unity here (the potential either exists or it does not,
+     * established above), so real power is amplitude scaled by the fringe factor:
+     * full in phase, weakest (14 permille) antiphase, never zero from phase
+     * alone. */
     uint32_t pf = mb_power_factor(provided->phase, required->phase);
     int32_t p = (int32_t)(((int64_t)i_permille * (int64_t)pf) / 1000);
     /* POLARITY: the trit sign says which half-cycle delivered it. */
@@ -402,11 +697,7 @@ bool mb_carrier(void)      { return g_carrier_live != 0u; }
 
 /* ===== COMPOSITION ========================================================= */
 
-static const mb_module_t *find_mod(const char *nm) {
-    for (uint32_t i = 0; i < g_n; i++)
-        if (name_eq(g_mods[i].name, nm)) return &g_mods[i];
-    return (const mb_module_t *)0;
-}
+#define find_mod modbind_find
 
 static bool cap_in(const mb_cap_t *set, uint8_t n, const mb_cap_t *c) {
     for (uint8_t i = 0; i < n; i++) if (cap_eq(&set[i], c)) return true;
@@ -422,6 +713,15 @@ bool modbind_compose(const char *name,
     for (uint32_t i = 0; i < MB_NAME_LEN; i++) c.name[i] = 0;
     for (uint32_t i = 0; i < MB_NAME_LEN && name[i]; i++) c.name[i] = name[i];
     c.n_emits = c.n_ingests = c.n_provides = c.n_requires = 0;
+    /* A COMPOSITE HAS NO DERIVED PHASE OF ITS OWN, and inventing one would be
+     * the hardcoding this whole mechanism exists to remove. It does not need
+     * one: every cap it carries is COPIED from a part that was already
+     * registered, so those caps already hold concrete resolved phases and
+     * modbind_register's INHERIT fixup finds nothing to do. The surviving
+     * boundary keeps the phase of whichever part it came from -- which is the
+     * honest answer, because the internal edge cancelled and the external one
+     * is still the part's edge. Set explicitly because `c` is an automatic. */
+    c.phase = 0;
     c.ready = MB_HELD;
     c.registered = false;
     c.xform.pack = (int (*)(const void *, uint8_t *, uint32_t))0;
@@ -512,23 +812,34 @@ uint32_t modbind_verify_graph(mb_err_t *first_err, const char **first_name) {
                         g_mods[k].provides[l].contract)
                         NOTE(MB_ERR_CONTRACT, g_mods[k].name);
 
-    /* 3. A cycle never reaches the fixpoint. Detected as: requirements are all
-     *    provided by SOMETHING, yet the module never becomes ready. That
-     *    distinguishes a cycle from a genuinely missing provider -- they need
-     *    different fixes, so they get different errors. */
+    /* 3. THREE WAYS TO BE HELD, AND ONLY ONE OF THEM IS A DEFECT.
+     *
+     *    This check used to reason by elimination -- "every requirement is
+     *    named by somebody, and yet the fixpoint never arrived, therefore a
+     *    cycle" -- which was sound only while coupling WAS naming. It is not any
+     *    more. A provider can be present, named, contract-compatible and simply
+     *    OUT OF PHASE, delivering no real power. The graph is then perfectly
+     *    acyclic and the requirer is still held.
+     *
+     *    Calling that a cycle would be the worst possible failure of this whole
+     *    model: the gate would turn ordinary fluid behaviour into a build
+     *    failure, and the pressure would be to hardcode the edge back. So the
+     *    reason is CLASSIFIED (modbind_hold_reason's fixpoint, above) and only
+     *    MB_HOLD_CYCLE is counted as a problem:
+     *
+     *      MB_HOLD_UNPROVIDED  already counted once by check 1 -- counting it
+     *                          again here would double-report one defect
+     *      MB_HOLD_PHASE       PRESENT BUT NOT COUPLED. Not an error, not a
+     *                          skip. S0 is an honest state; the gate names the
+     *                          module and the boot proceeds.
+     *      MB_HOLD_CYCLE       the requirements really do close on themselves,
+     *                          and no traversal will ever resolve them.
+     */
     modbind_resolve();
+    hold_classify_all();
     for (uint32_t i = 0; i < g_n; i++) {
         if (g_mods[i].ready != MB_HELD || g_mods[i].n_requires == 0) continue;
-        bool all_declared = true;
-        for (uint8_t j = 0; j < g_mods[i].n_requires && all_declared; j++) {
-            bool found = false;
-            for (uint32_t k = 0; k < g_n && !found; k++)
-                for (uint8_t l = 0; l < g_mods[k].n_provides && !found; l++)
-                    if (cap_eq(&g_mods[k].provides[l], &g_mods[i].requires[j]))
-                        found = true;
-            if (!found) all_declared = false;
-        }
-        if (all_declared) NOTE(MB_ERR_CYCLE, g_mods[i].name);
+        if (g_hold[i] == (uint8_t)MB_HOLD_CYCLE) NOTE(MB_ERR_CYCLE, g_mods[i].name);
     }
     #undef NOTE
     return bad;
@@ -610,6 +921,298 @@ uint32_t modbind_selfcheck(void) {
         mb_module_t noname = mk("", MB_FORM_BINARY, MB_FORM_NONE, 1, 0, true);
         if (modbind_register(&noname)) bad++;
     }
+
+    /* ===== THE ELECTRICAL MODEL, ACTUALLY EXERCISED =======================
+     * mb_real_power, mb_power_factor and the carrier were WRITTEN AND NOT RUN:
+     * measured with nm against kernel_arm64.elf, all four symbols were absent,
+     * with zero callers anywhere in the tree. The law was on the page and the
+     * resolver was still coupling by a byte-for-byte name compare. A law nothing
+     * executes is a comment.
+     *
+     * These cases run it on real registered modules through the real fixpoint,
+     * and every one of them is a claim that can FAIL rather than a claim that is
+     * true by construction. */
+    {
+        modbind_reset();
+        const bool carrier_was = mb_carrier();
+        mb_carrier_up();
+
+        mb_module_t p = mk("pwr_prov", MB_FORM_BINARY, MB_FORM_NONE, 1, 0, true);
+        mb_module_t c = mk("pwr_req",  MB_FORM_NONE, MB_FORM_BINARY, 0, 1, true);
+        mb_cap_t cap = cap_by_name("pwr");         /* phase 0, full drive */
+        cap.contract = 1;
+        p.n_provides = 1; p.provides[0] = cap;
+        c.n_requires = 1; c.requires[0] = cap;
+        if (!modbind_register(&p)) bad++;
+        if (!modbind_register(&c)) bad++;
+
+        /* IN PHASE AND FULLY DRIVEN: cos(0) = 1, so all of the current is real
+         * power and the requirer couples. This is the case that must reproduce
+         * the old name-matching behaviour EXACTLY -- every capability in the
+         * shipped system is declared at phase 0 and full drive. */
+        if (mb_power_factor(0, 0) != 1000u) bad++;
+        if (mb_real_power(&g_mods[0].provides[0], &g_mods[1].requires[0]) != 1000) bad++;
+        if (modbind_resolve() != 2u) bad++;
+        if (modbind_verify_graph((mb_err_t *)0, (const char **)0) != 0u) bad++;
+        if (modbind_hold_reason(&g_mods[1]) != MB_HOLD_NONE) bad++;
+
+        /* PHASE ATTENUATES BUT DOES NOT OPEN. The interference fringe
+         * (1000 + cos(2*pi*k/13))/2 falls MONOTONICALLY from 1000 in phase to its
+         * floor of 14 at ANTIPHASE (k=6), and is never zero -- 13 is odd, so cos
+         * never reaches -1000, so (1000+cos) never reaches 0. Recorded here as a
+         * MEASUREMENT, not a wish: phase alone cannot presently isolate two
+         * modules, and adding a "close enough to zero" threshold to make it
+         * would put a tolerance in a capability decision, which modbind.h
+         * already refuses on the grounds that a tolerance in a permission check
+         * is a vulnerability rather than an approximation. What DOES open the
+         * circuit is below.
+         *
+         * k=3 -> (1000+121)/2 = 560; k=6 (antiphase) -> (1000-971)/2 = 14, the
+         * new floor. Every value is DERIVED from COS13_PERMILLE, checked below. */
+        if (mb_power_factor(0, 3)  !=  560u) bad++;
+        if (mb_power_factor(3, 0)  !=  560u) bad++;   /* symmetric */
+        if (mb_power_factor(0, 6)  !=   14u) bad++;   /* antiphase = the floor */
+        if (mb_power_factor(0, 13) != 1000u) bad++;   /* wraps at 13 */
+        {
+            mb_cap_t off = cap; off.phase = 3;
+            if (mb_real_power(&g_mods[0].provides[0], &off) != 560) bad++;
+        }
+
+        /* PIN THE LAW TO ITS SOURCE: the factor is DERIVED from COS13_PERMILLE,
+         * not a second table, and it has three properties the interference model
+         * requires -- reproduce the derivation, symmetry, monotone-down 0..6, and
+         * a strictly non-zero floor. If any drift, the invariance proof is void. */
+        {
+            uint32_t prev = 1001u;
+            for (uint32_t kk = 0; kk < 13u; kk++) {
+                uint32_t want = (uint32_t)((1000 + (int32_t)COS13_PERMILLE[kk]) / 2);
+                if (mb_power_factor((uint8_t)kk, 0u) != want) bad++;   /* derived   */
+                if (mb_power_factor(0u, (uint8_t)kk) != want) bad++;   /* symmetric */
+                if (want == 0u) bad++;                                 /* never 0   */
+                if (kk <= 6u) { if (want > prev) bad++; prev = want; } /* monotone  */
+            }
+            if (mb_power_factor(0, 6) != 14u) bad++;                   /* floor     */
+        }
+
+        /* ZERO DRIVE IS AN OPEN CIRCUIT, AND THAT IS THE THIRD STATE.
+         * The provider is present, named, contract-compatible -- and delivers
+         * nothing. The requirer must go MB_HELD, verify_graph must NOT call that
+         * a cycle and must NOT call it unprovided, and the graph must still
+         * report ZERO problems. Getting this wrong turns normal fluid behaviour
+         * into a build failure, so it is tested rather than believed. */
+        g_mods[0].provides[0].amplitude = (uint8_t)MB_AMP_NONE;
+        if (mb_real_power(&g_mods[0].provides[0], &g_mods[1].requires[0]) != 0) bad++;
+        if (modbind_resolve() != 1u) bad++;                      /* only pwr_prov */
+        if (g_mods[1].ready != MB_HELD) bad++;
+        if (modbind_verify_graph((mb_err_t *)0, (const char **)0) != 0u) bad++;
+        if (modbind_hold_reason(&g_mods[1]) != MB_HOLD_PHASE) bad++;
+        g_mods[0].provides[0].amplitude = (uint8_t)MB_AMP_FULL;
+
+        /* THE FIVE-LEVEL DRIVE IS FIVE LEVELS, and the deprecated GLUT alias
+         * canonicalises rather than presenting as a sixth. */
+        {
+            mb_cap_t d = cap;
+            d.amplitude = (uint8_t)MB_AMP_HIGH;
+            if (mb_real_power(&d, &g_mods[1].requires[0]) !=  750) bad++;
+            d.amplitude = (uint8_t)MB_AMP_HALF;
+            if (mb_real_power(&d, &g_mods[1].requires[0]) !=  500) bad++;
+            d.amplitude = (uint8_t)MB_AMP_LOW;
+            /* GLUT_MINUS carries negative charge: same magnitude, opposite
+             * polarity. Non-zero either way -- it couples. */
+            if (mb_real_power(&d, &g_mods[1].requires[0]) != -250) bad++;
+            d.amplitude = (uint8_t)TRIT_GLUT;    /* the alias */
+            if (mb_real_power(&d, &g_mods[1].requires[0]) !=  500) bad++;
+        }
+
+        /* A CONTRACT DISAGREEMENT IS AN OPEN CIRCUIT, NOT A LOSSY ONE. */
+        {
+            mb_cap_t v2 = cap; v2.contract = 2;
+            if (mb_real_power(&v2, &g_mods[1].requires[0]) != 0) bad++;
+        }
+
+        /* NO CARRIER, NO CIRCUIT. Absence is the diagnostic: with the line dead
+         * nothing that requires anything can couple, and the requirer falls to
+         * S0 while the provider (which requires nothing) stays up. This is the
+         * proof that raising the carrier at boot is load-bearing. */
+        mb_carrier_down();
+        if (mb_carrier()) bad++;
+        if (mb_real_power(&g_mods[0].provides[0], &g_mods[1].requires[0]) != 0) bad++;
+        if (modbind_resolve() != 1u) bad++;
+        if (g_mods[1].ready != MB_HELD) bad++;
+        mb_carrier_up();
+        if (!mb_carrier()) bad++;
+        if (modbind_resolve() != 2u) bad++;          /* and it comes straight back */
+
+        /* S−: WITHDRAWAL AND RESTORATION, on registered modules through the
+         * fixpoint. Withdrawing the provider must un-ready the requirer; the
+         * provider itself is parked in S− and does not silently re-promote. */
+        if (modbind_withdraw("pwr") != 2u) bad++;    /* provider + its dependant */
+        if (g_mods[0].ready != MB_WITHDRAWN) bad++;
+        if (g_mods[1].ready != MB_HELD) bad++;
+        if (modbind_hold_reason(&g_mods[1]) != MB_HOLD_WITHDRAWN) bad++;
+        if (modbind_restore("pwr") != 2u) bad++;
+        if (g_mods[0].ready != MB_READY) bad++;
+        if (g_mods[1].ready != MB_READY) bad++;
+
+        /* Leave the carrier exactly as it was found: a selfcheck that changes
+         * the machine it measured is not a measurement. */
+        if (carrier_was) mb_carrier_up(); else mb_carrier_down();
+    }
+
     modbind_reset();
     return bad;
 }
+
+/* ===== THE DECLARATION WALK ================================================
+ * The linker collected one pointer per ZXV_DECLARE into .rodata.zxv_decl. That
+ * is the entire integration surface: no list, no table, no registration call
+ * anywhere in the arch main naming a module.
+ *
+ * The markers are WEAK on purpose. A target whose linker script has not yet
+ * placed the section (or a host test that links only this file) resolves both
+ * to 0, walks nothing, and links -- while the records themselves still land
+ * harmlessly inside .rodata via that script's existing `*(.rodata.*)` wildcard.
+ * The failure mode is "walked nothing", which the caller reports, rather than
+ * "did not link" or "placed an orphan over .text".
+ *
+ * ORDER IS NOT LOAD-BEARING HERE. The order the linker happens to emit these
+ * pointers in is an accident of the link line. It cannot affect the outcome,
+ * because readiness is not decided by this loop -- it is decided afterwards by
+ * modbind_resolve's fixpoint, which is order-independent by construction. */
+extern const zxv_decl_t *const __zxv_decl_start[] __attribute__((weak));
+extern const zxv_decl_t *const __zxv_decl_end[]   __attribute__((weak));
+
+uint32_t zxv_decl_count(void) {
+    const zxv_decl_t *const *s = __zxv_decl_start;
+    const zxv_decl_t *const *e = __zxv_decl_end;
+    if (!s || !e || e <= s) return 0;
+    return (uint32_t)(e - s);
+}
+
+uint32_t zxv_decl_register_all(uint32_t *n_refused) {
+    const zxv_decl_t *const *s = __zxv_decl_start;
+    uint32_t n = zxv_decl_count(), ok = 0, bad = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        const zxv_decl_t *d = s[i];
+        /* A null slot would mean the section carried padding rather than
+         * pointers -- a stride error, not a module error. Count it as refused
+         * so it can never be mistaken for a clean walk. */
+        if (!d || !d->mod) { bad++; continue; }
+        if (modbind_register(d->mod)) ok++; else bad++;
+    }
+    if (n_refused) *n_refused = bad;
+    return ok;
+}
+
+/* WHY THE FAILURE NAMES ARE RECORDED AND NOT JUST COUNTED.
+ * `bring-up: up=86 failed=1` is not actionable -- it is the same silence this
+ * whole mechanism exists to remove, one level down. The gate already learned
+ * this lesson once: modbind_verify_graph returns a count, and gate_report_all()
+ * in the arch main exists solely to turn that count into "which module, which
+ * capability". A failed bring-up needs exactly the same treatment, and without
+ * it the only way to find the offender is to bisect by rebuilding.
+ * Bounded, static, no allocation: the first ZXV_DECL_MAX_FAILED names are kept
+ * and any beyond that are counted but unnamed, which the caller reports. */
+static const char *g_failed_names[ZXV_DECL_MAX_FAILED];
+static uint32_t    g_failed_n;
+
+/* The modules whose bring-up RAN and returned MB_BRINGUP_HELD. Same bounded,
+ * static, allocation-free shape as g_failed_names: a held count on its own is not
+ * actionable, and the gate turns these into "which module, and why". */
+static const char *g_held_names[ZXV_DECL_MAX_FAILED];
+static uint32_t    g_held_n;
+
+const char *zxv_decl_failed_name(uint32_t i) {
+    return (i < g_failed_n) ? g_failed_names[i] : (const char *)0;
+}
+
+const char *zxv_decl_held_name(uint32_t i) {
+    return (i < g_held_n) ? g_held_names[i] : (const char *)0;
+}
+
+uint32_t zxv_decl_bringup_ready(uint32_t *n_failed, uint32_t *n_held,
+                                uint32_t *n_declared_only) {
+    const zxv_decl_t *const *s = __zxv_decl_start;
+    uint32_t n = zxv_decl_count(), up = 0, failed = 0, held = 0, declared_only = 0;
+    g_failed_n = 0;
+    g_held_n   = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        const zxv_decl_t *d = s[i];
+        if (!d || !d->mod) continue;
+        /* The registry entry, not the declaration: `ready` lives on the copy. */
+        const mb_module_t *reg = modbind_find(d->mod->name);
+        if (!reg) {
+            failed++;
+            if (g_failed_n < ZXV_DECL_MAX_FAILED)
+                g_failed_names[g_failed_n++] = d->mod->name;
+            continue;
+        }
+        /* S0 is not a failure and not a skip-in-silence. It is HELD, and the
+         * caller prints it by name. Nothing is run for it -- that is the point:
+         * its preconditions have not happened yet. */
+        if (reg->ready != MB_READY) { held++; continue; }
+        /* DECLARING IS NOT BRINGING UP, so it must not be COUNTED as bringing
+         * up. A module with no bring-up function ran nothing; folding it into
+         * `up` made the banner "every ready module brought itself up" true by
+         * construction for every such module -- a report that cannot fail is
+         * the same self-certifying defect this gate exists to remove. It is
+         * counted and reported on its own line instead. */
+        if (!d->bringup) { declared_only++; continue; }
+        /* THREE outcomes, not two. HELD != FAILED: a bring-up that ran, found its
+         * requirements met, and honestly reports the hardware/precondition it
+         * fronts is ABSENT (MB_BRINGUP_HELD) is S0, not a fault. It is counted in
+         * `held` -- the same bucket as the fixpoint's S0 -- named for the gate,
+         * and kept OUT of `up` and OUT of `failed`, so it raises no [FAIL]. Only a
+         * genuine non-zero (a real error) still fails. */
+        {
+            int rc = d->bringup();
+            if (rc == 0) {
+                up++;
+            } else if (rc == MB_BRINGUP_HELD) {
+                held++;
+                if (g_held_n < ZXV_DECL_MAX_FAILED)
+                    g_held_names[g_held_n++] = d->mod->name;
+            } else {
+                failed++;
+                if (g_failed_n < ZXV_DECL_MAX_FAILED)
+                    g_failed_names[g_failed_n++] = d->mod->name;
+            }
+        }
+    }
+    if (n_failed)        *n_failed        = failed;
+    if (n_held)          *n_held          = held;
+    if (n_declared_only) *n_declared_only = declared_only;
+    return up;
+}
+
+/* ---- NEGATIVE-TEST FIXTURES ----------------------------------------------
+ * A gate that has never failed is not known to work. These two fixtures make
+ * the gate fail on demand, from a real declaration going through the real walk
+ * -- not from a hand-built struct that bypasses it.
+ *
+ * Build with CFLAGS_EXTRA=-DZXV_DECL_NEGTEST=1 (unprovided), =2 (cycle) or
+ * =3 (both). OFF in every normal build, and deliberately re-runnable: deleting
+ * the fixture would mean the next person has to write it again from scratch to
+ * find out whether the gate still bites. */
+#if defined(ZXV_DECL_NEGTEST) && ((ZXV_DECL_NEGTEST) & 1)
+/* REQUIRES something no module anywhere PROVIDES -> MB_ERR_UNPROVIDED. */
+ZXV_DECLARE(negtest_unprovided,
+    ZXV_PROVIDES_NONE,
+    ZXV_REQUIRES(negtest_absent_cap),
+    ZXV_NO_BRINGUP);
+#endif
+#if defined(ZXV_DECL_NEGTEST) && ((ZXV_DECL_NEGTEST) & 2)
+/* Each provides what the other requires. Every requirement IS provided, so
+ * check 1 stays silent and only the fixpoint can tell: neither ever leaves
+ * MB_HELD -> MB_ERR_CYCLE. That is exactly the discrimination verify_graph
+ * exists to make, and it is why a missing provider and a cycle are separate
+ * errors -- they need different fixes. */
+ZXV_DECLARE(negtest_cycle_a,
+    ZXV_PROVIDES(negtest_cap_a),
+    ZXV_REQUIRES(negtest_cap_b),
+    ZXV_NO_BRINGUP);
+ZXV_DECLARE(negtest_cycle_b,
+    ZXV_PROVIDES(negtest_cap_b),
+    ZXV_REQUIRES(negtest_cap_a),
+    ZXV_NO_BRINGUP);
+#endif

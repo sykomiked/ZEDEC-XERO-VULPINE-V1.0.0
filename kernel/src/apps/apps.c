@@ -261,6 +261,9 @@ case APP_FILE_MANAGER:fman_init(&al->fman,gw,al->vfs);break;
 case APP_SYSMON:sysmon_init(&al->sysmon,gw,al->sched,al->net,al->router,al->vino,al->vena);break;
 case APP_NET_CONFIG:netcfg_init(&al->netcfg,gw,al->net,al->router);break;
 case APP_WALLET:wallet_init(&al->wallet,gw,al->vino);break;
+case APP_EXCHANGE:derivatives_init(&al->derivatives,gw,al->vino,al->vena);break;
+case APP_BANK:assurance_init(&al->assurance,gw,al->vino,al->vena);break;
+case APP_CUSTOM:treaty_init(&al->treaty,gw,al->vino,al->vena);break;
 default:return -1;}
 al->num_windows++;al->active_app=type;return 0;}
 
@@ -272,6 +275,9 @@ case APP_FILE_MANAGER:al->fman.base.active=false;break;
 case APP_SYSMON:al->sysmon.base.active=false;break;
 case APP_NET_CONFIG:al->netcfg.base.active=false;break;
 case APP_WALLET:al->wallet.base.active=false;break;
+case APP_EXCHANGE:al->derivatives.base.active=false;break;
+case APP_BANK:al->assurance.base.active=false;break;
+case APP_CUSTOM:al->treaty.base.active=false;break;
 default:return -1;}
 if(al->active_app==type)al->active_app=0xFFFFFFFF;return 0;}
 
@@ -283,6 +289,9 @@ case APP_FILE_MANAGER:if(sc)fman_handle_special(&al->fman,sc);break;
 case APP_SYSMON:if(ch)sysmon_handle_key(&al->sysmon,ch);break;
 case APP_NET_CONFIG:if(sc)netcfg_handle_special(&al->netcfg,sc);break;
 case APP_WALLET:if(sc)wallet_handle_special(&al->wallet,sc);break;
+case APP_EXCHANGE:if(ch)derivatives_handle_key(&al->derivatives,ch);if(sc)derivatives_handle_special(&al->derivatives,sc);break;
+case APP_BANK:if(ch)assurance_handle_key(&al->assurance,ch);if(sc)assurance_handle_special(&al->assurance,sc);break;
+case APP_CUSTOM:if(ch)treaty_handle_key(&al->treaty,ch);if(sc)treaty_handle_special(&al->treaty,sc);break;
 default:break;}}
 
 void app_launcher_render(app_launcher_t*al){
@@ -291,9 +300,50 @@ if(al->editor.base.active)editor_render(&al->editor,al->gui);
 if(al->fman.base.active)fman_render(&al->fman,al->gui);
 if(al->sysmon.base.active)sysmon_render(&al->sysmon,al->gui);
 if(al->netcfg.base.active)netcfg_render(&al->netcfg,al->gui);
-if(al->wallet.base.active)wallet_render(&al->wallet,al->gui);}
+if(al->wallet.base.active)wallet_render(&al->wallet,al->gui);
+if(al->derivatives.base.active)derivatives_render(&al->derivatives,al->gui);
+if(al->assurance.base.active)assurance_render(&al->assurance,al->gui);
+if(al->treaty.base.active)treaty_render(&al->treaty,al->gui);}
 
 void app_launcher_tick(app_launcher_t*al){
 if(al->sysmon.base.active)sysmon_tick(&al->sysmon);
 if(al->netcfg.base.active)netcfg_refresh(&al->netcfg);
-if(al->fman.base.active)fman_refresh(&al->fman);}
+if(al->fman.base.active)fman_refresh(&al->fman);
+if(al->derivatives.base.active)derivatives_tick(&al->derivatives);
+if(al->assurance.base.active)assurance_tick(&al->assurance);
+if(al->treaty.base.active)treaty_tick(&al->treaty);}
+
+/* ---- NOT DECLARED, AND WHY -------------------------------------------------
+ * Every other module wired into this build in this pass carries a ZXV_DECLARE.
+ * This one deliberately does not, and the reason is written here rather than
+ * only in a report, because an absent declaration is exactly the silence the
+ * mechanism exists to remove -- so the absence has to be louder than the
+ * declaration would have been.
+ *
+ * THE HONEST DECLARATION FOR THIS FILE IS:
+ *     ZXV_DECLARE(apps, ZXV_PROVIDES(apps_ready),
+ *                       ZXV_REQUIRES(vfs_ready, gui_ready), ...)
+ * measured from apps.o's `nm -u`: vfs_chdir/close/get_cwd/list_dir/open/read/
+ * write -> vfs_ready (provided, by kernel/src/vfs/vfs.c), and gui_create_window
+ * -> a GUI backend that NOTHING IN THIS IMAGE PROVIDES. Every other undefined
+ * symbol in apps.o (vino_*, vena_*, m5_*) resolves; that one does not. It links
+ * today only because --gc-sections discards the referring section before
+ * relocation.
+ *
+ * WHY THE DECLARATION IS NOT WRITTEN ANYWAY. A REQUIRES naming a capability no
+ * module PROVIDES is MB_ERR_UNPROVIDED, and modbind_verify_graph does not fail
+ * that module -- it fails THE GRAPH. The arch main then prints "bring-up
+ * REFUSED: fix the graph, not the symptom" and runs NONE of the 87 bring-ups.
+ * One unbuildable GUI edge would switch off every other module's boot-time
+ * self-check, which is a strictly worse outcome than a declaration that is
+ * missing and says so.
+ *
+ * WHAT WOULD FIX IT, precisely: add a GUI backend to KERNEL_SRCS so something
+ * defines gui_create_window (05_KERNEL/gui/gui.c compiles clean under these
+ * arm64 CFLAGS -- agent A measured that), give it a declaration PROVIDING
+ * gui_ready, and then add the ZXV_DECLARE above to this file. That is a
+ * Makefile change, which this pass does not own.
+ *
+ * Author: H.M. Michael-Laurence: Curzi (c)  (ZXV composition slice)
+ * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ */

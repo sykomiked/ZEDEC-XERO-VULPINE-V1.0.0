@@ -113,3 +113,51 @@ acpi_header_t *acpi_find_table(acpi_state_t *state, const char *signature) {
     }
     return 0;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES acpi_parse_ready, NOT "acpi_ready", and the difference is the whole
+ * point of this comment.
+ *
+ * THE PARSER IS PORTABLE; THE DISCOVERY IS NOT. find_rsdp() above dereferences
+ * 0x40E (the BIOS EBDA pointer) and scans 0xE0000..0xFFFFF. Those are x86
+ * firmware addresses. On QEMU virt/aarch64 RAM starts at 0x40000000 and none
+ * of that range is mapped, so acpi_init() -- the module's own entry point --
+ * would take a data abort during boot. It is therefore NOT called here, and
+ * this module does not claim to have found any table.
+ *
+ * What IS portable, and what the bring-up actually exercises, is the table
+ * machinery: the 8-bit sum check and the signature search over a state the
+ * caller supplies. The bring-up builds one synthetic APIC table in static
+ * memory, makes its checksum come out to zero the way a real one does, and
+ * asks acpi_find_table to locate it -- so a regression in either is caught
+ * without any firmware being present at all.
+ */
+#include "zxv_decl.h"
+static int zxvd_acpi_bringup(void) {
+    static uint8_t tbl[64];
+    static acpi_state_t st;
+    acpi_header_t *h = (acpi_header_t *)tbl;
+    uint32_t i;
+    uint8_t sum = 0;
+
+    for (i = 0; i < sizeof tbl; i++) tbl[i] = 0;
+    h->signature[0] = 'A'; h->signature[1] = 'P';
+    h->signature[2] = 'I'; h->signature[3] = 'C';
+    h->length = sizeof tbl;
+    /* make the table self-consistent: a real ACPI table sums to zero */
+    for (i = 0; i < sizeof tbl; i++) sum = (uint8_t)(sum + tbl[i]);
+    h->checksum = (uint8_t)(0u - sum);
+    if (acpi_checksum(tbl, sizeof tbl) != 0) return -1;
+
+    st.num_tables = 1;
+    st.tables[0] = h;
+    if (acpi_find_table(&st, "APIC") != h)  return -1;
+    if (acpi_find_table(&st, "FACP") != 0)  return -1;
+    return 0;
+}
+
+ZXV_DECLARE(acpi,
+    ZXV_PROVIDES(acpi_parse_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_acpi_bringup));

@@ -5,6 +5,24 @@
 #include "mouse.h"
 #include "../pic/pic.h"
 
+/* ---- MODBIND DECLARATION — L4 devices -------------------------------------
+ * Comment, not code, pending the ZXV_PROVIDES mechanism -- see the fuller note
+ * in kernel/src/pic/pic.c and PROVENANCE/X86_REHOME.md.
+ *
+ *   ZXV_PROVIDES(mouse_packet_ready)
+ *   ZXV_REQUIRES(irq_ctrl_ready)
+ *   ZXV_BRINGUP(mouse_init)
+ *
+ * mouse_init drives the 8042 aux port directly (0xA8 enable, 0x20/0x60 status
+ * read-modify-write, 0xD4/0xF4 enable-reporting) and ends in
+ * pic_unmask(IRQ_MOUSE) -- again the only undefined symbol. It does not go
+ * through the keyboard module even though both sit on ports 0x60/0x64, so it
+ * does NOT require kbd_scancode_ready; the two are siblings, not a chain.
+ *
+ * NOT declared: a requirement on idt, for the same reason as keyboard.c --
+ * mouse_handler is exported, never self-registered.
+ */
+
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
 }

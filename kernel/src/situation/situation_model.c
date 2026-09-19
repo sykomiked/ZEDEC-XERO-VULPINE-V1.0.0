@@ -345,3 +345,41 @@ void situation_assess_all(comprehensive_assessment_t *out,
     
     out->systemic_contagion = situation_cross_domain_contagion(out->domains, assessed);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * ROOTING THE CALLER, NOT THE LEAF. situation_model.o was measured at
+ * linked=0, dropped=16, with 35 edp_* call sites. Rooting edp_risk directly
+ * would put the risk engine in the image with nothing consulting it;
+ * situation_model is what consults it, so the root belongs here and edp_risk,
+ * predictive and surplus come in behind it.
+ *
+ * REQUIRES measured from situation_model.o's `nm -u`: edp_compute_risk /
+ * edp_coverage_product / edp_coverage_satisfied / edp_nc_rating ->
+ * edp_risk_ready, predictive_count / predictive_nonlinear_risk ->
+ * predictive_ready, surplus_f -> surplus_ready.
+ *
+ * WHY THE BRING-UP IS SHAPED THIS WAY. Every numeric field here is
+ * surplus_real_t, which is `double` on the host and Q32.32 on the target --
+ * the standing rule is never to hand-roll a conversion between them. A zeroed
+ * static input is the one value that is identically zero in BOTH
+ * representations, so it needs no conversion and cannot be wrong. The check is
+ * that a zero-exposure situation is not rated a threat: a risk model that
+ * returns CRITICAL for an empty input is broken in the direction that gets
+ * acted on.
+ */
+#include "zxv_decl.h"
+static int zxvd_situation_bringup(void) {
+    static const situation_input_t in;      /* zero in both surplus_real_t forms */
+    static const predictive_config_t cfg;
+    situation_result_t r = situation_cyber(&in, &cfg);
+    if (r.threat_level > THREAT_EXISTENTIAL) return -1;  /* a real level  */
+    if (situation_threat_name(r.threat_level) == 0) return -1;
+    if (situation_domain_name(SIT_DOMAIN_CYBER) == 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(situation,
+    ZXV_PROVIDES(situation_model_ready),
+    ZXV_REQUIRES(edp_risk_ready, predictive_ready, surplus_ready),
+    ZXV_BRINGUP(zxvd_situation_bringup));

@@ -28,8 +28,27 @@ static const int rho[5][5] = {
     {18,  2, 61, 56, 14}
 };
 
+/* THE n == 0 BRANCH IS NOT AN OPTIMISATION -- IT IS THE WHOLE CORRECTNESS OF SHA-3.
+ *
+ * rho[0][0] is 0, so lane (0,0) calls this with n == 0 on EVERY round of EVERY
+ * permutation. Without the guard that evaluates `x >> (64 - 0)` == `x >> 64`, and
+ * a shift >= the width of the type is UNDEFINED BEHAVIOUR in C, not a no-op. At
+ * -O0 it frequently happens to yield x (aarch64/x86 mask the shift amount to 6
+ * bits), which is why this survived; at -O2 the compiler is entitled to fold the
+ * whole expression to anything, and it did.
+ *
+ * MEASURED 2026-08-12, before this guard, built -O2:
+ *   sha3_256("abc") = 2f0e85d6...  (correct: 3a985da7...)
+ *   sha3_512("")    = cffb17ac...  (correct: a69f73cc...)
+ * i.e. EVERY SHA-3 and SHAKE output in the system was wrong, which made every
+ * ML-KEM key, ciphertext and shared secret wrong -- self-consistently, so
+ * encaps/decaps still agreed with each other and the self-consistency test
+ * passed. It failed against the NIST ACVP vectors on all 30 comparisons.
+ * With the guard, all six primitives match FIPS 202 byte-for-byte.
+ *
+ * Do not "simplify" this back. The UB is invisible at -O0 and silent at -O2. */
 static uint64_t rotl64(uint64_t x, int n) {
-    return (uint64_t)((x << n) | (x >> (64 - n)));
+    return n ? (uint64_t)((x << n) | (x >> (64 - n))) : x;
 }
 
 /* state[x + 5*y] holds lane (x,y), the standard flattening convention. */
@@ -194,3 +213,14 @@ void shake128_squeeze(shake128_ctx_t *ctx, uint8_t *out, size_t out_len) {
         }
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Keccak/SHA-3. genomic_codon.o's only undefined symbol is shake256, defined
+ * here. keccak.o's own `nm -u` is empty: permutation arithmetic, no callees.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(keccak,
+    ZXV_PROVIDES(shake256_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

@@ -564,3 +564,30 @@ int zxvfs_free_sectors(zxvfs_t *fs) {
     if (bitmap_load(fs) != 0) return -1;
     return (int)bitmap_free_count();
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * zxvfs_mount takes a block_device_t, so what it actually requires is a block
+ * device and translation -- NOT oseq_ready, which the illustration in
+ * PROVENANCE/EVENT_SPACE_BRINGUP.md:33-35 uses. The declaration follows the
+ * code (this file includes zxvfs.h and nothing else), because a declaration
+ * copied from an example is a claim nobody checked.
+ *
+ * The bring-up verifies the ON-DISK LAYOUT rather than a mount. The mounted
+ * instance is owned by whoever called zxvfs_mount, but these sizes are this
+ * module's contract with every image ever written: if a field is added and an
+ * inode stops being exactly ZXVFS_INODE_SIZE, every existing filesystem is
+ * silently misparsed. That is a compile-time-shaped fault caught at boot. */
+#include "zxv_decl.h"
+
+static int zxvfs_bringup(void) {
+    if (sizeof(zxvfs_inode_t) != ZXVFS_INODE_SIZE) return -1;
+    if (sizeof(zxvfs_superblock_t) != BLOCKDEV_SECTOR_SIZE) return -1;
+    if (sizeof(zxvfs_journal_hdr_t) != BLOCKDEV_SECTOR_SIZE) return -1;
+    if (ZXVFS_INODES_PER_SECTOR == 0u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(zxvfs,
+    ZXV_PROVIDES(zxvfs_ready),
+    ZXV_REQUIRES(blockdev_ready, mm_ready),
+    ZXV_BRINGUP(zxvfs_bringup));

@@ -314,3 +314,16 @@ void tribute_split(uint64_t amount, const uint8_t weights[5], uint64_t out[5]) {
         leftover--;
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Mister Shanghai's listings, behind pirate_apps' Counter (app_counter_open).
+ * Requirements measured from broker.o's `nm -u`: {ct_equal, hkdf_expand,
+ * hkdf_extract, hmac_sha256} -> hkdf_ready, and {ipfs_get_verify} ->
+ * ipfs_ready.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(broker,
+    ZXV_PROVIDES(broker_ready),
+    ZXV_REQUIRES(ipfs_ready, hkdf_ready),
+    ZXV_NO_BRINGUP);

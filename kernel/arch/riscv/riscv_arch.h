@@ -1,7 +1,10 @@
 /* riscv_arch.h — RISC-V Architecture Abstraction
  *
  * Provides RISC-V-specific definitions for VOVINA SHAKINA.
- * Target: qemu-system-riscv64 -M virt
+ * SHARED BY BOTH RISC-V BUILDS: rv64 (lp64d, boot.s) and rv32 (ilp32d,
+ * boot_rv32.s). Everything here must therefore be XLEN-agnostic — see the
+ * counter helpers below for why that is not a formality.
+ * Target: qemu-system-riscv64 | qemu-system-riscv32 -M virt
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
@@ -46,36 +49,75 @@
 #define IRQ_UART            10  /* UART0 interrupt */
 #define IRQ_TIMER           7   /* Machine timer */
 
+/* ===== Firmware handoff (published by boot.s / boot_rv32.s) ===== */
+
+/* What the SBI firmware told us about THIS machine, captured at _start before
+ * anything can overwrite a0/a1. riscv_dtb_addr is the device-tree blob: the
+ * authoritative, per-machine answer to "where is the UART / PLIC / virtio", as
+ * opposed to a compiled-in constant. Stored XLEN-wide so one `sw`/`sd` fits. */
+extern unsigned long riscv_boot_hart;
+extern unsigned long riscv_dtb_addr;
+
 /* ===== Inline I/O (MMIO) ===== */
 
-static inline void mmio_write(uint64_t addr, uint32_t val) {
+/* Addresses are uintptr_t, NOT uint64_t: on ilp32 a uint64_t address is silently
+ * truncated by the cast to a pointer (31 -Wint-to-pointer-cast warnings before
+ * this change). uintptr_t is 4 bytes on rv32 and 8 on rv64, so the ABI decides
+ * the width instead of the header asserting it. */
+static inline void mmio_write(uintptr_t addr, uint32_t val) {
     volatile uint32_t *ptr = (volatile uint32_t *)addr;
     *ptr = val;
 }
 
-static inline uint32_t mmio_read(uint64_t addr) {
+static inline uint32_t mmio_read(uintptr_t addr) {
     volatile uint32_t *ptr = (volatile uint32_t *)addr;
     return *ptr;
 }
 
-static inline void mmio_write8(uint64_t addr, uint8_t val) {
+static inline void mmio_write8(uintptr_t addr, uint8_t val) {
     volatile uint8_t *ptr = (volatile uint8_t *)addr;
     *ptr = val;
 }
 
-static inline uint8_t mmio_read8(uint64_t addr) {
+static inline uint8_t mmio_read8(uintptr_t addr) {
     volatile uint8_t *ptr = (volatile uint8_t *)addr;
     return *ptr;
 }
 
-static inline void mmio_write64(uint64_t addr, uint64_t val) {
+/* 64-bit MMIO. On rv64 this is one ld/sd — a single bus transaction. rv32 has
+ * no ld/sd, so it CANNOT be atomic there; the compiler would split it silently
+ * and pick its own order. Make the split explicit and document the order
+ * (low word first on write, high word first on read) so a caller can reason
+ * about a register that latches on one half. If a device needs a genuinely
+ * atomic 64-bit access, it cannot use this on rv32 — it needs its own protocol.
+ * QEMU virt's CLINT mtimecmp is exactly this kind of register, which is why the
+ * timer goes through SBI set_timer instead (see riscv_timer.c). */
+static inline void mmio_write64(uintptr_t addr, uint64_t val) {
+#if __riscv_xlen == 32
+    volatile uint32_t *ptr = (volatile uint32_t *)addr;
+    ptr[0] = (uint32_t)(val & 0xFFFFFFFFu);   /* low word first */
+    ptr[1] = (uint32_t)(val >> 32);
+#else
     volatile uint64_t *ptr = (volatile uint64_t *)addr;
     *ptr = val;
+#endif
 }
 
-static inline uint64_t mmio_read64(uint64_t addr) {
+static inline uint64_t mmio_read64(uintptr_t addr) {
+#if __riscv_xlen == 32
+    volatile uint32_t *ptr = (volatile uint32_t *)addr;
+    uint32_t hi, lo, hi2;
+    /* Re-read the high word if it moved between the two halves. */
+    do {
+        hi  = ptr[1];
+        lo  = ptr[0];
+        hi2 = ptr[1];
+    } while (hi != hi2);
+    return ((uint64_t)hi << 32) | lo;
+#else
     volatile uint64_t *ptr = (volatile uint64_t *)addr;
     return *ptr;
+#endif
 }
 
 /* ===== CPU control ===== */
@@ -93,45 +135,94 @@ static inline void halt(void) {
     __asm__ __volatile__("wfi");
 }
 
-static inline uint64_t get_time(void) {
-    uint64_t val;
-    __asm__ __volatile__("rdtime %0" : "=r"(val));
-    return val;
-}
+/* ===== 64-bit performance counters =====
+ *
+ * These MUST be XLEN-aware. Writing
+ *     uint64_t v; asm("rdtime %0" : "=r"(v));
+ * looks portable and is a live bug on rv32: GCC allocates a REGISTER PAIR for
+ * the 64-bit operand, `%0` names only the low half, and the high half keeps
+ * whatever junk was in the paired register on entry. Measured in the shipped
+ * rv32 image before this fix, riscv_timer_delay_us inlined get_time() twice and
+ * got two DIFFERENT uninitialised high registers (a7 and a1), so
+ * `while (get_time() < target)` either fell straight through or hung forever,
+ * decided by garbage. rv32 has to stitch the halves with the *h counters and
+ * re-read on carry; rv64 reads the whole thing in one register.
+ *
+ * No libgcc: the stitch is a constant shift and an or, which both ABIs lower to
+ * native instructions. Nothing here can emit a libcall. */
+#if __riscv_xlen == 32
+#define RISCV_RD64(lo_insn, hi_insn)                                     \
+    uint32_t lo, hi, hi2;                                                \
+    do {                                                                 \
+        __asm__ __volatile__(hi_insn " %0" : "=r"(hi));                  \
+        __asm__ __volatile__(lo_insn " %0" : "=r"(lo));                  \
+        __asm__ __volatile__(hi_insn " %0" : "=r"(hi2));                 \
+    } while (hi != hi2);                                                 \
+    return ((uint64_t)hi << 32) | lo;
+#else
+#define RISCV_RD64(lo_insn, hi_insn)                                     \
+    unsigned long v;                                                     \
+    __asm__ __volatile__(lo_insn " %0" : "=r"(v));                       \
+    return (uint64_t)v;
+#endif
 
-static inline uint64_t get_cycle(void) {
-    uint64_t val;
-    __asm__ __volatile__("rdcycle %0" : "=r"(val));
-    return val;
-}
+static inline uint64_t get_time(void)    { RISCV_RD64("rdtime",    "rdtimeh")    }
+static inline uint64_t get_cycle(void)   { RISCV_RD64("rdcycle",   "rdcycleh")   }
+static inline uint64_t get_instret(void) { RISCV_RD64("rdinstret", "rdinstreth") }
 
-static inline uint64_t get_instret(void) {
-    uint64_t val;
-    __asm__ __volatile__("rdinstret %0" : "=r"(val));
-    return val;
-}
+/* ===== CSR operations =====
+ *
+ * All CSRs are XLEN-wide, so these take/return `unsigned long`, never uint64_t
+ * — a uint64_t here is the same register-pair bug documented above.
+ *
+ * MACHINE-MODE ONLY, AND WE DO NOT RUN IN M-MODE. OpenSBI hands us the kernel
+ * in SUPERVISOR mode, where mhartid/mtvec/mepc/mcause raise Illegal Instruction.
+ * They are kept (staged building blocks for a future M-mode/bare-SBI port, and
+ * the file is shared with any board that boots without an SBI), but nothing may
+ * call them on the OpenSBI path — the hart id now arrives in riscv_boot_hart and
+ * the trap vector is stvec. The S-mode reads below are the ones that are legal
+ * here, and the trap reporter uses them. */
 
-/* ===== CSR operations ===== */
-
-static inline uint64_t csr_read(const char *csr) {
-    uint64_t val;
-    /* Simplified — actual CSR access requires inline asm per register */
-    (void)csr;
+static inline unsigned long csr_read_mhartid_M(void) {
+    unsigned long val;
     __asm__ __volatile__("csrr %0, mhartid" : "=r"(val));
     return val;
 }
 
-static inline void csr_write_mtvec(uint64_t val) {
+static inline void csr_write_mtvec_M(unsigned long val) {
     __asm__ __volatile__("csrw mtvec, %0" :: "r"(val));
 }
 
-static inline void csr_write_mepc(uint64_t val) {
+static inline void csr_write_mepc_M(unsigned long val) {
     __asm__ __volatile__("csrw mepc, %0" :: "r"(val));
 }
 
-static inline uint64_t csr_read_mcause(void) {
-    uint64_t val;
+static inline unsigned long csr_read_mcause_M(void) {
+    unsigned long val;
     __asm__ __volatile__("csrr %0, mcause" : "=r"(val));
+    return val;
+}
+
+/* S-mode reads — legal under OpenSBI on both rv32 and rv64. */
+static inline unsigned long csr_read_sepc(void) {
+    unsigned long val;
+    __asm__ __volatile__("csrr %0, sepc" : "=r"(val));
+    return val;
+}
+
+static inline void csr_write_sepc(unsigned long val) {
+    __asm__ __volatile__("csrw sepc, %0" :: "r"(val));
+}
+
+static inline unsigned long csr_read_stval(void) {
+    unsigned long val;
+    __asm__ __volatile__("csrr %0, stval" : "=r"(val));
+    return val;
+}
+
+static inline unsigned long csr_read_sstatus(void) {
+    unsigned long val;
+    __asm__ __volatile__("csrr %0, sstatus" : "=r"(val));
     return val;
 }
 
@@ -148,6 +239,13 @@ static inline void invalidate_icache_all(void) {
 /* ===== Architecture detection ===== */
 
 #define ARCH_RISCV 1
+/* Ask the toolchain what width it actually built, do not assert one. */
+#if __riscv_xlen == 32
+#define ARCH_NAME "RISC-V 32-bit"
+#define ARCH_XLEN 32
+#else
 #define ARCH_NAME "RISC-V 64-bit"
+#define ARCH_XLEN 64
+#endif
 
 #endif /* RISCV_ARCH_H */

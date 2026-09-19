@@ -13,9 +13,20 @@ CC      := $(if $(shell which $(CROSS_PREFIX)gcc 2>/dev/null),$(CROSS_PREFIX)gcc
 LD      := $(if $(shell which $(CROSS_PREFIX)ld 2>/dev/null),$(CROSS_PREFIX)ld,ld)
 OBJCOPY := $(if $(shell which $(CROSS_PREFIX)objcopy 2>/dev/null),$(CROSS_PREFIX)objcopy,objcopy)
 
+# PARALLEL BY DEFAULT, ASKED OF THE HARDWARE, NOT HARDCODED. This file has had
+# out-of-tree objects since it was written, so it was already the one arch that
+# COULD have built alongside another -- but with no -j anywhere on the main
+# path, it still used one core of twelve. Measured against GNU Make 4.3 on the
+# build box: `MAKEFLAGS += -j` takes effect from inside a makefile, `JOBS=1`
+# serialises, a command-line `-jN` overrides.
+NPROC := $(shell nproc 2>/dev/null || echo 4)
+JOBS  ?= $(NPROC)
+MAKEFLAGS += -j$(JOBS)
+
 CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -fno-stack-protector -fno-pie -no-pie -fno-builtin \
            -ffunction-sections -fdata-sections -fcf-protection=none \
+           -MMD -MP \
            -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen \
            -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy \
            -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp \
@@ -32,7 +43,8 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -Ikernel/src/chronicle -Ikernel/src/community_chest -Ikernel/src/concord \
            -Ikernel/src/constellation -Ikernel/src/count_house -Ikernel/src/crit168 \
            -Ikernel/src/crown -Ikernel/src/crypto_wallet -Ikernel/src/decent \
-           -Ikernel/src/denconnect -Ikernel/src/deploy -Ikernel/src/desktop \
+           -Ikernel/src/denconnect -Ikernel/src/deploy -Ikernel/src/dharma \
+           -Ikernel/src/display -Ikernel/src/desktop \
            -Ikernel/src/dual_space -Ikernel/src/dualtrack -Ikernel/src/edp_risk \
            -Ikernel/src/event_sched -Ikernel/src/event_space -Ikernel/src/event_transport \
            -Ikernel/src/finance -Ikernel/src/finance_markets -Ikernel/src/font \
@@ -52,17 +64,58 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -Ikernel/src/prism_break -Ikernel/src/pterm -Ikernel/src/pungent \
            -Ikernel/src/quantum -Ikernel/src/rational -Ikernel/src/reality \
            -Ikernel/src/recon -Ikernel/src/refinery -Ikernel/src/reputation \
-           -Ikernel/src/rmag -Ikernel/src/robin_debanks -Ikernel/src/shimmer \
+           -Ikernel/src/rmag -Ikernel/src/robin_debanks -Ikernel/src/sephirot \
+           -Ikernel/src/shimmer \
            -Ikernel/src/situation -Ikernel/src/smap -Ikernel/src/social_spaces \
            -Ikernel/src/sovereign_node -Ikernel/src/subterm -Ikernel/src/superpos \
            -Ikernel/src/surplus -Ikernel/src/synthesis -Ikernel/src/telemetry \
            -Ikernel/src/theme -Ikernel/src/tls -Ikernel/src/trispace \
-           -Ikernel/src/update -Ikernel/src/vbe -Ikernel/src/vena \
+           -Ikernel/src/update -Ikernel/src/vbe -Ikernel/src/zab -Ikernel/src/syscall -Ikernel/src/invproof -Ikernel/src/codec -Ikernel/src/megarom -Ikernel/src/bombsquad -Ikernel/src/video -Ikernel/src/tolvovina -Ikernel/src/vena \
            -Ikernel/src/vino -Ikernel/src/vino_stores -Ikernel/src/virtio \
            -Ikernel/src/voice -Ikernel/src/wyrmgate -Ikernel/src/wyverneye \
            -Ikernel/src/xedit -Ikernel/src/yantra -Ikernel/src/zcapital \
            -Ikernel/src/zxvfs
-LDFLAGS := -T kernel/arch/x86_64/linker64.ld -nostdlib -static
+# --gc-sections, ADDED 2026-08-10, and it is a MEASUREMENT fix before it is a
+# size fix. CFLAGS above has carried -ffunction-sections -fdata-sections since
+# this file was written, but the link never passed --gc-sections, so nothing was
+# ever discarded. The consequence was not a bigger binary -- it was a LIE in the
+# only number anyone reads: `nm kernel_x86_64.elf | awk '$$2 ~ /^[TtWi]$$/'`
+# counted 2888 text symbols against arm64's 1190, and that was quoted as x86_64
+# having more working code. It had the same code plus everything unreachable.
+# A symbol count only means "reachable" if the linker was asked to drop what is
+# not, so every cross-arch comparison made before this line was meaningless.
+#
+# MEASURED on the build box 2026-08-10, same tree, same objects, only the link
+# changed:  BEFORE 2888 text symbols -> AFTER 298.  2579 symbols across 141 of
+# kernel/src's directories were unreachable (emu 249, net 123,
+# audiogenomics_pro 114, robin_debanks 67, ... mlkem 30, oseq 20, modbind 20).
+# The two boot logs are BYTE-IDENTICAL apart from the qemu pid in the timeout
+# line, and both reach [BOOT_OK] -- which is the proof the collection was safe:
+# nothing that was executing stopped executing. So the honest reading of x86_64
+# is ~10% reachable, WORSE than arm64's ~29%, not better. Those dropped modules
+# are staged building blocks, not dead code; they come back the moment something
+# calls them, and that is the whole point of being able to see the difference.
+#
+# The comment further down (the banner gate) and verify_banners.sh's failure
+# text both already asserted --gc-sections was in force here. Rather than soften
+# two true-in-spirit warnings into "x86_64 is the arch where being in SRCS IS
+# enough", the flag was added so the assertions became true.
+#
+# WHY THE ENTRY GRAPH SURVIVES IT: ENTRY(_start) in linker64.ld roots the NASM
+# section .text.boot, which is one section (nasm gets no -ffunction-sections)
+# and physically contains the multiboot1 header, the identity page tables,
+# gdt64 and _entry32/_entry64 -- so the header cannot be collected away from
+# under the loader. linker64.ld already wraps .rodata.zxv_decl in KEEP(), which
+# its own comment says was written for exactly this day.
+#
+# NO GC_ROOTS LIST HERE, deliberately. Makefile.arm64 keeps a $(GC_ROOTS) hook
+# and holds it EMPTY, on the rule that retention must never be able to
+# impersonate use: -u on a staged module makes `nm` say "present" whether or not
+# any call chain reaches it, which is the one thing verify_banners.sh exists to
+# detect. Staged modules are expected to disappear from this ELF until something
+# calls them. That is the correct reading, not a regression.
+LDFLAGS := -T kernel/arch/x86_64/linker64.ld -nostdlib -static \
+           -Wl,--gc-sections -Wl,--build-id=none
 LIBGCC  := $(shell $(CC) -print-libgcc-file-name)
 
 SRCS := \
@@ -76,6 +129,7 @@ SRCS := \
     kernel/src/appkit/doc.c \
     kernel/src/art_studio/art_studio.c \
     kernel/src/ascent/ascent.c \
+    kernel/src/ata/ata.c \
     kernel/src/audiogenomics_pro/architectural_directives.c \
     kernel/src/audiogenomics_pro/audiogenomics_pro.c \
     kernel/src/audiogenomics_pro/digital_dna.c \
@@ -84,10 +138,12 @@ SRCS := \
     kernel/src/e8/e8.c \
     kernel/src/mixmat/mixmat.c \
     kernel/src/modbind/modbind.c \
+    kernel/src/modbind/zxv_decl_gate.c \
     kernel/src/mbcomp/mbcomp.c \
     kernel/src/battering_ram/battering_ram.c \
     kernel/src/bios/zbios.c \
     kernel/src/blockdev/blockdev.c \
+    kernel/src/blockdev/ramdisk.c \
     kernel/src/bootfeat/boot_features.c \
     kernel/src/bridge/bridge.c \
     kernel/src/broker/broker.c \
@@ -129,6 +185,7 @@ SRCS := \
     kernel/src/emu/emu6502.c \
     kernel/src/emu/emu_relate.c \
     kernel/src/emu/game_runner.c \
+    kernel/src/emu/zxv_cover.c \
     kernel/src/emu/game_universe.c \
     kernel/src/emu/gb.c \
     kernel/src/emu/gba.c \
@@ -185,6 +242,7 @@ SRCS := \
     kernel/src/ipfs/ipfs.c \
     kernel/src/iphase/iphase_core.c \
     kernel/src/iso20022/iso20022.c \
+    kernel/src/keyboard/keyboard.c \
     kernel/src/lattice/lattice.c \
     kernel/src/license/license.c \
     kernel/src/lightningrod/lightningrod.c \
@@ -204,6 +262,7 @@ SRCS := \
     kernel/src/mlkem/mlkem_ntt.c \
     kernel/src/mlkem/mlkem_sample.c \
     kernel/src/mm/mm.c \
+    kernel/src/mouse/mouse.c \
     kernel/src/net/dhcp.c \
     kernel/src/net/dns.c \
     kernel/src/net/jdr_piratenet.c \
@@ -216,7 +275,9 @@ SRCS := \
     kernel/src/orbital_elevator/orbital_elevator.c \
     kernel/src/oseq/oseq_core.c \
     kernel/src/oseq/oseq.c \
+    kernel/src/pci/pci.c \
     kernel/src/phase_coord/phase_coordinator.c \
+    kernel/src/pic/pic.c \
     kernel/src/pirate_apps/pirate_apps.c \
     kernel/src/pirate_fleet/pirate_fleet.c \
     kernel/src/plnp/plnp.c \
@@ -233,6 +294,7 @@ SRCS := \
     kernel/src/recon/recon.c \
     kernel/src/refinery/enochian.c \
     kernel/src/refinery/refinery.c \
+    kernel/src/dharma/upaah.c \
     kernel/src/reputation/reputation.c \
     kernel/src/rmag/rmag.c \
     kernel/src/rmag/rmag_core.c \
@@ -252,10 +314,28 @@ SRCS := \
     kernel/src/synthesis/synthesis_engine.c \
     kernel/src/telemetry/telemetry_core.c \
     kernel/src/theme/theme.c \
+    kernel/src/timer/timer.c \
     kernel/src/trispace/trispace.c \
     kernel/src/update/update.c \
     kernel/src/vbe/vbe.c \
     kernel/src/vena/vena.c \
+    kernel/src/tolvovina/tvl_geom.c \
+    kernel/src/tolvovina/tvl_raster.c \
+    kernel/src/tolvovina/tvl_stereo.c \
+    kernel/src/tolvovina/tvl_rom.c \
+    kernel/src/tolvovina/tvl_bringup.c \
+    kernel/src/zab/zab.c \
+    kernel/src/zab/zab_exec.c \
+    kernel/src/syscall/syscall.c \
+    kernel/src/invproof/invproof.c \
+    kernel/src/zxvfs/zxvfs_tri.c \
+    kernel/src/codec/zmedia.c \
+    kernel/src/megarom/mrschema.c \
+    kernel/src/display/display.c \
+    kernel/src/bombsquad/bombsquad.c \
+    kernel/src/virtio/virtio_bus.c \
+    kernel/src/virtio/vring.c \
+    kernel/src/video/ramfb.c \
     kernel/src/vfs/vfs.c \
     kernel/src/vino/vino.c \
     kernel/src/vino_stores/vino_stores.c \
@@ -279,6 +359,22 @@ OBJS   := $(OBJDIR)/kernel/arch/x86_64/boot.o \
           $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o \
           $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
+# Directories created ONCE at parse time, before any recipe runs, so no two -j
+# jobs can race for the same parent. The `@mkdir -p $(dir $@)` calls in the
+# rules below are kept as a backstop; with the tree already present they never
+# do work, and they were the one -j hazard in this file.
+OBJDIRS := $(sort $(dir $(OBJS)))
+$(shell mkdir -p $(OBJDIRS))
+
+# Header dependencies (-MMD -MP in CFLAGS). Out-of-tree objects PERSIST between
+# builds -- that is the point of them -- which makes a stale .o carrying an old
+# struct layout possible. Makefile.arm64 records what that costs: a shell struct
+# grew two fields, kernel_main.o kept the old size, and writes landed in
+# adjacent memory. This file had OBJDIR without header deps, so it carried that
+# exposure alone until 2026-08-11.
+DEPS := $(OBJS:.o=.d)
+-include $(DEPS)
+
 all: kernel_x86_64.bin
 
 $(OBJDIR)/kernel/arch/x86_64/boot.o: kernel/arch/x86_64/boot.asm
@@ -294,9 +390,13 @@ $(OBJDIR)/%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Banner gate: a boot banner is a claim about `nm`, not about the Makefile.
-# This build discards unreferenced sections (--gc-sections), so a module can be
-# in KERNEL_SRCS, compile, link, pass its tests and still be ABSENT from the
-# binary. Runs inside the link rule so no unchecked ELF can exist.
+# This build discards unreferenced sections -- CFLAGS passes
+# -ffunction-sections -fdata-sections and LDFLAGS above passes
+# -Wl,--gc-sections -- so a module can be in SRCS (this Makefile's list; the
+# arm64 one calls its KERNEL_SRCS), compile, link, pass its tests and still be
+# ABSENT from the binary. That sentence was here before the flag was, and was
+# false for x86_64 until 2026-08-10; see the LDFLAGS comment for what the stale
+# claim cost. Runs inside the link rule so no unchecked ELF can exist.
 # VERIFY_BANNERS=0 bypasses -- for inspecting a broken link, never for shipping.
 VERIFY_BANNERS ?= 1
 
@@ -307,7 +407,7 @@ kernel_x86_64.elf: $(OBJS)
 			echo ""; \
 			echo "*** BUILD FAILED: a boot banner announces a subsystem that is"; \
 			echo "*** not in $@. Either remove the banner or give the module a"; \
-			echo "*** real caller -- being in KERNEL_SRCS is not enough under"; \
+			echo "*** real caller -- being in SRCS is not enough under"; \
 			echo "*** --gc-sections. See build_system/verify_banners.sh."; \
 			rm -f $@; \
 			exit 1; \
@@ -358,3 +458,27 @@ $(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/x86_
 efi: $(EFI_APP_X64)
 
 .PHONY: all clean boot
+
+# ---- THE DERIVED PHASE TABLE ------------------------------------------------
+# Generated, never committed. build_system/gen_phase_table.sh computes one
+# #define per declared module -- its l13 phase, taken from its DRC layer, and
+# where verify_layers.sh's layer_of() is silent, from the floor its own local
+# includes impose. kernel/include/zxv_decl.h includes the result and ZXV_DECLARE
+# pastes ZXV_PHASE_OF_<module> into the module record, so no phase is ever typed
+# and a new module gets one the moment it is declared.
+#
+# GENERATED AT PARSE TIME, ON PURPOSE, NOT AS A RULE. Every object in this build
+# includes this header, so as a rule it would have to be a prerequisite of ~300
+# targets; miss one and a -j build races a compile against the generator and
+# fails intermittently -- the single worst failure mode to debug. A parse-time
+# $(shell ...) has run to completion before make has decided what to build at
+# all, so no ordering exists to get wrong. It costs ~0.3s and it re-derives on
+# every invocation, which is what keeps the table from going stale.
+#
+# The census goes to $(OBJDIR)/gen/phase_census.txt: a build that silently
+# generated the wrong number of phases would be exactly the invisible drift this
+# whole mechanism exists to remove.
+ZXV_GENDIR    := $(OBJDIR)/gen
+ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
+$(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
+CFLAGS += -I$(ZXV_GENDIR)

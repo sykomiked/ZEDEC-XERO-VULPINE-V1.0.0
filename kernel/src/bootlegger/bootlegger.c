@@ -842,3 +842,25 @@ int bootlegger_garlic_unwrap(bootlegger_conn_t *conn, uint8_t *data, uint16_t *l
     fs_memcpy(data, tmp, orig);
     return 0;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The native P2P transport. PROVIDES p2p_transport_ready.
+ *
+ * REQUIRES_NONE is measured, and it contradicts this file's own header, which
+ * says it "integrates with plnp, smap, pungent, lpres, identity, phase_coord".
+ * bootlegger.o's `nm -u` is EMPTY: not one of those six symbols is referenced.
+ * The prose describes an intent; the object file describes the build. The
+ * declaration follows the object file, and when those edges become real calls
+ * this REQUIRES clause is where they belong.
+ */
+#include "zxv_decl.h"
+static int zxvd_bootlegger_bringup(void) {
+    static bootlegger_node_t node;
+    return (bootlegger_init(&node, 4747u) == 0) ? 0 : -1;
+}
+
+ZXV_DECLARE(bootlegger,
+    ZXV_PROVIDES(p2p_transport_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_bootlegger_bringup));

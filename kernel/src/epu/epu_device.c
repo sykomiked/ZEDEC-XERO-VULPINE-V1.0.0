@@ -1271,3 +1271,27 @@ void epu_handle_irq(epu_device_t *dev) {
     /* Edge flag: the report has been taken, so acknowledge it. */
     dev->irq_emotion_ready = false;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES epu_model_ready, and the name is load-bearing. This header says of
+ * itself, in capitals: THIS IS A MODEL. IT IS NOT A DEVICE DRIVER. Declaring
+ * "epu_ready" would have let a later module bind to it believing there was
+ * hardware underneath.
+ *
+ * REQUIRES_NONE is measured: epu_device.o's `nm -u` is empty. It uses scalar
+ * double, which Makefile.arm64:20 explicitly permits (only NEON vectorization
+ * is banned, because the IRQ vector does not save the FP/SIMD file).
+ */
+#include "zxv_decl.h"
+static int zxvd_epu_bringup(void) {
+    static epu_system_t sys;
+    epu_system_init(&sys);
+    if (epu_system_create_device(&sys, "epu0") == 0u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(epu,
+    ZXV_PROVIDES(epu_model_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_epu_bringup));

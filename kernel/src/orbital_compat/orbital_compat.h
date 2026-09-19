@@ -46,14 +46,26 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "../rational/rational.h"
+#include "../lpres/lpres.h"
+#include "../edp_risk/edp_risk.h"
 
 /* ===== language registry ===== */
 typedef enum {
-    OC_LANG_COBOL   = 0,
-    OC_LANG_FORTRAN = 1,
-    OC_LANG_C       = 2,
-    OC_LANG_SUTRA   = 3,   /* the native AI language: exact rationals */
-    OC_LANG_FUTURE  = 4,   /* reserved: unbound until an adapter arrives */
+    OC_LANG_COBOL       = 0,   /* legacy business: COMP-3 packed decimal */
+    OC_LANG_FORTRAN     = 1,   /* legacy scientific: fixed-format scaled integer */
+    OC_LANG_C           = 2,   /* modern systems: binary integer */
+    OC_LANG_SUTRA       = 3,   /* native AI language: exact rationals + LPRES logic */
+    OC_LANG_ASSEMBLY    = 4,   /* architecture-specific: raw machine code */
+    OC_LANG_RUST        = 5,   /* memory-safe systems: exact rationals + ownership */
+    OC_LANG_ZIG         = 6,   /* comptime metaprogramming: exact rationals + compile-time */
+    OC_LANG_PYTHON      = 7,   /* scripting/glue: arbitrary precision rationals */
+    OC_LANG_WASM        = 8,   /* portable modules: exact rationals + linear memory */
+    OC_LANG_DTMF        = 9,   /* legacy telecom: dual-tone multi-frequency signaling */
+    OC_LANG_MF          = 10,  /* legacy telecom: multi-frequency signaling */
+    OC_LANG_PULSE       = 11,  /* legacy telecom: rotary pulse dialing */
+    OC_LANG_SS7         = 12,  /* legacy telecom: Signaling System 7 (MTP/ISUP/TCAP) */
+    OC_LANG_FSK         = 13,  /* legacy telecom: frequency-shift keying (modem) */
+    OC_LANG_TELECOM     = 14,  /* unified telecom: generic dispatcher */
     OC_LANG_MAX
 } oc_lang_t;
 
@@ -131,7 +143,109 @@ typedef struct {
 typedef struct {
     int64_t num;
     int64_t den;
+    lpres_state_t logic_state;  /* LPRES four-valued logic state */
+    uint32_t scale;
 } oc_sutra_src_t;
+
+/* Assembly: raw machine code bytes + architecture */
+typedef struct {
+    uint8_t *bytes;
+    uint32_t len;
+    uint8_t arch;  /* 0=ARM64, 1=x86_64, 2=RISC-V, etc. */
+    uint32_t offset;  /* byte offset in binary */
+} oc_asm_src_t;
+
+/* Rust: exact rational + ownership metadata */
+typedef struct {
+    int64_t num;
+    int64_t den;
+    uint32_t ownership;  /* 0=owned, 1=borrowed, 2=mutable borrow */
+    uint32_t lifetime_id;
+} oc_rust_src_t;
+
+/* Zig: exact rational + comptime metadata */
+typedef struct {
+    int64_t num;
+    int64_t den;
+    bool comptime;       /* true if comptime-known */
+    uint32_t comptime_hash;
+} oc_zig_src_t;
+
+/* Python: arbitrary precision rational */
+typedef struct {
+    const uint8_t *num_bytes;
+    uint32_t num_len;
+    const uint8_t *den_bytes;
+    uint32_t den_len;
+    bool exact;          /* true if exact rational, false if float */
+} oc_python_src_t;
+
+/* WebAssembly: exact rational + linear memory offset */
+typedef struct {
+    int64_t num;
+    int64_t den;
+    uint32_t memory_offset;
+    uint32_t memory_len;
+} oc_wasm_src_t;
+
+/* DTMF: dual-tone multi-frequency signaling */
+typedef struct {
+    uint8_t digit;
+    uint16_t duration_ms;
+    uint16_t pause_ms;
+    int16_t power_dbm;
+    bool twist;
+    lpres_state_t logic_state;
+} oc_dtmf_src_t;
+
+/* MF: multi-frequency signaling */
+typedef struct {
+    uint8_t digits[16];
+    uint8_t num_digits;
+    uint16_t duration_ms;
+    uint16_t pause_ms;
+    int16_t power_dbm;
+    lpres_state_t logic_state;
+} oc_mf_src_t;
+
+/* Pulse: rotary pulse dialing */
+typedef struct {
+    uint8_t digit;
+    uint16_t break_ms;
+    uint16_t make_ms;
+    uint16_t inter_digit_ms;
+    lpres_state_t logic_state;
+} oc_pulse_src_t;
+
+/* SS7: Signaling System 7 */
+typedef struct {
+    uint8_t message_type;
+    const uint8_t *parameters;
+    uint16_t param_len;
+    uint32_t opc;
+    uint32_t dpc;
+    uint8_t sls;
+    lpres_state_t logic_state;
+} oc_ss7_src_t;
+
+/* FSK: frequency-shift keying */
+typedef struct {
+    const uint8_t *data;
+    uint16_t data_len;
+    uint16_t baud_rate;
+    uint8_t modulation;
+    int16_t power_dbm;
+    lpres_state_t logic_state;
+} oc_fsk_src_t;
+
+/* Telecom: generic dispatcher */
+typedef struct {
+    uint8_t signal_type;
+    const void *signal_data;
+    uint32_t signal_len;
+    uint64_t timestamp;
+    lpres_state_t logic_state;
+} oc_telecom_src_t;
 
 /* ===== registry API ===== */
 
@@ -161,9 +275,39 @@ int32_t oc_lift(oc_lang_t to, const oc_ir_t *ir, void *out, uint32_t cap);
 
 /* ===== IR helpers ===== */
 
+/* Zero-initialize an IR */
+void oc_zero_ir(oc_ir_t *ir);
+
+/* Get the single rational field from an IR */
+int32_t oc_ir_get_rat(const oc_ir_t *ir, rat_t *v, uint32_t *scale);
+
+/* Put a single rational field into an IR */
+int32_t oc_ir_single_rat(oc_ir_t *out, rat_t v, uint32_t scale);
+
+/* Create rat_t from num/den (for Sutra and other exact-rational languages) */
+static inline rat_t oc_rat_from_sutra(int64_t num, int64_t den) {
+    rat_t r = {0};
+    if (den == 0) return r;
+    r.num = num;
+    r.den = den;
+    r.valid = 1;
+    /* Normalize */
+    if (r.num == 0) { r.den = 1; return r; }
+    int64_t a = r.num < 0 ? -r.num : r.num;
+    int64_t b = r.den < 0 ? -r.den : r.den;
+    while (b) { int64_t t = a % b; a = b; b = t; }
+    int64_t g = a;
+    r.num /= g; r.den /= g;
+    if (r.den < 0) { r.num = -r.num; r.den = -r.den; }
+    return r;
+}
+
 /* Canonical field equality: same type, and for RATIONAL, exactly-equal
  * value (rat_eq). The scale hint is deliberately IGNORED — that is what
  * makes the IR language-agnostic. */
 bool oc_field_eq(const oc_field_t *a, const oc_field_t *b);
+
+/* Power of 10 for exact rational arithmetic */
+rat_t rat_pow10(rat_t base, rat_t exp);
 
 #endif /* ZXV_ORBITAL_COMPAT_H */

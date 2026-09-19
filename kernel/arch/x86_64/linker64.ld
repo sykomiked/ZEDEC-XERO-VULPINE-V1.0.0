@@ -29,6 +29,31 @@ SECTIONS
     } :text
 
     .rodata : {
+        /* MODULE DECLARATIONS (kernel/include/zxv_decl.h) — same explicit
+         * placement as kernel/arch/arm64/linker.ld:70-74.
+         *
+         * Each ZXV_DECLARE emits one pointer here and zxv_decl_boot_gate()
+         * registers every one of them. PLACED BY HAND, NOT LEFT AN ORPHAN: an
+         * unplaced orphan section has already cost this project a boot (the
+         * arm64 script's /DISCARD/ comment records .note.gnu.build-id landing
+         * at VMA 0x40080000 over .text under the RW PHDR, and QEMU refusing the
+         * kernel). Explicit markers are deterministic; ld's __start_/__stop_
+         * symbols are not even generated for a name containing dots.
+         *
+         * ASSIGNED, not PROVIDEd: the C side declares __zxv_decl_start/_end
+         * WEAK so an arch that never placed the section still links, and PROVIDE
+         * only defines a symbol when something references it — precisely the
+         * case a weak undefined reference makes unreliable.
+         *
+         * KEEP() costs nothing here (this link does not pass --gc-sections) and
+         * is written anyway so adding --gc-sections later cannot silently empty
+         * the graph. The records are const, so they belong in the RX :text
+         * segment with the rest of .rodata — no new PT_LOAD to get wrong. */
+        . = ALIGN(8);
+        __zxv_decl_start = .;
+        KEEP(*(.rodata.zxv_decl))
+        __zxv_decl_end = .;
+
         *(.rodata)
         *(.rodata.*)
     } :text

@@ -115,3 +115,27 @@ const uint8_t CRYPTO_AUTHORITY_KEY_PORTER_HOUSE[32] = {
     0x1e, 0x5a, 0x4f, 0x6a, 0x3d, 0x2c, 0x1e, 0x5a,
     0x4f, 0x6a, 0x3d, 0x2c, 0x1e, 0x5a, 0x4f, 0x6a
 };
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES(sha256_ready) is measured: crypto_verify.o's `nm -u` is exactly
+ * {sha256, sha256_init, sha256_update, sha256_final} -- the whole file is a
+ * verification wrapper around the digest.
+ *
+ * The bring-up checks that constant-time compare still DISCRIMINATES. That is
+ * the one property a constant-time comparator can lose silently: a version
+ * that always returns true is still perfectly constant-time.
+ */
+#include "zxv_decl.h"
+static int zxvd_crypto_verify_bringup(void) {
+    static const uint8_t a[4] = { 1u, 2u, 3u, 4u };
+    static const uint8_t b[4] = { 1u, 2u, 3u, 5u };
+    if (!crypto_ct_equal(a, a, sizeof a)) return -1;
+    if (crypto_ct_equal(a, b, sizeof a))  return -1;
+    return 0;
+}
+
+ZXV_DECLARE(crypto_verify,
+    ZXV_PROVIDES(ct_compare_ready),
+    ZXV_REQUIRES(sha256_ready),
+    ZXV_BRINGUP(zxvd_crypto_verify_bringup));

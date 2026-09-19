@@ -554,3 +554,22 @@ const char *legal_doc_type_name(legal_doc_type_t type) {
         default: return "Unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES_NONE is measured: legal_engine.o's only undefined symbol is memcpy,
+ * which the build redirects to fs_memcpy. The nation tables are static data
+ * compiled into this file.
+ */
+#include "zxv_decl.h"
+static int zxvd_legal_engine_bringup(void) {
+    static legal_engine_t eng;
+    if (legal_engine_init(&eng) != 0) return -1;
+    if (legal_lang_name(legal_lang_from_code("en")) == 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(legal_engine,
+    ZXV_PROVIDES(legal_engine_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_legal_engine_bringup));

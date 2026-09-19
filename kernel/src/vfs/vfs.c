@@ -148,3 +148,18 @@ int32_t vfs_stat(vfs_state_t *vfs, const char *path, vfs_node_t *out) {
 const char *vfs_get_cwd(vfs_state_t *vfs) {
     return vfs->cwd;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * The mount table sits on top of a block device (kernel_main mounts FAT32 over
+ * the RAM disk), so blockdev_ready is the whole of its requirement.
+ *
+ * NO BRING-UP YET: every piece of vfs state lives in a caller-owned
+ * vfs_state_t, so there is nothing this module can check about itself that
+ * would not be a second, unrelated instance. The bring-up appears when the
+ * state moves here, which is a separate change from declaring the edge. */
+#include "zxv_decl.h"
+
+ZXV_DECLARE(vfs,
+    ZXV_PROVIDES(vfs_ready),
+    ZXV_REQUIRES(blockdev_ready),
+    ZXV_NO_BRINGUP);

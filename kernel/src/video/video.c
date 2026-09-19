@@ -1132,3 +1132,32 @@ bool video_verify_coverage(video_device_t *dev) {
     if (active == 0) return false;
     return (dev->coverage_r * dev->coverage_l) >= VIDEO_COVERAGE_FLOOR;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES video_raster_ready, deliberately NOT display_mode_ready -- that
+ * capability already exists (kernel/src/display/display.c) and means something
+ * else. This file is the 2D raster device model: displays, clipping, primitive
+ * drawing into a caller-supplied framebuffer.
+ *
+ * REQUIRES_NONE is measured: video.o's `nm -u` is empty. It never allocates
+ * the framebuffer; video_set_framebuffer takes one.
+ *
+ * The bring-up stays in VIDEO_MODE_HEADLESS with no framebuffer bound, so it
+ * exercises the device/display bookkeeping without writing a single pixel to
+ * memory this module does not own.
+ */
+#include "zxv_decl.h"
+static int zxvd_video_bringup(void) {
+    static video_device_t dev;
+    video_init(&dev, "zxv-video");
+    if (video_set_mode(&dev, VIDEO_MODE_HEADLESS) != 0) return -1;
+    if (video_add_display(&dev, 640u, 480u, 32u) == 0u) return -1;
+    if (video_get_framebuffer(&dev, 0u) != 0) return -1;  /* none bound yet */
+    return 0;
+}
+
+ZXV_DECLARE(video,
+    ZXV_PROVIDES(video_raster_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_video_bringup));

@@ -234,3 +234,28 @@ const char *choice_tie_policy_name(choice_tie_policy_t policy) {
         default:                           return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The decision registry. REQUIRES_NONE is measured (choice.o's `nm -u` is
+ * empty) and the registry is caller-owned, so there is nothing to map first.
+ *
+ * NOTE FOR WHOEVER RESOLVES THE SIBLING QUESTION: choice_core.c is in the same
+ * directory and was already linked; this file is the fuller implementation
+ * that agent A wired in. Their symbol sets do not collide. Which one survives
+ * is a design decision (PROVENANCE/LAYERED_BRINGUP.md SS5), not a build one, so
+ * only this file declares -- and it declares choice_registry_ready, a name
+ * that describes THIS API rather than the directory.
+ */
+#include "zxv_decl.h"
+static int zxvd_choice_bringup(void) {
+    static choice_registry_t reg;
+    choice_registry_init(&reg);
+    if (choice_count_active_candidates(&reg) != 0u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(choice,
+    ZXV_PROVIDES(choice_registry_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_choice_bringup));

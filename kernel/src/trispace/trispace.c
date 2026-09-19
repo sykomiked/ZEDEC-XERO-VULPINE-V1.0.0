@@ -163,3 +163,16 @@ const char *tri_quarantine_reason(tri_quarantine_t q) {
     default:                      return "?";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The S+/S0/S- triad binder. zxpkg.o names tri_init / tri_bind /
+ * tri_set_member / tri_compiled_extension; they are defined here.
+ * REQUIRES sha256_ready from measurement, not from taste: trispace.o's `nm -u`
+ * is exactly one symbol, sha256 -- the triad's binding digest.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(trispace,
+    ZXV_PROVIDES(trispace_ready),
+    ZXV_REQUIRES(sha256_ready),
+    ZXV_NO_BRINGUP);

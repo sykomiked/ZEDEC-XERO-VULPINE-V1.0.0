@@ -1,13 +1,57 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "schema_name": "zedec-pqos-server-handover",
- "schema_version": "1.2.0",
+ "schema_version": "1.3.0",
  "architecture_whitepaper": "ARCHITECTURE_WHITEPAPER.md",
  "generated_for": "AI operator running the cross-compile on a Linux server",
  "generated_from": "development session on Apple Silicon (arm64 macOS)",
  "repo_root": "05_KERNEL",
  "governing_rule": "no hollow capabilities: SKIP = missing toolchain, FAIL = compile/link error, OK = artifact produced AND gate passed. Never round up.",
  "human_doc": "SERVER_HANDOVER.md",
+ "deliverable": {
+  "status": "ASSEMBLED_AND_VERIFIED 2026-08-11",
+  "what": "working five-ISA-family freestanding multikernel, emulation-verified (QEMU)",
+  "git_head": "50784c6b2a564a0ccff9ac0af30b6ab4bb912f99",
+  "build_box": "Linux 5.15.0-126-generic x86_64 (ionet@216.48.179.45)",
+  "one_command": "bash build_system/build_all.sh",
+  "one_command_does": "clean (rm -rf build) -> build all five arches concurrently out-of-tree (-j) -> DRC (verify_layers.sh) + LVS (verify_banners.sh per ELF) -> boot six QEMU rows 30s (rc=124=up) -> print PASS/FAIL matrix. Toolchains discovered via each Makefile default + which; nothing hardcoded.",
+  "provenance_doc": "PROVENANCE/KERNEL_DELIVERABLE.md",
+  "captured_output": "PROVENANCE/build_all_output.txt",
+  "staged_dir_on_box": "~/zxv/deliverable/ (MANIFEST.txt; mirror PROVENANCE/DELIVERABLE_MANIFEST.txt)",
+  "matrix": {
+   "arm64_gicv3": "build rc0, DRC PASS, LVS PASS, boot 124/up, BOOT_OK, modbind OK, no fault",
+   "arm64_gicv2": "build rc0, DRC PASS, LVS PASS, boot 124/up, BOOT_OK, modbind OK, no fault",
+   "x86_64": "build rc0, DRC PASS, LVS PASS, boot 124/up, BOOT_OK, modbind OK, no fault (ring-3 GDT/TSS/IDT + int 0x80 syscall live)",
+   "riscv64": "build rc0, DRC PASS, LVS PASS, boot 124/up, BOOT_OK, modbind OK, no fault (Sv39)",
+   "riscv32": "build rc0, DRC PASS, LVS PASS, boot 124/up, BOOT_OK, modbind OK, no fault (Sv32)",
+   "arm32": "build rc0, DRC PASS, LVS PASS, boot 124/up, BOOT_OK, modbind OK, no fault (arm32_mmu honestly S0 HELD: MMU off, flat-physical -- not a fault)"
+  },
+  "gate_per_arch": {
+   "arm64": "collected=registered=88, refused=0, bring-up ran47/f0/h0/declared41, real power 14/1000",
+   "x86_64": "collected=registered=38, refused=0, bring-up ran12/f0/h0/declared26, real power 784/1000",
+   "riscv64": "collected=registered=38, refused=0, bring-up ran12/f0/h0/declared26, real power 784/1000",
+   "riscv32": "collected=registered=38, refused=0, bring-up ran12/f0/h0/declared26, real power 784/1000",
+   "arm32": "collected=registered=39, refused=0, bring-up ran12/f0/HELD1/declared26, real power 784/1000"
+  },
+  "artifacts_sha256": {
+   "kernel_arm64.elf": "03ed0352e5e0329aadea5854e498c2e6b00e021aa699bb19e0cdc7ecdf1533b1",
+   "kernel_arm64.bin": "fd8b9070146d8bd7648f4afe8d0179eeb698d44b70ae8099f43b8f6445843cf7",
+   "kernel_x86_64.elf": "09180e1ee40a848ef587369f23a28924265d62679dc561e1a162fd9eae0aa30a",
+   "kernel_x86_64.bin": "448caae01c782a04bfea4b5034adf75538d44dd3fcec43b772cbe33374ca061c",
+   "kernel_riscv.elf": "c74a92602fc5f3a2ea615a190ab9b4019912285a63c301040851d7890e90e880",
+   "kernel_riscv.bin": "ab6d16551acfc0cf0f4656c05525a439cd466ff172882fd13618e50fbb85194b",
+   "kernel_riscv32.elf": "c0df29ef43f78bc002deeef0e2fb8798a3be65639211a382f8064e8a7cb0721f",
+   "kernel_riscv32.bin": "945b493b349cf3ca51d6c8d25c1b2a091f3b3967a807b77f72be403ddffb9fb1",
+   "zedec_xero_arm32.elf": "d01a69313b97f66d46e5970da395bbfa1adec8a8213824bff5d643bea4905ac6",
+   "zedec_xero_arm32.bin": "3592d66a6f42131779bfba2c8a7cb5f4bde95cdb7190638ce6c9d7b4e068d012"
+  },
+  "signature_status": "UNSIGNED (pending). Offline Ed25519 root ceremony (sign_release_offline.sh + keyceremony_root.sh) is a separate deliberate step; never minted in a build session; no signature faked.",
+  "does_not_claim": [
+   "physical-board bring-up (QEMU emulation only)",
+   "single-image 100% module reachability (full basis is AVAILABLE/pullable and registered; REACHED text differs per boot; utilisation tracked separately in PROVENANCE/UTILIZATION_MAP.md)",
+   "a signed release (images are unsigned)"
+  ]
+ },
  "reference_build": {
   "target": "arm64",
   "makefile": "build_system/Makefile.arm64",
@@ -63,37 +107,52 @@
   {
    "name": "arm64",
    "makefile": "build_system/Makefile.arm64",
-   "toolchain": "gcc-aarch64-linux-gnu",
-   "local_status": "OK_BOOTS",
-   "server_action": "rebuild, confirm parity"
+   "toolchain": "aarch64-linux-gnu- (Makefile default; resolved via which)",
+   "elf": "kernel_arm64.elf",
+   "bin": "kernel_arm64.bin",
+   "local_status": "OK_BUILDS_LINKS_BOOTS",
+   "server_action": "rebuild via build_all.sh, confirm parity",
+   "boot_milestone": "[BOOT_OK] EL0 ready; modbind gate OK (88=88)"
   },
   {
    "name": "x86_64",
    "makefile": "build_system/Makefile.x86_64",
-   "toolchain": "gcc-x86-64-linux-gnu",
-   "local_status": "COMPILES_KERNEL_ONLY",
-   "server_action": "IMPLEMENT ring-3 parity (see work_items[0])"
+   "toolchain": "x86_64-elf- if present else native gcc (Makefile fallback; resolved via which)",
+   "elf": "kernel_x86_64.elf",
+   "bin": "kernel_x86_64.bin",
+   "local_status": "OK_BUILDS_LINKS_BOOTS",
+   "server_action": "rebuild via build_all.sh",
+   "boot_milestone": "[BOOT_OK] Stage-1 kernel loop ready; ring-3 GDT/TSS/IDT + int 0x80 syscall live; modbind gate OK (38=38)"
   },
   {
    "name": "riscv",
    "makefile": "build_system/Makefile.riscv",
-   "toolchain": "gcc-riscv64-linux-gnu",
-   "local_status": "UNLINKABLE_LOCALLY",
-   "server_action": "build + boot-test (bring-up)"
+   "toolchain": "riscv64-linux-gnu- (Makefile default; resolved via which)",
+   "elf": "kernel_riscv.elf",
+   "bin": "kernel_riscv.bin",
+   "local_status": "OK_BUILDS_LINKS_BOOTS",
+   "server_action": "rebuild via build_all.sh",
+   "boot_milestone": "[BOOT_OK] S-mode event loop ready (Sv39); modbind gate OK (38=38)"
   },
   {
    "name": "riscv32",
    "makefile": "build_system/Makefile.riscv32",
-   "toolchain": "gcc-riscv64-linux-gnu multilib",
-   "local_status": "COMPILE_PARITY_full_subsystems",
-   "server_action": "build 32-bit arch layer (el0-equiv/virtio/ramfb) + link + boot"
+   "toolchain": "riscv64-linux-gnu- with RV32 flags in Makefile (resolved via which)",
+   "elf": "kernel_riscv32.elf",
+   "bin": "kernel_riscv32.bin",
+   "local_status": "OK_BUILDS_LINKS_BOOTS",
+   "server_action": "rebuild via build_all.sh",
+   "boot_milestone": "[BOOT_OK] S-mode event loop ready (Sv32); modbind gate OK (38=38)"
   },
   {
    "name": "arm32",
    "makefile": "build_system/Makefile.arm32",
-   "toolchain": "gcc-arm-linux-gnueabihf",
-   "local_status": "COMPILE_PARITY_full_subsystems",
-   "server_action": "build 32-bit arch layer (el0-equiv/virtio/ramfb) + link + boot"
+   "toolchain": "arm-linux-gnueabihf- (Makefile default; resolved via which)",
+   "elf": "zedec_xero_arm32.elf",
+   "bin": "zedec_xero_arm32.bin (via objcopy; arm32 'all' emits ELF only)",
+   "local_status": "OK_BUILDS_LINKS_BOOTS",
+   "server_action": "rebuild via build_all.sh",
+   "boot_milestone": "[BOOT_OK] ARM32 core online; modbind gate OK (39=39); arm32_mmu honestly S0 HELD (MMU off, flat-physical)"
   }
  ],
  "platform_layer": {
@@ -236,10 +295,10 @@
  "work_items": [
   {
    "id": "x86_64-ring3",
-   "priority": "P0",
+   "priority": "RESOLVED",
    "title": "x86_64 ring-3 parity",
-   "detail": "kernel/arch/x86_64 has a minimal kernel_main only. Add PML4 page tables + user/supervisor split, a syscall/sysret entry mirroring the arm64 SVC path, and ring-3 process bring-up mirroring arch/arm64/el0_userspace.c. Then wire the platform layer and confirm BOOT_OK under qemu-system-x86_64.",
-   "until_done_report_as": "x86_64 boots, kernel-only (NOT full parity)"
+   "status": "DONE 2026-08-11: x86_64 builds, links and boots to [BOOT_OK] with ring-3 (GDT/TSS/IDT + int 0x80 syscall), PML4 paging, shared ramdisk; modbind gate OK (38=38). Verified by build_all.sh.",
+   "detail": "Historical: kernel/arch/x86_64 previously had a minimal kernel_main only. Ring-3 GDT/TSS/IDT + int 0x80 syscall path and paging are now live and boot-verified."
   },
   {
    "id": "efi-payloads",

@@ -1994,3 +1994,42 @@ bool wifi_verify_coverage(wifi_device_t *dev) {
      * is bound. No epsilon is needed and none is used. */
     return (dev->coverage_r * dev->coverage_l) >= WIFI_COVERAGE_FLOOR;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES wifi_mac_ready -- the 802.11 MAC/supplicant software, which is what
+ * is really here. There is no Wi-Fi silicon in this tree and the bring-up
+ * asserts it: wifi_has_radio() must be FALSE on a freshly initialised device.
+ *
+ * REQUIRES_NONE is measured: wifi.o's `nm -u` is empty.
+ *
+ * The channel<->frequency identity is the check worth running at boot because
+ * it is a TABLE, not arithmetic -- channel 14 is 2484 MHz, not 2472, and any
+ * open-ended formula gets it wrong. A round trip through both directions
+ * catches a table that has been reordered or truncated.
+ */
+#include "zxv_decl.h"
+static int zxvd_wifi_bringup(void) {
+    static wifi_device_t dev;
+    uint32_t f;
+
+    wifi_init(&dev, "zxv-wl0");
+    if (wifi_has_radio(&dev)) return -1;          /* there is no silicon here */
+
+    f = wifi_channel_to_freq(1u, WIFI_BAND_2_4GHZ);
+    if (f != 2412u) return -1;
+    if (wifi_freq_to_channel(f) != 1u) return -1;
+
+    f = wifi_channel_to_freq(36u, WIFI_BAND_5GHZ);
+    if (f != 5180u) return -1;
+    if (wifi_freq_to_channel(f) != 36u) return -1;
+
+    /* a frequency that is not an operating channel must report 0, not a guess */
+    if (wifi_freq_to_channel(2413u) != 0u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(wifi,
+    ZXV_PROVIDES(wifi_mac_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_wifi_bringup));

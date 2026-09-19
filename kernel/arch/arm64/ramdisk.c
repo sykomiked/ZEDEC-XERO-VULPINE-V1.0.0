@@ -174,3 +174,26 @@ void ramdisk_create_blockdev(block_device_t *dev) {
     blockdev_init(dev, ramdisk_block_read, ramdisk_block_write,
                   RAMDISK_SIZE_SECTORS, "M5 RAMDISK v1.0");
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * ONE OF TWO PROVIDERS OF blockdev_ready, and the reason that is not a defect.
+ * virtio_blk provides the same capability at the same contract; a machine with
+ * no virtio disk still resolves blockdev_ready through this one and still
+ * boots. Alternative provision is legal (modbind.h:146-153); what is NOT legal
+ * is the two providers disagreeing about the contract, and modbind_verify_graph
+ * reports that as MB_ERR_CONTRACT rather than letting registration order decide
+ * at runtime. Both sides are contract 1 -- change one and the gate says so.
+ *
+ * The backing store is a static array, so the only requirement is translation. */
+#include "zxv_decl.h"
+
+static int ramdisk_bringup(void) {
+    if (!ramdisk_is_present()) return -1;
+    if (ramdisk_total_sectors() == 0u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(ramdisk,
+    ZXV_PROVIDES(blockdev_ready),
+    ZXV_REQUIRES(mm_ready),
+    ZXV_BRINGUP(ramdisk_bringup));

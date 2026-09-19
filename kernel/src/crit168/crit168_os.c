@@ -329,3 +329,36 @@ const char *crit168_endian_name(crit168_endian_t endian) {
         default:                     return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The 168-bit frame serialiser. crit168_os.o's `nm -u` is empty.
+ *
+ * THIS DECLARATION IS SCOPED TO THIS FILE ON PURPOSE. The sibling
+ * crit168/crit_168_word.c carries U __muldc3 -- libgcc's double-complex
+ * multiply, from a `double complex` that has not been reformulated in Q32.32 /
+ * zphi yet. Nothing here roots that: the bring-up touches only the CRC and
+ * registry entry points defined in this file, so the complex-arithmetic word
+ * stays out of the image until it is rewritten.
+ */
+#include "zxv_decl.h"
+static int zxvd_crit168_bringup(void) {
+    static crit168_registry_t reg;
+    static const uint8_t probe[4] = { 0x01u, 0x02u, 0x03u, 0x04u };
+    uint8_t  c8;
+    uint32_t c32;
+
+    crit168_registry_init(&reg);
+    /* A checksum that ignores its input is the classic silent failure: verify
+     * that two different messages do not produce the same value. */
+    c8  = crit168_crc8(probe, sizeof probe);
+    c32 = crit168_crc32(probe, sizeof probe);
+    if (c8  == crit168_crc8(probe, sizeof probe - 1u))  return -1;
+    if (c32 == crit168_crc32(probe, sizeof probe - 1u)) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(crit168_os,
+    ZXV_PROVIDES(crit168_frames_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_crit168_bringup));

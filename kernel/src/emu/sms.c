@@ -142,3 +142,34 @@ int sms_selfcheck(void){
     sms_run(&s, 20000u, 3000u);
     return sms_is_running(&s) ? 1 : 0;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES(z80_cpu_ready) is the whole of this module's boundary, measured:
+ * sms.o's `nm -u` is exactly {cpu_z80_reset, cpu_z80_step, cpu_z80_int}. A
+ * console core is its own glue plus somebody else's CPU.
+ *
+ * The bring-up is sms_selfcheck(), which already existed in this file -- one
+ * of only two self-checks anywhere in the newly wired set. Calling the
+ * module's own check is strictly better than inventing a new one beside it,
+ * and it is what roots the Z80 core: sms_selfcheck runs the CPU.
+ *
+ * MIND THE POLARITY. sms_selfcheck() returns 1 FOR SUCCESS (the machine is
+ * running) and 0 for failure. modbind_selfcheck() -- same name shape, same
+ * file extension, opposite convention -- returns a COUNT OF PROBLEMS, where 0
+ * is the good answer. A zxv_bringup_fn is the second kind: 0 means up. Writing
+ * `(sms_selfcheck() == 0) ? 0 : -1` here inverted it, and the first boot with
+ * these declarations reported `failed=1` on the one module whose check was
+ * actually passing. It cost nothing to find only because the failure was
+ * printed BY NAME; as a bare count it would have meant bisecting 87 modules.
+ * Do not infer a return convention from a function's name.
+ */
+#include "zxv_decl.h"
+static int zxvd_sms_bringup(void) {
+    return sms_selfcheck() ? 0 : -1;   /* 1 = running = up */
+}
+
+ZXV_DECLARE(sms,
+    ZXV_PROVIDES(sms_console_ready),
+    ZXV_REQUIRES(z80_cpu_ready),
+    ZXV_BRINGUP(zxvd_sms_bringup));

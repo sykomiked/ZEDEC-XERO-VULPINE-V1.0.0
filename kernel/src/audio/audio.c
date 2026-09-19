@@ -1143,3 +1143,36 @@ bool audio_verify_coverage(audio_device_t *dev) {
 
     return (dev->coverage_r * dev->coverage_l) >= AUDIO_COVERAGE_FLOOR;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES audio_mixer_ready. Not "audio_ready": this header's own limitation
+ * #1 says there is NO DRIVER anywhere in this tree, and the bring-up proves
+ * that rather than papering over it -- it asserts audio_has_backend() is FALSE
+ * and audio_dma_flush() returns AUDIO_ENODEV. A module that claimed sound
+ * works would be caught by its own declaration.
+ *
+ * REQUIRES_NONE is measured: audio.o's `nm -u` is empty. Every buffer is
+ * caller-owned, so there is nothing to map and nothing to allocate first.
+ *
+ * The saturation check is the one piece of arithmetic worth guarding at boot:
+ * the header promises audio_saturate_s16(60000) == 32767, and the failure mode
+ * it prevents (wrapping to -5536) is an inverted-polarity full-scale click,
+ * which is how you damage a speaker rather than merely sound wrong.
+ */
+#include "zxv_decl.h"
+static int zxvd_audio_bringup(void) {
+    static audio_device_t dev;
+    audio_init(&dev, AUDIO_CTRL_NONE, "zxv-audio");
+    if (audio_has_backend(&dev)) return -1;       /* there is no silicon here */
+    if (audio_dma_flush(&dev) != AUDIO_ENODEV) return -1;
+    if (audio_saturate_s16(60000)  !=  32767) return -1;
+    if (audio_saturate_s16(-60000) != -32768) return -1;
+    if (audio_saturate_s16(0)      !=      0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(audio,
+    ZXV_PROVIDES(audio_mixer_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_audio_bringup));

@@ -132,3 +132,15 @@ zsp_result_t zsp_verify2(const uint8_t *buf, uint32_t len,
     return zsp_verify_v2(buf, len, root_pubkey, min_version, expected_arch,
                          meta, payload, payload_len);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The signed-package verifier zxpkg.o calls (U zsp_verify). Both requirements
+ * are measured: zsp.o's `nm -u` is exactly {ed25519_ct_equal, ed25519_verify,
+ * sha256} -- a digest and a signature, which is what a package seal is.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(zsp,
+    ZXV_PROVIDES(zsp_verify_ready),
+    ZXV_REQUIRES(sha256_ready, ed25519_ready),
+    ZXV_NO_BRINGUP);

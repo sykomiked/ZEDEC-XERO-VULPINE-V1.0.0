@@ -214,3 +214,17 @@ const char *con_standing_name(con_standing_t s) {
     default:              return "?";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The non-coercive commons. social_spaces/social.o's ENTIRE undefined set is
+ * con_init / con_join / con_get / con_tick / con_standing /
+ * con_report_boundary -- concord is the whole of what social_spaces stands on.
+ * concord.o's own `nm -u` is {chg_effective_experts, chg_interaction}:
+ * matching is a chiglet computation.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(concord,
+    ZXV_PROVIDES(concord_ready),
+    ZXV_REQUIRES(chiglet_ready),
+    ZXV_NO_BRINGUP);

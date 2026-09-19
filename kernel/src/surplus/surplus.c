@@ -259,3 +259,16 @@ surplus_real_t surplus_steady_state(surplus_real_t u_star, surplus_real_t c_star
     if (result < 0) result = SR_ZERO;
     return result;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The surplus arithmetic floor. edp_risk.o names sr_sqrt; predictive_model.o
+ * names nine surplus_* entry points. surplus.o's own `nm -u` is only
+ * {__divti3, __udivti3} -- libgcc 128-bit division, no module edge at all.
+ * Nothing below it, hence REQUIRES_NONE.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(surplus,
+    ZXV_PROVIDES(surplus_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

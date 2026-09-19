@@ -42,6 +42,8 @@ typedef struct {
     bool    valid;    /* false = overflow or division by zero */
 } rat_t;
 
+#define RAT_ONE rat_make(1, 1)
+
 /* ---- construction ---- */
 rat_t rat_zero(void);
 rat_t rat_from_int(int64_t v);

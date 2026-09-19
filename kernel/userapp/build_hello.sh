@@ -9,8 +9,12 @@
 set -e
 CROSS=${CROSS_COMPILE:-aarch64-linux-gnu-}
 
+# -I../include: hello.c takes its syscall NUMBERS from <zxv_syscall_user.h>,
+# which expands the same ZXV_SYSCALL_TABLE the kernel dispatcher does. There is
+# no generator step and no generated file to go stale -- the preprocessor is the
+# generator, and it runs here for the same reason it runs in the kernel build.
 ${CROSS}gcc -ffreestanding -nostdlib -fno-pie -fno-stack-protector -O2 \
-    -Wall -Wextra -c hello.c -o hello.o
+    -Wall -Wextra -I../include -c hello.c -o hello.o
 ${CROSS}ld -T hello.ld -z max-page-size=0x1000 -o hello.elf hello.o
 
 {

@@ -311,6 +311,14 @@ int zxvfs_tri_unlink(zxvfs_t *fs, const char *name) {
 }
 
 /* -------------------------------------------------------------- execute --- */
+/* The extent table handed to the VM for this run. Static for the same reason
+ * `code` below is static: this file already runs on a kernel stack that cannot
+ * hold a file, and there is one filesystem executor. It is therefore NOT
+ * reentrant, and never was — a second zxvfs_tri_execute entered from inside a
+ * host handler would reuse both buffers. Stated rather than discovered. */
+#define ZXVFS_TRI_MAX_SCOPES 8u
+static zab_scope_t g_tri_scopes[ZXVFS_TRI_MAX_SCOPES];
+
 int zxvfs_tri_execute(zxvfs_t *fs, const char *name, tri_role_t role,
                       uint32_t granted, const zab_host_t *host,
                       zab_exec_t *out) {
@@ -334,7 +342,53 @@ int zxvfs_tri_execute(zxvfs_t *fs, const char *name, tri_role_t role,
 
     /* The caller cannot grant an artifact more than it was bound with. */
     uint32_t effective = granted & d.capability_set[(int)role];
-    return (int)zab_execute(code, (uint32_t)n, effective, host, out);
+
+    /* ---- and it cannot grant it more OBJECTS than it was bound with -------
+     * The verb clamp above is only half of least privilege. Until the extent
+     * clamp below existed, a role holding FS_WRITE could write anything the
+     * host could reach, because the capability named the verb and nothing
+     * named the object.
+     *
+     * THE EXTENT OF A STORED ARTIFACT IS THE TRIAD IT CAME FROM. That is not
+     * an arbitrary choice: the triad is the unit that was verified (digests +
+     * seal), the unit whose capabilities were derived, and the unit the caller
+     * asked for by name. Its span is its own payload, so an instruction whose
+     * `b` reaches past the bytes it was stored with is outside itself.
+     *
+     * A caller that binds its OWN table is naming objects it owns; those are
+     * kept, but every entry is clamped by the same `effective` mask, so no
+     * object can be handed a verb the triad was not bound with. A table larger
+     * than we can clamp is refused outright rather than partially applied. */
+    zab_host_t scoped = *host;
+    if (effective == ZAB_CAP_NONE) {
+        /* Nothing was granted, so there is nothing to scope. Bind no extents:
+         * an inert program (NOP/END) still runs, and any effectful instruction
+         * is stopped one step earlier by the capability check, which is the
+         * behaviour this path had before extents existed. */
+        scoped.scopes = 0; scoped.n_scopes = 0;
+        return (int)zab_execute(code, (uint32_t)n, effective, &scoped, out);
+    }
+    if (host->scopes && host->n_scopes > 0) {
+        if ((uint32_t)host->n_scopes > ZXVFS_TRI_MAX_SCOPES) return -5;
+        for (uint32_t i = 0; i < (uint32_t)host->n_scopes; i++) {
+            g_tri_scopes[i] = host->scopes[i];
+            g_tri_scopes[i].caps &= effective;
+        }
+        scoped.n_scopes = host->n_scopes;
+    } else {
+        /* No table: derive the artifact's own extent. Refuses if the triad
+         * name will not fit a scope name in full — truncating would let two
+         * triads share one extent, and a capability system whose objects
+         * collide is not one. */
+        tmemset(g_tri_scopes, 0, sizeof(g_tri_scopes));
+        if (!zab_scope_set(&g_tri_scopes[0], name, (uint8_t)ZAB_SCOPE_TRIAD,
+                           effective, 0u, (uint32_t)n))
+            return -6;
+        scoped.n_scopes = 1;
+    }
+    scoped.scopes = g_tri_scopes;
+
+    return (int)zab_execute(code, (uint32_t)n, effective, &scoped, out);
 }
 
 int zxvfs_tri_execute_with_undo(zxvfs_t *fs, const char *name,

@@ -18,6 +18,7 @@
  * instructions on ZEDEC — not that the full console (PPU/APU/mappers) is
  * emulated. */
 #include "game_runner.h"
+#include "zxv_cover.h"
 #include "cpu6502.h"
 #include "cpu_z80.h"
 #include "nes.h"
@@ -130,19 +131,27 @@ static int core_runs(uint32_t insn, uint16_t permille){
 
 int game_runner_run(block_device_t *dev, game_run_t *out){
     for (unsigned i = 0; i < sizeof *out; i++) ((uint8_t*)out)[i] = 0;
+    /* Reset FIRST so the report describes THIS ROM, not the boot's history. */
+    zxv_cover_reset();
+    zxv_cover_mark(COV_GAME_RUNNER_RUN);
     uint32_t bytes = load_rom(dev);
     out->bytes = bytes;
     if (bytes == 0) return 0;
+    zxv_cover_mark(COV_ROM_READ);
     /* If this is an iNES image, run it on the real NES machine (mapper 0) — that
      * gives a genuine "is the game running" verdict (PPU configured + vblank/NMI
      * driven), not the bare-CPU probe that can't tell code from data. */
     if (nes_is_ines(g_raw, bytes) && nes_load_ines(&g_nes, g_raw, bytes)){
+        zxv_cover_mark(COV_NES_IS_INES); zxv_cover_mark(COV_NES_LOAD);
+        zxv_cover_mark(COV_CPU6502_STEP);
         nes_run(&g_nes, 300000u, 2000u);
+        zxv_cover_mark(COV_NES_RUN);
         out->is_nes = 1;
         out->nes_running    = (uint8_t)nes_is_running(&g_nes);
         out->nes_ppu_writes = g_nes.ppu_reg_writes;
         out->nes_vblank_polls = g_nes.ppu_status_reads;
         out->nes_nmis       = g_nes.nmis_taken;
+        if (out->nes_running) zxv_cover_mark(COV_NES_RUNNING);
         out->running        = out->nes_running;
         out->best_core      = 6502;
         out->best_insn      = g_nes.insn;
@@ -152,14 +161,18 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
      * LR35902 machine. The logo is an exact 16-byte match, so this route is only
      * taken by real GB ROMs. */
     if (gb_is_gb(g_raw, bytes)){
+        zxv_cover_mark(COV_GB_IS_GB);
         uint32_t full = load_rom_full(dev, g_full_img, GB_ROM_CAP);
         if (full >= 0x150 && gb_load(&g_gb, g_full_img, full)){
+            zxv_cover_mark(COV_GB_LOAD); zxv_cover_mark(COV_CPU_LR35902_STEP);
             gb_run(&g_gb, 400000u);
+            zxv_cover_mark(COV_GB_RUN);
             out->is_gb       = 1;
             out->gb_running  = (uint8_t)gb_is_running(&g_gb);
             out->gb_io_writes = g_gb.io_writes;
             out->gb_vblanks  = g_gb.vblanks;
             out->gb_lcd_on   = g_gb.lcd_on;
+            if (out->gb_running) zxv_cover_mark(COV_GB_RUNNING);
             out->running     = out->gb_running;
             out->best_core   = 8080;
             out->best_insn   = g_gb.insn;
@@ -170,9 +183,12 @@ int game_runner_run(block_device_t *dev, game_run_t *out){
      * the ARM7TDMI machine. Header check is very specific, so only real GBA ROMs
      * route here. */
     if (gba_is_gba(g_raw, bytes)){
+        zxv_cover_mark(COV_GBA_IS);
         uint32_t full = load_rom_full(dev, g_full_img, GBA_ROM_CAP);
         if (full >= 0xC0 && gba_load(&g_gba, g_full_img, full)){
+            zxv_cover_mark(COV_GBA_LOAD); zxv_cover_mark(COV_CPU_ARM7_STEP);
             gba_run(&g_gba, 500000u);
+            zxv_cover_mark(COV_GBA_RUN);
             out->is_gba          = 1;
             out->gba_running     = (uint8_t)gba_is_running(&g_gba);
             out->gba_io_writes   = g_gba.io_writes;

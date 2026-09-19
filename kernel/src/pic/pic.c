@@ -4,6 +4,27 @@
  */
 #include "pic.h"
 
+/* ---- MODBIND DECLARATION — L4 devices -------------------------------------
+ * Authored as a COMMENT, deliberately, and not as code. The ZXV_PROVIDES /
+ * ZXV_REQUIRES macro mechanism is being built concurrently in kernel/include/
+ * and does not exist in this tree yet. Hand-rolling an mb_module_t here would
+ * stand up a SECOND registry competing with that one, which is worse than
+ * waiting -- so this block is written in the exact shape
+ * PROVENANCE/EVENT_SPACE_BRINGUP.md §1 specifies and converts verbatim when
+ * the header lands. Same block, same reasoning, in the other five re-homed
+ * x86 device modules; see PROVENANCE/X86_REHOME.md.
+ *
+ *   ZXV_PROVIDES(irq_ctrl_ready)
+ *   ZXV_REQUIRES()                 -- nothing
+ *   ZXV_BRINGUP(pic_init)
+ *
+ * Argued from the code, not from the name: pic_init touches only the four
+ * 8259 port addresses defined in pic.h, calls nothing outside this file, and
+ * `nm -u` on the object is empty. It has no requirement to declare. It is the
+ * root of this cluster -- keyboard, mouse and timer all reach pic_unmask, and
+ * none of them reach anything else.
+ */
+
 #ifndef TEST_HOST
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));

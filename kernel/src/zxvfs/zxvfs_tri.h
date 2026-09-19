@@ -185,7 +185,22 @@ int zxvfs_tri_unlink(zxvfs_t *fs, const char *name);
  *
  * The effective grant is `granted` INTERSECTED with the capabilities the
  * descriptor recorded for that role — a caller cannot hand an artifact more
- * authority than it was bound with. */
+ * authority than it was bound with.
+ *
+ * AND IT CANNOT HAND IT MORE OBJECTS EITHER. A capability names a verb; a
+ * `zab_scope_t` names the object that verb may touch. If `host` binds no
+ * extents, this DERIVES one: the triad itself (kind ZAB_SCOPE_TRIAD, named by
+ * `name`, spanning the role payload's own bytes, carrying exactly the
+ * effective verbs). If `host` binds its own table, every entry is clamped by
+ * the same effective mask. Either way an instruction must select an extent
+ * that carries its verb, so FS_WRITE means "write THIS triad", not "write the
+ * filesystem".
+ *
+ * Extra failures introduced by that clamp, both fail-closed:
+ *   -5  the caller bound more extents than can be clamped in one run
+ *   -6  the triad's name will not fit a scope name, so no extent can name it
+ * Neither can occur on the derived path for a triad whose name obeys
+ * ZXVFS_TRI_NAME_MAX. */
 int zxvfs_tri_execute(zxvfs_t *fs, const char *name, tri_role_t role,
                       uint32_t granted, const zab_host_t *host,
                       zab_exec_t *out);

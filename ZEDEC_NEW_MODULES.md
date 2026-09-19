@@ -1,9 +1,9 @@
 # ZEDEC pqOS — New Modules Architecture & Integration Guide
 
-**Version:** 1.0.0+ (Post-Boot Legger/Panopticon/Legal Engine Integration)
-**License:** SEL-3.3 — Streisand Engine License
-**Author:** H.M. Michael-Laurence: Curzi (c)
-**Organization:** 36N9 Genetics, LLC — Irrevocable, Interdimensional
+**Version:** 1.0.0+
+**License:** Apache-2.0
+**Author:** Michael Laurence Curzi
+**Organization:** 36N9 Genetics, LLC
 
 ---
 

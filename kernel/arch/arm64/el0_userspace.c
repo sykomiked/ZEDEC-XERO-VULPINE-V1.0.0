@@ -213,9 +213,12 @@ bool proc_map_page(user_proc_t *proc, uint64_t va, uint64_t pa,
 /* Switch TTBR0_EL1 to the process's page table */
 void proc_switch_address_space(user_proc_t *proc) {
     if (!proc || !proc->l0_table) return;
-    /* Set TTBR0_EL1 to the process's L0 table.
+    /* Set TTBR0_EL1 to the process's L0 table PHYSICAL address.
+     * The kernel uses identity mapping (VA = PA for RAM region), so the
+     * virtual address of pt_storage equals its physical address.
      * ASID=0 for now (we flush TLB on every switch — simple but correct). */
-    __asm__ __volatile__("msr ttbr0_el1, %0" :: "r"((uint64_t)proc->l0_table));
+    uint64_t l0_phys = (uint64_t)proc->l0_table;
+    __asm__ __volatile__("msr ttbr0_el1, %0" :: "r"(l0_phys));
     /* Invalidate TLB for EL0/EL1 regime */
     __asm__ __volatile__("tlbi vmalle1is");
     __asm__ __volatile__("dsb ish");

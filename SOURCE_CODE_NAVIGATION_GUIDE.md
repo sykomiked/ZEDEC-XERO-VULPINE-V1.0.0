@@ -21,7 +21,7 @@ The ZXV OS (ZEDEC XERO VULPINE) kernel is a bare-metal, freestanding operating s
 | **Architecture** | x86_64 primary; ARM32/ARM64/RISC-V secondary |
 | **Language** | C (freestanding, no libc) |
 | **Build system** | GNU Make + GCC cross-compiler |
-| **License** | SEL-3.3 (see `01_LEGAL/01_SEL_3.3_ENGINE_LICENSE.md`) |
+| **License** | Apache-2.0 (see `LICENSE`) |
 
 ---
 

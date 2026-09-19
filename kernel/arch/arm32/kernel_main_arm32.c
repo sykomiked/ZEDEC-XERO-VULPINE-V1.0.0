@@ -38,10 +38,31 @@ extern void license_print_all(void);
 #include "../src/vena/vena.h"
 #include "../src/holographic/holo.h"
 
+/* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
+ * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
+ * it. Before that extraction the gate was inline in kernel_main_arm64.c and so
+ * ran on arm64 ALONE -- this file booted without ever asking whether its
+ * declaration graph was sound.
+ *
+ * This main is the reason the gate takes ONE puts callback and no put_dec: it
+ * has no put_dec to give. (uart_dec above is the arch driver's, and it is
+ * uint32_t-only.) The gate formats its own decimals with uint32_t arithmetic,
+ * so no __udivdi3 is needed on this 32-bit target either. */
+#include "zxv_decl.h"
+
 static void boot_msg(const char *m) { uart_puts(m); uart_puts("\n"); }
 
 void kernel_main_arm32(void) {
     uart_init();
+
+    /* RAISE THE CARRIER, first and silently. mb_real_power returns 0 with the
+     * line down -- phase is measured RELATIVE to the carrier, so with no
+     * reference a phase difference denotes nothing -- and modbind_resolve now
+     * couples by real power. Without this the declaration gate below would
+     * report every module holding on an unmet requirement, describing a system
+     * that had simply not been switched on. Before the gate, not beside it. */
+    mb_carrier_up();
+
     uart_puts("\nZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA) [ARM32]\n");
     uart_puts("==================================================\n\n");
     uart_puts("License: SEL-3.3 — Streisand Engine License\n");
@@ -101,6 +122,61 @@ void kernel_main_arm32(void) {
     vena_set_language(&vena, LANG_M5_AXIOMATIC);
     static holo_ctx_t holo; holo_init(&holo);
     boot_msg("  [OK] vino/vena/holo");
+
+    /* ==== THE REAL DECLARATION GRAPH, AND ITS GATE ==========================
+     * ONE CALL, FIVE ARCHITECTURES (kernel/src/modbind/zxv_decl_gate.c).
+     *
+     * PLACEMENT. On arm64 the gate must sit after the last modbind_reset(): the
+     * composition fixture and modbind_selfcheck() each wipe the registry, so a
+     * gate registering before them would verify a table that is then erased.
+     * MEASURED HERE: this main calls neither, and neither does anything it
+     * reaches (`grep -rn modbind kernel/arch/arm32` is empty), so there is no
+     * reset to sit after. It goes at arm64's RELATIVE position -- after the
+     * subsystem inits, before the BOOT_OK milestone -- rather than at an
+     * assumed one, because "after the reset" is a property of the code path.
+     *
+     * BEFORE [BOOT_OK], not after: the milestone must not be printed while the
+     * question of whether the graph is sound is still unasked. */
+    (void)zxv_decl_boot_gate(uart_puts);
+
+    /* ==== TOL VOVINA UPAAH LOT — the MegaROM container registers at boot =====
+     * boot_features_init() (which runs tvl_rom_register_boot on x86_64/arm64) is
+     * not on the ARM32 boot path, so register the MegaROM directly here. It
+     * builds the canonical TVUL container, validates it, and takes a real
+     * MR_KIND_GAME megarom slot. The identical bytes ship on the attached
+     * virtio-blk drive as MEGAROM.TVL; the on-drive READ path is not compiled
+     * for this arch, so what registers is the EMBEDDED twin -- stated plainly.
+     * Forward-declared so no header path is assumed; both symbols are already
+     * linked from tvl_rom.c and megarom.c. uart_dec is the arch decimal printer. */
+    {
+        extern int tvl_rom_register_boot(void);
+        extern int megarom_count(void);
+        int mr_slot = tvl_rom_register_boot();
+        if (mr_slot >= 0) {
+            uart_puts("[MEGAROM] slot ");
+            uart_dec((uint32_t)mr_slot);
+            uart_puts(": 'TOL VOVINA UPAAH LOT' — MR_KIND_GAME registered "
+                      "(container embedded; identical bytes on attached "
+                      "virtio-blk drive as MEGAROM.TVL); registry count=");
+            uart_dec((uint32_t)megarom_count());
+            uart_puts("\n");
+        } else {
+            uart_puts("[MEGAROM] tvl_rom_register_boot FAILED\n");
+        }
+    }
+
+    /* ramfb display scanout — draw the ZEDEC desktop. The full compositor chain
+     * (prism_break -> display negotiation -> ramfb over fw_cfg -> vbe ->
+     * zxv_shell + lattice_dim) is linked into this build but was never CALLED
+     * here; arm64 alone reached it. zxv_render_boot() is that missing call site,
+     * shared with the riscv main. Geometry negotiated from real capability
+     * limits, never hardcoded. Absent `-device ramfb`, ramfb_init returns <0 and
+     * we stay on serial -- an honest headless boot, not a failure. arm/virt
+     * fw_cfg MMIO is the ramfb default base (0x09020000), so no override needed. */
+    {
+        extern int zxv_render_boot(void (*log)(const char *));
+        (void)zxv_render_boot(boot_msg);
+    }
 
     boot_msg("\n[BOOT_OK] ZEDEC pqOS [ARM32] — core online. Entering event cycle.\n");
 

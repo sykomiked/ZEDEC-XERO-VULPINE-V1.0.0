@@ -171,3 +171,35 @@ const char *l13_qliphah_name(l13_phase_t sephirah) {
         default:           return "Unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES cyc13_ready -- the 13th-cyclotomic state algebra (cyc13_*) and the
+ * Galois trace projection l13_project. That is the capability name because it
+ * is what four dharma files actually import; "sephirot_ready" would have named
+ * the directory instead of the API.
+ *
+ * REQUIRES(rmag_ready) is measured: sephirot.o's `nm -u` is exactly
+ * {rmag_add_quotas, rmag_mul_quotas, rmag_sub_quotas}. Coefficients are
+ * rational quotas.
+ *
+ * The bring-up checks the two identities the whole algebra rests on -- zero is
+ * an additive identity, and distinct basis states are distinct -- because a
+ * cyc13_add that silently returns its first argument would still "work" for
+ * every single-term expression and fail only under superposition.
+ */
+#include "zxv_decl.h"
+static int zxvd_sephirot_bringup(void) {
+    cyc13_t z = cyc13_zero();
+    cyc13_t a = cyc13_basis(1u);
+    cyc13_t b = cyc13_basis(2u);
+    if (!cyc13_is_zero(z))            return -1;
+    if (!cyc13_equal(cyc13_add(a, z), a)) return -1;   /* zero is identity  */
+    if (cyc13_equal(a, b))            return -1;       /* basis is faithful */
+    return 0;
+}
+
+ZXV_DECLARE(sephirot,
+    ZXV_PROVIDES(cyc13_ready),
+    ZXV_REQUIRES(rmag_ready),
+    ZXV_BRINGUP(zxvd_sephirot_bringup));

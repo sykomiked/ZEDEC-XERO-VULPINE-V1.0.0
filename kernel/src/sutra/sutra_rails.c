@@ -26,3 +26,15 @@ int32_t sutra_emit_message(const vino_transaction_t *txn, const char *emit_form,
         return -1;
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The ISO 20022 / MT103 / pacs.008 / camt.053 message rails.
+ * REQUIRES(vino_ledger_ready) measured: sutra_rails.o's `nm -u` is four
+ * vino_msg_to_* symbols and nothing else.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(sutra_rails,
+    ZXV_PROVIDES(sutra_rails_ready),
+    ZXV_REQUIRES(vino_ledger_ready),
+    ZXV_NO_BRINGUP);

@@ -47,13 +47,24 @@ unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
     uputs("\r\n>>> ZXV-EFI-STUB: efi_main under UEFI <<<\r\n");
     EFI_GUID gop_guid = {0x9042a9de,0x23dc,0x4a38,{0x96,0xfb,0x7a,0xde,0xd0,0x80,0x51,0x6a}};
     GOP *gop=0;
+    /* GOP is OPTIONAL. When no display device is present LocateProtocol returns
+     * EFI_NOT_FOUND (status ...0e); we must DEGRADE to a headless serial boot,
+     * never stall. have_gop gates every subsequent GOP read + the fb handoff. */
+    u64 fb=0; u32 w=0,h=0,pps=0,pixfmt=0;
+    int have_gop=1;
     EFI_STATUS s = st->BootSvc->LocateProtocol(&gop_guid,0,(void**)&gop);
-    if(s!=0 || !gop){ uputs("GOP: not found status="); uhex(s); uputs("\r\n"); for(;;)__asm__("wfi"); }
-    u64 fb = gop->Mode->FrameBufferBase;
-    u32 w = gop->Mode->Info->HRes, h = gop->Mode->Info->VRes, pps = gop->Mode->Info->PixPerScan;
-    u32 pixfmt = gop->Mode->Info->PixFmt;
-    uputs("GOP fb="); uhex(fb); uputs(" res="); udec(w); uputc('x'); udec(h);
-    uputs(" stride="); udec(pps); uputs(" fmt="); udec(pixfmt); uputs("\r\n");
+    if(s!=0 || !gop){
+        uputs("GOP: not present (status="); uhex(s);
+        uputs(") -- booting headless/serial, no framebuffer handoff\r\n");
+        have_gop=0;
+    }
+    if(have_gop){
+        fb = gop->Mode->FrameBufferBase;
+        w = gop->Mode->Info->HRes; h = gop->Mode->Info->VRes; pps = gop->Mode->Info->PixPerScan;
+        pixfmt = gop->Mode->Info->PixFmt;
+        uputs("GOP fb="); uhex(fb); uputs(" res="); udec(w); uputc('x'); udec(h);
+        uputs(" stride="); udec(pps); uputs(" fmt="); udec(pixfmt); uputs("\r\n");
+    }
 
     /* ---- GetMemoryMap + ExitBootServices (spec 7.4) ---- */
     typedef EFI_STATUS (*GMM)(u64*, void*, u64*, u64*, u32*);
@@ -96,13 +107,21 @@ unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
      * else in between. The kernel checks this magic at boot and adopts the GOP
      * fb instead of ramfb. It sits below the kernel image so BSS-clear cannot
      * wipe it. Layout mirrors zxv_bootinfo_t. */
-    *(volatile u64*)0x40070000ULL = 0x5A585642464F4F49ULL;  /* ZXV_BOOTINFO_MAGIC */
-    *(volatile u64*)0x40070008ULL = fb;
-    *(volatile u32*)0x40070010ULL = w;
-    *(volatile u32*)0x40070014ULL = h;
-    *(volatile u32*)0x40070018ULL = pps;
-    *(volatile u32*)0x4007001CULL = pixfmt;
-    uputs("handoff record published @0x40070000\r\n");
+    if(have_gop){
+        *(volatile u64*)0x40070000ULL = 0x5A585642464F4F49ULL;  /* ZXV_BOOTINFO_MAGIC */
+        *(volatile u64*)0x40070008ULL = fb;
+        *(volatile u32*)0x40070010ULL = w;
+        *(volatile u32*)0x40070014ULL = h;
+        *(volatile u32*)0x40070018ULL = pps;
+        *(volatile u32*)0x4007001CULL = pixfmt;
+        uputs("handoff record published @0x40070000\r\n");
+    } else {
+        /* No GOP: explicitly clear the sentinel so a stale/garbage word at the
+         * fixed bootinfo address can never be misread as the magic. The kernel's
+         * magic check then fails and it takes ramfb (or stays on serial). */
+        *(volatile u64*)0x40070000ULL = 0;
+        uputs("no GOP handoff -- bootinfo sentinel cleared @0x40070000\r\n");
+    }
 
     u64 msz=0, mkey=0, dsz=0; u32 dver=0; void *mmap=0;
     GetMemoryMap(&msz,0,&mkey,&dsz,&dver);      /* sizing call (returns TOO_SMALL) */

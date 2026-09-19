@@ -56,3 +56,15 @@ bodhi_state_t bodhi_observe(const dharma_set_t *d) {
     b.transcendent = rational_gt_exact(rational_abs_exact(b.coherence), rational_abs_exact(b.dispersion));
     return b;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Observation. REQUIRES measured from bodhi.o's `nm -u` = {cyc13_add,
+ * cyc13_basis, cyc13_from_phase, cyc13_scale, cyc13_zero, rational_abs_exact,
+ * rmag_add_quotas}. Rooted through tantra -> naga_raja.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(bodhi,
+    ZXV_PROVIDES(bodhi_ready),
+    ZXV_REQUIRES(rmag_ready, cyc13_ready),
+    ZXV_NO_BRINGUP);

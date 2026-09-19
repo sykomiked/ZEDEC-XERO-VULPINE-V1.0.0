@@ -366,3 +366,27 @@ const char *mcg_status_name(mcg_status_t status) {
         default:                      return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * THE PREFIX TRAP, CAUGHT: this directory is macgyver/ and every symbol in it
+ * is mcg_*. The declaration is written from macgyver.h, not from the path.
+ *
+ * REQUIRES_NONE is measured: macgyver.o's `nm -u` is EMPTY. Note what that
+ * refutes -- mcg_set_node_digest and mcg_compute_triad_digest sound like they
+ * hash, and this module carries digests, but it never calls sha256: the digest
+ * bytes arrive from the caller. A REQUIRES(sha256_ready) written from the API
+ * names would have been wrong.
+ */
+#include "zxv_decl.h"
+static int zxvd_macgyver_bringup(void) {
+    static mcg_registry_t reg;
+    mcg_registry_init(&reg);
+    if (mcg_count_unverified(&reg) != 0u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(macgyver,
+    ZXV_PROVIDES(mcg_registry_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_macgyver_bringup));

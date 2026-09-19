@@ -1,0 +1,1 @@
+qemu-system-aarch64: kernel 'kernel_arm64.elf' is too large to fit in RAM (kernel size 218896200, RAM size 134217728)

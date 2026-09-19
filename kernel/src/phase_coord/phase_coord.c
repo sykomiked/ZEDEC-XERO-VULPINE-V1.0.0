@@ -232,3 +232,40 @@ const char *pc_phase_name(pc_phase_id_t phase) {
         default:                   return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The admission-token issuer. REQUIRES_NONE is measured: phase_coord.o's
+ * `nm -u` is empty.
+ *
+ * The bring-up checks that a fresh registry admits NOTHING -- zero satisfied
+ * gates. A token issuer that is permissive when empty is the failure that
+ * matters here, and it is invisible to any test that only checks the happy
+ * path.
+ */
+#include "zxv_decl.h"
+static int zxvd_phase_coord_bringup(void) {
+    static pc_registry_t reg;
+    pc_registry_init(&reg);
+    if (pc_token_is_valid(&reg, 1u)) return -1;   /* no token exists yet */
+    if (pc_find_token(&reg, 1u) != 0) return -1;
+    return 0;
+}
+
+/* Global phase coordinator registry */
+static pc_registry_t g_phase_coord_reg;
+
+/* Get the global phase coordinator registry */
+pc_registry_t *phase_coordinator_get(void) {
+    return &g_phase_coord_reg;
+}
+
+/* Get current logical time (phase tick) */
+uint64_t phase_coordinator_current_tick(void) {
+    return g_phase_coord_reg.current_logical_time;
+}
+
+ZXV_DECLARE(phase_coord,
+    ZXV_PROVIDES(pc_admission_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_phase_coord_bringup));

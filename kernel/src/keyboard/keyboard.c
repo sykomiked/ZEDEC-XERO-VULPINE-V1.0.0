@@ -5,6 +5,23 @@
 #include "keyboard.h"
 #include "../pic/pic.h"
 
+/* ---- MODBIND DECLARATION — L4 devices -------------------------------------
+ * Comment, not code, pending the ZXV_PROVIDES mechanism -- see the fuller note
+ * in kernel/src/pic/pic.c and PROVENANCE/X86_REHOME.md.
+ *
+ *   ZXV_PROVIDES(kbd_scancode_ready)
+ *   ZXV_REQUIRES(irq_ctrl_ready)
+ *   ZXV_BRINGUP(keyboard_init)
+ *
+ * keyboard_init clears the ring buffer and modifier state, then calls
+ * pic_unmask(IRQ_KEYBOARD) -- the object's only undefined symbol. Everything
+ * else it needs (both scancode tables, the state block) is defined here.
+ *
+ * NOT declared: a requirement on idt. keyboard_handler is exported FOR a
+ * dispatcher; this module never registers it. Declaring the dependency would
+ * be inventing one.
+ */
+
 #ifndef TEST_HOST
 static inline uint8_t inb(uint16_t port) {
     uint8_t ret;

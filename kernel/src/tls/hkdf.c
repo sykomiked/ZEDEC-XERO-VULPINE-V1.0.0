@@ -219,3 +219,15 @@ bool ct_equal(const uint8_t *a, const uint8_t *b, uint32_t len) {
     for (uint32_t i = 0; i < len; i++) diff |= (uint8_t)(a[i] ^ b[i]);
     return diff == 0;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * HKDF / HMAC-SHA256 / constant-time compare. broker.o names hkdf_extract,
+ * hkdf_expand, hmac_sha256 and ct_equal -- all four are defined here, in
+ * tls/hkdf.c, NOT in a directory called crypto. Found by symbol lookup.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(hkdf,
+    ZXV_PROVIDES(hkdf_ready),
+    ZXV_REQUIRES(sha256_ready),
+    ZXV_NO_BRINGUP);

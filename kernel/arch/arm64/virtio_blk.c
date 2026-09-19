@@ -318,3 +318,23 @@ bool virtio_blk_init(block_device_t *dev) {
 }
 
 uint64_t virtio_blk_capacity_sectors(void) { return s_capacity_sectors; }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * The second provider of blockdev_ready, at the SAME contract as ramdisk. It
+ * requires the transport, not memory directly -- virtio_bus already carries the
+ * mm_ready requirement, and the fixpoint propagates that transitively, so
+ * restating it here would be noise rather than information.
+ *
+ * NO BRING-UP YET, and that is deliberate rather than lazy: whether this module
+ * can come up is decided by whether the machine has a virtio-blk transport at
+ * all. Presence is a HARDWARE fact, so the honest modbind expression of "no
+ * disk attached" is S- withdrawal of the capability, not a bring-up that
+ * returns failure on a perfectly healthy diskless boot. Migrating the probe out
+ * of kernel_main and into a bring-up therefore waits on modbind_withdraw being
+ * wired; declaring the edge does not. */
+#include "zxv_decl.h"
+
+ZXV_DECLARE(virtio_blk,
+    ZXV_PROVIDES(blockdev_ready),
+    ZXV_REQUIRES(virtio_bus_ready),
+    ZXV_NO_BRINGUP);

@@ -302,3 +302,25 @@ const char *iphase_tie_policy_name(iphase_tie_policy_t policy) {
         default:                       return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Inter-phase endpoint routing with failover. REQUIRES_NONE is measured:
+ * iphase.o's `nm -u` is empty, and the registry is caller-owned.
+ *
+ * Same sibling situation as choice/: iphase_core.c was already linked and this
+ * is the fuller implementation. Only this file declares, and it declares
+ * iphase_routes_ready -- the API, not the directory.
+ */
+#include "zxv_decl.h"
+static int zxvd_iphase_bringup(void) {
+    static iphase_registry_t reg;
+    iphase_registry_init(&reg);
+    if (iphase_find_endpoint(&reg, "nothing") >= 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(iphase,
+    ZXV_PROVIDES(iphase_routes_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_iphase_bringup));

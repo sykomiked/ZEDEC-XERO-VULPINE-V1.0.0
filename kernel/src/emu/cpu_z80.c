@@ -569,3 +569,16 @@ uint64_t cpu_z80_run(cpu_z80_t *c, uint64_t max_cycles) {
         if (cpu_z80_step(c) == 0) break;
     return c->cycles - start;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The Z80 core. emu/sms.o's ENTIRE undefined set is {cpu_z80_reset,
+ * cpu_z80_step, cpu_z80_int} -- a console is a CPU plus its own glue, and
+ * that is the only edge crossing between them. cpu_z80.o's own `nm -u` is
+ * empty: an interpreter that calls nothing.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(cpu_z80,
+    ZXV_PROVIDES(z80_cpu_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

@@ -13,6 +13,28 @@ OBJDUMP = $(CROSS_COMPILE)objdump
 
 KERNEL_SIM_DEVICES ?= 0
 
+# PARALLEL BY DEFAULT, ASKED OF THE HARDWARE, NOT HARDCODED. `-j$(nproc)` lived
+# in two helper scripts and never in the main build path, so every build this
+# project ever ran used one core of twelve. Measured against GNU Make 4.3 on the
+# build box: `MAKEFLAGS += -j` does take effect from inside a makefile (6 x 2s
+# jobs in 2.0s), `JOBS=1` serialises it (12.0s), and a command-line `-j2`
+# overrides it (6.0s) -- so both escape hatches for a bisect or an ordered log
+# are one variable away.
+NPROC := $(shell nproc 2>/dev/null || echo 4)
+JOBS  ?= $(NPROC)
+MAKEFLAGS += -j$(JOBS)
+
+# OUT-OF-TREE OBJECTS, one build/<arch> mirror per arch, so all five Makefiles
+# can run AT THE SAME TIME. Until 2026-08-11 this file used
+# $(KERNEL_SRCS:.c=.o) and wrote kernel/src/x/y.o -- the exact paths riscv,
+# riscv32 and arm32 also wrote. Four arches, one set of filenames: whichever ran
+# last won, and a survivor from another arch surfaced as "file format not
+# recognized". Makefile.x86_64 has had OBJDIR since it was written; this brings
+# the other four onto its scheme. ~/zxv/.buildlock and the
+# `find kernel -name '*.o' -delete` prologue exist only to work around the
+# collision that this variable removes.
+OBJDIR := build/arm64
+
 # NOTE: -fno-tree-vectorize/-fno-tree-slp-vectorize below are REQUIRED for
 # correctness, not speed: the IRQ vector (boot.s SAVE_REGS) saves only x0-x30,
 # NOT the FP/SIMD register file, so any live state the compiler parks in NEON
@@ -40,7 +62,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Dmalloc=fs_malloc -Dcalloc=fs_calloc \
          -Dmemcmp=fs_memcmp -Dpow=fs_pow -Dlog=fs_log \
          -include kernel/include/freestanding.h \
-         -Ikernel/include -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/src/mbcomp -Ikernel/src/modbind -Ikernel/arch/arm64 -Ikernel/src/virtio -Ikernel/src/trispace -Ikernel/src/holodeck -Ikernel/src/denconnect -Ikernel/src/mlkem -Ikernel/boot \
+         -Ikernel/include -Ikernel/src -Ikernel/src/e8 -Ikernel/src/mixmat -Ikernel/src/mbcomp -Ikernel/src/modbind -Ikernel/arch/arm64 -Ikernel/src/virtio -Ikernel/src/trispace -Ikernel/src/holodeck -Ikernel/src/denconnect -Ikernel/src/mlkem -Ikernel/src/curzi -Ikernel/src/pqsec -Ikernel/boot \
          -Ikernel/src/plnp -Ikernel/src/smap -Ikernel/src/decent \
          -Ikernel/src/recon -Ikernel/src/hdcm -Ikernel/src/gematria \
          -Ikernel/src/dualtrack -Ikernel/src/superpos \
@@ -49,7 +71,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/crypto_wallet -Ikernel/src/nlb \
          -Ikernel/src/license -Ikernel/src/surplus -Ikernel/src/edp_risk \
          -Ikernel/src/predictive -Ikernel/src/situation \
-         -Ikernel/src/finance -Ikernel/src/identity \
+         -Ikernel/src/rational -Ikernel/src/finance -Ikernel/src/identity \
          -Ikernel/src/quantum -Ikernel/src/hardware \
          -Ikernel/src/audiogenomics_pro \
          -Ikernel/src/synthesis -Ikernel/compat \
@@ -73,53 +95,123 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/cellular_multikernel \
          -Ikernel/src/event_space \
          -Ikernel/src/orbital_elevator \
-         -Ikernel/src/constellation \
-         -Ikernel/src/event_transport \
-         -Ikernel/src/hypercube \
-         -Ikernel/src/yantra \
-         -Ikernel/src/dual_space \
+        -Ikernel/src/orbital_compat \
+        -Ikernel/src/constellation \
+        -Ikernel/src/event_transport \
+        -Ikernel/src/hypercube \
+        -Ikernel/src/yantra \
+        -Ikernel/src/orbital_fabric \
+        -Ikernel/src/financial_fabric \
+        -Ikernel/src/finance \
+        -Ikernel/src/finance_markets \
+        -Ikernel/src/sdk \
+        -Ikernel/src/sdk_bridge \
+        -Ikernel/src/dual_space \
          -Ikernel/src/zxvfs -Ikernel/src/zab -Ikernel/src/invproof \
          -Ikernel/src/codec -Ikernel/src/bombsquad -Ikernel/src/megarom -Ikernel/src/display -Ikernel/src/syscall \
          -Ikernel/src/loader \
          -Ikernel/src/appkit \
          -Ikernel/src/shimmer \
          -Ikernel/src/fractal \
+         -Ikernel/src/tolvovina \
          -Ikernel/src/rational \
          -Ikernel/src/abacus \
          -Ikernel/src/lightningrod \
          -Ikernel/src/bios \
+         -Ikernel/src/dharma -Ikernel/src/sephirot \
          -Ikernel/src/chiglet -Ikernel/src/cards -Ikernel/src/refinery -Ikernel/src/concord -Ikernel/src/wyrmgate -Ikernel/src/wyverneye -Ikernel/src/chronicle \
          -Ikernel/src/deploy -Ikernel/src/theme -Ikernel/src/icon -Ikernel/src/font -Ikernel/src/bridge -Ikernel/src/update -Ikernel/src/mage -Ikernel/src/reality -Ikernel/src/bootfeat \
          -Ikernel/src/onepolicy -Ikernel/src/zcapital -Ikernel/src/ipfs -Ikernel/src/crown -Ikernel/src/ministry \
          -Ikernel/src/vino_stores -Ikernel/src/interspace -Ikernel/src/broker -Ikernel/src/battering_ram -Ikernel/src/tls -Ikernel/src/finance_markets -Ikernel/src/iso20022 -Ikernel/src/alloc \
-         -Ikernel/src/pirate_fleet -Ikernel/src/social_spaces -Ikernel/src/reputation -Ikernel/src/art_studio -Ikernel/src/games -Ikernel/src/voice -Ikernel/src/subterm -Ikernel/src/orbital_compat -Ikernel/src/fusion -Ikernel/src/sovereign_node -Ikernel/src/logistics -Ikernel/src/pirate_apps
+         -Ikernel/src/pirate_fleet -Ikernel/src/social_spaces -Ikernel/src/reputation -Ikernel/src/art_studio -Ikernel/src/games -Ikernel/src/voice -Ikernel/src/subterm -Ikernel/src/orbital_compat -Ikernel/src/fusion -Ikernel/src/sovereign_node -Ikernel/src/logistics -Ikernel/src/pirate_apps \
+         -Ikernel/src/acpi -Ikernel/src/audio -Ikernel/src/bluetooth -Ikernel/src/wifi \
+         -Ikernel/src/bootlegger -Ikernel/src/browser -Ikernel/src/clock -Ikernel/src/dharana \
+         -Ikernel/src/epu -Ikernel/src/fs -Ikernel/src/legal_engine -Ikernel/src/macgyver \
+         -Ikernel/src/panopticon -Ikernel/src/rce -Ikernel/src/rur -Ikernel/src/sutra \
+         -Ikernel/src/ubh -Ikernel/src/zxpkg \
+         -Ikernel/src/sched \
+         -Igui
+#
+# TWO OF THE -I PATHS ABOVE ARE LOAD-BEARING AND WERE MEASURED, NOT GUESSED:
+#
+#   -Ikernel/src/sched  dharma.h line 56 does `#include "sched.h"`. There is
+#     exactly one sched.h in the tree (kernel/src/sched/sched.h) and exactly one
+#     out-of-directory includer (dharma.h) -- verified with `find kernel -name
+#     sched.h` and `grep -rl '#include "sched.h"'`. Without this path the name
+#     resolved to the HOST /usr/include/sched.h, which drags in features.h ->
+#     features-time64.h -> bits/wordsize.h, which does not exist for the cross
+#     target. That is why five dharma sources "failed to compile": not a code
+#     defect, a header shadowed by glibc. Diagnosed from the real error text
+#     (`bits/wordsize.h: No such file or directory`), not from the file name.
+#
+#   -Igui  kernel/src/apps/apps.h line 22 does `#include "gui.h"`, and gui.h
+#     lives OUTSIDE kernel/src. Two copies exist and they are byte-identical
+#     (`diff gui/gui.h subsystems/gui/gui.h` is empty), so the choice looks
+#     arbitrary and is not: gui.h's own includes are RELATIVE
+#     (`../kernel/src/vbe/vbe.h`, `../kernel/src/keyboard/keyboard.h`,
+#     `../kernel/src/mouse/mouse.h`). From 05_KERNEL/gui/ those resolve to
+#     05_KERNEL/kernel/src/... and exist. From 05_KERNEL/subsystems/gui/ they
+#     resolve to 05_KERNEL/subsystems/kernel/src/... which does not exist. So
+#     only the root-level gui/ copy is usable, and the tie is broken by
+#     measurement rather than preference.
+#     It is appended LAST on purpose: -I is searched in order, so gui/'s other
+#     headers (event.h, layout.h, theme.h) can never shadow kernel/src/theme's
+#     theme.h or anything else already on the list.
+#     WHAT THIS DOES NOT DO: it does not build the GUI backend. gui/gui.c is
+#     outside kernel/src, so verify_layers.sh (which scans `find kernel/src
+#     -name '*.c'`) cannot classify it and the DRC would never see it. It is
+#     therefore left out, and the consequence is stated plainly: apps.o carries
+#     exactly one unresolvable reference, `U gui_create_window` (measured with
+#     nm -u; every other undefined symbol in it -- vfs_*, vino_*, vena_*, m5_* --
+#     is already in the build). Nothing calls apps_*, so --gc-sections discards
+#     those sections before relocation and the link succeeds. The day someone
+#     gives apps a caller, the link will fail loudly on gui_create_window, which
+#     is the correct signal: apps needs a GUI backend re-homed onto the
+#     ramfb + virtio-input path zxv_shell already drives, and that is a
+#     different piece of work from an include-path decision.
 
-LDFLAGS = -T kernel/arch/arm64/linker.ld -nostdlib -static -Wl,--gc-sections -Wl,--build-id=none
+# GC ROOTS FOR STAGED MODULES. --gc-sections discards any section nothing
+# references, so a module with no caller yet is in KERNEL_SRCS, compiles, and is
+# still ABSENT from the ELF (this is exactly what verify_banners.sh exists to
+# catch).
+#
+# 2026-08-10: the tolvovina GC roots (tvl_stereo_selfcheck, tvl_raster_selfcheck)
+# are REMOVED, per their own instruction to remove them once a real caller
+# exists. kernel/src/tolvovina/tvl_bringup.c now calls all four tolvovina
+# self-checks, and boot_features.c calls tvl_bringup(), so the modules are
+# reachable from kernel_main by an ordinary call chain. Keeping the roots would
+# have made `nm` say "present" whether or not that chain works -- the whole
+# point of this gate is that retention must not be able to impersonate use.
+GC_ROOTS =
+
+LDFLAGS = -T kernel/arch/arm64/linker.ld -nostdlib -static -Wl,--gc-sections -Wl,--build-id=none $(GC_ROOTS)
 LIBGCC = $(shell $(CC) -print-libgcc-file-name 2>/dev/null || echo /usr/lib/gcc-cross/aarch64-linux-gnu/13/libgcc.a)
 
-# ARM64 arch-specific objects
+# ARM64 arch-specific objects. Under $(OBJDIR) since 2026-08-11 -- see the
+# OBJDIR comment above the CFLAGS block.
 ARM64_ARCH_OBJS = \
-    kernel/arch/arm64/boot.o \
-    kernel/arch/arm64/uart_pl011.o \
-    kernel/arch/arm64/gicv3.o \
-    kernel/arch/arm64/arm64_timer.o \
-    kernel/arch/arm64/arm64_mmu.o \
-    kernel/arch/arm64/arm64_exceptions.o \
-    kernel/arch/arm64/boot_evidence.o \
-    kernel/arch/arm64/kernel_main_arm64.o \
-    kernel/arch/arm64/el0_userspace.o \
-    kernel/arch/arm64/user_procs.o \
-    kernel/arch/arm64/ramdisk.o \
-    kernel/arch/arm64/virtio_blk.o \
-    kernel/arch/arm64/virtio_net.o \
-    kernel/arch/arm64/virtio_input.o \
-    kernel/arch/arm64/virtio_snd.o \
-    kernel/arch/arm64/entropy.o
+    $(OBJDIR)/kernel/arch/arm64/boot.o \
+    $(OBJDIR)/kernel/arch/arm64/uart_pl011.o \
+    $(OBJDIR)/kernel/arch/arm64/gicv3.o \
+    $(OBJDIR)/kernel/arch/arm64/arm64_timer.o \
+    $(OBJDIR)/kernel/arch/arm64/arm64_mmu.o \
+    $(OBJDIR)/kernel/arch/arm64/arm64_exceptions.o \
+    $(OBJDIR)/kernel/arch/arm64/boot_evidence.o \
+    $(OBJDIR)/kernel/arch/arm64/kernel_main_arm64.o \
+    $(OBJDIR)/kernel/arch/arm64/el0_userspace.o \
+    $(OBJDIR)/kernel/arch/arm64/user_procs.o \
+    $(OBJDIR)/kernel/arch/arm64/ramdisk.o \
+    $(OBJDIR)/kernel/arch/arm64/virtio_blk.o \
+    $(OBJDIR)/kernel/arch/arm64/virtio_net.o \
+    $(OBJDIR)/kernel/arch/arm64/virtio_input.o \
+    $(OBJDIR)/kernel/arch/arm64/virtio_snd.o \
+    $(OBJDIR)/kernel/arch/arm64/entropy.o
 
 # Shared kernel source objects (platform-independent)
 KERNEL_SRCS = \
     kernel/src/virtio/vring.c \
     kernel/src/virtio/virtio_bus.c \
+    kernel/src/virtio/virtio_gpu.c \
     kernel/src/emu/cpu6502.c \
     kernel/src/emu/emu6502.c \
     kernel/src/emu/cpu_z80.c \
@@ -151,6 +243,7 @@ KERNEL_SRCS = \
     kernel/src/emu/story_mechanics.c \
     kernel/src/emu/nes.c \
     kernel/src/emu/game_runner.c \
+    kernel/src/emu/zxv_cover.c \
     kernel/src/emu/netplay.c \
     kernel/src/emu/console_trajectory.c \
     kernel/src/emu/break_potency.c \
@@ -161,6 +254,10 @@ KERNEL_SRCS = \
     kernel/src/mlkem/mlkem_sample.c \
     kernel/src/mlkem/mlkem_ntt.c \
     kernel/src/mlkem/mlkem_kpe.c \
+    kernel/src/curzi/curzi8889a.c \
+    kernel/src/curzi/curzi_shamir.c \
+    kernel/src/curzi/curzi_code.c \
+    kernel/src/curzi/curzi_tier.c \
     kernel/src/trispace/trispace.c \
     kernel/src/holodeck/swarm.c \
     kernel/src/holodeck/viewing.c \
@@ -178,6 +275,7 @@ KERNEL_SRCS = \
     kernel/src/e8/e8.c \
     kernel/src/mixmat/mixmat.c \
     kernel/src/modbind/modbind.c \
+    kernel/src/modbind/zxv_decl_gate.c \
     kernel/src/mbcomp/mbcomp.c \
     kernel/src/tls/hkdf.c \
     kernel/src/tls/x25519.c \
@@ -196,6 +294,11 @@ KERNEL_SRCS = \
     kernel/src/appkit/doc.c \
     kernel/src/shimmer/shimmer.c \
     kernel/src/fractal/zorder.c \
+    kernel/src/tolvovina/tvl_geom.c \
+    kernel/src/tolvovina/tvl_raster.c \
+    kernel/src/tolvovina/tvl_stereo.c \
+    kernel/src/tolvovina/tvl_rom.c \
+    kernel/src/tolvovina/tvl_bringup.c \
     kernel/src/rational/rational.c \
     kernel/src/abacus/abacus.c \
     kernel/src/lightningrod/lightningrod.c \
@@ -206,6 +309,7 @@ KERNEL_SRCS = \
     kernel/src/cards/sigil.c \
     kernel/src/refinery/enochian.c \
     kernel/src/refinery/refinery.c \
+    kernel/src/dharma/upaah.c \
     kernel/src/concord/concord.c \
     kernel/src/denconnect/denconnect.c \
     kernel/src/wyrmgate/wyrmgate.c \
@@ -218,6 +322,12 @@ KERNEL_SRCS = \
     kernel/src/net/dns.c \
     kernel/src/net/tcp.c \
     kernel/src/net/m5route.c \
+    kernel/src/net/jdr_piratenet.c \
+    kernel/src/net/radio.c \
+    kernel/src/net/dtmf.c \
+    kernel/src/net/smart_adapter.c \
+    kernel/src/net/smart_adapter_jdr.c \
+    kernel/src/net/smart_adapter_integration.c \
     kernel/src/vino/vino.c \
     kernel/src/vena/vena.c \
     kernel/src/holographic/holo.c \
@@ -230,6 +340,9 @@ KERNEL_SRCS = \
     kernel/src/finance/financial.c \
     kernel/src/finance/rails.c \
     kernel/src/finance/crypto_bridge.c \
+    kernel/src/finance/derivatives.c \
+    kernel/src/finance/assurance.c \
+    kernel/src/finance/treaty_tokenization.c \
     kernel/src/identity/identity.c \
     kernel/src/quantum/quantum_device.c \
     kernel/src/hardware/rtl_device.c \
@@ -291,10 +404,22 @@ KERNEL_SRCS = \
     kernel/src/event_space/self_audit.c \
     kernel/src/event_space/self_healing.c \
     kernel/src/orbital_elevator/orbital_elevator.c \
+    kernel/src/orbital_compat/orbital_compat.c \
+    kernel/src/orbital_compat/orbital_compat_sutra.c \
+    kernel/src/orbital_compat/orbital_compat_dtmf.c \
+    kernel/src/orbital_compat/orbital_compat_asm.c \
+    kernel/src/orbital_compat/orbital_compat_rust.c \
+    kernel/src/orbital_compat/orbital_compat_zig.c \
+    kernel/src/orbital_compat/orbital_compat_python.c \
+    kernel/src/orbital_compat/orbital_compat_wasm.c \
     kernel/src/constellation/constellation_coordinator.c \
     kernel/src/event_transport/event_transport.c \
     kernel/src/hypercube/hypercube_scene.c \
     kernel/src/yantra/yantra_fabric.c \
+    kernel/src/orbital_fabric/orbital_fabric.c \
+    kernel/src/financial_fabric/financial_fabric.c \
+    kernel/src/sdk_bridge/sdk_bridge.c \
+    kernel/src/sdk_bridge/sdk_bridge_lang.c \
     kernel/src/dual_space/dual_space.c \
     kernel/src/deploy/deploy.c \
     kernel/src/theme/theme.c \
@@ -334,9 +459,117 @@ KERNEL_SRCS = \
     kernel/src/fusion/fusion.c \
     kernel/src/sovereign_node/sovereign_node.c \
     kernel/src/logistics/logistics.c \
-    kernel/src/pirate_apps/pirate_apps.c
+    kernel/src/pirate_apps/pirate_apps.c \
+    \
+    kernel/src/acpi/acpi.c \
+    kernel/src/apps/demo_cross_lang.c \
+    kernel/src/apps/apps.c \
+    kernel/src/audio/audio.c \
+    kernel/src/bluetooth/bluetooth.c \
+    kernel/src/bootlegger/bootlegger.c \
+    kernel/src/browser/browser.c \
+    kernel/src/choice/choice.c \
+    kernel/src/clock/event_clock.c \
+    kernel/src/crit168/crit168_os.c \
+    kernel/src/desktop/desktop.c \
+    kernel/src/dharana/dharana.c \
+    kernel/src/dharma/bodhi.c \
+    kernel/src/dharma/chakra.c \
+    kernel/src/dharma/dharma.c \
+    kernel/src/dharma/karma.c \
+    kernel/src/dharma/mantra.c \
+    kernel/src/dharma/naga_raja.c \
+    kernel/src/dharma/tantra.c \
+    kernel/src/dharma/uvn.c \
+    kernel/src/dharma/yantra.c \
+    kernel/src/emu/sms.c \
+    kernel/src/epu/epu_device.c \
+    kernel/src/fs/fs.c \
+    kernel/src/iphase/iphase.c \
+    kernel/src/legal_engine/legal_engine.c \
+    kernel/src/legal_engine/legal_engine_ext.c \
+    kernel/src/lpres/lpres.c \
+    kernel/src/macgyver/macgyver.c \
+    kernel/src/mlkem/genomic_codon.c \
+    kernel/src/net/dtmf.c \
+    kernel/src/net/radio.c \
+    kernel/src/panopticon/panopticon.c \
+    kernel/src/panopticon/panopticon_vpn.c \
+    kernel/src/phase_coord/phase_coord.c \
+    kernel/src/rce/rce_units.c \
+    kernel/src/robin_debanks/crypto_verify.c \
+    kernel/src/rur/rur.c \
+    kernel/src/sephirot/sephirot.c \
+    kernel/src/sutra/sutra_capital.c \
+    kernel/src/sutra/sutra_chiglet.c \
+    kernel/src/sutra/sutra_lexer.c \
+    kernel/src/sutra/sutra_parser.c \
+    kernel/src/sutra/sutra_rails.c \
+    kernel/src/sutra/sutra_runtime.c \
+    kernel/src/sutra/sutra_selfaudit.c \
+    kernel/src/ubh/ubh.c \
+    kernel/src/video/video.c \
+    kernel/src/wifi/wifi.c \
+    kernel/src/zxpkg/zxpkg.c
 
-KERNEL_OBJS = $(KERNEL_SRCS:.c=.o)
+# ---------------------------------------------------------------------------
+# THE 49 SOURCES ABOVE THE BLANK CONTINUATION WERE STAGED, NOT DEAD.
+#
+# They compile with the CFLAGS above and nothing else was needed but the two
+# -I paths documented at the top. What is NOT claimed: that they RUN. Compiling
+# is one state, linking is a second, and being reachable in kernel_arm64.elf is
+# a third. Under -ffunction-sections + --gc-sections a source can be in this
+# list, compile, link, and still be entirely absent from the ELF because no
+# retained section references it. Every one of these is in exactly that state
+# today, and no GC_ROOTS entry was added to hide it: rooting a leaf makes `nm`
+# say "present" for a module nothing runs, which is worse than an honest zero
+# because it looks integrated and is not (this is the same reason the tolvovina
+# roots were removed above).
+#
+# FOUR THINGS DELIBERATELY LEFT OUT, each for a measured reason:
+#
+#   kernel/src/bringup/arch_globals.c  -- its own header says linking it on
+#     arm64 is a duplicate-symbol error, because kernel_main_arm64.c already
+#     defines the vfs/net/router/sched globals it provides. It compiles clean;
+#     that is exactly the trap. Correctly excluded by design, unchanged.
+#
+#   kernel/src/gdt/gdt.c, kernel/src/idt/idt.c -- 32-bit protected-mode code in
+#     a long-mode kernel (`unknown register name 'eax'`; idt.c cannot even find
+#     pic.h). Already adjudicated elsewhere; not touched.
+#
+#   kernel/src/sutra/debug_vino.c -- a HOSTED tool. It uses stdout/fflush and
+#     fails with `'stdout' undeclared`. The other nine sutra sources are in.
+#
+#   kernel/src/p2p_caracho/p2p_caracho.c -- compiles clean, and its own file
+#     header says: "SUPERSEDED -- moved to kernel/src/bootlegger/bootlegger.c
+#     ... do not include or build it." The two files' global symbol sets do not
+#     collide (measured: 0 common globals), so building both would have LINKED
+#     -- it would just have shipped one transport twice. bootlegger.c is in.
+#     The file stays on disk; it is not dead, it is superseded.
+#
+# TEN MORE ORPHANS ARE HOSTED TEST HARNESSES, not kernel code: every mlkem
+# *_validate.c, robin_debanks/crypto_validate.c, and sutra/debug_sutra{,_runtime}.c
+# defines `int main(void)` (measured with nm, not inferred from the file name --
+# they compile clean only because <stdio.h> resolves through
+# kernel/include/freestanding_stubs). Ten `main` definitions in one link is ten
+# multiple-definition errors. They belong to a host test target, not to this one.
+#
+# The remaining orphans are the x86 port-I/O cluster (ata, keyboard, mouse, pci,
+# pic, timer, net/rtl8139) -- `impossible constraint in 'asm'` on aarch64, which
+# is not an arm64 question -- and kernel/src/apps/{clock_app,dharma_monitor,
+# notes_app,vfs_stub}.c. Those four are NOT a missing include path: the three
+# app files reference types (clock_app_t, notes_app_t, dharma_monitor_app_t,
+# oseq_state_t, tantra_engine_t) that apps.h does not declare, and vfs_stub.c
+# is a host-test stub that would collide with kernel/src/vfs/vfs.c by its own
+# description. apps.c itself is in.
+# ---------------------------------------------------------------------------
+
+KERNEL_OBJS = $(patsubst %.c,$(OBJDIR)/%.o,$(KERNEL_SRCS))
+
+# Directories created ONCE at parse time, before any recipe runs, so no two -j
+# jobs can race for the same parent. The in-rule mkdir is a backstop only.
+OBJDIRS := $(sort $(dir $(ARM64_ARCH_OBJS) $(KERNEL_OBJS)))
+$(shell mkdir -p $(OBJDIRS))
 
 TARGET = kernel_arm64.elf
 TARGET_BIN = kernel_arm64.bin
@@ -409,15 +642,17 @@ $(EFI_APP): $(TARGET_BIN) kernel/arch/arm64/efi_stub.c kernel/arch/arm64/efi_hea
 	 $(OBJCOPY) -O binary --pad-to=$$END kernel/arch/arm64/efi_stub.elf $(EFI_APP); \
 	 echo "  [EFI] $(EFI_APP) padded to SizeOfImage $$END"
 
-# Compile ARM64 arch files
-kernel/arch/arm64/%.o: kernel/arch/arm64/%.c
+# ONE pattern rule now covers kernel/arch/arm64/*.c AND kernel/src/**/*.c AND
+# kernel/compat/*.c AND kernel/freestanding.c. The last two previously fell
+# through to make's BUILT-IN %.o: %.c rule, which is a different recipe; naming
+# every input explicitly removes that quiet second compile path.
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-kernel/arch/arm64/boot.o: kernel/arch/arm64/boot.s
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-# Compile shared kernel sources
-kernel/src/%.o: kernel/src/%.c
+# Assembly: explicit rule, so no implicit .c prerequisite is inferred for it.
+$(OBJDIR)/kernel/arch/arm64/boot.o: kernel/arch/arm64/boot.s
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 run: $(TARGET)
@@ -425,4 +660,28 @@ run: $(TARGET)
 		-kernel $(TARGET) -nographic -serial mon:stdio
 
 clean:
-	rm -f $(ARM64_ARCH_OBJS) $(KERNEL_OBJS) $(DEPS) $(TARGET) $(TARGET_BIN)
+	rm -rf $(OBJDIR) $(TARGET) $(TARGET_BIN)
+
+# ---- THE DERIVED PHASE TABLE ------------------------------------------------
+# Generated, never committed. build_system/gen_phase_table.sh computes one
+# #define per declared module -- its l13 phase, taken from its DRC layer, and
+# where verify_layers.sh's layer_of() is silent, from the floor its own local
+# includes impose. kernel/include/zxv_decl.h includes the result and ZXV_DECLARE
+# pastes ZXV_PHASE_OF_<module> into the module record, so no phase is ever typed
+# and a new module gets one the moment it is declared.
+#
+# GENERATED AT PARSE TIME, ON PURPOSE, NOT AS A RULE. Every object in this build
+# includes this header, so as a rule it would have to be a prerequisite of ~300
+# targets; miss one and a -j build races a compile against the generator and
+# fails intermittently -- the single worst failure mode to debug. A parse-time
+# $(shell ...) has run to completion before make has decided what to build at
+# all, so no ordering exists to get wrong. It costs ~0.3s and it re-derives on
+# every invocation, which is what keeps the table from going stale.
+#
+# The census goes to $(OBJDIR)/gen/phase_census.txt: a build that silently
+# generated the wrong number of phases would be exactly the invisible drift this
+# whole mechanism exists to remove.
+ZXV_GENDIR    := $(OBJDIR)/gen
+ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
+$(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
+CFLAGS += -I$(ZXV_GENDIR)

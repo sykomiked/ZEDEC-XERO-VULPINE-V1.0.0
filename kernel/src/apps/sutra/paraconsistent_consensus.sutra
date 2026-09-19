@@ -1,0 +1,284 @@
+#!/usr/bin/env sutra
+# paraconsistent_consensus.sutra — Paraconsistent Consensus Engine
+# Native Sutra application leveraging exact rationals and LPRES four-valued logic
+# Runs on ZXV pqOS with Orbital Compat integration
+
+# Sutra: The AI-native language of exact ratios and paraconsistent truth
+# Every value is num/den — exact, no floating-point approximation
+# LPRES states: TRUE(1) FALSE(2) BOTH(3) NEITHER(0) — first-class citizens
+
+import orbital.compat as oc
+import lpres
+import m5
+import surplus
+
+# ============================================================================
+# SUTRA TYPE DEFINITIONS
+# ============================================================================
+
+type Rational = { num: int64, den: int64 }  # Exact rational, always normalized
+type LPRES = enum { TRUE=1, FALSE=2, BOTH=3, NEITHER=0 }
+type M5Coords = { omega: uint64, r: Rational, ell: Rational, phi: Rational, chi: uint64 }
+
+# Consensus proposal with paraconsistent state
+type Proposal = {
+    id: uint64,
+    proposer: uint64,
+    content: bytes,
+    schema: string,
+    version: uint16,
+    lpres_state: LPRES,
+    m5: M5Coords,
+    coverage: Rational,
+    attestations: map<uint64, LPRES>  # validator -> attestation
+}
+
+# Consensus round state
+type ConsensusRound = {
+    round_id: uint64,
+    proposals: list<Proposal>,
+    quorum_threshold: Rational,
+    current_quorum: Rational,
+    lpres_state: LPRES,
+    decided: bool,
+    decision: bytes
+}
+
+# ============================================================================
+# LPRES PARACONSISTENT OPERATIONS
+# ============================================================================
+
+fn lpres_conjoin(a: LPRES, b: LPRES) -> LPRES:
+    """Paraconsistent conjunction (AND)"""
+    match (a, b):
+        (TRUE, TRUE) => TRUE
+        (FALSE, _) => FALSE
+        (_, FALSE) => FALSE
+        (BOTH, _) => BOTH
+        (_, BOTH) => BOTH
+        (NEITHER, NEITHER) => NEITHER
+        (TRUE, NEITHER) => NEITHER
+        (NEITHER, TRUE) => NEITHER
+        _ => NEITHER
+
+fn lpres_disjoin(a: LPRES, b: LPRES) -> LPRES:
+    """Paraconsistent disjunction (OR)"""
+    match (a, b):
+        (FALSE, FALSE) => FALSE
+        (TRUE, _) => TRUE
+        (_, TRUE) => TRUE
+        (BOTH, _) => BOTH
+        (_, BOTH) => BOTH
+        (NEITHER, NEITHER) => NEITHER
+        (FALSE, NEITHER) => NEITHER
+        (NEITHER, FALSE) => NEITHER
+        _ => NEITHER
+
+fn lpres_negate(a: LPRES) -> LPRES:
+    """Paraconsistent negation (NOT)"""
+    match a:
+        TRUE => FALSE
+        FALSE => TRUE
+        BOTH => BOTH      # Contradiction remains contradiction
+        NEITHER => NEITHER # Unknown remains unknown
+
+fn lpres_imply(a: LPRES, b: LPRES) -> LPRES:
+    """Paraconsistent implication"""
+    lpres_disjoin(lpres_negate(a), b)
+
+# ============================================================================
+# EXACT RATIONAL ARITHMETIC
+# ============================================================================
+
+fn rat_normalize(r: Rational) -> Rational:
+    if r.den == 0: return { num: 0, den: 1 }
+    if r.num == 0: return { num: 0, den: 1 }
+    let g = gcd(abs(r.num), abs(r.den))
+    let n = r.num / g
+    let d = r.den / g
+    if d < 0: return { num: -n, den: -d }
+    return { num: n, den: d }
+
+fn rat_add(a: Rational, b: Rational) -> Rational:
+    rat_normalize({ num: a.num * b.den + b.num * a.den, den: a.den * b.den })
+
+fn rat_mul(a: Rational, b: Rational) -> Rational:
+    rat_normalize({ num: a.num * b.num, den: a.den * b.den })
+
+fn rat_div(a: Rational, b: Rational) -> Rational:
+    rat_normalize({ num: a.num * b.den, den: a.den * b.num })
+
+fn rat_cmp(a: Rational, b: Rational) -> int:
+    """Compare: -1 if a<b, 0 if a==b, 1 if a>b"""
+    let lhs = a.num * b.den
+    let rhs = b.num * a.den
+    if lhs < rhs: -1
+    elif lhs > rhs: 1
+    else: 0
+
+fn rat_from_int(n: int64) -> Rational:
+    { num: n, den: 1 }
+
+fn rat_to_float(r: Rational) -> float64:
+    r.num as float64 / r.den as float64
+
+# ============================================================================
+# M5 COVERAGE ENFORCEMENT
+# ============================================================================
+
+fn m5_coverage(m5: M5Coords) -> Rational:
+    """Coverage = (omega * r * ell) / (phi * chi)"""
+    let numerator = rat_mul(rat_mul(rat_from_int(m5.omega as int64), m5.r), m5.ell)
+    let denominator = rat_mul(m5.phi, rat_from_int(m5.chi as int64))
+    if denominator.num == 0: return rat_from_int(100)  # Infinite coverage
+    rat_div(numerator, denominator)
+
+fn coverage_satisfied(m5: M5Coords, min_ratio: Rational) -> bool:
+    rat_cmp(m5_coverage(m5), min_ratio) >= 0
+
+# ============================================================================
+# CONSENSUS ENGINE
+# ============================================================================
+
+const MIN_COVERAGE = { num: 18, den: 10 }  # 1.8
+
+var consensus_state: ConsensusRound = {
+    round_id: 0,
+    proposals: [],
+    quorum_threshold: { num: 2, den: 3 },  # 2/3 quorum
+    current_quorum: { num: 0, den: 1 },
+    lpres_state: NEITHER,
+    decided: false,
+    decision: []
+}
+
+fn submit_proposal(proposer: uint64, content: bytes, schema: string, version: uint16) -> Proposal:
+    let m5 = M5Coords {
+        omega: consensus_state.round_id + 1,
+        r: { num: 24, den: 10 },  # 2.4
+        ell: { num: 1, den: 1 },
+        phi: { num: 0, den: 1 },
+        chi: 0
+    }
+    
+    let proposal = Proposal {
+        id: consensus_state.proposals.len() as uint64,
+        proposer: proposer,
+        content: content,
+        schema: schema,
+        version: version,
+        lpres_state: NEITHER,
+        m5: m5,
+        coverage: m5_coverage(m5),
+        attestations: {}
+    }
+    
+    consensus_state.proposals.push(proposal)
+    return proposal
+
+fn attest_proposal(proposal_id: uint64, validator: uint64, attestation: LPRES) -> bool:
+    let proposal = consensus_state.proposals[proposal_id as usize]
+    
+    # Check validator coverage
+    if !coverage_satisfied(proposal.m5, MIN_COVERAGE):
+        proposal.attestations[validator] = LPRES_FALSE
+        return false
+    
+    proposal.attestations[validator] = attestation
+    
+    # Update quorum
+    let total_weight = rat_from_int(consensus_state.proposals.len() as int64)
+    let positive_weight = rat_from_int(0)
+    
+    for (v, a) in proposal.attestations:
+        if a == TRUE:
+            positive_weight = rat_add(positive_weight, rat_from_int(1))
+    
+    proposal.current_quorum = rat_div(positive_weight, total_weight)
+    
+    # Check if quorum reached
+    if rat_cmp(proposal.current_quorum, proposal.quorum_threshold) >= 0:
+        # Determine consensus LPRES state
+        let mut consensus_lpres = LPRES_TRUE
+        for (v, a) in proposal.attestations:
+            consensus_lpres = lpres_conjoin(consensus_lpres, a)
+        
+        proposal.lpres_state = consensus_lpres
+        return true
+    
+    return false
+
+fn execute_consensus() -> bytes:
+    """Execute decided proposal through paraconsistent VM"""
+    for proposal in consensus_state.proposals:
+        if proposal.lpres_state == TRUE:
+            # Execute with full authority
+            return execute_vm(proposal.content)
+        elif proposal.lpres_state == BOTH:
+            # Execute with restrictions (contradiction present)
+            return execute_vm_restricted(proposal.content)
+        elif proposal.lpres_state == NEITHER:
+            # Defer execution
+            return []
+        else:  # FALSE
+            return []
+    
+    return []
+
+fn execute_vm(bytecode: bytes) -> bytes:
+    """Execute bytecode through Sutra VM with exact rational arithmetic"""
+    # This would interface with the kernel's ZAB/VM
+    # For now, return the bytecode as-is (identity)
+    bytecode
+
+fn execute_vm_restricted(bytecode: bytes) -> bytes:
+    """Execute with contradiction-aware restrictions"""
+    # In BOTH state, we can execute but mark results as paraconsistent
+    bytecode
+
+# ============================================================================
+# MAIN CONSENSUS LOOP
+# ============================================================================
+
+fn main():
+    print("PARACONSISTENT CONSENSUS ENGINE INITIALIZING ON ZXV PQOS")
+    
+    # Register Sutra with Orbital Compat
+    let rc = oc.register_lang(oc.OC_LANG_SUTRA, oc.SUTRA_OPS)
+    if rc != oc.OC_OK:
+        print("ORBITAL COMPAT REGISTRATION FAILED: ", rc)
+        return
+    
+    # Initialize M5 carrier and LPRES
+    oc.mb_carrier_up()
+    lpres.init()
+    
+    print("PARACONSISTENT CONSENSUS ENGINE READY")
+    
+    # Example: Submit a governance proposal
+    let proposal = submit_proposal(
+        proposer: 0x36N9,
+        content: "INCREASE_MIN_COVERAGE_TO_2_0".as_bytes(),
+        schema: "zxv.governance.policy",
+        version: 1
+    )
+    
+    print("SUBMITTED PROPOSAL: ", proposal.id)
+    
+    # Simulate validator attestations
+    attest_proposal(proposal.id, 0xVALIDATOR1, LPRES_TRUE)
+    attest_proposal(proposal.id, 0xVALIDATOR2, LPRES_TRUE)
+    attest_proposal(proposal.id, 0xVALIDATOR3, LPRES_BOTH)  # Contradiction!
+    
+    print("PROPOSAL LPRES STATE: ", proposal.lpres_state)
+    print("QUORUM: ", rat_to_float(proposal.current_quorum))
+    
+    # Execute consensus
+    let result = execute_consensus()
+    print("CONSENSUS RESULT: ", result.len(), " bytes")
+    
+    # Self-audit
+    print("SELF-AUDIT: COVERAGE=", rat_to_float(m5_coverage(proposal.m5)))
+    print("SELF-AUDIT: LPRES STATE=", proposal.lpres_state)
+    
+    return 0

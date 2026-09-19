@@ -33,6 +33,13 @@
 #include "holographic/holo.h"
 #include "bootfeat/boot_features.h"
 
+/* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
+ * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
+ * it. Before that extraction the gate was inline in kernel_main_arm64.c and so
+ * ran on arm64 ALONE -- this file booted without ever asking whether its
+ * declaration graph was sound. */
+#include "zxv_decl.h"
+
 static void boot_msg(const char *msg) {
     uint32_t eid = boot_evidence_record(msg);
     uart_puts("[E");
@@ -155,6 +162,14 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     boot_evidence_init();
     uart_init();
 
+    /* RAISE THE CARRIER, first and silently. mb_real_power returns 0 with the
+     * line down -- phase is measured RELATIVE to the carrier, so with no
+     * reference a phase difference denotes nothing -- and modbind_resolve now
+     * couples by real power. Without this the declaration gate below would
+     * report every module holding on an unmet requirement, describing a system
+     * that had simply not been switched on. Before the gate, not beside it. */
+    mb_carrier_up();
+
     uart_puts("\nZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA) [x86-64]\n");
     uart_puts("Edition: ZEDEC XERO VULPINE (ZXV)\n");
     uart_puts("==================================================\n\n");
@@ -231,6 +246,33 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     vena_set_language(&vena, LANG_M5_AXIOMATIC);
     static holo_ctx_t holo; holo_init(&holo);
     boot_msg("  [OK] nine-capital ledger + instruments + 3 rails + bridge + identity + vino/vena/holo");
+
+    /* ==== THE REAL DECLARATION GRAPH, AND ITS GATE ==========================
+     * ONE CALL, FIVE ARCHITECTURES (kernel/src/modbind/zxv_decl_gate.c).
+     *
+     * PLACEMENT. On arm64 the gate sits after the last modbind_reset() -- the
+     * composition fixture and modbind_selfcheck() both wipe the registry, so a
+     * gate registering before them would verify a table that is then erased.
+     * MEASURED HERE: this main calls neither, and nothing it reaches does
+     * either (`grep -rn modbind kernel/arch/x86_64 kernel/src/bootfeat` finds
+     * no reset and no selfcheck), so there is no reset to sit after. It is
+     * placed at arm64's RELATIVE position instead: after the subsystem inits,
+     * and BEFORE boot_features_init/boot_economy_init, matching
+     * kernel_main_arm64.c where the gate is at :2321 and boot_features_init at
+     * :2867. Verified rather than assumed, because "after the reset" is a
+     * property of the code path, not of the line number.
+     *
+     * The console is uart_puts, not boot_msg. boot_msg files each line into the
+     * x86_64 evidence ledger; the gate's lines are diagnostics of the graph, and
+     * boot_features_init/boot_economy_init on the two lines below already take
+     * raw uart_puts for the same reason. arm64 hands the gate a line-buffering
+     * adapter because its ledger is hashed into the boot measurement and eight
+     * records would have gone missing; nothing here depends on that hash.
+     *
+     * Return value deliberately discarded, exactly as on arm64: every fault it
+     * counts has already been printed by name, and halting would be a policy
+     * change rather than a port. */
+    (void)zxv_decl_boot_gate(uart_puts);
 
     /* Platform + economy aggregate self-checks (same entry points as arm64). */
     boot_features_init(uart_puts, 0, 0);

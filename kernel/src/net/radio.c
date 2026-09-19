@@ -652,3 +652,25 @@ void m5_adapter_register_ulf(m5_router_t *r, ulf_link_t *ulf) {
     m5_router_register_adapter(r, M5_PROTO_ULF, "ULF-Submarine",
                                radar_adapter_send, radar_adapter_poll, 0, 0);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Cellular and satellite links. REQUIRES(m5_router_ready) is measured:
+ * radio.o's `nm -u` is exactly {m5_router_register_adapter}, defined in
+ * net/m5route.c -- found by looking the symbol up across every object in the
+ * build, not by assuming net/ owns routing.
+ */
+#include "zxv_decl.h"
+static int zxvd_radio_bringup(void) {
+    static cell_modem_t modem;
+    cell_init(&modem, CELL_GEN_4G);
+    /* No radio is bound, so signal strength must be reported as unavailable
+     * rather than invented. */
+    if (cell_get_signal(&modem) > 0) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(radio,
+    ZXV_PROVIDES(radio_link_ready),
+    ZXV_REQUIRES(m5_router_ready),
+    ZXV_BRINGUP(zxvd_radio_bringup));

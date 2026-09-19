@@ -467,3 +467,30 @@ const char *ubh7_profile_name(ubh7_profile_t profile) {
         default:                             return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The universal 168-bit frame header and its 8/7/6-bit repackings.
+ * REQUIRES_NONE is measured: ubh.o's `nm -u` is empty.
+ *
+ * The bring-up round-trips a header through pack and unpack. That is the
+ * property everything else in the format depends on, and the failure it
+ * catches -- a field that survives packing but not unpacking -- looks like
+ * data corruption several layers away from here.
+ */
+#include "zxv_decl.h"
+static int zxvd_ubh_bringup(void) {
+    static ubh_168_header_t hdr, back;
+    static uint8_t wire[21];
+    ubh_168_header_init(&hdr, UBH_FRAME_FORMAT_IDENTITY);
+    if (!ubh_168_header_validate(&hdr)) return -1;
+    ubh_168_header_pack(&hdr, wire);
+    if (!ubh_168_header_unpack(&back, wire)) return -1;
+    if (!ubh_168_header_validate(&back))     return -1;
+    return 0;
+}
+
+ZXV_DECLARE(ubh,
+    ZXV_PROVIDES(ubh_format_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_ubh_bringup));

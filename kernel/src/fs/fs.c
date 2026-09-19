@@ -415,3 +415,33 @@ const char *fs_op_type_name(fs_op_type_t type) {
         default:            return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES fs_registry_ready. NOT vfs_ready and NOT zxvfs_ready -- both of
+ * those are already provided by other modules at contract 1, and a third
+ * provider that meant something different would be alternative provision of a
+ * capability it cannot actually stand in for.
+ *
+ * REQUIRES_NONE is measured (fs.o's `nm -u` is empty) and is the interesting
+ * part: this is a tri-space store with S-/S0 replication, but it includes no
+ * capability header at all and touches no block device -- the registry is
+ * entirely caller-owned memory. That is also why agent A placed it at L2 and
+ * not at L3 beside zxvfs_tri.
+ */
+#include "zxv_decl.h"
+static int zxvd_fs_bringup(void) {
+    static fs_registry_t reg;
+    int32_t idx;
+    fs_registry_init(&reg);
+    idx = fs_create_node(&reg, "/zxv", FS_NODE_DIR, 0u);
+    if (idx < 0) return -1;
+    if (fs_find_node(&reg, "/zxv") != idx) return -1;
+    if (fs_find_node(&reg, "/nope") >= 0)  return -1;
+    return 0;
+}
+
+ZXV_DECLARE(fs,
+    ZXV_PROVIDES(fs_registry_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_fs_bringup));

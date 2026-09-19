@@ -114,3 +114,28 @@ int zxv_display_negotiate(zxv_display_t *d,
     }
     return -4;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * Pure mode arithmetic over a constant table -- it touches no hardware, so it
+ * requires nothing, and the scanout layer requires IT (kernel_main negotiates
+ * the geometry before ramfb_init is handed w/h).
+ *
+ * The bring-up asserts the invariant the table exists to hold: every negotiated
+ * width is a multiple of 16. A width that is not shears the image on scanout
+ * engines that assume a 16-pixel stride granule -- a bug that presents as a
+ * driver fault and is really an arithmetic one. */
+#include "zxv_decl.h"
+
+static int display_bringup(void) {
+    zxv_display_t d;
+    if (zxv_display_negotiate(&d, 0, 0, 0, 0, 0) != 0) return -1;
+    if (d.w == 0 || d.h == 0 || d.stride < d.w) return -1;
+    if ((d.w & 15u) != 0u) return -1;
+    if (d.scale_permille == 0u) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(display,
+    ZXV_PROVIDES(display_mode_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(display_bringup));

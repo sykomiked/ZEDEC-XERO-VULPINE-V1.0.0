@@ -155,4 +155,10 @@ const char *pc_coverage_name(pc_coverage_t coverage);
 const char *pc_health_name(pc_health_t health);
 const char *pc_phase_name(pc_phase_id_t phase);
 
+/* Get the global phase coordinator registry */
+pc_registry_t *phase_coordinator_get(void);
+
+/* Get current logical time (phase tick) */
+uint64_t phase_coordinator_current_tick(void);
+
 #endif /* PHASE_COORD_H */

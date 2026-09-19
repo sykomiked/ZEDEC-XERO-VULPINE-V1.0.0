@@ -111,3 +111,14 @@ const uint8_t ED25519_PUBKEY_PORTER_HOUSE[32] = {
     0x11, 0xb3, 0xe8, 0x46, 0xcd, 0x46, 0x2c, 0x51,
     0x98, 0xe4, 0xa1, 0x05, 0x8c, 0x52, 0x20, 0x33
 };
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * Signature verification. loader/zsp.o names ed25519_verify and
+ * ed25519_ct_equal; both are defined here.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(ed25519,
+    ZXV_PROVIDES(ed25519_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_NO_BRINGUP);

@@ -4,6 +4,21 @@
  */
 #include "pci.h"
 
+/* ---- MODBIND DECLARATION — L4 devices -------------------------------------
+ * Comment, not code, pending the ZXV_PROVIDES mechanism -- see the fuller note
+ * in kernel/src/pic/pic.c and PROVENANCE/X86_REHOME.md.
+ *
+ *   ZXV_PROVIDES(pci_bus_ready)
+ *   ZXV_REQUIRES()                 -- nothing
+ *   ZXV_BRINGUP(pci_init)
+ *
+ * Enumeration is pure CAM access through the 0xCF8/0xCFC configuration ports
+ * and nothing else; `nm -u` on the object is empty. In particular this module
+ * does NOT require irq_ctrl_ready: it READS each device's interrupt line from
+ * config offset 0x3C and records it, but never unmasks or routes anything.
+ * Recording an IRQ number is not consuming an interrupt controller.
+ */
+
 #ifndef TEST_HOST
 static inline void outl(uint16_t port, uint32_t val) {
     __asm__ __volatile__("outl %0, %1" : : "a"(val), "Nd"(port));

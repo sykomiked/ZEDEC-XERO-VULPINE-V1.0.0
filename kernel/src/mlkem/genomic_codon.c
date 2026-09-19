@@ -90,3 +90,25 @@ void genomic_domain_tag(const codon_t *codons, size_t codon_count,
 
     shake256(buf, pos, out, out_len);
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES(shake256_ready) is measured: genomic_codon.o's `nm -u` is exactly
+ * {shake256}, defined in mlkem/keccak.c.
+ *
+ * The bring-up exercises the codon<->index bijection over the full 0..63 range
+ * rather than one sample, because a table with one wrong entry passes any
+ * single spot check and then silently corrupts one codon in sixty-four.
+ */
+#include "zxv_decl.h"
+static int zxvd_genomic_codon_bringup(void) {
+    uint8_t i;
+    for (i = 0u; i < 64u; i++)
+        if (codon_to_index(codon_from_index(i)) != i) return -1;
+    return 0;
+}
+
+ZXV_DECLARE(genomic_codon,
+    ZXV_PROVIDES(genomic_codon_ready),
+    ZXV_REQUIRES(shake256_ready),
+    ZXV_BRINGUP(zxvd_genomic_codon_bringup));

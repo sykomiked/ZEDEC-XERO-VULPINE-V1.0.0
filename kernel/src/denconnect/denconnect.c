@@ -253,3 +253,15 @@ bool den_fleet_close(den_fleet_t *f, uint32_t idx) {
 }
 
 uint32_t den_fleet_count(const den_fleet_t *f) { return f ? f->n : 0; }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The den permission server. holodeck/viewing.o names den_can and
+ * den_may_connect. denconnect.o's own `nm -u` is exactly {sha256}: identities
+ * are keyed by digest.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(denconnect,
+    ZXV_PROVIDES(denconnect_ready),
+    ZXV_REQUIRES(sha256_ready),
+    ZXV_NO_BRINGUP);

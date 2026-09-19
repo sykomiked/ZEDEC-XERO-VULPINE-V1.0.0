@@ -79,3 +79,16 @@ void appu_descend(chakra_system_t *c, bodhi_state_t transcendent_observation) {
         c->nodes[i - 1].charge = rmag_add_quotas(c->nodes[i - 1].charge, deduced);
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES measured from chakra.o's `nm -u` = {rmag_add_quotas,
+ * rmag_mul_quotas}. Nothing else crosses this file's boundary -- in
+ * particular it does NOT reach the cyclotomic algebra, which the name would
+ * have suggested and the object file refutes.
+ */
+#include "zxv_decl.h"
+ZXV_DECLARE(chakra,
+    ZXV_PROVIDES(chakra_ready),
+    ZXV_REQUIRES(rmag_ready),
+    ZXV_NO_BRINGUP);

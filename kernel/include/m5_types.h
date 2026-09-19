@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <complex.h>
 #include <math.h>
+#include "surplus.h"
 typedef uint64_t ordinal_t;
 typedef struct rational_t { int64_t num, den; } rational_t;
 typedef enum {
@@ -53,6 +54,15 @@ typedef struct lattice_node_id {
     uint32_t dim_level;          /* current dimensional level */
     ordinal_t last_sync_cycle;   /* last cycle synchronized with peers */
 } lattice_node_id_t;
+
+/* M5 Coordinates — used by rails, identity, mesh_net, crypto_wallet, etc. */
+typedef struct m5_coords {
+    uint64_t omega;              /* ordinal cycle */
+    surplus_real_t r;            /* radial coordinate */
+    surplus_real_t ell;          /* angular coordinate (trit-derived) */
+    surplus_real_t phi;          /* phase coordinate */
+    int32_t chi;                 /* collapse coordinate */
+} m5_coords_t;
 /* ---- CANONICAL TRIT FORM -------------------------------------------------
  * trit_t has SIX enumerators denoting FIVE states: TRIT_GLUT (2) is a legacy
  * spelling of TRIT_GLUT_NEUTRAL (5). That is fine at an INPUT, and fatal at a

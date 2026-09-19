@@ -36,8 +36,13 @@ TARGETS="${TARGETS:-arm64 x86_64 riscv riscv32 arm32}"
 VERBOSE="${VERBOSE:-0}"
 MAXERR="${MAXERR:-6}"
 # Known-good baseline: arm64 links and boots with this many apparently-undefined
-# symbols, all of them in code --gc-sections discards. Counts at or below this
-# are noise; well above it is signal.
+# symbols, all of them in code section collection discards. Counts at or below
+# this are noise; well above it is signal.
+# CALIBRATED ON arm64 ONLY. Since 2026-08-11 the other four collect sections
+# too, so the floor is now meaningful for them as well -- but it has not been
+# re-measured per target, and the reachable-code counts differ by an order of
+# magnitude (arm64 1211 text symbols, arm32 118). Treat a near-floor count on a
+# non-arm64 target as uncalibrated rather than clean.
 UNDEF_FLOOR="${UNDEF_FLOOR:-8}"
 
 # Prefer a clang that supports RISC-V. Apple's system clang does not.
@@ -132,7 +137,22 @@ parser_coverage_check() {
 }
 
 includes_from_mk() {
-  grep -o '\-I[^ \\]*' "$1" 2>/dev/null | sort -u | tr '\n' ' '
+  # Two hazards, both from make variables the shell cannot expand:
+  #  - a bare -I$(FOO) reaches gcc as the literal "-I$(FOO)" and finds nothing;
+  #  - $(ZXV_GENDIR) is where the Makefile writes GENERATED headers (the phase
+  #    table), so preflight must point -I at the same real dir the build uses, or
+  #    every TU that includes a generated header fails with "file not found"
+  #    while the actual build is clean -- a false alarm, not a defect.
+  # Resolve the gen dir the same way the Makefile defines it ($(OBJDIR)/gen),
+  # taking OBJDIR from the Makefile itself so nothing is hardcoded, then drop any
+  # remaining -I with an unexpanded $(...).
+  local objdir gendir
+  objdir="$(sed -n 's/^OBJDIR[[:space:]]*:*=[[:space:]]*//p' "$1" | head -1)"
+  gendir=""
+  [ -n "$objdir" ] && gendir="-I$objdir/gen"
+  { printf '%s\n' "$gendir"
+    grep -o '\-I[^ \\]*' "$1" 2>/dev/null | grep -v '\$'; } \
+    | grep -v '^$' | sort -u | tr '\n' ' '
 }
 
 defines_from_mk() {
@@ -239,11 +259,22 @@ for T in $TARGETS; do
     printf '\033[1;31m    parsed 0 sources from %s — the parser does not understand\n' "$MK"
     printf '    this Makefile, so THIS TARGET WAS NOT CHECKED AT ALL.\033[0m\n'
   elif [ $((ERRS+MISSING)) -eq 0 ] && [ "$UNDEF_N" -gt "$UNDEF_FLOOR" ]; then
-    # ADVISORY, NOT A GATE. The real link passes -Wl,--gc-sections, which
-    # DISCARDS unreferenced dead code before resolving it — so a symbol that
-    # is declared, never defined, and only reachable from dead code links
-    # fine in reality and shows up here as a false positive. A symbol diff
-    # cannot model section garbage collection.
+    # ADVISORY, NOT A GATE. The real link discards unreferenced sections before
+    # resolving them — so a symbol that is declared, never defined, and only
+    # reachable from dead code links fine in reality and shows up here as a
+    # false positive. A symbol diff cannot model section garbage collection.
+    #
+    # TRUE FOR ALL FIVE TARGETS as of 2026-08-11, and it was NOT before: this
+    # sentence used to assert "-Wl,--gc-sections" unconditionally while only
+    # arm64 passed it (x86_64 gained it 2026-08-10; riscv, riscv32 and arm32 on
+    # 2026-08-11). On the four arches that discarded nothing, the leniency this
+    # advisory grants had no counterpart in the real link, so the excuse was
+    # being extended to builds that did not qualify for it.
+    #
+    # The exact spelling differs by target and is NOT "-Wl,--gc-sections"
+    # everywhere: arm32 links with $(LD) directly and passes a bare
+    # --gc-sections, so grepping the Makefiles for the -Wl, form would find four
+    # of five and wrongly conclude arm32 does not collect. Read each LDFLAGS.
     #
     # Calibration: arm64 links and boots today with a handful of such
     # symbols, so UNDEF_FLOOR is set from that known-good baseline. A count

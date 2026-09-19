@@ -502,3 +502,25 @@ int vpn_mesh_visualize(vpn_state_t *state, char *buf, uint16_t buf_len) {
         state->mesh.total_paths, state->mesh.paths_used);
     return pos;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * REQUIRES_NONE, AND THAT IS THE MEASUREMENT, NOT AN OMISSION. This file sits
+ * in panopticon/ beside panopticon.c and it would be natural to declare
+ * REQUIRES(panopticon_ready). panopticon_vpn.o's `nm -u` is EMPTY: it does not
+ * call one panopticon_* entry point. The mesh is independent of the watcher
+ * table; sharing a directory is not an edge.
+ */
+#include "zxv_decl.h"
+static int zxvd_panopticon_vpn_bringup(void) {
+    static vpn_state_t st;
+    if (vpn_mesh_init(&st) != 0)     return -1;
+    if (vpn_load_defaults(&st) != 0) return -1;
+    if (vpn_mesh_tick(&st) != 0)     return -1;
+    return 0;
+}
+
+ZXV_DECLARE(panopticon_vpn,
+    ZXV_PROVIDES(panopticon_vpn_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_panopticon_vpn_bringup));

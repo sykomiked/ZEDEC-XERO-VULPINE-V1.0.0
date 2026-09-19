@@ -11,7 +11,7 @@
 #include "../lightningrod/lightningrod.h"
 
 /* ---- tiny freestanding helpers (no libc) ---- */
-static void oc_zero_ir(oc_ir_t *ir) {
+void oc_zero_ir(oc_ir_t *ir) {
     ir->num_fields = 0;
     for (uint32_t i = 0; i < OC_MAX_FIELDS; i++) {
         oc_field_t *f = &ir->fields[i];
@@ -55,12 +55,22 @@ bool oc_lang_registered(oc_lang_t lang) {
 
 const char *oc_lang_name(oc_lang_t lang) {
     switch (lang) {
-        case OC_LANG_COBOL:   return "COBOL";
-        case OC_LANG_FORTRAN: return "Fortran";
-        case OC_LANG_C:       return "C";
-        case OC_LANG_SUTRA:   return "Sutra";
-        case OC_LANG_FUTURE:  return "Future";
-        default:              return "?";
+        case OC_LANG_COBOL:       return "COBOL";
+        case OC_LANG_FORTRAN:     return "Fortran";
+        case OC_LANG_C:           return "C";
+        case OC_LANG_SUTRA:       return "Sutra";
+        case OC_LANG_ASSEMBLY:    return "Assembly";
+        case OC_LANG_RUST:        return "Rust";
+        case OC_LANG_ZIG:         return "Zig";
+        case OC_LANG_PYTHON:      return "Python";
+        case OC_LANG_WASM:        return "WebAssembly";
+        case OC_LANG_DTMF:        return "DTMF";
+        case OC_LANG_MF:          return "MF";
+        case OC_LANG_PULSE:       return "Pulse";
+        case OC_LANG_SS7:         return "SS7";
+        case OC_LANG_FSK:         return "FSK";
+        case OC_LANG_TELECOM:     return "Telecom";
+        default:                  return "?";
     }
 }
 
@@ -102,7 +112,7 @@ bool oc_field_eq(const oc_field_t *a, const oc_field_t *b) {
 }
 
 /* helper: put a single exact-rational field into a fresh IR */
-static int32_t oc_ir_single_rat(oc_ir_t *out, rat_t v, uint32_t scale) {
+int32_t oc_ir_single_rat(oc_ir_t *out, rat_t v, uint32_t scale) {
     if (!v.valid) return OC_ERR_CONV;
     out->num_fields = 1;
     out->fields[0].type  = OC_TYPE_RATIONAL;
@@ -112,13 +122,36 @@ static int32_t oc_ir_single_rat(oc_ir_t *out, rat_t v, uint32_t scale) {
 }
 
 /* helper: read the single leading rational field of an IR */
-static int32_t oc_ir_get_rat(const oc_ir_t *ir, rat_t *v, uint32_t *scale) {
+int32_t oc_ir_get_rat(const oc_ir_t *ir, rat_t *v, uint32_t *scale) {
     if (ir->num_fields < 1 || ir->fields[0].type != OC_TYPE_RATIONAL)
         return OC_ERR_ARG;
     *v = ir->fields[0].num;
     if (scale) *scale = ir->fields[0].scale;
     if (!v->valid) return OC_ERR_CONV;
     return OC_OK;
+}
+
+/* Power of 10 for exact rational arithmetic */
+rat_t rat_pow10(rat_t base, rat_t exp) {
+    rat_t result = { .num = 1, .den = 1, .valid = 1 };
+    
+    if (!base.valid || !exp.valid) { result.valid = 0; return result; }
+    if (exp.num == 0) return result;
+    
+    if (exp.den == 1) {
+        int64_t e = exp.num;
+        if (e < 0) {
+            base = rat_div(rat_from_int(1), base);
+            e = -e;
+        }
+        for (int64_t i = 0; i < e; i++) {
+            result = rat_mul(result, base);
+        }
+        return result;
+    }
+    
+    result.valid = 0;
+    return result;
 }
 
 /* ================= built-in COBOL adapter (COMP-3) ================= */
@@ -192,14 +225,73 @@ static int32_t c_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
     return (int32_t)sizeof(oc_c_src_t);
 }
 
+/* ===== Forward declarations for new language adapters ===== */
+extern int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t asm_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t asm_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t rust_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t rust_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t zig_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t zig_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t python_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t python_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t wasm_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t wasm_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t dtmf_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t dtmf_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t mf_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t mf_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t pulse_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t pulse_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t ss7_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t ss7_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t fsk_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t fsk_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+extern int32_t telecom_lower(const void *src, uint32_t len, oc_ir_t *out);
+extern int32_t telecom_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+
+/* ===== Language Ops ===== */
 static const oc_lang_ops_t OC_COBOL_OPS   = { "COBOL/COMP-3",  cobol_lower,   cobol_lift   };
 static const oc_lang_ops_t OC_FORTRAN_OPS = { "Fortran/fixed", fortran_lower, fortran_lift };
 static const oc_lang_ops_t OC_C_OPS       = { "C/binary",      c_lower,       c_lift       };
+static const oc_lang_ops_t OC_SUTRA_OPS   = { "Sutra/exact-rational",  sutra_lower,   sutra_lift   };
+static const oc_lang_ops_t OC_ASM_OPS     = { "Assembly/raw",  asm_lower,     asm_lift     };
+static const oc_lang_ops_t OC_RUST_OPS    = { "Rust/exact-rational", rust_lower,    rust_lift    };
+static const oc_lang_ops_t OC_ZIG_OPS     = { "Zig/comptime",  zig_lower,     zig_lift     };
+static const oc_lang_ops_t OC_PYTHON_OPS  = { "Python/arbitrary", python_lower,  python_lift  };
+static const oc_lang_ops_t OC_WASM_OPS    = { "WASM/linear",   wasm_lower,    wasm_lift    };
+static const oc_lang_ops_t OC_DTMF_OPS    = { "DTMF/telecom",  dtmf_lower,    dtmf_lift    };
+static const oc_lang_ops_t OC_MF_OPS      = { "MF/telecom",    mf_lower,      mf_lift      };
+static const oc_lang_ops_t OC_PULSE_OPS   = { "Pulse/telecom", pulse_lower,   pulse_lift   };
+static const oc_lang_ops_t OC_SS7_OPS     = { "SS7/telecom",   ss7_lower,     ss7_lift     };
+static const oc_lang_ops_t OC_FSK_OPS     = { "FSK/telecom",   fsk_lower,     fsk_lift     };
+static const oc_lang_ops_t OC_TELECOM_OPS = { "Telecom/generic", telecom_lower, telecom_lift };
 
 void oc_register_builtins(void) {
+    /* Legacy mainframe languages (Lightning Rod backed) */
     oc_register_lang(OC_LANG_COBOL,   &OC_COBOL_OPS);
     oc_register_lang(OC_LANG_FORTRAN, &OC_FORTRAN_OPS);
     oc_register_lang(OC_LANG_C,       &OC_C_OPS);
-    /* Sutra and FUTURE stay UNBOUND on purpose: an unbound language must
-     * fail closed, and Sutra demonstrates the ops-boundary registration. */
+    
+    /* Native AI language */
+    oc_register_lang(OC_LANG_SUTRA,   &OC_SUTRA_OPS);
+    
+    /* Modern systems languages */
+    oc_register_lang(OC_LANG_ASSEMBLY, &OC_ASM_OPS);
+    oc_register_lang(OC_LANG_RUST,    &OC_RUST_OPS);
+    oc_register_lang(OC_LANG_ZIG,     &OC_ZIG_OPS);
+    oc_register_lang(OC_LANG_PYTHON,  &OC_PYTHON_OPS);
+    oc_register_lang(OC_LANG_WASM,    &OC_WASM_OPS);
+    
+    /* Legacy telecommunications languages */
+    oc_register_lang(OC_LANG_DTMF,    &OC_DTMF_OPS);
+    oc_register_lang(OC_LANG_MF,      &OC_MF_OPS);
+    oc_register_lang(OC_LANG_PULSE,   &OC_PULSE_OPS);
+    oc_register_lang(OC_LANG_SS7,     &OC_SS7_OPS);
+    oc_register_lang(OC_LANG_FSK,     &OC_FSK_OPS);
+    oc_register_lang(OC_LANG_TELECOM, &OC_TELECOM_OPS);
+    
+    /* FUTURE stays UNBOUND on purpose: an unbound language must
+     * fail closed, demonstrating the ops-boundary registration. */
 }

@@ -4,6 +4,27 @@
  */
 #include "ata.h"
 
+/* ---- MODBIND DECLARATION — L4 devices -------------------------------------
+ * Comment, not code, pending the ZXV_PROVIDES mechanism -- see the fuller note
+ * in kernel/src/pic/pic.c and PROVENANCE/X86_REHOME.md.
+ *
+ *   ZXV_PROVIDES(ata_block_ready)
+ *   ZXV_REQUIRES()                 -- nothing
+ *   ZXV_BRINGUP(ata_init)
+ *
+ * The tempting declaration here is REQUIRES(pci_bus_ready), and it would be
+ * wrong. ata_init probes the LEGACY fixed port pairs 0x1F0/0x3F6 and
+ * 0x170/0x376 straight from ata.h -- it never calls pci_config_read and never
+ * consults a BAR. `nm -u` on the object is empty, which is the check that
+ * settles it. A PCI-native (BAR-addressed) ATA path would be a DIFFERENT
+ * provider of ata_block_ready that does require pci_bus_ready; modbind treats
+ * two providers of one capability as alternative provision, not conflict,
+ * which is exactly the case this is.
+ *
+ * Transfers are polled PIO (ata_wait spins on BSY/DRQ), so no IRQ 14/15
+ * dependency either -- hence no irq_ctrl_ready.
+ */
+
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
 }

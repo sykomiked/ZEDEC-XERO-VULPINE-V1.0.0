@@ -117,3 +117,24 @@ uint32_t sutra_lex_all(const char *source, sutra_token_t *tokens, uint32_t max_t
     }
     return count;
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * The root of the sutra chain, and the only sutra file with a bring-up.
+ *
+ * sutra_lexer.o's `nm -u` is empty, so this is the floor. sutra_parser.o
+ * requires it (U sutra_lex_all), and the runtime requires the parser. Rooting
+ * here and nowhere else is the transitive rule applied in the direction the
+ * calls actually run.
+ */
+#include "zxv_decl.h"
+static int zxvd_sutra_lexer_bringup(void) {
+    static sutra_token_t toks[16];
+    uint32_t n = sutra_lex_all("give 1 to bob", toks, 16u);
+    return (n > 0u) ? 0 : -1;
+}
+
+ZXV_DECLARE(sutra_lexer,
+    ZXV_PROVIDES(sutra_lex_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_sutra_lexer_bringup));

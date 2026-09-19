@@ -187,10 +187,23 @@ void arm64_mmu_init(void) {
          * confirmed by inspection (0x09000000 +/- 0x1000000 =
          * exactly [0x08000000, 0x0A000000]) -- this refactor cannot
          * regress the one board profile actually boot-tested so far. */
+        /* gicr_base/gicc_base are version-specific: only ONE of them is
+         * live on any given machine (redistributors exist on GICv3+, an
+         * MMIO CPU interface on GICv1/v2), and a board profile may leave
+         * either at 0. They get the same zero-guard virtio_mmio_base
+         * already has -- without it, block_overlaps_periph(addr, 0, 16MB)
+         * marks [0, 0x01000000] as Device and silently rewrites the
+         * attributes of whatever lives at address 0 (flash, on QEMU
+         * virt). Both are mapped unconditionally because this runs
+         * BEFORE gic_init(): the MMU must cover both layouts so the
+         * GICD_PIDR2 probe itself has somewhere to read from. */
         bool is_device =
             block_overlaps_periph(addr, bp->uart_base, 0x1000000) ||
             block_overlaps_periph(addr, bp->gicd_base, 0x1000000) ||
-            block_overlaps_periph(addr, bp->gicr_base, 0x1000000) ||
+            (bp->gicr_base &&
+             block_overlaps_periph(addr, bp->gicr_base, 0x1000000)) ||
+            (bp->gicc_base &&
+             block_overlaps_periph(addr, bp->gicc_base, 0x1000000)) ||
             (bp->virtio_mmio_base &&
              block_overlaps_periph(addr, bp->virtio_mmio_base, 0x1000000));
 
@@ -243,3 +256,29 @@ void arm64_mmu_disable(void) {
     __asm__ __volatile__("msr sctlr_el1, %0" :: "r"(sctlr));
     tlb_invalidate_all();
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+ * modbind.h:146-153 names this module as the alternative-provision example:
+ * a core with no MMU takes some other provider of mm_ready and still boots.
+ * It declares NO requirement today, and that is a deliberate, checkable
+ * position rather than an omission -- the header's illustration has arm64_mmu
+ * REQUIRE arm64_el1, but nothing in this tree PROVIDES arm64_el1 yet, and
+ * declaring a requirement no module supplies is precisely what the gate stops
+ * (MB_ERR_UNPROVIDED). The requirement gets declared when boot.s declares the
+ * provider, not before.
+ *
+ * The bring-up reads SCTLR_EL1.M back off the CPU. That is the only honest
+ * answer to "is paging up": arm64_mmu_init returns void, so a table built
+ * wrongly and an MMU never enabled are otherwise indistinguishable from here. */
+#include "zxv_decl.h"
+
+static int arm64_mmu_bringup(void) {
+    uint64_t sctlr;
+    __asm__ __volatile__("mrs %0, sctlr_el1" : "=r"(sctlr));
+    return (sctlr & 1u) ? 0 : -1;   /* M bit: the MMU is actually translating */
+}
+
+ZXV_DECLARE(arm64_mmu,
+    ZXV_PROVIDES(mm_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(arm64_mmu_bringup));

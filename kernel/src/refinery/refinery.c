@@ -1,6 +1,36 @@
 /* refinery.c — the Magitech Refinery. See refinery.h. */
 #include "refinery.h"
 #include "../robin_debanks/sha256.h"
+#include "../dharma/upaah.h"      /* the Phase-7 bridge the charge selects */
+
+/* ------------------------------------------------------ the charge bridge
+ * PROVENANCE/ENOCHIAN_POLARITY.md §6, verbatim as a function: a word's net
+ * Enochian charge is a tri-space face, and the face selects one of the
+ * three Phase-7 bridges the kernel already names.
+ *
+ *   net > 0  ->  role 0  S+  UPAAH  ->  VEIL_AIN_SOPH_AUR  the source of emanation
+ *   net < 0  ->  role 1  S-  VPAAH  ->  VEIL_AIN_SOPH      unbounded potential
+ *   net = 0  ->  role 2  S0  PIR    ->  SEPH_YESOD         foundation
+ *
+ * The three GLUT trits below are not a translation layer, they ARE the
+ * charge: trit_charge(TRIT_GLUT_PLUS/MINUS/NEUTRAL) is +1/-1/0, the same
+ * three values eno_charge_role classifies, so composing the two is an
+ * identity and not a mapping anyone has to maintain.
+ *
+ * This is also the ONLY caller dharma/upaah.c has. Wiring that file into
+ * KERNEL_SRCS without one leaves it compiled and absent from the ELF --
+ * measured, not assumed: with no caller, nm found zero of its eight
+ * symbols in kernel_arm64.elf. */
+static uint8_t charge_phase_of(int32_t net) {
+    static const trit_t ROLE_TRIT[3] = {
+        TRIT_GLUT_PLUS,      /* 0  S+ */
+        TRIT_GLUT_MINUS,     /* 1  S- */
+        TRIT_GLUT_NEUTRAL    /* 2  S0 */
+    };
+    uint32_t role = eno_charge_role(net);
+    if (role > 2u) return 0u;                 /* unreachable; no fixed trust */
+    return (uint8_t)phase7_bridge(ROLE_TRIT[role]);
+}
 
 /* ------------------------------------------------------------- palette */
 /* Full colour spectrum by root: the nine chakra-aligned hues, one per
@@ -60,6 +90,17 @@ ref_status_t ref_forge(const char *text, uint32_t len, eno_voice_t voice,
     /* language layer: gematria and root over the folded letters */
     out->gematria = eno_gematria(text, len);
     out->root     = (uint8_t)eno_root(out->gematria);
+
+    /* the second channel: a signed net charge over the RAW letters. The
+     * magnitude above is a scalar and cannot carry the U/V polarity the
+     * kernel already names in dharma/upaah.h (UPAAH +1 / VPAAH -1 / PIR 0),
+     * so the polarity gets its own quantity rather than distorting the
+     * first. Nothing above changes: this line is pure addition, and every
+     * gematria, root, fabric and lane count is the number it was.
+     * eno_charge_role(net_charge) gives the card's S+/S-/S0 face, and
+     * charge_phase_of carries that face through to the L13 phase. */
+    out->net_charge   = (int8_t)eno_net_charge(text, len);
+    out->charge_phase = charge_phase_of(out->net_charge);
 
     /* the circuit: SHA-256 of the text bytes, exactly as the deck's
      * generator hashed the Enochian word */
@@ -273,8 +314,18 @@ uint32_t ref_preset_pack(const ref_card_t *c, uint8_t *out, uint32_t cap) {
     out[at++] = (uint8_t)(c->gematria >> 8);
     out[at++] = (uint8_t)(c->gematria >> 16);
     out[at++] = (uint8_t)(c->gematria >> 24);
-    out[at++] = 0;                                   /* reserved */
-    out[at++] = 0;
+    /* offset 10: the net charge, two's complement in one byte. This was one
+     * of two reserved zero bytes and unpack has never read either, so the
+     * blob is the SAME 58 bytes and every previously issued preset stays
+     * readable — the byte it carries there is 0, which is exactly PIR.
+     *
+     * NOT VERIFIED ON UNPACK, deliberately. ref_preset_unpack re-derives and
+     * compares gematria, root and digest; adding charge to that comparison
+     * now would refuse every preset already in circulation, because they all
+     * carry 0 here regardless of their text. Verifying it belongs with a
+     * REF_PRESET_MAGIC bump, in a later change. */
+    out[at++] = (uint8_t)c->net_charge;              /* offset 10 */
+    out[at++] = 0;                                   /* offset 11: reserved */
     out[at++] = c->text_len;
     for (uint32_t i = 0; i < c->text_len; i++) out[at++] = (uint8_t)c->text[i];
     for (uint32_t i = 0; i < 32u; i++) out[at++] = c->digest[i];

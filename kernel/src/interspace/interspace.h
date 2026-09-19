@@ -85,6 +85,11 @@ void interstitial_open(interstitial_region_t *r,
 /* True iff this region is res communis (common to all, seizable by none). */
 bool interstitial_is_commons(const interstitial_region_t *r);
 
+/* True iff this region is valid (active commons with valid region_id). */
+static inline bool interstitial_region_valid(const interstitial_region_t *r) {
+    return r && r->kind == ZXV_RES_COMMUNIS && r->owner == ZXV_NODE_NONE;
+}
+
 /* Attempt to claim the region for a node. For res communis this ALWAYS returns
  * ZXV_EIMMUNE — a commons any node can seize is a hollow commons. For res
  * nullius it returns ZXV_EPERM: no node may unilaterally seize the interstice;

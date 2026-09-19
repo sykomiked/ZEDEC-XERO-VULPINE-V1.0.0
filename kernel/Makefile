@@ -290,6 +290,32 @@ verify-all: test
 			/tmp/$$base && echo "[PASS] $$base" || { echo "[FAIL] $$base"; exit 1; }; \
 		fi; \
 	done; \
+	echo "=== ML-KEM-768 KNOWN-ANSWER TEST (NIST ACVP published vectors) ==="; \
+	echo "    The two validators above are SELF-CONSISTENCY checks: they prove our"; \
+	echo "    encaps and our decaps agree with EACH OTHER. That cannot detect a"; \
+	echo "    uniformly-wrong implementation. MEASURED 2026-08-12: a shift-by-64 UB"; \
+	echo "    in keccak.c's rotl64 made every SHA-3/SHAKE output wrong at -O2, so"; \
+	echo "    every ML-KEM key was wrong -- and BOTH self-consistency validators"; \
+	echo "    still passed. Only published vectors caught it. Never drop this gate."; \
+	if [ -f src/mlkem/test_mlkem_kat.c ]; then \
+		gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/mlkem -Isrc/modbind -Isrc/trispace -I$(ZXV_GENDIR) \
+			src/mlkem/test_mlkem_kat.c src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c \
+			src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c -o /tmp/test_mlkem_kat && \
+		/tmp/test_mlkem_kat && echo "[PASS] test_mlkem_kat (30 comparisons vs NIST ACVP)" \
+		|| { echo "[FAIL] test_mlkem_kat -- this build is NOT ML-KEM-768"; exit 1; }; \
+	else echo "[FAIL] src/mlkem/test_mlkem_kat.c is missing"; exit 1; fi; \
+	echo "=== ZEDEC pqOS: FIPS 203/204/205 falsification harness ==="; \
+	echo "    ML-DSA-65 + SLH-DSA-128s round-trips, tamper MUST fail, hybrid"; \
+	echo "    LPRES verdicts (TRUE/BOTH/FALSE), boot gate, mesh encapsulation."; \
+	if [ -f src/pqsec/test_pq_security.c ]; then \
+		gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/surplus -Isrc/edp_risk \
+			-Isrc/event_space -Isrc/modbind -Isrc/trispace -I$(ZXV_GENDIR) \
+			src/pqsec/test_pq_security.c src/pqsec/pq_security.c src/mlkem/keccak.c src/mlkem/mlkem768.c \
+			src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c \
+			-o /tmp/test_pq_security && \
+		/tmp/test_pq_security && echo "[PASS] test_pq_security (FIPS 203/204/205)" \
+		|| { echo "[FAIL] test_pq_security -- PQ layer is broken"; exit 1; }; \
+	else echo "[FAIL] src/pqsec/test_pq_security.c is missing"; exit 1; fi; \
 	echo "=== Event-Space Infrastructure ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space \
 		../tests/host/test_event_space.c \
@@ -877,6 +903,12 @@ verify-all: test
 		/tmp/test_zab_exec > /tmp/test_zab_exec.log 2>&1 && \
 		echo "[PASS] test_zab_exec ($$(grep -c '\[PASS\]' /tmp/test_zab_exec.log) checks)" || \
 		{ cat /tmp/test_zab_exec.log; echo "[FAIL] test_zab_exec"; exit 1; }; \
+	echo "=== ZAB scope: a capability names an OBJECT, not just a verb (negative tests) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/zab src/zab/test_zab_scope.c \
+		src/zab/zab_exec.c src/zab/zab.c -o /tmp/test_zab_scope && \
+		/tmp/test_zab_scope > /tmp/test_zab_scope.log 2>&1 && \
+		echo "[PASS] test_zab_scope ($$(grep -c '\[PASS\]' /tmp/test_zab_scope.log) checks)" || \
+		{ cat /tmp/test_zab_scope.log; echo "[FAIL] test_zab_scope"; exit 1; }; \
 	echo "=== ZXI inverse witness: a proven inverse must APPLY, not merely claim ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/invproof src/invproof/test_invproof.c \
 		src/invproof/invproof.c src/robin_debanks/sha256.c -o /tmp/test_invproof && \

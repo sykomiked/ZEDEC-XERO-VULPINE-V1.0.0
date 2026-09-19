@@ -284,3 +284,29 @@ const char *lpres_subject_name(lpres_subject_type_t type) {
         default:                         return "unknown";
     }
 }
+
+/* ---- DECLARATION -----------------------------------------------------------
+
+ * PROVIDES lpres_attest_ready -- the ATTESTATION registry, which is a
+ * different capability from the presence lattice lpres_core.c provides as
+ * lpres_ready. Reading only the directory name would have produced one
+ * declaration for two APIs, and then vino and dharma (which want presence)
+ * would have been bound to attestation.
+ *
+ * The bring-up checks the safety gate on an empty registry, because that is
+ * the answer that must never be wrong by default: nothing attested must not
+ * read as everything permitted.
+ */
+#include "zxv_decl.h"
+static int zxvd_lpres_attest_bringup(void) {
+    static lpres_registry_t reg;
+    lpres_registry_init(&reg);
+    if (lpres_count_contradictions(&reg) != 0u) return -1;
+    if (lpres_find(&reg, "nothing") != 0)       return -1;
+    return 0;
+}
+
+ZXV_DECLARE(lpres_attest,
+    ZXV_PROVIDES(lpres_attest_ready),
+    ZXV_REQUIRES_NONE,
+    ZXV_BRINGUP(zxvd_lpres_attest_bringup));

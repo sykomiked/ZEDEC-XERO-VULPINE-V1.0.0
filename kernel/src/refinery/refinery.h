@@ -82,6 +82,15 @@ typedef struct {
     uint32_t    gematria;
     uint8_t     root;                 /* 1..9 */
     uint8_t     voice;                /* eno_voice_t */
+    int8_t      net_charge;           /* signed polarity; S+/S-/S0 face */
+    /* The L13 phase that polarity lifts to, via eno_charge_role and the
+     * Phase-7 interface engine: >0 UPAAH -> VEIL_AIN_SOPH_AUR(13),
+     * <0 VPAAH -> VEIL_AIN_SOPH(12), =0 PIR -> SEPH_YESOD(9). Held as a
+     * plain byte rather than l13_phase_t on purpose: the type lives in
+     * dharma/sephirot and every consumer of this header would otherwise
+     * inherit that include. Derived, never transmitted -- see
+     * ref_preset_pack, which sends net_charge alone. */
+    uint8_t     charge_phase;         /* l13_phase_t value, 0 if unresolved */
     sigil_t     sigil;                /* fabric {root+3/k} + kamea circuit */
     uint8_t     path_len;             /* nodes in trace order */
     uint8_t     path[16];             /* node indices, the recovered ORDER */
