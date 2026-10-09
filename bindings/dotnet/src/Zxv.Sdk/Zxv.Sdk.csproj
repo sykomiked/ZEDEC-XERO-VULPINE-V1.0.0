@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Zxv.Sdk: the supported .NET API over the ZXV platform core. -->
+  <PropertyGroup>
+    <RootNamespace>Zxv</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>ZXV platform SDK for .NET: exact-minor-unit ledger, ISO 4217 currencies, ISO 20022 (pacs.008, camt.053) messages, netting, cards and conformance.</Description>
+    <PackageTags>iso20022;iso4217;payments;ledger;pacs.008;camt.053;papss</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Zxv.Native/Zxv.Native.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Zxv.Sdk.Tests" />
+  </ItemGroup>
+</Project>

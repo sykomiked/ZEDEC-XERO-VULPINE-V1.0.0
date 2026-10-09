@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Zxv.Native: P/Invoke surface over bindings/dotnet/native/zxv_api.h.
+       Source-generated marshalling (LibraryImport), SafeHandle ownership.
+       Everything except the handles, the status enum and the feature flags
+       is internal; Zxv.Sdk is the supported API. -->
+  <PropertyGroup>
+    <RootNamespace>Zxv.Interop</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <Description>Low-level P/Invoke bindings for the ZXV platform core C ABI (libzxv).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Zxv.Sdk" />
+    <InternalsVisibleTo Include="Zxv.Sdk.Tests" />
+  </ItemGroup>
+
+  <!-- Ship the native library next to the managed assembly (and in the
+       NuGet package under runtimes/<rid>/native). -->
+  <ItemGroup Condition="Exists('$(ZxvNativeLib)')">
+    <None Include="$(ZxvNativeLib)" Link="$(ZxvNativeFile)" CopyToOutputDirectory="PreserveNewest"
+          Pack="true" PackagePath="runtimes/$(ZxvNativeRid)/native/" />
+  </ItemGroup>
+
+  <!-- Convenience for Unix developers: build the shim with make when it is
+       missing. CI builds it explicitly; set ZxvSkipNativeBuild=true to opt out. -->
+  <Target Name="ZxvBuildNative" BeforeTargets="BeforeBuild"
+          Condition="'$(ZxvSkipNativeBuild)' != 'true' And !Exists('$(ZxvNativeLib)') And !$([MSBuild]::IsOSPlatform('Windows'))">
+    <Message Importance="high" Text="libzxv not found; running make in $(ZxvNativeDir)" />
+    <Exec Command="make -C &quot;$(ZxvNativeDir)&quot;" />
+    <ItemGroup>
+      <None Include="$(ZxvNativeLib)" Link="$(ZxvNativeFile)" CopyToOutputDirectory="PreserveNewest"
+            Pack="true" PackagePath="runtimes/$(ZxvNativeRid)/native/" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -288,6 +288,10 @@ verify-all: test
 	@echo "=== pay: ledger, tithe, ISO 20022 builders/parsers + XSD, equity, treasury, farm ==="; \
 	python3 -I src/pay/gen_tithe_ref.py /tmp/tithe_ref.txt && mkdir -p /tmp/test_pay_xml && \
 	gcc -std=c11 -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/pay -Isrc/tensor -Isrc/mlkem -Isrc/swarm -Isrc/robin_debanks -Isrc/zcapital -Isrc/surplus src/pay/test_pay.c src/pay/pay_*.c src/tensor/zt.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_pay && /tmp/test_pay /tmp/tithe_ref.txt src/pay/xsd /tmp/test_pay_xml > /tmp/test_pay.log 2>&1 && echo "[PASS] test_pay" || { tail -40 /tmp/test_pay.log; echo "[FAIL] test_pay"; exit 1; }
+	@echo "=== vblock: CID-keyed VRAM block store (simulated GPU backend) ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/vblock -Isrc/ipfs_node -Isrc/robin_debanks src/vblock/test_vblock.c src/vblock/vblock.c src/vblock/vblock_cpu.c src/vblock/vblock_sim.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/tensor/zt.c -o /tmp/test_vblock && /tmp/test_vblock > /tmp/test_vblock.log 2>&1 && echo "[PASS] test_vblock" || { tail -40 /tmp/test_vblock.log; echo "[FAIL] test_vblock"; exit 1; }
+	@echo "=== hosted app: local API guard, end-to-end API, model slot ==="; \
+	sh arch/hosted/test_hosted.sh > /tmp/test_hosted.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted.log; echo "[FAIL] test_hosted"; exit 1; }
 	@echo "=== zcapital: nine-form capital substrate + inalienability wall ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/surplus src/zcapital/test_zcapital.c src/zcapital/zcapital.c -o /tmp/test_zcapital -lm && /tmp/test_zcapital && echo "[PASS] test_zcapital" || { echo "[FAIL] test_zcapital"; exit 1; }
 	@echo "=== ipfs: content-addressed self-certifying get (the smuggler's hold) ==="; \

@@ -7,10 +7,20 @@
  *   zxv-host --server   server: no window here; open it remotely through
  *                       an SSH tunnel (the address is printed at start-up)
  *   zxv-host --remote   use the remote-instance budget (up to 99%)
- *   zxv-host --port N   listen on port N (default 8722)
+ *   zxv-host --port N   listen on port N (default 8722; 0 picks a free one)
+ *   zxv-host --model F  use the GGUF model file F
+ *   zxv-host --models-dir D   look for *.gguf in D (default: the per-user
+ *                       data folder, see docs/MAC_APP.md)
+ *   zxv-host --exit-with-parent   stop when stdin closes (the native shell
+ *                       holds the other end, so the engine never outlives it)
  *
  * The window is served only on 127.0.0.1, never on the network. A remote
  * window is reached through `ssh -L`, so the SSH key is the only way in.
+ * Every API call must carry this launch's random token, and the Host,
+ * Origin and Sec-Fetch-Site headers must show a same-origin loopback
+ * request (zxv_http_guard.h), so other web pages cannot drive the app.
+ * The token is printed on the "ZXV-URL:" line at start-up; the native
+ * shell can choose it instead through the ZXV_TOKEN environment variable.
  *
  * The platform layer (hardware scan, sockets, opening the window) is the
  * only OS-specific code; everything else is the freestanding kernel code
@@ -61,6 +71,8 @@ typedef int sock_t;
 #include "swarm_hk.h"
 #include "swarm_governor.h"
 #include "swarm_dna.h"
+#include "zxv_http_guard.h"
+#include "zxv_model_host.h"
 
 extern const char zxv_ui_html[];
 
@@ -143,24 +155,45 @@ static uint32_t pal_other_load_milli(void)
 #endif
 }
 
+/* The window without the native shell: the user's default browser. The
+ * native macOS app (macos/ZXVApp.m) shows it in its own WKWebView instead
+ * and starts the engine with --no-window. */
 static void pal_open_window(const char *url)
 {
-    char cmd[512];
+    /* The URL is built here from a port number and a hex token; refuse
+     * anything else so no shell metacharacter can ever reach system(). */
+    for (const char *p = url; *p; p++)
+        if (!strchr("0123456789abcdefhknopt:/.#=", *p)) return;
 #if defined(_WIN32)
     ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
-    (void) cmd;
-#elif defined(__APPLE__)
-    /* App-style window in Chrome if present, else the default browser. */
-    snprintf(cmd, sizeof cmd,
-             "open -na 'Google Chrome' --args --app='%s' --new-window >/dev/null 2>&1 || open '%s'",
-             url, url);
-    if (system(cmd) != 0) fprintf(stderr, "open the window at %s\n", url);
 #else
-    snprintf(cmd, sizeof cmd,
-             "(command -v chromium >/dev/null && chromium --app='%s') >/dev/null 2>&1 || "
-             "xdg-open '%s' >/dev/null 2>&1 &",
-             url, url);
+    char cmd[512];
+#    if defined(__APPLE__)
+    snprintf(cmd, sizeof cmd, "open '%s' >/dev/null 2>&1", url);
+#    else
+    snprintf(cmd, sizeof cmd, "xdg-open '%s' >/dev/null 2>&1 &", url);
+#    endif
     if (system(cmd) != 0) fprintf(stderr, "open the window at %s\n", url);
+#endif
+}
+
+/* Where models live when no --models-dir is given. */
+static void pal_models_dir(char *out, size_t cap)
+{
+    out[0] = 0;
+#if defined(_WIN32)
+    const char *app = getenv("APPDATA");
+    if (app) snprintf(out, cap, "%s\\ZXV\\models", app);
+#elif defined(__APPLE__)
+    const char *home = getenv("HOME");
+    if (home) snprintf(out, cap, "%s/Library/Application Support/ZXV/models", home);
+#else
+    const char *home = getenv("HOME");
+    const char *xdg = getenv("XDG_DATA_HOME");
+    if (xdg && xdg[0] == '/')
+        snprintf(out, cap, "%s/zxv/models", xdg);
+    else if (home)
+        snprintf(out, cap, "%s/.local/share/zxv/models", home);
 #endif
 }
 
@@ -389,6 +422,12 @@ static void answer(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
     char reading[512];
+    char model_note[400];
+    if (zxv_model_answer(q, out, cap)) return; /* a real model answered */
+    size_t nl = strlen(out);
+    if (nl >= sizeof model_note) nl = sizeof model_note - 1;
+    memcpy(model_note, out, nl);
+    model_note[nl] = 0;
     if (swarm_hk_parse(q, &ast) == SWARM_HK_OK && ast.num_ops > 0 &&
         swarm_hk_canonical(&ast, reading, sizeof reading) >= 0) {
         snprintf(out, cap,
@@ -406,9 +445,12 @@ static void answer(const char *q, char *out, size_t cap)
         "I received your message (%u words). Routing plan: the companion splits it into steps, "
         "the market gives this cycle's %llu tokens to %u agents, a witness checks every allotment, "
         "and nothing is shown until it passes the r x l >= 1.8 quality gate.\n"
-        "The model packs aren't installed in this preview, so I can't write a real answer yet.",
+        "%s",
         (unsigned) swarm_hk_words(q), (unsigned long long) S.b.tokens_per_cycle,
-        (unsigned) S.num_agents);
+        (unsigned) S.num_agents,
+        model_note[0] ? model_note
+                      : "No model is installed, so I can't write a real answer yet. Choose a GGUF "
+                        "model file to install one.");
 }
 
 /* ===================== HTTP + JSON ===================== */
@@ -514,7 +556,18 @@ static void state_json(buf_t *b)
         json_str(b, wa ? wa->name : "kernel");
         bput(b, "}");
     }
-    bput(b, "]}");
+    const zxv_model_info_t *mi = zxv_model_info();
+    bput(b, "],\"model\":{\"loaded\":%s,\"tokenizer_ok\":%s,\"can_generate\":%s,\"name\":",
+         mi->loaded ? "true" : "false", mi->tok_ok ? "true" : "false",
+         mi->can_generate ? "true" : "false");
+    json_str(b, mi->name);
+    bput(b, ",\"arch\":");
+    json_str(b, mi->arch);
+    bput(b, ",\"bytes\":%llu,\"layers\":%lld,\"context\":%lld,\"vocab\":%u,\"status\":",
+         (unsigned long long) mi->bytes, (long long) mi->n_layers, (long long) mi->n_ctx,
+         (unsigned) mi->n_vocab);
+    json_str(b, mi->status);
+    bput(b, "}}");
 }
 
 static void send_all(sock_t c, const char *p, size_t n)
@@ -527,60 +580,152 @@ static void send_all(sock_t c, const char *p, size_t n)
     }
 }
 
+/* Headers on every reply: never cached, never framed, never sniffed. */
+#define SAFE_HEADERS                                                                               \
+    "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n"                               \
+    "X-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\n"                                    \
+    "Cross-Origin-Resource-Policy: same-origin\r\nConnection: close\r\n"
+
 static void reply(sock_t c, const char *status, const char *type, const char *body, size_t len)
 {
-    char head[256];
-    int n = snprintf(head, sizeof head,
-                     "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
-                     "Cache-Control: no-store\r\nConnection: close\r\n\r\n",
-                     status, type, len);
+    char head[512];
+    int n =
+        snprintf(head, sizeof head,
+                 "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\n" SAFE_HEADERS "\r\n",
+                 status, type, len);
     send_all(c, head, (size_t) n);
     send_all(c, body, len);
 }
+
+/* The window's token plumbing, put into the page's <head>: it takes the
+ * token from the URL fragment (or from the native shell), drops it from
+ * the address bar, and adds it to the page's own same-origin fetches. */
+static const char TOKEN_SCRIPT[] =
+    "<script>(function(){var t='';try{var m=/[#&]token=([0-9a-f]{64})/.exec(location.hash);"
+    "if(m){t=m[1];sessionStorage.setItem('zxv-token',t);history.replaceState(null,'',"
+    "location.pathname)}else{t=sessionStorage.getItem('zxv-token')||''}}catch(e){}"
+    "if(typeof window.__ZXV_TOKEN==='string')t=window.__ZXV_TOKEN;var f=window.fetch.bind(window);"
+    "window.fetch=function(u,o){o=Object.assign({},o||{});if(typeof u==='string'&&u.charAt(0)==='/'"
+    "&&u.charAt(1)!=='/'){var h=new Headers(o.headers||{});h.set('" ZXV_TOKEN_HEADER "',t);"
+    "o.headers=h}return f(u,o)}})();</script>";
+
+static const char PAGE_CSP[] =
+    "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; "
+    "style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+    "frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n";
+
+static void send_page(sock_t c)
+{
+    const char *html = zxv_ui_html;
+    size_t total = strlen(html);
+    const char *at = strstr(html, "<head>");
+    size_t cut = at ? (size_t) (at - html) + 6 : 0;
+    char head[768];
+    int n = snprintf(head, sizeof head,
+                     "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
+                     "Content-Length: %zu\r\n%s" SAFE_HEADERS "\r\n",
+                     total + sizeof TOKEN_SCRIPT - 1, PAGE_CSP);
+    send_all(c, head, (size_t) n);
+    send_all(c, html, cut);
+    send_all(c, TOKEN_SCRIPT, sizeof TOKEN_SCRIPT - 1);
+    send_all(c, html + cut, total - cut);
+}
+
+static zxv_guard_t G;
 
 static void handle(sock_t c)
 {
     char req[8192];
     int n = 0, k;
+    char *hdr_end = NULL;
+    long want = 0;
     while (n < (int) sizeof req - 1 &&
            (k = (int) recv(c, req + n, (int) sizeof req - 1 - n, 0)) > 0) {
         n += k;
         req[n] = 0;
-        char *hdr_end = strstr(req, "\r\n\r\n");
-        if (hdr_end) {
-            char *cl = strstr(req, "Content-Length:");
-            long want = cl ? strtol(cl + 15, NULL, 10) : 0;
-            if (n - (int) (hdr_end + 4 - req) >= want) break;
+        if (!hdr_end && (hdr_end = strstr(req, "\r\n\r\n")) != NULL) {
+            const char *v;
+            size_t vl;
+            if (zxv_http_header(req, "Content-Length", &v, &vl) == 1) {
+                char num[16];
+                if (vl == 0 || vl >= sizeof num) {
+                    reply(c, "400 Bad Request", "text/plain", "bad length", 10);
+                    return;
+                }
+                memcpy(num, v, vl);
+                num[vl] = 0;
+                char *e;
+                want = strtol(num, &e, 10);
+                if (*e || want < 0) {
+                    reply(c, "400 Bad Request", "text/plain", "bad length", 10);
+                    return;
+                }
+            }
+            if (want > (long) sizeof req - 1 - (long) (hdr_end + 4 - req)) {
+                reply(c, "413 Content Too Large", "text/plain", "too large", 9);
+                return;
+            }
         }
+        if (hdr_end && n - (int) (hdr_end + 4 - req) >= want) break;
     }
-    req[n > 0 ? n : 0] = 0;
-    char *body = strstr(req, "\r\n\r\n");
-    body = body ? body + 4 : req + n;
+    /* timed out or closed before the headers or the body ended */
+    if (n <= 0 || !hdr_end || n - (int) (hdr_end + 4 - req) < want) return;
+    char *body = hdr_end + 4;
+    body[want] = 0;
 
-    if (!strncmp(req, "GET / ", 6) || !strncmp(req, "GET /index.html", 15)) {
-        reply(c, "200 OK", "text/html; charset=utf-8", zxv_ui_html, strlen(zxv_ui_html));
-    } else if (!strncmp(req, "GET /api/state", 14)) {
+    /* the request target, without any query */
+    const char *sp = strchr(req, ' ');
+    if (!sp) return;
+    const char *path = sp + 1;
+    size_t plen = strcspn(path, " ?#\r\n");
+    bool is_get = !strncmp(req, "GET ", 4);
+#define PATH_IS(s) (plen == sizeof(s) - 1 && !memcmp(path, s, plen))
+    bool api = plen >= 5 && !memcmp(path, "/api/", 5);
+
+    zxv_guard_verdict_t v = zxv_guard_check(&G, req, api);
+    if (v != ZXV_GUARD_OK) {
+        const char *why = zxv_guard_reason(v);
+        /* logged sparingly, so a hostile page looping requests cannot fill the disk */
+        static uint64_t refused;
+        if (++refused <= 20 || refused % 1000 == 0)
+            fprintf(stderr, "zxv-host: refused %.*s: %s (%llu so far)\n",
+                    (int) (plen < 64 ? plen : 64), path, why, (unsigned long long) refused);
+        reply(c, v == ZXV_GUARD_BAD_METHOD ? "405 Method Not Allowed" : "403 Forbidden",
+              "text/plain", why, strlen(why));
+        return;
+    }
+
+    if (PATH_IS("/") || PATH_IS("/index.html")) {
+        if (is_get)
+            send_page(c);
+        else
+            reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
+    } else if (PATH_IS("/api/state") && is_get) {
         buf_t b = {malloc(4096), 0, 4096};
         if (!b.p) return;
         state_json(&b);
         reply(c, "200 OK", "application/json", b.p, b.len);
         free(b.p);
-    } else if (!strncmp(req, "POST /api/ask", 13)) {
+    } else if (PATH_IS("/api/ask") && !is_get) {
         char ans[1400];
         answer(body, ans, sizeof ans);
         reply(c, "200 OK", "text/plain; charset=utf-8", ans, strlen(ans));
-    } else if (!strncmp(req, "POST /api/quit", 14)) {
+    } else if (PATH_IS("/api/quit") && !is_get) {
         reply(c, "200 OK", "text/plain", "bye", 3);
         S.quit = true;
+    } else if (PATH_IS("/api/state") || PATH_IS("/api/ask") || PATH_IS("/api/quit")) {
+        reply(c, "405 Method Not Allowed", "text/plain", "wrong method", 12);
     } else {
         reply(c, "404 Not Found", "text/plain", "not found", 9);
     }
+#undef PATH_IS
 }
 
 int main(int argc, char **argv)
 {
-    bool server = false, open_window = true;
+    bool server = false, open_window = true, exit_with_parent = false;
     int port = 8722;
+    const char *model = NULL, *models_dir = NULL;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--server")) {
             server = true;
@@ -589,20 +734,52 @@ int main(int argc, char **argv)
             S.remote = true;
         else if (!strcmp(argv[i], "--no-window"))
             open_window = false;
+        else if (!strcmp(argv[i], "--exit-with-parent"))
+            exit_with_parent = true;
         else if (!strcmp(argv[i], "--port") && i + 1 < argc)
             port = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--model") && i + 1 < argc)
+            model = argv[++i];
+        else if (!strcmp(argv[i], "--models-dir") && i + 1 < argc)
+            models_dir = argv[++i];
         else if (!strcmp(argv[i], "--version")) {
             printf("zxv-host %s\n", ZXV_VERSION);
             return 0;
         } else if (!strcmp(argv[i], "--help")) {
-            printf("zxv-host %s\n  --server     run headless; open the window remotely over SSH\n"
-                   "  --remote     remote-instance budget (up to 99%%)\n"
-                   "  --no-window  don't open a window\n  --port N     port (default 8722)\n",
+            printf("zxv-host %s\n  --server            run headless; open the window remotely "
+                   "over SSH\n"
+                   "  --remote            remote-instance budget (up to 99%%)\n"
+                   "  --no-window         don't open a window\n"
+                   "  --port N            port (default 8722; 0 = any free port)\n"
+                   "  --model FILE        GGUF model to use\n"
+                   "  --models-dir DIR    where to look for *.gguf models\n"
+                   "  --exit-with-parent  stop when stdin closes\n",
                    ZXV_VERSION);
             return 0;
+        } else {
+            fprintf(stderr, "zxv-host: unknown option %s (try --help)\n", argv[i]);
+            return 2;
         }
     }
+    if (port < 0 || port > 65535) {
+        fprintf(stderr, "zxv-host: bad port %d\n", port);
+        return 2;
+    }
     if (server && !S.remote) S.remote = true; /* a server is a remote instance */
+#if defined(_WIN32)
+    if (exit_with_parent) fprintf(stderr, "zxv-host: --exit-with-parent is not supported here\n");
+#endif
+
+    /* G1: this launch's token. The native shell may pick it (ZXV_TOKEN);
+     * anything that is not a well-formed token is ignored, never trusted. */
+    const char *env_tok = getenv("ZXV_TOKEN");
+    if (zxv_guard_token_valid(env_tok))
+        memcpy(G.token, env_tok, ZXV_TOKEN_HEX + 1);
+    else if (zxv_guard_token_new(G.token) != 0) {
+        fprintf(stderr, "zxv-host: no secure random source; refusing to start\n");
+        return 1;
+    }
+    G.any_loopback_port = server;
 
 #if defined(_WIN32)
     WSADATA wsa;
@@ -619,13 +796,31 @@ int main(int argc, char **argv)
     scan_hardware();
     build_swarm();
 
+    /* the model slot: an explicit file, else the first *.gguf in the
+     * models folder, else none (the swarm runs without one) */
+    zxv_model_close();
+    char found[1100], dir[1024];
+    if (!models_dir) {
+        pal_models_dir(dir, sizeof dir);
+        models_dir = dir;
+    }
+    if (!model && models_dir[0] && zxv_model_find_in_dir(models_dir, found, sizeof found) == 0)
+        model = found;
+    if (model && zxv_model_open(model) != 0)
+        fprintf(stderr, "zxv-host: %s\n", zxv_model_info()->status);
+
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
     if (ls == BAD_SOCK) {
         fprintf(stderr, "socket failed\n");
         return 1;
     }
     int yes = 1;
+#if defined(_WIN32)
+    /* no other program may bind the same port and steal requests */
+    setsockopt(ls, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char *) &yes, sizeof yes);
+#else
     setsockopt(ls, SOL_SOCKET, SO_REUSEADDR, (const char *) &yes, sizeof yes);
+#endif
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof addr);
     addr.sin_family = AF_INET;
@@ -635,33 +830,58 @@ int main(int argc, char **argv)
         fprintf(stderr, "port %d is busy (is ZXV already running?)\n", port);
         return 1;
     }
-    char url[64];
+    socklen_t alen = sizeof addr;
+    if (getsockname(ls, (struct sockaddr *) &addr, &alen) == 0) port = ntohs(addr.sin_port);
+    G.port = port;
+
+    char url[64], url_tok[160];
     snprintf(url, sizeof url, "http://127.0.0.1:%d/", port);
+    snprintf(url_tok, sizeof url_tok, "%s#token=%s", url, G.token);
     printf(
         "ZXV swarm %s: %u cores, %llu MB; budget %.2f cores, %llu MB, %u levels, %u agents (%s)\n",
         ZXV_VERSION, S.hw.cores, (unsigned long long) S.hw.mem_total_mb, S.gov.cores_milli / 1000.0,
         (unsigned long long) S.gov.mem_mb, S.gov.num_levels, S.num_agents,
         S.remote ? "remote instance" : "local guest");
+    printf("Model: %s\n", zxv_model_info()->status);
     if (server)
         printf("Server mode. From your own computer run:\n  ssh -N -L %d:127.0.0.1:%d "
                "<user>@<this-server>\n"
-               "then open %s\n",
-               port, port, url);
-    else
-        printf("Window: %s\n", url);
+               "then open the ZXV-URL below (keep the #token part private)\n",
+               port, port);
+    printf("ZXV-URL: %s\n", url_tok);
     fflush(stdout);
-    if (open_window) pal_open_window(url);
+    if (open_window) pal_open_window(url_tok);
 
     uint64_t next_step = pal_now_ms();
     while (!S.quit) {
         fd_set rd;
         FD_ZERO(&rd);
         FD_SET(ls, &rd);
+        int maxfd = (int) ls;
+#if !defined(_WIN32)
+        if (exit_with_parent) {
+            FD_SET(0, &rd);
+        }
+#endif
         struct timeval tv = {0, STEP_MS * 1000};
-        int r = select((int) ls + 1, &rd, NULL, NULL, &tv);
+        int r = select(maxfd + 1, &rd, NULL, NULL, &tv);
+#if !defined(_WIN32)
+        if (r > 0 && exit_with_parent && FD_ISSET(0, &rd)) {
+            char tmp[64];
+            if (read(0, tmp, sizeof tmp) <= 0) break; /* the shell is gone */
+        }
+#endif
         if (r > 0 && FD_ISSET(ls, &rd)) {
             sock_t c = accept(ls, NULL, NULL);
             if (c != BAD_SOCK) {
+                /* a client that stalls must not freeze the swarm */
+#if defined(_WIN32)
+                DWORD to = 2000;
+#else
+                struct timeval to = {2, 0};
+#endif
+                setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, (const char *) &to, sizeof to);
+                setsockopt(c, SOL_SOCKET, SO_SNDTIMEO, (const char *) &to, sizeof to);
                 handle(c);
                 CLOSESOCK(c);
             }
@@ -673,6 +893,7 @@ int main(int argc, char **argv)
         for (; now >= next_step; next_step += STEP_MS) step();
     }
     CLOSESOCK(ls);
+    zxv_model_close();
 #if defined(_WIN32)
     WSACleanup();
 #endif

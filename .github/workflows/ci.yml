@@ -158,3 +158,128 @@ jobs:
             ""|"no modified files to format"|"clang-format did not modify any files") echo "formatting OK" ;;
             *) echo "$out"; exit 1 ;;
           esac
+
+  # The turnkey Mac app: native shell + engine, universal (arm64 + x86_64),
+  # tested and packaged by build_desktop.sh on Apple's own toolchain. Signs
+  # and notarises only when the repository has the signing secrets; without
+  # them (forks, pull requests) the app is ad-hoc signed and still tested.
+  macos-app:
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      ZXV_SIGN_IDENTITY: ${{ secrets.ZXV_SIGN_IDENTITY }}
+      ZXV_TEAM_ID: ${{ secrets.ZXV_TEAM_ID }}
+      ZXV_CERT_P12_BASE64: ${{ secrets.ZXV_CERT_P12_BASE64 }}
+      ZXV_CERT_PASSWORD: ${{ secrets.ZXV_CERT_PASSWORD }}
+      ZXV_NOTARY_KEY_BASE64: ${{ secrets.ZXV_NOTARY_KEY_BASE64 }}
+      ZXV_NOTARY_KEY_ID: ${{ secrets.ZXV_NOTARY_KEY_ID }}
+      ZXV_NOTARY_ISSUER: ${{ secrets.ZXV_NOTARY_ISSUER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install tools
+        run: python -m pip install pillow==10.4.0 pycdlib==1.21.0
+      - name: Import the Developer ID certificate (only with secrets)
+        if: env.ZXV_CERT_P12_BASE64 != '' && env.ZXV_SIGN_IDENTITY != ''
+        run: |
+          KC="$RUNNER_TEMP/zxv-signing.keychain-db"
+          KCPASS="$(openssl rand -hex 24)"
+          echo "$ZXV_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KCPASS" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$KCPASS" "$KC"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$ZXV_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KCPASS" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "ZXV_KEYCHAIN=$KC" >> "$GITHUB_ENV"
+      - name: Write the notary API key (only with secrets)
+        if: env.ZXV_NOTARY_KEY_BASE64 != ''
+        run: |
+          echo "$ZXV_NOTARY_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary_key.p8"
+          echo "ZXV_NOTARY_KEY=$RUNNER_TEMP/notary_key.p8" >> "$GITHUB_ENV"
+      - name: Build, test and package ZXV.app
+        run: build_system/build_desktop.sh --mac-only
+      - name: Check the bundle
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/x"
+          ditto -x -k dist/ZXV-*-macos.app.zip "$RUNNER_TEMP/x"
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          plutil -lint "$APP/Contents/Info.plist"
+          test "$(plutil -extract CFBundleExecutable raw "$APP/Contents/Info.plist")" = ZXV
+          test "$(plutil -extract LSUIElement raw "$APP/Contents/Info.plist")" = false
+          for b in ZXV zxv-engine; do
+            archs="$(lipo -archs "$APP/Contents/MacOS/$b")"
+            echo "$b: $archs"
+            case "$archs" in *arm64*) ;; *) exit 1 ;; esac
+            case "$archs" in *x86_64*) ;; *) exit 1 ;; esac
+          done
+          codesign --verify --strict --deep --verbose=2 "$APP"
+          codesign -d --verbose=2 "$APP" 2>&1 | grep -E 'flags=.*runtime'
+      - name: Launch the app and quit it
+        run: |
+          set -eu
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          defaults write com.36n9genetics.zxv-swarm ZXVAskedForModel -bool true
+          open -n "$APP"
+          for i in $(seq 1 30); do
+            pgrep -f "ZXV.app/Contents/MacOS/zxv-engine" >/dev/null && break
+            sleep 1
+          done
+          pgrep -fl "ZXV.app/Contents/MacOS/zxv-engine"
+          sleep 3
+          # a polite Quit (as from the menu); some runners refuse Apple Events
+          osascript -e 'tell application id "com.36n9genetics.zxv-swarm" to quit' ||
+            echo "::warning::Apple Event quit refused on this runner"
+          for i in $(seq 1 15); do
+            pgrep -f "ZXV.app/Contents/MacOS/" >/dev/null || break
+            sleep 1
+          done
+          # if the shell is still up, kill it: the engine must not outlive it
+          pkill -TERM -f "ZXV.app/Contents/MacOS/ZXV" || true
+          for i in $(seq 1 10); do
+            pgrep -f "ZXV.app/Contents/MacOS/zxv-engine" >/dev/null || break
+            sleep 1
+          done
+          if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
+          tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
+      - name: Upload the Mac packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: zxv-macos
+          path: |
+            dist/ZXV-*-macos.dmg
+            dist/ZXV-*-macos.app.zip
+            dist/ZXV-*-SHA256SUMS.txt
+      - name: Remove the signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/notary_key.p8"
+          if [ -n "${ZXV_KEYCHAIN:-}" ]; then security delete-keychain "$ZXV_KEYCHAIN" || true; fi
+
+  # The .NET SDK for operator teams: the C ABI shim with its conformance
+  # test, then the SDK and gateway built with warnings as errors and tested.
+  dotnet-sdk:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: bindings/dotnet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Native shim (C ABI) and its conformance test
+        run: make -C native test
+      - name: Build (Release, warnings as errors)
+        run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
+      - name: Test
+        run: dotnet test Zxv.sln -c Release --no-build --logger "trx;LogFileName=results.trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dotnet-test-results
+          path: bindings/dotnet/tests/**/TestResults/*.trx
