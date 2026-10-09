@@ -24,11 +24,35 @@ uint64_t swarm_level_weight(uint32_t d, uint32_t num_levels) {
     return swarm_fib(num_levels - d + 1);
 }
 
-/* Largest-remainder split of `total` over n items in proportion to w[i].
- * Items with w[i] == 0 get 0. Leftover units go to the largest remainders,
- * ties to the lower index. Requires total * w[i] to fit in 64 bits. */
-static void split_largest_remainder(uint64_t total, const uint64_t *w,
-                                    uint32_t n, uint64_t *out) {
+/* 64 x 64 -> 128-bit product, from 32-bit halves (no compiler helpers). */
+static void mul_u64(uint64_t a, uint64_t b, uint64_t *hi, uint64_t *lo) {
+    uint64_t a0 = a & 0xFFFFFFFFu, a1 = a >> 32;
+    uint64_t b0 = b & 0xFFFFFFFFu, b1 = b >> 32;
+    uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+    uint64_t mid = (p00 >> 32) + (p01 & 0xFFFFFFFFu) + (p10 & 0xFFFFFFFFu);
+    *lo = (p00 & 0xFFFFFFFFu) | (mid << 32);
+    *hi = p11 + (p01 >> 32) + (p10 >> 32) + (mid >> 32);
+}
+
+uint64_t swarm_muldiv(uint64_t a, uint64_t b, uint64_t c, uint64_t *rem) {
+    uint64_t hi, lo, r = 0, q = 0;
+    if (c == 0) { if (rem) *rem = 0; return 0; }
+    mul_u64(a, b, &hi, &lo);
+    if (hi >= c) { if (rem) *rem = 0; return UINT64_MAX; }   /* quotient overflows */
+    r = hi;
+    for (int i = 63; i >= 0; i--) {        /* restoring long division */
+        uint64_t carry = r >> 63;
+        r = (r << 1) | ((lo >> i) & 1u);
+        q <<= 1;
+        if (carry || r >= c) { r -= c; q |= 1u; }
+    }
+    if (rem) *rem = r;
+    return q;
+}
+
+/* Items with w[i] == 0 get 0. Leftover units go to the largest remainders,
+ * ties to the lower index. */
+void swarm_split_lr(uint64_t total, const uint64_t *w, uint32_t n, uint64_t *out) {
     uint64_t sum = 0;
     for (uint32_t i = 0; i < n; i++) sum += w[i];
     for (uint32_t i = 0; i < n; i++) out[i] = 0;
@@ -38,9 +62,7 @@ static void split_largest_remainder(uint64_t total, const uint64_t *w,
     bool     taken[SWARM_MAX_MODELS];
     uint64_t given = 0;
     for (uint32_t i = 0; i < n; i++) {
-        uint64_t q = total * w[i];
-        out[i]   = q / sum;
-        rem[i]   = q % sum;
+        out[i]   = swarm_muldiv(total, w[i], sum, &rem[i]);
         taken[i] = false;
         given   += out[i];
     }
@@ -86,8 +108,10 @@ swarm_status_t swarm_budget_init(swarm_budget_t *b, uint32_t num_levels,
         b->slots[i].model_id = 0;
         b->slots[i].level    = 0;
         b->slots[i].active   = false;
-        b->slots[i].allotted = 0;
-        b->slots[i].used     = 0;
+        b->slots[i].allotted    = 0;
+        b->slots[i].allotted_im = 0;
+        b->slots[i].allotted_mk = 0;
+        b->slots[i].used        = 0;
     }
     return SWARM_OK;
 }
@@ -113,8 +137,10 @@ swarm_status_t swarm_budget_register(swarm_budget_t *b, uint32_t model_id,
     s->model_id = model_id;
     s->level    = (uint8_t)level;
     s->active   = true;
-    s->allotted = 0;
-    s->used     = 0;
+    s->allotted    = 0;
+    s->allotted_im = 0;
+    s->allotted_mk = 0;
+    s->used        = 0;
     return SWARM_OK;
 }
 
@@ -129,6 +155,11 @@ swarm_status_t swarm_budget_set_active(swarm_budget_t *b, uint32_t model_id,
 
 swarm_status_t swarm_budget_begin_cycle(swarm_budget_t *b) {
     if (!b) return SWARM_ERR_ARG;
+    return swarm_budget_begin_cycle_real(b, b->tokens_per_cycle);
+}
+
+swarm_status_t swarm_budget_begin_cycle_real(swarm_budget_t *b, uint64_t real_total) {
+    if (!b || real_total > b->tokens_per_cycle) return SWARM_ERR_ARG;
     if (b->cycle_open) swarm_budget_end_cycle(b);
 
     /* R2 + R3: weights of levels with at least one active model. */
@@ -138,7 +169,7 @@ swarm_status_t swarm_budget_begin_cycle(swarm_budget_t *b) {
         const swarm_slot_t *s = &b->slots[i];
         if (s->active) weight[s->level] = swarm_level_weight(s->level, b->num_levels);
     }
-    split_largest_remainder(b->tokens_per_cycle, weight, b->num_levels,
+    swarm_split_lr(real_total, weight, b->num_levels,
                             b->level_budget);
     for (uint32_t d = b->num_levels; d < SWARM_MAX_LEVELS; d++) b->level_budget[d] = 0;
 
@@ -150,14 +181,16 @@ swarm_status_t swarm_budget_begin_cycle(swarm_budget_t *b) {
         uint32_t n = 0;
         for (uint32_t i = 0; i < b->num_slots; i++) {
             if (b->slots[i].level != d) continue;
-            b->slots[i].allotted = 0;
-            b->slots[i].used     = 0;
+            b->slots[i].allotted    = 0;
+            b->slots[i].allotted_im = 0;
+            b->slots[i].allotted_mk = 0;
+            b->slots[i].used        = 0;
             if (!b->slots[i].active) continue;
             idx[n]  = i;
             ones[n] = 1;
             n++;
         }
-        split_largest_remainder(b->level_budget[d], ones, n, share);
+        swarm_split_lr(b->level_budget[d], ones, n, share);
         for (uint32_t k = 0; k < n; k++) b->slots[idx[k]].allotted = share[k];
     }
 
@@ -193,7 +226,9 @@ swarm_status_t swarm_budget_end_cycle(swarm_budget_t *b) {
     uint64_t unused = 0;
     for (uint32_t i = 0; i < b->num_slots; i++) {
         unused += b->slots[i].allotted - b->slots[i].used;
-        b->slots[i].allotted = 0;                       /* R6: expire */
+        b->slots[i].allotted    = 0;                    /* R6: expire */
+        b->slots[i].allotted_im = 0;
+        b->slots[i].allotted_mk = 0;
     }
     b->last_unused = unused;
     b->cycle_open  = false;

@@ -72,7 +72,9 @@ typedef struct {
     uint32_t model_id;
     uint8_t  level;
     bool     active;
-    uint64_t allotted;   /* tokens granted for the current cycle */
+    uint64_t allotted;   /* tokens granted for the current cycle (real + imaginary) */
+    uint64_t allotted_im;/* imaginary (emotional) part of allotted; see swarm_emotion.h */
+    uint64_t allotted_mk;/* real part bought on the market; see swarm_market.h */
     uint64_t used;       /* tokens spent in the current cycle */
 } swarm_slot_t;
 
@@ -112,6 +114,21 @@ swarm_status_t swarm_budget_set_active(swarm_budget_t *b, uint32_t model_id,
 /* Open a cycle: compute every allotment (R3-R5). An already-open cycle is
  * closed first. */
 swarm_status_t swarm_budget_begin_cycle(swarm_budget_t *b);
+
+/* Open a cycle that splits only `real_total` (<= tokens_per_cycle) under
+ * R1-R5. The rest of the cycle is left for the emotional economy
+ * (swarm_emotion.h) to add on the imaginary axis. */
+swarm_status_t swarm_budget_begin_cycle_real(swarm_budget_t *b, uint64_t real_total);
+
+/* floor(a * b / c) exactly, through a 128-bit intermediate, with the
+ * remainder in *rem (may be NULL). Returns 0 if c == 0 and UINT64_MAX if
+ * the quotient does not fit in 64 bits. */
+uint64_t swarm_muldiv(uint64_t a, uint64_t b, uint64_t c, uint64_t *rem);
+
+/* R5 helper: largest-remainder split of `total` over n <= SWARM_MAX_MODELS
+ * items in proportion to w[i], ties to the lower index. The sum of w must
+ * fit in 64 bits. */
+void swarm_split_lr(uint64_t total, const uint64_t *w, uint32_t n, uint64_t *out);
 
 /* Spend up to `requested` tokens for model_id in the open cycle. Writes the
  * number actually granted (never past the allotment) to *granted. */
