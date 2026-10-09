@@ -209,3 +209,44 @@ re-measured over time.
   change state only on evidence, with each change posted to the provenance
   ledger. The swarm says no to a false premise, and adds no blanket refusals
   of its own.
+
+## 13. How agents talk to each other (built)
+
+Agents ask each other for work in Hackronomicon shorthand (`swarm_hk`). A
+request is one line such as
+`fan_out(question, models: 3) -> compare(answers) -> verify(queue)^(3/2)`.
+It is parsed with the book's precedence (parentheses, dials, `/`, `+ −`,
+`&& ||`, `>`, `->`) and printed back fully bracketed, so the sender and the
+receiver can confirm they read it the same way. A request may not use more
+than five operators (the book's stacking warning). An agent can't send a
+request to itself, and hand-off strands stay within 89 words. Every reply
+carries one of the six truth states, combined by the book's V.9 rules.
+
+## 14. Design philosophy: code simulates hardware
+
+Every part of the swarm is written as if it were a device: fixed-size
+state, no hidden allocation, integer arithmetic, and behaviour defined tick
+by tick. An agent is a virtual device on the swarm's bus, the ledger is its
+bus log, and the witness is a second device checking the first. The same
+code can therefore describe any hardware a task needs, from a GPU queue to
+a sensor to a machine that does not exist yet.
+
+## 15. Efficiency plan
+
+- **One base, many agents.** Agents that share a base model run in one
+  batched forward pass, each with its own small adapter. This is the Venn
+  rule at the hardware level.
+- **Draft and verify.** A small fast model drafts tokens and a larger one
+  checks them in bulk (speculative decoding), which is the witness pattern
+  applied to generation.
+- **Shared memory of context.** Agents with the same context reuse one
+  attention cache instead of each building their own.
+- **Integer weights.** Models run 4-bit and 8-bit integer weights, which
+  fits the kernel's no-float rule and makes results bit-exact on every
+  machine.
+- **Zero-copy loading.** Model packs are memory-mapped from zxvfs. On
+  Apple Silicon the CPU and GPU share that memory, so nothing is copied.
+- **Stop when good enough to pass.** Generation stops once the quality gate
+  passes, never before.
+- **Parked agents cost nothing.** Idle agents are parked (rule R3), and slow
+  harmonics only wake them when their band is due.
