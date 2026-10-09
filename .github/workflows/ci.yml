@@ -6,11 +6,14 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+
 jobs:
   build-arm64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install ARM64 toolchain
         run: |
           sudo apt-get update
@@ -28,7 +31,7 @@ jobs:
           grep -q "\[BOOT_OK\]" boot_arm64.log || { echo "::error::ARM64 boot did not reach [BOOT_OK]"; exit 1; }
           if grep -qE "\[FAULT\]|\[EL0 FAULT\]" boot_arm64.log; then echo "::error::ARM64 boot faulted"; exit 1; fi
       - name: Upload ARM64 artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-arm64
           path: kernel_arm64.elf
@@ -36,7 +39,7 @@ jobs:
   build-x86_64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install x86_64 toolchain
         run: |
           sudo apt-get update
@@ -49,7 +52,7 @@ jobs:
         run: |
           timeout 30 make -f build_system/Makefile.x86_64 run || true
       - name: Upload x86_64 artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-x86_64
           path: kernel_x86_64.elf
@@ -57,7 +60,7 @@ jobs:
   build-riscv64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install RISC-V 64-bit toolchain
         run: |
           sudo apt-get update
@@ -70,7 +73,7 @@ jobs:
         run: |
           timeout 30 make -f build_system/Makefile.riscv run || true
       - name: Upload RISC-V 64-bit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-riscv64
           path: kernel_riscv64.elf
@@ -78,7 +81,7 @@ jobs:
   build-riscv32:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install RISC-V 32-bit toolchain
         # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
         # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
@@ -93,7 +96,7 @@ jobs:
         run: |
           timeout 30 make -f build_system/Makefile.riscv32 run || true
       - name: Upload RISC-V 32-bit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-riscv32
           path: kernel_riscv32.elf
@@ -101,7 +104,7 @@ jobs:
   build-arm32:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install ARM32 toolchain
         run: |
           sudo apt-get update
@@ -114,7 +117,7 @@ jobs:
         run: |
           timeout 30 make -f build_system/Makefile.arm32 run || true
       - name: Upload ARM32 artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-arm32
           path: kernel_arm32.elf
@@ -122,7 +125,7 @@ jobs:
   host-tests:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -137,7 +140,7 @@ jobs:
   lint:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Install clang-format
@@ -180,8 +183,8 @@ jobs:
       ZXV_NOTARY_KEY_ID: ${{ secrets.ZXV_NOTARY_KEY_ID }}
       ZXV_NOTARY_ISSUER: ${{ secrets.ZXV_NOTARY_ISSUER }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Install tools
@@ -252,7 +255,7 @@ jobs:
           if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
       - name: Upload the Mac packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: zxv-macos
           path: |
@@ -273,8 +276,8 @@ jobs:
       run:
         working-directory: bindings/dotnet
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
       - name: Native shim (C ABI) and its conformance test
@@ -283,7 +286,7 @@ jobs:
         run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
       - name: Test
         run: dotnet test Zxv.sln -c Release --no-build --logger "trx;LogFileName=results.trx"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: dotnet-test-results
