@@ -5,6 +5,9 @@
  * ranges, bounded parser fuzzing (host: a guard page right after the NUL),
  * the line check on a real trunk-bank carrier, a frame sent over the trunk
  * bank, and the rendezvous hook. */
+#ifndef ZT_HTEST_BARE
+#    define _DEFAULT_SOURCE /* MAP_ANONYMOUS under -std=c11 on newer glibc */
+#endif
 #include "zt_htest.h"
 #include "zt_dial_resolve.h"
 
