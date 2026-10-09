@@ -353,7 +353,7 @@ static void forward(const model_t *m, const int32_t *tok, uint32_t T, policy_t *
                 for (uint32_t i = 0; i < hd; i++) {
                     double s = 0;
                     for (uint32_t j = 0; j <= t; j++)
-                        s += sc[j] * v[(size_t) j * kvd + kv * hd + i];
+                        s += sc[j] * v[(size_t) j * kvd + (size_t) kv * hd + i];
                     o[i] = s / sum;
                 }
             }
