@@ -81,6 +81,7 @@ void zt_quantize(const zt_fx *x, uint32_t n, zt_q8_t *out, bool golden)
             if (iabs32(v[i]) > amax) amax = iabs32(v[i]);
         int32_t scale = (amax + 126) / 127; /* ceil: never clips */
         o->phi_k = 0;
+        o->shift = 0;
         if (scale == 0) {
             o->scale = 0;
             for (uint32_t i = 0; i < ZT_BLOCK; i++) o->q[i] = 0;
@@ -102,11 +103,20 @@ void zt_quantize(const zt_fx *x, uint32_t n, zt_q8_t *out, bool golden)
     }
 }
 
+/* x / 2^sh, rounded half away from zero. */
+static zt_fx shr_round(int64_t x, uint32_t sh)
+{
+    if (sh == 0) return (zt_fx) x;
+    uint64_t m = (uint64_t) (x < 0 ? -x : x);
+    m = (m + (1ull << (sh - 1))) >> sh;
+    return (zt_fx) (x < 0 ? -(int64_t) m : (int64_t) m);
+}
+
 void zt_dequantize(const zt_q8_t *in, uint32_t nblocks, zt_fx *out)
 {
     for (uint32_t b = 0; b < nblocks; b++)
         for (uint32_t i = 0; i < ZT_BLOCK; i++)
-            out[b * ZT_BLOCK + i] = (zt_fx) in[b].q[i] * in[b].scale;
+            out[b * ZT_BLOCK + i] = shr_round((int64_t) in[b].q[i] * in[b].scale, in[b].shift);
 }
 
 static zt_fx sat32(int64_t v)
@@ -126,7 +136,15 @@ zt_fx zt_dot(const zt_q8_t *a, const zt_q8_t *b, uint32_t nblocks)
         bool neg = s < 0;
         uint64_t p = (uint64_t) (neg ? -s : s) * (uint32_t) a[k].scale;
         uint64_t sb = (uint32_t) b[k].scale;
-        uint64_t t = (p >> 16) * sb + (((p & 0xFFFFu) * sb) >> 16);
+        uint32_t sh = 16u + a[k].shift + b[k].shift;
+        /* floor(p * sb / 2^sh), p < 2^52 and sb < 2^31, without 128 bits */
+        uint64_t hi = (p >> 32) * sb, lo = (p & 0xFFFFFFFFu) * sb, t;
+        if (sh >= 96)
+            t = 0;
+        else if (sh >= 32)
+            t = (hi + (lo >> 32)) >> (sh - 32);
+        else
+            t = (hi << (32 - sh)) + (lo >> sh);
         acc += neg ? -(int64_t) t : (int64_t) t;
     }
     return sat32(acc);

@@ -10,7 +10,9 @@
  *   T1  FIXED POINT.  Activations are Q16.16 (zt_fx): value = raw / 65536.
  *   T2  BLOCKS.  Weights and activations are quantised in blocks of 32
  *       eight-bit values with one scale each (zt_q8_t), the layout used by
- *       today's 8-bit model files. Dot products accumulate in integers.
+ *       today's 8-bit model files. Dot products accumulate in integers. A
+ *       scale can carry a right shift (scale / 2^shift), so the tiny f16
+ *       scales in model files are held exactly instead of rounded to Q16.
  *   T3  GOLDEN SCALES.  A block's scale can be snapped up to a power of phi,
  *       stored as one signed byte k. phi^k = F(k) phi + F(k-1) exactly, so the
  *       ladder is computed from Fibonacci numbers, not floating point. Steps
@@ -100,6 +102,9 @@
  *       and its lanes. zt_device_plan picks the coil and the fractal depth
  *       for it; the arithmetic never changes, so every device computes the
  *       same numbers, and one device can stand in for another.
+ *   T17-T20 live with their code: lattice quantisers (zt_lattice.h), GGUF
+ *       model files (zt_gguf.h), the BPE tokenizer (zt_tok.h) and rotary
+ *       positions (zt_rope.h).
  * Freestanding: no libc, no floating point, no 64-bit division helpers.
  */
 #ifndef ZT_H
@@ -115,6 +120,7 @@ typedef int32_t zt_fx; /* T1 */
 typedef struct {
     int32_t scale; /* Q16: value = q * scale / 65536 */
     int8_t phi_k;  /* T3: scale is phi^k (Q16) when golden */
+    uint8_t shift; /* finer scales: value = q * (scale >> shift); 0 from zt_quantize */
     int8_t q[ZT_BLOCK];
 } zt_q8_t;
 

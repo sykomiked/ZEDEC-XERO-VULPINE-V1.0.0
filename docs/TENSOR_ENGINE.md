@@ -1,6 +1,6 @@
 # The ZXV tensor engine (zt)
 
-`kernel/src/tensor/` holds the arithmetic that will run the swarm's language models. All of it is integer maths, so a model gives exactly the same answer on every machine. The header `zt.h` states each rule, T1 to T16, and `test_zt.c` checks the results against double-precision references.
+`kernel/src/tensor/` holds the arithmetic that will run the swarm's language models. All of it is integer maths, so a model gives exactly the same answer on every machine. The header `zt.h` states rules T1 to T16, and `test_zt.c` checks the results against double-precision references. Rules T17 to T20 sit at the top of their own headers, each with its own test.
 
 ## The core (T1 to T6)
 
@@ -26,9 +26,30 @@
 - **Holographic coding.** Each place is stored as its difference from its parent's prediction: the prediction is the negative space, the data the positive. Decoding is exact. Decoding only the inner shells gives a coarse picture of the whole.
 - **UBH-168 frames.** Words travel in 21-octet frames: one tag octet, then five 32-bit words whose byte order alternates little, big, little. That is UBH_ENDIAN_MIXED, and decoding does not depend on the host machine's byte order.
 
+## Running real models (T17 to T20)
+
+- **GGUF model files (T18, `zt_gguf.h`).** It reads llama.cpp's file format in place from one memory buffer, with every count and offset checked against the buffer first.
+  - Supported weight types: F32, F16, BF16, Q8_0, Q4_0, Q4_K and Q6_K. Other types are reported as unsupported.
+  - Q8_0 blocks convert to the engine's own 8-bit blocks with no loss.
+  - Tested against a file written by gguf-py, llama.cpp's own Python package. Every value is within 1 Q16 unit of its reference.
+- **Tokenizer (T19, `zt_tok.h`).** Byte-level BPE, the kind Qwen2, Qwen3 and Llama 3 use.
+  - It reads the vocabulary and merges straight from the GGUF file and builds index tables in caller memory.
+  - It is tested against the Hugging Face `tokenizers` library on 172 texts under both the "qwen2" and "llama-bpe" splitting rules. Every token id matches.
+  - Every input decodes back to the same bytes, including invalid UTF-8.
+- **Rotary positions (T20, `zt_rope.h`).** Each frequency is stored as turns per position in 64-bit fixed point, so reducing the angle needs no division and stays exact at any context length.
+  - Up to position 4 million, results are within 1 Q16 unit of a long double reference.
+  - Both pair layouts are supported (NEOX and interleaved), as are Llama 3's per-frequency divisors.
+- **Lattice quantisers (T17, `zt_lattice.h`).**
+  - E8 nearest-point search and a 26641-point E8 codebook, which gives a 15-bit index per 8 weights.
+  - A Leech lattice (Λ24) decoder built on the Golay code.
+  - At 1.875 bits per weight, E8 measures 9.89 dB SNR, against 9.59 dB for a tuned 2-bit scalar quantiser.
+
 ## Limits, stated plainly
 
 - **The coil is an analogy.** ABHA coils, scalar fields and alternating current here are a design language for memory layout, data flow and logic. Nothing in the code is electromagnetic, and no claim is made about physical scalar fields.
 - **Speed is not yet measured.** The tests prove correctness. Whether the golden tiling, the coil layout and the surplus gate are faster than ordinary layouts on real hardware is still to be benchmarked.
 - **Holographic coding helps only some data.** It saves space only when data that shares a parent is alike, and placing real model data that way is still to be designed.
-- **Not built yet.** A model-file (GGUF) loader, the tokenizer, rotary position encoding, and the E8 and Leech lattice quantisers.
+- **The model runtime is in pieces.** Files, tokens, positions and quantisers are built and tested. They are not yet joined into one forward pass over a whole model.
+- **Tokenizer coverage.** Only byte-level BPE. SentencePiece models (the GGUF tokenizer model "llama") are reported as unsupported.
+- **RoPE coverage.** The YaRN and LongRoPE context extensions are not implemented.
+- **Leech decoder speed.** The Leech decoder is brute force over 8192 cosets, about 20 µs per 24 weights. It is for research and small tensors, not bulk weights.
