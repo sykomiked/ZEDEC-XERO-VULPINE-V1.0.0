@@ -392,8 +392,9 @@ static uint32_t make_manifest(char *out, uint32_t cap, const char *release, cons
 
     tb_init(&tmp);
 
-    w = snprintf(out + pos, cap - pos, "zxv-update-manifest 1\nrelease %s\nmin-version %s\nissued %llu\n",
-                 release, minv, (unsigned long long) issued);
+    w = snprintf(out + pos, cap - pos,
+                 "zxv-update-manifest 1\nrelease %s\nmin-version %s\nissued %llu\n", release, minv,
+                 (unsigned long long) issued);
     if (w < 0 || (uint32_t) w >= cap - pos) {
         pos = cap;
         goto done;
