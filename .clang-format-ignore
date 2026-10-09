@@ -172,3 +172,6 @@ kernel/src/tensor/test_gguf_fixture.h
 kernel/src/tensor/test_tok_fixture.h
 kernel/src/tensor/zt_tok_unicode.h
 kernel/src/tensor/zt_rope_tables.h
+kernel/src/pqsec/mlkem1024/*
+kernel/src/pqsec/hqc5/*
+kernel/src/pqsec/pq_matrix_kat_vectors.h

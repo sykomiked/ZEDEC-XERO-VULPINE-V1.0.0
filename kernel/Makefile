@@ -15,6 +15,11 @@ ZXV_GENDIR ?= include
 # src/pqsec/mldsa (pq-crystals) and src/pqsec/slhdsa (slhdsa-c).
 PQSIG_SRCS := src/pqsec/pq_mldsa65.c src/pqsec/pq_slhdsa.c \
 	$(sort $(wildcard src/pqsec/mldsa/*.c)) $(sort $(wildcard src/pqsec/slhdsa/*.c))
+# The layered hybrid (ML-KEM-1024 + HQC-5 + X25519, ML-DSA-87 + SLH-DSA-256s).
+# src/pqsec/mlkem1024/*.c and src/pqsec/hqc5/*.c are #included by these
+# wrappers and must never be compiled or globbed on their own.
+PQM_SRCS := src/pqsec/pq_matrix.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c \
+	src/pqsec/pq_hqc5.c src/pqsec/pq_slh256s.c
 
 ifeq ($(ARCH),arm64)
 $(error "ARM64 builds are canonical through build_system/Makefile.arm64; see Dockerfile.arm64 or build_system/build_arm64.sh")
@@ -356,6 +361,16 @@ verify-all: test
 		/tmp/test_pq_kat && echo "[PASS] test_pq_kat (ML-DSA-65 + SLH-DSA vs NIST ACVP)" \
 		|| { echo "[FAIL] test_pq_kat -- signatures are NOT FIPS 204/205"; exit 1; }; \
 	else echo "[FAIL] src/pqsec/test_pq_kat.c is missing"; exit 1; fi; \
+	echo "=== pq_matrix: ML-KEM-1024 + HQC-5 + X25519, ML-DSA-87 + SLH-DSA-256s ==="; \
+	if [ -f src/pqsec/test_pq_matrix.c ]; then \
+		gcc -std=c11 -Wall -Werror -Wextra -O2 -Iinclude -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/surplus -Isrc/edp_risk \
+			-Isrc/event_space -Isrc/modbind -Isrc/trispace -I$(ZXV_GENDIR) \
+			src/pqsec/test_pq_matrix.c $(PQM_SRCS) $(PQSIG_SRCS) src/mlkem/keccak.c src/mlkem/mlkem768.c \
+			src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c \
+			src/tls/x25519.c src/tls/aead.c -o /tmp/test_pq_matrix && \
+		/tmp/test_pq_matrix --no-bench && echo "[PASS] test_pq_matrix (ACVP + HQC KAT + hybrid + fuzz)" \
+		|| { echo "[FAIL] test_pq_matrix -- the PQ matrix is broken"; exit 1; }; \
+	else echo "[FAIL] src/pqsec/test_pq_matrix.c is missing"; exit 1; fi; \
 	echo "=== Event-Space Infrastructure ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space \
 		../tests/host/test_event_space.c \
