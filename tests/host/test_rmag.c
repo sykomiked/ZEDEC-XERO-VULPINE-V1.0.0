@@ -3,7 +3,7 @@
  * Tests for rational arithmetic and resource budget management.
  *
  * Author: 36N9 Genetics, LLC
- * License: SEL-3.3 (kernel component)
+ * License: Apache-2.0
  */
 
 #include <stdio.h>

@@ -1,6 +1,6 @@
 <!--
 Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
-SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+SPDX-License-Identifier: Apache-2.0
 -->
 
 # ZEDEC XERO VULPINE — ZEDEC pqOS
@@ -74,12 +74,10 @@ computer through `ssh -N -L 8722:127.0.0.1:8722 you@server`.
 
 ZEDEC XERO VULPINE is registered to **36N9 Genetics, LLC** and **Michael Laurence Curzi**.
 
-Each source file is licensed under the terms in its own header:
+The code is licensed under the [Apache License, Version 2.0](LICENSE), and every source file says so in its header:
 
 ```
-SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+SPDX-License-Identifier: Apache-2.0
 ```
 
-The software is provided as is, with no warranty of any kind.
-
-Note: the [`LICENSE`](LICENSE) file still holds the Apache License 2.0 text from an earlier release. The source file headers take precedence until it is replaced with the texts of the licenses above.
+Redistributions must keep the attribution in [`NOTICE`](NOTICE). Vendored third-party code keeps its own licence (see each vendored directory's LICENSE and README.zxv). The software is provided as is, with no warranty of any kind.

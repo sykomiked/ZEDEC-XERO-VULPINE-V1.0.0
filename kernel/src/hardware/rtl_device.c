@@ -2,9 +2,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "rtl_device.h"
 
@@ -283,9 +283,9 @@ int32_t rtl_device_generate_hdl(const rtl_device_t *dev,
     switch (target) {
         case HDL_SYSTEMVERILOG:
         case HDL_VERILOG: {
-            pos += snprintf(output + pos, max_len - pos,
-                "// Auto-generated RTL: %s\n// License: SEL-3.3\n",
-                dev->module_name);
+            pos +=
+                snprintf(output + pos, max_len - pos,
+                         "// Auto-generated RTL: %s\n// License: Apache-2.0\n", dev->module_name);
             pos += snprintf(output + pos, max_len - pos,
                 "module %s (\n", dev->module_name);
             pos += snprintf(output + pos, max_len - pos,
@@ -322,9 +322,9 @@ int32_t rtl_device_generate_hdl(const rtl_device_t *dev,
             break;
         }
         case HDL_VHDL: {
-            pos += snprintf(output + pos, max_len - pos,
-                "-- Auto-generated RTL: %s\n-- License: SEL-3.3\n",
-                dev->module_name);
+            pos +=
+                snprintf(output + pos, max_len - pos,
+                         "-- Auto-generated RTL: %s\n-- License: Apache-2.0\n", dev->module_name);
             pos += snprintf(output + pos, max_len - pos,
                 "library ieee;\nuse ieee.std_logic_1164.all;\n\n");
             pos += snprintf(output + pos, max_len - pos,
@@ -340,9 +340,9 @@ int32_t rtl_device_generate_hdl(const rtl_device_t *dev,
             break;
         }
         case HDL_CHISEL: {
-            pos += snprintf(output + pos, max_len - pos,
-                "// Auto-generated RTL: %s\n// License: SEL-3.3\n",
-                dev->module_name);
+            pos +=
+                snprintf(output + pos, max_len - pos,
+                         "// Auto-generated RTL: %s\n// License: Apache-2.0\n", dev->module_name);
             pos += snprintf(output + pos, max_len - pos,
                 "import chisel3._\nimport chisel3.util._\n\n");
             pos += snprintf(output + pos, max_len - pos,

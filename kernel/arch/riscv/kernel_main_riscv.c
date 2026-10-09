@@ -7,9 +7,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "m5_types.h"
 #include "riscv_arch.h"
@@ -158,7 +158,7 @@ void kernel_main_riscv(void) {
     uart_puts("\n\n");
 
     /* Phase 0: License banner */
-    uart_puts("License: SEL-3.3 — Streisand Engine License\n");
+    uart_puts("License: Apache-2.0\n");
     uart_puts("Author: H.M. Michael-Laurence: Curzi (c)\n");
     uart_puts("36N9 Genetics, LLC — Irrevocable, Interdimensional\n\n");
 

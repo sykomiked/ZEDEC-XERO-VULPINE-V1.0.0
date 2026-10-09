@@ -90,7 +90,7 @@ void kernel_main(uint32_t magic, multiboot_info_t *mbi) {
     fb_puts("==================================================\n\n");
 
     /* Phase 0: License banner */
-    fb_puts("License: SEL-3.3 — Streisand Engine License\n");
+    fb_puts("License: Apache-2.0\n");
     fb_puts("Author: H.M. Michael-Laurence: Curzi (c)\n");
     fb_puts("36N9 Genetics, LLC — Irrevocable, Interdimensional\n\n");
 

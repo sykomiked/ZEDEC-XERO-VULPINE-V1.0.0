@@ -345,5 +345,5 @@ if(al->treaty.base.active)treaty_tick(&al->treaty);}
  * Makefile change, which this pass does not own.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)  (ZXV composition slice)
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * SPDX-License-Identifier: Apache-2.0
  */

@@ -4,9 +4,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include "legal_engine.h"
@@ -870,7 +870,7 @@ int legal_auto_respond(legal_engine_ext_t *engine, uint32_t watcher_id,
     APPEND("\nThe risk index above is computed by this node from local "
            "observations. It is not evidence, it establishes no finding "
            "against any party, and it should not be forwarded as one.\n\n"
-           "License: SEL-3.3 — Streisand Engine License\n"
+           "License: Apache-2.0\n"
            "Author: H.M. Michael-Laurence: Curzi (c)\n");
 
     return pos;
@@ -923,10 +923,10 @@ int legal_compliance_audit(legal_engine_ext_t *engine, char *buf,
             high_risk++;
     }
     pos += fs_snprintf(buf + pos, buf_len - pos,
-        "  High Risk: %u\n\n"
-        "All entries sealed with golden ratio (phi) checksum standard.\n"
-        "License: SEL-3.3 — Streisand Engine License\n",
-        high_risk);
+                       "  High Risk: %u\n\n"
+                       "All entries sealed with golden ratio (phi) checksum standard.\n"
+                       "License: Apache-2.0\n",
+                       high_risk);
     return pos;
 }
 

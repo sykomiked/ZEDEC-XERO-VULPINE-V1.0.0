@@ -3,7 +3,7 @@
  * Entry: 0x40000000 (qemu-system-arm -M virt RAM base)
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * License: Apache-2.0
  */
 .arch armv7-a
 .fpu vfpv3-d16

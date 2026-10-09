@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* test_swarm_mind.c — Enochian core, logic spaces, self-awareness, evolution
  * and enterprises. Every expected value is worked by hand in the comments;
  * the Enochian ones are copied from the owner's dictionary.jsonl. */

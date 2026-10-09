@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* cpu65816.c — WDC 65C816 core. See cpu65816.h. Every opcode is decoded for its
  * correct length via the addressing-mode table (immediate width folded in), so
  * PC never desyncs; the operations real boot/init code uses are executed, and

@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* test_pirate_apps.c — the pirate deck is a thin, honest UI. Prove it:
  *   (1) a dark module => UNAVAILABLE + the module's NOT-AVAILABLE code verbatim
  *   (2) a delegate returns EXACTLY what the module returned (code equality)

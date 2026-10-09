@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* test_ministry.c — every assertion is anchored to an EXTERNAL truth:
  *   - a proposal-stated table (Ministry forms priceable, Crown forms not)
  *   - a hand-computed number (11% of 100 = 11)

@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* test_zcapital.c — every assertion is anchored to an EXTERNAL truth: the
  * proposal Sec 3.5 jurisdiction table, the inalienability rule ("you cannot buy
  * a language"), a value-conservation identity, and a hand-computed 11% gratuity.

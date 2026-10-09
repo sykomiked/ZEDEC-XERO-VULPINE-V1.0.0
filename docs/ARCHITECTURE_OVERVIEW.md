@@ -1,6 +1,6 @@
 <!--
 Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
-SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+SPDX-License-Identifier: Apache-2.0
 -->
 
 # ZXV Architecture Overview, with Gaps and Improvements
@@ -356,7 +356,7 @@ Ordered by how much each one blocks the product goal: a signed macOS companion a
   - The root `LICENSE` is Apache-2.0 (lines 1–190).
   - `kernel/src/license/license.c:1-5` and `test_license.c:18-24` assert "Apache-2.0 alone".
   - `NOTICE:7-11` says "Licensed under OPL-1.1, SEL-3.3, Royal Writ, CC-BY-SA-4.0 … See the LICENSE file".
-  - 315 file headers carry the four-instrument SPDX expression, 421 carry only `LicenseRef-OPL-1.1 AND CC-BY-SA-4.0` while their prose names all four, and 4 carry `Apache-2.0`.
+  - 315 file headers carry the four-instrument SPDX expression, 421 carry only `Apache-2.0` while their prose names all four, and 4 carry `Apache-2.0`.
   - The verify-all banner says "four-instrument share-alike stack" but runs the Apache test (`Makefile:311`).
   - No OPL, SEL or Royal Writ text is in the repo (no `LICENSES/` directory).
   - CC-BY-SA-4.0 is not a software licence and is share-alike, which conflicts with pairing it with Apache-2.0 vendored code inside one binary. That conflict is inferred and needs counsel.

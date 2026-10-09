@@ -1,7 +1,7 @@
 /* tvl_geom.c — the orientation basis. See tvl_geom.h for what is claimed.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * SPDX-License-Identifier: Apache-2.0
  */
 #include "tvl_geom.h"
 #include "surplus.h"

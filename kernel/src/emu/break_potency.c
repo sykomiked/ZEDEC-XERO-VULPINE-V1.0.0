@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* break_potency.c — over-potence detector: synergy stacks + feedback loops.
  * See break_potency.h. A "break" is both a prized MegaROM mechanic and the
  * signal to sandbox a mechanic-mod before it takes over the system. */

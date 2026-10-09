@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* console_trajectory.c — our own console-lineage generations, each named for its
  * INNOVATION (proprietary, descriptive). Real consoles appear only as `ref:`
  * DEVELOPMENT references, never as shipped names. See console_trajectory.h.

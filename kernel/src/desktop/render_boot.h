@@ -1,7 +1,7 @@
 /* render_boot.h — portable ramfb desktop bring-up. See render_boot.c.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * SPDX-License-Identifier: Apache-2.0
  */
 #ifndef ZXV_RENDER_BOOT_H
 #define ZXV_RENDER_BOOT_H

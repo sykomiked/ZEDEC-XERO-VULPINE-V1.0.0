@@ -210,7 +210,7 @@ def ai_generate(prompt, max_tokens=8192, temperature=0.2):
              "Follow the M5 Axiomatic Kernel Specification. "
              "Hardware-as-code: every module is a virtual device with registers, DMA, IRQs. "
              "Coverage invariant: r * ell >= 1.8. "
-             "License: SEL-3.3 + CC BY 4.0 + OPL v1.1. "
+             "License: Apache-2.0"
              "Author: H.M. Michael-Laurence: Curzi (c). "
              "36N9 Genetics, LLC — Irrevocable, Interdimensional."},
             {"role": "user", "content": prompt},
@@ -1659,7 +1659,7 @@ def main():
     print(f"  PIPELINE COMPLETE — All phases passed")
     print(f"  Kernel ISO:  output/vovina_shakina.iso")
     print(f"  Server ISO:  output/vovina_shakina_server.iso")
-    print(f"  License: SEL-3.3 | Author: H.M. Michael-Laurence: Curzi (c)")
+    print(f"  License: Apache-2.0 | Author: H.M. Michael-Laurence: Curzi (c)")
     print(f"{'='*60}{RESET}")
     print(f"\n  To boot in QEMU:")
     print(f"    qemu-system-i386 -cdrom output/vovina_shakina.iso -m 256M -boot d")

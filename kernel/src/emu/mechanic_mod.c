@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* mechanic_mod.c — admission policy: run a mod's mechanics through the
  * break-potency detector; admit if bounded, contain (cap) if over-potent.
  * This is the guardrail that lets a mod change mechanics WITHOUT taking over

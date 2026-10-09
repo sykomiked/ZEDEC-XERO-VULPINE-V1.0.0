@@ -4,7 +4,7 @@
 # riscv32-linux-gnu-gcc cross-compiler.
 #
 # Author: H.M. Michael-Laurence: Curzi (c)
-# License: SEL-3.3
+# License: Apache-2.0
 
 FROM ubuntu:22.04
 

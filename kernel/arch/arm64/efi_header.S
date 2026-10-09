@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* Minimal aarch64 PE/COFF (EFI application) header. One .text section covering
  * RVA 0x1000..end; headers in the first 0x1000. Relocs stripped (code is PIC). */
 .section .head, "a"

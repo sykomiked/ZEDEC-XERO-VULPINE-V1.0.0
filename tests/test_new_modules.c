@@ -7,7 +7,7 @@
  *        Polar-Paraconsistent Trit Logic (5VL)
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * License: Apache-2.0
  */
 #include <stdio.h>
 #include <stdlib.h>

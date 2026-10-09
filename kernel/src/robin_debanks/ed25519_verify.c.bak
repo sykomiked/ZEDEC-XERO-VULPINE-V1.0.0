@@ -8,7 +8,7 @@
  * enter the kernel. Public keys are embedded as compile-time constants.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * License: Apache-2.0
  */
 #include "ed25519_verify.h"
 #include "sha256.h"

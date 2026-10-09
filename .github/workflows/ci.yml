@@ -122,6 +122,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc make
+      - name: Check every file is on Apache-2.0
+        run: python3 build_system/relicense_apache.py --check
       - name: Run host tests
         run: |
           cd kernel
@@ -136,13 +138,18 @@ jobs:
       - name: Install clang-format
         run: pip install clang-format==18.1.8
       - name: Check formatting of the C files this change touches
-        # Style is in .clang-format. Older files predate it, so only the files
+        # Style is in .clang-format. Older files predate it, so only the lines
         # a pull request or push changes are checked.
         env:
           BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
         run: |
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
-          files=$(git diff --name-only --diff-filter=AM "$BASE"...HEAD -- 'kernel/*.c' 'kernel/*.h')
-          if [ -z "$files" ]; then echo "no C files changed"; exit 0; fi
-          echo "$files"
-          echo "$files" | xargs clang-format --dry-run --Werror
+          # Only the changed lines are checked, so a one-line header edit does
+          # not force a full reformat of an older file. New files are all
+          # changed lines, so they stay fully checked.
+          MB=$(git merge-base "$BASE" HEAD)
+          out=$(git clang-format --binary "$(command -v clang-format)" --diff "$MB" HEAD -- 'kernel/*.c' 'kernel/*.h' || true)
+          case "$out" in
+            ""|"no modified files to format"|"clang-format did not modify any files") echo "formatting OK" ;;
+            *) echo "$out"; exit 1 ;;
+          esac

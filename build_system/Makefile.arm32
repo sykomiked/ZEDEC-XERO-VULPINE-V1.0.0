@@ -1,7 +1,7 @@
 # Makefile.arm32 — ARM32 build for ZEDEC XERO pqOS v0.0.0
 #
 # Author: H.M. Michael-Laurence: Curzi (c)
-# License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+# License: Apache-2.0
 #
 # FULL-PARITY source set (2026-08-08): mirrors Makefile.arm64's portable src/
 # modules so 32-bit carries the same subsystems as 64-bit. The only src/ files

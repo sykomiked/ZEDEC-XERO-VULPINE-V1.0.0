@@ -6,7 +6,7 @@ Uses local HuggingFace transformers model to generate documentation.
 Extracts all module APIs, function signatures, and architecture from source code.
 
 Author: H.M. Michael-Laurence: Curzi (c)
-License: SEL-3.3
+License: Apache-2.0
 """
 
 import os
@@ -152,7 +152,7 @@ def generate_api_reference(modules):
     lines.append("# ZEDEC pqOS — Complete API Reference")
     lines.append(f"# Generated: {datetime.now().isoformat()}")
     lines.append("# Author: H.M. Michael-Laurence: Curzi (c)")
-    lines.append("# License: SEL-3.3 — Streisand Engine License")
+    lines.append("# License: Apache-2.0")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -412,7 +412,7 @@ def generate_carracho_p2p_design():
     return """# ZEDEC pqOS — Carracho-Inspired P2P File Sharing Module Design
 # Generated: """ + datetime.now().isoformat() + """
 # Author: H.M. Michael-Laurence: Curzi (c)
-# License: SEL-3.3
+# License: Apache-2.0
 
 ## 1. Overview
 

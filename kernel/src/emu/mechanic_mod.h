@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* mechanic_mod.h — the admission policy for native mechanic-mods. A game/ROM/mod
  * may add or change mechanics, but it must NOT be able to take over the whole
  * system. This layer is the gate: it runs the mod's mechanics through the

@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* emu6502.c — in-kernel harness for the 6502 core: a flat 64KB system bus, a
  * boot self-check, and a Game Master entry point that runs a ROM dataset and
  * reports how far it got + how many illegal opcodes it hit (for the fault log).

@@ -1,9 +1,9 @@
 /* tvl_bringup.c — run the TOL VOVINA UPAAH LOT self-checks for real.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  *
  * Each module is exercised with its REAL self-check and the line is printed
  * from the RESULT, never from the fact that the file is in the Makefile.

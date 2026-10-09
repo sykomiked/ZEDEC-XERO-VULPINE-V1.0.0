@@ -3,9 +3,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include "legal_engine.h"
@@ -500,9 +500,9 @@ int legal_render_agreement(legal_user_agreement_t *ua, char *buf,
             "## CUSTOM CLAUSES\n%s\n\n", ua->custom_clauses);
     }
     pos += fs_snprintf(buf + pos, buf_len - pos,
-        "---\nThis agreement is sealed with the golden ratio (phi) checksum.\n"
-        "License: SEL-3.3 — Streisand Engine License\n"
-        "Author: H.M. Michael-Laurence: Curzi (c)\n");
+                       "---\nThis agreement is sealed with the golden ratio (phi) checksum.\n"
+                       "License: Apache-2.0\n"
+                       "Author: H.M. Michael-Laurence: Curzi (c)\n");
     return pos;
 }
 

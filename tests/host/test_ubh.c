@@ -3,7 +3,7 @@
  * Tests for UBH-168 frame codec, bit slicing, format registry, and detection.
  *
  * Author: 36N9 Genetics, LLC
- * License: SEL-3.3 (kernel component)
+ * License: Apache-2.0
  */
 
 #include <stdio.h>

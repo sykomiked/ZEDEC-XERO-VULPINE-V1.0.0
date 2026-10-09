@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* snes.h — a faithful-enough SNES / Super Famicom machine (LoROM) around the
  * 65816 core. The 16-bit era is where the corpus gets STORY-rich, so this is the
  * machine that feeds the deepest material to Chiglet's social/Sutra training.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
-# SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+# SPDX-License-Identifier: Apache-2.0
 """make_dmg.py FOLDER VOLUME OUT.dmg — a disk image that macOS opens with a
 double-click, built without a Mac. It is ISO 9660 with Rock Ridge (which
 keeps the app's execute permission) and Joliet. On a Mac, build_desktop.sh

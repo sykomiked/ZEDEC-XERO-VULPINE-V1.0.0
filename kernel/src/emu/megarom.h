@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* megarom.h — the CONSOLE model: the system's interface resembles a game
  * console, and MegaROMs ARE the bootable UI. A MegaROM is a self-contained UI
  * layer you "boot" like a cartridge; the console front-end lists the registered

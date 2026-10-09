@@ -1,7 +1,7 @@
 /* boot.s — x86-64 multiboot2 entry
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * License: Apache-2.0
  */
 
 .set MB_MAGIC,     0x1BADB002

@@ -3,7 +3,7 @@
  * Tests for shared AST registry, obligation tracking, and triad link protocol.
  *
  * Author: 36N9 Genetics, LLC
- * License: SEL-3.3 (kernel component)
+ * License: Apache-2.0
  */
 
 #include <stdio.h>

@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* test_zsp2.c — host test for ZSP v2 enforced verification (audit P0-6).
  *
  * Uses a committed signed fixture (test_zsp2_signed.h: version=5, arch=arm64,

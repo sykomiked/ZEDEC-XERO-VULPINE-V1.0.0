@@ -108,7 +108,7 @@ Below is the full subsystem index with file paths, descriptions, and test status
 | **PLNP** | `src/plnp/plnp.c` | Programming Language Natural Processor |
 | **Audio Genomics Pro** | `src/audiogenomics_pro/` | DNA/RNA frequency synthesis |
 | **Legal Engine** | `src/legal_engine/` | On-device legal compliance |
-| **License Manager** | `src/license/license.c` | SEL-3.3 license enforcement |
+| **License Manager** | `src/license/license.c` | Apache-2.0 licence identity and attribution |
 | **Bootlegger** | `src/bootlegger/bootlegger.c` | Boot management |
 | **Decent** | `src/decent/decent.c` | Decentralized consensus |
 | **DualTrack** | `src/dualtrack/dualtrack.c` | Dual-track execution |

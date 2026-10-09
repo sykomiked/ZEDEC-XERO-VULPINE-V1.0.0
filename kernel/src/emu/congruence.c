@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* congruence.c — the STRUCTURAL CONGRUENCE test. A state is only valid if it is
  * geometrically sound: if a thing is not structural geometry, it is not
  * structural from a mathematics lens. This makes the QC bar more than "no

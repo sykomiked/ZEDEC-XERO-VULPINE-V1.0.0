@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* cpu_z80.c — Zilog Z80 core (unprefixed 8-bit ISA). See cpu_z80.h for scope.
  * Integer-only, freestanding. Written for correctness of the *flag model* above
  * all else, because the flags are exactly what makes the Z80 non-compatible

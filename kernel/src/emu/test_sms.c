@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* test_sms.c — host test: no args runs the self-check; else run each file
  * through the SMS machine and print the running verdict + observation.
  *   cc -Ikernel/src/emu kernel/src/emu/cpu_z80.c kernel/src/emu/sms.c \

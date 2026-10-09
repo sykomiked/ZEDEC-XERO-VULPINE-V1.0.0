@@ -4,7 +4,7 @@
 # Falls back to a minimal detection-only mode when Python is unavailable.
 #
 # Author: H.M. Michael-Laurence: Curzi (c)
-# License: SEL-3.3
+# License: Apache-2.0
 
 set -e
 

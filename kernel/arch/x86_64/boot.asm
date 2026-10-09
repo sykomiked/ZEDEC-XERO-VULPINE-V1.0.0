@@ -1,7 +1,7 @@
 ; boot.asm — x86-64 multiboot1 long-mode entry (NASM syntax)
 ;
 ; Author: H.M. Michael-Laurence: Curzi (c)
-; License: SEL-3.3
+; License: Apache-2.0
 
 BITS 32
 

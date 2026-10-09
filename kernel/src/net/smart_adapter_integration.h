@@ -1,9 +1,11 @@
 /* smart_adapter_integration.h — Smart Adapter + Orbital Elevator + Yantra Fabric Integration
  *
  * Unifies three fabric layers:
- * 1. Smart Adapter — Generic hardware/firmware adapter with LPRES attestation, M5 coverage, virtual simulation
+ * 1. Smart Adapter — Generic hardware/firmware adapter with LPRES attestation, M5 coverage, virtual
+ * simulation
  * 2. Orbital Elevator — Schema translation and compatibility for event envelopes
- * 3. Yantra Fabric — Software-defined hardware fabric with 9 capability states, digital twin, state machines
+ * 3. Yantra Fabric — Software-defined hardware fabric with 9 capability states, digital twin, state
+ * machines
  *
  * Integration patterns:
  * - Smart Adapter devices register as Yantra Fabric devices
@@ -15,9 +17,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef SMART_ADAPTER_INTEGRATION_H
 #define SMART_ADAPTER_INTEGRATION_H

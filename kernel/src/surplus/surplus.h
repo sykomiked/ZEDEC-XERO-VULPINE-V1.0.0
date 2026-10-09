@@ -1,5 +1,5 @@
 /* surplus.h — Interaction Surplus Framework (ISF) engine
- * 
+ *
  * Implements the axiomatic surplus functional from Papers A-E:
  *   f(u) = ln(1 + (N-1)u)
  * where u = 1 - (x·y)² ∈ [0,1] is the orientation-based interaction parameter.
@@ -15,9 +15,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef SURPLUS_H
 #define SURPLUS_H

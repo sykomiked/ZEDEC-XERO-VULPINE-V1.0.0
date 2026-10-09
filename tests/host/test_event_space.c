@@ -13,7 +13,7 @@
  * Compile: gcc -Wall -Werror -Wextra -I. -o test_event_space test_event_space.c event_envelope.c event_sequencer.c self_audit.c self_healing.c && ./test_event_space
  *
  * Author: 36N9 Genetics, LLC
- * License: SEL-3.3 (test component)
+ * License: Apache-2.0
  */
 #include "event_space.h"
 #include <stdio.h>

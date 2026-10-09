@@ -504,4 +504,4 @@ int legal_compliance_audit(legal_engine_ext_t *engine, char *buf,
 
 ---
 
-*This documentation is generated as part of the ZEDEC pqOS transparent documentation initiative. All modules are open-source under SEL-3.3 Streisand Engine License.*
+*This documentation is generated as part of the ZEDEC pqOS transparent documentation initiative. All modules are open source under the Apache License 2.0.*

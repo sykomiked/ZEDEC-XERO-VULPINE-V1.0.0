@@ -3,7 +3,7 @@
 # Cross-compiles the ZEDEC pqOS kernel for RISC-V 64 (QEMU virt).
 #
 # Author: H.M. Michael-Laurence: Curzi (c)
-# License: SEL-3.3
+# License: Apache-2.0
 
 CROSS_COMPILE ?= riscv64-linux-gnu-
 CC = $(CROSS_COMPILE)gcc

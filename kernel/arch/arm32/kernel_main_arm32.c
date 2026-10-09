@@ -7,7 +7,7 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+ * SPDX-License-Identifier: Apache-2.0
  */
 #include "arm32_arch.h"
 
@@ -65,7 +65,7 @@ void kernel_main_arm32(void) {
 
     uart_puts("\nZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA) [ARM32]\n");
     uart_puts("==================================================\n\n");
-    uart_puts("License: SEL-3.3 — Streisand Engine License\n");
+    uart_puts("License: Apache-2.0\n");
     uart_puts("Author: H.M. Michael-Laurence: Curzi (c)\n");
     uart_puts("36N9 Genetics, LLC\n\n");
     license_print_all();
