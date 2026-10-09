@@ -543,13 +543,35 @@ static void test_manifest_parse(void)
             CHECK(zxu_manifest_parse((const uint8_t *) big, n, &mm) == ZXU_ERR_MALFORMED,
                   "duplicate entries refused");
             for (uint32_t cnt = 32; cnt <= 33; cnt++) {
-                n = (uint32_t) snprintf(big, sizeof big,
-                                        "zxv-update-manifest 1\nrelease 1.0.0\nmin-version "
-                                        "1.0.0\nissued 1\n");
-                for (uint32_t i = 0; i < cnt; i++)
-                    n += (uint32_t) snprintf(big + n, sizeof big - n, "%sf%03u\n", line, i);
-                n += (uint32_t) snprintf(big + n, sizeof big - n, "end\n");
-                r = zxu_manifest_parse((const uint8_t *) big, n, &mm);
+                int w;
+                int ok = 1;
+                n = 0;
+                w = snprintf(big, sizeof big,
+                             "zxv-update-manifest 1\nrelease 1.0.0\nmin-version "
+                             "1.0.0\nissued 1\n");
+                if (w < 0 || (size_t) w >= sizeof big) {
+                    ok = 0;
+                } else {
+                    n = (uint32_t) w;
+                }
+                for (uint32_t i = 0; ok && i < cnt; i++) {
+                    size_t rem = sizeof big - (size_t) n;
+                    w = snprintf(big + n, rem, "%sf%03u\n", line, i);
+                    if (w < 0 || (size_t) w >= rem) {
+                        ok = 0;
+                        break;
+                    }
+                    n += (uint32_t) w;
+                }
+                if (ok) {
+                    size_t rem = sizeof big - (size_t) n;
+                    w = snprintf(big + n, rem, "end\n");
+                    if (w < 0 || (size_t) w >= rem)
+                        ok = 0;
+                    else
+                        n += (uint32_t) w;
+                }
+                r = ok ? zxu_manifest_parse((const uint8_t *) big, n, &mm) : ZXU_ERR_MALFORMED;
                 CHECK(cnt == 32 ? r == 0 && mm.n == 32 : r == ZXU_ERR_MALFORMED,
                       cnt == 32 ? "32 entries accepted" : "33 entries refused");
             }
