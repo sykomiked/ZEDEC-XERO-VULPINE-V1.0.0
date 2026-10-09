@@ -91,7 +91,7 @@ assurance_err_t assurance_admit(assurance_contract_t *a, triple_ledger_t *tl) {
     if (a->pay_it_forward && !interstitial_region_valid(&a->forward_route))
         return ASSURANCE_ERR_FORWARD_ROUTE_INVALID;
 
-    /* ALL GATES CLEAR → Register assurance contract on Provenance rail (888) */
+    /* ALL GATES CLEAR → Register assurance contract on Provenance rail (810) */
     r = triple_ledger_post(tl, 0, LEDGER_PROVENANCE,
                             contrib_sr, SR_ONE, SR_ZERO,
                             contrib_sr, SR_ZERO, 0, "assurance_contract");

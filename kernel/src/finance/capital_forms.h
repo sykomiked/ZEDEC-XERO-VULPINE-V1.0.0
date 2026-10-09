@@ -42,8 +42,8 @@ typedef enum {
 
 /* ===== ISO 4217 Rail Mapping ===== */
 #define RAIL_FINANCIAL      846  /* Asset/backing — VINO_ISO_DEBIT */
-#define RAIL_PROVENANCE     888  /* Claim/attestation — VINO_ISO_CREDIT */
-#define RAIL_EXTERNALITY    999  /* Live equity witness — VINO_ISO_EQUITY (ISO XXX) */
+#define RAIL_PROVENANCE     810  /* Claim/attestation — VINO_ISO_CREDIT */
+#define RAIL_EXTERNALITY    888  /* Live equity witness — VINO_ISO_EQUITY */
 
 /* ===== Inalienability Guard ===== */
 static inline bool capital_is_state_reserved(capital_form_t form) {
@@ -92,9 +92,9 @@ static inline settlement_medium_t capital_settlement_medium(capital_form_t form)
  * - Financial (5): Rail 846 only
  * - Material (6): Rail 846 only
  * - Living (7): Rail 846 only
- * - Knowledge (8): Rail 888 (Provenance)
+ * - Knowledge (8): Rail 810 (Provenance)
  * - Built (9): Rail 846 only
- * - State-Reserved (1-4): Rail 888 (Provenance) for attestation, Rail 999 (Externality) for custody
+ * - State-Reserved (1-4): Rail 810 (Provenance) for attestation, Rail 888 (Externality) for custody
  */
 static inline uint16_t capital_primary_rail(capital_form_t form) {
     switch (form) {

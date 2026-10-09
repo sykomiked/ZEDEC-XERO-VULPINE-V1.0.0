@@ -1,6 +1,6 @@
 /* treaty_tokenization.h — Treaty-Backed Asset Tokenization (PAPSS Specification)
  *
- * Tokenize tangibles via treaty CID on Externality rail (999).
+ * Tokenize tangibles via treaty CID on Externality rail (888).
  * Conservation easements become treaty-backed Natural capital tokens.
  * Never fractionalized. Backing ratio >= 1.0x enforced by kernel.
  *
@@ -44,13 +44,13 @@ typedef struct {
     interstitial_region_t corridor;      /* Lex Rhodia corridor for transfer */
 
     /* Kernel tracking */
-    uint8_t externality_cid[32];         /* CID on Externality rail (999) */
+    uint8_t externality_cid[32];         /* CID on Externality rail (888) */
     uint64_t tokenization_tick;          /* Phase tick when tokenized */
 } treaty_asset_t;
 
 /* ===== API ===== */
 
-/* Verify and tokenize treaty-backed asset on Externality rail (999) */
+/* Verify and tokenize treaty-backed asset on Externality rail (888) */
 treaty_err_t treaty_asset_verify(const treaty_asset_t *ta, const triple_ledger_t *tl);
 
 /* Create treaty-backed asset from conservation easement */

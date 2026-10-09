@@ -109,7 +109,7 @@ void ff_init(financial_fabric_t *fabric, orbital_fabric_t *orbital) {
     /* Default configuration */
     fabric->config.enforce_100_percent_backing = true;
     fabric->config.allow_temporal_arb = true;
-    fabric->config.require_treaty_rail_999 = true;
+    fabric->config.require_treaty_rail_888 = true;
     fabric->config.min_margin_ratio = SR_ONE;      /* 100% */
     fabric->config.max_leverage = SR_ONE;          /* No leverage */
     fabric->config.settlement_cycles = 1000;
@@ -595,7 +595,7 @@ int32_t ff_verify_treaty_asset(financial_fabric_t *fabric, uint32_t position_id)
     /* Verify via kernel treaty module */
     /* m5_treaty_asset_verify(&pos->asset); */
     
-    pos->settled_on_rail_999 = true;  /* Treaty assets settle on Rail 999 (Externality) */
+    pos->settled_on_rail_888 = true;  /* Treaty assets settle on Rail 888 (Externality) */
     pos->settlement_tick = 0;
     pos->asset_attestation = LPRES_STATE_TRUE;
     
@@ -846,7 +846,7 @@ int32_t ff_route_through_rail(financial_fabric_t *fabric,
 
 bool ff_rail_supports_form(rail_system_t *rails, uint8_t form, uint8_t rail_id) {
     if (!rails) return false;
-    /* Rail 1=Social, 2=Natural, 3=Heritage, 4=Governance, 5=Financial, 6=Material, 7=Living, 8=Knowledge, 9=Built, 999=Externality */
+    /* Rail 1=Social, 2=Natural, 3=Heritage, 4=Governance, 5=Financial, 6=Material, 7=Living, 8=Knowledge, 9=Built, 888=Externality */
     /* In real implementation, would check rails->form_to_rail[form] == rail_id */
     return true;  /* Simplified */
 }
@@ -1008,8 +1008,9 @@ const char *ff_rail_name(uint8_t rail) {
         "Social", "Natural", "Heritage", "Governance", "Financial",
         "Material", "Living", "Knowledge", "Built", "Externality"
     };
-    if (rail <= 9) return names[rail - 1];
-    if (rail == 999) return "Externality";
+    /* Externality is rail 888 (VINO_ISO_EQUITY), outside uint8_t; the
+     * ordinal 10 is its slot in this table. */
+    if (rail >= 1 && rail <= 10) return names[rail - 1];
     return "Unknown";
 }
 

@@ -74,7 +74,7 @@ deriv_err_t deriv_verify_backing(const deriv_contract_t *d, const triple_ledger_
     ledger_entry_t *backing = find_backing_entry(tl, d->backing_cid);
     if (!backing) return DERIV_ERR_NO_BACKING;
 
-    /* 2. Verify Provenance rail (888) attestation — LPRES gate */
+    /* 2. Verify Provenance rail (810) attestation — LPRES gate */
     if (!lpres_attestation_is_true(&d->backing_proof))
         return DERIV_ERR_BACKING_UNATTTESTED;  /* NEITHER/GLUT = veto */
 
@@ -90,7 +90,7 @@ deriv_err_t deriv_verify_backing(const deriv_contract_t *d, const triple_ledger_
     if (rat_cmp(ratio, RAT_ONE) < 0)
         return DERIV_ERR_INSUFFICIENT_BACKING;  /* VETO — no fractional reserve */
 
-    /* 5. Externality rail (999) — verify interstitial jurisdiction */
+    /* 5. Externality rail (888) — verify interstitial jurisdiction */
     if (!interstitial_region_valid(&d->jurisdiction))
         return DERIV_ERR_INVALID_JURISDICTION;
     if (!interstitial_region_cid_resolves(&d->jurisdiction))
@@ -194,10 +194,10 @@ deriv_err_t deriv_settle(deriv_contract_t *d, triple_ledger_t *tl) {
     /* Post to Financial rail (846) */
     int32_t r1 = triple_ledger_post(tl, 0, LEDGER_FINANCIAL, notional_sr, SR_ONE, SR_ZERO, notional_sr, SR_ZERO, 0, "derivative_settle");
     
-    /* Post to Provenance rail (888) */
+    /* Post to Provenance rail (810) */
     int32_t r2 = triple_ledger_post(tl, 0, LEDGER_PROVENANCE, notional_sr, SR_ONE, SR_ZERO, notional_sr, SR_ZERO, 0, "derivative_attestation");
     
-    /* Post to Externality rail (999) */
+    /* Post to Externality rail (888) */
     int32_t r3 = triple_ledger_post(tl, 0, LEDGER_EXTERNALITY, notional_sr, SR_ONE, d->phase_curvature, notional_sr, SR_ZERO, 0, "derivative_externality");
 
     if (r1 < 0 || r2 < 0 || r3 < 0) return DERIV_VETO;

@@ -168,8 +168,8 @@ int32_t vino_ledger_act(vino_stores_t *vs, uint64_t voucher_id,
     for (j = 0; j < LEDGER_MAX; j++) s_bal[j] = a->balance[j];
 
     /* --- Post the THREE rails through the real double-entry engine. ---------
-     * Rail 1 (846): the asset/backing debit.  Rail 2 (888): the claim credit.
-     * Rail 3 (999): the LIVE equity witness — value carried on r, zero debit
+     * Rail 1 (846): the asset/backing debit.  Rail 2 (810): the claim credit.
+     * Rail 3 (888): the LIVE equity witness — value carried on r, zero debit
      * and zero credit so it witnesses without double-counting the balance. */
     surplus_real_t ell_full = SR_ONE; /* a backed rail is fully attested */
     int32_t r1 = triple_ledger_post(tl, vs->vino_account, LEDGER_FINANCIAL,
@@ -179,11 +179,11 @@ int32_t vino_ledger_act(vino_stores_t *vs, uint64_t voucher_id,
     int32_t r2 = triple_ledger_post(tl, vs->vino_account, LEDGER_FINANCIAL,
                                     credit, ell_full, SR_ZERO,
                                     SR_ZERO, credit, VINO_ISO_CREDIT,
-                                    "Vino rail 888: credit");
+                                    "Vino rail 810: credit");
     int32_t r3 = triple_ledger_post(tl, vs->vino_account, LEDGER_PROVENANCE,
                                     equity, ell_full, SR_ZERO,
                                     SR_ZERO, SR_ZERO, VINO_ISO_EQUITY,
-                                    "Vino rail 999: equity witness");
+                                    "Vino rail 888: equity witness");
 
     /* --- Gate on the ledger's own accumulators. ----------------------------- */
     surplus_real_t assets = tl->total_assets;

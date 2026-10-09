@@ -31,18 +31,20 @@ static int in_order(const char *hay, const char *needle, size_t *from) {
 /* ---- (1) rail -> ccy and the 999->XXX caveat ---- */
 static int test_rail_ccy(void) {
     CHECK(iso20022_rail_ccy(ISO_RAIL_DEBIT)  == 846);
-    CHECK(iso20022_rail_ccy(ISO_RAIL_CREDIT) == 888);
-    CHECK(iso20022_rail_ccy(ISO_RAIL_EQUITY) == 999);
+    CHECK(iso20022_rail_ccy(ISO_RAIL_CREDIT) == 810);
+    CHECK(iso20022_rail_ccy(ISO_RAIL_EQUITY) == 888);
 
     /* 999 is a REAL code (XXX) but means "no currency" — the caveat. */
     CHECK(strcmp(iso20022_ccy_alpha(999), "XXX") == 0);
     CHECK(strlen(iso20022_ccy_caveat(999)) > 0);
     CHECK(strstr(iso20022_ccy_caveat(999), "XXX") != NULL);
 
-    /* 846/888 are Vino-internal, NOT conventional currencies: empty alpha,
+    /* 846/810/888 are Vino-internal, NOT conventional currencies: empty alpha,
      * non-empty caveat so nobody silently wires an "846" amount. */
     CHECK(strcmp(iso20022_ccy_alpha(846), "") == 0);
+    CHECK(strcmp(iso20022_ccy_alpha(810), "") == 0);
     CHECK(strcmp(iso20022_ccy_alpha(888), "") == 0);
+    CHECK(strstr(iso20022_ccy_caveat(810), "RUR") != NULL);
     CHECK(strlen(iso20022_ccy_caveat(846)) > 0);
     CHECK(strlen(iso20022_ccy_caveat(888)) > 0);
 

@@ -43,14 +43,15 @@
 #include "surplus.h"
 #include "triple_ledger.h"   /* floating_voucher_t, triple_ledger_t, post/verify */
 
-/* ===== ISO 4217 rail codes =====
- * Vino exposes its three rails under real ISO 4217 numeric codes so interop
- * layers never silently mis-bind. 999 is XXX "no currency" in conventional
- * systems — that is deliberate: the equity rail is not a currency, it is the
- * live witness. Expose it, do not let it break interop by accident. */
+/* ===== Rail numeric codes =====
+ * Vino's three rails: DEBIT 846, CREDIT 810, EQUITY 888. None is an active
+ * ISO 4217 currency: 846 and 888 are unassigned, and 810 is the WITHDRAWN
+ * code of the old Russian ruble (RUR, replaced by 643 RUB in 1998). They are
+ * internal rail numerics; external messages settle in a real currency and
+ * carry these only in proprietary fields (see iso20022_ccy_caveat). */
 #define VINO_ISO_DEBIT   846u   /* the asset/backing rail                       */
-#define VINO_ISO_CREDIT  888u   /* the claim/liability rail                     */
-#define VINO_ISO_EQUITY  999u   /* the live equity rail (ISO XXX "no currency") */
+#define VINO_ISO_CREDIT  810u   /* the claim/liability rail (historic RUR code) */
+#define VINO_ISO_EQUITY  888u   /* the live equity rail                         */
 
 /* Proof-CID witness length — one SHA-256 digest, same as ipfs IPFS_CID_LEN. */
 #define VINO_PROOF_CID_LEN 32u

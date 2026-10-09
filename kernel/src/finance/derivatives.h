@@ -60,8 +60,8 @@ static inline bool interstitial_region_cid_resolves(const interstitial_region_t 
 /* ===== Derivative Contract =====
  * Posts atomically to three rails:
  * - Rail 846 (Financial): Exact economic terms
- * - Rail 888 (Provenance): Attestation & backing proof
- * - Rail 999 (Externality): Relational phase & jurisdiction
+ * - Rail 810 (Provenance): Attestation & backing proof
+ * - Rail 888 (Externality): Relational phase & jurisdiction
  */
 typedef struct {
     /* RAIL 846 — FINANCIAL: Exact economic terms */
@@ -70,12 +70,12 @@ typedef struct {
     uint64_t expiry_tick;              /* Phase tick (not wall clock) */
     capital_form_t underlying_form;    /* 5-9 (priceable only) */
 
-    /* RAIL 888 — PROVENANCE: Attestation & backing proof */
+    /* RAIL 810 — PROVENANCE: Attestation & backing proof */
     uint8_t backing_cid[32];           /* IPFS CID of backing asset proof (SHA-256) */
     lpres_attestation_t backing_proof; /* LPRES: TRUE/NEITHER/FALSE/GLUT */
     uint64_t backing_verification_tick; /* When backing was verified */
 
-    /* RAIL 999 — EXTERNAILITY: Relational phase & interstitial jurisdiction */
+    /* RAIL 888 — EXTERNAILITY: Relational phase & interstitial jurisdiction */
     surplus_real_t phase_curvature;    /* IPHASE φ — asymmetric routing cost */
     interstitial_region_t jurisdiction; /* Lex Rhodia governed corridor */
     bool treaty_backed;                /* True iff treaty CID attached */

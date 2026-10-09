@@ -173,7 +173,7 @@ typedef struct ff_treaty_position {
     surplus_real_t biodiversity_index; /* Biodiversity index */
     
     /* Settlement */
-    bool settled_on_rail_999;        /* Settled on Externality rail */
+    bool settled_on_rail_888;        /* Settled on Externality rail */
     uint64_t settlement_tick;
     
     /* LPRES attestation */
@@ -330,7 +330,7 @@ typedef struct financial_fabric {
     struct {
         bool enforce_100_percent_backing;
         bool allow_temporal_arb;
-        bool require_treaty_rail_999;
+        bool require_treaty_rail_888;
         surplus_real_t min_margin_ratio;      /* 1.0 = 100% */
         surplus_real_t max_leverage;          /* 1.0 = no leverage */
         uint32_t settlement_cycles;           /* Settlement period */

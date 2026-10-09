@@ -1,6 +1,6 @@
 /* treaty_tokenization.c — Treaty-Backed Asset Tokenization Implementation
  *
- * Conservation easements → treaty-backed Natural capital tokens on rail 999.
+ * Conservation easements → treaty-backed Natural capital tokens on rail 888.
  * Never fractionalized. Backing ratio >= 1.0x enforced by kernel.
  *
  * Author: 36N9 Genetics, LLC
@@ -100,7 +100,7 @@ treaty_err_t treaty_asset_create(treaty_asset_t *ta, const triple_ledger_t *tl,
     treaty_err_t err = treaty_asset_verify(ta, tl);
     if (err != TREATY_OK) return err;
 
-    /* 5. Post to Externality rail (999) as treaty-backed asset */
+    /* 5. Post to Externality rail (888) as treaty-backed asset */
     capital_type_t cap = capital_form_to_vino(form);
     surplus_real_t qv = rat_to_surplus(quantified_value);
     int32_t r = triple_ledger_post((triple_ledger_t *)tl, 0, LEDGER_EXTERNALITY,
