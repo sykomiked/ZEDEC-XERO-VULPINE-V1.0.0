@@ -187,3 +187,25 @@ re-measured over time.
   specialists (voice in and out, OCR, documents, images, music, video,
   vision, code, reasoning) working together, not from one giant model. It
   reconfigures itself for each kind of task.
+
+## 12. Cycles, overlap and quality (built)
+
+- **Harmonic cycles** (`swarm_harmonic`). Time is phase ticks, not a clock.
+  The fundamental cycle is 27,720 ticks, the smallest number every whole
+  number from 1 to 11 divides, so harmonic n runs every 27,720 / n ticks and
+  all eleven line up at each fundamental. Harmonics 9–11 are reflexes
+  (witnessing, routing, sensing stress), 4–8 are thought (answers, tool
+  chains), and 1–3 are growth (memory, learning, self-improvement).
+- **The Venn rule** (`swarm_overlap`). Agents that need the same
+  computation (same model, same context, same question) share one job and
+  split its cost exactly. The tokens that weren't spent twice are counted.
+  A job is charged all or nothing.
+- **The quality gate** (`swarm_quality`). Nothing is presented unless
+  breadth × verified share ≥ 1.8 (the Hackronomicon gate). A failing output
+  is audited and revised first, up to F(L+2) passes. If it still fails, it
+  is shown flagged with what is unverified. Only gated work earns value
+  income.
+- **Truth over agreement.** Claims carry truth states from real checks and
+  change state only on evidence, with each change posted to the provenance
+  ledger. The swarm says no to a false premise, and adds no blanket refusals
+  of its own.
