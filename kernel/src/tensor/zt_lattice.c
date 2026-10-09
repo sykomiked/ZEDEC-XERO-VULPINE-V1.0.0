@@ -9,6 +9,7 @@
  * then a sum of squared residuals (k x - n s)^2 in int64, exact, and the
  * caps on the scale keep those sums below 2^63. */
 #include "zt_lattice.h"
+#include "../e8/e8_lattice.h" /* the canonical E8 roots, shared with src/e8 */
 
 #define E8_CLAMP    124   /* doubled units: inputs saturate at +-62 s */
 #define LEECH_CLAMP 30000 /* quarter units: inputs saturate at +-7500 s */
@@ -125,12 +126,9 @@ bool zt_e8_nearest(const zt_fx x[8], zt_fx scale, int8_t out2[8])
 
 bool zt_e8_is_point(const int8_t v2[8])
 {
-    uint32_t p = (uint32_t) v2[0] & 1u, sum = 0;
-    for (uint32_t i = 0; i < 8; i++) {
-        if (((uint32_t) v2[i] & 1u) != p) return false;
-        sum += (uint32_t) v2[i];
-    }
-    return (sum & 3u) == 0;
+    int32_t w[8];
+    for (uint32_t i = 0; i < 8; i++) w[i] = v2[i];
+    return e8l_is_point2(w);
 }
 
 int32_t zt_e8_norm2(const int8_t v2[8])
@@ -218,34 +216,6 @@ static int64_t e8_metric(const int32_t T[8], const int64_t R[8], int64_t s, cons
     return m;
 }
 
-/* Root r of E8 (r < 240) in doubled coordinates: r < 112 is +-2 at a pair
- * of places (28 pairs, 4 signs), the rest (+-1)^8 with an even number of
- * minus signs (the 128 bytes of even weight, in order). */
-static void e8_root(uint32_t r, int8_t e[8])
-{
-    for (uint32_t i = 0; i < 8; i++) e[i] = 0;
-    if (r < 112) {
-        uint32_t pair = r >> 2, a = 0, b = 1;
-        for (uint32_t k = 0; k < pair; k++)
-            if (++b == 8) {
-                a++;
-                b = a + 1;
-            }
-        e[a] = (int8_t) ((r & 1u) ? -2 : 2);
-        e[b] = (int8_t) ((r & 2u) ? -2 : 2);
-        return;
-    }
-    uint32_t k = r - 112, m = 0; /* the k-th byte of even weight */
-    for (;; m++) {
-        uint32_t w = m;
-        w ^= w >> 4;
-        w ^= w >> 2;
-        w ^= w >> 1;
-        if (!(w & 1u) && k-- == 0) break;
-    }
-    for (uint32_t i = 0; i < 8; i++) e[i] = (int8_t) (((m >> i) & 1u) ? -1 : 1);
-}
-
 uint16_t zt_e8_quantize(const int8_t *table, const zt_fx x[8], zt_fx scale)
 {
     int8_t v[8], best[8];
@@ -281,7 +251,7 @@ uint16_t zt_e8_quantize(const int8_t *table, const zt_fx x[8], zt_fx scale)
         int64_t bd = 0;
         for (uint32_t r = 0; r < 240; r++) {
             int8_t e[8], t[8];
-            e8_root(r, e);
+            e8l_root2(r, e);
             for (uint32_t i = 0; i < 8; i++) t[i] = (int8_t) (best[i] + e[i]);
             if (zt_e8_norm2(t) > 32) continue;
             int64_t d = e8_metric(T, R, s, t) - bm;
@@ -297,13 +267,12 @@ uint16_t zt_e8_quantize(const int8_t *table, const zt_fx x[8], zt_fx scale)
     return (uint16_t) zt_e8_encode(table, best);
 }
 
+uint32_t zt__rms_q16(const zt_fx *x, uint32_t n); /* zt.c */
+
 zt_fx zt_e8_rms(const zt_fx *x, uint32_t n)
 {
-    uint64_t ss = 0;
-    if (n == 0) return 0;
-    for (uint32_t i = 0; i < n; i++) ss += (uint64_t) ((int64_t) x[i] * x[i]) >> 16;
-    uint64_t mean = zt_udiv64(ss, n, 0); /* Q16, below 2^46 */
-    return (zt_fx) zt_isqrt64(mean << 16);
+    uint32_t r = zt__rms_q16(x, n);
+    return r > (uint32_t) INT32_MAX ? INT32_MAX : (zt_fx) r;
 }
 
 zt_fx zt_e8_scale(const zt_fx *x, uint32_t n)

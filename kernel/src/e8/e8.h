@@ -142,11 +142,21 @@ int64_t       e8_m5_norm(const int64_t m5[E8_M5_DIM], bool *ok);
 int64_t e8_m5_dist2(const int64_t x[E8_M5_DIM], const int64_t y[E8_M5_DIM],
                     bool *ok);
 
+/* ---- the shared doubled coordinates (e8_lattice.h) -----------------------
+ * The tensor engine's quantisers (src/tensor/zt_lattice.h) work in E8's even
+ * coordinate system, doubled to integers: v2 = 2v. e8_lattice.h holds the
+ * images of b0..b7 there (E8L_ICOSIAN2), and the map c -> v2 is an isometry:
+ * e8_norm(p) == |v2|^2 / 4. Both return false on overflow; e8_from_coords2
+ * also returns false when v2 is not a point of E8. */
+bool e8_to_coords2(e8_pt_t p, int64_t v2[E8_DIM]);
+bool e8_from_coords2(const int64_t v2[E8_DIM], e8_pt_t *out);
+
 /* ---- verification --------------------------------------------------------
  * Recomputes the Gram from the basis quaternions, checks unimodularity by
  * exact integer elimination, regenerates the icosians and confirms 2I closure,
- * counts the roots, verifies the φ² shell-radius identity, and round-trips the
- * lift. Returns the number of problems found (0 = healthy). */
+ * counts the roots, verifies the φ² shell-radius identity, round-trips the
+ * lift, and checks the basis images in the shared doubled coordinates
+ * against the Gram matrix. Returns the number of problems found (0 = healthy). */
 uint32_t e8_selfcheck(void);
 
 #endif /* ZXV_E8_H */

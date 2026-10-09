@@ -237,12 +237,12 @@ static void test_field(void)
 
 static void test_interfere(void)
 {
-    CHECK((int) ZT_TRUTH_TRUE == (int) SWARM_HK_TRUE &&
-              (int) ZT_TRUTH_FALSE == (int) SWARM_HK_FALSE &&
-              (int) ZT_TRUTH_GLUT == (int) SWARM_HK_GLUT &&
-              (int) ZT_TRUTH_NEUTRAL == (int) SWARM_HK_NEUTRAL &&
-              (int) ZT_TRUTH_PARADOX == (int) SWARM_HK_PARADOX &&
-              (int) ZT_TRUTH_UNKNOWN == (int) SWARM_HK_UNKNOWN,
+    CHECK((int) ZT_COIL_TRUE == (int) SWARM_HK_TRUE &&
+              (int) ZT_COIL_FALSE == (int) SWARM_HK_FALSE &&
+              (int) ZT_COIL_GLUT == (int) SWARM_HK_GLUT &&
+              (int) ZT_COIL_NEUTRAL == (int) SWARM_HK_NEUTRAL &&
+              (int) ZT_COIL_PARADOX == (int) SWARM_HK_PARADOX &&
+              (int) ZT_COIL_UNKNOWN == (int) SWARM_HK_UNKNOWN,
           "truth states match swarm_hk.h");
     zt_coil_t c;
     zt_coil_init(&c, 5, ZT_WIND_GOLDEN);
@@ -256,10 +256,10 @@ static void test_interfere(void)
     n[M] = 100;        /* a clear falsehood */
     p[M + 1] = 10;     /* weak evidence */
     zt_coil_interfere(&c, p, n, 50, tr, x);
-    CHECK(tr[L] == ZT_TRUTH_GLUT && x[L] == 0, "glut held");
-    CHECK(tr[O] == ZT_TRUTH_TRUE && x[O] == 100, "true");
-    CHECK(tr[M] == ZT_TRUTH_FALSE && x[M] == -100, "false");
-    CHECK(tr[M + 1] == ZT_TRUTH_NEUTRAL && tr[0] == ZT_TRUTH_UNKNOWN, "neutral, unknown");
+    CHECK(tr[L] == ZT_COIL_GLUT && x[L] == 0, "glut held");
+    CHECK(tr[O] == ZT_COIL_TRUE && x[O] == 100, "true");
+    CHECK(tr[M] == ZT_COIL_FALSE && x[M] == -100, "false");
+    CHECK(tr[M + 1] == ZT_COIL_NEUTRAL && tr[0] == ZT_COIL_UNKNOWN, "neutral, unknown");
     /* Glut all the way from the leaf to the core: a paradox to escalate. */
     zt_place_t q = leaf;
     for (;;) {
@@ -269,7 +269,7 @@ static void test_interfere(void)
         q = zt_coil_parent(&c, q);
     }
     zt_coil_interfere(&c, p, n, 50, tr, x);
-    CHECK(tr[L] == ZT_TRUTH_PARADOX, "paradox escalates");
+    CHECK(tr[L] == ZT_COIL_PARADOX, "paradox escalates");
     (void) mid;
     (void) other;
     free(p);

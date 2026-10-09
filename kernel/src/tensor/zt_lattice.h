@@ -35,9 +35,14 @@
  *       to find the nearest codebook point. Inputs saturate (E8 at 62 scales,
  *       Leech at 7500) and scales are capped (ZT_E8_SCALE_MAX,
  *       ZT_LEECH_SCALE_MAX) so every distance is exact in int64. The Leech
- *       decoder is brute force, not a hexacode decoder. This is unrelated to
- *       src/e8 (E8 built from the icosians for exact geometry): same lattice,
- *       different coordinates, and neither depends on the other.
+ *       decoder is brute force, not a hexacode decoder.
+ *       ONE E8.  The roots come from src/e8/e8_lattice.h, the same tables
+ *       src/e8 (E8 built from the icosians) reads. Its Gram matrix and the
+ *       images of the icosian basis in these doubled coordinates live there,
+ *       so the two modules describe one lattice: test_zt_e8 proves the map
+ *       from icosian coefficients to doubled coordinates is an isometry that
+ *       carries e8_roots() onto these 240 roots (e8_to_coords2 and
+ *       e8_from_coords2 in e8.h convert).
  * Freestanding: no libc, no floating point, no 64-bit division. Every buffer
  * is the caller's.
  */

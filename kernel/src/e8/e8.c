@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "e8.h"
+#include "e8_lattice.h"
 
 /* ===================== the 600-cell, generated exactly =====================
  * Three orbits, coordinates scaled by 2 (see e8.h):
@@ -163,17 +164,11 @@ static const int64_t BASIS[E8_DIM][4][2] = {
 
 /* G = the E8 Gram matrix. det(G) = 1 (unimodular), diagonal all 2 (even, and
  * every basis vector is a root). Theta series 240 / 2160 / 6720 — verified by
- * complete Cholesky-bounded enumeration before this table was written. */
-static const int8_t GRAM[E8_DIM * E8_DIM] = {
-    2, 1, 1, 1, 1, 1, 1, 0,
-    1, 2, 1, 1, 1, 0, 1, 1,
-    1, 1, 2, 0, 1, 0, 1, 0,
-    1, 1, 0, 2, 0, 1, 1, 1,
-    1, 1, 1, 0, 2, 0, 0, 0,
-    1, 0, 0, 1, 0, 2, 0, 0,
-    1, 1, 1, 1, 0, 0, 2, 0,
-    0, 1, 0, 1, 0, 0, 0, 2,
-};
+ * complete Cholesky-bounded enumeration before this table was written. The
+ * table lives in e8_lattice.h, beside the images of b0..b7 in the shared
+ * doubled coordinates (E8L_ICOSIAN2), so this module and the tensor engine
+ * read one copy; check 9 of e8_selfcheck ties the two together. */
+#define GRAM E8L_ICOSIAN_GRAM
 
 static const int8_t M5_GRAM[E8_M5_DIM * E8_M5_DIM] = {
     2, 1, 1, 1, 1,
@@ -320,6 +315,48 @@ int64_t e8_m5_dist2(const int64_t x[E8_M5_DIM], const int64_t y[E8_M5_DIM],
     for (uint32_t i = 0; i < E8_M5_DIM; i++)
         if (__builtin_sub_overflow(x[i], y[i], &d[i])) return 0;
     return e8_m5_norm(d, ok);
+}
+
+/* ===================== the shared doubled coordinates ===================== */
+
+bool e8_to_coords2(e8_pt_t p, int64_t v2[E8_DIM])
+{
+    if (!v2 || !p.valid) return false;
+    for (uint32_t j = 0; j < E8_DIM; j++) {
+        int64_t s = 0;
+        for (uint32_t i = 0; i < E8_DIM; i++) {
+            int64_t t;
+            if (__builtin_mul_overflow(p.c[i], (int64_t) E8L_ICOSIAN2[i][j], &t)) return false;
+            if (__builtin_add_overflow(s, t, &s)) return false;
+        }
+        v2[j] = s;
+    }
+    return true;
+}
+
+bool e8_from_coords2(const int64_t v2[E8_DIM], e8_pt_t *out)
+{
+    if (!v2 || !out) return false;
+    e8_pt_t p = e8_zero();
+    for (uint32_t i = 0; i < E8_DIM; i++) {
+        int64_t s = 0;
+        for (uint32_t j = 0; j < E8_DIM; j++) {
+            int64_t t;
+            if (__builtin_mul_overflow(v2[j], (int64_t) E8L_FROM2[i][j], &t)) return false;
+            if (__builtin_add_overflow(s, t, &s)) return false;
+        }
+        /* s must be a multiple of 4, or c would not be integral; divide by
+         * shifting the magnitude (no 64-bit division helper on 32-bit) */
+        uint64_t m = s < 0 ? (uint64_t) 0 - (uint64_t) s : (uint64_t) s;
+        if (m & 3u) return false;
+        p.c[i] = s < 0 ? -(int64_t) (m >> 2) : (int64_t) (m >> 2);
+    }
+    int64_t back[E8_DIM]; /* off-lattice input can still divide; the round trip decides */
+    if (!e8_to_coords2(p, back)) return false;
+    for (uint32_t j = 0; j < E8_DIM; j++)
+        if (back[j] != v2[j]) return false;
+    *out = p;
+    return true;
 }
 
 /* ===================== verification ======================================= */
@@ -508,6 +545,25 @@ uint32_t e8_selfcheck(void) {
     for (uint32_t i = 0; i < E8_M5_DIM; i++)
         for (uint32_t j = 0; j < E8_M5_DIM; j++)
             if (M5_GRAM[i * E8_M5_DIM + j] != GRAM[i * E8_DIM + j]) bad++;
+
+    /* 9. The icosian basis and the shared doubled coordinates are one
+     *    lattice: the images E8L_ICOSIAN2 have exactly the Gram matrix above,
+     *    each is a root there, and E8L_FROM2 inverts the map (E8L_FROM2 times
+     *    the images is 4I). */
+    for (uint32_t i = 0; i < E8_DIM; i++) {
+        int32_t vi[E8_DIM];
+        for (uint32_t k = 0; k < E8_DIM; k++) vi[k] = E8L_ICOSIAN2[i][k];
+        if (!e8l_is_point2(vi)) bad++;
+        for (uint32_t j = 0; j < E8_DIM; j++) {
+            int32_t d = 0, m = 0;
+            for (uint32_t k = 0; k < E8_DIM; k++) {
+                d += (int32_t) E8L_ICOSIAN2[i][k] * E8L_ICOSIAN2[j][k];
+                m += (int32_t) E8L_FROM2[i][k] * E8L_ICOSIAN2[j][k];
+            }
+            if (d != 4 * (int32_t) GRAM[i * E8_DIM + j]) bad++;
+            if (m != (i == j ? 4 : 0)) bad++;
+        }
+    }
 
     cached = bad;
     done = true;

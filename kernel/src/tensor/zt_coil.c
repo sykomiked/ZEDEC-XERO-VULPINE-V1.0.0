@@ -16,6 +16,15 @@ static uint32_t mulmod(uint32_t a, uint32_t b, uint32_t m)
     return (uint32_t) r;
 }
 
+/* v * k / 2^16 rounded toward zero, for 0 <= k < 2^16 and any int64 v, so
+ * the result is odd in v (f(-v) = -f(v)) and needs no signed shift. */
+static int64_t mul_q16_trunc(int64_t v, uint32_t k)
+{
+    uint64_t m = v < 0 ? (uint64_t) 0 - (uint64_t) v : (uint64_t) v;
+    uint64_t r = (m >> 16) * k + (((m & 0xFFFFu) * k) >> 16); /* < 2^63 */
+    return v < 0 ? -(int64_t) r : (int64_t) r;
+}
+
 static uint32_t scale_down(uint32_t j, uint32_t from, uint32_t to)
 {
     return (uint32_t) zt_udiv64((uint64_t) j * to, from, 0);
@@ -113,7 +122,7 @@ void zt_coil_field(const zt_coil_t *c, const zt_fx *value, int64_t *field)
     for (uint32_t s = ZT_COIL_SHELLS; s-- > 0;) {
         for (uint32_t j = 0; j < c->size[s]; j++) {
             zt_place_t p = {s, j}, q = zt_coil_parent(c, p);
-            int64_t emit = (field[c->offset[s] + j] * INVPHI_Q16) >> 16;
+            int64_t emit = mul_q16_trunc(field[c->offset[s] + j], INVPHI_Q16);
             field[at(c, q)] += emit;
         }
     }
@@ -169,7 +178,7 @@ void zt_coil_ac(const zt_coil_t *c, int64_t *field, uint32_t phase)
             for (uint32_t j = 0; j < c->size[s]; j++) {
                 zt_place_t p = {s, j};
                 uint64_t a = at(c, p), b = at(c, zt_coil_parent(c, p));
-                int64_t t = (field[a] * INVPHI2_Q16) >> 16;
+                int64_t t = mul_q16_trunc(field[a], INVPHI2_Q16);
                 field[a] -= t;
                 field[b] += t;
             }
@@ -178,7 +187,7 @@ void zt_coil_ac(const zt_coil_t *c, int64_t *field, uint32_t phase)
             for (uint32_t j = 0; j < c->size[s]; j++) {
                 zt_place_t p = {s, j};
                 uint64_t a = at(c, p), b = at(c, zt_coil_parent(c, p));
-                int64_t t = (field[b] * INVPHI2_Q16) >> 16;
+                int64_t t = mul_q16_trunc(field[b], INVPHI2_Q16);
                 field[b] -= t;
                 field[a] += t;
             }
@@ -202,12 +211,22 @@ uint32_t zt_coil_bank(const zt_coil_t *c, zt_place_t p, uint32_t banks)
 
 static uint8_t read_truth(int64_t p, int64_t n, int64_t t)
 {
-    if (p < 0) p = -p;
-    if (n < 0) n = -n;
-    if (p >= t && n >= t) return ZT_TRUTH_GLUT;
-    if (p >= t) return ZT_TRUTH_TRUE;
-    if (n >= t) return ZT_TRUTH_FALSE;
-    return p || n ? ZT_TRUTH_NEUTRAL : ZT_TRUTH_UNKNOWN;
+    /* magnitudes as unsigned, so INT64_MIN is 2^63 rather than undefined */
+    uint64_t up = p < 0 ? (uint64_t) 0 - (uint64_t) p : (uint64_t) p;
+    uint64_t un = n < 0 ? (uint64_t) 0 - (uint64_t) n : (uint64_t) n;
+    bool sp = t <= 0 || up >= (uint64_t) t, sn = t <= 0 || un >= (uint64_t) t;
+    if (sp && sn) return ZT_COIL_GLUT;
+    if (sp) return ZT_COIL_TRUE;
+    if (sn) return ZT_COIL_FALSE;
+    return up || un ? ZT_COIL_NEUTRAL : ZT_COIL_UNKNOWN;
+}
+
+/* p - n, saturated to int64. */
+static int64_t sat_sub64(int64_t p, int64_t n)
+{
+    if (n < 0 && p > INT64_MAX + n) return INT64_MAX;
+    if (n > 0 && p < INT64_MIN + n) return INT64_MIN;
+    return p - n;
 }
 
 void zt_coil_interfere(const zt_coil_t *c, const int64_t *pos, const int64_t *neg,
@@ -216,18 +235,18 @@ void zt_coil_interfere(const zt_coil_t *c, const int64_t *pos, const int64_t *ne
     uint64_t all = (uint64_t) c->total + c->core;
     for (uint64_t i = 0; i < all; i++) {
         truth[i] = read_truth(pos[i], neg[i], threshold);
-        interference[i] = pos[i] - neg[i];
+        interference[i] = sat_sub64(pos[i], neg[i]);
     }
     /* A glut whose whole path to the core is glut cannot be settled inside
      * the coil: it is a paradox. Core first, so each place sees its parent's
      * final reading. */
     for (uint32_t i = 0; i < c->core; i++)
-        if (truth[c->total + i] == ZT_TRUTH_GLUT) truth[c->total + i] = ZT_TRUTH_PARADOX;
+        if (truth[c->total + i] == ZT_COIL_GLUT) truth[c->total + i] = ZT_COIL_PARADOX;
     for (uint32_t s = 0; s < ZT_COIL_SHELLS; s++)
         for (uint32_t j = 0; j < c->size[s]; j++) {
             zt_place_t p = {s, j};
             uint64_t a = at(c, p);
-            if (truth[a] == ZT_TRUTH_GLUT && truth[at(c, zt_coil_parent(c, p))] == ZT_TRUTH_PARADOX)
-                truth[a] = ZT_TRUTH_PARADOX;
+            if (truth[a] == ZT_COIL_GLUT && truth[at(c, zt_coil_parent(c, p))] == ZT_COIL_PARADOX)
+                truth[a] = ZT_COIL_PARADOX;
         }
 }

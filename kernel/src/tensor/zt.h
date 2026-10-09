@@ -15,7 +15,8 @@
  *       scales in model files are held exactly instead of rounded to Q16.
  *   T3  GOLDEN SCALES.  A block's scale can be snapped up to a power of phi,
  *       stored as one signed byte k. phi^k = F(k) phi + F(k-1) exactly, so the
- *       ladder is computed from Fibonacci numbers, not floating point. Steps
+ *       ladder is computed from Fibonacci numbers, not floating point, with
+ *       1/phi held to 64 bits: every phi^k is correctly rounded to Q16. Steps
  *       of 1.618 instead of 2 waste less of each block's range.
  *   T4  FIBONACCI TILING.  Matrix products split the larger side at the
  *       golden ratio (F(n-1) : F(n-2)) until tiles fit in 21 x 21, so the
@@ -23,6 +24,10 @@
  *       cache-oblivious). The result is identical to the plain product.
  *   T5  THE NONLINEAR PARTS.  RMS norm (integer square root), softmax and
  *       SiLU (2^x from a 257-entry table with interpolation), all integer.
+ *       RMS norm sums the squares in full (pre-shifted only as far as
+ *       n * max^2 must fit 64 bits), keeps about 31 significant bits of the
+ *       RMS at every scale, and rounds x * gain / rms to nearest; there is
+ *       no epsilon (an all-zero input gives zeros).
  *   T6  FIBONACCI HASHING.  The attention cache places a key at
  *       (key * 2^64 / phi) >> (64 - bits), Knuth's golden multiplicative
  *       hash, which spreads consecutive keys as evenly as possible.
@@ -81,7 +86,10 @@
  *       the swarm's truth states, in swarm_hk.h order: TRUE, FALSE, GLUT
  *       (both strong), NEUTRAL (both weak), PARADOX (a glut that reaches the
  *       core, so no inner place can settle it: escalate), UNKNOWN (no
- *       evidence at all). The signed interference pos - neg goes with it.
+ *       evidence at all). The signed interference pos - neg goes with it
+ *       (saturated). The enumerators are ZT_COIL_TRUE..ZT_COIL_UNKNOWN, with
+ *       swarm_hk.h's values; the ZT_TRUTH_ names belong to src/harmonic,
+ *       whose numbering differs.
  *   T15 HOLOGRAPHIC CODING: NEGATIVE SPACE COMPRESSES POSITIVE SPACE.  Every
  *       place on the coil is predicted by its parent, and only the
  *       difference is stored: the prediction is the negative space, the
@@ -90,7 +98,11 @@
  *       core outward and is exact. Stop after any shell and every deeper
  *       place takes its nearest ancestor's value, so any inner part of the
  *       code holds a coarse picture of the whole, as a piece of a hologram
- *       does. Lossless; the saving depends on how alike neighbours are.
+ *       does. Lossless for every int64 (the differences wrap modulo 2^64
+ *       and decoding unwraps them); the saving depends on how alike
+ *       neighbours are. The same code runs on E8 points (8-wide blocks from
+ *       zt_e8_nearest): E8 is a group, so every residual is again a lattice
+ *       point, and a small one is a single 15-bit codebook index.
  *   T16 UBH-168 FRAMES WITH ALTERNATING ENDIANNESS.  Tensor words travel in
  *       21-octet UBH-168 frames: one tag octet, then five 32-bit words. The
  *       byte order alternates word by word, little then big then little
@@ -191,14 +203,15 @@ void zt_coil_field(const zt_coil_t *c, const zt_fx *value, int64_t *field);
 /* T12: phase 0 is the positive (inward) half, 1 the negative (outward). */
 void zt_coil_ac(const zt_coil_t *c, int64_t *field, uint32_t phase);
 
-/* T14: pos, neg and the outputs are field-shaped (total + core entries). */
+/* T14: pos, neg and the outputs are field-shaped (total + core entries).
+ * Values follow swarm_hk.h (TRUE 0 .. UNKNOWN 5). */
 enum {
-    ZT_TRUTH_TRUE = 0,
-    ZT_TRUTH_FALSE,
-    ZT_TRUTH_GLUT,
-    ZT_TRUTH_NEUTRAL,
-    ZT_TRUTH_PARADOX,
-    ZT_TRUTH_UNKNOWN
+    ZT_COIL_TRUE = 0,
+    ZT_COIL_FALSE,
+    ZT_COIL_GLUT,
+    ZT_COIL_NEUTRAL,
+    ZT_COIL_PARADOX,
+    ZT_COIL_UNKNOWN
 };
 void zt_coil_interfere(const zt_coil_t *c, const int64_t *pos, const int64_t *neg,
                        int64_t threshold, uint8_t *truth, int64_t *interference);
@@ -208,6 +221,26 @@ void zt_coil_interfere(const zt_coil_t *c, const int64_t *pos, const int64_t *ne
  * their nearest decoded ancestor's value. */
 void zt_holo_encode(const zt_coil_t *c, const int64_t *value, int64_t *residual);
 void zt_holo_decode(const zt_coil_t *c, const int64_t *residual, uint32_t shells, int64_t *value);
+
+/* T15 on E8: every place holds one point of E8 in the doubled coordinates
+ * of src/e8/e8_lattice.h (8 values, as zt_e8_nearest writes them), at
+ * v2[8 * (offset[shell] + slot)]. The residuals are lattice differences and
+ * so again E8 points, each coordinate within +-255. Encode refuses (false,
+ * nothing written) when an input is not an E8 point. Decode is exact for
+ * residuals from encode (others saturate to int8) and, like zt_holo_decode,
+ * gives deeper places their nearest decoded ancestor's point. */
+bool zt_holo_e8_encode(const zt_coil_t *c, const int8_t *v2, int16_t *res2);
+void zt_holo_e8_decode(const zt_coil_t *c, const int16_t *res2, uint32_t shells, int8_t *v2);
+
+/* T15: a per-shell tap on the residuals. While a tap is set, zt_holo_encode
+ * adds floor(delta / 256) to acc[s] for every place of shell s (delta its
+ * residual, the value itself on shell 0), saturating at the int32 range. It
+ * never changes the residuals. One tap for the whole engine (not
+ * thread-safe); NULL disables it. */
+typedef struct {
+    int32_t acc[10];
+} zt_shell_tap_t;
+void zt_set_shell_tap(zt_shell_tap_t *tap); /* NULL disables */
 
 /* T16 */
 #define ZT_FRAME_OCTETS 21u

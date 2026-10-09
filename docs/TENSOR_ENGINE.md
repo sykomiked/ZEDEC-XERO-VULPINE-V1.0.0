@@ -42,7 +42,40 @@
 - **Lattice quantisers (T17, `zt_lattice.h`).**
   - E8 nearest-point search and a 26641-point E8 codebook, which gives a 15-bit index per 8 weights.
   - A Leech lattice (Λ24) decoder built on the Golay code.
+  - The E8 roots are the shared tables of `src/e8/e8_lattice.h` (see "One E8" below).
   - At 1.875 bits per weight, E8 measures 9.89 dB SNR, against 9.59 dB for a tuned 2-bit scalar quantiser.
+
+## One E8 (the tensor engine and `src/e8`)
+
+The engine's lattice quantisers (`zt_lattice.c`) and the icosian E8 in `kernel/src/e8` now read one set of tables, `kernel/src/e8/e8_lattice.h`. The header holds no physics. It holds the following facts, and `test_zt_e8.c` checks each one from the tables:
+
+- **Coordinates.** E8 is used in its even coordinate system, doubled to integers. A point is 8 integers, all even or all odd, whose sum is a multiple of 4. The inner product is the plain dot product divided by 4.
+- **The 240 roots.** There is one generator, `e8l_root2`, in one fixed order. Every root has norm 2, and inner products between roots lie in {−2, −1, 0, 1, 2}. Each root sees 1, 56, 126, 56 and 1 roots at those values. The roots are exactly the norm-2 shell of the engine's 26641-point codebook.
+- **Cartan matrix.** The simple roots use Bourbaki's labels. Their Gram matrix is the E8 Cartan matrix, with determinant 1 and diagonal 2, so the lattice is even and unimodular. Every root is a whole-number combination of simple roots with all coefficients of one sign. There are 120 positive roots, and the highest is 2·3·4·6·5·4·3·2 (height 29).
+- **Weyl group.** Every reflection in a root permutes the 240 roots. Reflections keep lattice points on the lattice, keep norms, and undo themselves.
+- **The icosian basis is the same lattice.** The Gram matrix of e8.c's icosian basis has moved into the header, and e8.c reads it from there. Beside it sit the images of that basis in doubled coordinates. Mapping each basis vector to its image is an isometry: norms and inner products agree on random lattice points, and the 240 icosian roots (the quaternions from `e8_roots()`) land one-to-one on the 240 coordinate roots. `e8_to_coords2` and `e8_from_coords2` (in `e8.h`) convert both ways, and `e8_selfcheck` checks the images against the Gram matrix. Any two even unimodular lattices of rank 8 are isometric, so such a map must exist. The one in the header is one fixed choice.
+- **Nearest point.** `zt_e8_nearest` passes a complete optimality certificate on 3000 random inputs: no root and no norm-4 vector moves its answer closer. Those 2400 vectors are E8's Voronoi-relevant vectors. This is in addition to the existing brute-force comparison.
+- **Holographic coding on E8.** `zt_holo_e8_encode` and `zt_holo_e8_decode` run the T15 code on E8 points, one 8-wide block per coil place, as `zt_e8_nearest` writes them. E8 is closed under subtraction, so every residual is again a lattice point, and the round trip is exact. On tree-shaped test data, all residuals fell in the codebook ball, so each one is a single 15-bit index. How often that holds depends on the data.
+- **What is not claimed.** The coil's shell sizes (Fibonacci numbers) have no relation to E8's shells (1, 240, 2160, 6720, …). The coil is a memory layout, and E8 is a quantiser and a code alphabet. Only the operations above connect them.
+
+## Audit fixes (2026-10)
+
+`test_zt_audit.c` contains one regression test per defect found. Each test failed before its fix; some failed only under `-fsanitize=undefined`, which is how the verify line runs it.
+
+- `zt_phi_pow` held φ to 32 bits. Results drifted from correct rounding for k ≥ 26, reaching 776 units at k = 40. It now uses 1/φ to 64 bits and is exact for every k.
+- `zt_quantize` overflowed on ±2³¹ inputs. `zt_dequantize` wrapped q·scale to 32 bits instead of saturating.
+- `zt_dot` changed sign when one block's product passed 2⁶³, and it read a negative scale as a huge positive one.
+- `zt_rmsnorm` and `zt_e8_rms` truncated each x² to Q16. Activations below 2⁻⁸ then read as zero, and `zt_rmsnorm` scaled them up 65536-fold. 1/rms was also held in Q16. Both now sum the squares exactly and keep about 31 significant bits.
+- `zt_surplus_u` read small orthogonal vectors as zero vectors (u = 0). Since u = 1 − cos² does not depend on scale, it now normalises each vector first.
+- The coil field and the AC half-cycles rounded negative values differently from positive ones. They now truncate toward zero, so the field of −v is −(field of v).
+- `zt_holo_*` and `zt_coil_interfere` overflowed int64 (undefined behaviour). The holographic code is now exact modulo 2⁶⁴ for every int64. Interference saturates.
+- In GGUF, Q4_K left-shifted negative values when d or dmin was negative.
+- `zt_gguf_to_q8` clamped the scale for Q8_0 blocks with d ≥ 16384, giving 2–4× too small a value.
+- `zt_gguf.c` used 64-bit division, which needs `__udivdi3` on the 32-bit kernel. It now divides only by powers of two and through `zt_udiv64`.
+- The tokenizer's hash-table sizing could loop forever on a vocabulary or merge count above 2³⁰. Counts are now capped at 2²⁸. This bound is proved by reasoning, not by a test, because a file large enough to trigger it needs about 8 GB.
+- The T14 truth states are renamed `ZT_COIL_TRUE … ZT_COIL_UNKNOWN`, with unchanged values, so they no longer collide with `src/harmonic`'s `ZT_TRUTH_*` names.
+
+**Per-shell residual tap.** `zt_set_shell_tap(&tap)` makes `zt_holo_encode` add ⌊δ/256⌋ to `tap.acc[s]` for each place of shell s, saturating to int32. δ is the place's residual, or its value on shell 0. `NULL` disables the tap. The residuals are bit-identical with or without it. The tap is a single global, so it is not thread-safe.
 
 ## Limits, stated plainly
 

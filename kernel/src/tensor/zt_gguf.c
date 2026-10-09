@@ -41,6 +41,15 @@ static zt_gguf_str_t rd_str(cur_t *c)
     return s;
 }
 
+/* log2 of a power of two (block sizes, element sizes, the alignment), so
+ * 64-bit counts are divided by shifts: no 64-bit division helpers. */
+static uint32_t lg2(uint64_t pow2)
+{
+    uint32_t k = 0;
+    while (pow2 > 1u) pow2 >>= 1, k++;
+    return k;
+}
+
 static uint32_t scalar_size(uint32_t t)
 {
     switch (t) {
@@ -162,7 +171,7 @@ static bool skip_value(cur_t *c, uint32_t type, uint32_t depth)
         if (c->bad) return false;
         uint32_t es = scalar_size(et);
         if (es) {
-            if (n > (c->size - c->pos) / es) return false;
+            if (n > ((c->size - c->pos) >> lg2(es))) return false;
             c->pos += n * es;
             return true;
         }
@@ -219,8 +228,17 @@ static uint64_t block_bytes(uint32_t type)
 uint64_t zt_ggml_bytes(uint32_t type, uint64_t n)
 {
     uint32_t blk = zt_ggml_block(type);
-    if (!blk || n % blk) return 0;
-    return (n / blk) * block_bytes(type);
+    if (!blk || (n & (blk - 1u))) return 0;
+    return (n >> lg2(blk)) * block_bytes(type);
+}
+
+/* n * v > 2^40, for n and v at most 2^40, without a 64-bit division:
+ * v = vh 2^20 + vl, and n vh > 2^20 already settles it. */
+static bool over_2_40(uint64_t n, uint64_t v)
+{
+    uint64_t a = n * (v >> 20), b = n * (v & 0xFFFFFu);
+    if (a > (1ull << 20)) return true;
+    return (a << 20) + b > (1ull << 40);
 }
 
 /* Read one tensor info at the cursor; *rel is its offset into the data
@@ -234,7 +252,7 @@ static bool rd_tinfo(cur_t *c, zt_gguf_tensor_t *t, uint64_t *rel)
     for (uint32_t d = 0; d < ZT_GGUF_MAX_DIMS; d++) t->dims[d] = 1;
     for (uint32_t d = 0; d < t->n_dims; d++) {
         uint64_t v = rd(c, 8);
-        if (v == 0 || v > (1ull << 40) || t->n_elems > (1ull << 40) / v) return false;
+        if (v == 0 || v > (1ull << 40) || over_2_40(t->n_elems, v)) return false;
         t->dims[d] = v;
         t->n_elems *= v;
     }
@@ -256,7 +274,8 @@ int32_t zt_gguf_open(zt_gguf_t *g, const uint8_t *buf, uint64_t size)
     g->n_kv = rd(&c, 8);
     if (c.bad) return ZT_GGUF_ETRUNC;
     /* each entry needs at least 12 bytes; cheap guard against huge counts */
-    if (g->n_kv > size / 12 || g->n_tensors > size / 24) return ZT_GGUF_ERANGE;
+    if (g->n_kv > zt_udiv64(size, 12, 0) || g->n_tensors > zt_udiv64(size, 24, 0))
+        return ZT_GGUF_ERANGE;
     g->buf = buf;
     g->size = size;
     g->kv_off = c.pos;
@@ -477,7 +496,7 @@ int32_t zt_gguf_tensor(const zt_gguf_t *g, uint64_t index, zt_gguf_tensor_t *t)
     for (uint64_t i = 0; i <= index; i++)
         if (!rd_tinfo(&c, t, &rel)) return ZT_GGUF_ETRUNC;
     if (!t->n_bytes) return ZT_GGUF_EUNSUPPORTED;
-    if (rel % g->alignment) return ZT_GGUF_ERANGE;
+    if (rel & (g->alignment - 1u)) return ZT_GGUF_ERANGE; /* a power of two */
     if (rel > g->size - g->data_off || t->n_bytes > g->size - g->data_off - rel)
         return ZT_GGUF_ETRUNC;
     t->data = g->buf + g->data_off + rel;
@@ -528,10 +547,10 @@ int32_t zt_gguf_dequant(const zt_gguf_tensor_t *t, uint64_t first, uint64_t n, z
 {
     uint32_t blk = zt_ggml_block(t->type);
     if (!blk || !t->data) return ZT_GGUF_EUNSUPPORTED;
-    if (first % blk || n % blk || first > t->n_elems || n > t->n_elems - first)
+    if ((first & (blk - 1u)) || (n & (blk - 1u)) || first > t->n_elems || n > t->n_elems - first)
         return ZT_GGUF_ERANGE;
-    const uint8_t *p = t->data + (first / blk) * block_bytes(t->type);
-    uint64_t nb = n / blk;
+    const uint8_t *p = t->data + (first >> lg2(blk)) * block_bytes(t->type);
+    uint64_t nb = n >> lg2(blk);
     for (uint64_t b = 0; b < nb; b++, p += block_bytes(t->type)) {
         zt_fx *o = out + b * blk;
         int32_t m, e, mm, em;
@@ -569,11 +588,13 @@ int32_t zt_gguf_dequant(const zt_gguf_tensor_t *t, uint64_t first, uint64_t n, z
                 /* value = d*s*q - dmin*mn; both terms exact, in a common exponent */
                 int32_t ec = e < em ? e : em;
                 for (int l = 0; l < 32; l++) {
-                    int64_t a = ((int64_t) m * s1 * (q[l] & 0xF)) << (e - ec);
-                    int64_t b2 = ((int64_t) mm * m1) << (em - ec);
+                    /* multiply by 2^k, not shift: d or dmin may be negative */
+                    int64_t ka = (int64_t) 1 << (e - ec), kb = (int64_t) 1 << (em - ec);
+                    int64_t a = (int64_t) m * s1 * (q[l] & 0xF) * ka;
+                    int64_t b2 = (int64_t) mm * m1 * kb;
                     o[j + l] = mul_pow2_q16(a - b2, ec);
-                    a = ((int64_t) m * s2 * (q[l] >> 4)) << (e - ec);
-                    b2 = ((int64_t) mm * m2) << (em - ec);
+                    a = (int64_t) m * s2 * (q[l] >> 4) * ka;
+                    b2 = (int64_t) mm * m2 * kb;
                     o[j + 32 + l] = mul_pow2_q16(a - b2, ec);
                 }
             }
@@ -616,7 +637,7 @@ int32_t zt_gguf_to_q8(const zt_gguf_tensor_t *t, uint64_t first, uint64_t n, zt_
         uint64_t step = zt_ggml_block(t->type);
         if (!step) return ZT_GGUF_EUNSUPPORTED;
         if (step < 32) step = 32;
-        if (first % step || n % step) return ZT_GGUF_ERANGE;
+        if ((first & (step - 1u)) || (n & (step - 1u))) return ZT_GGUF_ERANGE;
         for (uint64_t k = 0; k < n; k += step) {
             int32_t r = zt_gguf_dequant(t, first + k, step, scratch);
             if (r) return r;
@@ -639,8 +660,11 @@ int32_t zt_gguf_to_q8(const zt_gguf_tensor_t *t, uint64_t first, uint64_t n, zt_
         if (flip) m = -m;
         int32_t sh = e + 16;
         if (sh >= 0) {
-            if (sh > 19) sh = 19; /* |m| < 2^11: m << 19 still fits int32 */
-            o->scale = m << sh;
+            /* m < 2^11 and sh <= 21: exact up to d < 32768 (2^31 in Q16);
+             * beyond that every nonzero weight is past the Q16 range anyway,
+             * and the scale saturates as zt_gguf_dequant does. */
+            int64_t sc = (int64_t) m << sh;
+            o->scale = sc > INT32_MAX ? INT32_MAX : (int32_t) sc;
             o->shift = 0;
         } else if (-sh <= 63) {
             o->scale = m;

@@ -127,7 +127,7 @@ int main(void)
                     long double ref[256];
                     for (uint32_t i = 0; i < cases[k].hd; i++)
                         x[i] = (zt_fx) ((int64_t) (rnd() % 2000001) - 1000000);
-                    memcpy(y, x, sizeof x);
+                    memcpy(y, x, cases[k].hd * sizeof x[0]);
                     zt_rope_apply(&r, y, cases[k].hd, poss[p]);
                     ref_rope(x, ref, cases[k].hd, cases[k].n_rot, cases[k].neox, cases[k].base, 0,
                              poss[p]);

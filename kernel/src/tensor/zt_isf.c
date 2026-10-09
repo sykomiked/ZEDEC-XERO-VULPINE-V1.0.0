@@ -31,15 +31,48 @@ zt_fx zt_ln(uint64_t x)
     return (zt_fx) (((int64_t) zt_log2(x) * LN2_Q16) >> 16);
 }
 
+static uint32_t uabs32(int32_t v)
+{
+    return v < 0 ? (uint32_t) 0 - (uint32_t) v : (uint32_t) v;
+}
+
+/* Index of the highest set bit of m > 0. */
+static uint32_t top_bit(uint32_t m)
+{
+    uint32_t t = 0;
+    while (m >> t > 1u) t++;
+    return t;
+}
+
+/* v times 2^(14 - top): a vector whose largest magnitude has bit `top` set
+ * then lies in (-2^15, 2^15), so every product fits 30 bits. Right shifts
+ * round toward zero, keeping the result odd in v. */
+static int64_t norm14(int32_t v, uint32_t top)
+{
+    uint32_t m = uabs32(v);
+    m = top >= 14 ? m >> (top - 14) : m << (14 - top);
+    return v < 0 ? -(int64_t) m : (int64_t) m;
+}
+
+/* cos(a, b) does not change when a and b are scaled separately, so each is
+ * first brought to the same magnitude: small vectors keep their precision
+ * and the sums are exact (n * 2^30 < 2^62). */
 zt_fx zt_surplus_u(const zt_fx *a, const zt_fx *b, uint32_t n)
 {
+    uint32_t ma = 0, mb = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        if (uabs32(a[i]) > ma) ma = uabs32(a[i]);
+        if (uabs32(b[i]) > mb) mb = uabs32(b[i]);
+    }
+    if (!ma || !mb) return 0; /* a zero vector adds nothing */
+    uint32_t ta = top_bit(ma), tb = top_bit(mb);
     int64_t dot = 0, na = 0, nb = 0;
     for (uint32_t i = 0; i < n; i++) {
-        dot += ((int64_t) a[i] * b[i]) >> 16;
-        na += ((int64_t) a[i] * a[i]) >> 16;
-        nb += ((int64_t) b[i] * b[i]) >> 16;
+        int64_t x = norm14(a[i], ta), y = norm14(b[i], tb);
+        dot += x * y;
+        na += x * x;
+        nb += y * y;
     }
-    if (na <= 0 || nb <= 0) return 0; /* a zero vector adds nothing */
     /* cos^2 = dot^2 / (na nb) is unchanged when all three halve together. */
     while (na > ((int64_t) 1 << 40) || nb > ((int64_t) 1 << 40)) {
         dot /= 2;

@@ -4,10 +4,10 @@
  * integer nonlinearities. See zt.h T1-T6. */
 #include "zt.h"
 
-#define PHI_Q32    6949403065ull /* phi * 2^32 */
-#define INVPHI_Q16 40503         /* 1/phi * 2^16 */
-#define LOG2E_Q16  94548         /* log2(e) * 2^16 */
-#define TILE       21u           /* F(8) */
+#define INVPHI_Q64 11400714819323198485ull /* floor(2^64 / phi) = (phi - 1) * 2^64 */
+#define INVPHI_Q16 40503                   /* 1/phi * 2^16 */
+#define LOG2E_Q16  94548                   /* log2(e) * 2^16 */
+#define TILE       21u                     /* F(8) */
 
 uint64_t zt_udiv64(uint64_t n, uint64_t d, uint64_t *rem)
 {
@@ -47,28 +47,33 @@ static uint64_t fib(uint32_t n)
     return a;
 }
 
-/* T3: phi^k = F(k) phi + F(k-1), and phi^-n = (-1)^n (F(n+1) - F(n) phi).
- * Worked in Q32 and rounded to Q16. */
+/* T3: phi^k = F(k) phi + F(k-1) = F(k+1) + F(k)/phi for k > 0, and
+ * phi^-n = (-1)^n (F(n+1) - F(n) phi) = (-1)^n (F(n-1) - F(n)/phi). 1/phi is
+ * held to 64 fraction bits (INVPHI_Q64), so F(k)/phi is exact to far below
+ * a Q16 unit for every k in range and the result is correctly rounded. */
 int64_t zt_phi_pow(int32_t k)
 {
     if (k < -24 || k > 40) return 0;
-    uint64_t q32;
-    if (k >= 0) {
-        uint64_t fk = fib((uint32_t) k), fk1 = k ? fib((uint32_t) k - 1) : 1;
-        q32 = fk * PHI_Q32 + (fk1 << 32);
-        if (k == 0) q32 = (uint64_t) 1 << 32;
-    } else {
-        uint32_t n = (uint32_t) -k;
-        int64_t v = (int64_t) (fib(n + 1) << 32) - (int64_t) (fib(n) * PHI_Q32);
-        if (n & 1u) v = -v;
-        q32 = (uint64_t) v;
+    if (k == 0) return ZT_ONE;
+    if (k > 0) {
+        /* round(F(k) * INVPHI_Q64 / 2^48), the product split in 32-bit halves */
+        uint64_t f = fib((uint32_t) k);
+        uint64_t hi = f * (INVPHI_Q64 >> 32), lo = f * (INVPHI_Q64 & 0xFFFFFFFFu);
+        uint64_t frac = (hi + ((lo + (1ull << 47)) >> 32)) >> 16;
+        return (int64_t) ((fib((uint32_t) k + 1) << 16) + frac);
     }
-    return (int64_t) ((q32 + 0x8000u) >> 16);
+    /* |phi^-n| < 1, so its Q64 value is the low 64 bits of
+     * +-(F(n-1) 2^64 - F(n) INVPHI_Q64): the high parts cancel. */
+    uint32_t n = (uint32_t) -k;
+    uint64_t xl = fib(n) * INVPHI_Q64; /* wraps mod 2^64 on purpose */
+    uint64_t d = (n & 1u) ? xl : (uint64_t) 0 - xl;
+    return (int64_t) ((d + (1ull << 47)) >> 48);
 }
 
-static int32_t iabs32(int32_t v)
+/* |v| without overflow: |INT32_MIN| = 2^31 fits in 32 unsigned bits. */
+static uint32_t uabs32(int32_t v)
 {
-    return v < 0 ? -v : v;
+    return v < 0 ? (uint32_t) 0 - (uint32_t) v : (uint32_t) v;
 }
 
 void zt_quantize(const zt_fx *x, uint32_t n, zt_q8_t *out, bool golden)
@@ -76,10 +81,10 @@ void zt_quantize(const zt_fx *x, uint32_t n, zt_q8_t *out, bool golden)
     for (uint32_t b = 0; b < n / ZT_BLOCK; b++) {
         const zt_fx *v = x + b * ZT_BLOCK;
         zt_q8_t *o = &out[b];
-        int32_t amax = 0;
+        uint32_t amax = 0; /* at most 2^31 */
         for (uint32_t i = 0; i < ZT_BLOCK; i++)
-            if (iabs32(v[i]) > amax) amax = iabs32(v[i]);
-        int32_t scale = (amax + 126) / 127; /* ceil: never clips */
+            if (uabs32(v[i]) > amax) amax = uabs32(v[i]);
+        uint32_t scale = (amax + 126u) / 127u; /* ceil: never clips */
         o->phi_k = 0;
         o->shift = 0;
         if (scale == 0) {
@@ -89,34 +94,17 @@ void zt_quantize(const zt_fx *x, uint32_t n, zt_q8_t *out, bool golden)
         }
         if (golden) {
             int32_t k = -24;
-            while (k < 21 && zt_phi_pow(k) < scale) k++;
+            while (k < 21 && zt_phi_pow(k) < (int64_t) scale) k++;
             o->phi_k = (int8_t) k;
-            scale = (int32_t) zt_phi_pow(k);
+            scale = (uint32_t) zt_phi_pow(k);
         }
-        o->scale = scale;
+        o->scale = (int32_t) scale;
         for (uint32_t i = 0; i < ZT_BLOCK; i++) {
-            int32_t a = iabs32(v[i]);
-            int32_t q = (a + scale / 2) / scale;
-            if (q > 127) q = 127;
-            o->q[i] = (int8_t) (v[i] < 0 ? -q : q);
+            uint32_t q = (uabs32(v[i]) + scale / 2u) / scale;
+            if (q > 127u) q = 127u;
+            o->q[i] = (int8_t) (v[i] < 0 ? -(int32_t) q : (int32_t) q);
         }
     }
-}
-
-/* x / 2^sh, rounded half away from zero. */
-static zt_fx shr_round(int64_t x, uint32_t sh)
-{
-    if (sh == 0) return (zt_fx) x;
-    uint64_t m = (uint64_t) (x < 0 ? -x : x);
-    m = (m + (1ull << (sh - 1))) >> sh;
-    return (zt_fx) (x < 0 ? -(int64_t) m : (int64_t) m);
-}
-
-void zt_dequantize(const zt_q8_t *in, uint32_t nblocks, zt_fx *out)
-{
-    for (uint32_t b = 0; b < nblocks; b++)
-        for (uint32_t i = 0; i < ZT_BLOCK; i++)
-            out[b * ZT_BLOCK + i] = shr_round((int64_t) in[b].q[i] * in[b].scale, in[b].shift);
 }
 
 static zt_fx sat32(int64_t v)
@@ -126,26 +114,53 @@ static zt_fx sat32(int64_t v)
     return (zt_fx) v;
 }
 
-/* value = sum(qa qb) * sa * sb / 2^16, split so nothing overflows. */
+/* x / 2^sh, rounded half away from zero, saturated to 32 bits. */
+static zt_fx shr_round(int64_t x, uint32_t sh)
+{
+    if (sh >= 64) return 0;
+    uint64_t m = x < 0 ? (uint64_t) 0 - (uint64_t) x : (uint64_t) x;
+    if (sh) m = (m >> sh) + ((m >> (sh - 1)) & 1u);
+    if (m > (uint64_t) INT32_MAX) return x < 0 ? INT32_MIN : INT32_MAX;
+    return x < 0 ? -(zt_fx) m : (zt_fx) m;
+}
+
+void zt_dequantize(const zt_q8_t *in, uint32_t nblocks, zt_fx *out)
+{
+    for (uint32_t b = 0; b < nblocks; b++)
+        for (uint32_t i = 0; i < ZT_BLOCK; i++)
+            out[b * ZT_BLOCK + i] = shr_round((int64_t) in[b].q[i] * in[b].scale, in[b].shift);
+}
+
+#define DOT_BLOCK_CAP (1ll << 48) /* Q16: far past int32, so the cap only saturates */
+#define DOT_ACC_CAP   (1ll << 62)
+
+/* value = sum(qa qb) * sa * sb / 2^(16 + shifts), each block's term rounded
+ * toward zero, split so nothing overflows. A block term beyond 2^48 (Q16) is
+ * capped there; the sum saturates to int32 at the end. */
 zt_fx zt_dot(const zt_q8_t *a, const zt_q8_t *b, uint32_t nblocks)
 {
     int64_t acc = 0;
     for (uint32_t k = 0; k < nblocks; k++) {
         int32_t s = 0;
         for (uint32_t i = 0; i < ZT_BLOCK; i++) s += (int32_t) a[k].q[i] * b[k].q[i];
-        bool neg = s < 0;
-        uint64_t p = (uint64_t) (neg ? -s : s) * (uint32_t) a[k].scale;
-        uint64_t sb = (uint32_t) b[k].scale;
+        bool neg = ((s < 0) != (a[k].scale < 0)) != (b[k].scale < 0);
+        uint64_t p = (uint64_t) uabs32(s) * uabs32(a[k].scale); /* < 2^50 */
+        uint64_t sb = uabs32(b[k].scale);                       /* <= 2^31 */
         uint32_t sh = 16u + a[k].shift + b[k].shift;
-        /* floor(p * sb / 2^sh), p < 2^52 and sb < 2^31, without 128 bits */
+        /* floor(p * sb / 2^sh) without 128 bits: p sb = hi 2^32 + lo */
         uint64_t hi = (p >> 32) * sb, lo = (p & 0xFFFFFFFFu) * sb, t;
         if (sh >= 96)
             t = 0;
         else if (sh >= 32)
             t = (hi + (lo >> 32)) >> (sh - 32);
+        else if (hi >> (sh + 16)) /* hi 2^(32 - sh) >= 2^48 */
+            t = (uint64_t) DOT_BLOCK_CAP;
         else
             t = (hi << (32 - sh)) + (lo >> sh);
+        if (t > (uint64_t) DOT_BLOCK_CAP) t = (uint64_t) DOT_BLOCK_CAP;
         acc += neg ? -(int64_t) t : (int64_t) t;
+        if (acc > DOT_ACC_CAP) acc = DOT_ACC_CAP;
+        if (acc < -DOT_ACC_CAP) acc = -DOT_ACC_CAP;
     }
     return sat32(acc);
 }
@@ -203,17 +218,102 @@ uint32_t zt_isqrt64(uint64_t v)
     return (uint32_t) r;
 }
 
+/* high 64 bits of a 64 x 64 product, from 32-bit limbs */
+static uint64_t mulhi64(uint64_t a, uint64_t b)
+{
+    uint64_t a0 = (uint32_t) a, a1 = a >> 32, b0 = (uint32_t) b, b1 = b >> 32;
+    uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+    uint64_t mid = (p00 >> 32) + (uint32_t) p01 + (uint32_t) p10;
+    return p11 + (p01 >> 32) + (p10 >> 32) + (mid >> 32);
+}
+
+static uint32_t bitlen64(uint64_t v)
+{
+    uint32_t n = 0;
+    while (v) n++, v >>= 1;
+    return n;
+}
+
+/* floor(m / d) for d > 0 given inv = floor((2^64 - 1) / d): the high half of
+ * m * inv is at most two short of the quotient. Sets *rem. */
+static uint64_t div_by_inv(uint64_t m, uint64_t d, uint64_t inv, uint64_t *rem)
+{
+    uint64_t q = mulhi64(m, inv), r = m - q * d;
+    while (r >= d) q++, r -= d;
+    *rem = r;
+    return q;
+}
+
+/* T5: the RMS of n values as R * 2^-F in Q16, with R < 2^31 and F <= 31
+ * as large as fits, so the result keeps about 31 significant bits at every
+ * scale. The squares are summed in full (Q32), pre-shifted only as far as
+ * n * max^2 needs to fit 64 bits, and the sum is scaled up before the
+ * division by n, so small activations keep their precision. */
+static uint64_t rms_fixed(const zt_fx *x, uint32_t n, uint32_t *F)
+{
+    *F = 0;
+    if (n == 0) return 0;
+    uint32_t amax = 0;
+    for (uint32_t i = 0; i < n; i++)
+        if (uabs32(x[i]) > amax) amax = uabs32(x[i]);
+    if (amax == 0) return 0;
+    uint64_t top = (uint64_t) amax * amax; /* <= 2^62 */
+    uint32_t need = bitlen64(top) + bitlen64(n), sh = need > 64 ? need - 64 : 0;
+    uint64_t ss = 0; /* sum of squares, Q32, divided by 2^sh */
+    for (uint32_t i = 0; i < n; i++) ss += ((uint64_t) uabs32(x[i]) * uabs32(x[i])) >> sh;
+    /* M0 = floor(mean * 2^e), mean in Q32, from the most bits that fit */
+    uint32_t L = 64 - bitlen64(ss);
+    uint64_t M0 = zt_udiv64(ss << L, n, 0), M;
+    int32_t e = (int32_t) L - (int32_t) sh;
+    if (e <= 0) {
+        M = M0 << -e; /* = floor(mean), <= max^2 < 2^62 */
+    } else {
+        /* M = M0 / 2^r: fewer than 63 bits, and e - r = 2F even, F <= 31 */
+        int32_t r = bitlen64(M0) > 62 ? (int32_t) bitlen64(M0) - 62 : 0;
+        if ((e - r) & 1) r++;
+        if (e - r > 62) r = e - 62;
+        M = M0 >> r;
+        *F = (uint32_t) (e - r) / 2u;
+    }
+    uint64_t R = zt_isqrt64(M);
+    if (M - R * R > R) R++; /* round: sqrt(M) >= R + 1/2 */
+    return R;
+}
+
+/* RMS in Q16, rounded to nearest. Can exceed INT32_MAX (2^31 for
+ * all-INT32_MIN input); callers saturate. Exposed to zt_lattice.c. */
+uint32_t zt__rms_q16(const zt_fx *x, uint32_t n)
+{
+    uint32_t F;
+    uint64_t R = rms_fixed(x, n, &F);
+    return (uint32_t) (F ? (R + (1ull << (F - 1))) >> F : R);
+}
+
+/* y = x * gain / rms, rounded half away from zero, saturated. With
+ * rms = R / 2^F (Q16) this is P 2^F / R for P = x * gain (Q32), done as
+ * two exact divisions by R through one reciprocal. */
 void zt_rmsnorm(const zt_fx *x, const zt_fx *gain, uint32_t n, zt_fx *y)
 {
-    uint64_t ss = 0;
-    for (uint32_t i = 0; i < n; i++) ss += ((uint64_t) ((int64_t) x[i] * x[i])) >> 16;
-    uint64_t mean = n ? zt_udiv64(ss, n, 0) : 0; /* Q16 */
-    uint32_t rms = zt_isqrt64(mean << 16);       /* Q16 */
-    if (rms == 0) rms = 1;
-    uint64_t inv = zt_udiv64((uint64_t) 1 << 32, rms, 0); /* Q16 of 1/rms */
+    uint32_t F;
+    uint64_t R = rms_fixed(x, n, &F);
+    if (R == 0) {
+        for (uint32_t i = 0; i < n; i++) y[i] = 0;
+        return;
+    }
+    uint64_t inv = zt_udiv64(~0ull, R, 0);
     for (uint32_t i = 0; i < n; i++) {
-        int64_t t = ((int64_t) x[i] * (int64_t) inv) >> 16;
-        y[i] = sat32((t * gain[i]) >> 16);
+        int64_t P = (int64_t) x[i] * gain[i]; /* |P| <= 2^62 */
+        uint64_t m = P < 0 ? (uint64_t) 0 - (uint64_t) P : (uint64_t) P, r1, r2;
+        uint64_t q1 = div_by_inv(m, R, inv, &r1);
+        int64_t v;
+        if (q1 >> (40 - F)) {
+            v = INT64_MAX; /* far past int32: saturates below */
+        } else {
+            uint64_t q2 = div_by_inv(r1 << F, R, inv, &r2); /* r1 < 2^31 */
+            uint64_t q = (q1 << F) + q2 + (2 * r2 >= R);
+            v = (int64_t) q;
+        }
+        y[i] = sat32(P < 0 ? -v : v);
     }
 }
 

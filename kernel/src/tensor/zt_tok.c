@@ -4,6 +4,10 @@
 #include "zt_tok_unicode.h"
 
 #define NONE 0xFFFFFFFFu
+/* Vocabulary and merge counts above this are refused: the hash tables are
+ * sized 2 * count rounded up to a power of two, which must fit 32 bits.
+ * Real vocabularies are below 2^18. */
+#define ZT_TOK_MAX_COUNT (1u << 28)
 
 /* ---- small helpers (freestanding: no libc) ---- */
 
@@ -31,7 +35,7 @@ static uint32_t pair_hash(uint32_t l, uint32_t r)
 static uint32_t pow2_at_least(uint64_t n)
 {
     uint32_t c = 16;
-    while (c < n) c <<= 1;
+    while (c < n && c < (1u << 31)) c <<= 1; /* counts are capped well below 2^30 */
     return c;
 }
 
@@ -305,11 +309,11 @@ static bool counts(const zt_gguf_t *g, zt_gguf_val_t *toks, zt_gguf_val_t *merge
 {
     if (zt_gguf_find(g, "tokenizer.ggml.tokens", toks) != ZT_GGUF_OK ||
         toks->type != ZT_GGUF_ARRAY || toks->elem_type != ZT_GGUF_STRING || !toks->count ||
-        toks->count > 0x7FFFFFF0u)
+        toks->count > ZT_TOK_MAX_COUNT)
         return false;
     if (zt_gguf_find(g, "tokenizer.ggml.merges", merges) != ZT_GGUF_OK ||
         merges->type != ZT_GGUF_ARRAY || merges->elem_type != ZT_GGUF_STRING ||
-        merges->count > 0x7FFFFFF0u)
+        merges->count > ZT_TOK_MAX_COUNT)
         return false;
     return true;
 }
