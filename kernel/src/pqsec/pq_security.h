@@ -61,7 +61,9 @@ void pq_mldsa65_keygen(const uint8_t seed[32],
                        uint8_t sk[PQ_MLDSA65_SK_BYTES]);
 
 /* ML-DSA-65 sign. msg/msg_len: the message; ctx/ctx_len: domain separator
- * (may be NULL/0); rnd: 32 bytes fresh randomness. */
+ * (may be NULL/0, at most 255); rnd: 32 bytes fresh randomness (hedged), or
+ * NULL for the deterministic variant. On bad arguments sig is all zero,
+ * which never verifies. */
 void pq_mldsa65_sign(const uint8_t sk[PQ_MLDSA65_SK_BYTES],
                      const uint8_t *msg, uint32_t msg_len,
                      const uint8_t *ctx, uint32_t ctx_len,
@@ -81,22 +83,36 @@ bool pq_mldsa65_verify(const uint8_t pk[PQ_MLDSA65_PK_BYTES],
 #define PQ_SLH128S_PK_BYTES  32
 #define PQ_SLH128S_SK_BYTES  64
 #define PQ_SLH128S_SIG_BYTES 7856
+#define PQ_SLH128S_CTX_BYTES 255
 
-/* SLH-DSA-128s key generation. seed: 48 bytes fresh randomness. */
+/* SLH-DSA-SHAKE-128s key generation. seed: 48 bytes fresh randomness,
+ * read as SK.seed || SK.prf || PK.seed (16 bytes each). */
 void pq_slh128s_keygen(const uint8_t seed[48],
                        uint8_t pk[PQ_SLH128S_PK_BYTES],
                        uint8_t sk[PQ_SLH128S_SK_BYTES]);
 
-/* SLH-DSA-128s sign. opt_rnd may be NULL (deterministic). */
+/* SLH-DSA-128s sign, empty context. opt_rnd: 16 bytes of fresh
+ * randomness (hedged), or NULL for the deterministic variant. */
 void pq_slh128s_sign(const uint8_t sk[PQ_SLH128S_SK_BYTES],
                      const uint8_t *msg, uint32_t msg_len,
                      const uint8_t *opt_rnd,
                      uint8_t sig[PQ_SLH128S_SIG_BYTES]);
 
-/* SLH-DSA-128s verify. Returns true iff the signature is valid. */
+/* SLH-DSA-128s verify, empty context. Returns true iff the signature is valid. */
 bool pq_slh128s_verify(const uint8_t pk[PQ_SLH128S_PK_BYTES],
                        const uint8_t *msg, uint32_t msg_len,
                        const uint8_t sig[PQ_SLH128S_SIG_BYTES]);
+
+/* The same with a context string (FIPS 205 Algorithms 22/24), ctx_len <= 255. */
+void pq_slh128s_sign_ctx(const uint8_t sk[PQ_SLH128S_SK_BYTES],
+                         const uint8_t *msg, uint32_t msg_len,
+                         const uint8_t *ctx, uint32_t ctx_len,
+                         const uint8_t *opt_rnd,
+                         uint8_t sig[PQ_SLH128S_SIG_BYTES]);
+bool pq_slh128s_verify_ctx(const uint8_t pk[PQ_SLH128S_PK_BYTES],
+                           const uint8_t *msg, uint32_t msg_len,
+                           const uint8_t *ctx, uint32_t ctx_len,
+                           const uint8_t sig[PQ_SLH128S_SIG_BYTES]);
 
 /* ============================================================================
  * HYBRID SIGNATURE — the ledger's immutable quantum seal

@@ -108,6 +108,7 @@ kernel/src/pirate_apps/test_pirate_apps.c
 kernel/src/pirate_fleet/test_pirate_fleet.c
 kernel/src/porter_house/test_porter_house.c
 kernel/src/pqsec/pq_security.c
+kernel/src/pqsec/pq_security.h
 kernel/src/pqsec/test_pq_security.c
 kernel/src/prism_break/test_prism_break.c
 kernel/src/pterm/test_pterm_mux.c
@@ -161,3 +162,8 @@ kernel/src/zxpkg/zxpkg.c
 kernel/src/zxvfs/test_zxvfs.c
 kernel/src/zxvfs/test_zxvfs_fuzz.c
 kernel/src/zxvfs/test_zxvfs_tri.c
+# Vendored third-party code, kept byte-for-byte close to upstream.
+kernel/src/pqsec/mldsa/*
+kernel/src/pqsec/slhdsa/*
+# Generated from NIST ACVP JSON by kernel/src/pqsec/gen_pq_kat.py.
+kernel/src/pqsec/pq_kat_vectors.h
