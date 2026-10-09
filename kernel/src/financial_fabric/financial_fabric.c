@@ -16,6 +16,13 @@
 #include "surplus.h"
 #include "../sdk/selfaudit.h"
 
+/* True for a 1-based form that may change hands (5..9). Forms 1..4 are
+ * state-reserved and inalienable (finance/capital_forms.h). */
+static bool ff_form_alienable(uint8_t form)
+{
+    return form >= 1 && form <= 9 && !capital_is_state_reserved((capital_form_t) (form - 1));
+}
+
 /* ===== Helper Functions ===== */
 
 static void ff_mem_set(void *dst, int val, uint32_t len)
@@ -38,13 +45,6 @@ static int ff_str_cmp(const char *a, const char *b)
         b++;
     }
     return (int) (unsigned char) *a - (int) (unsigned char) *b;
-}
-
-static uint32_t ff_str_len(const char *s)
-{
-    uint32_t n = 0;
-    while (s[n]) n++;
-    return n;
 }
 
 static void ff_str_copy(char *dst, const char *src, uint32_t max)
@@ -78,6 +78,8 @@ static surplus_real_t ff_compute_coverage(const m5_coords_t *m5)
 lpres_state_t ff_attest(financial_fabric_t *fabric, uint32_t account_id, uint32_t op_id, void *args,
                         int32_t result)
 {
+    (void) op_id;
+    (void) args;
     if (!fabric || account_id >= fabric->num_accounts) return LPRES_STATE_NEITHER;
 
     ff_account_t *acc = &fabric->accounts[account_id];
@@ -209,6 +211,7 @@ int32_t ff_transfer_capital(financial_fabric_t *fabric, uint32_t from_account, u
                             uint8_t form, uint64_t amount)
 {
     if (!fabric || form < 1 || form > 9) return -1;
+    if (!ff_form_alienable(form)) return FF_EINALIENABLE;
 
     ff_account_t *from = ff_get_account(fabric, from_account);
     ff_account_t *to = ff_get_account(fabric, to_account);
@@ -264,6 +267,11 @@ int32_t ff_burn_voucher(financial_fabric_t *fabric, uint32_t account_id, uint8_t
 int32_t ff_ledger_entry(financial_fabric_t *fabric, uint32_t account_id, uint8_t source_form,
                         uint8_t dest_form, uint64_t amount, const char *memo)
 {
+    /* Not wired to triple_ledger: no entry is recorded anywhere. */
+    (void) source_form;
+    (void) dest_form;
+    (void) amount;
+    (void) memo;
     if (!fabric) return -1;
 
     ff_account_t *acc = ff_get_account(fabric, account_id);
@@ -641,7 +649,8 @@ int32_t ff_initiate_settlement(financial_fabric_t *fabric, uint32_t trade_route_
     ff_account_t *src = ff_get_account(fabric, source_account);
     ff_account_t *dst = ff_get_account(fabric, dest_account);
     if (!src || !dst) return -1;
-    if (capital_form < 1 || capital_form > 9) return -1;
+    if (capital_form < 1 || capital_form > 9 || price_per_unit == 0) return -1;
+    if (!ff_form_alienable(capital_form)) return FF_EINALIENABLE;
 
     if (src->balances[capital_form - 1] < amount) return -1;
 
@@ -721,6 +730,7 @@ int32_t ff_create_order_book(financial_fabric_t *fabric, const char *symbol, uin
 {
     if (!fabric || !symbol || fabric->num_order_books >= FF_MAX_ORDER_BOOKS) return -1;
     if (base_form < 1 || base_form > 9 || quote_form < 1 || quote_form > 9) return -1;
+    if (!ff_form_alienable(base_form) || !ff_form_alienable(quote_form)) return FF_EINALIENABLE;
 
     ff_order_book_t *book = &fabric->order_books[fabric->num_order_books];
     ff_mem_set(book, 0, sizeof(*book));
@@ -860,51 +870,55 @@ int32_t ff_match_orders(financial_fabric_t *fabric, uint32_t book_id)
 /* ===== Rails ===== */
 
 int32_t ff_route_through_rail(financial_fabric_t *fabric, uint32_t from_account,
-                              uint32_t to_account, uint8_t form, uint64_t amount, uint8_t rail_id)
+                              uint32_t to_account, uint8_t form, uint64_t amount, uint16_t rail_id)
 {
     if (!fabric) return -1;
-
-    /* Check if rail supports this form */
-    if (!ff_rail_supports_form(&fabric->rails, form, rail_id)) return -1;
-
+    if (form >= 1 && form <= 9 && !ff_form_alienable(form)) return FF_EINALIENABLE;
+    if (!ff_rail_supports_form(&fabric->rails, form, rail_id)) return FF_ERAIL;
     return ff_transfer_capital(fabric, from_account, to_account, form, amount);
 }
 
-bool ff_rail_supports_form(rail_system_t *rails, uint8_t form, uint8_t rail_id)
+/* Form -> rail table (1-based forms), from the "Rail Assignment" block in
+ * finance/capital_forms.h (codes are its RAIL_* macros):
+ *   Financial(5), Material(6), Living(7), Built(9) -> RAIL_FINANCIAL only
+ *   Knowledge(8)                                   -> RAIL_PROVENANCE only
+ *   State-reserved (1-4) -> RAIL_PROVENANCE (attestation) and
+ *   RAIL_EXTERNALITY (custody), never RAIL_FINANCIAL.
+ * "Supports" means the rail may carry a record for the form. It is not
+ * permission to transfer: state-reserved forms are refused by
+ * ff_transfer_capital and ff_route_through_rail whatever the rail. */
+bool ff_rail_supports_form(rail_system_t *rails, uint8_t form, uint16_t rail_id)
 {
-    if (!rails) return false;
-    /* Rail 1=Social, 2=Natural, 3=Heritage, 4=Governance, 5=Financial, 6=Material, 7=Living,
-     * 8=Knowledge, 9=Built, 888=Externality */
-    /* In real implementation, would check rails->form_to_rail[form] == rail_id */
-    return true; /* Simplified */
+    (void) rails;
+    if (form < 1 || form > 9) return false;
+    capital_form_t f = (capital_form_t) (form - 1);
+    if (capital_is_state_reserved(f))
+        return rail_id == RAIL_PROVENANCE || rail_id == RAIL_EXTERNALITY;
+    if (f == CAPITAL_KNOWLEDGE) return rail_id == RAIL_PROVENANCE;
+    return rail_id == RAIL_FINANCIAL;
 }
 
 /* ===== Crypto Bridge ===== */
 
+/* No bridge exists. The old body debited the account and called nothing,
+ * so the capital vanished. Fail closed instead: nothing is debited. */
 int32_t ff_bridge_asset(financial_fabric_t *fabric, uint32_t account_id, uint8_t form,
                         uint64_t amount, const char *target_chain, const char *target_address)
 {
-    if (!fabric) return -1;
-
-    ff_account_t *acc = ff_get_account(fabric, account_id);
-    if (!acc) return -1;
-    if (acc->balances[form - 1] < amount) return -1;
-
-    /* Lock capital in bridge */
-    acc->balances[form - 1] -= amount;
-
-    /* Bridge via crypto_bridge module */
-    /* crypto_bridge_lock(&fabric->bridge, form, amount, target_chain, target_address); */
-
-    ff_ledger_entry(fabric, account_id, form, 0, amount, "Bridged out");
-
-    return ff_attest(fabric, account_id, 0x12000 | form, (void *) target_chain, 0);
+    (void) amount;
+    (void) target_chain;
+    (void) target_address;
+    if (!fabric || form < 1 || form > 9) return -1;
+    if (!ff_form_alienable(form)) return FF_EINALIENABLE;
+    if (!ff_get_account(fabric, account_id)) return -1;
+    return FF_ENOTSUP;
 }
 
 /* ===== Health & Attestation ===== */
 
 int32_t ff_check_account_health(financial_fabric_t *fabric, uint32_t account_id, void *health_out)
 {
+    (void) health_out;
     if (!fabric || account_id >= fabric->num_accounts) return -1;
 
     ff_account_t *acc = &fabric->accounts[account_id];
@@ -1041,14 +1055,18 @@ const char *ff_form_name(uint8_t form)
     return "Unknown";
 }
 
-const char *ff_rail_name(uint8_t rail)
+const char *ff_rail_name(uint16_t rail)
 {
-    static const char *names[] = {"Social",   "Natural", "Heritage",  "Governance", "Financial",
-                                  "Material", "Living",  "Knowledge", "Built",      "Externality"};
-    /* Externality is rail 888 (VINO_ISO_EQUITY), outside uint8_t; the
-     * ordinal 10 is its slot in this table. */
-    if (rail >= 1 && rail <= 10) return names[rail - 1];
-    return "Unknown";
+    switch (rail) {
+    case RAIL_FINANCIAL:
+        return "Financial (DEBIT)";
+    case RAIL_PROVENANCE:
+        return "Provenance (CREDIT)";
+    case RAIL_EXTERNALITY:
+        return "Externality (EQUITY)";
+    default:
+        return "Unknown";
+    }
 }
 
 const char *ff_lpres_state_name(lpres_state_t state)

@@ -24,9 +24,10 @@ info:
     including JavaScript. `display` is informational only.
 
     **Currencies.** ISO 20022 messages carry ISO 4217 alpha codes in `Ccy`.
-    The Vino rail numerics DEBIT 846, CREDIT 810 and EQUITY 888 are
-    platform-internal (846 and 888 are unassigned in ISO 4217; 810 is the
-    withdrawn RUR code) and appear only in `railNumerics` of a balance.
+    The Vino rail numerics DEBIT 555, CREDIT 777 and EQUITY 888 are
+    platform-internal (all three are unassigned in ISO 4217) and appear only
+    in `railNumerics` of a balance. Their platform jurisdiction codes (NCR,
+    NRE and PNS) are not ISO 3166 countries and never appear in a country field.
     Platform-private units such as `VFV` can be held on the ledger but are
     refused for wire payments.
 
@@ -180,7 +181,7 @@ paths:
     get:
       operationId: getBalances
       tags: [Accounts]
-      summary: DEBIT (846), CREDIT (810) and EQUITY (888) rail balances in exact minor units
+      summary: DEBIT (555), CREDIT (777) and EQUITY (888) rail balances in exact minor units
       parameters: [{ $ref: '#/components/parameters/AccountId' }]
       responses:
         '200':
@@ -524,7 +525,7 @@ components:
     AccountKind:
       type: string
       enum: [Holder, Issuer]
-      description: Holder accounts never go below zero. Issuer accounts may carry a CREDIT (810) balance.
+      description: Holder accounts never go below zero. Issuer accounts may carry a CREDIT (777) balance.
 
     OpenAccountRequest:
       type: object
@@ -556,8 +557,8 @@ components:
           type: object
           description: Platform-internal rail numerics (proprietary fields only; not ISO 4217).
           properties:
-            debit: { const: 846 }
-            credit: { const: 810 }
+            debit: { const: 555 }
+            credit: { const: 777 }
             equity: { const: 888 }
 
     EntryDto:

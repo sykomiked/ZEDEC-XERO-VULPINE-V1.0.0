@@ -219,19 +219,26 @@ static void test_ledger(void)
     pay_ledger_init(&L, 0);
     CHECK(L.vfv_asset == 0);
     const pay_asset_t *vfv = pay_ledger_asset(&L, 0);
-    CHECK(strcmp(vfv->code, "VFV") == 0 && vfv->numeric == 846 && vfv->minor == 2 &&
+    CHECK(strcmp(vfv->code, "VFV") == 0 && vfv->numeric == 555 && vfv->minor == 2 &&
           !vfv->iso4217 && vfv->store_credit);
     CHECK(strcmp(L.platform.jurisdiction, "NCR") == 0 && !L.platform.jurisdiction_iso);
+    CHECK(strcmp(L.platform.rail_juris[PAY_RAIL_DEBIT], "NCR") == 0 &&
+          strcmp(L.platform.rail_juris[PAY_RAIL_CREDIT], "NRE") == 0 &&
+          strcmp(L.platform.rail_juris[PAY_RAIL_EQUITY], "PNS") == 0);
+    CHECK(strcmp(pay_rail_juris(PAY_RAIL_DEBIT), "NCR") == 0 &&
+          strcmp(pay_rail_juris(PAY_RAIL_CREDIT), "NRE") == 0 &&
+          strcmp(pay_rail_juris(PAY_RAIL_EQUITY), "PNS") == 0 &&
+          strcmp(pay_rail_juris(PAY_RAIL_COUNT), "") == 0);
     CHECK(pay_ledger_add_fiat(&L, "USD", 840, 2, &usd) == PAY_OK);
     CHECK(pay_ledger_add_fiat(&L, "VFV", 999, 2, 0) != PAY_OK); /* never as fiat */
-    CHECK(pay_ledger_add_fiat(&L, "XAA", 846, 2, 0) != PAY_OK); /* rail numerics */
-    CHECK(pay_ledger_add_fiat(&L, "XAB", 810, 2, 0) != PAY_OK);
+    CHECK(pay_ledger_add_fiat(&L, "XAA", 555, 2, 0) != PAY_OK); /* rail numerics */
+    CHECK(pay_ledger_add_fiat(&L, "XAB", 777, 2, 0) != PAY_OK);
     CHECK(pay_ledger_add_fiat(&L, "XAC", 888, 2, 0) != PAY_OK);
     CHECK(pay_ledger_add_fiat(&L, "usd", 840, 2, 0) != PAY_OK);
     CHECK(pay_ledger_add_crypto(&L, "BTC", 8, "4H95J0R2X", &btc) == PAY_OK);
     CHECK(pay_ledger_add_crypto(&L, "XYZ", 8, "4H95J0R2I", 0) != PAY_OK); /* I not allowed */
     CHECK(pay_dti_format_ok("4H95J0R2X") && !pay_dti_format_ok("4H95J0R2"));
-    CHECK(pay_rail_code(PAY_RAIL_DEBIT) == 846 && pay_rail_code(PAY_RAIL_CREDIT) == 810 &&
+    CHECK(pay_rail_code(PAY_RAIL_DEBIT) == 555 && pay_rail_code(PAY_RAIL_CREDIT) == 777 &&
           pay_rail_code(PAY_RAIL_EQUITY) == 888);
     as[0] = 0;
     as[1] = usd;
@@ -482,7 +489,8 @@ static void test_ids(void)
     CHECK(!pay_iban_valid("GB82 WEST 1234 5698 7654 32"));
     CHECK(pay_iban_length("DE") == 22 && pay_iban_length("NO") == 15);
     CHECK(pay_iso3166_valid("DE") && pay_iso3166_valid("NC") && !pay_iso3166_valid("XX"));
-    CHECK(!pay_iso3166_valid("NCR"));
+    CHECK(!pay_iso3166_valid("NCR") && !pay_iso3166_valid("NRE") && !pay_iso3166_valid("PNS"));
+    CHECK(pay_iso3166_valid("NR") && pay_iso3166_valid("PN"));
 }
 
 static void test_crypto_addr(void)
@@ -761,13 +769,22 @@ static void test_iso_build(void)
     CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) == PAY_ISO_ERR_CCY);
     p3.tx[0].amt.iso4217 = true; /* forged flag */
     CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) < 0);
-    /* countries: NCR never, NC only when confirmed */
+    /* countries: NCR/NRE/PNS never, NC/NR/PN only when confirmed */
     p3 = g_p8;
     strcpy(p3.tx[0].cdtr.adr.ctry, "NC");
     CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) == PAY_ISO_ERR_COUNTRY);
     p3.tx[0].cdtr.adr.ctry_confirmed = true;
     CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) > 0);
     CHECK(pay_iso_country_ok(&x, "NCR", true) == PAY_ISO_ERR_COUNTRY);
+    CHECK(pay_iso_country_ok(&x, "NRE", true) == PAY_ISO_ERR_COUNTRY);
+    CHECK(pay_iso_country_ok(&x, "PNS", true) == PAY_ISO_ERR_COUNTRY);
+    /* NR (Nauru) and PN (Pitcairn) shadow NRE and PNS: confirmed only */
+    CHECK(pay_iso_country_ok(&x, "NR", false) == PAY_ISO_ERR_COUNTRY);
+    CHECK(pay_iso_country_ok(&x, "PN", false) == PAY_ISO_ERR_COUNTRY);
+    CHECK(pay_iso_country_ok(&x, "NR", true) == 0 && pay_iso_country_ok(&x, "PN", true) == 0);
+    p3 = g_p8;
+    strcpy(p3.tx[0].dbtr.adr.ctry, "PN");
+    CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) == PAY_ISO_ERR_COUNTRY);
     CHECK(pay_iso_country_ok(&x, "XX", true) == PAY_ISO_ERR_COUNTRY);
     CHECK(pay_iso_country_ok(&x, "DE", false) == 0);
     /* operator override: a different platform jurisdiction/VFV code */

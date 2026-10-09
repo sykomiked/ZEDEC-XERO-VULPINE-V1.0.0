@@ -13,9 +13,10 @@
  * Rules enforced by every writer:
  *   - Ccy is always an active, payable ISO 4217 alphabetic code; amounts are
  *     exact minor units printed with the ISO minor-unit count.
- *   - Vino rail numerics (846/810/888) appear ONLY inside the VSSReceipt in
+ *   - Vino rail numerics (555/777/888) appear ONLY inside the VSSReceipt in
  *     SplmtryData/Envlp, never as a currency or anywhere else; VFV is never
- *     given a country (no "NC"/"NCR"): country codes written are the ISO
+ *     given a country, and no rail jurisdiction (NCR, NRE, PNS) or its
+ *     look-alike ("NC") is ever one: country codes written are the ISO
  *     3166-1 codes of real parties and are validated.
  *   - BICs follow the BICFIDec2014 pattern; UETRs the UUIDv4 pattern.
  * The VSSReceipt is written in namespace urn:zedec:vss:receipt:1 so a

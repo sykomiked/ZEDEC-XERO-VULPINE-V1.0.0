@@ -9,7 +9,7 @@
  * Backed today by (stable kernel modules):
  *   kernel/src/iso20022     pacs.008 / camt.053 serializers, rail caveats
  *   kernel/src/finance      triple_ledger (financial, provenance, externality)
- *   kernel/src/vino_stores  rail numerics 846 / 810 / 888 (lockstep-checked)
+ *   kernel/src/vino_stores  rail numerics 555 / 777 / 888 (lockstep-checked)
  * Optional, switched on by the Makefile when the header is present:
  *   ZXV_HAVE_CBANK_CCY      kernel/src/cbank/cb_ccy.h  ISO 4217 + AU tables
  *   ZXV_HAVE_CN_CHECK       kernel/src/cardnet/cn_check.h  PAN check digits
@@ -393,8 +393,8 @@ typedef struct {
     int32_t kind;
     zxv_seg *segs; /* triple-ledger segments, oldest first; last is live */
     uint32_t n_segs, cap_segs;
-    int64_t debit;  /* 846: sum received */
-    int64_t credit; /* 810: sum sent     */
+    int64_t debit;  /* 555: sum received */
+    int64_t credit; /* 777: sum sent     */
     zxv_line *lines;
     uint32_t n_lines, cap_lines;
 } zxv_acct;
@@ -1041,7 +1041,7 @@ static int32_t wire_ccy_check(zxv_ctx *ctx, const char *ccy, uint8_t *out_minor)
     int32_t rc = iso_lookup(ccy, NULL, &minor, &flags);
     if (rc == ZXV_E_NOT_FOUND)
         return fail(ZXV_E_CURRENCY, "'%s' is not ISO 4217; private units (e.g. VFV) and rail "
-                    "numerics 846/810/888 never go in a Ccy attribute", ccy);
+                    "numerics 555/777/888 never go in a Ccy attribute", ccy);
     if (rc == ZXV_OK) {
         if (!(flags & ZXV_CCYF_PAYABLE))
             return fail(ZXV_E_CURRENCY, "'%s' is not usable for a payment amount", ccy);

@@ -1,12 +1,15 @@
 /* vino.h — Vino Decentralized Bank Node: Triple Ledger System
  * ZEDEC pqOS native financial infrastructure.
  *
- * Triple Ledger:
- *   1. Primary ledger  — immutable transaction history (blockchain-style)
+ * Triple Ledger (in-memory tables in this module):
+ *   1. Primary ledger  — transaction history
  *   2. Balance ledger  — current account states
- *   3. Audit ledger    — cryptographic proof chain for regulatory compliance
+ *   3. Audit ledger    — a hash chain over transactions. vino_hash() is
+ *      FNV-1a stretched to 32 bytes: NOT a cryptographic hash, so the chain
+ *      detects accidents, not tampering. It is not a regulatory-grade proof.
  *
- * Nine Forms of Capital (native):
+ * Nine Forms of Capital (this module's own order; see finance/capital_forms.h
+ * and zcapital.h for the canonical order):
  *   1. Financial (currency, deposits)
  *   2. Material (physical assets, commodities)
  *   3. Knowledge (IP, patents, data)
@@ -17,8 +20,16 @@
  *   8. Built (infrastructure, technology)
  *   9. Human (skills, health, education)
  *
- * Cross-compatibility: ISO 20022, CAMT.053, SWIFT MT/MX, CIPS, SPFS,
- * Visa, MasterCard, Hormung, EVC, all blockchain families, all asset classes.
+ * Interoperability — what actually exists:
+ *   - vino_msg_to_iso20022 / _camt053 / _pacs008 / _mt103 write a fixed
+ *     opening fragment of the named message (no amounts, parties or closing
+ *     tags). They are placeholders for a message builder, not conformant
+ *     ISO 20022 or SWIFT messages, and nothing has been certified.
+ *   - CIPS, SPFS, Visa, Mastercard, Bitcoin and Ethereum adapters and every
+ *     vino_msg_from_* parser return VINO_ENOTIMPL and write nothing.
+ *   - There is no networking: vino_vote_block and vino_sync_peers return
+ *     VINO_ENOTIMPL; there is no consensus.
+ *   The payment_rail_t / msg_standard_t enums are labels only.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  */
@@ -36,6 +47,9 @@
 #define VINO_MAX_ASSETS      512
 #define VINO_MAX_PEERS       128
 #define VINO_MAX_MESSAGES    256
+
+/* Returned by adapters and consensus calls that do not exist yet. */
+#define VINO_ENOTIMPL (-38)
 
 /* Nine forms of capital */
 typedef enum {
@@ -244,7 +258,7 @@ int32_t vino_register_asset(vino_ledger_t *v, const char *symbol, const char *na
                              asset_class_t class, uint32_t precision, uint64_t supply);
 vino_asset_t *vino_get_asset(vino_ledger_t *v, const char *symbol);
 
-/* P2P / consensus */
+/* P2P / consensus: peer table only; vote/sync return VINO_ENOTIMPL */
 int32_t vino_add_peer(vino_ledger_t *v, const char *address, const char *endpoint);
 int32_t vino_remove_peer(vino_ledger_t *v, const char *address);
 void vino_set_validator(vino_ledger_t *v, bool is_validator, uint32_t stake);
@@ -252,7 +266,7 @@ int32_t vino_propose_block(vino_ledger_t *v);
 int32_t vino_vote_block(vino_ledger_t *v, uint32_t block_height, bool approve);
 int32_t vino_sync_peers(vino_ledger_t *v);
 
-/* Messaging adapters — cross-compatibility */
+/* Messaging adapters: see the header comment for what is real */
 int32_t vino_msg_to_iso20022(const vino_transaction_t *txn, char *out, uint32_t max_out);
 int32_t vino_msg_from_iso20022(const char *xml, vino_transaction_t *txn);
 int32_t vino_msg_to_camt053(const vino_transaction_t *txn, char *out, uint32_t max_out);
@@ -265,7 +279,7 @@ int32_t vino_msg_to_spfs(const vino_transaction_t *txn, char *out, uint32_t max_
 int32_t vino_msg_to_visa(const vino_transaction_t *txn, char *out, uint32_t max_out);
 int32_t vino_msg_to_mastercard(const vino_transaction_t *txn, char *out, uint32_t max_out);
 
-/* Blockchain adapters */
+/* Blockchain adapters: not implemented (VINO_ENOTIMPL) */
 int32_t vino_msg_to_btc(const vino_transaction_t *txn, char *out, uint32_t max_out);
 int32_t vino_msg_to_eth(const vino_transaction_t *txn, char *out, uint32_t max_out);
 int32_t vino_msg_from_btc(const char *raw, vino_transaction_t *txn);
@@ -277,7 +291,7 @@ const char *vino_asset_class_name(asset_class_t a);
 const char *vino_rail_name(payment_rail_t r);
 const char *vino_msg_standard_name(msg_standard_t m);
 
-/* Hash computation */
+/* Non-cryptographic hash (FNV-1a based); see header comment */
 void vino_hash(const void *data, uint32_t len, uint8_t out[VINO_HASH_LEN]);
 
 #endif

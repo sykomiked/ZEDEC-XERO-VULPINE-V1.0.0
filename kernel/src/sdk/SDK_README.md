@@ -64,7 +64,7 @@ make -C kernel -f build_system/Makefile.arm64 all
 
 | Module | Header | Description |
 |--------|--------|-------------|
-| **Triple Ledger** | `m5_ledger_*` | Three-rail settlement (846/888/999) |
+| **Triple Ledger** | `m5_ledger_*` | Three-rail settlement (555/777/888) |
 | **Vouchers** | `m5_voucher_*` | Merit-based, no-debt instruments |
 | **Derivatives** | `m5_deriv_*` | Kernel-enforced 100% backing |
 | **Assurance** | `m5_assurance_*` | Pay-It-Forward capital generation |

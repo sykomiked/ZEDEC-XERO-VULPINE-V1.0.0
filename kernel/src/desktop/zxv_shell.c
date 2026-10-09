@@ -372,7 +372,7 @@ static const uint32_t LAT_AC[LATTICE_NODES] = {C_GOLD, C_GOLD, C_RED,  C_CYAN, C
 static const char *LAT_DESC[LATTICE_NODES][4] = {
     {"THE HOME PLANE -- DEEPEST USER LEVEL", "DOCK - TERMINAL - CHIGLET - VINO",
      "THE ROOT SYSTEM BELOW IS THE KERNEL", "TAB PULLS BACK TO THE 13"},
-    {"TRIPLE-RAIL FLOATING VOUCHERS", "846 DEBIT 120  810 CREDIT 12",
+    {"TRIPLE-RAIL FLOATING VOUCHERS", "555 DEBIT 120  777 CREDIT 12",
      "888 EQUITY 108  COVERAGE 1.8X", "NO DEBT - MERIT-BASED - SOLVENT"},
     {"JDR PIRATE FLEET -- WORK + COMPUTE", "CREW - DAO - REMOTE COMPUTE",
      "MODULAR CONTRACTS - SYNDICATES", "SHARES BY MERIT, NOT SENIORITY"},
@@ -575,7 +575,7 @@ static const char *SPC_ACT[LATTICE_NODES][SPACE_ACTS] = {
 /* sub-space labels per space (NULL = empty node) */
 static const char *SPC_SUB[LATTICE_NODES][SPACE_SUBS] = {
     /*BASE     */ {"DOCK", "TERMINAL", "CHIGLET", "VINO", "FILES", "THEME"},
-    /*VINO     */ {"846 DEBIT", "810 CREDIT", "888 EQUITY", "LEDGER", "RAILS", "BRIDGE"},
+    /*VINO     */ {"555 DEBIT", "777 CREDIT", "888 EQUITY", "LEDGER", "RAILS", "BRIDGE"},
     /*FLEET    */ {"CREW", "DAO", "COMPUTE", "CONTRACTS", "SYNDICATE", "SHARES"},
     /*STUDIO   */ {"CANVAS", "SOUND", "MOTION", "3D", "PALETTE", "EXPORT"},
     /*CHIGLET  */ {"EXPERTS", "MEMORY", "VOICE", "MATCH", "EVIDENCE", "VERDICT"},
@@ -1472,11 +1472,11 @@ void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v, int32_t cx, int32_t 
         int32_t tx = x + 14;
         gt(v, tx, ty, "TRIPLE RAIL (ISO 4217)", C_DIM, 1);
         ty += 24;
-        gt(v, tx, ty, "846 DEBIT    120.00", C_TEXT, 1);
+        gt(v, tx, ty, "555 DEBIT    120.00", C_TEXT, 1);
         ty += 18;
-        gt(v, tx, ty, "888 CREDIT    12.00", C_TEXT, 1);
+        gt(v, tx, ty, "777 CREDIT    12.00", C_TEXT, 1);
         ty += 18;
-        gt(v, tx, ty, "999 EQUITY   108.00", C_GREEN, 1);
+        gt(v, tx, ty, "888 EQUITY   108.00", C_GREEN, 1);
         ty += 26;
         gt(v, tx, ty, "COVERAGE 1.8X  SOLVENT", C_CYAN, 1);
         ty += 18;

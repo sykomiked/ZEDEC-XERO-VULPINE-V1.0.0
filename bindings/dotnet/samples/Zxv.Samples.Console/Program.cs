@@ -41,7 +41,8 @@ foreach (Currency c in zxv.Currencies.ListEnabled())
 }
 
 Console.WriteLine($"  Vino rails: DEBIT {CurrencyService.GetRailNumeric(VinoRail.Debit)}, CREDIT {CurrencyService.GetRailNumeric(VinoRail.Credit)}, EQUITY {CurrencyService.GetRailNumeric(VinoRail.Equity)} (internal numerics)");
-Console.WriteLine($"  Caveat 810: {zxv.Currencies.GetCaveat(810)}");
+Console.WriteLine($"  Rail jurisdictions: DEBIT {CurrencyService.GetRailJurisdiction(VinoRail.Debit)}, CREDIT {CurrencyService.GetRailJurisdiction(VinoRail.Credit)}, EQUITY {CurrencyService.GetRailJurisdiction(VinoRail.Equity)} (not ISO 3166)");
+Console.WriteLine($"  Caveat 777: {zxv.Currencies.GetCaveat(777)}");
 Console.WriteLine();
 
 // 2. Ledger: an issuer (settlement) account funds two holders.
@@ -60,7 +61,7 @@ Console.WriteLine(receipt.Message.Xml);
 foreach (Account a in new[] { settlement, ada, chidi })
 {
     RailBalances b = zxv.Ledger.GetBalances(a.Id);
-    Console.WriteLine($"  {a.Name,-24} DEBIT(846) {b.Debit,16}  CREDIT(810) {b.Credit,16}  EQUITY(888) {b.Equity,16}");
+    Console.WriteLine($"  {a.Name,-24} DEBIT(555) {b.Debit,16}  CREDIT(777) {b.Credit,16}  EQUITY(888) {b.Equity,16}");
 }
 
 zxv.Ledger.Verify();

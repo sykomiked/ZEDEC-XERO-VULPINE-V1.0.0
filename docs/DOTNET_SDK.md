@@ -191,18 +191,19 @@ the currency's ISO 4217 minor unit. `Currencies.GetIso`, `GetIsoByNumeric`,
 **Vino rail numerics only in proprietary fields.** The ledger keeps every
 account on three rails with platform-internal numeric codes:
 
-| Rail | Numeric | Meaning |
-| --- | --- | --- |
-| DEBIT | 846 | what the account has received (asset / backing) |
-| CREDIT | 810 | what the account has sent (claim / liability) |
-| EQUITY | 888 | DEBIT minus CREDIT: the spendable position |
+| Rail | Numeric | Jurisdiction | Meaning |
+| --- | --- | --- | --- |
+| DEBIT | 555 | NCR (New California Republic) | what the account has received (asset / backing) |
+| CREDIT | 777 | NRE (Neo Roman Empire) | what the account has sent (claim / liability) |
+| EQUITY | 888 | PNS (Principality of New Sicily) | DEBIT minus CREDIT: the spendable position |
 
-None of these is an active ISO 4217 currency: 846 and 888 are unassigned and
-810 is the **withdrawn** code of the old Russian ruble (RUR); a legacy parser
-may read it as RUR. They therefore never appear in a `Ccy` attribute; they
-appear in `RailBalances` and in the gateway's `railNumerics` field.
-`Currencies.GetCaveat(810)` returns the explanation. Private units such as
-VFV follow the same rule.
+None of these is an ISO 4217 currency: 555, 777 and 888 are all unassigned.
+They therefore never appear in a `Ccy` attribute; they appear in
+`RailBalances` and in the gateway's `railNumerics` field.
+`Currencies.GetCaveat(777)` returns the explanation, and
+`CurrencyService.GetRailJurisdiction(rail)` returns the jurisdiction code. The
+jurisdiction codes are not ISO 3166 countries and never go in a `Ctry` field.
+Private units such as VFV follow the same rule.
 
 ## The ledger
 

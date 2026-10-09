@@ -125,7 +125,7 @@ def main():
     for code in ("VFV",):
         if code in ccy:
             sys.exit("VFV appeared in ISO 4217 list one: review cbank")
-    for n in (846, 810, 888):
+    for n in (555, 777, 888):
         if n in nums:
             sys.exit("a Vino rail numeric is now an ISO 4217 code: review cbank")
 

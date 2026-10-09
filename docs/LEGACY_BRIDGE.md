@@ -86,7 +86,7 @@ past a buffer. Amounts are exact integers end to end.
 
 A batch pipeline typically: reads the dataset with the fixed-length or RDW
 reader → decodes each field with the COBOL codec → hands exact integer amounts
-to the platform's payment rails (DEBIT 846 / CREDIT 810 / EQUITY 888) → writes
+to the platform's payment rails (DEBIT 555 / CREDIT 777 / EQUITY 888) → writes
 results back in the same record format.
 
 ## 3. Wiring a USSD gateway (mobile money)

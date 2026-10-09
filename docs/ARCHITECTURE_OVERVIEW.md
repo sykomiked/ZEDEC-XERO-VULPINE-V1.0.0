@@ -242,7 +242,7 @@ Every new network module (carracho, ipfs_node, call, social gossip, stream) says
 | `onepolicy`, `surplus`, `alloc`, `edp_risk`, `predictive` | The Symbiotic Maxim, the ISF functional f(u)=ln(1+(N-1)u) in Q32.32, and allocation | yes (mostly under `-DTEST_HOST`, which swaps in `double`; see Gap 9) | Real / Partial |
 | `finance` | `triple_ledger`, floating voucher, rails, derivatives, assurance, treaty tokenization, crypto bridge | indirectly (through ministry and vino_stores tests) | Partial ("Simplified Black-Scholes", `financial.c:156`) |
 | `vino` | "Vino Decentralized Bank Node". Claims SWIFT, CIPS, SPFS, Visa and MasterCard compatibility (`vino.h:20-21`) | no | Model |
-| `vino_stores` | VFV settlement engine: single-active-state (bearer or ledger), a ≥1.8× solvency gate, usury veto, DEBIT 846 / CREDIT 810 / EQUITY 888 | yes | Real |
+| `vino_stores` | VFV settlement engine: single-active-state (bearer or ledger), a ≥1.8× solvency gate, usury veto, DEBIT 555 / CREDIT 777 / EQUITY 888 | yes | Real |
 | `iso20022` | Emits pacs.008 and camt.053 with a bounded writer. No XSD validation, by design. | yes | Partial |
 | `pay` [WIP] | Exact three-rail nine-capital ledger (`pay_ledger.h` L1–L5), φ% tithe `floor((a+isqrt(5a²))/200)` with VFV credit for contributions above it, roles (LEI, BIC, IBAN), ISO 3166 table, vendored ISO 20022 **base** XSDs (not CBPR+), and a planned `pay_iso.c` | no | WIP |
 | `cardnet` [WIP] | Dragon (880, Luhn), Phoenix (882, Damm) and Thunderbird (884, Verhoeff) charge-card networks: no interest, no APR, ML-DSA-65 per authorization | no | WIP |
@@ -473,14 +473,14 @@ Ordered by how much each one blocks the product goal: a signed macOS companion a
   - Replace `SR_FROM_FLOAT` with rational constants so freestanding code never needs the FPU.
 
 **10. There are too many ledgers, rail meanings and nine-capital enumerations.**
-- **Why it matters:** Payments, VFV equity and the cooperative market have to agree on what DEBIT 846, CREDIT 810 and EQUITY 888 mean and on which capital form is which. A form index exchanged between modules would currently be misread.
+- **Why it matters:** Payments, VFV equity and the cooperative market have to agree on what DEBIT 555, CREDIT 777 and EQUITY 888 mean and on which capital form is which. A form index exchanged between modules would currently be misread.
 - **Evidence:**
   - Ledgers: `finance/triple_ledger`, `vino`, `vino_stores`, `swarm_ledger`, `carr_econ`, `pay_ledger` (WIP) and `financial_fabric`.
-  - Rail meaning: `finance/capital_forms.h:44-46` names 810 "PROVENANCE" and 888 "EXTERNALITY", while `pay_ledger.h:6-14` and `iso20022.h:14-16` name them CREDIT and EQUITY.
+  - Rail meaning: `finance/capital_forms.h:44-46` names 777 "PROVENANCE" and 888 "EXTERNALITY", while `pay_ledger.h:6-14` and `iso20022.h:14-16` name them CREDIT and EQUITY.
   - Form order: `zcapital.h:37-45` and `swarm_market.h:55-63` put FINANCIAL at 0. `finance/capital_forms.h:28-38` puts SOCIAL at 0 and FINANCIAL at 4 (its comment at `:96` then calls Financial "(5)"). `vino.h:9-18` uses another naming (Material, Knowledge, Living, Built).
 - **Fix:**
   - Make `zcapital.h` the single enum, with `_Static_assert` cross-checks in `capital_forms.h`, `swarm_market.h` and `pay_ledger.h`.
-  - Write one rail glossary (846, 810, 888) in a new `docs/PAY_RAILS.md` and make every header cite it.
+  - Write one rail glossary (555, 777, 888) in a new `docs/PAY_RAILS.md` and make every header cite it.
   - Converge on `pay_ledger` as the system of record, with `vino_stores` posting through it.
 
 **11. Several modules claim compliance or capabilities the code cannot back up.**

@@ -82,11 +82,11 @@ deriv_err_t deriv_verify_backing(const deriv_contract_t *d, const triple_ledger_
 {
     if (!d || !tl) return DERIV_ERR_NO_BACKING;
 
-    /* 1. Fetch backing asset from Financial rail (846) */
+    /* 1. Fetch backing asset from Financial rail (555) */
     ledger_entry_t *backing = find_backing_entry(tl, d->backing_cid);
     if (!backing) return DERIV_ERR_NO_BACKING;
 
-    /* 2. Verify Provenance rail (810) attestation — LPRES gate */
+    /* 2. Verify Provenance rail (777) attestation — LPRES gate */
     if (!lpres_attestation_is_true(&d->backing_proof))
         return DERIV_ERR_BACKING_UNATTTESTED; /* NEITHER/GLUT = veto */
 
@@ -205,11 +205,11 @@ deriv_err_t deriv_settle(deriv_contract_t *d, triple_ledger_t *tl)
     capital_type_t cap = capital_form_to_vino(d->underlying_form);
     surplus_real_t notional_sr = rat_to_surplus(&d->notional);
 
-    /* Post to Financial rail (846) */
+    /* Post to Financial rail (555) */
     int32_t r1 = triple_ledger_post(tl, 0, LEDGER_FINANCIAL, notional_sr, SR_ONE, SR_ZERO,
                                     notional_sr, SR_ZERO, 0, "derivative_settle");
 
-    /* Post to Provenance rail (810) */
+    /* Post to Provenance rail (777) */
     int32_t r2 = triple_ledger_post(tl, 0, LEDGER_PROVENANCE, notional_sr, SR_ONE, SR_ZERO,
                                     notional_sr, SR_ZERO, 0, "derivative_attestation");
 

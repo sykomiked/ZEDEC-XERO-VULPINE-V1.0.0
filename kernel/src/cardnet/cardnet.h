@@ -39,12 +39,12 @@
  * New PANs come from SHAKE256(issuer seed, caller entropy, account,
  * generation, attempt): deterministic, no kernel RNG needed.
  *
- * LEDGER. Settling a charge posts DR rail 846 (holder receivable) and
- * CR rail 810 (merchant payable, plus the flat fee leg if any). A refund
- * posts the mirror (DR 810 / CR 846); a holder payment posts DR 846 (issuer
- * cash) / CR 810 (holder obligation discharged). C1 is checked two ways per
+ * LEDGER. Settling a charge posts DR rail 555 (holder receivable) and
+ * CR rail 777 (merchant payable, plus the flat fee leg if any). A refund
+ * posts the mirror (DR 777 / CR 555); a holder payment posts DR 555 (issuer
+ * cash) / CR 777 (holder obligation discharged). C1 is checked two ways per
  * transaction, both to the minor unit: total DR == total CR, and total on
- * rail 846 == total on rail 810. Every posted transaction emits exactly one
+ * rail 555 == total on rail 777. Every posted transaction emits exactly one
  * hash-chained receipt naming rail 888 as its equity coordinate (VSS C2).
  *
  * NINE FORMS. Cards are tagged with one capital form and only authorize that
@@ -100,8 +100,8 @@
 #define CN_AMOUNT_MAX_MINOR 999999999999ull /* 12 digits: ISO 8583 field 4 */
 
 /* Vino rails (kernel/src/vino_stores/vino_stores.h). */
-#define CN_RAIL_DEBIT  846u
-#define CN_RAIL_CREDIT 810u
+#define CN_RAIL_DEBIT  555u
+#define CN_RAIL_CREDIT 777u
 #define CN_RAIL_EQUITY 888u
 
 /* ===== Networks ===== */
@@ -235,7 +235,7 @@ typedef struct {
     uint32_t form;     /* cn_form_t, the capital-form tag */
     uint32_t exp_year; /* valid through the last day of exp_month */
     uint32_t exp_month;
-    uint16_t rail_debit, rail_credit, rail_equity; /* 846 / 810 / 888 */
+    uint16_t rail_debit, rail_credit, rail_equity; /* 555 / 777 / 888 */
     uint32_t atc;      /* last accepted application transaction counter */
     uint32_t replaces; /* card index this one replaced, or UINT32_MAX */
     cn_time_t issued_at;
@@ -246,7 +246,7 @@ typedef struct {
 typedef struct {
     char pan[CN_PAN_LEN + 1];
     uint64_t amount_minor; /* 1 .. CN_AMOUNT_MAX_MINOR */
-    uint32_t currency;     /* must be CN_RAIL_DEBIT (846) */
+    uint32_t currency;     /* must be CN_RAIL_DEBIT (555) */
     uint32_t form;         /* cn_form_t */
     uint32_t atc;          /* 1..65535, strictly increasing per card */
     uint8_t un[4];         /* terminal unpredictable number (EMV 9F37) */
@@ -279,7 +279,7 @@ typedef enum {
     CN_DECL_BAD_SIG,      /* "05" do not honor: cryptogram failed */
     CN_DECL_REPLAY,       /* "94" duplicate: ATC not increasing */
     CN_DECL_FORM,         /* "57" form not permitted on this card */
-    CN_DECL_CURRENCY,     /* "57" not rail 846 */
+    CN_DECL_CURRENCY,     /* "57" not rail 555 */
     CN_DECL_TXN_LIMIT,    /* "61" exceeds per-transaction limit */
     CN_DECL_CYCLE_LIMIT,  /* "51" exceeds per-cycle limit for the form */
     CN_DECL_CEILING,      /* "51" exceeds account ceiling */
@@ -322,7 +322,7 @@ typedef enum {
 typedef struct {
     uint32_t txn;
     uint32_t side;    /* cn_side_t */
-    uint32_t rail;    /* 846 or 810; see LEDGER in the header comment */
+    uint32_t rail;    /* 555 or 777; see LEDGER in the header comment */
     uint32_t account; /* cn_lacct_t */
     uint64_t amount;
 } cn_leg_t;
@@ -400,7 +400,7 @@ cn_rc_t cn_find_card(const cn_issuer_t *iss, const char *pan, uint32_t *out_card
 cn_rc_t cn_authorize(cn_issuer_t *iss, const cn_auth_req_t *req, const uint8_t sig[CN_SIG_BYTES],
                      uint32_t *out_auth);
 
-/* Settle an approved authorization: post DR 846 / CR 810 legs, emit receipt. */
+/* Settle an approved authorization: post DR 555 / CR 777 legs, emit receipt. */
 cn_rc_t cn_settle(cn_issuer_t *iss, uint32_t auth);
 
 /* Reverse (ISO 8583 0400): an APPROVED auth releases its hold; a SETTLED one

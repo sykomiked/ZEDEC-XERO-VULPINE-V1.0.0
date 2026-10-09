@@ -136,13 +136,13 @@ static void test_record_roundtrip(void)
     OK(cobol_set_text(rec, lo.record_size, nm, (const uint8_t *) "VINO FLOATING VOUCHER", 21));
     /* amount 1234567.89 -> scaled integer 123456789 */
     OK(cobol_set_int(rec, lo.record_size, amt, 123456789));
-    OK(cobol_set_int(rec, lo.record_size, rail, 846)); /* DEBIT rail */
+    OK(cobol_set_int(rec, lo.record_size, rail, 555)); /* DEBIT rail */
     OK(cobol_set_int(rec, lo.record_size, h1, -9999));
 
     int64_t v;
     OK(cobol_get_int(rec, lo.record_size, id, &v) && v == 42);
     OK(cobol_get_int(rec, lo.record_size, amt, &v) && v == 123456789);
-    OK(cobol_get_int(rec, lo.record_size, rail, &v) && v == 846);
+    OK(cobol_get_int(rec, lo.record_size, rail, &v) && v == 555);
     OK(cobol_get_int(rec, lo.record_size, h1, &v) && v == -9999);
     uint8_t txt[24];
     uint32_t tn;

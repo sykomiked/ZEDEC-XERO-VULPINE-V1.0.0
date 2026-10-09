@@ -72,6 +72,11 @@ typedef lpres_attestation_t m5_lpres_proof_t;
 #define FF_MAX_POSITIONS        1024
 #define FF_MAX_NAME_LEN         64
 
+/* Error codes beyond the generic -1 */
+#define FF_EINALIENABLE (-2) /* state-reserved form (1..4): never transferred */
+#define FF_ERAIL        (-3) /* rail does not carry this form */
+#define FF_ENOTSUP      (-4) /* not implemented: nothing happened */
+
 /* ===== Financial Fabric Account ===== */
 
 typedef struct ff_account {
@@ -357,7 +362,8 @@ int32_t ff_create_account(financial_fabric_t *fabric, const char *name, const wo
 ff_account_t *ff_get_account(financial_fabric_t *fabric, uint32_t account_id);
 ff_account_t *ff_get_account_by_name(financial_fabric_t *fabric, const char *name);
 
-/* Capital operations */
+/* Capital operations. Forms are 1-based (1..9). Transfers of the
+ * state-reserved forms 1..4 return FF_EINALIENABLE. */
 int32_t ff_transfer_capital(financial_fabric_t *fabric, uint32_t from_account, uint32_t to_account,
                             uint8_t form, uint64_t amount);
 
@@ -434,14 +440,19 @@ int32_t ff_cancel_order(financial_fabric_t *fabric, uint32_t book_id, uint32_t o
 
 int32_t ff_match_orders(financial_fabric_t *fabric, uint32_t book_id);
 
-/* ===== Rails ===== */
+/* ===== Rails =====
+ * Rail ids are the RAIL_FINANCIAL (DEBIT), RAIL_PROVENANCE (CREDIT) and
+ * RAIL_EXTERNALITY (EQUITY) codes in finance/capital_forms.h, held in a
+ * uint16_t so that 888 fits. ff_rail_supports_form() consults the
+ * form -> rail table there; ff_route_through_rail() refuses state-reserved
+ * forms (FF_EINALIENABLE) and forms the rail does not carry (FF_ERAIL). */
 
 int32_t ff_route_through_rail(financial_fabric_t *fabric, uint32_t from_account,
-                              uint32_t to_account, uint8_t form, uint64_t amount, uint8_t rail_id);
+                              uint32_t to_account, uint8_t form, uint64_t amount, uint16_t rail_id);
 
-bool ff_rail_supports_form(rail_system_t *rails, uint8_t form, uint8_t rail_id);
+bool ff_rail_supports_form(rail_system_t *rails, uint8_t form, uint16_t rail_id);
 
-/* ===== Crypto Bridge ===== */
+/* ===== Crypto Bridge: not implemented, returns FF_ENOTSUP ===== */
 
 int32_t ff_bridge_asset(financial_fabric_t *fabric, uint32_t account_id, uint8_t form,
                         uint64_t amount, const char *target_chain, const char *target_address);
@@ -470,7 +481,7 @@ void ff_set_attestation(financial_fabric_t *fabric, uint32_t account_id, lpres_s
 
 /* Utility */
 const char *ff_form_name(uint8_t form);
-const char *ff_rail_name(uint8_t rail);
+const char *ff_rail_name(uint16_t rail);
 const char *ff_lpres_state_name(lpres_state_t state);
 
 #endif /* FINANCIAL_FABRIC_H */

@@ -30,7 +30,7 @@ static cb_vss_receipt vss(void)
     memset(&r, 0, sizeof r);
     snprintf(r.rcpt_id, sizeof r.rcpt_id, "R-2026-0001");
     snprintf(r.sys_ref, sizeof r.sys_ref, "VSS/1.0");
-    r.rail_dr = 846;
+    r.rail_dr = 555;
     r.rail_cr = 888;
     snprintf(r.ccy, sizeof r.ccy, "XOF");
     r.amt = 1000000;
@@ -59,8 +59,10 @@ static bool rails_only_in_splmtry(const char *xml)
 {
     static char rest[16384];
     strip_vss(xml, rest, sizeof rest);
-    return !strstr(rest, "846") && !strstr(rest, "810") && !strstr(rest, "888") &&
-           !strstr(rest, "VFV") && !strstr(rest, "<Ctry>NC") && !strstr(rest, "NCR");
+    return !strstr(rest, "555") && !strstr(rest, "777") && !strstr(rest, "888") &&
+           !strstr(rest, "VFV") && !strstr(rest, "<Ctry>NC") && !strstr(rest, "NCR") &&
+           !strstr(rest, "<Ctry>NR") && !strstr(rest, "NRE") && !strstr(rest, "<Ctry>PN") &&
+           !strstr(rest, "PNS");
 }
 
 /* For every cap below the full length the writer must report truncation,
@@ -137,8 +139,8 @@ int main(int argc, char **argv)
     CHECK(strstr(buf, "<IntrBkSttlmAmt Ccy=\"XOF\">1000000</IntrBkSttlmAmt>") != 0,
           "pacs.008: XOF has 0 minor units, alphabetic Ccy");
     CHECK(strstr(buf, "Awa Diop &amp; Fils &lt;SARL&gt;") != 0, "pacs.008: names XML-escaped");
-    CHECK(strstr(buf, "<RailDr>846</RailDr><RailCr>888</RailCr>") != 0,
-          "VSSReceipt carries rails 846/888");
+    CHECK(strstr(buf, "<RailDr>555</RailDr><RailCr>888</RailCr>") != 0,
+          "VSSReceipt carries rails 555/888");
     CHECK(strstr(buf, "<BckgDscl>ASPL</BckgDscl>") != 0, "VSSReceipt BckgDscl defaults to ASPL");
     CHECK(strstr(buf, "<Envlp><VSSReceipt xmlns=\"urn:zedec:vss:receipt:1\">") != 0,
           "VSSReceipt inside SplmtryData/Envlp in its own namespace");
@@ -154,6 +156,10 @@ int main(int argc, char **argv)
     bad = p8;
     bad.dbtr.ctry = "NCR";
     CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_CTRY, "country NCR refused");
+    bad.dbtr.ctry = "NRE";
+    CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_CTRY, "country NRE refused");
+    bad.cdtr.ctry = bad.dbtr.ctry = "PNS";
+    CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_CTRY, "country PNS refused");
     bad = p8;
     bad.uetr = "7F1C0A52-3B6E-4D1A-9C2E-5A8B7C6D5E4F";
     CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_UETR, "uppercase UETR refused");
@@ -196,8 +202,8 @@ int main(int argc, char **argv)
     p9.cdtr = "TESTEGCX";
     cb_vss_receipt r9 = rc;
     snprintf(r9.rcpt_id, sizeof r9.rcpt_id, "R-NET-C1-XOF");
-    r9.rail_dr = 810;
-    r9.rail_cr = 846;
+    r9.rail_dr = 777;
+    r9.rail_cr = 555;
     r9.amt = 102000000;
     p9.vss = &r9;
     int32_t n9 = cb_mx_pacs009_write(&p9, buf, sizeof buf);
@@ -247,7 +253,7 @@ int main(int argc, char **argv)
     cb_vss_receipt r4 = rc;
     snprintf(r4.rcpt_id, sizeof r4.rcpt_id, "R-RTR-1");
     r4.rail_dr = 888;
-    r4.rail_cr = 846;
+    r4.rail_cr = 555;
     p4.vss = &r4;
     int32_t n4 = cb_mx_pacs004_write(&p4, buf, sizeof buf);
     CHECK(n4 > 0 && strstr(buf, "<RtrdIntrBkSttlmAmt Ccy=\"KES\">212500.00</RtrdIntrBkSttlmAmt>"),

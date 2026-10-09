@@ -78,7 +78,7 @@ static void test_receipt(void)
     CHECK(cb_vss_receipt_check(&r) == CB_VSS_OK, "EFCT with an attestation accepted");
     r = receipt("R2", "T1", 1);
     r.rail_cr = 999;
-    CHECK(cb_vss_receipt_check(&r) == CB_VSS_E_RAIL, "rail 999 refused (rails are 846/810/888)");
+    CHECK(cb_vss_receipt_check(&r) == CB_VSS_E_RAIL, "rail 999 refused (rails are 555/777/888)");
     r.rail_cr = 811;
     CHECK(cb_vss_receipt_check(&r) == CB_VSS_E_RAIL, "811 is a procedure designator, not a rail");
     r.rail_cr = CB_RAIL_DEBIT;
@@ -154,7 +154,7 @@ static void test_c3(void)
     CHECK(cb_vss_c3(CB_FW_US_GAAP, us, 4, srec, stb, &bad) == CB_VSS_OK,
           "C3 US GAAP: trial balance reconstructs exactly");
     CHECK(srec[0].rail == CB_RAIL_DEBIT && srec[1].rail == CB_RAIL_CREDIT,
-          "US GAAP: assets to 846, revenue to 810");
+          "US GAAP: assets to 555, revenue to 777");
     cb_tb_line usi[2] = {L("USG.INT", CB_SIDE_DR, 500, 0), L("USG.LIAB", CB_SIDE_CR, 500, 0)};
     CHECK(cb_vss_c3(CB_FW_US_GAAP, usi, 2, srec, stb, &bad) == CB_VSS_E_USURY && bad == 0,
           "US GAAP: interest line refused (no usury)");
@@ -308,8 +308,8 @@ static void test_811(void)
     r.adjudication_ref[0] = 0;
     CHECK(cb_vss_resolution_check(&r) == CB_VSS_E_AUTH, "811 without an adjudication refused");
     snprintf(r.adjudication_ref, sizeof r.adjudication_ref, "Court ref 2026/HC/991");
-    r.designator = 810;
-    CHECK(cb_vss_resolution_check(&r) == CB_VSS_E_RAIL, "the resolution class is 811, not 810");
+    r.designator = 777;
+    CHECK(cb_vss_resolution_check(&r) == CB_VSS_E_RAIL, "the resolution class is 811, not 777");
     r.designator = CB_VSS_RESOLUTION_CLASS;
     snprintf(r.receipt.tx_ref, sizeof r.receipt.tx_ref, "OTHER");
     CHECK(cb_vss_resolution_check(&r) == CB_VSS_E_RECEIPT, "receipt must reference the claim");

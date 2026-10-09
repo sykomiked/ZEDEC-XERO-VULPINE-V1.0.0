@@ -73,7 +73,10 @@ Each role gets these defaults from `cb_role_default`:
 Screening is required for every role by default.
 
 **About VFV.** The Vino Floating Voucher is the platform's own unit. Its
-rails are DEBIT 846, CREDIT 810 and EQUITY 888. A central-bank profile never
+rails are DEBIT 555, CREDIT 777 and EQUITY 888, with the platform
+jurisdiction codes NCR (New California Republic), NRE (Neo Roman Empire) and
+PNS (Principality of New Sicily); none of the three numerics is assigned in
+ISO 4217 and none of the codes is an ISO 3166 country. A central-bank profile never
 defaults to VFV. The configuration refuses "VFV" and the rail numbers as
 currency profiles: settlement always happens in real ISO 4217 currencies.
 Rail numbers appear only inside the VSSReceipt in `SplmtryData`.
@@ -226,7 +229,8 @@ Rules every writer enforces:
 - `Ccy` is always an ISO 4217 alphabetic code, never VFV. Amounts are
   written with the ISO minor units.
 - Country codes are validated ISO 3166-1 codes of real parties. VFV never
-  gets a country, so no "NC" or "NCR".
+  gets a country, so no "NC" or "NCR", and the rail jurisdictions "NRE" and
+  "PNS" are never written as one either.
 - BICs and UETRs are checked against the ISO patterns.
 - Output never runs past the caller's buffer.
 
@@ -234,7 +238,7 @@ The VSSReceipt goes in `SplmtryData/Envlp` under the namespace
 `urn:zedec:vss:receipt:1`. Systems that do not know VSS skip it. Its
 elements, in order, are RcptId, SysRef, RailDr, RailCr, Amt, EqtyCoord,
 BckgDscl (EFCT or ASPL, ASPL by default), XwalkRef, AnchrRef and Sgntr. The
-rails are 846, 810 or 888. The block is validated against
+rails are 555, 777 or 888. The block is validated against
 `kernel/src/cbank/xsd/vss.receipt.1.xsd`, and it is not registered with the
 ISO 20022 Registration Authority.
 
@@ -246,7 +250,7 @@ ISO 20022 Registration Authority.
 | C2 Receipt | Exactly one complete, signed receipt per transaction, with matching amount, currency and rails. The receipt log is append-only. |
 | C3 Reversibility | Trial-balance lines map into VSS records through the published crosswalk and back out unchanged. The crosswalks cover US GAAP, IFRS (ECL contra, OCI on the equity rail), IPSAS (a fund tag is required) and AAOIFI (musharakah, mudarabah, URIA and profit distribution on the equity rail 888). Interest lines are refused in every framework. |
 | C4 Disclosure | Effective and aspirational backing are summed apart. Effective backing needs an attestation reference. A presented figure that counts aspirational backing as effective fails. |
-| C5 Integrity | Through hooks: each identifier passes its own rail's check digit and fails the other two. Connect `cn_luhn_valid` (846), `cn_damm_valid` (810) and `cn_verhoeff_valid` (888) from `kernel/src/cardnet/cn_check.h`. With no hooks, C5 does not run. |
+| C5 Integrity | Through hooks: each identifier passes its own rail's check digit and fails the other two. Connect `cn_luhn_valid` (555), `cn_damm_valid` (777) and `cn_verhoeff_valid` (888) from `kernel/src/cardnet/cn_check.h`. With no hooks, C5 does not run. |
 
 The levels are Bronze (C1, C2, C5), Silver (C1 to C3, C5) and Gold (C1 to
 C5, plus an independent attestation of C4). A failed C4 removes every level,

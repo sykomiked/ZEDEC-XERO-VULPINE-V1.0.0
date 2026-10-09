@@ -22,10 +22,26 @@ static int g_fails = 0;
         }                                                                                          \
     } while (0)
 
-/* On the host surplus_real_t is double; compare with a small epsilon. */
+/* surplus_real_t as a double: itself under TEST_HOST, raw/2^32 on the
+ * Q32.32 path (a raw cast would read 100 as 429496729600). */
+static double sr_to_d(surplus_real_t a)
+{
+#ifdef TEST_HOST
+    return (double) a;
+#else
+    return (double) a / 4294967296.0;
+#endif
+}
+
+static int neard_(double a, double b)
+{
+    return fabs(a - b) < 1e-6;
+}
+
+/* Compare with a small epsilon. */
 static int near_(surplus_real_t a, double b)
 {
-    return fabs((double) a - b) < 1e-6;
+    return neard_(sr_to_d(a), b);
 }
 
 /* Test double for the external oracle: models a VALID signature. The module
@@ -66,12 +82,13 @@ int main(void)
     CHECK(near_(alloc.party[1], 30.0), "A1: Human share == 30");
     CHECK(near_(alloc.party[2], 20.0), "A1: Social share == 20");
     CHECK(near_(alloc.party[3], 20.0), "A1: Cultural share == 20");
-    double sum = (double) alloc.party[0] + (double) alloc.party[1] + (double) alloc.party[2] +
-                 (double) alloc.party[3];
-    CHECK(near_((surplus_real_t) sum, 100.0), "A1: shares sum to realized exactly");
+    surplus_real_t sum = SR_ADD(SR_ADD(alloc.party[0], alloc.party[1]),
+                                SR_ADD(alloc.party[2], alloc.party[3]));
+    CHECK(SR_CMP(sum, alloc.realized) == 0 && near_(sum, 100.0),
+          "A1: shares sum to realized exactly");
     /* proportions are EXACT: each share / realized == its weight */
-    CHECK(near_((surplus_real_t) ((double) alloc.party[0] / 100.0), 0.30) &&
-              near_((surplus_real_t) ((double) alloc.party[2] / 100.0), 0.20),
+    CHECK(neard_(sr_to_d(alloc.party[0]) / 100.0, 0.30) &&
+              neard_(sr_to_d(alloc.party[2]) / 100.0, 0.20),
           "A1: split proportions are exactly 30% / 20%");
     CHECK(SR_CMP(alloc.contributor_pool, SR_DIV(alloc.realized, SR_FROM_INT(2))) > 0,
           "A1: contributors retain the MAJORITY of the pool");

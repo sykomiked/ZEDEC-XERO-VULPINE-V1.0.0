@@ -16,7 +16,7 @@
 /* On the host surplus_real_t is double; compare with a small epsilon. */
 static int near_eq(surplus_real_t a, double b)
 {
-    return fabs((double) a - b) < 1e-6;
+    return fabs((double) a / (double) SR_ONE - b) < 1e-6; /* raw Q32 on the fixed path */
 }
 
 static int g_asserts = 0;

@@ -4,7 +4,7 @@
 <!-- VSSReceipt (VINO Sovereign Standard, Volume II Part X), as written by
      kernel/src/cbank/cb_mx.c inside ISO 20022 SplmtryData/Envlp.
      NOT registered with the ISO 20022 Registration Authority; for private
-     deployments only. Rails follow this repository: 846 DEBIT, 810 CREDIT,
+     deployments only. Rails follow this repository: 555 DEBIT, 777 CREDIT,
      888 EQUITY. -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns="urn:zedec:vss:receipt:1"
@@ -36,8 +36,8 @@
   </xs:simpleType>
   <xs:simpleType name="RailCode">
     <xs:restriction base="xs:string">
-      <xs:enumeration value="846"/>
-      <xs:enumeration value="810"/>
+      <xs:enumeration value="555"/>
+      <xs:enumeration value="777"/>
       <xs:enumeration value="888"/>
     </xs:restriction>
   </xs:simpleType>

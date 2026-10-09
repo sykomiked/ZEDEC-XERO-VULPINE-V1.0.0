@@ -70,7 +70,7 @@ assurance_err_t assurance_admit(assurance_contract_t *a, triple_ledger_t *tl)
 {
     if (!a || !tl) return ASSURANCE_ERR_CONTRIBUTION;
 
-    /* Gate 1: Contribution posted to Financial rail (846) — exact rational
+    /* Gate 1: Contribution posted to Financial rail (555) — exact rational
      * Use account 0 for system-level contracts */
     surplus_real_t contrib_sr = rat_to_surplus(&a->contribution);
     int32_t r = triple_ledger_post(tl, 0, LEDGER_FINANCIAL, contrib_sr, SR_ONE, SR_ZERO, contrib_sr,
@@ -103,7 +103,7 @@ assurance_err_t assurance_admit(assurance_contract_t *a, triple_ledger_t *tl)
     if (a->pay_it_forward && !interstitial_region_valid(&a->forward_route))
         return ASSURANCE_ERR_FORWARD_ROUTE_INVALID;
 
-    /* ALL GATES CLEAR → Register assurance contract on Provenance rail (810) */
+    /* ALL GATES CLEAR → Register assurance contract on Provenance rail (777) */
     r = triple_ledger_post(tl, 0, LEDGER_PROVENANCE, contrib_sr, SR_ONE, SR_ZERO, contrib_sr,
                            SR_ZERO, 0, "assurance_contract");
     return (r < 0) ? ASSURANCE_ERR_CONTRIBUTION : ASSURANCE_OK;
@@ -171,7 +171,7 @@ assurance_err_t assurance_deriv_admit(assurance_deriv_t *d, triple_ledger_t *tl)
 {
     if (!d || !tl) return ASSURANCE_ERR_CONTRIBUTION;
 
-    /* Post derivative to Financial rail (846) */
+    /* Post derivative to Financial rail (555) */
     surplus_real_t notional_sr = rat_to_surplus(&d->notional);
     int32_t r = triple_ledger_post(tl, 0, LEDGER_FINANCIAL, notional_sr, SR_ONE, SR_ZERO,
                                    notional_sr, SR_ZERO, 0, "assurance_derivative");

@@ -24,10 +24,21 @@ static int g_fails = 0;
         }                                                                                          \
     } while (0)
 
-/* On the host, surplus_real_t is double; compare with a small epsilon. */
+/* surplus_real_t as a double: itself under TEST_HOST, raw/2^32 on the
+ * Q32.32 path (a raw cast would read 2000 as 8589934592000). */
+static double sr_to_d(surplus_real_t a)
+{
+#ifdef TEST_HOST
+    return (double) a;
+#else
+    return (double) a / 4294967296.0;
+#endif
+}
+
+/* Compare with a small epsilon. */
 static int near_(surplus_real_t a, double b)
 {
-    return fabs((double) a - b) < 1e-6;
+    return fabs(sr_to_d(a) - b) < 1e-6;
 }
 
 /* A genuine content-addressed witness for the equity rail. */
@@ -81,8 +92,8 @@ int main(void)
     uint32_t entries_after = tl.accounts[vs.vino_account].num_entries;
     CHECK(rc == VINO_ERR_COVERAGE, "A2: sub-1.8x act refused with COVERAGE");
     CHECK(entries_after == entries_before, "A2: entries_before == entries_after");
-    CHECK(near_(tl.total_assets, (double) assets_before) &&
-              near_(tl.total_liabilities, (double) liab_before),
+    CHECK(near_(tl.total_assets, sr_to_d(assets_before)) &&
+              near_(tl.total_liabilities, sr_to_d(liab_before)),
           "A2: totals unchanged after rollback");
 
     /* ---- Anchor 2b: a supplied equity < 0 is refused, nothing posted ----- */
@@ -106,7 +117,7 @@ int main(void)
 
     /* ---- Anchor 4: vino_phi_draw_max(1000) ~= 618 (φ-1 known answer) ------ */
     surplus_real_t draw = vino_phi_draw_max(SR_FROM_INT(1000));
-    CHECK(fabs((double) draw - 618.0) < 1.0, "A4: phi_draw_max(1000) ~= 618");
+    CHECK(fabs(sr_to_d(draw) - 618.0) < 1.0, "A4: phi_draw_max(1000) ~= 618");
 
     /* ---- Anchor 5: the Fibonacci denomination ladder ---------------------- */
     static const uint64_t ladder[VINO_LADDER_RUNGS] = {1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233};

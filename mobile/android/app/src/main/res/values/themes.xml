@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window behind Compose; colours inside the app come from ui/Theme.kt -->
+    <style name="Theme.Zxv" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF0E1116</item>
+        <item name="android:statusBarColor">#FF0E1116</item>
+        <item name="android:navigationBarColor">#FF161B22</item>
+    </style>
+</resources>

@@ -38,13 +38,14 @@
  *   These follow the public CBPR+ material as understood when written; the
  *   authoritative usage guidelines are on SWIFT MyStandards.
  *
- * VFV, CRYPTO AND THE NCR JURISDICTION (standards-correct handling)
+ * VFV, CRYPTO AND THE RAIL JURISDICTIONS (standards-correct handling)
  *   - VFV is a platform-internal, non-ISO unit (default alpha "VFV", numeric
- *     846, 2 minor units). It is NEVER written into a Ccy attribute or a Ccy
- *     element: the schema pattern [A-Z]{3} would accept "VFV", but ISO 4217
- *     does not, so doing so would be schema-valid and standards-wrong. Crypto
- *     assets and share assets are refused the same way. Builders accept an
- *     amount only for an asset flagged iso4217.
+ *     555 on the DEBIT rail, jurisdiction NCR, 2 minor units). It is NEVER
+ *     written into a Ccy attribute or a Ccy element: the schema pattern
+ *     [A-Z]{3} would accept "VFV", but ISO 4217 does not, so doing so would
+ *     be schema-valid and standards-wrong. Crypto assets and share assets are
+ *     refused the same way. Builders accept an amount only for an asset
+ *     flagged iso4217.
  *   - VFV transfers therefore stay internal (pay_ledger). When an external
  *     message must mention a VFV leg or the platform jurisdiction, it goes in
  *     proprietary free text, per message:
@@ -54,11 +55,13 @@
  *     as the tokens "/ZXV/JURIS/<code>" and "/ZXV/VFV/<amount>" (both inside
  *     the FIN X character set). SplmtryData is not used because CBPR+ does
  *     not allow it.
- *   - Country fields are ISO 3166-1 alpha-2 only. The platform jurisdiction
- *     ("NCR", New California Republic) is never emitted as a country, and
- *     "NC" (New Caledonia) is refused when it equals the first two letters
- *     of a non-ISO platform jurisdiction unless the address explicitly
- *     confirms it is a real New Caledonia address.
+ *   - Country fields are ISO 3166-1 alpha-2 only. The rail jurisdictions
+ *     ("NCR" New California Republic on DEBIT 555, "NRE" Neo Roman Empire on
+ *     CREDIT 777, "PNS" Principality of New Sicily on EQUITY 888) and the
+ *     platform jurisdiction are never emitted as a country. A real code
+ *     equal to the first two letters of one of them ("NC" New Caledonia,
+ *     "NR" Nauru, "PN" Pitcairn) is refused unless the address explicitly
+ *     confirms it is a real address in that country.
  *
  * HONEST LIMITS. Schema validity is not certification: passing the XSD and
  * these checks does not make a message acceptable to SWIFT, CIPS, SEPA or

@@ -22,7 +22,7 @@ public enum AccountKind
 
     /// <summary>
     /// An issuer account (issuance, settlement or nostro mirror). It may carry a
-    /// CREDIT (810) balance: value it has put into circulation on the platform.
+    /// CREDIT (777) balance: value it has put into circulation on the platform.
     /// </summary>
     Issuer = 1,
 }
@@ -38,8 +38,8 @@ public sealed record Account(AccountId Id, string Name, string Currency, Account
 /// The three Vino rail balances of an account. <see cref="Equity"/> is the
 /// spendable position and always equals <see cref="Debit"/> minus <see cref="Credit"/>.
 /// </summary>
-/// <param name="Debit">DEBIT rail (846): total received.</param>
-/// <param name="Credit">CREDIT rail (810): total sent.</param>
+/// <param name="Debit">DEBIT rail (555): total received.</param>
+/// <param name="Credit">CREDIT rail (777): total sent.</param>
 /// <param name="Equity">EQUITY rail (888): debit minus credit.</param>
 public sealed record RailBalances(Money Debit, Money Credit, Money Equity);
 

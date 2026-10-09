@@ -7,21 +7,24 @@ namespace Zxv.Currencies;
 /// The three Vino ledger rails and their platform-internal numeric codes.
 /// </summary>
 /// <remarks>
-/// None of these numerics is an active ISO 4217 currency: 846 and 888 are
-/// unassigned and 810 is the withdrawn code of the old Russian ruble (RUR).
-/// They appear only in ledger rail balances and proprietary fields, never in an
-/// ISO 20022 <c>Ccy</c> attribute.
+/// None of these numerics is an ISO 4217 currency: 555, 777 and 888 are all
+/// unassigned. They appear only in ledger rail balances and proprietary
+/// fields, never in an ISO 20022 <c>Ccy</c> attribute. Each rail carries a
+/// platform jurisdiction code (DEBIT NCR New California Republic, CREDIT NRE
+/// Neo Roman Empire, EQUITY PNS Principality of New Sicily; see
+/// <see cref="CurrencyService.GetRailJurisdiction"/>). These are not ISO 3166
+/// countries and never go in a <c>Ctry</c> field.
 /// </remarks>
 #pragma warning disable CA1008 // No zero value: the values are the rail numerics themselves.
 public enum VinoRail
 #pragma warning restore CA1008
 {
-    /// <summary>Asset / backing rail: what an account has received.</summary>
-    Debit = 846,
+    /// <summary>Asset / backing rail (jurisdiction NCR): what an account has received.</summary>
+    Debit = 555,
 
-    /// <summary>Claim / liability rail: what an account has sent or owes.</summary>
-    Credit = 810,
+    /// <summary>Claim / liability rail (jurisdiction NRE): what an account has sent or owes.</summary>
+    Credit = 777,
 
-    /// <summary>Equity rail: debit minus credit, the spendable position.</summary>
+    /// <summary>Equity rail (jurisdiction PNS): debit minus credit, the spendable position.</summary>
     Equity = 888,
 }

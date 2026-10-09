@@ -19,7 +19,7 @@
  *   90 original data elements n 42 (secondary bitmap; used by 0400/0410)
  *
  * VSS metadata (VSS proposal section 4.2) rides in the private fields:
- *   60  "VSS1;NET=<D|P|T>;FORM=<0-8>;DR=846;CR=810;EQ=888"
+ *   60  "VSS1;NET=<D|P|T>;FORM=<0-8>;DR=555;CR=777;EQ=888"
  *   61  "RCPT=<receipt id>;ATC=<atc>"
  *   63  "CRY=<64 hex: SHA3-256 of the ML-DSA signature>"
  *

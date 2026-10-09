@@ -121,7 +121,7 @@ int cb_vss_log_append(cb_vss_log *l, const cb_vss_receipt *r)
 }
 
 /* ===== C3 crosswalk tables =====
- * Debit-natured items -> 846, credit-natured -> 810, equity -> 888. The
+ * Debit-natured items -> 555, credit-natured -> 777, equity -> 888. The
  * statement side (Dr/Cr) of each line is carried unchanged, so a contra or
  * reversal entry round-trips exactly. */
 const cb_xw_item cb_xw_table[] = {

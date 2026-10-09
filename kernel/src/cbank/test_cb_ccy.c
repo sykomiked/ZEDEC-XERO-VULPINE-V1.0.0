@@ -2,6 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_cb_ccy.c — ISO 4217 / ISO 3166 / AU table tests. */
 #include "cb_ccy.h"
+#include "cb_vss.h"
 #include "cb_util.h"
 #include "cb_test.h"
 
@@ -133,8 +134,22 @@ int main(void)
 
     /* VFV and the Vino rails are not ISO 4217. */
     CHECK(cb_ccy_by_alpha("VFV") == 0, "VFV is not an ISO 4217 code");
-    CHECK(!cb_ccy_by_num(846) && !cb_ccy_by_num(810) && !cb_ccy_by_num(888),
-          "rail numerics 846/810/888 are not active ISO 4217 codes");
+    CHECK(!cb_ccy_by_num(555) && !cb_ccy_by_num(777) && !cb_ccy_by_num(888),
+          "rail numerics 555/777/888 are not active ISO 4217 codes");
+    {
+        /* Proof from the generated list-one table itself, not only the
+         * lookup: no entry, fund codes and N.A. units included, uses a rail
+         * numeric, and the rail jurisdictions are not ISO 3166 countries. */
+        static const uint16_t rails[3] = {CB_RAIL_DEBIT, CB_RAIL_CREDIT, CB_RAIL_EQUITY};
+        bool clash = false;
+        for (uint32_t i = 0; i < CB_CCY_COUNT; i++)
+            for (uint32_t j = 0; j < 3; j++)
+                if (cb_ccy_tbl[i].num == rails[j]) clash = true;
+        CHECK(!clash && CB_RAIL_DEBIT == 555u && CB_RAIL_CREDIT == 777u && CB_RAIL_EQUITY == 888u,
+              "555/777/888 are unassigned numerics in every ISO 4217 list-one entry");
+        CHECK(!cb_country_by_a3("NCR") && !cb_country_by_a3("NRE") && !cb_country_by_a3("PNS"),
+              "rail jurisdictions NCR/NRE/PNS are not ISO 3166-1 alpha-3 codes");
+    }
     CHECK(!cb_ccy_by_alpha("usd") && !cb_ccy_by_alpha("US") && !cb_ccy_by_alpha("USDX") &&
               !cb_ccy_by_alpha(0),
           "malformed alpha codes rejected");

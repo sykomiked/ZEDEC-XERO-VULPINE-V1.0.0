@@ -96,7 +96,7 @@ public sealed class GatewayTests : IClassFixture<DevelopmentGatewayFactory>
 
         JsonElement bal = await _http.GetFromJsonAsync<JsonElement>($"/v1/accounts/{kofi}/balances");
         Assert.Equal(12345, bal.GetProperty("equity").GetProperty("minorUnits").GetInt64());
-        Assert.Equal(810, bal.GetProperty("railNumerics").GetProperty("credit").GetInt32());
+        Assert.Equal(777, bal.GetProperty("railNumerics").GetProperty("credit").GetInt32());
 
         JsonElement stmt = await _http.GetFromJsonAsync<JsonElement>($"/v1/accounts/{ama}/statement");
         Assert.Equal(2, stmt.GetProperty("entries").GetArrayLength());

@@ -54,7 +54,7 @@ int main(void)
     f.rail = 888;
     CHECK(cb_usury_check_fee(&f) == CB_USURY_OK,
           "musharakah 30/70 profit share on rail 888 allowed");
-    f.rail = 810;
+    f.rail = 777;
     CHECK(cb_usury_check_fee(&f) == CB_USURY_BAD_RAIL, "profit share on the credit rail refused");
     f.rail = 888;
     f.shares_losses = false;

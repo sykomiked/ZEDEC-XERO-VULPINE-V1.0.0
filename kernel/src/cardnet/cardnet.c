@@ -829,7 +829,7 @@ cn_rc_t cn_pay(cn_issuer_t *iss, uint32_t account, uint64_t amount, cn_time_t no
 bool cn_txn_balanced(const cn_issuer_t *iss, uint32_t txn)
 {
     if (!iss || txn >= iss->n_txns) return false;
-    uint64_t dr = 0, cr = 0, r846 = 0, r810 = 0;
+    uint64_t dr = 0, cr = 0, r555 = 0, r777 = 0;
     uint32_t n = 0;
     for (uint32_t i = 0; i < iss->n_legs; i++) {
         const cn_leg_t *l = &iss->legs[i];
@@ -842,15 +842,15 @@ bool cn_txn_balanced(const cn_issuer_t *iss, uint32_t txn)
         else
             return false;
         if (l->rail == CN_RAIL_DEBIT)
-            r846 += l->amount;
+            r555 += l->amount;
         else if (l->rail == CN_RAIL_CREDIT)
-            r810 += l->amount;
+            r777 += l->amount;
         else
             return false;
     }
-    /* C1: debits equal credits, and the 846 side equals the 810 side, to
+    /* C1: debits equal credits, and the 555 side equals the 777 side, to
      * the minor unit, with no rounding slack. */
-    return n >= 2 && dr == cr && r846 == r810 && dr > 0;
+    return n >= 2 && dr == cr && r555 == r777 && dr > 0;
 }
 
 bool cn_ledger_balanced(const cn_issuer_t *iss)

@@ -48,7 +48,8 @@ const char *vino_rail_name(payment_rail_t r) { return r<RAIL_MAX?rail_names[r]:"
 const char *vino_msg_standard_name(msg_standard_t m) { return m<MSG_MAX?msg_names[m]:"?"; }
 
 void vino_hash(const void *data, uint32_t len, uint8_t out[VINO_HASH_LEN]) {
-    /* Simplified hash: FNV-1a 32-bit extended to 32 bytes */
+    /* FNV-1a 32-bit stretched to 32 bytes. NOT cryptographic: only 32 bits
+     * of state, trivially forgeable. */
     const uint8_t *d = data;
     uint32_t h = 2166136261u;
     for (uint32_t i = 0; i < len; i++) { h ^= d[i]; h *= 16777619u; }
@@ -234,19 +235,19 @@ int32_t vino_propose_block(vino_ledger_t *v) {
 
 int32_t vino_vote_block(vino_ledger_t *v, uint32_t height, bool approve) {
     (void)v; (void)height; (void)approve;
-    return 0;
+    return VINO_ENOTIMPL; /* no consensus exists */
 }
 
 int32_t vino_sync_peers(vino_ledger_t *v) {
     (void)v;
-    return 0;
+    return VINO_ENOTIMPL; /* no networking exists */
 }
 
 /* === Messaging adapters === */
 int32_t vino_msg_to_iso20022(const vino_transaction_t *txn, char *out, uint32_t max_out) {
     (void)txn;
     if (max_out < 128) return -1;
-    /* Simplified ISO 20022 XML */
+    /* Opening fragment only: not a conformant ISO 20022 message */
     int j = 0;
     j += fs_strlen(fs_strcpy(out+j, "<Doc:Document>"));
     j += fs_strlen(fs_strcpy(out+j, "<PmtInf>"));
@@ -256,7 +257,9 @@ int32_t vino_msg_to_iso20022(const vino_transaction_t *txn, char *out, uint32_t 
 }
 
 int32_t vino_msg_from_iso20022(const char *xml, vino_transaction_t *txn) {
-    (void)xml; (void)txn; return 0;
+    (void) xml;
+    (void) txn;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_camt053(const vino_transaction_t *txn, char *out, uint32_t max_out) {
@@ -269,7 +272,9 @@ int32_t vino_msg_to_camt053(const vino_transaction_t *txn, char *out, uint32_t m
 }
 
 int32_t vino_msg_from_camt053(const char *xml, vino_transaction_t *txn) {
-    (void)xml; (void)txn; return 0;
+    (void) xml;
+    (void) txn;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_mt103(const vino_transaction_t *txn, char *out, uint32_t max_out) {
@@ -280,7 +285,9 @@ int32_t vino_msg_to_mt103(const vino_transaction_t *txn, char *out, uint32_t max
 }
 
 int32_t vino_msg_from_mt103(const char *msg, vino_transaction_t *txn) {
-    (void)msg; (void)txn; return 0;
+    (void) msg;
+    (void) txn;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_pacs008(const vino_transaction_t *txn, char *out, uint32_t max_out) {
@@ -291,49 +298,59 @@ int32_t vino_msg_to_pacs008(const vino_transaction_t *txn, char *out, uint32_t m
 }
 
 int32_t vino_msg_to_cips(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "<CIPS.001><CreditTransfer>");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_spfs(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "<SPFS><MsgPmt>");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_visa(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "VISAPROTOCOL:0400:VINO:");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_mastercard(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "MCDIPROTO:0200:VINO:");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_btc(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "BTCPROTO:rawtx:");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_eth(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "ETHPROTO:0x");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
-int32_t vino_msg_from_btc(const char *raw, vino_transaction_t *txn) { (void)raw; (void)txn; return 0; }
-int32_t vino_msg_from_eth(const char *raw, vino_transaction_t *txn) { (void)raw; (void)txn; return 0; }
+int32_t vino_msg_from_btc(const char *raw, vino_transaction_t *txn)
+{
+    (void) raw;
+    (void) txn;
+    return VINO_ENOTIMPL;
+}
+int32_t vino_msg_from_eth(const char *raw, vino_transaction_t *txn)
+{
+    (void) raw;
+    (void) txn;
+    return VINO_ENOTIMPL;
+}
 
 /* ---- DECLARATION -----------------------------------------------------------
 

@@ -74,7 +74,7 @@ public static class OperatorApi
         acct.MapGet("/{id}", (ZxvPlatform zxv, uint id) => TypedResults.Ok(ToDto(zxv, zxv.Ledger.GetAccount(new AccountId(id)))))
             .WithName("getAccount").WithSummary("Get an account");
         acct.MapGet("/{id}/balances", (ZxvPlatform zxv, uint id) => TypedResults.Ok(BalancesDto.From(new AccountId(id), zxv.Ledger.GetBalances(new AccountId(id)))))
-            .WithName("getBalances").WithSummary("DEBIT (846), CREDIT (810) and EQUITY (888) rail balances in exact minor units");
+            .WithName("getBalances").WithSummary("DEBIT (555), CREDIT (777) and EQUITY (888) rail balances in exact minor units");
         acct.MapGet("/{id}/entries", (ZxvPlatform zxv, uint id, int? start, int? count) =>
                 TypedResults.Ok(zxv.Ledger.GetEntries(new AccountId(id), start ?? 0, Math.Clamp(count ?? 100, 1, 1000)).Select(EntryDto.From).ToList()))
             .WithName("listEntries").WithSummary("Journal lines, oldest first");

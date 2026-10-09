@@ -1,42 +1,70 @@
 /* m5_types.h — Shared M5 Axiomatic Kernel Types (Reactor Moderator)
  * Author: H.M. Michael-Laurence: Curzi (c)
  * ALL subsystems MUST include this and MUST NOT redefine these types.
+ *
+ * INTEGER-ONLY MODE
+ *   Define M5_TYPES_INTEGER_ONLY before including this header to get the
+ *   integer core only: no <complex.h>, no <math.h>, no double. The types
+ *   that need floating point (phase_t, phase_tick_t, telemetry_t,
+ *   axiom_matrix_t, shadow_event_t, cycle_pulse_t) and the double helpers
+ *   (trit_to_ell, rational_mag) are then NOT declared, so any use is a
+ *   compile error rather than a silent FPU dependency; use trit_to_ell_q16.
+ *   Freestanding security code (e.g. pq_security.h users) should define it.
+ *   Without the macro the header is unchanged for existing callers.
  */
 #ifndef M5_TYPES_H
 #define M5_TYPES_H
 #include <stdint.h>
 #include <stdbool.h>
-#include <complex.h>
-#include <math.h>
+#ifndef M5_TYPES_INTEGER_ONLY
+#    include <complex.h>
+#    include <math.h>
+#endif
 #include "surplus.h"
 typedef uint64_t ordinal_t;
 typedef struct rational_t { int64_t num, den; } rational_t;
 typedef enum {
-    TRIT_FALSE    = 0,  /* Absence — no presence, no charge */
-    TRIT_TRUE     = 1,  /* Presence — confirmed, positive */
-    TRIT_GLUT     = 2,  /* DEPRECATED input alias -> canonicalises to GLUT_NEUTRAL.
-                         * Accept it, never emit it. See trit_canon() below. */
-    TRIT_GLUT_PLUS  = 3,  /* Constructive superposition — both true and false, positive charge (excess) */
-    TRIT_GLUT_MINUS = 4,  /* Destructive superposition — both true and false, negative charge (deficit) */
+    TRIT_FALSE = 0, /* Absence — no presence, no charge */
+    TRIT_TRUE = 1,  /* Presence — confirmed, positive */
+    TRIT_GLUT = 2,  /* DEPRECATED input alias -> canonicalises to GLUT_NEUTRAL.
+                     * Accept it, never emit it. See trit_canon() below. */
+    TRIT_GLUT_PLUS =
+        3, /* Constructive superposition — both true and false, positive charge (excess) */
+    TRIT_GLUT_MINUS =
+        4, /* Destructive superposition — both true and false, negative charge (deficit) */
     TRIT_GLUT_NEUTRAL = 5, /* Balanced superposition — both true and false, zero net charge */
 } trit_t;
-typedef struct phase_t { double r, i; } phase_t;
 typedef struct collapse_t { uint32_t bits[2]; } collapse_t;
 typedef enum {
-    ISOMETRY_IDENTITY=0, ISOMETRY_LIFT_M8=1, ISOMETRY_LIFT_M13=2,
-    ISOMETRY_PROJECT_BACK=3, ISOMETRY_SWAP_R_L=4, ISOMETRY_NEGATE_PHASE=5,
+    ISOMETRY_IDENTITY = 0,
+    ISOMETRY_LIFT_M8 = 1,
+    ISOMETRY_LIFT_M13 = 2,
+    ISOMETRY_PROJECT_BACK = 3,
+    ISOMETRY_SWAP_R_L = 4,
+    ISOMETRY_NEGATE_PHASE = 5,
 } isometry_id_t;
-typedef struct telemetry_t { double complex value; uint32_t recursion_depth; } telemetry_t;
 #define AXIOM_MATRIX_DEFAULT_SIZE 1024
-typedef struct axiom_matrix { uint64_t size; double complex *entries; } axiom_matrix_t;
 #define WORD168_OCTETS 21
 #define WORD168_SEPTETS 24
 #define WORD168_SEXTETS 28
 typedef struct word168_t { uint8_t bytes[WORD168_OCTETS]; } word168_t;
+typedef enum { EXEC_DC = 0, EXEC_AC = 1, EXEC_PC = 2 } exec_profile_t;
+#ifndef M5_TYPES_INTEGER_ONLY
+/* ---- floating-point types (hosted / FPU code only) ---- */
+typedef struct phase_t {
+    double r, i;
+} phase_t;
+typedef struct telemetry_t {
+    double complex value;
+    uint32_t recursion_depth;
+} telemetry_t;
+typedef struct axiom_matrix {
+    uint64_t size;
+    double complex *entries;
+} axiom_matrix_t;
 typedef struct phase_tick {
     ordinal_t omega; rational_t r; trit_t ell; phase_t iphi; collapse_t chi;
 } phase_tick_t;
-typedef enum { EXEC_DC=0, EXEC_AC=1, EXEC_PC=2 } exec_profile_t;
 typedef struct shadow_event { double complex shadow; uint32_t paradox_level; char origin[64]; } shadow_event_t;
 
 /* Cycle Pulse (SS5B) — replaces wall clock with event-cycle pulses */
@@ -47,6 +75,7 @@ typedef struct cycle_pulse {
     double complex matrix_projection; /* Axiom Matrix projection at current tick */
     uint32_t fib_cycle_levels[8]; /* Fibonacci-scaled cycle level per axis */
 } cycle_pulse_t;
+#endif /* !M5_TYPES_INTEGER_ONLY */
 
 /* Temporal Lattice node identity (SS5B.4) */
 typedef struct lattice_node_id {
@@ -110,6 +139,25 @@ static inline bool trit_canon_is_sound(void) {
     return n == TRIT_CANONICAL_COUNT;                  /* exactly five */
 }
 
+/* trit_to_ell in Q16.16 (65536 == 1.0): integer-only equivalent. */
+static inline uint32_t trit_to_ell_q16(trit_t t)
+{
+    switch (t) {
+    case TRIT_TRUE:
+        return 65536u;
+    case TRIT_GLUT_PLUS:
+        return 49152u;
+    case TRIT_GLUT:
+    case TRIT_GLUT_NEUTRAL:
+        return 32768u;
+    case TRIT_GLUT_MINUS:
+        return 16384u;
+    case TRIT_FALSE:
+    default:
+        return 0u;
+    }
+}
+#ifndef M5_TYPES_INTEGER_ONLY
 static inline double trit_to_ell(trit_t t) {
     switch(t) {
         case TRIT_TRUE:        return 1.0;
@@ -121,6 +169,7 @@ static inline double trit_to_ell(trit_t t) {
         default:               return 0.0;
     }
 }
+#endif
 
 /* Charge accessor: +1 for GLUT_PLUS, -1 for GLUT_MINUS, 0 for all others */
 static inline int trit_charge(trit_t t) {
@@ -136,9 +185,11 @@ static inline int trit_is_glut(trit_t t) {
     return t == TRIT_GLUT || t == TRIT_GLUT_PLUS ||
            t == TRIT_GLUT_MINUS || t == TRIT_GLUT_NEUTRAL;
 }
+#ifndef M5_TYPES_INTEGER_ONLY
 static inline double rational_mag(rational_t r) {
     return r.den==0 ? 0.0 : (double)r.num/(double)r.den;
 }
+#endif
 static inline int64_t m5_gcd(int64_t a, int64_t b) {
     if(a<0) a=-a;
     if(b<0) b=-b;

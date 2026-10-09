@@ -12,9 +12,28 @@
  * riffs on (see Porter House, Count House, Robin DeBanks, Immigration
  * Enforcement) -- descriptive first, pun second, never the other way.
  *
- * Integrates with: plnp (encrypted transport), smap (content addressing),
- * pungent (garlic routing), lpres (paraconsistent error handling),
- * identity (authentication), phase_coord (coordination)
+ * WHAT IS REAL
+ *   - Peer authentication: bootlegger_handshake_recv() accepts a handshake
+ *     only if its Ed25519 signature (robin_debanks/ed25519_verify.c) verifies
+ *     over the canonical handshake bytes (bootlegger_handshake_bytes()), the
+ *     peer id is the first 4 bytes of SHA3-256(pubkey), and the key matches a
+ *     pinned key when one is set. bootlegger_authenticate() re-verifies the
+ *     stored handshake; setting the `authenticated` field by hand is not
+ *     enough.
+ *   - Session keys: ML-KEM-768 (mlkem/mlkem768.c) between authenticated
+ *     peers, expanded with HKDF-SHA256 into one key per direction.
+ *   - Message sealing: bootlegger_seal_msg()/bootlegger_open_msg() use
+ *     ChaCha20-Poly1305 with a per-direction sequence-number nonce.
+ *
+ * WHAT FAILS CLOSED (returns BOOTLEGGER_ENOTIMPL or BOOTLEGGER_ENOKEY)
+ *   - There is no transport: send/recv, file transfer, tracker/DHT, media,
+ *     legacy bridges and garlic wrapping do not move bytes and never report
+ *     success. The old "alternating endianness frequency encryption" (a fixed
+ *     built-in key and XOR, using floating point) is gone: it was obfuscation,
+ *     not encryption.
+ *   - The kernel holds no signing key, so it cannot originate a handshake.
+ *   - Ed25519 is classical; this transport is not post-quantum authenticated.
+ *   - The `encrypted` channel flag and call session_key fields are labels.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
@@ -27,7 +46,9 @@
 #ifndef BOOTLEGGER_H
 #define BOOTLEGGER_H
 
-#include "m5_types.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include "../mlkem/mlkem768.h"
 
 /* ============================================================
  * Protocol Constants
@@ -42,6 +63,16 @@
 #define BOOTLEGGER_MAX_MSG     512
 #define BOOTLEGGER_MAX_CHANNEL 64
 #define BOOTLEGGER_HASH_SIZE   32
+#define BOOTLEGGER_KEY_SIZE    32
+#define BOOTLEGGER_TAG_SIZE    16
+#define BOOTLEGGER_MSG_HDR     3 /* type(1) + length(2, big-endian) */
+#define BOOTLEGGER_HS_BYTES    (23 + BOOTLEGGER_MAGIC_LEN + 2 + 2 + 4 + 32)
+
+/* Error codes (all negative; 0 is success) */
+#define BOOTLEGGER_EINVAL   (-1) /* bad argument / not connected */
+#define BOOTLEGGER_ENOTIMPL (-4) /* capability not implemented: nothing happened */
+#define BOOTLEGGER_EAUTH    (-5) /* authentication or tag check failed */
+#define BOOTLEGGER_ENOKEY   (-6) /* no session key established */
 
 /* ============================================================
  * Message Types
@@ -89,9 +120,9 @@ typedef struct {
     char     magic[BOOTLEGGER_MAGIC_LEN];  /* "TCPZEDEC" */
     uint16_t version;                    /* Protocol version (big-endian) */
     uint16_t phase;                      /* Current phase tick */
-    uint32_t peer_id;                    /* Identity-derived peer ID */
+    uint32_t peer_id;                    /* first 4 bytes (BE) of SHA3-256(pubkey) */
     uint8_t  pubkey[32];                 /* Ed25519 public key */
-    uint8_t  signature[64];              /* Handshake signature */
+    uint8_t signature[64];               /* Ed25519 over bootlegger_handshake_bytes() */
 } bootlegger_handshake_t;
 
 /* Peer entry in DHT tracker */
@@ -164,7 +195,7 @@ typedef struct {
     uint8_t  codec_pref;    /* Preferred codec */
     uint16_t audio_port;
     uint16_t video_port;
-    uint8_t  session_key[32]; /* Ephemeral session key */
+    uint8_t session_key[32]; /* label only: never filled */
 } bootlegger_call_setup_t;
 
 /* IRC-style channel */
@@ -173,7 +204,7 @@ typedef struct {
     uint8_t  name[64];
     uint8_t  topic[256];
     uint32_t member_count;
-    uint8_t  encrypted;     /* 1 if PLNP-wrapped */
+    uint8_t encrypted; /* label only: nothing is encrypted by this flag */
 } bootlegger_channel_t;
 
 /* Role-based access */
@@ -189,12 +220,22 @@ typedef struct {
     uint32_t peer_id;
     uint32_t ip;
     uint16_t port;
-    uint8_t  connected;
-    uint8_t  authenticated;
+    uint8_t connected;     /* slot in use (no socket exists) */
+    uint8_t authenticated; /* set only by a verified handshake */
     bootlegger_role_t role;
     uint64_t last_activity;
     /* Stream state for paraconsistent error handling */
     uint8_t  lpres_state;   /* LPRES 5-state: 0=ok, 1=speculative, 2=isolated, 3=contradiction, 4=drop */
+    /* Authentication and session state */
+    bootlegger_handshake_t hs; /* the verified handshake */
+    uint8_t pinned_pubkey[32]; /* expected peer key, if pinned */
+    uint8_t pinned;
+    uint8_t has_session;
+    uint8_t is_initiator;
+    uint8_t tx_key[BOOTLEGGER_KEY_SIZE];
+    uint8_t rx_key[BOOTLEGGER_KEY_SIZE];
+    uint64_t tx_seq;
+    uint64_t rx_seq;
 } bootlegger_conn_t;
 
 /* P2P node state */
@@ -217,9 +258,32 @@ typedef struct {
 int bootlegger_init(bootlegger_node_t *node, uint16_t port);
 int bootlegger_shutdown(bootlegger_node_t *node);
 
-/* Handshake */
+/* Handshake. handshake_send: BOOTLEGGER_ENOTIMPL (no signing key, no
+ * transport). handshake_bytes writes the exact bytes a peer signs (returns
+ * BOOTLEGGER_HS_BYTES). handshake_recv verifies a received handshake (see the
+ * header comment) and only then marks the connection authenticated; returns 0
+ * or BOOTLEGGER_EAUTH. pin_peer fixes the key the next handshake must carry. */
 int bootlegger_handshake_send(bootlegger_conn_t *conn);
-int bootlegger_handshake_recv(bootlegger_conn_t *conn, bootlegger_handshake_t *hs);
+uint32_t bootlegger_handshake_bytes(const bootlegger_handshake_t *hs,
+                                    uint8_t out[BOOTLEGGER_HS_BYTES]);
+int bootlegger_handshake_recv(bootlegger_conn_t *conn, const bootlegger_handshake_t *hs);
+int bootlegger_pin_peer(bootlegger_conn_t *conn, const uint8_t pubkey[32]);
+uint32_t bootlegger_peer_id_of(const uint8_t pubkey[32]);
+
+/* Session keys (authenticated connections only). The initiator encapsulates
+ * to the peer's ML-KEM-768 key with 32 fresh random bytes and sends ct; the
+ * responder decapsulates. Both return 0 or a BOOTLEGGER_E* code. */
+int bootlegger_kem_initiate(bootlegger_conn_t *conn, const uint8_t ek[MLKEM768_EK_BYTES],
+                            const uint8_t coins[32], uint8_t ct[MLKEM768_CT_BYTES]);
+int bootlegger_kem_accept(bootlegger_conn_t *conn, const uint8_t dk[MLKEM768_DK_BYTES],
+                          const uint8_t ct[MLKEM768_CT_BYTES]);
+
+/* Seal / open one message: hdr(3) || ciphertext || tag(16). seal returns the
+ * output length; open returns the payload length. Both need a session. */
+int bootlegger_seal_msg(bootlegger_conn_t *conn, bootlegger_msg_type_t type, const void *payload,
+                        uint16_t len, uint8_t *out, uint32_t cap);
+int bootlegger_open_msg(bootlegger_conn_t *conn, const uint8_t *in, uint32_t in_len,
+                        bootlegger_msg_type_t *type, void *payload, uint32_t cap);
 
 /* Peer discovery via DHT (smap-backed) */
 int bootlegger_tracker_register(bootlegger_node_t *node);
@@ -231,7 +295,9 @@ int bootlegger_tracker_heartbeat(bootlegger_node_t *node);
 int bootlegger_connect(bootlegger_node_t *node, uint32_t ip, uint16_t port);
 int bootlegger_disconnect(bootlegger_node_t *node, uint32_t peer_id);
 
-/* Message dispatch — routes through LPRES paraconsistent filter */
+/* Message dispatch: no transport exists, so send returns BOOTLEGGER_ENOKEY
+ * without a session and BOOTLEGGER_ENOTIMPL otherwise; recv returns
+ * BOOTLEGGER_ENOTIMPL. Everything built on them inherits that. */
 int bootlegger_send_msg(bootlegger_conn_t *conn, bootlegger_msg_type_t type,
                      const void *payload, uint16_t len);
 int bootlegger_recv_msg(bootlegger_conn_t *conn, bootlegger_msg_type_t *type,
@@ -357,7 +423,7 @@ int bootlegger_lpres_eval(bootlegger_conn_t *conn, uint8_t anomaly_type);
 int bootlegger_lpres_recover(bootlegger_conn_t *conn);
 
 /* ============================================================
- * Garlic Routing Integration (PungentClove)
+ * Garlic Routing Integration: not implemented (BOOTLEGGER_ENOTIMPL)
  * ============================================================ */
 
 int bootlegger_garlic_wrap(bootlegger_conn_t *conn, uint8_t *data, uint16_t *len);

@@ -45,16 +45,27 @@ public sealed class PlatformAndCurrencyTests : IDisposable
     [Fact]
     public void Rail_numerics_are_not_currencies()
     {
-        Assert.Equal(846, CurrencyService.GetRailNumeric(VinoRail.Debit));
-        Assert.Equal(810, CurrencyService.GetRailNumeric(VinoRail.Credit));
+        Assert.Equal(555, CurrencyService.GetRailNumeric(VinoRail.Debit));
+        Assert.Equal(777, CurrencyService.GetRailNumeric(VinoRail.Credit));
         Assert.Equal(888, CurrencyService.GetRailNumeric(VinoRail.Equity));
-        foreach (int n in new[] { 846, 810, 888 })
+        foreach (VinoRail rail in Enum.GetValues<VinoRail>())
+        {
+            Assert.Equal((int)rail, CurrencyService.GetRailNumeric(rail));
+        }
+
+        foreach (int n in new[] { 555, 777, 888 })
         {
             ZxvException ex = Assert.Throws<ZxvException>(() => _p.Currencies.GetIsoByNumeric(n));
             Assert.Equal(ZxvStatus.NotFound, ex.Status);
         }
 
-        Assert.Contains("RUR", _p.Currencies.GetCaveat(810), StringComparison.Ordinal);
+        Assert.Contains("NCR", _p.Currencies.GetCaveat(555), StringComparison.Ordinal);
+        Assert.Contains("NRE", _p.Currencies.GetCaveat(777), StringComparison.Ordinal);
+        Assert.Contains("PNS", _p.Currencies.GetCaveat(888), StringComparison.Ordinal);
+        Assert.Equal(string.Empty, _p.Currencies.GetCaveat(810));
+        Assert.Equal("NCR", CurrencyService.GetRailJurisdiction(VinoRail.Debit));
+        Assert.Equal("NRE", CurrencyService.GetRailJurisdiction(VinoRail.Credit));
+        Assert.Equal("PNS", CurrencyService.GetRailJurisdiction(VinoRail.Equity));
         Assert.Equal(string.Empty, _p.Currencies.GetCaveat(566));
     }
 

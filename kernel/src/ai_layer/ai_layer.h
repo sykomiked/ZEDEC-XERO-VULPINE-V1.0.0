@@ -1,27 +1,28 @@
 /* ai_layer.h — AI Integration & Remote Compute Layer
  *
- * Native ZXV AI integration subsystem. Enables on-device and remote
- * AI model inference using the M5 Axiomatic architecture. Key design
- * principles (post-quantum, native ZXV):
+ * A kernel-level bookkeeping layer for AI models, tasks and remote compute
+ * peers. It registers models, queues tasks and tracks budgets and coverage.
  *
- *   - AI models are identified by 168-bit content hashes (same as
- *     Community Chest app packages)
- *   - Model packages must be signed; verification uses the same
- *     pluggable signature scheme as Count House / Community Chest
- *   - Remote compute peers are gated by Porter House admission control
- *   - On-device inference runs within the post-quantum security boundary
- *   - No inference data leaves the device without explicit user consent
- *     and Porter House admission
- *   - Uses the event-driven scheduler for task dispatch and budget
- *     tracking
- *   - AI models can be distributed through Community Chest as signed
- *     packages (cc_app_category_t::CC_APP_AI_MODEL)
- *   - Remote compute offload targets trusted peer nodes, alliance-tier
- *     Count House nodes, or enterprise infrastructure
+ * WHAT IS REAL
+ *   - Model registration checks an Ed25519 signature (robin_debanks
+ *     ed25519_verify) against the compiled-in ED25519_PUBKEY_AI_LAYER, or
+ *     a caller-supplied verify_sig hook. The default check signs only the
+ *     model name and provider public key; it does NOT cover content_hash,
+ *     so a valid signature does not bind the model's bytes.
+ *   - Remote peers are admitted through Porter House admission control.
+ *   - Task queueing, timeouts and cycle accounting.
  *
- * This is NOT a wrapper around external AI frameworks. It is a native
- * kernel-level AI dispatch and inference coordination layer built on
- * the M5 Axiomatic architecture.
+ * WHAT IS NOT HERE
+ *   - No inference. ai_execute_local() is a simulation: it writes one byte
+ *     (input_len & 0xff) and marks the task complete. No model is loaded or
+ *     run.
+ *   - No transport: ai_complete_remote() accepts whatever output the caller
+ *     hands it; nothing is sent to, or authenticated from, a peer.
+ *   - Not post-quantum: AI_SIG_LEN is an Ed25519 signature (64 bytes).
+ *   - "Data never leaves the device without consent" is not enforced by
+ *     this module, which has no I/O at all.
+ *   - The 168-bit content hash is a caller-supplied identifier; this
+ *     module does not compute or check it.
  *
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
@@ -46,7 +47,7 @@
 #define AI_MAX_TASKS           64
 #define AI_MAX_NAME_LEN        64
 #define AI_MAX_PEERS           16
-#define AI_SIG_LEN             64    /* post-quantum signature */
+#define AI_SIG_LEN             64    /* Ed25519 signature (not post-quantum) */
 #define AI_PUBKEY_LEN          32    /* model provider public key */
 #define AI_CONTENT_HASH_LEN    21    /* 168-bit content hash */
 #define AI_MAX_INPUT_SIZE      4096
@@ -89,8 +90,8 @@ typedef enum {
 } ai_task_state_t;
 
 typedef enum {
-    AI_TASK_LOCAL      = 0,   /* on-device inference */
-    AI_TASK_REMOTE     = 1    /* remote compute offload */
+    AI_TASK_LOCAL = 0, /* local (simulated; see header) */
+    AI_TASK_REMOTE = 1 /* remote compute offload */
 } ai_task_mode_t;
 
 /* ===== Model Record ===== */
@@ -219,7 +220,8 @@ int32_t ai_submit_remote(ai_engine_t *ai, uint32_t model_id,
                           const uint8_t *input, uint32_t input_len,
                           uint64_t current_cycle);
 
-/* Execute a local task (simulated inference). Returns 0 on success. */
+/* Execute a local task. SIMULATED: writes one byte, runs no model.
+ * Returns 0 on success. */
 int32_t ai_execute_local(ai_engine_t *ai, uint32_t task_id, uint64_t current_cycle);
 
 /* Complete a remote task (simulated remote response). Returns 0 on success. */

@@ -1,8 +1,9 @@
-/* capital_forms.h — Canonical Nine Forms of Capital (PAPSS-Aligned)
+/* capital_forms.h — Nine Forms of Capital (finance taxonomy)
  *
- * This is the PAPSS-sanitized taxonomy matching the Nine Forms of Capital
- * Derivatives System Proposal. It maps to the canonical zcapital.h forms
- * but uses central-bank-acceptable terminology.
+ * The Nine Forms taxonomy used by the finance/ modules (derivatives,
+ * Pay-It-Forward Assurance, treaty tokenization), matching the Nine Forms
+ * of Capital Derivatives System Proposal. It maps to the canonical
+ * zcapital.h forms (see capital_to_zcap) under finance-sector names.
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
@@ -18,7 +19,7 @@
 #include "surplus.h"
 #include "zcapital.h"
 
-/* ===== Nine Forms of Capital (PAPSS Taxonomy) =====
+/* ===== Nine Forms of Capital =====
  *
  * Forms 1-4: State-Reserved (inalienable, cannot be derivative underlyings)
  * Forms 5-9: Priceable (can underlie derivatives, settle on native rails)
@@ -41,8 +42,8 @@ typedef enum {
 } capital_form_t;
 
 /* ===== ISO 4217 Rail Mapping ===== */
-#define RAIL_FINANCIAL   846 /* Asset/backing — VINO_ISO_DEBIT */
-#define RAIL_PROVENANCE  810 /* Claim/attestation — VINO_ISO_CREDIT */
+#define RAIL_FINANCIAL   555 /* Asset/backing — VINO_ISO_DEBIT */
+#define RAIL_PROVENANCE  777 /* Claim/attestation — VINO_ISO_CREDIT */
 #define RAIL_EXTERNALITY 888 /* Live equity witness — VINO_ISO_EQUITY */
 
 /* ===== Inalienability Guard ===== */
@@ -79,7 +80,7 @@ typedef enum {
     SETTLEMENT_MESH_ROUTE = 1,    /* Natural: mesh_net priced routes */
     SETTLEMENT_CONTENT_CID = 2,   /* Heritage/Intellectual: .zxvc/.cedez */
     SETTLEMENT_GOVERNANCE = 3,    /* Governance/Institutional: op_evaluate verdict */
-    SETTLEMENT_VINO_VOUCHER = 4,  /* Financial: rat_t exact on rail 846 */
+    SETTLEMENT_VINO_VOUCHER = 4,  /* Financial: rat_t exact on rail 555 */
     SETTLEMENT_HARDWARE_CID = 5,  /* Material: .zedec + holographic seal */
     SETTLEMENT_DEV_TIME = 6,      /* Living: community_chest P2P shares */
     SETTLEMENT_KNOWLEDGE_CID = 7, /* Knowledge: refinery card output */
@@ -93,12 +94,12 @@ static inline settlement_medium_t capital_settlement_medium(capital_form_t form)
 
 /* ===== Rail Assignment =====
  * Each capital form settles on its native rail(s):
- * - Financial (5): Rail 846 only
- * - Material (6): Rail 846 only
- * - Living (7): Rail 846 only
- * - Knowledge (8): Rail 810 (Provenance)
- * - Built (9): Rail 846 only
- * - State-Reserved (1-4): Rail 810 (Provenance) for attestation, Rail 888 (Externality) for custody
+ * - Financial (5): Rail 555 only
+ * - Material (6): Rail 555 only
+ * - Living (7): Rail 555 only
+ * - Knowledge (8): Rail 777 (Provenance)
+ * - Built (9): Rail 555 only
+ * - State-Reserved (1-4): Rail 777 (Provenance) for attestation, Rail 888 (Externality) for custody
  */
 static inline uint16_t capital_primary_rail(capital_form_t form)
 {

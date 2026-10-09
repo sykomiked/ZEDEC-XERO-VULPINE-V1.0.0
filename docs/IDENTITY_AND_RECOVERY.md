@@ -112,7 +112,7 @@ Payments and cards call `id_kyc_check_payment(profile, status, now, rail, amount
 - If KYC is off and no tiers are set, every payment is allowed.
 - If the customer's level is below `required_level`, the call returns `ID_ERR_LEVEL`. It also returns the level needed.
 - If the amount breaks the customer's tier, the call returns `ID_ERR_LIMIT` and the lowest level whose tier would allow the payment.
-- Rails are the ZXV rails: DEBIT 846, CREDIT 810, EQUITY 888. An expired attestation counts as level 0.
+- Rails are the ZXV rails: DEBIT 555, CREDIT 777, EQUITY 888. An expired attestation counts as level 0.
 
 ### Records and data minimisation
 

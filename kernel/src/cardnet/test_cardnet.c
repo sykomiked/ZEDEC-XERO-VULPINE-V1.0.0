@@ -30,8 +30,8 @@
 _Static_assert(CN_PK_BYTES == PQ_MLDSA65_PK_BYTES, "pk size");
 _Static_assert(CN_SK_BYTES == PQ_MLDSA65_SK_BYTES, "sk size");
 _Static_assert(CN_SIG_BYTES == PQ_MLDSA65_SIG_BYTES, "sig size");
-_Static_assert(CN_RAIL_DEBIT == VINO_ISO_DEBIT, "rail 846");
-_Static_assert(CN_RAIL_CREDIT == VINO_ISO_CREDIT, "rail 810");
+_Static_assert(CN_RAIL_DEBIT == VINO_ISO_DEBIT, "rail 555");
+_Static_assert(CN_RAIL_CREDIT == VINO_ISO_CREDIT, "rail 777");
 _Static_assert(CN_RAIL_EQUITY == VINO_ISO_EQUITY, "rail 888");
 _Static_assert((int) CN_FORM_SOCIAL == (int) CAPITAL_SOCIAL, "form 0");
 _Static_assert((int) CN_FORM_NATURAL == (int) CAPITAL_NATURAL, "form 1");
@@ -381,7 +381,7 @@ static void test_lifecycle(void)
     CHECK(cn_pan_valid(CN_NET_PHOENIX, c->pan, 16));
     CHECK(cn_pan_network(c->pan, 16) == CN_NET_PHOENIX);
     CHECK(memcmp(c->pan, "882042", 6) == 0);
-    CHECK(c->rail_debit == 846 && c->rail_credit == 810 && c->rail_equity == 888);
+    CHECK(c->rail_debit == 555 && c->rail_credit == 777 && c->rail_equity == 888);
     CHECK(c->exp_year == 2029 && c->exp_month == 10);
     printf("  issued Phoenix PAN %s exp %u-%02u\n", c->pan, c->exp_year, c->exp_month);
     entropy(e, 2);
@@ -417,7 +417,7 @@ static void test_lifecycle(void)
     mkreq(&r, c->pan, 500, CN_FORM_LIVING, 4, t0);
     au = auth_with(&g_iss, &r, skA);
     CHECK(au && au->decline == CN_DECL_FORM && strcmp(au->rc, "57") == 0);
-    /* currency other than rail 846 */
+    /* currency other than rail 555 */
     mkreq(&r, c->pan, 500, CN_FORM_FINANCIAL, 5, t0);
     r.currency = 840;
     au = auth_with(&g_iss, &r, skA);
@@ -456,10 +456,10 @@ static void test_lifecycle(void)
     CHECK(cn_settle(&g_iss, a1) == CN_OK);
     CHECK(cn_settle(&g_iss, a1) == CN_ERR_STATE);
     CHECK(g_iss.n_legs == 3 && g_iss.n_txns == 1);
-    CHECK(g_iss.legs[0].side == CN_DR && g_iss.legs[0].rail == 846 &&
+    CHECK(g_iss.legs[0].side == CN_DR && g_iss.legs[0].rail == 555 &&
           g_iss.legs[0].amount == 10000);
-    CHECK(g_iss.legs[1].side == CN_CR && g_iss.legs[1].rail == 810 && g_iss.legs[1].amount == 9975);
-    CHECK(g_iss.legs[2].side == CN_CR && g_iss.legs[2].rail == 810 && g_iss.legs[2].amount == 25);
+    CHECK(g_iss.legs[1].side == CN_CR && g_iss.legs[1].rail == 777 && g_iss.legs[1].amount == 9975);
+    CHECK(g_iss.legs[2].side == CN_CR && g_iss.legs[2].rail == 777 && g_iss.legs[2].amount == 25);
     CHECK(cn_txn_balanced(&g_iss, 0));
     CHECK(g_iss.accounts[acct].unbilled == 10000);
     CHECK(g_iss.receipts[0].equity_rail == 888 && g_iss.receipts[0].fee == 25);
@@ -702,14 +702,14 @@ static void test_iso8583(void)
     CHECK(cn8583_to_auth_req(&m2, 2026, &back) == CN8583_OK);
     CHECK(strcmp(back.pan, r.pan) == 0 && back.amount_minor == r.amount_minor);
     CHECK(back.time == r.time && back.stan == r.stan && back.atc == r.atc && back.form == r.form &&
-          back.currency == 846);
+          back.currency == 555);
     CHECK(strcmp(back.terminal_id, r.terminal_id) == 0 &&
           strcmp(back.merchant_id, r.merchant_id) == 0);
     cn_vss_meta_t v;
     CHECK(cn8583_get_vss(&m2, &v) == CN8583_OK);
     uint8_t dg[32];
     sha3_256(g_sig, CN_SIG_BYTES, dg);
-    CHECK(v.network == CN_NET_DRAGON && v.rail_dr == 846 && v.rail_cr == 810 && v.rail_eq == 888 &&
+    CHECK(v.network == CN_NET_DRAGON && v.rail_dr == 555 && v.rail_cr == 777 && v.rail_eq == 888 &&
           memcmp(v.sig_digest, dg, 32) == 0);
     /* the 8583 view plus the terminal UN and the signature authorizes */
     memcpy(back.un, r.un, 4);
@@ -743,7 +743,7 @@ static void test_iso8583(void)
         cn8583_set(&m, 39, "00", 2);
         cn8583_set(&m, 41, "TERM0001", 8);
         cn8583_set(&m, 42, "MERCHANT0000042", 15);
-        cn8583_set_num(&m, 49, 846);
+        cn8583_set_num(&m, 49, 555);
         CHECK(cn8583_put_vss(&m, &v) == CN8583_OK);
         if (mtis[i] >= 400)
             CHECK(cn8583_set(&m, 90, "010000012310091200000000000000000000000000", 42) ==
@@ -794,10 +794,10 @@ static void test_iso8583(void)
     CHECK(cn8583_pack(&m, wire, n - 1, &n2) == CN8583_ERR_SPACE);
     /* malformed VSS 60 */
     cn8583_init(&m, 100);
-    cn8583_set(&m, 60, "VSS1;NET=X;FORM=4;DR=846;CR=810;EQ=888", 38);
+    cn8583_set(&m, 60, "VSS1;NET=X;FORM=4;DR=555;CR=777;EQ=888", 38);
     cn8583_set(&m, 61, "RCPT=0;ATC=1", 12);
     CHECK(cn8583_get_vss(&m, &v) == CN8583_ERR_FORMAT);
-    cn8583_set(&m, 60, "VSS1;NET=D;FORM=04;DR=846;CR=810;EQ=888", 39);
+    cn8583_set(&m, 60, "VSS1;NET=D;FORM=04;DR=555;CR=777;EQ=888", 39);
     CHECK(cn8583_get_vss(&m, &v) == CN8583_ERR_FORMAT);
 }
 
@@ -924,8 +924,8 @@ static void test_emv(void)
           v[1] == 0x10 && v[2] == 0x31);
     CHECK(cn_tlv_find(buf, n, CN_EMV_AMOUNT, &v, &l) == CN_TLV_OK && l == 6 && v[4] == 0x49 &&
           v[5] == 0x99);
-    CHECK(cn_tlv_find(buf, n, CN_EMV_CURRENCY, &v, &l) == CN_TLV_OK && v[0] == 0x08 &&
-          v[1] == 0x46);
+    CHECK(cn_tlv_find(buf, n, CN_EMV_CURRENCY, &v, &l) == CN_TLV_OK && v[0] == 0x05 &&
+          v[1] == 0x55); /* n4 BCD 0555 */
     CHECK(cn_tlv_find(buf, n, CN_EMV_UN, &v, &l) == CN_TLV_OK && memcmp(v, r.un, 4) == 0);
     CHECK(cn_tlv_find(buf, n, CN_EMV_ATC, &v, &l) == CN_TLV_OK && v[0] == 0 && v[1] == 1);
     CHECK(cn_tlv_find(buf, n, CN_EMV_AID, &v, &l) == CN_TLV_OK && v[0] == 0xF0 &&

@@ -21,7 +21,7 @@
  *
  * A central-bank profile never defaults to the Vino Floating Voucher: the
  * currencies are whatever ISO 4217 codes the operator adds, and VFV (whose
- * rails 846/810/888 travel only in SplmtryData) stays off unless enabled.
+ * rails 555/777/888 travel only in SplmtryData) stays off unless enabled.
  * "VFV" and the rail numerics are refused as currency profiles.
  *
  * HONEST LIMITS. Configuration is not authorisation: a profile saying a

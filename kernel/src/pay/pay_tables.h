@@ -21,8 +21,9 @@
 extern const char pay_iso3166_a2[PAY_ISO3166_COUNT][3];
 
 /* True iff `cc` is an assigned ISO 3166-1 alpha-2 code (exactly 2 letters).
- * "NC" is valid (New Caledonia); the platform jurisdiction "NCR" is not, and
- * pay_iso never maps one to the other. */
+ * "NC", "NR" and "PN" are valid (New Caledonia, Nauru, Pitcairn); the rail
+ * jurisdictions "NCR", "NRE" and "PNS" are not, and pay_iso never maps one
+ * to the other. */
 bool pay_iso3166_valid(const char *cc);
 
 #endif /* ZXV_PAY_TABLES_H */

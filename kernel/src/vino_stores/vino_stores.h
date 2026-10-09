@@ -44,14 +44,25 @@
 #include "triple_ledger.h" /* floating_voucher_t, triple_ledger_t, post/verify */
 
 /* ===== Rail numeric codes =====
- * Vino's three rails: DEBIT 846, CREDIT 810, EQUITY 888. None is an active
- * ISO 4217 currency: 846 and 888 are unassigned, and 810 is the WITHDRAWN
- * code of the old Russian ruble (RUR, replaced by 643 RUB in 1998). They are
- * internal rail numerics; external messages settle in a real currency and
- * carry these only in proprietary fields (see iso20022_ccy_caveat). */
-#define VINO_ISO_DEBIT  846u /* the asset/backing rail                       */
-#define VINO_ISO_CREDIT 810u /* the claim/liability rail (historic RUR code) */
-#define VINO_ISO_EQUITY 888u /* the live equity rail                         */
+ * Vino's three rails: DEBIT 555, CREDIT 777, EQUITY 888. None is an ISO 4217
+ * currency: all three numerics are unassigned in ISO 4217 list one (the
+ * cbank test proves it from the generated table). They are internal rail
+ * numerics; external messages settle in a real currency and carry these
+ * only in proprietary fields (see iso20022_ccy_caveat).
+ *
+ * Each rail carries a platform jurisdiction code. These are NOT ISO 3166
+ * country codes and are never written into a Ctry field; they travel only
+ * as /ZXV/... remittance data:
+ *   DEBIT  555  NCR  New California Republic
+ *   CREDIT 777  NRE  Neo Roman Empire
+ *   EQUITY 888  PNS  Principality of New Sicily */
+#define VINO_ISO_DEBIT  555u /* the asset/backing rail   (NCR) */
+#define VINO_ISO_CREDIT 777u /* the claim/liability rail (NRE) */
+#define VINO_ISO_EQUITY 888u /* the live equity rail     (PNS) */
+
+#define VINO_JURIS_DEBIT  "NCR" /* New California Republic    */
+#define VINO_JURIS_CREDIT "NRE" /* Neo Roman Empire           */
+#define VINO_JURIS_EQUITY "PNS" /* Principality of New Sicily */
 
 /* Proof-CID witness length — one SHA-256 digest, same as ipfs IPFS_CID_LEN. */
 #define VINO_PROOF_CID_LEN 32u

@@ -14,9 +14,9 @@ uint16_t iso20022_rail_ccy(iso_rail_t rail)
 {
     switch (rail) {
     case ISO_RAIL_DEBIT:
-        return ISO_CCY_DEBIT; /* 846 */
+        return ISO_CCY_DEBIT; /* 555 */
     case ISO_RAIL_CREDIT:
-        return ISO_CCY_CREDIT; /* 810 */
+        return ISO_CCY_CREDIT; /* 777 */
     case ISO_RAIL_EQUITY:
         return ISO_CCY_EQUITY; /* 888 */
     default:
@@ -28,8 +28,8 @@ const char *iso20022_ccy_alpha(uint16_t code)
 {
     /* Real ISO 4217 numeric -> alpha-3, for the currencies a ZXV wire message
      * is actually likely to settle in, plus the 999/XXX sentinel. The Vino
-     * rail numerics 846, 810 and 888 are NOT here on purpose — they are not
-     * active currencies (810 is the withdrawn RUR code). */
+     * rail numerics 555, 777 and 888 are NOT here on purpose — they are not
+     * ISO 4217 currencies (all three are unassigned numerics). */
     switch (code) {
     case 840u:
         return "USD";
@@ -68,18 +68,17 @@ const char *iso20022_ccy_caveat(uint16_t code)
     case 999u:
         return "ISO 4217 999=XXX 'no currency': it carries no value on "
                "the wire. Settle wire amounts in a real currency.";
-    case 846u:
-        return "846 is the Vino DEBIT/backing rail numeric, not an active "
-               "ISO 4217 currency; conventional parsers reject it. Use a "
+    case ISO_CCY_DEBIT:
+        return "555 is the Vino DEBIT/backing rail numeric (jurisdiction NCR), "
+               "not an ISO 4217 currency; conventional parsers reject it. Use a "
                "real settlement currency (USD/EUR/INR/...) on the wire.";
-    case 810u:
-        return "810 is the Vino CREDIT/claim rail numeric. It was the "
-               "ISO 4217 code of the old Russian ruble (RUR), withdrawn in "
-               "1998; a legacy parser may read it as RUR. Use a real "
-               "settlement currency on the wire.";
-    case 888u:
-        return "888 is the Vino EQUITY rail numeric, not an active "
-               "ISO 4217 currency; conventional parsers reject it. Use a "
+    case ISO_CCY_CREDIT:
+        return "777 is the Vino CREDIT/claim rail numeric (jurisdiction NRE), "
+               "not an ISO 4217 currency; conventional parsers reject it. Use a "
+               "real settlement currency on the wire.";
+    case ISO_CCY_EQUITY:
+        return "888 is the Vino EQUITY rail numeric (jurisdiction PNS), "
+               "not an ISO 4217 currency; conventional parsers reject it. Use a "
                "real settlement currency on the wire.";
     default:
         return "";

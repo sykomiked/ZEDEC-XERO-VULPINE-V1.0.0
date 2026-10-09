@@ -4,17 +4,20 @@
  *
  * THE THREE RAILS (the same codes as vino_stores.h and iso20022.h)
  * ----------------------------------------------------------------
- *   DEBIT  846  what an account holds (asset / backing). VFV's default
- *               numeric code is also 846 (platform-internal, not ISO 4217).
- *   CREDIT 810  what an account owes (claim / liability). Only ISSUER
- *               accounts may carry a CREDIT balance: no debt for holders.
- *               810 is the withdrawn ISO 4217 code of the old Russian rouble
- *               (RUR): a caveated INTERNAL numeric, never emitted as Ccy.
- *   EQUITY 888  debit - credit, posted on every line ("everything has
- *               equity"). For a share asset (pay_equity) a holder's EQUITY
- *               balance is its share count. 888 is unassigned in ISO 4217.
- *   These are internal rail numerics; none of the three is an ISO 4217
- *   currency, so none is ever written into an ISO 20022 Ccy attribute.
+ *   DEBIT  555  NCR  what an account holds (asset / backing). VFV's default
+ *                    numeric code is also 555 (platform-internal, not ISO
+ *                    4217), so VFV's platform jurisdiction is NCR.
+ *   CREDIT 777  NRE  what an account owes (claim / liability). Only ISSUER
+ *                    accounts may carry a CREDIT balance: no debt for holders.
+ *   EQUITY 888  PNS  debit - credit, posted on every line ("everything has
+ *                    equity"). For a share asset (pay_equity) a holder's
+ *                    EQUITY balance is its share count.
+ *   555, 777 and 888 are all unassigned in ISO 4217: internal rail numerics,
+ *   never written into an ISO 20022 Ccy attribute.
+ *   Each rail carries its platform jurisdiction code (NCR New California
+ *   Republic, NRE Neo Roman Empire, PNS Principality of New Sicily). None is
+ *   an ISO 3166 country: they travel only as /ZXV/... remittance data and are
+ *   never emitted in a Ctry field (pay_iso_country_ok guards all three).
  *
  * NO USURY. Nothing in kernel/src/pay bears interest: there is no interest
  * rate, accrual, late-payment charge or balance-based fee anywhere. A CREDIT
@@ -91,9 +94,12 @@
 #include "pay_util.h"
 
 /* ===== Rails ===== */
-#define PAY_RAIL_DEBIT_CODE  846u
-#define PAY_RAIL_CREDIT_CODE 810u /* withdrawn ISO 4217 RUR: internal numeric */
-#define PAY_RAIL_EQUITY_CODE 888u
+#define PAY_RAIL_DEBIT_CODE   555u  /* unassigned in ISO 4217: internal numeric */
+#define PAY_RAIL_CREDIT_CODE  777u  /* unassigned in ISO 4217: internal numeric */
+#define PAY_RAIL_EQUITY_CODE  888u  /* unassigned in ISO 4217: internal numeric */
+#define PAY_RAIL_DEBIT_JURIS  "NCR" /* New California Republic (not ISO 3166)    */
+#define PAY_RAIL_CREDIT_JURIS "NRE" /* Neo Roman Empire (not ISO 3166)           */
+#define PAY_RAIL_EQUITY_JURIS "PNS" /* Principality of New Sicily (not ISO 3166) */
 typedef enum {
     PAY_RAIL_DEBIT = 0,
     PAY_RAIL_CREDIT = 1,
@@ -101,6 +107,9 @@ typedef enum {
     PAY_RAIL_COUNT
 } pay_rail_t;
 uint16_t pay_rail_code(pay_rail_t r);
+/* Rail -> its platform jurisdiction code ("NCR" / "NRE" / "PNS"), "" for an
+ * unknown rail. Never NULL; never an ISO 3166 country. */
+const char *pay_rail_juris(pay_rail_t r);
 
 /* ===== Nine capitals: same order as zcap_form_t (checked by test_pay.c) ===== */
 typedef enum {
@@ -151,10 +160,14 @@ pay_status_t pay_usury_check(uint64_t principal, uint64_t repaid, bool time_base
 /* ===== Platform defaults (operator-overridable) ===== */
 typedef struct {
     char vfv_alpha[8];     /* "VFV" — platform-internal code, NOT ISO 4217 */
-    uint16_t vfv_numeric;  /* 846 = PAY_RAIL_DEBIT_CODE (not ISO 4217)     */
+    uint16_t vfv_numeric;  /* 555 = PAY_RAIL_DEBIT_CODE (not ISO 4217)     */
     uint8_t vfv_minor;     /* 2                                            */
-    char jurisdiction[8];  /* "NCR" — platform jurisdiction, NOT ISO 3166  */
+    char jurisdiction[8];  /* "NCR" — VFV's rail (DEBIT) jurisdiction, NOT
+                              ISO 3166; emitted as /ZXV/JURIS/<code>      */
     bool jurisdiction_iso; /* false: never emitted as a country code       */
+    /* Per-rail jurisdiction codes, indexed by pay_rail_t: "NCR", "NRE",
+     * "PNS". Never ISO 3166 and never emitted as a country code. */
+    char rail_juris[PAY_RAIL_COUNT][8];
 } pay_platform_t;
 void pay_platform_default(pay_platform_t *p);
 

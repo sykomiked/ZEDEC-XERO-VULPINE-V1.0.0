@@ -52,14 +52,16 @@ int main(void)
 
     /* Rails */
     uint16_t r = 0;
-    CHECK(zxv_rail_numeric(ZXV_RAIL_DEBIT, &r) == ZXV_OK && r == 846, "DEBIT 846");
-    CHECK(zxv_rail_numeric(ZXV_RAIL_CREDIT, &r) == ZXV_OK && r == 810, "CREDIT 810");
+    CHECK(zxv_rail_numeric(ZXV_RAIL_DEBIT, &r) == ZXV_OK && r == 555, "DEBIT 555");
+    CHECK(zxv_rail_numeric(ZXV_RAIL_CREDIT, &r) == ZXV_OK && r == 777, "CREDIT 777");
     CHECK(zxv_rail_numeric(ZXV_RAIL_EQUITY, &r) == ZXV_OK && r == 888, "EQUITY 888");
     char buf[512];
     size_t len = 0;
-    CHECK(zxv_ccy_caveat(810, NULL, 0, &len) == ZXV_E_BUFFER && len > 0, "caveat size query");
-    CHECK(zxv_ccy_caveat(810, buf, len + 1, &len) == ZXV_OK && strstr(buf, "RUR"), "810 caveat");
-    CHECK(zxv_ccy_caveat(810, buf, len, &len) == ZXV_E_BUFFER, "exact-length buffer lacks NUL room");
+    CHECK(zxv_ccy_caveat(777, NULL, 0, &len) == ZXV_E_BUFFER && len > 0, "caveat size query");
+    CHECK(zxv_ccy_caveat(777, buf, len + 1, &len) == ZXV_OK && strstr(buf, "NRE"), "777 caveat");
+    CHECK(zxv_ccy_caveat(777, buf, len, &len) == ZXV_E_BUFFER, "exact-length buffer lacks NUL room");
+    CHECK(zxv_ccy_caveat(555, buf, sizeof buf, &len) == ZXV_OK && strstr(buf, "NCR"), "555 caveat");
+    CHECK(zxv_ccy_caveat(888, buf, sizeof buf, &len) == ZXV_OK && strstr(buf, "PNS"), "888 caveat");
 
     /* ISO 4217 */
     if (has_iso) {
@@ -75,8 +77,9 @@ int main(void)
         CHECK(zxv_iso4217_by_numeric(936, buf, sizeof buf, &len, &mu, NULL) == ZXV_OK &&
                   strcmp(buf, "GHS") == 0,
               "936 -> GHS");
-        CHECK(zxv_iso4217_by_numeric(810, buf, sizeof buf, &len, NULL, NULL) == ZXV_E_NOT_FOUND, "810 not active");
-        CHECK(zxv_iso4217_by_numeric(846, buf, sizeof buf, &len, NULL, NULL) == ZXV_E_NOT_FOUND, "846 not ISO");
+        CHECK(zxv_iso4217_by_numeric(555, buf, sizeof buf, &len, NULL, NULL) == ZXV_E_NOT_FOUND, "555 not ISO");
+        CHECK(zxv_iso4217_by_numeric(777, buf, sizeof buf, &len, NULL, NULL) == ZXV_E_NOT_FOUND, "777 not ISO");
+        CHECK(zxv_iso4217_by_numeric(888, buf, sizeof buf, &len, NULL, NULL) == ZXV_E_NOT_FOUND, "888 not ISO");
         CHECK(zxv_iso4217_name("KES", buf, sizeof buf, &len) == ZXV_OK && strcmp(buf, "Kenyan Shilling") == 0, "KES name");
         uint32_t cnt = 0;
         CHECK(zxv_iso4217_count(&cnt) == ZXV_OK && cnt > 150, "table count");
@@ -193,7 +196,7 @@ int main(void)
     CHECK(strstr(xml, "pacs.008.001.09") != NULL, "namespace");
     CHECK(strstr(xml, "Ccy=\"NGN\">2500.50<") != NULL, "exact amount NGN 2500.50");
     CHECK(strstr(xml, "Ada &amp; Sons &lt;Lagos&gt;") != NULL, "XML escaped");
-    CHECK(strstr(xml, "846") == NULL && strstr(xml, "810") == NULL, "no rail numerics on the wire");
+    CHECK(strstr(xml, "555") == NULL && strstr(xml, "777") == NULL, "no rail numerics on the wire");
     zxv_msg_set_amount(m, ZXV_AMT_SETTLEMENT, 250050, 3);
     CHECK(zxv_msg_render(m, xml, sizeof xml, &len) == ZXV_E_CURRENCY, "minor-unit mismatch refused");
     zxv_msg_destroy(m);

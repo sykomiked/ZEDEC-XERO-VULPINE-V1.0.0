@@ -19,6 +19,20 @@ uint16_t pay_rail_code(pay_rail_t r)
     }
 }
 
+const char *pay_rail_juris(pay_rail_t r)
+{
+    switch (r) {
+    case PAY_RAIL_DEBIT:
+        return PAY_RAIL_DEBIT_JURIS;
+    case PAY_RAIL_CREDIT:
+        return PAY_RAIL_CREDIT_JURIS;
+    case PAY_RAIL_EQUITY:
+        return PAY_RAIL_EQUITY_JURIS;
+    default:
+        return "";
+    }
+}
+
 bool pay_cap_is_crown(pay_cap_t c)
 {
     return c == PAY_CAP_SOCIAL || c == PAY_CAP_NATURAL || c == PAY_CAP_CULTURAL ||
@@ -39,8 +53,10 @@ void pay_platform_default(pay_platform_t *p)
     pay_strlcpy(p->vfv_alpha, "VFV", sizeof p->vfv_alpha);
     p->vfv_numeric = PAY_RAIL_DEBIT_CODE;
     p->vfv_minor = 2;
-    pay_strlcpy(p->jurisdiction, "NCR", sizeof p->jurisdiction);
+    pay_strlcpy(p->jurisdiction, PAY_RAIL_DEBIT_JURIS, sizeof p->jurisdiction);
     p->jurisdiction_iso = false;
+    for (int r = 0; r < PAY_RAIL_COUNT; r++)
+        pay_strlcpy(p->rail_juris[r], pay_rail_juris((pay_rail_t) r), sizeof p->rail_juris[r]);
 }
 
 /* ===== Assets ===== */

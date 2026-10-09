@@ -31,7 +31,8 @@ public sealed class MessagingTests : IDisposable
         Assert.Equal("2500.50", amt.Value);
         Assert.Equal("2026-10-09T12:00:00Z", x.Descendants().First(e => e.Name.LocalName == "CreDtTm").Value);
         Assert.Equal("Ada & Sons <Lagos>", x.Descendants().First(e => e.Name.LocalName == "Nm").Value);
-        Assert.DoesNotContain("846", doc.Xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("555", doc.Xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("777", doc.Xml, StringComparison.Ordinal);
     }
 
     [Fact]

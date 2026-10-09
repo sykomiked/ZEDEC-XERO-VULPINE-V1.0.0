@@ -10,7 +10,13 @@
 #define NS_PREFIX "urn:iso:std:iso:20022:tech:xsd:"
 
 /* Same values as pay_platform_default (checked by test_pay.c). */
-static const pay_platform_t k_default_platform = {"VFV", PAY_RAIL_DEBIT_CODE, 2, "NCR", false};
+static const pay_platform_t k_default_platform = {
+    .vfv_alpha = "VFV",
+    .vfv_numeric = PAY_RAIL_DEBIT_CODE,
+    .vfv_minor = 2,
+    .jurisdiction = PAY_RAIL_DEBIT_JURIS,
+    .jurisdiction_iso = false,
+    .rail_juris = {PAY_RAIL_DEBIT_JURIS, PAY_RAIL_CREDIT_JURIS, PAY_RAIL_EQUITY_JURIS}};
 
 static const pay_platform_t *plat(const pay_iso_ctx_t *x)
 {
@@ -151,14 +157,26 @@ bool pay_iso_datetime_ok(const pay_iso_ctx_t *x, const char *s)
     return false;
 }
 
+/* True when country `cc` must be refused because of the non-ISO jurisdiction
+ * code `j`: it equals `j`, or it is `j`'s first two letters and the address is
+ * not confirmed (unless `j` itself is flagged ISO). */
+static bool juris_clash(const char *j, const char *cc, bool j_iso, bool confirmed)
+{
+    if (!j[0]) return false;
+    if (pay_streq(cc, j)) return true;
+    return !j_iso && j[0] == cc[0] && j[1] == cc[1] && !confirmed;
+}
+
 int32_t pay_iso_country_ok(const pay_iso_ctx_t *x, const char *cc, bool confirmed)
 {
     const pay_platform_t *p = plat(x);
     if (!cc || !pay_iso3166_valid(cc)) return PAY_ISO_ERR_COUNTRY;
-    if (pay_streq(cc, p->jurisdiction)) return PAY_ISO_ERR_COUNTRY;
-    if (!p->jurisdiction_iso && p->jurisdiction[0] == cc[0] && p->jurisdiction[1] == cc[1] &&
-        !confirmed)
+    if (juris_clash(p->jurisdiction, cc, p->jurisdiction_iso, confirmed))
         return PAY_ISO_ERR_COUNTRY; /* "NC" must never stand in for "NCR" */
+    /* The per-rail jurisdictions (NCR, NRE, PNS) are never ISO 3166: "NC",
+     * "NR" and "PN" pass only for a confirmed real address. */
+    for (int r = 0; r < PAY_RAIL_COUNT; r++)
+        if (juris_clash(p->rail_juris[r], cc, false, confirmed)) return PAY_ISO_ERR_COUNTRY;
     return 0;
 }
 

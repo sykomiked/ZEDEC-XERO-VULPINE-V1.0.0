@@ -66,7 +66,7 @@ public sealed class CurrencyService
     /// <summary>Looks up an ISO 4217 currency by numeric code (e.g. 566 for NGN).</summary>
     /// <param name="numeric">ISO 4217 numeric code.</param>
     /// <returns>The currency.</returns>
-    /// <exception cref="ZxvException">Not an active ISO 4217 numeric (including the rail numerics 846/810/888).</exception>
+    /// <exception cref="ZxvException">Not an active ISO 4217 numeric (including the rail numerics 555/777/888).</exception>
     public unsafe Currency GetIsoByNumeric(int numeric)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(numeric);
@@ -96,8 +96,8 @@ public sealed class CurrencyService
     }
 
     /// <summary>
-    /// Returns the interop caveat for a numeric code, e.g. that 810 is the
-    /// withdrawn RUR code and the Vino CREDIT rail; empty when there is none.
+    /// Returns the interop caveat for a numeric code, e.g. that 777 is the
+    /// Vino CREDIT rail and not an ISO 4217 currency; empty when there is none.
     /// </summary>
     /// <param name="numeric">A numeric currency or rail code.</param>
     /// <returns>Human-readable caveat text.</returns>
@@ -119,7 +119,7 @@ public sealed class CurrencyService
         return member != 0;
     }
 
-    /// <summary>Gets the platform-internal numeric code of a Vino rail (846, 810 or 888).</summary>
+    /// <summary>Gets the platform-internal numeric code of a Vino rail (555, 777 or 888).</summary>
     /// <param name="rail">The rail.</param>
     /// <returns>The numeric code reported by the native core.</returns>
     public static int GetRailNumeric(VinoRail rail)
@@ -134,6 +134,23 @@ public sealed class CurrencyService
         NativeCall.Check(NativeMethods.RailNumeric(index, out ushort numeric), "Currencies.GetRailNumeric");
         return numeric;
     }
+
+    /// <summary>
+    /// Gets the platform jurisdiction code a Vino rail carries: "NCR" (New
+    /// California Republic) for DEBIT 555, "NRE" (Neo Roman Empire) for
+    /// CREDIT 777 and "PNS" (Principality of New Sicily) for EQUITY 888.
+    /// These are not ISO 3166 country codes: they travel only as
+    /// <c>/ZXV/...</c> remittance data, never in a <c>Ctry</c> field.
+    /// </summary>
+    /// <param name="rail">The rail.</param>
+    /// <returns>The three-letter platform jurisdiction code.</returns>
+    public static string GetRailJurisdiction(VinoRail rail) => rail switch
+    {
+        VinoRail.Debit => "NCR",
+        VinoRail.Credit => "NRE",
+        VinoRail.Equity => "PNS",
+        _ => throw new ArgumentOutOfRangeException(nameof(rail), rail, "Unknown rail."),
+    };
 
     /// <summary>Enables an ISO 4217 currency for ledger accounts on this platform.</summary>
     /// <param name="code">Alpha-3 code.</param>

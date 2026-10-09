@@ -121,7 +121,7 @@ public sealed class LedgerService
 
     /// <summary>Gets the three rail balances of an account.</summary>
     /// <param name="id">The account id.</param>
-    /// <returns>DEBIT 846, CREDIT 810 and EQUITY 888 balances.</returns>
+    /// <returns>DEBIT 555, CREDIT 777 and EQUITY 888 balances.</returns>
     public RailBalances GetBalances(AccountId id)
     {
         Account account = GetAccount(id);

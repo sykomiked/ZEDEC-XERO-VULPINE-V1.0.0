@@ -43,7 +43,7 @@ public sealed record AccountDto(uint Id, string Identifier, string Name, string 
 public sealed record BalancesDto(uint AccountId, MoneyDto Debit, MoneyDto Credit, MoneyDto Equity)
 {
     /// <summary>Platform-internal rail numerics, for proprietary fields only.</summary>
-    public IReadOnlyDictionary<string, int> RailNumerics { get; } = new Dictionary<string, int> { ["debit"] = 846, ["credit"] = 810, ["equity"] = 888 };
+    public IReadOnlyDictionary<string, int> RailNumerics { get; } = new Dictionary<string, int> { ["debit"] = 555, ["credit"] = 777, ["equity"] = 888 };
 
     public static BalancesDto From(AccountId id, RailBalances b) => new(id.Value, MoneyDto.From(b.Debit), MoneyDto.From(b.Credit), MoneyDto.From(b.Equity));
 }

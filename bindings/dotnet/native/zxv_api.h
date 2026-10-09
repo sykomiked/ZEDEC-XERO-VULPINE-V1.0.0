@@ -46,9 +46,9 @@
  *       without recompiling.
  *
  * CURRENCIES. ISO 20022 wire messages carry ISO 4217 ALPHA codes ("NGN",
- * "GHS", "XOF") in Ccy attributes. The Vino rail numerics DEBIT 846,
- * CREDIT 810 and EQUITY 888 are platform-internal: none is an active ISO 4217
- * currency (810 is the withdrawn RUR code), so this ABI refuses them, and any
+ * "GHS", "XOF") in Ccy attributes. The Vino rail numerics DEBIT 555 (NCR),
+ * CREDIT 777 (NRE) and EQUITY 888 (PNS) are platform-internal: all three are
+ * unassigned in ISO 4217, so this ABI refuses them, and any
  * private platform unit such as VFV, as a message currency (ZXV_E_CURRENCY).
  * They appear only in ledger rail balances and proprietary fields.
  *
@@ -161,7 +161,7 @@ ZXV_API void zxv_ctx_destroy(zxv_ctx *ctx);
 ZXV_API int32_t zxv_iso4217_by_alpha(const char *alpha, uint16_t *out_numeric,
                                      uint8_t *out_minor_units, uint32_t *out_flags);
 
-/* Look up by ISO 4217 numeric (566 -> "NGN"). 846/810/888 -> ZXV_E_NOT_FOUND. */
+/* Look up by ISO 4217 numeric (566 -> "NGN"). 555/777/888 -> ZXV_E_NOT_FOUND. */
 ZXV_API int32_t zxv_iso4217_by_numeric(uint16_t numeric, char *alpha_buf, size_t cap,
                                        size_t *out_len, uint8_t *out_minor_units,
                                        uint32_t *out_flags);
@@ -176,7 +176,7 @@ ZXV_API int32_t zxv_iso4217_at(uint32_t index, char *alpha_buf, size_t cap, size
 /* Publication date of the ISO 4217 list compiled in ("2026-01-01"). */
 ZXV_API int32_t zxv_iso4217_published(char *buf, size_t cap, size_t *out_len);
 
-/* Interop caveat for a numeric code (e.g. 810 = withdrawn RUR), "" if none. */
+/* Interop caveat for a numeric code (e.g. 777 = Vino CREDIT rail), "" if none. */
 ZXV_API int32_t zxv_ccy_caveat(uint16_t numeric, char *buf, size_t cap, size_t *out_len);
 
 /* True (1) if ISO 3166 alpha-2 country is an African Union member. */
@@ -184,12 +184,12 @@ ZXV_API int32_t zxv_au_is_member(const char *country_a2, int32_t *out_is_member)
 
 /* ===== Vino rails ===== */
 typedef enum {
-    ZXV_RAIL_DEBIT = 0, /* 846: asset / backing      */
-    ZXV_RAIL_CREDIT = 1, /* 810: claim / liability   */
-    ZXV_RAIL_EQUITY = 2  /* 888: debit - credit      */
+    ZXV_RAIL_DEBIT = 0,  /* 555 NCR: asset / backing  */
+    ZXV_RAIL_CREDIT = 1, /* 777 NRE: claim / liability */
+    ZXV_RAIL_EQUITY = 2  /* 888 PNS: debit - credit   */
 } zxv_rail;
 
-/* Rail -> internal numeric (846/810/888). Proprietary fields only. */
+/* Rail -> internal numeric (555/777/888). Proprietary fields only. */
 ZXV_API int32_t zxv_rail_numeric(int32_t rail, uint16_t *out_numeric);
 
 /* ===== Currency configuration (per context) ===== */
@@ -222,7 +222,7 @@ ZXV_API int32_t zxv_ccy_enabled_at(zxv_ctx *ctx, uint32_t index, char *buf, size
 
 typedef enum {
     ZXV_ACCT_HOLDER = 0, /* may never go below zero (no debt)                */
-    ZXV_ACCT_ISSUER = 1  /* may carry a CREDIT (810) balance: issuance/nostro */
+    ZXV_ACCT_ISSUER = 1  /* may carry a CREDIT (777) balance: issuance/nostro */
 } zxv_account_kind;
 
 /* Largest amount accepted in one posting and largest |balance| (2^53 - 1),
@@ -245,8 +245,8 @@ ZXV_API int32_t zxv_ledger_post(zxv_ctx *ctx, uint32_t from_account, uint32_t to
                                 int64_t amount_minor, const char *ccy, const char *reference,
                                 uint64_t *out_entry_id);
 
-/* Rail balances of an account in minor units: DEBIT 846 (sum received),
- * CREDIT 810 (sum sent), EQUITY 888 (= debit - credit, the spendable
+/* Rail balances of an account in minor units: DEBIT 555 (sum received),
+ * CREDIT 777 (sum sent), EQUITY 888 (= debit - credit, the spendable
  * position). Any out pointer may be NULL. */
 ZXV_API int32_t zxv_ledger_balance(zxv_ctx *ctx, uint32_t account, int64_t *out_debit_minor,
                                    int64_t *out_credit_minor, int64_t *out_equity_minor);

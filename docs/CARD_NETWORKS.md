@@ -22,7 +22,7 @@ One issuer runs one network. An issuer:
 - issues cards, each tagged with one of the nine forms of capital,
 - authorizes transactions that the holder has signed with a post-quantum key
   (ML-DSA-65, FIPS 204),
-- settles approved transactions onto the 846 / 810 rails,
+- settles approved transactions onto the 555 / 777 rails,
 - closes statement cycles and takes payments,
 - lets holders freeze their card or replace it with a new number whenever they
   like.
@@ -151,7 +151,7 @@ configuration.
 | `account_ceiling` | 1 to 999,999,999,999 | 10,000,000 | most an account can owe: held + unbilled + billed |
 | `merchant_fee` | see section 3 | `CN_FEE_NONE` | flat fee per settled charge, paid by the merchant |
 
-All amounts are integers in minor units of rail 846.
+All amounts are integers in minor units of rail 555.
 
 ### The nine forms of capital
 
@@ -179,10 +179,10 @@ both.
 
 ### Rails
 
-Every card records rails 846 (debit and asset), 810 (credit and claim) and 888
+Every card records rails 555 (debit and asset), 777 (credit and claim) and 888
 (equity). These are the constants in `kernel/src/vino_stores/vino_stores.h`,
 and the test checks them at compile time. Authorizations must be in currency
-846. Anything else is declined with code `57`.
+555. Anything else is declined with code `57`.
 
 ## 5. Operations
 
@@ -233,7 +233,7 @@ order:
 6. not expired
 7. **signature**
 8. ATC strictly greater than the last accepted one
-9. currency 846
+9. currency 555
 10. form matches the card
 11. account active
 12. per-transaction limit
@@ -253,7 +253,7 @@ transaction. A bad signature does not.
 | `30` | malformed request |
 | `51` | per-cycle limit for the form, or account ceiling |
 | `54` | card expired |
-| `57` | form not allowed on this card, or currency not 846 |
+| `57` | form not allowed on this card, or currency not 555 |
 | `61` | per-transaction limit |
 | `62` | card frozen |
 | `94` | ATC replay |
@@ -263,13 +263,13 @@ transaction. A bad signature does not.
 
 | Event | Debit | Credit |
 |---|---|---|
-| Charge settled | 846 holder receivable: amount | 810 merchant payable: amount − fee; 810 network fees: fee (if any) |
-| Refund | 810 merchant payable: amount − fee; 810 network fees: fee | 846 holder receivable: amount |
-| Holder payment | 846 issuer cash: amount | 810 holder obligation discharged: amount |
+| Charge settled | 555 holder receivable: amount | 777 merchant payable: amount − fee; 777 network fees: fee (if any) |
+| Refund | 777 merchant payable: amount − fee; 777 network fees: fee | 555 holder receivable: amount |
+| Holder payment | 555 issuer cash: amount | 777 holder obligation discharged: amount |
 
 `cn_txn_balanced` checks two things for every transaction, both to the minor
-unit with no rounding slack: total debits equal total credits, and the rail-846
-total equals the rail-810 total. Every posted transaction emits exactly one
+unit with no rounding slack: total debits equal total credits, and the rail-555
+total equals the rail-777 total. Every posted transaction emits exactly one
 receipt. A receipt names the transaction, the holder account, the
 authorization, the merchant, the amount, the fee, the form, the holder's 8-byte
 cryptogram and equity rail 888. Each receipt carries the SHA3-256 digest of the
@@ -306,8 +306,8 @@ Variable-length fields carry a decimal length prefix (LL or LLL).
 | 39 | an2 | response code (section 5) |
 | 41 | ans8 | terminal id |
 | 42 | ans15 | card acceptor (merchant) id |
-| 49 | n3 | currency, `846` |
-| 60 | ans..999 | `VSS1;NET=<D,P,T>;FORM=<0-8>;DR=846;CR=810;EQ=888` |
+| 49 | n3 | currency, `555` |
+| 60 | ans..999 | `VSS1;NET=<D,P,T>;FORM=<0-8>;DR=555;CR=777;EQ=888` |
 | 61 | ans..999 | `RCPT=<receipt id>;ATC=<atc>` |
 | 63 | ans..999 | `CRY=<64 hex>`: the SHA3-256 of the holder signature |
 | 90 | n42 | original data elements, for 0400/0410. Its presence turns on the secondary bitmap. |
@@ -334,7 +334,7 @@ also comes from the EMV data.
 - `4F` AID
 - `5A` PAN
 - `5F24` expiry
-- `5F2A` currency (0846)
+- `5F2A` currency (0555)
 - `82` AIP
 - `95` TVR
 - `9A` date

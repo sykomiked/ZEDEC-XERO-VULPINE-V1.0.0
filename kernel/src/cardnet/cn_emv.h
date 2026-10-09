@@ -13,7 +13,7 @@
  *   4F   AID                    F0 5A 58 56 43 4E + network byte (see below)
  *   5A   PAN                    cn 16, BCD, 8 bytes
  *   5F24 expiry date            n 6 YYMMDD (last day of the expiry month)
- *   5F2A currency code          n 4 BCD = 0846
+ *   5F2A currency code          n 4 BCD = 0555
  *   82   AIP                    2 bytes, 00 00 (no EMV features claimed)
  *   95   TVR                    5 bytes, 00 .. 00
  *   9A   transaction date       n 6 YYMMDD

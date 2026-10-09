@@ -20,7 +20,7 @@
  *   Levels  Bronze C1 C2 C5 / Silver C1-C3 C5 / Gold C1-C5 plus independent
  *           attestation of C4.
  *
- * Rails in this repository: DEBIT 846, CREDIT 810, EQUITY 888 (see
+ * Rails in this repository: DEBIT 555, CREDIT 777, EQUITY 888 (see
  * kernel/src/vino_stores/vino_stores.h). The proposal's Part V resolution
  * class (orphaned obligations) uses designator 811: it is a procedure record
  * (an authorised discharge with an audit receipt), never a rail of value and
@@ -44,8 +44,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define CB_RAIL_DEBIT           846u
-#define CB_RAIL_CREDIT          810u
+#define CB_RAIL_DEBIT           555u
+#define CB_RAIL_CREDIT          777u
 #define CB_RAIL_EQUITY          888u
 #define CB_VSS_RESOLUTION_CLASS 811u /* procedure designator, not a rail */
 
@@ -89,7 +89,7 @@ typedef struct {
 #define CB_VSS_E_AUTH     (-16)
 
 bool cb_vss_rail_valid(uint16_t rail);
-/* Receipt completeness: required fields, lengths, rails 846/810/888 with
+/* Receipt completeness: required fields, lengths, rails 555/777/888 with
  * RailDr != RailCr, ISO 4217 Ccy, EFCT only with an attestation ref. */
 int cb_vss_receipt_check(const cb_vss_receipt *r);
 
@@ -190,8 +190,8 @@ int cb_vss_c4(const cb_vss_backing *b, uint32_t n, const char *ccy,
 /* ===== C5 identifier integrity (hooks only) ===== */
 typedef bool (*cb_vss_id_check_fn)(const char *digits);
 typedef struct {
-    cb_vss_id_check_fn debit;  /* 846: Luhn in the proposal (cn_luhn_valid) */
-    cb_vss_id_check_fn credit; /* 810: Damm (cn_damm_valid) */
+    cb_vss_id_check_fn debit;  /* 555: Luhn in the proposal (cn_luhn_valid) */
+    cb_vss_id_check_fn credit; /* 777: Damm (cn_damm_valid) */
     cb_vss_id_check_fn equity; /* 888: Verhoeff (cn_verhoeff_valid) */
 } cb_vss_c5_hooks;
 

@@ -13,11 +13,11 @@
  * so a too-small caller buffer returns a truncation error and NEVER overruns.
  *
  * It also maps the triple-ledger three rails to ISO 4217 numeric currency
- * codes (matching vino_stores.h's VINO_ISO_* rail codes) — DEBIT=846,
- * CREDIT=810, EQUITY=888. None is an active ISO 4217 currency: 846 and 888
- * are unassigned and 810 is the withdrawn code of the old Russian ruble
- * (RUR). A conventional parser rejects or misreads them, so wire messages
- * settle in a real currency (see iso20022_ccy_alpha / iso20022_ccy_caveat).
+ * codes (matching vino_stores.h's VINO_ISO_* rail codes) — DEBIT=555 (NCR),
+ * CREDIT=777 (NRE), EQUITY=888 (PNS). None is an ISO 4217 currency: all
+ * three numerics are unassigned. A conventional parser rejects them, so wire
+ * messages settle in a real currency (see iso20022_ccy_alpha /
+ * iso20022_ccy_caveat).
  *
  * OPS BOUNDARIES:
  *   - This SERIALIZES messages; it does NOT send them. The wire transport
@@ -49,27 +49,27 @@
  * EQUITY). They are duplicated here as plain macros rather than by including
  * vino_stores.h so this interop layer stays free of the whole ledger/vino/
  * edp_risk dependency chain. If those ever diverge, that is a bug. */
-#define ISO_CCY_DEBIT  846u /* asset/backing rail                          */
-#define ISO_CCY_CREDIT 810u /* claim/liability rail (withdrawn RUR code)   */
-#define ISO_CCY_EQUITY 888u /* live equity rail (unassigned numeric)       */
+#define ISO_CCY_DEBIT  555u /* asset/backing rail   (unassigned numeric)   */
+#define ISO_CCY_CREDIT 777u /* claim/liability rail (unassigned numeric)   */
+#define ISO_CCY_EQUITY 888u /* live equity rail     (unassigned numeric)   */
 
 typedef enum { ISO_RAIL_DEBIT = 0, ISO_RAIL_CREDIT = 1, ISO_RAIL_EQUITY = 2 } iso_rail_t;
 
-/* Rail -> ISO 4217 numeric code (846 / 810 / 888). Unknown rail -> 0. */
+/* Rail -> ISO 4217 numeric code (555 / 777 / 888). Unknown rail -> 0. */
 uint16_t iso20022_rail_ccy(iso_rail_t rail);
 
 /* ISO 4217 numeric -> alpha-3 string.
  *   840 -> "USD", 978 -> "EUR", 356 -> "INR", ... (a table of real codes)
  *   999 -> "XXX"  (real conventional code — but means "no currency": caveat)
- *   846 / 810 / 888 -> "" (EMPTY): the Vino rail numerics are NOT active
- *     currencies; 810 was RUR until 1998 and must never be read as one.
+ *   555 / 777 / 888 -> "" (EMPTY): the Vino rail numerics are NOT ISO 4217
+ *     currencies and must never be read as one.
  * Never returns NULL. Use iso20022_ccy_caveat() for the human-readable
  * interop warning that goes with a code. */
 const char *iso20022_ccy_alpha(uint16_t code);
 
 /* Human-readable interop caveat for a numeric code, or "" if the code is a
  * plain conventional currency with no caveat. Surfaces the 999->XXX trap and
- * the non-standard status of the 846/810/888 rail numerics. Never NULL. */
+ * the non-standard status of the 555/777/888 rail numerics. Never NULL. */
 const char *iso20022_ccy_caveat(uint16_t code);
 
 /* ===== Deterministic amount formatter =====

@@ -18,10 +18,21 @@ static int checks = 0;
         }                                                                                          \
     } while (0)
 
-/* surplus_real_t is double under TEST_HOST — compare with a tolerance. */
+/* surplus_real_t as a double: itself under TEST_HOST, raw/2^32 on the
+ * Q32.32 path (a raw cast would read 105 as 450971566080). */
+static double sr_to_d(surplus_real_t a)
+{
+#ifdef TEST_HOST
+    return (double) a;
+#else
+    return (double) a / 4294967296.0;
+#endif
+}
+
+/* Compare with a tolerance. */
 static int close_to(surplus_real_t a, double b)
 {
-    double d = (double) a - b;
+    double d = sr_to_d(a) - b;
     if (d < 0) d = -d;
     return d < 1e-6;
 }
@@ -30,7 +41,7 @@ static int close_to(surplus_real_t a, double b)
         checks++;                                                                                  \
         if (!close_to((got), (want))) {                                                            \
             failures++;                                                                            \
-            printf("  FAIL: %s (got %.10f want %.10f)\n", msg, (double) (got), (double) (want));   \
+            printf("  FAIL: %s (got %.10f want %.10f)\n", msg, sr_to_d(got), (double) (want));    \
         }                                                                                          \
     } while (0)
 
