@@ -147,7 +147,7 @@ TEST_LIBS := src/oseq/oseq_core.o src/rmag/rmag_core.o src/lpres/lpres_core.o \
              src/axiom_matrix/axiom_matrix_core.o src/crit168/crit_168_word.o \
              compat/compat_layer.o
 
-.PHONY: all iso test clean verify
+.PHONY: all iso test clean verify test-swarm
 
 all: iso
 
@@ -220,6 +220,8 @@ FUZZ_FS_ITERS ?= 3000
 verify-all: test
 	@echo "=== The One Policy: Symbiotic Maxim (void-by-definition) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/onepolicy -Isrc/surplus src/onepolicy/test_onepolicy.c src/onepolicy/onepolicy.c -o /tmp/test_onepolicy -lm && /tmp/test_onepolicy && echo "[PASS] test_onepolicy" || { echo "[FAIL] test_onepolicy"; exit 1; }
+	@echo "=== Swarm: Fibonacci tokens-per-cycle allocator ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_budget.c src/swarm/swarm_budget.c -o /tmp/test_swarm_budget && /tmp/test_swarm_budget && echo "[PASS] test_swarm_budget" || { echo "[FAIL] test_swarm_budget"; exit 1; }
 	@echo "=== zcapital: nine-form capital substrate + inalienability wall ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/surplus src/zcapital/test_zcapital.c src/zcapital/zcapital.c -o /tmp/test_zcapital -lm && /tmp/test_zcapital && echo "[PASS] test_zcapital" || { echo "[FAIL] test_zcapital"; exit 1; }
 	@echo "=== ipfs: content-addressed self-certifying get (the smuggler's hold) ==="; \
@@ -1012,6 +1014,11 @@ verify-experimental: verify-all
 # Run the axiom verifier
 verify:
 	@python3 ../edp_axiom_verifier.py $$(find . -name '*.c' -o -name '*.h' | sed 's/^/--file /' | tr '\n' ' ')
+
+# Swarm token budget (Fibonacci rule R1-R6), runnable on its own
+test-swarm:
+	@echo "=== test_swarm_budget ==="
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_budget.c src/swarm/swarm_budget.c -o /tmp/test_swarm_budget && /tmp/test_swarm_budget && echo "[PASS] test_swarm_budget" || { echo "[FAIL] test_swarm_budget"; exit 1; }
 
 clean:
 	rm -f $(KERNEL_OBJS) $(KERNEL_BIN) $(ISO_NAME)
