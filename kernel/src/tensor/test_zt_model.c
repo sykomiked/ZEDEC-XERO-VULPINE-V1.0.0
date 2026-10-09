@@ -335,7 +335,7 @@ static uint8_t *synth_qwen2(uint32_t ne, uint32_t nh, uint32_t nkv, uint32_t nf,
         ADDL("attn_v.weight", ne, nkv * hd, ZT_GGML_Q8_0);
         ADDL("attn_q.bias", nh * hd, 0, ZT_GGML_F32);
         ADDL("attn_k.bias", ((uint64_t)nkv) * hd, 0, ZT_GGML_F32);
-        ADDL("attn_v.bias", nkv * hd, 0, ZT_GGML_F32);
+        ADDL("attn_v.bias", ((uint64_t)nkv) * hd, 0, ZT_GGML_F32);
         ADDL("attn_output.weight", ((uint64_t)nh) * hd, ne, ZT_GGML_Q8_0);
         ADDL("ffn_norm.weight", ne, 0, ZT_GGML_F32);
         ADDL("ffn_gate.weight", ne, nf, ZT_GGML_Q8_0);
