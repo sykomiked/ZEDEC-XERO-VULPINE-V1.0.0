@@ -386,10 +386,20 @@ static uint32_t make_manifest(char *out, uint32_t cap, const char *release, cons
                               uint64_t issued, const bfile_t *f, const char **kinds,
                               const char **arches, const char **vers, uint32_t n)
 {
-    int k = snprintf(out, cap, "zxv-update-manifest 1\nrelease %s\nmin-version %s\nissued %llu\n",
-                     release, minv, (unsigned long long) issued);
+    uint32_t pos = 0;
+    int w;
     tb_store_t tmp;
+
     tb_init(&tmp);
+
+    w = snprintf(out + pos, cap - pos, "zxv-update-manifest 1\nrelease %s\nmin-version %s\nissued %llu\n",
+                 release, minv, (unsigned long long) issued);
+    if (w < 0 || (uint32_t) w >= cap - pos) {
+        pos = cap;
+        goto done;
+    }
+    pos += (uint32_t) w;
+
     for (uint32_t i = 0; i < n; i++) {
         ipfsn_cid_t c;
         uint64_t t;
@@ -400,12 +410,26 @@ static uint32_t make_manifest(char *out, uint32_t cap, const char *release, cons
         ipfsn_cid_to_string(&c, cs, sizeof cs);
         sha256(f[i].data, f[i].len, h);
         for (int j = 0; j < 32; j++) snprintf(hx + 2 * j, 3, "%02x", h[j]);
-        k += snprintf(out + k, cap - (uint32_t) k, "entry %s %s %s %u %s %s %s\n", kinds[i],
-                      arches[i], vers[i], f[i].len, cs, hx, f[i].path);
+
+        w = snprintf(out + pos, cap - pos, "entry %s %s %s %u %s %s %s\n", kinds[i], arches[i],
+                     vers[i], f[i].len, cs, hx, f[i].path);
+        if (w < 0 || (uint32_t) w >= cap - pos) {
+            pos = cap;
+            goto done;
+        }
+        pos += (uint32_t) w;
     }
-    k += snprintf(out + k, cap - (uint32_t) k, "end\n");
+
+    w = snprintf(out + pos, cap - pos, "end\n");
+    if (w < 0 || (uint32_t) w >= cap - pos) {
+        pos = cap;
+        goto done;
+    }
+    pos += (uint32_t) w;
+
+done:
     tb_free(&tmp);
-    return (uint32_t) k;
+    return pos;
 }
 
 static void gw_add_store(tb_store_t *s)
