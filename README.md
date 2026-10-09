@@ -52,6 +52,24 @@ Run the host integrity gate (from `kernel/`):
 make verify-all
 ```
 
+### ZXV Swarm desktop app
+
+`build_system/build_desktop.sh` builds the swarm as a desktop app for every
+platform from one machine: a macOS `.dmg` (one universal binary for Intel and
+Apple Silicon), a Windows `.zip` and Linux `.tar.gz` files for x86_64 and
+aarch64. It runs the swarm tests first, smoke-tests the binary that runs on
+the build machine, and checks every package before writing `dist/`. It needs
+zig 0.13 and python3; on a Mac it uses `hdiutil` for a native `.dmg`. Or use
+Docker:
+
+```bash
+docker build -f build_system/Dockerfile.desktop -t zxv-desktop .
+docker run --rm -v "$PWD/dist:/src/dist" zxv-desktop
+```
+
+Run `zxv-swarm --server` on a server and open its window from your own
+computer through `ssh -N -L 8722:127.0.0.1:8722 you@server`.
+
 ## License
 
 ZEDEC XERO VULPINE is registered to **36N9 Genetics, LLC** and **Michael Laurence Curzi**.

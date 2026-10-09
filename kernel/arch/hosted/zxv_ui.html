@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZXV Swarm</title>
+<style>
+:root{--bg:#0e1116;--panel:#161b22;--line:#2a313c;--text:#e6edf3;--muted:#8b949e;--accent:#d4a72c;--ok:#3fb950;--bad:#f85149;--glut:#a371f7;--re:#4c8dff;--mk:#d4a72c;--im:#db61a2}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0;letter-spacing:.04em}
+header .sub{color:var(--muted);font-size:12px}
+header button{margin-left:auto;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+.note{margin:12px 16px 0;padding:8px 12px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;color:var(--muted);font-size:12px}
+main{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px;padding:12px 16px}
+@media (max-width:860px){main{grid-template-columns:minmax(0,1fr)}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}
+section h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-variant-numeric:tabular-nums}
+.kv span:nth-child(odd){color:var(--muted)}
+.harm{display:flex;gap:6px;flex-wrap:wrap}
+.harm div{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:11px;color:var(--muted);transition:background .15s}
+.harm div.on{background:var(--accent);color:#000}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:nth-child(-n+3),td:nth-child(-n+3){text-align:left}
+th{color:var(--muted);font-weight:500;font-size:12px}
+.bar{display:flex;height:8px;min-width:120px;border-radius:4px;overflow:hidden;background:#0b0e13}
+.bar i{display:block}
+.v1{color:var(--ok)}.v0{color:var(--bad)}.v2{color:var(--glut)}
+#chat{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto;margin-bottom:8px}
+.msg{padding:8px 10px;border-radius:8px;background:#0b0e13;white-space:pre-wrap;word-break:break-word}
+.msg.you{border:1px solid var(--line)}
+.msg .who{font-size:11px;color:var(--muted);display:block;margin-bottom:2px}
+form{display:flex;gap:8px}
+input{flex:1;min-width:0;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px}
+form button{background:var(--accent);color:#000;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<header>
+  <h1>ZXV SWARM</h1>
+  <span class="sub" id="mode">connecting…</span>
+  <button id="quit" title="Stop the ZXV swarm">Quit</button>
+</header>
+<div class="note">Preview build: the swarm engine (Fibonacci budget, market, emotions, witness, ledger, DNA, harmonic cycles) is running for real. The agents are stand-ins until the AI model packs are installed, so they don't write real answers yet.</div>
+<main>
+  <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+    <section>
+      <h2>Swarm, this cycle</h2>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Lvl</th><th>Agent</th><th>Feeling</th><th>Tokens</th><th>Split</th><th>Money</th><th>Social</th><th>Gen</th><th>Witness</th></tr></thead>
+        <tbody id="agents"></tbody>
+      </table></div>
+      <div class="legend"><span><b style="background:var(--re)"></b>Fibonacci floor</span><span><b style="background:var(--mk)"></b>market</span><span><b style="background:var(--im)"></b>emotional (imaginary)</span></div>
+    </section>
+    <section>
+      <h2>Talk to the companion</h2>
+      <div id="chat"></div>
+      <form id="ask"><input id="q" autocomplete="off" placeholder="Ask, or write Hackronomicon shorthand like fan_out(question) -> verify(answers)"><button>Send</button></form>
+    </section>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+    <section><h2>Machine budget</h2><div class="kv" id="budget"></div></section>
+    <section><h2>Harmonic cycles</h2><div class="harm" id="harm"></div><div class="kv" style="margin-top:8px" id="clock"></div></section>
+    <section><h2>Ledger and market</h2><div class="kv" id="ledger"></div></section>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const verdict=["✗ false","✓ true","⊥̸ contested"];
+for(let n=1;n<=11;n++){const d=document.createElement('div');d.textContent=n;d.id='h'+n;$('harm').appendChild(d)}
+function kv(el,rows){el.innerHTML=rows.map(([k,v])=>`<span>${k}</span><span>${v}</span>`).join('')}
+function fmt(n){return Number(n).toLocaleString()}
+async function poll(){
+  try{
+    const s=await (await fetch('/api/state')).json();
+    $('mode').textContent=(s.remote?'remote instance':'this device')+' · '+s.host;
+    kv($('budget'),[['Mode',s.remote?'remote (up to 99%)':'local guest (≤ 13/21 of free)'],['Cores',`${s.cores} total, ${(s.cores_milli/1000).toFixed(2)} granted`],['Memory',`${fmt(s.mem_total_mb)} MB total, ${fmt(s.mem_mb)} MB granted`],['Levels',s.levels],['Agents',s.agents.length],['Tokens / cycle',fmt(s.tokens_per_cycle)]]);
+    for(let n=1;n<=11;n++)$('h'+n).classList.toggle('on',!!(s.due_mask>>(n-1)&1));
+    kv($('clock'),[['Tick',fmt(s.tick)],['Fundamental',`${fmt(s.fundamental)} (27,720 ticks each)`],['Market cycle',fmt(s.cycle)]]);
+    kv($('ledger'),[['Settled cycles',fmt(s.settled)],['Held cycles',fmt(s.held)],['Money supply',fmt(s.money_supply)],['Pot',fmt(s.pot)],['Imaginary pool',fmt(s.imag)],['Mood',s.mood],['Tokens saved by sharing',fmt(s.saved)]]);
+    $('agents').innerHTML=s.agents.map(a=>{const t=a.re+a.mk+a.im||1;return `<tr><td>${a.level}</td><td>${a.name}</td><td>${a.emoji} ${a.intensity}</td><td>${fmt(a.re+a.mk+a.im)}</td><td><div class="bar"><i style="width:${a.re/t*100}%;background:var(--re)"></i><i style="width:${a.mk/t*100}%;background:var(--mk)"></i><i style="width:${a.im/t*100}%;background:var(--im)"></i></div></td><td>${fmt(a.money)}</td><td>${fmt(a.social)}</td><td>${a.gen}</td><td class="v${a.witness}">${verdict[a.witness]||''} <span style="color:var(--muted)">by ${a.witness_by}</span></td></tr>`}).join('');
+  }catch(e){$('mode').textContent='disconnected'}
+}
+function say(who,text,you){const m=document.createElement('div');m.className='msg'+(you?' you':'');m.innerHTML=`<span class="who">${who}</span>`;m.appendChild(document.createTextNode(text));$('chat').appendChild(m);$('chat').scrollTop=1e9}
+$('ask').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;$('q').value='';say('You',q,true);
+  try{const r=await (await fetch('/api/ask',{method:'POST',body:q})).text();say('Companion',r)}catch(err){say('Companion','(no connection to the swarm)')}};
+$('quit').onclick=async()=>{try{await fetch('/api/quit',{method:'POST'})}catch(e){}document.body.innerHTML='<p style="padding:24px">The ZXV swarm has stopped. You can close this window.</p>'};
+say('Companion','Hello. I am the companion at the top of the swarm. The engine is live; my specialists are stand-ins until their models are installed.');
+poll();setInterval(poll,500);
+</script>
+</body>
+</html>
