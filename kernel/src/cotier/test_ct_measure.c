@@ -341,7 +341,7 @@ static void forward(const model_t *m, const int32_t *tok, uint32_t T, policy_t *
                     p->kept++;
                     double s = 0;
                     for (uint32_t i = 0; i < hd; i++)
-                        s += qt[i] * k[(size_t) j * kvd + kv * hd + i];
+                        s += qt[i] * k[(size_t) j * kvd + (size_t) kv * hd + i];
                     sc[j] = s / sqrt((double) hd);
                     if (sc[j] > mx) mx = sc[j];
                 }
