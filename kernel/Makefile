@@ -244,6 +244,7 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_tok.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_tok && /tmp/test_zt_tok && echo "[PASS] test_zt_tok" || { echo "[FAIL] test_zt_tok"; exit 1; }
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lattice.c src/tensor/zt_lattice.c src/tensor/zt.c -lm -o /tmp/test_zt_lattice && /tmp/test_zt_lattice && echo "[PASS] test_zt_lattice" || { echo "[FAIL] test_zt_lattice"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_rope.c src/tensor/zt_rope.c src/tensor/zt.c -lm -o /tmp/test_zt_rope && /tmp/test_zt_rope && echo "[PASS] test_zt_rope" || { echo "[FAIL] test_zt_rope"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/ipfs_node src/ipfs_node/test_ipfs_node.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/ipfs_node/ipfsn_fidx.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c -o /tmp/test_ipfs_node && /tmp/test_ipfs_node && echo "[PASS] test_ipfs_node" || { echo "[FAIL] test_ipfs_node"; exit 1; }
 	@echo "=== zcapital: nine-form capital substrate + inalienability wall ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/surplus src/zcapital/test_zcapital.c src/zcapital/zcapital.c -o /tmp/test_zcapital -lm && /tmp/test_zcapital && echo "[PASS] test_zcapital" || { echo "[FAIL] test_zcapital"; exit 1; }
 	@echo "=== ipfs: content-addressed self-certifying get (the smuggler's hold) ==="; \
@@ -1065,6 +1066,7 @@ test-swarm:
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_tok.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_tok && /tmp/test_zt_tok && echo "[PASS] test_zt_tok" || { echo "[FAIL] test_zt_tok"; exit 1; }
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_lattice.c src/tensor/zt_lattice.c src/tensor/zt.c -lm -o /tmp/test_zt_lattice && /tmp/test_zt_lattice && echo "[PASS] test_zt_lattice" || { echo "[FAIL] test_zt_lattice"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_rope.c src/tensor/zt_rope.c src/tensor/zt.c -lm -o /tmp/test_zt_rope && /tmp/test_zt_rope && echo "[PASS] test_zt_rope" || { echo "[FAIL] test_zt_rope"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/ipfs_node src/ipfs_node/test_ipfs_node.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/ipfs_node/ipfsn_fidx.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c -o /tmp/test_ipfs_node && /tmp/test_ipfs_node && echo "[PASS] test_ipfs_node" || { echo "[FAIL] test_ipfs_node"; exit 1; }
 
 clean:
 	rm -f $(KERNEL_OBJS) $(KERNEL_BIN) $(ISO_NAME)
