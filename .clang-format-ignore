@@ -182,3 +182,7 @@ kernel/src/i18n/i18n_catalog.c
 kernel/src/i18n/i18n_msgid.h
 kernel/src/web4/test_web4_vectors.h
 kernel/src/tensor/test_model_fixture.h
+kernel/src/speech/test_speech_fixture.h
+kernel/src/speech/speech_tables.h
+kernel/src/xlate/xlate_langid_model.h
+kernel/src/xlate/test_langid_fixture.h
