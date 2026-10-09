@@ -43,7 +43,8 @@ static int64_t gcd_i64(int64_t a, int64_t b) {
 
 /* ===== Sutra Lower: Sutra source -> Canonical IR ===== */
 
-int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out) {
+int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out)
+{
     if (len < sizeof(oc_sutra_src_t)) return OC_ERR_ARG;
     const oc_sutra_src_t *s = (const oc_sutra_src_t *)src;
     
@@ -73,7 +74,8 @@ int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out) {
 
 /* ===== Sutra Lift: Canonical IR -> Sutra target ===== */
 
-int32_t sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
+int32_t sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap)
+{
     if (cap < sizeof(oc_sutra_src_t)) return OC_ERR_CAP;
     
     /* Get primary rational value */

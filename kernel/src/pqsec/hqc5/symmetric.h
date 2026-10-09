@@ -68,7 +68,8 @@ typedef shake256incctx shake256_xof_ctx;
  */
 #define HQC_J_FCT_DOMAIN 3
 
-void prng_init(uint8_t *entropy_input, uint8_t *personalization_string, uint32_t enlen, uint32_t perlen);
+void prng_init(uint8_t *entropy_input, uint8_t *personalization_string, uint32_t enlen,
+               uint32_t perlen);
 void prng_get_bytes(uint8_t *output, uint32_t outlen);
 
 void xof_init(shake256_xof_ctx *xof_ctx, const uint8_t *seed, uint32_t seed_size);
@@ -81,4 +82,4 @@ void hash_i(uint8_t *output, const uint8_t *seed);
 void hash_j(uint8_t *output, const uint8_t h_ek[SEED_BYTES], const uint8_t sigma[VEC_K_SIZE_BYTES],
             const ciphertext_kem_t *c_kem);
 
-#endif  // HQC_SYMMETRIC_H
+#endif // HQC_SYMMETRIC_H

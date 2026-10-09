@@ -30,8 +30,8 @@
 #include "../mlkem/keccak.h"
 
 #define KEYB 32u
-#define LMAX CURZI_LEVELS          /* highest level index; 0 == the domain root */
-#define NLVL (CURZI_LEVELS + 1u)   /* addressable indices per domain: 0..61     */
+#define LMAX CURZI_LEVELS        /* highest level index; 0 == the domain root */
+#define NLVL (CURZI_LEVELS + 1u) /* addressable indices per domain: 0..61     */
 
 static unsigned g_fail;
 static unsigned g_checks;
@@ -47,14 +47,15 @@ static void check(int cond, const char *what)
 
 static int eq32(const uint8_t *a, const uint8_t *b)
 {
-    for (unsigned i = 0; i < KEYB; i++) if (a[i] != b[i]) return 0;
+    for (unsigned i = 0; i < KEYB; i++)
+        if (a[i] != b[i]) return 0;
     return 1;
 }
 
 static int is_zero32(const uint8_t *a)
 {
     uint8_t acc = 0;
-    for (unsigned i = 0; i < KEYB; i++) acc = (uint8_t)(acc | a[i]);
+    for (unsigned i = 0; i < KEYB; i++) acc = (uint8_t) (acc | a[i]);
     return acc == 0;
 }
 
@@ -81,11 +82,11 @@ static uint8_t g_sysroot_b[KEYB];
 static void build(uint8_t (*tab)[NLVL][KEYB], const uint8_t *sysroot)
 {
     for (unsigned d = 0; d < CURZI_DOMAINS; d++) {
-        curzi_err_t e = curzi_tier_root(sysroot, (uint16_t)d, tab[d][0]);
+        curzi_err_t e = curzi_tier_root(sysroot, (uint16_t) d, tab[d][0]);
         check(e == CURZI_OK, "curzi_tier_root returned OK");
         for (unsigned L = 1; L <= LMAX; L++) {
-            e = curzi_tier_derive(tab[d][L - 1u], (uint16_t)d,
-                                  (uint8_t)(L - 1u), (uint8_t)L, tab[d][L]);
+            e = curzi_tier_derive(tab[d][L - 1u], (uint16_t) d, (uint8_t) (L - 1u), (uint8_t) L,
+                                  tab[d][L]);
             check(e == CURZI_OK, "one-step derive returned OK");
         }
     }
@@ -98,11 +99,11 @@ static void t0_hash_anchor(void)
      * is not the thing that is broken -- keccak.c is -- and every derived key
      * in the system is wrong (see keccak.c:31-49 for the last time that
      * happened and how quietly it happened). */
-    static const uint8_t want[KEYB] = {
-        0x3a,0x98,0x5d,0xa7,0x4f,0xe2,0x25,0xb2, 0x04,0x5c,0x17,0x2d,0x6b,0xd3,0x90,0xbd,
-        0x85,0x5f,0x08,0x6e,0x3e,0x9d,0x52,0x5b, 0x46,0xbf,0xe2,0x45,0x11,0x43,0x15,0x32
-    };
-    const uint8_t abc[3] = { 'a', 'b', 'c' };
+    static const uint8_t want[KEYB] = {0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2,
+                                       0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90, 0xbd,
+                                       0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b,
+                                       0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43, 0x15, 0x32};
+    const uint8_t abc[3] = {'a', 'b', 'c'};
     uint8_t got[KEYB];
     sha3_256(abc, sizeof abc, got);
     check(eq32(got, want), "sha3_256(\"abc\") matches FIPS 202");
@@ -118,14 +119,14 @@ static void t1_wire_format(void)
     uint8_t want[KEYB], got[KEYB];
     unsigned o;
     const char *lbl;
-    const uint16_t dom = 143u;   /* the last valid domain: a real edge */
+    const uint16_t dom = 143u; /* the last valid domain: a real edge */
 
     o = 0;
     for (unsigned i = 0; i < KEYB; i++) buf[o++] = g_sysroot_a[i];
     lbl = "CURZI-8889-A/domain";
-    for (unsigned i = 0; lbl[i] != '\0'; i++) buf[o++] = (uint8_t)lbl[i];
-    buf[o++] = (uint8_t)(dom & 0xFFu);
-    buf[o++] = (uint8_t)(dom >> 8);
+    for (unsigned i = 0; lbl[i] != '\0'; i++) buf[o++] = (uint8_t) lbl[i];
+    buf[o++] = (uint8_t) (dom & 0xFFu);
+    buf[o++] = (uint8_t) (dom >> 8);
     check(o == 53u, "domain preimage is 32 + 19 + 2 = 53 bytes");
     sha3_256(buf, o, want);
     check(curzi_tier_root(g_sysroot_a, dom, got) == CURZI_OK, "root(143) OK");
@@ -133,11 +134,11 @@ static void t1_wire_format(void)
 
     /* level 1 of that domain, from the spec formula. */
     o = 0;
-    for (unsigned i = 0; i < KEYB; i++) buf[o++] = want[i];   /* parent = domain root */
+    for (unsigned i = 0; i < KEYB; i++) buf[o++] = want[i]; /* parent = domain root */
     lbl = "CURZI-8889-A/level";
-    for (unsigned i = 0; lbl[i] != '\0'; i++) buf[o++] = (uint8_t)lbl[i];
-    buf[o++] = (uint8_t)(dom & 0xFFu);
-    buf[o++] = (uint8_t)(dom >> 8);
+    for (unsigned i = 0; lbl[i] != '\0'; i++) buf[o++] = (uint8_t) lbl[i];
+    buf[o++] = (uint8_t) (dom & 0xFFu);
+    buf[o++] = (uint8_t) (dom >> 8);
     buf[o++] = 1u;
     check(o == 53u, "level preimage is 32 + 18 + 2 + 1 = 53 bytes");
     {
@@ -158,8 +159,7 @@ static void t2_ascent(void)
      * deriving from the domain root directly" requirement. */
     for (unsigned d = 0; d < CURZI_DOMAINS; d++) {
         for (unsigned T = 0; T <= LMAX; T++) {
-            curzi_err_t e = curzi_tier_derive(g_key[d][0], (uint16_t)d, 0u,
-                                              (uint8_t)T, out);
+            curzi_err_t e = curzi_tier_derive(g_key[d][0], (uint16_t) d, 0u, (uint8_t) T, out);
             check(e == CURZI_OK, "ascent from domain root returned OK");
             check(eq32(out, g_key[d][T]), "ascent from root matches the chain");
         }
@@ -167,13 +167,13 @@ static void t2_ascent(void)
 
     /* (b) the full triangle L <= T for a spread of domains: a grant at ANY
      * level reproduces every level above it, one jump or many. */
-    static const unsigned probe[] = { 0u, 1u, 2u, 71u, 142u, 143u };
+    static const unsigned probe[] = {0u, 1u, 2u, 71u, 142u, 143u};
     for (unsigned p = 0; p < sizeof probe / sizeof probe[0]; p++) {
         unsigned d = probe[p];
         for (unsigned L = 0; L <= LMAX; L++) {
             for (unsigned T = L; T <= LMAX; T++) {
-                curzi_err_t e = curzi_tier_derive(g_key[d][L], (uint16_t)d,
-                                                  (uint8_t)L, (uint8_t)T, out);
+                curzi_err_t e =
+                    curzi_tier_derive(g_key[d][L], (uint16_t) d, (uint8_t) L, (uint8_t) T, out);
                 check(e == CURZI_OK, "ascent L->T returned OK");
                 check(eq32(out, g_key[d][T]), "ascent L->T matches the chain");
             }
@@ -203,9 +203,8 @@ static void t3_descent(void)
     /* (a) API refusal, over the whole lower triangle of one domain. */
     for (unsigned L = 1; L <= LMAX; L++) {
         for (unsigned T = 0; T < L; T++) {
-            for (unsigned i = 0; i < KEYB; i++) out[i] = 0xAAu;  /* poison */
-            curzi_err_t e = curzi_tier_derive(g_key[7][L], 7u,
-                                              (uint8_t)L, (uint8_t)T, out);
+            for (unsigned i = 0; i < KEYB; i++) out[i] = 0xAAu; /* poison */
+            curzi_err_t e = curzi_tier_derive(g_key[7][L], 7u, (uint8_t) L, (uint8_t) T, out);
             check(e == CURZI_E_TIER_DESCEND, "descent refused with E_TIER_DESCEND");
             check(is_zero32(out), "descent leaves out_key zeroed, never partial");
         }
@@ -216,8 +215,8 @@ static void t3_descent(void)
      * empirical half of curzi8889a.h:126. */
     for (unsigned L = 0; L <= LMAX; L++) {
         for (unsigned T = L; T <= LMAX; T++) {
-            check(curzi_tier_derive(g_key[7][L], 7u, (uint8_t)L, (uint8_t)T, out)
-                  == CURZI_OK, "closure walk OK");
+            check(curzi_tier_derive(g_key[7][L], 7u, (uint8_t) L, (uint8_t) T, out) == CURZI_OK,
+                  "closure walk OK");
             for (unsigned B = 0; B < L; B++) {
                 check(!eq32(out, g_key[7][B]),
                       "no key derivable from level L equals a key below L");
@@ -239,7 +238,7 @@ static void t4_isolation(void)
     const unsigned n = CURZI_DOMAINS * NLVL;
     for (unsigned i = 0; i < n; i++) {
         for (unsigned j = i + 1u; j < n; j++) {
-            if (eq32(flat + (size_t)i * KEYB, flat + (size_t)j * KEYB)) collisions++;
+            if (eq32(flat + (size_t) i * KEYB, flat + (size_t) j * KEYB)) collisions++;
         }
     }
     check(collisions == 0, "all 8928 addressable keys are pairwise distinct");
@@ -259,8 +258,9 @@ static void t4_isolation(void)
      * domain 11). Without the domain in the preimage this test would fail and
      * the 144 domains would be one domain wearing 144 hats. */
     for (unsigned L = 0; L < LMAX; L++) {
-        check(curzi_tier_derive(g_key[11][L], 12u, (uint8_t)L,
-                                (uint8_t)(L + 1u), out) == CURZI_OK, "cross-label OK");
+        check(curzi_tier_derive(g_key[11][L], 12u, (uint8_t) L, (uint8_t) (L + 1u), out) ==
+                  CURZI_OK,
+              "cross-label OK");
         for (unsigned T = 0; T <= LMAX; T++) {
             check(!eq32(out, g_key[12][T]), "laundered key is not any domain-12 key");
             check(!eq32(out, g_key[11][T]), "laundered key is not any domain-11 key");
@@ -271,7 +271,7 @@ static void t4_isolation(void)
     {
         static uint8_t rootb[CURZI_DOMAINS][KEYB];
         for (unsigned d = 0; d < CURZI_DOMAINS; d++) {
-            check(curzi_tier_root(g_sysroot_b, (uint16_t)d, rootb[d]) == CURZI_OK,
+            check(curzi_tier_root(g_sysroot_b, (uint16_t) d, rootb[d]) == CURZI_OK,
                   "root under system root B OK");
         }
         unsigned c2 = 0;
@@ -291,7 +291,7 @@ static void t5_refusals(void)
     uint8_t k[KEYB];
     for (unsigned i = 0; i < KEYB; i++) k[i] = g_key[0][0][i];
 
-    static const uint16_t bad_dom[] = { 144u, 145u, 256u, 1000u, 0xFFFFu };
+    static const uint16_t bad_dom[] = {144u, 145u, 256u, 1000u, 0xFFFFu};
     for (unsigned i = 0; i < sizeof bad_dom / sizeof bad_dom[0]; i++) {
         for (unsigned j = 0; j < KEYB; j++) out[j] = 0xAAu;
         check(curzi_tier_root(g_sysroot_a, bad_dom[i], out) == CURZI_E_TIER_RANGE,
@@ -305,7 +305,7 @@ static void t5_refusals(void)
     }
     check(curzi_tier_root(g_sysroot_a, 143u, out) == CURZI_OK, "domain 143 is valid");
 
-    static const uint8_t bad_lvl[] = { 62u, 63u, 100u, 200u, 255u };
+    static const uint8_t bad_lvl[] = {62u, 63u, 100u, 200u, 255u};
     for (unsigned i = 0; i < sizeof bad_lvl / sizeof bad_lvl[0]; i++) {
         for (unsigned j = 0; j < KEYB; j++) out[j] = 0xAAu;
         check(curzi_tier_derive(k, 0u, 0u, bad_lvl[i], out) == CURZI_E_TIER_RANGE,
@@ -364,7 +364,9 @@ static void t6_determinism(void)
     uint8_t a[KEYB], b[KEYB];
     for (unsigned i = 0; i < 8; i++) {
         check(curzi_tier_derive(g_key[3][4], 3u, 4u, 60u, a) == CURZI_OK, "repeat OK");
-        if (i == 0) { for (unsigned j = 0; j < KEYB; j++) b[j] = a[j]; }
+        if (i == 0) {
+            for (unsigned j = 0; j < KEYB; j++) b[j] = a[j];
+        }
         check(eq32(a, b), "repeated derive is deterministic");
     }
 }
@@ -372,18 +374,18 @@ static void t6_determinism(void)
 /* ---- 7. the tier arithmetic, recomputed rather than trusted -------------- */
 static void t7_arithmetic(void)
 {
-    const unsigned level_keys   = CURZI_DOMAINS * CURZI_LEVELS;   /* 144 * 61 */
+    const unsigned level_keys = CURZI_DOMAINS * CURZI_LEVELS; /* 144 * 61 */
     const unsigned domain_roots = CURZI_DOMAINS;
-    const unsigned system_root  = 1u;
-    const unsigned addressable  = system_root + domain_roots + level_keys;
-    const unsigned structural   = system_root + domain_roots;
-    const unsigned grantable    = addressable - structural;
+    const unsigned system_root = 1u;
+    const unsigned addressable = system_root + domain_roots + level_keys;
+    const unsigned structural = system_root + domain_roots;
+    const unsigned grantable = addressable - structural;
 
-    check(level_keys  == 8784u, "144 * 61 == 8784 level keys");
+    check(level_keys == 8784u, "144 * 61 == 8784 level keys");
     check(addressable == 8929u, "1 + 144 + 8784 == 8929 addressable, as the header says");
-    check(structural  == 145u,  "structural roots are the system root + 144 domain roots");
-    check(grantable   == 8784u, "grantable == addressable - structural");
-    check(grantable   == level_keys, "the grantable tiers are exactly the level keys");
+    check(structural == 145u, "structural roots are the system root + 144 domain roots");
+    check(grantable == 8784u, "grantable == addressable - structural");
+    check(grantable == level_keys, "the grantable tiers are exactly the level keys");
 
     /* The key set actually BUILT above is the addressable space minus the one
      * system root, which is never derived from anything. */
@@ -391,18 +393,19 @@ static void t7_arithmetic(void)
           "the built table holds every addressable key except the system root");
 
     printf("\n  ---- TIER ARITHMETIC, MEASURED ----\n");
-    printf("    domains ...................... %u\n", (unsigned)CURZI_DOMAINS);
+    printf("    domains ...................... %u\n", (unsigned) CURZI_DOMAINS);
     printf("    levels per domain ............ %u  (indices 1..%u; index 0 == domain root)\n",
-           (unsigned)CURZI_LEVELS, (unsigned)CURZI_LEVELS);
+           (unsigned) CURZI_LEVELS, (unsigned) CURZI_LEVELS);
     printf("    level keys (144 * 61) ........ %u   GRANTABLE\n", level_keys);
     printf("    domain roots ................. %u    structural\n", domain_roots);
     printf("    system root .................. %u      structural\n", system_root);
     printf("    addressable .................. %u\n", addressable);
     printf("    structural (never handed out)  %u\n", structural);
     printf("    GRANTABLE TIERS .............. %u\n", grantable);
-    printf("    CURZI_TIER_GRANTABLE ......... %u\n", (unsigned)CURZI_TIER_GRANTABLE);
-    printf("    CURZI_TIER_ADDRESSABLE ....... %u\n", (unsigned)CURZI_TIER_ADDRESSABLE);
-    printf("    CURZI_TIER_NAME (identity) ... %u   <- a NAME, not a count\n", (unsigned)CURZI_TIER_NAME);
+    printf("    CURZI_TIER_GRANTABLE ......... %u\n", (unsigned) CURZI_TIER_GRANTABLE);
+    printf("    CURZI_TIER_ADDRESSABLE ....... %u\n", (unsigned) CURZI_TIER_ADDRESSABLE);
+    printf("    CURZI_TIER_NAME (identity) ... %u   <- a NAME, not a count\n",
+           (unsigned) CURZI_TIER_NAME);
 
     /* The header used to claim 8889 GRANTABLE tiers while also stating
      * 144*61 = 8784, which cannot both be true. This test caught it and the
@@ -412,12 +415,14 @@ static void t7_arithmetic(void)
      * code lie to match a comment. These are now hard assertions: if anybody
      * "fixes" the constants back to agree with the name, this FAILS. */
     if (grantable != CURZI_TIER_GRANTABLE) {
-        printf("  FAIL: grantable %u != CURZI_TIER_GRANTABLE %u\n",
-               grantable, (unsigned)CURZI_TIER_GRANTABLE); g_fail++;
+        printf("  FAIL: grantable %u != CURZI_TIER_GRANTABLE %u\n", grantable,
+               (unsigned) CURZI_TIER_GRANTABLE);
+        g_fail++;
     }
     if (addressable != CURZI_TIER_ADDRESSABLE) {
-        printf("  FAIL: addressable %u != CURZI_TIER_ADDRESSABLE %u\n",
-               addressable, (unsigned)CURZI_TIER_ADDRESSABLE); g_fail++;
+        printf("  FAIL: addressable %u != CURZI_TIER_ADDRESSABLE %u\n", addressable,
+               (unsigned) CURZI_TIER_ADDRESSABLE);
+        g_fail++;
     }
     if (CURZI_TIER_GRANTABLE == CURZI_TIER_NAME) {
         printf("  FAIL: the name was turned into a count; see curzi8889a.h LAYER 5\n");
@@ -429,11 +434,13 @@ static void t7_arithmetic(void)
      * contract's types can express. */
     {
         unsigned small_divisors = 0;
-        for (unsigned f = 2u; f <= 255u; f++) if (8889u % f == 0u) small_divisors++;
+        for (unsigned f = 2u; f <= 255u; f++)
+            if (8889u % f == 0u) small_divisors++;
         check(small_divisors == 1u, "8889 has exactly one divisor in 2..255 (namely 3)");
         check(8889u % 3u == 0u && 8889u / 3u == 2963u, "8889 == 3 * 2963");
         unsigned p = 1u;
-        for (unsigned f = 2u; f * f <= 2963u; f++) if (2963u % f == 0u) p = 0u;
+        for (unsigned f = 2u; f * f <= 2963u; f++)
+            if (2963u % f == 0u) p = 0u;
         check(p == 1u, "2963 is prime");
     }
 }
@@ -442,12 +449,12 @@ int main(void)
 {
     for (unsigned i = 0; i < KEYB; i++) {
         g_sysroot_a[i] = 0u;
-        g_sysroot_b[i] = (uint8_t)(i + 1u);
+        g_sysroot_b[i] = (uint8_t) (i + 1u);
     }
 
     printf("CURZI-8889-A LAYER 5 (tiered access) — host test\n");
-    printf("  %u domains x %u levels, level index 0 == domain root\n\n",
-           (unsigned)CURZI_DOMAINS, (unsigned)CURZI_LEVELS);
+    printf("  %u domains x %u levels, level index 0 == domain root\n\n", (unsigned) CURZI_DOMAINS,
+           (unsigned) CURZI_LEVELS);
 
     t0_hash_anchor();
     build(g_key, g_sysroot_a);

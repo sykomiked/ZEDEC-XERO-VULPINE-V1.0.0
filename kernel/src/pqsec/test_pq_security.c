@@ -32,16 +32,22 @@
 static int g_checks = 0;
 static int g_failures = 0;
 
-#define CHECK(cond, name) do { \
-    g_checks++; \
-    if (!(cond)) { g_failures++; printf("  [FAIL] %s (line %d)\n", name, __LINE__); } \
-} while (0)
+#define CHECK(cond, name)                                                                          \
+    do {                                                                                           \
+        g_checks++;                                                                                \
+        if (!(cond)) {                                                                             \
+            g_failures++;                                                                          \
+            printf("  [FAIL] %s (line %d)\n", name, __LINE__);                                     \
+        }                                                                                          \
+    } while (0)
 
-static void fill(uint8_t *buf, uint32_t len, uint8_t seed) {
-    for (uint32_t i = 0; i < len; i++) buf[i] = (uint8_t)(seed + i * 7);
+static void fill(uint8_t *buf, uint32_t len, uint8_t seed)
+{
+    for (uint32_t i = 0; i < len; i++) buf[i] = (uint8_t) (seed + i * 7);
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== ZEDEC pqOS: FIPS 203/204/205 falsification harness ===\n");
 
     /* ====================================================================
@@ -52,7 +58,9 @@ int main(void) {
         uint8_t d[32], z[32], m[32];
         uint8_t ek[MLKEM768_EK_BYTES], dk[MLKEM768_DK_BYTES];
         uint8_t ct[MLKEM768_CT_BYTES], ss_a[32], ss_b[32];
-        fill(d, 32, 0x11); fill(z, 32, 0x22); fill(m, 32, 0x33);
+        fill(d, 32, 0x11);
+        fill(z, 32, 0x22);
+        fill(m, 32, 0x33);
 
         mlkem768_keygen(d, z, ek, dk);
         mlkem768_encaps(ek, m, ct, ss_a);
@@ -74,17 +82,18 @@ int main(void) {
         uint8_t pk[PQ_MLDSA65_PK_BYTES], sk[PQ_MLDSA65_SK_BYTES];
         uint8_t sig[PQ_MLDSA65_SIG_BYTES];
         const char *msg = "ZEDEC pqOS ledger entry: 100 VINO from A to B";
-        uint32_t msg_len = (uint32_t)strlen(msg);
+        uint32_t msg_len = (uint32_t) strlen(msg);
 
-        fill(seed, 32, 0x44); fill(rnd, 32, 0x55);
+        fill(seed, 32, 0x44);
+        fill(rnd, 32, 0x55);
         pq_mldsa65_keygen(seed, pk, sk);
-        pq_mldsa65_sign(sk, (const uint8_t*)msg, msg_len, NULL, 0, rnd, sig);
-        CHECK(pq_mldsa65_verify(pk, (const uint8_t*)msg, msg_len, NULL, 0, sig),
+        pq_mldsa65_sign(sk, (const uint8_t *) msg, msg_len, NULL, 0, rnd, sig);
+        CHECK(pq_mldsa65_verify(pk, (const uint8_t *) msg, msg_len, NULL, 0, sig),
               "ML-DSA-65 valid signature verifies");
 
         /* Tampered signature MUST fail */
         sig[100] ^= 0x01;
-        CHECK(!pq_mldsa65_verify(pk, (const uint8_t*)msg, msg_len, NULL, 0, sig),
+        CHECK(!pq_mldsa65_verify(pk, (const uint8_t *) msg, msg_len, NULL, 0, sig),
               "ML-DSA-65 tampered signature rejected");
         sig[100] ^= 0x01;
 
@@ -92,7 +101,7 @@ int main(void) {
         char bad_msg[64];
         strcpy(bad_msg, msg);
         bad_msg[10] ^= 0x01;
-        CHECK(!pq_mldsa65_verify(pk, (const uint8_t*)bad_msg, msg_len, NULL, 0, sig),
+        CHECK(!pq_mldsa65_verify(pk, (const uint8_t *) bad_msg, msg_len, NULL, 0, sig),
               "ML-DSA-65 tampered message rejected");
 
         /* Wrong public key MUST fail */
@@ -100,7 +109,7 @@ int main(void) {
         uint8_t seed2[32];
         fill(seed2, 32, 0x66);
         pq_mldsa65_keygen(seed2, pk2, sk);
-        CHECK(!pq_mldsa65_verify(pk2, (const uint8_t*)msg, msg_len, NULL, 0, sig),
+        CHECK(!pq_mldsa65_verify(pk2, (const uint8_t *) msg, msg_len, NULL, 0, sig),
               "ML-DSA-65 wrong public key rejected");
     }
 
@@ -113,17 +122,17 @@ int main(void) {
         uint8_t pk[PQ_SLH128S_PK_BYTES], sk[PQ_SLH128S_SK_BYTES];
         uint8_t sig[PQ_SLH128S_SIG_BYTES];
         const char *msg = "ZEDEC pqOS boot image v1.0";
-        uint32_t msg_len = (uint32_t)strlen(msg);
+        uint32_t msg_len = (uint32_t) strlen(msg);
 
         fill(seed, 48, 0x77);
         pq_slh128s_keygen(seed, pk, sk);
-        pq_slh128s_sign(sk, (const uint8_t*)msg, msg_len, NULL, sig);
-        CHECK(pq_slh128s_verify(pk, (const uint8_t*)msg, msg_len, sig),
+        pq_slh128s_sign(sk, (const uint8_t *) msg, msg_len, NULL, sig);
+        CHECK(pq_slh128s_verify(pk, (const uint8_t *) msg, msg_len, sig),
               "SLH-DSA-128s valid signature verifies");
 
         /* Tampered signature MUST fail */
         sig[500] ^= 0x01;
-        CHECK(!pq_slh128s_verify(pk, (const uint8_t*)msg, msg_len, sig),
+        CHECK(!pq_slh128s_verify(pk, (const uint8_t *) msg, msg_len, sig),
               "SLH-DSA-128s tampered signature rejected");
         sig[500] ^= 0x01;
 
@@ -131,7 +140,7 @@ int main(void) {
         char bad_msg[64];
         strcpy(bad_msg, msg);
         bad_msg[5] ^= 0x01;
-        CHECK(!pq_slh128s_verify(pk, (const uint8_t*)bad_msg, msg_len, sig),
+        CHECK(!pq_slh128s_verify(pk, (const uint8_t *) bad_msg, msg_len, sig),
               "SLH-DSA-128s tampered message rejected");
     }
 
@@ -145,39 +154,41 @@ int main(void) {
         uint8_t slh_pk[PQ_SLH128S_PK_BYTES], slh_sk[PQ_SLH128S_SK_BYTES];
         pq_hybrid_sig_t sig;
         const char *msg = "VINO trade agreement #42";
-        uint32_t msg_len = (uint32_t)strlen(msg);
+        uint32_t msg_len = (uint32_t) strlen(msg);
 
-        fill(mldsa_seed, 32, 0x88); fill(slh_seed, 48, 0x99); fill(rnd, 32, 0xAA);
+        fill(mldsa_seed, 32, 0x88);
+        fill(slh_seed, 48, 0x99);
+        fill(rnd, 32, 0xAA);
         pq_mldsa65_keygen(mldsa_seed, mldsa_pk, mldsa_sk);
         pq_slh128s_keygen(slh_seed, slh_pk, slh_sk);
 
-        pq_hybrid_sign(mldsa_sk, slh_sk, (const uint8_t*)msg, msg_len, rnd, &sig);
+        pq_hybrid_sign(mldsa_sk, slh_sk, (const uint8_t *) msg, msg_len, rnd, &sig);
 
         /* Both valid -> TRUE */
-        CHECK(pq_hybrid_verify(mldsa_pk, slh_pk, (const uint8_t*)msg, msg_len, &sig)
-              == LPRES_STATE_TRUE,
+        CHECK(pq_hybrid_verify(mldsa_pk, slh_pk, (const uint8_t *) msg, msg_len, &sig) ==
+                  LPRES_STATE_TRUE,
               "hybrid: both halves valid -> LPRES_STATE_TRUE");
 
         /* Tamper ML-DSA half only -> BOTH (entry still holds via SLH-DSA) */
         pq_hybrid_sig_t sig2 = sig;
         sig2.mldsa_sig[0] ^= 0x01;
-        CHECK(pq_hybrid_verify(mldsa_pk, slh_pk, (const uint8_t*)msg, msg_len, &sig2)
-              == LPRES_STATE_BOTH,
+        CHECK(pq_hybrid_verify(mldsa_pk, slh_pk, (const uint8_t *) msg, msg_len, &sig2) ==
+                  LPRES_STATE_BOTH,
               "hybrid: ML-DSA broken, SLH-DSA holds -> LPRES_STATE_BOTH");
 
         /* Tamper SLH-DSA half only -> BOTH (entry still holds via ML-DSA) */
         pq_hybrid_sig_t sig3 = sig;
         sig3.slh_sig[0] ^= 0x01;
-        CHECK(pq_hybrid_verify(mldsa_pk, slh_pk, (const uint8_t*)msg, msg_len, &sig3)
-              == LPRES_STATE_BOTH,
+        CHECK(pq_hybrid_verify(mldsa_pk, slh_pk, (const uint8_t *) msg, msg_len, &sig3) ==
+                  LPRES_STATE_BOTH,
               "hybrid: SLH-DSA broken, ML-DSA holds -> LPRES_STATE_BOTH");
 
         /* Tamper both -> FALSE (forgery) */
         pq_hybrid_sig_t sig4 = sig;
         sig4.mldsa_sig[0] ^= 0x01;
         sig4.slh_sig[0] ^= 0x01;
-        CHECK(pq_hybrid_verify(mldsa_pk, slh_pk, (const uint8_t*)msg, msg_len, &sig4)
-              == LPRES_STATE_FALSE,
+        CHECK(pq_hybrid_verify(mldsa_pk, slh_pk, (const uint8_t *) msg, msg_len, &sig4) ==
+                  LPRES_STATE_FALSE,
               "hybrid: both halves broken -> LPRES_STATE_FALSE");
     }
 
@@ -216,7 +227,9 @@ int main(void) {
         pq_mesh_packet_t packet;
         uint8_t ss_out[32];
 
-        fill(d, 32, 0xDD); fill(z, 32, 0xEE); fill(m, 32, 0xFF);
+        fill(d, 32, 0xDD);
+        fill(z, 32, 0xEE);
+        fill(m, 32, 0xFF);
         fill(payload, sizeof(payload), 0x10);
 
         mlkem768_keygen(d, z, ek, dk);
@@ -227,7 +240,7 @@ int main(void) {
         uint8_t ss_sender[32], ct_check[MLKEM768_CT_BYTES];
         mlkem768_encaps(ek, m, ct_check, ss_sender);
         bool leaked = false;
-        const uint8_t *raw = (const uint8_t *)&packet;
+        const uint8_t *raw = (const uint8_t *) &packet;
         for (uint32_t i = 0; i + 32 <= sizeof(packet); i++)
             if (memcmp(raw + i, ss_sender, 32) == 0) leaked = true;
         CHECK(!leaked, "mesh: shared secret appears nowhere in the packet");
@@ -241,14 +254,15 @@ int main(void) {
 
         uint8_t recovered[64];
         uint32_t rlen = 0;
-        CHECK(pq_mesh_open(dk, &packet, recovered, sizeof(recovered), &rlen) && rlen == sizeof(payload) &&
-                  memcmp(recovered, payload, sizeof(payload)) == 0,
+        CHECK(pq_mesh_open(dk, &packet, recovered, sizeof(recovered), &rlen) &&
+                  rlen == sizeof(payload) && memcmp(recovered, payload, sizeof(payload)) == 0,
               "mesh: payload opens byte-for-byte with the right key");
 
         /* Wrong decapsulation key: implicit rejection, and the tag fails */
         uint8_t d2[32], z2[32];
         uint8_t ek2[MLKEM768_EK_BYTES], dk2[MLKEM768_DK_BYTES];
-        fill(d2, 32, 0x12); fill(z2, 32, 0x34);
+        fill(d2, 32, 0x12);
+        fill(z2, 32, 0x34);
         mlkem768_keygen(d2, z2, ek2, dk2);
         uint8_t ss_wrong[32];
         pq_mesh_decapsulate(dk2, &packet, ss_wrong);
@@ -263,7 +277,7 @@ int main(void) {
                                    MLKEM768_CT_BYTES + PQ_MESH_TAG_BYTES + 4 + 10};
         for (int k = 0; k < 4; k++) {
             pq_mesh_packet_t t = packet;
-            ((uint8_t *)&t)[spots[k]] ^= 0x01;
+            ((uint8_t *) &t)[spots[k]] ^= 0x01;
             tries++;
             if (!pq_mesh_open(dk, &t, recovered, sizeof(recovered), &rlen)) caught++;
         }
@@ -271,7 +285,6 @@ int main(void) {
         CHECK(!pq_mesh_encapsulate(ek, payload, PQ_MESH_MAX_PAYLOAD + 1, m, &packet),
               "mesh: oversized payload refused");
     }
-
 
     /* ====================================================================
      * Summary

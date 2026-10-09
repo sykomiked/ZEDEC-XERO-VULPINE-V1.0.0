@@ -14,14 +14,16 @@
 #include <string.h>
 #include <math.h>
 
-static int feq(double a, double b, double eps) {
+static int feq(double a, double b, double eps)
+{
     double diff = fabs(a - b);
     double scale = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
     if (scale < 1.0) scale = 1.0;
     return diff <= eps * scale;
 }
 
-int main(void) {
+int main(void)
+{
     /* ===== init defaults ===== */
     dlp_projector_t p;
     dlp_projector_init(&p, 7, "Tank5-Projector");
@@ -64,7 +66,7 @@ int main(void) {
         uint64_t before = q.cycle_count;
         for (int i = 1; i <= 3; i++) {
             dlp_projector_tick(&q);
-            assert((uint32_t)i == q.subframe_index);
+            assert((uint32_t) i == q.subframe_index);
             assert(!q.irq_frame_ready);
         }
         dlp_projector_tick(&q); /* 4th sub-frame completes the apparent frame */

@@ -8,21 +8,32 @@
 #include "doc.h"
 
 static int failures = 0;
-#define CHECK(c,m) do{ if(!(c)){printf("[FAIL] %s\n",m);failures++;} \
-    else printf("[PASS] %s\n",m);}while(0)
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", m);                                                              \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", m);                                                              \
+    } while (0)
 
-static int is(doc_t *d, const char *want) {
-    char b[DOC_CAPACITY+1];
-    uint32_t n = doc_text(d, b, DOC_CAPACITY); b[n] = 0;
+static int is(doc_t *d, const char *want)
+{
+    char b[DOC_CAPACITY + 1];
+    uint32_t n = doc_text(d, b, DOC_CAPACITY);
+    b[n] = 0;
     return strcmp(b, want) == 0;
 }
-static void show(doc_t *d, const char *label) {
-    char b[DOC_CAPACITY+1];
-    uint32_t n = doc_text(d, b, DOC_CAPACITY); b[n] = 0;
+static void show(doc_t *d, const char *label)
+{
+    char b[DOC_CAPACITY + 1];
+    uint32_t n = doc_text(d, b, DOC_CAPACITY);
+    b[n] = 0;
     printf("       %s: \"%s\"\n", label, b);
 }
 
-int main(void) {
+int main(void)
+{
     doc_t d;
     printf("=== AppKit document model ===\n");
 
@@ -65,7 +76,8 @@ int main(void) {
     show(&d, "doc");
 
     /* --- coalescing: a typing run is ONE undo step --- */
-    doc_t t; doc_init(&t, "typing");
+    doc_t t;
+    doc_init(&t, "typing");
     const char *word = "dragon";
     for (int i = 0; i < 6; i++) doc_insert(&t, doc_length(&t), &word[i], 1);
     CHECK(is(&t, "dragon"), "typed 'dragon' one char at a time");
@@ -75,7 +87,8 @@ int main(void) {
     CHECK(doc_redo(&t) && is(&t, "dragon"), "redo restores the run");
 
     /* a break splits runs */
-    doc_t s; doc_init(&s, "split");
+    doc_t s;
+    doc_init(&s, "split");
     doc_insert(&s, 0, "ab", 2);
     doc_break_coalesce(&s);
     doc_insert(&s, 2, "cd", 2);
@@ -84,7 +97,8 @@ int main(void) {
     CHECK(is(&s, "ab"), "undo removed only the second run");
 
     /* new edit invalidates redo */
-    doc_t r; doc_init(&r, "redo");
+    doc_t r;
+    doc_init(&r, "redo");
     doc_insert(&r, 0, "xyz", 3);
     doc_undo(&r);
     CHECK(r.redo_count == 1, "redo available after undo");
@@ -92,7 +106,8 @@ int main(void) {
     CHECK(r.redo_count == 0, "new edit clears the redo stack");
 
     /* capacity is enforced, never truncated */
-    doc_t c; doc_init(&c, "cap");
+    doc_t c;
+    doc_init(&c, "cap");
     static char big[DOC_CAPACITY];
     memset(big, 'x', sizeof(big));
     CHECK(doc_insert(&c, 0, big, DOC_CAPACITY), "fill to exact capacity");
@@ -101,14 +116,16 @@ int main(void) {
     CHECK(doc_length(&c) == DOC_CAPACITY, "length unchanged after rejection");
 
     /* search */
-    doc_t f; doc_init(&f, "find");
+    doc_t f;
+    doc_init(&f, "find");
     doc_insert(&f, 0, "the dragon guards the gate", 26);
     CHECK(doc_find(&f, "dragon", 0) == 4, "find 'dragon' at 4");
     CHECK(doc_find(&f, "the", 1) == 18, "find 'the' after index 1");
     CHECK(doc_find(&f, "wyvern", 0) == -1, "absent needle returns -1");
 
     /* lines */
-    doc_t L; doc_init(&L, "lines");
+    doc_t L;
+    doc_init(&L, "lines");
     doc_insert(&L, 0, "one\ntwo\nthree", 13);
     CHECK(doc_line_count(&L) == 3, "3 lines");
     CHECK(doc_line_start(&L, 0) == 0, "line 0 starts at 0");
@@ -116,16 +133,18 @@ int main(void) {
     CHECK(doc_line_start(&L, 2) == 8, "line 2 starts at 8");
 
     /* bounded history: overflowing the undo depth must not corrupt */
-    doc_t h; doc_init(&h, "hist");
+    doc_t h;
+    doc_init(&h, "hist");
     for (int i = 0; i < DOC_UNDO_DEPTH + 20; i++) {
         doc_insert(&h, doc_length(&h), "z", 1);
         doc_break_coalesce(&h);
     }
     CHECK(h.undo_count == DOC_UNDO_DEPTH, "undo history stays bounded");
     CHECK(doc_length(&h) == DOC_UNDO_DEPTH + 20, "all edits still applied");
-    int u = 0; while (doc_undo(&h)) u++;
+    int u = 0;
+    while (doc_undo(&h)) u++;
     CHECK(u == DOC_UNDO_DEPTH, "can undo exactly the retained depth");
 
-    printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
-    return failures?1:0;
+    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
+    return failures ? 1 : 0;
 }

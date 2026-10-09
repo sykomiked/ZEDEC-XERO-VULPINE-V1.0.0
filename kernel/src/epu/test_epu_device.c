@@ -33,10 +33,18 @@
 
 static int failures = 0;
 static int checks = 0;
-#define CHECK(c,m) do{ checks++; if(!(c)){printf("[FAIL] %s\n",m);failures++;} \
-    else printf("[PASS] %s\n",m);}while(0)
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", m);                                                              \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", m);                                                              \
+    } while (0)
 
-static int near(double a, double b, double tol) {
+static int near(double a, double b, double tol)
+{
     double d = a - b;
     if (d < 0) d = -d;
     return d <= tol;
@@ -44,14 +52,18 @@ static int near(double a, double b, double tol) {
 
 /* NaN and the infinities by bit pattern, so the test does not need math.h
  * and does not have to perform 0.0/0.0 (which UBSan objects to). */
-static double bits2d(uint64_t b) {
-    union { uint64_t u; double d; } x;
+static double bits2d(uint64_t b)
+{
+    union {
+        uint64_t u;
+        double d;
+    } x;
     x.u = b;
     return x.d;
 }
-#define D_NAN   bits2d(0x7FF8000000000000ULL)
-#define D_INF   bits2d(0x7FF0000000000000ULL)
-#define D_NINF  bits2d(0xFFF0000000000000ULL)
+#define D_NAN  bits2d(0x7FF8000000000000ULL)
+#define D_INF  bits2d(0x7FF0000000000000ULL)
+#define D_NINF bits2d(0xFFF0000000000000ULL)
 
 /* ---- INDEPENDENT reference PRNG ----
  * Written from the published SplitMix64 algorithm (Steele/Lea/Flood 2014),
@@ -61,53 +73,69 @@ static double bits2d(uint64_t b) {
  * of a previous run of the implementation. If epu_qubit_measure() stopped
  * drawing, or drew a different number of times per call, or compared
  * against the wrong probability, these two counts would diverge. */
-static uint64_t ref_splitmix64(uint64_t *s) {
+static uint64_t ref_splitmix64(uint64_t *s)
+{
     uint64_t z = (*s += 0x9E3779B97F4A7C15ULL);
     z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
     z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
     return z ^ (z >> 31);
 }
 /* One fresh Born draw per trial against a fixed P(1). */
-static int ref_ones(uint64_t seed, int n, double p1) {
+static int ref_ones(uint64_t seed, int n, double p1)
+{
     uint64_t s = seed;
     int ones = 0;
     for (int t = 0; t < n; t++) {
-        double u = (double)(ref_splitmix64(&s) >> 11) * (1.0 / 9007199254740992.0);
+        double u = (double) (ref_splitmix64(&s) >> 11) * (1.0 / 9007199254740992.0);
         if (u < p1) ones++;
     }
     return ones;
 }
 
-static double f64at(const uint8_t *p) {
-    union { double d; uint8_t b[8]; } u;
+static double f64at(const uint8_t *p)
+{
+    union {
+        double d;
+        uint8_t b[8];
+    } u;
     for (int i = 0; i < 8; i++) u.b[i] = p[i];
     return u.d;
 }
-static uint32_t u32at(const uint8_t *p) {
-    union { uint32_t w; uint8_t b[4]; } u;
+static uint32_t u32at(const uint8_t *p)
+{
+    union {
+        uint32_t w;
+        uint8_t b[4];
+    } u;
     for (int i = 0; i < 4; i++) u.b[i] = p[i];
     return u.w;
 }
 
 /* digital root of a positive integer */
-static uint32_t droot(uint64_t n) {
+static uint32_t droot(uint64_t n)
+{
     if (n == 0) return 0;
-    return (uint32_t)(1u + (uint32_t)((n - 1u) % 9u));
+    return (uint32_t) (1u + (uint32_t) ((n - 1u) % 9u));
 }
 
-static double qnorm(const epu_qubit_t *q) {
-    return q->a_re*q->a_re + q->a_im*q->a_im + q->b_re*q->b_re + q->b_im*q->b_im;
+static double qnorm(const epu_qubit_t *q)
+{
+    return q->a_re * q->a_re + q->a_im * q->a_im + q->b_re * q->b_re + q->b_im * q->b_im;
 }
-static double qp1(const epu_qubit_t *q) {
-    return q->b_re*q->b_re + q->b_im*q->b_im;
+static double qp1(const epu_qubit_t *q)
+{
+    return q->b_re * q->b_re + q->b_im * q->b_im;
 }
 
 /* ---- capture sink for epu_diagnostic_dump ---- */
-typedef struct { char buf[8192]; unsigned len; } cap_t;
-static void cap_write(void *ctx, const char *s) {
-    cap_t *c = (cap_t *)ctx;
-    for (unsigned i = 0; s[i] && c->len + 1 < sizeof(c->buf); i++)
-        c->buf[c->len++] = s[i];
+typedef struct {
+    char buf[8192];
+    unsigned len;
+} cap_t;
+static void cap_write(void *ctx, const char *s)
+{
+    cap_t *c = (cap_t *) ctx;
+    for (unsigned i = 0; s[i] && c->len + 1 < sizeof(c->buf); i++) c->buf[c->len++] = s[i];
     c->buf[c->len] = '\0';
 }
 
@@ -121,7 +149,8 @@ static cap_t cap;
  * Used to show the model is a pure function of (init inputs, seed): two
  * devices driven identically must end up BYTE-identical, which is only
  * possible if nothing here consults a clock, a device, or a global. */
-static void epu_exercise(epu_device_t *d) {
+static void epu_exercise(epu_device_t *d)
+{
     emotion_vector_t v = {1.0, -2.0, 3.0, 4.0, -5.0};
     uint32_t ids[EPU_EMOTION_DIMS];
     epu_device_activate(d);
@@ -132,19 +161,19 @@ static void epu_exercise(epu_device_t *d) {
     epu_cell_update_spiral(d, 9, 4.0 * EPU_GOLDEN_ANGLE_RAD);
     epu_crystal_activate(d, 1, SOLFEGGIO_639);
     epu_set_vortex_frequency(d, VORTEX_369);
-    for (uint32_t i = 0; i < 40; i++)
-        epu_qubit_apply_gate(d, i, (uint8_t)(i % EPU_NUM_GATES));
+    for (uint32_t i = 0; i < 40; i++) epu_qubit_apply_gate(d, i, (uint8_t) (i % EPU_NUM_GATES));
     epu_qubit_entangle(d, 100, 101);
-    for (uint32_t i = 0; i < 40; i++) (void)epu_qubit_measure(d, i);
-    (void)epu_qubit_measure(d, 100);
-    (void)epu_process_emotion(d, &v);
-    (void)epu_emotion_to_quantum(d, &v, ids);
+    for (uint32_t i = 0; i < 40; i++) (void) epu_qubit_measure(d, i);
+    (void) epu_qubit_measure(d, 100);
+    (void) epu_process_emotion(d, &v);
+    (void) epu_emotion_to_quantum(d, &v, ids);
     epu_handle_irq(d);
-    (void)epu_verify_coverage(d);
-    (void)epu_get_system_health(d);
+    (void) epu_verify_coverage(d);
+    (void) epu_get_system_health(d);
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== EPU MODEL (simulation only; drives no hardware) ===\n");
 
     /* =============== 1. system + device lifecycle =============== */
@@ -165,8 +194,7 @@ int main(void) {
 
     /* =============== 2. device init is fully populated =============== */
     epu_device_init(&dev, 7, "unit-under-test");
-    CHECK(dev.device_id == 7 && strcmp(dev.name, "unit-under-test") == 0,
-          "identity is stored");
+    CHECK(dev.device_id == 7 && strcmp(dev.name, "unit-under-test") == 0, "identity is stored");
     CHECK(!dev.bus_active, "a device comes up INACTIVE, not magically running");
     CHECK(dev.power_consumption_mw == 0.0 && dev.operating_temp_k == 300.0,
           "an inactive device draws 0 mW and sits at ambient 300 K");
@@ -174,8 +202,8 @@ int main(void) {
           "total coherence is the SUM over qubits, 2329920 us");
     CHECK(near(dev.emotion_throughput, 1.0e12 / 512.0, 1e-3),
           "throughput ceiling = 1 THz / 512 bits = 1953125000 (derived, not measured)");
-    CHECK(dev.cells[0].spiral_r == 0.0 && near(dev.cells[1].spiral_r, 1.0, 1e-12)
-          && near(dev.cells[4].spiral_r, 2.0, 1e-12),
+    CHECK(dev.cells[0].spiral_r == 0.0 && near(dev.cells[1].spiral_r, 1.0, 1e-12) &&
+              near(dev.cells[4].spiral_r, 2.0, 1e-12),
           "phyllotaxis placement: r_i = sqrt(i), so cells 0/1/4 sit at 0/1/2");
     CHECK(near(dev.cells[1].spiral_theta, 2.3999632297286533, 1e-12),
           "cell 1 sits one golden angle round, 2.39996 rad");
@@ -196,8 +224,7 @@ int main(void) {
           "a second activation is refused, not reported as success");
     CHECK(dev.power_consumption_mw == 76.0,
           "power = 12 mW bus + 256 x 0.25 mW cells = 76.000 mW exactly");
-    CHECK(near(dev.operating_temp_k, 303.8, 1e-12),
-          "temperature = 300 + 76 x 0.05 = 303.800 K");
+    CHECK(near(dev.operating_temp_k, 303.8, 1e-12), "temperature = 300 + 76 x 0.05 = 303.800 K");
     CHECK(near(epu_get_system_health(&dev), 0.9974666666666666, 1e-12),
           "health of a healthy activated device = 0.99746667");
     CHECK(epu_device_deactivate(&dev) == EPU_OK, "deactivation succeeds once");
@@ -237,9 +264,11 @@ int main(void) {
           "a bad cell index reads back the negative sentinel, not 0.0");
 
     /* =============== 5. resonance and Q =============== */
-    CHECK(epu_cell_set_resonance(&dev, 0, EPU_RESONANCE_HZ) == EPU_OK, "nominal resonance is accepted");
+    CHECK(epu_cell_set_resonance(&dev, 0, EPU_RESONANCE_HZ) == EPU_OK,
+          "nominal resonance is accepted");
     CHECK(near(dev.cells[0].q_factor, 1597.0, 1e-9), "Q at f0 is the full 1597");
-    CHECK(epu_cell_set_resonance(&dev, 0, 2.0 * EPU_RESONANCE_HZ) == EPU_OK, "one octave up is in band");
+    CHECK(epu_cell_set_resonance(&dev, 0, 2.0 * EPU_RESONANCE_HZ) == EPU_OK,
+          "one octave up is in band");
     CHECK(near(dev.cells[0].q_factor, 1597.0 / (1.0 + 1.6180339887498949), 1e-9),
           "Q at 2*f0 falls to 1597/(1+phi) = 609.9997");
     CHECK(epu_cell_set_resonance(&dev, 0, 1.0) == EPU_ERR_RANGE, "1 Hz is out of band");
@@ -265,20 +294,21 @@ int main(void) {
     CHECK(epu_compute_solfeggio_harmonic(SOLFEGGIO_528, 3) == 4224.0, "octave 3 is 528*8 = 4224");
     CHECK(epu_compute_solfeggio_harmonic(SOLFEGGIO_174, 0) == 174.0, "the table starts at 174");
     CHECK(epu_compute_solfeggio_harmonic(SOLFEGGIO_963, 8) == 963.0 * 256.0, "963 at octave 8");
-    CHECK(epu_compute_solfeggio_harmonic(SOLFEGGIO_963, 21) == 0.0, "octave 21 is refused with 0.0");
-    CHECK(epu_compute_solfeggio_harmonic((solfeggio_freq_t)99, 0) == 0.0,
+    CHECK(epu_compute_solfeggio_harmonic(SOLFEGGIO_963, 21) == 0.0,
+          "octave 21 is refused with 0.0");
+    CHECK(epu_compute_solfeggio_harmonic((solfeggio_freq_t) 99, 0) == 0.0,
           "an out-of-range solfeggio index yields 0.0");
     CHECK(epu_compute_vortex_harmonic(VORTEX_3, 0) == 3.0, "vortex base 3");
     CHECK(epu_compute_vortex_harmonic(VORTEX_369, 0) == 369.0, "vortex base 369");
     CHECK(epu_compute_vortex_harmonic(VORTEX_9, 3) == 72.0, "9 doubled three times is 72");
     CHECK(epu_compute_vortex_harmonic(VORTEX_3, 33) == 0.0, "harmonic 33 is refused with 0.0");
-    CHECK(epu_compute_vortex_harmonic((vortex_freq_t)-1, 0) == 0.0,
+    CHECK(epu_compute_vortex_harmonic((vortex_freq_t) -1, 0) == 0.0,
           "a negative vortex index yields 0.0");
     {
         int alt_ok = 1, nine_ok = 1;
         for (uint32_t k = 0; k <= 20; k++) {
-            uint32_t d3 = droot((uint64_t)epu_compute_vortex_harmonic(VORTEX_3, k));
-            uint32_t d9 = droot((uint64_t)epu_compute_vortex_harmonic(VORTEX_9, k));
+            uint32_t d3 = droot((uint64_t) epu_compute_vortex_harmonic(VORTEX_3, k));
+            uint32_t d9 = droot((uint64_t) epu_compute_vortex_harmonic(VORTEX_9, k));
             if (d3 != ((k % 2 == 0) ? 3u : 6u)) alt_ok = 0;
             if (d9 != 9u) nine_ok = 0;
         }
@@ -300,8 +330,8 @@ int main(void) {
     {
         emotion_vector_t in = {1.0, 2.0, 3.0, 4.0, 5.0};
         emotion_vector_t out = epu_process_emotion(&dev, &in);
-        CHECK(out.joy == 1.0 && out.love == 2.0 && out.serenity == 3.0
-              && out.awe == 4.0 && out.gratitude == 5.0,
+        CHECK(out.joy == 1.0 && out.love == 2.0 && out.serenity == 3.0 && out.awe == 4.0 &&
+                  out.gratitude == 5.0,
               "with zero coupling and no field the transform is the identity");
         CHECK(dev.emotions_processed == 1 && dev.irq_emotion_ready,
               "one emotion was counted and the ready flag was raised");
@@ -322,8 +352,7 @@ int main(void) {
         CHECK(near(out.love, -5.0, 1e-13) && near(out.gratitude, 2.0, 1e-13),
               "and the heart pair likewise: love <- -gratitude, gratitude <- love");
         CHECK(out.serenity == 3.0, "serenity is the rotation axis and is untouched");
-        CHECK(near(epu_compute_emotion_intensity(&out),
-                   epu_compute_emotion_intensity(&in), 1e-12),
+        CHECK(near(epu_compute_emotion_intensity(&out), epu_compute_emotion_intensity(&in), 1e-12),
               "the rotation preserves the norm exactly (it is a Givens rotation)");
 
         /* half the array driven -> 45 degrees */
@@ -332,8 +361,7 @@ int main(void) {
         out = epu_process_emotion(&dev, &in);
         CHECK(near(out.joy, -2.121320343559643, 1e-12),
               "half the array driven -> 45 deg -> joy = (1-4)/sqrt(2) = -2.1213203");
-        CHECK(near(out.awe, 3.5355339059327378, 1e-12),
-              "and awe = (1+4)/sqrt(2) = 3.5355339");
+        CHECK(near(out.awe, 3.5355339059327378, 1e-12), "and awe = (1+4)/sqrt(2) = 3.5355339");
 
         CHECK(dev.emotions_processed == 3, "exactly three emotions have been processed");
 
@@ -369,7 +397,8 @@ int main(void) {
     epu_device_activate(&dev);
     {
         const double BMAX = 1.2566370614359173e-6 * 1597.0 * 0.1 / 0.02;
-        CHECK(near(BMAX, 0.0100342469355658, 1e-15), "hand-computed B at the limit is 10.0342469 mT");
+        CHECK(near(BMAX, 0.0100342469355658, 1e-15),
+              "hand-computed B at the limit is 10.0342469 mT");
         CHECK(epu_coil_activate(&dev, 0, 0.1) == EPU_OK, "100 mA is accepted");
         CHECK(near(dev.coils[0].field_strength, BMAX, 1e-15),
               "B = mu0*N*I/(2R) = 10.034 mT at the coil centre");
@@ -420,7 +449,7 @@ int main(void) {
     CHECK(near(dev.crystal_layers[1].piezo_response, 0.6180339887498949 * 528.0 / 432.0, 1e-12),
           "layer 1 has phi^-1 of the material so 0.7553751 of the response");
     CHECK(epu_crystal_activate(&dev, 4, SOLFEGGIO_528) == EPU_ERR_RANGE, "layer 4 does not exist");
-    CHECK(epu_crystal_activate(&dev, 0, (solfeggio_freq_t)99) == EPU_ERR_RANGE,
+    CHECK(epu_crystal_activate(&dev, 0, (solfeggio_freq_t) 99) == EPU_ERR_RANGE,
           "an out-of-range solfeggio index is refused");
     CHECK(epu_crystal_get_resonance(&dev, 2) == 0.0,
           "an unlit layer has no resonance (0.0), which is not an error");
@@ -437,8 +466,8 @@ int main(void) {
     epu_device_init(&dev, 4, "irq");
     epu_device_activate(&dev);
     epu_handle_irq(&dev);
-    CHECK(!dev.irq_coherence_lost && !dev.irq_quantum_decoherence
-          && !dev.irq_field_imbalance && !dev.irq_crystal_resonance,
+    CHECK(!dev.irq_coherence_lost && !dev.irq_quantum_decoherence && !dev.irq_field_imbalance &&
+              !dev.irq_crystal_resonance,
           "a fresh, healthy device raises no level IRQ");
     epu_coil_activate(&dev, 0, 0.1);
     epu_handle_irq(&dev);
@@ -451,8 +480,7 @@ int main(void) {
     CHECK(dev.current_frequency_hz == 528.0, "the solfeggio setting drives the frequency");
     epu_crystal_activate(&dev, 0, SOLFEGGIO_528);
     epu_handle_irq(&dev);
-    CHECK(dev.irq_crystal_resonance,
-          "a 528 Hz layer under a 528 Hz drive is on resonance");
+    CHECK(dev.irq_crystal_resonance, "a 528 Hz layer under a 528 Hz drive is on resonance");
     epu_set_vortex_frequency(&dev, VORTEX_3);
     CHECK(dev.current_frequency_hz == 3.0, "the vortex setting overrides it to 3 Hz");
     epu_handle_irq(&dev);
@@ -460,10 +488,10 @@ int main(void) {
           "no doubling of 528 Hz lands near 3 Hz, so the resonance IRQ clears");
     {
         vortex_freq_t before = dev.vortex_mode;
-        epu_set_vortex_frequency(&dev, (vortex_freq_t)42);
+        epu_set_vortex_frequency(&dev, (vortex_freq_t) 42);
         CHECK(dev.vortex_mode == before && dev.current_frequency_hz == 3.0,
               "an out-of-range vortex mode is ignored, leaving the device unchanged");
-        epu_set_solfeggio_frequency(&dev, (solfeggio_freq_t)42);
+        epu_set_solfeggio_frequency(&dev, (solfeggio_freq_t) 42);
         CHECK(dev.current_frequency_hz == 3.0, "likewise an out-of-range solfeggio mode");
     }
     {
@@ -480,8 +508,8 @@ int main(void) {
           "an inactive device runs no gates");
     epu_device_activate(&dev);
     CHECK(epu_qubit_apply_gate(&dev, 0, EPU_GATE_H) == EPU_OK, "Hadamard applies");
-    CHECK(near(dev.qubits[0].a_re, 0.7071067811865476, 1e-15)
-          && near(dev.qubits[0].b_re, 0.7071067811865476, 1e-15),
+    CHECK(near(dev.qubits[0].a_re, 0.7071067811865476, 1e-15) &&
+              near(dev.qubits[0].b_re, 0.7071067811865476, 1e-15),
           "H|0> = (|0>+|1>)/sqrt(2), amplitudes 0.70710678");
     CHECK(near(qp1(&dev.qubits[0]), 0.5, 1e-15), "so P(1) = 0.5 exactly");
     CHECK(near(dev.qubits[0].fidelity, 0.999 * 0.999, 1e-15),
@@ -489,8 +517,8 @@ int main(void) {
     CHECK(dev.qubits[0].coherence_time_us == 16179.0, "and one microsecond of coherence");
 
     CHECK(epu_qubit_apply_gate(&dev, 0, 99) == EPU_ERR_RANGE, "gate 99 does not exist");
-    CHECK(dev.qubits[0].coherence_time_us == 16179.0
-          && near(dev.qubits[0].fidelity, 0.998001, 1e-15),
+    CHECK(dev.qubits[0].coherence_time_us == 16179.0 &&
+              near(dev.qubits[0].fidelity, 0.998001, 1e-15),
           "a refused gate costs NOTHING — no coherence, no fidelity");
     CHECK(epu_qubit_apply_gate(&dev, 144, EPU_GATE_X) == EPU_ERR_RANGE, "qubit 144 does not exist");
     CHECK(epu_qubit_apply_gate(0, 0, EPU_GATE_X) == EPU_ERR_NULL, "NULL device -> EPU_ERR_NULL");
@@ -504,12 +532,11 @@ int main(void) {
     CHECK(dev.qubits[2].b_re == 0.0 && dev.qubits[2].b_im == 1.0, "S|1> = i|1>");
     epu_qubit_apply_gate(&dev, 3, EPU_GATE_X);
     epu_qubit_apply_gate(&dev, 3, EPU_GATE_T);
-    CHECK(near(dev.qubits[3].b_re, 0.7071067811865476, 1e-15)
-          && near(dev.qubits[3].b_im, 0.7071067811865476, 1e-15),
+    CHECK(near(dev.qubits[3].b_re, 0.7071067811865476, 1e-15) &&
+              near(dev.qubits[3].b_im, 0.7071067811865476, 1e-15),
           "T|1> = exp(i*pi/4)|1>");
     epu_qubit_apply_gate(&dev, 4, EPU_GATE_Y);
-    CHECK(dev.qubits[4].a_re == 0.0 && near(dev.qubits[4].b_im, 1.0, 1e-15),
-          "Y|0> = i|1>");
+    CHECK(dev.qubits[4].a_re == 0.0 && near(dev.qubits[4].b_im, 1.0, 1e-15), "Y|0> = i|1>");
     epu_qubit_apply_gate(&dev, 6, EPU_GATE_X);
     epu_qubit_apply_gate(&dev, 6, EPU_GATE_PHI);
     CHECK(near(qp1(&dev.qubits[6]), 1.0, 1e-12),
@@ -517,7 +544,7 @@ int main(void) {
     {
         double worst = 0.0;
         for (int i = 0; i < 1000; i++) {
-            epu_qubit_apply_gate(&dev, 5, (uint8_t)(i % EPU_NUM_GATES));
+            epu_qubit_apply_gate(&dev, 5, (uint8_t) (i % EPU_NUM_GATES));
             double d = qnorm(&dev.qubits[5]) - 1.0;
             if (d < 0) d = -d;
             if (d > worst) worst = d;
@@ -566,10 +593,10 @@ int main(void) {
     CHECK(epu_qubit_entangle(&dev, 3, 144) == EPU_ERR_RANGE, "qubit 144 does not exist");
     {
         int mismatches = 0;
-        for (uint32_t p = 1; p < 72; p++) epu_qubit_entangle(&dev, 2*p, 2*p+1);
+        for (uint32_t p = 1; p < 72; p++) epu_qubit_entangle(&dev, 2 * p, 2 * p + 1);
         for (uint32_t p = 0; p < 72; p++) {
-            int a = epu_qubit_measure(&dev, 2*p);
-            int b = epu_qubit_measure(&dev, 2*p+1);
+            int a = epu_qubit_measure(&dev, 2 * p);
+            int b = epu_qubit_measure(&dev, 2 * p + 1);
             if (a != b) mismatches++;
         }
         CHECK(mismatches == 0,
@@ -583,7 +610,8 @@ int main(void) {
     CHECK(epu_qubit_measure(0, 0) == EPU_ERR_NULL, "NULL device -> EPU_ERR_NULL");
     {
         int all_zero = 1;
-        for (uint32_t i = 0; i < 144; i++) if (epu_qubit_measure(&dev, i) != 0) all_zero = 0;
+        for (uint32_t i = 0; i < 144; i++)
+            if (epu_qubit_measure(&dev, i) != 0) all_zero = 0;
         CHECK(all_zero, "|0> measures 0 for all 144 qubits — P(1) = 0 really means never");
     }
     epu_device_init(&dev, 10, "measure1");
@@ -612,23 +640,31 @@ int main(void) {
         const int N = 20000;
         int ones_a = 0, ones_b = 0;
         double r2 = 0.7071067811865476;
-        double state_p1 = r2 * r2;      /* the model's own P(1) for this state */
+        double state_p1 = r2 * r2; /* the model's own P(1) for this state */
         epu_seed(&dev, 12345u);
         for (int t = 0; t < N; t++) {
             epu_qubit_t *q = &dev.qubits[0];
-            q->a_re = r2; q->a_im = 0; q->b_re = r2; q->b_im = 0;
-            q->collapsed = false; q->coherence_time_us = 16180.0;
+            q->a_re = r2;
+            q->a_im = 0;
+            q->b_re = r2;
+            q->b_im = 0;
+            q->collapsed = false;
+            q->coherence_time_us = 16180.0;
             if (epu_qubit_measure(&dev, 0) == 1) ones_a++;
         }
         epu_seed(&dev, 999u);
         for (int t = 0; t < N; t++) {
             epu_qubit_t *q = &dev.qubits[0];
-            q->a_re = r2; q->a_im = 0; q->b_re = r2; q->b_im = 0;
-            q->collapsed = false; q->coherence_time_us = 16180.0;
+            q->a_re = r2;
+            q->a_im = 0;
+            q->b_re = r2;
+            q->b_im = 0;
+            q->collapsed = false;
+            q->coherence_time_us = 16180.0;
             if (epu_qubit_measure(&dev, 0) == 1) ones_b++;
         }
         int exp_a = ref_ones(12345u, N, state_p1);
-        int exp_b = ref_ones(999u,   N, state_p1);
+        int exp_b = ref_ones(999u, N, state_p1);
         printf("       seed 12345 -> %d ones (reference %d) ; seed 999 -> %d (reference %d)\n",
                ones_a, exp_a, ones_b, exp_b);
         CHECK(exp_a == 10003 && exp_b == 10070,
@@ -636,9 +672,8 @@ int main(void) {
         CHECK(ones_a == exp_a,
               "seed 12345 matches the reference exactly — one Born draw per measurement");
         CHECK(ones_b == exp_b, "seed 999 matches its reference exactly too");
-        CHECK(ones_a != ones_b,
-              "the two seeds disagree, so the PRNG is genuinely being consulted");
-        CHECK(near((double)ones_a / N, 0.5, 0.02),
+        CHECK(ones_a != ones_b, "the two seeds disagree, so the PRNG is genuinely being consulted");
+        CHECK(near((double) ones_a / N, 0.5, 0.02),
               "and the frequency tracks the Born probability 0.5");
     }
     {
@@ -651,21 +686,23 @@ int main(void) {
         epu_seed(&dev, 2024u);
         for (int t = 0; t < N; t++) {
             epu_qubit_t *q = &dev.qubits[1];
-            q->a_re = ar; q->a_im = 0; q->b_re = br; q->b_im = 0;
-            q->collapsed = false; q->coherence_time_us = 16180.0;
+            q->a_re = ar;
+            q->a_im = 0;
+            q->b_re = br;
+            q->b_im = 0;
+            q->collapsed = false;
+            q->coherence_time_us = 16180.0;
             if (epu_qubit_measure(&dev, 1) == 1) ones++;
         }
         int expect = ref_ones(2024u, N, state_p1);
-        printf("       biased P(1)=0.381966 -> %d ones (reference %d) / %d (%.5f)\n",
-               ones, expect, N, (double)ones / N);
-        CHECK(expect == 7652,
-              "the reference predicts 7652 ones for seed 2024 at P(1) = phi^-2");
-        CHECK(ones == expect,
-              "the golden-biased state matches the reference exactly");
+        printf("       biased P(1)=0.381966 -> %d ones (reference %d) / %d (%.5f)\n", ones, expect,
+               N, (double) ones / N);
+        CHECK(expect == 7652, "the reference predicts 7652 ones for seed 2024 at P(1) = phi^-2");
+        CHECK(ones == expect, "the golden-biased state matches the reference exactly");
         CHECK(ones != ref_ones(2024u, N, 0.5),
               "and it differs from what a fair coin on the same seed would give, so "
               "the amplitude really drives the outcome");
-        CHECK(near((double)ones / N, p1, 0.015),
+        CHECK(near((double) ones / N, p1, 0.015),
               "and the frequency tracks P(1) = phi^-2 = 0.381966, not 0.5");
     }
 
@@ -697,7 +734,7 @@ int main(void) {
     {
         emotion_vector_t in = {1.0, 0.0, 0.0, 0.0, 0.0};
         uint32_t ids[EPU_EMOTION_DIMS] = {77, 77, 77, 77, 77};
-        for (uint32_t p = 0; p < 72; p++) epu_qubit_entangle(&dev, 2*p, 2*p+1);
+        for (uint32_t p = 0; p < 72; p++) epu_qubit_entangle(&dev, 2 * p, 2 * p + 1);
         CHECK(epu_emotion_to_quantum(&dev, &in, ids) == EPU_ERR_NO_RESOURCE,
               "with all 144 qubits entangled there is nothing free -> EPU_ERR_NO_RESOURCE");
         CHECK(ids[0] == 77, "and the caller's array was left untouched");
@@ -712,7 +749,7 @@ int main(void) {
     epu_device_activate(&dev2);
     CHECK(epu_verify_coverage(&dev2) == true, "an activated, healthy device passes");
     CHECK(dev2.coverage_r == 1.0 && dev2.coverage_l == 1.0, "r = l = 1.0");
-    CHECK(near((double)dev2.m5.r, 1.0, 1e-9) && near((double)dev2.m5.ell, 1.0, 1e-9),
+    CHECK(near((double) dev2.m5.r, 1.0, 1e-9) && near((double) dev2.m5.ell, 1.0, 1e-9),
           "and the M5 mirror carries the same r and l");
     for (uint32_t i = 0; i < 50; i++)
         for (int g = 0; g < 105; g++) epu_qubit_apply_gate(&dev2, i, EPU_GATE_I);
@@ -740,7 +777,7 @@ int main(void) {
         double h = epu_get_system_health(&dev2);
         printf("       health with a dead qubit buffer: %.6f\n", h);
         CHECK(h < 0.7, "a dead qubit buffer drags health below 0.7 — the score really moves");
-        CHECK(near(h, (1.0 + 0.0 + 0.0 + 1.0 + (1.0 - 3.8/300.0)) / 5.0, 1e-12),
+        CHECK(near(h, (1.0 + 0.0 + 0.0 + 1.0 + (1.0 - 3.8 / 300.0)) / 5.0, 1e-12),
               "and it equals the hand-computed 0.5974667");
     }
     CHECK(epu_get_system_health(0) == 0.0, "a NULL device scores 0");
@@ -748,7 +785,8 @@ int main(void) {
     /* =============== 18. diagnostic dump through a sink =============== */
     epu_device_init(&dev, 14, "dumpster");
     epu_device_activate(&dev);
-    cap.len = 0; cap.buf[0] = '\0';
+    cap.len = 0;
+    cap.buf[0] = '\0';
     epu_diagnostic_dump(&dev);
     CHECK(cap.len == 0, "with no sink bound the dump writes nothing and claims nothing");
     {
@@ -818,7 +856,7 @@ int main(void) {
     epu_verify_coverage(&dev);
     CHECK(dev.m5.omega == 0 && dev.m5.chi == 15,
           "the M5 mirror carries the emotion count in omega and the device id in chi");
-    CHECK(near((double)dev.m5.phi, 1.0, 1e-9),
+    CHECK(near((double) dev.m5.phi, 1.0, 1e-9),
           "and r*l in the phase slot — mirrored for inspection, consumed by nothing");
 
     /* =============== 21. system aggregates: MIN vs MEAN, and staleness ======
@@ -834,10 +872,12 @@ int main(void) {
         sys.devices[1].qubits[i].fidelity = 0.5;
     }
     CHECK(near(sys.system_coherence_us, 16180.0 * 144.0, 1e-6),
-          "the system aggregates are STALE until refreshed — degrading a device did not move them (L12)");
+          "the system aggregates are STALE until refreshed — degrading a device did not move them "
+          "(L12)");
     epu_system_refresh(&sys);
     CHECK(near(sys.system_coherence_us, 100.0 * 144.0, 1e-9),
-          "after refresh system coherence is the MIN (14400 us), not the mean 1558080 nor devices[0]'s 2329920");
+          "after refresh system coherence is the MIN (14400 us), not the mean 1558080 nor "
+          "devices[0]'s 2329920");
     CHECK(near(sys.system_fidelity, (0.999 + 0.5 + 0.999) / 3.0, 1e-12),
           "and system fidelity is the MEAN over devices, 0.8326667 — not a constant 0.999");
     {
@@ -845,9 +885,9 @@ int main(void) {
         double c0 = sys.system_coherence_us, f0 = sys.system_fidelity;
         uint32_t n0 = sys.num_devices;
         epu_system_refresh(0);
-        CHECK(sys.system_coherence_us == c0 && sys.system_fidelity == f0
-              && sys.num_devices == n0,
-              "epu_system_refresh(NULL) returns without crashing and without touching the real system");
+        CHECK(sys.system_coherence_us == c0 && sys.system_fidelity == f0 && sys.num_devices == n0,
+              "epu_system_refresh(NULL) returns without crashing and without touching the real "
+              "system");
     }
     epu_system_init(&sys);
     epu_system_refresh(&sys);
@@ -871,7 +911,8 @@ int main(void) {
               "health at the ceiling is 0.99733333 — only the thermal term moved");
         dev.power_consumption_mw = 1.0e6;
         CHECK(near(epu_get_system_health(&dev), h_sat, 1e-12),
-              "poking power_consumption_mw by hand does NOT change health — it is recomputed from the arrays (L11)");
+              "poking power_consumption_mw by hand does NOT change health — it is recomputed from "
+              "the arrays (L11)");
     }
 
     /* =============== 23. power-down really powers everything down ========= */
@@ -928,10 +969,10 @@ int main(void) {
           "and none of the three counted as a drive cycle");
     CHECK(epu_cell_set_resonance(&dev, 0, D_NAN) == EPU_ERR_RANGE, "a NaN retune is refused");
     CHECK(epu_cell_set_resonance(&dev, 0, D_INF) == EPU_ERR_RANGE, "an infinite retune is refused");
-    CHECK(dev.cells[0].resonance_freq == EPU_RESONANCE_HZ,
-          "and the resonance is untouched");
+    CHECK(dev.cells[0].resonance_freq == EPU_RESONANCE_HZ, "and the resonance is untouched");
     CHECK(epu_coil_activate(&dev, 0, D_NAN) == EPU_ERR_RANGE, "a NaN coil current is refused");
-    CHECK(epu_coil_activate(&dev, 0, D_INF) == EPU_ERR_RANGE, "an infinite coil current is refused");
+    CHECK(epu_coil_activate(&dev, 0, D_INF) == EPU_ERR_RANGE,
+          "an infinite coil current is refused");
     CHECK(dev.coils[0].current == 0.0, "and the coil stays de-energised");
     epu_cell_update_spiral(&dev, 5, D_NAN);
     CHECK(dev.cells[5].spiral_theta == 0.0 && dev.cells[5].spiral_r == 0.0,
@@ -952,7 +993,8 @@ int main(void) {
         CHECK(o.joy == 0.0 && o.love == 0.0 && o.awe == 0.0,
               "a NaN emotion returns the zero vector");
         CHECK(dev.emotions_processed == n0 && dev.tx_head == h0 && !dev.irq_emotion_ready,
-              "and counts NOTHING, pushes no frame and raises no IRQ — a NaN transform is not a transform");
+              "and counts NOTHING, pushes no frame and raises no IRQ — a NaN transform is not a "
+              "transform");
         o = epu_process_emotion(&dev, &inf);
         CHECK(o.serenity == 0.0 && dev.emotions_processed == n0,
               "an infinite emotion is refused on the same terms");
@@ -967,12 +1009,11 @@ int main(void) {
     epu_device_init(&dev, 26, "e2q-signed");
     epu_device_activate(&dev);
     {
-        emotion_vector_t v = {3.0, -4.0, 0.0, 0.0, 0.0};   /* norm = 5 exactly */
+        emotion_vector_t v = {3.0, -4.0, 0.0, 0.0, 0.0}; /* norm = 5 exactly */
         uint32_t ids[EPU_EMOTION_DIMS] = {0, 0, 0, 0, 0};
         double sum = 0.0;
         CHECK(epu_emotion_to_quantum(&dev, &v, ids) == EPU_OK, "a signed emotion encodes");
-        CHECK(near(dev.qubits[ids[0]].b_re, 0.6, 1e-15),
-              "joy 3/5 gives amplitude +0.6");
+        CHECK(near(dev.qubits[ids[0]].b_re, 0.6, 1e-15), "joy 3/5 gives amplitude +0.6");
         CHECK(near(dev.qubits[ids[1]].b_re, -0.8, 1e-15),
               "love -4/5 gives amplitude -0.8 — the SIGN of the axis survives the encoding");
         CHECK(near(qp1(&dev.qubits[ids[1]]), 0.64, 1e-15),
@@ -983,8 +1024,8 @@ int main(void) {
         }
         CHECK(near(sum, 1.0, 1e-12),
               "the five probabilities still sum to 1 and every encoded state is normalised");
-        for (int i = 0; i < 7; i++) (void)epu_process_emotion(&dev, &v);
-        (void)epu_verify_coverage(&dev);
+        for (int i = 0; i < 7; i++) (void) epu_process_emotion(&dev, &v);
+        (void) epu_verify_coverage(&dev);
         CHECK(dev.m5.omega == 7 && dev.emotions_processed == 7,
               "the M5 mirror's omega really tracks emotions_processed; it is not pinned at 0");
     }
@@ -992,18 +1033,19 @@ int main(void) {
     /* =============== 27. bounded strings and bounded buffers ============== */
     {
         char longname[200];
-        for (int i = 0; i < 199; i++) longname[i] = (char)('A' + (i % 26));
+        for (int i = 0; i < 199; i++) longname[i] = (char) ('A' + (i % 26));
         longname[199] = '\0';
         epu_device_init(&dev, 28, longname);
         CHECK(strlen(dev.name) == 63,
               "a 199-character name is truncated to 63 characters, not copied over the struct");
         CHECK(memcmp(dev.name, longname, 63) == 0 && dev.name[63] == '\0',
               "the first 63 characters survive intact and the field is NUL-terminated");
-        CHECK(dev.cells[255].cell_id == 255 && dev.qubits[143].qubit_id == 143
-              && dev.device_id == 28,
+        CHECK(dev.cells[255].cell_id == 255 && dev.qubits[143].qubit_id == 143 &&
+                  dev.device_id == 28,
               "and the rest of the device initialised normally around it");
         epu_device_init(&dev, 29, 0);
-        CHECK(strcmp(dev.name, "epu") == 0, "a NULL name becomes \"epu\" rather than empty or garbage");
+        CHECK(strcmp(dev.name, "epu") == 0,
+              "a NULL name becomes \"epu\" rather than empty or garbage");
     }
     epu_device_init(&dev, 30, "evil*/name\nwith\"quotes\";--drop");
     epu_device_activate(&dev);
@@ -1023,42 +1065,52 @@ int main(void) {
         CHECK(v != 0, "the shared-buffer wrapper still works");
         strcpy(full, v ? v : "");
         n = strlen(full);
-        printf("       verilog skeleton: %u bytes into a %d-byte buffer\n",
-               (unsigned)n, EPU_HDL_BUF_BYTES);
-        CHECK(n > 400 && n < (size_t)EPU_HDL_BUF_BYTES,
+        printf("       verilog skeleton: %u bytes into a %d-byte buffer\n", (unsigned) n,
+               EPU_HDL_BUF_BYTES);
+        CHECK(n > 400 && n < (size_t) EPU_HDL_BUF_BYTES,
               "the skeleton is real content that fits the shared buffer with room to spare");
-        exact = (char *)malloc(n + 1);
-        CHECK(epu_generate_hdl_buf(&dev, "verilog", exact, (uint32_t)(n + 1)) == exact,
+        exact = (char *) malloc(n + 1);
+        CHECK(epu_generate_hdl_buf(&dev, "verilog", exact, (uint32_t) (n + 1)) == exact,
               "an exactly-sized caller buffer succeeds");
         CHECK(strcmp(exact, full) == 0,
               "and produces byte-identical output to the shared-buffer wrapper");
-        tight = (char *)malloc(n);
-        CHECK(epu_generate_hdl_buf(&dev, "verilog", tight, (uint32_t)n) == 0,
+        tight = (char *) malloc(n);
+        CHECK(epu_generate_hdl_buf(&dev, "verilog", tight, (uint32_t) n) == 0,
               "one byte short returns NULL — a truncated skeleton is never handed back");
         free(exact);
         free(tight);
         {
             char tiny[8];
-            CHECK(epu_generate_hdl_buf(&dev, "verilog", tiny, (uint32_t)sizeof tiny) == 0,
+            CHECK(epu_generate_hdl_buf(&dev, "verilog", tiny, (uint32_t) sizeof tiny) == 0,
                   "an 8-byte buffer returns NULL");
-            CHECK(epu_generate_hdl_buf(&dev, "vhdl", tiny, 1u) == 0, "a 1-byte buffer returns NULL");
+            CHECK(epu_generate_hdl_buf(&dev, "vhdl", tiny, 1u) == 0,
+                  "a 1-byte buffer returns NULL");
             CHECK(tiny[0] == '\0', "and leaves only a NUL behind, having written nothing else");
-            CHECK(epu_generate_hdl_buf(&dev, "verilog", tiny, 0u) == 0, "a zero capacity returns NULL");
-            CHECK(epu_generate_hdl_buf(&dev, "verilog", 0, 4096u) == 0, "a NULL buffer returns NULL");
+            CHECK(epu_generate_hdl_buf(&dev, "verilog", tiny, 0u) == 0,
+                  "a zero capacity returns NULL");
+            CHECK(epu_generate_hdl_buf(&dev, "verilog", 0, 4096u) == 0,
+                  "a NULL buffer returns NULL");
             CHECK(epu_generate_hdl_buf(0, "verilog", tiny, 8u) == 0, "a NULL device returns NULL");
         }
         /* Exactly-sized, non-over-allocated language strings: ASan proves the
          * case-insensitive compare never reads past the terminator. */
         {
-            char *lv = (char *)malloc(8); memcpy(lv, "verilog", 8);
-            char *lh = (char *)malloc(5); memcpy(lh, "vhdl", 5);
-            char *lc = (char *)malloc(6); memcpy(lc, "cobol", 6);
-            char *le = (char *)malloc(1); le[0] = '\0';
+            char *lv = (char *) malloc(8);
+            memcpy(lv, "verilog", 8);
+            char *lh = (char *) malloc(5);
+            memcpy(lh, "vhdl", 5);
+            char *lc = (char *) malloc(6);
+            memcpy(lc, "cobol", 6);
+            char *le = (char *) malloc(1);
+            le[0] = '\0';
             CHECK(epu_generate_hdl(&dev, lv) != 0, "an exactly-allocated \"verilog\" is accepted");
             CHECK(epu_generate_hdl(&dev, lh) != 0, "an exactly-allocated \"vhdl\" is accepted");
             CHECK(epu_generate_hdl(&dev, lc) == 0, "an exactly-allocated \"cobol\" is refused");
             CHECK(epu_generate_hdl(&dev, le) == 0, "an empty language string is refused");
-            free(lv); free(lh); free(lc); free(le);
+            free(lv);
+            free(lh);
+            free(lc);
+            free(le);
         }
         {
             char longlang[300];
@@ -1084,7 +1136,8 @@ int main(void) {
         epu_sink_t s;
         s.write = cap_write;
         s.ctx = &cap;
-        cap.len = 0; cap.buf[0] = '\0';
+        cap.len = 0;
+        cap.buf[0] = '\0';
         epu_bind_sink(&dev, &s);
         epu_diagnostic_dump(&dev);
         CHECK(strstr(cap.buf, "total_coherence_us=2.0") != 0,
@@ -1128,17 +1181,22 @@ int main(void) {
         epu_set_vortex_frequency(0, VORTEX_3);
         epu_set_solfeggio_frequency(0, SOLFEGGIO_528);
         CHECK(memcmp(&dev, &dev2, sizeof dev) == 0,
-              "nine void-returning entry points take a NULL device without crashing and without disturbing a live one");
+              "nine void-returning entry points take a NULL device without crashing and without "
+              "disturbing a live one");
         CHECK(epu_device_deactivate(0) == EPU_ERR_NULL, "deactivate(NULL) -> EPU_ERR_NULL");
-        CHECK(epu_cell_set_resonance(0, 0, 28318.5) == EPU_ERR_NULL, "set_resonance(NULL) -> EPU_ERR_NULL");
+        CHECK(epu_cell_set_resonance(0, 0, 28318.5) == EPU_ERR_NULL,
+              "set_resonance(NULL) -> EPU_ERR_NULL");
         CHECK(epu_cell_read_coupling(0, 0) == EPU_BAD_READING, "read_coupling(NULL) -> sentinel");
         CHECK(epu_qubit_entangle(0, 0, 1) == EPU_ERR_NULL, "entangle(NULL) -> EPU_ERR_NULL");
         CHECK(epu_qubit_get_coherence(0, 0) == EPU_BAD_READING, "get_coherence(NULL) -> sentinel");
         CHECK(epu_coil_activate(0, 0, 0.05) == EPU_ERR_NULL, "coil_activate(NULL) -> EPU_ERR_NULL");
         CHECK(epu_coil_compute_field(0, 0) == EPU_BAD_READING, "compute_field(NULL) -> sentinel");
-        CHECK(epu_crystal_activate(0, 0, SOLFEGGIO_528) == EPU_ERR_NULL, "crystal_activate(NULL) -> EPU_ERR_NULL");
-        CHECK(epu_crystal_get_resonance(0, 0) == EPU_BAD_READING, "crystal_resonance(NULL) -> sentinel");
-        CHECK(epu_emotion_to_quantum(0, 0, 0) == EPU_ERR_NULL, "emotion_to_quantum(NULL) -> EPU_ERR_NULL");
+        CHECK(epu_crystal_activate(0, 0, SOLFEGGIO_528) == EPU_ERR_NULL,
+              "crystal_activate(NULL) -> EPU_ERR_NULL");
+        CHECK(epu_crystal_get_resonance(0, 0) == EPU_BAD_READING,
+              "crystal_resonance(NULL) -> sentinel");
+        CHECK(epu_emotion_to_quantum(0, 0, 0) == EPU_ERR_NULL,
+              "emotion_to_quantum(NULL) -> EPU_ERR_NULL");
         CHECK(epu_system_create_device(0, "x") == 0, "create_device(NULL) -> 0");
     }
     /* out-of-range ids on the void-returning setters must change nothing */
@@ -1152,7 +1210,8 @@ int main(void) {
         epu_coil_set_golden_ratio(&dev, 0xFFFFFFFFu, 2.0);
         CHECK(dev.cells[7].spiral_theta == th && dev.coils[7].golden_ratio_field == gr,
               "out-of-range cell and coil ids are ignored and write nothing (ASan is watching)");
-        CHECK(epu_qubit_entangle(&dev, 0, 1) == EPU_OK, "sanity: the device still works afterwards");
+        CHECK(epu_qubit_entangle(&dev, 0, 1) == EPU_OK,
+              "sanity: the device still works afterwards");
     }
     epu_device_init(&dev, 33, "ent-inactive");
     CHECK(epu_qubit_entangle(&dev, 0, 1) == EPU_ERR_INACTIVE,
@@ -1167,8 +1226,8 @@ int main(void) {
     epu_device_activate(&dev2);
     for (uint32_t i = 0; i < 72; i++)
         for (int g = 0; g < 105; g++) epu_qubit_apply_gate(&dev2, i, EPU_GATE_I);
-    CHECK(epu_verify_coverage(&dev2) == true,
-          "with exactly half the qubits good, r*l sits ON the 0.5 floor and PASSES (the test is >=, not >)");
+    CHECK(epu_verify_coverage(&dev2) == true, "with exactly half the qubits good, r*l sits ON the "
+                                              "0.5 floor and PASSES (the test is >=, not >)");
     CHECK(dev2.coverage_r * dev2.coverage_l == EPU_COVERAGE_FLOOR,
           "and r*l is exactly 0.5 — 256/256 x 72/144, both exact in binary");
     for (int g = 0; g < 105; g++) epu_qubit_apply_gate(&dev2, 72, EPU_GATE_I);
@@ -1181,17 +1240,20 @@ int main(void) {
     {
         const double PI_ = 0.6180339887498949;
         for (int g = 0; g < 1000; g++) epu_qubit_apply_gate(&dev, 5, EPU_GATE_I);
-        CHECK(dev.qubits[5].coherence_time_us == 15180.0 && dev.qubits[4].coherence_time_us == 16180.0,
+        CHECK(dev.qubits[5].coherence_time_us == 15180.0 &&
+                  dev.qubits[4].coherence_time_us == 16180.0,
               "qubit 5 has spent 1000 us of coherence while qubit 4 is untouched");
         CHECK(epu_qubit_entangle(&dev, 4, 5) == EPU_OK, "the mismatched pair entangles");
         CHECK(near(dev.qubits[4].coherence_time_us, 15180.0 * PI_, 1e-6),
-              "the pair inherits phi^-1 of the WEAKER half (9381.76 us), not of the stronger (9999.79)");
+              "the pair inherits phi^-1 of the WEAKER half (9381.76 us), not of the stronger "
+              "(9999.79)");
         CHECK(dev.qubits[4].coherence_time_us == dev.qubits[5].coherence_time_us,
               "and both sides of the pair carry the same number");
         /* same answer with the weaker qubit passed second, so this is a real
          * minimum and not "whichever argument came first" */
         for (int g = 0; g < 500; g++) epu_qubit_apply_gate(&dev, 31, EPU_GATE_I);
-        CHECK(epu_qubit_entangle(&dev, 30, 31) == EPU_OK, "a pair whose weaker half is the SECOND argument entangles");
+        CHECK(epu_qubit_entangle(&dev, 30, 31) == EPU_OK,
+              "a pair whose weaker half is the SECOND argument entangles");
         CHECK(near(dev.qubits[30].coherence_time_us, 15680.0 * PI_, 1e-6),
               "and gets phi^-1 of 15680 us too — the minimum does not depend on argument order");
     }
@@ -1202,21 +1264,20 @@ int main(void) {
     {
         emotion_vector_t in = {0.0, 0.0, 0.0, 0.0, 0.0};
         for (uint32_t k = 0; k < 3; k++) {
-            in.joy = (double)(k + 1);
-            (void)epu_process_emotion(&dev, &in);
+            in.joy = (double) (k + 1);
+            (void) epu_process_emotion(&dev, &in);
         }
-        CHECK(f64at(dev.tx_buffer + 0 * 64) == 1.0
-              && f64at(dev.tx_buffer + 1 * 64) == 2.0
-              && f64at(dev.tx_buffer + 2 * 64) == 3.0,
-              "three frames land in three DIFFERENT 64-byte slots, in order — the ring is not writing slot 0 forever");
-        CHECK(u32at(dev.tx_buffer + 1 * 64 + 48) == 1
-              && u32at(dev.tx_buffer + 2 * 64 + 48) == 2,
+        CHECK(f64at(dev.tx_buffer + 0 * 64) == 1.0 && f64at(dev.tx_buffer + 1 * 64) == 2.0 &&
+                  f64at(dev.tx_buffer + 2 * 64) == 3.0,
+              "three frames land in three DIFFERENT 64-byte slots, in order — the ring is not "
+              "writing slot 0 forever");
+        CHECK(u32at(dev.tx_buffer + 1 * 64 + 48) == 1 && u32at(dev.tx_buffer + 2 * 64 + 48) == 2,
               "and each slot carries its own sequence number");
         CHECK(f64at(dev.rx_buffer + 2 * 64) == 3.0,
               "the rx ring tracks the transformed frames in the same slots");
         for (uint32_t k = 3; k < 65; k++) {
-            in.joy = (double)(k + 1);
-            (void)epu_process_emotion(&dev, &in);
+            in.joy = (double) (k + 1);
+            (void) epu_process_emotion(&dev, &in);
         }
         CHECK(u32at(dev.tx_buffer + 0 * 64 + 48) == 64 && f64at(dev.tx_buffer + 0) == 65.0,
               "after 65 frames slot 0 has been reused by frame 64");
@@ -1246,8 +1307,8 @@ int main(void) {
         printf("       entangled superpositions: %d of 72 pairs collapsed to 1\n", ones);
         CHECK(mismatches == 0,
               "all 72 pairs held in a REAL superposition still collapse to the same outcome");
-        CHECK(ones > 10 && ones < 62,
-              "and the outcomes are genuinely mixed, so the agreement is correlation and not 'everything was 0 anyway'");
+        CHECK(ones > 10 && ones < 62, "and the outcomes are genuinely mixed, so the agreement is "
+                                      "correlation and not 'everything was 0 anyway'");
     }
 
     /* =============== 30e. the in-module square root is correctly rounded ==
@@ -1264,9 +1325,9 @@ int main(void) {
         long bad = 0;
         uint64_t st = 20260805u;
         for (long i = 0; i < 200000; i++) {
-            double c0 = (double)(ref_splitmix64(&st) >> 11) * (1.0 / 9007199254740992.0);
-            double c1 = (double)(ref_splitmix64(&st) >> 11) * (1.0 / 9007199254740992.0);
-            double c2 = (double)(ref_splitmix64(&st) >> 11) * (1.0 / 9007199254740992.0);
+            double c0 = (double) (ref_splitmix64(&st) >> 11) * (1.0 / 9007199254740992.0);
+            double c1 = (double) (ref_splitmix64(&st) >> 11) * (1.0 / 9007199254740992.0);
+            double c2 = (double) (ref_splitmix64(&st) >> 11) * (1.0 / 9007199254740992.0);
             emotion_vector_t v;
             double s, got;
             v.joy = (c0 - 0.5) * 2000.0;
@@ -1274,23 +1335,24 @@ int main(void) {
             v.serenity = (c2 - 0.5) * 2e8;
             v.awe = c0 * 1e-4;
             v.gratitude = c1 * 7.0;
-            s = v.joy * v.joy + v.love * v.love + v.serenity * v.serenity
-              + v.awe * v.awe + v.gratitude * v.gratitude;
+            s = v.joy * v.joy + v.love * v.love + v.serenity * v.serenity + v.awe * v.awe +
+                v.gratitude * v.gratitude;
             got = epu_compute_emotion_intensity(&v);
             if (s > 0.0 && got != sqrt(s)) bad++;
         }
-        CHECK(bad == 0,
-              "over 200000 emotion vectors spanning 1e-8 to 1e8 the intensity is BIT-IDENTICAL to libm sqrt");
+        CHECK(bad == 0, "over 200000 emotion vectors spanning 1e-8 to 1e8 the intensity is "
+                        "BIT-IDENTICAL to libm sqrt");
     }
     {
         long bad = 0;
         for (long i = 0; i <= 200000; i++) {
-            double t = (double)i * 0.003;      /* 0 .. 600, inside the clamp */
+            double t = (double) i * 0.003; /* 0 .. 600, inside the clamp */
             epu_cell_update_spiral(&dev, 0, t);
             if (dev.cells[0].spiral_r != sqrt(t / EPU_GOLDEN_ANGLE_RAD)) bad++;
         }
-        CHECK(bad == 0,
-              "and 200001 spiral radii are bit-identical to libm sqrt across the whole clamp range");
+        CHECK(
+            bad == 0,
+            "and 200001 spiral radii are bit-identical to libm sqrt across the whole clamp range");
     }
     {
         /* The subnormal branch (scale up by 2^108, root, scale down by 2^54)
@@ -1298,12 +1360,11 @@ int main(void) {
          * subnormal argument. */
         long bad = 0;
         for (int k = 0; k < 40; k++) {
-            double t = bits2d((uint64_t)(k + 1) * 0x0000000000000101ULL);  /* subnormals */
+            double t = bits2d((uint64_t) (k + 1) * 0x0000000000000101ULL); /* subnormals */
             epu_cell_update_spiral(&dev, 1, t);
             if (dev.cells[1].spiral_r != sqrt(t / EPU_GOLDEN_ANGLE_RAD)) bad++;
         }
-        CHECK(bad == 0,
-              "40 subnormal angles take the scaled path and still match libm exactly");
+        CHECK(bad == 0, "40 subnormal angles take the scaled path and still match libm exactly");
         epu_cell_update_spiral(&dev, 2, 0.0);
         CHECK(dev.cells[2].spiral_r == 0.0, "sqrt(0) is 0, not NaN");
     }
@@ -1313,21 +1374,22 @@ int main(void) {
      * inputs and driven through the same op sequence must end up BYTE
      * identical: that is only possible if nothing in the module reads a
      * clock, a register, an IRQ line, or any global mutable state. */
-    epu_device_init(&dev,  40, "pure");
+    epu_device_init(&dev, 40, "pure");
     epu_device_init(&dev2, 40, "pure");
     CHECK(memcmp(&dev, &dev2, sizeof dev) == 0,
           "two devices initialised from the same inputs are byte-identical");
     epu_exercise(&dev);
     epu_exercise(&dev2);
     CHECK(memcmp(&dev, &dev2, sizeof dev) == 0,
-          "and remain byte-identical after the same ~160 operations — no clock, no hardware, no hidden global is consulted");
+          "and remain byte-identical after the same ~160 operations — no clock, no hardware, no "
+          "hidden global is consulted");
     epu_device_init(&dev2, 40, "pure");
     epu_seed(&dev2, 424242u);
     epu_exercise(&dev2);
-    CHECK(memcmp(&dev, &dev2, sizeof dev) != 0,
-          "reseeding the measurement PRNG changes the result, so the comparison above is not vacuous");
+    CHECK(memcmp(&dev, &dev2, sizeof dev) != 0, "reseeding the measurement PRNG changes the "
+                                                "result, so the comparison above is not vacuous");
 
-    printf("\n%d checks, %s: %d failure(s)\n",
-           checks, failures ? "*** FAILED ***" : "ALL PASS", failures);
+    printf("\n%d checks, %s: %d failure(s)\n", checks, failures ? "*** FAILED ***" : "ALL PASS",
+           failures);
     return failures ? 1 : 0;
 }

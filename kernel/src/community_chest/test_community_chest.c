@@ -28,27 +28,32 @@
  * called the default verifier; when the implementation was upgraded
  * HMAC -> Ed25519 they were left behind and failed silently, because they were
  * never wired into verify-all.) */
-static bool test_verify_hmac(const cc_app_t *e) {
+static bool test_verify_hmac(const cc_app_t *e)
+{
     if (!e) return false;
-    uint8_t msg[128]; uint32_t pos = 0;
-    for (uint32_t i = 0; i < 64 && e->name[i]; i++) msg[pos++] = (uint8_t)e->name[i];
+    uint8_t msg[128];
+    uint32_t pos = 0;
+    for (uint32_t i = 0; i < 64 && e->name[i]; i++) msg[pos++] = (uint8_t) e->name[i];
     for (uint32_t i = 0; i < 32 && pos < sizeof(msg); i++) msg[pos++] = e->dev_pubkey[i];
     uint8_t expect[32];
     crypto_hmac_sha256(msg, pos, CRYPTO_AUTHORITY_KEY_COMMUNITY_CHEST, expect);
-    for (uint32_t i = 0; i < 32; i++) if (expect[i] != e->signature[i]) return false;
+    for (uint32_t i = 0; i < 32; i++)
+        if (expect[i] != e->signature[i]) return false;
     return true;
 }
 
-static int feq(double a, double b, double eps) {
+static int feq(double a, double b, double eps)
+{
     double diff = fabs(a - b);
     double scale = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
     if (scale < 1.0) scale = 1.0;
     return diff <= eps * scale;
 }
 
-static word168_t make_dev(uint8_t seed) {
+static word168_t make_dev(uint8_t seed)
+{
     word168_t w;
-    for (int i = 0; i < WORD168_OCTETS; i++) w.bytes[i] = (uint8_t)(seed + i);
+    for (int i = 0; i < WORD168_OCTETS; i++) w.bytes[i] = (uint8_t) (seed + i);
     return w;
 }
 
@@ -57,9 +62,12 @@ static uint8_t pubkey[CC_PUBKEY_LEN];
 static uint8_t hash[CC_CONTENT_HASH_LEN];
 
 /* Compute a valid HMAC-SHA256 community_chest signature for test apps */
-static void compute_cc_sig(const char *name, const uint8_t *pubkey, uint8_t sig[CC_SIG_LEN]) {
-    uint8_t msg[128]; uint32_t pos = 0;
-    for (uint32_t i = 0; name[i] && i < 64 && pos < sizeof(msg); i++) msg[pos++] = (uint8_t)name[i];
+static void compute_cc_sig(const char *name, const uint8_t *pubkey, uint8_t sig[CC_SIG_LEN])
+{
+    uint8_t msg[128];
+    uint32_t pos = 0;
+    for (uint32_t i = 0; name[i] && i < 64 && pos < sizeof(msg); i++)
+        msg[pos++] = (uint8_t) name[i];
     for (uint32_t i = 0; i < 32 && pos < sizeof(msg); i++) msg[pos++] = pubkey[i];
     uint8_t hmac_out[32];
     crypto_hmac_sha256(msg, pos, CRYPTO_AUTHORITY_KEY_COMMUNITY_CHEST, hmac_out);
@@ -67,7 +75,8 @@ static void compute_cc_sig(const char *name, const uint8_t *pubkey, uint8_t sig[
     for (uint32_t i = 32; i < CC_SIG_LEN; i++) sig[i] = 0;
 }
 
-int main(void) {
+int main(void)
+{
     memset(zero_sig, 0, CC_SIG_LEN);
     memset(pubkey, 0x42, CC_PUBKEY_LEN);
     memset(hash, 0x77, CC_CONTENT_HASH_LEN);
@@ -90,14 +99,14 @@ int main(void) {
         cc.verify_sig = test_verify_hmac;
 
         word168_t dev = make_dev(1);
-        uint8_t sig1[CC_SIG_LEN]; compute_cc_sig("MeshChat", pubkey, sig1);
-        int32_t id = cc_list_app(&cc, "MeshChat", "P2P chat app", "DevAlpha",
-                                   &dev, pubkey, hash, sig1,
-                                   CC_APP_FREE, CC_APP_NATIVE, 0, 7500);
+        uint8_t sig1[CC_SIG_LEN];
+        compute_cc_sig("MeshChat", pubkey, sig1);
+        int32_t id = cc_list_app(&cc, "MeshChat", "P2P chat app", "DevAlpha", &dev, pubkey, hash,
+                                 sig1, CC_APP_FREE, CC_APP_NATIVE, 0, 7500);
         assert(id > 0);
         assert(cc.num_apps == 1);
 
-        cc_app_t *app = cc_get_app(&cc, (uint32_t)id);
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) id);
         assert(app != NULL);
         assert(strcmp(app->name, "MeshChat") == 0);
         assert(app->type == CC_APP_FREE);
@@ -113,11 +122,10 @@ int main(void) {
         cc_init(&cc, 1, "chest");
         cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(2);
-        int32_t id = cc_list_app(&cc, "BadApp", "Malicious", "EvilDev",
-                                   &dev, pubkey, hash, zero_sig,
-                                   CC_APP_FREE, CC_APP_NATIVE, 0, 7000);
+        int32_t id = cc_list_app(&cc, "BadApp", "Malicious", "EvilDev", &dev, pubkey, hash,
+                                 zero_sig, CC_APP_FREE, CC_APP_NATIVE, 0, 7000);
         assert(id == -2);
-        cc_app_t *app = cc_get_app(&cc, (uint32_t)1);
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) 1);
         assert(app->state == CC_APP_REJECTED);
         assert(app->sig_verified == false);
     }
@@ -128,18 +136,18 @@ int main(void) {
         cc_init(&cc, 1, "chest");
         cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(3);
-        uint8_t sig3[CC_SIG_LEN]; compute_cc_sig("Tool", pubkey, sig3);
-        int32_t id = cc_list_app(&cc, "Tool", "Utility", "DevB",
-                                   &dev, pubkey, hash, sig3,
-                                   CC_APP_FREE, CC_APP_TOOL, 0, 7000);
+        uint8_t sig3[CC_SIG_LEN];
+        compute_cc_sig("Tool", pubkey, sig3);
+        int32_t id = cc_list_app(&cc, "Tool", "Utility", "DevB", &dev, pubkey, hash, sig3,
+                                 CC_APP_FREE, CC_APP_TOOL, 0, 7000);
         assert(id > 0);
 
-        assert(cc_download_app(&cc, (uint32_t)id) == 0);
-        cc_app_t *app = cc_get_app(&cc, (uint32_t)id);
+        assert(cc_download_app(&cc, (uint32_t) id) == 0);
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) id);
         assert(app->download_count == 1);
         assert(app->state == CC_APP_VERIFIED);
 
-        assert(cc_install_app(&cc, (uint32_t)id) == 0);
+        assert(cc_install_app(&cc, (uint32_t) id) == 0);
         assert(app->state == CC_APP_INSTALLED);
         assert(app->install_count == 1);
         assert(cc.total_downloads == 1);
@@ -151,17 +159,17 @@ int main(void) {
         cc_init(&cc, 1, "chest");
         cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(4);
-        uint8_t sig4[CC_SIG_LEN]; compute_cc_sig("ProTool", pubkey, sig4);
-        int32_t id = cc_list_app(&cc, "ProTool", "Pro utility", "DevC",
-                                   &dev, pubkey, hash, sig4,
-                                   CC_APP_PAID, CC_APP_PLUGIN, 10000, 8000);
+        uint8_t sig4[CC_SIG_LEN];
+        compute_cc_sig("ProTool", pubkey, sig4);
+        int32_t id = cc_list_app(&cc, "ProTool", "Pro utility", "DevC", &dev, pubkey, hash, sig4,
+                                 CC_APP_PAID, CC_APP_PLUGIN, 10000, 8000);
         assert(id > 0);
 
         /* Purchase: 10000 tokens, dev 80%, platform 0%, royalty 20% */
         /* platform = 10000 - 8000 - 2000 = 0 */
-        assert(cc_purchase_app(&cc, (uint32_t)id) == 0);
+        assert(cc_purchase_app(&cc, (uint32_t) id) == 0);
 
-        cc_app_t *app = cc_get_app(&cc, (uint32_t)id);
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) id);
         assert(app->total_revenue == 10000);
         assert(cc.total_revenue == 10000);
 
@@ -176,21 +184,19 @@ int main(void) {
     /* ===== revenue split with 70% dev (minimum) ===== */
     {
         uint64_t platform_rev, royalty_rev;
-        uint64_t dev_payout = cc_calc_revenue_split(1000, 7000,
-                                                      &platform_rev, &royalty_rev);
-        assert(dev_payout == 700);      /* 70% */
-        assert(royalty_rev == 200);     /* 20% */
-        assert(platform_rev == 100);    /* 10% */
+        uint64_t dev_payout = cc_calc_revenue_split(1000, 7000, &platform_rev, &royalty_rev);
+        assert(dev_payout == 700);   /* 70% */
+        assert(royalty_rev == 200);  /* 20% */
+        assert(platform_rev == 100); /* 10% */
     }
 
     /* ===== revenue split with 85% dev (maximum) ===== */
     {
         uint64_t platform_rev, royalty_rev;
-        uint64_t dev_payout = cc_calc_revenue_split(1000, 8500,
-                                                      &platform_rev, &royalty_rev);
-        assert(dev_payout == 850);      /* 85% */
-        assert(royalty_rev == 200);     /* 20% */
-        assert(platform_rev == 0);      /* 0% (85+20 > 100, platform gets 0) */
+        uint64_t dev_payout = cc_calc_revenue_split(1000, 8500, &platform_rev, &royalty_rev);
+        assert(dev_payout == 850);  /* 85% */
+        assert(royalty_rev == 200); /* 20% */
+        assert(platform_rev == 0);  /* 0% (85+20 > 100, platform gets 0) */
     }
 
     /* ===== revenue split clamps out-of-range dev share ===== */
@@ -210,11 +216,11 @@ int main(void) {
         cc_init(&cc, 1, "chest");
         cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(5);
-        uint8_t sig5[CC_SIG_LEN]; compute_cc_sig("Free", pubkey, sig5);
-        int32_t id = cc_list_app(&cc, "Free", "Free app", "DevD",
-                                   &dev, pubkey, hash, sig5,
-                                   CC_APP_FREE, CC_APP_VENA, 0, 7000);
-        assert(cc_purchase_app(&cc, (uint32_t)id) == -2);
+        uint8_t sig5[CC_SIG_LEN];
+        compute_cc_sig("Free", pubkey, sig5);
+        int32_t id = cc_list_app(&cc, "Free", "Free app", "DevD", &dev, pubkey, hash, sig5,
+                                 CC_APP_FREE, CC_APP_VENA, 0, 7000);
+        assert(cc_purchase_app(&cc, (uint32_t) id) == -2);
     }
 
     /* ===== deprecate app ===== */
@@ -223,12 +229,12 @@ int main(void) {
         cc_init(&cc, 1, "chest");
         cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(6);
-        uint8_t sig6[CC_SIG_LEN]; compute_cc_sig("OldApp", pubkey, sig6);
-        int32_t id = cc_list_app(&cc, "OldApp", "Deprecated", "DevE",
-                                   &dev, pubkey, hash, sig6,
-                                   CC_APP_FREE, CC_APP_NATIVE, 0, 7000);
-        assert(cc_deprecate_app(&cc, (uint32_t)id) == 0);
-        cc_app_t *app = cc_get_app(&cc, (uint32_t)id);
+        uint8_t sig6[CC_SIG_LEN];
+        compute_cc_sig("OldApp", pubkey, sig6);
+        int32_t id = cc_list_app(&cc, "OldApp", "Deprecated", "DevE", &dev, pubkey, hash, sig6,
+                                 CC_APP_FREE, CC_APP_NATIVE, 0, 7000);
+        assert(cc_deprecate_app(&cc, (uint32_t) id) == 0);
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) id);
         assert(app->state == CC_APP_DEPRECATED);
     }
 
@@ -238,12 +244,12 @@ int main(void) {
         cc_init(&cc, 1, "chest");
         cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(7);
-        uint8_t sig7[CC_SIG_LEN]; compute_cc_sig("QuantumAI", pubkey, sig7);
-        int32_t id = cc_list_app(&cc, "QuantumAI", "Post-quantum AI model", "AI_Lab",
-                                   &dev, pubkey, hash, sig7,
-                                   CC_APP_PAID, CC_APP_AI_MODEL, 50000, 7500);
+        uint8_t sig7[CC_SIG_LEN];
+        compute_cc_sig("QuantumAI", pubkey, sig7);
+        int32_t id = cc_list_app(&cc, "QuantumAI", "Post-quantum AI model", "AI_Lab", &dev, pubkey,
+                                 hash, sig7, CC_APP_PAID, CC_APP_AI_MODEL, 50000, 7500);
         assert(id > 0);
-        cc_app_t *app = cc_get_app(&cc, (uint32_t)id);
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) id);
         assert(app->category == CC_APP_AI_MODEL);
         assert(app->price == 50000);
     }
@@ -260,22 +266,30 @@ int main(void) {
             /* simple integer to string */
             uint32_t n = i;
             int pos = 0;
-            if (n == 0) { name[pos++] = '0'; }
-            else { char tmp[16]; int tp = 0; while (n > 0) { tmp[tp++] = '0' + (n % 10); n /= 10; }
-                   while (tp > 0) name[pos++] = tmp[--tp]; }
+            if (n == 0) {
+                name[pos++] = '0';
+            } else {
+                char tmp[16];
+                int tp = 0;
+                while (n > 0) {
+                    tmp[tp++] = '0' + (n % 10);
+                    n /= 10;
+                }
+                while (tp > 0) name[pos++] = tmp[--tp];
+            }
             name[pos] = '\0';
-            uint8_t sigc[CC_SIG_LEN]; compute_cc_sig(name, pubkey, sigc);
-            int32_t id = cc_list_app(&cc, name, "test", "dev",
-                                       &dev, pubkey, hash, sigc,
-                                       CC_APP_FREE, CC_APP_NATIVE, 0, 7000);
+            uint8_t sigc[CC_SIG_LEN];
+            compute_cc_sig(name, pubkey, sigc);
+            int32_t id = cc_list_app(&cc, name, "test", "dev", &dev, pubkey, hash, sigc,
+                                     CC_APP_FREE, CC_APP_NATIVE, 0, 7000);
             assert(id > 0);
         }
 
         /* Next should fail */
-        uint8_t sigov[CC_SIG_LEN]; compute_cc_sig("overflow", pubkey, sigov);
-        int32_t id = cc_list_app(&cc, "overflow", "test", "dev",
-                                   &dev, pubkey, hash, sigov,
-                                   CC_APP_FREE, CC_APP_NATIVE, 0, 7000);
+        uint8_t sigov[CC_SIG_LEN];
+        compute_cc_sig("overflow", pubkey, sigov);
+        int32_t id = cc_list_app(&cc, "overflow", "test", "dev", &dev, pubkey, hash, sigov,
+                                 CC_APP_FREE, CC_APP_NATIVE, 0, 7000);
         assert(id == -1);
     }
 
@@ -287,22 +301,22 @@ int main(void) {
         word168_t dev = make_dev(9);
 
         /* List two apps */
-        uint8_t siga1[CC_SIG_LEN]; compute_cc_sig("App1", pubkey, siga1);
-        uint8_t siga2[CC_SIG_LEN]; compute_cc_sig("App2", pubkey, siga2);
-        int32_t id1 = cc_list_app(&cc, "App1", "desc", "dev",
-                                    &dev, pubkey, hash, siga1,
-                                    CC_APP_PAID, CC_APP_NATIVE, 1000, 7000);
-        int32_t id2 = cc_list_app(&cc, "App2", "desc", "dev",
-                                    &dev, pubkey, hash, siga2,
-                                    CC_APP_FREE, CC_APP_VENA, 0, 7000);
+        uint8_t siga1[CC_SIG_LEN];
+        compute_cc_sig("App1", pubkey, siga1);
+        uint8_t siga2[CC_SIG_LEN];
+        compute_cc_sig("App2", pubkey, siga2);
+        int32_t id1 = cc_list_app(&cc, "App1", "desc", "dev", &dev, pubkey, hash, siga1,
+                                  CC_APP_PAID, CC_APP_NATIVE, 1000, 7000);
+        int32_t id2 = cc_list_app(&cc, "App2", "desc", "dev", &dev, pubkey, hash, siga2,
+                                  CC_APP_FREE, CC_APP_VENA, 0, 7000);
 
         /* Purchase and install app1 */
-        cc_purchase_app(&cc, (uint32_t)id1);
-        cc_download_app(&cc, (uint32_t)id1);
-        cc_install_app(&cc, (uint32_t)id1);
+        cc_purchase_app(&cc, (uint32_t) id1);
+        cc_download_app(&cc, (uint32_t) id1);
+        cc_install_app(&cc, (uint32_t) id1);
 
         /* Download app2 (free) */
-        cc_download_app(&cc, (uint32_t)id2);
+        cc_download_app(&cc, (uint32_t) id2);
 
         cc_update_coverage(&cc);
         /* r = 1 app with revenue / 2 listed = 0.5
@@ -363,14 +377,14 @@ int main(void) {
 
         /* Developer lists a paid app */
         word168_t dev = make_dev(10);
-        uint8_t sig10[CC_SIG_LEN]; compute_cc_sig("ProApp", pubkey, sig10);
-        int32_t id = cc_list_app(&cc, "ProApp", "Pro tool", "DevF",
-                                   &dev, pubkey, hash, sig10,
-                                   CC_APP_PAID, CC_APP_PLUGIN, 3000, 7500);
+        uint8_t sig10[CC_SIG_LEN];
+        compute_cc_sig("ProApp", pubkey, sig10);
+        int32_t id = cc_list_app(&cc, "ProApp", "Pro tool", "DevF", &dev, pubkey, hash, sig10,
+                                 CC_APP_PAID, CC_APP_PLUGIN, 3000, 7500);
         assert(id > 0);
 
         /* User purchases with vouchers */
-        int32_t result = cc_purchase_with_vouchers(&cc, (uint32_t)id, "carol");
+        int32_t result = cc_purchase_with_vouchers(&cc, (uint32_t) id, "carol");
         assert(result == 0);
 
         /* Check voucher balance debited */
@@ -378,7 +392,7 @@ int main(void) {
         assert(acct->balance[CAP_FINANCIAL] == 7000); /* 10000 - 3000 */
 
         /* Check revenue recorded */
-        cc_app_t *app = cc_get_app(&cc, (uint32_t)id);
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) id);
         assert(app->total_revenue == 3000);
         assert(app->download_count == 1);
         assert(cc.total_revenue == 3000);
@@ -396,13 +410,13 @@ int main(void) {
         cc_voucher_cash_in(&cc, "dave", 500, CAP_FINANCIAL);
 
         word168_t dev = make_dev(11);
-        uint8_t sig11[CC_SIG_LEN]; compute_cc_sig("ExpensiveApp", pubkey, sig11);
-        int32_t id = cc_list_app(&cc, "ExpensiveApp", "Costly", "DevG",
-                                   &dev, pubkey, hash, sig11,
-                                   CC_APP_PAID, CC_APP_NATIVE, 1000, 7000);
+        uint8_t sig11[CC_SIG_LEN];
+        compute_cc_sig("ExpensiveApp", pubkey, sig11);
+        int32_t id = cc_list_app(&cc, "ExpensiveApp", "Costly", "DevG", &dev, pubkey, hash, sig11,
+                                 CC_APP_PAID, CC_APP_NATIVE, 1000, 7000);
         assert(id > 0);
 
-        int32_t result = cc_purchase_with_vouchers(&cc, (uint32_t)id, "dave");
+        int32_t result = cc_purchase_with_vouchers(&cc, (uint32_t) id, "dave");
         assert(result == -2); /* insufficient balance */
     }
 
@@ -412,12 +426,12 @@ int main(void) {
         cc_init(&cc, 1, "chest");
         cc.verify_sig = test_verify_hmac;
         word168_t dev = make_dev(12);
-        uint8_t sig12[CC_SIG_LEN]; compute_cc_sig("App", pubkey, sig12);
-        int32_t id = cc_list_app(&cc, "App", "desc", "dev",
-                                   &dev, pubkey, hash, sig12,
-                                   CC_APP_PAID, CC_APP_NATIVE, 100, 7000);
+        uint8_t sig12[CC_SIG_LEN];
+        compute_cc_sig("App", pubkey, sig12);
+        int32_t id = cc_list_app(&cc, "App", "desc", "dev", &dev, pubkey, hash, sig12, CC_APP_PAID,
+                                 CC_APP_NATIVE, 100, 7000);
         assert(id > 0);
-        int32_t result = cc_purchase_with_vouchers(&cc, (uint32_t)id, "user");
+        int32_t result = cc_purchase_with_vouchers(&cc, (uint32_t) id, "user");
         assert(result == -3); /* no vino linked */
     }
 
@@ -431,16 +445,16 @@ int main(void) {
         cc_link_vino(&cc, &vino);
 
         word168_t dev = make_dev(13);
-        uint8_t sig13[CC_SIG_LEN]; compute_cc_sig("FreeApp", pubkey, sig13);
-        int32_t id = cc_list_app(&cc, "FreeApp", "free", "dev",
-                                   &dev, pubkey, hash, sig13,
-                                   CC_APP_FREE, CC_APP_VENA, 0, 7000);
+        uint8_t sig13[CC_SIG_LEN];
+        compute_cc_sig("FreeApp", pubkey, sig13);
+        int32_t id = cc_list_app(&cc, "FreeApp", "free", "dev", &dev, pubkey, hash, sig13,
+                                 CC_APP_FREE, CC_APP_VENA, 0, 7000);
         assert(id > 0);
 
-        int32_t result = cc_purchase_with_vouchers(&cc, (uint32_t)id, "eve");
+        int32_t result = cc_purchase_with_vouchers(&cc, (uint32_t) id, "eve");
         assert(result == 0); /* free app, no debit */
 
-        cc_app_t *app = cc_get_app(&cc, (uint32_t)id);
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) id);
         assert(app->download_count == 1);
     }
 

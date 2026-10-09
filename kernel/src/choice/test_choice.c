@@ -7,7 +7,8 @@
 #include <stdio.h>
 #include <string.h>
 
-static void test_collapse_identity(void) {
+static void test_collapse_identity(void)
+{
     collapse_t input = {{0x00000001, 0x00000002}};
     choice_set_state(&input);
     choice_handoff();
@@ -17,7 +18,8 @@ static void test_collapse_identity(void) {
     printf("Identity collapse test passed\n");
 }
 
-static void test_collapse_zero(void) {
+static void test_collapse_zero(void)
+{
     collapse_t input = {{0, 0}};
     choice_set_state(&input);
     choice_handoff();
@@ -27,7 +29,8 @@ static void test_collapse_zero(void) {
     printf("Zero collapse test passed\n");
 }
 
-static void test_collapse_all_ones(void) {
+static void test_collapse_all_ones(void)
+{
     collapse_t input = {{0xffffffff, 0xffffffff}};
     choice_set_state(&input);
     choice_handoff();
@@ -37,7 +40,8 @@ static void test_collapse_all_ones(void) {
     printf("All-ones collapse test passed\n");
 }
 
-int main(void) {
+int main(void)
+{
     test_collapse_identity();
     test_collapse_zero();
     test_collapse_all_ones();

@@ -24,33 +24,42 @@
 #include <stdint.h>
 #include "surplus.h"
 
-#define D(x) ((double)(x) / (double)SR_ONE)
+#define D(x) ((double) (x) / (double) SR_ONE)
 
 static int failures = 0;
-static void check(int cond, const char *msg) {
-    if (cond) { printf("[PASS] %s\n", msg); }
-    else      { printf("[FAIL] %s\n", msg); failures++; }
+static void check(int cond, const char *msg)
+{
+    if (cond) {
+        printf("[PASS] %s\n", msg);
+    } else {
+        printf("[FAIL] %s\n", msg);
+        failures++;
+    }
 }
-static int approx(double a, double b, double tol) {
-    double d = a - b; if (d < 0) d = -d; return d <= tol;
+static int approx(double a, double b, double tol)
+{
+    double d = a - b;
+    if (d < 0) d = -d;
+    return d <= tol;
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== ISF axiom tests (fixed-point path) ===\n");
 
     /* --- fixed-point primitives: the exact cases that were broken --- */
-    check(approx(D(SR_DIV(SR_ONE, SR_FROM_INT(3))), 1.0/3.0, 1e-6),
+    check(approx(D(SR_DIV(SR_ONE, SR_FROM_INT(3))), 1.0 / 3.0, 1e-6),
           "SR_DIV(1,3) == 1/3 (overflow regression)");
     check(approx(D(SR_DIV(SR_ONE, SR_FROM_INT(2))), 0.5, 1e-6),
           "SR_DIV(1,2) == 1/2 (overflow regression)");
-    check(approx(D(SR_DIV(SR_FROM_INT(2), SR_FROM_INT(3))), 2.0/3.0, 1e-6),
+    check(approx(D(SR_DIV(SR_FROM_INT(2), SR_FROM_INT(3))), 2.0 / 3.0, 1e-6),
           "SR_DIV(2,3) == 2/3 (overflow regression)");
     check(approx(D(SR_MUL(SR_FROM_FLOAT(1.5), SR_FROM_FLOAT(3.0))), 4.5, 1e-6),
           "SR_MUL(1.5,3) == 4.5");
 
     /* --- natural log across mantissa ranges (>=1.5 was broken) --- */
-    check(approx(D(sr_ln(SR_FROM_INT(2))),  log(2.0),  1e-4), "ln 2");
-    check(approx(D(sr_ln(SR_FROM_INT(7))),  log(7.0),  1e-4), "ln 7");
+    check(approx(D(sr_ln(SR_FROM_INT(2))), log(2.0), 1e-4), "ln 2");
+    check(approx(D(sr_ln(SR_FROM_INT(7))), log(7.0), 1e-4), "ln 7");
     check(approx(D(sr_ln(SR_FROM_INT(12))), log(12.0), 1e-4), "ln 12");
     check(approx(D(sr_ln(SR_FROM_FLOAT(1.75))), log(1.75), 1e-4), "ln 1.75");
 
@@ -58,7 +67,8 @@ int main(void) {
     for (uint32_t N = 2; N <= 12; N++) {
         if (!approx(D(surplus_f(SR_ZERO, N)), 0.0, 1e-6)) {
             printf("  N=%u f(0)=%.6f\n", N, D(surplus_f(SR_ZERO, N)));
-            check(0, "S2: f(0) = 0 for all N"); goto s4;
+            check(0, "S2: f(0) = 0 for all N");
+            goto s4;
         }
     }
     check(1, "S2: f(0) = 0 for all N in [2,12]");
@@ -68,7 +78,7 @@ s4:
     {
         int ok = 1;
         for (uint32_t N = 2; N <= 12; N++) {
-            double got = D(surplus_f(SR_ONE, N)), want = log((double)N);
+            double got = D(surplus_f(SR_ONE, N)), want = log((double) N);
             if (!approx(got, want, 1e-4)) {
                 printf("  N=%u f(1)=%.6f want ln N=%.6f\n", N, got, want);
                 ok = 0;
@@ -83,9 +93,11 @@ s4:
         const uint32_t N = 8;
         for (double u = 0.0; u <= 1.0001; u += 0.125) {
             double got = exp(D(surplus_f(SR_FROM_FLOAT(u), N)));
-            double want = 1.0 + (double)(N - 1) * u;
-            if (!approx(got, want, 1e-3)) { ok = 0;
-                printf("  u=%.3f g=%.6f want %.6f\n", u, got, want); }
+            double want = 1.0 + (double) (N - 1) * u;
+            if (!approx(got, want, 1e-3)) {
+                ok = 0;
+                printf("  u=%.3f g=%.6f want %.6f\n", u, got, want);
+            }
         }
         check(ok, "g(u) = e^f(u) = 1 + (N-1)u (affine effective count)");
     }
@@ -114,8 +126,10 @@ s4:
         int ok = 1;
         for (uint32_t N = 2; N <= 12; N += 2) {
             double d = D(surplus_deriv(SR_ZERO, N));
-            if (!approx(d, (double)(N - 1), 1e-3)) { ok = 0;
-                printf("  N=%u f'(0)=%.6f want %u\n", N, d, N - 1); }
+            if (!approx(d, (double) (N - 1), 1e-3)) {
+                ok = 0;
+                printf("  N=%u f'(0)=%.6f want %u\n", N, d, N - 1);
+            }
         }
         check(ok, "f'(0) = N-1 (sharp Lipschitz constant)");
     }
@@ -136,7 +150,6 @@ s4:
               "SR_DIV(-1,4) = -0.25 exactly (no signed __int128 shift)");
     }
 
-    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS",
-           failures);
+    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
     return failures ? 1 : 0;
 }

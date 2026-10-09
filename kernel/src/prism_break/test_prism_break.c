@@ -17,14 +17,16 @@
 #include <string.h>
 #include <math.h>
 
-static int feq(double a, double b, double eps) {
+static int feq(double a, double b, double eps)
+{
     double diff = fabs(a - b);
     double scale = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
     if (scale < 1.0) scale = 1.0;
     return diff <= eps * scale;
 }
 
-int main(void) {
+int main(void)
+{
     /* ===== init ===== */
     {
         static prism_break_t pb;
@@ -50,7 +52,7 @@ int main(void) {
 
     /* ===== alpha blend ===== */
     {
-        pb_color_t dst = pb_make_color(255, 0, 0, 0);   /* black */
+        pb_color_t dst = pb_make_color(255, 0, 0, 0);       /* black */
         pb_color_t src = pb_make_color(128, 255, 255, 255); /* 50% white */
         pb_color_t result = pb_blend(dst, src);
         assert(result.a == 255);
@@ -92,7 +94,10 @@ int main(void) {
         pb_enable_layer(&pb, PB_LAYER_SCANLINES, false);
         pb_layer_t *sl = NULL;
         for (uint32_t i = 0; i < pb.num_layers; i++) {
-            if (pb.layers[i].type == PB_LAYER_SCANLINES) { sl = &pb.layers[i]; break; }
+            if (pb.layers[i].type == PB_LAYER_SCANLINES) {
+                sl = &pb.layers[i];
+                break;
+            }
         }
         assert(sl != NULL && sl->enabled == false);
 
@@ -104,7 +109,10 @@ int main(void) {
         pb_set_layer_intensity(&pb, PB_LAYER_PRISM, 64);
         pb_layer_t *pr = NULL;
         for (uint32_t i = 0; i < pb.num_layers; i++) {
-            if (pb.layers[i].type == PB_LAYER_PRISM) { pr = &pb.layers[i]; break; }
+            if (pb.layers[i].type == PB_LAYER_PRISM) {
+                pr = &pb.layers[i];
+                break;
+            }
         }
         assert(pr != NULL && pr->intensity == 64);
 
@@ -166,7 +174,7 @@ int main(void) {
         pb_init(&pb, 320, 240);
 
         for (uint32_t i = 0; i < PB_MAX_RIPPLES; i++) {
-            int32_t r = pb_touch(&pb, (int32_t)(i * 10), (int32_t)(i * 10));
+            int32_t r = pb_touch(&pb, (int32_t) (i * 10), (int32_t) (i * 10));
             assert(r >= 0);
         }
         /* Next touch should fail */

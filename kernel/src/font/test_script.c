@@ -10,44 +10,58 @@
 #include "script.h"
 
 static int failures = 0;
-#define CHECK(c,m) do{ if(!(c)){printf("[FAIL] %s\n",m);failures++;} \
-    else printf("[PASS] %s\n",m);}while(0)
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", m);                                                              \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", m);                                                              \
+    } while (0)
 
-int main(void) {
+int main(void)
+{
     printf("=== multi-language text: UTF-8 + script itemization ===\n");
 
     /* ---- UTF-8 decode: the four lengths ---- */
     {
         uint32_t cp, adv;
-        CHECK(font_utf8_next((const uint8_t*)"A", 1, &cp, &adv) && cp==0x41 && adv==1,
+        CHECK(font_utf8_next((const uint8_t *) "A", 1, &cp, &adv) && cp == 0x41 && adv == 1,
               "1-byte: 'A' -> U+0041");
         /* U+00E9 é = C3 A9 */
-        CHECK(font_utf8_next((const uint8_t*)"\xC3\xA9", 2, &cp, &adv) && cp==0xE9 && adv==2,
+        CHECK(font_utf8_next((const uint8_t *) "\xC3\xA9", 2, &cp, &adv) && cp == 0xE9 && adv == 2,
               "2-byte: é -> U+00E9");
         /* U+0939 ह (Devanagari HA) = E0 A4 B9 */
-        CHECK(font_utf8_next((const uint8_t*)"\xE0\xA4\xB9", 3, &cp, &adv) && cp==0x939 && adv==3,
+        CHECK(font_utf8_next((const uint8_t *) "\xE0\xA4\xB9", 3, &cp, &adv) && cp == 0x939 &&
+                  adv == 3,
               "3-byte: Devanagari ह -> U+0939");
         /* U+1E900 Adlam = F0 9E A4 80 */
-        CHECK(font_utf8_next((const uint8_t*)"\xF0\x9E\xA4\x80", 4, &cp, &adv) && cp==0x1E900 && adv==4,
+        CHECK(font_utf8_next((const uint8_t *) "\xF0\x9E\xA4\x80", 4, &cp, &adv) && cp == 0x1E900 &&
+                  adv == 4,
               "4-byte: Adlam -> U+1E900");
     }
 
     /* ---- malformed UTF-8 must resync, never overrun ---- */
     {
         uint32_t cp, adv;
-        CHECK(!font_utf8_next((const uint8_t*)"\xE0\xA4", 2, &cp, &adv) && cp==0xFFFD && adv==1,
+        CHECK(!font_utf8_next((const uint8_t *) "\xE0\xA4", 2, &cp, &adv) && cp == 0xFFFD &&
+                  adv == 1,
               "a truncated 3-byte sequence yields U+FFFD and advances 1");
-        CHECK(!font_utf8_next((const uint8_t*)"\x80", 1, &cp, &adv) && adv==1,
+        CHECK(!font_utf8_next((const uint8_t *) "\x80", 1, &cp, &adv) && adv == 1,
               "a stray continuation byte resyncs by one");
-        CHECK(!font_utf8_next((const uint8_t*)"\xC0\xAF", 2, &cp, &adv),
+        CHECK(!font_utf8_next((const uint8_t *) "\xC0\xAF", 2, &cp, &adv),
               "an overlong encoding of '/' is rejected");
-        CHECK(!font_utf8_next((const uint8_t*)"\xED\xA0\x80", 3, &cp, &adv),
+        CHECK(!font_utf8_next((const uint8_t *) "\xED\xA0\x80", 3, &cp, &adv),
               "a surrogate (U+D800) is rejected");
         /* every prefix of a valid string decodes without crashing */
         const uint8_t v[] = "A\xC3\xA9\xE0\xA4\xB9\xF0\x9E\xA4\x80";
         for (uint32_t cut = 0; cut <= sizeof v - 1; cut++) {
             uint32_t off = 0;
-            while (off < cut) { uint32_t c,a; font_utf8_next(v+off, cut-off, &c, &a); off += a?a:1; }
+            while (off < cut) {
+                uint32_t c, a;
+                font_utf8_next(v + off, cut - off, &c, &a);
+                off += a ? a : 1;
+            }
         }
         CHECK(1, "every prefix decodes without overrun");
     }
@@ -80,8 +94,9 @@ int main(void) {
 
     /* ---- punctuation does not fragment a run ---- */
     {
-        font_run_t r[8]; bool tr;
-        uint32_t n = font_itemize((const uint8_t*)"Hello, World 123!", 17, r, 8, &tr);
+        font_run_t r[8];
+        bool tr;
+        uint32_t n = font_itemize((const uint8_t *) "Hello, World 123!", 17, r, 8, &tr);
         CHECK(n == 1 && r[0].script == SCRIPT_LATIN,
               "'Hello, World 123!' is ONE Latin run — commas, spaces and digits "
               "join it rather than splitting it");
@@ -92,7 +107,8 @@ int main(void) {
      * "Hi " (Latin) + "שלום" (Hebrew) + " " + "中文" (Han) */
     {
         const uint8_t s[] = "Hi \xD7\xA9\xD7\x9C\xD7\x95\xD7\x9D \xE4\xB8\xAD\xE6\x96\x87";
-        font_run_t r[8]; bool tr;
+        font_run_t r[8];
+        bool tr;
         uint32_t n = font_itemize(s, sizeof s - 1, r, 8, &tr);
         CHECK(n == 3, "three runs: Latin, Hebrew, Han");
         CHECK(r[0].script == SCRIPT_LATIN && r[0].dir == DIR_LTR, "run 0 Latin LTR");
@@ -109,32 +125,39 @@ int main(void) {
     /* ---- Arabic + Latin + Arabic returns three runs ---- */
     {
         /* "سلام" + " ok " + "مرحبا" */
-        const uint8_t s[] = "\xD8\xB3\xD9\x84\xD8\xA7\xD9\x85 ok \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7";
-        font_run_t r[8]; bool tr;
+        const uint8_t s[] =
+            "\xD8\xB3\xD9\x84\xD8\xA7\xD9\x85 ok \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7";
+        font_run_t r[8];
+        bool tr;
         uint32_t n = font_itemize(s, sizeof s - 1, r, 8, &tr);
         CHECK(n == 3 && r[0].script == SCRIPT_ARABIC && r[1].script == SCRIPT_LATIN &&
-              r[2].script == SCRIPT_ARABIC,
+                  r[2].script == SCRIPT_ARABIC,
               "Arabic / Latin / Arabic itemizes into three runs "
               "(the space after Arabic joins the Arabic run, ' ok ' is Latin)");
     }
 
     /* ---- truncation is reported, never overflows ---- */
     {
-        const uint8_t s[] = "a\xD7\x90""b\xD7\x90""c\xD7\x90""d";  /* many script flips */
-        font_run_t r[2]; bool tr;
+        const uint8_t s[] = "a\xD7\x90"
+                            "b\xD7\x90"
+                            "c\xD7\x90"
+                            "d"; /* many script flips */
+        font_run_t r[2];
+        bool tr;
         uint32_t n = font_itemize(s, sizeof s - 1, r, 2, &tr);
         CHECK(n == 2 && tr, "with room for 2 runs, extra runs set the truncated flag");
     }
 
     /* ---- empty and all-common ---- */
     {
-        font_run_t r[4]; bool tr;
-        CHECK(font_itemize((const uint8_t*)"", 0, r, 4, &tr) == 0, "empty string -> 0 runs");
-        uint32_t n = font_itemize((const uint8_t*)"  ,. 12 ", 8, r, 4, &tr);
+        font_run_t r[4];
+        bool tr;
+        CHECK(font_itemize((const uint8_t *) "", 0, r, 4, &tr) == 0, "empty string -> 0 runs");
+        uint32_t n = font_itemize((const uint8_t *) "  ,. 12 ", 8, r, 4, &tr);
         CHECK(n == 1 && r[0].script == SCRIPT_COMMON,
               "an all-punctuation string is a single Common run");
     }
 
-    printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
-    return failures?1:0;
+    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
+    return failures ? 1 : 0;
 }

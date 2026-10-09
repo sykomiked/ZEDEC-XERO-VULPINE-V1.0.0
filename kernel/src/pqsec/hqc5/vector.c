@@ -20,7 +20,8 @@ static inline uint32_t compare_u32(const uint32_t v1, const uint32_t v2);
  * @param[in] v1
  * @param[in] v2
  */
-static inline uint32_t compare_u32(const uint32_t v1, const uint32_t v2) {
+static inline uint32_t compare_u32(const uint32_t v1, const uint32_t v2)
+{
     return 1 ^ (((v1 - v2) | (v2 - v1)) >> 31);
 }
 
@@ -32,9 +33,10 @@ static inline uint32_t compare_u32(const uint32_t v1, const uint32_t v2) {
  * @param[in] x Input value to reduce.
  * @return x mod PARAM_N in constant time.
  */
-static inline uint32_t barrett_reduce(uint32_t x) {
-    uint64_t q = ((uint64_t)x * PARAM_N_MU) >> 32;
-    uint32_t r = x - (uint32_t)(q * PARAM_N);
+static inline uint32_t barrett_reduce(uint32_t x)
+{
+    uint64_t q = ((uint64_t) x * PARAM_N_MU) >> 32;
+    uint32_t r = x - (uint32_t) (q * PARAM_N);
 
     uint32_t reduce_flag = (((r - PARAM_N) >> 31) ^ 1);
     uint32_t mask = -reduce_flag;
@@ -59,7 +61,8 @@ static inline uint32_t barrett_reduce(uint32_t x) {
  * @param[out]    support Output array to store the `weight` unique indices.
  * @param[in]     weight  Desired Hamming weight.
  */
-void vect_generate_random_support1(shake256_xof_ctx *ctx, uint32_t *support, uint16_t weight) {
+void vect_generate_random_support1(shake256_xof_ctx *ctx, uint32_t *support, uint16_t weight)
+{
     size_t random_bytes_size = 3 * weight;
     uint8_t rand_bytes[3 * PARAM_OMEGA_R] = {0};
     uint8_t inc;
@@ -74,8 +77,8 @@ void vect_generate_random_support1(shake256_xof_ctx *ctx, uint32_t *support, uin
                 j = 0;
             }
 
-            support[i] = ((uint32_t)rand_bytes[j++]) << 16;
-            support[i] |= ((uint32_t)rand_bytes[j++]) << 8;
+            support[i] = ((uint32_t) rand_bytes[j++]) << 16;
+            support[i] |= ((uint32_t) rand_bytes[j++]) << 8;
             support[i] |= rand_bytes[j++];
 
         } while (support[i] >= UTILS_REJECTION_THRESHOLD);
@@ -101,10 +104,11 @@ void vect_generate_random_support1(shake256_xof_ctx *ctx, uint32_t *support, uin
  * @param[out]    support Output array of unique indices (the support set).
  * @param[in]     weight  Number of elements to generate (Hamming weight).
  */
-void vect_generate_random_support2(shake256_xof_ctx *ctx, uint32_t *support, uint16_t weight) {
+void vect_generate_random_support2(shake256_xof_ctx *ctx, uint32_t *support, uint16_t weight)
+{
     uint32_t rand_u32[PARAM_OMEGA_R] = {0};
 
-    xof_get_bytes(ctx, (uint8_t *)&rand_u32, 4 * weight);
+    xof_get_bytes(ctx, (uint8_t *) &rand_u32, 4 * weight);
 
     for (size_t i = 0; i < weight; ++i) {
         uint64_t buff = rand_u32[i];
@@ -133,14 +137,15 @@ void vect_generate_random_support2(shake256_xof_ctx *ctx, uint32_t *support, uin
  * @param[in]  support Array of bit indices to set.
  * @param[in]  weight  Number of positions to set.
  */
-void vect_write_support_to_vector(uint64_t *v, uint32_t *support, uint16_t weight) {
+void vect_write_support_to_vector(uint64_t *v, uint32_t *support, uint16_t weight)
+{
     uint32_t index_tab[PARAM_OMEGA_R] = {0};
     uint64_t bit_tab[PARAM_OMEGA_R] = {0};
 
     for (size_t i = 0; i < weight; i++) {
         index_tab[i] = support[i] >> 6;
         int32_t pos = support[i] & 0x3f;
-        bit_tab[i] = ((uint64_t)1) << pos;
+        bit_tab[i] = ((uint64_t) 1) << pos;
     }
 
     uint64_t val = 0;
@@ -171,7 +176,8 @@ void vect_write_support_to_vector(uint64_t *v, uint32_t *support, uint16_t weigh
  *                        bits set to 1.
  * @param[in]     weight  Desired Hamming weight.
  */
-void vect_sample_fixed_weight1(shake256_xof_ctx *ctx, uint64_t *v, uint16_t weight) {
+void vect_sample_fixed_weight1(shake256_xof_ctx *ctx, uint64_t *v, uint16_t weight)
+{
     uint32_t support[PARAM_OMEGA_R] = {0};
     vect_generate_random_support1(ctx, support, weight);
     vect_write_support_to_vector(v, support, weight);
@@ -190,7 +196,8 @@ void vect_sample_fixed_weight1(shake256_xof_ctx *ctx, uint64_t *v, uint16_t weig
  *                        bits set to 1.
  * @param[in]     weight  Desired Hamming weight.
  */
-void vect_sample_fixed_weight2(shake256_xof_ctx *ctx, uint64_t *v, uint16_t weight) {
+void vect_sample_fixed_weight2(shake256_xof_ctx *ctx, uint64_t *v, uint16_t weight)
+{
     uint32_t support[PARAM_OMEGA_R] = {0};
     vect_generate_random_support2(ctx, support, weight);
     vect_write_support_to_vector(v, support, weight);
@@ -205,8 +212,9 @@ void vect_sample_fixed_weight2(shake256_xof_ctx *ctx, uint64_t *v, uint16_t weig
  * @param[in] ctx Pointer to the context of the xof
  * @param[in] v Pointer to an array
  */
-void vect_set_random(shake256_xof_ctx *ctx, uint64_t *v) {
-    xof_get_bytes(ctx, (uint8_t *)v, VEC_N_SIZE_BYTES);
+void vect_set_random(shake256_xof_ctx *ctx, uint64_t *v)
+{
+    xof_get_bytes(ctx, (uint8_t *) v, VEC_N_SIZE_BYTES);
     v[VEC_N_SIZE_64 - 1] &= BITMASK(PARAM_N, 64);
 }
 
@@ -218,7 +226,8 @@ void vect_set_random(shake256_xof_ctx *ctx, uint64_t *v) {
  * @param[in] v2 Pointer to an array that is the second vector
  * @param[in] size Integer that is the size of the vectors
  */
-void vect_add(uint64_t *o, const uint64_t *v1, const uint64_t *v2, uint32_t size) {
+void vect_add(uint64_t *o, const uint64_t *v1, const uint64_t *v2, uint32_t size)
+{
     for (uint32_t i = 0; i < size; ++i) {
         o[i] = v1[i] ^ v2[i];
     }
@@ -235,7 +244,8 @@ void vect_add(uint64_t *o, const uint64_t *v1, const uint64_t *v2, uint32_t size
  * @param[in] size Integer that is the size of the vectors
  * @returns 0 if the vectors are equals and 1 otherwise
  */
-uint8_t vect_compare(const uint8_t *v1, const uint8_t *v2, uint32_t size) {
+uint8_t vect_compare(const uint8_t *v1, const uint8_t *v2, uint32_t size)
+{
     uint16_t r = 0x0100;
 
     for (size_t i = 0; i < size; i++) {
@@ -251,7 +261,8 @@ uint8_t vect_compare(const uint8_t *v1, const uint8_t *v2, uint32_t size) {
  *
  * @param[in,out] v         Pointer to the uint64_t array containing the bits.
  */
-void vect_truncate(uint64_t *v) {
+void vect_truncate(uint64_t *v)
+{
     size_t orig_words = (PARAM_N + 63) / 64;
     size_t new_full_words = PARAM_N1N2 / 64;
     size_t remaining_bits = PARAM_N1N2 % 64;
@@ -260,7 +271,7 @@ void vect_truncate(uint64_t *v) {
     if (remaining_bits > 0) {
         uint64_t mask = (UINT64_C(1) << remaining_bits) - 1;
         v[new_full_words] &= mask;
-        new_full_words++;  // keep that partial word
+        new_full_words++; // keep that partial word
     }
 
     // Zero out all subsequent words up to the original length
@@ -275,7 +286,8 @@ void vect_truncate(uint64_t *v) {
  * @param[in] v Pointer to an array of bytes
  * @param[in] size Integer that is number of bytes to be displayed
  */
-void vect_print(const uint64_t *v, const uint32_t size) {
+void vect_print(const uint64_t *v, const uint32_t size)
+{
     if (size == VEC_K_SIZE_BYTES) {
         uint8_t tmp[VEC_K_SIZE_BYTES] = {0};
         memcpy(tmp, v, VEC_K_SIZE_BYTES);

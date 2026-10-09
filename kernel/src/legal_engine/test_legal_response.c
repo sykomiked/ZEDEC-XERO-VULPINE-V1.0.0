@@ -17,28 +17,37 @@
 #include "legal_engine.h"
 
 static int failures = 0;
-#define CHECK(c,m) do{ if(!(c)){printf("[FAIL] %s\n",m);failures++;} \
-    else printf("[PASS] %s\n",m);}while(0)
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", m);                                                              \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", m);                                                              \
+    } while (0)
 
 /* case-insensitive substring search, so the assertions do not depend on the
  * exact capitalisation of the prose */
-static bool has(const char *hay, const char *needle) {
+static bool has(const char *hay, const char *needle)
+{
     if (!hay || !needle) return false;
     for (const char *p = hay; *p; p++) {
         const char *a = p, *b = needle;
         while (*a && *b) {
-            char ca = (*a >= 'A' && *a <= 'Z') ? (char)(*a + 32) : *a;
-            char cb = (*b >= 'A' && *b <= 'Z') ? (char)(*b + 32) : *b;
+            char ca = (*a >= 'A' && *a <= 'Z') ? (char) (*a + 32) : *a;
+            char cb = (*b >= 'A' && *b <= 'Z') ? (char) (*b + 32) : *b;
             if (ca != cb) break;
-            a++; b++;
+            a++;
+            b++;
         }
         if (!*b) return true;
     }
     return false;
 }
 
-int main(void) {
-    setvbuf(stdout, 0, _IONBF, 0);   /* unbuffered: a hang must still show progress */
+int main(void)
+{
+    setvbuf(stdout, 0, _IONBF, 0); /* unbuffered: a hang must still show progress */
     printf("=== legal_auto_respond: no unearned claims, no overflow ===\n");
     static legal_engine_ext_t eng;
     static char buf[4096];
@@ -109,8 +118,7 @@ int main(void) {
               "does NOT claim cryptographic timestamping it does not do");
 
         /* And it must be honest about what it is. */
-        CHECK(has(buf, "this node"),
-              "the notice scopes its actions to THIS NODE");
+        CHECK(has(buf, "this node"), "the notice scopes its actions to THIS NODE");
         CHECK(has(buf, "requires operator") || has(buf, "OPERATOR ACTION"),
               "everything it cannot do is marked as requiring an operator");
         CHECK(has(buf, "not a finding of law") || has(buf, "not evidence"),
@@ -123,20 +131,33 @@ int main(void) {
         static char small[4096];
         bool all_ok = true;
         for (uint16_t cap = 1; cap <= 2048; cap++) {
-            memset(small, 0x7E, sizeof small);          /* poison */
+            memset(small, 0x7E, sizeof small); /* poison */
             int n = legal_auto_respond(&eng, 99, small, cap);
             if (n < 0) continue;
-            if ((uint32_t)n >= cap) { all_ok = false; printf("  len %u >= cap %u\n", n, cap); break; }
+            if ((uint32_t) n >= cap) {
+                all_ok = false;
+                printf("  len %u >= cap %u\n", n, cap);
+                break;
+            }
             /* must be NUL-terminated inside the window */
-            if (small[n] != 0) { all_ok = false; printf("  not terminated at cap %u\n", cap); break; }
+            if (small[n] != 0) {
+                all_ok = false;
+                printf("  not terminated at cap %u\n", cap);
+                break;
+            }
             /* nothing may be written past the caller's buffer */
             for (uint32_t i = cap; i < sizeof small; i++)
-                if (small[i] != 0x7E) { all_ok = false; break; }
-            if (!all_ok) { printf("  wrote past cap %u\n", cap); break; }
+                if (small[i] != 0x7E) {
+                    all_ok = false;
+                    break;
+                }
+            if (!all_ok) {
+                printf("  wrote past cap %u\n", cap);
+                break;
+            }
         }
-        CHECK(all_ok,
-              "every buffer size from 1 to 2048 is respected exactly — the old "
-              "code passed a negative length to a size_t parameter");
+        CHECK(all_ok, "every buffer size from 1 to 2048 is respected exactly — the old "
+                      "code passed a negative length to a size_t parameter");
     }
 
     /* ---- a watcher with no assessment is refused, not invented ---- */
@@ -165,6 +186,6 @@ int main(void) {
               "rather than consuming a new slot each time");
     }
 
-    printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
-    return failures?1:0;
+    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
+    return failures ? 1 : 0;
 }

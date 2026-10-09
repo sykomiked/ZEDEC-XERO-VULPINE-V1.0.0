@@ -12,24 +12,33 @@
 
 static nes_t g_nes;
 
-int main(int argc, char **argv){
-    for (int i = 1; i < argc; i++){
+int main(int argc, char **argv)
+{
+    for (int i = 1; i < argc; i++) {
         FILE *f = fopen(argv[i], "rb");
-        if (!f){ printf("  open FAIL %s\n", argv[i]); continue; }
+        if (!f) {
+            printf("  open FAIL %s\n", argv[i]);
+            continue;
+        }
         static uint8_t buf[1 << 20];
-        size_t n = fread(buf, 1, sizeof buf, f); fclose(f);
-        const char *base = argv[i]; for (const char *p = argv[i]; *p; p++) if (*p=='/') base = p+1;
-        if (!nes_is_ines(buf, (uint32_t)n)){
+        size_t n = fread(buf, 1, sizeof buf, f);
+        fclose(f);
+        const char *base = argv[i];
+        for (const char *p = argv[i]; *p; p++)
+            if (*p == '/') base = p + 1;
+        if (!nes_is_ines(buf, (uint32_t) n)) {
             printf("  [not-iNES]  %-40.40s (%zu bytes)\n", base, n);
             /* still run it to show a non-NES image does NOT come up running */
         }
-        int ok = nes_load_ines(&g_nes, buf, (uint32_t)n);
-        if (!ok){ printf("  [load-skip] %-40.40s\n", base); continue; }
+        int ok = nes_load_ines(&g_nes, buf, (uint32_t) n);
+        if (!ok) {
+            printf("  [load-skip] %-40.40s\n", base);
+            continue;
+        }
         nes_run(&g_nes, 300000u, 2000u);
         printf("  %-8s %-40.40s ppu_w=%-5u ppu_status_rd=%-6u apu_io=%-5u nmi=%-4u illegal=%u\n",
-               nes_is_running(&g_nes) ? "RUNNING" : "no",
-               base, g_nes.ppu_reg_writes, g_nes.ppu_status_reads,
-               g_nes.apu_io_writes, g_nes.nmis_taken, g_nes.cpu.illegal);
+               nes_is_running(&g_nes) ? "RUNNING" : "no", base, g_nes.ppu_reg_writes,
+               g_nes.ppu_status_reads, g_nes.apu_io_writes, g_nes.nmis_taken, g_nes.cpu.illegal);
     }
     return 0;
 }

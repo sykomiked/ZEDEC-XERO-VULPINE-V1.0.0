@@ -17,20 +17,23 @@
 #include <string.h>
 #include <math.h>
 
-static int feq(double a, double b, double eps) {
+static int feq(double a, double b, double eps)
+{
     double diff = fabs(a - b);
     double scale = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
     if (scale < 1.0) scale = 1.0;
     return diff <= eps * scale;
 }
 
-static word168_t make_peer(uint8_t seed) {
+static word168_t make_peer(uint8_t seed)
+{
     word168_t w;
-    for (int i = 0; i < WORD168_OCTETS; i++) w.bytes[i] = (uint8_t)(seed + i);
+    for (int i = 0; i < WORD168_OCTETS; i++) w.bytes[i] = (uint8_t) (seed + i);
     return w;
 }
 
-int main(void) {
+int main(void)
+{
     /* ===== init ===== */
     {
         porter_house_t ph;
@@ -70,7 +73,7 @@ int main(void) {
         int32_t sid = mesh_token_settle(&mt, &sender, &receiver, 500, 600, 0);
         assert(sid > 0);
 
-        mt_settlement_t *s = mesh_token_get(&mt, (uint32_t)sid);
+        mt_settlement_t *s = mesh_token_get(&mt, (uint32_t) sid);
         assert(s != NULL);
         assert(s->state == MT_SETTLEMENT_ADMITTED);
         assert(s->amount == 500);
@@ -115,7 +118,7 @@ int main(void) {
         int32_t sid = mesh_token_settle(&mt, &sender, &receiver, 1000, 800, 10);
         assert(sid > 0);
 
-        mt_settlement_t *s = mesh_token_get(&mt, (uint32_t)sid);
+        mt_settlement_t *s = mesh_token_get(&mt, (uint32_t) sid);
         assert(s->state == MT_SETTLEMENT_ADMITTED);
 
         /* Advance to IN_TRANSIT */
@@ -123,7 +126,7 @@ int main(void) {
         assert(s->state == MT_SETTLEMENT_IN_TRANSIT);
 
         /* Acknowledge */
-        assert(mesh_token_ack(&mt, (uint32_t)sid, 30) == 0);
+        assert(mesh_token_ack(&mt, (uint32_t) sid, 30) == 0);
         assert(s->state == MT_SETTLEMENT_CONFIRMED);
         assert(s->confirmed_cycle == 30);
         assert(mt.total_confirmed == 1);
@@ -149,7 +152,7 @@ int main(void) {
 
         mesh_token_advance(&mt, 0);
 
-        mt_settlement_t *s = mesh_token_get(&mt, (uint32_t)sid);
+        mt_settlement_t *s = mesh_token_get(&mt, (uint32_t) sid);
         assert(s->state == MT_SETTLEMENT_IN_TRANSIT);
 
         /* Not yet timed out */
@@ -227,7 +230,7 @@ int main(void) {
         /* Create and complete one settlement */
         int32_t sid = mesh_token_settle(&mt, &sender, &receiver, 100, 0, 0);
         mesh_token_advance(&mt, 0);
-        mesh_token_ack(&mt, (uint32_t)sid, 50);
+        mesh_token_ack(&mt, (uint32_t) sid, 50);
 
         /* Create one rejected settlement */
         porter_house_close_port(&ph, MT_SETTLEMENT_PORT);

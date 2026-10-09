@@ -19,4 +19,4 @@ extern void *(*volatile memset_volatile)(void *, int, size_t);
  */
 #define memset_zero(ptr, len) memset_volatile((ptr), 0, (len))
 
-#endif  // HQC_CRYPTO_MEMSET_H
+#endif // HQC_CRYPTO_MEMSET_H

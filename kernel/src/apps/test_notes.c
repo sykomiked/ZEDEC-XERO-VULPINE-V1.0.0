@@ -3,19 +3,29 @@
 #include "apps.h"
 
 static int failures = 0;
-#define CHECK(cond, msg) do { \
-    if (cond) printf("PASS: %s\n", msg); \
-    else { printf("FAIL: %s\n", msg); failures++; } \
-} while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (cond)                                                                                  \
+            printf("PASS: %s\n", msg);                                                             \
+        else {                                                                                     \
+            printf("FAIL: %s\n", msg);                                                             \
+            failures++;                                                                            \
+        }                                                                                          \
+    } while (0)
 
 static vfs_state_t vfs;
 static oseq_state_t oseq;
 
-static void type_string(notes_app_t *a, const char *s) {
-    while (*s) { notes_handle_key(a, *s); s++; }
+static void type_string(notes_app_t *a, const char *s)
+{
+    while (*s) {
+        notes_handle_key(a, *s);
+        s++;
+    }
 }
 
-int main(void) {
+int main(void)
+{
     vfs_init(&vfs);
     oseq_init(&oseq);
     oseq.current_cycle = 42;
@@ -44,7 +54,9 @@ int main(void) {
     notes_handle_key(&notes, '\b');
     type_string(&notes, "est note");
     notes_handle_key(&notes, '\n');
-    CHECK(strcmp(notes.entries[2].text, "Test note") == 0, "backspace-corrected entry saved correctly ('Tst' -> backspace x2 -> 'T' + 'est note' = 'Test note')");
+    CHECK(strcmp(notes.entries[2].text, "Test note") == 0,
+          "backspace-corrected entry saved correctly ('Tst' -> backspace x2 -> 'T' + 'est note' = "
+          "'Test note')");
 
     printf("\n=== Persistence: fresh notes_app_t loads what was saved ===\n");
     {
@@ -58,11 +70,12 @@ int main(void) {
     }
 
     printf("\n=== Deletion ===\n");
-    notes.selected = 1; /* "Call Bob" */
+    notes.selected = 1;                 /* "Call Bob" */
     notes_handle_special(&notes, 0x53); /* Delete key */
     CHECK(notes.num_entries == 2, "1 entry removed via Delete key");
     CHECK(strcmp(notes.entries[0].text, "Buy milk") == 0, "entry 0 unaffected by deleting entry 1");
-    CHECK(strcmp(notes.entries[1].text, "Test note") == 0, "entry that was at index 2 shifted down to index 1");
+    CHECK(strcmp(notes.entries[1].text, "Test note") == 0,
+          "entry that was at index 2 shifted down to index 1");
 
     {
         notes_app_t reloaded2;
@@ -70,7 +83,9 @@ int main(void) {
         CHECK(reloaded2.num_entries == 2, "deletion was persisted: reload shows only 2 entries");
     }
 
-    if (failures == 0) printf("\n=== ALL NOTES APP TESTS PASSED ===\n");
-    else printf("\n=== %d FAILURE(S) ===\n", failures);
+    if (failures == 0)
+        printf("\n=== ALL NOTES APP TESTS PASSED ===\n");
+    else
+        printf("\n=== %d FAILURE(S) ===\n", failures);
     return failures;
 }

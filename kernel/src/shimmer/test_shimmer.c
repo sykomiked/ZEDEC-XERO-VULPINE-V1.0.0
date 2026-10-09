@@ -12,10 +12,17 @@
 #include "shimmer.h"
 
 static int failures = 0;
-#define CHECK(c,m) do{ if(!(c)){printf("[FAIL] %s\n",m);failures++;} \
-    else printf("[PASS] %s\n",m);}while(0)
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", m);                                                              \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", m);                                                              \
+    } while (0)
 
-int main(void) {
+int main(void)
+{
     printf("=== Desktop shimmer field ===\n");
 
     /* --- sine LUT sanity --- */
@@ -43,7 +50,7 @@ int main(void) {
                 for (int x = 0; x < 320; x += 7) {
                     uint8_t v = shimmer_sample(&s, x, y);
                     /* v is a uint8_t, so it cannot exceed 255 */
-                    (void)v;
+                    (void) v;
                 }
             shimmer_advance(&s);
         }
@@ -56,7 +63,10 @@ int main(void) {
         shimmer_t a, b;
         shimmer_init(&a, 320, 200, 7);
         shimmer_init(&b, 320, 200, 7);
-        for (int i = 0; i < 137; i++) { shimmer_advance(&a); shimmer_advance(&b); }
+        for (int i = 0; i < 137; i++) {
+            shimmer_advance(&a);
+            shimmer_advance(&b);
+        }
         int same = 1;
         for (int y = 0; y < 200; y += 3)
             for (int x = 0; x < 320; x += 3)
@@ -66,7 +76,8 @@ int main(void) {
 
     /* --- it actually MOVES between event cycles --- */
     {
-        shimmer_t m; shimmer_init(&m, 320, 200, 3);
+        shimmer_t m;
+        shimmer_init(&m, 320, 200, 3);
         int diff = 0, total = 0;
         uint8_t before[64];
         int i = 0;
@@ -85,21 +96,27 @@ int main(void) {
         shimmer_t p, q;
         shimmer_init(&p, 320, 200, 1);
         shimmer_init(&q, 320, 200, 99);
-        for (int i = 0; i < 20; i++) { shimmer_advance(&p); shimmer_advance(&q); }
+        for (int i = 0; i < 20; i++) {
+            shimmer_advance(&p);
+            shimmer_advance(&q);
+        }
         int diff = 0, total = 0;
-        for (int x = 0; x < 320; x += 4) { total++;
-            if (shimmer_sample(&p, x, 60) != shimmer_sample(&q, x, 60)) diff++; }
+        for (int x = 0; x < 320; x += 4) {
+            total++;
+            if (shimmer_sample(&p, x, 60) != shimmer_sample(&q, x, 60)) diff++;
+        }
         CHECK(diff > total / 4, "different seeds produce a decorrelated field");
     }
 
     /* --- spatial continuity: neighbours shouldn't jump wildly (no hash noise) --- */
     {
-        shimmer_t c; shimmer_init(&c, 320, 200, 5);
+        shimmer_t c;
+        shimmer_init(&c, 320, 200, 5);
         for (int i = 0; i < 11; i++) shimmer_advance(&c);
         long big = 0, n = 0;
         for (int y = 20; y < 180; y += 3)
             for (int x = 20; x < 300; x += 3) {
-                int d = (int)shimmer_sample(&c, x, y) - (int)shimmer_sample(&c, x+1, y);
+                int d = (int) shimmer_sample(&c, x, y) - (int) shimmer_sample(&c, x + 1, y);
                 if (d < 0) d = -d;
                 if (d > 60) big++;
                 n++;
@@ -109,7 +126,8 @@ int main(void) {
 
     /* --- the field uses its full dynamic range --- */
     {
-        shimmer_t r; shimmer_init(&r, 320, 200, 2);
+        shimmer_t r;
+        shimmer_init(&r, 320, 200, 2);
         int lo = 255, hi = 0;
         for (int f = 0; f < 8; f++) {
             for (int y = 0; y < 200; y += 5)
@@ -126,14 +144,15 @@ int main(void) {
 
     /* --- shading preserves alpha and stays in gamut --- */
     {
-        shimmer_t g; shimmer_init(&g, 64, 64, 4);
-        const uint32_t base = 0xFF002911u;    /* midnight emerald */
+        shimmer_t g;
+        shimmer_init(&g, 64, 64, 4);
+        const uint32_t base = 0xFF002911u; /* midnight emerald */
         int ok = 1, changed = 0;
         for (int f = 0; f < 6; f++) {
             for (int y = 0; y < 64; y += 2)
                 for (int x = 0; x < 64; x += 2) {
                     uint32_t o = shimmer_shade(&g, base, x, y);
-                    if (((o >> 24) & 0xFF) != 0xFF) ok = 0;   /* alpha kept */
+                    if (((o >> 24) & 0xFF) != 0xFF) ok = 0; /* alpha kept */
                     if (o != base) changed++;
                 }
             shimmer_advance(&g);
@@ -144,7 +163,8 @@ int main(void) {
 
     /* --- amplitude 0 must be a true no-op (user can disable it) --- */
     {
-        shimmer_t z; shimmer_init(&z, 64, 64, 6);
+        shimmer_t z;
+        shimmer_init(&z, 64, 64, 6);
         shimmer_set_amplitude(&z, 0);
         shimmer_set_glint(&z, 255);
         const uint32_t base = 0xFF002911u;
@@ -155,6 +175,6 @@ int main(void) {
         CHECK(same, "amplitude 0 + glint 255 disables the effect entirely");
     }
 
-    printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
-    return failures?1:0;
+    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
+    return failures ? 1 : 0;
 }

@@ -10,62 +10,73 @@
 #include "fusion.h"
 
 static int g_pass = 0, g_fail = 0;
-#define CHECK(cond, msg) do { \
-    if (cond) { g_pass++; } \
-    else { g_fail++; printf("  FAIL: %s (line %d)\n", (msg), __LINE__); } \
-} while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (cond) {                                                                                \
+            g_pass++;                                                                              \
+        } else {                                                                                   \
+            g_fail++;                                                                              \
+            printf("  FAIL: %s (line %d)\n", (msg), __LINE__);                                     \
+        }                                                                                          \
+    } while (0)
 
 /* Example capability bits — the plug pins / socket pins of this toy ecosystem. */
 enum {
-    CAP_STORAGE = 1u << 0,   /* provides/needs a block store   */
-    CAP_CRYPTO  = 1u << 1,   /* provides/needs signing         */
-    CAP_NET     = 1u << 2,   /* provides/needs networking      */
-    CAP_UI      = 1u << 3    /* provides/needs a display       */
+    CAP_STORAGE = 1u << 0, /* provides/needs a block store   */
+    CAP_CRYPTO = 1u << 1,  /* provides/needs signing         */
+    CAP_NET = 1u << 2,     /* provides/needs networking      */
+    CAP_UI = 1u << 3       /* provides/needs a display       */
 };
 
 /* Distinct 32-byte content digests so we can tell members apart. */
-static void fill(uint8_t d[32], uint8_t seed) {
-    for (int i = 0; i < 32; i++) d[i] = (uint8_t)(seed + i);
+static void fill(uint8_t d[32], uint8_t seed)
+{
+    for (int i = 0; i < 32; i++) d[i] = (uint8_t) (seed + i);
 }
 
 /* Build a program with given provides / needs capability masks. */
-static void mk(fuse_program_t *p, uint8_t seed, uint32_t provides, uint32_t needs) {
+static void mk(fuse_program_t *p, uint8_t seed, uint32_t provides, uint32_t needs)
+{
     uint8_t id[32], src[32], dp[32], dn[32], d0[32];
-    fill(id, seed); fill(src, (uint8_t)(seed + 100));
-    fill(dp, (uint8_t)(seed + 1)); fill(dn, (uint8_t)(seed + 2)); fill(d0, (uint8_t)(seed + 3));
+    fill(id, seed);
+    fill(src, (uint8_t) (seed + 100));
+    fill(dp, (uint8_t) (seed + 1));
+    fill(dn, (uint8_t) (seed + 2));
+    fill(d0, (uint8_t) (seed + 3));
     fuse_program_init(p, id, src);
     fuse_set_provides(p, provides, dp);
     fuse_set_needs(p, needs, dn);
     fuse_set_neutral(p, 0u, d0);
 }
 
-static int cid_eq(const uint8_t a[32], const uint8_t b[32]) {
+static int cid_eq(const uint8_t a[32], const uint8_t b[32])
+{
     return memcmp(a, b, 32) == 0;
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== fusion: positive space plugs into negative space ===\n");
 
     /* ---- ANCHOR 1: A provides EXACTLY what B needs -> clean fusion, no unmet ---- */
     {
         fuse_program_t A, B, F;
-        mk(&A, 10, CAP_STORAGE | CAP_CRYPTO, 0u);          /* provides both      */
-        mk(&B, 20, CAP_UI, CAP_STORAGE | CAP_CRYPTO);      /* needs both         */
+        mk(&A, 10, CAP_STORAGE | CAP_CRYPTO, 0u);     /* provides both      */
+        mk(&B, 20, CAP_UI, CAP_STORAGE | CAP_CRYPTO); /* needs both         */
         CHECK(fuse_can_compose(&A, &B), "A satisfies B fully");
         CHECK(fuse_compose(&A, &B, &F) == FUSE_OK, "compose ok");
         CHECK(fuse_needs(&F) == 0u, "fused artifact has NO unmet needs");
-        CHECK(fuse_provides(&F) == (CAP_STORAGE | CAP_CRYPTO | CAP_UI),
-              "fused provides = union");
+        CHECK(fuse_provides(&F) == (CAP_STORAGE | CAP_CRYPTO | CAP_UI), "fused provides = union");
         CHECK(F.has_cid, "fused artifact is content-addressed");
     }
 
     /* ---- ANCHOR 2: A provides NONE of what B needs -> refused, nothing made ---- */
     {
         fuse_program_t A, B, F;
-        mk(&A, 30, CAP_UI, 0u);                            /* provides UI        */
-        mk(&B, 40, 0u, CAP_STORAGE | CAP_CRYPTO);          /* needs storage+crypto*/
+        mk(&A, 30, CAP_UI, 0u);                   /* provides UI        */
+        mk(&B, 40, 0u, CAP_STORAGE | CAP_CRYPTO); /* needs storage+crypto*/
         CHECK(!fuse_can_compose(&A, &B), "A does NOT satisfy B");
-        memset(&F, 0xEE, sizeof F);                        /* poison out         */
+        memset(&F, 0xEE, sizeof F); /* poison out         */
         CHECK(fuse_compose(&A, &B, &F) == FUSE_ERR_UNMET, "compose refused UNMET");
         /* out was NOT written: its CID bytes stay poisoned (avoid reading the
          * poisoned bool has_cid — that would itself be UB). */
@@ -76,12 +87,12 @@ int main(void) {
     /* ---- ANCHOR 3: PARTIAL — remaining needs == B.needs minus A.provides ---- */
     {
         fuse_program_t A, B, F;
-        mk(&A, 50, CAP_STORAGE, 0u);                       /* provides storage   */
-        mk(&B, 60, 0u, CAP_STORAGE | CAP_CRYPTO);          /* needs storage+crypto*/
+        mk(&A, 50, CAP_STORAGE, 0u);              /* provides storage   */
+        mk(&B, 60, 0u, CAP_STORAGE | CAP_CRYPTO); /* needs storage+crypto*/
         CHECK(!fuse_can_compose(&A, &B), "not a FULL satisfy (partial)");
         CHECK(fuse_compose(&A, &B, &F) == FUSE_OK, "partial compose still ok");
         /* exact set difference: needs & ~provides */
-        uint32_t expect = (CAP_STORAGE | CAP_CRYPTO) & ~(uint32_t)CAP_STORAGE;
+        uint32_t expect = (CAP_STORAGE | CAP_CRYPTO) & ~(uint32_t) CAP_STORAGE;
         CHECK(fuse_needs(&F) == expect, "remaining needs == B.needs - A.provides");
         CHECK(fuse_needs(&F) == CAP_CRYPTO, "specifically: crypto still unmet");
         CHECK(fuse_provides(&F) == CAP_STORAGE, "fused provides = union of provides");
@@ -98,7 +109,7 @@ int main(void) {
 
         /* change one capability bit on A and the fused CID must move */
         fuse_program_t A2, F3;
-        mk(&A2, 50, CAP_STORAGE | CAP_NET, 0u);            /* A now also nets    */
+        mk(&A2, 50, CAP_STORAGE | CAP_NET, 0u); /* A now also nets    */
         CHECK(fuse_compose(&A2, &B, &F3) == FUSE_OK, "compose changed A");
         CHECK(!cid_eq(F1.cid, F3.cid), "changing a PROVIDES bit changes the CID");
 
@@ -139,7 +150,7 @@ int main(void) {
 
         /* associativity of the needs-formula: a C that still wants UI stays unmet */
         fuse_program_t C2, ABC2;
-        mk(&C2, 91, CAP_NET, CAP_CRYPTO | CAP_UI);         /* also needs UI      */
+        mk(&C2, 91, CAP_NET, CAP_CRYPTO | CAP_UI); /* also needs UI      */
         CHECK(fuse_compose(&AB, &C2, &ABC2) == FUSE_OK, "fuse AB,C2");
         CHECK(fuse_needs(&ABC2) == CAP_UI, "UI remains the one unmet need");
     }
@@ -148,7 +159,7 @@ int main(void) {
     {
         fuse_program_t A, B, F;
         mk(&A, 12, CAP_UI, 0u);
-        mk(&B, 13, CAP_NET, 0u);                           /* needs nothing      */
+        mk(&B, 13, CAP_NET, 0u); /* needs nothing      */
         CHECK(fuse_can_compose(&A, &B), "needs-nothing consumer composes");
         CHECK(fuse_compose(&A, &B, &F) == FUSE_OK, "compose ok");
         CHECK(fuse_provides(&F) == (CAP_UI | CAP_NET), "provides union");

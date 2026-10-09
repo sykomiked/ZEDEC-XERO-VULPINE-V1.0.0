@@ -33,7 +33,7 @@
 #include "mlkem768_kat_vectors.h"
 
 static int failures = 0;
-static int checks   = 0;
+static int checks = 0;
 
 /* hex -> bytes. Returns the byte count, or -1 if the string is malformed or does
  * not fit. A silent truncation here would turn a real mismatch into a pass, so it
@@ -42,28 +42,31 @@ static int unhex(const char *h, uint8_t *out, size_t cap)
 {
     size_t n = strlen(h), i;
     if ((n & 1u) != 0u) return -1;
-    if (n / 2u > cap)   return -1;
+    if (n / 2u > cap) return -1;
     for (i = 0; i < n; i += 2) {
         int hi = -1, lo = -1, k;
         char c;
         for (k = 0; k < 2; k++) {
-            c = h[i + (size_t)k];
-            int v = (c >= '0' && c <= '9') ? (c - '0')
-                  : (c >= 'a' && c <= 'f') ? (c - 'a' + 10)
-                  : (c >= 'A' && c <= 'F') ? (c - 'A' + 10) : -1;
+            c = h[i + (size_t) k];
+            int v = (c >= '0' && c <= '9')   ? (c - '0')
+                    : (c >= 'a' && c <= 'f') ? (c - 'a' + 10)
+                    : (c >= 'A' && c <= 'F') ? (c - 'A' + 10)
+                                             : -1;
             if (v < 0) return -1;
-            if (k == 0) hi = v; else lo = v;
+            if (k == 0)
+                hi = v;
+            else
+                lo = v;
         }
-        out[i / 2] = (uint8_t)((hi << 4) | lo);
+        out[i / 2] = (uint8_t) ((hi << 4) | lo);
     }
-    return (int)(n / 2u);
+    return (int) (n / 2u);
 }
 
 /* Full-buffer compare. On mismatch, report the FIRST differing offset — that
  * localises a bug (e.g. "diverges at byte 384" points at a specific polynomial)
  * far better than a bare "not equal". */
-static void expect_eq(const char *what, int tc,
-                      const uint8_t *got, const uint8_t *want, size_t n)
+static void expect_eq(const char *what, int tc, const uint8_t *got, const uint8_t *want, size_t n)
 {
     size_t i;
     checks++;
@@ -71,8 +74,8 @@ static void expect_eq(const char *what, int tc,
     failures++;
     for (i = 0; i < n; i++) {
         if (got[i] != want[i]) {
-            printf("  [FAIL] tc%-4d %-8s mismatch at byte %zu of %zu: got %02x want %02x\n",
-                   tc, what, i, n, got[i], want[i]);
+            printf("  [FAIL] tc%-4d %-8s mismatch at byte %zu of %zu: got %02x want %02x\n", tc,
+                   what, i, n, got[i], want[i]);
             return;
         }
     }
@@ -99,9 +102,11 @@ int main(void)
             unhex(t->ek, ek_w, sizeof ek_w) != MLKEM768_EK_BYTES ||
             unhex(t->dk, dk_w, sizeof dk_w) != MLKEM768_DK_BYTES) {
             printf("  [FAIL] tc%-4d vector did not parse to the expected sizes\n", t->tc);
-            failures++; continue;
+            failures++;
+            continue;
         }
-        memset(ek, 0, sizeof ek); memset(dk, 0, sizeof dk);
+        memset(ek, 0, sizeof ek);
+        memset(dk, 0, sizeof dk);
         mlkem768_keygen(d, z, ek, dk);
         expect_eq("ek", t->tc, ek, ek_w, MLKEM768_EK_BYTES);
         expect_eq("dk", t->tc, dk, dk_w, MLKEM768_DK_BYTES);
@@ -111,17 +116,18 @@ int main(void)
     printf("[2] Encaps_internal(ek,m) -- %d vectors\n", KAT_ENCAPS_N);
     for (i = 0; i < KAT_ENCAPS_N; i++) {
         const kat_encaps_t *t = &KAT_ENCAPS[i];
-        if (unhex(t->ek, ek, sizeof ek) != MLKEM768_EK_BYTES ||
-            unhex(t->m, m, sizeof m) != 32 ||
+        if (unhex(t->ek, ek, sizeof ek) != MLKEM768_EK_BYTES || unhex(t->m, m, sizeof m) != 32 ||
             unhex(t->c, c_w, sizeof c_w) != MLKEM768_CT_BYTES ||
             unhex(t->k, k_w, sizeof k_w) != MLKEM768_SS_BYTES) {
             printf("  [FAIL] tc%-4d vector did not parse to the expected sizes\n", t->tc);
-            failures++; continue;
+            failures++;
+            continue;
         }
-        memset(c, 0, sizeof c); memset(ss, 0, sizeof ss);
+        memset(c, 0, sizeof c);
+        memset(ss, 0, sizeof ss);
         mlkem768_encaps(ek, m, c, ss);
         expect_eq("ct", t->tc, c, c_w, MLKEM768_CT_BYTES);
-        expect_eq("K",  t->tc, ss, k_w, MLKEM768_SS_BYTES);
+        expect_eq("K", t->tc, ss, k_w, MLKEM768_SS_BYTES);
     }
 
     /* ---- 3. Decaps, including implicit rejection ------------------------- */
@@ -133,7 +139,8 @@ int main(void)
             unhex(t->c, c, sizeof c) != MLKEM768_CT_BYTES ||
             unhex(t->k, k_w, sizeof k_w) != MLKEM768_SS_BYTES) {
             printf("  [FAIL] tc%-4d vector did not parse to the expected sizes\n", t->tc);
-            failures++; continue;
+            failures++;
+            continue;
         }
         memset(ss, 0, sizeof ss);
         mlkem768_decaps(dk, c, ss);

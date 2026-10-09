@@ -4,14 +4,13 @@
 #include <stdio.h>
 #include <string.h>
 
-int main() {
-    phase_tick_t pt = {
-        .omega = 10,
-        .r = {.num = 1, .den = 1},
-        .ell = TRIT_TRUE,
-        .iphi = {.r = 0.0, .i = 0.0},
-        .chi = {.bits = {0, 0}}
-    };
+int main()
+{
+    phase_tick_t pt = {.omega = 10,
+                       .r = {.num = 1, .den = 1},
+                       .ell = TRIT_TRUE,
+                       .iphi = {.r = 0.0, .i = 0.0},
+                       .chi = {.bits = {0, 0}}};
 
     long legacy_scalar = project_to_legacy(&pt);
     assert(legacy_scalar == 10);

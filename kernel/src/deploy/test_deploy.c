@@ -10,16 +10,26 @@
 #include "deploy.h"
 
 static int failures = 0;
-#define CHECK(c,m) do{ if(!(c)){printf("[FAIL] %s\n",m);failures++;} \
-    else printf("[PASS] %s\n",m);}while(0)
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", m);                                                              \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", m);                                                              \
+    } while (0)
 
-static deploy_profile_t resolve(uint32_t cores, uint32_t mem_mb, uint32_t nodes,
-                                deploy_power_t pw, bool net) {
-    deploy_caps_t c = { cores, mem_mb, nodes, pw, net };
-    deploy_profile_t p; deploy_resolve(&c, &p); return p;
+static deploy_profile_t resolve(uint32_t cores, uint32_t mem_mb, uint32_t nodes, deploy_power_t pw,
+                                bool net)
+{
+    deploy_caps_t c = {cores, mem_mb, nodes, pw, net};
+    deploy_profile_t p;
+    deploy_resolve(&c, &p);
+    return p;
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== deployment profiles: laptop -> supercomputer, one OS ===\n");
 
     /* ---- classification ---- */
@@ -40,7 +50,7 @@ int main(void) {
     {
         deploy_profile_t laptop = resolve(4, 8192, 1, POWER_BATTERY, true);
         deploy_profile_t server = resolve(32, 131072, 1, POWER_MAINS, true);
-        deploy_profile_t hpc    = resolve(128, 524288, 64, POWER_MAINS, true);
+        deploy_profile_t hpc = resolve(128, 524288, 64, POWER_MAINS, true);
 
         CHECK(laptop.max_cells < server.max_cells && server.max_cells < hpc.max_cells,
               "cells scale up: laptop < server < supercomputer");
@@ -59,16 +69,16 @@ int main(void) {
     /* ---- cells scale with real cores, within the class ceiling ---- */
     {
         deploy_profile_t small_srv = resolve(16, 65536, 1, POWER_MAINS, true);
-        deploy_profile_t big_srv   = resolve(48, 262144, 1, POWER_MAINS, true);
+        deploy_profile_t big_srv = resolve(48, 262144, 1, POWER_MAINS, true);
         CHECK(big_srv.max_cells > small_srv.max_cells,
               "within the server class, a bigger server gets more cells");
-        CHECK(small_srv.max_cells == 32,   /* 16 cores * 2, under the 64 ceiling */
+        CHECK(small_srv.max_cells == 32, /* 16 cores * 2, under the 64 ceiling */
               "16-core server -> 32 cells (2 per core)");
     }
 
     /* ---- absurd machine cannot exceed the hard ceiling ---- */
     {
-        deploy_profile_t monster = resolve(100000, 1u<<30, 100000, POWER_MAINS, true);
+        deploy_profile_t monster = resolve(100000, 1u << 30, 100000, POWER_MAINS, true);
         CHECK(monster.max_cells <= DEPLOY_MAX_CELLS,
               "even a preposterous machine is capped at DEPLOY_MAX_CELLS");
         CHECK(monster.klass == DEPLOY_HPC, "and is still classified HPC");
@@ -104,12 +114,13 @@ int main(void) {
 
     /* ---- defaults / null safety ---- */
     {
-        deploy_profile_t p; deploy_resolve(0, &p);
+        deploy_profile_t p;
+        deploy_resolve(0, &p);
         CHECK(p.max_cells >= 1 && p.target_concurrency >= 1,
               "a NULL caps resolves to a safe single-lane default, no crash");
         CHECK(deploy_classify(0) == DEPLOY_WORKSTATION, "NULL caps classifies as workstation");
     }
 
-    printf("\n%s: %d failure(s)\n", failures?"*** FAILED ***":"ALL PASS", failures);
-    return failures?1:0;
+    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
+    return failures ? 1 : 0;
 }

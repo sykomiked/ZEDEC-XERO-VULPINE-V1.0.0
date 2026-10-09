@@ -11,22 +11,31 @@
 /* Paths to the module source, so the "no kill switch" test can grep them. Default
  * to the in-tree relative paths (make runs from kernel/); overridable via -D. */
 #ifndef ALLOC_C_PATH
-#define ALLOC_C_PATH "src/alloc/alloc.c"
+#    define ALLOC_C_PATH "src/alloc/alloc.c"
 #endif
 #ifndef ALLOC_H_PATH
-#define ALLOC_H_PATH "src/alloc/alloc.h"
+#    define ALLOC_H_PATH "src/alloc/alloc.h"
 #endif
 
 static int g_pass = 0, g_fail = 0;
-#define CHECK(cond, msg) do { \
-    if (cond) { g_pass++; } \
-    else { g_fail++; printf("  FAIL: %s (line %d)\n", (msg), __LINE__); } \
-} while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (cond) {                                                                                \
+            g_pass++;                                                                              \
+        } else {                                                                                   \
+            g_fail++;                                                                              \
+            printf("  FAIL: %s (line %d)\n", (msg), __LINE__);                                     \
+        }                                                                                          \
+    } while (0)
 
 /* host-only exact compare for surplus_real_t (double under TEST_HOST) */
-static int sr_eq(surplus_real_t a, surplus_real_t b) { return SR_CMP(a, b) == 0; }
+static int sr_eq(surplus_real_t a, surplus_real_t b)
+{
+    return SR_CMP(a, b) == 0;
+}
 
-int main(void) {
+int main(void)
+{
     printf("=== alloc: symbiosis engine + a coin no king can seize ===\n");
 
     /* ---------------------------------------------------------------- *
@@ -62,9 +71,11 @@ int main(void) {
 
     /* an empty pool is never fabricated into a payout */
     {
-        alloc_pool_t p; alloc_pool_init(&p);
+        alloc_pool_t p;
+        alloc_pool_init(&p);
         alloc_result_t r;
-        CHECK(alloc_distribute(&p, ZCAP_HUMAN, &r) == -ALLOC_ERR_EMPTY, "empty pool -> EMPTY, no invented payout");
+        CHECK(alloc_distribute(&p, ZCAP_HUMAN, &r) == -ALLOC_ERR_EMPTY,
+              "empty pool -> EMPTY, no invented payout");
     }
 
     /* ---------------------------------------------------------------- *
@@ -86,9 +97,10 @@ int main(void) {
         /* make it NON-reciprocal: value flows one way, nothing binds a return */
         alloc_txn_t nonrecip = ok;
         nonrecip.term.reciprocal = false;
-        nonrecip.term.give_b = SR_ZERO;   /* pure take: A gives, B returns nothing */
+        nonrecip.term.give_b = SR_ZERO; /* pure take: A gives, B returns nothing */
         CHECK(op_symbiotic_ok(&nonrecip.term) == false, "onepolicy: non-reciprocal is not a term");
-        CHECK(alloc_sustainable_ok(&nonrecip) == false, "non-reciprocal allocation REFUSED (onepolicy)");
+        CHECK(alloc_sustainable_ok(&nonrecip) == false,
+              "non-reciprocal allocation REFUSED (onepolicy)");
     }
 
     /* ---------------------------------------------------------------- *
@@ -128,12 +140,12 @@ int main(void) {
         t.principal = SR_FROM_INT(10);
         t.deduction = SR_ZERO;
         t.stock_before = SR_FROM_INT(100);
-        t.yield_floor = SR_FROM_INT(70);   /* supplied floor (ops boundary) */
+        t.yield_floor = SR_FROM_INT(70); /* supplied floor (ops boundary) */
 
-        t.draw = SR_FROM_INT(30);          /* 100 - 30 == 70 == floor : OK (>=) */
+        t.draw = SR_FROM_INT(30); /* 100 - 30 == 70 == floor : OK (>=) */
         CHECK(alloc_sustainable_ok(&t) == true, "draw to exactly the floor is OK");
 
-        t.draw = SR_FROM_INT(31);          /* 100 - 31 == 69 < 70 : refused */
+        t.draw = SR_FROM_INT(31); /* 100 - 31 == 69 < 70 : refused */
         CHECK(alloc_sustainable_ok(&t) == false, "draw BELOW the yield floor REFUSED");
     }
 
@@ -166,7 +178,7 @@ int main(void) {
      *     balances are unchanged                                         *
      * ---------------------------------------------------------------- */
     uint8_t genesis[32];
-    for (int i = 0; i < 32; i++) genesis[i] = (uint8_t)(0xA0 + i);
+    for (int i = 0; i < 32; i++) genesis[i] = (uint8_t) (0xA0 + i);
     {
         ptoken_ledger_t l;
         ptoken_ledger_init(&l);
@@ -183,8 +195,8 @@ int main(void) {
             uint8_t buf[32 + 4 + 8];
             uint32_t j = 0;
             for (int i = 0; i < 32; i++) buf[j++] = genesis[i];
-            for (int i = 0; i < 4; i++) buf[j++] = (uint8_t)(7u >> (8 * i));
-            for (int i = 0; i < 8; i++) buf[j++] = (uint8_t)(0ull >> (8 * i));
+            for (int i = 0; i < 4; i++) buf[j++] = (uint8_t) (7u >> (8 * i));
+            for (int i = 0; i < 8; i++) buf[j++] = (uint8_t) (0ull >> (8 * i));
             /* recompute via the same primitive the module uses */
             extern void sha256(const uint8_t *, size_t, uint8_t[32]);
             sha256(buf, sizeof(buf), expect);
@@ -201,14 +213,15 @@ int main(void) {
         uint32_t bal9 = ptoken_balance(&l, 9);
         uint32_t count_before = l.count;
         int32_t rc = ptoken_transfer(&l, tok.id, 7, 5);
-        CHECK(rc == -PTOKEN_ERR_SPENT, "second transfer of same id -> ERR_SPENT (double-spend refused)");
+        CHECK(rc == -PTOKEN_ERR_SPENT,
+              "second transfer of same id -> ERR_SPENT (double-spend refused)");
         CHECK(ptoken_balance(&l, 7) == bal7, "balance 7 UNCHANGED after refused double-spend");
         CHECK(ptoken_balance(&l, 9) == bal9, "balance 9 UNCHANGED after refused double-spend");
         CHECK(l.count == count_before, "ledger did not grow on refused double-spend");
 
         /* a non-owner cannot move the live token either (no seizure path) */
         uint8_t live_id[32];
-        memcpy(live_id, l.entries[l.count - 1].id, 32);   /* the token owner 9 holds */
+        memcpy(live_id, l.entries[l.count - 1].id, 32); /* the token owner 9 holds */
         CHECK(ptoken_transfer(&l, live_id, 3, 3) == -PTOKEN_ERR_NOT_OWNER,
               "a non-owner cannot transfer a token they do not hold");
         CHECK(ptoken_balance(&l, 9) == 1, "owner 9 still holds the token after failed grab");
@@ -225,15 +238,17 @@ int main(void) {
      * ---------------------------------------------------------------- */
     {
         /* the forbidden tokens: if any appears in the module source, this fails */
-        static const char *forbidden[] = {
-            "freeze", "burn", "revoke", "admin", "override", "seize(", "kill_switch"
-        };
-        const char *paths[2] = { ALLOC_C_PATH, ALLOC_H_PATH };
+        static const char *forbidden[] = {"freeze",   "burn",   "revoke",     "admin",
+                                          "override", "seize(", "kill_switch"};
+        const char *paths[2] = {ALLOC_C_PATH, ALLOC_H_PATH};
         int found_any = 0;
         int scanned = 0;
         for (int pi = 0; pi < 2; pi++) {
             FILE *f = fopen(paths[pi], "rb");
-            if (!f) { printf("  NOTE: could not open %s for grep\n", paths[pi]); continue; }
+            if (!f) {
+                printf("  NOTE: could not open %s for grep\n", paths[pi]);
+                continue;
+            }
             scanned++;
             static char blob[1 << 18];
             size_t n = fread(blob, 1, sizeof(blob) - 1, f);
@@ -241,14 +256,15 @@ int main(void) {
             blob[n] = 0;
             for (size_t fi = 0; fi < sizeof(forbidden) / sizeof(forbidden[0]); fi++) {
                 if (strstr(blob, forbidden[fi]) != NULL) {
-                    printf("  FAIL: forbidden kill-switch token '%s' found in %s\n",
-                           forbidden[fi], paths[pi]);
+                    printf("  FAIL: forbidden kill-switch token '%s' found in %s\n", forbidden[fi],
+                           paths[pi]);
                     found_any = 1;
                 }
             }
         }
         CHECK(scanned == 2, "both module sources opened for the kill-switch grep");
-        CHECK(found_any == 0, "NO kill switch: no freeze/burn/revoke/admin/override symbol in source");
+        CHECK(found_any == 0,
+              "NO kill switch: no freeze/burn/revoke/admin/override symbol in source");
     }
 
     printf("\n%d passed, %d failed\n", g_pass, g_fail);

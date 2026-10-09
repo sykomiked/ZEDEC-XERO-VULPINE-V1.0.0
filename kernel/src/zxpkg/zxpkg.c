@@ -11,7 +11,8 @@ static uint32_t get32le(const uint8_t *p) {
 }
 static void cpy(uint8_t *d, const uint8_t *s, uint32_t n) { for (uint32_t i=0;i<n;i++) d[i]=s[i]; }
 static bool eq(const uint8_t *a, const uint8_t *b, uint32_t n) {
-    for (uint32_t i=0;i<n;i++) if (a[i]!=b[i]) return false;
+    for (uint32_t i = 0; i < n; i++)
+        if (a[i] != b[i]) return false;
     return true;
 }
 

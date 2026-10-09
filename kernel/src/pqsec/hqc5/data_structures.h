@@ -43,4 +43,4 @@ typedef union {
     uint32_t u32[4]; /**< Word-wise access (4 32-bit words) */
 } rm_codeword_t;
 
-#endif  // HQC_DATA_STRUCTURES_H
+#endif // HQC_DATA_STRUCTURES_H

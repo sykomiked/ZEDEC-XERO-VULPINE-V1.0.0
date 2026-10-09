@@ -8,7 +8,8 @@
 #include <assert.h>
 #include <stdio.h>
 
-int main(void) {
+int main(void)
+{
     // Initialize the LPRES subsystem
     lpres_init();
 

@@ -56,7 +56,8 @@ int32_t find_peaks(rm_expanded_cdw *transform);
  * @param[out] word An RM(1,7) codeword
  * @param[in] message A message
  */
-void encode(rm_codeword_t *word, int32_t message) {
+void encode(rm_codeword_t *word, int32_t message)
+{
     int32_t first_word;
 
     first_word = BIT0MASK(message >> 7);
@@ -87,7 +88,8 @@ void encode(rm_codeword_t *word, int32_t message) {
  * @param[out] src Structure that contain the expanded codeword
  * @param[out] dst Structure that contain the expanded codeword
  */
-void hadamard(rm_expanded_cdw *src, rm_expanded_cdw *dst) {
+void hadamard(rm_expanded_cdw *src, rm_expanded_cdw *dst)
+{
     // the passes move data:
     // src -> dst -> src -> dst -> src -> dst -> src -> dst
     // using p1 and p2 alternately
@@ -118,7 +120,8 @@ void hadamard(rm_expanded_cdw *src, rm_expanded_cdw *dst) {
  * @param[out] dest Structure that contain the expanded codeword
  * @param[in] src Structure that contain the codeword
  */
-void expand_and_sum(rm_expanded_cdw *dest, rm_codeword_t src[]) {
+void expand_and_sum(rm_expanded_cdw *dest, rm_codeword_t src[])
+{
     // start with the first copy
     for (int32_t part = 0; part < 4; part++) {
         for (int32_t bit = 0; bit < 32; bit++) {
@@ -144,7 +147,8 @@ void expand_and_sum(rm_expanded_cdw *dest, rm_codeword_t src[]) {
  * in the lowest 7 bits it taken
  * @param[in] transform Structure that contain the expanded codeword
  */
-int32_t find_peaks(rm_expanded_cdw *transform) {
+int32_t find_peaks(rm_expanded_cdw *transform)
+{
     int32_t peak_abs_value = 0;
     int32_t peak_value = 0;
     int32_t peak_pos = 0;
@@ -171,9 +175,10 @@ int32_t find_peaks(rm_expanded_cdw *transform) {
  * @param[out] cdw Array of size VEC_N1N2_SIZE_64 receiving the encoded message
  * @param[in] msg Array of size VEC_N1_SIZE_64 storing the message
  */
-void reed_muller_encode(uint64_t *cdw, const uint64_t *msg) {
-    uint8_t *message_array = (uint8_t *)msg;
-    rm_codeword_t *codeArray = (rm_codeword_t *)cdw;
+void reed_muller_encode(uint64_t *cdw, const uint64_t *msg)
+{
+    uint8_t *message_array = (uint8_t *) msg;
+    rm_codeword_t *codeArray = (rm_codeword_t *) cdw;
     for (size_t i = 0; i < VEC_N1_SIZE_BYTES; i++) {
         // fill entries i * MULTIPLICITY to (i+1) * MULTIPLICITY
         int32_t pos = i * MULTIPLICITY;
@@ -189,15 +194,17 @@ void reed_muller_encode(uint64_t *cdw, const uint64_t *msg) {
 /**
  * @brief Decodes the received word
  *
- * Decoding uses fast hadamard transform, for a more complete picture on Reed-Muller decoding, see MacWilliams, Florence
- * Jessie, and Neil James Alexander Sloane. The theory of error-correcting codes codes @cite macwilliams1977theory
+ * Decoding uses fast hadamard transform, for a more complete picture on Reed-Muller decoding, see
+ * MacWilliams, Florence Jessie, and Neil James Alexander Sloane. The theory of error-correcting
+ * codes codes @cite macwilliams1977theory
  *
  * @param[out] msg Array of size VEC_N1_SIZE_64 receiving the decoded message
  * @param[in] cdw Array of size VEC_N1N2_SIZE_64 storing the received word
  */
-void reed_muller_decode(uint64_t *msg, const uint64_t *cdw) {
-    uint8_t *message_array = (uint8_t *)msg;
-    rm_codeword_t *codeArray = (rm_codeword_t *)cdw;
+void reed_muller_decode(uint64_t *msg, const uint64_t *cdw)
+{
+    uint8_t *message_array = (uint8_t *) msg;
+    rm_codeword_t *codeArray = (rm_codeword_t *) cdw;
     rm_expanded_cdw expanded;
     for (size_t i = 0; i < VEC_N1_SIZE_BYTES; i++) {
         // collect the codewords

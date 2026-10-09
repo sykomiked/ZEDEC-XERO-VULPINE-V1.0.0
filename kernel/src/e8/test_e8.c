@@ -7,32 +7,41 @@
 #include "e8.h"
 
 static int fails = 0;
-#define CHECK(cond, ...) do { if (!(cond)) { \
-    printf("  FAIL: "); printf(__VA_ARGS__); printf("\n"); fails++; } } while (0)
+#define CHECK(cond, ...)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("  FAIL: ");                                                                    \
+            printf(__VA_ARGS__);                                                                   \
+            printf("\n");                                                                          \
+            fails++;                                                                               \
+        }                                                                                          \
+    } while (0)
 
 /* Complete enumeration of lattice vectors up to a norm bound, by
  * Cholesky-free integer search over a coefficient box. The box is wide enough
  * for norm 2 with this basis (verified against an exact bounded enumeration
  * offline); the point of the test is the COUNT, which is the lattice's
  * fingerprint. */
-static long count_norm(int64_t target, int box) {
+static long count_norm(int64_t target, int box)
+{
     long n = 0;
     int64_t c[E8_DIM];
     for (c[0] = -box; c[0] <= box; c[0]++)
-    for (c[1] = -box; c[1] <= box; c[1]++)
-    for (c[2] = -box; c[2] <= box; c[2]++)
-    for (c[3] = -box; c[3] <= box; c[3]++)
-    for (c[4] = -box; c[4] <= box; c[4]++)
-    for (c[5] = -box; c[5] <= box; c[5]++)
-    for (c[6] = -box; c[6] <= box; c[6]++)
-    for (c[7] = -box; c[7] <= box; c[7]++) {
-        bool ok = false;
-        if (e8_norm(e8_from_coeffs(c), &ok) == target && ok) n++;
-    }
+        for (c[1] = -box; c[1] <= box; c[1]++)
+            for (c[2] = -box; c[2] <= box; c[2]++)
+                for (c[3] = -box; c[3] <= box; c[3]++)
+                    for (c[4] = -box; c[4] <= box; c[4]++)
+                        for (c[5] = -box; c[5] <= box; c[5]++)
+                            for (c[6] = -box; c[6] <= box; c[6]++)
+                                for (c[7] = -box; c[7] <= box; c[7]++) {
+                                    bool ok = false;
+                                    if (e8_norm(e8_from_coeffs(c), &ok) == target && ok) n++;
+                                }
     return n;
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== zphi: exact golden integers ===\n");
     {
         uint32_t b = zphi_selfcheck();
@@ -44,8 +53,7 @@ int main(void) {
 
     printf("\n=== the 600-cell (icosians) ===\n");
     {
-        CHECK(e8_icosian_count() == 120, "icosian count is %u, want 120",
-              e8_icosian_count());
+        CHECK(e8_icosian_count() == 120, "icosian count is %u, want 120", e8_icosian_count());
         int units = 0, distinct = 1;
         for (uint32_t i = 0; i < 120; i++) {
             icos_t q;
@@ -66,11 +74,14 @@ int main(void) {
         int closed = 1;
         for (uint32_t i = 0; i < 120 && closed; i += 3) {
             for (uint32_t j = 0; j < 120 && closed; j += 5) {
-                icos_t a, b, p; int found = 0;
-                e8_icosian(i, &a); e8_icosian(j, &b);
+                icos_t a, b, p;
+                int found = 0;
+                e8_icosian(i, &a);
+                e8_icosian(j, &b);
                 p = icos_mul(a, b);
                 for (uint32_t k = 0; k < 120 && !found; k++) {
-                    icos_t c; e8_icosian(k, &c);
+                    icos_t c;
+                    e8_icosian(k, &c);
                     if (icos_eq(p, c)) found = 1;
                 }
                 if (!found) closed = 0;
@@ -130,23 +141,25 @@ int main(void) {
     printf("\n=== ISOMETRY_LIFT_M8 ===\n");
     {
         const int64_t m5[5] = {3, -1, 4, 1, -5};
-        e8_pt_t p; int64_t back[5];
+        e8_pt_t p;
+        int64_t back[5];
         CHECK(e8_lift_m5(m5, &p), "lift failed");
         CHECK(e8_project_m5(p, back), "project failed");
         int same = 1;
-        for (int i = 0; i < 5; i++) if (back[i] != m5[i]) same = 0;
+        for (int i = 0; i < 5; i++)
+            if (back[i] != m5[i]) same = 0;
         CHECK(same, "lift/project is not an exact round trip");
 
         bool ok = false;
         int64_t n = e8_norm(p, &ok);
         CHECK(ok, "norm overflowed");
-        CHECK(n % 2 == 0, "lifted point has odd norm %lld (E8 is an even lattice)",
-              (long long)n);
+        CHECK(n % 2 == 0, "lifted point has odd norm %lld (E8 is an even lattice)", (long long) n);
         printf("  lift(3,-1,4,1,-5) -> E8 point of norm %lld (even), "
-               "round-trip exact\n", (long long)n);
+               "round-trip exact\n",
+               (long long) n);
 
         /* refuses points outside the rank-5 image rather than truncating */
-        int64_t outside[8] = {1,1,1,1,1, 0,0,7};
+        int64_t outside[8] = {1, 1, 1, 1, 1, 0, 0, 7};
         CHECK(!e8_project_m5(e8_from_coeffs(outside), back),
               "project accepted a point outside the M5 sublattice");
         printf("  a point outside the image is refused, not truncated: OK\n");
@@ -154,23 +167,28 @@ int main(void) {
         /* the induced metric is positive definite on a sweep */
         int pd = 1;
         for (int64_t a = -2; a <= 2; a++)
-        for (int64_t b = -2; b <= 2; b++)
-        for (int64_t c = -2; c <= 2; c++)
-        for (int64_t d = -2; d <= 2; d++)
-        for (int64_t e = -2; e <= 2; e++) {
-            const int64_t v[5] = {a,b,c,d,e};
-            bool o = false;
-            int64_t q = e8_m5_norm(v, &o);
-            if (!o) { pd = 0; break; }
-            int zero = (a|b|c|d|e) == 0;
-            if (zero ? q != 0 : q <= 0) { pd = 0; break; }
-        }
+            for (int64_t b = -2; b <= 2; b++)
+                for (int64_t c = -2; c <= 2; c++)
+                    for (int64_t d = -2; d <= 2; d++)
+                        for (int64_t e = -2; e <= 2; e++) {
+                            const int64_t v[5] = {a, b, c, d, e};
+                            bool o = false;
+                            int64_t q = e8_m5_norm(v, &o);
+                            if (!o) {
+                                pd = 0;
+                                break;
+                            }
+                            int zero = (a | b | c | d | e) == 0;
+                            if (zero ? q != 0 : q <= 0) {
+                                pd = 0;
+                                break;
+                            }
+                        }
         CHECK(pd, "the induced M5 metric is NOT positive definite");
-        printf("  induced M5 metric positive definite over 5^5 sweep: %s\n",
-               pd ? "OK" : "BROKEN");
+        printf("  induced M5 metric positive definite over 5^5 sweep: %s\n", pd ? "OK" : "BROKEN");
 
         /* distance is symmetric and zero only for equal states */
-        const int64_t x[5] = {1,2,3,4,5}, y[5] = {5,4,3,2,1};
+        const int64_t x[5] = {1, 2, 3, 4, 5}, y[5] = {5, 4, 3, 2, 1};
         bool o1 = false, o2 = false;
         CHECK(e8_m5_dist2(x, y, &o1) == e8_m5_dist2(y, x, &o2) && o1 && o2,
               "distance is not symmetric");
@@ -185,7 +203,6 @@ int main(void) {
         printf("  e8_selfcheck(): %u problems\n", b);
     }
 
-    printf("\n%s (%d failure%s)\n", fails ? "FAILED" : "ALL PASS",
-           fails, fails == 1 ? "" : "s");
+    printf("\n%s (%d failure%s)\n", fails ? "FAILED" : "ALL PASS", fails, fails == 1 ? "" : "s");
     return fails != 0;
 }

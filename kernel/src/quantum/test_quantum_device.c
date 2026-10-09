@@ -14,14 +14,16 @@
 #include <string.h>
 #include <math.h>
 
-static int feq(double a, double b, double eps) {
+static int feq(double a, double b, double eps)
+{
     double diff = fabs(a - b);
     double scale = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
     if (scale < 1.0) scale = 1.0;
     return diff <= eps * scale;
 }
 
-int main(void) {
+int main(void)
+{
     /* ===== system_init ===== */
     quantum_system_t qs;
     quantum_system_init(&qs);
@@ -38,8 +40,8 @@ int main(void) {
     /* ===== Casimir: bare force formula, independently recomputed ===== */
     {
         double a = 1e-6;
-        double expected = (Q_PI_SQUARED * Q_PLANCK_REDUCED * Q_SPEED_OF_LIGHT)
-                           / (240.0 * a * a * a * a);
+        double expected =
+            (Q_PI_SQUARED * Q_PLANCK_REDUCED * Q_SPEED_OF_LIGHT) / (240.0 * a * a * a * a);
         double got = quantum_casimir_force(a);
         assert(feq(got, expected, 1e-9));
         assert(quantum_casimir_force(0.0) == 0.0);
@@ -128,7 +130,7 @@ int main(void) {
         /* Transit degrades stability by 0.1 per trip, floors at 0,
          * and ring-buffers dma_transit mod 4 */
         for (int i = 0; i < 10; i++) {
-            int32_t r = quantum_wormhole_transit(wh, (uint32_t)i);
+            int32_t r = quantum_wormhole_transit(wh, (uint32_t) i);
             assert(r == 0);
         }
         assert(wh->reg_stability == 0.0); /* floored, never negative */
@@ -220,7 +222,7 @@ int main(void) {
         assert(quantum_field_annihilate_particle(f, 0) == 0);
         assert(quantum_field_annihilate_particle(f, 0) == 0);
         assert(f->occupation[0] == 0);
-        assert(f->irq_vacuum_fluctuation); /* fires exactly at 0 */
+        assert(f->irq_vacuum_fluctuation);                     /* fires exactly at 0 */
         assert(quantum_field_annihilate_particle(f, 0) == -1); /* can't go below vacuum */
 
         assert(quantum_field_expectation_value(f, 0) == 0);
@@ -269,8 +271,8 @@ int main(void) {
         uint32_t z1 = quantum_zpe_create(&sys, c1);
         quantum_zpe_extract(&sys.zpe_extractors[z0], 5.0);
         quantum_zpe_extract(&sys.zpe_extractors[z1], 3.0);
-        double expected_zpe = sys.zpe_extractors[z0].reg_total_extracted
-                             + sys.zpe_extractors[z1].reg_total_extracted;
+        double expected_zpe =
+            sys.zpe_extractors[z0].reg_total_extracted + sys.zpe_extractors[z1].reg_total_extracted;
 
         /* Inactive ZPE extractor must be excluded */
         uint32_t z2 = quantum_zpe_create(&sys, c0);
@@ -290,7 +292,7 @@ int main(void) {
 
         assert(strcmp(quantum_mode_name(QMODE_DC), "DC (Measurement)") == 0);
         assert(strcmp(quantum_mode_name(QMODE_PC), "PC (Entanglement)") == 0);
-        assert(strcmp(quantum_mode_name((quantum_mode_t)3), "Unknown") == 0);
+        assert(strcmp(quantum_mode_name((quantum_mode_t) 3), "Unknown") == 0);
     }
 
     printf("All Quantum Device tests passed\n");

@@ -4,16 +4,17 @@
 #include "m5_types.h"
 #include "iphase_core.h"
 
-int main(void) {
+int main(void)
+{
     iphase_init();
 
-    lattice_node_id_t node_a = { .node_id = 1, .dim_level = 0 };
-    lattice_node_id_t node_b = { .node_id = 2, .dim_level = 0 };
-    lattice_node_id_t node_c = { .node_id = 3, .dim_level = 0 };
+    lattice_node_id_t node_a = {.node_id = 1, .dim_level = 0};
+    lattice_node_id_t node_b = {.node_id = 2, .dim_level = 0};
+    lattice_node_id_t node_c = {.node_id = 3, .dim_level = 0};
 
-    phase_t vector_ab = { .r = 1.0, .i = 0.0 };
-    phase_t vector_bc = { .r = 1.0, .i = M_PI / 2.0 };
-    phase_t vector_ca = { .r = 1.0, .i = -M_PI / 2.0 };
+    phase_t vector_ab = {.r = 1.0, .i = 0.0};
+    phase_t vector_bc = {.r = 1.0, .i = M_PI / 2.0};
+    phase_t vector_ca = {.r = 1.0, .i = -M_PI / 2.0};
 
     iphase_add_entry(node_b, vector_ab);
     iphase_add_entry(node_c, vector_bc);

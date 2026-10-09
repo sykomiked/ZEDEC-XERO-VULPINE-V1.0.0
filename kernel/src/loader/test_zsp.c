@@ -17,13 +17,21 @@
 #include "hello_signed.h"
 
 static int failures = 0;
-#define CHECK(cond, msg) do { \
-    if (!(cond)) { printf("[FAIL] %s\n", msg); failures++; } \
-    else         { printf("[PASS] %s\n", msg); } } while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("[FAIL] %s\n", msg);                                                            \
+            failures++;                                                                            \
+        } else {                                                                                   \
+            printf("[PASS] %s\n", msg);                                                            \
+        }                                                                                          \
+    } while (0)
 
-int main(void) {
+int main(void)
+{
     static uint8_t buf[8192];
-    const uint8_t *pl; uint32_t pl_len;
+    const uint8_t *pl;
+    uint32_t pl_len;
     printf("=== ZSP signed-package tests (pkg=%uB) ===\n", hello_zsp_len);
 
     /* genuine package verifies */
@@ -34,13 +42,13 @@ int main(void) {
 
     /* tampered payload -> hash mismatch */
     memcpy(buf, hello_zsp, hello_zsp_len);
-    buf[ZSP_HEADER_LEN + 32] ^= 0x01;   /* flip a payload byte */
+    buf[ZSP_HEADER_LEN + 32] ^= 0x01; /* flip a payload byte */
     r = zsp_verify(buf, hello_zsp_len, hello_root_pubkey, &pl, &pl_len);
     CHECK(r == ZSP_ERR_HASH, "tampered payload rejected (hash)");
 
     /* tampered signature -> sig invalid */
     memcpy(buf, hello_zsp, hello_zsp_len);
-    buf[40] ^= 0x01;                    /* flip a signature byte */
+    buf[40] ^= 0x01; /* flip a signature byte */
     r = zsp_verify(buf, hello_zsp_len, hello_root_pubkey, &pl, &pl_len);
     CHECK(r == ZSP_ERR_SIG, "tampered signature rejected");
 
@@ -68,7 +76,6 @@ int main(void) {
     r = zsp_verify(hello_zsp, 50, hello_root_pubkey, &pl, &pl_len);
     CHECK(r == ZSP_ERR_SHORT, "truncated package rejected");
 
-    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS",
-           failures);
+    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
     return failures ? 1 : 0;
 }

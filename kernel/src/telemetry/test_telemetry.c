@@ -6,7 +6,8 @@
 #include <string.h>
 #include <math.h>
 
-int main(void) {
+int main(void)
+{
     axiom_matrix_t m;
     m.size = 256;
     double complex entries[256];

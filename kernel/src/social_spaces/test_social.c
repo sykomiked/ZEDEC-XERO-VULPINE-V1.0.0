@@ -16,34 +16,42 @@
 #include "social.h"
 
 #ifndef SOC_SRC_PATH
-#define SOC_SRC_PATH "src/social_spaces/social.c"   /* path from kernel/ (verify-all cwd); override with -D */
+#    define SOC_SRC_PATH                                                                           \
+        "src/social_spaces/social.c" /* path from kernel/ (verify-all cwd); override with -D */
 #endif
 
 static int g_checks = 0;
-#define CHECK(cond, msg) do {                                   \
-        g_checks++;                                             \
-        if (!(cond)) { printf("FAIL: %s\n", msg); return 1; }   \
-        printf("  ok: %s\n", msg);                              \
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        g_checks++;                                                                                \
+        if (!(cond)) {                                                                             \
+            printf("FAIL: %s\n", msg);                                                             \
+            return 1;                                                                              \
+        }                                                                                          \
+        printf("  ok: %s\n", msg);                                                                 \
     } while (0)
 
 /* Case-insensitive substring search — the whole no-ban / no-ads proof. */
-static int contains_ci(const char *hay, const char *needle) {
+static int contains_ci(const char *hay, const char *needle)
+{
     if (!hay || !needle || !*needle) return 0;
     for (const char *h = hay; *h; h++) {
         const char *a = h, *b = needle;
         while (*a && *b) {
             char ca = *a, cb = *b;
-            if (ca >= 'A' && ca <= 'Z') ca = (char)(ca - 'A' + 'a');
-            if (cb >= 'A' && cb <= 'Z') cb = (char)(cb - 'A' + 'a');
+            if (ca >= 'A' && ca <= 'Z') ca = (char) (ca - 'A' + 'a');
+            if (cb >= 'A' && cb <= 'Z') cb = (char) (cb - 'A' + 'a');
             if (ca != cb) break;
-            a++; b++;
+            a++;
+            b++;
         }
         if (!*b) return 1;
     }
     return 0;
 }
 
-int main(void) {
+int main(void)
+{
     printf("== test_social ==\n");
 
     /* ---- (1) source-grep: the mandates are true by construction ---- */
@@ -57,9 +65,8 @@ int main(void) {
         CHECK(n > 0, "social.c is non-empty");
 
         /* No coercion vocabulary: there is no ban/eject primitive to abuse. */
-        const char *forbidden_moderation[] = {
-            "ban", "delete", "silence", "remove", "shadowban", "mute", NULL
-        };
+        const char *forbidden_moderation[] = {"ban",       "delete", "silence", "remove",
+                                              "shadowban", "mute",   NULL};
         for (int i = 0; forbidden_moderation[i]; i++) {
             char m[96];
             snprintf(m, sizeof(m), "social.c has NO '%s' (no-ban by construction)",
@@ -67,9 +74,7 @@ int main(void) {
             CHECK(!contains_ci(src, forbidden_moderation[i]), m);
         }
         /* No advertising vocabulary anywhere. */
-        const char *forbidden_ads[] = {
-            "sponsored", "promoted", "advert", "sponsor", NULL
-        };
+        const char *forbidden_ads[] = {"sponsored", "promoted", "advert", "sponsor", NULL};
         for (int i = 0; forbidden_ads[i]; i++) {
             char m[96];
             snprintf(m, sizeof(m), "social.c has NO '%s' (no-ads by construction)",
@@ -83,34 +88,35 @@ int main(void) {
 
     /* ---- (2) the named spaces open as the right kinds ---- */
     int32_t club = soc_open_space(&w, SOC_SOCIAL_CLUB, "Don Tovani's Social Club");
-    int32_t den  = soc_open_space(&w, SOC_DEV_DEN,     "Zevion's Hideout");
-    int32_t bar  = soc_open_space(&w, SOC_CASUAL,      "The Back Porch");
+    int32_t den = soc_open_space(&w, SOC_DEV_DEN, "Zevion's Hideout");
+    int32_t bar = soc_open_space(&w, SOC_CASUAL, "The Back Porch");
     CHECK(club >= 0 && den >= 0 && bar >= 0, "three spaces opened");
     CHECK(w.space[club].kind == SOC_SOCIAL_CLUB, "Don Tovani's Club is a SOCIAL_CLUB");
-    CHECK(w.space[den].kind  == SOC_DEV_DEN,     "Zevion's Hideout is a DEV_DEN");
+    CHECK(w.space[den].kind == SOC_DEV_DEN, "Zevion's Hideout is a DEV_DEN");
     CHECK(strcmp(w.space[club].name, "Don Tovani's Social Club") == 0, "club name kept");
-    CHECK(strcmp(w.space[den].name,  "Zevion's Hideout") == 0,        "hideout name kept");
+    CHECK(strcmp(w.space[den].name, "Zevion's Hideout") == 0, "hideout name kept");
 
     /* ---- membership: a normal builder and two hecklers gather in the Club ---- */
-    const uint32_t NORMAL  = 10;
+    const uint32_t NORMAL = 10;
     const uint32_t TROLL_A = 20;
     const uint32_t TROLL_B = 21;
-    CHECK(soc_join(&w, club, NORMAL)  == SOC_OK, "normal joins the Club");
+    CHECK(soc_join(&w, club, NORMAL) == SOC_OK, "normal joins the Club");
     CHECK(soc_join(&w, club, TROLL_A) == SOC_OK, "troll A joins the Club");
     CHECK(soc_join(&w, club, TROLL_B) == SOC_OK, "troll B joins the Club");
-    CHECK(soc_join(&w, club, NORMAL)  == SOC_OK, "re-join is idempotent");
+    CHECK(soc_join(&w, club, NORMAL) == SOC_OK, "re-join is idempotent");
     /* three distinct witnesses who will file REAL first-party reports */
     const uint32_t W1 = 30, W2 = 31, W3 = 32;
-    soc_join(&w, club, W1); soc_join(&w, club, W2); soc_join(&w, club, W3);
+    soc_join(&w, club, W1);
+    soc_join(&w, club, W2);
+    soc_join(&w, club, W3);
 
     /* ---- posts, including one we will re-read after the sort ---- */
     const char *hello = "Hello, builders! Anyone shipping today?";
-    int32_t post0 = soc_post(&w, club, NORMAL, (const uint8_t *)hello,
-                             (uint32_t)strlen(hello));
+    int32_t post0 = soc_post(&w, club, NORMAL, (const uint8_t *) hello, (uint32_t) strlen(hello));
     CHECK(post0 == 0, "normal's post lands at index 0");
     const char *heckle = "your idea is bad and you should feel bad";
-    int32_t post1 = soc_post(&w, club, TROLL_A, (const uint8_t *)heckle,
-                             (uint32_t)strlen(heckle));
+    int32_t post1 =
+        soc_post(&w, club, TROLL_A, (const uint8_t *) heckle, (uint32_t) strlen(heckle));
     CHECK(post1 == 1, "troll A can post BEFORE sorting (free speech)");
     CHECK(soc_post_count(&w, club) == 2, "two posts retained");
 
@@ -120,7 +126,7 @@ int main(void) {
     /* A single reporter cannot force quarantine either — one strike, and a repeat
      * by the SAME reporter is a no-op (the unilateral-quarantine bug is closed). */
     soc_report(&w, W1, TROLL_A, SOC_QUAR_DURATION);
-    soc_report(&w, W1, TROLL_A, SOC_QUAR_DURATION);   /* same reporter again: no-op */
+    soc_report(&w, W1, TROLL_A, SOC_QUAR_DURATION); /* same reporter again: no-op */
     CHECK(con_standing(con_get(&w.commons, TROLL_A)) != CON_QUARANTINED,
           "one reporter (even repeating) CANNOT quarantine — no unilateral ban");
     /* real CONSENSUS: three DISTINCT witnesses each report first-party */
@@ -133,9 +139,8 @@ int main(void) {
     int32_t corner_a = soc_sort(&w, TROLL_A);
     CHECK(corner_a >= 0, "soc_sort(A) seats the quarantined troll, returns a grouping");
     CHECK(soc_is_member(&w, club, TROLL_A),
-          "troll A is STILL a member — nobody was removed");   /* still present */
-    int32_t post2 = soc_post(&w, club, TROLL_A, (const uint8_t *)"still here",
-                             10u);
+          "troll A is STILL a member — nobody was removed"); /* still present */
+    int32_t post2 = soc_post(&w, club, TROLL_A, (const uint8_t *) "still here", 10u);
     CHECK(post2 == 2, "troll A can STILL post after being sorted (never gagged)");
 
     /* ---- (4) normal and troll are SEPARATED — but by the standing POOL, not a
@@ -167,8 +172,8 @@ int main(void) {
     CHECK(soc_post_count(&w, club) == 3, "all three posts still present after sorts");
     uint32_t len = 0, author = 0;
     const uint8_t *b = soc_post_at(&w, club, 0, &len, &author);
-    CHECK(b != NULL && author == NORMAL && len == (uint32_t)strlen(hello) &&
-          memcmp(b, hello, len) == 0,
+    CHECK(b != NULL && author == NORMAL && len == (uint32_t) strlen(hello) &&
+              memcmp(b, hello, len) == 0,
           "normal's original post reads back byte-for-byte after the sorts");
 
     printf("\nALL %d CHECKS PASSED\n", g_checks);

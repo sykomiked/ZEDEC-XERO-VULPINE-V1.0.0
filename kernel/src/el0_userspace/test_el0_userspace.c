@@ -25,7 +25,8 @@ uint32_t proc_find_next_ready(proc_scheduler_t *ps);
 bool proc_sched_tick_logic(proc_scheduler_t *ps, cpu_context_t *ctx);
 
 /* Test: scheduler initialization */
-static void test_init(void) {
+static void test_init(void)
+{
     proc_scheduler_t ps;
     proc_sched_init(&ps);
     assert(ps.num_procs == 0);
@@ -40,7 +41,8 @@ static void test_init(void) {
 }
 
 /* Test: all slots initially UNUSED */
-static void test_create(void) {
+static void test_create(void)
+{
     proc_scheduler_t ps;
     proc_sched_init(&ps);
     for (uint32_t i = 0; i < MAX_USER_PROCS; i++) {
@@ -50,7 +52,8 @@ static void test_create(void) {
 }
 
 /* Test: round-robin selection logic */
-static void test_round_robin(void) {
+static void test_round_robin(void)
+{
     proc_scheduler_t ps;
     proc_sched_init(&ps);
 
@@ -62,8 +65,7 @@ static void test_round_robin(void) {
         ps.procs[i].priority = 100;
         ps.procs[i].cpu_time_ticks = 0;
         ps.procs[i].l0_table = 0;
-        for (int j = 0; j < 31; j++)
-            ps.procs[i].ctx.x[j] = 0;
+        for (int j = 0; j < 31; j++) ps.procs[i].ctx.x[j] = 0;
         ps.procs[i].ctx.pc = 0x10000 + i * 0x1000;
         ps.procs[i].ctx.sp = 0x80000;
     }
@@ -84,14 +86,15 @@ static void test_round_robin(void) {
 
     /* current=2, find next ready -> should be 0 (wrap) */
     ps.current_pid = 2;
-    ps.procs[0].state = PROC_READY;  /* was RUNNING, now READY for wrap test */
+    ps.procs[0].state = PROC_READY; /* was RUNNING, now READY for wrap test */
     next = proc_find_next_ready(&ps);
     assert(next == 0);
     printf("  [PASS] round-robin: 2 -> 0 (wrap)\n");
 }
 
 /* Test: quantum accounting via proc_sched_tick_logic */
-static void test_quantum(void) {
+static void test_quantum(void)
+{
     proc_scheduler_t ps;
     proc_sched_init(&ps);
 
@@ -120,14 +123,15 @@ static void test_quantum(void) {
 
     /* Tick 3: quantum 1->0, preempt (but only 1 proc, so no switch) */
     switched = proc_sched_tick_logic(&ps, &ctx);
-    assert(!switched);  /* only 1 proc, no other to switch to */
-    assert(ps.procs[0].quantum_ticks == 3);  /* reset */
+    assert(!switched);                      /* only 1 proc, no other to switch to */
+    assert(ps.procs[0].quantum_ticks == 3); /* reset */
     assert(ps.total_preemptions == 1);
     printf("  [PASS] tick 3: quantum expired, preempted (same proc)\n");
 }
 
 /* Test: quantum with 2 processes -> actual context switch */
-static void test_quantum_switch(void) {
+static void test_quantum_switch(void)
+{
     proc_scheduler_t ps;
     proc_sched_init(&ps);
 
@@ -191,7 +195,8 @@ static void test_quantum_switch(void) {
 }
 
 /* Test: process termination */
-static void test_terminate(void) {
+static void test_terminate(void)
+{
     proc_scheduler_t ps;
     proc_sched_init(&ps);
 
@@ -209,7 +214,8 @@ static void test_terminate(void) {
 }
 
 /* Test: proc_get and proc_current */
-static void test_getters(void) {
+static void test_getters(void)
+{
     proc_scheduler_t ps;
     proc_sched_init(&ps);
 
@@ -231,16 +237,17 @@ static void test_getters(void) {
     assert(p2->pid == 2);
 
     user_proc_t *p3 = proc_get(&ps, 3);
-    assert(p3 == NULL);  /* UNUSED */
+    assert(p3 == NULL); /* UNUSED */
 
     user_proc_t *p99 = proc_get(&ps, 99);
-    assert(p99 == NULL);  /* doesn't exist */
+    assert(p99 == NULL); /* doesn't exist */
 
     printf("  [PASS] proc_current and proc_get\n");
 }
 
 /* Test: PTE constants and address layout */
-static void test_pte_constants(void) {
+static void test_pte_constants(void)
+{
     assert(PTE_VALID == (1ULL << 0));
     assert(PTE_TABLE == (1ULL << 1));
     assert(PTE_AF == (1ULL << 10));
@@ -255,7 +262,8 @@ static void test_pte_constants(void) {
 }
 
 /* Test: max processes limit */
-static void test_max_procs(void) {
+static void test_max_procs(void)
+{
     proc_scheduler_t ps;
     proc_sched_init(&ps);
 
@@ -267,14 +275,14 @@ static void test_max_procs(void) {
 
     uint32_t count = 0;
     for (uint32_t i = 0; i < MAX_USER_PROCS; i++) {
-        if (ps.procs[i].state != PROC_UNUSED)
-            count++;
+        if (ps.procs[i].state != PROC_UNUSED) count++;
     }
     assert(count == MAX_USER_PROCS);
     printf("  [PASS] max processes: %d slots filled\n", MAX_USER_PROCS);
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== EL0 User Space + Preemptive Scheduler Tests ===\n\n");
 
     test_init();

@@ -12,15 +12,16 @@
 #include "gf.h"
 #include "parameters.h"
 #ifdef VERBOSE
-#include <stdbool.h>
-#include <stdio.h>
+#    include <stdbool.h>
+#    include <stdio.h>
 #endif
 
 static uint16_t mod(uint16_t i, uint16_t modulus);
 static void compute_syndromes(uint16_t *syndromes, uint8_t *cdw);
 static uint16_t compute_elp(uint16_t *sigma, const uint16_t *syndromes);
 static void compute_roots(uint8_t *error, uint16_t *sigma);
-static void compute_z_poly(uint16_t *z, const uint16_t *sigma, const uint16_t degree, const uint16_t *syndromes);
+static void compute_z_poly(uint16_t *z, const uint16_t *sigma, const uint16_t degree,
+                           const uint16_t *syndromes);
 static void compute_error_values(uint16_t *error_values, const uint16_t *z, const uint8_t *error);
 static void correct_errors(uint8_t *cdw, const uint16_t *error_values);
 
@@ -32,7 +33,8 @@ static void correct_errors(uint8_t *cdw, const uint16_t *error_values);
  * @param[in] i The integer whose modulo is taken
  * @param[in] modulus The modulus
  */
-static uint16_t mod(uint16_t i, uint16_t modulus) {
+static uint16_t mod(uint16_t i, uint16_t modulus)
+{
     uint16_t tmp = i - modulus;
 
     // mask = 0xffff if(i < PARAM_GF_MUL_ORDER)
@@ -42,16 +44,19 @@ static uint16_t mod(uint16_t i, uint16_t modulus) {
 }
 
 /**
- * @brief Computes the generator polynomial of the primitive Reed-Solomon code with given parameters.
+ * @brief Computes the generator polynomial of the primitive Reed-Solomon code with given
+ * parameters.
  *
  * Code length is 2^m-1. <br>
  * PARAM_DELTA is the targeted correction capacity of the code
  * and receives the real correction capacity (which is at least equal to the target). <br>
  * gf_exp and gf_log are arrays giving antilog and log of GF(2^m) elements.
  *
- * @param[out] poly Array of size (2*PARAM_DELTA + 1) receiving the coefficients of the generator polynomial
+ * @param[out] poly Array of size (2*PARAM_DELTA + 1) receiving the coefficients of the generator
+ * polynomial
  */
-void compute_generator_poly(uint16_t *poly) {
+void compute_generator_poly(uint16_t *poly)
+{
     poly[0] = 1;
     int tmp_degree = 0;
 
@@ -72,16 +77,19 @@ void compute_generator_poly(uint16_t *poly) {
 }
 
 /**
- * @brief Encodes a message message of PARAM_K bits to a Reed-Solomon codeword codeword of PARAM_N1 bytes
+ * @brief Encodes a message message of PARAM_K bits to a Reed-Solomon codeword codeword of PARAM_N1
+ * bytes
  *
  * Following @cite lin1983error (Chapter 4 - Cyclic Codes),
  * We perform a systematic encoding using a linear (PARAM_N1 - PARAM_K)-stage shift register
- * with feedback connections based on the generator polynomial PARAM_RS_POLY of the Reed-Solomon code.
+ * with feedback connections based on the generator polynomial PARAM_RS_POLY of the Reed-Solomon
+ * code.
  *
  * @param[out] cdw Array of size VEC_N1_SIZE_64 receiving the encoded message
  * @param[in] msg Array of size VEC_K_SIZE_64 storing the message
  */
-void reed_solomon_encode(uint64_t *cdw, const uint64_t *msg) {
+void reed_solomon_encode(uint64_t *cdw, const uint64_t *msg)
+{
     size_t i, j, k;
     uint8_t gate_value = 0;
 
@@ -117,7 +125,8 @@ void reed_solomon_encode(uint64_t *cdw, const uint64_t *msg) {
  * @param[out] syndromes Array of size 2 * PARAM_DELTA receiving the computed syndromes
  * @param[in] cdw Array of size PARAM_N1 storing the received vector
  */
-void compute_syndromes(uint16_t *syndromes, uint8_t *cdw) {
+void compute_syndromes(uint16_t *syndromes, uint8_t *cdw)
+{
     for (size_t i = 0; i < 2 * PARAM_DELTA; ++i) {
         for (size_t j = 1; j < PARAM_N1; ++j) {
             syndromes[i] ^= gf_mul(cdw[j], alpha_ij_pow[i][j - 1]);
@@ -129,24 +138,26 @@ void compute_syndromes(uint16_t *syndromes, uint8_t *cdw) {
 /**
  * @brief Computes the error locator polynomial (ELP) sigma
  *
- * This is a constant time implementation of Berlekamp's algorithm (see @cite lin1983error (Chapter 6 - BCH
- * Codes). <br> We use the letter p for rho which is initialized at -1. <br> The array X_sigma_p represents the
- * polynomial X^(mu-rho)*sigma_p(X). <br> Instead of maintaining a list of sigmas, we update in place both sigma and
- * X_sigma_p. <br> sigma_copy serves as a temporary save of sigma in case X_sigma_p needs to be updated. <br> We can
- * properly correct only if the degree of sigma does not exceed PARAM_DELTA. This means only the first PARAM_DELTA + 1
- * coefficients of sigma are of value and we only need to save its first PARAM_DELTA - 1 coefficients.
+ * This is a constant time implementation of Berlekamp's algorithm (see @cite lin1983error (Chapter
+ * 6 - BCH Codes). <br> We use the letter p for rho which is initialized at -1. <br> The array
+ * X_sigma_p represents the polynomial X^(mu-rho)*sigma_p(X). <br> Instead of maintaining a list of
+ * sigmas, we update in place both sigma and X_sigma_p. <br> sigma_copy serves as a temporary save
+ * of sigma in case X_sigma_p needs to be updated. <br> We can properly correct only if the degree
+ * of sigma does not exceed PARAM_DELTA. This means only the first PARAM_DELTA + 1 coefficients of
+ * sigma are of value and we only need to save its first PARAM_DELTA - 1 coefficients.
  *
  * @returns the degree of the ELP sigma
  * @param[out] sigma Array of size (at least) PARAM_DELTA receiving the ELP
  * @param[in] syndromes Array of size (at least) 2*PARAM_DELTA storing the syndromes
  */
-static uint16_t compute_elp(uint16_t *sigma, const uint16_t *syndromes) {
+static uint16_t compute_elp(uint16_t *sigma, const uint16_t *syndromes)
+{
     uint16_t deg_sigma = 0;
     uint16_t deg_sigma_p = 0;
     uint16_t deg_sigma_copy = 0;
     uint16_t sigma_copy[PARAM_DELTA + 1] = {0};
     uint16_t X_sigma_p[PARAM_DELTA + 1] = {0, 1};
-    uint16_t pp = (uint16_t)-1;  // 2*rho
+    uint16_t pp = (uint16_t) -1; // 2*rho
     uint16_t d_p = 1;
     uint16_t d = syndromes[0];
 
@@ -173,10 +184,10 @@ static uint16_t compute_elp(uint16_t *sigma, const uint16_t *syndromes) {
         deg_X_sigma_p = deg_X + deg_sigma_p;
 
         // mask1 = 0xffff if(d != 0) and 0 otherwise
-        mask1 = -((uint16_t)-d >> 15);
+        mask1 = -((uint16_t) -d >> 15);
 
         // mask2 = 0xffff if(deg_X_sigma_p > deg_sigma) and 0 otherwise
-        mask2 = -((uint16_t)(deg_sigma - deg_X_sigma_p) >> 15);
+        mask2 = -((uint16_t) (deg_sigma - deg_X_sigma_p) >> 15);
 
         // mask12 = 0xffff if the deg_sigma increased and 0 otherwise
         volatile uint16_t mask12__ = mask1 & mask2;
@@ -212,7 +223,8 @@ static uint16_t compute_elp(uint16_t *sigma, const uint16_t *syndromes) {
  * @param[out] error Array of 2^PARAM_M elements receiving the error polynomial
  * @param[in] sigma Array of 2^PARAM_FFT elements storing the error locator polynomial
  */
-static void compute_roots(uint8_t *error, uint16_t *sigma) {
+static void compute_roots(uint8_t *error, uint16_t *sigma)
+{
     uint16_t w[1 << PARAM_M] = {0};
 
     fft(w, sigma, PARAM_DELTA + 1);
@@ -229,21 +241,23 @@ static void compute_roots(uint8_t *error, uint16_t *sigma) {
  * @param[in] degree Integer that is the degree of polynomial sigma
  * @param[in] syndromes Array of 2 * PARAM_DELTA storing the syndromes
  */
-static void compute_z_poly(uint16_t *z, const uint16_t *sigma, const uint16_t degree, const uint16_t *syndromes) {
+static void compute_z_poly(uint16_t *z, const uint16_t *sigma, const uint16_t degree,
+                           const uint16_t *syndromes)
+{
     size_t i, j;
     uint16_t mask;
 
     z[0] = 1;
 
     for (i = 1; i < PARAM_DELTA + 1; ++i) {
-        mask = -((uint16_t)(i - degree - 1) >> 15);
+        mask = -((uint16_t) (i - degree - 1) >> 15);
         z[i] = mask & sigma[i];
     }
 
     z[1] ^= syndromes[0];
 
     for (i = 2; i <= PARAM_DELTA; ++i) {
-        mask = -((uint16_t)(i - degree - 1) >> 15);
+        mask = -((uint16_t) (i - degree - 1) >> 15);
         z[i] ^= mask & syndromes[i - 1];
 
         for (j = 1; j < i; ++j) {
@@ -261,7 +275,8 @@ static void compute_z_poly(uint16_t *z, const uint16_t *sigma, const uint16_t de
  * @param[in] z Array of PARAM_DELTA + 1 elements storing the polynomial z(x)
  * @param[in] error Array storing the error
  */
-static void compute_error_values(uint16_t *error_values, const uint16_t *z, const uint8_t *error) {
+static void compute_error_values(uint16_t *error_values, const uint16_t *z, const uint8_t *error)
+{
     uint16_t beta_j[PARAM_DELTA] = {0};
     uint16_t e_j[PARAM_DELTA] = {0};
 
@@ -279,9 +294,9 @@ static void compute_error_values(uint16_t *error_values, const uint16_t *z, cons
     delta_counter = 0;
     for (size_t i = 0; i < PARAM_N1; i++) {
         found = 0;
-        mask1 = (uint16_t)(-((int32_t)error[i]) >> 31);  // error[i] != 0
+        mask1 = (uint16_t) (-((int32_t) error[i]) >> 31); // error[i] != 0
         for (size_t j = 0; j < PARAM_DELTA; j++) {
-            mask2 = ~((uint16_t)(-((int32_t)j ^ delta_counter) >> 31));  // j == delta_counter
+            mask2 = ~((uint16_t) (-((int32_t) j ^ delta_counter) >> 31)); // j == delta_counter
             beta_j[j] += mask1 & mask2 & gf_exp[i];
             found += mask1 & mask2 & 1;
         }
@@ -303,7 +318,7 @@ static void compute_error_values(uint16_t *error_values, const uint16_t *z, cons
         for (size_t k = 1; k < PARAM_DELTA; ++k) {
             tmp2 = gf_mul(tmp2, (1 ^ gf_mul(inverse, beta_j[(i + k) % PARAM_DELTA])));
         }
-        mask1 = (uint16_t)(((int16_t)i - delta_real_value) >> 15);  // i < delta_real_value
+        mask1 = (uint16_t) (((int16_t) i - delta_real_value) >> 15); // i < delta_real_value
         e_j[i] = mask1 & gf_mul(tmp1, gf_inverse(tmp2));
     }
 
@@ -311,9 +326,9 @@ static void compute_error_values(uint16_t *error_values, const uint16_t *z, cons
     delta_counter = 0;
     for (size_t i = 0; i < PARAM_N1; ++i) {
         found = 0;
-        mask1 = (uint16_t)(-((int32_t)error[i]) >> 31);  // error[i] != 0
+        mask1 = (uint16_t) (-((int32_t) error[i]) >> 31); // error[i] != 0
         for (size_t j = 0; j < PARAM_DELTA; j++) {
-            mask2 = ~((uint16_t)(-((int32_t)j ^ delta_counter) >> 31));  // j == delta_counter
+            mask2 = ~((uint16_t) (-((int32_t) j ^ delta_counter) >> 31)); // j == delta_counter
             error_values[i] += mask1 & mask2 & e_j[j];
             found += mask1 & mask2 & 1;
         }
@@ -327,7 +342,8 @@ static void compute_error_values(uint16_t *error_values, const uint16_t *z, cons
  * @param[out] cdw Array of PARAM_N1 elements receiving the corrected vector
  * @param[in] error_values Array of PARAM_DELTA elements storing the error values
  */
-static void correct_errors(uint8_t *cdw, const uint16_t *error_values) {
+static void correct_errors(uint8_t *cdw, const uint16_t *error_values)
+{
     for (size_t i = 0; i < PARAM_N1; ++i) {
         cdw[i] ^= error_values[i];
     }
@@ -344,13 +360,14 @@ static void correct_errors(uint8_t *cdw, const uint16_t *error_values) {
  * -# Compute the error values at each located position.
  * -# Correct the received polynomial by subtracting the error values.
  *
- * For a more complete picture on Reed-Solomon decoding, see Shu. Lin and Daniel J. Costello in Error Control Coding:
- * Fundamentals and Applications @cite lin1983error
+ * For a more complete picture on Reed-Solomon decoding, see Shu. Lin and Daniel J. Costello in
+ * Error Control Coding: Fundamentals and Applications @cite lin1983error
  *
  * @param[out] msg Array of size VEC_K_SIZE_64 receiving the decoded message
  * @param[in] cdw Array of size VEC_N1_SIZE_64 storing the received word
  */
-void reed_solomon_decode(uint64_t *msg, uint64_t *cdw) {
+void reed_solomon_decode(uint64_t *msg, uint64_t *cdw)
+{
     uint8_t cdw_bytes[PARAM_N1] = {0};
     uint16_t syndromes[2 * PARAM_DELTA] = {0};
     uint16_t sigma[1 << PARAM_FFT] = {0};
@@ -396,20 +413,16 @@ void reed_solomon_decode(uint64_t *msg, uint64_t *cdw) {
         first_coeff = false;
     }
     for (size_t i = 1; i < (1 << PARAM_FFT); ++i) {
-        if (sigma[i] == 0)
-            continue;
-        if (!first_coeff)
-            printf(" + ");
+        if (sigma[i] == 0) continue;
+        if (!first_coeff) printf(" + ");
         first_coeff = false;
-        if (sigma[i] != 1)
-            printf("%u ", sigma[i]);
+        if (sigma[i] != 1) printf("%u ", sigma[i]);
         if (i == 1)
             printf("x");
         else
             printf("x^%zu", i);
     }
-    if (first_coeff)
-        printf("0");
+    if (first_coeff) printf("0");
 
     printf("\n\nThe polynomial: z(x) = ");
     bool first_coeff_1 = true;
@@ -418,20 +431,16 @@ void reed_solomon_decode(uint64_t *msg, uint64_t *cdw) {
         first_coeff_1 = false;
     }
     for (size_t i = 1; i < (PARAM_DELTA + 1); ++i) {
-        if (z[i] == 0)
-            continue;
-        if (!first_coeff_1)
-            printf(" + ");
+        if (z[i] == 0) continue;
+        if (!first_coeff_1) printf(" + ");
         first_coeff_1 = false;
-        if (z[i] != 1)
-            printf("%u ", z[i]);
+        if (z[i] != 1) printf("%u ", z[i]);
         if (i == 1)
             printf("x");
         else
             printf("x^%zu", i);
     }
-    if (first_coeff_1)
-        printf("0");
+    if (first_coeff_1) printf("0");
 
     printf("\n\nThe pairs of (error locator numbers, error values): ");
     size_t j = 0;

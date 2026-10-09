@@ -13,7 +13,7 @@
 #include "symmetric.h"
 #include "vector.h"
 #ifdef VERBOSE
-#include <stdio.h>
+#    include <stdio.h>
 #endif
 
 /**
@@ -27,7 +27,8 @@
  * @param[in]  seed    Pointer to the seed used to deterministically generate the key pair.
  *
  */
-void hqc_pke_keygen(uint8_t *ek_pke, uint8_t *dk_pke, uint8_t *seed) {
+void hqc_pke_keygen(uint8_t *ek_pke, uint8_t *dk_pke, uint8_t *seed)
+{
     uint8_t keypair_seed[2 * SEED_BYTES] = {0};
     uint8_t *seed_dk = keypair_seed;
     uint8_t *seed_ek = keypair_seed + SEED_BYTES;
@@ -85,8 +86,9 @@ void hqc_pke_keygen(uint8_t *ek_pke, uint8_t *dk_pke, uint8_t *seed) {
 /**
  * @brief Encrypts a message using the HQC public-key encryption (PKE) scheme.
  *
- * This function performs encryption in the HQC PKE scheme. It uses the given encryption key (`ek_pke`)
- * and encryption randomness (`theta`) to encrypt the message `m`, producing a ciphertext `c_pke`.
+ * This function performs encryption in the HQC PKE scheme. It uses the given encryption key
+ * (`ek_pke`) and encryption randomness (`theta`) to encrypt the message `m`, producing a ciphertext
+ * `c_pke`.
  *
  * @param[out] c_pke     Pointer to the output ciphertext structure (PKE ciphertext).
  * @param[in]  ek_pke    Pointer to the encryption key.
@@ -94,7 +96,9 @@ void hqc_pke_keygen(uint8_t *ek_pke, uint8_t *dk_pke, uint8_t *seed) {
  * @param[in]  theta     Pointer to the encryption randomness used during encryption.
  *
  */
-void hqc_pke_encrypt(ciphertext_pke_t *c_pke, const uint8_t *ek_pke, const uint64_t *m, const uint8_t *theta) {
+void hqc_pke_encrypt(ciphertext_pke_t *c_pke, const uint8_t *ek_pke, const uint64_t *m,
+                     const uint8_t *theta)
+{
     shake256_xof_ctx theta_xof_ctx = {0};
     uint64_t h[VEC_N_SIZE_64] = {0};
     uint64_t s[VEC_N_SIZE_64] = {0};
@@ -157,8 +161,8 @@ void hqc_pke_encrypt(ciphertext_pke_t *c_pke, const uint8_t *ek_pke, const uint6
 /**
  * @brief Decrypts a ciphertext using the HQC public-key encryption (PKE) scheme.
  *
- * This function performs decryption in the HQC PKE scheme. It uses the given decryption key (`dk_pke`)
- * to decrypt the ciphertext `c_pke`, recovering the original message `m`.
+ * This function performs decryption in the HQC PKE scheme. It uses the given decryption key
+ * (`dk_pke`) to decrypt the ciphertext `c_pke`, recovering the original message `m`.
  *
  * @param[out] m         Pointer to the output buffer where the decrypted message will be stored.
  * @param[in]  dk_pke    Pointer to the decryption key.
@@ -167,7 +171,8 @@ void hqc_pke_encrypt(ciphertext_pke_t *c_pke, const uint8_t *ek_pke, const uint6
  * @return Returns 0 on success.
  *
  */
-uint8_t hqc_pke_decrypt(uint64_t *m, const uint8_t *dk_pke, const ciphertext_pke_t *c_pke) {
+uint8_t hqc_pke_decrypt(uint64_t *m, const uint8_t *dk_pke, const ciphertext_pke_t *c_pke)
+{
     uint64_t y[VEC_N_SIZE_64] = {0};
     uint64_t tmp1[VEC_N_SIZE_64] = {0};
     uint64_t tmp2[VEC_N_SIZE_64] = {0};

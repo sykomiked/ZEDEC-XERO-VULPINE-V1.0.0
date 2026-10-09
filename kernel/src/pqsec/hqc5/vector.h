@@ -24,4 +24,4 @@ void vect_truncate(uint64_t *v);
 
 void vect_print(const uint64_t *v, const uint32_t size);
 
-#endif  // HQC_VECTOR_H
+#endif // HQC_VECTOR_H

@@ -12,26 +12,26 @@
 
 #ifndef CBMC
 
-#define __contract__(x)
-#define __loop__(x)
+#    define __contract__(x)
+#    define __loop__(x)
 
 #else /* !CBMC */
 
-#define __contract__(x) x
-#define __loop__(x) x
+#    define __contract__(x)                 x
+#    define __loop__(x)                     x
 
 /* https://diffblue.github.io/cbmc/contracts-assigns.html */
-#define assigns(...) __CPROVER_assigns(__VA_ARGS__)
+#    define assigns(...)                    __CPROVER_assigns(__VA_ARGS__)
 
 /* https://diffblue.github.io/cbmc/contracts-requires-ensures.html */
-#define requires(...) __CPROVER_requires(__VA_ARGS__)
-#define ensures(...) __CPROVER_ensures(__VA_ARGS__)
+#    define requires(...)                   __CPROVER_requires(__VA_ARGS__)
+#    define ensures(...)                    __CPROVER_ensures(__VA_ARGS__)
 /* https://diffblue.github.io/cbmc/contracts-loops.html */
-#define invariant(...) __CPROVER_loop_invariant(__VA_ARGS__)
-#define decreases(...) __CPROVER_decreases(__VA_ARGS__)
+#    define invariant(...)                  __CPROVER_loop_invariant(__VA_ARGS__)
+#    define decreases(...)                  __CPROVER_decreases(__VA_ARGS__)
 /* cassert to avoid confusion with in-built assert */
-#define cassert(x) __CPROVER_assert(x, "cbmc assertion failed")
-#define assume(...) __CPROVER_assume(__VA_ARGS__)
+#    define cassert(x)                      __CPROVER_assert(x, "cbmc assertion failed")
+#    define assume(...)                     __CPROVER_assume(__VA_ARGS__)
 
 /***************************************************
  * Macros for "expression" forms that may appear
@@ -42,30 +42,30 @@
  * function return value - useful inside ensures
  * https://diffblue.github.io/cbmc/contracts-functions.html
  */
-#define return_value (__CPROVER_return_value)
+#    define return_value                    (__CPROVER_return_value)
 
 /*
  * assigns l-value targets
  * https://diffblue.github.io/cbmc/contracts-assigns.html
  */
-#define object_whole(...) __CPROVER_object_whole(__VA_ARGS__)
-#define memory_slice(...) __CPROVER_object_upto(__VA_ARGS__)
-#define same_object(...) __CPROVER_same_object(__VA_ARGS__)
+#    define object_whole(...)               __CPROVER_object_whole(__VA_ARGS__)
+#    define memory_slice(...)               __CPROVER_object_upto(__VA_ARGS__)
+#    define same_object(...)                __CPROVER_same_object(__VA_ARGS__)
 
 /*
  * Pointer-related predicates
  * https://diffblue.github.io/cbmc/contracts-memory-predicates.html
  */
-#define memory_no_alias(...) __CPROVER_is_fresh(__VA_ARGS__)
-#define readable(...) __CPROVER_r_ok(__VA_ARGS__)
-#define writeable(...) __CPROVER_w_ok(__VA_ARGS__)
+#    define memory_no_alias(...)            __CPROVER_is_fresh(__VA_ARGS__)
+#    define readable(...)                   __CPROVER_r_ok(__VA_ARGS__)
+#    define writeable(...)                  __CPROVER_w_ok(__VA_ARGS__)
 
 /*
  * History variables
  * https://diffblue.github.io/cbmc/contracts-history-variables.html
  */
-#define old(...) __CPROVER_old(__VA_ARGS__)
-#define loop_entry(...) __CPROVER_loop_entry(__VA_ARGS__)
+#    define old(...)                        __CPROVER_old(__VA_ARGS__)
+#    define loop_entry(...)                 __CPROVER_loop_entry(__VA_ARGS__)
 
 /*
  * Quantifiers
@@ -135,12 +135,12 @@
  * Note that since the lower bound in array_bound is inclusive, we have to
  * raise it by 1 here.
  */
-#define array_abs_bound(arr, lb, ub, k) \
-  array_bound((arr), (lb), (ub), -((int)(k)) + 1, (k))
+#    define array_abs_bound(arr, lb, ub, k) array_bound((arr), (lb), (ub), -((int) (k)) + 1, (k))
 
-#define VALID_SLH_VAR_T(var) \
-  (memory_no_alias(var, sizeof(slh_var_t)) && memory_no_alias(var->prm, sizeof(slh_param_t)) && \
-   memory_no_alias(var->adrs, sizeof(adrs_t)))
+#    define VALID_SLH_VAR_T(var)                                                                   \
+        (memory_no_alias(var, sizeof(slh_var_t)) &&                                                \
+         memory_no_alias(var->prm, sizeof(slh_param_t)) &&                                         \
+         memory_no_alias(var->adrs, sizeof(adrs_t)))
 
 #endif /* CBMC */
 

@@ -8,11 +8,12 @@
 #include <stdlib.h>
 #include <math.h>
 
-int main(void) {
+int main(void)
+{
     word168_t w;
     memset(&w, 0, sizeof(w));
     for (int i = 0; i < WORD168_OCTETS; i++) {
-        w.bytes[i] = (uint8_t)(i + 1);
+        w.bytes[i] = (uint8_t) (i + 1);
     }
 
     uint8_t octets[WORD168_OCTETS];
@@ -37,10 +38,9 @@ int main(void) {
     word168_t w4;
     crit_inverse(freq, &w4, WORD168_OCTETS);
     for (int i = 0; i < WORD168_OCTETS; i++) {
-        assert(abs((int)w4.bytes[i] - (int)w.bytes[i]) <= 1);
+        assert(abs((int) w4.bytes[i] - (int) w.bytes[i]) <= 1);
     }
 
     printf("All CRIT-168 tests passed\n");
     return 0;
 }
-

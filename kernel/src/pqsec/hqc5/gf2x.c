@@ -8,7 +8,8 @@
  *    (z0, z2, zmid each 2*n, plus ta and tb of n each: total 8*n.)
  *  - Child calls operate on half the length (n/2), needing 8*(n/2) words, placed immediately after.
  *  - Summing across levels n + n/2 + n/4 + ... < 2*n, so total < 8*n * 2 = 16*n words.
- *  - We set TMP_BUFFER_WORDS = 16 * VEC_N_SIZE_64 to guarantee enough space for all recursion levels.
+ *  - We set TMP_BUFFER_WORDS = 16 * VEC_N_SIZE_64 to guarantee enough space for all recursion
+ * levels.
  */
 
 #include "gf2x.h"
@@ -36,7 +37,8 @@
  * @param[in]  b  Operand b, size n words.
  * @param[in]  n  Number of 64-bit words in a and b.
  */
-static void schoolbook_mul(uint64_t *r, const uint64_t *a, const uint64_t *b, size_t n) {
+static void schoolbook_mul(uint64_t *r, const uint64_t *a, const uint64_t *b, size_t n)
+{
     memset(r, 0, 2 * n * sizeof(uint64_t));
     for (size_t i = 0; i < n; i++) {
         uint64_t ai = a[i];
@@ -71,7 +73,9 @@ static void schoolbook_mul(uint64_t *r, const uint64_t *a, const uint64_t *b, si
  * @param[in]  n            Number of 64-bit words in a and b.
  * @param[in]  tmp_buffer  Temporary buffer, size >= 8*n words (child calls use remainder).
  */
-static void karatsuba_mul(uint64_t *r, const uint64_t *a, const uint64_t *b, size_t n, uint64_t *tmp_buffer) {
+static void karatsuba_mul(uint64_t *r, const uint64_t *a, const uint64_t *b, size_t n,
+                          uint64_t *tmp_buffer)
+{
     if (n <= KARATSUBA_THRESHOLD) {
         schoolbook_mul(r, a, b, n);
         return;
@@ -130,7 +134,8 @@ static void karatsuba_mul(uint64_t *r, const uint64_t *a, const uint64_t *b, siz
  * @param[out] o  Result buffer, size VEC_N_SIZE_64 words.
  * @param[in]  a  Input buffer, size 2*VEC_N_SIZE_64 words.
  */
-static void reduce(uint64_t *o, const uint64_t *a) {
+static void reduce(uint64_t *o, const uint64_t *a)
+{
     for (size_t i = 0; i < VEC_N_SIZE_64; i++) {
         uint64_t r = a[i + VEC_N_SIZE_64 - 1] >> (PARAM_N & 0x3F);
         uint64_t carry = a[i + VEC_N_SIZE_64] << (64 - (PARAM_N & 0x3F));
@@ -148,7 +153,8 @@ static void reduce(uint64_t *o, const uint64_t *a) {
  * @param[in]  a1  Operand polynomial a(x).
  * @param[in]  a2  Operand polynomial b(x).
  */
-void vect_mul(uint64_t *o, const uint64_t *a1, const uint64_t *a2) {
+void vect_mul(uint64_t *o, const uint64_t *a1, const uint64_t *a2)
+{
     uint64_t unreduced[2 * VEC_N_SIZE_64];
     uint64_t tmp_buffer[TMP_BUFFER_WORDS];
 

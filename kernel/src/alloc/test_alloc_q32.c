@@ -13,28 +13,37 @@
 #include "alloc.h"
 
 static int fails = 0;
-#define CK(c,m) do { if(!(c)){printf("[FAIL] %s\n",m);fails++;} else printf("[PASS] %s\n",m); } while(0)
+#define CK(c, m)                                                                                   \
+    do {                                                                                           \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", m);                                                              \
+            fails++;                                                                               \
+        } else                                                                                     \
+            printf("[PASS] %s\n", m);                                                              \
+    } while (0)
 
-int main(void) {
+int main(void)
+{
     printf("=== alloc: proportional split on the Q32.32 TARGET type ===\n");
 
     /* 50000 + 50000 units -> each gets back 50000 exactly. The overflow bug gave
      * 7050 / 92949 here; a negative share is the unmistakable overflow signature. */
-    alloc_pool_t p; alloc_pool_init(&p);
+    alloc_pool_t p;
+    alloc_pool_init(&p);
     alloc_contribute(&p, 1, ZCAP_INTELLECTUAL, SR_FROM_INT(50000));
     alloc_contribute(&p, 2, ZCAP_INTELLECTUAL, SR_FROM_INT(50000));
     alloc_result_t r;
     alloc_distribute(&p, ZCAP_INTELLECTUAL, &r);
     CK(r.count == 2, "two contributors distributed");
-    CK(SR_CMP(r.shares[0].amount, SR_ZERO) > 0 &&
-       SR_CMP(r.shares[1].amount, SR_ZERO) > 0,
+    CK(SR_CMP(r.shares[0].amount, SR_ZERO) > 0 && SR_CMP(r.shares[1].amount, SR_ZERO) > 0,
        "both shares are POSITIVE (no Q32.32 overflow)");
     CK(SR_CMP(r.shares[0].amount, SR_FROM_INT(50000)) == 0, "share0 == 50000 exactly");
     CK(SR_CMP(r.shares[1].amount, SR_FROM_INT(50000)) == 0, "share1 == 50000 exactly");
     CK(SR_CMP(r.total, SR_FROM_INT(100000)) == 0, "conserved: total == pool (100000)");
 
     /* 32768 + 32768: exactly the boundary the overflow bug flipped negative. */
-    alloc_pool_t p2; alloc_pool_init(&p2);
+    alloc_pool_t p2;
+    alloc_pool_init(&p2);
     alloc_contribute(&p2, 1, ZCAP_HUMAN, SR_FROM_INT(32768));
     alloc_contribute(&p2, 2, ZCAP_HUMAN, SR_FROM_INT(32768));
     alloc_result_t r2;
@@ -47,7 +56,8 @@ int main(void) {
      * fixed-point tick — but they are POSITIVE (no overflow) and conservation is
      * still EXACT (the last share absorbs the sub-tick remainder). We assert the
      * honest invariant: each share within one whole unit of ideal, total exact. */
-    alloc_pool_t p3; alloc_pool_init(&p3);
+    alloc_pool_t p3;
+    alloc_pool_init(&p3);
     alloc_contribute(&p3, 1, ZCAP_MANUFACTURED, SR_FROM_INT(30000));
     alloc_contribute(&p3, 2, ZCAP_MANUFACTURED, SR_FROM_INT(70000));
     alloc_result_t r3;

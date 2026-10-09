@@ -16,12 +16,19 @@
 #include "subterm.h"
 
 static int failures = 0;
-static int checks   = 0;
-#define CHECK(c, m) do { checks++; \
-    if (!(c)) { printf("[FAIL] %s\n", m); failures++; } \
-    else       printf("[PASS] %s\n", m); } while (0)
+static int checks = 0;
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", m);                                                              \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", m);                                                              \
+    } while (0)
 
-int main(void) {
+int main(void)
+{
     subterm_tree_t t;
     subterm_init(&t);
     CHECK(t.initialized, "init: tree initialized");
@@ -31,7 +38,7 @@ int main(void) {
     /* ---- (1) tree structure: child under the right parent ---- */
     int32_t a = subterm_open(&t, SUBTERM_ROOT, "alpha");
     int32_t b = subterm_open(&t, SUBTERM_ROOT, "bravo");
-    int32_t c = subterm_open(&t, a, "charlie");   /* child of alpha */
+    int32_t c = subterm_open(&t, a, "charlie"); /* child of alpha */
     CHECK(a > 0 && b > 0 && c > 0, "open: three ids allocated");
     CHECK(a != b && b != c && a != c, "open: ids are distinct");
     CHECK(subterm_parent_of(&t, a) == SUBTERM_ROOT, "open: alpha under root");
@@ -55,13 +62,11 @@ int main(void) {
     for (uint32_t k = 1; k <= 5; k++) {
         subterm_tick(&t);
         uint64_t first = subterm_tick_of(&t, subterm_group_member(&t, g, 0));
-        CHECK(first == (uint64_t)k, "lockstep: leader ordinal == k");
+        CHECK(first == (uint64_t) k, "lockstep: leader ordinal == k");
         for (uint32_t i = 0; i < N; i++) {
             int32_t id = subterm_group_member(&t, g, i);
-            CHECK(subterm_tick_of(&t, id) == (uint64_t)k,
-                  "lockstep: member ordinal == k");
-            CHECK(subterm_tick_of(&t, id) == first,
-                  "lockstep: all members EQUAL to leader");
+            CHECK(subterm_tick_of(&t, id) == (uint64_t) k, "lockstep: member ordinal == k");
+            CHECK(subterm_tick_of(&t, id) == first, "lockstep: all members EQUAL to leader");
         }
     }
 
@@ -78,47 +83,48 @@ int main(void) {
           "lockstep: second group now at 1");
     /* both members of g2 still equal each other */
     CHECK(subterm_tick_of(&t, subterm_group_member(&t, g2, 0)) ==
-          subterm_tick_of(&t, subterm_group_member(&t, g2, 1)),
+              subterm_tick_of(&t, subterm_group_member(&t, g2, 1)),
           "lockstep: g2 members equal");
 
     /* ---- (3) routing isolation ---- */
     const uint8_t msgA[] = "hello-A";
-    int32_t wrote = subterm_write(&t, a, msgA, (uint32_t)sizeof(msgA));
-    CHECK(wrote == (int32_t)sizeof(msgA), "write: bytes accepted by A");
+    int32_t wrote = subterm_write(&t, a, msgA, (uint32_t) sizeof(msgA));
+    CHECK(wrote == (int32_t) sizeof(msgA), "write: bytes accepted by A");
 
     uint8_t bufA[64] = {0};
     uint8_t bufB[64] = {0};
     int32_t ra = subterm_read(&t, a, bufA, sizeof(bufA));
     int32_t rb = subterm_read(&t, b, bufB, sizeof(bufB));
-    CHECK(ra == (int32_t)sizeof(msgA), "route: A holds what was written to A");
+    CHECK(ra == (int32_t) sizeof(msgA), "route: A holds what was written to A");
     CHECK(memcmp(bufA, msgA, sizeof(msgA)) == 0, "route: A content matches");
     CHECK(rb == 0, "route: B is empty (isolation — nothing leaked)");
 
     /* write to B, confirm A unchanged */
     const uint8_t msgB[] = "world-B";
-    subterm_write(&t, b, msgB, (uint32_t)sizeof(msgB));
+    subterm_write(&t, b, msgB, (uint32_t) sizeof(msgB));
     uint8_t bufA2[64] = {0};
     subterm_read(&t, a, bufA2, sizeof(bufA2));
     CHECK(memcmp(bufA2, msgA, sizeof(msgA)) == 0, "route: A still only has A's data");
 
     /* ring is bounded — overfill by far and stay in bounds */
     for (int i = 0; i < 1000; i++) {
-        uint8_t byte = (uint8_t)('0' + (i % 10));
+        uint8_t byte = (uint8_t) ('0' + (i % 10));
         subterm_write(&t, c, &byte, 1);
     }
     uint8_t big[SUBTERM_RING] = {0};
     int32_t rc = subterm_read(&t, c, big, sizeof(big));
-    CHECK(rc == (int32_t)SUBTERM_RING, "route: ring is bounded to SUBTERM_RING");
+    CHECK(rc == (int32_t) SUBTERM_RING, "route: ring is bounded to SUBTERM_RING");
 
     /* ---- (4) tutorial: scripted order, then ends ---- */
     static const subterm_lesson_t lesson = {
         .title = "first-portholes",
-        .steps = {
-            "Step 1: open a subterminal with `open`.",
-            "Step 2: spawn a synced trio with `spawn 3`.",
-            "Step 3: press tick — watch them march together.",
-            "Step 4: you are done.",
-        },
+        .steps =
+            {
+                "Step 1: open a subterminal with `open`.",
+                "Step 2: spawn a synced trio with `spawn 3`.",
+                "Step 3: press tick — watch them march together.",
+                "Step 4: you are done.",
+            },
         .n_steps = 4,
     };
     const char *p0 = subterm_tutorial_begin(&t, &lesson);

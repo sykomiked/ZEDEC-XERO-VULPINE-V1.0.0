@@ -8,7 +8,8 @@
 #include <assert.h>
 #include <stdio.h>
 
-int main() {
+int main()
+{
     rmag_init(1024);
 
     rational_t one_third = {1, 3};

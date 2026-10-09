@@ -104,14 +104,11 @@ bool pq_slh128s_verify(const uint8_t pk[PQ_SLH128S_PK_BYTES],
                        const uint8_t sig[PQ_SLH128S_SIG_BYTES]);
 
 /* The same with a context string (FIPS 205 Algorithms 22/24), ctx_len <= 255. */
-void pq_slh128s_sign_ctx(const uint8_t sk[PQ_SLH128S_SK_BYTES],
-                         const uint8_t *msg, uint32_t msg_len,
-                         const uint8_t *ctx, uint32_t ctx_len,
-                         const uint8_t *opt_rnd,
-                         uint8_t sig[PQ_SLH128S_SIG_BYTES]);
-bool pq_slh128s_verify_ctx(const uint8_t pk[PQ_SLH128S_PK_BYTES],
-                           const uint8_t *msg, uint32_t msg_len,
-                           const uint8_t *ctx, uint32_t ctx_len,
+void pq_slh128s_sign_ctx(const uint8_t sk[PQ_SLH128S_SK_BYTES], const uint8_t *msg,
+                         uint32_t msg_len, const uint8_t *ctx, uint32_t ctx_len,
+                         const uint8_t *opt_rnd, uint8_t sig[PQ_SLH128S_SIG_BYTES]);
+bool pq_slh128s_verify_ctx(const uint8_t pk[PQ_SLH128S_PK_BYTES], const uint8_t *msg,
+                           uint32_t msg_len, const uint8_t *ctx, uint32_t ctx_len,
                            const uint8_t sig[PQ_SLH128S_SIG_BYTES]);
 
 /* ============================================================================
@@ -185,16 +182,13 @@ typedef struct {
 /* Encapsulate and seal a payload under the receiver's encapsulation key.
  * m is 32 bytes of fresh randomness. Returns false (and an all-zero packet)
  * when the payload is too long or an argument is missing. */
-bool pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES],
-                         const uint8_t *payload, uint32_t payload_len,
-                         const uint8_t m[32],
-                         pq_mesh_packet_t *out);
+bool pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES], const uint8_t *payload,
+                         uint32_t payload_len, const uint8_t m[32], pq_mesh_packet_t *out);
 
 /* Decapsulate, authenticate and unseal. Returns false, with out zeroed, when
  * the tag does not verify (wrong key, or any bit of the packet changed). */
-bool pq_mesh_open(const uint8_t dk[MLKEM768_DK_BYTES],
-                  const pq_mesh_packet_t *packet,
-                  uint8_t *out, uint32_t cap, uint32_t *out_len);
+bool pq_mesh_open(const uint8_t dk[MLKEM768_DK_BYTES], const pq_mesh_packet_t *packet, uint8_t *out,
+                  uint32_t cap, uint32_t *out_len);
 
 /* Decapsulate only: the receiver's copy of the shared secret, for callers
  * that derive their own session keys from it. */

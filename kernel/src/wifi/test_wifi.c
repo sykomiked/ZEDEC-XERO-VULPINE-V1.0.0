@@ -22,17 +22,25 @@
  */
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>     /* malloc/free — exact-size buffers for the fuzz pass */
+#include <stdlib.h> /* malloc/free — exact-size buffers for the fuzz pass */
 #include "wifi.h"
 
 static int failures = 0;
 static int checks = 0;
-#define CHECK(c,m) do{ checks++; if(!(c)){printf("[FAIL] %s\n",(m));failures++;} \
-    else printf("[PASS] %s\n",(m));}while(0)
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", (m));                                                            \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", (m));                                                            \
+    } while (0)
 
 /* ---- helpers ---- */
 
-static int hexval(char c) {
+static int hexval(char c)
+{
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
@@ -40,16 +48,18 @@ static int hexval(char c) {
 }
 
 /* Compare `n` bytes of `got` against a lowercase hex string. */
-static bool hexeq(const uint8_t *got, const char *hex, uint32_t n) {
+static bool hexeq(const uint8_t *got, const char *hex, uint32_t n)
+{
     for (uint32_t i = 0; i < n; i++) {
-        int hi = hexval(hex[i*2]), lo = hexval(hex[i*2+1]);
+        int hi = hexval(hex[i * 2]), lo = hexval(hex[i * 2 + 1]);
         if (hi < 0 || lo < 0) return false;
-        if (got[i] != (uint8_t)((hi << 4) | lo)) return false;
+        if (got[i] != (uint8_t) ((hi << 4) | lo)) return false;
     }
-    return hex[n*2] == '\0';
+    return hex[n * 2] == '\0';
 }
 
-static void dump(const char *tag, const uint8_t *b, uint32_t n) {
+static void dump(const char *tag, const uint8_t *b, uint32_t n)
+{
     printf("       %s = ", tag);
     for (uint32_t i = 0; i < n; i++) printf("%02x", b[i]);
     printf("\n");
@@ -57,7 +67,8 @@ static void dump(const char *tag, const uint8_t *b, uint32_t n) {
 
 /* deterministic PRNG so ring/fuzz loops are reproducible */
 static uint32_t rng_state = 0x1234567u;
-static uint32_t rnd(void) {
+static uint32_t rnd(void)
+{
     rng_state ^= rng_state << 13;
     rng_state ^= rng_state >> 17;
     rng_state ^= rng_state << 5;
@@ -72,89 +83,120 @@ static uint32_t rnd(void) {
 
 #define VR_TX_SLOTS 16
 typedef struct {
-    uint8_t  tx[VR_TX_SLOTS][512];
+    uint8_t tx[VR_TX_SLOTS][512];
     uint32_t tx_len[VR_TX_SLOTS];
     uint32_t tx_count;
-    int      tx_fail;
+    int tx_fail;
 
-    uint8_t  rx[8][512];
+    uint8_t rx[8][512];
     uint32_t rx_len[8];
     uint32_t rx_head, rx_tail;
-    int      rx_fail;
+    int rx_fail;
 
     uint32_t scan_calls, ch_calls, ps_calls, ap_start_calls, ap_stop_calls;
     uint32_t txp_calls;
-    int      txp_fail;
-    uint8_t  last_dbm;
+    int txp_fail;
+    uint8_t last_dbm;
     uint32_t last_channel, last_freq;
-    uint8_t  last_ps;
-    int      have_random;
-    uint8_t  random_seed;
-    int      have_mac;
-    uint8_t  mac_base;
+    uint8_t last_ps;
+    int have_random;
+    uint8_t random_seed;
+    int have_mac;
+    uint8_t mac_base;
 } vradio_t;
 
-static int vr_tx(void *ctx, const uint8_t *f, uint32_t n) {
-    vradio_t *v = (vradio_t *)ctx;
+static int vr_tx(void *ctx, const uint8_t *f, uint32_t n)
+{
+    vradio_t *v = (vradio_t *) ctx;
     if (v->tx_fail) return -1;
     if (v->tx_count >= VR_TX_SLOTS || n > sizeof v->tx[0]) return -1;
     memcpy(v->tx[v->tx_count], f, n);
     v->tx_len[v->tx_count] = n;
     v->tx_count++;
-    return (int)n;
+    return (int) n;
 }
-static int vr_rx(void *ctx, uint8_t *f, uint32_t cap) {
-    vradio_t *v = (vradio_t *)ctx;
+static int vr_rx(void *ctx, uint8_t *f, uint32_t cap)
+{
+    vradio_t *v = (vradio_t *) ctx;
     if (v->rx_fail) return -1;
     if (v->rx_tail == v->rx_head) return 0;
     uint32_t n = v->rx_len[v->rx_tail % 8];
     if (n > cap) return -1;
     memcpy(f, v->rx[v->rx_tail % 8], n);
     v->rx_tail++;
-    return (int)n;
+    return (int) n;
 }
-static int vr_set_channel(void *ctx, uint32_t ch, uint32_t freq) {
-    vradio_t *v = (vradio_t *)ctx;
-    v->ch_calls++; v->last_channel = ch; v->last_freq = freq;
+static int vr_set_channel(void *ctx, uint32_t ch, uint32_t freq)
+{
+    vradio_t *v = (vradio_t *) ctx;
+    v->ch_calls++;
+    v->last_channel = ch;
+    v->last_freq = freq;
     return 0;
 }
-static int vr_scan_start(void *ctx, uint32_t hint) {
-    vradio_t *v = (vradio_t *)ctx; (void)hint; v->scan_calls++; return 0;
+static int vr_scan_start(void *ctx, uint32_t hint)
+{
+    vradio_t *v = (vradio_t *) ctx;
+    (void) hint;
+    v->scan_calls++;
+    return 0;
 }
-static int vr_set_ps(void *ctx, uint8_t lvl) {
-    vradio_t *v = (vradio_t *)ctx; v->ps_calls++; v->last_ps = lvl; return 0;
+static int vr_set_ps(void *ctx, uint8_t lvl)
+{
+    vradio_t *v = (vradio_t *) ctx;
+    v->ps_calls++;
+    v->last_ps = lvl;
+    return 0;
 }
-static int vr_set_txp(void *ctx, uint8_t dbm) {
-    vradio_t *v = (vradio_t *)ctx;
+static int vr_set_txp(void *ctx, uint8_t dbm)
+{
+    vradio_t *v = (vradio_t *) ctx;
     if (v->txp_fail) return -1;
-    v->txp_calls++; v->last_dbm = dbm; return 0;
+    v->txp_calls++;
+    v->last_dbm = dbm;
+    return 0;
 }
-static int vr_ap_start(void *ctx, const char *ssid, uint32_t ch) {
-    vradio_t *v = (vradio_t *)ctx; (void)ssid; v->ap_start_calls++; v->last_channel = ch; return 0;
+static int vr_ap_start(void *ctx, const char *ssid, uint32_t ch)
+{
+    vradio_t *v = (vradio_t *) ctx;
+    (void) ssid;
+    v->ap_start_calls++;
+    v->last_channel = ch;
+    return 0;
 }
-static int vr_ap_stop(void *ctx) { ((vradio_t *)ctx)->ap_stop_calls++; return 0; }
-static int vr_random(void *ctx, uint8_t *out, uint32_t n) {
-    vradio_t *v = (vradio_t *)ctx;
+static int vr_ap_stop(void *ctx)
+{
+    ((vradio_t *) ctx)->ap_stop_calls++;
+    return 0;
+}
+static int vr_random(void *ctx, uint8_t *out, uint32_t n)
+{
+    vradio_t *v = (vradio_t *) ctx;
     if (!v->have_random) return -1;
-    for (uint32_t i = 0; i < n; i++) out[i] = (uint8_t)(v->random_seed + i);
-    return (int)n;
+    for (uint32_t i = 0; i < n; i++) out[i] = (uint8_t) (v->random_seed + i);
+    return (int) n;
 }
-static int vr_get_mac(void *ctx, uint32_t idx, uint8_t mac[6]) {
-    vradio_t *v = (vradio_t *)ctx;
+static int vr_get_mac(void *ctx, uint32_t idx, uint8_t mac[6])
+{
+    vradio_t *v = (vradio_t *) ctx;
     if (!v->have_mac) return -1;
-    mac[0] = 0x00; mac[1] = 0x1A; mac[2] = 0x2B;
-    mac[3] = 0x3C; mac[4] = v->mac_base; mac[5] = (uint8_t)idx;
+    mac[0] = 0x00;
+    mac[1] = 0x1A;
+    mac[2] = 0x2B;
+    mac[3] = 0x3C;
+    mac[4] = v->mac_base;
+    mac[5] = (uint8_t) idx;
     return 0;
 }
 
 static const wifi_ops_t VRADIO_OPS = {
-    vr_scan_start, vr_tx, vr_rx, vr_set_channel, vr_set_ps, vr_set_txp,
-    vr_ap_start, vr_ap_stop, vr_random, vr_get_mac, 0
-};
+    vr_scan_start, vr_tx,      vr_rx,     vr_set_channel, vr_set_ps, vr_set_txp,
+    vr_ap_start,   vr_ap_stop, vr_random, vr_get_mac,     0};
 
 /* Returns an ops struct pointing at `v`; the caller keeps it alive and hands
  * &ops to wifi_bind_ops(). */
-static wifi_ops_t vradio_ops_for(vradio_t *v) {
+static wifi_ops_t vradio_ops_for(vradio_t *v)
+{
     wifi_ops_t ops = VRADIO_OPS;
     ops.ctx = v;
     return ops;
@@ -164,74 +206,132 @@ static wifi_ops_t vradio_ops_for(vradio_t *v) {
 /* Frame builders written from the 802.11 layout, NOT from wifi.c        */
 /* ===================================================================== */
 
-static void put16le(uint8_t *p, uint16_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
+static void put16le(uint8_t *p, uint16_t v)
+{
+    p[0] = (uint8_t) v;
+    p[1] = (uint8_t) (v >> 8);
+}
 
 /* A management header, by hand: fc(2) dur(2) a1(6) a2(6) a3(6) seq(2) = 24 */
-static uint32_t mgmt_hdr(uint8_t *o, uint8_t subtype, const uint8_t a1[6],
-                         const uint8_t a2[6], const uint8_t a3[6], uint16_t seq) {
+static uint32_t mgmt_hdr(uint8_t *o, uint8_t subtype, const uint8_t a1[6], const uint8_t a2[6],
+                         const uint8_t a3[6], uint16_t seq)
+{
     memset(o, 0, 24);
-    o[0] = (uint8_t)(subtype << 4);      /* type = 0 (mgmt), version = 0 */
+    o[0] = (uint8_t) (subtype << 4); /* type = 0 (mgmt), version = 0 */
     o[1] = 0;
     put16le(o + 2, 0);
     memcpy(o + 4, a1, 6);
     memcpy(o + 10, a2, 6);
     memcpy(o + 16, a3, 6);
-    put16le(o + 22, (uint16_t)(seq << 4));
+    put16le(o + 22, (uint16_t) (seq << 4));
     return 24;
 }
 
 enum { SEC_OPEN = 0, SEC_WEP, SEC_WPA1, SEC_WPA2, SEC_WPA3, SEC_BOTH };
 enum { PHY_B = 0, PHY_G, PHY_N, PHY_AC, PHY_AX };
 
-static uint32_t make_beacon(uint8_t *o, const uint8_t bssid[6], const char *ssid,
-                            uint8_t channel, int sec, int phy) {
-    static const uint8_t bcast[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+static uint32_t make_beacon(uint8_t *o, const uint8_t bssid[6], const char *ssid, uint8_t channel,
+                            int sec, int phy)
+{
+    static const uint8_t bcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     uint32_t p = mgmt_hdr(o, WIFI_STYPE_BEACON, bcast, bssid, bssid, 7);
-    memset(o + p, 0, 8); p += 8;                     /* TSF timestamp */
-    put16le(o + p, 100); p += 2;                     /* beacon interval */
-    put16le(o + p, (uint16_t)(0x0001 | (sec != SEC_OPEN ? 0x0010 : 0))); p += 2;
+    memset(o + p, 0, 8);
+    p += 8; /* TSF timestamp */
+    put16le(o + p, 100);
+    p += 2; /* beacon interval */
+    put16le(o + p, (uint16_t) (0x0001 | (sec != SEC_OPEN ? 0x0010 : 0)));
+    p += 2;
 
-    uint32_t slen = (uint32_t)strlen(ssid);
-    o[p++] = WIFI_EID_SSID; o[p++] = (uint8_t)slen;
-    memcpy(o + p, ssid, slen); p += slen;
+    uint32_t slen = (uint32_t) strlen(ssid);
+    o[p++] = WIFI_EID_SSID;
+    o[p++] = (uint8_t) slen;
+    memcpy(o + p, ssid, slen);
+    p += slen;
 
-    o[p++] = WIFI_EID_RATES; o[p++] = 4;
-    o[p++] = 0x82; o[p++] = 0x84; o[p++] = 0x8B; o[p++] = 0x96;   /* 1,2,5.5,11 */
+    o[p++] = WIFI_EID_RATES;
+    o[p++] = 4;
+    o[p++] = 0x82;
+    o[p++] = 0x84;
+    o[p++] = 0x8B;
+    o[p++] = 0x96; /* 1,2,5.5,11 */
 
-    o[p++] = WIFI_EID_DSPARAM; o[p++] = 1; o[p++] = channel;
+    o[p++] = WIFI_EID_DSPARAM;
+    o[p++] = 1;
+    o[p++] = channel;
 
-    if (phy != PHY_B) {   /* OFDM rates: top one is 0x6C = 108 * 500kbps = 54 Mbps */
-        o[p++] = WIFI_EID_EXT_RATES; o[p++] = 8;
-        o[p++] = 0x0C; o[p++] = 0x12; o[p++] = 0x18; o[p++] = 0x24;
-        o[p++] = 0x30; o[p++] = 0x48; o[p++] = 0x60; o[p++] = 0x6C;
+    if (phy != PHY_B) { /* OFDM rates: top one is 0x6C = 108 * 500kbps = 54 Mbps */
+        o[p++] = WIFI_EID_EXT_RATES;
+        o[p++] = 8;
+        o[p++] = 0x0C;
+        o[p++] = 0x12;
+        o[p++] = 0x18;
+        o[p++] = 0x24;
+        o[p++] = 0x30;
+        o[p++] = 0x48;
+        o[p++] = 0x60;
+        o[p++] = 0x6C;
     }
-    if (phy >= PHY_N)  { o[p++] = WIFI_EID_HT_CAP;  o[p++] = 2; o[p++] = 0; o[p++] = 0; }
-    if (phy >= PHY_AC) { o[p++] = WIFI_EID_VHT_CAP; o[p++] = 2; o[p++] = 0; o[p++] = 0; }
+    if (phy >= PHY_N) {
+        o[p++] = WIFI_EID_HT_CAP;
+        o[p++] = 2;
+        o[p++] = 0;
+        o[p++] = 0;
+    }
+    if (phy >= PHY_AC) {
+        o[p++] = WIFI_EID_VHT_CAP;
+        o[p++] = 2;
+        o[p++] = 0;
+        o[p++] = 0;
+    }
     if (phy >= PHY_AX) {
-        o[p++] = WIFI_EID_EXTENSION; o[p++] = 3;
-        o[p++] = WIFI_EID_EXT_HE_CAP; o[p++] = 0; o[p++] = 0;
+        o[p++] = WIFI_EID_EXTENSION;
+        o[p++] = 3;
+        o[p++] = WIFI_EID_EXT_HE_CAP;
+        o[p++] = 0;
+        o[p++] = 0;
     }
 
     if (sec == SEC_WPA1) {
-        o[p++] = WIFI_EID_VENDOR; o[p++] = 6;
-        o[p++] = 0x00; o[p++] = 0x50; o[p++] = 0xF2; o[p++] = 0x01;
-        o[p++] = 0x01; o[p++] = 0x00;
+        o[p++] = WIFI_EID_VENDOR;
+        o[p++] = 6;
+        o[p++] = 0x00;
+        o[p++] = 0x50;
+        o[p++] = 0xF2;
+        o[p++] = 0x01;
+        o[p++] = 0x01;
+        o[p++] = 0x00;
     } else if (sec == SEC_WPA2 || sec == SEC_WPA3 || sec == SEC_BOTH) {
         uint32_t akm_n = (sec == SEC_BOTH) ? 2 : 1;
         o[p++] = WIFI_EID_RSN;
-        o[p++] = (uint8_t)(2 + 4 + 2 + 4 + 2 + akm_n * 4 + 2);
-        put16le(o + p, 1); p += 2;                                 /* version */
-        o[p++]=0x00;o[p++]=0x0F;o[p++]=0xAC;o[p++]=0x04;           /* group CCMP */
-        put16le(o + p, 1); p += 2;
-        o[p++]=0x00;o[p++]=0x0F;o[p++]=0xAC;o[p++]=0x04;           /* pairwise CCMP */
-        put16le(o + p, (uint16_t)akm_n); p += 2;
+        o[p++] = (uint8_t) (2 + 4 + 2 + 4 + 2 + akm_n * 4 + 2);
+        put16le(o + p, 1);
+        p += 2; /* version */
+        o[p++] = 0x00;
+        o[p++] = 0x0F;
+        o[p++] = 0xAC;
+        o[p++] = 0x04; /* group CCMP */
+        put16le(o + p, 1);
+        p += 2;
+        o[p++] = 0x00;
+        o[p++] = 0x0F;
+        o[p++] = 0xAC;
+        o[p++] = 0x04; /* pairwise CCMP */
+        put16le(o + p, (uint16_t) akm_n);
+        p += 2;
         if (sec == SEC_WPA2 || sec == SEC_BOTH) {
-            o[p++]=0x00;o[p++]=0x0F;o[p++]=0xAC;o[p++]=0x02;       /* AKM PSK */
+            o[p++] = 0x00;
+            o[p++] = 0x0F;
+            o[p++] = 0xAC;
+            o[p++] = 0x02; /* AKM PSK */
         }
         if (sec == SEC_WPA3 || sec == SEC_BOTH) {
-            o[p++]=0x00;o[p++]=0x0F;o[p++]=0xAC;o[p++]=0x08;       /* AKM SAE */
+            o[p++] = 0x00;
+            o[p++] = 0x0F;
+            o[p++] = 0xAC;
+            o[p++] = 0x08; /* AKM SAE */
         }
-        put16le(o + p, 0); p += 2;                                 /* RSN caps */
+        put16le(o + p, 0);
+        p += 2; /* RSN caps */
     }
     return p;
 }
@@ -240,24 +340,28 @@ static uint32_t make_beacon(uint8_t *o, const uint8_t bssid[6], const char *ssid
  * computed the naive way — one contiguous buffer, MIC zeroed, one HMAC call —
  * which is an independent path from the three-piece streaming HMAC in
  * wifi_eapol_mic(). */
-static uint32_t make_eapol(uint8_t *o, uint16_t key_info, uint64_t replay,
-                           const uint8_t nonce[32], const uint8_t *kd, uint16_t kdlen,
-                           const uint8_t *kck) {
+static uint32_t make_eapol(uint8_t *o, uint16_t key_info, uint64_t replay, const uint8_t nonce[32],
+                           const uint8_t *kd, uint16_t kdlen, const uint8_t *kck)
+{
     uint32_t total = 99u + kdlen;
     memset(o, 0, total);
-    o[0] = 2;                                  /* 802.1X-2004 */
-    o[1] = 3;                                  /* EAPOL-Key   */
-    o[2] = (uint8_t)((total - 4) >> 8); o[3] = (uint8_t)(total - 4);
-    o[4] = 2;                                  /* RSN key descriptor */
-    o[5] = (uint8_t)(key_info >> 8); o[6] = (uint8_t)key_info;
-    o[7] = 0; o[8] = 16;                       /* key length */
-    for (int i = 0; i < 8; i++) o[9 + i] = (uint8_t)(replay >> (8 * (7 - i)));
+    o[0] = 2; /* 802.1X-2004 */
+    o[1] = 3; /* EAPOL-Key   */
+    o[2] = (uint8_t) ((total - 4) >> 8);
+    o[3] = (uint8_t) (total - 4);
+    o[4] = 2; /* RSN key descriptor */
+    o[5] = (uint8_t) (key_info >> 8);
+    o[6] = (uint8_t) key_info;
+    o[7] = 0;
+    o[8] = 16; /* key length */
+    for (int i = 0; i < 8; i++) o[9 + i] = (uint8_t) (replay >> (8 * (7 - i)));
     if (nonce) memcpy(o + 17, nonce, 32);
-    o[97] = (uint8_t)(kdlen >> 8); o[98] = (uint8_t)kdlen;
+    o[97] = (uint8_t) (kdlen >> 8);
+    o[98] = (uint8_t) kdlen;
     if (kdlen && kd) memcpy(o + 99, kd, kdlen);
     if (kck) {
         uint8_t digest[20];
-        wifi_hmac_sha1(kck, 16, o, total, digest);   /* MIC field is already 0 */
+        wifi_hmac_sha1(kck, 16, o, total, digest); /* MIC field is already 0 */
         memcpy(o + 81, digest, 16);
     }
     return total;
@@ -265,7 +369,8 @@ static uint32_t make_eapol(uint8_t *o, uint16_t key_info, uint64_t replay,
 
 /* ===================================================================== */
 
-int main(void) {
+int main(void)
+{
     static wifi_device_t dev;
     static vradio_t vr;
     uint8_t buf[1024];
@@ -275,7 +380,7 @@ int main(void) {
     /* ================================================================= */
     printf("--- init and the no-radio boundary ---\n");
     /* ================================================================= */
-    wifi_init(0, "null-dev");     /* the ARM32 boot path really does this */
+    wifi_init(0, "null-dev"); /* the ARM32 boot path really does this */
     CHECK(true, "wifi_init(NULL) returns instead of dereferencing (ARM32 boot path)");
 
     wifi_init(&dev, "zxv-wifi0");
@@ -326,7 +431,8 @@ int main(void) {
           "WEP is ENOTSUP — no RC4 here");
     CHECK(wifi_bind_ops(&dev, 0) == WIFI_EINVAL, "binding a NULL ops struct is refused");
     {
-        wifi_ops_t empty; memset(&empty, 0, sizeof empty);
+        wifi_ops_t empty;
+        memset(&empty, 0, sizeof empty);
         CHECK(wifi_bind_ops(&dev, &empty) == WIFI_EINVAL,
               "an ops struct that can neither tx nor rx is not a radio");
     }
@@ -334,25 +440,25 @@ int main(void) {
     /* ================================================================= */
     printf("\n--- channel <-> frequency (2.4 / 5 / 6 GHz) ---\n");
     /* ================================================================= */
-    CHECK(wifi_channel_to_freq(1,  WIFI_BAND_2_4GHZ) == 2412, "2.4 GHz ch 1  = 2412 MHz");
-    CHECK(wifi_channel_to_freq(6,  WIFI_BAND_2_4GHZ) == 2437, "2.4 GHz ch 6  = 2437 MHz");
+    CHECK(wifi_channel_to_freq(1, WIFI_BAND_2_4GHZ) == 2412, "2.4 GHz ch 1  = 2412 MHz");
+    CHECK(wifi_channel_to_freq(6, WIFI_BAND_2_4GHZ) == 2437, "2.4 GHz ch 6  = 2437 MHz");
     CHECK(wifi_channel_to_freq(11, WIFI_BAND_2_4GHZ) == 2462, "2.4 GHz ch 11 = 2462 MHz");
     CHECK(wifi_channel_to_freq(13, WIFI_BAND_2_4GHZ) == 2472, "2.4 GHz ch 13 = 2472 MHz");
     CHECK(wifi_channel_to_freq(14, WIFI_BAND_2_4GHZ) == 2484,
           "2.4 GHz ch 14 = 2484 MHz (the 12 MHz gap, not 2477)");
     CHECK(wifi_channel_to_freq(15, WIFI_BAND_2_4GHZ) == 0, "2.4 GHz ch 15 does not exist");
-    CHECK(wifi_channel_to_freq(0,  WIFI_BAND_2_4GHZ) == 0, "channel 0 does not exist");
-    CHECK(wifi_channel_to_freq(36,  WIFI_BAND_5GHZ) == 5180, "5 GHz ch 36  = 5180 MHz");
+    CHECK(wifi_channel_to_freq(0, WIFI_BAND_2_4GHZ) == 0, "channel 0 does not exist");
+    CHECK(wifi_channel_to_freq(36, WIFI_BAND_5GHZ) == 5180, "5 GHz ch 36  = 5180 MHz");
     CHECK(wifi_channel_to_freq(100, WIFI_BAND_5GHZ) == 5500, "5 GHz ch 100 = 5500 MHz");
     CHECK(wifi_channel_to_freq(165, WIFI_BAND_5GHZ) == 5825, "5 GHz ch 165 = 5825 MHz");
     CHECK(wifi_channel_to_freq(177, WIFI_BAND_5GHZ) == 5885, "5 GHz ch 177 = 5885 MHz");
     CHECK(wifi_channel_to_freq(37, WIFI_BAND_5GHZ) == 0,
           "5 GHz ch 37 is refused — arithmetic would happily return 5185 MHz");
-    CHECK(wifi_channel_to_freq(1,   WIFI_BAND_6GHZ) == 5955, "6 GHz ch 1   = 5955 MHz");
-    CHECK(wifi_channel_to_freq(2,   WIFI_BAND_6GHZ) == 5935,
+    CHECK(wifi_channel_to_freq(1, WIFI_BAND_6GHZ) == 5955, "6 GHz ch 1   = 5955 MHz");
+    CHECK(wifi_channel_to_freq(2, WIFI_BAND_6GHZ) == 5935,
           "6 GHz ch 2 = 5935 MHz (the one channel that breaks the pattern)");
     CHECK(wifi_channel_to_freq(233, WIFI_BAND_6GHZ) == 7115, "6 GHz ch 233 = 7115 MHz");
-    CHECK(wifi_channel_to_freq(3,   WIFI_BAND_6GHZ) == 0, "6 GHz ch 3 is not a 20 MHz channel");
+    CHECK(wifi_channel_to_freq(3, WIFI_BAND_6GHZ) == 0, "6 GHz ch 3 is not a 20 MHz channel");
     CHECK(wifi_freq_to_channel(2412) == 1 && wifi_freq_to_channel(2484) == 14,
           "2412 -> ch 1 and 2484 -> ch 14");
     CHECK(wifi_freq_to_channel(5180) == 36 && wifi_freq_to_channel(5955) == 1,
@@ -360,20 +466,30 @@ int main(void) {
     CHECK(wifi_freq_to_channel(5935) == 2, "5935 -> 6 GHz ch 2");
     CHECK(wifi_freq_to_channel(2415) == 0 && wifi_freq_to_channel(1000) == 0,
           "a frequency between channels maps to nothing");
-    CHECK(wifi_freq_to_band(2437) == (int)WIFI_BAND_2_4GHZ &&
-          wifi_freq_to_band(5500) == (int)WIFI_BAND_5GHZ &&
-          wifi_freq_to_band(6175) == (int)WIFI_BAND_6GHZ, "bands resolve from frequency");
+    CHECK(wifi_freq_to_band(2437) == (int) WIFI_BAND_2_4GHZ &&
+              wifi_freq_to_band(5500) == (int) WIFI_BAND_5GHZ &&
+              wifi_freq_to_band(6175) == (int) WIFI_BAND_6GHZ,
+          "bands resolve from frequency");
     CHECK(wifi_freq_to_band(3000) == WIFI_EINVAL, "3000 MHz is in no Wi-Fi band");
     {
         /* Round-trip every channel we claim exists, in all three bands. */
         int rt_ok = 1, counted = 0;
         for (uint32_t ch = 1; ch <= 250; ch++) {
             for (int b = 0; b < 3; b++) {
-                if (!wifi_channel_valid(ch, (wifi_band_t)b)) continue;
-                uint32_t fq = wifi_channel_to_freq(ch, (wifi_band_t)b);
-                if (fq == 0) { rt_ok = 0; break; }
-                if (wifi_freq_to_channel(fq) != ch) { rt_ok = 0; break; }
-                if (wifi_freq_to_band(fq) != b) { rt_ok = 0; break; }
+                if (!wifi_channel_valid(ch, (wifi_band_t) b)) continue;
+                uint32_t fq = wifi_channel_to_freq(ch, (wifi_band_t) b);
+                if (fq == 0) {
+                    rt_ok = 0;
+                    break;
+                }
+                if (wifi_freq_to_channel(fq) != ch) {
+                    rt_ok = 0;
+                    break;
+                }
+                if (wifi_freq_to_band(fq) != b) {
+                    rt_ok = 0;
+                    break;
+                }
                 counted++;
             }
         }
@@ -407,15 +523,25 @@ int main(void) {
             if (ch == 0) continue;
             named++;
             int band = wifi_freq_to_band(fq);
-            if (band < 0) { closed = 0; worst_f = fq; worst_ch = ch; worst_back = 0; break; }
-            uint32_t back = wifi_channel_to_freq(ch, (wifi_band_t)band);
+            if (band < 0) {
+                closed = 0;
+                worst_f = fq;
+                worst_ch = ch;
+                worst_back = 0;
+                break;
+            }
+            uint32_t back = wifi_channel_to_freq(ch, (wifi_band_t) band);
             if (back != fq) {
-                closed = 0; worst_f = fq; worst_ch = ch; worst_back = back; break;
+                closed = 0;
+                worst_f = fq;
+                worst_ch = ch;
+                worst_back = back;
+                break;
             }
         }
         if (!closed)
-            printf("       %u MHz -> ch %u -> %u MHz (does not close)\n",
-                   worst_f, worst_ch, worst_back);
+            printf("       %u MHz -> ch %u -> %u MHz (does not close)\n", worst_f, worst_ch,
+                   worst_back);
         printf("       %d of 5201 megahertz steps name a channel\n", named);
         CHECK(closed && named == 105,
               "every frequency that names a channel maps BACK to itself, and exactly 105 "
@@ -426,16 +552,21 @@ int main(void) {
     printf("\n--- 802.11 MAC header: build and parse against the layout ---\n");
     /* ================================================================= */
     {
-        uint8_t a1[6] = {0x11,0x22,0x33,0x44,0x55,0x66};
-        uint8_t a2[6] = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF};
-        uint8_t a3[6] = {0x01,0x02,0x03,0x04,0x05,0x06};
+        uint8_t a1[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+        uint8_t a2[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+        uint8_t a3[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
         wifi_mac_hdr_t h;
         memset(&h, 0, sizeof h);
-        h.type = WIFI_FTYPE_DATA; h.subtype = WIFI_STYPE_DATA;
-        h.to_ds = true; h.retry = true;
+        h.type = WIFI_FTYPE_DATA;
+        h.subtype = WIFI_STYPE_DATA;
+        h.to_ds = true;
+        h.retry = true;
         h.duration_id = 0x1234;
-        memcpy(h.addr1, a1, 6); memcpy(h.addr2, a2, 6); memcpy(h.addr3, a3, 6);
-        h.seq_num = 2050; h.frag_num = 5;
+        memcpy(h.addr1, a1, 6);
+        memcpy(h.addr2, a2, 6);
+        memcpy(h.addr3, a3, 6);
+        h.seq_num = 2050;
+        h.frag_num = 5;
 
         int n = wifi_mac_hdr_build(&h, buf, sizeof buf);
         CHECK(n == 24, "a 3-address non-QoS header is exactly 24 bytes");
@@ -450,7 +581,7 @@ int main(void) {
               "seq control at 22 packs frag 5 in bits 0-3 and seq 2050 in bits 4-15");
 
         wifi_mac_hdr_t p;
-        int pn = wifi_mac_hdr_parse(buf, (uint32_t)n, &p);
+        int pn = wifi_mac_hdr_parse(buf, (uint32_t) n, &p);
         CHECK(pn == 24, "parsing consumes the same 24 bytes");
         CHECK(p.type == WIFI_FTYPE_DATA && p.subtype == 0, "type/subtype survive");
         CHECK(p.to_ds && !p.from_ds && p.retry && !p.pwr_mgmt, "the DS and Retry bits survive");
@@ -458,18 +589,21 @@ int main(void) {
         CHECK(p.seq_num == 2050 && p.frag_num == 5, "sequence 2050 / fragment 5 survive");
 
         /* QoS data: +2 bytes of QoS control */
-        h.subtype = WIFI_STYPE_QOS_DATA; h.qos_ctl = 0x0007;
+        h.subtype = WIFI_STYPE_QOS_DATA;
+        h.qos_ctl = 0x0007;
         n = wifi_mac_hdr_build(&h, buf, sizeof buf);
         CHECK(n == 26, "a QoS data header is 26 bytes");
         CHECK(buf[0] == 0x88, "QoS data frame control byte 0 = 0x88 (subtype 8, type 2)");
         CHECK(buf[24] == 0x07 && buf[25] == 0x00, "QoS control is LE at offset 24");
         memset(&p, 0, sizeof p);
-        CHECK(wifi_mac_hdr_parse(buf, (uint32_t)n, &p) == 26 && p.qos && p.qos_ctl == 7,
+        CHECK(wifi_mac_hdr_parse(buf, (uint32_t) n, &p) == 26 && p.qos && p.qos_ctl == 7,
               "the parser recognises QoS and recovers the control field");
 
         /* 4-address WDS: +6 */
-        uint8_t a4[6] = {0x77,0x88,0x99,0xAA,0xBB,0xCC};
-        h.subtype = WIFI_STYPE_DATA; h.from_ds = true; memcpy(h.addr4, a4, 6);
+        uint8_t a4[6] = {0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC};
+        h.subtype = WIFI_STYPE_DATA;
+        h.from_ds = true;
+        memcpy(h.addr4, a4, 6);
         n = wifi_mac_hdr_build(&h, buf, sizeof buf);
         CHECK(n == 30, "a 4-address non-QoS header is 30 bytes");
         CHECK(memcmp(buf + 24, a4, 6) == 0, "addr4 sits at offset 24");
@@ -477,37 +611,45 @@ int main(void) {
         CHECK(wifi_mac_hdr_build(&h, buf, sizeof buf) == 32,
               "4 addresses plus QoS is the 32-byte maximum");
         memset(&p, 0, sizeof p);
-        CHECK(wifi_mac_hdr_parse(buf, 32, &p) == 32 && p.has_addr4 &&
-              memcmp(p.addr4, a4, 6) == 0, "the parser finds addr4 behind the QoS field");
+        CHECK(wifi_mac_hdr_parse(buf, 32, &p) == 32 && p.has_addr4 && memcmp(p.addr4, a4, 6) == 0,
+              "the parser finds addr4 behind the QoS field");
 
         /* wifi_mac_hdr_len is public and must agree with what the builder
          * actually writes for all four shapes — tested directly, because the
          * builder computes its own offset and would keep working even if this
          * function drifted, leaving only the capacity check wrong. */
         {
-            wifi_mac_hdr_t L; memset(&L, 0, sizeof L);
-            L.type = WIFI_FTYPE_DATA; L.subtype = WIFI_STYPE_DATA;
+            wifi_mac_hdr_t L;
+            memset(&L, 0, sizeof L);
+            L.type = WIFI_FTYPE_DATA;
+            L.subtype = WIFI_STYPE_DATA;
             CHECK(wifi_mac_hdr_len(&L) == 24, "hdr_len: 3 addresses, no QoS = 24");
             L.subtype = WIFI_STYPE_QOS_DATA;
             CHECK(wifi_mac_hdr_len(&L) == 26, "hdr_len: 3 addresses + QoS = 26");
-            L.subtype = WIFI_STYPE_DATA; L.to_ds = true; L.from_ds = true;
+            L.subtype = WIFI_STYPE_DATA;
+            L.to_ds = true;
+            L.from_ds = true;
             CHECK(wifi_mac_hdr_len(&L) == 30, "hdr_len: 4 addresses, no QoS = 30");
             L.subtype = WIFI_STYPE_QOS_DATA;
             CHECK(wifi_mac_hdr_len(&L) == 32, "hdr_len: 4 addresses + QoS = 32");
-            L.type = WIFI_FTYPE_MGMT; L.subtype = WIFI_STYPE_BEACON;
-            L.to_ds = false; L.from_ds = false;
+            L.type = WIFI_FTYPE_MGMT;
+            L.subtype = WIFI_STYPE_BEACON;
+            L.to_ds = false;
+            L.from_ds = false;
             CHECK(wifi_mac_hdr_len(&L) == 24,
                   "hdr_len: management subtype 8 is NOT QoS data, so still 24");
             CHECK(wifi_mac_hdr_len(0) == 0, "hdr_len of NULL is 0, not a dereference");
             /* and each length really is the builder's capacity boundary */
             uint8_t tight[40];
-            wifi_mac_hdr_t B; memset(&B, 0, sizeof B);
-            B.type = WIFI_FTYPE_DATA; B.subtype = WIFI_STYPE_QOS_DATA;
-            B.to_ds = true; B.from_ds = true;
+            wifi_mac_hdr_t B;
+            memset(&B, 0, sizeof B);
+            B.type = WIFI_FTYPE_DATA;
+            B.subtype = WIFI_STYPE_QOS_DATA;
+            B.to_ds = true;
+            B.from_ds = true;
             CHECK(wifi_mac_hdr_build(&B, tight, 31) == WIFI_EMSGSIZE,
                   "a 32-byte header is refused by a 31-byte buffer");
-            CHECK(wifi_mac_hdr_build(&B, tight, 32) == 32,
-                  "...and fits exactly in 32");
+            CHECK(wifi_mac_hdr_build(&B, tight, 32) == 32, "...and fits exactly in 32");
             B.subtype = WIFI_STYPE_DATA;
             CHECK(wifi_mac_hdr_build(&B, tight, 29) == WIFI_EMSGSIZE,
                   "a 30-byte 4-address header is refused by a 29-byte buffer");
@@ -532,23 +674,25 @@ int main(void) {
              * the caller reads next. Build a legal frame, then set the Order
              * bit on the wire. */
             uint8_t htc[64];
-            wifi_mac_hdr_t hh; memset(&hh, 0, sizeof hh);
-            hh.type = WIFI_FTYPE_DATA; hh.subtype = WIFI_STYPE_QOS_DATA;
+            wifi_mac_hdr_t hh;
+            memset(&hh, 0, sizeof hh);
+            hh.type = WIFI_FTYPE_DATA;
+            hh.subtype = WIFI_STYPE_QOS_DATA;
             hh.seq_num = 1;
             int hn = wifi_mac_hdr_build(&hh, htc, sizeof htc);
             CHECK(hn == 26, "a QoS data header without Order is 26 bytes");
-            CHECK(wifi_mac_hdr_parse(htc, (uint32_t)hn, &p) == 26,
+            CHECK(wifi_mac_hdr_parse(htc, (uint32_t) hn, &p) == 26,
                   "...and parses back to 26 while the Order bit is clear");
-            htc[1] |= 0x80;   /* Order — the +HTC variant */
-            CHECK(wifi_mac_hdr_parse(htc, (uint32_t)hn, &p) == WIFI_ENOTSUP,
+            htc[1] |= 0x80; /* Order — the +HTC variant */
+            CHECK(wifi_mac_hdr_parse(htc, (uint32_t) hn, &p) == WIFI_ENOTSUP,
                   "setting the Order bit on the wire makes the PARSER refuse it too (L8), "
                   "instead of reporting a length that is 4 bytes short");
-            {   /* and wifi_parse_beacon, which is built on the same parser */
+            { /* and wifi_parse_beacon, which is built on the same parser */
                 uint8_t ob[128];
                 wifi_scan_result_t r_htc;
                 memset(ob, 0, sizeof ob);
-                ob[0] = 0x80;            /* beacon */
-                ob[1] = 0x80;            /* Order */
+                ob[0] = 0x80; /* beacon */
+                ob[1] = 0x80; /* Order */
                 CHECK(wifi_parse_beacon(ob, 60, -40, 2437, &r_htc) == WIFI_ENOTSUP,
                       "a beacon with the Order bit set is refused by wifi_parse_beacon");
             }
@@ -556,12 +700,14 @@ int main(void) {
         h.seq_num = 4096;
         CHECK(wifi_mac_hdr_build(&h, buf, sizeof buf) == WIFI_EINVAL,
               "sequence 4096 is out of the 12-bit field");
-        h.seq_num = 0; h.frag_num = 16;
+        h.seq_num = 0;
+        h.frag_num = 16;
         CHECK(wifi_mac_hdr_build(&h, buf, sizeof buf) == WIFI_EINVAL,
               "fragment 16 is out of the 4-bit field");
         {
-            uint8_t bad[24]; memset(bad, 0, sizeof bad);
-            bad[0] = 0x01;   /* protocol version 1 */
+            uint8_t bad[24];
+            memset(bad, 0, sizeof bad);
+            bad[0] = 0x01; /* protocol version 1 */
             CHECK(wifi_mac_hdr_parse(bad, 24, &p) == WIFI_ENOTSUP,
                   "protocol version != 0 is refused");
         }
@@ -569,34 +715,42 @@ int main(void) {
 
     /* address roles for the four DS combinations */
     {
-        wifi_mac_hdr_t h; memset(&h, 0, sizeof h);
-        uint8_t A[6] = {1,1,1,1,1,1}, B[6] = {2,2,2,2,2,2}, C[6] = {3,3,3,3,3,3};
+        wifi_mac_hdr_t h;
+        memset(&h, 0, sizeof h);
+        uint8_t A[6] = {1, 1, 1, 1, 1, 1}, B[6] = {2, 2, 2, 2, 2, 2}, C[6] = {3, 3, 3, 3, 3, 3};
         uint8_t da[6], sa[6], bss[6];
-        memcpy(h.addr1, A, 6); memcpy(h.addr2, B, 6); memcpy(h.addr3, C, 6);
+        memcpy(h.addr1, A, 6);
+        memcpy(h.addr2, B, 6);
+        memcpy(h.addr3, C, 6);
 
-        h.to_ds = false; h.from_ds = false;
-        CHECK(wifi_frame_addrs(&h, da, sa, bss) == WIFI_OK &&
-              da[0] == 1 && sa[0] == 2 && bss[0] == 3,
+        h.to_ds = false;
+        h.from_ds = false;
+        CHECK(wifi_frame_addrs(&h, da, sa, bss) == WIFI_OK && da[0] == 1 && sa[0] == 2 &&
+                  bss[0] == 3,
               "IBSS/mgmt (0,0): addr1=DA addr2=SA addr3=BSSID");
-        h.to_ds = false; h.from_ds = true;
-        CHECK(wifi_frame_addrs(&h, da, sa, bss) == WIFI_OK &&
-              da[0] == 1 && bss[0] == 2 && sa[0] == 3,
+        h.to_ds = false;
+        h.from_ds = true;
+        CHECK(wifi_frame_addrs(&h, da, sa, bss) == WIFI_OK && da[0] == 1 && bss[0] == 2 &&
+                  sa[0] == 3,
               "from the AP (0,1): addr1=DA addr2=BSSID addr3=SA");
-        h.to_ds = true; h.from_ds = false;
-        CHECK(wifi_frame_addrs(&h, da, sa, bss) == WIFI_OK &&
-              bss[0] == 1 && sa[0] == 2 && da[0] == 3,
+        h.to_ds = true;
+        h.from_ds = false;
+        CHECK(wifi_frame_addrs(&h, da, sa, bss) == WIFI_OK && bss[0] == 1 && sa[0] == 2 &&
+                  da[0] == 3,
               "to the AP (1,0): addr1=BSSID addr2=SA addr3=DA");
-        h.to_ds = true; h.from_ds = true;
+        h.to_ds = true;
+        h.from_ds = true;
         CHECK(wifi_frame_addrs(&h, da, sa, bss) == WIFI_ENOTSUP,
               "WDS (1,1) has no single BSSID, so it is refused rather than guessed");
     }
 
     /* sequence numbers wrap at 4096 */
     {
-        wifi_interface_t tmp; memset(&tmp, 0, sizeof tmp);
+        wifi_interface_t tmp;
+        memset(&tmp, 0, sizeof tmp);
         tmp.seq_num = 4094;
         CHECK(wifi_next_seq(&tmp) == 4094 && wifi_next_seq(&tmp) == 4095 &&
-              wifi_next_seq(&tmp) == 0 && tmp.seq_num == 1,
+                  wifi_next_seq(&tmp) == 0 && tmp.seq_num == 1,
               "sequence numbers run 4094, 4095, 0 — they wrap at 4096, not at 65536");
     }
 
@@ -608,24 +762,28 @@ int main(void) {
         CHECK(wifi_ssid_set(ssid, "ZXV-NET") == 7 && strcmp(ssid, "ZXV-NET") == 0,
               "a 7-character SSID is stored and reported as 7 bytes");
         char max32[40];
-        memset(max32, 'q', 32); max32[32] = '\0';
+        memset(max32, 'q', 32);
+        max32[32] = '\0';
         CHECK(wifi_ssid_set(ssid, max32) == 32, "a 32-octet SSID is accepted (the limit)");
-        max32[32] = 'q'; max32[33] = '\0';
+        max32[32] = 'q';
+        max32[33] = '\0';
         CHECK(wifi_ssid_set(ssid, max32) == WIFI_EINVAL,
               "a 33-octet SSID is refused, not truncated");
         CHECK(wifi_ssid_set(ssid, "") == 0, "an empty SSID (wildcard) is legal");
         CHECK(wifi_ssid_equal("abc", "abc") && !wifi_ssid_equal("abc", "abcd") &&
-              !wifi_ssid_equal("abc", "abC"), "SSID comparison is exact and case sensitive");
+                  !wifi_ssid_equal("abc", "abC"),
+              "SSID comparison is exact and case sensitive");
 
-        uint8_t zero[6] = {0,0,0,0,0,0};
-        uint8_t bc[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
-        uint8_t mac[6] = {0xDE,0xAD,0xBE,0xEF,0x01,0x02};
+        uint8_t zero[6] = {0, 0, 0, 0, 0, 0};
+        uint8_t bc[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+        uint8_t mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02};
         CHECK(wifi_bssid_is_zero(zero) && !wifi_bssid_is_zero(mac), "zero BSSID detected");
         CHECK(wifi_bssid_is_broadcast(bc) && !wifi_bssid_is_broadcast(mac),
               "broadcast BSSID detected");
         char txt[20];
         CHECK(wifi_bssid_format(mac, txt, sizeof txt) == 17 &&
-              strcmp(txt, "de:ad:be:ef:01:02") == 0, "BSSID formats as de:ad:be:ef:01:02");
+                  strcmp(txt, "de:ad:be:ef:01:02") == 0,
+              "BSSID formats as de:ad:be:ef:01:02");
         CHECK(wifi_bssid_format(mac, txt, 17) == WIFI_EMSGSIZE,
               "a 17-byte buffer cannot hold 17 characters plus a terminator");
     }
@@ -634,7 +792,7 @@ int main(void) {
     printf("\n--- beacon / probe-response parsing ---\n");
     /* ================================================================= */
     {
-        uint8_t bssid[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
+        uint8_t bssid[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
         uint8_t bcn[512];
         wifi_scan_result_t r;
 
@@ -661,7 +819,8 @@ int main(void) {
 
         bn = make_beacon(bcn, bssid, "ZXV-NET", 6, SEC_BOTH, PHY_AC);
         CHECK(wifi_parse_beacon(bcn, bn, -60, 2437, &r) == WIFI_OK &&
-              r.security == WIFI_SEC_WPA2_WPA3, "PSK + SAE together read as WPA2/WPA3 mixed");
+                  r.security == WIFI_SEC_WPA2_WPA3,
+              "PSK + SAE together read as WPA2/WPA3 mixed");
         CHECK(r.standard == WIFI_802_11AC, "the VHT capability element means 802.11ac");
 
         bn = make_beacon(bcn, bssid, "OldNet", 11, SEC_WPA1, PHY_B);
@@ -679,13 +838,14 @@ int main(void) {
               "no Privacy bit and no security element reads as OPEN");
 
         bn = make_beacon(bcn, bssid, "", 1, SEC_OPEN, PHY_G);
-        CHECK(wifi_parse_beacon(bcn, bn, -70, 2412, &r) == WIFI_OK && r.hidden &&
-              r.ssid[0] == '\0', "a zero-length SSID element marks the network hidden");
+        CHECK(wifi_parse_beacon(bcn, bn, -70, 2412, &r) == WIFI_OK && r.hidden && r.ssid[0] == '\0',
+              "a zero-length SSID element marks the network hidden");
 
         /* 5 GHz: the frequency wins over a stale DS element */
         bn = make_beacon(bcn, bssid, "FiveG", 36, SEC_WPA2, PHY_AC);
-        CHECK(wifi_parse_beacon(bcn, bn, -55, 5180, &r) == WIFI_OK &&
-              r.channel == 36 && r.band == WIFI_BAND_5GHZ, "5180 MHz gives channel 36, 5 GHz");
+        CHECK(wifi_parse_beacon(bcn, bn, -55, 5180, &r) == WIFI_OK && r.channel == 36 &&
+                  r.band == WIFI_BAND_5GHZ,
+              "5180 MHz gives channel 36, 5 GHz");
         {
             /* The two sources must be made to DISAGREE, or "the frequency
              * wins" is never actually exercised: in every case above the DS
@@ -698,12 +858,12 @@ int main(void) {
                   "...and with no measurement to go on, the same frame reports the "
                   "channel 1 its DS param claims");
             dn = make_beacon(bcn, bssid, "Liar5", 6, SEC_OPEN, PHY_AC);
-            CHECK(wifi_parse_beacon(bcn, dn, -50, 5180, &r) == WIFI_OK &&
-                  r.channel == 36 && r.band == WIFI_BAND_5GHZ,
+            CHECK(wifi_parse_beacon(bcn, dn, -50, 5180, &r) == WIFI_OK && r.channel == 36 &&
+                      r.band == WIFI_BAND_5GHZ,
                   "a DS param claiming 2.4 GHz channel 6 loses to a frame heard at "
                   "5180 MHz: channel 36, 5 GHz");
-            CHECK(wifi_parse_beacon(bcn, dn, -50, 0, &r) == WIFI_OK &&
-                  r.channel == 6 && r.band == WIFI_BAND_2_4GHZ,
+            CHECK(wifi_parse_beacon(bcn, dn, -50, 0, &r) == WIFI_OK && r.channel == 6 &&
+                      r.band == WIFI_BAND_2_4GHZ,
                   "...and unmeasured, that same frame is taken at its word: channel 6, "
                   "2.4 GHz");
         }
@@ -717,27 +877,27 @@ int main(void) {
         {
             uint8_t evil[512];
             memcpy(evil, bcn, bn);
-            evil[24 + 12 + 1] = 200;    /* SSID element claims 200 bytes */
+            evil[24 + 12 + 1] = 200; /* SSID element claims 200 bytes */
             CHECK(wifi_parse_beacon(evil, bn, -47, 2437, &r) == WIFI_EINVAL,
                   "an element whose length runs past the frame is refused, not clamped");
         }
         {
             uint8_t evil[512];
             memcpy(evil, bcn, bn);
-            evil[0] = 0x40;             /* subtype 4 = probe REQUEST */
+            evil[0] = 0x40; /* subtype 4 = probe REQUEST */
             CHECK(wifi_parse_beacon(evil, bn, -47, 2437, &r) == WIFI_ENOTSUP,
                   "a probe request is not a beacon and is not parsed as one");
         }
         {
             uint8_t evil[512];
             memcpy(evil, bcn, bn);
-            evil[0] = (uint8_t)(WIFI_STYPE_PROBE_RESP << 4);
+            evil[0] = (uint8_t) (WIFI_STYPE_PROBE_RESP << 4);
             CHECK(wifi_parse_beacon(evil, bn, -47, 2437, &r) == WIFI_OK,
                   "a probe RESPONSE is parsed the same way as a beacon");
         }
         {
             const uint8_t *v = 0;
-            uint8_t ies[6] = { 0, 2, 'h', 'i', 3, 1 };   /* last element is truncated */
+            uint8_t ies[6] = {0, 2, 'h', 'i', 3, 1}; /* last element is truncated */
             CHECK(wifi_find_ie(ies, 4, WIFI_EID_SSID, &v) == 2 && v[0] == 'h',
                   "wifi_find_ie returns the element length and a pointer to its body");
             CHECK(wifi_find_ie(ies, 6, WIFI_EID_DSPARAM, &v) == WIFI_EINVAL,
@@ -755,7 +915,10 @@ int main(void) {
         wifi_scan_result_t r;
         memset(&r, 0, sizeof r);
         strcpy(r.ssid, "Alpha");
-        r.bssid[0] = 0xAA; r.bssid[5] = 0x01; r.rssi = -50; r.channel = 1;
+        r.bssid[0] = 0xAA;
+        r.bssid[5] = 0x01;
+        r.rssi = -50;
+        r.channel = 1;
         CHECK(wifi_scan_add_result(&dev, &r) == 0, "the first result lands at index 0");
         CHECK(wifi_get_scan_count(&dev) == 1, "the count is 1");
 
@@ -765,12 +928,14 @@ int main(void) {
         CHECK(wifi_get_scan_count(&dev) == 1 && wifi_get_scan_result(&dev, 0)->rssi == -40,
               "...and the stronger RSSI -40 replaced -50");
 
-        strcpy(r.ssid, "Alpha"); r.bssid[5] = 0x02; r.rssi = -80;
+        strcpy(r.ssid, "Alpha");
+        r.bssid[5] = 0x02;
+        r.rssi = -80;
         CHECK(wifi_scan_add_result(&dev, &r) == 1, "a second BSSID for the same SSID is separate");
         CHECK(wifi_scan_find_ssid(&dev, "Alpha") == 0,
               "find_ssid picks the STRONGEST of the two (-40 at index 0, not -80 at 1)");
         CHECK(wifi_scan_find_ssid(&dev, "Nope") == WIFI_EAGAIN, "an unknown SSID is not found");
-        uint8_t probe[6] = {0xAA,0,0,0,0,0x02};
+        uint8_t probe[6] = {0xAA, 0, 0, 0, 0, 0x02};
         CHECK(wifi_scan_find_bssid(&dev, probe) == 1, "find_bssid locates index 1");
 
         memset(&r, 0, sizeof r);
@@ -785,8 +950,10 @@ int main(void) {
             wifi_scan_clear(&dev);
             wifi_scan_result_t named, blank;
             memset(&named, 0, sizeof named);
-            named.bssid[0] = 0xBE; named.bssid[5] = 0x01;
-            named.rssi = -55; named.channel = 6;
+            named.bssid[0] = 0xBE;
+            named.bssid[5] = 0x01;
+            named.rssi = -55;
+            named.channel = 6;
             strcpy(named.ssid, "SecretNet");
 
             blank = named;
@@ -795,12 +962,12 @@ int main(void) {
             blank.rssi = -60;
 
             CHECK(wifi_scan_add_result(&dev, &blank) == 0 &&
-                  wifi_get_scan_result(&dev, 0)->hidden &&
-                  wifi_get_scan_result(&dev, 0)->ssid[0] == '\0',
+                      wifi_get_scan_result(&dev, 0)->hidden &&
+                      wifi_get_scan_result(&dev, 0)->ssid[0] == '\0',
                   "a hidden beacon lands first with no name and hidden = true");
             CHECK(wifi_scan_add_result(&dev, &named) == 0 &&
-                  strcmp(wifi_get_scan_result(&dev, 0)->ssid, "SecretNet") == 0 &&
-                  !wifi_get_scan_result(&dev, 0)->hidden,
+                      strcmp(wifi_get_scan_result(&dev, 0)->ssid, "SecretNet") == 0 &&
+                      !wifi_get_scan_result(&dev, 0)->hidden,
                   "a probe response carrying the real name replaces the hidden entry");
             CHECK(wifi_scan_add_result(&dev, &blank) == 0,
                   "the next nameless beacon merges into the same entry");
@@ -819,10 +986,14 @@ int main(void) {
         /* rebuild the two-BSSID state the eviction test below expects */
         memset(&r, 0, sizeof r);
         strcpy(r.ssid, "Alpha");
-        r.bssid[0] = 0xAA; r.bssid[5] = 0x01; r.rssi = -40; r.channel = 1;
-        (void)wifi_scan_add_result(&dev, &r);
-        r.bssid[5] = 0x02; r.rssi = -80;
-        (void)wifi_scan_add_result(&dev, &r);
+        r.bssid[0] = 0xAA;
+        r.bssid[5] = 0x01;
+        r.rssi = -40;
+        r.channel = 1;
+        (void) wifi_scan_add_result(&dev, &r);
+        r.bssid[5] = 0x02;
+        r.rssi = -80;
+        (void) wifi_scan_add_result(&dev, &r);
         CHECK(wifi_get_scan_count(&dev) == 2, "the table is back to two entries");
 
         /* fill the table, then test eviction */
@@ -831,15 +1002,19 @@ int main(void) {
         int fill_ok = 1;
         for (uint32_t i = 0; i < WIFI_MAX_SCAN_RESULTS; i++) {
             memset(&r, 0, sizeof r);
-            r.bssid[0] = 0x02; r.bssid[5] = (uint8_t)i;
-            r.rssi = (int16_t)(-40 - (int)i);      /* index 63 is weakest at -103 */
+            r.bssid[0] = 0x02;
+            r.bssid[5] = (uint8_t) i;
+            r.rssi = (int16_t) (-40 - (int) i); /* index 63 is weakest at -103 */
             r.channel = 1;
-            if (wifi_scan_add_result(&dev, &r) != (int)i) fill_ok = 0;
+            if (wifi_scan_add_result(&dev, &r) != (int) i) fill_ok = 0;
         }
         CHECK(fill_ok && wifi_get_scan_count(&dev) == WIFI_MAX_SCAN_RESULTS,
               "64 distinct BSSIDs fill the table exactly");
         memset(&r, 0, sizeof r);
-        r.bssid[0] = 0x02; r.bssid[5] = 0xFE; r.rssi = -120; r.channel = 1;
+        r.bssid[0] = 0x02;
+        r.bssid[5] = 0xFE;
+        r.rssi = -120;
+        r.channel = 1;
         CHECK(wifi_scan_add_result(&dev, &r) == WIFI_ENOSPC,
               "a weaker AP than everything present is dropped with ENOSPC");
         r.rssi = -10;
@@ -855,26 +1030,26 @@ int main(void) {
     {
         /* The full legal-edge set, spelled out here independently of wifi.c. */
         static const int legal[WIFI_STATE__COUNT][WIFI_STATE__COUNT] = {
-        /* from\to      IDLE SCAN AUTH ASSOC HS  CONN BCN FAIL */
-        /* IDLE   */   {  0,   1,   1,   0,   0,  0,   1,  0 },
-        /* SCAN   */   {  1,   0,   0,   0,   0,  0,   0,  1 },
-        /* AUTH   */   {  1,   0,   0,   1,   0,  0,   0,  1 },
-        /* ASSOC  */   {  1,   0,   0,   0,   1,  1,   0,  1 },
-        /* HS     */   {  1,   0,   0,   0,   0,  1,   0,  1 },
-        /* CONN   */   {  1,   0,   0,   0,   0,  0,   0,  1 },
-        /* BCN    */   {  1,   0,   0,   0,   0,  0,   0,  1 },
-        /* FAIL   */   {  1,   0,   0,   0,   0,  0,   0,  0 },
+            /* from\to      IDLE SCAN AUTH ASSOC HS  CONN BCN FAIL */
+            /* IDLE   */ {0, 1, 1, 0, 0, 0, 1, 0},
+            /* SCAN   */ {1, 0, 0, 0, 0, 0, 0, 1},
+            /* AUTH   */ {1, 0, 0, 1, 0, 0, 0, 1},
+            /* ASSOC  */ {1, 0, 0, 0, 1, 1, 0, 1},
+            /* HS     */ {1, 0, 0, 0, 0, 1, 0, 1},
+            /* CONN   */ {1, 0, 0, 0, 0, 0, 0, 1},
+            /* BCN    */ {1, 0, 0, 0, 0, 0, 0, 1},
+            /* FAIL   */ {1, 0, 0, 0, 0, 0, 0, 0},
         };
         int mismatches = 0, legal_count = 0;
         for (int a = 0; a < WIFI_STATE__COUNT; a++)
             for (int b = 0; b < WIFI_STATE__COUNT; b++) {
-                bool got = wifi_state_can_transition((wifi_assoc_state_t)a,
-                                                     (wifi_assoc_state_t)b);
+                bool got =
+                    wifi_state_can_transition((wifi_assoc_state_t) a, (wifi_assoc_state_t) b);
                 if (got != (legal[a][b] != 0)) mismatches++;
                 if (legal[a][b]) legal_count++;
             }
-        printf("       %d of %d transitions are legal (%d mismatches)\n",
-               legal_count, WIFI_STATE__COUNT * WIFI_STATE__COUNT, mismatches);
+        printf("       %d of %d transitions are legal (%d mismatches)\n", legal_count,
+               WIFI_STATE__COUNT * WIFI_STATE__COUNT, mismatches);
         CHECK(mismatches == 0 && legal_count == 20,
               "all 64 state pairs match the transition table: exactly 20 edges are legal");
         CHECK(!wifi_state_can_transition(WIFI_STATE_IDLE, WIFI_STATE_IDLE),
@@ -883,22 +1058,22 @@ int main(void) {
               "IDLE->CONNECTED is refused: you cannot connect without authenticating");
         CHECK(!wifi_state_can_transition(WIFI_STATE_CONNECTED, WIFI_STATE_AUTHENTICATING),
               "CONNECTED->AUTHENTICATING is refused");
-        CHECK(!wifi_state_can_transition((wifi_assoc_state_t)99, WIFI_STATE_IDLE),
+        CHECK(!wifi_state_can_transition((wifi_assoc_state_t) 99, WIFI_STATE_IDLE),
               "an out-of-range state is refused rather than indexing the table");
 
         /* the mode rule, which the pure predicate cannot see */
         wifi_device_t d2;
         wifi_init(&d2, "modes");
         uint32_t s = wifi_create_interface(&d2, "sta", WIFI_MODE_STATION);
-        uint32_t a = wifi_create_interface(&d2, "ap",  WIFI_MODE_AP);
+        uint32_t a = wifi_create_interface(&d2, "ap", WIFI_MODE_AP);
         CHECK(wifi_state_set(&d2, s, WIFI_STATE_BEACONING) == WIFI_ESTATE,
               "a STATION cannot enter BEACONING");
         CHECK(wifi_state_set(&d2, a, WIFI_STATE_AUTHENTICATING) == WIFI_OK &&
-              wifi_state_set(&d2, a, WIFI_STATE_ASSOCIATING) == WIFI_OK &&
-              wifi_state_set(&d2, a, WIFI_STATE_CONNECTED) == WIFI_ESTATE,
+                  wifi_state_set(&d2, a, WIFI_STATE_ASSOCIATING) == WIFI_OK &&
+                  wifi_state_set(&d2, a, WIFI_STATE_CONNECTED) == WIFI_ESTATE,
               "an AP interface cannot enter CONNECTED");
         CHECK(wifi_state_set(&d2, s, WIFI_STATE_SCANNING) == WIFI_OK &&
-              wifi_get_interface(&d2, s)->connected == false,
+                  wifi_get_interface(&d2, s)->connected == false,
               "SCANNING does not set the connected flag");
         CHECK(wifi_state_set(&d2, s, WIFI_STATE_AUTHENTICATING) == WIFI_ESTATE,
               "SCANNING->AUTHENTICATING is refused (abort the scan first)");
@@ -909,18 +1084,17 @@ int main(void) {
     /* ================================================================= */
     {
         uint8_t d[20];
-        wifi_sha1((const uint8_t *)"abc", 3, d);
+        wifi_sha1((const uint8_t *) "abc", 3, d);
         dump("SHA1(\"abc\")", d, 20);
         CHECK(hexeq(d, "a9993e364706816aba3e25717850c26c9cd0d89d", 20),
               "SHA-1(\"abc\") matches the FIPS 180-1 vector");
-        wifi_sha1((const uint8_t *)"", 0, d);
-        CHECK(hexeq(d, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 20),
-              "SHA-1(\"\") matches");
+        wifi_sha1((const uint8_t *) "", 0, d);
+        CHECK(hexeq(d, "da39a3ee5e6b4b0d3255bfef95601890afd80709", 20), "SHA-1(\"\") matches");
         const char *m2 = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
-        wifi_sha1((const uint8_t *)m2, (uint32_t)strlen(m2), d);
+        wifi_sha1((const uint8_t *) m2, (uint32_t) strlen(m2), d);
         CHECK(hexeq(d, "84983e441c3bd26ebaae4aa1f95129e5e54670f1", 20),
               "SHA-1 of the 448-bit FIPS message matches (two-block padding path)");
-        {   /* one million 'a' — the streaming path with no staging buffer */
+        { /* one million 'a' — the streaming path with no staging buffer */
             wifi_sha1_ctx_t c;
             wifi_sha1_init(&c);
             uint8_t chunk[1000];
@@ -930,16 +1104,17 @@ int main(void) {
             CHECK(hexeq(d, "34aa973cd4c4daa4f61eeb2bdbad27316534016f", 20),
                   "SHA-1 of 1,000,000 'a' matches — streaming covers the WHOLE message");
         }
-        {   /* odd-sized updates must equal the one-shot digest */
+        { /* odd-sized updates must equal the one-shot digest */
             const char *msg = "The quick brown fox jumps over the lazy dog";
             uint8_t one[20], many[20];
-            wifi_sha1((const uint8_t *)msg, (uint32_t)strlen(msg), one);
-            wifi_sha1_ctx_t c; wifi_sha1_init(&c);
-            uint32_t off = 0, len = (uint32_t)strlen(msg);
+            wifi_sha1((const uint8_t *) msg, (uint32_t) strlen(msg), one);
+            wifi_sha1_ctx_t c;
+            wifi_sha1_init(&c);
+            uint32_t off = 0, len = (uint32_t) strlen(msg);
             while (off < len) {
                 uint32_t take = 1 + (rnd() % 7);
                 if (off + take > len) take = len - off;
-                wifi_sha1_update(&c, (const uint8_t *)msg + off, take);
+                wifi_sha1_update(&c, (const uint8_t *) msg + off, take);
                 off += take;
             }
             wifi_sha1_final(&c, many);
@@ -954,11 +1129,11 @@ int main(void) {
     {
         uint8_t d[20], key[80], data[50];
         memset(key, 0x0b, 20);
-        wifi_hmac_sha1(key, 20, (const uint8_t *)"Hi There", 8, d);
+        wifi_hmac_sha1(key, 20, (const uint8_t *) "Hi There", 8, d);
         CHECK(hexeq(d, "b617318655057264e28bc0b6fb378c8ef146be00", 20),
               "RFC 2202 case 1: HMAC-SHA1(0x0b*20, \"Hi There\")");
-        wifi_hmac_sha1((const uint8_t *)"Jefe", 4,
-                       (const uint8_t *)"what do ya want for nothing?", 28, d);
+        wifi_hmac_sha1((const uint8_t *) "Jefe", 4,
+                       (const uint8_t *) "what do ya want for nothing?", 28, d);
         CHECK(hexeq(d, "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79", 20),
               "RFC 2202 case 2: HMAC-SHA1(\"Jefe\", ...)");
         memset(key, 0xaa, 20);
@@ -968,7 +1143,8 @@ int main(void) {
               "RFC 2202 case 3: HMAC-SHA1(0xaa*20, 0xdd*50)");
         memset(key, 0xaa, 80);
         wifi_hmac_sha1(key, 80,
-            (const uint8_t *)"Test Using Larger Than Block-Size Key - Hash Key First", 54, d);
+                       (const uint8_t *) "Test Using Larger Than Block-Size Key - Hash Key First",
+                       54, d);
         CHECK(hexeq(d, "aa4ae5e15272d00e95705637ce8a3b55ed402112", 20),
               "RFC 2202 case 6: an 80-byte key is hashed down first");
     }
@@ -978,45 +1154,47 @@ int main(void) {
     /* ================================================================= */
     {
         uint8_t dk[32];
-        CHECK(wifi_pbkdf2_sha1((const uint8_t *)"password", 8,
-                               (const uint8_t *)"salt", 4, 1, dk, 20) == WIFI_OK &&
-              hexeq(dk, "0c60c80f961f0e71f3a9b524af6012062fe037a6", 20),
+        CHECK(wifi_pbkdf2_sha1((const uint8_t *) "password", 8, (const uint8_t *) "salt", 4, 1, dk,
+                               20) == WIFI_OK &&
+                  hexeq(dk, "0c60c80f961f0e71f3a9b524af6012062fe037a6", 20),
               "RFC 6070 #1: c=1, dkLen=20");
-        CHECK(wifi_pbkdf2_sha1((const uint8_t *)"password", 8,
-                               (const uint8_t *)"salt", 4, 2, dk, 20) == WIFI_OK &&
-              hexeq(dk, "ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957", 20),
+        CHECK(wifi_pbkdf2_sha1((const uint8_t *) "password", 8, (const uint8_t *) "salt", 4, 2, dk,
+                               20) == WIFI_OK &&
+                  hexeq(dk, "ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957", 20),
               "RFC 6070 #2: c=2, dkLen=20");
-        CHECK(wifi_pbkdf2_sha1((const uint8_t *)"password", 8,
-                               (const uint8_t *)"salt", 4, 4096, dk, 20) == WIFI_OK &&
-              hexeq(dk, "4b007901b765489abead49d926f721d065a429c1", 20),
+        CHECK(wifi_pbkdf2_sha1((const uint8_t *) "password", 8, (const uint8_t *) "salt", 4, 4096,
+                               dk, 20) == WIFI_OK &&
+                  hexeq(dk, "4b007901b765489abead49d926f721d065a429c1", 20),
               "RFC 6070 #3: c=4096, dkLen=20");
-        CHECK(wifi_pbkdf2_sha1((const uint8_t *)"passwordPASSWORDpassword", 24,
-                               (const uint8_t *)"saltSALTsaltSALTsaltSALTsaltSALTsalt", 36,
-                               4096, dk, 25) == WIFI_OK &&
-              hexeq(dk, "3d2eec4fe41c849b80c8d83662c0e44a8b291a964cf2f07038", 25),
+        CHECK(wifi_pbkdf2_sha1((const uint8_t *) "passwordPASSWORDpassword", 24,
+                               (const uint8_t *) "saltSALTsaltSALTsaltSALTsaltSALTsalt", 36, 4096,
+                               dk, 25) == WIFI_OK &&
+                  hexeq(dk, "3d2eec4fe41c849b80c8d83662c0e44a8b291a964cf2f07038", 25),
               "RFC 6070 #5: dkLen=25 spans two blocks");
-        CHECK(wifi_pbkdf2_sha1((const uint8_t *)"pass\0word", 9,
-                               (const uint8_t *)"sa\0lt", 5, 4096, dk, 16) == WIFI_OK &&
-              hexeq(dk, "56fa6aa75548099dcc37d7f03425e0c3", 16),
+        CHECK(wifi_pbkdf2_sha1((const uint8_t *) "pass\0word", 9, (const uint8_t *) "sa\0lt", 5,
+                               4096, dk, 16) == WIFI_OK &&
+                  hexeq(dk, "56fa6aa75548099dcc37d7f03425e0c3", 16),
               "RFC 6070 #6: embedded NUL bytes are hashed, not treated as terminators");
-        {   /* the same property, proved without reference to any table: a NUL
-             * inside the password or the salt must change the answer. */
+        { /* the same property, proved without reference to any table: a NUL
+           * inside the password or the salt must change the answer. */
             uint8_t a[16], b[16];
-            (void)wifi_pbkdf2_sha1((const uint8_t *)"pass\0word", 9,
-                                   (const uint8_t *)"sa\0lt", 5, 64, a, 16);
-            (void)wifi_pbkdf2_sha1((const uint8_t *)"pass", 4,
-                                   (const uint8_t *)"sa\0lt", 5, 64, b, 16);
+            (void) wifi_pbkdf2_sha1((const uint8_t *) "pass\0word", 9, (const uint8_t *) "sa\0lt",
+                                    5, 64, a, 16);
+            (void) wifi_pbkdf2_sha1((const uint8_t *) "pass", 4, (const uint8_t *) "sa\0lt", 5, 64,
+                                    b, 16);
             CHECK(memcmp(a, b, 16) != 0,
                   "\"pass\\0word\"(9) and \"pass\"(4) derive DIFFERENT keys — the NUL is data");
-            (void)wifi_pbkdf2_sha1((const uint8_t *)"pass\0word", 9,
-                                   (const uint8_t *)"sa", 2, 64, b, 16);
+            (void) wifi_pbkdf2_sha1((const uint8_t *) "pass\0word", 9, (const uint8_t *) "sa", 2,
+                                    64, b, 16);
             CHECK(memcmp(a, b, 16) != 0,
                   "a salt truncated at its NUL also derives a different key");
         }
-        CHECK(wifi_pbkdf2_sha1((const uint8_t *)"p", 1, (const uint8_t *)"s", 1,
-                               0, dk, 20) == WIFI_EINVAL, "zero iterations is refused");
-        CHECK(wifi_pbkdf2_sha1((const uint8_t *)"p", 1, (const uint8_t *)"s", 1,
-                               1, dk, 0) == WIFI_EINVAL, "a zero-length output is refused");
+        CHECK(wifi_pbkdf2_sha1((const uint8_t *) "p", 1, (const uint8_t *) "s", 1, 0, dk, 20) ==
+                  WIFI_EINVAL,
+              "zero iterations is refused");
+        CHECK(wifi_pbkdf2_sha1((const uint8_t *) "p", 1, (const uint8_t *) "s", 1, 1, dk, 0) ==
+                  WIFI_EINVAL,
+              "a zero-length output is refused");
     }
 
     /* ================================================================= */
@@ -1028,13 +1206,16 @@ int main(void) {
         dump("PMK(\"password\",\"IEEE\")", pmk, 32);
         CHECK(hexeq(pmk, "f42c6fc52df0ebef9ebb4b90b38a5f902e83fe1b135a70e23aed762e9710a12e", 32),
               "802.11i H.4 #1: passphrase \"password\", SSID \"IEEE\"");
-        CHECK(wifi_wpa_pmk("ThisIsAPassword", "ThisIsASSID", pmk) == WIFI_OK &&
-              hexeq(pmk, "0dc0d6eb90555ed6419756b9a15ec3e3209b63df707dd508d14581f8982721af", 32),
-              "802.11i H.4 #2: \"ThisIsAPassword\" / \"ThisIsASSID\"");
+        CHECK(
+            wifi_wpa_pmk("ThisIsAPassword", "ThisIsASSID", pmk) == WIFI_OK &&
+                hexeq(pmk, "0dc0d6eb90555ed6419756b9a15ec3e3209b63df707dd508d14581f8982721af", 32),
+            "802.11i H.4 #2: \"ThisIsAPassword\" / \"ThisIsASSID\"");
         {
             char p64[65], s32[33];
-            memset(p64, 'a', 64); p64[64] = '\0';
-            memset(s32, 'Z', 32); s32[32] = '\0';
+            memset(p64, 'a', 64);
+            p64[64] = '\0';
+            memset(s32, 'Z', 32);
+            s32[32] = '\0';
             CHECK(wifi_wpa_pmk(p64, s32, pmk) == WIFI_EINVAL,
                   "a 64-character passphrase is refused: 802.11i allows 8..63, and 64 "
                   "characters is a raw hex PSK, not a passphrase");
@@ -1051,8 +1232,7 @@ int main(void) {
             p64[63] = '\0';
             CHECK(wifi_wpa_pmk(p64, s32, k63) == WIFI_OK, "63 'a' is accepted");
             p64[62] = '\0';
-            CHECK(wifi_wpa_pmk(p64, s32, k62) == WIFI_OK &&
-                  memcmp(k63, k62, 32) != 0,
+            CHECK(wifi_wpa_pmk(p64, s32, k62) == WIFI_OK && memcmp(k63, k62, 32) != 0,
                   "62 and 63 characters give different PMKs — no silent truncation");
         }
         CHECK(wifi_wpa_pmk("short", "ssid", pmk) == WIFI_EINVAL, "a 5-char passphrase is refused");
@@ -1063,48 +1243,62 @@ int main(void) {
     printf("\n--- PTK derivation (802.11i PRF-384) ---\n");
     /* ================================================================= */
     uint8_t anonce[32], snonce[32];
-    uint8_t AA[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
-    uint8_t SPA[6] = {0x66,0x77,0x88,0x99,0xAA,0xBB};
+    uint8_t AA[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    uint8_t SPA[6] = {0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB};
     wifi_ptk_t ptk, ptk2;
     {
-        for (int i = 0; i < 32; i++) { anonce[i] = (uint8_t)(0xA0 + i); snonce[i] = (uint8_t)i; }
-        (void)wifi_wpa_pmk("correcthorse", "ZXV-NET", pmk);
+        for (int i = 0; i < 32; i++) {
+            anonce[i] = (uint8_t) (0xA0 + i);
+            snonce[i] = (uint8_t) i;
+        }
+        (void) wifi_wpa_pmk("correcthorse", "ZXV-NET", pmk);
 
         CHECK(wifi_wpa_derive_ptk(pmk, AA, SPA, anonce, snonce, &ptk) == WIFI_OK,
               "PTK derives from PMK, both MACs and both nonces");
         dump("KCK", ptk.kck, 16);
         dump("TK ", ptk.tk, 16);
         CHECK(memcmp(ptk.kck, ptk.kek, 16) != 0 && memcmp(ptk.kek, ptk.tk, 16) != 0 &&
-              memcmp(ptk.kck, ptk.tk, 16) != 0,
+                  memcmp(ptk.kck, ptk.tk, 16) != 0,
               "KCK, KEK and TK are three DIFFERENT 16-byte keys, not the same block repeated");
         CHECK(wifi_wpa_derive_ptk(pmk, AA, SPA, anonce, snonce, &ptk2) == WIFI_OK &&
-              memcmp(&ptk, &ptk2, sizeof ptk) == 0, "derivation is deterministic");
+                  memcmp(&ptk, &ptk2, sizeof ptk) == 0,
+              "derivation is deterministic");
         CHECK(wifi_wpa_derive_ptk(pmk, SPA, AA, snonce, anonce, &ptk2) == WIFI_OK &&
-              memcmp(&ptk, &ptk2, sizeof ptk) == 0,
+                  memcmp(&ptk, &ptk2, sizeof ptk) == 0,
               "swapping (AA,SPA) and (ANonce,SNonce) gives the SAME PTK — Min/Max ordering "
               "is what lets both ends agree");
         {
-            uint8_t n2[32]; memcpy(n2, snonce, 32); n2[31] ^= 0x01;
+            uint8_t n2[32];
+            memcpy(n2, snonce, 32);
+            n2[31] ^= 0x01;
             CHECK(wifi_wpa_derive_ptk(pmk, AA, SPA, anonce, n2, &ptk2) == WIFI_OK &&
-                  memcmp(&ptk, &ptk2, sizeof ptk) != 0,
+                      memcmp(&ptk, &ptk2, sizeof ptk) != 0,
                   "flipping ONE bit of the SNonce changes the PTK");
-            uint8_t m2[6]; memcpy(m2, SPA, 6); m2[5] ^= 0x01;
+            uint8_t m2[6];
+            memcpy(m2, SPA, 6);
+            m2[5] ^= 0x01;
             CHECK(wifi_wpa_derive_ptk(pmk, AA, m2, anonce, snonce, &ptk2) == WIFI_OK &&
-                  memcmp(&ptk, &ptk2, sizeof ptk) != 0,
+                      memcmp(&ptk, &ptk2, sizeof ptk) != 0,
                   "flipping one bit of the supplicant MAC changes the PTK");
-            uint8_t p2[32]; memcpy(p2, pmk, 32); p2[0] ^= 0x01;
+            uint8_t p2[32];
+            memcpy(p2, pmk, 32);
+            p2[0] ^= 0x01;
             CHECK(wifi_wpa_derive_ptk(p2, AA, SPA, anonce, snonce, &ptk2) == WIFI_OK &&
-                  memcmp(&ptk, &ptk2, sizeof ptk) != 0,
+                      memcmp(&ptk, &ptk2, sizeof ptk) != 0,
                   "flipping one bit of the PMK changes the PTK");
         }
-        {   /* the PRF's own framing: label || 0x00 || data || counter */
+        { /* the PRF's own framing: label || 0x00 || data || counter */
             uint8_t out[40], want[40], blk[20];
-            uint8_t key[16]; memset(key, 0x5a, 16);
-            uint8_t data[4] = {1,2,3,4};
+            uint8_t key[16];
+            memset(key, 0x5a, 16);
+            uint8_t data[4] = {1, 2, 3, 4};
             CHECK(wifi_wpa_prf(key, 16, "lbl", data, 4, out, 40) == WIFI_OK, "PRF-320 runs");
             for (uint8_t i = 0; i < 2; i++) {
                 uint8_t msg[3 + 1 + 4 + 1];
-                memcpy(msg, "lbl", 3); msg[3] = 0; memcpy(msg + 4, data, 4); msg[8] = i;
+                memcpy(msg, "lbl", 3);
+                msg[3] = 0;
+                memcpy(msg + 4, data, 4);
+                msg[8] = i;
                 wifi_hmac_sha1(key, 16, msg, sizeof msg, blk);
                 memcpy(want + i * 20, blk, 20);
             }
@@ -1121,7 +1315,7 @@ int main(void) {
     {
         uint8_t frame[256];
         wifi_eapol_key_t k;
-        uint32_t n = make_eapol(frame, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK),
+        uint32_t n = make_eapol(frame, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK),
                                 0x0102030405060708ull, anonce, 0, 0, 0);
         CHECK(n == 99, "an EAPOL-Key frame with no key data is 99 bytes (4 + 95)");
         CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_OK, "it parses");
@@ -1134,36 +1328,37 @@ int main(void) {
         CHECK(k.key_data_len == 0 && k.total_len == 99, "key data length 0 at offset 97");
         CHECK(k.msg == 1, "ACK set and MIC clear classifies as message 1");
 
-        n = make_eapol(frame, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC),
-                       1, snonce, (const uint8_t *)"\x30\x14", 2, 0);
-        CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_OK && k.msg == 2 &&
-              k.key_data_len == 2 && k.total_len == 101,
+        n = make_eapol(frame, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC), 1, snonce,
+                       (const uint8_t *) "\x30\x14", 2, 0);
+        CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_OK && k.msg == 2 && k.key_data_len == 2 &&
+                  k.total_len == 101,
               "MIC set, ACK clear, SECURE clear classifies as message 2 (101 bytes)");
-        n = make_eapol(frame, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC |
-                                         WIFI_KI_ACK | WIFI_KI_SECURE | WIFI_KI_INSTALL),
+        n = make_eapol(frame,
+                       (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_ACK |
+                                   WIFI_KI_SECURE | WIFI_KI_INSTALL),
                        2, anonce, 0, 0, 0);
         CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_OK && k.msg == 3,
               "ACK and MIC together classify as message 3");
-        n = make_eapol(frame, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_SECURE),
-                       2, 0, 0, 0, 0);
+        n = make_eapol(frame, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_SECURE), 2,
+                       0, 0, 0, 0);
         CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_OK && k.msg == 4,
               "MIC and SECURE without ACK classify as message 4");
-        n = make_eapol(frame, (uint16_t)(2 | WIFI_KI_MIC | WIFI_KI_SECURE), 3, 0, 0, 0, 0);
+        n = make_eapol(frame, (uint16_t) (2 | WIFI_KI_MIC | WIFI_KI_SECURE), 3, 0, 0, 0, 0);
         CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_OK && k.msg == 0,
               "a GROUP-key frame (no Pairwise bit) is not mistaken for a pairwise message");
 
         /* malformed */
-        n = make_eapol(frame, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 1, anonce, 0, 0, 0);
+        n = make_eapol(frame, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 1, anonce, 0, 0, 0);
         CHECK(wifi_eapol_key_parse(frame, 98, &k) == WIFI_EINVAL,
               "98 bytes is one short of the fixed part and is refused");
-        frame[1] = 0;   /* EAPOL type "EAP-Packet", not Key */
+        frame[1] = 0; /* EAPOL type "EAP-Packet", not Key */
         CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_EINVAL, "a non-Key EAPOL type is refused");
         frame[1] = 3;
-        frame[98] = 40;  /* claim 40 bytes of key data that are not there */
+        frame[98] = 40; /* claim 40 bytes of key data that are not there */
         CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_EINVAL,
               "a key-data length that runs past the buffer is refused");
-        n = make_eapol(frame, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 1, anonce, 0, 0, 0);
-        frame[3] = 90;   /* body length below the fixed minimum */
+        n = make_eapol(frame, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 1, anonce, 0, 0, 0);
+        frame[3] = 90; /* body length below the fixed minimum */
         CHECK(wifi_eapol_key_parse(frame, n, &k) == WIFI_EINVAL,
               "a body length of 90 is below the 95-byte fixed part and is refused");
         /* The case above is caught by the MINIMUM-body test, not by the
@@ -1173,18 +1368,19 @@ int main(void) {
         {
             uint8_t kd[10];
             memset(kd, 0xA5, sizeof kd);
-            uint32_t tn = make_eapol(frame, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK),
-                                     1, anonce, kd, 10, 0);
+            uint32_t tn = make_eapol(frame, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 1,
+                                     anonce, kd, 10, 0);
             CHECK(tn == 109 && wifi_eapol_key_parse(frame, tn, &k) == WIFI_OK &&
-                  k.key_data_len == 10 && k.total_len == 109,
+                      k.key_data_len == 10 && k.total_len == 109,
                   "a consistent 109-byte frame (99 + 10 key data) parses");
 
-            frame[98] = 5;    /* body still says 105; key data now claims 5 */
+            frame[98] = 5; /* body still says 105; key data now claims 5 */
             CHECK(wifi_eapol_key_parse(frame, tn, &k) == WIFI_EINVAL,
                   "body 105 with key-data 5 disagree (109 != 104) and are refused — this is "
                   "the consistency check itself, not the minimum-length check");
             frame[98] = 10;
-            frame[2] = 0; frame[3] = 100;   /* body 100; key data still 10 */
+            frame[2] = 0;
+            frame[3] = 100; /* body 100; key data still 10 */
             CHECK(wifi_eapol_key_parse(frame, tn, &k) == WIFI_EINVAL,
                   "body 100 with key-data 10 disagree the other way (104 != 109) and are refused");
             frame[3] = 105;
@@ -1197,7 +1393,7 @@ int main(void) {
         wifi_eapol_key_t m2;
         memset(&m2, 0, sizeof m2);
         m2.descriptor_type = 2;
-        m2.key_info = (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC);
+        m2.key_info = (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC);
         m2.replay_counter = 7;
         memcpy(m2.nonce, snonce, 32);
         int bn = wifi_eapol_key_build(&m2, 0, m2buf, sizeof m2buf);
@@ -1213,8 +1409,7 @@ int main(void) {
                   "a 121-byte frame does not fit in 120 bytes and is refused, not truncated");
             CHECK(wifi_eapol_key_build(&big, kd22, m2buf, 121) == 121,
                   "...and fits exactly in 121");
-            CHECK(m2buf[97] == 0 && m2buf[98] == 22 && m2buf[99] == 0x5A &&
-                  m2buf[120] == 0x5A,
+            CHECK(m2buf[97] == 0 && m2buf[98] == 22 && m2buf[99] == 0x5A && m2buf[120] == 0x5A,
                   "...with the key data written at offset 99 through 120");
             CHECK(wifi_eapol_key_build(&big, 0, m2buf, sizeof m2buf) == WIFI_EINVAL,
                   "claiming 22 bytes of key data while passing NULL is refused");
@@ -1227,43 +1422,45 @@ int main(void) {
         CHECK(m2buf[16] == 7, "the replay counter's low byte lands at offset 16");
 
         uint8_t mic[16];
-        CHECK(wifi_eapol_mic(ptk.kck, m2buf, (uint32_t)bn, 2, mic) == WIFI_OK, "the MIC computes");
+        CHECK(wifi_eapol_mic(ptk.kck, m2buf, (uint32_t) bn, 2, mic) == WIFI_OK, "the MIC computes");
         memcpy(m2buf + WIFI_EAPOL_MIC_OFF, mic, 16);
-        CHECK(wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t)bn, 2),
+        CHECK(wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t) bn, 2),
               "a frame carrying its own MIC verifies");
-        {   /* the module streams the HMAC in three pieces; do it the naive way */
+        { /* the module streams the HMAC in three pieces; do it the naive way */
             uint8_t copy[256], want[20];
-            memcpy(copy, m2buf, (uint32_t)bn);
+            memcpy(copy, m2buf, (uint32_t) bn);
             memset(copy + WIFI_EAPOL_MIC_OFF, 0, 16);
-            wifi_hmac_sha1(ptk.kck, 16, copy, (uint32_t)bn, want);
+            wifi_hmac_sha1(ptk.kck, 16, copy, (uint32_t) bn, want);
             CHECK(memcmp(want, mic, 16) == 0,
                   "the streamed MIC equals a single-shot HMAC over the zeroed-MIC frame");
         }
         /* --- and now make it FAIL, four different ways --- */
         m2buf[20] ^= 0x01;
-        CHECK(!wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t)bn, 2),
+        CHECK(!wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t) bn, 2),
               "flipping one bit in the replay counter BREAKS the MIC");
         m2buf[20] ^= 0x01;
         m2buf[98] ^= 0x01;
-        CHECK(!wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t)bn, 2),
+        CHECK(!wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t) bn, 2),
               "flipping one bit in the LAST byte breaks it too — the tail is covered");
         m2buf[98] ^= 0x01;
         m2buf[WIFI_EAPOL_MIC_OFF] ^= 0x80;
-        CHECK(!wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t)bn, 2),
+        CHECK(!wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t) bn, 2),
               "corrupting the MIC field itself fails verification");
         m2buf[WIFI_EAPOL_MIC_OFF] ^= 0x80;
         {
-            uint8_t wrong[16]; memcpy(wrong, ptk.kck, 16); wrong[0] ^= 0x01;
-            CHECK(!wifi_eapol_mic_verify(wrong, m2buf, (uint32_t)bn, 2),
+            uint8_t wrong[16];
+            memcpy(wrong, ptk.kck, 16);
+            wrong[0] ^= 0x01;
+            CHECK(!wifi_eapol_mic_verify(wrong, m2buf, (uint32_t) bn, 2),
                   "the wrong KCK fails verification");
         }
-        CHECK(wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t)bn, 2),
+        CHECK(wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t) bn, 2),
               "and it verifies again once everything is restored");
-        CHECK(wifi_eapol_mic(ptk.kck, m2buf, (uint32_t)bn, 1, mic) == WIFI_ENOTSUP,
+        CHECK(wifi_eapol_mic(ptk.kck, m2buf, (uint32_t) bn, 1, mic) == WIFI_ENOTSUP,
               "key descriptor version 1 (HMAC-MD5) is ENOTSUP — there is no MD5 here");
-        CHECK(wifi_eapol_mic(ptk.kck, m2buf, (uint32_t)bn, 3, mic) == WIFI_ENOTSUP,
+        CHECK(wifi_eapol_mic(ptk.kck, m2buf, (uint32_t) bn, 3, mic) == WIFI_ENOTSUP,
               "version 3 (AES-128-CMAC) is ENOTSUP — no AES-CMAC either");
-        CHECK(!wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t)bn, 3),
+        CHECK(!wifi_eapol_mic_verify(ptk.kck, m2buf, (uint32_t) bn, 3),
               "and a MIC we cannot compute NEVER verifies as valid");
     }
 
@@ -1290,15 +1487,21 @@ int main(void) {
         uint64_t bytes = 0;
         for (int i = 0; i < 20000; i++) {
             uint32_t len = 1 + (rnd() % 600);
-            for (uint32_t j = 0; j < len; j++) src[j] = (uint8_t)(rnd());
-            if (wifi_rx_inject(&rd, rsta, src, len) != WIFI_OK) { mismatch = 1; break; }
+            for (uint32_t j = 0; j < len; j++) src[j] = (uint8_t) (rnd());
+            if (wifi_rx_inject(&rd, rsta, src, len) != WIFI_OK) {
+                mismatch = 1;
+                break;
+            }
             int got = wifi_rx_packet(&rd, rsta, dst, sizeof dst);
-            if (got != (int)len || memcmp(src, dst, len) != 0) { mismatch = 1; break; }
+            if (got != (int) len || memcmp(src, dst, len) != 0) {
+                mismatch = 1;
+                break;
+            }
             bytes += len;
             cycles++;
         }
-        printf("       %d inject/deliver cycles, %llu bytes through a 4096-byte ring\n",
-               cycles, (unsigned long long)bytes);
+        printf("       %d inject/deliver cycles, %llu bytes through a 4096-byte ring\n", cycles,
+               (unsigned long long) bytes);
         CHECK(!mismatch && cycles == 20000,
               "20,000 random-length records survive the ring byte-for-byte across wraparound");
         CHECK(wifi_rx_pending(&rd) == 0, "the ring is empty again afterwards");
@@ -1326,8 +1529,7 @@ int main(void) {
         uint8_t small[10];
         CHECK(wifi_rx_packet(&rd, rsta, small, sizeof small) == WIFI_EMSGSIZE,
               "delivering a 1000-byte frame into a 10-byte buffer is refused");
-        CHECK(wifi_rx_pending(&rd) == 4008,
-              "...and nothing was consumed by the refused read");
+        CHECK(wifi_rx_pending(&rd) == 4008, "...and nothing was consumed by the refused read");
         CHECK(wifi_rx_packet(&rd, rsta, big, sizeof big) == 1000,
               "a big enough buffer gets the whole 1000-byte frame");
         CHECK(wifi_tx_enqueue(&rd, big, 0) == WIFI_EINVAL, "a zero-length record is refused");
@@ -1342,7 +1544,8 @@ int main(void) {
     uint8_t our_mac[6];
     {
         memset(&vr, 0, sizeof vr);
-        vr.have_random = 1; vr.random_seed = 0x40;
+        vr.have_random = 1;
+        vr.random_seed = 0x40;
         wifi_init(&dev, "zxv-wifi0");
         sta = wifi_create_interface(&dev, "wlan0", WIFI_MODE_STATION);
         f = wifi_get_interface(&dev, sta);
@@ -1359,12 +1562,13 @@ int main(void) {
               "a scan in flight has still produced NO results of its own");
 
         /* the radio hears one beacon */
-        uint8_t bssid[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
+        uint8_t bssid[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
         uint8_t bcn[512];
         uint32_t bn = make_beacon(bcn, bssid, "ZXV-NET", 6, SEC_WPA2, PHY_N);
         wifi_scan_result_t r;
         CHECK(wifi_parse_beacon(bcn, bn, -42, 2437, &r) == WIFI_OK &&
-              wifi_scan_add_result(&dev, &r) == 0, "the heard beacon becomes scan result 0");
+                  wifi_scan_add_result(&dev, &r) == 0,
+              "the heard beacon becomes scan result 0");
         CHECK(wifi_scan_complete(&dev, sta) == WIFI_OK && f->state == WIFI_STATE_IDLE,
               "the scan completes and the interface returns to IDLE");
         CHECK(wifi_scan_complete(&dev, sta) == WIFI_ESTATE,
@@ -1380,7 +1584,7 @@ int main(void) {
          * "never measured" sentinel), so if that number ever shows up in a
          * scan result, the result is reporting a measurement nobody took. */
         {
-            uint8_t obssid[6] = {0x0A,0x0B,0x0C,0x0D,0x0E,0x0F};
+            uint8_t obssid[6] = {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
             uint8_t obcn[512];
             uint32_t on = make_beacon(obcn, obssid, "Neighbour", 6, SEC_OPEN, PHY_G);
             CHECK(f->rssi == -127, "the interface itself has no RSSI measurement yet");
@@ -1388,7 +1592,7 @@ int main(void) {
                   "a beacon from a neighbouring AP is filed through the ISR path");
             int oi = wifi_scan_find_bssid(&dev, obssid);
             CHECK(oi >= 0, "...and lands in the scan table");
-            CHECK(oi >= 0 && wifi_get_scan_result(&dev, (uint32_t)oi)->rssi == -73,
+            CHECK(oi >= 0 && wifi_get_scan_result(&dev, (uint32_t) oi)->rssi == -73,
                   "...carrying the -73 dBm the DRIVER measured for that frame, not the "
                   "interface's own -127 sentinel");
             CHECK(f->rssi == -127,
@@ -1398,10 +1602,10 @@ int main(void) {
                 wifi_scan_result_t keep = *wifi_get_scan_result(&dev, 0);
                 if (oi == 0) keep = *wifi_get_scan_result(&dev, 1);
                 wifi_scan_clear(&dev);
-                (void)wifi_scan_add_result(&dev, &keep);
+                (void) wifi_scan_add_result(&dev, &keep);
             }
             CHECK(wifi_get_scan_count(&dev) == 1 &&
-                  strcmp(wifi_get_scan_result(&dev, 0)->ssid, "ZXV-NET") == 0,
+                      strcmp(wifi_get_scan_result(&dev, 0)->ssid, "ZXV-NET") == 0,
                   "the table is back to just the AP we are about to join");
         }
 
@@ -1438,7 +1642,7 @@ int main(void) {
         CHECK(f->sup.pmk_valid, "the PMK was derived at connect time");
         {
             uint8_t want[32];
-            (void)wifi_wpa_pmk("correcthorse", "ZXV-NET", want);
+            (void) wifi_wpa_pmk("correcthorse", "ZXV-NET", want);
             CHECK(memcmp(f->sup.pmk, want, 32) == 0,
                   "...and it is exactly PBKDF2(passphrase, SSID, 4096, 32)");
         }
@@ -1447,9 +1651,10 @@ int main(void) {
 
         /* a deauth from somebody ELSE must not touch us */
         {
-            uint8_t evil[64], other[6] = {0xDE,0xAD,0,0,0,1};
+            uint8_t evil[64], other[6] = {0xDE, 0xAD, 0, 0, 0, 1};
             uint32_t en = mgmt_hdr(evil, WIFI_STYPE_DEAUTH, our_mac, other, other, 1);
-            put16le(evil + en, 3); en += 2;
+            put16le(evil + en, 3);
+            en += 2;
             CHECK(wifi_rx_mgmt(&dev, sta, evil, en, -55) == WIFI_EAGAIN,
                   "a deauth from a DIFFERENT BSSID is ignored");
             CHECK(f->state == WIFI_STATE_AUTHENTICATING, "...and our state is untouched");
@@ -1459,9 +1664,9 @@ int main(void) {
         {
             uint8_t resp[64];
             uint32_t rn = mgmt_hdr(resp, WIFI_STYPE_AUTH, our_mac, bssid, bssid, 1);
-            put16le(resp + rn, 0);      /* algorithm  */
-            put16le(resp + rn + 2, 2);  /* sequence 2 */
-            put16le(resp + rn + 4, 0);  /* status ok  */
+            put16le(resp + rn, 0);     /* algorithm  */
+            put16le(resp + rn + 2, 2); /* sequence 2 */
+            put16le(resp + rn + 4, 0); /* status ok  */
             rn += 6;
             CHECK(wifi_rx_mgmt(&dev, sta, resp, rn, -55) == WIFI_STYPE_AUTH,
                   "the authentication response is accepted");
@@ -1472,7 +1677,7 @@ int main(void) {
             CHECK(vr.tx[1][24] == 0x11 && vr.tx[1][25] == 0x00,
                   "capability info = ESS | Privacy (0x0011) for a WPA2 join");
             CHECK(vr.tx[1][28] == WIFI_EID_SSID && vr.tx[1][29] == 7 &&
-                  memcmp(vr.tx[1] + 30, "ZXV-NET", 7) == 0,
+                      memcmp(vr.tx[1] + 30, "ZXV-NET", 7) == 0,
                   "the SSID element carries \"ZXV-NET\" at the start of the body");
         }
 
@@ -1480,9 +1685,9 @@ int main(void) {
         {
             uint8_t resp[64];
             uint32_t rn = mgmt_hdr(resp, WIFI_STYPE_ASSOC_RESP, our_mac, bssid, bssid, 2);
-            put16le(resp + rn, 0x11);      /* capability */
-            put16le(resp + rn + 2, 0);     /* status ok  */
-            put16le(resp + rn + 4, 0xC001);/* AID        */
+            put16le(resp + rn, 0x11);       /* capability */
+            put16le(resp + rn + 2, 0);      /* status ok  */
+            put16le(resp + rn + 4, 0xC001); /* AID        */
             rn += 6;
             CHECK(wifi_rx_mgmt(&dev, sta, resp, rn, -55) == WIFI_STYPE_ASSOC_RESP,
                   "the association response is accepted");
@@ -1496,21 +1701,21 @@ int main(void) {
             uint8_t m1[256], reply[256];
             uint32_t rlen = 0;
             uint8_t ap_anonce[32];
-            for (int i = 0; i < 32; i++) ap_anonce[i] = (uint8_t)(0xE0 + i);
+            for (int i = 0; i < 32; i++) ap_anonce[i] = (uint8_t) (0xE0 + i);
 
-            uint32_t m1n = make_eapol(m1, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK),
-                                      100, ap_anonce, 0, 0, 0);
+            uint32_t m1n = make_eapol(m1, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 100,
+                                      ap_anonce, 0, 0, 0);
 
             /* (a) a backend with NO entropy source at all */
             {
                 wifi_ops_t no_rng = ops;
                 no_rng.get_random = 0;
-                (void)wifi_bind_ops(&dev, &no_rng);
-                CHECK(wifi_wpa_rx_eapol(&dev, sta, m1, m1n, reply, sizeof reply, &rlen)
-                          == WIFI_ENODEV,
+                (void) wifi_bind_ops(&dev, &no_rng);
+                CHECK(wifi_wpa_rx_eapol(&dev, sta, m1, m1n, reply, sizeof reply, &rlen) ==
+                          WIFI_ENODEV,
                       "M1 with NO entropy source is ENODEV — an SNonce is never invented");
                 CHECK(rlen == 0 && !f->sup.ptk_derived, "...and no key material was produced");
-                (void)wifi_bind_ops(&dev, &ops);
+                (void) wifi_bind_ops(&dev, &ops);
             }
             /* (b) an entropy source that is present but fails */
             vr.have_random = 0;
@@ -1528,12 +1733,13 @@ int main(void) {
             /* rebuild the same PTK independently and check M2's MIC with it */
             uint8_t my_pmk[32], my_snonce[32];
             wifi_ptk_t my_ptk;
-            (void)wifi_wpa_pmk("correcthorse", "ZXV-NET", my_pmk);
-            for (int i = 0; i < 32; i++) my_snonce[i] = (uint8_t)(0x40 + i);
+            (void) wifi_wpa_pmk("correcthorse", "ZXV-NET", my_pmk);
+            for (int i = 0; i < 32; i++) my_snonce[i] = (uint8_t) (0x40 + i);
             CHECK(memcmp(reply + 17, my_snonce, 32) == 0,
                   "M2 carries the SNonce the radio's RNG produced, at offset 17");
-            CHECK(wifi_wpa_derive_ptk(my_pmk, bssid, our_mac, ap_anonce, my_snonce, &my_ptk)
-                      == WIFI_OK, "an independent PTK derivation runs");
+            CHECK(wifi_wpa_derive_ptk(my_pmk, bssid, our_mac, ap_anonce, my_snonce, &my_ptk) ==
+                      WIFI_OK,
+                  "an independent PTK derivation runs");
             CHECK(memcmp(&my_ptk, &f->sup.ptk, sizeof my_ptk) == 0,
                   "...and matches the PTK the supplicant derived");
             CHECK(wifi_eapol_mic_verify(my_ptk.kck, reply, rlen, 2),
@@ -1545,13 +1751,13 @@ int main(void) {
             /* M3 with a WRONG MIC must be rejected */
             uint8_t m3[256];
             uint8_t bad_kck[16];
-            memcpy(bad_kck, my_ptk.kck, 16); bad_kck[0] ^= 0x01;
-            uint32_t m3n = make_eapol(m3, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC |
-                                                     WIFI_KI_ACK | WIFI_KI_SECURE |
-                                                     WIFI_KI_INSTALL),
+            memcpy(bad_kck, my_ptk.kck, 16);
+            bad_kck[0] ^= 0x01;
+            uint32_t m3n = make_eapol(m3,
+                                      (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_ACK |
+                                                  WIFI_KI_SECURE | WIFI_KI_INSTALL),
                                       101, ap_anonce, 0, 0, bad_kck);
-            CHECK(wifi_wpa_rx_eapol(&dev, sta, m3, m3n, reply, sizeof reply, &rlen)
-                      == WIFI_EAUTH,
+            CHECK(wifi_wpa_rx_eapol(&dev, sta, m3, m3n, reply, sizeof reply, &rlen) == WIFI_EAUTH,
                   "an M3 signed with the WRONG key is rejected with EAUTH");
             CHECK(f->state == WIFI_STATE_HANDSHAKING && !f->connected && !f->sup.ptk_valid,
                   "...and the interface did NOT become connected");
@@ -1559,34 +1765,39 @@ int main(void) {
             /* M3 with a valid MIC but a DIFFERENT ANonce (a splice attempt) */
             {
                 uint8_t other_nonce[32];
-                memcpy(other_nonce, ap_anonce, 32); other_nonce[0] ^= 0xFF;
-                uint32_t bn2 = make_eapol(m3, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC |
-                                                         WIFI_KI_ACK | WIFI_KI_SECURE),
-                                          101, other_nonce, 0, 0, my_ptk.kck);
-                CHECK(wifi_wpa_rx_eapol(&dev, sta, m3, bn2, reply, sizeof reply, &rlen)
-                          == WIFI_EAUTH,
+                memcpy(other_nonce, ap_anonce, 32);
+                other_nonce[0] ^= 0xFF;
+                uint32_t bn2 = make_eapol(
+                    m3,
+                    (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_ACK | WIFI_KI_SECURE),
+                    101, other_nonce, 0, 0, my_ptk.kck);
+                CHECK(wifi_wpa_rx_eapol(&dev, sta, m3, bn2, reply, sizeof reply, &rlen) ==
+                          WIFI_EAUTH,
                       "an M3 whose ANonce differs from M1's is rejected even with a good MIC");
             }
 
             /* a replayed counter is refused */
             {
-                uint32_t bn3 = make_eapol(m3, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC |
-                                                         WIFI_KI_ACK | WIFI_KI_SECURE),
-                                          100, ap_anonce, 0, 0, my_ptk.kck);
-                CHECK(wifi_wpa_rx_eapol(&dev, sta, m3, bn3, reply, sizeof reply, &rlen)
-                          == WIFI_EAUTH,
+                uint32_t bn3 = make_eapol(
+                    m3,
+                    (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_ACK | WIFI_KI_SECURE),
+                    100, ap_anonce, 0, 0, my_ptk.kck);
+                CHECK(wifi_wpa_rx_eapol(&dev, sta, m3, bn3, reply, sizeof reply, &rlen) ==
+                          WIFI_EAUTH,
                       "an M3 replaying M1's counter (100) is refused");
             }
 
             /* the real M3 */
-            m3n = make_eapol(m3, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC |
-                                            WIFI_KI_ACK | WIFI_KI_SECURE | WIFI_KI_INSTALL),
+            m3n = make_eapol(m3,
+                             (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_ACK |
+                                         WIFI_KI_SECURE | WIFI_KI_INSTALL),
                              101, ap_anonce, 0, 0, my_ptk.kck);
             CHECK(wifi_wpa_rx_eapol(&dev, sta, m3, m3n, reply, sizeof reply, &rlen) == 3,
                   "a correctly signed M3 is accepted");
             CHECK(rlen == 99, "the M4 reply is 99 bytes and carries no key data");
-            CHECK(reply[6] == (uint8_t)((2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_SECURE) & 0xFF)
-                  && (reply[5] & 0x03) == 0x03,
+            CHECK(reply[6] == (uint8_t) ((2 | WIFI_KI_PAIRWISE | WIFI_KI_MIC | WIFI_KI_SECURE) &
+                                         0xFF) &&
+                      (reply[5] & 0x03) == 0x03,
                   "M4's key info sets MIC and Secure (0x030A) and clears Ack");
             CHECK(wifi_eapol_mic_verify(my_ptk.kck, reply, rlen, 2), "M4's MIC verifies");
             CHECK(reply[16] == 101, "M4 echoes M3's replay counter");
@@ -1600,13 +1811,13 @@ int main(void) {
             /* version 3 (AES-CMAC) is refused outright */
             {
                 uint8_t v3[256];
-                uint32_t v3n = make_eapol(v3, (uint16_t)(3 | WIFI_KI_PAIRWISE | WIFI_KI_ACK),
-                                          200, ap_anonce, 0, 0, 0);
+                uint32_t v3n = make_eapol(v3, (uint16_t) (3 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 200,
+                                          ap_anonce, 0, 0, 0);
                 wifi_interface_t *fi = wifi_get_interface(&dev, sta);
                 wifi_assoc_state_t save = fi->state;
                 fi->state = WIFI_STATE_HANDSHAKING;
-                CHECK(wifi_wpa_rx_eapol(&dev, sta, v3, v3n, reply, sizeof reply, &rlen)
-                          == WIFI_ENOTSUP,
+                CHECK(wifi_wpa_rx_eapol(&dev, sta, v3, v3n, reply, sizeof reply, &rlen) ==
+                          WIFI_ENOTSUP,
                       "key descriptor version 3 (AES-CMAC) is refused, not faked");
                 fi->state = save;
             }
@@ -1618,7 +1829,7 @@ int main(void) {
 
         /* now break it, three ways */
         f->connected = true;
-        f->state = WIFI_STATE_IDLE;      /* claims a link while idle */
+        f->state = WIFI_STATE_IDLE; /* claims a link while idle */
         CHECK(!wifi_verify_coverage(&dev),
               "coverage FAILS when an interface claims connected while IDLE");
         CHECK(dev.coverage_r == 0.0, "...and r drops to 0.0");
@@ -1641,7 +1852,7 @@ int main(void) {
             CHECK(wifi_verify_coverage(&dev), "...and passes again when the SSID is back");
 
             uint32_t save_ch = f->channel;
-            f->channel = 15;                 /* not a channel in any band */
+            f->channel = 15; /* not a channel in any band */
             CHECK(!wifi_verify_coverage(&dev),
                   "coverage FAILS when a CONNECTED interface sits on channel 15, which "
                   "does not exist");
@@ -1655,7 +1866,7 @@ int main(void) {
             CHECK(wifi_verify_coverage(&dev), "...and passes again once it is up");
 
             uint8_t save_ps = f->power_save_level;
-            f->power_save_level = 7;         /* only 0..2 exist */
+            f->power_save_level = 7; /* only 0..2 exist */
             CHECK(!wifi_verify_coverage(&dev),
                   "coverage FAILS on an out-of-range power-save level");
             f->power_save_level = save_ps;
@@ -1668,13 +1879,13 @@ int main(void) {
             wifi_interface_t *xf = wifi_get_interface(&dev, extra);
             CHECK(extra == 2 && wifi_verify_coverage(&dev) && dev.coverage_r == 1.0,
                   "a second, idle-and-honest interface keeps r at 1.0");
-            xf->connected = true;            /* claims a link it does not hold */
+            xf->connected = true; /* claims a link it does not hold */
             CHECK(!wifi_verify_coverage(&dev) && dev.coverage_r == 0.5,
                   "one honest interface out of two puts r at exactly 0.5, and 0.5 fails");
             xf->connected = false;
             CHECK(wifi_verify_coverage(&dev) && dev.coverage_r == 1.0,
                   "and r returns to 1.0 when it stops claiming");
-            dev.num_ifaces = 1;              /* drop it again for what follows */
+            dev.num_ifaces = 1; /* drop it again for what follows */
             memset(xf, 0, sizeof *xf);
         }
         wifi_unbind_ops(&dev);
@@ -1688,9 +1899,9 @@ int main(void) {
         CHECK(f->state == WIFI_STATE_IDLE && !f->connected, "the interface is IDLE again");
         CHECK(f->ssid[0] == '\0' && wifi_bssid_is_zero(f->bssid), "the association is cleared");
         {
-            uint8_t zero32[32]; memset(zero32, 0, 32);
-            CHECK(memcmp(f->sup.pmk, zero32, 32) == 0 && !f->sup.pmk_valid &&
-                  !f->sup.ptk_valid,
+            uint8_t zero32[32];
+            memset(zero32, 0, 32);
+            CHECK(memcmp(f->sup.pmk, zero32, 32) == 0 && !f->sup.pmk_valid && !f->sup.ptk_valid,
                   "the PMK and PTK are wiped — key material does not outlive the association");
         }
         CHECK(wifi_disconnect(&dev, sta) == WIFI_ESTATE, "disconnecting twice is ESTATE");
@@ -1706,14 +1917,14 @@ int main(void) {
         wifi_init(&fd, "failpath");
         uint32_t fs = wifi_create_interface(&fd, "wlan0", WIFI_MODE_STATION);
         wifi_ops_t fops = vradio_ops_for(&fv);
-        (void)wifi_bind_ops(&fd, &fops);
+        (void) wifi_bind_ops(&fd, &fops);
         wifi_interface_t *fi = wifi_get_interface(&fd, fs);
-        uint8_t bssid[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
+        uint8_t bssid[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
         uint8_t bcn[512];
         uint32_t bn = make_beacon(bcn, bssid, "OpenNet", 1, SEC_OPEN, PHY_G);
         wifi_scan_result_t r;
-        (void)wifi_parse_beacon(bcn, bn, -55, 2412, &r);
-        (void)wifi_scan_add_result(&fd, &r);
+        (void) wifi_parse_beacon(bcn, bn, -55, 2412, &r);
+        (void) wifi_scan_add_result(&fd, &r);
 
         CHECK(wifi_connect(&fd, fs, "OpenNet", 0, WIFI_SEC_OPEN) == WIFI_OK,
               "an OPEN network connects with no password");
@@ -1721,7 +1932,9 @@ int main(void) {
 
         uint8_t resp[64];
         uint32_t rn = mgmt_hdr(resp, WIFI_STYPE_AUTH, fi->mac, bssid, bssid, 1);
-        put16le(resp + rn, 0); put16le(resp + rn + 2, 2); put16le(resp + rn + 4, 13);
+        put16le(resp + rn, 0);
+        put16le(resp + rn + 2, 2);
+        put16le(resp + rn + 4, 13);
         rn += 6;
         CHECK(wifi_rx_mgmt(&fd, fs, resp, rn, -55) == WIFI_EAUTH,
               "an authentication response with status 13 is a failure");
@@ -1734,36 +1947,45 @@ int main(void) {
         fd.irq_auth_failed = false;
         CHECK(wifi_connect(&fd, fs, "OpenNet", 0, WIFI_SEC_OPEN) == WIFI_OK, "retry connects");
         rn = mgmt_hdr(resp, WIFI_STYPE_AUTH, fi->mac, bssid, bssid, 1);
-        put16le(resp + rn, 0); put16le(resp + rn + 2, 2); put16le(resp + rn + 4, 0);
+        put16le(resp + rn, 0);
+        put16le(resp + rn + 2, 2);
+        put16le(resp + rn + 4, 0);
         rn += 6;
-        (void)wifi_rx_mgmt(&fd, fs, resp, rn, -55);
+        (void) wifi_rx_mgmt(&fd, fs, resp, rn, -55);
         rn = mgmt_hdr(resp, WIFI_STYPE_ASSOC_RESP, fi->mac, bssid, bssid, 2);
-        put16le(resp + rn, 0x01); put16le(resp + rn + 2, 17); put16le(resp + rn + 4, 0);
+        put16le(resp + rn, 0x01);
+        put16le(resp + rn + 2, 17);
+        put16le(resp + rn + 4, 0);
         rn += 6;
         CHECK(wifi_rx_mgmt(&fd, fs, resp, rn, -55) == WIFI_EAUTH,
               "association status 17 (AP full) is a failure");
         CHECK(fi->state == WIFI_STATE_FAILED, "...and the interface goes to FAILED");
 
         /* a clean OPEN join reaches CONNECTED without any handshake */
-        (void)wifi_state_set(&fd, fs, WIFI_STATE_IDLE);
+        (void) wifi_state_set(&fd, fs, WIFI_STATE_IDLE);
         fd.irq_auth_failed = false;
-        (void)wifi_connect(&fd, fs, "OpenNet", 0, WIFI_SEC_OPEN);
+        (void) wifi_connect(&fd, fs, "OpenNet", 0, WIFI_SEC_OPEN);
         rn = mgmt_hdr(resp, WIFI_STYPE_AUTH, fi->mac, bssid, bssid, 1);
-        put16le(resp + rn, 0); put16le(resp + rn + 2, 2); put16le(resp + rn + 4, 0);
+        put16le(resp + rn, 0);
+        put16le(resp + rn + 2, 2);
+        put16le(resp + rn + 4, 0);
         rn += 6;
-        (void)wifi_rx_mgmt(&fd, fs, resp, rn, -55);
+        (void) wifi_rx_mgmt(&fd, fs, resp, rn, -55);
         rn = mgmt_hdr(resp, WIFI_STYPE_ASSOC_RESP, fi->mac, bssid, bssid, 2);
-        put16le(resp + rn, 0x01); put16le(resp + rn + 2, 0); put16le(resp + rn + 4, 0xC001);
+        put16le(resp + rn, 0x01);
+        put16le(resp + rn + 2, 0);
+        put16le(resp + rn + 4, 0xC001);
         rn += 6;
         CHECK(wifi_rx_mgmt(&fd, fs, resp, rn, -55) == WIFI_STYPE_ASSOC_RESP &&
-              fi->state == WIFI_STATE_CONNECTED && fi->connected,
+                  fi->state == WIFI_STATE_CONNECTED && fi->connected,
               "an OPEN network reaches CONNECTED straight from ASSOCIATING");
 
         /* a deauth from the real BSSID does take us down */
         rn = mgmt_hdr(resp, WIFI_STYPE_DEAUTH, fi->mac, bssid, bssid, 3);
-        put16le(resp + rn, 3); rn += 2;
+        put16le(resp + rn, 3);
+        rn += 2;
         CHECK(wifi_rx_mgmt(&fd, fs, resp, rn, -55) == WIFI_STYPE_DEAUTH &&
-              fi->state == WIFI_STATE_IDLE && !fi->connected,
+                  fi->state == WIFI_STATE_IDLE && !fi->connected,
               "a deauth from our own BSSID does disconnect us");
         CHECK(fd.irq_disconnected, "the disconnected IRQ flag is raised");
     }
@@ -1784,15 +2006,15 @@ int main(void) {
               "starting an AP with no radio is ENODEV");
         CHECK(ai->state == WIFI_STATE_IDLE && !ai->connected,
               "...and the interface is not beaconing");
-        (void)wifi_bind_ops(&ad, &aops);
+        (void) wifi_bind_ops(&ad, &aops);
         CHECK(wifi_start_ap(&ad, ap, "MyAP", "short", 6) == WIFI_EINVAL,
               "a 5-character AP passphrase is refused");
         CHECK(wifi_start_ap(&ad, ap, "MyAP", "hunter22", 15) == WIFI_EINVAL,
               "channel 15 is refused");
         CHECK(wifi_start_ap(&ad, ap, "", "hunter22", 6) == WIFI_EINVAL,
               "an empty AP SSID is refused");
-        CHECK(wifi_start_ap(&ad, ap, "MyAP", "hunter22", 6) == WIFI_OK &&
-              av.ap_start_calls == 1, "the AP starts and the backend was called once");
+        CHECK(wifi_start_ap(&ad, ap, "MyAP", "hunter22", 6) == WIFI_OK && av.ap_start_calls == 1,
+              "the AP starts and the backend was called once");
         CHECK(ai->state == WIFI_STATE_BEACONING && ai->connected && ai->up,
               "the interface is BEACONING");
         CHECK(memcmp(ai->bssid, ai->mac, 6) == 0, "an AP's BSSID is its own MAC address");
@@ -1811,7 +2033,7 @@ int main(void) {
         CHECK(bcn[34] == 0x11 && bcn[35] == 0x00, "capability = ESS | Privacy for a secured AP");
         {
             wifi_scan_result_t br;
-            CHECK(wifi_parse_beacon(bcn, (uint32_t)bl, -30, 2437, &br) == WIFI_OK,
+            CHECK(wifi_parse_beacon(bcn, (uint32_t) bl, -30, 2437, &br) == WIFI_OK,
                   "our own beacon parses");
             CHECK(strcmp(br.ssid, "MyAP") == 0 && br.channel == 6,
                   "...back to SSID \"MyAP\" on channel 6");
@@ -1839,7 +2061,7 @@ int main(void) {
         wifi_init(&td, "txdev");
         uint32_t ts = wifi_create_interface(&td, "wlan0", WIFI_MODE_STATION);
         wifi_ops_t tops = vradio_ops_for(&tv);
-        (void)wifi_bind_ops(&td, &tops);
+        (void) wifi_bind_ops(&td, &tops);
         wifi_interface_t *ti = wifi_get_interface(&td, ts);
 
         uint8_t payload[100];
@@ -1858,7 +2080,8 @@ int main(void) {
         tv.tx_fail = 0;
 
         CHECK(wifi_tx_enqueue(&td, payload, 50) == WIFI_OK &&
-              wifi_tx_enqueue(&td, payload, 60) == WIFI_OK, "two frames queue up");
+                  wifi_tx_enqueue(&td, payload, 60) == WIFI_OK,
+              "two frames queue up");
         CHECK(ti->tx_packets == 1, "...without counting as transmits");
         CHECK(wifi_tx_flush(&td, ts) == 2, "flush reports 2 frames sent");
         CHECK(tv.tx_count == 3 && tv.tx_len[1] == 50 && tv.tx_len[2] == 60,
@@ -1883,19 +2106,24 @@ int main(void) {
             /* the refused frame was consumed from the ring; queue two more */
             uint32_t txc0 = tv.tx_count;
             CHECK(wifi_tx_enqueue(&td, payload, 71) == WIFI_OK &&
-                  wifi_tx_enqueue(&td, payload, 72) == WIFI_OK, "two more queue up");
-            tv.tx_count = VR_TX_SLOTS - 1;      /* the radio has room for one */
-            p0 = ti->tx_packets; b0 = ti->tx_bytes; d0 = ti->tx_dropped;
+                      wifi_tx_enqueue(&td, payload, 72) == WIFI_OK,
+                  "two more queue up");
+            tv.tx_count = VR_TX_SLOTS - 1; /* the radio has room for one */
+            p0 = ti->tx_packets;
+            b0 = ti->tx_bytes;
+            d0 = ti->tx_dropped;
             CHECK(wifi_tx_flush(&td, ts) == 1,
                   "a flush that sends one frame and is then refused reports 1, not 2");
             CHECK(ti->tx_packets == p0 + 1 && ti->tx_bytes == b0 + 71,
                   "...and counted exactly the 71 bytes that really left");
             CHECK(ti->tx_dropped == d0 + 1, "...with the refused frame counted as a drop");
-            tv.tx_count = txc0;                  /* restore the log for later checks */
+            tv.tx_count = txc0; /* restore the log for later checks */
         }
 
         /* rx straight from the backend */
-        memset(tv.rx[0], 0x5E, 40); tv.rx_len[0] = 40; tv.rx_head = 1;
+        memset(tv.rx[0], 0x5E, 40);
+        tv.rx_len[0] = 40;
+        tv.rx_head = 1;
         uint8_t got[100];
         CHECK(wifi_rx_packet(&td, ts, got, sizeof got) == 40 && got[0] == 0x5E,
               "rx_packet pulls a 40-byte frame straight from the radio");
@@ -1904,8 +2132,12 @@ int main(void) {
               "an empty radio reports EAGAIN, not a stale frame");
 
         /* the IRQ drain path */
-        for (int i = 0; i < 3; i++) { memset(tv.rx[i], (uint8_t)(0x10 + i), 64); tv.rx_len[i] = 64; }
-        tv.rx_tail = 0; tv.rx_head = 3;
+        for (int i = 0; i < 3; i++) {
+            memset(tv.rx[i], (uint8_t) (0x10 + i), 64);
+            tv.rx_len[i] = 64;
+        }
+        tv.rx_tail = 0;
+        tv.rx_head = 3;
         td.irq_rx_ready = true;
         wifi_handle_irq(&td);
         CHECK(wifi_rx_pending(&td) == 3 * 66, "the IRQ drained 3 frames into the rx ring");
@@ -1924,8 +2156,7 @@ int main(void) {
             wifi_handle_irq(&td);
             CHECK(ti->rx_dropped == drops0 + 1,
                   "an rx_poll failure during the IRQ drain is counted as a drop");
-            CHECK(ti->rx_packets == pkts0,
-                  "...and is NOT counted as an arrival — nothing arrived");
+            CHECK(ti->rx_packets == pkts0, "...and is NOT counted as an arrival — nothing arrived");
             tv.rx_fail = 0;
         }
         {
@@ -1947,8 +2178,12 @@ int main(void) {
                   "the rx ring is now too full for another 64-byte frame");
             uint64_t drops0 = ti->rx_dropped, pkts0 = ti->rx_packets;
             uint32_t pend0 = wifi_rx_pending(&td);
-            for (int i = 0; i < 2; i++) { memset(tv.rx[i], 0x99, 64); tv.rx_len[i] = 64; }
-            tv.rx_tail = 0; tv.rx_head = 2;
+            for (int i = 0; i < 2; i++) {
+                memset(tv.rx[i], 0x99, 64);
+                tv.rx_len[i] = 64;
+            }
+            tv.rx_tail = 0;
+            tv.rx_head = 2;
             td.irq_rx_ready = true;
             wifi_handle_irq(&td);
             CHECK(ti->rx_dropped == drops0 + 1,
@@ -1957,7 +2192,8 @@ int main(void) {
                   "...and neither the arrival count nor the ring moved for it");
             /* drain the ring again for the checks that follow */
             uint8_t sink[1200];
-            for (int g = 0; g < 256 && wifi_rx_packet(&td, ts, sink, sizeof sink) > 0; g++) { }
+            for (int g = 0; g < 256 && wifi_rx_packet(&td, ts, sink, sizeof sink) > 0; g++) {
+            }
             tv.rx_tail = tv.rx_head;
         }
         {
@@ -1969,9 +2205,11 @@ int main(void) {
             memset(&nv, 0, sizeof nv);
             wifi_init(&nd, "no-ifaces");
             wifi_ops_t nops = vradio_ops_for(&nv);
-            (void)wifi_bind_ops(&nd, &nops);
-            memset(nv.rx[0], 0xAB, 64); nv.rx_len[0] = 64;
-            nv.rx_tail = 0; nv.rx_head = 1;
+            (void) wifi_bind_ops(&nd, &nops);
+            memset(nv.rx[0], 0xAB, 64);
+            nv.rx_len[0] = 64;
+            nv.rx_tail = 0;
+            nv.rx_head = 1;
             nd.irq_rx_ready = true;
             wifi_handle_irq(&nd);
             CHECK(nv.rx_tail == 0,
@@ -1981,25 +2219,25 @@ int main(void) {
         }
 
         td.irq_auth_failed = true;
-        (void)wifi_state_set(&td, ts, WIFI_STATE_AUTHENTICATING);
+        (void) wifi_state_set(&td, ts, WIFI_STATE_AUTHENTICATING);
         wifi_handle_irq(&td);
         CHECK(ti->state == WIFI_STATE_FAILED && !td.irq_auth_failed,
               "an auth-failed IRQ moves a mid-association interface to FAILED and clears itself");
 
-        CHECK(wifi_set_power_save(&td, ts, 2) == WIFI_OK && tv.ps_calls == 1 &&
-              tv.last_ps == 2 && ti->power_save_level == 2,
+        CHECK(wifi_set_power_save(&td, ts, 2) == WIFI_OK && tv.ps_calls == 1 && tv.last_ps == 2 &&
+                  ti->power_save_level == 2,
               "power save level 2 reaches the radio and is recorded");
-        CHECK(wifi_set_channel(&td, ts, 11) == WIFI_OK && tv.last_freq == 2462 &&
-              ti->channel == 11, "set_channel 11 tunes the radio to 2462 MHz");
+        CHECK(wifi_set_channel(&td, ts, 11) == WIFI_OK && tv.last_freq == 2462 && ti->channel == 11,
+              "set_channel 11 tunes the radio to 2462 MHz");
         CHECK(wifi_set_freq(&td, ts, 5745) == WIFI_OK && ti->channel == 149 &&
-              ti->band == WIFI_BAND_5GHZ,
+                  ti->band == WIFI_BAND_5GHZ,
               "set_freq 5745 MHz selects 5 GHz channel 149");
         CHECK(wifi_set_freq(&td, ts, 5747) == WIFI_EINVAL, "5747 MHz is not a channel");
 
         /* TX power: the ops member exists, so it must actually be driven. */
         CHECK(td.reg_tx_power == 0, "TX power starts unset");
-        CHECK(wifi_set_tx_power(&td, ts, 20) == WIFI_OK && tv.txp_calls == 1 &&
-              tv.last_dbm == 20 && td.reg_tx_power == 20,
+        CHECK(wifi_set_tx_power(&td, ts, 20) == WIFI_OK && tv.txp_calls == 1 && tv.last_dbm == 20 &&
+                  td.reg_tx_power == 20,
               "set_tx_power 20 dBm reaches the radio and is recorded");
         CHECK(wifi_set_tx_power(&td, ts, 31) == WIFI_EINVAL,
               "31 dBm is above the 30 dBm ceiling and is refused");
@@ -2007,7 +2245,7 @@ int main(void) {
               "255 dBm is not a transmit power, it is a typo");
         CHECK(tv.txp_calls == 1 && td.reg_tx_power == 20,
               "...and neither refusal reached the radio or moved the register");
-        td.max_tx_power = 23;      /* a driver reporting what the radio can do */
+        td.max_tx_power = 23; /* a driver reporting what the radio can do */
         CHECK(wifi_set_tx_power(&td, ts, 24) == WIFI_EINVAL,
               "asking for 24 dBm from a radio that tops out at 23 is refused");
         CHECK(wifi_set_tx_power(&td, ts, 23) == WIFI_OK && td.reg_tx_power == 23,
@@ -2032,7 +2270,7 @@ int main(void) {
             CHECK(wifi_set_tx_power(&nd2, n2, 99) == WIFI_EINVAL,
                   "...while a bad power is still EINVAL without a radio (args first)");
         }
-        {   /* an ops struct with no set_tx_power is not a power-capable radio */
+        { /* an ops struct with no set_tx_power is not a power-capable radio */
             wifi_device_t nd3;
             static vradio_t nv3;
             memset(&nv3, 0, sizeof nv3);
@@ -2040,7 +2278,7 @@ int main(void) {
             uint32_t n3 = wifi_create_interface(&nd3, "w", WIFI_MODE_STATION);
             wifi_ops_t partial = vradio_ops_for(&nv3);
             partial.set_tx_power = 0;
-            (void)wifi_bind_ops(&nd3, &partial);
+            (void) wifi_bind_ops(&nd3, &partial);
             CHECK(wifi_set_tx_power(&nd3, n3, 15) == WIFI_ENODEV,
                   "a bound radio with no set_tx_power entry point is ENODEV, not a "
                   "silent success");
@@ -2048,12 +2286,13 @@ int main(void) {
         }
 
         /* MAC adoption from the backend */
-        tv.have_mac = 1; tv.mac_base = 0x77;
+        tv.have_mac = 1;
+        tv.mac_base = 0x77;
         CHECK(wifi_bind_ops(&td, &tops) == WIFI_OK && !ti->mac_is_placeholder &&
-              ti->mac[0] == 0x00 && ti->mac[4] == 0x77,
+                  ti->mac[0] == 0x00 && ti->mac[4] == 0x77,
               "rebinding a backend that knows the real MAC replaces the placeholder");
         {
-            uint8_t mc[6] = {0x01,0,0,0,0,1};
+            uint8_t mc[6] = {0x01, 0, 0, 0, 0, 1};
             CHECK(wifi_set_mac(&td, ts, mc) == WIFI_EINVAL,
                   "a multicast address is refused as a station MAC");
         }
@@ -2069,7 +2308,7 @@ int main(void) {
         wifi_init(&wd, "wpastart");
         uint32_t ws = wifi_create_interface(&wd, "wlan0", WIFI_MODE_STATION);
         wifi_ops_t wops = vradio_ops_for(&wv);
-        (void)wifi_bind_ops(&wd, &wops);
+        (void) wifi_bind_ops(&wd, &wops);
         wifi_interface_t *wi = wifi_get_interface(&wd, ws);
 
         CHECK(wifi_wpa_start(&wd, ws, "correcthorse") == WIFI_ESTATE,
@@ -2093,17 +2332,16 @@ int main(void) {
         CHECK(wi->sup.pmk_valid, "...and the PMK is now valid");
         {
             uint8_t want[32];
-            (void)wifi_wpa_pmk("correcthorse", "ZXV-NET", want);
+            (void) wifi_wpa_pmk("correcthorse", "ZXV-NET", want);
             CHECK(memcmp(wi->sup.pmk, want, 32) == 0,
                   "...and equals PBKDF2(passphrase, SSID, 4096, 32) exactly — the same "
                   "value wifi_connect() would have derived");
             uint8_t other[32];
-            (void)wifi_wpa_pmk("correcthorse", "OtherNet", other);
+            (void) wifi_wpa_pmk("correcthorse", "OtherNet", other);
             CHECK(memcmp(wi->sup.pmk, other, 32) != 0,
                   "...and the SSID really is the salt: a different SSID gives a different PMK");
         }
-        CHECK(memcmp(wi->sup.aa, wi->bssid, 6) == 0 &&
-              memcmp(wi->sup.spa, wi->mac, 6) == 0,
+        CHECK(memcmp(wi->sup.aa, wi->bssid, 6) == 0 && memcmp(wi->sup.spa, wi->mac, 6) == 0,
               "the authenticator and supplicant addresses are taken from the interface");
         CHECK(!wi->sup.ptk_derived && !wi->sup.ptk_valid && !wi->sup.snonce_valid,
               "a PMK is not a PTK: nothing is derived or installed until M1 arrives");
@@ -2111,7 +2349,7 @@ int main(void) {
         /* the explicit-SNonce seam, so a handshake can run with no RNG */
         {
             uint8_t fixed[32];
-            for (int i = 0; i < 32; i++) fixed[i] = (uint8_t)(0x90 + i);
+            for (int i = 0; i < 32; i++) fixed[i] = (uint8_t) (0x90 + i);
             CHECK(wifi_wpa_set_snonce(&wd, ws, fixed) == WIFI_OK && wi->sup.snonce_valid,
                   "wifi_wpa_set_snonce fixes the SNonce explicitly");
             CHECK(memcmp(wi->sup.snonce, fixed, 32) == 0, "...to exactly the bytes given");
@@ -2123,23 +2361,23 @@ int main(void) {
         {
             wifi_ops_t no_rng = wops;
             no_rng.get_random = 0;
-            (void)wifi_bind_ops(&wd, &no_rng);
+            (void) wifi_bind_ops(&wd, &no_rng);
             wi->state = WIFI_STATE_HANDSHAKING;
             uint8_t m1[160], reply[160];
             uint32_t rl = 0;
             uint8_t an[32];
-            for (int i = 0; i < 32; i++) an[i] = (uint8_t)(0x20 + i);
-            uint32_t m1n = make_eapol(m1, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK),
-                                      5, an, 0, 0, 0);
+            for (int i = 0; i < 32; i++) an[i] = (uint8_t) (0x20 + i);
+            uint32_t m1n =
+                make_eapol(m1, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 5, an, 0, 0, 0);
             CHECK(wifi_wpa_rx_eapol(&wd, ws, m1, m1n, reply, sizeof reply, &rl) == 1,
                   "M1 is answered with NO entropy source, because the SNonce was supplied");
             CHECK(rl == 121 && memcmp(reply + 17, wi->sup.snonce, 32) == 0,
                   "...and M2 carries exactly that SNonce");
             uint8_t ptk_want[48];
             wifi_ptk_t pw;
-            (void)wifi_wpa_derive_ptk(wi->sup.pmk, wi->sup.aa, wi->sup.spa,
-                                      an, wi->sup.snonce, &pw);
-            (void)ptk_want;
+            (void) wifi_wpa_derive_ptk(wi->sup.pmk, wi->sup.aa, wi->sup.spa, an, wi->sup.snonce,
+                                       &pw);
+            (void) ptk_want;
             CHECK(memcmp(&pw, &wi->sup.ptk, sizeof pw) == 0,
                   "...and the PTK matches an independent derivation from the same inputs");
         }
@@ -2160,7 +2398,7 @@ int main(void) {
         wifi_init(&hd, "hostile");
         uint32_t hs = wifi_create_interface(&hd, "wlan0", WIFI_MODE_STATION);
         wifi_ops_t hops = vradio_ops_for(&hv);
-        (void)wifi_bind_ops(&hd, &hops);
+        (void) wifi_bind_ops(&hd, &hops);
 
         rng_state = 0x5EEDu;
         unsigned long parsed = 0;
@@ -2170,29 +2408,30 @@ int main(void) {
 
         for (int round = 0; round < 60000; round++) {
             uint32_t len = rnd() % 260;
-            uint8_t *b = (uint8_t *)malloc(len ? len : 1);
-            for (uint32_t i = 0; i < len; i++) b[i] = (uint8_t)rnd();
-            if (len >= 24 && (round & 1)) {          /* plausible mgmt shape */
-                b[0] = (uint8_t)((rnd() % 16) << 4);
-                b[1] = (uint8_t)(rnd() & 0x7F);
+            uint8_t *b = (uint8_t *) malloc(len ? len : 1);
+            for (uint32_t i = 0; i < len; i++) b[i] = (uint8_t) rnd();
+            if (len >= 24 && (round & 1)) { /* plausible mgmt shape */
+                b[0] = (uint8_t) ((rnd() % 16) << 4);
+                b[1] = (uint8_t) (rnd() & 0x7F);
             }
             wifi_mac_hdr_t hh;
             wifi_scan_result_t rr;
             wifi_eapol_key_t kk;
             const uint8_t *vv = 0;
-            uint8_t reply[160]; uint32_t rl = 0;
+            uint8_t reply[160];
+            uint32_t rl = 0;
 
-            (void)wifi_mac_hdr_parse(b, len, &hh);
-            (void)wifi_parse_beacon(b, len, -50, (round & 2) ? 2437u : 0u, &rr);
-            (void)wifi_find_ie(b, len, (uint8_t)(rnd() & 0xFF), &vv);
-            (void)wifi_eapol_key_parse(b, len, &kk);
-            (void)wifi_rx_mgmt(&hd, hs, b, len, -60);
-            (void)wifi_wpa_rx_eapol(&hd, hs, b, len, reply, sizeof reply, &rl);
+            (void) wifi_mac_hdr_parse(b, len, &hh);
+            (void) wifi_parse_beacon(b, len, -50, (round & 2) ? 2437u : 0u, &rr);
+            (void) wifi_find_ie(b, len, (uint8_t) (rnd() & 0xFF), &vv);
+            (void) wifi_eapol_key_parse(b, len, &kk);
+            (void) wifi_rx_mgmt(&hd, hs, b, len, -60);
+            (void) wifi_wpa_rx_eapol(&hd, hs, b, len, reply, sizeof reply, &rl);
             if (len >= 99) {
                 uint8_t kck[16], mic[16];
                 memset(kck, 0x11, 16);
-                (void)wifi_eapol_mic(kck, b, len, 2, mic);
-                (void)wifi_eapol_mic_verify(kck, b, len, 2);
+                (void) wifi_eapol_mic(kck, b, len, 2, mic);
+                (void) wifi_eapol_mic_verify(kck, b, len, 2);
             }
             free(b);
             parsed++;
@@ -2202,26 +2441,26 @@ int main(void) {
          * well-formed beacon. A parser that trusts an element length only
          * shows it when the length is the byte that was corrupted. */
         {
-            uint8_t bssid[6] = {0x00,0x11,0x22,0x33,0x44,0x55};
+            uint8_t bssid[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
             uint8_t good[512];
             uint32_t gn = make_beacon(good, bssid, "ZXV-NET", 6, SEC_WPA2, PHY_AX);
             for (uint32_t t = 0; t <= gn; t++) {
-                uint8_t *c = (uint8_t *)malloc(t ? t : 1);
+                uint8_t *c = (uint8_t *) malloc(t ? t : 1);
                 memcpy(c, good, t);
                 wifi_scan_result_t rr;
                 const uint8_t *vv = 0;
-                (void)wifi_parse_beacon(c, t, -40, 2437, &rr);
-                (void)wifi_find_ie(c, t, WIFI_EID_SSID, &vv);
+                (void) wifi_parse_beacon(c, t, -40, 2437, &rr);
+                (void) wifi_find_ie(c, t, WIFI_EID_SSID, &vv);
                 free(c);
                 parsed++;
             }
             for (uint32_t i = 0; i < gn; i++)
                 for (int bit = 0; bit < 8; bit++) {
-                    uint8_t *c = (uint8_t *)malloc(gn);
+                    uint8_t *c = (uint8_t *) malloc(gn);
                     memcpy(c, good, gn);
-                    c[i] ^= (uint8_t)(1u << bit);
+                    c[i] ^= (uint8_t) (1u << bit);
                     wifi_scan_result_t rr;
-                    memset(&rr, 0xCC, sizeof rr);   /* poison, so "untouched" shows */
+                    memset(&rr, 0xCC, sizeof rr); /* poison, so "untouched" shows */
                     if (wifi_parse_beacon(c, gn, -40, 2437, &rr) == WIFI_OK) {
                         bcn_ok++;
                         /* Whatever it ACCEPTED must satisfy the invariants the
@@ -2229,12 +2468,11 @@ int main(void) {
                         if (strnlen(rr.ssid, sizeof rr.ssid) > 32) broke_invariant = 1;
                         if (!rr.hidden && rr.ssid[0] == '\0') broke_invariant = 1;
                         if (rr.hidden && rr.ssid[0] != '\0') broke_invariant = 1;
-                        if ((int)rr.security < 0 || rr.security > WIFI_SEC_WPA2_WPA3)
+                        if ((int) rr.security < 0 || rr.security > WIFI_SEC_WPA2_WPA3)
                             broke_invariant = 1;
-                        if ((int)rr.standard < 0 || rr.standard > WIFI_802_11BE)
+                        if ((int) rr.standard < 0 || rr.standard > WIFI_802_11BE)
                             broke_invariant = 1;
-                        if ((int)rr.band < 0 || rr.band > WIFI_BAND_TRI)
-                            broke_invariant = 1;
+                        if ((int) rr.band < 0 || rr.band > WIFI_BAND_TRI) broke_invariant = 1;
                         if (rr.rssi != -40) broke_invariant = 1;
                     } else {
                         bcn_refused++;
@@ -2250,27 +2488,28 @@ int main(void) {
             uint8_t kd[22];
             uint8_t e[160];
             memset(kd, 0x5A, sizeof kd);
-            uint32_t en = make_eapol(e, (uint16_t)(2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK),
-                                     42, anonce, kd, 22, 0);
+            uint32_t en = make_eapol(e, (uint16_t) (2 | WIFI_KI_PAIRWISE | WIFI_KI_ACK), 42, anonce,
+                                     kd, 22, 0);
             for (uint32_t t = 0; t <= en; t++) {
-                uint8_t *c = (uint8_t *)malloc(t ? t : 1);
+                uint8_t *c = (uint8_t *) malloc(t ? t : 1);
                 memcpy(c, e, t);
                 wifi_eapol_key_t kk;
                 uint8_t kck[16], mic[16];
                 memset(kck, 0x22, 16);
-                (void)wifi_eapol_key_parse(c, t, &kk);
-                (void)wifi_eapol_mic(kck, c, t, 2, mic);
-                (void)wifi_eapol_mic_verify(kck, c, t, 2);
+                (void) wifi_eapol_key_parse(c, t, &kk);
+                (void) wifi_eapol_mic(kck, c, t, 2, mic);
+                (void) wifi_eapol_mic_verify(kck, c, t, 2);
                 free(c);
                 parsed++;
             }
             for (uint32_t i = 0; i < en; i++)
                 for (int bit = 0; bit < 8; bit++) {
-                    uint8_t *c = (uint8_t *)malloc(en);
+                    uint8_t *c = (uint8_t *) malloc(en);
                     memcpy(c, e, en);
-                    c[i] ^= (uint8_t)(1u << bit);
+                    c[i] ^= (uint8_t) (1u << bit);
                     wifi_eapol_key_t kk;
-                    uint8_t reply[160]; uint32_t rl = 0;
+                    uint8_t reply[160];
+                    uint32_t rl = 0;
                     memset(&kk, 0xCC, sizeof kk);
                     if (wifi_eapol_key_parse(c, en, &kk) == WIFI_OK) {
                         eap_ok++;
@@ -2283,7 +2522,7 @@ int main(void) {
                     } else {
                         eap_refused++;
                     }
-                    (void)wifi_wpa_rx_eapol(&hd, hs, c, en, reply, sizeof reply, &rl);
+                    (void) wifi_wpa_rx_eapol(&hd, hs, c, en, reply, sizeof reply, &rl);
                     free(c);
                     parsed++;
                 }
@@ -2291,7 +2530,8 @@ int main(void) {
 
         printf("       %lu malformed/truncated inputs through every parser\n", parsed);
         printf("       corrupted beacons: %lu accepted / %lu refused;"
-               " EAPOL: %lu / %lu\n", bcn_ok, bcn_refused, eap_ok, eap_refused);
+               " EAPOL: %lu / %lu\n",
+               bcn_ok, bcn_refused, eap_ok, eap_refused);
         CHECK(parsed > 61000, "the hostile-input pass really ran");
         CHECK(!broke_invariant,
               "every input the parsers ACCEPTED satisfies the invariants the header promises "
@@ -2300,8 +2540,7 @@ int main(void) {
         CHECK(bcn_ok > 0 && bcn_refused > 0,
               "single-bit corruption of a beacon produces BOTH acceptances and refusals — "
               "the parser is discriminating, not blanket-accepting or blanket-rejecting");
-        CHECK(eap_ok > 0 && eap_refused > 0,
-              "...and the same holds for EAPOL-Key frames");
+        CHECK(eap_ok > 0 && eap_refused > 0, "...and the same holds for EAPOL-Key frames");
         CHECK(wifi_get_scan_count(&hd) <= WIFI_MAX_SCAN_RESULTS,
               "the scan table never exceeds its bound, however much garbage it was fed");
     }
@@ -2327,19 +2566,17 @@ int main(void) {
              * Ask a device with room to spare. */
             wifi_device_t md;
             wifi_init(&md, "modes-empty");
-            CHECK(md.num_ifaces == 0 && !md.supports_mesh && !md.supports_monitor &&
-                  md.supports_ap,
+            CHECK(md.num_ifaces == 0 && !md.supports_mesh && !md.supports_monitor && md.supports_ap,
                   "a fresh device has room, cannot mesh or monitor, and can be an AP");
             CHECK(wifi_create_interface(&md, "m", WIFI_MODE_MESH) == 0,
                   "mesh mode is refused on an EMPTY device: supports_mesh is false and is "
                   "not pretended");
             CHECK(wifi_create_interface(&md, "mon", WIFI_MODE_MONITOR) == 0,
                   "monitor mode is refused the same way");
-            CHECK(md.num_ifaces == 0,
-                  "...and neither refusal consumed an interface slot");
+            CHECK(md.num_ifaces == 0, "...and neither refusal consumed an interface slot");
             CHECK(wifi_create_interface(&md, "ap0", WIFI_MODE_AP) == 1,
                   "while AP mode, which IS supported, is granted on the same device");
-            CHECK(wifi_create_interface(&md, "x", (wifi_mode_t)99) == 0,
+            CHECK(wifi_create_interface(&md, "x", (wifi_mode_t) 99) == 0,
                   "a mode outside the enum is refused rather than stored");
             CHECK(md.num_ifaces == 1, "the table holds exactly the one interface granted");
         }
@@ -2354,13 +2591,11 @@ int main(void) {
             const uint8_t *m1 = wifi_get_interface(&pd, p1)->mac;
             const uint8_t *m2 = wifi_get_interface(&pd, p2)->mac;
             const uint8_t *m3 = wifi_get_interface(&pd, p3)->mac;
-            CHECK(memcmp(m1, m2, 6) != 0 && memcmp(m2, m3, 6) != 0 &&
-                  memcmp(m1, m3, 6) != 0,
+            CHECK(memcmp(m1, m2, 6) != 0 && memcmp(m2, m3, 6) != 0 && memcmp(m1, m3, 6) != 0,
                   "three placeholder MACs on one device are three DIFFERENT addresses");
-            CHECK((m1[0] & 0x03) == 0x02 && (m2[0] & 0x03) == 0x02 &&
-                  (m3[0] & 0x03) == 0x02,
+            CHECK((m1[0] & 0x03) == 0x02 && (m2[0] & 0x03) == 0x02 && (m3[0] & 0x03) == 0x02,
                   "...each locally administered (0x02) and unicast (not 0x01)");
-            {   /* deterministic across devices of the same name... */
+            { /* deterministic across devices of the same name... */
                 wifi_device_t pd2;
                 wifi_init(&pd2, "placeholders");
                 uint32_t q1 = wifi_create_interface(&pd2, "a", WIFI_MODE_STATION);
@@ -2385,7 +2620,7 @@ int main(void) {
         CHECK(!wifi_verify_coverage(0), "coverage of a NULL device is false, not a crash");
     }
 
-    printf("\n%s: %d check(s), %d failure(s)\n",
-           failures ? "*** FAILED ***" : "ALL PASS", checks, failures);
+    printf("\n%s: %d check(s), %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", checks,
+           failures);
     return failures ? 1 : 0;
 }

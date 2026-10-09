@@ -15,33 +15,51 @@
 
 static int failures = 0;
 static int checks = 0;
-#define CHECK(c,m) do{ checks++; if(!(c)){printf("[FAIL] %s\n",(m));failures++;} \
-    else printf("[PASS] %s\n",(m)); }while(0)
+#define CHECK(c, m)                                                                                \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(c)) {                                                                                \
+            printf("[FAIL] %s\n", (m));                                                            \
+            failures++;                                                                            \
+        } else                                                                                     \
+            printf("[PASS] %s\n", (m));                                                            \
+    } while (0)
 
 /* ================= mock TTS engine =================
  * Deterministic stub: emits ONE sample per phoneme, value = phoneme*100. This
  * is not audio; it is a known pattern that PROVES the on-device text->phoneme
  * run reached the engine intact and in order. */
-static int mock_synth(const uint8_t *ph, uint32_t n, int16_t *pcm, uint32_t cap,
-                      uint32_t *out_len, void *ctx) {
-    (void)ctx;
+static int mock_synth(const uint8_t *ph, uint32_t n, int16_t *pcm, uint32_t cap, uint32_t *out_len,
+                      void *ctx)
+{
+    (void) ctx;
     uint32_t w = 0;
-    for (uint32_t i = 0; i < n && w < cap; i++) pcm[w++] = (int16_t)(ph[i] * 100);
+    for (uint32_t i = 0; i < n && w < cap; i++) pcm[w++] = (int16_t) (ph[i] * 100);
     *out_len = w;
     return 0;
 }
 /* A synth that always refuses, to exercise VOICE_ERR_ENGINE. */
-static int failing_synth(const uint8_t *ph, uint32_t n, int16_t *pcm,
-                         uint32_t cap, uint32_t *out_len, void *ctx) {
-    (void)ph; (void)n; (void)pcm; (void)cap; (void)out_len; (void)ctx;
+static int failing_synth(const uint8_t *ph, uint32_t n, int16_t *pcm, uint32_t cap,
+                         uint32_t *out_len, void *ctx)
+{
+    (void) ph;
+    (void) n;
+    (void) pcm;
+    (void) cap;
+    (void) out_len;
+    (void) ctx;
     return -1;
 }
 /* A HOSTILE synth that lies: reports got = cap + 1000 without writing that far.
  * voice_speak must clamp its reported length to cap (never trust the boundary). */
-static int lying_synth(const uint8_t *ph, uint32_t n, int16_t *pcm,
-                       uint32_t cap, uint32_t *out_len, void *ctx) {
-    (void)ph; (void)n; (void)pcm; (void)ctx;
-    *out_len = cap + 1000u;   /* a lie: claims more than the buffer holds */
+static int lying_synth(const uint8_t *ph, uint32_t n, int16_t *pcm, uint32_t cap, uint32_t *out_len,
+                       void *ctx)
+{
+    (void) ph;
+    (void) n;
+    (void) pcm;
+    (void) ctx;
+    *out_len = cap + 1000u; /* a lie: claims more than the buffer holds */
     return 0;
 }
 
@@ -49,10 +67,13 @@ static int lying_synth(const uint8_t *ph, uint32_t n, int16_t *pcm,
  * Returns a fixed phoneme run {PH_K, PH_AE, PH_T}, ignoring the PCM entirely.
  * That is exactly what a stub should do: it is not recognizing anything, it is
  * standing in for the model so the phoneme->text rendering can be tested. */
-static int mock_recognize(const int16_t *pcm, uint32_t n, uint8_t *ph,
-                          uint32_t cap, uint32_t *out_len, void *ctx) {
-    (void)pcm; (void)n; (void)ctx;
-    static const uint8_t fixed[3] = { PH_K, PH_AE, PH_T };
+static int mock_recognize(const int16_t *pcm, uint32_t n, uint8_t *ph, uint32_t cap,
+                          uint32_t *out_len, void *ctx)
+{
+    (void) pcm;
+    (void) n;
+    (void) ctx;
+    static const uint8_t fixed[3] = {PH_K, PH_AE, PH_T};
     uint32_t w = 0;
     for (uint32_t i = 0; i < 3 && w < cap; i++) ph[w++] = fixed[i];
     *out_len = w;
@@ -61,10 +82,14 @@ static int mock_recognize(const int16_t *pcm, uint32_t n, uint8_t *ph,
 
 /* Build a Chiglet whose two orthogonal evidence vectors decide label 0 ("cat"),
  * with thresholds low enough that the verdict is DECIDED. */
-static void build_chiglet(chiglet_t *c) {
+static void build_chiglet(chiglet_t *c)
+{
     chg_model_t m;
     memset(&m, 0, sizeof(m));
-    m.K = 2; m.D = 4; m.L = 2; m.epoch = 1;
+    m.K = 2;
+    m.D = 4;
+    m.L = 2;
+    m.epoch = 1;
     /* proto[0] = cat direction, proto[1] = dog direction */
     m.proto[0][0] = SR_FROM_FLOAT(1.0);
     m.proto[1][1] = SR_FROM_FLOAT(1.0);
@@ -79,7 +104,8 @@ static void build_chiglet(chiglet_t *c) {
     CHECK(st == CHG_OK, "chiglet model loads for voice_chiglet_say");
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== ZXV voice — spell the sounds, the engine sings ===\n");
 
     /* ---------- ANCHOR 1: deterministic, known-answer g2p ---------- */
@@ -108,23 +134,26 @@ int main(void) {
 
     /* ---------- ANCHOR 2: speak with NO engine => NO_ENGINE, NO pcm ---------- */
     {
-        voice_t v; voice_init(&v);
+        voice_t v;
+        voice_init(&v);
         int16_t pcm[8];
-        for (int i = 0; i < 8; i++) pcm[i] = 0x5A5A;   /* sentinel */
+        for (int i = 0; i < 8; i++) pcm[i] = 0x5A5A; /* sentinel */
         uint32_t out_len = 12345;
         voice_result_t r = voice_speak(&v, "cat", pcm, 8, &out_len);
         CHECK(r == VOICE_ERR_NO_ENGINE, "voice_speak unbound => VOICE_ERR_NO_ENGINE");
         CHECK(out_len == 0, "unbound voice_speak sets out_len = 0");
         int untouched = 1;
-        for (int i = 0; i < 8; i++) if (pcm[i] != 0x5A5A) untouched = 0;
+        for (int i = 0; i < 8; i++)
+            if (pcm[i] != 0x5A5A) untouched = 0;
         CHECK(untouched, "unbound voice_speak writes NO pcm (never fabricated audio)");
         CHECK(!voice_has_tts(&v), "voice_has_tts false before binding");
     }
 
     /* ---------- ANCHOR 3: mock TTS bound => engine gets the phoneme run ---------- */
     {
-        voice_t v; voice_init(&v);
-        voice_tts_ops_t ops = { mock_synth, 0 };
+        voice_t v;
+        voice_init(&v);
+        voice_tts_ops_t ops = {mock_synth, 0};
         voice_set_tts(&v, &ops);
         CHECK(voice_has_tts(&v), "voice_has_tts true after binding");
 
@@ -138,7 +167,7 @@ int main(void) {
         CHECK(v.spoken == 1, "spoken counter records real work only");
 
         /* a refusing engine surfaces as a typed error, not fake success */
-        voice_tts_ops_t bad = { failing_synth, 0 };
+        voice_tts_ops_t bad = {failing_synth, 0};
         voice_set_tts(&v, &bad);
         r = voice_speak(&v, "cat", pcm, 8, &out_len);
         CHECK(r == VOICE_ERR_ENGINE && out_len == 0,
@@ -146,7 +175,7 @@ int main(void) {
 
         /* a HOSTILE engine that reports got > cap must be CLAMPED to cap — the
          * caller must never be told there are more samples than the buffer holds. */
-        voice_tts_ops_t liar = { lying_synth, 0 };
+        voice_tts_ops_t liar = {lying_synth, 0};
         voice_set_tts(&v, &liar);
         out_len = 0;
         r = voice_speak(&v, "cat", pcm, 8, &out_len);
@@ -162,7 +191,8 @@ int main(void) {
 
     /* ---------- ANCHOR 4: listen — unbound closed, mock maps deterministically ---------- */
     {
-        voice_t v; voice_init(&v);
+        voice_t v;
+        voice_init(&v);
         int16_t pcm[4] = {1, 2, 3, 4};
         char text[16];
 
@@ -170,13 +200,12 @@ int main(void) {
         CHECK(r == VOICE_ERR_NO_ENGINE, "voice_listen unbound => VOICE_ERR_NO_ENGINE");
         CHECK(text[0] == '\0', "unbound voice_listen writes empty string (no fake text)");
 
-        voice_stt_ops_t ops = { mock_recognize, 0 };
+        voice_stt_ops_t ops = {mock_recognize, 0};
         voice_set_stt(&v, &ops);
         r = voice_listen(&v, pcm, 4, text, sizeof text);
         CHECK(r == VOICE_OK, "voice_listen with mock STT => VOICE_OK");
         /* {PH_K,PH_AE,PH_T} render to canonical (lossy) chars "kat" */
-        CHECK(strcmp(text, "kat") == 0,
-              "phonemes {K,AE,T} map back to deterministic text 'kat'");
+        CHECK(strcmp(text, "kat") == 0, "phonemes {K,AE,T} map back to deterministic text 'kat'");
         CHECK(v.heard == 1, "heard counter records real work only");
     }
 
@@ -196,8 +225,9 @@ int main(void) {
         CHECK(zero_n == 0, "g2p with cap=0 writes nothing");
 
         /* truncation on listen: 'kat' needs 4 bytes incl NUL; give it 3 */
-        voice_t v; voice_init(&v);
-        voice_stt_ops_t ops = { mock_recognize, 0 };
+        voice_t v;
+        voice_init(&v);
+        voice_stt_ops_t ops = {mock_recognize, 0};
         voice_set_stt(&v, &ops);
         int16_t pcm[2] = {0, 0};
         char small[3];
@@ -211,51 +241,57 @@ int main(void) {
     {
         chiglet_t c;
         build_chiglet(&c);
-        voice_t v; voice_init(&v);
-        voice_tts_ops_t ops = { mock_synth, 0 };
+        voice_t v;
+        voice_init(&v);
+        voice_tts_ops_t ops = {mock_synth, 0};
         voice_set_tts(&v, &ops);
 
         /* two orthogonal evidence vectors -> DECIDED label 0 ("cat") */
         surplus_real_t ev[2][CHG_DIM];
         memset(ev, 0, sizeof(ev));
-        ev[0][0] = SR_FROM_FLOAT(1.0);   /* along the cat prototype   */
-        ev[1][2] = SR_FROM_FLOAT(1.0);   /* orthogonal, distinct dir  */
+        ev[0][0] = SR_FROM_FLOAT(1.0); /* along the cat prototype   */
+        ev[1][2] = SR_FROM_FLOAT(1.0); /* orthogonal, distinct dir  */
 
         int16_t pcm[8] = {0};
         uint32_t out_len = 0;
         voice_result_t r = voice_chiglet_say(&v, &c, ev, 2, pcm, 8, &out_len);
         CHECK(r == VOICE_OK, "voice_chiglet_say speaks a DECIDED reply");
-        CHECK(out_len == 3 && pcm[0] == PH_K * 100 && pcm[1] == PH_AE * 100
-              && pcm[2] == PH_T * 100,
+        CHECK(out_len == 3 && pcm[0] == PH_K * 100 && pcm[1] == PH_AE * 100 && pcm[2] == PH_T * 100,
               "Chiglet's decided label 'cat' was spelled and sung as {K,AE,T}");
 
         /* collinear evidence -> R collapses -> UNCERTAIN -> honest silence */
         surplus_real_t dup[2][CHG_DIM];
         memset(dup, 0, sizeof(dup));
         dup[0][0] = SR_FROM_FLOAT(1.0);
-        dup[1][0] = SR_FROM_FLOAT(1.0);   /* identical direction */
-        int16_t pcm2[8]; for (int i = 0; i < 8; i++) pcm2[i] = 0x7777;
+        dup[1][0] = SR_FROM_FLOAT(1.0); /* identical direction */
+        int16_t pcm2[8];
+        for (int i = 0; i < 8; i++) pcm2[i] = 0x7777;
         out_len = 999;
         r = voice_chiglet_say(&v, &c, dup, 2, pcm2, 8, &out_len);
         CHECK(r == VOICE_ERR_NO_REPLY,
               "UNCERTAIN Chiglet => VOICE_ERR_NO_REPLY (never a fabricated sentence)");
-        int quiet = 1; for (int i = 0; i < 8; i++) if (pcm2[i] != 0x7777) quiet = 0;
+        int quiet = 1;
+        for (int i = 0; i < 8; i++)
+            if (pcm2[i] != 0x7777) quiet = 0;
         CHECK(quiet && out_len == 0, "no reply => no PCM written");
 
         /* an unloaded Chiglet also has nothing to say */
-        chiglet_t empty; chg_init(&empty, CHG_CAP_INFER);
+        chiglet_t empty;
+        chg_init(&empty, CHG_CAP_INFER);
         r = voice_chiglet_say(&v, &empty, ev, 2, pcm, 8, &out_len);
         CHECK(r == VOICE_ERR_NO_REPLY, "model-less Chiglet => VOICE_ERR_NO_REPLY");
     }
 
     /* ---------- argument guards ---------- */
     {
-        voice_t v; voice_init(&v);
-        int16_t pcm[4]; char t[4];
+        voice_t v;
+        voice_init(&v);
+        int16_t pcm[4];
+        char t[4];
         CHECK(voice_speak(0, "x", pcm, 4, 0) == VOICE_ERR_ARG, "voice_speak NULL v => ARG");
         CHECK(voice_speak(&v, 0, pcm, 4, 0) == VOICE_ERR_ARG, "voice_speak NULL text => ARG");
         CHECK(voice_listen(&v, 0, 0, t, 4) == VOICE_ERR_ARG, "voice_listen NULL pcm => ARG");
-        CHECK(voice_text_to_phonemes(0, (uint8_t*)pcm, 4) == 0, "g2p NULL text => 0");
+        CHECK(voice_text_to_phonemes(0, (uint8_t *) pcm, 4) == 0, "g2p NULL text => 0");
     }
 
     printf("\n=== %d checks, %d failure(s) ===\n", checks, failures);

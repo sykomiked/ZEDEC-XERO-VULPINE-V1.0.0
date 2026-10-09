@@ -16,7 +16,8 @@
 #include <string.h>
 #include <math.h>
 
-static int feq(double a, double b, double eps) {
+static int feq(double a, double b, double eps)
+{
     double diff = fabs(a - b);
     double scale = fabs(a) > fabs(b) ? fabs(a) : fabs(b);
     if (scale < 1.0) scale = 1.0;
@@ -25,7 +26,8 @@ static int feq(double a, double b, double eps) {
 
 static uint8_t sig_nonzero[CH_PROOF_SIG_LEN];
 
-int main(void) {
+int main(void)
+{
     memset(sig_nonzero, 0xAA, CH_PROOF_SIG_LEN);
 
     /* ===== init_fractal: scale and level assignment ===== */

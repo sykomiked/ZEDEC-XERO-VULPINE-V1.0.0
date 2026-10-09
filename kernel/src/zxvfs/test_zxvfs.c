@@ -22,27 +22,30 @@ static uint8_t g_disk[DISK_SECTORS][BLOCKDEV_SECTOR_SIZE];
  * dropped and every subsequent write fails (simulates power loss). */
 static long g_crash_after = -1;
 static long g_writes = 0;
-static int  g_crashed = 0;
+static int g_crashed = 0;
 
-static int mem_read(block_device_t *dev, uint32_t lba, uint8_t *buf) {
-    (void)dev;
+static int mem_read(block_device_t *dev, uint32_t lba, uint8_t *buf)
+{
+    (void) dev;
     if (lba >= DISK_SECTORS) return -1;
     memcpy(buf, g_disk[lba], BLOCKDEV_SECTOR_SIZE);
     return 0;
 }
-static int mem_write(block_device_t *dev, uint32_t lba, const uint8_t *buf) {
-    (void)dev;
+static int mem_write(block_device_t *dev, uint32_t lba, const uint8_t *buf)
+{
+    (void) dev;
     if (lba >= DISK_SECTORS) return -1;
     if (g_crashed) return -1;
     if (g_crash_after >= 0 && g_writes >= g_crash_after) {
-        g_crashed = 1;                 /* power lost right before this write */
+        g_crashed = 1; /* power lost right before this write */
         return -1;
     }
     g_writes++;
     memcpy(g_disk[lba], buf, BLOCKDEV_SECTOR_SIZE);
     return 0;
 }
-static void dev_init(block_device_t *dev) {
+static void dev_init(block_device_t *dev)
+{
     memset(dev, 0, sizeof(*dev));
     dev->present = true;
     dev->total_sectors = DISK_SECTORS;
@@ -51,18 +54,24 @@ static void dev_init(block_device_t *dev) {
 }
 
 static int failures = 0;
-#define CHECK(cond, msg) do { \
-    if (!(cond)) { printf("[FAIL] %s\n", msg); failures++; } \
-    else         { printf("[PASS] %s\n", msg); } } while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("[FAIL] %s\n", msg);                                                            \
+            failures++;                                                                            \
+        } else {                                                                                   \
+            printf("[PASS] %s\n", msg);                                                            \
+        }                                                                                          \
+    } while (0)
 
-int main(void) {
+int main(void)
+{
     block_device_t dev;
     dev_init(&dev);
     zxvfs_t fs;
 
     printf("=== ZXVFS host tests ===\n");
-    printf("total_sectors=%u (%.1f KB disk)\n",
-           (unsigned)ZXVFS_TOTAL_SECTORS,
+    printf("total_sectors=%u (%.1f KB disk)\n", (unsigned) ZXVFS_TOTAL_SECTORS,
            ZXVFS_TOTAL_SECTORS * 512 / 1024.0);
 
     /* format + mount */
@@ -72,63 +81,56 @@ int main(void) {
 
     /* write + read back */
     const char *msg = "ZXV persistent storage online.\n";
-    CHECK(zxvfs_write(&fs, "readme.txt", (const uint8_t *)msg,
-                      (uint32_t)strlen(msg)) == 0, "write readme.txt");
+    CHECK(zxvfs_write(&fs, "readme.txt", (const uint8_t *) msg, (uint32_t) strlen(msg)) == 0,
+          "write readme.txt");
     uint8_t buf[ZXVFS_FILE_MAX_BYTES];
     int n = zxvfs_read(&fs, "readme.txt", buf, sizeof(buf));
-    CHECK(n == (int)strlen(msg) && memcmp(buf, msg, n) == 0,
-          "read back readme.txt matches");
+    CHECK(n == (int) strlen(msg) && memcmp(buf, msg, n) == 0, "read back readme.txt matches");
     CHECK(zxvfs_count(&fs) == 1, "one file");
 
     /* replace (overwrite) */
     const char *msg2 = "second version, longer than the first one!!\n";
-    CHECK(zxvfs_write(&fs, "readme.txt", (const uint8_t *)msg2,
-                      (uint32_t)strlen(msg2)) == 0, "overwrite readme.txt");
+    CHECK(zxvfs_write(&fs, "readme.txt", (const uint8_t *) msg2, (uint32_t) strlen(msg2)) == 0,
+          "overwrite readme.txt");
     n = zxvfs_read(&fs, "readme.txt", buf, sizeof(buf));
-    CHECK(n == (int)strlen(msg2) && memcmp(buf, msg2, n) == 0,
-          "read back overwritten content");
+    CHECK(n == (int) strlen(msg2) && memcmp(buf, msg2, n) == 0, "read back overwritten content");
     CHECK(zxvfs_count(&fs) == 1, "still one file after overwrite");
 
     /* second file + list + unlink */
-    CHECK(zxvfs_write(&fs, "config.ini",
-                      (const uint8_t *)"k=v\n", 4) == 0, "write config.ini");
+    CHECK(zxvfs_write(&fs, "config.ini", (const uint8_t *) "k=v\n", 4) == 0, "write config.ini");
     char names[ZXVFS_MAX_FILES][ZXVFS_NAME_LEN];
     uint32_t sizes[ZXVFS_MAX_FILES];
     int c = zxvfs_list(&fs, names, sizes, ZXVFS_MAX_FILES);
     CHECK(c == 2, "list shows two files");
     CHECK(zxvfs_unlink(&fs, "config.ini") == 0, "unlink config.ini");
     CHECK(zxvfs_count(&fs) == 1, "one file after unlink");
-    CHECK(zxvfs_read(&fs, "config.ini", buf, sizeof(buf)) < 0,
-          "removed file is gone");
+    CHECK(zxvfs_read(&fs, "config.ini", buf, sizeof(buf)) < 0, "removed file is gone");
 
     /* multi-sector file (spans several data sectors) */
     uint8_t big[3000];
-    for (int i = 0; i < 3000; i++) big[i] = (uint8_t)(i * 7 + 1);
-    CHECK(zxvfs_write(&fs, "big.bin", big, sizeof(big)) == 0,
-          "write 3000-byte file");
+    for (int i = 0; i < 3000; i++) big[i] = (uint8_t) (i * 7 + 1);
+    CHECK(zxvfs_write(&fs, "big.bin", big, sizeof(big)) == 0, "write 3000-byte file");
     uint8_t big_rb[3000];
     n = zxvfs_read(&fs, "big.bin", big_rb, sizeof(big_rb));
-    CHECK(n == 3000 && memcmp(big, big_rb, 3000) == 0,
-          "read back multi-sector file matches");
+    CHECK(n == 3000 && memcmp(big, big_rb, 3000) == 0, "read back multi-sector file matches");
 
     /* --- persistence across "reboot" (re-mount over same disk) --- */
     zxvfs_t fs2;
     CHECK(zxvfs_mount(&fs2, &dev) == 0, "remount (reboot)");
     n = zxvfs_read(&fs2, "readme.txt", buf, sizeof(buf));
-    CHECK(n == (int)strlen(msg2) && memcmp(buf, msg2, n) == 0,
-          "data survived reboot");
-    CHECK(zxvfs_read(&fs2, "config.ini", buf, sizeof(buf)) < 0,
-          "unlink survived reboot");
+    CHECK(n == (int) strlen(msg2) && memcmp(buf, msg2, n) == 0, "data survived reboot");
+    CHECK(zxvfs_read(&fs2, "config.ini", buf, sizeof(buf)) < 0, "unlink survived reboot");
 
     /* --- crash recovery: power loss during checkpoint --- */
     /* Establish a known baseline value on disk. */
-    CHECK(zxvfs_write(&fs2, "crash.txt",
-                      (const uint8_t *)"OLD", 3) == 0, "crash baseline OLD");
+    CHECK(zxvfs_write(&fs2, "crash.txt", (const uint8_t *) "OLD", 3) == 0, "crash baseline OLD");
 
     /* Count how many writes a clean txn takes, so we can crash the NEXT
      * one after its journal commit but before checkpoint completes. */
-    g_writes = 0; g_crash_after = -1; g_crashed = 0;
-    zxvfs_write(&fs2, "crash.txt", (const uint8_t *)"MID", 3);
+    g_writes = 0;
+    g_crash_after = -1;
+    g_crashed = 0;
+    zxvfs_write(&fs2, "crash.txt", (const uint8_t *) "MID", 3);
     long clean_writes = g_writes;
     /* v2 (copy-on-write) write order for a small file:
      *   [data -> newly allocated sectors, direct, NOT journalled]
@@ -136,19 +138,22 @@ int main(void) {
      *   [checkpoint x3][clear hdr]
      * Crash right after the commit header = before any checkpoint. Derived
      * from the format constants so it stays correct if the layout changes. */
-    long commit_point = 1 /*data sector*/ + ZXVFS_BITMAP_SECTORS
-                      + 1 /*inode staged*/ + 1 /*commit hdr*/;
+    long commit_point =
+        1 /*data sector*/ + ZXVFS_BITMAP_SECTORS + 1 /*inode staged*/ + 1 /*commit hdr*/;
     CHECK(clean_writes > commit_point, "txn has a post-commit phase");
 
     /* Now perform the "NEW" write but crash just after commit. */
-    g_writes = 0; g_crashed = 0; g_crash_after = commit_point;
-    int wrc = zxvfs_write(&fs2, "crash.txt", (const uint8_t *)"NEW", 3);
+    g_writes = 0;
+    g_crashed = 0;
+    g_crash_after = commit_point;
+    int wrc = zxvfs_write(&fs2, "crash.txt", (const uint8_t *) "NEW", 3);
     CHECK(wrc != 0 || g_crashed, "write interrupted by simulated power loss");
 
     /* Disk now holds: the NEW bytes in freshly allocated sectors that nothing
      * yet points at, plus a committed journal carrying the inode+bitmap that
      * WILL point at them. Reboot: replay must publish them, yielding 'NEW'. */
-    g_crash_after = -1; g_crashed = 0;
+    g_crash_after = -1;
+    g_crashed = 0;
     zxvfs_t fs3;
     CHECK(zxvfs_mount(&fs3, &dev) == 0, "remount after crash");
     CHECK(fs3.journal_replays == 1, "journal was replayed on mount");
@@ -157,7 +162,9 @@ int main(void) {
           "committed txn recovered as NEW (crash consistency)");
 
     /* ---- red-team regression: untrusted on-disk structures (2026-08-04) ---- */
-    g_crash_after = -1; g_crashed = 0; g_writes = 0;
+    g_crash_after = -1;
+    g_crashed = 0;
+    g_writes = 0;
 
     /* (a) a superblock with tampered geometry must be REJECTED at mount —
      * trusting data_sector would redirect writes onto metadata. */
@@ -165,12 +172,12 @@ int main(void) {
         zxvfs_superblock_t sb;
         memcpy(&sb, g_disk[ZXVFS_SB_SECTOR], sizeof(sb));
         uint32_t good_ds = sb.data_sector;
-        sb.data_sector = good_ds + 3;              /* lie about the layout */
+        sb.data_sector = good_ds + 3; /* lie about the layout */
         memcpy(g_disk[ZXVFS_SB_SECTOR], &sb, sizeof(sb));
         zxvfs_t bad;
         CHECK(zxvfs_mount(&bad, &dev) != 0,
               "red-team: superblock with wrong data_sector is REJECTED");
-        sb.data_sector = good_ds;                  /* restore for later checks */
+        sb.data_sector = good_ds; /* restore for later checks */
         memcpy(g_disk[ZXVFS_SB_SECTOR], &sb, sizeof(sb));
         zxvfs_t okfs;
         CHECK(zxvfs_mount(&okfs, &dev) == 0, "genuine superblock still mounts");
@@ -179,12 +186,16 @@ int main(void) {
     /* (b) a journal with a VALID checksum but an OUT-OF-RANGE target must be
      * discarded, never replayed — otherwise it is a write-what-where. */
     {
-        uint32_t evil_lba = 0;                     /* the superblock sector — off-limits */
+        uint32_t evil_lba = 0; /* the superblock sector — off-limits */
         uint8_t before[BLOCKDEV_SECTOR_SIZE];
         memcpy(before, g_disk[evil_lba], BLOCKDEV_SECTOR_SIZE);
 
-        zxvfs_journal_hdr_t h; memset(&h, 0, sizeof(h));
-        h.magic = ZXVFS_JRNL_MAGIC; h.committed = 1; h.txn_id = 999; h.count = 1;
+        zxvfs_journal_hdr_t h;
+        memset(&h, 0, sizeof(h));
+        h.magic = ZXVFS_JRNL_MAGIC;
+        h.committed = 1;
+        h.txn_id = 999;
+        h.count = 1;
         h.target_lba[0] = evil_lba;
         /* reproduce jchecksum so the header looks intact */
         uint32_t c = 0x9E3779B9u ^ h.txn_id ^ (h.count * 2654435761u);
@@ -203,53 +214,60 @@ int main(void) {
 
     /* ---------------- v2: extent allocator + positional I/O ---------------- */
     printf("extent allocator:\n");
-    {   zxvfs_t f; block_device_t d2 = dev;
+    {
+        zxvfs_t f;
+        block_device_t d2 = dev;
         CHECK(zxvfs_format(&d2) == 0 && zxvfs_mount(&f, &d2) == 0, "  format+mount");
         int free0 = zxvfs_free_sectors(&f);
-        CHECK(free0 == (int)ZXVFS_DATA_SECTORS, "fresh disk reports all sectors free");
+        CHECK(free0 == (int) ZXVFS_DATA_SECTORS, "fresh disk reports all sectors free");
 
         static uint8_t blob[20000];
-        for (uint32_t i = 0; i < sizeof(blob); i++) blob[i] = (uint8_t)(i * 31 + 7);
+        for (uint32_t i = 0; i < sizeof(blob); i++) blob[i] = (uint8_t) (i * 31 + 7);
         CHECK(zxvfs_write(&f, "big1", blob, sizeof(blob)) == 0,
               "20000-byte file writes (v1 capped at 7680)");
-        CHECK(zxvfs_size(&f, "big1") == (int)sizeof(blob), "size is exact");
+        CHECK(zxvfs_size(&f, "big1") == (int) sizeof(blob), "size is exact");
         static uint8_t rb[20000];
-        CHECK(zxvfs_read(&f, "big1", rb, sizeof(rb)) == (int)sizeof(blob) &&
-              memcmp(rb, blob, sizeof(blob)) == 0, "reads back byte-exact");
+        CHECK(zxvfs_read(&f, "big1", rb, sizeof(rb)) == (int) sizeof(blob) &&
+                  memcmp(rb, blob, sizeof(blob)) == 0,
+              "reads back byte-exact");
 
         int used = free0 - zxvfs_free_sectors(&f);
-        CHECK(used == (int)((sizeof(blob) + 511) / 512),
+        CHECK(used == (int) ((sizeof(blob) + 511) / 512),
               "allocator consumed exactly the sectors needed, no fixed slot");
 
         CHECK(zxvfs_unlink(&f, "big1") == 0, "unlink");
         CHECK(zxvfs_free_sectors(&f) == free0, "unlink returned every sector");
 
         /* more than v1's 64-file ceiling */
-        char nm[ZXVFS_NAME_LEN]; int made = 0;
+        char nm[ZXVFS_NAME_LEN];
+        int made = 0;
         for (int i = 0; i < 100; i++) {
-            nm[0]='f'; nm[1]=(char)('0'+i/100); nm[2]=(char)('0'+(i/10)%10);
-            nm[3]=(char)('0'+i%10); nm[4]=0;
-            if (zxvfs_write(&f, nm, (const uint8_t *)"x", 1) == 0) made++;
+            nm[0] = 'f';
+            nm[1] = (char) ('0' + i / 100);
+            nm[2] = (char) ('0' + (i / 10) % 10);
+            nm[3] = (char) ('0' + i % 10);
+            nm[4] = 0;
+            if (zxvfs_write(&f, nm, (const uint8_t *) "x", 1) == 0) made++;
         }
         CHECK(made == 100, "100 files coexist (v1 ceiling was 64)");
         CHECK(zxvfs_count(&f) == 100, "count agrees");
     }
 
     printf("positional I/O:\n");
-    {   zxvfs_t f; block_device_t d2 = dev;
+    {
+        zxvfs_t f;
+        block_device_t d2 = dev;
         CHECK(zxvfs_format(&d2) == 0 && zxvfs_mount(&f, &d2) == 0, "  format+mount");
         static uint8_t base[3000];
-        for (uint32_t i = 0; i < sizeof(base); i++) base[i] = (uint8_t)(i & 0xFF);
+        for (uint32_t i = 0; i < sizeof(base); i++) base[i] = (uint8_t) (i & 0xFF);
         CHECK(zxvfs_write(&f, "doc", base, sizeof(base)) == 0, "  seed file");
 
         uint8_t part[64];
         CHECK(zxvfs_pread(&f, "doc", 1000, part, sizeof(part)) == 64 &&
-              memcmp(part, base + 1000, 64) == 0,
+                  memcmp(part, base + 1000, 64) == 0,
               "pread at an offset returns exactly that range");
-        CHECK(zxvfs_pread(&f, "doc", 2980, part, sizeof(part)) == 20,
-              "pread clamps at EOF");
-        CHECK(zxvfs_pread(&f, "doc", 5000, part, sizeof(part)) == 0,
-              "pread past EOF returns 0");
+        CHECK(zxvfs_pread(&f, "doc", 2980, part, sizeof(part)) == 20, "pread clamps at EOF");
+        CHECK(zxvfs_pread(&f, "doc", 5000, part, sizeof(part)) == 0, "pread past EOF returns 0");
 
         /* overwrite a range that straddles a sector boundary */
         uint8_t patch[100];
@@ -259,8 +277,7 @@ int main(void) {
         static uint8_t whole[3000];
         CHECK(zxvfs_read(&f, "doc", whole, sizeof(whole)) == 3000, "  reread");
         CHECK(memcmp(whole + 500, patch, 100) == 0, "the patched range is exact");
-        CHECK(memcmp(whole, base, 500) == 0 &&
-              memcmp(whole + 600, base + 600, 2400) == 0,
+        CHECK(memcmp(whole, base, 500) == 0 && memcmp(whole + 600, base + 600, 2400) == 0,
               "bytes OUTSIDE the patched range are untouched");
         CHECK(zxvfs_size(&f, "doc") == 3000, "in-place pwrite did not change size");
 
@@ -273,7 +290,6 @@ int main(void) {
               "pwrite past EOF is refused (no sparse holes)");
     }
 
-    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS",
-           failures);
+    printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
     return failures ? 1 : 0;
 }

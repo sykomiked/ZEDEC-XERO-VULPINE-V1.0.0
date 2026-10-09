@@ -14,15 +14,15 @@
 #include "vector.h"
 
 #ifdef VERBOSE
-#include <stdio.h>
+#    include <stdio.h>
 #endif
 
 /**
  * @brief Generates a keypair for the KEM (Key Encapsulation Mechanism) scheme.
  *
  * This function generates a public/private keypair used for key encapsulation and decapsulation.
- * The encapsulation key (`ek`) is used to encapsulate a shared secret, while the decapsulation key (`dk`)
- * is used to recover it.
+ * The encapsulation key (`ek`) is used to encapsulate a shared secret, while the decapsulation key
+ * (`dk`) is used to recover it.
  *
  * @param[out] ek_kem Pointer to the output buffer where the encapsulation key will be stored.
  * @param[out] dk_kem Pointer to the output buffer where the decapsulation key will be stored.
@@ -36,7 +36,8 @@
  *       seeds the PRNG using `syscall(SYS_getrandom, ...)` (32 bytes) by default..
  * @see prng_init, prng_get_bytes, main_hqc.c
  */
-int crypto_kem_keypair(uint8_t *ek_kem, uint8_t *dk_kem) {
+int crypto_kem_keypair(uint8_t *ek_kem, uint8_t *dk_kem)
+{
 #ifdef VERBOSE
     printf("\n\n\n### KEYGEN ###");
 #endif
@@ -87,7 +88,8 @@ int crypto_kem_keypair(uint8_t *ek_kem, uint8_t *dk_kem) {
 /**
  * @brief Performs key encapsulation using the KEM scheme.
  *
- * This function uses the encapsulation key (`ek`) to generate a ciphertext (`c_kem`) and a shared secret (`K`)..
+ * This function uses the encapsulation key (`ek`) to generate a ciphertext (`c_kem`) and a shared
+ * secret (`K`)..
  *
  * @param[out] c_kem   Pointer to the output buffer where the KEM ciphertext will be stored.
  * @param[out] K       Pointer to the output buffer where the shared secret will be stored.
@@ -102,7 +104,8 @@ int crypto_kem_keypair(uint8_t *ek_kem, uint8_t *dk_kem) {
  *       seeds the PRNG using `syscall(SYS_getrandom, ...)` (32 bytes) by default..
  * @see prng_init, prng_get_bytes, main_hqc.c
  */
-int crypto_kem_enc(uint8_t *c_kem, uint8_t *K, const uint8_t *ek_kem) {
+int crypto_kem_enc(uint8_t *c_kem, uint8_t *K, const uint8_t *ek_kem)
+{
 #ifdef VERBOSE
     printf("\n\n\n\n### ENCAPS ###");
 #endif
@@ -121,7 +124,7 @@ int crypto_kem_enc(uint8_t *c_kem, uint8_t *K, const uint8_t *ek_kem) {
     hash_h(hash_ek_kem, ek_kem);
     hash_g(K_theta, hash_ek_kem, m, c_kem_t.salt);
     memcpy(theta, K_theta + SEED_BYTES, SEED_BYTES);
-    hqc_pke_encrypt(&c_kem_t.c_pke, ek_kem, (uint64_t *)m, theta);
+    hqc_pke_encrypt(&c_kem_t.c_pke, ek_kem, (uint64_t *) m, theta);
 
     hqc_c_kem_to_string(c_kem, &c_kem_t);
     memcpy(K, K_theta, SHARED_SECRET_BYTES);
@@ -130,7 +133,7 @@ int crypto_kem_enc(uint8_t *c_kem, uint8_t *K, const uint8_t *ek_kem) {
     printf("\n\nek_kem: ");
     for (int i = 0; i < PUBLIC_KEY_BYTES; ++i) printf("%02x", ek_kem[i]);
     printf("\n\nm: ");
-    vect_print((uint64_t *)m, PARAM_SECURITY_BYTES);
+    vect_print((uint64_t *) m, PARAM_SECURITY_BYTES);
     printf("\n\nsalt: ");
     for (int i = 0; i < SALT_BYTES; ++i) printf("%02x", c_kem_t.salt[i]);
     printf("\n\nH(ek_kem): ");
@@ -157,13 +160,15 @@ int crypto_kem_enc(uint8_t *c_kem, uint8_t *K, const uint8_t *ek_kem) {
  * This function uses the decapsulation key (`dk`) to recover the shared secret (`K_prime`)
  * from the given KEM ciphertext (`c_kem`), which was generated during encapsulation.
  *
- * @param[out] K_prime   Pointer to the output buffer where the recovered shared secret will be stored.
+ * @param[out] K_prime   Pointer to the output buffer where the recovered shared secret will be
+ * stored.
  * @param[in]  c_kem     Pointer to the input KEM ciphertext.
  * @param[in]  dk_kem    Pointer to the decapsulation key.
  *
  * @return Returns 0 on success.
  */
-int crypto_kem_dec(uint8_t *K_prime, const uint8_t *c_kem, const uint8_t *dk_kem) {
+int crypto_kem_dec(uint8_t *K_prime, const uint8_t *c_kem, const uint8_t *dk_kem)
+{
 #ifdef VERBOSE
     printf("\n\n\n\n### DECAPS ###");
 #endif
@@ -189,7 +194,7 @@ int crypto_kem_dec(uint8_t *K_prime, const uint8_t *c_kem, const uint8_t *dk_kem
     hqc_c_kem_from_string(&c_kem_t.c_pke, c_kem_t.salt, c_kem);
 
     // Compute message m_prime
-    result = hqc_pke_decrypt((uint64_t *)m_prime, dk_pke, &c_kem_t.c_pke);
+    result = hqc_pke_decrypt((uint64_t *) m_prime, dk_pke, &c_kem_t.c_pke);
 
     // Compute shared key K_prime and ciphertext c_kem_prime
     hash_h(hash_ek_kem, ek_pke);
@@ -197,13 +202,15 @@ int crypto_kem_dec(uint8_t *K_prime, const uint8_t *c_kem, const uint8_t *dk_kem
     memcpy(K_prime, K_theta_prime, SHARED_SECRET_BYTES);
     memcpy(theta_prime, K_theta_prime + SHARED_SECRET_BYTES, SEED_BYTES);
 
-    hqc_pke_encrypt(&c_kem_prime_t.c_pke, ek_pke, (uint64_t *)m_prime, theta_prime);
+    hqc_pke_encrypt(&c_kem_prime_t.c_pke, ek_pke, (uint64_t *) m_prime, theta_prime);
     memcpy(c_kem_prime_t.salt, c_kem_t.salt, SALT_BYTES);
 
     // Compute rejection key K_bar
     hash_j(K_bar, hash_ek_kem, sigma, &c_kem_t);
-    result |= vect_compare((uint8_t *)c_kem_t.c_pke.u, (uint8_t *)c_kem_prime_t.c_pke.u, VEC_N_SIZE_BYTES);
-    result |= vect_compare((uint8_t *)c_kem_t.c_pke.v, (uint8_t *)c_kem_prime_t.c_pke.v, VEC_N1N2_SIZE_BYTES);
+    result |= vect_compare((uint8_t *) c_kem_t.c_pke.u, (uint8_t *) c_kem_prime_t.c_pke.u,
+                           VEC_N_SIZE_BYTES);
+    result |= vect_compare((uint8_t *) c_kem_t.c_pke.v, (uint8_t *) c_kem_prime_t.c_pke.v,
+                           VEC_N1N2_SIZE_BYTES);
     result |= vect_compare(c_kem_t.salt, c_kem_prime_t.salt, SALT_BYTES);
     result -= 1;
     for (size_t i = 0; i < SHARED_SECRET_BYTES; ++i) {
@@ -218,7 +225,7 @@ int crypto_kem_dec(uint8_t *K_prime, const uint8_t *c_kem, const uint8_t *dk_kem
     printf("\n\nc_kem: ");
     for (int i = 0; i < CIPHERTEXT_BYTES; ++i) printf("%02x", c_kem[i]);
     printf("\n\nm_prime: ");
-    vect_print((uint64_t *)m_prime, PARAM_SECURITY_BYTES);
+    vect_print((uint64_t *) m_prime, PARAM_SECURITY_BYTES);
     printf("\n\nH(ek_kem): ");
     for (int i = 0; i < SEED_BYTES; ++i) printf("%02x", hash_ek_kem[i]);
     printf("\n\ntheta_prime: ");

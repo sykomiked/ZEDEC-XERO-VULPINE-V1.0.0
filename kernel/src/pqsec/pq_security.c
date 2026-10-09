@@ -92,31 +92,33 @@ lpres_state_t pq_boot_verify(const uint8_t slh_pk[PQ_SLH128S_PK_BYTES],
  * LAYER 5 — MESH ENCAPSULATION
  * ============================================================================ */
 
-static void mesh_derive(const uint8_t ss[MLKEM768_SS_BYTES], const char *label,
-                        uint8_t *out, uint32_t len) {
+static void mesh_derive(const uint8_t ss[MLKEM768_SS_BYTES], const char *label, uint8_t *out,
+                        uint32_t len)
+{
     uint8_t in[MLKEM768_SS_BYTES + 32];
     uint32_t n = MLKEM768_SS_BYTES;
     for (uint32_t i = 0; i < MLKEM768_SS_BYTES; i++) in[i] = ss[i];
-    for (uint32_t i = 0; label[i] && n < sizeof(in); i++) in[n++] = (uint8_t)label[i];
+    for (uint32_t i = 0; label[i] && n < sizeof(in); i++) in[n++] = (uint8_t) label[i];
     shake256(in, n, out, len);
     pq_mem_set(in, 0, sizeof(in));
 }
 
-static void mesh_tag(const uint8_t mk[32], const pq_mesh_packet_t *p, uint8_t tag[PQ_MESH_TAG_BYTES]) {
+static void mesh_tag(const uint8_t mk[32], const pq_mesh_packet_t *p,
+                     uint8_t tag[PQ_MESH_TAG_BYTES])
+{
     uint8_t buf[32 + MLKEM768_CT_BYTES + 4 + PQ_MESH_MAX_PAYLOAD];
     uint32_t n = 0;
     for (uint32_t i = 0; i < 32; i++) buf[n++] = mk[i];
     for (uint32_t i = 0; i < MLKEM768_CT_BYTES; i++) buf[n++] = p->ct[i];
-    for (uint32_t i = 0; i < 4; i++) buf[n++] = (uint8_t)(p->payload_len >> (8 * i));
+    for (uint32_t i = 0; i < 4; i++) buf[n++] = (uint8_t) (p->payload_len >> (8 * i));
     for (uint32_t i = 0; i < p->payload_len; i++) buf[n++] = p->payload[i];
     sha3_256(buf, n, tag);
     pq_mem_set(buf, 0, 32);
 }
 
-bool pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES],
-                         const uint8_t *payload, uint32_t payload_len,
-                         const uint8_t m[32],
-                         pq_mesh_packet_t *out) {
+bool pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES], const uint8_t *payload,
+                         uint32_t payload_len, const uint8_t m[32], pq_mesh_packet_t *out)
+{
     if (!out) return false;
     pq_mem_set(out, 0, sizeof(*out));
     if (!ek || !m || payload_len > PQ_MESH_MAX_PAYLOAD || (payload_len && !payload)) return false;
@@ -134,9 +136,9 @@ bool pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES],
     return true;
 }
 
-bool pq_mesh_open(const uint8_t dk[MLKEM768_DK_BYTES],
-                  const pq_mesh_packet_t *packet,
-                  uint8_t *out, uint32_t cap, uint32_t *out_len) {
+bool pq_mesh_open(const uint8_t dk[MLKEM768_DK_BYTES], const pq_mesh_packet_t *packet, uint8_t *out,
+                  uint32_t cap, uint32_t *out_len)
+{
     if (out_len) *out_len = 0;
     if (!dk || !packet || !out || !out_len || packet->payload_len > PQ_MESH_MAX_PAYLOAD ||
         packet->payload_len > cap)
@@ -146,7 +148,7 @@ bool pq_mesh_open(const uint8_t dk[MLKEM768_DK_BYTES],
     mesh_derive(ss, "ZXV-MESH-v1 mac", mk, 32);
     mesh_tag(mk, packet, tag);
     uint8_t diff = 0;
-    for (uint32_t i = 0; i < PQ_MESH_TAG_BYTES; i++) diff |= (uint8_t)(tag[i] ^ packet->tag[i]);
+    for (uint32_t i = 0; i < PQ_MESH_TAG_BYTES; i++) diff |= (uint8_t) (tag[i] ^ packet->tag[i]);
     bool ok = diff == 0;
     if (ok) {
         mesh_derive(ss, "ZXV-MESH-v1 stream", ks, packet->payload_len ? packet->payload_len : 1);

@@ -131,7 +131,7 @@ static double epu_sqrt(double x) {
          * contracting across statements (gcc's gnu modes with FMA) cannot
          * fuse x - p back into an FMA and count the error term twice;
          * every other product here is exact, fused or not. */
-        double sp = 134217729.0 * t;                /* 2^27 + 1 */
+        double sp = 134217729.0 * t; /* 2^27 + 1 */
         double th = sp - (sp - t);
         double tl = t - th;
         volatile double p = t * t;

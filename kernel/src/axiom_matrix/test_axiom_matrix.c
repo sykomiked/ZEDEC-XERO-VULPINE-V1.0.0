@@ -4,7 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-int main(void) {
+int main(void)
+{
     axiom_matrix_t *m = malloc(sizeof(axiom_matrix_t));
     m->size = 1024;
     m->entries = calloc(m->size, sizeof(double complex));
@@ -21,7 +22,7 @@ int main(void) {
     assert(proj == 3.0 + 4.0 * I);
 
     bool sym = axiom_matrix_is_symmetric(m, ISOMETRY_IDENTITY);
-    (void)sym;
+    (void) sym;
 
     axiom_matrix_t *m2 = malloc(sizeof(axiom_matrix_t));
     m2->size = 4;
