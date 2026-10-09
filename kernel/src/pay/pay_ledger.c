@@ -277,10 +277,10 @@ bool pay_ledger_check(const pay_ledger_t *L)
         if (a->credit && !(a->flags & PAY_ACCT_ISSUER)) return false;
         if (a->equity != (int64_t) a->debit - (int64_t) a->credit) return false;
     }
-    for (uint16_t as = 0; as < L->n_assets; as++)
+    for (uint32_t as = 0; as < L->n_assets; as++)
         for (uint8_t c = 0; c < PAY_CAP_COUNT; c++) {
             pay_u128 d, cr, ep, en;
-            totals128(L, as, c, &d, &cr, &ep, &en);
+            totals128(L, (uint16_t) as, c, &d, &cr, &ep, &en);
             if (pay_u128_cmp(d, cr) != 0 || pay_u128_cmp(ep, en) != 0) return false;
         }
     return true;
