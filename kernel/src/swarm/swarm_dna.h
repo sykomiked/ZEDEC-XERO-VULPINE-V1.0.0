@@ -30,8 +30,8 @@
 #define SWARM_DNA_GENES 8u
 
 typedef enum {
-    SWARM_GENE_EMOTION = 0,   /* home emotion */
-    SWARM_GENE_TEMPERAMENT,   /* resting intensity */
+    SWARM_GENE_EMOTION = 0, /* home emotion */
+    SWARM_GENE_TEMPERAMENT, /* resting intensity */
     SWARM_GENE_CURIOSITY,
     SWARM_GENE_CAUTION,
     SWARM_GENE_WARMTH,
@@ -42,36 +42,36 @@ typedef enum {
 
 typedef struct {
     uint64_t seed;
-    uint8_t  gene[SWARM_DNA_GENES];
-    uint64_t parent_a, parent_b;   /* D5: 0 for a founder */
+    uint8_t gene[SWARM_DNA_GENES];
+    uint64_t parent_a, parent_b; /* D5: 0 for a founder */
     uint32_t generation;
 } swarm_dna_t;
 
 typedef struct {
-    swarm_feeling_t home;          /* resting feeling */
-    uint16_t curiosity_permille;   /* 0 .. 1000 */
+    swarm_feeling_t home;        /* resting feeling */
+    uint16_t curiosity_permille; /* 0 .. 1000 */
     uint16_t caution_permille;
     uint16_t warmth_permille;
     uint16_t pace_permille;
     uint16_t verbosity_permille;
-    uint8_t  specialty;            /* index into the host's specialty table */
+    uint8_t specialty; /* index into the host's specialty table */
 } swarm_traits_t;
 
 /* D1 */
-swarm_dna_t    swarm_dna_from_seed(uint64_t seed);
+swarm_dna_t swarm_dna_from_seed(uint64_t seed);
 
 /* D2 */
 swarm_traits_t swarm_dna_express(const swarm_dna_t *d, uint8_t num_specialties);
 
 /* D3: child of a and b; `nonce` makes repeated pairings differ. */
-swarm_dna_t    swarm_dna_combine(const swarm_dna_t *a, const swarm_dna_t *b, uint64_t nonce);
+swarm_dna_t swarm_dna_combine(const swarm_dna_t *a, const swarm_dna_t *b, uint64_t nonce);
 
 /* D4: fitness from market results. */
-uint64_t       swarm_dna_fitness(uint64_t gated_value, uint64_t social);
+uint64_t swarm_dna_fitness(uint64_t gated_value, uint64_t social);
 
 /* D4: pick parents (two fittest) and the slot to replace (least fit) among
  * n candidates. Ties go to the lower index. Returns false if n < 3. */
-bool           swarm_dna_select(const uint64_t *fitness, uint32_t n,
-                                uint32_t *parent_a, uint32_t *parent_b, uint32_t *replace);
+bool swarm_dna_select(const uint64_t *fitness, uint32_t n, uint32_t *parent_a, uint32_t *parent_b,
+                      uint32_t *replace);
 
 #endif /* SWARM_DNA_H */

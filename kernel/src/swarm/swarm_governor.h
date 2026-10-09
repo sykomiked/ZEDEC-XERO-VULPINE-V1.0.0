@@ -24,21 +24,21 @@
 #include <stdbool.h>
 
 typedef struct {
-    bool     remote;            /* a remote instance (G1) or the user's device (G2) */
-    uint32_t cores;             /* logical CPU cores */
-    uint32_t other_load_milli;  /* load from other programs, in cores x 1000 */
+    bool remote;               /* a remote instance (G1) or the user's device (G2) */
+    uint32_t cores;            /* logical CPU cores */
+    uint32_t other_load_milli; /* load from other programs, in cores x 1000 */
     uint64_t mem_total_mb;
-    uint64_t mem_free_mb;       /* free for us now, after other programs */
-    uint64_t gpu_mem_mb;        /* dedicated or unified GPU memory, 0 if none */
+    uint64_t mem_free_mb; /* free for us now, after other programs */
+    uint64_t gpu_mem_mb;  /* dedicated or unified GPU memory, 0 if none */
 } swarm_hw_scan_t;
 
 typedef struct {
-    uint32_t cores_milli;       /* CPU budget in cores x 1000 */
+    uint32_t cores_milli; /* CPU budget in cores x 1000 */
     uint64_t mem_mb;
     uint64_t gpu_mem_mb;
-    uint32_t num_levels;        /* G4, 0 if not even the companion fits */
+    uint32_t num_levels; /* G4, 0 if not even the companion fits */
     uint32_t num_agents;
-    uint64_t tokens_per_cycle;  /* G5 */
+    uint64_t tokens_per_cycle; /* G5 */
 } swarm_compute_budget_t;
 
 /* Decide the budget (G1-G5). agent_mb is the memory one agent needs;

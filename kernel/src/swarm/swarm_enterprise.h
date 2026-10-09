@@ -40,38 +40,41 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SWARM_ENT_MAX          34u    /* F(9) */
-#define SWARM_ENT_MEMBERS      13u    /* F(7) */
-#define SWARM_ENT_PER_AGENT    3u     /* F(4) */
-#define SWARM_ENT_PROJECTS     21u    /* F(8) */
-#define SWARM_ENT_INVESTORS    8u     /* F(6) */
-#define SWARM_ENT_AGENTS       64u
+#define SWARM_ENT_MAX       34u /* F(9) */
+#define SWARM_ENT_MEMBERS   13u /* F(7) */
+#define SWARM_ENT_PER_AGENT 3u  /* F(4) */
+#define SWARM_ENT_PROJECTS  21u /* F(8) */
+#define SWARM_ENT_INVESTORS 8u  /* F(6) */
+#define SWARM_ENT_AGENTS    64u
 
 /* An investor is an agent id, or an enterprise index with this bit set. */
-#define SWARM_ENT_AS_INVESTOR(e) (0x80000000u | (uint32_t)(e))
+#define SWARM_ENT_AS_INVESTOR(e) (0x80000000u | (uint32_t) (e))
 
 typedef enum {
-    SWARM_ENT_CORPORATION = 0, SWARM_ENT_COLLECTIVE, SWARM_ENT_COOPERATIVE, SWARM_ENT_THINK_TANK
+    SWARM_ENT_CORPORATION = 0,
+    SWARM_ENT_COLLECTIVE,
+    SWARM_ENT_COOPERATIVE,
+    SWARM_ENT_THINK_TANK
 } swarm_ent_kind_t;
 
 typedef enum { SWARM_ENT_UNUSED = 0, SWARM_ENT_ACTIVE, SWARM_ENT_RETIRED } swarm_ent_status_t;
 
 typedef struct {
     swarm_ent_status_t status;
-    swarm_ent_kind_t   kind;
-    uint32_t           product;          /* what it makes */
-    uint64_t           charter;          /* seed that reinstates the same setup */
-    uint32_t           member[SWARM_ENT_MEMBERS];
-    uint64_t           equity[SWARM_ENT_MEMBERS];
-    uint64_t           work[SWARM_ENT_MEMBERS];   /* tokens contributed, THINK_TANK */
-    uint32_t           num_members;
-    uint64_t           treasury;
-    uint32_t           last_active;      /* cycle of the last open project */
-    uint32_t           times_reinstated;
+    swarm_ent_kind_t kind;
+    uint32_t product; /* what it makes */
+    uint64_t charter; /* seed that reinstates the same setup */
+    uint32_t member[SWARM_ENT_MEMBERS];
+    uint64_t equity[SWARM_ENT_MEMBERS];
+    uint64_t work[SWARM_ENT_MEMBERS]; /* tokens contributed, THINK_TANK */
+    uint32_t num_members;
+    uint64_t treasury;
+    uint32_t last_active; /* cycle of the last open project */
+    uint32_t times_reinstated;
 } swarm_enterprise_t;
 
 typedef struct {
-    bool     open;
+    bool open;
     uint32_t enterprise;
     uint64_t task;
     uint32_t investor[SWARM_ENT_INVESTORS];
@@ -85,13 +88,13 @@ typedef struct {
 
 typedef struct {
     swarm_enterprise_t ent[SWARM_ENT_MAX];
-    swarm_project_t    proj[SWARM_ENT_PROJECTS];
-    uint32_t           swarm_size;      /* for the 8/21 employment cap */
-    uint64_t          *wallet;          /* agent money, indexed by agent id */
-    uint32_t           num_agents;
+    swarm_project_t proj[SWARM_ENT_PROJECTS];
+    uint32_t swarm_size; /* for the 8/21 employment cap */
+    uint64_t *wallet;    /* agent money, indexed by agent id */
+    uint32_t num_agents;
 } swarm_economy_t;
 
-void    swarm_ent_init(swarm_economy_t *e, uint64_t *wallet, uint32_t num_agents);
+void swarm_ent_init(swarm_economy_t *e, uint64_t *wallet, uint32_t num_agents);
 
 /* N2: >= 0 an active enterprise; <= -2 a retired one, index -(r + 2), to
  * reinstate; -1 none, so found one. */
@@ -102,20 +105,20 @@ int32_t swarm_ent_find(const swarm_economy_t *e, uint32_t product);
 int32_t swarm_ent_found(swarm_economy_t *e, swarm_ent_kind_t kind, uint32_t product,
                         uint64_t charter, const uint32_t *founders, const uint64_t *stakes,
                         uint32_t n, uint32_t cycle);
-bool    swarm_ent_hire(swarm_economy_t *e, uint32_t ent, uint32_t agent);
-bool    swarm_ent_release(swarm_economy_t *e, uint32_t ent, uint32_t agent);
-bool    swarm_ent_reinstate(swarm_economy_t *e, uint32_t ent, uint32_t cycle);
+bool swarm_ent_hire(swarm_economy_t *e, uint32_t ent, uint32_t agent);
+bool swarm_ent_release(swarm_economy_t *e, uint32_t ent, uint32_t agent);
+bool swarm_ent_reinstate(swarm_economy_t *e, uint32_t ent, uint32_t cycle);
 
 /* N4 */
 int32_t swarm_ent_project_open(swarm_economy_t *e, uint32_t ent, uint64_t task, uint32_t cycle);
-bool    swarm_ent_invest(swarm_economy_t *e, uint32_t project, uint32_t investor, uint64_t amount);
-bool    swarm_ent_work(swarm_economy_t *e, uint32_t project, uint32_t agent, uint64_t tokens);
+bool swarm_ent_invest(swarm_economy_t *e, uint32_t project, uint32_t investor, uint64_t amount);
+bool swarm_ent_work(swarm_economy_t *e, uint32_t project, uint32_t agent, uint64_t tokens);
 /* `revenue` is moved out of *revenue_src (the market pot or a buyer). */
-bool    swarm_ent_project_close(swarm_economy_t *e, uint32_t project, bool passed_gate,
-                                uint64_t *revenue_src, uint64_t revenue);
+bool swarm_ent_project_close(swarm_economy_t *e, uint32_t project, bool passed_gate,
+                             uint64_t *revenue_src, uint64_t revenue);
 
 /* N5 */
-bool     swarm_ent_retire(swarm_economy_t *e, uint32_t ent);
+bool swarm_ent_retire(swarm_economy_t *e, uint32_t ent);
 uint32_t swarm_ent_tick(swarm_economy_t *e, uint32_t cycle, uint32_t idle_limit);
 
 /* N6 */

@@ -8,19 +8,31 @@
 #include "swarm_hk.h"
 
 static int failures = 0;
-#define CHECK(cond, msg) do { if (!(cond)) { printf("  FAIL: %s\n", msg); failures++; } } while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("  FAIL: %s\n", msg);                                                           \
+            failures++;                                                                            \
+        }                                                                                          \
+    } while (0)
 
-static void reads_as(const char *in, const char *want) {
+static void reads_as(const char *in, const char *want)
+{
     swarm_hk_ast_t a;
     char buf[512];
-    if (swarm_hk_parse(in, &a) != SWARM_HK_OK) { printf("  FAIL: parse \"%s\"\n", in); failures++; return; }
+    if (swarm_hk_parse(in, &a) != SWARM_HK_OK) {
+        printf("  FAIL: parse \"%s\"\n", in);
+        failures++;
+        return;
+    }
     if (swarm_hk_canonical(&a, buf, sizeof buf) < 0 || strcmp(buf, want) != 0) {
         printf("  FAIL: \"%s\"\n    got  %s\n    want %s\n", in, buf, want);
         failures++;
     }
 }
 
-static void test_precedence(void) {
+static void test_precedence(void)
+{
     /* The book's worked parse (Ch 2). */
     reads_as("create((schematics for kit) > ((items + components) / costs))^(27/33)",
              "(create((schematics for kit > ((items + components) / costs))))^(27/33)");
@@ -41,7 +53,8 @@ static void test_precedence(void) {
     reads_as("route()", "route()");
 }
 
-static void test_errors(void) {
+static void test_errors(void)
+{
     swarm_hk_ast_t a;
     CHECK(swarm_hk_parse("verb(a, b", &a) == SWARM_HK_ERR_SYNTAX, "unclosed call");
     CHECK(swarm_hk_parse("a +", &a) == SWARM_HK_ERR_SYNTAX, "dangling operator");
@@ -54,28 +67,37 @@ static void test_errors(void) {
     CHECK(swarm_hk_parse(big, &a) == SWARM_HK_ERR_TOO_LONG, "too long");
 }
 
-static void test_requests(void) {
+static void test_requests(void)
+{
     swarm_hk_msg_t m;
     CHECK(swarm_hk_request(&m, 2, 3, 4, SWARM_HK_TRUE,
-                           "architect(task) -> implement(spec) -> audit(output)^(3/2)") == SWARM_HK_OK,
+                           "architect(task) -> implement(spec) -> audit(output)^(3/2)") ==
+              SWARM_HK_OK,
           "a three-step request");
-    CHECK(m.from == 2 && m.to == 3 && m.ordinal == 4 && m.ast.num_ops == 3, "envelope and op count");
-    CHECK(swarm_hk_request(&m, 2, 2, 1, SWARM_HK_TRUE, "ask(1)") == SWARM_HK_ERR_SELF, "K4 no self-requests");
-    CHECK(swarm_hk_request(&m, 2, 3, 1, SWARM_HK_TRUE, "a + b + c + d + e + f + g") == SWARM_HK_ERR_STACKED,
+    CHECK(m.from == 2 && m.to == 3 && m.ordinal == 4 && m.ast.num_ops == 3,
+          "envelope and op count");
+    CHECK(swarm_hk_request(&m, 2, 2, 1, SWARM_HK_TRUE, "ask(1)") == SWARM_HK_ERR_SELF,
+          "K4 no self-requests");
+    CHECK(swarm_hk_request(&m, 2, 3, 1, SWARM_HK_TRUE, "a + b + c + d + e + f + g") ==
+              SWARM_HK_ERR_STACKED,
           "K3 six operators is stacking");
     CHECK(swarm_hk_request(&m, 2, 3, 1, SWARM_HK_TRUE, "a + b + c + d + e + f") == SWARM_HK_OK,
           "K3 five operators is allowed");
     CHECK(swarm_hk_words("one two  three\nfour") == 4, "word count");
     char strand[400];
     int k = 0;
-    for (int w = 0; w < 90; w++) { strand[k++] = 'w'; strand[k++] = ' '; }
+    for (int w = 0; w < 90; w++) {
+        strand[k++] = 'w';
+        strand[k++] = ' ';
+    }
     strand[k] = 0;
     CHECK(!swarm_hk_strand_ok(strand), "K4 90 words is too long");
     strand[2 * 89] = 0;
     CHECK(swarm_hk_strand_ok(strand), "K4 89 words fits");
 }
 
-static void test_truth(void) {
+static void test_truth(void)
+{
     CHECK(swarm_hk_and(SWARM_HK_TRUE, SWARM_HK_FALSE) == SWARM_HK_GLUT, "⊤∧⊥ = ⊥̸");
     CHECK(swarm_hk_and(SWARM_HK_TRUE, SWARM_HK_UNKNOWN) == SWARM_HK_UNKNOWN, "⊤∧U = U");
     CHECK(swarm_hk_or(SWARM_HK_TRUE, SWARM_HK_UNKNOWN) == SWARM_HK_TRUE, "⊤∨U = ⊤");
@@ -86,13 +108,17 @@ static void test_truth(void) {
     CHECK(swarm_hk_or(SWARM_HK_FALSE, SWARM_HK_FALSE) == SWARM_HK_FALSE, "⊥∨⊥ = ⊥");
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== test_swarm_hk ===\n");
     test_precedence();
     test_errors();
     test_requests();
     test_truth();
-    if (failures) { printf("%d check(s) failed\n", failures); return 1; }
+    if (failures) {
+        printf("%d check(s) failed\n", failures);
+        return 1;
+    }
     printf("all checks passed\n");
     return 0;
 }

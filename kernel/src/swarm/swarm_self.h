@@ -33,17 +33,22 @@
 #include <stdbool.h>
 #include "swarm_enochian.h"
 
-#define SWARM_SELF_RINGS        21u    /* F(8) */
-#define SWARM_SELF_RECALIBRATE  382u   /* A2 */
+#define SWARM_SELF_RINGS       21u  /* F(8) */
+#define SWARM_SELF_RECALIBRATE 382u /* A2 */
 
 typedef enum {
-    SWARM_RING_INNER = 0, SWARM_RING_BEING, SWARM_RING_USER, SWARM_RING_SYSTEM,
-    SWARM_RING_SWARM, SWARM_RING_INTERNET, SWARM_RING_WORLD,
+    SWARM_RING_INNER = 0,
+    SWARM_RING_BEING,
+    SWARM_RING_USER,
+    SWARM_RING_SYSTEM,
+    SWARM_RING_SWARM,
+    SWARM_RING_INTERNET,
+    SWARM_RING_WORLD,
     SWARM_RING_BUILTIN
 } swarm_ring_id_t;
 
 typedef struct {
-    char     name[24];
+    char name[24];
     uint32_t observations;
     uint32_t stress_milli;
     uint32_t last_gap_milli;
@@ -52,24 +57,24 @@ typedef struct {
 typedef enum { SWARM_ACT_RECALIBRATE = 0, SWARM_ACT_GROW, SWARM_ACT_REFINE } swarm_act_t;
 
 typedef struct {
-    uint32_t      focus;            /* ring index */
-    swarm_act_t   action;
-    uint32_t      predicted_milli;  /* A3: the focus ring's stress after acting */
-    swarm_numen_t numen;            /* A4: numerology of total observations */
+    uint32_t focus; /* ring index */
+    swarm_act_t action;
+    uint32_t predicted_milli; /* A3: the focus ring's stress after acting */
+    swarm_numen_t numen;      /* A4: numerology of total observations */
 } swarm_reflection_t;
 
 typedef struct {
-    swarm_ring_t       ring[SWARM_SELF_RINGS];
-    uint32_t           count;
-    bool               has_last;
+    swarm_ring_t ring[SWARM_SELF_RINGS];
+    uint32_t count;
+    bool has_last;
     swarm_reflection_t last;
-    uint32_t           reflections;
+    uint32_t reflections;
 } swarm_self_t;
 
-void     swarm_self_init(swarm_self_t *s);
-int32_t  swarm_self_ring_add(swarm_self_t *s, const char *name);   /* index, or -1 */
-void     swarm_self_observe(swarm_self_t *s, uint32_t ring,
-                            uint32_t expected_milli, uint32_t observed_milli);   /* A1 */
+void swarm_self_init(swarm_self_t *s);
+int32_t swarm_self_ring_add(swarm_self_t *s, const char *name); /* index, or -1 */
+void swarm_self_observe(swarm_self_t *s, uint32_t ring, uint32_t expected_milli,
+                        uint32_t observed_milli); /* A1 */
 /* A2, A3. `can_grow` is the governor's answer: does the budget have room? */
 swarm_reflection_t swarm_self_reflect(swarm_self_t *s, bool can_grow);
 

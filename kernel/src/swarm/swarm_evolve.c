@@ -2,11 +2,10 @@
 /* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
 /* swarm_evolve.c — the evolution protocol. See swarm_evolve.h. */
 #include "swarm_evolve.h"
-#include "swarm_budget.h"   /* swarm_muldiv */
+#include "swarm_budget.h" /* swarm_muldiv */
 
 swarm_evo_verdict_t swarm_evo_judge(const swarm_model_state_t *champion,
-                                    const swarm_model_state_t *candidate,
-                                    uint32_t budget_tokens)
+                                    const swarm_model_state_t *candidate, uint32_t budget_tokens)
 {
     if (candidate->cost_tokens > budget_tokens) return SWARM_EVO_REJECT_BUDGET;
     if (candidate->score_milli < champion->score_milli) return SWARM_EVO_REJECT_WORSE;
@@ -25,7 +24,7 @@ uint64_t swarm_evo_outlier_share(uint64_t total_tokens)
 uint32_t swarm_evo_outlier(const swarm_dna_t *dna, uint32_t n)
 {
     if (n < 2) return 0;
-    uint32_t sum[SWARM_DNA_GENES] = { 0 };
+    uint32_t sum[SWARM_DNA_GENES] = {0};
     for (uint32_t i = 0; i < n; i++)
         for (uint32_t g = 0; g < SWARM_DNA_GENES; g++) sum[g] += dna[i].gene[g];
     uint32_t best = 1, best_d = 0;
@@ -36,7 +35,10 @@ uint32_t swarm_evo_outlier(const swarm_dna_t *dna, uint32_t n)
             uint32_t x = dna[i].gene[g] * n, m = sum[g];
             d += x > m ? x - m : m - x;
         }
-        if (d > best_d) { best_d = d; best = i; }
+        if (d > best_d) {
+            best_d = d;
+            best = i;
+        }
     }
     return best;
 }
@@ -48,12 +50,13 @@ uint32_t swarm_evo_mobility(uint8_t *level, const uint64_t *fitness, uint32_t n,
     for (uint32_t d = 1; d + 1 < num_levels; d++) {
         int32_t weak = -1, strong = -1;
         for (uint32_t i = 0; i < n; i++) {
-            if (level[i] == d && (weak < 0 || fitness[i] < fitness[weak])) weak = (int32_t)i;
-            if (level[i] == d + 1 && (strong < 0 || fitness[i] > fitness[strong])) strong = (int32_t)i;
+            if (level[i] == d && (weak < 0 || fitness[i] < fitness[weak])) weak = (int32_t) i;
+            if (level[i] == d + 1 && (strong < 0 || fitness[i] > fitness[strong]))
+                strong = (int32_t) i;
         }
         if (weak >= 0 && strong >= 0 && fitness[strong] > fitness[weak]) {
-            level[weak] = (uint8_t)(d + 1);
-            level[strong] = (uint8_t)d;
+            level[weak] = (uint8_t) (d + 1);
+            level[strong] = (uint8_t) d;
             swaps++;
         }
     }
@@ -72,23 +75,23 @@ uint32_t swarm_evo_crc32(const uint8_t *p, uint32_t len)
 
 static void put32(uint8_t *p, uint32_t v)
 {
-    for (int i = 0; i < 4; i++) p[i] = (uint8_t)(v >> (8 * i));
+    for (int i = 0; i < 4; i++) p[i] = (uint8_t) (v >> (8 * i));
 }
 
 static void put64(uint8_t *p, uint64_t v)
 {
-    put32(p, (uint32_t)v);
-    put32(p + 4, (uint32_t)(v >> 32));
+    put32(p, (uint32_t) v);
+    put32(p + 4, (uint32_t) (v >> 32));
 }
 
 static uint32_t get32(const uint8_t *p)
 {
-    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+    return (uint32_t) p[0] | (uint32_t) p[1] << 8 | (uint32_t) p[2] << 16 | (uint32_t) p[3] << 24;
 }
 
 static uint64_t get64(const uint8_t *p)
 {
-    return (uint64_t)get32(p) | (uint64_t)get32(p + 4) << 32;
+    return (uint64_t) get32(p) | (uint64_t) get32(p + 4) << 32;
 }
 
 /* Layout: "ZXVM" ver(1) pad(3) id parent seed (8 each) genes(8)
@@ -97,7 +100,11 @@ static uint64_t get64(const uint8_t *p)
 void swarm_evo_save(const swarm_model_state_t *s, uint8_t out[SWARM_EVO_RECORD])
 {
     for (uint32_t i = 0; i < SWARM_EVO_RECORD; i++) out[i] = 0;
-    out[0] = 'Z'; out[1] = 'X'; out[2] = 'V'; out[3] = 'M'; out[4] = 1;
+    out[0] = 'Z';
+    out[1] = 'X';
+    out[2] = 'V';
+    out[3] = 'M';
+    out[4] = 1;
     put64(out + 8, s->id);
     put64(out + 16, s->parent);
     put64(out + 24, s->dna.seed);

@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+# Code style for the kernel. CI checks the C files each change touches.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+BreakBeforeBraces: Linux
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AlignConsecutiveMacros: true
+AlignTrailingComments: true
+AlignConsecutiveAssignments: false
+PointerAlignment: Right
+SortIncludes: false
+IndentPPDirectives: AfterHash
+SpaceAfterCStyleCast: true
+CommentPragmas: 'SPDX-License-Identifier'

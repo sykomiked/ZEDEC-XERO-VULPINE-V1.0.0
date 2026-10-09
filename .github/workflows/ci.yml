@@ -35,7 +35,7 @@ jobs:
       - name: Install x86_64 toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc qemu-system-x86 xorriso grub-pc-bin grub-common
+          sudo apt-get install -y gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
       - name: Build x86_64
         run: |
           make -f build_system/Makefile.x86_64 clean
@@ -75,9 +75,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install RISC-V 32-bit toolchain
+        # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
+        # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-riscv32-linux-gnu qemu-system-riscv32
+          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
       - name: Build RISC-V 32-bit
         run: |
           make -f build_system/Makefile.riscv32 clean
@@ -129,10 +131,18 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install clang-format
+        run: pip install clang-format==18.1.8
+      - name: Check formatting of the C files this change touches
+        # Style is in .clang-format. Older files predate it, so only the files
+        # a pull request or push changes are checked.
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format
-      - name: Check formatting
-        run: |
-          find kernel -name '*.c' -o -name '*.h' | xargs clang-format --dry-run --Werror
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
+          files=$(git diff --name-only --diff-filter=AM "$BASE"...HEAD -- 'kernel/*.c' 'kernel/*.h')
+          if [ -z "$files" ]; then echo "no C files changed"; exit 0; fi
+          echo "$files"
+          echo "$files" | xargs clang-format --dry-run --Werror

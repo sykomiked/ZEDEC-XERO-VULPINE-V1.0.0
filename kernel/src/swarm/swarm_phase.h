@@ -33,25 +33,25 @@
 #include "swarm_logic.h"
 
 typedef struct {
-    uint64_t long_count;   /* P1, the ledger value */
-    uint8_t  reduced;      /* P1, 1..9 */
+    uint64_t long_count; /* P1, the ledger value */
+    uint8_t reduced;     /* P1, 1..9 */
 } swarm_phase_t;
 
 typedef struct {
-    uint8_t        reading;    /* P2: 0 now, else 1..9 */
-    swarm_vortex_t vortex;     /* P3 */
-    int8_t         loop_step;
+    uint8_t reading;       /* P2: 0 now, else 1..9 */
+    swarm_vortex_t vortex; /* P3 */
+    int8_t loop_step;
 } swarm_phase_reading_t;
 
-void                  swarm_phase_init(swarm_phase_t *p, uint64_t long_count);
-void                  swarm_phase_step(swarm_phase_t *p, uint32_t ticks);
+void swarm_phase_init(swarm_phase_t *p, uint64_t long_count);
+void swarm_phase_step(swarm_phase_t *p, uint32_t ticks);
 swarm_phase_reading_t swarm_phase_read(const swarm_phase_t *p, bool acting_now);
-bool                  swarm_phase_check(const swarm_phase_t *p);     /* P4 */
+bool swarm_phase_check(const swarm_phase_t *p); /* P4 */
 
 typedef struct {
-    uint64_t n;            /* lattice size F(...) */
+    uint64_t n; /* lattice size F(...) */
     uint64_t x, y;
-    int8_t   layer;        /* +1, -1, 0 */
+    int8_t layer; /* +1, -1, 0 */
 } swarm_geo_t;
 
 /* P5 */

@@ -37,27 +37,32 @@
 typedef enum { SWARM_SPACE_POS = 0, SWARM_SPACE_NEG = 1, SWARM_SPACE_NEU = 2 } swarm_space_t;
 
 typedef struct {
-    uint64_t      topic;      /* what the claim is about (e.g. an overlap key) */
+    uint64_t topic; /* what the claim is about (e.g. an overlap key) */
     swarm_space_t space;
-    uint8_t       level;      /* Fibonacci level; magnitude F(level) */
-    bool          verified;   /* rests on a test, source or witness */
-    uint32_t      tokens;     /* tokens committed to pursuing it */
+    uint8_t level;   /* Fibonacci level; magnitude F(level) */
+    bool verified;   /* rests on a test, source or witness */
+    uint32_t tokens; /* tokens committed to pursuing it */
 } swarm_claim_t;
 
 typedef enum {
-    SWARM_LG_UNRELATED = 0, SWARM_LG_REINFORCE, SWARM_LG_HOLD, SWARM_LG_ANNIHILATE,
-    SWARM_LG_DOMINATE, SWARM_LG_GLUT, SWARM_LG_PARADOX
+    SWARM_LG_UNRELATED = 0,
+    SWARM_LG_REINFORCE,
+    SWARM_LG_HOLD,
+    SWARM_LG_ANNIHILATE,
+    SWARM_LG_DOMINATE,
+    SWARM_LG_GLUT,
+    SWARM_LG_PARADOX
 } swarm_lg_kind_t;
 
 typedef struct {
-    swarm_lg_kind_t  kind;
-    swarm_claim_t    out;          /* the claim that goes forward */
-    uint32_t         freed;        /* tokens released back to the budget */
-    bool             escalate;     /* L7 */
+    swarm_lg_kind_t kind;
+    swarm_claim_t out; /* the claim that goes forward */
+    uint32_t freed;    /* tokens released back to the budget */
+    bool escalate;     /* L7 */
     swarm_hk_truth_t truth;
 } swarm_lg_result_t;
 
 swarm_lg_result_t swarm_logic_meet(const swarm_claim_t *a, const swarm_claim_t *b);
-swarm_hk_truth_t  swarm_logic_truth(const swarm_claim_t *c);
+swarm_hk_truth_t swarm_logic_truth(const swarm_claim_t *c);
 
 #endif /* SWARM_LOGIC_H */

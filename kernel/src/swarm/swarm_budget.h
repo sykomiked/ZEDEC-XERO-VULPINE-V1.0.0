@@ -53,40 +53,40 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SWARM_MAX_LEVELS          8u      /* capacities F(2)..F(9) */
-#define SWARM_MAX_MODELS          64u
+#define SWARM_MAX_LEVELS 8u /* capacities F(2)..F(9) */
+#define SWARM_MAX_MODELS 64u
 /* Upper bound on T so that T * W(d) cannot overflow 64 bits
  * (max weight F(9) = 34; the weights of 8 levels sum to F(11) - 2 = 87). */
-#define SWARM_MAX_TOKENS_PER_CYCLE ((uint64_t)1 << 48)
+#define SWARM_MAX_TOKENS_PER_CYCLE ((uint64_t) 1 << 48)
 
 typedef enum {
-    SWARM_OK             =  0,
-    SWARM_ERR_ARG        = -1,  /* NULL pointer or value out of range */
-    SWARM_ERR_FULL       = -2,  /* level at its Fibonacci capacity (R1) */
-    SWARM_ERR_NO_MODEL   = -3,  /* model id not registered */
-    SWARM_ERR_DUPLICATE  = -4,  /* model id already registered */
-    SWARM_ERR_NO_CYCLE   = -5   /* consume called outside an open cycle */
+    SWARM_OK = 0,
+    SWARM_ERR_ARG = -1,       /* NULL pointer or value out of range */
+    SWARM_ERR_FULL = -2,      /* level at its Fibonacci capacity (R1) */
+    SWARM_ERR_NO_MODEL = -3,  /* model id not registered */
+    SWARM_ERR_DUPLICATE = -4, /* model id already registered */
+    SWARM_ERR_NO_CYCLE = -5   /* consume called outside an open cycle */
 } swarm_status_t;
 
 typedef struct {
     uint32_t model_id;
-    uint8_t  level;
-    bool     active;
-    uint64_t allotted;   /* tokens granted for the current cycle (real + imaginary) */
-    uint64_t allotted_im;/* imaginary (emotional) part of allotted; see swarm_emotion.h */
-    uint64_t allotted_mk;/* real part bought on the market; see swarm_market.h */
-    uint64_t used;       /* tokens spent in the current cycle */
+    uint8_t level;
+    bool active;
+    uint64_t allotted;    /* tokens granted for the current cycle (real + imaginary) */
+    uint64_t allotted_im; /* imaginary (emotional) part of allotted; see swarm_emotion.h */
+    uint64_t allotted_mk; /* real part bought on the market; see swarm_market.h */
+    uint64_t used;        /* tokens spent in the current cycle */
 } swarm_slot_t;
 
 typedef struct {
-    uint32_t     num_levels;          /* L, 1 .. SWARM_MAX_LEVELS */
-    uint64_t     tokens_per_cycle;    /* T */
-    uint64_t     cycle;               /* cycles begun so far */
-    bool         cycle_open;
+    uint32_t num_levels;       /* L, 1 .. SWARM_MAX_LEVELS */
+    uint64_t tokens_per_cycle; /* T */
+    uint64_t cycle;            /* cycles begun so far */
+    bool cycle_open;
     swarm_slot_t slots[SWARM_MAX_MODELS];
-    uint32_t     num_slots;
-    uint64_t     level_budget[SWARM_MAX_LEVELS];   /* this cycle, per level */
-    uint64_t     last_unused;         /* tokens expired at the last cycle end */
+    uint32_t num_slots;
+    uint64_t level_budget[SWARM_MAX_LEVELS]; /* this cycle, per level */
+    uint64_t last_unused;                    /* tokens expired at the last cycle end */
 } swarm_budget_t;
 
 /* F(n) for n >= 1 (F(1) = F(2) = 1). Returns 0 for n == 0 or n > 93. */
@@ -98,18 +98,15 @@ uint32_t swarm_level_capacity(uint32_t d);
 /* R2: the share weight of level d in a swarm of L levels. 0 if out of range. */
 uint64_t swarm_level_weight(uint32_t d, uint32_t num_levels);
 
-swarm_status_t swarm_budget_init(swarm_budget_t *b, uint32_t num_levels,
-                                 uint64_t tokens_per_cycle);
+swarm_status_t swarm_budget_init(swarm_budget_t *b, uint32_t num_levels, uint64_t tokens_per_cycle);
 
 swarm_status_t swarm_budget_set_rate(swarm_budget_t *b, uint64_t tokens_per_cycle);
 
-swarm_status_t swarm_budget_register(swarm_budget_t *b, uint32_t model_id,
-                                     uint32_t level);
+swarm_status_t swarm_budget_register(swarm_budget_t *b, uint32_t model_id, uint32_t level);
 
 /* Activate or park a model. Parked models keep their slot and level but get
  * no tokens; their capacity stays reserved. Takes effect at the next cycle. */
-swarm_status_t swarm_budget_set_active(swarm_budget_t *b, uint32_t model_id,
-                                       bool active);
+swarm_status_t swarm_budget_set_active(swarm_budget_t *b, uint32_t model_id, bool active);
 
 /* Open a cycle: compute every allotment (R3-R5). An already-open cycle is
  * closed first. */
@@ -132,8 +129,8 @@ void swarm_split_lr(uint64_t total, const uint64_t *w, uint32_t n, uint64_t *out
 
 /* Spend up to `requested` tokens for model_id in the open cycle. Writes the
  * number actually granted (never past the allotment) to *granted. */
-swarm_status_t swarm_budget_consume(swarm_budget_t *b, uint32_t model_id,
-                                    uint64_t requested, uint64_t *granted);
+swarm_status_t swarm_budget_consume(swarm_budget_t *b, uint32_t model_id, uint64_t requested,
+                                    uint64_t *granted);
 
 /* Tokens model_id may still spend this cycle; 0 if unknown or no cycle. */
 uint64_t swarm_budget_remaining(const swarm_budget_t *b, uint32_t model_id);

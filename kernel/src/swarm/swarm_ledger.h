@@ -37,41 +37,37 @@
 #include "swarm_emotion.h"
 #include "swarm_market.h"
 
-typedef enum {
-    SWARM_WIT_FALSE = 0,
-    SWARM_WIT_TRUE  = 1,
-    SWARM_WIT_GLUT  = 2
-} swarm_verdict_t;
+typedef enum { SWARM_WIT_FALSE = 0, SWARM_WIT_TRUE = 1, SWARM_WIT_GLUT = 2 } swarm_verdict_t;
 
 typedef enum {
-    SWARM_LEDGER_FINANCIAL   = 0,
-    SWARM_LEDGER_PROVENANCE  = 1,
+    SWARM_LEDGER_FINANCIAL = 0,
+    SWARM_LEDGER_PROVENANCE = 1,
     SWARM_LEDGER_EXTERNALITY = 2
 } swarm_ledger_kind_t;
 
 typedef struct {
-    uint64_t            cycle;
+    uint64_t cycle;
     swarm_ledger_kind_t ledger;
-    uint32_t            model_id;
-    uint32_t            counterparty;   /* witness id on the provenance ledger */
-    uint64_t            amount;         /* tokens (financial: real part; externality: imaginary) */
-    uint64_t            paid;           /* financial ledger: Financial capital paid */
-    swarm_verdict_t     verdict;        /* provenance ledger only */
+    uint32_t model_id;
+    uint32_t counterparty;   /* witness id on the provenance ledger */
+    uint64_t amount;         /* tokens (financial: real part; externality: imaginary) */
+    uint64_t paid;           /* financial ledger: Financial capital paid */
+    swarm_verdict_t verdict; /* provenance ledger only */
 } swarm_ledger_entry_t;
 
 #define SWARM_LEDGER_CAP 512u
 
 typedef struct {
-    swarm_ledger_entry_t e[SWARM_LEDGER_CAP];   /* ring buffer */
-    uint32_t             head;                  /* next write */
-    uint64_t             posted;                /* entries ever posted */
-    uint64_t             settled_cycles;
-    uint64_t             held_cycles;           /* cycles that did not settle */
+    swarm_ledger_entry_t e[SWARM_LEDGER_CAP]; /* ring buffer */
+    uint32_t head;                            /* next write */
+    uint64_t posted;                          /* entries ever posted */
+    uint64_t settled_cycles;
+    uint64_t held_cycles; /* cycles that did not settle */
 } swarm_ledger_t;
 
 typedef struct {
-    uint32_t        model_id;
-    uint32_t        witness_id;
+    uint32_t model_id;
+    uint32_t witness_id;
     swarm_verdict_t verdict;
 } swarm_witness_t;
 
@@ -82,10 +78,8 @@ uint32_t swarm_witness_for(const swarm_budget_t *b, uint32_t slot);
  * before swarm_market_begin_cycle; pre_e may be NULL) and witness every
  * active slot of `posted`. Writes one record per active slot into out[],
  * returns how many. */
-uint32_t swarm_witness_cycle(const swarm_budget_t *posted,
-                             const swarm_budget_t *pre_b,
-                             const swarm_market_t *pre_m,
-                             const swarm_emotion_state_t *pre_e,
+uint32_t swarm_witness_cycle(const swarm_budget_t *posted, const swarm_budget_t *pre_b,
+                             const swarm_market_t *pre_m, const swarm_emotion_state_t *pre_e,
                              swarm_witness_t *out);
 
 /* W4: pay each witness 1 Social capital per record. */
@@ -95,8 +89,7 @@ void swarm_ledger_init(swarm_ledger_t *l);
 
 /* Post the open cycle to all three ledgers and decide L1. Returns true if
  * the cycle settles. imag_pool is the cycle's imaginary pool (0 if none). */
-bool swarm_ledger_post_cycle(swarm_ledger_t *l, const swarm_budget_t *b,
-                             const swarm_market_t *m, uint64_t imag_pool,
-                             const swarm_witness_t *w, uint32_t nw);
+bool swarm_ledger_post_cycle(swarm_ledger_t *l, const swarm_budget_t *b, const swarm_market_t *m,
+                             uint64_t imag_pool, const swarm_witness_t *w, uint32_t nw);
 
 #endif /* SWARM_LEDGER_H */

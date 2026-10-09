@@ -3,7 +3,7 @@
 /* swarm_enterprise.c — enterprises of the information economy. See
  * swarm_enterprise.h. */
 #include "swarm_enterprise.h"
-#include "swarm_budget.h"   /* swarm_muldiv, swarm_split_lr */
+#include "swarm_budget.h" /* swarm_muldiv, swarm_split_lr */
 
 #define IS_ENT(id) (((id) & 0x80000000u) != 0)
 #define ENT_OF(id) ((id) & 0x7FFFFFFFu)
@@ -26,8 +26,8 @@ int32_t swarm_ent_find(const swarm_economy_t *e, uint32_t product)
     int32_t retired = -1;
     for (uint32_t i = 0; i < SWARM_ENT_MAX; i++) {
         if (e->ent[i].product != product) continue;
-        if (e->ent[i].status == SWARM_ENT_ACTIVE) return (int32_t)i;
-        if (e->ent[i].status == SWARM_ENT_RETIRED && retired < 0) retired = (int32_t)i;
+        if (e->ent[i].status == SWARM_ENT_ACTIVE) return (int32_t) i;
+        if (e->ent[i].status == SWARM_ENT_RETIRED && retired < 0) retired = (int32_t) i;
     }
     return retired >= 0 ? -(retired + 2) : -1;
 }
@@ -47,7 +47,7 @@ static uint32_t memberships(const swarm_economy_t *e, uint32_t agent)
 static int32_t member_index(const swarm_enterprise_t *x, uint32_t agent)
 {
     for (uint32_t m = 0; m < x->num_members; m++)
-        if (x->member[m] == agent) return (int32_t)m;
+        if (x->member[m] == agent) return (int32_t) m;
     return -1;
 }
 
@@ -56,7 +56,7 @@ static uint32_t member_cap(const swarm_economy_t *e)
     uint64_t rem;
     uint64_t cap = swarm_muldiv(e->swarm_size, 8, 21, &rem);
     if (cap < 1) cap = 1;
-    return cap < SWARM_ENT_MEMBERS ? (uint32_t)cap : SWARM_ENT_MEMBERS;
+    return cap < SWARM_ENT_MEMBERS ? (uint32_t) cap : SWARM_ENT_MEMBERS;
 }
 
 static void add_member(swarm_enterprise_t *x, uint32_t agent, uint64_t equity)
@@ -94,7 +94,7 @@ int32_t swarm_ent_found(swarm_economy_t *e, swarm_ent_kind_t kind, uint32_t prod
             x->treasury += stakes[i];
             add_member(x, founders[i], stakes[i]);
         }
-        return (int32_t)s;
+        return (int32_t) s;
     }
     return -1;
 }
@@ -116,8 +116,9 @@ static void member_shares(const swarm_enterprise_t *x, uint64_t amount, uint64_t
     uint64_t w[SWARM_ENT_MEMBERS];
     uint64_t sum = 0;
     for (uint32_t m = 0; m < x->num_members; m++) {
-        w[m] = x->kind == SWARM_ENT_CORPORATION ? x->equity[m]
-             : x->kind == SWARM_ENT_THINK_TANK  ? x->work[m] : 1u;
+        w[m] = x->kind == SWARM_ENT_CORPORATION  ? x->equity[m]
+               : x->kind == SWARM_ENT_THINK_TANK ? x->work[m]
+                                                 : 1u;
         sum += w[m];
     }
     if (sum == 0)
@@ -130,7 +131,7 @@ bool swarm_ent_release(swarm_economy_t *e, uint32_t ent, uint32_t agent)
     if (ent >= SWARM_ENT_MAX) return false;
     swarm_enterprise_t *x = &e->ent[ent];
     int32_t m = member_index(x, agent);
-    if (m < 0 || x->num_members == 1) return false;   /* the last member retires it instead */
+    if (m < 0 || x->num_members == 1) return false; /* the last member retires it instead */
     if (x->kind == SWARM_ENT_CORPORATION && x->equity[m] > 0) {
         /* the leaver is bought out at its share of the treasury */
         uint64_t total = 0, rem;
@@ -139,7 +140,7 @@ bool swarm_ent_release(swarm_economy_t *e, uint32_t ent, uint32_t agent)
         x->treasury -= out;
         e->wallet[agent] += out;
     }
-    for (uint32_t i = (uint32_t)m; i + 1 < x->num_members; i++) {
+    for (uint32_t i = (uint32_t) m; i + 1 < x->num_members; i++) {
         x->member[i] = x->member[i + 1];
         x->equity[i] = x->equity[i + 1];
         x->work[i] = x->work[i + 1];
@@ -203,7 +204,7 @@ int32_t swarm_ent_project_open(swarm_economy_t *e, uint32_t ent, uint64_t task, 
         j->num_workers = 0;
         j->escrow = 0;
         e->ent[ent].last_active = cycle;
-        return (int32_t)p;
+        return (int32_t) p;
     }
     return -1;
 }
@@ -243,7 +244,7 @@ bool swarm_ent_work(swarm_economy_t *e, uint32_t project, uint32_t agent, uint64
     swarm_project_t *j = &e->proj[project];
     swarm_enterprise_t *x = &e->ent[j->enterprise];
     int32_t m = member_index(x, agent);
-    if (m < 0) return false;                 /* only employees work on it */
+    if (m < 0) return false; /* only employees work on it */
     x->work[m] += tokens;
     uint32_t k = 0;
     while (k < j->num_workers && j->worker[k] != agent) k++;
@@ -278,7 +279,7 @@ bool swarm_ent_project_close(swarm_economy_t *e, uint32_t project, bool passed_g
         swarm_split_lr(wages, j->worked, j->num_workers, out);
         uint64_t paid = 0;
         for (uint32_t k = 0; k < j->num_workers; k++) paid += out[k];
-        if (paid < wages) {                  /* all work was zero: share equally */
+        if (paid < wages) { /* all work was zero: share equally */
             uint64_t ones[SWARM_ENT_MEMBERS];
             for (uint32_t k = 0; k < j->num_workers; k++) ones[k] = 1;
             swarm_split_lr(wages, ones, j->num_workers, out);
@@ -305,7 +306,10 @@ uint32_t swarm_ent_tick(swarm_economy_t *e, uint32_t cycle, uint32_t idle_limit)
     for (uint32_t i = 0; i < SWARM_ENT_MAX; i++) {
         swarm_enterprise_t *x = &e->ent[i];
         if (x->status != SWARM_ENT_ACTIVE) continue;
-        if (has_open_project(e, i)) { x->last_active = cycle; continue; }
+        if (has_open_project(e, i)) {
+            x->last_active = cycle;
+            continue;
+        }
         if (cycle - x->last_active >= idle_limit && swarm_ent_retire(e, i)) retired++;
     }
     return retired;

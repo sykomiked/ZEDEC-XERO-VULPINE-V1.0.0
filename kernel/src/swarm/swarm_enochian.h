@@ -43,19 +43,19 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SWARM_EN_LETTERS        23u
-#define SWARM_EN_FRAME_BYTES    21u    /* one UBH-168 frame */
-#define SWARM_EN_FRAME_SYMBOLS  36u    /* E7 */
-#define SWARM_EN_LATTICE        49u    /* 7 x 7, the cube's side */
+#define SWARM_EN_LETTERS       23u
+#define SWARM_EN_FRAME_BYTES   21u /* one UBH-168 frame */
+#define SWARM_EN_FRAME_SYMBOLS 36u /* E7 */
+#define SWARM_EN_LATTICE       49u /* 7 x 7, the cube's side */
 
 /* E1 */
-int      swarm_en_index(char c);           /* 0..22 after allographs, -1 if not a letter */
-char     swarm_en_letter(uint32_t index);  /* the canonical letter, or 0 */
+int swarm_en_index(char c);           /* 0..22 after allographs, -1 if not a letter */
+char swarm_en_letter(uint32_t index); /* the canonical letter, or 0 */
 uint32_t swarm_en_value(char c);
 uint32_t swarm_en_gematria(const char *text, uint32_t len);
 
 /* E2 */
-uint32_t    swarm_en_root(uint64_t n);
+uint32_t swarm_en_root(uint64_t n);
 const char *swarm_en_domain(uint32_t root);
 
 /* E3: write the word's Devanagari (or IAST) spelling, NUL-terminated.
@@ -67,34 +67,34 @@ int32_t swarm_en_iast(const char *word, uint32_t len, char *buf, uint32_t cap);
 typedef enum { SWARM_VORTEX_LOOP = 0, SWARM_VORTEX_AXIS = 1 } swarm_vortex_t;
 
 typedef struct {
-    uint32_t       n;
-    uint8_t        root, mod9, mod7, mod3;
-    bool           master, prime, fibonacci;
+    uint32_t n;
+    uint8_t root, mod9, mod7, mod3;
+    bool master, prime, fibonacci;
     swarm_vortex_t vortex;
-    int8_t         loop_step;            /* place in 1 2 4 8 7 5 (0..5), -1 on the axis */
-    const char    *digit_meaning;
-    const char    *master_meaning;       /* "" unless master */
-    const char    *planet;               /* mod 7 */
-    const char    *element;              /* mod 3 */
+    int8_t loop_step; /* place in 1 2 4 8 7 5 (0..5), -1 on the axis */
+    const char *digit_meaning;
+    const char *master_meaning; /* "" unless master */
+    const char *planet;         /* mod 7 */
+    const char *element;        /* mod 3 */
 } swarm_numen_t;
 
 swarm_numen_t swarm_numen(uint32_t n);
-uint32_t      swarm_vortex_next(uint32_t root);   /* E5: root(2 * root) */
+uint32_t swarm_vortex_next(uint32_t root); /* E5: root(2 * root) */
 
 /* E6: the summary of one unit at any dimension. `units[k]` counts the
  * dimension-(k+1) units inside it (units[0] letters, units[1] words, ...);
  * the array and its capacity come from the caller. */
 typedef struct {
-    uint64_t  gematria;
-    uint32_t  dim;          /* 1 = letter, 2 = word, 3 = phrase, ... unbounded */
+    uint64_t gematria;
+    uint32_t dim; /* 1 = letter, 2 = word, 3 = phrase, ... unbounded */
     uint64_t *units;
-    uint32_t  cap;          /* length of units[] */
-    uint8_t   root, mod7, mod3, mod49;
+    uint32_t cap; /* length of units[] */
+    uint8_t root, mod7, mod3, mod49;
 } swarm_en_unit_t;
 
 void swarm_en_unit_init(swarm_en_unit_t *u, uint32_t dim, uint64_t *units, uint32_t cap);
-bool swarm_en_unit_letter(swarm_en_unit_t *u, char c);           /* a 1D unit */
-bool swarm_en_unit_word(swarm_en_unit_t *u, const char *w, uint32_t len);  /* a 2D unit */
+bool swarm_en_unit_letter(swarm_en_unit_t *u, char c);                    /* a 1D unit */
+bool swarm_en_unit_word(swarm_en_unit_t *u, const char *w, uint32_t len); /* a 2D unit */
 /* Append child to parent; parent->dim must be child->dim + 1. */
 bool swarm_en_unit_add(swarm_en_unit_t *parent, const swarm_en_unit_t *child);
 /* The unit's place in the 49^dim lattice: axis 0 is gematria mod 49, axis k
@@ -110,21 +110,21 @@ int32_t swarm_en_unpack(const uint8_t *in, uint32_t len, char *out, uint32_t cap
 /* E8 */
 #define SWARM_LANG_MAX 21u
 typedef struct {
-    char     code[16];      /* BCP 47 tag: "en", "es", "ja", "sa", ... */
-    char     name[32];
-    uint32_t translator;    /* the agent that translates to and from it */
+    char code[16]; /* BCP 47 tag: "en", "es", "ja", "sa", ... */
+    char name[32];
+    uint32_t translator; /* the agent that translates to and from it */
 } swarm_lang_t;
 
 typedef struct {
     swarm_lang_t lang[SWARM_LANG_MAX];
-    uint32_t     count;
-    uint32_t     operator_lang;  /* index of the language the person is answered in */
+    uint32_t count;
+    uint32_t operator_lang; /* index of the language the person is answered in */
 } swarm_lang_table_t;
 
-void        swarm_lang_init(swarm_lang_table_t *t);      /* installs English as the operator */
-int32_t     swarm_lang_install(swarm_lang_table_t *t, const char *code, const char *name,
-                               uint32_t translator);    /* index, or -1 */
-bool        swarm_lang_set_operator(swarm_lang_table_t *t, const char *code);
-const char *swarm_lang_core(void);                       /* always "enochian" */
+void swarm_lang_init(swarm_lang_table_t *t); /* installs English as the operator */
+int32_t swarm_lang_install(swarm_lang_table_t *t, const char *code, const char *name,
+                           uint32_t translator); /* index, or -1 */
+bool swarm_lang_set_operator(swarm_lang_table_t *t, const char *code);
+const char *swarm_lang_core(void); /* always "enochian" */
 
 #endif /* SWARM_ENOCHIAN_H */

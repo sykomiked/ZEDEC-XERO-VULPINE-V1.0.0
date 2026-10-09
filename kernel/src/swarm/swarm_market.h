@@ -45,9 +45,9 @@
 #include "swarm_budget.h"
 #include "swarm_emotion.h"
 
-#define SWARM_MKT_DEN        21u   /* F(8) */
-#define SWARM_MKT_FLOOR_NUM   8u   /* F(6): commons floor, market cap, wealth cap */
-#define SWARM_MKT_INCOME_NUM 13u   /* F(7): value income share of the pot */
+#define SWARM_MKT_DEN        21u /* F(8) */
+#define SWARM_MKT_FLOOR_NUM  8u  /* F(6): commons floor, market cap, wealth cap */
+#define SWARM_MKT_INCOME_NUM 13u /* F(7): value income share of the pot */
 
 /* The nine forms of capital, in the same order as zcap_form_t in
  * kernel/src/zcapital/zcapital.h (checked by test_swarm_market.c). */
@@ -56,10 +56,10 @@ typedef enum {
     SWARM_CAP_MANUFACTURED,
     SWARM_CAP_INTELLECTUAL,
     SWARM_CAP_HUMAN,
-    SWARM_CAP_SOCIAL,       /* Crown */
-    SWARM_CAP_NATURAL,      /* Crown */
-    SWARM_CAP_CULTURAL,     /* Crown */
-    SWARM_CAP_SPIRITUAL,    /* Crown */
+    SWARM_CAP_SOCIAL,    /* Crown */
+    SWARM_CAP_NATURAL,   /* Crown */
+    SWARM_CAP_CULTURAL,  /* Crown */
+    SWARM_CAP_SPIRITUAL, /* Crown */
     SWARM_CAP_SYSTEM,
     SWARM_CAP_COUNT
 } swarm_cap_t;
@@ -69,25 +69,25 @@ bool swarm_cap_is_crown(swarm_cap_t f);
 
 typedef struct {
     uint32_t model_id;
-    uint64_t cap[SWARM_CAP_COUNT];   /* holdings across the nine forms */
-    uint64_t bid;                    /* Financial capital bid this cycle */
-    uint64_t won;                    /* market tokens won this cycle */
-    uint64_t paid;                   /* paid into the pot this cycle */
-    uint64_t value_cycle;            /* value credited this cycle (M6) */
-    uint64_t social_cycle;           /* Social capital earned this cycle (M6) */
+    uint64_t cap[SWARM_CAP_COUNT]; /* holdings across the nine forms */
+    uint64_t bid;                  /* Financial capital bid this cycle */
+    uint64_t won;                  /* market tokens won this cycle */
+    uint64_t paid;                 /* paid into the pot this cycle */
+    uint64_t value_cycle;          /* value credited this cycle (M6) */
+    uint64_t social_cycle;         /* Social capital earned this cycle (M6) */
 } swarm_trader_t;
 
 typedef struct {
     swarm_trader_t t[SWARM_MAX_MODELS];
-    uint32_t       n;
-    uint64_t       money_supply;     /* M8 */
-    uint64_t       pot;
-    uint64_t       last_floor;       /* real tokens shared by Fibonacci last cycle */
-    uint64_t       last_market;      /* real tokens offered on the market */
-    uint64_t       last_unsold;      /* market tokens that fell back to the floor */
+    uint32_t n;
+    uint64_t money_supply; /* M8 */
+    uint64_t pot;
+    uint64_t last_floor;  /* real tokens shared by Fibonacci last cycle */
+    uint64_t last_market; /* real tokens offered on the market */
+    uint64_t last_unsold; /* market tokens that fell back to the floor */
 } swarm_market_t;
 
-void           swarm_market_init(swarm_market_t *m);
+void swarm_market_init(swarm_market_t *m);
 
 /* Join with an endowment of Financial capital (adds to money_supply). */
 swarm_status_t swarm_market_join(swarm_market_t *m, uint32_t model_id, uint64_t endowment);
@@ -97,8 +97,8 @@ swarm_status_t swarm_market_bid(swarm_market_t *m, uint32_t model_id, uint64_t a
 
 /* M4 helper: proportional split of `total` by w[] where no item may exceed
  * `cap`. Returns the tokens nobody may take. */
-uint64_t swarm_capped_split(uint64_t total, const uint64_t *w, uint32_t n,
-                            uint64_t cap, uint64_t *out);
+uint64_t swarm_capped_split(uint64_t total, const uint64_t *w, uint32_t n, uint64_t cap,
+                            uint64_t *out);
 
 /* Open a cycle on every axis (M1-M5). `emo` may be NULL for no emotion. */
 swarm_status_t swarm_market_begin_cycle(swarm_budget_t *b, swarm_market_t *m,
@@ -107,18 +107,18 @@ swarm_status_t swarm_market_begin_cycle(swarm_budget_t *b, swarm_market_t *m,
 /* Credit earned capital. Financial capital cannot be credited (it is only
  * earned through settlement); value forms count toward M6 income and Social
  * toward the M6 dividend. */
-swarm_status_t swarm_market_credit(swarm_market_t *m, uint32_t model_id,
-                                   swarm_cap_t form, uint64_t amount);
+swarm_status_t swarm_market_credit(swarm_market_t *m, uint32_t model_id, swarm_cap_t form,
+                                   uint64_t amount);
 
 /* Before the cycle ends: credit each model Natural capital for the tokens it
  * did not spend (frugality). */
-void           swarm_market_credit_frugality(swarm_market_t *m, const swarm_budget_t *b);
+void swarm_market_credit_frugality(swarm_market_t *m, const swarm_budget_t *b);
 
 /* After the cycle: pay out the pot (M6), apply the wealth cap (M7). */
 swarm_status_t swarm_market_settle(swarm_market_t *m);
 
 /* M8: true iff the sum of Financial holdings plus the pot equals money_supply. */
-bool           swarm_market_conserved(const swarm_market_t *m);
+bool swarm_market_conserved(const swarm_market_t *m);
 
 /* The trader for a model, or NULL. */
 const swarm_trader_t *swarm_market_trader(const swarm_market_t *m, uint32_t model_id);

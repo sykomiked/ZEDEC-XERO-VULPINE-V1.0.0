@@ -22,16 +22,16 @@
 #include "swarm_budget.h"
 #include "swarm_emotion.h"
 
-#define SWARM_RESERVE_LEVEL_MAX 34u   /* F(9), the largest level capacity */
+#define SWARM_RESERVE_LEVEL_MAX 34u /* F(9), the largest level capacity */
 
 typedef struct {
-    uint32_t        owner_id;
-    uint8_t         level;                                     /* owner's level */
-    uint32_t        peer_id[SWARM_RESERVE_LEVEL_MAX];          /* F1 */
+    uint32_t owner_id;
+    uint8_t level;                             /* owner's level */
+    uint32_t peer_id[SWARM_RESERVE_LEVEL_MAX]; /* F1 */
     swarm_feeling_t peer[SWARM_RESERVE_LEVEL_MAX];
-    uint32_t        num_peers;
-    uint64_t        summary[SWARM_MAX_LEVELS][SWARM_EMO_COUNT]; /* F2: charge per emotion */
-    uint64_t        total;                                     /* F3 */
+    uint32_t num_peers;
+    uint64_t summary[SWARM_MAX_LEVELS][SWARM_EMO_COUNT]; /* F2: charge per emotion */
+    uint64_t total;                                      /* F3 */
 } swarm_reserve_t;
 
 /* Build owner_id's reserve from the active models of `b` and their feelings

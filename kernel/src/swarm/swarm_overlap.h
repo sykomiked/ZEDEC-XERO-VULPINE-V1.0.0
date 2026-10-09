@@ -27,26 +27,26 @@ typedef struct {
     uint64_t key;
     uint32_t sharer[SWARM_MAX_MODELS];
     uint32_t num_sharers;
-    bool     settled;
+    bool settled;
 } swarm_job_t;
 
 typedef struct {
     swarm_job_t job[SWARM_OVERLAP_JOBS];
-    uint32_t    num_jobs;
-    uint64_t    tokens_saved;
+    uint32_t num_jobs;
+    uint64_t tokens_saved;
 } swarm_overlap_t;
 
 /* V1: FNV-1a over (model, context hash, question hash). */
 uint64_t swarm_overlap_key(uint32_t model, uint64_t context_hash, uint64_t question_hash);
 
-void     swarm_overlap_init(swarm_overlap_t *o);
+void swarm_overlap_init(swarm_overlap_t *o);
 
 /* V1: join (or open) the job for `key`. Returns its index, or -1 if the
  * table is full. Joining twice is a no-op. */
-int32_t  swarm_overlap_request(swarm_overlap_t *o, uint64_t key, uint32_t model_id);
+int32_t swarm_overlap_request(swarm_overlap_t *o, uint64_t key, uint32_t model_id);
 
 /* V2 + V3: charge the job's `cost` to its sharers in the open cycle. */
-swarm_status_t swarm_overlap_settle(swarm_overlap_t *o, swarm_budget_t *b,
-                                    uint32_t job, uint64_t cost);
+swarm_status_t swarm_overlap_settle(swarm_overlap_t *o, swarm_budget_t *b, uint32_t job,
+                                    uint64_t cost);
 
 #endif /* SWARM_OVERLAP_H */

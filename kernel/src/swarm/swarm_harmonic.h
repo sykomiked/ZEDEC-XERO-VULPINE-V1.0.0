@@ -19,21 +19,21 @@
 
 #include <stdint.h>
 
-#define SWARM_HARMONICS          11u
-#define SWARM_FUNDAMENTAL_TICKS  27720u   /* lcm(1, 2, ..., 11) */
+#define SWARM_HARMONICS         11u
+#define SWARM_FUNDAMENTAL_TICKS 27720u /* lcm(1, 2, ..., 11) */
 
 typedef enum {
-    SWARM_BAND_NONE    = 0,
-    SWARM_BAND_GROWTH  = 1,   /* harmonics 1-3 */
-    SWARM_BAND_THOUGHT = 2,   /* harmonics 4-8 */
-    SWARM_BAND_REFLEX  = 3    /* harmonics 9-11 */
+    SWARM_BAND_NONE = 0,
+    SWARM_BAND_GROWTH = 1,  /* harmonics 1-3 */
+    SWARM_BAND_THOUGHT = 2, /* harmonics 4-8 */
+    SWARM_BAND_REFLEX = 3   /* harmonics 9-11 */
 } swarm_band_t;
 
 /* Period of harmonic n in ticks; 0 if n is not 1 .. 11. */
-uint32_t     swarm_harmonic_period(uint32_t n);
+uint32_t swarm_harmonic_period(uint32_t n);
 
 /* H1: bit (n-1) is set iff harmonic n is due on `tick`. */
-uint32_t     swarm_harmonics_due(uint64_t tick);
+uint32_t swarm_harmonics_due(uint64_t tick);
 
 /* H2: the band of harmonic n. */
 swarm_band_t swarm_harmonic_band(uint32_t n);

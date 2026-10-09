@@ -21,27 +21,27 @@
 #include <stdbool.h>
 #include "swarm_market.h"
 
-#define SWARM_Q_GATE_MILLI2 1800000u   /* 1.8 in (x1000) * (x1000) */
+#define SWARM_Q_GATE_MILLI2 1800000u /* 1.8 in (x1000) * (x1000) */
 
 typedef enum {
-    SWARM_Q_PRESENT = 0,         /* passed the gate */
-    SWARM_Q_REVISE,              /* audit and revise, then gate again */
-    SWARM_Q_PRESENT_FLAGGED      /* out of passes: show with what is unverified */
+    SWARM_Q_PRESENT = 0,    /* passed the gate */
+    SWARM_Q_REVISE,         /* audit and revise, then gate again */
+    SWARM_Q_PRESENT_FLAGGED /* out of passes: show with what is unverified */
 } swarm_q_action_t;
 
 /* Q1 */
-bool             swarm_quality_passes(uint32_t r_milli, uint32_t l_milli);
+bool swarm_quality_passes(uint32_t r_milli, uint32_t l_milli);
 
 /* Q2: most audit-and-revise passes for a swarm of L levels, F(L+2). */
-uint32_t         swarm_quality_max_passes(uint32_t num_levels);
+uint32_t swarm_quality_max_passes(uint32_t num_levels);
 
 /* Q1-Q3: what to do with an output after `passes_done` revisions. */
-swarm_q_action_t swarm_quality_next(uint32_t r_milli, uint32_t l_milli,
-                                    uint32_t passes_done, uint32_t num_levels);
+swarm_q_action_t swarm_quality_next(uint32_t r_milli, uint32_t l_milli, uint32_t passes_done,
+                                    uint32_t num_levels);
 
 /* Q4: credit value capital only if the output passed the gate.
  * SWARM_ERR_ARG if it did not (nothing is credited). */
-swarm_status_t   swarm_quality_credit(swarm_market_t *m, uint32_t model_id, swarm_cap_t form,
-                                      uint64_t amount, uint32_t r_milli, uint32_t l_milli);
+swarm_status_t swarm_quality_credit(swarm_market_t *m, uint32_t model_id, swarm_cap_t form,
+                                    uint64_t amount, uint32_t r_milli, uint32_t l_milli);
 
 #endif /* SWARM_QUALITY_H */

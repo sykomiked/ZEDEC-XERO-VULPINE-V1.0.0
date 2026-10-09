@@ -3,9 +3,8 @@
 /* swarm_self.c — interaction rings and reflection. See swarm_self.h. */
 #include "swarm_self.h"
 
-static const char *const BUILTIN[SWARM_RING_BUILTIN] = {
-    "inner", "being", "user", "system", "swarm", "internet", "world"
-};
+static const char *const BUILTIN[SWARM_RING_BUILTIN] = {"inner", "being",    "user", "system",
+                                                        "swarm", "internet", "world"};
 
 static void name_copy(char *dst, const char *src, uint32_t cap)
 {
@@ -19,7 +18,7 @@ void swarm_self_init(swarm_self_t *s)
     s->count = 0;
     s->has_last = false;
     s->reflections = 0;
-    for (uint32_t i = 0; i < SWARM_RING_BUILTIN; i++) (void)swarm_self_ring_add(s, BUILTIN[i]);
+    for (uint32_t i = 0; i < SWARM_RING_BUILTIN; i++) (void) swarm_self_ring_add(s, BUILTIN[i]);
 }
 
 int32_t swarm_self_ring_add(swarm_self_t *s, const char *name)
@@ -30,11 +29,11 @@ int32_t swarm_self_ring_add(swarm_self_t *s, const char *name)
     r->observations = 0;
     r->stress_milli = 0;
     r->last_gap_milli = 0;
-    return (int32_t)s->count++;
+    return (int32_t) s->count++;
 }
 
-void swarm_self_observe(swarm_self_t *s, uint32_t ring,
-                        uint32_t expected_milli, uint32_t observed_milli)
+void swarm_self_observe(swarm_self_t *s, uint32_t ring, uint32_t expected_milli,
+                        uint32_t observed_milli)
 {
     if (ring >= s->count) return;
     swarm_ring_t *r = &s->ring[ring];
@@ -63,10 +62,10 @@ swarm_reflection_t swarm_self_reflect(swarm_self_t *s, bool can_grow)
     uint32_t st = s->ring[out.focus].stress_milli;
     if (st >= SWARM_SELF_RECALIBRATE) {
         out.action = SWARM_ACT_RECALIBRATE;
-        out.predicted_milli = st / 2u;        /* expect to halve it */
+        out.predicted_milli = st / 2u; /* expect to halve it */
     } else {
         out.action = can_grow ? SWARM_ACT_GROW : SWARM_ACT_REFINE;
-        out.predicted_milli = st;             /* expect to hold it */
+        out.predicted_milli = st; /* expect to hold it */
     }
     out.numen = swarm_numen(total);
     s->last = out;

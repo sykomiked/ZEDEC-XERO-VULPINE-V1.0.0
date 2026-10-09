@@ -7,21 +7,30 @@
 #include "swarm_budget.h"
 
 static int failures = 0;
-#define CHECK(cond, msg) do { if (!(cond)) { printf("  FAIL: %s\n", msg); failures++; } } while (0)
+#define CHECK(cond, msg)                                                                           \
+    do {                                                                                           \
+        if (!(cond)) {                                                                             \
+            printf("  FAIL: %s\n", msg);                                                           \
+            failures++;                                                                            \
+        }                                                                                          \
+    } while (0)
 
-static uint64_t allot(const swarm_budget_t *b, uint32_t id) {
+static uint64_t allot(const swarm_budget_t *b, uint32_t id)
+{
     for (uint32_t i = 0; i < b->num_slots; i++)
         if (b->slots[i].model_id == id) return b->slots[i].allotted;
-    return (uint64_t)-1;
+    return (uint64_t) -1;
 }
 
-static uint64_t total_allotted(const swarm_budget_t *b) {
+static uint64_t total_allotted(const swarm_budget_t *b)
+{
     uint64_t t = 0;
     for (uint32_t i = 0; i < b->num_slots; i++) t += b->slots[i].allotted;
     return t;
 }
 
-static void test_fibonacci(void) {
+static void test_fibonacci(void)
+{
     /* OEIS A000045 */
     const uint64_t want[12] = {1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144};
     for (uint32_t n = 1; n <= 12; n++) CHECK(swarm_fib(n) == want[n - 1], "F(n) matches A000045");
@@ -30,7 +39,8 @@ static void test_fibonacci(void) {
     CHECK(swarm_fib(94) == 0, "F(94) overflow rejected");
 }
 
-static void test_capacity_and_weight(void) {
+static void test_capacity_and_weight(void)
+{
     const uint32_t cap[8] = {1, 2, 3, 5, 8, 13, 21, 34};
     for (uint32_t d = 0; d < 8; d++) CHECK(swarm_level_capacity(d) == cap[d], "R1 capacity F(d+2)");
     CHECK(swarm_level_capacity(8) == 0, "capacity out of range");
@@ -44,7 +54,8 @@ static void test_capacity_and_weight(void) {
     CHECK(swarm_level_weight(0, 8) == 34, "R2 weight d0 L8");
 }
 
-static void test_full_swarm_split(void) {
+static void test_full_swarm_split(void)
+{
     /* L = 4, T = 1100, levels filled to capacity 1, 2, 3, 5.
      * Level budgets 1100 * {5,3,2,1}/11 = 500, 300, 200, 100.
      * Level 2: 200 / 3 = 66 r 2 -> 67, 67, 66. Level 3: 100 / 5 = 20 each. */
@@ -59,8 +70,9 @@ static void test_full_swarm_split(void) {
     CHECK(swarm_budget_register(&b, 1, 3) == SWARM_ERR_DUPLICATE, "duplicate id rejected");
 
     CHECK(swarm_budget_begin_cycle(&b) == SWARM_OK, "begin");
-    CHECK(b.level_budget[0] == 500 && b.level_budget[1] == 300 &&
-          b.level_budget[2] == 200 && b.level_budget[3] == 100, "level budgets 500/300/200/100");
+    CHECK(b.level_budget[0] == 500 && b.level_budget[1] == 300 && b.level_budget[2] == 200 &&
+              b.level_budget[3] == 100,
+          "level budgets 500/300/200/100");
     CHECK(allot(&b, 1) == 500, "conductor 500");
     CHECK(allot(&b, 2) == 150 && allot(&b, 3) == 150, "level 1: 150 each");
     CHECK(allot(&b, 4) == 67 && allot(&b, 5) == 67 && allot(&b, 6) == 66, "level 2: 67, 67, 66");
@@ -68,7 +80,8 @@ static void test_full_swarm_split(void) {
     CHECK(total_allotted(&b) == 1100, "R5 sums exactly to T");
 }
 
-static void test_rounding_small_total(void) {
+static void test_rounding_small_total(void)
+{
     /* L = 4, T = 10, one model per level. Quotas 50/11, 30/11, 20/11, 10/11:
      * floors 4, 2, 1, 0 (sum 7); remainders 6, 8, 9, 10 (in elevenths) ->
      * the 3 leftover tokens go to d3, d2, d1. Result 4, 3, 2, 1. */
@@ -81,7 +94,8 @@ static void test_rounding_small_total(void) {
     CHECK(total_allotted(&b) == 10, "R5 exact with rounding");
 }
 
-static void test_empty_levels_redistribute(void) {
+static void test_empty_levels_redistribute(void)
+{
     /* L = 4, T = 600, only levels 0 and 3 active: weights 5 + 1 = 6 -> 500, 100. */
     swarm_budget_t b;
     swarm_budget_init(&b, 4, 600);
@@ -96,9 +110,10 @@ static void test_empty_levels_redistribute(void) {
     CHECK(total_allotted(&b) == 600, "no stranded tokens");
 }
 
-static void test_consume_and_expiry(void) {
+static void test_consume_and_expiry(void)
+{
     swarm_budget_t b;
-    swarm_budget_init(&b, 2, 300);          /* L = 2: weights F(3) = 2, F(2) = 1 */
+    swarm_budget_init(&b, 2, 300); /* L = 2: weights F(3) = 2, F(2) = 1 */
     swarm_budget_register(&b, 1, 0);
     swarm_budget_register(&b, 2, 1);
     uint64_t g = 0;
@@ -119,17 +134,20 @@ static void test_consume_and_expiry(void) {
     CHECK(b.cycle == 2, "cycle counter");
 }
 
-static void test_args(void) {
+static void test_args(void)
+{
     swarm_budget_t b;
     CHECK(swarm_budget_init(0, 4, 10) == SWARM_ERR_ARG, "NULL budget");
     CHECK(swarm_budget_init(&b, 0, 10) == SWARM_ERR_ARG, "zero levels");
     CHECK(swarm_budget_init(&b, 9, 10) == SWARM_ERR_ARG, "too many levels");
-    CHECK(swarm_budget_init(&b, 4, SWARM_MAX_TOKENS_PER_CYCLE + 1) == SWARM_ERR_ARG, "rate too large");
+    CHECK(swarm_budget_init(&b, 4, SWARM_MAX_TOKENS_PER_CYCLE + 1) == SWARM_ERR_ARG,
+          "rate too large");
     swarm_budget_init(&b, 3, 10);
     CHECK(swarm_budget_register(&b, 1, 3) == SWARM_ERR_ARG, "level beyond L");
 }
 
-static void test_max_rate_no_overflow(void) {
+static void test_max_rate_no_overflow(void)
+{
     /* L = 8, T = 2^48, one model per level: must still sum exactly to T. */
     swarm_budget_t b;
     swarm_budget_init(&b, 8, SWARM_MAX_TOKENS_PER_CYCLE);
@@ -139,7 +157,8 @@ static void test_max_rate_no_overflow(void) {
     CHECK(allot(&b, 100) > allot(&b, 101), "top level weighs most");
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== test_swarm_budget ===\n");
     test_fibonacci();
     test_capacity_and_weight();
@@ -149,7 +168,10 @@ int main(void) {
     test_consume_and_expiry();
     test_args();
     test_max_rate_no_overflow();
-    if (failures) { printf("%d check(s) failed\n", failures); return 1; }
+    if (failures) {
+        printf("%d check(s) failed\n", failures);
+        return 1;
+    }
     printf("all checks passed\n");
     return 0;
 }

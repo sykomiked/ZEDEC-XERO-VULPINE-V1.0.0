@@ -40,25 +40,24 @@
 #define SWARM_EVO_RECORD 64u
 
 typedef struct {
-    uint64_t    id, parent;        /* parent 0: a founder */
+    uint64_t id, parent; /* parent 0: a founder */
     swarm_dna_t dna;
-    uint32_t    base_model;        /* index into the installed model packs */
-    uint32_t    adapter;           /* index of its adapter, 0 for none */
-    uint32_t    score_milli;       /* gated quality, x1000 */
-    uint32_t    cost_tokens;       /* tokens per task at that quality */
+    uint32_t base_model;  /* index into the installed model packs */
+    uint32_t adapter;     /* index of its adapter, 0 for none */
+    uint32_t score_milli; /* gated quality, x1000 */
+    uint32_t cost_tokens; /* tokens per task at that quality */
 } swarm_model_state_t;
 
 typedef enum {
     SWARM_EVO_ACCEPT = 0,
-    SWARM_EVO_REJECT_WORSE,        /* V1: lower score */
-    SWARM_EVO_REJECT_NO_GAIN,      /* V1: no better on score or cost */
-    SWARM_EVO_REJECT_BUDGET        /* V2: over budget */
+    SWARM_EVO_REJECT_WORSE,   /* V1: lower score */
+    SWARM_EVO_REJECT_NO_GAIN, /* V1: no better on score or cost */
+    SWARM_EVO_REJECT_BUDGET   /* V2: over budget */
 } swarm_evo_verdict_t;
 
 /* V1, V2 */
 swarm_evo_verdict_t swarm_evo_judge(const swarm_model_state_t *champion,
-                                    const swarm_model_state_t *candidate,
-                                    uint32_t budget_tokens);
+                                    const swarm_model_state_t *candidate, uint32_t budget_tokens);
 
 /* V3 */
 uint64_t swarm_evo_outlier_share(uint64_t total_tokens);
@@ -73,7 +72,7 @@ uint32_t swarm_evo_mobility(uint8_t *level, const uint64_t *fitness, uint32_t n,
 
 /* V5 */
 uint32_t swarm_evo_crc32(const uint8_t *p, uint32_t len);
-void     swarm_evo_save(const swarm_model_state_t *s, uint8_t out[SWARM_EVO_RECORD]);
-bool     swarm_evo_restore(const uint8_t in[SWARM_EVO_RECORD], swarm_model_state_t *s);
+void swarm_evo_save(const swarm_model_state_t *s, uint8_t out[SWARM_EVO_RECORD]);
+bool swarm_evo_restore(const uint8_t in[SWARM_EVO_RECORD], swarm_model_state_t *s);
 
 #endif /* SWARM_EVOLVE_H */

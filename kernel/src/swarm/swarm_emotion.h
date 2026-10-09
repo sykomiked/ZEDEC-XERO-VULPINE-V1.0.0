@@ -53,41 +53,41 @@
 #include "swarm_budget.h"
 
 #define SWARM_EMO_MAX_INTENSITY 5u
-#define SWARM_EMO_CHARGE_DEN    21u     /* F(8); max charge F(6) = 8 */
+#define SWARM_EMO_CHARGE_DEN    21u /* F(8); max charge F(6) = 8 */
 
 typedef enum {
-    SWARM_EMO_NEUTRAL = 0,   /* U+1F610 😐 */
-    SWARM_EMO_CALM,          /* U+1F60C 😌 */
-    SWARM_EMO_JOY,           /* U+1F604 😄 */
-    SWARM_EMO_CURIOUS,       /* U+1F914 🤔 */
-    SWARM_EMO_LOVE,          /* U+1F970 🥰 */
-    SWARM_EMO_WORRY,         /* U+1F61F 😟 */
-    SWARM_EMO_FRUSTRATION,   /* U+1F620 😠 */
-    SWARM_EMO_SADNESS,       /* U+1F622 😢 */
+    SWARM_EMO_NEUTRAL = 0, /* U+1F610 😐 */
+    SWARM_EMO_CALM,        /* U+1F60C 😌 */
+    SWARM_EMO_JOY,         /* U+1F604 😄 */
+    SWARM_EMO_CURIOUS,     /* U+1F914 🤔 */
+    SWARM_EMO_LOVE,        /* U+1F970 🥰 */
+    SWARM_EMO_WORRY,       /* U+1F61F 😟 */
+    SWARM_EMO_FRUSTRATION, /* U+1F620 😠 */
+    SWARM_EMO_SADNESS,     /* U+1F622 😢 */
     SWARM_EMO_COUNT
 } swarm_emotion_t;
 
 /* How the tokens of an emotion behave (E5). All integers. */
 typedef struct {
-    uint32_t codepoint;        /* the emoji */
-    int8_t   valence;          /* +1, -1 or 0: GLUT_PLUS / GLUT_MINUS / GLUT_NEUTRAL */
-    uint16_t temperature_milli;/* sampling temperature x 1000 */
-    uint16_t explore_permille; /* weight on novelty (Interaction Surplus) */
-    uint8_t  verify_passes;    /* self-check passes per answer */
-    uint8_t  priority;         /* scheduling priority, higher runs first */
+    uint32_t codepoint;         /* the emoji */
+    int8_t valence;             /* +1, -1 or 0: GLUT_PLUS / GLUT_MINUS / GLUT_NEUTRAL */
+    uint16_t temperature_milli; /* sampling temperature x 1000 */
+    uint16_t explore_permille;  /* weight on novelty (Interaction Surplus) */
+    uint8_t verify_passes;      /* self-check passes per answer */
+    uint8_t priority;           /* scheduling priority, higher runs first */
 } swarm_emotion_profile_t;
 
 typedef struct {
     swarm_emotion_t emotion;
-    uint8_t         intensity;   /* 0 .. SWARM_EMO_MAX_INTENSITY */
+    uint8_t intensity; /* 0 .. SWARM_EMO_MAX_INTENSITY */
 } swarm_feeling_t;
 
 typedef struct {
-    swarm_feeling_t mood;                        /* E1, the whole swarm */
-    uint32_t        model_id[SWARM_MAX_MODELS];  /* E3, per model */
+    swarm_feeling_t mood;                /* E1, the whole swarm */
+    uint32_t model_id[SWARM_MAX_MODELS]; /* E3, per model */
     swarm_feeling_t feeling[SWARM_MAX_MODELS];
-    uint32_t        num;
-    uint64_t        last_imag_pool;              /* imaginary tokens last cycle */
+    uint32_t num;
+    uint64_t last_imag_pool; /* imaginary tokens last cycle */
 } swarm_emotion_state_t;
 
 /* Charge of intensity k: 0, 1, 2, 3, 5, 8. 0 if k is out of range. */
@@ -102,7 +102,7 @@ const swarm_emotion_profile_t *swarm_emotion_profile(swarm_emotion_t e);
 /* Emotion for an emoji code point. SWARM_ERR_ARG if it is not in the palette. */
 swarm_status_t swarm_emotion_from_codepoint(uint32_t codepoint, swarm_emotion_t *out);
 
-void           swarm_emotion_init(swarm_emotion_state_t *s);
+void swarm_emotion_init(swarm_emotion_state_t *s);
 swarm_status_t swarm_emotion_set_mood(swarm_emotion_state_t *s, swarm_feeling_t mood);
 swarm_status_t swarm_emotion_set_feeling(swarm_emotion_state_t *s, uint32_t model_id,
                                          swarm_feeling_t f);
