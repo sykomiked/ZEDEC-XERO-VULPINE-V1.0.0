@@ -106,7 +106,7 @@ static rat_t rat_from_ss7_opc_dpc(uint32_t opc, uint32_t dpc) {
 
 /* ===== DTMF Lower ===== */
 
-static int32_t dtmf_lower(const void *src, uint32_t len, oc_ir_t *out) {
+int32_t dtmf_lower(const void *src, uint32_t len, oc_ir_t *out) {
     if (len < sizeof(oc_dtmf_src_t)) return OC_ERR_ARG;
     const oc_dtmf_src_t *d = (const oc_dtmf_src_t *)src;
     
@@ -151,7 +151,7 @@ static int32_t dtmf_lower(const void *src, uint32_t len, oc_ir_t *out) {
 
 /* ===== DTMF Lift ===== */
 
-static int32_t dtmf_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
+int32_t dtmf_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
     if (cap < sizeof(oc_dtmf_src_t)) return OC_ERR_CAP;
     if (ir->num_fields < 6) return OC_ERR_ARG;
     
@@ -194,7 +194,7 @@ static int32_t dtmf_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
 
 /* ===== MF Lower ===== */
 
-static int32_t mf_lower(const void *src, uint32_t len, oc_ir_t *out) {
+int32_t mf_lower(const void *src, uint32_t len, oc_ir_t *out) {
     if (len < sizeof(oc_mf_src_t)) return OC_ERR_ARG;
     const oc_mf_src_t *m = (const oc_mf_src_t *)src;
     
@@ -238,7 +238,7 @@ static int32_t mf_lower(const void *src, uint32_t len, oc_ir_t *out) {
 
 /* ===== Pulse Dialing Lower ===== */
 
-static int32_t pulse_lower(const void *src, uint32_t len, oc_ir_t *out) {
+int32_t pulse_lower(const void *src, uint32_t len, oc_ir_t *out) {
     if (len < sizeof(oc_pulse_src_t)) return OC_ERR_ARG;
     const oc_pulse_src_t *p = (const oc_pulse_src_t *)src;
     
@@ -270,7 +270,7 @@ static int32_t pulse_lower(const void *src, uint32_t len, oc_ir_t *out) {
 
 /* ===== SS7 Lower ===== */
 
-static int32_t ss7_lower(const void *src, uint32_t len, oc_ir_t *out) {
+int32_t ss7_lower(const void *src, uint32_t len, oc_ir_t *out) {
     if (len < sizeof(oc_ss7_src_t)) return OC_ERR_ARG;
     const oc_ss7_src_t *s = (const oc_ss7_src_t *)src;
     
@@ -298,7 +298,7 @@ static int32_t ss7_lower(const void *src, uint32_t len, oc_ir_t *out) {
 
 /* ===== FSK Lower ===== */
 
-static int32_t fsk_lower(const void *src, uint32_t len, oc_ir_t *out) {
+int32_t fsk_lower(const void *src, uint32_t len, oc_ir_t *out) {
     if (len < sizeof(oc_fsk_src_t)) return OC_ERR_ARG;
     const oc_fsk_src_t *f = (const oc_fsk_src_t *)src;
     
@@ -327,7 +327,7 @@ static int32_t fsk_lower(const void *src, uint32_t len, oc_ir_t *out) {
 
 /* ===== SS7 Lift ===== */
 
-static int32_t ss7_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
+int32_t ss7_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
     if (cap < sizeof(oc_ss7_src_t)) return OC_ERR_CAP;
     if (ir->num_fields < 4) return OC_ERR_ARG;
     
@@ -351,7 +351,7 @@ static int32_t ss7_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
 
 /* ===== FSK Lift ===== */
 
-static int32_t fsk_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
+int32_t fsk_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
     if (cap < sizeof(oc_fsk_src_t)) return OC_ERR_CAP;
     if (ir->num_fields < 4) return OC_ERR_ARG;
     
@@ -371,7 +371,7 @@ static int32_t fsk_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
 
 /* ===== Pulse Lift ===== */
 
-static int32_t pulse_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
+int32_t pulse_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
     if (cap < sizeof(oc_pulse_src_t)) return OC_ERR_CAP;
     if (ir->num_fields < 5) return OC_ERR_ARG;
     
@@ -397,7 +397,7 @@ static int32_t pulse_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
 
 /* ===== MF Lift ===== */
 
-static int32_t mf_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
+int32_t mf_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
     if (cap < sizeof(oc_mf_src_t)) return OC_ERR_CAP;
     if (ir->num_fields < 6) return OC_ERR_ARG;
     
@@ -427,7 +427,7 @@ static int32_t mf_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
 
 /* ===== Generic Telecom Lower (dispatches by type) ===== */
 
-static int32_t telecom_lower(const void *src, uint32_t len, oc_ir_t *out) {
+int32_t telecom_lower(const void *src, uint32_t len, oc_ir_t *out) {
     if (len < sizeof(oc_telecom_src_t)) return OC_ERR_ARG;
     const oc_telecom_src_t *t = (const oc_telecom_src_t *)src;
     
@@ -443,7 +443,7 @@ static int32_t telecom_lower(const void *src, uint32_t len, oc_ir_t *out) {
 
 /* ===== Telecom Lift (dispatches by type) ===== */
 
-static int32_t telecom_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
+int32_t telecom_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
     if (cap < sizeof(oc_telecom_src_t)) return OC_ERR_CAP;
     if (ir->num_fields < 1) return OC_ERR_ARG;
     

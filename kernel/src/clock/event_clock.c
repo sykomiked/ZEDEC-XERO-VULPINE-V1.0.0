@@ -557,7 +557,7 @@ bool event_clock_verify_coverage(event_clock_t *clk) {
      * (truncating multiply by 2^32), so exact equality is the right test on
      * both. */
     if (clk->m5.omega != (uint32_t)(clk->event_ordinal & 0xFFFFFFFFu)) return false;
-    if (clk->m5.chi   != (uint32_t)clk->mode) return false;
+    if (clk->m5.chi   != (int32_t)clk->mode) return false;
     if (clk->m5.r     != SR_FROM_FLOAT(clk->correction_factor)) return false;
     if (clk->m5.phi   != SR_FROM_FLOAT(ec_m5_phi_of(clk->drift_ppm))) return false;
     if (clk->m5.ell < SR_ZERO || clk->m5.ell > SR_ONE) return false;

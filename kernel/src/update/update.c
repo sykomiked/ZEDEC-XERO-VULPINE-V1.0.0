@@ -11,7 +11,8 @@ static bool seq(const char *a, const char *b) {
 }
 static void bcpy(uint8_t *d, const uint8_t *s, uint32_t n) { for (uint32_t i=0;i<n;i++) d[i]=s[i]; }
 static bool beq(const uint8_t *a, const uint8_t *b, uint32_t n) {
-    for (uint32_t i=0;i<n;i++) if (a[i]!=b[i]) return false; return true;
+    for (uint32_t i=0;i<n;i++) if (a[i]!=b[i]) return false;
+    return true;
 }
 
 void upd_init(upd_catalog_t *c) {
@@ -19,7 +20,8 @@ void upd_init(upd_catalog_t *c) {
     for (uint32_t i = 0; i < sizeof(*c); i++) ((uint8_t *)c)[i] = 0;
 }
 void upd_set_transport(upd_catalog_t *c, const upd_transport_t *t) {
-    if (!c) return; if (t) c->transport = *t; else { c->transport.fetch = 0; c->transport.ctx = 0; }
+    if (!c) return;
+    if (t) c->transport = *t; else { c->transport.fetch = 0; c->transport.ctx = 0; }
 }
 void upd_set_verifier(upd_catalog_t *c, upd_verify_fn fn) { if (c) c->verify = fn; }
 

@@ -207,6 +207,9 @@ void pq_slh128s_keygen(const uint8_t seed[48],
     sha3_256(buf, 36, pk);
 }
 
+/* How many 32-byte hash chains follow R in an SLH-DSA-128s signature. */
+#define PQ_SLH_CHAINS ((PQ_SLH128S_SIG_BYTES - 32u) / 32u)
+
 void pq_slh128s_sign(const uint8_t sk[PQ_SLH128S_SK_BYTES],
                      const uint8_t *msg, uint32_t msg_len,
                      const uint8_t *opt_rnd,
@@ -226,12 +229,15 @@ void pq_slh128s_sign(const uint8_t sk[PQ_SLH128S_SK_BYTES],
     
     /* Signature layout:
      *   [0..31]    R (randomized hash)
-     *   [32..8159] FORS + XMSS authentication paths (hash chains) */
+     *   [32..7839] FORS + XMSS authentication paths (hash chains)
+     * PQ_SLH_CHAINS chains of 32 bytes fit the 7856-byte signature; the
+     * earlier 254 wrote 8160 bytes and ran 304 bytes past the caller's
+     * buffer. */
     pq_mem_copy(sig, r, 32);
     
     /* Build hash chains: chain_i = H^i(SK.seed || R || i) */
     uint8_t chain[32];
-    for (uint32_t i = 0; i < 254; i++) {
+    for (uint32_t i = 0; i < PQ_SLH_CHAINS; i++) {
         /* Chain start: H(SK.seed || R || i) */
         uint8_t start[96];
         pq_mem_copy(start, sk, 32);
@@ -261,7 +267,7 @@ bool pq_slh128s_verify(const uint8_t pk[PQ_SLH128S_PK_BYTES],
     sha3_256(buf, n, r);
     
     /* Verify the hash chains against the public key root */
-    for (uint32_t i = 0; i < 254; i++) {
+    for (uint32_t i = 0; i < PQ_SLH_CHAINS; i++) {
         uint8_t chain[32];
         uint8_t start[96];
         pq_mem_copy(start, pk, 32);
