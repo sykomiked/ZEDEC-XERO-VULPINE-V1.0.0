@@ -313,7 +313,7 @@ static void forward(const model_t *m, const int32_t *tok, uint32_t T, policy_t *
             if (p->kind == P_SURPLUS || p->kind == P_ALIGN) {
                 for (uint32_t t = 0; t < T; t++)
                     for (uint32_t i = 0; i < hd; i++) {
-                        qb[t * hd + i] = q16(q[(size_t) t * qd + hh * hd + i]);
+                        qb[t * hd + i] = q16(q[(size_t) t * qd + (size_t) hh * hd + i]);
                         kb[t * hd + i] = q16(k[(size_t) t * kvd + (size_t) kv * hd + i]);
                     }
                 int32_t r = ct_gate_attn(&ctx, l, hh, qb, T, hd, 0, kb, T, hd, 0, hd, keep);
