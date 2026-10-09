@@ -6,7 +6,8 @@
 #ifndef HQC_VECTOR_H
 #define HQC_VECTOR_H
 
-#include <immintrin.h>
+/* ZXV: <immintrin.h> removed; nothing in the reference uses it and it
+ * does not exist on non-x86 targets. */
 #include <stdint.h>
 #include "symmetric.h"
 

@@ -470,6 +470,37 @@ bool pqm_decaps(const pqm_kem_sk_t *sk, const pqm_kem_ct_t *ct, uint8_t ss[PQM_S
 /* dual signatures                                                        */
 /* ===================================================================== */
 
+pqm_level_t pqm_sig_level_for(pqm_sig_purpose_t purpose)
+{
+    switch (purpose) {
+    case PQM_SIG_PURPOSE_IDENTITY_KEY:
+    case PQM_SIG_PURPOSE_RELEASE:
+    case PQM_SIG_PURPOSE_SETTLEMENT_BATCH:
+    case PQM_SIG_PURPOSE_CHARTER_RECORD:
+        return PQM_LEVEL_MATRIX;
+    case PQM_SIG_PURPOSE_SESSION_MESSAGE:
+        break;
+    }
+    return (pqm_level_t) 0;
+}
+
+const char *pqm_sig_purpose_name(pqm_sig_purpose_t purpose)
+{
+    switch (purpose) {
+    case PQM_SIG_PURPOSE_IDENTITY_KEY:
+        return "identity key";
+    case PQM_SIG_PURPOSE_RELEASE:
+        return "release / update";
+    case PQM_SIG_PURPOSE_SETTLEMENT_BATCH:
+        return "settlement batch";
+    case PQM_SIG_PURPOSE_CHARTER_RECORD:
+        return "treaty / charter record";
+    case PQM_SIG_PURPOSE_SESSION_MESSAGE:
+        return "session message (AEAD, no signature)";
+    }
+    return "?";
+}
+
 #define SIG_LABEL     "ZXV-PQM-v1/sig"
 #define SIG_LABEL_LEN (sizeof SIG_LABEL - 1)
 #define SIGCTX_MAX    (SIG_LABEL_LEN + 1 + 2 + 2 + 32 + 1 + PQM_CTX_MAX)

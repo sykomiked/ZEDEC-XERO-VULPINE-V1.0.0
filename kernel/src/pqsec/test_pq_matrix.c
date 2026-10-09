@@ -720,9 +720,12 @@ static void ms(double s, char *out, size_t cap)
         snprintf(out, cap, "%7.2f ms", s * 1e3);
 }
 
+static double sig_ms_matrix;
+
 static void bench(void)
 {
-    printf("\n--- benchmarks (this build's flags; one core) ---\n");
+    printf("\n--- benchmarks (this build's flags; one core; HQC multiply: %s) ---\n",
+           pqm_hqc5_mul_backend());
     printf("%-9s %10s %10s %10s | %10s %10s %10s | %7s %7s %7s\n", "level", "kem kgen", "encaps",
            "decaps", "sig kgen", "sign", "verify", "pk B", "ct B", "sig B");
     uint8_t seed[32] = {1}, coins[32] = {2}, ss[32];
@@ -739,6 +742,7 @@ static void bench(void)
         bool vok = true;
         BENCH(t[5], 0.2, 2000, vok &= pqm_verify(&spk, msg, sizeof msg, NULL, 0, &sig));
         quiet(vok, "benchmark signatures verify");
+        if (level == PQM_LEVEL_MATRIX) sig_ms_matrix = t[4] * 1e3;
         for (int i = 0; i < 6; i++) ms(t[i], s[i], sizeof s[i]);
         printf("%-9s %10s %10s %10s | %10s %10s %10s | %7zu %7zu %7zu\n", pqm_level_name(level),
                s[0], s[1], s[2], s[3], s[4], s[5],
@@ -793,6 +797,24 @@ static void bench(void)
     printf("  bulk cost per MiB: %.2f ms at any level; MATRIX's extra handshake cost equals\n"
            "  %.1f MiB of bulk encryption, paid once per session, never per byte\n",
            tb * 1e3, (hs_mx - hs_std) / tb);
+    /* A session authenticated by the peer's certified long-term KEM key:
+     * no keygen and no signature on the handshake path. */
+    double hs_static;
+    pqm_kem_keygen(PQM_LEVEL_MATRIX, seed, &kpk, &ksk);
+    BENCH(hs_static, 0.1, 500, pqm_encaps(&kpk, coins, &kct, ss); pqm_decaps(&ksk, &kct, ss));
+    printf("  MATRIX session to a certified static KEM key (encaps+decaps): %.2f ms\n",
+           hs_static * 1e3);
+    /* Per-message authentication inside a session: AEAD, not signatures. */
+    double tm;
+    uint8_t m256[256];
+    memset(m256, 6, sizeof m256);
+    bool aok = true;
+    BENCH(tm, 0.1, 100000, aead_seal(key, nonce, NULL, 0, m256, m256, sizeof m256, tag);
+          aok &= aead_open(key, nonce, NULL, 0, m256, m256, sizeof m256, tag));
+    quiet(aok, "benchmark AEAD records open");
+    printf("  per-message auth in a session (256 B, seal + open): %.2f us, vs %.0f ms for a\n"
+           "  MATRIX signature, which is why messages use the AEAD (pqm_sig_level_for)\n",
+           tm * 1e6, sig_ms_matrix);
 }
 
 int main(int argc, char **argv)
@@ -800,6 +822,13 @@ int main(int argc, char **argv)
     (void) argv;
     printf("=== pq_matrix: layered post-quantum KEM and dual signatures ===\n");
     test_kats();
+    {
+        char what[96];
+        snprintf(what, sizeof what,
+                 "HQC-5 fast multiply (%s) == reference gf2x.c on edge cases + 8 random",
+                 pqm_hqc5_mul_backend());
+        check(pqm_hqc5_mul_selftest(8), what, 0, "");
+    }
     printf("--- combiner and seed expansion ---\n");
     for (pqm_level_t l = PQM_LEVEL_STANDARD; l <= PQM_LEVEL_MATRIX; l++) test_combiner(l);
     printf("--- hybrid KEM ---\n");
@@ -807,6 +836,14 @@ int main(int argc, char **argv)
     printf("--- dual signatures ---\n");
     for (pqm_level_t l = PQM_LEVEL_STANDARD; l <= PQM_LEVEL_MATRIX; l++) test_sig(l);
     check(PQM_LEVEL_ECONOMY_DEFAULT == PQM_LEVEL_MATRIX, "economy keys default to MATRIX", 0, "");
+    check(pqm_sig_level_for(PQM_SIG_PURPOSE_IDENTITY_KEY) == PQM_LEVEL_MATRIX &&
+              pqm_sig_level_for(PQM_SIG_PURPOSE_RELEASE) == PQM_LEVEL_MATRIX &&
+              pqm_sig_level_for(PQM_SIG_PURPOSE_SETTLEMENT_BATCH) == PQM_LEVEL_MATRIX &&
+              pqm_sig_level_for(PQM_SIG_PURPOSE_CHARTER_RECORD) == PQM_LEVEL_MATRIX,
+          "long-lived anchors (identity, release, settlement, charter) sign at MATRIX", 0, "");
+    check(pqm_sig_level_for(PQM_SIG_PURPOSE_SESSION_MESSAGE) == 0 &&
+              pqm_sig_level_for((pqm_sig_purpose_t) 99) == 0,
+          "session messages are not signed (0: use the session AEAD)", 0, "");
     {
         uint8_t z[sizeof ksk] = {0};
         pqm_kem_sk_wipe(&ksk);

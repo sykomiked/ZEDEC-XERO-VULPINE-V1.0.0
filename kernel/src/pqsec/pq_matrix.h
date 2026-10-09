@@ -47,7 +47,26 @@
  * -------------
  * Only handshakes and signatures. Bulk data stays on 256-bit symmetric
  * crypto (ChaCha20-Poly1305 in src/tls/aead.c, keyed from ss), whose speed
- * does not depend on the level. test_pq_matrix.c prints both.
+ * does not depend on the level. test_pq_matrix.c prints both. HQC's
+ * polynomial multiply uses PCLMULQDQ / PMULL when the build enables them
+ * (-mpclmul, -march=armv8-a+crypto); see pq_hqc5_gf2x.c.
+ *
+ * WHAT MATRIX SIGNATURES ARE FOR (pqm_sig_purpose_t)
+ * --------------------------------------------------
+ * A MATRIX dual signature costs ~1.5 s to MAKE (SLH-DSA-SHAKE-256s) and
+ * a few ms to verify. It is for long-lived anchors that are signed rarely
+ * and verified often: identity keys, release and update signing,
+ * settlement batches, treaty / charter records. Nothing a user waits on
+ * interactively is signed with it:
+ *   - a session is authenticated by its KEM: the identity key signs the
+ *     long-term pqm KEM public key once, and peers encapsulate to that
+ *     certified key, so only its holder can derive the session keys;
+ *   - each message inside the session is authenticated by AEAD
+ *     (ChaCha20-Poly1305) under keys derived from the hybrid-KEM secret,
+ *     at bulk-encryption speed. A per-message signature would add nothing
+ *     the AEAD tag does not already give the two parties.
+ * pqm_sig_level_for() returns the level for each purpose, and 0 for
+ * PQM_SIG_PURPOSE_SESSION_MESSAGE, meaning "do not sign; use the AEAD".
  *
  * RANDOMNESS
  * ----------
@@ -73,7 +92,10 @@
  *   designed them to, but they have not been verified against timing,
  *   cache, power or fault side channels on any particular CPU, and the
  *   kernel provides no protection against fault injection. HQC's reference
- *   in particular has had timing issues in earlier versions.
+ *   in particular has had timing issues in earlier versions. HQC's
+ *   multiply is ZXV's own code (pq_hqc5_gf2x.c); its "mulholes" backend,
+ *   the default on x86-64 without -mpclmul and AArch64 without +crypto,
+ *   is constant time only because those CPUs' integer multipliers are.
  * - "Highest available" means: the NIST category 5 parameter set of every
  *   post-quantum component (the largest standardised), plus diversity of
  *   hard problems, so that one mathematical breakthrough is not enough.
@@ -233,6 +255,21 @@ bool pqm_encaps(const pqm_kem_pk_t *pk, const uint8_t coins[PQM_SEED_BYTES], pqm
 bool pqm_decaps(const pqm_kem_sk_t *sk, const pqm_kem_ct_t *ct, uint8_t ss[PQM_SS_BYTES]);
 
 /* ---- dual signatures ------------------------------------------------ */
+
+/* What a signature is for; see "WHAT MATRIX SIGNATURES ARE FOR" above. */
+typedef enum {
+    PQM_SIG_PURPOSE_IDENTITY_KEY = 1,     /* identity / account keys, certifying KEM keys */
+    PQM_SIG_PURPOSE_RELEASE = 2,          /* release and update signing */
+    PQM_SIG_PURPOSE_SETTLEMENT_BATCH = 3, /* settlement batches */
+    PQM_SIG_PURPOSE_CHARTER_RECORD = 4,   /* treaty / charter records */
+    PQM_SIG_PURPOSE_SESSION_MESSAGE = 5,  /* per-message traffic: NOT signed, AEAD instead */
+} pqm_sig_purpose_t;
+
+/* The level to sign at for `purpose`: MATRIX for the long-lived anchors,
+ * 0 for PQM_SIG_PURPOSE_SESSION_MESSAGE (and unknown values), which means
+ * no signature: authenticate with the session AEAD. */
+pqm_level_t pqm_sig_level_for(pqm_sig_purpose_t purpose);
+const char *pqm_sig_purpose_name(pqm_sig_purpose_t purpose);
 
 bool pqm_sig_keygen(pqm_level_t level, const uint8_t seed[PQM_SEED_BYTES], pqm_sig_pk_t *pk,
                     pqm_sig_sk_t *sk);

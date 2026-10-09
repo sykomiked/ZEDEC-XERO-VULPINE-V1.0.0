@@ -14,3 +14,4 @@ Files copied unchanged from ref/ except:
 Not copied: randombytes.c, the test and benchmark programs, avx2/.
 
 Glue: ../pq_mldsa65.c. Checked against NIST ACVP vectors: ../test_pq_kat.c.
+Also built a second time in mode 5 (ML-DSA-87) by ../pq_mldsa87.c, as one translation unit with its own config ahead of config.h; this mode-3 build is unaffected.

@@ -61,6 +61,13 @@ void pqm_hqc5_encaps(const uint8_t pk[PQM_HQC5_PK_BYTES], const uint8_t m[32],
 void pqm_hqc5_decaps(const uint8_t sk[PQM_HQC5_SK_BYTES], const uint8_t ct[PQM_HQC5_CT_BYTES],
                      uint8_t ss[PQM_SS_BYTES]);
 
+/* Which 64x64 carry-less multiply HQC was compiled with: "pclmulqdq",
+ * "pmull" or "portable" (see pq_hqc5_gf2x.c). */
+const char *pqm_hqc5_mul_backend(void);
+/* Compare the fast HQC multiply with the reference one on edge cases plus
+ * `rounds` pseudo-random inputs; true if every product matches. */
+bool pqm_hqc5_mul_selftest(unsigned rounds);
+
 /* ---- ML-DSA-87 (FIPS 204) --------------------------------------------- */
 #define PQM_MLDSA87_PK_BYTES  2592u
 #define PQM_MLDSA87_SK_BYTES  4896u

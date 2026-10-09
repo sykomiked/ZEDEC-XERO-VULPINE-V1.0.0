@@ -20,6 +20,12 @@
  * official KATs are reproduced exactly (test_pq_matrix.c expands each KAT
  * seed through the same SHAKE-256 PRNG to obtain those buffers).
  *
+ * Speed: HQC's time is almost all polynomial multiplication, so the
+ * reference's bit-serial multiply is replaced by pq_hqc5_gf2x.c (Karatsuba
+ * over a PCLMULQDQ / PMULL / portable 64x64 carry-less multiply). The
+ * official KATs are unchanged bit for bit; pqm_hqc5_mul_selftest() also
+ * compares it against the reference multiply directly.
+ *
  * libc: the reference needs memcpy/memset/memcmp (<string.h>). Its debug
  * printers (vect_print, VERBOSE dumps) are compiled out below, so no
  * stdio symbol is linked, but <stdio.h> must exist at compile time.
@@ -115,7 +121,16 @@
 #include "hqc5/symmetric.c"
 #include "hqc5/crypto_memset.c"
 #include "hqc5/gf.c"
+/* Polynomial multiply: the fast constant-time version (pq_hqc5_gf2x.c)
+ * is what HQC calls; the reference hqc5/gf2x.c is compiled next to it
+ * under another name, only for pqm_hqc5_mul_selftest(). */
+#include "pq_hqc5_gf2x.c"
+#undef vect_mul
+#define vect_mul zxv_hqc5_vect_mul_ref
+void vect_mul(uint64_t *o, const uint64_t *v1, const uint64_t *v2);
 #include "hqc5/gf2x.c"
+#undef vect_mul
+#define vect_mul zxv_hqc5_vect_mul
 #include "hqc5/fft.c"
 #include "hqc5/reed_solomon.c"
 #include "hqc5/reed_muller.c"
@@ -178,4 +193,39 @@ void pqm_hqc5_decaps(const uint8_t sk[PQM_HQC5_SK_BYTES], const uint8_t ct[PQM_H
                      uint8_t ss[PQM_SS_BYTES])
 {
     crypto_kem_dec(ss, ct, sk);
+}
+
+const char *pqm_hqc5_mul_backend(void)
+{
+    return PQM_CLMUL_BACKEND;
+}
+
+/* Fast multiply against the reference on fixed edge cases and `rounds`
+ * pseudo-random operand pairs (public test data from a fixed xorshift,
+ * not secrets). The reference multiply is slow: a round costs ~15 ms. */
+bool pqm_hqc5_mul_selftest(unsigned rounds)
+{
+    static uint64_t a[VEC_N_SIZE_64], b[VEC_N_SIZE_64], r1[VEC_N_SIZE_64], r2[VEC_N_SIZE_64];
+    uint64_t x = 0x243f6a8885a308d3ull, bad = 0;
+    for (unsigned t = 0; t < rounds + 3; t++) {
+        for (size_t i = 0; i < VEC_N_SIZE_64; i++) {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            a[i] = x;
+            b[i] = x * 0x9e3779b97f4a7c15ull;
+            if (t == 0) a[i] = b[i] = ~0ull; /* all ones times all ones */
+            if (t == 1) {                    /* 1 times x^(n-1) */
+                a[i] = i == 0;
+                b[i] = i == VEC_N_SIZE_64 - 1 ? 1ull << ((PARAM_N - 1) & 63) : 0;
+            }
+            if (t == 2) b[i] = ~0ull; /* random times all ones */
+        }
+        a[VEC_N_SIZE_64 - 1] &= BITMASK(PARAM_N, 64);
+        b[VEC_N_SIZE_64 - 1] &= BITMASK(PARAM_N, 64);
+        zxv_hqc5_vect_mul(r1, a, b);
+        zxv_hqc5_vect_mul_ref(r2, a, b);
+        for (size_t i = 0; i < VEC_N_SIZE_64; i++) bad |= r1[i] ^ r2[i];
+    }
+    return bad == 0;
 }
