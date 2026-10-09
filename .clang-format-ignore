@@ -175,3 +175,5 @@ kernel/src/tensor/zt_rope_tables.h
 kernel/src/pqsec/mlkem1024/*
 kernel/src/pqsec/hqc5/*
 kernel/src/pqsec/pq_matrix_kat_vectors.h
+kernel/src/cbank/cb_ccy_tbl.c
+kernel/src/cbank/test_cb_rate_vectors.h

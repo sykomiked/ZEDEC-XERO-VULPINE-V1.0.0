@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- VSSReceipt (VINO Sovereign Standard, Volume II Part X), as written by
+     kernel/src/cbank/cb_mx.c inside ISO 20022 SplmtryData/Envlp.
+     NOT registered with the ISO 20022 Registration Authority; for private
+     deployments only. Rails follow this repository: 846 DEBIT, 810 CREDIT,
+     888 EQUITY. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns="urn:zedec:vss:receipt:1"
+           targetNamespace="urn:zedec:vss:receipt:1"
+           elementFormDefault="qualified">
+  <xs:element name="VSSReceipt" type="VSSReceipt1"/>
+  <xs:complexType name="VSSReceipt1">
+    <xs:sequence>
+      <xs:element name="RcptId" type="Max35Text"/>
+      <xs:element name="SysRef" type="Max64Text"/>
+      <xs:element name="RailDr" type="RailCode"/>
+      <xs:element name="RailCr" type="RailCode"/>
+      <xs:element name="Amt" type="ActiveCurrencyAndAmount"/>
+      <xs:element name="EqtyCoord" type="DecimalNumber"/>
+      <xs:element name="BckgDscl" type="BackingDisclosureCode"/>
+      <xs:element name="XwalkRef" type="Max140Text" minOccurs="0"/>
+      <xs:element name="AnchrRef" type="Max140Text" minOccurs="0"/>
+      <xs:element name="Sgntr" type="Max140Text"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="Max35Text">
+    <xs:restriction base="xs:string"><xs:minLength value="1"/><xs:maxLength value="35"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Max64Text">
+    <xs:restriction base="xs:string"><xs:minLength value="1"/><xs:maxLength value="64"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Max140Text">
+    <xs:restriction base="xs:string"><xs:minLength value="1"/><xs:maxLength value="140"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="RailCode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="846"/>
+      <xs:enumeration value="810"/>
+      <xs:enumeration value="888"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="BackingDisclosureCode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="EFCT"/>
+      <xs:enumeration value="ASPL"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="DecimalNumber">
+    <xs:restriction base="xs:decimal"><xs:fractionDigits value="17"/><xs:totalDigits value="18"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ActiveCurrencyCode">
+    <xs:restriction base="xs:string"><xs:pattern value="[A-Z]{3,3}"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ActiveCurrencyAndAmount_SimpleType">
+    <xs:restriction base="xs:decimal">
+      <xs:fractionDigits value="5"/><xs:totalDigits value="18"/><xs:minInclusive value="0"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ActiveCurrencyAndAmount">
+    <xs:simpleContent>
+      <xs:extension base="ActiveCurrencyAndAmount_SimpleType">
+        <xs:attribute name="Ccy" type="ActiveCurrencyCode" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+</xs:schema>

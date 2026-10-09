@@ -264,6 +264,30 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/legacy src/legacy/test_cobol.c src/legacy/cobol.c -o /tmp/test_legacy_cobol && /tmp/test_legacy_cobol && echo "[PASS] test_legacy_cobol" || { echo "[FAIL] test_legacy_cobol"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/legacy src/legacy/test_fortran.c src/legacy/fortran.c -o /tmp/test_legacy_fortran && /tmp/test_legacy_fortran && echo "[PASS] test_legacy_fortran" || { echo "[FAIL] test_legacy_fortran"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/legacy -I../bindings ../bindings/test_abi.c ../bindings/zx_legacy_api.c src/legacy/sip.c src/legacy/sdp.c src/legacy/gsm_encode.c src/legacy/ss7.c src/legacy/tcap.c src/legacy/isup_map.c src/legacy/dtmf.c src/legacy/ebcdic.c src/legacy/cobol.c src/legacy/fortran.c -o /tmp/test_legacy_abi && /tmp/test_legacy_abi && echo "[PASS] test_legacy_abi" || { echo "[FAIL] test_legacy_abi"; exit 1; }
+	@echo "=== cbank: ISO 4217 / ISO 3166 / African Union tables (regenerates byte-identical) ==="; \
+	python3 -I src/cbank/gen_cb_tables.py src/cbank/data/list-one.xml src/cbank/data/iso_3166-1.json 2>/dev/null | cmp -s - src/cbank/cb_ccy_tbl.c || { echo "[FAIL] cb_ccy_tbl.c is stale"; exit 1; }; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/cbank -Isrc/tensor src/cbank/test_cb_ccy.c src/cbank/cb_ccy.c src/cbank/cb_ccy_tbl.c src/cbank/cb_util.c src/tensor/zt.c -o /tmp/test_cb_ccy && /tmp/test_cb_ccy > /tmp/test_cb_ccy.log 2>&1 && echo "[PASS] test_cb_ccy ($$(grep -c '\[PASS\]' /tmp/test_cb_ccy.log) checks)" || { cat /tmp/test_cb_ccy.log; echo "[FAIL] test_cb_ccy"; exit 1; }
+	@echo "=== cbank: no-usury guard ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/cbank src/cbank/test_cb_usury.c src/cbank/cb_usury.c -o /tmp/test_cb_usury && /tmp/test_cb_usury > /tmp/test_cb_usury.log 2>&1 && echo "[PASS] test_cb_usury ($$(grep -c '\[PASS\]' /tmp/test_cb_usury.log) checks)" || { cat /tmp/test_cb_usury.log; echo "[FAIL] test_cb_usury"; exit 1; }
+	@echo "=== cbank: config + PAPSS-style multilateral netting (signed rates, conservation) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/cbank -Isrc/tensor -Isrc/robin_debanks src/cbank/test_cb_net.c src/cbank/cb_net.c src/cbank/cb_config.c src/cbank/cb_usury.c src/cbank/cb_ccy.c src/cbank/cb_ccy_tbl.c src/cbank/cb_util.c src/tensor/zt.c src/robin_debanks/ed25519_verify.c -o /tmp/test_cb_net && /tmp/test_cb_net > /tmp/test_cb_net.log 2>&1 && echo "[PASS] test_cb_net ($$(grep -c '\[PASS\]' /tmp/test_cb_net.log) checks)" || { cat /tmp/test_cb_net.log; echo "[FAIL] test_cb_net"; exit 1; }
+	@echo "=== cbank: VSS receipt + conformance C1-C5, levels, 811 ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/cbank -Isrc/tensor src/cbank/test_cb_vss.c src/cbank/cb_vss.c src/cbank/cb_ccy.c src/cbank/cb_ccy_tbl.c src/cbank/cb_util.c src/tensor/zt.c -o /tmp/test_cb_vss && /tmp/test_cb_vss > /tmp/test_cb_vss.log 2>&1 && echo "[PASS] test_cb_vss ($$(grep -c '\[PASS\]' /tmp/test_cb_vss.log) checks)" || { cat /tmp/test_cb_vss.log; echo "[FAIL] test_cb_vss"; exit 1; }
+	@echo "=== cbank: ISO 20022 pacs.008/009/002/004 camt.056/029 + XSD validation ==="; \
+	rm -rf /tmp/cbank_mx && mkdir -p /tmp/cbank_mx && \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/cbank -Isrc/tensor src/cbank/test_cb_mx.c src/cbank/cb_mx.c src/cbank/cb_vss.c src/cbank/cb_ccy.c src/cbank/cb_ccy_tbl.c src/cbank/cb_util.c src/tensor/zt.c -o /tmp/test_cb_mx && /tmp/test_cb_mx /tmp/cbank_mx > /tmp/test_cb_mx.log 2>&1 && \
+	for p in pacs008:pacs.008.001.08 pacs009:pacs.009.001.08 pacs002_rjct:pacs.002.001.10 pacs002_acsc:pacs.002.001.10 pacs004:pacs.004.001.09 camt056:camt.056.001.08 camt029_cncl:camt.029.001.09 camt029_rjcr:camt.029.001.09; do \
+	  xmllint --noout --schema src/pay/xsd/$${p#*:}.xsd /tmp/cbank_mx/$${p%%:*}.xml 2>>/tmp/test_cb_mx.log || { cat /tmp/test_cb_mx.log; echo "[FAIL] test_cb_mx XSD $${p%%:*}"; exit 1; }; done && \
+	xmllint --noout --schema src/cbank/xsd/vss.receipt.1.xsd /tmp/cbank_mx/vss_receipt.xml 2>>/tmp/test_cb_mx.log && \
+	echo "[PASS] test_cb_mx ($$(grep -c '\[PASS\]' /tmp/test_cb_mx.log) checks + 9 XSD validations)" || { cat /tmp/test_cb_mx.log; echo "[FAIL] test_cb_mx"; exit 1; }
+	@echo "=== cbank: freestanding AArch64 build, no libc symbols ==="; \
+	for f in src/cbank/cb_util.c src/cbank/cb_ccy.c src/cbank/cb_ccy_tbl.c src/cbank/cb_config.c src/cbank/cb_usury.c src/cbank/cb_net.c src/cbank/cb_mx.c src/cbank/cb_vss.c; do \
+	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/cbank -Isrc/tensor -c $$f -o /tmp/cbank_a64.o || { echo "[FAIL] cbank aarch64 $$f"; exit 1; }; \
+	  if nm -u /tmp/cbank_a64.o | grep -vE ' (cb_|zt_udiv64$$)' | grep -q .; then nm -u /tmp/cbank_a64.o; echo "[FAIL] cbank libc symbol in $$f"; exit 1; fi; \
+	done; echo "[PASS] cbank freestanding (aarch64-none-elf, only cb_* and zt_udiv64 external)"
+	@echo "=== pay: ledger, tithe, ISO 20022 builders/parsers + XSD, equity, treasury, farm ==="; \
+	python3 -I src/pay/gen_tithe_ref.py /tmp/tithe_ref.txt && mkdir -p /tmp/test_pay_xml && \
+	gcc -std=c11 -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/pay -Isrc/tensor -Isrc/mlkem -Isrc/swarm -Isrc/robin_debanks -Isrc/zcapital -Isrc/surplus src/pay/test_pay.c src/pay/pay_*.c src/tensor/zt.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_pay && /tmp/test_pay /tmp/tithe_ref.txt src/pay/xsd /tmp/test_pay_xml > /tmp/test_pay.log 2>&1 && echo "[PASS] test_pay" || { tail -40 /tmp/test_pay.log; echo "[FAIL] test_pay"; exit 1; }
 	@echo "=== zcapital: nine-form capital substrate + inalienability wall ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/surplus src/zcapital/test_zcapital.c src/zcapital/zcapital.c -o /tmp/test_zcapital -lm && /tmp/test_zcapital && echo "[PASS] test_zcapital" || { echo "[FAIL] test_zcapital"; exit 1; }
 	@echo "=== ipfs: content-addressed self-certifying get (the smuggler's hold) ==="; \

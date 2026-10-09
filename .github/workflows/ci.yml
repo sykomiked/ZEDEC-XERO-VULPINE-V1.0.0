@@ -121,7 +121,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make
+          sudo apt-get install -y gcc make clang libxml2-utils
       - name: Check every file is on Apache-2.0
         run: python3 build_system/relicense_apache.py --check
       - name: Run host tests
@@ -148,7 +148,12 @@ jobs:
           # not force a full reformat of an older file. New files are all
           # changed lines, so they stay fully checked.
           MB=$(git merge-base "$BASE" HEAD)
-          out=$(git clang-format --binary "$(command -v clang-format)" --diff "$MB" HEAD -- 'kernel/*.c' 'kernel/*.h' || true)
+          # git clang-format does not read .clang-format-ignore, so its
+          # entries (generated tables, vendored code) become exclude pathspecs.
+          set -f
+          EXCL=$(grep -vE '^[[:space:]]*(#|$)' .clang-format-ignore | sed 's/^/:(exclude,glob)/')
+          out=$(git clang-format --binary "$(command -v clang-format)" --diff "$MB" HEAD -- 'kernel/*.c' 'kernel/*.h' $EXCL || true)
+          set +f
           case "$out" in
             ""|"no modified files to format"|"clang-format did not modify any files") echo "formatting OK" ;;
             *) echo "$out"; exit 1 ;;

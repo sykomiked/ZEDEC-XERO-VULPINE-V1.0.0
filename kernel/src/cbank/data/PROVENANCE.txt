@@ -1,0 +1,38 @@
+Provenance of the data files used by kernel/src/cbank/gen_cb_tables.py
+(fetched 2026-10-09)
+
+list-one.xml  ISO 4217 "List One" (current currency & funds code list)
+  publisher:  SIX Financial Information AG, the ISO 4217 maintenance agency
+  Pblshd:     2026-01-01 (attribute of the root element)
+  sha256:     838dfb991648cf36df939edd5fe3811737962b75a32252847d239cedd1e291c9
+  entries:    280 CcyNtry elements, 178 distinct alphabetic codes
+  how:        The SIX URL
+                https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml
+              was refused by this environment's egress proxy (HTTP 403 on
+              CONNECT). The file was taken unmodified from the PyPI source
+              distribution iso4217 1.16.20260101 (Hong Minhee, public domain;
+              its setup.py downloads exactly the SIX URL above and ships the
+              file as iso4217/table.xml).
+                sdist sha256: 6a5afba6acb01cad8045f81e2b96f6adbea04f0c524ae21f317ac4ca11c3bdd6
+  cross-check: npm currency-codes 2.2.0 (MIT) ships SIX list one
+              Pblshd="2024-06-25" (sha256 2dea9812...b771b8b). The only
+              differences between the two copies are the amendments published
+              by SIX in between: XAD (Arab Accounting Dinar) added, Bulgaria
+              moved from BGN to EUR, CUC withdrawn, ANG replaced by XCG for
+              Curacao and Sint Maarten. Every African currency entry is
+              identical in both copies.
+  NOT verified against the live SIX site. Before an operator relies on the
+  table, download the current list from SIX, replace this file and
+  regenerate (see gen_cb_tables.py).
+
+iso_3166-1.json  ISO 3166-1 alpha-2 / alpha-3 / numeric country codes
+  source:     Debian/Ubuntu package iso-codes 4.16.0-1,
+              /usr/share/iso-codes/json/iso_3166-1.json (LGPL-2.1+ package;
+              the code list itself is ISO 3166 data)
+  sha256:     f01b812b57fba9f31ff621bf33e7c7570a01964dbeb5be2167e94decf538c89f
+  entries:    249
+
+African Union member list (in gen_cb_tables.py, not in either file):
+  55 member states, AU five regions and monetary-union tags written from
+  general knowledge as of 2026-10-09. Not taken from an AU publication.
+  Suspension of members from AU activities is not recorded.
