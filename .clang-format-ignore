@@ -181,3 +181,4 @@ kernel/src/i18n/i18n_tables.c
 kernel/src/i18n/i18n_catalog.c
 kernel/src/i18n/i18n_msgid.h
 kernel/src/web4/test_web4_vectors.h
+kernel/src/tensor/test_model_fixture.h
