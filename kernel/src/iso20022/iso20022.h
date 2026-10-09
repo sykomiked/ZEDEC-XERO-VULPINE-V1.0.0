@@ -41,23 +41,19 @@
  * The *_build functions return the number of bytes written (>= 0) on success,
  * or one of these negative codes. On truncation the output is still NUL-
  * terminated within `cap` and NOTHING is written past the buffer. */
-#define ISO_ERR_NULL   (-1)   /* NULL message or output buffer               */
-#define ISO_ERR_TRUNC  (-2)   /* output would not fit in cap — truncated     */
+#define ISO_ERR_NULL  (-1) /* NULL message or output buffer               */
+#define ISO_ERR_TRUNC (-2) /* output would not fit in cap — truncated     */
 
 /* ===== The three triple-ledger rails, as ISO 4217 numeric codes =====
  * These MUST stay in lockstep with vino_stores.h (VINO_ISO_DEBIT/CREDIT/
  * EQUITY). They are duplicated here as plain macros rather than by including
  * vino_stores.h so this interop layer stays free of the whole ledger/vino/
  * edp_risk dependency chain. If those ever diverge, that is a bug. */
-#define ISO_CCY_DEBIT   846u   /* asset/backing rail                          */
-#define ISO_CCY_CREDIT  810u   /* claim/liability rail (withdrawn RUR code)   */
-#define ISO_CCY_EQUITY  888u   /* live equity rail (unassigned numeric)       */
+#define ISO_CCY_DEBIT  846u /* asset/backing rail                          */
+#define ISO_CCY_CREDIT 810u /* claim/liability rail (withdrawn RUR code)   */
+#define ISO_CCY_EQUITY 888u /* live equity rail (unassigned numeric)       */
 
-typedef enum {
-    ISO_RAIL_DEBIT  = 0,
-    ISO_RAIL_CREDIT = 1,
-    ISO_RAIL_EQUITY = 2
-} iso_rail_t;
+typedef enum { ISO_RAIL_DEBIT = 0, ISO_RAIL_CREDIT = 1, ISO_RAIL_EQUITY = 2 } iso_rail_t;
 
 /* Rail -> ISO 4217 numeric code (846 / 810 / 888). Unknown rail -> 0. */
 uint16_t iso20022_rail_ccy(iso_rail_t rail);
@@ -84,35 +80,34 @@ const char *iso20022_ccy_caveat(uint16_t code);
  *   units=5,      frac_digits=2 -> "0.05"
  *   units=100,    frac_digits=0 -> "100"
  * Returns bytes written (excluding NUL), or ISO_ERR_TRUNC / ISO_ERR_NULL. */
-int32_t iso20022_format_amount(char *out, uint32_t cap,
-                               int64_t units, uint8_t frac_digits);
+int32_t iso20022_format_amount(char *out, uint32_t cap, int64_t units, uint8_t frac_digits);
 
 /* ===== Field sizes (bounded — no allocation) ===== */
-#define ISO_MSGID_MAX     35
-#define ISO_DTTM_MAX      32   /* e.g. "2026-08-05T12:00:00" (+optional zone) */
-#define ISO_NAME_MAX      70
-#define ISO_ACCT_MAX      35
-#define ISO_CCY_MAX        4   /* 3 letters + NUL                             */
-#define ISO_E2E_MAX       35
-#define ISO_ACODE_MAX      5   /* 4-letter ISO code (CRDT/DBIT/BOOK/...) + NUL*/
+#define ISO_MSGID_MAX        35
+#define ISO_DTTM_MAX         32 /* e.g. "2026-08-05T12:00:00" (+optional zone) */
+#define ISO_NAME_MAX         70
+#define ISO_ACCT_MAX         35
+#define ISO_CCY_MAX          4 /* 3 letters + NUL                             */
+#define ISO_E2E_MAX          35
+#define ISO_ACODE_MAX        5 /* 4-letter ISO code (CRDT/DBIT/BOOK/...) + NUL*/
 #define ISO_CAMT_MAX_ENTRIES 32
 
 /* ===== PACS.008 — FI-to-FI Customer Credit Transfer ===== */
 typedef struct {
-    char     msg_id[ISO_MSGID_MAX + 1];       /* GrpHdr/MsgId                 */
-    char     cre_dt_tm[ISO_DTTM_MAX + 1];      /* GrpHdr/CreDtTm (SUPPLIED)   */
-    uint32_t nb_of_txs;                        /* GrpHdr/NbOfTxs              */
+    char msg_id[ISO_MSGID_MAX + 1];   /* GrpHdr/MsgId                 */
+    char cre_dt_tm[ISO_DTTM_MAX + 1]; /* GrpHdr/CreDtTm (SUPPLIED)   */
+    uint32_t nb_of_txs;               /* GrpHdr/NbOfTxs              */
 
-    char     debtor_name[ISO_NAME_MAX + 1];
-    char     debtor_acct[ISO_ACCT_MAX + 1];
-    char     creditor_name[ISO_NAME_MAX + 1];
-    char     creditor_acct[ISO_ACCT_MAX + 1];
+    char debtor_name[ISO_NAME_MAX + 1];
+    char debtor_acct[ISO_ACCT_MAX + 1];
+    char creditor_name[ISO_NAME_MAX + 1];
+    char creditor_acct[ISO_ACCT_MAX + 1];
 
-    int64_t  amount_units;                     /* InstdAmt / IntrBkSttlmAmt   */
-    uint8_t  amount_frac;                       /* decimal places             */
-    char     ccy[ISO_CCY_MAX];                  /* alpha-3, e.g. "USD"         */
+    int64_t amount_units;  /* InstdAmt / IntrBkSttlmAmt   */
+    uint8_t amount_frac;   /* decimal places             */
+    char ccy[ISO_CCY_MAX]; /* alpha-3, e.g. "USD"         */
 
-    char     end_to_end_id[ISO_E2E_MAX + 1];   /* PmtId/EndToEndId            */
+    char end_to_end_id[ISO_E2E_MAX + 1]; /* PmtId/EndToEndId            */
 } pacs008_t;
 
 /* Serialize a PACS.008 MX document into `out` (cap bytes). Returns bytes
@@ -122,36 +117,36 @@ int32_t iso20022_pacs008_build(const pacs008_t *msg, char *out, uint32_t cap);
 
 /* ===== CAMT.053 — Bank-to-Customer Statement ===== */
 typedef enum {
-    ISO_CRDT = 0,   /* credit  -> "CRDT" */
-    ISO_DBIT = 1    /* debit   -> "DBIT" */
+    ISO_CRDT = 0, /* credit  -> "CRDT" */
+    ISO_DBIT = 1  /* debit   -> "DBIT" */
 } iso_cdtdbt_t;
 
 typedef enum {
-    ISO_STS_BOOK = 0,   /* "BOOK" — booked   */
-    ISO_STS_PDNG = 1,   /* "PDNG" — pending  */
-    ISO_STS_INFO = 2    /* "INFO" — informational */
+    ISO_STS_BOOK = 0, /* "BOOK" — booked   */
+    ISO_STS_PDNG = 1, /* "PDNG" — pending  */
+    ISO_STS_INFO = 2  /* "INFO" — informational */
 } iso_entry_sts_t;
 
 typedef struct {
-    int64_t         units;
-    uint8_t         frac_digits;
-    iso_cdtdbt_t    cdt_dbt;
+    int64_t units;
+    uint8_t frac_digits;
+    iso_cdtdbt_t cdt_dbt;
     iso_entry_sts_t status;
 } camt_entry_t;
 
 typedef struct {
-    char     msg_id[ISO_MSGID_MAX + 1];
-    char     cre_dt_tm[ISO_DTTM_MAX + 1];      /* SUPPLIED                    */
-    char     acct_id[ISO_ACCT_MAX + 1];        /* Acct/Id/Othr/Id            */
-    char     ccy[ISO_CCY_MAX];                  /* account currency, alpha-3  */
+    char msg_id[ISO_MSGID_MAX + 1];
+    char cre_dt_tm[ISO_DTTM_MAX + 1]; /* SUPPLIED                    */
+    char acct_id[ISO_ACCT_MAX + 1];   /* Acct/Id/Othr/Id            */
+    char ccy[ISO_CCY_MAX];            /* account currency, alpha-3  */
 
-    int64_t  opening_units;                     /* OPBD balance               */
-    uint8_t  opening_frac;
-    int64_t  closing_units;                     /* CLBD balance               */
-    uint8_t  closing_frac;
+    int64_t opening_units; /* OPBD balance               */
+    uint8_t opening_frac;
+    int64_t closing_units; /* CLBD balance               */
+    uint8_t closing_frac;
 
     camt_entry_t entries[ISO_CAMT_MAX_ENTRIES];
-    uint32_t     nb_entries;                    /* clamped to MAX_ENTRIES     */
+    uint32_t nb_entries; /* clamped to MAX_ENTRIES     */
 } camt053_t;
 
 /* Serialize a CAMT.053 MX document. Returns bytes written (>=0) or a negative

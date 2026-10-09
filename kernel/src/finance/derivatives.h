@@ -27,29 +27,30 @@
 
 /* ===== Derivative Error Codes ===== */
 typedef enum {
-    DERIV_OK                    = 0,
-    DERIV_ERR_NO_BACKING        = 1,
-    DERIV_ERR_BACKING_UNATTTESTED = 2,  /* LPRES NEITHER/GLUT */
+    DERIV_OK = 0,
+    DERIV_ERR_NO_BACKING = 1,
+    DERIV_ERR_BACKING_UNATTTESTED = 2, /* LPRES NEITHER/GLUT */
     DERIV_ERR_ARITHMETIC_OVERFLOW = 3,
     DERIV_ERR_INSUFFICIENT_BACKING = 4, /* ratio < 1.0x */
     DERIV_ERR_INVALID_JURISDICTION = 5,
-    DERIV_ERR_NO_TREATY         = 6,
-    DERIV_ERR_SOVEREIGNTY       = 7,
-    DERIV_ERR_VALUATION         = 8,
-    DERIV_ERR_PHASE_VETO        = 9,
-    DERIV_ERR_BACKING_A         = 10,
-    DERIV_ERR_BACKING_B         = 11,
-    DERIV_ERR_NO_SPREAD         = 12,
-    DERIV_DEFER                 = 13,
-    DERIV_VETO                  = 14,
-    DERIV_ABSTAIN               = 15,
-    DERIV_VETO_MAXIM            = 16,
-    DERIV_VETO_STATE            = 17
+    DERIV_ERR_NO_TREATY = 6,
+    DERIV_ERR_SOVEREIGNTY = 7,
+    DERIV_ERR_VALUATION = 8,
+    DERIV_ERR_PHASE_VETO = 9,
+    DERIV_ERR_BACKING_A = 10,
+    DERIV_ERR_BACKING_B = 11,
+    DERIV_ERR_NO_SPREAD = 12,
+    DERIV_DEFER = 13,
+    DERIV_VETO = 14,
+    DERIV_ABSTAIN = 15,
+    DERIV_VETO_MAXIM = 16,
+    DERIV_VETO_STATE = 17
 } deriv_err_t;
 
 /* ===== Interstitial Region (Lex Rhodia Corridor) =====
  * Uses interspace.h's interstitial_region_t with region_id as CID */
-static inline bool interstitial_region_cid_resolves(const interstitial_region_t *r) {
+static inline bool interstitial_region_cid_resolves(const interstitial_region_t *r)
+{
     if (!r) return false;
     ipfs_node_t node = {0};
     uint8_t dummy[256];
@@ -65,35 +66,35 @@ static inline bool interstitial_region_cid_resolves(const interstitial_region_t 
  */
 typedef struct {
     /* RAIL 846 — FINANCIAL: Exact economic terms */
-    rat_t notional;                    /* Exact rational — no FP rounding */
-    surplus_real_t strike;             /* Q32.32 fixed-point */
-    uint64_t expiry_tick;              /* Phase tick (not wall clock) */
-    capital_form_t underlying_form;    /* 5-9 (priceable only) */
+    rat_t notional;                 /* Exact rational — no FP rounding */
+    surplus_real_t strike;          /* Q32.32 fixed-point */
+    uint64_t expiry_tick;           /* Phase tick (not wall clock) */
+    capital_form_t underlying_form; /* 5-9 (priceable only) */
 
     /* RAIL 810 — PROVENANCE: Attestation & backing proof */
-    uint8_t backing_cid[32];           /* IPFS CID of backing asset proof (SHA-256) */
-    lpres_attestation_t backing_proof; /* LPRES: TRUE/NEITHER/FALSE/GLUT */
+    uint8_t backing_cid[32];            /* IPFS CID of backing asset proof (SHA-256) */
+    lpres_attestation_t backing_proof;  /* LPRES: TRUE/NEITHER/FALSE/GLUT */
     uint64_t backing_verification_tick; /* When backing was verified */
 
     /* RAIL 888 — EXTERNAILITY: Relational phase & interstitial jurisdiction */
-    surplus_real_t phase_curvature;    /* IPHASE φ — asymmetric routing cost */
+    surplus_real_t phase_curvature;     /* IPHASE φ — asymmetric routing cost */
     interstitial_region_t jurisdiction; /* Lex Rhodia governed corridor */
-    bool treaty_backed;                /* True iff treaty CID attached */
+    bool treaty_backed;                 /* True iff treaty CID attached */
 
     /* Settlement tracking */
-    uint8_t source_rail_cid[32];       /* CID on source rail */
-    uint8_t target_rail_cid[32];       /* CID on target rail */
-    uint8_t vouchers[3];               /* Voucher IDs for single-active-state */
+    uint8_t source_rail_cid[32]; /* CID on source rail */
+    uint8_t target_rail_cid[32]; /* CID on target rail */
+    uint8_t vouchers[3];         /* Voucher IDs for single-active-state */
 } deriv_contract_t;
 
 /* ===== Temporal Arbitrage ===== */
 typedef struct {
-    void *node_a;                      /* Low-phase node (earlier tick) */
-    void *node_b;                      /* High-phase node (later tick) */
-    deriv_contract_t *contract_a;      /* Short on node_a */
-    deriv_contract_t *contract_b;      /* Long on node_b */
-    surplus_real_t phase_spread;       /* φ_b - φ_a (IPHASE curvature) */
-    uint64_t settlement_tick;          /* When phase converges */
+    void *node_a;                 /* Low-phase node (earlier tick) */
+    void *node_b;                 /* High-phase node (later tick) */
+    deriv_contract_t *contract_a; /* Short on node_a */
+    deriv_contract_t *contract_b; /* Long on node_b */
+    surplus_real_t phase_spread;  /* φ_b - φ_a (IPHASE curvature) */
+    uint64_t settlement_tick;     /* When phase converges */
 } temporal_arb_t;
 
 /* ===== API ===== */
@@ -108,9 +109,8 @@ deriv_err_t temporal_arb_execute(temporal_arb_t *arb);
 deriv_err_t deriv_settle(deriv_contract_t *d, triple_ledger_t *tl);
 
 /* Create derivative contract with validated backing */
-deriv_err_t deriv_create(deriv_contract_t *d, const triple_ledger_t *tl,
-                         capital_form_t form, const rat_t *notional,
-                         const surplus_real_t *strike, uint64_t expiry_tick,
+deriv_err_t deriv_create(deriv_contract_t *d, const triple_ledger_t *tl, capital_form_t form,
+                         const rat_t *notional, const surplus_real_t *strike, uint64_t expiry_tick,
                          const uint8_t backing_cid[32], const lpres_attestation_t *backing_proof,
                          const interstitial_region_t *jurisdiction, bool treaty_backed);
 

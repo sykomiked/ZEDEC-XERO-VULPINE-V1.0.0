@@ -26,26 +26,26 @@
 
 /* ===== Treaty Asset Error Codes ===== */
 typedef enum {
-    TREATY_OK              = 0,
-    TREATY_ERR_NO_TREATY   = 1,
+    TREATY_OK = 0,
+    TREATY_ERR_NO_TREATY = 1,
     TREATY_ERR_SOVEREIGNTY = 2,
-    TREATY_ERR_VALUATION   = 3,
+    TREATY_ERR_VALUATION = 3,
     TREATY_ERR_CID_MISMATCH = 4,
-    TREATY_ERR_RAIL_FULL   = 5
+    TREATY_ERR_RAIL_FULL = 5
 } treaty_err_t;
 
 /* ===== Treaty-Backed Asset ===== */
 typedef struct {
-    uint8_t treaty_cid[32];              /* IPFS CID of signed treaty (SHA-256) */
-    uint8_t asset_cid[32];               /* Conservation easement / land / mineral CID */
-    capital_form_t form;                 /* NATURAL (2) or BUILT (9) */
-    rat_t quantified_value;              /* Exact rational — ecological/engineering appraisal */
+    uint8_t treaty_cid[32];                /* IPFS CID of signed treaty (SHA-256) */
+    uint8_t asset_cid[32];                 /* Conservation easement / land / mineral CID */
+    capital_form_t form;                   /* NATURAL (2) or BUILT (9) */
+    rat_t quantified_value;                /* Exact rational — ecological/engineering appraisal */
     lpres_attestation_t sovereignty_proof; /* LPRES: TRUE iff treaty ratified */
-    interstitial_region_t corridor;      /* Lex Rhodia corridor for transfer */
+    interstitial_region_t corridor;        /* Lex Rhodia corridor for transfer */
 
     /* Kernel tracking */
-    uint8_t externality_cid[32];         /* CID on Externality rail (888) */
-    uint64_t tokenization_tick;          /* Phase tick when tokenized */
+    uint8_t externality_cid[32]; /* CID on Externality rail (888) */
+    uint64_t tokenization_tick;  /* Phase tick when tokenized */
 } treaty_asset_t;
 
 /* ===== API ===== */
@@ -61,7 +61,8 @@ treaty_err_t treaty_asset_create(treaty_asset_t *ta, const triple_ledger_t *tl,
                                  const interstitial_region_t *corridor);
 
 /* Verify treaty CID resolves on IPFS */
-static inline bool treaty_cid_resolves(const uint8_t cid[32]) {
+static inline bool treaty_cid_resolves(const uint8_t cid[32])
+{
     if (!cid) return false;
     ipfs_node_t node = {0};
     uint8_t dummy[256];
@@ -70,7 +71,8 @@ static inline bool treaty_cid_resolves(const uint8_t cid[32]) {
 }
 
 /* Verify sovereignty proof is LPRES STATE_TRUE */
-static inline bool treaty_sovereignty_clear(const lpres_attestation_t *proof) {
+static inline bool treaty_sovereignty_clear(const lpres_attestation_t *proof)
+{
     if (!proof) return false;
     return proof->state == LPRES_STATE_TRUE;
 }
