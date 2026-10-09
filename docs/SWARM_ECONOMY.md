@@ -10,8 +10,11 @@ free market over the nine forms of capital, with an emotional economy at a
 right angle to it, and it is governed by the triple ledger. Cooperation pays,
 and no model can become a monopoly.
 
-Status: design, drafted 2026-10-09 from the owner's instructions. The parts
-marked **built** are code in `kernel/src/swarm/`; the rest is the plan.
+Status: drafted 2026-10-09 from the owner's instructions. Sections 3–8 are
+built in `kernel/src/swarm/` (`swarm_budget`, `swarm_emotion`,
+`swarm_market`, `swarm_ledger`, `swarm_reserve`) and tested with
+`make -C kernel test-swarm`. Sections 9 (wiring to `finance/triple_ledger.h`
+itself) and 10–11 are the plan.
 
 ## 1. What is traded
 
@@ -108,8 +111,9 @@ Every token allocation is witnessed by a different AI in the swarm.
   microseconds and spends no tokens, and records whether it agrees. The
   record is a trit: TRUE (agrees), FALSE (disagrees), or GLUT (contested,
   held for review).
-- Witnesses are assigned in a fixed rotation, never the model being witnessed
-  and never the same pair twice in a row.
+- Witnesses are assigned in a fixed rotation that changes every cycle and
+  never picks the model being witnessed. A one-model swarm is witnessed by
+  the kernel.
 - An allotment settles only once it is witnessed TRUE.
 - Each witnessing earns the witness Social capital, which raises its
   cooperation dividend. Models are paid to check each other, which gives the
@@ -165,3 +169,21 @@ The rules never change; only the size of the swarm and `T` do.
 
 `T` is measured from the machine's real throughput at start-up and
 re-measured over time.
+
+## 11. Growing and shrinking the swarm
+
+- **The companion.** Level 0 always holds exactly one model: the companion
+  the user talks to. It runs the Chiglet system, routing each request to the
+  experts in the swarm and merging what they return.
+- **Fibonacci growth.** When more hardware is available (a bigger Mac, or a
+  remote GPU server the user has added), agents are added one Fibonacci step
+  at a time. A new level opens only when every level above it is full. Under
+  stress (heat, memory pressure, repeated failures) the swarm sheds agents in
+  the reverse order.
+- **Remote servers.** The user adds a server once with an SSH key kept in the
+  Keychain. ZXV then logs in, installs its runtime, loads models into VRAM,
+  and boots its instance there, only on servers the user added.
+- **Many small parts.** The swarm's strength comes from many reconfigurable
+  specialists (voice in and out, OCR, documents, images, music, video,
+  vision, code, reasoning) working together, not from one giant model. It
+  reconfigures itself for each kind of task.
