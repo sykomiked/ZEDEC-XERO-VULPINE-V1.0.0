@@ -162,23 +162,42 @@ lpres_state_t pq_boot_verify(const uint8_t slh_pk[PQ_SLH128S_PK_BYTES],
  * ============================================================================ */
 
 /* An encapsulated event packet: the exact-rational payload is sealed
- * under a quantum-resistant shared secret. */
+ * under a quantum-resistant shared secret. The shared secret itself never
+ * travels: only the ML-KEM ciphertext does, and only the holder of the
+ * decapsulation key can recover the secret.
+ *
+ * Sealing (SHA-3 family only, so this layer needs nothing beyond keccak):
+ *   ks  = SHAKE256(ss || "ZXV-MESH-v1 stream", payload_len)
+ *   mk  = SHAKE256(ss || "ZXV-MESH-v1 mac", 32)
+ *   payload = plaintext XOR ks
+ *   tag = SHA3-256(mk || ct || le32(payload_len) || payload)
+ * Every encapsulation draws a fresh ML-KEM secret, so a key stream is never
+ * reused. SHA-3 is not length-extendable, so the prefix-keyed hash is a MAC. */
+#define PQ_MESH_MAX_PAYLOAD 1024u
+#define PQ_MESH_TAG_BYTES   32u
 typedef struct {
     uint8_t ct[MLKEM768_CT_BYTES];   /* ML-KEM-768 ciphertext */
-    uint8_t ss[MLKEM768_SS_BYTES];   /* shared secret (sender side) */
+    uint8_t tag[PQ_MESH_TAG_BYTES];  /* authenticates ct, length and payload */
     uint32_t payload_len;
-    uint8_t payload[1024];           /* sealed exact-rational IR bytes */
+    uint8_t payload[PQ_MESH_MAX_PAYLOAD]; /* sealed exact-rational IR bytes */
 } pq_mesh_packet_t;
 
-/* Encapsulate a mesh packet under the receiver's encapsulation key. */
-void pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES],
+/* Encapsulate and seal a payload under the receiver's encapsulation key.
+ * m is 32 bytes of fresh randomness. Returns false (and an all-zero packet)
+ * when the payload is too long or an argument is missing. */
+bool pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES],
                          const uint8_t *payload, uint32_t payload_len,
                          const uint8_t m[32],
                          pq_mesh_packet_t *out);
 
-/* Decapsulate a mesh packet with the receiver's decapsulation key.
- * Returns the shared secret; the payload is unsealed by the caller
- * using the returned secret. */
+/* Decapsulate, authenticate and unseal. Returns false, with out zeroed, when
+ * the tag does not verify (wrong key, or any bit of the packet changed). */
+bool pq_mesh_open(const uint8_t dk[MLKEM768_DK_BYTES],
+                  const pq_mesh_packet_t *packet,
+                  uint8_t *out, uint32_t cap, uint32_t *out_len);
+
+/* Decapsulate only: the receiver's copy of the shared secret, for callers
+ * that derive their own session keys from it. */
 void pq_mesh_decapsulate(const uint8_t dk[MLKEM768_DK_BYTES],
                          const pq_mesh_packet_t *packet,
                          uint8_t ss_out[MLKEM768_SS_BYTES]);

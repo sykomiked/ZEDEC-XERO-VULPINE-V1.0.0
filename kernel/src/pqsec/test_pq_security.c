@@ -220,31 +220,58 @@ int main(void) {
         fill(payload, sizeof(payload), 0x10);
 
         mlkem768_keygen(d, z, ek, dk);
-        pq_mesh_encapsulate(ek, payload, sizeof(payload), m, &packet);
+        CHECK(pq_mesh_encapsulate(ek, payload, sizeof(payload), m, &packet),
+              "mesh: payload encapsulated and sealed");
+
+        /* The secret never travels: the packet holds only ct, tag, payload */
+        uint8_t ss_sender[32], ct_check[MLKEM768_CT_BYTES];
+        mlkem768_encaps(ek, m, ct_check, ss_sender);
+        bool leaked = false;
+        const uint8_t *raw = (const uint8_t *)&packet;
+        for (uint32_t i = 0; i + 32 <= sizeof(packet); i++)
+            if (memcmp(raw + i, ss_sender, 32) == 0) leaked = true;
+        CHECK(!leaked, "mesh: shared secret appears nowhere in the packet");
+        bool plain = false;
+        for (uint32_t i = 0; i + 16 <= packet.payload_len; i++)
+            if (memcmp(packet.payload + i, payload, 16) == 0) plain = true;
+        CHECK(!plain, "mesh: plaintext does not appear in the sealed payload");
+
         pq_mesh_decapsulate(dk, &packet, ss_out);
+        CHECK(memcmp(ss_out, ss_sender, 32) == 0, "mesh: decapsulated shared secret matches");
 
-        /* Shared secret must match the sender's */
-        CHECK(memcmp(ss_out, packet.ss, 32) == 0,
-              "mesh: decapsulated shared secret matches");
-
-        /* Unseal the payload with the shared secret */
         uint8_t recovered[64];
-        for (uint32_t i = 0; i < sizeof(payload); i++) {
-            recovered[i] = packet.payload[i] ^ ss_out[i % 32];
-        }
-        CHECK(memcmp(recovered, payload, sizeof(payload)) == 0,
-              "mesh: payload unseals byte-for-byte");
+        uint32_t rlen = 0;
+        CHECK(pq_mesh_open(dk, &packet, recovered, sizeof(recovered), &rlen) && rlen == sizeof(payload) &&
+                  memcmp(recovered, payload, sizeof(payload)) == 0,
+              "mesh: payload opens byte-for-byte with the right key");
 
-        /* Wrong decapsulation key: implicit rejection, different secret */
+        /* Wrong decapsulation key: implicit rejection, and the tag fails */
         uint8_t d2[32], z2[32];
         uint8_t ek2[MLKEM768_EK_BYTES], dk2[MLKEM768_DK_BYTES];
         fill(d2, 32, 0x12); fill(z2, 32, 0x34);
         mlkem768_keygen(d2, z2, ek2, dk2);
         uint8_t ss_wrong[32];
         pq_mesh_decapsulate(dk2, &packet, ss_wrong);
-        CHECK(memcmp(ss_wrong, packet.ss, 32) != 0,
+        CHECK(memcmp(ss_wrong, ss_sender, 32) != 0,
               "mesh: wrong key yields different secret (implicit rejection)");
+        CHECK(!pq_mesh_open(dk2, &packet, recovered, sizeof(recovered), &rlen) && rlen == 0,
+              "mesh: wrong key cannot open the packet");
+
+        /* Any flipped bit in ct, tag, length or payload is rejected */
+        int caught = 0, tries = 0;
+        const uint32_t spots[4] = {5, MLKEM768_CT_BYTES + 3, MLKEM768_CT_BYTES + PQ_MESH_TAG_BYTES,
+                                   MLKEM768_CT_BYTES + PQ_MESH_TAG_BYTES + 4 + 10};
+        for (int k = 0; k < 4; k++) {
+            pq_mesh_packet_t t = packet;
+            ((uint8_t *)&t)[spots[k]] ^= 0x01;
+            tries++;
+            if (!pq_mesh_open(dk, &t, recovered, sizeof(recovered), &rlen)) caught++;
+        }
+        CHECK(caught == tries, "mesh: tampering with ct, tag, length or payload is rejected");
+        CHECK(!pq_mesh_encapsulate(ek, payload, PQ_MESH_MAX_PAYLOAD + 1, m, &packet),
+              "mesh: oversized payload refused");
     }
+
 
     /* ====================================================================
      * Summary
