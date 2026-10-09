@@ -1051,7 +1051,7 @@ void zxv_shell_key(zxv_shell_state_t *st, int32_t keycode)
     if (keycode == 1) {
         st->view = 0;
         return;
-    }                    /* ESC: drop home to the base plane   */
+    } /* ESC: drop home to the base plane   */
     if (st->view == 1) { /* lattice: keyboard nav along edges  */
         if (keycode == 103) {
             st->focus_node = lat_neighbor(st->focus_node, 0, -1);
