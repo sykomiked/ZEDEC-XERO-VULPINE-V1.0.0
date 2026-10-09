@@ -42,10 +42,7 @@ static const xl_range_t r_kana[] = {{0x3040, 0x30FF}, {0x31F0, 0x31FF}, {0xFF66,
 static const xl_range_t r_hani[] = {
     {0x3400, 0x4DBF}, {0x4E00, 0x9FFF}, {0xF900, 0xFAFF}, {0x20000, 0x2FFFF}};
 
-#define R(x)                                                                                       \
-    {                                                                                              \
-        x, sizeof x / sizeof x[0]                                                                  \
-    }
+#define R(x) {x, sizeof x / sizeof x[0]}
 static const xl_script_t k_scripts[] = {R(r_latn), R(r_cyrl), R(r_grek), R(r_armn), R(r_hebr),
                                         R(r_arab), R(r_deva), R(r_beng), R(r_guru), R(r_gujr),
                                         R(r_orya), R(r_taml), R(r_telu), R(r_knda), R(r_mlym),
