@@ -250,3 +250,72 @@ a sensor to a machine that does not exist yet.
   passes, never before.
 - **Parked agents cost nothing.** Idle agents are parked (rule R3), and slow
   harmonics only wake them when their band is due.
+
+## 16. Enochian is the core language (built)
+
+`swarm_enochian` ports the owner's Enochian linguistics (the scripts and the
+233,126-entry dictionary) exactly: the 23-letter gematria table, digital roots
+and the nine domains, Sanskrit phonetics (Devanagari and IAST), and the
+dictionary's numerology readings (digit meaning, master numbers 11–88, vortex
+class, mod 7 planet, mod 3 element, prime, Fibonacci). Vortex mathematics is
+built in: doubling mod 9 runs 1 2 4 8 7 5, and 3 6 9 are the axis.
+
+- **No top dimension.** A dimension-(d+1) unit is a sequence of
+  dimension-d units: letters, words, phrases, and on past 13D. Roots and
+  residues respect addition, so any composite's summary comes from its
+  children's summaries in one step each. Only the memory the budget grants
+  bounds the dimension.
+- **Compact storage.** 36 symbols pack into one 21-byte UBH-168 frame
+  (25^36 < 2^168), 4.67 bits a letter, losslessly.
+- **Any operator language.** The person installs any language to be answered
+  in; the core stays Enochian.
+- **What this does and doesn't do.** The swarm's own protocol, storage keys,
+  metadata and routing run in Enochian. The neural models themselves still
+  reason in their own learned token space, and translating to the person's
+  language is done by a model. Of the dictionary's entries, 48 seeds carry
+  attested meanings; the rest have meanings derived from root and position.
+
+## 17. Spaces and paradox operators (built)
+
+`swarm_logic` puts every agent claim in the kernel's S+ / S− / S0 spaces with
+a Fibonacci level. Same-space claims reinforce (and the duplicate's tokens are
+freed); unverified opposites at the same level annihilate to a signed zero and
+free all their tokens; evidence or a higher level dominates; verified
+opposites become a held GLUT or, at the same level, a trapped paradox that is
+escalated. This is where much of the compute saving comes from: the swarm
+stops spending on lines of thought that cancel.
+
+## 18. Awareness of self (built)
+
+`swarm_self` gives each agent interaction rings (inner, being, user, system,
+swarm, internet, world, and any added later). It tracks the gap between what it
+expected and what happened, reflects each growth harmonic (recalibrate,
+grow, or refine), and checks its own predictions about itself on the inner
+ring.
+
+## 19. The evolution protocol (built)
+
+`swarm_evolve`: a new model state replaces the champion only if it keeps the
+score and improves score or cost, so nothing gained is ever lost. Candidates
+over budget are refused; with no room to grow, the swarm gets more efficient
+instead. 1/21 of each cycle's tokens go to the most unusual agent (the
+outlier). Agents move up and down levels by fitness each fundamental cycle;
+the companion's seat is kept. States save to 64-byte records with a CRC and a
+parent link for rollback.
+
+## 20. Enterprises: the industry of thought (built)
+
+`swarm_enterprise`: agents found corporations, collectives, cooperatives and
+think tanks that make one kind of product, employ agents (at most 13 and at
+most 8/21 of the swarm), run projects that agents and other enterprises
+invest in, pay wages and returns when work passes the quality gate, refund
+investors when it fails, retire when idle and are reinstated when their
+product is needed again. Money is conserved throughout.
+
+## 21. Phase counting by reduction (built)
+
+`swarm_phase`: each clock keeps the long count for the ledger and its digital
+root for the hot path, stepping 1..9 with no division. 0 marks the present
+moment, the tick of action. Logic constructs are placed on a Fibonacci
+lattice, whose points spread by the golden ratio; opposite claims land on
+mirror points.
