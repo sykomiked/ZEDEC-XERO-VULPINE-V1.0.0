@@ -225,6 +225,7 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm -Isrc/zcapital -Isrc/surplus src/swarm/test_swarm_economy.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_ledger.c src/swarm/swarm_reserve.c -o /tmp/test_swarm_economy && /tmp/test_swarm_economy && echo "[PASS] test_swarm_economy" || { echo "[FAIL] test_swarm_economy"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_cycles.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_harmonic.c src/swarm/swarm_overlap.c src/swarm/swarm_quality.c -o /tmp/test_swarm_cycles && /tmp/test_swarm_cycles && echo "[PASS] test_swarm_cycles" || { echo "[FAIL] test_swarm_cycles"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 	@echo "=== zcapital: nine-form capital substrate + inalienability wall ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/surplus src/zcapital/test_zcapital.c src/zcapital/zcapital.c -o /tmp/test_zcapital -lm && /tmp/test_zcapital && echo "[PASS] test_zcapital" || { echo "[FAIL] test_zcapital"; exit 1; }
 	@echo "=== ipfs: content-addressed self-certifying get (the smuggler's hold) ==="; \
@@ -1025,6 +1026,7 @@ test-swarm:
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm -Isrc/zcapital -Isrc/surplus src/swarm/test_swarm_economy.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_ledger.c src/swarm/swarm_reserve.c -o /tmp/test_swarm_economy && /tmp/test_swarm_economy && echo "[PASS] test_swarm_economy" || { echo "[FAIL] test_swarm_economy"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_cycles.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_harmonic.c src/swarm/swarm_overlap.c src/swarm/swarm_quality.c -o /tmp/test_swarm_cycles && /tmp/test_swarm_cycles && echo "[PASS] test_swarm_cycles" || { echo "[FAIL] test_swarm_cycles"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 
 clean:
 	rm -f $(KERNEL_OBJS) $(KERNEL_BIN) $(ISO_NAME)
