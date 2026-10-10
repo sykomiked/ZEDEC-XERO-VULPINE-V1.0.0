@@ -9,8 +9,9 @@
  *       used in place from the mapped file: each 34-byte block's f16 scale is
  *       decoded as it is used, so a Q8_0 model costs no extra memory beyond
  *       the norms and biases. Matrices of other types (F32, F16, BF16, Q4_0,
- *       Q4_K, Q6_K) are converted once into zt_q8_t blocks in the caller's
- *       arena, with a 25-bit scale per block (value = q * scale >> shift).
+ *       Q5_0, Q5_1, Q4_K, Q6_K) are converted once into zt_q8_t blocks in
+ *       the caller's arena, with a 25-bit scale per block (value = q *
+ *       scale >> shift).
  *       All memory is the caller's: zt_model_arena_bytes for the weights,
  *       zt_model_state_bytes for the KV cache and the activations.
  *       Per layer, in llama.cpp's order: RMS norm; Q, K, V projections (plus
@@ -69,9 +70,12 @@
  *       weight below about e^-22, counts as zero). It is not llama.cpp bit
  *       for bit. Values saturate at +-32768: a model whose residual stream
  *       grows past that would clip, and none was checked. Weight types are
- *       zt_gguf's (F32, F16, BF16, Q8_0, Q4_0, Q4_K, Q6_K): Q4_K_M files of
- *       models 896 wide also hold Q5_0 or Q5_1 tensors and are refused, so
- *       use Q8_0 files; converted weights take 1.25 bytes each of arena.
+ *       zt_gguf's (F32, F16, BF16, Q8_0, Q4_0, Q5_0, Q5_1, Q4_K, Q6_K), so
+ *       the Q4_K_M files of models 896 wide (which also hold Q5_0/Q5_1
+ *       tensors) load; their Q5 decoding is checked bit for bit against
+ *       golden blocks (test_zt_q5), but no real Q4_K_M model has been run.
+ *       Converted weights take 1.25 bytes each of arena, and the 8-bit
+ *       re-quantisation adds its own rounding on top of the file's.
  *       One thread, scalar C: on one 2.8 GHz Xeon core a 0.5B-size layer
  *       runs at 1.2 (-O2) to 2.8 (-O3) billion multiply-adds a second, which
  *       makes Qwen2.5-0.5B an ESTIMATED 2.5 to 6 tokens a second; not

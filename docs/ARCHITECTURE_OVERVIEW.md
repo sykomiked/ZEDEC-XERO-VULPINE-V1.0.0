@@ -9,7 +9,7 @@ Surveyed 2026-10-09 on branch `claude/project-thread-j44rs9`. Line numbers are a
 
 > **Status at the later audit (same day).** Several gaps below have moved since the survey; the rest of this document is left as surveyed. Checked against the code:
 >
-> - Gap 1 (no model runs): `zt_model.c` exists and `test_zt_model` is in verify-all. The Mac app now compiles it in through `kernel/arch/hosted/zxv_zt_glue.c` (greedy, ChatML template, checked by `test_zxv_zt_glue.c` on a tiny test model only). Still open: no real model run, no Q5_0/Q5_1 weights (so Q4_K_M files of 896-wide models are refused), and `/api/ask` does not go through `swarm_market` allotments.
+> - Gap 1 (no model runs): `zt_model.c` exists and `test_zt_model` is in verify-all. The Mac app now compiles it in through `kernel/arch/hosted/zxv_zt_glue.c` (greedy, ChatML template, checked by `test_zxv_zt_glue.c` on a tiny test model only). Still open: no real model run, (Q5_0/Q5_1 weights now load, untried on a real Q4_K_M file), and `/api/ask` does not go through `swarm_market` allotments.
 > - Gap 13: a `macos-app` CI job, `build_signed_app.sh` and a native WKWebView shell (`macos/ZXVApp.m`) now exist. The app still has no update check, although `kernel/src/update/zx_upcheck` and `build_system/zxv_publish_update.py` are built and tested.
 > - Gap 14: closed. The local API needs a per-launch token and same-origin Host/Origin (`zxv_http_guard.c`, tested by `test_hosted.sh`).
 > - Gap 15: `carracho` is now `kernel/src/vinea` (`vna_`); "Thunderbird" and the finance "PAPSS" name remain.

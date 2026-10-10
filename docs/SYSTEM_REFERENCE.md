@@ -38,7 +38,7 @@ ZXV is three things that share one source tree.
    framebuffer), a scheduler, memory management, a syscall table with capability checks, a
    journalled filesystem (`zxvfs`), signed packages and A/B updates (`loader`, `zxpkg`).
 2. **A local AI swarm** (`swarm`, `tensor`, `chiglet`, `surplus`, `cotier`). An integer-only
-   tensor engine loads GGUF models (F32, F16, BF16, Q8_0, Q4_0, Q4_K and Q6_K; not yet Q5), tokenises, applies RoPE and
+   tensor engine loads GGUF models (F32, F16, BF16, Q8_0, Q4_0, Q5_0, Q5_1, Q4_K and Q6_K), tokenises, applies RoPE and
    runs a transformer forward pass bit-identically on every CPU. The swarm runs several models on a
    Fibonacci tokens-per-cycle budget, an emoji "emotional economy" on the imaginary axis, and a
    cooperative free market over the nine forms of capital with no-monopoly caps. The Interaction
@@ -303,7 +303,7 @@ What it does: `zxv_host.c` runs the kernel's swarm modules (Fibonacci budget, ma
 Main entry points: `zxv-host` CLI (`--server`, `--port`, `--model`, `--models-dir`, `--exit-with-parent`); `/api/state`, `/api/ask`, `/api/quit`; `zxv_model_open/answer/close`; `zxv_zt_generate[_n]`, `zxv_zt_can_run`, `zxv_zt_release`; `zxv_guard_*`.
 Tests: `kernel/arch/hosted/test_hosted.sh` (guard unit test under ASan/UBSan, new glue test `test_zxv_zt_glue.c` [12 checks], end-to-end socket test `test_host_api.py` twice); in verify-all. All pass. `build_system/build_desktop.sh` built macOS x86_64+arm64, Windows and Linux engines with zig 0.13 (pip ziglang) and its end-to-end test passed; no native shell off a Mac.
 Used by: nothing (top-level program). `zx_notify_host.c` is only linked by `test_zx_notify`; `zx_speech_mac.m` is built by nothing.
-Gaps: no real model ever run; Q5_0/Q5_1 weights refused; `/api/ask` blocks the single-threaded server while generating; model tokens are not budgeted by the swarm market; no update check; no Vinea/ipfs_node/call/social/notify/speech glue; ZXVApp.m, signing and notarisation never run outside the macOS CI job.
+Gaps: no real model ever run (Q5_0/Q5_1 weights now load, so Q4_K_M files of 896-wide models are accepted, but none was run); `/api/ask` blocks the single-threaded server while generating; model tokens are not budgeted by the swarm market; no update check; no Vinea/ipfs_node/call/social/notify/speech glue; ZXVApp.m, signing and notarisation never run outside the macOS CI job.
 
 ### Bare-metal kernels  —  the ZXV OS booted on emulated hardware (kernel/arch/*, build_system/Makefile.*)
 Status: WORKING (arm64 and x86_64 boot to `[BOOT_OK]` under QEMU here; riscv64/riscv32 build only; arm32 not built)
@@ -335,7 +335,7 @@ What it does: `mobile/core/build_mobile_core.sh` compiles devmesh (personal devi
 Main entry points: `zxv_mobile.h` (mesh create/invite/join/SAS/roster/caps/money confirm), `zxv_jni.c`, `ZXVKit`.
 Tests: linux-arm64 core build here: 54 objects, archive 1,281,164 bytes, 152,370 bytes linked text. No gradle/Xcode build, no tests in CI.
 Used by: the two app shells.
-Gaps: apps never built in CI; no on-device inference yet (zt_model optional, and Q4_K_M 0.5B refused); doc archive size was wrong (fixed).
+Gaps: apps never built in CI; no on-device inference yet (zt_model optional; Q4_K_M 0.5B now loads in the engine, untried on a device); doc archive size was wrong (fixed).
 
 ### Build and CI  —  how everything is built and checked (build_system/, .github/workflows/ci.yml, kernel/Makefile)
 Status: PARTIAL
@@ -1594,7 +1594,7 @@ Status: WORKING (tested in verify-all)
 What it does: Bounded parsers/builders for telecom and mainframe formats: SIP messages and SDP audio offers, M3UA/SCCP/TCAP/MAP (USSD and SMS carriage), ISUP<->SIP cause mapping, DTMF tones/RTP events, EBCDIC code pages, COBOL copybooks and packed/zoned decimals, Fortran records and IBM float. Data model only; no carrier connection (stated).
 Main entry points: sip_parse, sdp_parse, m3ua_parse_data, sccp_parse_udt, tcap_parse, map_parse_*, cobol_parse_copybook, ebcdic_to_utf8.
 Tests: test_sip/ss7/isup_map/dtmf/ebcdic/cobol/fortran (50/46/33/61/795/49/36) — pass. group3 fuzzed all parsers 3M iterations under ASan/UBSan after fixing three memory bugs (findings).
-Used by: arch/arm, boot, net, orbital_compat (includes). Hosted only.
+Used by: arch/arm, boot, net, orbital_compat (includes). Hosted only. Packaged in packages/libzxv-legacy (cobol, fortran, ebcdic only) (static library built from these sources; smoke program in verify-all).
 Gaps: none open after fixes.
 
 ### legal_engine  —  legal document generator
@@ -1617,7 +1617,7 @@ Status: WORKING (tested in verify-all)
 What it does: Converts values and layouts between COBOL packed/zoned decimals, Fortran column-major arrays and C conventions exactly, using exact rationals, and says when a conversion cannot be lossless.
 Main entry points: lr_packed_to_rat, lr_rat_to_packed, lr_zoned_to_rat, lr_scaled_to_rat, lr_ebcdic_to_ascii, lr_fixed_to_cstr.
 Tests: test_lightningrod.c, test_lightningrod_regress.c — pass.
-Used by: orbital_compat. Kernel: yes.
+Used by: orbital_compat. Kernel: yes. Packaged in packages/libzxv-legacy (static library built from these sources; smoke program in verify-all).
 Gaps: lightningrod.c and tests lack SPDX.
 
 ### loader  —  ELF64 loader, signed packages (ZSP v1/v2), A/B updates
@@ -1720,7 +1720,7 @@ Status: WORKING (tested in verify-all)
 What it does: Keccak/SHA-3/SHAKE, NTT, sampling, encoding, K-PKE and ML-KEM-768 keygen/encaps/decaps with implicit rejection (now a branch-free select). genomic_codon adds a domain-separation label only, not security.
 Main entry points: mlkem768_keygen, mlkem768_encaps, mlkem768_decaps, kpe_*, sha3_256, sha3_512, shake128_*, shake256.
 Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), pq tests — pass. encode/ntt/sample/kpe/genomic validators also pass but are not in verify-all (lines in group3_verify_lines.mk).
-Used by: ~17 modules (pay, ident, plnp, cardnet, web4, ...). Kernel: yes.
+Used by: ~17 modules (pay, ident, plnp, cardnet, web4, ...). Kernel: yes. Packaged in packages/libzxv-pqc (static library built from these sources; smoke program in verify-all).
 Gaps: validator files lack SPDX; headers say "All Rights Reserved" beside Apache-2.0.
 
 ### mm  —  x86 paging/heap model
@@ -1875,7 +1875,7 @@ Status: WORKING (tested in verify-all)
 What it does: Vendored/ported ML-DSA-65/87, SLH-DSA, ML-KEM-768/1024 and HQC-5, with a "matrix" layer that wraps every algorithm behind one encode/decode/sign/verify table. pq_security.c adds a hybrid ML-DSA-65 + SLH-DSA signature for ledger entries and boot verification, with results reported as LPRES states.
 Main entry points: pq_hybrid_sign / pq_hybrid_verify, pq_boot_verify, pq_identity_authenticate, pq_self_test, pq_matrix_* (pq_matrix.h).
 Tests: test_pq_security.c (24 checks), test_pq_kat.c (29, known-answer vectors from gen_pq_kat.py), test_pq_matrix.c (165 + 45,600 fuzzed decoder inputs). All are in verify-all.
-Used by: quest, ident, cardnet, curzi, devmesh, ehop, evolve, market. Not in arm64 list.
+Used by: quest, ident, cardnet, curzi, devmesh, ehop, evolve, market. Not in arm64 list. Packaged in packages/libzxv-pqc (ML-DSA-65/87, SLH-DSA-128s/256s, ML-KEM-1024; not HQC or pq_matrix) (static library built from these sources; smoke program in verify-all).
 Gaps: The header claimed "voltage severing" layers, ML-KEM-1024 for layer 5 and "valid if EITHER half verifies". All three are corrected. Hybrid verify must accept only LPRES_STATE_TRUE. The PQ_KEM1024_* macros are unused.
 
 ### predictive — surplus trajectory forecaster
@@ -1939,7 +1939,7 @@ Status: WORKING (tested in verify-all)
 What it does: Exact fraction arithmetic for spreadsheet and finance values, so that 0.1+0.2 == 0.3 and splits conserve value. Operations reduce by gcd and report overflow instead of wrapping.
 Main entry points: rational.h (rat_add/sub/mul/div, rat_cmp, rat_split, rat_is_int, rat_from_int).
 Tests: test_rational.c and test_rational_regress.c (verify-all).
-Used by: finance, abacus, lightningrod, mixmat, orbital_compat, sdk_bridge. arm64: yes.
+Used by: finance, abacus, lightningrod, mixmat, orbital_compat, sdk_bridge. arm64: yes. Packaged in packages/libzxv-legacy (static library built from these sources; smoke program in verify-all).
 Gaps: rational.c has no SPDX line.
 
 ### rce — SI units and dimensional analysis
@@ -2186,8 +2186,8 @@ Gaps: it uses <math.h> cabs() and `double complex` (telemetry_core.c:24,34,43) i
 Status: WORKING (tested in verify-all)
 What it does: zt.c is the Q-format integer tensor core (matmul, softmax and so on, using zt_udiv64). zt_gguf parses GGUF model files (external input) with bounds checks. zt_tok is a BPE tokenizer with a Unicode table. zt_rope implements RoPE from integer tables. zt_model is a llama-style forward pass. zt_lattice, zt_coil, zt_isf and zt_holo are extra operators.
 Main entry points: zt.h (zt_matvec, zt_rmsnorm, zt_softmax, zt_udiv64...), zt_gguf_open/zt_gguf_find_tensor/zt_gguf_dequant, zt_tok_load/encode/decode, zt_rope_init/apply, zt_model_load/eval/generate.
-Tests: test_zt, test_zt_gguf, test_zt_tok, test_zt_lattice, test_zt_rope, test_zt_model, test_zt_audit (41) and test_zt_e8 (269), all in verify-all. Fixtures come from gen_*.py using the reference gguf-py.
-Used by: host tests only, plus swarm (an include). Not linked into either kernel.
+Tests: test_zt, test_zt_gguf, test_zt_q5 (Q5_0/Q5_1, 87 checks, bit-exact against golden values from gen_q5_fixture.py, a pure-Python transcription of ggml's dequantize_row_q5_0/q5_1), test_zt_tok, test_zt_lattice, test_zt_rope, test_zt_model, test_zt_audit (41) and test_zt_e8 (269), all in verify-all. Other fixtures come from gen_*.py using the reference gguf-py.
+Used by: host tests only, plus swarm (an include). Not linked into either kernel. Also packaged as the standalone static library packages/libzxv-tensor (built from these sources; smoke program in verify-all).
 Gaps: CodeQL multiply-overflow items in test_zt_model.c:333-339 and test_zt_lattice.c:409 are fixed (widened). There is no fuzz test on the GGUF parser; it was reviewed by hand and looked bounds-checked.
 
 ### theme — palette tokens that every drawable resolves through

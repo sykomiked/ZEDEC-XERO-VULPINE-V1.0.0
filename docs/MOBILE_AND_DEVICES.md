@@ -36,7 +36,7 @@ What works on a phone alone:
 
 The phone chooses a model by its memory. It gives a model at most half of its RAM, because the operating system and other apps need the rest.
 
-Sizes are for the Q4_K_M files. The tensor engine does not read Q5_0 or Q5_1 weights yet (`kernel/src/tensor/zt_model.h`), and the Q4_K_M file of the 896-wide 0.5B model contains them, so until that lands use the Q8_0 file of 0.5B instead.
+Sizes are for the Q4_K_M files. The tensor engine now reads the Q5_0 and Q5_1 weights that the Q4_K_M file of the 896-wide 0.5B model contains (`kernel/src/tensor/zt_model.h`, checked by `test_zt_q5`), but no real Q4_K_M model has been run through it yet.
 
 | Model (Qwen2.5 Instruct, Q4_K_M, Apache-2.0) | File size | RAM needed | Runs on |
 |---|---|---|---|

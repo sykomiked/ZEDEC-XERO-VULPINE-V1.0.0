@@ -670,7 +670,14 @@ int main(int argc, char **argv)
         CHECK(r == ZT_MODEL_EARCH && !strcmp(err.name, "gemma"),
               "unsupported architecture refused: %d \"%s: %s\"", r, err.what, err.name);
         memcpy(b, files[0], v->file_len);
+        /* Q5_0 and Q5_1 load (converted into the arena; their blocks are
+         * smaller than the original type's, so the data still fits) */
         memcpy(tinfo_type(b, v->hdr_len, "blk.1.ffn_up.weight"), "\x06\0\0\0", 4); /* Q5_0 */
+        memcpy(tinfo_type(b, v->hdr_len, "blk.0.ffn_up.weight"), "\x07\0\0\0", 4); /* Q5_1 */
+        r = try_load(b, v->file_len, &err);
+        CHECK(r == 0, "Q5_0 and Q5_1 matrices accepted: %d \"%s: %s\"", r, err.what, err.name);
+        memcpy(b, files[0], v->file_len);
+        memcpy(tinfo_type(b, v->hdr_len, "blk.1.ffn_up.weight"), "\x0a\0\0\0", 4); /* Q2_K */
         r = try_load(b, v->file_len, &err);
         CHECK(r == ZT_GGUF_EUNSUPPORTED && !strcmp(err.name, "blk.1.ffn_up.weight"),
               "unsupported tensor type refused: %d \"%s: %s\"", r, err.what, err.name);

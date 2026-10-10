@@ -13,8 +13,13 @@
  *       zt_q8_t losslessly, because the block size is the same (32) and an
  *       f16 scale is an 11-bit integer times a power of two, which the
  *       scale/shift pair holds exactly.
- *       Supported weight types: F32, F16, BF16, Q8_0, Q4_0, Q4_K, Q6_K
- *       (the types in Q8_0, Q4_0 and Q4_K_M files). Others are reported as
+ *       Supported weight types: F32, F16, BF16, Q8_0, Q4_0, Q5_0, Q5_1,
+ *       Q4_K, Q6_K (the types in Q8_0, Q4_0 and Q4_K_M files, including the
+ *       Q5_0/Q5_1 tensors of Q4_K_M files of models whose width is not a
+ *       multiple of 256). Q5_0/Q5_1 follow ggml's dequantize_row_q5_0/q5_1
+ *       bit layout and are decoded exactly, then rounded once to Q16 (ggml
+ *       itself computes d*q + m in f32, so it may differ by one f32
+ *       rounding; checked by test_zt_q5). Others are reported as
  *       unsupported, never guessed. GGUF versions 2 and 3, little-endian.
  */
 #ifndef ZT_GGUF_H
@@ -46,6 +51,8 @@ enum {
     ZT_GGML_F32 = 0,
     ZT_GGML_F16 = 1,
     ZT_GGML_Q4_0 = 2,
+    ZT_GGML_Q5_0 = 6,
+    ZT_GGML_Q5_1 = 7,
     ZT_GGML_Q8_0 = 8,
     ZT_GGML_Q4_K = 12,
     ZT_GGML_Q6_K = 14,

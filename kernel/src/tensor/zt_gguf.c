@@ -194,6 +194,8 @@ uint32_t zt_ggml_block(uint32_t type)
     case ZT_GGML_BF16:
         return 1;
     case ZT_GGML_Q4_0:
+    case ZT_GGML_Q5_0:
+    case ZT_GGML_Q5_1:
     case ZT_GGML_Q8_0:
         return 32;
     case ZT_GGML_Q4_K:
@@ -214,6 +216,10 @@ static uint64_t block_bytes(uint32_t type)
         return 2;
     case ZT_GGML_Q4_0:
         return 18;
+    case ZT_GGML_Q5_0:
+        return 22; /* f16 d, u32 qh, 16 nibble bytes */
+    case ZT_GGML_Q5_1:
+        return 24; /* f16 d, f16 m, u32 qh, 16 nibble bytes */
     case ZT_GGML_Q8_0:
         return 34;
     case ZT_GGML_Q4_K:
@@ -575,6 +581,39 @@ int32_t zt_gguf_dequant(const zt_gguf_tensor_t *t, uint64_t first, uint64_t n, z
                 o[i + 16] = mul_pow2_q16((int64_t) m * ((p[2 + i] >> 4) - 8), e);
             }
             break;
+        case ZT_GGML_Q5_0: {
+            /* ggml: low nibble of qs[j] is element j, high nibble element
+             * j + 16; bit j of qh is element j's fifth bit, bit j + 16
+             * element j + 16's. value = (q5 - 16) * d. */
+            f16_split(le16(p), &m, &e);
+            uint32_t qh = le32(p + 2);
+            const uint8_t *qs = p + 6;
+            for (int j = 0; j < 16; j++) {
+                int32_t x0 = (int32_t) ((qs[j] & 0xF) | (((qh >> j) & 1u) << 4)) - 16;
+                int32_t x1 = (int32_t) ((qs[j] >> 4) | (((qh >> (j + 16)) & 1u) << 4)) - 16;
+                o[j] = mul_pow2_q16((int64_t) m * x0, e);
+                o[j + 16] = mul_pow2_q16((int64_t) m * x1, e);
+            }
+            break;
+        }
+        case ZT_GGML_Q5_1: {
+            /* value = q5 * d + m, q5 in 0..31; both terms exact in a common
+             * exponent (|m| < 2^11, q5 < 2^5, shift <= 30: fits int64). */
+            f16_split(le16(p), &m, &e);
+            f16_split(le16(p + 2), &mm, &em);
+            uint32_t qh = le32(p + 4);
+            const uint8_t *qs = p + 8;
+            int32_t ec = e < em ? e : em;
+            int64_t ka = (int64_t) 1 << (e - ec), kb = (int64_t) 1 << (em - ec);
+            int64_t off = (int64_t) mm * kb;
+            for (int j = 0; j < 16; j++) {
+                int64_t x0 = (int64_t) ((qs[j] & 0xF) | (((qh >> j) & 1u) << 4));
+                int64_t x1 = (int64_t) ((qs[j] >> 4) | (((qh >> (j + 16)) & 1u) << 4));
+                o[j] = mul_pow2_q16((int64_t) m * x0 * ka + off, ec);
+                o[j + 16] = mul_pow2_q16((int64_t) m * x1 * ka + off, ec);
+            }
+            break;
+        }
         case ZT_GGML_Q4_K: {
             /* d, dmin (f16), 12 bytes of 6-bit scales/mins, 128 bytes of nibbles */
             f16_split(le16(p), &m, &e);
