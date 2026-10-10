@@ -34,22 +34,75 @@ void rmag_set_quota(ordinal_t slot, rational_t quota) {
     g_resource_table->slots[slot] = quota;
 }
 
+/* F-RMAG-OVF (tests/FINDINGS.md): the cross products are int64 and used to
+ * overflow (signed overflow is UB). Every operation now computes them with
+ * the overflow builtins and returns the invalid value {0, 0} when a result
+ * does not fit, instead of a wrapped one. INT64_MIN fields are refused too:
+ * rational_normalize negates them. Callers that move value use the
+ * *_checked forms and refuse the operation before changing any state. */
+static bool rmag_i64_ok(int64_t v);
+
+static rational_t rmag_invalid(void)
+{
+    rational_t bad = {0, 0};
+    return bad;
+}
+
+static bool rmag_fields_ok(rational_t a, rational_t b)
+{
+    return a.den != 0 && b.den != 0 && rmag_i64_ok(a.num) && rmag_i64_ok(a.den) &&
+           rmag_i64_ok(b.num) && rmag_i64_ok(b.den);
+}
+
+static bool rmag_addsub(rational_t a, rational_t b, bool sub, rational_t *out)
+{
+    int64_t x, y, n, d;
+    if (!rmag_fields_ok(a, b)) return false;
+    if (__builtin_mul_overflow(a.num, b.den, &x) || __builtin_mul_overflow(b.num, a.den, &y) ||
+        __builtin_mul_overflow(a.den, b.den, &d))
+        return false;
+    if (sub ? __builtin_sub_overflow(x, y, &n) : __builtin_add_overflow(x, y, &n)) return false;
+    if (!rmag_i64_ok(n) || !rmag_i64_ok(d)) return false;
+    rational_t r = {n, d};
+    *out = rational_normalize(r);
+    return true;
+}
+
+bool rmag_add_quotas_checked(rational_t a, rational_t b, rational_t *out)
+{
+    return out && rmag_addsub(a, b, false, out);
+}
+
+bool rmag_sub_quotas_checked(rational_t a, rational_t b, rational_t *out)
+{
+    return out && rmag_addsub(a, b, true, out);
+}
+
+bool rmag_mul_quotas_checked(rational_t a, rational_t b, rational_t *out)
+{
+    int64_t n, d;
+    if (!out || !rmag_fields_ok(a, b)) return false;
+    if (__builtin_mul_overflow(a.num, b.num, &n) || __builtin_mul_overflow(a.den, b.den, &d))
+        return false;
+    if (!rmag_i64_ok(n) || !rmag_i64_ok(d)) return false;
+    rational_t r = {n, d};
+    *out = rational_normalize(r);
+    return true;
+}
+
 rational_t rmag_add_quotas(rational_t a, rational_t b) {
-    rational_t sum = {a.num * b.den + b.num * a.den, a.den * b.den};
-    sum = rational_normalize(sum);
-    return sum;
+    rational_t r;
+    return rmag_add_quotas_checked(a, b, &r) ? r : rmag_invalid();
 }
 
 rational_t rmag_sub_quotas(rational_t a, rational_t b) {
-    rational_t diff = {a.num * b.den - b.num * a.den, a.den * b.den};
-    diff = rational_normalize(diff);
-    return diff;
+    rational_t r;
+    return rmag_sub_quotas_checked(a, b, &r) ? r : rmag_invalid();
 }
 
 rational_t rmag_mul_quotas(rational_t a, rational_t b) {
-    rational_t product = {a.num * b.num, a.den * b.den};
-    product = rational_normalize(product);
-    return product;
+    rational_t r;
+    return rmag_mul_quotas_checked(a, b, &r) ? r : rmag_invalid();
 }
 
 /* Division by zero (b.num == 0) and an operand with den == 0 have no value.
@@ -63,9 +116,8 @@ rational_t rmag_div_quotas(rational_t a, rational_t b) {
         rational_t zero = {0, 1};
         return zero;
     }
-    rational_t quotient = {a.num * b.den, a.den * b.num};
-    quotient = rational_normalize(quotient);
-    return quotient;
+    rational_t quotient;
+    return rmag_div_quotas_checked(a, b, &quotient) ? quotient : rmag_invalid();
 }
 
 /* INT64_MIN has no int64 negation, which rational_normalize and m5_gcd take. */

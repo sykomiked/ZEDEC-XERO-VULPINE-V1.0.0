@@ -255,13 +255,19 @@ int32_t vino_transfer(vino_ledger_t *v, const char *from, const char *to,
     (void)audit_flag;
 
     /* M5 RMAG: exact rational accounting — no float drift in balances */
-    rational_t txn_amount = { (int64_t)amount, 1 };
-    rational_t from_quota = rmag_get_quota(from_ord);
-    rational_t to_quota = rmag_get_quota(to_ord);
-    rational_t new_from = rmag_sub_quotas(from_quota, txn_amount);
-    rational_t new_to = rmag_add_quotas(to_quota, txn_amount);
-    rmag_set_quota(from_ord, new_from);
-    rmag_set_quota(to_ord, new_to);
+    /* The quota mirror is computed with checked arithmetic BEFORE anything
+     * moves: a quota that would overflow refuses the transfer (F-RMAG-OVF).
+     * A self transfer moves nothing, so it leaves the quota alone too
+     * (F-VINO-SELFQ: two set_quota calls on one ordinal, the second won). */
+    if (fa != ta) {
+        rational_t txn_amount = { (int64_t)amount, 1 };
+        rational_t new_from, new_to;
+        if (!rmag_sub_quotas_checked(rmag_get_quota(from_ord), txn_amount, &new_from) ||
+            !rmag_add_quotas_checked(rmag_get_quota(to_ord), txn_amount, &new_to))
+            return -1;
+        rmag_set_quota(from_ord, new_from);
+        rmag_set_quota(to_ord, new_to);
+    }
 
     fa->balance[cap] -= amount;
     ta->balance[cap] += amount;

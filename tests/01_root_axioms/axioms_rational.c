@@ -15,7 +15,6 @@
 #include "rmag_core.h"
 
 static const tier_known_t KNOWN_FAILURES[] = {
-    {"F-RMAG-OVF", "rmag_*_quotas multiply in int64 with no overflow check (signed overflow UB)"},
 };
 
 typedef __int128 i128;
@@ -608,14 +607,18 @@ static void axiom_rmag(void)
               "checked div at the int64 edge: MAX/MAX = 1");
     }
     /* MAX+1: the sum of MAX and 1 cannot be represented and must not wrap */
-    TIER_UB_KNOWN("F-RMAG-OVF", ok, {
+    {
+        bool ok = false;
         rational_t g = rmag_add_quotas((rational_t){INT64_MAX, 1}, (rational_t){1, 1});
-        ok = g.num > 0 || g.den == 0; /* anything but a wrapped negative */
-    });
-    TIER_UB_KNOWN("F-RMAG-OVF", ok, {
+        ok = g.num == 0 && g.den == 0; /* the invalid value, never a wrapped negative */
+        CHECK(ok, "F-RMAG-OVF fixed: checked quota arithmetic, no wrap");
+    }
+    {
+        bool ok = false;
         rational_t g = rmag_mul_quotas((rational_t){INT64_C(1) << 62, 1}, (rational_t){4, 1});
-        ok = g.num != 0 || g.den == 0;
-    });
+        ok = g.num == 0 && g.den == 0;
+        CHECK(ok, "F-RMAG-OVF fixed: checked quota arithmetic, no wrap");
+    }
 }
 
 int main(void)

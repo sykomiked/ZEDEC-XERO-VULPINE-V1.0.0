@@ -17,7 +17,7 @@ applied here.
 | id | where | test | status |
 |----|-------|------|--------|
 | F-RMAG-DIV0 | kernel/src/rmag/rmag_core.c `rmag_div_quotas` | tests/01_root_axioms/axioms_rational.c | FIXED (209c3d5) |
-| F-RMAG-OVF | kernel/src/rmag/rmag_core.c all four `rmag_*_quotas` | axioms_rational.c, axioms_chest.c | open |
+| F-RMAG-OVF | kernel/src/rmag/rmag_core.c all four `rmag_*_quotas` | axioms_rational.c, axioms_chest.c | FIXED (merge batch, checked rmag_*_quotas_checked) |
 | F-RMAG-REINIT | kernel/src/rmag/rmag_core.c `rmag_init` (via `vino_init`) | tests/02_integration/integ_escrow.c | open |
 | F-PAY-NULL | kernel/src/pay/pay_ledger.c, pay_assure.c | axioms_pay.c | open |
 | F-TL-NULL | kernel/src/finance/triple_ledger.c | axioms_triple.c | open |
@@ -25,7 +25,7 @@ applied here.
 | F-VINO-ADDR | kernel/src/vino/vino.c `vino_create_account` | axioms_chest.c | open |
 | F-VINO-BALCAP | kernel/src/vino/vino.c `vino_get_balance` | axioms_chest.c | FIXED (2162a9c) |
 | F-VINO-NULL | kernel/src/vino/vino.c `vino_get_account` | axioms_chest.c | open |
-| F-VINO-SELFQ | kernel/src/vino/vino.c `vino_transfer` rmag mirror | axioms_chest.c | open |
+| F-VINO-SELFQ | kernel/src/vino/vino.c `vino_transfer` rmag mirror | axioms_chest.c | FIXED (merge batch, self transfer skips the quota mirror) |
 | F-CH-WRAP | kernel/src/count_house/count_house.c `count_house_deposit` | axioms_chest.c | FIXED (2162a9c) |
 | F-PH-FULL | kernel/src/porter_house/porter_house.c seal table | axioms_chest.c | open |
 | F-CC-REJECTED | kernel/src/community_chest/community_chest.c purchases | axioms_chest.c | open |
@@ -53,7 +53,7 @@ rational_t rmag_div_quotas(rational_t a, rational_t b) {
     ...
 ```
 
-**F-RMAG-OVF.** `rmag_add/sub/mul/div_quotas` multiply `int64_t` operands
+**F-RMAG-OVF.** **FIXED** in the merge batch: rmag_add/sub/mul_quotas_checked use the overflow builtins and refuse INT64_MIN fields; the unchecked forms return the invalid {0, 0}; vino_transfer computes the quota mirror with the checked forms before any balance moves and refuses on overflow. Original report: `rmag_add/sub/mul/div_quotas` multiply `int64_t` operands
 with no overflow check (`INT64_MAX/1 + 1/1` and `2^62 * 4` are signed
 overflow, UB; UBSan aborts on them). Patch: use checked arithmetic as
 kernel/src/rational does (`__builtin_mul_overflow` / `__builtin_add_overflow`

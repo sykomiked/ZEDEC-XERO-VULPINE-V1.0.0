@@ -21,10 +21,6 @@ static const tier_known_t KNOWN_FAILURES[] = {
     {"F-VINO-ADDR", "vino_create_account truncates a >=64-char address and creates an "
                     "account that no lookup can ever find"},
     {"F-VINO-NULL", "vino_get_account/vino_transfer dereference a NULL address"},
-    {"F-VINO-SELFQ", "a self transfer adds the amount to the account's rmag quota (two "
-                     "set_quota calls on one ordinal, the second wins)"},
-    {"F-RMAG-OVF", "rmag quota arithmetic overflows int64 for a vino transfer of INT64_MAX "
-                   "(see axioms_rational.c)"},
     {"F-PH-FULL", "a seal request refused because the seal table is full leaves the port "
                   "admitting everyone (fail open)"},
     {"F-CC-REJECTED", "cc_purchase_with_vouchers/cc_purchase_app take payment for an app whose "
@@ -876,7 +872,8 @@ static void axiom_vino_more(void)
     /* INT64_MAX passes vino's own bound, but the rmag mirror then computes
      * quota - INT64_MAX in int64 (F-RMAG-OVF, reached through vino): a fixed
      * vino refuses the amount, or the quota arithmetic stays in range */
-    TIER_UB_KNOWN("F-RMAG-OVF", ok, {
+    {
+        bool ok = false;
         vino_ledger_t *W = &V;
         rational_t q1 = rmag_get_quota(1);
         rational_t q2 = rmag_get_quota(2);
@@ -892,7 +889,8 @@ static void axiom_vino_more(void)
             W->total_volume[CAP_SOCIAL] = 0;
             W->balances[0].nonce = 0;
         }
-    });
+        CHECK(ok, "F-RMAG-OVF fixed: checked quota arithmetic, no wrap");
+    }
     uint32_t n0 = V.num_txns;
     CHECK(vino_transfer(&V, "a", "b", 0, CAP_MAX, 0, 0) == -1 && V.num_txns == n0,
           "capital CAP_MAX refused even for amount 0");
@@ -937,7 +935,7 @@ static void axiom_vino_more(void)
     CHECK(vino_transfer(&V, "a", "a", 5, CAP_FINANCIAL, 0, 0) >= 0 &&
               V.balances[0].balance[CAP_FINANCIAL] == 990,
           "self transfer is the identity on the balance");
-    CHECK_KNOWN("F-VINO-SELFQ", rat_eq(rmag_get_quota(1), qa),
+    CHECK(rat_eq(rmag_get_quota(1), qa),
                 "self transfer leaves the rmag quota unchanged");
 
     id = vino_issue(&V, "cc", ASSET_TOKEN, 4, "mint");

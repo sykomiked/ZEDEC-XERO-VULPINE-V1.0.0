@@ -6,7 +6,7 @@
  * A fresh ledger per input: USD (2 decimals) and VFV, an issuer, three
  * holders, a commons pool, a frozen holder and two Crown-form (Social
  * capital) accounts of different owners. The input is an op sequence:
- *   ISSUE / REDEEM / TRANSFER / TITHED payment / REVERSE an earlier posting /
+ *   ISSUE / REDEEM / TRANSFER / FEE payment (pay_with_fee) / REVERSE an earlier posting /
  *   RAW post (1..8 arbitrary lines, edge-valued d_debit and d_credit) /
  *   SET_FLAGS / REPLAY (same idempotency key, same or a different request)
  * with edge-biased amounts (0, 1, 2^62, 2^63, -1, INT64_MIN, ...).
@@ -182,9 +182,17 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             st = pay_ledger_transfer(&g_L, &g_req, x, y, amt, &rc);
             break;
         case 3: {
-            uint64_t contrib = fz_edge64(&in), vfvc = fz_edge64(&in);
-            st = pay_ledger_pay_tithed(&g_L, &g_req, x, y, amt, z, contrib, g_acc[A_VISS],
-                                       g_acc[A_VH1], vfvc, &rc);
+            /* a payment with the 0.08889% assurance fee split into four
+             * bucket accounts (any of them may be invalid or repeated) */
+            uint32_t bucket[PAY_ASSURE_BUCKETS];
+            bucket[0] = z;
+            for (uint32_t k = 1; k < PAY_ASSURE_BUCKETS; k++) bucket[k] = pick(&in);
+            uint64_t excess = fz_edge64(&in), vfvc = fz_edge64(&in), fee = 0;
+            st = pay_ledger_pay_with_fee(&g_L, &g_req, x, y, amt, bucket, excess, g_acc[A_VISS],
+                                         g_acc[A_VH1], vfvc, &rc, &fee);
+            /* the fee is 8889/10^7 of the amount, plus at most one unit of
+             * carried remainder: never more than the amount */
+            if (st == PAY_OK && amt > 0 && fee > amt) abort();
             break;
         }
         case 4: {
