@@ -15,7 +15,6 @@
 #include "rmag_core.h"
 
 static const tier_known_t KNOWN_FAILURES[] = {
-    {"F-RMAG-DIV0", "rmag_div_quotas(x, 0) returns a finite quota instead of failing closed"},
     {"F-RMAG-OVF", "rmag_*_quotas multiply in int64 with no overflow check (signed overflow UB)"},
 };
 
@@ -566,13 +565,47 @@ static void axiom_rmag(void)
                         g = rmag_div_quotas(a, c);
                         w = oracle(an * cd, ad * cn);
                         CHECK(g.num == w.num && g.den == w.den, "rmag div");
+                        rational_t q = {7, 7};
+                        CHECK(rmag_div_quotas_checked(a, c, &q) && q.num == w.num && q.den == w.den,
+                              "rmag div checked");
                     }
                 }
-    /* zero denominator: x / 0 must not come back as an ordinary finite quota */
+    /* division by zero (F-RMAG-DIV0, fixed in 209c3d5): the unchecked call
+     * returns the documented 0/1 (never sign(x)/1), the checked call refuses */
     for (unsigned i = 0; i < TIER_N(SM); i++) {
-        rational_t g = rmag_div_quotas((rational_t){SM[i] ? SM[i] : 1, 1}, (rational_t){0, 1});
-        CHECK_KNOWN("F-RMAG-DIV0", g.den == 0, "rmag_div(%lld/1, 0/1) -> %lld/%lld",
-                    (long long) SM[i], (long long) g.num, (long long) g.den);
+        rational_t x = {SM[i] ? SM[i] : 1, 1};
+        const rational_t bad[][2] = {{x, {0, 1}}, {{x.num, 0}, {1, 1}}, {x, {1, 0}}};
+        for (unsigned k = 0; k < TIER_N(bad); k++) {
+            rational_t g = rmag_div_quotas(bad[k][0], bad[k][1]), q = {7, 7};
+            CHECK(g.num == 0 && g.den == 1, "rmag_div(%lld, case %u) -> %lld/%lld, want 0/1",
+                  (long long) SM[i], k, (long long) g.num, (long long) g.den);
+            CHECK(!rmag_div_quotas_checked(bad[k][0], bad[k][1], &q) && q.num == 7 && q.den == 7,
+                  "rmag_div_quotas_checked refuses case %u, output untouched", k);
+        }
+    }
+    {
+        rational_t q = {7, 7};
+        CHECK(!rmag_div_quotas_checked((rational_t){1, 2}, (rational_t){1, 3}, NULL),
+              "checked div: NULL output refused");
+        const rational_t refuse[][2] = {
+            {{INT64_MIN, 1}, {1, 1}}, /* INT64_MIN operand fields */
+            {{1, INT64_MIN}, {1, 1}},           {{1, 1}, {INT64_MIN, 1}}, {{1, 1}, {1, INT64_MIN}},
+            {{INT64_MAX, 1}, {1, 2}},           /* a.num * b.den overflows */
+            {{1, INT64_MAX}, {2, 1}},           /* a.den * b.num overflows */
+            {{-(INT64_C(1) << 62), 1}, {1, 2}}, /* product is exactly INT64_MIN */
+            {{1, INT64_C(1) << 62}, {-2, 1}},
+        };
+        for (unsigned k = 0; k < TIER_N(refuse); k++)
+            CHECK(!rmag_div_quotas_checked(refuse[k][0], refuse[k][1], &q) && q.num == 7 &&
+                      q.den == 7,
+                  "checked div refuses unrepresentable case %u", k);
+        CHECK(rmag_div_quotas_checked((rational_t){3, 4}, (rational_t){-3, 2}, &q) && q.num == -1 &&
+                  q.den == 2,
+              "checked div (3/4)/(-3/2) = -1/2 (got %lld/%lld)", (long long) q.num,
+              (long long) q.den);
+        CHECK(rmag_div_quotas_checked((rational_t){INT64_MAX, 1}, (rational_t){INT64_MAX, 1}, &q) &&
+                  q.num == 1 && q.den == 1,
+              "checked div at the int64 edge: MAX/MAX = 1");
     }
     /* MAX+1: the sum of MAX and 1 cannot be represented and must not wrap */
     TIER_UB_KNOWN("F-RMAG-OVF", ok, {

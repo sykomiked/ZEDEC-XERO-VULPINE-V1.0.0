@@ -3,8 +3,10 @@
 Every entry here is a real defect in module code that a Tier 1/2 test
 demonstrates. The test is kept and listed in its file's `KNOWN_FAILURES`
 table, so it is reported as `[XFAIL]` on every run (never silently passed).
-When a fix lands, the check turns into `[XPASS]`: delete the entry from the
-table and from this file. `TIER_STRICT=1` makes an `[XPASS]` fail the run
+When a fix lands, the check turns into `[XPASS]`: the entry is removed from
+the test's `KNOWN_FAILURES` table, the check becomes a plain `CHECK`, and the
+finding is marked **FIXED** here (with the commit that fixed it) so the
+history stays readable. `TIER_STRICT=1` makes an `[XPASS]` fail the run
 (the mutation harness sets it, so a mutant that changes a known bug's
 behaviour is counted as killed).
 
@@ -12,33 +14,34 @@ The patches below are proposals for the coordinator: the module sources were
 being edited by other workers when these tests were written, so none were
 applied here.
 
-| id | where | test |
-|----|-------|------|
-| F-RMAG-DIV0 | kernel/src/rmag/rmag_core.c `rmag_div_quotas` | tests/01_root_axioms/axioms_rational.c |
-| F-RMAG-OVF | kernel/src/rmag/rmag_core.c all four `rmag_*_quotas` | axioms_rational.c, axioms_chest.c |
-| F-RMAG-REINIT | kernel/src/rmag/rmag_core.c `rmag_init` (via `vino_init`) | tests/02_integration/integ_escrow.c |
-| F-PAY-NULL | kernel/src/pay/pay_ledger.c, pay_tithe.c | axioms_pay.c |
-| F-TL-NULL | kernel/src/finance/triple_ledger.c | axioms_triple.c |
-| F-TL-COVERAGE | kernel/src/finance/triple_ledger.c `triple_ledger_verify_coverage` | axioms_triple.c |
-| F-VINO-ADDR | kernel/src/vino/vino.c `vino_create_account` | axioms_chest.c |
-| F-VINO-BALCAP | kernel/src/vino/vino.c `vino_get_balance` | axioms_chest.c |
-| F-VINO-NULL | kernel/src/vino/vino.c `vino_get_account` | axioms_chest.c |
-| F-VINO-SELFQ | kernel/src/vino/vino.c `vino_transfer` rmag mirror | axioms_chest.c |
-| F-CH-WRAP | kernel/src/count_house/count_house.c `count_house_deposit` | axioms_chest.c |
-| F-PH-FULL | kernel/src/porter_house/porter_house.c seal table | axioms_chest.c |
-| F-CC-REJECTED | kernel/src/community_chest/community_chest.c purchases | axioms_chest.c |
-| F-CC-CASHIN-UNJOURNALED | community_chest.c `cc_voucher_cash_in/out` | integ_escrow.c |
-| F-FS-ALIGN | kernel/include/freestanding.h `fs_malloc` | axioms_alloc.c |
-| F-FS-PER-TU | kernel/include/freestanding.h `fs_malloc` | axioms_alloc.c |
-| F-MM-DFREE | kernel/src/mm/mm.c `kfree` | axioms_alloc.c |
-| F-MM-FRAME0 | kernel/src/mm/mm.c frame 0 as "no frame" | axioms_alloc.c |
-| F-MM-QUOTA | kernel/src/mm/mm.c `mm_free_frame` | axioms_alloc.c |
-| F-MM-ALIGN | kernel/src/mm/mm.c `kmalloc` size rounding | axioms_alloc.c |
-| F-MM-SHIFT31 | kernel/src/mm/mm.c bitmap helpers | axioms_alloc.c (sanitizer build) |
+| id | where | test | status |
+|----|-------|------|--------|
+| F-RMAG-DIV0 | kernel/src/rmag/rmag_core.c `rmag_div_quotas` | tests/01_root_axioms/axioms_rational.c | FIXED (209c3d5) |
+| F-RMAG-OVF | kernel/src/rmag/rmag_core.c all four `rmag_*_quotas` | axioms_rational.c, axioms_chest.c | open |
+| F-RMAG-REINIT | kernel/src/rmag/rmag_core.c `rmag_init` (via `vino_init`) | tests/02_integration/integ_escrow.c | open |
+| F-PAY-NULL | kernel/src/pay/pay_ledger.c, pay_assure.c | axioms_pay.c | open |
+| F-TL-NULL | kernel/src/finance/triple_ledger.c | axioms_triple.c | open |
+| F-TL-COVERAGE | kernel/src/finance/triple_ledger.c `triple_ledger_verify_coverage` | axioms_triple.c | open |
+| F-VINO-ADDR | kernel/src/vino/vino.c `vino_create_account` | axioms_chest.c | open |
+| F-VINO-BALCAP | kernel/src/vino/vino.c `vino_get_balance` | axioms_chest.c | FIXED (2162a9c) |
+| F-VINO-NULL | kernel/src/vino/vino.c `vino_get_account` | axioms_chest.c | open |
+| F-VINO-SELFQ | kernel/src/vino/vino.c `vino_transfer` rmag mirror | axioms_chest.c | open |
+| F-CH-WRAP | kernel/src/count_house/count_house.c `count_house_deposit` | axioms_chest.c | FIXED (2162a9c) |
+| F-PH-FULL | kernel/src/porter_house/porter_house.c seal table | axioms_chest.c | open |
+| F-CC-REJECTED | kernel/src/community_chest/community_chest.c purchases | axioms_chest.c | open |
+| F-CC-CASHIN-UNJOURNALED | community_chest.c `cc_voucher_cash_in/out` | integ_escrow.c | open |
+| F-FS-ALIGN | kernel/include/freestanding.h `fs_malloc` | axioms_alloc.c | FIXED (2a10d1b) |
+| F-FS-PER-TU | kernel/include/freestanding.h `fs_malloc` | axioms_alloc.c | open |
+| F-MM-DFREE | kernel/src/mm/mm.c `kfree` | axioms_alloc.c | FIXED (2a10d1b) |
+| F-MM-FRAME0 | kernel/src/mm/mm.c frame 0 as "no frame" | axioms_alloc.c | open |
+| F-MM-QUOTA | kernel/src/mm/mm.c `mm_free_frame` | axioms_alloc.c | FIXED (2a10d1b) |
+| F-MM-ALIGN | kernel/src/mm/mm.c `kmalloc` size rounding | axioms_alloc.c | FIXED (2a10d1b) |
+| F-MM-SHIFT31 | kernel/src/mm/mm.c bitmap helpers | axioms_alloc.c (sanitizer build) | FIXED (2a10d1b) |
+| F-PAY-FEE0 | kernel/src/pay/pay_ledger.c `pay_ledger_pay_with_fee` | axioms_pay.c, integ_pay.c | open |
 
 ## Exact rationals (rmag_core)
 
-**F-RMAG-DIV0.** `rmag_div_quotas(a, {0,1})` builds `{a.num*1, a.den*0}` and
+**F-RMAG-DIV0.** **FIXED in 209c3d5** (merged into p10-integrate) by a different contract than the patch below: the unchecked `rmag_div_quotas` returns the documented 0/1 for a zero divisor or a zero denominator (no longer sign(x)/1), and the new `rmag_div_quotas_checked` refuses it (and INT64_MIN fields and overflowing products). axioms_rational.c pins both. Original report: `rmag_div_quotas(a, {0,1})` builds `{a.num*1, a.den*0}` and
 `rational_normalize` turns the zero denominator into an ordinary finite value
 (`-3/1 / 0` comes back as `-1/1`). A division by zero must fail closed.
 Patch: return the invalid quota `{0, 0}` when `b.num == 0` (or either
@@ -96,7 +99,7 @@ so an address of 64 or more characters creates an account that no lookup can
 find (and that still uses a slot). Patch: refuse it,
 `if (fs_strlen(addr) >= sizeof v->balances[0].address) return -1;`.
 
-**F-VINO-BALCAP.** `vino_get_balance` indexes `a->balance[cap]` with no bound
+**F-VINO-BALCAP.** **FIXED in 2162a9c** (merged into p10-integrate); the test is now a plain check that also runs under the sanitizers. Original report: `vino_get_balance` indexes `a->balance[cap]` with no bound
 (`cap == CAP_MAX` reads past the array into `asset_balances`; UBSan's bounds
 check reports it). Patch: `if ((uint32_t) cap >= CAP_MAX || !out) return -1;`.
 
@@ -120,7 +123,7 @@ if (fa != ta) {
 
 ## count_house / porter_house / community_chest
 
-**F-CH-WRAP.** `count_house_deposit` stages
+**F-CH-WRAP.** **FIXED in 2162a9c** (merged into p10-integrate); the test is now a plain check that also runs under the sanitizers. Original report: `count_house_deposit` stages
 `bucket->token_balance = prior_balance + amount` with no overflow check: a
 deposit past `UINT64_MAX` is accepted and wraps the balance to a small value.
 Patch: `if (amount > UINT64_MAX - prior_balance) return -1;` before staging.
@@ -150,7 +153,7 @@ voucher-mint account) and the cash-out as the matching redemption.
 
 ## Freestanding allocators
 
-**F-FS-ALIGN.** `fs_malloc` is a byte bump allocator: `fs_malloc(1)` followed
+**F-FS-ALIGN.** **FIXED in 2a10d1b** (merged into p10-integrate); the test is now a plain check that also runs under the sanitizers. Original report: `fs_malloc` is a byte bump allocator: `fs_malloc(1)` followed
 by `fs_malloc(8)` returns an address with `% 16 == 1`. Patch: round `n` (and
 `heap_off`) up to `_Alignof(max_align_t)` before the bound check, with the
 round-up itself checked for wrap.
@@ -161,7 +164,7 @@ gets its own private 1 MiB heap (the test fills one and a second unit still
 allocates). Patch: move `fs_malloc`/`fs_calloc` and the heap into one .c file
 (kernel/freestanding.c) with `extern` declarations in the header.
 
-**F-MM-DFREE.** `kfree` of a block that is already free subtracts its size
+**F-MM-DFREE.** **FIXED in 2a10d1b** (merged into p10-integrate); the test is now a plain check that also runs under the sanitizers. Original report: `kfree` of a block that is already free subtracts its size
 from `heap_used` again and re-runs coalescing. Patch:
 `if (block->free) return;` before marking it free.
 
@@ -171,12 +174,12 @@ hands out: it can be allocated but never freed, and a page holding it is
 allocated again. Patch: reserve frame 0 in `mm_init` (`bitmap_set(bm, 0)`,
 counted as used) or test `page->present` instead of `page->frame`.
 
-**F-MM-QUOTA.** `mm_free_frame` sets `page->frame = 0` before reading the
+**F-MM-QUOTA.** **FIXED in 2a10d1b** (merged into p10-integrate); the test is now a plain check that also runs under the sanitizers. Original report: `mm_free_frame` sets `page->frame = 0` before reading the
 frame's RMAG quota, so the freed frame keeps its quota and frame 0 is charged
 instead. Patch: save `uint32_t f = page->frame;` first and use `f` for the
 bitmap and the quota.
 
-**F-MM-ALIGN.** `kmalloc` rounds every size up to a multiple of 4, so after
+**F-MM-ALIGN.** **FIXED in 2a10d1b** (merged into p10-integrate); the test is now a plain check that also runs under the sanitizers. Original report: `kmalloc` rounds every size up to a multiple of 4, so after
 `kmalloc(4)` the split-off header (which holds two pointers) sits at an
 address `% 8 == 4`. mm.c is built into the 64-bit kernels (arm64, x86_64,
 riscv), where that is a misaligned access (UB; a fault on strict-alignment
@@ -184,7 +187,49 @@ cores); UBSan reports it. Patch: round to `_Alignof(heap_block_t)`
 (`size = (size + A - 1) & ~(A - 1)` with the `HEAP_MAX` check kept ahead of
 it so the round-up cannot wrap).
 
-**F-MM-SHIFT31.** The bitmap helpers shift the `int` 1 by up to 31
+**F-MM-SHIFT31.** **FIXED in 2a10d1b** (merged into p10-integrate); the test is now a plain check that also runs under the sanitizers. Original report: The bitmap helpers shift the `int` 1 by up to 31
 (`1 << 31` is signed overflow, UB; UBSan aborts once 32 frames are taken).
 Patch: `1u << (bit % 32)` in `bitmap_set`, `bitmap_clear`, `bitmap_test` and
 `bitmap_first_free`.
+
+## Assurance fee (pay_ledger)
+
+**F-PAY-FEE0.** `pay_ledger_pay_with_fee` (added with the 0.08889% fee,
+b490a62) checks `!amt_ok(reserve)` where `reserve` is the reserve-floor
+bucket's share plus the voluntary excess. `amt_ok` requires a value > 0, so
+any payment whose fee is 0 and that carries no excess is refused with
+`PAY_ERR_ARG`. On a fresh carry that is every payment below 1125 minor units
+(fee(1124) = 0), and later any payment whose carried remainder does not reach
+a whole unit. That defeats the F2 carry the fee is built on: micro-payments
+cannot be made at all unless the payer adds an excess. The function already
+skips bucket lines whose part is 0, so a zero reserve is harmless. Shown by
+axioms_pay.c (a payment of 10) and integ_pay.c (7 of 11 payments refused).
+Patch (verified on a scratch copy: t1_pay, t2_pay and legacy test_pay pass
+under ASan/UBSan, and both XFAILs turn into XPASS):
+
+```c
+-        !pay_add_ok(part[PAY_ASSURE_RESERVE_FLOOR], excess, &reserve) || !amt_ok(reserve))
++        !pay_add_ok(part[PAY_ASSURE_RESERVE_FLOOR], excess, &reserve) ||
++        reserve > (uint64_t) LINE_MAX_DELTA) /* 0 is fine: a zero part posts no line */
+```
+
+## Contract changes absorbed on p10-integrate (not bugs)
+
+The merge changed some module contracts on purpose; the tests now pin the
+new ones:
+
+- `vino_hash` is SHA-256 (V2 chain, 2162a9c): axioms_chest.c checks FIPS
+  180-2 known answers; integ_escrow.c recomputes every entry digest from the
+  chain format in vino.h and also requires `vino_chain_verify` to pass.
+- Capital forms follow zcapital's canonical order, so the last form is
+  `SYSTEM` (vino) / `System` (triple_ledger).
+- `fs_malloc` steps in 16-byte units, so every block is 16-byte aligned; the
+  fill-to-100% checks count in those steps.
+- `cc_voucher_cash_in` is checked money math: once the store's lifetime
+  cash-in total would wrap, a further cash-in is refused with nothing
+  changed (axioms_chest.c pins this, then tests the price boundary on a fresh
+  store).
+- The phi tithe is replaced by the assurance fee (b490a62): axioms_pay.c,
+  integ_pay.c and meta_ledger.c test the fee against an independent 128-bit
+  oracle, the carry (micro-payments pay the fee on their sum), the exact
+  50/25/15/10 split, and the bucket postings.

@@ -28,16 +28,9 @@
 void *fs_heap_peer_alloc(size_t n);
 
 static const tier_known_t KNOWN_FAILURES[] = {
-    {"F-FS-ALIGN", "fs_malloc returns pointers with no alignment guarantee"},
     {"F-FS-PER-TU", "fs_malloc's heap is a static inside a static inline function: every "
                     "translation unit gets its own private 1 MiB heap"},
-    {"F-MM-DFREE", "kfree of an already-free block corrupts heap_used (no double-free guard)"},
     {"F-MM-FRAME0", "frame index 0 doubles as 'no frame': it can be allocated but never freed"},
-    {"F-MM-QUOTA", "mm_free_frame zeroes page->frame before reading the RMAG quota, so the "
-                   "freed frame's quota is charged to frame 0"},
-    {"F-MM-ALIGN", "kmalloc rounds sizes to 4 bytes, so on a 64-bit build the next block header "
-                   "is misaligned (UB)"},
-    {"F-MM-SHIFT31", "the frame bitmap shifts the int 1 by 31 (signed overflow, UB)"},
 };
 
 /* ===== fs_malloc / fs_calloc ===== */
@@ -51,31 +44,35 @@ static void axiom_fs_malloc(void)
     CHECK(fs_malloc((size_t) -1) == NULL, "fs_malloc(SIZE_MAX) refused (no wrap)");
     CHECK(fs_calloc((size_t) -1 / 2 + 1, 2) == NULL, "fs_calloc count*size overflow refused");
     CHECK(fs_calloc(2, (size_t) -1 / 2 + 1) == NULL, "fs_calloc size*count overflow refused");
-    /* alignment: one odd-sized block, then an 8-byte object */
+    /* alignment (F-FS-ALIGN, fixed): every block starts on a 16-byte boundary
+     * and consumes its size rounded up to 16 */
     unsigned char *odd = fs_malloc(1);
-    used += 1;
+    used += 16;
     uint64_t *q = fs_malloc(sizeof *q);
-    used += sizeof *q;
+    used += 16;
     CHECK(odd != NULL && q != NULL, "small blocks");
-    CHECK_KNOWN("F-FS-ALIGN", ((uintptr_t) q % _Alignof(max_align_t)) == 0,
-                "fs_malloc(8) after fs_malloc(1) is aligned to %zu (got addr %% 16 = %zu)",
-                (size_t) _Alignof(max_align_t), (size_t) ((uintptr_t) q % 16));
-    CHECK(q == (uint64_t *) (odd + 1), "bump: blocks are contiguous");
+    CHECK(((uintptr_t) odd % 16) == 0 && ((uintptr_t) q % 16) == 0,
+          "fs_malloc(1) and fs_malloc(8) are 16-byte aligned (got %zu, %zu)",
+          (size_t) ((uintptr_t) odd % 16), (size_t) ((uintptr_t) q % 16));
+    CHECK(q == (uint64_t *) (odd + 16), "bump: a 1-byte block occupies exactly one 16-byte step");
     /* calloc zeroes (the region is fresh .bss, so this is a weak check) */
     unsigned char *z = fs_calloc(16, 4);
+    CHECK(z == (unsigned char *) q + 16, "an exact multiple of 16 is not padded further");
     used += 64;
     bool zero = z != NULL;
     for (int i = 0; zero && i < 64; i++) zero = z[i] == 0;
     CHECK(zero, "fs_calloc(16, 4) zeroed");
     CHECK(fs_calloc(0, 4) != NULL && fs_calloc(4, 0) != NULL, "zero-size calloc is not an error");
-    /* fill to exactly 100%: MAX-1 more bytes, then 1, then nothing */
+    /* fill to exactly 100%: all but the last 16-byte step, then 17 bytes (refused),
+     * then 1 byte (granted: the last step), then nothing */
     size_t left = FS_HEAP - used;
+    CHECK(left % 16 == 0, "the remaining space stays a multiple of 16");
     CHECK(fs_malloc(left + 1) == NULL, "remaining+1 refused");
-    CHECK(fs_malloc(left - 1) != NULL, "remaining-1 granted");
-    CHECK(fs_malloc(2) == NULL, "2 bytes when 1 is left refused");
-    unsigned char *last = fs_malloc(1);
-    CHECK(last != NULL && last == (unsigned char *) odd + FS_HEAP - 1,
-          "the very last byte is the heap's last byte");
+    CHECK(fs_malloc(left - 17) != NULL, "remaining-17 granted (rounds up to remaining-16)");
+    CHECK(fs_malloc(17) == NULL, "17 bytes when one 16-byte step is left refused");
+    unsigned char *last = fs_malloc(16); /* exactly the space left */
+    CHECK(last != NULL && last == (unsigned char *) odd + FS_HEAP - 16,
+          "the last block is the heap's last 16-byte step");
     CHECK(fs_malloc(1) == NULL && fs_calloc(1, 1) == NULL, "full heap fails closed");
     /* another translation unit including the same header */
     void *peer = fs_heap_peer_alloc(16);
@@ -179,8 +176,8 @@ static void axiom_kmalloc(void)
     kfree(&MM, x);
     uint32_t used = MM.heap_used;
     kfree(&MM, x);
-    CHECK_KNOWN("F-MM-DFREE", MM.heap_used == used,
-                "a second kfree of the same block changed heap_used %u -> %u", used, MM.heap_used);
+    CHECK(MM.heap_used == used, "a second kfree of the same block changed heap_used %u -> %u", used,
+          MM.heap_used);
 }
 
 /* heap list integrity: prev links mirror next links, and the accounting
@@ -223,13 +220,16 @@ static void axiom_mm_more(void)
     kfree(&MM, p);
     CHECK(n_blocks() == 1 && list_ok(), "back to one block");
 
-    /* block headers stay aligned for their pointer members */
-    TIER_UB_KNOWN("F-MM-ALIGN", ok, {
+    /* block headers stay aligned for their pointer members (F-MM-ALIGN, fixed:
+     * runs under the sanitizers too) */
+    {
         mm_init(&MM);
         void *x = kmalloc(&MM, 4);
         void *y = kmalloc(&MM, 8);
-        ok = x && y && ((uintptr_t) y % _Alignof(heap_block_t)) == 0;
-    });
+        CHECK(x && y && ((uintptr_t) y % _Alignof(heap_block_t)) == 0 &&
+                  (uint8_t *) y - (uint8_t *) x == 8 + (ptrdiff_t) sizeof(heap_block_t),
+              "kmalloc(4) rounds to 8: the next header and payload stay aligned");
+    }
     mm_init(&MM);
 
     /* prev links through a split of a middle block and a two-way coalesce */
@@ -345,10 +345,12 @@ static void axiom_frames(void)
     uint32_t f1 = p1.frame;
     rational_t q = rmag_get_quota(f1);
     CHECK(f1 != 0 && q.num == PAGE_SIZE && q.den == 1, "quota of frame %u = one page", f1);
+    rational_t q0 = rmag_get_quota(0);
     mm_free_frame(&MM, &p1);
     q = rmag_get_quota(f1);
-    CHECK_KNOWN("F-MM-QUOTA", q.num == 0, "after freeing frame %u its quota is %lld/%lld", f1,
-                (long long) q.num, (long long) q.den);
+    CHECK(q.num == 0 && rmag_get_quota(0).num == q0.num && rmag_get_quota(0).den == q0.den,
+          "after freeing frame %u its quota is %lld/%lld and frame 0 is untouched", f1,
+          (long long) q.num, (long long) q.den);
     CHECK(MM.used_pages + (uint32_t) (mm_get_free_memory(&MM) / PAGE_SIZE) == MAX_PAGES,
           "used + free pages = MAX_PAGES");
 }
@@ -367,13 +369,9 @@ static void alloc_64_frames(void *u)
 
 static void axiom_frames_full(void)
 {
-    if (TIER_SANITIZED) {
-        /* under -fno-sanitize-recover the bitmap's 1 << 31 aborts: observe it */
-        CHECK_KNOWN("F-MM-SHIFT31", !tier_crashes(alloc_64_frames, NULL),
-                    "allocating 64 frames trips UBSan (shift of int 1 by 31)");
-        return;
-    }
-    TIER_SKIP_KNOWN("F-MM-SHIFT31", "visible only under -fsanitize=undefined (see the san build)");
+    /* F-MM-SHIFT31 (fixed: the bitmap shifts 1u): bit 31 of a word is used
+     * without UB, so this runs under the sanitizers too */
+    CHECK(!tier_crashes(alloc_64_frames, NULL), "allocating 64 frames (bit 31 of a word) is clean");
     mm_init(&MM);
     static page_t pg;
     uint32_t n = 0;

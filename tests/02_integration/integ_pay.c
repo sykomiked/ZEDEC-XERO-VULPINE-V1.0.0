@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0 */
 /* integ_pay.c — Tier 2 integration: a payment workflow through kernel/src/pay.
  *
- *   pay_tithe (the phi tithe on each payment)
- *     -> pay_ledger (issue, transfer, tithed payment with VFV credit, redeem,
+ *   pay_assure (the 0.08889% assurance fee and its four buckets)
+ *     -> pay_ledger (issue, transfer, payment with the fee and a VFV credit, redeem,
  *        reverse) with its `mirror` hook as the event/audit sink
  *     -> a mirror log captured by the test (what an operator would forward to
  *        an external journal), then REPLAYED onto a fresh ledger.
@@ -16,16 +16,21 @@
  *      journal replay == state;
  *   J3 per asset, total DEBIT == total CREDIT and total EQUITY == 0 after every
  *      step (conservation; L1/L2 hold across postings, not just inside one);
- *   J4 the commons account holds exactly the sum of the tithes paid;
+ *   J4 the four bucket accounts together hold exactly the fee on the sum of
+ *      the payer's payments (the sub-unit carry loses nothing), each bucket
+ *      holds the sum of its exact shares;
  *   J5 the provenance chain verifies after every step, and a reversal restores
  *      the balances the reversed posting changed.
  * The scenario runs twice in one process; the two runs must agree exactly.
  */
 #include "tier.h"
 #include "pay_ledger.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
-static const tier_known_t KNOWN_FAILURES[] = {{"-", "unused"}};
+static const tier_known_t KNOWN_FAILURES[] = {
+    {"F-PAY-FEE0", "pay_ledger_pay_with_fee refuses (PAY_ERR_ARG) every payment whose fee and "
+                   "excess are both 0, i.e. any payment below 1125 minor units on a fresh carry"},
+};
 
 #define LOGMAX 256
 static pay_journal_t g_log[LOGMAX];
@@ -56,7 +61,7 @@ static void mkreq(pay_posting_req_t *r, const char *tag)
 
 static pay_ledger_t L, R;
 static uint16_t usd;
-static uint32_t ISS, A, B, C, COM, VISS, VA;
+static uint32_t ISS, A, B, C, BK[PAY_ASSURE_BUCKETS], VISS, VA;
 
 static void chart(pay_ledger_t *l)
 {
@@ -66,7 +71,8 @@ static void chart(pay_ledger_t *l)
     pay_ledger_open(l, 1, usd, PAY_CAP_FINANCIAL, 0, &A);
     pay_ledger_open(l, 2, usd, PAY_CAP_FINANCIAL, 0, &B);
     pay_ledger_open(l, 3, usd, PAY_CAP_FINANCIAL, 0, &C);
-    pay_ledger_open(l, 9, usd, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS, &COM);
+    for (uint32_t i = 0; i < PAY_ASSURE_BUCKETS; i++)
+        pay_ledger_open(l, 9 + i, usd, PAY_CAP_FINANCIAL, 0, &BK[i]);
     pay_ledger_open(l, 100, l->vfv_asset, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER, &VISS);
     pay_ledger_open(l, 1, l->vfv_asset, PAY_CAP_FINANCIAL, 0, &VA);
 }
@@ -102,7 +108,7 @@ static void step_ok(pay_status_t st, const char *what)
 }
 
 typedef struct {
-    uint64_t seq, tithes, a, b, c, com, va;
+    uint64_t seq, fees, a, b, c, com, va;
     uint8_t head[PAY_HASH_LEN];
 } outcome_t;
 
@@ -123,22 +129,45 @@ static outcome_t scenario(void)
     CHECK(pay_ledger_post(&L, &rq, &rc) == PAY_DUPLICATE && g_nlog == before,
           "J1 duplicate request: no new mirror record");
 
-    /* tithed payments over amounts that exercise the phi tithe's rounding */
-    const uint64_t amounts[] = {1, 2, 3, 100, 997, 12345, 99999};
-    uint64_t tithes = 0;
+    /* payments with the fee over amounts that exercise its rounding and carry */
+    const uint64_t amounts[] = {1, 2, 3, 100, 997, 1124, 1125, 12345, 99999, 562, 563};
+    uint64_t fees = 0, gross = 0, vfv = 0, share[PAY_ASSURE_BUCKETS] = {0};
+    unsigned refused = 0;
     for (unsigned k = 0; k < TIER_N(amounts); k++) {
-        uint64_t t = pay_tithe_phi(amounts[k]);
-        mkreq(&rq, "tithe");
-        step_ok(
-            pay_ledger_pay_tithed(&L, &rq, A, k & 1 ? B : C, amounts[k], COM, t, VISS, VA, t, &rc),
-            "tithed payment");
-        tithes += t;
+        uint64_t f = 0, part[PAY_ASSURE_BUCKETS];
+        mkreq(&rq, "fee");
+        uint32_t before_log = g_nlog;
+        pay_status_t st = pay_ledger_pay_with_fee(&L, &rq, A, k & 1 ? B : C, amounts[k], BK, 0,
+                                                  VISS, VA, amounts[k] / 100, &rc, &f);
+        if (st != PAY_OK) { /* F-PAY-FEE0: only a zero-fee payment may be refused */
+            refused++;
+            uint64_t zf = 1;
+            pay_assure_fee_carry(pay_ledger_account(&L, A)->fee_carry, amounts[k], &zf, NULL);
+            CHECK(st == PAY_ERR_ARG && zf == 0 && g_nlog == before_log,
+                  "only a zero-fee payment is refused, with no record (%llu -> %d)",
+                  (unsigned long long) amounts[k], (int) st);
+            continue;
+        }
+        step_ok(st, "payment with the fee");
+        vfv += amounts[k] / 100;
+        pay_assure_split(f, part);
+        for (int i = 0; i < PAY_ASSURE_BUCKETS; i++) share[i] += part[i];
+        fees += f;
+        gross += amounts[k];
     }
-    CHECK(pay_ledger_account(&L, COM)->debit == tithes, "J4 commons == sum of tithes (%llu)",
-          (unsigned long long) tithes);
-    CHECK(pay_ledger_account(&L, VA)->debit == tithes &&
-              pay_ledger_account(&L, VISS)->credit == tithes,
-          "J4 the VFV credit mirrors the tithe on its own asset");
+    uint64_t held = 0;
+    bool each = true;
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++) {
+        held += pay_ledger_account(&L, BK[i])->debit;
+        each &= pay_ledger_account(&L, BK[i])->debit == share[i];
+    }
+    CHECK_KNOWN("F-PAY-FEE0", refused == 0, "%u of %u payments with a zero fee were refused",
+                refused, (unsigned) TIER_N(amounts));
+    CHECK(held == fees && fees == pay_assure_fee(gross) && each,
+          "J4 buckets == fee on the sum of payments (%llu of %llu) and each holds its shares",
+          (unsigned long long) fees, (unsigned long long) gross);
+    CHECK(pay_ledger_account(&L, VA)->debit == vfv && pay_ledger_account(&L, VISS)->credit == vfv,
+          "J4 the VFV credit is posted on its own asset");
 
     /* a refused posting (insufficient funds) leaves no record */
     before = g_nlog;
@@ -182,11 +211,11 @@ static outcome_t scenario(void)
               "J1 mirror records arrive in order and chain (%u)", i);
 
     o.seq = L.seq;
-    o.tithes = tithes;
+    o.fees = fees;
     o.a = pay_ledger_account(&L, A)->debit;
     o.b = pay_ledger_account(&L, B)->debit;
     o.c = pay_ledger_account(&L, C)->debit;
-    o.com = pay_ledger_account(&L, COM)->debit;
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++) o.com += pay_ledger_account(&L, BK[i])->debit;
     o.va = pay_ledger_account(&L, VA)->debit;
     memcpy(o.head, L.chain_head, PAY_HASH_LEN);
     return o;
@@ -194,8 +223,7 @@ static outcome_t scenario(void)
 
 int main(void)
 {
-    tier_begin("tier2/integ_pay", KNOWN_FAILURES, 0);
-    (void) KNOWN_FAILURES;
+    tier_begin("tier2/integ_pay", KNOWN_FAILURES, TIER_N(KNOWN_FAILURES));
     uint64_t c0 = g_ctr;
     outcome_t x = scenario();
     g_ctr = c0; /* same request identities: the second run must match the first */

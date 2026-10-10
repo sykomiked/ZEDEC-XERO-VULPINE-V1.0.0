@@ -56,7 +56,7 @@ PAY_INC = ["src/pay", "src/tensor", "src/mlkem", "src/swarm", "src/robin_debanks
            "src/surplus"]
 PAY_SRC = ["src/pay/pay_crypto.c", "src/pay/pay_equity.c", "src/pay/pay_farm.c",
            "src/pay/pay_iso.c", "src/pay/pay_iso_parse.c", "src/pay/pay_ledger.c",
-           "src/pay/pay_roles.c", "src/pay/pay_tables.c", "src/pay/pay_tithe.c",
+           "src/pay/pay_roles.c", "src/pay/pay_tables.c", "src/pay/pay_assure.c",
            "src/pay/pay_treasury.c", "src/pay/pay_util.c", "src/tensor/zt.c",
            "src/mlkem/keccak.c", "src/robin_debanks/sha256.c", "src/swarm/swarm_market.c",
            "src/swarm/swarm_budget.c", "src/swarm/swarm_emotion.c"]
@@ -123,8 +123,8 @@ SUITES = {
                          ["src/rmag", "src/surplus", "src/oseq", "src/lpres"],
                          ["src/rmag/rmag_core.c"], modes=NOQ32, extra=["-D_GNU_SOURCE"])],
     "legacy_pay": [prog("test_pay", "src/pay/test_pay.c", PAY_INC, PAY_SRC, modes=NOQ32,
-                        args=["{out}/tithe_ref.txt", "src/pay/xsd", "{out}/xml"],
-                        pre=[["python3", "-I", "src/pay/gen_tithe_ref.py", "{out}/tithe_ref.txt"],
+                        args=["{out}/assure_ref.txt", "src/pay/xsd", "{out}/xml"],
+                        pre=[["python3", "-I", "src/pay/gen_assure_ref.py", "{out}/assure_ref.txt"],
                              ["mkdir", "-p", "{out}/xml"]])],
     "legacy_vino": [prog("test_vino", "src/vino/test_vino.c",
                          ["src/vino", "src/rmag", "src/lpres", "src/surplus"],

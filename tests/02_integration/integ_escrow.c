@@ -62,22 +62,59 @@ static uint64_t bal(vino_ledger_t *v, const char *a)
     return x ? x->balance[CAP_FINANCIAL] : 0;
 }
 
-/* I5: the hash chain recomputes from primary[] (fresh ledger: hash fields
- * were zero when each record was hashed). */
+/* The V2 entry digest written from the chain format in vino.h, over a byte
+ * buffer hashed with vino_hash (SHA-256, KAT-checked in tier 1), so the
+ * module's own vino_entry_digest is checked against an independent layout. */
+static void put32(uint8_t **p, uint32_t x)
+{
+    for (int i = 0; i < 4; i++) *(*p)++ = (uint8_t) (x >> (8 * i));
+}
+static void spec_digest(const vino_transaction_t *t, uint8_t out[VINO_HASH_LEN])
+{
+    uint8_t buf[14 + 1 + VINO_HASH_LEN + 16 + 8 + 12 + 1 + 4 + 3 * 64], *p = buf;
+    memcpy(p, "ZXV-VINO-CHAIN", 14);
+    p += 14;
+    *p++ = 2;
+    memcpy(p, t->prev_hash, VINO_HASH_LEN);
+    p += VINO_HASH_LEN;
+    put32(&p, t->id);
+    put32(&p, (uint32_t) t->type);
+    put32(&p, (uint32_t) t->capital);
+    put32(&p, (uint32_t) t->asset);
+    put32(&p, (uint32_t) t->amount);
+    put32(&p, (uint32_t) (t->amount >> 32));
+    put32(&p, t->timestamp);
+    put32(&p, (uint32_t) t->rail);
+    put32(&p, (uint32_t) t->msg_type);
+    *p++ = t->confirmed ? 1 : 0;
+    put32(&p, t->block_height);
+    _Static_assert(sizeof t->from_addr == 64 && sizeof t->to_addr == 64 && sizeof t->memo == 64,
+                   "the chain format hashes three 64-byte fields");
+    memcpy(p, t->from_addr, 64);
+    memcpy(p + 64, t->to_addr, 64);
+    memcpy(p + 128, t->memo, 64);
+    p += 192;
+    vino_hash(buf, (uint32_t) (p - buf), out);
+}
+
 static bool chain_ok(const vino_ledger_t *v)
 {
     uint8_t prev[VINO_HASH_LEN] = {0};
     for (uint32_t i = 0; i < v->num_txns; i++) {
-        vino_transaction_t t = v->primary[i];
-        if (memcmp(t.prev_hash, prev, VINO_HASH_LEN) != 0) return false;
-        uint8_t h[VINO_HASH_LEN];
-        memset(t.hash, 0, VINO_HASH_LEN);
-        vino_hash(&t, sizeof t, h);
-        if (memcmp(h, v->primary[i].hash, VINO_HASH_LEN) != 0) return false;
-        if (memcmp(&v->audit[i], &v->primary[i], sizeof t) != 0) return false;
+        const vino_transaction_t *t = &v->primary[i], *a = &v->audit[i];
+        uint8_t h[VINO_HASH_LEN], ha[VINO_HASH_LEN];
+        if (t->chain_ver != VINO_CHAIN_V2_SHA256) return false;
+        if (memcmp(t->prev_hash, prev, VINO_HASH_LEN) != 0) return false;
+        spec_digest(t, h);
+        if (memcmp(h, t->hash, VINO_HASH_LEN) != 0) return false;
+        spec_digest(a, ha); /* the audit copy carries the same fields and hash */
+        if (a->chain_ver != t->chain_ver || memcmp(ha, h, VINO_HASH_LEN) != 0 ||
+            memcmp(a->hash, t->hash, VINO_HASH_LEN) != 0)
+            return false;
         memcpy(prev, h, VINO_HASH_LEN);
     }
-    return memcmp(prev, v->chain_head_hash, VINO_HASH_LEN) == 0 && v->num_audit == v->num_txns;
+    return memcmp(prev, v->chain_head_hash, VINO_HASH_LEN) == 0 && v->num_audit == v->num_txns &&
+           vino_chain_verify(v, NULL) == VINO_CHAIN_OK;
 }
 
 /* I5: replay the journal on a fresh ledger with the same accounts. */

@@ -45,6 +45,11 @@ and it is not a certification of any kind.
 
 ## Scores (measured)
 
+The table below is the p10-test-tiers measurement. The modules changed when
+the branch was merged into p10-integrate; the re-measured targets are in
+"Re-measured on p10-integrate" further down. `pay_tithe` no longer exists
+(replaced by `pay_assure`), so its row is history only.
+
 "Killed" counts killed plus timeout. "CE" is compile-error mutants, which are
 left out of the score.
 
@@ -163,9 +168,52 @@ python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.j
 ```
 
 - It covers the fixed subset `rmag_core` and `fs_malloc`.
-- The baselines are the measured *after* scores, rounded down: rmag_core
-  0.8888 (32/36) and fs_malloc 0.8620 (25/29).
+- The baselines are the measured *after* scores on p10-integrate, rounded
+  down: rmag_core 0.9178 (67/73) and fs_malloc 0.8333 (30/36). See the
+  section below for why both changed.
 - The job fails when a score drops below its baseline, or when a gated
   target has no baseline.
-- A local run of exactly this command passed: 88.9% and 86.2%.
+- A local run of exactly this command on p10-integrate passed: 91.8% and
+  83.3%.
 - The job has not yet been executed on GitHub from this branch.
+
+## Re-measured on p10-integrate
+
+After the merge, other branches had changed three of the targets:
+`rmag_core.c` gained the division-by-zero fix and `rmag_div_quotas_checked`
+(209c3d5), `fs_malloc` steps in 16-byte units (2a10d1b), and `pay_tithe.c`
+was replaced by `pay_assure.c` (b490a62). The tests were updated to the new
+contracts (tests/FINDINGS.md, "Contract changes") and these three targets
+were measured again, same harness and commands:
+
+| name | target | before | killed | survived | CE | after | killed | survived | CE |
+|---|---|---|---|---|---|---|---|---|---|
+| rmag_core | `kernel/src/rmag/rmag_core.c` | 12.3% | 9 | 64 | 2 | 91.8% | 67 | 6 | 2 |
+| pay_assure | `kernel/src/pay/pay_assure.c` | 57.8% | 89 | 65 | 39 | 92.9% | 143 | 11 | 39 |
+| fs_malloc | `kernel/include/freestanding.h` lines 80-97 | n/a | | | | 83.3% | 30 | 6 | 2 |
+
+The first *after* run on the merged tree scored rmag_core 54.8% (the new
+checked division had no test) and fs_malloc 80.6%, pay_assure 91.6%. New
+checks in `axioms_rational.c` (the 0/1 convention of the unchecked division,
+every refusal of `rmag_div_quotas_checked`, its exact results over the
+oracle grid), `axioms_alloc.c` (an allocation of exactly the space left) and
+`axioms_pay.c` (NULL fee outputs of `pay_assure_fee_carry` /
+`pay_assure_charge`) killed the meaningful survivors. Remaining survivors:
+
+| target | lines | why it survives |
+|---|---|---|
+| rmag_core | 16, 18 | malloc/calloc failure guards: need allocator fault injection. |
+| rmag_core | 82 | The INT64_MIN operand guard is shadowed by the INT64_MIN product guard at 86: an INT64_MIN field times 1 is INT64_MIN, times anything larger overflows. |
+| fs_malloc | 87 | heap_off is always a multiple of 16 and the heap is too, so a step never exceeds the space left once n fits: the clamp's comparison and its arithmetic are never decisive. |
+| fs_malloc | 93, 95 | `calloc` overflow boundary: any count*size near SIZE_MAX is refused by `fs_malloc` anyway; size 1 never overflows; the memset runs on never-reused zero bss. |
+| pay_assure | 10 | A `_Static_assert`: compile-time only. |
+| pay_assure | 19 | Unreachable: the quotient is at most g. |
+| pay_assure | 27, 54, 161 | Initial values always overwritten. |
+| pay_assure | 69 | The extra write lands in `credit_mult`, which is assigned right after. |
+| pay_assure | 107 | want == fee gives the same result on both paths (no excess, no shortfall). |
+| pay_assure | 165, 172 | All-zero weights give the same split without the shortcut; 172 is a tie. |
+
+The CI baseline for fs_malloc went down (0.8620 to 0.8333) because the
+rewritten allocator has more equivalent mutants, not because a test got
+weaker. The other targets in the first table were not re-measured on
+p10-integrate.

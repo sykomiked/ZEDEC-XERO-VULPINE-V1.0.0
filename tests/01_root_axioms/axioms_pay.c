@@ -1,8 +1,8 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0 */
 /* axioms_pay.c — Tier 1 root axioms for kernel/src/pay: pay_ledger (the
- * three-rail ledger) and pay_tithe (the exact phi-percent tithe and the
- * commons pool).
+ * three-rail ledger) and pay_assure (the exact 0.08889% assurance fee, its
+ * sub-unit carry, the four-bucket split and the commons pool).
  *
  * Boundaries are generated (tier.h) from the module's own documented limits:
  * LINE_MAX_DELTA = 2^59 per line, PAY_BAL_MAX = 2^62 per balance,
@@ -13,11 +13,13 @@
  */
 #include "tier.h"
 #include "pay_ledger.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
 static const tier_known_t KNOWN_FAILURES[] = {
     {"F-PAY-NULL", "pay_ledger_verify_chain/pay_ledger_totals/pay_commons_conserved "
                    "dereference a NULL ledger"},
+    {"F-PAY-FEE0", "pay_ledger_pay_with_fee refuses (PAY_ERR_ARG) every payment whose fee and "
+                   "excess are both 0, i.e. any payment below 1125 minor units on a fresh carry"},
 };
 
 #define LMAX ((uint64_t) 1 << 59) /* pay_ledger.c LINE_MAX_DELTA */
@@ -514,121 +516,188 @@ static void axiom_capacity(void)
     CHECK(oldest->used && oldest->seq == S.seq - PAY_JOURNAL_MAX, "slot reuse is seq mod 1024");
 }
 
-/* ===== pay_tithe ===== */
-
-/* 64x64 -> 128 and a 192-bit compare, for the independent isqrt oracle. */
+/* ===== pay_assure: the fee ===== */
 typedef unsigned __int128 u128;
-static void mul128(u128 a, u128 b, u128 *hi, u128 *lo) /* a, b < 2^96 */
+
+/* the independent oracle: floor(g * 8889 / 10^7) in 128-bit */
+static uint64_t fee_oracle(uint64_t g)
 {
-    u128 m = ((u128) 1 << 64) - 1;
-    u128 a0 = a & m, a1 = a >> 64, b0 = b & m, b1 = b >> 64;
-    u128 p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
-    u128 mid = (p00 >> 64) + (p01 & m) + (p10 & m);
-    *lo = (p00 & m) | (mid << 64);
-    *hi = p11 + (p01 >> 64) + (p10 >> 64) + (mid >> 64);
-}
-static int cmp256(u128 ah, u128 al, u128 bh, u128 bl)
-{
-    if (ah != bh) return ah < bh ? -1 : 1;
-    if (al != bl) return al < bl ? -1 : 1;
-    return 0;
+    return (uint64_t) ((u128) g * PAY_ASSURE_NUM / PAY_ASSURE_DEN);
 }
 
-static void check_tithe(uint64_t a)
+static void check_fee(uint64_t g)
 {
-    pay_u128 s = pay_floor_a_sqrt5(a);
-    u128 S = ((u128) s.hi << 64) | s.lo;
-    u128 fh, fl, sh, sl, th, tl;
-    /* 5 a^2 as 256-bit: (5a) * a */
-    mul128((u128) a * 5u, (u128) a, &fh, &fl);
-    mul128(S, S, &sh, &sl);
-    mul128(S + 1, S + 1, &th, &tl);
-    CHECK(cmp256(sh, sl, fh, fl) <= 0 && cmp256(fh, fl, th, tl) < 0,
-          "floor(a*sqrt5) is the integer square root of 5a^2 (a=%llu)", (unsigned long long) a);
-    u128 t = ((u128) a + S) / 200u;
-    CHECK(pay_tithe_phi(a) == (uint64_t) t, "tithe(%llu) = floor((a + isqrt(5a^2))/200)",
-          (unsigned long long) a);
+    CHECK(pay_assure_fee(g) == fee_oracle(g), "fee(%llu) = floor(g*8889/10^7)",
+          (unsigned long long) g);
+    uint64_t f = 7, r = 7;
+    CHECK(pay_assure_fee_carry(0, g, &f, &r) && f == fee_oracle(g) &&
+              r == (uint64_t) ((u128) g * PAY_ASSURE_NUM % PAY_ASSURE_DEN),
+          "fee_carry(0, %llu) gives the fee and the exact remainder", (unsigned long long) g);
+    uint64_t part[PAY_ASSURE_BUCKETS];
+    pay_assure_split(f, part);
+    u128 sum = 0;
+    bool each = true;
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++) {
+        sum += part[i];
+        each &= part[i] <= f;
+        if (i) each &= part[i] == (uint64_t) ((u128) f * pay_assure_bucket_pct[i] / 100);
+    }
+    CHECK(sum == f && each, "split(%llu) is the exact 50/25/15/10 partition",
+          (unsigned long long) f);
 }
 
-static void axiom_tithe(void)
+static void axiom_fee(void)
 {
-    for (unsigned i = 0; i < TIER_N(TIER_U64_EDGES); i++) check_tithe(TIER_U64_EDGES[i]);
-    /* around the first non-zero tithe: floor(a*phi/100) >= 1 iff a >= 62 */
-    for (uint64_t a = 0; a < 400; a++) check_tithe(a);
-    CHECK(pay_tithe_phi(61) == 0 && pay_tithe_phi(62) == 1, "first unit of tithe at a=62");
+    for (unsigned i = 0; i < TIER_N(TIER_U64_EDGES); i++) check_fee(TIER_U64_EDGES[i]);
+    for (uint64_t g = 0; g < 3000; g++) check_fee(g);
     uint64_t seed = 0xC0FFEE;
-    for (int i = 0; i < 2000; i++) check_tithe(tier_rand(&seed) >> (tier_rand(&seed) & 63));
+    for (int i = 0; i < 2000; i++) check_fee(tier_rand(&seed) >> (tier_rand(&seed) & 63));
+    CHECK(pay_assure_fee(1124) == 0 && pay_assure_fee(1125) == 1, "first whole unit at g=1125");
+    CHECK(pay_assure_fee(UINT64_MAX) == fee_oracle(UINT64_MAX) &&
+              pay_assure_fee(UINT64_MAX) < UINT64_MAX,
+          "fee(UINT64_MAX) fits and is below the gross");
+    unsigned pct = 0;
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++) pct += pay_assure_bucket_pct[i];
+    CHECK(pct == 100 && pay_assure_bucket_pct[PAY_ASSURE_RESERVE_FLOOR] == 50 &&
+              pay_assure_bucket_pct[PAY_ASSURE_REGEN_CAPITAL] == 10 &&
+              pay_assure_bucket_name[PAY_ASSURE_BUCKETS - 1] != NULL,
+          "bucket shares sum to 100");
+    pay_assure_split(5, NULL); /* NULL out is a no-op */
 
-    pay_tithe_policy_t p;
-    pay_tithe_policy_default(&p);
-    pay_tithe_result_t r;
-    /* unit at its enum bound */
+    /* F2 carry: the remainder bound, and outputs untouched when refused */
+    uint64_t f = 77, r = 77;
+    CHECK(!pay_assure_fee_carry(PAY_ASSURE_DEN, 1, &f, &r) && f == 77 && r == 77,
+          "carry = 10^7 refused, outputs untouched");
+    CHECK(pay_assure_fee_carry(PAY_ASSURE_DEN - 1, 1125, &f, &r) &&
+              f == ((u128) 1125 * PAY_ASSURE_NUM + PAY_ASSURE_DEN - 1) / PAY_ASSURE_DEN &&
+              r == ((u128) 1125 * PAY_ASSURE_NUM + PAY_ASSURE_DEN - 1) % PAY_ASSURE_DEN,
+          "carry = 10^7 - 1 accepted");
+    CHECK(pay_assure_fee_carry(PAY_ASSURE_DEN - 1, UINT64_MAX, &f, NULL) &&
+              f == (uint64_t) (((u128) UINT64_MAX * PAY_ASSURE_NUM + PAY_ASSURE_DEN - 1) /
+                               PAY_ASSURE_DEN),
+          "the largest carry on the largest gross does not wrap");
+    uint64_t r2 = 99;
+    CHECK(pay_assure_fee_carry(5, 1125, NULL, &r2) &&
+              r2 == (1125 * PAY_ASSURE_NUM + 5) % PAY_ASSURE_DEN,
+          "fee_carry with a NULL fee output still reports the remainder");
+    pay_assure_carry_t c = {0};
+    CHECK(pay_assure_charge(&c, 2250, NULL) && c.rem == 2250 * PAY_ASSURE_NUM - 2 * PAY_ASSURE_DEN,
+          "charge with a NULL fee output still advances the carry");
+    CHECK(!pay_assure_charge(NULL, 1, &f), "charge NULL carry");
+    c.rem = PAY_ASSURE_DEN;
+    f = 5;
+    CHECK(!pay_assure_charge(&c, 1000, &f) && c.rem == PAY_ASSURE_DEN && f == 5,
+          "a corrupt carry is refused and left as it was");
+    /* micro-payments pay exactly the fee on their sum */
+    for (int run = 0; run < 50; run++) {
+        c.rem = 0;
+        uint64_t total = 0, paid = 0;
+        for (int k = 0; k < 400; k++) {
+            uint64_t g = tier_rand(&seed) % (run < 25 ? 2000 : 1000000000);
+            uint64_t fk;
+            CHECK(pay_assure_charge(&c, g, &fk), "charge");
+            total += g;
+            paid += fk;
+        }
+        CHECK(paid == fee_oracle(total) && c.rem < PAY_ASSURE_DEN,
+              "400 charges pay floor(sum*8889/10^7) exactly (run %d)", run);
+    }
+    c.rem = 0;
+    uint64_t one = 0, acc = 0;
+    for (int k = 0; k < 1125; k++) {
+        pay_assure_charge(&c, 1, &one);
+        acc += one;
+    }
+    CHECK(acc == 1 && c.rem == (uint64_t) 1125 * PAY_ASSURE_NUM - PAY_ASSURE_DEN,
+          "1125 payments of 1 pay exactly one unit, and keep the rest as carry");
+
+    /* compute: policy, units, contributions */
+    pay_assure_policy_t p;
+    pay_assure_policy_default(&p);
+    pay_assure_result_t res;
     uint32_t units[] = {PAY_UNIT_MONEY, PAY_UNIT_STORAGE, PAY_UNIT_KIND_COUNT, UINT32_MAX};
     for (unsigned i = 0; i < TIER_N(units); i++) {
-        pay_tithe_status_t st =
-            pay_tithe_compute(&p, (pay_unit_kind_t) units[i], 1000, NULL, NULL, &r);
-        CHECK((st >= 0) == (units[i] < PAY_UNIT_KIND_COUNT), "tithe unit %u", units[i]);
+        pay_assure_status_t st =
+            pay_assure_compute(&p, (pay_unit_kind_t) units[i], 1000000, NULL, NULL, &res);
+        CHECK((st >= 0) == (units[i] < PAY_UNIT_KIND_COUNT), "fee unit %u", units[i]);
     }
-    CHECK(pay_tithe_compute(NULL, PAY_UNIT_MONEY, 1, NULL, NULL, &r) == PAY_TITHE_ERR_ARG &&
-              pay_tithe_compute(&p, PAY_UNIT_MONEY, 1, NULL, NULL, NULL) == PAY_TITHE_ERR_ARG,
-          "tithe NULL policy/out");
-    /* amounts over the u64 edges: default contribution is exactly the tithe */
+    CHECK(pay_assure_compute(NULL, PAY_UNIT_MONEY, 1, NULL, NULL, &res) == PAY_ASSURE_ERR_ARG &&
+              pay_assure_compute(&p, PAY_UNIT_MONEY, 1, NULL, NULL, NULL) == PAY_ASSURE_ERR_ARG,
+          "compute NULL policy/out");
     for (unsigned i = 0; i < TIER_N(TIER_U64_EDGES); i++) {
         uint64_t a = TIER_U64_EDGES[i];
-        CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, a, NULL, NULL, &r) == PAY_TITHE_OK &&
-                  r.contribution == r.tithe && r.excess == 0 && r.shortfall == 0,
-              "default contribution = tithe (a=%llu)", (unsigned long long) a);
+        CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, a, NULL, NULL, &res) == PAY_ASSURE_OK &&
+                  res.amount == a && res.fee == fee_oracle(a) && res.contribution == res.fee &&
+                  res.excess == 0 && res.shortfall == 0,
+              "default contribution = fee (a=%llu)", (unsigned long long) a);
     }
-    /* RATE contribution: zero denominator, overflow, exact floor */
-    pay_contrib_t c = {PAY_CONTRIB_RATE, {1, 0}, 0};
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 100, &c, NULL, &r) == PAY_TITHE_ERR_RATE,
+    pay_contrib_t cf = {PAY_CONTRIB_FEE, {0, 0}, 123};
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000000, &cf, NULL, &res) == PAY_ASSURE_OK &&
+              res.contribution == 888 && res.excess == 0,
+          "explicit FEE mode ignores rate and absolute");
+    pay_contrib_t cr = {PAY_CONTRIB_RATE, {1, 0}, 0};
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 100, &cr, NULL, &res) == PAY_ASSURE_ERR_RATE,
           "rate den 0");
-    c.rate = (pay_rat_t){2, 1};
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, UINT64_MAX, &c, NULL, &r) == PAY_TITHE_ERR_OVERFLOW,
+    cr.rate = (pay_rat_t){2, 1};
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, UINT64_MAX, &cr, NULL, &res) ==
+              PAY_ASSURE_ERR_OVERFLOW,
           "rate 2/1 of UINT64_MAX overflows");
-    c.rate = (pay_rat_t){1, 1};
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, UINT64_MAX, &c, NULL, &r) == PAY_TITHE_OK &&
-              r.contribution == UINT64_MAX && r.excess == UINT64_MAX - r.tithe &&
-              r.vfv_credit == r.excess,
+    cr.rate = (pay_rat_t){1, 1};
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, UINT64_MAX, &cr, NULL, &res) == PAY_ASSURE_OK &&
+              res.contribution == UINT64_MAX && res.excess == UINT64_MAX - res.fee &&
+              res.vfv_credit == res.excess,
           "rate 1/1 of UINT64_MAX: whole amount, excess credited 1:1");
-    c.rate = (pay_rat_t){3, 100};
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 1000, &c, NULL, &r) == PAY_TITHE_OK &&
-              r.contribution == 30 && r.excess == 30 - r.tithe,
-          "rate 3/100 of 1000 = 30");
-    /* ABSOLUTE around the tithe: {t-1, t, t+1} with and without allow_below_phi */
-    uint64_t amt = 100000, t = pay_tithe_phi(amt);
+    cr.rate = (pay_rat_t){3, 100};
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000, &cr, NULL, &res) == PAY_ASSURE_OK &&
+              res.contribution == 30 && res.excess == 30 && res.fee == 0,
+          "rate 3/100 of 1000 = 30 (fee 0)");
+    /* ABSOLUTE around the fee: {f-1, f, f+1} with and without allow_below_fee */
+    uint64_t amt = 100000000, t = pay_assure_fee(amt);
+    CHECK(t == 88890, "fee(10^8) = 88890");
     uint64_t abs_v[] = {0, t - 1, t, t + 1, UINT64_MAX};
     for (int allow = 0; allow < 2; allow++)
         for (unsigned i = 0; i < TIER_N(abs_v); i++) {
-            p.allow_below_phi = allow;
+            p.allow_below_fee = allow;
             pay_contrib_t ca = {PAY_CONTRIB_ABSOLUTE, {0, 1}, abs_v[i]};
-            pay_tithe_status_t st = pay_tithe_compute(&p, PAY_UNIT_MONEY, amt, &ca, NULL, &r);
-            CHECK(st == PAY_TITHE_OK, "absolute %llu", (unsigned long long) abs_v[i]);
+            CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, amt, &ca, NULL, &res) == PAY_ASSURE_OK,
+                  "absolute %llu", (unsigned long long) abs_v[i]);
             if (abs_v[i] < t) {
-                CHECK(r.contribution == (allow ? abs_v[i] : t),
-                      "below tithe: raised unless allowed");
-                CHECK(r.shortfall == (allow ? t - abs_v[i] : 0) && r.vfv_credit == 0,
+                CHECK(res.contribution == (allow ? abs_v[i] : t) && res.excess == 0,
+                      "below the fee: raised unless allowed");
+                CHECK(res.shortfall == (allow ? t - abs_v[i] : 0) && res.vfv_credit == 0,
                       "shortfall recorded, no credit");
             } else
-                CHECK(r.contribution == abs_v[i] && r.excess == abs_v[i] - t &&
-                          r.vfv_credit == r.excess,
-                      "at/above tithe: excess earns credit 1:1");
+                CHECK(res.contribution == abs_v[i] && res.excess == abs_v[i] - t &&
+                          res.vfv_credit == res.excess && res.shortfall == 0,
+                      "at/above the fee: excess earns credit 1:1");
         }
-    pay_tithe_policy_default(&p);
-    /* compute unit: rate unset -> excess taken, no credit */
+    pay_assure_policy_default(&p);
     pay_contrib_t ca = {PAY_CONTRIB_ABSOLUTE, {0, 1}, 500};
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_COMPUTE, 1000, &ca, NULL, &r) == PAY_TITHE_RATE_UNSET &&
-              r.contribution == 500 && r.vfv_credit == 0,
-          "compute unit, rate unset");
+    CHECK(pay_assure_compute(&p, PAY_UNIT_COMPUTE, 1000, &ca, NULL, &res) ==
+                  PAY_ASSURE_RATE_UNSET &&
+              res.contribution == 500 && res.excess == 500 && res.vfv_credit == 0,
+          "compute unit, rate unset: excess taken, no credit");
+    pay_rat_t posted = {3, 2};
+    CHECK(pay_assure_compute(&p, PAY_UNIT_COMPUTE, 1000, &ca, &posted, &res) == PAY_ASSURE_OK &&
+              res.vfv_credit == 750,
+          "a posted rate 3/2 overrides the unset default");
+    p.credit_mult = (pay_rat_t){1, 3};
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000, &ca, NULL, &res) == PAY_ASSURE_OK &&
+              res.vfv_credit == 166,
+          "credit multiplier 1/3: floor(500/3)");
     pay_rat_t z = {1, 0};
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 1000, &ca, &z, &r) == PAY_TITHE_ERR_RATE,
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000, &ca, &z, &res) == PAY_ASSURE_ERR_RATE,
           "posted rate den 0");
     p.credit_mult.den = 0;
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 1000, &ca, NULL, &r) == PAY_TITHE_ERR_RATE,
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000, &ca, NULL, &res) == PAY_ASSURE_ERR_RATE,
           "credit multiplier den 0");
-    pay_tithe_policy_default(&p);
+    pay_assure_policy_default(&p);
+    pay_rat_t huge = {UINT64_MAX, 1};
+    pay_contrib_t cb = {PAY_CONTRIB_ABSOLUTE, {0, 1}, 3};
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 0, &cb, &huge, &res) == PAY_ASSURE_ERR_OVERFLOW,
+          "excess * rate overflow refused");
     pay_contrib_t bad = {(pay_contrib_mode_t) 7, {0, 1}, 0};
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 1000, &bad, NULL, &r) == PAY_TITHE_ERR_ARG,
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000, &bad, NULL, &res) == PAY_ASSURE_ERR_ARG,
           "unknown contribution mode");
 }
 
@@ -1081,82 +1150,84 @@ static void axiom_pay_more(void)
               pay_ledger_reverse(&L, NULL, u, NULL) == PAY_ERR_ARG,
           "reverse NULL");
 
-    /* tithed payment: line counts, the VFV bound */
-    uint32_t VI, VT;
+    /* payment with the assurance fee: line counts, the VFV bound, the buckets
+     * and the per-account carry */
+    uint32_t VI, VT, BK[PAY_ASSURE_BUCKETS];
     pay_ledger_open(&L, 200, L.vfv_asset, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER, &VI);
     pay_ledger_open(&L, 1, L.vfv_asset, PAY_CAP_FINANCIAL, 0, &VT);
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++)
+        CHECK(pay_ledger_open(&L, 201 + (uint32_t) i, usd, PAY_CAP_FINANCIAL, 0, &BK[i]) == PAY_OK,
+              "bucket account %d", i);
     issue(ISS, A, 1000);
+    uint64_t fee = 99;
     mkreq(&rq, 1);
-    CHECK(pay_ledger_pay_tithed(&L, &rq, A, B, 10, COM, 0, VI, VT, 0, NULL) == PAY_OK &&
-              pay_ledger_find_uetr(&L, rq.uetr)->n_lines == 2 &&
-              pay_ledger_find_uetr(&L, rq.uetr)->lines[0].account == A,
-          "no contribution, no VFV: two lines, payer first");
+    pay_status_t st0 = pay_ledger_pay_with_fee(&L, &rq, A, B, 10, BK, 0, VI, VT, 0, NULL, &fee);
+    CHECK_KNOWN("F-PAY-FEE0", st0 == PAY_OK, "a payment of 10 (fee 0, no excess) -> %d", (int) st0);
+    if (st0 == PAY_OK)
+        CHECK(fee == 0 && pay_ledger_find_uetr(&L, rq.uetr)->n_lines == 2 &&
+                  pay_ledger_find_uetr(&L, rq.uetr)->lines[0].account == A &&
+                  pay_ledger_find_uetr(&L, rq.uetr)->kind == PAY_KIND_FEE &&
+                  L.acct[A].fee_carry == 10 * PAY_ASSURE_NUM,
+              "fee 0, no excess, no VFV: two lines, payer first, carry kept");
     mkreq(&rq, 1);
-    CHECK(pay_ledger_pay_tithed(&L, &rq, A, B, 10, COM, 1, VI, VT, LMAX, NULL) == PAY_OK &&
+    CHECK(pay_ledger_pay_with_fee(&L, &rq, A, B, 10, BK, 1, VI, VT, LMAX, NULL, NULL) == PAY_OK &&
               pay_ledger_find_uetr(&L, rq.uetr)->n_lines == 5,
-          "contribution and a VFV credit of exactly LINE_MAX: five lines");
+          "an excess and a VFV credit of exactly LINE_MAX: five lines");
+    uint64_t carry = L.acct[A].fee_carry;
     mkreq(&rq, 1);
-    CHECK(pay_ledger_pay_tithed(&L, &rq, A, B, 10, COM, 1, VI, VT, LMAX + 1, NULL) == PAY_ERR_ARG,
-          "VFV credit above LINE_MAX refused");
+    CHECK(pay_ledger_pay_with_fee(&L, &rq, A, B, 10, BK, 1, VI, VT, LMAX + 1, NULL, &fee) ==
+                  PAY_ERR_ARG &&
+              fee == 0 && L.acct[A].fee_carry == carry,
+          "VFV credit above LINE_MAX refused, carry untouched");
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_pay_with_fee(&L, &rq, A, B, 1000000, BK, 0, VI, VT, 0, NULL, &fee) ==
+                  PAY_ERR_FUNDS &&
+              L.acct[A].fee_carry == carry,
+          "an unfunded fee payment leaves the carry as it was");
+    issue(ISS, A, 2000000000);
+    uint64_t before[PAY_ASSURE_BUCKETS];
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++) before[i] = L.acct[BK[i]].debit;
+    uint64_t payer = L.acct[A].debit;
+    uint64_t want = (uint64_t) (((u128) 1000000000 * PAY_ASSURE_NUM + carry) / PAY_ASSURE_DEN);
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_pay_with_fee(&L, &rq, A, B, 1000000000, BK, 7, VI, VT, 0, NULL, &fee) ==
+                  PAY_OK &&
+              fee == want && L.acct[A].debit == payer - 1000000000 - fee - 7,
+          "fee on 10^9 with the carry: %llu (payer pays amount + fee + excess)",
+          (unsigned long long) fee);
+    uint64_t split[PAY_ASSURE_BUCKETS];
+    pay_assure_split(fee, split);
+    bool bk = true;
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++)
+        bk &= L.acct[BK[i]].debit - before[i] == split[i] + (i == 0 ? 7 : 0);
+    CHECK(bk && healthy(), "each bucket gets its exact share; the excess goes to the reserve");
+    L.acct[A].fee_carry = PAY_ASSURE_DEN;
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_pay_with_fee(&L, &rq, A, B, 10, BK, 0, VI, VT, 0, NULL, NULL) == PAY_ERR_STATE,
+          "a corrupt carry is refused");
+    L.acct[A].fee_carry = 0;
+    CHECK(pay_ledger_pay_with_fee(NULL, &rq, A, B, 10, BK, 0, VI, VT, 0, NULL, NULL) ==
+                  PAY_ERR_ARG &&
+              pay_ledger_pay_with_fee(&L, &rq, A, B, 10, NULL, 0, VI, VT, 0, NULL, NULL) ==
+                  PAY_ERR_ARG &&
+              pay_ledger_pay_with_fee(&L, &rq, L.n_accounts, B, 10, BK, 0, VI, VT, 0, NULL, NULL) ==
+                  PAY_ERR_ARG,
+          "pay_with_fee NULL ledger / buckets, unknown payer");
 }
 
-/* pay_tithe behaviours a mutation run showed unobserved: the integer square
- * root on exact squares and at the top of its range, the excess-free path,
- * commons conservation on corrupted state, and the commons split's cap and
- * equal-share rule. */
-static void isqrt_case(unsigned __int128 v)
+/* pay_assure behaviours a mutation run showed unobserved: the excess-free
+ * path, commons conservation on corrupted state, and the commons split's cap
+ * and equal-share rule. */
+static void axiom_assure_more(void)
 {
-    pay_u192 x = {{(uint64_t) v, (uint64_t) (v >> 64), 0}};
-    pay_u128 r = pay_isqrt192(x);
-    unsigned __int128 q = ((unsigned __int128) r.hi << 64) | r.lo;
-    /* q*q <= v < (q+1)^2, with v < 2^128 so q < 2^64 */
-    bool ok = r.hi == 0 && (unsigned __int128) r.lo * r.lo <= v &&
-              (r.lo == UINT64_MAX || (unsigned __int128) (r.lo + 1) * (r.lo + 1) > v);
-    CHECK(ok, "isqrt(%llx:%016llx) = %llu", (unsigned long long) (uint64_t) (v >> 64),
-          (unsigned long long) (uint64_t) v, (unsigned long long) (uint64_t) q);
-}
-
-static void axiom_tithe_more(void)
-{
-    const uint64_t R[] = {0,
-                          1,
-                          2,
-                          3,
-                          4,
-                          15,
-                          16,
-                          17,
-                          255,
-                          256,
-                          65535,
-                          65536,
-                          4294967295u,
-                          4294967296u,
-                          3037000499u,
-                          3037000500u,
-                          (uint64_t) 1 << 40,
-                          0xFFFFFFFFFFFFFFFFull,
-                          0xFFFFFFFF00000000ull,
-                          0x8000000000000000ull};
-    for (unsigned i = 0; i < TIER_N(R); i++) {
-        unsigned __int128 sq = (unsigned __int128) R[i] * R[i];
-        isqrt_case(sq); /* an exact square */
-        if (sq) isqrt_case(sq - 1);
-        isqrt_case(sq + 1);
-    }
-    isqrt_case(~(unsigned __int128) 0); /* 2^128 - 1 */
-    pay_u192 big = {{0, 0, 1}};         /* 2^128: root 2^64 */
-    pay_u128 rb = pay_isqrt192(big);
-    CHECK(rb.hi == 1 && rb.lo == 0, "isqrt(2^128) = 2^64");
-
-    /* contribution == tithe takes no excess path, whatever the unit's rate */
-    pay_tithe_policy_t pol;
-    pay_tithe_policy_default(NULL);
-    pay_tithe_policy_default(&pol);
-    pay_tithe_result_t res;
-    CHECK(pay_tithe_compute(&pol, PAY_UNIT_COMPUTE, 1000000, NULL, NULL, &res) == PAY_TITHE_OK &&
+    /* contribution == fee takes no excess path, whatever the unit's rate */
+    pay_assure_policy_t pol;
+    pay_assure_policy_default(NULL);
+    pay_assure_policy_default(&pol);
+    pay_assure_result_t res;
+    CHECK(pay_assure_compute(&pol, PAY_UNIT_COMPUTE, 1000000, NULL, NULL, &res) == PAY_ASSURE_OK &&
               res.excess == 0 && res.vfv_credit == 0,
-          "phi contribution on a unit with no posted rate is OK");
+          "fee contribution on a unit with no posted rate is OK");
 
     /* commons conservation on corrupted state, unit 0 included */
     pay_commons_t cm;
@@ -1206,9 +1277,9 @@ int main(void)
     CHECK(healthy(), "ledger healthy after every tier-1 probe");
     axiom_registries();
     axiom_capacity();
-    axiom_tithe();
+    axiom_fee();
     axiom_commons();
     axiom_pay_more();
-    axiom_tithe_more();
+    axiom_assure_more();
     return tier_end();
 }

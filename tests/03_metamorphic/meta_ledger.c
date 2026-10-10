@@ -1,24 +1,24 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0 */
 /* meta_ledger.c — Tier 3 metamorphic relations for kernel/src/pay
- * (pay_ledger and pay_tithe).
+ * (pay_ledger and pay_assure).
  *
  *   transfer(x) then transfer back       == identity on balances
  *   issue(x) then redeem(x)               == identity on balances
  *   a batch of transfers in two orders    == the same final balances
  *   reverse(p)                            == undoing p
- *   tithe t(a) = floor(a*phi/100):
- *     t(a) == (a + floor(a*sqrt5)) / 200  (a second, independent formula
- *                                          through pay_floor_a_sqrt5)
- *     t(a)+t(b) <= t(a+b) <= t(a)+t(b)+1  (floor is super-additive by < 1)
- *     a <= b  =>  t(a) <= t(b)
+ *   assurance fee f(a) = floor(a*8889/10^7):
+ *     f(a) == the same formula in an independent 128-bit oracle
+ *     f(a)+f(b) <= f(a+b) <= f(a)+f(b)+1  (floor is super-additive by < 1)
+ *     a <= b  =>  f(a) <= f(b)
+ *     charge(a) then charge(b) == charge(a+b) (same total fee, same carry)
  *   pay_commons_split(total, w): out[] + left == total for every weight vector
  * The table runs forward, again and in reverse (meta.h).
  */
 #include "tier.h"
 #include "meta.h"
 #include "pay_ledger.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
 static const tier_known_t KNOWN_FAILURES[] = {{"-", "unused"}};
 
@@ -148,16 +148,12 @@ static uint64_t rel_order(void)
     return dig_bal(0, &L);
 }
 
-static uint64_t tithe_alt(uint64_t a)
+static uint64_t fee_alt(uint64_t a)
 {
-    pay_u128 s = pay_floor_a_sqrt5(a); /* floor(a*sqrt5) */
-    s = pay_u128_add64(s, a);          /* a + floor(a*sqrt5) */
-    uint64_t rem;
-    pay_u128 q = pay_udiv128_64(s, 200, &rem);
-    return q.lo;
+    return (uint64_t) ((unsigned __int128) a * 8889u / 10000000u);
 }
 
-static uint64_t rel_tithe(void)
+static uint64_t rel_fee(void)
 {
     uint64_t h = 0, seed = 0x7173;
     uint64_t v[64];
@@ -169,16 +165,21 @@ static uint64_t rel_tithe(void)
         n++;
     }
     for (unsigned i = 0; i < n; i++) {
-        uint64_t t = pay_tithe_phi(v[i]);
-        CHECK(t == tithe_alt(v[i]), "t(a) == (a + floor(a*sqrt5)) / 200 for a=%llu",
+        uint64_t t = pay_assure_fee(v[i]);
+        CHECK(t == fee_alt(v[i]), "f(a) == floor(a*8889/10^7) for a=%llu",
               (unsigned long long) v[i]);
         h = meta_mix(h, t);
         for (unsigned j = 0; j < n; j++) {
             uint64_t a = v[i], b = v[j];
             if (a > UINT64_MAX - b) continue;
-            uint64_t ta = pay_tithe_phi(a), tb = pay_tithe_phi(b), tab = pay_tithe_phi(a + b);
-            CHECK(ta + tb <= tab && tab <= ta + tb + 1, "t(a)+t(b) <= t(a+b) <= t(a)+t(b)+1");
-            if (a <= b) CHECK(ta <= tb, "a <= b implies t(a) <= t(b)");
+            uint64_t ta = pay_assure_fee(a), tb = pay_assure_fee(b), tab = pay_assure_fee(a + b);
+            CHECK(ta + tb <= tab && tab <= ta + tb + 1, "f(a)+f(b) <= f(a+b) <= f(a)+f(b)+1");
+            if (a <= b) CHECK(ta <= tb, "a <= b implies f(a) <= f(b)");
+            pay_assure_carry_t c1 = {0}, c2 = {0};
+            uint64_t fa, fb, fab;
+            CHECK(pay_assure_charge(&c1, a, &fa) && pay_assure_charge(&c1, b, &fb) &&
+                      pay_assure_charge(&c2, a + b, &fab) && fa + fb == fab && c1.rem == c2.rem,
+                  "charge(a) then charge(b) == charge(a+b)");
         }
     }
     return h;
@@ -216,7 +217,7 @@ static const meta_rel_t RELS[] = {
     {"transfer-back", rel_transfer_back},
     {"issue-redeem-reverse", rel_issue_redeem},
     {"order", rel_order},
-    {"tithe", rel_tithe},
+    {"fee", rel_fee},
     {"commons-split", rel_commons_split},
 };
 

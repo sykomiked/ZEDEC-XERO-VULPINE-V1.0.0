@@ -20,13 +20,11 @@
 static const tier_known_t KNOWN_FAILURES[] = {
     {"F-VINO-ADDR", "vino_create_account truncates a >=64-char address and creates an "
                     "account that no lookup can ever find"},
-    {"F-VINO-BALCAP", "vino_get_balance does not bound-check `capital` (out-of-range read)"},
     {"F-VINO-NULL", "vino_get_account/vino_transfer dereference a NULL address"},
     {"F-VINO-SELFQ", "a self transfer adds the amount to the account's rmag quota (two "
                      "set_quota calls on one ordinal, the second wins)"},
     {"F-RMAG-OVF", "rmag quota arithmetic overflows int64 for a vino transfer of INT64_MAX "
                    "(see axioms_rational.c)"},
-    {"F-CH-WRAP", "count_house_deposit adds amount to the balance with no overflow check"},
     {"F-PH-FULL", "a seal request refused because the seal table is full leaves the port "
                   "admitting everyone (fail open)"},
     {"F-CC-REJECTED", "cc_purchase_with_vouchers/cc_purchase_app take payment for an app whose "
@@ -126,11 +124,11 @@ static void axiom_vino_transfer(void)
     uint64_t out = 0;
     CHECK(vino_get_balance(&V, "alice", CAP_MAX - 1, &out) == 0, "get_balance last capital");
     CHECK(vino_get_balance(&V, "nobody", CAP_FINANCIAL, &out) == -1, "get_balance unknown");
-    /* CAP_MAX lands inside the account struct (asset_balances), so ASan does not
-     * see it, which is why it goes unnoticed; UBSan's array-bounds check does,
-     * so under a sanitizer the out-of-range read is recorded, not executed */
-    TIER_UB_KNOWN("F-VINO-BALCAP", ok,
-                  { ok = vino_get_balance(&V, "alice", CAP_MAX, &out) == -1; });
+    /* F-VINO-BALCAP (fixed): CAP_MAX is refused before any read, so this also
+     * runs under the sanitizers */
+    out = 77;
+    CHECK(vino_get_balance(&V, "alice", CAP_MAX, &out) == -1 && out == 77,
+          "get_balance CAP_MAX refused, output untouched");
     CHECK(vino_transfer(&V, "alice", "nobody", 1, CAP_FINANCIAL, RAIL_VINO_NATIVE, 0) == -1,
           "transfer to an unknown address");
     CHECK_KNOWN("F-VINO-NULL", !tier_crashes(call_get_null, NULL),
@@ -274,7 +272,17 @@ static void axiom_cc_vouchers(void)
     CHECK(cc_voucher_cash_out(&CC, "alice", UINT64_MAX, CAP_FINANCIAL) == UINT64_MAX &&
               cc_voucher_cash_out(&CC, "alice", 1, CAP_FINANCIAL) == 0,
           "cash-out exactly the balance, then 1 more refused");
-    /* price boundary: balance = price-1, price */
+    /* the lifetime cash-in total is now checked money math: once it would
+     * wrap, a further cash-in is refused and nothing changes */
+    CHECK(cc_voucher_cash_in(&CC, "bob", 99, CAP_FINANCIAL) == 0 &&
+              CC.voucher_cashin_total == UINT64_MAX && vino_get_account(&V, "bob") != NULL &&
+              vino_get_account(&V, "bob")->balance[CAP_FINANCIAL] == 0,
+          "cash-in refused when the lifetime total would wrap");
+    /* price boundary on a fresh store: balance = price-1, price */
+    vino_init(&V, 1);
+    cc_init(&CC, 1, "store");
+    CC.verify_sig = yes_app;
+    cc_link_vino(&CC, &V);
     int32_t id =
         cc_list_app(&CC, "paid", 0, "d", &dev, 0, 0, 0, CC_APP_PAID, CC_APP_TOOL, 100, 8000);
     cc_voucher_cash_in(&CC, "bob", 99, CAP_FINANCIAL);
@@ -585,9 +593,9 @@ static void axiom_count_house(void)
               ch.buckets[1].token_balance == UINT64_MAX,
           "deposit to exactly UINT64_MAX");
     int32_t r = count_house_deposit(&ch, &p1, pk, 1, sig);
-    CHECK_KNOWN("F-CH-WRAP", r < 0 && ch.buckets[1].token_balance == UINT64_MAX,
-                "deposit past UINT64_MAX -> %d, balance %llu", (int) r,
-                (unsigned long long) ch.buckets[1].token_balance);
+    CHECK(r == -3 && ch.buckets[1].token_balance == UINT64_MAX,
+          "deposit past UINT64_MAX -> %d (want -3), balance %llu", (int) r,
+          (unsigned long long) ch.buckets[1].token_balance);
 
     /* mint: amount 0, and the supply bound */
     count_house_init(&ch, 8, "m");
@@ -797,21 +805,27 @@ static void axiom_porter_house(void)
           "NULL porter house");
 }
 
-/* Reference FNV-1a-32 stretched to VINO_HASH_LEN bytes, written from the
- * comment in vino.c, so vino_hash is checked against an independent KAT. */
-static void ref_vino_hash(const void *data, uint32_t len, uint8_t *out)
+/* vino_hash is SHA-256 (the V2 audit chain). FIPS 180-2 known answers. */
+static const struct {
+    const char *msg;
+    const char *hex;
+} SHA_KAT[] = {
+    {"", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    {"abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"},
+    {"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+     "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"},
+};
+static bool hex_eq(const uint8_t *h, const char *hex)
 {
-    const uint8_t *d = data;
-    uint32_t h = 2166136261u;
-    for (uint32_t i = 0; i < len; i++) {
-        h ^= d[i];
-        h *= 16777619u;
-    }
     for (int i = 0; i < VINO_HASH_LEN; i++) {
-        h ^= h >> 13;
-        h *= 16777619u;
-        out[i] = (uint8_t) (h & 0xFF);
+        unsigned v = 0;
+        for (int k = 0; k < 2; k++) {
+            char c = hex[2 * i + k];
+            v = v * 16 + (unsigned) (c <= '9' ? c - '0' : c - 'a' + 10);
+        }
+        if (h[i] != v) return false;
     }
+    return true;
 }
 
 static bool rat_eq(rational_t a, rational_t b)
@@ -823,16 +837,19 @@ static bool rat_eq(rational_t a, rational_t b)
  * observed (see tests/MUTATION_REPORT.md). */
 static void axiom_vino_more(void)
 {
-    /* hash: known-answer against the reference, every length 0..40 */
-    uint8_t buf[40], h1[VINO_HASH_LEN], h2[VINO_HASH_LEN];
+    /* hash: SHA-256 known answers, and every length 0..40 gives a distinct digest */
+    uint8_t buf[40], h1[VINO_HASH_LEN], hs[41][VINO_HASH_LEN];
+    for (unsigned i = 0; i < TIER_N(SHA_KAT); i++) {
+        vino_hash(SHA_KAT[i].msg, (uint32_t) strlen(SHA_KAT[i].msg), h1);
+        CHECK(hex_eq(h1, SHA_KAT[i].hex), "vino_hash is SHA-256 (KAT %u)", i);
+    }
     for (unsigned i = 0; i < sizeof buf; i++) buf[i] = (uint8_t) (i * 37 + 11);
     bool hok = true;
     for (uint32_t n = 0; n <= sizeof buf; n++) {
-        vino_hash(buf, n, h1);
-        ref_vino_hash(buf, n, h2);
-        hok &= memcmp(h1, h2, sizeof h1) == 0;
+        vino_hash(buf, n, hs[n]);
+        for (uint32_t m = 0; m < n; m++) hok &= memcmp(hs[m], hs[n], VINO_HASH_LEN) != 0;
     }
-    CHECK(hok, "vino_hash matches the FNV-1a reference for lengths 0..40");
+    CHECK(hok, "vino_hash covers exactly len bytes: lengths 0..40 all differ");
     uint8_t one[1] = {0x80};
     vino_hash(one, 1, h1);
     bool high = false;
@@ -977,7 +994,7 @@ static void axiom_vino_more(void)
 
     /* name tables: last valid index and MAX */
     CHECK(strcmp(vino_capital_name(CAP_MAX), "UNKNOWN") == 0 &&
-              strcmp(vino_capital_name((capital_type_t) (CAP_MAX - 1)), "RELATIONAL") == 0,
+              strcmp(vino_capital_name((capital_type_t) (CAP_MAX - 1)), "SYSTEM") == 0,
           "capital names at MAX-1 / MAX");
     CHECK(strcmp(vino_asset_class_name(ASSET_MAX), "?") == 0 &&
               strcmp(vino_asset_class_name((asset_class_t) (ASSET_MAX - 1)), "Stablecoin") == 0,

@@ -10,7 +10,7 @@
     {"name": "pay_ledger", "target": "kernel/src/pay/pay_ledger.c",
      "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_pay",
      "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q t1_pay t2_pay t3_ledger legacy_pay"},
-    {"name": "pay_tithe", "target": "kernel/src/pay/pay_tithe.c",
+    {"name": "pay_assure", "target": "kernel/src/pay/pay_assure.c",
      "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_pay",
      "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q t1_pay t3_ledger t2_pay legacy_pay"},
     {"name": "vino", "target": "kernel/src/vino/vino.c",
@@ -31,7 +31,7 @@
     {"name": "mm", "target": "kernel/src/mm/mm.c",
      "before": null, "before_note": "no hosted test compiled kernel/src/mm before the tiered tests",
      "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q t1_alloc"},
-    {"name": "fs_malloc", "target": "kernel/include/freestanding.h", "lines": "77-95",
+    {"name": "fs_malloc", "target": "kernel/include/freestanding.h", "lines": "80-97",
      "before": null, "before_note": "no hosted test exercised fs_malloc/fs_calloc before the tiered tests",
      "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q t1_alloc"},
     {"name": "audio_rings", "target": "kernel/src/audio/audio.c", "lines": "142-256,519-628",
@@ -40,7 +40,7 @@
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc"],
-    "baseline_note": "measured 'after' scores (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 32/36, fs_malloc 25/29",
-    "baseline": {"rmag_core": 0.8888, "fs_malloc": 0.8620}
+    "baseline_note": "measured 'after' scores on p10-integrate (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 67/73, fs_malloc 30/36",
+    "baseline": {"rmag_core": 0.9178, "fs_malloc": 0.8333}
   }
 }

@@ -341,7 +341,7 @@ static void axiom_triple_more(void)
           "export splits positive and negative balances; stale slot ignored");
 
     CHECK(strcmp(capital_type_name(CAP_MAX), "Unknown") == 0 &&
-              strcmp(capital_type_name((capital_type_t) (CAP_MAX - 1)), "Ecological") == 0 &&
+              strcmp(capital_type_name((capital_type_t) (CAP_MAX - 1)), "System") == 0 &&
               strcmp(capital_type_name(CAP_FINANCIAL), "Financial") == 0,
           "capital names at 0, MAX-1, MAX");
     CHECK(strcmp(ledger_type_name(LEDGER_MAX), "Unknown") == 0 &&
