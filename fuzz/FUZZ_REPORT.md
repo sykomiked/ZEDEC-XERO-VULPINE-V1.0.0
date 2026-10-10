@@ -49,10 +49,11 @@ Each row is one uninterrupted run with `-runs=10000000`. Earlier runs did not re
 | fuzz_tls_handshake | 7,336 | 24 | 321 | 673 | 75 | 0 |
 | fuzz_freight | 271,134 | 900 | 330 | 1,145 | 332 | 0 |
 | fuzz_upcheck | 3,382,658 | 11,238 | 738 | 1,968 | 668 | 0 |
-| fuzz_bootlegger | 321,874 | 1,069 | 297 | 521 | 96 | 0 |
+| fuzz_bootlegger (rewritten for the transcript-bound ML-DSA-65 handshake, 180 s) | 38,019 | 210 | n/a | n/a | 183 new | 0 |
 | fuzz_ipfs_cid | 21,115,557 | 70,151 | 259 | 733 | 176 | 0 (after fix) |
 | fuzz_ipfs_dag | 6,629,801 | 22,025 | 508 | 1,549 | 423 | 0 |
 
+* `fuzz_bootlegger`: rewritten after the merge with the hardened handshake (HELLO -> REPLY -> FINISH, ML-DSA-65 signatures over the transcript). Modes 2 and 3 XOR a genuine REPLY or FINISH with input bytes; the property is that it is accepted exactly when the mask is all zero. The earlier 321,874-execution row was for the old Ed25519 handshake. The new harness is slower (ML-KEM and ML-DSA per input).
 * `fuzz_ipfs_cid`: the first run crashed after 114,882 executions. That crash is
   finding F2. The row above is the 300 s rerun after the fix.
 * `fuzz_tls_handshake`: every input runs a full X25519 ClientHello, so it is slow.

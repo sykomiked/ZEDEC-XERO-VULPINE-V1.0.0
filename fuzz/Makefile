@@ -128,11 +128,11 @@ SRC_fuzz_upcheck := $(S)/update/zx_upcheck.c $(S)/update/zx_ipns.c $(S)/update/z
                     $(S)/ipfs_node/ipfsn_dir.c $(IPFSN) $(S)/robin_debanks/ed25519_verify.c \
                     $(MLDSA)
 
-XSAN_fuzz_bootlegger := $(ED25519_GCC)
 DIR_fuzz_bootlegger := parsers
-INC_fuzz_bootlegger := -I$(K)/include -I$(S)/modbind -I$(S)/mlkem -I$(S)/bootlegger
-SRC_fuzz_bootlegger := $(S)/bootlegger/bootlegger.c $(S)/robin_debanks/ed25519_verify.c \
-                       $(S)/robin_debanks/sha256.c $(S)/tls/aead.c $(S)/tls/hkdf.c $(MLKEM)
+INC_fuzz_bootlegger := -I$(K)/include -I$(S)/modbind -I$(S)/mlkem -I$(S)/bootlegger -I$(S)/pqsec \
+                       -I$(S)/lpres -I$(S)/surplus -I$(S)/edp_risk -I$(S)/event_space -I$(S)/trispace
+SRC_fuzz_bootlegger := $(S)/bootlegger/bootlegger.c $(S)/robin_debanks/sha256.c $(S)/tls/aead.c \
+                       $(S)/tls/hkdf.c $(MLKEM) $(MLDSA)
 DEF_fuzz_bootlegger := -DTEST_HOST
 
 DIR_fuzz_ipfs_cid := parsers
