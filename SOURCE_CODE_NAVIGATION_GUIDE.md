@@ -189,7 +189,7 @@ The ZXV OS (ZEDEC XERO VULPINE) kernel is a bare-metal, freestanding operating s
 | `src/mesh_net/` | Mesh networking | `mesh_net.c`, `mesh_net.h` | Software protocol — runs over any NIC. |
 | `src/mesh_token/` | Mesh authentication | `mesh_token.c`, `mesh_token.h` | Software-only. |
 | `src/net/m5route.c` | M5 routing protocol | `m5route.c`, `m5route.h` | Software-only. |
-| `src/p2p_caracho/` | P2P content distribution | `p2p_caracho.c`, `p2p_caracho.h` | Software-only. |
+| `experimental/p2p_caracho/` | Superseded P2P transport (unbuilt; see `kernel/experimental/README.md`) | `p2p_caracho.c`, `p2p_caracho.h` | Not built. |
 | `src/bootlegger/` | P2P media streaming | `bootlegger.c`, `bootlegger.h` | Software-only. |
 
 ### 3.7 Specialized Subsystems

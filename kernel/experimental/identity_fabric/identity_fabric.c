@@ -14,7 +14,7 @@
 #include "lpres.h"
 #include "m5_types.h"
 #include "surplus.h"
-#include "../sdk/selfaudit.h"
+#include "../../src/sdk/selfaudit.h"
 
 /* ===== Helper Functions ===== */
 

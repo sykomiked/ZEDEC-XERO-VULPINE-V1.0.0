@@ -1,3 +1,9 @@
+/* STATUS: STUB. Channels and pending queues exist, but no physical transport is
+ * implemented: et_process_pending() empties the queue and counts every envelope as
+ * delivered without sending anything. The transport kinds listed below (shared
+ * memory, PCIe, "authenticated network", mailbox, GPU queue) are design targets only, and
+ * the enum comments below describe intent;
+ * nothing here authenticates, encrypts or moves bytes between devices. */
 /* event_transport.h — ZXV Event Transport Abstraction
  *
  * All transports present the same logical event envelope regardless

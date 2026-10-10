@@ -327,7 +327,7 @@ layers:
         status: missing
       - name: "p2p_caracho transport (existing, 1.2k lines)"
         status: partial
-        gap: "NOT compiled into the kernel and has NO test"
+        gap: "superseded by bootlegger; not built, no test; kept in kernel/experimental/p2p_caracho"
 
   - id: L6
     name: Services & Applications

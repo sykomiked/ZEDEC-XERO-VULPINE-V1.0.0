@@ -11,7 +11,8 @@ by the same audit, and what was fixed, are in [AUDIT_REPORT.md](AUDIT_REPORT.md)
 
 ## How to read an entry
 
-Each module (a directory under `kernel/src/`) and each platform area has one entry:
+Each module (a directory under `kernel/src/`, or under `kernel/experimental/` for the unbuilt
+placeholders listed in kernel/experimental/README.md) and each platform area has one entry:
 
 - **Status**
   - WORKING (tested in verify-all): built and tested on every CI run by `make -C kernel verify-all`.
@@ -75,9 +76,9 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | Status | Modules |
 |---|---|
 | WORKING (tested in verify-all) | 142 |
-| PARTIAL | 36 |
+| PARTIAL | 37 |
 | WORKING (test not in verify-all) | 17 |
-| UNUSED/DEAD | 12 |
+| UNUSED/DEAD | 11 |
 | STUB | 3 |
 | **Total** | **210** |
 
@@ -162,7 +163,7 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [fusion](#fusion--capability-contract-fusion-of-tri-space-programs) | capability-contract fusion of Tri-Space programs | WORKING (tested in verify-all) |
 | [games](#games--deterministic-lockstep-game-core-with-a-chiglet-companion) | deterministic lockstep game core with a Chiglet companion | WORKING (tested in verify-all) |
 | [gdt](#gdt--x86-global-descriptor-table-setup) | x86 Global Descriptor Table setup | PARTIAL |
-| [gematria](#gematria--letter-value-and-grammar-to-fock-space-mapping) | letter-value and grammar-to-"Fock-space" mapping | UNUSED/DEAD |
+| [gematria](#gematria--letter-value-and-grammar-to-fock-space-mapping) | letter-value and grammar-to-"Fock-space" mapping | PARTIAL |
 | [governance_fabric](#governance_fabric--umbrella-over-legalconcordministrycrownzab-governance) | umbrella over legal/concord/ministry/crown/ZAB governance | UNUSED/DEAD |
 | [hardware](#hardware--dlp-projector-model-and-rtlhdl-device-abstraction) | DLP projector model and RTL/HDL device abstraction | PARTIAL |
 | [harmonic](#harmonic--harmonic-wire-tags-dialgeom-routers-endian-mux-trunk-bank-adapters) | harmonic wire tags, dial/geom routers, endian mux, trunk bank, adapters | WORKING (tested in verify-all) |
@@ -380,6 +381,7 @@ is not guaranteed to be minimal; finding the minimum is NP-hard.
 
 ### abstraction_layer  —  multi-language module registry (dead)
 Status: UNUSED/DEAD
+Location: kernel/experimental/abstraction_layer/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: A table meant to register language runtimes and kernel modules, then initialise them
 in order. Neither file compiles: types and headers are missing. No build file references it.
 Main entry points: al_init, al_register_builtin_languages, al_register_language,
@@ -428,6 +430,7 @@ Gaps: SR_ADD overflow is unchecked, and a negative draw is accepted.
 
 ### app_constellation  —  service deployment manager (header only)
 Status: STUB
+Location: kernel/experimental/app_constellation/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Declares an API for deploying, rolling back, pausing and resuming services across
 the constellation. There is no .c file, so nothing behind the API exists.
 Main entry points: ac_init, ac_register_service, ac_get_service, ac_deploy_service,
@@ -438,6 +441,7 @@ Gaps: no implementation at all.
 
 ### app_fabric  —  application descriptor and instance registry (dead)
 Status: UNUSED/DEAD
+Location: kernel/experimental/app_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Meant to register application descriptors and to create, start and stop
 instances. It does not compile (missing types) and no build file references it.
 Main entry points: af_init, af_register_builtins, af_register_app, af_get_descriptor,
@@ -818,6 +822,7 @@ Gaps: none found.
 
 ### civilizational_stack  —  application deployment and translation "stack" (dead)
 Status: UNUSED/DEAD
+Location: kernel/experimental/civilizational_stack/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Meant to deploy built-in apps, translate them between language runtimes and
 self-audit them. It does not compile and no build file references it. It claims to be
 "military-grade".
@@ -873,6 +878,7 @@ Gaps: download is a stub, and cc_purchase_app takes no payment.
 
 ### compute_fabric  —  compute-cell manager with domain migration (dead)
 Status: UNUSED/DEAD
+Location: kernel/experimental/compute_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Meant to create, start, stop and migrate compute cells across domains. It does not
 compile (missing types) and no build file references it.
 Main entry points: cf_init, cf_register_builtins, cf_create_cell, cf_start_cell, cf_stop_cell,
@@ -1224,6 +1230,8 @@ Tests: no test of its own; linked by test_orbital_constellation (verify-all), pa
 Used by: network_fabric, compute_fabric, arch/arm64, tests/host. In all images.
 Gaps: no physical transport. The "authenticated network protocol" in the header has nothing behind
 it. LOCAL delivers nowhere.
+Gaps: the header and .c now open with a STATUS: STUB banner saying that nothing is sent or
+authenticated and that the transport kinds are design targets.
 
 ### evolve — content-addressed evolution protocol (capabilities, lineage, trust, updates)
 Status: WORKING (tested in verify-all)
@@ -1372,7 +1380,7 @@ Gaps: it is 32-bit-only code. `(uint32_t)&gdt_entries` truncates on a 64-bit hos
 entry is a placeholder.
 
 ### gematria — letter-value and grammar-to-"Fock-space" mapping
-Status: UNUSED/DEAD
+Status: PARTIAL (compiled into the kernel images, no caller and no test; was listed as UNUSED/DEAD, but gematria.c is in Makefile.arm64/x86_64 and the other image Makefiles, so it was not moved to kernel/experimental/)
 What it does: This turns letters into numbers (Hebrew standard, ordinal, digital root, primes,
 custom table) and splits sentences into words with punctuation roles. It then maps those words into
 hdcm "Fock-space" structures. The word parser is bounded; the physics mapping is analogy.
@@ -1385,6 +1393,7 @@ non-letters.
 
 ### governance_fabric — umbrella over legal/concord/ministry/crown/ZAB governance
 Status: UNUSED/DEAD
+Location: kernel/experimental/governance_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: This is meant to front proposals, votes, policies, contracts and jurisdictions over
 the governance modules. It does not compile: zab_state_t, concord_state_t and crown_state_t are
 unknown types, and no Makefile builds it.
@@ -1506,6 +1515,7 @@ Gaps: header claimed "all 193 UN member states" (fixed to the truth); no real ve
 
 ### identity_fabric  —  "compound" identity/governance umbrella
 Status: UNUSED/DEAD
+Location: kernel/experimental/identity_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: A header and source meant to bundle identity, ledger, consensus, reputation and governance modules. It does not compile (unknown types zab_state_t, concord_state_t, crown_state_t, ...) and no build or test compiles it.
 Main entry points: identity_fabric.h types only.
 Tests: none. Used by: other *_fabric headers include identity_fabric.h (also unbuilt).
@@ -1673,6 +1683,7 @@ Gaps: untested.
 
 ### media_fabric  —  "compound" media umbrella
 Status: UNUSED/DEAD
+Location: kernel/experimental/media_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Intended to bundle audio/video/codec/art modules. Does not compile (codec.h not found) and nothing builds it.
 Tests: none. Used by: app_constellation, app_fabric headers (also unbuilt).
 Gaps: does not compile; "real-time M5 coverage guarantees" claim unbacked.
@@ -1754,6 +1765,7 @@ Gaps: float in net.c (via iphase_route), radio.c, dtmf.c, jdr_piratenet.c; ARP a
 
 ### network_fabric  —  "compound" network umbrella
 Status: UNUSED/DEAD
+Location: kernel/experimental/network_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Intended to bundle mesh, SDR, Bluetooth, Wi-Fi, LoRa. Does not compile (jdr_adapter_t, radio_modem_t, ... unknown) and is not built.
 Tests: none. Used by: app_constellation, app_fabric headers (unbuilt).
 Gaps: does not compile; "post-quantum security" claim unbacked.
@@ -1803,6 +1815,7 @@ Gaps: no SPDX on core files.
 
 ### p2p_caracho  —  superseded P2P transport
 Status: UNUSED/DEAD
+Location: kernel/experimental/p2p_caracho/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Old transport, replaced by bootlegger; its own header says do not build. Makefile.arm64 excludes it by design.
 Tests: none. Used by: nothing.
 Gaps: dead file kept on disk.
@@ -2021,6 +2034,7 @@ Main entry points: m5_api.h, selfaudit.h, app_template.c, Makefile.app.
 Tests: none. Makefile.app's `test` target is now an honest compile-only check.
 Used by: headers are included by apps, app_fabric, compute_fabric, financial_fabric, governance_fabric, identity_fabric and others. Not in arm64 list.
 Gaps: No m5_* function is implemented anywhere, so apps will not link; a status note was added to SDK_README.md. Fixed: the KERNEL_ROOT path in Makefile.app, and the -Werror failure in app_template.c.
+Gaps: m5_api.h and selfaudit.h now open with a STATUS: STUB banner (declarations only, no stable ABI).
 
 ### sdk_bridge — capability bridge from apps/languages to kernel fabrics
 Status: PARTIAL
@@ -2032,6 +2046,7 @@ Gaps: Fixed: the context type confusion that wrote past the struct; a NULL bridg
 
 ### security_fabric — "security fabric" (placeholder crypto)
 Status: UNUSED/DEAD
+Location: kernel/experimental/security_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Meant to provide signing, verification and encryption services to the app fabric. Every crypto routine is a placeholder: the signature length is fixed, the ciphertext is length+32, and verification returned true.
 Main entry points: security_fabric.h.
 Tests: none.
@@ -2104,6 +2119,7 @@ Gaps: The speech engines themselves are external bindings.
 
 ### storage_fabric — "storage fabric" (unbuilt)
 Status: UNUSED/DEAD
+Location: kernel/experimental/storage_fabric/ (moved from kernel/src/). An unbuilt placeholder kept for the design record, not shipped; see kernel/experimental/README.md.
 What it does: Meant to expose NVMe/network storage to apps with revenue accounting. The revenue numbers are placeholders.
 Main entry points: storage_fabric.h.
 Tests: none.

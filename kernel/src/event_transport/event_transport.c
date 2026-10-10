@@ -1,3 +1,4 @@
+/* STATUS: STUB. No backend sends anything; see the note in event_transport.h. */
 /* event_transport.c — ZXV Event Transport Abstraction
  *
  * Implements the transport channel management, pending delivery queues,
@@ -185,7 +186,7 @@ uint32_t et_process_pending(et_transport_t *et, uint32_t channel_idx) {
      * to the physical transport. For now, we just count them. */
     uint32_t count = ch->pending_count;
 
-    /* Simulate successful delivery — clear pending queue */
+    /* STUB: nothing is sent. The queue is cleared and the count is returned as if delivered. */
     ch->pending_head = 0;
     ch->pending_tail = 0;
     ch->pending_count = 0;
