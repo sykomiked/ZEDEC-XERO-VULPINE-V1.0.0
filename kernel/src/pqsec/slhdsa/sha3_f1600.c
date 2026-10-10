@@ -34,6 +34,15 @@ void keccak_f1600(uint64_t x[25])
     keccak_f1600_count++; /* instrumentation */
 #endif
 
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    /* ZXV: callers fill and read the state through a byte view (sha3_api.c's
+     * union, memcpy in slh_shake.c), which is the FIPS 202 byte order only on a
+     * little-endian CPU. On big-endian, load the lanes little-endian here and
+     * store them back the same way, so the byte view stays FIPS 202 order.
+     * Found by build_system/kat_cross.sh (s390x). No effect on little-endian. */
+    for (i = 0; i < 25; i++) x[i] = __builtin_bswap64(x[i]);
+#endif
+
     /* iteration */
 
     for (i = 0; i < 24; i++) {
@@ -147,4 +156,7 @@ void keccak_f1600(uint64_t x[25])
 
         x[0] = x[0] ^ keccak_rc[i];
     }
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    for (i = 0; i < 25; i++) x[i] = __builtin_bswap64(x[i]);
+#endif
 }

@@ -1214,6 +1214,10 @@ verify-all: test
 	python3 ../install/install_zxv.py --selftest > /tmp/test_installer.log 2>&1 && \
 		echo "[PASS] installer_selftest ($$(grep -c '\[PASS\]' /tmp/test_installer.log) checks)" || \
 		{ cat /tmp/test_installer.log; echo "[FAIL] installer_selftest"; exit 1; }; \
+	echo "=== Legacy transcoders: bit-exact vs published COMP-3 / zoned / IBM HFP golden traces ==="; \
+	$(MAKE) -s -C ../bench legacy OUT=/tmp/zxv_p10_bench_verify > /tmp/zxv_p10_legacy_bench.log 2>&1 && \
+		echo "[PASS] legacy_bench ($$(grep -o '[0-9]* bit-exact' /tmp/zxv_p10_legacy_bench.log))" || \
+		{ cat /tmp/zxv_p10_legacy_bench.log; echo "[FAIL] legacy_bench"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).
@@ -1246,6 +1250,18 @@ fuzz:
 		-o /tmp/san_browser -lm && /tmp/san_browser > /dev/null \
 		|| { echo "[FAIL] san_browser"; exit 1; }; \
 	echo "*** FUZZ SUITE PASSED ***"
+
+# Post-quantum KATs on other CPUs (aarch64, riscv64, armhf, i686, s390x big-endian),
+# cross-compiled and run under qemu-user. Needs the cross gcc and qemu-user packages
+# listed in build_system/kat_cross.sh; a missing one is a SKIP unless KAT_CROSS_STRICT=1.
+.PHONY: kat-cross ct-valgrind
+kat-cross:
+	@bash ../build_system/kat_cross.sh $(KAT_CROSS_TARGETS)
+
+# Secret-dependent branch/index check of ML-KEM-768 and ML-DSA-65 under valgrind
+# memcheck (ctgrind). Not a proof of constant time; see src/pqsec/test_ct_valgrind.c.
+ct-valgrind:
+	@bash ../build_system/ct_valgrind.sh
 
 # Experimental / Stage-9 tests that are not yet required for G1 build integrity
 verify-experimental: verify-all

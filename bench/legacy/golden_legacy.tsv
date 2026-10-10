@@ -1,0 +1,87 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Golden traces for the legacy transcoders (kernel/src/legacy, kernel/src/lightningrod).
+# Every row is a published example or a value worked out by hand below; none was produced
+# by running the code under test. See bench/README.md, "Sources of the golden traces".
+#
+# Columns (tab separated): kind  input  arg  expected
+#   comp3_dec   packed bytes (hex)        -            signed integer       cobol.c comp3_decode
+#   comp3_enc   signed integer            nbytes       packed bytes (hex)   cobol.c comp3_encode
+#   zoned_dec   EBCDIC zoned bytes (hex)  -            signed integer       cobol.c zoned_decode
+#   zoned_enc   signed integer            ndigits,s|u  zoned bytes (hex)    cobol.c zoned_encode
+#   comp_dec    big-endian bytes (hex)    s|u          signed integer       cobol.c comp_decode
+#   comp_enc    signed integer            size,s|u     bytes (hex)          cobol.c comp_encode
+#   lr_packed   packed bytes (hex)        scale        num/den (reduced)    lightningrod lr_packed_to_rat
+#   lr_zoned    zoned bytes (hex)         scale        num/den (reduced)    lightningrod lr_zoned_to_rat
+#   hfp32_ieee  IBM HFP single (hex)      -            IEEE binary32 (hex)  fortran.c hfp32_to_ieee32
+#   ieee32_hfp  IEEE binary32 (hex)       -            IBM HFP single (hex) fortran.c ieee32_to_hfp32
+#   hfp64_ieee  IBM HFP double (hex)      -            IEEE binary64 (hex)  fortran.c hfp64_to_ieee64
+#   ieee64_hfp  IEEE binary64 (hex)       -            IBM HFP double (hex) fortran.c ieee64_to_hfp64
+#
+# [A] IBM Enterprise COBOL Programming Guide, "Examples of numeric data and internal
+#     representation" (value 1234 / -1234 in DISPLAY, PACKED-DECIMAL and BINARY).
+comp3_dec	01234C	-	1234
+comp3_dec	01234D	-	-1234
+comp3_dec	01234F	-	1234
+comp3_enc	1234	3	01234C
+comp3_enc	-1234	3	01234D
+zoned_dec	F1F2F3C4	-	1234
+zoned_dec	F1F2F3D4	-	-1234
+zoned_dec	F1F2F3F4	-	1234
+zoned_enc	1234	4,s	F1F2F3C4
+zoned_enc	-1234	4,s	F1F2F3D4
+zoned_enc	1234	4,u	F1F2F3F4
+comp_dec	04D2	s	1234
+comp_dec	FB2E	s	-1234
+comp_enc	1234	2,s	04D2
+comp_enc	-1234	2,s	FB2E
+# [B] Worked by hand from the packed/zoned rules (two digits per byte, sign nibble C/D/F
+#     last; zoned digit F0-F9, sign in the last byte's zone).
+#     PIC S9(7)V99 COMP-3, 1234567.89: digits 123456789 + sign C = 12 34 56 78 9C, scale 2.
+comp3_dec	123456789C	-	123456789
+comp3_enc	123456789	5	123456789C
+lr_packed	123456789C	2	123456789/100
+#     PIC S9(5)V99 COMP-3, -12.50: digits 0001250 + D = 00 01 25 0D; -1250/100 = -25/2.
+lr_packed	0001250D	2	-25/2
+#     PIC S9(3) COMP-3 zero and minus one: 00 0C, 00 1D.
+comp3_dec	000C	-	0
+comp3_dec	001D	-	-1
+comp3_enc	0	2	000C
+comp3_enc	-1	2	001D
+#     A value that does not fit: 1000 in 2 bytes (3 digits) must be refused.
+comp3_enc	1000	2	REFUSE
+#     Zoned with implied decimals, PIC S9(3)V99 -123.45 = F1 F2 F3 F4 D5 -> -12345/100 = -2469/20.
+lr_zoned	F1F2F3F4D5	2	-2469/20
+#     Signed overpunch of a last digit 0: +0 = C0 ("{"), -10 = F1 D0 ("1}").
+zoned_dec	C0	-	0
+zoned_dec	F1D0	-	-10
+# [C] IBM System/360 hexadecimal floating point. Single: sign bit, 7-bit excess-64 base-16
+#     exponent, 24-bit fraction 0.f (hex). The -118.625 example (C276A000) is the one
+#     given in the Wikipedia article "IBM hexadecimal floating-point"; the IEEE side is
+#     worked by hand: 118.625 = 1110110.101b = 1.110110101b x 2^6, exponent 127+6 = 0x85.
+#        -118.625:  HFP 0x76.A = 0.76A x 16^2 -> C2 76A000      IEEE C2ED4000
+#        1.0:       0.1 x 16^1 -> 41 100000                     IEEE 3F800000
+#        0.5:       0.8 x 16^0 -> 40 800000                     IEEE 3F000000
+#        -1.0:                    C1 100000                     IEEE BF800000
+#        100.0:     0x64 = 0.64 x 16^2 -> 42 640000             IEEE 42C80000
+#        0.0:                     00000000                      IEEE 00000000
+hfp32_ieee	C276A000	-	C2ED4000
+hfp32_ieee	41100000	-	3F800000
+hfp32_ieee	40800000	-	3F000000
+hfp32_ieee	C1100000	-	BF800000
+hfp32_ieee	42640000	-	42C80000
+hfp32_ieee	00000000	-	00000000
+ieee32_hfp	C2ED4000	-	C276A000
+ieee32_hfp	3F800000	-	41100000
+ieee32_hfp	3F000000	-	40800000
+ieee32_hfp	BF800000	-	C1100000
+ieee32_hfp	42C80000	-	42640000
+#     Double: same exponent byte, 56-bit fraction. IEEE binary64 exponent 1023+6 = 0x405
+#     for 118.625, mantissa .110110101b -> DA8...
+hfp64_ieee	C276A00000000000	-	C05DA80000000000
+hfp64_ieee	4110000000000000	-	3FF0000000000000
+hfp64_ieee	4264000000000000	-	4059000000000000
+ieee64_hfp	C05DA80000000000	-	C276A00000000000
+ieee64_hfp	3FF0000000000000	-	4110000000000000
+ieee64_hfp	4059000000000000	-	4264000000000000

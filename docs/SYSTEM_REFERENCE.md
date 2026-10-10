@@ -1603,7 +1603,7 @@ Gaps: no networking, no hashing of chunks inside the module; untested.
 Status: WORKING (tested in verify-all)
 What it does: Bounded parsers/builders for telecom and mainframe formats: SIP messages and SDP audio offers, M3UA/SCCP/TCAP/MAP (USSD and SMS carriage), ISUP<->SIP cause mapping, DTMF tones/RTP events, EBCDIC code pages, COBOL copybooks and packed/zoned decimals, Fortran records and IBM float. Data model only; no carrier connection (stated).
 Main entry points: sip_parse, sdp_parse, m3ua_parse_data, sccp_parse_udt, tcap_parse, map_parse_*, cobol_parse_copybook, ebcdic_to_utf8.
-Tests: test_sip/ss7/isup_map/dtmf/ebcdic/cobol/fortran (50/46/33/61/795/49/36) — pass. group3 fuzzed all parsers 3M iterations under ASan/UBSan after fixing three memory bugs (findings).
+Tests: test_sip/ss7/isup_map/dtmf/ebcdic/cobol/fortran (50/46/33/61/795/49/36) — pass. bench/legacy checks COMP-3, zoned, COMP and IBM HFP conversions bit-exact against 44 published or hand-worked golden rows (verify-all: legacy_bench). group3 fuzzed all parsers 3M iterations under ASan/UBSan after fixing three memory bugs (findings).
 Used by: arch/arm, boot, net, orbital_compat (includes). Hosted only.
 Gaps: none open after fixes.
 
@@ -1626,7 +1626,7 @@ Used by: kernel (Makefile COMMON_SRCS, arm64). Gaps: test_license.c lacks SPDX.
 Status: WORKING (tested in verify-all)
 What it does: Converts values and layouts between COBOL packed/zoned decimals, Fortran column-major arrays and C conventions exactly, using exact rationals, and says when a conversion cannot be lossless.
 Main entry points: lr_packed_to_rat, lr_rat_to_packed, lr_zoned_to_rat, lr_scaled_to_rat, lr_ebcdic_to_ascii, lr_fixed_to_cstr.
-Tests: test_lightningrod.c, test_lightningrod_regress.c — pass.
+Tests: test_lightningrod.c, test_lightningrod_regress.c — pass. bench/legacy golden rows cover lr_packed_to_rat and lr_zoned_to_rat.
 Used by: orbital_compat. Kernel: yes.
 Gaps: lightningrod.c and tests lack SPDX.
 
@@ -1730,7 +1730,7 @@ Gaps: no host test in verify-all.
 Status: WORKING (tested in verify-all)
 What it does: Keccak/SHA-3/SHAKE, NTT, sampling, encoding, K-PKE and ML-KEM-768 keygen/encaps/decaps with implicit rejection (now a branch-free select). genomic_codon adds a domain-separation label only, not security.
 Main entry points: mlkem768_keygen, mlkem768_encaps, mlkem768_decaps, kpe_*, sha3_256, sha3_512, shake128_*, shake256.
-Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), pq tests — pass. encode/ntt/sample/kpe/genomic validators also pass but are not in verify-all (lines in group3_verify_lines.mk).
+Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), pq tests — pass. `make -C kernel kat-cross` also runs test_mlkem_kat on aarch64, riscv64, armhf, i686 and s390x (big-endian) under qemu-user; `make -C kernel ct-valgrind` runs decaps and encaps under valgrind with the secrets marked undefined and finds no secret-dependent branch or index (not a constant-time proof). SHA-3/SHAKE was wrong on big-endian CPUs (byte view of the lanes); fixed in keccak.c. encode/ntt/sample/kpe/genomic validators also pass but are not in verify-all (lines in group3_verify_lines.mk).
 Used by: ~17 modules (pay, ident, plnp, cardnet, web4, ...). Kernel: yes.
 Gaps: validator files lack SPDX; headers say "All Rights Reserved" beside Apache-2.0.
 
@@ -1887,9 +1887,9 @@ Gaps: Default-admit for unsealed ports is a policy choice that callers must know
 Status: WORKING (tested in verify-all)
 What it does: Vendored/ported ML-DSA-65/87, SLH-DSA, ML-KEM-768/1024 and HQC-5, with a "matrix" layer that wraps every algorithm behind one encode/decode/sign/verify table. pq_security.c adds a hybrid ML-DSA-65 + SLH-DSA signature for ledger entries and boot verification, with results reported as LPRES states.
 Main entry points: pq_hybrid_sign / pq_hybrid_verify, pq_boot_verify, pq_identity_authenticate, pq_self_test, pq_matrix_* (pq_matrix.h).
-Tests: test_pq_security.c (24 checks), test_pq_kat.c (29, known-answer vectors from gen_pq_kat.py), test_pq_matrix.c (165 + 45,600 fuzzed decoder inputs). All are in verify-all.
+Tests: test_pq_security.c (24 checks), test_pq_kat.c (29, known-answer vectors from gen_pq_kat.py), test_pq_matrix.c (165 + 45,600 fuzzed decoder inputs). All are in verify-all. `make -C kernel kat-cross` (CI job kat-cross) runs test_pq_kat and test_pq_matrix on aarch64, riscv64, armhf, i686 and s390x under qemu-user. `make -C kernel ct-valgrind` runs ML-DSA-65 signing under valgrind with the secret key marked undefined and prints every report (not gated; the reports are in the vendored reference's rejection loop, hint and challenge code).
 Used by: quest, ident, cardnet, curzi, devmesh, ehop, evolve, market. Not in arm64 list.
-Gaps: The header claimed "voltage severing" layers, ML-KEM-1024 for layer 5 and "valid if EITHER half verifies". All three are corrected. Hybrid verify must accept only LPRES_STATE_TRUE. The PQ_KEM1024_* macros are unused.
+Gaps: The header claimed "voltage severing" layers, ML-KEM-1024 for layer 5 and "valid if EITHER half verifies". All three are corrected. Hybrid verify must accept only LPRES_STATE_TRUE. The PQ_KEM1024_* macros are unused. The vendored HQC-5 reference serialises uint64_t vectors with memcpy, so it fails its KAT on big-endian CPUs (s390x); do not use HQC-5 there. SLH-DSA-SHAKE was wrong on big-endian and is fixed (sha3_f1600.c, slh_shake.c).
 
 ### predictive — surplus trajectory forecaster
 Status: WORKING (has a test, not in verify-all)

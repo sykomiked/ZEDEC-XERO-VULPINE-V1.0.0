@@ -560,7 +560,7 @@ bool pqm_sig_keygen(pqm_level_t level, const uint8_t seed[PQM_SEED_BYTES], pqm_s
 static bool args_ok(const uint8_t *msg, size_t msg_len, const uint8_t *ctx, size_t ctx_len)
 {
     return (msg || !msg_len) && (ctx || !ctx_len) && ctx_len <= PQM_CTX_MAX &&
-           (uint64_t) msg_len <= 0xffffffffu;
+           ((uint64_t) msg_len >> 32) == 0; /* fits 32 bits; no type-limits warning on 32-bit */
 }
 
 bool pqm_sign(const pqm_sig_sk_t *sk, const uint8_t *msg, size_t msg_len, const uint8_t *ctx,
