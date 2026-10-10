@@ -2,6 +2,7 @@
 /* zt_model.c — the integer forward pass, sampling and generation (T21). See
  * zt_model.h for the arithmetic and its limits. */
 #include "zt_model.h"
+#include "zt_kern.h"
 
 #define LIM52 ((int64_t) 1 << 52)
 #define LIM58 ((int64_t) 1 << 58)
@@ -33,20 +34,6 @@ static uint32_t le32(const uint8_t *p)
 {
     return (uint32_t) p[0] | ((uint32_t) p[1] << 8) | ((uint32_t) p[2] << 16) |
            ((uint32_t) p[3] << 24);
-}
-
-/* v * 2^e, floor for e < 0, clamped to +-2^52. */
-static inline int64_t term52(int64_t v, int32_t e)
-{
-    if (v == 0) return 0;
-    if (e <= 0) {
-        if (e < -62) return v < 0 ? -1 : 0;
-        v >>= -e;
-    } else {
-        if (e > 52 || v > (LIM52 >> e) || v < -(LIM52 >> e)) return v < 0 ? -LIM52 : LIM52;
-        v *= (int64_t) 1 << e;
-    }
-    return v > LIM52 ? LIM52 : v < -LIM52 ? -LIM52 : v;
 }
 
 /* (a * b) / 2^sh, truncated toward zero, clamped to +-2^58; |a| < 2^63. The
@@ -610,6 +597,7 @@ int32_t zt_model_load(zt_model_t *m, const zt_gguf_t *g, void *arena, uint64_t a
             return ZT_MODEL_ECONFIG;
         }
     }
+    m->kern = 0;
     m->eps_q48 = (uint64_t) f32_fixed(c->rms_eps_f32, 48);
     uint32_t rt = zt_isqrt64((uint64_t) c->head_dim << 40); /* sqrt(hd) * 2^20 */
     m->inv_sqrt_q30 = (uint32_t) zt_udiv64(1ull << 50, rt, 0);
@@ -638,64 +626,53 @@ static void act_quant(const zt_fx *x, uint32_t n, int16_t *q, uint8_t *sh)
     }
 }
 
-/* One GGUF Q8_0 row (in place) against 16-bit blocks; Q16 result. */
-static zt_fx dot_raw(const uint8_t *row, const int16_t *a, const uint8_t *ash, uint32_t nb)
-{
-    int64_t acc = 0; /* Q32 */
-    for (uint32_t b = 0; b < nb; b++, row += 34) {
-        const int8_t *w = (const int8_t *) (row + 2);
-        const int16_t *x = a + b * 32;
-        int32_t s = 0; /* |s| <= 32 * 128 * 32768 = 2^27: exact in 32 bits */
-        for (uint32_t i = 0; i < 32; i++) s += (int32_t) w[i] * x[i];
-        uint32_t d = (uint32_t) row[0] | ((uint32_t) row[1] << 8);
-        uint32_t ex = (d >> 10) & 31;
-        int32_t mm = (int32_t) (d & 0x3FF), e;
-        if (ex == 31) continue; /* inf/NaN scale: block reads as zero */
-        if (ex) {
-            mm |= 0x400;
-            e = (int32_t) ex - 25;
-        } else {
-            e = -24;
-        }
-        if (d & 0x8000) mm = -mm;
-        /* widen: s * m < 2^38; weight = q m 2^e, act = a 2^(sh-16) */
-        acc += term52((int64_t) s * mm, e + 16 + ash[b]);
-    }
-    return sat32((acc + 32768) >> 16);
-}
-
-static zt_fx dot_q8(const zt_q8_t *w, const int16_t *a, const uint8_t *ash, uint32_t nb)
-{
-    int64_t acc = 0;
-    for (uint32_t b = 0; b < nb; b++) {
-        const int16_t *x = a + b * 32;
-        int32_t s = 0;
-        for (uint32_t i = 0; i < 32; i++) s += (int32_t) w[b].q[i] * x[i];
-        acc += term52((int64_t) s * w[b].scale, (int32_t) ash[b] - (int32_t) w[b].shift);
-    }
-    return sat32((acc + 32768) >> 16);
-}
-
 /* y[b][r] = W[r] . a[b] (+ bias[r]) for B inputs; each weight row is read
- * once for the whole batch. */
-static void matmul(const zt_mat_t *w, const int16_t *a, const uint8_t *ash, uint32_t astride,
-                   uint32_t B, zt_fx *y, uint32_t ystride, const zt_fx *bias)
+ * once for the whole batch. The dot products are zt_kern.h's C reference, or
+ * the model's kernel set (m->kern, hosted builds only), which gives the same
+ * bits; rows may be split across threads by m->kern->par_rows. */
+typedef struct {
+    const zt_mat_t *w;
+    const int16_t *a;
+    const uint8_t *ash;
+    uint32_t astride, B, ystride;
+    zt_fx *y;
+    const zt_fx *bias;
+    zt_dot_raw_fn dot_raw;
+    zt_dot_q8_fn dot_q8;
+} mm_job_t;
+
+static void mm_rows(void *ctx, uint32_t r0, uint32_t r1)
 {
-    uint32_t nb = w->cols / 32;
-    for (uint32_t r = 0; r < w->rows; r++) {
-        int64_t bv = bias ? bias[r] : 0;
-        if (w->raw) {
-            const uint8_t *row = w->raw + (uint64_t) r * nb * 34;
-            for (uint32_t b = 0; b < B; b++)
-                y[(uint64_t) b * ystride + r] = sat32(
-                    dot_raw(row, a + (uint64_t) b * astride, ash + b * (astride / 32), nb) + bv);
-        } else {
-            const zt_q8_t *row = w->q8 + (uint64_t) r * nb;
-            for (uint32_t b = 0; b < B; b++)
-                y[(uint64_t) b * ystride + r] = sat32(
-                    dot_q8(row, a + (uint64_t) b * astride, ash + b * (astride / 32), nb) + bv);
+    const mm_job_t *j = ctx;
+    const zt_mat_t *w = j->w;
+    uint32_t nb = w->cols / 32, as = j->astride;
+    for (uint32_t r = r0; r < r1; r++) {
+        int64_t bv = j->bias ? j->bias[r] : 0;
+        for (uint32_t b = 0; b < j->B; b++) {
+            const int16_t *a = j->a + (uint64_t) b * as;
+            const uint8_t *ash = j->ash + b * (as / 32);
+            zt_fx d;
+            if (w->raw) {
+                const uint8_t *row = w->raw + (uint64_t) r * nb * 34;
+                d = j->dot_raw ? j->dot_raw(row, a, ash, nb) : zt_dot_raw_c(row, a, ash, nb);
+            } else {
+                const zt_q8_t *row = w->q8 + (uint64_t) r * nb;
+                d = j->dot_q8 ? j->dot_q8(row, a, ash, nb) : zt_dot_q8_c(row, a, ash, nb);
+            }
+            j->y[(uint64_t) b * j->ystride + r] = sat32(d + bv);
         }
     }
+}
+
+static void matmul(const zt_model_t *m, const zt_mat_t *w, const int16_t *a, const uint8_t *ash,
+                   uint32_t astride, uint32_t B, zt_fx *y, uint32_t ystride, const zt_fx *bias)
+{
+    const zt_kern_t *k = m->kern;
+    mm_job_t j = {w, a, ash, astride, B, ystride, y, bias, k ? k->dot_raw : 0, k ? k->dot_q8 : 0};
+    if (k && k->par_rows)
+        k->par_rows(k->pctx, mm_rows, &j, w->rows, (uint64_t) w->rows * w->cols * B);
+    else
+        mm_rows(&j, 0, w->rows);
 }
 
 /* y = x / sqrt(mean(x^2) + eps) * gain, n <= 65536. In place is allowed. */
@@ -942,9 +919,9 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
             rmsnorm(s->x + b * ne, ne, &L->attn_norm, m->eps_q48, s->xn + b * ne);
             act_quant(s->xn + b * ne, ne, s->a16 + b * as, s->ash + b * (as / 32));
         }
-        matmul(&L->wq, s->a16, s->ash, as, B, s->q, qd, L->bq);
-        matmul(&L->wk, s->a16, s->ash, as, B, s->k, kvd, L->bk);
-        matmul(&L->wv, s->a16, s->ash, as, B, s->v, kvd, L->bv);
+        matmul(m, &L->wq, s->a16, s->ash, as, B, s->q, qd, L->bq);
+        matmul(m, &L->wk, s->a16, s->ash, as, B, s->k, kvd, L->bk);
+        matmul(m, &L->wv, s->a16, s->ash, as, B, s->v, kvd, L->bv);
         for (uint32_t b = 0; b < B; b++) {
             zt_fx *q = s->q + b * qd, *k = s->k + b * kvd;
             if (L->q_norm.g) {
@@ -961,21 +938,21 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
             attend(m, s, l, s->q + b * qd, p0 + b, s->att + b * qd);
             act_quant(s->att + b * qd, qd, s->a16 + b * as, s->ash + b * (as / 32));
         }
-        matmul(&L->wo, s->a16, s->ash, as, B, s->xn, ne, 0);
+        matmul(m, &L->wo, s->a16, s->ash, as, B, s->xn, ne, 0);
         for (uint32_t b = 0; b < B; b++) {
             zt_fx *x = s->x + b * ne, *o = s->xn + b * ne;
             for (uint32_t i = 0; i < ne; i++) x[i] = sat32((int64_t) x[i] + o[i]);
             rmsnorm(x, ne, &L->ffn_norm, m->eps_q48, o);
             act_quant(o, ne, s->a16 + b * as, s->ash + b * (as / 32));
         }
-        matmul(&L->wg, s->a16, s->ash, as, B, s->gt, nf, 0);
-        matmul(&L->wu, s->a16, s->ash, as, B, s->up, nf, 0);
+        matmul(m, &L->wg, s->a16, s->ash, as, B, s->gt, nf, 0);
+        matmul(m, &L->wu, s->a16, s->ash, as, B, s->up, nf, 0);
         for (uint32_t b = 0; b < B; b++) {
             zt_fx *g = s->gt + b * nf, *u = s->up + b * nf;
             for (uint32_t i = 0; i < nf; i++) g[i] = silu_mul(g[i], u[i]);
             act_quant(g, nf, s->a16 + b * as, s->ash + b * (as / 32));
         }
-        matmul(&L->wd, s->a16, s->ash, as, B, s->xn, ne, 0);
+        matmul(m, &L->wd, s->a16, s->ash, as, B, s->xn, ne, 0);
         for (uint32_t b = 0; b < B; b++) {
             zt_fx *x = s->x + b * ne, *o = s->xn + b * ne;
             for (uint32_t i = 0; i < ne; i++) x[i] = sat32((int64_t) x[i] + o[i]);
@@ -988,7 +965,7 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
         rmsnorm(s->x + b * ne, ne, &m->out_norm, m->eps_q48, s->xn + b * ne);
         act_quant(s->xn + b * ne, ne, s->a16 + (b - first) * as, s->ash + (b - first) * (as / 32));
     }
-    matmul(&m->out, s->a16, s->ash, as, B - first, logits, c->n_vocab, 0);
+    matmul(m, &m->out, s->a16, s->ash, as, B - first, logits, c->n_vocab, 0);
     return ZT_GGUF_OK;
 }
 

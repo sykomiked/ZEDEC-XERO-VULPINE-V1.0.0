@@ -163,6 +163,10 @@ typedef struct {
     zt_rope_t rope;
     uint64_t eps_q48;      /* rms epsilon * 2^48 */
     uint32_t inv_sqrt_q30; /* 2^30 / sqrt(head_dim) */
+    /* Kernel set for the matrix products (zt_kern.h); zt_model_load sets 0,
+     * the portable C reference. A hosted caller may point it at zt_simd.h's
+     * SIMD or threaded kernels afterwards: the output bits do not change. */
+    const struct zt_kern *kern;
 } zt_model_t;
 
 /* Read and check the configuration only (no tensor data is touched). */

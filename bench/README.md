@@ -41,6 +41,15 @@ Build output goes to `/tmp/zxv_bench` (override with `OUT=dir`).
       python3 bench/tensor/make_tiny_model.py /tmp/zxv_bench/tok_only.gguf /tmp/zxv_bench/tiny.gguf
       make -C bench tensor MODEL=/tmp/zxv_bench/tiny.gguf N=8
 
+- `make_synth_model.py TOKENIZER_ONLY.gguf OUT.gguf --shape qwen1.5b --type q8_0|q4_k
+  --vocab 151936` writes a model with the Qwen2.5-1.5B shape (28 layers, 1536
+  wide, n_ff 8960, 151936-row tied output) and random quantized weights (about
+  1.6 GB for q8_0, 1.0 GB for q4_k). Its tokens/s are **synthetic**: they
+  measure the kernels and the memory system of the machine they run on, not a
+  real model. `zt_bench --kern c|avx2|avx512|neon --threads N` picks the
+  matrix kernels (kernel/src/tensor/zt_simd.h) and the thread count; every
+  choice prints the same token ids.
+
 To reproduce a real comparison, pick a model the engine supports (see
 `docs/SYSTEM_REFERENCE.md`, tensor entry), use the same GGUF file for both
 engines, pin the CPU frequency governor if you can, and run each benchmark
