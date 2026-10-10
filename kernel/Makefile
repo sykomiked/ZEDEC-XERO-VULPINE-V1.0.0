@@ -1214,6 +1214,11 @@ verify-all: test
 	python3 ../install/install_zxv.py --selftest > /tmp/test_installer.log 2>&1 && \
 		echo "[PASS] installer_selftest ($$(grep -c '\[PASS\]' /tmp/test_installer.log) checks)" || \
 		{ cat /tmp/test_installer.log; echo "[FAIL] installer_selftest"; exit 1; }; \
+	echo "=== Tiered tests: root axioms, integration, metamorphic (plain, ASan+LSan+UBSan, Q32.32) ==="; \
+	python3 ../tests/harness/tiers.py -q tier1 && echo "[PASS] tier1 root axioms (tests/01_root_axioms)" || { echo "[FAIL] tier1 root axioms"; exit 1; }; \
+	python3 ../tests/harness/tiers.py -q tier2 && echo "[PASS] tier2 integration (tests/02_integration)" || { echo "[FAIL] tier2 integration"; exit 1; }; \
+	python3 ../tests/harness/tiers.py -q tier3 && echo "[PASS] tier3 metamorphic (tests/03_metamorphic)" || { echo "[FAIL] tier3 metamorphic"; exit 1; }; \
+	python3 ../tests/harness/mutator/mutate.py --selftest && echo "[PASS] mutation harness self-test" || { echo "[FAIL] mutation harness self-test"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).

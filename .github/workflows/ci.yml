@@ -302,3 +302,24 @@ jobs:
         with:
           name: dotnet-test-results
           path: bindings/dotnet/tests/**/TestResults/*.trx
+
+  # Mutation testing on a small fixed subset (the full run is slow; see
+  # tests/MUTATION_REPORT.md). Fails when a mutation score drops below the
+  # measured baseline recorded in tests/harness/mutator/targets.json.
+  mutation-subset:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make
+      - name: Mutation harness self-test
+        run: python3 tests/harness/mutator/mutate.py --selftest
+      - name: Mutation score gate (CI subset)
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --jobs 4 --out mutation-results
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: mutation-results
+          path: mutation-results/*.txt
