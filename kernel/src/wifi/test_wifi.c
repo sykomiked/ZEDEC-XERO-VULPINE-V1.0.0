@@ -1825,14 +1825,14 @@ int main(void)
 
         /* coverage on a healthy device */
         CHECK(wifi_verify_coverage(&dev), "coverage passes: one coherent interface, radio bound");
-        CHECK(dev.coverage_r == 1.0 && dev.coverage_l == 1.0, "r = 1.0 and l = 1.0");
+        CHECK(dev.coverage_r == (uint32_t)Q16_ONE && dev.coverage_l == (uint32_t)Q16_ONE, "r = 1.0 and l = 1.0");
 
         /* now break it, three ways */
         f->connected = true;
         f->state = WIFI_STATE_IDLE; /* claims a link while idle */
         CHECK(!wifi_verify_coverage(&dev),
               "coverage FAILS when an interface claims connected while IDLE");
-        CHECK(dev.coverage_r == 0.0, "...and r drops to 0.0");
+        CHECK(dev.coverage_r == 0, "...and r drops to 0.0");
         f->state = WIFI_STATE_CONNECTED;
         memset(f->bssid, 0, 6);
         CHECK(!wifi_verify_coverage(&dev),
@@ -1877,19 +1877,19 @@ int main(void)
              * interface present it must land at exactly one half. */
             uint32_t extra = wifi_create_interface(&dev, "wlan1", WIFI_MODE_STATION);
             wifi_interface_t *xf = wifi_get_interface(&dev, extra);
-            CHECK(extra == 2 && wifi_verify_coverage(&dev) && dev.coverage_r == 1.0,
+            CHECK(extra == 2 && wifi_verify_coverage(&dev) && dev.coverage_r == (uint32_t)Q16_ONE,
                   "a second, idle-and-honest interface keeps r at 1.0");
             xf->connected = true; /* claims a link it does not hold */
-            CHECK(!wifi_verify_coverage(&dev) && dev.coverage_r == 0.5,
+            CHECK(!wifi_verify_coverage(&dev) && dev.coverage_r == (uint32_t)Q16_ONE / 2,
                   "one honest interface out of two puts r at exactly 0.5, and 0.5 fails");
             xf->connected = false;
-            CHECK(wifi_verify_coverage(&dev) && dev.coverage_r == 1.0,
+            CHECK(wifi_verify_coverage(&dev) && dev.coverage_r == (uint32_t)Q16_ONE,
                   "and r returns to 1.0 when it stops claiming");
             dev.num_ifaces = 1; /* drop it again for what follows */
             memset(xf, 0, sizeof *xf);
         }
         wifi_unbind_ops(&dev);
-        CHECK(!wifi_verify_coverage(&dev) && dev.coverage_l == 0.0,
+        CHECK(!wifi_verify_coverage(&dev) && dev.coverage_l == 0,
               "coverage FAILS with the radio unbound — a device with no radio covers nothing");
         CHECK(wifi_bind_ops(&dev, &ops) == WIFI_OK && wifi_verify_coverage(&dev),
               "and passes again once the radio is back");

@@ -14,23 +14,17 @@
 #include "audiogenomics_pro.h"
 
 #ifdef TEST_HOST
-#include <string.h>
-#include <math.h>
-#include <stdio.h>
+#    include <string.h>
+#    include <stdio.h>
 #else
 #include "freestanding.h"
 #endif
 
 /* ===== Constants ===== */
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-#define AGP_TWO_PI (2.0 * M_PI)
-
-/* 432 Hz retuning ratio */
-#define AGP_432_RATIO (432.0 / 440.0)
+/* 432 Hz retuning ratio, 432/440 = 54/55 (applied exactly in integers) */
+#define AGP_432_NUM 54
+#define AGP_432_DEN 55
 
 /* ===== Genetic Code Table (standard) ===== */
 
@@ -91,9 +85,9 @@ void agp_init_freq_map(agp_freq_map_t *fm, bool retune_432) {
 
     if (retune_432) {
         for (int i = 0; i < 5; i++)
-            fm->base_freq[i] *= AGP_432_RATIO;
-        fm->separator_freq *= AGP_432_RATIO;
-        fm->codon_sep_freq *= AGP_432_RATIO;
+            fm->base_freq[i] = fx_sdiv64(fm->base_freq[i] * AGP_432_NUM, AGP_432_DEN);
+        fm->separator_freq = fx_sdiv64(fm->separator_freq * AGP_432_NUM, AGP_432_DEN);
+        fm->codon_sep_freq = fx_sdiv64(fm->codon_sep_freq * AGP_432_NUM, AGP_432_DEN);
     }
 }
 
@@ -106,10 +100,10 @@ void agp_init_modulation(agp_modulation_t *mod) {
 }
 
 void agp_init_em_params(agp_em_params_t *em) {
-    em->electric_amplitude = 0.6;
-    em->magnetic_amplitude = 0.4;
-    em->electric_phase = 0.0;
-    em->magnetic_phase = M_PI / 2.0;  /* 90° phase shift (Maxwell) */
+    em->electric_amplitude = Q16_CONST(3, 5); /* 0.6 */
+    em->magnetic_amplitude = Q16_CONST(2, 5); /* 0.4 */
+    em->electric_phase = 0;
+    em->magnetic_phase = 0x40000000u; /* quarter turn: 90° phase shift (Maxwell) */
 }
 
 void agp_init_config(agp_pipeline_config_t *cfg) {
@@ -286,9 +280,49 @@ void agp_sequence_stats(const char *seq, uint32_t len,
     *gc_content = (total > 0) ? (gc * 100 / total) : 0;
 }
 
+/* ===== Fixed-point helpers ===== */
+
+static agp_sample_t agp_sat(int64_t v)
+{
+    if (v > INT32_MAX) return INT32_MAX;
+    if (v < INT32_MIN) return INT32_MIN;
+    return (agp_sample_t) v;
+}
+
+static int64_t agp_abs64(int64_t v)
+{
+    return v < 0 ? -v : v;
+}
+
+/* Samples in duration_ms at sample_rate (floor), saturating at UINT32_MAX. */
+static uint32_t agp_samples_for(uint32_t sample_rate, uint32_t duration_ms)
+{
+    uint64_t n = fx_udiv64((uint64_t) sample_rate * duration_ms, 1000u, 0);
+    return n > UINT32_MAX ? UINT32_MAX : (uint32_t) n;
+}
+
+/* Per-sample phase step of freq at sample_rate, in binary turns. Whole cycles
+ * per sample wrap away, exactly as the old 2*pi wrap did. */
+static uint32_t agp_turn_step(agp_hz_t freq, uint32_t sample_rate)
+{
+    if (sample_rate == 0) return 0;
+    uint64_t f = (uint64_t) agp_abs64(freq);
+    uint64_t rem;
+    (void) fx_udiv64(f, (uint64_t) sample_rate << 16, &rem);
+    uint32_t step = (uint32_t) fx_udiv64(rem << 16, sample_rate, 0);
+    return freq < 0 ? (uint32_t) 0 - step : step;
+}
+
+/* v * num / den for a sample and non-negative ratio, truncating toward zero. */
+static agp_sample_t agp_scale(agp_sample_t v, int64_t num, int64_t den)
+{
+    return agp_sat(fx_sdiv64((int64_t) v * num, den));
+}
+
 /* ===== Frequency Mapping ===== */
 
-double agp_get_base_frequency(const agp_freq_map_t *fm, char base, int harmonic) {
+agp_hz_t agp_get_base_frequency(const agp_freq_map_t *fm, char base, int harmonic)
+{
     if (base >= 'a' && base <= 'z') base -= 32;
     int idx;
     switch (base) {
@@ -298,12 +332,12 @@ double agp_get_base_frequency(const agp_freq_map_t *fm, char base, int harmonic)
         case 'G': idx = 3; break;
         default:  idx = 4; break;
     }
-    return fm->base_freq[idx] * (double)harmonic;
+    return fm->base_freq[idx] * (agp_hz_t) harmonic;
 }
 
-void agp_get_sequence_frequencies(const agp_freq_map_t *fm,
-                                   const char *seq, uint32_t len,
-                                   double *freqs, uint32_t *count, uint32_t max) {
+void agp_get_sequence_frequencies(const agp_freq_map_t *fm, const char *seq, uint32_t len,
+                                  agp_hz_t *freqs, uint32_t *count, uint32_t max)
+{
     uint32_t n = 0;
     for (uint32_t i = 0; i < len && n < max; i++) {
         char c = seq[i];
@@ -319,8 +353,9 @@ void agp_get_sequence_frequencies(const agp_freq_map_t *fm,
     *count = n;
 }
 
-double agp_get_codon_frequency(const agp_freq_map_t *fm, const char *codon) {
-    double sum = 0;
+agp_hz_t agp_get_codon_frequency(const agp_freq_map_t *fm, const char *codon)
+{
+    agp_hz_t sum = 0;
     int count = 0;
     for (int i = 0; i < 3; i++) {
         char c = codon[i];
@@ -330,52 +365,52 @@ double agp_get_codon_frequency(const agp_freq_map_t *fm, const char *codon) {
             count++;
         }
     }
-    return (count > 0) ? (sum / count) : 0.0;
+    return (count > 0) ? fx_sdiv64(sum, count) : 0;
 }
 
-double agp_calculate_beat_frequency(const agp_freq_map_t *fm, char b1, char b2) {
-    double f1 = agp_get_base_frequency(fm, b1, 1);
-    double f2 = agp_get_base_frequency(fm, b2, 1);
-    double diff = f1 - f2;
-    if (diff < 0) diff = -diff;
-    return diff;
+agp_hz_t agp_calculate_beat_frequency(const agp_freq_map_t *fm, char b1, char b2)
+{
+    agp_hz_t f1 = agp_get_base_frequency(fm, b1, 1);
+    agp_hz_t f2 = agp_get_base_frequency(fm, b2, 1);
+    return agp_abs64(f1 - f2);
 }
 
 /* ===== Tone Generation ===== */
 
-static double agp_waveform_value(agp_waveform_t wave, double phase) {
+static agp_sample_t agp_waveform_value(agp_waveform_t wave, uint32_t phase)
+{
     switch (wave) {
         case AGP_WAVE_SQUARE:
-            return (phase < M_PI) ? 1.0 : -1.0;
+            return (phase < 0x80000000u) ? Q16_ONE : -Q16_ONE;
         case AGP_WAVE_SAWTOOTH:
-            return (2.0 * (phase / AGP_TWO_PI)) - 1.0;
+            return (agp_sample_t) (phase >> 15) - Q16_ONE; /* 2p - 1 */
         case AGP_WAVE_TRIANGLE: {
-            double p = phase / AGP_TWO_PI;
-            return (p < 0.5) ? (4.0 * p - 1.0) : (3.0 - 4.0 * p);
+            agp_sample_t q = (agp_sample_t) (phase >> 14); /* 4p, Q16.16 */
+            return (phase < 0x80000000u) ? (q - Q16_ONE) : (3 * Q16_ONE - q);
         }
         case AGP_WAVE_SINE:
         default:
-            return sin(phase);
+            return fx_sin_turn(phase);
     }
 }
 
-void agp_generate_tone(double freq, double duration, uint32_t sample_rate,
-                       agp_waveform_t wave, float *out, uint32_t *out_len,
-                       uint32_t max_samples) {
-    uint32_t n = (uint32_t)(sample_rate * duration);
+void agp_generate_tone(agp_hz_t freq, uint32_t duration_ms, uint32_t sample_rate,
+                       agp_waveform_t wave, agp_sample_t *out, uint32_t *out_len,
+                       uint32_t max_samples)
+{
+    uint32_t n = agp_samples_for(sample_rate, duration_ms);
     if (n > max_samples) n = max_samples;
     if (n < 2) { *out_len = 0; return; }
 
-    double phase_inc = AGP_TWO_PI * freq / (double)sample_rate;
-    double phase = 0;
+    uint32_t step = agp_turn_step(freq, sample_rate);
+    uint32_t phase = 0;
 
     for (uint32_t i = 0; i < n; i++) {
-        out[i] = (float)agp_waveform_value(wave, phase);
-        phase += phase_inc;
-        if (phase >= AGP_TWO_PI) phase -= AGP_TWO_PI;
+        out[i] = agp_waveform_value(wave, phase);
+        phase += step; /* wraps at one full cycle */
     }
 
-    agp_apply_adsr(out, n, sample_rate, 5.0, 10.0);
+    agp_apply_adsr(out, n, sample_rate, 5u, 10u);
     *out_len = n;
 }
 
@@ -384,27 +419,32 @@ void agp_generate_sequence_audio(const agp_freq_map_t *fm,
                                   uint32_t sample_rate, uint32_t base_cycles,
                                   agp_waveform_t wave,
                                   agp_audio_buffer_t *buf) {
-    if (len == 0 || !seq || !buf) { buf->length = 0; return; }
+    if (len == 0 || !seq || !buf) {
+        if (buf) buf->length = 0;
+        return;
+    }
 
-    double base_duration = (double)base_cycles / (double)len;
-    if (base_duration * len < 3.0) base_duration = 3.0 / len;
-    if (base_duration * len > 6.0) base_duration = 6.0 / len;
+    /* Total duration base_cycles seconds, clamped to [3, 6] s, shared evenly
+     * between the bases. */
+    uint32_t total_s = base_cycles;
+    if (total_s < 3u) total_s = 3u;
+    if (total_s > 6u) total_s = 6u;
+    uint32_t per_base = (uint32_t) fx_udiv64((uint64_t) sample_rate * total_s, len, 0);
 
     uint32_t total = 0;
     for (uint32_t i = 0; i < len && total < AGP_MAX_AUDIO; i++) {
         char c = seq[i];
         if (c >= 'a' && c <= 'z') c -= 32;
-        double freq = agp_get_base_frequency(fm, c, 1);
-        uint32_t n = (uint32_t)(sample_rate * base_duration);
+        agp_hz_t freq = agp_get_base_frequency(fm, c, 1);
+        uint32_t n = per_base;
         if (total + n > AGP_MAX_AUDIO) n = AGP_MAX_AUDIO - total;
         if (n == 0) break;
 
-        double phase_inc = AGP_TWO_PI * freq / (double)sample_rate;
-        double phase = 0;
+        uint32_t step = agp_turn_step(freq, sample_rate);
+        uint32_t phase = 0;
         for (uint32_t j = 0; j < n; j++) {
-            buf->samples[total + j] = (float)agp_waveform_value(wave, phase);
-            phase += phase_inc;
-            if (phase >= AGP_TWO_PI) phase -= AGP_TWO_PI;
+            buf->samples[total + j] = agp_waveform_value(wave, phase);
+            phase += step;
         }
         total += n;
     }
@@ -413,66 +453,84 @@ void agp_generate_sequence_audio(const agp_freq_map_t *fm,
     buf->sample_rate = sample_rate;
 
     if (total > 0) {
-        agp_apply_adsr(buf->samples, total, sample_rate, 5.0, 10.0);
+        agp_apply_adsr(buf->samples, total, sample_rate, 5u, 10u);
     }
 }
 
 /* ===== Modulation ===== */
 
-void agp_fm_modulate(const float *modulator, uint32_t len,
-                     double carrier_freq, double mod_index,
-                     uint32_t sample_rate, float *out) {
-    double freq_dev = carrier_freq * mod_index;
-    double integral = 0;
+void agp_fm_modulate(const agp_sample_t *modulator, uint32_t len, agp_hz_t carrier_freq,
+                     agp_q16_t mod_index, uint32_t sample_rate, agp_sample_t *out)
+{
+    if (sample_rate == 0) {
+        for (uint32_t i = 0; i < len; i++) out[i] = 0;
+        return;
+    }
+    /* phase(i) = fc*i/sr + fdev * sum_{k<=i} mod[k]/sr, in turns */
+    int64_t freq_dev = fx_mul_q16(carrier_freq, mod_index); /* Hz, Q16.16 */
+    const int64_t dev_cap = (int64_t) 1 << 40;              /* keeps dev*mod in int64 */
+    if (freq_dev > dev_cap) freq_dev = dev_cap;
+    if (freq_dev < -dev_cap) freq_dev = -dev_cap;
+    uint32_t carrier_step = agp_turn_step(carrier_freq, sample_rate);
+    uint32_t carrier = 0, integral = 0;
 
     for (uint32_t i = 0; i < len; i++) {
-        double mod = modulator[i];
-        if (mod > 1.0) mod = 1.0;
-        if (mod < -1.0) mod = -1.0;
-        integral += mod / (double)sample_rate;
-        double t = (double)i / (double)sample_rate;
-        out[i] = (float)sin(AGP_TWO_PI * carrier_freq * t +
-                            AGP_TWO_PI * freq_dev * integral);
+        int64_t mod = modulator[i];
+        if (mod > Q16_ONE) mod = Q16_ONE;
+        if (mod < -Q16_ONE) mod = -Q16_ONE;
+        /* fdev*mod/sr turns = (fdev_q16 * mod_q16) / sr in 2^-32 turns */
+        integral += (uint32_t) (uint64_t) fx_sdiv64(freq_dev * mod, (int64_t) sample_rate);
+        out[i] = fx_sin_turn(carrier + integral);
+        carrier += carrier_step;
     }
 }
 
-void agp_am_modulate(const float *carrier, const float *modulator,
-                     uint32_t len, double depth, float *out) {
+void agp_am_modulate(const agp_sample_t *carrier, const agp_sample_t *modulator, uint32_t len,
+                     agp_q16_t depth, agp_sample_t *out)
+{
     for (uint32_t i = 0; i < len; i++) {
-        double mod = modulator[i];
-        if (mod > 1.0) mod = 1.0;
-        if (mod < -1.0) mod = -1.0;
-        out[i] = (float)(carrier[i] * (1.0 + depth * mod));
+        int64_t mod = modulator[i];
+        if (mod > Q16_ONE) mod = Q16_ONE;
+        if (mod < -Q16_ONE) mod = -Q16_ONE;
+        int64_t gain = Q16_ONE + fx_mul_q16(depth, mod);
+        out[i] = agp_sat(fx_mul_q16(carrier[i], gain));
     }
-    /* Prevent clipping */
-    float max_val = 0;
+    /* Prevent clipping: scale the peak down to 0.95 */
+    const int64_t limit = Q16_CONST(19, 20);
+    int64_t max_val = 0;
     for (uint32_t i = 0; i < len; i++) {
-        float v = out[i];
-        if (v < 0) v = -v;
+        int64_t v = agp_abs64(out[i]);
         if (v > max_val) max_val = v;
     }
-    if (max_val > 0.95f) {
-        float scale = 0.95f / max_val;
-        for (uint32_t i = 0; i < len; i++)
-            out[i] *= scale;
+    if (max_val > limit) {
+        for (uint32_t i = 0; i < len; i++) out[i] = agp_scale(out[i], limit, max_val);
     }
 }
 
-void agp_subaudible_embed(float *signal, uint32_t len, double target_db) {
-    double rms = agp_rms(signal, len);
-    if (rms < 1e-15) return;
+agp_q16_t agp_db_to_amplitude(int32_t db)
+{
+    /* 10^(db/20) = 2^(db * log2(10) / 20); log2(10) = 217706 / 65536 */
+    int64_t y = fx_sdiv64((int64_t) db * 217706, 20);
+    uint64_t a = fx_exp2_q16(y);
+    return a > (uint64_t) INT32_MAX ? INT32_MAX : (agp_q16_t) a;
+}
 
-    double target_amp = pow(10.0, target_db / 20.0);
-    double scale = target_amp / rms;
+void agp_subaudible_embed(agp_sample_t *signal, uint32_t len, int32_t target_db)
+{
+    agp_q16_t rms = agp_rms(signal, len);
+    if (rms <= 0) return;
 
-    for (uint32_t i = 0; i < len; i++)
-        signal[i] = (float)(signal[i] * scale);
+    agp_q16_t target_amp = agp_db_to_amplitude(target_db);
+    for (uint32_t i = 0; i < len; i++) signal[i] = agp_scale(signal[i], target_amp, rms);
 }
 
 void agp_nested_modulation(agp_audio_buffer_t *layers, uint32_t num_layers,
                             const agp_modulation_t *mod,
                             agp_audio_buffer_t *out) {
-    if (num_layers == 0 || !layers || !out) { out->length = 0; return; }
+    if (num_layers == 0 || !layers || !out) {
+        if (out) out->length = 0;
+        return;
+    }
     if (num_layers > AGP_MAX_LAYERS) num_layers = AGP_MAX_LAYERS;
 
     /* Find shortest layer length */
@@ -481,8 +539,9 @@ void agp_nested_modulation(agp_audio_buffer_t *layers, uint32_t num_layers,
         if (layers[i].length < min_len) min_len = layers[i].length;
 
     /* FM modulate each layer with different Solfeggio carriers */
-    double carriers[] = {528.0, 639.0, 741.0, 852.0, 396.0, 417.0, 639.0, 741.0};
-    float fm_buf[AGP_MAX_AUDIO];
+    static const agp_hz_t carriers[] = {AGP_HZ(528), AGP_HZ(639), AGP_HZ(741), AGP_HZ(852),
+                                        AGP_HZ(396), AGP_HZ(417), AGP_HZ(639), AGP_HZ(741)};
+    agp_sample_t fm_buf[AGP_MAX_AUDIO];
 
     /* Start with first FM-modulated layer */
     agp_fm_modulate(layers[0].samples, min_len,
@@ -492,14 +551,14 @@ void agp_nested_modulation(agp_audio_buffer_t *layers, uint32_t num_layers,
     out->sample_rate = layers[0].sample_rate;
 
     /* Nest AM modulation for remaining layers */
-    float temp[AGP_MAX_AUDIO];
+    agp_sample_t temp[AGP_MAX_AUDIO];
     for (uint32_t i = 1; i < num_layers; i++) {
         agp_fm_modulate(layers[i].samples, min_len,
                         carriers[i % 8], mod->fm_modulation_index,
                         layers[i].sample_rate, fm_buf);
 
-        double depth = mod->am_modulation_depth;
-        for (uint32_t j = 1; j < i; j++) depth *= 0.5;  /* Decreasing depth */
+        agp_q16_t depth = mod->am_modulation_depth;
+        for (uint32_t j = 1; j < i; j++) depth /= 2; /* Decreasing depth */
 
         agp_am_modulate(out->samples, fm_buf, min_len, depth, temp);
         for (uint32_t j = 0; j < min_len; j++)
@@ -513,28 +572,44 @@ void agp_nested_modulation(agp_audio_buffer_t *layers, uint32_t num_layers,
 
 /* ===== Electromagnetic Genomics ===== */
 
-void agp_em_generate_tone(double freq, double duration, uint32_t sample_rate,
-                           bool is_electric, const agp_em_params_t *em,
-                           float *out, uint32_t *out_len, uint32_t max_samples) {
-    uint32_t n = (uint32_t)(sample_rate * duration);
+/* One EM sample: A*sin(p1) + 0.15*A*sin(p2), times (1 + 0.05*sin(p3)). */
+static agp_sample_t agp_em_sample(agp_q16_t amplitude, uint32_t p1, uint32_t p2, uint32_t p3)
+{
+    int64_t wave = fx_mul_q16(amplitude, fx_sin_turn(p1));
+    wave += fx_mul_q16(fx_mul_q16(Q16_CONST(3, 20), amplitude), fx_sin_turn(p2));
+    int64_t imp = Q16_ONE + fx_mul_q16(Q16_CONST(1, 20), fx_sin_turn(p3));
+    return agp_sat(fx_mul_q16(wave, imp));
+}
+
+/* Writes n EM samples of freq into out (phase offset from em). */
+static void agp_em_fill(agp_hz_t freq, uint32_t n, uint32_t sample_rate, bool is_electric,
+                        const agp_em_params_t *em, agp_sample_t *out)
+{
+    agp_q16_t amplitude = is_electric ? em->electric_amplitude : em->magnetic_amplitude;
+    uint32_t offset = is_electric ? em->electric_phase : em->magnetic_phase;
+    uint32_t s1 = agp_turn_step(freq, sample_rate);
+    uint32_t s2 = agp_turn_step(freq * 2, sample_rate);            /* 2nd harmonic */
+    uint32_t s3 = agp_turn_step(fx_sdiv64(freq, 10), sample_rate); /* impedance mod */
+    uint32_t p1 = offset, p2 = offset, p3 = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        out[i] = agp_em_sample(amplitude, p1, p2, p3);
+        p1 += s1;
+        p2 += s2;
+        p3 += s3;
+    }
+}
+
+void agp_em_generate_tone(agp_hz_t freq, uint32_t duration_ms, uint32_t sample_rate,
+                          bool is_electric, const agp_em_params_t *em, agp_sample_t *out,
+                          uint32_t *out_len, uint32_t max_samples)
+{
+    uint32_t n = agp_samples_for(sample_rate, duration_ms);
     if (n > max_samples) n = max_samples;
     if (n < 2) { *out_len = 0; return; }
 
-    double amplitude = is_electric ? em->electric_amplitude : em->magnetic_amplitude;
-    double phase_offset = is_electric ? em->electric_phase : em->magnetic_phase;
-    double omega = AGP_TWO_PI * freq;
+    agp_em_fill(freq, n, sample_rate, is_electric, em, out);
 
-    for (uint32_t i = 0; i < n; i++) {
-        double t = (double)i / (double)sample_rate;
-        double wave = amplitude * sin(omega * t + phase_offset);
-        /* Second harmonic (electromagnetic resonance) */
-        wave += 0.15 * amplitude * sin(2.0 * omega * t + phase_offset);
-        /* Impedance modulation */
-        wave *= 1.0 + 0.05 * sin(AGP_TWO_PI * freq * 0.1 * t);
-        out[i] = (float)wave;
-    }
-
-    agp_apply_adsr(out, n, sample_rate, 5.0, 10.0);
+    agp_apply_adsr(out, n, sample_rate, 5u, 10u);
     *out_len = n;
 }
 
@@ -542,19 +617,20 @@ void agp_em_generate_sequence(const char *dna, uint32_t len,
                                uint32_t sample_rate,
                                const agp_em_params_t *em,
                                agp_audio_buffer_t *buf) {
-    if (len == 0 || !dna || !buf) { buf->length = 0; return; }
+    if (len == 0 || !dna || !buf) {
+        if (buf) buf->length = 0;
+        return;
+    }
 
-    double target_duration = 4.5;
-    double base_duration = target_duration / (double)len;
-    if (base_duration * len < 3.0) base_duration = 3.0 / len;
-    if (base_duration * len > 6.0) base_duration = 6.0 / len;
+    /* 4.5 s in total (inside the [3, 6] s window), shared between the bases */
+    uint32_t per_base = (uint32_t) fx_udiv64((uint64_t) sample_rate * 9u, (uint64_t) len * 2u, 0);
 
     uint32_t total = 0;
     for (uint32_t i = 0; i < len; i++) {
         char c = dna[i];
         if (c >= 'a' && c <= 'z') c -= 32;
 
-        double freq;
+        agp_hz_t freq;
         bool is_electric;
         switch (c) {
             case 'A': freq = AGP_EM_FREQ_A; is_electric = true; break;
@@ -564,21 +640,11 @@ void agp_em_generate_sequence(const char *dna, uint32_t len,
             default:  freq = AGP_EM_FREQ_N; is_electric = true; break;
         }
 
-        uint32_t n = (uint32_t)(sample_rate * base_duration);
+        uint32_t n = per_base;
         if (total + n > AGP_MAX_AUDIO) n = AGP_MAX_AUDIO - total;
         if (n == 0) break;
 
-        double amplitude = is_electric ? em->electric_amplitude : em->magnetic_amplitude;
-        double phase_offset = is_electric ? em->electric_phase : em->magnetic_phase;
-        double omega = AGP_TWO_PI * freq;
-
-        for (uint32_t j = 0; j < n; j++) {
-            double t = (double)j / (double)sample_rate;
-            double wave = amplitude * sin(omega * t + phase_offset);
-            wave += 0.15 * amplitude * sin(2.0 * omega * t + phase_offset);
-            wave *= 1.0 + 0.05 * sin(AGP_TWO_PI * freq * 0.1 * t);
-            buf->samples[total + j] = (float)wave;
-        }
+        agp_em_fill(freq, n, sample_rate, is_electric, em, buf->samples + total);
         total += n;
     }
 
@@ -586,7 +652,7 @@ void agp_em_generate_sequence(const char *dna, uint32_t len,
     buf->sample_rate = sample_rate;
 
     if (total > 0) {
-        agp_normalize(buf->samples, total, 0.95);
+        agp_normalize(buf->samples, total, Q16_CONST(19, 20));
     }
 }
 
@@ -631,16 +697,18 @@ static const char *s_element_names[AGP_MAX_ELEMENTS] = {
     "Flerovium","Moscovium","Livermorium","Tennessine","Oganesson"
 };
 
-double agp_chemistry_element_frequency(uint8_t atomic_number) {
+agp_hz_t agp_chemistry_element_frequency(uint8_t atomic_number)
+{
     /* Formula: [(N / Phi) * 1.125]^2 = E (Hz)
      * N = atomic_number (proton count)
      * Phi = golden ratio
      * 1.125 = symmetry factor (360° + 45° symmetry breaking)
+     * Integer form: E = N^2 * (1.125/Phi)^2, the constant held in Q0.32,
+     * rounded to Q16.16 Hz.
      */
-    if (atomic_number == 0) return 0.0;
-    double n = (double)atomic_number;
-    double val = (n * AGP_PHI_INV) * AGP_SYMMETRY;
-    return val * val;
+    if (atomic_number == 0) return 0;
+    uint64_t n2 = (uint64_t) atomic_number * atomic_number;
+    return (agp_hz_t) ((n2 * AGP_ELEM_K_Q32 + ((uint64_t) 1 << 15)) >> 16);
 }
 
 void agp_chemistry_init_table(agp_element_t *table, uint32_t *count) {
@@ -663,24 +731,22 @@ void agp_chemistry_init_table(agp_element_t *table, uint32_t *count) {
     *count = n;
 }
 
-double agp_chemistry_compound_frequency(const agp_compound_component_t *components,
-                                         uint8_t num_components, uint16_t total_atoms) {
+agp_hz_t agp_chemistry_compound_frequency(const agp_compound_component_t *components,
+                                          uint8_t num_components, uint16_t total_atoms)
+{
     /* Formula: {[E1^(P1/W)] * [E2^(P2/W)] * ...}^2 = C (Hz)
-     * E = elemental frequency, P = atom count, W = total atoms
+     * E = elemental frequency, P = atom count, W = total atoms.
+     * Integer form, in the log2 domain: log2 C = 2 * sum(P_i * log2 E_i) / W.
      */
-    if (num_components == 0 || total_atoms == 0) return 0.0;
+    if (num_components == 0 || total_atoms == 0) return 0;
 
-    double product = 1.0;
+    int64_t acc = 0; /* sum of P_i * log2(E_i), Q16.16 */
     for (uint8_t i = 0; i < num_components; i++) {
-        double e = components[i].element_freq;
-        double p = (double)components[i].atom_count;
-        double w = (double)total_atoms;
-        if (e > 0.0) {
-            /* E^(P/W) using exp and log for freestanding compatibility */
-            product *= exp((p / w) * log(e));
-        }
+        agp_hz_t e = components[i].element_freq;
+        if (e > 0) acc += (int64_t) components[i].atom_count * fx_log2_q16((uint64_t) e);
     }
-    return product * product;  /* Square the result */
+    uint64_t c = fx_exp2_q16(fx_sdiv64(2 * acc, (int64_t) total_atoms));
+    return c > (uint64_t) INT64_MAX ? INT64_MAX : (agp_hz_t) c;
 }
 
 int agp_chemistry_build_compound(const uint8_t *atomic_numbers,
@@ -708,67 +774,68 @@ int agp_chemistry_build_compound(const uint8_t *atomic_numbers,
     return 0;
 }
 
-void agp_chemistry_generate_tone(double freq, double duration,
-                                  uint32_t sample_rate, agp_waveform_t wave,
-                                  float *out, uint32_t *out_len, uint32_t max) {
+/* out[i] += h[i] * w (Q16.16), for i < n, saturating. */
+static void agp_mix(agp_sample_t *out, const agp_sample_t *h, uint32_t n, agp_q16_t w)
+{
+    for (uint32_t i = 0; i < n; i++) out[i] = agp_sat((int64_t) out[i] + fx_mul_q16(h[i], w));
+}
+
+void agp_chemistry_generate_tone(agp_hz_t freq, uint32_t duration_ms, uint32_t sample_rate,
+                                 agp_waveform_t wave, agp_sample_t *out, uint32_t *out_len,
+                                 uint32_t max)
+{
     /* Reuse standard tone generation with harmonic overtones */
-    agp_generate_tone(freq, duration, sample_rate, wave, out, out_len, max);
+    agp_generate_tone(freq, duration_ms, sample_rate, wave, out, out_len, max);
 
     /* Add second harmonic for richness (chemical resonance) */
     if (*out_len > 0 && *out_len < max) {
         uint32_t base_len = *out_len;
-        float harm2[AGP_MAX_AUDIO];
+        agp_sample_t harm2[AGP_MAX_AUDIO];
         uint32_t h2_len;
-        agp_generate_tone(freq * 2.0, duration, sample_rate, wave,
-                          harm2, &h2_len, AGP_MAX_AUDIO);
+        agp_generate_tone(freq * 2, duration_ms, sample_rate, wave, harm2, &h2_len, AGP_MAX_AUDIO);
         uint32_t blend = (base_len < h2_len) ? base_len : h2_len;
-        for (uint32_t i = 0; i < blend; i++)
-            out[i] += harm2[i] * 0.3f;
+        agp_mix(out, harm2, blend, Q16_CONST(3, 10));
         /* Add third harmonic (Phi-weighted) */
-        agp_generate_tone(freq * 3.0, duration, sample_rate, wave,
-                          harm2, &h2_len, AGP_MAX_AUDIO);
+        agp_generate_tone(freq * 3, duration_ms, sample_rate, wave, harm2, &h2_len, AGP_MAX_AUDIO);
         blend = (base_len < h2_len) ? base_len : h2_len;
-        for (uint32_t i = 0; i < blend; i++)
-            out[i] += harm2[i] * 0.15f;
+        agp_mix(out, harm2, blend, Q16_CONST(3, 20));
     }
 }
 
-void agp_chemistry_compound_to_audio(const agp_compound_t *compound,
-                                      double duration, uint32_t sample_rate,
-                                      agp_waveform_t wave,
-                                      agp_audio_buffer_t *buf) {
-    if (!compound || !buf || compound->frequency <= 0.0) {
-        buf->length = 0;
+void agp_chemistry_compound_to_audio(const agp_compound_t *compound, uint32_t duration_ms,
+                                     uint32_t sample_rate, agp_waveform_t wave,
+                                     agp_audio_buffer_t *buf)
+{
+    if (!compound || !buf || compound->frequency <= 0 || compound->total_atoms == 0) {
+        if (buf) buf->length = 0;
         return;
     }
 
     /* Generate the compound's fundamental frequency */
     uint32_t len;
-    agp_chemistry_generate_tone(compound->frequency, duration, sample_rate,
-                                 wave, buf->samples, &len, AGP_MAX_AUDIO);
+    agp_chemistry_generate_tone(compound->frequency, duration_ms, sample_rate, wave, buf->samples,
+                                &len, AGP_MAX_AUDIO);
     buf->length = len;
     buf->sample_rate = sample_rate;
 
     /* Layer each element's frequency as harmonics, weighted by atom proportion */
-    float layer[AGP_MAX_AUDIO];
+    agp_sample_t layer[AGP_MAX_AUDIO];
     for (uint8_t i = 0; i < compound->num_components; i++) {
-        double e_freq = compound->components[i].element_freq;
-        double weight = (double)compound->components[i].atom_count /
-                        (double)compound->total_atoms;
+        agp_hz_t e_freq = compound->components[i].element_freq;
 
         uint32_t l_len;
-        agp_chemistry_generate_tone(e_freq, duration, sample_rate, wave,
-                                     layer, &l_len, AGP_MAX_AUDIO);
+        agp_chemistry_generate_tone(e_freq, duration_ms, sample_rate, wave, layer, &l_len,
+                                    AGP_MAX_AUDIO);
 
         uint32_t blend = (len < l_len) ? len : l_len;
-        float w = (float)(weight * 0.3);
-        for (uint32_t j = 0; j < blend; j++)
-            buf->samples[j] += layer[j] * w;
+        /* weight = atom_count / total_atoms * 0.3 */
+        agp_q16_t w = (agp_q16_t) ((uint32_t) compound->components[i].atom_count *
+                                   (uint32_t) Q16_CONST(3, 10) / compound->total_atoms);
+        agp_mix(buf->samples, layer, blend, w);
     }
 
     /* Normalize final output */
-    if (buf->length > 0)
-        agp_normalize(buf->samples, buf->length, 0.95);
+    if (buf->length > 0) agp_normalize(buf->samples, buf->length, Q16_CONST(19, 20));
 }
 
 /* Relationship frequency: converts any numeric relationship to Hz.
@@ -778,73 +845,95 @@ void agp_chemistry_compound_to_audio(const agp_compound_t *compound,
  *
  * freq = {[(A / Phi) * 1.125]^(Wa/W) * [(B / Phi) * 1.125]^(Wb/W)}^2
  * where W = Wa + Wb (total weight)
+ *
+ * Integer form: with e_x = [(x / Phi) * 1.125]^2,
+ *   log2 freq = 2 * (Wa * log2 e_a + Wb * log2 e_b) / W
+ *             = 4 * (Wa * log2(a * 1.125/Phi) + Wb * log2(b * 1.125/Phi)) / W
  */
-double agp_relationship_frequency(double value_a, double value_b,
-                                   double weight_a, double weight_b) {
-    if (value_a <= 0.0 || value_b <= 0.0) return 0.0;
-    double w = weight_a + weight_b;
-    if (w <= 0.0) return 0.0;
-
-    double e_a = ((value_a * AGP_PHI_INV) * AGP_SYMMETRY);
-    e_a = e_a * e_a;  /* Square for equilateral symmetry */
-
-    double e_b = ((value_b * AGP_PHI_INV) * AGP_SYMMETRY);
-    e_b = e_b * e_b;
-
-    /* Weighted geometric mean, squared */
-    double product = exp((weight_a / w) * log(e_a > 0 ? e_a : 1.0)) *
-                     exp((weight_b / w) * log(e_b > 0 ? e_b : 1.0));
-
-    return product * product;
+static int64_t agp_weighted_log2(int64_t value_q16, uint32_t weight, uint64_t total)
+{
+    uint64_t v = fx_umuldiv64((uint64_t) value_q16, AGP_SYM_PHI_Q32, (uint64_t) 1 << 32);
+    if (v == 0) v = 1; /* below Q16.16 resolution: smallest representable value */
+    int64_t l = fx_log2_q16(v);
+    uint64_t m = fx_umuldiv64((uint64_t) agp_abs64(l), weight, total);
+    return l < 0 ? -(int64_t) m : (int64_t) m;
 }
 
-void agp_relationship_to_audio(double freq, double duration, uint32_t sample_rate,
-                                agp_waveform_t wave, agp_audio_buffer_t *buf) {
-    if (!buf || freq <= 0.0) { buf->length = 0; return; }
+agp_hz_t agp_relationship_frequency(int64_t value_a_q16, int64_t value_b_q16, uint32_t weight_a,
+                                    uint32_t weight_b)
+{
+    if (value_a_q16 <= 0 || value_b_q16 <= 0) return 0;
+    uint64_t w = (uint64_t) weight_a + weight_b;
+    if (w == 0) return 0;
+
+    int64_t y = 4 * (agp_weighted_log2(value_a_q16, weight_a, w) +
+                     agp_weighted_log2(value_b_q16, weight_b, w));
+    uint64_t f = fx_exp2_q16(y);
+    return f > (uint64_t) INT64_MAX ? INT64_MAX : (agp_hz_t) f;
+}
+
+void agp_relationship_to_audio(agp_hz_t freq, uint32_t duration_ms, uint32_t sample_rate,
+                               agp_waveform_t wave, agp_audio_buffer_t *buf)
+{
+    if (!buf || freq <= 0) {
+        if (buf) buf->length = 0;
+        return;
+    }
     uint32_t len;
-    agp_chemistry_generate_tone(freq, duration, sample_rate, wave,
-                                 buf->samples, &len, AGP_MAX_AUDIO);
+    agp_chemistry_generate_tone(freq, duration_ms, sample_rate, wave, buf->samples, &len,
+                                AGP_MAX_AUDIO);
     buf->length = len;
     buf->sample_rate = sample_rate;
 }
 
 /* ===== Utility ===== */
 
-void agp_normalize(float *signal, uint32_t len, double target_peak) {
-    float max_val = 0;
+void agp_normalize(agp_sample_t *signal, uint32_t len, agp_q16_t target_peak)
+{
+    int64_t max_val = 0;
     for (uint32_t i = 0; i < len; i++) {
-        float v = signal[i];
-        if (v < 0) v = -v;
+        int64_t v = agp_abs64(signal[i]);
         if (v > max_val) max_val = v;
     }
     if (max_val > 0) {
-        float scale = (float)(target_peak / (double)max_val);
-        for (uint32_t i = 0; i < len; i++)
-            signal[i] *= scale;
+        for (uint32_t i = 0; i < len; i++) signal[i] = agp_scale(signal[i], target_peak, max_val);
     }
 }
 
-double agp_rms(const float *signal, uint32_t len) {
-    if (len == 0) return 0.0;
-    double sum_sq = 0;
-    for (uint32_t i = 0; i < len; i++)
-        sum_sq += (double)signal[i] * (double)signal[i];
-    return sqrt(sum_sq / (double)len);
+agp_q16_t agp_rms(const agp_sample_t *signal, uint32_t len)
+{
+    if (len == 0) return 0;
+    /* Pre-shift so that len squared samples cannot overflow the sum. */
+    uint64_t peak = 0;
+    for (uint32_t i = 0; i < len; i++) {
+        uint64_t v = (uint64_t) agp_abs64(signal[i]);
+        if (v > peak) peak = v;
+    }
+    unsigned sh = 0;
+    while ((peak >> sh) != 0 && ((peak >> sh) * (peak >> sh)) > (UINT64_MAX >> 1) / len) sh++;
+    uint64_t sum_sq = 0;
+    for (uint32_t i = 0; i < len; i++) {
+        uint64_t v = (uint64_t) agp_abs64(signal[i]) >> sh;
+        sum_sq += v * v;
+    }
+    uint64_t r = (uint64_t) fx_isqrt64(fx_udiv64(sum_sq, len, 0)) << sh;
+    return r > (uint64_t) INT32_MAX ? INT32_MAX : (agp_q16_t) r;
 }
 
-void agp_apply_adsr(float *signal, uint32_t len, uint32_t sample_rate,
-                    double attack_ms, double release_ms) {
-    uint32_t attack_n = (uint32_t)(sample_rate * attack_ms / 1000.0);
-    uint32_t release_n = (uint32_t)(sample_rate * release_ms / 1000.0);
+void agp_apply_adsr(agp_sample_t *signal, uint32_t len, uint32_t sample_rate, uint32_t attack_ms,
+                    uint32_t release_ms)
+{
+    uint32_t attack_n = agp_samples_for(sample_rate, attack_ms);
+    uint32_t release_n = agp_samples_for(sample_rate, release_ms);
     if (attack_n > len / 8) attack_n = len / 8;
     if (release_n > len / 8) release_n = len / 8;
 
     for (uint32_t i = 0; i < attack_n && i < len; i++)
-        signal[i] *= (float)((double)i / (double)attack_n);
+        signal[i] = agp_scale(signal[i], i, attack_n);
 
     for (uint32_t i = 0; i < release_n && (len - 1 - i) > attack_n; i++) {
         uint32_t idx = len - 1 - i;
-        signal[idx] *= (float)((double)i / (double)release_n);
+        signal[idx] = agp_scale(signal[idx], i, release_n);
     }
 }
 
@@ -877,7 +966,7 @@ int agp_run_pipeline(const agp_pipeline_config_t *cfg,
     if (output->length == 0) return -3;
 
     /* Step 3: FM modulation */
-    float fm_buf[AGP_MAX_AUDIO];
+    agp_sample_t fm_buf[AGP_MAX_AUDIO];
     agp_fm_modulate(output->samples, output->length,
                     cfg->modulation.fm_carrier_freq,
                     cfg->modulation.fm_modulation_index,
@@ -895,7 +984,7 @@ int agp_run_pipeline(const agp_pipeline_config_t *cfg,
 
     /* Step 6: Normalize */
     if (cfg->normalize_output) {
-        agp_normalize(output->samples, output->length, 0.95);
+        agp_normalize(output->samples, output->length, Q16_CONST(19, 20));
     }
 
     return 0;
@@ -911,9 +1000,9 @@ void agp_print_info(const agp_pipeline_config_t *cfg) {
     printf("  Bit depth:      %u\n", cfg->bit_depth);
     printf("  Base cycles:    %u\n", cfg->base_cycles);
     printf("  Waveform:       %d\n", cfg->waveform);
-    printf("  FM carrier:     %.1f Hz\n", cfg->modulation.fm_carrier_freq);
-    printf("  FM index:       %.3f\n", cfg->modulation.fm_modulation_index);
-    printf("  AM depth:       %.3f\n", cfg->modulation.am_modulation_depth);
+    printf("  FM carrier:     %lld Hz\n", (long long) (cfg->modulation.fm_carrier_freq >> 16));
+    printf("  FM index:       %d/65536\n", (int) cfg->modulation.fm_modulation_index);
+    printf("  AM depth:       %d/65536\n", (int) cfg->modulation.am_modulation_depth);
     printf("  432 Hz retune:  %s\n", cfg->freq_map.retune_432 ? "yes" : "no");
     printf("  Hebrew mode:    %s\n", cfg->use_hebrew ? "yes" : "no");
     printf("  Normalize:      %s\n", cfg->normalize_output ? "yes" : "no");

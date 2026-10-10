@@ -68,8 +68,7 @@ int break_potency_selfcheck(uint32_t *ratio_permille_out){
     };
     break_report_t brk;
     bp_assess_build((const surplus_real_t (*)[BP_DIM])combo, 3, &brk);
-    if (ratio_permille_out)
-        *ratio_permille_out = (uint32_t)((double)brk.ratio / (double)SR_ONE * 1000.0);
+    if (ratio_permille_out) *ratio_permille_out = SR_TO_PERMILLE(brk.ratio);
 
     /* FEEDBACK: a 1.10x per-cycle loop is unbounded; a 0.90x loop decays. */
     int loop_break = bp_feedback_unbounded(1100u);

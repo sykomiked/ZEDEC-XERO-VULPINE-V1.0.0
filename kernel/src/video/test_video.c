@@ -1033,21 +1033,21 @@ static void test_coverage_can_fail(void)
     video_init(&d, "cov");
 
     CHECK(!video_verify_coverage(&d), "FAIL 1: a device with no displays covers nothing");
-    CHECK(d.coverage_r == 0.0, "coverage_r is 0.0, not a placeholder");
+    CHECK(d.coverage_r == 0, "coverage_r is 0.0, not a placeholder");
 
     uint32_t a = video_add_display(&d, 8, 4, 32);
     CHECK(!video_verify_coverage(&d), "FAIL 2: a display with no framebuffer bound does not pass");
-    CHECK(d.coverage_r == 0.0, "coverage_r stays 0/1");
+    CHECK(d.coverage_r == 0, "coverage_r stays 0/1");
 
     video_set_framebuffer(&d, a, b1, sizeof b1);
     CHECK(video_verify_coverage(&d), "PASS: one fully configured display passes");
-    CHECK(d.coverage_r == 1.0 && d.coverage_l == 1.0,
+    CHECK(d.coverage_r == (uint32_t)Q16_ONE && d.coverage_l == (uint32_t)Q16_ONE,
           "with r = 1.0 and l = 1.0 — both computed, neither assumed");
 
     uint32_t b = video_add_display(&d, 4, 4, 32);
     CHECK(!video_verify_coverage(&d),
           "FAIL 3: adding a second display with no buffer drops coverage");
-    CHECK(d.coverage_r == 0.5, "coverage_r is exactly 1/2");
+    CHECK(d.coverage_r == (uint32_t)Q16_ONE / 2, "coverage_r is exactly 1/2");
 
     video_set_framebuffer(&d, b, b2, sizeof b2);
     CHECK(video_verify_coverage(&d), "PASS again once the second buffer is bound");
@@ -1071,7 +1071,7 @@ static void test_coverage_can_fail(void)
     d.ctx.display_id = 77; /* context points nowhere */
     CHECK(!video_verify_coverage(&d),
           "FAIL 7: a 2D context aimed at a nonexistent display is caught");
-    CHECK(d.coverage_l == 0.5, "coverage_l falls to exactly 1/2");
+    CHECK(d.coverage_l == (uint32_t)Q16_ONE / 2, "coverage_l falls to exactly 1/2");
     d.ctx.display_id = a;
 
     CHECK(video_verify_coverage(&d), "PASS once more after every fault is repaired");
@@ -1738,7 +1738,7 @@ static void test_coverage_format_mismatch(void)
 
     d.displays[0].bpp = 16; /* claims 16bpp, stores XRGB8888 */
     CHECK(!video_verify_coverage(&d), "FAIL 8: bpp 16 with an XRGB8888 format is caught");
-    CHECK(d.coverage_r == 0.0, "coverage_r drops to 0/1");
+    CHECK(d.coverage_r == 0, "coverage_r drops to 0/1");
     d.displays[0].bpp = 32;
 
     pixel_format_t saved = d.displays[0].format;

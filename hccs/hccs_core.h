@@ -7,7 +7,7 @@
 #ifndef HCCS_CORE_H
 #define HCCS_CORE_H
 
-#include "m5_types.h"
+#include "m5_host_float.h" /* host-only module: double / double complex */
 
 #define HCCS_MAX_CIRCUITS 256
 #define HCCS_MAX_COMPONENTS 512

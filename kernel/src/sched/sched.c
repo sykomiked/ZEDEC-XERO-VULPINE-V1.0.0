@@ -53,6 +53,7 @@ int32_t sched_create_task(scheduler_t *sched, const char *name, task_type_t type
     if (slot == MAX_TASKS) return -1;
 
     task_t *task = &sched->tasks[slot];
+    if (sched->next_pid == 0) sched->next_pid = 1; /* id 0 means "no task" */
     task->id = sched->next_pid++;
     str_copy(task->name, name);
     task->state = TASK_READY;
@@ -66,14 +67,16 @@ int32_t sched_create_task(scheduler_t *sched, const char *name, task_type_t type
     task->collapse_count = 0;
     task->cpu_time_ms = 0;
 
-    /* Set up initial stack: entry_point at top, then a return to terminate */
-    uint32_t stack_top = (uint32_t)(uintptr_t)&task->stack[KERNEL_STACK_SIZE / 4];
-    task->esp = stack_top - 12;
+    /* Set up initial stack: entry_point at top, then a return to terminate.
+     * Three machine words, so a 64-bit entry address is stored whole. */
+    uintptr_t stack_top = (uintptr_t) &task->stack[KERNEL_STACK_WORDS];
+    task->esp = stack_top - 3u * sizeof(uintptr_t);
     task->ebp = task->esp;
-    task->eip = (uint32_t)(uintptr_t)entry_point;
+    task->eip = (uintptr_t) entry_point;
+    task->cr3 = 0; /* no per-task address space yet */
 
     /* Stack layout: [entry_point] [sched_terminate_addr] [flags] */
-    uint32_t *sp = (uint32_t *)(uintptr_t)task->esp;
+    uintptr_t *sp = &task->stack[KERNEL_STACK_WORDS - 3u];
     sp[0] = task->eip;
     sp[1] = 0;  /* return address placeholder */
     sp[2] = 0x202; /* EFLAGS with IF set */
@@ -130,15 +133,14 @@ void sched_tick(scheduler_t *sched) {
     if (curr) {
         rational_t r = rmag_get_quota((ordinal_t)curr->id);
         trit_t ell = lpres_get_presence((ordinal_t)curr->id);
-        double coverage = rational_mag(r) * trit_to_ell(ell);
-        if (coverage < 1.8) {
+        if (m5_coverage_cmp(r, ell, 9, 5) < 0) { /* r * ell < 1.8, exact */
             /* Coverage violation: task lacks sufficient attestation.
              * Do NOT schedule this task — yield instead. */
             curr->collapse_count++;
             sched_switch(sched);
             return;
         }
-        curr->phase = (uint32_t)(coverage * 1000);
+        curr->phase = m5_coverage_permille(r, ell);
     }
 
     if (sched->ticks % 10 == 0) {
@@ -171,7 +173,9 @@ void sched_sleep(scheduler_t *sched, uint32_t task_id, uint32_t ms) {
     task_t *t = sched_get_task(sched, task_id);
     if (t) {
         t->state = TASK_SLEEPING;
-        t->sleep_until = (uint32_t)(sched->ticks + ms / 10);
+        /* 64-bit like ticks: the old uint32_t cast wrapped after 2^32 ticks,
+         * and a wrapped deadline compares as already passed (instant wake). */
+        t->sleep_until = sched->ticks + ms / 10u;
     }
 }
 

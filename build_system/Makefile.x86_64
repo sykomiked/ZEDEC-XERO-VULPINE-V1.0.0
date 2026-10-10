@@ -25,7 +25,8 @@ MAKEFLAGS += -j$(JOBS)
 
 CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -fno-stack-protector -fno-pie -no-pie -fno-builtin \
-           -ffunction-sections -fdata-sections -fcf-protection=none \
+           -ffunction-sections -fdata-sections -fcf-protection=none -mgeneral-regs-only \
+           -Werror=double-promotion -Werror=float-conversion \
            -MMD -MP \
            -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen \
            -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy \

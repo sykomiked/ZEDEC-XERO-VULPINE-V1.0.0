@@ -135,10 +135,13 @@ uint32_t hdcm_vector_hamming(const hdcm_vector_t *a, const hdcm_vector_t *b) {
     return dist;
 }
 
-float hdcm_vector_similarity(const hdcm_vector_t *a, const hdcm_vector_t *b) {
-    if (!a || !b) return 0.0f;
+/* 1 - hamming/DIM, in permille (0..1000). */
+uint32_t hdcm_vector_similarity(const hdcm_vector_t *a, const hdcm_vector_t *b)
+{
+    if (!a || !b) return 0;
     uint32_t dist = hdcm_vector_hamming(a, b);
-    return 1.0f - (float)dist / (float)HDCM_VECTOR_DIM;
+    if (dist > HDCM_VECTOR_DIM) dist = HDCM_VECTOR_DIM;
+    return ((HDCM_VECTOR_DIM - dist) * 1000u) / HDCM_VECTOR_DIM;
 }
 
 void hdcm_vector_permute(const hdcm_vector_t *in, uint32_t shift,
@@ -310,10 +313,11 @@ const hdcm_matrix_t *hdcm_matrix_find(hdcm_t *h, uint32_t src, uint32_t dst) {
     return NULL;
 }
 
-float hdcm_matrix_compatibility(hdcm_t *h, uint32_t src, uint32_t dst) {
+uint32_t hdcm_matrix_compatibility(hdcm_t *h, uint32_t src, uint32_t dst)
+{
     const hdcm_matrix_t *m = hdcm_matrix_find(h, src, dst);
     if (m) return m->compatibility_score;
-    return 0.0f;
+    return 0;
 }
 
 /* ===== Second Quantization Translation Pipeline ===== */
@@ -425,12 +429,12 @@ int hdcm_phase_measure(hdcm_t *h, uint32_t dst_lang,
      * Find closest construct vectors and emit their target tokens */
     uint32_t out_pos = 0;
     uint32_t best_idx = 0;
-    float best_sim = 0.0f;
+    uint32_t best_sim = 0; /* permille */
     uint32_t j;
 
     /* Find the most similar construct */
     for (j = 0; j < lang->construct_count; j++) {
-        float sim = hdcm_vector_similarity(entangled, &lang->constructs[j].vector);
+        uint32_t sim = hdcm_vector_similarity(entangled, &lang->constructs[j].vector);
         if (sim > best_sim) {
             best_sim = sim;
             best_idx = j;
@@ -438,7 +442,7 @@ int hdcm_phase_measure(hdcm_t *h, uint32_t dst_lang,
     }
 
     /* Emit the best matching construct's target token */
-    if (lang->construct_count > 0 && best_sim > 0.5f) {
+    if (lang->construct_count > 0 && best_sim > 500u) {
         const char *token = lang->constructs[best_idx].target_token;
         if (token[0]) {
             uint32_t tlen = hc_strlen(token);
@@ -508,7 +512,7 @@ int hdcm_translate(hdcm_t *h, uint32_t src_lang, uint32_t dst_lang,
         if (unmapped) {
             result->constructs_translated = 0;
             result->constructs_unmapped = 1;
-            result->fidelity_score = 0.0f;
+            result->fidelity_score = 0;
             result->success = false;
             return -1;
         }
@@ -516,7 +520,7 @@ int hdcm_translate(hdcm_t *h, uint32_t src_lang, uint32_t dst_lang,
 
     /* Compute fidelity from compatibility score */
     const hdcm_matrix_t *m = hdcm_matrix_find(h, src_lang, dst_lang);
-    result->fidelity_score = m ? m->compatibility_score : 0.5f;
+    result->fidelity_score = m ? m->compatibility_score : 500u;
     result->constructs_translated = 1;
     result->constructs_unmapped = 0;
     result->success = true;

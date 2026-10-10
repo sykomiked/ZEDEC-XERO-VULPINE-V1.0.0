@@ -7,7 +7,7 @@
 #ifndef SECURITY_CORE_H
 #define SECURITY_CORE_H
 
-#include "m5_types.h"
+#include "m5_host_float.h" /* host-only module: double / double complex */
 
 #define SECURITY_MAX_KEYS 256
 #define SECURITY_MAX_POLICIES 128

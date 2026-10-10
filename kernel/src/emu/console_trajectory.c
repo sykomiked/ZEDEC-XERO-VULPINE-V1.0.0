@@ -95,8 +95,7 @@ int console_trajectory_selfcheck(uint32_t *distinct_out, uint32_t *nintendo_cont
     trajectory_result_t lineage;
     console_trajectory_assess(nin, nn, &lineage);
     if (nintendo_continuity_permille_out)
-        *nintendo_continuity_permille_out =
-            (uint32_t)((double)lineage.continuity / (double)SR_ONE * 1000.0);
+        *nintendo_continuity_permille_out = SR_TO_PERMILLE(lineage.continuity);
 
     /* PASS: the whole field is diverse AND continuous, and the always-innovate
      * lineage is itself coherent — distinct mechanics on one continuous path. */

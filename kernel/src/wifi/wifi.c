@@ -1977,7 +1977,7 @@ bool wifi_verify_coverage(wifi_device_t *dev) {
     /* l: is there a radio at all? A Wi-Fi device with no radio covers
      * nothing, so this is 0.0 on a freshly initialised device and the check
      * below correctly fails. */
-    dev->coverage_l = wifi_has_radio(dev) ? 1.0 : 0.0;
+    dev->coverage_l = wifi_has_radio(dev) ? (uint32_t) Q16_ONE : 0u;
 
     /* r: the fraction of interfaces whose advertised state matches their
      * data. This is the part that can catch a real bug — an interface that
@@ -1987,12 +1987,14 @@ bool wifi_verify_coverage(wifi_device_t *dev) {
     if (n > WIFI_MAX_INTERFACES) n = WIFI_MAX_INTERFACES;
     for (uint32_t i = 0; i < n; i++)
         if (iface_is_coherent(&dev->ifaces[i])) coherent++;
-    dev->coverage_r = (n == 0) ? 0.0 : (double)coherent / (double)n;
+    dev->coverage_r =
+        (n == 0) ? 0u : (coherent * (uint32_t) Q16_ONE) / n; /* n <= WIFI_MAX_INTERFACES */
 
     /* Both factors are exact small-integer fractions in [0,1], so the
      * product reaches 1.0 only when every interface is coherent AND a radio
      * is bound. No epsilon is needed and none is used. */
-    return (dev->coverage_r * dev->coverage_l) >= WIFI_COVERAGE_FLOOR;
+    return (uint64_t) dev->coverage_r * dev->coverage_l >=
+           (uint64_t) WIFI_COVERAGE_FLOOR * (uint64_t) Q16_ONE;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------

@@ -1296,9 +1296,10 @@ void epu_handle_irq(epu_device_t *dev) {
  * "epu_ready" would have let a later module bind to it believing there was
  * hardware underneath.
  *
- * REQUIRES_NONE is measured: epu_device.o's `nm -u` is empty. It uses scalar
- * double, which Makefile.arm64:20 explicitly permits (only NEON vectorization
- * is banned, because the IRQ vector does not save the FP/SIMD file).
+ * REQUIRES_NONE is measured: epu_device.o's `nm -u` is empty. The model uses
+ * scalar double, which kernel images now forbid (-mgeneral-regs-only), so this
+ * file is host-only and the declaration below is not linked into any image;
+ * see L15 in epu_device.h.
  */
 #include "zxv_decl.h"
 static int zxvd_epu_bringup(void) {

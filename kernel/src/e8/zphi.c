@@ -110,10 +110,12 @@ bool zphi_eq(zphi_t x, zphi_t y) {
 bool zphi_is_zero(zphi_t x) { return x.valid && x.a == 0 && x.b == 0; }
 bool zphi_is_int(zphi_t x)  { return x.valid && x.b == 0; }
 
+#if __STDC_HOSTED__ /* hosted builds only: kernel images are integer-only */
 double zphi_to_double(zphi_t x) {
     if (!x.valid) return 0.0;
     return (double)x.a + (double)x.b * ZPHI_GOLDEN_D;
 }
+#endif
 
 uint32_t zphi_selfcheck(void) {
     uint32_t bad = 0;

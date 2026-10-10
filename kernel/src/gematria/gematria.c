@@ -261,8 +261,8 @@ int gematria_to_fock(gematria_t *g, const gem_word_t *word,
     }
 
     /* Apply phase shift for adjectives/adverbs */
-    if (word->phase_shift != 0.0f) {
-        uint32_t shift = (uint32_t)(word->phase_shift * 1000.0f) % HDCM_VECTOR_DIM;
+    if (word->phase_shift != 0) {
+        uint32_t shift = word->phase_shift % HDCM_VECTOR_DIM;
         hdcm_vector_t shifted;
         hdcm_vector_permute(out_vector, shift, &shifted);
         gm_memcpy(out_vector, &shifted, sizeof(hdcm_vector_t));
@@ -367,7 +367,8 @@ int gematria_analyze_sentence(gematria_t *g, const char *text,
                 /* Set phase shift for modifiers */
                 if (w->grammatical_role == GEM_ROLE_ADJECTIVE ||
                     w->grammatical_role == GEM_ROLE_ADVERB) {
-                    w->phase_shift = (float)(w->gematria_value % 360) / 360.0f;
+                    w->phase_shift =
+                        ((w->gematria_value % 360u) * 1000u) / 360u; /* permille of a turn */
                     out->modifier_count++;
                 } else if (w->grammatical_role == GEM_ROLE_NOUN) {
                     out->noun_count++;

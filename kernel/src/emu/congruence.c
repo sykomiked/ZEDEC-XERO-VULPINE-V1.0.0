@@ -116,9 +116,9 @@ static int cong_multivalued_logic(void){
     int levels = (int)(sizeof order/sizeof order[0]);
     if (levels <= 3) return 0;                       /* must exceed binary+1 */
     for (int k=1;k<levels;k++){
-        /* scale the (double) lattice value to an int for an exact comparison */
-        long lo = (long)(trit_to_ell(order[k-1]) * 1000.0 + 0.5);
-        long hi = (long)(trit_to_ell(order[k])   * 1000.0 + 0.5);
+        /* the lattice value in Q16.16 is already an exact integer */
+        long lo = (long) trit_to_ell_q16(order[k - 1]);
+        long hi = (long) trit_to_ell_q16(order[k]);
         if (!(hi > lo)) return 0;                    /* strictly monotonic */
     }
     return 1;

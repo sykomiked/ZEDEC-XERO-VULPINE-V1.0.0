@@ -39,7 +39,9 @@ OBJDIR := build/arm64
 # correctness, not speed: the IRQ vector (boot.s SAVE_REGS) saves only x0-x30,
 # NOT the FP/SIMD register file, so any live state the compiler parks in NEON
 # v-registers is clobbered when a timer IRQ preempts kernel code -> wild faults
-# (the kernel_main scan-loop poison-index bug, #41). Scalar FP is still allowed.
+# (the kernel_main scan-loop poison-index bug, #41). -mgeneral-regs-only makes
+# ANY float/double/complex use, scalar FP included, a compile error: kernel code
+# is integer-only (fixed point), so the FP/SIMD file is never live in C code.
 # -Wno-misleading-indentation: the codebase uses an intentional ultra-dense
 # single-line style (opcode-decode tables, one-line guards) that trips this pure
 # whitespace/style warning; it is never a correctness signal here. ALL correctness
@@ -49,7 +51,8 @@ OBJDIR := build/arm64
 CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -fno-stack-protector -fno-pie -no-pie -fno-builtin \
          -ffunction-sections -fdata-sections \
-         -fno-tree-vectorize -fno-tree-slp-vectorize \
+         -fno-tree-vectorize -fno-tree-slp-vectorize -mgeneral-regs-only \
+         -Werror=double-promotion -Werror=float-conversion \
          -fno-math-errno \
          -Wno-misleading-indentation \
          -MMD -MP \
@@ -493,7 +496,6 @@ KERNEL_SRCS = \
     kernel/src/dharma/uvn.c \
     kernel/src/dharma/yantra.c \
     kernel/src/emu/sms.c \
-    kernel/src/epu/epu_device.c \
     kernel/src/fs/fs.c \
     kernel/src/iphase/iphase.c \
     kernel/src/legal_engine/legal_engine.c \

@@ -5,9 +5,9 @@
 
 typedef struct m8_process {
     phase_tick_t base;
-    double axis6;
-    double axis7;
-    double axis8;
+    int32_t axis6; /* Q16.16 */
+    int32_t axis7; /* Q16.16 */
+    int32_t axis8; /* Q16.16 */
 } m8_process_t;
 
 long project_to_legacy(const phase_tick_t *pt);

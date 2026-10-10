@@ -8,6 +8,7 @@
 #ifndef PHYSICS_CORE_H
 #define PHYSICS_CORE_H
 
+#include "m5_host_float.h" /* host-only module: double / double complex */
 #include "m5_types.h"
 
 #define PHYSICS_MAX_BODIES 512

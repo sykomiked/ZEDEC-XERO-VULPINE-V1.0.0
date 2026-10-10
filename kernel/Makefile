@@ -1159,6 +1159,21 @@ verify-all: test
 		src/clock/test_event_clock.c src/clock/event_clock.c \
 		-o /tmp/test_event_clock -lm && \
 		/tmp/test_event_clock && echo "[PASS] test_event_clock" || { echo "[FAIL] test_event_clock"; exit 1; }; \
+	echo "=== Zero-float boundary: fixed-point replacements vs a host double oracle ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/audiogenomics_pro -Isrc/synthesis -Isrc/surplus -Isrc/edp_risk \
+		../tests/host/test_fixed_point.c src/audiogenomics_pro/audiogenomics_pro.c src/audiogenomics_pro/digital_dna.c \
+		src/audiogenomics_pro/architectural_directives.c src/synthesis/synthesis_engine.c \
+		-o /tmp/flt_test_fixed_point -lm && \
+		/tmp/flt_test_fixed_point > /tmp/flt_test_fixed_point.log 2>&1 && echo "[PASS] test_fixed_point" || { tail -20 /tmp/flt_test_fixed_point.log; echo "[FAIL] test_fixed_point"; exit 1; }; \
+	echo "=== Scheduler: pointer-width task context (entry above 4 GB) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/sched -Isrc/rmag -Isrc/lpres -Isrc/oseq -Isrc/phase_coord \
+		src/sched/test_sched_ptr.c src/sched/sched.c src/rmag/rmag_core.c src/lpres/lpres_core.c \
+		src/oseq/oseq_core.c src/phase_coord/phase_coordinator.c -o /tmp/flt_test_sched_ptr && \
+		/tmp/flt_test_sched_ptr > /tmp/flt_test_sched_ptr.log 2>&1 && echo "[PASS] test_sched_ptr" || { tail -20 /tmp/flt_test_sched_ptr.log; echo "[FAIL] test_sched_ptr"; exit 1; }; \
+	echo "=== Allocators: kmalloc/kcalloc/krealloc and fs_malloc/fs_calloc refuse wrapping sizes ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/mm -Isrc/rmag \
+		src/mm/test_mm_alloc.c src/mm/mm.c src/rmag/rmag_core.c -o /tmp/flt_test_mm_alloc && \
+		/tmp/flt_test_mm_alloc > /tmp/flt_test_mm_alloc.log 2>&1 && echo "[PASS] test_mm_alloc" || { tail -20 /tmp/flt_test_mm_alloc.log; echo "[FAIL] test_mm_alloc"; exit 1; }; \
 	echo "=== Audio mixer: exact sample values, clipping, wild ring cursors ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/audio -Isrc/edp_risk -Isrc/surplus -Isrc/crit168 \
 		src/audio/test_audio.c src/audio/audio.c src/edp_risk/edp_risk.c src/surplus/surplus.c \

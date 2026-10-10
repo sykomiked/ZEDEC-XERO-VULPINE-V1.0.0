@@ -100,9 +100,9 @@ int32_t goertzel_magnitude(const int16_t *samples, uint32_t n, uint16_t target_f
         imag += (samples[i] * sin_v) / 32768;
     }
     (void)coeff; (void)k;
-    /* magnitude = sqrt(real^2 + imag^2) — use fs_sqrt */
-    int64_t mag_sq = (int64_t)real * real + (int64_t)imag * imag;
-    return (int32_t)fs_sqrt((double)mag_sq);
+    /* magnitude = floor(sqrt(real^2 + imag^2)), integer square root */
+    uint64_t mag_sq = (uint64_t) ((int64_t) real * real) + (uint64_t) ((int64_t) imag * imag);
+    return (int32_t) fx_isqrt64(mag_sq);
 }
 
 char dtmf_detect(const int16_t *samples, uint32_t num_samples) {
@@ -459,16 +459,22 @@ int32_t ax25_decode(const uint8_t *data, uint32_t len, ax25_frame_t *frame) {
 }
 
 /* APRS position encoding */
-int32_t aprs_encode_position(const char *callsign, float latitude, float longitude,
-                              char *out, uint32_t max_out) {
+int32_t aprs_encode_position(const char *callsign, int32_t lat_udeg, int32_t lon_udeg, char *out,
+                             uint32_t max_out)
+{
     (void)callsign;
     if (max_out < 40) return -1;
+    if (lat_udeg < -90000000 || lat_udeg > 90000000) return -1;
+    if (lon_udeg < -180000000 || lon_udeg > 180000000) return -1;
 
-    /* APRS position format: !DDMM.mmN/DDDMM.mmW> */
-    int lat_deg = (int)latitude;
-    float lat_min = (latitude - lat_deg) * 60.0f;
-    int lon_deg = (int)longitude;
-    float lon_min = (longitude - lon_deg) * 60.0f;
+    /* APRS position format: !DDMM.mmN/DDDMM.mmW> from micro-degrees. The
+     * hemisphere letter carries the sign, so digits use the magnitude. */
+    uint32_t alat = (uint32_t) (lat_udeg < 0 ? -lat_udeg : lat_udeg);
+    uint32_t alon = (uint32_t) (lon_udeg < 0 ? -lon_udeg : lon_udeg);
+    int lat_deg = (int) (alat / 1000000u);
+    uint32_t lat_cmin = ((alat % 1000000u) * 6u) / 1000u; /* minutes x 100 */
+    int lon_deg = (int) (alon / 1000000u);
+    uint32_t lon_cmin = ((alon % 1000000u) * 6u) / 1000u;
 
     /* Simplified: use integer formatting */
     int j = 0;
@@ -477,14 +483,14 @@ int32_t aprs_encode_position(const char *callsign, float latitude, float longitu
     /* Latitude: DDMM.mmN */
     out[j++] = '0' + (lat_deg / 10);
     out[j++] = '0' + (lat_deg % 10);
-    int lat_min_int = (int)lat_min;
+    int lat_min_int = (int) (lat_cmin / 100u);
     out[j++] = '0' + (lat_min_int / 10);
     out[j++] = '0' + (lat_min_int % 10);
     out[j++] = '.';
-    int lat_min_frac = (int)((lat_min - lat_min_int) * 100);
+    int lat_min_frac = (int) (lat_cmin % 100u);
     out[j++] = '0' + (lat_min_frac / 10);
     out[j++] = '0' + (lat_min_frac % 10);
-    out[j++] = (latitude >= 0) ? 'N' : 'S';
+    out[j++] = (lat_udeg >= 0) ? 'N' : 'S';
 
     /* Separator */
     out[j++] = '/';
@@ -493,14 +499,14 @@ int32_t aprs_encode_position(const char *callsign, float latitude, float longitu
     out[j++] = '0' + (lon_deg / 100);
     out[j++] = '0' + ((lon_deg / 10) % 10);
     out[j++] = '0' + (lon_deg % 10);
-    int lon_min_int = (int)lon_min;
+    int lon_min_int = (int) (lon_cmin / 100u);
     out[j++] = '0' + (lon_min_int / 10);
     out[j++] = '0' + (lon_min_int % 10);
     out[j++] = '.';
-    int lon_min_frac = (int)((lon_min - lon_min_int) * 100);
+    int lon_min_frac = (int) (lon_cmin % 100u);
     out[j++] = '0' + (lon_min_frac / 10);
     out[j++] = '0' + (lon_min_frac % 10);
-    out[j++] = (longitude >= 0) ? 'E' : 'W';
+    out[j++] = (lon_udeg >= 0) ? 'E' : 'W';
 
     out[j++] = '>';
     out[j] = 0;

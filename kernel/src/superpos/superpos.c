@@ -20,6 +20,7 @@
 #endif
 
 #include "superpos.h"
+#include "zxv_fixed.h"
 
 /* ===== Helpers ===== */
 
@@ -504,12 +505,13 @@ int superpos_report(const superpos_t *sp, char *buf, uint32_t max_len) {
     return (int)pos;
 }
 
-float superpos_agreement_rate(const superpos_t *sp) {
-    if (!sp || sp->num_states == 0) return 1.0f;
+uint32_t superpos_agreement_permille(const superpos_t *sp)
+{
+    if (!sp || sp->num_states == 0) return 1000u;
     uint32_t verified = 0;
     uint32_t i;
     for (i = 0; i < sp->num_states; i++)
         if (sp->states[i].safety_verified && sp->states[i].active)
             verified++;
-    return (float)verified / (float)sp->num_states;
+    return (uint32_t) fx_udiv64((uint64_t) verified * 1000u, sp->num_states, 0);
 }

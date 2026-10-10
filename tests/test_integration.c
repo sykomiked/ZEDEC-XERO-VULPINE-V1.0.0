@@ -25,7 +25,7 @@ static void test_full_stack(double scale, const char *scale_name) {
 
     axiom_matrix_t matrix;
     matrix.size = 4096;
-    static double complex entries[4096];
+    static zxv_cq16_t entries[4096];
     memset(entries, 0, sizeof(entries));
     matrix.entries = entries;
 
@@ -127,7 +127,10 @@ static void test_full_stack(double scale, const char *scale_name) {
     /* Verify axiom matrix has been written by all layers */
     bool has_data = false;
     for (uint64_t i = 0; i < matrix.size; i++) {
-        if (entries[i] != 0.0) { has_data = true; break; }
+        if (!cq16_is_zero(entries[i])) {
+            has_data = true;
+            break;
+        }
     }
     assert(has_data);
 

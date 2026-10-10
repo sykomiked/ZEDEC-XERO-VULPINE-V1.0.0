@@ -39,7 +39,7 @@ int main(void)
           "identical seeds encode to identical mantras (resonance is deterministic)");
     CHECK(!cyc13_equal(va, vc), "different seeds encode to different mantras");
     rational_t amp_a = mantra_amplitude(va);
-    CHECK(rational_mag(amp_a) > 0.0, "a non-empty seed has strictly positive amplitude");
+    CHECK(rational_cmp(amp_a, (rational_t){0, 1}) > 0, "a non-empty seed has strictly positive amplitude");
     cyc13_t empty_v = mantra_encode(seed_a, 0);
     rational_t amp_empty = mantra_amplitude(empty_v);
     CHECK(amp_empty.num == 0, "a zero-length seed has exactly zero amplitude (definite, not null)");

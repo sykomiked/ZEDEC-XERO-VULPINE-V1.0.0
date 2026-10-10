@@ -66,43 +66,46 @@ static bool au_name_eq(const char *field, uint32_t max, const char *want) {
 _Static_assert(((int32_t)-1 >> 1) == (int32_t)-1,
                "this toolchain does not arithmetic-shift negative integers");
 
-/* Deterministic square root. We do NOT call the toolchain's sqrt(): the host
- * test and the freestanding target must agree bit for bit, and the target's
- * softfloat path is a different implementation.
- *
- * ACCURACY, measured rather than asserted: Newton-Raphson from above is
- * monotone-decreasing and lands EXACTLY on the root for perfect squares (checked
- * for every n*n, n = 0..100000). For everything else it is within 1 ULP of the
- * correctly-rounded root — it is NOT correctly rounded, and about a quarter of
- * arguments differ from libm's sqrt in the last bit. That is fine here: the
- * result feeds a 1/(1+d) gain that is then rounded to a 16-bit sample, so a
- * 1-ULP difference cannot change any sample this mixer emits. What matters is
- * that it is the SAME 1 ULP on host and on target. */
-static double au_sqrt(double x) {
-    if (!(x > 0.0)) return 0.0;             /* also catches NaN */
-    double r = (x > 1.0) ? x : 1.0;
-    for (int i = 0; i < 64; i++) {
-        double nr = 0.5 * (r + x / r);
-        if (nr >= r) break;                 /* converged or oscillating */
-        r = nr;
-    }
-    /* one guarded refinement so perfect squares land exactly */
-    double nr = 0.5 * (r + x / r);
-    if (nr * nr >= x && nr < r) r = nr;
-    return r;
+/* Everything below is integer: gains are Q16.16 (Q16_ONE == 1.0) and the
+ * same code runs bit for bit on the host test and on every kernel image. */
+
+/* v * g / 2^16 for a Q16.16 gain g, rounded half away from zero and clamped
+ * to +/-2e9 (the range the mixer accumulators were sized for). */
+static int32_t au_gain(int32_t v, uint32_t g)
+{
+    int64_t p = (int64_t) v * (int64_t) g;
+    int64_t r = (p >= 0) ? ((p + 32768) >> 16) : -((-p + 32768) >> 16);
+    if (r >= 2000000000) return 2000000000;
+    if (r <= -2000000000) return -2000000000;
+    return (int32_t) r;
 }
 
-/* Round half away from zero, with the range clamped so the cast is always
- * defined. NaN maps to 0 rather than to undefined behaviour. */
-static int32_t au_round_i32(double v) {
-    if (v != v) return 0;
-    if (v >= 2000000000.0) return 2000000000;
-    if (v <= -2000000000.0) return -2000000000;
-    return (int32_t)(v >= 0.0 ? v + 0.5 : v - 0.5);
+/* floor(sqrt(x^2 + y^2 + z^2)) for Q16.16 coordinates, result Q16.16. The
+ * components are scaled down until each fits 31 bits so the sum of squares
+ * cannot overflow 64 bits; the root is scaled back up. */
+static uint64_t au_dist_q16(int64_t x, int64_t y, int64_t z)
+{
+    uint64_t ax = x < 0 ? (uint64_t) 0 - (uint64_t) x : (uint64_t) x;
+    uint64_t ay = y < 0 ? (uint64_t) 0 - (uint64_t) y : (uint64_t) y;
+    uint64_t az = z < 0 ? (uint64_t) 0 - (uint64_t) z : (uint64_t) z;
+    uint32_t sh = 0;
+    while ((ax >> sh) >= 0x80000000ull || (ay >> sh) >= 0x80000000ull ||
+           (az >> sh) >= 0x80000000ull)
+        sh++;
+    ax >>= sh;
+    ay >>= sh;
+    az >>= sh;
+    return fx_isqrt64(ax * ax + ay * ay + az * az) << sh;
 }
 
-static bool in01(double v)     { return v >= 0.0 && v <= 1.0; }
-static bool in_pm1(double v)   { return v >= -1.0 && v <= 1.0; }
+static bool in01(uint32_t v)
+{
+    return v <= (uint32_t) Q16_ONE;
+}
+static bool in_pm1(int32_t v)
+{
+    return v >= -(int32_t) Q16_ONE && v <= (int32_t) Q16_ONE;
+}
 static bool chan_ok(uint8_t c) { return c == 1 || c == 2 || c == 6 || c == 8; }
 
 /* ===================== pure exported helpers ===================== */
@@ -254,16 +257,56 @@ static const audio_stream_t *find_stream_c(const audio_device_t *dev, uint32_t i
  * the header rather than hidden. All multi-byte access is done byte-wise, so
  * the code is endian-independent on both host and target. */
 
-static double f32_from_bits(uint32_t bits) {
-    union { uint32_t u; float f; } cvt;
-    cvt.u = bits;
-    return (double)cvt.f;
+/* IEEE-754 binary32 <-> S16 without floating point.
+ *
+ * f32_to_s16: round(f * 32767) half away from zero, f clamped to [-1, 1];
+ * NaN is silence, +/-inf clamps. The product mant * 32767 is at most 39 bits,
+ * so it is exact before the single rounding shift. */
+static int32_t f32_to_s16(uint32_t bits)
+{
+    uint32_t exp = (bits >> 23) & 0xFFu;
+    uint32_t man = bits & 0x7FFFFFu;
+    int neg = (bits >> 31) != 0;
+    int32_t mag;
+    if (exp == 0xFFu) {
+        if (man) return 0; /* a NaN sample is silence */
+        mag = 32767;       /* +/-inf clamps */
+    } else if (exp >= 127u) {
+        mag = 32767; /* |f| >= 1.0 clamps */
+    } else {
+        uint64_t m = exp ? (man | 0x800000u) : man;
+        uint32_t sh = (exp ? 150u - exp : 149u); /* f = m * 2^-sh */
+        uint64_t p = m * 32767u;
+        mag = (sh >= 64u) ? 0 : (int32_t) ((p + ((uint64_t) 1 << (sh - 1u))) >> sh);
+    }
+    return neg ? -mag : mag;
 }
 
-static uint32_t bits_from_f32(double v) {
-    union { uint32_t u; float f; } cvt;
-    cvt.f = (float)v;
-    return cvt.u;
+/* s16_to_f32: the binary32 nearest to q / 32767 (round to nearest, ties to
+ * even). |q| <= 32768, so the value is normal and the quotient is formed
+ * exactly from a 64-bit long division. */
+static uint32_t s16_to_f32(int32_t q)
+{
+    uint64_t a, num, quo, rem;
+    uint32_t s = 0, sign = 0;
+    if (q == 0) return 0;
+    if (q < 0) {
+        sign = 0x80000000u;
+        a = (uint64_t) (-(int64_t) q);
+    } else {
+        a = (uint64_t) q;
+    }
+    while ((a << s) < ((uint64_t) 32767 << 23)) s++;
+    while ((a << s) >= ((uint64_t) 32767 << 24)) s--;
+    num = a << s;
+    quo = fx_udiv64(num, 32767u, &rem); /* quo in [2^23, 2^24) */
+    if (rem * 2u > 32767u || (rem * 2u == 32767u && (quo & 1u))) quo++;
+    if (quo == ((uint64_t) 1 << 24)) {
+        quo >>= 1;
+        s--;
+    }
+    /* value = quo * 2^-s, quo has 24 significant bits: exponent 23 - s */
+    return sign | ((uint32_t) (127 + 23 - (int32_t) s) << 23) | ((uint32_t) quo & 0x7FFFFFu);
 }
 
 static int32_t decode_sample(const audio_stream_t *s, uint32_t off) {
@@ -304,11 +347,7 @@ static int32_t decode_sample(const audio_stream_t *s, uint32_t off) {
                        | ((uint32_t)st_rd(s, off + 1) << 8)
                        | ((uint32_t)st_rd(s, off + 2) << 16)
                        | ((uint32_t)st_rd(s, off + 3) << 24);
-            double f = f32_from_bits(v);
-            if (f != f) return 0;               /* a NaN sample is silence */
-            if (f > 1.0) f = 1.0;
-            if (f < -1.0) f = -1.0;
-            return au_round_i32(f * 32767.0);
+            return f32_to_s16(v);
         }
         default:
             return 0;
@@ -351,7 +390,7 @@ static void encode_sample(audio_stream_t *s, uint32_t off, int32_t v) {
             break;
         }
         case AUDIO_FMT_FLOAT32: {
-            uint32_t u = bits_from_f32((double)q / 32767.0);
+            uint32_t u = s16_to_f32(q);
             st_wr(s, off,     (uint8_t)(u & 0xFFu));
             st_wr(s, off + 1, (uint8_t)((u >> 8) & 0xFFu));
             st_wr(s, off + 2, (uint8_t)((u >> 16) & 0xFFu));
@@ -463,24 +502,35 @@ static const audio_mixer_ch_t *channel_for(const audio_device_t *dev,
  * power curve: it is exactly representable, so the mixer's output can be
  * asserted as an exact integer in the tests instead of "within some epsilon".
  * Centre is unity on both sides (no centre dip). */
-static void stream_gains(const audio_device_t *dev, const audio_stream_t *s,
-                         double *gl, double *gr) {
-    double base = s->volume;
+static void stream_gains(const audio_device_t *dev, const audio_stream_t *s, uint32_t *gl,
+                         uint32_t *gr)
+{
+    const uint64_t one = (uint64_t) Q16_ONE;
+    uint64_t base = s->volume;
     const audio_mixer_ch_t *c = channel_for(dev, s);
-    if (!c || c->muted) { *gl = 0.0; *gr = 0.0; return; }
-    base *= c->volume;
-
-    double pan = s->balance;
-    if (s->spatial && dev->supports_3d) {
-        double d = au_sqrt(s->pos_x * s->pos_x + s->pos_y * s->pos_y + s->pos_z * s->pos_z);
-        base *= 1.0 / (1.0 + d);
-        if (d > 0.0) pan += s->pos_x / d;
+    if (!c || c->muted) {
+        *gl = 0;
+        *gr = 0;
+        return;
     }
-    if (pan > 1.0) pan = 1.0;
-    if (pan < -1.0) pan = -1.0;
+    if (base > one) base = one; /* verify_coverage rejects it */
+    base = (base * (c->volume > one ? one : c->volume)) >> 16;
 
-    *gl = base * ((pan <= 0.0) ? 1.0 : (1.0 - pan));
-    *gr = base * ((pan >= 0.0) ? 1.0 : (1.0 + pan));
+    int64_t pan = s->balance;
+    if (s->spatial && dev->supports_3d) {
+        uint64_t d = au_dist_q16(s->pos_x, s->pos_y, s->pos_z);
+        base = fx_udiv64(base * one, one + d, 0); /* * 1/(1+d) */
+        if (d > 0) {                              /* + x/d, |x| <= d */
+            uint64_t ax = s->pos_x < 0 ? (uint64_t) 0 - (uint64_t) s->pos_x : (uint64_t) s->pos_x;
+            int64_t q = (int64_t) fx_udiv64(ax << 16, d, 0);
+            pan += s->pos_x < 0 ? -q : q;
+        }
+    }
+    if (pan > (int64_t) one) pan = (int64_t) one;
+    if (pan < -(int64_t) one) pan = -(int64_t) one;
+
+    *gl = (uint32_t) ((base * ((pan <= 0) ? one : (uint64_t) ((int64_t) one - pan))) >> 16);
+    *gr = (uint32_t) ((base * ((pan >= 0) ? one : (uint64_t) ((int64_t) one + pan))) >> 16);
 }
 
 /* ===================== lifecycle ===================== */
@@ -510,7 +560,7 @@ static void add_channel(audio_device_t *dev, const char *name, bool capture) {
     if (dev->num_mixer_channels >= AUDIO_MAX_MIXER_CH) return;
     audio_mixer_ch_t *c = &dev->mixer[dev->num_mixer_channels++];
     au_strcpy(c->name, name, sizeof(c->name));
-    c->volume = 1.0;
+    c->volume = (uint32_t) Q16_ONE;
     c->muted = false;
     c->is_capture = capture;
     c->source_stream = 0;
@@ -534,7 +584,7 @@ void audio_init(audio_device_t *dev, audio_ctrl_type_t type, const char *name) {
     dev->reg_command = 0;
     dev->reg_status = 0;
 
-    dev->master_volume = 1.0;
+    dev->master_volume = (uint32_t) Q16_ONE;
     dev->master_muted = false;
 
     add_channel(dev, "Master", false);
@@ -543,12 +593,12 @@ void audio_init(audio_device_t *dev, audio_ctrl_type_t type, const char *name) {
     add_channel(dev, "Mic",    true);
 
     dev->m5.omega = 0;
-    dev->m5.r   = SR_FROM_FLOAT(1.0);
-    dev->m5.ell = SR_FROM_FLOAT(0.0);
+    dev->m5.r = SR_ONE;
+    dev->m5.ell = SR_ZERO;
     dev->m5.phi = SR_ZERO;
     dev->m5.chi = 0;
-    dev->coverage_r = 1.0;
-    dev->coverage_l = 0.0;
+    dev->coverage_r = (uint32_t) Q16_ONE;
+    dev->coverage_l = 0;
 }
 
 uint32_t audio_create_stream(audio_device_t *dev, bool capture, audio_format_t fmt,
@@ -575,8 +625,8 @@ uint32_t audio_create_stream(audio_device_t *dev, bool capture, audio_format_t f
     s->channels    = channels;
     s->buffer      = buf;
     s->buffer_size = AUDIO_STREAM_BUF_SIZE;
-    s->volume      = 1.0;
-    s->balance     = 0.0;
+    s->volume = (uint32_t) Q16_ONE;
+    s->balance = 0;
     s->spatial     = false;
     s->rs_phase    = 0;
     dev->num_streams++;
@@ -626,16 +676,18 @@ int audio_read(audio_device_t *dev, uint32_t stream_id, void *data, uint32_t len
     return (int)n;
 }
 
-int audio_set_volume(audio_device_t *dev, uint32_t stream_id, double vol) {
+int audio_set_volume(audio_device_t *dev, uint32_t stream_id, uint32_t vol)
+{
     if (!dev) return AUDIO_EINVAL;
-    if (!in01(vol)) return AUDIO_EINVAL;       /* rejects NaN too */
+    if (!in01(vol)) return AUDIO_EINVAL;
     audio_stream_t *s = find_stream(dev, stream_id);
     if (!s) return AUDIO_ENOSTREAM;
     s->volume = vol;
     return AUDIO_OK;
 }
 
-int audio_set_balance(audio_device_t *dev, uint32_t stream_id, double bal) {
+int audio_set_balance(audio_device_t *dev, uint32_t stream_id, int32_t bal)
+{
     if (!dev) return AUDIO_EINVAL;
     if (!in_pm1(bal)) return AUDIO_EINVAL;
     audio_stream_t *s = find_stream(dev, stream_id);
@@ -644,12 +696,12 @@ int audio_set_balance(audio_device_t *dev, uint32_t stream_id, double bal) {
     return AUDIO_OK;
 }
 
-int audio_set_3d_position(audio_device_t *dev, uint32_t stream_id,
-                          double x, double y, double z) {
+int audio_set_3d_position(audio_device_t *dev, uint32_t stream_id, int64_t x, int64_t y, int64_t z)
+{
     if (!dev) return AUDIO_EINVAL;
     if (!dev->supports_3d) return AUDIO_ENOSUP;
-    if (x != x || y != y || z != z) return AUDIO_EINVAL;
-    if (x > 1e9 || x < -1e9 || y > 1e9 || y < -1e9 || z > 1e9 || z < -1e9)
+    if (x > AUDIO_POS_MAX || x < -AUDIO_POS_MAX || y > AUDIO_POS_MAX || y < -AUDIO_POS_MAX ||
+        z > AUDIO_POS_MAX || z < -AUDIO_POS_MAX)
         return AUDIO_EINVAL;
     audio_stream_t *s = find_stream(dev, stream_id);
     if (!s) return AUDIO_ENOSTREAM;
@@ -700,7 +752,8 @@ int audio_stop(audio_device_t *dev, uint32_t stream_id) {
 
 /* ===================== mixer control ===================== */
 
-int audio_mixer_set_channel(audio_device_t *dev, uint32_t ch, double vol, bool mute) {
+int audio_mixer_set_channel(audio_device_t *dev, uint32_t ch, uint32_t vol, bool mute)
+{
     if (!dev) return AUDIO_EINVAL;
     if (ch >= dev->num_mixer_channels || ch >= AUDIO_MAX_MIXER_CH) return AUDIO_EINVAL;
     if (!in01(vol)) return AUDIO_EINVAL;
@@ -713,12 +766,13 @@ int audio_mixer_set_channel(audio_device_t *dev, uint32_t ch, double vol, bool m
     return AUDIO_OK;
 }
 
-int audio_mixer_set_master(audio_device_t *dev, double vol, bool mute) {
+int audio_mixer_set_master(audio_device_t *dev, uint32_t vol, bool mute)
+{
     if (!dev) return AUDIO_EINVAL;
     if (!in01(vol)) return AUDIO_EINVAL;
     dev->master_volume = vol;
     dev->master_muted = mute;
-    dev->reg_volume = (uint32_t)au_round_i32(vol * 255.0);
+    dev->reg_volume = (vol * 255u + (uint32_t) Q16_ONE / 2u) >> 16; /* round(vol*255) */
     if (AUDIO_CH_MASTER < dev->num_mixer_channels) {
         dev->mixer[AUDIO_CH_MASTER].volume = vol;
         dev->mixer[AUDIO_CH_MASTER].muted = mute;
@@ -757,7 +811,7 @@ int audio_mixer_find_channel(const audio_device_t *dev, const char *name) {
 
 typedef struct {
     uint32_t si;         /* index into dev->streams                     */
-    double   gl, gr;
+    uint32_t gl, gr;     /* Q16.16 */
     uint64_t step;       /* Q32.32 input frames consumed per output frame */
     uint64_t phase;
     uint32_t avail;      /* whole input frames sitting in the ring       */
@@ -823,15 +877,15 @@ int audio_mixer_process_n(audio_device_t *dev, uint32_t max_frames) {
             if (fi >= m[j].avail) continue;    /* ran dry mid-block: silence */
             int32_t l = 0, r = 0;
             decode_frame(&dev->streams[m[j].si], fi, &l, &r);
-            accL += au_round_i32((double)l * m[j].gl);
-            accR += au_round_i32((double)r * m[j].gr);
+            accL += au_gain(l, m[j].gl);
+            accR += au_gain(r, m[j].gr);
             m[j].phase += m[j].step;
         }
         if (dev->master_muted) {
             accL = 0; accR = 0;
-        } else if (dev->master_volume != 1.0) {
-            accL = au_round_i32((double)accL * dev->master_volume);
-            accR = au_round_i32((double)accR * dev->master_volume);
+        } else if (dev->master_volume != (uint32_t) Q16_ONE) {
+            accL = au_gain(accL, dev->master_volume);
+            accR = au_gain(accR, dev->master_volume);
         }
         /* the one and only conversion back to 16 bits */
         tx_push_s16(dev, audio_saturate_s16(accL));
@@ -881,7 +935,7 @@ int audio_capture_dispatch(audio_device_t *dev) {
         uint32_t fb = frame_bytes(s);
         if (fb == 0 || s->sample_rate == 0) continue;
 
-        double gl, gr;
+        uint32_t gl, gr;
         stream_gains(dev, s, &gl, &gr);
         uint64_t step = ((uint64_t)dev->reg_sample_rate << 32) / (uint64_t)s->sample_rate;
         if (step == 0) step = 1;
@@ -891,8 +945,8 @@ int audio_capture_dispatch(audio_device_t *dev) {
             uint32_t fi = (uint32_t)(phase >> 32);
             int32_t L = rx_read_s16(dev, fi * 4u);
             int32_t R = rx_read_s16(dev, fi * 4u + 2u);
-            L = au_round_i32((double)L * gl);
-            R = au_round_i32((double)R * gr);
+            L = au_gain(L, gl);
+            R = au_gain(R, gr);
 
             uint32_t bps = audio_format_bytes(s->format);
             uint32_t off = 0;
@@ -1113,10 +1167,9 @@ bool audio_verify_coverage(audio_device_t *dev) {
 
         /* ---- can this stream actually put sound through right now? ---- */
         const audio_mixer_ch_t *c = channel_for(dev, s);
-        bool live = s->active && s->volume > 0.0;
-        if (!c || c->muted || !(c->volume > 0.0)) live = false;
-        if (!s->is_capture && (dev->master_muted || !(dev->master_volume > 0.0)))
-            live = false;
+        bool live = s->active && s->volume > 0;
+        if (!c || c->muted || c->volume == 0) live = false;
+        if (!s->is_capture && (dev->master_muted || dev->master_volume == 0)) live = false;
         if (live) routable++;
     }
 
@@ -1126,22 +1179,22 @@ bool audio_verify_coverage(audio_device_t *dev) {
         if (!in01(c->volume)) return false;
         if (!name_terminated(c->name, (uint32_t)sizeof(c->name))) return false;
         if (c->source_stream != 0 && !find_stream_c(dev, c->source_stream)) return false;
-        if (c->name[0] != '\0' && !c->muted && c->volume > 0.0) engaged++;
+        if (c->name[0] != '\0' && !c->muted && c->volume > 0) engaged++;
     }
 
     /* ---- coverage ---- */
-    dev->coverage_r = (dev->num_streams == 0)
-                    ? (dev->master_muted ? 0.0 : 1.0)
-                    : (double)routable / (double)dev->num_streams;
-    dev->coverage_l = (dev->num_mixer_channels == 0)
-                    ? 0.0
-                    : (double)engaged / (double)dev->num_mixer_channels;
+    /* Q16.16 ratios; the counts are bounded by 16 and 32, so 32-bit math. */
+    dev->coverage_r = (dev->num_streams == 0) ? (dev->master_muted ? 0u : (uint32_t) Q16_ONE)
+                                              : (routable << 16) / dev->num_streams;
+    dev->coverage_l =
+        (dev->num_mixer_channels == 0) ? 0u : (engaged << 16) / dev->num_mixer_channels;
 
     dev->m5.omega = dev->num_streams;
-    dev->m5.r     = SR_FROM_FLOAT(dev->coverage_r);
-    dev->m5.ell   = SR_FROM_FLOAT(dev->coverage_l);
+    dev->m5.r = SR_FROM_Q16(dev->coverage_r);
+    dev->m5.ell = SR_FROM_Q16(dev->coverage_l);
 
-    return (dev->coverage_r * dev->coverage_l) >= AUDIO_COVERAGE_FLOOR;
+    return (uint64_t) dev->coverage_r * dev->coverage_l >=
+           (uint64_t) AUDIO_COVERAGE_FLOOR * (uint64_t) Q16_ONE;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------

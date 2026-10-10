@@ -444,8 +444,8 @@ void kernel_main(uint32_t magic, multiboot_info_t *mbi) {
     fb_puts("\n[BOOT] Synthesis engine — nonlinear compilation...\n");
     static synthesis_engine_t synth_engine;
     synth_engine_init(&synth_engine, 1, "ZEDEC-Synth-001");
-    synth_engine.coverage_r = 2.0;
-    synth_engine.coverage_l = 1.0;
+    synth_engine.coverage_r = 2 * Q16_ONE; /* Q16.16 */
+    synth_engine.coverage_l = Q16_ONE;
     fb_puts("  [OK] Synthesis engine initialized (second quantization)\n");
     fb_puts("  [OK] Nonlinear compilation: CREATE/ANNIHILATE/ENTANGLE/MEASURE\n");
     fb_puts("  [OK] Multi-target: C / SystemVerilog / VHDL / Chisel\n");

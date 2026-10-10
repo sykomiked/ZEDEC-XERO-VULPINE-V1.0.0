@@ -1120,17 +1120,20 @@ bool video_verify_coverage(video_device_t *dev) {
         if (ok) sane++;
     }
 
-    dev->coverage_r = (active == 0) ? 0.0 : (double)sane / (double)active;
+    dev->coverage_r = (active == 0)
+                          ? 0u
+                          : (sane * (uint32_t) Q16_ONE) / active; /* active <= VIDEO_MAX_DISPLAYS */
 
     video_display_t *p = video_get_display(dev, dev->primary_display);
     video_display_t *c = video_get_display(dev, dev->ctx.display_id);
     uint32_t pts = 0;
     if (p && p->active) pts++;
     if (c && c->active) pts++;
-    dev->coverage_l = (double)pts / 2.0;
+    dev->coverage_l = (pts * (uint32_t) Q16_ONE) / 2u;
 
     if (active == 0) return false;
-    return (dev->coverage_r * dev->coverage_l) >= VIDEO_COVERAGE_FLOOR;
+    return (uint64_t) dev->coverage_r * dev->coverage_l >=
+           (uint64_t) VIDEO_COVERAGE_FLOOR * (uint64_t) Q16_ONE;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------

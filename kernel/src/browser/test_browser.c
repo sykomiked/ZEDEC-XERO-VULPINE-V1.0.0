@@ -1764,11 +1764,11 @@ int main(void)
         browser_init(&g_b, "B");
         CHECK(browser_verify_coverage(&g_b) == true,
               "an empty browser has nothing to cover, so it passes");
-        CHECK(g_b.coverage_r == 1.0 && g_b.coverage_l == 1.0, "and reports r == 1.0, ell == 1.0");
+        CHECK(g_b.coverage_r == (uint32_t)Q16_ONE && g_b.coverage_l == (uint32_t)Q16_ONE, "and reports r == 1.0, ell == 1.0");
         CHECK(browser_verify_coverage(NULL) == false, "a NULL browser fails");
 
         browser_new_tab(&g_b, "http://a.example/");
-        CHECK(browser_verify_coverage(&g_b) == true && g_b.coverage_r == 1.0,
+        CHECK(browser_verify_coverage(&g_b) == true && g_b.coverage_r == (uint32_t)Q16_ONE,
               "one addressable, self-consistent tab passes with r == 1.0");
 
         /* FAILURE 1: half the tabs hold URLs we cannot address. */
@@ -1779,8 +1779,8 @@ int main(void)
         browser_new_tab(&g_b, "gibberish");
         CHECK(browser_verify_coverage(&g_b) == false,
               "FAILS when only 2 of 4 tabs hold an addressable URL");
-        CHECK(g_b.coverage_r == 0.5, "and reports r exactly 0.5");
-        CHECK(g_b.coverage_l == 1.0, "with ell still 1.0 (bookkeeping is consistent)");
+        CHECK(g_b.coverage_r == (uint32_t)Q16_ONE / 2, "and reports r exactly 0.5");
+        CHECK(g_b.coverage_l == (uint32_t)Q16_ONE, "with ell still 1.0 (bookkeeping is consistent)");
 
         /* boundary: 3 of 4 addressable is exactly the floor and passes. */
         browser_init(&g_b, "B");
@@ -1788,7 +1788,7 @@ int main(void)
         browser_new_tab(&g_b, "http://b/");
         browser_new_tab(&g_b, "http://c/");
         browser_new_tab(&g_b, NULL);
-        CHECK(browser_verify_coverage(&g_b) == true && g_b.coverage_r == 0.75,
+        CHECK(browser_verify_coverage(&g_b) == true && g_b.coverage_r == 3u * ((uint32_t)Q16_ONE / 4),
               "3 of 4 addressable is exactly BROWSER_COVERAGE_FLOOR and passes");
 
         /* FAILURE 2: a tab that CLAIMS to be loaded with an empty DOM.
@@ -1800,7 +1800,7 @@ int main(void)
             t->loaded = true; /* but num_elements is still 0 */
             CHECK(browser_verify_coverage(&g_b) == false,
                   "FAILS when a tab is flagged loaded but its DOM is empty");
-            CHECK(g_b.coverage_l == 0.0, "and reports ell exactly 0.0");
+            CHECK(g_b.coverage_l == 0, "and reports ell exactly 0.0");
         }
 
         /* FAILURE 3: the mirror image — a DOM with the flag never set. */
@@ -1822,8 +1822,8 @@ int main(void)
             browser_tab_t *t = browser_get_tab(&g_b, tid);
             parse_into(t, "<p>x</p>");
             t->loaded = true;
-            CHECK(browser_verify_coverage(&g_b) == true && g_b.coverage_r == 1.0 &&
-                      g_b.coverage_l == 1.0,
+            CHECK(browser_verify_coverage(&g_b) == true && g_b.coverage_r == (uint32_t)Q16_ONE &&
+                      g_b.coverage_l == (uint32_t)Q16_ONE,
                   "a truthfully-loaded tab passes with r == ell == 1.0");
         }
     }

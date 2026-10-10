@@ -2157,10 +2157,10 @@ bool bt_verify_coverage(bluetooth_device_t *dev) {
         if (ok) dev_ok++;
     }
 
-    dev->coverage_r = (dev->num_devices == 0) ? 1.0
-                    : (double)dev_ok / (double)dev->num_devices;
-    dev->coverage_l = (in_use == 0) ? 1.0
-                    : (double)conn_ok / (double)in_use;
+    dev->coverage_r = (dev->num_devices == 0) ? (uint32_t) Q16_ONE
+                                              : (dev_ok * (uint32_t) Q16_ONE) /
+                                                    dev->num_devices; /* <= BT_MAX_DEVICES */
+    dev->coverage_l = (in_use == 0) ? (uint32_t) Q16_ONE : (conn_ok * (uint32_t) Q16_ONE) / in_use;
 
     dev->m5.omega = dev->stats.hci_events_rx;
     dev->m5.r   = (dev->num_devices == 0) ? SR_ONE
@@ -2170,7 +2170,8 @@ bool bt_verify_coverage(bluetooth_device_t *dev) {
     dev->m5.phi = SR_ZERO;
     dev->m5.chi = in_use;
 
-    return (dev->coverage_r * dev->coverage_l) >= BT_COVERAGE_FLOOR;
+    return (uint64_t) dev->coverage_r * dev->coverage_l >=
+           (uint64_t) BT_COVERAGE_FLOOR * (uint64_t) Q16_ONE;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------
