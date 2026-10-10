@@ -796,6 +796,7 @@ typedef struct {
     uint8_t fp[32];   /* SHA-256 of the ML-DSA key that signed */
     uint8_t sha[32];  /* SHA-256 of the file */
     uint8_t mdig[32]; /* SHA-256 of the manifest */
+    uint8_t udig[32]; /* upd_manifest_digest of the catalog entry (id, version, arch, cid) */
     ipfsn_cid_t cid;
     uint32_t size;
 } zxu_att_t;
@@ -829,6 +830,19 @@ static zxu_att_t *att_find(const uint8_t *fp, const uint8_t *sha)
     return 0;
 }
 
+/* The recorded pair whose catalog-entry digest is `udig` (what update.c asks
+ * zxu_catalog_verify about since signatures cover the whole manifest). */
+static zxu_att_t *att_find_udig(const uint8_t *fp, const uint8_t *udig)
+{
+    for (uint32_t i = 0; i < ZXU_ATT_MAX; i++)
+        if (g_att[i].used && zxu__eq(g_att[i].fp, fp, 32) && zxu__eq(g_att[i].udig, udig, 32))
+            return &g_att[i];
+    return 0;
+}
+
+static const char *const ZXU_ARCH_NAME[] = {"any",     "x86_64", "aarch64", "riscv64",
+                                            "riscv32", "arm32",  "x86"};
+
 static const char HEX[] = "0123456789abcdef";
 
 int zxu_to_catalog(const zxu_result_t *r, const zxu_config_t *cfg, upd_catalog_t *c,
@@ -848,21 +862,10 @@ int zxu_to_catalog(const zxu_result_t *r, const zxu_config_t *cfg, upd_catalog_t
         const zxu_entry_t *e = &r->manifest.e[r->applicable[k]];
         char id[UPD_ID_LEN], name[UPD_NAME_LEN];
         uint8_t ph[32];
-        zxu_att_t *a = att_find(fp, e->sha256);
+        zxu_att_t *a;
+        uint8_t ud[32];
         uint32_t n = 0, j;
-        if (!a) {
-            for (j = 0; j < ZXU_ATT_MAX && g_att[j].used; j++) {
-            }
-            if (j == ZXU_ATT_MAX) return ZXU_ERR_FULL;
-            a = &g_att[j];
-        }
-        a->used = true;
-        zxu__cpy(a->fp, fp, 32);
-        zxu__cpy(a->sha, e->sha256, 32);
-        zxu__cpy(a->mdig, b->manifest_digest, 32);
-        cid_copy(&a->cid, &e->cid);
-        a->size = e->size;
-        attest(fp, e->sha256, b->manifest_digest, sig);
+        if (e->arch >= sizeof ZXU_ARCH_NAME / sizeof ZXU_ARCH_NAME[0]) return ZXU_ERR_ARG;
         /* id: "zxu<slot>-<12 hex of SHA-256(path)>" */
         sha256((const uint8_t *) e->path, e->path_len, ph);
         id[n++] = 'z';
@@ -878,7 +881,33 @@ int zxu_to_catalog(const zxu_result_t *r, const zxu_config_t *cfg, upd_catalog_t
         n = 0;
         for (j = 0; j < e->path_len && n + 1u < UPD_NAME_LEN; j++) name[n++] = e->path[j];
         name[n] = 0;
-        if (upd_publish(c, id, name, e->version, e->sha256, fp, sig, e->size, 0, 0) != UPD_OK)
+        /* The catalog entry's complete-manifest digest (id, version, arch, no
+         * deps, cid = SHA-256 of the file): the attestation is over exactly
+         * that, so update.c's verify gate checks every field. The fields come
+         * from the ML-DSA-signed bucket manifest. */
+        upd_entry_t ue;
+        zxu__set(&ue, 0, (uint32_t) sizeof ue);
+        for (j = 0; id[j]; j++) ue.id[j] = id[j];
+        ue.version = e->version;
+        for (j = 0; ZXU_ARCH_NAME[e->arch][j]; j++) ue.arch[j] = ZXU_ARCH_NAME[e->arch][j];
+        zxu__cpy(ue.cid, e->sha256, 32);
+        if (!upd_manifest_digest(&ue, ud)) return ZXU_ERR_ARG;
+        if (!(a = att_find_udig(fp, ud))) {
+            for (j = 0; j < ZXU_ATT_MAX && g_att[j].used; j++) {
+            }
+            if (j == ZXU_ATT_MAX) return ZXU_ERR_FULL;
+            a = &g_att[j];
+        }
+        zxu__cpy(a->udig, ud, 32);
+        a->used = true;
+        zxu__cpy(a->fp, fp, 32);
+        zxu__cpy(a->sha, e->sha256, 32);
+        zxu__cpy(a->mdig, b->manifest_digest, 32);
+        cid_copy(&a->cid, &e->cid);
+        a->size = e->size;
+        attest(fp, a->udig, b->manifest_digest, sig);
+        if (upd_publish(c, id, name, e->version, ZXU_ARCH_NAME[e->arch], e->sha256, fp, sig,
+                        e->size, 0, 0) != UPD_OK)
             return ZXU_ERR_FULL;
         if (published) (*published)++;
     }
@@ -891,8 +920,8 @@ bool zxu_catalog_verify(const uint8_t *msg, uint32_t len, const uint8_t sig[64],
     uint8_t want[64];
     const zxu_att_t *a;
     if (!msg || len != 32 || !sig || !pubkey) return false;
-    if (!(a = att_find(pubkey, msg))) return false;
-    attest(a->fp, a->sha, a->mdig, want);
+    if (!(a = att_find_udig(pubkey, msg))) return false;
+    attest(a->fp, a->udig, a->mdig, want);
     return zxu__eq(want, sig, 64);
 }
 

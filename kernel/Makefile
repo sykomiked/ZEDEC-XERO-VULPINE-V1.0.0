@@ -439,7 +439,7 @@ verify-all: test
 	@echo "=== interspace: the space between spaces (Lex Rhodia commons) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/interspace -Isrc/ipfs -Isrc/robin_debanks -Isrc/update -Isrc/bridge -Isrc/onepolicy -Isrc/constellation -Isrc/surplus -Isrc/trispace src/interspace/test_interspace.c src/interspace/interspace.c src/interspace/lex_rhodia.c src/interspace/flagstate.c src/interspace/federation.c src/interspace/minister.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/onepolicy/onepolicy.c src/constellation/constellation_coordinator.c -o /tmp/test_interspace -lm && /tmp/test_interspace && echo "[PASS] test_interspace" || { echo "[FAIL] test_interspace"; exit 1; }
 	@echo "=== broker: Mister Shanghai's info-product marketplace (capability-gated) ==="; \
-	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/broker -Isrc/ipfs -Isrc/robin_debanks -Isrc/update -Isrc/bridge -Isrc/tls -Isrc/surplus src/broker/test_broker.c src/broker/broker.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/bridge/bridge.c src/tls/hkdf.c src/robin_debanks/ed25519_verify.c -o /tmp/test_broker -lm && /tmp/test_broker && echo "[PASS] test_broker" || { echo "[FAIL] test_broker"; exit 1; }
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/broker -Isrc/ipfs -Isrc/robin_debanks -Isrc/update -Isrc/bridge -Isrc/tls -Isrc/surplus src/broker/test_broker.c src/broker/broker.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/bridge/bridge.c src/tls/hkdf.c src/robin_debanks/ed25519_verify.c src/provenance/test_signer.c -o /tmp/test_broker -lm && /tmp/test_broker && echo "[PASS] test_broker" || { echo "[FAIL] test_broker"; exit 1; }
 	@echo "=== battering_ram: cross-capital exchange (no margin, no minting) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/battering_ram -Isrc/zcapital -Isrc/vino_stores -Isrc/finance -Isrc/vino -Isrc/surplus -Isrc/onepolicy -Isrc/edp_risk -Isrc/predictive -Isrc/robin_debanks src/battering_ram/test_battering_ram.c src/battering_ram/battering_ram.c src/zcapital/zcapital.c src/onepolicy/onepolicy.c src/surplus/surplus.c src/edp_risk/edp_risk.c src/predictive/predictive_model.c src/finance/financial.c src/finance/triple_ledger.c src/vino_stores/vino_stores.c src/robin_debanks/ed25519_verify.c -o /tmp/test_battering_ram -lm && /tmp/test_battering_ram && echo "[PASS] test_battering_ram" || { echo "[FAIL] test_battering_ram"; exit 1; }
 	@echo "=== finance_markets: equities/futures/commodities tracker ==="; \
@@ -455,7 +455,7 @@ verify-all: test
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind src/decent/test_decent.c src/decent/decent.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/tls/aead.c -o /tmp/test_decent && /tmp/test_decent > /tmp/test_decent.log 2>&1 && echo "[PASS] test_decent" || { tail -20 /tmp/test_decent.log; echo "[FAIL] test_decent"; exit 1; }
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind src/smap/test_smap.c src/smap/smap.c src/robin_debanks/sha256.c -o /tmp/test_smap && /tmp/test_smap > /tmp/test_smap.log 2>&1 && echo "[PASS] test_smap" || { tail -20 /tmp/test_smap.log; echo "[FAIL] test_smap"; exit 1; }
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind src/plnp/test_plnp.c src/plnp/plnp.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/tls/hkdf.c -o /tmp/test_plnp && /tmp/test_plnp > /tmp/test_plnp.log 2>&1 && echo "[PASS] test_plnp" || { tail -20 /tmp/test_plnp.log; echo "[FAIL] test_plnp"; exit 1; }
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/mlkem src/bootlegger/test_bootlegger.c src/bootlegger/bootlegger.c src/robin_debanks/ed25519_verify.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c -o /tmp/test_bootlegger && /tmp/test_bootlegger > /tmp/test_bootlegger.log 2>&1 && echo "[PASS] test_bootlegger" || { tail -20 /tmp/test_bootlegger.log; echo "[FAIL] test_bootlegger"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/mlkem -Isrc/pqsec -Isrc/lpres -Isrc/surplus -Isrc/edp_risk -Isrc/event_space -Isrc/trispace src/bootlegger/test_bootlegger.c src/bootlegger/bootlegger.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c src/pqsec/pq_mldsa65.c $(sort $(wildcard src/pqsec/mldsa/[a-z]*.c)) -o /tmp/test_bootlegger && /tmp/test_bootlegger > /tmp/test_bootlegger.log 2>&1 && echo "[PASS] test_bootlegger" || { tail -20 /tmp/test_bootlegger.log; echo "[FAIL] test_bootlegger"; exit 1; }
 	@echo "=== tripartite_fs: CIDv1 sha2-256 content IDs, verification hashes the bytes ==="; \
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/modbind -Isrc/lpres -Isrc/surplus -Isrc/event_space src/tripartite_fs/test_tripartite_fs.c src/tripartite_fs/tripartite_fs.c src/holographic/holo.c src/phase_coord/phase_coordinator.c src/lpres/lpres.c src/robin_debanks/sha256.c -o /tmp/test_tripartite_fs && /tmp/test_tripartite_fs > /tmp/test_tripartite_fs.log 2>&1 && echo "[PASS] test_tripartite_fs" || { tail -20 /tmp/test_tripartite_fs.log; echo "[FAIL] test_tripartite_fs"; exit 1; }
 	@echo "=== financial_fabric: form -> rail table (555/777/888), inalienable forms refused (Q32.32) ==="; \
@@ -566,6 +566,21 @@ verify-all: test
 		/tmp/test_pq_matrix --no-bench && echo "[PASS] test_pq_matrix (ACVP + HQC KAT + hybrid + fuzz)" \
 		|| { echo "[FAIL] test_pq_matrix -- the PQ matrix is broken"; exit 1; }; \
 	else echo "[FAIL] src/pqsec/test_pq_matrix.c is missing"; exit 1; fi; \
+	echo "=== ML-KEM implicit rejection: K_bar = J(z||c), constant-time select (ctgrind) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -O2 -Iinclude -Isrc/mlkem -Isrc/pqsec \
+		src/mlkem/test_mlkem_reject.c src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c \
+		src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c src/pqsec/pq_mlkem1024.c \
+		-o /tmp/test_mlkem_reject && /tmp/test_mlkem_reject > /tmp/test_mlkem_reject.log 2>&1 \
+		&& echo "[PASS] test_mlkem_reject" || { tail -20 /tmp/test_mlkem_reject.log; echo "[FAIL] test_mlkem_reject"; exit 1; }; \
+	if command -v valgrind >/dev/null 2>&1 && [ -f /usr/include/valgrind/memcheck.h ]; then \
+		gcc -std=c11 -Wall -Werror -Wextra -O2 -g -DZXV_CTGRIND -Iinclude -Isrc/mlkem -Isrc/pqsec \
+			src/mlkem/test_mlkem_reject.c src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c \
+			src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c src/pqsec/pq_mlkem1024.c \
+			-o /tmp/test_mlkem_reject_ct && \
+		valgrind -q --error-exitcode=3 /tmp/test_mlkem_reject_ct > /tmp/test_mlkem_reject_ct.log 2>&1 \
+		&& echo "[PASS] test_mlkem_reject ctgrind (no secret-dependent branch in decapsulation)" \
+		|| { grep -m20 -A4 'depends on uninit' /tmp/test_mlkem_reject_ct.log; echo "[FAIL] test_mlkem_reject ctgrind"; exit 1; }; \
+	else echo "[SKIP] test_mlkem_reject ctgrind (valgrind not installed)"; fi; \
 	echo "=== Event-Space Infrastructure ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space \
 		../tests/host/test_event_space.c \
@@ -851,7 +866,7 @@ verify-all: test
 	if [ -f userapp/hello_signed.h ]; then \
 		gcc -std=c11 -Wall -Werror -Wextra -DZXVFS_HOST -Isrc/loader -Isrc/zxvfs -Isrc/robin_debanks -Iinclude -Iuserapp \
 			src/loader/test_abupdate.c src/loader/abupdate.c src/loader/zsp.c src/zxvfs/zxvfs.c \
-			src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c \
+			src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/provenance/test_signer.c \
 			-o /tmp/test_abupdate -lm && \
 			/tmp/test_abupdate && echo "[PASS] test_abupdate" || { echo "[FAIL] test_abupdate"; exit 1; }; \
 	else echo "[SKIP] test_abupdate (needs hello_signed.h)"; fi; \
@@ -1052,8 +1067,14 @@ verify-all: test
 	echo "=== decentralized opt-in content-addressed update system ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/update -Isrc/robin_debanks \
 		src/update/test_update.c src/update/update.c src/robin_debanks/sha256.c \
+		src/robin_debanks/ed25519_verify.c src/provenance/test_signer.c \
 		-o /tmp/test_update -lm && \
 		/tmp/test_update && echo "[PASS] test_update" || { echo "[FAIL] test_update"; exit 1; }; \
+	echo "=== provenance: one canonical length-prefixed manifest encoding ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -O2 -Isrc/provenance \
+		src/provenance/test_provenance.c src/robin_debanks/sha256.c \
+		-o /tmp/test_provenance && \
+		/tmp/test_provenance > /tmp/test_provenance.log 2>&1 && echo "[PASS] test_provenance ($$(grep -c '^\[PASS\]' /tmp/test_provenance.log) checks)" || { tail -20 /tmp/test_provenance.log; echo "[FAIL] test_provenance"; exit 1; }; \
 	echo "=== deployment profiles: laptop -> supercomputer, one OS ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/deploy \
 		src/deploy/test_deploy.c src/deploy/deploy.c \
@@ -1063,6 +1084,7 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zxpkg -Isrc/trispace -Isrc/robin_debanks -Isrc/loader \
 		src/zxpkg/test_zxrelease.c src/zxpkg/zxpkg.c src/trispace/trispace.c \
 		src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/loader/zsp.c \
+		src/provenance/test_signer.c \
 		-o /tmp/test_zxrelease -lm && \
 		/tmp/test_zxrelease && echo "[PASS] test_zxrelease" || { echo "[FAIL] test_zxrelease"; exit 1; }; \
 	echo "=== The Reality Engine: sigil circuits computing against live variables ==="; \

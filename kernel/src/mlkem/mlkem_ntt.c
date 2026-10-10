@@ -49,9 +49,15 @@ static const int16_t gammas[128] = {
  2110,  1219,  2935,   394,   885,  2444,  2154,  1175
 };
 
+/* Reduce to [0, q). Runs on secret-derived coefficients during decapsulation
+ * (the re-encryption), so the sign fix-up is a mask, not a branch: an `if`
+ * here compiled to a conditional jump at -O0/-Os (found by the ctgrind run in
+ * test_mlkem_reject.c). `%` by the constant q compiles to a multiply by the
+ * reciprocal at -O1 and above (no hardware divide on secret data). */
 int16_t mlkem_mod_reduce(int32_t a) {
     int32_t r = a % MLKEM_Q;
-    if (r < 0) r += MLKEM_Q;
+    uint32_t neg = (uint32_t) r >> 31; /* 1 if r < 0, else 0 */
+    r += (int32_t) ((0u - neg) & (uint32_t) MLKEM_Q);
     return (int16_t)r;
 }
 

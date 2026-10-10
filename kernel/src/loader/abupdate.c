@@ -8,6 +8,26 @@
 static const char *SLOT_FILE[2] = { "app.slotA", "app.slotB" };
 static const char *STATE_FILE = "app.state";
 
+static uint32_t rd32le(const uint8_t *p)
+{
+    return (uint32_t) p[0] | ((uint32_t) p[1] << 8) | ((uint32_t) p[2] << 16) |
+           ((uint32_t) p[3] << 24);
+}
+
+static bool is_zsp2(const uint8_t *h, uint32_t n)
+{
+    return n >= 4 && h[0] == ZSP_MAGIC0 && h[1] == ZSP_MAGIC1 && h[2] == ZSP_MAGIC2 &&
+           h[3] == ZSP2_MAGIC3;
+}
+
+/* Strict monotonicity (owner decision): a package may be staged or promoted
+ * only if its signed version is ABOVE the active slot's version and at or above
+ * the persisted anti-rollback floor. */
+static bool version_allowed(const ab_state_t *st, uint32_t v)
+{
+    return v > st->version[st->active_slot] && v >= st->rollback_floor;
+}
+
 static ab_result_t save_state(zxvfs_t *fs, const ab_state_t *st) {
     return zxvfs_write(fs, STATE_FILE, (const uint8_t *)st, sizeof(*st)) == 0
                ? AB_OK : AB_ERR_IO;
@@ -42,34 +62,39 @@ ab_result_t ab_stage_update(zxvfs_t *fs, ab_state_t *st,
 
     /* Verify BEFORE touching any slot — a bad update must not perturb
      * the running system at all. A ZSP v2 package is verified with the
-     * monotonic anti-rollback FLOOR enforced (P0-6): a validly-signed but
-     * OLD package (version < floor) is rejected here, so it can never be
-     * re-staged to look "newer" via the old active+1 counter. Its
-     * authenticated version becomes the slot's version. A legacy v1 package
-     * keeps the old active+1 counter (no anti-rollback — production signs v2). */
+     * monotonic anti-rollback FLOOR enforced (P0-6) and must then be STRICTLY
+     * newer than the active slot: an old or equal validly-signed package is
+     * refused with AB_ERR_ROLLBACK. Its authenticated version becomes the
+     * slot's version.
+     *
+     * A legacy v1 package carries no signed version, so it can never prove it
+     * is newer; any old validly-signed v1 image could be replayed. Once its
+     * signature checks, it is refused with AB_ERR_ROLLBACK (the earlier code
+     * gave it version active+1, which let an old v1 image replace a newer one,
+     * and before the audit fix also replace an active v2 package). */
     const uint8_t *payload; uint32_t plen;
     uint32_t new_version;
-    if (len >= 4 && zsp[0] == ZSP_MAGIC0 && zsp[1] == ZSP_MAGIC1 &&
-        zsp[2] == ZSP_MAGIC2 && zsp[3] == ZSP2_MAGIC3) {
+    if (is_zsp2(zsp, len)) {
         zsp_meta_t meta;
         zsp_result_t r = zsp_verify2(zsp, len, root_pubkey, st->rollback_floor,
                                      ZSP_ARCH_ANY, &meta, &payload, &plen);
         if (r == ZSP_ERR_ROLLBACK) return AB_ERR_ROLLBACK;
         if (r != ZSP_OK)           return AB_ERR_VERIFY;
+        if (!version_allowed(st, meta.version)) return AB_ERR_ROLLBACK;
+        /* The A/B pair holds ONE application: when the active slot is a v2
+         * package, the new one must carry the same signed package identity,
+         * so another root-signed package cannot be swapped in as an "update". */
+        uint8_t cur[ZSP2_HEADER_LEN];
+        int cn = zxvfs_read(fs, SLOT_FILE[st->active_slot], cur, sizeof cur);
+        if (cn == (int) sizeof cur && is_zsp2(cur, (uint32_t) cn)) {
+            for (uint32_t i = 0; i < 32; i++)
+                if (cur[32 + i] != meta.identity[i]) return AB_ERR_VERIFY;
+        }
         new_version = meta.version;
     } else {
         if (zsp_verify(zsp, len, root_pubkey, &payload, &plen) != ZSP_OK)
             return AB_ERR_VERIFY;
-        /* A v1 package carries no signed version, so it must not replace a
-         * running v2 package: otherwise any old validly-signed v1 image would
-         * get version active+1 and walk straight past the anti-rollback floor
-         * (a format-downgrade bypass). v1 -> v1 updates keep working. */
-        uint8_t cur[4];
-        if (zxvfs_read(fs, SLOT_FILE[st->active_slot], cur, sizeof cur) == (int) sizeof cur &&
-            cur[0] == ZSP_MAGIC0 && cur[1] == ZSP_MAGIC1 && cur[2] == ZSP_MAGIC2 &&
-            cur[3] == ZSP2_MAGIC3)
-            return AB_ERR_ROLLBACK;
-        new_version = st->version[st->active_slot] + 1;
+        return AB_ERR_ROLLBACK; /* unversioned: monotonicity cannot be shown */
     }
 
     uint8_t target = st->active_slot ? 0 : 1;   /* the inactive slot */
@@ -110,6 +135,22 @@ ab_result_t ab_slot_to_run(zxvfs_t *fs, ab_state_t *st,
 ab_result_t ab_confirm(zxvfs_t *fs, ab_state_t *st) {
     if (!fs || !st) return AB_ERR_STATE;
     if (st->probation_slot == AB_SLOT_NONE) return AB_ERR_NONE;
+    /* Promotion re-checks monotonicity instead of trusting the state record
+     * (which lives on the same untrusted media): the probation slot must hold
+     * a ZSP v2 package whose header version is the one recorded at staging,
+     * strictly above the active version and at or above the floor. Anything
+     * else is a rollback attempt: the probation slot is discarded. */
+    uint8_t hdr[ZSP2_HEADER_LEN];
+    uint8_t ps = st->probation_slot;
+    int hn = zxvfs_read(fs, SLOT_FILE[ps], hdr, sizeof hdr);
+    if (hn != (int) sizeof hdr || !is_zsp2(hdr, (uint32_t) hn) ||
+        rd32le(hdr + 8) != st->version[ps] || !version_allowed(st, st->version[ps])) {
+        st->probation_slot = AB_SLOT_NONE;
+        st->probation_remaining = 0;
+        st->rollbacks++;
+        (void) save_state(fs, st);
+        return AB_ERR_ROLLBACK;
+    }
     st->active_slot = st->probation_slot;
     st->probation_slot = AB_SLOT_NONE;
     st->probation_remaining = 0;

@@ -4,6 +4,7 @@
  * refused; nothing is invented. See broker.h for the honest-boundaries manifest. */
 
 #include "broker.h"
+#include "../provenance/zx_provenance.h"
 
 /* ---- tiny freestanding helpers: no libc, no <string.h> ---- */
 static void b_memcpy(void *dst, const void *src, uint32_t n) {
@@ -91,6 +92,24 @@ void broker_set_settlement(broker_t *b, const broker_settlement_t *s) {
 /* ============================================================= */
 /* Listing                                                        */
 /* ============================================================= */
+bool broker_listing_digest(const uint8_t cid[BROKER_CID_LEN], const aipic_contract_t *terms,
+                           uint8_t out[32])
+{
+    for (uint32_t i = 0; i < 32; i++) out[i] = 0;
+    if (!cid || !terms) return false;
+    uint32_t sl = 0;
+    while (sl < AIPIC_SCOPE_LEN && terms->scope[sl]) sl++;
+    if (sl == AIPIC_SCOPE_LEN) return false; /* not NUL-terminated */
+    zxp_canon_t c;
+    zxp_canon_init(&c, ZXP_DOMAIN_BROKER);
+    zxp_canon_bytes(&c, cid, BROKER_CID_LEN);
+    zxp_canon_u32(&c, terms->function);
+    zxp_canon_bytes(&c, (const uint8_t *) terms->scope, sl);
+    zxp_canon_u32(&c, terms->max_price);
+    zxp_canon_final(&c, out);
+    return true;
+}
+
 int32_t broker_list_bytes(broker_t *b, const uint8_t *cid, uint32_t cid_len,
                           const uint8_t author[BROKER_KEY_LEN],
                           const uint8_t sig[BROKER_SIG_LEN],
@@ -101,10 +120,12 @@ int32_t broker_list_bytes(broker_t *b, const uint8_t *cid, uint32_t cid_len,
     if (cid_len != BROKER_CID_LEN) return -(int32_t)BROKER_ERR_BAD_CID;
     if (!b->verify) return -(int32_t)BROKER_ERR_NO_VERIFY;   /* fail closed       */
     if (!broker_is_trusted(b, author)) return -(int32_t)BROKER_ERR_UNTRUSTED;
-    /* Verify the SIGNATURE over the CID — the reputation root. We attest that the
-     * seller signed THIS inventory, never any real-world fact behind them. */
-    if (!b->verify(cid, BROKER_CID_LEN, sig, author))
-        return -(int32_t)BROKER_ERR_BAD_SIG;
+    /* Verify the SIGNATURE over the CID AND the terms — the reputation root. We
+     * attest that the seller signed THIS inventory under THESE terms, never any
+     * real-world fact behind them. */
+    uint8_t ld[32];
+    if (!broker_listing_digest(cid, terms, ld)) return -(int32_t) BROKER_ERR_SCOPE;
+    if (!b->verify(ld, 32u, sig, author)) return -(int32_t) BROKER_ERR_BAD_SIG;
 
     for (uint32_t i = 0; i < BROKER_MAX_LISTINGS; i++) {
         if (!b->listing[i].in_use) {
@@ -176,6 +197,8 @@ broker_result_t broker_settle(broker_t *b, int32_t listing_idx,
     if (!b || !buyer) return BROKER_ERR_NULL;
     const broker_listing_t *L = broker_get(b, listing_idx);
     if (!L) return BROKER_ERR_NOT_FOUND;
+    /* the price ceiling is a signed term: a relay cannot raise it */
+    if (L->terms.max_price && amount > L->terms.max_price) return BROKER_ERR_SCOPE;
     if (!b->settlement.settle) return BROKER_ERR_NO_SETTLEMENT;  /* fail closed   */
     int rc = b->settlement.settle(buyer, L->author, amount, b->settlement.ctx);
     if (rc != 0) return BROKER_ERR_NO_SETTLEMENT;   /* backend declined: NO fill  */

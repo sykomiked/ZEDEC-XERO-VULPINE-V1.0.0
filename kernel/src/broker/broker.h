@@ -13,13 +13,13 @@
  *  questions, but every item is what it claims (the CID doesn't lie). You decide
  *  whose flag you trust."  Trust is not the House's to grant: a listing's author
  *  key is a REPUTATION ROOT the buyer chooses to trust, and the seller's
- *  signature over the CID is what binds identity to inventory.
+ *  signature over the listing (CID AND terms) is what binds identity to inventory.
  *
  * WHAT IS HONEST HERE (no hollow capabilities):
  *   - Signature verification is an ops boundary (a supplied verify hook — bind
  *     the kernel's ed25519_verify). No hook bound => a listing fails closed. We
- *     verify the SIGNATURE over the CID; we never certify the real-world facts
- *     behind an author.
+ *     verify the SIGNATURE over broker_listing_digest(cid, terms); we never
+ *     certify the real-world facts behind an author.
  *   - Delivery inherits ipfs's transport ops boundary: no adapter => NO_TRANSPORT,
  *     bytes are never fabricated, and mismatched bytes are rejected.
  *   - SETTLEMENT is an ops boundary (a supplied settlement hook that in a real
@@ -80,16 +80,17 @@ typedef enum {
  * that colon-prefix), or an exact match. NO regex, on purpose: a matcher you can
  * read in one glance cannot hide an authorisation bug.
  *
- * HONEST SCOPE OF THE SELLER SIGNATURE: the seller's Ed25519 signature at listing
- * time is over the 32-byte CONTENT CID (the identity/reputation root of what is
- * being sold) — NOT over these terms. The terms are the seller's posted policy,
- * stored with the listing and enforced by broker_deliver's capability gate; they
- * are not themselves cryptographically bound to the seller signature. Binding
- * terms into the signature (sign over cid||terms) is a forward extension. */
+ * THE SELLER SIGNATURE COVERS THE TERMS: the seller's Ed25519 signature at
+ * listing time is over broker_listing_digest(cid, terms), the shared canonical
+ * length-prefixed encoding (src/provenance/zx_provenance.h, domain
+ * ZXP_DOMAIN_BROKER) of the CID, function, scope and max_price. Whoever relays
+ * a listing cannot widen its scope, change its function or raise its price
+ * without breaking the signature. `scope` must be NUL-terminated inside its
+ * 64 bytes; bytes after the NUL are not part of the terms. */
 typedef struct {
     uint8_t  function;                 /* capability function id                 */
     char     scope[AIPIC_SCOPE_LEN];   /* "*", "prefix:*", or an exact scope     */
-    uint32_t max_price;                /* informational app-layer term (units)   */
+    uint32_t max_price;                /* signed price ceiling (units); 0 = none */
     bool     in_use;
 } aipic_contract_t;
 
@@ -103,7 +104,7 @@ typedef struct {
     bool             in_use;
     uint8_t          cid[BROKER_CID_LEN];
     uint8_t          author[BROKER_KEY_LEN];   /* seller identity / reputation root */
-    uint8_t          sig[BROKER_SIG_LEN];      /* seller sig over the CID           */
+    uint8_t sig[BROKER_SIG_LEN];               /* seller sig over cid + terms       */
     aipic_contract_t terms;
 } broker_listing_t;
 
@@ -142,10 +143,16 @@ bool broker_is_trusted(const broker_t *b, const uint8_t pubkey[BROKER_KEY_LEN]);
 void broker_set_verifier(broker_t *b, broker_verify_fn fn);
 void broker_set_settlement(broker_t *b, const broker_settlement_t *s);
 
+/* The 32 bytes a seller signs for a listing:
+ *   zxp_canon(ZXP_DOMAIN_BROKER: lp(cid) || u32(function) || lp(scope) || u32(max_price))
+ * Returns false if `scope` has no NUL inside AIPIC_SCOPE_LEN bytes. */
+bool broker_listing_digest(const uint8_t cid[BROKER_CID_LEN], const aipic_contract_t *terms,
+                           uint8_t out[32]);
+
 /* List a product by its 32-byte content CID under a signed capability contract.
- * Fails closed: author must be trusted AND the seller's signature over the CID
- * must verify under a bound hook. Returns the listing index (>=0), or a negated
- * broker_result_t (<0). */
+ * Fails closed: author must be trusted AND the seller's signature over
+ * broker_listing_digest(cid, terms) must verify under a bound hook. Returns the listing index
+ * (>=0), or a negated broker_result_t (<0). */
 int32_t broker_list(broker_t *b, const uint8_t product_cid[BROKER_CID_LEN],
                     const uint8_t author[BROKER_KEY_LEN],
                     const uint8_t sig[BROKER_SIG_LEN],
@@ -182,7 +189,9 @@ broker_result_t broker_deliver(broker_t *b, int32_t listing_idx,
                                uint8_t *buf, uint32_t cap, uint32_t *out_len);
 
 /* Attempt settlement for a listing. NO fill is recorded unless the bound
- * settlement backend CONFIRMS (returns 0). No backend => BROKER_ERR_NO_SETTLEMENT. */
+ * settlement backend CONFIRMS (returns 0). No backend => BROKER_ERR_NO_SETTLEMENT.
+ * An amount above the listing's signed max_price (when non-zero) is refused
+ * with BROKER_ERR_SCOPE before the backend is asked. */
 broker_result_t broker_settle(broker_t *b, int32_t listing_idx,
                               const uint8_t buyer[BROKER_KEY_LEN], uint64_t amount);
 

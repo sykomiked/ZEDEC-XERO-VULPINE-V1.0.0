@@ -9,6 +9,7 @@
 #include "broker.h"
 #include "sha256.h"
 #include "ed25519_verify.h"
+#include "../provenance/test_signer.h"
 
 static int g_checks = 0, g_fail = 0;
 #define CHECK(cond, msg)                                                                           \
@@ -434,6 +435,61 @@ int main(void)
               "backend confirms => fill recorded (settlement is real, not simulated)");
     }
 
+    /* (8) the seller signature covers the CID AND the terms --------------- */
+    printf("[8] listing provenance: signature over cid + function + scope + price\n");
+    {
+        test_signer_t seller;
+        test_signer_init(&seller, 0x61);
+        uint8_t cid[32], cid2[32], ld[32], sig[64];
+        sha256((const uint8_t *) "sigil-pack-7", 12, cid);
+        sha256((const uint8_t *) "sigil-pack-8", 12, cid2);
+        aipic_contract_t terms = {0};
+        terms.function = 3;
+        strcpy(terms.scope, "sigil:card:*");
+        terms.max_price = 900;
+        CHECK(broker_listing_digest(cid, &terms, ld), "listing digest computed");
+        test_signer_sign(&seller, ld, 32, sig);
+
+        broker_t b;
+        broker_init(&b);
+        broker_set_verifier(&b, ed25519_hook);
+        broker_trust_author(&b, seller.pk);
+        CHECK(broker_list(&b, cid, seller.pk, sig, &terms) >= 0,
+              "a listing signed over its CID and terms is accepted");
+
+        aipic_contract_t t2 = terms;
+        strcpy(t2.scope, "*");
+        CHECK(broker_list(&b, cid, seller.pk, sig, &t2) == -(int32_t) BROKER_ERR_BAD_SIG,
+              "a relay that WIDENS the scope breaks the signature");
+        t2 = terms;
+        t2.function = 4;
+        CHECK(broker_list(&b, cid, seller.pk, sig, &t2) == -(int32_t) BROKER_ERR_BAD_SIG,
+              "changing the capability function breaks the signature");
+        t2 = terms;
+        t2.max_price = 901;
+        CHECK(broker_list(&b, cid, seller.pk, sig, &t2) == -(int32_t) BROKER_ERR_BAD_SIG,
+              "raising the price ceiling breaks the signature");
+        CHECK(broker_list(&b, cid2, seller.pk, sig, &terms) == -(int32_t) BROKER_ERR_BAD_SIG,
+              "the same signed terms on another CID are refused");
+        uint8_t cid_only[64];
+        test_signer_sign(&seller, cid, 32, cid_only);
+        CHECK(broker_list(&b, cid, seller.pk, cid_only, &terms) == -(int32_t) BROKER_ERR_BAD_SIG,
+              "a legacy signature over the CID alone is refused");
+        t2 = terms;
+        memset(t2.scope, 'a', AIPIC_SCOPE_LEN);
+        CHECK(broker_list(&b, cid, seller.pk, sig, &t2) == -(int32_t) BROKER_ERR_SCOPE,
+              "a scope with no terminator inside its field is refused");
+
+        int32_t idx = broker_list(&b, cid, seller.pk, sig, &terms);
+        broker_settlement_t conf = {settle_confirm, 0};
+        broker_set_settlement(&b, &conf);
+        uint8_t buyer[32];
+        memset(buyer, 0x56, 32);
+        CHECK(broker_settle(&b, idx, buyer, 901u) == BROKER_ERR_SCOPE,
+              "settling above the signed max_price is refused");
+        CHECK(broker_settle(&b, idx, buyer, 900u) == BROKER_OK,
+              "settling at the signed max_price is confirmed");
+    }
     printf("\n=== %d checks, %d failures ===\n", g_checks, g_fail);
     return g_fail ? 1 : 0;
 }

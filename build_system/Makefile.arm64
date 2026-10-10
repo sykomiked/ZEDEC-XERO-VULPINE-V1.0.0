@@ -467,6 +467,16 @@ KERNEL_SRCS = \
     kernel/src/audio/audio.c \
     kernel/src/bluetooth/bluetooth.c \
     kernel/src/bootlegger/bootlegger.c \
+    kernel/src/pqsec/pq_mldsa65.c \
+    kernel/src/pqsec/mldsa/fips202.c \
+    kernel/src/pqsec/mldsa/ntt.c \
+    kernel/src/pqsec/mldsa/packing.c \
+    kernel/src/pqsec/mldsa/poly.c \
+    kernel/src/pqsec/mldsa/polyvec.c \
+    kernel/src/pqsec/mldsa/reduce.c \
+    kernel/src/pqsec/mldsa/rounding.c \
+    kernel/src/pqsec/mldsa/sign.c \
+    kernel/src/pqsec/mldsa/symmetric-shake.c \
     kernel/src/browser/browser.c \
     kernel/src/choice/choice.c \
     kernel/src/clock/event_clock.c \

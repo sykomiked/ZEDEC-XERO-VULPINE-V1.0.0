@@ -51,11 +51,11 @@ typedef struct {
 
 typedef enum {
     AB_OK = 0,
-    AB_ERR_IO       = -1,
-    AB_ERR_VERIFY   = -2,   /* new package failed signature/hash — rejected */
-    AB_ERR_NONE     = -3,   /* nothing on probation to confirm/rollback */
-    AB_ERR_STATE    = -4,
-    AB_ERR_ROLLBACK = -5,   /* v2 package version below the anti-rollback floor */
+    AB_ERR_IO = -1,
+    AB_ERR_VERIFY = -2, /* new package failed signature/hash — rejected */
+    AB_ERR_NONE = -3,   /* nothing on probation to confirm/rollback */
+    AB_ERR_STATE = -4,
+    AB_ERR_ROLLBACK = -5, /* version <= active, below the floor, or unversioned (v1) */
 } ab_result_t;
 
 /* Load A/B state from ZXVFS, or initialize it (slot A active) if absent. */
@@ -64,7 +64,13 @@ ab_result_t ab_init(zxvfs_t *fs, ab_state_t *st);
 /* Stage a new signed package as an update: verify it against root_pubkey,
  * write it to the INACTIVE slot, and put that slot on probation. On a
  * verification failure NOTHING changes (the active slot keeps serving).
- * `zsp`/`len` are the raw signed-package bytes. */
+ * `zsp`/`len` are the raw signed-package bytes.
+ *
+ * Versions are strictly monotonic: only a ZSP v2 package whose signed version
+ * is > the active slot's version and >= rollback_floor is staged; anything
+ * else that verifies, including every v1 package (no signed version), returns
+ * AB_ERR_ROLLBACK. When the active slot holds a v2 package, the new package
+ * must carry the same signed identity (else AB_ERR_VERIFY). */
 ab_result_t ab_stage_update(zxvfs_t *fs, ab_state_t *st,
                             const uint8_t *zsp, uint32_t len,
                             const uint8_t root_pubkey[32]);
@@ -76,7 +82,10 @@ ab_result_t ab_slot_to_run(zxvfs_t *fs, ab_state_t *st,
                            uint8_t *buf, uint32_t max, uint32_t *out_len,
                            uint8_t *slot_out);
 
-/* Confirm the probation slot as the new known-good active slot. */
+/* Confirm the probation slot as the new known-good active slot. Re-checks the
+ * probation package's header version against the recorded one, the active
+ * version and the floor; on a mismatch the probation slot is discarded and
+ * AB_ERR_ROLLBACK returned (nothing is promoted). */
 ab_result_t ab_confirm(zxvfs_t *fs, ab_state_t *st);
 
 /* Roll back: discard the probation slot, keep the active slot. */

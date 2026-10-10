@@ -124,26 +124,44 @@ const char *zxpkg_extension(tri_role_t role);
  *
  * zxpkg_verify_triad proves a triad is INTACT and internally consistent, but
  * a whole triad can be re-issued. Binding it to a release IDENTITY is the ZSP
- * layer (src/loader/zsp): a release carries a ZSP envelope whose signed payload
- * IS the triad's 32-byte seal. A verifier that also checks that envelope knows
- * not just that the triad is intact but that THIS root key released THIS exact
- * triad. Signing is offline (the kernel only verifies); this is the verify side.
+ * layer (src/loader/zsp): a release carries a ZSP **v2** envelope whose signed
+ * payload IS the triad's 32-byte seal, and whose signed header carries the
+ * release version and architecture. Its 32-byte identity field must equal
+ *
+ *   zxpkg_release_identity = zxp_manifest_digest(ZXP_DOMAIN_ZXPKG,
+ *       {PackageID = triad_id, Version, Architecture, no deps, ContentCID = seal})
+ *
+ * (src/provenance/zx_provenance.h), so the Ed25519 signature covers the
+ * complete manifest in the shared canonical encoding. A v1 envelope signs no
+ * version and is refused (ZXREL_UNSIGNED). Signing is offline (the kernel only
+ * verifies); this is the verify side. build_system/sign_release.sh still emits
+ * v1 envelopes and must be moved to this format before it can sign a release.
  */
 typedef enum {
-    ZXREL_OK = 0,          /* intact AND signed by the root over this seal   */
-    ZXREL_TRIAD_BAD,       /* the triad itself does not verify               */
-    ZXREL_UNSIGNED,        /* the ZSP envelope is malformed / not present    */
-    ZXREL_BAD_SIG,         /* the signature is not from the root key         */
-    ZXREL_SEAL_MISMATCH    /* signed, but over a DIFFERENT triad's seal      */
+    ZXREL_OK = 0,           /* intact AND signed by the root over this seal   */
+    ZXREL_TRIAD_BAD,        /* the triad itself does not verify               */
+    ZXREL_UNSIGNED,         /* no (v2) ZSP envelope, or it is malformed       */
+    ZXREL_BAD_SIG,          /* the signature is not from the root key         */
+    ZXREL_SEAL_MISMATCH,    /* signed, but over a DIFFERENT triad's seal      */
+    ZXREL_ROLLBACK,         /* signed version below the caller's floor        */
+    ZXREL_ARCH,             /* signed for another architecture                */
+    ZXREL_MANIFEST_MISMATCH /* identity != canonical (id, version, arch, seal) */
 } zxrel_t;
 
-/* Verify a signed release: the triad must verify, the ZSP envelope must verify
- * against `root_pubkey`, and its signed payload must equal the triad's seal. */
-zxrel_t zxpkg_verify_release(const uint8_t *pos, uint32_t pos_len,
-                             const uint8_t *neg, uint32_t neg_len,
-                             const uint8_t *neu, uint32_t neu_len,
-                             const uint8_t *zsp, uint32_t zsp_len,
-                             const uint8_t root_pubkey[32]);
+/* The identity a ZSP v2 release envelope must carry (see above). zsp_arch is a
+ * ZSP_ARCH_* id. Returns false for an unknown arch id. */
+bool zxpkg_release_identity(const uint8_t triad_id[TRI_ID_LEN], uint32_t version, uint16_t zsp_arch,
+                            const uint8_t seal[TRI_DIGEST_LEN], uint8_t out[32]);
+
+/* Verify a signed release: the triad must verify; the ZSP v2 envelope must
+ * verify against `root_pubkey` with version >= min_version and arch ==
+ * expected_arch (ZSP_ARCH_ANY = any); its signed payload must equal the
+ * triad's seal; and its identity must equal zxpkg_release_identity. On
+ * ZXREL_OK, *version_out (if non-NULL) is the signed release version. */
+zxrel_t zxpkg_verify_release(const uint8_t *pos, uint32_t pos_len, const uint8_t *neg,
+                             uint32_t neg_len, const uint8_t *neu, uint32_t neu_len,
+                             const uint8_t *zsp, uint32_t zsp_len, const uint8_t root_pubkey[32],
+                             uint32_t min_version, uint16_t expected_arch, uint32_t *version_out);
 
 const char *zxrel_strerror(zxrel_t r);
 

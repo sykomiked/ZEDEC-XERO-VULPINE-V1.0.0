@@ -631,17 +631,20 @@ Gaps: no host test.
 
 ### bootlegger  —  peer handshake and post-quantum key exchange
 Status: WORKING (tested in verify-all)
-What it does: Two peers exchange signed handshakes, pin each other's identity, and then run an
-ML-KEM key exchange to agree a session key. The primitives are real (Ed25519, ML-KEM). The
-protocol has the binding weaknesses listed below.
-Main entry points: bootlegger_init, bootlegger_handshake_send, bootlegger_handshake_recv,
-bootlegger_pin_peer, bootlegger_peer_id_of, bootlegger_kem_initiate.
-Tests: src/bootlegger/test_bootlegger.c, run by verify-all, passes.
+What it does: Protocol v2 three-message handshake (HELLO, REPLY, FINISH). Each peer sends a fresh
+nonce and an ephemeral ML-KEM-768 key and signs, with its long-term ML-DSA-65 identity key, the
+canonical length-prefixed transcript Identity_A || EK_A || Nonce_B || Identity_B || EK_B || Nonce_A
+(with the version and a domain string, SHA-256). Session keys come from both ML-KEM secrets and the
+transcript hash (HKDF); FINISH carries key confirmation. Rejects downgrade, zero or replayed nonces
+(bounded replay cache), unsigned or wrongly signed ephemeral keys, reflection and pin mismatches.
+Messages are sealed with ChaCha20-Poly1305.
+Main entry points: bootlegger_identity_init, bootlegger_hs_initiate, bootlegger_hs_respond,
+bootlegger_hs_finish, bootlegger_hs_accept, bootlegger_pin_peer, bootlegger_seal_msg/open_msg.
+Tests: src/bootlegger/test_bootlegger.c, run by verify-all, 59 checks (success, replay, MITM,
+downgrade, tampered transcript).
 Used by: no includes. In every kernel image.
-Gaps: the handshake signature covers only static bytes, with no nonce or challenge, so it can be
-replayed.
-Gaps: the ML-KEM public key is not bound to the authenticated identity, which leaves the exchange
-open to a man in the middle.
+Gaps: no transport (send/recv and everything built on them return ENOTIMPL); the caller supplies
+the entropy; ML-DSA-65 needs tens of KiB of stack.
 
 ### bridge  —  one address resolver across Web2, Web3 and Web4
 Status: WORKING (tested in verify-all)
@@ -675,11 +678,11 @@ through a settlement backend the host plugs in; with none installed it fails clo
 covers HKDF key derivation and a five-way tribute split that never loses a unit.
 Main entry points: broker_init, broker_trust_author, broker_set_verifier,
 broker_set_settlement, broker_list, broker_settle, tribute_split, aipi_hs_begin.
-Tests: src/broker/test_broker.c, run by verify-all, 37 checks.
+Tests: src/broker/test_broker.c, run by verify-all, 47 checks.
 Used by: pirate_apps. In every kernel image and in economy_layer.mk.
-Gaps: the seller signature covers only the CID, not the capability terms (scope, function,
-max_price).
-Gaps: the amount passed to broker_settle is not tied to the listing.
+Gaps: none in signing: the seller signs broker_listing_digest (canonical CID, function, scope,
+max_price; src/provenance/zx_provenance.h) and broker_settle refuses an amount above the signed
+max_price.
 
 ### browser  —  minimal web browser engine (URL, HTTP, HTML tokenizer, layout)
 Status: WORKING (tested in verify-all)
@@ -1622,11 +1625,11 @@ Gaps: lightningrod.c and tests lack SPDX.
 
 ### loader  —  ELF64 loader, signed packages (ZSP v1/v2), A/B updates
 Status: WORKING (tested in verify-all)
-What it does: Validates and loads static AArch64 ELF64 images (W^X enforced via callback), verifies ZSP packages (SHA-256 + Ed25519 against a root key; v2 also binds version, arch, key id) and runs A/B updates with probation and auto-rollback on ZXVFS. A v1 package can no longer replace an active v2 one (rollback bypass fixed).
+What it does: Validates and loads static AArch64 ELF64 images (W^X enforced via callback), verifies ZSP packages (SHA-256 + Ed25519 against a root key; v2 also binds version, arch, key id) and runs A/B updates with probation and auto-rollback on ZXVFS. Versions are strictly monotonic: ab_stage_update refuses (AB_ERR_ROLLBACK) any package whose signed version is <= the active one or below the floor, and every v1 package (no signed version); ab_confirm re-checks the probation slot's header version before promoting.
 Main entry points: elf_load, zsp_verify, zsp_verify2, ab_init, ab_stage_update, ab_confirm, ab_boot_tick, ab_rollback.
 Tests: test_elf.c, test_zsp.c, test_zsp2.c, test_abupdate.c (+ make fuzz fuzz_elf) — pass.
 Used by: arch/arm64, zxpkg. Kernel: yes.
-Gaps: kernel_main_arm64.c and zxpkg.c call zsp_verify (no floor, accepts v1) — outside this scope.
+Gaps: kernel_main_arm64.c still loads apps with zsp_verify (no floor, accepts v1). zxpkg now uses zsp_verify2.
 
 ### logistics  —  syndicates, escrow and secondary contracts
 Status: WORKING (tested in verify-all)
@@ -1719,7 +1722,7 @@ Gaps: no host test in verify-all.
 Status: WORKING (tested in verify-all)
 What it does: Keccak/SHA-3/SHAKE, NTT, sampling, encoding, K-PKE and ML-KEM-768 keygen/encaps/decaps with implicit rejection (now a branch-free select). genomic_codon adds a domain-separation label only, not security.
 Main entry points: mlkem768_keygen, mlkem768_encaps, mlkem768_decaps, kpe_*, sha3_256, sha3_512, shake128_*, shake256.
-Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), pq tests — pass. encode/ntt/sample/kpe/genomic validators also pass but are not in verify-all (lines in group3_verify_lines.mk).
+Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), test_mlkem_reject (tampered ciphertext gives K_bar = SHAKE256(z||c) for ML-KEM-768 and -1024, plus a valgrind ctgrind run with the secret key marked undefined: no secret-dependent branch in decapsulation on this host's gcc/clang at -O0..-O3), pq tests — pass. encode/ntt/sample/kpe/genomic validators also pass but are not in verify-all (lines in group3_verify_lines.mk).
 Used by: ~17 modules (pay, ident, plnp, cardnet, web4, ...). Kernel: yes. Packaged in packages/libzxv-pqc (static library built from these sources; smoke program in verify-all).
 Gaps: validator files lack SPDX; headers say "All Rights Reserved" beside Apache-2.0.
 
@@ -2252,7 +2255,7 @@ What it does: update.c is the Ed25519-signed package index. It handles publish, 
 Main entry points: upd_trust_author, upd_publish, upd_select, upd_resolve, upd_fetch_verify; zx_upcheck/zx_upmanifest manifest check.
 Tests: test_update (extended in this audit) and test_zx_upcheck, both in verify-all.
 Used by: evolve (evo_upd, evo_zxu), bootfeat, boot_modules. update.c is in both kernels.
-Gaps: in update.c the signature covers only the CID, so version and deps are unauthenticated (rollback risk, NOT FIXED). Fixed: consent inheritance on re-publish, and trusting the transport's length. Per the coordinator, the snprintf CodeQL items in test_zx_upcheck.c are handled upstream.
+Gaps: none in signing: update.c verifies the signature over upd_manifest_digest (canonical id, version, arch, deps, cid; src/provenance/zx_provenance.h) and refuses a re-publish with a version <= the known one; zx_to_catalog attests the same digest. Fixed earlier: consent inheritance on re-publish, and trusting the transport's length. Per the coordinator, the snprintf CodeQL items in test_zx_upcheck.c are handled upstream.
 
 ### vbe — VBE/VGA linear framebuffer driver (legacy x86)
 Status: PARTIAL
@@ -2408,11 +2411,11 @@ Gaps: the over-fill, wash-pair blocking and book exhaustion bugs are FIXED. Ther
 
 ### zxpkg — native package container: a compiled artifact as three on-disk Tri-Space files
 Status: WORKING (tested in verify-all)
-What it does: wraps real build output (kernel, app, driver) into self-describing S+, S- and S0 files with digests bound by trispace, and verifies release fixtures.
+What it does: wraps real build output (kernel, app, driver) into self-describing S+, S- and S0 files with digests bound by trispace, and verifies releases: a ZSP v2 envelope (caller floor and arch) whose signed identity is the canonical manifest digest of (triad id, version, arch, seal).
 Main entry points: zxpkg_seal, zxpkg_write, zxpkg_read, zxpkg_verify_triad, zxpkg_verify_release.
 Tests: test_zxpkg and test_zxrelease in verify-all.
 Used by: zxvfs_tri, evolve, loader/zsp. arm64 kernel only.
-Gaps: inherits the zab native-image capability gap.
+Gaps: inherits the zab native-image capability gap. build_system/sign_release.sh still emits v1 envelopes, which zxpkg_verify_release now refuses.
 
 ### zxvfs — persistent filesystem with a redo journal, extent allocator and Tri-Space store
 Status: WORKING (tested in verify-all)
