@@ -39,6 +39,12 @@ input{flex:1;min-width:0;background:#0b0e13;color:var(--text);border:1px solid v
 form button{background:var(--accent);color:#000;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
 .legend{display:flex;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.btns{display:flex;gap:6px;margin-top:8px}
+.btns button{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+.btns button.on{background:var(--accent);color:#000;border-color:var(--accent)}
+.small{font-size:12px;color:var(--muted);margin-top:6px}
+#notes div{padding:4px 0;border-bottom:1px solid var(--line);font-size:12px}
+#notes div.unread{border-left:3px solid var(--accent);padding-left:6px}
 </style>
 </head>
 <body>
@@ -68,25 +74,43 @@ form button{background:var(--accent);color:#000;border:0;border-radius:6px;paddi
     <section><h2>Machine budget</h2><div class="kv" id="budget"></div></section>
     <section><h2>Harmonic cycles</h2><div class="harm" id="harm"></div><div class="kv" style="margin-top:8px" id="clock"></div></section>
     <section><h2>Ledger and market</h2><div class="kv" id="ledger"></div></section>
+    <section><h2>Network</h2><div class="kv" id="net"></div>
+      <div class="btns"><button data-net="off">Off</button><button data-net="lan">LAN</button><button data-net="online">Online</button></div>
+      <div class="small">Off: no socket, nothing leaves this machine. LAN: private addresses only.</div></section>
+    <section><h2>Updates</h2><div class="kv" id="upd"></div>
+      <div class="btns"><button id="updcheck">Check for updates</button></div>
+      <div class="small">Checks only when you ask, or daily while Online. Unsigned listings are never installable.</div></section>
+    <section><h2>Notifications</h2><div id="notes"></div><div class="btns"><button id="noteread">Mark all read</button></div></section>
   </div>
 </main>
 <script>
 const $=id=>document.getElementById(id);
 const verdict=["✗ false","✓ true","⊥̸ contested"];
 for(let n=1;n<=11;n++){const d=document.createElement('div');d.textContent=n;d.id='h'+n;$('harm').appendChild(d)}
-function kv(el,rows){el.innerHTML=rows.map(([k,v])=>`<span>${k}</span><span>${v}</span>`).join('')}
+function esc(t){return String(t).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';')}
+function kv(el,rows){el.innerHTML=rows.map(([k,v])=>`<span>${esc(k)}</span><span>${esc(v)}</span>`).join('')}
 function fmt(n){return Number(n).toLocaleString()}
 async function poll(){
   try{
     const s=await (await fetch('/api/state')).json();
     $('mode').textContent=(s.remote?'remote instance':'this device')+' · '+s.host;
-    kv($('budget'),[['Mode',s.remote?'remote (up to 99%)':'local guest (≤ 13/21 of free)'],['Cores',`${s.cores} total, ${(s.cores_milli/1000).toFixed(2)} granted`],['Memory',`${fmt(s.mem_total_mb)} MB total, ${fmt(s.mem_mb)} MB granted`],['Levels',s.levels],['Agents',s.agents.length],['Tokens / cycle',fmt(s.tokens_per_cycle)]]);
+    const c=s.companion||{};
+    kv($('budget'),[['Mode',s.remote?'remote (up to 99%)':'local guest (≤ 13/21 of free)'],['Cores',`${s.cores} total, ${(s.cores_milli/1000).toFixed(2)} granted`],['Memory',`${fmt(s.mem_total_mb)} MB total, ${fmt(s.mem_mb)} MB granted`],['Levels',s.levels],['Agents',s.agents.length],['Tokens / cycle',fmt(s.tokens_per_cycle)],['Companion left',c.exhausted?'budget exhausted for this cycle':`${fmt(c.remaining)} of ${fmt(c.allotted)} tokens`]]);
+    const n=s.net||{};kv($('net'),[['Mode',n.mode],['Socket',n.bound?`UDP ${n.bind}:${n.port}`:'none'],['Node',n.node_id||'–'],['Peers',fmt(n.peers||0)],['Datagrams',`${fmt(n.in||0)} in, ${fmt(n.out||0)} out`]].concat(n.error?[['Error',n.error]]:[]));
+    document.querySelectorAll('[data-net]').forEach(b=>b.classList.toggle('on',b.dataset.net===n.mode));
+    const u=s.update||{};kv($('upd'),[['Status',u.status],['Checks',`${fmt(u.checks||0)} (${fmt(u.requests||0)} requests)`],['Gateway',u.gateway]].concat(u.body?[['Detail',u.body]]:[]).concat(u.error?[['Error',u.error]]:[]));
+    if(s.notes&&s.notes.unread!==lastUnread){lastUnread=s.notes.unread;notes()}
     for(let n=1;n<=11;n++)$('h'+n).classList.toggle('on',!!(s.due_mask>>(n-1)&1));
     kv($('clock'),[['Tick',fmt(s.tick)],['Fundamental',`${fmt(s.fundamental)} (27,720 ticks each)`],['Market cycle',fmt(s.cycle)]]);
     kv($('ledger'),[['Settled cycles',fmt(s.settled)],['Held cycles',fmt(s.held)],['Money supply',fmt(s.money_supply)],['Pot',fmt(s.pot)],['Imaginary pool',fmt(s.imag)],['Mood',s.mood],['Tokens saved by sharing',fmt(s.saved)]]);
     $('agents').innerHTML=s.agents.map(a=>{const t=a.re+a.mk+a.im||1;return `<tr><td>${a.level}</td><td>${a.name}</td><td>${a.emoji} ${a.intensity}</td><td>${fmt(a.re+a.mk+a.im)}</td><td><div class="bar"><i style="width:${a.re/t*100}%;background:var(--re)"></i><i style="width:${a.mk/t*100}%;background:var(--mk)"></i><i style="width:${a.im/t*100}%;background:var(--im)"></i></div></td><td>${fmt(a.money)}</td><td>${fmt(a.social)}</td><td>${a.gen}</td><td class="v${a.witness}">${verdict[a.witness]||''} <span style="color:var(--muted)">by ${a.witness_by}</span></td></tr>`}).join('');
   }catch(e){$('mode').textContent='disconnected'}
 }
+let lastUnread=-1;
+async function notes(){try{const r=await (await fetch('/api/notes')).json();$('notes').innerHTML='';for(const x of r.notes){const d=document.createElement('div');if(!x.read)d.className='unread';d.textContent=`${x.title}${x.count>1?' ('+x.count+')':''}${x.body?' · '+x.body:''}`;$('notes').appendChild(d)}if(!r.notes.length)$('notes').textContent='None yet.'}catch(e){}}
+document.querySelectorAll('[data-net]').forEach(b=>b.onclick=async()=>{try{await fetch('/api/net',{method:'POST',body:b.dataset.net})}catch(e){}poll()});
+$('updcheck').onclick=async()=>{$('updcheck').disabled=true;try{await fetch('/api/update',{method:'POST'})}catch(e){}$('updcheck').disabled=false;poll();notes()};
+$('noteread').onclick=async()=>{try{await fetch('/api/notes/read',{method:'POST'})}catch(e){}notes()};
 function say(who,text,you){const m=document.createElement('div');m.className='msg'+(you?' you':'');m.innerHTML=`<span class="who">${who}</span>`;m.appendChild(document.createTextNode(text));$('chat').appendChild(m);$('chat').scrollTop=1e9}
 $('ask').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;$('q').value='';say('You',q,true);
   try{const r=await (await fetch('/api/ask',{method:'POST',body:q})).text();say('Companion',r)}catch(err){say('Companion','(no connection to the swarm)')}};

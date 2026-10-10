@@ -55,6 +55,23 @@ const zxv_model_info_t *zxv_model_info(void);
 int zxv_model_answer(const char *prompt, char *out, size_t cap);
 void zxv_model_close(void);
 
+/* M5 BUDGET. The same, with the generation handed to `run` (the hosted app
+ * passes the swarm budget gate, zxv_budget_gate.h): run(rctx, gen, gctx)
+ * must call gen(gctx, max_new) at most once and return what it returned; if
+ * it returns without calling gen (the budget is spent), the slot reports
+ * ZXV_MODEL_BUDGET_EXHAUSTED. Returns 1 (answered), 0
+ * (no model answer; out holds a note) or ZXV_MODEL_BUDGET_EXHAUSTED (the
+ * model did not run; out is empty). run NULL behaves as zxv_model_answer. */
+#ifndef ZXV_GEN_FN_DEFINED
+#    define ZXV_GEN_FN_DEFINED
+typedef int32_t (*zxv_gen_fn)(void *ctx, uint32_t max_new);
+#endif
+typedef int32_t (*zxv_gen_runner_fn)(void *rctx, zxv_gen_fn gen, void *gctx);
+#define ZXV_MODEL_BUDGET_EXHAUSTED 2
+#define ZXV_MODEL_MAX_NEW          256u
+int zxv_model_answer_ex(const char *prompt, zxv_gen_runner_fn run, void *rctx, char *out,
+                        size_t cap);
+
 /* Forward-pass glue (zxv_zt_glue.c, M3). Generate a reply to the prompt's
  * token ids into out (UTF-8, NUL-terminated). Returns the number of tokens
  * generated, or negative with a reason in err. */

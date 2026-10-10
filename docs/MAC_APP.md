@@ -72,7 +72,11 @@ ZXV writes nothing else: no login item, no launch agent, no files outside these 
 
 Wherever a model comes from, the fetcher installs it only if its exact size and SHA-256 match `models.manifest`. The manifest sits inside the signed app, so a hostile gateway or LAN peer can waste your time but cannot install a file. The CID locates the file; the pinned hash verifies it.
 
-Peer-to-peer swarm networking between Macs, whether on a LAN or online, is **not** in the app yet. See [Honest limits](#honest-limits).
+**Peer network (Vinea).** Off by default: the engine opens no socket beyond its 127.0.0.1 window and sends nothing until you choose **LAN** or **Online** under Network in the window (or start it with `--net lan|online`). LAN accepts and contacts private addresses only (10/8, 172.16/12, 192.168/16, 169.254/16, 127/8); Online any IPv4 address. UDP port 8723 by default (`--net-port`). Peers are added by address (`--peer IP:PORT`); there is no automatic LAN discovery yet. Every datagram is checked (ML-DSA-65 signature, replay window) before it is used. The node only routes (ping, find-node); it shares nothing.
+
+**Updates.** Checked only when you press **Check for updates**, or once a day while the network is Online, against the gateway in `--update-gateway` (default `https://trustless-gateway.link`). Nothing is installed; a listing signed by no key you trust is shown as unsigned.
+
+**Notifications.** Shown in the window. Update results and failed answers also go to Notification Center through `osascript` (it shows as Script Editor) or, on Linux, `notify-send`, when present; `--notify off` stops that.
 
 ## For the release manager
 
@@ -180,7 +184,7 @@ Never commit a certificate, key or password. The signing modes of `build_signed_
 
 - **Answers are greedy and slow, and real models are untested.** The forward pass (`kernel/src/tensor/zt_model.c`) is compiled in through `kernel/arch/hosted/zxv_zt_glue.c`. The glue loads the model once, wraps the message in the ChatML template when the vocabulary has `<|im_start|>` (Qwen2, Qwen3), and decodes greedily, up to 256 new tokens in a context of at most 2048. `test_zxv_zt_glue.c` checks the reply against the tensor engine's reference chain on a tiny random test model; no real model has been run through the app. It is one thread of scalar C (zt_model.h estimates 2.5 to 6 tokens a second for a 0.5B model; not measured), and `/api/ask` blocks the window while it runs. F32, F16, BF16, Q8_0, Q4_0, Q5_0, Q5_1, Q4_K and Q6_K weights load, so Q4_K_M files of models whose width is not a multiple of 256 (Qwen2.5-0.5B, 896 wide, which contain Q5_0/Q5_1 tensors) are accepted; none has been run yet. The model answers on its own: the swarm's market does not yet budget its tokens, and the swarm's agents are still stand-ins.
 - **Tokenizers.** Only byte-level BPE tokenizers (Qwen2, Llama 3) are supported. SentencePiece models (Llama 2, Mistral, Gemma) load as metadata only.
-- **No peer-to-peer networking in the app.** Carracho, `ipfs_node`, calls and social have no host socket glue yet (gap 3). "LAN" and "online" currently cover only how a model is fetched.
+- **Peer networking is basic.** The app runs one Vinea node over UDP (routing only, a new identity at each launch, IPv4, no NAT traversal or LAN discovery); `ipfs_node` file exchange, calls and social have no host glue yet.
 - **Not sandboxed.** The engine is a separate process that reads a user-chosen model by path. Sandboxing would need `app-sandbox` plus `inherit` on the helper, network client and server entitlements, and security-scoped bookmarks for user-chosen files. It is required for the Mac App Store, not for Developer ID distribution.
 - **No self-update.** There is no update check yet. A hybrid-signed update path is gap 8 and gap 13.
 - **Not verified on a real Mac here.** The native shell (`macos/ZXVApp.m`), the Apple-clang universal build, icon rendering, signing, notarisation and stapling were written without a Mac. They are exercised only by the `macos-app` CI job on GitHub's `macos-14` runner. Intel coverage is the universal binary's x86_64 slice; nothing runs on an Intel Mac in CI.

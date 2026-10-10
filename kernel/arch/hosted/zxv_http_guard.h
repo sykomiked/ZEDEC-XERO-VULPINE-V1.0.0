@@ -64,6 +64,10 @@ typedef enum {
  * Returns 0, or -1 when the OS CSPRNG is unavailable (fail closed). */
 int zxv_guard_token_new(char out[ZXV_TOKEN_HEX + 1]);
 
+/* n bytes from the OS CSPRNG (also seeds the Vinea node, zxv_net_host.c).
+ * Returns 0, or -1 when it is unavailable. */
+int zxv_os_random(uint8_t *p, size_t n);
+
 /* True when s is exactly ZXV_TOKEN_HEX lowercase hex digits. */
 bool zxv_guard_token_valid(const char *s);
 

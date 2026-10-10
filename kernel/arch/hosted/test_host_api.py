@@ -140,6 +140,20 @@ def main(binary, gguf=None):
         check(s['held'] == 0 and s['settled'] == s['cycle'], 'every cycle settled')
         check(len(s['agents']) >= 1 and s['agents'][0]['name'] == 'Companion', 'companion first')
         check('model' in s, 'state reports the model slot')
+        c = s.get('companion', {})
+        check(c.get('cycle_open') is True and c['remaining'] == c['allotted'] - c['used'] and
+              c['max_per_answer'] == 256 and c['exhausted'] == (c['remaining'] == 0),
+              'state reports the companion budget: %s' % c)
+        n = s.get('net', {})
+        check(n.get('mode') == 'off' and not n.get('bound') and n.get('out') == 0,
+              'networking is off by default (no socket, nothing sent)')
+        u = s.get('update', {})
+        check(u.get('checks') == 0 and u.get('requests') == 0 and not u.get('auto'),
+              'no update check ran by itself while offline')
+        st, _, body = raw(port, 'GET', '/api/notes', [host, auth])
+        check(st == 200 and 'notes' in json.loads(body), 'notifications endpoint')
+        st, _, _ = raw(port, 'POST', '/api/net', [host, same, auth], b'everything')
+        check(st == 400, 'unknown network mode refused')
         st, _, ans = raw(port, 'POST', '/api/ask', [('Host', 'localhost:%d' % port),
                                                     ('Origin', 'http://localhost:%d' % port), auth],
                          b'plan(trip) -> verify(costs)')

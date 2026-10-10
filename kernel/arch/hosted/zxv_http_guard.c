@@ -23,7 +23,7 @@
 
 /* ---------- G1: the token ---------- */
 
-static int os_random(uint8_t *p, size_t n)
+int zxv_os_random(uint8_t *p, size_t n)
 {
 #if defined(_WIN32)
     return BCryptGenRandom(NULL, p, (ULONG) n, BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0 ? 0 : -1;
@@ -50,7 +50,7 @@ int zxv_guard_token_new(char out[ZXV_TOKEN_HEX + 1])
     static const char hex[] = "0123456789abcdef";
     uint8_t raw[ZXV_TOKEN_BYTES];
     out[0] = 0;
-    if (os_random(raw, sizeof raw) != 0) return -1;
+    if (zxv_os_random(raw, sizeof raw) != 0) return -1;
     /* an all-zero draw means the source is broken, not that we were unlucky */
     uint8_t any = 0;
     for (size_t i = 0; i < sizeof raw; i++) any |= raw[i];
