@@ -60,6 +60,18 @@ int main(void)
     /* ---- Anchor 1: the cross-capital BASKET — 30/30/20/20 = 100% ---------- */
     br_exchange_init(&ex);
     br_set_verifier(&ex, stub_verify_ok);
+    static const uint8_t pinned_zero[32] = {0}; /* the attestor key used below */
+    {
+        pledge_t p1[1] = {{0x1009u, ZCAP_HUMAN, SR_FROM_INT(1)}};
+        CHECK(br_alliance_open(&ex, 41, p1, 1) >= 0, "A0: alliance for the unpinned case opens");
+        ext_attestation_t a0 = {0};
+        a0.outcome_id = 41;
+        a0.achieved = true;
+        allocation_t o0;
+        CHECK(br_distribute(&ex, 41, &a0, &o0) == BR_ERR_NO_ORACLE,
+              "A0: a custom verifier without a pinned key releases nothing (NO_ORACLE)");
+    }
+    br_pin_attestor(&ex, pinned_zero);
     pledge_t basket[4] = {
         {0x1001u, ZCAP_NATURAL, SR_FROM_INT(30)},
         {0x1002u, ZCAP_HUMAN, SR_FROM_INT(30)},
@@ -82,8 +94,8 @@ int main(void)
     CHECK(near_(alloc.party[1], 30.0), "A1: Human share == 30");
     CHECK(near_(alloc.party[2], 20.0), "A1: Social share == 20");
     CHECK(near_(alloc.party[3], 20.0), "A1: Cultural share == 20");
-    surplus_real_t sum = SR_ADD(SR_ADD(alloc.party[0], alloc.party[1]),
-                                SR_ADD(alloc.party[2], alloc.party[3]));
+    surplus_real_t sum =
+        SR_ADD(SR_ADD(alloc.party[0], alloc.party[1]), SR_ADD(alloc.party[2], alloc.party[3]));
     CHECK(SR_CMP(sum, alloc.realized) == 0 && near_(sum, 100.0),
           "A1: shares sum to realized exactly");
     /* proportions are EXACT: each share / realized == its weight */
@@ -112,6 +124,7 @@ int main(void)
     /* ---- Anchor 3: a NON-achieved outcome produces ZERO debt -------------- */
     br_exchange_init(&ex);
     br_set_verifier(&ex, stub_verify_ok);
+    br_pin_attestor(&ex, pinned_zero);
     br_book_credit(&ex, ZCAP_HUMAN, SR_FROM_INT(50)); /* some real holdings */
     pledge_t two[2] = {
         {0x2001u, ZCAP_HUMAN, SR_FROM_INT(40)},

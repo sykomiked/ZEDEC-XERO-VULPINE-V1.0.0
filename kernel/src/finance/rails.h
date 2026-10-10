@@ -140,7 +140,12 @@ typedef struct {
     
     /* M⁵ coordinates */
     m5_coords_t m5;
-    
+
+    /* Refunds: on a sale, the total refunded against it so far; on a
+     * refund, the 1-based tx_id of the sale it refunds (0 otherwise). */
+    surplus_real_t refunded;
+    uint64_t refund_of;
+
     /* Settlement */
     bool settled;
     surplus_real_t settlement_amount;
@@ -225,6 +230,13 @@ int32_t rail_process_tx(rail_processor_t *rp,
                          uint32_t merchant_id,
                          surplus_real_t amount,
                          const m5_coords_t *m5);
+
+/* Refund `amount` against the approved (or settled) sale/voucher with
+ * 1-based id `orig_tx_id`. Refused (-1, nothing changes) unless amount > 0,
+ * the cumulative refunds against that sale stay <= its amount, and the card
+ * stays within its limit. rail_process_tx(TX_REFUND, ...) has no link to a
+ * sale and is refused: refunds go through this call. */
+int32_t rail_process_refund(rail_processor_t *rp, uint64_t orig_tx_id, surplus_real_t amount);
 
 /* Floating voucher payment */
 int32_t rail_process_voucher_tx(rail_processor_t *rp,

@@ -79,16 +79,17 @@ make -C kernel -f build_system/Makefile.arm64 all
 ### Capital Forms (Nine Forms)
 
 ```c
+// Values are the canonical zcap_form_t order (kernel/src/zcapital/zcap_forms.h).
 typedef enum {
-    M5_FORM_SOCIAL = 0,              // State-Reserved
-    M5_FORM_NATURAL = 1,             // State-Reserved
-    M5_FORM_HERITAGE_INTELLECTUAL = 2, // State-Reserved
-    M5_FORM_GOVERNANCE_INSTITUTIONAL = 3, // State-Reserved
-    M5_FORM_FINANCIAL = 4,           // Priceable
-    M5_FORM_MATERIAL = 5,            // Priceable
-    M5_FORM_LIVING = 6,              // Priceable
-    M5_FORM_KNOWLEDGE = 7,           // Priceable
-    M5_FORM_BUILT = 8                // Priceable
+    M5_FORM_FINANCIAL = 0,           // Priceable    (ZCAP_FINANCIAL)
+    M5_FORM_MATERIAL = 1,            // Priceable    (ZCAP_MANUFACTURED)
+    M5_FORM_KNOWLEDGE = 2,           // Priceable    (ZCAP_INTELLECTUAL)
+    M5_FORM_LIVING = 3,              // Priceable    (ZCAP_HUMAN)
+    M5_FORM_SOCIAL = 4,              // State-Reserved (ZCAP_SOCIAL)
+    M5_FORM_NATURAL = 5,             // State-Reserved (ZCAP_NATURAL)
+    M5_FORM_HERITAGE_INTELLECTUAL = 6, // State-Reserved (ZCAP_CULTURAL)
+    M5_FORM_GOVERNANCE_INSTITUTIONAL = 7, // State-Reserved (ZCAP_SPIRITUAL)
+    M5_FORM_BUILT = 8                // Priceable    (ZCAP_SYSTEM)
 } m5_capital_form_t;
 ```
 

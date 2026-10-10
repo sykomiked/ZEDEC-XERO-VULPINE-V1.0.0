@@ -162,9 +162,14 @@ swarm_status_t swarm_market_credit(swarm_market_t *m, uint32_t model_id, swarm_c
     if (!m || form >= SWARM_CAP_COUNT || form == SWARM_CAP_FINANCIAL) return SWARM_ERR_ARG;
     swarm_trader_t *t = find(m, model_id);
     if (!t) return SWARM_ERR_NO_MODEL;
-    t->cap[form] += amount;
-    if (is_value_form(form)) t->value_cycle += amount;
-    if (form == SWARM_CAP_SOCIAL) t->social_cycle += amount;
+    uint64_t nc, nv = t->value_cycle, ns = t->social_cycle;
+    if (__builtin_add_overflow(t->cap[form], amount, &nc) ||
+        (is_value_form(form) && __builtin_add_overflow(t->value_cycle, amount, &nv)) ||
+        (form == SWARM_CAP_SOCIAL && __builtin_add_overflow(t->social_cycle, amount, &ns)))
+        return SWARM_ERR_ARG; /* would wrap: nothing credited */
+    t->cap[form] = nc;
+    t->value_cycle = nv;
+    t->social_cycle = ns;
     return SWARM_OK;
 }
 

@@ -100,7 +100,8 @@ void cn_cfg_default(cn_issuer_cfg_t *cfg, cn_network_t net)
     cfg->validity_months = 36;
     cfg->cycle_days = 30;
     cfg->grace_days = 21;
-    for (uint32_t f = CN_FORM_FINANCIAL; f < CN_FORM_COUNT; f++) {
+    for (uint32_t f = 0; f < CN_FORM_COUNT; f++) {
+        if (!cn_form_priceable(f)) continue; /* Crown forms stay at 0 (disabled) */
         cfg->per_txn_limit[f] = 1000000ull;
         cfg->per_cycle_limit[f] = 5000000ull;
     }

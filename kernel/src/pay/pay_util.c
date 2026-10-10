@@ -129,25 +129,29 @@ bool pay_muldiv(uint64_t a, uint64_t b, uint64_t c, uint64_t *out, uint64_t *rem
     return true;
 }
 
+/* Checked arithmetic on the compiler builtins: on overflow nothing is
+ * written to *out and false is returned. */
 bool pay_add_ok(uint64_t a, uint64_t b, uint64_t *out)
 {
-    uint64_t s = a + b;
-    if (s < a) return false;
+    uint64_t s;
+    if (__builtin_add_overflow(a, b, &s)) return false;
     *out = s;
     return true;
 }
 
 bool pay_sub_ok(uint64_t a, uint64_t b, uint64_t *out)
 {
-    if (b > a) return false;
-    *out = a - b;
+    uint64_t d;
+    if (__builtin_sub_overflow(a, b, &d)) return false;
+    *out = d;
     return true;
 }
 
 bool pay_sadd_ok(int64_t a, int64_t b, int64_t *out)
 {
-    if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b)) return false;
-    *out = a + b;
+    int64_t s;
+    if (__builtin_add_overflow(a, b, &s)) return false;
+    *out = s;
     return true;
 }
 

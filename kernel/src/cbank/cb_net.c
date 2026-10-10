@@ -365,7 +365,8 @@ int cb_net_submit(cb_net *e, const cb_pay_req *req, uint64_t now, cb_pay_result 
     } else {
         p->status = CB_PS_ACCEPTED;
         p->accepted_at = now;
-        if (corr >= 0) e->corr_used[corr] += p->send;
+        /* decide() already refused AM14 when corr_used + amount would wrap */
+        if (corr >= 0) (void) cb_add_ok(e->corr_used[corr], p->send, &e->corr_used[corr]);
     }
     fill_res(res, p, e->n_pay, false);
     e->n_pay++;
@@ -484,11 +485,13 @@ int cb_net_check(const cb_net *e)
     for (uint32_t c = 0; c < e->cfg->n_ccy; c++) {
         int64_t s = e->agent[c];
         for (uint32_t p = 0; p < e->n_part; p++)
-            if (cb_streq(e->part[p].ccy, e->cfg->ccy[c].alpha)) s += e->pos[p];
+            if (cb_streq(e->part[p].ccy, e->cfg->ccy[c].alpha) && !cb_sadd_ok(s, e->pos[p], &s))
+                return CB_E_CONSERV;
         if (s != 0) return CB_E_CONSERV;
-        ausum += e->aupos[c];
+        if (!cb_sadd_ok(ausum, e->aupos[c], &ausum)) return CB_E_CONSERV;
     }
-    for (uint32_t p = 0; p < e->n_part; p++) usum += e->upos[p];
+    for (uint32_t p = 0; p < e->n_part; p++)
+        if (!cb_sadd_ok(usum, e->upos[p], &usum)) return CB_E_CONSERV;
     return (usum == 0 && ausum == 0) ? CB_OK : CB_E_CONSERV;
 }
 
@@ -501,6 +504,11 @@ int cb_net_close_cycle(cb_net *e, uint64_t now, cb_settle_instr *out, uint32_t c
     if (cap < e->cfg->n_ccy) return CB_E_FULL;
     int rc = cb_net_check(e);
     if (rc != CB_OK) return rc;
+    /* every prefund update must fit before anything is written */
+    for (uint32_t p = 0; p < e->n_part; p++) {
+        int64_t np;
+        if (!cb_sadd_ok(e->part[p].prefund, e->pos[p], &np)) return CB_E_CONSERV;
+    }
     for (uint32_t c = 0; c < e->cfg->n_ccy; c++) {
         const cb_ccy_profile *k = &e->cfg->ccy[c];
         cb_settle_instr *o = &out[c];
@@ -516,7 +524,8 @@ int cb_net_close_cycle(cb_net *e, uint64_t now, cb_settle_instr *out, uint32_t c
             o->lines[o->n_lines].part = (uint16_t) p;
             o->lines[o->n_lines].net = e->pos[p];
             o->n_lines++;
-            o->participants_net += e->pos[p];
+            if (!cb_sadd_ok(o->participants_net, e->pos[p], &o->participants_net))
+                return CB_E_CONSERV; /* nothing written to the engine yet */
         }
     }
     for (uint32_t p = 0; p < e->n_part; p++) {

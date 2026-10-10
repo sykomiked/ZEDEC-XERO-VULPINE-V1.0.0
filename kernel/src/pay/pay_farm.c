@@ -273,22 +273,31 @@ pay_status_t pay_farm_close_period(pay_farm_ctx_t *F, const uint8_t beacon[32], 
     }
     F->n_queue = keep;
 
-    /* penalties */
+    /* penalties (lifetime counters are checked: on overflow the farm's
+     * pending value stays pending and the period reports PAY_ERR_OVERFLOW) */
     uint64_t e[PAY_FARM_MAX], total = 0;
+    pay_status_t err = PAY_OK;
     for (uint32_t j = 0; j < F->n_farms; j++) {
         pay_farm_t *f = &F->farm[j];
+        uint64_t nf, nv;
+        if (!pay_add_ok(f->forfeited, f->pending, &nf) ||
+            !pay_add_ok(f->verified, f->pending, &nv)) {
+            e[j] = 0;
+            err = PAY_ERR_OVERFLOW;
+            continue;
+        }
         if (f->tainted) {
-            f->forfeited += f->pending;
+            f->forfeited = nf;
             f->pending = 0;
             f->strikes++;
             if (f->strikes >= F->cfg.max_strikes) f->suspended = true;
             f->tainted = false;
         }
         if (f->suspended) {
-            f->forfeited += f->pending;
+            f->forfeited = nf;
             f->pending = 0;
         }
-        f->verified += f->pending;
+        f->verified += f->pending; /* <= nv: checked above */
         e[j] = f->pending;
         if (total + e[j] >= PAY_BAL_MAX) { /* keep the cap arithmetic in range */
             f->verified -= f->pending;
@@ -300,15 +309,22 @@ pay_status_t pay_farm_close_period(pay_farm_ctx_t *F, const uint8_t beacon[32], 
 
     /* W4 + W5 */
     uint64_t c = pay_farm_cap(e, F->n_farms, F->cfg.cap_share);
-    pay_status_t err = PAY_OK;
     for (uint32_t j = 0; j < F->n_farms; j++) {
         pay_farm_t *f = &F->farm[j];
         if (!e[j]) continue;
         uint64_t g = e[j] < c ? e[j] : c;
-        f->capped += e[j] - g;
+        uint64_t t = pay_tithe_phi(g), net = g - t;
+        uint64_t ncap, fm, Fm, Ft, Fn;
+        /* every counter this mint touches must fit, or nothing is minted */
+        if (!pay_add_ok(f->capped, e[j] - g, &ncap) || !pay_add_ok(f->minted, g, &fm) ||
+            !pay_add_ok(F->minted, g, &Fm) || !pay_add_ok(F->tithed, t, &Ft) ||
+            !pay_add_ok(F->net, net, &Fn)) {
+            err = PAY_ERR_OVERFLOW;
+            continue;
+        }
+        f->capped = ncap;
         f->pending = 0;
         if (!g) continue;
-        uint64_t t = pay_tithe_phi(g), net = g - t;
         pay_posting_req_t rq;
         farm_ids(F, &rq, f->owner, tick);
         uint32_t n = 0;
@@ -333,10 +349,10 @@ pay_status_t pay_farm_close_period(pay_farm_ctx_t *F, const uint8_t beacon[32], 
             err = st;
             continue;
         }
-        f->minted += g;
-        F->minted += g;
-        F->tithed += t;
-        F->net += net;
+        f->minted = fm;
+        F->minted = Fm;
+        F->tithed = Ft;
+        F->net = Fn;
         if (F->eq && F->eq->vfv.ready) {
             if (net && pay_vfv_equity_on_mint(F->eq, f->owner, f->path, net) != PAY_OK)
                 F->stats.equity_errors++;

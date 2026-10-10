@@ -169,6 +169,34 @@ int32_t cc_install_app(community_chest_t *cc, uint32_t app_id) {
     return 0;
 }
 
+/* A sale's revenue counters, checked together: true iff every one of them
+ * can take this sale without wrapping. */
+static bool cc_sale_fits(const community_chest_t *cc, const cc_app_t *app)
+{
+    uint64_t plat, roy, t;
+    uint64_t dev = cc_calc_revenue_split(app->price, app->dev_share_bp, &plat, &roy);
+    return !__builtin_add_overflow(app->total_revenue, app->price, &t) &&
+           !__builtin_add_overflow(cc->total_revenue, app->price, &t) &&
+           !__builtin_add_overflow(cc->total_dev_payouts, dev, &t) &&
+           !__builtin_add_overflow(cc->total_platform_revenue, plat, &t) &&
+           !__builtin_add_overflow(cc->total_royalty_revenue, roy, &t);
+}
+
+/* Book one sale's split into the counters. Returns -1 (nothing written) if
+ * any counter would wrap. The three shares sum exactly to the price. */
+static int cc_book_sale(community_chest_t *cc, cc_app_t *app)
+{
+    if (!cc_sale_fits(cc, app)) return -1;
+    uint64_t plat, roy;
+    uint64_t dev = cc_calc_revenue_split(app->price, app->dev_share_bp, &plat, &roy);
+    app->total_revenue += app->price;
+    cc->total_revenue += app->price;
+    cc->total_dev_payouts += dev;
+    cc->total_platform_revenue += plat;
+    cc->total_royalty_revenue += roy;
+    return 0;
+}
+
 int32_t cc_purchase_app(community_chest_t *cc, uint32_t app_id) {
     if (!cc) return -1;
     cc_app_t *app = cc_get_app(cc, app_id);
@@ -176,16 +204,7 @@ int32_t cc_purchase_app(community_chest_t *cc, uint32_t app_id) {
     if (app->type == CC_APP_FREE) return -2;
     if (app->price == 0) return -2;
 
-    /* Calculate revenue split */
-    uint64_t platform_rev, royalty_rev;
-    uint64_t dev_payout = cc_calc_revenue_split(app->price, app->dev_share_bp,
-                                                  &platform_rev, &royalty_rev);
-
-    app->total_revenue += app->price;
-    cc->total_revenue += app->price;
-    cc->total_dev_payouts += dev_payout;
-    cc->total_platform_revenue += platform_rev;
-    cc->total_royalty_revenue += royalty_rev;
+    if (cc_book_sale(cc, app) != 0) return -4; /* a counter would wrap: nothing booked */
 
     cc_update_coverage(cc);
     return 0;
@@ -226,6 +245,7 @@ uint64_t cc_calc_revenue_split(uint64_t amount, uint32_t dev_share_bp,
      * the sale took in; the royalty is now limited to what is left after the
      * developer, and the platform takes the remainder (including the
      * rounding dust that used to vanish). */
+    if (dev_payout > amount) dev_payout = amount; /* cannot happen for bp <= 10000 */
     if (royalty > amount - dev_payout) royalty = amount - dev_payout;
     uint64_t platform = amount - dev_payout - royalty;
 
@@ -252,11 +272,16 @@ uint64_t cc_voucher_cash_in(community_chest_t *cc, const char *account_addr,
         if (!acct) return 0;
     }
 
-    /* Credit voucher balance (stored in CAP_FINANCIAL slot as vouchers) */
-    if (acct->balance[capital] > UINT64_MAX - external_amount) return 0;
-    acct->balance[capital] += external_amount;
-    cc->voucher_float += external_amount;
-    cc->voucher_cashin_total += external_amount;
+    /* Credit voucher balance (stored in CAP_FINANCIAL slot as vouchers).
+     * Every counter is checked first; on any overflow nothing changes. */
+    uint64_t nb, nf, nt;
+    if (__builtin_add_overflow(acct->balance[capital], external_amount, &nb) ||
+        __builtin_add_overflow(cc->voucher_float, external_amount, &nf) ||
+        __builtin_add_overflow(cc->voucher_cashin_total, external_amount, &nt))
+        return 0;
+    acct->balance[capital] = nb;
+    cc->voucher_float = nf;
+    cc->voucher_cashin_total = nt;
 
     /* Record deposit in Vino ledger */
     /* Use a self-transfer to record the deposit on-chain */
@@ -275,13 +300,15 @@ uint64_t cc_voucher_cash_out(community_chest_t *cc, const char *account_addr,
     vino_account_t *acct = vino_get_account(cc->vino, account_addr);
     if (!acct) return 0;
     if (acct->balance[capital] < voucher_amount) return 0;
+    uint64_t nt;
+    if (__builtin_add_overflow(cc->voucher_cashout_total, voucher_amount, &nt)) return 0;
 
     /* Debit voucher balance */
     acct->balance[capital] -= voucher_amount;
     if (cc->voucher_float >= voucher_amount) {
         cc->voucher_float -= voucher_amount;
     }
-    cc->voucher_cashout_total += voucher_amount;
+    cc->voucher_cashout_total = nt;
 
     /* Record withdrawal in Vino ledger */
     vino_transfer(cc->vino, account_addr, account_addr, 0, capital,
@@ -308,6 +335,7 @@ int32_t cc_purchase_with_vouchers(community_chest_t *cc, uint32_t app_id,
     vino_account_t *buyer = vino_get_account(cc->vino, buyer_addr);
     if (!buyer) return -2;
     if (buyer->balance[CAP_FINANCIAL] < app->price) return -2;
+    if (!cc_sale_fits(cc, app)) return -4; /* refuse before any value moves */
 
     /* Move the price through the ledger into the store's escrow account.
      * The previous code subtracted it from the buyer's balance directly and
@@ -320,16 +348,7 @@ int32_t cc_purchase_with_vouchers(community_chest_t *cc, uint32_t app_id,
                       RAIL_VINO_NATIVE, "cc-voucher-purchase") < 0)
         return -2;
 
-    /* Calculate revenue split */
-    uint64_t platform_rev, royalty_rev;
-    uint64_t dev_payout =
-        cc_calc_revenue_split(app->price, app->dev_share_bp, &platform_rev, &royalty_rev);
-
-    app->total_revenue += app->price;
-    cc->total_revenue += app->price;
-    cc->total_dev_payouts += dev_payout;
-    cc->total_platform_revenue += platform_rev;
-    cc->total_royalty_revenue += royalty_rev;
+    (void) cc_book_sale(cc, app); /* cc_sale_fits() above: cannot wrap */
 
     /* Record download */
     app->download_count++;

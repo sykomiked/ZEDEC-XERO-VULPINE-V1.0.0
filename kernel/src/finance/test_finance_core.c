@@ -84,15 +84,41 @@ static void rail_tests(void)
     CHECK(rail_process_tx(&rp, TX_SALE, c, 9, U(-1000), NULL) == -1 &&
               rp.cards[c].reg_balance == U(100),
           "a negative sale is refused (it credited the card)");
+    CHECK(rail_process_tx(&rp, TX_SALE, c, 9, U(0), NULL) == -1 &&
+              rp.cards[c].reg_balance == U(100),
+          "a zero sale is refused");
     CHECK(rail_process_tx(&rp, TX_REFUND, c, 9, U(5000), NULL) == -1 &&
               rp.cards[c].reg_balance == U(100),
-          "a refund above the card limit is refused (it minted money)");
+          "an unlinked refund is refused (it could refund more than was sold)");
+    CHECK(rail_process_tx(&rp, TX_REFUND, c, 9, U(1), NULL) == -1 &&
+              rp.cards[c].reg_balance == U(100),
+          "...even a small one: refunds must name their sale");
     uint32_t first = rp.num_transactions;
     CHECK(rail_process_tx(&rp, TX_SALE, c, 9, U(10), NULL) == 0, "sale 10");
     CHECK(rail_process_tx(&rp, TX_SALE, c, 9, U(20), NULL) == 0, "sale 20");
-    CHECK(rail_process_tx(&rp, TX_REFUND, c, 9, U(30), NULL) == 0 &&
-              rp.cards[c].reg_balance == U(100),
-          "a refund up to the limit is accepted");
+    uint64_t sale10 = rp.transactions[first].tx_id, sale20 = rp.transactions[first + 1].tx_id;
+    CHECK(rp.cards[c].reg_balance == U(70), "conservation: 100 - 10 - 20 = 70 on the card");
+    CHECK(rail_process_refund(&rp, sale10, U(11)) == -1 && rp.cards[c].reg_balance == U(70),
+          "a refund above its sale (11 > 10) is refused");
+    CHECK(rail_process_refund(&rp, sale10, U(0)) == -1, "a zero refund is refused");
+    CHECK(rail_process_refund(&rp, sale10, U(-3)) == -1 && rp.cards[c].reg_balance == U(70),
+          "a negative refund is refused");
+    CHECK(rail_process_refund(&rp, sale10, U(6)) == 0 && rp.cards[c].reg_balance == U(76),
+          "a partial refund (6 of 10) is accepted");
+    CHECK(rail_process_refund(&rp, sale10, U(5)) == -1 && rp.cards[c].reg_balance == U(76),
+          "cumulative: a second refund past the sale (6 + 5 > 10) is refused");
+    CHECK(rail_process_refund(&rp, sale10, U(4)) == 0 && rp.cards[c].reg_balance == U(80),
+          "cumulative: the remaining 4 is accepted");
+    CHECK(rail_process_refund(&rp, sale10, U(1)) == -1, "a fully refunded sale takes no more");
+    CHECK(rail_process_refund(&rp, sale20, U(20)) == 0 && rp.cards[c].reg_balance == U(100),
+          "a full refund of sale 20 restores the card (100 = 70 + 10 + 20)");
+    {
+        uint64_t refund_id = rp.transactions[rp.num_transactions - 1].tx_id;
+        CHECK(rail_process_refund(&rp, refund_id, U(1)) == -1,
+              "a refund cannot itself be refunded");
+        CHECK(rail_process_refund(&rp, 0, U(1)) == -1 && rail_process_refund(&rp, 9999, U(1)) == -1,
+              "an unknown sale id is refused");
+    }
     CHECK(rail_process_tx(&rp, TX_CAPTURE, c, 9, U(1), NULL) == -1,
           "an unimplemented transaction type is refused, not reported as success");
     rail_settle_batch(&rp);

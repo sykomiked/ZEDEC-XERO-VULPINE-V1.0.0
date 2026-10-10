@@ -22,8 +22,10 @@
  * every integer move. Substrate integrity is the mechanical invariants; the
  * maxim is the constitutional court for deals.
  *
- * This is the CANONICAL platform capital enum. Do NOT reuse vino.h's
- * capital_type_t; that one is a different, older taxonomy.
+ * This is the CANONICAL platform capital enum (zcap_forms.h). vino.h's
+ * capital_type_t, pay_cap_t, swarm_cap_t, capital_form_t and the SDK's
+ * M5_CAP_ / M5_FORM_ names are aliases with the same values, checked by
+ * _Static_assert in each of those headers.
  */
 #ifndef ZXV_ZCAPITAL_H
 #define ZXV_ZCAPITAL_H
@@ -32,20 +34,11 @@
 #include <stdbool.h>
 #include "surplus.h"
 
-/* ===== The nine canonical forms of capital ===== */
-typedef enum {
-    ZCAP_FINANCIAL = 0,
-    ZCAP_MANUFACTURED,
-    ZCAP_INTELLECTUAL,
-    ZCAP_HUMAN,
-    ZCAP_SOCIAL,
-    ZCAP_NATURAL,
-    ZCAP_CULTURAL,
-    ZCAP_SPIRITUAL,
-    ZCAP_SYSTEM
-} zcap_form_t;
-
-#define ZCAP_FORM_COUNT 9
+/* ===== The nine canonical forms of capital =====
+ * zcap_form_t and ZCAP_FORM_COUNT live in zcap_forms.h (dependency-free, so
+ * vino, pay, swarm, finance and the SDK can alias them without surplus.h).
+ * That enum is the single canonical index order for the whole platform. */
+#include "zcap_forms.h"
 
 /* ===== Who holds jurisdiction over each form (proposal Sec 3.5) =====
  * Ministry governs the four priceable material/knowledge forms; the Crown holds

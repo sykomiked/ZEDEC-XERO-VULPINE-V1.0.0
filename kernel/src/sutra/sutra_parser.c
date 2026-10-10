@@ -54,25 +54,27 @@ static trit_t keyword_to_trit(const char *kw) {
     return TRIT_FALSE;
 }
 
-/* SUTRA's 9-capital keyword set (per SUTRA_LANGUAGE_DIRECTIVE.md) is
- * named differently from vino.h's ALREADY-EXISTING capital_type_t in
- * 4 of 9 slots (Intellectual/Natural/Temporal/Relational vs.
- * Knowledge/Living/Built/Human) -- rather than duplicate a second
- * capital enum, SUTRA maps onto the real one by closest semantic
- * meaning. The 5 that share a name (Financial/Material/Social/
- * Cultural/Spiritual) map exactly; the other 4 are a deliberate,
- * documented best-effort mapping, not an accident. */
+/* SUTRA's capital keywords map onto vino's capital_type_t, which is the
+ * canonical zcap_form_t order (zcap_forms.h). The canonical names are
+ * accepted; SUTRA_LANGUAGE_DIRECTIVE.md's older keywords are kept as
+ * aliases (MATERIAL = MANUFACTURED, TEMPORAL = SYSTEM, RELATIONAL = HUMAN).
+ * An unknown keyword maps to CAP_MAX (out of range), which the self-audit
+ * flags and sutra_check_coverage refuses; it used to become FINANCIAL
+ * silently. */
 static capital_type_t keyword_to_capital(const char *kw) {
     if (streq(kw, "FINANCIAL"))    return CAP_FINANCIAL;
-    if (streq(kw, "MATERIAL"))     return CAP_MATERIAL;
+    if (streq(kw, "MANUFACTURED")) return CAP_MANUFACTURED;
+    if (streq(kw, "MATERIAL")) return CAP_MANUFACTURED;
+    if (streq(kw, "INTELLECTUAL")) return CAP_INTELLECTUAL;
+    if (streq(kw, "HUMAN")) return CAP_HUMAN;
+    if (streq(kw, "RELATIONAL")) return CAP_HUMAN;
     if (streq(kw, "SOCIAL"))       return CAP_SOCIAL;
-    if (streq(kw, "INTELLECTUAL")) return CAP_KNOWLEDGE;
-    if (streq(kw, "NATURAL"))      return CAP_LIVING;
+    if (streq(kw, "NATURAL")) return CAP_NATURAL;
     if (streq(kw, "CULTURAL"))     return CAP_CULTURAL;
     if (streq(kw, "SPIRITUAL"))    return CAP_SPIRITUAL;
-    if (streq(kw, "TEMPORAL"))     return CAP_BUILT;
-    if (streq(kw, "RELATIONAL"))   return CAP_HUMAN;
-    return CAP_FINANCIAL;
+    if (streq(kw, "SYSTEM")) return CAP_SYSTEM;
+    if (streq(kw, "TEMPORAL")) return CAP_SYSTEM;
+    return CAP_MAX;
 }
 
 static payment_rail_t keyword_to_rail(const char *kw) {

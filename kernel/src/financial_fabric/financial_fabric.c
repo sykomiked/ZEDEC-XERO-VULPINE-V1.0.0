@@ -16,8 +16,9 @@
 #include "surplus.h"
 #include "../sdk/selfaudit.h"
 
-/* True for a 1-based form that may change hands (5..9). Forms 1..4 are
- * state-reserved and inalienable (finance/capital_forms.h). */
+/* True for a 1-based form (form - 1 is the canonical zcap_form_t index)
+ * that may change hands. The four state-reserved forms (Social, Natural,
+ * Heritage, Governance = 1-based 5..8) are inalienable (finance/capital_forms.h). */
 static bool ff_form_alienable(uint8_t form)
 {
     return form >= 1 && form <= 9 && !capital_is_state_reserved((capital_form_t) (form - 1));
@@ -242,9 +243,13 @@ int32_t ff_transfer_capital(financial_fabric_t *fabric, uint32_t from_account, u
     if (!from || !to) return -1;
 
     if (from->balances[form - 1] < amount) return -1;
+    uint64_t nto, nvol;
+    if ((from != to && __builtin_add_overflow(to->balances[form - 1], amount, &nto)) ||
+        __builtin_add_overflow(fabric->stats.total_volume, amount, &nvol))
+        return -1; /* would wrap: nothing moves */
 
     from->balances[form - 1] -= amount;
-    to->balances[form - 1] += amount;
+    to->balances[form - 1] += amount; /* fits: checked above (or from == to) */
 
     /* Triple ledger entry */
     ff_ledger_entry(fabric, from_account, form, form, amount, "Transfer");
@@ -265,7 +270,11 @@ int32_t ff_mint_voucher(financial_fabric_t *fabric, uint32_t account_id, uint8_t
     ff_account_t *acc = ff_get_account(fabric, account_id);
     if (!acc) return -1;
 
-    acc->balances[form - 1] += amount;
+    uint64_t nb, nvol;
+    if (__builtin_add_overflow(acc->balances[form - 1], amount, &nb) ||
+        __builtin_add_overflow(fabric->stats.total_volume, amount, &nvol))
+        return -1; /* would wrap: nothing minted */
+    acc->balances[form - 1] = nb;
     ff_ledger_entry(fabric, account_id, 0, form, amount, "Voucher minted");
 
     fabric->stats.total_volume += amount;
@@ -581,9 +590,17 @@ int32_t ff_forward_capital(financial_fabric_t *fabric, uint32_t position_id)
     if (pos->forward_target_account > 0) {
         ff_account_t *target = ff_get_account(fabric, pos->forward_target_account);
         if (target) {
-            target->balances[pos->contract.generated_form - 1] += pos->capital_forwarded;
-            ff_ledger_entry(fabric, pos->account_id, pos->contract.target_form,
-                            pos->contract.generated_form, pos->capital_forwarded, "Pay-it-forward");
+            /* m5_capital_form_t is the 0-based canonical index (zcap_forms.h);
+             * the old "- 1" treated it as 1-based and wrote balances[-1] for
+             * form 0. A credit that would wrap is refused. */
+            uint32_t gf = (uint32_t) pos->contract.generated_form;
+            uint64_t nb;
+            if (gf >= M5_FORM_COUNT ||
+                __builtin_add_overflow(target->balances[gf], pos->capital_forwarded, &nb))
+                return -1;
+            target->balances[gf] = nb;
+            ff_ledger_entry(fabric, pos->account_id, (uint8_t) (pos->contract.target_form + 1),
+                            (uint8_t) (gf + 1), pos->capital_forwarded, "Pay-it-forward");
         }
     }
 
@@ -709,8 +726,12 @@ int32_t ff_complete_settlement(financial_fabric_t *fabric, uint32_t settlement_i
     ff_account_t *dst = ff_get_account(fabric, sett->dest_account);
     if (!dst) return -1;
 
-    /* Transfer capital */
-    dst->balances[sett->capital_form - 1] += sett->amount;
+    /* Transfer capital (refused, settlement left open, if it would wrap) */
+    uint64_t nb, nvol;
+    if (__builtin_add_overflow(dst->balances[sett->capital_form - 1], sett->amount, &nb) ||
+        __builtin_add_overflow(fabric->stats.total_volume, sett->amount, &nvol))
+        return -1;
+    dst->balances[sett->capital_form - 1] = nb;
 
     sett->completed = true;
     sett->completed_tick = 0; /* Current tick */
@@ -897,11 +918,11 @@ int32_t ff_route_through_rail(financial_fabric_t *fabric, uint32_t from_account,
     return ff_transfer_capital(fabric, from_account, to_account, form, amount);
 }
 
-/* Form -> rail table (1-based forms), from the "Rail Assignment" block in
- * finance/capital_forms.h (codes are its RAIL_* macros):
- *   Financial(5), Material(6), Living(7), Built(9) -> RAIL_FINANCIAL only
- *   Knowledge(8)                                   -> RAIL_PROVENANCE only
- *   State-reserved (1-4) -> RAIL_PROVENANCE (attestation) and
+/* Form -> rail table (1-based forms = canonical index + 1), from the "Rail
+ * Assignment" block in finance/capital_forms.h (codes are its RAIL_* macros):
+ *   Financial(1), Material(2), Living/Human(4), Built/System(9) -> RAIL_FINANCIAL only
+ *   Knowledge/Intellectual(3)                                  -> RAIL_PROVENANCE only
+ *   State-reserved (5-8) -> RAIL_PROVENANCE (attestation) and
  *   RAIL_EXTERNALITY (custody), never RAIL_FINANCIAL.
  * "Supports" means the rail may carry a record for the form. It is not
  * permission to transfer: state-reserved forms are refused by

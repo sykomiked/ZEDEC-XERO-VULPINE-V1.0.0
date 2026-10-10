@@ -382,8 +382,10 @@ pay_status_t pay_ledger_post(pay_ledger_t *L, const pay_posting_req_t *r, pay_re
         pay_account_t *a = &nw[k];
         if (pay_cap_is_crown((pay_cap_t) a->cap)) crown = true;
         if (ln->d_debit < 0 && (a->flags & PAY_ACCT_FROZEN)) return rc->status = PAY_ERR_POLICY;
-        int64_t nd = (int64_t) a->debit + ln->d_debit;
-        int64_t nc = (int64_t) a->credit + ln->d_credit;
+        int64_t nd, nc;
+        if (__builtin_add_overflow((int64_t) a->debit, ln->d_debit, &nd) ||
+            __builtin_add_overflow((int64_t) a->credit, ln->d_credit, &nc))
+            return rc->status = PAY_ERR_OVERFLOW;
         if (nd < 0) return rc->status = PAY_ERR_FUNDS;
         if (nc < 0) return rc->status = PAY_ERR_CREDIT;
         if ((uint64_t) nd >= PAY_BAL_MAX || (uint64_t) nc >= PAY_BAL_MAX)
@@ -401,8 +403,9 @@ pay_status_t pay_ledger_post(pay_ledger_t *L, const pay_posting_req_t *r, pay_re
         for (uint32_t j = 0; j < r->n_lines; j++) {
             const pay_account_t *aj = &L->acct[r->lines[j].account];
             if (aj->asset != ai->asset || aj->cap != ai->cap) continue;
-            sd += r->lines[j].d_debit;
-            sc += r->lines[j].d_credit;
+            if (__builtin_add_overflow(sd, r->lines[j].d_debit, &sd) ||
+                __builtin_add_overflow(sc, r->lines[j].d_credit, &sc))
+                return rc->status = PAY_ERR_OVERFLOW;
         }
         if (sd != sc) return rc->status = PAY_ERR_UNBALANCED;
     }

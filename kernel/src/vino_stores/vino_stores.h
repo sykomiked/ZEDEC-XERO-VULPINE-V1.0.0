@@ -56,13 +56,14 @@
  *   DEBIT  555  NCR  New California Republic
  *   CREDIT 777  NRE  Neo Roman Empire
  *   EQUITY 888  PNS  Principality of New Sicily */
-#define VINO_ISO_DEBIT  555u /* the asset/backing rail   (NCR) */
-#define VINO_ISO_CREDIT 777u /* the claim/liability rail (NRE) */
-#define VINO_ISO_EQUITY 888u /* the live equity rail     (PNS) */
+#include "../pay/pay_rails.h"           /* the canonical rail numerics */
+#define VINO_ISO_DEBIT  ZXV_RAIL_DEBIT  /* 555 the asset/backing rail   (NCR) */
+#define VINO_ISO_CREDIT ZXV_RAIL_CREDIT /* 777 the claim/liability rail (NRE) */
+#define VINO_ISO_EQUITY ZXV_RAIL_EQUITY /* 888 the live equity rail     (PNS) */
 
-#define VINO_JURIS_DEBIT  "NCR" /* New California Republic    */
-#define VINO_JURIS_CREDIT "NRE" /* Neo Roman Empire           */
-#define VINO_JURIS_EQUITY "PNS" /* Principality of New Sicily */
+#define VINO_JURIS_DEBIT  ZXV_RAIL_DEBIT_JURIS  /* New California Republic    */
+#define VINO_JURIS_CREDIT ZXV_RAIL_CREDIT_JURIS /* Neo Roman Empire           */
+#define VINO_JURIS_EQUITY ZXV_RAIL_EQUITY_JURIS /* Principality of New Sicily */
 
 /* Proof-CID witness length — one SHA-256 digest, same as ipfs IPFS_CID_LEN. */
 #define VINO_PROOF_CID_LEN 32u

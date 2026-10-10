@@ -46,7 +46,7 @@ typedef enum {
 typedef struct {
     /* CONTRIBUTION (not premium) */
     rat_t contribution;                  /* Exact rational — Financial rail (555) */
-    capital_form_t target_form;          /* Which capital form to prevent (1-9) */
+    capital_form_t target_form;          /* Which capital form to prevent (capital_form_t) */
     uint8_t prevention_cid[32];          /* IPFS CID of prevention project (SHA-256) */
     lpres_attestation_t efficacy_proof;  /* LPRES: TRUE iff prevention verified effective */
 

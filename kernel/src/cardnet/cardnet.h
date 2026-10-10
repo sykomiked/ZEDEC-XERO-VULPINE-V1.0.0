@@ -99,10 +99,11 @@
 #define CN_FEE_MAX_MINOR    1000000ull      /* hard cap on the flat merchant fee */
 #define CN_AMOUNT_MAX_MINOR 999999999999ull /* 12 digits: ISO 8583 field 4 */
 
-/* Vino rails (kernel/src/vino_stores/vino_stores.h). */
-#define CN_RAIL_DEBIT  555u
-#define CN_RAIL_CREDIT 777u
-#define CN_RAIL_EQUITY 888u
+/* Vino rails (canonical numerics: kernel/src/pay/pay_rails.h). */
+#include "../pay/pay_rails.h"
+#define CN_RAIL_DEBIT  ZXV_RAIL_DEBIT  /* 555 */
+#define CN_RAIL_CREDIT ZXV_RAIL_CREDIT /* 777 */
+#define CN_RAIL_EQUITY ZXV_RAIL_EQUITY /* 888 */
 
 /* ===== Networks ===== */
 typedef enum {
@@ -125,23 +126,38 @@ bool cn_pan_valid(cn_network_t net, const char *pan, uint32_t len);
 /* The unique network a PAN is valid for, or CN_NET_NONE. */
 cn_network_t cn_pan_network(const char *pan, uint32_t len);
 
-/* ===== Capital forms (values match capital_form_t in finance/capital_forms.h) ===== */
+/* ===== Capital forms: aliases of the canonical zcap_form_t =====
+ * (kernel/src/zcapital/zcap_forms.h; the same values as capital_form_t in
+ * finance/capital_forms.h). The ISO 8583 field 60 "FORM=<0-8>" digit is this
+ * canonical index. */
+#include "../zcapital/zcap_forms.h"
 typedef enum {
-    CN_FORM_SOCIAL = 0,
-    CN_FORM_NATURAL = 1,
-    CN_FORM_HERITAGE = 2,
-    CN_FORM_GOVERNANCE = 3,
-    CN_FORM_FINANCIAL = 4,
-    CN_FORM_MATERIAL = 5,
-    CN_FORM_LIVING = 6,
-    CN_FORM_KNOWLEDGE = 7,
-    CN_FORM_BUILT = 8,
-    CN_FORM_COUNT = 9
+    CN_FORM_FINANCIAL = ZCAP_FINANCIAL,
+    CN_FORM_MATERIAL = ZCAP_MANUFACTURED,
+    CN_FORM_KNOWLEDGE = ZCAP_INTELLECTUAL,
+    CN_FORM_LIVING = ZCAP_HUMAN,
+    CN_FORM_SOCIAL = ZCAP_SOCIAL,
+    CN_FORM_NATURAL = ZCAP_NATURAL,
+    CN_FORM_HERITAGE = ZCAP_CULTURAL,
+    CN_FORM_GOVERNANCE = ZCAP_SPIRITUAL,
+    CN_FORM_BUILT = ZCAP_SYSTEM,
+    CN_FORM_COUNT = ZCAP_FORM_COUNT
 } cn_form_t;
+_Static_assert((int) CN_FORM_FINANCIAL == (int) ZCAP_FINANCIAL, "cardnet FINANCIAL");
+_Static_assert((int) CN_FORM_MATERIAL == (int) ZCAP_MANUFACTURED, "cardnet MATERIAL");
+_Static_assert((int) CN_FORM_KNOWLEDGE == (int) ZCAP_INTELLECTUAL, "cardnet KNOWLEDGE");
+_Static_assert((int) CN_FORM_LIVING == (int) ZCAP_HUMAN, "cardnet LIVING");
+_Static_assert((int) CN_FORM_SOCIAL == (int) ZCAP_SOCIAL, "cardnet SOCIAL");
+_Static_assert((int) CN_FORM_NATURAL == (int) ZCAP_NATURAL, "cardnet NATURAL");
+_Static_assert((int) CN_FORM_HERITAGE == (int) ZCAP_CULTURAL, "cardnet HERITAGE");
+_Static_assert((int) CN_FORM_GOVERNANCE == (int) ZCAP_SPIRITUAL, "cardnet GOVERNANCE");
+_Static_assert((int) CN_FORM_BUILT == (int) ZCAP_SYSTEM, "cardnet BUILT");
+_Static_assert((int) CN_FORM_COUNT == ZCAP_FORM_COUNT, "cardnet count");
 
+/* Priceable = not one of the four inalienable Crown forms. */
 static inline bool cn_form_priceable(uint32_t f)
 {
-    return f >= CN_FORM_FINANCIAL && f < CN_FORM_COUNT;
+    return f < (uint32_t) CN_FORM_COUNT && !zcap_form_is_crown(f);
 }
 
 /* ===== Fees: flat only, merchant-paid, default zero =====

@@ -66,17 +66,20 @@ uint64_t cb_udiv64(uint64_t n, uint64_t d, uint64_t *rem)
     return zt_udiv64(n, d, rem);
 }
 
+/* Checked arithmetic on the compiler builtins: *out untouched on overflow. */
 bool cb_add_ok(uint64_t a, uint64_t b, uint64_t *out)
 {
-    if (a + b < a) return false;
-    *out = a + b;
+    uint64_t s;
+    if (__builtin_add_overflow(a, b, &s)) return false;
+    *out = s;
     return true;
 }
 
 bool cb_sadd_ok(int64_t a, int64_t b, int64_t *out)
 {
-    if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b)) return false;
-    *out = a + b;
+    int64_t s;
+    if (__builtin_add_overflow(a, b, &s)) return false;
+    *out = s;
     return true;
 }
 

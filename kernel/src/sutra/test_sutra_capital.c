@@ -25,13 +25,13 @@ int main(void)
     CHECK(strcmp(sutra_capital_name(CAP_FINANCIAL), "FINANCIAL") == 0,
           "CAP_FINANCIAL -> FINANCIAL");
     CHECK(strcmp(sutra_capital_name(CAP_KNOWLEDGE), "INTELLECTUAL") == 0,
-          "CAP_KNOWLEDGE -> INTELLECTUAL (documented mapping)");
+          "CAP_KNOWLEDGE -> INTELLECTUAL (canonical name)");
     CHECK(strcmp(sutra_capital_name(CAP_LIVING), "NATURAL") == 0,
-          "CAP_LIVING -> NATURAL (documented mapping)");
-    CHECK(strcmp(sutra_capital_name(CAP_BUILT), "TEMPORAL") == 0,
-          "CAP_BUILT -> TEMPORAL (documented mapping)");
-    CHECK(strcmp(sutra_capital_name(CAP_HUMAN), "RELATIONAL") == 0,
-          "CAP_HUMAN -> RELATIONAL (documented mapping)");
+          "CAP_LIVING -> NATURAL (canonical name)");
+    CHECK(strcmp(sutra_capital_name(CAP_BUILT), "SYSTEM") == 0,
+          "CAP_BUILT -> SYSTEM (canonical name)");
+    CHECK(strcmp(sutra_capital_name(CAP_HUMAN), "HUMAN") == 0,
+          "CAP_HUMAN -> HUMAN (canonical name)");
     CHECK(strcmp(sutra_capital_name((capital_type_t) 99), "UNKNOWN") == 0,
           "out-of-range capital -> UNKNOWN, no OOB read");
 

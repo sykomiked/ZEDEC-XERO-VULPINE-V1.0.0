@@ -73,7 +73,7 @@ typedef struct {
     rat_t notional;                 /* Exact rational — no FP rounding */
     surplus_real_t strike;          /* Q32.32 fixed-point */
     uint64_t expiry_tick;           /* Phase tick (not wall clock) */
-    capital_form_t underlying_form; /* 5-9 (priceable only) */
+    capital_form_t underlying_form; /* priceable forms only (capital_is_priceable) */
 
     /* RAIL 777 — PROVENANCE: Attestation & backing proof */
     uint8_t backing_cid[32];            /* IPFS CID of backing asset proof (SHA-256) */

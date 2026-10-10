@@ -452,9 +452,10 @@ evo_status_t evo_adopt_decode(const uint8_t *in, uint32_t len, evo_adopt_t *a);
 #define EVO_CHK_USURY   0x08u /* repayment due == principal, at any age */
 #define EVO_CHK_CONSENT 0x10u /* granted && amount <= max && now < expiry */
 #define EVO_CHK_ALL     0x1fu
-#define EVO_RAIL_DEBIT  555u
-#define EVO_RAIL_CREDIT 777u
-#define EVO_RAIL_EQUITY 888u
+#include "../pay/pay_rails.h"           /* the canonical rail numerics */
+#define EVO_RAIL_DEBIT  ZXV_RAIL_DEBIT  /* 555 */
+#define EVO_RAIL_CREDIT ZXV_RAIL_CREDIT /* 777 */
+#define EVO_RAIL_EQUITY ZXV_RAIL_EQUITY /* 888 */
 
 typedef struct {
     int64_t d_debit, d_credit, d_equity; /* rails 555 / 777 / 888 */

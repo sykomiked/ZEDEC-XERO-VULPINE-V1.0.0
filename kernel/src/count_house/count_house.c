@@ -121,6 +121,10 @@ int32_t count_house_deposit(count_house_t *ch, const word168_t *peer_id,
 
     stash_bucket_t *bucket = &ch->buckets[idx];
     uint64_t prior_balance = bucket->token_balance;
+    uint64_t new_balance;
+    /* A deposit whose cumulative total would wrap is refused before anything
+     * (key, signature, balance, trust) is touched. */
+    if (__builtin_add_overflow(prior_balance, amount, &new_balance)) return -3;
     uint8_t prior_pubkey[CH_PUBKEY_LEN];
     memcpy(prior_pubkey, bucket->peer_pubkey, CH_PUBKEY_LEN);
 
@@ -130,7 +134,7 @@ int32_t count_house_deposit(count_house_t *ch, const word168_t *peer_id,
      * per the field's documented signing convention (count_house.h). */
     memcpy(bucket->peer_pubkey, peer_pubkey, CH_PUBKEY_LEN);
     memcpy(bucket->proof_sig, proof_sig, CH_PROOF_SIG_LEN);
-    bucket->token_balance = prior_balance + amount;
+    bucket->token_balance = new_balance;
 
     bool ok = ch->verify_sig ? ch->verify_sig(bucket) : ch_default_verify_sig(bucket);
 
@@ -184,9 +188,10 @@ uint64_t count_house_mint(count_house_t *ch, uint64_t amount) {
     /* Refuse a mint that would wrap the supply counter (it used to wrap to a
      * tiny value, pass the collateral gate, and return the huge amount) or
      * push it past what the ratio below can represent. */
-    if (ch->total_supply_minted > CH_SUPPLY_MAX || amount > CH_SUPPLY_MAX - ch->total_supply_minted)
+    uint64_t candidate_supply;
+    if (__builtin_add_overflow(ch->total_supply_minted, amount, &candidate_supply) ||
+        candidate_supply > CH_SUPPLY_MAX)
         return 0;
-    uint64_t candidate_supply = ch->total_supply_minted + amount;
 
     /* Anti-Sybil / anti-hyperinflation gate: preview the collateral
      * ratio the candidate supply WOULD produce before committing the
