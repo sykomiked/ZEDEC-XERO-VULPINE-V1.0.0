@@ -1,0 +1,4 @@
+<?xml version=b0.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIt>
+<GrpHdr><MsgId>MSG-1</MsgId><CC

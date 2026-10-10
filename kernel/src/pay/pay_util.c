@@ -131,9 +131,8 @@ bool pay_muldiv(uint64_t a, uint64_t b, uint64_t c, uint64_t *out, uint64_t *rem
 
 bool pay_add_ok(uint64_t a, uint64_t b, uint64_t *out)
 {
-    uint64_t s = a + b;
-    if (s < a) return false;
-    *out = s;
+    if (b > UINT64_MAX - a) return false; /* checked first: no wrap at all */
+    *out = a + b;
     return true;
 }
 

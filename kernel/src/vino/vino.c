@@ -103,6 +103,23 @@ vino_account_t *vino_get_account(vino_ledger_t *v, const char *addr) {
     return 0;
 }
 
+/* Would rmag_add_quotas (sub = false) or rmag_sub_quotas (sub = true) of a
+ * and b overflow int64? Those helpers compute a.num*b.den +/- b.num*a.den
+ * over a.den*b.den with plain int64 arithmetic, so a quota shadow that has
+ * absorbed more than 2^63 of flow overflowed (signed overflow, undefined
+ * behaviour; found by fuzz_econ_vino). A result of INT64_MIN is refused
+ * too: rational_normalize would negate it. */
+static bool quota_overflows(rational_t a, rational_t b, bool sub)
+{
+    int64_t x, y, r;
+    if (__builtin_mul_overflow(a.num, b.den, &x) || __builtin_mul_overflow(b.num, a.den, &y) ||
+        __builtin_mul_overflow(a.den, b.den, &r))
+        return true;
+    if (sub ? __builtin_sub_overflow(x, y, &r) : __builtin_add_overflow(x, y, &r)) return true;
+    /* rational_normalize negates (via m5_gcd): INT64_MIN has no negation */
+    return r == INT64_MIN;
+}
+
 int32_t vino_transfer(vino_ledger_t *v, const char *from, const char *to,
                        uint64_t amount, capital_type_t cap,
                        payment_rail_t rail, const char *memo) {
@@ -119,6 +136,14 @@ int32_t vino_transfer(vino_ledger_t *v, const char *from, const char *to,
     /* M5 LPRES: attestation — both accounts must have logical presence */
     ordinal_t from_ord = (ordinal_t)(v->balances[0].address[0] ? fa - v->balances + 1 : 0);
     ordinal_t to_ord = (ordinal_t)(ta - v->balances + 1);
+    /* the exact-rational quota shadow (RMAG, below) must be able to hold the
+     * result; refuse before any state changes if it cannot */
+    {
+        rational_t amt_q = {(int64_t) amount, 1};
+        if (quota_overflows(rmag_get_quota(from_ord), amt_q, true) ||
+            quota_overflows(rmag_get_quota(to_ord), amt_q, false))
+            return -1;
+    }
     trit_t from_presence = lpres_get_presence(from_ord);
     trit_t to_presence = lpres_get_presence(to_ord);
     /* Auto-attest new accounts with TRUE presence on first transfer */
@@ -168,7 +193,12 @@ int32_t vino_transfer(vino_ledger_t *v, const char *from, const char *to,
     v->num_audit++;
     v->num_txns++;
     v->txn_count++;
-    v->total_volume[cap] += amount;
+    /* a running statistic: saturate rather than wrap back toward zero (the
+     * wrap was found by fuzz_econ_vino under -fsanitize=integer) */
+    if (v->total_volume[cap] > UINT64_MAX - amount)
+        v->total_volume[cap] = UINT64_MAX;
+    else
+        v->total_volume[cap] += amount;
     return t->id;
 }
 
@@ -222,6 +252,9 @@ int32_t vino_get_balance(vino_ledger_t *v, const char *addr,
                           capital_type_t cap, uint64_t *out) {
     vino_account_t *a = vino_get_account(v, addr);
     if (!a) return -1;
+    /* balance[] is CAP_MAX wide: an out-of-range capital read past it
+     * (found by fuzz_econ_vino) */
+    if ((uint32_t) cap >= CAP_MAX || !out) return -1;
     *out = a->balance[cap];
     return 0;
 }

@@ -1,0 +1,7 @@
+<?xml veTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+<GrpHdr><MsgId>C1</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm></GrpHdr>
+<Stmt>
+<Id>R1</Id><CreDtTm>2026-10-09T12:00:00Z</CreDtTm><Acct><Id><IBAN>DE89370400440532013000</IBAN></Id><Ccy>USD</Ccy></Acct>
+<Bal><Tpa562c67-ca16-48<?xmlddtlRmtInf>/ZXV/VFVId>C1<//0M

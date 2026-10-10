@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+<GrpHdr><MsgId>C1</MsgId><CrCreDtTm><Acct><Id><IBAN>DE89370400440532013000</IBAN></Id><Ccy>USD</Ccy></Acct>
+<Bal><Tp><CdOrPrtry><Cd>OP</Cd></CdOrPrtry></Tp><Amt Ccy="USd32>"zzzzzzzzzzzzzzzzzzz{zzzzzzzzstmrStmt>
+</Document>

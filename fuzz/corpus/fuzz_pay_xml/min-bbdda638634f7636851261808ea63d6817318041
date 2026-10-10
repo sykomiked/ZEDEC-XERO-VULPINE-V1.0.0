@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FITr>
+<DbtrAcct><Id><IBAN>DE89370400440532013000</IBAN></Id></DbtrAcct>
+<DbtrAgt><FinInstnId><BICFI>DEUTDEFF</BICFI></FinInstnId></DbtrAgt>
+<CdtrAgt><FinInstnId><BICFI>CHASUS33</BICFI></FinInstnId></CdtrAgt>
+<Cdtr><Nm>Bob</Nm><PstlAdr><TwnNm>New York</TwnNm><Ctry>US</Ctry></PstlAdr></Cdtr>
+<CdtrAcct><Id><Othr><Id>123456789</Id></Othr></Id></CdtrAcct>
+<RmtInf><Ustrd>Invoice 42</Ustrdt0-09T12:00:I

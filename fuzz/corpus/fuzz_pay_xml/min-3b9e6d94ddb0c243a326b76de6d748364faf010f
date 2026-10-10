@@ -1,0 +1,4 @@
+<?xml version="1.0" encodi(g="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFPmtId><InstrId>I1</InstrId><EndToEndId>E2E-1</EndToEndId><TxId>TX-1</TxId><UETR>XXXXXXXX-ca16-48ba-b074-65581be6f001</UETR></PmtId>
+<IntrBkSttlmAmt encoding="UTF-8<Dot>2026-10-ur:iso:std:iso:20</Int2:trecB

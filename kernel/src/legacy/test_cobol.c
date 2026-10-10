@@ -177,6 +177,37 @@ static void test_readers(void)
     OK(cobol_rdw_next(&it, &n) == 0);
 }
 
+/* Unsigned pictures refuse a negative sign instead of reading -n (found by
+ * fuzz/parsers/fuzz_cobol_copybook.c: a zoned PIC 9 field with a negative
+ * sign nibble read back as -9 and re-encoded as +9). */
+static void test_unsigned_sign(void)
+{
+    static cob_layout lo;
+    const char *cb = "01 R.\n  05 U PIC 9(3).\n  05 P PIC 9(3) COMP-3.\n  05 S PIC S9(3).\n"
+                     "  05 B PIC 9(18) COMP.\n";
+    OK(cobol_parse_copybook(cb, (uint32_t) strlen(cb), &lo));
+    const cob_field *u = cobol_find(&lo, "U"), *pk = cobol_find(&lo, "P"),
+                    *sg = cobol_find(&lo, "S"), *b = cobol_find(&lo, "B");
+    OK(u && pk && sg && b);
+    if (!u || !pk || !sg || !b) return;
+    uint8_t rec[64];
+    memset(rec, 0, sizeof rec);
+    int64_t v = 0;
+    OK(cobol_set_int(rec, sizeof rec, u, 123) && cobol_get_int(rec, sizeof rec, u, &v) && v == 123);
+    OK(!cobol_set_int(rec, sizeof rec, u, -9)); /* unsigned: no negatives */
+    OK(!cobol_set_int(rec, sizeof rec, pk, -9));
+    OK(cobol_set_int(rec, sizeof rec, sg, -9) && cobol_get_int(rec, sizeof rec, sg, &v) && v == -9);
+    /* a negative sign nibble planted in unsigned bytes is invalid data */
+    rec[u->offset + u->size - 1] = 0xD9; /* zoned '9' with D (negative) zone */
+    OK(!cobol_get_int(rec, sizeof rec, u, &v));
+    OK(cobol_set_int(rec, sizeof rec, pk, 5));
+    rec[pk->offset + pk->size - 1] = (uint8_t) ((rec[pk->offset + pk->size - 1] & 0xF0u) | 0x0Du);
+    OK(!cobol_get_int(rec, sizeof rec, pk, &v));
+    /* unsigned 8-byte binary past INT64_MAX does not fit an int64 */
+    memset(rec + b->offset, 0xFF, b->size);
+    OK(!cobol_get_int(rec, sizeof rec, b, &v));
+}
+
 int main(void)
 {
     test_comp3();
@@ -185,6 +216,7 @@ int main(void)
     test_copybook();
     test_record_roundtrip();
     test_readers();
+    test_unsigned_sign();
     printf("COBOL: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

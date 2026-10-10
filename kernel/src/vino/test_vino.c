@@ -79,6 +79,16 @@ int main(void)
           "an issue that would truncate the 32-bit asset count is refused");
     CHECK(a->asset_balances[ASSET_CBDC] == 50, "...and leaves the count unchanged");
 
+    /* fuzz-found (fuzz/econ/fuzz_econ_vino.c): an out-of-range capital read,
+     * and a volume statistic that wrapped back toward zero */
+    uint64_t got = 0;
+    CHECK(vino_get_balance(v, "alice", (capital_type_t) 200, &got) == -1,
+          "a balance read with an out-of-range capital is refused");
+    v->total_volume[CAP_FINANCIAL] = UINT64_MAX - 1;
+    CHECK(vino_transfer(v, "alice", "bob", 5, CAP_FINANCIAL, RAIL_VINO_NATIVE, 0) >= 0 &&
+              v->total_volume[CAP_FINANCIAL] == UINT64_MAX,
+          "the transfer volume statistic saturates instead of wrapping");
+
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
     return failures ? 1 : 0;
 }

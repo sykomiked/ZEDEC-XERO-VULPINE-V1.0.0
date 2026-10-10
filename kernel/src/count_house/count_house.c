@@ -99,6 +99,12 @@ int32_t count_house_deposit(count_house_t *ch, const word168_t *peer_id,
     int32_t idx = count_house_find_bucket(ch, peer_id);
     bool is_new = (idx < 0);
 
+    /* The new cumulative balance must fit: prior + amount used to wrap, so a
+     * verified "deposit" could shrink a bucket (found by fuzz_econ_count_house).
+     * Refused before anything changes; no trust penalty, nothing was claimed
+     * that a signature could check. */
+    if (!is_new && amount > UINT64_MAX - ch->buckets[idx].token_balance) return -3;
+
     if (is_new) {
         if (ch->num_buckets >= CH_MAX_STASH_BUCKETS) return -1;
         /* Commit the bucket immediately (not only on successful

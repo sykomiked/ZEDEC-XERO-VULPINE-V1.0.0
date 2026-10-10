@@ -1,0 +1,4 @@
+<?xml version="-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<BkSttlmDt><InstdAmt Ccy="USD">1234.56</InstdAmt><ChrgBr>SHAR</ChrgBr>
+<InstgAgt><FinInstnId><BICFI>DEUTDEFF</BICFI></FinInstnId>ry></PstlAdrBkStt YCtry></</Cdtdr

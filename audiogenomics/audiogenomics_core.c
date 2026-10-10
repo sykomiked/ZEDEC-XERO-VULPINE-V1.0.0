@@ -106,9 +106,9 @@ int audiogenomics_extract_egv(audiogenomics_state_t *a, uint32_t session_idx) {
 
     uint64_t hash = 1469598103934665603ULL;
     for (uint32_t i = 0; i < s->num_samples; i++) {
-        hash ^= (uint64_t)(s->samples[i].real * 1e6);
+        hash ^= (uint64_t) (int64_t) (s->samples[i].real * 1e6);
         hash *= 1099511628211ULL;
-        hash ^= (uint64_t)(s->samples[i].imag * 1e6);
+        hash ^= (uint64_t) (int64_t) (s->samples[i].imag * 1e6);
         hash *= 1099511628211ULL;
     }
     for (int i = 0; i < AUDIO_MAX_EGV; i++) {

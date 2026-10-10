@@ -1,0 +1,3 @@
+01  T     /t PIC S5(7)V99 COMP-ÿÿÿÿÿÿ3 OCCURS 65TIMEÿÿSÿÿÿÿÿC 0**b
+05 B PIC 4(6©V9.
+   05 C PIC XN4)

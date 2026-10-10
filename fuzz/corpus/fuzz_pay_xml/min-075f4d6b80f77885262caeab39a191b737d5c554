@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTrf>
+<GrpHdr><MsgId>MSG-1</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm><NbOfTxs>2</NbOfTxs><SttlmInf><SttlmMtd>INDA</SttlmMtd></SttlmInf></GrpHdr>
+<CdtTAgt>
+<InstdAgt><FinInstnId><BICFI>CHASUS33</BICFI></FinInstnId></InstdAgt>
+<Dbtr><Nm>Alice &amp; Co</Nm><PstlAdr><StrtNm>Taunusanlage</StrtNm><BldgNb>12</BldgNb><DbtrAcct>
+<DbtrAgt><FinInstnId><BICFI>DEUTDEFF</BICFI></FinInstnId></DbtrAgt>
+<CdtrAgt><FinInstnId><BICFI>CHASUS33</BICFI>
+<BkToCstmrSumt>
+<Gdr><MsgId>tmrCdtTrf>
+<GrpHdr><M<SttlmInf><SttlmMtd>INDA</SttlmMtd></S<?t

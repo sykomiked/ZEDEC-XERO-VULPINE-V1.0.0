@@ -24,7 +24,8 @@ static inline uint64_t axiom_matrix_hash(ordinal_t ord, rational_t rat, trit_t t
     hash = (hash << 32) | (uint64_t)rat.num;
     hash = (hash << 16) | (uint64_t)rat.den;
     hash = (hash << 3) | (uint64_t)trit;
-    hash = (hash << 2) | (uint64_t)phase.r;
+    /* via int64: a negative double -> unsigned cast is UB */
+    hash = (hash << 2) | (uint64_t) (int64_t) phase.r;
     hash = (hash << 1) | (uint64_t)(phase.i > 0);
     hash = (hash << 5) | (uint64_t)collapse.bits[0];
     hash = (hash << 5) | (uint64_t)collapse.bits[1];

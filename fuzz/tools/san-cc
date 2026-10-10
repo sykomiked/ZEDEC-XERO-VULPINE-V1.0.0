@@ -1,0 +1,100 @@
+#!/bin/sh
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# san-cc — compiler wrapper for the sanitizer and coverage CI jobs. The
+# kernel Makefile's host-test recipes call `gcc` / `cc` directly; the jobs put
+# a directory on PATH whose gcc and cc are symlinks to this script, so every
+# host test is built with $SANCC_FLAGS added, without editing hundreds of
+# recipe lines.
+#
+#   SANCC_CC    the compiler that builds an instrumented command (default:
+#              the same name found after this directory on PATH)
+#   SANCC_FLAGS  flags to add (default: ASan + UBSan, abort on first report);
+#              the coverage job passes clang's coverage flags here instead
+#   SANCC_MATCH  if set, an extended regex: the flags are added only to compile
+#              commands with an argument that matches it (the integer job
+#              instruments only the economy / pay / rational / RMAG tests)
+#   SANCC_STRIP_SAN  if 1, drop the command's own -fsanitize* options first
+#              (MSan cannot be combined with the ASan some recipes request)
+#   SANCC_COV_DIR  if set, every instrumented linked program is also copied
+#              there, so llvm-cov can map the profiles back after the run
+#              (the test recipes reuse and delete their /tmp output paths)
+#
+# Commands that are not instrumented run the original compiler unchanged:
+# freestanding / kernel / cross / 32-bit compiles, preprocess-only or
+# assembly-only runs, and (with SANCC_MATCH) everything that does not match.
+set -eu
+SANCC_FLAGS="${SANCC_FLAGS:--fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer}"
+
+# the original compiler: the same name, next on PATH after this directory
+self_dir="$(cd "$(dirname "$0")" && pwd)"
+name="$(basename "$0")"
+[ "$name" = "san-cc" ] && name=gcc
+PASS_CC=""
+oldifs=$IFS
+IFS=:
+for d in $PATH; do
+    [ "$(cd "$d" 2> /dev/null && pwd)" = "$self_dir" ] && continue
+    if [ -x "$d/$name" ]; then
+        PASS_CC="$d/$name"
+        break
+    fi
+done
+IFS=$oldifs
+[ -n "$PASS_CC" ] || { echo "san-cc: no real $name on PATH" >&2; exit 127; }
+SAN_CC="${SANCC_CC:-$PASS_CC}"
+
+for a in "$@"; do
+    case "$a" in
+    -ffreestanding | -nostdlib | -nostdinc | -m32 | -mcmodel=kernel | --target=* | -target | \
+        -E | -S | -M | -MM | -T*)
+        exec "$PASS_CC" "$@"
+        ;;
+    esac
+done
+if [ -n "${SANCC_MATCH:-}" ]; then
+    hit=0
+    for a in "$@"; do
+        if printf '%s\n' "$a" | grep -Eq -- "$SANCC_MATCH"; then
+            hit=1
+            break
+        fi
+    done
+    [ "$hit" = 1 ] || exec "$PASS_CC" "$@"
+fi
+if [ "${SANCC_STRIP_SAN:-0}" = 1 ]; then
+    n=$#
+    i=0
+    while [ "$i" -lt "$n" ]; do
+        a="$1"
+        shift
+        case "$a" in
+        -fsanitize* | -fno-sanitize*) ;;
+        *) set -- "$@" "$a" ;;
+        esac
+        i=$((i + 1))
+    done
+fi
+if [ -z "${SANCC_COV_DIR:-}" ]; then
+    # shellcheck disable=SC2086
+    exec "$SAN_CC" "$@" $SANCC_FLAGS
+fi
+# coverage: compile, then keep a copy of the linked output (default a.out)
+out=a.out
+link=1
+prev=""
+for a in "$@"; do
+    [ "$prev" = "-o" ] && out="$a"
+    case "$a" in
+    -c) link=0 ;;
+    -o?*) out="${a#-o}" ;;
+    esac
+    prev="$a"
+done
+# shellcheck disable=SC2086
+"$SAN_CC" "$@" $SANCC_FLAGS
+if [ "$link" = 1 ] && [ -f "$out" ]; then
+    mkdir -p "$SANCC_COV_DIR"
+    cp "$out" "$SANCC_COV_DIR/$$-$(basename "$out")"
+fi

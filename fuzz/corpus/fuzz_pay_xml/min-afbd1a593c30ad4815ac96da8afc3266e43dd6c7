@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+<GrpHdr><MsgId>C1</MsgId><CreDtTm>1013-10-09T12:00:00Z</CreDtTm></GrpHdr>
+<Stmt>
+<Id>R1</Id><CreDtTm>2026-10-09T12:00:00Z</CreDtTm><Acct><Id><IBmrCdtTrf>
+<GrpHdr><MsgId>MSG-2</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm><NbOfTxs>2</NbOfTxs>age</StNm><Bldry></PstldrA></DbtrcodistnId><BICFI>Cng="UTF-8"?>
+<DocumeHnt 

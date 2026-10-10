@@ -263,7 +263,7 @@ static void totals128(const pay_ledger_t *L, uint16_t asset, uint8_t cap, pay_u1
         if (a->equity >= 0)
             *ep = pay_u128_add64(*ep, (uint64_t) a->equity);
         else
-            *en = pay_u128_add64(*en, (uint64_t) 0 - (uint64_t) a->equity);
+            *en = pay_u128_add64(*en, (uint64_t) (-(a->equity + 1)) + 1u); /* |equity|, no wrap */
     }
 }
 

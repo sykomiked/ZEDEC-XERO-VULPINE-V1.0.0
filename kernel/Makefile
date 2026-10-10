@@ -269,6 +269,11 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/legacy src/legacy/test_cobol.c src/legacy/cobol.c -o /tmp/test_legacy_cobol && /tmp/test_legacy_cobol && echo "[PASS] test_legacy_cobol" || { echo "[FAIL] test_legacy_cobol"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/legacy src/legacy/test_fortran.c src/legacy/fortran.c -o /tmp/test_legacy_fortran && /tmp/test_legacy_fortran && echo "[PASS] test_legacy_fortran" || { echo "[FAIL] test_legacy_fortran"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/legacy -I../bindings ../bindings/test_abi.c ../bindings/zx_legacy_api.c src/legacy/sip.c src/legacy/sdp.c src/legacy/gsm_encode.c src/legacy/ss7.c src/legacy/tcap.c src/legacy/isup_map.c src/legacy/dtmf.c src/legacy/ebcdic.c src/legacy/cobol.c src/legacy/fortran.c -o /tmp/test_legacy_abi && /tmp/test_legacy_abi && echo "[PASS] test_legacy_abi" || { echo "[FAIL] test_legacy_abi"; exit 1; }
+	@echo "=== fuzz: corpus replay of every harness (gcc, ASan+UBSan) + seeded ledger properties ==="; \
+	mkdir -p ../fuzz/build && fv=$$(cd "$$(mktemp -d ../fuzz/build/verify.XXXXXX)" && pwd) && \
+	$(MAKE) --no-print-directory -C ../fuzz OUT=$$fv PROP_ITERS=300 replay prop > $$fv.log 2>&1 && \
+	echo "[PASS] fuzz_replay ($$(grep -c 'replayed .* OK' $$fv.log) harnesses replayed, $$(grep -c 'random inputs' $$fv.log) property runs)" && rm -rf $$fv $$fv.log || \
+	{ tail -40 $$fv.log; echo "[FAIL] fuzz_replay"; exit 1; }
 	@echo "=== cbank: ISO 4217 / ISO 3166 / African Union tables (regenerates byte-identical) ==="; \
 	python3 -I src/cbank/gen_cb_tables.py src/cbank/data/list-one.xml src/cbank/data/iso_3166-1.json 2>/dev/null | cmp -s - src/cbank/cb_ccy_tbl.c || { echo "[FAIL] cb_ccy_tbl.c is stale"; exit 1; }; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/cbank -Isrc/tensor src/cbank/test_cb_ccy.c src/cbank/cb_ccy.c src/cbank/cb_ccy_tbl.c src/cbank/cb_util.c src/tensor/zt.c -o /tmp/test_cb_ccy && /tmp/test_cb_ccy > /tmp/test_cb_ccy.log 2>&1 && echo "[PASS] test_cb_ccy ($$(grep -c '\[PASS\]' /tmp/test_cb_ccy.log) checks)" || { cat /tmp/test_cb_ccy.log; echo "[FAIL] test_cb_ccy"; exit 1; }

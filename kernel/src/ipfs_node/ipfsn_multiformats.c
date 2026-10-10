@@ -298,6 +298,10 @@ int ipfsn_base58_decode(const char *in, uint32_t len, uint8_t *out, uint32_t cap
             carry >>= 8;
         }
     }
+    /* leading '1's count toward the bound too: the decoder used to return up
+     * to 96 + zeros bytes, which ipfsn_base58_encode then refused, so a
+     * decoded value could not be re-encoded (found by fuzz_ipfs_cid) */
+    if (zeros + nb > B58_MAX_IN) return IPFSN_ERR_SPACE;
     if (zeros + nb > cap) return IPFSN_ERR_SPACE;
     for (uint32_t i = 0; i < zeros; i++) out[i] = 0;
     for (uint32_t i = 0; i < nb; i++) out[zeros + i] = b[nb - 1 - i];
