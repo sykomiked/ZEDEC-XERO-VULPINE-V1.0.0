@@ -52,10 +52,41 @@ rational_t rmag_mul_quotas(rational_t a, rational_t b) {
     return product;
 }
 
+/* Division by zero (b.num == 0) and an operand with den == 0 have no value.
+ * Before this check, {a.num * b.den, a.den * 0} reached rational_normalize,
+ * which turns x/0 into sign(x)/1: 5 / 0 returned 1, a fabricated quota.
+ * Such a division now returns 0/1 (the convention of rmag_rational_divide
+ * in rmag.c); rmag_div_quotas_checked reports it instead. Model and proof:
+ * proofs/rational_bounds/RationalBounds.lean (divQ, div_by_zero_detected). */
 rational_t rmag_div_quotas(rational_t a, rational_t b) {
+    if (b.num == 0 || a.den == 0 || b.den == 0) {
+        rational_t zero = {0, 1};
+        return zero;
+    }
     rational_t quotient = {a.num * b.den, a.den * b.num};
     quotient = rational_normalize(quotient);
     return quotient;
+}
+
+/* INT64_MIN has no int64 negation, which rational_normalize and m5_gcd take. */
+static bool rmag_i64_ok(int64_t v)
+{
+    return v != INT64_MIN;
+}
+
+bool rmag_div_quotas_checked(rational_t a, rational_t b, rational_t *out)
+{
+    int64_t n, d;
+    if (!out) return false;
+    if (b.num == 0 || a.den == 0 || b.den == 0) return false;
+    if (!rmag_i64_ok(a.num) || !rmag_i64_ok(a.den) || !rmag_i64_ok(b.num) || !rmag_i64_ok(b.den))
+        return false;
+    if (__builtin_mul_overflow(a.num, b.den, &n) || __builtin_mul_overflow(a.den, b.num, &d))
+        return false;
+    if (!rmag_i64_ok(n) || !rmag_i64_ok(d)) return false;
+    rational_t q = {n, d};
+    *out = rational_normalize(q);
+    return true;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------

@@ -124,9 +124,13 @@ rmag_rational_t rmag_rational_add(rmag_rational_t a, rmag_rational_t b) {
         big |= __builtin_add_overflow(a_term, b_term, &result.numerator);
         result.negative = a.negative;
     } else if (big) {
-        /* the larger magnitude decides the sign of the saturated result */
+        /* the larger magnitude decides the sign of the saturated result;
+         * equal magnitudes cancel exactly (x + (-x) == 0 even when the
+         * common denominator of two unreduced inputs overflows), which also
+         * keeps the sum commutative (proofs/rational_bounds, add_comm). */
         int c = mag_cmp(a.numerator, a.denominator, b.numerator, b.denominator);
-        return saturated(c >= 0 ? a.negative : b.negative);
+        if (c == 0) return rmag_rational_from_uint(0);
+        return saturated(c > 0 ? a.negative : b.negative);
     } else {
         /* Different signs: subtract smaller from larger */
         if (a_term >= b_term) {
