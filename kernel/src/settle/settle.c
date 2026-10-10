@@ -229,8 +229,7 @@ settle_status_t settle_levy(settle_spine_t *s, swarm_market_t *m, uint64_t tick)
         uint32_t r = PAY_ASSURE_RESERVE_FLOOR; /* bucket 0; the others follow it */
         if (!post(s, s->pot, s->bucket[r], fee, tick)) return halt(s, SETTLE_ERR_LEDGER);
         for (uint32_t i = r + 1u; i < PAY_ASSURE_BUCKETS; i++)
-            if (now[i] > was[i] &&
-                !post(s, s->bucket[r], s->bucket[i], now[i] - was[i], tick))
+            if (now[i] > was[i] && !post(s, s->bucket[r], s->bucket[i], now[i] - was[i], tick))
                 return halt(s, SETTLE_ERR_LEDGER);
         if (swarm_market_levy(m, fee) != SWARM_OK) return halt(s, SETTLE_ERR_MISMATCH);
         s->fees += fee;

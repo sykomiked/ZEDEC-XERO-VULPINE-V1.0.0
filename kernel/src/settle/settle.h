@@ -89,9 +89,9 @@ typedef enum {
 typedef struct {
     pay_ledger_t L;
     uint8_t seed[32];
-    uint16_t asset;  /* SWC */
-    uint32_t issuer; /* node issuer account */
-    uint32_t pot;    /* pot account */
+    uint16_t asset;                      /* SWC */
+    uint32_t issuer;                     /* node issuer account */
+    uint32_t pot;                        /* pot account */
     uint32_t bucket[PAY_ASSURE_BUCKETS]; /* S4: fee bucket accounts */
     pay_assure_carry_t carry;            /* F3: sub-unit remainder of the fee */
     uint64_t fees;                       /* F3: fees levied, all cycles */

@@ -30,13 +30,13 @@
 #include "vna_schema.h"
 #include "vna_frame.h"
 
-#define VNA_MSG_MAGIC   0x32414E56u /* "VNA2" little-endian */
-#define VNA_REC_MAGIC   0x32524E56u /* "VNR2" */
-#define VNA_K           20u         /* bucket size and replication factor */
-#define VNA_PAYLOAD_MAX 2600u
-#define VNA_REC_MAX     8000u
-#define VNA_BODY_MAX    8192u
-#define VNA_HK_MAX      255u
+#define VNA_MSG_MAGIC     0x32414E56u /* "VNA2" little-endian */
+#define VNA_REC_MAGIC     0x32524E56u /* "VNR2" */
+#define VNA_K             20u         /* bucket size and replication factor */
+#define VNA_PAYLOAD_MAX   2600u
+#define VNA_REC_MAX       8000u
+#define VNA_BODY_MAX      8192u
+#define VNA_HK_MAX        255u
 #define VNA_RCPT_WIRE_MAX 7200u /* a trade receipt (vna_econ.h VNA_RCPT_MAX) */
 
 typedef enum {
