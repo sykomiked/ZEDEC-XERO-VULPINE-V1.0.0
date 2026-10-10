@@ -1,0 +1,337 @@
+{
+ "model": "/home/user/models/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+ "sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+ "machine": "x86_64",
+ "threads": 4,
+ "n": 64,
+ "results": [
+  {
+   "prompt": "What is the capital of France? Answer in one word.",
+   "expect": [
+    "paris"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "Paris",
+   "runs": [
+    {
+     "kern": "neon",
+     "threads": "4",
+     "n_prompt": "31",
+     "prefill_s": "19.607395",
+     "prefill_tps": "1.581",
+     "n_gen": "1",
+     "gen_s": "0.745750",
+     "gen_tps": "1.341",
+     "stop": "eos",
+     "ids": "59604",
+     "logits_fnv": "58cc9dd5807f7105",
+     "text": "Paris",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    },
+    {
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "31",
+     "prefill_s": "30.709351",
+     "prefill_tps": "1.009",
+     "n_gen": "1",
+     "gen_s": "1.414086",
+     "gen_tps": "0.707",
+     "stop": "eos",
+     "ids": "59604",
+     "logits_fnv": "58cc9dd5807f7105",
+     "text": "Paris",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    }
+   ]
+  },
+  {
+   "prompt": "What is 17 + 25? Answer with the number only.",
+   "expect": [
+    "42"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "42",
+   "runs": [
+    {
+     "kern": "neon",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "28.705225",
+     "prefill_tps": "1.219",
+     "n_gen": "2",
+     "gen_s": "2.380150",
+     "gen_tps": "0.840",
+     "stop": "eos",
+     "ids": "19,17",
+     "logits_fnv": "c7bf4fda7ed3e0d1",
+     "text": "42",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    },
+    {
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "34.987346",
+     "prefill_tps": "1.000",
+     "n_gen": "2",
+     "gen_s": "2.551645",
+     "gen_tps": "0.784",
+     "stop": "eos",
+     "ids": "19,17",
+     "logits_fnv": "c7bf4fda7ed3e0d1",
+     "text": "42",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    }
+   ]
+  },
+  {
+   "prompt": "How many days are in a leap year? Answer with the number only.",
+   "expect": [
+    "366"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "366",
+   "runs": [
+    {
+     "kern": "neon",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "30.111283",
+     "prefill_tps": "1.129",
+     "n_gen": "3",
+     "gen_s": "3.449428",
+     "gen_tps": "0.870",
+     "stop": "eos",
+     "ids": "18,21,21",
+     "logits_fnv": "b3ff05b269988029",
+     "text": "366",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    },
+    {
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "33.797957",
+     "prefill_tps": "1.006",
+     "n_gen": "3",
+     "gen_s": "3.980674",
+     "gen_tps": "0.754",
+     "stop": "eos",
+     "ids": "18,21,21",
+     "logits_fnv": "b3ff05b269988029",
+     "text": "366",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    }
+   ]
+  },
+  {
+   "prompt": "Which planet is known as the Red Planet? Answer in one word.",
+   "expect": [
+    "mars"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "Mars",
+   "runs": [
+    {
+     "kern": "neon",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "36.158301",
+     "prefill_tps": "0.913",
+     "n_gen": "2",
+     "gen_s": "2.885136",
+     "gen_tps": "0.693",
+     "stop": "eos",
+     "ids": "44,1561",
+     "logits_fnv": "ab736055ec76125e",
+     "text": "Mars",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    },
+    {
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "35.646716",
+     "prefill_tps": "0.926",
+     "n_gen": "2",
+     "gen_s": "2.626124",
+     "gen_tps": "0.762",
+     "stop": "eos",
+     "ids": "44,1561",
+     "logits_fnv": "ab736055ec76125e",
+     "text": "Mars",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    }
+   ]
+  },
+  {
+   "prompt": "Translate 'thank you' into Spanish. Answer with the translation only.",
+   "expect": [
+    "gracias"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "gracias",
+   "runs": [
+    {
+     "kern": "neon",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "26.173149",
+     "prefill_tps": "1.261",
+     "n_gen": "2",
+     "gen_s": "1.972366",
+     "gen_tps": "1.014",
+     "stop": "eos",
+     "ids": "901,42442",
+     "logits_fnv": "67a218956ac10d8a",
+     "text": "gracias",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    },
+    {
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "31.727508",
+     "prefill_tps": "1.040",
+     "n_gen": "2",
+     "gen_s": "2.494417",
+     "gen_tps": "0.802",
+     "stop": "eos",
+     "ids": "901,42442",
+     "logits_fnv": "67a218956ac10d8a",
+     "text": "gracias",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    }
+   ]
+  },
+  {
+   "prompt": "What is the chemical symbol for gold? Answer with the symbol only.",
+   "expect": [
+    "au"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "Au",
+   "runs": [
+    {
+     "kern": "neon",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "26.536069",
+     "prefill_tps": "1.244",
+     "n_gen": "1",
+     "gen_s": "0.978371",
+     "gen_tps": "1.022",
+     "stop": "eos",
+     "ids": "65332",
+     "logits_fnv": "03ca95b1c0aea700",
+     "text": "Au",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    },
+    {
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "33.600623",
+     "prefill_tps": "0.982",
+     "n_gen": "1",
+     "gen_s": "1.363220",
+     "gen_tps": "0.734",
+     "stop": "eos",
+     "ids": "65332",
+     "logits_fnv": "03ca95b1c0aea700",
+     "text": "Au",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    }
+   ]
+  },
+  {
+   "prompt": "Write a Python expression that reverses a string s. Answer with code only.",
+   "expect": [
+    "[::-1]"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "```python\ns[::-1]\n```",
+   "runs": [
+    {
+     "kern": "neon",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "29.743594",
+     "prefill_tps": "1.177",
+     "n_gen": "8",
+     "gen_s": "9.217733",
+     "gen_tps": "0.868",
+     "stop": "eos",
+     "ids": "73594,12669,198,82,62154,16,921,73594",
+     "logits_fnv": "fe1767b64565c363",
+     "text": "```python\ns[::-1]\n```",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    },
+    {
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "33.244865",
+     "prefill_tps": "1.053",
+     "n_gen": "8",
+     "gen_s": "9.590676",
+     "gen_tps": "0.834",
+     "stop": "eos",
+     "ids": "73594,12669,198,82,62154,16,921,73594",
+     "logits_fnv": "fe1767b64565c363",
+     "text": "```python\ns[::-1]\n```",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    }
+   ]
+  },
+  {
+   "prompt": "Who wrote 'Romeo and Juliet'? Answer with the name only.",
+   "expect": [
+    "shakespeare"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "William Shakespeare",
+   "runs": [
+    {
+     "kern": "neon",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "28.439271",
+     "prefill_tps": "1.196",
+     "n_gen": "2",
+     "gen_s": "2.315908",
+     "gen_tps": "0.864",
+     "stop": "eos",
+     "ids": "44787,41382",
+     "logits_fnv": "66f73830812e8719",
+     "text": "William Shakespeare",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    },
+    {
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "47.466173",
+     "prefill_tps": "0.716",
+     "n_gen": "2",
+     "gen_s": "2.854944",
+     "gen_tps": "0.701",
+     "stop": "eos",
+     "ids": "44787,41382",
+     "logits_fnv": "66f73830812e8719",
+     "text": "William Shakespeare",
+     "bench": "qemu-aarch64 /tmp/zxv_bench/zt_bench_arm64"
+    }
+   ]
+  }
+ ]
+}
