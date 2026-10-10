@@ -1,0 +1,18 @@
+# zt_dump built with an instrumented copy of zt_model.c whose sat32() counts
+# saturations and records the largest |value| it sees (scratch build, not committed).
+# Input: the first 1 and the first 16 WikiText-2 token ids from ids.bin.
+$ zt_dump_instr qwen2.5-1.5b-instruct-q4_k_m.gguf one.bin one.f32 --threads 4
+dbg.sat=0 calls=1250938 max_abs=9400.5
+zt.n=1
+zt.tps=9.265
+$ zt_dump_instr qwen2.5-1.5b-instruct-q4_k_m.gguf sixteen.bin sixteen.f32 --threads 4
+dbg.sat=0 calls=19133878 max_abs=15394.3
+zt.n=16
+zt.tps=11.923
+# Positions with the largest KL(llama.cpp || ZXV) over 512 WikiText-2 tokens:
+# pos KL     max|dlogit| llama max ZXV max argmax(llama) argmax(ZXV)
+# 0   4.503  9.68        10.39     18.52   220             220
+# 291 0.257  4.06        16.83     17.39   4312            4312
+# 316 0.073  1.16        15.94     15.37   65              65
+# KL at positions 0..4: 4.503 0.019 0.017 0.011 0.018
+# Without position 0: mean KL 0.00807, max 0.257

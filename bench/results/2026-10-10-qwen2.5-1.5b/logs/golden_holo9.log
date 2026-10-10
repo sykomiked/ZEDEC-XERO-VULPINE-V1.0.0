@@ -1,0 +1,10 @@
+golden.mode=holo9
+golden.mats=197
+golden.weights=1543569408
+golden.transform_s=422.40
+golden.out_matrix=converted (transformed)
+golden.shift_range=0..24
+golden.entropy_codes_bits=7.3100
+golden.entropy_residuals_bits=8.1171
+golden.holo_changed_weights=518521180
+golden.run_s=39.80

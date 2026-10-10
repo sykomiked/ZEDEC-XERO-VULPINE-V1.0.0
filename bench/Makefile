@@ -9,6 +9,8 @@
 #   make -C bench smoke             build both and run the offline smoke checks
 #   make -C bench tensor MODEL=path/to/model.gguf [N=32] [PROMPT="..."]
 #   make -C bench qwen [ARM64=1]    Qwen2.5-1.5B-Instruct Q4_K_M: speed, cross-build bit check, quality
+#   make -C bench zt_dump zt_golden logit dump and golden-ratio experiment tools (see
+#                                   bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md)
 CC ?= gcc
 OUT ?= /tmp/zxv_bench
 K := ../kernel
@@ -23,7 +25,7 @@ TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tens
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench smoke tensor qwen
+.PHONY: all legacy legacy-bench zt_bench zt_dump zt_golden smoke tensor qwen
 all: smoke
 
 $(OUT):
@@ -43,6 +45,17 @@ $(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h
 	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
 
 zt_bench: $(OUT)/zt_bench
+
+$(OUT)/zt_dump: tensor/zt_dump.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_dump.c $(TENSOR_SRCS) -lm -lpthread -o $@
+
+GOLDEN_SRCS := $(K)/src/tensor/zt_lattice.c $(K)/src/tensor/zt_coil.c $(K)/src/tensor/zt_holo.c
+$(OUT)/zt_golden: tensor/zt_golden.c $(TENSOR_SRCS) $(GOLDEN_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/e8 tensor/zt_golden.c $(TENSOR_SRCS) \
+		$(GOLDEN_SRCS) -lm -lpthread -o $@
+
+zt_dump: $(OUT)/zt_dump
+zt_golden: $(OUT)/zt_golden
 
 # Offline: the legacy golden check, and zt_bench on the tokenizer-only test GGUF
 # (from kernel/src/tensor's fixture), which must be refused cleanly (exit 4)

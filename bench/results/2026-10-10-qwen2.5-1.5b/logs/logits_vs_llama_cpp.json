@@ -1,0 +1,28 @@
+[
+ {
+  "name": "llama.cpp (float) vs ZXV (integer)",
+  "n_scored": 511,
+  "ppl_ref": 9.3616304477666,
+  "ppl_other": 9.371278068305763,
+  "top1_agree": 0.9549902152641878,
+  "kl_mean": 0.016866556760097847,
+  "kl_p99": 0.05449756728188399,
+  "kl_max": 4.50258739070423,
+  "logit_absdiff_mean": 0.14629236362036369,
+  "logit_absdiff_max": 9.681167125701904,
+  "logit_std_ref": 3.2914475394688094
+ },
+ {
+  "name": "llama.cpp ubatch 512 vs llama.cpp ubatch 7",
+  "n_scored": 511,
+  "ppl_ref": 9.3616304477666,
+  "ppl_other": 9.34809378253141,
+  "top1_agree": 0.949119373776908,
+  "kl_mean": 0.007006462939418921,
+  "kl_p99": 0.04513476771202592,
+  "kl_max": 0.0820815184898831,
+  "logit_absdiff_mean": 0.138217785054196,
+  "logit_absdiff_max": 1.8769565224647522,
+  "logit_std_ref": 3.2914475394688094
+ }
+]
