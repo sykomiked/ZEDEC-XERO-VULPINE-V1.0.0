@@ -29,16 +29,17 @@
 #ifndef ZXV_PAY_RAILS_H
 #define ZXV_PAY_RAILS_H
 
-#define ZXV_RAIL_DEBIT  555u
-#define ZXV_RAIL_CREDIT 777u
-#define ZXV_RAIL_EQUITY 888u
+#define ZXV_RAIL_CODE_DEBIT  555u
+#define ZXV_RAIL_CODE_CREDIT 777u
+#define ZXV_RAIL_CODE_EQUITY 888u
 
-#define ZXV_RAIL_DEBIT_JURIS  "NCR" /* New California Republic (not ISO 3166)    */
-#define ZXV_RAIL_CREDIT_JURIS "NRE" /* Neo Roman Empire (not ISO 3166)           */
-#define ZXV_RAIL_EQUITY_JURIS "PNS" /* Principality of New Sicily (not ISO 3166) */
+#define ZXV_RAIL_CODE_DEBIT_JURIS  "NCR" /* New California Republic (not ISO 3166)    */
+#define ZXV_RAIL_CODE_CREDIT_JURIS "NRE" /* Neo Roman Empire (not ISO 3166)           */
+#define ZXV_RAIL_CODE_EQUITY_JURIS "PNS" /* Principality of New Sicily (not ISO 3166) */
 
 /* True iff `code` is one of the three rail numerics. */
-#define ZXV_RAIL_IS_RAIL(code)                                                                     \
-    ((code) == ZXV_RAIL_DEBIT || (code) == ZXV_RAIL_CREDIT || (code) == ZXV_RAIL_EQUITY)
+#define ZXV_RAIL_CODE_IS_RAIL(code)                                                                \
+    ((code) == ZXV_RAIL_CODE_DEBIT || (code) == ZXV_RAIL_CODE_CREDIT ||                            \
+     (code) == ZXV_RAIL_CODE_EQUITY)
 
 #endif /* ZXV_PAY_RAILS_H */

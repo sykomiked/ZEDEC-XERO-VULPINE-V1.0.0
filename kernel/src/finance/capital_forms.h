@@ -63,9 +63,9 @@ _Static_assert((int) CAPITAL_FORM_COUNT == ZCAP_FORM_COUNT, "finance count");
  * PROVENANCE and EXTERNALITY are this module's names for the CREDIT and
  * EQUITY rails (the triple-ledger book each feeds), not other rails. */
 #include "../pay/pay_rails.h"
-#define RAIL_FINANCIAL   ZXV_RAIL_DEBIT  /* 555 Asset/backing      = VINO_ISO_DEBIT  */
-#define RAIL_PROVENANCE  ZXV_RAIL_CREDIT /* 777 Claim/attestation  = VINO_ISO_CREDIT */
-#define RAIL_EXTERNALITY ZXV_RAIL_EQUITY /* 888 Live equity witness = VINO_ISO_EQUITY */
+#define RAIL_FINANCIAL   ZXV_RAIL_CODE_DEBIT  /* 555 Asset/backing      = VINO_ISO_DEBIT  */
+#define RAIL_PROVENANCE  ZXV_RAIL_CODE_CREDIT /* 777 Claim/attestation  = VINO_ISO_CREDIT */
+#define RAIL_EXTERNALITY ZXV_RAIL_CODE_EQUITY /* 888 Live equity witness = VINO_ISO_EQUITY */
 
 /* ===== Inalienability Guard ===== */
 static inline bool capital_is_state_reserved(capital_form_t form)

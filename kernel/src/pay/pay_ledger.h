@@ -98,12 +98,12 @@
 
 /* ===== Rails ===== */
 /* Numerics and jurisdictions come from the canonical pay_rails.h. */
-#define PAY_RAIL_DEBIT_CODE   ZXV_RAIL_DEBIT        /* 555, unassigned in ISO 4217 */
-#define PAY_RAIL_CREDIT_CODE  ZXV_RAIL_CREDIT       /* 777, unassigned in ISO 4217 */
-#define PAY_RAIL_EQUITY_CODE  ZXV_RAIL_EQUITY       /* 888, unassigned in ISO 4217 */
-#define PAY_RAIL_DEBIT_JURIS  ZXV_RAIL_DEBIT_JURIS  /* "NCR" (not ISO 3166) */
-#define PAY_RAIL_CREDIT_JURIS ZXV_RAIL_CREDIT_JURIS /* "NRE" (not ISO 3166) */
-#define PAY_RAIL_EQUITY_JURIS ZXV_RAIL_EQUITY_JURIS /* "PNS" (not ISO 3166) */
+#define PAY_RAIL_DEBIT_CODE   ZXV_RAIL_CODE_DEBIT        /* 555, unassigned in ISO 4217 */
+#define PAY_RAIL_CREDIT_CODE  ZXV_RAIL_CODE_CREDIT       /* 777, unassigned in ISO 4217 */
+#define PAY_RAIL_EQUITY_CODE  ZXV_RAIL_CODE_EQUITY       /* 888, unassigned in ISO 4217 */
+#define PAY_RAIL_DEBIT_JURIS  ZXV_RAIL_CODE_DEBIT_JURIS  /* "NCR" (not ISO 3166) */
+#define PAY_RAIL_CREDIT_JURIS ZXV_RAIL_CODE_CREDIT_JURIS /* "NRE" (not ISO 3166) */
+#define PAY_RAIL_EQUITY_JURIS ZXV_RAIL_CODE_EQUITY_JURIS /* "PNS" (not ISO 3166) */
 typedef enum {
     PAY_RAIL_DEBIT = 0,
     PAY_RAIL_CREDIT = 1,
