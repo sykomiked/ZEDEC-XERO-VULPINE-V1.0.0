@@ -37,6 +37,7 @@
 #define VNA_REC_MAX     8000u
 #define VNA_BODY_MAX    8192u
 #define VNA_HK_MAX      255u
+#define VNA_RCPT_WIRE_MAX 7200u /* a trade receipt (vna_econ.h VNA_RCPT_MAX) */
 
 typedef enum {
     VNA_MSG_PING = 1,
@@ -50,7 +51,8 @@ typedef enum {
     VNA_MSG_HK = 9,         /* one canonical Hackronomicon command line */
     VNA_MSG_SPOOL = 10,     /* one store-and-forward item (vna_spool_item_t) */
     VNA_MSG_SPOOL_ACK = 11, /* its acknowledgement (vna_b_spool_ack_t) */
-    VNA_MSG_TYPE_MAX = 11
+    VNA_MSG_RCPT = 12,      /* one trade receipt (vna_econ.h), body vna_b_rec_t */
+    VNA_MSG_TYPE_MAX = 12
 } vna_msg_type_t;
 
 typedef struct {

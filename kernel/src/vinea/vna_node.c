@@ -60,6 +60,9 @@ vna_status_t vna_node_init(vna_node_t *n, const vna_identity_t *idn, const vna_n
     n->seq = 0;
     n->evictions = n->evict_kept = n->stores_ok = n->stores_refused = 0;
     n->unexpected = n->denied = n->hk_refused = n->sent = n->received = n->dropped_out = 0;
+    n->rcpt = 0;
+    n->rcpt_ctx = 0;
+    n->rcpt_in = n->rcpt_refused = n->rcpt_out = 0;
     n->xform_refused = n->seeded = 0;
     n->spool = 0;
     n->xform = 0;
@@ -587,6 +590,39 @@ static void handle_hk_request(vna_node_t *n, const vna_msg_t *m, const uint8_t *
     push_event(n, m, addr, alen, &cmd, &hk, false);
 }
 
+/* ---- trade receipts ---- */
+void vna_node_set_rcpt_handler(vna_node_t *n, vna_rcpt_fn fn, void *ctx)
+{
+    if (!n) return;
+    n->rcpt = fn;
+    n->rcpt_ctx = ctx;
+}
+
+vna_status_t vna_node_send_rcpt(vna_node_t *n, const vna_id_t *dst, const uint8_t *rcpt,
+                                uint32_t len, uint64_t now, vna_outbox_t *ob)
+{
+    if (!n || !dst || !rcpt || len == 0 || len > VNA_RCPT_WIRE_MAX) return VNA_ERR_ARG;
+    const vna_contact_t *c = vna_rt_find(&n->rt, dst);
+    if (!c) return VNA_ERR_ARG;
+    vna_b_rec_t *b = &n->brec;
+    vna_copy(b->rec, rcpt, len);
+    b->len = (uint16_t) len;
+    vna_status_t st = send_msg(n, dst, c->addr, c->addr_len, VNA_MSG_RCPT, 0, new_rpc(n),
+                               &vna_b_rec_schema, b, now, ob);
+    if (st == VNA_OK) n->rcpt_out++;
+    return st;
+}
+
+static void handle_rcpt(vna_node_t *n, const vna_msg_t *m, uint64_t now)
+{
+    vna_b_rec_t *b = &n->brec;
+    if (!n->rcpt || vna_schema_unpack(&vna_b_rec_schema, m->body, m->body_len, b, 0) < 0 ||
+        b->len > VNA_RCPT_WIRE_MAX || n->rcpt(n->rcpt_ctx, &m->src, b->rec, b->len, now) != VNA_OK)
+        n->rcpt_refused++;
+    else
+        n->rcpt_in++;
+}
+
 /* ---- receive ---- */
 static bool is_response_type(const vna_msg_t *m)
 {
@@ -802,6 +838,9 @@ vna_status_t vna_node_handle(vna_node_t *n, const uint8_t *buf, uint32_t len, co
         return VNA_OK;
     case VNA_MSG_SPOOL:
         handle_spool(n, m, addr, addr_len, now, ob);
+        return VNA_OK;
+    case VNA_MSG_RCPT:
+        handle_rcpt(n, m, now);
         return VNA_OK;
     default:
         return VNA_ERR_PARSE;

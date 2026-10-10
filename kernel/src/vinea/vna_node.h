@@ -186,6 +186,13 @@ uint32_t vna_spool_pending(const vna_spool_t *s, const vna_id_t *dst);
 
 typedef uint64_t (*vna_trust_fn)(void *ctx, const vna_id_t *peer);
 
+/* A trade receipt (vna_econ.h) from `from`, inside a verified message. The
+ * node only carries receipts: the owner's book decides (vna_book_apply), so
+ * the handler gets the receipt bytes and the sender, and answers, if at all,
+ * with vna_node_send_rcpt after vna_node_handle returns. */
+typedef vna_status_t (*vna_rcpt_fn)(void *ctx, const vna_id_t *from, const uint8_t *rcpt,
+                                    uint32_t len, uint64_t now);
+
 typedef struct {
     const vna_identity_t *idn;
     vna_node_cfg_t cfg;
@@ -200,6 +207,8 @@ typedef struct {
     vna_usage_t *usage;
     vna_trust_fn trust;
     void *trust_ctx;
+    vna_rcpt_fn rcpt;
+    void *rcpt_ctx;
     vna_pending_t pend[VNA_NODE_PENDING];
     vna_node_lookup_t lks[VNA_NODE_LOOKUPS];
     vna_event_t ev[VNA_NODE_EVENTS];
@@ -219,6 +228,7 @@ typedef struct {
     /* statistics */
     uint32_t evictions, evict_kept, stores_ok, stores_refused, unexpected, denied, hk_refused;
     uint32_t sent, received, dropped_out, xform_refused, seeded;
+    uint32_t rcpt_in, rcpt_refused, rcpt_out;
 } vna_node_t;
 
 typedef struct {
@@ -288,6 +298,12 @@ void vna_node_lookup_release(vna_node_t *n, int32_t slot);
 vna_status_t vna_node_send_hk(vna_node_t *n, const vna_id_t *dst, const char *text, uint8_t truth,
                               uint32_t ordinal, bool is_response, uint64_t rpc, uint64_t now,
                               vna_outbox_t *ob);
+
+/* Trade receipts: set the handler (NULL refuses every receipt), and send
+ * one (canonical bytes, at most VNA_RCPT_WIRE_MAX) to a known contact. */
+void vna_node_set_rcpt_handler(vna_node_t *n, vna_rcpt_fn fn, void *ctx);
+vna_status_t vna_node_send_rcpt(vna_node_t *n, const vna_id_t *dst, const uint8_t *rcpt,
+                                uint32_t len, uint64_t now, vna_outbox_t *ob);
 
 /* Next Hackronomicon event (a request the agreement allows, or a response to
  * one of ours). */

@@ -24,6 +24,14 @@
  *      answers PING / FIND_NODE / FIND_VALUE and refuses STORE and every
  *      Hackronomicon request.
  *
+ *   U6 ECONOMY. Each start opens a mesh book (vna_econ.h), an owner gate and
+ *      the trade loop (vna_link.h); the node hands every trade receipt to
+ *      it. zxv_net_econ_cycle, called when the swarm closes a market cycle,
+ *      turns this cycle's verified remote compute into the next cycle's
+ *      budget rate and settles the book. With no sharing agreement attached
+ *      the node sells nothing and wants nothing, so the loop imports 0 until
+ *      the owner enables trading.
+ *
  * HONEST LIMITS: no LAN multicast discovery yet (vna_lan.h needs a multicast
  * socket; peers are added by address with --peer or POST /api/net), no NAT
  * traversal, no IPv6, frames up to 13,700 bytes rely on IP fragmentation off
@@ -34,6 +42,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "swarm_budget.h"
 
 typedef enum { ZXV_NET_OFF = 0, ZXV_NET_LAN, ZXV_NET_ONLINE } zxv_net_mode_t;
 
@@ -50,6 +59,11 @@ typedef struct {
     uint32_t peers;   /* contacts in the routing table */
     uint32_t datagrams_in, datagrams_out, refused_in, policy_drops, send_errors;
     char error[96]; /* why the last start failed, or "" */
+    /* U6: the mesh economy */
+    uint32_t trades;           /* receipts committed (as seller) or confirmed (as buyer) */
+    uint32_t receipts_refused; /* by the node or the trade loop */
+    uint64_t imported;         /* internal rate added from verified remote compute */
+    bool conserved;            /* the book's conservation check */
 } zxv_net_status_t;
 
 /* A new, stopped (OFF) host; NULL if out of memory. */
@@ -94,6 +108,12 @@ void zxv_net_node_id(const zxv_net_t *n, uint8_t out[32]);
 
 /* True when this host knows a contact at ip:port (tests). */
 bool zxv_net_knows(const zxv_net_t *n, const char *ip, uint16_t port);
+
+/* U6: close the economic cycle: verified remote compute -> next cycle's rate
+ * (base_rate + imported) on sb, then settle the book. Off: does nothing,
+ * returns 0. 0, or -1 if the loop refused (the rate is then unchanged). */
+int zxv_net_econ_cycle(zxv_net_t *n, swarm_budget_t *sb, uint64_t base_rate, uint64_t now_ms,
+                       uint64_t *imported);
 
 /* Wall-clock milliseconds (Vinea's replay window compares timestamps
  * between peers, so this is real time, not a monotonic clock). */

@@ -392,6 +392,15 @@ static void close_cycle(void)
     swarm_market_credit_frugality(&S.m, &S.b);
     keep_allotments();
     swarm_budget_end_cycle(&S.b);
+    /* The ouroboros loop (zxv_net_host.h U6): verified remote compute this
+     * cycle raises the next cycle's budget rate; the mesh book settles. */
+    if (S.net &&
+        zxv_net_econ_cycle(S.net, &S.b, S.gov.tokens_per_cycle, zxv_net_wall_ms(), NULL) != 0)
+        fprintf(stderr, "zxv: mesh economy cycle refused\n");
+    /* The fee loop (settle.h F1-F3): last cycle's node bounties return to
+     * the pot, then the assurance fee comes off it into the four buckets. */
+    if (settle_levy(&S.spine, &S.m, S.tick) != SETTLE_OK)
+        fprintf(stderr, "zxv: fee levy refused (%d)\n", (int) S.spine.why);
     swarm_market_settle(&S.m);
     /* Reconcile with the ledger of record. A failure halts the spine and,
      * with it, the market: no further cycle runs on books that disagree. */
@@ -628,7 +637,8 @@ static void state_json(buf_t *b)
         "\"levels\":%u,\"tokens_per_cycle\":%llu,\"tick\":%llu,\"fundamental\":%llu,\"cycle\":%llu,"
         "\"due_mask\":%u,\"settled\":%llu,\"held\":%llu,\"money_supply\":%llu,\"pot\":%llu,"
         "\"imag\":%llu,\"saved\":%llu,\"mood\":\"%s %u\",\"ledger_postings\":%llu,"
-        "\"ledger_synced\":%llu,\"ledger_halt\":%d,\"agents\":[",
+        "\"ledger_synced\":%llu,\"ledger_halt\":%d,\"levied\":%llu,\"fees\":%llu,"
+        "\"bounties_returned\":%llu,\"agents\":[",
         S.remote ? "true" : "false", S.hw.cores, S.gov.cores_milli,
         (unsigned long long) S.hw.mem_total_mb, (unsigned long long) S.gov.mem_mb, S.b.num_levels,
         (unsigned long long) S.b.tokens_per_cycle, (unsigned long long) S.tick,
@@ -638,7 +648,8 @@ static void state_json(buf_t *b)
         (unsigned long long) S.m.money_supply, (unsigned long long) S.m.pot,
         (unsigned long long) S.e.last_imag_pool, (unsigned long long) S.o.tokens_saved, mood,
         S.e.mood.intensity, (unsigned long long) S.spine.seq, (unsigned long long) S.spine.cycles,
-        S.spine.halted ? (int) S.spine.why : 0);
+        S.spine.halted ? (int) S.spine.why : 0, (unsigned long long) S.m.levied,
+        (unsigned long long) S.spine.fees, (unsigned long long) S.spine.recycled);
     for (uint32_t i = 0; i < S.num_agents; i++) {
         const agent_t *a = &S.agent[i];
         const swarm_slot_t *s = &S.b.slots[i];
@@ -706,8 +717,10 @@ static void state_json(buf_t *b)
     json_str(b, ns.node_id);
     bput(b,
          ",\"peers\":%u,\"in\":%u,\"out\":%u,\"refused\":%u,\"policy_drops\":%u,"
-         "\"error\":",
-         ns.peers, ns.datagrams_in, ns.datagrams_out, ns.refused_in, ns.policy_drops);
+         "\"trades\":%u,\"receipts_refused\":%u,\"imported\":%llu,\"conserved\":%s,\"error\":",
+         ns.peers, ns.datagrams_in, ns.datagrams_out, ns.refused_in, ns.policy_drops, ns.trades,
+         ns.receipts_refused, (unsigned long long) ns.imported,
+         (!ns.bound || ns.conserved) ? "true" : "false");
     json_str(b, ns.error);
     zxv_update_status_t us;
     zxv_update_status(&us);

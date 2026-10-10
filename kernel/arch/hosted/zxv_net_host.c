@@ -34,6 +34,7 @@ typedef socklen_t nlen_t;
 #include "zxv_net_host.h"
 #include "zxv_http_guard.h" /* zxv_os_random */
 #include "vna_node.h"
+#include "vna_link.h"
 
 #define POOL_CAP    256u
 #define KC_CAP      48u
@@ -45,6 +46,8 @@ typedef socklen_t nlen_t;
 #define TICK_MS     100u
 #define REFRESH_MS  60000u
 #define DGRAM_SLACK 64u
+#define BOOK_CAP    32u
+#define IMPORT_CAP  ((uint64_t) 1 << 20) /* internal rate one cycle may import */
 
 struct zxv_net {
     zxv_net_mode_t mode;
@@ -64,6 +67,12 @@ struct zxv_net {
     vna_outbox_t ob;
     uint8_t *obuf;
     uint8_t rbuf[VNA_MSG_WIRE_MAX + VNA_XFORM_MAX_OVERHEAD + DGRAM_SLACK];
+    /* U6: the mesh economy (vna_econ.h) and its trade loop (vna_link.h) */
+    vna_book_t book;
+    vna_account_t acct[BOOK_CAP];
+    vna_gate_t gate;
+    uint8_t owner_secret[32];
+    vna_link_t link;
 };
 
 uint64_t zxv_net_wall_ms(void)
@@ -120,6 +129,9 @@ void zxv_net_stop(zxv_net_t *n)
     /* the secret key does not outlive the session */
     memset(&n->idn, 0, sizeof n->idn);
     memset(&n->node, 0, sizeof n->node);
+    memset(n->owner_secret, 0, sizeof n->owner_secret);
+    memset(&n->book, 0, sizeof n->book);
+    memset(&n->link, 0, sizeof n->link);
 }
 
 void zxv_net_free(zxv_net_t *n)
@@ -181,6 +193,35 @@ static void flush(zxv_net_t *n)
     vna_outbox_clear(&n->ob);
 }
 
+/* U6: send what the trade loop queued */
+static void drain_link(zxv_net_t *n, uint64_t now_ms)
+{
+    vna_id_t dst;
+    const uint8_t *b;
+    uint32_t len;
+    while (vna_link_next_out(&n->link, &dst, &b, &len))
+        (void) vna_node_send_rcpt(&n->node, &dst, b, len, now_ms, &n->ob);
+}
+
+/* U6: a receipt from a peer. The node verified the message (signature, PoW,
+ * replay); a peer the book does not know yet is registered from the key the
+ * node verified, not a commons member (the owner admits members). */
+static vna_status_t on_rcpt(void *ctx, const vna_id_t *from, const uint8_t *r, uint32_t len,
+                            uint64_t now)
+{
+    zxv_net_t *n = (zxv_net_t *) ctx;
+    if (!vna_book_find(&n->book, from)) {
+        const vna_keycache_t *kc = &n->node.kc;
+        const vna_keycache_ent_t *e = NULL;
+        for (uint32_t i = 0; i < kc->cap && !e; i++)
+            if (kc->e[i].used && vna_id_eq(&kc->e[i].id, from)) e = &kc->e[i];
+        if (!e ||
+            vna_book_add_peer(&n->book, from, e->pk, e->pow_nonce, e->pow_bits, false) != VNA_OK)
+            return VNA_ERR_DENIED;
+    }
+    return vna_link_on_rcpt(&n->link, from, r, len, now);
+}
+
 static int set_nonblocking(nsock_t s)
 {
 #if defined(_WIN32)
@@ -235,6 +276,20 @@ int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16
     memset(dseed, 0, sizeof dseed);
     if (st != VNA_OK) return fail(n, "node init failed");
     vna_node_set_agreement(&n->node, NULL, NULL, NULL, NULL);
+
+    /* U6: the book, the owner gate and the trade loop. No agreement is
+     * attached, so this node sells nothing (fail closed) and wants nothing
+     * until its owner says so; the loop still runs every cycle. */
+    uint8_t lseed[32];
+    if (zxv_os_random(n->owner_secret, sizeof n->owner_secret) != 0 ||
+        zxv_os_random(lseed, sizeof lseed) != 0)
+        return fail(n, "no secure random source");
+    vna_book_init(&n->book, &n->idn, n->acct, BOOK_CAP);
+    vna_gate_init(&n->gate, n->owner_secret, 0, IMPORT_CAP, 4);
+    if (vna_gate_begin_cycle(&n->gate, n->owner_secret) != VNA_OK) return fail(n, "gate failed");
+    vna_link_init(&n->link, &n->book, NULL, NULL, lseed, 1000, 8);
+    memset(lseed, 0, sizeof lseed);
+    vna_node_set_rcpt_handler(&n->node, on_rcpt, n);
     size_t obcap = (size_t) (VNA_OUTBOX_MAX + 1u) * (VNA_MSG_WIRE_MAX + VNA_XFORM_MAX_OVERHEAD);
     if (!(n->obuf = (uint8_t *) malloc(obcap))) return fail(n, "out of memory");
     vna_outbox_init(&n->ob, n->obuf, (uint32_t) obcap);
@@ -284,6 +339,7 @@ void zxv_net_on_readable(zxv_net_t *n, uint64_t now_ms)
         n->in++;
         if (vna_node_handle(&n->node, n->rbuf, (uint32_t) k, a, ADDR_LEN, now_ms, &n->ob) != VNA_OK)
             n->refused++;
+        drain_link(n, now_ms);
         flush(n);
     }
 }
@@ -294,6 +350,8 @@ void zxv_net_tick(zxv_net_t *n, uint64_t now_ms)
     if (now_ms < n->last_tick + TICK_MS) return;
     n->last_tick = now_ms;
     vna_node_tick(&n->node, now_ms, &n->ob);
+    vna_link_tick(&n->link, now_ms);
+    drain_link(n, now_ms);
     if (now_ms >= n->last_refresh + REFRESH_MS) {
         n->last_refresh = now_ms;
         vna_node_refresh(&n->node, now_ms, REFRESH_MS * 15u, 2, &n->ob);
@@ -383,6 +441,19 @@ bool zxv_net_knows(const zxv_net_t *n, const char *ip, uint16_t port)
     return false;
 }
 
+int zxv_net_econ_cycle(zxv_net_t *n, swarm_budget_t *sb, uint64_t base_rate, uint64_t now_ms,
+                       uint64_t *imported)
+{
+    if (imported) *imported = 0;
+    if (!n || !sb) return -1;
+    if (n->s == NBAD_SOCK) return 0; /* U1: off, nothing to close */
+    vna_status_t st =
+        vna_link_cycle(&n->link, &n->gate, n->owner_secret, sb, base_rate, now_ms, imported);
+    drain_link(n, now_ms);
+    flush(n);
+    return st == VNA_OK ? 0 : -1;
+}
+
 void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
 {
     memset(st, 0, sizeof *st);
@@ -398,6 +469,10 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
     st->policy_drops = n->policy;
     st->send_errors = n->send_err;
     if (!st->bound) return;
+    st->trades = n->link.committed + n->link.confirmed;
+    st->receipts_refused = n->link.refused + n->node.rcpt_refused;
+    st->imported = n->link.imported;
+    st->conserved = vna_book_conserved(&n->book);
     static const char hex[] = "0123456789abcdef";
     for (int i = 0; i < 8; i++) {
         st->node_id[2 * i] = hex[n->idn.id.b[i] >> 4];

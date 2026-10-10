@@ -38,6 +38,7 @@ void swarm_market_init(swarm_market_t *m)
     m->n = 0;
     m->money_supply = 0;
     m->pot = 0;
+    m->levied = 0;
     m->last_floor = m->last_market = m->last_unsold = 0;
     for (uint32_t i = 0; i < SWARM_MAX_MODELS; i++) {
         swarm_trader_t *t = &m->t[i];
@@ -260,10 +261,26 @@ swarm_status_t swarm_market_settle(swarm_market_t *m)
     return SWARM_OK;
 }
 
+swarm_status_t swarm_market_levy(swarm_market_t *m, uint64_t amount)
+{
+    if (!m || amount > m->pot) return SWARM_ERR_ARG;
+    m->pot -= amount;
+    m->levied += amount;
+    return SWARM_OK;
+}
+
+swarm_status_t swarm_market_release(swarm_market_t *m, uint64_t amount)
+{
+    if (!m || amount > m->levied) return SWARM_ERR_ARG;
+    m->levied -= amount;
+    m->pot += amount;
+    return SWARM_OK;
+}
+
 bool swarm_market_conserved(const swarm_market_t *m)
 {
     if (!m) return false;
-    uint64_t sum = m->pot;
+    uint64_t sum = m->pot + m->levied;
     for (uint32_t k = 0; k < m->n; k++) sum += m->t[k].cap[SWARM_CAP_FINANCIAL];
     return sum == m->money_supply;
 }

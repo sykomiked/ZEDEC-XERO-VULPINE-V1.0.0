@@ -97,17 +97,32 @@ int main(void)
     }
     CHECK(ra == 1, "A's FIND_NODE for B was answered by B");
     CHECK(rb == 1, "B's FIND_NODE for A was answered by A");
+    /* U6: the economic cycle closes on a live host, with nothing traded */
+    static swarm_budget_t sbud;
+    swarm_budget_init(&sbud, 2, 5000);
+    swarm_budget_register(&sbud, 1, 0);
+    swarm_budget_begin_cycle(&sbud);
+    uint64_t imp = 99;
+    CHECK(zxv_net_econ_cycle(a, &sbud, 5000, now, &imp) == 0 && imp == 0 &&
+              sbud.tokens_per_cycle == 5000,
+          "U6: a cycle with no trades imports nothing; the rate stays at the base");
+    CHECK(zxv_net_econ_cycle(a, NULL, 5000, now, &imp) == -1, "U6: no budget, refused");
     zxv_net_status(a, &sa);
     zxv_net_status(b, &sb);
     CHECK(sa.peers >= 1 && sb.peers >= 1 && sa.refused_in == 0 && sb.refused_in == 0,
           "peers %u / %u, every datagram verified (in %u / %u, out %u / %u)", sa.peers, sb.peers,
           sa.datagrams_in, sb.datagrams_in, sa.datagrams_out, sb.datagrams_out);
+    CHECK(sa.conserved && sb.conserved && sa.trades == 0 && sa.receipts_refused == 0,
+          "U6: both mesh books conserved, nothing traded or refused");
 
     printf("[3] modes\n");
     CHECK(zxv_net_start(a, ZXV_NET_OFF, NULL, 0, now) == 0 && zxv_net_fd(a) == -1,
           "switching A off closes its socket");
     zxv_net_status(a, &sa);
     CHECK(sa.peers == 0 && sa.node_id[0] == 0, "and forgets its session");
+    CHECK(zxv_net_econ_cycle(a, &sbud, 7000, now, &imp) == 0 && imp == 0 &&
+              sbud.tokens_per_cycle == 5000,
+          "U6: off, the economic cycle does nothing");
     CHECK(zxv_net_start(a, ZXV_NET_ONLINE, "127.0.0.1", 0, now) == 0, "A restarts ONLINE");
     CHECK(zxv_net_add_peer(a, "192.0.2.1", 8723, now) == 0,
           "ONLINE accepts a public address (TEST-NET-1, nothing answers)");

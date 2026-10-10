@@ -78,6 +78,7 @@
 #include "vna_id.h"
 #include "vna_schema.h"
 #include "vna_agree.h"
+#include "vna_wire.h"
 #include "../swarm/swarm_budget.h"
 #include "../swarm/swarm_market.h"
 
@@ -99,7 +100,7 @@ typedef enum {
 
 /* ---- trade receipt (countersigned) ---- */
 #define VNA_RCPT_MAGIC 0x32544E56u /* "VNT2" */
-#define VNA_RCPT_MAX   7200u
+#define VNA_RCPT_MAX   VNA_RCPT_WIRE_MAX
 typedef struct {
     uint32_t magic;
     uint8_t version;
@@ -225,6 +226,14 @@ int32_t vna_receipt_countersign(const uint8_t *in, uint32_t len,
 vna_status_t vna_book_apply(vna_book_t *b, const uint8_t *bytes, uint32_t len,
                             const vna_agreement_t *agr, vna_usage_t *us, uint64_t now,
                             const uint8_t rnd[32]);
+
+/* The seller's checks before it signs a PAY or CREDIT receipt to `buyer`:
+ * the buyer is a known peer, the form priceable, the agreement allows the
+ * resource (as vna_book_apply will check again) and, for PAY, the buyer
+ * holds at least `price` of the tokens this node issued. Changes nothing. */
+vna_status_t vna_book_check_sale(vna_book_t *b, const vna_agreement_t *agr, vna_usage_t *us,
+                                 const vna_id_t *buyer, uint8_t mode, uint8_t form,
+                                 uint8_t resource, uint64_t units, uint64_t price, uint64_t now);
 
 /* ---- settlement ---- */
 typedef struct {

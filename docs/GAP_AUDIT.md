@@ -64,6 +64,14 @@ ZXV currently ships as three products that do not share a runtime:
 | C9 | Sicily Account / Player Card tiers | Partial in `pay`. |
 | C10 | AI end to end with real weights | Blocked on huggingface.co access in Project settings. |
 
+## Progress
+
+| Item | State | Where |
+|---|---|---|
+| A1 | Done: the settlement spine posts the swarm's money to `pay_ledger` every cycle and halts if the two books disagree. | `kernel/src/settle` |
+| A2 | Done: the `zxv_engine.h` facade (compress / route / decompress), linked into the app. | `kernel/src/engine` |
+| A4 | Done, both halves. **Fee loop:** once per cycle, `settle_levy` returns last cycle's node bounties to the pot, then charges the 0.08889% fee on the pot (with the sub-unit remainder carried) into the four buckets on both books (swarm market M10, settle F1-F3). The reserve, dividend and regenerative buckets keep what they hold; spending them belongs to the reserve and V-Bill work (C5). **Trade loop:** peers trade compute through signed receipts (`vna_link`, T1-T4, L1-L4); compute received this cycle raises the next cycle's token budget through the owner's gate. The app's node trades nothing until the owner sets an agreement and wants. | `kernel/src/settle`, `kernel/src/swarm/swarm_market.c`, `kernel/src/vinea/vna_link.c` |
+
 ## Owner decisions this audit surfaced
 
 None are blocking. I'll proceed on the defaults above unless you say otherwise.

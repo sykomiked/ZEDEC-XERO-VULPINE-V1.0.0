@@ -44,10 +44,12 @@
 #include "vna_kad.h"
 #include "vna_node.h"
 #include "vna_agree.h"
+#include "vna_link.h"
 #include "vna_cmd.h"
 #include "vna_session.h"
 #include "vna_file.h"
 #include "vna_econ.h"
+#include "vna_link.h"
 #include "vna_lan.h"
 #include "zcapital.h"
 #include "../swarm/swarm_hk.h"
@@ -1149,6 +1151,22 @@ static bool last_triple_ok(const vna_book_t *b)
            memcmp(e[1]->ref, e[2]->ref, 32) == 0 && e[0]->debit != e[0]->credit;
 }
 
+static uint8_t g_cap[VNA_RCPT_MAX];
+static uint32_t g_cap_len;
+static vna_id_t g_cap_from;
+static bool g_cap_refuse;
+static vna_status_t rcpt_capture(void *ctx, const vna_id_t *from, const uint8_t *r, uint32_t len,
+                                 uint64_t now)
+{
+    (void) ctx;
+    (void) now;
+    if (g_cap_refuse) return VNA_ERR_DENIED;
+    memcpy(g_cap, r, len);
+    g_cap_len = len;
+    g_cap_from = *from;
+    return VNA_OK;
+}
+
 /* seller prepares+signs, buyer countersigns, both apply */
 static vna_status_t trade(vna_book_t *seller, vna_book_t *buyer, uint8_t mode, uint8_t form,
                           uint8_t res, uint64_t units, uint64_t price, const vna_agreement_t *sagr,
@@ -1469,6 +1487,41 @@ static void test_economy(void)
     }
     CHECK(T[40].node.hk_refused == r0 + 1 && memcmp(&snap, &sbA, sizeof snap) == 0,
           "a peer's attempt to write the internal allocation changes nothing");
+
+    /* receipts travel in their own signed message; the node only carries
+     * them to the owner's handler, which applies them to its book */
+    uint32_t in0 = T[40].node.rcpt_in, ref0 = T[40].node.rcpt_refused;
+    CHECK(vna_node_send_rcpt(&T[41].node, &T[40].id.id, rbuf[15], rlen[15], g_now, &g_ob) == VNA_OK,
+          "a receipt is sent to a known contact");
+    flush(41);
+    run_queue();
+    CHECK(T[40].node.rcpt_refused == ref0 + 1 && T[40].node.rcpt_in == in0,
+          "no handler: the receipt is refused, never applied");
+    vna_node_set_rcpt_handler(&T[40].node, rcpt_capture, 0);
+    g_cap_len = 0;
+    vna_node_send_rcpt(&T[41].node, &T[40].id.id, rbuf[15], rlen[15], g_now, &g_ob);
+    flush(41);
+    run_queue();
+    CHECK(T[40].node.rcpt_in == in0 + 1 && g_cap_len == rlen[15] &&
+              memcmp(g_cap, rbuf[15], rlen[15]) == 0 &&
+              memcmp(&g_cap_from, &T[41].id.id, sizeof g_cap_from) == 0,
+          "the handler gets the exact receipt bytes and the verified sender");
+    g_cap_refuse = true;
+    vna_node_send_rcpt(&T[41].node, &T[40].id.id, rbuf[15], rlen[15], g_now, &g_ob);
+    flush(41);
+    run_queue();
+    CHECK(T[40].node.rcpt_refused == ref0 + 2,
+          "a receipt the handler refuses is counted as refused");
+    g_cap_refuse = false;
+    vna_node_set_rcpt_handler(&T[40].node, 0, 0);
+    vna_id_t nobody;
+    memset(&nobody, 0x5A, sizeof nobody);
+    CHECK(
+        vna_node_send_rcpt(&T[41].node, &nobody, rbuf[15], rlen[15], g_now, &g_ob) == VNA_ERR_ARG &&
+            vna_node_send_rcpt(&T[41].node, &T[40].id.id, rbuf[15], VNA_RCPT_WIRE_MAX + 1, g_now,
+                               &g_ob) == VNA_ERR_ARG &&
+            vna_node_send_rcpt(&T[41].node, &T[40].id.id, rbuf[15], 0, g_now, &g_ob) == VNA_ERR_ARG,
+        "send_rcpt: unknown contact, oversize and empty refused");
     vna_node_set_agreement(&T[40].node, 0, 0, 0, 0);
     CHECK(vna_ledger_verify(&bkA.ledger, IA->pk) && vna_ledger_verify(&bkB.ledger, IB->pk),
           "hash-chained, ML-DSA-signed ledgers verify");
@@ -1525,6 +1578,601 @@ static void test_economy(void)
 /* ===================================================================== */
 /* 6. file transfer                                                       */
 /* ===================================================================== */
+/* ---- the trade loop over receipts (vna_link.h) ---- */
+static vna_link_t lkS, lkB;
+static vna_account_t accS2[4], accB2[4];
+static vna_book_t bkS2, bkB2;
+static vna_agreement_t agS;
+static vna_usage_ent_t ueS[16];
+static vna_lease_t leS[8];
+static vna_usage_t usS;
+
+/* deliver every queued receipt between the two links; drop_from_b drops
+ * what B sends (a lost message), drop_from_s what S sends */
+static uint32_t pump(bool drop_from_s, bool drop_from_b)
+{
+    uint32_t moved = 0;
+    for (int round = 0; round < 8; round++) {
+        vna_id_t dst;
+        const uint8_t *b;
+        uint32_t len;
+        bool any = false;
+        static uint8_t copy[VNA_RCPT_MAX];
+        while (vna_link_next_out(&lkS, &dst, &b, &len)) {
+            any = true;
+            memcpy(copy, b, len);
+            if (!drop_from_s) vna_link_on_rcpt(&lkB, &bkS2.idn->id, copy, len, g_now);
+            moved++;
+        }
+        while (vna_link_next_out(&lkB, &dst, &b, &len)) {
+            any = true;
+            memcpy(copy, b, len);
+            if (!drop_from_b) vna_link_on_rcpt(&lkS, &bkB2.idn->id, copy, len, g_now);
+            moved++;
+        }
+        if (!any) break;
+    }
+    return moved;
+}
+
+static bool in_sync(void)
+{
+    const vna_account_t *a = vna_book_find(&bkS2, &bkB2.idn->id),
+                        *b = vna_book_find(&bkB2, &bkS2.idn->id);
+    return a && b && a->pair_seq == b->pair_seq && memcmp(a->pair_prev, b->pair_prev, 32) == 0 &&
+           vna_book_conserved(&bkS2) && vna_book_conserved(&bkB2);
+}
+
+static void test_link(void)
+{
+    printf("[5b] trade loop: offer, accept, commit, confirm, retries, the gate loop\n");
+    const vna_identity_t *IS = &T[50].id, *IBu = &T[51].id;
+    vna_book_init(&bkS2, IS, accS2, 4);
+    vna_book_init(&bkB2, IBu, accB2, 4);
+    vna_book_add_peer(&bkS2, &IBu->id, IBu->pk, IBu->pow_nonce, 8, true);
+    vna_book_add_peer(&bkB2, &IS->id, IS->pk, IS->pow_nonce, 8, true);
+    vna_agree_default(&agS, &IS->id);
+    agS.degree = VNA_DEG_COMPUTE;
+    agS.audience = VNA_AUD_EVERYONE;
+    agS.compute_per_cycle = 10000;
+    agS.q_compute = 5000;
+    vna_usage_init(&usS, ueS, 16, leS, 8);
+    uint8_t seedS[32] = {7}, seedB[32] = {8};
+    vna_link_init(&lkS, &bkS2, &agS, &usS, seedS, 100, 3);
+    vna_link_init(&lkB, &bkB2, 0, 0, seedB, 100, 3);
+    const char *hk = "ask(compute, units: 1)";
+
+    /* T1-T4 */
+    int32_t w = vna_link_want(&lkB, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 300, 1000);
+    CHECK(w >= 0, "the buyer states what it wants");
+    CHECK(vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 100, 300,
+                        hk, g_now) == VNA_OK,
+          "the seller offers 100 units of compute on credit");
+    CHECK(vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, hk,
+                        g_now) == VNA_ERR_STATE,
+          "L1: one receipt outstanding per peer");
+    pump(false, false);
+    CHECK(lkS.committed == 1 && lkB.confirmed == 1 && vna_link_pending(&lkS, 0) == 0 &&
+              vna_link_pending(&lkB, 0) == 0,
+          "offer, accept, commit, confirm: nothing left pending");
+    CHECK(bkB2.received_units[VNA_RES_COMPUTE] == 100 && lkB.want[w].units_left == 200 &&
+              vna_book_find(&bkB2, &IS->id)->contrib[SWARM_CAP_SYSTEM] == 300,
+          "the buyer recorded the compute received and the seller's contribution");
+    CHECK(in_sync(), "both books hold the same pair chain and are conserved");
+
+    /* L3: only what was asked for, under the ceiling, from the counterparty */
+    uint32_t ref0 = lkB.refused;
+    CHECK(vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_INTELLECTUAL, VNA_RES_COMPUTE, 10,
+                        10, hk, g_now) == VNA_OK,
+          "an offer in a form the buyer never asked for");
+    pump(false, false);
+    CHECK(lkB.refused == ref0 + 1 && vna_link_pending(&lkS, &IBu->id) == 1,
+          "is refused by the buyer");
+    for (int k = 0; k < 4; k++) {
+        g_now += 100;
+        vna_link_tick(&lkS, g_now);
+        pump(false, false);
+    }
+    CHECK(vna_link_pending(&lkS, 0) == 0 && lkS.abandoned == 1 && in_sync(),
+          "after max_tries the seller gives up; nothing was applied on either side");
+    vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 10, 1001, hk,
+                  g_now);
+    pump(false, false);
+    CHECK(lkB.refused > ref0 + 1 && vna_link_pending(&lkB, 0) == 0,
+          "over the price ceiling: refused");
+    for (int k = 0; k < 4; k++) {
+        g_now += 100;
+        vna_link_tick(&lkS, g_now);
+        pump(false, false);
+    }
+    vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 201, 10, hk,
+                  g_now);
+    pump(false, false);
+    CHECK(lkB.refused > ref0 + 5 && in_sync(), "more units than still wanted: refused");
+    for (int k = 0; k < 4; k++) {
+        g_now += 100;
+        vna_link_tick(&lkS, g_now);
+        pump(false, false);
+    }
+    vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 5, 5, hk,
+                  g_now);
+    vna_id_t dst;
+    const uint8_t *ob;
+    uint32_t olen;
+    vna_link_next_out(&lkS, &dst, &ob, &olen);
+    static uint8_t keep[VNA_RCPT_MAX];
+    memcpy(keep, ob, olen);
+    CHECK(vna_link_on_rcpt(&lkB, &T[52].id.id, keep, olen, g_now) == VNA_ERR_UNEXPECTED,
+          "a receipt delivered by anyone but the counterparty is refused");
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, keep, olen - 1, g_now) == VNA_ERR_PARSE,
+          "a truncated receipt is refused");
+
+    /* L2: lost messages */
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, keep, olen, g_now) == VNA_OK,
+          "the genuine offer accepted");
+    vna_link_next_out(&lkB, &dst, &ob, &olen); /* the countersigned copy is lost */
+    g_now += 100;
+    vna_link_tick(&lkB, g_now); /* the buyer resends its countersigned copy */
+    pump(true, false);          /* the seller commits, its confirmation is lost */
+    CHECK(lkS.committed == 2 && lkB.confirmed == 1 && vna_link_pending(&lkB, 0) == 1,
+          "the seller committed; the buyer is still waiting for the lost confirmation");
+    g_now += 100;
+    vna_link_tick(&lkB, g_now);
+    pump(false, false);
+    CHECK(lkB.confirmed == 2 && vna_link_pending(&lkB, 0) == 0 && in_sync(),
+          "the resent countersign draws the confirmation again; applied once, books in sync");
+
+    /* T3 refused at commit: the agreement changed after the offer */
+    vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 5, 5, hk,
+                  g_now);
+    agS.degree = VNA_DEG_ROUTE;
+    uint64_t want_before = lkB.want[w].units_left;
+    pump(false, false);
+    CHECK(lkS.committed == 2 && vna_link_pending(&lkS, 0) == 0 && in_sync(),
+          "a commit the seller's book refuses is dropped: the buyer never applies it");
+    for (int k = 0; k < 4; k++) {
+        g_now += 100;
+        vna_link_tick(&lkB, g_now);
+        pump(false, false);
+    }
+    CHECK(vna_link_pending(&lkB, 0) == 0 && lkB.want[w].units_left == want_before && in_sync(),
+          "the buyer gives up and gets its reserved units back");
+    agS.degree = VNA_DEG_COMPUTE;
+
+    /* L4: the gate loop */
+    static swarm_budget_t sb;
+    swarm_budget_init(&sb, 2, 5000);
+    swarm_budget_register(&sb, 1, 0);
+    swarm_budget_begin_cycle(&sb);
+    uint8_t sec[32];
+    memset(sec, 0x5C, 32);
+    vna_gate_t g;
+    vna_gate_init(&g, sec, 0, 150, 4);
+    vna_gate_begin_cycle(&g, sec);
+    uint64_t got = 0;
+    uint64_t recv = bkB2.received_units[VNA_RES_COMPUTE];
+    CHECK(vna_link_cycle(&lkB, &g, sec, &sb, 5000, g_now, &got) == VNA_OK && got == 105 &&
+              recv == 105 && sb.tokens_per_cycle == 5105,
+          "this cycle's received compute raises the next cycle's budget (the ouroboros loop)");
+    CHECK(bkB2.received_units[VNA_RES_COMPUTE] == 0 && vna_book_conserved(&bkB2),
+          "the book settled and reset its cycle counters");
+    CHECK(vna_link_cycle(&lkB, &g, sec, &sb, 5000, g_now, &got) == VNA_OK && got == 0 &&
+              sb.tokens_per_cycle == 5000,
+          "a cycle with nothing received goes back to the base rate");
+    uint8_t nosec[32] = {0};
+    bkB2.received_units[VNA_RES_COMPUTE] = 1; /* something to import */
+    CHECK(vna_link_cycle(&lkB, &g, nosec, &sb, 5000, g_now, &got) == VNA_ERR_AUTH && got == 0,
+          "the loop needs the owner's secret");
+    bkB2.received_units[VNA_RES_COMPUTE] = 0;
+    CHECK(vna_link_cycle(0, &g, sec, &sb, 5000, g_now, &got) == VNA_ERR_ARG, "cycle(NULL)");
+    pump(false, false);
+    CHECK(in_sync(), "DISTRIBUTE receipts (if any) delivered; books in sync");
+
+    /* end to end over two nodes */
+    vna_contact_t dummy;
+    uint8_t a50[4], a51[4];
+    addr_of(50, a50);
+    addr_of(51, a51);
+    vna_rt_seen(&T[50].node.rt, &IBu->id, a51, 4, 0, g_now, &dummy);
+    vna_rt_seen(&T[51].node.rt, &IS->id, a50, 4, 0, g_now, &dummy);
+    vna_node_set_rcpt_handler(&T[50].node, vna_link_on_rcpt, &lkS);
+    vna_node_set_rcpt_handler(&T[51].node, vna_link_on_rcpt, &lkB);
+    uint32_t c0 = lkB.confirmed;
+    vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 7, 7, hk,
+                  g_now);
+    for (int k = 0; k < 6; k++) {
+        vna_id_t d;
+        const uint8_t *bb;
+        uint32_t ll;
+        while (vna_link_next_out(&lkS, &d, &bb, &ll))
+            vna_node_send_rcpt(&T[50].node, &d, bb, ll, g_now, &g_ob);
+        flush(50);
+        while (vna_link_next_out(&lkB, &d, &bb, &ll))
+            vna_node_send_rcpt(&T[51].node, &d, bb, ll, g_now, &g_ob);
+        flush(51);
+        run_queue();
+    }
+    CHECK(lkB.confirmed == c0 + 1 && vna_link_pending(&lkS, 0) == 0 && in_sync(),
+          "the same trade over two nodes: signed messages, both books in sync");
+    vna_node_set_rcpt_handler(&T[50].node, 0, 0);
+    vna_node_set_rcpt_handler(&T[51].node, 0, 0);
+}
+
+/* A receipt signed by `idn` as the seller (pair chain from book b), with
+ * fields bent by the caller. Returns its length (0 on failure). */
+static uint32_t rcpt_craft(vna_book_t *b, const vna_identity_t *idn, const vna_id_t *buyer,
+                           uint8_t mode, uint8_t form, uint8_t res, uint64_t units, uint64_t price,
+                           uint64_t seq_add, bool bad_prev, uint8_t *out)
+{
+    static vna_receipt_t r;
+    if (vna_receipt_prepare(b, &r, VNA_TR_CREDIT, form, res, &idn->id, buyer, units, price, 1000,
+                            g_now, 0, "ask(compute, units: 1)") != VNA_OK)
+        return 0;
+    r.mode = mode;
+    r.pair_seq += seq_add;
+    if (bad_prev) r.prev[0] ^= 1;
+    uint8_t rnd[32] = {9};
+    int32_t n = vna_receipt_sign_seller(&r, idn, rnd, out, VNA_RCPT_MAX);
+    return n < 0 ? 0 : (uint32_t) n;
+}
+
+/* Move one queued message from link a to link b (from a's node); keep a copy. */
+static vna_status_t hop(vna_link_t *a, vna_link_t *b, uint8_t *keep, uint32_t *klen)
+{
+    vna_id_t d;
+    const uint8_t *ob;
+    uint32_t ol;
+    if (!vna_link_next_out(a, &d, &ob, &ol)) return VNA_ERR_STATE;
+    static uint8_t tmp[VNA_RCPT_MAX];
+    memcpy(tmp, ob, ol);
+    if (keep) {
+        memcpy(keep, ob, ol);
+        *klen = ol;
+    }
+    if (!vna_id_eq(&d, &b->book->idn->id)) return VNA_ERR_DST;
+    return vna_link_on_rcpt(b, &a->book->idn->id, tmp, ol, g_now);
+}
+
+static void test_link_edges(void)
+{
+    printf("[5c] trade loop edges: arguments, queues, timers, forks, replays, PAY\n");
+    const vna_identity_t *IS = &T[50].id, *IBu = &T[51].id;
+    const char *hk = "ask(compute, units: 1)";
+    uint8_t seedS[32] = {7}, seedB[32] = {8};
+    static vna_link_t lkX;
+    vna_id_t d;
+    const uint8_t *ob;
+    uint32_t ol;
+
+    /* init and wants */
+    vna_link_init(0, &bkS2, &agS, &usS, seedS, 0, 0);
+    vna_link_init(&lkX, &bkS2, &agS, &usS, seedS, 0, 0);
+    CHECK(lkX.retry_ms == 1000 && lkX.max_tries == 8 && lkX.book == &bkS2 && lkX.agr == &agS &&
+              lkX.us == &usS && lkX.out_n == 0 && lkX.offered == 0,
+          "init: retry 1000 ms and 8 tries by default; init(NULL) is a no-op");
+    {
+        vna_drbg_t ref;
+        uint8_t x1[16], x2[16];
+        vna_drbg_seed(&ref, seedS, 32);
+        vna_drbg_gen(&ref, x1, 16);
+        vna_drbg_gen(&lkX.rng, x2, 16);
+        CHECK(memcmp(x1, x2, 16) == 0, "init: the signature randomness comes from the full seed");
+    }
+    CHECK(vna_link_want(0, VNA_RES_COMPUTE, 0, 1, 1) == -1 &&
+              vna_link_want(&lkX, VNA_RES_COUNT, 0, 1, 1) == -1 &&
+              vna_link_want(&lkX, 0, VNA_FORMS, 1, 1) == -1 &&
+              vna_link_want(&lkX, VNA_RES_COMPUTE, 0, 0, 1) == -1,
+          "want: argument errors");
+    bool slots = true;
+    for (int32_t k = 0; k < (int32_t) VNA_LINK_WANTS; k++)
+        slots = slots && vna_link_want(&lkX, VNA_RES_COUNT - 1, VNA_FORMS - 1, 1, 1) == k;
+    CHECK(slots && vna_link_want(&lkX, VNA_RES_COMPUTE, 0, 1, 1) == -1,
+          "want: eight slots handed out in order, the ninth refused");
+
+    /* sell: arguments and the seller's own checks */
+    vna_link_init(&lkX, &bkS2, &agS, &usS, seedS, 100, 20);
+    CHECK(vna_link_sell(0, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, hk,
+                        g_now) == VNA_ERR_ARG &&
+              vna_link_sell(&lkX, 0, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, hk,
+                            g_now) == VNA_ERR_ARG &&
+              vna_link_sell(&lkX, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1,
+                            0, g_now) == VNA_ERR_ARG &&
+              vna_link_sell(&lkX, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 0, 1,
+                            hk, g_now) == VNA_ERR_ARG,
+          "sell: argument errors");
+    CHECK(vna_link_sell(&lkX, &IBu->id, VNA_TR_PAY, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, hk,
+                        g_now) == VNA_ERR_FUNDS,
+          "sell: PAY when the buyer holds none of our tokens is refused before signing");
+    CHECK(vna_link_sell(&lkX, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1,
+                        "ask(", g_now) != VNA_OK,
+          "sell: an HK text that does not parse is refused");
+    CHECK(lkX.offered == 0 && lkX.out_n == 0 && vna_link_pending(&lkX, 0) == 0,
+          "refused sales leave nothing queued or pending");
+    CHECK(vna_link_sell(&lkX, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 3, 4, hk,
+                        g_now) == VNA_OK &&
+              lkX.offered == 1 && vna_link_next_out(&lkX, &d, &ob, &ol),
+          "sell: one offer queued");
+    {
+        static vna_receipt_t r;
+        uint32_t so = 0;
+        uint8_t cid[32];
+        vna_agree_cid(&agS, cid);
+        CHECK(vna_id_eq(&d, &IBu->id) &&
+                  vna_schema_unpack(&vna_receipt_schema, ob, ol, &r, &so) >= 0 &&
+                  r.mode == VNA_TR_CREDIT && r.units == 3 && r.price == 4 &&
+                  r.demand_x1000 == 1000 && memcmp(r.agreement_cid, cid, 32) == 0 &&
+                  vna_id_eq(&r.seller, &IS->id) && vna_id_eq(&r.buyer, &IBu->id),
+              "the offer names the agreement it was made under, at the neutral demand factor");
+        const vna_link_pend_t *p = &lkX.pend[0];
+        CHECK(p->used && p->role == VNA_LINK_SELL && p->want == -1 && p->tries == 1 &&
+                  p->next_ms == g_now + 100 && vna_id_eq(&p->peer, &IBu->id),
+              "the pending sale: first slot, first try, next resend one retry later");
+    }
+
+    /* the out queue (FIFO, wraps, drops when full), resend timers, the pending table */
+    static vna_account_t accX[20];
+    static vna_book_t bkX;
+    vna_book_init(&bkX, IS, accX, 20);
+    bool added = true;
+    for (uint32_t k = 0; k < 17; k++)
+        added = added && vna_book_add_peer(&bkX, &T[30 + k].id.id, T[30 + k].id.pk,
+                                           T[30 + k].id.pow_nonce, 8, true) == VNA_OK;
+    CHECK(added, "a seller with seventeen peers");
+    const vna_id_t *P0 = &T[30].id.id, *P1 = &T[31].id.id;
+    vna_link_init(&lkX, &bkX, &agS, &usS, seedS, 100, 20);
+    uint64_t t0 = g_now;
+    CHECK(vna_link_sell(&lkX, P0, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, hk, t0) ==
+                  VNA_OK &&
+              vna_link_sell(&lkX, P1, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, hk,
+                            t0) == VNA_OK &&
+              vna_link_sell(&lkX, P1, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, hk,
+                            t0) == VNA_ERR_STATE,
+          "two peers, one outstanding sale each (L1 holds for any slot)");
+    CHECK(lkX.offered == 2 && lkX.out_n == 2 && vna_link_pending(&lkX, 0) == 2 &&
+              vna_link_pending(&lkX, P1) == 1 && vna_link_pending(&lkX, &T[47].id.id) == 0 &&
+              vna_link_pending(0, 0) == 0,
+          "pending: per peer, in total, and none for NULL");
+    CHECK(vna_link_next_out(&lkX, &d, &ob, &ol) && vna_id_eq(&d, P0), "first in, first out");
+    vna_link_tick(&lkX, t0 + 99);
+    CHECK(lkX.out_n == 1 && lkX.resent == 0, "no resend before the retry time");
+    vna_link_tick(&lkX, t0 + 100);
+    CHECK(lkX.out_n == 3 && lkX.resent == 2, "both resent at the retry time");
+    vna_link_tick(&lkX, t0 + 150);
+    CHECK(lkX.out_n == 3 && lkX.resent == 2, "and not again until the next retry time");
+    vna_link_tick(&lkX, t0 + 200);
+    vna_link_tick(&lkX, t0 + 300);
+    vna_link_tick(&lkX, t0 + 400);
+    CHECK(lkX.out_n == VNA_LINK_OUT && lkX.out_dropped == 1 && lkX.resent == 7,
+          "a full out queue drops (and counts) what does not fit");
+    CHECK(!vna_link_next_out(0, &d, &ob, &ol) && !vna_link_next_out(&lkX, 0, &ob, &ol) &&
+              !vna_link_next_out(&lkX, &d, 0, &ol) && !vna_link_next_out(&lkX, &d, &ob, 0) &&
+              lkX.out_n == VNA_LINK_OUT,
+          "next_out: argument errors take nothing off the queue");
+    bool order = true;
+    for (uint32_t k = 0; k < VNA_LINK_OUT; k++)
+        order = order && vna_link_next_out(&lkX, &d, &ob, &ol) &&
+                vna_id_eq(&d, (k & 1) ? P0 : P1) && ol > 0;
+    CHECK(order && !vna_link_next_out(&lkX, &d, &ob, &ol),
+          "the queue wrapped around and still came out in order, then empty");
+    for (uint32_t k = 2; k < 16; k++)
+        vna_link_sell(&lkX, &T[30 + k].id.id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1,
+                      1, hk, t0);
+    CHECK(lkX.offered == 16 && vna_link_pending(&lkX, 0) == VNA_LINK_PEND &&
+              lkX.out_dropped == 1 + 6 &&
+              vna_link_sell(&lkX, &T[46].id.id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1,
+                            1, hk, t0) == VNA_ERR_SPACE &&
+              lkX.offered == 16,
+          "sixteen sales outstanding fill the table; the seventeenth is refused");
+    vna_link_init(&lkX, &bkX, &agS, &usS, seedS, 100, 3);
+    vna_link_sell(&lkX, P0, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, hk, t0);
+    vna_link_tick(&lkX, t0 + 100);
+    vna_link_tick(&lkX, t0 + 200);
+    CHECK(lkX.abandoned == 0 && lkX.resent == 2 && vna_link_pending(&lkX, 0) == 1,
+          "three tries: the offer and two resends");
+    vna_link_tick(&lkX, t0 + 300);
+    vna_link_tick(0, t0 + 300);
+    CHECK(lkX.abandoned == 1 && lkX.resent == 2 && vna_link_pending(&lkX, 0) == 0,
+          "then given up; tick(NULL) is a no-op");
+
+    /* the receipt handler's own checks */
+    static uint8_t m[VNA_RCPT_MAX + 1], keep[VNA_RCPT_MAX], conf[VNA_RCPT_MAX];
+    uint32_t mlen, klen = 0, clen = 0;
+    vna_link_init(&lkS, &bkS2, &agS, &usS, seedS, 100, 3);
+    vna_link_init(&lkB, &bkB2, 0, 0, seedB, 100, 3);
+    memset(m, 0xA5, sizeof m);
+    CHECK(vna_link_on_rcpt(0, &IS->id, m, 10, g_now) == VNA_ERR_ARG &&
+              vna_link_on_rcpt(&lkB, 0, m, 10, g_now) == VNA_ERR_ARG &&
+              vna_link_on_rcpt(&lkB, &IS->id, 0, 10, g_now) == VNA_ERR_ARG &&
+              vna_link_on_rcpt(&lkB, &IS->id, m, 0, g_now) == VNA_ERR_ARG &&
+              vna_link_on_rcpt(&lkB, &IS->id, m, VNA_RCPT_MAX + 1, g_now) == VNA_ERR_ARG &&
+              lkB.refused == 0,
+          "on_rcpt: argument errors (not counted as refusals)");
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, VNA_RCPT_MAX, g_now) == VNA_ERR_PARSE &&
+              lkB.refused == 1,
+          "on_rcpt: a full-size receipt of garbage does not parse");
+    mlen = rcpt_craft(&bkX, IS, P0, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, 0,
+                      false, m);
+    CHECK(mlen > 0 && vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_DST,
+          "a receipt between two other nodes is refused");
+
+    /* T2: the buyer's matching, exactly at the limits */
+    CHECK(vna_link_want(&lkB, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 10, 10) == 0 &&
+              vna_link_want(&lkB, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 10, 10) == 1,
+          "two wants that both match");
+    CHECK(vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 10, 10,
+                        hk, g_now) == VNA_OK &&
+              hop(&lkS, &lkB, 0, 0) == VNA_OK,
+          "an offer at exactly the units still wanted and the price ceiling is accepted");
+    CHECK(lkB.want[0].units_left == 0 && lkB.want[1].units_left == 10 && lkB.accepted == 1 &&
+              lkB.pend[0].want == 0 && lkB.pend[0].role == VNA_LINK_BUY,
+          "the first matching want is the one reserved");
+    CHECK(hop(&lkB, &lkS, 0, 0) == VNA_OK && hop(&lkS, &lkB, conf, &clen) == VNA_OK &&
+              lkS.committed == 1 && lkB.confirmed == 1 && !lkB.want[0].used && lkB.want[1].used &&
+              lkS.resent == 0 && lkB.resent == 0 && lkS.refused == 0 && lkB.refused == 2 &&
+              in_sync(),
+          "committed and confirmed; the used-up want is freed, the other kept");
+    uint32_t rej = bkB2.rejected, rejS = bkS2.rejected;
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, conf, clen, g_now) == VNA_OK && lkB.resent == 0 &&
+              lkB.out_n == 0 && bkB2.rejected == rej && lkB.confirmed == 1,
+          "L2: a repeated confirmation is applied once and not answered");
+    CHECK(vna_link_on_rcpt(&lkS, &IBu->id, conf, clen, g_now) == VNA_OK && lkS.resent == 1 &&
+              lkS.out_n == 1 && bkS2.rejected == rejS && lkS.committed == 1,
+          "L2: a repeated countersign is confirmed again, not refused");
+    hop(&lkS, &lkB, 0, 0);
+    CHECK(lkB.want[0].used == false &&
+              vna_link_want(&lkB, VNA_RES_MEMORY, SWARM_CAP_INTELLECTUAL, 10, 10) == 0,
+          "a freed slot is handed out again");
+    uint32_t ref0 = lkB.refused;
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_INTELLECTUAL, VNA_RES_COMPUTE,
+                      5, 5, 0, false, m);
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_DENIED,
+          "a resource asked for in another form only: refused");
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 11, 10,
+                      0, false, m);
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_DENIED,
+          "one unit more than wanted: refused");
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 10, 11,
+                      0, false, m);
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_DENIED,
+          "one token over the ceiling: refused");
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, 0, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, 0, false, m);
+    CHECK(mlen == 0 || vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_PARSE,
+          "an offer that is neither PAY nor CREDIT: refused");
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1,
+                      1, false, m);
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_FORK,
+          "an offer that skips a link of the pair chain: FORK");
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1,
+                      0, true, m);
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_FORK,
+          "an offer on another chain head: FORK");
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, VNA_TR_PAY, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1, 0,
+                      false, m);
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_FUNDS,
+          "a PAY offer the buyer cannot pay: refused");
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1,
+                      0, false, m);
+    m[mlen - 2u * VNA_SIG_LEN + 5] ^= 1;
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) < 0 && lkB.accepted == 1 &&
+              vna_link_pending(&lkB, 0) == 0 && lkB.out_n == 0,
+          "an offer with a bad seller signature is not countersigned");
+    {
+        static vna_account_t accP[2];
+        static vna_book_t bkP;
+        vna_book_init(&bkP, &T[52].id, accP, 2);
+        vna_book_add_peer(&bkP, &IBu->id, IBu->pk, IBu->pow_nonce, 8, true);
+        mlen = rcpt_craft(&bkP, &T[52].id, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM,
+                          VNA_RES_COMPUTE, 1, 1, 0, false, m);
+        CHECK(vna_link_on_rcpt(&lkB, &T[52].id.id, m, mlen, g_now) == VNA_ERR_ARG,
+              "an offer from a node the buyer has no account with: refused");
+    }
+    CHECK(lkB.refused == ref0 + 9 && lkB.accepted == 1 && vna_link_pending(&lkB, 0) == 0 &&
+              in_sync(),
+          "every refusal counted; nothing reserved or applied");
+
+    /* L2: a resent offer, a different offer while one is outstanding, a late countersign */
+    vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 5, 5, hk,
+                  g_now);
+    hop(&lkS, &lkB, keep, &klen);          /* accepted */
+    vna_link_next_out(&lkB, &d, &ob, &ol); /* the countersign is lost */
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, keep, klen, g_now) == VNA_OK && lkB.resent == 1 &&
+              lkB.out_n == 1 && lkB.accepted == 2 && lkB.want[1].units_left == 5,
+          "a resent offer draws the same countersign again, reserving nothing more");
+    mlen = rcpt_craft(&bkS2, IS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 1,
+                      1, false, m);
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, m, mlen, g_now) == VNA_ERR_STATE,
+          "another offer while one is outstanding with the same peer: refused");
+    for (int k = 1; k <= 3; k++) vna_link_tick(&lkS, g_now + 100u * (uint64_t) k);
+    while (vna_link_next_out(&lkS, &d, &ob, &ol)) {
+    }
+    CHECK(vna_link_pending(&lkS, 0) == 0 && lkS.abandoned == 1, "the seller gave up waiting");
+    CHECK(hop(&lkB, &lkS, 0, 0) == VNA_OK && lkS.committed == 2 &&
+              hop(&lkS, &lkB, 0, 0) == VNA_OK && lkB.confirmed == 2 &&
+              vna_link_pending(&lkB, 0) == 0 && in_sync(),
+          "a countersign that arrives after the seller gave up is still committed, in sync");
+
+    /* the seller's own DISTRIBUTE, and PAY with distributed tokens */
+    static swarm_budget_t sbB;
+    swarm_budget_init(&sbB, 2, 5000);
+    swarm_budget_register(&sbB, 1, 0);
+    swarm_budget_begin_cycle(&sbB);
+    uint8_t sec[32];
+    memset(sec, 0x6D, 32);
+    vna_gate_t gB;
+    vna_gate_init(&gB, sec, 1000, 0, 8);
+    vna_gate_begin_cycle(&gB, sec);
+    uint64_t granted = 0, got = 77;
+    CHECK(vna_gate_export(&gB, sec, &sbB, 1, &bkB2, SWARM_CAP_SYSTEM, 60, &granted) == VNA_OK &&
+              granted == 60,
+          "the buyer's owner puts 60 internal tokens into its commons pool");
+    CHECK(vna_link_cycle(&lkB, &gB, sec, &sbB, 5000, g_now, &got) == VNA_OK && got == 0 &&
+              sbB.tokens_per_cycle == 5000 && lkB.imported == 0,
+          "no import room this cycle: nothing imported, base rate");
+    CHECK(lkB.out_n >= 1, "the settle queued a DISTRIBUTE for the seller");
+    static uint8_t dist[VNA_RCPT_MAX];
+    uint32_t dlen = 0;
+    CHECK(hop(&lkB, &lkS, dist, &dlen) == VNA_OK, "the seller applies its share of the commons");
+    while (vna_link_next_out(&lkB, &d, &ob, &ol)) {
+    }
+    uint64_t held = vna_book_find(&bkS2, &IBu->id)->held[SWARM_CAP_SYSTEM];
+    CHECK(held > 0 && in_sync(), "the seller now holds tokens the buyer issued");
+    CHECK(vna_link_on_rcpt(&lkB, &IS->id, dist, dlen, g_now) == VNA_ERR_STATE,
+          "a DISTRIBUTE sent back to its issuer is refused");
+    static vna_agreement_t agB;
+    vna_agree_default(&agB, &IBu->id);
+    agB.degree = VNA_DEG_COMPUTE;
+    agB.audience = VNA_AUD_EVERYONE;
+    agB.compute_per_cycle = 10000;
+    agB.q_compute = 5000;
+    static vna_usage_ent_t ueB[16];
+    static vna_lease_t leB[8];
+    static vna_usage_t usB;
+    vna_usage_init(&usB, ueB, 16, leB, 8);
+    lkB.agr = &agB;
+    lkB.us = &usB;
+    CHECK(vna_link_sell(&lkB, &IS->id, VNA_TR_PAY, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 2, held + 1,
+                        hk, g_now) == VNA_ERR_FUNDS,
+          "PAY above what the other side holds: refused by the seller");
+    CHECK(vna_link_want(&lkS, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 2, held) >= 0 &&
+              vna_link_sell(&lkB, &IS->id, VNA_TR_PAY, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 2, held,
+                            hk, g_now) == VNA_OK,
+          "the roles swap: the old seller wants compute and can pay exactly its holding");
+    CHECK(hop(&lkB, &lkS, 0, 0) == VNA_OK && hop(&lkS, &lkB, 0, 0) == VNA_OK &&
+              hop(&lkB, &lkS, 0, 0) == VNA_OK &&
+              vna_book_find(&bkS2, &IBu->id)->held[SWARM_CAP_SYSTEM] == 0 && in_sync(),
+          "paid in full with the buyer's own tokens; books in sync");
+    lkB.agr = 0;
+    lkB.us = 0;
+
+    /* L4: the import is what was received less what the owner already imported, capped */
+    static swarm_budget_t sb2;
+    swarm_budget_init(&sb2, 2, 5000);
+    swarm_budget_register(&sb2, 1, 0);
+    swarm_budget_begin_cycle(&sb2);
+    vna_gate_t g2;
+    vna_gate_init(&g2, sec, 0, 150, 8);
+    vna_gate_begin_cycle(&g2, sec);
+    uint64_t imp0 = lkB.imported;
+    bkB2.received_units[VNA_RES_COMPUTE] = 100;
+    CHECK(vna_gate_import(&g2, sec, &bkB2, SWARM_CAP_SYSTEM, 30, &sb2, 5000) == VNA_OK &&
+              vna_link_cycle(&lkB, &g2, sec, &sb2, 5000, g_now, 0) == VNA_OK &&
+              sb2.tokens_per_cycle == 5100 && lkB.imported == imp0 + 70,
+          "100 received, 30 already imported by hand: the loop imports the other 70");
+    bkB2.received_units[VNA_RES_COMPUTE] = 200;
+    CHECK(vna_gate_import(&g2, sec, &bkB2, SWARM_CAP_SYSTEM, 30, &sb2, 5000) == VNA_OK &&
+              vna_link_cycle(&lkB, &g2, sec, &sb2, 5000, g_now, &got) == VNA_OK && got == 120 &&
+              sb2.tokens_per_cycle == 5150 && lkB.imported == imp0 + 190,
+          "200 received but only 120 of room under the cap: 120 imported");
+    got = 77;
+    CHECK(vna_link_cycle(&lkB, 0, sec, &sb2, 5000, g_now, &got) == VNA_ERR_ARG && got == 0 &&
+              vna_link_cycle(&lkB, &g2, 0, &sb2, 5000, g_now, &got) == VNA_ERR_ARG &&
+              vna_link_cycle(&lkB, &g2, sec, 0, 5000, g_now, &got) == VNA_ERR_ARG,
+          "cycle: argument errors clear the out value");
+    while (vna_link_next_out(&lkB, &d, &ob, &ol)) {
+    }
+    CHECK(in_sync(), "books still in sync");
+}
+
 static void test_files(void)
 {
     printf("[6] files: chunked, Merkle-verified, streamed inside a session, agreement-checked\n");
@@ -2165,6 +2813,8 @@ int main(int argc, char **argv)
     test_session();
     test_agreement();
     test_economy();
+    test_link();
+    test_link_edges();
     test_files();
     test_islands();
     printf("\n%d passed, %d failed, %.2f s\n", g_pass, g_fail, now_s() - t0);

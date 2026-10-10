@@ -4,8 +4,8 @@
  *
  * Runs the market the way the engine does (bid, open, credit value, close,
  * settle) for thousands of seeded cycles and syncs the spine twice per cycle:
- * with the pot full (after the open) and empty (after the settle). Every sync
- * must reconcile. Then each fail-closed path is driven on purpose. */
+ * with the pot full (the levy, after the open) and empty (after the settle).
+ * Every sync must reconcile. Then each fail-closed path is driven on purpose. */
 #include <stdio.h>
 #include <string.h>
 #include "settle.h"
@@ -39,6 +39,7 @@ typedef struct {
     settle_spine_t s;
     uint32_t ids[SWARM_MAX_MODELS];
     uint32_t n;
+    uint64_t gross; /* every pot the fee was charged on */
 } world_t;
 
 static world_t W, W2;
@@ -52,6 +53,7 @@ static void build(world_t *w, uint32_t levels, uint8_t seed_byte)
     swarm_emotion_init(&w->e);
     settle_init(&w->s, seed);
     w->n = 0;
+    w->gross = 0;
     uint32_t id = 1;
     for (uint32_t d = 0; d < levels; d++)
         for (uint32_t k = 0; k < swarm_level_capacity(d) && w->n < SWARM_MAX_MODELS; k++, id++) {
@@ -74,7 +76,8 @@ static bool cycle(world_t *w, uint64_t c)
     swarm_feeling_t mood = {(swarm_emotion_t) (rnd() % SWARM_EMO_COUNT), (uint8_t) (rnd() % 4)};
     swarm_emotion_set_mood(&w->e, mood);
     swarm_market_begin_cycle(&w->b, &w->m, &w->e);
-    if (settle_sync(&w->s, &w->m, 2 * c) != SETTLE_OK) return false; /* pot full */
+    w->gross += w->m.pot + settle_bucket(&w->s, PAY_ASSURE_INFRA_BOUNTY);
+    if (settle_levy(&w->s, &w->m, 2 * c) != SETTLE_OK) return false; /* pot full */
     for (uint32_t i = 0; i < w->n; i++) {
         uint64_t g = 0;
         swarm_budget_consume(&w->b, w->ids[i], swarm_budget_remaining(&w->b, w->ids[i]) / 2, &g);
@@ -167,6 +170,10 @@ static void test_membership(void)
     CHECK(settle_join(&W.s, 1, 5, 0) == SETTLE_ERR_ARG, "duplicate join refused");
     CHECK(settle_join(&W.s, 0, 5, 0) == SETTLE_ERR_ARG, "node id is reserved");
     CHECK(settle_join(&W.s, 0xFFFFFFFEu, 5, 0) == SETTLE_ERR_ARG, "pot id is reserved");
+    CHECK(settle_join(&W.s, SETTLE_RESERVED_IDS, 5, 0) == SETTLE_ERR_ARG &&
+              settle_join(&W.s, SETTLE_RESERVED_IDS + 3, 5, 0) == SETTLE_ERR_ARG &&
+              settle_join(&W.s, SETTLE_RESERVED_IDS - 1, 5, 0) == SETTLE_OK,
+          "the bucket ids are reserved, the id below them is not");
     CHECK(settle_join(&W.s, 50, SETTLE_ISSUE_MAX, 0) == SETTLE_ERR_ARG, "endowment over the cap");
     CHECK(settle_join(&W.s, 51, 0, 0) == SETTLE_OK, "zero endowment joins");
     CHECK(settle_balance(&W.s, 51) == 0 && settle_balance(&W.s, 52) == 0, "balances");
@@ -229,6 +236,14 @@ static void test_edges(void)
     CHECK(ma && ma->flags == 0 && ma->owner == 1, "model account is a plain holder");
     const pay_account_t *ia = pay_ledger_account(&a.L, a.issuer);
     CHECK(ia && (ia->flags & PAY_ACCT_ISSUER) && ia->credit == 10, "node issuer carries the claim");
+    bool buckets = true;
+    for (uint32_t i = 0; i < PAY_ASSURE_BUCKETS; i++) {
+        const pay_account_t *ba = pay_ledger_account(&a.L, a.bucket[i]);
+        buckets = buckets && ba && ba->owner == SETTLE_RESERVED_IDS + i &&
+                  (ba->flags & PAY_ACCT_COMMONS) && a.bucket[i] != a.pot &&
+                  (i == 0 || a.bucket[i] != a.bucket[i - 1]);
+    }
+    CHECK(buckets, "four distinct commons accounts for the fee buckets");
 
     /* NULL arguments */
     CHECK(settle_balance(0, 1) == 0, "balance(NULL)");
@@ -295,9 +310,106 @@ static void test_edges(void)
     CHECK(settle_balance(&W.s, W.ids[0]) == 0, "payer emptied");
 }
 
+static void test_levy(void)
+{
+    /* F1-F3 over a long run: the fee is exact over the whole run (the carry
+     * loses nothing), the buckets hold what was levied, bounties come back */
+    rs = 777;
+    build(&W, 4, 0x66);
+    bool ok = true;
+    for (uint32_t c = 0; c < 500 && ok; c++) ok = cycle(&W, c);
+    CHECK(ok, "500 cycles with the levy: every sync reconciles");
+    CHECK(W.s.fees > 0 && W.s.fees == pay_assure_fee(W.gross),
+          "fees == floor(every pot charged * 0.08889%): nothing lost to rounding");
+    uint64_t held = 0;
+    for (uint32_t i = 0; i < PAY_ASSURE_BUCKETS; i++) held += settle_bucket(&W.s, i);
+    CHECK(held == W.m.levied && W.m.levied == W.s.fees - W.s.recycled && W.s.recycled > 0,
+          "the buckets hold what was levied, less the bounties returned");
+    uint64_t want[PAY_ASSURE_BUCKETS];
+    pay_assure_split(W.s.fees, want);
+    CHECK(settle_bucket(&W.s, PAY_ASSURE_RESERVE_FLOOR) == want[PAY_ASSURE_RESERVE_FLOOR] &&
+              settle_bucket(&W.s, PAY_ASSURE_VBILL_DIVIDEND) == want[PAY_ASSURE_VBILL_DIVIDEND] &&
+              settle_bucket(&W.s, PAY_ASSURE_REGEN_CAPITAL) == want[PAY_ASSURE_REGEN_CAPITAL] &&
+              W.s.recycled + settle_bucket(&W.s, PAY_ASSURE_INFRA_BOUNTY) ==
+                  want[PAY_ASSURE_INFRA_BOUNTY],
+          "every bucket received exactly its share of all the fees ever charged");
+    CHECK(settle_bucket(&W.s, PAY_ASSURE_RESERVE_FLOOR) >
+                  settle_bucket(&W.s, PAY_ASSURE_VBILL_DIVIDEND) &&
+              settle_bucket(&W.s, PAY_ASSURE_VBILL_DIVIDEND) >
+                  settle_bucket(&W.s, PAY_ASSURE_REGEN_CAPITAL),
+          "reserve 50% > dividend 25% > regenerative 10% (kept)");
+    CHECK(swarm_market_conserved(&W.m) && settle_reconciled(&W.s, &W.m), "both books agree");
+    uint64_t d, cr;
+    int64_t eq;
+    pay_ledger_totals(&W.s.L, W.s.asset, PAY_CAP_FINANCIAL, &d, &cr, &eq);
+    CHECK(d == W.m.money_supply && cr == W.m.money_supply && eq == 0,
+          "ledger DEBIT == CREDIT == money_supply with the buckets");
+
+    /* one levy, step by step */
+    build(&W, 3, 0x67);
+    for (uint32_t i = 0; i < W.n; i++) swarm_market_bid(&W.m, W.ids[i], 400);
+    swarm_market_begin_cycle(&W.b, &W.m, 0);
+    uint64_t pot = W.m.pot, part[PAY_ASSURE_BUCKETS];
+    uint64_t fee = pay_assure_fee(pot);
+    pay_assure_split(fee, part);
+    CHECK(pot > 0 && settle_levy(&W.s, &W.m, 1) == SETTLE_OK, "levy on a full pot");
+    CHECK(fee > 0 && W.m.pot == pot - fee && W.m.levied == fee && W.s.fees == fee &&
+              W.s.recycled == 0,
+          "the fee came off the pot");
+    bool split = true;
+    for (uint32_t i = 0; i < PAY_ASSURE_BUCKETS; i++)
+        split = split && settle_bucket(&W.s, i) == part[i];
+    CHECK(split, "split 50/25/15/10 into the buckets");
+    swarm_market_settle(&W.m);
+    CHECK(settle_sync(&W.s, &W.m, 2) == SETTLE_OK, "the rest of the pot paid out, books agree");
+    uint64_t bounty = part[PAY_ASSURE_INFRA_BOUNTY];
+    swarm_market_begin_cycle(&W.b, &W.m, 0);        /* no bids: an empty pot */
+    uint64_t f2 = pay_assure_fee(W.m.pot + bounty); /* no carry left: fee was exact... */
+    CHECK(settle_levy(&W.s, &W.m, 3) == SETTLE_OK && W.s.recycled == bounty &&
+              settle_bucket(&W.s, PAY_ASSURE_INFRA_BOUNTY) <= f2 && W.s.fees >= fee,
+          "last cycle's bounty went back into the pot before the fee");
+
+    /* fail closed */
+    CHECK(settle_levy(0, &W.m, 1) == SETTLE_ERR_ARG && settle_levy(&W.s, 0, 1) == SETTLE_ERR_ARG &&
+              !W.s.halted,
+          "levy: NULL arguments do not halt");
+    CHECK(settle_bucket(0, 0) == 0 && settle_bucket(&W.s, PAY_ASSURE_BUCKETS) == 0,
+          "bucket: argument errors read 0");
+    W.m.levied += 1;
+    CHECK(settle_levy(&W.s, &W.m, 4) == SETTLE_ERR_CONSERVATION && W.s.halted,
+          "levied money nobody issued: R1 halts");
+    CHECK(settle_levy(&W.s, &W.m, 5) == SETTLE_ERR_HALTED, "and stays halted");
+
+    build(&W, 3, 0x68);
+    for (uint32_t i = 0; i < W.n; i++) swarm_market_bid(&W.m, W.ids[i], 400);
+    swarm_market_begin_cycle(&W.b, &W.m, 0);
+    settle_levy(&W.s, &W.m, 1);
+    W.s.L.acct[W.s.bucket[PAY_ASSURE_REGEN_CAPITAL]].debit += 1;
+    CHECK(!settle_reconciled(&W.s, &W.m) && settle_sync(&W.s, &W.m, 2) == SETTLE_ERR_MISMATCH,
+          "a bucket edited behind the ledger's back: R2 halts");
+
+    build(&W, 3, 0x69);
+    for (uint32_t c = 0; c < 1000 && settle_bucket(&W.s, PAY_ASSURE_INFRA_BOUNTY) == 0; c++)
+        cycle(&W, c);
+    CHECK(settle_bucket(&W.s, PAY_ASSURE_INFRA_BOUNTY) > 0, "a bounty waiting to go back");
+    pay_ledger_set_flags(&W.s.L, W.s.bucket[PAY_ASSURE_INFRA_BOUNTY], PAY_ACCT_FROZEN);
+    uint64_t lev = W.m.levied;
+    CHECK(settle_levy(&W.s, &W.m, 5000) == SETTLE_ERR_LEDGER && W.s.why == SETTLE_ERR_LEDGER &&
+              W.m.levied == lev,
+          "a refused bounty return halts before the market moves");
+
+    build(&W, 3, 0x6A);
+    for (uint32_t i = 0; i < W.n; i++) swarm_market_bid(&W.m, W.ids[i], 400);
+    swarm_market_begin_cycle(&W.b, &W.m, 0);
+    W.s.carry.rem = PAY_ASSURE_DEN; /* a corrupt carry */
+    CHECK(settle_levy(&W.s, &W.m, 1) == SETTLE_ERR_CONSERVATION && W.m.levied == 0,
+          "a corrupt fee carry halts, nothing levied");
+}
+
 int main(void)
 {
     test_long_run();
+    test_levy();
     test_deterministic();
     test_conservation_breach();
     test_membership();

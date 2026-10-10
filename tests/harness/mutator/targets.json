@@ -42,7 +42,10 @@
      "after": "make -C kernel --no-print-directory test-settle"},
     {"name": "zxv_engine", "target": "kernel/src/engine/zxv_engine.c",
      "before": null, "before_note": "new module: the libzxv facade (A2 in docs/GAP_AUDIT.md)",
-     "after": "make -C kernel --no-print-directory test-engine"}
+     "after": "make -C kernel --no-print-directory test-engine"},
+    {"name": "vna_link", "target": "kernel/src/vinea/vna_link.c",
+     "before": null, "before_note": "new module: the trade loop between peers' books (A4 in docs/GAP_AUDIT.md)",
+     "after": "make -C kernel --no-print-directory test-vinea"}
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc", "settle", "zxv_engine"],

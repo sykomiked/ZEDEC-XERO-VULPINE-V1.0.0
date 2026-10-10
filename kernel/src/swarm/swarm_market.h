@@ -29,10 +29,15 @@
  *       an equal share). The excess is shared equally among the models
  *       under the cap, never pushing one over it.
  *   M8  CONSERVATION.  Money is never created or destroyed here: the sum of
- *       all Financial capital equals money_supply after every call.
+ *       all Financial capital, the pot and what is levied equals money_supply
+ *       after every call.
  *   M9  CROWN CAPITAL IS INALIENABLE.  Social, Natural, Cultural and
  *       Spiritual capital can be earned but there is no call that moves
  *       them between models, and they can never be bid.
+ *   M10 LEVY.  Before the pot is paid out, the settlement spine may take the
+ *       assurance fee off it (swarm_market_levy: pot -> levied) and may give
+ *       back what the fee buckets return to circulation (swarm_market_release:
+ *       levied -> pot). Levied money belongs to no model and is never bid.
  *
  * Every ratio is a ratio of Fibonacci numbers (8, 13, 21). All arithmetic is
  * exact integer arithmetic. Freestanding: no libc, no allocation, no float.
@@ -97,6 +102,7 @@ typedef struct {
     uint32_t n;
     uint64_t money_supply; /* M8 */
     uint64_t pot;
+    uint64_t levied;      /* M10: held out of circulation by the fee buckets */
     uint64_t last_floor;  /* real tokens shared by Fibonacci last cycle */
     uint64_t last_market; /* real tokens offered on the market */
     uint64_t last_unsold; /* market tokens that fell back to the floor */
@@ -132,7 +138,12 @@ void swarm_market_credit_frugality(swarm_market_t *m, const swarm_budget_t *b);
 /* After the cycle: pay out the pot (M6), apply the wealth cap (M7). */
 swarm_status_t swarm_market_settle(swarm_market_t *m);
 
-/* M8: true iff the sum of Financial holdings plus the pot equals money_supply. */
+/* M10: move `amount` from the pot to levied (amount <= pot), or back. */
+swarm_status_t swarm_market_levy(swarm_market_t *m, uint64_t amount);
+swarm_status_t swarm_market_release(swarm_market_t *m, uint64_t amount);
+
+/* M8: true iff the sum of Financial holdings, the pot and levied equals
+ * money_supply. */
 bool swarm_market_conserved(const swarm_market_t *m);
 
 /* The trader for a model, or NULL. */
