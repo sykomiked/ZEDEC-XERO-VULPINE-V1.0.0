@@ -619,6 +619,62 @@ static void axiom_rmag(void)
         ok = g.num == 0 && g.den == 0;
         CHECK(ok, "F-RMAG-OVF fixed: checked quota arithmetic, no wrap");
     }
+    /* the checked forms refuse every input or result that has no int64
+     * rational: INT64_MIN fields (rational_normalize negates them), zero
+     * denominators, overflowing cross products and sums, and results whose
+     * numerator or denominator is INT64_MIN; out is left untouched */
+    {
+        const rational_t one = {1, 1}, mn = {INT64_MIN, 1}, z0 = {1, 0};
+        const rational_t mxp = {INT64_MAX, 1}, nmx = {-INT64_MAX, 1};
+        const rational_t bigden = {1, -(INT64_C(1) << 62)}, two = {1, 2};
+        rational_t o = {77, 78};
+#define UNTOUCHED (o.num == 77 && o.den == 78)
+        CHECK(!rmag_add_quotas_checked(mn, one, &o) && UNTOUCHED, "checked add refuses an INT64_MIN numerator");
+        CHECK(!rmag_add_quotas_checked(one, (rational_t){1, INT64_MIN}, &o) && UNTOUCHED,
+              "checked add refuses an INT64_MIN denominator");
+        CHECK(!rmag_add_quotas_checked(z0, one, &o) && !rmag_add_quotas_checked(one, z0, &o) && UNTOUCHED,
+              "checked add refuses a zero denominator on either side");
+        CHECK(!rmag_add_quotas_checked(mxp, one, &o) && UNTOUCHED, "checked add refuses MAX + 1 (sum overflow)");
+        CHECK(!rmag_sub_quotas_checked(nmx, (rational_t){2, 1}, &o) && UNTOUCHED,
+              "checked sub refuses -MAX - 2 (difference overflow)");
+        CHECK(!rmag_sub_quotas_checked(nmx, one, &o) && UNTOUCHED,
+              "checked sub refuses a result of exactly INT64_MIN");
+        CHECK(!rmag_add_quotas_checked(bigden, two, &o) && UNTOUCHED,
+              "checked add refuses a denominator product of exactly INT64_MIN");
+        CHECK(!rmag_add_quotas_checked(one, one, 0), "checked add refuses a NULL out");
+        CHECK(rmag_sub_quotas_checked(mxp, one, &o) && o.num == INT64_MAX - 1 && o.den == 1,
+              "checked sub at the edge: MAX - 1");
+        o = (rational_t){77, 78};
+        CHECK(!rmag_mul_quotas_checked(mn, one, &o) && UNTOUCHED, "checked mul refuses an INT64_MIN field");
+        CHECK(!rmag_mul_quotas_checked(one, z0, &o) && UNTOUCHED, "checked mul refuses a zero denominator");
+        CHECK(!rmag_mul_quotas_checked((rational_t){-(INT64_C(1) << 62), 1}, (rational_t){2, 1}, &o) &&
+                  UNTOUCHED,
+              "checked mul refuses a product of exactly INT64_MIN");
+        CHECK(!rmag_mul_quotas_checked((rational_t){1, -(INT64_C(1) << 62)}, (rational_t){1, 2}, &o) &&
+                  UNTOUCHED,
+              "checked mul refuses a denominator product of exactly INT64_MIN");
+        CHECK(!rmag_mul_quotas_checked(one, one, 0), "checked mul refuses a NULL out");
+        CHECK(rmag_mul_quotas_checked((rational_t){INT64_MAX, 2}, (rational_t){2, 1}, &o) &&
+                  o.num == INT64_MAX && o.den == 1,
+              "checked mul at the edge: MAX/2 * 2 = MAX");
+        o = (rational_t){77, 78};
+        CHECK(!rmag_div_quotas_checked(mn, one, &o) && !rmag_div_quotas_checked(one, mn, &o) && UNTOUCHED,
+              "checked div refuses INT64_MIN fields");
+        CHECK(!rmag_div_quotas_checked((rational_t){1, INT64_MIN}, one, &o) &&
+                  !rmag_div_quotas_checked(one, (rational_t){1, INT64_MIN}, &o) && UNTOUCHED,
+              "checked div refuses INT64_MIN denominators");
+        CHECK(!rmag_add_quotas_checked(mxp, two, &o) && UNTOUCHED,
+              "checked add refuses MAX/1 + 1/2 (cross product overflow)");
+        CHECK(!rmag_div_quotas_checked((rational_t){0, 1}, (rational_t){1, INT64_MIN}, &o) && UNTOUCHED,
+              "checked div refuses an INT64_MIN field even when the product would fit");
+        CHECK(rmag_mul_quotas_checked((rational_t){2, 1}, (rational_t){INT64_MAX, 2}, &o) &&
+                  o.num == INT64_MAX && o.den == 1,
+              "checked mul at the edge, other order: 2 * MAX/2 = MAX");
+        o = (rational_t){77, 78};
+        rational_t u = rmag_sub_quotas(nmx, one);
+        CHECK(u.num == 0 && u.den == 0, "unchecked sub returns {0, 0} for an INT64_MIN result");
+#undef UNTOUCHED
+    }
 }
 
 int main(void)

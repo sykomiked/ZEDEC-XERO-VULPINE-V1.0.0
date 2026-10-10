@@ -82,6 +82,13 @@ bool rmag_mul_quotas_checked(rational_t a, rational_t b, rational_t *out)
 {
     int64_t n, d;
     if (!out || !rmag_fields_ok(a, b)) return false;
+    /* cross-reduce first so a product that fits after reduction is not
+     * refused: (MAX/2) * (2/1) is MAX/1 */
+    int64_t g1 = m5_gcd(a.num, b.den), g2 = m5_gcd(b.num, a.den); /* >= 1: dens are non-zero */
+    a.num /= g1;
+    b.den /= g1;
+    b.num /= g2;
+    a.den /= g2;
     if (__builtin_mul_overflow(a.num, b.num, &n) || __builtin_mul_overflow(a.den, b.den, &d))
         return false;
     if (!rmag_i64_ok(n) || !rmag_i64_ok(d)) return false;

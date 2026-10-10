@@ -40,7 +40,7 @@
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc"],
-    "baseline_note": "measured 'after' scores on p10-integrate (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 67/73, fs_malloc 30/36",
-    "baseline": {"rmag_core": 0.9178, "fs_malloc": 0.8333}
+    "baseline_note": "measured 'after' scores on p10-integrate (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 86/90 (after the F-RMAG-OVF fix and its tests), fs_malloc 30/36",
+    "baseline": {"rmag_core": 0.9555, "fs_malloc": 0.8333}
   }
 }

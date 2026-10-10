@@ -217,3 +217,11 @@ The CI baseline for fs_malloc went down (0.8620 to 0.8333) because the
 rewritten allocator has more equivalent mutants, not because a test got
 weaker. The other targets in the first table were not re-measured on
 p10-integrate.
+
+## rmag_core after the F-RMAG-OVF fix (merge batch)
+
+The checked quota arithmetic added code (field checks, overflow checks, a
+cross-reduction in mul). Measured with the CI subset command: 86 of 90
+mutants killed (95.6%; 9 do not compile). The 4 survivors are the
+`rmag_init` allocation-failure guards, which need allocator fault injection
+(see above). The CI baseline is raised to 0.9555.
