@@ -82,9 +82,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC
  */
 #ifndef BLUETOOTH_H
@@ -632,15 +632,15 @@ typedef struct {
 
     /* M5 coordinates */
     m5_coords_t m5;
-    double coverage_r;
-    double coverage_l;
+    uint32_t coverage_r; /* Q16.16 fraction in [0, 1] */
+    uint32_t coverage_l; /* Q16.16 fraction in [0, 1] */
 } bluetooth_device_t;
 
 /* Coverage floor: bt_verify_coverage() is a state-consistency audit, not the
  * EDP r*l >= 1.8 hyperbola (both factors here are fractions in [0,1], so that
  * floor would be unreachable by construction — the exact tautology this tree
  * was audited for). One inconsistent record out of 32 already fails. */
-#define BT_COVERAGE_FLOOR 0.999
+#define BT_COVERAGE_FLOOR 65470u /* 0.999 in Q16.16; r*l is compared in Q32.32 */
 
 /* ===================== Pure codec layer =====================
  * No device state, no hardware, fully deterministic. Build functions return

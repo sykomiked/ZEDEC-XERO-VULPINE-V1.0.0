@@ -3,7 +3,7 @@
 # Cross-compiles the ZEDEC pqOS kernel for AArch64 (QEMU virt).
 #
 # Author: H.M. Michael-Laurence: Curzi (c)
-# License: SEL-3.3
+# License: Apache-2.0
 
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC = $(CROSS_COMPILE)gcc
@@ -39,7 +39,9 @@ OBJDIR := build/arm64
 # correctness, not speed: the IRQ vector (boot.s SAVE_REGS) saves only x0-x30,
 # NOT the FP/SIMD register file, so any live state the compiler parks in NEON
 # v-registers is clobbered when a timer IRQ preempts kernel code -> wild faults
-# (the kernel_main scan-loop poison-index bug, #41). Scalar FP is still allowed.
+# (the kernel_main scan-loop poison-index bug, #41). -mgeneral-regs-only makes
+# ANY float/double/complex use, scalar FP included, a compile error: kernel code
+# is integer-only (fixed point), so the FP/SIMD file is never live in C code.
 # -Wno-misleading-indentation: the codebase uses an intentional ultra-dense
 # single-line style (opcode-decode tables, one-line guards) that trips this pure
 # whitespace/style warning; it is never a correctness signal here. ALL correctness
@@ -49,7 +51,8 @@ OBJDIR := build/arm64
 CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -fno-stack-protector -fno-pie -no-pie -fno-builtin \
          -ffunction-sections -fdata-sections \
-         -fno-tree-vectorize -fno-tree-slp-vectorize \
+         -fno-tree-vectorize -fno-tree-slp-vectorize -mgeneral-regs-only \
+         -Werror=double-promotion -Werror=float-conversion \
          -fno-math-errno \
          -Wno-misleading-indentation \
          -MMD -MP \
@@ -467,6 +470,16 @@ KERNEL_SRCS = \
     kernel/src/audio/audio.c \
     kernel/src/bluetooth/bluetooth.c \
     kernel/src/bootlegger/bootlegger.c \
+    kernel/src/pqsec/pq_mldsa65.c \
+    kernel/src/pqsec/mldsa/fips202.c \
+    kernel/src/pqsec/mldsa/ntt.c \
+    kernel/src/pqsec/mldsa/packing.c \
+    kernel/src/pqsec/mldsa/poly.c \
+    kernel/src/pqsec/mldsa/polyvec.c \
+    kernel/src/pqsec/mldsa/reduce.c \
+    kernel/src/pqsec/mldsa/rounding.c \
+    kernel/src/pqsec/mldsa/sign.c \
+    kernel/src/pqsec/mldsa/symmetric-shake.c \
     kernel/src/browser/browser.c \
     kernel/src/choice/choice.c \
     kernel/src/clock/event_clock.c \
@@ -483,7 +496,6 @@ KERNEL_SRCS = \
     kernel/src/dharma/uvn.c \
     kernel/src/dharma/yantra.c \
     kernel/src/emu/sms.c \
-    kernel/src/epu/epu_device.c \
     kernel/src/fs/fs.c \
     kernel/src/iphase/iphase.c \
     kernel/src/legal_engine/legal_engine.c \
@@ -510,7 +522,35 @@ KERNEL_SRCS = \
     kernel/src/ubh/ubh.c \
     kernel/src/video/video.c \
     kernel/src/wifi/wifi.c \
-    kernel/src/zxpkg/zxpkg.c
+    kernel/src/zxpkg/zxpkg.c \
+    kernel/src/swarm/swarm_boot.c \
+    kernel/src/swarm/swarm_budget.c \
+    kernel/src/swarm/swarm_dna.c \
+    kernel/src/swarm/swarm_emotion.c \
+    kernel/src/swarm/swarm_enochian.c \
+    kernel/src/swarm/swarm_enterprise.c \
+    kernel/src/swarm/swarm_evolve.c \
+    kernel/src/swarm/swarm_governor.c \
+    kernel/src/swarm/swarm_harmonic.c \
+    kernel/src/swarm/swarm_hk.c \
+    kernel/src/swarm/swarm_ledger.c \
+    kernel/src/swarm/swarm_logic.c \
+    kernel/src/swarm/swarm_market.c \
+    kernel/src/swarm/swarm_overlap.c \
+    kernel/src/swarm/swarm_phase.c \
+    kernel/src/swarm/swarm_quality.c \
+    kernel/src/swarm/swarm_reserve.c \
+    kernel/src/swarm/swarm_self.c \
+    kernel/src/tensor/zt.c \
+    kernel/src/tensor/zt_boot.c \
+    kernel/src/tensor/zt_coil.c \
+    kernel/src/tensor/zt_gguf.c \
+    kernel/src/tensor/zt_holo.c \
+    kernel/src/tensor/zt_isf.c \
+    kernel/src/tensor/zt_lattice.c \
+    kernel/src/tensor/zt_model.c \
+    kernel/src/tensor/zt_rope.c \
+    kernel/src/tensor/zt_tok.c
 
 # ---------------------------------------------------------------------------
 # THE 49 SOURCES ABOVE THE BLANK CONTINUATION WERE STAGED, NOT DEAD.
@@ -540,7 +580,7 @@ KERNEL_SRCS = \
 #   kernel/src/sutra/debug_vino.c -- a HOSTED tool. It uses stdout/fflush and
 #     fails with `'stdout' undeclared`. The other nine sutra sources are in.
 #
-#   kernel/src/p2p_caracho/p2p_caracho.c -- compiles clean, and its own file
+#   kernel/experimental/p2p_caracho/p2p_caracho.c (was kernel/src/) -- compiles clean, and its own file
 #     header says: "SUPERSEDED -- moved to kernel/src/bootlegger/bootlegger.c
 #     ... do not include or build it." The two files' global symbol sets do not
 #     collide (measured: 0 common globals), so building both would have LINKED

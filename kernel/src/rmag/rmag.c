@@ -4,9 +4,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include "rmag.h"
@@ -54,37 +54,83 @@ bool rmag_rational_is_zero(rmag_rational_t r) {
     return r.numerator == 0;
 }
 
+/* Exact comparison of the magnitudes an/ad and bn/bd (denominators
+ * non-zero) without any multiplication, so it cannot overflow: compare the
+ * integer parts, then the reciprocals of the remainders (a continued
+ * fraction expansion). Returns -1, 0 or 1. */
+static int mag_cmp(uint64_t an, uint64_t ad, uint64_t bn, uint64_t bd)
+{
+    int flip = 1;
+    for (;;) {
+        uint64_t qa = an / ad, qb = bn / bd;
+        if (qa != qb) return qa < qb ? -flip : flip;
+        uint64_t ra = an % ad, rb = bn % bd;
+        if (ra == 0 || rb == 0) {
+            if (ra == rb) return 0;
+            return ra == 0 ? -flip : flip;
+        }
+        /* ra/ad < rb/bd  <=>  ad/ra > bd/rb */
+        an = ad;
+        ad = ra;
+        bn = bd;
+        bd = rb;
+        flip = -flip;
+    }
+}
+
+static int rat_cmp(rmag_rational_t a, rmag_rational_t b)
+{
+    uint64_t ad = a.denominator ? a.denominator : 1;
+    uint64_t bd = b.denominator ? b.denominator : 1;
+    bool an = a.negative && a.numerator != 0, bn = b.negative && b.numerator != 0;
+    if (an != bn) return an ? -1 : 1;
+    int c = mag_cmp(a.numerator, ad, b.numerator, bd);
+    return an ? -c : c;
+}
+
+/* A result too large for 64/64 bits saturates to UINT64_MAX/1. Every limit
+ * check then sees "more than any budget", which denies, instead of the
+ * wrapped value slipping under the limit. */
+static rmag_rational_t saturated(bool negative)
+{
+    rmag_rational_t r;
+    r.numerator = UINT64_MAX;
+    r.denominator = 1;
+    r.negative = negative;
+    return r;
+}
+
 bool rmag_rational_equal(rmag_rational_t a, rmag_rational_t b) {
-    /* Compare cross-multiplied values with sign */
-    if (a.numerator == 0 && b.numerator == 0) return true;
-    if (a.negative != b.negative) return false;
-    /* a.num/a.den == b.num/b.den  =>  a.num*b.den == b.num*a.den */
-    return a.numerator * b.denominator == b.numerator * a.denominator;
+    return rat_cmp(a, b) == 0;
 }
 
 bool rmag_rational_less_than(rmag_rational_t a, rmag_rational_t b) {
-    /* Handle signs */
-    if (a.negative && !b.negative) return true;
-    if (!a.negative && b.negative) return false;
-    if (a.negative && b.negative) {
-        /* -a < -b  =>  a > b  =>  a.num*b.den > b.num*a.den */
-        return a.numerator * b.denominator > b.numerator * a.denominator;
-    }
-    /* Both positive: a < b  =>  a.num*b.den < b.num*a.den */
-    return a.numerator * b.denominator < b.numerator * a.denominator;
+    return rat_cmp(a, b) < 0;
 }
 
 rmag_rational_t rmag_rational_add(rmag_rational_t a, rmag_rational_t b) {
     rmag_rational_t result;
-    /* Common denominator: a.num*b.den + b.num*a.den over a.den*b.den */
-    uint64_t common_den = a.denominator * b.denominator;
-    uint64_t a_term = a.numerator * b.denominator;
-    uint64_t b_term = b.numerator * a.denominator;
+    if (a.denominator == 0) a.denominator = 1;
+    if (b.denominator == 0) b.denominator = 1;
+    /* Over the lcm of the denominators, every step overflow-checked. */
+    uint64_t g = gcd(a.denominator, b.denominator);
+    uint64_t common_den, a_term, b_term;
+    bool big = __builtin_mul_overflow(a.denominator / g, b.denominator, &common_den);
+    big |= __builtin_mul_overflow(a.numerator, b.denominator / g, &a_term);
+    big |= __builtin_mul_overflow(b.numerator, a.denominator / g, &b_term);
 
     if (a.negative == b.negative) {
         /* Same sign: add magnitudes */
-        result.numerator = a_term + b_term;
+        big |= __builtin_add_overflow(a_term, b_term, &result.numerator);
         result.negative = a.negative;
+    } else if (big) {
+        /* the larger magnitude decides the sign of the saturated result;
+         * equal magnitudes cancel exactly (x + (-x) == 0 even when the
+         * common denominator of two unreduced inputs overflows), which also
+         * keeps the sum commutative (proofs/rational_bounds, add_comm). */
+        int c = mag_cmp(a.numerator, a.denominator, b.numerator, b.denominator);
+        if (c == 0) return rmag_rational_from_uint(0);
+        return saturated(c > 0 ? a.negative : b.negative);
     } else {
         /* Different signs: subtract smaller from larger */
         if (a_term >= b_term) {
@@ -95,6 +141,7 @@ rmag_rational_t rmag_rational_add(rmag_rational_t a, rmag_rational_t b) {
             result.negative = b.negative;
         }
     }
+    if (big) return saturated(result.negative);
     result.denominator = common_den;
     if (result.numerator == 0) result.negative = false;
     return rmag_rational_reduce(result);
@@ -107,21 +154,25 @@ rmag_rational_t rmag_rational_subtract(rmag_rational_t a, rmag_rational_t b) {
 
 rmag_rational_t rmag_rational_multiply(rmag_rational_t a, rmag_rational_t b) {
     rmag_rational_t result;
-    result.numerator = a.numerator * b.numerator;
-    result.denominator = a.denominator * b.denominator;
+    if (a.denominator == 0) a.denominator = 1;
+    if (b.denominator == 0) b.denominator = 1;
     result.negative = a.negative != b.negative;
-    if (result.numerator == 0) result.negative = false;
+    if (a.numerator == 0 || b.numerator == 0) return rmag_rational_from_uint(0);
+    /* cross-reduce first so only a genuinely huge result saturates */
+    uint64_t g1 = gcd(a.numerator, b.denominator), g2 = gcd(b.numerator, a.denominator);
+    bool big = __builtin_mul_overflow(a.numerator / g1, b.numerator / g2, &result.numerator);
+    big |= __builtin_mul_overflow(a.denominator / g2, b.denominator / g1, &result.denominator);
+    if (big) return saturated(result.negative);
     return rmag_rational_reduce(result);
 }
 
 rmag_rational_t rmag_rational_divide(rmag_rational_t a, rmag_rational_t b) {
     if (b.numerator == 0) return rmag_rational_from_uint(0);
-    rmag_rational_t result;
-    result.numerator = a.numerator * b.denominator;
-    result.denominator = a.denominator * b.numerator;
-    result.negative = a.negative != b.negative;
-    if (result.numerator == 0) result.negative = false;
-    return rmag_rational_reduce(result);
+    rmag_rational_t inv;
+    inv.numerator = b.denominator ? b.denominator : 1;
+    inv.denominator = b.numerator;
+    inv.negative = b.negative;
+    return rmag_rational_multiply(a, inv);
 }
 
 rmag_rational_t rmag_rational_reduce(rmag_rational_t r) {
@@ -198,6 +249,8 @@ rmag_result_t rmag_consume(rmag_registry_t *reg, uint32_t budget_idx,
     if (!reg || budget_idx >= reg->budget_count) return RMAG_RESULT_NOT_FOUND;
     rmag_budget_entry_t *b = &reg->budgets[budget_idx];
     if (!b->active) return RMAG_RESULT_INVALID;
+    /* A negative "consumption" would hand budget back without a release. */
+    if (amount.negative && amount.numerator != 0) return RMAG_RESULT_INVALID;
 
     rmag_rational_t new_consumed = rmag_rational_add(b->consumed, amount);
 
@@ -214,6 +267,8 @@ rmag_result_t rmag_release(rmag_registry_t *reg, uint32_t budget_idx,
     if (!reg || budget_idx >= reg->budget_count) return RMAG_RESULT_NOT_FOUND;
     rmag_budget_entry_t *b = &reg->budgets[budget_idx];
     if (!b->active) return RMAG_RESULT_INVALID;
+    /* Releasing a negative amount would be an unchecked consume. */
+    if (amount.negative && amount.numerator != 0) return RMAG_RESULT_INVALID;
 
     /* Don't release more than consumed */
     if (rmag_rational_less_than(b->consumed, amount)) {
@@ -249,6 +304,7 @@ rmag_result_t rmag_allocate_from_source(rmag_registry_t *reg,
     if (res >= RMAG_RES_COUNT) return RMAG_RESULT_INVALID;
     rmag_quota_source_t *s = &reg->sources[source_idx];
     if (!s->active) return RMAG_RESULT_INVALID;
+    if (amount.negative && amount.numerator != 0) return RMAG_RESULT_INVALID;
 
     rmag_rational_t new_allocated = rmag_rational_add(s->allocated[res], amount);
 

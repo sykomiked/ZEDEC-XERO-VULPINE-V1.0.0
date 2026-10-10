@@ -8,9 +8,9 @@
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "prism_break.h"
 #include <string.h>
@@ -386,7 +386,7 @@ void pb_render_frame(prism_break_t *pb) {
     }
 
     /* Copy backbuffer to framebuffer */
-    memcpy(pb->framebuffer, pb->backbuffer, pb->width * pb->height * sizeof(uint32_t));
+    memcpy(pb->framebuffer, pb->backbuffer, (size_t) pb->width * pb->height * sizeof(uint32_t));
 
     pb->frames_rendered++;
     pb_update_coverage(pb);

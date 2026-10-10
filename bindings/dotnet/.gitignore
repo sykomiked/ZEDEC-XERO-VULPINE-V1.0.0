@@ -1,0 +1,10 @@
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+artifacts/
+# native shim build output
+native/build/

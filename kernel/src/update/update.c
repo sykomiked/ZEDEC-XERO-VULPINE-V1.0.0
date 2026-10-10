@@ -1,6 +1,7 @@
 /* update.c — decentralized opt-in updates. See update.h. */
 #include "update.h"
 #include "../robin_debanks/sha256.h"
+#include "../provenance/zx_provenance.h"
 
 static void scpy(char *d, const char *s, uint32_t cap) {
     uint32_t i = 0; if (s) while (s[i] && i + 1u < cap) { d[i] = s[i]; i++; } d[i] = 0;
@@ -11,7 +12,9 @@ static bool seq(const char *a, const char *b) {
 }
 static void bcpy(uint8_t *d, const uint8_t *s, uint32_t n) { for (uint32_t i=0;i<n;i++) d[i]=s[i]; }
 static bool beq(const uint8_t *a, const uint8_t *b, uint32_t n) {
-    for (uint32_t i=0;i<n;i++) if (a[i]!=b[i]) return false; return true;
+    for (uint32_t i = 0; i < n; i++)
+        if (a[i] != b[i]) return false;
+    return true;
 }
 
 void upd_init(upd_catalog_t *c) {
@@ -19,7 +22,13 @@ void upd_init(upd_catalog_t *c) {
     for (uint32_t i = 0; i < sizeof(*c); i++) ((uint8_t *)c)[i] = 0;
 }
 void upd_set_transport(upd_catalog_t *c, const upd_transport_t *t) {
-    if (!c) return; if (t) c->transport = *t; else { c->transport.fetch = 0; c->transport.ctx = 0; }
+    if (!c) return;
+    if (t)
+        c->transport = *t;
+    else {
+        c->transport.fetch = 0;
+        c->transport.ctx = 0;
+    }
 }
 void upd_set_verifier(upd_catalog_t *c, upd_verify_fn fn) { if (c) c->verify = fn; }
 
@@ -44,16 +53,65 @@ int32_t upd_find(const upd_catalog_t *c, const char *id) {
     return -1;
 }
 
-upd_result_t upd_publish(upd_catalog_t *c, const char *id, const char *name,
-                         uint32_t version, const uint8_t cid[UPD_CID_LEN],
+/* Length of s if it fits a cap-byte field with its NUL, else cap (= too long).
+ * A field that would be truncated is refused, never stored shortened: the
+ * signature is over the stored bytes, so a cut field would sign something
+ * other than what the publisher meant. */
+static uint32_t fit_len(const char *s, uint32_t cap)
+{
+    uint32_t n = 0;
+    while (s[n] && n < cap) n++;
+    return n;
+}
+
+bool upd_manifest_digest(const upd_entry_t *e, uint8_t out[32])
+{
+    if (!e || e->n_deps > UPD_MAX_DEPS) return false;
+    zxp_bytes_t deps[UPD_MAX_DEPS];
+    for (uint32_t i = 0; i < e->n_deps; i++)
+        deps[i] = zxp_mem(e->dep[i], fit_len(e->dep[i], UPD_ID_LEN));
+    zxp_manifest_t m;
+    m.package_id = zxp_mem(e->id, fit_len(e->id, UPD_ID_LEN));
+    m.version = e->version;
+    m.arch = zxp_mem(e->arch, fit_len(e->arch, UPD_ARCH_LEN));
+    m.deps = deps;
+    m.n_deps = e->n_deps;
+    m.cid = zxp_mem(e->cid, UPD_CID_LEN);
+    return zxp_manifest_digest(ZXP_DOMAIN_UPDATE, &m, out);
+}
+
+upd_result_t upd_publish(upd_catalog_t *c, const char *id, const char *name, uint32_t version,
+                         const char *arch, const uint8_t cid[UPD_CID_LEN],
                          const uint8_t author[UPD_KEY_LEN], const uint8_t sig[UPD_SIG_LEN],
-                         uint32_t size, const char deps[][UPD_ID_LEN], uint32_t n_deps) {
+                         uint32_t size, const char deps[][UPD_ID_LEN], uint32_t n_deps)
+{
     if (!c || !id || !cid || !author || !sig) return UPD_ERR_NOT_FOUND;
     if (n_deps > UPD_MAX_DEPS) return UPD_ERR_FULL;
+    if (!arch || (n_deps > 0 && !deps)) return UPD_ERR_BAD_MANIFEST;
+    uint32_t il = fit_len(id, UPD_ID_LEN), al = fit_len(arch, UPD_ARCH_LEN);
+    if (il == 0 || il >= UPD_ID_LEN || al == 0 || al >= UPD_ARCH_LEN) return UPD_ERR_BAD_MANIFEST;
+    for (uint32_t i = 0; i < n_deps; i++) {
+        uint32_t dl = fit_len(deps[i], UPD_ID_LEN);
+        if (dl == 0 || dl >= UPD_ID_LEN) return UPD_ERR_BAD_MANIFEST;
+    }
     int32_t ex = upd_find(c, id);
     upd_entry_t *e;
-    if (ex >= 0) e = &c->upd[ex];               /* re-publish updates in place */
-    else {
+    if (ex >= 0) {
+        e = &c->upd[ex]; /* re-publish updates in place */
+        /* Versions are strictly monotonic per id. The same (version, CID,
+         * author) again is a refresh; anything else must be newer, so an old
+         * signed release cannot be re-listed over the current one. */
+        bool same = e->version == version && beq(e->cid, cid, UPD_CID_LEN) &&
+                    beq(e->author, author, UPD_KEY_LEN);
+        if (!same && version <= e->version) return UPD_ERR_ROLLBACK;
+        /* The user opted in to specific content from a specific author. A
+         * re-publish that changes either is a different update: the old
+         * selection and install record do not carry over to it. */
+        if (!beq(e->cid, cid, UPD_CID_LEN) || !beq(e->author, author, UPD_KEY_LEN)) {
+            e->selected = false;
+            e->installed = false;
+        }
+    } else {
         if (c->n >= UPD_MAX) return UPD_ERR_FULL;
         e = &c->upd[c->n++];
         for (uint32_t i = 0; i < sizeof(*e); i++) ((uint8_t*)e)[i] = 0;
@@ -62,6 +120,7 @@ upd_result_t upd_publish(upd_catalog_t *c, const char *id, const char *name,
     scpy(e->id, id, UPD_ID_LEN);
     scpy(e->name, name, UPD_NAME_LEN);
     e->version = version;
+    scpy(e->arch, arch, UPD_ARCH_LEN);
     bcpy(e->cid, cid, UPD_CID_LEN);
     bcpy(e->author, author, UPD_KEY_LEN);
     bcpy(e->sig, sig, UPD_SIG_LEN);
@@ -161,7 +220,8 @@ upd_result_t upd_fetch_verify(upd_catalog_t *c, const char *id,
     if (!c->transport.fetch) return UPD_ERR_NO_TRANSPORT;
 
     uint32_t n = 0;
-    if (c->transport.fetch(e->cid, buf, cap, &n, c->transport.ctx) != 0) {
+    /* n > cap is a transport bug; never hash (or hand back) past the buffer */
+    if (c->transport.fetch(e->cid, buf, cap, &n, c->transport.ctx) != 0 || n > cap) {
         e->state = UPD_REJECTED; return UPD_ERR_FETCH;
     }
     /* self-certifying: the bytes must hash to the address we asked for */
@@ -171,8 +231,10 @@ upd_result_t upd_fetch_verify(upd_catalog_t *c, const char *id,
 
     /* trusted authorship: the user must trust the publisher... */
     if (!upd_is_trusted(c, e->author)) { e->state = UPD_REJECTED; return UPD_ERR_UNTRUSTED; }
-    /* ...and the publisher's signature over the CID must verify */
-    if (!c->verify || !c->verify(e->cid, UPD_CID_LEN, e->sig, e->author)) {
+    /* ...and the publisher's signature over the COMPLETE manifest (id,
+     * version, arch, deps, cid) must verify */
+    uint8_t md[32];
+    if (!upd_manifest_digest(e, md) || !c->verify || !c->verify(md, 32u, e->sig, e->author)) {
         e->state = UPD_REJECTED; return UPD_ERR_BAD_SIG;
     }
 
@@ -201,6 +263,10 @@ const char *upd_strerror(upd_result_t r) {
     case UPD_ERR_BAD_SIG: return "signature invalid";
     case UPD_ERR_MISSING_DEP: return "a required update is missing";
     case UPD_ERR_CYCLE: return "dependency cycle";
+    case UPD_ERR_ROLLBACK:
+        return "version is not newer than the one already known";
+    case UPD_ERR_BAD_MANIFEST:
+        return "malformed manifest (id, arch or dependency)";
     }
     return "unknown";
 }

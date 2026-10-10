@@ -12,9 +12,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "count_house.h"
 #include "../robin_debanks/ed25519_verify.h"
@@ -99,6 +99,12 @@ int32_t count_house_deposit(count_house_t *ch, const word168_t *peer_id,
     int32_t idx = count_house_find_bucket(ch, peer_id);
     bool is_new = (idx < 0);
 
+    /* The new cumulative balance must fit: prior + amount used to wrap, so a
+     * verified "deposit" could shrink a bucket (found by fuzz_econ_count_house).
+     * Refused before anything changes; no trust penalty, nothing was claimed
+     * that a signature could check. */
+    if (!is_new && amount > UINT64_MAX - ch->buckets[idx].token_balance) return -3;
+
     if (is_new) {
         if (ch->num_buckets >= CH_MAX_STASH_BUCKETS) return -1;
         /* Commit the bucket immediately (not only on successful
@@ -121,6 +127,10 @@ int32_t count_house_deposit(count_house_t *ch, const word168_t *peer_id,
 
     stash_bucket_t *bucket = &ch->buckets[idx];
     uint64_t prior_balance = bucket->token_balance;
+    uint64_t new_balance;
+    /* A deposit whose cumulative total would wrap is refused before anything
+     * (key, signature, balance, trust) is touched. */
+    if (__builtin_add_overflow(prior_balance, amount, &new_balance)) return -3;
     uint8_t prior_pubkey[CH_PUBKEY_LEN];
     memcpy(prior_pubkey, bucket->peer_pubkey, CH_PUBKEY_LEN);
 
@@ -130,7 +140,7 @@ int32_t count_house_deposit(count_house_t *ch, const word168_t *peer_id,
      * per the field's documented signing convention (count_house.h). */
     memcpy(bucket->peer_pubkey, peer_pubkey, CH_PUBKEY_LEN);
     memcpy(bucket->proof_sig, proof_sig, CH_PROOF_SIG_LEN);
-    bucket->token_balance = prior_balance + amount;
+    bucket->token_balance = new_balance;
 
     bool ok = ch->verify_sig ? ch->verify_sig(bucket) : ch_default_verify_sig(bucket);
 
@@ -170,10 +180,24 @@ void count_house_set_crypto_reserves(count_house_t *ch, surplus_real_t reserves)
     }
 }
 
+/* Largest total supply the collateral ratio can be computed for: SR_FROM_INT
+ * is Q32.32 on the kernel path, so its integer part must stay below 2^31. */
+#ifdef TEST_HOST
+#    define CH_SUPPLY_MAX ((uint64_t) INT64_MAX)
+#else
+#    define CH_SUPPLY_MAX ((uint64_t) INT32_MAX)
+#endif
+
 uint64_t count_house_mint(count_house_t *ch, uint64_t amount) {
     if (!ch || amount == 0) return 0;
 
-    uint64_t candidate_supply = ch->total_supply_minted + amount;
+    /* Refuse a mint that would wrap the supply counter (it used to wrap to a
+     * tiny value, pass the collateral gate, and return the huge amount) or
+     * push it past what the ratio below can represent. */
+    uint64_t candidate_supply;
+    if (__builtin_add_overflow(ch->total_supply_minted, amount, &candidate_supply) ||
+        candidate_supply > CH_SUPPLY_MAX)
+        return 0;
 
     /* Anti-Sybil / anti-hyperinflation gate: preview the collateral
      * ratio the candidate supply WOULD produce before committing the

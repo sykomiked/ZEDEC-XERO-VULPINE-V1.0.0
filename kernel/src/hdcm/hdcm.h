@@ -28,9 +28,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifndef ZEDEC_HDCM_H
@@ -138,7 +138,7 @@ typedef struct {
     uint32_t target_lang_id;
     hdcm_vector_t transform[HDCM_MAX_CONSTRUCTS];  /* Per-construct transform */
     uint32_t num_mappings;
-    float    compatibility_score;  /* 0.0-1.0, how well languages align */
+    uint32_t compatibility_score;  /* permille 0..1000, how well languages align */
     bool     bidirectional;        /* Can reverse the transform */
 } hdcm_matrix_t;
 
@@ -149,7 +149,7 @@ typedef struct {
     uint32_t output_len;
     uint32_t constructs_translated;
     uint32_t constructs_unmapped;   /* No equivalent found */
-    float    fidelity_score;        /* 0.0-1.0 */
+    uint32_t fidelity_score;        /* permille 0..1000 */
     hdcm_phase_t final_phase;
     bool     success;
 } hdcm_result_t;
@@ -187,7 +187,7 @@ const hdcm_language_t *hdcm_language_by_ext(hdcm_t *h, const char *ext);
 int32_t hdcm_matrix_create(hdcm_t *h, uint32_t src_lang, uint32_t dst_lang);
 int hdcm_matrix_build(hdcm_t *h, uint32_t matrix_idx);
 const hdcm_matrix_t *hdcm_matrix_find(hdcm_t *h, uint32_t src, uint32_t dst);
-float hdcm_matrix_compatibility(hdcm_t *h, uint32_t src, uint32_t dst);
+uint32_t hdcm_matrix_compatibility(hdcm_t *h, uint32_t src, uint32_t dst); /* permille */
 
 /* Second Quantization Translation Pipeline */
 int hdcm_translate(hdcm_t *h, uint32_t src_lang, uint32_t dst_lang,
@@ -212,7 +212,7 @@ void hdcm_vector_bind(const hdcm_vector_t *a, const hdcm_vector_t *b,
 void hdcm_vector_superpose(const hdcm_vector_t *a, const hdcm_vector_t *b,
                             hdcm_vector_t *out);  /* Majority vote */
 uint32_t hdcm_vector_hamming(const hdcm_vector_t *a, const hdcm_vector_t *b);
-float hdcm_vector_similarity(const hdcm_vector_t *a, const hdcm_vector_t *b);
+uint32_t hdcm_vector_similarity(const hdcm_vector_t *a, const hdcm_vector_t *b); /* permille */
 void hdcm_vector_permute(const hdcm_vector_t *in, uint32_t shift,
                           hdcm_vector_t *out);
 

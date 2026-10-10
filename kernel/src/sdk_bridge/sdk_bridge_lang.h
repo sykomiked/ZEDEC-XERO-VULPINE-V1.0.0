@@ -6,9 +6,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef SDK_BRIDGE_LANG_H
 #define SDK_BRIDGE_LANG_H
@@ -141,6 +141,10 @@ int32_t sb_lang_execute(sb_lang_context_t *ctx,
                         const oc_ir_t *input,
                         oc_ir_t *output);
 
+/* Bind the bridge the ops act on. Until it is set every op returns
+ * SB_LANG_ERR_INTERNAL. */
+void sb_lang_set_bridge(sdk_bridge_t *bridge);
+
 /* Create a language context for a process identity */
 int32_t sb_lang_create_context(sdk_bridge_t *bridge,
                                const word168_t *identity,
@@ -188,27 +192,51 @@ static inline int32_t sb_lang_build_op(oc_ir_t *ir, sb_lang_op_t op,
 }
 
 /* Convert rat_t to surplus_real_t (for coverage ratios) */
+#ifdef TEST_HOST
 static inline surplus_real_t rat_to_surplus(rat_t r) {
     if (!r.valid || r.den == 0) return SR_ZERO;
-    int64_t whole = r.num / r.den;
-    int64_t frac_num = r.num % r.den;
-    if (frac_num < 0) frac_num = -frac_num;
-    int64_t frac = (frac_num * 4294967296LL) / r.den;
-    if (r.num < 0) frac = -frac;
-    return (surplus_real_t)((whole << 32) | (frac & 0xFFFFFFFF));
+    return (double) r.num / (double) r.den;
+}
+
+static inline rat_t surplus_to_rat(surplus_real_t sr)
+{
+    rat_t r = {0};
+    r.num = (int64_t) (sr * 4294967296.0);
+    r.den = 4294967296LL;
+    r.valid = 1;
+    return r;
+}
+#else
+static inline surplus_real_t rat_to_surplus(rat_t r)
+{
+    if (!r.valid || r.den <= 0) return SR_ZERO;
+    int64_t whole = r.num / r.den; /* truncates toward zero */
+    int64_t rem = r.num % r.den;   /* same sign as num */
+    /* 32 fraction bits by long division: no frac*2^32 product to overflow,
+     * and the sign is applied to the whole value, not OR-ed into it (the
+     * old (whole << 32) | frac turned -1.5 into -0.5). */
+    uint64_t ur = (uint64_t) (rem < 0 ? -rem : rem), ud = (uint64_t) r.den, frac = 0;
+    for (int i = 0; i < 32; i++) {
+        ur <<= 1;
+        frac <<= 1;
+        if (ur >= ud) {
+            ur -= ud;
+            frac |= 1u;
+        }
+    }
+    int64_t f = rem < 0 ? -(int64_t) frac : (int64_t) frac;
+    return whole * SR_ONE + f;
 }
 
 /* Convert surplus_real_t to rat_t */
 static inline rat_t surplus_to_rat(surplus_real_t sr) {
     rat_t r = {0};
-    int64_t whole = sr >> 32;
-    int64_t frac = sr & 0xFFFFFFFF;
-    if (frac < 0) frac = -frac;
-    r.num = whole * 4294967296LL + frac;
+    r.num = sr; /* Q32.32 is exactly sr / 2^32 */
     r.den = 4294967296LL;
     r.valid = 1;
     return r;
 }
+#endif
 
 /* ============================================================================
  * HELPER: Parse result IR

@@ -1,6 +1,5 @@
 #include "crit_168_word.h"
 #include <string.h>
-#include <math.h>
 #include <stdlib.h>
 
 void word168_to_octets(const word168_t *w, uint8_t *octets) {
@@ -19,19 +18,25 @@ void word168_alternate_endianness(word168_t *w) {
     }
 }
 
-void crit_transform(const word168_t *w, double complex *out, int num_octets) {
+/* out[i] = w[i] * e^(2 pi i * i / N), Q16.16. */
+void crit_transform(const word168_t *w, zxv_cq16_t *out, int num_octets)
+{
     if (num_octets > WORD168_OCTETS) num_octets = WORD168_OCTETS;
     for (int i = 0; i < num_octets; i++) {
-        out[i] = (double complex)w->bytes[i] * cexp(2.0 * I * M_PI * (double)i / (double)num_octets);
+        zxv_cq16_t e = cq16_expi_turn(fx_turn_frac((uint64_t) i, (uint64_t) num_octets));
+        out[i] = cq16_mul(cq16((int64_t) w->bytes[i] * Q16_ONE, 0), e);
     }
 }
 
-void crit_inverse(const double complex *in, word168_t *w, int num_octets) {
+/* w[i] = round(Re(in[i] * e^(-2 pi i * i / N))), clamped to a byte. */
+void crit_inverse(const zxv_cq16_t *in, word168_t *w, int num_octets)
+{
     if (num_octets > WORD168_OCTETS) num_octets = WORD168_OCTETS;
     memset(w->bytes, 0, WORD168_OCTETS);
     for (int i = 0; i < num_octets; i++) {
-        double mag = creal(in[i] * cexp(-2.0 * I * M_PI * (double)i / (double)num_octets));
-        w->bytes[i] = (uint8_t)(mag + 0.5);
+        uint32_t turn = fx_turn_frac((uint64_t) i, (uint64_t) num_octets);
+        zxv_cq16_t v = cq16_mul(in[i], cq16_expi_turn((uint32_t) 0 - turn));
+        int64_t b = (v.re + Q16_ONE / 2) >> Q16_SHIFT;
+        w->bytes[i] = (uint8_t) (b < 0 ? 0 : (b > 255 ? 255 : b));
     }
 }
-

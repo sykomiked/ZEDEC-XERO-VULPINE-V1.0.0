@@ -7,7 +7,7 @@
 #ifndef GOVERNANCE_CORE_H
 #define GOVERNANCE_CORE_H
 
-#include "m5_types.h"
+#include "m5_host_float.h" /* host-only module: double / double complex */
 
 #define GOV_MAX_BRANCHES 11
 #define GOV_MAX_PROPOSALS 64

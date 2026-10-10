@@ -6,9 +6,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "m5_api.h"
 #include "selfaudit.h"
@@ -25,10 +25,14 @@ typedef struct {
 static treaty_app_t g_treaty;
 
 /* ===== Asset Form Names ===== */
-static const char *asset_forms[2] = {
-    "Natural (2) - Conservation Easement",
-    "Built (9) - Infrastructure"
-};
+static const m5_capital_form_t treaty_forms[2] = {M5_FORM_NATURAL, M5_FORM_BUILT};
+static const char *asset_forms[2] = {"Natural - Conservation Easement", "Built - Infrastructure"};
+
+/* Name slot of a treaty form (canonical values are not contiguous). */
+static uint32_t treaty_slot(m5_capital_form_t f)
+{
+    return f == M5_FORM_BUILT ? 1u : 0u;
+}
 
 /* ===== Forward Declarations ===== */
 static void treaty_init(void);
@@ -143,7 +147,7 @@ static void treaty_handle_key(char ch) {
             
         case '1': case '2':
             if (g_treaty.mode == 1) {
-                g_treaty.assets[g_treaty.num_assets].form = (m5_capital_form_t)(M5_FORM_NATURAL + (ch - '1') * 7);
+                g_treaty.assets[g_treaty.num_assets].form = treaty_forms[ch - '1'];
                 m5_gui_write(g_treaty.base.window_id, "Form: ");
                 m5_gui_write(g_treaty.base.window_id, asset_forms[ch - '1']);
                 m5_gui_newline(g_treaty.base.window_id);
@@ -197,8 +201,8 @@ static void treaty_render_list(void) {
         } else {
             m5_gui_write(g_treaty.base.window_id, "    ");
         }
-        
-        m5_gui_write(g_treaty.base.window_id, asset_forms[a->form - M5_FORM_NATURAL]);
+
+        m5_gui_write(g_treaty.base.window_id, asset_forms[treaty_slot(a->form)]);
         m5_gui_write(g_treaty.base.window_id, " | Value: ");
         
         char buf[64];
@@ -242,7 +246,7 @@ static void treaty_render_verify(void) {
     
     m5_treaty_asset_t *a = &g_treaty.assets[g_treaty.selected];
     m5_gui_write(g_treaty.base.window_id, "Verifying: ");
-    m5_gui_write(g_treaty.base.window_id, asset_forms[a->form - M5_FORM_NATURAL]);
+    m5_gui_write(g_treaty.base.window_id, asset_forms[treaty_slot(a->form)]);
     m5_gui_newline(g_treaty.base.window_id);
     m5_gui_write(g_treaty.base.window_id, "Press Enter to verify, 'q' to cancel\n");
 }
@@ -307,7 +311,7 @@ static void treaty_verify_asset(void) {
         m5_gui_write_attr(g_treaty.base.window_id, "VALID", M5_ATTR_GREEN);
         m5_gui_newline(g_treaty.base.window_id);
         m5_gui_write(g_treaty.base.window_id, "Treaty-backed ");
-        m5_gui_write(g_treaty.base.window_id, asset_forms[a->form - M5_FORM_NATURAL]);
+        m5_gui_write(g_treaty.base.window_id, asset_forms[treaty_slot(a->form)]);
         m5_gui_write(g_treaty.base.window_id, " token on Rail 999\n");
     } else {
         m5_gui_write_attr(g_treaty.base.window_id, "INVALID", M5_ATTR_RED);

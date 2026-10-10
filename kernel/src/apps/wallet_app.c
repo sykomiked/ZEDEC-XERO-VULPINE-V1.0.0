@@ -5,9 +5,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "m5_api.h"
 #include "selfaudit.h"
@@ -29,17 +29,18 @@ typedef struct {
 static wallet_app_t g_wallet;
 
 /* ===== Capital Form Names ===== */
+/* Indexed by the canonical form index (zcap_forms.h): m5_capital_form_t and
+ * m5_capital_type_t share those values. */
 static const char *capital_names[M5_FORM_COUNT] = {
-    "Social (State-Reserved)",
-    "Natural (State-Reserved)",
-    "Heritage/Intellectual (State-Reserved)",
-    "Governance/Institutional (State-Reserved)",
-    "Financial",
-    "Material",
-    "Living",
-    "Knowledge",
-    "Built"
-};
+    [M5_FORM_FINANCIAL] = "Financial",
+    [M5_FORM_MATERIAL] = "Material",
+    [M5_FORM_KNOWLEDGE] = "Knowledge",
+    [M5_FORM_LIVING] = "Living",
+    [M5_FORM_SOCIAL] = "Social (State-Reserved)",
+    [M5_FORM_NATURAL] = "Natural (State-Reserved)",
+    [M5_FORM_HERITAGE_INTELLECTUAL] = "Heritage/Intellectual (State-Reserved)",
+    [M5_FORM_GOVERNANCE_INSTITUTIONAL] = "Governance/Institutional (State-Reserved)",
+    [M5_FORM_BUILT] = "Built"};
 
 /* ===== Forward Declarations ===== */
 static void wallet_init(void);

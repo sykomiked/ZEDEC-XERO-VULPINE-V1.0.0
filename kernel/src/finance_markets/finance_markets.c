@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* finance_markets.c — mark your hold honestly, never paint a sail that isn't there.
  *
  * A TRACKER over the existing src/finance suite. Every number here is either
@@ -198,10 +198,13 @@ int32_t fm_settle(fm_book_t *book, uint32_t from_acct, uint32_t to_acct,
                                         "fm settle: principal");
     if (rc < 0) goto rollback;
 
-    /* Node fee leg: from -> node fee account. */
-    rc = triple_ledger_transfer(tl, from_acct, book->node_fee_acct,
-                                CAP_FINANCIAL, fee, SR_ONE, SR_ZERO,
-                                "fm settle: node fee");
+    /* Node fee leg: from -> node fee account. triple_ledger_transfer refuses
+     * a zero amount and a transfer to itself, so a fee that rounds to zero,
+     * or the fee account paying its own fee, has no fee leg to post. */
+    rc = 0;
+    if (SR_CMP(fee, SR_ZERO) > 0 && from_acct != book->node_fee_acct)
+        rc = triple_ledger_transfer(tl, from_acct, book->node_fee_acct, CAP_FINANCIAL, fee, SR_ONE,
+                                    SR_ZERO, "fm settle: node fee");
     if (rc < 0) {
     rollback:
         /* Reverse everything posted so far. Restore the scalars; stale entry rows

@@ -1,7 +1,10 @@
 /* crypto_bridge.h — Web2-Web3 Bidirectional Cryptocurrency Bridge
  *
- * Hardware-as-code bridge connecting every major blockchain ecosystem
- * to the VOVINA SHAKINA kernel. Dual-directional:
+ * Hardware-as-code MODEL of a bridge between blockchain ecosystems and
+ * the VOVINA SHAKINA kernel. It keeps bridge records, fees and confirmation
+ * counts in memory only: there is no chain connectivity, no RPC, no light
+ * client and no on-chain proof checking, and the "tx hashes" are local
+ * counters, not chain hashes. Dual-directional:
  *   Web2 → Web3: conventional financial instruments tokenized on-chain
  *   Web3 → Web2: on-chain assets accessible via conventional rails
  *
@@ -15,9 +18,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef CRYPTO_BRIDGE_H
 #define CRYPTO_BRIDGE_H

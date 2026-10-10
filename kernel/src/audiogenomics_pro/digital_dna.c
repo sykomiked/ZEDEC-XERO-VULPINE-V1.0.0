@@ -11,24 +11,31 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include "digital_dna.h"
 
 #ifdef TEST_HOST
-#include <string.h>
-#include <math.h>
-#include <stdio.h>
+#    include <string.h>
+#    include <stdio.h>
 #else
 #include "freestanding.h"
 #endif
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+/* Saturate to the Q16.16 sample range. */
+static agp_sample_t ddna_sat(int64_t v)
+{
+    if (v > INT32_MAX) return INT32_MAX;
+    if (v < INT32_MIN) return INT32_MIN;
+    return (agp_sample_t) v;
+}
+
+/* Integer and 1/100 parts of a Q16.16 Hz value, for host reports. */
+#define DDNA_HZ_WHOLE(f) ((unsigned long) ((uint64_t) (f) >> 16))
+#define DDNA_HZ_CENTI(f) ((unsigned) ((((uint64_t) (f) & 0xFFFFu) * 100u) >> 16))
 
 /* ===== 22 Amino Acids ↔ 22 Hebrew Letters ↔ Gematria ===== */
 
@@ -61,15 +68,15 @@ static const ddna_letter_map_t s_22_letters[22] = {
 
 static const ddna_vowel_axiom_t s_5_vowels[5] = {
     /* 1 — Absence (TRIT_FALSE = 0) */
-    {0, "Sheva",   "FALSE",        0, 0.0},
+    {0, "Sheva", "FALSE", 0, 0},
     /* 2 — Presence (TRIT_TRUE = 1) */
-    {1, "Patach",  "TRUE",         1, 1.0},
+    {1, "Patach", "TRUE", 1, Q16_ONE},
     /* 3 — Balanced superposition (TRIT_GLUT_NEUTRAL = 5) */
-    {2, "Tzeri",   "GLUT_NEUTRAL", 5, 0.5},
+    {2, "Tzeri", "GLUT_NEUTRAL", 5, Q16_CONST(1, 2)},
     /* 4 — Constructive superposition (TRIT_GLUT_PLUS = 3) */
-    {3, "Cholem",  "GLUT_PLUS",    3, 0.75},
+    {3, "Cholem", "GLUT_PLUS", 3, Q16_CONST(3, 4)},
     /* 5 — Destructive superposition (TRIT_GLUT_MINUS = 4) */
-    {4, "Qamatz",  "GLUT_MINUS",   4, 0.25},
+    {4, "Qamatz", "GLUT_MINUS", 4, Q16_CONST(1, 4)},
 };
 
 /* ===== OS Identity Markers (as DNA codons) ===== */
@@ -335,8 +342,9 @@ int ddna_extract_genes(const ddna_genome_t *genome, ddna_gene_t *genes,
     return 0;
 }
 
-double ddna_gene_frequency(const ddna_gene_t *gene) {
-    if (!gene) return 0.0;
+agp_hz_t ddna_gene_frequency(const ddna_gene_t *gene)
+{
+    if (!gene) return 0;
 
     /* Each codon maps to an amino acid, which maps to a Hebrew letter,
      * which has a gematria value. Use the gematria value as the proton
@@ -348,7 +356,7 @@ double ddna_gene_frequency(const ddna_gene_t *gene) {
             return agp_chemistry_element_frequency((uint8_t)(gematria > 118 ? gematria % 118 + 1 : gematria));
         }
     }
-    return 0.0;
+    return 0;
 }
 
 /* ===== Harmonic Profile ===== */
@@ -421,38 +429,35 @@ int ddna_build_harmonic_profile(const ddna_genome_t *genome,
 void ddna_play_genome(const ddna_harmonic_profile_t *profile,
                       uint32_t sample_rate, agp_waveform_t wave,
                       agp_audio_buffer_t *out) {
-    if (!profile || !out || profile->fundamental_freq <= 0.0) {
+    if (!profile || !out || profile->fundamental_freq <= 0) {
         if (out) out->length = 0;
         return;
     }
 
     /* Generate the compound frequency as the fundamental */
-    double duration = 4.5;  /* 4.5 seconds default */
+    uint32_t duration_ms = 4500u; /* 4.5 seconds default */
     uint32_t len;
-    agp_chemistry_generate_tone(profile->fundamental_freq, duration,
-                                 sample_rate, wave, out->samples, &len,
-                                 AGP_MAX_AUDIO);
+    agp_chemistry_generate_tone(profile->fundamental_freq, duration_ms, sample_rate, wave,
+                                out->samples, &len, AGP_MAX_AUDIO);
     out->length = len;
     out->sample_rate = sample_rate;
 
     /* Layer individual element frequencies as harmonics */
-    float layer[AGP_MAX_AUDIO];
+    agp_sample_t layer[AGP_MAX_AUDIO];
     for (uint8_t i = 0; i < profile->num_elements; i++) {
-        if (profile->element_freqs[i] <= 0.0) continue;
+        if (profile->element_freqs[i] <= 0) continue;
 
         uint32_t l_len;
-        agp_chemistry_generate_tone(profile->element_freqs[i], duration,
-                                     sample_rate, wave, layer, &l_len,
-                                     AGP_MAX_AUDIO);
+        agp_chemistry_generate_tone(profile->element_freqs[i], duration_ms, sample_rate, wave,
+                                    layer, &l_len, AGP_MAX_AUDIO);
 
         uint32_t blend = (len < l_len) ? len : l_len;
-        float weight = 0.15f / (float)(i + 1);  /* Diminishing weight */
+        agp_q16_t weight = Q16_CONST(3, 20) / (agp_q16_t) (i + 1); /* 0.15/(i+1): diminishing */
         for (uint32_t j = 0; j < blend; j++)
-            out->samples[j] += layer[j] * weight;
+            out->samples[j] = ddna_sat((int64_t) out->samples[j] + fx_mul_q16(layer[j], weight));
     }
 
-    if (out->length > 0)
-        agp_normalize(out->samples, out->length, 0.95);
+    if (out->length > 0) agp_normalize(out->samples, out->length, Q16_CONST(19, 20));
 }
 
 /* ===== OS Identity ===== */
@@ -516,11 +521,9 @@ void ddna_print_genome(const ddna_genome_t *genome) {
     /* Print 5-vowel ↔ 5-axiom mapping */
     printf("\n=== 5 Vowels ↔ 5 Axioms (Implied Pronunciation) ===\n");
     for (int i = 0; i < 5; i++) {
-        printf("  %d: %s ↔ %s (trit=%u, weight=%.2f)\n",
-               i + 1, s_5_vowels[i].name,
-               s_5_vowels[i].axiom_name,
-               s_5_vowels[i].trit_value,
-               s_5_vowels[i].phase_weight);
+        printf("  %d: %s ↔ %s (trit=%u, weight=%d/65536)\n", i + 1, s_5_vowels[i].name,
+               s_5_vowels[i].axiom_name, s_5_vowels[i].trit_value,
+               (int) s_5_vowels[i].phase_weight);
     }
 #else
     extern void fb_puts(const char *str);
@@ -607,27 +610,27 @@ ddna_phase_tick_t ddna_grid_tick(ddna_consonant_grid_t *grid) {
 
     /* Compute frequency: blend all 22 consonant frequencies weighted by
      * the active vowel's phase weight */
-    double freq = 0.0;
-    double total_weight = 0.0;
+    int64_t freq = 0; /* Hz, Q16.16, then weighted */
+    int64_t total_weight = 0;
     for (int i = 0; i < 22; i++) {
-        double f = (grid->current_polarity == DDNA_POLARITY_SHADOW)
-            ? grid->consonants[i].shadow_freq
-            : grid->consonants[i].light_freq;
+        agp_hz_t f = (grid->current_polarity == DDNA_POLARITY_SHADOW)
+                         ? grid->consonants[i].shadow_freq
+                         : grid->consonants[i].light_freq;
         /* Weight by gematria (higher gematria = more influence) */
-        double w = (double)grid->consonants[i].gematria;
+        int64_t w = (int64_t) grid->consonants[i].gematria;
         freq += f * w;
         total_weight += w;
     }
-    if (total_weight > 0.0) {
-        freq /= total_weight;
+    if (total_weight > 0) {
+        freq = fx_sdiv64(freq, total_weight);
     }
 
     /* Apply vowel phase weight as modulation */
-    freq *= grid->vowels[grid->current_vowel].phase_weight;
-    if (freq < 1.0) freq = 1.0;  /* Minimum 1 Hz */
+    freq = fx_mul_q16(freq, grid->vowels[grid->current_vowel].phase_weight);
+    if (freq < AGP_HZ_ONE) freq = AGP_HZ_ONE; /* Minimum 1 Hz */
 
     tick.frequency = freq;
-    tick.phase = (double)(grid->current_tick % 360) * (2.0 * M_PI / 360.0);
+    tick.phase = fx_turn_frac(grid->current_tick % 360u, 360u);
 
     /* Advance: cycle vowel (0-4), then flip polarity every 5 vowels */
     grid->current_vowel = (uint8_t)((grid->current_vowel + 1) % 5);
@@ -643,8 +646,9 @@ ddna_phase_tick_t ddna_grid_tick(ddna_consonant_grid_t *grid) {
     return tick;
 }
 
-double ddna_consonant_frequency(uint8_t consonant_idx, ddna_polarity_t polarity) {
-    if (consonant_idx >= 22) return 0.0;
+agp_hz_t ddna_consonant_frequency(uint8_t consonant_idx, ddna_polarity_t polarity)
+{
+    if (consonant_idx >= 22) return 0;
 
     /* Reconstruct from s_22_letters (for standalone use without grid) */
     uint32_t gematria = s_22_letters[consonant_idx].gematria;
@@ -657,9 +661,9 @@ double ddna_consonant_frequency(uint8_t consonant_idx, ddna_polarity_t polarity)
     return agp_chemistry_element_frequency(n);
 }
 
-double ddna_tick_frequency(const ddna_consonant_grid_t *grid,
-                            const ddna_phase_tick_t *tick) {
-    if (!grid || !tick) return 0.0;
+agp_hz_t ddna_tick_frequency(const ddna_consonant_grid_t *grid, const ddna_phase_tick_t *tick)
+{
+    if (!grid || !tick) return 0;
     return tick->frequency;
 }
 
@@ -681,8 +685,15 @@ void ddna_grid_animate(ddna_consonant_grid_t *grid,
 
     uint32_t total = 0;
     uint32_t num_codons = genome->length / 3;
-    double codon_duration = 4.5 / (double)num_codons;
-    if (codon_duration < 0.05) codon_duration = 0.05;
+    if (num_codons == 0) {
+        out->length = 0;
+        return;
+    }
+    /* 4.5 s shared between the codons (at least 50 ms each), and each codon's
+     * time split evenly between the 5 vowels: samples per vowel sub-tone. */
+    uint32_t sub_n =
+        (uint32_t) fx_udiv64((uint64_t) sample_rate * 9u, (uint64_t) num_codons * 10u, 0);
+    if (sub_n < sample_rate / 100u) sub_n = sample_rate / 100u;
 
     for (uint32_t ci = 0; ci < num_codons && total < AGP_MAX_AUDIO; ci++) {
         /* Get the amino acid for this codon */
@@ -708,25 +719,28 @@ void ddna_grid_animate(ddna_consonant_grid_t *grid,
         /* For each of the 5 vowels, generate a sub-tone */
         for (int v = 0; v < 5 && total < AGP_MAX_AUDIO; v++) {
             ddna_polarity_t pol = (v < 3) ? DDNA_POLARITY_LIGHT : DDNA_POLARITY_SHADOW;
-            double freq = ddna_consonant_frequency((uint8_t)consonant_idx, pol);
-            freq *= s_5_vowels[v].phase_weight;
-            if (freq < 1.0) freq = 1.0;
+            agp_hz_t freq = ddna_consonant_frequency((uint8_t) consonant_idx, pol);
+            freq = fx_mul_q16(freq, s_5_vowels[v].phase_weight);
+            if (freq < AGP_HZ_ONE) freq = AGP_HZ_ONE;
 
-            double sub_duration = codon_duration / 5.0;
-            uint32_t n = (uint32_t)(sample_rate * sub_duration);
+            uint32_t n = sub_n;
             if (total + n > AGP_MAX_AUDIO) n = AGP_MAX_AUDIO - total;
             if (n == 0) break;
 
-            double phase_inc = 2.0 * M_PI * freq / (double)sample_rate;
-            double phase = (double)v * (2.0 * M_PI / 5.0);  /* Phase offset per vowel */
+            /* phase step in binary turns: (freq / sample_rate) of a cycle */
+            uint64_t frem;
+            (void) fx_udiv64((uint64_t) freq, (uint64_t) sample_rate << 16, &frem);
+            uint32_t step = sample_rate ? (uint32_t) fx_udiv64(frem << 16, sample_rate, 0) : 0u;
+            uint32_t phase = fx_turn_frac((uint64_t) v, 5u); /* Phase offset per vowel */
+            /* harmonic gain 0.3 * vowel weight */
+            int64_t hgain = fx_mul_q16(Q16_CONST(3, 10), s_5_vowels[v].phase_weight);
 
             for (uint32_t j = 0; j < n; j++) {
-                double val = sin(phase);
+                int64_t val = fx_sin_turn(phase);
                 /* Add harmonic based on vowel weight */
-                val += 0.3 * s_5_vowels[v].phase_weight * sin(2.0 * phase);
-                out->samples[total + j] = (float)val;
-                phase += phase_inc;
-                if (phase >= 2.0 * M_PI) phase -= 2.0 * M_PI;
+                val += fx_mul_q16(hgain, fx_sin_turn(phase * 2u));
+                out->samples[total + j] = ddna_sat(val);
+                phase += step; /* wraps at one full cycle */
             }
             total += n;
         }
@@ -736,8 +750,8 @@ void ddna_grid_animate(ddna_consonant_grid_t *grid,
     out->sample_rate = sample_rate;
 
     if (total > 0) {
-        agp_apply_adsr(out->samples, total, sample_rate, 10.0, 20.0);
-        agp_normalize(out->samples, total, 0.95);
+        agp_apply_adsr(out->samples, total, sample_rate, 10u, 20u);
+        agp_normalize(out->samples, total, Q16_CONST(19, 20));
     }
 }
 
@@ -748,16 +762,16 @@ void ddna_print_grid(const ddna_consonant_grid_t *grid) {
     printf("  Shadow (Hebrew/.9n63) ↔ Light (Aramaic/.36n9)\n\n");
     for (int i = 0; i < 22; i++) {
         const ddna_consonant_t *c = &grid->consonants[i];
-        printf("  %2d: %c | %s | gem=%3u | shadow=%.2f Hz | light=%.2f Hz\n",
-               i + 1, c->amino_acid, c->hebrew_utf8,
-               c->gematria, c->shadow_freq, c->light_freq);
+        printf("  %2d: %c | %s | gem=%3u | shadow=%lu.%02u Hz | light=%lu.%02u Hz\n", i + 1,
+               c->amino_acid, c->hebrew_utf8, c->gematria, DDNA_HZ_WHOLE(c->shadow_freq),
+               DDNA_HZ_CENTI(c->shadow_freq), DDNA_HZ_WHOLE(c->light_freq),
+               DDNA_HZ_CENTI(c->light_freq));
     }
     printf("\n=== 5 Vowels (5PL Breath Operators) ===\n");
     for (int i = 0; i < 5; i++) {
         const ddna_vowel_t *v = &grid->vowels[i];
-        printf("  %d: %s | %s | trit=%u | w=%.2f | %s\n",
-               i + 1, v->name, v->axiom_name,
-               v->trit_value, v->phase_weight, v->system_role);
+        printf("  %d: %s | %s | trit=%u | w=%d/65536 | %s\n", i + 1, v->name, v->axiom_name,
+               v->trit_value, (int) v->phase_weight, v->system_role);
     }
     printf("\n  Tick: %lu | Vowel: %d | Polarity: %s\n",
            (unsigned long)grid->current_tick,
@@ -863,9 +877,9 @@ void ddna_sephirotic_init(ddna_sephirotic_matrix_t *matrix) {
 
         /* Supernal frequencies: exponentially increasing toward infinity
          * Ain = 10x base, Ain Soph = 100x, Ain Soph Aur = 1000x */
-        double base_freq = agp_chemistry_element_frequency(1);
-        double mul = 1.0;
-        for (int p = 0; p <= i; p++) mul *= 10.0;
+        agp_hz_t base_freq = agp_chemistry_element_frequency(1);
+        int64_t mul = 1;
+        for (int p = 0; p <= i; p++) mul *= 10;
         sup->frequency = base_freq * mul;
         sup->accessible = false;
     }
@@ -983,18 +997,20 @@ int ddna_qliphoth_contain(ddna_sephirotic_matrix_t *matrix, uint8_t sephirah_idx
     return 0;
 }
 
-double ddna_sephirah_frequency(uint8_t index) {
-    if (index >= DDNA_NUM_SEPHIROT) return 0.0;
+agp_hz_t ddna_sephirah_frequency(uint8_t index)
+{
+    if (index >= DDNA_NUM_SEPHIROT) return 0;
     return agp_chemistry_element_frequency((uint8_t)(index + 1));
 }
 
-double ddna_supernal_frequency(uint8_t index) {
+agp_hz_t ddna_supernal_frequency(uint8_t index)
+{
     /* Supernal indices: 10=Ain, 11=AinSoph, 12=AinSophAur */
-    if (index < DDNA_SUPERNAL_AIN || index > DDNA_SUPERNAL_AIN_SOPH_AUR) return 0.0;
-    double base = agp_chemistry_element_frequency(1);
+    if (index < DDNA_SUPERNAL_AIN || index > DDNA_SUPERNAL_AIN_SOPH_AUR) return 0;
+    agp_hz_t base = agp_chemistry_element_frequency(1);
     int power = index - DDNA_SUPERNAL_AIN + 1;
-    double mul = 1.0;
-    for (int p = 0; p < power; p++) mul *= 10.0;
+    int64_t mul = 1;
+    for (int p = 0; p < power; p++) mul *= 10;
     return base * mul;
 }
 
@@ -1010,18 +1026,16 @@ void ddna_sephirotic_print(const ddna_sephirotic_matrix_t *matrix) {
     printf("  10 Sephirot (Base-10 Operational Matrix):\n");
     for (int i = 0; i < DDNA_NUM_SEPHIROT; i++) {
         const ddna_sephirah_t *s = &matrix->sephirot[i];
-        printf("    %2d: %-10s %-16s freq=%.2f Hz %s load=%u%%\n",
-               i, s->name, s->subsystem, s->frequency,
-               s->active ? "[ACTIVE]" : "[DORMANT]",
-               s->load);
+        printf("    %2d: %-10s %-16s freq=%lu.%02u Hz %s load=%u%%\n", i, s->name, s->subsystem,
+               DDNA_HZ_WHOLE(s->frequency), DDNA_HZ_CENTI(s->frequency),
+               s->active ? "[ACTIVE]" : "[DORMANT]", s->load);
     }
 
     printf("\n  Supernal Triad (Base-13 Postulates):\n");
     for (int i = 0; i < 3; i++) {
         const ddna_supernal_t *sup = &matrix->supernal_triad[i];
-        printf("    %2d: %-14s %-20s freq=%.2f Hz %s\n",
-               sup->index, sup->name, sup->english,
-               sup->frequency,
+        printf("    %2d: %-14s %-20s freq=%lu.%02u Hz %s\n", sup->index, sup->name, sup->english,
+               DDNA_HZ_WHOLE(sup->frequency), DDNA_HZ_CENTI(sup->frequency),
                sup->accessible ? "[ACCESSIBLE]" : "[SEALED]");
     }
 
@@ -1082,10 +1096,10 @@ int ddna_phi_checksum_compute(const uint8_t *data, uint32_t len,
              * step, so consecutive chunks stand in ratio φ exactly — which is
              * what `phi_ratio` is documented to approach. Measured: a 1 MB input
              * now yields 20 chunks with an average ratio of 1.6198 (φ = 1.6180). */
-            chunk_size = (uint32_t)((double)remaining * AGP_PHI_INV * AGP_PHI_INV);
+            chunk_size = (uint32_t) (((uint64_t) remaining * AGP_PHI_INV2_Q32) >> 32);
         } else {
             /* Subsequent chunks: scale by φ ratio from previous */
-            chunk_size = (uint32_t)((double)prev_size * AGP_PHI_INV);
+            chunk_size = (uint32_t) (((uint64_t) prev_size * AGP_PHI_INV_Q32) >> 32);
         }
         /* Stop subdividing once the next chunk would be too small for its size
          * ratio to mean anything (see DDNA_PHI_MIN_CHUNK), or once it would not
@@ -1108,9 +1122,10 @@ int ddna_phi_checksum_compute(const uint8_t *data, uint32_t len,
          * 1 - 1/φ = 0.382. Dividing the larger by the smaller gives ~φ, which is
          * what the field's own documentation promises. */
         if (prev_size > 0) {
-            c->phi_ratio = (double)prev_size / (double)chunk_size;
+            uint64_t r = fx_udiv64((uint64_t) prev_size << 16, chunk_size, 0); /* Q16.16 */
+            c->phi_ratio = r > (uint64_t) INT32_MAX ? INT32_MAX : (agp_q16_t) r;
         } else {
-            c->phi_ratio = AGP_PHI;  /* First chunk: no predecessor; seed at φ */
+            c->phi_ratio = AGP_PHI_Q16; /* First chunk: no predecessor; seed at φ */
         }
 
         offset += chunk_size;
@@ -1123,20 +1138,20 @@ int ddna_phi_checksum_compute(const uint8_t *data, uint32_t len,
      * chunks, because the last one is the remainder and is excluded — with only
      * two there is no ratio left to average. */
     if (out->num_chunks > 2) {
-        double sum_ratio = 0;
+        uint64_t sum_ratio = 0;
         uint32_t count = 0;
         for (uint32_t i = 1; i + 1 < out->num_chunks; i++) {  /* skip remainder */
-            sum_ratio += out->chunks[i].phi_ratio;
+            sum_ratio += (uint64_t) out->chunks[i].phi_ratio;
             count++;
         }
-        double avg_ratio = sum_ratio / (double)count;
-        double deviation = avg_ratio - AGP_PHI;
+        int64_t avg_ratio = (int64_t) fx_udiv64(sum_ratio, count, 0);
+        int64_t deviation = avg_ratio - AGP_PHI_Q16;
         if (deviation < 0) deviation = -deviation;
-        out->coherence_score = 1.0 - (deviation / AGP_PHI);
-        if (out->coherence_score < 0) out->coherence_score = 0;
-        out->coherent = (deviation < DDNA_PHI_COHERENCE_TOL);
+        int64_t score = Q16_ONE - fx_sdiv64(deviation * 65536, AGP_PHI_Q16);
+        out->coherence_score = score < 0 ? 0 : (agp_q16_t) score;
+        out->coherent = (deviation < DDNA_PHI_COHERENCE_TOL_Q16);
     } else {
-        out->coherence_score = 1.0;
+        out->coherence_score = Q16_ONE;
         out->coherent = true;
     }
 
@@ -1250,15 +1265,23 @@ uint32_t ddna_digital_root(uint32_t value) {
     return value;
 }
 
-bool ddna_numerology_harmonizes(const ddna_numerology_meta_t *meta,
-                                 double system_field_freq) {
+/* |a/b - phi| in Q16.16 for positive Hz values (saturating). */
+static int64_t ddna_phi_deviation(agp_hz_t a, agp_hz_t b)
+{
+    if (a < 0 || b <= 0) return INT32_MAX;
+    uint64_t ratio = fx_umuldiv64((uint64_t) a, 65536u, (uint64_t) b);
+    if (ratio > (uint64_t) INT32_MAX) return INT32_MAX;
+    int64_t d = (int64_t) ratio - AGP_PHI_Q16;
+    return d < 0 ? -d : d;
+}
+
+bool ddna_numerology_harmonizes(const ddna_numerology_meta_t *meta, agp_hz_t system_field_freq)
+{
     if (!meta || system_field_freq <= 0) return false;
     /* Check if the metadata's harmonic frequency is within
      * a φ-proportion of the system field frequency */
-    double ratio = meta->harmonic_freq / system_field_freq;
-    double deviation = ratio - AGP_PHI;
-    if (deviation < 0) deviation = -deviation;
-    return deviation < DDNA_PHI_TOLERANCE * 10;  /* Wider tolerance for resonance */
+    return ddna_phi_deviation(meta->harmonic_freq, system_field_freq) <
+           DDNA_PHI_TOLERANCE_RESONANCE_Q16; /* Wider tolerance for resonance */
 }
 
 /* ===== 13-Month Lunar Calendar ===== */
@@ -1461,8 +1484,9 @@ const char *ddna_zodiac_element(uint8_t sign_idx) {
     return s_zodiac_data[sign_idx].element;
 }
 
-double ddna_zodiac_frequency(uint8_t sign_idx) {
-    if (sign_idx >= DDNA_ZODIAC_SIGNS) return 0.0;
+agp_hz_t ddna_zodiac_frequency(uint8_t sign_idx)
+{
+    if (sign_idx >= DDNA_ZODIAC_SIGNS) return 0;
     return agp_chemistry_element_frequency((uint8_t)(sign_idx + 1));
 }
 
@@ -1472,10 +1496,9 @@ void ddna_zodiac_print(const ddna_zodiac_system_t *sys) {
     printf("=== 13-Sign Zodiac System ===\n");
     for (int i = 0; i < DDNA_ZODIAC_SIGNS; i++) {
         const ddna_zodiac_sign_t *s = &sys->signs[i];
-        printf("  %2d: %-14s %-7s %-12s freq=%.2f Hz Sephirah=%d%s\n",
-               i, s->name, s->element, s->modality,
-               s->frequency, s->sephirah_link,
-               s->is_gateway ? " [GATEWAY]" : "");
+        printf("  %2d: %-14s %-7s %-12s freq=%lu.%02u Hz Sephirah=%d%s\n", i, s->name, s->element,
+               s->modality, DDNA_HZ_WHOLE(s->frequency), DDNA_HZ_CENTI(s->frequency),
+               s->sephirah_link, s->is_gateway ? " [GATEWAY]" : "");
     }
 #else
     extern void fb_puts(const char *str);
@@ -1504,13 +1527,20 @@ void ddna_spacetime_compute(const char *name,
 
         /* Combined resonance: geometric mean of zodiac freq and metadata freq */
         if (out->metadata.harmonic_freq > 0 && out->spatial.frequency > 0) {
-            /* Geometric mean without sqrt: sqrt(a*b) ≈ a*b / sqrt(a*b) but
-             * for freestanding, use: sqrt(x) ≈ x^0.5 via Newton's method */
-            double product = out->metadata.harmonic_freq * out->spatial.frequency;
-            double guess = product * 0.5;
-            for (int iter = 0; iter < 8; iter++)
-                guess = 0.5 * (guess + product / guess);
-            out->resonance_freq = guess;
+            /* Geometric mean sqrt(a*b): the Q16.16 x Q16.16 product is Q32.32,
+             * its integer square root is Q16.16. (The former 8-step Newton
+             * iteration from a*b/2 had not converged for products above a
+             * few thousand Hz^2; this is the exact floor.) Inputs above
+             * 2^32 (65536 Hz) are scaled down first so the product fits. */
+            uint64_t a = (uint64_t) out->metadata.harmonic_freq;
+            uint64_t b = (uint64_t) out->spatial.frequency;
+            unsigned sh = 0;
+            while (a >= ((uint64_t) 1 << 32) || b >= ((uint64_t) 1 << 32)) {
+                a >>= 1;
+                b >>= 1;
+                sh++;
+            }
+            out->resonance_freq = (agp_hz_t) ((uint64_t) fx_isqrt64(a * b) << sh);
         } else {
             out->resonance_freq = out->spatial.frequency;
         }
@@ -1524,10 +1554,8 @@ void ddna_spacetime_compute(const char *name,
 
         /* Phase alignment: check if resonance harmonizes with system field */
         /* Use φ-proportion check */
-        double ratio = out->resonance_freq / out->spatial.frequency;
-        double deviation = ratio - AGP_PHI;
-        if (deviation < 0) deviation = -deviation;
-        out->phase_aligned = (deviation < DDNA_PHI_TOLERANCE * 100);
+        out->phase_aligned = (ddna_phi_deviation(out->resonance_freq, out->spatial.frequency) <
+                              DDNA_PHI_TOLERANCE_ALIGN_Q16);
     } else {
         out->resonance_freq = out->spatial.frequency;
         out->execution_tier = 10;
@@ -1535,12 +1563,13 @@ void ddna_spacetime_compute(const char *name,
     }
 }
 
-double ddna_spacetime_resonance(const ddna_space_time_op_t *op) {
-    return op ? op->resonance_freq : 0.0;
+agp_hz_t ddna_spacetime_resonance(const ddna_space_time_op_t *op)
+{
+    return op ? op->resonance_freq : 0;
 }
 
-bool ddna_spacetime_validate(const ddna_space_time_op_t *op,
-                              double system_field_freq) {
+bool ddna_spacetime_validate(const ddna_space_time_op_t *op, agp_hz_t system_field_freq)
+{
     if (!op || system_field_freq <= 0) return false;
     /* Validate: resonance frequency must harmonize with system field */
     return ddna_numerology_harmonizes(&op->metadata, system_field_freq);
@@ -1554,14 +1583,14 @@ void ddna_spacetime_print(const ddna_space_time_op_t *op) {
            ddna_lunar_month_name(op->temporal.month),
            op->temporal.day, op->temporal.year,
            op->temporal.day_of_year);
-    printf("  Spatial:  %s (%s, %s) freq=%.2f Hz\n",
-           op->spatial.name, op->spatial.element, op->spatial.modality,
-           op->spatial.frequency);
+    printf("  Spatial:  %s (%s, %s) freq=%lu.%02u Hz\n", op->spatial.name, op->spatial.element,
+           op->spatial.modality, DDNA_HZ_WHOLE(op->spatial.frequency),
+           DDNA_HZ_CENTI(op->spatial.frequency));
     printf("  Metadata: name_val=%u gematria=%u root=%u\n",
            op->metadata.name_value, op->metadata.gematria_value,
            op->metadata.digital_root);
-    printf("  Resonance: %.2f Hz | Tier: base-%u | Aligned: %s\n",
-           op->resonance_freq, op->execution_tier,
+    printf("  Resonance: %lu.%02u Hz | Tier: base-%u | Aligned: %s\n",
+           DDNA_HZ_WHOLE(op->resonance_freq), DDNA_HZ_CENTI(op->resonance_freq), op->execution_tier,
            op->phase_aligned ? "YES" : "NO");
 #else
     extern void fb_puts(const char *str);

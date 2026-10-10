@@ -19,9 +19,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef PORTER_HOUSE_H
 #define PORTER_HOUSE_H
@@ -97,8 +97,10 @@ int32_t porter_house_seal_port(porter_house_t *ph, uint16_t port,
  * record (stats/allowlist are preserved in case it's re-sealed later). */
 void porter_house_open_port(porter_house_t *ph, uint16_t port);
 
-/* Slam the door: mode -> PH_SEAL_CLOSED regardless of prior mode. */
-void porter_house_close_port(porter_house_t *ph, uint16_t port);
+/* Slam the door: mode -> PH_SEAL_CLOSED regardless of prior mode.
+ * Returns 0 when the port is now closed, -1 when it could not be (NULL
+ * ph, or the seal table is full and no OPEN seal can be reused). */
+int32_t porter_house_close_port(porter_house_t *ph, uint16_t port);
 
 int32_t porter_house_find_seal(porter_house_t *ph, uint16_t port);
 

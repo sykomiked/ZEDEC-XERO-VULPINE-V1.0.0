@@ -98,9 +98,9 @@ int governance_cast_vote(governance_state_t *g, uint32_t proposal_idx,
 
     if (g->matrix) {
         double complex val = rational_mag(p->votes[vidx].weight) + I * emotion_index;
-        axiom_matrix_set(g->matrix, g->current_cycle, p->votes[vidx].weight,
-                       vote, (phase_t){emotion_index, 0},
-                       (collapse_t){{p->id, voter_id}}, val);
+        axiom_matrix_set(g->matrix, g->current_cycle, p->votes[vidx].weight, vote,
+                         m5_phase_from_double(emotion_index, 0.0), (collapse_t){{p->id, voter_id}},
+                         m5_cq16_from_dc(val));
     }
 
     return 0;

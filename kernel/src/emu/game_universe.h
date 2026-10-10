@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* game_universe.h — a game ROM as a STATE/UNIVERSE: its mechanics as an 8-dim
  * evidence vector fed to Chiglet, which holds many at once (the multiverse) and
  * counts the DISTINCT ones. First stone of the MegaROM (mechanic extraction +

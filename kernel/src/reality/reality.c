@@ -25,27 +25,39 @@ static int32_t src_alloc(reality_engine_t *e) {
     return -1;
 }
 int32_t reality_add_const(reality_engine_t *e, reality_val_t v) {
-    if (!e) return -1; int32_t i = src_alloc(e); if (i < 0) return -1;
+    if (!e) return -1;
+    int32_t i = src_alloc(e);
+    if (i < 0) return -1;
     e->src[i].kind = REAL_SRC_CONST; e->src[i].p0 = v; e->src[i].value = v; e->src[i].valid = true; return i;
 }
 int32_t reality_add_ramp(reality_engine_t *e, int32_t base, int32_t per_tick) {
-    if (!e) return -1; int32_t i = src_alloc(e); if (i < 0) return -1;
+    if (!e) return -1;
+    int32_t i = src_alloc(e);
+    if (i < 0) return -1;
     e->src[i].kind = REAL_SRC_RAMP; e->src[i].p0 = base; e->src[i].p1 = per_tick; e->src[i].valid = true; return i;
 }
 int32_t reality_add_osc(reality_engine_t *e, int32_t amplitude, int32_t period) {
-    if (!e || period < 2) return -1; int32_t i = src_alloc(e); if (i < 0) return -1;
+    if (!e || period < 2) return -1;
+    int32_t i = src_alloc(e);
+    if (i < 0) return -1;
     e->src[i].kind = REAL_SRC_OSC; e->src[i].p0 = amplitude; e->src[i].p1 = period; e->src[i].valid = true; return i;
 }
 int32_t reality_add_seq(reality_engine_t *e, const reality_val_t *seq, uint32_t len) {
-    if (!e || !seq || len == 0) return -1; int32_t i = src_alloc(e); if (i < 0) return -1;
+    if (!e || !seq || len == 0) return -1;
+    int32_t i = src_alloc(e);
+    if (i < 0) return -1;
     e->src[i].kind = REAL_SRC_SEQ; e->src[i].seq = seq; e->src[i].seq_len = len; e->src[i].valid = true; return i;
 }
 int32_t reality_add_feed(reality_engine_t *e, reality_val_t initial) {
-    if (!e) return -1; int32_t i = src_alloc(e); if (i < 0) return -1;
+    if (!e) return -1;
+    int32_t i = src_alloc(e);
+    if (i < 0) return -1;
     e->src[i].kind = REAL_SRC_FEED; e->src[i].value = initial; e->src[i].valid = true; return i;
 }
 int32_t reality_add_sensor(reality_engine_t *e, uint32_t sensor_id) {
-    if (!e) return -1; int32_t i = src_alloc(e); if (i < 0) return -1;
+    if (!e) return -1;
+    int32_t i = src_alloc(e);
+    if (i < 0) return -1;
     e->src[i].kind = REAL_SRC_SENSOR; e->src[i].sensor_id = sensor_id; e->src[i].valid = false; return i;
 }
 bool reality_feed(reality_engine_t *e, int32_t source, reality_val_t v) {

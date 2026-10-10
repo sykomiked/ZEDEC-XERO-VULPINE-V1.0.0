@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* zcapital.c — see zcapital.h. Nine forms of capital, a wall around the four
  * that are not for sale, and a little market for the ones that are. */
 #include "zcapital.h"
@@ -81,10 +81,27 @@ void zmarket_init(zmarket_t *m) {
     }
 }
 
+/* Drop consumed entries, keeping the active ones in FIFO order. Without this a
+ * book that ever held ZMARKET_SLOTS posts stays "full" forever, even after
+ * every one of them has been matched. */
+static void compact(zcap_book_entry_t *book, uint32_t *count)
+{
+    uint32_t w = 0;
+    for (uint32_t r = 0; r < *count; r++)
+        if (book[r].active) book[w++] = book[r];
+    for (uint32_t i = w; i < *count; i++) {
+        book[i].active = false;
+        book[i].units = SR_ZERO;
+        book[i].party = 0;
+    }
+    *count = w;
+}
+
 int32_t zmarket_offer(zmarket_t *m, zcap_form_t form, surplus_real_t units,
                       uint32_t party) {
     if (!m || (uint32_t)form >= ZCAP_FORM_COUNT) return -1;
     if (SR_CMP(units, SR_ZERO) <= 0) return -1;  /* no zero/negative-unit posts */
+    if (m->offer_count[form] >= ZMARKET_SLOTS) compact(m->offers[form], &m->offer_count[form]);
     uint32_t n = m->offer_count[form];
     if (n >= ZMARKET_SLOTS) return -1;  /* book is full — no hollow fills */
     m->offers[form][n].units = units;
@@ -98,6 +115,7 @@ int32_t zmarket_seek(zmarket_t *m, zcap_form_t form, surplus_real_t units,
                      uint32_t party) {
     if (!m || (uint32_t)form >= ZCAP_FORM_COUNT) return -1;
     if (SR_CMP(units, SR_ZERO) <= 0) return -1;  /* no zero/negative-unit posts */
+    if (m->seek_count[form] >= ZMARKET_SLOTS) compact(m->seeks[form], &m->seek_count[form]);
     uint32_t n = m->seek_count[form];
     if (n >= ZMARKET_SLOTS) return -1;
     m->seeks[form][n].units = units;
@@ -119,24 +137,36 @@ bool zmarket_match(zmarket_t *m, zcap_form_t form, zcap_commitment_t *out) {
     if (!m || !out || (uint32_t)form >= ZCAP_FORM_COUNT) return false;
 
     int32_t oi = first_active(m->offers[form], m->offer_count[form]);
-    int32_t si = first_active(m->seeks[form], m->seek_count[form]);
-    if (oi < 0 || si < 0) return false;  /* no counterpart — no fabricated fill */
+    if (oi < 0) return false; /* no counterpart — no fabricated fill */
+
+    /* The oldest seek from a DIFFERENT party: a party matching with itself is
+     * a wash trade, not a reciprocal deal, and is skipped rather than allowed
+     * to block every other pairing behind it. */
+    int32_t si = -1;
+    for (uint32_t i = 0; i < m->seek_count[form]; i++) {
+        const zcap_book_entry_t *s = &m->seeks[form][i];
+        if (s->active && s->party != m->offers[form][oi].party) {
+            si = (int32_t) i;
+            break;
+        }
+    }
+    if (si < 0) return false;
 
     zcap_book_entry_t *offer = &m->offers[form][oi];
     zcap_book_entry_t *seek  = &m->seeks[form][si];
 
-    /* A party matching with itself is a wash trade, not a reciprocal deal.
-     * Refuse it rather than emit a hollow self-commitment. */
-    if (offer->party == seek->party) return false;
-
-    /* Settle on the offered units (what the giver actually commits to convey). */
+    /* Fill the smaller side: the taker never receives more than it sought,
+     * the giver never conveys more than it offered. The larger side keeps
+     * its remainder on the book. */
+    surplus_real_t fill = SR_CMP(offer->units, seek->units) <= 0 ? offer->units : seek->units;
     out->form  = form;
-    out->units = offer->units;
+    out->units = fill;
     out->giver = offer->party;
     out->taker = seek->party;
 
-    /* Both entries are consumed by the match. */
-    offer->active = false;
-    seek->active = false;
+    offer->units = SR_SUB(offer->units, fill);
+    seek->units = SR_SUB(seek->units, fill);
+    if (SR_CMP(offer->units, SR_ZERO) <= 0) offer->active = false;
+    if (SR_CMP(seek->units, SR_ZERO) <= 0) seek->active = false;
     return true;
 }

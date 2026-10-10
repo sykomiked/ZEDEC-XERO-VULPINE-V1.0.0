@@ -5,9 +5,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "m5_api.h"
 #include "selfaudit.h"
@@ -26,13 +26,19 @@ typedef struct {
 static derivatives_app_t g_deriv;
 
 /* ===== Capital Form Names (Priceable Only) ===== */
-static const char *priceable_names[5] = {
-    "Financial (5)",
-    "Material (6)",
-    "Living (7)",
-    "Knowledge (8)",
-    "Built (9)"
-};
+/* The priceable forms are not contiguous in the canonical order
+ * (zcap_forms.h), so the menu maps through a table, not arithmetic. */
+static const m5_capital_form_t priceable_forms[5] = {
+    M5_FORM_FINANCIAL, M5_FORM_MATERIAL, M5_FORM_LIVING, M5_FORM_KNOWLEDGE, M5_FORM_BUILT};
+static const char *priceable_names[5] = {"Financial", "Material", "Living", "Knowledge", "Built"};
+
+/* Menu slot of a priceable form (0 if it is not one: never out of range). */
+static uint32_t priceable_slot(m5_capital_form_t f)
+{
+    for (uint32_t i = 0; i < 5; i++)
+        if (priceable_forms[i] == f) return i;
+    return 0;
+}
 
 /* ===== Forward Declarations ===== */
 static void deriv_init(void);
@@ -158,7 +164,8 @@ static void deriv_handle_key(char ch) {
         case '1': case '2': case '3': case '4': case '5':
             if (g_deriv.mode == 1) {
                 /* Select capital form during creation */
-                g_deriv.contracts[g_deriv.num_contracts].underlying_form = (m5_capital_form_t)(M5_FORM_FINANCIAL + (ch - '1'));
+                g_deriv.contracts[g_deriv.num_contracts].underlying_form =
+                    priceable_forms[ch - '1'];
                 m5_gui_write(g_deriv.base.window_id, "Selected: ");
                 m5_gui_write(g_deriv.base.window_id, priceable_names[ch - '1']);
                 m5_gui_newline(g_deriv.base.window_id);
@@ -215,8 +222,8 @@ static void deriv_render_list(void) {
         } else {
             m5_gui_write(g_deriv.base.window_id, "    ");
         }
-        
-        m5_gui_write(g_deriv.base.window_id, priceable_names[d->underlying_form - M5_FORM_FINANCIAL]);
+
+        m5_gui_write(g_deriv.base.window_id, priceable_names[priceable_slot(d->underlying_form)]);
         m5_gui_write(g_deriv.base.window_id, " | Notional: ");
         
         char buf[64];
@@ -268,7 +275,7 @@ static void deriv_render_settle(void) {
     
     m5_deriv_contract_t *d = &g_deriv.contracts[g_deriv.selected];
     m5_gui_write(g_deriv.base.window_id, "Settling: ");
-    m5_gui_write(g_deriv.base.window_id, priceable_names[d->underlying_form - M5_FORM_FINANCIAL]);
+    m5_gui_write(g_deriv.base.window_id, priceable_names[priceable_slot(d->underlying_form)]);
     m5_gui_newline(g_deriv.base.window_id);
     m5_gui_write(g_deriv.base.window_id, "Press Enter to confirm, 'q' to cancel\n");
 }

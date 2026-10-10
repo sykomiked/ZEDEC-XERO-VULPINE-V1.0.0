@@ -9,7 +9,42 @@
 #include "naga_raja.h"
 #include "../rmag/rmag_core.h"
 #include "../lpres/lpres_core.h"
+#include "upaah.h"
 #include <stddef.h>
+
+/* Exact rational compare for denominators > 0: returns <0, 0, >0 like
+ * a - b. Integer-only, so this kernel path needs no FPU (the old code
+ * compared with rational_mag(), a double). If a cross product would
+ * overflow int64 the answer is "a < b", which makes a send partial rather
+ * than over-spend. */
+static int nr_rat_cmp(rational_t a, rational_t b)
+{
+    int64_t l, r;
+    if (__builtin_mul_overflow(a.num, b.den, &l) || __builtin_mul_overflow(b.num, a.den, &r))
+        return -1;
+    return (l < r) ? -1 : (l > r) ? 1 : 0;
+}
+
+/* rmag slots start zero-filled, i.e. 0/0, and rmag_add_quotas(0/0, x)
+ * stays 0/0: the first transfer into a fresh slot vanished. Read a
+ * slot with a zero denominator as 0/1. */
+static rational_t nr_quota(ordinal_t slot)
+{
+    rational_t q = rmag_get_quota(slot);
+    if (q.den == 0) {
+        q.num = 0;
+        q.den = 1;
+    }
+    return q;
+}
+
+/* Whole units of a non-negative rational (truncated), clamped to int32. */
+static int32_t nr_rat_units(rational_t q)
+{
+    if (q.den <= 0 || q.num <= 0) return 0;
+    int64_t v = q.num / q.den;
+    return (v > INT32_MAX) ? INT32_MAX : (int32_t) v;
+}
 
 static tantra_engine_t *s_engine = NULL;
 
@@ -22,7 +57,9 @@ naga_result_t naga_raja_spawn(uint32_t task_id) {
     if (!s_engine) return r;
     ordinal_t now = s_engine->oseq ? s_engine->oseq->current_cycle : 0;
     dharma_on_spawn(&s_engine->dharma, task_id, now);
-    r.status = TRIT_TRUE;
+    /* A spawn is Ain-Soph-Aur: the source of emanation, not yet a definite
+     * outcome, so it reports GLUT_PLUS (phase7_unbridge of that veil). */
+    r.status = phase7_unbridge(VEIL_AIN_SOPH_AUR);
     r.value = (int32_t)task_id;
     return r;
 }
@@ -59,7 +96,8 @@ naga_result_t naga_raja_terminate(uint32_t task_id, int32_t exit_code) {
     if (!s_engine) return r;
     ordinal_t now = s_engine->oseq ? s_engine->oseq->current_cycle : 0;
     dharma_on_terminate(&s_engine->dharma, task_id, now);
-    r.status = TRIT_TRUE;
+    /* Terminate lands in Ain, which un-bridges to a definite TRIT_FALSE. */
+    r.status = phase7_unbridge(VEIL_AIN);
     r.value = exit_code;
     return r;
 }
@@ -69,17 +107,20 @@ naga_result_t naga_raja_send(uint32_t sender_id, uint32_t receiver_id,
     (void)kind;
     naga_result_t r = {TRIT_FALSE, 0};
     if (!s_engine) return r;
+    /* Sending to yourself would read the quota twice and write it back
+     * increased (q - t, then q + t): it minted quota. A non-positive amount
+     * would move quota the other way. */
+    if (sender_id == receiver_id) return r;
+    if (amount.den <= 0 || amount.num <= 0) return r;
 
-    rational_t sender_quota = rmag_get_quota((ordinal_t)sender_id);
-    rational_t receiver_quota = rmag_get_quota((ordinal_t)receiver_id);
+    rational_t sender_quota = nr_quota((ordinal_t) sender_id);
+    rational_t receiver_quota = nr_quota((ordinal_t) receiver_id);
+    if (sender_quota.den < 0 || sender_quota.num < 0) return r;
 
     /* Determine the actual transferable amount: min(sender_quota, amount) */
     rational_t transferable = amount;
-    /* Compare sender_quota vs amount using rational_mag (double approximation
-     * for comparison only -- the actual transfer uses exact rationals) */
-    double sq = rational_mag(sender_quota);
-    double am = rational_mag(amount);
-    if (sq < am) {
+    bool full = nr_rat_cmp(sender_quota, amount) >= 0;
+    if (!full) {
         transferable = sender_quota; /* partial: send what's available */
     }
 
@@ -93,12 +134,12 @@ naga_result_t naga_raja_send(uint32_t sender_id, uint32_t receiver_id,
     lpres_set_presence((ordinal_t)receiver_id, TRIT_TRUE);
 
     /* Determine status: full transfer vs partial */
-    if (sq >= am) {
+    if (full) {
         r.status = TRIT_TRUE;
     } else {
         r.status = TRIT_GLUT_MINUS; /* partial delivery contradiction */
     }
-    r.value = (int32_t)(rational_mag(transferable) * 1000); /* milli-quota transferred */
+    r.value = nr_rat_units(transferable); /* whole quota units transferred */
     return r;
 }
 
@@ -112,7 +153,7 @@ naga_result_t naga_raja_recv(uint32_t task_id) {
         return r;
     }
 
-    rational_t quota = rmag_get_quota((ordinal_t)task_id);
+    rational_t quota = nr_quota((ordinal_t) task_id);
     if (quota.num == 0) {
         r.status = TRIT_FALSE;
         return r;
@@ -123,7 +164,7 @@ naga_result_t naga_raja_recv(uint32_t task_id) {
     lpres_set_presence((ordinal_t)task_id, TRIT_FALSE);
 
     r.status = TRIT_TRUE;
-    r.value = (int32_t)(rational_mag(quota) * 1000); /* milli-quota received */
+    r.value = nr_rat_units(quota); /* whole quota units received */
     return r;
 }
 

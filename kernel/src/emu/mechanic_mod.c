@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* mechanic_mod.c — admission policy: run a mod's mechanics through the
  * break-potency detector; admit if bounded, contain (cap) if over-potent.
  * This is the guardrail that lets a mod change mechanics WITHOUT taking over
@@ -50,9 +50,7 @@ int mechanic_mod_selfcheck(uint32_t *contained_cap_permille_out){
     };
     mm_admission_t ba;
     mechanic_mod_admit(&brk, &ba);
-    if (contained_cap_permille_out)
-        *contained_cap_permille_out =
-            (uint32_t)((double)ba.cap / (double)SR_ONE * 1000.0);
+    if (contained_cap_permille_out) *contained_cap_permille_out = SR_TO_PERMILLE(ba.cap);
 
     /* PASS: the modest mod is admitted at full strength; the god-stack is
      * contained AND its cap is strictly below what its synergy would have given. */

@@ -108,7 +108,7 @@ Below is the full subsystem index with file paths, descriptions, and test status
 | **PLNP** | `src/plnp/plnp.c` | Programming Language Natural Processor |
 | **Audio Genomics Pro** | `src/audiogenomics_pro/` | DNA/RNA frequency synthesis |
 | **Legal Engine** | `src/legal_engine/` | On-device legal compliance |
-| **License Manager** | `src/license/license.c` | SEL-3.3 license enforcement |
+| **License Manager** | `src/license/license.c` | Apache-2.0 licence identity and attribution |
 | **Bootlegger** | `src/bootlegger/bootlegger.c` | Boot management |
 | **Decent** | `src/decent/decent.c` | Decentralized consensus |
 | **DualTrack** | `src/dualtrack/dualtrack.c` | Dual-track execution |
@@ -118,7 +118,7 @@ Below is the full subsystem index with file paths, descriptions, and test status
 | **Recon** | `src/recon/recon.c` | Reconnaissance |
 | **Smap** | `src/smap/smap.c` | Spatial mapping |
 | **Superpos** | `src/superpos/superpos.c` | Superposition management |
-| **P2P Caracho** | `src/p2p_caracho/p2p_caracho.c` | P2P file sharing |
+| **P2P Caracho** | `experimental/p2p_caracho/p2p_caracho.c` | Superseded P2P transport (unbuilt placeholder) |
 | **VFS** | `src/vfs/vfs.c` | Virtual File System |
 | **FAT32** | `src/fat32/fat32.c` | FAT32 filesystem |
 | **MM** | `src/mm/mm.c` | Memory management |

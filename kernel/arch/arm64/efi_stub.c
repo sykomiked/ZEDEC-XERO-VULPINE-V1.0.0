@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* efi_stub.c — arm64 UEFI entry (BOOTAA64.EFI). VERIFIED end-to-end under AAVMF:
  * locates the GOP, publishes the framebuffer handoff record, ExitBootServices,
  * and hands off to the kernel — which boots to EL0 + P-TERM with the desktop on

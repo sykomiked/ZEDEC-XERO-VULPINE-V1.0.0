@@ -189,7 +189,7 @@ The ZXV OS (ZEDEC XERO VULPINE) kernel is a bare-metal, freestanding operating s
 | `src/mesh_net/` | Mesh networking | `mesh_net.c`, `mesh_net.h` | Software protocol — runs over any NIC. |
 | `src/mesh_token/` | Mesh authentication | `mesh_token.c`, `mesh_token.h` | Software-only. |
 | `src/net/m5route.c` | M5 routing protocol | `m5route.c`, `m5route.h` | Software-only. |
-| `src/p2p_caracho/` | P2P content distribution | `p2p_caracho.c`, `p2p_caracho.h` | Software-only. |
+| `experimental/p2p_caracho/` | Superseded P2P transport (unbuilt; see `kernel/experimental/README.md`) | `p2p_caracho.c`, `p2p_caracho.h` | Not built. |
 | `src/bootlegger/` | P2P media streaming | `bootlegger.c`, `bootlegger.h` | Software-only. |
 
 ### 3.7 Specialized Subsystems
@@ -200,7 +200,7 @@ The ZXV OS (ZEDEC XERO VULPINE) kernel is a bare-metal, freestanding operating s
 | `src/holographic/` | Holographic render | `holo.c`, `holo.h` | Phase 2+ — requires DLP projector. |
 | `src/lattice/` | OS lattice | `lattice.c`, `lattice.h` | Software-only. |
 | `src/legal_engine/` | On-device legal compliance | `legal_engine.c`, `legal_engine.h` | Software-only. |
-| `src/license/` | SEL-3.3 license enforcement | `license.c` | Software-only. |
+| `src/license/` | Apache-2.0 licence identity and attribution | `license.c` | Software-only. |
 | `src/gematria/` | Numerical encoding | `gematria.c` | Software-only. |
 | `src/surplus/` | Interaction Surplus Framework | `surplus.c`, `surplus.h` | Software-only. |
 | `src/telemetry/` | System health monitoring | `telemetry_core.c`, `telemetry_core.h` | Software-only — uses ACPI sensors. |
@@ -363,7 +363,7 @@ docker run -it zxv-os
 - **Types:** Use `m5_types.h` — `uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`, etc.
 - **Headers:** Every `.c` file has a corresponding `.h` file with the same name
 - **Testing:** Every subsystem has a `test_*.c` file — run all tests before committing
-- **License:** All files carry SEL-3.3 license header — do not remove
+- **License:** All files carry the Apache-2.0 SPDX header — do not remove
 - **Author:** H.M. Michael-Laurence Curzi (c), 36N9 Genetics, LLC
 - **Style:** K&R brace style, 4-space indentation, snake_case naming
 

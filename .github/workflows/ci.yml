@@ -6,11 +6,14 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+
 jobs:
   build-arm64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install ARM64 toolchain
         run: |
           sudo apt-get update
@@ -20,10 +23,12 @@ jobs:
           make -f build_system/Makefile.arm64 clean
           make -f build_system/Makefile.arm64 all
       - name: Run ARM64 in QEMU
-        run: |
-          timeout 30 make -f build_system/Makefile.arm64 run || true
+        # The kernel never exits, so timeout always stops QEMU; the step
+        # passes only if the serial log reached [BOOT_OK] without a fault
+        # marker. Same check on all five targets: build_system/ci_boot_check.sh.
+        run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
       - name: Upload ARM64 artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-arm64
           path: kernel_arm64.elf
@@ -31,20 +36,19 @@ jobs:
   build-x86_64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install x86_64 toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc qemu-system-x86 xorriso grub-pc-bin grub-common
+          sudo apt-get install -y gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
       - name: Build x86_64
         run: |
           make -f build_system/Makefile.x86_64 clean
           make -f build_system/Makefile.x86_64 all
       - name: Run x86_64 in QEMU
-        run: |
-          timeout 30 make -f build_system/Makefile.x86_64 run || true
+        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]"
       - name: Upload x86_64 artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-x86_64
           path: kernel_x86_64.elf
@@ -52,41 +56,53 @@ jobs:
   build-riscv64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install RISC-V 64-bit toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-riscv64
+          # qemu-system-riscv64 ships in qemu-system-misc (Ubuntu has no
+          # package of that name), with the rv64 OpenSBI firmware QEMU loads.
+          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
       - name: Build RISC-V 64-bit
         run: |
           make -f build_system/Makefile.riscv clean
           make -f build_system/Makefile.riscv all
       - name: Run RISC-V 64-bit in QEMU
-        run: |
-          timeout 30 make -f build_system/Makefile.riscv run || true
+        run: build_system/ci_boot_check.sh riscv64 build_system/Makefile.riscv 30
       - name: Upload RISC-V 64-bit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-riscv64
-          path: kernel_riscv64.elf
+          path: kernel_riscv.elf
+          if-no-files-found: error
 
   build-riscv32:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install RISC-V 32-bit toolchain
+        # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
+        # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-riscv32-linux-gnu qemu-system-riscv32
+          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
       - name: Build RISC-V 32-bit
         run: |
           make -f build_system/Makefile.riscv32 clean
           make -f build_system/Makefile.riscv32 all
-      - name: Run RISC-V 32-bit in QEMU
+      - name: Build rv32 OpenSBI firmware
+        # Ubuntu ships rv64 OpenSBI only, and qemu-system-riscv32 -M virt
+        # cannot start without an rv32 one (see build_system/riscv32_sbi.sh).
+        # Built from a pinned upstream tag with the same riscv64 cross gcc;
+        # the run target picks it up through ZXV_RV32_SBI.
         run: |
-          timeout 30 make -f build_system/Makefile.riscv32 run || true
+          git clone --depth 1 --branch v1.3.1 https://github.com/riscv-software-src/opensbi.git "$RUNNER_TEMP/opensbi"
+          make -C "$RUNNER_TEMP/opensbi" -j"$(nproc)" PLATFORM=generic PLATFORM_RISCV_XLEN=32 CROSS_COMPILE=riscv64-linux-gnu-
+          echo "ZXV_RV32_SBI=$RUNNER_TEMP/opensbi/build/platform/generic/firmware/fw_dynamic.bin" >> "$GITHUB_ENV"
+      - name: Run RISC-V 32-bit in QEMU
+        run: build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
       - name: Upload RISC-V 32-bit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-riscv32
           path: kernel_riscv32.elf
@@ -94,7 +110,7 @@ jobs:
   build-arm32:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install ARM32 toolchain
         run: |
           sudo apt-get update
@@ -104,22 +120,24 @@ jobs:
           make -f build_system/Makefile.arm32 clean
           make -f build_system/Makefile.arm32 all
       - name: Run ARM32 in QEMU
-        run: |
-          timeout 30 make -f build_system/Makefile.arm32 run || true
+        run: build_system/ci_boot_check.sh arm32 build_system/Makefile.arm32 30
       - name: Upload ARM32 artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: kernel-arm32
-          path: kernel_arm32.elf
+          path: zedec_xero_arm32.elf
+          if-no-files-found: error
 
   host-tests:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make
+          sudo apt-get install -y gcc make clang libxml2-utils
+      - name: Check every file is on Apache-2.0
+        run: python3 build_system/relicense_apache.py --check
       - name: Run host tests
         run: |
           cd kernel
@@ -128,11 +146,364 @@ jobs:
   lint:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Install clang-format
+        run: pip install clang-format==18.1.8
+      - name: Check formatting of the C files this change touches
+        # Style is in .clang-format. Older files predate it, so only the lines
+        # a pull request or push changes are checked.
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: |
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
+          # Only the changed lines are checked, so a one-line header edit does
+          # not force a full reformat of an older file. New files are all
+          # changed lines, so they stay fully checked.
+          MB=$(git merge-base "$BASE" HEAD)
+          # git clang-format does not read .clang-format-ignore, so its
+          # entries (generated tables, vendored code) become exclude pathspecs.
+          set -f
+          EXCL=$(grep -vE '^[[:space:]]*(#|$)' .clang-format-ignore | sed 's/^/:(exclude,glob)/')
+          out=$(git clang-format --binary "$(command -v clang-format)" --diff "$MB" HEAD -- 'kernel/*.c' 'kernel/*.h' $EXCL || true)
+          set +f
+          case "$out" in
+            ""|"no modified files to format"|"clang-format did not modify any files") echo "formatting OK" ;;
+            *) echo "$out"; exit 1 ;;
+          esac
+
+  # The turnkey Mac app: native shell + engine, universal (arm64 + x86_64),
+  # tested and packaged by build_desktop.sh on Apple's own toolchain. Signs
+  # and notarises only when the repository has the signing secrets; without
+  # them (forks, pull requests) the app is ad-hoc signed and still tested.
+  macos-app:
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      ZXV_SIGN_IDENTITY: ${{ secrets.ZXV_SIGN_IDENTITY }}
+      ZXV_TEAM_ID: ${{ secrets.ZXV_TEAM_ID }}
+      ZXV_CERT_P12_BASE64: ${{ secrets.ZXV_CERT_P12_BASE64 }}
+      ZXV_CERT_PASSWORD: ${{ secrets.ZXV_CERT_PASSWORD }}
+      ZXV_NOTARY_KEY_BASE64: ${{ secrets.ZXV_NOTARY_KEY_BASE64 }}
+      ZXV_NOTARY_KEY_ID: ${{ secrets.ZXV_NOTARY_KEY_ID }}
+      ZXV_NOTARY_ISSUER: ${{ secrets.ZXV_NOTARY_ISSUER }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install tools
+        run: python -m pip install pillow==10.4.0 pycdlib==1.21.0
+      - name: Import the Developer ID certificate (only with secrets)
+        if: env.ZXV_CERT_P12_BASE64 != '' && env.ZXV_SIGN_IDENTITY != ''
+        run: |
+          KC="$RUNNER_TEMP/zxv-signing.keychain-db"
+          KCPASS="$(openssl rand -hex 24)"
+          echo "$ZXV_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KCPASS" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$KCPASS" "$KC"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$ZXV_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KCPASS" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "ZXV_KEYCHAIN=$KC" >> "$GITHUB_ENV"
+      - name: Write the notary API key (only with secrets)
+        if: env.ZXV_NOTARY_KEY_BASE64 != ''
+        run: |
+          echo "$ZXV_NOTARY_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary_key.p8"
+          echo "ZXV_NOTARY_KEY=$RUNNER_TEMP/notary_key.p8" >> "$GITHUB_ENV"
+      - name: Build, test and package ZXV.app
+        run: build_system/build_desktop.sh --mac-only
+      - name: Check the bundle
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/x"
+          ditto -x -k dist/ZXV-*-macos.app.zip "$RUNNER_TEMP/x"
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          plutil -lint "$APP/Contents/Info.plist"
+          test "$(plutil -extract CFBundleExecutable raw "$APP/Contents/Info.plist")" = ZXV
+          test "$(plutil -extract LSUIElement raw "$APP/Contents/Info.plist")" = false
+          for b in ZXV zxv-engine; do
+            archs="$(lipo -archs "$APP/Contents/MacOS/$b")"
+            echo "$b: $archs"
+            case "$archs" in *arm64*) ;; *) exit 1 ;; esac
+            case "$archs" in *x86_64*) ;; *) exit 1 ;; esac
+          done
+          codesign --verify --strict --deep --verbose=2 "$APP"
+          codesign -d --verbose=2 "$APP" 2>&1 | grep -E 'flags=.*runtime'
+      - name: Launch the app and quit it
+        run: |
+          set -eu
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          defaults write com.36n9genetics.zxv-swarm ZXVAskedForModel -bool true
+          open -n "$APP"
+          for i in $(seq 1 30); do
+            pgrep -f "ZXV.app/Contents/MacOS/zxv-engine" >/dev/null && break
+            sleep 1
+          done
+          pgrep -fl "ZXV.app/Contents/MacOS/zxv-engine"
+          sleep 3
+          # a polite Quit (as from the menu); some runners refuse Apple Events
+          osascript -e 'tell application id "com.36n9genetics.zxv-swarm" to quit' ||
+            echo "::warning::Apple Event quit refused on this runner"
+          for i in $(seq 1 15); do
+            pgrep -f "ZXV.app/Contents/MacOS/" >/dev/null || break
+            sleep 1
+          done
+          # if the shell is still up, kill it: the engine must not outlive it
+          pkill -TERM -f "ZXV.app/Contents/MacOS/ZXV" || true
+          for i in $(seq 1 10); do
+            pgrep -f "ZXV.app/Contents/MacOS/zxv-engine" >/dev/null || break
+            sleep 1
+          done
+          if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
+          tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
+      - name: Upload the Mac packages
+        uses: actions/upload-artifact@v5
+        with:
+          name: zxv-macos
+          path: |
+            dist/ZXV-*-macos.dmg
+            dist/ZXV-*-macos.app.zip
+            dist/ZXV-*-SHA256SUMS.txt
+      - name: Remove the signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/notary_key.p8"
+          if [ -n "${ZXV_KEYCHAIN:-}" ]; then security delete-keychain "$ZXV_KEYCHAIN" || true; fi
+
+  # The .NET SDK for operator teams: the C ABI shim with its conformance
+  # test, then the SDK and gateway built with warnings as errors and tested.
+  dotnet-sdk:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: bindings/dotnet
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Native shim (C ABI) and its conformance test
+        run: make -C native test
+      - name: Build (Release, warnings as errors)
+        run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
+      - name: Test
+        run: dotnet test Zxv.sln -c Release --no-build --logger "trx;LogFileName=results.trx"
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: dotnet-test-results
+          path: bindings/dotnet/tests/**/TestResults/*.trx
+
+  # Machine-checked models in proofs/ (see proofs/README.md): TLC on the
+  # TLA+ ledger models, Lean 4 on the headroom and rational proofs. These are
+  # models of the C code, not a proof of the C code itself.
+  proofs:
+    runs-on: ubuntu-24.04
+    env:
+      TLA_VERSION: '1.7.4'
+      TLA_SHA256: 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
+      LEAN_VERSION: '4.15.0'
+      LEAN_SHA256: af71a2569a9f68337de2434829b3008cd8e32c436e9cb6bd8c84a2c2ba3585c9
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Cache pinned tools
+        uses: actions/cache@v4
+        with:
+          path: proofs/.tools
+          key: proofs-tools-tla${{ env.TLA_VERSION }}-lean${{ env.LEAN_VERSION }}
+      - name: Fetch and verify tla2tools.jar and Lean
+        run: |
+          set -euo pipefail
+          mkdir -p proofs/.tools
+          cd proofs/.tools
+          if [ ! -f tla2tools.jar ]; then
+            curl -sSfL -o tla2tools.jar \
+              "https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VERSION}/tla2tools.jar"
+          fi
+          echo "${TLA_SHA256}  tla2tools.jar" | sha256sum -c -
+          if [ ! -x "lean-${LEAN_VERSION}-linux/bin/lean" ]; then
+            curl -sSfL -o lean.tar.zst \
+              "https://github.com/leanprover/lean4/releases/download/v${LEAN_VERSION}/lean-${LEAN_VERSION}-linux.tar.zst"
+            echo "${LEAN_SHA256}  lean.tar.zst" | sha256sum -c -
+            tar --zstd -xf lean.tar.zst
+            rm lean.tar.zst
+          fi
+      - name: Lean proofs (no sorry, no axioms)
+        run: LEAN="$PWD/proofs/.tools/lean-${LEAN_VERSION}-linux/bin/lean" proofs/check.sh lean
+      - name: TLC model checking
+        run: PROOFS_LOGDIR="$RUNNER_TEMP/tlc-logs" proofs/check.sh tla
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: tlc-logs
+          path: ${{ runner.temp }}/tlc-logs
+
+  # Post-quantum KATs on other CPUs: the NIST ACVP/KAT tests cross-compiled for
+  # aarch64, riscv64, armhf (32-bit), i686 (32-bit) and s390x (big-endian) and
+  # run under qemu-user. Then the valgrind secret-branch check (ctgrind) of
+  # ML-KEM-768 decaps/encaps (gated) and ML-DSA-65 sign (reported only), and
+  # the legacy-transcoder golden traces. No model is downloaded.
+  kat-cross:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cross toolchains, qemu-user and valgrind
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format
-      - name: Check formatting
+          sudo apt-get install -y --no-install-recommends qemu-user \
+            gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu gcc-arm-linux-gnueabihf \
+            gcc-i686-linux-gnu gcc-s390x-linux-gnu libc6-dev-arm64-cross \
+            libc6-dev-riscv64-cross libc6-dev-armhf-cross libc6-dev-i386-cross \
+            libc6-dev-s390x-cross valgrind
+      - name: KATs on aarch64, riscv64, armhf, i686, s390x (qemu-user)
+        run: KAT_CROSS_STRICT=1 make -C kernel kat-cross
+      - name: Secret-dependent branch check under valgrind (ctgrind)
+        run: make -C kernel ct-valgrind
+      - name: Legacy transcoder golden traces
+        run: make -C bench legacy
+
+  # Mutation testing on a small fixed subset (the full run is slow; see
+  # tests/MUTATION_REPORT.md). Fails when a mutation score drops below the
+  # measured baseline recorded in tests/harness/mutator/targets.json.
+  mutation-subset:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
         run: |
-          find kernel -name '*.c' -o -name '*.h' | xargs clang-format --dry-run --Werror
+          sudo apt-get update
+          sudo apt-get install -y gcc make
+      - name: Mutation harness self-test
+        run: python3 tests/harness/mutator/mutate.py --selftest
+      - name: Mutation score gate (CI subset)
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --jobs 4 --out mutation-results
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: mutation-results
+          path: mutation-results/*.txt
+
+  # ---- sanitizers, fuzzing and coverage (fuzz/README.md) ----------------
+  # The kernel Makefile's host-test recipes call gcc/cc directly. These jobs
+  # put fuzz/tools/san-cc first on PATH as gcc and cc. It rebuilds each
+  # hosted test with the job's flags. Freestanding and cross compiles pass
+  # through unchanged. TSan: no job. Nothing in kernel/src or the hosted app
+  # uses threads (zx_notify_host.c forks a separate process), so a race
+  # detector has nothing to check.
+  sanitize-asan-ubsan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Host test suite under ASan + UBSan (clang, abort on first report)
+        run: |
+          mkdir -p "$RUNNER_TEMP/san" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/gcc" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/cc"
+          export PATH="$RUNNER_TEMP/san:$PATH" SANCC_CC=clang
+          # LeakSanitizer is off: kernel/src/sched/sched.c exports
+          # sched_yield(sched_t *), which in a hosted test binary replaces
+          # libc's sched_yield. LSan's stop-the-world calls sched_yield and
+          # crashes inside the kernel scheduler (test_dharma). See
+          # docs/AUDIT_REPORT.md.
+          export ASAN_OPTIONS=detect_leaks=0
+          export SANCC_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt -Wno-error -Wno-unknown-warning-option -Wno-unused-command-line-argument"
+          make -C kernel verify-all
+
+  sanitize-integer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Economy, pay, rational and RMAG tests under -fsanitize=integer
+        # Unsigned wrap that the algorithm needs (hash and cipher cores) is in
+        # fuzz/sanitizer-ignorelist.txt. No test is skipped.
+        run: |
+          mkdir -p "$RUNNER_TEMP/san" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/gcc" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/cc"
+          export PATH="$RUNNER_TEMP/san:$PATH" SANCC_CC=clang
+          export SANCC_MATCH='src/(pay|vino|rmag|rational|count_house|finance|zcapital|cbank|porter_house|surplus)/test_|src/swarm/test_swarm_economy'
+          export SANCC_FLAGS="-fsanitize=integer -fno-sanitize-recover=all -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt -Wno-error -Wno-unknown-warning-option -Wno-unused-command-line-argument"
+          make -C kernel verify-all
+      - name: Ledger property harnesses under -fsanitize=integer
+        run: |
+          make -C fuzz OUT=build/int CC_REPLAY=clang ED25519_GCC= PROP_ITERS=500 \
+            REPLAY_SAN="-fsanitize=address,undefined,integer -fno-sanitize-recover=all -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt" prop
+
+  sanitize-msan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Fuzz corpora and ledger properties under MSan
+        # MSan needs every byte's producer instrumented. libc is not, so the
+        # job keeps to code whose libc use MSan intercepts (memcpy, stdio,
+        # dirent). That covers the replay harnesses and the subset of host
+        # tests that fuzz/tools/msan_tests.sh names.
+        run: |
+          make -C fuzz OUT=build/msan CC_REPLAY=clang ED25519_GCC= PROP_ITERS=300 \
+            REPLAY_SAN="-fsanitize=memory -fsanitize-memory-track-origins=2 -fno-omit-frame-pointer -fno-sanitize-recover=all" replay prop
+      - name: Host test subset under MSan
+        run: fuzz/tools/msan_tests.sh
+
+  fuzz-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Replay the committed corpora (gcc, ASan + UBSan)
+        run: make -C fuzz replay prop PROP_ITERS=1000
+      - name: Every libFuzzer harness for 30 s
+        run: make -C fuzz smoke SMOKE_SECS=30
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: fuzz/build/artifacts/
+
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Line, branch and MC/DC coverage (clang source-based)
+        run: |
+          fuzz/tools/coverage.sh
+          cat fuzz/build/cov/COVERAGE.table.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: coverage
+          path: |
+            fuzz/build/cov/summary.json
+            fuzz/build/cov/report.txt
+            fuzz/build/cov/COVERAGE.table.md

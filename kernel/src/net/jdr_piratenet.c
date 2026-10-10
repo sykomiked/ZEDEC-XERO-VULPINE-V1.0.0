@@ -4,9 +4,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "jdr_piratenet.h"
 
@@ -102,7 +102,7 @@ uint32_t jdr_transceiver_create(jdr_network_t *net,
     tc->reg_exec = exec;
     
     /* Harmonic hum defaults */
-    tc->reg_hum_freq = SR_FROM_FLOAT((double)frequency / 1e6);
+    tc->reg_hum_freq = sr_from_ratio_u64(frequency, 1000000u);
     tc->reg_hum_amplitude = SR_ONE;
     tc->reg_hum_phase = SR_ZERO;
     tc->reg_harmonic_n = SR_ONE;
@@ -113,7 +113,7 @@ uint32_t jdr_transceiver_create(jdr_network_t *net,
     
     /* M⁵ */
     tc->m5.omega = net->num_transceivers;
-    tc->m5.r = SR_FROM_FLOAT((double)frequency / 1e9); /* GHz-scale */
+    tc->m5.r = sr_from_ratio_u64(frequency, 1000000000u); /* GHz-scale */
     tc->m5.ell = SR_ONE;
     tc->m5.phi = SR_ZERO;
     tc->m5.chi = 0;
@@ -298,7 +298,7 @@ int32_t jdr_switch_band(jdr_transceiver_t *tc, jdr_band_t band, uint64_t freq) {
     tc->reg_frequency = freq;
     
     /* Update M⁵ */
-    tc->m5.r = SR_FROM_FLOAT((double)freq / 1e9);
+    tc->m5.r = sr_from_ratio_u64(freq, 1000000000u);
     jdr_verify_coverage(tc);
     
     return 0;

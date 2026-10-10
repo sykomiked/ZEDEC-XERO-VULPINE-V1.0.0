@@ -20,9 +20,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifdef TEST_HOST
@@ -2222,20 +2222,21 @@ bool browser_verify_coverage(browser_t *b) {
     }
 
     if (open == 0) {
-        b->coverage_r = 1.0;
-        b->coverage_l = 1.0;
+        b->coverage_r = (uint32_t) Q16_ONE;
+        b->coverage_l = (uint32_t) Q16_ONE;
         b->m5.r = SR_ONE;
         b->m5.ell = SR_ONE;
         return true;             /* nothing open: nothing to fail to cover */
     }
 
-    b->coverage_r = (double)addressable / (double)open;
-    b->coverage_l = (double)consistent / (double)open;
-    b->m5.r   = SR_FROM_FLOAT(b->coverage_r);
-    b->m5.ell = SR_FROM_FLOAT(b->coverage_l);
+    b->coverage_r = (addressable * (uint32_t) Q16_ONE) / open; /* open <= BROWSER_MAX_TABS */
+    b->coverage_l = (consistent * (uint32_t) Q16_ONE) / open;
+    b->m5.r = SR_FROM_Q16(b->coverage_r);
+    b->m5.ell = SR_FROM_Q16(b->coverage_l);
     b->m5.chi = b->active_tab;
 
-    return (b->coverage_r * b->coverage_l) >= BROWSER_COVERAGE_FLOOR;
+    return (uint64_t) b->coverage_r * b->coverage_l >=
+           (uint64_t) BROWSER_COVERAGE_FLOOR * (uint64_t) Q16_ONE;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------

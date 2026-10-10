@@ -15,9 +15,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef DIGITAL_DNA_H
 #define DIGITAL_DNA_H
@@ -87,8 +87,8 @@ typedef struct ddna_consonant {
     uint32_t gematria;          /* Gematria value */
     char codon_dna[4];          /* DNA codon */
     char codon_rna[4];          /* RNA codon */
-    double shadow_freq;         /* Hebrew/shadow frequency (Hz) */
-    double light_freq;          /* Aramaic/light frequency (Hz) */
+    agp_hz_t shadow_freq;       /* Hebrew/shadow frequency (Hz, Q16.16) */
+    agp_hz_t light_freq;        /* Aramaic/light frequency (Hz, Q16.16) */
 } ddna_consonant_t;
 
 /* Vowel operator: one of 5 vowels that animate consonants via 5PL */
@@ -97,7 +97,7 @@ typedef struct ddna_vowel {
     char name[8];               /* Vowel name (Hebrew nikud) */
     char axiom_name[16];        /* 5PL axiom name */
     uint32_t trit_value;        /* Trit state (FALSE/TRUE/GLUT_PLUS/GLUT_MINUS/GLUT_NEUTRAL) */
-    double phase_weight;        /* Weight in phase computation */
+    agp_q16_t phase_weight;     /* Weight in phase computation, Q16.16 */
     const char *system_role;    /* System dynamic / role description */
 } ddna_vowel_t;
 
@@ -106,8 +106,8 @@ typedef struct ddna_phase_tick {
     uint64_t tick_number;       /* Monotonic tick counter (10ms intervals) */
     uint8_t active_vowel;       /* Which vowel (0-4) is breathing this tick */
     ddna_polarity_t polarity;   /* Which side (shadow/light) is active */
-    double frequency;           /* Computed frequency for this tick */
-    double phase;               /* Phase angle (radians) */
+    agp_hz_t frequency;         /* Computed frequency for this tick, Hz Q16.16 */
+    uint32_t phase;             /* Phase angle, binary turn (2^32 = 360°) */
 } ddna_phase_tick_t;
 
 /* Consonant grid: the full 22-consonant dual-phase matrix */
@@ -135,13 +135,13 @@ typedef struct ddna_gene {
     char codon[4];           /* 3-base codon + null terminator */
     char amino_acid;         /* Single-letter amino acid */
     uint32_t position;       /* Position in genome */
-    double frequency;        /* Sonic chemistry frequency (Hz) */
+    agp_hz_t frequency;      /* Sonic chemistry frequency (Hz, Q16.16) */
     uint32_t binary_value;   /* 6-bit binary value of codon */
 } ddna_gene_t;
 
 typedef struct ddna_harmonic_profile {
-    double fundamental_freq;   /* Compound frequency of entire genome */
-    double element_freqs[8];   /* Frequencies of marker genes */
+    agp_hz_t fundamental_freq; /* Compound frequency of entire genome, Hz Q16.16 */
+    agp_hz_t element_freqs[8]; /* Frequencies of marker genes, Hz Q16.16 */
     uint8_t num_elements;      /* Number of active marker genes */
     agp_audio_buffer_t audio;  /* Audio representation of genome */
 } ddna_harmonic_profile_t;
@@ -172,7 +172,7 @@ void ddna_compute_stats(ddna_genome_t *genome);
 int ddna_extract_genes(const ddna_genome_t *genome, ddna_gene_t *genes,
                         uint32_t max_genes, uint32_t *count);
 uint32_t ddna_codon_to_binary(const char *codon);
-double ddna_gene_frequency(const ddna_gene_t *gene);
+agp_hz_t ddna_gene_frequency(const ddna_gene_t *gene);
 
 /* Harmonic profile — connects DNA to sonic chemistry */
 int ddna_build_harmonic_profile(const ddna_genome_t *genome,
@@ -206,7 +206,7 @@ typedef struct ddna_vowel_axiom {
     char name[8];
     char axiom_name[16];
     uint32_t trit_value;
-    double phase_weight;
+    agp_q16_t phase_weight;
 } ddna_vowel_axiom_t;
 
 const ddna_letter_map_t *ddna_get_22_letters(void);
@@ -223,11 +223,10 @@ void ddna_grid_init(ddna_consonant_grid_t *grid);
 ddna_phase_tick_t ddna_grid_tick(ddna_consonant_grid_t *grid);
 
 /* Get the frequency for a consonant under a specific polarity */
-double ddna_consonant_frequency(uint8_t consonant_idx, ddna_polarity_t polarity);
+agp_hz_t ddna_consonant_frequency(uint8_t consonant_idx, ddna_polarity_t polarity);
 
 /* Get the active frequency for the current phase-tick */
-double ddna_tick_frequency(const ddna_consonant_grid_t *grid,
-                            const ddna_phase_tick_t *tick);
+agp_hz_t ddna_tick_frequency(const ddna_consonant_grid_t *grid, const ddna_phase_tick_t *tick);
 
 /* Animate a genome through the consonant grid: each codon is "pronounced"
  * by cycling vowels across polarities, producing audio + compute cycles */
@@ -282,7 +281,7 @@ typedef struct ddna_sephirah {
     char name[16];              /* Hebrew name */
     char english[16];           /* English translation */
     char subsystem[16];         /* Mapped OS subsystem */
-    double frequency;           /* Sonic chemistry frequency (Hz) */
+    agp_hz_t frequency;         /* Sonic chemistry frequency (Hz, Q16.16) */
     bool active;                /* Whether this node is currently active */
     uint32_t load;              /* Current load / utilization (0-100) */
 } ddna_sephirah_t;
@@ -293,7 +292,7 @@ typedef struct ddna_supernal {
     char name[16];              /* Hebrew name */
     char english[24];           /* English translation */
     char description[64];       /* System role description */
-    double frequency;           /* Resonance frequency (Hz) — approaches infinity */
+    agp_hz_t frequency;         /* Resonance frequency (Hz, Q16.16) — grows by 10x per level */
     bool accessible;            /* Whether Da'at has granted access */
 } ddna_supernal_t;
 
@@ -324,8 +323,8 @@ int ddna_daat_close(ddna_sephirotic_matrix_t *matrix);
 bool ddna_daat_is_open(const ddna_sephirotic_matrix_t *matrix);
 int ddna_qliphoth_contain(ddna_sephirotic_matrix_t *matrix, uint8_t sephirah_idx,
                            const char *error_desc);
-double ddna_sephirah_frequency(uint8_t index);
-double ddna_supernal_frequency(uint8_t index);
+agp_hz_t ddna_sephirah_frequency(uint8_t index);
+agp_hz_t ddna_supernal_frequency(uint8_t index);
 void ddna_sephirotic_print(const ddna_sephirotic_matrix_t *matrix);
 
 /* ===== Golden Ratio (φ) Checksum Coherence Standard ===== */
@@ -334,7 +333,11 @@ void ddna_sephirotic_print(const ddna_sephirotic_matrix_t *matrix);
  * If corruption occurs, proportional imbalance pinpoints the corrupted node.
  */
 
-#define DDNA_PHI_TOLERANCE   0.0001   /* Tolerance window for φ coherence */
+/* Tolerance windows for φ coherence, Q16.16. The base window is 0.0001;
+ * resonance checks use 10x (0.001) and alignment checks 100x (0.01). */
+#define DDNA_PHI_TOLERANCE_Q16           Q16_CONST(1, 10000)
+#define DDNA_PHI_TOLERANCE_RESONANCE_Q16 Q16_CONST(1, 1000)
+#define DDNA_PHI_TOLERANCE_ALIGN_Q16     Q16_CONST(1, 100)
 
 /* --- φ-chunk decomposition: two constants that must be derived, not guessed ---
  * DDNA_PHI_MIN_CHUNK stops subdivision before floor() quantisation destroys the
@@ -346,24 +349,24 @@ void ddna_sephirotic_print(const ddna_sephirotic_matrix_t *matrix);
  *
  * DDNA_PHI_COHERENCE_TOL is the matching acceptance window for the AVERAGE
  * ratio, set at 0.01 for roughly 2x headroom over that measured 0.0057 worst
- * case. It is deliberately NOT DDNA_PHI_TOLERANCE: 0.0001 is far tighter than
+ * case. It is deliberately NOT DDNA_PHI_TOLERANCE_Q16: 0.0001 is far tighter than
  * the arithmetic can deliver, so testing against it can only ever return false.
  * A tolerance must be at least the inherent error of the thing it measures. */
 #define DDNA_PHI_MIN_CHUNK     64u
-#define DDNA_PHI_COHERENCE_TOL 0.01
+#define DDNA_PHI_COHERENCE_TOL_Q16 Q16_CONST(1, 100) /* 0.01 */
 #define DDNA_MAX_CHUNKS      256      /* Max chunks in a φ-checksum tree */
 
 typedef struct ddna_phi_chunk {
     uint32_t offset;          /* Offset in data */
     uint32_t size;            /* Chunk size */
     uint32_t hash;            /* FNV-1a hash of chunk */
-    double phi_ratio;         /* Size ratio to parent (should approach φ) */
+    agp_q16_t phi_ratio;      /* Size ratio to parent, Q16.16 (should approach φ) */
 } ddna_phi_chunk_t;
 
 typedef struct ddna_phi_checksum {
     ddna_phi_chunk_t chunks[DDNA_MAX_CHUNKS];
     uint32_t num_chunks;
-    double coherence_score;   /* 1.0 = perfect φ alignment, 0.0 = total divergence */
+    agp_q16_t coherence_score; /* Q16.16: 1.0 = perfect φ alignment, 0 = total divergence */
     bool coherent;            /* Within tolerance window */
     uint32_t corrupted_index; /* Index of corrupted chunk (UINT32_MAX if none) */
 } ddna_phi_checksum_t;
@@ -390,15 +393,14 @@ typedef struct ddna_numerology_meta {
     uint32_t digital_root;             /* Repeated digit sum until single digit */
     uint32_t sephirot_index;           /* Which Sephirah (0-9) it resonates with */
     uint32_t zodiac_index;             /* Which zodiac sign (0-12) it aligns with */
-    double harmonic_freq;              /* Computed harmonic frequency (Hz) */
+    agp_hz_t harmonic_freq;            /* Computed harmonic frequency (Hz, Q16.16) */
     bool supernal_eligible;            /* Whether Da'at should open for this */
 } ddna_numerology_meta_t;
 
 /* Numerology API */
 void ddna_numerology_compute(const char *name, ddna_numerology_meta_t *out);
 uint32_t ddna_digital_root(uint32_t value);
-bool ddna_numerology_harmonizes(const ddna_numerology_meta_t *meta,
-                                 double system_field_freq);
+bool ddna_numerology_harmonizes(const ddna_numerology_meta_t *meta, agp_hz_t system_field_freq);
 
 /* ===== 13-Month Lunar Calendar ===== */
 /* 13 months × 28 days = 364 days + 1 Day Between Days (365th) = 365
@@ -456,7 +458,7 @@ typedef struct ddna_zodiac_sign {
     char name[16];
     char element[8];          /* Fire, Earth, Air, Water, Aether */
     char modality[10];        /* Cardinal, Fixed, Mutable, Transitional */
-    double frequency;         /* Resonance frequency (Hz) */
+    agp_hz_t frequency;       /* Resonance frequency (Hz, Q16.16) */
     uint8_t sephirah_link;    /* Linked Sephirah (0-9), Ophiuchus=Da'at(3) */
     bool is_gateway;          /* True for Ophiuchus */
 } ddna_zodiac_sign_t;
@@ -471,7 +473,7 @@ void ddna_zodiac_init(ddna_zodiac_system_t *sys);
 ddna_zodiac_sign_t ddna_zodiac_from_date(const ddna_lunar_date_t *date);
 ddna_zodiac_sign_t ddna_zodiac_get_sign(uint8_t sign_idx);
 const char *ddna_zodiac_element(uint8_t sign_idx);
-double ddna_zodiac_frequency(uint8_t sign_idx);
+agp_hz_t ddna_zodiac_frequency(uint8_t sign_idx);
 void ddna_zodiac_print(const ddna_zodiac_system_t *sys);
 
 /* ===== Space-Time Operator (Ω_astro) ===== */
@@ -483,7 +485,7 @@ typedef struct ddna_space_time_op {
     ddna_lunar_date_t temporal;      /* When: lunar date */
     ddna_zodiac_sign_t spatial;      /* Where: zodiac sign */
     ddna_numerology_meta_t metadata; /* What: numerological profile */
-    double resonance_freq;           /* Combined harmonic frequency */
+    agp_hz_t resonance_freq;         /* Combined harmonic frequency (Hz, Q16.16) */
     uint8_t execution_tier;          /* 10 = base-10, 13 = supernal */
     bool phase_aligned;              /* Whether operation is in phase */
 } ddna_space_time_op_t;
@@ -492,9 +494,8 @@ typedef struct ddna_space_time_op {
 void ddna_spacetime_compute(const char *name,
                              const ddna_lunar_date_t *date,
                              ddna_space_time_op_t *out);
-double ddna_spacetime_resonance(const ddna_space_time_op_t *op);
-bool ddna_spacetime_validate(const ddna_space_time_op_t *op,
-                              double system_field_freq);
+agp_hz_t ddna_spacetime_resonance(const ddna_space_time_op_t *op);
+bool ddna_spacetime_validate(const ddna_space_time_op_t *op, agp_hz_t system_field_freq);
 void ddna_spacetime_print(const ddna_space_time_op_t *op);
 
 #endif /* DIGITAL_DNA_H */

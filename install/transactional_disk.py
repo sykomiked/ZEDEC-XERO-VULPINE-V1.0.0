@@ -7,7 +7,7 @@ any failure restores the original files from the backup copies recorded in the
 journal.
 
 Author: H.M. Michael-Laurence: Curzi (c)
-License: SEL-3.3
+License: Apache-2.0
 """
 
 import hashlib

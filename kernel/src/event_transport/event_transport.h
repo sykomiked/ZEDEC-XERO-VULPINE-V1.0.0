@@ -1,3 +1,9 @@
+/* STATUS: STUB. Channels and pending queues exist, but no physical transport is
+ * implemented: et_process_pending() empties the queue and counts every envelope as
+ * delivered without sending anything. The transport kinds listed below (shared
+ * memory, PCIe, "authenticated network", mailbox, GPU queue) are design targets only, and
+ * the enum comments below describe intent;
+ * nothing here authenticates, encrypts or moves bytes between devices. */
 /* event_transport.h — ZXV Event Transport Abstraction
  *
  * All transports present the same logical event envelope regardless
@@ -14,9 +20,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef EVENT_TRANSPORT_H
 #define EVENT_TRANSPORT_H

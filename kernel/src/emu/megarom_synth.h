@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* megarom_synth.h — synthesize the MegaROM from the whole corpus: mechanics AND
  * stories from all 144k+ games, presented beyond their generation (beyond-PS6
  * holographic graphics). See megarom_synth.c. */

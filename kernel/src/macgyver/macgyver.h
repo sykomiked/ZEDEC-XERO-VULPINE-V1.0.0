@@ -2,13 +2,15 @@
  *
  * MacGyver compiles tri-space (S+/S-/S0) source artifacts atomically through
  * three synchronized components: Forge (positive), Counterforge (negative),
- * and Mediatrix (neutral). It produces signed container triads bound to
+ * and Mediatrix (neutral). It produces container triads (NOT signed: the
+ * triad digest is an XOR combine of caller-supplied digests) bound to
  * validation evidence.
  *
  * MCG0 implements:
  *   - Shared AST node registry for cross-component semantic sharing
  *   - Event IR emission for tri-space obligations
- *   - Triad link protocol binding S+/S-/S0 artifacts cryptographically
+ *   - Triad link protocol binding S+/S-/S0 artifacts by an XOR digest combine
+ *     (integrity label only; not a cryptographic binding)
  *
  * Referenced by:
  *   - Tri-Space Programming Spec: MacGyver synchronized compilation
@@ -20,9 +22,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef MACGYVER_H
 #define MACGYVER_H

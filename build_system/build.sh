@@ -41,6 +41,9 @@ NC='\033[0m' # No Color
 # Project root
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 KERNEL_DIR="$PROJECT_ROOT/kernel"
+# Post-quantum signature sources (glue + vendored reference code), relative
+# to the kernel directory the gates compile from.
+PQSIG_SRCS="src/pqsec/pq_mldsa65.c src/pqsec/pq_slhdsa.c $(cd "$KERNEL_DIR" 2>/dev/null && ls src/pqsec/mldsa/*.c src/pqsec/slhdsa/*.c 2>/dev/null | tr '\n' ' ')"
 BUILD_DIR="$PROJECT_ROOT/build"
 
 # Timestamp for build artifacts
@@ -93,28 +96,26 @@ gate_1_mlkem768_kat() {
 # ============================================================================
 
 gate_2_mldsa65() {
-    log_info "GATE 2: ML-DSA-65 structural verification"
+    log_info "GATE 2: ML-DSA-65 + SLH-DSA-128s (FIPS 204/205) vs NIST ACVP"
     if [ -f "$KERNEL_DIR/src/pqsec/test_pq_security.c" ]; then
-        gcc -std=c11 -Wall -Werror -Wextra -Iinclude -Isrc/pqsec -Isrc/mlkem \
+        gcc -std=c11 -Wall -Werror -Wextra -O2 -Iinclude -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/surplus -Isrc/edp_risk \
             -Isrc/lpres -Isrc/surplus -Isrc/edp_risk -Isrc/event_space \
             -Isrc/modbind -Isrc/trispace -Ibuild/generated \
             src/pqsec/test_pq_security.c src/pqsec/pq_security.c \
             src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c \
             src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c \
-            -o /tmp/test_pq_security 2>/dev/null || {
-            log_fail "GATE 2: ML-DSA-65 compilation failed"
+            $PQSIG_SRCS -o /tmp/test_pq_security 2>/dev/null || {
+            log_fail "GATE 2: PQ security compilation failed"
         }
-        # The structural test checks negative properties (tampered sig fails)
-        # Positive verification is simplified; architecture holds.
-        /tmp/test_pq_security 2>&1 | grep -q "FAIL" && {
-            # Check that ONLY positive verification fails, not negative
-            /tmp/test_pq_security 2>&1 | grep -q "ML-DSA-65 tampered signature rejected" || {
-                log_fail "GATE 2: ML-DSA-65 negative test failed"
-            }
-            log_pass "GATE 2: ML-DSA-65 structural (negative tests pass, architecture holds)"
-        } || {
-            log_pass "GATE 2: ML-DSA-65 structural (all structural checks pass)"
-        }
+        # Every check must pass: positive verification included. (This gate
+        # once tolerated failing positive checks, which is how a stand-in
+        # that could not verify its own signatures got through.)
+        /tmp/test_pq_security >/dev/null 2>&1 || log_fail "GATE 2: PQ security harness failed"
+        gcc -std=c11 -Wall -Werror -Wextra -O2 -Iinclude -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/surplus -Isrc/edp_risk \
+            src/pqsec/test_pq_kat.c src/mlkem/keccak.c $PQSIG_SRCS \
+            -o /tmp/test_pq_kat 2>/dev/null || log_fail "GATE 2: PQ KAT compilation failed"
+        /tmp/test_pq_kat >/dev/null 2>&1 || log_fail "GATE 2: ML-DSA/SLH-DSA disagree with NIST ACVP vectors"
+        log_pass "GATE 2: ML-DSA-65 + SLH-DSA-128s match NIST ACVP vectors"
     else
         log_fail "GATE 2: src/pqsec/test_pq_security.c missing"
     fi
@@ -288,7 +289,7 @@ gate_12_p2p() {
         src/curzi/curzi_shamir.c \
         src/curzi/curzi_tier.c \
         src/curzi/curzi_code.c \
-        src/pqsec/pq_security.c \
+        src/pqsec/pq_security.c $PQSIG_SRCS \
         src/mlkem/keccak.c src/mlkem/mlkem768.c \
         -o /tmp/test_p2p_chunk -lm 2>/dev/null || {
         log_fail "GATE 12: P2P Chunking compilation failed"
@@ -312,7 +313,7 @@ gate_13_composite() {
         src/curzi/curzi_shamir.c \
         src/curzi/curzi_tier.c \
         src/curzi/curzi_code.c \
-        src/pqsec/pq_security.c \
+        src/pqsec/pq_security.c $PQSIG_SRCS \
         src/mlkem/keccak.c src/mlkem/mlkem768.c \
         -o /tmp/test_curzi8889a -lm 2>/dev/null || {
         log_fail "GATE 13: CURZI-8889-A compilation failed"
@@ -346,7 +347,7 @@ gate_14_cross_lang() {
         src/surplus/surplus.c \
         src/edp_risk/edp_risk.c \
         src/predictive/predictive_model.c \
-        src/pqsec/pq_security.c \
+        src/pqsec/pq_security.c $PQSIG_SRCS \
         src/mlkem/keccak.c src/mlkem/mlkem768.c \
         -o /tmp/test_cross_lang -lm 2>/dev/null || {
         log_fail "GATE 14: Cross-language pipeline compilation failed"

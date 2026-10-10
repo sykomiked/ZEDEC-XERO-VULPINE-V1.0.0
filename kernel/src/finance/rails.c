@@ -2,9 +2,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "rails.h"
 #include <stddef.h>
@@ -147,7 +147,11 @@ int32_t rail_process_tx(rail_processor_t *rp,
                          const m5_coords_t *m5) {
     if (card_id >= rp->num_cards) return -1;
     if (rp->num_transactions >= 1024) return -1;
-    
+    if ((uint32_t) type >= TX_MAX) return -1;
+    /* Amounts are magnitudes: a negative sale would credit the card and a
+     * negative refund would debit it. */
+    if (SR_CMP(amount, SR_ZERO) <= 0) return -1;
+
     payment_card_t *card = &rp->cards[card_id];
     transaction_t *tx = &rp->transactions[rp->num_transactions];
     
@@ -163,6 +167,8 @@ int32_t rail_process_tx(rail_processor_t *rp,
     tx->m5 = (m5 != NULL) ? *m5 : card->m5;
     tx->settled = false;
     tx->settlement_amount = SR_ZERO;
+    tx->refunded = SR_ZERO;
+    tx->refund_of = 0;
     tx->compat_net = card->compat_network;
     
     /* Coverage check */
@@ -188,7 +194,17 @@ int32_t rail_process_tx(rail_processor_t *rp,
             rp->num_transactions++;
             return -1;
         }
-        
+
+        /* The settlement ring must have room, or the approval would be
+         * silently dropped from the next batch. Settle first. */
+        if ((rp->batch_tail + 1) % 64 == rp->batch_head) {
+            rp->irq_batch_ready = true;
+            tx->status = TX_DECLINED;
+            rp->reg_decline_count++;
+            rp->num_transactions++;
+            return -1;
+        }
+
         /* Approve */
         tx->status = TX_APPROVED;
         card->reg_balance = SR_SUB(card->reg_balance, amount);
@@ -209,13 +225,20 @@ int32_t rail_process_tx(rail_processor_t *rp,
         surplus_real_t fee = SR_MUL(amount, SR_FROM_FLOAT(0.005));
         rp->reg_fees = SR_ADD(rp->reg_fees, fee);
     }
-    
-    if (type == TX_REFUND) {
-        tx->status = TX_APPROVED;
-        card->reg_balance = SR_ADD(card->reg_balance, amount);
-        rp->reg_volume = SR_SUB(rp->reg_volume, amount);
+
+    /* TX_REFUND here has no link to the sale it reverses, so it could
+     * refund more than was ever sold: it falls through to the decline below.
+     * Refunds go through rail_process_refund(). */
+
+    /* Capture, void, transfer and settle are not implemented on this rail:
+     * refuse them instead of reporting a success that moved nothing. */
+    if (tx->status != TX_APPROVED) {
+        tx->status = TX_DECLINED;
+        rp->reg_decline_count++;
+        rp->num_transactions++;
+        return -1;
     }
-    
+
     /* Generate auth code */
     int j;
     for (j = 0; j < 15; j++) {
@@ -227,11 +250,54 @@ int32_t rail_process_tx(rail_processor_t *rp,
     return 0;
 }
 
+int32_t rail_process_refund(rail_processor_t *rp, uint64_t orig_tx_id, surplus_real_t amount)
+{
+    if (!rp || rp->num_transactions >= 1024) return -1;
+    if (SR_CMP(amount, SR_ZERO) <= 0) return -1; /* a refund is a positive magnitude */
+    if (orig_tx_id < 1 || orig_tx_id > rp->num_transactions) return -1;
+    transaction_t *orig = &rp->transactions[orig_tx_id - 1];
+    if (orig->type != TX_SALE && orig->type != TX_VOUCHER) return -1;
+    if (orig->status != TX_APPROVED && orig->status != TX_SETTLED) return -1;
+    if (orig->card_id >= rp->num_cards) return -1;
+    payment_card_t *card = &rp->cards[orig->card_id];
+    /* cumulative: what was refunded before plus this one may not exceed the sale */
+    surplus_real_t left = SR_SUB(orig->amount, orig->refunded);
+    if (SR_CMP(amount, left) > 0) return -1;
+    /* and the card may never go above its own limit (that would mint) */
+    if (SR_CMP(amount, SR_SUB(card->reg_limit, card->reg_balance)) > 0) return -1;
+
+    transaction_t *tx = &rp->transactions[rp->num_transactions];
+    tx->tx_id = rp->num_transactions + 1;
+    tx->type = TX_REFUND;
+    tx->status = TX_APPROVED;
+    tx->rail = rp->rail;
+    tx->amount = amount;
+    tx->merchant_id = orig->merchant_id;
+    tx->card_id = orig->card_id;
+    tx->timestamp = 0;
+    tx->m5 = orig->m5;
+    tx->coverage_ratio = orig->coverage_ratio;
+    tx->refunded = SR_ZERO;
+    tx->refund_of = orig_tx_id;
+    tx->settled = false;
+    tx->settlement_amount = SR_ZERO;
+    tx->compat_net = orig->compat_net;
+    for (int j = 0; j < 15; j++) tx->auth_code[j] = (char) ('R' + (char) ((tx->tx_id >> j) % 8));
+    tx->auth_code[15] = 0;
+
+    orig->refunded = SR_ADD(orig->refunded, amount);
+    card->reg_balance = SR_ADD(card->reg_balance, amount);
+    rp->reg_volume = SR_SUB(rp->reg_volume, amount);
+    rp->num_transactions++;
+    return 0;
+}
+
 int32_t rail_process_voucher_tx(rail_processor_t *rp,
                                  uint32_t card_id,
                                  uint32_t merchant_id,
                                  surplus_real_t voucher_amount) {
     /* Floating voucher payment — no debt, pay-it-forward */
+    if (card_id >= rp->num_cards) return -1;
     m5_coords_t m5 = rp->cards[card_id].m5;
     m5.ell = SR_ONE; /* Vouchers have full logical presence */
     m5.phi = SR_ZERO;
@@ -243,9 +309,10 @@ int32_t rail_process_voucher_tx(rail_processor_t *rp,
 int32_t rail_settle_batch(rail_processor_t *rp) {
     /* Settle all pending transactions in batch */
     while (rp->batch_head != rp->batch_tail) {
-        uint32_t tx_idx = rp->dma_batch[rp->batch_head];
-        if (tx_idx < rp->num_transactions) {
-            transaction_t *tx = &rp->transactions[tx_idx];
+        /* The batch holds tx_id, which is the 1-based log index. */
+        uint32_t tx_id = rp->dma_batch[rp->batch_head];
+        if (tx_id >= 1 && tx_id <= rp->num_transactions) {
+            transaction_t *tx = &rp->transactions[tx_id - 1];
             if (tx->status == TX_APPROVED && !tx->settled) {
                 tx->status = TX_SETTLED;
                 tx->settled = true;
@@ -261,6 +328,7 @@ int32_t rail_settle_batch(rail_processor_t *rp) {
 int32_t rail_bridge_to_conventional(rail_processor_t *rp,
                                      transaction_t *tx,
                                      conventional_network_t net) {
+    if (!tx || (uint32_t) net >= NET_MAX) return -1;
     if (!rp->compat_enabled[net]) return -1;
     
     /* Bridge: format transaction for conventional network */

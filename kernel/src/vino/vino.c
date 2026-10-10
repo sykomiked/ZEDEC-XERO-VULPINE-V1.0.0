@@ -5,6 +5,27 @@
 #include "m5_types.h"
 #include "rmag_core.h"
 #include "lpres_core.h"
+/* SHA-256 for the audit chain: the in-tree kernel/src/robin_debanks/sha256.c,
+ * compiled into this translation unit under vino_-prefixed names. vino.c is
+ * linked by several image and test builds that do not carry sha256.c, so a
+ * plain external reference would break them; renaming keeps one SHA-256
+ * source of truth with no symbol clash when sha256.o is linked as well. The
+ * shared file's own ZXV_DECLARE(sha256, ...) record belongs to sha256.o, so it
+ * is compiled out here (its bring-up KAT then has no user, hence the
+ * -Wunused-function suppression around the include). */
+#include "zxv_decl.h"
+#pragma push_macro("ZXV_DECLARE")
+#undef ZXV_DECLARE
+#define ZXV_DECLARE(...)
+#define sha256        vino_sha256
+#define sha256_init   vino_sha256_init
+#define sha256_update vino_sha256_update
+#define sha256_final  vino_sha256_final
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#include "../robin_debanks/sha256.c"
+#pragma GCC diagnostic pop
+#pragma pop_macro("ZXV_DECLARE")
 #ifndef TEST_HOST
 #include "../include/freestanding.h"
 #else
@@ -22,12 +43,21 @@ static int str_cmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
 }
-static void str_copy(char *d, const char *s) { int i=0; while(s[i]){d[i]=s[i];i++;} d[i]=0; }
+/* Bounded copy: every destination is a fixed array, so str_copy() passes its
+ * size and an over-long caller string is truncated, never written past it. */
+static void str_ncopy(char *d, const char *s, uint32_t cap)
+{
+    uint32_t i = 0;
+    if (cap == 0) return;
+    if (s)
+        while (s[i] && i + 1u < cap) {
+            d[i] = s[i];
+            i++;
+        }
+    d[i] = 0;
+}
+#define str_copy(d, s) str_ncopy((d), (s), (uint32_t) sizeof(d))
 
-static const char *cap_names[CAP_MAX] = {
-    "FINANCIAL","MATERIAL","INTELLECTUAL","SOCIAL","CULTURAL",
-    "SPIRITUAL","NATURAL","TEMPORAL","RELATIONAL"
-};
 static const char *asset_names[ASSET_MAX] = {
     "Currency","Crypto","Equity","Bond","Commodity","Option",
     "Future","Forex","Token","NFT","CBDC","Stablecoin"
@@ -42,20 +72,119 @@ static const char *msg_names[MSG_MAX] = {
     "PAIN.001","MT103","MT202","MX-Head","CIPS.001","SPFS"
 };
 
-const char *vino_capital_name(capital_type_t c) { return c<CAP_MAX?cap_names[c]:"UNKNOWN"; }
+/* Canonical names (zcap_forms.h): capital_type_t values ARE zcap_form_t. */
+const char *vino_capital_name(capital_type_t c)
+{
+    return zcap_form_name((unsigned) c);
+}
 const char *vino_asset_class_name(asset_class_t a) { return a<ASSET_MAX?asset_names[a]:"?"; }
 const char *vino_rail_name(payment_rail_t r) { return r<RAIL_MAX?rail_names[r]:"?"; }
 const char *vino_msg_standard_name(msg_standard_t m) { return m<MSG_MAX?msg_names[m]:"?"; }
 
 void vino_hash(const void *data, uint32_t len, uint8_t out[VINO_HASH_LEN]) {
-    /* Simplified hash: FNV-1a 32-bit extended to 32 bytes */
-    const uint8_t *d = data;
-    uint32_t h = 2166136261u;
-    for (uint32_t i = 0; i < len; i++) { h ^= d[i]; h *= 16777619u; }
-    for (int i = 0; i < VINO_HASH_LEN; i++) {
-        h ^= h >> 13; h *= 16777619u;
-        out[i] = (uint8_t)(h & 0xFF);
+    sha256((const uint8_t *) data, (size_t) len, out);
+}
+
+/* ---- V2 audit chain (format: vino.h header comment) ---- */
+static void put_le32(sha256_ctx_t *c, uint32_t x)
+{
+    uint8_t b[4] = {(uint8_t) x, (uint8_t) (x >> 8), (uint8_t) (x >> 16), (uint8_t) (x >> 24)};
+    sha256_update(c, b, sizeof b);
+}
+
+static void put_le64(sha256_ctx_t *c, uint64_t x)
+{
+    put_le32(c, (uint32_t) x);
+    put_le32(c, (uint32_t) (x >> 32));
+}
+
+void vino_entry_digest(const vino_transaction_t *t, uint8_t out[VINO_HASH_LEN])
+{
+    static const uint8_t tag[14] = {'Z', 'X', 'V', '-', 'V', 'I', 'N',
+                                    'O', '-', 'C', 'H', 'A', 'I', 'N'};
+    sha256_ctx_t c;
+    uint8_t ver = (uint8_t) VINO_CHAIN_V2_SHA256, conf = t->confirmed ? 1u : 0u;
+    sha256_init(&c);
+    sha256_update(&c, tag, sizeof tag);
+    sha256_update(&c, &ver, 1);
+    sha256_update(&c, t->prev_hash, VINO_HASH_LEN);
+    put_le32(&c, t->id);
+    put_le32(&c, (uint32_t) t->type);
+    put_le32(&c, (uint32_t) t->capital);
+    put_le32(&c, (uint32_t) t->asset);
+    put_le64(&c, t->amount);
+    put_le32(&c, t->timestamp);
+    put_le32(&c, (uint32_t) t->rail);
+    put_le32(&c, (uint32_t) t->msg_type);
+    sha256_update(&c, &conf, 1);
+    put_le32(&c, t->block_height);
+    sha256_update(&c, (const uint8_t *) t->from_addr, sizeof t->from_addr);
+    sha256_update(&c, (const uint8_t *) t->to_addr, sizeof t->to_addr);
+    sha256_update(&c, (const uint8_t *) t->memo, sizeof t->memo);
+    sha256_final(&c, out);
+}
+
+static bool hash_eq(const uint8_t *a, const uint8_t *b)
+{
+    uint8_t d = 0;
+    for (uint32_t i = 0; i < VINO_HASH_LEN; i++) d |= (uint8_t) (a[i] ^ b[i]);
+    return d == 0;
+}
+
+/* Field-wise equality through the digest (struct padding carries no meaning,
+ * so memcmp is not used). */
+static bool txn_eq(const vino_transaction_t *a, const vino_transaction_t *b)
+{
+    uint8_t da[VINO_HASH_LEN], db[VINO_HASH_LEN];
+    if (a->chain_ver != b->chain_ver || !hash_eq(a->hash, b->hash)) return false;
+    vino_entry_digest(a, da);
+    vino_entry_digest(b, db);
+    return hash_eq(da, db);
+}
+
+/* Link a filled entry onto the chain and copy it to the audit ledger. */
+static void chain_append(vino_ledger_t *v, vino_transaction_t *t)
+{
+    t->chain_ver = (uint8_t) VINO_CHAIN_V2_SHA256;
+    fs_memcpy(t->prev_hash, v->chain_head_hash, VINO_HASH_LEN);
+    vino_entry_digest(t, t->hash);
+    fs_memcpy(v->chain_head_hash, t->hash, VINO_HASH_LEN);
+    fs_memcpy(&v->audit[v->num_txns], t, sizeof(*t));
+    v->num_audit++;
+}
+
+int32_t vino_chain_verify(const vino_ledger_t *v, uint32_t *bad_index)
+{
+    static const uint8_t zero[VINO_HASH_LEN];
+    const uint8_t *prev = zero;
+    uint8_t d[VINO_HASH_LEN];
+    if (bad_index) *bad_index = 0;
+    if (!v) return VINO_CHAIN_E_ARG;
+    for (uint32_t i = 0; i < v->num_txns; i++) {
+        const vino_transaction_t *t = &v->primary[i];
+        int32_t err = VINO_CHAIN_OK;
+        if (t->chain_ver != VINO_CHAIN_V2_SHA256)
+            err = VINO_CHAIN_E_LEGACY;
+        else if (!hash_eq(t->prev_hash, prev))
+            err = VINO_CHAIN_E_LINK;
+        else {
+            vino_entry_digest(t, d);
+            if (!hash_eq(d, t->hash))
+                err = VINO_CHAIN_E_DIGEST;
+            else if (i >= v->num_audit || !txn_eq(t, &v->audit[i]))
+                err = VINO_CHAIN_E_AUDIT;
+        }
+        if (err != VINO_CHAIN_OK) {
+            if (bad_index) *bad_index = i;
+            return err;
+        }
+        prev = t->hash;
     }
+    if (!hash_eq(v->chain_head_hash, prev)) {
+        if (bad_index) *bad_index = v->num_txns;
+        return VINO_CHAIN_E_HEAD;
+    }
+    return VINO_CHAIN_OK;
 }
 
 void vino_init(vino_ledger_t *v, uint32_t node_id) {
@@ -71,6 +200,10 @@ void vino_init(vino_ledger_t *v, uint32_t node_id) {
 
 int32_t vino_create_account(vino_ledger_t *v, const char *addr, const char *name) {
     if (v->num_accounts >= VINO_MAX_ACCOUNTS) return -1;
+    if (!addr || !addr[0]) return -1;
+    /* one account per address: a duplicate would be unreachable (lookups
+     * return the first) while still being counted */
+    if (vino_get_account(v, addr)) return -1;
     vino_account_t *a = &v->balances[v->num_accounts];
     str_copy(a->address, addr);
     str_copy(a->name, name);
@@ -92,7 +225,15 @@ int32_t vino_transfer(vino_ledger_t *v, const char *from, const char *to,
     vino_account_t *fa = vino_get_account(v, from);
     vino_account_t *ta = vino_get_account(v, to);
     if (!fa || !ta) return -1;
+    if ((uint32_t) cap >= CAP_MAX) return -1;     /* balance[cap] is CAP_MAX wide */
+    if (amount > (uint64_t) INT64_MAX) return -1; /* the RMAG rational is signed  */
     if (fa->balance[cap] < amount) return -1;
+    /* a credit that wraps would destroy value instead of moving it, and the
+     * volume counter must not wrap either: both are checked before any write */
+    uint64_t credit_after, new_vol;
+    if (fa != ta && __builtin_add_overflow(ta->balance[cap], amount, &credit_after)) return -1;
+    if (__builtin_add_overflow(v->total_volume[cap], amount, &new_vol)) return -1;
+    (void) credit_after;
 
     /* M5 LPRES: attestation — both accounts must have logical presence */
     ordinal_t from_ord = (ordinal_t)(v->balances[0].address[0] ? fa - v->balances + 1 : 0);
@@ -114,13 +255,19 @@ int32_t vino_transfer(vino_ledger_t *v, const char *from, const char *to,
     (void)audit_flag;
 
     /* M5 RMAG: exact rational accounting — no float drift in balances */
-    rational_t txn_amount = { (int64_t)amount, 1 };
-    rational_t from_quota = rmag_get_quota(from_ord);
-    rational_t to_quota = rmag_get_quota(to_ord);
-    rational_t new_from = rmag_sub_quotas(from_quota, txn_amount);
-    rational_t new_to = rmag_add_quotas(to_quota, txn_amount);
-    rmag_set_quota(from_ord, new_from);
-    rmag_set_quota(to_ord, new_to);
+    /* The quota mirror is computed with checked arithmetic BEFORE anything
+     * moves: a quota that would overflow refuses the transfer (F-RMAG-OVF).
+     * A self transfer moves nothing, so it leaves the quota alone too
+     * (F-VINO-SELFQ: two set_quota calls on one ordinal, the second won). */
+    if (fa != ta) {
+        rational_t txn_amount = {(int64_t) amount, 1};
+        rational_t new_from, new_to;
+        if (!rmag_sub_quotas_checked(rmag_get_quota(from_ord), txn_amount, &new_from) ||
+            !rmag_add_quotas_checked(rmag_get_quota(to_ord), txn_amount, &new_to))
+            return -1;
+        rmag_set_quota(from_ord, new_from);
+        rmag_set_quota(to_ord, new_to);
+    }
 
     fa->balance[cap] -= amount;
     ta->balance[cap] += amount;
@@ -137,16 +284,10 @@ int32_t vino_transfer(vino_ledger_t *v, const char *from, const char *to,
     if (memo) str_copy(t->memo, memo);
     t->confirmed = true;
     t->block_height = v->block_height;
-    fs_memcpy(t->prev_hash, v->chain_head_hash, VINO_HASH_LEN);
-    vino_hash(t, sizeof(*t), t->hash);
-    fs_memcpy(v->chain_head_hash, t->hash, VINO_HASH_LEN);
-
-    /* Audit ledger copy */
-    fs_memcpy(&v->audit[v->num_txns], t, sizeof(*t));
-    v->num_audit++;
+    chain_append(v, t); /* SHA-256 link + audit ledger copy */
     v->num_txns++;
     v->txn_count++;
-    v->total_volume[cap] += amount;
+    v->total_volume[cap] = new_vol;
     return t->id;
 }
 
@@ -161,8 +302,12 @@ int32_t vino_issue(vino_ledger_t *v, const char *to, asset_class_t asset,
                     uint64_t amount, const char *memo) {
     vino_account_t *a = vino_get_account(v, to);
     if (!a) return -1;
-    a->asset_balances[asset] += (uint32_t)amount;
+    if ((uint32_t) asset >= ASSET_MAX) return -1; /* asset_balances is ASSET_MAX wide */
+    /* the count is 32-bit: refuse an issue that would truncate or wrap it */
+    if (amount > (uint64_t) (UINT32_MAX - a->asset_balances[asset])) return -1;
+    /* check capacity BEFORE crediting, so a full ledger cannot mint unrecorded */
     if (v->num_txns >= VINO_MAX_TXNS) return -1;
+    a->asset_balances[asset] += (uint32_t) amount;
     vino_transaction_t *t = &v->primary[v->num_txns];
     t->id = v->num_txns;
     t->type = TXN_ISSUE;
@@ -172,6 +317,12 @@ int32_t vino_issue(vino_ledger_t *v, const char *to, asset_class_t asset,
     if (memo) str_copy(t->memo, memo);
     t->confirmed = true;
     t->block_height = v->block_height;
+    /* An issue is a ledger event like any other: chain it, audit it and count
+     * it. (It used to stop here, so the next transfer overwrote the slot and
+     * the minting left no trace in the primary, audit or hash-chain ledgers.) */
+    chain_append(v, t);
+    v->num_txns++;
+    v->txn_count++;
     return t->id;
 }
 
@@ -185,7 +336,7 @@ int32_t vino_bridge(vino_ledger_t *v, const char *from, const char *to,
 int32_t vino_get_balance(vino_ledger_t *v, const char *addr,
                           capital_type_t cap, uint64_t *out) {
     vino_account_t *a = vino_get_account(v, addr);
-    if (!a) return -1;
+    if (!a || !out || (uint32_t) cap >= CAP_MAX) return -1; /* balance[] is CAP_MAX wide */
     *out = a->balance[cap];
     return 0;
 }
@@ -234,19 +385,19 @@ int32_t vino_propose_block(vino_ledger_t *v) {
 
 int32_t vino_vote_block(vino_ledger_t *v, uint32_t height, bool approve) {
     (void)v; (void)height; (void)approve;
-    return 0;
+    return VINO_ENOTIMPL; /* no consensus exists */
 }
 
 int32_t vino_sync_peers(vino_ledger_t *v) {
     (void)v;
-    return 0;
+    return VINO_ENOTIMPL; /* no networking exists */
 }
 
 /* === Messaging adapters === */
 int32_t vino_msg_to_iso20022(const vino_transaction_t *txn, char *out, uint32_t max_out) {
     (void)txn;
     if (max_out < 128) return -1;
-    /* Simplified ISO 20022 XML */
+    /* Opening fragment only: not a conformant ISO 20022 message */
     int j = 0;
     j += fs_strlen(fs_strcpy(out+j, "<Doc:Document>"));
     j += fs_strlen(fs_strcpy(out+j, "<PmtInf>"));
@@ -256,7 +407,9 @@ int32_t vino_msg_to_iso20022(const vino_transaction_t *txn, char *out, uint32_t 
 }
 
 int32_t vino_msg_from_iso20022(const char *xml, vino_transaction_t *txn) {
-    (void)xml; (void)txn; return 0;
+    (void) xml;
+    (void) txn;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_camt053(const vino_transaction_t *txn, char *out, uint32_t max_out) {
@@ -269,7 +422,9 @@ int32_t vino_msg_to_camt053(const vino_transaction_t *txn, char *out, uint32_t m
 }
 
 int32_t vino_msg_from_camt053(const char *xml, vino_transaction_t *txn) {
-    (void)xml; (void)txn; return 0;
+    (void) xml;
+    (void) txn;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_mt103(const vino_transaction_t *txn, char *out, uint32_t max_out) {
@@ -280,7 +435,9 @@ int32_t vino_msg_to_mt103(const vino_transaction_t *txn, char *out, uint32_t max
 }
 
 int32_t vino_msg_from_mt103(const char *msg, vino_transaction_t *txn) {
-    (void)msg; (void)txn; return 0;
+    (void) msg;
+    (void) txn;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_pacs008(const vino_transaction_t *txn, char *out, uint32_t max_out) {
@@ -291,49 +448,59 @@ int32_t vino_msg_to_pacs008(const vino_transaction_t *txn, char *out, uint32_t m
 }
 
 int32_t vino_msg_to_cips(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "<CIPS.001><CreditTransfer>");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_spfs(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "<SPFS><MsgPmt>");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_visa(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "VISAPROTOCOL:0400:VINO:");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_mastercard(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "MCDIPROTO:0200:VINO:");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_btc(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "BTCPROTO:rawtx:");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
 int32_t vino_msg_to_eth(const vino_transaction_t *txn, char *out, uint32_t max_out) {
-    (void)txn;
-    if (max_out < 64) return -1;
-    fs_strcpy(out, "ETHPROTO:0x");
-    return (int32_t)str_len(out);
+    (void) txn;
+    (void) out;
+    (void) max_out;
+    return VINO_ENOTIMPL;
 }
 
-int32_t vino_msg_from_btc(const char *raw, vino_transaction_t *txn) { (void)raw; (void)txn; return 0; }
-int32_t vino_msg_from_eth(const char *raw, vino_transaction_t *txn) { (void)raw; (void)txn; return 0; }
+int32_t vino_msg_from_btc(const char *raw, vino_transaction_t *txn)
+{
+    (void) raw;
+    (void) txn;
+    return VINO_ENOTIMPL;
+}
+int32_t vino_msg_from_eth(const char *raw, vino_transaction_t *txn)
+{
+    (void) raw;
+    (void) txn;
+    return VINO_ENOTIMPL;
+}
 
 /* ---- DECLARATION -----------------------------------------------------------
 

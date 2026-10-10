@@ -34,6 +34,7 @@ static uint32_t timer_hz = 0;
 static timer_callback_t callback = 0;
 
 void timer_init(uint32_t hz) {
+    if (hz == 0) hz = TIMER_DEFAULT_HZ; /* 0 would divide by zero below */
     timer_hz = hz;
     uint32_t divisor = PIT_FREQUENCY / hz;
     if (divisor > 65535) divisor = 65535;

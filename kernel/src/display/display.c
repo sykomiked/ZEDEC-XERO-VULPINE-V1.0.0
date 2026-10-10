@@ -4,9 +4,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)  (ZXV display slice)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "display.h"
 
@@ -83,8 +83,14 @@ int zxv_display_negotiate(zxv_display_t *d,
      * different-sized composition into it is what made the desktop look soft. */
     if (fw_w && fw_h) {
         if (!fits(fw_w, fw_h)) return -2;   /* cannot back it with our scanout */
+        /* The stride comes from firmware: a row shorter than the width would
+         * make rows overlap, and a padded row can push stride * h past the
+         * static scanout even when w * h fits. */
+        uint32_t stride = fw_stride ? fw_stride : fw_w;
+        if (stride < fw_w) return -2;
+        if ((uint64_t) stride * fw_h > ZXV_DISPLAY_MAX_PIXELS) return -2;
         d->w = fw_w; d->h = fw_h;
-        d->stride = fw_stride ? fw_stride : fw_w;
+        d->stride = stride;
         d->origin = ZXV_DISP_FIRMWARE;
         d->firmware_owned = true;
         d->scale_permille = scale_for(fw_h);

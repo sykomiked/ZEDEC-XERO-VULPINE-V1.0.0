@@ -4,9 +4,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)  (ZXV inverse-witness slice)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "invproof.h"
 #include "../robin_debanks/sha256.h"
@@ -65,6 +65,10 @@ int zxi_build(const uint8_t *before, const uint8_t *after, uint32_t len,
     wr32(out + 12, runs);
     sha256(before, len, out + 16);
     sha256(after,  len, out + 48);
+    /* bytes 80..83 sit between d_after and the seal and were never written,
+     * so the seal (and the artifact) carried whatever the caller's buffer
+     * held (MemorySanitizer, test_zmedia). They are reserved and zero. */
+    wr32(out + 80, 0);
     wr32(out + 84, 0);
     wr32(out + 84, seal_of(out, o));
     return (int)o;

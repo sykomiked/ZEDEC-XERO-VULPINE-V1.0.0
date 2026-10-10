@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* emu_relate.c — measure the relationship between two non-compatible cores
  * (MOS 6502 and Zilog Z80) as a point in the M5 event space. See emu_relate.h.
  *
@@ -58,9 +58,17 @@ static trit_t axis_ell(uint32_t res_a, int done_a, uint32_t res_b, int done_b) {
 /* φ (imaginary/phase): the timing relationship between the two clocks, on the
  * complex plane (the "torvitura" the two systems trace against each other).
  * Sees only the clocks — never the results. The angle atan2(i,r) is the phase
- * offset; we store the raw components so the freestanding kernel needs no libm. */
+ * offset; we store the raw components so the freestanding kernel needs no libm.
+ * The components are the raw cycle counts (integers, not Q16.16), saturated at
+ * INT32_MAX so the integer phase_t cannot wrap. */
+static int32_t sat_cycles(uint64_t c)
+{
+    return c > 0x7FFFFFFFu ? 0x7FFFFFFF : (int32_t) c;
+}
 static phase_t axis_phi(uint64_t cyc_a, uint64_t cyc_b) {
-    phase_t p; p.r = (double)cyc_a; p.i = (double)cyc_b;
+    phase_t p;
+    p.r = sat_cycles(cyc_a);
+    p.i = sat_cycles(cyc_b);
     return p;
 }
 

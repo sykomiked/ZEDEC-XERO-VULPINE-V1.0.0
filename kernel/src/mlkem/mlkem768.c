@@ -4,9 +4,9 @@
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "mlkem768.h"
 #include "keccak.h"
@@ -50,13 +50,22 @@ void mlkem768_encaps(const uint8_t ek[MLKEM768_EK_BYTES], const uint8_t m[32],
     for (int i = 0; i < 32; i++) ss[i] = K[i];
 }
 
-/* Constant-time-ish comparison: always scans the full length so the
- * number of matching bytes doesn't leak through early exit, avoiding
- * a trivial timing side-channel on the re-encryption check below. */
-static int ct_equal(const uint8_t *a, const uint8_t *b, size_t len) {
-    uint8_t diff = 0;
-    for (size_t i = 0; i < len; i++) diff = (uint8_t)(diff | (a[i] ^ b[i]));
-    return diff == 0;
+/* Constant-time equality MASK: 0xFF when a == b over all len bytes, 0x00
+ * otherwise. Always scans the full length (no early exit) and derives the
+ * mask arithmetically from the OR-accumulated difference, so no comparison
+ * result ever becomes a branch condition. The empty asm keeps the compiler
+ * from proving the mask is 0/0xFF-valued and turning the select below back
+ * into a branch (the same barrier the pq-crystals reference cmov uses). */
+static uint8_t ct_eq_mask(const uint8_t *a, const uint8_t *b, size_t len)
+{
+    uint32_t diff = 0;
+    for (size_t i = 0; i < len; i++) diff |= (uint32_t) (a[i] ^ b[i]);
+    /* diff in [0,255]: diff - 1 wraps to 0xFFFFFFFF only when diff == 0 */
+    uint8_t mask = (uint8_t) ((diff - 1u) >> 8);
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__("" : "+r"(mask));
+#endif
+    return mask;
 }
 
 void mlkem768_decaps(const uint8_t dk[MLKEM768_DK_BYTES], const uint8_t c[MLKEM768_CT_BYTES],
@@ -88,8 +97,11 @@ void mlkem768_decaps(const uint8_t dk[MLKEM768_DK_BYTES], const uint8_t c[MLKEM7
     uint8_t c_prime[MLKEM768_CT_BYTES];
     kpe_encrypt(ek_pke, m_prime, r_prime, c_prime);
 
-    int match = ct_equal(c, c_prime, MLKEM768_CT_BYTES);
+    /* Branch-free select (FIPS 203 implicit rejection must not reveal which
+     * key was chosen): mask is 0xFF on a match, 0x00 otherwise, and ss is
+     * K' & mask | K_bar & ~mask computed with XOR/AND only (cmov). */
+    uint8_t mask = ct_eq_mask(c, c_prime, MLKEM768_CT_BYTES);
     for (int i = 0; i < 32; i++) {
-        ss[i] = match ? k_prime[i] : k_bar[i];
+        ss[i] = (uint8_t) (k_bar[i] ^ ((k_prime[i] ^ k_bar[i]) & mask));
     }
 }

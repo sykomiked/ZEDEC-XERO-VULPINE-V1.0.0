@@ -1,19 +1,23 @@
-/* m5_api.h — Complete M5 Axiomatic Kernel API for User Space Applications
+/* STATUS: STUB. This header only declares an API. No m5_* function declared here is
+ * implemented anywhere in the tree, so an app that calls one will not link. It is not
+ * a stable ABI yet. See SDK_README.md. */
+/* m5_api.h — M5 Axiomatic Kernel API for User Space Applications (declarations only)
  *
  * This is the single header that user applications include to access
  * all kernel services. It provides a stable ABI across kernel versions.
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef M5_API_H
 #define M5_API_H
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "../zcapital/zcap_forms.h" /* canonical capital order */
 
 /* ===== Core Types ===== */
 typedef uint64_t m5_ordinal_t;
@@ -105,22 +109,33 @@ uint64_t m5_pc_current_tick(void);
 
 /* ===== 7. Triple Ledger (Vino) ===== */
 typedef enum {
-    M5_LEDGER_FINANCIAL = 0,    /* Rail 846 */
-    M5_LEDGER_PROVENANCE = 1,   /* Rail 888 */
-    M5_LEDGER_EXTERNALITY = 2   /* Rail 999 */
+    M5_LEDGER_FINANCIAL = 0,  /* Rail 555 (DEBIT, NCR)  */
+    M5_LEDGER_PROVENANCE = 1, /* Rail 777 (CREDIT, NRE) */
+    M5_LEDGER_EXTERNALITY = 2 /* Rail 888 (EQUITY, PNS) */
 } m5_ledger_type_t;
 
+/* Vino capital names: aliases of the canonical zcap_form_t (zcap_forms.h),
+ * the same values as vino.h's capital_type_t. */
 typedef enum {
-    M5_CAP_FINANCIAL = 0,
-    M5_CAP_MATERIAL = 1,
-    M5_CAP_KNOWLEDGE = 2,
-    M5_CAP_SOCIAL = 3,
-    M5_CAP_CULTURAL = 4,
-    M5_CAP_SPIRITUAL = 5,
-    M5_CAP_LIVING = 6,
-    M5_CAP_BUILT = 7,
-    M5_CAP_HUMAN = 8
+    M5_CAP_FINANCIAL = ZCAP_FINANCIAL,
+    M5_CAP_MATERIAL = ZCAP_MANUFACTURED,
+    M5_CAP_KNOWLEDGE = ZCAP_INTELLECTUAL,
+    M5_CAP_HUMAN = ZCAP_HUMAN,
+    M5_CAP_SOCIAL = ZCAP_SOCIAL,
+    M5_CAP_LIVING = ZCAP_NATURAL,
+    M5_CAP_CULTURAL = ZCAP_CULTURAL,
+    M5_CAP_SPIRITUAL = ZCAP_SPIRITUAL,
+    M5_CAP_BUILT = ZCAP_SYSTEM
 } m5_capital_type_t;
+_Static_assert((int) M5_CAP_FINANCIAL == (int) ZCAP_FINANCIAL, "m5 cap FINANCIAL");
+_Static_assert((int) M5_CAP_MATERIAL == (int) ZCAP_MANUFACTURED, "m5 cap MATERIAL");
+_Static_assert((int) M5_CAP_KNOWLEDGE == (int) ZCAP_INTELLECTUAL, "m5 cap KNOWLEDGE");
+_Static_assert((int) M5_CAP_HUMAN == (int) ZCAP_HUMAN, "m5 cap HUMAN");
+_Static_assert((int) M5_CAP_SOCIAL == (int) ZCAP_SOCIAL, "m5 cap SOCIAL");
+_Static_assert((int) M5_CAP_LIVING == (int) ZCAP_NATURAL, "m5 cap LIVING");
+_Static_assert((int) M5_CAP_CULTURAL == (int) ZCAP_CULTURAL, "m5 cap CULTURAL");
+_Static_assert((int) M5_CAP_SPIRITUAL == (int) ZCAP_SPIRITUAL, "m5 cap SPIRITUAL");
+_Static_assert((int) M5_CAP_BUILT == (int) ZCAP_SYSTEM, "m5 cap BUILT");
 
 typedef struct {
     uint64_t id;
@@ -165,18 +180,32 @@ bool m5_ledger_verify_coverage(uint32_t account_id);
 m5_rat_t m5_ledger_account_coverage(uint32_t account_id);
 
 /* ===== 8. Capital Forms (Nine Forms) ===== */
+/* Finance-sector names (finance/capital_forms.h): aliases of zcap_form_t.
+ * The values are the canonical order, not the old "state-reserved first"
+ * order; use m5_capital_is_state_reserved(), never a range compare. */
 typedef enum {
-    M5_FORM_SOCIAL = 0,
-    M5_FORM_NATURAL = 1,
-    M5_FORM_HERITAGE_INTELLECTUAL = 2,
-    M5_FORM_GOVERNANCE_INSTITUTIONAL = 3,
-    M5_FORM_FINANCIAL = 4,
-    M5_FORM_MATERIAL = 5,
-    M5_FORM_LIVING = 6,
-    M5_FORM_KNOWLEDGE = 7,
-    M5_FORM_BUILT = 8,
-    M5_FORM_COUNT = 9
+    M5_FORM_FINANCIAL = ZCAP_FINANCIAL,
+    M5_FORM_MATERIAL = ZCAP_MANUFACTURED,
+    M5_FORM_KNOWLEDGE = ZCAP_INTELLECTUAL,
+    M5_FORM_LIVING = ZCAP_HUMAN, /* developer time */
+    M5_FORM_SOCIAL = ZCAP_SOCIAL,
+    M5_FORM_NATURAL = ZCAP_NATURAL,
+    M5_FORM_HERITAGE_INTELLECTUAL = ZCAP_CULTURAL,
+    M5_FORM_GOVERNANCE_INSTITUTIONAL = ZCAP_SPIRITUAL,
+    M5_FORM_BUILT = ZCAP_SYSTEM,
+    M5_FORM_COUNT = ZCAP_FORM_COUNT
 } m5_capital_form_t;
+_Static_assert((int) M5_FORM_FINANCIAL == (int) ZCAP_FINANCIAL, "m5 form FINANCIAL");
+_Static_assert((int) M5_FORM_MATERIAL == (int) ZCAP_MANUFACTURED, "m5 form MATERIAL");
+_Static_assert((int) M5_FORM_KNOWLEDGE == (int) ZCAP_INTELLECTUAL, "m5 form KNOWLEDGE");
+_Static_assert((int) M5_FORM_LIVING == (int) ZCAP_HUMAN, "m5 form LIVING");
+_Static_assert((int) M5_FORM_SOCIAL == (int) ZCAP_SOCIAL, "m5 form SOCIAL");
+_Static_assert((int) M5_FORM_NATURAL == (int) ZCAP_NATURAL, "m5 form NATURAL");
+_Static_assert((int) M5_FORM_HERITAGE_INTELLECTUAL == (int) ZCAP_CULTURAL, "m5 form HERITAGE");
+_Static_assert((int) M5_FORM_GOVERNANCE_INSTITUTIONAL == (int) ZCAP_SPIRITUAL,
+               "m5 form GOVERNANCE");
+_Static_assert((int) M5_FORM_BUILT == (int) ZCAP_SYSTEM, "m5 form BUILT");
+_Static_assert((int) M5_FORM_COUNT == ZCAP_FORM_COUNT, "m5 form count");
 
 bool m5_capital_is_state_reserved(m5_capital_form_t form);
 bool m5_capital_is_priceable(m5_capital_form_t form);

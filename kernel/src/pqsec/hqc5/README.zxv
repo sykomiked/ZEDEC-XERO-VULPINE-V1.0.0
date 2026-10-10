@@ -1,0 +1,38 @@
+HQC-5 (Hamming Quasi-Cyclic, category 5) — vendored reference implementation
+
+Source:   https://gitlab.com/pqc-hqc/hqc  (official implementation)
+Release:  v5.0.0, commit f46e54222ffb76706678a9ec8a43cd2188a12ab1 (2025-08-22)
+License:  public domain, see LICENSE (the bundled FIPS 202 code is the
+          public-domain PQClean / TweetFips202 Keccak). Free for any use,
+          including commercial use and sale.
+
+Files are copies, flattened into this one directory, of:
+  src/common/*.c, src/common/*.h, src/common/hqc-5/api.h,
+  src/ref/*.c, src/ref/*.h, src/ref/hqc-5/parameters.h,
+  src/ref/hqc-5/reed_solomon.h, lib/fips202/fips202.{c,h}.
+All are byte-for-byte except:
+  hqc.h, parsing.h, vector.h
+                 the unused #include <immintrin.h> is removed (an x86-only
+                 header; it stopped the reference building for AArch64).
+Not copied: hqc-1 / hqc-3 parameters, x86_64/ (AVX2), tests, KAT files,
+packaging, build files.
+
+../pq_hqc5.c builds them as one translation unit, renames every external
+symbol to zxv_hqc5_* (the reference uses short global names such as
+sha3_256, shake256, fft, encode that collide with the kernel's Keccak),
+redirects the reference PRNG draws to caller-supplied buffers, and
+compiles out its debug printf calls. gf2x.c (the bit-serial polynomial
+multiply) is still compiled, under the name zxv_hqc5_vect_mul_ref, but
+only as the reference for pqm_hqc5_mul_selftest(): HQC itself calls the
+constant-time Karatsuba / PCLMULQDQ / PMULL multiply in
+../pq_hqc5_gf2x.c, which reproduces the official KATs bit for bit.
+
+libc: memcpy/memset/memcmp (<string.h>); <stdio.h> must exist at compile
+time (debug printing only; no stdio symbol is linked).
+
+HQC was selected by NIST in March 2025; its FIPS is not yet final, so a
+future standard may differ from v5.0.0.
+
+Checked against the official KAT file kats/ref/hqc-5/PQCkemKAT_7333.rsp
+(sha256 43dd50d6f91d9d85085558e66e2ec0168b403ded47c6dad43cd2acfddca2f618),
+records 0-9: ../test_pq_matrix.c.

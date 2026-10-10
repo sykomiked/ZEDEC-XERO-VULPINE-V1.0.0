@@ -6,7 +6,7 @@ universal install bundle, verifies SHA-256 digests, and stages artifacts for
 boot.
 
 Author: H.M. Michael-Laurence: Curzi (c)
-License: SEL-3.3
+License: Apache-2.0
 """
 
 import argparse

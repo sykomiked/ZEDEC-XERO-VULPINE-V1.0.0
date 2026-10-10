@@ -18,9 +18,10 @@
  *     their visa terms
  *
  * CRYPTO INTEGRATION INSTRUCTIONS:
- * The current implementation uses a HMAC-SHA256 verification signature
- * verifier (verifies HMAC-SHA256 against kernel authority key). To wire real post-quantum
- * crypto:
+ * The current implementation verifies an Ed25519 signature against the
+ * kernel's embedded public key ED25519_PUBKEY_IMMIGRATION (robin_debanks/
+ * ed25519_verify.c); a caller can plug its own verifier via verify_sig. To
+ * move to post-quantum signatures:
  *
  * 1. Implement `immig_verify_sig()` in `immigration.c` to call your
  *    chosen signature library (Ed25519 for now, ML-DSA-44 for PQ).
@@ -36,9 +37,9 @@
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef IMMIGRATION_H
 #define IMMIGRATION_H

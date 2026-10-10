@@ -6,9 +6,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifdef TEST_HOST
@@ -142,6 +142,8 @@ const recon_archetype_desc_t *recon_get_archetype(recon_t *r, recon_archetype_t 
 int recon_forward_merkle(recon_t *r, const smap_t *sm, recon_result_t *result) {
     if (!sm || !result) return -1;
     rc_memset(result, 0, sizeof(recon_result_t));
+    if (!smap_verify(sm))
+        return -1; /* never report success on a manifest that fails its own hashes */
 
     /* .36n9: Forward-ordered Merkle tree (3→6→9)
      * Reconstructs forward sequentially */
@@ -161,6 +163,8 @@ int recon_forward_merkle(recon_t *r, const smap_t *sm, recon_result_t *result) {
 int recon_reverse_merkle(recon_t *r, const smap_t *sm, recon_result_t *result) {
     if (!sm || !result) return -1;
     rc_memset(result, 0, sizeof(recon_result_t));
+    if (!smap_verify(sm))
+        return -1; /* never report success on a manifest that fails its own hashes */
 
     /* .9n63: Mirrored/reversed Merkle tree (9→6→3)
      * Auto-reverses the cryptographic transformation via bit-permutation flip */
@@ -180,6 +184,8 @@ int recon_reverse_merkle(recon_t *r, const smap_t *sm, recon_result_t *result) {
 int recon_parity_verify(recon_t *r, const smap_t *sm, recon_result_t *result) {
     if (!sm || !result) return -1;
     rc_memset(result, 0, sizeof(recon_result_t));
+    if (!smap_verify(sm))
+        return -1; /* never report success on a manifest that fails its own hashes */
 
     /* .36m9: Dual-polar parity matrix (3↔6↔9)
      * Verifies cross-wallet interlocking consistency between .36n9 and .9n63 */
@@ -199,6 +205,8 @@ int recon_parity_verify(recon_t *r, const smap_t *sm, recon_result_t *result) {
 int recon_stream_assemble(recon_t *r, const smap_t *sm, recon_result_t *result) {
     if (!sm || !result) return -1;
     rc_memset(result, 0, sizeof(recon_result_t));
+    if (!smap_verify(sm))
+        return -1; /* never report success on a manifest that fails its own hashes */
 
     /* .zedec: Variable-length topological DAG (GLUT+)
      * Reconstructed dynamically as new chunks stream over PLNP */
@@ -218,6 +226,8 @@ int recon_stream_assemble(recon_t *r, const smap_t *sm, recon_result_t *result) 
 int recon_ledger_consensus(recon_t *r, const smap_t *sm, recon_result_t *result) {
     if (!sm || !result) return -1;
     rc_memset(result, 0, sizeof(recon_result_t));
+    if (!smap_verify(sm))
+        return -1; /* never report success on a manifest that fails its own hashes */
 
     /* .vino: Heterogeneous multisig block (GLUT-)
      * Requires full 5PL consensus before state expansion */
@@ -237,6 +247,8 @@ int recon_ledger_consensus(recon_t *r, const smap_t *sm, recon_result_t *result)
 int recon_static_load(recon_t *r, const smap_t *sm, recon_result_t *result) {
     if (!sm || !result) return -1;
     rc_memset(result, 0, sizeof(recon_result_t));
+    if (!smap_verify(sm))
+        return -1; /* never report success on a manifest that fails its own hashes */
 
     /* .ula: Static non-volatile blueprint (GLUT0)
      * Locked against runtime modification — direct load */

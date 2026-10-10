@@ -1,0 +1,35 @@
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0                                    */
+/* payvalidate.pli — PL/I binding SKETCH for the ZEDEC legacy bridge.     */
+/* DOCUMENT ONLY: no PL/I compiler is available in this container, so this */
+/* is not built or run here. It shows how an Enterprise PL/I program on    */
+/* z/OS would declare and call the libzxlegacy C ABI. The shapes match     */
+/* bindings/zx_legacy_api.h exactly.                                       */
+
+ PAYVAL: PROCEDURE OPTIONS(MAIN);
+
+   /* C ABI imports. OPTIONS(LINKAGE(SYSTEM)) selects the C convention;    */
+   /* BYVALUE passes scalars by value, matching the int32_t/int64_t args.  */
+   DCL ZX_COMP3_DECODE ENTRY( POINTER,                /* const uint8_t*  */
+                              FIXED BIN(31) BYVALUE,  /* int32_t nbytes  */
+                              POINTER )               /* int64_t* out    */
+       RETURNS( FIXED BIN(31) )
+       OPTIONS( LINKAGE(SYSTEM) )
+       EXTERNAL('zx_comp3_decode');
+
+   DCL ZX_ABI_VERSION ENTRY RETURNS( FIXED BIN(31) )
+       OPTIONS( LINKAGE(SYSTEM) ) EXTERNAL('zx_legacy_abi_version');
+
+   DCL AMOUNT   FIXED DEC(9,2);          /* packed decimal (COMP-3 like)  */
+   DCL DECODED  FIXED BIN(63);           /* int64 scaled result           */
+   DCL RC       FIXED BIN(31);
+   DCL NBYTES   FIXED BIN(31) INIT(5);
+
+   AMOUNT = 12345.67;
+   RC = ZX_COMP3_DECODE( ADDR(AMOUNT), NBYTES, ADDR(DECODED) );
+   IF RC = 0 THEN
+      PUT SKIP LIST('Decoded scaled amount:', DECODED);
+   ELSE
+      PUT SKIP LIST('Decode failed, rc=', RC);
+
+ END PAYVAL;

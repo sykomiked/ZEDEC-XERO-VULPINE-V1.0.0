@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* vino_stores.h — the Vino floating-voucher SETTLEMENT ENGINE.
  *
  * "Pieces of eight that are one coin in two bodies — a bearer note in your hand
@@ -41,16 +41,29 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "surplus.h"
-#include "triple_ledger.h"   /* floating_voucher_t, triple_ledger_t, post/verify */
+#include "triple_ledger.h" /* floating_voucher_t, triple_ledger_t, post/verify */
 
-/* ===== ISO 4217 rail codes =====
- * Vino exposes its three rails under real ISO 4217 numeric codes so interop
- * layers never silently mis-bind. 999 is XXX "no currency" in conventional
- * systems — that is deliberate: the equity rail is not a currency, it is the
- * live witness. Expose it, do not let it break interop by accident. */
-#define VINO_ISO_DEBIT   846u   /* the asset/backing rail                       */
-#define VINO_ISO_CREDIT  888u   /* the claim/liability rail                     */
-#define VINO_ISO_EQUITY  999u   /* the live equity rail (ISO XXX "no currency") */
+/* ===== Rail numeric codes =====
+ * Vino's three rails: DEBIT 555, CREDIT 777, EQUITY 888. None is an ISO 4217
+ * currency: all three numerics are unassigned in ISO 4217 list one (the
+ * cbank test proves it from the generated table). They are internal rail
+ * numerics; external messages settle in a real currency and carry these
+ * only in proprietary fields (see iso20022_ccy_caveat).
+ *
+ * Each rail carries a platform jurisdiction code. These are NOT ISO 3166
+ * country codes and are never written into a Ctry field; they travel only
+ * as /ZXV/... remittance data:
+ *   DEBIT  555  NCR  New California Republic
+ *   CREDIT 777  NRE  Neo Roman Empire
+ *   EQUITY 888  PNS  Principality of New Sicily */
+#include "../pay/pay_rails.h"                /* the canonical rail numerics */
+#define VINO_ISO_DEBIT  ZXV_RAIL_CODE_DEBIT  /* 555 the asset/backing rail   (NCR) */
+#define VINO_ISO_CREDIT ZXV_RAIL_CODE_CREDIT /* 777 the claim/liability rail (NRE) */
+#define VINO_ISO_EQUITY ZXV_RAIL_CODE_EQUITY /* 888 the live equity rail     (PNS) */
+
+#define VINO_JURIS_DEBIT  ZXV_RAIL_CODE_DEBIT_JURIS  /* New California Republic    */
+#define VINO_JURIS_CREDIT ZXV_RAIL_CODE_CREDIT_JURIS /* Neo Roman Empire           */
+#define VINO_JURIS_EQUITY ZXV_RAIL_CODE_EQUITY_JURIS /* Principality of New Sicily */
 
 /* Proof-CID witness length — one SHA-256 digest, same as ipfs IPFS_CID_LEN. */
 #define VINO_PROOF_CID_LEN 32u
@@ -64,66 +77,66 @@
  * charge added to a principal. On the Q32.32 target this is Knuth's constant
  * 0x9E3779B9 = floor(0.6180339887 * 2^32), the exact fixed-point φ−1. */
 #ifdef TEST_HOST
-#define PHI_MINUS_1 (0.61803398874989485)
+#    define PHI_MINUS_1 (0.61803398874989485)
 #else
-#define PHI_MINUS_1 ((surplus_real_t)0x9E3779B9LL)
+#    define PHI_MINUS_1 ((surplus_real_t) 0x9E3779B9LL)
 #endif
 
 /* ===== Result codes ===== */
-#define VINO_OK             0
+#define VINO_OK            0
 #define VINO_ERR_NULL      (-1)
-#define VINO_ERR_COVERAGE  (-2)   /* would drive coverage < 1.8x               */
-#define VINO_ERR_EQUITY    (-3)   /* would drive equity < 0                    */
-#define VINO_ERR_USURY     (-4)   /* interest implied — onepolicy vetoes it    */
-#define VINO_ERR_CAPACITY  (-5)   /* ledger/voucher table full                 */
-#define VINO_ERR_NOT_FOUND (-6)   /* no such voucher                           */
-#define VINO_ERR_STATE     (-7)   /* single-active-state violation             */
+#define VINO_ERR_COVERAGE  (-2) /* would drive coverage < 1.8x               */
+#define VINO_ERR_EQUITY    (-3) /* would drive equity < 0                    */
+#define VINO_ERR_USURY     (-4) /* interest implied — onepolicy vetoes it    */
+#define VINO_ERR_CAPACITY  (-5) /* ledger/voucher table full                 */
+#define VINO_ERR_NOT_FOUND (-6) /* no such voucher                           */
+#define VINO_ERR_STATE     (-7) /* single-active-state violation             */
 
 /* ===== The single-active-state pair ===== */
 typedef enum {
-    VINO_ACTIVE_PHYSICAL = 0,   /* the bearer note is in your hand             */
-    VINO_ACTIVE_DIGITAL  = 1    /* the ghost is live on the ledger             */
+    VINO_ACTIVE_PHYSICAL = 0, /* the bearer note is in your hand             */
+    VINO_ACTIVE_DIGITAL = 1   /* the ghost is live on the ledger             */
 } vino_state_t;
 
 /* ===== Lifecycle ===== */
 typedef enum {
-    VINO_MINT      = 0,
+    VINO_MINT = 0,
     VINO_CIRCULATE = 1,
-    VINO_SWAP      = 2,
-    VINO_REDEEM    = 3,
-    VINO_RETIRE    = 4
+    VINO_SWAP = 2,
+    VINO_REDEEM = 3,
+    VINO_RETIRE = 4
 } vino_lifecycle_t;
 
 /* ===== Mint tiers (the four mints of the standard) ===== */
 typedef enum {
-    MINT_ZERO          = 0,   /* the ceremonial V0 origin                      */
-    FIRST_MINTS_VINO   = 1,
-    SECOND_MINTS_OIL   = 2,
-    THIRD_MINTS_BREAD  = 3,
+    MINT_ZERO = 0, /* the ceremonial V0 origin                      */
+    FIRST_MINTS_VINO = 1,
+    SECOND_MINTS_OIL = 2,
+    THIRD_MINTS_BREAD = 3,
     FOURTH_MINT_BUTTER = 4
 } mint_tier_t;
 
 /* ===== The Vino voucher — extends the ledger's floating_voucher_t ===== */
 typedef struct {
-    floating_voucher_t base;                 /* the existing double-entry voucher */
-    vino_state_t       state;                /* which single rail is active       */
-    uint8_t            proof_cid[VINO_PROOF_CID_LEN]; /* equity-rail witness (CID) */
-    surplus_real_t     denomination;         /* Fibonacci-ladder face value       */
-    mint_tier_t        mint_tier;
-    vino_lifecycle_t   lifecycle;
-    bool               counterpart_locked;   /* the ghost/twin is cryptolocked    */
-    bool               in_use;
+    floating_voucher_t base;               /* the existing double-entry voucher */
+    vino_state_t state;                    /* which single rail is active       */
+    uint8_t proof_cid[VINO_PROOF_CID_LEN]; /* equity-rail witness (CID) */
+    surplus_real_t denomination;           /* Fibonacci-ladder face value       */
+    mint_tier_t mint_tier;
+    vino_lifecycle_t lifecycle;
+    bool counterpart_locked; /* the ghost/twin is cryptolocked    */
+    bool in_use;
 } vino_voucher_t;
 
 /* ===== The settlement engine ===== */
 #define VINO_STORES_MAX_VOUCHERS 256u
 
 typedef struct {
-    triple_ledger_t *ledger;                 /* we post THROUGH this, never around */
-    uint32_t         vino_account;           /* the ledger account for our rails   */
-    vino_voucher_t   vouchers[VINO_STORES_MAX_VOUCHERS];
-    uint32_t         num_vouchers;
-    uint64_t         next_voucher_id;
+    triple_ledger_t *ledger; /* we post THROUGH this, never around */
+    uint32_t vino_account;   /* the ledger account for our rails   */
+    vino_voucher_t vouchers[VINO_STORES_MAX_VOUCHERS];
+    uint32_t num_vouchers;
+    uint64_t next_voucher_id;
 } vino_stores_t;
 
 /* ===== Lifecycle ===== */
@@ -134,9 +147,8 @@ void vino_stores_init(vino_stores_t *vs, triple_ledger_t *ledger);
 /* Register a Vino voucher (single-active-state, counterpart locked). The
  * proof_cid is SUPPLIED (ops boundary — pinned externally, never invented).
  * Returns the new voucher id (>0) via *out_id, or a VINO_ERR_* code. */
-int32_t vino_mint(vino_stores_t *vs, uint64_t *out_id,
-                  surplus_real_t denomination, mint_tier_t tier,
-                  vino_state_t initial_state,
+int32_t vino_mint(vino_stores_t *vs, uint64_t *out_id, surplus_real_t denomination,
+                  mint_tier_t tier, vino_state_t initial_state,
                   const uint8_t proof_cid[VINO_PROOF_CID_LEN]);
 
 /* THE choke-point. Atomic 3-rail post (Debit:Credit:Equity) through the triple
@@ -144,10 +156,8 @@ int32_t vino_mint(vino_stores_t *vs, uint64_t *out_id,
  * failure the entire event ROLLS BACK — no partial write. `equity` is the
  * claimed live-equity delta; claiming more than (debit - credit) implies
  * interest and is refused via onepolicy. proof_cid re-anchors the equity rail. */
-int32_t vino_ledger_act(vino_stores_t *vs, uint64_t voucher_id,
-                        vino_lifecycle_t to,
-                        surplus_real_t debit, surplus_real_t credit,
-                        surplus_real_t equity,
+int32_t vino_ledger_act(vino_stores_t *vs, uint64_t voucher_id, vino_lifecycle_t to,
+                        surplus_real_t debit, surplus_real_t credit, surplus_real_t equity,
                         const uint8_t proof_cid[VINO_PROOF_CID_LEN]);
 
 /* Flip the active rail, re-anchoring the SAME proof_cid; the counterpart stays

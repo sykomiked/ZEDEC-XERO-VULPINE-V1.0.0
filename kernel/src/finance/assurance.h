@@ -1,13 +1,15 @@
-/* assurance.h — Pay-It-Forward Assurance Protocol (PAPSS Specification)
+/* assurance.h — Pay-It-Forward Assurance (PIFA) Protocol
+ *
+ * PIFA is this project's own specification, not an external standard.
  *
  * Proactive capital generation: contributions flow forward into prevention
  * that generates capital. Inverts insurance: regenerative, not extractive.
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef ZXV_ASSURANCE_H
 #define ZXV_ASSURANCE_H
@@ -43,8 +45,8 @@ typedef enum {
  */
 typedef struct {
     /* CONTRIBUTION (not premium) */
-    rat_t contribution;                  /* Exact rational — Financial rail (846) */
-    capital_form_t target_form;          /* Which capital form to prevent (1-9) */
+    rat_t contribution;                  /* Exact rational — Financial rail (555) */
+    capital_form_t target_form;          /* Which capital form to prevent (capital_form_t) */
     uint8_t prevention_cid[32];          /* IPFS CID of prevention project (SHA-256) */
     lpres_attestation_t efficacy_proof;  /* LPRES: TRUE iff prevention verified effective */
 
@@ -58,7 +60,7 @@ typedef struct {
     interstitial_region_t forward_route; /* Lex Rhodia corridor for downstream recipient */
 
     /* Settlement tracking */
-    uint8_t contribution_cid[32];        /* CID on Financial rail (846) */
+    uint8_t contribution_cid[32];        /* CID on Financial rail (555) */
     uint8_t generation_cid[32];          /* CID on generated form's rail */
 } assurance_contract_t;
 

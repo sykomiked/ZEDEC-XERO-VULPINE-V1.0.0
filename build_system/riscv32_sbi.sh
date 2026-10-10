@@ -40,7 +40,7 @@
 #   check    report status only; exit 0 if the default already resolves.
 #
 # Author: H.M. Michael-Laurence: Curzi (c)
-# License: SEL-3.3
+# License: Apache-2.0
 set -u
 
 MODE=${1:-path}

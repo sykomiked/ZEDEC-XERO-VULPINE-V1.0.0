@@ -25,7 +25,8 @@ MAKEFLAGS += -j$(JOBS)
 
 CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -fno-stack-protector -fno-pie -no-pie -fno-builtin \
-           -ffunction-sections -fdata-sections -fcf-protection=none \
+           -ffunction-sections -fdata-sections -fcf-protection=none -mgeneral-regs-only \
+           -Werror=double-promotion -Werror=float-conversion \
            -MMD -MP \
            -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen \
            -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy \
@@ -352,6 +353,34 @@ SRCS := \
     kernel/src/tls/record.c \
     kernel/src/tls/handshake.c \
     kernel/src/bringup/arch_globals.c \
+    kernel/src/swarm/swarm_boot.c \
+    kernel/src/swarm/swarm_budget.c \
+    kernel/src/swarm/swarm_dna.c \
+    kernel/src/swarm/swarm_emotion.c \
+    kernel/src/swarm/swarm_enochian.c \
+    kernel/src/swarm/swarm_enterprise.c \
+    kernel/src/swarm/swarm_evolve.c \
+    kernel/src/swarm/swarm_governor.c \
+    kernel/src/swarm/swarm_harmonic.c \
+    kernel/src/swarm/swarm_hk.c \
+    kernel/src/swarm/swarm_ledger.c \
+    kernel/src/swarm/swarm_logic.c \
+    kernel/src/swarm/swarm_market.c \
+    kernel/src/swarm/swarm_overlap.c \
+    kernel/src/swarm/swarm_phase.c \
+    kernel/src/swarm/swarm_quality.c \
+    kernel/src/swarm/swarm_reserve.c \
+    kernel/src/swarm/swarm_self.c \
+    kernel/src/tensor/zt.c \
+    kernel/src/tensor/zt_boot.c \
+    kernel/src/tensor/zt_coil.c \
+    kernel/src/tensor/zt_gguf.c \
+    kernel/src/tensor/zt_holo.c \
+    kernel/src/tensor/zt_isf.c \
+    kernel/src/tensor/zt_lattice.c \
+    kernel/src/tensor/zt_model.c \
+    kernel/src/tensor/zt_rope.c \
+    kernel/src/tensor/zt_tok.c \
     kernel/freestanding.c
 
 OBJDIR := build/x86_64
@@ -425,6 +454,9 @@ clean:
 boot: kernel_x86_64.bin
 	qemu-system-x86_64 -kernel kernel_x86_64.bin -m 256M -nographic -serial mon:stdio
 
+# `run` is the name CI, build.sh and the other arch Makefiles use.
+run: boot
+
 # ---- BOOTX64.EFI: self-contained UEFI app that embeds the flat kernel ----
 # UEFI hands off in long mode; the kernel is Multiboot1 (32-bit PM at _entry32),
 # so efi_trampoline.S drops long mode -> 32-bit PM before jumping in. Relocs are
@@ -457,7 +489,7 @@ $(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/x86_
 
 efi: $(EFI_APP_X64)
 
-.PHONY: all clean boot
+.PHONY: all clean boot run
 
 # ---- THE DERIVED PHASE TABLE ------------------------------------------------
 # Generated, never committed. build_system/gen_phase_table.sh computes one

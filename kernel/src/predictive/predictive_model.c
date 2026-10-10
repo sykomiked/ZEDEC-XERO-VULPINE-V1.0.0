@@ -2,9 +2,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "predictive_model.h"
 #include <stddef.h>
@@ -56,15 +56,11 @@ prediction_t predictive_count(const m5_coords_t *coords,
     return p;
 }
 
-void predictive_multi(multi_prediction_t *out,
-                       const m5_coords_t *coords,
-                       surplus_real_t initial_u,
-                       surplus_real_t exposure,
-                       const surplus_real_t *u_trajectory,
-                       const surplus_real_t *cost_trajectory,
-                       uint32_t horizon,
-                       const predictive_config_t *cfg) {
-    (void)cost_trajectory;
+void predictive_multi(multi_prediction_t *out, const m5_coords_t *coords, surplus_real_t initial_u,
+                      surplus_real_t exposure, const surplus_real_t *u_trajectory,
+                      const surplus_real_t *cost_trajectory, uint32_t horizon,
+                      const predictive_config_t *cfg)
+{
     if (horizon > MAX_HORIZON) horizon = MAX_HORIZON;
     out->num_steps = horizon;
     
@@ -76,7 +72,11 @@ void predictive_multi(multi_prediction_t *out,
     
     for (uint32_t t = 0; t < horizon; t++) {
         surplus_real_t u_t = (u_trajectory != NULL) ? u_trajectory[t] : initial_u;
-        (void)u_t;
+        surplus_real_t c_t = (cost_trajectory != NULL) ? cost_trajectory[t] : SR_ZERO;
+        /* Advance the open-system stock Q_t. This step was missing, so Q
+         * stayed 0 and sustainability_index was always 0, and the cost
+         * trajectory was ignored. */
+        surplus_dynamics_step(&dyn, u_t, c_t);
         m5_coords_t step_coords = *coords;
         step_coords.omega = coords->omega + t;
         out->steps[t] = predictive_count(&step_coords, u_t, exposure, cfg);

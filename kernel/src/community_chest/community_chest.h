@@ -21,9 +21,9 @@
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef COMMUNITY_CHEST_H
 #define COMMUNITY_CHEST_H
@@ -53,7 +53,10 @@
 #define CC_DEV_SHARE_MAX       8500   /* 85% maximum developer share */
 #define CC_PLATFORM_SHARE_MIN  1500   /* 15% minimum platform share */
 #define CC_PLATFORM_SHARE_MAX  2400   /* 24% maximum platform share */
-#define CC_ROYALTY_SHARE       2000   /* 20% royalty to 36N9 Genetics */
+/* 20% royalty to 36N9 Genetics, limited to what is left after the developer share */
+#define CC_ROYALTY_SHARE 2000
+/* Vino account that holds voucher purchase proceeds until they are paid out */
+#define CC_ESCROW_ADDR "community-chest-escrow"
 
 /* ===== App Types ===== */
 

@@ -4,9 +4,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "kernel_main_x86_64.h"
 #include "uart_16550.h"
@@ -32,6 +32,7 @@
 #include "vena/vena.h"
 #include "holographic/holo.h"
 #include "bootfeat/boot_features.h"
+#include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -277,6 +278,14 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     /* Platform + economy aggregate self-checks (same entry points as arm64). */
     boot_features_init(uart_puts, 0, 0);
     boot_economy_init(uart_puts);
+
+    /* AI self-check, same entry point and constants as arm64 (swarm_boot.h): a
+     * mismatch prints [FAULT] and halts here, before [BOOT_OK]. */
+    if (!ai_boot_selfcheck(uart_puts)) {
+        uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
+        cli();
+        for (;;) hlt();
+    }
 
     boot_msg("\n[BOOT] ZEDEC pqOS [x86-64] — All systems online.");
     boot_msg("[BOOT_OK] Phase E0082 complete; kernel_main reached; Stage-1 kernel loop ready\n");

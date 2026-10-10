@@ -80,6 +80,9 @@ case "$ELF" in
     check mixmat_ "exact rational mixing matrices"
     check modbind_ "module construction rules"
     check ddna_   "phi-proportioned integrity checksum"
+    check swarm_budget_ "[AI_OK] swarm Fibonacci budget cycle"
+    check zt_rmsnorm    "[AI_OK] tensor forward step (zt)"
+    check ai_boot_selfcheck "[AI_OK] swarm+tensor boot self-check"
     ;;
   *x86_64*)
     # PROMOTED OUT OF THE PROVISIONAL LIST, 2026-08-10. x86_64 now builds and
@@ -125,6 +128,9 @@ case "$ELF" in
     check crown_     "economy: Crown credential"
     check ministry_  "economy: Illumaheart treasury"
     check ipfs_      "economy: content-addressed spine"
+    check swarm_budget_ "[AI_OK] swarm Fibonacci budget cycle"
+    check zt_rmsnorm    "[AI_OK] tensor forward step (zt)"
+    check ai_boot_selfcheck "[AI_OK] swarm+tensor boot self-check"
     ;;
   *riscv*)
     # PROMOTED OUT OF THE PROVISIONAL LIST, 2026-08-11, covering BOTH rv64 and

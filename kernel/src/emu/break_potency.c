@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* break_potency.c — over-potence detector: synergy stacks + feedback loops.
  * See break_potency.h. A "break" is both a prized MegaROM mechanic and the
  * signal to sandbox a mechanic-mod before it takes over the system. */
@@ -68,8 +68,7 @@ int break_potency_selfcheck(uint32_t *ratio_permille_out){
     };
     break_report_t brk;
     bp_assess_build((const surplus_real_t (*)[BP_DIM])combo, 3, &brk);
-    if (ratio_permille_out)
-        *ratio_permille_out = (uint32_t)((double)brk.ratio / (double)SR_ONE * 1000.0);
+    if (ratio_permille_out) *ratio_permille_out = SR_TO_PERMILLE(brk.ratio);
 
     /* FEEDBACK: a 1.10x per-cycle loop is unbounded; a 0.90x loop decays. */
     int loop_break = bp_feedback_unbounded(1100u);

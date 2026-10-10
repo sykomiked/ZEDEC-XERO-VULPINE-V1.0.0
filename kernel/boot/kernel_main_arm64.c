@@ -7,9 +7,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include <stdint.h>
@@ -83,7 +83,7 @@ void kernel_main(uint64_t boot_flags, void *dtb, void *boot_data) {
     pl011_init();
     aarch64_uart_puts("\nZEDEC pqOS — M5 Axiomatic Kernel (ARM64)\n");
     aarch64_uart_puts("=============================================\n\n");
-    aarch64_uart_puts("License: SEL-3.3\n");
+    aarch64_uart_puts("License: Apache-2.0\n");
     aarch64_uart_puts("Author: H.M. Michael-Laurence: Curzi (c)\n\n");
 
     /* M5 Kernel subsystems */

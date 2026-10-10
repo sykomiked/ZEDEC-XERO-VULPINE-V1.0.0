@@ -7,21 +7,22 @@
  *   FIPS 204 — ML-DSA-65        (module-lattice signatures, Layer 4 identity)
  *   FIPS 205 — SLH-DSA-128s     (stateless hash signatures, Layer 1 boot)
  *
- * Layer integration:
+ * Layer integration (intended roles; this file provides the primitives
+ * only and controls no hardware):
  *   Layer 1 (Membrane):  SLH-DSA boot verification — hash-based, lattice-free.
- *                        A failed check severs the voltage supply.
+ *                        The caller decides what a failed check does.
  *   Layer 2/3 (Organs + Nervous): Hybrid ML-DSA + SLH-DSA ledger seal.
  *                        Both proofs evaluated orthogonally via LPRES.
  *   Layer 4 (Interface): ML-DSA identity authentication for the
  *                        holographic desktop and P-TERM.
- *   Layer 5 (Mesh):      ML-KEM-1024 encapsulation for every exact-rational
- *                        event packet — no Harvest-Now-Decrypt-Later.
+ *   Layer 5 (Mesh):      ML-KEM-768 encapsulation of an event packet
+ *                        (pq_mesh_*). ML-KEM-1024 lives in pq_matrix.h.
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef PQ_SECURITY_H
 #define PQ_SECURITY_H
@@ -61,7 +62,9 @@ void pq_mldsa65_keygen(const uint8_t seed[32],
                        uint8_t sk[PQ_MLDSA65_SK_BYTES]);
 
 /* ML-DSA-65 sign. msg/msg_len: the message; ctx/ctx_len: domain separator
- * (may be NULL/0); rnd: 32 bytes fresh randomness. */
+ * (may be NULL/0, at most 255); rnd: 32 bytes fresh randomness (hedged), or
+ * NULL for the deterministic variant. On bad arguments sig is all zero,
+ * which never verifies. */
 void pq_mldsa65_sign(const uint8_t sk[PQ_MLDSA65_SK_BYTES],
                      const uint8_t *msg, uint32_t msg_len,
                      const uint8_t *ctx, uint32_t ctx_len,
@@ -81,22 +84,33 @@ bool pq_mldsa65_verify(const uint8_t pk[PQ_MLDSA65_PK_BYTES],
 #define PQ_SLH128S_PK_BYTES  32
 #define PQ_SLH128S_SK_BYTES  64
 #define PQ_SLH128S_SIG_BYTES 7856
+#define PQ_SLH128S_CTX_BYTES 255
 
-/* SLH-DSA-128s key generation. seed: 48 bytes fresh randomness. */
+/* SLH-DSA-SHAKE-128s key generation. seed: 48 bytes fresh randomness,
+ * read as SK.seed || SK.prf || PK.seed (16 bytes each). */
 void pq_slh128s_keygen(const uint8_t seed[48],
                        uint8_t pk[PQ_SLH128S_PK_BYTES],
                        uint8_t sk[PQ_SLH128S_SK_BYTES]);
 
-/* SLH-DSA-128s sign. opt_rnd may be NULL (deterministic). */
+/* SLH-DSA-128s sign, empty context. opt_rnd: 16 bytes of fresh
+ * randomness (hedged), or NULL for the deterministic variant. */
 void pq_slh128s_sign(const uint8_t sk[PQ_SLH128S_SK_BYTES],
                      const uint8_t *msg, uint32_t msg_len,
                      const uint8_t *opt_rnd,
                      uint8_t sig[PQ_SLH128S_SIG_BYTES]);
 
-/* SLH-DSA-128s verify. Returns true iff the signature is valid. */
+/* SLH-DSA-128s verify, empty context. Returns true iff the signature is valid. */
 bool pq_slh128s_verify(const uint8_t pk[PQ_SLH128S_PK_BYTES],
                        const uint8_t *msg, uint32_t msg_len,
                        const uint8_t sig[PQ_SLH128S_SIG_BYTES]);
+
+/* The same with a context string (FIPS 205 Algorithms 22/24), ctx_len <= 255. */
+void pq_slh128s_sign_ctx(const uint8_t sk[PQ_SLH128S_SK_BYTES], const uint8_t *msg,
+                         uint32_t msg_len, const uint8_t *ctx, uint32_t ctx_len,
+                         const uint8_t *opt_rnd, uint8_t sig[PQ_SLH128S_SIG_BYTES]);
+bool pq_slh128s_verify_ctx(const uint8_t pk[PQ_SLH128S_PK_BYTES], const uint8_t *msg,
+                           uint32_t msg_len, const uint8_t *ctx, uint32_t ctx_len,
+                           const uint8_t sig[PQ_SLH128S_SIG_BYTES]);
 
 /* ============================================================================
  * HYBRID SIGNATURE — the ledger's immutable quantum seal
@@ -122,8 +136,10 @@ void pq_hybrid_sign(const uint8_t mldsa_sk[PQ_MLDSA65_SK_BYTES],
  *   BOTH halves TRUE  -> LPRES_STATE_TRUE   (full integrity)
  *   one half TRUE     -> LPRES_STATE_BOTH   (contradiction: one scheme broken)
  *   both FALSE        -> LPRES_STATE_FALSE  (forgery)
- * The entry remains valid while EITHER half verifies — that is the
- * paraconsistent quantum seal. */
+ * Accept an entry ONLY on LPRES_STATE_TRUE. BOTH means one half failed:
+ * a forger who breaks just one of the two schemes produces exactly that,
+ * so treating BOTH as valid would make the seal only as strong as its
+ * weaker half. (pq_matrix.h's pqm_verify() returns the AND directly.) */
 lpres_state_t pq_hybrid_verify(const uint8_t mldsa_pk[PQ_MLDSA65_PK_BYTES],
                                const uint8_t slh_pk[PQ_SLH128S_PK_BYTES],
                                const uint8_t *msg, uint32_t msg_len,
@@ -146,23 +162,39 @@ lpres_state_t pq_boot_verify(const uint8_t slh_pk[PQ_SLH128S_PK_BYTES],
  * ============================================================================ */
 
 /* An encapsulated event packet: the exact-rational payload is sealed
- * under a quantum-resistant shared secret. */
+ * under a quantum-resistant shared secret. The shared secret itself never
+ * travels: only the ML-KEM ciphertext does, and only the holder of the
+ * decapsulation key can recover the secret.
+ *
+ * Sealing (SHA-3 family only, so this layer needs nothing beyond keccak):
+ *   ks  = SHAKE256(ss || "ZXV-MESH-v1 stream", payload_len)
+ *   mk  = SHAKE256(ss || "ZXV-MESH-v1 mac", 32)
+ *   payload = plaintext XOR ks
+ *   tag = SHA3-256(mk || ct || le32(payload_len) || payload)
+ * Every encapsulation draws a fresh ML-KEM secret, so a key stream is never
+ * reused. SHA-3 is not length-extendable, so the prefix-keyed hash is a MAC. */
+#define PQ_MESH_MAX_PAYLOAD 1024u
+#define PQ_MESH_TAG_BYTES   32u
 typedef struct {
     uint8_t ct[MLKEM768_CT_BYTES];   /* ML-KEM-768 ciphertext */
-    uint8_t ss[MLKEM768_SS_BYTES];   /* shared secret (sender side) */
+    uint8_t tag[PQ_MESH_TAG_BYTES];  /* authenticates ct, length and payload */
     uint32_t payload_len;
-    uint8_t payload[1024];           /* sealed exact-rational IR bytes */
+    uint8_t payload[PQ_MESH_MAX_PAYLOAD]; /* sealed exact-rational IR bytes */
 } pq_mesh_packet_t;
 
-/* Encapsulate a mesh packet under the receiver's encapsulation key. */
-void pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES],
-                         const uint8_t *payload, uint32_t payload_len,
-                         const uint8_t m[32],
-                         pq_mesh_packet_t *out);
+/* Encapsulate and seal a payload under the receiver's encapsulation key.
+ * m is 32 bytes of fresh randomness. Returns false (and an all-zero packet)
+ * when the payload is too long or an argument is missing. */
+bool pq_mesh_encapsulate(const uint8_t ek[MLKEM768_EK_BYTES], const uint8_t *payload,
+                         uint32_t payload_len, const uint8_t m[32], pq_mesh_packet_t *out);
 
-/* Decapsulate a mesh packet with the receiver's decapsulation key.
- * Returns the shared secret; the payload is unsealed by the caller
- * using the returned secret. */
+/* Decapsulate, authenticate and unseal. Returns false, with out zeroed, when
+ * the tag does not verify (wrong key, or any bit of the packet changed). */
+bool pq_mesh_open(const uint8_t dk[MLKEM768_DK_BYTES], const pq_mesh_packet_t *packet, uint8_t *out,
+                  uint32_t cap, uint32_t *out_len);
+
+/* Decapsulate only: the receiver's copy of the shared secret, for callers
+ * that derive their own session keys from it. */
 void pq_mesh_decapsulate(const uint8_t dk[MLKEM768_DK_BYTES],
                          const pq_mesh_packet_t *packet,
                          uint8_t ss_out[MLKEM768_SS_BYTES]);

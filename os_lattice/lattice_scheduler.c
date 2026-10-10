@@ -103,8 +103,7 @@ void lattice_sched_resolve_shadow(lattice_scheduler_t *s, double complex shadow,
     (void)resolved;
     s->paradox_level = level;
     if (s->graph->matrix) {
-        axiom_matrix_set(s->graph->matrix, s->current_ordinal,
-                         (rational_t){0, 1}, TRIT_FALSE,
-                         (phase_t){0, 0}, (collapse_t){{0, 0}}, resolved);
+        axiom_matrix_set(s->graph->matrix, s->current_ordinal, (rational_t){0, 1}, TRIT_FALSE,
+                         (phase_t){0, 0}, (collapse_t){{0, 0}}, m5_cq16_from_dc(resolved));
     }
 }

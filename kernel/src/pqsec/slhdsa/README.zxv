@@ -1,0 +1,15 @@
+SLH-DSA-SHAKE-128s (FIPS 205) — vendored implementation
+
+Source:   https://github.com/pq-code-package/slhdsa-c
+Commit:   174c02e42257f95c210963272877c49dbb50070f
+License:  Apache-2.0, MIT or ISC, see LICENSE. All allow commercial use
+          and sale. We take it under Apache-2.0, matching the repository.
+
+Files copied unchanged except:
+  sha3_api.h     its Keccak/SHA-3 symbols are renamed with a zxv_slh_
+                 prefix so they cannot collide with src/mlkem/keccak.c.
+Not copied: the SHA-2 parameter sets (slh_sha2.c, sha2_256.c, sha2_512.c),
+pre-hash support (slh_prehash.*), tests, proofs and build files. sha2_api.h
+stays because slh_var.h declares its types.
+
+Glue: ../pq_slhdsa.c. Checked against NIST ACVP vectors: ../test_pq_kat.c.

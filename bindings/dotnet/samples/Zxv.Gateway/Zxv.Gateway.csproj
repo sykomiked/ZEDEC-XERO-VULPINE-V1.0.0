@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Operator REST gateway sample: ASP.NET Core minimal API over Zxv.Sdk. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Zxv.Gateway</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CA1515: minimal-API types are public for WebApplicationFactory and OpenAPI.
+         CS1591: XML docs are required on the SDK, optional on the sample.
+         CA1861: start-up code runs once. -->
+    <NoWarn>$(NoWarn);CA1515;CA2007;CS1591;CA1812;CA1861</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Zxv.Sdk/Zxv.Sdk.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Zxv.Gateway.Tests" />
+  </ItemGroup>
+</Project>

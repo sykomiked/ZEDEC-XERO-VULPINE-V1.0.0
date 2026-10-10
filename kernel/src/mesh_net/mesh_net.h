@@ -12,7 +12,10 @@
  *   - JDR PirateNet provides the physical transport layer
  *   - Count House provides economic valuation for route pricing
  *   - Mesh-Token handles settlement along trade routes
- *   - All mesh traffic is post-quantum signed and encrypted
+ *   - NOT YET: this module keeps network/route/accounting state only. It
+ *     signs nothing, encrypts nothing and moves no bytes; mn_send_data()
+ *     only books the transfer. Signing and encryption belong to the
+ *     transport (e.g. bootlegger / plnp) and are not wired here.
  *
  * This is NOT a traditional TCP/IP stack. It is a post-quantum P2P
  * mesh networking layer native to the M5 Axiomatic architecture.
@@ -20,9 +23,9 @@
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef MESH_NET_H
 #define MESH_NET_H

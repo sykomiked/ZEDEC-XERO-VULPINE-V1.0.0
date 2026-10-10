@@ -62,7 +62,7 @@ double audiogenomics_compute_emotion_index(const audio_sample_t *samples, uint32
 }
 
 double audiogenomics_compute_coherence(const egv_vector_t *egv) {
-    double phase_mag = sqrt(egv->phase.r * egv->phase.r + egv->phase.i * egv->phase.i);
+    double phase_mag = hypot(m5_phase_r(egv->phase), m5_phase_i(egv->phase));
     double emotion_factor = (egv->emotion_index + 1.0) / 2.0;
     return phase_mag * emotion_factor * egv->coherence_score;
 }
@@ -98,17 +98,16 @@ int audiogenomics_extract_egv(audiogenomics_state_t *a, uint32_t session_idx) {
         phase_sum_r += s->samples[i].real;
         phase_sum_i += s->samples[i].imag;
     }
-    egv->phase.r = phase_sum_r / s->num_samples;
-    egv->phase.i = phase_sum_i / s->num_samples;
+    egv->phase = m5_phase_from_double(phase_sum_r / s->num_samples, phase_sum_i / s->num_samples);
 
     egv->choice = choice_get_state();
     egv->timestamp = s->history_count;
 
     uint64_t hash = 1469598103934665603ULL;
     for (uint32_t i = 0; i < s->num_samples; i++) {
-        hash ^= (uint64_t)(s->samples[i].real * 1e6);
+        hash ^= (uint64_t) (int64_t) (s->samples[i].real * 1e6);
         hash *= 1099511628211ULL;
-        hash ^= (uint64_t)(s->samples[i].imag * 1e6);
+        hash ^= (uint64_t) (int64_t) (s->samples[i].imag * 1e6);
         hash *= 1099511628211ULL;
     }
     for (int i = 0; i < AUDIO_MAX_EGV; i++) {
@@ -125,8 +124,8 @@ int audiogenomics_extract_egv(audiogenomics_state_t *a, uint32_t session_idx) {
 
     if (a->matrix) {
         double complex val = egv->emotion_index + I * egv->intent_estimate;
-        axiom_matrix_set(a->matrix, egv->timestamp, (rational_t){1, 1},
-                       TRIT_TRUE, egv->phase, egv->choice, val);
+        axiom_matrix_set(a->matrix, egv->timestamp, (rational_t){1, 1}, TRIT_TRUE, egv->phase,
+                         egv->choice, m5_cq16_from_dc(val));
     }
 
     return 0;

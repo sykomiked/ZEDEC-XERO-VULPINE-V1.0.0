@@ -35,7 +35,7 @@
  * failure mode is an indirect call through garbage at the first timer tick.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * License: Apache-2.0
  */
 ENTRY(_start)
 

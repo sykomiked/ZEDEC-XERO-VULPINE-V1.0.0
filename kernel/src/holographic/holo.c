@@ -7,7 +7,16 @@
 
 static int str_len(const char *s){int n=0;while(s[n])n++;return n;}
 static int str_cmp(const char *a,const char *b){while(*a&&*a==*b){a++;b++;}return(int)(unsigned char)*a-(int)(unsigned char)*b;}
-static void str_copy(char*d,const char*s){int i=0;while(s[i]){d[i]=s[i];i++;}d[i]=0;}
+/* every destination is a 64-byte name field: copy at most 63 bytes + NUL */
+static void str_copy(char *d, const char *s)
+{
+    int i = 0;
+    while (i < 63 && s[i]) {
+        d[i] = s[i];
+        i++;
+    }
+    d[i] = 0;
+}
 static void mem_set(void*d,int c,uint32_t n){uint8_t*p=d;for(uint32_t i=0;i<n;i++)p[i]=(uint8_t)c;}
 static void mem_copy(void*d,const void*s,uint32_t n){uint8_t*dp=d;const uint8_t*sp=s;for(uint32_t i=0;i<n;i++)dp[i]=sp[i];}
 
@@ -264,6 +273,7 @@ int32_t holo_dataset_validate(const holo_dataset_t *ds) {
     if (!ds) return -1;
     if (ds->header.magic != HOLO_MAGIC_36M9) return -1;
     if (ds->header.type != HOLO_TYPE_36M9) return -1;
+    if (ds->num_pairs > HOLO_MAX_PAIRS) return -1; /* count read from a file */
     return 0;
 }
 
@@ -365,6 +375,7 @@ int32_t holo_container_validate(const holo_container_t *c) {
     if (!c) return -1;
     if (c->header.magic != HOLO_MAGIC_ZEDEC) return -1;
     if (c->header.type != HOLO_TYPE_ZEDEC) return -1;
+    if (c->num_entries > HOLO_MAX_ENTRIES) return -1; /* count read from a file */
     return 0;
 }
 
@@ -475,8 +486,8 @@ int32_t holo_serialize_positive(const holo_positive_t *pos,
                                  const uint8_t *payload, uint32_t payload_len,
                                  uint8_t *out, uint32_t max_out) {
     if (!pos || !out) return -1;
+    if (payload_len > max_out || max_out - payload_len < sizeof(*pos)) return -1;
     uint32_t total = sizeof(*pos) + payload_len;
-    if (total > max_out) return -1;
     holo_positive_t *o = (holo_positive_t*)out;
     mem_copy(o, pos, sizeof(*pos));
     o->header.data_length = payload_len;
@@ -490,8 +501,8 @@ int32_t holo_serialize_negative(const holo_negative_t *neg,
                                  const uint8_t *payload, uint32_t payload_len,
                                  uint8_t *out, uint32_t max_out) {
     if (!neg || !out) return -1;
+    if (payload_len > max_out || max_out - payload_len < sizeof(*neg)) return -1;
     uint32_t total = sizeof(*neg) + payload_len;
-    if (total > max_out) return -1;
     holo_negative_t *o = (holo_negative_t*)out;
     mem_copy(o, neg, sizeof(*neg));
     o->header.data_length = payload_len;
@@ -515,8 +526,8 @@ int32_t holo_serialize_renderer(const holo_renderer_t *r,
                                  const uint8_t *shader, uint32_t shader_len,
                                  uint8_t *out, uint32_t max_out) {
     if (!r || !out) return -1;
+    if (shader_len > max_out || max_out - shader_len < sizeof(*r)) return -1;
     uint32_t total = sizeof(*r) + shader_len;
-    if (total > max_out) return -1;
     holo_renderer_t *o = (holo_renderer_t*)out;
     mem_copy(o, r, sizeof(*r));
     o->shader_length = shader_len;
@@ -554,8 +565,8 @@ int32_t holo_deserialize_positive(const uint8_t *data, uint32_t len,
     if (holo_positive_validate(pos) != 0) return -1;
     uint32_t plen = pos->header.data_length;
     if (payload_len) *payload_len = plen;
-    if (payload_out && plen > 0 && len >= sizeof(*pos) + plen)
-        mem_copy(payload_out, data + sizeof(*pos), plen);
+    if (plen > len - sizeof(*pos)) return -1; /* sizeof + plen could wrap */
+    if (payload_out && plen > 0) mem_copy(payload_out, data + sizeof(*pos), plen);
     return 0;
 }
 
@@ -567,8 +578,8 @@ int32_t holo_deserialize_negative(const uint8_t *data, uint32_t len,
     if (holo_negative_validate(neg) != 0) return -1;
     uint32_t plen = neg->header.data_length;
     if (payload_len) *payload_len = plen;
-    if (payload_out && plen > 0 && len >= sizeof(*neg) + plen)
-        mem_copy(payload_out, data + sizeof(*neg), plen);
+    if (plen > len - sizeof(*neg)) return -1; /* sizeof + plen could wrap */
+    if (payload_out && plen > 0) mem_copy(payload_out, data + sizeof(*neg), plen);
     return 0;
 }
 
@@ -588,8 +599,8 @@ int32_t holo_deserialize_renderer(const uint8_t *data, uint32_t len,
     if (holo_renderer_validate(r) != 0) return -1;
     uint32_t slen = r->shader_length;
     if (shader_len) *shader_len = slen;
-    if (shader_out && slen > 0 && len >= sizeof(*r) + slen)
-        mem_copy(shader_out, data + sizeof(*r), slen);
+    if (slen > len - sizeof(*r)) return -1; /* sizeof + slen could wrap */
+    if (shader_out && slen > 0) mem_copy(shader_out, data + sizeof(*r), slen);
     return 0;
 }
 

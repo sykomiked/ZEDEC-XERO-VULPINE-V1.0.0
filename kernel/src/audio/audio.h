@@ -2,9 +2,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC
  *
  * WHAT THIS IS
@@ -54,10 +54,11 @@
  *     reverb. y and z affect only the distance term. Calling this "3D" is
  *     generous; it is what the code does.
  *
- *  6. THE IN-TREE SQUARE ROOT IS NOT CORRECTLY ROUNDED. It exists so host and
- *     target agree bit for bit without libm. It is exact on perfect squares and
- *     within 1 ULP everywhere else; roughly a quarter of arguments differ from
- *     libm's sqrt in the last bit. That cannot move a 16-bit sample, but do not
+ *  6. GAINS ARE Q16.16 FIXED POINT (kernel images have no floating point).
+ *     Volumes, balance, positions and coverage are integers scaled by 2^16
+ *     (Q16_ONE == 1.0); the distance is an integer square root (floor). A
+ *     gain such as 1/6 is held as 10922/65536, so a product can differ from
+ *     the exact real value by one unit in the last place of the sample. Do not
  *     lift it out of this file for anything that needs a real sqrt.
  *
  *  7. NO DYNAMIC ALLOCATION. Stream ring buffers come from a fixed static pool
@@ -92,6 +93,7 @@
 #include <stdbool.h>
 #include "m5_types.h"
 #include "edp_risk.h"     /* m5_coords_t, surplus_real_t */
+#include "zxv_fixed.h"    /* Q16_ONE: every gain below is Q16.16 */
 
 /* ===== Return codes. Zero or positive = real work; negative = refusal. ===== */
 #define AUDIO_OK          0
@@ -138,10 +140,11 @@ typedef struct {
     uint32_t buffer_size;
     uint32_t buffer_head;    /* producer cursor (bytes)                     */
     uint32_t buffer_tail;    /* consumer cursor (bytes)                     */
-    double volume;           /* 0.0 to 1.0                                  */
-    double balance;          /* -1.0 (left) to 1.0 (right)                  */
-    /* 3D positioning — distance + pan only, see LIMITATION 5 */
-    double pos_x, pos_y, pos_z;
+    uint32_t volume;         /* Q16.16, 0 to Q16_ONE (1.0)                  */
+    int32_t balance;         /* Q16.16, -Q16_ONE (left) to Q16_ONE (right)  */
+    /* 3D positioning — distance + pan only, see LIMITATION 5.
+     * Q16.16, |coord| <= AUDIO_POS_MAX. */
+    int64_t pos_x, pos_y, pos_z;
     bool spatial;
 
     /* --- added by the implementation --- */
@@ -170,7 +173,10 @@ typedef struct {
 
 /* Coverage floor for audio_verify_coverage(). See the comment on that
  * function: it is a liveness test and it is meant to be failable. */
-#define AUDIO_COVERAGE_FLOOR  0.5
+#define AUDIO_COVERAGE_FLOOR (Q16_ONE / 2) /* Q16.16: 0.5 */
+
+/* Largest |coordinate| audio_set_3d_position() accepts: 1e9 in Q16.16. */
+#define AUDIO_POS_MAX ((int64_t) 1000000000 * Q16_ONE)
 
 /* reg_status bits (sticky until audio_init or audio_clear_status) */
 #define AUDIO_ST_RUNNING   0x1u
@@ -183,7 +189,7 @@ typedef struct {
 /* ===== Mixer channel ===== */
 typedef struct {
     char name[32];
-    double volume;
+    uint32_t volume; /* Q16.16, 0 to Q16_ONE */
     bool muted;
     bool is_capture;
     uint32_t source_stream;  /* 0 = applies to every stream of its direction
@@ -263,7 +269,7 @@ typedef struct {
     /* Mixer */
     audio_mixer_ch_t mixer[AUDIO_MAX_MIXER_CH];
     uint32_t num_mixer_channels;
-    double master_volume;
+    uint32_t master_volume; /* Q16.16, 0 to Q16_ONE */
     bool master_muted;
 
     /* Capabilities (derived from ctrl_type by audio_init) */
@@ -274,8 +280,8 @@ typedef struct {
 
     /* M5 coordinates */
     m5_coords_t m5;
-    double coverage_r;
-    double coverage_l;
+    uint32_t coverage_r; /* Q16.16, 0 to Q16_ONE */
+    uint32_t coverage_l; /* Q16.16, 0 to Q16_ONE */
 
     /* --- added by the implementation --- */
     const audio_ops_t *ops;  /* NULL => no silicon; see LIMITATION 1 */
@@ -308,13 +314,14 @@ int audio_write(audio_device_t *dev, uint32_t stream_id, const void *data, uint3
  * (may be 0), negative on refusal. Same AUDIO_EINVAL rule as audio_write. */
 int audio_read(audio_device_t *dev, uint32_t stream_id, void *data, uint32_t len);
 
-/* Both reject NaN and infinity: the range tests are written so that any
- * unordered comparison falls through to AUDIO_EINVAL. */
-int audio_set_volume(audio_device_t *dev, uint32_t stream_id, double vol);
-int audio_set_balance(audio_device_t *dev, uint32_t stream_id, double bal);
-/* Requires dev->supports_3d, else AUDIO_ENOSUP. Rejects NaN and |coord| > 1e9.
- * Refuses a CAPTURE stream with AUDIO_EDIR — a microphone has no position. */
-int audio_set_3d_position(audio_device_t *dev, uint32_t stream_id, double x, double y, double z);
+/* Q16.16 arguments. volume must be in [0, Q16_ONE] and balance in
+ * [-Q16_ONE, Q16_ONE]; anything else is AUDIO_EINVAL. */
+int audio_set_volume(audio_device_t *dev, uint32_t stream_id, uint32_t vol);
+int audio_set_balance(audio_device_t *dev, uint32_t stream_id, int32_t bal);
+/* Requires dev->supports_3d, else AUDIO_ENOSUP. Q16.16 coordinates; rejects
+ * |coord| > AUDIO_POS_MAX (1e9). Refuses a CAPTURE stream with AUDIO_EDIR —
+ * a microphone has no position. */
+int audio_set_3d_position(audio_device_t *dev, uint32_t stream_id, int64_t x, int64_t y, int64_t z);
 int audio_pause(audio_device_t *dev, uint32_t stream_id);
 int audio_resume(audio_device_t *dev, uint32_t stream_id);
 /* Stops AND discards whatever is still buffered for that stream. The stream
@@ -327,11 +334,11 @@ int audio_stop(audio_device_t *dev, uint32_t stream_id);
  * there is exactly one path that moves it, so reg_volume can never claim an
  * attenuation the codec was never told about. That also means this call can
  * return AUDIO_EIO for ch 0 when a bound backend refuses the write. */
-int audio_mixer_set_channel(audio_device_t *dev, uint32_t ch, double vol, bool mute);
+int audio_mixer_set_channel(audio_device_t *dev, uint32_t ch, uint32_t vol, bool mute);
 /* Also mirrors into mixer[AUDIO_CH_MASTER] and reg_volume, and forwards to
  * ops->set_volume when a backend is bound (AUDIO_EIO if the backend refuses;
  * the software state is applied either way). */
-int audio_mixer_set_master(audio_device_t *dev, double vol, bool mute);
+int audio_mixer_set_master(audio_device_t *dev, uint32_t vol, bool mute);
 /* Route one stream to one mixer channel. stream_id 0 clears the routing. */
 int audio_mixer_bind_stream(audio_device_t *dev, uint32_t ch, uint32_t stream_id);
 /* Index of the channel with this name, or AUDIO_ENOSTREAM if absent. */

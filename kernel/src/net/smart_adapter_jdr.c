@@ -1,13 +1,13 @@
 /* smart_adapter_jdr.c — JDR PirateNet Smart Adapter Implementation
  *
  * Bridges the generic smart adapter framework to JDR PirateNet transceivers.
- * Demonstrates the "hardware-in-software" pattern for military-grade radio.
+ * Demonstrates the "hardware-in-software" pattern for a software-defined radio model.
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "smart_adapter.h"
 #include "jdr_piratenet.h"

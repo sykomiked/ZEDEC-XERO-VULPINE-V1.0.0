@@ -5,9 +5,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "m5_api.h"
 
@@ -37,7 +37,12 @@ static void app_tick(void);
 /* ===== Entry Point ===== */
 int main(void) {
     app_init();
-    
+    /* Wire these to your input and display path; referenced here so the
+     * template builds warning-free (-Werror) before you do. */
+    (void) app_handle_key;
+    (void) app_handle_special;
+    (void) app_render;
+
     /* Register with app launcher */
     m5_app_launcher_open(M5_APP_CUSTOM);
     

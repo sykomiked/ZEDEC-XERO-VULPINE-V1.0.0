@@ -30,9 +30,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifndef ZEDEC_SUPERPOS_H
@@ -188,7 +188,8 @@ const char *superpos_interference_name(sp_interference_t i);
 
 /* Reporting */
 int superpos_report(const superpos_t *sp, char *buf, uint32_t max_len);
-float superpos_agreement_rate(const superpos_t *sp);
+/* safety-verified active states / num_states in permille (1000 when empty). */
+uint32_t superpos_agreement_permille(const superpos_t *sp);
 
 /* Integration: coordinate with dual-track */
 int superpos_coordinate(superpos_t *sp, uint32_t linear_state_idx,

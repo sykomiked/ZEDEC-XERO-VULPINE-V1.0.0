@@ -1,7 +1,10 @@
 /* identity.h — Universal National Identity System
  *
- * Hardware-as-code identity processor covering all 193 UN member states
- * plus observer states and special administrative regions.
+ * Hardware-as-code identity MODEL with a table of 181 country entries
+ * (ISO numeric/alpha-3 + a regional system label). It does NOT cover every
+ * UN member state, connects to no national ID system, and verifies no
+ * document or biometric: identity_verify() only checks M5 coverage and the
+ * record's own active/sanctioned flags.
  * Each national identity is a virtual hardware device with register maps,
  * biometric attestation, and M⁵ coverage verification.
  *
@@ -13,9 +16,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef IDENTITY_H
 #define IDENTITY_H
@@ -167,6 +170,8 @@ uint32_t identity_register(identity_registry_t *reg,
 bool identity_verify(identity_device_t *dev);
 
 /* Biometric attestation */
+/* Returns -1 if the modality is not enrolled, -2 always otherwise: no biometric
+ * matcher is wired, so no attestation is ever granted (see identity.c). */
 int32_t identity_attest_biometric(identity_device_t *dev, biometric_modality_t modality);
 
 /* Check sanctions / PEPs */

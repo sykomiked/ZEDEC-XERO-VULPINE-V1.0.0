@@ -1,0 +1,59 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: c-cpp
+            build-mode: none
+          - language: actions
+            build-mode: none
+          - language: python
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v5
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+          output: sarif-results
+          upload: failure-only
+      # paths-ignore does not apply to C/C++, so drop results in vendored
+      # upstream code (kept byte-identical to its release) before upload.
+      - uses: advanced-security/filter-sarif@v1
+        with:
+          patterns: |
+            -kernel/src/pqsec/mldsa/**
+            -kernel/src/pqsec/slhdsa/**
+            -kernel/src/pqsec/mlkem1024/**
+            -kernel/src/pqsec/hqc5/**
+            -kernel/src/pay/xsd/**
+          input: sarif-results/${{ matrix.language == 'c-cpp' && 'cpp' || matrix.language }}.sarif
+          output: sarif-results/${{ matrix.language == 'c-cpp' && 'cpp' || matrix.language }}.sarif
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif-results/${{ matrix.language == 'c-cpp' && 'cpp' || matrix.language }}.sarif
+          category: /language:${{ matrix.language }}

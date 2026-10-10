@@ -4,9 +4,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include "legal_engine.h"
@@ -27,13 +27,14 @@ static void safe_strncpy(uint8_t *dst, const char *src, int max) {
     dst[i] = 0;
 }
 
+/* An 8-bit label, floor(phi * byte sum) mod 256 with phi in Q16
+ * (106039 / 65536). Not an integrity check: nothing verifies it. Integer only
+ * (freestanding kernel build). */
 static uint8_t phi_checksum(const void *data, uint32_t len) {
-    const double phi = 1.6180339887498948;
-    double sum = 0;
+    uint64_t sum = 0;
     const uint8_t *p = (const uint8_t *)data;
-    for (uint32_t i = 0; i < len; i++)
-        sum += (double)p[i] * phi;
-    return (uint8_t)((uint64_t)sum & 0xFF);
+    for (uint32_t i = 0; i < len; i++) sum += p[i];
+    return (uint8_t) (((sum * 106039u) >> 16) & 0xFF);
 }
 
 static const char *treaty_status_name(treaty_status_t s) {
@@ -870,7 +871,7 @@ int legal_auto_respond(legal_engine_ext_t *engine, uint32_t watcher_id,
     APPEND("\nThe risk index above is computed by this node from local "
            "observations. It is not evidence, it establishes no finding "
            "against any party, and it should not be forwarded as one.\n\n"
-           "License: SEL-3.3 — Streisand Engine License\n"
+           "License: Apache-2.0\n"
            "Author: H.M. Michael-Laurence: Curzi (c)\n");
 
     return pos;
@@ -923,10 +924,10 @@ int legal_compliance_audit(legal_engine_ext_t *engine, char *buf,
             high_risk++;
     }
     pos += fs_snprintf(buf + pos, buf_len - pos,
-        "  High Risk: %u\n\n"
-        "All entries sealed with golden ratio (phi) checksum standard.\n"
-        "License: SEL-3.3 — Streisand Engine License\n",
-        high_risk);
+                       "  High Risk: %u\n\n"
+                       "All entries sealed with golden ratio (phi) checksum standard.\n"
+                       "License: Apache-2.0\n",
+                       high_risk);
     return pos;
 }
 

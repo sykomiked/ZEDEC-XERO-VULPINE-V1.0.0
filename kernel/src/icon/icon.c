@@ -40,7 +40,8 @@ static void fill_tri(uint32_t *b, uint32_t size, int x0,int y0,int x1,int y1,int
     int maxx=x0>x1?(x0>x2?x0:x2):(x1>x2?x1:x2);
     int miny=y0<y1?(y0<y2?y0:y2):(y1<y2?y1:y2);
     int maxy=y0>y1?(y0>y2?y0:y2):(y1>y2?y1:y2);
-    if (minx<0)minx=0; if(miny<0)miny=0;
+    if (minx < 0) minx = 0;
+    if (miny < 0) miny = 0;
     for (int y=miny;y<=maxy;y++) for(int x=minx;x<=maxx;x++){
         int w0=edge(x1,y1,x2,y2,x,y), w1=edge(x2,y2,x0,y0,x,y), w2=edge(x0,y0,x1,y1,x,y);
         if ((w0>=0&&w1>=0&&w2>=0)||(w0<=0&&w1<=0&&w2<=0)) px(b,size,(uint32_t)x,(uint32_t)y,rgb);

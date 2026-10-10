@@ -3,7 +3,7 @@
  * Target: qemu-system-arm -M virt (Cortex-A15)
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3 + CC BY 4.0 + OPL v1.1
+ * License: Apache-2.0
  */
 ENTRY(_start)
 

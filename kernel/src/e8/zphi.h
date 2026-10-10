@@ -45,9 +45,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)  (ZXV exact-geometry slice)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef ZXV_ZPHI_H
 #define ZXV_ZPHI_H
@@ -105,8 +105,11 @@ bool zphi_is_int(zphi_t x);               /* b == 0 */
  * DOUBLE CONVERSION IS FOR PRINTING AND TESTS ONLY. Never make a decision on
  * this value: the exact predicates above are the whole reason this type exists,
  * and comparing two converted doubles reintroduces precisely the rounding this
- * module was written to eliminate. */
+ * module was written to eliminate. Declared in hosted builds only: kernel
+ * images (-ffreestanding) are integer-only. */
+#if __STDC_HOSTED__
 double zphi_to_double(zphi_t x);
+#endif
 
 /* Internal consistency: closure, the two roots, conjugation, norm
  * multiplicativity, and overflow reporting. Returns the number of problems

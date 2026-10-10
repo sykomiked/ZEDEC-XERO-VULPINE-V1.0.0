@@ -2,7 +2,13 @@
 
 ## Overview
 
-The M5 SDK provides a complete development environment for building user space applications on the M5 Axiomatic Kernel. Applications run at EL0 (ARM64) with full access to the kernel's axiomatic services through the `m5_api.h` interface.
+> **Status (audit 2026-10):** `m5_api.h` declares the API, but no file in this
+> repository defines any of its `m5_*` functions (`m5_syscall`, `m5_gui_*`,
+> `m5_app_launcher_open`, ...). An app built from `app_template.c` compiles,
+> but it will not link until those functions exist. `make ... test` only
+> checks that it compiles on the host.
+
+The M5 SDK is meant to be a development environment for building user space applications on the M5 Axiomatic Kernel. Applications run at EL0 (ARM64) with full access to the kernel's axiomatic services through the `m5_api.h` interface.
 
 ## Quick Start
 
@@ -64,7 +70,7 @@ make -C kernel -f build_system/Makefile.arm64 all
 
 | Module | Header | Description |
 |--------|--------|-------------|
-| **Triple Ledger** | `m5_ledger_*` | Three-rail settlement (846/888/999) |
+| **Triple Ledger** | `m5_ledger_*` | Three-rail settlement (555/777/888) |
 | **Vouchers** | `m5_voucher_*` | Merit-based, no-debt instruments |
 | **Derivatives** | `m5_deriv_*` | Kernel-enforced 100% backing |
 | **Assurance** | `m5_assurance_*` | Pay-It-Forward capital generation |
@@ -73,16 +79,17 @@ make -C kernel -f build_system/Makefile.arm64 all
 ### Capital Forms (Nine Forms)
 
 ```c
+// Values are the canonical zcap_form_t order (kernel/src/zcapital/zcap_forms.h).
 typedef enum {
-    M5_FORM_SOCIAL = 0,              // State-Reserved
-    M5_FORM_NATURAL = 1,             // State-Reserved
-    M5_FORM_HERITAGE_INTELLECTUAL = 2, // State-Reserved
-    M5_FORM_GOVERNANCE_INSTITUTIONAL = 3, // State-Reserved
-    M5_FORM_FINANCIAL = 4,           // Priceable
-    M5_FORM_MATERIAL = 5,            // Priceable
-    M5_FORM_LIVING = 6,              // Priceable
-    M5_FORM_KNOWLEDGE = 7,           // Priceable
-    M5_FORM_BUILT = 8                // Priceable
+    M5_FORM_FINANCIAL = 0,           // Priceable    (ZCAP_FINANCIAL)
+    M5_FORM_MATERIAL = 1,            // Priceable    (ZCAP_MANUFACTURED)
+    M5_FORM_KNOWLEDGE = 2,           // Priceable    (ZCAP_INTELLECTUAL)
+    M5_FORM_LIVING = 3,              // Priceable    (ZCAP_HUMAN)
+    M5_FORM_SOCIAL = 4,              // State-Reserved (ZCAP_SOCIAL)
+    M5_FORM_NATURAL = 5,             // State-Reserved (ZCAP_NATURAL)
+    M5_FORM_HERITAGE_INTELLECTUAL = 6, // State-Reserved (ZCAP_CULTURAL)
+    M5_FORM_GOVERNANCE_INSTITUTIONAL = 7, // State-Reserved (ZCAP_SPIRITUAL)
+    M5_FORM_BUILT = 8                // Priceable    (ZCAP_SYSTEM)
 } m5_capital_form_t;
 ```
 

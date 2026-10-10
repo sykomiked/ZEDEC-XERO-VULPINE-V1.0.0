@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* pce.h — a PC Engine / TurboGrafx-16 machine around the HuC6280. The library is
  * distinctive and story-strong (Ys I & II, Neutopia, Dungeon Explorer, the birth
  * of CD-based storytelling), a fresh narrative slice for Chiglet.

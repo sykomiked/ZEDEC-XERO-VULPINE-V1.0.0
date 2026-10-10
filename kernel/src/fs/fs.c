@@ -5,9 +5,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include "fs.h"
@@ -210,21 +210,34 @@ bool fs_restore_snapshot(fs_registry_t *reg, uint32_t snap_idx) {
 
 /* ===== Transactions ===== */
 
+/* A finished transaction no longer needs its rollback snapshot. Free the
+ * slot when it is the newest one, so a long run of transactions does not
+ * exhaust the 32 snapshot slots. */
+static void fs_release_tx_snapshot(fs_registry_t *reg, fs_transaction_t *tx)
+{
+    if (reg->snapshot_count > 0 && tx->snapshot_id == reg->snapshot_count - 1) {
+        reg->snapshots[tx->snapshot_id].valid = false;
+        reg->snapshot_count--;
+    }
+}
+
 int32_t fs_begin_transaction(fs_registry_t *reg) {
     if (!reg) return -1;
     if (reg->tx_count >= FS_MAX_TRANS) return -1;
+
+    /* Create snapshot for rollback FIRST. Without one there is nothing to
+     * roll back to: the old code left snapshot_id at 0, so once the 32
+     * snapshot slots were used a failed commit restored snapshot 0 — the
+     * oldest state — and silently discarded every later change. */
+    int32_t snap_idx = fs_create_snapshot(reg, "tx-rollback");
+    if (snap_idx < 0) return -1;
 
     fs_transaction_t *tx = &reg->transactions[reg->tx_count];
     ev_memset(tx, 0, sizeof(*tx));
     tx->id = reg->next_tx_id++;
     tx->status = FS_TX_ACTIVE;
     tx->op_count = 0;
-
-    /* Create snapshot for rollback */
-    int32_t snap_idx = fs_create_snapshot(reg, "tx-rollback");
-    if (snap_idx >= 0) {
-        tx->snapshot_id = (uint32_t)snap_idx;
-    }
+    tx->snapshot_id = (uint32_t) snap_idx;
 
     return (int32_t)reg->tx_count++;
 }
@@ -305,6 +318,7 @@ bool fs_tx_commit(fs_registry_t *reg, uint32_t tx_idx) {
     }
 
     tx->status = FS_TX_COMMITTED;
+    fs_release_tx_snapshot(reg, tx);
     return true;
 
 commit_fail:
@@ -313,6 +327,7 @@ commit_fail:
         fs_restore_snapshot(reg, tx->snapshot_id);
     }
     tx->status = FS_TX_ABORTED;
+    fs_release_tx_snapshot(reg, tx);
     return false;
 }
 
@@ -326,6 +341,7 @@ bool fs_tx_abort(fs_registry_t *reg, uint32_t tx_idx) {
         fs_restore_snapshot(reg, tx->snapshot_id);
     }
     tx->status = FS_TX_ABORTED;
+    fs_release_tx_snapshot(reg, tx);
     return true;
 }
 

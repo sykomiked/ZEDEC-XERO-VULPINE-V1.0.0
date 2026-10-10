@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-7"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCspmrStmt>
+<GvpHdr><MHdr>
+<StmtAmt Ccy="U>S"/CdOrPr<Cd>RCDeDtTm

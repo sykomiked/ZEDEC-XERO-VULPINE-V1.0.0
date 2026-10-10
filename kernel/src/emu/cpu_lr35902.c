@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* cpu_lr35902.c — Sharp LR35902 (Game Boy / GBC CPU). See cpu_lr35902.h.
  * The regular blocks $40-$7F (LD r,r') and $80-$BF (ALU A,r) are decoded
  * algorithmically; the rest are explicit. Undefined opcodes are counted. */

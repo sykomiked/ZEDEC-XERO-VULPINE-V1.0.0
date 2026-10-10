@@ -1,0 +1,32 @@
+<Project>
+  <!-- Shared settings for every project in bindings/dotnet. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Authors>Michael Laurence Curzi; 36N9 Genetics, LLC</Authors>
+    <Copyright>Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <Version>1.0.0-preview.1</Version>
+  </PropertyGroup>
+
+  <!-- Location of the native shim (bindings/dotnet/native). -->
+  <PropertyGroup>
+    <ZxvNativeDir>$(MSBuildThisFileDirectory)native/</ZxvNativeDir>
+    <ZxvNativeFile Condition="$([MSBuild]::IsOSPlatform('OSX'))">libzxv.dylib</ZxvNativeFile>
+    <ZxvNativeFile Condition="$([MSBuild]::IsOSPlatform('Windows'))">zxv.dll</ZxvNativeFile>
+    <ZxvNativeFile Condition="'$(ZxvNativeFile)' == ''">libzxv.so</ZxvNativeFile>
+    <ZxvNativeLib>$(ZxvNativeDir)build/$(ZxvNativeFile)</ZxvNativeLib>
+    <ZxvNativeArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant())</ZxvNativeArch>
+    <ZxvNativeRid Condition="$([MSBuild]::IsOSPlatform('OSX'))">osx-$(ZxvNativeArch)</ZxvNativeRid>
+    <ZxvNativeRid Condition="$([MSBuild]::IsOSPlatform('Windows'))">win-$(ZxvNativeArch)</ZxvNativeRid>
+    <ZxvNativeRid Condition="'$(ZxvNativeRid)' == ''">linux-$(ZxvNativeArch)</ZxvNativeRid>
+  </PropertyGroup>
+
+</Project>

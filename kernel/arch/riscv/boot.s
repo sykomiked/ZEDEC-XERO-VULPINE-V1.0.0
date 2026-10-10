@@ -9,7 +9,7 @@
  *
  * Target: qemu-system-riscv64 -M virt
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * License: Apache-2.0
  */
 
 .section .text.boot

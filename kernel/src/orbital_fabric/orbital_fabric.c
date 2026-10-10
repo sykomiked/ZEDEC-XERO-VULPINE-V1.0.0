@@ -5,9 +5,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "orbital_fabric.h"
 #include "lpres.h"
@@ -245,7 +245,7 @@ int32_t of_create_domain(orbital_fabric_t *fabric, const char *name,
     
     /* Initialize M5 for domain */
     dom->m5.omega = fabric->num_domains + 1;
-    dom->m5.r = SR_FROM_FLOAT(2.4 + fabric->num_domains * 0.1);
+    dom->m5.r = SR_FROM_FLOAT(2.4) + (surplus_real_t) fabric->num_domains * SR_FROM_FLOAT(0.1);
     dom->m5.ell = SR_ONE;
     dom->m5.phi = SR_ZERO;
     dom->m5.chi = 0;

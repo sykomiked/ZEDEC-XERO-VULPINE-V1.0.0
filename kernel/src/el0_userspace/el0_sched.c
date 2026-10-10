@@ -6,9 +6,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "el0_userspace.h"
 #include <string.h>
@@ -59,6 +59,8 @@ void proc_terminate(proc_scheduler_t *ps, uint32_t pid, int32_t exit_code) {
     if (!ps) return;
     for (uint32_t i = 0; i < MAX_USER_PROCS; i++) {
         if (ps->procs[i].pid == pid && ps->procs[i].state != PROC_UNUSED) {
+            /* Terminating twice must not decrement num_procs twice. */
+            if (ps->procs[i].state == PROC_TERMINATED) return;
             ps->procs[i].state = PROC_TERMINATED;
             ps->procs[i].exit_code = exit_code;
             ps->num_procs--;

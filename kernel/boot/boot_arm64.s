@@ -4,7 +4,7 @@
  * Sets up a stack and calls kernel_main.
  *
  * Author: 36N9 Genetics, LLC
- * License: SEL-3.3
+ * License: Apache-2.0
  */
 
 .section .text.boot

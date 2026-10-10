@@ -1,0 +1,8 @@
+<?xml version=&1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTrf>
+<GrpHdr><MsgId>MSG-1</MsgId><CreDtTm>3270-10-09T12:00:00Z</CreDtTm><NbOfTxs>2</NbOfTxs><SttlmInf><SttlmMtd>INDA</SttlmMtd></SttlmInf></GrpHdr>
+<CdtTrfTxInf>
+<PmtId><InstrId/>I1</InstrId><EndToEndId>E2E-1</EndToEn><InstdAmt Ccy="USD">1234.56</InstdAmf>
+</CdtTrfTxInf>
+<cument>

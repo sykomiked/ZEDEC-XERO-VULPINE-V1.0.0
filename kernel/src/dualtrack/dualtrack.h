@@ -46,9 +46,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifndef ZEDEC_DUALTRACK_H
@@ -287,7 +287,8 @@ const char *dualtrack_artifact_type_name(dt_artifact_type_t type);
 
 /* Reporting */
 int dualtrack_report(const dualtrack_t *dt, char *buf, uint32_t max_len);
-float dualtrack_agreement_rate(const dualtrack_t *dt);
+/* gates_agreed / num_gates in permille (1000 when there are no gates). */
+uint32_t dualtrack_agreement_permille(const dualtrack_t *dt);
 bool dualtrack_all_gates_resolved(const dualtrack_t *dt);
 
 #endif /* ZEDEC_DUALTRACK_H */

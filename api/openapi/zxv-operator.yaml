@@ -1,0 +1,703 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# ZXV Operator API, OpenAPI 3.1. Hand-written contract for the sample gateway
+# in bindings/dotnet/samples/Zxv.Gateway. Paths and operationIds match the
+# gateway; tests/Zxv.Gateway.Tests checks that every path the gateway serves
+# is described here and vice versa. The gateway also generates an OpenAPI 3.0
+# document at runtime at /openapi/v1.json.
+openapi: 3.1.0
+info:
+  title: ZXV Operator API
+  version: 1.0.0
+  summary: Operator gateway over the ZXV platform core.
+  description: |
+    Operator-facing REST API for the ZXV platform: currencies (ISO 4217),
+    ledger accounts on the Vino rails, customer credit transfers with
+    ISO 20022 pacs.008, camt.053 statements, multilateral netting cycles,
+    charge cards and conformance checks.
+
+    **Amounts.** Every amount is an exact integer count of minor units
+    (`minorUnits`) plus an ISO 4217 alpha currency code. There are no
+    floating-point amounts anywhere. `minorUnits` is bounded to
+    ±9007199254740991 (2^53 - 1), so it is exact in every JSON parser,
+    including JavaScript. `display` is informational only.
+
+    **Currencies.** ISO 20022 messages carry ISO 4217 alpha codes in `Ccy`.
+    The Vino rail numerics DEBIT 555, CREDIT 777 and EQUITY 888 are
+    platform-internal (all three are unassigned in ISO 4217) and appear only
+    in `railNumerics` of a balance. Their platform jurisdiction codes (NCR,
+    NRE and PNS) are not ISO 3166 countries and never appear in a country field.
+    Platform-private units such as `VFV` can be held on the ledger but are
+    refused for wire payments.
+
+    **Errors.** Every error is an RFC 9457 problem details document with a
+    stable `code` (e.g. `ZXV_E_FUNDS`) and `type` `urn:zxv:problem:<code>`.
+
+    **Features in progress.** Netting, card lifecycle and VSS conformance
+    answer `501` with `ZXV_E_NOTIMPL` until the corresponding kernel modules
+    are built into the native library; `GET /v1/platform` lists what is live.
+
+    **Limits.** No PAPSS, SWIFT or CIPS connectivity is included. Messages
+    are handed to a configured transport (none, or a file drop); network
+    connectivity comes through scheme onboarding.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: https://gateway.example.invalid
+    description: Placeholder. Replace with your operator gateway URL.
+  - url: http://localhost:5080
+    description: Local development (Development authentication mode).
+security:
+  - oidc: [zxv.operator]
+  - mtls: []
+tags:
+  - name: Platform
+  - name: Currencies
+  - name: Accounts
+  - name: Statements
+  - name: Payments
+  - name: Netting
+  - name: Cards
+  - name: Conformance
+  - name: Health
+
+paths:
+  /health/live:
+    get:
+      operationId: getLiveness
+      tags: [Health]
+      summary: Process is up
+      security: []
+      responses:
+        '200': { description: Healthy, content: { text/plain: { schema: { type: string, examples: [Healthy] } } } }
+
+  /health/ready:
+    get:
+      operationId: getReadiness
+      tags: [Health]
+      summary: Native core loaded and ledger invariants hold
+      security: []
+      responses:
+        '200': { description: Healthy, content: { text/plain: { schema: { type: string } } } }
+        '503': { description: Unhealthy, content: { text/plain: { schema: { type: string } } } }
+
+  /v1/platform:
+    get:
+      operationId: getPlatform
+      tags: [Platform]
+      summary: ABI version, live features and transport
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/PlatformDto' } } }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/currencies:
+    get:
+      operationId: listCurrencies
+      tags: [Currencies]
+      summary: ISO 4217 currencies, or those enabled on this platform
+      parameters:
+        - name: scope
+          in: query
+          schema: { type: string, enum: [iso, enabled], default: iso }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CurrencyDto' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/currencies/{code}:
+    get:
+      operationId: getCurrency
+      tags: [Currencies]
+      summary: One currency by ISO 4217 alpha code (or private unit code)
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string, examples: [NGN, XOF, VFV] } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/CurrencyDto' } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/currencies/enabled:
+    post:
+      operationId: enableCurrency
+      tags: [Currencies]
+      summary: Enable an ISO 4217 currency for ledger accounts
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/EnableCurrencyRequest' } } }
+      responses:
+        '201':
+          description: Enabled (idempotent)
+          content: { application/json: { schema: { $ref: '#/components/schemas/CurrencyDto' } } }
+        '422': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/accounts:
+    post:
+      operationId: openAccount
+      tags: [Accounts]
+      summary: Open a holder or issuer account
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OpenAccountRequest' } } }
+      responses:
+        '201':
+          description: Opened
+          headers: { Location: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/AccountDto' } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+    get:
+      operationId: listAccounts
+      tags: [Accounts]
+      summary: List accounts
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AccountDto' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/accounts/{id}:
+    get:
+      operationId: getAccount
+      tags: [Accounts]
+      summary: Get an account
+      parameters: [{ $ref: '#/components/parameters/AccountId' }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/AccountDto' } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/accounts/{id}/balances:
+    get:
+      operationId: getBalances
+      tags: [Accounts]
+      summary: DEBIT (555), CREDIT (777) and EQUITY (888) rail balances in exact minor units
+      parameters: [{ $ref: '#/components/parameters/AccountId' }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/BalancesDto' } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/accounts/{id}/entries:
+    get:
+      operationId: listEntries
+      tags: [Accounts]
+      summary: Journal lines, oldest first
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+        - { name: start, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: count, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 100 } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/EntryDto' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/accounts/{id}/statement:
+    get:
+      operationId: getStatement
+      tags: [Statements]
+      summary: One reconciled camt.053 statement page
+      description: Opening balance plus booked entries always equals the closing balance; the native builder refuses anything else.
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+        - { name: start, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: maxEntries, in: query, schema: { type: integer, minimum: 1, maximum: 32, default: 32 } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/StatementDto' } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/payments:
+    post:
+      operationId: submitPayment
+      tags: [Payments]
+      summary: Book a customer credit transfer and emit its pacs.008
+      description: |
+        Order of work: the pacs.008 is built and validated first (nothing is
+        booked if it is invalid), then the ledger posting is made atomically,
+        then the message is handed to the transport. If the transport fails the
+        posting stands and the response is `502` with the `endToEndId`; use
+        `retransmit`. A reused `endToEndId` is `409`.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PaymentInput' } } }
+      responses:
+        '201':
+          description: Booked and handed to the transport
+          headers: { Location: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaymentDto' } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/payments/{endToEndId}:
+    get:
+      operationId: getPayment
+      tags: [Payments]
+      summary: A booked payment by EndToEndId
+      parameters: [{ $ref: '#/components/parameters/EndToEndId' }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/PaymentDto' } } }
+        '404': { description: Not found }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/payments/{endToEndId}/pacs008:
+    get:
+      operationId: getPaymentPacs008
+      tags: [Payments]
+      summary: The pacs.008 document of a payment
+      parameters: [{ $ref: '#/components/parameters/EndToEndId' }]
+      responses:
+        '200':
+          description: pacs.008.001.09 XML
+          content: { application/xml: { schema: { type: string } } }
+        '404': { description: Not found }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/payments/{endToEndId}/retransmit:
+    post:
+      operationId: retransmitPayment
+      tags: [Payments]
+      summary: Send the pacs.008 of a booked payment again
+      parameters: [{ $ref: '#/components/parameters/EndToEndId' }]
+      responses:
+        '204': { description: Handed to the transport }
+        '404': { description: Not found }
+        '502': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/netting-cycles:
+    post:
+      operationId: openNettingCycle
+      tags: [Netting]
+      summary: Open a multilateral netting cycle
+      description: Answers 501 (ZXV_E_NOTIMPL) until kernel/src/cbank netting is built into the native library.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OpenCycleRequest' } } }
+      responses:
+        '201':
+          description: Opened
+          content: { application/json: { schema: { $ref: '#/components/schemas/OpenCycleRequest' } } }
+        '409': { description: A cycle with this id is already open }
+        '501': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/netting-cycles/{cycleId}/obligations:
+    post:
+      operationId: submitObligation
+      tags: [Netting]
+      summary: Submit one obligation (idempotent on paymentId)
+      parameters: [{ $ref: '#/components/parameters/CycleId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ObligationInput' } } }
+      responses:
+        '202': { description: Accepted }
+        '404': { description: No such open cycle }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/netting-cycles/{cycleId}/close:
+    post:
+      operationId: closeNettingCycle
+      tags: [Netting]
+      summary: Close the cycle and return net positions (sum to zero)
+      parameters: [{ $ref: '#/components/parameters/CycleId' }]
+      responses:
+        '200':
+          description: Net positions
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/NetPositionDto' } } } }
+        '404': { description: No such open cycle }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/cards:
+    post:
+      operationId: issueCard
+      tags: [Cards]
+      summary: Issue a charge card funded by a ledger account
+      description: Answers 501 (ZXV_E_NOTIMPL) until kernel/src/cardnet is built into the native library. The full PAN never leaves the core.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/IssueCardRequest' } } }
+      responses:
+        '201':
+          description: Issued
+          content: { application/json: { schema: { $ref: '#/components/schemas/CardDto' } } }
+        '501': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/cards/{cardId}/reissue:
+    post:
+      operationId: reissueCard
+      tags: [Cards]
+      summary: Reissue a card; the old card is blocked
+      parameters: [{ $ref: '#/components/parameters/CardId' }]
+      responses:
+        '200':
+          description: Reissued
+          content: { application/json: { schema: { $ref: '#/components/schemas/ReissueDto' } } }
+        '501': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/cards/{cardId}/authorizations:
+    post:
+      operationId: authorizeCard
+      tags: [Cards]
+      summary: Authorize an amount
+      description: A decline is not an error. It is `200` with `approved=false` and an ISO 8583 response code (e.g. `51` insufficient funds).
+      parameters: [{ $ref: '#/components/parameters/CardId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AuthorizeRequest' } } }
+      responses:
+        '200':
+          description: Approved or declined
+          content: { application/json: { schema: { $ref: '#/components/schemas/AuthorizationDto' } } }
+        '501': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/cards/check-digit:
+    post:
+      operationId: checkCardDigit
+      tags: [Cards]
+      summary: Validate a PAN check digit (Damm, Luhn or Verhoeff by network)
+      description: An integrity check only; it says nothing about whether a card was issued. Do not log request bodies of this endpoint.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CheckDigitRequest' } } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/CheckDigitDto' } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/conformance:
+    get:
+      operationId: getConformance
+      tags: [Conformance]
+      summary: Ledger invariants and VSS conformance level
+      description: A conformance level is a self-assessment, not a certification by any scheme.
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/ConformanceDto' } } }
+        default: { $ref: '#/components/responses/Problem' }
+
+components:
+  securitySchemes:
+    oidc:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        OAuth 2.0 access token (JWT) issued by the operator's identity provider
+        for audience `zxv-operator-api`, carrying scope `zxv.operator` in the
+        `scope` or `scp` claim. Configure `Gateway:Authentication:Mode=Oidc`
+        and `Gateway:Authentication:Oidc:Authority`.
+    mtls:
+      type: mutualTLS
+      description: |
+        Client certificate chained to a CA trusted by the gateway host,
+        optionally pinned by thumbprint. Configure
+        `Gateway:Authentication:Mode=Mtls` and Kestrel `ClientCertificateMode`.
+
+  parameters:
+    AccountId: { name: id, in: path, required: true, schema: { type: integer, format: int64, minimum: 0, maximum: 4294967295 } }
+    EndToEndId: { name: endToEndId, in: path, required: true, schema: { type: string, maxLength: 35 } }
+    CycleId: { name: cycleId, in: path, required: true, schema: { type: string } }
+    CardId: { name: cardId, in: path, required: true, schema: { type: integer, format: int64, minimum: 0 } }
+
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          examples:
+            insufficientFunds:
+              value:
+                type: urn:zxv:problem:zxv_e_funds
+                title: Operation refused
+                status: 422
+                detail: account 2 has 0 available, needs 5
+                code: ZXV_E_FUNDS
+                operation: Ledger.Post
+
+  schemas:
+    MinorUnits:
+      type: integer
+      format: int64
+      minimum: -9007199254740991
+      maximum: 9007199254740991
+      description: Exact amount in minor units (cents, kobo, pesewas). Never a float.
+
+    CurrencyCode:
+      type: string
+      pattern: '^[A-Z0-9]{3,8}$'
+      description: ISO 4217 alpha-3 code (e.g. NGN, GHS, XOF), or a platform-private unit code (e.g. VFV) where noted.
+
+    ProblemDetails:
+      type: object
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          description: Stable symbolic code.
+          enum: [ZXV_E_ARG, ZXV_E_NOTIMPL, ZXV_E_NOT_FOUND, ZXV_E_CAPACITY, ZXV_E_FUNDS, ZXV_E_CURRENCY, ZXV_E_RANGE, ZXV_E_STATE, ZXV_E_INVARIANT, ZXV_E_UTF8, ZXV_E_TOO_LONG, ZXV_E_DUPLICATE, ZXV_E_NOMEM, ZXV_E_FIELD, ZXV_E_INTERNAL]
+        operation: { type: string }
+        endToEndId: { type: string }
+      additionalProperties: true
+
+    MoneyDto:
+      type: object
+      required: [currency, minorUnits, scale, display]
+      properties:
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        minorUnits: { $ref: '#/components/schemas/MinorUnits' }
+        scale: { type: integer, minimum: 0, maximum: 8, description: Decimal places (ISO 4217 minor unit). }
+        display: { type: string, description: 'Informational, e.g. "2500.50". Never parse it.' }
+
+    AmountInput:
+      type: object
+      required: [currency, minorUnits]
+      properties:
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        minorUnits: { $ref: '#/components/schemas/MinorUnits' }
+
+    PlatformDto:
+      type: object
+      required: [abiVersion, features, transport]
+      properties:
+        abiVersion: { type: string, examples: ['1.0.0'] }
+        features:
+          type: array
+          items: { type: string, enum: [Ledger, Pacs008, Camt053, Iso4217, Pacs002, Pacs004, Pacs009, Camt056, Camt029, Netting, Cards, CardCheckDigits, Conformance] }
+        transport: { type: string, examples: [none, directory] }
+
+    CurrencyDto:
+      type: object
+      required: [code, iso4217, wireCurrency, attributes]
+      properties:
+        code: { $ref: '#/components/schemas/CurrencyCode' }
+        numeric: { type: [integer, 'null'], description: ISO 4217 numeric; null for private units. }
+        minorUnits: { type: [integer, 'null'] }
+        name: { type: [string, 'null'] }
+        iso4217: { type: boolean }
+        wireCurrency: { type: boolean, description: May appear in an ISO 20022 Ccy attribute. }
+        attributes:
+          type: array
+          items: { type: string, enum: [Fund, MinorUnitNotApplicable, NoCountry, Payable, Private] }
+
+    EnableCurrencyRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, pattern: '^[A-Z]{3}$' }
+        minorUnits: { type: [integer, 'null'], minimum: 0, maximum: 4, description: Optional assertion of the ISO 4217 minor unit. }
+
+    AccountKind:
+      type: string
+      enum: [Holder, Issuer]
+      description: Holder accounts never go below zero. Issuer accounts may carry a CREDIT (777) balance.
+
+    OpenAccountRequest:
+      type: object
+      required: [name, currency]
+      properties:
+        name: { type: string, minLength: 1, description: UTF-8, at most 63 bytes. }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        kind: { $ref: '#/components/schemas/AccountKind' }
+
+    AccountDto:
+      type: object
+      required: [id, identifier, name, currency, kind]
+      properties:
+        id: { type: integer, format: int64 }
+        identifier: { type: string, description: 'External identifier used in DbtrAcct/CdtrAcct and camt.053, e.g. ZXV-000042.' }
+        name: { type: string }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        kind: { $ref: '#/components/schemas/AccountKind' }
+
+    BalancesDto:
+      type: object
+      required: [accountId, debit, credit, equity, railNumerics]
+      properties:
+        accountId: { type: integer, format: int64 }
+        debit: { $ref: '#/components/schemas/MoneyDto' }
+        credit: { $ref: '#/components/schemas/MoneyDto' }
+        equity: { $ref: '#/components/schemas/MoneyDto' }
+        railNumerics:
+          type: object
+          description: Platform-internal rail numerics (proprietary fields only; not ISO 4217).
+          properties:
+            debit: { const: 555 }
+            credit: { const: 777 }
+            equity: { const: 888 }
+
+    EntryDto:
+      type: object
+      required: [entryId, amount, counterparty, reference]
+      properties:
+        entryId: { type: integer, format: int64 }
+        amount: { $ref: '#/components/schemas/MoneyDto' }
+        counterparty: { type: integer, format: int64 }
+        reference: { type: string, maxLength: 35 }
+
+    PartyInput:
+      type: object
+      required: [name, account]
+      properties:
+        name: { type: string, description: At most 70 bytes UTF-8. }
+        account: { type: string, maxLength: 35 }
+
+    PaymentInput:
+      type: object
+      required: [fromAccount, toAccount, amount]
+      properties:
+        fromAccount: { type: integer, format: int64 }
+        toAccount: { type: integer, format: int64 }
+        amount: { $ref: '#/components/schemas/AmountInput' }
+        endToEndId: { type: [string, 'null'], maxLength: 35, description: Generated when omitted. Must be unique. }
+        debtor: { oneOf: [{ $ref: '#/components/schemas/PartyInput' }, { type: 'null' }] }
+        creditor: { oneOf: [{ $ref: '#/components/schemas/PartyInput' }, { type: 'null' }] }
+
+    PaymentDto:
+      type: object
+      required: [endToEndId, entryId, amount, fromAccount, toAccount, bookedAt, messageId, pacs008]
+      properties:
+        endToEndId: { type: string }
+        entryId: { type: integer, format: int64 }
+        amount: { $ref: '#/components/schemas/MoneyDto' }
+        fromAccount: { type: integer, format: int64 }
+        toAccount: { type: integer, format: int64 }
+        bookedAt: { type: string, format: date-time }
+        messageId: { type: string }
+        pacs008: { type: string, contentMediaType: application/xml }
+
+    StatementDto:
+      type: object
+      required: [accountId, opening, closing, entries, messageId, camt053]
+      properties:
+        accountId: { type: integer, format: int64 }
+        opening: { $ref: '#/components/schemas/MoneyDto' }
+        closing: { $ref: '#/components/schemas/MoneyDto' }
+        entries: { type: array, maxItems: 32, items: { $ref: '#/components/schemas/EntryDto' } }
+        nextStart: { type: [integer, 'null'], description: Start of the next page, null at the end. }
+        messageId: { type: string }
+        camt053: { type: string, contentMediaType: application/xml }
+
+    OpenCycleRequest:
+      type: object
+      required: [cycleId, currency, participants]
+      properties:
+        cycleId: { type: string }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        participants: { type: array, items: { type: string } }
+
+    ObligationInput:
+      type: object
+      required: [paymentId, debtor, creditor, minorUnits]
+      properties:
+        paymentId: { type: string }
+        debtor: { type: string }
+        creditor: { type: string }
+        minorUnits: { $ref: '#/components/schemas/MinorUnits' }
+
+    NetPositionDto:
+      type: object
+      required: [participant, net]
+      properties:
+        participant: { type: string }
+        net: { $ref: '#/components/schemas/MoneyDto' }
+
+    CardNetwork:
+      type: string
+      enum: [Phoenix, Dragon, Thunderbird]
+      description: Phoenix uses Damm, Dragon uses Luhn, Thunderbird uses Verhoeff check digits.
+
+    IssueCardRequest:
+      type: object
+      required: [network, account, limitMinorUnits]
+      properties:
+        network: { $ref: '#/components/schemas/CardNetwork' }
+        account: { type: integer, format: int64 }
+        limitMinorUnits: { $ref: '#/components/schemas/MinorUnits' }
+
+    CardDto:
+      type: object
+      required: [cardId, network, account, maskedPan]
+      properties:
+        cardId: { type: integer, format: int64 }
+        network: { $ref: '#/components/schemas/CardNetwork' }
+        account: { type: integer, format: int64 }
+        maskedPan: { type: string }
+
+    ReissueDto:
+      type: object
+      required: [oldCardId, newCardId]
+      properties:
+        oldCardId: { type: integer, format: int64 }
+        newCardId: { type: integer, format: int64 }
+
+    AuthorizeRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount: { $ref: '#/components/schemas/AmountInput' }
+
+    AuthorizationDto:
+      type: object
+      required: [approved, responseCode, approvalCode]
+      properties:
+        approved: { type: boolean }
+        responseCode: { type: string, pattern: '^[0-9A-Z]{2}$', description: ISO 8583 response code. }
+        approvalCode: { type: string }
+
+    CheckDigitRequest:
+      type: object
+      required: [network, pan]
+      properties:
+        network: { $ref: '#/components/schemas/CardNetwork' }
+        pan: { type: string, pattern: '^[0-9]{2,19}$' }
+
+    CheckDigitDto:
+      type: object
+      required: [valid]
+      properties:
+        valid: { type: boolean }
+
+    ConformanceDto:
+      type: object
+      required: [ledgerInvariantsHold, ledgerDetail, vssStatus]
+      properties:
+        ledgerInvariantsHold: { type: boolean }
+        ledgerDetail: { type: string }
+        vssLevel: { type: [string, 'null'], enum: [None, Bronze, Silver, Gold, null] }
+        vssStatus: { type: string }

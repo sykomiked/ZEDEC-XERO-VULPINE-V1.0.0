@@ -6,9 +6,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC
  *
  * ============================ LIMITATIONS ============================
@@ -159,7 +159,8 @@
 /* Coverage floor: r * ell must reach this for browser_verify_coverage().
  * Deliberately below 1.0 so a browser with one unreachable tab out of four
  * still passes, and above 0.5 so half the tabs being broken does not. */
-#define BROWSER_COVERAGE_FLOOR  0.75
+#define BROWSER_COVERAGE_FLOOR                                                                     \
+    (3u * (Q16_ONE / 4)) /* 0.75 in Q16.16; r*ell is compared in Q32.32 */
 
 /* ===== Return codes ===== */
 #define BROWSER_OK                0
@@ -392,8 +393,8 @@ typedef struct {
 
     /* M5 coordinates */
     m5_coords_t m5;
-    double coverage_r;
-    double coverage_l;
+    uint32_t coverage_r; /* Q16.16 fraction in [0, 1] */
+    uint32_t coverage_l; /* Q16.16 fraction in [0, 1] */
 } browser_t;
 
 /* ===== API ===== */

@@ -196,12 +196,17 @@
  *     substituted in, and passes identically. Do not tighten a
  *     trig-dependent tolerance below 1e-14 without re-running that.
  *
- * L15. THIS MODULE IS NOT LINKED INTO ANY KERNEL IMAGE. epu_device.c does
- *     not appear in kernel/Makefile or build_system/Makefile.arm64, and no
- *     file outside src/epu/ includes epu_device.h. It compiles freestanding
- *     (verified at -O0, -O1, -O2, -Os and -O3, zero undefined symbols) and
- *     it has a host test, but nothing calls it. Treat it as a library that
- *     is ready to be linked, not as running kernel code.
+ * L15. THIS MODULE IS NOT LINKED INTO ANY KERNEL IMAGE, AND CANNOT BE AS IT
+ *     STANDS. Kernel images are built integer-only (-mgeneral-regs-only on
+ *     arm64/arm32/x86_64, an integer -march/-mabi on riscv), so any double
+ *     is a compile error there, and this model is double-precision through
+ *     and through (its tests assert 1e-15 tolerances and IEEE-754 sqrt
+ *     bit-exactness, which fixed point cannot reproduce). It was briefly
+ *     listed in build_system/Makefile.arm64 with a ZXV_DECLARE bring-up;
+ *     that entry was removed when the zero-float boundary was enforced. No
+ *     image module required its epu_model_ready token. It is a host-tested
+ *     library (make verify-all runs test_epu_device.c); a kernel port would
+ *     need a fixed-point rewrite of the model and of its test tolerances.
  *
  * ================== ERROR DISCIPLINE ==================
  *
@@ -215,9 +220,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC
  */
 #ifndef EPU_DEVICE_H

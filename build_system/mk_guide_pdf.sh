@@ -71,7 +71,7 @@ cat <<HTML
     <p><strong>M5 Axiomatic Kernel Foundation — VOVINA SHAKINA Edition</strong></p>
     <p>Version 0.0.1 (v0 pre-release)</p>
     <p>H.M. Michael-Laurence Curzi &middot; 36N9 Genetics, LLC</p>
-    <p class="lic">OPL-1.1 + CC BY-SA 4.0 + Royal Writ of the Sicilian Crown + SEL-3.3</p>
+    <p class="lic">Apache License 2.0</p>
   </div>
   <div class="cover-note">
     <p><strong>Every number in this guide was produced by running the code.</strong>

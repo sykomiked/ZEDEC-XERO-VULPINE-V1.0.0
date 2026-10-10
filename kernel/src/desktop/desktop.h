@@ -9,9 +9,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC
  */
 #ifndef DESKTOP_H
@@ -98,7 +98,7 @@ typedef struct {
     uint64_t external_ticks;    /* Only updated on external interface */
     uint64_t last_sync_tick;    /* Last time we synced with external clock */
     bool needs_sync;            /* True when external interface requested */
-    double drift_ppm;           /* Clock drift in parts per million */
+    int64_t drift_ppm;          /* Clock drift in parts per million (truncated toward 0) */
     uint64_t local_counter;     /* Free-running local counter (not clock-dependent) */
     bool clock_active;          /* Only true when interfacing externally */
 } event_clock_t;
@@ -163,8 +163,8 @@ typedef struct {
 
     /* M5 coordinates */
     m5_coords_t m5;
-    double coverage_r;
-    double coverage_l;
+    uint32_t coverage_r; /* Q16.16 fraction in [0, 1] */
+    uint32_t coverage_l; /* Q16.16 fraction in [0, 1] */
 } desktop_t;
 
 /* ===== API ===== */
@@ -220,7 +220,7 @@ int desktop_handle_key(desktop_t *desk, uint8_t keycode, bool pressed);
  * count as covered. This is NOT the M5 coverage hyperbola floor of 1.8 — both
  * inputs here are fractions in [0,1], so a product of 1.8 is unreachable and
  * a check against it would be either always-true or always-false. */
-#define DESKTOP_COVERAGE_FLOOR 0.5
+#define DESKTOP_COVERAGE_FLOOR (Q16_ONE / 2) /* 0.5 in Q16.16; r*ell is compared in Q32.32 */
 
 /* True when the desktop is adequately covered. An empty desktop passes: there
  * is nothing on it to fail to cover. */

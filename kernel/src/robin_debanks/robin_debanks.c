@@ -9,9 +9,9 @@
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "robin_debanks.h"
 #include "aes256_gcm.h"
@@ -124,6 +124,8 @@ bool robin_unlock_ready(robin_vault_t *rv, uint32_t entry_id, uint64_t current_c
     robin_entry_t *e = robin_get_entry(rv, entry_id);
     if (!e) return false;
     if (e->state == ROBIN_ENTRY_STORED) return true;
+    /* Already past its delay once: a time-locked entry stays readable. */
+    if (e->state == ROBIN_ENTRY_UNLOCKED) return true;
     if (e->state != ROBIN_ENTRY_LOCKED) return false;
     return current_cycle >= e->unlock_at_cycle;
 }
@@ -171,6 +173,8 @@ int32_t robin_unlock(robin_vault_t *rv, uint32_t entry_id,
         memcpy(plaintext_out, plaintext, copy_len);
         *plaintext_len_out = copy_len;
     }
+    /* Do not leave the secret behind in this stack frame. */
+    for (uint32_t i = 0; i < ROBIN_MAX_DATA_LEN; i++) ((volatile uint8_t *) plaintext)[i] = 0;
 
     e->state = ROBIN_ENTRY_UNLOCKED;
     e->failed_attempts = 0;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* cpu_arm7.h — an ARM7TDMI (ARMv4T): the Game Boy Advance CPU. Two instruction
  * sets in one core — 32-bit ARM and 16-bit THUMB — switched by the T bit (BX).
  * GBA boot code (crt0) runs in ARM, sets up, then BX into THUMB for the bulk of

@@ -10,9 +10,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifdef TEST_HOST
@@ -135,10 +135,13 @@ uint32_t hdcm_vector_hamming(const hdcm_vector_t *a, const hdcm_vector_t *b) {
     return dist;
 }
 
-float hdcm_vector_similarity(const hdcm_vector_t *a, const hdcm_vector_t *b) {
-    if (!a || !b) return 0.0f;
+/* 1 - hamming/DIM, in permille (0..1000). */
+uint32_t hdcm_vector_similarity(const hdcm_vector_t *a, const hdcm_vector_t *b)
+{
+    if (!a || !b) return 0;
     uint32_t dist = hdcm_vector_hamming(a, b);
-    return 1.0f - (float)dist / (float)HDCM_VECTOR_DIM;
+    if (dist > HDCM_VECTOR_DIM) dist = HDCM_VECTOR_DIM;
+    return ((HDCM_VECTOR_DIM - dist) * 1000u) / HDCM_VECTOR_DIM;
 }
 
 void hdcm_vector_permute(const hdcm_vector_t *in, uint32_t shift,
@@ -310,10 +313,11 @@ const hdcm_matrix_t *hdcm_matrix_find(hdcm_t *h, uint32_t src, uint32_t dst) {
     return NULL;
 }
 
-float hdcm_matrix_compatibility(hdcm_t *h, uint32_t src, uint32_t dst) {
+uint32_t hdcm_matrix_compatibility(hdcm_t *h, uint32_t src, uint32_t dst)
+{
     const hdcm_matrix_t *m = hdcm_matrix_find(h, src, dst);
     if (m) return m->compatibility_score;
-    return 0.0f;
+    return 0;
 }
 
 /* ===== Second Quantization Translation Pipeline ===== */
@@ -425,12 +429,12 @@ int hdcm_phase_measure(hdcm_t *h, uint32_t dst_lang,
      * Find closest construct vectors and emit their target tokens */
     uint32_t out_pos = 0;
     uint32_t best_idx = 0;
-    float best_sim = 0.0f;
+    uint32_t best_sim = 0; /* permille */
     uint32_t j;
 
     /* Find the most similar construct */
     for (j = 0; j < lang->construct_count; j++) {
-        float sim = hdcm_vector_similarity(entangled, &lang->constructs[j].vector);
+        uint32_t sim = hdcm_vector_similarity(entangled, &lang->constructs[j].vector);
         if (sim > best_sim) {
             best_sim = sim;
             best_idx = j;
@@ -438,7 +442,7 @@ int hdcm_phase_measure(hdcm_t *h, uint32_t dst_lang,
     }
 
     /* Emit the best matching construct's target token */
-    if (lang->construct_count > 0 && best_sim > 0.5f) {
+    if (lang->construct_count > 0 && best_sim > 500u) {
         const char *token = lang->constructs[best_idx].target_token;
         if (token[0]) {
             uint32_t tlen = hc_strlen(token);
@@ -496,9 +500,27 @@ int hdcm_translate(hdcm_t *h, uint32_t src_lang, uint32_t dst_lang,
     result->output_len = (uint32_t)out_len;
     result->final_phase = HDCM_PHASE_MEASURE;
 
+    /* MEASURE emits at most ONE target token (the nearest construct), or the
+     * "[unmapped]" placeholder when nothing is close. That placeholder is not a
+     * translation: report it as unmapped and fail, instead of success with a
+     * fidelity score. */
+    {
+        static const char ph[] = "[unmapped]";
+        bool unmapped = (result->output_len == sizeof(ph) - 1);
+        for (uint32_t k = 0; unmapped && k < sizeof(ph) - 1; k++)
+            if (result->output[k] != ph[k]) unmapped = false;
+        if (unmapped) {
+            result->constructs_translated = 0;
+            result->constructs_unmapped = 1;
+            result->fidelity_score = 0;
+            result->success = false;
+            return -1;
+        }
+    }
+
     /* Compute fidelity from compatibility score */
     const hdcm_matrix_t *m = hdcm_matrix_find(h, src_lang, dst_lang);
-    result->fidelity_score = m ? m->compatibility_score : 0.5f;
+    result->fidelity_score = m ? m->compatibility_score : 500u;
     result->constructs_translated = 1;
     result->constructs_unmapped = 0;
     result->success = true;

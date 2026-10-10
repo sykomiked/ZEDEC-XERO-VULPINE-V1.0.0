@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* console_trajectory.c — our own console-lineage generations, each named for its
  * INNOVATION (proprietary, descriptive). Real consoles appear only as `ref:`
  * DEVELOPMENT references, never as shipped names. See console_trajectory.h.
@@ -95,8 +95,7 @@ int console_trajectory_selfcheck(uint32_t *distinct_out, uint32_t *nintendo_cont
     trajectory_result_t lineage;
     console_trajectory_assess(nin, nn, &lineage);
     if (nintendo_continuity_permille_out)
-        *nintendo_continuity_permille_out =
-            (uint32_t)((double)lineage.continuity / (double)SR_ONE * 1000.0);
+        *nintendo_continuity_permille_out = SR_TO_PERMILLE(lineage.continuity);
 
     /* PASS: the whole field is diverse AND continuous, and the always-innovate
      * lineage is itself coherent — distinct mechanics on one continuous path. */

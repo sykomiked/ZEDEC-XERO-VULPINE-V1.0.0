@@ -201,11 +201,20 @@ static void handle_server_hello(tls_client_t *c, const uint8_t *m, uint32_t n) {
     uint32_t at = 2 + 32;
     uint8_t sid_len = p[at++];
     if (sid_len > 32 || at + sid_len + 3u > left) { fail(c, TLS_ERR_PROTOCOL); return; }
+    /* RFC 8446 4.1.3: legacy_session_id_echo must be exactly what we sent */
+    if (sid_len != 32 || !ct_equal(p + at, c->session_id, 32)) {
+        fail(c, TLS_ERR_PROTOCOL);
+        return;
+    }
     at += sid_len;
 
     uint16_t suite = g16(p + at); at += 2;
     if (suite != TLS_CS_CHACHA20_POLY1305_SHA256) { fail(c, TLS_ERR_UNSUPPORTED); return; }
-    at += 1;                                     /* legacy_compression_method */
+    if (p[at] != 0) {
+        fail(c, TLS_ERR_PROTOCOL);
+        return;
+    } /* legacy_compression_method */
+    at += 1;
 
     if (at + 2u > left) { fail(c, TLS_ERR_PROTOCOL); return; }
     uint16_t ext_len = g16(p + at); at += 2;
@@ -360,9 +369,18 @@ static void drain_hs(tls_client_t *c, uint8_t *reply, uint32_t reply_cap,
         uint32_t blen = g24(c->hs_buf + at + 1);
         if (blen > TLS_HS_MSG_MAX - 4u) { fail(c, TLS_ERR_TOO_BIG); return; }
         if (c->hs_len - at < 4u + blen) break;          /* incomplete */
+        uint8_t type = c->hs_buf[at];
         handle_hs_message(c, c->hs_buf + at, 4u + blen, reply, reply_cap, reply_len);
         at += 4u + blen;
         if (c->state == TLS_ST_FAILED) return;
+        /* RFC 8446 5.1: handshake messages must not span a key change. The
+         * ServerHello arrives in the clear and installs the handshake keys,
+         * so anything after it in the same plaintext record (e.g. a forged
+         * unencrypted EncryptedExtensions) is refused, not processed. */
+        if (type == TLS_HS_SERVER_HELLO && at != c->hs_len) {
+            fail(c, TLS_ERR_PROTOCOL);
+            return;
+        }
     }
     if (at) {
         for (uint32_t i = 0; i + at < c->hs_len; i++) c->hs_buf[i] = c->hs_buf[i + at];

@@ -11,9 +11,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifdef TEST_HOST
@@ -122,7 +122,24 @@ static double epu_sqrt(double x) {
         if (k < 0) { if (c.u == 0u) continue; c.u -= 1u; }
         else if (k > 0) { c.u += 1u; }
         double t = c.d;
-        double r = x - t * t;
+        /* x - t*t, exactly enough to rank the three candidates. A plain
+         * `x - t * t` rounds t*t first; it only came out right where the
+         * compiler happened to fuse it into an FMA (clang on arm64), and
+         * picked the wrong neighbour under gcc on x86-64. Dekker's product
+         * gives t*t = p + e exactly, x - p is exact by Sterbenz (p is
+         * within a factor of 2 of x). p is volatile so that a compiler
+         * contracting across statements (gcc's gnu modes with FMA) cannot
+         * fuse x - p back into an FMA and count the error term twice;
+         * every other product here is exact, fused or not. */
+        double sp = 134217729.0 * t; /* 2^27 + 1 */
+        double th = sp - (sp - t);
+        double tl = t - th;
+        volatile double p = t * t;
+        double e = th * th - p;
+        e += 2.0 * th * tl;
+        e += tl * tl;
+        double r = x - p;
+        r -= e;
         if (r < 0.0) r = -r;
         if (bestr < 0.0 || r < bestr) { bestr = r; best = t; }
     }
@@ -1279,9 +1296,10 @@ void epu_handle_irq(epu_device_t *dev) {
  * "epu_ready" would have let a later module bind to it believing there was
  * hardware underneath.
  *
- * REQUIRES_NONE is measured: epu_device.o's `nm -u` is empty. It uses scalar
- * double, which Makefile.arm64:20 explicitly permits (only NEON vectorization
- * is banned, because the IRQ vector does not save the FP/SIMD file).
+ * REQUIRES_NONE is measured: epu_device.o's `nm -u` is empty. The model uses
+ * scalar double, which kernel images now forbid (-mgeneral-regs-only), so this
+ * file is host-only and the declaration below is not linked into any image;
+ * see L15 in epu_device.h.
  */
 #include "zxv_decl.h"
 static int zxvd_epu_bringup(void) {

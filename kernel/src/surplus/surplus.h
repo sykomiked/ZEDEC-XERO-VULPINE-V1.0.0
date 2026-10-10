@@ -1,5 +1,5 @@
 /* surplus.h — Interaction Surplus Framework (ISF) engine
- * 
+ *
  * Implements the axiomatic surplus functional from Papers A-E:
  *   f(u) = ln(1 + (N-1)u)
  * where u = 1 - (x·y)² ∈ [0,1] is the orientation-based interaction parameter.
@@ -15,9 +15,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef SURPLUS_H
 #define SURPLUS_H
@@ -48,22 +48,33 @@ typedef double surplus_real_t;
 #define SR_SIN(x)        (sin(x))
 #define SR_COS(x)        (cos(x))
 #define SR_CMP(a,b)      ((a)<(b)?-1:(a)>(b)?1:0)
-#define surplus_real_t_max (1e300)
+#    define SR_TO_PERMILLE(x) ((x) > 0.0 ? (uint32_t) ((x) * 1000.0) : 0u)
+#    define SR_FROM_Q16(x)    ((double) (x) / 65536.0)
+static inline double sr_from_ratio_u64(uint64_t n, uint64_t d)
+{
+    return d ? (double) n / (double) d : 0.0;
+}
+#    define surplus_real_t_max (1e300)
 
 #else
 /* Q32.32 fixed-point */
+#    include "../../include/zxv_fixed.h"
 typedef int64_t surplus_real_t;
 
-#define SR_SHIFT       32
-#define SR_ONE         ((int64_t)1 << SR_SHIFT)
-#define SR_ZERO        ((int64_t)0)
+#    define SR_SHIFT         32
+#    define SR_ONE           ((int64_t) 1 << SR_SHIFT)
+#    define SR_ZERO          ((int64_t) 0)
 /* Multiply, not left-shift: `(int64_t)x << 32` is UB when x is negative,
  * which sr_ln() hits for every argument < 1 (red-team). Multiply by SR_ONE
  * is defined for negatives and identical for non-negatives. */
-#define SR_FROM_INT(x) ((int64_t)(x) * SR_ONE)
-#define SR_FROM_FLOAT(x) ((int64_t)((x) * (double)SR_ONE))
-#define SR_ADD(a,b)    ((a)+(b))
-#define SR_SUB(a,b)    ((a)-(b))
+#    define SR_FROM_INT(x)   ((int64_t) (x) * SR_ONE)
+/* SR_FROM_FLOAT is for COMPILE-TIME CONSTANTS ONLY (SR_FROM_FLOAT(1.8)): the
+ * compiler folds the product, so no FP instruction is emitted. A runtime
+ * argument does not compile in kernel images (-mgeneral-regs-only / integer
+ * riscv ABI); convert runtime values with SR_FROM_INT and SR_DIV instead. */
+#    define SR_FROM_FLOAT(x) ((int64_t) ((x) * (double) SR_ONE))
+#    define SR_ADD(a, b)     ((a) + (b))
+#    define SR_SUB(a, b)     ((a) - (b))
 /* Q32.32 fixed-point multiply: (a * b) >> 32.
  *
  * Uses a 128-bit intermediate where the compiler provides one (every
@@ -71,7 +82,7 @@ typedef int64_t surplus_real_t;
  * previous hand-split 32-bit version was written for a -m32 host and
  * is kept below as a fallback for genuine 32-bit builds.
  */
-#if defined(__SIZEOF_INT128__)
+#    if defined(__SIZEOF_INT128__)
 static inline int64_t sr_mul_impl(int64_t a, int64_t b) {
     return (int64_t)(((__int128)a * (__int128)b) >> 32);
 }
@@ -98,7 +109,7 @@ static inline int64_t sr_div_impl(int64_t a, int64_t b) {
      * for negative operands and produces the identical value for positives. */
     return (int64_t)(((__int128)a * ((__int128)1 << 32)) / (__int128)b);
 }
-#else
+#    else
 /* Fallback for true 32-bit targets without __int128. */
 static inline int64_t sr_mul_impl(int64_t a, int64_t b) {
     /* Negate through unsigned so INT64_MIN does not trigger signed-overflow
@@ -133,17 +144,41 @@ static inline int64_t sr_div_impl(int64_t a, int64_t b) {
     int64_t result = (int64_t)((q << 32) + frac);
     return neg ? -result : result;
 }
-#endif
+#    endif
 
-#define SR_MUL(a,b)    sr_mul_impl((a), (b))
-#define SR_DIV(a,b)    sr_div_impl((a), (b))
-#define SR_CMP(a,b)    ((a)<(b)?-1:(a)>(b)?1:0)
-#define surplus_real_t_max ((int64_t)0x7FFFFFFFFFFFFFFFLL)
+#    define SR_MUL(a, b)       sr_mul_impl((a), (b))
+#    define SR_DIV(a, b)       sr_div_impl((a), (b))
+#    define SR_CMP(a, b)       ((a) < (b) ? -1 : (a) > (b) ? 1 : 0)
+/* floor(x * 1000) for x >= 0 (0 for x <= 0), saturating at UINT32_MAX. */
+static inline uint32_t sr_to_permille(int64_t x)
+{
+    if (x <= 0) return 0;
+    if (x > INT64_MAX / 1000) return 0xFFFFFFFFu;
+    uint64_t p = ((uint64_t) x * 1000u) >> SR_SHIFT;
+    return p > 0xFFFFFFFFu ? 0xFFFFFFFFu : (uint32_t) p;
+}
+#    define SR_TO_PERMILLE(x)  sr_to_permille(x)
+/* a Q16.16 integer as Q32.32 */
+#    define SR_FROM_Q16(x)     ((int64_t) (x) * 65536)
+/* n/d as Q32.32 without floating point or a libgcc divide (d == 0 -> 0);
+ * the integer part saturates at 2^31 - 1. */
+static inline int64_t sr_from_ratio_u64(uint64_t n, uint64_t d)
+{
+    uint64_t r;
+    uint64_t ip = fx_udiv64(n, d, &r);
+    if (d == 0) return 0;
+    if (ip > 0x7FFFFFFFu) return INT64_MAX;
+    /* r < d. For d < 2^32, r << 32 fits and the fraction is exact; for larger
+     * d it is r / (d / 2^32), rounded down to within 2^-32 relative. */
+    uint64_t frac = (d >> 32) ? fx_udiv64(r, (d >> 32) + 1, 0) : fx_udiv64(r << 32, d, 0);
+    return (int64_t) ((ip << 32) + frac);
+}
+#    define surplus_real_t_max ((int64_t) 0x7FFFFFFFFFFFFFFFLL)
 
 surplus_real_t sr_ln(surplus_real_t x);
 surplus_real_t sr_sqrt(surplus_real_t x);
-#define SR_LN(x)   sr_ln(x)
-#define SR_SQRT(x) sr_sqrt(x)
+#    define SR_LN(x)           sr_ln(x)
+#    define SR_SQRT(x)         sr_sqrt(x)
 /* sin/cos not needed for surplus core — used only in test host */
 #endif
 

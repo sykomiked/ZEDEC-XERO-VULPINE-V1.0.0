@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* virtio_bus.c — the omni-driver engine. See virtio_bus.h.
  *
  * The registry + classify decision are host-testable (compile with -DHOST_TEST);
@@ -112,7 +112,8 @@ int virtio_bus_probe(void) {
  * board profile handed us no transport window at all, which is a configuration
  * fault rather than an absent disk, and is worth separating from "the disk did
  * not answer". */
-#include "zxv_decl.h"
+#ifndef HOST_TEST /* the bring-up reads the board profile: target-only */
+#    include "zxv_decl.h"
 
 static int virtio_bus_bringup(void) {
     if (virtio_mmio_slot_count() == 0u) return -1;
@@ -125,3 +126,4 @@ ZXV_DECLARE(virtio_bus,
     ZXV_PROVIDES(virtio_bus_ready),
     ZXV_REQUIRES(mm_ready),
     ZXV_BRINGUP(virtio_bus_bringup));
+#endif /* !HOST_TEST */

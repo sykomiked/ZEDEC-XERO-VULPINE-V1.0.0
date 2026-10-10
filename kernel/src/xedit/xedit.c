@@ -6,9 +6,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifdef TEST_HOST
@@ -35,12 +35,6 @@ static uint32_t xe_strlen(const char *s) {
     return n;
 }
 
-static void xe_strcpy(char *dst, const char *src) {
-    uint32_t i = 0;
-    while (src[i]) { dst[i] = src[i]; i++; }
-    dst[i] = '\0';
-}
-
 static int xe_strcmp(const char *a, const char *b) {
     uint32_t i = 0;
     while (a[i] && b[i]) {
@@ -59,17 +53,61 @@ static int xe_strendswith(const char *s, const char *suffix) {
 
 /* ===== Simple hash (FNV-1a) for CID ===== */
 
-static void xe_fnv1a(const char *data, uint32_t len, uint8_t *out) {
-    uint64_t hash = 0xcbf29ce484222325ULL;
+#define XE_FNV_INIT 0xcbf29ce484222325ULL
+
+static uint64_t xe_fnv_update(uint64_t hash, const char *data, uint32_t len)
+{
     uint32_t i;
     for (i = 0; i < len; i++) {
         hash ^= (uint8_t)data[i];
         hash *= 0x100000001b3ULL;
     }
+    return hash;
+}
+
+static void xe_fnv_out(uint64_t hash, uint8_t *out)
+{
+    uint32_t i;
     for (i = 0; i < XEDIT_HASH_SIZE; i++) {
         out[i] = (uint8_t)(hash >> ((i % 8) * 8));
         if (i == 7) hash = hash * 0x100000001b3ULL ^ 0x5a;
     }
+}
+
+static void xe_fnv1a(const char *data, uint32_t len, uint8_t *out)
+{
+    xe_fnv_out(xe_fnv_update(XE_FNV_INIT, data, len), out);
+}
+
+/* Bounded copy into a fixed array of `cap` bytes (always NUL-terminated). */
+static void xe_strncpy(char *dst, const char *src, uint32_t cap)
+{
+    uint32_t i = 0;
+    if (cap == 0) return;
+    while (src[i] && i + 1u < cap) {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
+}
+
+/* The character at LOGICAL position pos (the text with the gap removed). */
+static char xe_at(const xedit_buffer_t *b, uint32_t pos)
+{
+    return pos < b->gap_start ? b->data[pos] : b->data[pos + (b->gap_end - b->gap_start)];
+}
+
+/* Line starts are LOGICAL positions, the same coordinates as the cursor.
+ * Recomputed after every edit (inserts AND deletes), so cursor motion and
+ * xedit_get_line never use stale or physical (gap-relative) offsets. */
+static void xe_recount_lines(xedit_buffer_t *b)
+{
+    uint32_t n = XEDIT_BUF_SIZE - (b->gap_end - b->gap_start);
+    b->line_count = 1;
+    b->line_starts[0] = 0;
+    for (uint32_t pos = 0; pos < n; pos++)
+        if (xe_at(b, pos) == '\n' && b->line_count < XEDIT_MAX_LINES)
+            b->line_starts[b->line_count++] = pos + 1;
 }
 
 /* ===== Init ===== */
@@ -105,10 +143,10 @@ int32_t xedit_buffer_create(xedit_t *e, const char *filename) {
     b->undo_count = 0;
 
     if (filename) {
-        xe_strcpy(b->filename, filename);
+        xe_strncpy(b->filename, filename, XEDIT_MAX_FILENAME);
         b->filetype = xedit_detect_filetype(filename);
     } else {
-        xe_strcpy(b->filename, "[unnamed]");
+        xe_strncpy(b->filename, "[unnamed]", XEDIT_MAX_FILENAME);
         b->filetype = XEDIT_FILE_TEXT;
     }
 
@@ -178,25 +216,10 @@ int xedit_insert(xedit_buffer_t *b, const char *text, uint32_t len) {
     b->modified = true;
     b->hash_valid = false;
 
-    /* Recompute line starts */
-    b->line_count = 1;
-    b->line_starts[0] = 0;
-    uint32_t pos = 0;
-    /* Walk the logical buffer (before gap + after gap) */
-    for (i = 0; i < b->gap_start; i++) {
-        if (b->data[i] == '\n') {
-            if (b->line_count < XEDIT_MAX_LINES)
-                b->line_starts[b->line_count++] = i + 1;
-        }
-        pos++;
-    }
-    for (i = b->gap_end; i < XEDIT_BUF_SIZE; i++) {
-        if (b->data[i] == '\n') {
-            if (b->line_count < XEDIT_MAX_LINES)
-                b->line_starts[b->line_count++] = i + 1;
-        }
-        pos++;
-    }
+    /* Recompute line starts in logical coordinates (this used to record the
+     * PHYSICAL index i + 1 for text after the gap, so every line past the
+     * cursor started at the wrong place). */
+    xe_recount_lines(b);
 
     return (int)len;
 }
@@ -214,17 +237,18 @@ int xedit_delete_back(xedit_buffer_t *b) {
     b->cursor = b->gap_start;
     b->modified = true;
     b->hash_valid = false;
+    xe_recount_lines(b); /* a deleted '\n' must remove its line */
     return 0;
 }
 
-int xedit_delete_forward(xedit_buffer_t *b) {
-    if (b->gap_end >= XEDIT_BUF_SIZE)
-        return -1;
-
+int xedit_delete_forward(xedit_buffer_t *b)
+{
     gap_move_to(b, b->cursor);
+    if (b->gap_end >= XEDIT_BUF_SIZE) return -1; /* cursor was at the end */
     b->gap_end++;
     b->modified = true;
     b->hash_valid = false;
+    xe_recount_lines(b);
     return 0;
 }
 
@@ -287,9 +311,12 @@ int xedit_cursor_goto(xedit_buffer_t *b, uint32_t pos) {
 
 /* ===== Text Retrieval ===== */
 
+/* max_len is the capacity of `out` INCLUDING the NUL (callers pass sizeof);
+ * the text is truncated to max_len - 1 so the terminator stays inside. */
 uint32_t xedit_get_text(xedit_buffer_t *b, char *out, uint32_t max_len) {
+    if (!out || max_len == 0) return 0;
     uint32_t len = xedit_buffer_size(b);
-    if (len > max_len) len = max_len;
+    if (len > max_len - 1u) len = max_len - 1u;
 
     uint32_t before = b->gap_start;
     uint32_t after_start = b->gap_end;
@@ -311,8 +338,13 @@ uint32_t xedit_get_text(xedit_buffer_t *b, char *out, uint32_t max_len) {
 }
 
 uint32_t xedit_get_line(xedit_buffer_t *b, uint32_t line, char *out, uint32_t max_len) {
+    if (!out || max_len == 0) return 0;
+    out[0] = '\0';
     if (line >= b->line_count) return 0;
 
+    /* line_starts and the end bound are LOGICAL positions; xe_at maps each
+     * to the right side of the gap (this used to index data[] with logical
+     * positions directly, reading gap bytes for any line past the cursor). */
     uint32_t start = b->line_starts[line];
     uint32_t end;
     if (line + 1 < b->line_count)
@@ -320,21 +352,8 @@ uint32_t xedit_get_line(xedit_buffer_t *b, uint32_t line, char *out, uint32_t ma
     else
         end = xedit_buffer_size(b);
 
-    if (end > start + max_len) end = start + max_len;
-
-    /* Read from logical buffer */
     uint32_t len = 0;
-    uint32_t pos;
-    for (pos = start; pos < end && len < max_len; pos++) {
-        char c;
-        if (pos < b->gap_start)
-            c = b->data[pos];
-        else if (pos >= b->gap_end)
-            c = b->data[pos];
-        else
-            break;  /* In the gap — shouldn't happen */
-        out[len++] = c;
-    }
+    for (uint32_t pos = start; pos < end && len + 1u < max_len; pos++) out[len++] = xe_at(b, pos);
     out[len] = '\0';
     return len;
 }
@@ -392,9 +411,11 @@ const char *xedit_filetype_name(xedit_filetype_t ft) {
 /* ===== Integrity Tracking ===== */
 
 void xedit_update_hash(xedit_buffer_t *b) {
-    char text[XEDIT_BUF_SIZE];
-    uint32_t len = xedit_get_text(b, text, XEDIT_BUF_SIZE - 1);
-    xe_fnv1a(text, len, b->cid);
+    /* Hash the two spans either side of the gap in place: the old version
+     * copied the whole 64 KiB buffer onto the (kernel) stack first. */
+    uint64_t h = xe_fnv_update(XE_FNV_INIT, b->data, b->gap_start);
+    h = xe_fnv_update(h, b->data + b->gap_end, XEDIT_BUF_SIZE - b->gap_end);
+    xe_fnv_out(h, b->cid);
 
     /* Simple Merkle root: hash the CID again */
     xe_fnv1a((const char *)b->cid, XEDIT_HASH_SIZE, b->merkle_root);

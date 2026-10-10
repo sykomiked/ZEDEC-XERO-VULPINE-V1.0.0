@@ -4,9 +4,9 @@
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "keccak.h"
 
@@ -91,6 +91,20 @@ static void keccak_f1600(uint64_t state[25]) {
     }
 }
 
+/* Byte i of the sponge state, in the FIPS 202 byte order (lane i/8, little-endian
+ * within the lane). Written with shifts, not a uint8_t* view of the lanes, so it
+ * gives the same answer on big-endian CPUs (the uint8_t* view did not: on s390x
+ * every SHA-3/SHAKE output was wrong; found by build_system/kat_cross.sh). */
+static inline void st_xor_byte(uint64_t *state, size_t i, uint8_t v)
+{
+    state[i >> 3] ^= (uint64_t) v << (8 * (i & 7));
+}
+
+static inline uint8_t st_byte(const uint64_t *state, size_t i)
+{
+    return (uint8_t) (state[i >> 3] >> (8 * (i & 7)));
+}
+
 /* Generic sponge: absorb `len` bytes with rate `rate` (bytes), pad with
  * FIPS 202 domain suffix `suffix` (0x06 for SHA3, 0x1F for SHAKE),
  * then squeeze `out_len` bytes. */
@@ -105,7 +119,7 @@ static void keccak_sponge(const uint8_t *data, size_t len, size_t rate,
     size_t off = 0;
     while (len - off >= rate) {
         for (size_t i = 0; i < rate; i++) {
-            ((uint8_t *)state)[i] ^= data[off + i];
+            st_xor_byte(state, i, data[off + i]);
         }
         keccak_f1600(state);
         off += rate;
@@ -118,7 +132,7 @@ static void keccak_sponge(const uint8_t *data, size_t len, size_t rate,
     block[rem] ^= suffix;
     block[rate - 1] ^= 0x80;
     for (size_t i = 0; i < rate; i++) {
-        ((uint8_t *)state)[i] ^= block[i];
+        st_xor_byte(state, i, block[i]);
     }
     keccak_f1600(state);
 
@@ -126,7 +140,7 @@ static void keccak_sponge(const uint8_t *data, size_t len, size_t rate,
     size_t produced = 0;
     while (produced < out_len) {
         size_t chunk = (out_len - produced < rate) ? (out_len - produced) : rate;
-        for (size_t i = 0; i < chunk; i++) out[produced + i] = ((uint8_t *)state)[i];
+        for (size_t i = 0; i < chunk; i++) out[produced + i] = st_byte(state, i);
         produced += chunk;
         if (produced < out_len) keccak_f1600(state);
     }
@@ -166,14 +180,14 @@ void shake128_absorb(shake128_ctx_t *ctx, const uint8_t *data, size_t len) {
     while (ctx->buf_len > 0 && off < len) {
         ctx->buf[ctx->buf_len++] = data[off++];
         if (ctx->buf_len == rate) {
-            for (size_t i = 0; i < rate; i++) ((uint8_t *)ctx->state)[i] ^= ctx->buf[i];
+            for (size_t i = 0; i < rate; i++) st_xor_byte(ctx->state, i, ctx->buf[i]);
             keccak_f1600(ctx->state);
             ctx->buf_len = 0;
         }
     }
     /* Absorb full blocks directly */
     while (len - off >= rate) {
-        for (size_t i = 0; i < rate; i++) ((uint8_t *)ctx->state)[i] ^= data[off + i];
+        for (size_t i = 0; i < rate; i++) st_xor_byte(ctx->state, i, data[off + i]);
         keccak_f1600(ctx->state);
         off += rate;
     }
@@ -192,7 +206,7 @@ void shake128_squeeze(shake128_ctx_t *ctx, uint8_t *out, size_t out_len) {
         for (size_t i = 0; i < ctx->buf_len; i++) block[i] = ctx->buf[i];
         block[ctx->buf_len] ^= 0x1f;
         block[rate - 1] ^= 0x80;
-        for (size_t i = 0; i < rate; i++) ((uint8_t *)ctx->state)[i] ^= block[i];
+        for (size_t i = 0; i < rate; i++) st_xor_byte(ctx->state, i, block[i]);
         keccak_f1600(ctx->state);
         ctx->buf_len = 0;
         ctx->squeezing = 1;
@@ -203,7 +217,7 @@ void shake128_squeeze(shake128_ctx_t *ctx, uint8_t *out, size_t out_len) {
         size_t avail = rate - ctx->buf_len;
         size_t chunk = (out_len - produced < avail) ? (out_len - produced) : avail;
         for (size_t i = 0; i < chunk; i++) {
-            out[produced + i] = ((uint8_t *)ctx->state)[ctx->buf_len + i];
+            out[produced + i] = st_byte(ctx->state, ctx->buf_len + i);
         }
         ctx->buf_len += chunk;
         produced += chunk;

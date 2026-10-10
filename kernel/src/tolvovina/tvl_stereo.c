@@ -1,7 +1,7 @@
 /* tvl_stereo.c — TOL VOVINA UPAAH LOT: tri-space stereo depth. See tvl_stereo.h.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Integer only. No float, no libc, no allocation. Every colour comes from a
  * theme slot; there is not one magic RGB literal below.

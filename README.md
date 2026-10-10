@@ -5,6 +5,14 @@ SPDX-License-Identifier: Apache-2.0
 
 # ZEDEC XERO VULPINE — ZEDEC pqOS
 
+[![CI](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml/badge.svg)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml/badge.svg)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml)
+[![sanitizers + fuzz](https://img.shields.io/badge/CI%20jobs-ASan%20%C2%B7%20UBSan%20%C2%B7%20integer%20%C2%B7%20MSan%20%C2%B7%20fuzz%20%C2%B7%20coverage-informational)](fuzz/README.md)
+
+The CI workflow includes the sanitizer, fuzz-smoke and coverage jobs; see
+[fuzz/README.md](fuzz/README.md), [fuzz/FUZZ_REPORT.md](fuzz/FUZZ_REPORT.md) and
+[docs/COVERAGE.md](docs/COVERAGE.md).
+
 **A freestanding, from-scratch, post-quantum operating system.**
 Author: Michael Laurence Curzi · 36N9 Genetics, LLC
 
@@ -17,9 +25,12 @@ layer, and its own Tri-Space native file formats (`.zxvc` / `.cedez` / `.cedec`)
 
 Everything here follows one engineering rule without exception: **no hollow
 capabilities.** Nothing claims a capability the code does not deliver; ops
-boundaries fail closed rather than fake a result; and every test asserts computed
+boundaries fail closed rather than fake a result; and tests should assert computed
 values against an external anchor (an RFC/FIPS vector, a known-answer, a
-conservation identity), never against the code's own output.
+conservation identity) rather than the code's own output. That is the rule, not
+yet the state of every test: older suites (for example `tests/test_drivers.c`)
+still check structure sizes and constants, and `docs/ARCHITECTURE_OVERVIEW.md`
+lists the modules whose claims are not yet backed.
 
 ## Orientation
 
@@ -52,8 +63,32 @@ Run the host integrity gate (from `kernel/`):
 make verify-all
 ```
 
+### ZXV Swarm desktop app
+
+`build_system/build_desktop.sh` builds the swarm as a desktop app for every
+platform from one machine: a macOS `.dmg` (one universal binary for Intel and
+Apple Silicon), a Windows `.zip` and Linux `.tar.gz` files for x86_64 and
+aarch64. It runs the swarm tests first, smoke-tests the binary that runs on
+the build machine, and checks every package before writing `dist/`. It needs
+zig 0.13 and python3; on a Mac it uses `hdiutil` for a native `.dmg`. Or use
+Docker:
+
+```bash
+docker build -f build_system/Dockerfile.desktop -t zxv-desktop .
+docker run --rm -v "$PWD/dist:/src/dist" zxv-desktop
+```
+
+Run `zxv-swarm --server` on a server and open its window from your own
+computer through `ssh -N -L 8722:127.0.0.1:8722 you@server`.
+
 ## License
 
-ZEDEC XERO VULPINE is licensed under the **Apache License 2.0**.
+ZEDEC XERO VULPINE is registered to **36N9 Genetics, LLC** and **Michael Laurence Curzi**.
 
-See [`LICENSE`](LICENSE) for the full text.
+The code is licensed under the [Apache License, Version 2.0](LICENSE), and every source file says so in its header:
+
+```
+SPDX-License-Identifier: Apache-2.0
+```
+
+Redistributions must keep the attribution in [`NOTICE`](NOTICE). Vendored third-party code keeps its own licence (see each vendored directory's LICENSE and README.zxv). The software is provided as is, with no warranty of any kind.

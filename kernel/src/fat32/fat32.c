@@ -5,17 +5,6 @@
 #include "fat32.h"
 #include "../../include/freestanding.h"
 
-static void fat32_name_to_83(const char *name, char *out) {
-    int i = 0, j = 0;
-    for (; i < 8 && name[j] && name[j] != '.'; i++, j++)
-        out[i] = name[j];
-    for (; i < 8; i++) out[i] = ' ';
-    if (name[j] == '.') j++;
-    for (; i < 11 && name[j]; i++, j++)
-        out[i] = name[j];
-    for (; i < 11; i++) out[i] = ' ';
-}
-
 static void fat32_83_to_name(const char *src, char *out) {
     int j = 0;
     for (int i = 0; i < 8; i++) {
@@ -40,7 +29,20 @@ int fat32_mount(fat32_state_t *fs, block_device_t *dev) {
 
     fs_memcpy(&fs->bpb, boot, sizeof(fat32_bpb_t));
 
-    if (fs->bpb.bytes_per_sector == 0 || fs->bpb.sectors_per_cluster == 0)
+    /* The boot sector is untrusted disk input. The cluster buffers below are
+     * FAT32_CLUSTER_MAX bytes and the device reads 512-byte sectors, so a BPB
+     * that claims anything else would overflow the stack (sectors_per_cluster
+     * goes up to 255) or mis-address every cluster. */
+    if (fs->bpb.bytes_per_sector != BLOCKDEV_SECTOR_SIZE) return -1;
+    if (fs->bpb.sectors_per_cluster == 0 ||
+        (fs->bpb.sectors_per_cluster & (fs->bpb.sectors_per_cluster - 1)) != 0)
+        return -1;
+    if ((uint32_t) fs->bpb.sectors_per_cluster * BLOCKDEV_SECTOR_SIZE > FAT32_CLUSTER_MAX)
+        return -1;
+    if (fs->bpb.num_fats == 0 || fs->bpb.fat_size32 == 0 || fs->bpb.reserved_sectors == 0)
+        return -1;
+    if (fs->bpb.root_cluster < 2) return -1;
+    if ((uint64_t) fs->bpb.num_fats * fs->bpb.fat_size32 + fs->bpb.reserved_sectors > 0xFFFFFFFFu)
         return -1;
 
     fs->fat_start_sector = fs->bpb.reserved_sectors;
@@ -54,7 +56,16 @@ int fat32_mount(fat32_state_t *fs, block_device_t *dev) {
     return 0;
 }
 
+/* Number of entries the FAT can hold: the largest cluster number + 1. */
+static uint32_t fat32_fat_entries(const fat32_state_t *fs)
+{
+    uint64_t n = (uint64_t) fs->bpb.fat_size32 * (BLOCKDEV_SECTOR_SIZE / 4u);
+    return n > 0x0FFFFFF8u ? 0x0FFFFFF8u : (uint32_t) n;
+}
+
 int fat32_read_cluster(fat32_state_t *fs, uint32_t cluster, uint8_t *buffer) {
+    /* Clusters 0 and 1 are reserved; (cluster - 2) would wrap. */
+    if (!fs || !fs->mounted || cluster < 2 || cluster >= fat32_fat_entries(fs)) return -1;
     uint32_t sector = fs->data_start_sector +
                       (cluster - 2) * fs->bpb.sectors_per_cluster;
     for (uint32_t i = 0; i < fs->bpb.sectors_per_cluster; i++) {
@@ -65,6 +76,7 @@ int fat32_read_cluster(fat32_state_t *fs, uint32_t cluster, uint8_t *buffer) {
 }
 
 uint32_t fat32_next_cluster(fat32_state_t *fs, uint32_t cluster) {
+    if (!fs || cluster >= fat32_fat_entries(fs)) return 0x0FFFFFFF;
     uint32_t fat_offset = cluster * 4;
     uint32_t fat_sector = fs->fat_start_sector + (fat_offset / 512);
     uint32_t entry_offset = fat_offset % 512;
@@ -73,15 +85,26 @@ uint32_t fat32_next_cluster(fat32_state_t *fs, uint32_t cluster) {
     if (blockdev_read(fs->dev, fat_sector, sector_buf) != 0)
         return 0x0FFFFFFF;
 
-    uint32_t next = *(uint32_t *)(sector_buf + entry_offset);
-    return next & 0x0FFFFFFF;
+    uint32_t next = (uint32_t) sector_buf[entry_offset] |
+                    ((uint32_t) sector_buf[entry_offset + 1] << 8) |
+                    ((uint32_t) sector_buf[entry_offset + 2] << 16) |
+                    ((uint32_t) sector_buf[entry_offset + 3] << 24);
+    next &= 0x0FFFFFFF;
+    /* Free (0) and reserved (1) entries in the middle of a chain are
+     * corruption; end the chain rather than reading cluster 0/1. */
+    if (next < 2) return 0x0FFFFFFF;
+    return next;
 }
 
 int fat32_read_dir(fat32_state_t *fs, uint32_t cluster) {
     fs->num_files = 0;
-    uint8_t cluster_buf[4096];
+    uint8_t cluster_buf[FAT32_CLUSTER_MAX];
+    /* A corrupt FAT can link a chain into a loop. No chain is longer than
+     * the FAT has entries, so stop there. */
+    uint32_t hops = 0, max_hops = fat32_fat_entries(fs);
 
     while (cluster < 0x0FFFFFF8 && fs->num_files < FAT32_MAX_FILES) {
+        if (hops++ >= max_hops) return -1;
         if (fat32_read_cluster(fs, cluster, cluster_buf) != 0) return -1;
 
         fat32_dirent_t *entries = (fat32_dirent_t *)cluster_buf;
@@ -115,13 +138,18 @@ int fat32_read_dir(fat32_state_t *fs, uint32_t cluster) {
     return 0;
 }
 
-int fat32_read_file(fat32_state_t *fs, const fat32_file_t *file, uint8_t *buffer) {
+int fat32_read_file(fat32_state_t *fs, const fat32_file_t *file, uint8_t *buffer, uint32_t cap)
+{
+    if (!fs || !file || !buffer) return -1;
     uint32_t cluster = file->cluster;
     uint32_t remaining = file->size;
     uint32_t offset = 0;
+    /* The size comes from the directory entry on disk: never trust it to
+     * fit the caller's buffer. */
+    if (remaining > cap) return -1;
 
     while (cluster < 0x0FFFFFF8 && remaining > 0) {
-        uint8_t cluster_buf[4096];
+        uint8_t cluster_buf[FAT32_CLUSTER_MAX];
         if (fat32_read_cluster(fs, cluster, cluster_buf) != 0) return -1;
 
         uint32_t to_copy = remaining < fs->bytes_per_cluster ? remaining : fs->bytes_per_cluster;
@@ -130,16 +158,13 @@ int fat32_read_file(fat32_state_t *fs, const fat32_file_t *file, uint8_t *buffer
         remaining -= to_copy;
         cluster = fat32_next_cluster(fs, cluster);
     }
-    return 0;
+    /* A chain that ends before the recorded size is a truncated file. */
+    return remaining == 0 ? 0 : -1;
 }
 
 fat32_file_t *fat32_find_file(fat32_state_t *fs, const char *name) {
-    char name83[11];
-    fat32_name_to_83(name, name83);
-
+    if (!fs || !name) return 0;
     for (uint32_t i = 0; i < fs->num_files; i++) {
-        char file83[11];
-        fat32_name_to_83(fs->files[i].name, file83);
         if (fs_strcmp(fs->files[i].name, name) == 0)
             return &fs->files[i];
     }

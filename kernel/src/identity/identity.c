@@ -5,9 +5,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "identity.h"
 
@@ -397,23 +397,13 @@ bool identity_verify(identity_device_t *dev) {
 
 int32_t identity_attest_biometric(identity_device_t *dev, biometric_modality_t modality) {
     if (!(dev->uci.biometric_flags & modality)) return -1;
-    
-    /* Simulate biometric match */
-    dev->irq_biometric_match = true;
-    
-    /* Elevate to biometric verification */
-    if (dev->uci.verification_level < 3) {
-        dev->uci.verification_level = 3;
-        dev->reg_verification = 3;
-    }
-    
-    /* Update M⁵ logical axis */
-    dev->uci.m5.ell = SR_ONE;
-    
-    /* Re-check coverage */
-    identity_verify(dev);
-    
-    return 0;
+
+    /* There is no biometric matcher behind this model. The old body
+     * "simulated" a match and raised the record to verification level 3 for
+     * any caller, i.e. a biometric attestation that checked nothing. Refuse
+     * instead, and leave the level unchanged, until a real matcher is wired. */
+    dev->irq_biometric_match = false;
+    return -2;
 }
 
 int32_t identity_check_compliance(identity_device_t *dev) {

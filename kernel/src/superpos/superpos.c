@@ -6,9 +6,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifdef TEST_HOST
@@ -20,6 +20,7 @@
 #endif
 
 #include "superpos.h"
+#include "zxv_fixed.h"
 
 /* ===== Helpers ===== */
 
@@ -504,12 +505,13 @@ int superpos_report(const superpos_t *sp, char *buf, uint32_t max_len) {
     return (int)pos;
 }
 
-float superpos_agreement_rate(const superpos_t *sp) {
-    if (!sp || sp->num_states == 0) return 1.0f;
+uint32_t superpos_agreement_permille(const superpos_t *sp)
+{
+    if (!sp || sp->num_states == 0) return 1000u;
     uint32_t verified = 0;
     uint32_t i;
     for (i = 0; i < sp->num_states; i++)
         if (sp->states[i].safety_verified && sp->states[i].active)
             verified++;
-    return (float)verified / (float)sp->num_states;
+    return (uint32_t) fx_udiv64((uint64_t) verified * 1000u, sp->num_states, 0);
 }

@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* logistics.c — the crates, the syndicate, the negotiator's cut, and the escrow
  * that stays shut until delivery. No libc, no float on target, no invented facts. */
 
@@ -25,6 +25,45 @@ static log_contract_t *find_mut(log_state_t *s, uint64_t id) {
  * remainder — cargo is conserved to the unit, never minted or leaked. Takes the
  * FRACTION first (share/sum) then scales, so a big `amount` never overflows the
  * Q32.32 intermediate. Returns LOG_OK or a negative LOG_ERR_*. */
+#ifndef TEST_HOST
+/* Exact floor(a * b / d) on raw Q32.32 magnitudes (scales cancel), with a
+ * 128-bit product from 32-bit limbs: no __int128, no hardware divide. The
+ * old "fraction first" form rounded 1/5 in Q32.32, so 100 * 1/5 came out a
+ * few ulps under 20 on the target. Requires a*b/d < 2^64 (true for share
+ * <= sum). */
+static uint64_t log_muldiv(uint64_t a, uint64_t b, uint64_t d)
+{
+    uint64_t al = a & 0xffffffffu, ah = a >> 32, bl = b & 0xffffffffu, bh = b >> 32;
+    uint64_t ll = al * bl, lh = al * bh, hl = ah * bl, hh = ah * bh;
+    uint64_t mid = (ll >> 32) + (lh & 0xffffffffu) + (hl & 0xffffffffu);
+    uint64_t lo = (ll & 0xffffffffu) | (mid << 32);
+    uint64_t hi = hh + (lh >> 32) + (hl >> 32) + (mid >> 32);
+    uint64_t r = 0, q = 0;
+    for (int i = 127; i >= 0; i--) {
+        uint64_t bit = (i >= 64) ? (hi >> (i - 64)) & 1u : (lo >> i) & 1u;
+        uint64_t carry = r >> 63;
+        r = (r << 1) | bit;
+        if (carry || r >= d) {
+            r -= d;
+            if (i < 64) q |= (uint64_t) 1 << i;
+        }
+    }
+    return q;
+}
+#endif
+
+/* amount * share / sum, for 0 <= share <= sum, sum > 0. */
+static surplus_real_t log_share(surplus_real_t amount, surplus_real_t share, surplus_real_t sum)
+{
+#ifdef TEST_HOST
+    return amount * share / sum;
+#else
+    uint64_t mag = (amount < 0) ? (uint64_t) 0 - (uint64_t) amount : (uint64_t) amount;
+    uint64_t q = log_muldiv(mag, (uint64_t) share, (uint64_t) sum);
+    return (amount < 0) ? -(surplus_real_t) q : (surplus_real_t) q;
+#endif
+}
+
 static int32_t split_proportional(surplus_real_t amount, const surplus_real_t shares[],
                                   uint32_t n, surplus_real_t out[]) {
     if (n == 0 || n > LOG_MAX_PARTIES) return LOG_ERR_SHARES;
@@ -37,8 +76,7 @@ static int32_t split_proportional(surplus_real_t amount, const surplus_real_t sh
 
     surplus_real_t acc = SR_ZERO;
     for (uint32_t i = 0; i + 1 < n; i++) {
-        surplus_real_t frac = SR_DIV(shares[i], ssum);   /* fraction FIRST — never (x*n)/d */
-        out[i] = SR_MUL(amount, frac);
+        out[i] = log_share(amount, shares[i], ssum); /* exact; no (x*n)/d overflow */
         acc = SR_ADD(acc, out[i]);
     }
     out[n - 1] = SR_SUB(amount, acc);                    /* remainder => exact conservation */

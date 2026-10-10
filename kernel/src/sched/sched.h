@@ -12,6 +12,9 @@
 #define MAX_TASKS       64
 #define TASK_NAME_LEN   32
 #define KERNEL_STACK_SIZE 8192
+/* Stack words per task: the stack holds machine words, so pointers stored in
+ * it (the entry address) survive intact on 64-bit targets. */
+#define KERNEL_STACK_WORDS (KERNEL_STACK_SIZE / sizeof(uintptr_t))
 
 typedef enum {
     TASK_UNUSED = 0,
@@ -33,12 +36,14 @@ typedef struct task {
     char name[TASK_NAME_LEN];
     task_state_t state;
     task_type_t type;
-    uint32_t esp;
-    uint32_t ebp;
-    uint32_t eip;
-    uint32_t cr3;
-    uint32_t stack[KERNEL_STACK_SIZE / 4];
-    uint32_t sleep_until;
+    /* Pointer-carrying context fields are uintptr_t: a uint32_t truncated
+     * every address above 4 GB on the 64-bit images. */
+    uintptr_t esp;
+    uintptr_t ebp;
+    uintptr_t eip;
+    uintptr_t cr3;
+    uintptr_t stack[KERNEL_STACK_WORDS];
+    uint64_t sleep_until; /* tick count; 64-bit like scheduler_t.ticks */
     int32_t exit_code;
     uint32_t parent_id;
 

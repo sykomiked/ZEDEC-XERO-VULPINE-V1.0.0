@@ -1,7 +1,7 @@
 /* mixmat.c — exact rational mixing matrices. See mixmat.h for the derivation.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
+ * SPDX-License-Identifier: Apache-2.0
  */
 #include "mixmat.h"
 

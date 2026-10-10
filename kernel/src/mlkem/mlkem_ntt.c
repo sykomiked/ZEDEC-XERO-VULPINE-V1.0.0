@@ -9,9 +9,9 @@
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "mlkem_ntt.h"
 
@@ -49,9 +49,15 @@ static const int16_t gammas[128] = {
  2110,  1219,  2935,   394,   885,  2444,  2154,  1175
 };
 
+/* Reduce to [0, q). Runs on secret-derived coefficients during decapsulation
+ * (the re-encryption), so the sign fix-up is a mask, not a branch: an `if`
+ * here compiled to a conditional jump at -O0/-Os (found by the ctgrind run in
+ * test_mlkem_reject.c). `%` by the constant q compiles to a multiply by the
+ * reciprocal at -O1 and above (no hardware divide on secret data). */
 int16_t mlkem_mod_reduce(int32_t a) {
     int32_t r = a % MLKEM_Q;
-    if (r < 0) r += MLKEM_Q;
+    uint32_t neg = (uint32_t) r >> 31; /* 1 if r < 0, else 0 */
+    r += (int32_t) ((0u - neg) & (uint32_t) MLKEM_Q);
     return (int16_t)r;
 }
 

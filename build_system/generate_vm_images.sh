@@ -5,7 +5,7 @@
 #           PXE netboot tarballs, and OCI rootfs tarballs
 #
 # Author: H.M. Michael-Laurence: Curzi (c)
-# License: SEL-3.3
+# License: Apache-2.0
 
 set -e
 
@@ -130,7 +130,7 @@ users:
       - ssh-ed25519 AAAA... zedec-default
 runcmd:
   - echo "ZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA)"
-  - echo "License: SEL-3.3 — Streisand Engine License"
+  - echo "License: Apache-2.0"
 EOF
 
     cat > "${PLATFORM_DIR}/cloud-init/meta-data" <<EOF

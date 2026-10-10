@@ -12,22 +12,75 @@
  * riffs on (see Porter House, Count House, Robin DeBanks, Immigration
  * Enforcement) -- descriptive first, pun second, never the other way.
  *
- * Integrates with: plnp (encrypted transport), smap (content addressing),
- * pungent (garlic routing), lpres (paraconsistent error handling),
- * identity (authentication), phase_coord (coordination)
+ * WHAT IS REAL
+ *   - Handshake (protocol version 2), three messages, initiator A, responder B:
+ *       HELLO  A->B  version, Nonce_A, Identity_A, EphemeralKey_A
+ *       REPLY  B->A  version, Nonce_B, Identity_B, EphemeralKey_B,
+ *                    ct_B = ML-KEM-768.Encaps(EphemeralKey_A),
+ *                    sig_B = ML-DSA-65(sk_B, H(T), ctx "bootlegger-v2-resp")
+ *       FINISH A->B  ct_A = ML-KEM-768.Encaps(EphemeralKey_B),
+ *                    sig_A = ML-DSA-65(sk_A, H(T), ctx "bootlegger-v2-init"),
+ *                    confirm = HMAC(k_confirm, "initiator finished" || H(T))
+ *     where Identity_* is the peer's long-term ML-DSA-65 public key (FIPS 204,
+ *     pqsec/pq_mldsa65.c), EphemeralKey_* a fresh ML-KEM-768 key (FIPS 203,
+ *     mlkem/mlkem768.c), Nonce_* 32 fresh random bytes, and
+ *       T = Identity_A || EphemeralKey_A || Nonce_B || Identity_B ||
+ *           EphemeralKey_B || Nonce_A
+ *     encoded with the shared canonical length-prefixed encoder
+ *     (provenance/zx_provenance.h, domain "bootlegger-v2-handshake", the
+ *     protocol version as the first field), hashed with SHA-256. Each side
+ *     signs H(T) with its long-term identity key; the different context
+ *     strings keep one side's signature from being reflected as the other's.
+ *   - Rejected: a version other than BOOTLEGGER_VERSION (downgrade), a missing
+ *     or all-zero nonce, a nonce already in the bounded replay cache, a
+ *     signature that does not verify under the claimed identity over the
+ *     transcript (so an ephemeral key swapped by a man in the middle, a
+ *     replayed REPLY or FINISH from another session, and any edited field all
+ *     fail), a peer presenting our own identity (reflection), an identity that
+ *     does not match a pinned one, and a FINISH whose key confirmation fails.
+ *   - Session keys: both ML-KEM shared secrets AND the transcript hash:
+ *       k = HKDF-SHA256(salt = SHA-256(canon(H(T), H(ct_B), H(ct_A))),
+ *                       ikm  = ss_B || ss_A)
+ *     expanded into one key per direction plus the confirmation key.
+ *   - Message sealing: bootlegger_seal_msg()/bootlegger_open_msg() use
+ *     ChaCha20-Poly1305 with a per-direction sequence-number nonce.
+ *   - bootlegger_authenticate() recomputes a binding tag from the session keys,
+ *     transcript hash and peer identity hash; setting the `authenticated`
+ *     field by hand is not enough. (It is a consistency check, not a defence
+ *     against code that can already write this memory.)
+ *
+ * WHAT FAILS CLOSED (returns BOOTLEGGER_ENOTIMPL or BOOTLEGGER_ENOKEY)
+ *   - There is no transport: send/recv, file transfer, tracker/DHT, media,
+ *     legacy bridges and garlic wrapping do not move bytes and never report
+ *     success. The old "alternating endianness frequency encryption" (a fixed
+ *     built-in key and XOR, using floating point) is gone: it was obfuscation,
+ *     not encryption.
+ *   - The kernel has no RNG at this layer: every handshake step takes 32 bytes
+ *     of fresh caller entropy (expanded with SHAKE256). Reusing entropy reuses
+ *     nonces and ephemeral keys; the replay cache then refuses the peer's side.
+ *   - No identity key is provisioned: callers create one with
+ *     bootlegger_identity_init() from a secret seed they hold.
+ *   - The replay cache is bounded (BOOTLEGGER_REPLAY_SLOTS, oldest evicted).
+ *     A HELLO replayed after eviction gets a REPLY with a fresh Nonce_B, so the
+ *     replayer still cannot produce sig_A over the new transcript.
+ *   - The `encrypted` channel flag and call session_key fields are labels.
+ *   - ML-DSA-65 sign/verify use tens of KiB of stack (reference code); run the
+ *     handshake on a thread with a large enough stack.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC — Irrevocable, Interdimensional
  */
 
 #ifndef BOOTLEGGER_H
 #define BOOTLEGGER_H
 
-#include "m5_types.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include "../mlkem/mlkem768.h"
 
 /* ============================================================
  * Protocol Constants
@@ -35,13 +88,32 @@
 
 #define BOOTLEGGER_MAGIC       "TCPZEDEC"
 #define BOOTLEGGER_MAGIC_LEN   8
-#define BOOTLEGGER_VERSION     1
+#define BOOTLEGGER_VERSION      2 /* the only version accepted: v1 had no nonce */
 #define BOOTLEGGER_MAX_PEERS   256
 #define BOOTLEGGER_MAX_CHUNKS  65536
 #define BOOTLEGGER_CHUNK_SIZE  4096
 #define BOOTLEGGER_MAX_MSG     512
 #define BOOTLEGGER_MAX_CHANNEL 64
 #define BOOTLEGGER_HASH_SIZE   32
+#define BOOTLEGGER_KEY_SIZE     32
+#define BOOTLEGGER_TAG_SIZE     16
+#define BOOTLEGGER_MSG_HDR      3 /* type(1) + length(2, big-endian) */
+#define BOOTLEGGER_NONCE_BYTES  32
+#define BOOTLEGGER_RAND_BYTES   32
+#define BOOTLEGGER_ID_PK_BYTES  1952 /* ML-DSA-65 public key (PQ_MLDSA65_PK_BYTES) */
+#define BOOTLEGGER_ID_SK_BYTES  4032 /* ML-DSA-65 secret key */
+#define BOOTLEGGER_ID_SIG_BYTES 3309 /* ML-DSA-65 signature */
+#define BOOTLEGGER_REPLAY_SLOTS 64
+
+/* Error codes (all negative; 0 is success) */
+#define BOOTLEGGER_EINVAL   (-1)  /* bad argument / not connected */
+#define BOOTLEGGER_ENOTIMPL (-4)  /* capability not implemented: nothing happened */
+#define BOOTLEGGER_EAUTH    (-5)  /* authentication or tag check failed */
+#define BOOTLEGGER_ENOKEY   (-6)  /* no session key established */
+#define BOOTLEGGER_EREPLAY  (-7)  /* nonce already seen (replay) */
+#define BOOTLEGGER_EVERSION (-8)  /* protocol version not accepted (downgrade) */
+#define BOOTLEGGER_ENONCE   (-9)  /* missing (all-zero) nonce */
+#define BOOTLEGGER_ESTATE   (-10) /* handshake step out of order */
 
 /* ============================================================
  * Message Types
@@ -84,15 +156,54 @@ typedef enum {
  * Data Structures
  * ============================================================ */
 
-/* Handshake */
+/* Long-term identity: an ML-DSA-65 key pair. sk is secret. */
 typedef struct {
-    char     magic[BOOTLEGGER_MAGIC_LEN];  /* "TCPZEDEC" */
-    uint16_t version;                    /* Protocol version (big-endian) */
-    uint16_t phase;                      /* Current phase tick */
-    uint32_t peer_id;                    /* Identity-derived peer ID */
-    uint8_t  pubkey[32];                 /* Ed25519 public key */
-    uint8_t  signature[64];              /* Handshake signature */
-} bootlegger_handshake_t;
+    uint8_t pk[BOOTLEGGER_ID_PK_BYTES];
+    uint8_t sk[BOOTLEGGER_ID_SK_BYTES];
+} bootlegger_identity_t;
+
+/* HELLO (A->B), also the first part of REPLY (B->A). */
+typedef struct {
+    uint16_t version;
+    uint8_t nonce[BOOTLEGGER_NONCE_BYTES];
+    uint8_t identity[BOOTLEGGER_ID_PK_BYTES]; /* long-term ML-DSA-65 public key */
+    uint8_t ek[MLKEM768_EK_BYTES];            /* ephemeral ML-KEM-768 key */
+} bootlegger_hello_t;
+
+/* REPLY (B->A). */
+typedef struct {
+    bootlegger_hello_t hello;             /* B's version, nonce, identity, ephemeral key */
+    uint8_t ct[MLKEM768_CT_BYTES];        /* encapsulation to A's ephemeral key */
+    uint8_t sig[BOOTLEGGER_ID_SIG_BYTES]; /* B's signature over H(T) */
+} bootlegger_reply_t;
+
+/* FINISH (A->B). */
+typedef struct {
+    uint8_t ct[MLKEM768_CT_BYTES];        /* encapsulation to B's ephemeral key */
+    uint8_t sig[BOOTLEGGER_ID_SIG_BYTES]; /* A's signature over H(T) */
+    uint8_t confirm[32];                  /* key confirmation (HMAC-SHA256) */
+} bootlegger_finish_t;
+
+/* Bounded cache of nonces seen (our own and peers'), oldest evicted. */
+typedef struct {
+    uint8_t nonce[BOOTLEGGER_REPLAY_SLOTS][BOOTLEGGER_NONCE_BYTES];
+    uint32_t next;
+    uint32_t count;
+} bootlegger_replay_cache_t;
+
+/* In-progress handshake, caller-owned (one per handshake; wiped when done or
+ * on failure). Holds the ephemeral ML-KEM secret key. */
+typedef struct {
+    uint8_t role; /* 1 = initiator, 2 = responder */
+    uint8_t stage;
+    uint8_t nonce_self[BOOTLEGGER_NONCE_BYTES];
+    uint8_t ek_self[MLKEM768_EK_BYTES];
+    uint8_t dk_self[MLKEM768_DK_BYTES];
+    uint8_t peer_identity[BOOTLEGGER_ID_PK_BYTES]; /* responder: A's identity */
+    uint8_t t_hash[32];
+    uint8_t ss_reply[32];   /* responder: the secret it encapsulated to A */
+    uint8_t ct_reply_h[32]; /* responder: SHA-256 of that ciphertext */
+} bootlegger_hs_t;
 
 /* Peer entry in DHT tracker */
 typedef struct {
@@ -164,7 +275,7 @@ typedef struct {
     uint8_t  codec_pref;    /* Preferred codec */
     uint16_t audio_port;
     uint16_t video_port;
-    uint8_t  session_key[32]; /* Ephemeral session key */
+    uint8_t session_key[32]; /* label only: never filled */
 } bootlegger_call_setup_t;
 
 /* IRC-style channel */
@@ -173,7 +284,7 @@ typedef struct {
     uint8_t  name[64];
     uint8_t  topic[256];
     uint32_t member_count;
-    uint8_t  encrypted;     /* 1 if PLNP-wrapped */
+    uint8_t encrypted; /* label only: nothing is encrypted by this flag */
 } bootlegger_channel_t;
 
 /* Role-based access */
@@ -189,12 +300,25 @@ typedef struct {
     uint32_t peer_id;
     uint32_t ip;
     uint16_t port;
-    uint8_t  connected;
-    uint8_t  authenticated;
+    uint8_t connected;     /* slot in use (no socket exists) */
+    uint8_t authenticated; /* set only by a verified handshake */
     bootlegger_role_t role;
     uint64_t last_activity;
     /* Stream state for paraconsistent error handling */
     uint8_t  lpres_state;   /* LPRES 5-state: 0=ok, 1=speculative, 2=isolated, 3=contradiction, 4=drop */
+    /* Authentication and session state */
+    uint16_t version;            /* negotiated protocol version */
+    uint8_t peer_id_hash[32];    /* SHA-256 of the peer's ML-DSA identity key */
+    uint8_t transcript_hash[32]; /* H(T) of the handshake */
+    uint8_t auth_tag[32];        /* binds keys, transcript and peer (authenticate) */
+    uint8_t pinned_id_hash[32];  /* SHA-256 of the expected identity, if pinned */
+    uint8_t pinned;
+    uint8_t has_session;
+    uint8_t is_initiator;
+    uint8_t tx_key[BOOTLEGGER_KEY_SIZE];
+    uint8_t rx_key[BOOTLEGGER_KEY_SIZE];
+    uint64_t tx_seq;
+    uint64_t rx_seq;
 } bootlegger_conn_t;
 
 /* P2P node state */
@@ -207,6 +331,7 @@ typedef struct {
     uint16_t         listen_port;
     uint32_t         active_calls;
     uint64_t         phase_tick;
+    bootlegger_replay_cache_t replay; /* nonces seen by this node's handshakes */
 } bootlegger_node_t;
 
 /* ============================================================
@@ -217,9 +342,51 @@ typedef struct {
 int bootlegger_init(bootlegger_node_t *node, uint16_t port);
 int bootlegger_shutdown(bootlegger_node_t *node);
 
-/* Handshake */
-int bootlegger_handshake_send(bootlegger_conn_t *conn);
-int bootlegger_handshake_recv(bootlegger_conn_t *conn, bootlegger_handshake_t *hs);
+/* Identity: derive an ML-DSA-65 key pair from a 32-byte secret seed. */
+int bootlegger_identity_init(bootlegger_identity_t *id, const uint8_t seed[32]);
+/* Peer id: first 4 bytes (BE) of SHA3-256(identity public key). */
+uint32_t bootlegger_peer_id_of(const uint8_t identity[BOOTLEGGER_ID_PK_BYTES]);
+/* Pin the identity the next handshake on `conn` must authenticate. */
+int bootlegger_pin_peer(bootlegger_conn_t *conn, const uint8_t identity[BOOTLEGGER_ID_PK_BYTES]);
+void bootlegger_replay_init(bootlegger_replay_cache_t *rc);
+
+/* Handshake (see the header comment). Every call returns 0 or a negative
+ * BOOTLEGGER_E* code; on any error the hs state is wiped and the connection
+ * is left unauthenticated. `rnd` is 32 bytes of fresh entropy per call.
+ *   initiate: A builds HELLO.
+ *   respond:  B checks HELLO (version, nonce, replay, pin) and builds REPLY.
+ *   finish:   A checks REPLY (version, nonce, replay, pin, sig_B over T),
+ *             builds FINISH and completes its session on `conn`.
+ *   accept:   B checks FINISH (sig_A over T, key confirmation) and completes
+ *             its session on `conn`. */
+int bootlegger_hs_initiate(bootlegger_hs_t *hs, const bootlegger_identity_t *self,
+                           bootlegger_replay_cache_t *rc, const uint8_t rnd[BOOTLEGGER_RAND_BYTES],
+                           bootlegger_hello_t *out);
+int bootlegger_hs_respond(bootlegger_hs_t *hs, bootlegger_conn_t *conn,
+                          const bootlegger_identity_t *self, bootlegger_replay_cache_t *rc,
+                          const bootlegger_hello_t *in, const uint8_t rnd[BOOTLEGGER_RAND_BYTES],
+                          bootlegger_reply_t *out);
+int bootlegger_hs_finish(bootlegger_hs_t *hs, bootlegger_conn_t *conn,
+                         const bootlegger_identity_t *self, bootlegger_replay_cache_t *rc,
+                         const bootlegger_reply_t *in, const uint8_t rnd[BOOTLEGGER_RAND_BYTES],
+                         bootlegger_finish_t *out);
+int bootlegger_hs_accept(bootlegger_hs_t *hs, bootlegger_conn_t *conn,
+                         const bootlegger_finish_t *in);
+
+/* The transcript hash H(T) both sides sign (exposed for tests and tools). */
+void bootlegger_transcript_hash(uint16_t version, const uint8_t id_a[BOOTLEGGER_ID_PK_BYTES],
+                                const uint8_t ek_a[MLKEM768_EK_BYTES],
+                                const uint8_t nonce_b[BOOTLEGGER_NONCE_BYTES],
+                                const uint8_t id_b[BOOTLEGGER_ID_PK_BYTES],
+                                const uint8_t ek_b[MLKEM768_EK_BYTES],
+                                const uint8_t nonce_a[BOOTLEGGER_NONCE_BYTES], uint8_t out[32]);
+
+/* Seal / open one message: hdr(3) || ciphertext || tag(16). seal returns the
+ * output length; open returns the payload length. Both need a session. */
+int bootlegger_seal_msg(bootlegger_conn_t *conn, bootlegger_msg_type_t type, const void *payload,
+                        uint16_t len, uint8_t *out, uint32_t cap);
+int bootlegger_open_msg(bootlegger_conn_t *conn, const uint8_t *in, uint32_t in_len,
+                        bootlegger_msg_type_t *type, void *payload, uint32_t cap);
 
 /* Peer discovery via DHT (smap-backed) */
 int bootlegger_tracker_register(bootlegger_node_t *node);
@@ -231,7 +398,9 @@ int bootlegger_tracker_heartbeat(bootlegger_node_t *node);
 int bootlegger_connect(bootlegger_node_t *node, uint32_t ip, uint16_t port);
 int bootlegger_disconnect(bootlegger_node_t *node, uint32_t peer_id);
 
-/* Message dispatch — routes through LPRES paraconsistent filter */
+/* Message dispatch: no transport exists, so send returns BOOTLEGGER_ENOKEY
+ * without a session and BOOTLEGGER_ENOTIMPL otherwise; recv returns
+ * BOOTLEGGER_ENOTIMPL. Everything built on them inherits that. */
 int bootlegger_send_msg(bootlegger_conn_t *conn, bootlegger_msg_type_t type,
                      const void *payload, uint16_t len);
 int bootlegger_recv_msg(bootlegger_conn_t *conn, bootlegger_msg_type_t *type,
@@ -357,7 +526,7 @@ int bootlegger_lpres_eval(bootlegger_conn_t *conn, uint8_t anomaly_type);
 int bootlegger_lpres_recover(bootlegger_conn_t *conn);
 
 /* ============================================================
- * Garlic Routing Integration (PungentClove)
+ * Garlic Routing Integration: not implemented (BOOTLEGGER_ENOTIMPL)
  * ============================================================ */
 
 int bootlegger_garlic_wrap(bootlegger_conn_t *conn, uint8_t *data, uint16_t *len);

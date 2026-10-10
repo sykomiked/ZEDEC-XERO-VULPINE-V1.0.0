@@ -1,25 +1,19 @@
 /*
- * decent.c — Native Decentralized Protocol Suite Implementation
- *
- * IPFS/libp2p, BitTorrent v2, Matrix E2EE, DID/W3C, SDR off-grid mesh.
- * All protocols run over PLNP + PungentClove at the kernel level.
+ * decent.c — Decentralized-protocol bookkeeping model (see decent.h for
+ * exactly what is real: SHA-256 content IDs, SHA3-256 key hashes and
+ * ChaCha20-Poly1305 room events; everything else is a table).
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
-#ifdef TEST_HOST
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#else
-#include "freestanding.h"
-#endif
-
 #include "decent.h"
+#include "../mlkem/keccak.h"
+#include "../robin_debanks/sha256.h"
+#include "../tls/aead.h"
 
 /* ===== Helpers ===== */
 
@@ -41,10 +35,6 @@ static int dc_memcmp(const void *a, const void *b, uint32_t n) {
 
 static uint32_t dc_strlen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
 
-static void dc_strcpy(char *dst, const char *src) {
-    uint32_t i = 0; while (src[i]) { dst[i] = src[i]; i++; } dst[i] = '\0';
-}
-
 static __attribute__((unused)) int dc_strcmp(const char *a, const char *b) {
     uint32_t i = 0; while (a[i] && b[i]) {
         if (a[i] != b[i]) return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
@@ -53,13 +43,32 @@ static __attribute__((unused)) int dc_strcmp(const char *a, const char *b) {
     return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
 }
 
-static void dc_hash(const char *data, uint32_t len, uint8_t *out) {
-    uint64_t h = 0xcbf29ce484222325ULL; uint32_t i;
-    for (i = 0; i < len; i++) { h ^= (uint8_t)data[i]; h *= 0x100000001b3ULL; }
-    for (i = 0; i < DECENT_HASH_SIZE; i++) {
-        out[i] = (uint8_t)(h >> ((i % 8) * 8));
-        if (i % 8 == 7) { h *= 0x100000001b3ULL; h ^= 0x5a; }
+/* Bounded string copy: always NUL-terminates within cap. */
+static void dc_strncpy(char *dst, const char *src, uint32_t cap)
+{
+    uint32_t i = 0;
+    while (src[i] && i + 1 < cap) {
+        dst[i] = src[i];
+        i++;
     }
+    dst[i] = '\0';
+}
+
+/* Per-event AEAD nonce: the event sequence number, little-endian. */
+static void dc_event_nonce(uint64_t seq, uint8_t nonce[CHACHA20_NONCE_LEN])
+{
+    dc_memset(nonce, 0, CHACHA20_NONCE_LEN);
+    for (uint32_t i = 0; i < 8; i++) nonce[4 + i] = (uint8_t) (seq >> (8 * i));
+}
+
+/* AAD binds the room id and sender to the ciphertext. */
+static uint32_t dc_event_aad(const char *room_id, const char *sender, uint8_t *aad, uint32_t cap)
+{
+    uint32_t n = 0;
+    for (uint32_t i = 0; room_id[i] && n < cap; i++) aad[n++] = (uint8_t) room_id[i];
+    if (n < cap) aad[n++] = 0;
+    for (uint32_t i = 0; sender[i] && n < cap; i++) aad[n++] = (uint8_t) sender[i];
+    return n;
 }
 
 /* ===== Init ===== */
@@ -72,14 +81,17 @@ void decent_init(decent_t *d) {
 
 /* ===== IPFS ===== */
 
-int32_t decent_ipfs_node_add(decent_t *d, const char *peer_id, const char *addr) {
+int32_t decent_ipfs_node_add(decent_t *d, const char *peer_id, const char *addr,
+                             const uint8_t *pubkey, uint32_t pubkey_len)
+{
     if (d->num_ipfs_nodes >= DECENT_MAX_NODES || !peer_id || !addr) return -1;
+    if (!pubkey || pubkey_len == 0) return -1;
     int32_t idx = (int32_t)d->num_ipfs_nodes;
     decent_ipfs_node_t *n = &d->ipfs_nodes[idx];
     dc_memset(n, 0, sizeof(decent_ipfs_node_t));
-    dc_strcpy(n->peer_id, peer_id);
-    dc_strcpy(n->addr, addr);
-    dc_hash(peer_id, dc_strlen(peer_id), n->pubkey);
+    dc_strncpy(n->peer_id, peer_id, DECENT_MAX_ADDR);
+    dc_strncpy(n->addr, addr, DECENT_MAX_ADDR);
+    sha3_256(pubkey, pubkey_len, n->pubkey);
     n->connected = false;
     d->num_ipfs_nodes++;
     return idx;
@@ -107,6 +119,17 @@ int32_t decent_ipfs_cid_register(decent_t *d, const uint8_t *hash, uint32_t code
     return idx;
 }
 
+int32_t decent_ipfs_cid_register_content(decent_t *d, const uint8_t *data, uint32_t len,
+                                         uint32_t codec)
+{
+    if (!d || (len > 0 && !data)) return -1;
+    uint8_t h[DECENT_HASH_SIZE];
+    sha256(data, len, h);
+    int32_t idx = decent_ipfs_cid_register(d, h, codec, len, DECENT_CID_V1);
+    if (idx >= 0) d->cids[idx].resolved = true; /* we hold the content */
+    return idx;
+}
+
 const decent_cid_t *decent_ipfs_cid_find(decent_t *d, const uint8_t *hash) {
     uint32_t i;
     for (i = 0; i < d->num_cids; i++)
@@ -115,11 +138,21 @@ const decent_cid_t *decent_ipfs_cid_find(decent_t *d, const uint8_t *hash) {
     return NULL;
 }
 
-int decent_ipfs_bitswap(decent_t *d, uint32_t node_idx, uint32_t cid_idx) {
+int decent_ipfs_bitswap(decent_t *d, uint32_t node_idx, uint32_t cid_idx, const uint8_t *block,
+                        uint32_t block_len)
+{
     if (node_idx >= d->num_ipfs_nodes || cid_idx >= d->num_cids) return -1;
     if (!d->ipfs_nodes[node_idx].connected) return -1;
+    if (!block && block_len > 0) return -1;
+    decent_cid_t *c = &d->cids[cid_idx];
+    if (c->multihash_type != 0x12) return DECENT_ENOTIMPL; /* only sha2-256 */
+    uint8_t h[DECENT_HASH_SIZE];
+    sha256(block, block_len, h);
     d->ipfs_nodes[node_idx].bitswap_sessions++;
-    d->cids[cid_idx].resolved = true;
+    if (dc_memcmp(h, c->hash, DECENT_HASH_SIZE) != 0) return DECENT_EMISMATCH;
+    c->resolved = true;
+    c->size = block_len;
+    d->ipfs_nodes[node_idx].bytes_exchanged += block_len;
     return 0;
 }
 
@@ -130,7 +163,7 @@ int32_t decent_bt_swarm_create(decent_t *d, const char *label, uint32_t piece_le
     int32_t idx = (int32_t)d->num_bt_swarms;
     decent_bt_swarm_t *s = &d->bt_swarms[idx];
     dc_memset(s, 0, sizeof(decent_bt_swarm_t));
-    dc_strcpy(s->label, label);
+    dc_strncpy(s->label, label, DECENT_MAX_LABEL);
     s->piece_length = piece_length;
     s->num_pieces = 0;
     s->seeding = false;
@@ -165,18 +198,20 @@ int decent_bt_swarm_start_seeding(decent_t *d, uint32_t idx) {
 /* ===== Matrix ===== */
 
 int32_t decent_matrix_room_create(decent_t *d, const char *room_id, const char *name,
-                                   bool encrypted) {
+                                  bool encrypted, const uint8_t *room_key)
+{
     if (d->num_matrix_rooms >= DECENT_MAX_MATRIX_ROOMS || !room_id) return -1;
+    /* The old code derived the "E2EE" key from the public room id. An
+     * encrypted room now needs a real key from the caller. */
+    if (encrypted && !room_key) return -1;
     int32_t idx = (int32_t)d->num_matrix_rooms;
     decent_matrix_room_t *r = &d->matrix_rooms[idx];
     dc_memset(r, 0, sizeof(decent_matrix_room_t));
-    dc_strcpy(r->room_id, room_id);
-    if (name) dc_strcpy(r->name, name);
+    dc_strncpy(r->room_id, room_id, DECENT_MAX_LABEL);
+    if (name) dc_strncpy(r->name, name, DECENT_MAX_LABEL);
     r->encrypted = encrypted;
     r->active = true;
-    if (encrypted) {
-        dc_hash(room_id, dc_strlen(room_id), r->room_key);
-    }
+    if (encrypted) dc_memcpy(r->room_key, room_key, DECENT_HASH_SIZE);
     d->num_matrix_rooms++;
     return idx;
 }
@@ -197,43 +232,92 @@ int decent_matrix_room_send_event(decent_t *d, uint32_t room_idx,
     decent_matrix_room_t *r = &d->matrix_rooms[room_idx];
     if (r->num_events >= DECENT_MAX_MATRIX_EVENTS) return -1;
 
+    uint32_t clen = dc_strlen(content);
+    if (clen > sizeof(r->events[0].content)) return -1;
+
     decent_matrix_event_t *e = &r->events[r->num_events];
     dc_memset(e, 0, sizeof(decent_matrix_event_t));
     e->type = type;
-    dc_strcpy(e->sender, sender);
-    dc_strcpy(e->content, content);
+    dc_strncpy(e->sender, sender, DECENT_MAX_LABEL);
+    e->content_len = clen;
     e->timestamp = r->num_events + 1;
-    e->encrypted = r->encrypted;
+    if (r->encrypted) {
+        uint8_t nonce[CHACHA20_NONCE_LEN], aad[2 * DECENT_MAX_LABEL + 1];
+        dc_event_nonce(e->timestamp, nonce);
+        uint32_t alen = dc_event_aad(r->room_id, e->sender, aad, sizeof(aad));
+        aead_seal(r->room_key, nonce, aad, alen, (const uint8_t *) content, e->content, clen,
+                  e->tag);
+        e->encrypted = true;
+    } else {
+        dc_memcpy(e->content, content, clen);
+    }
 
-    /* Hash the event */
-    char event_data[DECENT_MAX_LABEL + 256];
-    dc_strcpy(event_data, sender);
-    dc_memcpy(event_data + dc_strlen(sender), content, dc_strlen(content));
-    dc_hash(event_data, dc_strlen(sender) + dc_strlen(content), e->event_hash);
+    /* SHA3-256 over sender || NUL || the stored content bytes. */
+    uint8_t event_data[DECENT_MAX_LABEL + 1 + 256];
+    uint32_t slen = dc_strlen(e->sender);
+    dc_memcpy(event_data, e->sender, slen);
+    event_data[slen] = 0;
+    dc_memcpy(event_data + slen + 1, e->content, clen);
+    sha3_256(event_data, slen + 1 + clen, e->event_hash);
 
     r->num_events++;
     return 0;
 }
 
+int decent_matrix_event_open(const decent_t *d, uint32_t room_idx, uint32_t event_idx,
+                             const uint8_t *room_key, char *out, uint32_t cap)
+{
+    if (!d || !out || room_idx >= d->num_matrix_rooms) return -1;
+    const decent_matrix_room_t *r = &d->matrix_rooms[room_idx];
+    if (event_idx >= r->num_events) return -1;
+    const decent_matrix_event_t *e = &r->events[event_idx];
+    if (e->content_len + 1 > cap) return -1;
+    if (e->encrypted) {
+        if (!room_key) return -1;
+        uint8_t nonce[CHACHA20_NONCE_LEN], aad[2 * DECENT_MAX_LABEL + 1];
+        dc_event_nonce(e->timestamp, nonce);
+        uint32_t alen = dc_event_aad(r->room_id, e->sender, aad, sizeof(aad));
+        if (!aead_open(room_key, nonce, aad, alen, e->content, (uint8_t *) out, e->content_len,
+                       e->tag)) {
+            out[0] = 0;
+            return -1;
+        }
+    } else {
+        dc_memcpy(out, e->content, e->content_len);
+    }
+    out[e->content_len] = 0;
+    return (int) e->content_len;
+}
+
 /* ===== DID ===== */
 
-int32_t decent_did_create(decent_t *d, const char *label, uint8_t key_index) {
+int32_t decent_did_create(decent_t *d, const char *label, uint8_t key_index, const uint8_t *pubkey,
+                          uint32_t pubkey_len)
+{
     if (d->num_dids >= DECENT_MAX_DIDS || !label || key_index < 1 || key_index > 5) return -1;
+    if (!pubkey || pubkey_len == 0) return -1;
     int32_t idx = (int32_t)d->num_dids;
     decent_did_t *did = &d->dids[idx];
     dc_memset(did, 0, sizeof(decent_did_t));
 
-    /* Generate DID string: did:zede:K<n> */
-    char did_str[32];
-    did_str[0] = 'd'; did_str[1] = 'i'; did_str[2] = 'd'; did_str[3] = ':';
-    did_str[4] = 'z'; did_str[5] = 'e'; did_str[6] = 'd'; did_str[7] = 'e';
-    did_str[8] = ':'; did_str[9] = 'K'; did_str[10] = '0' + key_index;
-    did_str[11] = '\0';
-    dc_strcpy(did->did, did_str);
+    /* The key hash is SHA3-256 of the real public key (it used to be a hash
+     * of the label), and the DID string carries it, so two keys never share
+     * a DID. Format: did:zede:K<n>:<32 hex digits> */
+    sha3_256(pubkey, pubkey_len, did->pubkey);
+    static const char hex[] = "0123456789abcdef";
+    static const char prefix[] = "did:zede:K";
+    uint32_t n = 0;
+    for (uint32_t i = 0; prefix[i]; i++) did->did[n++] = prefix[i];
+    did->did[n++] = (char) ('0' + key_index);
+    did->did[n++] = ':';
+    for (uint32_t i = 0; i < 16; i++) {
+        did->did[n++] = hex[did->pubkey[i] >> 4];
+        did->did[n++] = hex[did->pubkey[i] & 15];
+    }
+    did->did[n] = 0;
 
     did->key_index = key_index;
-    dc_strcpy(did->label, label);
-    dc_hash(label, dc_strlen(label), did->pubkey);
+    dc_strncpy(did->label, label, DECENT_MAX_LABEL);
     did->verifiable_claims = 0;
     did->zk_verified = false;
     did->active = true;
@@ -293,13 +377,13 @@ int32_t decent_sdr_channel_create(decent_t *d, const char *name, uint32_t freq_h
     int32_t idx = (int32_t)d->num_sdr_channels;
     decent_sdr_channel_t *ch = &d->sdr_channels[idx];
     dc_memset(ch, 0, sizeof(decent_sdr_channel_t));
-    dc_strcpy(ch->name, name);
+    dc_strncpy(ch->name, name, DECENT_MAX_LABEL);
     ch->frequency_hz = freq_hz;
     ch->bandwidth_hz = bw_hz;
     ch->modulation = modulation;
     ch->tx_power_dbm = 20;  /* Default 20dBm */
     ch->active = false;
-    ch->garlic_encrypted = true;  /* PungentClove by default */
+    ch->garlic_encrypted = false; /* nothing is encrypted: there is no radio path */
     d->num_sdr_channels++;
     return idx;
 }
@@ -310,13 +394,15 @@ int decent_sdr_channel_activate(decent_t *d, uint32_t idx) {
     return 0;
 }
 
+/* FAILS CLOSED. This used to count a packet as sent and return len while
+ * transmitting nothing. There is no radio driver, so nothing can be sent. */
 int decent_sdr_send_bulb(decent_t *d, uint32_t channel_idx, const uint8_t *data, uint32_t len) {
     if (channel_idx >= d->num_sdr_channels) return -1;
     decent_sdr_channel_t *ch = &d->sdr_channels[channel_idx];
     if (!ch->active) return -1;
-    ch->packets_sent++;
-    (void)data; (void)len;  /* In real impl: modulate and transmit */
-    return (int)len;
+    (void) data;
+    (void) len;
+    return DECENT_ENOTIMPL;
 }
 
 int decent_sdr_enable_fallback(decent_t *d) {
@@ -331,12 +417,18 @@ int decent_sdr_enable_fallback(decent_t *d) {
 
 const char *decent_proto_name(decent_proto_t proto) {
     switch (proto) {
-        case DECENT_PROTO_IPFS:       return "IPFS/Libp2p";
-        case DECENT_PROTO_BITTORRENT: return "BitTorrent v2";
-        case DECENT_PROTO_MATRIX:     return "Matrix E2EE";
-        case DECENT_PROTO_DID:        return "DID/W3C";
-        case DECENT_PROTO_SDR:        return "SDR/Retevis";
-        default: return "Unknown";
+    case DECENT_PROTO_IPFS:
+        return "content table (model)";
+    case DECENT_PROTO_BITTORRENT:
+        return "swarm table (model)";
+    case DECENT_PROTO_MATRIX:
+        return "encrypted rooms (model)";
+    case DECENT_PROTO_DID:
+        return "DID table (model)";
+    case DECENT_PROTO_SDR:
+        return "radio channels (no driver)";
+    default:
+        return "Unknown";
     }
 }
 

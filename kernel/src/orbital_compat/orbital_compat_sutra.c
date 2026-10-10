@@ -13,9 +13,9 @@
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "orbital_compat.h"
 #include "lpres.h"
@@ -43,7 +43,8 @@ static int64_t gcd_i64(int64_t a, int64_t b) {
 
 /* ===== Sutra Lower: Sutra source -> Canonical IR ===== */
 
-static int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out) {
+int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out)
+{
     if (len < sizeof(oc_sutra_src_t)) return OC_ERR_ARG;
     const oc_sutra_src_t *s = (const oc_sutra_src_t *)src;
     
@@ -73,7 +74,8 @@ static int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out) {
 
 /* ===== Sutra Lift: Canonical IR -> Sutra target ===== */
 
-static int32_t sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap) {
+int32_t sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap)
+{
     if (cap < sizeof(oc_sutra_src_t)) return OC_ERR_CAP;
     
     /* Get primary rational value */

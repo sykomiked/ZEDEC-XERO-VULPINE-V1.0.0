@@ -2,9 +2,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "rtl_device.h"
 
@@ -119,6 +119,7 @@ int32_t rtl_device_add_dma(rtl_device_t *dev,
                             uint32_t width,
                             bool circular) {
     if (dev->num_dma >= 8) return -1;
+    if (depth == 0 || width == 0) return -1; /* depth is a modulus in push/pop */
     rtl_dma_t *dma = &dev->dma_channels[dev->num_dma];
     dma->base_addr = dev->num_dma * 0x1000;
     dma->depth = depth;
@@ -272,6 +273,18 @@ bool rtl_device_verify_coverage(rtl_device_t *dev) {
     return SR_CMP(product, floor) >= 0;
 }
 
+/* Append to output without ever moving pos past the buffer: snprintf returns
+ * the length it wanted, so summing raw returns let max_len - pos wrap and the
+ * next call write past the end once the text was truncated. */
+#define RTL_EMIT(...)                                                                              \
+    do {                                                                                           \
+        if (pos < max_len) {                                                                       \
+            int n_ = snprintf(output + pos, max_len - pos, __VA_ARGS__);                           \
+            if (n_ > 0) pos += (uint32_t) n_;                                                      \
+            if (pos >= max_len) pos = max_len - 1;                                                 \
+        }                                                                                          \
+    } while (0)
+
 int32_t rtl_device_generate_hdl(const rtl_device_t *dev,
                                  hdl_lang_t target,
                                  char *output,
@@ -283,87 +296,53 @@ int32_t rtl_device_generate_hdl(const rtl_device_t *dev,
     switch (target) {
         case HDL_SYSTEMVERILOG:
         case HDL_VERILOG: {
-            pos += snprintf(output + pos, max_len - pos,
-                "// Auto-generated RTL: %s\n// License: SEL-3.3\n",
-                dev->module_name);
-            pos += snprintf(output + pos, max_len - pos,
-                "module %s (\n", dev->module_name);
-            pos += snprintf(output + pos, max_len - pos,
-                "  input  logic clk,\n  input  logic rst_n,\n");
-            pos += snprintf(output + pos, max_len - pos,
-                "  // Bus: %s\n", bus_type_name(dev->bus));
-            pos += snprintf(output + pos, max_len - pos,
-                "  // Clock: %u Hz\n", dev->clock_freq_hz);
-            pos += snprintf(output + pos, max_len - pos,
-                ");\n\n");
-            
+            RTL_EMIT("// Auto-generated RTL: %s\n// License: Apache-2.0\n", dev->module_name);
+            RTL_EMIT("module %s (\n", dev->module_name);
+            RTL_EMIT("  input  logic clk,\n  input  logic rst_n,\n");
+            RTL_EMIT("  // Bus: %s\n", bus_type_name(dev->bus));
+            RTL_EMIT("  // Clock: %u Hz\n", dev->clock_freq_hz);
+            RTL_EMIT(");\n\n");
+
             /* Registers */
             uint32_t i;
             for (i = 0; i < dev->num_registers; i++) {
-                pos += snprintf(output + pos, max_len - pos,
-                    "  logic [%u:0] %s;\n",
-                    dev->registers[i].width - 1,
-                    dev->registers[i].name);
+                RTL_EMIT("  logic [%u:0] %s;\n", dev->registers[i].width - 1,
+                         dev->registers[i].name);
             }
             
             /* DMA */
             for (i = 0; i < dev->num_dma; i++) {
-                pos += snprintf(output + pos, max_len - pos,
-                    "  logic [%u:0] %s_mem [0:%u];\n",
-                    dev->dma_channels[i].width - 1,
-                    dev->dma_channels[i].name,
-                    dev->dma_channels[i].depth - 1);
+                RTL_EMIT("  logic [%u:0] %s_mem [0:%u];\n", dev->dma_channels[i].width - 1,
+                         dev->dma_channels[i].name, dev->dma_channels[i].depth - 1);
             }
-            
-            pos += snprintf(output + pos, max_len - pos,
-                "\n  // Gate count: %u\n", dev->total_gates);
-            pos += snprintf(output + pos, max_len - pos,
-                "endmodule\n");
+
+            RTL_EMIT("\n  // Gate count: %u\n", dev->total_gates);
+            RTL_EMIT("endmodule\n");
             break;
         }
         case HDL_VHDL: {
-            pos += snprintf(output + pos, max_len - pos,
-                "-- Auto-generated RTL: %s\n-- License: SEL-3.3\n",
-                dev->module_name);
-            pos += snprintf(output + pos, max_len - pos,
-                "library ieee;\nuse ieee.std_logic_1164.all;\n\n");
-            pos += snprintf(output + pos, max_len - pos,
-                "entity %s is\n", dev->module_name);
-            pos += snprintf(output + pos, max_len - pos,
-                "  port (\n    clk : in std_logic;\n    rst_n : in std_logic\n");
-            pos += snprintf(output + pos, max_len - pos,
-                "  );\nend entity;\n\n");
-            pos += snprintf(output + pos, max_len - pos,
-                "architecture rtl of %s is\n", dev->module_name);
-            pos += snprintf(output + pos, max_len - pos,
-                "begin\nend architecture;\n");
+            RTL_EMIT("-- Auto-generated RTL: %s\n-- License: Apache-2.0\n", dev->module_name);
+            RTL_EMIT("library ieee;\nuse ieee.std_logic_1164.all;\n\n");
+            RTL_EMIT("entity %s is\n", dev->module_name);
+            RTL_EMIT("  port (\n    clk : in std_logic;\n    rst_n : in std_logic\n");
+            RTL_EMIT("  );\nend entity;\n\n");
+            RTL_EMIT("architecture rtl of %s is\n", dev->module_name);
+            RTL_EMIT("begin\nend architecture;\n");
             break;
         }
         case HDL_CHISEL: {
-            pos += snprintf(output + pos, max_len - pos,
-                "// Auto-generated RTL: %s\n// License: SEL-3.3\n",
-                dev->module_name);
-            pos += snprintf(output + pos, max_len - pos,
-                "import chisel3._\nimport chisel3.util._\n\n");
-            pos += snprintf(output + pos, max_len - pos,
-                "class %s extends Module {\n", dev->module_name);
-            pos += snprintf(output + pos, max_len - pos,
-                "  val io = IO(new Bundle {\n");
-            pos += snprintf(output + pos, max_len - pos,
-                "    // Bus: %s, Clock: %u Hz\n",
-                bus_type_name(dev->bus), dev->clock_freq_hz);
-            pos += snprintf(output + pos, max_len - pos,
-                "  })\n\n");
-            pos += snprintf(output + pos, max_len - pos,
-                "  // Gate count: %u\n", dev->total_gates);
-            pos += snprintf(output + pos, max_len - pos,
-                "}\n");
+            RTL_EMIT("// Auto-generated RTL: %s\n// License: Apache-2.0\n", dev->module_name);
+            RTL_EMIT("import chisel3._\nimport chisel3.util._\n\n");
+            RTL_EMIT("class %s extends Module {\n", dev->module_name);
+            RTL_EMIT("  val io = IO(new Bundle {\n");
+            RTL_EMIT("    // Bus: %s, Clock: %u Hz\n", bus_type_name(dev->bus), dev->clock_freq_hz);
+            RTL_EMIT("  })\n\n");
+            RTL_EMIT("  // Gate count: %u\n", dev->total_gates);
+            RTL_EMIT("}\n");
             break;
         }
         default:
-            pos += snprintf(output, max_len,
-                "// HDL generation for %s not yet implemented\n",
-                hdl_lang_name(target));
+            RTL_EMIT("// HDL generation for %s not yet implemented\n", hdl_lang_name(target));
             break;
     }
     

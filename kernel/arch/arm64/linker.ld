@@ -4,7 +4,7 @@
  * Load address: 0x40080000 (QEMU virt kernel load address)
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
- * License: SEL-3.3
+ * License: Apache-2.0
  */
 ENTRY(_start)
 

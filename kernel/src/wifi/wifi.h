@@ -2,9 +2,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC
  *
  * Build note: this header needs -Iinclude -Isrc/edp_risk -Isrc/surplus
@@ -415,8 +415,8 @@ typedef struct {
 
     /* M5 coordinates */
     m5_coords_t m5;
-    double coverage_r;
-    double coverage_l;
+    uint32_t coverage_r; /* Q16.16 fraction in [0, 1] */
+    uint32_t coverage_l; /* Q16.16 fraction in [0, 1] */
 } wifi_device_t;
 
 /* ===== Lifecycle ===== */
@@ -655,7 +655,7 @@ void wifi_handle_irq(wifi_device_t *dev);
  * Both are exact small-integer fractions, so the floor is met only when
  * every interface is coherent AND a radio is present. This check fails on a
  * freshly initialised device — that is the intended, honest answer. */
-#define WIFI_COVERAGE_FLOOR 1.0
+#define WIFI_COVERAGE_FLOOR Q16_ONE /* 1.0 in Q16.16; r*l is compared in Q32.32 */
 bool wifi_verify_coverage(wifi_device_t *dev);
 
 #endif /* WIFI_H */

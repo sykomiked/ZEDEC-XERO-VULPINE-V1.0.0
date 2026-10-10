@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reproducible desktop build: every platform from one Linux container.
+#   docker build -f build_system/Dockerfile.desktop -t zxv-desktop .
+#   docker run --rm -v "$PWD/dist:/src/dist" zxv-desktop
+FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends make gcc libc6-dev llvm \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir ziglang==0.13.0 pycdlib==1.21.0 \
+    && ln -s "$(ls /usr/bin/llvm-lipo* | head -1)" /usr/local/bin/llvm-lipo
+WORKDIR /src
+COPY . .
+CMD ["build_system/build_desktop.sh"]

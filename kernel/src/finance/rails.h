@@ -12,14 +12,16 @@
  *   - Triple-ledger settlement
  *   - Nine-capital backing
  *   - M⁵ coverage verification
- *   - Conventional card network compatibility (Visa/MC/Amex/UnionPay/JCB/Discover)
+ *   - A fee table named after conventional card networks (Visa/MC/Amex/
+ *     UnionPay/JCB/Discover). This is a model: there is no connection to,
+ *     certification by, or agreement with any card network.
  *   - Hardware-as-code: each rail is a virtual payment processor device
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #ifndef RAILS_H
 #define RAILS_H
@@ -138,7 +140,12 @@ typedef struct {
     
     /* M⁵ coordinates */
     m5_coords_t m5;
-    
+
+    /* Refunds: on a sale, the total refunded against it so far; on a
+     * refund, the 1-based tx_id of the sale it refunds (0 otherwise). */
+    surplus_real_t refunded;
+    uint64_t refund_of;
+
     /* Settlement */
     bool settled;
     surplus_real_t settlement_amount;
@@ -223,6 +230,13 @@ int32_t rail_process_tx(rail_processor_t *rp,
                          uint32_t merchant_id,
                          surplus_real_t amount,
                          const m5_coords_t *m5);
+
+/* Refund `amount` against the approved (or settled) sale/voucher with
+ * 1-based id `orig_tx_id`. Refused (-1, nothing changes) unless amount > 0,
+ * the cumulative refunds against that sale stay <= its amount, and the card
+ * stays within its limit. rail_process_tx(TX_REFUND, ...) has no link to a
+ * sale and is refused: refunds go through this call. */
+int32_t rail_process_refund(rail_processor_t *rp, uint64_t orig_tx_id, surplus_real_t amount);
 
 /* Floating voucher payment */
 int32_t rail_process_voucher_tx(rail_processor_t *rp,

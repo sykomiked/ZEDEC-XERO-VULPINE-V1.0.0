@@ -1,0 +1,8 @@
+name: ZXV CodeQL config
+# Vendored third-party code keeps its upstream form; generated tables are data.
+paths-ignore:
+  - kernel/src/pqsec/mldsa
+  - kernel/src/pqsec/slhdsa
+  - kernel/src/pqsec/mlkem1024
+  - kernel/src/pqsec/hqc5
+  - kernel/src/pay/xsd

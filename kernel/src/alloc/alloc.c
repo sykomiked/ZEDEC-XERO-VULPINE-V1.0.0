@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* alloc.c — see alloc.h. The engine that hands capital back to whoever grew it,
  * and a token no throne can claw back. */
 #include "alloc.h"
@@ -11,6 +11,68 @@
 
 static bool form_in_range(zcap_form_t form) {
     return (int)form >= 0 && (int)form < ZCAP_FORM_COUNT;
+}
+
+#ifndef TEST_HOST
+/* Exact integer helpers for the Q32.32 path. A Q32.32 fraction such as
+ * 30/100 or 11/100 is not representable, so "take the fraction first" left
+ * shares a few ulps short (30 became 29.99999999) and made 11% of 100 land
+ * just under 11 (refusing the customary rate). These compute the rational
+ * expressions exactly with a 128-bit product built from 32-bit limbs: no
+ * __int128, no hardware divide. */
+static void alloc_mul64(uint64_t a, uint64_t b, uint64_t *hi, uint64_t *lo)
+{
+    uint64_t al = a & 0xffffffffu, ah = a >> 32, bl = b & 0xffffffffu, bh = b >> 32;
+    uint64_t ll = al * bl, lh = al * bh, hl = ah * bl, hh = ah * bh;
+    uint64_t mid = (ll >> 32) + (lh & 0xffffffffu) + (hl & 0xffffffffu);
+    *lo = (ll & 0xffffffffu) | (mid << 32);
+    *hi = hh + (lh >> 32) + (hl >> 32) + (mid >> 32);
+}
+
+/* floor(a * b / d) for d > 0 when the quotient fits in 64 bits. */
+static uint64_t alloc_muldiv(uint64_t a, uint64_t b, uint64_t d)
+{
+    uint64_t hi, lo, r = 0, q = 0;
+    alloc_mul64(a, b, &hi, &lo);
+    for (int i = 127; i >= 0; i--) {
+        uint64_t bit = (i >= 64) ? (hi >> (i - 64)) & 1u : (lo >> i) & 1u;
+        uint64_t carry = r >> 63;
+        r = (r << 1) | bit;
+        if (carry || r >= d) {
+            r -= d;
+            if (i < 64) q |= (uint64_t) 1 << i;
+        }
+    }
+    return q;
+}
+#endif
+
+/* pool * units / total, for 0 < units <= total and pool > 0. */
+static surplus_real_t alloc_prop_share(surplus_real_t pool, surplus_real_t units,
+                                       surplus_real_t total)
+{
+#ifdef TEST_HOST
+    return pool * units / total;
+#else
+    /* Raw Q32.32 scales cancel: (P*U/T) raw == P_raw * U_raw / T_raw. */
+    return (surplus_real_t) alloc_muldiv((uint64_t) pool, (uint64_t) units, (uint64_t) total);
+#endif
+}
+
+/* deduction <= principal * NUM / DEN, compared exactly. */
+static bool alloc_within_rate(surplus_real_t deduction, surplus_real_t principal, uint32_t num,
+                              uint32_t den)
+{
+#ifdef TEST_HOST
+    return deduction * (double) den <= principal * (double) num;
+#else
+    if (SR_CMP(deduction, SR_ZERO) <= 0) return true;
+    if (SR_CMP(principal, SR_ZERO) <= 0) return false;
+    uint64_t dh, dl, ph, pl;
+    alloc_mul64((uint64_t) deduction, den, &dh, &dl);
+    alloc_mul64((uint64_t) principal, num, &ph, &pl);
+    return dh < ph || (dh == ph && dl <= pl);
+#endif
 }
 
 void alloc_pool_init(alloc_pool_t *p) {
@@ -72,13 +134,12 @@ int32_t alloc_distribute(alloc_pool_t *p, zcap_form_t form, alloc_result_t *out)
      * harm/coercion/interest gate belongs on a DEAL with terms, not on a bare
      * conserved split — feeding it hardcoded-benign inputs here would be theatre. */
 
-    /* Proportional split. Take the FRACTION first — SR_MUL(pool, SR_DIV(units,
-     * total)) — NOT SR_DIV(SR_MUL(pool, units), total): the latter forms
-     * pool*units, whose Q32.32 integer part OVERFLOWS int64 for contributions of
-     * a few tens of thousands of units, yielding negative/garbage shares on the
-     * target. SR_DIV of a proper fraction (units < total) does not floor to zero,
-     * and pool*fraction stays in range. The final active share takes the
-     * remainder so the shares sum to pool EXACTLY. */
+    /* Proportional split: floor(pool * units / total), computed exactly
+     * (alloc_prop_share). SR_DIV(SR_MUL(pool, units), total) would overflow
+     * int64 for large contributions, and SR_MUL(pool, SR_DIV(units, total))
+     * rounds the fraction, so 30/100 of 100 came out a few ulps under 30 on
+     * the target. The final active share takes the remainder so the shares
+     * sum to pool EXACTLY. */
     out->form = form;
     out->count = 0;
     out->total = SR_ZERO;
@@ -95,7 +156,7 @@ int32_t alloc_distribute(alloc_pool_t *p, zcap_form_t form, alloc_result_t *out)
         if ((int32_t)i == last_active) {
             share = SR_SUB(pool, running);          /* exact conservation */
         } else {
-            share = SR_MUL(pool, SR_DIV(p->book[form][i].units, total_units));
+            share = alloc_prop_share(pool, p->book[form][i].units, total_units);
             running = SR_ADD(running, share);
         }
         out->shares[out->count].contributor = p->book[form][i].contributor;
@@ -117,14 +178,13 @@ bool alloc_sustainable_ok(const alloc_txn_t *txn) {
     surplus_real_t remaining = SR_SUB(txn->stock_before, txn->draw);
     if (SR_CMP(remaining, txn->yield_floor) < 0) return false;
 
-    /* (c) No deduction above the customary rate (11%). Take the FRACTION first —
-     *     principal * (11/100) — so the Q32.32 intermediate cannot overflow int64
-     *     for a large principal (the same trap as the proportional split above).
-     *     Exactly 11% is customary and permitted; 12% is a taking and is not. */
-    surplus_real_t rate = SR_DIV(SR_FROM_INT(ALLOC_CUSTOMARY_RATE_NUM),
-                                 SR_FROM_INT(ALLOC_CUSTOMARY_RATE_DEN));
-    surplus_real_t max_ded = SR_MUL(txn->principal, rate);
-    if (SR_CMP(txn->deduction, max_ded) > 0) return false;
+    /* (c) No deduction above the customary rate (11%): deduction * 100 <=
+     *     principal * 11, compared exactly in 128 bits (alloc_within_rate), so
+     *     it cannot overflow and a rounded Q32.32 rate cannot refuse exactly
+     *     11%. Exactly 11% is customary and permitted; 12% is a taking. */
+    if (!alloc_within_rate(txn->deduction, txn->principal, ALLOC_CUSTOMARY_RATE_NUM,
+                           ALLOC_CUSTOMARY_RATE_DEN))
+        return false;
 
     return true;
 }

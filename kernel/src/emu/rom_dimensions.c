@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* rom_dimensions.c — the ROM library revisited through the dimensional ladder.
  * See rom_dimensions.h. The 2D->3D lift is Helion's spiral (not extrusion). */
 #include "rom_dimensions.h"
@@ -27,16 +27,23 @@ static const play_dim_t g_play[] = {
 
 const play_dim_t *rom_play_dimensions(int *count_out){ if (count_out) *count_out = N_PLAY; return g_play; }
 
-/* ---- self-contained, libm-free transcendentals (doubles are allowed on target) --- */
-#define RD_PI   3.14159265358979
-#define RD_TAU  6.28318530717959
-#define RD_PHI  1.61803398874989
+/* ---- integer fixed point, Q16.16 (65536 == 1.0) ------------------------------
+ * Kernel images are integer-only (-mgeneral-regs-only / integer riscv ABI), so
+ * this renderer works in Q16.16. Constants are the old doubles * 65536, rounded;
+ * pixel positions and shades agree with the old double code to within one unit
+ * of the output (one pixel, one colour step). */
+#define FX1       65536
+#define RD_DZ_Q   10486  /* 0.16 */
+#define RD_NEAR_Q 170394 /* 2.6  */
 
-static double d_sqrt(double x){                       /* Newton */
-    if (x <= 0.0) return 0.0;
-    double g = x > 1.0 ? x : 1.0;
-    for (int n = 0; n < 10; n++) g = 0.5 * (g + x / g);
-    return g;
+static int32_t q16_sqrt(int64_t x)
+{ /* sqrt of a Q16.16 value */
+    if (x <= 0) return 0;
+    return (int32_t) fx_isqrt64((uint64_t) x << 16);
+}
+static int64_t q16_trunc(int64_t v)
+{ /* Q16.16 -> int, toward 0 */
+    return v < 0 ? -(int64_t) ((uint64_t) (-v) >> 16) : (int64_t) ((uint64_t) v >> 16);
 }
 
 /* Volume spun out of the plane in PHI STEPS — "like spinning wool", the same
@@ -54,16 +61,21 @@ static double d_sqrt(double x){                       /* Newton */
  * them (consecutive Fibonacci ratios converge to φ). These golden shells ARE the
  * Fibonacci/φ recovery expansion; restricting the 3D self back to the plane
  * returns the identity, so nothing is lost. See radial_map (prime×Fibonacci). */
-static double golden_dome(double t){
-    if (t < 0) t = 0; if (t > 1) t = 1;
-    static const double thr[5] = {0.382, 0.618, 0.764, 0.854, 0.910}; /* 1 - φ^-n */
-    double total = 0, step = 1.0;
-    for (int n=0;n<5;n++){ total += step; step /= RD_PHI; }
-    double acc = 0; step = 1.0;
-    for (int n=0;n<5;n++){ if (t >= thr[n]) acc += step; step /= RD_PHI; }
-    double terraced = acc / total;                    /* the φ-stepped shells      */
-    double smooth   = d_sqrt(2.0*t - t*t);            /* a rounded cap             */
-    return 0.55*smooth + 0.45*terraced;               /* spun-in-steps, still round */
+static int32_t golden_dome(int32_t t)
+{ /* t, result: Q16.16 */
+    if (t < 0) t = 0;
+    if (t > FX1) t = FX1;
+    static const int32_t thr[5] = {25035, 40501, 50070, 55968, 59638}; /* 1 - φ^-n */
+    /* (sum of the first k shell rises φ^-n) / (sum of all five), k = 0..5 */
+    static const int32_t terr[6] = {0, 27513, 44518, 55027, 61522, 65536};
+    int k = 0;
+    for (int n = 0; n < 5; n++)
+        if (t >= thr[n]) k++;
+    int32_t terraced = terr[k]; /* the φ-stepped shells      */
+    int64_t tt = (int64_t) t;
+    int32_t smooth = q16_sqrt(2 * tt - ((tt * tt) >> 16)); /* a rounded cap        */
+    return (int32_t) (((int64_t) 36045 * smooth + (int64_t) 29491 * terraced) >>
+                      16); /* 0.55 / 0.45 */
 }
 
 /* THE LIFT — give each object VOLUME along the imaginary axis, don't just rotate.
@@ -79,8 +91,7 @@ static double golden_dome(double t){
  * Concretely: each object's silhouette is INFLATED into a rounded solid via its
  * distance-to-edge field (edge=0 thickness, core=full) — the filled body between
  * the faces — and lit, so it reads as real volume. `i` selects the object. */
-#define RD_DZ      0.16     /* gentle per-object depth stagger — keep the scene whole */
-#define RD_NEAR    2.6
+/* depth stagger RD_DZ_Q (0.16) keeps the scene whole; RD_NEAR_Q (2.6) is the eye */
 
 /* The scene decomposes into OBJECTS (a pop-up book's layers), back-to-front. */
 enum { OBJ_SKY, OBJ_STARS, OBJ_GROUND, OBJ_BRICK, OBJ_BODY, OBJ_HEAD, N_OBJ };
@@ -105,18 +116,32 @@ static int game_object(int u, int v){
 }
 
 /* per-object 2D centroid, distance-to-edge field, and how much each inflates */
-static double g_ocx[N_OBJ], g_ocy[N_OBJ];
+static int32_t g_ocx[N_OBJ], g_ocy[N_OBJ]; /* Q16.16 centroids */
 static int    g_dist[N_OBJ][32][32];
 static int    g_dmax[N_OBJ];
 static int    g_obj_ready = 0;
-static const double g_hscale[N_OBJ] = {                /* backdrop thin, hero thick */
-    /*SKY*/0.10, /*STARS*/0.45, /*GROUND*/0.42, /*BRICK*/0.70, /*BODY*/1.00, /*HEAD*/1.00
-};
+static const int32_t g_hscale[N_OBJ] = {/* backdrop thin, hero thick (Q16.16) */
+                                        /*SKY*/ 6554,    /*STARS*/ 29491, /*GROUND*/ 27525,
+                                        /*BRICK*/ 45875, /*BODY*/ FX1,    /*HEAD*/ FX1};
 static void obj_init(void){
     if (g_obj_ready) return;
-    double sx[N_OBJ]={0}, sy[N_OBJ]={0}; int n[N_OBJ]={0};
-    for (int v=0;v<32;v++) for (int u=0;u<32;u++){ int k=game_object(u,v); sx[k]+=u; sy[k]+=v; n[k]++; }
-    for (int k=0;k<N_OBJ;k++){ if(n[k]){ g_ocx[k]=sx[k]/n[k]; g_ocy[k]=sy[k]/n[k]; } else { g_ocx[k]=16; g_ocy[k]=16; } }
+    uint32_t sx[N_OBJ] = {0}, sy[N_OBJ] = {0}, n[N_OBJ] = {0};
+    for (int v = 0; v < 32; v++)
+        for (int u = 0; u < 32; u++) {
+            int k = game_object(u, v);
+            sx[k] += (uint32_t) u;
+            sy[k] += (uint32_t) v;
+            n[k]++;
+        }
+    for (int k = 0; k < N_OBJ; k++) { /* sx <= 31*1024, so sx<<16 fits in 32 bits */
+        if (n[k]) {
+            g_ocx[k] = (int32_t) ((sx[k] << 16) / n[k]);
+            g_ocy[k] = (int32_t) ((sy[k] << 16) / n[k]);
+        } else {
+            g_ocx[k] = 16 * FX1;
+            g_ocy[k] = 16 * FX1;
+        }
+    }
     /* grassfire distance-to-edge: 0 outside the object, growing toward its core */
     for (int k=0;k<N_OBJ;k++){
         for (int v=0;v<32;v++) for (int u=0;u<32;u++)
@@ -139,20 +164,25 @@ static void obj_init(void){
 
 /* inflated thickness of object k at (u,v): the filled body between front/back
  * faces. Spherical cap over the distance field -> a rounded solid. */
-static double obj_height(int k, int u, int v){
-    if (u<0||u>31||v<0||v>31) return 0.0;
-    if (game_object(u,v)!=k) return 0.0;
-    double t = (double)g_dist[k][v][u] / (double)g_dmax[k];   /* 0 edge .. 1 core */
-    if (t>1.0) t=1.0;
-    return g_hscale[k] * golden_dome(t);              /* φ-stepped nested volume */
+static int32_t obj_height(int k, int u, int v)
+{ /* Q16.16 */
+    if (u < 0 || u > 31 || v < 0 || v > 31) return 0;
+    if (game_object(u, v) != k) return 0;
+    int32_t t =
+        (int32_t) ((g_dist[k][v][u] << 16) / g_dmax[k]); /* 0 edge .. 1 core (dist <= 999) */
+    if (t > FX1) t = FX1;
+    return (int32_t) (((int64_t) g_hscale[k] * golden_dome(t)) >> 16); /* φ-stepped nested volume */
 }
 
 /* the WHOLE scene also gains the new axis (not only each aspect): a global dome,
  * built by the same golden shells, bulging the scene centre toward the viewer. */
-static double scene_dome(int u, int v){
-    double cx=(u-16.0)/16.0, cy=(v-16.0)/16.0;
-    double r = d_sqrt(cx*cx + cy*cy); if (r>1.0) r=1.0;
-    return golden_dome(1.0 - r);
+static int32_t scene_dome(int u, int v)
+{
+    int64_t cx = (int64_t) (u - 16) * 4096,
+            cy = (int64_t) (v - 16) * 4096; /* (u-16)/16 in Q16.16 */
+    int32_t r = (int32_t) fx_isqrt64((uint64_t) (cx * cx + cy * cy));
+    if (r > FX1) r = FX1;
+    return golden_dome(FX1 - r);
 }
 
 void rom_lift(int32_t sx16, int32_t sy16, int i, int w, int h,
@@ -161,29 +191,33 @@ void rom_lift(int32_t sx16, int32_t sy16, int i, int w, int h,
     int k = i; if (k < 0) k = 0; if (k >= N_OBJ) k = N_OBJ-1;
     /* keep the object's ORIGINAL 2D position (linear mapping); depth = layer. The
      * volume (obj_height) is the extent along the imaginary axis, added in render. */
-    double u  = (double)sx16 / 65536.0 * 32.0;
-    double vv = (double)sy16 / 65536.0 * 32.0;
-    double X  = (u  - 16.0) / 16.0;
-    double Y  = (vv - 16.0) / 16.0;                   /* v runs DOWN the screen */
-    double Z  = (double)(N_OBJ-1-k) * RD_DZ;          /* SKY farthest, HEAD nearest */
-    double d  = RD_NEAR + Z;
-    double sc = (double)h * 0.92;
-    *out_x = (int)((double)w * 0.5 + X * sc / d);
-    *out_y = (int)((double)h * 0.5 + Y * sc / d);     /* +Y: keep the image upright */
-    *out_depth = (int32_t)(-Z * 22.0);
+    int64_t X = (int64_t) sx16 * 2 - FX1;            /* (u - 16) / 16 with u = sx16/65536*32 */
+    int64_t Y = (int64_t) sy16 * 2 - FX1;            /* v runs DOWN the screen */
+    int64_t Z = (int64_t) (N_OBJ - 1 - k) * RD_DZ_Q; /* SKY farthest, HEAD nearest */
+    int64_t d = RD_NEAR_Q + Z;
+    int64_t sc = (int64_t) h * 60293; /* h * 0.92 */
+    *out_x = (int) q16_trunc((int64_t) w * (FX1 / 2) + fx_sdiv64(X * sc, d));
+    *out_y = (int) q16_trunc((int64_t) h * (FX1 / 2) + fx_sdiv64(Y * sc, d)); /* +Y: upright */
+    *out_depth = (int32_t) q16_trunc(-Z * 22);
 }
 
 static int gw,gh; static uint32_t *gfb;
 static void px(int x,int y,uint32_t c){ if((unsigned)x<(unsigned)gw&&(unsigned)y<(unsigned)gh) gfb[y*gw+x]=c; }
-static uint32_t shade_rgb(uint32_t c, double s){       /* scale brightness */
+static uint32_t shade_rgb(uint32_t c, int32_t s)
+{ /* scale brightness, s Q16.16 */
     if (s<0) s=0;
-    int r=(int)(((c>>16)&255)*s), g=(int)(((c>>8)&255)*s), b=(int)((c&255)*s);
+    int r = (int) ((((c >> 16) & 255) * (int64_t) s) >> 16),
+        g = (int) ((((c >> 8) & 255) * (int64_t) s) >> 16),
+        b = (int) (((c & 255) * (int64_t) s) >> 16);
     if(r>255)r=255; if(g>255)g=255; if(b>255)b=255;
     return (uint32_t)((r<<16)|(g<<8)|b);
 }
-static uint32_t add_white(uint32_t c, double a){       /* add a specular highlight */
-    if (a<0) a=0; if (a>1) a=1;
-    int r=(int)(((c>>16)&255)+255*a), g=(int)(((c>>8)&255)+255*a), b=(int)((c&255)+255*a);
+static uint32_t add_white(uint32_t c, int32_t a)
+{ /* add a specular highlight, a Q16.16 */
+    if (a < 0) a = 0;
+    if (a > FX1) a = FX1;
+    int wv = (int) ((255 * (int64_t) a) >> 16);
+    int r = (int) ((c >> 16) & 255) + wv, g = (int) ((c >> 8) & 255) + wv, b = (int) (c & 255) + wv;
     if(r>255)r=255; if(g>255)g=255; if(b>255)b=255;
     return (uint32_t)((r<<16)|(g<<8)|b);
 }
@@ -203,33 +237,39 @@ void rom_dimensions_render(uint32_t *fb, int w, int h){
     /* RIGHT: each object given real VOLUME along the imaginary axis (its silhouette
      * inflated into a filled, lit solid) and layered in depth — it pops out as 3D
      * with no empty space. Light from upper-left, toward the viewer. */
-    double Lx=-0.45, Ly=-0.58, Lz=0.68;
-    double li=1.0/d_sqrt(Lx*Lx+Ly*Ly+Lz*Lz); Lx*=li; Ly*=li; Lz*=li;
-    double Hx=Lx, Hy=Ly, Hz=Lz+1.0;                      /* Blinn half-vector */
-    double hi=1.0/d_sqrt(Hx*Hx+Hy*Hy+Hz*Hz); Hx*=hi; Hy*=hi; Hz*=hi;
-    #define RD_SS 256
+    /* unit light L = norm(-0.45,-0.58,0.68) and Blinn half-vector H = norm(L+z), Q16.16 */
+    const int64_t Lx = -29472, Ly = -37986, Lz = 44536;
+    const int64_t Hx = -16080, Hy = -20726, Hz = 60057;
+#define RD_SS 256
     for (int k=0; k<N_OBJ; k++){
         for (int su=0; su<RD_SS; su++){
             for (int sv=0; sv<RD_SS; sv++){
                 int u = su*32/RD_SS, v = sv*32/RD_SS;
                 if (game_object(u,v) != k) continue;
                 /* surface normal from the gradient of the inflated thickness */
-                double Hc = obj_height(k,u,v);
-                double gx = obj_height(k,u+1,v) - obj_height(k,u-1,v);
-                double gy = obj_height(k,u,v+1) - obj_height(k,u,v-1);
-                double NS = 2.6;
-                double nx=-gx*NS, ny=-gy*NS, nz=1.0;
-                double ninv=1.0/d_sqrt(nx*nx+ny*ny+nz*nz); nx*=ninv; ny*=ninv; nz*=ninv;
-                double diff = nx*Lx+ny*Ly+nz*Lz; if (diff<0) diff=0;
-                double sp = nx*Hx+ny*Hy+nz*Hz; if (sp<0) sp=0;
-                sp=sp*sp; sp=sp*sp; sp=sp*sp;            /* ^8 highlight */
-                double shade = 0.30 + 0.85*diff;          /* ambient + diffuse */
+                int32_t Hc = obj_height(k, u, v);
+                int64_t gx = obj_height(k, u + 1, v) - obj_height(k, u - 1, v);
+                int64_t gy = obj_height(k, u, v + 1) - obj_height(k, u, v - 1);
+                int64_t nx = -((gx * 170394) >> 16), ny = -((gy * 170394) >> 16),
+                        nz = FX1; /* NS = 2.6 */
+                int64_t len =
+                    fx_isqrt64((uint64_t) (nx * nx + ny * ny + nz * nz)); /* |n|, Q16.16 */
+                int64_t diff = fx_sdiv64(nx * Lx + ny * Ly + nz * Lz, len);
+                if (diff < 0) diff = 0;
+                int64_t sp = fx_sdiv64(nx * Hx + ny * Hy + nz * Hz, len);
+                if (sp < 0) sp = 0;
+                sp = (sp * sp) >> 16;
+                sp = (sp * sp) >> 16;
+                sp = (sp * sp) >> 16;                                       /* ^8 highlight */
+                int32_t shade = (int32_t) (19661 + ((55706 * diff) >> 16)); /* 0.30 + 0.85 diff */
                 uint32_t base = game_pixel(u,v);
                 uint32_t c = shade_rgb(base, shade);
-                c = add_white(c, sp*0.55*g_hscale[k]);    /* gloss where it bulges */
+                c = add_white(c, (int32_t) ((((36045 * sp) >> 16) * g_hscale[k]) >>
+                                            16)); /* gloss: sp*0.55*hscale */
                 /* depth = object layer + its own volume + the WHOLE-scene dome */
-                int32_t dz = (int32_t)(-((double)(N_OBJ-1-k)*RD_DZ)*18.0
-                                       + Hc*10.0 + scene_dome(u,v)*8.0);
+                int32_t dz =
+                    (int32_t) q16_trunc(-(int64_t) (N_OBJ - 1 - k) * RD_DZ_Q * 18 +
+                                        (int64_t) Hc * 10 + (int64_t) scene_dome(u, v) * 8);
                 c = holo_shade(c, 0, dz, 6, 150);          /* near warm / far cool */
 
                 int32_t sx16 = (int32_t)(((int64_t)su*65536)/RD_SS);
@@ -262,9 +302,10 @@ int rom_dimensions_selfcheck(uint32_t *rom2d_out){
     int W=240, HH=240;
     /*   a) filled volume: the body's interior has real thickness — its core is
      *      thicker than its edge, and there is a genuine interior to fill.       */
-    double h_core = obj_height(OBJ_BODY, (int)(g_ocx[OBJ_BODY]+0.5), (int)(g_ocy[OBJ_BODY]+0.5));
-    double h_edge = obj_height(OBJ_BODY, 6, 12);            /* a corner of the body */
-    int filled = (h_core > h_edge + 0.05) && (g_dmax[OBJ_BODY] >= 2);
+    int32_t h_core =
+        obj_height(OBJ_BODY, (g_ocx[OBJ_BODY] + FX1 / 2) >> 16, (g_ocy[OBJ_BODY] + FX1 / 2) >> 16);
+    int32_t h_edge = obj_height(OBJ_BODY, 6, 12);                     /* a corner of the body */
+    int filled = (h_core > h_edge + 3277) && (g_dmax[OBJ_BODY] >= 2); /* + 0.05 */
     /*   b) the objects are staggered in depth (the pop-out layering) — probe an
      *      OFF-CENTRE point so perspective actually separates the layers.        */
     int32_t dSky, dHead; int xs,ys,xh,yh;
@@ -285,17 +326,24 @@ int rom_dimensions_selfcheck(uint32_t *rom2d_out){
      *      plane, IS the original — the core carries the full self (dome=1), the
      *      edge adds nothing (dome=0). And the volume is spun in PHI-STEP nested
      *      shells (a Russian doll): each golden level strictly encloses the last. */
-    int identity = (golden_dome(1.0) > 0.95) && (golden_dome(0.0) < 0.05);
-    double s1=golden_dome(0.45), s2=golden_dome(0.70), s3=golden_dome(0.92);
+    int identity = (golden_dome(FX1) > 62259) && (golden_dome(0) < 3277); /* > 0.95, < 0.05 */
+    int32_t s1 = golden_dome(29491), s2 = golden_dome(45875),
+            s3 = golden_dome(60293);                /* .45 .70 .92 */
     int nested = (s1 < s2) && (s2 < s3);            /* φ shells nest, edge->core    */
 
     /*   e) the unflatten is KEYED: prime = forward lock (SHA256d), FIBONACCI = the
      *      recovery key, φ = the alignment axiom. Verify the recovery key aligns to
      *      φ — consecutive Fibonacci ratios converge to the golden ratio.         */
-    long fa=1, fb2=1; for (int n=0;n<20;n++){ long t=fa+fb2; fa=fb2; fb2=t; }
-    double fib_ratio = (double)fb2/(double)fa, dphi = fib_ratio - RD_PHI;
-    if (dphi<0) dphi=-dphi;
-    int aligned = (dphi < 0.001);                   /* Fibonacci recovery key ~ φ   */
+    int64_t fa = 1, fb2 = 1;
+    for (int n = 0; n < 20; n++) {
+        int64_t t = fa + fb2;
+        fa = fb2;
+        fb2 = t;
+    }
+    /* |fb2/fa - φ| < 0.001  <=>  |fb2*10^6 - 1618034*fa| < 1000*fa (φ to 7 digits) */
+    int64_t dphi = fb2 * 1000000 - 1618034 * fa;
+    if (dphi < 0) dphi = -dphi;
+    int aligned = (dphi < 1000 * fa); /* Fibonacci recovery key ~ φ   */
 
     int moved = popped && ((xs!=xh) || (ys!=yh));
     int depth_varies = filled && linear && identity && nested && aligned;

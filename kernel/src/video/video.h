@@ -6,9 +6,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC
  *
  * ===========================================================================
@@ -251,8 +251,8 @@ typedef struct {
 
     /* M5 coordinates */
     m5_coords_t m5;
-    double coverage_r;
-    double coverage_l;
+    uint32_t coverage_r; /* Q16.16 fraction in [0, 1] */
+    uint32_t coverage_l; /* Q16.16 fraction in [0, 1] */
 
     /* --- hardware backend --- */
     video_ops_t ops;
@@ -302,7 +302,7 @@ typedef struct {
  * fully consistent AND the primary/context displays real. It is reachable
  * (a correctly configured device passes) and it is refusable (a device with
  * no displays, an unbound framebuffer, or a bad pitch fails). */
-#define VIDEO_COVERAGE_FLOOR    1.0
+#define VIDEO_COVERAGE_FLOOR Q16_ONE /* 1.0 in Q16.16; r*l is compared in Q32.32 */
 
 /* ===== API ===== */
 void video_init(video_device_t *dev, const char *name);

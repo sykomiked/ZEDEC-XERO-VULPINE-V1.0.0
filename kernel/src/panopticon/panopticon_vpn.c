@@ -7,9 +7,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include "panopticon_vpn.h"
@@ -273,7 +273,10 @@ int vpn_connect(vpn_state_t *state) {
         vpn_select_path(state, zeros);
     }
     state->connection.established = 1;
-    state->connection.encryption_active = 1;
+    /* Nothing here encrypts: vpn_route_packet only prepends routing labels
+     * and carries the payload in the clear, and no tunnel to any node is
+     * opened. Report that honestly instead of claiming encryption. */
+    state->connection.encryption_active = 0;
     state->connection.established_tick = state->mesh.last_rotation;
     state->mesh.mesh_enabled = 1;
     return 0;
@@ -295,6 +298,13 @@ int vpn_kill_switch(vpn_state_t *state, uint8_t enable) {
 int vpn_route_packet(vpn_state_t *state, const uint8_t *data,
                      uint16_t len, uint8_t *out, uint16_t *out_len) {
     if (!state || !data || !out || !out_len) return -1;
+    /* *out_len is the capacity of out on entry. Both paths used to write
+     * before checking it (the label path wrote 15 bytes unconditionally). */
+    uint32_t need = (uint32_t) len + (state->connection.established ? VPN_MAX_HOPS * 3u : 0u);
+    if (need > *out_len || need > 0xFFFFu) {
+        *out_len = (uint16_t) (need > 0xFFFFu ? 0xFFFFu : need);
+        return -3;
+    }
     if (!state->connection.established) {
         if (state->connection.kill_switch_active) return -2;
         /* Without VPN, pass through (if kill switch disabled) */
@@ -302,7 +312,8 @@ int vpn_route_packet(vpn_state_t *state, const uint8_t *data,
         *out_len = len;
         return 0;
     }
-    /* Wrap packet through 5 layers of encryption (simulated) */
+    /* Prepend one 3-byte routing label per hop. This is NOT encryption: the
+     * payload follows in the clear (a model of the path, not a tunnel). */
     uint16_t offset = 0;
     for (int h = 0; h < VPN_MAX_HOPS; h++) {
         uint8_t opt = state->mesh.active_path[h];

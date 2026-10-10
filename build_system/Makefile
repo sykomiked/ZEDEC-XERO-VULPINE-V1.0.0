@@ -3,8 +3,10 @@
 # Author: H.M. Michael-Laurence: Curzi (c)
 
 CC = gcc
-CFLAGS_TEST = -g -Wall -Wextra -O2 -std=c11 -DTEST_HOST \
+CFLAGS_TEST = -g -Wall -Wextra -O2 -std=c11 -D_GNU_SOURCE -DTEST_HOST \
               -I kernel/include \
+              -I kernel/src/modbind -I kernel/src/e8 -I kernel/src/event_space \
+              -I kernel/src/surplus -I kernel/src/zab \
               -I kernel/src/oseq -I kernel/src/rmag -I kernel/src/lpres \
               -I kernel/src/iphase -I kernel/src/choice -I kernel/src/phase_coord \
               -I kernel/src/telemetry -I kernel/src/axiom_matrix \
@@ -28,6 +30,7 @@ KERNEL_SRCS = kernel/src/oseq/oseq_core.c \
               kernel/src/telemetry/telemetry_core.c \
               kernel/src/axiom_matrix/axiom_matrix_core.c \
               kernel/src/crit168/crit_168_word.c \
+              kernel/src/e8/e8.c kernel/src/e8/zphi.c \
               kernel/compat/compat_layer.c
 
 OS_LATTICE_SRCS = os_lattice/lattice_core.c \
@@ -56,7 +59,10 @@ TESTS = test_lattice test_neon test_gridchain test_security \
         test_physics test_hccs test_audiogenomics test_governance \
         test_integration test_drivers
 
-.PHONY: all test clean kernel
+# test binaries go under build/ (git-ignored), not the repository root
+TBIN ?= build/os_tests
+
+.PHONY: all test clean kernel $(TESTS)
 
 all: test
 
@@ -66,47 +72,61 @@ kernel:
 test: $(TESTS)
 	@echo ""
 	@echo "=== Running all OS layer tests ==="
-	@for t in $(TESTS); do \
+	@fail=0; for t in $(TESTS); do \
 		echo "--- Running $$t ---"; \
-		./$$t && echo "PASS: $$t" || echo "FAIL: $$t"; \
-	done
-	@echo ""
-	@echo "=== All tests complete ==="
+		if $(TBIN)/$$t; then echo "PASS: $$t"; else echo "FAIL: $$t"; fail=$$((fail + 1)); fi; \
+	done; \
+	echo ""; \
+	if [ $$fail -gt 0 ]; then echo "=== $$fail test(s) FAILED ==="; exit 1; fi; \
+	echo "=== All tests complete ==="
 
 test_lattice: tests/test_lattice.c $(OS_LATTICE_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(OS_LATTICE_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(OS_LATTICE_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
 test_neon: tests/test_neon.c $(NEON_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(NEON_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(NEON_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
 test_gridchain: tests/test_gridchain.c $(GRIDCHAIN_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(GRIDCHAIN_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(GRIDCHAIN_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
 test_security: tests/test_security.c $(SECURITY_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(SECURITY_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(SECURITY_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
 test_physics: tests/test_physics.c $(PHYSICS_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(PHYSICS_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(PHYSICS_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
 test_hccs: tests/test_hccs.c $(HCCS_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(HCCS_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(HCCS_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
 test_audiogenomics: tests/test_audiogenomics.c $(AUDIOGENOMICS_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(AUDIOGENOMICS_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(AUDIOGENOMICS_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
 test_governance: tests/test_governance.c $(GOVERNANCE_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(GOVERNANCE_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(GOVERNANCE_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
 test_integration: tests/test_integration.c $(ALL_OS_SRCS) $(KERNEL_SRCS)
-	$(CC) $(CFLAGS_TEST) -o $@ $< $(ALL_OS_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ $< $(ALL_OS_SRCS) $(KERNEL_SRCS) $(LDFLAGS_TEST)
 
-test_drivers: tests/test_drivers.c kernel/src/keyboard/keyboard.c \
-              kernel/src/pic/pic.c kernel/src/pci/pci.c \
-              kernel/src/acpi/acpi.c init/init.c
-	$(CC) $(CFLAGS_TEST) -o $@ tests/test_drivers.c \
-              kernel/src/keyboard/keyboard.c kernel/src/pic/pic.c \
-              kernel/src/pci/pci.c kernel/src/acpi/acpi.c init/init.c \
+DRIVER_SRCS = kernel/src/keyboard/keyboard.c kernel/src/pic/pic.c \
+              kernel/src/pci/pci.c kernel/src/acpi/acpi.c \
+              kernel/src/net/net.c kernel/src/net/tcp.c kernel/src/net/dhcp.c \
+              kernel/src/net/dns.c kernel/src/net/m5route.c kernel/src/net/dtmf.c \
+              kernel/src/net/radio.c kernel/src/vino/vino.c kernel/src/vena/vena.c \
+              kernel/src/zab/zab.c kernel/src/zab/zab_exec.c init/init.c
+
+test_drivers: tests/test_drivers.c $(DRIVER_SRCS) $(KERNEL_SRCS)
+	@mkdir -p $(TBIN)
+	$(CC) $(CFLAGS_TEST) -o $(TBIN)/$@ tests/test_drivers.c $(DRIVER_SRCS) $(KERNEL_SRCS) \
               $(LDFLAGS_TEST)
 
 clean:
-	rm -f $(TESTS)
+	rm -f $(addprefix $(TBIN)/,$(TESTS))

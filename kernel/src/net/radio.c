@@ -86,8 +86,8 @@ void sat_init(satellite_link_t *sat, sat_type_t type, uint32_t sat_id) {
         sat->latency_ms = 20;    /* ~550km altitude (Starlink) */
         sat->uplink_freq_mhz = 14000;
         sat->downlink_freq_mhz = 10750;
-        sat->mean_motion = 15.0f; /* ~15 orbits/day */
-        sat->inclination = 53.0f;
+        sat->mean_motion_milli = 15000; /* ~15 orbits/day */
+        sat->inclination_mdeg = 53000;
     } else {
         sat->latency_ms = 100;
         sat->uplink_freq_mhz = 6000;
@@ -121,7 +121,8 @@ int32_t sat_track_leo(satellite_link_t *sat, uint32_t current_tick) {
     if (sat->type != SAT_TYPE_LEO) return 0;
     /* Simplified orbital tracking: compute visibility window */
     /* A LEO satellite at ~550km has ~15 min visibility per pass */
-    uint32_t orbit_period = (uint32_t)(86400 / sat->mean_motion); /* seconds in ticks */
+    uint32_t orbit_period = sat->mean_motion_milli ? (86400u * 1000u) / sat->mean_motion_milli
+                                                   : 0; /* seconds in ticks */
     uint32_t phase = (current_tick - sat->epoch_tick) % orbit_period;
     uint32_t visibility_window = 900; /* 15 minutes in seconds */
 
@@ -145,11 +146,13 @@ void starlink_init(starlink_terminal_t *st) {
     st->phased_array_aligned = false;
 }
 
-int32_t starlink_align(starlink_terminal_t *st, float lat, float lon) {
-    (void)lat; (void)lon;
+int32_t starlink_align(starlink_terminal_t *st, int32_t lat_udeg, int32_t lon_udeg)
+{
+    (void) lat_udeg;
+    (void) lon_udeg;
     /* Phased array auto-aligns to nearest satellite */
-    st->azimuth = 180.0f;   /* Simplified */
-    st->elevation = 45.0f;
+    st->azimuth_mdeg = 180000; /* Simplified */
+    st->elevation_mdeg = 45000;
     st->phased_array_aligned = true;
     return 0;
 }
@@ -226,9 +229,9 @@ int32_t am_demodulate(const int16_t *iq, uint32_t n, int16_t *audio, uint32_t ma
         /* Magnitude = sqrt(I^2 + Q^2) */
         int32_t i_val = iq[i];
         int32_t q_val = iq[i + 1];
-        double mag = fs_sqrt((double)(i_val * i_val + q_val * q_val));
+        uint32_t mag = fx_isqrt64((uint64_t) ((int64_t) i_val * i_val + (int64_t) q_val * q_val));
         /* DC removal: subtract average */
-        audio[out++] = (int16_t)(mag - 16384);
+        audio[out++] = (int16_t) ((int32_t) mag - 16384);
     }
     return (int32_t)out;
 }
@@ -292,7 +295,7 @@ void laser_init(laser_link_t *l, uint32_t wavelength_nm) {
     mem_set(l, 0, sizeof(*l));
     l->wavelength_nm = wavelength_nm;
     l->power_mw = 100;
-    l->beam_divgence_mrad = 0.1f;
+    l->beam_divergence_urad = 100; /* 0.1 mrad */
     l->range_km = 1000;
 }
 
@@ -332,7 +335,7 @@ int32_t neutrino_recv(neutrino_link_t *n, void *buf, uint32_t max_len) {
 static bool cell_adapter_send(const m5_address_t *dest, const void *data, uint32_t len,
                                const m5_net_header_t *m5_meta) {
     (void)dest; (void)data; (void)len; (void)m5_meta;
-    return true; /* Would send via cellular modem */
+    return false; /* no cellular modem driver: nothing was sent */
 }
 
 static uint32_t cell_adapter_poll(void *buf, uint32_t max_len, m5_address_t *src) {
@@ -350,7 +353,7 @@ void m5_adapter_register_cellular(m5_router_t *r, cell_modem_t *modem) {
 static bool sat_adapter_send(const m5_address_t *dest, const void *data, uint32_t len,
                               const m5_net_header_t *m5_meta) {
     (void)dest; (void)data; (void)len; (void)m5_meta;
-    return true;
+    return false; /* no driver behind this adapter: nothing was sent */
 }
 
 static uint32_t sat_adapter_poll(void *buf, uint32_t max_len, m5_address_t *src) {
@@ -374,7 +377,7 @@ void m5_adapter_register_starlink(m5_router_t *r, starlink_terminal_t *st) {
 static bool radio_adapter_send(const m5_address_t *dest, const void *data, uint32_t len,
                                 const m5_net_header_t *m5_meta) {
     (void)dest; (void)data; (void)len; (void)m5_meta;
-    return true;
+    return false; /* no driver behind this adapter: nothing was sent */
 }
 
 static uint32_t radio_adapter_poll(void *buf, uint32_t max_len, m5_address_t *src) {
@@ -626,7 +629,7 @@ int32_t ulf_send_emergency(ulf_link_t *u, uint32_t code) {
 static bool radar_adapter_send(const m5_address_t *dest, const void *data, uint32_t len,
                                 const m5_net_header_t *m5_meta) {
     (void)dest; (void)data; (void)len; (void)m5_meta;
-    return true;
+    return false; /* no driver behind this adapter: nothing was sent */
 }
 
 static uint32_t radar_adapter_poll(void *buf, uint32_t max_len, m5_address_t *src) {

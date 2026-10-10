@@ -1,0 +1,21 @@
+ML-KEM-1024 (FIPS 203) — vendored reference implementation
+
+Source:   https://github.com/pq-crystals/kyber, ref/
+Commit:   3edd5af5991927164edd4aacebfcbee00b8064e7 (2026-08-02)
+License:  CC0 (public domain) or Apache-2.0, see LICENSE. Both allow
+          commercial use and sale. We take it under Apache-2.0, matching
+          the repository.
+
+All files are byte-for-byte copies of ref/. The parameter set is chosen
+by ../pq_mlkem1024.c, which builds them as one translation unit with
+KYBER_K = 4 (ML-KEM-1024), renames randombytes (only the non-derand entry
+points use it, and the API never calls those), and adds the FIPS 203
+section 7.2 / 7.3 input checks. Symbols are namespaced by the reference
+itself (pqcrystals_kyber1024_ref_*, pqcrystals_kyber_fips202_ref_*).
+Not copied: randombytes.c, the test, KAT and benchmark programs, avx2/.
+
+libc: indcpa.c, kem.c and symmetric-shake.c include <string.h>
+(memcpy/memset).
+
+Checked against NIST ACVP (ACVP-Server commit 975de31e) keyGen,
+encapsulation, decapsulation and key-check vectors: ../test_pq_matrix.c.

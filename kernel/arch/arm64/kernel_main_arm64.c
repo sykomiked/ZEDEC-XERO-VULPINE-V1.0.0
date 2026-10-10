@@ -5,9 +5,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 #include "m5_types.h"
 /* sched.h (-> idt.h) MUST precede arm64_compat.h: that header defines
@@ -509,6 +509,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../src/loader/abupdate.h"  /* A/B update + probation + rollback */
 #include "../src/appkit/doc.h"       /* AppKit document model (Writer et al) */
 #include "../src/refinery/refinery.h" /* Magitech Refinery: text -> sigil card */
+#include "../src/swarm/swarm_boot.h"  /* swarm + tensor boot self-check ([AI_OK]) */
 #include "../userapp/hello_signed.h" /* root pubkey + signed .zsp, seeded to disk */
 /* Bridge between the TCP/IP stack and the virtio-net driver. The stack calls
  * knet_tx to put a fully-built frame on the wire; knet_pump drains received
@@ -824,7 +825,7 @@ void kernel_main_arm64(void) {
     uart_puts("==================================================\n\n");
 
     /* Phase 0: License banner — the four-instrument share-alike stack */
-    uart_puts("License: OPL-1.1 + CC BY-SA 4.0 + Royal Writ + SEL-3.3 (share-alike, travels together)\n");
+    uart_puts("License: Apache-2.0\n");
     uart_puts("Author: H.M. Michael-Laurence: Curzi (c)\n");
     uart_puts("36N9 Genetics, LLC — Irrevocable, Interdimensional\n\n");
 
@@ -2916,6 +2917,17 @@ void kernel_main_arm64(void) {
     boot_features_init(uart_puts, 0, 0);
     boot_economy_init(uart_puts);
 
+    /* Phase 22b: AI self-check. One Fibonacci budget cycle of the swarm and a
+     * tiny integer forward step of the tensor engine, compared against the
+     * constants test_ai_selfcheck asserts on the host (swarm_boot.h, zt_boot.h). A mismatch
+     * means this build does not compute what the host computes: the [FAULT]
+     * line is printed and boot stops here, before [BOOT_OK] can claim
+     * otherwise. */
+    if (!ai_boot_selfcheck(uart_puts)) {
+        uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
+        for (;;) halt();
+    }
+
     /* Phase 18: Enable interrupts and enter event loop */
     boot_msg("\n[BOOT] ZEDEC pqOS [ARM64] — All systems online.");
 #if ENABLE_EL0_USERSPACE
@@ -3741,6 +3753,9 @@ void kernel_shell_exec(const char *line) {
             uart_puts(" ON PROBATION. 'confirm' to promote, 'rollback' to revert.\r\n");
         } else if (r == AB_ERR_VERIFY) {
             uart_puts("update: SIGNATURE REJECTED — active slot unchanged\r\n");
+        } else if (r == AB_ERR_ROLLBACK) {
+            uart_puts("update: ROLLBACK REFUSED — version not newer than active/floor (or "
+                      "unversioned v1)\r\n");
         } else {
             uart_puts("update: failed\r\n");
         }
@@ -3749,9 +3764,11 @@ void kernel_shell_exec(const char *line) {
     if (strcmp(line, "confirm") == 0) {
         if (!g_ab_ready) { uart_puts("confirm: no A/B state\r\n"); return; }
         ab_result_t r = ab_confirm(&g_zxvfs, &g_ab);
-        uart_puts(r == AB_OK ? "confirm: probation slot promoted to active\r\n"
+        uart_puts(r == AB_OK         ? "confirm: probation slot promoted to active\r\n"
                   : r == AB_ERR_NONE ? "confirm: nothing on probation\r\n"
-                  : "confirm: failed\r\n");
+                  : r == AB_ERR_ROLLBACK
+                      ? "confirm: REFUSED — probation package not newer; discarded\r\n"
+                      : "confirm: failed\r\n");
         return;
     }
     if (strcmp(line, "rollback") == 0) {

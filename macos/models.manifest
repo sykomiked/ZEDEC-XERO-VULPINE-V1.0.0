@@ -1,0 +1,27 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# models.manifest — the models ZXV.app may fetch on first run, read by
+# zxv-model-fetch.sh. Copied into ZXV.app/Contents/Resources, so it is
+# covered by the app's code signature: the sha256 pinned here is what makes
+# a download from any IPFS gateway trustworthy.
+#
+# One model per line, fields separated by spaces or tabs:
+#
+#   NAME.gguf  SHA256(64 hex)  BYTES  CID  LICENCE
+#
+#   NAME     file name to install as (letters, digits, . _ -; ends .gguf)
+#   SHA256   sha256 of the whole file, checked before it is installed
+#   BYTES    exact size, checked too
+#   CID      the file's IPFS CID (from the release's boot manifest)
+#   LICENCE  SPDX id of the weights' licence, shown to the user; only
+#            weights licensed for redistribution and commercial use belong
+#            here (see docs/ARCHITECTURE_OVERVIEW.md gap 17)
+#
+# The first line that downloads and verifies is installed; the rest are
+# fallbacks. Lines starting with # are comments.
+#
+# This file is intentionally empty of entries: no model has been pinned
+# for release yet, and an unpinned or invented CID must never ship. Until
+# then the app offers "Choose GGUF File" instead, or a model bundled at
+# build time with ZXV_BUNDLE_MODEL (see docs/MAC_APP.md).

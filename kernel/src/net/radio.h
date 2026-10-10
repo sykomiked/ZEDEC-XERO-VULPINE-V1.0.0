@@ -61,9 +61,9 @@ typedef struct satellite_link {
     bool     connected;
 
     /* Orbital tracking for LEO */
-    float    inclination;
-    float    raan;        /* Right Ascension of Ascending Node */
-    float    mean_motion; /* Revolutions per day */
+    int32_t inclination_mdeg;   /* inclination, milli-degrees */
+    int32_t raan_mdeg;          /* Right Ascension of Ascending Node, milli-degrees */
+    uint32_t mean_motion_milli; /* Revolutions per day x 1000 */
     uint32_t epoch_tick;
 } satellite_link_t;
 
@@ -81,12 +81,13 @@ typedef struct starlink_terminal {
     uint32_t user_terminal_id;
     uint8_t  service_cell_id[6];
     bool     phased_array_aligned;
-    float    azimuth;
-    float    elevation;
+    int32_t azimuth_mdeg;   /* milli-degrees */
+    int32_t elevation_mdeg; /* milli-degrees */
 } starlink_terminal_t;
 
 void starlink_init(starlink_terminal_t *st);
-int32_t starlink_align(starlink_terminal_t *st, float lat, float lon);
+/* lat/lon in micro-degrees (integer; kernel images have no floating point) */
+int32_t starlink_align(starlink_terminal_t *st, int32_t lat_udeg, int32_t lon_udeg);
 int32_t starlink_handoff(starlink_terminal_t *st, uint32_t new_sat_id);
 
 /* ===== AM/FM RADIO ===== */
@@ -148,7 +149,7 @@ int32_t quantum_recv(quantum_link_t *q, void *buf, uint32_t max_len);
 typedef struct laser_link {
     uint32_t wavelength_nm;    /* e.g., 1550nm for telecom */
     uint32_t power_mw;
-    float    beam_divgence_mrad;
+    uint32_t beam_divergence_urad; /* micro-radians */
     uint32_t range_km;
     bool     aligned;
 } laser_link_t;

@@ -6,7 +6,7 @@ license into the model's system prompt and providing a structured
 interface for the AI to co-develop the kernel.
 
 Author: H.M. Michael-Laurence: Curzi (c)
-License: SEL-3.3
+License: Apache-2.0
 """
 import json
 import requests

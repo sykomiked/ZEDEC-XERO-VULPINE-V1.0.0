@@ -6,9 +6,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #ifdef TEST_HOST
@@ -20,6 +20,7 @@
 #endif
 
 #include "dualtrack.h"
+#include "zxv_fixed.h"
 
 /* ===== Helpers ===== */
 
@@ -525,30 +526,28 @@ int dualtrack_report(const dualtrack_t *dt, char *buf, uint32_t max_len) {
     if (!dt || !buf) return -1;
     uint32_t pos = 0;
 
-    pos += (uint32_t)snprintf(buf + pos, max_len - pos,
+    pos += (uint32_t) snprintf(
+        buf + pos, max_len - pos,
         "Dual-Track Pipeline Report\n"
         "  Stages: %u | Gates: %u | Artifacts: %u\n"
         "  Linear:    %u passed, %u failed, %u skipped (%u ms) | %u artifacts\n"
         "  Nonlinear: %u passed, %u failed, %u skipped (%u ms) | %u artifacts\n"
         "  Gates: %u agreed, %u diverged, %u both_failed\n"
         "  Artifacts: %u validated, %u linked\n"
-        "  Agreement rate: %.1f%%\n"
+        "  Agreement rate: %u.%u%%\n"
         "  Phase clock: %u ms\n"
         "  Total duration: %u ms\n"
         "  Completed: %s\n",
-        dt->num_stages, dt->num_gates, dt->num_artifacts,
-        dt->linear_stats.stages_passed, dt->linear_stats.stages_failed,
-        dt->linear_stats.stages_skipped, dt->linear_stats.total_duration_ms,
-        dt->linear_stats.artifacts_produced,
+        dt->num_stages, dt->num_gates, dt->num_artifacts, dt->linear_stats.stages_passed,
+        dt->linear_stats.stages_failed, dt->linear_stats.stages_skipped,
+        dt->linear_stats.total_duration_ms, dt->linear_stats.artifacts_produced,
         dt->nonlinear_stats.stages_passed, dt->nonlinear_stats.stages_failed,
         dt->nonlinear_stats.stages_skipped, dt->nonlinear_stats.total_duration_ms,
-        dt->nonlinear_stats.artifacts_produced,
-        dt->gates_agreed, dt->gates_diverged, dt->gates_both_failed,
+        dt->nonlinear_stats.artifacts_produced, dt->gates_agreed, dt->gates_diverged,
+        dt->gates_both_failed,
         dt->linear_stats.artifacts_validated + dt->nonlinear_stats.artifacts_validated,
-        dt->total_artifacts_linked,
-        dualtrack_agreement_rate(dt) * 100.0f,
-        dt->phase_tick,
-        dt->total_duration_ms,
+        dt->total_artifacts_linked, dualtrack_agreement_permille(dt) / 10u,
+        dualtrack_agreement_permille(dt) % 10u, dt->phase_tick, dt->total_duration_ms,
         dt->completed ? "YES" : "NO");
 
     /* Per-stage details */
@@ -569,9 +568,10 @@ int dualtrack_report(const dualtrack_t *dt, char *buf, uint32_t max_len) {
     return (int)pos;
 }
 
-float dualtrack_agreement_rate(const dualtrack_t *dt) {
-    if (!dt || dt->num_gates == 0) return 1.0f;
-    return (float)dt->gates_agreed / (float)dt->num_gates;
+uint32_t dualtrack_agreement_permille(const dualtrack_t *dt)
+{
+    if (!dt || dt->num_gates == 0) return 1000u;
+    return (uint32_t) fx_udiv64((uint64_t) dt->gates_agreed * 1000u, dt->num_gates, 0);
 }
 
 bool dualtrack_all_gates_resolved(const dualtrack_t *dt) {

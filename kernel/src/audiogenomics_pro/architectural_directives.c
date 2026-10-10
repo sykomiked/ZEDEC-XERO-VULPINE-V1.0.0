@@ -5,17 +5,16 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  */
 
 #include "architectural_directives.h"
 #include "digital_dna.h"
 
 #ifdef TEST_HOST
-#include <string.h>
-#include <math.h>
+#    include <string.h>
 #else
 #include "freestanding.h"
 #endif
@@ -27,7 +26,7 @@ int ddna_smap_init(ddna_smap_t *smap, const ddna_cid_t *root, uint32_t total_len
     memset(smap, 0, sizeof(ddna_smap_t));
     if (root) memcpy(&smap->root_cid, root, sizeof(ddna_cid_t));
     smap->total_length = total_len;
-    smap->coherence_score = 1.0;
+    smap->coherence_score = Q16_ONE;
     return 0;
 }
 
@@ -45,12 +44,14 @@ int ddna_smap_add_chunk(ddna_smap_t *smap, uint32_t logical, uint32_t physical,
     /* Compute φ ratio against previous chunk */
     if (smap->num_keys > 0) {
         uint32_t prev_len = smap->keys[smap->num_keys - 1].length;
-        if (prev_len > 0)
-            k->phi_ratio = (double)len / (double)prev_len;
-        else
-            k->phi_ratio = AGP_PHI;
+        if (prev_len > 0) {
+            uint64_t r = fx_udiv64((uint64_t) len << 16, prev_len, 0); /* Q16.16 */
+            k->phi_ratio = r > (uint64_t) INT32_MAX ? INT32_MAX : (int32_t) r;
+        } else {
+            k->phi_ratio = AGP_PHI_Q16;
+        }
     } else {
-        k->phi_ratio = AGP_PHI;
+        k->phi_ratio = AGP_PHI_Q16;
     }
 
     smap->num_keys++;
@@ -82,9 +83,9 @@ void ddna_triadic_init(ddna_triadic_field_t *field) {
     if (!field) return;
     memset(field, 0, sizeof(ddna_triadic_field_t));
     field->active_domain = DDNA_DOMAIN_LOCALITY;
-    field->locality_phase = 0.0;
-    field->nonlocal_phase = M_PI / 3.0;   /* 60° offset */
-    field->omni_phase = 2.0 * M_PI / 3.0; /* 120° offset */
+    field->locality_phase = 0;
+    field->nonlocal_phase = fx_turn_frac(1, 6); /* 60° offset */
+    field->omni_phase = fx_turn_frac(1, 3);     /* 120° offset */
     field->phase_tick = 0;
     field->wave_function_collapsed = false;
 }
@@ -95,9 +96,9 @@ int ddna_triadic_measure(ddna_triadic_field_t *field) {
     /* Hamiltonian state vector resolution at 10ms phase boundary.
      * The measurement operator collapses the superposition into
      * the domain with the highest phase coherence. */
-    double loc = sin(field->locality_phase);
-    double non = sin(field->nonlocal_phase);
-    double omni = sin(field->omni_phase);
+    int32_t loc = fx_sin_turn(field->locality_phase);
+    int32_t non = fx_sin_turn(field->nonlocal_phase);
+    int32_t omni = fx_sin_turn(field->omni_phase);
 
     if (loc >= non && loc >= omni)
         field->active_domain = DDNA_DOMAIN_LOCALITY;
@@ -106,16 +107,12 @@ int ddna_triadic_measure(ddna_triadic_field_t *field) {
     else
         field->active_domain = DDNA_DOMAIN_OMNI;
 
-    /* Advance phases (10ms tick) */
-    double inc = 2.0 * M_PI / 100.0;  /* 100 ticks per full cycle */
+    /* Advance phases (10ms tick), 100 ticks per full cycle; the binary turn
+     * wraps at one full cycle by itself. */
+    uint32_t inc = fx_turn_frac(1, 100);
     field->locality_phase += inc;
     field->nonlocal_phase += inc;
     field->omni_phase += inc;
-
-    /* Wrap phases */
-    if (field->locality_phase >= 2.0 * M_PI) field->locality_phase -= 2.0 * M_PI;
-    if (field->nonlocal_phase >= 2.0 * M_PI) field->nonlocal_phase -= 2.0 * M_PI;
-    if (field->omni_phase >= 2.0 * M_PI) field->omni_phase -= 2.0 * M_PI;
 
     field->wave_function_collapsed = true;
     field->phase_tick++;
@@ -209,28 +206,29 @@ uint32_t ddna_graph_resolve(const ddna_graph_t *graph,
      * Find the node whose coordinate best matches the entry coordinate.
      * Matching is based on weighted field alignment across all dimensions. */
     uint32_t best = UINT32_MAX;
-    double best_score = -1.0;
+    int32_t best_score = -1; /* half-points: a matching dimension scores 2 */
 
     for (uint32_t i = 0; i < graph->num_nodes; i++) {
         const ddna_graph_node_t *node = &graph->nodes[i];
         const ddna_graph_coord_t *nc = &node->coord;
 
         /* Score: count matching dimensions */
-        double score = 0.0;
-        if (nc->zodiac_spatial == coord->zodiac_spatial) score += 1.0;
-        if (nc->lunar_temporal_month == coord->lunar_temporal_month) score += 1.0;
-        if (nc->lunar_temporal_day == coord->lunar_temporal_day) score += 1.0;
-        if (nc->sephirot_node == coord->sephirot_node) score += 1.0;
-        if (nc->consonant_gate == coord->consonant_gate) score += 1.0;
-        if (nc->vowel_phase == coord->vowel_phase) score += 1.0;
-        if (nc->daat_open == coord->daat_open) score += 0.5;
+        int32_t score = 0;
+        if (nc->zodiac_spatial == coord->zodiac_spatial) score += 2;
+        if (nc->lunar_temporal_month == coord->lunar_temporal_month) score += 2;
+        if (nc->lunar_temporal_day == coord->lunar_temporal_day) score += 2;
+        if (nc->sephirot_node == coord->sephirot_node) score += 2;
+        if (nc->consonant_gate == coord->consonant_gate) score += 2;
+        if (nc->vowel_phase == coord->vowel_phase) score += 2;
+        if (nc->daat_open == coord->daat_open) score += 1;
 
         /* Numerological weight proximity (φ-proportion check) */
         if (coord->numerological_weight > 0 && nc->numerological_weight > 0) {
-            double ratio = nc->numerological_weight / coord->numerological_weight;
-            double dev = ratio - AGP_PHI;
+            uint64_t ratio = fx_umuldiv64((uint64_t) nc->numerological_weight, 65536u,
+                                          (uint64_t) coord->numerological_weight);
+            int64_t dev = ratio > (uint64_t) INT32_MAX ? INT32_MAX : (int64_t) ratio - AGP_PHI_Q16;
             if (dev < 0) dev = -dev;
-            if (dev < DDNA_PHI_TOLERANCE * 100) score += 2.0;
+            if (dev < DDNA_PHI_TOLERANCE_ALIGN_Q16) score += 4;
         }
 
         if (score > best_score) {

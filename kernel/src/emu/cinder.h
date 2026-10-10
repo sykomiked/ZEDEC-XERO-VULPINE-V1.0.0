@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* cinder.h — Cinder: the first real engine MegaROM, an id Tech 1-class software
  * renderer (ref: id Tech 1 / Doom / Wolfenstein — development reference; Cinder
  * is our own GPL-clean reimplementation of the technique, per the render lineage).

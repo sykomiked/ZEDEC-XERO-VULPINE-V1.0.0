@@ -1,5 +1,5 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
-/* SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0 AND LicenseRef-Royal-Writ-Sicilian-Crown-1.0 AND LicenseRef-SEL-3.3 */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* cpu_huc6280.c — Hudson HuC6280 (PC Engine CPU): 65C02 + MPR banking + ST0-2 +
  * block transfers. See cpu_huc6280.h. Every logical access goes through the
  * MPRs. Decimal mode and a few rare encodings are approximated/counted. */

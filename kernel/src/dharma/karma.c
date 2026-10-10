@@ -86,7 +86,7 @@ rational_t karma_entanglement_degree(const karma_event_t *a, const karma_event_t
     rational_t wa = a->weight, wb = b->weight;
     rational_t sum = rmag_add_quotas(wa, wb);
     if (sum.num == 0) return zero;
-    rational_t lo = (rational_mag(wa) <= rational_mag(wb)) ? wa : wb;
+    rational_t lo = (rational_cmp(wa, wb) <= 0) ? wa : wb;
     rational_t two_lo = rmag_mul_quotas(lo, (rational_t){2, 1});
     return rmag_div_quotas(two_lo, sum);
 }

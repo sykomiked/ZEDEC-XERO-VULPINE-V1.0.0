@@ -39,9 +39,9 @@
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
- * SPDX-License-Identifier: LicenseRef-OPL-1.1 AND CC-BY-SA-4.0
- * Licensed under OPL-1.1, SEL-3.3, the Royal Writ of the Sicilian Crown,
- * and CC BY-SA 4.0. See LICENSE at the repository root.
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE at
+ * the repository root.
  * 36N9 Genetics, LLC — Irrevocable, Interdimensional
  */
 #ifndef SYNTHESIS_ENGINE_H
@@ -138,8 +138,8 @@ typedef struct {
     gate_op_t op;
     uint32_t source_node;
     uint32_t target_node;
-    double amplitude;     /* Field amplitude */
-    double phase;         /* Field phase (radians) */
+    int32_t amplitude;    /* Field amplitude, Q16.16 */
+    uint32_t phase;       /* Field phase, binary turn (2^32 = 2*pi) */
     m5_coords_t m5;       /* M5 coordinates of this gate */
     bool applied;
 } synth_gate_t;
@@ -155,28 +155,32 @@ typedef struct {
     char var_names[32][64];
     uint32_t num_vars;
     /* M5 coverage requirement */
-    double min_coverage_r;
-    double min_coverage_l;
+    int32_t min_coverage_r; /* Q16.16 */
+    int32_t min_coverage_l; /* Q16.16 */
 } synth_template_t;
+
+/* M5 coverage floor r * l >= 1.8, compared exactly on the Q32.32 product of
+ * two Q16.16 values: ceil(1.8 * 2^32). */
+#define SYNTH_COVERAGE_FLOOR_Q32 7730941133LL
 
 /* ===== Synthesis register set (hardware-as-code) ===== */
 typedef enum {
-    REG_SPEC_INPUT = 0,      /* Write: spec text input */
-    REG_SPEC_LENGTH,         /* Write: spec text length */
-    REG_TARGET_LANG,         /* Write: target language */
-    REG_MODE,                /* Write: synthesis mode */
-    REG_OUTPUT_ADDR,         /* Read: output buffer address */
-    REG_OUTPUT_LEN,          /* Read: output length */
-    REG_STATUS,              /* Read: engine status */
-    REG_COVERAGE_R,          /* Read: coverage r value */
-    REG_COVERAGE_L,          /* Read: coverage l value */
-    REG_SURPLUS,             /* Read: ISF surplus value */
-    REG_RISK,                /* Read: EDP risk value */
-    REG_GATE_COUNT,          /* Read: number of gates applied */
-    REG_NODE_COUNT,          /* Read: AST node count */
-    REG_TEMPLATE_ID,         /* Write: template to use */
-    REG_OPTIMIZE,            /* Write: optimization level 0-3 */
-    REG_CONTROL,             /* Write: start/abort/reset */
+    REG_SPEC_INPUT = 0, /* Write: spec text input */
+    REG_SPEC_LENGTH,    /* Write: spec text length */
+    REG_TARGET_LANG,    /* Write: target language */
+    REG_MODE,           /* Write: synthesis mode */
+    REG_OUTPUT_ADDR,    /* Read: output buffer address */
+    REG_OUTPUT_LEN,     /* Read: output length */
+    REG_STATUS,         /* Read: engine status */
+    REG_COVERAGE_R,     /* Read: coverage r value (Q16.16 raw) */
+    REG_COVERAGE_L,     /* Read: coverage l value (Q16.16 raw) */
+    REG_SURPLUS,        /* Read: ISF surplus value (Q16.16 raw) */
+    REG_RISK,           /* Read: EDP risk value (Q16.16 raw) */
+    REG_GATE_COUNT,     /* Read: number of gates applied */
+    REG_NODE_COUNT,     /* Read: AST node count */
+    REG_TEMPLATE_ID,    /* Write: template to use */
+    REG_OPTIMIZE,       /* Write: optimization level 0-3 */
+    REG_CONTROL,        /* Write: start/abort/reset */
 } synth_reg_t;
 
 /* ===== Engine status bits ===== */
@@ -202,10 +206,10 @@ typedef struct {
     synth_target_t target;
     char output[SYNTH_MAX_OUTPUT_LEN];
     uint32_t output_len;
-    double coverage_r;
-    double coverage_l;
-    double surplus;
-    double risk;
+    int32_t coverage_r; /* Q16.16 */
+    int32_t coverage_l; /* Q16.16 */
+    int32_t surplus;    /* Q16.16 */
+    int32_t risk;       /* Q16.16, 0..1 */
     uint32_t gates_applied;
     uint32_t nodes_generated;
     char error_msg[512];
@@ -260,8 +264,8 @@ typedef struct {
 
     /* M5 coordinates */
     m5_coords_t m5;
-    double coverage_r;
-    double coverage_l;
+    int32_t coverage_r; /* Q16.16 (integer only: kernel images have no FP) */
+    int32_t coverage_l; /* Q16.16 */
 
     /* Statistics */
     uint64_t total_syntheses;
@@ -300,18 +304,19 @@ bool synth_check_coverage(synthesis_engine_t *engine);
 int synth_nonlinear_compile(synthesis_engine_t *engine);
 
 /* Second quantization gates */
-int synth_gate_create(synthesis_engine_t *engine, uint32_t source, uint32_t target, double amplitude);
+int synth_gate_create(synthesis_engine_t *engine, uint32_t source, uint32_t target,
+                      int32_t amplitude_q16);
 int synth_gate_annihilate(synthesis_engine_t *engine, uint32_t node);
 int synth_gate_entangle(synthesis_engine_t *engine, uint32_t node1, uint32_t node2);
 int synth_gate_measure(synthesis_engine_t *engine);
 int synth_apply_gates(synthesis_engine_t *engine);
 
 /* ISF surplus optimization */
-double synth_optimize_surplus(synthesis_engine_t *engine);
-double synth_compute_surplus(synthesis_engine_t *engine);
+int32_t synth_optimize_surplus(synthesis_engine_t *engine); /* Q16.16 */
+int32_t synth_compute_surplus(synthesis_engine_t *engine);  /* Q16.16 */
 
 /* EDP risk assessment */
-double synth_assess_risk(synthesis_engine_t *engine);
+int32_t synth_assess_risk(synthesis_engine_t *engine); /* Q16.16 */
 
 /* Code generation */
 int synth_generate_code(synthesis_engine_t *engine, synth_target_t target, synth_result_t *result);
