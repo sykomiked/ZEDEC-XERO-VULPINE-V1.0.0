@@ -297,3 +297,51 @@ jobs:
         with:
           name: dotnet-test-results
           path: bindings/dotnet/tests/**/TestResults/*.trx
+
+  # Machine-checked models in proofs/ (see proofs/README.md): TLC on the
+  # TLA+ ledger models, Lean 4 on the headroom and rational proofs. These are
+  # models of the C code, not a proof of the C code itself.
+  proofs:
+    runs-on: ubuntu-24.04
+    env:
+      TLA_VERSION: '1.7.4'
+      TLA_SHA256: 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
+      LEAN_VERSION: '4.15.0'
+      LEAN_SHA256: af71a2569a9f68337de2434829b3008cd8e32c436e9cb6bd8c84a2c2ba3585c9
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Cache pinned tools
+        uses: actions/cache@v4
+        with:
+          path: proofs/.tools
+          key: proofs-tools-tla${{ env.TLA_VERSION }}-lean${{ env.LEAN_VERSION }}
+      - name: Fetch and verify tla2tools.jar and Lean
+        run: |
+          set -euo pipefail
+          mkdir -p proofs/.tools
+          cd proofs/.tools
+          if [ ! -f tla2tools.jar ]; then
+            curl -sSfL -o tla2tools.jar \
+              "https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VERSION}/tla2tools.jar"
+          fi
+          echo "${TLA_SHA256}  tla2tools.jar" | sha256sum -c -
+          if [ ! -x "lean-${LEAN_VERSION}-linux/bin/lean" ]; then
+            curl -sSfL -o lean.tar.zst \
+              "https://github.com/leanprover/lean4/releases/download/v${LEAN_VERSION}/lean-${LEAN_VERSION}-linux.tar.zst"
+            echo "${LEAN_SHA256}  lean.tar.zst" | sha256sum -c -
+            tar --zstd -xf lean.tar.zst
+            rm lean.tar.zst
+          fi
+      - name: Lean proofs (no sorry, no axioms)
+        run: LEAN="$PWD/proofs/.tools/lean-${LEAN_VERSION}-linux/bin/lean" proofs/check.sh lean
+      - name: TLC model checking
+        run: PROOFS_LOGDIR="$RUNNER_TEMP/tlc-logs" proofs/check.sh tla
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: tlc-logs
+          path: ${{ runner.temp }}/tlc-logs

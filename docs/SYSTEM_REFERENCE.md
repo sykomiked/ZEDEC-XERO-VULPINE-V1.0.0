@@ -2002,7 +2002,7 @@ What it does: rmag.c keeps rational-valued resource budgets (allocate, consume, 
 Main entry points: rmag.h (rmag_consume, rmag_release, rmag_allocate_from_source, rational add/mul/div/equal/less_than), rmag_core.h.
 Tests: tests/host test_rmag (21/21, verify-all), src/rmag/test_rmag.c (make test), and src/rmag/test_rmag_budget.c (NEW, 15 checks; fails 7 of them on the old code). The new test's recipe is in group4_verify_lines.mk.
 Used by: sched, sephirot, mm, dharma, dharana, vino, wyrmgate. arm64: yes (2 files).
-Gaps: Fixed: the arithmetic wrapped and comparisons were inexact, so a consume of 2^64-400 was accepted, and negative amounts refunded budget. Not fixed: rmag_core quota math has signed int64 overflow, and it uses libgcc 64-bit division on x86.
+Gaps: Fixed: the arithmetic wrapped and comparisons were inexact, so a consume of 2^64-400 was accepted, and negative amounts refunded budget. Fixed: rmag_div_quotas(x, 0) returned sign(x)/1 (now 0/1, plus rmag_div_quotas_checked), and rmag_rational_add(x, -x) saturated with an order-dependent sign when the common denominator overflowed (now 0); test src/rmag/test_rmag_div.c (verify-all), Lean model proofs/rational_bounds. Not fixed: rmag_core add/sub/mul quota math has unchecked signed int64 overflow, and it uses libgcc 64-bit division on x86.
 
 ### robin_debanks — time-locked vault plus the shared crypto primitives
 Status: WORKING (tested in verify-all)
