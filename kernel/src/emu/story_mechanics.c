@@ -80,7 +80,6 @@ int story_mechanics_selfcheck(uint32_t *distinct_out, uint32_t *coherence_permil
     story_unified_t r;
     story_unify(sel, 6u, &r);
     if (distinct_out) *distinct_out = r.distinct_archetypes;
-    if (coherence_permille_out)
-        *coherence_permille_out = (uint32_t)((double)r.coherence / (double)SR_ONE * 1000.0);
+    if (coherence_permille_out) *coherence_permille_out = SR_TO_PERMILLE(r.coherence);
     return r.unified;
 }

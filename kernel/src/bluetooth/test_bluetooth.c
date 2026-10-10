@@ -1330,7 +1330,7 @@ static void coverage_can_fail(void)
     inj_evt(&g_dev, BT_EVT_CONN_COMPLETE, cco, 11);
 
     CHECK(bt_verify_coverage(&g_dev), "a consistent stack passes");
-    CHECK(g_dev.coverage_r == 1.0 && g_dev.coverage_l == 1.0,
+    CHECK(g_dev.coverage_r == (uint32_t)Q16_ONE && g_dev.coverage_l == (uint32_t)Q16_ONE,
           "with 1 good device and 1 good link both factors compute to exactly 1.0");
 
     /* F1: a device claiming to be paired with no link key. */
@@ -1338,7 +1338,7 @@ static void coverage_can_fail(void)
     g_dev.devices[0].link_key_valid = false;
     CHECK(!bt_verify_coverage(&g_dev),
           "F1 a device marked paired with NO link key fails the audit");
-    CHECK(g_dev.coverage_r == 0.0, "and coverage_r drops to 0.0 (0 of 1 records good)");
+    CHECK(g_dev.coverage_r == 0, "and coverage_r drops to 0.0 (0 of 1 records good)");
     g_dev.devices[0].paired = false;
     CHECK(bt_verify_coverage(&g_dev), "restoring it passes again");
 
@@ -1381,9 +1381,9 @@ static void coverage_can_fail(void)
     inj_evt(&g_dev, BT_EVT_INQUIRY_RESULT_RSSI, ir, 15);
     g_dev.devices[1].paired = true; /* no key: exactly one bad record */
     CHECK(!bt_verify_coverage(&g_dev), "one bad record out of two fails");
-    CHECK(g_dev.coverage_r == 0.5, "and coverage_r is exactly 0.5 — the score is a real fraction");
+    CHECK(g_dev.coverage_r == (uint32_t)Q16_ONE / 2, "and coverage_r is exactly 0.5 — the score is a real fraction");
     g_dev.devices[1].paired = false;
-    CHECK(bt_verify_coverage(&g_dev) && g_dev.coverage_r == 1.0,
+    CHECK(bt_verify_coverage(&g_dev) && g_dev.coverage_r == (uint32_t)Q16_ONE,
           "clearing it restores a perfect score");
     CHECK(!bt_verify_coverage(NULL), "a NULL device fails rather than crashing");
 }

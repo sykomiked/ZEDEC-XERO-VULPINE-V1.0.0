@@ -84,8 +84,9 @@ int32_t ax25_encode(const char *dest_call, const char *src_call,
 int32_t ax25_decode(const uint8_t *data, uint32_t len, ax25_frame_t *frame);
 
 /* APRS (Automatic Packet Reporting System) */
-int32_t aprs_encode_position(const char *callsign, float latitude, float longitude,
-                              char *out, uint32_t max_out);
+/* latitude / longitude in micro-degrees (integer; no floating point) */
+int32_t aprs_encode_position(const char *callsign, int32_t lat_udeg, int32_t lon_udeg, char *out,
+                             uint32_t max_out);
 int32_t aprs_encode_message(const char *callsign, const char *dest,
                              const char *text, char *out, uint32_t max_out);
 

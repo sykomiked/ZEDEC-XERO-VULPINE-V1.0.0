@@ -287,7 +287,8 @@ const char *dualtrack_artifact_type_name(dt_artifact_type_t type);
 
 /* Reporting */
 int dualtrack_report(const dualtrack_t *dt, char *buf, uint32_t max_len);
-float dualtrack_agreement_rate(const dualtrack_t *dt);
+/* gates_agreed / num_gates in permille (1000 when there are no gates). */
+uint32_t dualtrack_agreement_permille(const dualtrack_t *dt);
 bool dualtrack_all_gates_resolved(const dualtrack_t *dt);
 
 #endif /* ZEDEC_DUALTRACK_H */

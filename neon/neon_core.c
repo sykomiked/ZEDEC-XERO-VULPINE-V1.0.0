@@ -45,9 +45,9 @@ int neon_execute(neon_orchestrator_t *orch, neon_data_t *data) {
             if (rc != 0) return rc;
         }
         if (orch->matrix) {
-            axiom_matrix_set(orch->matrix, orch->cycle_count,
-                           data->resource_quota, data->attestation,
-                           data->phase, data->choice, data->telemetry);
+            axiom_matrix_set(orch->matrix, orch->cycle_count, data->resource_quota,
+                             data->attestation, data->phase, data->choice,
+                             m5_cq16_from_dc(data->telemetry));
         }
     }
     orch->cycle_count++;

@@ -100,8 +100,7 @@ int main(void)
 
         karma_event_t c = karma_cause_nonlocal(t2, t1, 1, SEPH_YESOD, (rational_t){9, 1});
         rational_t deg2 = karma_entanglement_degree(&a, &c);
-        double d2v = rational_mag(deg2);
-        CHECK(d2v > 0.0 && d2v < 1.0,
+        CHECK(rational_cmp(deg2, (rational_t){0, 1}) > 0 && rational_cmp(deg2, (rational_t){1, 1}) < 0,
               "diverging weights (3 vs 9) -> partial entanglement degree strictly between 0 and 1");
 
         karma_event_t local = karma_cause(t1, 1, SEPH_YESOD, (rational_t){3, 1});

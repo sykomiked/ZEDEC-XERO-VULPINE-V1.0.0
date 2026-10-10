@@ -33,7 +33,7 @@
  *     guards, ...) and every one of them turns this suite red.
  *
  * The last sections are adversarial rather than musical: wild ring cursors,
- * oversized ring sizes, half frames, NaN gains and 4000 rounds of randomised
+ * oversized ring sizes, half frames, out-of-range gains and 4000 rounds of randomised
  * malformed input, all of which must be refused rather than indexed with. Run
  * this file under -fsanitize=address,undefined; that is where those sections
  * earn their keep.
@@ -111,19 +111,35 @@ static void poison_ring(audio_device_t *d, uint32_t idx)
     poison(d->streams[idx].buffer, d->streams[idx].buffer_size);
 }
 
-/* NaN and +/-inf from their IEEE-754 bit patterns. Writing 0.0/0.0 invites the
- * compiler to fold it away at -O2; a bit pattern cannot be folded. */
-static double bits_to_double(uint64_t u)
+/* The audio API is Q16.16 integer (kernel images have no floating point).
+ * The test writes its gains as decimals for readability and converts them
+ * here, on the host, rounding to nearest and saturating. NaN and infinity
+ * no longer exist at the API; their place in the refusal tests is taken by
+ * the most extreme integer each argument can carry. */
+static uint32_t qv(double x) /* volume / gain, Q16.16 unsigned */
 {
-    union {
-        uint64_t u;
-        double d;
-    } c;
-    c.u = u;
-    return c.d;
+    double s = x * 65536.0 + (x < 0 ? -0.5 : 0.5);
+    if (s >= 4294967295.0) return 0xFFFFFFFFu;
+    if (s <= -2147483648.0) return 0x80000000u;
+    return (uint32_t) (int64_t) s; /* a negative gain wraps to a huge one */
 }
-#define AU_NAN bits_to_double(0x7FF8000000000000ull)
-#define AU_INF bits_to_double(0x7FF0000000000000ull)
+static int32_t qb(double x) /* balance, Q16.16 signed */
+{
+    double s = x * 65536.0 + (x < 0 ? -0.5 : 0.5);
+    if (s >= 2147483647.0) return INT32_MAX;
+    if (s <= -2147483648.0) return INT32_MIN;
+    return (int32_t) s;
+}
+static int64_t qp(double x) /* position, Q16.16 in 64 bits */
+{
+    double s = x * 65536.0 + (x < 0 ? -0.5 : 0.5);
+    if (s >= 9.2e18) return INT64_MAX;
+    if (s <= -9.2e18) return INT64_MIN;
+    return (int64_t) s;
+}
+#define AU_BADVOL 0xFFFFFFFFu /* largest gain word: far above Q16_ONE */
+#define AU_BADBAL INT32_MIN   /* most negative balance word */
+#define AU_BADPOS INT64_MIN   /* most negative coordinate word */
 
 /* ===================== a fake codec ===================== */
 typedef struct {
@@ -236,7 +252,7 @@ int main(void)
               "AC97 refuses a 5.1 stream — it only has two channels");
         CHECK(audio_create_stream(ac, false, AUDIO_FMT_PCM_S16LE, 96000, 2) == 0,
               "AC97 refuses 96 kHz — above its max rate");
-        CHECK(audio_set_3d_position(ac, 1, 1.0, 0.0, 0.0) == AUDIO_ENOSUP,
+        CHECK(audio_set_3d_position(ac, 1, qp(1.0), qp(0.0), qp(0.0)) == AUDIO_ENOSUP,
               "3D on a controller without 3D returns ENOSUP, not success");
         audio_init(ac, AUDIO_CTRL_NONE, "none"); /* release its pool slots */
     }
@@ -358,10 +374,10 @@ int main(void)
     sa = audio_create_stream(&dev, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
     fill_s16(scratch, 4, 20000);
     audio_write(&dev, sa, scratch, 8);
-    CHECK(audio_set_volume(&dev, sa, 0.5) == AUDIO_OK, "volume 0.5 accepted");
-    CHECK(audio_set_volume(&dev, sa, 1.5) == AUDIO_EINVAL, "volume 1.5 refused");
-    CHECK(audio_set_volume(&dev, sa, -0.1) == AUDIO_EINVAL, "volume -0.1 refused");
-    CHECK(audio_set_volume(&dev, 77, 0.5) == AUDIO_ENOSTREAM, "volume on a ghost stream refused");
+    CHECK(audio_set_volume(&dev, sa, qv(0.5)) == AUDIO_OK, "volume 0.5 accepted");
+    CHECK(audio_set_volume(&dev, sa, qv(1.5)) == AUDIO_EINVAL, "volume 1.5 refused");
+    CHECK(audio_set_volume(&dev, sa, qv(-0.1)) == AUDIO_EINVAL, "volume -0.1 refused");
+    CHECK(audio_set_volume(&dev, 77, qv(0.5)) == AUDIO_ENOSTREAM, "volume on a ghost stream refused");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 0, &l, &r);
     CHECK(l == 10000 && r == 10000, "20000 at volume 0.5 is exactly 10000");
@@ -371,8 +387,8 @@ int main(void)
     sa = audio_create_stream(&dev, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
     fill_s16(scratch, 4, 16000);
     audio_write(&dev, sa, scratch, 8);
-    CHECK(audio_set_balance(&dev, sa, 1.0) == AUDIO_OK, "balance +1.0 accepted");
-    CHECK(audio_set_balance(&dev, sa, 1.5) == AUDIO_EINVAL, "balance 1.5 refused");
+    CHECK(audio_set_balance(&dev, sa, qb(1.0)) == AUDIO_OK, "balance +1.0 accepted");
+    CHECK(audio_set_balance(&dev, sa, qb(1.5)) == AUDIO_EINVAL, "balance 1.5 refused");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 0, &l, &r);
     CHECK(l == 0 && r == 16000, "balance hard right: left 0, right 16000");
@@ -381,7 +397,7 @@ int main(void)
     sa = audio_create_stream(&dev, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
     fill_s16(scratch, 4, 16000);
     audio_write(&dev, sa, scratch, 8);
-    audio_set_balance(&dev, sa, -0.5);
+    audio_set_balance(&dev, sa, qb(-0.5));
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 0, &l, &r);
     CHECK(l == 16000 && r == 8000, "balance -0.5: left 16000, right 8000");
@@ -392,16 +408,16 @@ int main(void)
     sa = audio_create_stream(&dev, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
     fill_s16(scratch, 8, 10000);
     audio_write(&dev, sa, scratch, 16);
-    CHECK(audio_mixer_set_master(&dev, 0.25, false) == AUDIO_OK, "master 0.25 accepted");
-    CHECK(audio_mixer_set_master(&dev, 2.0, false) == AUDIO_EINVAL, "master 2.0 refused");
+    CHECK(audio_mixer_set_master(&dev, qv(0.25), false) == AUDIO_OK, "master 0.25 accepted");
+    CHECK(audio_mixer_set_master(&dev, qv(2.0), false) == AUDIO_EINVAL, "master 2.0 refused");
     CHECK(dev.reg_volume == 64, "reg_volume mirrors master 0.25 as 64/255");
-    CHECK(dev.mixer[AUDIO_CH_MASTER].volume == 0.25,
+    CHECK(dev.mixer[AUDIO_CH_MASTER].volume == qv(0.25),
           "the Master mixer channel mirrors the master fader");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 0, &l, &r);
     CHECK(l == 2500 && r == 2500, "10000 at master 0.25 is exactly 2500");
 
-    audio_mixer_set_master(&dev, 1.0, true);
+    audio_mixer_set_master(&dev, qv(1.0), true);
     CHECK(audio_mixer_process_n(&dev, 1) == 1, "a muted device still PRODUCES a frame");
     tx_frame(&dev, 1, &l, &r);
     CHECK(l == 0 && r == 0, "master mute produces true silence, not a small value");
@@ -419,11 +435,11 @@ int main(void)
     audio_write(&dev, sa, scratch, 16);
     fill_s16(scratch, 8, 8000);
     audio_write(&dev, sb, scratch, 16);
-    CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_PCM, 0.5, false) == AUDIO_OK,
+    CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_PCM, qv(0.5), false) == AUDIO_OK,
           "PCM channel set to 0.5");
-    CHECK(audio_mixer_set_channel(&dev, 99, 0.5, false) == AUDIO_EINVAL,
+    CHECK(audio_mixer_set_channel(&dev, 99, qv(0.5), false) == AUDIO_EINVAL,
           "an out-of-range mixer channel index is refused");
-    CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_PCM, 3.0, false) == AUDIO_EINVAL,
+    CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_PCM, qv(3.0), false) == AUDIO_EINVAL,
           "a mixer gain above 1.0 is refused");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 0, &l, &r);
@@ -438,12 +454,12 @@ int main(void)
               "routing stream B to the Master channel is allowed");
         CHECK(audio_mixer_bind_stream(&dev, AUDIO_CH_MASTER, 999) == AUDIO_ENOSTREAM,
               "routing a ghost stream is refused");
-        audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, 1.0, true); /* mute B's channel */
+        audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, qv(1.0), true); /* mute B's channel */
         CHECK(audio_mixer_process_n(&dev, 1) == 1, "a frame is still produced while muted");
         tx_frame(&dev, 1, &l, &r);
         CHECK(l == 0, "muting the channel B is routed to silences the WHOLE mix here, "
                       "because that channel is also the master");
-        audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, 1.0, false);
+        audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, qv(1.0), false);
         audio_mixer_bind_stream(&dev, AUDIO_CH_MASTER, 0);
         CHECK(dev.mixer[AUDIO_CH_MASTER].source_stream == 0, "routing can be cleared");
     }
@@ -464,7 +480,7 @@ int main(void)
     audio_write(&dev, sb, scratch, 16);
     CHECK(audio_mixer_bind_stream(&dev, AUDIO_CH_MASTER, sa) == AUDIO_OK,
           "stream A is routed to the Master channel");
-    CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_PCM, 1.0, true) == AUDIO_OK,
+    CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_PCM, qv(1.0), true) == AUDIO_OK,
           "the PCM channel — where B still lives — is muted");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 0, &l, &r);
@@ -472,7 +488,7 @@ int main(void)
           "only the routed stream survives: 8000, not 0 (routing ignored) and not "
           "16000 (mute ignored)");
     /* now move the Master channel's own fader and watch A follow it */
-    CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, 0.5, false) == AUDIO_OK,
+    CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, qv(0.5), false) == AUDIO_OK,
           "the Master channel fader goes to 0.5");
     CHECK(dev.reg_volume == 128,
           "and reg_volume follows through the SAME path as set_master: round(0.5*255)=128");
@@ -703,14 +719,14 @@ int main(void)
     sa = audio_create_stream(&dev, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
     fill_s16(scratch, 8, 20000);
     audio_write(&dev, sa, scratch, 16);
-    CHECK(audio_set_3d_position(&dev, sa, 1.0, 0.0, 0.0) == AUDIO_OK,
+    CHECK(audio_set_3d_position(&dev, sa, qp(1.0), qp(0.0), qp(0.0)) == AUDIO_OK,
           "a source one unit to the right is accepted");
     CHECK(dev.streams[0].spatial, "the stream is flagged spatial");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 0, &l, &r);
     CHECK(l == 0 && r == 10000,
           "at distance 1 hard right: gain 1/(1+1)=0.5, pan +1 -> L=0, R=10000");
-    CHECK(audio_set_3d_position(&dev, sa, 1e30, 0.0, 0.0) == AUDIO_EINVAL,
+    CHECK(audio_set_3d_position(&dev, sa, qp(1e30), qp(0.0), qp(0.0)) == AUDIO_EINVAL,
           "an absurd coordinate is refused rather than producing inf gain");
 
     /* ---- 14b. the distance term is REAL: a non-trivial sqrt, and y/z ----
@@ -723,45 +739,45 @@ int main(void)
     sa = audio_create_stream(&dev, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
     fill_s16(scratch, 8, 20000);
     audio_write(&dev, sa, scratch, 16);
-    CHECK(audio_set_3d_position(&dev, sa, 3.0, 4.0, 0.0) == AUDIO_OK,
+    CHECK(audio_set_3d_position(&dev, sa, qp(3.0), qp(4.0), qp(0.0)) == AUDIO_OK,
           "a source at (3,4,0) is accepted");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 0, &l, &r);
     CHECK(l == 1333 && r == 3333, "(3,4,0): d=5 exactly, gain 1/6, pan +0.6 -> L=1333 R=3333");
     /* same distance, no x: y and z must move the gain and NOT the pan */
-    CHECK(audio_set_3d_position(&dev, sa, 0.0, 3.0, 4.0) == AUDIO_OK, "moved to (0,3,4)");
+    CHECK(audio_set_3d_position(&dev, sa, qp(0.0), qp(3.0), qp(4.0)) == AUDIO_OK, "moved to (0,3,4)");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 1, &l, &r);
     CHECK(l == 3333 && r == 3333,
           "(0,3,4): the same distance 5 attenuates to 3333, but x=0 so there is NO pan");
     /* at the listener: no attenuation at all, so the 1/(1+d) term is not a
      * constant fudge factor either */
-    CHECK(audio_set_3d_position(&dev, sa, 0.0, 0.0, 0.0) == AUDIO_OK, "moved to the origin");
+    CHECK(audio_set_3d_position(&dev, sa, qp(0.0), qp(0.0), qp(0.0)) == AUDIO_OK, "moved to the origin");
     audio_mixer_process_n(&dev, 1);
     tx_frame(&dev, 2, &l, &r);
     CHECK(l == 20000 && r == 20000, "at distance 0 the sample passes through untouched");
 
-    /* ---- 14c. NaN and infinity are refused everywhere they can appear ---- */
+    /* ---- 14c. out-of-range words are refused wherever they can appear ---- */
     {
-        CHECK(audio_set_volume(&dev, sa, AU_NAN) == AUDIO_EINVAL, "a NaN stream volume is refused");
-        CHECK(audio_set_volume(&dev, sa, AU_INF) == AUDIO_EINVAL,
-              "an infinite stream volume is refused");
-        CHECK(audio_set_balance(&dev, sa, AU_NAN) == AUDIO_EINVAL, "a NaN balance is refused");
-        CHECK(audio_mixer_set_master(&dev, AU_NAN, false) == AUDIO_EINVAL,
-              "a NaN master volume is refused");
-        CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_PCM, AU_NAN, false) == AUDIO_EINVAL,
-              "a NaN mixer channel gain is refused");
-        CHECK(audio_set_3d_position(&dev, sa, AU_NAN, 0.0, 0.0) == AUDIO_EINVAL,
-              "a NaN x coordinate is refused");
-        CHECK(audio_set_3d_position(&dev, sa, 0.0, AU_NAN, 0.0) == AUDIO_EINVAL,
-              "a NaN y coordinate is refused");
-        CHECK(audio_set_3d_position(&dev, sa, 0.0, 0.0, AU_INF) == AUDIO_EINVAL,
-              "an infinite z coordinate is refused");
-        CHECK(dev.streams[0].volume == 1.0 && dev.streams[0].balance == 0.0 &&
-                  dev.master_volume == 1.0 && dev.streams[0].pos_x == 0.0,
+        CHECK(audio_set_volume(&dev, sa, AU_BADVOL) == AUDIO_EINVAL, "the largest volume word is refused");
+        CHECK(audio_set_volume(&dev, sa, qv(1.0) + 1u) == AUDIO_EINVAL,
+              "a volume one unit above 1.0 is refused");
+        CHECK(audio_set_balance(&dev, sa, AU_BADBAL) == AUDIO_EINVAL, "the most negative balance word is refused");
+        CHECK(audio_mixer_set_master(&dev, AU_BADVOL, false) == AUDIO_EINVAL,
+              "the largest master volume word is refused");
+        CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_PCM, AU_BADVOL, false) == AUDIO_EINVAL,
+              "the largest mixer channel gain word is refused");
+        CHECK(audio_set_3d_position(&dev, sa, AU_BADPOS, qp(0.0), qp(0.0)) == AUDIO_EINVAL,
+              "the most negative x word is refused");
+        CHECK(audio_set_3d_position(&dev, sa, qp(0.0), AU_BADPOS, qp(0.0)) == AUDIO_EINVAL,
+              "the most negative y word is refused");
+        CHECK(audio_set_3d_position(&dev, sa, qp(0.0), qp(0.0), AU_BADPOS) == AUDIO_EINVAL,
+              "the most negative z word is refused");
+        CHECK(dev.streams[0].volume == qv(1.0) && dev.streams[0].balance == qb(0.0) &&
+                  dev.master_volume == qv(1.0) && dev.streams[0].pos_x == qp(0.0),
               "and not one of those refusals left a poisoned value behind");
         uint32_t mic = audio_create_stream(&dev, true, AUDIO_FMT_PCM_S16LE, 48000, 2);
-        CHECK(audio_set_3d_position(&dev, mic, 1.0, 0.0, 0.0) == AUDIO_EDIR,
+        CHECK(audio_set_3d_position(&dev, mic, qp(1.0), qp(0.0), qp(0.0)) == AUDIO_EDIR,
               "a microphone has no position: EDIR, not a silently ignored write");
         CHECK(!dev.streams[1].spatial, "and the capture stream was not flagged spatial");
     }
@@ -876,12 +892,12 @@ int main(void)
               "and the software rate stays at 96000 — it does not drift from the codec");
         codec.fail_rate = false;
 
-        CHECK(audio_mixer_set_master(&dev, 1.0, false) == AUDIO_OK, "master 1.0");
+        CHECK(audio_mixer_set_master(&dev, qv(1.0), false) == AUDIO_OK, "master 1.0");
         CHECK(codec.vol_set == 255, "the codec got attenuation 255");
         codec.fail_vol = true;
-        CHECK(audio_mixer_set_master(&dev, 0.5, false) == AUDIO_EIO,
+        CHECK(audio_mixer_set_master(&dev, qv(0.5), false) == AUDIO_EIO,
               "a codec that refuses the volume write is reported");
-        CHECK(dev.master_volume == 0.5, "while the software fader still moved");
+        CHECK(dev.master_volume == qv(0.5), "while the software fader still moved");
         codec.fail_vol = false;
 
         /* capture through the backend */
@@ -953,34 +969,34 @@ int main(void)
      * ================================================================ */
     audio_init(&dev, AUDIO_CTRL_HDA, "cov");
     CHECK(audio_verify_coverage(&dev), "a fresh device with four live channels passes coverage");
-    CHECK(dev.coverage_l == 1.0, "coverage_l is 1.0: every channel is engaged");
+    CHECK(dev.coverage_l == qv(1.0), "coverage_l is 1.0: every channel is engaged");
     CHECK(!audio_verify_coverage(0), "a NULL device fails coverage");
 
     sa = audio_create_stream(&dev, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
     sb = audio_create_stream(&dev, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
-    CHECK(audio_verify_coverage(&dev) && dev.coverage_r == 1.0,
+    CHECK(audio_verify_coverage(&dev) && dev.coverage_r == qv(1.0),
           "two live streams: coverage_r is 1.0");
 
     audio_pause(&dev, sb);
-    CHECK(audio_verify_coverage(&dev) && dev.coverage_r == 0.5,
+    CHECK(audio_verify_coverage(&dev) && dev.coverage_r == qv(0.5),
           "one of two paused: coverage_r drops to 0.5 and still meets the floor");
     audio_pause(&dev, sa);
     CHECK(!audio_verify_coverage(&dev), "FAIL CASE: with every stream paused, nothing is covered");
-    CHECK(dev.coverage_r == 0.0, "coverage_r really is 0.0");
+    CHECK(dev.coverage_r == qv(0.0), "coverage_r really is 0.0");
     audio_resume(&dev, sa);
     audio_resume(&dev, sb);
     CHECK(audio_verify_coverage(&dev), "resuming restores coverage");
 
-    audio_mixer_set_master(&dev, 1.0, true);
+    audio_mixer_set_master(&dev, qv(1.0), true);
     CHECK(!audio_verify_coverage(&dev),
           "FAIL CASE: a muted master covers nothing, however healthy the streams are");
-    audio_mixer_set_master(&dev, 1.0, false);
+    audio_mixer_set_master(&dev, qv(1.0), false);
     CHECK(audio_verify_coverage(&dev), "unmuting restores it");
 
-    audio_mixer_set_channel(&dev, AUDIO_CH_PCM, 0.0, false);
+    audio_mixer_set_channel(&dev, AUDIO_CH_PCM, qv(0.0), false);
     CHECK(!audio_verify_coverage(&dev),
           "FAIL CASE: a zero-gain PCM channel means no playback stream is routable");
-    audio_mixer_set_channel(&dev, AUDIO_CH_PCM, 1.0, false);
+    audio_mixer_set_channel(&dev, AUDIO_CH_PCM, qv(1.0), false);
 
     /* structural corruption must be caught */
     dev.streams[0].buffer_head = dev.streams[0].buffer_size;
@@ -988,9 +1004,9 @@ int main(void)
     dev.streams[0].buffer_head = 0;
     CHECK(audio_verify_coverage(&dev), "and repairing it passes again");
 
-    dev.streams[0].volume = 2.0;
+    dev.streams[0].volume = qv(2.0);
     CHECK(!audio_verify_coverage(&dev), "FAIL CASE: a stream gain of 2.0 is impossible");
-    dev.streams[0].volume = 1.0;
+    dev.streams[0].volume = qv(1.0);
 
     dev.streams[1].sample_rate = 12345;
     CHECK(!audio_verify_coverage(&dev), "FAIL CASE: 12345 Hz is not a rate we support");
@@ -1030,9 +1046,9 @@ int main(void)
     CHECK(!audio_verify_coverage(&dev), "FAIL CASE: rx_tail outside the capture DMA ring");
     dev.rx_tail = 0;
 
-    dev.master_volume = 2.0;
+    dev.master_volume = qv(2.0);
     CHECK(!audio_verify_coverage(&dev), "FAIL CASE: a master volume of 2.0");
-    dev.master_volume = 1.0;
+    dev.master_volume = qv(1.0);
 
     dev.max_sample_rate = 8000;
     CHECK(!audio_verify_coverage(&dev),
@@ -1046,13 +1062,13 @@ int main(void)
           "FAIL CASE: fewer than the four channels audio_init always builds");
     dev.num_mixer_channels = AUDIO_NUM_DEFAULT_CH;
 
-    dev.mixer[AUDIO_CH_PCM].volume = 2.0;
+    dev.mixer[AUDIO_CH_PCM].volume = qv(2.0);
     CHECK(!audio_verify_coverage(&dev), "FAIL CASE: a mixer channel gain of 2.0");
-    dev.mixer[AUDIO_CH_PCM].volume = 1.0;
+    dev.mixer[AUDIO_CH_PCM].volume = qv(1.0);
 
-    dev.streams[0].balance = -2.0;
+    dev.streams[0].balance = qb(-2.0);
     CHECK(!audio_verify_coverage(&dev), "FAIL CASE: a balance of -2.0");
-    dev.streams[0].balance = 0.0;
+    dev.streams[0].balance = qb(0.0);
 
     dev.streams[0].channels = 3;
     CHECK(!audio_verify_coverage(&dev), "FAIL CASE: a 3-channel layout we cannot fold down");
@@ -1342,14 +1358,14 @@ int main(void)
         /* channel 0 is the master fader, and it must reach the codec through
          * the same path set_master uses */
         codec.vol_set = 0;
-        CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, 1.0, false) == AUDIO_OK,
+        CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, qv(1.0), false) == AUDIO_OK,
               "set_channel on channel 0 is accepted");
         CHECK(codec.vol_set == 255,
               "and it PROGRAMMED THE CODEC — reg_volume never moves without the codec hearing it");
         codec.fail_vol = true;
-        CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, 0.25, false) == AUDIO_EIO,
+        CHECK(audio_mixer_set_channel(&dev, AUDIO_CH_MASTER, qv(0.25), false) == AUDIO_EIO,
               "a codec that refuses the write makes set_channel(MASTER) fail too");
-        CHECK(dev.master_volume == 0.25 && dev.reg_volume == 64,
+        CHECK(dev.master_volume == qv(0.25) && dev.reg_volume == 64,
               "while the software fader still moved");
         codec.fail_vol = false;
         audio_bind_ops(&dev, 0);
@@ -1488,9 +1504,9 @@ int main(void)
             (void) audio_write(&dev, sid, scratch, len);
             (void) audio_read(&dev, sid, scratch, NEXT() % 200u);
             (void) audio_rx_inject(&dev, scratch, NEXT() % 64u); /* often not a /4 */
-            (void) audio_set_volume(&dev, sid, (NEXT() & 1u) ? AU_NAN : 0.5);
-            (void) audio_set_balance(&dev, sid, (NEXT() & 1u) ? AU_INF : -0.25);
-            (void) audio_set_3d_position(&dev, sid, AU_NAN, 1e300, -1e300);
+            (void) audio_set_volume(&dev, sid, (NEXT() & 1u) ? AU_BADVOL : qv(0.5));
+            (void) audio_set_balance(&dev, sid, (NEXT() & 1u) ? AU_BADBAL : qb(-0.25));
+            (void) audio_set_3d_position(&dev, sid, AU_BADPOS, qp(1e300), qp(-1e300));
             if (dev.num_streams) {
                 audio_stream_t *cs = &dev.streams[NEXT() % dev.num_streams];
                 switch (NEXT() % 8u) {
@@ -1557,7 +1573,7 @@ int main(void)
         audio_init(&dev, AUDIO_CTRL_HDA, "fuzz-end");
         audio_init(&dev2, AUDIO_CTRL_NONE, "fuzz-end2");
         CHECK(audio_verify_coverage(&dev),
-              "4000 rounds of malformed streams, truncated frames, NaN gains and corrupted "
+              "4000 rounds of malformed streams, truncated frames, out-of-range gains and corrupted "
               "cursors: no fault, and a clean device afterwards");
         CHECK(audio_pool_slots_free() == AUDIO_POOL_SLOTS,
               "and the ring-buffer pool was not leaked by any of it");
@@ -1598,14 +1614,14 @@ int main(void)
         if (audio_write(&dev, ns, 0, 4) != AUDIO_EINVAL) bad++;
         if (audio_read(0, ns, tmp, 4) != AUDIO_EINVAL) bad++;
         if (audio_read(&dev, ns, 0, 4) != AUDIO_EINVAL) bad++;
-        if (audio_set_volume(0, ns, 0.5) != AUDIO_EINVAL) bad++;
-        if (audio_set_balance(0, ns, 0.0) != AUDIO_EINVAL) bad++;
-        if (audio_set_3d_position(0, ns, 0.0, 0.0, 0.0) != AUDIO_EINVAL) bad++;
+        if (audio_set_volume(0, ns, qv(0.5)) != AUDIO_EINVAL) bad++;
+        if (audio_set_balance(0, ns, qb(0.0)) != AUDIO_EINVAL) bad++;
+        if (audio_set_3d_position(0, ns, qp(0.0), qp(0.0), qp(0.0)) != AUDIO_EINVAL) bad++;
         if (audio_pause(0, ns) != AUDIO_EINVAL) bad++;
         if (audio_resume(0, ns) != AUDIO_EINVAL) bad++;
         if (audio_stop(0, ns) != AUDIO_EINVAL) bad++;
-        if (audio_mixer_set_channel(0, 0, 1.0, false) != AUDIO_EINVAL) bad++;
-        if (audio_mixer_set_master(0, 1.0, false) != AUDIO_EINVAL) bad++;
+        if (audio_mixer_set_channel(0, 0, qv(1.0), false) != AUDIO_EINVAL) bad++;
+        if (audio_mixer_set_master(0, qv(1.0), false) != AUDIO_EINVAL) bad++;
         if (audio_mixer_bind_stream(0, 0, ns) != AUDIO_EINVAL) bad++;
         if (audio_mixer_find_channel(0, "PCM") != AUDIO_EINVAL) bad++;
         if (audio_mixer_find_channel(&dev, 0) != AUDIO_EINVAL) bad++;

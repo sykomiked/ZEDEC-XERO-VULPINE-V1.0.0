@@ -159,9 +159,9 @@ static void test_synthesis_engine(void) {
     printf("  [PASS] Engine initialized (ID=1, status=IDLE)\n");
 
     /* Set M5 coverage */
-    engine->coverage_r = 2.0;
-    engine->coverage_l = 1.0;
-    assert(engine->coverage_r * engine->coverage_l >= 1.8);
+    engine->coverage_r = 2 * Q16_ONE; /* Q16.16 */
+    engine->coverage_l = Q16_ONE;
+    assert(synth_check_coverage(engine));
     printf("  [PASS] M5 coverage: r*l >= 1.8\n");
 
     /* Parse a simple spec */
@@ -172,7 +172,7 @@ static void test_synthesis_engine(void) {
     printf("  [PASS] Spec parsed: %u AST nodes\n", engine->num_ast_nodes);
 
     /* Apply gates: CREATE then MEASURE */
-    int gr = synth_gate_create(engine, 0, 0, 1.0);
+    int gr = synth_gate_create(engine, 0, 0, Q16_ONE);
     assert(gr == 0);
     gr = synth_gate_measure(engine);
     assert(gr == 0);
@@ -1433,9 +1433,9 @@ static void test_hdcm(void) {
     assert(dist > 0 && dist < HDCM_VECTOR_DIM);
     printf("  [PASS] Hamming distance: %u (dim=%u)\n", dist, HDCM_VECTOR_DIM);
 
-    float sim = hdcm_vector_similarity(&v1, &v2);
-    assert(sim >= 0.0f && sim <= 1.0f);
-    printf("  [PASS] Similarity: %.4f\n", sim);
+    uint32_t sim = hdcm_vector_similarity(&v1, &v2); /* permille */
+    assert(sim <= 1000u);
+    printf("  [PASS] Similarity: %u permille\n", sim);
 
     /* Bind operation */
     hdcm_vector_bind(&v1, &v2, &v3);
@@ -1452,7 +1452,7 @@ static void test_hdcm(void) {
     assert(mat == 0);
     assert(hdcm_matrix_build(h, 0) == 0);
     assert(h->matrices[0].num_mappings > 0);
-    printf("  [PASS] Conversion matrix C→Rust: %u mappings, compat=%.3f\n",
+    printf("  [PASS] Conversion matrix C→Rust: %u mappings, compat=%u permille\n",
            h->matrices[0].num_mappings, h->matrices[0].compatibility_score);
 
     /* Translation pipeline (second quantization) */
@@ -1461,7 +1461,8 @@ static void test_hdcm(void) {
     assert(result.success == true);
     assert(result.final_phase == HDCM_PHASE_MEASURE);
     printf("  [PASS] Translation C→Rust: CREATE→ENTANGLE→MEASURE complete\n");
-    printf("         Output: \"%s\" (fidelity=%.3f)\n", result.output, result.fidelity_score);
+    printf("         Output: \"%s\" (fidelity=%u permille)\n", result.output,
+           result.fidelity_score);
 
     /* Phase counts */
     assert(h->create_count > 0);
@@ -1482,9 +1483,9 @@ static void test_hdcm(void) {
     printf("  [PASS] Language lookup by extension: .py → Python\n");
 
     /* Compatibility */
-    float compat = hdcm_matrix_compatibility(h, 0, 1);
-    assert(compat >= 0.0f);
-    printf("  [PASS] Compatibility C→Rust: %.3f\n", compat);
+    uint32_t compat = hdcm_matrix_compatibility(h, 0, 1); /* permille */
+    assert(compat <= 1000u);
+    printf("  [PASS] Compatibility C→Rust: %u permille\n", compat);
 
     /* Omni-compatibility */
     /* Create more matrices */
@@ -1776,9 +1777,9 @@ static void test_dualtrack(void) {
     printf("  [PASS] Phase clock: %u ms (5 ticks × 10ms)\n", dt->phase_tick);
 
     /* Agreement rate */
-    float rate = dualtrack_agreement_rate(dt);
-    assert(rate >= 0.0f && rate <= 1.0f);
-    printf("  [PASS] Agreement rate: %.1f%%\n", rate * 100.0f);
+    uint32_t rate = dualtrack_agreement_permille(dt);
+    assert(rate <= 1000u);
+    printf("  [PASS] Agreement rate: %u permille\n", rate);
 
     /* All gates resolved */
     assert(dualtrack_all_gates_resolved(dt) == true);

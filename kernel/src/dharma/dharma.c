@@ -53,8 +53,8 @@ uint32_t dharma_set_size(const dharma_set_t *d) {
 static l13_phase_t decide_phase(uint32_t task_id) {
     rational_t r = rmag_get_quota((ordinal_t)task_id);
     trit_t ell = lpres_get_presence((ordinal_t)task_id);
-    double coverage = rational_mag(r) * trit_to_ell(ell);
-    if (coverage >= 1.8) return SEPH_MALKUTH; /* same r*l>=1.8 coverage hyperbola as sched_tick */
+    if (m5_coverage_cmp(r, ell, 9, 5) >= 0)
+        return SEPH_MALKUTH; /* same r*l>=1.8 coverage hyperbola as sched_tick */
     return dharma_trit_to_phase(ell);
 }
 

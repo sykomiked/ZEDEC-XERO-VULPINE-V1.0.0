@@ -17,6 +17,7 @@ typedef struct iphase_topology_table {
 
 void iphase_init(void);
 void iphase_add_entry(lattice_node_id_t dest, phase_t phase_vector);
-double complex iphase_route(lattice_node_id_t src, lattice_node_id_t dest);
+/* Phase vector to dest as a Q16.16 complex value (0 when unknown). */
+zxv_cq16_t iphase_route(lattice_node_id_t src, lattice_node_id_t dest);
 
 #endif

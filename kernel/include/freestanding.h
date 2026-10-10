@@ -74,14 +74,17 @@ static inline char *fs_strcpy(char *dst, const char *src) {
     return dst;
 }
 
-/* Simple bump allocator */
+/* Simple bump allocator (one 1 MB arena per translation unit). Every block
+ * starts 16-byte aligned. n is checked against the space left BEFORE any
+ * arithmetic on it, so a huge n cannot wrap the offset. */
 static inline void *fs_malloc(size_t n)
 {
-    static uint8_t heap[1024 * 1024];
+    static uint8_t heap[1024 * 1024] __attribute__((aligned(16)));
     static size_t heap_off = 0;
     if (n > sizeof(heap) - heap_off) return (void *) 0; /* no wrap for huge n */
     void *p = &heap[heap_off];
-    heap_off += n;
+    size_t step = (n + 15u) & ~(size_t) 15u; /* n <= 1 MB here: no wrap */
+    heap_off = step > sizeof(heap) - heap_off ? sizeof(heap) : heap_off + step;
     return p;
 }
 
@@ -95,145 +98,13 @@ static inline void *fs_calloc(size_t count, size_t size)
 
 #define assert(x) ((void)0)
 
-/* Math stubs — x87 FPU inline assembly for freestanding 32-bit */
-#define M_PI 3.14159265358979323846
-
-static inline double fs_sqrt(double x) {
-    if (x <= 0.0) return 0.0;
-    return __builtin_sqrt(x);
-}
-
-/* Simple exp using Taylor series — avoids libm dependency */
-static inline double fs_exp(double x) {
-    if (x > 700.0) x = 700.0;
-    if (x < -700.0) return 0.0;
-    double term = 1.0, sum = 1.0;
-    for (int i = 1; i < 30; i++) {
-        term *= x / (double)i;
-        sum += term;
-        if (term < 1e-15 && term > -1e-15) break;
-    }
-    return sum;
-}
-
-/* Simple log using Newton iteration */
-static inline double fs_log(double x) {
-    if (x <= 0.0) return -1e300;
-    double y = x - 1.0;
-    for (int i = 0; i < 20; i++) {
-        double ey = fs_exp(y);
-        y = y - (ey - x) / ey;
-    }
-    return y;
-}
-
-/* pow(x,y) = exp(y * log(x)) */
-static inline double fs_pow(double x, double y) {
-    if (x <= 0.0) return 0.0;
-    return fs_exp(y * fs_log(x));
-}
-
-/* Simple sin/cos using Taylor series with argument reduction */
-static inline double fs_cos(double x) {
-    while (x > M_PI) x -= 2.0 * M_PI;
-    while (x < -M_PI) x += 2.0 * M_PI;
-    double term = 1.0, sum = 1.0;
-    double x2 = x * x;
-    for (int i = 1; i < 15; i++) {
-        term *= -x2 / ((double)(2*i) * (double)(2*i - 1));
-        sum += term;
-        if (term < 1e-15 && term > -1e-15) break;
-    }
-    return sum;
-}
-
-static inline double fs_sin(double x) {
-    while (x > M_PI) x -= 2.0 * M_PI;
-    while (x < -M_PI) x += 2.0 * M_PI;
-    double term = x, sum = x;
-    double x2 = x * x;
-    for (int i = 1; i < 15; i++) {
-        term *= -x2 / ((double)(2*i) * (double)(2*i + 1));
-        sum += term;
-        if (term < 1e-15 && term > -1e-15) break;
-    }
-    return sum;
-}
-
-/* Provide cabs and cexp as real functions since __builtin_ may emit libm calls */
-static inline double fs_cabs(double _Complex z) {
-    double r = __builtin_creal(z);
-    double i = __builtin_cimag(z);
-    if (r < 0) r = -r;
-    if (i < 0) i = -i;
-    if (r > i) {
-        double t = i / r;
-        return r * fs_sqrt(1.0 + t * t);
-    } else if (i > 0) {
-        double t = r / i;
-        return i * fs_sqrt(1.0 + t * t);
-    }
-    return 0.0;
-}
-
-static inline double _Complex fs_cexp(double _Complex z) {
-    double r = __builtin_creal(z);
-    double i = __builtin_cimag(z);
-    double er = fs_exp(r);
-    double ci = fs_cos(i);
-    double si = fs_sin(i);
-    /* build the value from its parts: multiplying by the imaginary literal
-     * 1.0iF would turn inf * 0 into NaN in the real part */
-    return __builtin_complex(er * ci, er * si);
-}
-
-static inline double fs_fabs(double x) {
-    return x < 0 ? -x : x;
-}
-
-static inline double fs_atan2(double y, double x) {
-    if (x == 0.0) {
-        if (y > 0) return M_PI / 2.0;
-        if (y < 0) return -M_PI / 2.0;
-        return 0.0;
-    }
-    double z = y / x;
-    double atan_z;
-    if (fs_fabs(z) < 1.0) {
-        double term = z, sum = z;
-        double z2 = z * z;
-        for (int i = 1; i < 20; i++) {
-            term *= -z2 * (2.0 * i - 1.0) / (2.0 * i + 1.0);
-            sum += term;
-            if (fs_fabs(term) < 1e-15) break;
-        }
-        atan_z = sum;
-    } else {
-        double w = 1.0 / z;
-        double term = w, sum = w;
-        double w2 = w * w;
-        for (int i = 1; i < 20; i++) {
-            term *= -w2 * (2.0 * i - 1.0) / (2.0 * i + 1.0);
-            sum += term;
-            if (fs_fabs(term) < 1e-15) break;
-        }
-        atan_z = (z > 0 ? M_PI / 2.0 : -M_PI / 2.0) - sum;
-    }
-    if (x < 0) {
-        if (y >= 0) atan_z += M_PI;
-        else atan_z -= M_PI;
-    }
-    return atan_z;
-}
-
-/* Map standard math functions to freestanding implementations */
-#define sqrt fs_sqrt
-#define exp fs_exp
-#define sin fs_sin
-#define cos fs_cos
-#define fabs fs_fabs
-#define atan2 fs_atan2
-/* cabs/cexp are provided by freestanding_stubs/complex.h */
+/* No floating point. Kernel images are built with -mgeneral-regs-only (or an
+ * integer-only riscv -march/-mabi), so float, double and _Complex do not
+ * compile here. The libm-style stubs that used to live here (fs_sqrt, fs_exp,
+ * fs_log, fs_pow, fs_sin, fs_cos, fs_cabs, fs_cexp, fs_fabs, fs_atan2) are
+ * gone; use the integer fixed-point helpers in zxv_fixed.h instead
+ * (fx_isqrt64, fx_sincos_turn, zxv_cq16_t, fx_udiv64). */
+#include "zxv_fixed.h"
 
 /* Minimal snprintf for freestanding mode — supports %s, %d, %u, %x, %c */
 /* Bounded formatter.

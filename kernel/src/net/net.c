@@ -641,9 +641,9 @@ int32_t net_connect(net_state_t *net, int32_t sock, const uint8_t *ip, uint16_t 
     for (uint32_t i = 0; i < NET_IP_LEN; i++) {
         dst_node.node_id = (dst_node.node_id << 8) | ip[i];
     }
-    double complex phase = iphase_route(src_node, dst_node);
-    s->omega = (uint32_t)(creal(phase) * 1000);
-    s->phase = (uint32_t)(cimag(phase) * 1000);
+    zxv_cq16_t phase = iphase_route(src_node, dst_node);        /* Q16.16 */
+    s->omega = (uint32_t) (int32_t) fx_mul_q16(phase.re, 1000); /* re * 1000, toward zero */
+    s->phase = (uint32_t) (int32_t) fx_mul_q16(phase.im, 1000); /* im * 1000, toward zero */
 
     mem_copy(s->remote_ip, ip, NET_IP_LEN);
     s->remote_port = port;

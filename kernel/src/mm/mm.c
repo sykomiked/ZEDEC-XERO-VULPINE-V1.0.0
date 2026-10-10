@@ -6,24 +6,28 @@
 #include "../rmag/rmag_core.h"
 #include "../../include/m5_types.h"
 
+/* Header size as a uint32_t: block sizes are uint32_t and bounded by HEAP_MAX,
+ * so heap arithmetic stays in 32 bits instead of narrowing a size_t. */
+#define HB_SIZE ((uint32_t) sizeof(heap_block_t))
+_Static_assert(sizeof(heap_block_t) % 8 == 0, "heap headers must keep 8-byte payload alignment");
+
 static void bitmap_set(uint32_t *bm, uint32_t bit) {
-    bm[bit / 32] |= (1 << (bit % 32));
+    bm[bit / 32] |= (1u << (bit % 32));
 }
 
 static void bitmap_clear(uint32_t *bm, uint32_t bit) {
-    bm[bit / 32] &= ~(1 << (bit % 32));
+    bm[bit / 32] &= ~(1u << (bit % 32));
 }
 
 static __attribute__((unused)) bool bitmap_test(const uint32_t *bm, uint32_t bit) {
-    return (bm[bit / 32] & (1 << (bit % 32))) != 0;
+    return (bm[bit / 32] & (1u << (bit % 32))) != 0;
 }
 
 static int32_t bitmap_first_free(const uint32_t *bm, uint32_t max_bits) {
     for (uint32_t i = 0; i < max_bits / 32; i++) {
         if (bm[i] != 0xFFFFFFFF) {
             for (uint32_t j = 0; j < 32; j++) {
-                if (!(bm[i] & (1 << j)))
-                    return (int32_t)(i * 32 + j);
+                if (!(bm[i] & (1u << j))) return (int32_t) (i * 32 + j);
             }
         }
     }
@@ -41,7 +45,7 @@ void mm_init(mm_state_t *mm) {
     mm->heap_used = 0;
 
     mm->heap_head = (heap_block_t *)(uintptr_t)mm->heap_start;
-    mm->heap_head->size = PAGE_SIZE - sizeof(heap_block_t);
+    mm->heap_head->size = PAGE_SIZE - HB_SIZE;
     mm->heap_head->free = true;
     mm->heap_head->next = 0;
     mm->heap_head->prev = 0;
@@ -67,16 +71,20 @@ void mm_alloc_frame(mm_state_t *mm, page_t *page, bool is_kernel, bool is_writab
 
 void mm_free_frame(mm_state_t *mm, page_t *page) {
     if (page->frame == 0) return;
-    bitmap_clear(mm->frames_bitmap, page->frame);
+    uint32_t frame = page->frame; /* read before it is cleared below */
+    if (frame >= MAX_PAGES) return;
+    bitmap_clear(mm->frames_bitmap, frame);
     mm->used_pages--;
     page->frame = 0;
     page->present = false;
 
-    /* M5 RMAG: subtract exact rational quota on free */
-    rational_t current = rmag_get_quota((ordinal_t)page->frame);
+    /* M5 RMAG: subtract exact rational quota on free (from the frame that was
+     * freed: this used to read page->frame after zeroing it, so every free
+     * debited frame 0's quota instead). */
+    rational_t current = rmag_get_quota((ordinal_t) frame);
     rational_t one_page = { (int64_t)PAGE_SIZE, 1 };
     rational_t remaining = rmag_sub_quotas(current, one_page);
-    rmag_set_quota((ordinal_t)page->frame, remaining);
+    rmag_set_quota((ordinal_t) frame, remaining);
 }
 
 page_t *mm_get_page(mm_state_t *mm, uint32_t addr, page_directory_t *dir, bool make) {
@@ -93,18 +101,21 @@ page_t *mm_get_page(mm_state_t *mm, uint32_t addr, page_directory_t *dir, bool m
 }
 
 void *kmalloc(mm_state_t *mm, uint32_t size) {
-    if (size == 0 || size > HEAP_MAX) return 0; /* (size + 3) must not wrap */
+    if (size == 0 || size > HEAP_MAX) return 0; /* (size + 7) must not wrap */
 
-    /* Align to 4 bytes */
-    size = (size + 3) & ~3;
+    /* Align to 8 bytes. The next block header is carved out right after the
+     * payload, and heap_block_t holds pointers: with 4-byte rounding a split
+     * on a 64-bit image put that header on a 4-byte boundary (misaligned
+     * access, found by UBSan in test_mm_alloc). size <= HEAP_MAX: no wrap. */
+    size = (size + 7u) & ~7u;
 
     heap_block_t *block = mm->heap_head;
     while (block) {
-        if (block->free && block->size >= size + sizeof(heap_block_t)) {
+        if (block->free && block->size >= size + HB_SIZE) {
             /* Split block */
-            if (block->size > size + sizeof(heap_block_t) * 2) {
-                heap_block_t *new_block = (heap_block_t *)((uint8_t *)block + sizeof(heap_block_t) + size);
-                new_block->size = block->size - size - sizeof(heap_block_t);
+            if (block->size > size + HB_SIZE * 2u) {
+                heap_block_t *new_block = (heap_block_t *) ((uint8_t *) block + HB_SIZE + size);
+                new_block->size = block->size - size - HB_SIZE;
                 new_block->free = true;
                 new_block->next = block->next;
                 new_block->prev = block;
@@ -113,8 +124,8 @@ void *kmalloc(mm_state_t *mm, uint32_t size) {
                 block->size = size;
             }
             block->free = false;
-            mm->heap_used += block->size + sizeof(heap_block_t);
-            return (void *)((uint8_t *)block + sizeof(heap_block_t));
+            mm->heap_used += block->size + HB_SIZE;
+            return (void *) ((uint8_t *) block + HB_SIZE);
         }
         block = block->next;
     }
@@ -123,19 +134,20 @@ void *kmalloc(mm_state_t *mm, uint32_t size) {
 
 void kfree(mm_state_t *mm, void *ptr) {
     if (!ptr) return;
-    heap_block_t *block = (heap_block_t *)((uint8_t *)ptr - sizeof(heap_block_t));
+    heap_block_t *block = (heap_block_t *) ((uint8_t *) ptr - HB_SIZE);
+    if (block->free) return; /* double free: accounting would underflow */
     block->free = true;
-    mm->heap_used -= block->size + sizeof(heap_block_t);
+    mm->heap_used -= block->size + HB_SIZE;
 
     /* Coalesce with next */
     if (block->next && block->next->free) {
-        block->size += sizeof(heap_block_t) + block->next->size;
+        block->size += HB_SIZE + block->next->size;
         block->next = block->next->next;
         if (block->next) block->next->prev = block;
     }
     /* Coalesce with prev */
     if (block->prev && block->prev->free) {
-        block->prev->size += sizeof(heap_block_t) + block->size;
+        block->prev->size += HB_SIZE + block->size;
         block->prev->next = block->next;
         if (block->next) block->next->prev = block->prev;
     }
@@ -157,7 +169,7 @@ void *krealloc(mm_state_t *mm, void *ptr, uint32_t new_size) {
     if (!ptr) return kmalloc(mm, new_size);
     if (new_size == 0) { kfree(mm, ptr); return 0; }
 
-    heap_block_t *block = (heap_block_t *)((uint8_t *)ptr - sizeof(heap_block_t));
+    heap_block_t *block = (heap_block_t *) ((uint8_t *) ptr - HB_SIZE);
     if (block->size >= new_size) return ptr;
 
     void *new_ptr = kmalloc(mm, new_size);

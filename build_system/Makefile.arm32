@@ -31,7 +31,7 @@ MAKEFLAGS += -j$(JOBS)
 # build. Both of those exist to work around THIS line.
 OBJDIR := build/arm32
 
-CFLAGS = -march=armv7-a -marm -mfpu=vfpv3-d16 -mfloat-abi=hard -ffreestanding -fno-math-errno -nostdlib \
+CFLAGS = -march=armv7-a -marm -mfpu=vfpv3-d16 -mfloat-abi=hard -mgeneral-regs-only -Werror=double-promotion -Werror=float-conversion -ffreestanding -fno-math-errno -nostdlib \
          -include kernel/include/freestanding.h \
          -ffunction-sections -fdata-sections \
          -MMD -MP \

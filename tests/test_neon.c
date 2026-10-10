@@ -14,7 +14,7 @@ int main(void) {
 
     axiom_matrix_t matrix;
     matrix.size = 256;
-    double complex entries[256];
+    zxv_cq16_t entries[256];
     memset(entries, 0, sizeof(entries));
     matrix.entries = entries;
 

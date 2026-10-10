@@ -245,7 +245,7 @@ int32_t of_create_domain(orbital_fabric_t *fabric, const char *name,
     
     /* Initialize M5 for domain */
     dom->m5.omega = fabric->num_domains + 1;
-    dom->m5.r = SR_FROM_FLOAT(2.4 + fabric->num_domains * 0.1);
+    dom->m5.r = SR_FROM_FLOAT(2.4) + (surplus_real_t) fabric->num_domains * SR_FROM_FLOAT(0.1);
     dom->m5.ell = SR_ONE;
     dom->m5.phi = SR_ZERO;
     dom->m5.chi = 0;

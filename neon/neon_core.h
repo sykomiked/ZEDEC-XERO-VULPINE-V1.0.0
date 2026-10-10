@@ -7,6 +7,7 @@
 #ifndef NEON_CORE_H
 #define NEON_CORE_H
 
+#include "m5_host_float.h" /* host-only module: double / double complex */
 #include "m5_types.h"
 
 #define NEON_MAX_PLUGINS 32

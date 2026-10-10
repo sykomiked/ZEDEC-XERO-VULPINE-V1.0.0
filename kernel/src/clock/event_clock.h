@@ -58,10 +58,11 @@
  * ======================= THE TIME MODEL =======================
  *
  * One event is nominally tick_interval_ns nanoseconds of internal time,
- * scaled by correction_factor. So, since the last sync:
+ * scaled by correction_q32 (a Q32.32 multiplier, 2^32 == 1.0). So, since
+ * the last sync:
  *
  *   span_local = (local_counter - sync_counter)
- *                * tick_interval_ns * correction_factor
+ *                * tick_interval_ns * correction_q32 / 2^32
  *   get_time() = last_sync_ns + span_local
  *
  * and drift against an external reference over that same span is a
@@ -70,11 +71,14 @@
  *   span_ref  = reference_ns - last_sync_ns
  *   drift_ppm = (span_local - span_ref) * 1e6 / span_ref
  *
+ * All of it is INTEGER arithmetic (kernel images have no floating point):
+ * drift_ppm is an int64_t truncated toward zero, computed with a 128-bit
+ * intermediate so it is exact and saturates at INT64_MAX. *
  * Positive ppm means our internal time base ran FAST relative to the
  * reference. The measurement requires a real span on both sides; when it
  * does not exist, event_clock_measure_drift() returns
  * EVENT_CLOCK_DRIFT_UNMEASURABLE and leaves drift_ppm untouched. It does
- * NOT return 0.0, because 0.0 is a perfect clock and that would be a lie.
+ * NOT return 0, because 0 ppm is a perfect clock and that would be a lie.
  */
 
 /* ===== Clock modes ===== */
@@ -107,13 +111,16 @@ typedef enum {
 /* Returned by event_clock_measure_drift() when no measurement is possible.
  * Chosen below -1e6 ppm, which a real measurement can never reach: the
  * local span is non-negative, so drift_ppm >= -1e6 by construction. */
-#define EVENT_CLOCK_DRIFT_UNMEASURABLE  (-1.0e9)
+#define EVENT_CLOCK_DRIFT_UNMEASURABLE (-1000000000LL)
 
-/* Bounds on the multiplicative correction. A correction outside this range
- * is not a clock correction, it is a caller bug, and is REJECTED (the stored
- * factor is left alone). Rejecting also filters NaN and the infinities. */
-#define EVENT_CLOCK_CORRECTION_MIN      0.5
-#define EVENT_CLOCK_CORRECTION_MAX      2.0
+/* The multiplicative correction is Q32.32: EVENT_CLOCK_CORRECTION_ONE is 1.0.
+ * A correction outside [MIN, MAX] = [0.5, 2.0] is not a clock correction, it
+ * is a caller bug, and is REJECTED (the stored factor is left alone). */
+#define EVENT_CLOCK_CORRECTION_ONE ((uint64_t) 1 << 32)
+#define EVENT_CLOCK_CORRECTION_MIN (EVENT_CLOCK_CORRECTION_ONE / 2u)
+#define EVENT_CLOCK_CORRECTION_MAX (EVENT_CLOCK_CORRECTION_ONE * 2u)
+/* Q32.32 correction from a ratio num/den, for callers and tests. */
+#define EVENT_CLOCK_CORRECTION(num, den) ((uint64_t) (((uint64_t) (num) << 32) / (uint64_t) (den)))
 
 /* Interval assumed when a mode that needs a period is entered without one. */
 #define EVENT_CLOCK_DEFAULT_TICK_NS     1000000ULL   /* 1 ms */
@@ -123,8 +130,8 @@ typedef enum {
  * event_clock_needs_sync() latches true on its own. */
 #define EVENT_CLOCK_RESYNC_EVENTS       1000000ULL
 
-/* Saturation ceiling for any nanosecond quantity derived through double
- * arithmetic. Below 2^63, so the cast to uint64_t is always defined. */
+/* Saturation ceiling for any nanosecond quantity scaled by a correction
+ * other than exactly 1.0. Below 2^63. */
 #define EVENT_CLOCK_NS_CEILING          9000000000000000000ULL
 
 /* ===== Event clock state ===== */
@@ -158,8 +165,8 @@ typedef struct {
                                  * UINT32_MAX (a wrap to 0 would claim
                                  * "never synced" on a clock that names a
                                  * source, which verify_coverage rejects). */
-    double drift_ppm;           /* Measured drift */
-    double correction_factor;   /* Applied correction */
+    int64_t drift_ppm;          /* Measured drift, ppm, truncated toward 0 */
+    uint64_t correction_q32;    /* Applied correction, Q32.32 (2^32 == 1.0) */
 
     /* Drift needs a baseline, and a baseline needs a field: local_counter as
      * it stood at the last accepted sync. Without this there is no span to
@@ -175,10 +182,10 @@ typedef struct {
      * and compares, so a stale or corrupt m5 FAILS.
      *
      * m5.phi is the signed relative drift, drift_ppm/1e6, CLAMPED to
-     * +/-1e9 before conversion. drift_ppm itself is unbounded above and
-     * surplus_real_t is Q32.32 int64 on the target, where the conversion is
-     * undefined once |value| >= 2^31 — so the M5 projection saturates while
-     * the stored drift_ppm does not. Read drift_ppm, not m5.phi, if you
+     * +/-1e9 before conversion. drift_ppm itself is only bounded by int64
+     * and surplus_real_t is Q32.32 int64 on the target, which cannot hold
+     * |value| >= 2^31 — so the M5 projection saturates while the stored
+     * drift_ppm does not. Read drift_ppm, not m5.phi, if you
      * need the raw measurement. */
     m5_coords_t m5;
 } event_clock_t;
@@ -215,8 +222,8 @@ void event_clock_set_mode(event_clock_t *clk, clock_mode_t mode);
 clock_mode_t event_clock_get_mode(event_clock_t *clk);
 
 /* Drift measurement */
-double event_clock_measure_drift(event_clock_t *clk, uint64_t reference_ns);
-void event_clock_apply_correction(event_clock_t *clk, double correction);
+int64_t event_clock_measure_drift(event_clock_t *clk, uint64_t reference_ns); /* ppm */
+void event_clock_apply_correction(event_clock_t *clk, uint64_t correction_q32);
 
 /* Compatibility (for legacy code that expects ticks) */
 uint64_t event_clock_get_ticks(event_clock_t *clk);
@@ -230,13 +237,13 @@ bool event_clock_verify_coverage(event_clock_t *clk);
  *
  * 1. THERE IS NO OSCILLATOR. This module cannot tell you what time it is.
  *    It can only tell you what time it was when somebody last told it,
- *    plus events * tick_interval_ns * correction_factor. If nobody ever
+ *    plus events * tick_interval_ns * correction. If nobody ever
  *    calls event_clock_sync(), event_clock_get_time() returns 0 and
  *    event_clock_needs_sync() latches true. It never invents a value.
  *
  * 2. "TICKS" ARE EVENTS, NOT SECONDS. event_clock_get_ticks() returns
- *    floor(local_counter * correction_factor) — the number of whole
- *    tick_interval_ns periods of INTERNAL time. With correction_factor
+ *    floor(local_counter * correction) — the number of whole
+ *    tick_interval_ns periods of INTERNAL time. With the correction
  *    at its default 1.0 that is exactly the event count. Legacy code that
  *    polls it gets monotonic progress; it does not get real elapsed time
  *    unless the caller drives one event per real tick_interval_ns.
@@ -244,7 +251,7 @@ bool event_clock_verify_coverage(event_clock_t *clk);
  *    CAVEAT: it is computed as elapsed_ns / tick_interval_ns, and elapsed_ns
  *    saturates (see 7). Once local_counter * tick_interval_ns would exceed
  *    UINT64_MAX the result is LOWER than floor(local_counter *
- *    correction_factor). It stays monotonic non-decreasing; it stops being
+ *    correction). It stays monotonic non-decreasing; it stops being
  *    the exact product.
  *
  * 3. ORDINALS SATURATE, THEY DO NOT WRAP. At UINT64_MAX,
@@ -274,11 +281,10 @@ bool event_clock_verify_coverage(event_clock_t *clk);
  * 7. NANOSECOND ARITHMETIC SATURATES at EVENT_CLOCK_NS_CEILING /
  *    UINT64_MAX rather than overflowing. A saturated reading is wrong but
  *    bounded; it is not wrapped. Which ceiling applies depends on the path:
- *    with correction_factor == 1.0 the span is an exact integer product and
- *    saturates at UINT64_MAX; otherwise it goes through double and saturates
- *    at EVENT_CLOCK_NS_CEILING. The exact path exists because a double
- *    product silently drops low bits above 2^53, and a projection documented
- *    to the nanosecond may not quietly lose hundreds of them.
+ *    with a correction of exactly 1.0 the span is an exact integer product
+ *    and saturates at UINT64_MAX; otherwise it is a 128-bit product scaled by
+ *    the Q32.32 correction (truncated) and saturates at
+ *    EVENT_CLOCK_NS_CEILING. Both paths are exact integer arithmetic.
  *
  * 7b. A PERIOD-DRIVEN MODE MAY NOT HAVE ITS PERIOD REMOVED.
  *    event_clock_set_tick_interval(clk, 0) is REFUSED in CLOCK_PERIODIC and

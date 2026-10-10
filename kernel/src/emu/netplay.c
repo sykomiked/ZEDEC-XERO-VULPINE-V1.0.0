@@ -68,8 +68,7 @@ int netplay_selfcheck(uint32_t *relation_permille_out, int *peers_out){
     surplus_real_t pairB[GU_DIM] = { SR_FROM_FLOAT(0.7),SR_FROM_FLOAT(0.5),SR_FROM_FLOAT(0.9),SR_FROM_FLOAT(0.6),
                                      SR_FROM_FLOAT(0.4),SR_FROM_FLOAT(0.5),SR_FROM_FLOAT(0.8),SR_FROM_FLOAT(0.7) };
     surplus_real_t rel = chg_interaction(userA, pairB, GU_DIM);         /* cross-peer link */
-    if (relation_permille_out)
-        *relation_permille_out = (uint32_t)((double)rel / (double)SR_ONE * 1000.0);
+    if (relation_permille_out) *relation_permille_out = SR_TO_PERMILLE(rel);
 
     /* PASS: P2P session created + a peer joined + BOTH relationships are finite —
      * the user<->Navi companionship (system playing alongside you) AND the

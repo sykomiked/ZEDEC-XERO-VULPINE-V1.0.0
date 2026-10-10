@@ -92,8 +92,7 @@ int helion_selfcheck(uint32_t *perp_permille_out){
     /* (1) object spin perpendicular to environment spin */
     surplus_real_t perp = h_dot(f.obj_spin, f.env_spin);
     surplus_real_t aperp = perp < SR_ZERO ? SR_SUB(SR_ZERO, perp) : perp;
-    if (perp_permille_out)
-        *perp_permille_out = (uint32_t)((double)aperp / (double)SR_ONE * 1000.0);
+    if (perp_permille_out) *perp_permille_out = SR_TO_PERMILLE(aperp);
     int perpendicular = (aperp < SR_FROM_FLOAT(0.01));
 
     /* sample the lift of a fixed 2D reference point (1,0) over N steps */

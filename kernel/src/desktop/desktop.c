@@ -314,8 +314,10 @@ void desktop_clock_sync(desktop_t *desk, uint64_t external_tick) {
         uint64_t local_delta = desk->clock.local_counter - desk->clock.last_sync_tick;
         uint64_t ext_delta = external_tick - desk->clock.last_sync_tick;
         if (ext_delta > 0) {
-            desk->clock.drift_ppm = (double)((int64_t)local_delta - (int64_t)ext_delta)
-                                    * 1000000.0 / (double)ext_delta;
+            int64_t diff = (int64_t) local_delta - (int64_t) ext_delta, scaled;
+            if (__builtin_mul_overflow(diff, (int64_t) 1000000, &scaled))
+                scaled = diff < 0 ? INT64_MIN + 1 : INT64_MAX;
+            desk->clock.drift_ppm = fx_sdiv64(scaled, (int64_t) ext_delta); /* integer ppm */
         }
     }
     desk->clock.external_ticks = external_tick;
@@ -389,16 +391,17 @@ bool desktop_verify_coverage(desktop_t *desk) {
     for (uint32_t i = 0; i < desk->num_windows; i++) {
         if (desk->windows[i].visible) visible++;
     }
-    desk->coverage_r = (desk->num_windows == 0) ? 1.0 :
-        (double)visible / (double)desk->num_windows;
+    desk->coverage_r = (desk->num_windows == 0)
+                           ? (uint32_t) Q16_ONE
+                           : (visible * (uint32_t) Q16_ONE) /
+                                 desk->num_windows; /* num_windows <= DESKTOP_MAX_WINDOWS */
 
     /* ell: fraction of apps that are running (engaged) */
     uint32_t running = 0;
     for (uint32_t i = 0; i < desk->num_apps; i++) {
         if (desk->apps[i].running) running++;
     }
-    desk->coverage_l = (desk->num_apps == 0) ? 0.0 :
-        (double)running / (double)desk->num_apps;
+    desk->coverage_l = (desk->num_apps == 0) ? 0u : (running * (uint32_t) Q16_ONE) / desk->num_apps;
 
     /* This used to read:
      *     double product = r * (ell > 0 ? ell : 0.5);
@@ -414,9 +417,9 @@ bool desktop_verify_coverage(desktop_t *desk) {
      * windows or apps, a real fraction of them must actually be present. */
     if (desk->num_windows == 0 && desk->num_apps == 0) return true;
 
-    double r = desk->coverage_r;
-    double l = (desk->num_apps == 0) ? 1.0 : desk->coverage_l;
-    return (r * l) >= DESKTOP_COVERAGE_FLOOR;
+    uint64_t r = desk->coverage_r;
+    uint64_t l = (desk->num_apps == 0) ? (uint64_t) Q16_ONE : desk->coverage_l;
+    return r * l >= (uint64_t) DESKTOP_COVERAGE_FLOOR * (uint64_t) Q16_ONE;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------

@@ -2,25 +2,20 @@
  * Author: H.M. Michael-Laurence: Curzi (c)
  * ALL subsystems MUST include this and MUST NOT redefine these types.
  *
- * INTEGER-ONLY MODE
- *   Define M5_TYPES_INTEGER_ONLY before including this header to get the
- *   integer core only: no <complex.h>, no <math.h>, no double. The types
- *   that need floating point (phase_t, phase_tick_t, telemetry_t,
- *   axiom_matrix_t, shadow_event_t, cycle_pulse_t) and the double helpers
- *   (trit_to_ell, rational_mag) are then NOT declared, so any use is a
- *   compile error rather than a silent FPU dependency; use trit_to_ell_q16.
- *   Freestanding security code (e.g. pq_security.h users) should define it.
- *   Without the macro the header is unchanged for existing callers.
+ * INTEGER ONLY
+ *   This header has no floating point at all: phase vectors and complex
+ *   values are Q16.16 integers (zxv_fixed.h), ell is trit_to_ell_q16(), and
+ *   rationals are compared exactly with rational_cmp() / m5_coverage_cmp().
+ *   The double helpers trit_to_ell() and rational_mag() were removed, so a
+ *   stale caller is a compile error rather than a silent FPU dependency.
+ *   M5_TYPES_INTEGER_ONLY is still accepted and is now a no-op.
  */
 #ifndef M5_TYPES_H
 #define M5_TYPES_H
 #include <stdint.h>
 #include <stdbool.h>
-#ifndef M5_TYPES_INTEGER_ONLY
-#    include <complex.h>
-#    include <math.h>
-#endif
 #include "surplus.h"
+#include "zxv_fixed.h"
 typedef uint64_t ordinal_t;
 typedef struct rational_t { int64_t num, den; } rational_t;
 typedef enum {
@@ -49,33 +44,35 @@ typedef enum {
 #define WORD168_SEXTETS 28
 typedef struct word168_t { uint8_t bytes[WORD168_OCTETS]; } word168_t;
 typedef enum { EXEC_DC = 0, EXEC_AC = 1, EXEC_PC = 2 } exec_profile_t;
-#ifndef M5_TYPES_INTEGER_ONLY
-/* ---- floating-point types (hosted / FPU code only) ---- */
+/* ---- phase / complex types: Q16.16 integers ---- */
 typedef struct phase_t {
-    double r, i;
+    int32_t r, i; /* Q16.16 */
 } phase_t;
 typedef struct telemetry_t {
-    double complex value;
+    zxv_cq16_t value; /* Q16.16 complex */
     uint32_t recursion_depth;
 } telemetry_t;
 typedef struct axiom_matrix {
     uint64_t size;
-    double complex *entries;
+    zxv_cq16_t *entries; /* Q16.16 complex */
 } axiom_matrix_t;
 typedef struct phase_tick {
     ordinal_t omega; rational_t r; trit_t ell; phase_t iphi; collapse_t chi;
 } phase_tick_t;
-typedef struct shadow_event { double complex shadow; uint32_t paradox_level; char origin[64]; } shadow_event_t;
+typedef struct shadow_event {
+    zxv_cq16_t shadow;
+    uint32_t paradox_level;
+    char origin[64];
+} shadow_event_t;
 
 /* Cycle Pulse (SS5B) — replaces wall clock with event-cycle pulses */
 typedef struct cycle_pulse {
     ordinal_t cycle_count;       /* this node's current cycle */
     uint32_t dimensional_level;  /* which M^{F_n} this node is at (0=M5, 1=M8, ...) */
-    double coverage_hyperbola;   /* r*ell at last commit */
-    double complex matrix_projection; /* Axiom Matrix projection at current tick */
+    int64_t coverage_hyperbola;  /* r*ell at last commit, Q16.16 */
+    zxv_cq16_t matrix_projection; /* Axiom Matrix projection at current tick, Q16.16 */
     uint32_t fib_cycle_levels[8]; /* Fibonacci-scaled cycle level per axis */
 } cycle_pulse_t;
-#endif /* !M5_TYPES_INTEGER_ONLY */
 
 /* Temporal Lattice node identity (SS5B.4) */
 typedef struct lattice_node_id {
@@ -157,19 +154,6 @@ static inline uint32_t trit_to_ell_q16(trit_t t)
         return 0u;
     }
 }
-#ifndef M5_TYPES_INTEGER_ONLY
-static inline double trit_to_ell(trit_t t) {
-    switch(t) {
-        case TRIT_TRUE:        return 1.0;
-        case TRIT_GLUT_PLUS:   return 0.75;  /* Constructive — leaning true */
-        case TRIT_GLUT:
-        case TRIT_GLUT_NEUTRAL: return 0.5;  /* Balanced — equal true/false */
-        case TRIT_GLUT_MINUS:  return 0.25;  /* Destructive — leaning false */
-        case TRIT_FALSE:
-        default:               return 0.0;
-    }
-}
-#endif
 
 /* Charge accessor: +1 for GLUT_PLUS, -1 for GLUT_MINUS, 0 for all others */
 static inline int trit_charge(trit_t t) {
@@ -185,11 +169,55 @@ static inline int trit_is_glut(trit_t t) {
     return t == TRIT_GLUT || t == TRIT_GLUT_PLUS ||
            t == TRIT_GLUT_MINUS || t == TRIT_GLUT_NEUTRAL;
 }
-#ifndef M5_TYPES_INTEGER_ONLY
-static inline double rational_mag(rational_t r) {
-    return r.den==0 ? 0.0 : (double)r.num/(double)r.den;
+/* Exact rational comparison, no floating point and no division: -1, 0, 1.
+ * A zero denominator reads as the value 0 (what rational_mag() returned). */
+static inline int rational_cmp(rational_t a, rational_t b)
+{
+    int as = (a.den == 0 || a.num == 0) ? 0 : (((a.num < 0) != (a.den < 0)) ? -1 : 1);
+    int bs = (b.den == 0 || b.num == 0) ? 0 : (((b.num < 0) != (b.den < 0)) ? -1 : 1);
+    if (as != bs) return as < bs ? -1 : 1;
+    if (as == 0) return 0;
+    uint64_t an = a.num < 0 ? (uint64_t) 0 - (uint64_t) a.num : (uint64_t) a.num;
+    uint64_t ad = a.den < 0 ? (uint64_t) 0 - (uint64_t) a.den : (uint64_t) a.den;
+    uint64_t bn = b.num < 0 ? (uint64_t) 0 - (uint64_t) b.num : (uint64_t) b.num;
+    uint64_t bd = b.den < 0 ? (uint64_t) 0 - (uint64_t) b.den : (uint64_t) b.den;
+    int c = fx_cmp_umul(an, bd, bn, ad); /* |a| vs |b| */
+    return as > 0 ? c : -c;
 }
-#endif
+
+/* The M5 coverage hyperbola r * ell compared with num/den, exactly: -1, 0, 1.
+ * ell = e/4 with e in 0..4, so r*ell is the rational (r.num*e) / (4*r.den).
+ * For |r.num| or |r.den| near 2^62 the operands are scaled down by 4 first
+ * (a relative error below 2^-60). */
+static inline int m5_coverage_cmp(rational_t r, trit_t ell, int64_t num, int64_t den)
+{
+    int64_t e = (int64_t) (trit_to_ell_q16(ell) / 16384u);
+    int64_t n = r.num, d = r.den;
+    const int64_t lim = INT64_MAX / 4;
+    while (n > lim || n < -lim || d > lim || d < -lim) {
+        n /= 4;
+        d /= 4;
+    }
+    rational_t lhs = {n * e, d * 4};
+    rational_t rhs = {num, den};
+    return rational_cmp(lhs, rhs);
+}
+
+/* floor(r * ell * 1000) clamped to [0, 0x7FFFFFFF] (the scheduler's phase). */
+static inline uint32_t m5_coverage_permille(rational_t r, trit_t ell)
+{
+    int64_t e = (int64_t) (trit_to_ell_q16(ell) / 16384u);
+    int64_t n = r.num, d = r.den, t;
+    if (d == 0 || n == 0 || e == 0) return 0;
+    if (d < 0) {
+        n = -n;
+        d = -d;
+    }
+    if (n < 0) return 0;
+    if (__builtin_mul_overflow(n, e * 250, &t)) return 0x7FFFFFFFu;
+    uint64_t q = fx_udiv64((uint64_t) t, (uint64_t) d, 0);
+    return q > 0x7FFFFFFFu ? 0x7FFFFFFFu : (uint32_t) q;
+}
 static inline int64_t m5_gcd(int64_t a, int64_t b) {
     if(a<0) a=-a;
     if(b<0) b=-b;

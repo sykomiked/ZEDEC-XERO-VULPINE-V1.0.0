@@ -105,8 +105,11 @@ bool zphi_is_int(zphi_t x);               /* b == 0 */
  * DOUBLE CONVERSION IS FOR PRINTING AND TESTS ONLY. Never make a decision on
  * this value: the exact predicates above are the whole reason this type exists,
  * and comparing two converted doubles reintroduces precisely the rounding this
- * module was written to eliminate. */
+ * module was written to eliminate. Declared in hosted builds only: kernel
+ * images (-ffreestanding) are integer-only. */
+#if __STDC_HOSTED__
 double zphi_to_double(zphi_t x);
+#endif
 
 /* Internal consistency: closure, the two roots, conjugation, norm
  * multiplicativity, and overflow reporting. Returns the number of problems

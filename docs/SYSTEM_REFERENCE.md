@@ -528,7 +528,7 @@ audio_set_balance, audio_set_3d_position, audio_pause.
 Tests: src/audio/test_audio.c in verify-all, 353 checks, also built with ASan/UBSan
 (test_audio_san). Passes.
 Used by: media_fabric. In Makefile and Makefile.arm64.
-Gaps: the file uses float in kernel-built code.
+Gaps: none for floating point: gains, positions and coverage are Q16.16 integers (fixed).
 Gaps: no hardware output driver in this directory.
 
 ### audiogenomics_pro  —  DNA-to-sound synthesis and symbolic encodings
@@ -543,7 +543,7 @@ Tests: ../tests/test_audiogenomics.c (build_system/Makefile test_audiogenomics),
 is not in verify-all.
 Used by: arch/arm64/kernel_main_arm64.c and media_fabric. In every arch image except x86
 Makefile.
-Gaps: float/double in kernel-built code.
+Gaps: none for floating point: frequencies are Q16.16 Hz, samples Q16.16, phases binary turns, durations ms (fixed; checked against a double oracle by tests/host/test_fixed_point.c in verify-all). Generators still keep 256 KB sample buffers on the stack.
 Gaps: the scientific-sounding claims are framing, not results.
 
 ### axiom_matrix  —  sparse complex-valued matrix keyed by hash
@@ -557,7 +557,7 @@ verify-all. It passes.
 Used by: many ../tests files, every arch kernel_main and telemetry.
 Gaps: the table is lossy: a colliding key silently overwrites another entry.
 Gaps: the "Hermitian/symmetric" check only tests whether entries are real.
-Gaps: double complex and 64-bit % in kernel source.
+Gaps: none for floating point: entries are zxv_cq16_t (Q16.16 complex) and the index uses fx_udiv64 (fixed).
 
 ### battering_ram  —  pooled-credit exchange that pays out on a verified outcome
 Status: WORKING (tested in verify-all)
@@ -837,7 +837,7 @@ Main entry points: event_clock_default, event_clock_init, event_clock_next_ordin
 event_clock_get_ordinal, event_clock_sync, event_clock_get_time, event_clock_needs_sync.
 Tests: src/clock/test_event_clock.c, run by verify-all, passes.
 Used by: desktop (clock display), with no direct includes. Kernel builds via -I paths.
-Gaps: the file uses float.
+Gaps: none for floating point: drift is integer ppm and the correction is Q32.32 (fixed).
 
 ### codec  —  "Tri-Space" media codec that keeps the lossy remainder
 Status: WORKING (tested in verify-all)
@@ -1037,7 +1037,7 @@ desktop_move_window.
 Tests: ../tests/host/test_desktop.c, run by verify-all, passes.
 Used by: arch/arm64/kernel_main_arm64.c and tests/host. In Makefile, Makefile.arm64 and the other
 arch images.
-Gaps: float use.
+Gaps: none for floating point: coverage is Q16.16 and drift_ppm an integer (fixed).
 Gaps: zxv_shell.c fails the hosted build with an SR_SHIFT error but is clean in the arm64 build.
 
 ### devmesh  —  private mesh of one person's own devices
@@ -1114,7 +1114,7 @@ dualtrack_run_all, dualtrack_artifact_add.
 Tests: none of its own; tests/test_new_modules.c references it but nothing builds that file.
 Used by: tests only. In all images.
 Gaps: "signed / hash-verified" artifacts are only checked for a nonzero hash byte (line 396).
-dualtrack_agreement_rate returns float.
+dualtrack_agreement_permille() returns an integer (fixed; was a float rate).
 
 ### e8 — E8 lattice / icosian ring over Z[phi]
 Status: WORKING (tested in verify-all)
@@ -1177,7 +1177,7 @@ to group2_verify_lines.mk). test_nes needs ROM arguments and tests nothing witho
 fuzz harness over the gb/gba/snes/genesis/pce/sms/nes loaders is clean after the arm7 fix.
 Used by: game_runner, desktop, tolvovina, tripartite_fs, arch mains. In all images.
 Gaps: arm7 ROR-with-carry shifted a signed int into bit 31, which is UB (fixed). Several layers
-use double (break_potency, helion, emu_relate). There are misleading-indentation warnings in 8
+used double (break_potency, helion, emu_relate; fixed: integer permille and Q16.16). There are misleading-indentation warnings in 8
 files (cpu_z80 fixed).
 
 ### epu — "Emotion Processing Unit" device model
@@ -1188,8 +1188,8 @@ that it is a model, not hardware.
 Main entry points: epu_handle_irq, epu_process_emotion, epu_qubit_apply_gate, epu_generate_hdl,
 epu_recompute_power, epu_verify_coverage.
 Tests: src/epu/test_epu_device.c (verify-all test_epu), pass.
-Used by: no includers; Makefile.arm64 only.
-Gaps: it uses double physics constants (line 38) in an arm64 kernel object.
+Used by: no includers; host test only.
+Gaps: it is a double-precision model, so it is no longer linked into the arm64 image (kernel images forbid floating point); a kernel port would need a fixed-point rewrite of the model and its 1e-15 test tolerances.
 
 ### event_sched — event-driven task scheduler with cycle budgets
 Status: WORKING (tested in verify-all)
@@ -1267,7 +1267,7 @@ pirate_apps, sdk_bridge, apps, arch mains. In all images.
 Gaps: before the fixes, it minted money (rails negative sale/refund, non-holder voucher redeem),
 double counted and posted non-atomically (fixed). Still open: option pricing is not Black-Scholes;
 negative balances are allowed; assurance steps 1-3 are comments; treaty_asset_verify always fails;
-SR_FROM_FLOAT is used in kernel code.
+SR_FROM_FLOAT is used in kernel code only on compile-time constants (folded; no FP at run time).
 
 ### finance_markets — instrument tracker and position valuation
 Status: WORKING (tested in verify-all)
@@ -1564,7 +1564,7 @@ What it does: iphase.c keeps an endpoint registry, prioritised/weighted route co
 Main entry points: iphase_registry_init, iphase_register_endpoint, iphase_add_route, iphase_add_failover, iphase_get_route, iphase_route (core).
 Tests: iphase/test_iphase.c (make test loop) and K4 block — pass.
 Used by: all arch mains, boot, net. Kernel: yes.
-Gaps: iphase_core uses double complex inside the kernel (float); no SPDX on iphase_core.*.
+Gaps: no SPDX on iphase_core.* (the double complex route vector is now zxv_cq16_t, fixed).
 
 ### iso20022  —  PACS.008 / CAMT.053 message builders
 Status: WORKING (tested in verify-all)
@@ -1727,8 +1727,8 @@ Gaps: validator files lack SPDX; headers say "All Rights Reserved" beside Apache
 Status: PARTIAL
 What it does: Frame bitmap, a first-fit heap with split/coalesce, kmalloc/kcalloc/krealloc. mm_get_page cannot create tables ("would allocate"). Size overflows in kmalloc/kcalloc fixed.
 Main entry points: mm_init, kmalloc, kfree, kcalloc, krealloc, mm_get_page.
-Tests: none. Used by: arch/arm, boot. Kernel: yes (arm64 list).
-Gaps: no test; mm_get_page(make=true) returns NULL.
+Tests: src/mm/test_mm_alloc.c (verify-all test_mm_alloc): kmalloc/kcalloc/krealloc and fs_malloc/fs_calloc refuse wrapping sizes. Used by: arch/arm, boot. Kernel: yes (arm64 list).
+Gaps: mm_get_page(make=true) returns NULL. Fixed: blocks are 8-byte aligned (a 4-byte round put split headers on a misaligned address on 64-bit), mm_free_frame debited frame 0's quota instead of the freed frame's, double kfree corrupted the accounting, and bit-31 bitmap shifts were signed.
 
 ### modbind  —  module declaration graph and boot gate
 Status: WORKING (has a test, not in verify-all)
@@ -1750,7 +1750,7 @@ What it does: A real small stack: Ethernet, ARP, IPv4 with checksums, ICMP echo,
 Main entry points: net_init, net_rx_packet, net_socket/connect/send/recv, tcp_input, dhcp_input, dns_parse_response, m5_router_send.
 Tests: test_dhcp, test_dns, test_tcp, test_netstack — pass. test_smart_adapter.c does not compile (missing smart_adapter_jdr.h) and is not built.
 Used by: apps, arch mains, boot, bringup, legacy, *_fabric, pterm. Kernel: yes (rtl8139 x86 only).
-Gaps: float in net.c (via iphase_route), radio.c, dtmf.c, jdr_piratenet.c; ARP accepts unsolicited replies; no SPDX on most files.
+Gaps: ARP accepts unsolicited replies; no SPDX on most files.
 
 ### network_fabric  —  "compound" network umbrella
 Status: UNUSED/DEAD
@@ -1792,7 +1792,7 @@ Status: PARTIAL
 What it does: Compiles and links in the arm64 kernel; wires orbital_elevator, orbital_compat, constellation, yantra fabric, smart adapters, event space and mesh_net together at init.
 Main entry points: of_init, of_register_builtins, of_create_domain, of_add_schema_mapping, of_translate_event.
 Tests: none. Used by: abstraction_layer/boot_modules.c and other fabric headers. Kernel: yes.
-Gaps: no test; float at orbital_fabric.c:248; unused parameters.
+Gaps: no test; unused parameters (the float at orbital_fabric.c:248 is fixed).
 
 ### oseq  —  K1 ordinal sequencer
 Status: WORKING (tested in verify-all)
@@ -1833,7 +1833,7 @@ Status: WORKING (tested in verify-all)
 What it does: Admits, vetoes or defers steps by coverage and health policy, issues admission tokens and coordinates the 13-phase pipeline; phase_coordinator.c is the tick driver used by every kernel.
 Main entry points: pc_registry_init, pc_register_gate, pc_check_all_gates, pc_admit, pc_revoke_token, phase_coordinator_init, phase_coordinator_tick.
 Tests: test_phase_coordinator.c (make test) and K6 block — pass. Used by: arch mains, boot, dharma, finance, holographic, sched. Kernel: yes.
-Gaps: float via m5_types.h in the kernel build.
+Gaps: none for floating point: m5_types.h is integer-only (fixed).
 
 ### pic  —  8259 PIC (x86)
 Status: PARTIAL
@@ -2010,9 +2010,9 @@ Gaps: None found.
 Status: PARTIAL
 What it does: A fixed table of tasks with name, type, state, a stack and a saved eip/esp. Tasks can be created, terminated and picked round-robin, and rmag coverage feeds a "phase" value. It never saves or restores registers, so there is no actual context switch.
 Main entry points: sched_init, sched_create_task, sched_terminate, sched_next (sched.h).
-Tests: none. The code stores pointers as uint32_t, so it cannot run on a 64-bit host, and -m32 linking is not available here.
+Tests: src/sched/test_sched_ptr.c (verify-all test_sched_ptr): an entry address above 4 GB survives sched_create_task in eip and the prepared stack frame.
 Used by: pterm, apps, bringup, compute_fabric, dharma. arm64: yes (2 entries).
-Gaps: Fixed: create_task silently overwrote slot 0 when full, the name copy was unbounded, terminate compared the wrong thing, and the header claimed a context switch. Not fixed: pointer truncation on 64-bit (works on arm64 only while RAM is below 4 GB), and a double in the kernel phase computation (sched.c:141).
+Gaps: Fixed: create_task silently overwrote slot 0 when full, the name copy was unbounded, terminate compared the wrong thing, and the header claimed a context switch. Also fixed: esp/ebp/eip/cr3 and the stack are uintptr_t (no truncation above 4 GB), sleep_until is 64-bit like ticks (it wrapped after 2^32 ticks), and the phase is integer permille.
 
 ### sdk — application SDK headers and template
 Status: STUB
@@ -2060,7 +2060,7 @@ What it does: Holds "field" records (amplitude and phase as double) for military
 Main entry points: situation_model.h.
 Tests: none in src. tests/test_new_modules.c (root) covers it but is not built anywhere.
 Used by: no includes outside the directory. arm64: yes.
-Gaps: Uses double in kernel code, and libgcc 64-bit division on x86 -m32. Its outputs are unvalidated model numbers.
+Gaps: libgcc 64-bit division on x86 -m32 (values are surplus_real_t: Q32.32 in kernel images, double only in TEST_HOST builds). Its outputs are unvalidated model numbers.
 
 ### smap — S-Map reassembly manifest
 Status: WORKING (tested in verify-all)
@@ -2129,10 +2129,10 @@ Gaps: None found.
 ### superpos — "superposition" build-space coordinator
 Status: PARTIAL
 What it does: Describes the space of build configurations (compiler flags, passes, targets) in "quantum-inspired" terms and tracks agreement between build tracks.
-Main entry points: superpos.h (superpos_agreement_rate returns float, among others).
+Main entry points: superpos.h (superpos_agreement_permille returns an integer, among others).
 Tests: none.
 Used by: no includes outside the directory. arm64: yes.
-Gaps: Uses float in a kernel module. The "Hilbert space" and quantum language describes ordinary bookkeeping. Untested.
+Gaps: The "Hilbert space" and quantum language describes ordinary bookkeeping. Untested.
 
 ### surplus — Interaction Surplus Framework maths
 Status: WORKING (tested in verify-all)
@@ -2140,7 +2140,7 @@ What it does: Implements f(u) = ln(1 + (N-1)u) and the surplus dynamics in Q32.3
 Main entry points: surplus.h (SR_MUL/DIV/FROM_INT, sr_ln, surplus_dynamics_step).
 Tests: test_surplus_axioms.c (verify-all).
 Used by: most of the tree (porter_house, predictive, sdk_bridge, battering_ram, alloc, apps, ...). arm64: yes.
-Gaps: The freestanding path uses __int128 when available, against the brief's rule. SR_FROM_FLOAT uses a double at compile time. On x86 -m32 it uses libgcc 64-bit division. These are shared-header changes and were not made here.
+Gaps: The freestanding path uses __int128 when available, against the brief's rule. SR_FROM_FLOAT uses a double at compile time (constants only; kernel images reject run-time FP). On x86 -m32 it uses libgcc 64-bit division. These are shared-header changes and were not made here.
 
 ### sutra — SUTRA transaction language (lexer, parser, runtime, rails)
 Status: WORKING (tested in verify-all)
@@ -2162,9 +2162,9 @@ Gaps: None found.
 Status: PARTIAL
 What it does: Accepts a text spec of modules over a DMA-style write call, parses "module:name" entries, and scores them with surplus/edp_risk. The header's claim that it is "the engine that built the kernel" is not supported by anything in the tree.
 Main entry points: synth_dma_write_spec, synth_parse_spec (synthesis_engine.h).
-Tests: none in src. tests/test_new_modules.c (root) is not built. A probe here confirmed the overflow fix under ASan.
+Tests: tests/host/test_fixed_point.c (verify-all) checks coverage, surplus and risk. tests/test_new_modules.c (root) is not built.
 Used by: no includes outside the directory. arm64: yes.
-Gaps: Fixed: a heap read past the end when a spec ends in "module:ab", and a missing NUL terminator. Not fixed: double fields in a kernel module, no test, and overclaiming documentation.
+Gaps: Fixed: a heap read past the end when a spec ends in "module:ab", and a missing NUL terminator. Also fixed: the double fields are Q16.16 integers. Not fixed: overclaiming documentation.
 
 ### syscall — the one shared ZXV syscall table and capability check
 Status: WORKING (tested in verify-all)
@@ -2180,7 +2180,7 @@ What it does: projects a tick through the axiom matrix into a complex telemetry 
 Main entry points: emit_and_observe, choice_resolve_from_telemetry, fib_bound, run_telemetry_recursion_demo.
 Tests: src/telemetry/test_telemetry.c, in TEST_SRCS (kernel/Makefile:157); `make test` is a prerequisite of verify-all (Makefile:237).
 Used by: pirate_fleet, arch/arm64/kernel_main_arm64.c, arch/arm, arch/riscv.
-Gaps: it uses <math.h> cabs() and `double complex` (telemetry_core.c:24,34,43) in a module linked into the freestanding kernels. This is not integer-only, and it relies on libm/soft-float being present.
+Gaps: none for floating point: telemetry values are zxv_cq16_t and the magnitude is an integer square root (fixed).
 
 ### tensor — integer tensor engine, GGUF loader, tokenizer, RoPE, transformer model
 Status: WORKING (tested in verify-all)
@@ -2292,7 +2292,7 @@ What it does: integer 2D drawing (lines, rects, glyphs, blit) with optional doub
 Main entry points: video_init, video_set_mode, video_set_framebuffer, video_fill_rect/draw_line/put_pixel, video_flip, video_vsync_wait, ramfb_init.
 Tests: test_video in verify-all.
 Used by: desktop. video.c is in the arm64 kernel only.
-Gaps: `double coverage_r` at video.c:1123 and video.h:254 is floating point in a freestanding driver, which is likely why the module is not in the x86_64 (-mgeneral-regs-only) build.
+Gaps: none for floating point (coverage is Q16.16, fixed).
 
 ### vinea — Vinea Kademlia DHT node, sessions, file exchange and economy
 Status: WORKING (tested in verify-all)
@@ -2348,7 +2348,7 @@ What it does: 802.11 frame building and parsing, a scan and BSS table, associati
 Main entry points: wifi_init, wifi_bind_ops, wifi_scan, wifi_connect, wifi_start_ap, wifi_set_channel.
 Tests: test_wifi in verify-all.
 Used by: arm64 kernel only.
-Gaps: `double coverage_r` at wifi.c:1990 and wifi.h:418 is floating point in a freestanding driver, so the module is excluded from x86_64. There is no real radio driver behind the ops.
+Gaps: there is no real radio driver behind the ops (the double coverage is Q16.16, fixed).
 
 ### wyrmgate — six-fold Tri-Space judgment gate for state-changing events
 Status: WORKING (tested in verify-all)

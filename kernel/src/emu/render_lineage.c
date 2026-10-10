@@ -100,7 +100,6 @@ int render_lineage_selfcheck(uint32_t *distinct_out, uint32_t *continuity_permil
     rl_result_t r;
     render_lineage_assess(g_engines, (uint32_t)N_ENGINES, &r);
     if (distinct_out) *distinct_out = r.distinct_archetypes;
-    if (continuity_permille_out)
-        *continuity_permille_out = (uint32_t)((double)r.continuity / (double)SR_ONE * 1000.0);
+    if (continuity_permille_out) *continuity_permille_out = SR_TO_PERMILLE(r.continuity);
     return r.coherent;
 }

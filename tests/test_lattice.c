@@ -41,7 +41,7 @@ static void test_position(void) {
 static void test_scale_generic(double s, const char *name) {
     axiom_matrix_t matrix;
     matrix.size = 1024;
-    double complex entries[1024];
+    zxv_cq16_t entries[1024];
     memset(entries, 0, sizeof(entries));
     matrix.entries = entries;
 
@@ -112,7 +112,7 @@ static void test_scale_generic(double s, const char *name) {
 static void test_ipc_typed(void) {
     axiom_matrix_t matrix;
     matrix.size = 256;
-    double complex entries[256];
+    zxv_cq16_t entries[256];
     memset(entries, 0, sizeof(entries));
     matrix.entries = entries;
 

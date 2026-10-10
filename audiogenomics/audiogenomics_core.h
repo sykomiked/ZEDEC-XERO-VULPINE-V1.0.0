@@ -7,7 +7,7 @@
 #ifndef AUDIOGENOMICS_CORE_H
 #define AUDIOGENOMICS_CORE_H
 
-#include "m5_types.h"
+#include "m5_host_float.h" /* host-only module: double / double complex */
 
 #define AUDIO_MAX_SAMPLES 4096
 #define AUDIO_MAX_EGV 168

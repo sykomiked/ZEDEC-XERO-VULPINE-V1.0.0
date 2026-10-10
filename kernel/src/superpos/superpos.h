@@ -188,7 +188,8 @@ const char *superpos_interference_name(sp_interference_t i);
 
 /* Reporting */
 int superpos_report(const superpos_t *sp, char *buf, uint32_t max_len);
-float superpos_agreement_rate(const superpos_t *sp);
+/* safety-verified active states / num_states in permille (1000 when empty). */
+uint32_t superpos_agreement_permille(const superpos_t *sp);
 
 /* Integration: coordinate with dual-track */
 int superpos_coordinate(superpos_t *sp, uint32_t linear_state_idx,

@@ -311,7 +311,7 @@ TEST(clock_drift_test) {
     /* Second sync — local advanced 500, external advanced 1000 */
     desktop_clock_sync(&desk, 2000);
     /* drift = (500 - 1000) * 1e6 / 1000 = -500000 ppm */
-    ASSERT(desk.clock.drift_ppm < 0, "negative drift (local slower)");
+    ASSERT(desk.clock.drift_ppm == -500000, "drift is exactly -500000 ppm (integer, local slower)");
     PASS();
 }
 
@@ -321,7 +321,7 @@ TEST(coverage_empty_test) {
     desktop_t desk;
     desktop_init(&desk, 1920, 1080, 32);
     ASSERT(desktop_verify_coverage(&desk), "empty desktop has coverage");
-    ASSERT(desk.coverage_r == 1.0, "r is 1.0 with no windows");
+    ASSERT(desk.coverage_r == (uint32_t) Q16_ONE, "r is 1.0 with no windows");
     PASS();
 }
 
@@ -332,7 +332,7 @@ TEST(coverage_with_windows_test) {
     desktop_create_window(&desk, "W2", 0, 0, 100, 100, 0);
     desktop_minimize_window(&desk, 2);
     ASSERT(desktop_verify_coverage(&desk), "coverage verified");
-    ASSERT(desk.coverage_r == 0.5, "r is 0.5 (1 of 2 visible)");
+    ASSERT(desk.coverage_r == (uint32_t) Q16_ONE / 2, "r is 0.5 (1 of 2 visible)");
     PASS();
 }
 

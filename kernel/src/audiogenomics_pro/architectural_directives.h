@@ -78,7 +78,7 @@ typedef struct ddna_smap_key {
     uint32_t physical_offset;  /* Where in physical storage */
     uint32_t length;           /* Chunk length */
     ddna_cid_t chunk_cid;      /* CID of this chunk */
-    double phi_ratio;          /* Golden ratio proportion for validation */
+    int32_t phi_ratio;         /* Golden ratio proportion for validation, Q16.16 */
 } ddna_smap_key_t;
 
 typedef struct ddna_smap {
@@ -86,7 +86,7 @@ typedef struct ddna_smap {
     ddna_smap_key_t keys[DDNA_SMAP_MAX_KEYS]; /* Reassembly keys */
     uint32_t num_keys;                      /* Number of keys */
     uint32_t total_length;                  /* Total logical file length */
-    double coherence_score;                 /* φ coherence of chunk sizes */
+    int32_t coherence_score;                /* φ coherence of chunk sizes, Q16.16 */
 } ddna_smap_t;
 
 /* .smap API — topological reassembly, not linear reads */
@@ -114,9 +114,9 @@ typedef enum {
 
 typedef struct ddna_triadic_field {
     ddna_domain_t active_domain;
-    double locality_phase;     /* Phase angle for deterministic core */
-    double nonlocal_phase;     /* Phase angle for entangled mesh */
-    double omni_phase;         /* Phase angle for H_omni field */
+    uint32_t locality_phase;   /* Phase angle for deterministic core (binary turn) */
+    uint32_t nonlocal_phase;   /* Phase angle for entangled mesh (binary turn) */
+    uint32_t omni_phase;       /* Phase angle for H_omni field (binary turn) */
     uint64_t phase_tick;       /* 10ms tick counter */
     bool wave_function_collapsed;  /* True after measurement at phase boundary */
 } ddna_triadic_field_t;
@@ -152,7 +152,7 @@ typedef struct ddna_graph_coord {
     uint8_t sephirot_node;         /* 0-9: Sephirotic operational node */
     uint8_t consonant_gate;        /* 0-21: consonant hardware gate */
     uint8_t vowel_phase;           /* 0-4: 5PL vowel operator */
-    double numerological_weight;   /* Metadata harmonic weight */
+    int64_t numerological_weight;  /* Metadata harmonic weight, Q16.16 */
     bool daat_open;                /* Whether supernal access is requested */
 } ddna_graph_coord_t;
 

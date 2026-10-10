@@ -90,7 +90,7 @@ typedef struct {
     hdcm_vector_t fock_vector;      /* Hyperdim representation */
     uint32_t char_values[GEM_MAX_WORD_LEN]; /* Per-char values */
     uint32_t char_count;
-    float    phase_shift;           /* Adjective/adverb modifier */
+    uint32_t phase_shift; /* Adjective/adverb modifier, permille of a turn */
 } gem_word_t;
 
 /* ===== Sentence Analysis ===== */

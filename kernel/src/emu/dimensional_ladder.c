@@ -72,8 +72,7 @@ int dimensional_ladder_selfcheck(uint32_t *primes_out, uint32_t *phi_permille_ou
     surplus_real_t e_first = SR_SUB(r_first, PHI); if (e_first < SR_ZERO) e_first = SR_SUB(SR_ZERO, e_first);
     surplus_real_t e_last  = SR_SUB(r_last,  PHI); if (e_last  < SR_ZERO) e_last  = SR_SUB(SR_ZERO, e_last);
     int converges = (e_last < e_first) && (e_last < SR_FROM_FLOAT(0.01));
-    if (phi_permille_out)
-        *phi_permille_out = (uint32_t)((double)r_last / (double)SR_ONE * 1000.0);
+    if (phi_permille_out) *phi_permille_out = SR_TO_PERMILLE(r_last);
 
     /* (3) micro<->macro correspondence present on every level (as above, so below) */
     int correspondence = 1;

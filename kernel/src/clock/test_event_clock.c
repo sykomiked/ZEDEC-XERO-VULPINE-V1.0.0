@@ -19,17 +19,16 @@
  *   17c  sync_count wrapped uint32 to 0, i.e. to "never synced" on a clock
  *        that names a sync source.
  *   17d  m5.r and m5.phi were written by every mutator and checked by none.
- *   17e/f the M5 projection and the ns cast fed unbounded/NaN doubles into
- *        conversions that are UB in Q32.32 on the target.
+ *   17e/f the M5 projection was fed unbounded drift values that do not fit
+ *        Q32.32 on the target, and corrupt corrections reached the span.
  *
- * NOTE ON SANITIZERS: the "negative correction_factor" case in 17f is only
- * decisive under UBSan. On AArch64 the hardware saturates an out-of-range
- * float->int conversion to 0, which silently mimics the correct answer, so
- * removing the guard in ec_ns_from_double() still passes a plain build.
- * `make fuzz` runs this file under ASan+UBSan for exactly that reason.
+ * The clock is integer-only (kernel images have no floating point):
+ * drift_ppm is an int64_t and the correction is Q32.32 (correction_q32,
+ * 2^32 == 1.0). Only the M5 projection is double under TEST_HOST, which is
+ * why near() survives for m5 axes. `make fuzz` runs this file under
+ * ASan+UBSan.
  */
 #include <stdio.h>
-#include <string.h>
 #include "event_clock.h"
 
 static int failures = 0;
@@ -44,21 +43,15 @@ static int failures = 0;
 
 #define U(x) ((unsigned long long) (x))
 
-/* Doubles that cannot be produced by arithmetic without tripping a
- * sanitizer: build them from their IEEE-754 bit patterns instead. */
-static double bits_to_double(uint64_t bits)
-{
-    double d;
-    memcpy(&d, &bits, sizeof d);
-    return d;
-}
-
 static int near(double a, double b)
 {
     double d = a - b;
     if (d < 0) d = -d;
     return d <= 1e-9;
 }
+
+#define CORR_ONE EVENT_CLOCK_CORRECTION_ONE
+#define CORR(n, d) EVENT_CLOCK_CORRECTION(n, d)
 
 /* A clock that has really been through a sync, used as the healthy baseline
  * for the coverage-failure section. */
@@ -81,8 +74,8 @@ int main(void)
         CHECK(d != NULL, "event_clock_default() hands back a real clock");
         CHECK(d->mode == CLOCK_EXTERNAL_SYNC,
               "an untouched default clock comes up in CLOCK_EXTERNAL_SYNC");
-        CHECK(d->correction_factor == 1.0,
-              "and with correction_factor 1.0, not the 0.0 a bare memset would leave");
+        CHECK(d->correction_q32 == CORR_ONE,
+              "and with correction 1.0 (2^32), not the 0 a bare memset would leave");
         CHECK(event_clock_verify_coverage(d),
               "so the default clock passes coverage before anyone initialises it");
     }
@@ -93,8 +86,8 @@ int main(void)
     CHECK(c.event_ordinal == 0 && c.local_counter == 0, "both counters start at 0");
     CHECK(c.sync_count == 0 && c.sync_counter == 0 && c.last_sync_ns == 0,
           "nothing has been synced yet");
-    CHECK(c.correction_factor == 1.0, "correction_factor starts at exactly 1.0");
-    CHECK(c.drift_ppm == 0.0, "drift starts at 0.0 ppm (nothing measured yet)");
+    CHECK(c.correction_q32 == CORR_ONE, "correction starts at exactly 1.0 (2^32)");
+    CHECK(c.drift_ppm == 0, "drift starts at 0 ppm (nothing measured yet)");
     CHECK(c.tick_interval_ns == 0, "CLOCK_EXTERNAL_SYNC gets no tick interval — it has no period");
     CHECK(c.clock_active == false && c.needs_sync == false,
           "an idle event-driven clock is neither active nor demanding a sync");
@@ -148,15 +141,15 @@ int main(void)
     event_clock_set_mode(&c, CLOCK_HYBRID);
     CHECK(event_clock_get_ordinal(&c) == 1002 && c.local_counter == 1000,
           "a mode change takes ordinal 1002, time base still 1000");
-    event_clock_apply_correction(&c, 1.5);
-    CHECK(event_clock_get_ordinal(&c) == 1003 && c.correction_factor == 1.5,
+    event_clock_apply_correction(&c, CORR(3, 2));
+    CHECK(event_clock_get_ordinal(&c) == 1003 && c.correction_q32 == CORR(3, 2),
           "an accepted correction takes ordinal 1003");
     event_clock_sync(&c, 5000000, CLOCK_IFACE_NTP);
     CHECK(event_clock_get_ordinal(&c) == 1004 && c.local_counter == 1000 && c.sync_counter == 1000,
           "a sync takes ordinal 1004 and pins the drift baseline at 1000");
 
     event_clock_set_mode(&c, CLOCK_HYBRID);
-    event_clock_apply_correction(&c, 1.5);
+    event_clock_apply_correction(&c, CORR(3, 2));
     event_clock_set_tick_interval(&c, 1000);
     CHECK(event_clock_get_ordinal(&c) == 1004,
           "re-setting a value to what it already is is not an event: still 1004");
@@ -261,7 +254,7 @@ int main(void)
         CHECK(event_clock_get_time(&t) == 1000500000ULL,
               "500 events x 1000 ns projects to 1,000,500,000 ns");
 
-        event_clock_apply_correction(&t, 0.5);
+        event_clock_apply_correction(&t, CORR(1, 2));
         CHECK(event_clock_get_time(&t) == 1000250000ULL,
               "a 0.5 correction halves the projected span: 1,000,250,000 ns");
 
@@ -280,31 +273,31 @@ int main(void)
     /* ================= 8. drift is a measured ratio ======================= */
     {
         event_clock_t d;
-        double drift;
+        int64_t drift;
 
         event_clock_init(&d, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&d, 1000);
         event_clock_sync(&d, 0, CLOCK_IFACE_RTC);
         for (int i = 0; i < 1001; i++) (void) event_clock_next_ordinal(&d);
         drift = event_clock_measure_drift(&d, 1000000);
-        CHECK(near(drift, 1000.0),
-              "1,001,000 ns of local time over a 1,000,000 ns reference = +1000.0 ppm");
-        CHECK(near(d.drift_ppm, 1000.0), "and the measurement is stored");
+        CHECK(drift == 1000,
+              "1,001,000 ns of local time over a 1,000,000 ns reference = +1000 ppm");
+        CHECK(d.drift_ppm == 1000, "and the measurement is stored");
 
         event_clock_init(&d, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&d, 1000);
         event_clock_sync(&d, 0, CLOCK_IFACE_RTC);
         for (int i = 0; i < 999; i++) (void) event_clock_next_ordinal(&d);
         drift = event_clock_measure_drift(&d, 1000000);
-        CHECK(near(drift, -1000.0),
-              "999,000 ns over the same reference = -1000.0 ppm (we ran slow)");
+        CHECK(drift == -1000,
+              "999,000 ns over the same reference = -1000 ppm (we ran slow)");
 
         event_clock_init(&d, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&d, 1000);
         event_clock_sync(&d, 0, CLOCK_IFACE_RTC);
         for (int i = 0; i < 1000; i++) (void) event_clock_next_ordinal(&d);
         drift = event_clock_measure_drift(&d, 1000000);
-        CHECK(near(drift, 0.0), "a clock that matches the reference measures 0.0 ppm");
+        CHECK(drift == 0, "a clock that matches the reference measures 0 ppm");
 
         /* a correction that exactly cancels a 2x-fast time base */
         event_clock_init(&d, CLOCK_EXTERNAL_SYNC);
@@ -312,14 +305,14 @@ int main(void)
         event_clock_sync(&d, 0, CLOCK_IFACE_RTC);
         for (int i = 0; i < 2000; i++) (void) event_clock_next_ordinal(&d);
         drift = event_clock_measure_drift(&d, 1000000);
-        CHECK(near(drift, 1000000.0),
+        CHECK(drift == 1000000,
               "2,000,000 ns over 1,000,000 ns = +1,000,000 ppm (twice too fast)");
         CHECK(near(d.m5.ell, 0.5),
               "M5 ell halves at 1e6 ppm: confidence 0.5, computed not asserted");
         CHECK(near(d.m5.phi, 1.0), "M5 phi carries the signed relative drift 1.0");
-        event_clock_apply_correction(&d, 0.5);
+        event_clock_apply_correction(&d, CORR(1, 2));
         drift = event_clock_measure_drift(&d, 1000000);
-        CHECK(near(drift, 0.0), "a 0.5 correction cancels it exactly: 0.0 ppm");
+        CHECK(drift == 0, "a 0.5 correction cancels it exactly: 0 ppm");
         CHECK(near(d.m5.ell, 1.0), "and confidence returns to 1.0");
 
         /* drift measured by sync() itself, not only by measure_drift() */
@@ -328,25 +321,37 @@ int main(void)
         event_clock_sync(&d, 0, CLOCK_IFACE_RTC);
         for (int i = 0; i < 1001; i++) (void) event_clock_next_ordinal(&d);
         event_clock_sync(&d, 1000000, CLOCK_IFACE_RTC);
-        CHECK(near(d.drift_ppm, 1000.0), "sync() measures the span that just ended: +1000.0 ppm");
+        CHECK(d.drift_ppm == 1000, "sync() measures the span that just ended: +1000 ppm");
         CHECK(d.sync_count == 2 && d.sync_counter == 1001,
               "and then re-pins the baseline at event 1001");
         CHECK(event_clock_get_time(&d) == 1000000ULL,
               "the projection restarts from the new reference");
+
+        /* integer ppm truncates toward zero: 1,000,001 ns over 3,000,000 ns
+         * is -666,666.33 ppm -> -666,666 (not -666,667) */
+        event_clock_init(&d, CLOCK_EXTERNAL_SYNC);
+        event_clock_set_tick_interval(&d, 1);
+        event_clock_sync(&d, 0, CLOCK_IFACE_RTC);
+        d.local_counter = 1000001ULL;
+        d.event_ordinal = 1000001ULL + 2;
+        drift = event_clock_measure_drift(&d, 3000000);
+        CHECK(drift == -666666, "integer drift truncates toward zero: -666,666 ppm");
+        drift = event_clock_measure_drift(&d, 999999);
+        CHECK(drift == 2, "1,000,001 over 999,999 ns = +2.000002 ppm -> +2");
     }
 
     /* ========== 9. unmeasurable drift says so, and changes nothing ======== */
     {
         event_clock_t u;
-        double r;
+        int64_t r;
 
         event_clock_init(&u, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&u, 1000);
         for (int i = 0; i < 100; i++) (void) event_clock_next_ordinal(&u);
         r = event_clock_measure_drift(&u, 1000000);
         CHECK(r == EVENT_CLOCK_DRIFT_UNMEASURABLE,
-              "no sync ever happened -> UNMEASURABLE, not a confident 0.0");
-        CHECK(u.drift_ppm == 0.0, "and drift_ppm was not written");
+              "no sync ever happened -> UNMEASURABLE, not a confident 0");
+        CHECK(u.drift_ppm == 0, "and drift_ppm was not written");
 
         event_clock_init(&u, CLOCK_EXTERNAL_SYNC);
         event_clock_sync(&u, 0, CLOCK_IFACE_RTC);
@@ -366,12 +371,12 @@ int main(void)
         event_clock_sync(&u, 1000000, CLOCK_IFACE_RTC);
         for (int i = 0; i < 1001; i++) (void) event_clock_next_ordinal(&u);
         r = event_clock_measure_drift(&u, 2000000);
-        CHECK(near(r, 1000.0), "a valid span measures +1000.0 ppm");
+        CHECK(r == 1000, "a valid span measures +1000 ppm");
         CHECK(event_clock_measure_drift(&u, 1000000) == EVENT_CLOCK_DRIFT_UNMEASURABLE,
               "a reference equal to last_sync_ns spans nothing -> UNMEASURABLE");
         CHECK(event_clock_measure_drift(&u, 999999) == EVENT_CLOCK_DRIFT_UNMEASURABLE,
               "a reference BEFORE last_sync_ns -> UNMEASURABLE, not a negative span");
-        CHECK(near(u.drift_ppm, 1000.0),
+        CHECK(u.drift_ppm == 1000,
               "and the good measurement survived both failed ones untouched");
     }
 
@@ -382,26 +387,28 @@ int main(void)
         event_clock_init(&k, CLOCK_EXTERNAL_SYNC);
         ord = event_clock_get_ordinal(&k);
 
-        event_clock_apply_correction(&k, 0.4);
-        CHECK(k.correction_factor == 1.0 && k.event_ordinal == ord,
+        event_clock_apply_correction(&k, CORR(2, 5));
+        CHECK(k.correction_q32 == CORR_ONE && k.event_ordinal == ord,
               "0.4 is below EVENT_CLOCK_CORRECTION_MIN -> rejected, no ordinal spent");
-        event_clock_apply_correction(&k, 2.1);
-        CHECK(k.correction_factor == 1.0, "2.1 is above the max -> rejected");
-        event_clock_apply_correction(&k, bits_to_double(0x7FF8000000000000ULL));
-        CHECK(k.correction_factor == 1.0, "NaN is rejected by the range test");
-        event_clock_apply_correction(&k, bits_to_double(0x7FF0000000000000ULL));
-        CHECK(k.correction_factor == 1.0, "+inf is rejected");
-        event_clock_apply_correction(&k, bits_to_double(0xFFF0000000000000ULL));
-        CHECK(k.correction_factor == 1.0, "-inf is rejected");
-        CHECK(k.event_ordinal == ord, "five rejected corrections spent zero ordinals");
+        event_clock_apply_correction(&k, CORR(21, 10));
+        CHECK(k.correction_q32 == CORR_ONE, "2.1 is above the max -> rejected");
+        event_clock_apply_correction(&k, 0);
+        CHECK(k.correction_q32 == CORR_ONE, "0 (a stopped clock) is rejected");
+        event_clock_apply_correction(&k, EVENT_CLOCK_CORRECTION_MIN - 1u);
+        CHECK(k.correction_q32 == CORR_ONE, "one LSB below 0.5 is rejected");
+        event_clock_apply_correction(&k, UINT64_MAX);
+        CHECK(k.correction_q32 == CORR_ONE, "UINT64_MAX is rejected");
+        event_clock_apply_correction(&k, EVENT_CLOCK_CORRECTION_MAX + 1u);
+        CHECK(k.correction_q32 == CORR_ONE, "one LSB above 2.0 is rejected");
+        CHECK(k.event_ordinal == ord, "six rejected corrections spent zero ordinals");
 
-        event_clock_apply_correction(&k, 2.0);
-        CHECK(k.correction_factor == 2.0 && k.event_ordinal == ord + 1,
+        event_clock_apply_correction(&k, EVENT_CLOCK_CORRECTION_MAX);
+        CHECK(k.correction_q32 == CORR(2, 1) && k.event_ordinal == ord + 1,
               "2.0 is exactly at the limit -> accepted, one ordinal spent");
-        event_clock_apply_correction(&k, 2.0);
+        event_clock_apply_correction(&k, CORR(2, 1));
         CHECK(k.event_ordinal == ord + 1, "re-applying the same factor is not an event");
         event_clock_apply_correction(&k, EVENT_CLOCK_CORRECTION_MIN);
-        CHECK(k.correction_factor == 0.5 && k.event_ordinal == ord + 2,
+        CHECK(k.correction_q32 == CORR(1, 2) && k.event_ordinal == ord + 2,
               "0.5 is exactly at the other limit -> accepted");
         CHECK(k.m5.r == 0.5, "M5 r tracks the correction factor");
     }
@@ -421,7 +428,7 @@ int main(void)
 
         for (int i = 0; i < 900; i++) (void) event_clock_next_ordinal(&g);
         CHECK(event_clock_get_ticks(&g) == 1000, "1000 events -> 1000 ticks");
-        event_clock_apply_correction(&g, 0.5);
+        event_clock_apply_correction(&g, CORR(1, 2));
         CHECK(event_clock_get_ticks(&g) == 500, "a 0.5 correction halves the tick count to 500");
         CHECK(g.last_tick_ns == 500000ULL, "boundary follows: 500,000 ns");
         event_clock_set_tick_interval(&g, 0);
@@ -511,16 +518,16 @@ int main(void)
               "FAILS on a synced clock with no provenance for the sync");
 
         /* 9 */ make_healthy(&h);
-        h.correction_factor = 0.0;
+        h.correction_q32 = 0;
         CHECK(!event_clock_verify_coverage(&h),
               "FAILS on a zero correction factor (a stopped clock)");
 
         /* 10 */ make_healthy(&h);
-        h.correction_factor = bits_to_double(0x7FF8000000000000ULL);
-        CHECK(!event_clock_verify_coverage(&h), "FAILS on a NaN correction factor");
+        h.correction_q32 = EVENT_CLOCK_CORRECTION_MAX + 1u;
+        CHECK(!event_clock_verify_coverage(&h), "FAILS on a correction one LSB above 2.0");
 
         /* 11 */ make_healthy(&h);
-        h.drift_ppm = -2.0e6;
+        h.drift_ppm = -2000000;
         CHECK(!event_clock_verify_coverage(&h),
               "FAILS on a drift below -1e6 ppm, which no real span can produce");
 
@@ -613,7 +620,7 @@ int main(void)
     {
         event_clock_t z;
 
-        /* correction_factor 1.0 -> the EXACT integer path: 1 event of
+        /* correction 1.0 -> the EXACT integer path: 1 event of
          * UINT64_MAX ns saturates the product at UINT64_MAX, and adding the
          * 1000 ns reference saturates again. */
         event_clock_init(&z, CLOCK_EXTERNAL_SYNC);
@@ -623,16 +630,16 @@ int main(void)
         CHECK(event_clock_get_time(&z) == UINT64_MAX,
               "an exact-path span past UINT64_MAX saturates there, it does not wrap");
 
-        /* correction_factor != 1.0 -> the DOUBLE path, which saturates at
+        /* correction != 1.0 -> the SCALED path, which saturates at
          * the lower EVENT_CLOCK_NS_CEILING: 1 x 1.8446744e19 x 0.5 =
          * 9.2233720e18 ns, over the 9e18 ceiling. */
         event_clock_init(&z, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&z, UINT64_MAX);
-        event_clock_apply_correction(&z, 0.5);
+        event_clock_apply_correction(&z, CORR(1, 2));
         event_clock_sync(&z, 1000, CLOCK_IFACE_RTC);
         (void) event_clock_next_ordinal(&z);
         CHECK(event_clock_get_time(&z) == 9000000000000001000ULL,
-              "a double-path span past the ns ceiling clamps to 9e18 + the reference");
+              "a scaled-path span past the ns ceiling clamps to 9e18 + the reference");
 
         event_clock_init(&z, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&z, 1000000000000000000ULL);
@@ -654,7 +661,7 @@ int main(void)
      * 900719925474099300 ns. (double)(2^53+1) rounds to 2^53, so a
      * double-arithmetic projection returns 900719925474099200 — off by
      * 100 ns while claiming nanosecond accuracy. This is the regression for
-     * that: with correction_factor 1.0 the span must go through the exact
+     * that: with correction 1.0 the span must go through the exact
      * integer path. */
     {
         event_clock_t e;
@@ -794,7 +801,7 @@ int main(void)
         make_healthy(&v);
         v.m5.r = SR_FROM_FLOAT(1.75);
         CHECK(!event_clock_verify_coverage(&v),
-              "FAILS on a stale M5 r that no longer matches correction_factor");
+              "FAILS on a stale M5 r that no longer matches correction_q32");
         make_healthy(&v);
         v.m5.phi = SR_FROM_FLOAT(-0.25);
         CHECK(!event_clock_verify_coverage(&v),
@@ -806,7 +813,7 @@ int main(void)
 
         /* the honest positive control: a real correction really does move r */
         make_healthy(&v);
-        event_clock_apply_correction(&v, 1.75);
+        event_clock_apply_correction(&v, CORR(7, 4));
         CHECK(v.m5.r == SR_FROM_FLOAT(1.75) && event_clock_verify_coverage(&v),
               "and a genuine correction updates m5.r in step, still verifying");
 
@@ -816,23 +823,22 @@ int main(void)
         event_clock_sync(&v, 0, CLOCK_IFACE_RTC);
         (void) event_clock_next_ordinal(&v);
         {
-            double huge = event_clock_measure_drift(&v, 1);
-            CHECK(huge > 1.0e24,
-                  "a 1 ns reference span against a saturated local span measures ~9e24 ppm");
-            CHECK(v.drift_ppm == huge, "drift_ppm keeps the raw unclamped measurement");
+            int64_t huge = event_clock_measure_drift(&v, 1);
+            CHECK(huge == INT64_MAX,
+                  "a 1 ns reference span against a saturated local span saturates at INT64_MAX ppm");
+            CHECK(v.drift_ppm == huge, "drift_ppm keeps the full (saturated) measurement");
             CHECK(v.m5.phi == SR_FROM_FLOAT(1.0e9),
                   "but m5.phi CLAMPS at 1e9 — |phi|*2^32 must stay inside int64 on target");
             CHECK(event_clock_verify_coverage(&v), "and the clamped-phi clock still verifies");
         }
     }
 
-    /* ===== 17f. corrupt doubles must not reach a cast ====================
+    /* ===== 17f. corrupt fields must give defined, bounded values ========
      *
      * There is no parser here to feed malformed bytes to, so the equivalent
-     * hostile input is a poisoned double in the struct. Every one of these
-     * would be undefined behaviour if it reached (uint64_t)v or the Q32.32
-     * SR_FROM_FLOAT multiply; each must instead produce a defined, bounded
-     * value. Run under UBSan, where a bad cast is a hard failure.
+     * hostile input is a poisoned field in the struct: a correction outside
+     * [0.5, 2.0] and drift at the int64 edges. Each must produce a defined,
+     * bounded value (no overflow, no out-of-range Q32.32). Run under UBSan.
      */
     {
         event_clock_t p;
@@ -841,36 +847,37 @@ int main(void)
         event_clock_set_tick_interval(&p, 1000);
         event_clock_sync(&p, 7777, CLOCK_IFACE_RTC);
         for (int i = 0; i < 50; i++) (void) event_clock_next_ordinal(&p);
-        p.correction_factor = bits_to_double(0x7FF8000000000000ULL); /* NaN */
+        p.correction_q32 = 0; /* a stopped clock */
         CHECK(event_clock_get_time(&p) == 7777ULL,
-              "a NaN correction_factor yields a ZERO span, not a garbage cast");
+              "a zero correction yields a ZERO span, not garbage");
 
-        p.correction_factor = -3.0; /* negative span */
-        CHECK(event_clock_get_time(&p) == 7777ULL,
-              "a negative correction_factor yields a zero span, not a wrapped one");
+        p.correction_q32 = UINT64_MAX; /* ~2^32 x: 50,000 ns -> 50000*2^32 - 1 */
+        CHECK(event_clock_get_time(&p) == 214748364799999ULL + 7777ULL,
+              "a UINT64_MAX correction is exact Q32.32: floor(50000 * (2^64-1) / 2^32)");
 
-        p.correction_factor = 1.0e300; /* past the ns ceiling */
+        p.local_counter = 1000000000000ULL; /* 1e12 events x 1000 ns = 1e15 ns */
+        p.event_ordinal = p.local_counter + 4;
         CHECK(event_clock_get_time(&p) == EVENT_CLOCK_NS_CEILING + 7777ULL &&
                   EVENT_CLOCK_NS_CEILING + 7777ULL == 9000000000000007777ULL,
-              "an absurd correction_factor clamps at the ns ceiling, not UB");
+              "an absurd correction clamps at the ns ceiling, not a wrapped value");
 
         /* drift_ppm poisoned in both directions: the M5 projection must stay
          * inside the Q32.32 range and inside [0,1] for ell */
         event_clock_init(&p, CLOCK_EXTERNAL_SYNC);
         event_clock_set_tick_interval(&p, 1000);
         event_clock_sync(&p, 0, CLOCK_IFACE_RTC);
-        p.drift_ppm = -1.0e30;
+        p.drift_ppm = INT64_MIN;
         (void) event_clock_next_ordinal(&p); /* forces a m5 refresh */
         CHECK(p.m5.phi == SR_FROM_FLOAT(-1.0e9),
               "a hugely NEGATIVE drift clamps m5.phi at -1e9, the other Q32.32 edge");
         CHECK(p.m5.ell >= SR_ZERO && p.m5.ell <= SR_ONE, "and m5.ell stays inside [0,1]");
 
-        p.drift_ppm = bits_to_double(0x7FF8000000000000ULL); /* NaN */
+        p.drift_ppm = INT64_MAX;
         (void) event_clock_next_ordinal(&p);
-        CHECK(p.m5.ell == SR_ZERO,
-              "a NaN drift means NO confidence: m5.ell is 0, never a NaN cast");
-        CHECK(p.m5.phi == SR_FROM_FLOAT(-1.0e9),
-              "and NaN phi clamps rather than converting undefined");
+        CHECK(p.m5.phi == SR_FROM_FLOAT(1.0e9),
+              "a hugely POSITIVE drift clamps m5.phi at +1e9");
+        CHECK(p.m5.ell >= SR_ZERO && p.m5.ell < SR_FROM_FLOAT(0.001),
+              "and confidence collapses toward 0 without leaving [0,1]");
 
         /* the zero-operand path of the saturating multiply */
         event_clock_init(&p, CLOCK_EXTERNAL_SYNC);
@@ -909,11 +916,11 @@ int main(void)
 
         event_clock_sync(NULL, 1000000, CLOCK_IFACE_AUDIO);
         for (int i = 0; i < 1001; i++) (void) event_clock_next_ordinal(NULL);
-        CHECK(near(event_clock_measure_drift(NULL, 2000000), 1000.0),
-              "measure_drift(NULL, ...) measured the default clock: +1000.0 ppm");
+        CHECK(event_clock_measure_drift(NULL, 2000000) == 1000,
+              "measure_drift(NULL, ...) measured the default clock: +1000 ppm");
 
-        event_clock_apply_correction(NULL, 1.25);
-        CHECK(d->correction_factor == 1.25,
+        event_clock_apply_correction(NULL, CORR(5, 4));
+        CHECK(d->correction_q32 == CORR(5, 4),
               "apply_correction(NULL, ...) really wrote the default clock");
         CHECK(event_clock_verify_coverage(NULL),
               "the default clock survives all five NULL-routed mutators");
@@ -1009,7 +1016,7 @@ int main(void)
      *
      * This module has no parser and no array to overflow, so the analogue of
      * a fuzz corpus is a long random SEQUENCE of public calls, including
-     * out-of-range enums, NaN/inf corrections and extreme intervals. After
+     * out-of-range enums, out-of-range corrections and extreme intervals. After
      * every single call three things must hold: the ordinal never decreases,
      * ordinals lead the time base, and verify_coverage() still passes. That
      * last one is the real assertion — it is what caught the PERIODIC
@@ -1046,26 +1053,26 @@ int main(void)
                 event_clock_request_sync(&f, (clock_iface_t) ((rnd >> 32) % 256u));
                 break;
             case 4: {
-                /* a spread that straddles both limits, plus NaN and +/-inf */
-                double corr;
+                /* a spread that straddles both limits, plus the edges */
+                uint64_t corr;
                 switch ((rnd >> 40) % 6u) {
                 case 0:
-                    corr = bits_to_double(0x7FF8000000000000ULL);
+                    corr = 0;
                     break;
                 case 1:
-                    corr = bits_to_double(0x7FF0000000000000ULL);
+                    corr = UINT64_MAX;
                     break;
                 case 2:
-                    corr = bits_to_double(0xFFF0000000000000ULL);
+                    corr = EVENT_CLOCK_CORRECTION_MIN - 1u;
                     break;
                 case 3:
-                    corr = 0.25 + (double) ((rnd >> 16) % 2000u) / 1000.0;
+                    corr = CORR(250u + (rnd >> 16) % 2000u, 1000u);
                     break;
                 case 4:
-                    corr = -1.0;
+                    corr = EVENT_CLOCK_CORRECTION_MAX + 1u;
                     break;
                 default:
-                    corr = 1.0;
+                    corr = CORR_ONE;
                     break;
                 }
                 event_clock_apply_correction(&f, corr);

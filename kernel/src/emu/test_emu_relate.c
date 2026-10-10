@@ -40,7 +40,7 @@ int main(void)
           (rel.instr_a >= rel.instr_b ? rel.instr_a - rel.instr_b : rel.instr_b - rel.instr_a));
     CHECK(rel.tick.r.num == 1 && rel.tick.r.den == 1);     /* 15/15 -> 1/1     */
     CHECK(rel.tick.chi.bits[0] == 3);                      /* both attested    */
-    CHECK(rel.tick.iphi.r > 0.0 && rel.tick.iphi.i > 0.0); /* both clocks ran  */
+    CHECK(rel.tick.iphi.r > 0 && rel.tick.iphi.i > 0); /* both clocks ran  */
 
     /* (2) synthetic disagreement: A=15, B=14 -> GLUT_PLUS (A overshot). The ell
      * axis lights up; omega/rho/chi/phi still computed from their own slices. */

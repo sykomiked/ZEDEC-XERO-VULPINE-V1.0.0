@@ -1,7 +1,6 @@
 #include "telemetry_core.h"
 #include "axiom_matrix_core.h"
 #include <string.h>
-#include <math.h>
 
 static uint32_t fib_table[] = {1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144};
 #define FIB_TABLE_SIZE (sizeof(fib_table) / sizeof(fib_table[0]))
@@ -18,12 +17,16 @@ telemetry_t emit_and_observe(const axiom_matrix_t *A, ordinal_t tick) {
     return t;
 }
 
-ordinal_t choice_resolve_from_telemetry(const telemetry_t *t, uint32_t paradox_level) {
-    telemetry_t self_observation = *t;
+/* choice = floor(|value| * bound), capped at bound. |value| is Q16.16, so a
+ * magnitude below one unit (1/65536, the integer stand-in for the old 1e-9
+ * floor) gives 0. */
+ordinal_t choice_resolve_from_telemetry(const telemetry_t *t, uint32_t paradox_level)
+{
     uint32_t bound = fib_bound(paradox_level);
-    double mag = cabs(self_observation.value);
-    if (mag < 1e-9) return 0;
-    ordinal_t choice = (ordinal_t)(mag * bound);
+    uint64_t mag = cq16_abs(t->value);
+    if (mag == 0) return 0;
+    if (mag >= ((uint64_t) 1 << 32)) return bound; /* |value| >= 65536 always caps */
+    ordinal_t choice = (ordinal_t) ((mag * bound) >> Q16_SHIFT);
     if (choice > bound) choice = bound;
     return choice;
 }
@@ -31,43 +34,37 @@ ordinal_t choice_resolve_from_telemetry(const telemetry_t *t, uint32_t paradox_l
 void run_telemetry_recursion_demo(void) {
     axiom_matrix_t m;
     m.size = 256;
-    double complex entries[256];
+    zxv_cq16_t entries[256];
     memset(entries, 0, sizeof(entries));
     m.entries = entries;
 
     rational_t r = {1, 1};
-    phase_t p = {1.0, 0.0};
+    phase_t p = {Q16_ONE, 0};
     collapse_t c = {{0, 0}};
 
     for (ordinal_t tick = 0; tick < TELEMETRY_DEMO_TICKS; tick++) {
-        double complex val = (double complex)tick * (1.0 + 0.5 * I);
+        /* tick * (1 + 0.5i), Q16.16 */
+        zxv_cq16_t val = cq16((int64_t) tick * Q16_ONE, (int64_t) tick * (Q16_ONE / 2));
         axiom_matrix_set(&m, tick, r, TRIT_TRUE, p, c, val);
     }
 
-    double complex total = 0.0 + 0.0 * I;
+    zxv_cq16_t total = cq16(0, 0);
     for (ordinal_t tick = 0; tick < TELEMETRY_DEMO_TICKS; tick++) {
         telemetry_t t = emit_and_observe(&m, tick);
-        total += t.value;
+        total = cq16_add(total, t.value);
     }
     (void)total;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------
 
- * DECLARED, DELIBERATELY NOT ROOTED -- and for a specific measured reason, not
- * caution.
+ * DECLARED, NOT ROOTED.
  *
- * telemetry_core.o's `nm -u` is {__muldc3, axiom_matrix_project_tick,
- * axiom_matrix_set}. __muldc3 is libgcc's DOUBLE-COMPLEX multiply, from a
- * `complex` that has not been reformulated in Q32.32 / zphi. That is exactly
- * the reason crit168/crit_168_word.c is not given a GC root either, and the
- * same rule has to apply here or the rule means nothing. A bring-up would pull
- * libgcc's complex arithmetic into a freestanding kernel image through the
- * back door.
- *
- * The declaration still earns its place: it records the capability, so the day
- * the complex path is rewritten the only change needed is ZXV_NO_BRINGUP ->
- * ZXV_BRINGUP.
+ * This module used to depend on libgcc's __muldc3 (double-complex multiply),
+ * which is why it was never given a GC root. The value path is now Q16.16
+ * integer arithmetic (zxv_cq16_t, zxv_fixed.h), so that reason is gone; it
+ * stays ZXV_NO_BRINGUP only because nothing in the boot path calls it yet.
+ * Rooting it is the one-word change ZXV_NO_BRINGUP -> ZXV_BRINGUP.
  */
 #include "zxv_decl.h"
 ZXV_DECLARE(telemetry,

@@ -35,7 +35,7 @@ uint32_t physics_add_body(physics_state_t *s, double complex pos, double complex
     b->velocity = vel;
     b->mass = rational_normalize(mass);
     b->charge = rational_normalize(charge);
-    b->field_phase = (phase_t){creal(pos), cimag(pos)};
+    b->field_phase = m5_phase_from_double(creal(pos), cimag(pos));
     b->boundary_state = TRIT_TRUE;
     b->collapsed = false;
     return idx;
@@ -88,8 +88,8 @@ int physics_step(physics_state_t *s) {
     for (uint32_t i = 0; i < s->num_bodies; i++) {
         if (s->bodies[i].boundary_state == TRIT_FALSE) continue;
         s->bodies[i].position += s->bodies[i].velocity * 0.01;
-        s->bodies[i].field_phase = (phase_t){creal(s->bodies[i].position),
-                                              cimag(s->bodies[i].position)};
+        s->bodies[i].field_phase =
+            m5_phase_from_double(creal(s->bodies[i].position), cimag(s->bodies[i].position));
     }
 
     s->current_step++;
@@ -97,9 +97,9 @@ int physics_step(physics_state_t *s) {
     if (s->matrix) {
         for (uint32_t i = 0; i < s->num_bodies; i++) {
             double complex val = s->bodies[i].position + I * s->bodies[i].velocity;
-            axiom_matrix_set(s->matrix, s->current_step * PHYSICS_MAX_BODIES + i,
-                           s->bodies[i].mass, s->bodies[i].boundary_state,
-                           s->bodies[i].field_phase, (collapse_t){{i, 0}}, val);
+            axiom_matrix_set(s->matrix, s->current_step * PHYSICS_MAX_BODIES + i, s->bodies[i].mass,
+                             s->bodies[i].boundary_state, s->bodies[i].field_phase,
+                             (collapse_t){{i, 0}}, m5_cq16_from_dc(val));
         }
     }
 
@@ -140,8 +140,7 @@ void physics_resolve_shadow(physics_state_t *s, double complex shadow, uint32_t 
     (void)resolved;
     s->paradox_level = level;
     if (s->matrix) {
-        axiom_matrix_set(s->matrix, s->current_step,
-                       (rational_t){0, 1}, TRIT_FALSE,
-                       (phase_t){0, 0}, (collapse_t){{0, 0}}, resolved);
+        axiom_matrix_set(s->matrix, s->current_step, (rational_t){0, 1}, TRIT_FALSE,
+                         (phase_t){0, 0}, (collapse_t){{0, 0}}, m5_cq16_from_dc(resolved));
     }
 }

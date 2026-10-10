@@ -7,6 +7,7 @@
 #ifndef GRIDCHAIN_CORE_H
 #define GRIDCHAIN_CORE_H
 
+#include "m5_host_float.h" /* host-only module: double / double complex */
 #include "m5_types.h"
 
 #define GRIDCHAIN_MAX_BLOCKS 256

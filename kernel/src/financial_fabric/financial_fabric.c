@@ -190,7 +190,7 @@ int32_t ff_create_account(financial_fabric_t *fabric, const char *name, const wo
 
     /* Initialize M5 for account */
     acc->m5.omega = fabric->num_accounts + 1;
-    acc->m5.r = SR_FROM_FLOAT(5.0 + fabric->num_accounts * 0.01);
+    acc->m5.r = SR_FROM_FLOAT(5.0) + (surplus_real_t) fabric->num_accounts * SR_FROM_FLOAT(0.01);
     acc->m5.ell = SR_ONE;
     acc->m5.phi = SR_ZERO;
     acc->m5.chi = 0;
@@ -444,12 +444,23 @@ int32_t ff_mark_to_market(financial_fabric_t *fabric, uint32_t position_id, uint
 
     pos->current_price = current_price;
     /* Calculate unrealized P&L */
-    if (pos->quantity > 0) {
-        pos->unrealized_pnl =
-            SR_FROM_FLOAT((double) (current_price - pos->entry_price) * pos->quantity);
-    } else {
-        pos->unrealized_pnl =
-            SR_FROM_FLOAT((double) (pos->entry_price - current_price) * (-pos->quantity));
+    /* (current - entry) * quantity, in integers: the same value for long
+     * (quantity > 0) and short (quantity < 0) positions. Saturates at the
+     * Q32.32 integer range (+-2^31) instead of overflowing. */
+    {
+        int64_t diff = (int64_t) (current_price - pos->entry_price); /* signed price move */
+        int64_t pnl;
+        if (current_price >= pos->entry_price &&
+            current_price - pos->entry_price > (uint64_t) INT64_MAX)
+            diff = INT64_MAX;
+        else if (current_price < pos->entry_price &&
+                 pos->entry_price - current_price > (uint64_t) INT64_MAX)
+            diff = INT64_MIN;
+        if (__builtin_mul_overflow(diff, (int64_t) pos->quantity, &pnl))
+            pnl = ((diff < 0) != (pos->quantity < 0)) ? INT64_MIN : INT64_MAX;
+        if (pnl > 0x7FFFFFFFLL) pnl = 0x7FFFFFFFLL;
+        if (pnl < -0x7FFFFFFFLL) pnl = -0x7FFFFFFFLL;
+        pos->unrealized_pnl = SR_FROM_INT(pnl);
     }
 
     /* Check margin */

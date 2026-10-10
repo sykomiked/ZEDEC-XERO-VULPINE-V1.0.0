@@ -87,14 +87,16 @@ int hccs_simulate(hccs_state_t *h, uint32_t circuit_idx, uint32_t steps) {
     for (uint32_t step = 0; step < steps; step++) {
         for (uint32_t i = 0; i < c->num_components; i++) {
             hccs_component_t *comp = &c->components[i];
-            comp->phase.r += comp->frequency * 0.001;
-            comp->phase.i += comp->delay * 0.001;
-            if (comp->phase.r > 2.0 * M_PI) comp->phase.r -= 2.0 * M_PI;
+            /* phase_t is Q16.16: step in double, store back rounded */
+            double pr = m5_phase_r(comp->phase) + comp->frequency * 0.001;
+            double pi = m5_phase_i(comp->phase) + comp->delay * 0.001;
+            if (pr > 2.0 * M_PI) pr -= 2.0 * M_PI;
+            comp->phase = m5_phase_from_double(pr, pi);
         }
         if (c->matrix) {
             double complex val = c->max_frequency + I * (double)step;
-            axiom_matrix_set(c->matrix, step, c->total_power, TRIT_TRUE,
-                           c->components[0].phase, (collapse_t){{step, 0}}, val);
+            axiom_matrix_set(c->matrix, step, c->total_power, TRIT_TRUE, c->components[0].phase,
+                             (collapse_t){{step, 0}}, m5_cq16_from_dc(val));
         }
     }
     c->performance_score = hccs_evaluate(c);

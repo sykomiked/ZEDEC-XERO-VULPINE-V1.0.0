@@ -21,16 +21,12 @@
  */
 
 /* Deliberately NO "#include <string.h> / freestanding.h" pair here, unlike
- * the neighbouring modules. This file uses no libc and no math functions at
- * all — ec_memset() and ec_fabs() below are the entire dependency — so
- * pulling in freestanding.h would buy nothing and cost portability:
- * freestanding.h does `#define sqrt fs_sqrt`, `#define exp fs_exp` and
- * friends, and event_clock.h -> m5_types.h -> <math.h>. On a target whose
- * CFLAGS do not also supply include/freestanding_stubs (build_system/
- * Makefile.arm32 does not), those macros rewrite the real math.h
- * prototypes and the translation unit stops compiling. Verified: adding
- * the include breaks the arm32-style flag set; leaving it out compiles
- * clean under all three configurations. */
+ * the neighbouring modules. This file uses no libc and no floating point at
+ * all: ec_memset() below and the integer helpers in zxv_fixed.h (reached via
+ * event_clock.h -> m5_types.h) are the entire dependency. Kernel images are
+ * integer-only (-mgeneral-regs-only / integer riscv ABI), so the drift, the
+ * correction and the projection are all integer arithmetic with 128-bit
+ * intermediates where a product can exceed 64 bits. */
 #include "event_clock.h"
 
 /* ===== Small freestanding-safe helpers ===== */
@@ -38,26 +34,6 @@
 static void ec_memset(void *dst, int v, uint32_t n) {
     uint8_t *d = (uint8_t *)dst;
     for (uint32_t i = 0; i < n; i++) d[i] = (uint8_t)v;
-}
-
-/* Named ec_fabs, not fabs: freestanding.h #defines fabs to fs_fabs. */
-static double ec_fabs(double x) {
-    return (x < 0.0) ? -x : x;
-}
-
-/* True only for values that compare inside a finite range — this is how the
- * module rejects NaN (every comparison with NaN is false) without libm. */
-static bool ec_in_range(double x, double lo, double hi) {
-    return (x >= lo) && (x <= hi);
-}
-
-/* Clamp a non-negative double into a uint64_t. Negative, NaN and
- * out-of-range inputs saturate instead of invoking undefined behaviour on
- * the cast. */
-static uint64_t ec_ns_from_double(double v) {
-    if (!(v > 0.0)) return 0;                       /* also catches NaN */
-    if (v >= (double)EVENT_CLOCK_NS_CEILING) return EVENT_CLOCK_NS_CEILING;
-    return (uint64_t)v;
 }
 
 static uint64_t ec_add_sat(uint64_t a, uint64_t b) {
@@ -71,45 +47,76 @@ static uint64_t ec_mul_sat(uint64_t a, uint64_t b) {
     return a * b;
 }
 
-/* Clamp a double into [lo,hi]. NaN maps to lo, because the comparisons are
- * all false and the final return is taken — callers here only ever pass
- * values that are already finite, but the clamp must not leak a NaN into
- * fixed point either. */
-static double ec_clamp(double v, double lo, double hi) {
-    if (v > hi) return hi;
-    if (v >= lo) return v;
-    return lo;
+/* floor((hi:lo) / d) for a 128-bit numerator, saturating at UINT64_MAX when
+ * the quotient does not fit (or d == 0). Restoring division, no libgcc. */
+static uint64_t ec_div128_sat(uint64_t hi, uint64_t lo, uint64_t d) {
+    if (d == 0 || hi >= d) return UINT64_MAX;
+    uint64_t q = 0, r = hi;
+    for (int i = 63; i >= 0; i--) {
+        uint64_t carry = r >> 63;                 /* r << 1 may need 65 bits */
+        r = (r << 1) | ((lo >> i) & 1u);
+        if (carry || r >= d) {
+            r -= d;
+            q |= (uint64_t)1 << i;
+        }
+    }
+    return q;
 }
 
-/* Relative-drift value handed to SR_FROM_FLOAT for m5.phi.
- *
- * TARGET SAFETY, not cosmetics. On the host surplus_real_t is double and
- * anything fits. On the target it is Q32.32 int64 and SR_FROM_FLOAT(x) is
- * (int64_t)(x * 2^32), which is UNDEFINED BEHAVIOUR once |x| * 2^32 leaves
- * the int64 range — i.e. once |x| >= 2^31. drift_ppm is genuinely unbounded
- * above (a 1 ns reference span against a 9e18 ns local span measures 9e24
- * ppm, so phi would be 9e18), so the value MUST be clamped before the
- * conversion or the target build has UB on a reachable input.
- *
- * The clamp is 1e9, comfortably inside 2^31 = 2147483648 and comfortably
- * outside any drift a real clock can show. drift_ppm itself is stored
- * unclamped; only the M5 projection saturates. */
-#define EC_M5_PHI_LIMIT  1.0e9
+/* a * b / d, exact floor, saturating at UINT64_MAX. */
+static uint64_t ec_muldiv_sat(uint64_t a, uint64_t b, uint64_t d) {
+    uint64_t hi, lo;
+    fx_umul64_wide(a, b, &hi, &lo);
+    return ec_div128_sat(hi, lo, d);
+}
 
-static double ec_m5_phi_of(double drift_ppm) {
-    return ec_clamp(drift_ppm / 1.0e6, -EC_M5_PHI_LIMIT, EC_M5_PHI_LIMIT);
+/* a * b * corr / 2^32 (corr is Q32.32), saturating at EVENT_CLOCK_NS_CEILING.
+ * a * b is formed exactly in 128 bits first: when it already needs more than
+ * 64 bits, any correction >= 0.5 (the accepted range) puts the result past
+ * the ceiling, so it saturates. */
+static uint64_t ec_scaled_span(uint64_t a, uint64_t b, uint64_t corr) {
+    uint64_t hi, lo, h2, l2, v;
+    if (corr == 0) return 0;
+    fx_umul64_wide(a, b, &hi, &lo);
+    if (hi != 0) return EVENT_CLOCK_NS_CEILING;
+    fx_umul64_wide(lo, corr, &h2, &l2);
+    if (h2 >> 32) return EVENT_CLOCK_NS_CEILING;
+    v = (h2 << 32) | (l2 >> 32);
+    return v >= EVENT_CLOCK_NS_CEILING ? EVENT_CLOCK_NS_CEILING : v;
+}
+
+/* signed n / d as surplus_real_t (host double, target Q32.32), no FP on target. */
+static surplus_real_t ec_sr_ratio(int64_t n, uint64_t d) {
+    uint64_t m = n < 0 ? (uint64_t)0 - (uint64_t)n : (uint64_t)n;
+    surplus_real_t v = sr_from_ratio_u64(m, d);
+    return n < 0 ? -v : v;
+}
+
+/* Relative-drift value stored in m5.phi: drift_ppm / 1e6, CLAMPED to
+ * +/-EC_M5_PHI_LIMIT. On the target surplus_real_t is Q32.32 int64, which
+ * cannot hold |x| >= 2^31; drift_ppm is bounded only by int64 (a 1 ns
+ * reference span against a 9e18 ns local span measures 9e24 ppm, saturated
+ * to INT64_MAX), so the projection MUST clamp. The clamp is 1e9, inside 2^31
+ * and outside any drift a real clock can show. drift_ppm itself is stored
+ * unclamped; only the M5 projection saturates. */
+#define EC_M5_PHI_LIMIT  1000000000LL
+#define EC_PPM           1000000LL
+
+static surplus_real_t ec_m5_phi_of(int64_t drift_ppm) {
+    const int64_t lim = EC_M5_PHI_LIMIT * EC_PPM;  /* 1e15 ppm */
+    if (drift_ppm > lim) drift_ppm = lim;
+    if (drift_ppm < -lim) drift_ppm = -lim;
+    return ec_sr_ratio(drift_ppm, (uint64_t)EC_PPM);
 }
 
 /* Confidence in the time estimate, in [0,1]. Zero until a reference has ever
  * been supplied; then it decays with measured drift: 0 ppm -> 1.0,
- * 1e6 ppm -> 0.5. Factored out so verify_coverage() can recompute it. */
-static double ec_m5_ell_of(uint32_t sync_count, double drift_ppm) {
-    if (sync_count == 0) return 0.0;
-    /* Clamped for the same target reason as phi: a corrupt drift_ppm of NaN
-     * propagates through this expression and SR_FROM_FLOAT(NaN) is UB in
-     * Q32.32. The clamp maps NaN to 0.0 — no confidence — which is also the
-     * only honest answer about a clock whose drift is not a number. */
-    return ec_clamp(1.0 / (1.0 + ec_fabs(drift_ppm) / 1.0e6), 0.0, 1.0);
+ * 1e6 ppm -> 0.5, i.e. 1e6 / (1e6 + |drift_ppm|). Factored out so
+ * verify_coverage() can recompute it. */
+static surplus_real_t ec_m5_ell_of(uint32_t sync_count, int64_t drift_ppm) {
+    if (sync_count == 0) return SR_ZERO;
+    uint64_t mag = drift_ppm < 0 ? (uint64_t)0 - (uint64_t)drift_ppm : (uint64_t)drift_ppm;
+    return sr_from_ratio_u64((uint64_t)EC_PPM, ec_add_sat((uint64_t)EC_PPM, mag));
 }
 
 /* ===== The kernel-wide default clock ===== */
@@ -123,7 +130,7 @@ static void ec_reset(event_clock_t *clk, clock_mode_t mode);
 event_clock_t *event_clock_default(void) {
     if (!g_default_ready) {
         /* A default clock that was never initialised would have mode 0
-         * (CLOCK_DISABLED) and correction_factor 0.0, which fails coverage.
+         * (CLOCK_DISABLED) and correction 0, which fails coverage.
          * Bring it up in the documented default state on first touch. */
         ec_reset(&g_default_clock, CLOCK_EXTERNAL_SYNC);
         g_default_ready = true;
@@ -161,9 +168,9 @@ static bool ec_mode_keeps_time(clock_mode_t m) {
  * changes an input here must call this. */
 static void ec_refresh_m5(event_clock_t *clk) {
     clk->m5.omega = (uint32_t)(clk->event_ordinal & 0xFFFFFFFFu);
-    clk->m5.r     = SR_FROM_FLOAT(clk->correction_factor);
-    clk->m5.ell   = SR_FROM_FLOAT(ec_m5_ell_of(clk->sync_count, clk->drift_ppm));
-    clk->m5.phi   = SR_FROM_FLOAT(ec_m5_phi_of(clk->drift_ppm));
+    clk->m5.r     = sr_from_ratio_u64(clk->correction_q32, EVENT_CLOCK_CORRECTION_ONE);
+    clk->m5.ell   = ec_m5_ell_of(clk->sync_count, clk->drift_ppm);
+    clk->m5.phi   = ec_m5_phi_of(clk->drift_ppm);
     clk->m5.chi   = (uint32_t)clk->mode;
 }
 
@@ -189,8 +196,8 @@ static void ec_reset(event_clock_t *clk, clock_mode_t mode) {
     clk->needs_sync        = false;
     clk->clock_active      = ec_active_for_mode(clk->mode);
     clk->sync_count        = 0;
-    clk->drift_ppm         = 0.0;
-    clk->correction_factor = 1.0;
+    clk->drift_ppm         = 0;
+    clk->correction_q32    = EVENT_CLOCK_CORRECTION_ONE;
     clk->tick_interval_ns  = ec_active_for_mode(clk->mode)
                              ? EVENT_CLOCK_DEFAULT_TICK_NS : 0;
     clk->last_tick_ns      = 0;
@@ -228,52 +235,43 @@ uint64_t event_clock_get_ordinal(event_clock_t *clk) {
 /* ===== Projection ===== */
 
 /* Internal nanoseconds accumulated since the last accepted sync:
- * events * tick_interval_ns * correction_factor, saturating. */
+ * events * tick_interval_ns * correction, saturating. */
 static uint64_t ec_span_since_sync(const event_clock_t *clk) {
     uint64_t events;
-    double   span;
 
     if (clk->tick_interval_ns == 0) return 0;
     if (clk->local_counter <= clk->sync_counter) return 0;
 
     events = clk->local_counter - clk->sync_counter;
-    if (clk->correction_factor == 1.0) {
-        /* Exact path, same as ec_internal_elapsed(). Without it the double
-         * product silently drops the low bits above 2^53 and the projection
-         * that the header advertises as nanosecond-exact is off by hundreds
-         * of ns for large event counts. */
+    if (clk->correction_q32 == EVENT_CLOCK_CORRECTION_ONE) {
+        /* Exact path, same as ec_internal_elapsed(): saturates at UINT64_MAX. */
         return ec_mul_sat(events, clk->tick_interval_ns);
     }
-    span = (double)events * (double)clk->tick_interval_ns
-           * clk->correction_factor;
-    return ec_ns_from_double(span);
+    return ec_scaled_span(events, clk->tick_interval_ns, clk->correction_q32);
 }
 
 /* Total internal nanoseconds since init: local_counter * interval * factor. */
 static uint64_t ec_internal_elapsed(const event_clock_t *clk) {
-    double span;
     /* Defensive only, and knowingly UNREACHABLE today: the sole caller,
      * event_clock_get_ticks(), already returns early on a zero interval, so
      * no test drives this line. It stays so the helper is safe to call from
      * a second site later; it is not counted as tested behaviour. */
     if (clk->tick_interval_ns == 0) return 0;
-    if (clk->correction_factor == 1.0) {
-        /* Exact path — avoids losing counts above 2^53 in double. */
+    if (clk->correction_q32 == EVENT_CLOCK_CORRECTION_ONE) {
         return ec_mul_sat(clk->local_counter, clk->tick_interval_ns);
     }
-    span = (double)clk->local_counter * (double)clk->tick_interval_ns
-           * clk->correction_factor;
-    return ec_ns_from_double(span);
+    return ec_scaled_span(clk->local_counter, clk->tick_interval_ns, clk->correction_q32);
 }
 
 /* ===== External sync ===== */
 
-/* The one and only drift computation. Returns the ppm value, or
- * EVENT_CLOCK_DRIFT_UNMEASURABLE when there is no real span on both sides.
- * Does NOT write to clk — callers decide whether to keep the result. */
-static double ec_compute_drift(const event_clock_t *clk, uint64_t reference_ns) {
-    uint64_t span_ref_u;
-    double   span_ref, span_local;
+/* The one and only drift computation. Returns the ppm value (truncated
+ * toward zero, saturated at +/-INT64_MAX), or EVENT_CLOCK_DRIFT_UNMEASURABLE
+ * when there is no real span on both sides. Does NOT write to clk — callers
+ * decide whether to keep the result. */
+static int64_t ec_compute_drift(const event_clock_t *clk, uint64_t reference_ns) {
+    uint64_t span_ref, span_local, delta, mag;
+    int neg;
 
     if (clk->sync_count == 0)          return EVENT_CLOCK_DRIFT_UNMEASURABLE;
     if (clk->tick_interval_ns == 0)    return EVENT_CLOCK_DRIFT_UNMEASURABLE;
@@ -282,17 +280,19 @@ static double ec_compute_drift(const event_clock_t *clk, uint64_t reference_ns) 
     if (reference_ns <= clk->last_sync_ns)
                                        return EVENT_CLOCK_DRIFT_UNMEASURABLE;
 
-    span_ref_u = reference_ns - clk->last_sync_ns;
-    span_ref   = (double)span_ref_u;
-    span_local = (double)ec_span_since_sync(clk);
+    span_ref   = reference_ns - clk->last_sync_ns;
+    span_local = ec_span_since_sync(clk);
+    neg   = span_local < span_ref;
+    delta = neg ? span_ref - span_local : span_local - span_ref;
 
-    /* Multiply before dividing: (delta * 1e6) / span keeps the common cases
-     * exact in binary floating point, where delta / span * 1e6 does not. */
-    return ((span_local - span_ref) * 1.0e6) / span_ref;
+    /* |delta| * 1e6 / span_ref with a 128-bit intermediate: exact. */
+    mag = ec_muldiv_sat(delta, (uint64_t)EC_PPM, span_ref);
+    if (mag > (uint64_t)INT64_MAX) mag = (uint64_t)INT64_MAX;
+    return neg ? -(int64_t)mag : (int64_t)mag;
 }
 
 void event_clock_sync(event_clock_t *clk, uint64_t external_ns, clock_iface_t source) {
-    double drift;
+    int64_t drift;
 
     clk = ec_resolve(clk);
 
@@ -422,8 +422,8 @@ clock_mode_t event_clock_get_mode(event_clock_t *clk) {
 
 /* ===== Drift ===== */
 
-double event_clock_measure_drift(event_clock_t *clk, uint64_t reference_ns) {
-    double drift;
+int64_t event_clock_measure_drift(event_clock_t *clk, uint64_t reference_ns) {
+    int64_t drift;
 
     clk = ec_resolve(clk);
     drift = ec_compute_drift(clk, reference_ns);
@@ -438,15 +438,14 @@ double event_clock_measure_drift(event_clock_t *clk, uint64_t reference_ns) {
     return drift;
 }
 
-void event_clock_apply_correction(event_clock_t *clk, double correction) {
+void event_clock_apply_correction(event_clock_t *clk, uint64_t correction_q32) {
     clk = ec_resolve(clk);
 
-    /* Range test also rejects NaN and both infinities. */
-    if (!ec_in_range(correction, EVENT_CLOCK_CORRECTION_MIN,
-                                 EVENT_CLOCK_CORRECTION_MAX)) return;
-    if (correction == clk->correction_factor) return;   /* no change, no event */
+    if (correction_q32 < EVENT_CLOCK_CORRECTION_MIN ||
+        correction_q32 > EVENT_CLOCK_CORRECTION_MAX) return;
+    if (correction_q32 == clk->correction_q32) return;   /* no change, no event */
 
-    clk->correction_factor = correction;
+    clk->correction_q32 = correction_q32;
     ec_advance_ordinal(clk);
     ec_refresh_m5(clk);
 }
@@ -460,7 +459,7 @@ uint64_t event_clock_get_ticks(event_clock_t *clk) {
     if (clk->tick_interval_ns == 0) return 0;   /* no period defined */
 
     elapsed = ec_internal_elapsed(clk);
-    ticks   = elapsed / clk->tick_interval_ns;
+    ticks   = fx_udiv64(elapsed, clk->tick_interval_ns, 0);
     clk->last_tick_ns = ec_mul_sat(ticks, clk->tick_interval_ns);
     return ticks;
 }
@@ -516,19 +515,18 @@ bool event_clock_verify_coverage(event_clock_t *clk) {
         if (clk->last_sync_source == CLOCK_IFACE_NONE) return false;
     }
 
-    /* 5. Correction is a sane multiplier (also rejects NaN). */
-    if (!ec_in_range(clk->correction_factor, EVENT_CLOCK_CORRECTION_MIN,
-                                             EVENT_CLOCK_CORRECTION_MAX))
+    /* 5. Correction is a sane multiplier. */
+    if (clk->correction_q32 < EVENT_CLOCK_CORRECTION_MIN ||
+        clk->correction_q32 > EVENT_CLOCK_CORRECTION_MAX)
         return false;
 
     /* 6. Drift is a real measurement. The local span is non-negative, so a
      *    genuine measurement is >= -1e6 ppm; anything below that is either
      *    corruption or the EVENT_CLOCK_DRIFT_UNMEASURABLE sentinel leaking
-     *    into stored state. Written as a negated >= so NaN fails too.
-     *    There is deliberately no upper bound: an arbitrarily fast local
-     *    time base produces an arbitrarily large positive ppm, and clamping
-     *    a measurement would be falsifying it. */
-    if (!(clk->drift_ppm >= -1.0e6)) return false;
+     *    into stored state. There is deliberately no upper bound below
+     *    INT64_MAX: an arbitrarily fast local time base produces an
+     *    arbitrarily large positive ppm. */
+    if (clk->drift_ppm < -EC_PPM) return false;
 
     /* 7. Mode consistency. */
     if (clk->mode == CLOCK_DISABLED) {
@@ -553,17 +551,15 @@ bool event_clock_verify_coverage(event_clock_t *clk) {
      * mutator and checked by nobody, so a stale or corrupt value in either
      * verified clean — which made the header's "verify_coverage checks them,
      * so a stale/corrupt m5 FAILS" false for three fifths of the vector.
-     * SR_FROM_FLOAT is deterministic on host (identity) and on target
-     * (truncating multiply by 2^32), so exact equality is the right test on
-     * both. */
+     * The projections are deterministic on host (double division) and on
+     * target (integer Q32.32), so exact equality is the right test on both. */
     if (clk->m5.omega != (uint32_t)(clk->event_ordinal & 0xFFFFFFFFu)) return false;
     if (clk->m5.chi != (int32_t) clk->mode) return false;
-    if (clk->m5.r     != SR_FROM_FLOAT(clk->correction_factor)) return false;
-    if (clk->m5.phi   != SR_FROM_FLOAT(ec_m5_phi_of(clk->drift_ppm))) return false;
+    if (clk->m5.r     != sr_from_ratio_u64(clk->correction_q32, EVENT_CLOCK_CORRECTION_ONE)) return false;
+    if (clk->m5.phi   != ec_m5_phi_of(clk->drift_ppm)) return false;
     if (clk->m5.ell < SR_ZERO || clk->m5.ell > SR_ONE) return false;
     if (clk->sync_count == 0 && clk->m5.ell != SR_ZERO) return false;
-    if (clk->m5.ell != SR_FROM_FLOAT(ec_m5_ell_of(clk->sync_count,
-                                                  clk->drift_ppm))) return false;
+    if (clk->m5.ell != ec_m5_ell_of(clk->sync_count, clk->drift_ppm)) return false;
 
     return true;
 }
