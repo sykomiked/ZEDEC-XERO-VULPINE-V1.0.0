@@ -192,10 +192,13 @@ swarm_status_t swarm_budget_begin_cycle_real(swarm_budget_t *b, uint64_t real_to
     swarm_split_lr(real_total, weight, b->num_levels, b->level_budget);
     for (uint32_t d = b->num_levels; d < SWARM_MAX_LEVELS; d++) b->level_budget[d] = 0;
 
-    /* R4: equal split inside each level, in slot order. */
+    /* R4: equal split inside each level, in slot order. Every weight is 1;
+     * the array is filled once, in full, so no element is ever read unset
+     * (gcc 13 -O2 cannot prove the old per-model fill covered [0, n)). */
+    uint64_t ones[SWARM_MAX_MODELS];
+    for (uint32_t k = 0; k < SWARM_MAX_MODELS; k++) ones[k] = 1;
     for (uint32_t d = 0; d < b->num_levels; d++) {
         uint32_t idx[SWARM_MAX_MODELS];
-        uint64_t ones[SWARM_MAX_MODELS];
         uint64_t share[SWARM_MAX_MODELS];
         uint32_t n = 0;
         for (uint32_t i = 0; i < b->num_slots; i++) {
@@ -206,7 +209,6 @@ swarm_status_t swarm_budget_begin_cycle_real(swarm_budget_t *b, uint64_t real_to
             b->slots[i].used = 0;
             if (!b->slots[i].active) continue;
             idx[n] = i;
-            ones[n] = 1;
             n++;
         }
         swarm_split_lr(b->level_budget[d], ones, n, share);

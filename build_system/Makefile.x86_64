@@ -352,6 +352,34 @@ SRCS := \
     kernel/src/tls/record.c \
     kernel/src/tls/handshake.c \
     kernel/src/bringup/arch_globals.c \
+    kernel/src/swarm/swarm_boot.c \
+    kernel/src/swarm/swarm_budget.c \
+    kernel/src/swarm/swarm_dna.c \
+    kernel/src/swarm/swarm_emotion.c \
+    kernel/src/swarm/swarm_enochian.c \
+    kernel/src/swarm/swarm_enterprise.c \
+    kernel/src/swarm/swarm_evolve.c \
+    kernel/src/swarm/swarm_governor.c \
+    kernel/src/swarm/swarm_harmonic.c \
+    kernel/src/swarm/swarm_hk.c \
+    kernel/src/swarm/swarm_ledger.c \
+    kernel/src/swarm/swarm_logic.c \
+    kernel/src/swarm/swarm_market.c \
+    kernel/src/swarm/swarm_overlap.c \
+    kernel/src/swarm/swarm_phase.c \
+    kernel/src/swarm/swarm_quality.c \
+    kernel/src/swarm/swarm_reserve.c \
+    kernel/src/swarm/swarm_self.c \
+    kernel/src/tensor/zt.c \
+    kernel/src/tensor/zt_boot.c \
+    kernel/src/tensor/zt_coil.c \
+    kernel/src/tensor/zt_gguf.c \
+    kernel/src/tensor/zt_holo.c \
+    kernel/src/tensor/zt_isf.c \
+    kernel/src/tensor/zt_lattice.c \
+    kernel/src/tensor/zt_model.c \
+    kernel/src/tensor/zt_rope.c \
+    kernel/src/tensor/zt_tok.c \
     kernel/freestanding.c
 
 OBJDIR := build/x86_64
