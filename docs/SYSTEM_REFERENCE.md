@@ -64,9 +64,11 @@ ZXV is three things that share one source tree.
 
 The product you run today is the **Mac desktop app** (`kernel/arch/hosted`, `macos/`): the swarm
 and tensor engine as a native program with a local web UI, built for Apple Silicon and Intel,
-Linux and Windows. It now generates replies through the tensor engine. Its networking (Vinea,
-IPFS, offline/LAN/online modes), notifications, speech and update checker are tested libraries
-that are not yet linked into it.
+Linux and Windows. It now generates replies through the tensor engine, limited by the
+companion's tokens-per-cycle budget. It links a Vinea node over UDP (off unless the user turns
+networking on; LAN or online), the update checker (on request, or daily while online) and the
+notification bus with an OS bridge. Speech, IPFS file exchange, LAN multicast discovery and the
+social/call/stream stacks are still not linked into it.
 
 ## Status summary
 
@@ -299,11 +301,11 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 
 ### Mac desktop app  —  the ZXV swarm as a native program (kernel/arch/hosted, macos/)
 Status: WORKING (tested in verify-all via `test_hosted.sh`; Mac-only parts untested here)
-What it does: `zxv_host.c` runs the kernel's swarm modules (Fibonacci budget, market, emotions, witness, ledger, DNA, governor) as an ordinary program and serves a small web window on 127.0.0.1 only. Every API call needs a per-launch token and a same-origin Host/Origin (`zxv_http_guard.c`). `zxv_model_host.c` memory-maps one GGUF file, checks it with the tensor engine, and loads its tokenizer. New in this audit: `zxv_zt_glue.c` joins it to the forward pass (`zt_model`), so a supported model (Q8_0 etc.) now writes a greedy reply wrapped in the ChatML template. On a Mac, `macos/ZXVApp.m` is a native AppKit + WKWebView shell that starts the engine as a child process. The swarm's agents are still stand-ins; the model answers on its own.
-Main entry points: `zxv-host` CLI (`--server`, `--port`, `--model`, `--models-dir`, `--exit-with-parent`); `/api/state`, `/api/ask`, `/api/quit`; `zxv_model_open/answer/close`; `zxv_zt_generate[_n]`, `zxv_zt_can_run`, `zxv_zt_release`; `zxv_guard_*`.
-Tests: `kernel/arch/hosted/test_hosted.sh` (guard unit test under ASan/UBSan, new glue test `test_zxv_zt_glue.c` [12 checks], end-to-end socket test `test_host_api.py` twice); in verify-all. All pass. `build_system/build_desktop.sh` built macOS x86_64+arm64, Windows and Linux engines with zig 0.13 (pip ziglang) and its end-to-end test passed; no native shell off a Mac.
-Used by: nothing (top-level program). `zx_notify_host.c` is only linked by `test_zx_notify`; `zx_speech_mac.m` is built by nothing.
-Gaps: no real model ever run; Q5_0/Q5_1 weights refused; `/api/ask` blocks the single-threaded server while generating; model tokens are not budgeted by the swarm market; no update check; no Vinea/ipfs_node/call/social/notify/speech glue; ZXVApp.m, signing and notarisation never run outside the macOS CI job.
+What it does: `zxv_host.c` runs the kernel's swarm modules (Fibonacci budget, market, emotions, witness, ledger, DNA, governor) as an ordinary program and serves a small web window on 127.0.0.1 only. The market cycle now stays open between reflexes and the companion's model answers through `zxv_budget_gate.c`: `max_new = min(256, swarm_budget_remaining(companion))`, the tokens generated are charged with `swarm_budget_consume`, and with nothing left `/api/ask` answers "Budget exhausted for this cycle" without running the model (the next cycle, about 1 s, refills it); `/api/state` shows `companion.{allotted,used,remaining,exhausted,last_answer}`. `zxv_net_host.c` runs one Vinea node (`vna_node`) on a non-blocking UDP socket in the same `select()` loop: OFF by default (no socket), LAN (private IPv4 only) or ONLINE via `--net`, `--peer IP:PORT` or the window's Network buttons (`POST /api/net`). `zxv_update_host.c` runs `zx_upcheck` over a trustless gateway (curl via fork/execvp) only when the user presses Check (`POST /api/update`) or daily while ONLINE. `zx_notify` is the app's event bus: answers, failures and update outcomes become notes (`GET /api/notes`, `POST /api/notes/read`), and `zx_notify_host.c` pushes the important kinds to osascript or notify-send, chosen at run time (none when absent). Every API call needs a per-launch token and a same-origin Host/Origin (`zxv_http_guard.c`). `zxv_model_host.c` memory-maps one GGUF file, checks it with the tensor engine, and loads its tokenizer. New in this audit: `zxv_zt_glue.c` joins it to the forward pass (`zt_model`), so a supported model (Q8_0 etc.) now writes a greedy reply wrapped in the ChatML template. On a Mac, `macos/ZXVApp.m` is a native AppKit + WKWebView shell that starts the engine as a child process. The swarm's agents are still stand-ins; the model answers on its own.
+Main entry points: `zxv-host` CLI (`--server`, `--port`, `--model`, `--models-dir`, `--exit-with-parent`, `--net`, `--net-port`, `--net-bind`, `--peer`, `--notify`, `--update-gateway`); `/api/state`, `/api/ask`, `/api/quit`, `/api/net`, `/api/update`, `/api/notes`, `/api/notes/read`; `zxv_budget_gate`; `zxv_net_*`; `zxv_update_*`; `app_sources.sh` (the one source list); `zxv_model_open/answer/close`; `zxv_zt_generate[_n]`, `zxv_zt_can_run`, `zxv_zt_release`; `zxv_guard_*`.
+Tests: `kernel/arch/hosted/test_hosted.sh` (guard unit test under ASan/UBSan, glue test `test_zxv_zt_glue.c` [12 checks], budget gate `test_zxv_budget_gate.c` [19 checks: budget N, ask for more, exactly N generated, 0 left, refused, refilled next cycle; also on the real engine], two UDP net hosts on 127.0.0.1 `test_zxv_net_host.c` [23 checks: ping, both routing tables, FIND_NODE both ways, OFF/LAN/ONLINE policy], end-to-end socket test `test_host_api.py` twice, and `test_host_net.py` [24 checks: no UDP socket and no update request without the user, two app instances see each other, the Network setting, a requested update check against a local gateway, the note pushed to a stand-in notify-send]); in verify-all. All pass with gcc 11 and clang 18. `build_system/build_desktop.sh` built macOS x86_64+arm64, Windows and Linux engines with zig 0.13 (pip ziglang) and its end-to-end test passed; no native shell off a Mac.
+Used by: nothing (top-level program). `zx_speech_mac.m` is built by nothing.
+Gaps: no real model ever run; Q5_0/Q5_1 weights refused; `/api/ask` and an update check block the single-threaded server while they run; the Vinea identity is per launch (not persisted), there is no LAN multicast discovery (`vna_lan`), NAT traversal or IPv6, and no sharing agreement (the node only routes); update checks are not wired on Windows (no curl spawn) and nothing is installed; osascript notes show as "Script Editor"; no ipfs_node file exchange, call, social or speech glue; ZXVApp.m, signing and notarisation never run outside the macOS CI job.
 
 ### Bare-metal kernels  —  the ZXV OS booted on emulated hardware (kernel/arch/*, build_system/Makefile.*)
 Status: WORKING (arm64 and x86_64 boot to `[BOOT_OK]` under QEMU here; riscv64/riscv32 build only; arm32 not built)
@@ -350,8 +352,8 @@ Status: WORKING (library and tool tested; not wired into the app)
 What it does: the Python tool makes a strict-format manifest of a bucket's files with Kubo-identical CIDv1s and SHA-256s and signs it with ML-DSA-65 (vendored pq-crystals code compiled on the fly). The kernel checker `zx_upcheck` verifies bucket manifests per user-trusted key, follows fixed CIDs or IPNS names with rollback protection, and never installs unsigned content. Here: keygen, sign and verify round-trip worked and a tampered file was caught.
 Main entry points: `zxv_publish_update.py keygen|pubkey|sign|verify|cid`; `zxu_*` in `zx_upcheck.h`; `ZXU_BUILTIN_CID`.
 Tests: `test_zx_upcheck` in verify-all includes an interop check of a manifest signed by the Python tool.
-Used by: nothing in the app or kernel images yet.
-Gaps: the Mac app has no update check; IPNS vs fixed CID undecided; no release key ceremony documented for ML-DSA (the ZSP chain is still Ed25519).
+Used by: the desktop app (kernel/arch/hosted/zxv_update_host.c: checks on request, or daily while online). Not in the kernel images.
+Gaps: the app only checks and reports (no install, no trust-a-key UI, no Windows transport); IPNS vs fixed CID undecided; no release key ceremony documented for ML-DSA (the ZSP chain is still Ed25519).
 
 ### Docs set  —  top-level and docs/*.md
 Status: PARTIAL
@@ -2075,7 +2077,7 @@ Status: WORKING (tested in verify-all)
 What it does: Ranks the feed by what a post adds to what the viewer has already seen, explicitly without engagement metrics. It also handles groups/syndicates, posts signed with ML-DSA, storage buckets, and zx_notify, which builds safe notify-send argv (escaped, with no shell).
 Main entry points: social_feed.h, social_group.h, social_post.h, social_store.h, social_bucket.h, social_sign_mldsa.h, zx_notify.h.
 Tests: test_social_feed.c (112) and test_zx_notify.c (43), both in verify-all. The feed test includes its own decoder fuzzing.
-Used by: quest. Not in arm64 list.
+Used by: quest; zx_notify is the desktop app's event bus (zxv_host.c, with arch/hosted/zx_notify_host.c as its OS bridge). Not in arm64 list.
 Gaps: None found.
 
 ### social_spaces — named public forum spaces
@@ -2299,7 +2301,7 @@ Status: WORKING (tested in verify-all)
 What it does: a pure-state-machine DHT node with signed and verified messages, a ping-before-evict Kademlia table, PQ sessions, CIDs, chunked file transfer, LAN discovery, schema validation, and a resource "economy" ledger (vna_econ).
 Main entry points: vna_node_init/handle/lookup/publish/announce/poll_event, vna_agree_*, vna_cid_*, vna_session_*, vna_file_*, vna_econ_*.
 Tests: test_vinea in verify-all.
-Used by: host tests and arch/hosted glue. Not in either kernel.
+Used by: host tests and the desktop app (arch/hosted/zxv_net_host.c: one node on UDP, off by default). Not in either kernel.
 Gaps: the vna_econ.c:333/342/363 counters add without saturation (LOW). The wire parsing was reviewed and is length-checked.
 
 ### vino — in-kernel three-ledger (primary, audit, hash chain) bank node

@@ -172,15 +172,21 @@ const char *zxn_kind_name(zxn_kind_t k);
 /* ---- Hosted bridge, kernel/arch/hosted/zx_notify_host.c (hosted app only,
  * uses libc; never linked into the kernel). Subscribe zxn_host_deliver to
  * show notes as OS notifications: macOS osascript "display notification",
- * Linux notify-send, otherwise stdout. Commands run via fork/execvp with an
- * argv array, never through a shell. ---- */
+ * Linux notify-send, chosen at run time (AUTO uses one only when it is
+ * installed, and notify-send only with a desktop session); otherwise
+ * nothing. Commands run via fork/execvp with an argv array, never through a
+ * shell. ---- */
 typedef enum {
-    ZXN_HOST_AUTO = 0,     /* this OS's notifier */
-    ZXN_HOST_PRINT,        /* stdout (use for --server: no desktop there) */
-    ZXN_HOST_DRY_RUN_MAC,  /* build the osascript argv, run nothing */
-    ZXN_HOST_DRY_RUN_LINUX /* build the notify-send argv, run nothing */
+    ZXN_HOST_AUTO = 0,      /* this OS's notifier if present, else nothing */
+    ZXN_HOST_PRINT,         /* stdout (use for --server: no desktop there) */
+    ZXN_HOST_DRY_RUN_MAC,   /* build the osascript argv, run nothing */
+    ZXN_HOST_DRY_RUN_LINUX, /* build the notify-send argv, run nothing */
+    ZXN_HOST_OFF            /* deliver nothing */
 } zxn_host_mode_t;
 void zxn_host_set_mode(zxn_host_mode_t mode);
+/* What AUTO resolves to on this machine now: "osascript", "notify-send" or
+ * "none"; other modes give "print", "dry-run" or "off". */
+const char *zxn_host_backend(void);
 void zxn_host_deliver(void *ctx, const zxn_note_t *n, bool coalesced);
 /* Escape for the inside of an AppleScript "..." literal: \ -> \\, " -> \",
  * CR/LF/TAB and other control bytes -> space, invalid UTF-8 -> '?'. Always

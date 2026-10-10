@@ -13,6 +13,18 @@
  *                       data folder, see docs/MAC_APP.md)
  *   zxv-host --exit-with-parent   stop when stdin closes (the native shell
  *                       holds the other end, so the engine never outlives it)
+ *   zxv-host --net lan|online   turn on the Vinea peer network (default OFF:
+ *                       no socket, nothing leaves the machine; see
+ *                       zxv_net_host.h). --net-port N, --net-bind IP and
+ *                       --peer IP:PORT (repeatable) go with it.
+ *   zxv-host --notify auto|print|off   where notifications go besides the
+ *                       window (default auto: the OS notifier if present)
+ *   zxv-host --update-gateway URL   trustless gateway for update checks
+ *
+ * The companion's model writes only what the swarm's tokens-per-cycle budget
+ * allows (zxv_budget_gate.h): each answer is limited to the companion's
+ * remaining allotment and charged for the tokens generated; with nothing
+ * left the window is told the budget is exhausted until the next cycle.
  *
  * The window is served only on 127.0.0.1, never on the network. A remote
  * window is reached through `ssh -L`, so the SSH key is the only way in.
@@ -73,6 +85,11 @@ typedef int sock_t;
 #include "swarm_dna.h"
 #include "zxv_http_guard.h"
 #include "zxv_model_host.h"
+#include "zxv_budget_gate.h"
+#include "zxv_net_host.h"
+#include "zxv_update_host.h"
+#include "zx_notify.h"
+#include "zx_upcheck.h"
 
 extern const char zxv_ui_html[];
 
@@ -81,6 +98,8 @@ extern const char zxv_ui_html[];
 #define TOKENS_PER_CORE 1000u
 #define TICKS_PER_STEP  252u /* 27720 / 110: about 1 fundamental per 11 s */
 #define STEP_MS         100
+#define NOTE_SLOTS      64u
+#define MAX_PEERS_ARG   8
 
 /* ===================== platform layer: hardware scan ===================== */
 
@@ -241,6 +260,17 @@ static struct {
     uint64_t rng;
     uint64_t instance_seed;
     bool quit;
+    /* the companion's model answers under the budget (zxv_budget_gate.h) */
+    zxv_gate_t last_gate;
+    bool have_gate;
+    uint64_t asks, exhausted_asks, task_seq;
+    /* peers (zxv_net_host.h), updates, notifications */
+    zxv_net_t *net;
+    zxv_net_mode_t net_want; /* what the user chose */
+    uint16_t net_port;
+    const char *net_bind;
+    zxn_bus_t bus;
+    zxn_note_t notes[NOTE_SLOTS];
 } S;
 
 static uint64_t rnd(void)
@@ -318,7 +348,40 @@ static void keep_allotments(void)
     }
 }
 
-static void market_cycle(void)
+/* Close the open market cycle: the stand-in agents spend, the quality gate,
+ * witness reward, ledger and frugality credit run, and the allotments expire.
+ * The companion (agent 0) spends only what its model actually generated
+ * through answer() while the cycle was open. */
+static void close_cycle(void)
+{
+    if (!S.b.cycle_open) return;
+    for (uint32_t i = 0; i < S.num_agents; i++) {
+        agent_t *a = &S.agent[i];
+        swarm_traits_t t = swarm_dna_express(&a->dna, NUM_SPECIALTIES);
+        uint64_t g = 0;
+        if (i > 0) /* stand-ins */
+            swarm_budget_consume(&S.b, a->id, swarm_budget_remaining(&S.b, a->id) * 3u / 4u, &g);
+        else
+            g = S.b.slots[0].used;
+        uint32_t r_milli = 1500u + (uint32_t) (rnd() % 600u);
+        uint32_t l_milli = 600u + t.caution_permille * 4u / 10u;
+        if (l_milli > 1000u) l_milli = 1000u;
+        uint64_t value = g / 10u;
+        if (swarm_quality_credit(&S.m, a->id, SWARM_CAP_INTELLECTUAL, value, r_milli, l_milli) ==
+            SWARM_OK)
+            a->gated_value += value;
+    }
+    swarm_witness_reward(&S.m, S.w, S.nw);
+    swarm_ledger_post_cycle(&S.l, &S.b, &S.m, S.e.last_imag_pool, S.w, S.nw);
+    swarm_market_credit_frugality(&S.m, &S.b);
+    keep_allotments();
+    swarm_budget_end_cycle(&S.b);
+    swarm_market_settle(&S.m);
+}
+
+/* Open the next market cycle and leave it open until the next reflex, so the
+ * companion's answers can spend its allotment in it. */
+static void open_cycle(void)
 {
     /* Stand-in behaviour shaped by each agent's DNA: curious agents bid more,
      * cautious ones verify more and so pass the quality gate more often. */
@@ -348,26 +411,12 @@ static void market_cycle(void)
     for (uint32_t i = 1; i < S.num_agents; i++)
         if (rnd() % 3 == 0) job = swarm_overlap_request(&S.o, key, S.agent[i].id);
     if (job >= 0) swarm_overlap_settle(&S.o, &S.b, (uint32_t) job, 30);
+}
 
-    for (uint32_t i = 0; i < S.num_agents; i++) {
-        agent_t *a = &S.agent[i];
-        swarm_traits_t t = swarm_dna_express(&a->dna, NUM_SPECIALTIES);
-        uint64_t g;
-        swarm_budget_consume(&S.b, a->id, swarm_budget_remaining(&S.b, a->id) * 3u / 4u, &g);
-        uint32_t r_milli = 1500u + (uint32_t) (rnd() % 600u);
-        uint32_t l_milli = 600u + t.caution_permille * 4u / 10u;
-        if (l_milli > 1000u) l_milli = 1000u;
-        uint64_t value = g / 10u;
-        if (swarm_quality_credit(&S.m, a->id, SWARM_CAP_INTELLECTUAL, value, r_milli, l_milli) ==
-            SWARM_OK)
-            a->gated_value += value;
-    }
-    swarm_witness_reward(&S.m, S.w, S.nw);
-    swarm_ledger_post_cycle(&S.l, &S.b, &S.m, S.e.last_imag_pool, S.w, S.nw);
-    swarm_market_credit_frugality(&S.m, &S.b);
-    keep_allotments();
-    swarm_budget_end_cycle(&S.b);
-    swarm_market_settle(&S.m);
+static void market_cycle(void)
+{
+    close_cycle();
+    open_cycle();
 }
 
 static void evolve(void)
@@ -408,22 +457,62 @@ static void step(void)
             evolve();
             uint32_t old = S.gov.num_levels;
             scan_hardware();
-            if (S.gov.num_levels != old)
+            if (S.gov.num_levels != old) {
+                close_cycle(); /* settle the open cycle before the swarm is rebuilt */
                 build_swarm(); /* grow or shrink by levels */
-            else
+                open_cycle();
+            } else {
                 swarm_budget_set_rate(&S.b, S.gov.tokens_per_cycle);
+            }
         }
     }
 }
 
 /* ===================== the companion (stand-in) ===================== */
 
+/* The budget gate around one generation (zxv_model_host.h M5). */
+static int32_t run_under_budget(void *rctx, zxv_gen_fn gen, void *gctx)
+{
+    (void) rctx;
+    uint32_t companion = S.num_agents ? S.agent[0].id : 0;
+    int32_t r = zxv_budget_gate(&S.b, companion, ZXV_MODEL_MAX_NEW, gen, gctx, &S.last_gate);
+    S.have_gate = true;
+    return r;
+}
+
+static void note_task(bool ok, const char *summary)
+{
+    zxn_task_finished(&S.bus, "companion", ++S.task_seq, ok,
+                      ok ? "The companion answered" : "The companion could not answer", summary,
+                      "chat");
+}
+
 static void answer(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
     char reading[512];
     char model_note[400];
-    if (zxv_model_answer(q, out, cap)) return; /* a real model answered */
+    S.asks++;
+    int m = zxv_model_answer_ex(q, run_under_budget, NULL, out, cap);
+    if (m == 1) { /* a real model answered, within the budget */
+        char sum[96];
+        snprintf(sum, sizeof sum, "%u tokens of the %llu left this cycle",
+                 (unsigned) S.last_gate.generated,
+                 (unsigned long long) S.last_gate.remaining_before);
+        note_task(true, sum);
+        return;
+    }
+    if (m == ZXV_MODEL_BUDGET_EXHAUSTED) {
+        S.exhausted_asks++;
+        snprintf(out, cap,
+                 "Budget exhausted for this cycle: the companion has spent all %llu of its tokens "
+                 "in market cycle %llu, so the model did not run. The next cycle (about a second) "
+                 "refills it; ask again then.",
+                 (unsigned long long) (S.num_agents ? S.b.slots[0].allotted : 0),
+                 (unsigned long long) S.b.cycle);
+        return;
+    }
+    if (zxv_model_info()->can_generate && out[0]) note_task(false, out);
     size_t nl = strlen(out);
     if (nl >= sizeof model_note) nl = sizeof model_note - 1;
     memcpy(model_note, out, nl);
@@ -521,7 +610,8 @@ static void state_json(buf_t *b)
         S.remote ? "true" : "false", S.hw.cores, S.gov.cores_milli,
         (unsigned long long) S.hw.mem_total_mb, (unsigned long long) S.gov.mem_mb, S.b.num_levels,
         (unsigned long long) S.b.tokens_per_cycle, (unsigned long long) S.tick,
-        (unsigned long long) S.fundamentals, (unsigned long long) S.b.cycle, S.due_mask,
+        (unsigned long long) S.fundamentals,
+        (unsigned long long) (S.b.cycle - (S.b.cycle_open ? 1u : 0u)), S.due_mask,
         (unsigned long long) S.l.settled_cycles, (unsigned long long) S.l.held_cycles,
         (unsigned long long) S.m.money_supply, (unsigned long long) S.m.pot,
         (unsigned long long) S.e.last_imag_pool, (unsigned long long) S.o.tokens_saved, mood,
@@ -567,7 +657,91 @@ static void state_json(buf_t *b)
          (unsigned long long) mi->bytes, (long long) mi->n_layers, (long long) mi->n_ctx,
          (unsigned) mi->n_vocab);
     json_str(b, mi->status);
+    /* the companion's budget in the open cycle (what the next answer may use) */
+    const swarm_slot_t *cs = S.num_agents ? &S.b.slots[0] : NULL;
+    uint64_t rem = cs ? swarm_budget_remaining(&S.b, cs->model_id) : 0;
+    bput(b,
+         "},\"companion\":{\"cycle_open\":%s,\"allotted\":%llu,\"used\":%llu,\"remaining\":%llu,"
+         "\"exhausted\":%s,\"max_per_answer\":%u,\"asks\":%llu,\"exhausted_asks\":%llu",
+         S.b.cycle_open ? "true" : "false", (unsigned long long) (cs ? cs->allotted : 0),
+         (unsigned long long) (cs ? cs->used : 0), (unsigned long long) rem,
+         rem == 0 ? "true" : "false", (unsigned) ZXV_MODEL_MAX_NEW, (unsigned long long) S.asks,
+         (unsigned long long) S.exhausted_asks);
+    if (S.have_gate)
+        bput(b,
+             ",\"last_answer\":{\"remaining_before\":%llu,\"allowed\":%u,\"generated\":%u,"
+             "\"charged\":%llu,\"exhausted\":%s}",
+             (unsigned long long) S.last_gate.remaining_before, (unsigned) S.last_gate.max_new,
+             (unsigned) S.last_gate.generated, (unsigned long long) S.last_gate.charged,
+             S.last_gate.exhausted ? "true" : "false");
+    zxv_net_status_t ns;
+    zxv_net_status(S.net, &ns);
+    bput(b, "},\"net\":{\"mode\":\"%s\",\"bound\":%s,\"port\":%u,\"bind\":",
+         zxv_net_mode_name(ns.mode), ns.bound ? "true" : "false", (unsigned) ns.port);
+    json_str(b, ns.bind_ip);
+    bput(b, ",\"node_id\":");
+    json_str(b, ns.node_id);
+    bput(b,
+         ",\"peers\":%u,\"in\":%u,\"out\":%u,\"refused\":%u,\"policy_drops\":%u,"
+         "\"error\":",
+         ns.peers, ns.datagrams_in, ns.datagrams_out, ns.refused_in, ns.policy_drops);
+    json_str(b, ns.error);
+    zxv_update_status_t us;
+    zxv_update_status(&us);
+    bput(b, "},\"update\":{\"checked\":%s,\"installable\":%s,\"auto\":%s,\"status\":",
+         us.checked ? "true" : "false", us.installable ? "true" : "false",
+         us.auto_on ? "true" : "false");
+    json_str(b, us.status);
+    bput(b, ",\"title\":");
+    json_str(b, us.title);
+    bput(b, ",\"body\":");
+    json_str(b, us.body);
+    bput(b, ",\"gateway\":");
+    json_str(b, us.gateway);
+    bput(b, ",\"checks\":%u,\"requests\":%u,\"last_check\":%llu,\"error\":", us.checks, us.requests,
+         (unsigned long long) us.last_check);
+    json_str(b, us.error);
+    bput(b, "},\"notes\":{\"unread\":%u,\"os\":", zxn_unread(&S.bus, ZXN_ALL_KINDS));
+    json_str(b, zxn_host_backend());
     bput(b, "}}");
+}
+
+/* Newest notes first, for the window's notification panel. */
+static void notes_json(buf_t *b)
+{
+    const zxn_note_t *l[20];
+    uint32_t n = zxn_list(&S.bus, l, 20, false);
+    bput(b, "{\"unread\":%u,\"notes\":[", zxn_unread(&S.bus, ZXN_ALL_KINDS));
+    for (uint32_t i = 0; i < n; i++) {
+        bput(b, "%s{\"seq\":%u,\"kind\":", i ? "," : "", (unsigned) l[i]->seq);
+        json_str(b, zxn_kind_name((zxn_kind_t) l[i]->kind));
+        bput(b, ",\"pri\":%u,\"read\":%s,\"count\":%u,\"source\":", (unsigned) l[i]->pri,
+             l[i]->read ? "true" : "false", (unsigned) l[i]->count);
+        json_str(b, l[i]->source);
+        bput(b, ",\"title\":");
+        json_str(b, l[i]->title);
+        bput(b, ",\"body\":");
+        json_str(b, l[i]->body);
+        bput(b, ",\"action\":");
+        json_str(b, l[i]->action);
+        bput(b, "}");
+    }
+    bput(b, "]}");
+}
+
+/* POST /api/net: "off", "lan", "online" or "peer A.B.C.D:PORT". */
+static const char *net_command(const char *body)
+{
+    zxv_net_mode_t m;
+    uint64_t now = zxv_net_wall_ms();
+    if (zxv_net_mode_parse(body, &m) == 0) {
+        S.net_want = m;
+        if (zxv_net_start(S.net, m, S.net_bind, S.net_port, now) != 0) return "could not start";
+        return m == ZXV_NET_OFF ? "networking is off" : "networking is on";
+    }
+    if (!strncmp(body, "peer ", 5))
+        return zxv_net_add_peer_str(S.net, body + 5, now) == 0 ? "pinged" : "refused";
+    return NULL;
 }
 
 static void send_all(sock_t c, const char *p, size_t n)
@@ -713,7 +887,31 @@ static void handle(sock_t c)
     } else if (PATH_IS("/api/quit") && !is_get) {
         reply(c, "200 OK", "text/plain", "bye", 3);
         S.quit = true;
-    } else if (PATH_IS("/api/state") || PATH_IS("/api/ask") || PATH_IS("/api/quit")) {
+    } else if (PATH_IS("/api/notes") && is_get) {
+        buf_t b = {malloc(4096), 0, 4096};
+        if (!b.p) return;
+        notes_json(&b);
+        reply(c, "200 OK", "application/json", b.p, b.len);
+        free(b.p);
+    } else if (PATH_IS("/api/notes/read") && !is_get) {
+        char t[32];
+        int k = snprintf(t, sizeof t, "%u", (unsigned) zxn_mark_all_read(&S.bus, ZXN_ALL_KINDS));
+        reply(c, "200 OK", "text/plain", t, (size_t) k);
+    } else if (PATH_IS("/api/update") && !is_get) {
+        /* the user asked: the only way a check runs while not ONLINE */
+        zxv_update_check_now((uint64_t) time(NULL));
+        zxv_update_status_t us;
+        zxv_update_status(&us);
+        reply(c, "200 OK", "text/plain", us.status, strlen(us.status));
+    } else if (PATH_IS("/api/net") && !is_get) {
+        const char *r = net_command(body);
+        if (r)
+            reply(c, "200 OK", "text/plain", r, strlen(r));
+        else
+            reply(c, "400 Bad Request", "text/plain", "off, lan, online or peer IP:PORT", 32);
+    } else if (PATH_IS("/api/state") || PATH_IS("/api/ask") || PATH_IS("/api/quit") ||
+               PATH_IS("/api/notes") || PATH_IS("/api/notes/read") || PATH_IS("/api/update") ||
+               PATH_IS("/api/net")) {
         reply(c, "405 Method Not Allowed", "text/plain", "wrong method", 12);
     } else {
         reply(c, "404 Not Found", "text/plain", "not found", 9);
@@ -726,6 +924,9 @@ int main(int argc, char **argv)
     bool server = false, open_window = true, exit_with_parent = false;
     int port = 8722;
     const char *model = NULL, *models_dir = NULL;
+    const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
+    int npeers = 0;
+    S.net_port = ZXV_NET_DEFAULT_PORT;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--server")) {
             server = true;
@@ -742,6 +943,29 @@ int main(int argc, char **argv)
             model = argv[++i];
         else if (!strcmp(argv[i], "--models-dir") && i + 1 < argc)
             models_dir = argv[++i];
+        else if (!strcmp(argv[i], "--net") && i + 1 < argc) {
+            if (zxv_net_mode_parse(argv[++i], &S.net_want) != 0) {
+                fprintf(stderr, "zxv-host: --net takes off, lan or online\n");
+                return 2;
+            }
+        } else if (!strcmp(argv[i], "--net-port") && i + 1 < argc) {
+            int np = atoi(argv[++i]);
+            if (np < 0 || np > 65535) {
+                fprintf(stderr, "zxv-host: bad --net-port\n");
+                return 2;
+            }
+            S.net_port = (uint16_t) np;
+        } else if (!strcmp(argv[i], "--net-bind") && i + 1 < argc)
+            S.net_bind = argv[++i];
+        else if (!strcmp(argv[i], "--peer") && i + 1 < argc) {
+            if (npeers < MAX_PEERS_ARG)
+                peers[npeers++] = argv[++i];
+            else
+                ++i;
+        } else if (!strcmp(argv[i], "--update-gateway") && i + 1 < argc)
+            gateway = argv[++i];
+        else if (!strcmp(argv[i], "--notify") && i + 1 < argc)
+            notify = argv[++i];
         else if (!strcmp(argv[i], "--version")) {
             printf("zxv-host %s\n", ZXV_VERSION);
             return 0;
@@ -753,7 +977,13 @@ int main(int argc, char **argv)
                    "  --port N            port (default 8722; 0 = any free port)\n"
                    "  --model FILE        GGUF model to use\n"
                    "  --models-dir DIR    where to look for *.gguf models\n"
-                   "  --exit-with-parent  stop when stdin closes\n",
+                   "  --exit-with-parent  stop when stdin closes\n"
+                   "  --net MODE          off (default), lan or online: the Vinea peer network\n"
+                   "  --net-port N        its UDP port (default 8723; 0 = any free port)\n"
+                   "  --net-bind IP       its address (default 0.0.0.0)\n"
+                   "  --peer IP:PORT      ping this peer at start (repeatable)\n"
+                   "  --notify MODE       auto (OS notifier if present), print or off\n"
+                   "  --update-gateway U  trustless gateway for update checks\n",
                    ZXV_VERSION);
             return 0;
         } else {
@@ -795,6 +1025,31 @@ int main(int argc, char **argv)
     swarm_ledger_init(&S.l);
     scan_hardware();
     build_swarm();
+    open_cycle(); /* the companion can answer from the start */
+
+    /* notifications: the window reads the bus; the OS notifier gets the
+     * important kinds (an update, a failed answer, a peer request) */
+    zxn_init(&S.bus, S.notes, NOTE_SLOTS);
+    if (!strcmp(notify, "off"))
+        zxn_host_set_mode(ZXN_HOST_OFF);
+    else if (!strcmp(notify, "print") || server)
+        zxn_host_set_mode(ZXN_HOST_PRINT);
+    else
+        zxn_host_set_mode(ZXN_HOST_AUTO);
+    zxn_subscribe(&S.bus, zxn_host_deliver, NULL,
+                  ZXN_KIND_BIT(ZXN_UPDATE) | ZXN_KIND_BIT(ZXN_AI_TASK_FAILED) |
+                      ZXN_KIND_BIT(ZXN_PEER_REQUEST),
+                  ZXN_PRI_NORMAL);
+    if (zxv_update_init(gateway, &S.bus, ZXU_VERSION(0, 1, 0)) != 0) {
+        fprintf(stderr, "zxv-host: --update-gateway must be https://, or http:// to 127.0.0.1\n");
+        return 2;
+    }
+
+    /* peers: nothing is opened unless the user asked (--net, or the window) */
+    if (!(S.net = zxv_net_new())) {
+        fprintf(stderr, "zxv-host: out of memory\n");
+        return 1;
+    }
 
     /* the model slot: an explicit file, else the first *.gguf in the
      * models folder, else none (the swarm runs without one) */
@@ -843,6 +1098,23 @@ int main(int argc, char **argv)
         (unsigned long long) S.gov.mem_mb, S.gov.num_levels, S.num_agents,
         S.remote ? "remote instance" : "local guest");
     printf("Model: %s\n", zxv_model_info()->status);
+    if (S.net_want != ZXV_NET_OFF) {
+        uint64_t wnow = zxv_net_wall_ms();
+        zxv_net_status_t ns;
+        if (zxv_net_start(S.net, S.net_want, S.net_bind, S.net_port, wnow) == 0) {
+            zxv_net_status(S.net, &ns);
+            printf("Network: %s, UDP %s:%u, node %s\n", zxv_net_mode_name(ns.mode), ns.bind_ip,
+                   (unsigned) ns.port, ns.node_id);
+            for (int k = 0; k < npeers; k++)
+                if (zxv_net_add_peer_str(S.net, peers[k], wnow) != 0)
+                    fprintf(stderr, "zxv-host: peer %s refused\n", peers[k]);
+        } else {
+            zxv_net_status(S.net, &ns);
+            fprintf(stderr, "zxv-host: network not started: %s\n", ns.error);
+        }
+    } else {
+        printf("Network: off (nothing leaves this machine; --net lan|online turns it on)\n");
+    }
     if (server)
         printf("Server mode. From your own computer run:\n  ssh -N -L %d:127.0.0.1:%d "
                "<user>@<this-server>\n"
@@ -858,6 +1130,11 @@ int main(int argc, char **argv)
         FD_ZERO(&rd);
         FD_SET(ls, &rd);
         int maxfd = (int) ls;
+        intptr_t nfd = zxv_net_fd(S.net);
+        if (nfd >= 0) {
+            FD_SET((sock_t) nfd, &rd);
+            if ((int) nfd > maxfd) maxfd = (int) nfd;
+        }
 #if !defined(_WIN32)
         if (exit_with_parent) {
             FD_SET(0, &rd);
@@ -886,6 +1163,11 @@ int main(int argc, char **argv)
                 CLOSESOCK(c);
             }
         }
+        if (r > 0 && nfd >= 0 && FD_ISSET((sock_t) nfd, &rd))
+            zxv_net_on_readable(S.net, zxv_net_wall_ms());
+        zxv_net_tick(S.net, zxv_net_wall_ms());
+        zxv_update_tick((uint64_t) time(NULL),
+                        zxv_net_fd(S.net) >= 0 && S.net_want == ZXV_NET_ONLINE);
         /* the swarm advances on wall time, however busy the window is; after a
          * sleep it resumes rather than racing to catch up */
         uint64_t now = pal_now_ms();
@@ -893,6 +1175,8 @@ int main(int argc, char **argv)
         for (; now >= next_step; next_step += STEP_MS) step();
     }
     CLOSESOCK(ls);
+    zxv_net_free(S.net);
+    zxv_update_free();
     zxv_model_close();
 #if defined(_WIN32)
     WSACleanup();

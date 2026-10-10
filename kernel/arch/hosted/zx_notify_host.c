@@ -9,7 +9,13 @@
  *   macOS   osascript -e 'display notification "<body>" with title "<title>"
  *           subtitle "<source>"'
  *   Linux   notify-send -u <urgency> -a ZXV -- <title> <body>
- *   other   one line on stdout
+ *   other   nothing (ZXN_HOST_PRINT: one line on stdout)
+ *
+ * RUN-TIME CHOICE: AUTO looks for the notifier when it delivers:
+ * /usr/bin/osascript on macOS; on Linux notify-send on PATH and a desktop
+ * session (DBUS_SESSION_BUS_ADDRESS, DISPLAY or WAYLAND_DISPLAY). Without
+ * one, the note stays on the bus (the window still shows it) and nothing
+ * is run.
  *
  * INJECTION: the command is started with fork + execvp and an argv array, so
  * no shell ever parses user text: quotes, backticks, $( ) and ; are inert.
@@ -28,7 +34,7 @@
  * Editor" unless the app is signed and uses UNUserNotificationCenter;
  * clicking it does not open the note's action. On Linux, notify-send must
  * be installed and a session bus present; if not, the child fails quietly.
- * Windows prints (no toast). Long strings are cut to the bus's limits.
+ * Windows shows nothing outside the window (no toast). Long strings are cut to the bus's limits.
  */
 #if !defined(_WIN32)
 #    define _DEFAULT_SOURCE
@@ -38,6 +44,7 @@
 #    include <unistd.h>
 #endif
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -187,25 +194,80 @@ static void print_note(const zxn_note_t *n)
     fflush(stdout);
 }
 
+#if defined(__linux__)
+static bool on_path(const char *prog)
+{
+    const char *path = getenv("PATH");
+    if (!path) return false;
+    while (*path) {
+        const char *e = strchr(path, ':');
+        size_t l = e ? (size_t) (e - path) : strlen(path);
+        char f[1024];
+        if (l > 0 && l + strlen(prog) + 2 < sizeof f) {
+            memcpy(f, path, l);
+            f[l] = '/';
+            strcpy(f + l + 1, prog);
+            if (access(f, X_OK) == 0) return true;
+        }
+        if (!e) break;
+        path = e + 1;
+    }
+    return false;
+}
+#endif
+
+/* AUTO, resolved now: 1 = osascript, 2 = notify-send, 0 = none. */
+static int auto_backend(void)
+{
+#if defined(__APPLE__)
+    return access("/usr/bin/osascript", X_OK) == 0 ? 1 : 0;
+#elif defined(__linux__)
+    bool session =
+        getenv("DBUS_SESSION_BUS_ADDRESS") || getenv("DISPLAY") || getenv("WAYLAND_DISPLAY");
+    return session && on_path("notify-send") ? 2 : 0;
+#else
+    return 0;
+#endif
+}
+
+const char *zxn_host_backend(void)
+{
+    switch (g_mode) {
+    case ZXN_HOST_AUTO: {
+        int b = auto_backend();
+        return b == 1 ? "osascript" : b == 2 ? "notify-send" : "none";
+    }
+    case ZXN_HOST_PRINT:
+        return "print";
+    case ZXN_HOST_OFF:
+        return "off";
+    default:
+        return "dry-run";
+    }
+}
+
 void zxn_host_deliver(void *ctx, const zxn_note_t *n, bool coalesced)
 {
     (void) ctx;
     (void) coalesced;
     if (!n) return;
     zxn_host_mode_t mode = g_mode;
-#if defined(__APPLE__)
-    bool mac = true, lin = false;
-#elif defined(__linux__)
-    bool mac = false, lin = true;
-#else
-    bool mac = false, lin = false;
-#endif
-    if (mode == ZXN_HOST_DRY_RUN_MAC) mac = true, lin = false;
-    if (mode == ZXN_HOST_DRY_RUN_LINUX) mac = false, lin = true;
-    if (mode == ZXN_HOST_PRINT || (mode == ZXN_HOST_AUTO && !mac && !lin)) {
+    if (mode == ZXN_HOST_OFF) return;
+    if (mode == ZXN_HOST_PRINT) {
         print_note(n);
         return;
     }
+    bool mac = false, lin = false;
+    if (mode == ZXN_HOST_DRY_RUN_MAC)
+        mac = true;
+    else if (mode == ZXN_HOST_DRY_RUN_LINUX)
+        lin = true;
+    else {
+        int b = auto_backend();
+        mac = b == 1;
+        lin = b == 2;
+    }
+    if (!mac && !lin) return; /* no notifier here: the note stays on the bus */
     char title[ZXN_TITLE_MAX * 2 + 16], body[ZXN_BODY_MAX * 2], src[ZXN_SOURCE_MAX * 2];
     char counted[ZXN_TITLE_MAX + 16];
     if (n->count > 1)

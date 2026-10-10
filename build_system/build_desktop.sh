@@ -32,7 +32,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HOSTED="$ROOT/kernel/arch/hosted"
-SWARM="$ROOT/kernel/src/swarm"
 TENSOR="$ROOT/kernel/src/tensor"
 MACOS="$ROOT/macos"
 OUT="$ROOT/dist"
@@ -76,7 +75,7 @@ step() { printf '\n== %s\n' "$*"; }
 if [ "$SKIP_TESTS" = 0 ]; then
     step "Swarm tests"
     make -C "$ROOT/kernel" test-swarm
-    step "Hosted app tests (API guard, end-to-end API, model slot)"
+    step "Hosted app tests (API guard, budget gate, net host, end-to-end API, peers, updates)"
     sh "$HOSTED/test_hosted.sh"
 fi
 
@@ -84,13 +83,18 @@ fi
 step "Embedding the window"
 python3 "$HOSTED/gen_ui.py" "$HOSTED/zxv_ui.html" "$WORK/zxv_ui.c"
 
-SRCS=("$HOSTED/zxv_host.c" "$HOSTED/zxv_http_guard.c" "$HOSTED/zxv_model_host.c" "$WORK/zxv_ui.c")
-# Every swarm module, so one added to the tests cannot be left out of the app
-# (gap 22: enochian, logic, self, evolve, enterprise and phase were missing).
-for f in "$SWARM"/swarm_*.c; do SRCS+=("$f"); done
-# Every tensor-engine source: GGUF reader, tokenizer, RoPE, lattices, and
-# the forward pass (zt_model*.c) as soon as it exists.
-for f in "$TENSOR"/zt*.c; do SRCS+=("$f"); done
+# One list for the app and its tests: kernel/arch/hosted/app_sources.sh. It
+# names every swarm module (so one added to the tests cannot be left out of
+# the app), every tensor-engine source, the budget gate, the Vinea node and
+# its UDP glue (zxv_net_host.c; networking is OFF unless the user turns it
+# on), the update checker with ipfs_node, and the notification bus with its
+# OS bridge. Windows uses winsock for the UDP socket; its update check
+# reports "not wired" (no curl spawn there yet).
+SRCS=("$WORK/zxv_ui.c")
+while IFS= read -r f; do SRCS+=("$ROOT/kernel/$f"); done < <(sh "$HOSTED/app_sources.sh" srcs)
+INCS=()
+while IFS= read -r d; do INCS+=(-I"$ROOT/kernel/$d"); done < <(sh "$HOSTED/app_sources.sh" incs)
+echo "  sources: ${#SRCS[@]} files (swarm, tensor, budget gate, vinea + UDP, updates, notifications)"
 DEFS=()
 if [ -f "$TENSOR/zt_model.c" ] && [ -f "$HOSTED/zxv_zt_glue.c" ]; then
     SRCS+=("$HOSTED/zxv_zt_glue.c")
@@ -101,7 +105,6 @@ elif [ -f "$TENSOR/zt_model.c" ]; then
 else
     echo "  forward pass: not in the tree yet; the model slot maps and tokenizes only"
 fi
-INCS=(-I"$HOSTED" -I"$SWARM" -I"$TENSOR" -I"$ROOT/kernel/src/zcapital" -I"$ROOT/kernel/src/surplus")
 CFLAGS=(-std=c11 -O2 -Wall -Wextra -Werror "${INCS[@]}" ${DEFS[@]+"${DEFS[@]}"})
 
 build() {   # target output [libs...]
@@ -148,6 +151,7 @@ if [ -n "$NATIVE" ] && [ -x "$NATIVE" ]; then
     cc -std=c11 -I"$TENSOR" "$HOSTED/test_write_gguf.c" -o "$WORK/write_gguf"
     "$WORK/write_gguf" "$WORK/tiny-test.gguf"
     python3 "$HOSTED/test_host_api.py" "$NATIVE" "$WORK/tiny-test.gguf"
+    python3 "$HOSTED/test_host_net.py" "$NATIVE"
     rm -f "$WORK/write_gguf" "$WORK/tiny-test.gguf"
 else
     echo "  no native binary for this machine; skipped"

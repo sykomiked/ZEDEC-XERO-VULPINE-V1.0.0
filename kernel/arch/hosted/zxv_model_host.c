@@ -197,7 +197,27 @@ int zxv_model_find_in_dir(const char *dir, char *out, size_t cap)
     return (n > 0 && (size_t) n < cap) ? 0 : -1;
 }
 
-int zxv_model_answer(const char *prompt, char *out, size_t cap)
+#if defined(ZXV_HAVE_ZT_GLUE)
+typedef struct {
+    const int32_t *ids;
+    uint64_t n;
+    char *out;
+    size_t cap;
+    char err[160];
+    bool called;
+} gen_job_t;
+
+static int32_t gen_job(void *ctx, uint32_t max_new)
+{
+    gen_job_t *j = (gen_job_t *) ctx;
+    j->called = true;
+    return zxv_zt_generate_n(&M.g, &M.tok, j->ids, j->n, max_new, j->out, j->cap, j->err,
+                             sizeof j->err);
+}
+#endif
+
+int zxv_model_answer_ex(const char *prompt, zxv_gen_runner_fn run, void *rctx, char *out,
+                        size_t cap)
 {
     out[0] = 0;
     if (!M.info.loaded) return 0;
@@ -226,12 +246,19 @@ int zxv_model_answer(const char *prompt, char *out, size_t cap)
                  (int) r);
 #if defined(ZXV_HAVE_ZT_GLUE)
     } else if (M.info.can_generate) {
-        char err[160] = "";
-        int32_t g = zxv_zt_generate(&M.g, &M.tok, ids, n, out, cap, err, sizeof err);
-        if (g >= 0)
+        gen_job_t j = {ids, n, out, cap, "", false};
+        int32_t g = run ? run(rctx, gen_job, &j) : gen_job(&j, ZXV_MODEL_MAX_NEW);
+        if (g >= 0 && j.called) {
             answered = 1;
-        else
-            snprintf(out, cap, "Model %s failed to generate: %s", M.info.name, err);
+        } else if (!j.called) {
+            out[0] = 0;
+            answered = ZXV_MODEL_BUDGET_EXHAUSTED;
+        } else {
+            snprintf(out, cap, "Model %s failed to generate: %s", M.info.name, j.err);
+        }
+#else
+        (void) run;
+        (void) rctx;
 #endif
     } else {
         snprintf(out, cap,
@@ -242,4 +269,9 @@ int zxv_model_answer(const char *prompt, char *out, size_t cap)
     free(ids);
     free(work);
     return answered;
+}
+
+int zxv_model_answer(const char *prompt, char *out, size_t cap)
+{
+    return zxv_model_answer_ex(prompt, NULL, NULL, out, cap);
 }
