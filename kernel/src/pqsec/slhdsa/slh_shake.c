@@ -169,11 +169,21 @@ static void shake_chain(slh_var_t *var, uint8_t *tmp, const uint8_t *x, uint32_t
         memcpy(ks + n8, (const uint8_t *) var->adrs->u8, 32);
 
         /* padding */
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        /* ZXV: ks is a byte view in FIPS 202 order (see sha3_f1600.c), so the
+         * padding lanes are stored byte-swapped on big-endian. */
+        ks[l] = UINT64_C(0x1F) << 56;
+#else
         ks[l] = 0x1F; /* shake padding */
+#endif
         for (k = l + 1; k < r - 1; k++) {
             ks[k] = 0;
         }
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        ks[r - 1] = 0x80; /* rate padding (byte-swapped, see above) */
+#else
         ks[r - 1] = UINT64_C(1) << 63; /* rate padding */
+#endif
         for (k = r; k < 25; k++) {
             ks[k] = 0;
         }

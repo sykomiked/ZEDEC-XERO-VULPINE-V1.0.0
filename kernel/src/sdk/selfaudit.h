@@ -1,3 +1,6 @@
+/* STATUS: STUB. Declarations only: m5_app_audit_register() and the m5_audit_check_*
+ * helpers are not implemented anywhere in the tree, and no kernel code calls an app's
+ * self_audit(). The schedule described below is the intended design, not current behaviour. */
 /* selfaudit.h — User Space Application Self-Audit Framework
  *
  * Every M5 application must implement self_audit() and register it.

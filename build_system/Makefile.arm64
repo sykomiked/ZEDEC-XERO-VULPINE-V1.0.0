@@ -578,7 +578,7 @@ KERNEL_SRCS = \
 #   kernel/src/sutra/debug_vino.c -- a HOSTED tool. It uses stdout/fflush and
 #     fails with `'stdout' undeclared`. The other nine sutra sources are in.
 #
-#   kernel/src/p2p_caracho/p2p_caracho.c -- compiles clean, and its own file
+#   kernel/experimental/p2p_caracho/p2p_caracho.c (was kernel/src/) -- compiles clean, and its own file
 #     header says: "SUPERSEDED -- moved to kernel/src/bootlegger/bootlegger.c
 #     ... do not include or build it." The two files' global symbol sets do not
 #     collide (measured: 0 common globals), so building both would have LINKED

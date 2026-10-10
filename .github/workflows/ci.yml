@@ -345,3 +345,27 @@ jobs:
         with:
           name: tlc-logs
           path: ${{ runner.temp }}/tlc-logs
+
+  # Post-quantum KATs on other CPUs: the NIST ACVP/KAT tests cross-compiled for
+  # aarch64, riscv64, armhf (32-bit), i686 (32-bit) and s390x (big-endian) and
+  # run under qemu-user. Then the valgrind secret-branch check (ctgrind) of
+  # ML-KEM-768 decaps/encaps (gated) and ML-DSA-65 sign (reported only), and
+  # the legacy-transcoder golden traces. No model is downloaded.
+  kat-cross:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cross toolchains, qemu-user and valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-user \
+            gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu gcc-arm-linux-gnueabihf \
+            gcc-i686-linux-gnu gcc-s390x-linux-gnu libc6-dev-arm64-cross \
+            libc6-dev-riscv64-cross libc6-dev-armhf-cross libc6-dev-i386-cross \
+            libc6-dev-s390x-cross valgrind
+      - name: KATs on aarch64, riscv64, armhf, i686, s390x (qemu-user)
+        run: KAT_CROSS_STRICT=1 make -C kernel kat-cross
+      - name: Secret-dependent branch check under valgrind (ctgrind)
+        run: make -C kernel ct-valgrind
+      - name: Legacy transcoder golden traces
+        run: make -C bench legacy

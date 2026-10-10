@@ -1,4 +1,7 @@
-/* m5_api.h — Complete M5 Axiomatic Kernel API for User Space Applications
+/* STATUS: STUB. This header only declares an API. No m5_* function declared here is
+ * implemented anywhere in the tree, so an app that calls one will not link. It is not
+ * a stable ABI yet. See SDK_README.md. */
+/* m5_api.h — M5 Axiomatic Kernel API for User Space Applications (declarations only)
  *
  * This is the single header that user applications include to access
  * all kernel services. It provides a stable ABI across kernel versions.

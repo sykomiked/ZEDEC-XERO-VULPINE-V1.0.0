@@ -187,3 +187,6 @@ kernel/src/speech/test_speech_fixture.h
 kernel/src/speech/speech_tables.h
 kernel/src/xlate/xlate_langid_model.h
 kernel/src/xlate/test_langid_fixture.h
+# Unbuilt placeholders moved out of kernel/src (kept for the design record, see
+# kernel/experimental/README.md). Not reformatted: a move shows as all-new lines.
+kernel/experimental/*/*
