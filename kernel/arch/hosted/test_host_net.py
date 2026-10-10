@@ -141,7 +141,11 @@ def main(binary):
         check(n in (0, None), 'the process holds no UDP socket (%s)' % n)
         check(s['update']['requests'] == 0 and s['update']['checks'] == 0,
               'no update request was made by itself')
-        check(s['notes']['os'] == 'none', 'no desktop session: the OS notifier is none')
+        if sys.platform == 'darwin':
+            # macOS needs no desktop-session variable: osascript is always there.
+            check(s['notes']['os'] == 'osascript', 'macOS: the OS notifier is osascript')
+        else:
+            check(s['notes']['os'] == 'none', 'no desktop session: the OS notifier is none')
         a0.stop()
 
         # --- two instances find each other over UDP on 127.0.0.1
