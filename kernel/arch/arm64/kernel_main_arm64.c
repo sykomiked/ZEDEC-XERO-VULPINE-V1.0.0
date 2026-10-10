@@ -509,6 +509,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../src/loader/abupdate.h"  /* A/B update + probation + rollback */
 #include "../src/appkit/doc.h"       /* AppKit document model (Writer et al) */
 #include "../src/refinery/refinery.h" /* Magitech Refinery: text -> sigil card */
+#include "../src/swarm/swarm_boot.h"  /* swarm + tensor boot self-check ([AI_OK]) */
 #include "../userapp/hello_signed.h" /* root pubkey + signed .zsp, seeded to disk */
 /* Bridge between the TCP/IP stack and the virtio-net driver. The stack calls
  * knet_tx to put a fully-built frame on the wire; knet_pump drains received
@@ -2915,6 +2916,17 @@ void kernel_main_arm64(void) {
      * in phase-tick order, no wall-clock read. cores/mem 0 => probe-default. */
     boot_features_init(uart_puts, 0, 0);
     boot_economy_init(uart_puts);
+
+    /* Phase 22b: AI self-check. One Fibonacci budget cycle of the swarm and a
+     * tiny integer forward step of the tensor engine, compared against the
+     * constants test_ai_selfcheck asserts on the host (swarm_boot.h, zt_boot.h). A mismatch
+     * means this build does not compute what the host computes: the [FAULT]
+     * line is printed and boot stops here, before [BOOT_OK] can claim
+     * otherwise. */
+    if (!ai_boot_selfcheck(uart_puts)) {
+        uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
+        for (;;) halt();
+    }
 
     /* Phase 18: Enable interrupts and enter event loop */
     boot_msg("\n[BOOT] ZEDEC pqOS [ARM64] — All systems online.");

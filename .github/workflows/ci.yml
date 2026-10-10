@@ -29,6 +29,7 @@ jobs:
           timeout 30 make -f build_system/Makefile.arm64 run < /dev/null > boot_arm64.log 2>&1 || true
           cat boot_arm64.log
           grep -q "\[BOOT_OK\]" boot_arm64.log || { echo "::error::ARM64 boot did not reach [BOOT_OK]"; exit 1; }
+          grep -q "\[AI_OK\]" boot_arm64.log || { echo "::error::ARM64 boot did not pass the AI self-check [AI_OK]"; exit 1; }
           if grep -qE "\[FAULT\]|\[EL0 FAULT\]" boot_arm64.log; then echo "::error::ARM64 boot faulted"; exit 1; fi
       - name: Upload ARM64 artifacts
         uses: actions/upload-artifact@v5
@@ -53,6 +54,7 @@ jobs:
           timeout 30 make -f build_system/Makefile.x86_64 run < /dev/null > boot_x86_64.log 2>&1 || true
           cat boot_x86_64.log
           grep -q "\[BOOT_OK\]" boot_x86_64.log || { echo "::error::x86_64 boot did not reach [BOOT_OK]"; exit 1; }
+          grep -q "\[AI_OK\]" boot_x86_64.log || { echo "::error::x86_64 boot did not pass the AI self-check [AI_OK]"; exit 1; }
       - name: Upload x86_64 artifacts
         uses: actions/upload-artifact@v5
         with:

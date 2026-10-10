@@ -307,11 +307,11 @@ Gaps: no real model ever run (Q5_0/Q5_1 weights now load, so Q4_K_M files of 896
 
 ### Bare-metal kernels  —  the ZXV OS booted on emulated hardware (kernel/arch/*, build_system/Makefile.*)
 Status: WORKING (arm64 and x86_64 boot to `[BOOT_OK]` under QEMU here; riscv64/riscv32 build only; arm32 not built)
-What it does: five Makefiles build freestanding kernel images from the M5 core plus the platform and economy layers. ARM64 is the reference (EL0 userspace, GICv3, virtio). Here: arm64 built and booted to `[E0174] [BOOT_OK]` with no `[FAULT]` line; x86_64 built and booted to `[E0018] [BOOT_OK]` via `make boot`/`run`; riscv64 and riscv32 built (no qemu-system-riscv* here); arm32 needs `arm-linux-gnueabihf-gcc`, missing here. The swarm, tensor, Vinea, pay, cbank and the other 2026-10-09 modules are in no kernel image.
+What it does: five Makefiles build freestanding kernel images from the M5 core plus the platform and economy layers. ARM64 is the reference (EL0 userspace, GICv3, virtio). Here: arm64 built and booted to `[E0174] [BOOT_OK]` with no `[FAULT]` line; x86_64 built and booted to `[E0018] [BOOT_OK]` via `make boot`/`run`; riscv64 and riscv32 built (no qemu-system-riscv* here); arm32 needs `arm-linux-gnueabihf-gcc`, missing here. Swarm and tensor are now linked into the arm64 and x86_64 images and both boots print `[AI_OK] swarm+tensor selfcheck 0x90553e54` before `[BOOT_OK]`; Vinea, pay, cbank and the other 2026-10-09 modules are in no kernel image.
 Main entry points: `make -f build_system/Makefile.<arch> all|run|clean`; `kernel_main_arm64.c`; `build.sh <arch> [run]`; `platform_layer.mk`, `economy_layer.mk` (fragments for non-arm64 arches, included by no Makefile yet).
 Tests: CI `build-*` jobs; only build-arm64 checks the boot log. Banner check (`verify_banners.sh`) runs in every build and passed.
 Used by: CI; `ZXV-Desktop.command` / `run_desktop.sh`.
-Gaps: AI/economy/network modules of the product not linked into any image; x86/riscv/arm32 boot results ignored by CI; Makefile.x86_64 had no `run` target (fixed).
+Gaps: economy/network modules of the product not linked into any image (swarm/tensor are linked into arm64 and x86_64 only, self-check only); x86/riscv/arm32 boot results ignored by CI; Makefile.x86_64 had no `run` target (fixed).
 
 ### C ABI bindings  —  one C library for COBOL, Fortran, Pascal, Ada and others (bindings/)
 Status: WORKING (C self-test in verify-all; language examples built and run here)
@@ -2155,8 +2155,8 @@ Status: WORKING (tested in verify-all)
 What it does: Budgets, a reserve, a witnessed triple ledger, a market, governor and quality scoring for a swarm of models. A different model witnesses each allotment. It also has hk/enterprise packet formats that pack and unpack bytes.
 Main entry points: swarm_budget.h, swarm_ledger.h, swarm_market.h, swarm_hk.h (swarm_hk_parse), swarm_enterprise.h (swarm_en_pack/unpack), swarm_governor.h, and others.
 Tests: 6 tests plus a q32 economy variant (verify-all). swarm_hk_parse and en_pack/unpack were fuzzed here for 20k iterations each with no crash.
-Used by: pay, provider, social, harmonic, i18n, tensor, vinea. Not in arm64 list.
-Gaps: None found.
+Used by: pay, provider, social, harmonic, i18n, tensor, vinea. Linked into the arm64 and x86_64 kernel images (all non-test swarm_*.c); `swarm_boot.c` runs one Fibonacci budget cycle at boot and `ai_boot_selfcheck` prints `[AI_OK] swarm+tensor selfcheck 0x90553e54` before `[BOOT_OK]` (halts with `[FAULT]` on mismatch); test_ai_selfcheck asserts the same constants on the host.
+Gaps: in the kernel only the boot self-check calls it; no kernel task drives the swarm yet. riscv/arm32 images do not link it.
 
 ### synthesis — "synthesis engine" spec parser and DMA staging
 Status: PARTIAL
@@ -2187,7 +2187,7 @@ Status: WORKING (tested in verify-all)
 What it does: zt.c is the Q-format integer tensor core (matmul, softmax and so on, using zt_udiv64). zt_gguf parses GGUF model files (external input) with bounds checks. zt_tok is a BPE tokenizer with a Unicode table. zt_rope implements RoPE from integer tables. zt_model is a llama-style forward pass. zt_lattice, zt_coil, zt_isf and zt_holo are extra operators.
 Main entry points: zt.h (zt_matvec, zt_rmsnorm, zt_softmax, zt_udiv64...), zt_gguf_open/zt_gguf_find_tensor/zt_gguf_dequant, zt_tok_load/encode/decode, zt_rope_init/apply, zt_model_load/eval/generate.
 Tests: test_zt, test_zt_gguf, test_zt_q5 (Q5_0/Q5_1, 87 checks, bit-exact against golden values from gen_q5_fixture.py, a pure-Python transcription of ggml's dequantize_row_q5_0/q5_1), test_zt_tok, test_zt_lattice, test_zt_rope, test_zt_model, test_zt_audit (41) and test_zt_e8 (269), all in verify-all. Other fixtures come from gen_*.py using the reference gguf-py.
-Used by: host tests only, plus swarm (an include). Not linked into either kernel. Also packaged as the standalone static library packages/libzxv-tensor (built from these sources; smoke program in verify-all).
+Used by: host tests, swarm (an include), and the arm64 and x86_64 kernel images (all non-test zt*.c). `zt_boot.c` is a known-answer self-test at boot (exact Q8 matvec, RMSNorm, RoPE, softmax, SiLU, exp; hash 0xfbc3385a, same on host and bare metal); it is not a trained model running in the kernel. Also packaged as the standalone static library packages/libzxv-tensor (built from these sources; smoke program in verify-all).
 Gaps: CodeQL multiply-overflow items in test_zt_model.c:333-339 and test_zt_lattice.c:409 are fixed (widened). There is no fuzz test on the GGUF parser; it was reviewed by hand and looked bounds-checked.
 
 ### theme — palette tokens that every drawable resolves through
