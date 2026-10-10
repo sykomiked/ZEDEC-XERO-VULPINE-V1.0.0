@@ -7,15 +7,21 @@
  * pay module's own pieces, and nothing else:
  *
  *   P1  FIXED, PROPORTIONAL SPLIT. Each member's gross share is the pool
- *       split by verified units with pay_commons_split (pay_tithe.h K2): the
+ *       split by verified units with pay_commons_split (pay_assure.h K2): the
  *       commons no-monopoly rule, so no member takes more than
  *       max(cap of the pool, an equal share). The same contributions always
  *       give the same split. What nobody may take stays in the pool.
- *   P2  THE TITHE. Each share pays tithe = pay_tithe_phi(gross), exactly
- *       floor(gross * phi / 100), to the commons account; the member gets
- *       gross - tithe.
+ *   P2  THE ASSURANCE FEE. Each share pays fee = pay_assure_fee(gross),
+ *       exactly floor(gross * 8889 / 10^7) (0.08889%, pay_assure.h F1), split
+ *       exactly into the four fee-bucket accounts (pay_assure_split: 50%
+ *       reserve floor + remainder, 25% V-Bill dividend pool, 15%
+ *       infrastructure/node bounties, 10% regenerative capital); the member
+ *       gets gross - fee. Quest uses the no-carry form F1 on purpose: a plan
+ *       must be the same every time it is computed so that a rerun (P3) posts
+ *       byte-identical requests; a carry would make it depend on history.
  *   P3  ONE POSTING PER MEMBER through pay_ledger_post: pool DEBIT -gross,
- *       member DEBIT +net, commons DEBIT +tithe, kind TRANSFER, all VFV.
+ *       member DEBIT +net, each fee bucket DEBIT +its part, kind TRANSFER,
+ *       all VFV.
  *       Each posting's idempotency key is SHA3-256("ZXV-QUEST-PAYOUT-v1" ||
  *       goal || member || pool account), and its UETR comes from that key,
  *       so a settlement interrupted halfway can simply be run again: posted
@@ -27,8 +33,9 @@
  *       pool and listed in the plan. A member with no account is held too.
  *   P5  OPT-OUT LOSES NOTHING. Opted-out members are paid exactly as if
  *       they had stayed in.
- *   P6  VFV ONLY. The pool and commons accounts must hold the ledger's VFV
- *       asset; the commons account must carry PAY_ACCT_COMMONS.
+ *   P6  VFV ONLY. The pool and the four fee-bucket accounts must hold the
+ *       ledger's VFV asset; every fee-bucket account must carry
+ *       PAY_ACCT_COMMONS.
  *
  * HONEST LIMITS. Settlement is one posting per member, not one atomic
  * posting for the whole goal (pay_ledger allows PAY_MAX_LINES lines), so a
@@ -46,12 +53,12 @@
 #include "quest.h"
 #include "quest_coop.h"
 #include "pay_ledger.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
 typedef struct {
     uint32_t member;
     uint32_t to_acct; /* 0 when held */
-    uint64_t gross, tithe, net;
+    uint64_t gross, fee, net;
     bool held;
 } qst_payout_line_t;
 
@@ -60,7 +67,7 @@ typedef struct {
     uint32_t n;
     uint64_t pool;
     uint64_t unallocated; /* over the cap: stays in the pool */
-    uint64_t tithe_total;
+    uint64_t fee_total;
     uint64_t held_total; /* P4: stays in the pool, listed per line */
 } qst_payout_plan_t;
 
@@ -72,8 +79,8 @@ qst_status_t qst_payout_plan(const qst_world_t *w, uint32_t goal,
 
 /* P3, P6: post the plan and mark the goal SETTLED. `plan` may be NULL. */
 qst_status_t qst_goal_settle(qst_world_t *w, uint32_t goal, pay_ledger_t *L,
-                             const uint32_t member_acct[QST_GOAL_MEMBERS], uint32_t commons_acct,
-                             pay_rat_t cap, uint64_t tick, uint32_t initiator,
-                             qst_payout_plan_t *plan);
+                             const uint32_t member_acct[QST_GOAL_MEMBERS],
+                             const uint32_t fee_acct[PAY_ASSURE_BUCKETS], pay_rat_t cap,
+                             uint64_t tick, uint32_t initiator, qst_payout_plan_t *plan);
 
 #endif /* ZXV_QUEST_PAY_H */

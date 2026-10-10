@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "pay_rails.h" /* canonical rail numerics 555/777/888 and NCR/NRE/PNS */
 
 #define PAY_ISO3166_COUNT 249u
 

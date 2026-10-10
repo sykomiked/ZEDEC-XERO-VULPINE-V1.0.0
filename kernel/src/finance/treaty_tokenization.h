@@ -42,7 +42,7 @@ typedef enum {
 typedef struct {
     uint8_t treaty_cid[32];                /* IPFS CID of signed treaty (SHA-256) */
     uint8_t asset_cid[32];                 /* Conservation easement / land / mineral CID */
-    capital_form_t form;                   /* NATURAL (2) or BUILT (9) */
+    capital_form_t form;                   /* CAPITAL_NATURAL or CAPITAL_BUILT */
     rat_t quantified_value;                /* Exact rational — ecological/engineering appraisal */
     lpres_attestation_t sovereignty_proof; /* LPRES: TRUE iff treaty ratified */
     interstitial_region_t corridor;        /* Lex Rhodia corridor for transfer */

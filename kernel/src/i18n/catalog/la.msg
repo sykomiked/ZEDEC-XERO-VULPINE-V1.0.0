@@ -43,7 +43,7 @@ ASSIST_ASK_LABEL|-|machine|Adiutorem interroga
 PAY_CONFIRM_TITLE|-|machine|Solutionem confirma
 PAY_TO|-|machine|Cui
 PAY_AMOUNT|-|machine|Summa
-PAY_TITHE|-|machine|Decima retis (φ%)
+PAY_FEE|-|machine|Merces cautionis (0,08889%)
 PAY_RECORD|-|machine|Tabula
 PAY_BUTTON|-|machine|Solve {0}
 PAY_VERIFIED_PEER|-|machine|par probatus
@@ -90,7 +90,7 @@ CALL_MUTE|-|machine|Sonum supprime
 FARM_TITLE|-|machine|Fundus tuus
 FARM_THIS_DEVICE|-|machine|Hoc instrumentum
 FARM_IDLE_SHARE|-|machine|{0} potentiae computandi otiosae
-FARM_EARNED_TODAY|-|machine|Hodie partum, post decimam
+FARM_EARNED_TODAY|-|machine|Hodie partum, post mercedem cautionis
 FARM_VERIFIED|-|machine|Opus a paribus probatum
 
 UPD_BUCKETS|-|machine|Repositoria renovationum
@@ -100,7 +100,7 @@ UPD_RATINGS|other|machine|{0} ex 5, ex {1} aestimationibus
 UPD_READY|-|machine|{0} ad instituendum parata
 UPD_RATINGS_NO_TRUST|-|machine|aestimationes numquam fiduciam instituendi dant
 
-WAL_TITLE|-|machine|Crumena et decima
+WAL_TITLE|-|machine|Crumena et mercedes
 WAL_ROLE|-|machine|Genus rationis
 WAL_ROLE_INDIVIDUAL|-|machine|Privatus
 WAL_ROLE_SELFBANK|-|machine|Argentarius sui ipsius
@@ -117,12 +117,12 @@ CAP_KNOWLEDGE|-|machine|Scientia
 CAP_BUILT|-|machine|Aedificatum
 CAP_FINANCIAL|-|machine|Pecuniarium
 
-TITHE_TITLE|-|machine|Decima retis
-TITHE_EXPLAIN|-|machine|Quisque nodus φ centesimas computationis, latitudinis fasciae et pecuniae quam adhibet dat, ut rete omnibus celere maneat. Quidquid ultra das syngraphas tibi parit.
-TITHE_BASE|-|machine|Decima fundamentalis
-TITHE_YOUR_CONTRIB|-|machine|Collatio tua:
-TITHE_ABOVE|-|machine|Supra decimam {0} usus. Hic excessus tibi syngraphis acceptus refertur.
-TITHE_EXACT|-|machine|Decimam fundamentalem accurate das. Cursorem move ut plus des et syngraphas merearis.
+FEE_TITLE|-|machine|Merces cautionis retis
+FEE_EXPLAIN|-|machine|Omnis solutio mercedem cautionis 0,08889% fert. Dimidium fundum subsidii Vini sustinet; reliquum arcam dividendorum V-Bill, praemia nodorum et caput regenerativum alit. Quidquid ultra das syngraphas tibi parit.
+FEE_BASE|-|machine|Merces fundamentalis
+FEE_YOUR_CONTRIB|-|machine|Collatio tua:
+FEE_ABOVE|-|machine|Supra mercedem {0} usus. Hic excessus tibi syngraphis acceptus refertur.
+FEE_EXACT|-|machine|Mercedem fundamentalem accurate das. Cursorem move ut plus des et syngraphas merearis.
 
 ERR_GENERIC|-|machine|Aliquid erravit. Iterum tempta, quaeso.
 ERR_NETWORK|-|machine|Rete attingi non potuit. Actio tua servata est et postea mittetur.

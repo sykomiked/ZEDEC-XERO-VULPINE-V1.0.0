@@ -2,7 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_market.c — host tests for kernel/src/market: every order state
  * transition (and every disallowed one), escrow conservation against an
- * independent mock ledger, refund exactness, tithe exactness against an
+ * independent mock ledger, refund exactness, fee exactness against an
  * independent reference, tax, inventory, bookings, digital delivery,
  * disputes, returns, reviews, ISF discovery through concord, agent
  * confirmation tokens, subscriptions without traps, B2B POs and invoices,
@@ -13,7 +13,7 @@
 #include "mk_concord.h"
 #include "mk_pq.h"
 #include "pq_security.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
 _Static_assert(MK_PQ_PK_BYTES == PQ_MLDSA65_PK_BYTES, "pk size");
 _Static_assert(MK_PQ_SK_BYTES == PQ_MLDSA65_SK_BYTES, "sk size");
@@ -30,25 +30,11 @@ static int g_fail, g_pass;
         }                                                                                          \
     } while (0)
 
-/* ===== independent tithe reference (host-only __int128) ===== */
+/* ===== independent assurance-fee reference (host-only __int128) ===== */
 __extension__ typedef unsigned __int128 u128;
-static uint64_t ref_isqrt(u128 v)
+static uint64_t ref_fee(uint64_t a)
 {
-    uint64_t lo = 0, hi = 0xFFFFFFFFFFFFFFFFull;
-    while (lo < hi) {
-        uint64_t mid = lo + ((hi - lo) >> 1) + 1;
-        if ((u128) mid * mid <= v)
-            lo = mid;
-        else
-            hi = mid - 1;
-    }
-    return lo;
-}
-static uint64_t ref_tithe(uint64_t a)
-{
-    if (a > 0x0FFFFFFFFFFFFFFFull) return pay_tithe_phi(a);
-    u128 s = ref_isqrt((u128) 5 * a * a);
-    return (uint64_t) (((u128) a + s) / 200);
+    return (uint64_t) ((u128) a * 8889u / 10000000u);
 }
 
 /* ===== mock identities and signatures =====
@@ -348,13 +334,13 @@ static mk_order_state_t st(uint16_t o)
     return mk_order(&M, o)->state;
 }
 
-/* ===== 1. tithe ===== */
-static void test_tithe_reference(void)
+/* ===== 1. assurance fee ===== */
+static void test_fee_reference(void)
 {
     uint64_t v[] = {0,
                     1,
-                    61,
-                    62,
+                    1124,
+                    1125,
                     100,
                     123,
                     999,
@@ -362,21 +348,22 @@ static void test_tithe_reference(void)
                     1000000,
                     999999999999ull,
                     0xFFFFFFFFull,
-                    0x0FFFFFFFFFFFFFFFull};
+                    0x0FFFFFFFFFFFFFFFull,
+                    0xFFFFFFFFFFFFFFFFull};
     for (uint32_t i = 0; i < sizeof v / sizeof v[0]; i++)
-        CHECK(pay_tithe_phi(v[i]) == ref_tithe(v[i]));
+        CHECK(pay_assure_fee(v[i]) == ref_fee(v[i]));
     uint64_t x = 88172645463325252ull;
     for (int i = 0; i < 2000; i++) {
         x ^= x << 13;
         x ^= x >> 7;
         x ^= x << 17;
         uint64_t a = x >> (i % 40 + 4);
-        if (pay_tithe_phi(a) != ref_tithe(a)) {
+        if (pay_assure_fee(a) != ref_fee(a)) {
             CHECK(0);
             break;
         }
     }
-    CHECK(pay_tithe_phi(10000) == 161); /* 1.618...% of 100.00 */
+    CHECK(pay_assure_fee(10000) == 8 && pay_assure_fee(1124) == 0 && pay_assure_fee(1125) == 1);
 }
 
 /* ===== 2. the transition table against an independent list ===== */
@@ -514,8 +501,8 @@ static void test_transitions(void)
     transitions++;
     CHECK(all_ok());
     probe_illegal(o, "bea", "sam");
-    CHECK(mk_order(&M, o)->tithe_charged == ref_tithe(2000));
-    CHECK(bal("sam") == 2000 - (int64_t) ref_tithe(2000));
+    CHECK(mk_order(&M, o)->fee_charged == ref_fee(2000));
+    CHECK(bal("sam") == 2000 - (int64_t) ref_fee(2000));
     CHECK(LG.notes[MK_NOTE_COMPLETED] == 1);
 
     /* COMPLETED -> RETURN_OPEN -> back (decline) -> RETURN_OPEN -> REFUNDED */
@@ -529,7 +516,7 @@ static void test_transitions(void)
     CHECK(mk_return_received(&M, o, &S, true) == MK_OK && st(o) == MK_ORD_REFUNDED);
     transitions++;
     CHECK(all_ok());
-    CHECK(mk_order(&M, o)->tithe_charged == 0);
+    CHECK(mk_order(&M, o)->fee_charged == 0);
     CHECK(bal("bea") == 100000000);
     CHECK(bal("sam") == 0 && LG.commons == 0);
     CHECK(mk_available(&M, L) == 10); /* restocked */
@@ -559,7 +546,7 @@ static void test_transitions(void)
     CHECK(mk_order_cancel(&M, o, &S) == MK_OK && st(o) == MK_ORD_REFUNDED);
     transitions++;
     CHECK(M.listing[L - 1].spec.stock == 10 && all_ok());
-    CHECK(mk_order(&M, o)->tithe_charged == 0);
+    CHECK(mk_order(&M, o)->fee_charged == 0);
 
     /* PAID -> COMPLETED (buyer confirms without a seller mark) */
     o = order1("bea", L, 1, 0);
@@ -667,7 +654,7 @@ static void test_transitions(void)
     CHECK(mk_dispute_rule(&M, o, &A, 600, sig, 32) == MK_OK && st(o) == MK_ORD_RESOLVED);
     transitions++;
     CHECK(mk_order(&M, o)->to_buyer == 600);
-    CHECK(mk_order(&M, o)->tithe_charged == ref_tithe(400));
+    CHECK(mk_order(&M, o)->fee_charged == ref_fee(400));
     CHECK(all_ok());
     probe_illegal(o, "bea", "sam");
 
@@ -679,7 +666,7 @@ static void test_transitions(void)
     mk_ruling_digest(&M, o, 1000, dg);
     mock_sign(&A, dg, 32, sig);
     CHECK(mk_dispute_rule(&M, o, &A, 1000, sig, 32) == MK_OK);
-    CHECK(mk_order(&M, o)->tithe_charged == 0 && all_ok());
+    CHECK(mk_order(&M, o)->fee_charged == 0 && all_ok());
 
     CHECK(mk_restock(&M, &S, L, 20) == MK_OK);
     /* FULFILLED -> REFUNDED (seller refunds all, still in escrow) */
@@ -695,7 +682,7 @@ static void test_transitions(void)
     CHECK(mk_order_confirm(&M, o, &B) == MK_OK);
     CHECK(mk_order_refund_line(&M, o, &S, 0, 1) == MK_OK && st(o) == MK_ORD_REFUNDED);
     transitions++;
-    CHECK(mk_order(&M, o)->tithe_charged == 0 && all_ok());
+    CHECK(mk_order(&M, o)->fee_charged == 0 && all_ok());
 
     /* atomicity: a refused settlement changes nothing */
     o = order1("bea", L, 1, 0);
@@ -755,7 +742,7 @@ static void test_community(void)
     CHECK(mk_dispute_rule(&M, o, &j2, 300, sig, 32) == MK_OK);
     CHECK(st(o) == MK_ORD_RESOLVED);
     CHECK(mk_order(&M, o)->dispute.buyer_award == 300); /* lower median of {300, 999} */
-    CHECK(mk_order(&M, o)->tithe_charged == ref_tithe(699) && all_ok());
+    CHECK(mk_order(&M, o)->fee_charged == ref_fee(699) && all_ok());
 
     /* deadline with a majority of a 3-panel */
     LG.jurors[1] = ID("j4");
@@ -776,7 +763,7 @@ static void test_community(void)
     CHECK(all_ok());
 }
 
-/* ===== 5. refund exactness and tithe exactness with tax ===== */
+/* ===== 5. refund exactness and fee exactness with tax ===== */
 static void test_refund_exactness(void)
 {
     uint32_t rates[][2] = {{20, 100}, {7, 100}, {19, 100}, {1, 3}, {0, 1}, {825, 10000}};
@@ -823,12 +810,12 @@ static void test_refund_exactness(void)
                         sum += R;
                         sumtax += T;
                         if (!all_ok()) bad++;
-                        /* tithe exactness after every step */
-                        if (od->tithe_charged != ref_tithe(od->released_base - od->returned_base))
+                        /* fee exactness after every step */
+                        if (od->fee_charged != ref_fee(od->released_base - od->returned_base))
                             bad++;
                     }
                     if (sum != lt || sumtax != tx || od->state != MK_ORD_REFUNDED ||
-                        od->tithe_charged != 0 || bal("bea") != 1000000000 || bal("sam") != 0 ||
+                        od->fee_charged != 0 || bal("bea") != 1000000000 || bal("sam") != 0 ||
                         LG.commons != 0 || LG.tax != 0)
                         bad++;
                     cases++;
@@ -1039,15 +1026,15 @@ static void test_kinds(void)
     /* free cancel before the cutoff */
     CHECK(mk_order_cancel(&M, o1, &B) == MK_OK && st(o1) == MK_ORD_REFUNDED);
     CHECK(M.listing[bk - 1].spec.slot[0].booked == 0 && bal("bea") == 10000000);
-    /* late cancel: flat disclosed fee, tithed once */
+    /* late cancel: flat disclosed fee, assurance fee once */
     o1 = order1("bea", bk, 2, 0);
     CHECK(mk_order_pay(&M, o1, &B) == MK_OK);
     mk_tick(&M, M.listing[bk - 1].spec.slot[0].start - 86400);
     CHECK(mk_order_cancel(&M, o1, &B) == MK_OK && st(o1) == MK_ORD_REFUNDED);
     CHECK(mk_order(&M, o1)->cancel_fee == 4000);
     CHECK(bal("bea") == 10000000 - 4000);
-    CHECK(bal("sam") == 4000 - (int64_t) ref_tithe(4000));
-    CHECK(LG.commons == (int64_t) ref_tithe(4000) && all_ok());
+    CHECK(bal("sam") == 4000 - (int64_t) ref_fee(4000));
+    CHECK(LG.commons == (int64_t) ref_fee(4000) && all_ok());
     /* seller cancelling never charges the buyer */
     uint16_t o2 = order1("bea", bk, 1, 1);
     CHECK(mk_order_pay(&M, o2, &B) == MK_OK);
@@ -1361,8 +1348,8 @@ static void test_b2b(void)
     CHECK(mk_invoice_settle(&M, (uint16_t) inv, due - 1, false) == MK_ERR_ARG);
     CHECK(mk_invoice_settle(&M, (uint16_t) inv, due, false) == MK_OK);
     CHECK(v->state == MK_INV_PAID && M.po[po - 1].state == MK_PO_CLOSED);
-    CHECK(v->tithe == ref_tithe(230000 + 500 + 2500));
-    CHECK(LG.commons == (int64_t) v->tithe && bal("supplier") == -(int64_t) v->tithe);
+    CHECK(v->assure_fee == ref_fee(230000 + 500 + 2500));
+    CHECK(LG.commons == (int64_t) v->assure_fee && bal("supplier") == -(int64_t) v->assure_fee);
     CHECK(LG.escrow == 0 && ledger_total_ok());
 
     /* paid on time (initiated before due): no late fee; VFV is internal only */
@@ -1516,7 +1503,7 @@ static void test_random_conservation(void)
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
-    test_tithe_reference();
+    test_fee_reference();
     test_table();
     test_transitions();
     test_community();

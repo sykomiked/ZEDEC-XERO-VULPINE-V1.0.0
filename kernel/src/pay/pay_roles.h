@@ -5,7 +5,7 @@
  * ROLES
  *   INDIVIDUAL    a person paying and being paid.
  *   SELF_BANK     a self-banking operator: its own pay_ledger, limits, fee
- *                 rule, tithe policy and compliance profile.
+ *                 rule, assurance-fee policy and compliance profile.
  *   INSTITUTION   a financial institution: LEI (ISO 17442, ISO 7064 mod 97-10
  *                 check digits), BIC (ISO 9362 format), optional settlement
  *                 IBAN (ISO 13616 mod-97 and registry length), and its own
@@ -47,7 +47,7 @@
 #include <stdbool.h>
 #include "pay_util.h"
 #include "pay_ledger.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
 /* ===== Identifier validation ===== */
 /* ISO 7064 MOD 97-10 remainder of an alphanumeric string (A=10 .. Z=35).
@@ -169,7 +169,7 @@ typedef struct {
     char country[3];      /* ISO 3166 alpha-2 of the legal seat, or ""          */
     pay_limits_t limits;
     pay_fee_rule_t fee;
-    pay_tithe_policy_t tithe;
+    pay_assure_policy_t assure; /* 0.08889% assurance-fee policy */
     pay_compliance_t compliance;
     pay_ledger_t *ledger; /* SELF_BANK: its own ledger */
     char lei[21];
@@ -183,7 +183,7 @@ typedef struct {
     uint64_t period_used;
 } pay_role_cfg_t;
 
-/* Defaults: no limits, no fee, the default tithe policy, no screening, no
+/* Defaults: no limits, no fee, the default assurance-fee policy, no screening, no
  * gateways, equity disabled, jurisdiction from the platform default ("NCR"),
  * no settlement asset (an institution never defaults to VFV). */
 pay_status_t pay_role_init(pay_role_cfg_t *c, pay_role_t role, uint32_t id, const char *name);

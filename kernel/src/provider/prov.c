@@ -5,7 +5,7 @@
  * Receipts, settlement and reputation are in prov_receipt.c. */
 #include "prov.h"
 #include "../pay/pay_util.h"
-#include "../pay/pay_tithe.h"
+#include "../pay/pay_assure.h"
 #include "../pay/pay_ledger.h"
 #include "../tensor/zt.h"
 
@@ -15,7 +15,7 @@ void prov_config_default(prov_config_t *c)
 {
     if (!c) return;
     prov_memset(c, 0, sizeof *c);
-    c->fee_mode = PROV_FEE_PHI;
+    c->fee_mode = PROV_FEE_ASSURE;
     c->fee_bps = 0;
     c->cap_q32 = PROV_CAP_INV_PHI2_Q32;
     c->sybil = PROV_SYBIL_NONE;
@@ -64,7 +64,7 @@ uint64_t prov_fee(const prov_net_t *n, uint64_t amount)
 {
     uint64_t f = 0;
     if (!n) return 0;
-    if (n->cfg.fee_mode == PROV_FEE_PHI) return pay_tithe_phi(amount);
+    if (n->cfg.fee_mode == PROV_FEE_ASSURE) return pay_assure_fee(amount);
     if (!prov_muldiv(amount, n->cfg.fee_bps, 10000u, &f)) return 0;
     return f;
 }

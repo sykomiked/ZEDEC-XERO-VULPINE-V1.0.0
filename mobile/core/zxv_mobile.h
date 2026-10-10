@@ -114,8 +114,8 @@ int zxv_get_setting(uint16_t key, char *out, uint32_t cap);
 
 /* money: answer the last action shown through host.money */
 int zxv_money_answer(int approve, uint64_t now_ms);
-/* exact phi tithe of an amount, for display */
-uint64_t zxv_tithe(uint64_t amount);
+/* the exact 0.08889% assurance fee of an amount (no carry), for display */
+uint64_t zxv_assure_fee(uint64_t amount);
 
 #ifdef __cplusplus
 }

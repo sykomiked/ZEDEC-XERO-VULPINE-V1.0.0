@@ -18,6 +18,7 @@
  * which levels) is the operator's: ident only enforces the list.
  */
 #include "id_internal.h"
+#include "../pay/pay_rails.h"
 #include "../tensor/zt.h"
 
 static pqm_sig_pk_t g_hpk;
@@ -581,7 +582,7 @@ id_status_t id_kyc_check_payment(const id_kyc_profile_t *p, const id_kyc_status_
                                  uint64_t spent_today, uint8_t *need_level)
 {
     if (need_level) *need_level = 0;
-    if (!p || (rail != 555u && rail != 777u && rail != 888u)) return ID_ERR_ARG;
+    if (!p || !ZXV_RAIL_IS_RAIL(rail)) return ID_ERR_ARG; /* 555 / 777 / 888 only */
     uint8_t eff = 0;
     if (s && s->verified && now_ms < s->expires_ms) eff = s->level;
     if (eff < p->required_level) {

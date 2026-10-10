@@ -15,7 +15,8 @@
 #include "../kernel/src/vino/vino.h"
 #include "../kernel/src/vena/vena.h"
 
-static void test_net_structures(void) {
+static void test_net_structures(void)
+{
     printf("=== Network Stack Tests ===\n");
     assert(sizeof(eth_header_t) == 14);
     assert(sizeof(ip_header_t) == 20);
@@ -45,7 +46,8 @@ static void test_net_structures(void) {
     printf("  [PASS] Socket create/close works\n\n");
 }
 
-static void test_m5_router(void) {
+static void test_m5_router(void)
+{
     printf("=== M5 Omni-Router Tests ===\n");
     assert(M5_PROTO_MAX == 44);
     assert(M5_PROTO_NATIVE == 0);
@@ -119,7 +121,8 @@ static void test_m5_router(void) {
     printf("  [PASS] Radio frequency address encoding works\n\n");
 }
 
-static void test_dtmf_morse(void) {
+static void test_dtmf_morse(void)
+{
     printf("=== DTMF + Morse Code Tests ===\n");
     const dtmf_freq_pair_t *f = dtmf_get_freqs('1');
     assert(f != NULL);
@@ -157,7 +160,8 @@ static void test_dtmf_morse(void) {
     printf("  [PASS] DTMF tone generation: %d samples\n\n", n);
 }
 
-static void test_radio_structures(void) {
+static void test_radio_structures(void)
+{
     printf("=== Radio/Cellular/Satellite Tests ===\n");
     assert(sizeof(cell_modem_t) > 0);
     assert(sizeof(satellite_link_t) > 0);
@@ -206,7 +210,8 @@ static void test_radio_structures(void) {
     printf("  [PASS] Starlink terminal init + align\n\n");
 }
 
-static void test_vino_ledger(void) {
+static void test_vino_ledger(void)
+{
     printf("=== Vino Bank Node Tests ===\n");
     assert(CAP_MAX == 9);
     assert(ASSET_MAX == 12);
@@ -229,8 +234,8 @@ static void test_vino_ledger(void) {
 
     vino_create_account(&v, "ZEDEC:node:0002", "Treasury");
     acc->balance[CAP_FINANCIAL] = 1000000;
-    int32_t txid = vino_transfer(&v, "ZEDEC:node:0001", "ZEDEC:node:0002",
-                                   50000, CAP_FINANCIAL, RAIL_VINO_NATIVE, "genesis grant");
+    int32_t txid = vino_transfer(&v, "ZEDEC:node:0001", "ZEDEC:node:0002", 50000, CAP_FINANCIAL,
+                                 RAIL_VINO_NATIVE, "genesis grant");
     assert(txid >= 0);
     assert(v.num_txns == 1);
     uint64_t bal;
@@ -294,9 +299,9 @@ static void test_vino_ledger(void) {
     assert(strstr(msg_buf, "VISA") != NULL);
     printf("  [PASS] Visa payment rail adapter\n");
 
-    assert(strcmp(vino_capital_name(CAP_FINANCIAL), "Financial") == 0);
-    assert(strcmp(vino_capital_name(CAP_KNOWLEDGE), "Knowledge") == 0);
-    assert(strcmp(vino_capital_name(CAP_HUMAN), "Human") == 0);
+    assert(strcmp(vino_capital_name(CAP_FINANCIAL), "FINANCIAL") == 0);
+    assert(strcmp(vino_capital_name(CAP_KNOWLEDGE), "INTELLECTUAL") == 0);
+    assert(strcmp(vino_capital_name(CAP_HUMAN), "HUMAN") == 0);
     printf("  [PASS] Capital type names correct\n");
 
     assert(strcmp(vino_rail_name(RAIL_SWIFT), "SWIFT") == 0);
@@ -306,7 +311,8 @@ static void test_vino_ledger(void) {
     printf("  [PASS] Payment rail names correct\n\n");
 }
 
-static void test_vena_runtime(void) {
+static void test_vena_runtime(void)
+{
     printf("=== Vena Runtime Tests ===\n");
     assert(VENA_MAX_LANGUAGES == 32);
     assert(LANG_M5_AXIOMATIC == 31);
@@ -330,8 +336,8 @@ static void test_vena_runtime(void) {
     assert(vena_is_language_supported(&vr, LANG_M5_AXIOMATIC) == true);
     printf("  [PASS] Obscure languages supported: Navajo, Klingon, Morse, M5\n");
 
-    int32_t cid = vena_register_contract(&vr, "genesis_contract",
-        "M5:AXIOM:transfer", LANG_M5_AXIOMATIC, "ZEDEC:node:0001");
+    int32_t cid = vena_register_contract(&vr, "genesis_contract", "M5:AXIOM:transfer",
+                                         LANG_M5_AXIOMATIC, "ZEDEC:node:0001");
     assert(cid == 0);
     assert(vr.num_contracts == 1);
     printf("  [PASS] Smart contract registered\n");
@@ -364,7 +370,8 @@ static void test_vena_runtime(void) {
     printf("  [PASS] Language names correct\n\n");
 }
 
-int main(void) {
+int main(void)
+{
     printf("=== ZEDEC pqOS Network + Vino + Vena Tests ===\n\n");
 
     test_net_structures();

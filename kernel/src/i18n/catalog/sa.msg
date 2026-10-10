@@ -46,7 +46,7 @@ ASSIST_ASK_LABEL|-|machine|सहायकं पृच्छ
 PAY_CONFIRM_TITLE|-|machine|धनप्रदानं निश्चिनु
 PAY_TO|-|machine|प्राप्तकर्ता
 PAY_AMOUNT|-|machine|राशिः
-PAY_TITHE|-|machine|जालदशांशः (φ%)
+PAY_FEE|-|machine|प्रतिभूतिशुल्कम् (0.08889%)
 PAY_RECORD|-|machine|अभिलेखः
 PAY_BUTTON|-|machine|{0} देहि
 PAY_VERIFIED_PEER|-|machine|सत्यापितः सहभागी
@@ -93,7 +93,7 @@ CALL_MUTE|-|machine|मौनं कुरु
 FARM_TITLE|-|machine|भवतः गणनक्षेत्रम्
 FARM_THIS_DEVICE|-|machine|इदं यन्त्रम्
 FARM_IDLE_SHARE|-|machine|निष्क्रियगणनशक्तेः {0}
-FARM_EARNED_TODAY|-|machine|अद्य अर्जितम्, दशांशानन्तरम्
+FARM_EARNED_TODAY|-|machine|अद्य अर्जितम्, प्रतिभूतिशुल्कानन्तरम्
 FARM_VERIFIED|-|machine|सहभागिभिः सत्यापितं कार्यम्
 
 UPD_BUCKETS|-|machine|अद्यतनकोष्ठाः
@@ -103,7 +103,7 @@ UPD_RATINGS|other|machine|{1} मूल्याङ्कनेभ्यः 5 �
 UPD_READY|-|machine|{0} स्थापनाय सज्जम्
 UPD_RATINGS_NO_TRUST|-|machine|मूल्याङ्कनानि स्थापनविश्वासं कदापि न ददति
 
-WAL_TITLE|-|machine|धनकोशः दशांशश्च
+WAL_TITLE|-|machine|धनकोशः शुल्कानि च
 WAL_ROLE|-|machine|लेखाप्रकारः
 WAL_ROLE_INDIVIDUAL|-|machine|व्यक्तिः
 WAL_ROLE_SELFBANK|-|machine|स्वकोशसञ्चालकः
@@ -120,12 +120,12 @@ CAP_KNOWLEDGE|-|machine|ज्ञानम्
 CAP_BUILT|-|machine|निर्मितम्
 CAP_FINANCIAL|-|machine|आर्थिकम्
 
-TITHE_TITLE|-|machine|जालदशांशः
-TITHE_EXPLAIN|-|machine|प्रत्येकं ग्रन्थिः स्वेन उपयुक्तायाः गणनशक्तेः, सञ्चारक्षमतायाः, धनस्य च φ प्रतिशतं ददाति, येन जालं सर्वेभ्यः शीघ्रं तिष्ठेत्। ततः अधिकं यत् ददासि तेन पारितोषिकपत्राणि अर्ज्यन्ते।
-TITHE_BASE|-|machine|मूलदशांशः
-TITHE_YOUR_CONTRIB|-|machine|भवतः योगदानम्:
-TITHE_ABOVE|-|machine|उपयोगस्य {0} दशांशात् अधिकम्। तत् आधिक्यं भवते पारितोषिकपत्ररूपेण दीयते।
-TITHE_EXACT|-|machine|भवान् यथावत् मूलदशांशं ददाति। अधिकं दातुं पारितोषिकपत्राणि अर्जयितुं च सर्पकं चालय।
+FEE_TITLE|-|machine|जालप्रतिभूतिशुल्कम्
+FEE_EXPLAIN|-|machine|प्रत्येकं देयं 0.08889% प्रतिभूतिशुल्कं वहति। अर्धं Vino-निधेः मूलसञ्चयं धारयति; शेषं V-Bill-लाभांशकोशं, ग्रन्थिपुरस्कारान्, पुनर्जननधनं च पोषयति। ततः अधिकं यत् ददासि तेन पारितोषिकपत्राणि अर्ज्यन्ते।
+FEE_BASE|-|machine|मूलशुल्कम्
+FEE_YOUR_CONTRIB|-|machine|भवतः योगदानम्:
+FEE_ABOVE|-|machine|उपयोगस्य {0} शुल्कात् अधिकम्। तत् आधिक्यं भवते पारितोषिकपत्ररूपेण दीयते।
+FEE_EXACT|-|machine|भवान् यथावत् मूलशुल्कं ददाति। अधिकं दातुं पारितोषिकपत्राणि अर्जयितुं च सर्पकं चालय।
 
 ERR_GENERIC|-|machine|किञ्चित् दोषः जातः। कृपया पुनः प्रयतस्व।
 ERR_NETWORK|-|machine|जालं प्राप्तुं न शक्यते। भवतः कार्यं रक्षितम्, पश्चात् प्रेषयिष्यते।

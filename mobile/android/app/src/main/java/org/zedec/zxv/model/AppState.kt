@@ -34,7 +34,7 @@ class AppState(val core: CoreApi, private val clock: () -> Long) : CoreListener 
     var homeUp by mutableStateOf(false)
     var notice by mutableStateOf("")
     var localModels by mutableStateOf(listOf<String>())
-    var giveBasisPoints by mutableStateOf(162) // contribution slider, 1/100 percent
+    var giveTenMillionths by mutableStateOf(8889) // contribution slider, parts per 10^7 (8889 = the 0.08889% fee)
     private val pending = HashMap<Int, Int>() // request id -> message index
     private val pendingPrompt = HashMap<Int, String>()
 

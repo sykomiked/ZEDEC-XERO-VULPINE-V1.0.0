@@ -490,14 +490,14 @@ static void fill_complete(ssw_node_t *n, uint32_t a, uint32_t b)
     }
 }
 
-static uint64_t tithe_rows = 0;
+static uint64_t fee_rows = 0;
 static uint32_t boosted = 0;
-static void tithe(void *ctx, uint32_t from, uint32_t to, uint32_t rows)
+static void fee_cb(void *ctx, uint32_t from, uint32_t to, uint32_t rows)
 {
     (void) ctx;
     (void) from;
     (void) to;
-    tithe_rows += rows;
+    fee_rows += rows;
 }
 static uint32_t weight(void *ctx, uint32_t peer, uint32_t base)
 {
@@ -515,7 +515,7 @@ static void test_scheduler(void)
     {
         ssw_node_t *u = &nodes[0];
         mk_node(u, 100, 800, 0, SSW_MODE_LIVE, 0, false);
-        u->cfg.tithe_hook = tithe;
+        u->cfg.fee_hook = fee_cb;
         u->cfg.weight_hook = weight;
         /* content arrives from a peer that then leaves, so no requester has
          * earned reciprocity credit and all base weights are equal */
@@ -549,7 +549,7 @@ static void test_scheduler(void)
                (unsigned long long) (sent / 30));
         CHECK(worst <= 800 + 2 * 8 + 8 && sent / 30 >= 780,
               "upload cap is never exceeded (and is used)");
-        CHECK(tithe_rows == sent, "tithe hook told about every uploaded row");
+        CHECK(fee_rows == sent, "fee hook told about every uploaded row");
         uint64_t mn = served[0], mx = served[0];
         for (int p = 0; p < 5; p++) {
             if (served[p] < mn) mn = served[p];

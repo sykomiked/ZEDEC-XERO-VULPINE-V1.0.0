@@ -50,7 +50,7 @@ ASSIST_ASK_LABEL|-|machine|اسأل المساعد
 PAY_CONFIRM_TITLE|-|machine|تأكيد الدفع
 PAY_TO|-|machine|إلى
 PAY_AMOUNT|-|machine|المبلغ
-PAY_TITHE|-|machine|عُشر الشبكة (φ٪)
+PAY_FEE|-|machine|رسم الضمان (0.08889٪)
 PAY_RECORD|-|machine|السجل
 PAY_BUTTON|-|machine|ادفع {0}
 PAY_VERIFIED_PEER|-|machine|قرين موثّق
@@ -122,7 +122,7 @@ CALL_MUTE|-|machine|كتم الصوت
 FARM_TITLE|-|machine|مزرعتك
 FARM_THIS_DEVICE|-|machine|هذا الجهاز
 FARM_IDLE_SHARE|-|machine|{0} من قدرة الحوسبة الخاملة
-FARM_EARNED_TODAY|-|machine|المكتسب اليوم بعد العُشر
+FARM_EARNED_TODAY|-|machine|المكتسب اليوم بعد رسم الضمان
 FARM_VERIFIED|-|machine|عمل تحقق منه الأقران
 
 UPD_BUCKETS|-|machine|مستودعات التحديثات
@@ -137,7 +137,7 @@ UPD_RATINGS|other|machine|{0} من 5 بناءً على {1} تقييم
 UPD_READY|-|machine|{0} جاهز للتثبيت
 UPD_RATINGS_NO_TRUST|-|machine|التقييمات لا تمنح أبدًا ثقة التثبيت
 
-WAL_TITLE|-|machine|المحفظة والعُشر
+WAL_TITLE|-|machine|المحفظة والرسوم
 WAL_ROLE|-|machine|نوع الحساب
 WAL_ROLE_INDIVIDUAL|-|machine|فرد
 WAL_ROLE_SELFBANK|-|machine|مشغّل مصرفي ذاتي
@@ -154,12 +154,12 @@ CAP_KNOWLEDGE|-|machine|معرفي
 CAP_BUILT|-|machine|مبني
 CAP_FINANCIAL|-|machine|مالي
 
-TITHE_TITLE|-|machine|عُشر الشبكة
-TITHE_EXPLAIN|-|machine|تقدّم كل عقدة φ بالمئة من الحوسبة وعرض النطاق والمال الذي تستخدمه، لتبقى الشبكة سريعة للجميع. وكل ما تقدّمه فوق ذلك يكسبك قسائم.
-TITHE_BASE|-|machine|العُشر الأساسي
-TITHE_YOUR_CONTRIB|-|machine|مساهمتك:
-TITHE_ABOVE|-|machine|أعلى من العُشر بنسبة {0} من الاستخدام. يُضاف هذا الفائض إلى رصيدك قسائمَ.
-TITHE_EXACT|-|machine|أنت تقدّم العُشر الأساسي بالضبط. حرّك المؤشر لتقدّم أكثر وتكسب قسائم.
+FEE_TITLE|-|machine|رسم ضمان الشبكة
+FEE_EXPLAIN|-|machine|يحمل كل دفع رسم ضمان قدره 0.08889٪. يدعم نصفه الحدّ الأدنى لاحتياطي Vino، ويموّل الباقي صندوق أرباح V-Bill ومكافآت العقد ورأس المال المتجدد. وكل ما تقدّمه فوق ذلك يكسبك قسائم.
+FEE_BASE|-|machine|الرسم الأساسي
+FEE_YOUR_CONTRIB|-|machine|مساهمتك:
+FEE_ABOVE|-|machine|أعلى من الرسم بنسبة {0} من الاستخدام. يُضاف هذا الفائض إلى رصيدك قسائمَ.
+FEE_EXACT|-|machine|أنت تقدّم الرسم الأساسي بالضبط. حرّك المؤشر لتقدّم أكثر وتكسب قسائم.
 
 ERR_GENERIC|-|machine|حدث خطأ ما. يُرجى المحاولة مرة أخرى.
 ERR_NETWORK|-|machine|تعذّر الوصول إلى الشبكة. حُفظ إجراؤك وسيُرسل لاحقًا.

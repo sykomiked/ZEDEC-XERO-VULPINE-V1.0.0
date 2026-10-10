@@ -5,7 +5,11 @@
  *
  *   HOLD     user -> escrow            hold
  *   FINAL    escrow -> provider        net
- *            escrow -> commons         fee (the published network fee)
+ *            escrow -> fee buckets     fee (the published network fee), split
+ *                                      exactly by pay_assure_split into the
+ *                                      reserve floor, V-Bill dividend pool,
+ *                                      infrastructure/node bounties and
+ *                                      regenerative capital accounts
  *            escrow -> user            refund (unused hold + SLA credit)
  *            one atomic posting; hold == net + fee + refund
  *   RELEASE  escrow -> user            hold
@@ -28,7 +32,7 @@ typedef struct {
     uint32_t initiator; /* pay principal id for the provider layer */
     uint64_t tick;      /* supplied time */
     uint32_t escrow[PROV_MAX_ASSETS];
-    uint32_t commons[PROV_MAX_ASSETS];
+    uint32_t fee_acct[PROV_MAX_ASSETS][PAY_ASSURE_BUCKETS];      /* pay_assure_bucket_t */
     uint32_t user[PROV_MAX_ASSETS][PROV_MAX_USERS + 1u];         /* by handle */
     uint32_t provider[PROV_MAX_ASSETS][PROV_MAX_PROVIDERS + 1u]; /* by handle */
     pay_status_t last;                                           /* status of the last posting */

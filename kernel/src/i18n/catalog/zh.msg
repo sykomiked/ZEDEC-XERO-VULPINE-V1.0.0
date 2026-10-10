@@ -42,7 +42,7 @@ ASSIST_ASK_LABEL|-|machine|询问助手
 PAY_CONFIRM_TITLE|-|machine|确认付款
 PAY_TO|-|machine|收款方
 PAY_AMOUNT|-|machine|金额
-PAY_TITHE|-|machine|网络什一费（φ%）
+PAY_FEE|-|machine|保障费（0.08889%）
 PAY_RECORD|-|machine|记录
 PAY_BUTTON|-|machine|支付 {0}
 PAY_VERIFIED_PEER|-|machine|已验证的对等方
@@ -89,7 +89,7 @@ CALL_MUTE|-|machine|静音
 FARM_TITLE|-|machine|您的算力农场
 FARM_THIS_DEVICE|-|machine|此设备
 FARM_IDLE_SHARE|-|machine|闲置算力的 {0}
-FARM_EARNED_TODAY|-|machine|今日收益（扣除什一费后）
+FARM_EARNED_TODAY|-|machine|今日收益（扣除保障费后）
 FARM_VERIFIED|-|machine|经对等方验证的工作
 
 UPD_BUCKETS|-|machine|更新仓库
@@ -99,7 +99,7 @@ UPD_RATINGS|other|machine|{0}/5，来自 {1} 条评分
 UPD_READY|-|machine|{0} 可以安装
 UPD_RATINGS_NO_TRUST|-|machine|评分永远不会授予安装信任
 
-WAL_TITLE|-|machine|钱包与什一费
+WAL_TITLE|-|machine|钱包与费用
 WAL_ROLE|-|machine|账户类型
 WAL_ROLE_INDIVIDUAL|-|machine|个人
 WAL_ROLE_SELFBANK|-|machine|自营银行运营者
@@ -116,12 +116,12 @@ CAP_KNOWLEDGE|-|machine|知识
 CAP_BUILT|-|machine|建造
 CAP_FINANCIAL|-|machine|金融
 
-TITHE_TITLE|-|machine|网络什一费
-TITHE_EXPLAIN|-|machine|每个节点贡献其所用算力、带宽和资金的 φ%，让网络对所有人保持快速。超出部分的贡献可赚取代金券。
-TITHE_BASE|-|machine|基础什一费
-TITHE_YOUR_CONTRIB|-|machine|您的贡献：
-TITHE_ABOVE|-|machine|比什一费高出用量的 {0}。这部分盈余将以代金券形式计入您的账户。
-TITHE_EXACT|-|machine|您正好贡献基础什一费。移动滑块即可多贡献并赚取代金券。
+FEE_TITLE|-|machine|网络保障费
+FEE_EXPLAIN|-|machine|每笔付款收取 0.08889% 的保障费。一半用于支撑 Vino 储备底线；其余用于 V-Bill 分红池、节点奖励和再生资本。超出部分的贡献可赚取代金券。
+FEE_BASE|-|machine|基础费用
+FEE_YOUR_CONTRIB|-|machine|您的贡献：
+FEE_ABOVE|-|machine|比保障费高出用量的 {0}。这部分盈余将以代金券形式计入您的账户。
+FEE_EXACT|-|machine|您正好支付基础费用。移动滑块即可多贡献并赚取代金券。
 
 ERR_GENERIC|-|machine|出了点问题。请重试。
 ERR_NETWORK|-|machine|无法连接网络。您的操作已保存，稍后将发送。

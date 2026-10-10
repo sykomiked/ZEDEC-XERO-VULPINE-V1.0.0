@@ -44,7 +44,7 @@ ZXV is three things that share one source tree.
    cooperative free market over the nine forms of capital with no-monopoly caps. The Interaction
    Surplus Framework maths (`surplus`) scores novelty and controls the budget.
 3. **An economic and communications network** built from libraries:
-   - money: the payment ledger and φ% tithe (`pay`), the central-bank toolkit with ISO 4217 rails
+   - money: the payment ledger and 0.08889% assurance fee (`pay`), the central-bank toolkit with ISO 4217 rails
      555/777/888 and ISO 20022 messages (`cbank`, `iso20022`), the triple ledger (`finance`),
      Vino floating vouchers (`vino`, `vino_stores`), Phoenix/Dragon/Thunderbird charge cards
      (`cardnet`), compute and capacity markets (`capmkt`, `provider`, `zcapital`), commerce
@@ -218,7 +218,7 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [oseq](#oseq----k1-ordinal-sequencer) | K1 ordinal sequencer | WORKING (tested in verify-all) |
 | [p2p_caracho](#p2p_caracho----superseded-p2p-transport) | superseded P2P transport | UNUSED/DEAD |
 | [panopticon](#panopticon----connection-watcher-and-vpn-mesh-model) | connection watcher and "VPN mesh" model | PARTIAL |
-| [pay](#pay----payment-ledger-tithe-iso-20022-equity-treasury-farm) | payment ledger, tithe, ISO 20022, equity, treasury, farm | WORKING (tested in verify-all) |
+| [pay](#pay----payment-ledger-assurance-fee-iso-20022-equity-treasury-farm) | payment ledger, assurance fee, ISO 20022, equity, treasury, farm | WORKING (tested in verify-all) |
 | [peer_audit](#peer_audit----self-audit-and-peer-audit-for-swarm-transitions) | self-audit and peer audit for swarm transitions | WORKING (tested in verify-all) |
 | [pci](#pci----pci-enumeration-x86) | PCI enumeration (x86) | PARTIAL |
 | [phase_coord](#phase_coord----k6-phase-coordinator) | K6 phase coordinator | WORKING (tested in verify-all) |
@@ -722,8 +722,8 @@ Gaps: none found in the parsers.
 ### capmkt  —  market for buying compute, storage or bandwidth from other machines
 Status: WORKING (tested in verify-all)
 What it does: Buyers bid and providers ask. A uniform-price auction clears each round, and
-buyers' funds go into escrow. Providers are paid per proof of delivery, minus a tithe to the
-commons, and undelivered escrow is refunded with no fee. The products are overflow-bounded, and a
+buyers' funds go into escrow. Providers are paid per proof of delivery, minus the 0.08889% assurance fee to the
+four fee buckets, and undelivered escrow is refunded with no fee. The products are overflow-bounded, and a
 conservation audit checks every account.
 Main entry points: cm_params_default, cm_init, cm_deposit, cm_withdraw, cm_ask, cm_bid, cm_clear,
 cm_deliver.
@@ -1665,7 +1665,7 @@ Gaps: test lacks SPDX.
 
 ### market  —  P2P commerce state machine
 Status: WORKING (tested in verify-all, under ASan+UBSan)
-What it does: Signed storefronts and listings, carts, orders through one table-driven state machine, per-order escrow with exact conservation, phi% tithe from pay, refunds exact to the minor unit, operator tax rates, disputes, reviews, ISF-ranked discovery and agent shopping with user confirmation tokens. Money only moves through a settle hook.
+What it does: Signed storefronts and listings, carts, orders through one table-driven state machine, per-order escrow with exact conservation, the 0.08889% assurance fee from pay (charged once per sale), refunds exact to the minor unit, operator tax rates, disputes, reviews, ISF-ranked discovery and agent shopping with user confirmation tokens. Money only moves through a settle hook.
 Main entry points: mk_init, mk_ccy_register, mk_listing_publish, mk_cart_add, mk_checkout, mk_dispute_open/rule, mk_discover, mk_mandate_grant, mk_invoice_issue.
 Tests: market/test_market.c — passes. Used by: nothing outside tests. Hosted only.
 Gaps: not linked into a kernel.
@@ -1820,10 +1820,10 @@ Main entry points: panopticon_init, panopticon_register_watcher, panopticon_rate
 Tests: none. Used by: nothing includes it. Kernel: yes.
 Gaps: no test; not a VPN.
 
-### pay  —  payment ledger, tithe, ISO 20022, equity, treasury, farm
+### pay  —  payment ledger, assurance fee, ISO 20022, equity, treasury, farm
 Status: WORKING (tested in verify-all, under ASan+UBSan)
-What it does: Exact-integer three-rail ledger with all-or-nothing postings, hash-chained provenance, idempotency and replay protection, no interest; phi tithe checked against a Python reference; strict ISO 20022 builders and parsers checked against the official XSDs; share equity, group treasuries, role/IBAN checks and gateways as callbacks only (no SWIFT connection, stated).
-Main entry points: pay_ledger_init, pay_ledger_post, pay_ledger_transfer, pay_ledger_issue, pay_ledger_check, pay_ledger_verify_chain, pay_tithe_phi, pay_iso_pacs008, pay_iso_parse_pacs008/camt053.
+What it does: Exact-integer three-rail ledger with all-or-nothing postings, hash-chained provenance, idempotency and replay protection, no interest; the 0.08889% assurance fee (pay_assure.h: floor(g·8889/10^7), per-account sub-unit carry, exact 50/25/15/10 split into reserve floor / V-Bill dividend pool / infrastructure-node bounties / regenerative capital; it replaced the φ% tithe 2026-10-10) checked against a Python reference; strict ISO 20022 builders and parsers checked against the official XSDs; share equity, group treasuries, role/IBAN checks and gateways as callbacks only (no SWIFT connection, stated).
+Main entry points: pay_ledger_init, pay_ledger_post, pay_ledger_transfer, pay_ledger_issue, pay_ledger_check, pay_ledger_verify_chain, pay_ledger_pay_with_fee, pay_assure_fee, pay_assure_charge, pay_assure_split, pay_iso_pacs008, pay_iso_parse_pacs008/camt053.
 Tests: pay/test_pay.c — passes. group3 fuzzed both ISO parsers 200k iterations: clean.
 Used by: capmkt, devmesh, evolve, market, provider, quest. Hosted only.
 Gaps: not linked in a kernel.
@@ -2318,11 +2318,11 @@ Gaps: the vna_econ.c:333/342/363 counters add without saturation (LOW). The wire
 
 ### vino — in-kernel three-ledger (primary, audit, hash chain) bank node
 Status: WORKING (has a test, not in verify-all)
-What it does: accounts with per-capital-form balances, transfers recorded in a primary ledger plus an audit copy plus an FNV hash chain, asset issuance, asset registry, peers, and labelled trade and bridge calls.
+What it does: accounts with per-capital-form balances, transfers recorded in a primary ledger plus an audit copy plus a SHA-256 hash chain (versioned, VINO_CHAIN_V2_SHA256), asset issuance, asset registry, peers, and labelled trade and bridge calls.
 Main entry points: vino_init, vino_create_account, vino_transfer, vino_issue, vino_trade, vino_bridge, vino_register_asset, vino_add_peer, vino_msg_from_iso20022/mt103/camt053/btc/eth (format adapters).
 Tests: test_vino.c is NEW (19 checks; passes under ASan). It is also exercised indirectly by the sutra and community_chest tests.
 Used by: vena, financial_fabric and others. Compiled into both kernels.
-Gaps: the chain hash is FNV, not cryptographic (the header says so). vino_trade ignores asset and price, and vino_bridge ignores its rails. Fixed: unbounded copies, unchecked capital index and overflow, unrecorded minting, and duplicate accounts.
+Gaps: vino_trade ignores asset and price, and vino_bridge ignores its rails. Fixed: unbounded copies, unchecked capital index and overflow, unrecorded minting, duplicate accounts, the FNV chain (now SHA-256 with a tamper test), and the capital order (now the canonical zcap_form_t).
 
 ### vino_stores — Vino floating-voucher settlement engine
 Status: WORKING (tested in verify-all)

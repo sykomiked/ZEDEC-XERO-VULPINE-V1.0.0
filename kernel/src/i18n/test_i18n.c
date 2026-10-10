@@ -198,7 +198,7 @@ static void test_messages(void)
     s = i18n_msg(L("ff-Adlm"), I18N_NAV_WALLET, &in);
     EQS(s, "Wallet");
     CHECK(in.fallback && in.from == L("en"), "ff-Adlm -> en");
-    s = i18n_msg(L("am"), I18N_TITHE_EXPLAIN, &in);
+    s = i18n_msg(L("am"), I18N_FEE_EXPLAIN, &in);
     CHECK(in.from == L("en"), "am core tier falls back to en for long text");
     s = i18n_msg(L("am"), I18N_BTN_SEND, &in);
     EQS(s, "\xE1\x88\x8B\xE1\x8A\xAD"); /* ላክ */

@@ -2,8 +2,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* evo_conform.c — the pinned safety-core conformance suite.
  *
- * Every check is a RULE, not a copy of someone's implementation: the tithe is
- * checked by exact squared inequalities (no square root needed), the ledger
+ * Every check is a RULE, not a copy of someone's implementation: the 0.08889%
+ * assurance fee is checked by exact integer inequalities (no division), the ledger
  * by the L1 balance rule and the equity derivation, usury by "due ==
  * principal", consent by the gate formula, crypto by FIPS 202 vectors and by
  * this build's own SHA3-256. A fork may implement any of them however it
@@ -51,58 +51,17 @@ static int big_cmp(const big_t *a, const big_t *b)
 }
 
 /* a -= b, requires a >= b */
-static void big_sub(big_t *a, const big_t *b)
+bool evo_fee_is_exact(uint64_t a, uint64_t t)
 {
-    int64_t br = 0;
-    for (uint32_t i = 0; i < 6; i++) {
-        int64_t d = (int64_t) a->w[i] - (int64_t) b->w[i] - br;
-        br = d < 0 ? 1 : 0;
-        a->w[i] = (uint32_t) (d + (br ? ((int64_t) 1 << 32) : 0));
-    }
-}
-
-/* out = a * b; a and b below 2^96 (low three limbs). */
-static void big_mul(const big_t *a, const big_t *b, big_t *out)
-{
-    uint32_t r[6] = {0};
-    for (uint32_t i = 0; i < 3; i++) {
-        uint64_t c = 0;
-        for (uint32_t j = 0; j < 3; j++) {
-            uint64_t p = (uint64_t) a->w[i] * b->w[j] + r[i + j] + c;
-            r[i + j] = (uint32_t) p;
-            c = p >> 32;
-        }
-        for (uint32_t k = i + 3; k < 6 && c; k++) {
-            uint64_t s = (uint64_t) r[k] + c;
-            r[k] = (uint32_t) s;
-            c = s >> 32;
-        }
-    }
-    for (uint32_t i = 0; i < 6; i++) out->w[i] = r[i];
-}
-
-bool evo_tithe_is_exact(uint64_t a, uint64_t t)
-{
-    big_t A, T, F, X;
+    /* t is floor(a * 8889 / 10^7) iff 10^7 t <= 8889 a < 10^7 (t + 1) */
+    big_t A, T;
     big_set(&A, a);
-    big_mul(&A, &A, &F);
-    big_mul_small(&F, 5); /* 5a^2 < 2^131 */
+    big_mul_small(&A, 8889u); /* < 2^78 */
     big_set(&T, t);
-    big_mul_small(&T, 200);     /* 200t < 2^72 */
-    if (big_cmp(&T, &A) >= 0) { /* lower bound: (200t - a)^2 <= 5a^2 */
-        X = T;
-        big_sub(&X, &A);
-        big_t X2;
-        big_mul(&X, &X, &X2);
-        if (big_cmp(&X2, &F) > 0) return false;
-    }
-    big_t Y = T;
-    big_add_small(&Y, 200);
-    if (big_cmp(&Y, &A) <= 0) return false; /* 200(t+1) - a must be > a*sqrt5 >= 0 */
-    big_sub(&Y, &A);
-    big_t Y2;
-    big_mul(&Y, &Y, &Y2);
-    return big_cmp(&Y2, &F) > 0;
+    big_mul_small(&T, 10000000u); /* < 2^88 */
+    if (big_cmp(&T, &A) > 0) return false;
+    big_add_small(&T, 10000000u);
+    return big_cmp(&T, &A) > 0;
 }
 
 /* ===== The rules ===== */
@@ -126,27 +85,25 @@ static bool rule_spend(const evo_consent_t *c, uint64_t amount, uint64_t now)
 }
 
 /* ===== Pinned vectors ===== */
-static const uint64_t pin_tithe[] = {0,
-                                     1,
-                                     2,
-                                     3,
-                                     5,
-                                     7,
-                                     61,
-                                     62,
-                                     123,
-                                     124,
-                                     161,
-                                     199,
-                                     200,
-                                     201,
-                                     1000,
-                                     10000,
-                                     123456789,
-                                     4294967296ull,
-                                     9007199254740993ull,
-                                     9223372036854775808ull,
-                                     18446744073709551615ull};
+static const uint64_t pin_fee[] = {0,
+                                   1,
+                                   2,
+                                   3,
+                                   1124,
+                                   1125,
+                                   1126,
+                                   2249,
+                                   2250,
+                                   10000,
+                                   11249,
+                                   11250,
+                                   1000000,
+                                   10000000,
+                                   123456789,
+                                   4294967296ull,
+                                   9007199254740993ull,
+                                   9223372036854775808ull,
+                                   18446744073709551615ull};
 
 static const evo_line_t pin_lines[][3] = {
     {{100, 0, 100}, {-100, 0, -100}, {0, 0, 0}}, /* transfer */
@@ -188,7 +145,7 @@ void evo_conform_suite_cid(evo_cid_t *out)
     evo_w_u16(&w, EVO_RAIL_DEBIT);
     evo_w_u16(&w, EVO_RAIL_CREDIT);
     evo_w_u16(&w, EVO_RAIL_EQUITY);
-    for (uint32_t i = 0; i < NELEM(pin_tithe); i++) evo_w_u64(&w, pin_tithe[i]);
+    for (uint32_t i = 0; i < NELEM(pin_fee); i++) evo_w_u64(&w, pin_fee[i]);
     for (uint32_t i = 0; i < NELEM(pin_lines); i++)
         for (uint32_t j = 0; j < pin_lines_n[i]; j++) {
             evo_w_u64(&w, (uint64_t) pin_lines[i][j].d_debit);
@@ -208,7 +165,7 @@ void evo_conform_suite_cid(evo_cid_t *out)
     }
     evo_w_bytes(&w, kat_empty, 32);
     evo_w_bytes(&w, kat_abc, 32);
-    evo_w_u8(&w, EVO_CHAL_TITHE);
+    evo_w_u8(&w, EVO_CHAL_FEE);
     evo_w_u8(&w, EVO_CHAL_POST);
     evo_w_u8(&w, EVO_CHAL_USURY);
     evo_w_u8(&w, EVO_CHAL_CONSENT);
@@ -226,11 +183,11 @@ uint32_t evo_conform_local(const evo_core_impl_t *im)
         im->hash((const uint8_t *) "abc", 3, h);
         if (good && evo_cmp(h, kat_abc, 32) == 0) ok |= EVO_CHK_HASH;
     }
-    if (im->tithe) {
+    if (im->fee) {
         bool good = true;
-        for (uint32_t i = 0; i < NELEM(pin_tithe) && good; i++)
-            good = evo_tithe_is_exact(pin_tithe[i], im->tithe(pin_tithe[i]));
-        if (good) ok |= EVO_CHK_TITHE;
+        for (uint32_t i = 0; i < NELEM(pin_fee) && good; i++)
+            good = evo_fee_is_exact(pin_fee[i], im->fee(pin_fee[i]));
+        if (good) ok |= EVO_CHK_FEE;
     }
     if (im->posting_ok) {
         bool good = !im->posting_ok(pin_lines[0], 0);
@@ -259,7 +216,7 @@ uint32_t evo_conform_local(const evo_core_impl_t *im)
 /* ===== Challenges: inputs expanded from the verifier's seed ===== */
 typedef struct {
     uint8_t msg[EVO_CHAL_MSG];
-    uint64_t tithe[EVO_CHAL_TITHE];
+    uint64_t fee[EVO_CHAL_FEE];
     uint8_t n_lines[EVO_CHAL_POST];
     evo_line_t lines[EVO_CHAL_POST][EVO_CHAL_LINES];
     uint64_t principal[EVO_CHAL_USURY];
@@ -295,13 +252,13 @@ static void expand(const uint8_t seed[32], chal_in_t *ci)
     st.pos = 0;
     evo_zero(ci, sizeof(*ci));
     for (uint32_t i = 0; i < EVO_CHAL_MSG; i++) ci->msg[i] = (uint8_t) take(&st, 1);
-    for (uint32_t i = 0; i < EVO_CHAL_TITHE; i++) {
+    for (uint32_t i = 0; i < EVO_CHAL_FEE; i++) {
         uint64_t sel = take(&st, 1), v = take(&st, 8);
         if ((sel & 3) == 0)
             v &= 0xffff; /* small: rounding edges */
         else if ((sel & 3) == 1)
             v &= 0xffffffffu; /* 32-bit */
-        ci->tithe[i] = v;
+        ci->fee[i] = v;
     }
     for (uint32_t p = 0; p < EVO_CHAL_POST; p++) {
         uint32_t sel = (uint32_t) take(&st, 1);
@@ -344,8 +301,7 @@ void evo_conform_respond(const evo_core_impl_t *im, const evo_challenge_t *c, ev
     evo_cpy(r->seed, c->seed, 32);
     expand(c->seed, &ci);
     if (im->hash) im->hash(ci.msg, EVO_CHAL_MSG, r->hash);
-    for (uint32_t i = 0; i < EVO_CHAL_TITHE; i++)
-        r->tithe[i] = im->tithe ? im->tithe(ci.tithe[i]) : 0;
+    for (uint32_t i = 0; i < EVO_CHAL_FEE; i++) r->fee[i] = im->fee ? im->fee(ci.fee[i]) : 0;
     for (uint32_t p = 0; p < EVO_CHAL_POST; p++)
         if (im->posting_ok && im->posting_ok(ci.lines[p], ci.n_lines[p])) r->post_ok |= 1u << p;
     for (uint32_t i = 0; i < EVO_CHAL_USURY; i++)
@@ -368,9 +324,9 @@ uint32_t evo_conform_check(const evo_challenge_t *c, const evo_response_t *r)
     sha3_256(ci.msg, EVO_CHAL_MSG, h);
     if (evo_cmp(h, r->hash, 32) == 0) ok |= EVO_CHK_HASH;
     bool good = true;
-    for (uint32_t i = 0; i < EVO_CHAL_TITHE && good; i++)
-        good = evo_tithe_is_exact(ci.tithe[i], r->tithe[i]);
-    if (good) ok |= EVO_CHK_TITHE;
+    for (uint32_t i = 0; i < EVO_CHAL_FEE && good; i++)
+        good = evo_fee_is_exact(ci.fee[i], r->fee[i]);
+    if (good) ok |= EVO_CHK_FEE;
     good = true;
     for (uint32_t p = 0; p < EVO_CHAL_POST && good; p++)
         good = (((r->post_ok >> p) & 1u) != 0) == rule_posting(ci.lines[p], ci.n_lines[p]);
@@ -397,7 +353,7 @@ uint32_t evo_response_encode(const evo_response_t *r, uint8_t *out, uint32_t cap
     evo_w_bytes(&w, r->suite.b, EVO_CID_LEN);
     evo_w_bytes(&w, r->seed, 32);
     evo_w_bytes(&w, r->hash, 32);
-    for (uint32_t i = 0; i < EVO_CHAL_TITHE; i++) evo_w_u64(&w, r->tithe[i]);
+    for (uint32_t i = 0; i < EVO_CHAL_FEE; i++) evo_w_u64(&w, r->fee[i]);
     evo_w_u8(&w, r->post_ok);
     for (uint32_t i = 0; i < EVO_CHAL_USURY; i++) evo_w_u64(&w, r->repay[i]);
     evo_w_u8(&w, r->spend_ok);
@@ -413,7 +369,7 @@ evo_status_t evo_response_decode(const uint8_t *in, uint32_t len, evo_response_t
     evo_r_copy(&rd, r->suite.b, EVO_CID_LEN);
     evo_r_copy(&rd, r->seed, 32);
     evo_r_copy(&rd, r->hash, 32);
-    for (uint32_t i = 0; i < EVO_CHAL_TITHE; i++) r->tithe[i] = evo_r_le(&rd, 8);
+    for (uint32_t i = 0; i < EVO_CHAL_FEE; i++) r->fee[i] = evo_r_le(&rd, 8);
     r->post_ok = (uint8_t) evo_r_le(&rd, 1);
     for (uint32_t i = 0; i < EVO_CHAL_USURY; i++) r->repay[i] = evo_r_le(&rd, 8);
     r->spend_ok = (uint8_t) evo_r_le(&rd, 1);

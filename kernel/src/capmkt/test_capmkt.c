@@ -8,13 +8,13 @@
  * order that wanted to trade at the price (except providers rationed by the
  * anti-monopoly cap), order-independence, supply/demand comparative statics,
  * the provider cap, escrow conservation, pay on delivery with proof chains,
- * the exact phi tithe (against pay_tithe_phi), and the absence of any time
+ * the exact 0.08889% assurance fee (against pay_assure_fee), and the absence of any time
  * charge.
  *
  * BUILD (run from kernel/):
  *   gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/pay -Isrc/tensor -Isrc/mlkem \
  *     -Isrc/swarm src/capmkt/test_capmkt.c src/capmkt/capmkt.c src/pay/pay_util.c \
- *     src/pay/pay_tithe.c src/swarm/swarm_market.c src/swarm/swarm_budget.c \
+ *     src/pay/pay_assure.c src/swarm/swarm_market.c src/swarm/swarm_budget.c \
  *     src/swarm/swarm_emotion.c src/tensor/zt.c src/mlkem/keccak.c -lm \
  *     -o /tmp/test_capmkt && /tmp/test_capmkt
  */
@@ -22,7 +22,7 @@
 #include <string.h>
 
 #include "capmkt.h"
-#include "../pay/pay_tithe.h"
+#include "../pay/pay_assure.h"
 
 static int g_pass, g_fail;
 #define CHECK(c, msg)                                                                              \
@@ -71,22 +71,22 @@ static void fresh(void)
     cm_init(&g_m, &p);
 }
 
-static void test_tithe(void)
+static void test_fee(void)
 {
-    printf("tithe = floor((a + isqrt(5a^2)) / 200)\n");
-    CHECK(cm_tithe_phi(0) == 0 && cm_tithe_phi(61) == 0 && cm_tithe_phi(62) == 1 &&
-              cm_tithe_phi(100) == 1,
-          "small values");
-    CHECK(cm_tithe_phi(10000) == 161 && cm_tithe_phi(1000000) == 16180, "1.618 percent");
+    printf("assurance fee = floor(a * 8889 / 10^7)\n");
+    CHECK(cm_fee_assure(0) == 0 && cm_fee_assure(1124) == 0 && cm_fee_assure(1125) == 1 &&
+              cm_fee_assure(2250) == 2,
+          "small values: 1124 -> 0, 1125 -> 1");
+    CHECK(cm_fee_assure(10000000) == 8889 && cm_fee_assure(1000000) == 888, "0.08889 percent");
     int ok = 1;
     for (uint64_t a = 0; a < 20000; a++)
-        if (cm_tithe_phi(a) != pay_tithe_phi(a)) ok = 0;
+        if (cm_fee_assure(a) != pay_assure_fee(a)) ok = 0;
     for (int i = 0; i < 20000; i++) {
-        uint64_t a = rnd() & CM_AMOUNT_MAX;
-        if (cm_tithe_phi(a) != pay_tithe_phi(a)) ok = 0;
+        uint64_t a = rnd();
+        if (cm_fee_assure(a) != pay_assure_fee(a)) ok = 0;
     }
-    CHECK(cm_tithe_phi(CM_AMOUNT_MAX) == pay_tithe_phi(CM_AMOUNT_MAX), "largest amount");
-    CHECK(ok, "agrees with pay_tithe_phi on 40000 values");
+    CHECK(cm_fee_assure(UINT64_MAX) == 16397310807120420ull, "largest amount");
+    CHECK(ok, "agrees with pay_assure_fee on 40000 values");
 }
 
 static void test_basic(void)
@@ -137,9 +137,9 @@ static void test_basic(void)
     pr.evidence[0] = 0xEE;
     uint64_t b0 = cm_account(&g_m, B)->available;
     CHECK(cm_deliver(&g_m, &pr) == CM_OK, "4 units delivered");
-    uint64_t pay = 4 * 130, t = cm_tithe_phi(pay);
+    uint64_t pay = 4 * 130, t = cm_fee_assure(pay);
     CHECK(cm_account(&g_m, B)->available == b0 + pay - t && g_m.commons == t,
-          "provider paid, tithe to commons");
+          "provider paid, assurance fee to the fee pool");
     CHECK(cm_deliver(&g_m, &pr) == CM_ERR_PROOF, "same proof again: refused");
     cm_proof_t p2 = pr;
     p2.seq = 2;
@@ -468,7 +468,7 @@ static void test_digest(void)
 int main(void)
 {
     printf("=== test_capmkt: capacity market (uniform-price double auction) ===\n");
-    test_tithe();
+    test_fee();
     test_basic();
     test_rules();
     test_cap();

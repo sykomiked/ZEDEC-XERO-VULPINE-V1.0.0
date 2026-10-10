@@ -75,7 +75,7 @@ typedef lpres_attestation_t m5_lpres_proof_t;
 #define FF_MAX_NAME_LEN         64
 
 /* Error codes beyond the generic -1 */
-#define FF_EINALIENABLE (-2) /* state-reserved form (1..4): never transferred */
+#define FF_EINALIENABLE (-2) /* state-reserved form (1-based 5..8): never transferred */
 #define FF_ERAIL        (-3) /* rail does not carry this form */
 #define FF_ENOTSUP      (-4) /* not implemented: nothing happened */
 
@@ -87,8 +87,8 @@ typedef struct ff_account {
     word168_t owner_id; /* 168-bit critical word identity */
 
     /* Nine-form capital balances (Vino) */
-    uint64_t balances[9]; /* Forms 1-9: Social, Natural, Heritage, Governance, Financial, Material,
-                             Living, Knowledge, Built */
+    uint64_t balances[9]; /* indexed by canonical zcap_form_t: Financial, Material, Knowledge,
+                             Living (human), Social, Natural, Heritage, Governance, Built */
 
     /* Active positions */
     uint32_t derivative_positions[FF_MAX_POSITIONS];
@@ -364,8 +364,9 @@ int32_t ff_create_account(financial_fabric_t *fabric, const char *name, const wo
 ff_account_t *ff_get_account(financial_fabric_t *fabric, uint32_t account_id);
 ff_account_t *ff_get_account_by_name(financial_fabric_t *fabric, const char *name);
 
-/* Capital operations. Forms are 1-based (1..9). Transfers of the
- * state-reserved forms 1..4 return FF_EINALIENABLE. */
+/* Capital operations. Forms are 1-based (1..9): form - 1 is the canonical
+ * zcap_form_t index. Transfers of the state-reserved forms (1-based 5..8:
+ * Social, Natural, Heritage, Governance) return FF_EINALIENABLE. */
 int32_t ff_transfer_capital(financial_fabric_t *fabric, uint32_t from_account, uint32_t to_account,
                             uint8_t form, uint64_t amount);
 

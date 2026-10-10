@@ -10,7 +10,7 @@
 #include "prov_pq.h"
 #include "prov_adapter.h"
 #include "../pay/pay_util.h"
-#include "../pay/pay_tithe.h"
+#include "../pay/pay_assure.h"
 #include "../pay/pay_ledger.h"
 
 static int g_pass, g_fail;
@@ -209,8 +209,9 @@ static void t_fee_usury(void)
     prov_config_t c;
     prov_config_default(&c);
     fresh(&c);
-    CHECK(prov_fee(&g_n, 10000) == pay_tithe_phi(10000) && prov_fee(&g_n, 10000) == 161,
-          "fee: default is the phi-percent rate (161 on 10000)");
+    CHECK(prov_fee(&g_n, 10000) == pay_assure_fee(10000) && prov_fee(&g_n, 10000) == 8,
+          "fee: default is the 0.08889% assurance fee (8 on 10000)");
+    CHECK(prov_fee(&g_n, 1124) == 0 && prov_fee(&g_n, 1125) == 1, "fee: 1124 -> 0, 1125 -> 1");
     CHECK(prov_fee(&g_n, 61) == 0, "fee: floor (61 -> 0)");
     uint8_t h1[32], h2[32];
     memcpy(h1, g_n.fee_schedule, 32);
@@ -549,7 +550,7 @@ static void t_receipts(void)
     CHECK(prov_receipt_build(&g_n, f, &u, &R1) == PROV_ERR_ARG, "units above reservation refused");
     usage(&u, 700, PROV_SLA_MET);
     CHECK(prov_receipt_build(&g_n, f, &u, &R1) == PROV_OK, "receipt built");
-    CHECK(R1.gross == 7000 && R1.fee == pay_tithe_phi(7000) && R1.net == 7000 - R1.fee &&
+    CHECK(R1.gross == 7000 && R1.fee == pay_assure_fee(7000) && R1.net == 7000 - R1.fee &&
               R1.refund == 3000 && R1.hold == 10000,
           "receipt money: gross, fee on gross, net, refund of unused hold");
     CHECK((R1.flags & PROV_RF_NO_TRAIN) && (R1.flags & PROV_RF_NO_RETAIN),
@@ -612,7 +613,7 @@ static void t_receipts(void)
     Rbad = R2;
     Rbad.units = 600;
     Rbad.gross = 6000;
-    Rbad.fee = pay_tithe_phi(6000);
+    Rbad.fee = pay_assure_fee(6000);
     Rbad.net = 6000 - Rbad.fee;
     Rbad.refund = 4000;
     CHECK(prov_receipt_verify(&g_n, &Rbad) == PROV_ERR_AUTH,
@@ -648,7 +649,7 @@ static void t_receipts(void)
     f = one_fill(1000, 10);
     usage(&u, 1000, PROV_SLA_LATENCY);
     prov_receipt_build(&g_n, f, &u, &R2);
-    CHECK(R2.sla_credit == 1000 && R2.fee == pay_tithe_phi(9000) && R2.net == 9000 - R2.fee &&
+    CHECK(R2.sla_credit == 1000 && R2.fee == pay_assure_fee(9000) && R2.net == 9000 - R2.fee &&
               R2.refund == 1000,
           "SLA breach: provider's declared 10% credit back to the user, fee on the rest");
     prov_pq_sign_receipt(&R2, SK[0], true);
@@ -731,7 +732,7 @@ static void t_reputation(void)
           "rebuild: a duplicated receipt counts once");
     rs[5].units = 9;
     rs[5].gross = 90;
-    rs[5].fee = pay_tithe_phi(90);
+    rs[5].fee = pay_assure_fee(90);
     rs[5].net = 90 - rs[5].fee;
     rs[5].refund = rs[5].hold - 90;
     CHECK(prov_rep_rebuild(prov_pq_verify, 0, prov_provider(&g_n, PA)->id, PK[0], rs,

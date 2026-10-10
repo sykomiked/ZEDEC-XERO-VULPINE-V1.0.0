@@ -51,7 +51,7 @@ int main(void)
     zxv_revoke(id, 2000);
     (void) zxv_local_model(0);
     (void) zxv_device_count();
-    (void) zxv_tithe(10000);
+    (void) zxv_assure_fee(10000);
     (void) zxv_api_version();
     zxv_stop();
     return 0;

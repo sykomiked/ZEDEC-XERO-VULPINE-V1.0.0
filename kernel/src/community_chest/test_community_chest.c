@@ -473,6 +473,97 @@ int main(void)
         assert(app->download_count == 1);
     }
 
+    /* ===== revenue split: shares sum exactly to the gross, none exceeds it ===== */
+    {
+        static const uint64_t prices[] = {1,
+                                          2,
+                                          3,
+                                          7,
+                                          9999,
+                                          10000,
+                                          10001,
+                                          123457,
+                                          99999999,
+                                          UINT64_MAX / 3,
+                                          UINT64_MAX - 1,
+                                          UINT64_MAX};
+        static const uint32_t bps[] = {0, 6999, 7000, 7777, 8500, 8501, 10000, 50000};
+        for (uint32_t i = 0; i < sizeof prices / sizeof prices[0]; i++)
+            for (uint32_t j = 0; j < sizeof bps / sizeof bps[0]; j++) {
+                uint64_t plat = 0, roy = 0;
+                uint64_t dev = cc_calc_revenue_split(prices[i], bps[j], &plat, &roy);
+                assert(dev <= prices[i] && plat <= prices[i] && roy <= prices[i]);
+                /* exact: no dust lost, nothing minted (checked without wrapping) */
+                assert(dev <= prices[i] - roy && plat == prices[i] - dev - roy);
+            }
+        /* the remainder goes deterministically to the platform */
+        uint64_t plat = 0, roy = 0;
+        uint64_t dev = cc_calc_revenue_split(10001, 7000, &plat, &roy);
+        assert(dev == 7000 && roy == 2000 && plat == 1001);
+        printf("[PASS] revenue split sums exactly to the gross for %u cases\n",
+               (unsigned) ((sizeof prices / sizeof prices[0]) * (sizeof bps / sizeof bps[0])));
+    }
+
+    /* ===== conservation across cash-in, purchase and cash-out ===== */
+    {
+        static community_chest_t cc;
+        static vino_ledger_t vino;
+        vino_init(&vino, 1);
+        cc_init(&cc, 1, "chest");
+        cc.verify_sig = test_verify_hmac;
+        cc_link_vino(&cc, &vino);
+        word168_t dev = make_dev(20);
+        uint8_t sig20[CC_SIG_LEN];
+        compute_cc_sig("Cons", pubkey, sig20);
+        int32_t id = cc_list_app(&cc, "Cons", "c", "dev", &dev, pubkey, hash, sig20, CC_APP_PAID,
+                                 CC_APP_NATIVE, 250, 7000);
+        assert(id > 0);
+        uint64_t minted = 0, burned = 0;
+#define CC_SUM(out)                                                                                \
+    do {                                                                                           \
+        out = 0;                                                                                   \
+        for (uint32_t i_ = 0; i_ < vino.num_accounts; i_++)                                        \
+            out += vino.balances[i_].balance[CAP_FINANCIAL];                                       \
+    } while (0)
+        uint64_t s0, s;
+        CC_SUM(s0);
+        minted += cc_voucher_cash_in(&cc, "f1", 1000, CAP_FINANCIAL);
+        CC_SUM(s);
+        assert(s == s0 + minted - burned);
+        assert(cc_purchase_with_vouchers(&cc, (uint32_t) id, "f1") == 0);
+        CC_SUM(s);
+        assert(s == s0 + minted - burned); /* buyer -> escrow: moved, not minted */
+        assert(cc_purchase_with_vouchers(&cc, (uint32_t) id, "nobody") == -2);
+        CC_SUM(s);
+        assert(s == s0 + minted - burned);
+        burned += cc_voucher_cash_out(&cc, "f1", 300, CAP_FINANCIAL);
+        CC_SUM(s);
+        assert(s == s0 + minted - burned && burned == 300);
+        assert(cc_voucher_cash_out(&cc, "f1", 100000, CAP_FINANCIAL) == 0); /* uncovered */
+        CC_SUM(s);
+        assert(s == s0 + minted - burned);
+        assert(cc.voucher_float == minted - burned);
+
+        /* overflow: a cash-in that would wrap any counter changes nothing */
+        vino_account_t *f1 = vino_get_account(&vino, "f1");
+        uint64_t b0 = f1->balance[CAP_FINANCIAL], fl0 = cc.voucher_float;
+        assert(cc_voucher_cash_in(&cc, "f1", UINT64_MAX, CAP_FINANCIAL) == 0);
+        assert(f1->balance[CAP_FINANCIAL] == b0 && cc.voucher_float == fl0);
+        /* a sale whose revenue counter would wrap is refused before value moves */
+        cc_app_t *app = cc_get_app(&cc, (uint32_t) id);
+        uint64_t tr = app->total_revenue;
+        cc.total_revenue = UINT64_MAX - 10;
+        uint64_t esc0 = vino_get_account(&vino, CC_ESCROW_ADDR)->balance[CAP_FINANCIAL];
+        assert(cc_purchase_with_vouchers(&cc, (uint32_t) id, "f1") == -4);
+        assert(f1->balance[CAP_FINANCIAL] == b0 &&
+               vino_get_account(&vino, CC_ESCROW_ADDR)->balance[CAP_FINANCIAL] == esc0 &&
+               app->total_revenue == tr);
+        assert(cc_purchase_app(&cc, (uint32_t) id) == -4 && app->total_revenue == tr);
+#undef CC_SUM
+        printf("[PASS] community chest conserves value: sum(after) == sum(before) + minted - "
+               "burned\n");
+    }
+
     printf("All Community Chest tests passed\n");
     return 0;
 }

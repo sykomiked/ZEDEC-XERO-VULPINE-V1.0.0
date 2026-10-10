@@ -42,6 +42,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "../zcapital/zcap_forms.h"
 #include "swarm_budget.h"
 #include "swarm_emotion.h"
 
@@ -49,20 +50,34 @@
 #define SWARM_MKT_FLOOR_NUM  8u  /* F(6): commons floor, market cap, wealth cap */
 #define SWARM_MKT_INCOME_NUM 13u /* F(7): value income share of the pot */
 
-/* The nine forms of capital, in the same order as zcap_form_t in
- * kernel/src/zcapital/zcapital.h (checked by test_swarm_market.c). */
+/* The nine forms of capital: aliases of the canonical zcap_form_t
+ * (kernel/src/zcapital/zcap_forms.h), checked form by form below. */
 typedef enum {
-    SWARM_CAP_FINANCIAL = 0,
-    SWARM_CAP_MANUFACTURED,
-    SWARM_CAP_INTELLECTUAL,
-    SWARM_CAP_HUMAN,
-    SWARM_CAP_SOCIAL,    /* Crown */
-    SWARM_CAP_NATURAL,   /* Crown */
-    SWARM_CAP_CULTURAL,  /* Crown */
-    SWARM_CAP_SPIRITUAL, /* Crown */
-    SWARM_CAP_SYSTEM,
-    SWARM_CAP_COUNT
+    SWARM_CAP_FINANCIAL = ZCAP_FINANCIAL,
+    SWARM_CAP_MANUFACTURED = ZCAP_MANUFACTURED,
+    SWARM_CAP_INTELLECTUAL = ZCAP_INTELLECTUAL,
+    SWARM_CAP_HUMAN = ZCAP_HUMAN,
+    SWARM_CAP_SOCIAL = ZCAP_SOCIAL,       /* Crown */
+    SWARM_CAP_NATURAL = ZCAP_NATURAL,     /* Crown */
+    SWARM_CAP_CULTURAL = ZCAP_CULTURAL,   /* Crown */
+    SWARM_CAP_SPIRITUAL = ZCAP_SPIRITUAL, /* Crown */
+    SWARM_CAP_SYSTEM = ZCAP_SYSTEM,
+    SWARM_CAP_COUNT = ZCAP_FORM_COUNT
 } swarm_cap_t;
+_Static_assert((int) SWARM_CAP_FINANCIAL == (int) ZCAP_FINANCIAL,
+               "swarm FINANCIAL == ZCAP_FINANCIAL");
+_Static_assert((int) SWARM_CAP_MANUFACTURED == (int) ZCAP_MANUFACTURED,
+               "swarm MANUFACTURED == ZCAP_MANUFACTURED");
+_Static_assert((int) SWARM_CAP_INTELLECTUAL == (int) ZCAP_INTELLECTUAL,
+               "swarm INTELLECTUAL == ZCAP_INTELLECTUAL");
+_Static_assert((int) SWARM_CAP_HUMAN == (int) ZCAP_HUMAN, "swarm HUMAN == ZCAP_HUMAN");
+_Static_assert((int) SWARM_CAP_SOCIAL == (int) ZCAP_SOCIAL, "swarm SOCIAL == ZCAP_SOCIAL");
+_Static_assert((int) SWARM_CAP_NATURAL == (int) ZCAP_NATURAL, "swarm NATURAL == ZCAP_NATURAL");
+_Static_assert((int) SWARM_CAP_CULTURAL == (int) ZCAP_CULTURAL, "swarm CULTURAL == ZCAP_CULTURAL");
+_Static_assert((int) SWARM_CAP_SPIRITUAL == (int) ZCAP_SPIRITUAL,
+               "swarm SPIRITUAL == ZCAP_SPIRITUAL");
+_Static_assert((int) SWARM_CAP_SYSTEM == (int) ZCAP_SYSTEM, "swarm SYSTEM == ZCAP_SYSTEM");
+_Static_assert((int) SWARM_CAP_COUNT == ZCAP_FORM_COUNT, "swarm count == ZCAP_FORM_COUNT");
 
 /* True for the four inalienable Crown forms. */
 bool swarm_cap_is_crown(swarm_cap_t f);

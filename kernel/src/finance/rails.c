@@ -167,6 +167,8 @@ int32_t rail_process_tx(rail_processor_t *rp,
     tx->m5 = (m5 != NULL) ? *m5 : card->m5;
     tx->settled = false;
     tx->settlement_amount = SR_ZERO;
+    tx->refunded = SR_ZERO;
+    tx->refund_of = 0;
     tx->compat_net = card->compat_network;
     
     /* Coverage check */
@@ -223,20 +225,10 @@ int32_t rail_process_tx(rail_processor_t *rp,
         surplus_real_t fee = SR_MUL(amount, SR_FROM_FLOAT(0.005));
         rp->reg_fees = SR_ADD(rp->reg_fees, fee);
     }
-    
-    if (type == TX_REFUND) {
-        /* There is no link to the original sale, so the most a refund may
-         * restore is the card's own limit; anything above it is minted. */
-        if (SR_CMP(amount, SR_SUB(card->reg_limit, card->reg_balance)) > 0) {
-            tx->status = TX_DECLINED;
-            rp->reg_decline_count++;
-            rp->num_transactions++;
-            return -1;
-        }
-        tx->status = TX_APPROVED;
-        card->reg_balance = SR_ADD(card->reg_balance, amount);
-        rp->reg_volume = SR_SUB(rp->reg_volume, amount);
-    }
+
+    /* TX_REFUND here has no link to the sale it reverses, so it could
+     * refund more than was ever sold: it falls through to the decline below.
+     * Refunds go through rail_process_refund(). */
 
     /* Capture, void, transfer and settle are not implemented on this rail:
      * refuse them instead of reporting a success that moved nothing. */
@@ -254,6 +246,48 @@ int32_t rail_process_tx(rail_processor_t *rp,
     }
     tx->auth_code[j] = 0;
     
+    rp->num_transactions++;
+    return 0;
+}
+
+int32_t rail_process_refund(rail_processor_t *rp, uint64_t orig_tx_id, surplus_real_t amount)
+{
+    if (!rp || rp->num_transactions >= 1024) return -1;
+    if (SR_CMP(amount, SR_ZERO) <= 0) return -1; /* a refund is a positive magnitude */
+    if (orig_tx_id < 1 || orig_tx_id > rp->num_transactions) return -1;
+    transaction_t *orig = &rp->transactions[orig_tx_id - 1];
+    if (orig->type != TX_SALE && orig->type != TX_VOUCHER) return -1;
+    if (orig->status != TX_APPROVED && orig->status != TX_SETTLED) return -1;
+    if (orig->card_id >= rp->num_cards) return -1;
+    payment_card_t *card = &rp->cards[orig->card_id];
+    /* cumulative: what was refunded before plus this one may not exceed the sale */
+    surplus_real_t left = SR_SUB(orig->amount, orig->refunded);
+    if (SR_CMP(amount, left) > 0) return -1;
+    /* and the card may never go above its own limit (that would mint) */
+    if (SR_CMP(amount, SR_SUB(card->reg_limit, card->reg_balance)) > 0) return -1;
+
+    transaction_t *tx = &rp->transactions[rp->num_transactions];
+    tx->tx_id = rp->num_transactions + 1;
+    tx->type = TX_REFUND;
+    tx->status = TX_APPROVED;
+    tx->rail = rp->rail;
+    tx->amount = amount;
+    tx->merchant_id = orig->merchant_id;
+    tx->card_id = orig->card_id;
+    tx->timestamp = 0;
+    tx->m5 = orig->m5;
+    tx->coverage_ratio = orig->coverage_ratio;
+    tx->refunded = SR_ZERO;
+    tx->refund_of = orig_tx_id;
+    tx->settled = false;
+    tx->settlement_amount = SR_ZERO;
+    tx->compat_net = orig->compat_net;
+    for (int j = 0; j < 15; j++) tx->auth_code[j] = (char) ('R' + (char) ((tx->tx_id >> j) % 8));
+    tx->auth_code[15] = 0;
+
+    orig->refunded = SR_ADD(orig->refunded, amount);
+    card->reg_balance = SR_ADD(card->reg_balance, amount);
+    rp->reg_volume = SR_SUB(rp->reg_volume, amount);
     rp->num_transactions++;
     return 0;
 }

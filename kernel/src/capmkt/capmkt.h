@@ -18,7 +18,7 @@
  * proof-of-service verifier can reuse pay_farm's beacon spot checks
  * (pay_farm_sampled) and capmkt's post hook can mirror every movement into
  * pay_ledger. capmkt reuses kernel/src/pay/pay_util.h for wide integer
- * arithmetic and checks its tithe against pay_tithe_phi() in its test.
+ * arithmetic and pay_assure.h for the 0.08889% assurance fee.
  *
  * MARKETS. One order book per (resource, region, tenor). Units:
  *   CM_RES_COMPUTE    1 unit = 1 normalised compute-hour (host-defined
@@ -69,16 +69,21 @@
  * unit, against a proof of service (cm_deliver): the proof chain (sequence
  * and hash of the previous proof) is checked here, and its evidence (a
  * buyer-signed receipt, a storage challenge answer) by the host's verifier
- * hook. On each payment the tithe goes to the commons and the rest to the
+ * hook. On each payment the assurance fee goes to the fee pool and the rest to the
  * provider. When the window ends, undelivered escrow returns to the buyer
  * in full (cm_expire). Nothing is ever charged for time: there is no
  * interest, no late fee, no penalty rate anywhere in this module, and the
  * refund does not depend on when cm_expire runs.
  *
- * TITHE. tithe(a) = floor((a + isqrt(5 a^2)) / 200) = floor(a x phi / 100),
- * exact (kernel/src/pay/pay_tithe.h T1). It is a hook (cm_params_t.tithe)
- * so a deployment can route it elsewhere; the default computes it here for
- * a < 2^62 (CM_AMOUNT_MAX) and the test checks it equals pay_tithe_phi().
+ * FEE. The 0.08889% assurance fee, fee(a) = floor(a * 8889 / 10^7), exact
+ * (kernel/src/pay/pay_assure.h F1; it replaced the former phi-percent tithe).
+ * It is a hook (cm_params_t.fee) so a deployment can route it elsewhere (the
+ * provider bridge routes it to prov_fee); the default is pay_assure_fee().
+ * Each fee is charged once per delivery payment and partitioned exactly into
+ * the four bucket counters fee_bucket[] (pay_assure_split: 50% reserve floor
+ * + remainder, 25% V-Bill dividend pool, 15% infrastructure/node bounties,
+ * 10% regenerative capital). The no-carry form is used: a payment's fee must
+ * be recomputable by every peer from that payment alone.
  *
  * PEER TO PEER. Clearing is a pure function of the round's order set:
  * every participant that holds the same signed orders computes the same
@@ -105,6 +110,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "../pay/pay_assure.h"
 
 #define CM_ID_BYTES      16u
 #define CM_MAX_ACCOUNTS  64u
@@ -170,7 +176,7 @@ typedef struct {
     uint64_t available; /* deposit not locked */
     uint64_t locked;    /* held by open bids */
     uint64_t escrow;    /* held by this buyer's open contracts */
-    uint64_t earned;    /* statistic: paid to this provider (after tithe),
+    uint64_t earned;    /* statistic: paid to this provider (after fee),
                          * already included in available */
     uint64_t delivered; /* units delivered as provider */
     uint64_t missed;    /* units sold but not delivered in the window */
@@ -187,8 +193,8 @@ typedef struct {
     uint8_t provider[CM_ID_BYTES];
     uint64_t qty, delivered, price;
     uint64_t escrow; /* still held */
-    uint64_t paid;   /* to the provider, after tithe */
-    uint64_t tithe;  /* to the commons */
+    uint64_t paid;   /* to the provider, after the fee */
+    uint64_t fee;    /* assurance fee charged on this contract */
     uint64_t start_ms, end_ms;
     uint64_t round;
     uint8_t round_digest[32];
@@ -206,8 +212,8 @@ typedef struct {
 } cm_proof_t;
 
 typedef struct {
-    /* tithe on a payment amount; NULL = cm_tithe_phi */
-    uint64_t (*tithe)(void *ctx, uint64_t amount);
+    /* assurance fee on a payment amount; NULL = cm_fee_assure */
+    uint64_t (*fee)(void *ctx, uint64_t amount);
     /* check the evidence of a proof; NULL = refuse every proof */
     bool (*verify)(void *ctx, const cm_contract_t *c, const cm_proof_t *p);
     /* mirror a movement into a ledger (optional). kind: CM_POST_* */
@@ -222,7 +228,7 @@ typedef struct {
 #define CM_POST_ESCROW   3u /* bid lock -> escrow at clearing */
 #define CM_POST_REFUND   4u /* to the buyer: limit difference or undelivered */
 #define CM_POST_PAY      5u /* escrow -> provider */
-#define CM_POST_TITHE    6u /* escrow -> commons */
+#define CM_POST_FEE      6u /* escrow -> fee pool (the four buckets) */
 
 typedef struct {
     uint32_t bid_id, ask_id;
@@ -267,8 +273,9 @@ typedef struct {
     cm_book_stat_t stat[CM_MAX_MARKETS];
     uint32_t next_order, next_contract;
     uint64_t next_seq, round;
-    uint64_t commons;  /* tithes collected */
-    uint64_t deposits; /* total deposited - withdrawn */
+    uint64_t commons;                        /* assurance fees collected (sum of fee_bucket) */
+    uint64_t fee_bucket[PAY_ASSURE_BUCKETS]; /* pay_assure_bucket_t */
+    uint64_t deposits;                       /* total deposited - withdrawn */
     /* scratch for clearing */
     uint16_t ai[CM_MAX_ORDERS], bi[CM_MAX_ORDERS], rep[CM_MAX_ORDERS];
     uint64_t sold[CM_MAX_ORDERS], alloc[CM_MAX_ORDERS], balloc[CM_MAX_ORDERS];
@@ -278,10 +285,8 @@ typedef struct {
 void cm_params_default(cm_params_t *p);
 void cm_init(cm_market_t *m, const cm_params_t *p);
 
-/* exact phi-percent tithe: floor((a + isqrt(5 a^2)) / 200), a <= CM_AMOUNT_MAX
- * (larger a saturates to the tithe of CM_AMOUNT_MAX; amounts here never
- * exceed it). */
-uint64_t cm_tithe_phi(uint64_t a);
+/* the 0.08889% assurance fee, floor(a * 8889 / 10^7) (= pay_assure_fee) */
+uint64_t cm_fee_assure(uint64_t a);
 
 /* ===== accounts ===== */
 cm_status_t cm_deposit(cm_market_t *m, const uint8_t id[CM_ID_BYTES], uint64_t amount);

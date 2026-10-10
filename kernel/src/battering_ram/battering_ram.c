@@ -202,8 +202,11 @@ int32_t br_distribute(br_exchange_t *ex, uint64_t outcome_id,
     /* The built-in verifier checks the signature against the key the
      * attestation itself carries, so without a pinned trust root anyone could
      * self-sign "achieved" and release the pool. Fail closed. */
-    if (ex->verify == br_ed25519_attest_verify && !ex->attestor_pinned) return BR_ERR_NO_ORACLE;
-    if (ex->attestor_pinned) {
+    /* Any verifier, built-in or caller-supplied: a payout is released only
+     * on an attestation from the pinned key. With no key pinned there is no
+     * trust root and nothing is distributed. */
+    if (!ex->attestor_pinned) return BR_ERR_NO_ORACLE;
+    {
         uint8_t diff = 0;
         for (uint32_t i = 0; i < 32; i++) diff |= (uint8_t) (v->attestor[i] ^ ex->attestor_key[i]);
         if (diff) return BR_ERR_UNVERIFIED;

@@ -382,8 +382,10 @@ pay_status_t pay_ledger_post(pay_ledger_t *L, const pay_posting_req_t *r, pay_re
         pay_account_t *a = &nw[k];
         if (pay_cap_is_crown((pay_cap_t) a->cap)) crown = true;
         if (ln->d_debit < 0 && (a->flags & PAY_ACCT_FROZEN)) return rc->status = PAY_ERR_POLICY;
-        int64_t nd = (int64_t) a->debit + ln->d_debit;
-        int64_t nc = (int64_t) a->credit + ln->d_credit;
+        int64_t nd, nc;
+        if (__builtin_add_overflow((int64_t) a->debit, ln->d_debit, &nd) ||
+            __builtin_add_overflow((int64_t) a->credit, ln->d_credit, &nc))
+            return rc->status = PAY_ERR_OVERFLOW;
         if (nd < 0) return rc->status = PAY_ERR_FUNDS;
         if (nc < 0) return rc->status = PAY_ERR_CREDIT;
         if ((uint64_t) nd >= PAY_BAL_MAX || (uint64_t) nc >= PAY_BAL_MAX)
@@ -401,8 +403,9 @@ pay_status_t pay_ledger_post(pay_ledger_t *L, const pay_posting_req_t *r, pay_re
         for (uint32_t j = 0; j < r->n_lines; j++) {
             const pay_account_t *aj = &L->acct[r->lines[j].account];
             if (aj->asset != ai->asset || aj->cap != ai->cap) continue;
-            sd += r->lines[j].d_debit;
-            sc += r->lines[j].d_credit;
+            if (__builtin_add_overflow(sd, r->lines[j].d_debit, &sd) ||
+                __builtin_add_overflow(sc, r->lines[j].d_credit, &sc))
+                return rc->status = PAY_ERR_OVERFLOW;
         }
         if (sd != sc) return rc->status = PAY_ERR_UNBALANCED;
     }
@@ -526,24 +529,39 @@ pay_status_t pay_ledger_reverse(pay_ledger_t *L, pay_posting_req_t *req, const c
     return st;
 }
 
-pay_status_t pay_ledger_pay_tithed(pay_ledger_t *L, pay_posting_req_t *req, uint32_t from,
-                                   uint32_t to, uint64_t amount, uint32_t commons,
-                                   uint64_t contribution, uint32_t vfv_issuer, uint32_t vfv_to,
-                                   uint64_t vfv_credit, pay_receipt_t *rc)
+pay_status_t pay_ledger_pay_with_fee(pay_ledger_t *L, pay_posting_req_t *req, uint32_t from,
+                                     uint32_t to, uint64_t amount,
+                                     const uint32_t bucket[PAY_ASSURE_BUCKETS], uint64_t excess,
+                                     uint32_t vfv_issuer, uint32_t vfv_to, uint64_t vfv_credit,
+                                     pay_receipt_t *rc, uint64_t *fee_out)
 {
-    uint64_t total;
+    uint64_t fee, rem, part[PAY_ASSURE_BUCKETS], total, reserve;
     uint32_t n = 0;
-    if (!L || !req || !amt_ok(amount) || !pay_add_ok(amount, contribution, &total) ||
-        !amt_ok(total) || vfv_credit > (uint64_t) LINE_MAX_DELTA)
+    if (fee_out) *fee_out = 0;
+    if (!L || !req || !bucket || !amt_ok(amount) || from >= L->n_accounts ||
+        !L->acct[from].active || vfv_credit > (uint64_t) LINE_MAX_DELTA)
         return PAY_ERR_ARG;
+    if (!pay_assure_fee_carry(L->acct[from].fee_carry, amount, &fee, &rem)) return PAY_ERR_STATE;
+    pay_assure_split(fee, part);
+    /* every sum is checked before anything is written */
+    if (!pay_add_ok(amount, fee, &total) || !pay_add_ok(total, excess, &total) || !amt_ok(total) ||
+        !pay_add_ok(part[PAY_ASSURE_RESERVE_FLOOR], excess, &reserve) || !amt_ok(reserve))
+        return PAY_ERR_ARG;
+    part[PAY_ASSURE_RESERVE_FLOOR] = reserve;
     set_line(req, n++, from, -(int64_t) total, 0);
     set_line(req, n++, to, (int64_t) amount, 0);
-    if (contribution) set_line(req, n++, commons, (int64_t) contribution, 0);
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++)
+        if (part[i]) set_line(req, n++, bucket[i], (int64_t) part[i], 0);
     if (vfv_credit) {
         set_line(req, n++, vfv_to, (int64_t) vfv_credit, 0);
         set_line(req, n++, vfv_issuer, 0, (int64_t) vfv_credit);
     }
     req->n_lines = n;
-    req->kind = PAY_KIND_TITHE;
-    return pay_ledger_post(L, req, rc);
+    req->kind = PAY_KIND_FEE;
+    pay_status_t st = pay_ledger_post(L, req, rc);
+    if (st == PAY_OK) {
+        L->acct[from].fee_carry = rem;
+        if (fee_out) *fee_out = fee;
+    }
+    return st;
 }

@@ -31,8 +31,8 @@
  * remove of named slots). Lineage is a DAG, not a counter. Labels are free
  * text: users version their builds however they like, or not at all.
  *
- * A safety core (crypto, ledger invariants, the no-usury rule, the phi%
- * tithe, consent gates) is pinned by a conformance suite (evo_conform). A
+ * A safety core (crypto, ledger invariants, the no-usury rule, the 0.08889%
+ * assurance fee, consent gates) is pinned by a conformance suite (evo_conform). A
  * peer that passes it may use money-class capabilities in a session; one
  * that fails keeps every other capability.
  *
@@ -45,7 +45,7 @@
  *  - Conformance is a behavioural spot check of the code a peer runs when
  *    challenged, with fresh random inputs. It cannot prove that the code the
  *    peer later runs on a real payment is the same code; the money paths
- *    should still cross-check each value (evo_tithe_is_exact) per payment.
+ *    should still cross-check each value (evo_fee_is_exact) per payment.
  *  - Adoption counts are opt-in and unlinkable, which also means they are
  *    Sybil-inflatable: a hint about what people run, never a vote.
  *  - Signatures are verified through a caller hook (bind pq_matrix pqm_verify
@@ -447,14 +447,15 @@ evo_status_t evo_adopt_decode(const uint8_t *in, uint32_t len, evo_adopt_t *a);
 
 /* ===== Safety-core conformance ===== */
 #define EVO_CHK_HASH    0x01u /* SHA3-256 (FIPS 202) */
-#define EVO_CHK_TITHE   0x02u /* floor((a + isqrt(5a^2)) / 200), exact */
+#define EVO_CHK_FEE     0x02u /* floor(a * 8889 / 10^7), exact (0.08889%) */
 #define EVO_CHK_LEDGER  0x04u /* sum d_debit == sum d_credit, d_eq = d_dr - d_cr */
 #define EVO_CHK_USURY   0x08u /* repayment due == principal, at any age */
 #define EVO_CHK_CONSENT 0x10u /* granted && amount <= max && now < expiry */
 #define EVO_CHK_ALL     0x1fu
-#define EVO_RAIL_DEBIT  555u
-#define EVO_RAIL_CREDIT 777u
-#define EVO_RAIL_EQUITY 888u
+#include "../pay/pay_rails.h"           /* the canonical rail numerics */
+#define EVO_RAIL_DEBIT  ZXV_RAIL_DEBIT  /* 555 */
+#define EVO_RAIL_CREDIT ZXV_RAIL_CREDIT /* 777 */
+#define EVO_RAIL_EQUITY ZXV_RAIL_EQUITY /* 888 */
 
 typedef struct {
     int64_t d_debit, d_credit, d_equity; /* rails 555 / 777 / 888 */
@@ -469,29 +470,28 @@ typedef struct {
 /* What a fork implements on its money paths. */
 typedef struct {
     void (*hash)(const uint8_t *m, uint32_t len, uint8_t out[32]);
-    uint64_t (*tithe)(uint64_t a);
+    uint64_t (*fee)(uint64_t a); /* the 0.08889% assurance fee */
     bool (*posting_ok)(const evo_line_t *l, uint32_t n);
     uint64_t (*repay_due)(uint64_t principal, uint32_t days);
     bool (*may_spend)(const evo_consent_t *c, uint64_t amount, uint64_t now);
 } evo_core_impl_t;
 
-/* Exact check of a claimed tithe without computing a square root:
- * t is right iff 200t - a <= a*sqrt5 < 200(t+1) - a, compared as squares
- * in 192-bit integers. */
-bool evo_tithe_is_exact(uint64_t a, uint64_t t);
+/* Exact check of a claimed assurance fee without dividing:
+ * t is right iff 10^7 t <= 8889 a < 10^7 (t + 1), compared in wide integers. */
+bool evo_fee_is_exact(uint64_t a, uint64_t t);
 /* The CID of the pinned suite (its vectors and rule ids). */
 void evo_conform_suite_cid(evo_cid_t *out);
 /* Run the pinned vectors against impl. Returns the bitmap of passed checks. */
 uint32_t evo_conform_local(const evo_core_impl_t *impl);
 
-#define EVO_CHAL_TITHE   16u
+#define EVO_CHAL_FEE     16u
 #define EVO_CHAL_POST    8u
 #define EVO_CHAL_LINES   6u
 #define EVO_CHAL_USURY   8u
 #define EVO_CHAL_CONSENT 8u
 #define EVO_CHAL_MSG     64u
 #define EVO_RESP_ENC_LEN                                                                           \
-    (4u + EVO_CID_LEN + 32u + 32u + EVO_CHAL_TITHE * 8u + 1u + EVO_CHAL_USURY * 8u + 1u)
+    (4u + EVO_CID_LEN + 32u + 32u + EVO_CHAL_FEE * 8u + 1u + EVO_CHAL_USURY * 8u + 1u)
 
 typedef struct {
     uint8_t seed[32]; /* fresh random from the verifier */
@@ -501,7 +501,7 @@ typedef struct {
     evo_cid_t suite;
     uint8_t seed[32];
     uint8_t hash[32];
-    uint64_t tithe[EVO_CHAL_TITHE];
+    uint64_t fee[EVO_CHAL_FEE];
     uint8_t post_ok; /* bit i: posting i accepted */
     uint64_t repay[EVO_CHAL_USURY];
     uint8_t spend_ok; /* bit i: consent case i allowed */

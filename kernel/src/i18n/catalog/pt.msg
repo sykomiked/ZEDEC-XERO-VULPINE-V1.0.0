@@ -46,7 +46,7 @@ ASSIST_ASK_LABEL|-|machine|Perguntar ao assistente
 PAY_CONFIRM_TITLE|-|machine|Confirmar pagamento
 PAY_TO|-|machine|Para
 PAY_AMOUNT|-|machine|Montante
-PAY_TITHE|-|machine|Dízimo da rede (φ%)
+PAY_FEE|-|machine|Taxa de garantia (0,08889%)
 PAY_RECORD|-|machine|Registo
 PAY_BUTTON|-|machine|Pagar {0}
 PAY_VERIFIED_PEER|-|machine|par verificado
@@ -103,7 +103,7 @@ CALL_MUTE|-|machine|Silenciar
 FARM_TITLE|-|machine|A sua quinta
 FARM_THIS_DEVICE|-|machine|Este dispositivo
 FARM_IDLE_SHARE|-|machine|{0} da capacidade de computação inativa
-FARM_EARNED_TODAY|-|machine|Ganho hoje, após o dízimo
+FARM_EARNED_TODAY|-|machine|Ganho hoje, após a taxa de garantia
 FARM_VERIFIED|-|machine|Trabalho verificado pelos pares
 
 UPD_BUCKETS|-|machine|Repositórios de atualizações
@@ -115,7 +115,7 @@ UPD_RATINGS|other|machine|{0} de 5 com base em {1} avaliações
 UPD_READY|-|machine|{0} pronta a instalar
 UPD_RATINGS_NO_TRUST|-|machine|as avaliações nunca dão confiança para instalar
 
-WAL_TITLE|-|machine|Carteira e dízimo
+WAL_TITLE|-|machine|Carteira e taxas
 WAL_ROLE|-|machine|Tipo de conta
 WAL_ROLE_INDIVIDUAL|-|machine|Particular
 WAL_ROLE_SELFBANK|-|machine|Operador de autobanca
@@ -132,12 +132,12 @@ CAP_KNOWLEDGE|-|machine|Conhecimento
 CAP_BUILT|-|machine|Construído
 CAP_FINANCIAL|-|machine|Financeiro
 
-TITHE_TITLE|-|machine|Dízimo da rede
-TITHE_EXPLAIN|-|machine|Cada nó dá φ por cento da computação, da largura de banda e do dinheiro que usa, para que a rede continue rápida para todos. O que der acima disso rende-lhe vales.
-TITHE_BASE|-|machine|Dízimo base
-TITHE_YOUR_CONTRIB|-|machine|A sua contribuição:
-TITHE_ABOVE|-|machine|Acima do dízimo em {0} da utilização. Esse excedente é-lhe creditado em vales.
-TITHE_EXACT|-|machine|Dá exatamente o dízimo base. Mova o cursor para dar mais e ganhar vales.
+FEE_TITLE|-|machine|Taxa de garantia da rede
+FEE_EXPLAIN|-|machine|Cada pagamento tem uma taxa de garantia de 0,08889%. Metade sustenta a reserva mínima do Vino; o resto financia o fundo de dividendos V-Bill, as recompensas dos nós e o capital regenerativo. O que der acima disso rende-lhe vales.
+FEE_BASE|-|machine|Taxa base
+FEE_YOUR_CONTRIB|-|machine|A sua contribuição:
+FEE_ABOVE|-|machine|Acima da taxa em {0} da utilização. Esse excedente é-lhe creditado em vales.
+FEE_EXACT|-|machine|Dá exatamente a taxa base. Mova o cursor para dar mais e ganhar vales.
 
 ERR_GENERIC|-|machine|Ocorreu um erro. Tente novamente.
 ERR_NETWORK|-|machine|Não foi possível aceder à rede. A sua ação foi guardada e será enviada mais tarde.

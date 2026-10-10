@@ -46,7 +46,7 @@ ASSIST_ASK_LABEL|-|machine|Спросить ассистента
 PAY_CONFIRM_TITLE|-|machine|Подтверждение платежа
 PAY_TO|-|machine|Кому
 PAY_AMOUNT|-|machine|Сумма
-PAY_TITHE|-|machine|Десятина сети (φ %)
+PAY_FEE|-|machine|Гарантийный сбор (0,08889 %)
 PAY_RECORD|-|machine|Запись
 PAY_BUTTON|-|machine|Оплатить {0}
 PAY_VERIFIED_PEER|-|machine|проверенный партнёр
@@ -108,7 +108,7 @@ CALL_MUTE|-|machine|Выключить микрофон
 FARM_TITLE|-|machine|Ваша ферма
 FARM_THIS_DEVICE|-|machine|Это устройство
 FARM_IDLE_SHARE|-|machine|{0} простаивающих вычислительных ресурсов
-FARM_EARNED_TODAY|-|machine|Заработано сегодня после десятины
+FARM_EARNED_TODAY|-|machine|Заработано сегодня после гарантийного сбора
 FARM_VERIFIED|-|machine|Работа проверена партнёрами
 
 UPD_BUCKETS|-|machine|Репозитории обновлений
@@ -121,7 +121,7 @@ UPD_RATINGS|other|machine|{0} из 5 по {1} оценки
 UPD_READY|-|machine|{0} готова к установке
 UPD_RATINGS_NO_TRUST|-|machine|оценки никогда не дают права на установку
 
-WAL_TITLE|-|machine|Кошелёк и десятина
+WAL_TITLE|-|machine|Кошелёк и сборы
 WAL_ROLE|-|machine|Тип аккаунта
 WAL_ROLE_INDIVIDUAL|-|machine|Частное лицо
 WAL_ROLE_SELFBANK|-|machine|Самостоятельный банковский оператор
@@ -138,12 +138,12 @@ CAP_KNOWLEDGE|-|machine|Знания
 CAP_BUILT|-|machine|Созданный
 CAP_FINANCIAL|-|machine|Финансовый
 
-TITHE_TITLE|-|machine|Десятина сети
-TITHE_EXPLAIN|-|machine|Каждый узел отдаёт φ процента используемых им вычислений, трафика и денег, чтобы сеть оставалась быстрой для всех. Всё, что вы отдаёте сверх этого, приносит вам ваучеры.
-TITHE_BASE|-|machine|Базовая десятина
-TITHE_YOUR_CONTRIB|-|machine|Ваш вклад:
-TITHE_ABOVE|-|machine|Выше десятины на {0} от использования. Этот излишек зачисляется вам ваучерами.
-TITHE_EXACT|-|machine|Вы отдаёте ровно базовую десятину. Передвиньте ползунок, чтобы отдавать больше и получать ваучеры.
+FEE_TITLE|-|machine|Гарантийный сбор сети
+FEE_EXPLAIN|-|machine|С каждого платежа взимается гарантийный сбор 0,08889 %. Половина обеспечивает минимальный резерв Vino; остальное идёт в дивидендный пул V-Bill, вознаграждения узлам и регенеративный капитал. Всё, что вы отдаёте сверх этого, приносит вам ваучеры.
+FEE_BASE|-|machine|Базовый сбор
+FEE_YOUR_CONTRIB|-|machine|Ваш вклад:
+FEE_ABOVE|-|machine|Выше сбора на {0} от использования. Этот излишек зачисляется вам ваучерами.
+FEE_EXACT|-|machine|Вы отдаёте ровно базовый сбор. Передвиньте ползунок, чтобы отдавать больше и получать ваучеры.
 
 ERR_GENERIC|-|machine|Что-то пошло не так. Попробуйте ещё раз.
 ERR_NETWORK|-|machine|Не удалось подключиться к сети. Действие сохранено и будет отправлено позже.

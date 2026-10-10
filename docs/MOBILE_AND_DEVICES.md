@@ -158,7 +158,7 @@ You pay only for what is delivered:
 2. The provider is paid unit by unit, against proof that the service was delivered.
 3. When the period ends, money for undelivered units goes back to the buyer in full.
 
-No interest, late fee or penalty rate is ever charged. On each payment a small tithe goes to the commons: about 1.618% (φ/100), computed exactly in integers. The rest goes to the provider.
+No interest, late fee or penalty rate is ever charged. On each payment a 0.08889% assurance fee (8889 / 10,000,000, computed exactly in integers) goes to the four fee buckets: 50% reserve floor (backs Vino, plus every remainder unit), 25% V-Bill dividend pool, 15% infrastructure/node bounties, 10% regenerative capital. The rest goes to the provider.
 
 Prices are in VFV minor units, with 100 minor units to 1 VFV. All the arithmetic uses exact integers.
 

@@ -29,7 +29,7 @@ This guide covers what that means for you as a user, and how it works for develo
 - **What a device does not understand, it keeps.** If your friend's fork adds a field to chat messages, your device passes that field along unchanged. It does not drop it and it does not choke on it.
 - **A fork is a signed record.** The record names the fork's parents, its author's key and what it changed. Forks form a family tree (a DAG). You can label your build anything you like, such as "v7", "mia-garden" or nothing at all. The system never relies on the label.
 - **You choose whom to trust.** You can trust a publisher, pin a build, or rate a publisher or build from 1 to 5 stars. You use the same trust list as for updates.
-- **Money paths are protected.** A small safety core covers crypto, the ledger rules, the no-usury rule, the phi% tithe and consent. A conformance check pins that core. A fork that fails the check can still chat, share files and run apps with everyone, but it cannot move money with anyone.
+- **Money paths are protected.** A small safety core covers crypto, the ledger rules, the no-usury rule, the 0.08889% assurance fee and consent. A conformance check pins that core. A fork that fails the check can still chat, share files and run apps with everyone, but it cannot move money with anyone.
 
 ## 2. For users
 
@@ -132,12 +132,12 @@ These counts show which variants are thriving. They are hints, not votes: see th
 | check | rule |
 |---|---|
 | `HASH` | SHA3-256 matches the FIPS 202 vectors and this build's own SHA3 |
-| `TITHE` | `floor((a + isqrt(5a²)) / 200)`, exact for every 64-bit a |
+| `FEE` | the 0.08889% assurance fee `floor(a · 8889 / 10^7)`, exact for every 64-bit a (replaced the φ% tithe on 2026-10-10) |
 | `LEDGER` | the sum of debits equals the sum of credits, and equity = debit − credit on every line (rails DEBIT 555 / CREDIT 777 / EQUITY 888) |
 | `USURY` | the amount due always equals the principal, however much time has passed |
 | `CONSENT` | a spend is allowed only if consent was granted, the amount is within the granted maximum, and the consent has not expired |
 
-The suite checks **rules**, not someone's implementation. For example, the tithe check does not compute a square root. It confirms `200t − a ≤ a√5 < 200(t+1) − a` by comparing squares in 192-bit integers. Your fork can compute the tithe however it likes, as long as the answers are exact.
+The suite checks **rules**, not someone's implementation. For example, the fee check does not divide. It confirms `10^7·t ≤ 8889·a < 10^7·(t+1)` in 192-bit integers. Your fork can compute the fee however it likes, as long as the answers are exact.
 
 **Checking a peer.** The verifier sends a fresh random 32-byte seed. The peer expands the seed into inputs, runs its own code on them and returns the answers. The verifier checks each answer against the rules. Answers recorded for an earlier seed do not count. `evo_session_gate()` then allows a session's **money-class** capabilities only if both sides pass every check. General capabilities stay available either way.
 
@@ -188,13 +188,13 @@ if (chat && chat->allowed)
 - **Lineage:** records are signed with pq_matrix (STANDARD and MATRIX levels). The tests cover merges, conflicts, how conflicts are resolved, delete-versus-modify, bad signatures, an author field that does not match the key, unknown parents, and 40-record random DAGs replayed in another order.
 - **Trust:** the tests cover the update module's list, zx_upcheck buckets, pins, ratings and blocking.
 - **Adoption:** opt-in only. The count is exact below k. Merging is idempotent. The estimate for 3000 devices falls within the expected range.
-- **Conformance:** the tithe checker is cross-checked against `pay_tithe_phi` on 100,000 random amounts plus edge cases. Six broken forks each fail exactly their own rule, including a 61.8% tithe, a tithe that rounds up, a little interest, and a consent check that ignores expiry. Gating removes only the money capabilities.
+- **Conformance:** the fee checker is cross-checked against `pay_assure_fee` on 100,000 random amounts plus edge cases. Six broken forks each fail exactly their own rule, including one still charging the retired ~1.6% tithe, a fee that rounds up, a little interest, and a consent check that ignores expiry. Gating removes only the money capabilities.
 - **Profiles:** modules from different forks are mixed. The tests also cover an unsatisfied requirement and a module claimed from a build that does not contain it.
 
 ## 11. Honest limits
 
 - **Same structure does not mean same meaning.** If two forks give the same tag and type different meanings, each will read the other's values its own way. `evo_ext_tag` makes accidental collisions unlikely (about 1 in 28,000 per pair of extensions), not impossible.
-- **Conformance is a spot check, not a proof.** It tests the code a peer runs when challenged. Money paths should still check each real value, for example by calling `evo_tithe_is_exact` on every payment.
+- **Conformance is a spot check, not a proof.** It tests the code a peer runs when challenged. Money paths should still check each real value, for example by calling `evo_fee_is_exact` on every payment.
 - **Adoption counts can be gamed.** Because they are anonymous, anyone can inflate them. Treat them as a popularity hint, never as a vote or a security signal.
 - **This module holds no keys and moves no bytes.** Signatures go through a verify hook. Descriptors, records, sketches and challenge responses are byte strings that the caller carries over Vinea or ipfs_node.
 - **Capacities are fixed:**

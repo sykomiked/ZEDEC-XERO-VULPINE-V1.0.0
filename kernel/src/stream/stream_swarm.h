@@ -63,10 +63,10 @@
  * resumes on the next call), urgent requests before others. Each
  * requester's weight is
  * 1 + reciprocity (pieces it uploaded to us recently, three levels) and may
- * be adjusted by the optional economy hook (the tithe / pay layer: a plain
+ * be adjusted by the optional economy hook (the assurance-fee / pay layer: a plain
  * callback). Weights are clamped to 1..8: everyone is always served
  * (cooperative), nobody can monopolise an uplink, and contributors get up to
- * 8x the share of free riders under contention. A tithe callback is told
+ * 8x the share of free riders under contention. A fee callback is told
  * about every piece uploaded.
  *
  * SOURCE RELIEF. The origin pushes each new segment once: pieces
@@ -216,9 +216,9 @@ enum {
 
 /* economy hooks (optional) */
 typedef uint32_t (*ssw_weight_fn)(void *ctx, uint32_t peer_id, uint32_t base_weight);
-typedef void (*ssw_tithe_fn)(void *ctx, uint32_t from_id, uint32_t to_id, uint32_t rows);
+typedef void (*ssw_fee_fn)(void *ctx, uint32_t from_id, uint32_t to_id, uint32_t rows);
 /* weight_hook: returns the DRR weight for a requester (clamped 1..8).
- * tithe_hook: called for every piece uploaded, rows = SSW_PIECE_ROWS. */
+ * fee_hook: called for every piece uploaded, rows = SSW_PIECE_ROWS. */
 
 typedef struct {
     uint32_t ticks_per_sec;   /* clock resolution, e.g. 100 */
@@ -237,7 +237,7 @@ typedef struct {
     uint16_t n_push;       /* origin: pieces 0..n_push-1 are pushed (<= 32) */
     uint8_t push_fanout;   /* origin: copies of each pushed id, 1..2 */
     ssw_weight_fn weight_hook;
-    ssw_tithe_fn tithe_hook;
+    ssw_fee_fn fee_hook;
     void *hook_ctx;
 } ssw_config_t;
 

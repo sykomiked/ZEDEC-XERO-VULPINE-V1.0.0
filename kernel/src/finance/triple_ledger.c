@@ -8,17 +8,19 @@
  */
 #include "triple_ledger.h"
 
-static const char *cap_names[] = {
-    "Financial", "Physical", "Land", "Human",
-    "Social", "Intellectual", "Cultural", "Spiritual", "Ecological"
-};
+/* Indexed by capital_type_t, which is the canonical zcap_form_t order
+ * (zcap_forms.h). The old table named the slots in a fifth order
+ * (Physical, Land, ... Ecological), so most names were for the wrong form. */
+static const char *cap_names[CAP_MAX] = {"Financial", "Manufactured", "Intellectual",
+                                         "Human",     "Social",       "Natural",
+                                         "Cultural",  "Spiritual",    "System"};
 
 static const char *ledger_names[] = {
     "Financial", "Provenance", "Externality"
 };
 
 const char *capital_type_name(capital_type_t c) {
-    if (c < CAP_MAX) return cap_names[c];
+    if ((uint32_t) c < CAP_MAX) return cap_names[c];
     return "Unknown";
 }
 

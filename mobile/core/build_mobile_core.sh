@@ -32,8 +32,8 @@
 #   mlkem/          SHA3/SHAKE (keccak) and ML-KEM-768
 #   tls/            ChaCha20-Poly1305 and X25519
 #   ehop/           private-network channels (a devmesh carrier)
-#   pay/            wallet ledger on the 555/777/888 rails, exact tithe
-#   swarm/          swarm_market (constants and splits pay_tithe uses)
+#   pay/            wallet ledger on the 555/777/888 rails, 0.08889% fee
+#   swarm/          swarm_market (constants and splits pay_assure uses)
 #   tensor/         zt (integer helpers), GGUF reader, tokenizer: local
 #                   small-model files
 #   mobile/core/    zxv_mobile.c, the flat C API for Kotlin and Swift
@@ -73,7 +73,7 @@ CORE=(
     mlkem/mlkem_kpe.c
     tls/aead.c tls/x25519.c
     ehop/ehop_frame.c ehop/ehop_net.c ehop/ehop_sched.c
-    pay/pay_util.c pay/pay_ledger.c pay/pay_tables.c pay/pay_tithe.c
+    pay/pay_util.c pay/pay_ledger.c pay/pay_tables.c pay/pay_assure.c
     swarm/swarm_market.c swarm/swarm_budget.c swarm/swarm_emotion.c
     tensor/zt.c tensor/zt_gguf.c tensor/zt_tok.c
 )

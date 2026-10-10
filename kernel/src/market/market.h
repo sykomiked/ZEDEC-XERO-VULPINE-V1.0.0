@@ -27,12 +27,18 @@
  *         in  = captured + seller_funded + commons_returned + tax_returned
  *         out = to_seller + to_commons + to_tax + to_buyer
  *         held = in - out >= 0, and held == 0 in every terminal state.
- *   M3  The phi% tithe is pay_tithe_phi() from kernel/src/pay (one source of
- *       truth, not a copy) applied ONCE per sale to the seller's net revenue
- *       excluding tax: after every settlement or refund
- *         tithe_charged == to_commons - commons_returned
- *                       == pay_tithe_phi(released_base - returned_base).
- *       A sale refunded before release pays no tithe.
+ *   M3  The 0.08889% assurance fee is pay_assure_fee() from kernel/src/pay
+ *       (one source of truth, not a copy; it replaced the phi-percent tithe)
+ *       applied ONCE per sale to the seller's net revenue excluding tax: after
+ *       every settlement or refund
+ *         fee_charged == to_commons - commons_returned
+ *                     == pay_assure_fee(released_base - returned_base).
+ *       Charging fee(cumulative base) - fee already charged is the per-order
+ *       sub-unit carry of pay_assure.h F2: partial releases pay exactly what
+ *       one release of their sum would pay. A sale refunded before release
+ *       pays no fee. to_commons is the order's fee pool; the operator's settle
+ *       hook moves it to the four fee buckets (pay_assure_split) on its
+ *       ledger.
  *   M4  Refund exactness: a line's charge splits into base (seller revenue)
  *       and tax. After r of n units are refunded the cumulative refund is
  *         floor(base * r / n) + floor(tax * r / n),
@@ -318,8 +324,8 @@ typedef struct {
     uint64_t captured, seller_funded, commons_returned, tax_returned;
     uint64_t to_seller, to_commons, to_tax, to_buyer;
     uint64_t held_base, held_tax; /* held = held_base + held_tax */
-    /* tithe (M3) */
-    uint64_t released_base, returned_base, tithe_charged;
+    /* assurance fee (M3) */
+    uint64_t released_base, returned_base, fee_charged;
     uint64_t cancel_fee; /* booking late-cancel fee kept by the seller */
     bool settled;        /* the seller was paid at least once: review-eligible */
     bool reviewed;
@@ -483,7 +489,7 @@ typedef struct {
     mk_fee_t fee[MK_INVOICE_FEES];
     uint8_t n_fees;
     uint64_t issued_at, due_at, paid_at;
-    uint64_t tithe;
+    uint64_t assure_fee; /* the 0.08889% assurance fee charged at settlement */
     bool tax_unconfigured;
 } mk_invoice_t;
 
@@ -730,8 +736,8 @@ uint64_t mk_invoice_amount_due(const mk_market_t *m, uint16_t inv);
  * (they settle internally with mk_invoice_settle). */
 int32_t mk_invoice_pain001(mk_market_t *m, uint16_t inv, char *out, uint32_t cap);
 /* Payment arrived (camt.054 or an internal VFV transfer): settle with the
- * tithe once. `internal` true moves buyer money through settle; false means
- * the bank already paid the seller, who remits the tithe. */
+ * assurance fee once. `internal` true moves buyer money through settle; false
+ * means the bank already paid the seller, who remits the fee. */
 mk_status_t mk_invoice_settle(mk_market_t *m, uint16_t inv, uint64_t amount, bool internal);
 mk_status_t mk_invoice_void(mk_market_t *m, uint16_t inv, const mk_id_t *actor);
 

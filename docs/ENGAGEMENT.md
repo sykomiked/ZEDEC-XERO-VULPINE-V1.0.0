@@ -63,8 +63,8 @@ Rules:
 Quest never mints money, never holds it and never draws lots. When a goal with a pool completes, quest pays it out using pay's own pieces:
 
 1. **Split.** The pool is divided in proportion to verified units with `pay_commons_split`, the commons no-monopoly rule. No member takes more than the larger of 8/21 of the pool or an equal share. The same contributions always produce the same split. Whatever nobody may take stays in the pool.
-2. **Tithe.** Each share pays the exact φ-percent tithe, `pay_tithe_phi(gross)` = floor((a + isqrt(5a²)) / 200), to the commons account.
-3. **Post.** Each member's share is one `pay_ledger_post`: pool −gross, member +net, commons +tithe, all in VFV. Every posting has a deterministic idempotency key, so a settlement that fails halfway can be run again without paying anyone twice.
+2. **Fee.** Each share pays the exact 0.08889% assurance fee, `pay_assure_fee(gross)` = floor(gross · 8889 / 10^7), split exactly into the four fee-bucket accounts (50% reserve floor (backs Vino, plus every remainder unit), 25% V-Bill dividend pool, 15% infrastructure/node bounties, 10% regenerative capital).
+3. **Post.** Each member's share is one `pay_ledger_post`: pool −gross, member +net, each fee bucket +its part, all in VFV. Every posting has a deterministic idempotency key, so a settlement that fails halfway can be run again without paying anyone twice.
 4. **Pool type.** Pools must hold VFV. A pool in fiat or any other asset is refused.
 5. **Minors.** Money is not paid directly to a minor. It goes to the custodian account named by the guardian policy, or, if there is none, it is held in the pool and listed in the plan.
 6. **Opted-out members.** They are paid exactly the same as everyone else.
@@ -188,7 +188,7 @@ gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/quest -Isrc/s
   src/quest/test_quest.c src/quest/quest.c src/quest/quest_guard.c src/quest/quest_coop.c \
   src/quest/quest_pay.c src/quest/quest_badge.c src/quest/quest_sign_mldsa.c \
   src/social/zx_notify.c src/reputation/reputation.c src/pay/pay_ledger.c src/pay/pay_util.c \
-  src/pay/pay_tithe.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c \
+  src/pay/pay_assure.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c \
   src/tensor/zt.c src/mlkem/keccak.c src/pqsec/pq_mldsa65.c src/pqsec/mldsa/*.c \
   -o /tmp/test_quest && /tmp/test_quest
 ```

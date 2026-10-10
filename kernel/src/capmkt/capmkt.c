@@ -6,6 +6,7 @@
 
 #include "../mlkem/keccak.h"
 #include "../pay/pay_util.h"
+#include "../pay/pay_assure.h"
 
 /* ===== small helpers ===== */
 static void mcpy(void *d, const void *s, size_t n)
@@ -73,20 +74,15 @@ uint64_t cm_tenor_ms(uint8_t tenor)
     }
 }
 
-/* ===== tithe ===== */
-uint64_t cm_tithe_phi(uint64_t a)
+/* ===== assurance fee ===== */
+uint64_t cm_fee_assure(uint64_t a)
 {
-    if (a > CM_AMOUNT_MAX) a = CM_AMOUNT_MAX;
-    pay_u128 sq = pay_mul64(a, a); /* a^2 < 2^124 */
-    pay_u128 x4 = {(sq.hi << 2) | (sq.lo >> 62), sq.lo << 2};
-    pay_u128 five = pay_u128_add(x4, sq); /* 5 a^2 < 2^127 */
-    uint64_t s = pay_isqrt128(five);      /* floor(a sqrt 5) < 2^63.2 */
-    return pay_udiv64(a + s, 200u, 0);    /* a + s < 2^64 */
+    return pay_assure_fee(a);
 }
 
-static uint64_t tithe_of(const cm_market_t *m, uint64_t amount)
+static uint64_t fee_of(const cm_market_t *m, uint64_t amount)
 {
-    uint64_t t = m->p.tithe ? m->p.tithe(m->p.ctx, amount) : cm_tithe_phi(amount);
+    uint64_t t = m->p.fee ? m->p.fee(m->p.ctx, amount) : cm_fee_assure(amount);
     return t > amount ? amount : t;
 }
 
@@ -667,20 +663,24 @@ cm_status_t cm_deliver(cm_market_t *m, const cm_proof_t *proof)
     if (!m->p.verify || !m->p.verify(m->p.ctx, c, proof)) return CM_ERR_PROOF;
     cm_account_t *buyer = acct_find(m, c->buyer), *prov = acct_find(m, c->provider);
     if (!buyer || !prov) return CM_ERR_STATE;
-    uint64_t pay = proof->units * c->price; /* <= escrow */
-    if (pay > c->escrow) return CM_ERR_STATE;
-    uint64_t t = tithe_of(m, pay);
+    uint64_t pay;
+    if (__builtin_mul_overflow(proof->units, c->price, &pay) || pay > c->escrow)
+        return CM_ERR_STATE; /* pay <= escrow: every update below stays in range */
+    uint64_t t = fee_of(m, pay), part[PAY_ASSURE_BUCKETS], nc;
+    if (__builtin_add_overflow(m->commons, t, &nc)) return CM_ERR_STATE;
+    pay_assure_split(t, part);
     c->escrow -= pay;
     buyer->escrow -= pay;
     prov->available += pay - t;
     prov->earned += pay - t;
     prov->delivered += proof->units;
-    m->commons += t;
+    m->commons = nc;
+    for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) m->fee_bucket[b] += part[b]; /* <= commons */
     c->paid += pay - t;
-    c->tithe += t;
+    c->fee += t;
     c->delivered += proof->units;
     post(m, CM_POST_PAY, c->buyer, c->provider, pay - t);
-    post(m, CM_POST_TITHE, c->buyer, 0, t);
+    post(m, CM_POST_FEE, c->buyer, 0, t);
     c->proof_seq++;
     cm_proof_hash(proof, c->proof_tip);
     if (c->delivered == c->qty) c->state = CM_C_CLOSED;
@@ -711,6 +711,9 @@ uint32_t cm_expire(cm_market_t *m, uint64_t now_ms)
 bool cm_conserved(const cm_market_t *m)
 {
     if (!m) return false;
+    uint64_t fb = 0;
+    for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) fb += m->fee_bucket[b];
+    if (fb != m->commons) return false; /* the four buckets hold every fee, exactly */
     uint64_t sum = m->commons;
     for (uint32_t i = 0; i < CM_MAX_ACCOUNTS; i++) {
         const cm_account_t *a = &m->acct[i];
@@ -732,7 +735,7 @@ bool cm_conserved(const cm_market_t *m)
         if (!c->used) continue;
         if (c->escrow + c->delivered * c->price != c->qty * c->price && c->state == CM_C_OPEN)
             return false;
-        if (c->paid + c->tithe != c->delivered * c->price) return false;
+        if (c->paid + c->fee != c->delivered * c->price) return false;
     }
     return sum == m->deposits;
 }

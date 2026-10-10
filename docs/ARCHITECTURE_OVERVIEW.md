@@ -254,7 +254,7 @@ Every new network module (carracho, ipfs_node, call, social gossip, stream) says
 | `vino` | "Vino Decentralized Bank Node". Claims SWIFT, CIPS, SPFS, Visa and MasterCard compatibility (`vino.h:20-21`) | no | Model |
 | `vino_stores` | VFV settlement engine: single-active-state (bearer or ledger), a ≥1.8× solvency gate, usury veto, DEBIT 555 / CREDIT 777 / EQUITY 888 | yes | Real |
 | `iso20022` | Emits pacs.008 and camt.053 with a bounded writer. No XSD validation, by design. | yes | Partial |
-| `pay` [WIP] | Exact three-rail nine-capital ledger (`pay_ledger.h` L1–L5), φ% tithe `floor((a+isqrt(5a²))/200)` with VFV credit for contributions above it, roles (LEI, BIC, IBAN), ISO 3166 table, vendored ISO 20022 **base** XSDs (not CBPR+), and a planned `pay_iso.c` | no | WIP |
+| `pay` [WIP] | Exact three-rail nine-capital ledger (`pay_ledger.h` L1–L5), 0.08889% assurance fee `floor(a·8889/10^7)` (replaced the φ% tithe 2026-10-10) with a per-account sub-unit carry, an exact four-bucket split, and VFV credit for contributions above it, roles (LEI, BIC, IBAN), ISO 3166 table, vendored ISO 20022 **base** XSDs (not CBPR+), and a planned `pay_iso.c` | no | WIP |
 | `cardnet` [WIP] | Dragon (880, Luhn), Phoenix (882, Damm) and Thunderbird (884, Verhoeff) charge-card networks: no interest, no APR, ML-DSA-65 per authorization | no | WIP |
 | `cbank` [WIP] | ISO 4217 (SIX List One), ISO 3166, AU member list and regions, 128-bit integer helpers | no | WIP |
 | `battering_ram`, `broker`, `logistics`, `ministry`, `crown`, `count_house`, `abacus`, `finance_markets`, `pirate_fleet`, `mesh_token` | Exchange, info brokerage, escrow, treasury, credentials, stash, clearing, market tracker, DAO | yes (`count_house_fractal` test not wired) | Real / Partial |

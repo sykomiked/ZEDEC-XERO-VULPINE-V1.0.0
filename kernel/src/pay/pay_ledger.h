@@ -92,14 +92,18 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "pay_util.h"
+#include "pay_rails.h"
+#include "pay_assure.h"
+#include "../zcapital/zcap_forms.h"
 
 /* ===== Rails ===== */
-#define PAY_RAIL_DEBIT_CODE   555u  /* unassigned in ISO 4217: internal numeric */
-#define PAY_RAIL_CREDIT_CODE  777u  /* unassigned in ISO 4217: internal numeric */
-#define PAY_RAIL_EQUITY_CODE  888u  /* unassigned in ISO 4217: internal numeric */
-#define PAY_RAIL_DEBIT_JURIS  "NCR" /* New California Republic (not ISO 3166)    */
-#define PAY_RAIL_CREDIT_JURIS "NRE" /* Neo Roman Empire (not ISO 3166)           */
-#define PAY_RAIL_EQUITY_JURIS "PNS" /* Principality of New Sicily (not ISO 3166) */
+/* Numerics and jurisdictions come from the canonical pay_rails.h. */
+#define PAY_RAIL_DEBIT_CODE   ZXV_RAIL_DEBIT        /* 555, unassigned in ISO 4217 */
+#define PAY_RAIL_CREDIT_CODE  ZXV_RAIL_CREDIT       /* 777, unassigned in ISO 4217 */
+#define PAY_RAIL_EQUITY_CODE  ZXV_RAIL_EQUITY       /* 888, unassigned in ISO 4217 */
+#define PAY_RAIL_DEBIT_JURIS  ZXV_RAIL_DEBIT_JURIS  /* "NCR" (not ISO 3166) */
+#define PAY_RAIL_CREDIT_JURIS ZXV_RAIL_CREDIT_JURIS /* "NRE" (not ISO 3166) */
+#define PAY_RAIL_EQUITY_JURIS ZXV_RAIL_EQUITY_JURIS /* "PNS" (not ISO 3166) */
 typedef enum {
     PAY_RAIL_DEBIT = 0,
     PAY_RAIL_CREDIT = 1,
@@ -111,19 +115,31 @@ uint16_t pay_rail_code(pay_rail_t r);
  * unknown rail. Never NULL; never an ISO 3166 country. */
 const char *pay_rail_juris(pay_rail_t r);
 
-/* ===== Nine capitals: same order as zcap_form_t (checked by test_pay.c) ===== */
+/* ===== Nine capitals: aliases of zcap_form_t (zcapital/zcap_forms.h) ===== */
 typedef enum {
-    PAY_CAP_FINANCIAL = 0,
-    PAY_CAP_MANUFACTURED,
-    PAY_CAP_INTELLECTUAL,
-    PAY_CAP_HUMAN,
-    PAY_CAP_SOCIAL,    /* Crown */
-    PAY_CAP_NATURAL,   /* Crown */
-    PAY_CAP_CULTURAL,  /* Crown */
-    PAY_CAP_SPIRITUAL, /* Crown */
-    PAY_CAP_SYSTEM,
-    PAY_CAP_COUNT
+    PAY_CAP_FINANCIAL = ZCAP_FINANCIAL,
+    PAY_CAP_MANUFACTURED = ZCAP_MANUFACTURED,
+    PAY_CAP_INTELLECTUAL = ZCAP_INTELLECTUAL,
+    PAY_CAP_HUMAN = ZCAP_HUMAN,
+    PAY_CAP_SOCIAL = ZCAP_SOCIAL,       /* Crown */
+    PAY_CAP_NATURAL = ZCAP_NATURAL,     /* Crown */
+    PAY_CAP_CULTURAL = ZCAP_CULTURAL,   /* Crown */
+    PAY_CAP_SPIRITUAL = ZCAP_SPIRITUAL, /* Crown */
+    PAY_CAP_SYSTEM = ZCAP_SYSTEM,
+    PAY_CAP_COUNT = ZCAP_FORM_COUNT
 } pay_cap_t;
+_Static_assert((int) PAY_CAP_FINANCIAL == (int) ZCAP_FINANCIAL, "pay FINANCIAL == ZCAP_FINANCIAL");
+_Static_assert((int) PAY_CAP_MANUFACTURED == (int) ZCAP_MANUFACTURED,
+               "pay MANUFACTURED == ZCAP_MANUFACTURED");
+_Static_assert((int) PAY_CAP_INTELLECTUAL == (int) ZCAP_INTELLECTUAL,
+               "pay INTELLECTUAL == ZCAP_INTELLECTUAL");
+_Static_assert((int) PAY_CAP_HUMAN == (int) ZCAP_HUMAN, "pay HUMAN == ZCAP_HUMAN");
+_Static_assert((int) PAY_CAP_SOCIAL == (int) ZCAP_SOCIAL, "pay SOCIAL == ZCAP_SOCIAL");
+_Static_assert((int) PAY_CAP_NATURAL == (int) ZCAP_NATURAL, "pay NATURAL == ZCAP_NATURAL");
+_Static_assert((int) PAY_CAP_CULTURAL == (int) ZCAP_CULTURAL, "pay CULTURAL == ZCAP_CULTURAL");
+_Static_assert((int) PAY_CAP_SPIRITUAL == (int) ZCAP_SPIRITUAL, "pay SPIRITUAL == ZCAP_SPIRITUAL");
+_Static_assert((int) PAY_CAP_SYSTEM == (int) ZCAP_SYSTEM, "pay SYSTEM == ZCAP_SYSTEM");
+_Static_assert((int) PAY_CAP_COUNT == ZCAP_FORM_COUNT, "pay count == ZCAP_FORM_COUNT");
 bool pay_cap_is_crown(pay_cap_t c);
 
 /* ===== Status ===== */
@@ -206,11 +222,12 @@ typedef struct {
     uint64_t debit;
     uint64_t credit;
     int64_t equity;
+    uint64_t fee_carry; /* pay_assure.h F2: sub-unit fee remainder, < 10^7 */
     bool active;
 } pay_account_t;
 
 /* ===== Postings ===== */
-#define PAY_MAX_LINES 8u
+#define PAY_MAX_LINES 8u /* >= from, to, 4 fee buckets, 2 VFV lines */
 #define PAY_E2E_MAX   35u
 #define PAY_MEMO_MAX  35u
 
@@ -224,7 +241,7 @@ typedef enum {
     PAY_KIND_TRANSFER = 0,
     PAY_KIND_ISSUE = 1,
     PAY_KIND_REDEEM = 2,
-    PAY_KIND_TITHE = 3,
+    PAY_KIND_FEE = 3,
     PAY_KIND_RETURN = 4,
     PAY_KIND_TRADE = 5,
     PAY_KIND_ADJUST = 6
@@ -338,13 +355,19 @@ pay_status_t pay_ledger_redeem(pay_ledger_t *L, pay_posting_req_t *req, uint32_t
 pay_status_t pay_ledger_reverse(pay_ledger_t *L, pay_posting_req_t *req, const char *orig_uetr,
                                 pay_receipt_t *rc);
 
-/* A payment with the tithe: from -> to `amount`, plus `contribution` from
- * `from` to `commons` (same asset), plus `vfv_credit` VFV issued by
- * `vfv_issuer` to `vfv_to`, all in ONE atomic posting. */
-pay_status_t pay_ledger_pay_tithed(pay_ledger_t *L, pay_posting_req_t *req, uint32_t from,
-                                   uint32_t to, uint64_t amount, uint32_t commons,
-                                   uint64_t contribution, uint32_t vfv_issuer, uint32_t vfv_to,
-                                   uint64_t vfv_credit, pay_receipt_t *rc);
+/* A payment carrying the 0.08889% assurance fee (pay_assure.h), in ONE
+ * atomic posting: `from` pays `amount` to `to`, plus the fee on `amount`
+ * computed with `from`'s sub-unit carry (F2), partitioned exactly into the
+ * four bucket accounts bucket[PAY_ASSURE_*] (B1, remainder to the reserve
+ * floor), plus a voluntary `excess` (to the reserve floor), plus `vfv_credit`
+ * VFV issued by `vfv_issuer` to `vfv_to`. The fee is on `amount` only, once
+ * (never on the fee or the excess). The carry is committed only when the
+ * posting returns PAY_OK. *fee_out (optional) gets the fee charged. */
+pay_status_t pay_ledger_pay_with_fee(pay_ledger_t *L, pay_posting_req_t *req, uint32_t from,
+                                     uint32_t to, uint64_t amount,
+                                     const uint32_t bucket[PAY_ASSURE_BUCKETS], uint64_t excess,
+                                     uint32_t vfv_issuer, uint32_t vfv_to, uint64_t vfv_credit,
+                                     pay_receipt_t *rc, uint64_t *fee_out);
 
 /* L2 + L3 over the whole ledger. */
 bool pay_ledger_check(const pay_ledger_t *L);

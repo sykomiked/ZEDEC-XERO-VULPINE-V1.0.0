@@ -3,7 +3,7 @@
 /* mk_extra.c — reviews, ISF discovery, subscriptions, agent confirmation and
  * B2B purchase orders / invoices. See market.h. */
 #include "mk_internal.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
 /* ===== reviews ===== */
 mk_status_t mk_review(mk_market_t *m, uint16_t h, const mk_id_t *actor, uint8_t rating,
@@ -548,7 +548,7 @@ mk_status_t mk_invoice_settle(mk_market_t *m, uint16_t h, uint64_t amount, bool 
     uint64_t due = mk_invoice_amount_due(m, h);
     if (amount != due) return MK_ERR_ARG; /* exact amount; no partials in this version */
     uint64_t rev = v->base + v->fees;
-    uint64_t tithe = pay_tithe_phi(rev); /* once, on the seller's revenue */
+    uint64_t afee = pay_assure_fee(rev); /* once, on the seller's revenue */
     bool remit = m->policy.facilitator_remits_tax;
     mk_settle_t s;
     pay_memset(&s, 0, sizeof s);
@@ -557,16 +557,16 @@ mk_status_t mk_invoice_settle(mk_market_t *m, uint16_t h, uint64_t amount, bool 
     s.ccy = v->ccy;
     s.buyer = &v->buyer;
     s.seller = &v->seller;
-    s.to_commons = tithe;
+    s.to_commons = afee;
     s.to_tax = remit ? v->tax : 0;
     if (internal) {
         s.from_buyer = amount;
-        s.to_seller = amount - tithe - s.to_tax;
+        s.to_seller = amount - afee - s.to_tax;
     } else {
-        s.from_seller = tithe + s.to_tax; /* the bank already paid the seller */
+        s.from_seller = afee + s.to_tax; /* the bank already paid the seller */
     }
     if (!mk__settle(m, &s)) return MK_ERR_SETTLE;
-    v->tithe = tithe;
+    v->assure_fee = afee;
     v->paid_at = m->now;
     v->state = MK_INV_PAID;
     mk_po_t *p = po_get(m, v->po);

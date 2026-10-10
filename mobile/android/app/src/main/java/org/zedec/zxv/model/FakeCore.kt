@@ -28,11 +28,10 @@ class FakeCore : CoreApi {
     override fun setSetting(key: Int, value: String, now: Long) = 0
     override fun getSetting(key: Int): String? = null
     override fun moneyAnswer(approve: Boolean, now: Long) = 0
-    /** Same integer formula as cm_tithe_phi, for the fake only. */
-    override fun tithe(amountMinor: Long): Long {
+    /** Same integer formula as pay_assure_fee (0.08889%), for the fake only. */
+    override fun assureFee(amountMinor: Long): Long {
         val a = java.math.BigInteger.valueOf(amountMinor)
-        val s = a.multiply(a).multiply(java.math.BigInteger.valueOf(5)).sqrt()
-        return a.add(s).divide(java.math.BigInteger.valueOf(200)).toLong()
+        return a.multiply(java.math.BigInteger.valueOf(8889)).divide(java.math.BigInteger.valueOf(10_000_000)).toLong()
     }
     override fun tick(now: Long) {}
 }

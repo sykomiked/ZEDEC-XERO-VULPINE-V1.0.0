@@ -129,7 +129,7 @@ pay_status_t pay_role_init(pay_role_cfg_t *c, pay_role_t role, uint32_t id, cons
     pay_strlcpy(c->name, name, sizeof c->name);
     pay_platform_default(&p);
     pay_strlcpy(c->jurisdiction, p.jurisdiction, sizeof c->jurisdiction);
-    pay_tithe_policy_default(&c->tithe);
+    pay_assure_policy_default(&c->assure);
     c->fee.kind = PAY_FEE_NONE;
     c->equity_enabled = false;
     return PAY_OK;
