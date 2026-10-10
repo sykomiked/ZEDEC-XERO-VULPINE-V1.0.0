@@ -1240,6 +1240,10 @@ verify-all: test
 	python3 ../install/install_zxv.py --selftest > /tmp/test_installer.log 2>&1 && \
 		echo "[PASS] installer_selftest ($$(grep -c '\[PASS\]' /tmp/test_installer.log) checks)" || \
 		{ cat /tmp/test_installer.log; echo "[FAIL] installer_selftest"; exit 1; }; \
+	echo "=== CI boot gate: [BOOT_OK] required, fault markers and QEMU errors fail ==="; \
+	bash ../build_system/test_ci_boot_check.sh > /tmp/test_ci_boot_check.log 2>&1 && \
+		echo "[PASS] test_ci_boot_check ($$(grep -c '\[PASS\]' /tmp/test_ci_boot_check.log) checks)" || \
+		{ cat /tmp/test_ci_boot_check.log; echo "[FAIL] test_ci_boot_check"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).

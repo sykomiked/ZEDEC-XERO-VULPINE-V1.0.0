@@ -54,9 +54,11 @@ filtered out because vendored code stays identical to its upstream release.
   the version; session keys come from both KEM secrets and the transcript hash; replayed,
   zero-nonce, downgraded, MITM-substituted and tampered messages are rejected (test_bootlegger).
 - **fs** replicate/recover only set flags, so "recovery" restores an empty node. Needs a design.
-- **CI** boot checks: now fixed for arm64 and x86_64 (they must reach `[BOOT_OK]`); riscv64,
-  riscv32 and arm32 report a warning instead, because they have not yet been seen to reach
-  `[BOOT_OK]`.
+- **CI** boot checks: all five (arm64, x86_64, riscv64, riscv32, arm32) now fail closed through
+  `build_system/ci_boot_check.sh`: `[BOOT_OK]` required, any fault marker or non-timeout QEMU exit
+  fails the job. All five were booted that way locally. CI fixes: riscv64 installed a package that
+  does not exist on Ubuntu (`qemu-system-riscv64`, now `qemu-system-misc`); riscv32 had no rv32
+  SBI firmware (CI now builds OpenSBI v1.3.1 for rv32); two artifact paths were wrong.
 
 ### Decisions only the owner can make
 
@@ -176,9 +178,8 @@ qemu-system-riscv32/64, macOS/Xcode.
 
 - [HIGH] kernel/arch/hosted (missing zxv_zt_glue.c) — the Mac app could not generate text even though `kernel/src/tensor/zt_model.c` is in the tree: build_desktop.sh and test_hosted.sh compile the forward pass in only when `zxv_zt_glue.c` exists, and it did not ("this build has no forward pass yet" in the test log). FIXED: wrote `kernel/arch/hosted/zxv_zt_glue.c` (loads the model once per mapped file, ChatML wrapping with the special tokens inserted as ids so user text cannot become a control token, greedy decode, stops at eos / `<|im_end|>` / `<|endoftext|>`, bounded context 2048, frees on close) and `test_zxv_zt_glue.c` (12 checks: the chat-wrapped reply for "Hi there" equals the tensor engine's float64-referenced greedy chain on the qwen2 fixture model; reuse; output truncation; over-long prompt, bad token id and weightless file refused). `zxv_model_host.c` now reports `can_generate` only when `zt_model_arena_bytes` accepts the file. test_hosted.sh runs the glue test (ASan/UBSan); all pass; build_desktop.sh log says "forward pass: compiled in".
 - [HIGH] build_system/Makefile.x86_64 — had no `run` target, so CI step `timeout 30 make -f build_system/Makefile.x86_64 run || true` (ci.yml:53) and `./build.sh x86_64 run` never booted anything ("No rule to make target 'run'"). FIXED: `run: boot` alias; `make run` now boots to `[E0018] [BOOT_OK]`.
-- [HIGH] .github/workflows/ci.yml:53,74,97,118 — x86_64, riscv64, riscv32 and arm32 boot steps end in `|| true` and never read the serial log, so a kernel that faults or hangs before BOOT_OK passes CI. Only arm64 (lines 26-31) checks. NOT FIXED (ci.yml is read-only for this worker). Proposed patch for each arch (shown for x86_64):
-  `timeout 30 make -f build_system/Makefile.x86_64 run < /dev/null > boot_x86_64.log 2>&1 || true; cat boot_x86_64.log; grep -q "\[BOOT_OK\]" boot_x86_64.log || { echo "::error::x86_64 boot did not reach [BOOT_OK]"; exit 1; }; if grep -qE "\[FAULT\]|\[EL0 FAULT\]" boot_x86_64.log; then exit 1; fi`
-  (x86_64 verified to reach BOOT_OK here; riscv64/riscv32 unverified, no qemu-system-riscv here; arm32 unverified, no cross compiler.)
+- [HIGH] .github/workflows/ci.yml:53,74,97,118 — x86_64, riscv64, riscv32 and arm32 boot steps end in `|| true` and never read the serial log, so a kernel that faults or hangs before BOOT_OK passes CI. Only arm64 (lines 26-31) checked.
+  FIXED (p10): every boot step runs `build_system/ci_boot_check.sh` (no `|| true`); all five targets verified to reach `[BOOT_OK]` with no fault marker; arm32 now reports aborts as `[FAULT]` (VBAR vectors in boot.s).
 - [HIGH] build_system/Makefile (root OS-layer suite) — did not build at all: `m5_types.h` needs surplus.h (no -I for the CPATH dirs), `M_PI` undeclared under -std=c11, `axiom_matrix_core.c` needs e8.c, test_drivers lacked net/m5route/dtmf/radio/vino/vena/zab sources. Once built, test_lattice, test_hccs and test_audiogenomics crashed (stack overflow: multi-MB state structs on the stack), test_drivers aborted on stale constants (`M5_PROTO_MAX == 20`, now 44; `LANG_M5_AXIOMATIC == 30`, now 31) and on four vino message adapters that are now honestly `VINO_ENOTIMPL`. The runner printed FAIL and still exited 0 (fail-open). FIXED: include dirs + `-D_GNU_SOURCE`, e8 sources, `DRIVER_SRCS`, fail-closed loop with exit 1, binaries written to `build/os_tests` (git-ignored) not the repo root; tests made the big state `static`, updated stale asserts, adapters now asserted to report ENOTIMPL, capital-name check reports all nine slots. 10/10 pass. Not in CI or verify-all: proposed recipe in platform_verify_lines.mk.
 
 #### MED

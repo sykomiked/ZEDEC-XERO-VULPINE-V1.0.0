@@ -55,3 +55,6 @@ kernel/arch/arm64/efi_stub.elf
 # Python bytecode caches
 __pycache__/
 *.pyc
+
+# CI boot-check serial logs (build_system/ci_boot_check.sh)
+boot_*.log

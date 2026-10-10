@@ -33,8 +33,8 @@ in the audit report.
 ZXV is three things that share one source tree.
 
 1. **A kernel and operating system** (`kernel/`, `build_system/`). It boots on emulated hardware:
-   the arm64 and x86_64 images reach `[BOOT_OK]` under QEMU; riscv64, riscv32 and arm32 build and
-   are boot-tested where an emulator is available. Drivers (ATA disk, PS/2, PCI, virtio, FAT32,
+   all five images (arm64, x86_64, riscv64, riscv32, arm32) reach `[BOOT_OK]` under QEMU, and CI
+   fails any of them that does not or that prints a fault marker. Drivers (ATA disk, PS/2, PCI, virtio, FAT32,
    framebuffer), a scheduler, memory management, a syscall table with capability checks, a
    journalled filesystem (`zxvfs`), signed packages and A/B updates (`loader`, `zxpkg`).
 2. **A local AI swarm** (`swarm`, `tensor`, `chiglet`, `surplus`, `cotier`). An integer-only
@@ -306,12 +306,12 @@ Used by: nothing (top-level program). `zx_notify_host.c` is only linked by `test
 Gaps: no real model ever run (Q5_0/Q5_1 weights now load, so Q4_K_M files of 896-wide models are accepted, but none was run); `/api/ask` blocks the single-threaded server while generating; model tokens are not budgeted by the swarm market; no update check; no Vinea/ipfs_node/call/social/notify/speech glue; ZXVApp.m, signing and notarisation never run outside the macOS CI job.
 
 ### Bare-metal kernels  —  the ZXV OS booted on emulated hardware (kernel/arch/*, build_system/Makefile.*)
-Status: WORKING (arm64 and x86_64 boot to `[BOOT_OK]` under QEMU here; riscv64/riscv32 build only; arm32 not built)
-What it does: five Makefiles build freestanding kernel images from the M5 core plus the platform and economy layers. ARM64 is the reference (EL0 userspace, GICv3, virtio). Here: arm64 built and booted to `[E0174] [BOOT_OK]` with no `[FAULT]` line; x86_64 built and booted to `[E0018] [BOOT_OK]` via `make boot`/`run`; riscv64 and riscv32 built (no qemu-system-riscv* here); arm32 needs `arm-linux-gnueabihf-gcc`, missing here. Swarm and tensor are now linked into the arm64 and x86_64 images and both boots print `[AI_OK] swarm+tensor selfcheck 0x90553e54` before `[BOOT_OK]`; Vinea, pay, cbank and the other 2026-10-09 modules are in no kernel image.
+Status: WORKING (all five boot to `[BOOT_OK]` under QEMU with no fault marker; CI fails closed on each)
+What it does: five Makefiles build freestanding kernel images from the M5 core plus the platform and economy layers. ARM64 is the reference (EL0 userspace, GICv3, virtio). Here: arm64 built and booted to `[E0174] [BOOT_OK]` with no `[FAULT]` line; x86_64 built and booted to `[E0018] [BOOT_OK]` via `make boot`/`run`; riscv64 (`-M virt`, distro OpenSBI) and riscv32 (`-M virt`, OpenSBI v1.3.1 built for rv32, via `ZXV_RV32_SBI`) boot to `[BOOT_OK] Phase E0082`; arm32 (`-M virt -cpu cortex-a15`) boots to `[BOOT_OK] ... [ARM32]` and now installs an exception vector table (VBAR) so an abort or undefined instruction prints `[FAULT]` instead of silently stopping. The swarm, tensor, Vinea, pay, cbank and the other 2026-10-09 modules are in no kernel image.
 Main entry points: `make -f build_system/Makefile.<arch> all|run|clean`; `kernel_main_arm64.c`; `build.sh <arch> [run]`; `platform_layer.mk`, `economy_layer.mk` (fragments for non-arm64 arches, included by no Makefile yet).
-Tests: CI `build-*` jobs; only build-arm64 checks the boot log. Banner check (`verify_banners.sh`) runs in every build and passed.
+Tests: CI `build-*` jobs all run `build_system/ci_boot_check.sh`, which fails unless the log has `[BOOT_OK]`, no `[FAULT]`/`[EL0 FAULT]`/`CPU exception vector=`/panic line, and QEMU was stopped by the timeout (not an error exit); `test_ci_boot_check` (11 cases) in verify-all tests that gate. Banner check (`verify_banners.sh`) runs in every build and passed.
 Used by: CI; `ZXV-Desktop.command` / `run_desktop.sh`.
-Gaps: economy/network modules of the product not linked into any image (swarm/tensor are linked into arm64 and x86_64 only, self-check only); x86/riscv/arm32 boot results ignored by CI; Makefile.x86_64 had no `run` target (fixed).
+Gaps: economy/network modules of the product not linked into any image (swarm/tensor are linked into arm64 and x86_64 only, self-check only, CI requires [AI_OK]); the riscv32 CI job builds its own rv32 OpenSBI because Ubuntu ships rv64 only; Makefile.x86_64 had no `run` target (fixed).
 
 ### C ABI bindings  —  one C library for COBOL, Fortran, Pascal, Ada and others (bindings/)
 Status: WORKING (C self-test in verify-all; language examples built and run here)
