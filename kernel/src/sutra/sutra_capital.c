@@ -13,16 +13,16 @@ bool sutra_check_coverage(vino_ledger_t *ledger, const char *account_addr,
     if (!ledger || !account_addr) return false;
     vino_account_t *acc = vino_get_account(ledger, account_addr);
     if (!acc) return false;
+    if ((uint32_t) capital >= CAP_MAX) return false; /* out-of-range capital: no balance to read */
     uint64_t balance = acc->balance[(uint32_t)capital];
-    /* Compare balance (uint64) against required_amount (rational).
-     * required_amount.den is always >= 1 (normalized); treat as
-     * integer comparison when den==1, otherwise approximate. */
-    if (required_amount.den == 1) {
-        return balance >= (uint64_t)required_amount.num;
-    }
-    /* For non-integer rationals, use the double magnitude for comparison */
-    double needed = (double)required_amount.num / (double)required_amount.den;
-    return (double)balance >= needed;
+    /* balance >= num/den, decided exactly. The old non-integer path compared
+     * doubles, which round above 2^53 and could approve a balance that is
+     * short of the requirement (e.g. 2^53 vs 2^53 + 1/2). */
+    if (required_amount.den <= 0 || required_amount.num < 0) return false; /* malformed */
+    if (required_amount.num == 0) return true;
+    uint64_t num = (uint64_t) required_amount.num, den = (uint64_t) required_amount.den;
+    uint64_t q = num / den, r = num % den;
+    return balance > q || (balance == q && r == 0);
 }
 
 /* ---- DECLARATION -----------------------------------------------------------

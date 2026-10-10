@@ -11,6 +11,12 @@
  * Each device is a virtual quantum processor with register maps,
  * quantum state registers, and M⁵ coverage verification.
  *
+ * WHAT THIS IS: a numeric model with physics-inspired names, nothing more.
+ * It drives no hardware, extracts no energy and moves nothing through any
+ * "wormhole"; every register is a number computed from the formulas in
+ * quantum_device.c (e.g. the Casimir force law), and "extracted" totals are
+ * just running sums of those numbers.
+ *
  * Three execution modes:
  *   DC: Direct quantum measurement (collapse)
  *   AC: Alternating quantum oscillation (coherent evolution)

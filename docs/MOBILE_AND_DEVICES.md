@@ -36,6 +36,8 @@ What works on a phone alone:
 
 The phone chooses a model by its memory. It gives a model at most half of its RAM, because the operating system and other apps need the rest.
 
+Sizes are for the Q4_K_M files. The tensor engine does not read Q5_0 or Q5_1 weights yet (`kernel/src/tensor/zt_model.h`), and the Q4_K_M file of the 896-wide 0.5B model contains them, so until that lands use the Q8_0 file of 0.5B instead.
+
 | Model (Qwen2.5 Instruct, Q4_K_M, Apache-2.0) | File size | RAM needed | Runs on |
 |---|---|---|---|
 | 0.5B | 491 MB | about 700 MB | almost any phone from the last five years (2 GB RAM or more) |
@@ -52,7 +54,7 @@ How big the core library is (arm64, built with `-Os`, measured with `mobile/core
 | Code linked into the app | about 152 KB |
 | Data | 0.9 KB |
 | Zero-initialised memory | about 519 KB (most of it is one mesh state) |
-| Whole static archive | about 620 KB |
+| Whole static archive | about 1.25 MB (54 objects, lean profile; measured 1,281,164 bytes at the 2026-10-09 audit) |
 | Android JNI library with the core linked in, stripped | about 267 KB |
 
 These sizes do not include the model files.

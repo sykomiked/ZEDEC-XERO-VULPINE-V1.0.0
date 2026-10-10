@@ -19,7 +19,8 @@ int main(void) {
     memset(entries, 0, sizeof(entries));
     matrix.entries = entries;
 
-    audiogenomics_state_t ag;
+    /* static: the state is larger than the default 8 MB stack */
+    static audiogenomics_state_t ag;
     audiogenomics_init(&ag, &matrix);
     assert(ag.sample_rate == 16000.0);
 

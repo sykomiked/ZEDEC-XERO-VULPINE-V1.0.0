@@ -17,9 +17,12 @@ layer, and its own Tri-Space native file formats (`.zxvc` / `.cedez` / `.cedec`)
 
 Everything here follows one engineering rule without exception: **no hollow
 capabilities.** Nothing claims a capability the code does not deliver; ops
-boundaries fail closed rather than fake a result; and every test asserts computed
+boundaries fail closed rather than fake a result; and tests should assert computed
 values against an external anchor (an RFC/FIPS vector, a known-answer, a
-conservation identity), never against the code's own output.
+conservation identity) rather than the code's own output. That is the rule, not
+yet the state of every test: older suites (for example `tests/test_drivers.c`)
+still check structure sizes and constants, and `docs/ARCHITECTURE_OVERVIEW.md`
+lists the modules whose claims are not yet backed.
 
 ## Orientation
 

@@ -88,7 +88,8 @@ bool sdp_parse(const uint8_t *buf, uint32_t len, sdp_session *s)
                 if (in_audio) {
                     s->has_audio = true;
                     uint32_t c;
-                    s->audio_port = (uint16_t) slice_u32(t[1].p, t[1].len, &c);
+                    /* "m=audio" alone has no port token: t[1] is unset then. */
+                    s->audio_port = nt >= 2 ? (uint16_t) slice_u32(t[1].p, t[1].len, &c) : 0;
                     if (nt >= 3) s->transport = t[2];
                     s->npt = 0;
                     for (uint32_t k = 3; k < nt && s->npt < SDP_MAX_PT; k++) {

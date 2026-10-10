@@ -53,7 +53,10 @@
 #define CC_DEV_SHARE_MAX       8500   /* 85% maximum developer share */
 #define CC_PLATFORM_SHARE_MIN  1500   /* 15% minimum platform share */
 #define CC_PLATFORM_SHARE_MAX  2400   /* 24% maximum platform share */
-#define CC_ROYALTY_SHARE       2000   /* 20% royalty to 36N9 Genetics */
+/* 20% royalty to 36N9 Genetics, limited to what is left after the developer share */
+#define CC_ROYALTY_SHARE 2000
+/* Vino account that holds voucher purchase proceeds until they are paid out */
+#define CC_ESCROW_ADDR "community-chest-escrow"
 
 /* ===== App Types ===== */
 

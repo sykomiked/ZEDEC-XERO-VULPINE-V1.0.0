@@ -406,7 +406,7 @@ static int64_t leech_ref(const zt_fx x[24], zt_fx s)
                 int64_t bf = INT64_MAX;
                 for (int j = 0; j < 24; j++)
                     for (int sg = -1; sg <= 1; sg += 2) {
-                        int64_t e0 = 4 * (int64_t) x[j] - nv[j] * s, e1 = e0 - 4 * sg * s;
+                        int64_t e0 = 4 * (int64_t) x[j] - nv[j] * s, e1 = e0 - 4 * (int64_t) sg * s;
                         if (e1 * e1 - e0 * e0 < bf) bf = e1 * e1 - e0 * e0;
                     }
                 cost += bf;

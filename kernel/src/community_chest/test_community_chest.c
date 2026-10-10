@@ -195,8 +195,20 @@ int main(void)
         uint64_t platform_rev, royalty_rev;
         uint64_t dev_payout = cc_calc_revenue_split(1000, 8500, &platform_rev, &royalty_rev);
         assert(dev_payout == 850);  /* 85% */
-        assert(royalty_rev == 200); /* 20% */
-        assert(platform_rev == 0);  /* 0% (85+20 > 100, platform gets 0) */
+        assert(royalty_rev == 150); /* royalty limited to what is left */
+        assert(platform_rev == 0);
+        assert(dev_payout + royalty_rev + platform_rev == 1000); /* conserved */
+    }
+
+    /* ===== revenue split conserves odd and huge amounts ===== */
+    {
+        uint64_t platform_rev, royalty_rev;
+        uint64_t d = cc_calc_revenue_split(9999, 7333, &platform_rev, &royalty_rev);
+        assert(d + platform_rev + royalty_rev == 9999);
+        uint64_t big = UINT64_MAX - 7;
+        d = cc_calc_revenue_split(big, 8000, &platform_rev, &royalty_rev);
+        assert(d + platform_rev + royalty_rev == big);
+        assert(d == (big / 10000) * 8000 + ((big % 10000) * 8000) / 10000);
     }
 
     /* ===== revenue split clamps out-of-range dev share ===== */
@@ -390,6 +402,9 @@ int main(void)
         /* Check voucher balance debited */
         vino_account_t *acct = vino_get_account(&vino, "carol");
         assert(acct->balance[CAP_FINANCIAL] == 7000); /* 10000 - 3000 */
+        /* the price went somewhere: escrow holds it, nothing was destroyed */
+        vino_account_t *esc = vino_get_account(&vino, CC_ESCROW_ADDR);
+        assert(esc && esc->balance[CAP_FINANCIAL] == 3000);
 
         /* Check revenue recorded */
         cc_app_t *app = cc_get_app(&cc, (uint32_t) id);

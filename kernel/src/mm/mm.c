@@ -93,7 +93,7 @@ page_t *mm_get_page(mm_state_t *mm, uint32_t addr, page_directory_t *dir, bool m
 }
 
 void *kmalloc(mm_state_t *mm, uint32_t size) {
-    if (size == 0) return 0;
+    if (size == 0 || size > HEAP_MAX) return 0; /* (size + 3) must not wrap */
 
     /* Align to 4 bytes */
     size = (size + 3) & ~3;
@@ -142,10 +142,13 @@ void kfree(mm_state_t *mm, void *ptr) {
 }
 
 void *kcalloc(mm_state_t *mm, uint32_t count, uint32_t size) {
-    void *p = kmalloc(mm, count * size);
+    /* count * size wrapping 32 bits used to return a too-small block. */
+    uint32_t total;
+    if (__builtin_mul_overflow(count, size, &total)) return 0;
+    void *p = kmalloc(mm, total);
     if (p) {
         uint8_t *b = (uint8_t *)p;
-        for (uint32_t i = 0; i < count * size; i++) b[i] = 0;
+        for (uint32_t i = 0; i < total; i++) b[i] = 0;
     }
     return p;
 }

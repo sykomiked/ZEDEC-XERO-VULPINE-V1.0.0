@@ -267,6 +267,34 @@ int main(void)
         assert(sid == -1);
     }
 
+    /* ===== finished settlements free their slot (no permanent exhaustion) ===== */
+    {
+        porter_house_t ph;
+        count_house_t ch;
+        mesh_token_t mt;
+
+        porter_house_init(&ph, 1, "porter");
+        count_house_init(&ch, 1, "count");
+        porter_house_seal_port(&ph, MT_SETTLEMENT_PORT, PH_SEAL_OPEN, 0);
+        mesh_token_init(&mt, 1, "mesh", &ph, &ch);
+
+        word168_t sender = make_peer(1);
+        word168_t receiver = make_peer(2);
+
+        /* Fill every slot, then finish them all (advance + ack). */
+        for (uint32_t i = 0; i < MT_MAX_SETTLEMENTS; i++) {
+            int32_t sid = mesh_token_settle(&mt, &sender, &receiver, 1, 0, 0);
+            assert(sid > 0);
+            assert(mesh_token_advance(&mt, 1) == 0);
+            assert(mesh_token_ack(&mt, (uint32_t) sid, 2) == 0);
+        }
+        /* Before the fix this returned -1 forever. */
+        int32_t sid = mesh_token_settle(&mt, &sender, &receiver, 1, 0, 3);
+        assert(sid > 0);
+        assert(mesh_token_get(&mt, (uint32_t) sid) != NULL);
+        assert(mt.total_settled == MT_MAX_SETTLEMENTS);
+    }
+
     printf("All Mesh-Token External Settlement tests passed\n");
     return 0;
 }

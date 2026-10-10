@@ -50,7 +50,9 @@ jobs:
           make -f build_system/Makefile.x86_64 all
       - name: Run x86_64 in QEMU
         run: |
-          timeout 30 make -f build_system/Makefile.x86_64 run || true
+          timeout 30 make -f build_system/Makefile.x86_64 run < /dev/null > boot_x86_64.log 2>&1 || true
+          cat boot_x86_64.log
+          grep -q "\[BOOT_OK\]" boot_x86_64.log || { echo "::error::x86_64 boot did not reach [BOOT_OK]"; exit 1; }
       - name: Upload x86_64 artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -71,7 +73,10 @@ jobs:
           make -f build_system/Makefile.riscv all
       - name: Run RISC-V 64-bit in QEMU
         run: |
-          timeout 30 make -f build_system/Makefile.riscv run || true
+          # Not yet proven to reach [BOOT_OK] on this target; report, do not fail.
+          timeout 30 make -f build_system/Makefile.riscv run < /dev/null > boot_riscv64.log 2>&1 || true
+          cat boot_riscv64.log
+          grep -q "\[BOOT_OK\]" boot_riscv64.log || echo "::warning::riscv64 boot did not reach [BOOT_OK]"
       - name: Upload RISC-V 64-bit artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -94,7 +99,10 @@ jobs:
           make -f build_system/Makefile.riscv32 all
       - name: Run RISC-V 32-bit in QEMU
         run: |
-          timeout 30 make -f build_system/Makefile.riscv32 run || true
+          # Not yet proven to reach [BOOT_OK] on this target; report, do not fail.
+          timeout 30 make -f build_system/Makefile.riscv32 run < /dev/null > boot_riscv32.log 2>&1 || true
+          cat boot_riscv32.log
+          grep -q "\[BOOT_OK\]" boot_riscv32.log || echo "::warning::riscv32 boot did not reach [BOOT_OK]"
       - name: Upload RISC-V 32-bit artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -115,7 +123,10 @@ jobs:
           make -f build_system/Makefile.arm32 all
       - name: Run ARM32 in QEMU
         run: |
-          timeout 30 make -f build_system/Makefile.arm32 run || true
+          # Not yet proven to reach [BOOT_OK] on this target; report, do not fail.
+          timeout 30 make -f build_system/Makefile.arm32 run < /dev/null > boot_arm32.log 2>&1 || true
+          cat boot_arm32.log
+          grep -q "\[BOOT_OK\]" boot_arm32.log || echo "::warning::arm32 boot did not reach [BOOT_OK]"
       - name: Upload ARM32 artifacts
         uses: actions/upload-artifact@v5
         with:

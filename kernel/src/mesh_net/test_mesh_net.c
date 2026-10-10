@@ -205,6 +205,12 @@ int main(void)
         assert(r->revenue == 50000); /* 5000 * 10 */
         assert(mn.total_data_routed == 5000);
         assert(mn.total_revenue == 50000);
+
+        /* A transfer whose price would wrap uint64 is refused, not booked as
+         * a tiny revenue, and changes nothing. */
+        assert(mn_send_data(&mn, (uint32_t) rid, UINT64_MAX / 5, 101) == -1);
+        assert(r->data_transferred == 5000 && r->revenue == 50000);
+        assert(mn.total_revenue == 50000 && mn.total_data_routed == 5000);
     }
 
     /* ===== route expiry ===== */

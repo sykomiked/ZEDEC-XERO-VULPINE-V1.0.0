@@ -132,6 +132,25 @@ int main(void)
         assert(!porter_house_admit(&g, 3333, &p, 1000));
     }
 
+    /* ===== close_port with a full seal table must not fail open ===== */
+    {
+        porter_house_t f;
+        porter_house_init(&f, 7, "FullTable");
+        word168_t p = make_peer(50);
+        for (uint32_t i = 0; i < PH_MAX_SEALS; i++) {
+            porter_house_seal_port(&f, (uint16_t) (1000 + i), PH_SEAL_OPEN, 0);
+        }
+        /* a free OPEN slot is reused: port 22 is shut, the others stay open */
+        assert(porter_house_close_port(&f, 22) == 0);
+        assert(!porter_house_admit(&f, 22, &p, 1000));
+        assert(porter_house_admit(&f, 1001, &p, 0));
+        /* every slot gating a port: the failure is reported, not hidden */
+        for (uint32_t i = 0; i < PH_MAX_SEALS; i++) {
+            porter_house_seal_port(&f, f.seals[i].port, PH_SEAL_TRUSTED, 1);
+        }
+        assert(porter_house_close_port(&f, 23) == -1);
+    }
+
     /* ===== reconfiguring a seal preserves allowlist/stats ===== */
     {
         porter_house_t r;

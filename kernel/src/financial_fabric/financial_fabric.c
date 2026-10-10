@@ -25,6 +25,30 @@ static bool ff_form_alienable(uint8_t form)
 
 /* ===== Helper Functions ===== */
 
+/* surplus_real_t -> exact rational. The old `(int64_t)(v >> 32)` with den 1
+ * dropped the fraction (a 1.5x generation ratio became 1, a 0.5 contribution
+ * became 0) and did not compile on the host build, where surplus_real_t is a
+ * double. Q32.32 is exactly raw / 2^32; reduce the power of two out. */
+static void ff_sr_to_rat(surplus_real_t v, int64_t *num, int64_t *den)
+{
+#ifdef TEST_HOST
+    int64_t n = (int64_t) (v * 4294967296.0);
+#else
+    int64_t n = (int64_t) v;
+#endif
+    /* Shifts on the magnitude only: no 64-bit division on 32-bit targets. */
+    bool neg = n < 0;
+    uint64_t u = neg ? (uint64_t) 0 - (uint64_t) n : (uint64_t) n;
+    uint64_t d = (uint64_t) 1 << 32;
+    while (d > 1 && u != 0 && (u & 1u) == 0) {
+        u >>= 1;
+        d >>= 1;
+    }
+    if (u == 0) d = 1;
+    *num = neg ? -(int64_t) u : (int64_t) u;
+    *den = (int64_t) d;
+}
+
 static void ff_mem_set(void *dst, int val, uint32_t len)
 {
     uint8_t *d = dst;
@@ -306,11 +330,9 @@ int32_t ff_create_derivative(financial_fabric_t *fabric, uint32_t account_id,
 
     contract->underlying_form = underlying_form;
     /* Convert surplus_real_t (Q32.32) to m5_rat_t (num/den) */
-    contract->notional.num = (int64_t) (*notional >> 32);
-    contract->notional.den = 1;
+    ff_sr_to_rat(*notional, &contract->notional.num, &contract->notional.den);
     contract->notional.valid = true;
-    contract->strike.num = (int64_t) (*strike >> 32);
-    contract->strike.den = 1;
+    ff_sr_to_rat(*strike, &contract->strike.num, &contract->strike.den);
     contract->strike.valid = true;
     contract->expiry_tick = expiry_tick;
     if (backing_cid) ff_mem_copy(contract->backing_cid, backing_cid, 32);
@@ -479,21 +501,19 @@ int32_t ff_create_assurance(financial_fabric_t *fabric, uint32_t account_id,
     ff_mem_set(contract, 0, sizeof(*contract));
 
     /* Convert surplus_real_t to m5_rat_t */
-    contract->contribution.num = (int64_t) (*contribution >> 32);
-    contract->contribution.den = 1;
+    ff_sr_to_rat(*contribution, &contract->contribution.num, &contract->contribution.den);
     contract->contribution.valid = true;
     contract->target_form = target_form;
     if (prevention_cid) ff_mem_copy(contract->prevention_cid, prevention_cid, 32);
     if (efficacy_proof) contract->efficacy_proof = (m5_lpres_t) efficacy_proof->state;
     contract->generated_form = generated_form;
-    contract->generation_ratio.num = (int64_t) (*generation_ratio >> 32);
-    contract->generation_ratio.den = 1;
+    ff_sr_to_rat(*generation_ratio, &contract->generation_ratio.num,
+                 &contract->generation_ratio.den);
     contract->generation_ratio.valid = true;
     contract->pay_it_forward = pay_it_forward;
     if (forward_cid) ff_mem_copy(contract->forward_cid, forward_cid, 32);
     if (forward_phase) {
-        contract->forward_phase.num = (int64_t) (*forward_phase >> 32);
-        contract->forward_phase.den = 1;
+        ff_sr_to_rat(*forward_phase, &contract->forward_phase.num, &contract->forward_phase.den);
         contract->forward_phase.valid = true;
     }
 
@@ -593,8 +613,7 @@ int32_t ff_tokenize_treaty(financial_fabric_t *fabric, uint32_t account_id,
     if (treaty_cid) ff_mem_copy(asset->treaty_cid, treaty_cid, 32);
     if (asset_cid) ff_mem_copy(asset->asset_cid, asset_cid, 32);
     asset->form = form;
-    asset->quantified_value.num = (int64_t) (*quantified_value >> 32);
-    asset->quantified_value.den = 1;
+    ff_sr_to_rat(*quantified_value, &asset->quantified_value.num, &asset->quantified_value.den);
     asset->quantified_value.valid = true;
     if (sovereignty_proof) asset->sovereignty_proof = (m5_lpres_t) sovereignty_proof->state;
     if (corridor_cid) ff_mem_copy(asset->corridor_cid, corridor_cid, 32);

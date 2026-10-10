@@ -242,9 +242,20 @@ int32_t mn_send_data(mesh_net_t *mn, uint32_t route_id,
     mn_route_t *r = mn_get_route(mn, route_id);
     if (!r || r->state != MN_ROUTE_ACTIVE) return -1;
 
-    r->data_transferred += data_size;
+    /* data_size comes from the caller and price from the route owner: the
+     * product and the running totals used to wrap silently, so a large
+     * transfer could book a tiny (or zero) revenue. Refuse instead, before
+     * anything is changed. */
+    uint64_t cost, rev, total_rev, moved;
+    if (__builtin_mul_overflow(data_size, r->price_per_unit, &cost) ||
+        __builtin_add_overflow(r->revenue, cost, &rev) ||
+        __builtin_add_overflow(mn->total_revenue, cost, &total_rev) ||
+        __builtin_add_overflow(r->data_transferred, data_size, &moved))
+        return -1;
+
+    r->data_transferred = moved;
     r->last_active_cycle = current_cycle;
-    r->revenue += (data_size * r->price_per_unit);
+    r->revenue = rev;
 
     mn_network_t *net = mn_get_network(mn, r->network_id);
     if (net) {
@@ -252,7 +263,7 @@ int32_t mn_send_data(mesh_net_t *mn, uint32_t route_id,
     }
 
     mn->total_data_routed += data_size;
-    mn->total_revenue += (data_size * r->price_per_unit);
+    mn->total_revenue = total_rev;
 
     mn_update_coverage(mn);
     return 0;

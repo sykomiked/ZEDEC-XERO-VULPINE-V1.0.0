@@ -16,8 +16,9 @@
 # Application name (override on command line: make APP=myapp)
 APP ?= myapp
 
-# Kernel source root
-KERNEL_ROOT := ../../../..
+# Repository root, found from this file's own location so the README's
+# "make -f kernel/src/sdk/Makefile.app" works from the repository root.
+KERNEL_ROOT ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../../..)
 
 # Architecture
 ARCH ?= arm64
@@ -129,7 +130,7 @@ run: $(APP_BIN)
 # Test compile (host)
 test: $(APP_SRC)
 	@echo "Testing $(APP) on host..."
-	@gcc -std=c11 -Wall -Wextra -Werror -DTEST_HOST -I$(KERNEL_ROOT)/kernel/include -I$(KERNEL_ROOT)/kernel/src -I$(KERNEL_ROOT)/kernel/src/sdk -I$(KERNEL_ROOT)/kernel/src/rational -o /tmp/$(APP)_test $(APP_SRC) && echo "Host compile OK"
+	@gcc -std=c11 -Wall -Wextra -Werror -DTEST_HOST -I$(KERNEL_ROOT)/kernel/include -I$(KERNEL_ROOT)/kernel/src -I$(KERNEL_ROOT)/kernel/src/sdk -I$(KERNEL_ROOT)/kernel/src/rational -c -o /tmp/$(APP)_test.o $(APP_SRC) && echo "Host compile OK (not linked: the m5_* API has no implementation yet)"
 
 # Show size
 size: $(APP_ELF)

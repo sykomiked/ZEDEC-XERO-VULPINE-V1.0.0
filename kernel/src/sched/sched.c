@@ -1,6 +1,7 @@
 /* sched.c — Process Scheduler Implementation
- * Round-robin with M5 priority weighting. Context switch saves/restores
- * esp/ebp/eip on the kernel stack.
+ * Round-robin with M5 priority weighting. Task records carry esp/ebp/eip and
+ * a prepared stack, but sched_switch() only picks the next task: no register
+ * save/restore is performed here (see the note in sched_switch).
  * Author: H.M. Michael-Laurence: Curzi (c)
  */
 #include "sched.h"
@@ -10,7 +11,17 @@
 #include "../../include/m5_types.h"
 
 static __attribute__((unused)) int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
-static void str_copy(char *d, const char *s) { int i = 0; while (s[i]) { d[i] = s[i]; i++; } d[i] = 0; }
+/* Bounded: task names are TASK_NAME_LEN bytes; a longer name is cut, never
+ * written past the field (it used to overrun into the task's state). */
+static void str_copy(char *d, const char *s)
+{
+    int i = 0;
+    while (s && s[i] && i < TASK_NAME_LEN - 1) {
+        d[i] = s[i];
+        i++;
+    }
+    d[i] = 0;
+}
 
 void sched_init(scheduler_t *sched) {
     sched->num_tasks = 0;
@@ -29,13 +40,17 @@ int32_t sched_create_task(scheduler_t *sched, const char *name, task_type_t type
                            void (*entry_point)(void), uint32_t priority) {
     if (sched->num_tasks >= MAX_TASKS) return -1;
 
-    uint32_t slot = 0;
+    /* A terminated task's slot is free again (num_tasks already dropped it).
+     * With no free slot the old code fell through to slot 0 and overwrote
+     * whatever task lived there. */
+    uint32_t slot = MAX_TASKS;
     for (uint32_t i = 0; i < MAX_TASKS; i++) {
-        if (sched->tasks[i].state == TASK_UNUSED) {
+        if (sched->tasks[i].state == TASK_UNUSED || sched->tasks[i].state == TASK_TERMINATED) {
             slot = i;
             break;
         }
     }
+    if (slot == MAX_TASKS) return -1;
 
     task_t *task = &sched->tasks[slot];
     task->id = sched->next_pid++;
@@ -162,12 +177,12 @@ void sched_sleep(scheduler_t *sched, uint32_t task_id, uint32_t ms) {
 
 void sched_terminate(scheduler_t *sched, uint32_t task_id, int32_t exit_code) {
     task_t *t = sched_get_task(sched, task_id);
-    if (t) {
+    if (t && t->state != TASK_TERMINATED) {
         t->state = TASK_TERMINATED;
         t->exit_code = exit_code;
         sched->num_tasks--;
-        if (sched->current_task == task_id)
-            sched_switch(sched);
+        /* current_task is a slot index, not a task id */
+        if (&sched->tasks[sched->current_task] == t) sched_switch(sched);
     }
 }
 

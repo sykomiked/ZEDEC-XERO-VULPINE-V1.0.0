@@ -1,3 +1,6 @@
+/* AUDIT STATUS (2026-10): NOT BUILT AND DOES NOT COMPILE. It includes headers
+ * that do not exist (nvme.h and others), so it is a design sketch, not a
+ * working storage layer. Figures such as replication revenue are placeholders. */
 /* storage_fabric.c — ZXV Storage Fabric Compound Module Implementation
  *
  * Unifies all storage modules: VFS, ZXVFS, IPFS, Blockdev, ATA, NVMe, FAT32,

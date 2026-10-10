@@ -190,7 +190,8 @@ static void do_cb(cpu_z80_t *c){
 static void adc_hl(cpu_z80_t *c, uint16_t v){
     uint16_t hl = HL(c); int cf = (c->f & Z80_C) ? 1 : 0;
     unsigned r = (unsigned)hl + v + cf; uint8_t f = 0;
-    if ((r & 0xFFFF) == 0) f |= Z80_Z; if (r & 0x8000) f |= Z80_S;
+    if ((r & 0xFFFF) == 0) f |= Z80_Z;
+    if (r & 0x8000) f |= Z80_S;
     if (((hl & 0x0FFF) + (v & 0x0FFF) + cf) > 0x0FFF) f |= Z80_H;
     if (r > 0xFFFF) f |= Z80_C;
     if ((~(hl ^ v) & (hl ^ r) & 0x8000)) f |= Z80_PV;
@@ -200,7 +201,8 @@ static void adc_hl(cpu_z80_t *c, uint16_t v){
 static void sbc_hl(cpu_z80_t *c, uint16_t v){
     uint16_t hl = HL(c); int cf = (c->f & Z80_C) ? 1 : 0;
     int r = (int)hl - v - cf; uint8_t f = Z80_N;
-    if ((r & 0xFFFF) == 0) f |= Z80_Z; if (r & 0x8000) f |= Z80_S;
+    if ((r & 0xFFFF) == 0) f |= Z80_Z;
+    if (r & 0x8000) f |= Z80_S;
     if (((hl & 0x0FFF) - (v & 0x0FFF) - cf) < 0) f |= Z80_H;
     if (r < 0) f |= Z80_C;
     if (((hl ^ v) & (hl ^ (unsigned)r) & 0x8000)) f |= Z80_PV;
@@ -209,7 +211,8 @@ static void sbc_hl(cpu_z80_t *c, uint16_t v){
 }
 static void ld_a_ir(cpu_z80_t *c, uint8_t v){   /* LD A,I / LD A,R flags */
     uint8_t f = (uint8_t)(c->f & Z80_C);
-    if (v & 0x80) f |= Z80_S; if (v == 0) f |= Z80_Z;
+    if (v & 0x80) f |= Z80_S;
+    if (v == 0) f |= Z80_Z;
     f |= (v & (Z80_F5 | Z80_F3));
     if (c->iff2) f |= Z80_PV;
     c->f = f; c->a = v;
@@ -286,7 +289,10 @@ static int do_ed(cpu_z80_t *c){
         case 0xBA: return block_in(c, -1, 1);             /* INDR */
         case 0x40: case 0x48: case 0x50: case 0x58: case 0x60: case 0x68: case 0x78: {
                    uint8_t v = z80_in(c, BC(c)); int reg = (op >> 3) & 7;
-                   if (reg != 6) reg_set(c, reg, v); z80_szpc(c, v, (c->f & Z80_C) ? 1 : 0); return 12; }
+                   if (reg != 6) reg_set(c, reg, v);
+                   z80_szpc(c, v, (c->f & Z80_C) ? 1 : 0);
+                   return 12;
+        }
         case 0x41: case 0x49: case 0x51: case 0x59: case 0x61: case 0x69: case 0x79: {
                    int reg = (op >> 3) & 7; uint8_t v = (reg == 6) ? 0 : reg_get(c, reg);
                    z80_out(c, BC(c), v); return 12; }

@@ -42,9 +42,39 @@ static inline uint16_t inw(uint16_t port) {
     return ret;
 }
 
-static void ata_wait(uint16_t cmd_port) {
-    while (inb(cmd_port) & 0x80);
-    while (!(inb(cmd_port) & 0x40));
+#define ATA_SR_BSY          0x80
+#define ATA_SR_DF           0x20
+#define ATA_SR_DRQ          0x08
+#define ATA_SR_ERR          0x01
+#define ATA_SPIN_LIMIT      1000000u
+#define ATA_CMD_FLUSH_CACHE 0xE7
+
+/* Wait for BSY to clear, then for DRQ (data ready). Returns 0 when the drive
+ * is ready to transfer, -1 on ERR/DF or if the drive never answers. The old
+ * loop waited for DRDY instead of DRQ, never looked at ERR, and spun forever
+ * on a floating bus (status 0xFF). */
+static int ata_wait(uint16_t cmd_port)
+{
+    uint32_t n = 0;
+    uint8_t st;
+    while ((st = inb(cmd_port)) & ATA_SR_BSY)
+        if (++n > ATA_SPIN_LIMIT) return -1;
+    for (;;) {
+        if (st & (ATA_SR_ERR | ATA_SR_DF)) return -1;
+        if (st & ATA_SR_DRQ) return 0;
+        if (++n > ATA_SPIN_LIMIT) return -1;
+        st = inb(cmd_port);
+    }
+}
+
+/* Wait for BSY to clear without expecting data (used after FLUSH CACHE). */
+static int ata_wait_idle(uint16_t cmd_port)
+{
+    uint32_t n = 0;
+    uint8_t st;
+    while ((st = inb(cmd_port)) & ATA_SR_BSY)
+        if (++n > ATA_SPIN_LIMIT) return -1;
+    return (st & (ATA_SR_ERR | ATA_SR_DF)) ? -1 : 0;
 }
 
 static void ata_select_device(ata_device_t *dev, uint32_t lba) {
@@ -86,14 +116,16 @@ void ata_init(ata_state_t *state) {
             outb(dev->command_port, ATA_CMD_IDENTIFY);
 
             uint8_t status = inb(dev->command_port);
-            if (status == 0) continue;
+            if (status == 0 || status == 0xFF) continue; /* no drive / floating bus */
 
-            while (inb(dev->command_port) & 0x80);
+            uint32_t spins = 0;
+            while ((inb(dev->command_port) & ATA_SR_BSY) && ++spins < ATA_SPIN_LIMIT);
+            if (spins >= ATA_SPIN_LIMIT) continue;
             uint8_t mid = inb(dev->lba_mid_port);
             uint8_t hi = inb(dev->lba_hi_port);
             if (mid != 0 || hi != 0) continue;
 
-            while (!(inb(dev->command_port) & 0x40));
+            if (ata_wait(dev->command_port) != 0) continue;
 
             uint16_t ident[256];
             for (int i = 0; i < 256; i++)
@@ -120,6 +152,7 @@ int ata_identify(ata_device_t *dev) {
 
 int ata_read_sector(ata_device_t *dev, uint32_t lba, uint8_t *buffer) {
     if (!dev->present) return -1;
+    if (lba > 0x0FFFFFFFu || lba >= dev->total_sectors) return -1; /* LBA28 range */
 
     ata_select_device(dev, lba);
     outb(dev->count_port, 1);
@@ -128,7 +161,7 @@ int ata_read_sector(ata_device_t *dev, uint32_t lba, uint8_t *buffer) {
     outb(dev->lba_hi_port, (uint8_t)((lba >> 16) & 0xFF));
     outb(dev->command_port, ATA_CMD_READ_PIO);
 
-    ata_wait(dev->command_port);
+    if (ata_wait(dev->command_port) != 0) return -1;
 
     uint16_t *buf = (uint16_t *)buffer;
     for (int i = 0; i < 256; i++)
@@ -139,6 +172,7 @@ int ata_read_sector(ata_device_t *dev, uint32_t lba, uint8_t *buffer) {
 
 int ata_write_sector(ata_device_t *dev, uint32_t lba, const uint8_t *buffer) {
     if (!dev->present) return -1;
+    if (lba > 0x0FFFFFFFu || lba >= dev->total_sectors) return -1; /* LBA28 range */
 
     ata_select_device(dev, lba);
     outb(dev->count_port, 1);
@@ -147,11 +181,13 @@ int ata_write_sector(ata_device_t *dev, uint32_t lba, const uint8_t *buffer) {
     outb(dev->lba_hi_port, (uint8_t)((lba >> 16) & 0xFF));
     outb(dev->command_port, ATA_CMD_WRITE_PIO);
 
-    ata_wait(dev->command_port);
+    if (ata_wait(dev->command_port) != 0) return -1;
 
     const uint16_t *buf = (const uint16_t *)buffer;
     for (int i = 0; i < 256; i++)
         outw(dev->data_port, buf[i]);
 
-    return 0;
+    /* The sector is only durable once the drive's write cache is flushed. */
+    outb(dev->command_port, ATA_CMD_FLUSH_CACHE);
+    return ata_wait_idle(dev->command_port);
 }

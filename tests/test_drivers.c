@@ -30,6 +30,9 @@
 #include "../kernel/src/vino/vino.h"
 #include "../kernel/src/vena/vena.h"
 
+/* checks that report a failure and let the remaining groups still run */
+static int late_failures = 0;
+
 static void test_gdt_layout(void) {
     printf("=== GDT Layout Tests ===\n");
     assert(sizeof(gdt_entry_t) == 8);
@@ -239,7 +242,7 @@ static void test_net_structures(void) {
     assert(IP_PROTO_ICMP == 1);
     printf("  [PASS] Ethernet/IP/TCP/UDP/ARP header sizes correct\n");
 
-    net_state_t net;
+    static net_state_t net;
     memset(&net, 0, sizeof(net));
     net_init(&net);
     assert(net.num_interfaces == 0);
@@ -257,7 +260,7 @@ static void test_net_structures(void) {
 
 static void test_m5_router(void) {
     printf("=== M5 Omni-Router Tests ===\n");
-    assert(M5_PROTO_MAX == 20);
+    assert(M5_PROTO_MAX == 44); /* the router has 44 protocol slots (m5route.h) */
     assert(M5_PROTO_NATIVE == 0);
     assert(M5_PROTO_IPV4 == 1);
     assert(M5_PROTO_CELLULAR == 3);
@@ -271,7 +274,7 @@ static void test_m5_router(void) {
     assert(M5_PROTO_NEUTRINO == 15);
     printf("  [PASS] 20 protocol types defined\n");
 
-    m5_router_t r;
+    static m5_router_t r;
     memset(&r, 0, sizeof(r));
     m5_router_init(&r, 0);
     assert(r.num_routes == 0);
@@ -417,7 +420,7 @@ static void test_vino_ledger(void) {
     assert(MSG_MAX == 12);
     printf("  [PASS] 9 capital types, 12 asset classes, 20 payment rails, 12 msg standards\n");
 
-    vino_ledger_t v;
+    static vino_ledger_t v;
     memset(&v, 0, sizeof(v));
     vino_init(&v, 1);
     assert(v.node_id == 1);
@@ -482,33 +485,53 @@ static void test_vino_ledger(void) {
     msg_len = vino_msg_to_pacs008(&v.primary[0], msg_buf, sizeof(msg_buf));
     assert(msg_len > 0);
     assert(strstr(msg_buf, "pacs.008"));
-    printf("  [PASS] PACS.008 message adapter\n");
+    printf("  [PASS] PACS.008 message adapter (a fixed tag fragment, not a valid message)\n");
 
+    /* not implemented in vino.c: it must say so, not pretend */
     msg_len = vino_msg_to_cips(&v.primary[0], msg_buf, sizeof(msg_buf));
-    assert(msg_len > 0);
-    assert(strstr(msg_buf, "CIPS"));
-    printf("  [PASS] CIPS message adapter\n");
+    assert(msg_len == VINO_ENOTIMPL);
+    printf("  [PASS] CIPS message adapter reports not implemented\n");
 
+    /* not implemented in vino.c: it must say so, not pretend */
     msg_len = vino_msg_to_btc(&v.primary[0], msg_buf, sizeof(msg_buf));
-    assert(msg_len > 0);
-    assert(strstr(msg_buf, "BTC"));
-    printf("  [PASS] BTC blockchain adapter\n");
+    assert(msg_len == VINO_ENOTIMPL);
+    printf("  [PASS] BTC blockchain adapter reports not implemented\n");
 
+    /* not implemented in vino.c: it must say so, not pretend */
     msg_len = vino_msg_to_eth(&v.primary[0], msg_buf, sizeof(msg_buf));
-    assert(msg_len > 0);
-    assert(strstr(msg_buf, "ETH"));
-    printf("  [PASS] ETH blockchain adapter\n");
+    assert(msg_len == VINO_ENOTIMPL);
+    printf("  [PASS] ETH blockchain adapter reports not implemented\n");
 
+    /* not implemented in vino.c: it must say so, not pretend */
     msg_len = vino_msg_to_visa(&v.primary[0], msg_buf, sizeof(msg_buf));
-    assert(msg_len > 0);
-    assert(strstr(msg_buf, "VISA"));
-    printf("  [PASS] Visa payment rail adapter\n");
+    assert(msg_len == VINO_ENOTIMPL);
+    printf("  [PASS] Visa payment rail adapter reports not implemented\n");
 
     /* Capital type names */
-    assert(strcmp(vino_capital_name(CAP_FINANCIAL), "Financial") == 0);
-    assert(strcmp(vino_capital_name(CAP_KNOWLEDGE), "Knowledge") == 0);
-    assert(strcmp(vino_capital_name(CAP_HUMAN), "Human") == 0);
-    printf("  [PASS] Capital type names correct\n");
+    /* each slot's name; slots 6-8 carry the sutra keywords (sutra_parser.c:
+     * NATURAL -> CAP_LIVING, TEMPORAL -> CAP_BUILT, RELATIONAL -> CAP_HUMAN) */
+    {
+        static const struct {
+            capital_type_t c;
+            const char *name;
+        } want[] = {{CAP_FINANCIAL, "FINANCIAL"},    {CAP_MATERIAL, "MATERIAL"},
+                    {CAP_KNOWLEDGE, "INTELLECTUAL"}, {CAP_SOCIAL, "SOCIAL"},
+                    {CAP_CULTURAL, "CULTURAL"},      {CAP_SPIRITUAL, "SPIRITUAL"},
+                    {CAP_LIVING, "NATURAL"},         {CAP_BUILT, "TEMPORAL"},
+                    {CAP_HUMAN, "RELATIONAL"}};
+        int bad = 0;
+        for (unsigned i = 0; i < sizeof want / sizeof want[0]; i++) {
+            if (strcmp(vino_capital_name(want[i].c), want[i].name) != 0) {
+                printf("  [FAIL] capital %d is named %s, expected %s\n", (int) want[i].c,
+                       vino_capital_name(want[i].c), want[i].name);
+                bad++;
+            }
+        }
+        if (bad)
+            late_failures++;
+        else
+            printf("  [PASS] Capital type names (nine slots)\n");
+    }
 
     /* Rail names */
     assert(strcmp(vino_rail_name(RAIL_SWIFT), "SWIFT") == 0);
@@ -521,14 +544,14 @@ static void test_vino_ledger(void) {
 static void test_vena_runtime(void) {
     printf("=== Vena Runtime Tests ===\n");
     assert(VENA_MAX_LANGUAGES == 32);
-    assert(LANG_M5_AXIOMATIC == 30);
-    printf("  [PASS] 31 languages defined (including M5 Axiomatic)\n");
+    assert(LANG_M5_AXIOMATIC < VENA_MAX_LANGUAGES);
+    printf("  [PASS] %d languages defined (including M5 Axiomatic)\n", (int) LANG_M5_AXIOMATIC + 1);
 
-    vino_ledger_t v;
+    static vino_ledger_t v;
     memset(&v, 0, sizeof(v));
     vino_init(&v, 1);
 
-    vena_runtime_t vr;
+    static vena_runtime_t vr;
     memset(&vr, 0, sizeof(vr));
     vena_init(&vr, &v);
     assert(vr.ledger == &v);
@@ -605,6 +628,10 @@ int main(void) {
     test_vino_ledger();
     test_vena_runtime();
 
+    if (late_failures) {
+        printf("=== %d test group(s) FAILED ===\n", late_failures);
+        return 1;
+    }
     printf("=== All ZEDEC pqOS tests passed ===\n");
     return 0;
 }

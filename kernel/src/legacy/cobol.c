@@ -150,7 +150,8 @@ static uint32_t split_words(const char *line, uint32_t llen, tok *w, uint32_t ma
 
 static bool word_ieq(tok t, const char *lit)
 {
-    return lg_ascii_ieq(t.p, lit, t.len) && lit[t.len] == 0;
+    /* Length first: comparing t.len bytes of a shorter literal read past it. */
+    return lg_strnlen(lit, 32) == t.len && lg_ascii_ieq(t.p, lit, t.len);
 }
 
 static bool word_prefix_ieq(tok t, const char *lit)
@@ -161,6 +162,10 @@ static bool word_prefix_ieq(tok t, const char *lit)
 
 /* parse "9(6)", "X(20)", "S9(9)V99", "9(4)V9(2)" -> ndigits, scale, alpha,
  * signed. Returns true on success. */
+/* Largest repeat count a PIC clause may give, so field sizes and offsets
+ * stay far from uint32 wrap (128 fields x 2^20 < 2^32). */
+#define COB_MAX_PIC (1u << 20)
+
 static bool parse_pic(tok t, cob_type *type, uint32_t *ndigits, uint32_t *scale, bool *is_signed,
                       uint32_t *alpha_size)
 {
@@ -187,8 +192,10 @@ static bool parse_pic(tok t, cob_type *type, uint32_t *ndigits, uint32_t *scale,
             if (i < n && s[i] == '(') {
                 i++;
                 cnt = 0;
-                while (i < n && lg_is_digit((uint8_t) s[i]))
+                while (i < n && lg_is_digit((uint8_t) s[i])) {
                     cnt = cnt * 10 + (uint32_t) (s[i++] - '0');
+                    if (cnt > COB_MAX_PIC) return false; /* no wrapped sizes */
+                }
                 if (i < n && s[i] == ')') i++;
             }
             *alpha_size += cnt;
@@ -200,8 +207,10 @@ static bool parse_pic(tok t, cob_type *type, uint32_t *ndigits, uint32_t *scale,
             if (i < n && s[i] == '(') {
                 i++;
                 cnt = 0;
-                while (i < n && lg_is_digit((uint8_t) s[i]))
+                while (i < n && lg_is_digit((uint8_t) s[i])) {
                     cnt = cnt * 10 + (uint32_t) (s[i++] - '0');
+                    if (cnt > COB_MAX_PIC) return false; /* no wrapped sizes */
+                }
                 if (i < n && s[i] == ')') i++;
             }
             *ndigits += cnt;
@@ -398,9 +407,17 @@ const cob_field *cobol_find_indexed(const cob_layout *lo, const char *name, uint
 
 /* ===================== record codec ===================== */
 
+/* offset + size can wrap a uint32 when a copybook declares a huge PIC, which
+ * turned the old `offset + size > rec_len` test into a pass and let the codec
+ * write past the record. Compare without adding. */
+static bool field_fits(const cob_field *f, uint32_t rec_len)
+{
+    return f->size <= rec_len && f->offset <= rec_len - f->size;
+}
+
 bool cobol_get_int(const uint8_t *rec, uint32_t rec_len, const cob_field *f, int64_t *out)
 {
-    if (f->offset + f->size > rec_len) return false;
+    if (!field_fits(f, rec_len)) return false;
     const uint8_t *p = rec + f->offset;
     switch (f->type) {
     case COB_COMP3:
@@ -416,7 +433,7 @@ bool cobol_get_int(const uint8_t *rec, uint32_t rec_len, const cob_field *f, int
 
 bool cobol_set_int(uint8_t *rec, uint32_t rec_len, const cob_field *f, int64_t value)
 {
-    if (f->offset + f->size > rec_len) return false;
+    if (!field_fits(f, rec_len)) return false;
     uint8_t *p = rec + f->offset;
     switch (f->type) {
     case COB_COMP3:
@@ -434,7 +451,7 @@ bool cobol_get_text(const uint8_t *rec, uint32_t rec_len, const cob_field *f, ui
                     uint32_t cap, uint32_t *n)
 {
     if (f->type != COB_ALPHA) return false;
-    if (f->offset + f->size > rec_len) return false;
+    if (!field_fits(f, rec_len)) return false;
     if (f->size > cap) return false;
     lg_copy(out, rec + f->offset, f->size);
     *n = f->size;
@@ -445,7 +462,7 @@ bool cobol_set_text(uint8_t *rec, uint32_t rec_len, const cob_field *f, const ui
                     uint32_t n)
 {
     if (f->type != COB_ALPHA) return false;
-    if (f->offset + f->size > rec_len) return false;
+    if (!field_fits(f, rec_len)) return false;
     uint32_t copy = n < f->size ? n : f->size;
     lg_copy(rec + f->offset, in, copy);
     for (uint32_t i = copy; i < f->size; i++) rec[f->offset + i] = ' ';

@@ -166,6 +166,10 @@ uint32_t tvl_tex_sample(const tvl_tex_t *tex, int32_t u_16_16, int32_t v_16_16) 
  * =========================================================================== */
 typedef struct { int64_t gx, gy; } tvl_grad_t;
 
+/* x * 2^TVL_FRAC for a signed x: a left shift of a negative value is
+ * undefined behaviour in C11, a multiply is not (same code on every target). */
+#define TVL_SCALE64 ((int64_t) 1 << TVL_FRAC)
+
 static bool grad_setup(tvl_grad_t *g,
                        int32_t a0, int32_t a1, int32_t a2,
                        int64_t dx1, int64_t dy1, int64_t dx2, int64_t dy2,
@@ -174,8 +178,8 @@ static bool grad_setup(tvl_grad_t *g,
     int64_t da2 = (int64_t)a2 - (int64_t)a0;
     int64_t nx = da1 * dy2 - da2 * dy1;
     int64_t ny = da2 * dx1 - da1 * dx2;
-    g->gx = tvl_idiv64(nx << TVL_FRAC, area2);
-    g->gy = tvl_idiv64(ny << TVL_FRAC, area2);
+    g->gx = tvl_idiv64(nx * TVL_SCALE64, area2);
+    g->gy = tvl_idiv64(ny * TVL_SCALE64, area2);
     /* Sliver guard: a near-degenerate triangle can produce a gradient so steep
      * that gx * (bounding box width) leaves int64. Refuse the triangle rather
      * than render wrapped garbage. This is a numeric guard, not a resolution. */
@@ -187,7 +191,7 @@ static bool grad_setup(tvl_grad_t *g,
 /* Perspective divide: recover a Q16.16 texel coordinate from (u/w, 1/w). */
 static int64_t persp(int64_t s_int, int32_t iz_int) {
     if (iz_int <= 0) return 0;
-    return tvl_idiv64(s_int << TVL_FRAC, (int64_t)iz_int);
+    return tvl_idiv64(s_int * TVL_SCALE64, (int64_t) iz_int);
 }
 
 /* ===========================================================================
@@ -246,10 +250,10 @@ uint32_t tvl_triangle(tvl_target_t *t, const tvl_vertex_t vin[3],
     if (!grad_setup(&gl,  v[0].light, v[1].light, v[2].light, dx1, dy1, dx2, dy2, area2)) return 0u;
 
     int64_t ox = (int64_t)minx - v[0].x, oy = (int64_t)miny - v[0].y;
-    int64_t iz_row = ((int64_t)v[0].iz    << TVL_FRAC) + giz.gx * ox + giz.gy * oy;
-    int64_t s_row  = ((int64_t)v[0].s     << TVL_FRAC) + gs.gx  * ox + gs.gy  * oy;
-    int64_t t_row  = ((int64_t)v[0].t     << TVL_FRAC) + gt.gx  * ox + gt.gy  * oy;
-    int64_t l_row  = ((int64_t)v[0].light << TVL_FRAC) + gl.gx  * ox + gl.gy  * oy;
+    int64_t iz_row = ((int64_t) v[0].iz * TVL_SCALE64) + giz.gx * ox + giz.gy * oy;
+    int64_t s_row = ((int64_t) v[0].s * TVL_SCALE64) + gs.gx * ox + gs.gy * oy;
+    int64_t t_row = ((int64_t) v[0].t * TVL_SCALE64) + gt.gx * ox + gt.gy * oy;
+    int64_t l_row = ((int64_t) v[0].light * TVL_SCALE64) + gl.gx * ox + gl.gy * oy;
 
     const tvl_tex_t *tex = m->tex;
     int32_t depth_k = m->depth_gain;

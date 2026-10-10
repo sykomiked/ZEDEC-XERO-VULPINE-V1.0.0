@@ -90,18 +90,36 @@ void porter_house_open_port(porter_house_t *ph, uint16_t port) {
     ph->seals[idx].mode = PH_SEAL_OPEN;
 }
 
-void porter_house_close_port(porter_house_t *ph, uint16_t port) {
-    if (!ph) return;
+int32_t porter_house_close_port(porter_house_t *ph, uint16_t port)
+{
+    if (!ph) return -1;
     int32_t idx = porter_house_find_seal(ph, port);
     if (idx < 0) {
         /* Unlike open_port, a lockdown request must always take
          * effect even on a port nobody thought to pre-seal -- silently
          * doing nothing here would be a dangerous silent failure for
          * what is, by definition, a security-critical call. */
-        porter_house_seal_port(ph, port, PH_SEAL_CLOSED, 0);
-        return;
+        idx = porter_house_seal_port(ph, port, PH_SEAL_CLOSED, 0);
+        if (idx >= 0) return 0;
+        /* Seal table full. An OPEN seal admits exactly what an unsealed
+         * port admits, so its slot can be reused for the lockdown without
+         * changing any other port's policy (its stats are dropped). */
+        for (uint32_t i = 0; i < ph->num_seals; i++) {
+            ph_port_seal_t *s = &ph->seals[i];
+            if (s->active && s->mode == PH_SEAL_OPEN) {
+                s->port = port;
+                s->mode = PH_SEAL_CLOSED;
+                s->min_trust_weight = 0;
+                s->allowlist_count = 0;
+                s->admitted_count = 0;
+                s->rejected_count = 0;
+                return 0;
+            }
+        }
+        return -1; /* every slot already gates a port: caller must act */
     }
     ph->seals[idx].mode = PH_SEAL_CLOSED;
+    return 0;
 }
 
 int32_t porter_house_allowlist_add(porter_house_t *ph, uint16_t port,

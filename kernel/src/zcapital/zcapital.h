@@ -132,8 +132,10 @@ int32_t zmarket_offer(zmarket_t *m, zcap_form_t form, surplus_real_t units,
 int32_t zmarket_seek(zmarket_t *m, zcap_form_t form, surplus_real_t units,
                      uint32_t party);
 
-/* FIFO-pair the oldest active offer with the oldest active seek for `form`,
- * emit the resulting commitment in *out, consume both entries, and return true.
+/* FIFO-pair the oldest active offer with the oldest active seek from a
+ * different party for `form`, emit a commitment for the SMALLER of the two
+ * amounts in *out, consume that much from both (an entry that reaches zero
+ * leaves the book; the other keeps its remainder), and return true.
  * Returns false (and leaves *out untouched) when there is no counterpart, or
  * when the only pairing available would be a party with itself (a wash trade is
  * not a real reciprocal deal). */

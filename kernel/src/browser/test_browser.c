@@ -15,10 +15,28 @@
  *      angle brackets, 100000-deep nesting, 64 KiB of adversarial garbage,
  *      and EVERY prefix of a valid document — under ASan/UBSan. (§8)
  */
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "browser.h"
+
+/* Append formatted text at buf[off]; returns the new offset. Never runs past
+ * cap: a failed or truncated write leaves the offset at cap - 1 (the NUL), so
+ * a running offset fed back into the next call cannot exceed the buffer. */
+static uint32_t buf_appendf(char *buf, size_t cap, uint32_t off, const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
+static uint32_t buf_appendf(char *buf, size_t cap, uint32_t off, const char *fmt, ...)
+{
+    if (cap == 0) return 0;
+    if (off >= cap) return (uint32_t) (cap - 1);
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf + off, cap - off, fmt, ap);
+    va_end(ap);
+    if (n < 0 || (size_t) n >= cap - off) return (uint32_t) (cap - 1);
+    return off + (uint32_t) n;
+}
 
 static int failures = 0;
 static int checks = 0;
@@ -386,11 +404,11 @@ int main(void)
             uint32_t m = (uint32_t) snprintf(deep, sizeof(deep), "http://h");
             uint32_t w = (uint32_t) snprintf(want, sizeof(want), "http://h");
             for (int k = 0; k < 80; k++) {
-                m += (uint32_t) snprintf(deep + m, sizeof(deep) - m, "/s%d", k);
-                if (k < 79) w += (uint32_t) snprintf(want + w, sizeof(want) - w, "/s%d", k);
+                m = buf_appendf(deep, sizeof(deep), m, "/s%d", k);
+                if (k < 79) w = buf_appendf(want, sizeof(want), w, "/s%d", k);
             }
-            m += (uint32_t) snprintf(deep + m, sizeof(deep) - m, "/f");
-            w += (uint32_t) snprintf(want + w, sizeof(want) - w, "/z");
+            m = buf_appendf(deep, sizeof(deep), m, "/f");
+            w = buf_appendf(want, sizeof(want), w, "/z");
             /* base .../s0../s79/f  +  "../z"  =>  .../s0../s78/z */
             int rc = browser_resolve_url(deep, "../z", got, sizeof(got));
             CHECK(rc == BROWSER_OK && strcmp(got, want) == 0,
@@ -677,13 +695,13 @@ int main(void)
          * original buffer, not from the retained (truncated) copy. */
         {
             uint32_t p = 0;
-            p += (uint32_t) snprintf(g_scratch + p, sizeof(g_scratch) - p, "HTTP/1.1 200 OK\r\n");
+            p = buf_appendf(g_scratch, sizeof(g_scratch), p, "HTTP/1.1 200 OK\r\n");
             for (int k = 0; k < 120; k++)
-                p += (uint32_t) snprintf(g_scratch + p, sizeof(g_scratch) - p,
+                p = buf_appendf(g_scratch, sizeof(g_scratch), p,
                                          "X-Pad-%03d: 0123456789012345678901234567890123456789"
                                          "0123456789012345678901234567890123456789\r\n",
                                          k);
-            p += (uint32_t) snprintf(g_scratch + p, sizeof(g_scratch) - p,
+            p = buf_appendf(g_scratch, sizeof(g_scratch), p,
                                      "Content-Length: 5\r\n\r\nHELLO");
             CHECK(p > 4096, "the padded header block really is bigger than 4096 bytes");
             CHECK(http_parse_response(&r, (uint8_t *) g_scratch, p) == BROWSER_OK &&
@@ -943,7 +961,7 @@ int main(void)
             memcpy(p, "<div", 4);
             off = 4;
             for (int k = 0; k < 40; k++)
-                off += (uint32_t) snprintf(p + off, 64, " data-attribute-%02d=value%02d", k, k);
+                off = buf_appendf(p, sizeof(g_scratch), off, " data-attribute-%02d=value%02d", k, k);
             p[off++] = '>';
             html_parse(p, off, g_els, 1024, &n);
             /* Each digested pair is "data-attribute-NN=valueNN;" = 26 bytes.
@@ -1951,10 +1969,9 @@ int main(void)
 
             uint32_t p = (uint32_t) snprintf(g_scratch, sizeof(g_scratch), "HTTP/1.1 200 OK\r\n");
             for (int k = 0; k < 100; k++)
-                p += (uint32_t) snprintf(
-                    g_scratch + p, sizeof(g_scratch) - p,
+                p = buf_appendf(g_scratch, sizeof(g_scratch), p,
                     "X-Pad-%03d: 00000000000000000000000000000000000000000000\r\n", k);
-            p += (uint32_t) snprintf(g_scratch + p, sizeof(g_scratch) - p,
+            p = buf_appendf(g_scratch, sizeof(g_scratch), p,
                                      "X-Late: present\r\nContent-Length: 2\r\n\r\nhi");
             CHECK(http_parse_response(&r, (uint8_t *) g_scratch, p) == BROWSER_OK &&
                       r.body_len == 2 && memcmp(r.body, "hi", 2) == 0,

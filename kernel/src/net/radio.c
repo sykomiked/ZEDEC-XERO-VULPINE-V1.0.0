@@ -332,7 +332,7 @@ int32_t neutrino_recv(neutrino_link_t *n, void *buf, uint32_t max_len) {
 static bool cell_adapter_send(const m5_address_t *dest, const void *data, uint32_t len,
                                const m5_net_header_t *m5_meta) {
     (void)dest; (void)data; (void)len; (void)m5_meta;
-    return true; /* Would send via cellular modem */
+    return false; /* no cellular modem driver: nothing was sent */
 }
 
 static uint32_t cell_adapter_poll(void *buf, uint32_t max_len, m5_address_t *src) {
@@ -350,7 +350,7 @@ void m5_adapter_register_cellular(m5_router_t *r, cell_modem_t *modem) {
 static bool sat_adapter_send(const m5_address_t *dest, const void *data, uint32_t len,
                               const m5_net_header_t *m5_meta) {
     (void)dest; (void)data; (void)len; (void)m5_meta;
-    return true;
+    return false; /* no driver behind this adapter: nothing was sent */
 }
 
 static uint32_t sat_adapter_poll(void *buf, uint32_t max_len, m5_address_t *src) {
@@ -374,7 +374,7 @@ void m5_adapter_register_starlink(m5_router_t *r, starlink_terminal_t *st) {
 static bool radio_adapter_send(const m5_address_t *dest, const void *data, uint32_t len,
                                 const m5_net_header_t *m5_meta) {
     (void)dest; (void)data; (void)len; (void)m5_meta;
-    return true;
+    return false; /* no driver behind this adapter: nothing was sent */
 }
 
 static uint32_t radio_adapter_poll(void *buf, uint32_t max_len, m5_address_t *src) {
@@ -626,7 +626,7 @@ int32_t ulf_send_emergency(ulf_link_t *u, uint32_t code) {
 static bool radar_adapter_send(const m5_address_t *dest, const void *data, uint32_t len,
                                 const m5_net_header_t *m5_meta) {
     (void)dest; (void)data; (void)len; (void)m5_meta;
-    return true;
+    return false; /* no driver behind this adapter: nothing was sent */
 }
 
 static uint32_t radar_adapter_poll(void *buf, uint32_t max_len, m5_address_t *src) {

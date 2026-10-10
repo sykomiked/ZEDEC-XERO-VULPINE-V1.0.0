@@ -10,6 +10,9 @@
 #define FAT32_MAX_FILES 256
 #define FAT32_MAX_PATH  256
 #define FAT32_ENTRIES_PER_SECTOR 16
+/* Largest cluster this driver mounts (8 sectors of 512 bytes): the cluster
+ * buffers are on the stack. */
+#define FAT32_CLUSTER_MAX 4096u
 
 typedef struct fat32_bpb {
     uint8_t  jmp[3];
@@ -82,7 +85,9 @@ int fat32_mount(fat32_state_t *fs, block_device_t *dev);
 int fat32_read_cluster(fat32_state_t *fs, uint32_t cluster, uint8_t *buffer);
 uint32_t fat32_next_cluster(fat32_state_t *fs, uint32_t cluster);
 int fat32_read_dir(fat32_state_t *fs, uint32_t cluster);
-int fat32_read_file(fat32_state_t *fs, const fat32_file_t *file, uint8_t *buffer);
+/* Reads the whole file into buffer. Fails (-1) if file->size exceeds cap,
+ * the chain is shorter than the size, or a cluster read fails. */
+int fat32_read_file(fat32_state_t *fs, const fat32_file_t *file, uint8_t *buffer, uint32_t cap);
 fat32_file_t *fat32_find_file(fat32_state_t *fs, const char *name);
 int fat32_change_dir(fat32_state_t *fs, const char *name);
 

@@ -17,7 +17,8 @@ int main(void) {
     memset(entries, 0, sizeof(entries));
     matrix.entries = entries;
 
-    hccs_state_t hccs;
+    /* static: the state is larger than the default 8 MB stack */
+    static hccs_state_t hccs;
     hccs_init(&hccs, &matrix);
 
     uint32_t c0 = hccs_create_circuit(&hccs, "harmonic_adder");

@@ -216,13 +216,21 @@ uint64_t cc_calc_revenue_split(uint64_t amount, uint32_t dev_share_bp,
     if (dev_share_bp < CC_DEV_SHARE_MIN) dev_share_bp = CC_DEV_SHARE_MIN;
     if (dev_share_bp > CC_DEV_SHARE_MAX) dev_share_bp = CC_DEV_SHARE_MAX;
 
-    int32_t platform_bp = (int32_t)(10000 - dev_share_bp - CC_ROYALTY_SHARE);
-    if (platform_bp < 0) platform_bp = 0;
+    /* floor(amount * bp / 10000) without overflowing uint64 for any amount */
+    uint64_t q = amount / 10000, r = amount % 10000;
+    uint64_t dev_payout = q * dev_share_bp + (r * dev_share_bp) / 10000;
+    uint64_t royalty = q * CC_ROYALTY_SHARE + (r * CC_ROYALTY_SHARE) / 10000;
 
-    uint64_t dev_payout = (amount * dev_share_bp) / 10000;
-    *platform_revenue = (amount * (uint32_t)platform_bp) / 10000;
-    *royalty_revenue = (amount * CC_ROYALTY_SHARE) / 10000;
+    /* The three shares must add up to exactly `amount`. A developer share
+     * above 10000 - CC_ROYALTY_SHARE (85% + 20%) used to pay out more than
+     * the sale took in; the royalty is now limited to what is left after the
+     * developer, and the platform takes the remainder (including the
+     * rounding dust that used to vanish). */
+    if (royalty > amount - dev_payout) royalty = amount - dev_payout;
+    uint64_t platform = amount - dev_payout - royalty;
 
+    if (platform_revenue) *platform_revenue = platform;
+    if (royalty_revenue) *royalty_revenue = royalty;
     return dev_payout;
 }
 
@@ -234,6 +242,7 @@ void cc_link_vino(community_chest_t *cc, vino_ledger_t *vino) {
 uint64_t cc_voucher_cash_in(community_chest_t *cc, const char *account_addr,
                               uint64_t external_amount, capital_type_t capital) {
     if (!cc || !cc->vino || !account_addr || external_amount == 0) return 0;
+    if ((uint32_t) capital >= CAP_MAX) return 0;
 
     vino_account_t *acct = vino_get_account(cc->vino, account_addr);
     if (!acct) {
@@ -244,6 +253,7 @@ uint64_t cc_voucher_cash_in(community_chest_t *cc, const char *account_addr,
     }
 
     /* Credit voucher balance (stored in CAP_FINANCIAL slot as vouchers) */
+    if (acct->balance[capital] > UINT64_MAX - external_amount) return 0;
     acct->balance[capital] += external_amount;
     cc->voucher_float += external_amount;
     cc->voucher_cashin_total += external_amount;
@@ -260,6 +270,7 @@ uint64_t cc_voucher_cash_in(community_chest_t *cc, const char *account_addr,
 uint64_t cc_voucher_cash_out(community_chest_t *cc, const char *account_addr,
                                uint64_t voucher_amount, capital_type_t capital) {
     if (!cc || !cc->vino || !account_addr || voucher_amount == 0) return 0;
+    if ((uint32_t) capital >= CAP_MAX) return 0;
 
     vino_account_t *acct = vino_get_account(cc->vino, account_addr);
     if (!acct) return 0;
@@ -293,27 +304,32 @@ int32_t cc_purchase_with_vouchers(community_chest_t *cc, uint32_t app_id,
         return 0;
     }
 
+    if (!buyer_addr) return -2;
     vino_account_t *buyer = vino_get_account(cc->vino, buyer_addr);
     if (!buyer) return -2;
     if (buyer->balance[CAP_FINANCIAL] < app->price) return -2;
 
-    /* Debit buyer's voucher balance */
-    buyer->balance[CAP_FINANCIAL] -= app->price;
+    /* Move the price through the ledger into the store's escrow account.
+     * The previous code subtracted it from the buyer's balance directly and
+     * logged a zero-amount self-transfer, so the vouchers left the buyer and
+     * were credited to no one: the ledger lost value on every sale. */
+    if (!vino_get_account(cc->vino, CC_ESCROW_ADDR) &&
+        vino_create_account(cc->vino, CC_ESCROW_ADDR, "community-chest escrow") < 0)
+        return -2;
+    if (vino_transfer(cc->vino, buyer_addr, CC_ESCROW_ADDR, app->price, CAP_FINANCIAL,
+                      RAIL_VINO_NATIVE, "cc-voucher-purchase") < 0)
+        return -2;
 
     /* Calculate revenue split */
     uint64_t platform_rev, royalty_rev;
-    cc_calc_revenue_split(app->price, app->dev_share_bp,
-                           &platform_rev, &royalty_rev);
+    uint64_t dev_payout =
+        cc_calc_revenue_split(app->price, app->dev_share_bp, &platform_rev, &royalty_rev);
 
     app->total_revenue += app->price;
     cc->total_revenue += app->price;
-    cc->total_dev_payouts += (app->price * app->dev_share_bp) / 10000;
+    cc->total_dev_payouts += dev_payout;
     cc->total_platform_revenue += platform_rev;
     cc->total_royalty_revenue += royalty_rev;
-
-    /* Record clearing transaction in Vino ledger */
-    vino_transfer(cc->vino, buyer_addr, buyer_addr, 0, CAP_FINANCIAL,
-                  RAIL_VINO_NATIVE, "cc-voucher-purchase");
 
     /* Record download */
     app->download_count++;

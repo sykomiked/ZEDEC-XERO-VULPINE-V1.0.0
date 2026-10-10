@@ -2,7 +2,8 @@
  *
  * A device-agnostic adapter layer that uses the "hardware-in-software" simulation
  * approach to create smart adapters for ANY device type. Built on paraconsistent
- * logic (LPRES) with M5 coverage enforcement for military-grade reliability.
+ * logic (LPRES) with M5 coverage enforcement as a reliability model (no military or other
+ * certification is claimed).
  *
  * Key insight: The JDR PirateNet virtual SDR (jdr_transceiver_t) IS a hardware
  * simulator. We generalize this pattern: any device can be modeled as a virtual
@@ -500,7 +501,7 @@ int32_t smart_virtual_sdr_simulate(smart_device_t *device,
                                     jdr_modulation_t mod,
                                     jdr_exec_mode_t exec);
 
-/* Military-grade reliability: Continuous health monitoring */
+/* Reliability: continuous health monitoring (a model, not a certification) */
 int32_t smart_start_health_monitor(smart_device_t *device, uint32_t interval_ticks);
 int32_t smart_stop_health_monitor(smart_device_t *device);
 

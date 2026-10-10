@@ -198,10 +198,13 @@ int32_t fm_settle(fm_book_t *book, uint32_t from_acct, uint32_t to_acct,
                                         "fm settle: principal");
     if (rc < 0) goto rollback;
 
-    /* Node fee leg: from -> node fee account. */
-    rc = triple_ledger_transfer(tl, from_acct, book->node_fee_acct,
-                                CAP_FINANCIAL, fee, SR_ONE, SR_ZERO,
-                                "fm settle: node fee");
+    /* Node fee leg: from -> node fee account. triple_ledger_transfer refuses
+     * a zero amount and a transfer to itself, so a fee that rounds to zero,
+     * or the fee account paying its own fee, has no fee leg to post. */
+    rc = 0;
+    if (SR_CMP(fee, SR_ZERO) > 0 && from_acct != book->node_fee_acct)
+        rc = triple_ledger_transfer(tl, from_acct, book->node_fee_acct, CAP_FINANCIAL, fee, SR_ONE,
+                                    SR_ZERO, "fm settle: node fee");
     if (rc < 0) {
     rollback:
         /* Reverse everything posted so far. Restore the scalars; stale entry rows

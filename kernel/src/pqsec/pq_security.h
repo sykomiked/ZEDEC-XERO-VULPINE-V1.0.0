@@ -7,15 +7,16 @@
  *   FIPS 204 — ML-DSA-65        (module-lattice signatures, Layer 4 identity)
  *   FIPS 205 — SLH-DSA-128s     (stateless hash signatures, Layer 1 boot)
  *
- * Layer integration:
+ * Layer integration (intended roles; this file provides the primitives
+ * only and controls no hardware):
  *   Layer 1 (Membrane):  SLH-DSA boot verification — hash-based, lattice-free.
- *                        A failed check severs the voltage supply.
+ *                        The caller decides what a failed check does.
  *   Layer 2/3 (Organs + Nervous): Hybrid ML-DSA + SLH-DSA ledger seal.
  *                        Both proofs evaluated orthogonally via LPRES.
  *   Layer 4 (Interface): ML-DSA identity authentication for the
  *                        holographic desktop and P-TERM.
- *   Layer 5 (Mesh):      ML-KEM-1024 encapsulation for every exact-rational
- *                        event packet — no Harvest-Now-Decrypt-Later.
+ *   Layer 5 (Mesh):      ML-KEM-768 encapsulation of an event packet
+ *                        (pq_mesh_*). ML-KEM-1024 lives in pq_matrix.h.
  *
  * Author: 36N9 Genetics, LLC
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
@@ -135,8 +136,10 @@ void pq_hybrid_sign(const uint8_t mldsa_sk[PQ_MLDSA65_SK_BYTES],
  *   BOTH halves TRUE  -> LPRES_STATE_TRUE   (full integrity)
  *   one half TRUE     -> LPRES_STATE_BOTH   (contradiction: one scheme broken)
  *   both FALSE        -> LPRES_STATE_FALSE  (forgery)
- * The entry remains valid while EITHER half verifies — that is the
- * paraconsistent quantum seal. */
+ * Accept an entry ONLY on LPRES_STATE_TRUE. BOTH means one half failed:
+ * a forger who breaks just one of the two schemes produces exactly that,
+ * so treating BOTH as valid would make the seal only as strong as its
+ * weaker half. (pq_matrix.h's pqm_verify() returns the AND directly.) */
 lpres_state_t pq_hybrid_verify(const uint8_t mldsa_pk[PQ_MLDSA65_PK_BYTES],
                                const uint8_t slh_pk[PQ_SLH128S_PK_BYTES],
                                const uint8_t *msg, uint32_t msg_len,

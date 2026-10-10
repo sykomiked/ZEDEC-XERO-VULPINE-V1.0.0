@@ -65,6 +65,15 @@ static int evil_fetch(const uint8_t cid[32], uint8_t *buf, uint32_t cap, uint32_
     if (*out > 0) buf[0] ^= 0xFF; /* hand back different bytes */
     return 0;
 }
+/* a broken transport that reports more bytes than the buffer can hold */
+static int liar_fetch(const uint8_t cid[32], uint8_t *buf, uint32_t cap, uint32_t *out, void *ctx)
+{
+    (void) cid;
+    (void) buf;
+    (void) ctx;
+    *out = cap + 1000u;
+    return 0;
+}
 /* a verifier stub: accepts a signature whose first byte is 0x5A */
 static bool verify_stub(const uint8_t *m, uint32_t n, const uint8_t sig[64], const uint8_t pk[32])
 {
@@ -240,6 +249,41 @@ int main(void)
         for (uint32_t k = 0; k < n; k++)
             if (seq(cat.upd[plan[k]].id, "A")) has_A = true;
         CHECK(!has_A, "an already-installed update is not planned again");
+    }
+
+    /* ---- a re-publish with different content does not inherit consent ---- */
+    {
+        static upd_catalog_t c6;
+        upd_init(&c6);
+        upd_set_transport(&c6, &(upd_transport_t){stub_fetch, 0});
+        upd_set_verifier(&c6, verify_stub);
+        upd_trust_author(&c6, alice);
+        upd_publish(&c6, "r", "R", 1, cidA, alice, goodsig, sizeof A - 1, 0, 0);
+        upd_select(&c6, "r");
+        upd_publish(&c6, "r", "R", 1, cidA, alice, goodsig, sizeof A - 1, 0, 0);
+        CHECK(upd_is_selected(&c6, "r"), "re-publishing identical content keeps the opt-in");
+        upd_publish(&c6, "r", "R", 2, cidB, alice, goodsig, sizeof B - 1, 0, 0);
+        CHECK(!upd_is_selected(&c6, "r"),
+              "re-publishing an id with different content drops the opt-in");
+        int32_t plan[UPD_MAX];
+        uint32_t n = 99;
+        CHECK(upd_resolve(&c6, plan, UPD_MAX, &n) == UPD_OK && n == 0,
+              "...so the swapped content is not in the install plan");
+    }
+
+    /* ---- a transport that over-reports its length is refused ---- */
+    {
+        static upd_catalog_t c7;
+        upd_init(&c7);
+        upd_set_transport(&c7, &(upd_transport_t){liar_fetch, 0});
+        upd_set_verifier(&c7, verify_stub);
+        upd_trust_author(&c7, alice);
+        upd_publish(&c7, "s", "S", 1, cidA, alice, goodsig, sizeof A - 1, 0, 0);
+        upd_select(&c7, "s");
+        uint8_t small[8];
+        uint32_t got = 0;
+        CHECK(upd_fetch_verify(&c7, "s", small, sizeof small, &got) == UPD_ERR_FETCH,
+              "a fetch reporting more bytes than the buffer holds is refused, not hashed");
     }
 
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);

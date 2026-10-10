@@ -170,9 +170,22 @@ void count_house_set_crypto_reserves(count_house_t *ch, surplus_real_t reserves)
     }
 }
 
+/* Largest total supply the collateral ratio can be computed for: SR_FROM_INT
+ * is Q32.32 on the kernel path, so its integer part must stay below 2^31. */
+#ifdef TEST_HOST
+#    define CH_SUPPLY_MAX ((uint64_t) INT64_MAX)
+#else
+#    define CH_SUPPLY_MAX ((uint64_t) INT32_MAX)
+#endif
+
 uint64_t count_house_mint(count_house_t *ch, uint64_t amount) {
     if (!ch || amount == 0) return 0;
 
+    /* Refuse a mint that would wrap the supply counter (it used to wrap to a
+     * tiny value, pass the collateral gate, and return the huge amount) or
+     * push it past what the ratio below can represent. */
+    if (ch->total_supply_minted > CH_SUPPLY_MAX || amount > CH_SUPPLY_MAX - ch->total_supply_minted)
+        return 0;
     uint64_t candidate_supply = ch->total_supply_minted + amount;
 
     /* Anti-Sybil / anti-hyperinflation gate: preview the collateral

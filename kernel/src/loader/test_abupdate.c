@@ -135,6 +135,14 @@ int main(void)
     /* Re-staging at the floor (version 10) is still allowed. */
     CHECK(ab_stage_update(&fs2, &st2, abv2hi_zsp, abv2hi_zsp_len, abv2hi_root_pubkey) == AB_OK,
           "v2 version=10 at the floor is accepted");
+    /* A v1 package has no signed version: once a v2 package is ACTIVE, a v1
+     * one must not be staged over it (it would get version active+1 and pass
+     * the floor). Promote the v10 package first so slot state is v2. */
+    CHECK(ab_confirm(&fs2, &st2) == AB_OK, "confirm the re-staged v10 package");
+    CHECK(ab_stage_update(&fs2, &st2, hello_zsp, hello_zsp_len, hello_root_pubkey) ==
+              AB_ERR_ROLLBACK,
+          "v1 package over an active v2 package is REJECTED (no format downgrade)");
+    CHECK(st2.probation_slot == AB_SLOT_NONE, "rejected downgrade left probation clear");
     /* the floor persists across another reboot */
     {
         zxvfs_t fs3;

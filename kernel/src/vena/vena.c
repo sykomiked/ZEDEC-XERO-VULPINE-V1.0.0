@@ -11,7 +11,20 @@ static __attribute__((unused)) int str_cmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
 }
-static void str_copy(char *d, const char *s) { int i=0; while(s[i]){d[i]=s[i];i++;} d[i]=0; }
+/* Bounded: every destination is a fixed array and str_copy() passes its size,
+ * so an over-long name/code/creator is truncated instead of overflowing. */
+static void str_ncopy(char *d, const char *s, uint32_t cap)
+{
+    uint32_t i = 0;
+    if (cap == 0) return;
+    if (s)
+        while (s[i] && i + 1u < cap) {
+            d[i] = s[i];
+            i++;
+        }
+    d[i] = 0;
+}
+#define str_copy(d, s) str_ncopy((d), (s), (uint32_t) sizeof(d))
 
 static const char *lang_names[VENA_MAX_LANGUAGES] = {
     "English","中文","日本語","한국어","العربية","עברית","हिन्दी","संस्कृतम्",

@@ -438,7 +438,7 @@ int32_t if_verify_delegation_chain(identity_fabric_t *fabric,
         
         /* Check parent chain */
         uint32_t current = del->parent_delegation_id;
-        uint8_t depth = 1;
+        uint32_t depth = 1;
         while (current != 0xFFFFFFFF && depth < fabric->config.max_delegation_depth) {
             if (current >= fabric->num_delegations) break;
             if_delegation_t *parent = &fabric->delegations[current];

@@ -22,7 +22,20 @@ static int str_cmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
 }
-static void str_copy(char *d, const char *s) { int i=0; while(s[i]){d[i]=s[i];i++;} d[i]=0; }
+/* Bounded copy: every destination is a fixed array, so str_copy() passes its
+ * size and an over-long caller string is truncated, never written past it. */
+static void str_ncopy(char *d, const char *s, uint32_t cap)
+{
+    uint32_t i = 0;
+    if (cap == 0) return;
+    if (s)
+        while (s[i] && i + 1u < cap) {
+            d[i] = s[i];
+            i++;
+        }
+    d[i] = 0;
+}
+#define str_copy(d, s) str_ncopy((d), (s), (uint32_t) sizeof(d))
 
 static const char *cap_names[CAP_MAX] = {
     "FINANCIAL","MATERIAL","INTELLECTUAL","SOCIAL","CULTURAL",
@@ -72,6 +85,10 @@ void vino_init(vino_ledger_t *v, uint32_t node_id) {
 
 int32_t vino_create_account(vino_ledger_t *v, const char *addr, const char *name) {
     if (v->num_accounts >= VINO_MAX_ACCOUNTS) return -1;
+    if (!addr || !addr[0]) return -1;
+    /* one account per address: a duplicate would be unreachable (lookups
+     * return the first) while still being counted */
+    if (vino_get_account(v, addr)) return -1;
     vino_account_t *a = &v->balances[v->num_accounts];
     str_copy(a->address, addr);
     str_copy(a->name, name);
@@ -93,7 +110,11 @@ int32_t vino_transfer(vino_ledger_t *v, const char *from, const char *to,
     vino_account_t *fa = vino_get_account(v, from);
     vino_account_t *ta = vino_get_account(v, to);
     if (!fa || !ta) return -1;
+    if ((uint32_t) cap >= CAP_MAX) return -1;     /* balance[cap] is CAP_MAX wide */
+    if (amount > (uint64_t) INT64_MAX) return -1; /* the RMAG rational is signed  */
     if (fa->balance[cap] < amount) return -1;
+    /* a credit that wraps would destroy value instead of moving it */
+    if (fa != ta && ta->balance[cap] > UINT64_MAX - amount) return -1;
 
     /* M5 LPRES: attestation — both accounts must have logical presence */
     ordinal_t from_ord = (ordinal_t)(v->balances[0].address[0] ? fa - v->balances + 1 : 0);
@@ -162,8 +183,12 @@ int32_t vino_issue(vino_ledger_t *v, const char *to, asset_class_t asset,
                     uint64_t amount, const char *memo) {
     vino_account_t *a = vino_get_account(v, to);
     if (!a) return -1;
-    a->asset_balances[asset] += (uint32_t)amount;
+    if ((uint32_t) asset >= ASSET_MAX) return -1; /* asset_balances is ASSET_MAX wide */
+    /* the count is 32-bit: refuse an issue that would truncate or wrap it */
+    if (amount > (uint64_t) (UINT32_MAX - a->asset_balances[asset])) return -1;
+    /* check capacity BEFORE crediting, so a full ledger cannot mint unrecorded */
     if (v->num_txns >= VINO_MAX_TXNS) return -1;
+    a->asset_balances[asset] += (uint32_t) amount;
     vino_transaction_t *t = &v->primary[v->num_txns];
     t->id = v->num_txns;
     t->type = TXN_ISSUE;
@@ -173,6 +198,16 @@ int32_t vino_issue(vino_ledger_t *v, const char *to, asset_class_t asset,
     if (memo) str_copy(t->memo, memo);
     t->confirmed = true;
     t->block_height = v->block_height;
+    /* An issue is a ledger event like any other: chain it, audit it and count
+     * it. (It used to stop here, so the next transfer overwrote the slot and
+     * the minting left no trace in the primary, audit or hash-chain ledgers.) */
+    fs_memcpy(t->prev_hash, v->chain_head_hash, VINO_HASH_LEN);
+    vino_hash(t, sizeof(*t), t->hash);
+    fs_memcpy(v->chain_head_hash, t->hash, VINO_HASH_LEN);
+    fs_memcpy(&v->audit[v->num_txns], t, sizeof(*t));
+    v->num_audit++;
+    v->num_txns++;
+    v->txn_count++;
     return t->id;
 }
 

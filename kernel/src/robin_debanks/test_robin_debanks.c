@@ -118,6 +118,11 @@ int main(void)
         assert(result > 0);
         assert(pt_len == sizeof(secret));
         assert(memcmp(pt, secret, sizeof(secret)) == 0);
+
+        /* once past its delay it stays readable (it used to answer -2 forever) */
+        pt_len = 0;
+        assert(robin_unlock(&rv, (uint32_t) eid, pt, &pt_len, 200 + ROBIN_UNLOCK_DELAY) > 0);
+        assert(pt_len == sizeof(secret));
     }
 
     /* ===== request unlock resets timer ===== */

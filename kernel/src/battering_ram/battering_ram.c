@@ -61,6 +61,15 @@ void br_exchange_init(br_exchange_t *ex) {
     ex->rail = NULL;
     ex->rail_voucher = 0;
     for (uint32_t i = 0; i < VINO_PROOF_CID_LEN; i++) ex->rail_cid[i] = 0;
+    for (uint32_t i = 0; i < 32; i++) ex->attestor_key[i] = 0;
+    ex->attestor_pinned = false;
+}
+
+void br_pin_attestor(br_exchange_t *ex, const uint8_t key[32])
+{
+    if (!ex) return;
+    ex->attestor_pinned = key != NULL;
+    for (uint32_t i = 0; i < 32; i++) ex->attestor_key[i] = key ? key[i] : 0;
 }
 
 void br_set_verifier(br_exchange_t *ex, br_attest_verify_fn fn) {
@@ -189,6 +198,16 @@ int32_t br_distribute(br_exchange_t *ex, uint64_t outcome_id,
 
     /* Ops boundary: with no verifier bound we do NOT assume achievement. */
     if (ex->verify == NULL) return BR_ERR_NO_ORACLE;
+
+    /* The built-in verifier checks the signature against the key the
+     * attestation itself carries, so without a pinned trust root anyone could
+     * self-sign "achieved" and release the pool. Fail closed. */
+    if (ex->verify == br_ed25519_attest_verify && !ex->attestor_pinned) return BR_ERR_NO_ORACLE;
+    if (ex->attestor_pinned) {
+        uint8_t diff = 0;
+        for (uint32_t i = 0; i < 32; i++) diff |= (uint8_t) (v->attestor[i] ^ ex->attestor_key[i]);
+        if (diff) return BR_ERR_UNVERIFIED;
+    }
 
     /* Verify the ATTESTOR'S SIGNATURE — never the fact it asserts. A bad
      * signature consumes nothing and distributes nothing. */

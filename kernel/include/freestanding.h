@@ -75,16 +75,19 @@ static inline char *fs_strcpy(char *dst, const char *src) {
 }
 
 /* Simple bump allocator */
-static inline void *fs_malloc(size_t n) {
-    static uint8_t heap[1024*1024];
+static inline void *fs_malloc(size_t n)
+{
+    static uint8_t heap[1024 * 1024];
     static size_t heap_off = 0;
-    if (heap_off + n > sizeof(heap)) return (void*)0;
+    if (n > sizeof(heap) - heap_off) return (void *) 0; /* no wrap for huge n */
     void *p = &heap[heap_off];
     heap_off += n;
     return p;
 }
 
-static inline void *fs_calloc(size_t count, size_t size) {
+static inline void *fs_calloc(size_t count, size_t size)
+{
+    if (size != 0 && count > (size_t) -1 / size) return (void *) 0; /* count * size overflows */
     void *p = fs_malloc(count * size);
     if (p) fs_memset(p, 0, count * size);
     return p;
@@ -179,7 +182,9 @@ static inline double _Complex fs_cexp(double _Complex z) {
     double er = fs_exp(r);
     double ci = fs_cos(i);
     double si = fs_sin(i);
-    return er * ci + er * si * (__extension__ 1.0iF);
+    /* build the value from its parts: multiplying by the imaginary literal
+     * 1.0iF would turn inf * 0 into NaN in the real part */
+    return __builtin_complex(er * ci, er * si);
 }
 
 static inline double fs_fabs(double x) {

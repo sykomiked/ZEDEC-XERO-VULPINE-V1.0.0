@@ -153,6 +153,13 @@ typedef struct {
     vino_stores_t      *rail;          /* optional triple-rail money settlement     */
     uint64_t            rail_voucher;  /* voucher id the money leg posts through    */
     uint8_t             rail_cid[VINO_PROOF_CID_LEN]; /* supplied equity witness    */
+    /* The trust root for outcome attestations. An attestation carries its own
+     * attestor key, so a signature that verifies under THAT key proves only that
+     * someone holds some key. br_distribute accepts an attestation only from the
+     * pinned attestor, and refuses the built-in Ed25519 verifier until one is
+     * pinned (br_pin_attestor). */
+    uint8_t attestor_key[32];
+    bool attestor_pinned;
 } br_exchange_t;
 
 /* ===== Lifecycle ===== */
@@ -162,6 +169,11 @@ void br_exchange_init(br_exchange_t *ex);
 
 /* Install the external attestation verifier (ops boundary). */
 void br_set_verifier(br_exchange_t *ex, br_attest_verify_fn fn);
+
+/* Pin the Ed25519 public key of the one authority whose attestations this
+ * exchange accepts. NULL unpins (distribution then fails closed again when the
+ * built-in verifier is bound). */
+void br_pin_attestor(br_exchange_t *ex, const uint8_t key[32]);
 
 /* Bind a vino_stores triple rail for money-leg settlement. The voucher id and
  * proof CID are SUPPLIED (pinned externally, never invented). */
@@ -233,7 +245,10 @@ surplus_real_t br_price_capital_future(zcap_form_t form, surplus_real_t notional
                                        surplus_real_t r, surplus_real_t T);
 
 /* Built-in verifier composing Ed25519 over (outcome_id LE64 || achieved). Use
- * as br_set_verifier(ex, br_ed25519_attest_verify) to require real signatures. */
+ * as br_set_verifier(ex, br_ed25519_attest_verify) together with
+ * br_pin_attestor(): it checks the signature against the key carried in the
+ * attestation, so on its own it would accept a self-signed attestation from
+ * anyone. br_distribute refuses it (BR_ERR_NO_ORACLE) until a key is pinned. */
 bool br_ed25519_attest_verify(const ext_attestation_t *att);
 
 #endif /* ZXV_BATTERING_RAM_H */

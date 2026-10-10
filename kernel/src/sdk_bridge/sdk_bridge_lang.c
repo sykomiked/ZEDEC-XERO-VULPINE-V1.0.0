@@ -20,9 +20,57 @@
 #include "surplus.h"
 #include "../sdk/selfaudit.h"
 
+/* The bridge these ops act on. It used to be "((sdk_bridge_t*)0)->field", a
+ * NULL dereference on every call. Unset (NULL) means every op fails closed
+ * with SB_LANG_ERR_INTERNAL. */
+static sdk_bridge_t *sb_lang_bridge = 0;
+
+void sb_lang_set_bridge(sdk_bridge_t *bridge)
+{
+    sb_lang_bridge = bridge;
+}
+
+/* true when the IR does not carry the n fields an op reads. oc_ir_t holds
+ * only OC_MAX_FIELDS fields, so ops that need more always fail (they used to
+ * read past the array). num_fields is caller-set, so it is bounded too. */
+#define SB_LANG_NEED(in, n)                                                                        \
+    ((in)->num_fields < (n) || (in)->num_fields > OC_MAX_FIELDS || (n) > OC_MAX_FIELDS)
+
 /* ============================================================================
  * INTERNAL HELPERS
  * ============================================================================ */
+
+/* sb_lang_context_t is NOT layout-compatible with sb_context_t (the latter
+ * has thread_id before identity and many more fields), so the old
+ * (sb_context_t *)ctx casts read capabilities at the wrong offset and let
+ * the bridge write past the end of the language context. Calls into the
+ * bridge now go through a real sb_context_t built from the language
+ * context, and the fields the bridge may change are copied back. */
+static void sb_lang_to_ctx(const sb_lang_context_t *l, sb_context_t *c)
+{
+    uint8_t *p = (uint8_t *) c;
+    for (uint32_t i = 0; i < sizeof *c; i++) p[i] = 0;
+    c->process_id = l->process_id;
+    c->identity = l->identity;
+    for (uint32_t i = 0; i < SB_MAX_CAPABILITIES; i++) c->capabilities[i] = l->capabilities[i];
+    c->num_capabilities = l->num_capabilities;
+    c->m5 = l->m5;
+    c->coverage_ratio = l->coverage_ratio;
+    c->process_attestation = l->attestation;
+    c->financial_account_id = l->financial_account_id;
+    c->initialized = true;
+    c->active = l->active;
+}
+
+static void sb_lang_from_ctx(sb_lang_context_t *l, const sb_context_t *c)
+{
+    for (uint32_t i = 0; i < SB_MAX_CAPABILITIES; i++) l->capabilities[i] = c->capabilities[i];
+    l->num_capabilities = c->num_capabilities;
+    l->m5 = c->m5;
+    l->coverage_ratio = c->coverage_ratio;
+    l->attestation = c->process_attestation;
+    l->active = c->active;
+}
 
 static uint32_t g_op_counter = 1;
 
@@ -52,14 +100,13 @@ static int32_t sb_lang_ff_create_account(sb_lang_context_t *ctx,
                                          const oc_ir_t *input,
                                          oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_CAPITAL_TRANSFER)) 
-        return SB_LANG_ERR_CAP;
-    
-    financial_fabric_t *ff = ((sdk_bridge_t*)0)->financial;
+    if (!sb_lang_has_capability(ctx, SB_CAP_CAPITAL_TRANSFER)) return SB_LANG_ERR_CAP;
+
+    financial_fabric_t *ff = sb_lang_bridge ? sb_lang_bridge->financial : 0;
     if (!ff) return SB_LANG_ERR_INTERNAL;
     
     /* Args: name[64], owner_id[21], initial_balances[9] */
-    if (input->num_fields < 3) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 95)) return SB_LANG_ERR_ARG;
     char name[64];
     for (int i = 0; i < 64; i++) name[i] = (char)input->fields[1 + i].num.num;
     word168_t owner_id;
@@ -80,17 +127,16 @@ static int32_t sb_lang_ff_create_derivative(sb_lang_context_t *ctx,
                                             const oc_ir_t *input,
                                             oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_DERIVATIVES_TRADE)) 
-        return SB_LANG_ERR_CAP;
-    
-    financial_fabric_t *ff = ((sdk_bridge_t*)0)->financial;
+    if (!sb_lang_has_capability(ctx, SB_CAP_DERIVATIVES_TRADE)) return SB_LANG_ERR_CAP;
+
+    financial_fabric_t *ff = sb_lang_bridge ? sb_lang_bridge->financial : 0;
     if (!ff) return SB_LANG_ERR_INTERNAL;
     
     /* Args: account_id, underlying_form, notional_num, notional_den, 
      *       strike_num, strike_den, expiry_tick, backing_cid[32], 
      *       treaty_backed */
-    if (input->num_fields < 10) return SB_LANG_ERR_ARG;
-    
+    if (SB_LANG_NEED(input, 39)) return SB_LANG_ERR_ARG;
+
     uint32_t account_id = (uint32_t)input->fields[1].num.num;
     m5_capital_form_t underlying = (m5_capital_form_t)input->fields[2].num.num;
     rat_t notional = input->fields[3].num;
@@ -118,14 +164,13 @@ static int32_t sb_lang_ff_post_quote(sb_lang_context_t *ctx,
                                      const oc_ir_t *input,
                                      oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_CAPITAL_TRANSFER)) 
-        return SB_LANG_ERR_CAP;
-    
-    financial_fabric_t *ff = ((sdk_bridge_t*)0)->financial;
+    if (!sb_lang_has_capability(ctx, SB_CAP_CAPITAL_TRANSFER)) return SB_LANG_ERR_CAP;
+
+    financial_fabric_t *ff = sb_lang_bridge ? sb_lang_bridge->financial : 0;
     if (!ff) return SB_LANG_ERR_INTERNAL;
     
     /* Args: inst_id, price_num, price_den, phase_tick */
-    if (input->num_fields < 5) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 5)) return SB_LANG_ERR_ARG;
     uint32_t inst_id = (uint32_t)input->fields[1].num.num;
     rat_t price = input->fields[2].num;
     uint32_t phase_tick = (uint32_t)input->fields[3].num.num;
@@ -144,12 +189,12 @@ static int32_t sb_lang_ff_value_position(sb_lang_context_t *ctx,
                                          const oc_ir_t *input,
                                          oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    
-    financial_fabric_t *ff = ((sdk_bridge_t*)0)->financial;
+
+    financial_fabric_t *ff = sb_lang_bridge ? sb_lang_bridge->financial : 0;
     if (!ff) return SB_LANG_ERR_INTERNAL;
     
     /* Args: inst_id, qty_num, qty_den */
-    if (input->num_fields < 4) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 4)) return SB_LANG_ERR_ARG;
     uint32_t inst_id = (uint32_t)input->fields[1].num.num;
     rat_t qty = input->fields[2].num;
     
@@ -167,14 +212,13 @@ static int32_t sb_lang_ff_open_position(sb_lang_context_t *ctx,
                                         const oc_ir_t *input,
                                         oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_CAPITAL_TRANSFER)) 
-        return SB_LANG_ERR_CAP;
-    
-    financial_fabric_t *ff = ((sdk_bridge_t*)0)->financial;
+    if (!sb_lang_has_capability(ctx, SB_CAP_CAPITAL_TRANSFER)) return SB_LANG_ERR_CAP;
+
+    financial_fabric_t *ff = sb_lang_bridge ? sb_lang_bridge->financial : 0;
     if (!ff) return SB_LANG_ERR_INTERNAL;
     
     /* Args: acct, inst_id, qty_num, qty_den, cost_basis_num, cost_basis_den */
-    if (input->num_fields < 7) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 7)) return SB_LANG_ERR_ARG;
     uint32_t acct = (uint32_t)input->fields[1].num.num;
     uint32_t inst_id = (uint32_t)input->fields[2].num.num;
     rat_t qty = input->fields[3].num;
@@ -196,14 +240,13 @@ static int32_t sb_lang_ff_settle(sb_lang_context_t *ctx,
                                  const oc_ir_t *input,
                                  oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_CAPITAL_TRANSFER)) 
-        return SB_LANG_ERR_CAP;
-    
-    financial_fabric_t *ff = ((sdk_bridge_t*)0)->financial;
+    if (!sb_lang_has_capability(ctx, SB_CAP_CAPITAL_TRANSFER)) return SB_LANG_ERR_CAP;
+
+    financial_fabric_t *ff = sb_lang_bridge ? sb_lang_bridge->financial : 0;
     if (!ff) return SB_LANG_ERR_INTERNAL;
     
     /* Args: from_acct, to_acct, amount_num, amount_den, fee_bps */
-    if (input->num_fields < 6) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 6)) return SB_LANG_ERR_ARG;
     uint32_t from_acct = (uint32_t)input->fields[1].num.num;
     uint32_t to_acct = (uint32_t)input->fields[2].num.num;
     rat_t amount = input->fields[3].num;
@@ -227,17 +270,17 @@ static int32_t sb_lang_cw_create_wallet(sb_lang_context_t *ctx,
                                         const oc_ir_t *input,
                                         oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_CRYPTO_SIGN)) 
-        return SB_LANG_ERR_CAP;
-    
-    crypto_wallet_system_t *wallet_sys = ((sdk_bridge_t*)0)->crypto_wallet;
+    if (!sb_lang_has_capability(ctx, SB_CAP_CRYPTO_SIGN)) return SB_LANG_ERR_CAP;
+
+    crypto_wallet_system_t *wallet_sys = sb_lang_bridge ? sb_lang_bridge->crypto_wallet : 0;
     if (!wallet_sys) return SB_LANG_ERR_INTERNAL;
     
     /* Args: label[64] */
-    if (input->num_fields < 2) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 65)) return SB_LANG_ERR_ARG;
     char label_str[64];
     for (int i = 0; i < 64; i++) label_str[i] = (char)input->fields[1 + i].num.num;
-    
+    label_str[63] = 0;
+
     uint32_t wallet_id = cw_wallet_create(wallet_sys, label_str);
     
     rat_t result = rat_from_int(wallet_id);
@@ -251,14 +294,13 @@ static int32_t sb_lang_cw_store_file(sb_lang_context_t *ctx,
                                      const oc_ir_t *input,
                                      oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_STORAGE_PERSIST)) 
-        return SB_LANG_ERR_CAP;
-    
-    crypto_wallet_system_t *wallet_sys = ((sdk_bridge_t*)0)->crypto_wallet;
+    if (!sb_lang_has_capability(ctx, SB_CAP_STORAGE_PERSIST)) return SB_LANG_ERR_CAP;
+
+    crypto_wallet_system_t *wallet_sys = sb_lang_bridge ? sb_lang_bridge->crypto_wallet : 0;
     if (!wallet_sys) return SB_LANG_ERR_INTERNAL;
     
     /* Args: wallet_id, file_type, payload_hash[32], payload_len */
-    if (input->num_fields < 5) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 36)) return SB_LANG_ERR_ARG;
     uint32_t wallet_id = (uint32_t)input->fields[1].num.num;
     cw_file_type_t file_type = (cw_file_type_t)input->fields[2].num.num;
     uint8_t payload_hash[32];
@@ -282,14 +324,13 @@ static int32_t sb_lang_mn_create_network(sb_lang_context_t *ctx,
                                          const oc_ir_t *input,
                                          oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_NETWORK_MESH)) 
-        return SB_LANG_ERR_CAP;
-    
-    mesh_net_t *mesh = ((sdk_bridge_t*)0)->mesh;
+    if (!sb_lang_has_capability(ctx, SB_CAP_NETWORK_MESH)) return SB_LANG_ERR_CAP;
+
+    mesh_net_t *mesh = sb_lang_bridge ? sb_lang_bridge->mesh : 0;
     if (!mesh) return SB_LANG_ERR_INTERNAL;
     
     /* Args: name_hash, access_type, creator_id[21], creator_trust */
-    if (input->num_fields < 5) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 25)) return SB_LANG_ERR_ARG;
     uint64_t name_hash = (uint64_t)input->fields[1].num.num;
     mn_net_access_t access = (mn_net_access_t)input->fields[2].num.num;
     word168_t creator_id;
@@ -309,14 +350,13 @@ static int32_t sb_lang_mn_send_message(sb_lang_context_t *ctx,
                                        const oc_ir_t *input,
                                        oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_NETWORK_MESH)) 
-        return SB_LANG_ERR_CAP;
-    
-    mesh_net_t *mesh = ((sdk_bridge_t*)0)->mesh;
+    if (!sb_lang_has_capability(ctx, SB_CAP_NETWORK_MESH)) return SB_LANG_ERR_CAP;
+
+    mesh_net_t *mesh = sb_lang_bridge ? sb_lang_bridge->mesh : 0;
     if (!mesh) return SB_LANG_ERR_INTERNAL;
     
     /* Args: route_id, data_size, current_cycle */
-    if (input->num_fields < 4) return SB_LANG_ERR_ARG;
+    if (SB_LANG_NEED(input, 4)) return SB_LANG_ERR_ARG;
     uint32_t route_id = (uint32_t)input->fields[1].num.num;
     uint64_t data_size = (uint64_t)input->fields[2].num.num;
     uint64_t current_cycle = (uint64_t)input->fields[3].num.num;
@@ -338,9 +378,8 @@ static int32_t sb_lang_rails_issue_card(sb_lang_context_t *ctx,
                                         const oc_ir_t *input,
                                         oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_CAPITAL_TRANSFER)) 
-        return SB_LANG_ERR_CAP;
-    
+    if (!sb_lang_has_capability(ctx, SB_CAP_CAPITAL_TRANSFER)) return SB_LANG_ERR_CAP;
+
     /* Would call rail_issue_card from rails.h */
     rat_t result = rat_from_int(0xFFFFFFFF);  /* Placeholder */
     oc_ir_t out = {0};
@@ -357,16 +396,16 @@ static int32_t sb_lang_bridge_create(sb_lang_context_t *ctx,
                                      const oc_ir_t *input,
                                      oc_ir_t *output) {
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
-    if (!sb_has_capability((sb_context_t*)ctx, SB_CAP_CRYPTO_SIGN)) 
-        return SB_LANG_ERR_CAP;
-    
-    bridge_registry_t *bridge = &((sdk_bridge_t*)0)->financial->bridge;
+    if (!sb_lang_has_capability(ctx, SB_CAP_CRYPTO_SIGN)) return SB_LANG_ERR_CAP;
+
+    bridge_registry_t *bridge =
+        (sb_lang_bridge && sb_lang_bridge->financial) ? &sb_lang_bridge->financial->bridge : 0;
     if (!bridge) return SB_LANG_ERR_INTERNAL;
     
     /* Args: source_chain, dest_chain, direction, amount_num, amount_den, 
      *       source_addr, dest_addr, token_type, lang, symbol_hash, contract_addr_hash */
-    if (input->num_fields < 12) return SB_LANG_ERR_ARG;
-    
+    if (SB_LANG_NEED(input, 12)) return SB_LANG_ERR_ARG;
+
     chain_id_t source = (chain_id_t)input->fields[1].num.num;
     chain_id_t dest = (chain_id_t)input->fields[2].num.num;
     bridge_direction_t dir = (bridge_direction_t)input->fields[3].num.num;
@@ -398,12 +437,15 @@ static int32_t sb_lang_self_audit_op(sb_lang_context_t *ctx,
                                      const oc_ir_t *input,
                                      oc_ir_t *output) {
     if (!ctx) return SB_LANG_ERR_ARG;
-    
-    sdk_bridge_t *bridge = (sdk_bridge_t*)0;  /* Would be passed */
+
+    sdk_bridge_t *bridge = sb_lang_bridge;
     if (!bridge) return SB_LANG_ERR_INTERNAL;
-    
-    sb_result_t result = sb_self_audit_context(bridge, (sb_context_t*)ctx);
-    
+
+    sb_context_t bc;
+    sb_lang_to_ctx(ctx, &bc);
+    sb_result_t result = sb_self_audit_context(bridge, &bc);
+    sb_lang_from_ctx(ctx, &bc);
+
     rat_t r_result = rat_from_int(result.code);
     rat_t r_att = rat_from_int(result.attestation);
     rat_t r_cov = surplus_to_rat(result.coverage_ratio);
@@ -425,12 +467,15 @@ static int32_t sb_lang_self_heal_op(sb_lang_context_t *ctx,
                                     const oc_ir_t *input,
                                     oc_ir_t *output) {
     if (!ctx) return SB_LANG_ERR_ARG;
-    
-    sdk_bridge_t *bridge = (sdk_bridge_t*)0;
+
+    sdk_bridge_t *bridge = sb_lang_bridge;
     if (!bridge) return SB_LANG_ERR_INTERNAL;
-    
-    sb_result_t result = sb_self_heal_context(bridge, (sb_context_t*)ctx);
-    
+
+    sb_context_t bc;
+    sb_lang_to_ctx(ctx, &bc);
+    sb_result_t result = sb_self_heal_context(bridge, &bc);
+    sb_lang_from_ctx(ctx, &bc);
+
     rat_t r_result = rat_from_int(result.code);
     rat_t r_att = rat_from_int(result.attestation);
     rat_t r_cov = surplus_to_rat(result.coverage_ratio);
@@ -460,7 +505,7 @@ int32_t sb_lang_execute(sb_lang_context_t *ctx,
     
     /* Check M5 coverage */
     ctx->coverage_ratio = sb_lang_compute_coverage(&ctx->m5);
-    sdk_bridge_t *bridge = (sdk_bridge_t*)0;  /* Would be passed */
+    sdk_bridge_t *bridge = sb_lang_bridge;
     if (bridge && SR_CMP(ctx->coverage_ratio, bridge->min_global_coverage) < 0) {
         return SB_LANG_ERR_COVERAGE;
     }
@@ -602,14 +647,21 @@ int32_t sb_lang_grant_capability(sdk_bridge_t *bridge,
                                  sb_lang_context_t *ctx,
                                  sb_capability_t cap) {
     if (!bridge || !ctx) return SB_LANG_ERR_ARG;
-    return sb_grant_capability(bridge, (sb_context_t*)ctx, cap).code;
+    sb_context_t bc;
+    sb_lang_to_ctx(ctx, &bc);
+    int32_t code = sb_grant_capability(bridge, &bc, cap).code;
+    sb_lang_from_ctx(ctx, &bc);
+    return code;
 }
 
 int32_t sb_lang_self_audit(sdk_bridge_t *bridge,
                            sb_lang_context_t *ctx,
                            oc_ir_t *out_report) {
     if (!bridge || !ctx || !out_report) return SB_LANG_ERR_ARG;
-    sb_result_t result = sb_self_audit_context(bridge, (sb_context_t*)ctx);
+    sb_context_t bc;
+    sb_lang_to_ctx(ctx, &bc);
+    sb_result_t result = sb_self_audit_context(bridge, &bc);
+    sb_lang_from_ctx(ctx, &bc);
     return result.code;
 }
 
@@ -617,6 +669,9 @@ int32_t sb_lang_self_heal(sdk_bridge_t *bridge,
                           sb_lang_context_t *ctx,
                           oc_ir_t *out_report) {
     if (!bridge || !ctx || !out_report) return SB_LANG_ERR_ARG;
-    sb_result_t result = sb_self_heal_context(bridge, (sb_context_t*)ctx);
+    sb_context_t bc;
+    sb_lang_to_ctx(ctx, &bc);
+    sb_result_t result = sb_self_heal_context(bridge, &bc);
+    sb_lang_from_ctx(ctx, &bc);
     return result.code;
 }

@@ -103,6 +103,13 @@ uint32_t bridge_create(bridge_registry_t *reg,
                         const char *token_symbol,
                         const char *contract_addr) {
     if (reg->num_bridges >= 512) return 0xFFFFFFFF;
+    /* The enums index fixed tables (chain_active[], chain_tx_count[], the
+     * name tables): reject out-of-range values from callers. */
+    if ((uint32_t) source >= CHAIN_MAX || (uint32_t) dest >= CHAIN_MAX) return 0xFFFFFFFF;
+    if ((uint32_t) dir > BRIDGE_CROSS_CHAIN || (uint32_t) token_type >= TOKEN_MAX ||
+        (uint32_t) lang >= LANG_MAX)
+        return 0xFFFFFFFF;
+    if (SR_CMP(amount, SR_ZERO) <= 0) return 0xFFFFFFFF;
     bridge_device_t *b = &reg->bridges[reg->num_bridges];
     
     b->bridge_id = reg->num_bridges;
@@ -164,7 +171,10 @@ uint32_t bridge_create(bridge_registry_t *reg,
 int32_t bridge_execute(bridge_registry_t *reg, uint32_t bridge_id) {
     if (bridge_id >= reg->num_bridges) return -1;
     bridge_device_t *b = &reg->bridges[bridge_id];
-    
+
+    /* Execute once: a second call would count the volume and fees twice. */
+    if (!b->irq_bridge_requested) return -1;
+
     /* Coverage check */
     if (!bridge_verify_coverage(reg, bridge_id)) {
         b->irq_coverage_breach = true;
@@ -178,8 +188,11 @@ int32_t bridge_execute(bridge_registry_t *reg, uint32_t bridge_id) {
     
     /* Generate source tx hash (simplified) */
     b->source_tx_hash = (uint32_t)(b->bridge_id * 7919 + b->reg_source_addr);
-    b->irq_source_confirmed = true;
-    
+    /* Source confirmation is bridge_confirm_source's job (it enforces the
+     * per-chain confirmation depth); setting it here let bridge_confirm_dest
+     * complete a bridge that had zero confirmations. */
+    b->irq_bridge_requested = false;
+
     /* Update chain tx counts */
     reg->chain_tx_count[b->source_chain]++;
     reg->chain_tx_count[b->dest_chain]++;

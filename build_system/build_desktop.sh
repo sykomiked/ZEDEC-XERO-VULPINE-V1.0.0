@@ -167,7 +167,9 @@ Server mode:   zxv-swarm --server     (then, from your own computer:
 
 This preview runs the real swarm engine (Fibonacci budget, market, emotions,
 witness, ledger, DNA, harmonic cycles) and reads GGUF models with the kernel
-tensor engine. It writes real answers only once the forward pass is built in."
+tensor engine. When the forward pass is built in (the build log says so), a
+Q8_0 GGUF model answers greedily on one CPU thread; it is slow and has been
+tested only on tiny test models."
 
 step "macOS app ($MAC_ARCHS)"
 APP="$WORK/mac/ZXV.app"

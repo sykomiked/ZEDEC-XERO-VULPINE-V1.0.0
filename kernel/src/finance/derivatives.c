@@ -58,17 +58,18 @@ static surplus_real_t rat_to_surplus(const rat_t *r)
 }
 
 /* Find ledger entry by backing CID (stored in description field) */
-static ledger_entry_t *find_backing_entry(const triple_ledger_t *tl, const uint8_t backing_cid[32])
+static const ledger_entry_t *find_backing_entry(const triple_ledger_t *tl,
+                                                const uint8_t backing_cid[32])
 {
     for (uint32_t i = 0; i < tl->num_accounts; i++) {
-        account_t *acc = &tl->accounts[i];
+        const account_t *acc = &tl->accounts[i];
         for (uint32_t j = 0; j < acc->num_entries; j++) {
-            ledger_entry_t *e = &acc->entries[j];
+            const ledger_entry_t *e = &acc->entries[j];
             if (e->ledger == LEDGER_FINANCIAL &&
                 e->capital_type == capital_form_to_vino(CAPITAL_FINANCIAL)) {
                 /* Check if description contains the CID hex - simple byte comparison */
                 for (int k = 0; k < 32; k++) {
-                    if (e->description[k] != backing_cid[k]) break;
+                    if ((uint8_t) e->description[k] != backing_cid[k]) break;
                     if (k == 31) return e;
                 }
             }
@@ -83,16 +84,23 @@ deriv_err_t deriv_verify_backing(const deriv_contract_t *d, const triple_ledger_
     if (!d || !tl) return DERIV_ERR_NO_BACKING;
 
     /* 1. Fetch backing asset from Financial rail (555) */
-    ledger_entry_t *backing = find_backing_entry(tl, d->backing_cid);
+    const ledger_entry_t *backing = find_backing_entry(tl, d->backing_cid);
     if (!backing) return DERIV_ERR_NO_BACKING;
 
     /* 2. Verify Provenance rail (777) attestation — LPRES gate */
     if (!lpres_attestation_is_true(&d->backing_proof))
         return DERIV_ERR_BACKING_UNATTTESTED; /* NEITHER/GLUT = veto */
 
-    /* 3. Compute backing ratio — EXACT rational arithmetic
-     * backing->r is the rational magnitude (amount) */
-    rat_t backing_amount = rat_from_int((int64_t) (backing->r * 1000000)); /* Scale for precision */
+        /* 3. Compute backing ratio — EXACT rational arithmetic
+         * backing->r is the magnitude (amount) in surplus_real_t units. It must
+         * be turned into a rational of the SAME units as the notional: the old
+         * rat_from_int(r * 1000000) made 1 unit of backing look like 1,000,000
+         * (2^32 * 10^6 on the Q32.32 target), so the 1.0x gate always passed. */
+#ifdef TEST_HOST
+    rat_t backing_amount = rat_make((int64_t) (backing->r * 1000000.0), 1000000);
+#else
+    rat_t backing_amount = rat_make((int64_t) backing->r, (int64_t) SR_ONE);
+#endif
     rat_t ratio = rat_div(backing_amount, d->notional);
     if (!ratio.valid) return DERIV_ERR_ARITHMETIC_OVERFLOW;
 
@@ -124,17 +132,13 @@ deriv_err_t temporal_arb_execute(temporal_arb_t *arb)
     /* 2. Phase spread must be POSITIVE (node_b ahead) */
     if (arb->phase_spread <= SR_ZERO) return DERIV_ERR_NO_SPREAD;
 
-    /* 3. Admit via Phase Coordinator — same tick or VETO */
-    pc_registry_t *pc = (pc_registry_t *) arb->node_a; /* Simplified */
-    pc_step_request_t req = {0};
-    req.phase_id = PC_PHASE_K6_COORD;
-    req.step_id = 1;
-    req.requires_coverage = true;
-    req.requires_health = true;
-    req.is_hardware_action = false;
-
-    pc_token_t *token = pc_admit(pc, &req);
-    if (!token || token->decision != PC_DECISION_ADMIT) return DERIV_ERR_PHASE_VETO;
+    /* 3. Admit via Phase Coordinator — same tick or VETO.
+     * No phase-coordinator registry is passed in. This used to cast the
+     * node's triple ledger to pc_registry_t and let pc_admit() write tokens
+     * into it, corrupting the ledger. Until a real registry is plumbed
+     * through, the phase gate fails closed. */
+    return DERIV_ERR_PHASE_VETO;
+#if 0
 
     /* 4. Settle: node_a delivers backing to node_b at agreed rate
      *    No cash, no margin — backing asset transfers rail-to-rail
@@ -147,6 +151,7 @@ deriv_err_t temporal_arb_execute(temporal_arb_t *arb)
     if (r1 < 0 || r2 < 0) return DERIV_ERR_PHASE_VETO;
 
     return DERIV_OK;
+#endif
 }
 
 /* ===== Derivative Settlement — LPRES-Gated Atomic Transfer ===== */
@@ -161,18 +166,13 @@ deriv_err_t deriv_settle(deriv_contract_t *d, triple_ledger_t *tl)
         return DERIV_VETO; /* FALSE */
     }
 
-    /* Gate 2: Phase admission — OSEQ + Phase Coordinator */
-    pc_registry_t *pc_reg = (pc_registry_t *) tl; /* Simplified */
-    pc_step_request_t req = {0};
-    req.phase_id = PC_PHASE_K6_COORD;
-    req.step_id = 2;
-    req.requires_coverage = true;
-    req.requires_health = true;
-    req.is_hardware_action = false;
-
-    pc_token_t *token = pc_admit(pc_reg, &req);
-    if (!token || token->decision == PC_DECISION_VETO) return DERIV_VETO;
-    if (token->decision == PC_DECISION_DEFER) return DERIV_DEFER;
+    /* Gate 2: Phase admission — OSEQ + Phase Coordinator.
+     * No phase-coordinator registry is passed in. This used to cast the
+     * triple ledger to pc_registry_t and let pc_admit() write tokens into
+     * it, corrupting the ledger. Until a real registry is plumbed through,
+     * settlement defers (fails closed). */
+    return DERIV_DEFER;
+#if 0
 
     /* Gate 3: One Policy — Symbiotic Maxim */
     op_term_t term = {0};
@@ -221,6 +221,7 @@ deriv_err_t deriv_settle(deriv_contract_t *d, triple_ledger_t *tl)
     if (r1 < 0 || r2 < 0 || r3 < 0) return DERIV_VETO;
 
     return DERIV_OK;
+#endif
 }
 
 /* ===== Contract Creation ===== */

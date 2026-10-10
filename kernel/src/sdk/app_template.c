@@ -37,7 +37,12 @@ static void app_tick(void);
 /* ===== Entry Point ===== */
 int main(void) {
     app_init();
-    
+    /* Wire these to your input and display path; referenced here so the
+     * template builds warning-free (-Werror) before you do. */
+    (void) app_handle_key;
+    (void) app_handle_special;
+    (void) app_render;
+
     /* Register with app launcher */
     m5_app_launcher_open(M5_APP_CUSTOM);
     

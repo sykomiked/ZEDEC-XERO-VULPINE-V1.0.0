@@ -1,4 +1,8 @@
-/* treaty_tokenization.h — Treaty-Backed Asset Tokenization (PAPSS Specification)
+/* treaty_tokenization.h — Treaty-Backed Asset Tokenization
+ *
+ * "PAPSS" in this file names the project's own capital-form specification.
+ * Nothing here connects to, is certified by, or is endorsed by the
+ * Pan-African Payment and Settlement System.
  *
  * Tokenize tangibles via treaty CID on Externality rail (888).
  * Conservation easements become treaty-backed Natural capital tokens.

@@ -5,6 +5,7 @@
 #define ATA_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define ATA_PRIMARY_DATA     0x1F0
 #define ATA_PRIMARY_ERROR    0x1F1

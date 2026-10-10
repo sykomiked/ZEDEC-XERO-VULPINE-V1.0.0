@@ -262,7 +262,7 @@ the network is simply a peer with a larger `capacity` hint.
 - `ehop_router_send` and `ehop_router_recv` pick a channel and seal, or route
   by band and tag and then open.
 
-### Hook for `kernel/src/carracho` and other transports
+### Hook for `kernel/src/vinea` (formerly carracho) and other transports
 
 A transport does not need to know about schedules or keys. It holds an
 `ehop_hook_t`:
@@ -277,13 +277,17 @@ ehop_router_hook(&router, &hook);
 /* relay: */ hook.qos(frame, flen, &band, &priority);   /* no keys needed */
 ```
 
-The integration plan for carracho, which is not done here:
+The integration plan for Vinea, which is not done yet:
 
-- carracho maps its neighbour index to the router's peer index;
-- its frame payload becomes an ehop frame;
-- its forwarding queue orders frames by `hook.qos` priority.
+- Vinea's per-frame transform hook (`vna_xform_t` in `vinea/vna_frame.h`)
+  calls `hook.seal` and `hook.open`, mapping the peer's transport address to
+  the router's peer index;
+- Vinea frames reach 13,700 bytes (`VNA_MSG_WIRE_MAX`) but an ehop frame
+  carries at most 2,048 (`EHOP_MAX_PAYLOAD`), and Vinea does not fragment, so
+  the adapter must fragment or ehop must raise its limit;
+- relays order frames by `hook.qos` priority.
 
-No code in carracho was changed.
+No code in Vinea calls ehop today.
 
 ## 7. Configuration reference
 

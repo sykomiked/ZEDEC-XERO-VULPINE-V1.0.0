@@ -2,7 +2,13 @@
 
 ## Overview
 
-The M5 SDK provides a complete development environment for building user space applications on the M5 Axiomatic Kernel. Applications run at EL0 (ARM64) with full access to the kernel's axiomatic services through the `m5_api.h` interface.
+> **Status (audit 2026-10):** `m5_api.h` declares the API, but no file in this
+> repository defines any of its `m5_*` functions (`m5_syscall`, `m5_gui_*`,
+> `m5_app_launcher_open`, ...). An app built from `app_template.c` compiles,
+> but it will not link until those functions exist. `make ... test` only
+> checks that it compiles on the host.
+
+The M5 SDK is meant to be a development environment for building user space applications on the M5 Axiomatic Kernel. Applications run at EL0 (ARM64) with full access to the kernel's axiomatic services through the `m5_api.h` interface.
 
 ## Quick Start
 

@@ -270,6 +270,11 @@ int main(void)
         uint64_t before = m.total_supply_minted;
         assert(count_house_mint(&m, 100000000) == 0); /* refused */
         assert(m.total_supply_minted == before);      /* unchanged */
+
+        /* A mint that would wrap the 64-bit supply counter is refused. It used
+         * to wrap the supply to 0, pass the gate and return the huge amount. */
+        assert(count_house_mint(&m, UINT64_MAX - 99) == 0);
+        assert(m.total_supply_minted == before);
     }
 
     /* ===== audit ===== */

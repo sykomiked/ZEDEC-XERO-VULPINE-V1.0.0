@@ -45,7 +45,9 @@ static void test_scale_generic(double s, const char *name) {
     memset(entries, 0, sizeof(entries));
     matrix.entries = entries;
 
-    lattice_graph_t graph;
+    /* static: the state is larger than the default 8 MB stack */
+    static lattice_graph_t graph;
+    memset(&graph, 0, sizeof graph);
     lattice_init(&graph, s, &matrix);
 
     lattice_node_id_t id0 = {0, 5};
@@ -114,7 +116,9 @@ static void test_ipc_typed(void) {
     memset(entries, 0, sizeof(entries));
     matrix.entries = entries;
 
-    lattice_graph_t graph;
+    /* static: the state is larger than the default 8 MB stack */
+    static lattice_graph_t graph;
+    memset(&graph, 0, sizeof graph);
     lattice_init(&graph, 1.0, &matrix);
 
     uint32_t n0 = lattice_add_node(&graph, 0, (lattice_node_id_t){0, 5});

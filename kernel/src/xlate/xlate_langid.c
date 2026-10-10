@@ -260,7 +260,9 @@ void xlate_langid(const char *utf8, uint32_t len, xlate_langid_result_t *out)
     for (uint32_t g = 1; g <= 3; g++) {
         uint32_t total = n + 2;
         for (uint32_t st = 0; st + g <= total; st++) {
-            uint32_t first = st == 0 ? 0x20 : cps[st - 1];
+            /* position total-1 is the trailing space, not cps[n] (which is
+             * past the normalized text, and past the array when n is full) */
+            uint32_t first = (st == 0 || st == total - 1) ? 0x20 : cps[st - 1];
             if (g == 1 && first == 0x20) continue;
             uint32_t h = 2166136261u ^ g;
             for (uint32_t k = 0; k < g; k++) {

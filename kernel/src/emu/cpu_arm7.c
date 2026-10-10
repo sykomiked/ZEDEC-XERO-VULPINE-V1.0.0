@@ -57,7 +57,10 @@ static uint32_t bshift(cpu_arm7_t *c, uint32_t val, uint32_t type, uint32_t amt,
             if (amt == 0 || amt >= 32){ *carry = (val>>31)&1; return (val&0x80000000)?0xFFFFFFFF:0; }
             *carry = (val >> (amt-1)) & 1; return (uint32_t)((int32_t)val >> amt);
         default: /* ROR */
-            if (amt == 0){ /* RRX */ *carry = val & 1; return (val >> 1) | (cin << 31); }
+            if (amt == 0) { /* RRX */
+                *carry = val & 1;
+                return (val >> 1) | ((uint32_t) cin << 31);
+            }
             amt &= 31; if (amt == 0){ *carry = (val>>31)&1; return val; }
             *carry = (val >> (amt-1)) & 1; return (val >> amt) | (val << (32-amt));
     }

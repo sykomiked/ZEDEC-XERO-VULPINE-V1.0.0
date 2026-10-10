@@ -1,8 +1,9 @@
 /* immigration.c — Immigration Enforcement implementation
  *
  * See immigration.h for design rationale and crypto integration
- * instructions. Uses HMAC-SHA256 verification signature verification
- * (same pattern as Count House / Community Chest / AI Layer).
+ * instructions. Verifies an Ed25519 signature against the kernel's
+ * embedded public key (same pattern as Count House / Community Chest / AI
+ * Layer).
  *
  * Author: Michael Laurence Curzi (c)
  * 36N9 Genetics, LLC — All Rights Reserved

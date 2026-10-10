@@ -67,6 +67,19 @@ int main(void)
               "fractional requirement 699/2=349.5 <= balance 700 -> true (non-integer den path)");
         CHECK(sutra_check_coverage(&ledger, "alice@vino", CAP_FINANCIAL, R(1401, 2)) == false,
               "fractional requirement 1401/2=700.5 > balance 700 -> false (non-integer den path)");
+
+        /* exact above 2^53, where the old double comparison rounded */
+        vino_account_t *a = vino_get_account(&ledger, "alice@vino");
+        a->balance[CAP_FINANCIAL] = (uint64_t) 1 << 53;
+        CHECK(sutra_check_coverage(&ledger, "alice@vino", CAP_FINANCIAL,
+                                   R((int64_t) ((((uint64_t) 1 << 54) + 1)), 2)) == false,
+              "2^53 does NOT cover 2^53 + 1/2 (exact, no double rounding)");
+        CHECK(sutra_check_coverage(&ledger, "alice@vino", CAP_FINANCIAL,
+                                   R((int64_t) ((((uint64_t) 1 << 54) - 1)), 2)) == true,
+              "2^53 covers 2^53 - 1/2");
+        CHECK(sutra_check_coverage(&ledger, "alice@vino", (sutra_capital_t) CAP_MAX, R(1, 1)) ==
+                  false,
+              "out-of-range capital type refused (no read past the balance array)");
     }
 
     if (failures == 0)

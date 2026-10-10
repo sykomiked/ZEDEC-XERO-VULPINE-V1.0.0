@@ -386,7 +386,7 @@ void pb_render_frame(prism_break_t *pb) {
     }
 
     /* Copy backbuffer to framebuffer */
-    memcpy(pb->framebuffer, pb->backbuffer, pb->width * pb->height * sizeof(uint32_t));
+    memcpy(pb->framebuffer, pb->backbuffer, (size_t) pb->width * pb->height * sizeof(uint32_t));
 
     pb->frames_rendered++;
     pb_update_coverage(pb);

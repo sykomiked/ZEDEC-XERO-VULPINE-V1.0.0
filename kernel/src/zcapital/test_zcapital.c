@@ -149,6 +149,50 @@ int main(void)
         CHECK(zmarket_match(&m, ZCAP_INTELLECTUAL, &c) == false);
     }
 
+    /* ---- Anchor 8: a match fills the SMALLER side, never more than sought ---- */
+    {
+        zmarket_t m;
+        zmarket_init(&m);
+        zcap_commitment_t c;
+        zmarket_offer(&m, ZCAP_HUMAN, SR_FROM_INT(10), 1);
+        zmarket_seek(&m, ZCAP_HUMAN, SR_FROM_INT(3), 2);
+        zmarket_seek(&m, ZCAP_HUMAN, SR_FROM_INT(7), 3);
+        CHECK(zmarket_match(&m, ZCAP_HUMAN, &c) == true);
+        CHECK(sr_eq(c.units, SR_FROM_INT(3)) && c.taker == 2); /* 3 sought, 3 given */
+        CHECK(zmarket_match(&m, ZCAP_HUMAN, &c) == true);
+        CHECK(sr_eq(c.units, SR_FROM_INT(7)) && c.taker == 3); /* the offer's remainder */
+        CHECK(zmarket_match(&m, ZCAP_HUMAN, &c) == false);     /* 10 offered, 10 given */
+    }
+
+    /* ---- Anchor 9: a self-pairing at the head does not block other deals ---- */
+    {
+        zmarket_t m;
+        zmarket_init(&m);
+        zcap_commitment_t c;
+        zmarket_offer(&m, ZCAP_SYSTEM, SR_FROM_INT(5), 1);
+        zmarket_seek(&m, ZCAP_SYSTEM, SR_FROM_INT(5), 1); /* wash: skipped */
+        zmarket_seek(&m, ZCAP_SYSTEM, SR_FROM_INT(5), 2);
+        CHECK(zmarket_match(&m, ZCAP_SYSTEM, &c) == true);
+        CHECK(c.giver == 1 && c.taker == 2);
+        CHECK(zmarket_match(&m, ZCAP_SYSTEM, &c) == false); /* only the wash seek is left */
+    }
+
+    /* ---- Anchor 10: matched slots are reused; the book is not full forever ---- */
+    {
+        static zmarket_t m;
+        zmarket_init(&m);
+        zcap_commitment_t c;
+        for (int round = 0; round < 3 * ZMARKET_SLOTS; round++) {
+            CHECK(zmarket_offer(&m, ZCAP_FINANCIAL, SR_FROM_INT(1), 1) >= 0);
+            CHECK(zmarket_seek(&m, ZCAP_FINANCIAL, SR_FROM_INT(1), 2) >= 0);
+            CHECK(zmarket_match(&m, ZCAP_FINANCIAL, &c) == true);
+        }
+        /* but a book of live, unmatched posts still has a hard cap */
+        for (int k = 0; k < ZMARKET_SLOTS; k++)
+            CHECK(zmarket_offer(&m, ZCAP_FINANCIAL, SR_FROM_INT(1), 1) >= 0);
+        CHECK(zmarket_offer(&m, ZCAP_FINANCIAL, SR_FROM_INT(1), 1) == -1);
+    }
+
     printf("zcapital: all %d assertions passed.\n", g_asserts);
     return 0;
 }

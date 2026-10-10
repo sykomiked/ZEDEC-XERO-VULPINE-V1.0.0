@@ -7,7 +7,20 @@
 #include "../../include/m5_types.h"
 
 static __attribute__((unused)) int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
-static void str_copy(char *d, const char *s) { int i = 0; while (s[i]) { d[i] = s[i]; i++; } d[i] = 0; }
+/* Bounded: every destination is a fixed array and str_copy() passes its size,
+ * so a path longer than a 32-byte name field is truncated, not overflowed. */
+static void str_ncopy(char *d, const char *s, uint32_t cap)
+{
+    uint32_t i = 0;
+    if (cap == 0) return;
+    if (s)
+        while (s[i] && i + 1u < cap) {
+            d[i] = s[i];
+            i++;
+        }
+    d[i] = 0;
+}
+#define str_copy(d, s) str_ncopy((d), (s), (uint32_t) sizeof(d))
 static int str_cmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(unsigned char)*a - (int)(unsigned char)*b;

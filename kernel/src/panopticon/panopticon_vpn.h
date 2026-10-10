@@ -2,7 +2,12 @@
  * panopticon_vpn.h — Multi-layered VPN mesh matrix for Panopticon
  *
  * 5-hop VPN chains with 5 options per level = 25-grid protection.
- * Auto-rotation and routing for maximum security. Fully configurable.
+ * Auto-rotation and routing over a configurable path model.
+ *
+ * HONEST LIMITS: this is a path-selection MODEL. It opens no tunnel, speaks
+ * no WireGuard/OpenVPN/Tor, and encrypts nothing: vpn_route_packet prepends
+ * per-hop labels and the payload stays in the clear. The default node names
+ * (*.zedec hosts) are placeholders, not real services.
  * Defaults to free VPN services when user doesn't specify.
  *
  * Architecture:

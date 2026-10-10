@@ -40,9 +40,17 @@ fi
 "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/swarm" -I"$K/src/tensor" \
     -I"$K/src/zcapital" -I"$K/src/surplus" "$@" -o "$T/zxv-host"
 
+# the forward-pass glue against the tensor engine's reference chain
+if [ -n "$DEFS" ]; then
+    set -- "$HERE/test_zxv_zt_glue.c" "$HERE/zxv_zt_glue.c"
+    for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN -I"$HERE" -I"$K/src/tensor" "$@" -o "$T/test_glue"
+    "$T/test_glue"
+fi
+
 "$CC" -std=c11 -Wall -Wextra -Werror -I"$K/src/tensor" "$HERE/test_write_gguf.c" -o "$T/write_gguf"
 "$T/write_gguf" "$T/tiny-test.gguf"
 
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_api.py" "$T/zxv-host"
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_api.py" "$T/zxv-host" "$T/tiny-test.gguf"
-echo "[PASS] hosted app: API guard, end-to-end API, model slot"
+echo "[PASS] hosted app: API guard, forward-pass glue, end-to-end API, model slot"

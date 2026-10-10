@@ -63,8 +63,8 @@ uint32_t triple_ledger_create_account(triple_ledger_t *tl,
     a->num_entries = 0;
     a->num_vouchers = 0;
     int i;
-    for (i = 0; i < 64 && name[i]; i++)
-        a->name[i] = name[i];
+    /* Leave room for the terminator: name[] is 64 bytes. */
+    for (i = 0; i < 63 && name && name[i]; i++) a->name[i] = name[i];
     a->name[i] = 0;
     for (i = 0; i < LEDGER_MAX; i++)
         a->balance[i] = SR_ZERO;
@@ -82,6 +82,7 @@ int32_t triple_ledger_post(triple_ledger_t *tl,
                             uint32_t counterparty_id,
                             const char *description) {
     if (account_id >= tl->num_accounts) return -1;
+    if ((uint32_t) ledger >= LEDGER_MAX) return -1;
     account_t *a = &tl->accounts[account_id];
     if (a->num_entries >= 256) return -1;
     
@@ -103,26 +104,30 @@ int32_t triple_ledger_post(triple_ledger_t *tl,
         SR_DIV(SR_FROM_INT(18), SR_FROM_INT(10))) >= 0);
     
     int i;
-    for (i = 0; i < 64 && description && description[i]; i++)
-        e->description[i] = description[i];
+    for (i = 0; i < 63 && description && description[i]; i++) e->description[i] = description[i];
     e->description[i] = 0;
-    
-    /* Update balances */
+
+    /* Update balances. Only the financial ledger is conventional money: the
+     * provenance and externality ledgers carry attestation and phase, which
+     * must not leak into the conventional balance or the system totals. */
     a->balance[ledger] = SR_ADD(a->balance[ledger], SR_SUB(debit, credit));
-    a->conventional_balance = SR_ADD(a->conventional_balance, SR_SUB(debit, credit));
-    
+    if (ledger == LEDGER_FINANCIAL)
+        a->conventional_balance = SR_ADD(a->conventional_balance, SR_SUB(debit, credit));
+
     /* Update coverage */
     a->coverage_ratio = SR_DIV(SR_MUL(r, ell),
                                 SR_DIV(SR_FROM_INT(18), SR_FROM_INT(10)));
     a->externality_phase = phi;
     
     a->num_entries++;
-    
-    /* Update system totals */
-    tl->total_assets = SR_ADD(tl->total_assets, debit);
-    tl->total_liabilities = SR_ADD(tl->total_liabilities, credit);
-    tl->total_equity = SR_SUB(tl->total_assets, tl->total_liabilities);
-    
+
+    /* Update system totals (financial ledger only, see above) */
+    if (ledger == LEDGER_FINANCIAL) {
+        tl->total_assets = SR_ADD(tl->total_assets, debit);
+        tl->total_liabilities = SR_ADD(tl->total_liabilities, credit);
+        tl->total_equity = SR_SUB(tl->total_assets, tl->total_liabilities);
+    }
+
     return 0;
 }
 
@@ -134,10 +139,18 @@ int32_t triple_ledger_transfer(triple_ledger_t *tl,
                                 surplus_real_t ell,
                                 surplus_real_t phi,
                                 const char *description) {
-    (void)cap;
-    (void)description;
+    (void) cap;
     if (from_id >= tl->num_accounts || to_id >= tl->num_accounts) return -1;
-    
+    if (from_id == to_id) return -1;
+    /* A transfer moves a positive amount: a negative one would pull money
+     * out of the receiver. (Balances may still go negative; callers such as
+     * ministry and finance_markets rely on that and gate funding themselves.) */
+    if (SR_CMP(amount, SR_ZERO) <= 0) return -1;
+    /* All six legs or none: check capacity before the first post. */
+    if (tl->accounts[from_id].num_entries + 3u > 256u ||
+        tl->accounts[to_id].num_entries + 3u > 256u)
+        return -1;
+
     /* Credit from account */
     int32_t rc1 = triple_ledger_post(tl, from_id, LEDGER_FINANCIAL,
                                       amount, ell, phi, SR_ZERO, amount,
@@ -201,8 +214,7 @@ uint64_t triple_ledger_issue_voucher(triple_ledger_t *tl,
     v->redeemed = false;
     
     int j;
-    for (j = 0; j < 64 && purpose && purpose[j]; j++)
-        v->purpose[j] = purpose[j];
+    for (j = 0; j < 63 && purpose && purpose[j]; j++) v->purpose[j] = purpose[j];
     v->purpose[j] = 0;
     
     a->num_vouchers++;
@@ -236,12 +248,14 @@ int32_t triple_ledger_redeem_voucher(triple_ledger_t *tl,
             if (tl->accounts[i].vouchers[j].voucher_id == voucher_id) {
                 floating_voucher_t *v = &tl->accounts[i].vouchers[j];
                 if (v->redeemed) return -1;
-                v->redeemed = true;
+                /* Only the current holder may redeem. */
+                if (tl->accounts[account_id].entity_id != v->holder_id) return -1;
                 /* Credit the redeeming account with merit value */
-                triple_ledger_post(tl, account_id, LEDGER_FINANCIAL,
-                                   v->merit_value, v->coverage_ratio, v->phase,
-                                   v->merit_value, SR_ZERO,
-                                   v->issuer_id, "Voucher redemption");
+                if (triple_ledger_post(tl, account_id, LEDGER_FINANCIAL, v->merit_value,
+                                       v->coverage_ratio, v->phase, v->merit_value, SR_ZERO,
+                                       v->issuer_id, "Voucher redemption") < 0)
+                    return -1;
+                v->redeemed = true;
                 return 0;
             }
         }
@@ -283,9 +297,11 @@ void triple_ledger_export_conventional(const triple_ledger_t *tl,
     report->total_debits = tl->total_assets;
     report->total_credits = tl->total_liabilities;
     report->trial_balance = SR_SUB(tl->total_assets, tl->total_liabilities);
-    report->balance_sheet_assets = tl->total_assets;
-    report->balance_sheet_liabilities = tl->total_liabilities;
-    report->balance_sheet_equity = tl->total_equity;
+    /* The balance sheet is aggregated from account balances below; starting
+     * from the debit/credit totals as well would count every posting twice. */
+    report->balance_sheet_assets = SR_ZERO;
+    report->balance_sheet_liabilities = SR_ZERO;
+    report->balance_sheet_equity = SR_ZERO;
     report->income_statement_revenue = SR_ZERO;
     report->income_statement_expenses = SR_ZERO;
     report->net_income = SR_ZERO;

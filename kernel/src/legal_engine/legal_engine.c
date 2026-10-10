@@ -440,13 +440,14 @@ int legal_validate_agreement(legal_user_agreement_t *ua) {
 
 int legal_seal_agreement(legal_user_agreement_t *ua) {
     if (!ua) return -1;
-    /* Golden ratio seal: compute phi-based checksum */
-    const double phi = 1.6180339887498948;
-    double sum = 0;
+    /* "Golden ratio seal": an 8-bit label, floor(phi * byte sum) mod 256 with
+     * phi in Q16 (106039 / 65536). It is NOT an integrity check (anyone can
+     * recompute it and nothing verifies it). Integer only: this file is built
+     * into the freestanding kernel. */
+    uint64_t sum = 0;
     const uint8_t *p = (const uint8_t *)ua;
-    for (uint32_t i = 0; i < sizeof(*ua); i++)
-        sum += (double)p[i] * phi;
-    ua->golden_ratio_seal = (uint8_t)((uint64_t)sum & 0xFF);
+    for (uint32_t i = 0; i < sizeof(*ua); i++) sum += p[i];
+    ua->golden_ratio_seal = (uint8_t) (((sum * 106039u) >> 16) & 0xFF);
     return 0;
 }
 

@@ -14,6 +14,7 @@ void smaug_init(abacus_t *a) {
     a->gross_after = rat_zero();
     a->transfers_before = a->transfers_after = 0;
     a->cleared_runs = 0;
+    a->clear_failed = false;
 }
 
 int32_t smaug_add_member(abacus_t *a, const char *name) {

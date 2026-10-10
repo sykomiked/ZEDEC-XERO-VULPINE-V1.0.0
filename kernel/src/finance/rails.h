@@ -12,7 +12,9 @@
  *   - Triple-ledger settlement
  *   - Nine-capital backing
  *   - M⁵ coverage verification
- *   - Conventional card network compatibility (Visa/MC/Amex/UnionPay/JCB/Discover)
+ *   - A fee table named after conventional card networks (Visa/MC/Amex/
+ *     UnionPay/JCB/Discover). This is a model: there is no connection to,
+ *     certification by, or agreement with any card network.
  *   - Hardware-as-code: each rail is a virtual payment processor device
  *
  * Author: H.M. Michael-Laurence: Curzi (c)

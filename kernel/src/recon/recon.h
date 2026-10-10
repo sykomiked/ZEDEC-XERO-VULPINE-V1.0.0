@@ -13,8 +13,11 @@
  *   .ula   → Zero-Point Anchor (static blueprint, GLUT0)
  *
  * The file extension declares the topological mirror rules for reassembly.
- * Reconstruction happens in O(1) time because the archetype pre-declares
- * the inversion rule — no scanning needed.
+ * WHAT THE CODE DOES (audit 2026-10): each recon_* operation checks the
+ * S-Map with smap_verify() and then records which archetype rule applies
+ * (a label and counters). It does not move, permute, invert or reassemble
+ * any bytes, run any consensus or parity check, or encrypt anything; byte
+ * reassembly is smap_reassemble() in smap.h.
  *
  * Author: H.M. Michael-Laurence: Curzi (c)
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC

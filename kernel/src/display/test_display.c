@@ -35,6 +35,8 @@ int main(void)
 
     CHECK(zxv_display_negotiate(&d, 1920, 1080, 2048, 0, 0) == 0, "GOP FHD negotiates");
     CHECK(d.stride == 2048, "a padded firmware stride is preserved, not assumed == width");
+    CHECK(zxv_display_negotiate(&d, 1920, 1080, 1000, 0, 0) < 0,
+          "a firmware stride shorter than the width is refused (rows would overlap)");
 
     printf("a mode that cannot be backed is REFUSED, not clamped:\n");
     /* These assert the REFUSAL path, so they only apply when the mode really is

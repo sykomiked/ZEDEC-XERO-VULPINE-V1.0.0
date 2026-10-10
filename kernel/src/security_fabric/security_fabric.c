@@ -1,3 +1,9 @@
+/* AUDIT STATUS (2026-10): NOT BUILT AND DOES NOT COMPILE. This file includes
+ * headers that do not exist (crypto.h, tls.h, mlkem.h, invproof.h, zab.h, ...),
+ * has syntax errors ("return -1."), and every crypto call is commented out:
+ * signing, encryption, KEM, TLS and ZK proofs are placeholders that produce
+ * no real output. Verification placeholders now fail closed. Use pqsec/,
+ * tls/ and robin_debanks/ for real primitives; do not wire this module in. */
 /* security_fabric.c — ZXV Security Fabric Compound Module Implementation
  *
  * Unifies all security modules: Crypto, TLS, ML-KEM, InvProof, ZAB, Porter House,
@@ -288,8 +294,8 @@ int32_t secf_verify(security_fabric_t *fabric,
     
     /* Verify via crypto subsystem */
     /* bool valid = crypto_verify(&fabric->crypto, kp->type, kp->public_key, kp->public_key_len, data, len, signature, sig_len); */
-    bool valid = true;  /* Placeholder */
-    
+    bool valid = false; /* no verifier is wired in: fail closed */
+
     return secf_attest(fabric, keypair_id, 0x5000, (void*)signature, valid ? 0 : -1);
 }
 
@@ -466,12 +472,14 @@ int32_t secf_verify_zk_proof(security_fabric_t *fabric,
                              const char *circuit_name,
                              const uint8_t *proof, uint32_t proof_len,
                              const uint8_t *public_inputs, uint32_t pi_len) {
-    if (!fabric || !circuit_name || !proof || !public_inputs) return -1.
-    
-    /* Verify proof via InvProof */
-    /* bool valid = invproof_verify(&fabric->invproof, circuit_name, proof, proof_len, public_inputs, pi_len); */
-    bool valid = true;  /* Placeholder */
-    
+    if (!fabric || !circuit_name || !proof || !public_inputs)
+        return -1.
+
+               /* Verify proof via InvProof */
+               /* bool valid = invproof_verify(&fabric->invproof, circuit_name, proof, proof_len,
+                  public_inputs, pi_len); */
+               bool valid = false; /* no verifier is wired in: fail closed */
+
     if (valid) {
         fabric->stats.total_zk_proofs_verified++;
     }

@@ -1,3 +1,9 @@
+/* AUDIT STATUS (2026-10): NOT BUILT AND DOES NOT COMPILE. This file includes
+ * headers that do not exist (crypto.h, tls.h, mlkem.h, invproof.h, zab.h, ...),
+ * has syntax errors ("return -1."), and every crypto call is commented out:
+ * signing, encryption, KEM, TLS and ZK proofs are placeholders that produce
+ * no real output. Verification placeholders now fail closed. Use pqsec/,
+ * tls/ and robin_debanks/ for real primitives; do not wire this module in. */
 /* security_fabric.h — ZXV Security Fabric Compound Module
  *
  * The Security Fabric unifies all cryptographic, authentication, and

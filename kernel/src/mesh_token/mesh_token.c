@@ -52,6 +52,21 @@ int32_t mesh_token_settle(mesh_token_t *mt, const word168_t *sender,
             break;
         }
     }
+    /* No free slot: recycle the oldest FINISHED settlement (confirmed,
+     * rejected, timed out or failed). Without this, every finished record
+     * held its slot forever and after MT_MAX_SETTLEMENTS requests of any
+     * outcome -- including ones a refused peer triggers -- the engine refused
+     * all further settlements. Live (admitted / in-transit) ones are kept. */
+    if (slot >= MT_MAX_SETTLEMENTS) {
+        for (uint32_t i = 0; i < MT_MAX_SETTLEMENTS; i++) {
+            mt_settlement_state_t st = mt->settlements[i].state;
+            bool done = st == MT_SETTLEMENT_CONFIRMED || st == MT_SETTLEMENT_REJECTED ||
+                        st == MT_SETTLEMENT_TIMEOUT || st == MT_SETTLEMENT_FAILED;
+            if (done &&
+                (slot >= MT_MAX_SETTLEMENTS || mt->settlements[i].id < mt->settlements[slot].id))
+                slot = i;
+        }
+    }
     if (slot >= MT_MAX_SETTLEMENTS) return -1;
 
     /* Porter House admission check: does the receiver get past the door? */

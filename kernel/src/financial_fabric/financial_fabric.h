@@ -10,9 +10,11 @@
  *   3. Assurance — Pay-It-Forward proactive capital generation
  *   4. Treaty Tokenization — Conservation easements → Natural/Built capital tokens
  *   5. Mesh Token — Settlement along P2P trade routes
- *   6. Finance Markets — Order books, matching, price discovery
+ *   6. Finance Markets — position/quote tracking and node-fee settlement
+ *      (a tracker: no order book, no matching engine, no price discovery)
  *   7. Rails — Nine capital rails with Form→Rail mapping
- *   8. Crypto Bridge — Post-quantum asset bridging
+ *   8. Crypto Bridge — a model of cross-chain bridge records (no chain
+ *      connectivity, no on-chain verification)
  *   9. Vino Ledger — Nine-form capital ledger with vouchers
  *   10. Vena Runtime — Smart contracts for financial logic
  *

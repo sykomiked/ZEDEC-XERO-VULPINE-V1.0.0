@@ -1,6 +1,6 @@
 /* smart_adapter.c — Generic Smart Hardware/Firmware Adapter Implementation
  *
- * Military-grade reliability through:
+ * Reliability model (not a certification) through:
  * - Paraconsistent logic (LPRES) for all state management
  * - M5 coverage hyperbola enforcement (>= 1.8x)
  * - Continuous health monitoring with self-test

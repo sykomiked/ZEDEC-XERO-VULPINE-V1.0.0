@@ -12,9 +12,13 @@ static resource_table_t *g_resource_table;
 
 void rmag_init(ordinal_t slot_count) {
     if (g_resource_table) return; /* Already initialized */
-    g_resource_table = malloc(sizeof(resource_table_t));
-    g_resource_table->slot_count = slot_count;
-    g_resource_table->slots = calloc(slot_count, sizeof(rational_t));
+    resource_table_t *t = malloc(sizeof(resource_table_t));
+    if (!t) return;
+    t->slots = calloc(slot_count, sizeof(rational_t));
+    if (!t->slots) return; /* no free() in the kernel heap: t is abandoned */
+    for (ordinal_t i = 0; i < slot_count; i++) t->slots[i].den = 1; /* 0/1, not 0/0 */
+    t->slot_count = slot_count;
+    g_resource_table = t;
 }
 
 rational_t rmag_get_quota(ordinal_t slot) {

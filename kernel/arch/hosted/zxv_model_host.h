@@ -60,5 +60,14 @@ void zxv_model_close(void);
  * generated, or negative with a reason in err. */
 int32_t zxv_zt_generate(const zt_gguf_t *g, const zt_tok_t *tok, const int32_t *ids, uint64_t n_ids,
                         char *out, size_t cap, char *err, size_t err_cap);
+/* The same with an explicit limit on new tokens (zxv_zt_generate uses 256). */
+int32_t zxv_zt_generate_n(const zt_gguf_t *g, const zt_tok_t *tok, const int32_t *ids,
+                          uint64_t n_ids, uint32_t max_new, char *out, size_t cap, char *err,
+                          size_t err_cap);
+/* 1 when the engine can load this file's weights (architecture, shapes and
+ * weight types supported), else 0. Reads metadata only. */
+int zxv_zt_can_run(const zt_gguf_t *g);
+/* Free the loaded weights and KV cache (the slot calls it on close). */
+void zxv_zt_release(void);
 
 #endif /* ZXV_MODEL_HOST_H */

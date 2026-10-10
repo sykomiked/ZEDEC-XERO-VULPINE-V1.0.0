@@ -496,6 +496,24 @@ int hdcm_translate(hdcm_t *h, uint32_t src_lang, uint32_t dst_lang,
     result->output_len = (uint32_t)out_len;
     result->final_phase = HDCM_PHASE_MEASURE;
 
+    /* MEASURE emits at most ONE target token (the nearest construct), or the
+     * "[unmapped]" placeholder when nothing is close. That placeholder is not a
+     * translation: report it as unmapped and fail, instead of success with a
+     * fidelity score. */
+    {
+        static const char ph[] = "[unmapped]";
+        bool unmapped = (result->output_len == sizeof(ph) - 1);
+        for (uint32_t k = 0; unmapped && k < sizeof(ph) - 1; k++)
+            if (result->output[k] != ph[k]) unmapped = false;
+        if (unmapped) {
+            result->constructs_translated = 0;
+            result->constructs_unmapped = 1;
+            result->fidelity_score = 0.0f;
+            result->success = false;
+            return -1;
+        }
+    }
+
     /* Compute fidelity from compatibility score */
     const hdcm_matrix_t *m = hdcm_matrix_find(h, src_lang, dst_lang);
     result->fidelity_score = m ? m->compatibility_score : 0.5f;

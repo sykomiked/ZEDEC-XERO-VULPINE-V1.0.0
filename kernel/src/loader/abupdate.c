@@ -60,6 +60,15 @@ ab_result_t ab_stage_update(zxvfs_t *fs, ab_state_t *st,
     } else {
         if (zsp_verify(zsp, len, root_pubkey, &payload, &plen) != ZSP_OK)
             return AB_ERR_VERIFY;
+        /* A v1 package carries no signed version, so it must not replace a
+         * running v2 package: otherwise any old validly-signed v1 image would
+         * get version active+1 and walk straight past the anti-rollback floor
+         * (a format-downgrade bypass). v1 -> v1 updates keep working. */
+        uint8_t cur[4];
+        if (zxvfs_read(fs, SLOT_FILE[st->active_slot], cur, sizeof cur) == (int) sizeof cur &&
+            cur[0] == ZSP_MAGIC0 && cur[1] == ZSP_MAGIC1 && cur[2] == ZSP_MAGIC2 &&
+            cur[3] == ZSP2_MAGIC3)
+            return AB_ERR_ROLLBACK;
         new_version = st->version[st->active_slot] + 1;
     }
 

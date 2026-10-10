@@ -255,8 +255,19 @@ int main(void)
     for (int i = 0; i < 32; i++) bad.attestor[i] = (uint8_t) i;     /* junk key */
     for (int i = 0; i < 64; i++) bad.sig[i] = (uint8_t) (0xA0 + i); /* junk sig */
     allocation_t nope;
+    /* the built-in verifier with no pinned attestor is not a trust root */
+    rc = br_distribute(&ex, 99, &bad, &nope);
+    CHECK(rc == BR_ERR_NO_ORACLE, "A6: Ed25519 verifier without a pinned attestor -> NO_ORACLE");
+    br_pin_attestor(&ex, bad.attestor);
     rc = br_distribute(&ex, 99, &bad, &nope);
     CHECK(rc == BR_ERR_UNVERIFIED, "A6: bad signature -> BR_ERR_UNVERIFIED");
+    {
+        uint8_t other[32];
+        for (int i = 0; i < 32; i++) other[i] = (uint8_t) (0x55 ^ i);
+        br_pin_attestor(&ex, other);
+        rc = br_distribute(&ex, 99, &bad, &nope);
+        CHECK(rc == BR_ERR_UNVERIFIED, "A6: attestation from an unpinned key -> BR_ERR_UNVERIFIED");
+    }
     CHECK(ex.alliances[idx].state == BR_ALLIANCE_FORMED,
           "A6: unverified attestation consumes NOTHING (still FORMED)");
     /* and with NO verifier bound at all, we fail closed (never assume) */

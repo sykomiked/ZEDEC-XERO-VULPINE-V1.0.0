@@ -97,8 +97,10 @@ int32_t porter_house_seal_port(porter_house_t *ph, uint16_t port,
  * record (stats/allowlist are preserved in case it's re-sealed later). */
 void porter_house_open_port(porter_house_t *ph, uint16_t port);
 
-/* Slam the door: mode -> PH_SEAL_CLOSED regardless of prior mode. */
-void porter_house_close_port(porter_house_t *ph, uint16_t port);
+/* Slam the door: mode -> PH_SEAL_CLOSED regardless of prior mode.
+ * Returns 0 when the port is now closed, -1 when it could not be (NULL
+ * ph, or the seal table is full and no OPEN seal can be reused). */
+int32_t porter_house_close_port(porter_house_t *ph, uint16_t port);
 
 int32_t porter_house_find_seal(porter_house_t *ph, uint16_t port);
 

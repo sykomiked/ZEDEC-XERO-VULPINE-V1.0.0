@@ -59,6 +59,8 @@ void proc_terminate(proc_scheduler_t *ps, uint32_t pid, int32_t exit_code) {
     if (!ps) return;
     for (uint32_t i = 0; i < MAX_USER_PROCS; i++) {
         if (ps->procs[i].pid == pid && ps->procs[i].state != PROC_UNUSED) {
+            /* Terminating twice must not decrement num_procs twice. */
+            if (ps->procs[i].state == PROC_TERMINATED) return;
             ps->procs[i].state = PROC_TERMINATED;
             ps->procs[i].exit_code = exit_code;
             ps->num_procs--;

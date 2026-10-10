@@ -27,13 +27,14 @@ static void safe_strncpy(uint8_t *dst, const char *src, int max) {
     dst[i] = 0;
 }
 
+/* An 8-bit label, floor(phi * byte sum) mod 256 with phi in Q16
+ * (106039 / 65536). Not an integrity check: nothing verifies it. Integer only
+ * (freestanding kernel build). */
 static uint8_t phi_checksum(const void *data, uint32_t len) {
-    const double phi = 1.6180339887498948;
-    double sum = 0;
+    uint64_t sum = 0;
     const uint8_t *p = (const uint8_t *)data;
-    for (uint32_t i = 0; i < len; i++)
-        sum += (double)p[i] * phi;
-    return (uint8_t)((uint64_t)sum & 0xFF);
+    for (uint32_t i = 0; i < len; i++) sum += p[i];
+    return (uint8_t) (((sum * 106039u) >> 16) & 0xFF);
 }
 
 static const char *treaty_status_name(treaty_status_t s) {

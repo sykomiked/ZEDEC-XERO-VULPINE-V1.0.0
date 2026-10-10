@@ -132,7 +132,19 @@ if(sc==0x4F){while(a->cursor_pos<a->buf_len&&a->buffer[a->cursor_pos]!='\n')a->c
 int32_t editor_load_file(editor_app_t*a,const char*path){
 if(!a->vfs||!path)return -1;int32_t fd=vfs_open(a->vfs,path);if(fd<0)return -1;
 int32_t n=vfs_read(a->vfs,fd,a->buffer,APP_EDITOR_MAX_BUF-1);vfs_close(a->vfs,fd);if(n<0)return -1;
-a->buffer[n]=0;a->buf_len=n;a->cursor_pos=0;a->modified=false;str_copy(a->filename,path);return 0;}
+a->buffer[n] = 0;
+a->buf_len = n;
+a->cursor_pos = 0;
+a->modified = false;
+/* bounded: filename is 64 bytes, a VFS path may be 256 */
+uint32_t k = 0;
+while (path[k] && k + 1 < sizeof(a->filename)) {
+    a->filename[k] = path[k];
+    k++;
+}
+a->filename[k] = 0;
+return 0;
+}
 
 int32_t editor_save_file(editor_app_t*a){
 if(!a->vfs)return -1;int32_t fd=vfs_open(a->vfs,a->filename);if(fd<0)return -1;
@@ -202,9 +214,31 @@ void netcfg_init(netcfg_app_t*a,uint32_t gw,net_state_t*net,m5_router_t*router){
 mem_set(a,0,sizeof(*a));a->base.type=APP_NET_CONFIG;a->base.gui_win=gw;a->base.active=true;a->base.state=APP_STATE_RUNNING;str_copy(a->base.name,"NetConfig");
 a->net=net;a->router=router;netcfg_refresh(a);}
 
-void netcfg_refresh(netcfg_app_t*a){a->detail_len=0;if(!a->router)return;uint32_t pos=0;const char*hdr="M5 Omni-Router Adapters:\n";while(hdr[pos])a->detail_buf[pos]=hdr[pos],pos++;
-for(uint32_t i=0;i<M5_PROTO_MAX;i++)if(a->router->adapters[i].active){const char*pn=m5_proto_name((m5_proto_t)i);a->detail_buf[pos++]=' ';a->detail_buf[pos++]='*';a->detail_buf[pos++]=' ';
-for(int j=0;pn[j]&&pos<500;j++)a->detail_buf[pos++]=pn[j];a->detail_buf[pos++]='\n';}a->detail_buf[pos]=0;a->detail_len=pos;}
+/* Bounded: 44 adapters with their names need more than detail_buf's 512
+ * bytes, and the old loop capped only the name characters, so the separators
+ * kept writing past the end of the buffer once it filled. */
+void netcfg_refresh(netcfg_app_t *a)
+{
+    const uint32_t cap = (uint32_t) sizeof(a->detail_buf) - 1;
+    uint32_t pos = 0;
+    a->detail_len = 0;
+    if (!a->router) return;
+    const char *hdr = "M5 Omni-Router Adapters:\n";
+    for (uint32_t j = 0; hdr[j] && pos < cap; j++) a->detail_buf[pos++] = hdr[j];
+    for (uint32_t i = 0; i < M5_PROTO_MAX; i++) {
+        if (!a->router->adapters[i].active) continue;
+        const char *pn = m5_proto_name((m5_proto_t) i);
+        uint32_t n = (uint32_t) str_len(pn);
+        if (pos + 4 + n > cap) break; /* " * " + name + newline must fit */
+        a->detail_buf[pos++] = ' ';
+        a->detail_buf[pos++] = '*';
+        a->detail_buf[pos++] = ' ';
+        for (uint32_t j = 0; j < n; j++) a->detail_buf[pos++] = pn[j];
+        a->detail_buf[pos++] = '\n';
+    }
+    a->detail_buf[pos] = 0;
+    a->detail_len = pos;
+}
 
 void netcfg_handle_key(netcfg_app_t*a,char ch){(void)a;(void)ch;}
 void netcfg_handle_special(netcfg_app_t*a,uint8_t sc){(void)a;(void)sc;}

@@ -89,7 +89,10 @@ void mlkem768_decaps(const uint8_t dk[MLKEM768_DK_BYTES], const uint8_t c[MLKEM7
     kpe_encrypt(ek_pke, m_prime, r_prime, c_prime);
 
     int match = ct_equal(c, c_prime, MLKEM768_CT_BYTES);
+    /* Branch-free select (FIPS 203 implicit rejection must not reveal which
+     * key was chosen): mask is 0xFF on a match, 0x00 otherwise. */
+    uint8_t mask = (uint8_t) (0u - (uint32_t) (match != 0));
     for (int i = 0; i < 32; i++) {
-        ss[i] = match ? k_prime[i] : k_bar[i];
+        ss[i] = (uint8_t) (k_bar[i] ^ ((k_prime[i] ^ k_bar[i]) & mask));
     }
 }

@@ -1,4 +1,8 @@
-/* derivatives.h — Nine-Forms Derivative Contracts (PAPSS Specification)
+/* derivatives.h — Nine-Forms Derivative Contracts
+ *
+ * "PAPSS" in this file names the project's own capital-form specification.
+ * Nothing here connects to, is certified by, or is endorsed by the
+ * Pan-African Payment and Settlement System.
  *
  * Derivative contracts that settle in actual capital form (not cash),
  * with kernel-enforced backing ratio >= 1.0x, LPRES attestation gates,

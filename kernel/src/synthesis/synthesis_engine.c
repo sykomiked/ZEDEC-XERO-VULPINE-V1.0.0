@@ -157,6 +157,7 @@ void synth_reg_write(synthesis_engine_t *engine, synth_reg_t reg, uint64_t value
 int synth_dma_write_spec(synthesis_engine_t *engine, const char *spec, uint32_t len) {
     if (len >= SYNTH_MAX_SPEC_LEN) return -1;
     synth_strncpy(engine->spec_input, spec, len);
+    engine->spec_input[len] = '\0'; /* strncpy-style copy leaves it open at len */
     engine->spec_len = len;
     return 0;
 }
@@ -204,6 +205,7 @@ int synth_parse_spec(synthesis_engine_t *engine, const char *spec, uint32_t len)
             name[i] = '\0';
             synth_ast_add_node(engine, AST_STRUCT_DECL, name);
         }
+        if (!*p) break; /* a name ending the spec leaves p on the NUL: stop */
         p++;
     }
 

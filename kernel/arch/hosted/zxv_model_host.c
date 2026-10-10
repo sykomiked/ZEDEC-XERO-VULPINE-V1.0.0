@@ -40,6 +40,9 @@ const zxv_model_info_t *zxv_model_info(void)
 
 void zxv_model_close(void)
 {
+#if defined(ZXV_HAVE_ZT_GLUE)
+    zxv_zt_release();
+#endif
 #if defined(_WIN32)
     if (M.map) UnmapViewOfFile(M.map);
     if (M.mapping) CloseHandle(M.mapping);
@@ -147,13 +150,15 @@ int zxv_model_open(const char *path)
         I->tok_ok = true;
         I->n_vocab = M.tok.n_vocab;
     }
+    const char *no_gen = "tokenizer ready; this build has no forward pass yet";
 #if defined(ZXV_HAVE_ZT_GLUE)
-    I->can_generate = I->tok_ok;
+    I->can_generate = I->tok_ok && zxv_zt_can_run(&M.g);
+    no_gen = "tokenizer ready; the engine cannot run these weights (see zt_model.h)";
 #endif
     snprintf(I->status, sizeof I->status, "%s (%s, %llu MB): %s.", I->name, I->arch,
              (unsigned long long) (I->bytes >> 20),
              I->can_generate ? "ready"
-             : I->tok_ok     ? "tokenizer ready; this build has no forward pass yet"
+             : I->tok_ok     ? no_gen
                              : "metadata only; its tokenizer is not supported yet");
     return 0;
 }
@@ -219,20 +224,20 @@ int zxv_model_answer(const char *prompt, char *out, size_t cap)
     if (r != ZT_GGUF_OK) {
         snprintf(out, cap, "Model %s could not tokenize this message (error %d).", M.info.name,
                  (int) r);
-    } else {
 #if defined(ZXV_HAVE_ZT_GLUE)
+    } else if (M.info.can_generate) {
         char err[160] = "";
         int32_t g = zxv_zt_generate(&M.g, &M.tok, ids, n, out, cap, err, sizeof err);
         if (g >= 0)
             answered = 1;
         else
             snprintf(out, cap, "Model %s failed to generate: %s", M.info.name, err);
-#else
-        snprintf(out, cap,
-                 "Model %s read your message as %llu tokens, but this build has no forward pass "
-                 "yet, so it cannot write the answer.",
-                 M.info.name, (unsigned long long) n);
 #endif
+    } else {
+        snprintf(out, cap,
+                 "Model %s read your message as %llu tokens, but this build cannot run its "
+                 "weights, so it cannot write the answer.",
+                 M.info.name, (unsigned long long) n);
     }
     free(ids);
     free(work);

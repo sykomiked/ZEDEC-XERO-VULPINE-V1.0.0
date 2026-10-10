@@ -60,8 +60,16 @@ upd_result_t upd_publish(upd_catalog_t *c, const char *id, const char *name,
     if (n_deps > UPD_MAX_DEPS) return UPD_ERR_FULL;
     int32_t ex = upd_find(c, id);
     upd_entry_t *e;
-    if (ex >= 0) e = &c->upd[ex];               /* re-publish updates in place */
-    else {
+    if (ex >= 0) {
+        e = &c->upd[ex];                         /* re-publish updates in place */
+        /* The user opted in to specific content from a specific author. A
+         * re-publish that changes either is a different update: the old
+         * selection and install record do not carry over to it. */
+        if (!beq(e->cid, cid, UPD_CID_LEN) || !beq(e->author, author, UPD_KEY_LEN)) {
+            e->selected = false;
+            e->installed = false;
+        }
+    } else {
         if (c->n >= UPD_MAX) return UPD_ERR_FULL;
         e = &c->upd[c->n++];
         for (uint32_t i = 0; i < sizeof(*e); i++) ((uint8_t*)e)[i] = 0;
@@ -169,7 +177,8 @@ upd_result_t upd_fetch_verify(upd_catalog_t *c, const char *id,
     if (!c->transport.fetch) return UPD_ERR_NO_TRANSPORT;
 
     uint32_t n = 0;
-    if (c->transport.fetch(e->cid, buf, cap, &n, c->transport.ctx) != 0) {
+    /* n > cap is a transport bug; never hash (or hand back) past the buffer */
+    if (c->transport.fetch(e->cid, buf, cap, &n, c->transport.ctx) != 0 || n > cap) {
         e->state = UPD_REJECTED; return UPD_ERR_FETCH;
     }
     /* self-certifying: the bytes must hash to the address we asked for */

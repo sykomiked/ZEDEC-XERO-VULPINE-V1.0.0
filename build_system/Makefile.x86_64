@@ -425,6 +425,9 @@ clean:
 boot: kernel_x86_64.bin
 	qemu-system-x86_64 -kernel kernel_x86_64.bin -m 256M -nographic -serial mon:stdio
 
+# `run` is the name CI, build.sh and the other arch Makefiles use.
+run: boot
+
 # ---- BOOTX64.EFI: self-contained UEFI app that embeds the flat kernel ----
 # UEFI hands off in long mode; the kernel is Multiboot1 (32-bit PM at _entry32),
 # so efi_trampoline.S drops long mode -> 32-bit PM before jumping in. Relocs are
@@ -457,7 +460,7 @@ $(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/x86_
 
 efi: $(EFI_APP_X64)
 
-.PHONY: all clean boot
+.PHONY: all clean boot run
 
 # ---- THE DERIVED PHASE TABLE ------------------------------------------------
 # Generated, never committed. build_system/gen_phase_table.sh computes one
