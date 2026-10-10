@@ -83,6 +83,7 @@ typedef int sock_t;
 #include "swarm_hk.h"
 #include "swarm_governor.h"
 #include "swarm_dna.h"
+#include "settle.h"
 #include "zxv_http_guard.h"
 #include "zxv_model_host.h"
 #include "zxv_budget_gate.h"
@@ -249,6 +250,7 @@ static struct {
     swarm_market_t m;
     swarm_emotion_state_t e;
     swarm_ledger_t l;
+    settle_spine_t spine; /* the swarm's money on the ledger of record (settle.h) */
     swarm_overlap_t o;
     swarm_witness_t w[SWARM_MAX_MODELS];
     uint32_t nw;
@@ -317,6 +319,19 @@ static void build_swarm(void)
     swarm_market_init(&S.m);
     swarm_emotion_init(&S.e);
     swarm_overlap_init(&S.o);
+    uint8_t seed[32];
+    uint64_t x = S.instance_seed;
+    for (int i = 0; i < 32; i++) { /* splitmix64 bytes: unique per instance */
+        if ((i & 7) == 0) {
+            x += 0x9E3779B97F4A7C15ull;
+            uint64_t z = x;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+            x = z ^ (z >> 31);
+        }
+        seed[i] = (uint8_t) (x >> (8 * (i & 7)));
+    }
+    settle_init(&S.spine, seed);
     S.num_agents = 0;
     uint32_t id = 1;
     for (uint32_t d = 0; d < levels; d++) {
@@ -328,6 +343,7 @@ static void build_swarm(void)
             name_agent(a, d);
             swarm_budget_register(&S.b, id, d);
             swarm_market_join(&S.m, id, 1000);
+            settle_join(&S.spine, id, 1000, S.tick);
             swarm_traits_t t = swarm_dna_express(&a->dna, NUM_SPECIALTIES);
             swarm_emotion_set_feeling(&S.e, id, t.home);
         }
@@ -377,6 +393,10 @@ static void close_cycle(void)
     keep_allotments();
     swarm_budget_end_cycle(&S.b);
     swarm_market_settle(&S.m);
+    /* Reconcile with the ledger of record. A failure halts the spine and,
+     * with it, the market: no further cycle runs on books that disagree. */
+    if (settle_sync(&S.spine, &S.m, S.tick) != SETTLE_OK)
+        fprintf(stderr, "zxv: ledger halted (%d): market stopped\n", (int) S.spine.why);
 }
 
 /* Open the next market cycle and leave it open until the next reflex, so the
@@ -415,6 +435,7 @@ static void open_cycle(void)
 
 static void market_cycle(void)
 {
+    if (S.spine.halted) return; /* fail closed (settle.h R3) */
     close_cycle();
     open_cycle();
 }
@@ -606,7 +627,8 @@ static void state_json(buf_t *b)
         ",\"remote\":%s,\"cores\":%u,\"cores_milli\":%u,\"mem_total_mb\":%llu,\"mem_mb\":%llu,"
         "\"levels\":%u,\"tokens_per_cycle\":%llu,\"tick\":%llu,\"fundamental\":%llu,\"cycle\":%llu,"
         "\"due_mask\":%u,\"settled\":%llu,\"held\":%llu,\"money_supply\":%llu,\"pot\":%llu,"
-        "\"imag\":%llu,\"saved\":%llu,\"mood\":\"%s %u\",\"agents\":[",
+        "\"imag\":%llu,\"saved\":%llu,\"mood\":\"%s %u\",\"ledger_postings\":%llu,"
+        "\"ledger_synced\":%llu,\"ledger_halt\":%d,\"agents\":[",
         S.remote ? "true" : "false", S.hw.cores, S.gov.cores_milli,
         (unsigned long long) S.hw.mem_total_mb, (unsigned long long) S.gov.mem_mb, S.b.num_levels,
         (unsigned long long) S.b.tokens_per_cycle, (unsigned long long) S.tick,
@@ -615,7 +637,8 @@ static void state_json(buf_t *b)
         (unsigned long long) S.l.settled_cycles, (unsigned long long) S.l.held_cycles,
         (unsigned long long) S.m.money_supply, (unsigned long long) S.m.pot,
         (unsigned long long) S.e.last_imag_pool, (unsigned long long) S.o.tokens_saved, mood,
-        S.e.mood.intensity);
+        S.e.mood.intensity, (unsigned long long) S.spine.seq, (unsigned long long) S.spine.cycles,
+        S.spine.halted ? (int) S.spine.why : 0);
     for (uint32_t i = 0; i < S.num_agents; i++) {
         const agent_t *a = &S.agent[i];
         const swarm_slot_t *s = &S.b.slots[i];

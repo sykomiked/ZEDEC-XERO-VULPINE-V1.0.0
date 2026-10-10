@@ -55,13 +55,16 @@ case "${1:-srcs}" in
         echo src/social/zx_notify.c
         for f in src/swarm/swarm_*.c; do echo "$f"; done
         for f in src/tensor/zt*.c; do echo "$f"; done
+        # the settlement spine: swarm money on the ledger of record
+        echo src/settle/settle.c
+        for f in pay_ledger pay_util pay_assure; do echo "src/pay/$f.c"; done
         # one copy of each file: vinea and update share sha256, aead, hkdf, ubh,
         # event_envelope and the ML-DSA sources
         { vinea; update; } | awk '!seen[$0]++'
         ;;
     incs)
         # the last five are kernel/Makefile's CPATH
-        for d in arch/hosted src/swarm src/tensor src/zcapital src/social src/vinea src/lpres \
+        for d in arch/hosted src/swarm src/tensor src/settle src/pay src/zcapital src/social src/vinea src/lpres \
                  src/edp_risk src/update src/ipfs_node src/pqsec src/mlkem include src/modbind \
                  src/e8 src/event_space src/surplus; do
             echo "$d"

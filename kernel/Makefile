@@ -310,6 +310,7 @@ verify-all: test
 	@echo "=== vblock: CID-keyed VRAM block store (simulated GPU backend) ==="; \
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/vblock -Isrc/ipfs_node -Isrc/robin_debanks src/vblock/test_vblock.c src/vblock/vblock.c src/vblock/vblock_cpu.c src/vblock/vblock_sim.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/tensor/zt.c -o /tmp/test_vblock && /tmp/test_vblock > /tmp/test_vblock.log 2>&1 && echo "[PASS] test_vblock" || { tail -40 /tmp/test_vblock.log; echo "[FAIL] test_vblock"; exit 1; }
 	@echo "=== hosted app: API guard, budget gate, Vinea UDP host, end-to-end API, model slot, peers, updates, notifications ==="; \
+	$(MAKE) --no-print-directory test-settle
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
 	@echo "=== i18n: CLDR locales, catalogs, formatting, UTF-8, Enochian core ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/i18n src/i18n/test_i18n.c src/i18n/i18n_text.c src/i18n/i18n_locale.c src/i18n/i18n_format.c src/i18n/i18n_tables.c src/i18n/i18n_catalog.c -o /tmp/test_i18n && /tmp/test_i18n > /tmp/test_i18n.log 2>&1 && echo "[PASS] test_i18n" || { tail -40 /tmp/test_i18n.log; echo "[FAIL] test_i18n"; exit 1; }
@@ -1375,3 +1376,8 @@ test-swarm:
 clean:
 	rm -f $(KERNEL_OBJS) $(KERNEL_BIN) $(ISO_NAME)
 	rm -rf iso
+
+# The settlement spine (src/settle/settle.h): swarm money reconciled with pay_ledger.
+.PHONY: test-settle
+test-settle:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/settle -Isrc/pay -Isrc/swarm -Isrc/tensor -Isrc/mlkem -Isrc/zcapital -Isrc/modbind src/settle/test_settle.c src/settle/settle.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/tensor/zt.c src/mlkem/keccak.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_settle && /tmp/test_settle > /tmp/test_settle.log 2>&1 && echo "[PASS] test_settle ($$(tail -1 /tmp/test_settle.log))" || { cat /tmp/test_settle.log; echo "[FAIL] test_settle"; exit 1; }

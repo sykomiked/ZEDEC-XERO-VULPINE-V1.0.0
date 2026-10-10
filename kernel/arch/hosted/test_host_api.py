@@ -138,6 +138,9 @@ def main(binary, gguf=None):
         check(s['cycle'] > 0, 'market cycles ran')
         check(total == s['tokens_per_cycle'], 'allotments %d == T %d' % (total, s['tokens_per_cycle']))
         check(s['held'] == 0 and s['settled'] == s['cycle'], 'every cycle settled')
+        check(s['ledger_halt'] == 0 and s['ledger_synced'] == s['cycle'] and s['ledger_postings'] > 0,
+              'every cycle reconciled with the ledger of record (%d syncs, %d postings)' %
+              (s['ledger_synced'], s['ledger_postings']))
         check(len(s['agents']) >= 1 and s['agents'][0]['name'] == 'Companion', 'companion first')
         check('model' in s, 'state reports the model slot')
         c = s.get('companion', {})

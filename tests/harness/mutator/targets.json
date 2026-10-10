@@ -36,11 +36,14 @@
      "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q t1_alloc"},
     {"name": "audio_rings", "target": "kernel/src/audio/audio.c", "lines": "142-256,519-628",
      "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_audio",
-     "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_audio t1_alloc"}
+     "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_audio t1_alloc"},
+    {"name": "settle", "target": "kernel/src/settle/settle.c",
+     "before": null, "before_note": "new module: the settlement spine (A1 in docs/GAP_AUDIT.md)",
+     "after": "make -C kernel --no-print-directory test-settle"}
   ],
   "ci": {
-    "targets": ["rmag_core", "fs_malloc"],
-    "baseline_note": "measured 'after' scores on p10-integrate (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 86/90 (after the F-RMAG-OVF fix and its tests), fs_malloc 30/36",
-    "baseline": {"rmag_core": 0.9555, "fs_malloc": 0.8333}
+    "targets": ["rmag_core", "fs_malloc", "settle"],
+    "baseline_note": "measured 'after' scores on p10-integrate (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 86/90 (after the F-RMAG-OVF fix and its tests), fs_malloc 30/36, settle 175/197 (the 22 survivors are equivalent: array sizes, ties in the payer/payee pick, a loose loop bound, a dead NULL branch)",
+    "baseline": {"rmag_core": 0.9555, "fs_malloc": 0.8333, "settle": 0.8883}
   }
 }
