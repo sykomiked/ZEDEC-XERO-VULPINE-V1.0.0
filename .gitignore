@@ -58,3 +58,12 @@ __pycache__/
 
 # CI boot-check serial logs (build_system/ci_boot_check.sh)
 boot_*.log
+
+# Build outputs and binaries (never tracked)
+a.out
+*.pyc
+__pycache__/
+*.dll
+*.exe
+*.o
+*.elf
