@@ -217,6 +217,7 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [p2p_caracho](#p2p_caracho----superseded-p2p-transport) | superseded P2P transport | UNUSED/DEAD |
 | [panopticon](#panopticon----connection-watcher-and-vpn-mesh-model) | connection watcher and "VPN mesh" model | PARTIAL |
 | [pay](#pay----payment-ledger-tithe-iso-20022-equity-treasury-farm) | payment ledger, tithe, ISO 20022, equity, treasury, farm | WORKING (tested in verify-all) |
+| [peer_audit](#peer_audit----self-audit-and-peer-audit-for-swarm-transitions) | self-audit and peer audit for swarm transitions | WORKING (tested in verify-all) |
 | [pci](#pci----pci-enumeration-x86) | PCI enumeration (x86) | PARTIAL |
 | [phase_coord](#phase_coord----k6-phase-coordinator) | K6 phase coordinator | WORKING (tested in verify-all) |
 | [pic](#pic----8259-pic-x86) | 8259 PIC (x86) | PARTIAL |
@@ -1824,6 +1825,14 @@ Main entry points: pay_ledger_init, pay_ledger_post, pay_ledger_transfer, pay_le
 Tests: pay/test_pay.c — passes. group3 fuzzed both ISO parsers 200k iterations: clean.
 Used by: capmkt, devmesh, evolve, market, provider, quest. Hosted only.
 Gaps: not linked in a kernel.
+
+### peer_audit  —  self-audit and peer audit for swarm transitions
+Status: WORKING (tested in verify-all, also under ASan+UBSan; freestanding aarch64/i386 build checked)
+What it does: Two layers of checks. (1) Before a node signs a ledger, budget or task transition, pa_precommit_check tests conservation, overflow, token budget, ISF headroom and sizes. On failure nothing is signed and the node enters a contradiction state (value-equal to LPRES_STATE_BOTH). (2) Peers replay each signed record (ML-DSA-65) through the real pay_ledger and swarm_budget code and compare bit for bit. A committee is drawn deterministically from the record hash, with a 2f+1 of 3f+1 signed-vote quorum. Canary challenges use the normal request format. Signed evidence can be re-checked by any third node and isolates the misbehaving peer through a host revoke callback; no funds are ever moved. Evidence that does not verify counts against the accuser. Inference uses commit-and-sample spot checks. See docs/PEER_AUDIT.md.
+Main entry points: pa_precommit_check, pa_emit_record, pa_replay_check, pa_committee, pa_vote, pa_quorum, pa_evidence_make, pa_evidence_check, pa_canary_issue, pa_canary_check, pa_infer_commit, pa_spot_sampled, pa_spot_check, pa_runtime_replay.
+Tests: peer_audit/test_peer_audit.c — 101 checks pass.
+Used by: nothing yet (library).
+Gaps: not wired to any transport (vinea/app); the revoke callback is not yet connected to porter_house or vinea; there is no agreed per-epoch peer list; full GGUF model replay is not tested; state lives in memory only.
 
 ### pci  —  PCI enumeration (x86)
 Status: PARTIAL

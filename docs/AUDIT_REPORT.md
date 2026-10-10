@@ -82,6 +82,8 @@ drive the model's tokens; (GGUF Q5_0/Q5_1 weights are now read: FIXED, see gap 2
 IPFS or socket glue (so no offline/LAN/online modes yet) and does not link notifications, speech or
 the update checker; ehop is not wired into Vinea (payload and per-fragment overhead limits); capital
 forms are ordered four different ways across modules.
+peer_audit (self-audit plus peer replay, quorum, canaries and evidence; docs/PEER_AUDIT.md) is a
+tested library, but it is not yet joined to the vinea/app transport or to the porter_house/vinea revoke hooks.
 
 
 ## Owner requirements traceability
