@@ -3741,6 +3741,9 @@ void kernel_shell_exec(const char *line) {
             uart_puts(" ON PROBATION. 'confirm' to promote, 'rollback' to revert.\r\n");
         } else if (r == AB_ERR_VERIFY) {
             uart_puts("update: SIGNATURE REJECTED — active slot unchanged\r\n");
+        } else if (r == AB_ERR_ROLLBACK) {
+            uart_puts("update: ROLLBACK REFUSED — version not newer than active/floor (or "
+                      "unversioned v1)\r\n");
         } else {
             uart_puts("update: failed\r\n");
         }
@@ -3749,9 +3752,11 @@ void kernel_shell_exec(const char *line) {
     if (strcmp(line, "confirm") == 0) {
         if (!g_ab_ready) { uart_puts("confirm: no A/B state\r\n"); return; }
         ab_result_t r = ab_confirm(&g_zxvfs, &g_ab);
-        uart_puts(r == AB_OK ? "confirm: probation slot promoted to active\r\n"
+        uart_puts(r == AB_OK         ? "confirm: probation slot promoted to active\r\n"
                   : r == AB_ERR_NONE ? "confirm: nothing on probation\r\n"
-                  : "confirm: failed\r\n");
+                  : r == AB_ERR_ROLLBACK
+                      ? "confirm: REFUSED — probation package not newer; discarded\r\n"
+                      : "confirm: failed\r\n");
         return;
     }
     if (strcmp(line, "rollback") == 0) {

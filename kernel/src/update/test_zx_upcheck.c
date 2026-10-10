@@ -1122,9 +1122,27 @@ static void test_fixed_cid_e2e(void)
         memcpy(sig, cat->upd[0].sig, 64);
         CHECK(!zxu_catalog_verify(fake, 32, sig, cat->upd[0].author),
               "attestation for content no manifest listed: refused");
-        sig[0] ^= 1;
+        uint8_t md[32];
+        CHECK(upd_manifest_digest(&cat->upd[0], md) &&
+                  zxu_catalog_verify(md, 32, sig, cat->upd[0].author),
+              "attestation covers the entry's complete-manifest digest");
         CHECK(!zxu_catalog_verify(cat->upd[0].cid, 32, sig, cat->upd[0].author),
-              "altered attestation: refused");
+              "attestation over the bare CID (old format): refused");
+        {
+            upd_entry_t e2 = cat->upd[0];
+            uint8_t md2[32];
+            e2.version += 1;
+            CHECK(upd_manifest_digest(&e2, md2) &&
+                      !zxu_catalog_verify(md2, 32, sig, cat->upd[0].author),
+                  "catalog entry with a bumped version: attestation refused");
+            e2 = cat->upd[0];
+            e2.arch[0] = e2.arch[0] == 'x' ? 'y' : 'x';
+            CHECK(upd_manifest_digest(&e2, md2) &&
+                      !zxu_catalog_verify(md2, 32, sig, cat->upd[0].author),
+                  "catalog entry with another arch: attestation refused");
+        }
+        sig[0] ^= 1;
+        CHECK(!zxu_catalog_verify(md, 32, sig, cat->upd[0].author), "altered attestation: refused");
     }
     /* other system states */
     c->installed = ZXU_VERSION(1, 2, 0);

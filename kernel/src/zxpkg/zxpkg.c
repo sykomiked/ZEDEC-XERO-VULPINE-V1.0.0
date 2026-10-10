@@ -2,6 +2,7 @@
 #include "zxpkg.h"
 #include "../robin_debanks/sha256.h"
 #include "../loader/zsp.h"
+#include "../provenance/zx_provenance.h"
 
 static void put32le(uint8_t *p, uint32_t v) {
     p[0]=(uint8_t)v; p[1]=(uint8_t)(v>>8); p[2]=(uint8_t)(v>>16); p[3]=(uint8_t)(v>>24);
@@ -168,15 +169,37 @@ const char *zxrel_strerror(zxrel_t r) {
     case ZXREL_UNSIGNED:      return "no valid signature envelope";
     case ZXREL_BAD_SIG:       return "signature not from the root key";
     case ZXREL_SEAL_MISMATCH: return "signed over a different triad's seal";
+    case ZXREL_ROLLBACK:
+        return "release version below the rollback floor";
+    case ZXREL_ARCH:
+        return "release signed for another architecture";
+    case ZXREL_MANIFEST_MISMATCH:
+        return "signed identity does not match the release manifest";
     }
     return "unknown";
 }
 
-zxrel_t zxpkg_verify_release(const uint8_t *pos, uint32_t pos_len,
-                             const uint8_t *neg, uint32_t neg_len,
-                             const uint8_t *neu, uint32_t neu_len,
-                             const uint8_t *zsp, uint32_t zsp_len,
-                             const uint8_t root_pubkey[32]) {
+bool zxpkg_release_identity(const uint8_t triad_id[TRI_ID_LEN], uint32_t version, uint16_t zsp_arch,
+                            const uint8_t seal[TRI_DIGEST_LEN], uint8_t out[32])
+{
+    static const char *const ARCH[] = {"any", "aarch64", "x86_64", "riscv64", "riscv32", "arm32"};
+    for (uint32_t i = 0; i < 32; i++) out[i] = 0;
+    if (!triad_id || !seal || zsp_arch >= sizeof ARCH / sizeof ARCH[0]) return false;
+    zxp_manifest_t m;
+    m.package_id = zxp_mem(triad_id, TRI_ID_LEN);
+    m.version = version;
+    m.arch = zxp_str(ARCH[zsp_arch]);
+    m.deps = 0;
+    m.n_deps = 0;
+    m.cid = zxp_mem(seal, TRI_DIGEST_LEN);
+    return zxp_manifest_digest(ZXP_DOMAIN_ZXPKG, &m, out);
+}
+
+zxrel_t zxpkg_verify_release(const uint8_t *pos, uint32_t pos_len, const uint8_t *neg,
+                             uint32_t neg_len, const uint8_t *neu, uint32_t neu_len,
+                             const uint8_t *zsp, uint32_t zsp_len, const uint8_t root_pubkey[32],
+                             uint32_t min_version, uint16_t expected_arch, uint32_t *version_out)
+{
     /* 1. the triad must be intact and releasable */
     if (zxpkg_verify_triad(pos, pos_len, neg, neg_len, neu, neu_len) != TRI_Q_NONE)
         return ZXREL_TRIAD_BAD;
@@ -185,24 +208,38 @@ zxrel_t zxpkg_verify_release(const uint8_t *pos, uint32_t pos_len,
     zxpkg_member_t m;
     if (!zxpkg_read(pos, pos_len, &m)) return ZXREL_TRIAD_BAD;
 
-    /* 2. the ZSP envelope must verify against the root key */
+    /* 2. the ZSP v2 envelope must verify against the root key, at or above the
+     * caller's version floor and for the caller's architecture. A v1 envelope
+     * (no signed version) is not accepted: ZSP_ERR_MAGIC -> UNSIGNED. */
     const uint8_t *payload = 0; uint32_t plen = 0;
-    zsp_result_t zr = zsp_verify(zsp, zsp_len, root_pubkey, &payload, &plen);
-    if (zr == ZSP_ERR_SIG) return ZXREL_BAD_SIG;
-    if (zr != ZSP_OK)      return ZXREL_UNSIGNED;
+    zsp_meta_t meta;
+    zsp_result_t zr =
+        zsp_verify2(zsp, zsp_len, root_pubkey, min_version, expected_arch, &meta, &payload, &plen);
+    if (zr == ZSP_ERR_SIG || zr == ZSP_ERR_KEYID) return ZXREL_BAD_SIG;
+    if (zr == ZSP_ERR_ROLLBACK) return ZXREL_ROLLBACK;
+    if (zr == ZSP_ERR_ARCH) return ZXREL_ARCH;
+    if (zr != ZSP_OK) return ZXREL_UNSIGNED;
 
     /* 3. and it must be a signature over THIS triad's seal, not another's */
     if (plen != TRI_DIGEST_LEN || !eq(payload, m.seal, TRI_DIGEST_LEN))
         return ZXREL_SEAL_MISMATCH;
 
+    /* 4. the signed identity must be the canonical manifest digest of this
+     * release (triad id, version, arch, seal) */
+    uint8_t ident[32];
+    if (!zxpkg_release_identity(m.triad_id, meta.version, meta.arch, m.seal, ident) ||
+        !eq(ident, meta.identity, 32))
+        return ZXREL_MANIFEST_MISMATCH;
+
+    if (version_out) *version_out = meta.version;
     return ZXREL_OK;
 }
 
 /* ---- DECLARATION -----------------------------------------------------------
 
  * The package format. All three requirements are measured from zxpkg.o's
- * `nm -u` = {sha256, tri_bind, tri_compiled_extension, tri_init,
- * tri_set_member, zsp_verify}: a digest (sha256_ready), the S+/S0/S- triad
+ * `nm -u` = {sha256 (+ _init/_update/_final), tri_bind, tri_compiled_extension, tri_init,
+ * tri_set_member, zsp_verify2}: a digest (sha256_ready), the S+/S0/S- triad
  * binder (trispace_ready, kernel/src/trispace/trispace.c), and the signed
  * package verifier (zsp_verify_ready, kernel/src/loader/zsp.c). Three modules,
  * three directories, none of them called zxpkg.
