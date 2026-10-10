@@ -82,7 +82,7 @@
 #include <stdbool.h>
 #include "pay_util.h"
 #include "pay_ledger.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 #include "pay_roles.h"
 
 typedef enum {

@@ -353,9 +353,9 @@ JNIEXPORT jint JNICALL FN(nativeMoneyAnswer)(JNIEnv *env, jobject self, jboolean
     return zxv_money_answer(approve ? 1 : 0, (uint64_t) now);
 }
 
-JNIEXPORT jlong JNICALL FN(nativeTithe)(JNIEnv *env, jobject self, jlong amount)
+JNIEXPORT jlong JNICALL FN(nativeAssureFee)(JNIEnv *env, jobject self, jlong amount)
 {
     (void) env;
     (void) self;
-    return amount < 0 ? -1 : (jlong) zxv_tithe((uint64_t) amount);
+    return amount < 0 ? -1 : (jlong) zxv_assure_fee((uint64_t) amount);
 }

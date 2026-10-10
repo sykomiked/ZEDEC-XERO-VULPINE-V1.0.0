@@ -1,9 +1,9 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* mk_order.c — the order state machine, escrow book, tithe, refunds,
+/* mk_order.c — the order state machine, escrow book, assurance fee, refunds,
  * disputes and returns. See market.h (M2..M4). */
 #include "mk_internal.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
 #define S_NONE  MK_ORD_FREE
 #define S_PRIOR MK_ORD_STATE_COUNT
@@ -94,14 +94,14 @@ static void restore_units(mk_market_t *m, const mk_line_t *ln, uint32_t qty)
     if (L->spec.kind == MK_KIND_BOOKING) L->spec.slot[ln->slot].booked -= qty;
 }
 
-/* ----- release: escrow to seller / commons / tax, tithe once (M3) ----- */
+/* ----- release: escrow to seller / commons / tax, afee once (M3) ----- */
 static mk_status_t release_all(mk_market_t *m, uint16_t h, mk_order_t *o, mk_settle_kind_t k)
 {
     uint64_t base = o->held_base, tax = o->held_tax;
     uint64_t rel = o->released_base + base;
-    uint64_t t_new = pay_tithe_phi(rel - o->returned_base);
-    uint64_t delta = t_new - o->tithe_charged;
-    if (delta > base) return MK_ERR_OVERFLOW; /* cannot happen: tithe(a+b)-tithe(a) <= b */
+    uint64_t t_new = pay_assure_fee(rel - o->returned_base);
+    uint64_t delta = t_new - o->fee_charged;
+    if (delta > base) return MK_ERR_OVERFLOW; /* cannot happen: fee(a+b)-fee(a) <= b */
     mk_settle_t s;
     settle_init(&s, k, h, o);
     s.to_commons = delta;
@@ -116,7 +116,7 @@ static mk_status_t release_all(mk_market_t *m, uint16_t h, mk_order_t *o, mk_set
     o->to_commons += s.to_commons;
     o->to_tax += s.to_tax;
     o->released_base = rel;
-    o->tithe_charged = t_new;
+    o->fee_charged = t_new;
     o->held_base = 0;
     o->held_tax = 0;
     if (base || tax) o->settled = true;
@@ -166,7 +166,7 @@ static bool prerelease(const mk_order_t *o)
 }
 
 /* Refund k units of line `li`. Pre-release money comes out of escrow;
- * post-release the seller funds it, the commons returns the tithe
+ * post-release the seller funds it, the commons returns the afee
  * difference and (facilitator mode) the tax account returns the tax. */
 static mk_status_t refund_units(mk_market_t *m, uint16_t h, mk_order_t *o, uint8_t li, uint32_t k,
                                 bool *seller_failed)
@@ -178,17 +178,17 @@ static mk_status_t refund_units(mk_market_t *m, uint16_t h, mk_order_t *o, uint8
     mk_settle_t s;
     settle_init(&s, MK_SETTLE_REFUND, h, o);
     s.to_buyer = R;
-    uint64_t ret_base = o->returned_base, tithe = o->tithe_charged;
+    uint64_t ret_base = o->returned_base, afee = o->fee_charged;
     bool from_escrow = prerelease(o);
     if (!from_escrow) {
         /* Post-release: what the seller actually received for these units. */
         ret_base = o->returned_base + B;
-        uint64_t t_new = pay_tithe_phi(o->released_base - ret_base);
-        uint64_t back = o->tithe_charged - t_new;
+        uint64_t t_new = pay_assure_fee(o->released_base - ret_base);
+        uint64_t back = o->fee_charged - t_new;
         s.from_commons = back;
         s.from_tax = m->policy.facilitator_remits_tax ? T : 0;
         s.from_seller = R - back - s.from_tax;
-        tithe = t_new;
+        afee = t_new;
     }
     if (!mk__settle(m, &s)) {
         if (seller_failed) *seller_failed = !from_escrow;
@@ -203,7 +203,7 @@ static mk_status_t refund_units(mk_market_t *m, uint16_t h, mk_order_t *o, uint8
         o->commons_returned += s.from_commons;
         o->tax_returned += s.from_tax;
         o->returned_base = ret_base;
-        o->tithe_charged = tithe;
+        o->fee_charged = afee;
     }
     ln->refunded_qty += k;
     ln->refunded_total += R;
@@ -307,8 +307,8 @@ mk_status_t mk_order_cancel(mk_market_t *m, uint16_t h, const mk_id_t *actor)
         return MK_OK;
     }
     /* One atomic settlement: buyer gets everything but the fee; the fee is the
-     * seller's revenue (tithed once); all tax goes back to the buyer. */
-    uint64_t t_new = pay_tithe_phi(fee);
+     * seller's revenue (fee charged once); all tax goes back to the buyer. */
+    uint64_t t_new = pay_assure_fee(fee);
     mk_settle_t s;
     settle_init(&s, MK_SETTLE_REFUND, h, o);
     s.to_buyer = held(o) - fee;
@@ -320,7 +320,7 @@ mk_status_t mk_order_cancel(mk_market_t *m, uint16_t h, const mk_id_t *actor)
     o->to_seller += s.to_seller;
     o->released_base = fee;
     o->cancel_fee = fee;
-    o->tithe_charged = t_new;
+    o->fee_charged = t_new;
     o->held_base = 0;
     o->held_tax = 0;
     o->settled = true;
@@ -481,7 +481,7 @@ void mk_ruling_digest(const mk_market_t *m, uint16_t h, uint64_t award, uint8_t 
 }
 
 /* Split held escrow: `award` to the buyer (tax proportionally, floor), the
- * rest released to the seller with the tithe once. */
+ * rest released to the seller with the afee once. */
 static mk_status_t finalize_ruling(mk_market_t *m, uint16_t h, mk_order_t *o, uint64_t award)
 {
     uint64_t H = held(o);
@@ -491,8 +491,8 @@ static mk_status_t finalize_ruling(mk_market_t *m, uint16_t h, mk_order_t *o, ui
     uint64_t base_b = award - tax_b;
     uint64_t base_s = o->held_base - base_b, tax_s = o->held_tax - tax_b;
     uint64_t rel = o->released_base + base_s;
-    uint64_t t_new = pay_tithe_phi(rel - o->returned_base);
-    uint64_t delta = t_new - o->tithe_charged;
+    uint64_t t_new = pay_assure_fee(rel - o->returned_base);
+    uint64_t delta = t_new - o->fee_charged;
     if (delta > base_s) return MK_ERR_OVERFLOW;
     mk_settle_t s;
     settle_init(&s, MK_SETTLE_RULING, h, o);
@@ -510,7 +510,7 @@ static mk_status_t finalize_ruling(mk_market_t *m, uint16_t h, mk_order_t *o, ui
     o->to_commons += s.to_commons;
     o->to_tax += s.to_tax;
     o->released_base = rel;
-    o->tithe_charged = t_new;
+    o->fee_charged = t_new;
     o->held_base = 0;
     o->held_tax = 0;
     if (base_s || tax_s) o->settled = true;
@@ -671,10 +671,10 @@ bool mk_order_conserved(const mk_market_t *m, uint16_t h)
         break;
     }
     if (o->to_commons < o->commons_returned ||
-        o->to_commons - o->commons_returned != o->tithe_charged)
+        o->to_commons - o->commons_returned != o->fee_charged)
         return false;
     if (o->returned_base > o->released_base ||
-        o->tithe_charged != pay_tithe_phi(o->released_base - o->returned_base))
+        o->fee_charged != pay_assure_fee(o->released_base - o->returned_base))
         return false;
     uint64_t rsum = 0;
     for (uint32_t i = 0; i < o->n_lines; i++) {

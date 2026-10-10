@@ -93,6 +93,7 @@
 #include <stdbool.h>
 #include "pay_util.h"
 #include "pay_rails.h"
+#include "pay_assure.h"
 #include "../zcapital/zcap_forms.h"
 
 /* ===== Rails ===== */
@@ -221,11 +222,12 @@ typedef struct {
     uint64_t debit;
     uint64_t credit;
     int64_t equity;
+    uint64_t fee_carry; /* pay_assure.h F2: sub-unit fee remainder, < 10^7 */
     bool active;
 } pay_account_t;
 
 /* ===== Postings ===== */
-#define PAY_MAX_LINES 8u
+#define PAY_MAX_LINES 8u /* >= from, to, 4 fee buckets, 2 VFV lines */
 #define PAY_E2E_MAX   35u
 #define PAY_MEMO_MAX  35u
 
@@ -239,7 +241,7 @@ typedef enum {
     PAY_KIND_TRANSFER = 0,
     PAY_KIND_ISSUE = 1,
     PAY_KIND_REDEEM = 2,
-    PAY_KIND_TITHE = 3,
+    PAY_KIND_FEE = 3,
     PAY_KIND_RETURN = 4,
     PAY_KIND_TRADE = 5,
     PAY_KIND_ADJUST = 6
@@ -353,13 +355,19 @@ pay_status_t pay_ledger_redeem(pay_ledger_t *L, pay_posting_req_t *req, uint32_t
 pay_status_t pay_ledger_reverse(pay_ledger_t *L, pay_posting_req_t *req, const char *orig_uetr,
                                 pay_receipt_t *rc);
 
-/* A payment with the tithe: from -> to `amount`, plus `contribution` from
- * `from` to `commons` (same asset), plus `vfv_credit` VFV issued by
- * `vfv_issuer` to `vfv_to`, all in ONE atomic posting. */
-pay_status_t pay_ledger_pay_tithed(pay_ledger_t *L, pay_posting_req_t *req, uint32_t from,
-                                   uint32_t to, uint64_t amount, uint32_t commons,
-                                   uint64_t contribution, uint32_t vfv_issuer, uint32_t vfv_to,
-                                   uint64_t vfv_credit, pay_receipt_t *rc);
+/* A payment carrying the 0.08889% assurance fee (pay_assure.h), in ONE
+ * atomic posting: `from` pays `amount` to `to`, plus the fee on `amount`
+ * computed with `from`'s sub-unit carry (F2), partitioned exactly into the
+ * four bucket accounts bucket[PAY_ASSURE_*] (B1, remainder to the reserve
+ * floor), plus a voluntary `excess` (to the reserve floor), plus `vfv_credit`
+ * VFV issued by `vfv_issuer` to `vfv_to`. The fee is on `amount` only, once
+ * (never on the fee or the excess). The carry is committed only when the
+ * posting returns PAY_OK. *fee_out (optional) gets the fee charged. */
+pay_status_t pay_ledger_pay_with_fee(pay_ledger_t *L, pay_posting_req_t *req, uint32_t from,
+                                     uint32_t to, uint64_t amount,
+                                     const uint32_t bucket[PAY_ASSURE_BUCKETS], uint64_t excess,
+                                     uint32_t vfv_issuer, uint32_t vfv_to, uint64_t vfv_credit,
+                                     pay_receipt_t *rc, uint64_t *fee_out);
 
 /* L2 + L3 over the whole ledger. */
 bool pay_ledger_check(const pay_ledger_t *L);

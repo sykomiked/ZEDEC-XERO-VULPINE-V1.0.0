@@ -83,9 +83,9 @@ struct WalletView: View {
             Section("Rails") {
                 Text(Vfv.railName(555)); Text(Vfv.railName(777)); Text(Vfv.railName(888))
             }
-            Section("Tithe preview") {
+            Section("Assurance fee preview (0.08889%)") {
                 Slider(value: $amount, in: 0...1_000_000, step: 100)
-                Text("\(Vfv.format(Int64(amount))) VFV → tithe \(Vfv.format(Int64(m.tithe(UInt64(amount))))) VFV")
+                Text("\(Vfv.format(Int64(amount))) VFV → fee \(Vfv.format(Int64(m.assureFee(UInt64(amount))))) VFV")
                     .font(.system(.body, design: .monospaced))
             }
             Section { Text("Payments need a confirmation on a device you hold. No interest is ever charged.").foregroundColor(Zc.muted) }

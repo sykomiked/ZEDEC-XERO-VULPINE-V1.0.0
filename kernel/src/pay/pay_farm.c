@@ -19,18 +19,21 @@ void pay_farm_cfg_default(pay_farm_cfg_t *c)
 }
 
 pay_status_t pay_farm_init(pay_farm_ctx_t *F, pay_ledger_t *L, const pay_farm_cfg_t *cfg,
-                           uint32_t platform_owner, uint32_t commons_acct,
+                           uint32_t platform_owner, const uint32_t fee_acct[PAY_ASSURE_BUCKETS],
                            pay_farm_verify_fn verify, pay_farm_replicate_fn replicate, void *cb_ctx,
                            pay_equity_t *eq)
 {
-    if (!F || !L || !cfg || !verify || !replicate) return PAY_ERR_ARG;
+    if (!F || !L || !cfg || !verify || !replicate || !fee_acct) return PAY_ERR_ARG;
     if (cfg->sample_rate.den == 0 || cfg->cap_share.den == 0 || cfg->max_strikes == 0)
         return PAY_ERR_ARG;
     for (uint32_t k = 0; k < PAY_WORK_KIND_COUNT; k++)
         if (cfg->rate[k].den == 0) return PAY_ERR_ARG;
-    const pay_account_t *ca = pay_ledger_account(L, commons_acct);
-    if (!ca || ca->asset != L->vfv_asset || !(ca->flags & PAY_ACCT_COMMONS))
-        return PAY_ERR_NO_ACCOUNT;
+    for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) {
+        const pay_account_t *ba = pay_ledger_account(L, fee_acct[b]);
+        if (!ba || ba->asset != L->vfv_asset || !(ba->flags & PAY_ACCT_COMMONS))
+            return PAY_ERR_NO_ACCOUNT;
+    }
+    const pay_account_t *ca = pay_ledger_account(L, fee_acct[PAY_ASSURE_RESERVE_FLOOR]);
     pay_memset(F, 0, sizeof *F);
     F->L = L;
     F->eq = eq;
@@ -38,7 +41,7 @@ pay_status_t pay_farm_init(pay_farm_ctx_t *F, pay_ledger_t *L, const pay_farm_cf
     F->verify = verify;
     F->replicate = replicate;
     F->cb_ctx = cb_ctx;
-    F->commons_acct = commons_acct;
+    for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) F->fee_acct[b] = fee_acct[b];
     F->commons_owner = ca->owner;
     return pay_ledger_open(L, platform_owner, L->vfv_asset, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER,
                            &F->issuer_acct);
@@ -313,11 +316,17 @@ pay_status_t pay_farm_close_period(pay_farm_ctx_t *F, const uint8_t beacon[32], 
         pay_farm_t *f = &F->farm[j];
         if (!e[j]) continue;
         uint64_t g = e[j] < c ? e[j] : c;
-        uint64_t t = pay_tithe_phi(g), net = g - t;
+        uint64_t t, t_rem, part[PAY_ASSURE_BUCKETS];
+        if (!pay_assure_fee_carry(f->fee_carry, g, &t, &t_rem)) {
+            err = PAY_ERR_STATE;
+            continue;
+        }
+        pay_assure_split(t, part);
+        uint64_t net = g - t; /* t <= g: the fee is a fraction of the gross */
         uint64_t ncap, fm, Fm, Ft, Fn;
         /* every counter this mint touches must fit, or nothing is minted */
         if (!pay_add_ok(f->capped, e[j] - g, &ncap) || !pay_add_ok(f->minted, g, &fm) ||
-            !pay_add_ok(F->minted, g, &Fm) || !pay_add_ok(F->tithed, t, &Ft) ||
+            !pay_add_ok(F->minted, g, &Fm) || !pay_add_ok(F->fees, t, &Ft) ||
             !pay_add_ok(F->net, net, &Fn)) {
             err = PAY_ERR_OVERFLOW;
             continue;
@@ -336,9 +345,10 @@ pay_status_t pay_farm_close_period(pay_farm_ctx_t *F, const uint8_t beacon[32], 
             rq.lines[n].d_debit = (int64_t) net;
             rq.lines[n++].d_credit = 0;
         }
-        if (t) {
-            rq.lines[n].account = F->commons_acct;
-            rq.lines[n].d_debit = (int64_t) t;
+        for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) {
+            if (!part[b]) continue;
+            rq.lines[n].account = F->fee_acct[b];
+            rq.lines[n].d_debit = (int64_t) part[b];
             rq.lines[n++].d_credit = 0;
         }
         rq.n_lines = n;
@@ -351,7 +361,8 @@ pay_status_t pay_farm_close_period(pay_farm_ctx_t *F, const uint8_t beacon[32], 
         }
         f->minted = fm;
         F->minted = Fm;
-        F->tithed = Ft;
+        f->fee_carry = t_rem;
+        F->fees = Ft;
         F->net = Fn;
         if (F->eq && F->eq->vfv.ready) {
             if (net && pay_vfv_equity_on_mint(F->eq, f->owner, f->path, net) != PAY_OK)
@@ -389,7 +400,7 @@ bool pay_farm_audit(const pay_farm_ctx_t *F)
         if (f->pending) return false;              /* nothing left unminted */
         sum += f->minted;
     }
-    if (sum != F->minted || F->minted != F->tithed + F->net) return false; /* I3 */
+    if (sum != F->minted || F->minted != F->fees + F->net) return false; /* I3 */
     if (F->burned > F->minted) return false;
     const pay_account_t *ia = pay_ledger_account(F->L, F->issuer_acct);
     if (!ia || ia->credit != F->minted - F->burned) return false; /* I2 */

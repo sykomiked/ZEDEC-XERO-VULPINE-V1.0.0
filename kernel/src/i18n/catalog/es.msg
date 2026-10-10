@@ -44,7 +44,7 @@ ASSIST_ASK_LABEL|-|machine|Preguntar al asistente
 PAY_CONFIRM_TITLE|-|machine|Confirmar pago
 PAY_TO|-|machine|Para
 PAY_AMOUNT|-|machine|Importe
-PAY_TITHE|-|machine|Diezmo de la red (φ %)
+PAY_FEE|-|machine|Tarifa de garantía (0,08889 %)
 PAY_RECORD|-|machine|Registro
 PAY_BUTTON|-|machine|Pagar {0}
 PAY_VERIFIED_PEER|-|machine|par verificado
@@ -101,7 +101,7 @@ CALL_MUTE|-|machine|Silenciar
 FARM_TITLE|-|machine|Su granja
 FARM_THIS_DEVICE|-|machine|Este dispositivo
 FARM_IDLE_SHARE|-|machine|{0} de la capacidad de cálculo inactiva
-FARM_EARNED_TODAY|-|machine|Ganado hoy, después del diezmo
+FARM_EARNED_TODAY|-|machine|Ganado hoy, después de la tarifa de garantía
 FARM_VERIFIED|-|machine|Trabajo verificado por pares
 
 UPD_BUCKETS|-|machine|Repositorios de actualizaciones
@@ -113,7 +113,7 @@ UPD_RATINGS|other|machine|{0} de 5 según {1} valoraciones
 UPD_READY|-|machine|{0} lista para instalar
 UPD_RATINGS_NO_TRUST|-|machine|las valoraciones nunca otorgan confianza para instalar
 
-WAL_TITLE|-|machine|Monedero y diezmo
+WAL_TITLE|-|machine|Monedero y tarifas
 WAL_ROLE|-|machine|Tipo de cuenta
 WAL_ROLE_INDIVIDUAL|-|machine|Particular
 WAL_ROLE_SELFBANK|-|machine|Operador de autobanca
@@ -130,12 +130,12 @@ CAP_KNOWLEDGE|-|machine|Conocimiento
 CAP_BUILT|-|machine|Construido
 CAP_FINANCIAL|-|machine|Financiero
 
-TITHE_TITLE|-|machine|Diezmo de la red
-TITHE_EXPLAIN|-|machine|Cada nodo aporta φ por ciento del cálculo, el ancho de banda y el dinero que usa, para que la red siga siendo rápida para todos. Lo que aporte por encima de eso le hace ganar vales.
-TITHE_BASE|-|machine|Diezmo básico
-TITHE_YOUR_CONTRIB|-|machine|Su aportación:
-TITHE_ABOVE|-|machine|Por encima del diezmo en {0} del uso. Ese excedente se le abona en vales.
-TITHE_EXACT|-|machine|Aporta exactamente el diezmo básico. Mueva el control deslizante para aportar más y ganar vales.
+FEE_TITLE|-|machine|Tarifa de garantía de la red
+FEE_EXPLAIN|-|machine|Cada pago lleva una tarifa de garantía del 0,08889 %. La mitad respalda la reserva mínima del Vino; el resto financia el fondo de dividendos V-Bill, las recompensas de nodos y el capital regenerativo. Lo que aporte por encima le hace ganar vales.
+FEE_BASE|-|machine|Tarifa básica
+FEE_YOUR_CONTRIB|-|machine|Su aportación:
+FEE_ABOVE|-|machine|Por encima de la tarifa en {0} del uso. Ese excedente se le abona en vales.
+FEE_EXACT|-|machine|Aporta exactamente la tarifa básica. Mueva el control deslizante para aportar más y ganar vales.
 
 ERR_GENERIC|-|machine|Se ha producido un error. Inténtelo de nuevo.
 ERR_NETWORK|-|machine|No se pudo acceder a la red. Su acción se ha guardado y se enviará más tarde.

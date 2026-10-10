@@ -15,9 +15,10 @@ import org.zedec.zxv.model.Zxv
 
 @Composable
 fun WalletScreen(state: AppState) {
-    val give = state.giveBasisPoints
+    val give = state.giveTenMillionths
     val example = 10_000L // 100.00 VFV of usage
-    val tithe = state.core.tithe(example)
+    val fee = state.core.assureFee(example)
+    fun pct(v: Int) = "${v / 100_000}.${(v % 100_000).toString().padStart(5, '0')}%"
     LazyColumn {
         item {
             ScreenTitle("Wallet")
@@ -26,19 +27,19 @@ fun WalletScreen(state: AppState) {
                 Muted("VFV · rails DEBIT 555 / CREDIT 777 / EQUITY 888. Balance appears once the wallet ledger is bridged.")
                 Muted("Every payment is confirmed on a device you hold. No interest and no late fees, ever.")
             }
-            Panel(title = "Network tithe") {
-                Muted("Every node gives φ percent of the compute, bandwidth and money it uses, so the network stays fast for everyone. Anything above that earns vouchers.")
-                Row { Text("Base tithe ", color = Zc.Text); MonoText("φ% = 1.6180339887…%") }
-                Row { Text("On 100.00 VFV of use: ", color = Zc.Text); MonoText("${Zxv.vfv(tithe)} VFV (exact, integer)") }
-                Text("Your contribution: ${give / 100}.${(give % 100).toString().padStart(2, '0')}%", color = Zc.Text)
+            Panel(title = "Network assurance fee") {
+                Muted("Every payment carries a 0.08889% assurance fee. Half backs the Vino reserve floor; the rest funds the V-Bill dividend pool, node bounties and regenerative capital. Anything above it earns vouchers.")
+                Row { Text("Base fee ", color = Zc.Text); MonoText("0.08889% = 8889 / 10,000,000") }
+                Row { Text("On 100.00 VFV of use: ", color = Zc.Text); MonoText("${Zxv.vfv(fee)} VFV (exact, integer; sub-unit remainders carry to the next payment)") }
+                Text("Your contribution: ${pct(give)}", color = Zc.Text)
                 Slider(
                     value = give.toFloat(),
-                    onValueChange = { state.giveBasisPoints = it.toInt() },
-                    valueRange = 162f..500f,
+                    onValueChange = { state.giveTenMillionths = it.toInt() },
+                    valueRange = 8889f..500000f,
                 )
                 Muted(
-                    if (give > 162) "Above the tithe by ${(give - 162) / 100}.${((give - 162) % 100).toString().padStart(2, '0')}% of usage: credited to you as vouchers."
-                    else "You give exactly the base tithe. Move the slider to give more and earn vouchers."
+                    if (give > 8889) "Above the fee by ${pct(give - 8889)} of usage: credited to you as vouchers."
+                    else "You give exactly the base fee. Move the slider to give more and earn vouchers."
                 )
             }
             Panel(title = "Recent activity") {

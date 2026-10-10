@@ -9,7 +9,7 @@ void prov_cm_id(const uint8_t id[PROV_ID_LEN], uint8_t out[CM_ID_BYTES])
     prov_memcpy(out, id, CM_ID_BYTES);
 }
 
-uint64_t prov_cm_tithe(void *ctx, uint64_t amount)
+uint64_t prov_cm_fee(void *ctx, uint64_t amount)
 {
     const prov_cm_t *b = (const prov_cm_t *) ctx;
     return b ? prov_fee(b->n, amount) : 0;
@@ -23,7 +23,7 @@ void prov_cm_bind(prov_cm_t *b, prov_net_t *n, cm_market_t *m, cm_params_t *para
     b->m = m;
     if (params) {
         cm_params_default(params);
-        params->tithe = prov_cm_tithe;
+        params->fee = prov_cm_fee;
         params->verify = prov_cm_verify;
         params->ctx = b;
     }

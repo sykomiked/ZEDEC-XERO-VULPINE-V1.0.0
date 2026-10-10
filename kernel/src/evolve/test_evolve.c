@@ -11,7 +11,7 @@
  *  T6  random lineage DAGs: insertion-order independence of every state
  *  T7  trust: the update module's publisher list, pins, ratings
  *  T8  adoption sketches: opt-in, idempotent merge, estimate accuracy
- *  T9  conformance: exact tithe checker vs pay_tithe_phi, pinned suite,
+ *  T9  conformance: exact fee checker vs pay_assure_fee, pinned suite,
  *      challenge/response, gating money paths only
  *  T10 device profiles mixing modules from different forks
  */
@@ -23,7 +23,7 @@
 #include "pq_matrix.h"
 #include "update.h"
 #include "zx_upcheck.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 
 static int g_pass, g_fail;
 #define CHECK(c)                                                                                   \
@@ -888,13 +888,13 @@ static bool up_spend(const evo_consent_t *c, uint64_t a, uint64_t now)
     return c->granted && a <= c->max_amount && now < c->expires_at;
 }
 /* broken forks */
-static uint64_t bad_tithe_618(uint64_t a)
+static uint64_t bad_fee_tithe(uint64_t a)
 {
-    return a / 1000 * 618;
+    return a / 1000 * 16; /* the retired ~1.6% tithe rate */
 }
-static uint64_t bad_tithe_ceil(uint64_t a)
+static uint64_t bad_fee_ceil(uint64_t a)
 {
-    return pay_tithe_phi(a) + (a % 7 == 3 ? 1 : 0);
+    return pay_assure_fee(a) + (a % 7 == 3 ? 1 : 0);
 }
 static uint64_t bad_repay(uint64_t p, uint32_t days)
 {
@@ -919,26 +919,27 @@ static void bad_hash(const uint8_t *m, uint32_t l, uint8_t o[32])
 static void t9_conformance(void)
 {
     printf("T9 conformance\n");
-    /* the exact checker agrees with pay_tithe_phi everywhere we look */
-    static const uint64_t edges[] = {
-        0,          1,     2,        61, 62, 123, 124, 199, 200, 1000, 1ull << 32, (1ull << 63) - 1,
-        1ull << 63, ~0ull, ~0ull - 1};
+    /* the exact checker agrees with pay_assure_fee everywhere we look */
+    static const uint64_t edges[] = {0,          1,     2,        1124,       1125,
+                                     2249,       2250,  10000000, 1ull << 32, (1ull << 63) - 1,
+                                     1ull << 63, ~0ull, ~0ull - 1};
     bool agree = true;
     for (uint32_t i = 0; i < sizeof(edges) / sizeof(edges[0]); i++) {
-        uint64_t t = pay_tithe_phi(edges[i]);
-        agree = agree && evo_tithe_is_exact(edges[i], t) && !evo_tithe_is_exact(edges[i], t + 1);
-        if (t) agree = agree && !evo_tithe_is_exact(edges[i], t - 1);
+        uint64_t t = pay_assure_fee(edges[i]);
+        agree = agree && evo_fee_is_exact(edges[i], t) && !evo_fee_is_exact(edges[i], t + 1);
+        if (t) agree = agree && !evo_fee_is_exact(edges[i], t - 1);
     }
     for (uint32_t i = 0; i < 100000 && agree; i++) {
         uint64_t a = rnd() >> rndn(64);
-        uint64_t t = pay_tithe_phi(a);
-        agree = evo_tithe_is_exact(a, t) && !evo_tithe_is_exact(a, t + 1) &&
-                (t == 0 || !evo_tithe_is_exact(a, t - 1));
+        uint64_t t = pay_assure_fee(a);
+        agree = evo_fee_is_exact(a, t) && !evo_fee_is_exact(a, t + 1) &&
+                (t == 0 || !evo_fee_is_exact(a, t - 1));
     }
     CHECK(agree);
-    CHECK(pay_tithe_phi(10000) == 161 && evo_tithe_is_exact(10000, 161));
+    CHECK(pay_assure_fee(10000) == 8 && evo_fee_is_exact(10000, 8) &&
+          !evo_fee_is_exact(10000, 161));
 
-    evo_core_impl_t up = {up_hash, pay_tithe_phi, up_post, up_repay, up_spend};
+    evo_core_impl_t up = {up_hash, pay_assure_fee, up_post, up_repay, up_spend};
     CHECK(evo_conform_local(&up) == EVO_CHK_ALL);
     evo_challenge_t ch;
     evo_response_t rs, rs2;
@@ -958,12 +959,12 @@ static void t9_conformance(void)
         evo_core_impl_t im;
         uint32_t bit;
     } bad[] = {
-        {{up_hash, bad_tithe_618, up_post, up_repay, up_spend}, EVO_CHK_TITHE},
-        {{up_hash, bad_tithe_ceil, up_post, up_repay, up_spend}, EVO_CHK_TITHE},
-        {{up_hash, pay_tithe_phi, up_post, bad_repay, up_spend}, EVO_CHK_USURY},
-        {{up_hash, pay_tithe_phi, bad_post, up_repay, up_spend}, EVO_CHK_LEDGER},
-        {{up_hash, pay_tithe_phi, up_post, up_repay, bad_spend}, EVO_CHK_CONSENT},
-        {{bad_hash, pay_tithe_phi, up_post, up_repay, up_spend}, EVO_CHK_HASH},
+        {{up_hash, bad_fee_tithe, up_post, up_repay, up_spend}, EVO_CHK_FEE},
+        {{up_hash, bad_fee_ceil, up_post, up_repay, up_spend}, EVO_CHK_FEE},
+        {{up_hash, pay_assure_fee, up_post, bad_repay, up_spend}, EVO_CHK_USURY},
+        {{up_hash, pay_assure_fee, bad_post, up_repay, up_spend}, EVO_CHK_LEDGER},
+        {{up_hash, pay_assure_fee, up_post, up_repay, bad_spend}, EVO_CHK_CONSENT},
+        {{bad_hash, pay_assure_fee, up_post, up_repay, up_spend}, EVO_CHK_HASH},
     };
     bool all = true;
     for (uint32_t s = 0; s < 64; s++) {

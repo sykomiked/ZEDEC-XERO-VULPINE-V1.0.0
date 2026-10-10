@@ -11,7 +11,7 @@
 #include "prov_pay.h"
 #include "prov_capmkt.h"
 #include "prov_swarm.h"
-#include "../pay/pay_tithe.h"
+#include "../pay/pay_assure.h"
 
 static int g_pass, g_fail;
 #define CHECK(c, msg)                                                                              \
@@ -110,6 +110,14 @@ static uint64_t bal(uint32_t acct)
     return pay_ledger_account(&L, acct)->debit;
 }
 
+/* the four fee buckets together */
+static uint64_t bal4(const uint32_t a[PAY_ASSURE_BUCKETS])
+{
+    uint64_t s = 0;
+    for (int k = 0; k < PAY_ASSURE_BUCKETS; k++) s += bal(a[k]);
+    return s;
+}
+
 static void t_pay(void)
 {
     prov_config_t c;
@@ -119,7 +127,7 @@ static void t_pay(void)
     uint16_t eur_l;
     pay_ledger_add_fiat(&L, "EUR", 978, 2, &eur_l);
     uint16_t vfv_l = L.vfv_asset;
-    uint32_t iss_v, iss_e, uv, ue, pv, pe, ev, ee, cv, ce;
+    uint32_t iss_v, iss_e, uv, ue, pv, pe, ev, ee, cv[PAY_ASSURE_BUCKETS], ce[PAY_ASSURE_BUCKETS];
     pay_ledger_open(&L, 900, vfv_l, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER, &iss_v);
     pay_ledger_open(&L, 901, eur_l, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER | PAY_ACCT_EXTERNAL, &iss_e);
     pay_ledger_open(&L, 10, vfv_l, PAY_CAP_FINANCIAL, 0, &uv);
@@ -128,8 +136,10 @@ static void t_pay(void)
     pay_ledger_open(&L, 20, eur_l, PAY_CAP_FINANCIAL, 0, &pe);
     pay_ledger_open(&L, 30, vfv_l, PAY_CAP_FINANCIAL, 0, &ev);
     pay_ledger_open(&L, 30, eur_l, PAY_CAP_FINANCIAL, 0, &ee);
-    pay_ledger_open(&L, 40, vfv_l, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS, &cv);
-    pay_ledger_open(&L, 40, eur_l, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS, &ce);
+    for (int k = 0; k < PAY_ASSURE_BUCKETS; k++) {
+        pay_ledger_open(&L, 40 + (uint32_t) k, vfv_l, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS, &cv[k]);
+        pay_ledger_open(&L, 40 + (uint32_t) k, eur_l, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS, &ce[k]);
+    }
     pay_posting_req_t rq;
     pay_receipt_t rc;
     mkreq(&rq);
@@ -149,7 +159,8 @@ static void t_pay(void)
     prov_user_add(&g_n, PK[1], 0, false, &U);
     prov_pay_init(&PP, &L, 77);
     PP.escrow[0] = ev, PP.escrow[eur] = ee;
-    PP.commons[0] = cv, PP.commons[eur] = ce;
+    for (int k = 0; k < PAY_ASSURE_BUCKETS; k++)
+        PP.fee_acct[0][k] = cv[k], PP.fee_acct[eur][k] = ce[k];
     PP.user[0][U] = uv, PP.user[eur][U] = ue;
     PP.provider[0][P] = pv, PP.provider[eur][P] = pe;
 
@@ -170,9 +181,13 @@ static void t_pay(void)
     prov_pq_sign_receipt(&r, SK[0], true);
     prov_pq_sign_receipt(&r, SK[1], false);
     CHECK(prov_settle(&g_n, f, &r) == PROV_OK, "co-signed receipt settles over pay_ledger");
-    uint64_t fee = pay_tithe_phi(42000);
-    CHECK(bal(pv) == 42000 - fee && bal(cv) == fee && bal(ev) == 0 && bal(uv) == 1000000 - 42000,
-          "FINAL: provider net, commons fee, unused hold back to the user, escrow empty");
+    uint64_t fee = pay_assure_fee(42000);
+    CHECK(bal(pv) == 42000 - fee && bal4(cv) == fee && bal(ev) == 0 && bal(uv) == 1000000 - 42000,
+          "FINAL: provider net, fee to the four buckets, unused hold back, escrow empty");
+    CHECK(fee == 37 && bal(cv[PAY_ASSURE_RESERVE_FLOOR]) == 20 &&
+              bal(cv[PAY_ASSURE_VBILL_DIVIDEND]) == 9 && bal(cv[PAY_ASSURE_INFRA_BOUNTY]) == 5 &&
+              bal(cv[PAY_ASSURE_REGEN_CAPITAL]) == 3,
+          "fee 37 on 42000 splits 20 / 9 / 5 / 3 (remainder to the reserve floor)");
     CHECK(pay_ledger_check(&L) && pay_ledger_verify_chain(&L), "ledger invariants and chain hold");
     prov_settlement_t s;
     memset(&s, 0, sizeof s);
@@ -202,8 +217,8 @@ static void t_pay(void)
     prov_receipt_build(&g_n, f, &u, &r);
     prov_pq_sign_receipt(&r, SK[0], true);
     prov_pq_sign_receipt(&r, SK[1], false);
-    CHECK(prov_settle(&g_n, f, &r) == PROV_OK && bal(pe) == 30000 - pay_tithe_phi(30000) &&
-              bal(ce) == pay_tithe_phi(30000) && bal(ue) == 20000,
+    CHECK(prov_settle(&g_n, f, &r) == PROV_OK && bal(pe) == 30000 - pay_assure_fee(30000) &&
+              bal4(ce) == pay_assure_fee(30000) && bal(ue) == 20000,
           "ISO 4217 (EUR) job settles over the same rails");
     /* not enough money: hold refused, no fill */
     job(&j, eur, 100000, 3);
@@ -284,7 +299,7 @@ static void t_capmkt(void)
     CHECK(cm_deliver(&M, &pr) == CM_OK, "capmkt pays on delivery against the receipt digest");
     pa = cm_account(&M, ct->provider);
     CHECK(pa && pa->available - before == r.net && M.commons == r.fee,
-          "capmkt payout equals the receipt's net; tithe equals the prov fee");
+          "capmkt payout equals the receipt's net; capmkt fee equals the prov fee");
     cm_proof_t p2 = pr;
     p2.seq = 2;
     cm_proof_hash(&pr, p2.prev);

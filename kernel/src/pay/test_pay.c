@@ -3,11 +3,11 @@
 /* test_pay.c — host tests for kernel/src/pay (build with -DTEST_HOST and
  * -fsanitize=address,undefined; libc is used by the TEST only).
  *
- *   test_pay TITHE_REF XSD_DIR TMP_DIR
+ *   test_pay ASSURE_REF XSD_DIR TMP_DIR
  *
- * TITHE_REF  output of gen_tithe_ref.py (decimal + isqrt + exact-integer
+ * ASSURE_REF output of gen_assure_ref.py (integer floor and Fraction
  *            agreement in Python); every line is checked against
- *            pay_tithe_phi.
+ *            pay_assure_fee.
  * XSD_DIR    kernel/src/pay/xsd. Every message this module builds is written
  *            to TMP_DIR and validated with `xmllint --noout --schema` via
  *            system(); a missing xmllint counts as a failure, not a skip.
@@ -24,7 +24,7 @@
 #include <inttypes.h>
 
 #include "pay_util.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 #include "pay_tables.h"
 #include "pay_ledger.h"
 #include "pay_roles.h"
@@ -125,54 +125,151 @@ static void test_util(void)
 }
 
 /* ===================================================================== */
-static void test_tithe(void)
+static void test_assure(void)
 {
+    /* F1 against the Python reference (exact integer floor, two methods) */
     FILE *f = fopen(g_ref, "r");
     CHECK(f != NULL);
     if (f) {
         unsigned long long a, t;
         long n = 0, bad = 0;
         while (fscanf(f, "%llu %llu", &a, &t) == 2) {
-            if (pay_tithe_phi((uint64_t) a) != (uint64_t) t) {
-                if (bad < 5) printf("  tithe mismatch a=%llu want %llu\n", a, t);
+            if (pay_assure_fee((uint64_t) a) != (uint64_t) t) {
+                if (bad < 5) printf("  fee mismatch a=%llu want %llu\n", a, t);
                 bad++;
             }
             n++;
         }
         fclose(f);
-        printf("  tithe: %ld reference amounts, %ld mismatches\n", n, bad);
+        printf("  assurance fee: %ld reference amounts, %ld mismatches\n", n, bad);
         CHECK(n >= 100000);
         CHECK(bad == 0);
     }
-    CHECK(pay_tithe_phi(0) == 0);
-    CHECK(pay_tithe_phi(100) == 1);         /* 1.618 */
-    CHECK(pay_tithe_phi(10000) == 161);     /* 161.80 */
-    CHECK(pay_tithe_phi(1000000) == 16180); /* 16180.33 */
+    /* F1: the 1,124 / 1,125 threshold and large amounts */
+    CHECK(pay_assure_fee(0) == 0);
+    CHECK(pay_assure_fee(1124) == 0); /* 0.99912... */
+    CHECK(pay_assure_fee(1125) == 1); /* 1.00001... */
+    CHECK(pay_assure_fee(2249) == 1 && pay_assure_fee(2250) == 2);
+    CHECK(pay_assure_fee(10000000) == 8889);
+    CHECK(pay_assure_fee(1000000) == 888);
+    /* UINT64_MAX range: floor((2^64-1) * 8889 / 10^7) = 16397310807120420 */
+    CHECK(pay_assure_fee(UINT64_MAX) == 16397310807120420ull);
+    CHECK(pay_assure_fee(UINT64_MAX - 1) == 16397310807120420ull);
+    CHECK(pay_assure_fee((uint64_t) 1 << 63) == 8198655403560210ull);
+    {
+        uint64_t fee = 0, rem = 0;
+        CHECK(pay_assure_fee_carry(PAY_ASSURE_DEN - 1, UINT64_MAX, &fee, &rem) && fee >= 1 &&
+              fee == 16397310807120421ull);
+        CHECK(!pay_assure_fee_carry(PAY_ASSURE_DEN, 1, &fee, &rem)); /* corrupt carry refused */
+    }
 
-    pay_tithe_policy_t p;
-    pay_tithe_result_t r;
-    pay_tithe_policy_default(&p);
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 1000000, 0, 0, &r) == PAY_TITHE_OK);
-    CHECK(r.contribution == 16180 && r.excess == 0 && r.vfv_credit == 0);
+    /* F2: carry over many micro-payments == the fee on their sum */
+    {
+        pay_assure_carry_t c = {0};
+        uint64_t total_fee = 0, total_gross = 0, fee;
+        int ok = 1;
+        for (int i = 0; i < 100000; i++) {
+            uint64_t g = 1 + rnd_below(1124); /* each alone pays 0 */
+            if (pay_assure_fee(g) != 0) ok = 0;
+            if (!pay_assure_charge(&c, g, &fee)) ok = 0;
+            total_fee += fee;
+            total_gross += g;
+            if (total_fee != pay_assure_fee(total_gross)) ok = 0; /* after EVERY charge */
+            if (c.rem >= PAY_ASSURE_DEN) ok = 0;
+        }
+        CHECK(ok);
+        CHECK(total_fee == pay_assure_fee(total_gross) && total_fee > 0);
+        printf("  carry: 100000 micro-payments, gross %" PRIu64 ", fee %" PRIu64 "\n", total_gross,
+               total_fee);
+        /* mixed sizes, including huge ones */
+        pay_assure_carry_t c2 = {0};
+        uint64_t f2 = 0, s2 = 0;
+        ok = 1;
+        for (int i = 0; i < 20000; i++) {
+            uint64_t g = (i % 97 == 0) ? rnd_below((uint64_t) 1 << 40) : rnd_below(5000);
+            if (!pay_assure_charge(&c2, g, &fee)) ok = 0;
+            f2 += fee;
+            s2 += g;
+        }
+        CHECK(ok && f2 == pay_assure_fee(s2));
+    }
+
+    /* B1: the four buckets sum exactly, none exceeds the fee */
+    {
+        uint64_t part[PAY_ASSURE_BUCKETS];
+        CHECK(pay_assure_bucket_pct[0] + pay_assure_bucket_pct[1] + pay_assure_bucket_pct[2] +
+                  pay_assure_bucket_pct[3] ==
+              100);
+        pay_assure_split(100, part);
+        CHECK(part[PAY_ASSURE_RESERVE_FLOOR] == 50 && part[PAY_ASSURE_VBILL_DIVIDEND] == 25 &&
+              part[PAY_ASSURE_INFRA_BOUNTY] == 15 && part[PAY_ASSURE_REGEN_CAPITAL] == 10);
+        pay_assure_split(88, part); /* 22 + 13 + 8 = 43, reserve 45 */
+        CHECK(part[0] == 45 && part[1] == 22 && part[2] == 13 && part[3] == 8);
+        pay_assure_split(1, part); /* the remainder unit goes to the reserve floor */
+        CHECK(part[0] == 1 && part[1] == 0 && part[2] == 0 && part[3] == 0);
+        int ok = 1;
+        uint64_t edge[] = {0,
+                           1,
+                           2,
+                           3,
+                           7,
+                           9,
+                           10,
+                           11,
+                           19,
+                           99,
+                           101,
+                           999,
+                           16397310807120420ull,
+                           UINT64_MAX,
+                           UINT64_MAX - 1};
+        for (unsigned i = 0; i < sizeof edge / sizeof edge[0]; i++) {
+            pay_assure_split(edge[i], part);
+            uint64_t s = 0;
+            for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) {
+                if (part[b] > edge[i]) ok = 0;
+                if (__builtin_add_overflow(s, part[b], &s)) ok = 0;
+            }
+            if (s != edge[i]) ok = 0;
+        }
+        for (int i = 0; i < 200000; i++) {
+            uint64_t fee = i < 100000 ? (uint64_t) i : rnd();
+            pay_assure_split(fee, part);
+            uint64_t s = 0;
+            for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) {
+                if (part[b] > fee) ok = 0;
+                if (__builtin_add_overflow(s, part[b], &s)) ok = 0;
+            }
+            if (s != fee || part[0] < part[1] || part[1] < part[2] || part[2] < part[3]) ok = 0;
+        }
+        CHECK(ok);
+    }
+
+    /* contributions above / below the fee */
+    pay_assure_policy_t p;
+    pay_assure_result_t r;
+    pay_assure_policy_default(&p);
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000000, 0, 0, &r) == PAY_ASSURE_OK);
+    CHECK(r.fee == 888 && r.contribution == 888 && r.excess == 0 && r.vfv_credit == 0);
     pay_contrib_t c = {PAY_CONTRIB_RATE, {5, 100}, 0}; /* 5% */
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 1000000, &c, 0, &r) == PAY_TITHE_OK);
-    CHECK(r.contribution == 50000 && r.excess == 50000 - 16180 && r.vfv_credit == 33820);
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000000, &c, 0, &r) == PAY_ASSURE_OK);
+    CHECK(r.contribution == 50000 && r.excess == 50000 - 888 && r.vfv_credit == 49112);
     c.mode = PAY_CONTRIB_ABSOLUTE;
     c.absolute = 10; /* below the floor: raised */
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 1000000, &c, 0, &r) == PAY_TITHE_OK);
-    CHECK(r.contribution == 16180 && r.shortfall == 0);
-    p.allow_below_phi = true;
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_MONEY, 1000000, &c, 0, &r) == PAY_TITHE_OK);
-    CHECK(r.contribution == 10 && r.shortfall == 16170);
-    p.allow_below_phi = false;
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000000, &c, 0, &r) == PAY_ASSURE_OK);
+    CHECK(r.contribution == 888 && r.shortfall == 0);
+    p.allow_below_fee = true;
+    CHECK(pay_assure_compute(&p, PAY_UNIT_MONEY, 1000000, &c, 0, &r) == PAY_ASSURE_OK);
+    CHECK(r.contribution == 10 && r.shortfall == 878);
+    p.allow_below_fee = false;
     c.absolute = 100000;
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_COMPUTE, 1000000, &c, 0, &r) == PAY_TITHE_RATE_UNSET);
+    CHECK(pay_assure_compute(&p, PAY_UNIT_COMPUTE, 1000000, &c, 0, &r) == PAY_ASSURE_RATE_UNSET);
     pay_rat_t posted = {3, 2};
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_COMPUTE, 1000000, &c, &posted, &r) == PAY_TITHE_OK);
-    CHECK(r.vfv_credit == (100000 - 16180) * 3 / 2);
+    CHECK(pay_assure_compute(&p, PAY_UNIT_COMPUTE, 1000000, &c, &posted, &r) == PAY_ASSURE_OK);
+    CHECK(r.vfv_credit == (100000 - 888) * 3 / 2);
     p.credit_mult.num = 2;
-    CHECK(pay_tithe_compute(&p, PAY_UNIT_BANDWIDTH, 1000000, &c, &posted, &r) == PAY_TITHE_OK);
-    CHECK(r.vfv_credit == (100000 - 16180) * 3 / 2 * 2);
+    CHECK(pay_assure_compute(&p, PAY_UNIT_BANDWIDTH, 1000000, &c, &posted, &r) == PAY_ASSURE_OK);
+    CHECK(r.vfv_credit == (100000 - 888) * 3 / 2 * 2);
 
     /* commons: conservation and the no-monopoly split */
     pay_commons_t cm;
@@ -403,17 +500,50 @@ static void test_ledger(void)
     mkreq(&r3, 1);
     CHECK(pay_ledger_transfer(&L, &r3, acc[1][0][0], acc[1][0][1], 1, &rc) == PAY_ERR_POLICY);
     CHECK(pay_ledger_set_flags(&L, acc[1][0][0], 0) == PAY_OK);
-    /* tithed payment, one posting */
-    uint32_t commons;
-    CHECK(pay_ledger_open(&L, 999, usd, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS, &commons) == PAY_OK);
+    /* a payment carrying the assurance fee, one posting, four buckets */
+    uint32_t bk[PAY_ASSURE_BUCKETS];
+    for (int b = 0; b < PAY_ASSURE_BUCKETS; b++)
+        CHECK(pay_ledger_open(&L, 990 + (uint32_t) b, usd, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS,
+                              &bk[b]) == PAY_OK);
     mkreq(&r3, 100);
     CHECK(pay_ledger_issue(&L, &r3, iss[1][0], acc[1][0][2], 1000000, &rc) == PAY_OK);
     uint64_t before = pay_ledger_account(&L, acc[1][0][2])->debit;
+    uint64_t to_before = pay_ledger_account(&L, acc[1][0][3])->debit, fee1 = 0, fee2 = 0;
     mkreq(&r3, 3);
-    CHECK(pay_ledger_pay_tithed(&L, &r3, acc[1][0][2], acc[1][0][3], 100000, commons,
-                                pay_tithe_phi(100000), iss[0][0], acc[0][0][2], 7, &rc) == PAY_OK);
-    CHECK(pay_ledger_account(&L, acc[1][0][2])->debit == before - 100000 - 1618);
-    CHECK(pay_ledger_account(&L, commons)->debit == 1618);
+    CHECK(pay_ledger_pay_with_fee(&L, &r3, acc[1][0][2], acc[1][0][3], 100000, bk, 5, iss[0][0],
+                                  acc[0][0][2], 7, &rc, &fee1) == PAY_OK);
+    CHECK(fee1 == 88); /* floor(100000 * 8889 / 10^7) = floor(88.89) */
+    CHECK(pay_ledger_account(&L, acc[1][0][2])->fee_carry == 8900000);
+    CHECK(pay_ledger_account(&L, acc[1][0][2])->debit == before - 100000 - 88 - 5);
+    CHECK(pay_ledger_account(&L, acc[1][0][3])->debit == to_before + 100000);
+    CHECK(pay_ledger_account(&L, bk[PAY_ASSURE_RESERVE_FLOOR])->debit == 45 + 5); /* + excess */
+    CHECK(pay_ledger_account(&L, bk[PAY_ASSURE_VBILL_DIVIDEND])->debit == 22);
+    CHECK(pay_ledger_account(&L, bk[PAY_ASSURE_INFRA_BOUNTY])->debit == 13);
+    CHECK(pay_ledger_account(&L, bk[PAY_ASSURE_REGEN_CAPITAL])->debit == 8);
+    /* the carry: the second 100000 pays 89, and 88 + 89 == fee(200000) = 177 */
+    mkreq(&r3, 3);
+    CHECK(pay_ledger_pay_with_fee(&L, &r3, acc[1][0][2], acc[1][0][3], 100000, bk, 0, iss[0][0],
+                                  acc[0][0][2], 0, &rc, &fee2) == PAY_OK);
+    CHECK(fee2 == 89 && fee1 + fee2 == pay_assure_fee(200000));
+    {
+        uint64_t sum = 0;
+        for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) sum += pay_ledger_account(&L, bk[b])->debit;
+        CHECK(sum == fee1 + fee2 + 5);
+    }
+    /* a refused posting leaves the carry untouched (no state change) */
+    {
+        uint64_t carry0 = pay_ledger_account(&L, acc[1][0][2])->fee_carry;
+        uint64_t bal0 = pay_ledger_account(&L, acc[1][0][2])->debit;
+        mkreq(&r3, 3);
+        CHECK(pay_ledger_pay_with_fee(&L, &r3, acc[1][0][2], acc[1][0][3], bal0, bk, 0, iss[0][0],
+                                      acc[0][0][2], 0, &rc, 0) != PAY_OK); /* fee: overdraft */
+        CHECK(pay_ledger_account(&L, acc[1][0][2])->fee_carry == carry0 &&
+              pay_ledger_account(&L, acc[1][0][2])->debit == bal0);
+        mkreq(&r3, 3);
+        CHECK(pay_ledger_pay_with_fee(&L, &r3, acc[1][0][2], acc[1][0][3], 10, bk, UINT64_MAX,
+                                      iss[0][0], acc[0][0][2], 0, &rc, 0) == PAY_ERR_ARG);
+        CHECK(pay_ledger_account(&L, acc[1][0][2])->fee_carry == carry0);
+    }
     CHECK(pay_ledger_check(&L) && pay_ledger_verify_chain(&L));
     CHECK(L.seq > PAY_JOURNAL_MAX); /* the journal ring has wrapped */
 }
@@ -1430,8 +1560,10 @@ static void test_farm(void)
     static pay_equity_t ex;
     farm_ctx_t fc = {0, false};
     pay_ledger_init(&L, 0);
-    uint32_t commons;
-    CHECK(pay_ledger_open(&L, 999, 0, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS, &commons) == PAY_OK);
+    uint32_t fbk[PAY_ASSURE_BUCKETS];
+    for (int b = 0; b < PAY_ASSURE_BUCKETS; b++)
+        CHECK(pay_ledger_open(&L, 999 - (uint32_t) b, 0, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS,
+                              &fbk[b]) == PAY_OK);
     pay_equity_cfg_t ec;
     pay_equity_cfg_default(&ec);
     ec.enabled = true;
@@ -1447,7 +1579,7 @@ static void test_farm(void)
     cfg.rate[PAY_WORK_STORAGE] = (pay_rat_t){1, 1000}; /* per 1000 byte-hours */
     cfg.rate[PAY_WORK_BANDWIDTH] = (pay_rat_t){0, 1};  /* unset */
     cfg.sample_rate = (pay_rat_t){1, 4};
-    CHECK(pay_farm_init(&F, &L, &cfg, 0, commons, farm_verify, farm_replicate, &fc, &ex) == PAY_OK);
+    CHECK(pay_farm_init(&F, &L, &cfg, 0, fbk, farm_verify, farm_replicate, &fc, &ex) == PAY_OK);
     uint32_t path[3] = {800, 801, 802};
     for (uint32_t f = 1; f <= 5; f++) CHECK(pay_farm_register(&F, f, path) == PAY_OK);
     CHECK(pay_farm_register(&F, 1, path) == PAY_DUPLICATE);
@@ -1532,11 +1664,18 @@ static void test_farm(void)
         const pay_farm_t *fa = pay_farm_get(&F, f);
         CHECK(fa->minted <= fa->verified);
     }
-    CHECK(F.tithed == F.minted - F.net && F.tithed > 0);
-    CHECK(pay_ledger_account(&L, commons)->debit == F.tithed);
-    printf("  farm: minted %" PRIu64 " (tithe %" PRIu64 "), sampled %" PRIu64
-           ", mismatches %" PRIu64 ", cheater strikes %u suspended %d\n",
-           F.minted, F.tithed, F.stats.sampled, F.stats.mismatches, ch->strikes, ch->suspended);
+    CHECK(F.fees == F.minted - F.net && F.fees > 0);
+    {
+        uint64_t sum = 0;
+        for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) sum += pay_ledger_account(&L, fbk[b])->debit;
+        CHECK(sum == F.fees);
+        uint64_t per = 0;
+        for (uint32_t j = 0; j < F.n_farms; j++) per += pay_assure_fee(F.farm[j].minted);
+        CHECK(F.fees == per); /* each farm pays exactly the fee on its lifetime mint */
+    }
+    printf("  farm: minted %" PRIu64 " (fee %" PRIu64 "), sampled %" PRIu64 ", mismatches %" PRIu64
+           ", cheater strikes %u suspended %d\n",
+           F.minted, F.fees, F.stats.sampled, F.stats.mismatches, ch->strikes, ch->suspended);
 
     /* sampling is deterministic and close to the rate */
     uint8_t beacon[32] = {7};
@@ -1581,13 +1720,13 @@ static void test_farm(void)
 /* ===================================================================== */
 int main(int argc, char **argv)
 {
-    g_ref = argc > 1 ? argv[1] : "tithe_ref.txt";
+    g_ref = argc > 1 ? argv[1] : "assure_ref.txt";
     g_xsd = argc > 2 ? argv[2] : "src/pay/xsd";
     g_tmp = argc > 3 ? argv[3] : "/tmp";
     printf("test_pay: util\n");
     test_util();
-    printf("test_pay: tithe\n");
-    test_tithe();
+    printf("test_pay: assurance fee\n");
+    test_assure();
     printf("test_pay: ledger\n");
     test_ledger();
     test_usury();

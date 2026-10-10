@@ -38,12 +38,16 @@
  *       right side is concave in c), and farm j is issued min(e_j, c). What
  *       is over the cap is not minted. Default cap_share 8/21
  *       (docs/SWARM_ECONOMY.md section 6).
- *   W5  TITHE AND MINT. For each farm, gross g = min(e_j, c), tithe t =
- *       pay_tithe_phi(g) (exactly floor(g * phi / 100)), and ONE pay_ledger
- *       posting issues g: issuer CREDIT +g, farm DEBIT +(g - t), commons
- *       DEBIT +t. If a pay_equity with VFV equity is attached, every VFV
- *       minted gets its non-voting equity (pay_vfv_equity_on_mint): g - t
- *       for the farm, t for the commons owner, over the farm's reserve path.
+ *   W5  FEE AND MINT. For each farm, gross g = min(e_j, c), assurance fee
+ *       t = the 0.08889% fee on g with the farm's own sub-unit carry
+ *       (pay_assure.h F1-F2: floor((g * 8889 + carry) / 10^7)), and ONE
+ *       pay_ledger posting issues g: issuer CREDIT +g, farm DEBIT +(g - t),
+ *       and t split exactly into the four fee buckets (pay_assure_split:
+ *       50% reserve floor + remainder, 25% V-Bill dividend pool, 15%
+ *       infrastructure/node bounties, 10% regenerative capital). If a
+ *       pay_equity with VFV equity is attached, every VFV minted gets its
+ *       non-voting equity (pay_vfv_equity_on_mint): g - t for the farm, t
+ *       for the reserve-floor owner, over the farm's reserve path.
  *   W6  BURN: pay_farm_burn redeems VFV at par (pay_ledger_redeem).
  *
  * INVARIANTS (pay_farm_audit)
@@ -51,7 +55,7 @@
  *       for it <= the value of its credited (verified, not forfeited)
  *       receipts.
  *   I2  Supply: the farm issuer's CREDIT == minted - burned.
- *   I3  Commons received == sum of tithes; minted == sum over farms.
+ *   I3  Fee buckets received == sum of fees; minted == sum over farms.
  *   I4  The ledger invariants L1-L3 hold.
  *
  * HONEST LIMITS. Spot checks are probabilistic: with sample rate p a farm
@@ -74,7 +78,7 @@
 #include <stddef.h>
 #include "pay_util.h"
 #include "pay_ledger.h"
-#include "pay_tithe.h"
+#include "pay_assure.h"
 #include "pay_equity.h"
 #include "swarm_market.h"
 
@@ -127,6 +131,7 @@ typedef struct {
     uint64_t forfeited; /* lifetime forfeited value                */
     uint64_t minted;    /* lifetime gross minted for this farm     */
     uint64_t capped;    /* lifetime value over the W4 cap          */
+    uint64_t fee_carry; /* pay_assure.h F2 sub-unit remainder      */
 } pay_farm_t;
 
 typedef struct {
@@ -145,9 +150,9 @@ typedef struct {
     pay_farm_verify_fn verify;
     pay_farm_replicate_fn replicate;
     void *cb_ctx;
-    uint32_t issuer_acct;  /* VFV, ISSUER: dedicated to farm issuance */
-    uint32_t commons_acct; /* VFV, COMMONS */
-    uint32_t commons_owner;
+    uint32_t issuer_acct;                  /* VFV, ISSUER: dedicated to farm issuance */
+    uint32_t fee_acct[PAY_ASSURE_BUCKETS]; /* VFV, COMMONS: pay_assure_bucket_t */
+    uint32_t commons_owner;                /* owner of the reserve-floor account */
     pay_farm_t farm[PAY_FARM_MAX];
     uint32_t n_farms;
     uint64_t period;
@@ -156,21 +161,22 @@ typedef struct {
     uint8_t seen[PAY_FARM_SEEN][32];
     uint8_t seen_used[PAY_FARM_SEEN];
     uint32_t n_seen;
-    uint64_t minted, burned, tithed, net;
+    uint64_t minted, burned, fees, net;
     pay_farm_stats_t stats;
 } pay_farm_ctx_t;
 
 void pay_farm_cfg_default(pay_farm_cfg_t *c);
 
 /* Opens a dedicated VFV ISSUER account (owner `platform_owner`) and binds
- * the commons account (an existing VFV account flagged COMMONS). */
+ * the four fee-bucket accounts (existing VFV accounts flagged COMMONS, indexed
+ * by pay_assure_bucket_t). */
 pay_status_t pay_farm_init(pay_farm_ctx_t *F, pay_ledger_t *L, const pay_farm_cfg_t *cfg,
-                           uint32_t platform_owner, uint32_t commons_acct,
+                           uint32_t platform_owner, const uint32_t fee_acct[PAY_ASSURE_BUCKETS],
                            pay_farm_verify_fn verify, pay_farm_replicate_fn replicate, void *cb_ctx,
                            pay_equity_t *eq);
 
 /* Register a farm. `path` (may be NULL) lists node, alliance and global
- * owner ids for the VFV equity reserve path; NULL uses the commons owner. */
+ * owner ids for the VFV equity reserve path; NULL uses the reserve-floor owner. */
 pay_status_t pay_farm_register(pay_farm_ctx_t *F, uint32_t owner, const uint32_t *path);
 const pay_farm_t *pay_farm_get(const pay_farm_ctx_t *F, uint32_t owner);
 
@@ -187,7 +193,7 @@ pay_status_t pay_farm_submit(pay_farm_ctx_t *F, const pay_work_receipt_t *r, con
 /* W2: true iff job_id is sampled under beacon at `rate`. */
 bool pay_farm_sampled(const uint8_t beacon[32], const uint8_t job_id[32], pay_rat_t rate);
 
-/* W2-W5: spot-check, value, cap, tithe and mint the current period, then
+/* W2-W5: spot-check, value, cap, charge the fee and mint the current period, then
  * advance to the next. `tick` is stamped on the postings. */
 pay_status_t pay_farm_close_period(pay_farm_ctx_t *F, const uint8_t beacon[32], uint64_t tick);
 

@@ -15,9 +15,12 @@
  *       never lists or resells a provider's service on its own.
  *   G3  You set the price. Asks carry the provider's own unit price; matching
  *       is price-time priority and the trade executes at the ASK price.
- *   G4  A small, flat, published fee. Default: the platform phi-percent rate
- *       (pay_tithe_phi, floor(a * phi / 100) = 1.618...%) on settled gross,
- *       charged once. An operator may publish a flat basis-point rate instead
+ *   G4  A small, flat, published fee. Default: the platform 0.08889%
+ *       assurance fee (pay_assure_fee, floor(a * 8889 / 10^7)) on settled
+ *       gross, charged once. Provider receipts use the no-carry form
+ *       (pay_assure.h F1) so any node can re-verify a receipt's fee from the
+ *       receipt alone; the settle hook (prov_pay.h) splits it exactly into
+ *       the four fee buckets. An operator may publish a flat basis-point rate instead
  *       but never above PROV_FEE_MAX_BPS (5%). No listing, exit or data fees.
  *       The fee schedule's hash is in every receipt, so it cannot change
  *       silently.
@@ -336,7 +339,7 @@ typedef struct {
 typedef int (*prov_settle_fn)(void *ctx, const prov_settlement_t *s);
 
 /* ===== Configuration ===== */
-typedef enum { PROV_FEE_PHI = 0, PROV_FEE_BPS = 1 } prov_fee_mode_t;
+typedef enum { PROV_FEE_ASSURE = 0, PROV_FEE_BPS = 1 } prov_fee_mode_t;
 
 typedef enum {
     PROV_SYBIL_NONE = 0,

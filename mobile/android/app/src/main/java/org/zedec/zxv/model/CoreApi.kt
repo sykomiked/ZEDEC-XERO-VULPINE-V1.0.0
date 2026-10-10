@@ -22,7 +22,7 @@ interface CoreApi {
     fun setSetting(key: Int, value: String, now: Long): Int
     fun getSetting(key: Int): String?
     fun moneyAnswer(approve: Boolean, now: Long): Int
-    fun tithe(amountMinor: Long): Long
+    fun assureFee(amountMinor: Long): Long
     fun tick(now: Long)
     var listener: CoreListener?
 }

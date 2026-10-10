@@ -43,7 +43,7 @@ ASSIST_ASK_LABEL|-|machine|詢問助理
 PAY_CONFIRM_TITLE|-|machine|確認付款
 PAY_TO|-|machine|收款方
 PAY_AMOUNT|-|machine|金額
-PAY_TITHE|-|machine|網路什一費（φ%）
+PAY_FEE|-|machine|保障費（0.08889%）
 PAY_RECORD|-|machine|紀錄
 PAY_BUTTON|-|machine|支付 {0}
 PAY_VERIFIED_PEER|-|machine|已驗證的對等方
@@ -90,7 +90,7 @@ CALL_MUTE|-|machine|靜音
 FARM_TITLE|-|machine|您的算力農場
 FARM_THIS_DEVICE|-|machine|此裝置
 FARM_IDLE_SHARE|-|machine|閒置算力的 {0}
-FARM_EARNED_TODAY|-|machine|今日收益（扣除什一費後）
+FARM_EARNED_TODAY|-|machine|今日收益（扣除保障費後）
 FARM_VERIFIED|-|machine|經對等方驗證的工作
 
 UPD_BUCKETS|-|machine|更新儲存庫
@@ -100,7 +100,7 @@ UPD_RATINGS|other|machine|{0}/5，來自 {1} 則評分
 UPD_READY|-|machine|{0} 可以安裝
 UPD_RATINGS_NO_TRUST|-|machine|評分永遠不會授予安裝信任
 
-WAL_TITLE|-|machine|錢包與什一費
+WAL_TITLE|-|machine|錢包與費用
 WAL_ROLE|-|machine|帳戶類型
 WAL_ROLE_INDIVIDUAL|-|machine|個人
 WAL_ROLE_SELFBANK|-|machine|自營銀行業者
@@ -117,12 +117,12 @@ CAP_KNOWLEDGE|-|machine|知識
 CAP_BUILT|-|machine|建造
 CAP_FINANCIAL|-|machine|金融
 
-TITHE_TITLE|-|machine|網路什一費
-TITHE_EXPLAIN|-|machine|每個節點貢獻其所用算力、頻寬和資金的 φ%，讓網路對所有人保持快速。超出的貢獻可賺取抵用券。
-TITHE_BASE|-|machine|基本什一費
-TITHE_YOUR_CONTRIB|-|machine|您的貢獻：
-TITHE_ABOVE|-|machine|比什一費高出用量的 {0}。這部分盈餘會以抵用券形式存入您的帳戶。
-TITHE_EXACT|-|machine|您正好貢獻基本什一費。移動滑桿即可多貢獻並賺取抵用券。
+FEE_TITLE|-|machine|網路保障費
+FEE_EXPLAIN|-|machine|每筆付款收取 0.08889% 的保障費。一半用於支撐 Vino 儲備底線；其餘用於 V-Bill 分紅池、節點獎勵和再生資本。超出的貢獻可賺取抵用券。
+FEE_BASE|-|machine|基本費用
+FEE_YOUR_CONTRIB|-|machine|您的貢獻：
+FEE_ABOVE|-|machine|比保障費高出用量的 {0}。這部分盈餘會以抵用券形式存入您的帳戶。
+FEE_EXACT|-|machine|您正好支付基本費用。移動滑桿即可多貢獻並賺取抵用券。
 
 ERR_GENERIC|-|machine|發生問題。請再試一次。
 ERR_NETWORK|-|machine|無法連上網路。您的操作已儲存，稍後會傳送。

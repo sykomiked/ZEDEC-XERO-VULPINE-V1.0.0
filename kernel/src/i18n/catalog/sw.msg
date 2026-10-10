@@ -45,7 +45,7 @@ ASSIST_ASK_LABEL|-|machine|Muulize msaidizi
 PAY_CONFIRM_TITLE|-|machine|Thibitisha malipo
 PAY_TO|-|machine|Kwa
 PAY_AMOUNT|-|machine|Kiasi
-PAY_TITHE|-|machine|Zaka ya mtandao (φ%)
+PAY_FEE|-|machine|Ada ya dhamana (0.08889%)
 PAY_RECORD|-|machine|Rekodi
 PAY_BUTTON|-|machine|Lipa {0}
 PAY_VERIFIED_PEER|-|machine|rika aliyethibitishwa
@@ -97,7 +97,7 @@ CALL_MUTE|-|machine|Zima sauti
 FARM_TITLE|-|machine|Shamba lako
 FARM_THIS_DEVICE|-|machine|Kifaa hiki
 FARM_IDLE_SHARE|-|machine|{0} ya uwezo wa kompyuta usiotumika
-FARM_EARNED_TODAY|-|machine|Mapato ya leo, baada ya zaka
+FARM_EARNED_TODAY|-|machine|Mapato ya leo, baada ya ada ya dhamana
 FARM_VERIFIED|-|machine|Kazi iliyothibitishwa na marika
 
 UPD_BUCKETS|-|machine|Hazina za masasisho
@@ -108,7 +108,7 @@ UPD_RATINGS|other|machine|{0} kati ya 5 kutoka tathmini {1}
 UPD_READY|-|machine|{0} iko tayari kusakinishwa
 UPD_RATINGS_NO_TRUST|-|machine|tathmini kamwe hazitoi ruhusa ya kusakinisha
 
-WAL_TITLE|-|machine|Pochi na zaka
+WAL_TITLE|-|machine|Pochi na ada
 WAL_ROLE|-|machine|Aina ya akaunti
 WAL_ROLE_INDIVIDUAL|-|machine|Mtu binafsi
 WAL_ROLE_SELFBANK|-|machine|Mwendeshaji wa benki binafsi
@@ -125,12 +125,12 @@ CAP_KNOWLEDGE|-|machine|Maarifa
 CAP_BUILT|-|machine|Uliojengwa
 CAP_FINANCIAL|-|machine|Fedha
 
-TITHE_TITLE|-|machine|Zaka ya mtandao
-TITHE_EXPLAIN|-|machine|Kila nodi hutoa asilimia φ ya uwezo wa kompyuta, kipimo data na pesa inazotumia, ili mtandao ubaki wa kasi kwa kila mtu. Chochote unachotoa zaidi ya hapo hukupatia vocha.
-TITHE_BASE|-|machine|Zaka ya msingi
-TITHE_YOUR_CONTRIB|-|machine|Mchango wako:
-TITHE_ABOVE|-|machine|Juu ya zaka kwa {0} ya matumizi. Ziada hiyo inawekwa kwako kama vocha.
-TITHE_EXACT|-|machine|Unatoa zaka ya msingi kamili. Sogeza kitelezi ili kutoa zaidi na kupata vocha.
+FEE_TITLE|-|machine|Ada ya dhamana ya mtandao
+FEE_EXPLAIN|-|machine|Kila malipo yana ada ya dhamana ya asilimia 0.08889. Nusu yake inasaidia akiba ya msingi ya Vino; iliyobaki inafadhili mfuko wa gawio wa V-Bill, zawadi za nodi na mtaji wa kuzalisha upya. Chochote unachotoa zaidi ya hapo hukupatia vocha.
+FEE_BASE|-|machine|Ada ya msingi
+FEE_YOUR_CONTRIB|-|machine|Mchango wako:
+FEE_ABOVE|-|machine|Juu ya ada kwa {0} ya matumizi. Ziada hiyo inawekwa kwako kama vocha.
+FEE_EXACT|-|machine|Unatoa ada ya msingi kamili. Sogeza kitelezi ili kutoa zaidi na kupata vocha.
 
 ERR_GENERIC|-|machine|Hitilafu imetokea. Tafadhali jaribu tena.
 ERR_NETWORK|-|machine|Imeshindwa kufikia mtandao. Kitendo chako kimehifadhiwa na kitatumwa baadaye.

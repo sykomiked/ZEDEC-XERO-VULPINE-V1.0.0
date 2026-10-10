@@ -47,7 +47,7 @@ class NativeCore(private val transport: (to: ByteArray, frame: ByteArray) -> Int
     override fun setSetting(key: Int, value: String, now: Long) = nativeSetSetting(key, value, now)
     override fun getSetting(key: Int): String? = nativeGetSetting(key)
     override fun moneyAnswer(approve: Boolean, now: Long) = nativeMoneyAnswer(approve, now)
-    override fun tithe(amountMinor: Long) = nativeTithe(amountMinor)
+    override fun assureFee(amountMinor: Long) = nativeAssureFee(amountMinor)
     override fun tick(now: Long) = nativeTick(now)
     fun receive(frame: ByteArray, now: Long) = nativeReceive(frame, now)
 
@@ -89,7 +89,7 @@ class NativeCore(private val transport: (to: ByteArray, frame: ByteArray) -> Int
     private external fun nativeSetSetting(key: Int, value: String, now: Long): Int
     private external fun nativeGetSetting(key: Int): String?
     private external fun nativeMoneyAnswer(approve: Boolean, now: Long): Int
-    private external fun nativeTithe(amount: Long): Long
+    private external fun nativeAssureFee(amount: Long): Long
 
     companion object {
         init { System.loadLibrary("zxvcore_jni") }

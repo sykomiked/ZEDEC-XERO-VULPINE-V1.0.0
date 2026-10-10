@@ -121,7 +121,7 @@ private fun MoneyDialog(state: AppState) {
         text = {
             Column {
                 Text("${Zxv.vfv(m.amountMinor)} VFV", fontFamily = Zc.Mono, fontSize = 28.sp, color = Zc.GoldSoft)
-                Muted("Rail ${Zxv.railName(m.rail)} · network tithe (φ%) ${Zxv.vfv(state.core.tithe(m.amountMinor))} VFV")
+                Muted("Rail ${Zxv.railName(m.rail)} · assurance fee (0.08889%) ${Zxv.vfv(state.core.assureFee(m.amountMinor))} VFV")
                 Spacer(Modifier.size(6.dp))
                 Text(m.memo, color = Zc.Text)
                 Spacer(Modifier.size(6.dp))

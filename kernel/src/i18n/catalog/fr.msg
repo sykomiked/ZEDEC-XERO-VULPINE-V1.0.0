@@ -46,7 +46,7 @@ ASSIST_ASK_LABEL|-|machine|Interroger l’assistant
 PAY_CONFIRM_TITLE|-|machine|Confirmer le paiement
 PAY_TO|-|machine|À
 PAY_AMOUNT|-|machine|Montant
-PAY_TITHE|-|machine|Dîme du réseau (φ %)
+PAY_FEE|-|machine|Frais d’assurance (0,08889 %)
 PAY_RECORD|-|machine|Enregistrement
 PAY_BUTTON|-|machine|Payer {0}
 PAY_VERIFIED_PEER|-|machine|pair vérifié
@@ -103,7 +103,7 @@ CALL_MUTE|-|machine|Couper le micro
 FARM_TITLE|-|machine|Votre ferme
 FARM_THIS_DEVICE|-|machine|Cet appareil
 FARM_IDLE_SHARE|-|machine|{0} de la puissance de calcul inutilisée
-FARM_EARNED_TODAY|-|machine|Gagné aujourd’hui, après la dîme
+FARM_EARNED_TODAY|-|machine|Gagné aujourd’hui, après les frais d’assurance
 FARM_VERIFIED|-|machine|Travail vérifié par les pairs
 
 UPD_BUCKETS|-|machine|Dépôts de mises à jour
@@ -115,7 +115,7 @@ UPD_RATINGS|other|machine|{0} sur 5 d’après {1} évaluations
 UPD_READY|-|machine|{0} prête à installer
 UPD_RATINGS_NO_TRUST|-|machine|les évaluations n’accordent jamais la confiance d’installation
 
-WAL_TITLE|-|machine|Portefeuille et dîme
+WAL_TITLE|-|machine|Portefeuille et frais
 WAL_ROLE|-|machine|Rôle du compte
 WAL_ROLE_INDIVIDUAL|-|machine|Particulier
 WAL_ROLE_SELFBANK|-|machine|Opérateur autobancaire
@@ -132,12 +132,12 @@ CAP_KNOWLEDGE|-|machine|Savoir
 CAP_BUILT|-|machine|Bâti
 CAP_FINANCIAL|-|machine|Financier
 
-TITHE_TITLE|-|machine|Dîme du réseau
-TITHE_EXPLAIN|-|machine|Chaque nœud donne φ pour cent de la puissance de calcul, de la bande passante et de l’argent qu’il utilise, afin que le réseau reste rapide pour tous. Tout ce que vous donnez au-delà vous rapporte des bons.
-TITHE_BASE|-|machine|Dîme de base
-TITHE_YOUR_CONTRIB|-|machine|Votre contribution :
-TITHE_ABOVE|-|machine|Au-dessus de la dîme de {0} de l’utilisation. Cet excédent vous est crédité en bons.
-TITHE_EXACT|-|machine|Vous donnez exactement la dîme de base. Déplacez le curseur pour donner plus et gagner des bons.
+FEE_TITLE|-|machine|Frais d’assurance du réseau
+FEE_EXPLAIN|-|machine|Chaque paiement comporte des frais d’assurance de 0,08889 %. La moitié garantit la réserve plancher du Vino ; le reste finance le fonds de dividendes V-Bill, les primes des nœuds et le capital régénératif. Tout ce que vous donnez au-delà vous rapporte des bons.
+FEE_BASE|-|machine|Frais de base
+FEE_YOUR_CONTRIB|-|machine|Votre contribution :
+FEE_ABOVE|-|machine|Au-dessus des frais de {0} de l’utilisation. Cet excédent vous est crédité en bons.
+FEE_EXACT|-|machine|Vous donnez exactement les frais de base. Déplacez le curseur pour donner plus et gagner des bons.
 
 ERR_GENERIC|-|machine|Un problème est survenu. Veuillez réessayer.
 ERR_NETWORK|-|machine|Impossible de joindre le réseau. Votre action est enregistrée et sera envoyée plus tard.

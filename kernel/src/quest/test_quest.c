@@ -425,10 +425,12 @@ static void test_pay(void)
     n_ages++;
     qst_init(&W, age_hook, 0, 0);
     pay_ledger_init(&L, 0);
-    uint32_t issuer, pool, commons, custodian, acct[QST_GOAL_MEMBERS] = {0};
+    uint32_t issuer, pool, fk[PAY_ASSURE_BUCKETS], custodian, acct[QST_GOAL_MEMBERS] = {0};
     pay_ledger_open(&L, 1, L.vfv_asset, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER, &issuer);
     pay_ledger_open(&L, 2, L.vfv_asset, PAY_CAP_FINANCIAL, 0, &pool);
-    pay_ledger_open(&L, 3, L.vfv_asset, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS, &commons);
+    for (int b = 0; b < PAY_ASSURE_BUCKETS; b++)
+        pay_ledger_open(&L, 30 + (uint32_t) b, L.vfv_asset, PAY_CAP_FINANCIAL, PAY_ACCT_COMMONS,
+                        &fk[b]);
     pay_ledger_open(&L, 4, L.vfv_asset, PAY_CAP_FINANCIAL, 0, &custodian);
     pay_posting_req_t req;
     memset(&req, 0, sizeof req);
@@ -464,39 +466,43 @@ static void test_pay(void)
     qst_payout_plan(&W, (uint32_t) g, acct, cap, &p2);
     CHECK(memcmp(&p1, &p2, sizeof p1) == 0, "the split is deterministic: no chance anywhere");
     uint64_t sum = p1.unallocated;
-    bool cap_ok = true, tithe_ok = true;
+    bool cap_ok = true, fee_ok = true;
     for (uint32_t i = 0; i < p1.n; i++) {
         sum += p1.line[i].gross;
         cap_ok = cap_ok && p1.line[i].gross <= 3809;
-        tithe_ok = tithe_ok && p1.line[i].tithe == pay_tithe_phi(p1.line[i].gross) &&
-                   p1.line[i].net + p1.line[i].tithe == p1.line[i].gross;
+        fee_ok = fee_ok && p1.line[i].fee == pay_assure_fee(p1.line[i].gross) &&
+                 p1.line[i].net + p1.line[i].fee == p1.line[i].gross;
     }
     CHECK(sum == 10000, "shares plus what nobody may take equal the pool");
     CHECK(cap_ok, "no member above the 8/21 no-monopoly cap");
-    CHECK(tithe_ok, "each share pays the exact phi-percent tithe");
+    CHECK(fee_ok, "each share pays the exact 0.08889% assurance fee");
     CHECK(p1.line[0].gross == 3809 && p1.line[0].gross > p1.line[1].gross &&
               p1.line[1].gross > p1.line[2].gross,
           "shares follow verified units; the largest stops at the cap (3809 of 10000)");
     CHECK(p1.line[3].held && p1.held_total == p1.line[3].gross,
           "minor without a custodian: share held in the pool, not paid to the child");
 
-    CHECK(qst_goal_settle(&W, (uint32_t) g, &L, acct, commons, cap, 5, 2, &p1) == QST_OK,
+    CHECK(qst_goal_settle(&W, (uint32_t) g, &L, acct, fk, cap, 5, 2, &p1) == QST_OK,
           "settle through pay_ledger_post");
     CHECK(bal(acct[0]) == p1.line[0].net && bal(acct[1]) == p1.line[1].net &&
               bal(acct[2]) == p1.line[2].net && bal(acct[3]) == 0,
           "members paid net; minor's account untouched");
     CHECK(p1.line[1].net > 0, "the opted-out member is paid exactly the same (nothing lost)");
-    CHECK(bal(commons) == p1.tithe_total, "commons received every tithe");
+    CHECK(p1.line[0].fee == 3 && p1.fee_total == p1.line[0].fee + p1.line[1].fee + p1.line[2].fee,
+          "fee on 3809 is floor(3.385...) = 3; the held minor's share pays none yet");
+    CHECK(bal(fk[0]) + bal(fk[1]) + bal(fk[2]) + bal(fk[3]) == p1.fee_total,
+          "the four fee buckets received every fee, exactly");
     CHECK(bal(pool) == 100000 - (10000 - p1.unallocated - p1.held_total),
           "pool paid only what was shared");
     CHECK(pay_ledger_check(&L) && pay_ledger_verify_chain(&L), "ledger invariants and chain hold");
 
     /* idempotent re-run */
     qst_goal(&W, (uint32_t) g)->state = QST_GOAL_COMPLETE;
-    CHECK(qst_goal_settle(&W, (uint32_t) g, &L, acct, commons, cap, 6, 2, 0) == QST_OK &&
-              bal(acct[0]) == p1.line[0].net && bal(commons) == p1.tithe_total,
+    CHECK(qst_goal_settle(&W, (uint32_t) g, &L, acct, fk, cap, 6, 2, 0) == QST_OK &&
+              bal(acct[0]) == p1.line[0].net &&
+              bal(fk[0]) + bal(fk[1]) + bal(fk[2]) + bal(fk[3]) == p1.fee_total,
           "rerunning a settlement pays nobody twice");
-    CHECK(qst_goal_settle(&W, (uint32_t) g, &L, acct, commons, cap, 6, 2, 0) == QST_ERR_STATE,
+    CHECK(qst_goal_settle(&W, (uint32_t) g, &L, acct, fk, cap, 6, 2, 0) == QST_ERR_STATE,
           "a settled goal cannot be settled again");
 
     /* fraud after payout is flagged, not silently clawed back */
@@ -530,7 +536,7 @@ static void test_pay(void)
     qst_goal_join(&W, (uint32_t) g3, 50);
     qst_event_t c = ev(50, QST_SRC_MARKET, QST_EV_CHECK_PASSED, 1, 99, 3, 3, (uint32_t) g3);
     qst_record(&W, &c);
-    CHECK(qst_goal_settle(&W, (uint32_t) g3, &L, acct, commons, cap, 7, 2, 0) == QST_ERR_PAY,
+    CHECK(qst_goal_settle(&W, (uint32_t) g3, &L, acct, fk, cap, 7, 2, 0) == QST_ERR_PAY,
           "rewards are VFV only: a fiat pool is refused");
 }
 

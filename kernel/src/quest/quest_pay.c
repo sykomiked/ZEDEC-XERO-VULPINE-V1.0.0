@@ -23,15 +23,15 @@ qst_status_t qst_payout_plan(const qst_world_t *w, uint32_t goal,
         const qst_profile_t *p = qst_profile_c(w, g->member[i]);
         l->member = g->member[i];
         l->gross = gross[i];
-        l->tithe = pay_tithe_phi(gross[i]);
-        l->net = gross[i] - l->tithe;
+        l->fee = pay_assure_fee(gross[i]);
+        l->net = gross[i] - l->fee; /* fee <= gross */
         l->to_acct = member_acct[i];
         if (p && !p->policy.allow_money) l->to_acct = p->policy.custodian_acct; /* P4 */
         if (l->to_acct == 0 && l->gross > 0) {
             l->held = true;
             out->held_total += l->gross;
         } else {
-            out->tithe_total += l->tithe;
+            out->fee_total += l->fee; /* <= pool: cannot wrap */
         }
     }
     return QST_OK;
@@ -68,9 +68,9 @@ static bool vfv_acct(const pay_ledger_t *L, uint32_t acct)
 }
 
 qst_status_t qst_goal_settle(qst_world_t *w, uint32_t goal, pay_ledger_t *L,
-                             const uint32_t member_acct[QST_GOAL_MEMBERS], uint32_t commons_acct,
-                             pay_rat_t cap, uint64_t tick, uint32_t initiator,
-                             qst_payout_plan_t *plan)
+                             const uint32_t member_acct[QST_GOAL_MEMBERS],
+                             const uint32_t fee_acct[PAY_ASSURE_BUCKETS], pay_rat_t cap,
+                             uint64_t tick, uint32_t initiator, qst_payout_plan_t *plan)
 {
     qst_payout_plan_t local;
     if (!plan) plan = &local;
@@ -84,9 +84,11 @@ qst_status_t qst_goal_settle(qst_world_t *w, uint32_t goal, pay_ledger_t *L,
         return QST_OK;
     }
     /* P6 */
-    const pay_account_t *ca = pay_ledger_account(L, commons_acct);
-    if (!vfv_acct(L, g->pool_acct) || !vfv_acct(L, commons_acct) || !(ca->flags & PAY_ACCT_COMMONS))
-        return QST_ERR_PAY;
+    if (!fee_acct || !vfv_acct(L, g->pool_acct)) return QST_ERR_PAY;
+    for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) {
+        const pay_account_t *ba = pay_ledger_account(L, fee_acct[b]);
+        if (!vfv_acct(L, fee_acct[b]) || !(ba->flags & PAY_ACCT_COMMONS)) return QST_ERR_PAY;
+    }
 
     qst_status_t st = qst_payout_plan(w, goal, member_acct, cap, plan);
     if (st != QST_OK) return st;
@@ -129,10 +131,13 @@ qst_status_t qst_goal_settle(qst_world_t *w, uint32_t goal, pay_ledger_t *L,
         req.lines[1].account = l->to_acct;
         req.lines[1].d_debit = (int64_t) l->net;
         req.n_lines = 2;
-        if (l->tithe) {
-            req.lines[2].account = commons_acct;
-            req.lines[2].d_debit = (int64_t) l->tithe;
-            req.n_lines = 3;
+        uint64_t part[PAY_ASSURE_BUCKETS];
+        pay_assure_split(l->fee, part);
+        for (int b = 0; b < PAY_ASSURE_BUCKETS; b++) {
+            if (!part[b]) continue;
+            req.lines[req.n_lines].account = fee_acct[b];
+            req.lines[req.n_lines].d_debit = (int64_t) part[b];
+            req.n_lines++;
         }
         pay_receipt_t rc;
         pay_status_t ps = pay_ledger_post(L, &req, &rc);

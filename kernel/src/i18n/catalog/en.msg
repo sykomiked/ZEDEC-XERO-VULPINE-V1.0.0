@@ -62,7 +62,7 @@ ASSIST_ASK_LABEL|-|source|Ask the assistant
 PAY_CONFIRM_TITLE|-|source|Confirm payment
 PAY_TO|-|source|To
 PAY_AMOUNT|-|source|Amount
-PAY_TITHE|-|source|Network tithe (φ%)
+PAY_FEE|-|source|Assurance fee (0.08889%)
 PAY_RECORD|-|source|Record
 PAY_BUTTON|-|source|Pay {0}
 PAY_VERIFIED_PEER|-|source|verified peer
@@ -117,7 +117,7 @@ CALL_MUTE|-|source|Mute
 FARM_TITLE|-|source|Your farm
 FARM_THIS_DEVICE|-|source|This device
 FARM_IDLE_SHARE|-|source|{0} of idle compute
-FARM_EARNED_TODAY|-|source|Earned today, after tithe
+FARM_EARNED_TODAY|-|source|Earned today, after the assurance fee
 FARM_VERIFIED|-|source|Work verified by peers
 
 # ---- updates ----
@@ -130,7 +130,7 @@ UPD_READY|-|source|{0} ready to install
 UPD_RATINGS_NO_TRUST|-|source|ratings never grant install trust
 
 # ---- wallet ----
-WAL_TITLE|-|source|Wallet and tithe
+WAL_TITLE|-|source|Wallet and fees
 WAL_ROLE|-|source|Account role
 WAL_ROLE_INDIVIDUAL|-|source|Individual
 WAL_ROLE_SELFBANK|-|source|Self-banking operator
@@ -147,13 +147,13 @@ CAP_KNOWLEDGE|-|source|Knowledge
 CAP_BUILT|-|source|Built
 CAP_FINANCIAL|-|source|Financial
 
-# ---- tithe ----
-TITHE_TITLE|-|source|Network tithe
-TITHE_EXPLAIN|-|source|Every node gives φ percent of the compute, bandwidth and money it uses, so the network stays fast for everyone. Anything you give above that earns vouchers.
-TITHE_BASE|-|source|Base tithe
-TITHE_YOUR_CONTRIB|-|source|Your contribution:
-TITHE_ABOVE|-|source|Above the tithe by {0} of usage. That surplus is credited to you as vouchers.
-TITHE_EXACT|-|source|You give exactly the base tithe. Move the slider to give more and earn vouchers.
+# ---- assurance fee (0.08889%, replaced the phi% tithe 2026-10-10) ----
+FEE_TITLE|-|source|Network assurance fee
+FEE_EXPLAIN|-|source|Every payment carries a 0.08889% assurance fee. Half backs the Vino reserve floor; the rest funds the V-Bill dividend pool, node bounties and regenerative capital. Anything you give above it earns vouchers.
+FEE_BASE|-|source|Base fee
+FEE_YOUR_CONTRIB|-|source|Your contribution:
+FEE_ABOVE|-|source|Above the fee by {0} of usage. That surplus is credited to you as vouchers.
+FEE_EXACT|-|source|You give exactly the base fee. Move the slider to give more and earn vouchers.
 
 # ---- errors ----
 ERR_GENERIC|-|source|Something went wrong. Please try again.

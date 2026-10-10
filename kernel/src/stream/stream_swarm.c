@@ -985,7 +985,7 @@ static void sent_row(ssw_node_t *n, ssw_peer_t *p)
     n->st.up_rows += SSW_PIECE_ROWS;
     p->sent_recent++;
     p->sent_total++;
-    if (n->cfg.tithe_hook) n->cfg.tithe_hook(n->cfg.hook_ctx, n->self_id, p->id, SSW_PIECE_ROWS);
+    if (n->cfg.fee_hook) n->cfg.fee_hook(n->cfg.hook_ctx, n->self_id, p->id, SSW_PIECE_ROWS);
 }
 
 static void serve_class(ssw_node_t *n, uint32_t cls, ssw_send_t *out, uint32_t cap, uint32_t *nout)

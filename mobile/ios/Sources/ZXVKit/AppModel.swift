@@ -115,7 +115,7 @@ public final class AppModel: ObservableObject, CoreDelegate {
     }
     public func answerMoney(_ ok: Bool) { _ = core.moneyAnswer(approve: ok); money = nil }
     public func revoke(_ d: Device) { _ = core.revoke(d.id); refresh() }
-    public func tithe(_ minor: UInt64) -> UInt64 { core.tithe(minor) }
+    public func assureFee(_ minor: UInt64) -> UInt64 { core.assureFee(minor) }
 
     // ---- CoreDelegate (called on the main thread from inside core calls) ----
     nonisolated public func coreSend(to: Data, frame: Data) -> Int32 {

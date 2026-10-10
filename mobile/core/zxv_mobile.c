@@ -219,7 +219,7 @@ int zxv_money_answer(int approve, uint64_t now_ms)
     return g_started ? dm_money_answer(&g_mesh, approve != 0, now_ms) : DM_ERR_STATE;
 }
 
-uint64_t zxv_tithe(uint64_t amount)
+uint64_t zxv_assure_fee(uint64_t amount)
 {
-    return cm_tithe_phi(amount);
+    return cm_fee_assure(amount);
 }

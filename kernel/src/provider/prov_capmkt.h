@@ -16,8 +16,8 @@
  * the same capacity is never sold twice), a user's bid is mirrored, and a
  * capmkt delivery proof is accepted only when its evidence is the digest of
  * a prov receipt that BOTH parties co-signed with ML-DSA-65 (G6). capmkt's
- * tithe hook is routed to prov_fee, so the published fee is the same in
- * both modes (in the default phi mode it equals cm_tithe_phi exactly).
+ * fee hook is routed to prov_fee, so the published fee is the same in
+ * both modes (in the default mode it equals cm_fee_assure exactly).
  *
  * Unit factor: one capmkt unit = `factor` prov units of the offer (e.g. 1000
  * tokens for CM_RES_INFERENCE, 3600 accelerator-seconds for one
@@ -44,7 +44,7 @@ typedef struct {
     prov_cm_rcpt_t rc[PROV_CM_MAX_RECEIPTS];
 } prov_cm_t;
 
-/* Bind the bridge and fill capmkt params (tithe = prov_fee, verify = the
+/* Bind the bridge and fill capmkt params (fee = prov_fee, verify = the
  * co-signed receipt check, ctx = the bridge). Call before cm_init. */
 void prov_cm_bind(prov_cm_t *b, prov_net_t *n, cm_market_t *m, cm_params_t *params);
 /* capmkt account id of a prov provider / user: the first 16 bytes of its id. */
@@ -63,6 +63,6 @@ int prov_cm_receipt(const prov_cm_t *b, uint32_t cid, uint8_t rclass, uint8_t un
 int prov_cm_accept(prov_cm_t *b, uint32_t cid, const prov_receipt_t *r);
 /* capmkt hooks. */
 bool prov_cm_verify(void *ctx, const cm_contract_t *c, const cm_proof_t *p);
-uint64_t prov_cm_tithe(void *ctx, uint64_t amount);
+uint64_t prov_cm_fee(void *ctx, uint64_t amount);
 
 #endif /* ZXV_PROV_CAPMKT_H */

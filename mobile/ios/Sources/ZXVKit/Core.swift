@@ -138,7 +138,7 @@ public final class Core {
     }
 
     public func moneyAnswer(approve: Bool) -> Int32 { zxv_money_answer(approve ? 1 : 0, Core.nowMs()) }
-    public func tithe(_ amountMinor: UInt64) -> UInt64 { zxv_tithe(amountMinor) }
+    public func assureFee(_ amountMinor: UInt64) -> UInt64 { zxv_assure_fee(amountMinor) }
 
     private func withId<R>(_ id: Data, _ f: (UnsafePointer<UInt8>) -> R) -> R {
         precondition(id.count == Int(ZXV_ID_BYTES))

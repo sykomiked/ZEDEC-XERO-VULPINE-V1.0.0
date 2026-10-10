@@ -73,10 +73,16 @@ int prov_pay_settle(void *ctx, const prov_settlement_t *s)
         if (s->net + s->fee + s->refund != s->hold || s->net > s->hold || s->fee > s->hold)
             return -1;
         if (prov_charge_check(PROV_CHARGE_USAGE, s->hold, s->gross, false) != PROV_OK) return -1;
-        r.kind = PAY_KIND_TITHE;
+        r.kind = PAY_KIND_FEE;
         ok = line(&r, esc, -(int64_t) s->hold) &&
-             line(&r, p->provider[s->asset][s->provider], (int64_t) s->net) &&
-             line(&r, p->commons[s->asset], (int64_t) s->fee) && line(&r, usr, (int64_t) s->refund);
+             line(&r, p->provider[s->asset][s->provider], (int64_t) s->net);
+        {
+            uint64_t part[PAY_ASSURE_BUCKETS];
+            pay_assure_split(s->fee, part); /* sums to s->fee exactly */
+            for (int b = 0; ok && b < PAY_ASSURE_BUCKETS; b++)
+                ok = line(&r, p->fee_acct[s->asset][b], (int64_t) part[b]);
+        }
+        ok = ok && line(&r, usr, (int64_t) s->refund);
         break;
     default:
         return -1;

@@ -73,11 +73,12 @@ You can give an AI assistant a **mandate**. It sets a limit per order, a total l
    - for bookings, the slots.
 
    You can withdraw a listing or restock it at any time.
-3. **Get paid.** When escrow releases, you receive the sale amount minus the **φ% tithe**, plus the tax you collected if the operator has not set itself up to remit tax for you.
+3. **Get paid.** When escrow releases, you receive the sale amount minus the **0.08889% assurance fee**, plus the tax you collected if the operator has not set itself up to remit tax for you.
 
-   The tithe is exactly `floor(a · φ / 100)`, about 1.618%, where `a` is your net revenue on the sale, excluding tax. It is taken **once per sale**. Some consequences:
-   - A sale refunded before release pays no tithe.
-   - If you refund after release, the commons returns the matching share of the tithe, so the tithe always equals the tithe on what you actually kept.
+   The fee is exactly `floor(a · 8889 / 10,000,000)`, where `a` is your net revenue on the sale, excluding tax (it replaced the earlier φ% tithe on 2026-10-10). It is taken **once per sale**, never on a fee. The operator's ledger splits it 50% reserve floor (backs Vino, plus every remainder unit), 25% V-Bill dividend pool, 15% infrastructure/node bounties, 10% regenerative capital. Some consequences:
+   - A sale refunded before release pays no fee.
+   - Partial releases are charged `fee(released so far) − fee already charged`, so they pay exactly what one release of the total would pay (no sub-unit is lost or double-counted).
+   - If you refund after release, the fee pool returns the matching share of the fee, so the fee always equals the fee on what you actually kept.
    - There are no other platform fees in this module.
 4. **Being found.** Search is ranked by the Interaction Surplus Framework (`kernel/src/concord`). Shops whose interests *complement* the buyer's rank highest; near-copies of what the buyer already has, and direct opposites, rank lowest.
    - Review quality also counts, but a new shop starts at a neutral score worth two reviews, so it is not buried.
@@ -107,7 +108,7 @@ These properties are tested in `kernel/src/market/test_market.c`, which runs 3,2
 - **Every state change is in one table.** The test compares the table, edge by edge, with an independent list. It drives all 22 transitions through the API, and tries every disallowed action in each state to show it is refused without changing anything.
 - **Escrow conservation.** In every order, what came in equals what went out plus what is still held. Nothing is held once an order is finished. An independent mock ledger checks this after every operation, including 3,000 randomised steps with settlement failures injected.
 - **Refund exactness.** The test covers 144 combinations of tax rate, rounding mode, tax-inclusive or tax-exclusive pricing, and before or after release. In each, refunding units in batches returns exactly the line total and exactly the tax charged.
-- **Tithe exactness.** The tithe always equals `floor(a·φ/100)`. This is checked against an independent 128-bit integer square-root reference.
+- **Fee exactness.** The fee always equals `floor(a·8889/10^7)`. This is checked against an independent 128-bit integer reference.
 - **Atomicity.** Every money movement is a single instruction to the payment layer. If the payment layer refuses it, nothing changes.
 
 ## Honest limits
