@@ -16,9 +16,12 @@
  *      context limit. Generation stops at tok->eos, <|im_end|> or
  *      <|endoftext|>; the stop token is not written.
  *   G4 LIMITS. One sequence at a time (the host is single-threaded), a
- *      context of at most 2048 tokens, scalar C speed (see zt_model.h:
- *      ESTIMATED 2.5 to 6 tokens a second for a 0.5B model on one core,
- *      not measured). No sampling settings are exposed yet.
+ *      context of at most 2048 tokens. The matrix products run on
+ *      zt_simd_default() (zt_simd.h): the best SIMD kernels this CPU has
+ *      (AVX2 / AVX-512 / NEON) with the rows split over a thread pool, which
+ *      gives the same bits as the scalar C reference (test_zt_simd);
+ *      ZT_KERN and ZT_THREADS override the choice. No sampling settings are
+ *      exposed yet.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +29,7 @@
 
 #include "zxv_model_host.h"
 #include "zt_model.h"
+#include "zt_simd.h"
 
 #define GLUE_CTX     2048u
 #define GLUE_BATCH   16u
@@ -84,6 +88,7 @@ static int32_t ensure_loaded(const zt_gguf_t *g, char *err, size_t err_cap)
         zxv_zt_release();
         return r;
     }
+    G.m.kern = zt_simd_default(); /* same output bits as the C reference */
     uint32_t n_ctx = G.m.cfg.n_ctx_train;
     if (n_ctx == 0 || n_ctx > GLUE_CTX) n_ctx = GLUE_CTX;
     uint64_t sb = zt_model_state_bytes(&G.m, n_ctx, GLUE_BATCH, ZT_KV_Q16);

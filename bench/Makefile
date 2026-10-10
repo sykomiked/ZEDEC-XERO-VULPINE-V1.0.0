@@ -16,7 +16,8 @@ PROMPT ?= The capital of France is
 PY ?= python3
 
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
-	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c
+	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
+	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
@@ -36,8 +37,8 @@ legacy: $(OUT)/legacy_bench
 legacy-bench: $(OUT)/legacy_bench
 	$(OUT)/legacy_bench legacy/golden_legacy.tsv --iters 200000
 
-$(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -o $@
+$(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
 
 zt_bench: $(OUT)/zt_bench
 

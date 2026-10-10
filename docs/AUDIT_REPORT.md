@@ -109,7 +109,7 @@ but is not wired into a shipped product (the Mac app or a kernel image).
 | 10 | Good UI with its own track; mockups shown first | kernel/arch/hosted/zxv_ui.html (98 lines), ZXVApp.m WKWebView | PARTIAL | Only state/ask/quit endpoints; no panels for social, pay, calls, peers, models, settings |
 | 11 | The AI is the OS: runs natively on ZXV using kernel features | build_system/Makefile.*, kernel/src/swarm/swarm_boot.c, kernel/src/tensor/zt_boot.c | PARTIAL | swarm + tensor linked into arm64 and x86_64 and self-checked at boot ([AI_OK]); no model runs in the kernel; riscv/arm32 not linked; vinea, pay etc. in no kernel image |
 | 12 | Self-contained knowledge + web browsing | kernel/src/browser (tested) | PARTIAL | Browser has no transport bound to net/tls; not in the app |
-| 13 | Integer-only tensor engine, identical on every device | kernel/src/tensor/zt*.c | DONE | Speed not measured on a real model |
+| 13 | Integer-only tensor engine, identical on every device | kernel/src/tensor/zt*.c | DONE | SIMD (AVX2/AVX-512/NEON) and threads in hosted builds, bit-identical to the C path (test_zt_simd); speed measured only on synthetic weights on x86, not on a real model or a Mac |
 | 14 | Weights never in git; pinned SHA-256; signed content hash; reproducible converter (tools/zxv_pack) | models.manifest (sha256 + CID format), zxv-model-fetch.sh | PARTIAL | tools/zxv_pack does not exist; no ML-DSA-signed model manifest |
 | 15 | Qwen3 base with one LoRA adapter per agent | zt_model.h (Qwen2/Qwen3/Llama), swarm_evolve.h `adapter` index | PARTIAL | No LoRA loading or application anywhere |
 | 16 | ISF maths inside the tensor core | kernel/src/tensor/zt_isf.c, src/surplus | DONE | — |

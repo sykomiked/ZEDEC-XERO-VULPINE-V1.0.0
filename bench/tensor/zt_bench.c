@@ -16,7 +16,11 @@
  * itself. Hosted only (libc, malloc, clock_gettime).
  *
  * Usage: zt_bench MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B]
- *                 [--kv q16|q8] [--text FILE]
+ *                 [--kv q16|q8] [--text FILE] [--kern NAME] [--threads T]
+ * --kern picks the matrix kernels (zt_simd.h: c, avx2, avx512, neon; default
+ * the fastest this CPU runs), --threads the thread count (default 1). Every
+ * choice gives the same token ids; only the speed differs. It prints
+ * zt.kern=<name> zt.threads=<T>.
  * Exit: 0 ok, 2 usage, 3 cannot read file, 4 model or tokenizer not loadable,
  *       5 run failed. */
 #define _POSIX_C_SOURCE 200809L
@@ -28,6 +32,7 @@
 
 #include "zt_gguf.h"
 #include "zt_model.h"
+#include "zt_simd.h"
 #include "zt_tok.h"
 
 static double now_s(void)
@@ -70,7 +75,8 @@ static void *alloc64(uint64_t bytes)
 int main(int argc, char **argv)
 {
     const char *path = NULL, *prompt = "The capital of France is", *text_out = NULL;
-    uint32_t n_gen = 32, n_ctx = 0, n_batch = 32, kv = ZT_KV_Q16;
+    const char *kern_name = NULL;
+    uint32_t n_gen = 32, n_ctx = 0, n_batch = 32, kv = ZT_KV_Q16, n_threads = 1;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         const char *v = i + 1 < argc ? argv[i + 1] : NULL;
@@ -86,12 +92,16 @@ int main(int argc, char **argv)
             kv = !strcmp(argv[++i], "q8") ? ZT_KV_Q8 : ZT_KV_Q16;
         else if (!strcmp(a, "--text") && v)
             text_out = argv[++i];
+        else if (!strcmp(a, "--kern") && v)
+            kern_name = argv[++i];
+        else if (!strcmp(a, "--threads") && v)
+            n_threads = (uint32_t) strtoul(argv[++i], NULL, 10);
         else if (a[0] != '-' && !path)
             path = a;
         else {
             fprintf(stderr,
                     "usage: %s MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B] "
-                    "[--kv q16|q8] [--text FILE]\n",
+                    "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T]\n",
                     argv[0]);
             return 2;
         }
@@ -130,6 +140,15 @@ int main(int argc, char **argv)
         fprintf(stderr, "zt_bench: model load failed: %s %s\n", err.what ? err.what : "", err.name);
         return 4;
     }
+    const zt_kern_t *kb = kern_name ? zt_simd_find(kern_name) : zt_simd_best();
+    if (!kb) {
+        fprintf(stderr, "zt_bench: kernel set '%s' is not available on this CPU\n", kern_name);
+        return 2;
+    }
+    zt_pool_t *pool = n_threads > 1 ? zt_pool_new(n_threads) : NULL;
+    zt_kern_t kern;
+    zt_kern_threaded(&kern, kb, pool);
+    m.kern = &kern;
     uint64_t tbytes = zt_tok_arena_bytes(&g);
     void *tarena = tbytes ? alloc64(tbytes) : NULL;
     zt_tok_t tok;
@@ -193,6 +212,7 @@ int main(int argc, char **argv)
     }
     double t2 = now_s();
 
+    printf("zt.kern=%s\nzt.threads=%u\n", kb->name, pool ? n_threads : 1);
     printf("zt.n_prompt=%llu\n", (unsigned long long) n_ids);
     printf("zt.prefill_s=%.6f\nzt.prefill_tps=%.3f\n", t1 - t0,
            (t1 - t0) > 0 ? (double) n_ids / (t1 - t0) : 0.0);
@@ -215,6 +235,7 @@ int main(int argc, char **argv)
         fclose(f);
         free(txt);
     }
+    zt_pool_free(pool);
     free(logits);
     free(smem);
     free(work);
