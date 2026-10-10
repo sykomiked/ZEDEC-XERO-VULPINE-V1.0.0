@@ -32,6 +32,7 @@ applied here.
 | F-MM-DFREE | kernel/src/mm/mm.c `kfree` | axioms_alloc.c |
 | F-MM-FRAME0 | kernel/src/mm/mm.c frame 0 as "no frame" | axioms_alloc.c |
 | F-MM-QUOTA | kernel/src/mm/mm.c `mm_free_frame` | axioms_alloc.c |
+| F-MM-ALIGN | kernel/src/mm/mm.c `kmalloc` size rounding | axioms_alloc.c |
 | F-MM-SHIFT31 | kernel/src/mm/mm.c bitmap helpers | axioms_alloc.c (sanitizer build) |
 
 ## Exact rationals (rmag_core)
@@ -155,6 +156,14 @@ counted as used) or test `page->present` instead of `page->frame`.
 frame's RMAG quota, so the freed frame keeps its quota and frame 0 is charged
 instead. Patch: save `uint32_t f = page->frame;` first and use `f` for the
 bitmap and the quota.
+
+**F-MM-ALIGN.** `kmalloc` rounds every size up to a multiple of 4, so after
+`kmalloc(4)` the split-off header (which holds two pointers) sits at an
+address `% 8 == 4`. mm.c is built into the 64-bit kernels (arm64, x86_64,
+riscv), where that is a misaligned access (UB; a fault on strict-alignment
+cores); UBSan reports it. Patch: round to `_Alignof(heap_block_t)`
+(`size = (size + A - 1) & ~(A - 1)` with the `HEAP_MAX` check kept ahead of
+it so the round-up cannot wrap).
 
 **F-MM-SHIFT31.** The bitmap helpers shift the `int` 1 by up to 31
 (`1 << 31` is signed overflow, UB; UBSan aborts once 32 frames are taken).

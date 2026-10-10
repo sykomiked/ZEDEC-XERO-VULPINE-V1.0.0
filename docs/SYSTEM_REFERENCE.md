@@ -341,7 +341,7 @@ Gaps: apps never built in CI; no on-device inference yet (zt_model optional, and
 Status: PARTIAL
 What it does: CI runs five arch builds with QEMU boots, `host-tests` (`relicense_apache.py --check` + `make verify-all`), changed-lines clang-format, `macos-app` (build_desktop.sh on macos-14, bundle checks, launch/quit) and `dotnet-sdk`. `build_system/Makefile` is a second suite for the root OS layers (`os_lattice`, `neon`, `gridchain`, `security`, `physics_sim`, `hccs`, `audiogenomics`, `governance`, `tests/test_drivers.c`).
 Main entry points: `kernel/Makefile verify-all`, `build_system/Makefile test`, `build_desktop.sh`, `build_signed_app.sh`, `build.sh`.
-Tests: root suite before: did not compile; now 10/10 pass and fails closed (binaries in build/os_tests). Not in CI or verify-all (lines proposed in platform_verify_lines.mk).
+Tests: root suite before: did not compile; now 10/10 pass and fails closed (binaries in build/os_tests). Not in CI or verify-all (lines proposed in platform_verify_lines.mk). Tiered tests (tests/01_root_axioms, 02_integration, 03_metamorphic; driver tests/harness/tiers.py, plain + ASan/LSan/UBSan + Q32.32) run in verify-all; a deterministic mutation harness (tests/harness/mutator/mutate.py) gates a small subset in the `mutation-subset` CI job; scores in tests/MUTATION_REPORT.md, open bugs the tiers expose in tests/FINDINGS.md.
 Used by: CI and developers.
 Gaps: CI triggers only on push/PR to main and develop; non-arm64 boots `|| true`; no fuzz/verify-experimental job; mobile and language bindings not in CI; `build_desktop.sh` runs `make test-swarm`, which writes fixed `/tmp/test_*` paths.
 

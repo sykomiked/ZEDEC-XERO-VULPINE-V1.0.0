@@ -75,6 +75,9 @@ mobile docs recommend is refused; swarm and tensor are in no kernel image; the M
 IPFS or socket glue (so no offline/LAN/online modes yet) and does not link notifications, speech or
 the update checker; ehop is not wired into Vinea (payload and per-fragment overhead limits); capital
 forms are ordered four different ways across modules.
+community_chest, count_house and vino are not posted into finance/triple_ledger (the Tier 2 tests in
+tests/02_integration play that glue and check conservation across it); the tiered tests also expose 20
+open defects in the ledger and allocator modules, listed with proposed patches in tests/FINDINGS.md.
 
 
 ## Owner requirements traceability

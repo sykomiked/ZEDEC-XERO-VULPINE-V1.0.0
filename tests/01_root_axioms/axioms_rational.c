@@ -168,6 +168,13 @@ static void axiom_parse(void)
         {"/4", false, 0, 1},
         {"4/", false, 0, 1},
         {"-12.75", true, -51, 4},
+        {"+5", true, 5, 1},
+        {"+3/4", true, 3, 4},
+        {"+.5", true, 1, 2},
+        {"99999999999999999999", false, 0, 1},   /* 20 digits: wraps if unchecked */
+        {"18446744073709551617", false, 0, 1},   /* 2^64+1 wraps to 1 if unchecked */
+        {"1/18446744073709551617", false, 0, 1}, /* the same, as a denominator */
+        {"1/99999999999999999999", false, 0, 1},
     };
     for (unsigned i = 0; i < TIER_N(P); i++) {
         rat_t r = rat_from_string(P[i].s);
@@ -175,6 +182,188 @@ static void axiom_parse(void)
         CHECK(same(r, want), "parse \"%s\"", P[i].s);
     }
     CHECK(!rat_from_string(NULL).valid, "parse NULL");
+}
+
+/* ===== generated parse grid against an independent parser oracle =====
+ * Strings are built from {sign} x {integer digits} x {"", ".", "/"} x
+ * {fraction/denominator digits}, with digit counts on the boundaries the
+ * parser has to get right: 0, 1, 17, 18, 19, 20 and 25 digits (a 64-bit
+ * value has at most 19). Digits are all-9s, all-0s, "1 then 0s" or random. */
+static rat_t parse_oracle(const char *s)
+{
+    rat_t bad = {0, 1, false};
+    int sign = 1;
+    if (*s == '-') {
+        sign = -1;
+        s++;
+    } else if (*s == '+')
+        s++;
+    u128 ip = 0;
+    int nint = 0;
+    while (*s >= '0' && *s <= '9') {
+        ip = ip * 10 + (u128) (*s - '0');
+        if (ip > (u128) INT64_MAX) return bad;
+        s++;
+        nint++;
+    }
+    if (*s == '/') {
+        s++;
+        u128 d = 0;
+        int nd = 0;
+        while (*s >= '0' && *s <= '9') {
+            d = d * 10 + (u128) (*s - '0');
+            if (d > (u128) INT64_MAX) return bad;
+            s++;
+            nd++;
+        }
+        if (!nint || !nd || d == 0 || *s) return bad;
+        return oracle(sign * (i128) ip, (i128) d);
+    }
+    if (*s == '.') {
+        s++;
+        u128 frac = 0, scale = 1;
+        int nf = 0;
+        while (*s >= '0' && *s <= '9') {
+            if (nf >= 18) { /* past 18 places only zeros are exact */
+                if (*s != '0') return bad;
+            } else {
+                frac = frac * 10 + (u128) (*s - '0');
+                scale *= 10;
+            }
+            s++;
+            nf++;
+        }
+        if ((!nint && !nf) || *s) return bad;
+        return oracle(sign * (i128) (ip * scale + frac), (i128) scale);
+    }
+    if (!nint || *s) return bad;
+    return oracle(sign * (i128) ip, 1);
+}
+
+static void digits(char *out, int n, int style, uint64_t *seed)
+{
+    for (int i = 0; i < n; i++) {
+        char c = style == 0   ? '9'
+                 : style == 1 ? '0'
+                 : style == 2 ? (i == 0 ? '1' : '0')
+                              : (char) ('0' + (int) (tier_rand(seed) % 10));
+        out[i] = c;
+    }
+    out[n] = 0;
+}
+
+static void axiom_parse_grid(void)
+{
+    static const int LEN[] = {0, 1, 17, 18, 19, 20, 25};
+    static const char *SIGN[] = {"", "-", "+"};
+    static const char *SEP[] = {"", ".", "/"};
+    uint64_t seed = 0x1234;
+    char a[32], b[32], s[96];
+    unsigned n = 0;
+    for (unsigned sg = 0; sg < 3; sg++)
+        for (unsigned li = 0; li < TIER_N(LEN); li++)
+            for (unsigned sp = 0; sp < 3; sp++)
+                for (unsigned lj = 0; lj < (sp ? TIER_N(LEN) : 1); lj++)
+                    for (int st = 0; st < 4; st++)
+                        for (int st2 = 0; st2 < (sp ? 4 : 1); st2++) {
+                            digits(a, LEN[li], st, &seed);
+                            digits(b, sp ? LEN[lj] : 0, st2, &seed);
+                            snprintf(s, sizeof s, "%s%s%s%s", SIGN[sg], a, SEP[sp], b);
+                            rat_t got = rat_from_string(s), want = parse_oracle(s);
+                            CHECK(same(got, want),
+                                  "parse \"%s\": got %d %lld/%lld want %d %lld/%lld", s, got.valid,
+                                  (long long) got.num, (long long) got.den, want.valid,
+                                  (long long) want.num, (long long) want.den);
+                            n++;
+                        }
+    CHECK(n > 1000, "parse grid size %u", n);
+}
+
+/* ===== exact rendering against an independent renderer ===== */
+static void render_oracle(rat_t a, char *w)
+{
+    if (!a.valid) {
+        strcpy(w, "#OVERFLOW");
+        return;
+    }
+    int p = 0;
+    if (a.num < 0) w[p++] = '-';
+    u128 n = a.num < 0 ? (u128) - (i128) a.num : (u128) a.num, d = (u128) a.den;
+    u128 dd = d;
+    int tw = 0, fv = 0;
+    while (dd % 2 == 0) {
+        dd /= 2;
+        tw++;
+    }
+    while (dd % 5 == 0) {
+        dd /= 5;
+        fv++;
+    }
+    int places = tw > fv ? tw : fv;
+    char tmp[64];
+    int t = 0;
+    if (dd == 1 && places <= 18) {
+        u128 scale = 1;
+        for (int i = 0; i < places; i++) scale *= 10;
+        u128 sc = n * (scale / d), ip = sc / scale, fp = sc % scale;
+        do {
+            tmp[t++] = (char) ('0' + (int) (ip % 10));
+            ip /= 10;
+        } while (ip);
+        while (t) w[p++] = tmp[--t];
+        if (fp) {
+            w[p++] = '.';
+            char f[32];
+            for (int i = places - 1; i >= 0; i--) {
+                f[i] = (char) ('0' + (int) (fp % 10));
+                fp /= 10;
+            }
+            int len = places;
+            while (len > 0 && f[len - 1] == '0') len--;
+            memcpy(w + p, f, (size_t) len);
+            p += len;
+        }
+    } else {
+        do {
+            tmp[t++] = (char) ('0' + (int) (n % 10));
+            n /= 10;
+        } while (n);
+        while (t) w[p++] = tmp[--t];
+        w[p++] = '/';
+        do {
+            tmp[t++] = (char) ('0' + (int) (d % 10));
+            d /= 10;
+        } while (d);
+        while (t) w[p++] = tmp[--t];
+    }
+    w[p] = 0;
+}
+
+static void axiom_render_exact(void)
+{
+    rat_t R[400];
+    unsigned n = 0;
+    for (unsigned i = 0; i < NV; i++) R[n++] = V[i];
+    const int64_t NUMS[] = {1, -1, 3, -7, 12345, INT64_MAX, -INT64_MAX};
+    for (int k = 0; k < 63; k += 3)
+        for (unsigned j = 0; j < TIER_N(NUMS) && n < TIER_N(R); j++)
+            R[n++] = rat_make(NUMS[j], INT64_C(1) << k);
+    int64_t p5 = 1;
+    for (int k = 0; k < 28 && n + 3 < TIER_N(R); k++, p5 *= 5) {
+        R[n++] = rat_make(1, p5);
+        R[n++] = rat_make(-3, p5);
+        if (p5 <= INT64_MAX / 1024) R[n++] = rat_make(7, p5 * 1024);
+    }
+    R[n++] = rat_make(1, 3);
+    R[n++] = rat_make(-22, 7);
+    R[n++] = rat_make(1, 0);
+    for (unsigned i = 0; i < n; i++) {
+        char got[96], want[96];
+        uint32_t len = rat_to_string(R[i], got, sizeof got);
+        render_oracle(R[i], want);
+        CHECK(strcmp(got, want) == 0 && len == strlen(want), "render %lld/%lld: got %s want %s",
+              (long long) R[i].num, (long long) R[i].den, got, want);
+    }
 }
 
 /* Render into a buffer with a canary tail; every byte past max must survive. */
@@ -215,7 +404,9 @@ static void axiom_fixed(void)
     uint32_t places[] = {0, 1, 2, 17, 18, 19, UINT32_MAX};
     rat_t vals[] = {rat_make(1, 3),         rat_make(2, 3),          rat_make(-1, 2),
                     rat_make(1, 2),         rat_make(-5, 1),         rat_make(999, 1000),
-                    rat_make(INT64_MAX, 1), rat_make(-INT64_MAX, 7), rat_make(1, INT64_MAX)};
+                    rat_make(INT64_MAX, 1), rat_make(-INT64_MAX, 7), rat_make(1, INT64_MAX),
+                    rat_make(1, 100),       rat_make(-7, 1000),      rat_make(1, 1024),
+                    rat_make(3, 50000),     rat_make(-1, 3000),      rat_make(0, 1)};
     for (unsigned v = 0; v < TIER_N(vals); v++)
         for (unsigned p = 0; p < TIER_N(places); p++) {
             char buf[64];
@@ -264,6 +455,35 @@ static void axiom_fixed(void)
     CHECK(rat_to_fixed(rat_make(1, 0), 2, b, 1, &ex) == 1 && b[0] == 0 && !ex,
           "to_fixed invalid max=1 terminates and reports inexact");
     CHECK(rat_to_fixed(rat_zero(), 2, NULL, 4, &ex) == 0, "to_fixed NULL out");
+    /* a NULL `exact` is allowed on every path */
+    CHECK(rat_to_fixed(rat_make(1, 3), 4, b, sizeof b, NULL) == 6 &&
+              rat_to_fixed(rat_make(1, 0), 4, b, sizeof b, NULL) == 1,
+          "to_fixed with exact == NULL");
+    /* an invalid value renders "#" whenever there is room for it */
+    for (uint32_t mx = 2; mx <= 4; mx++) {
+        char ib[8];
+        memset(ib, 0x5A, sizeof ib);
+        CHECK(rat_to_fixed(rat_make(1, 0), 2, ib, mx, &ex) == 1 && strcmp(ib, "#") == 0 &&
+                  (unsigned char) ib[mx] == 0x5A,
+              "to_fixed invalid max=%u -> \"#\"", mx);
+    }
+    /* truncation: every max from 1 to the full length + 1 terminates inside
+     * the buffer, keeps the prefix and never writes past max */
+    rat_t tv[] = {rat_make(-22, 7), rat_make(1, 100), rat_make(INT64_MAX, 3)};
+    for (unsigned v = 0; v < TIER_N(tv); v++) {
+        char full[96];
+        uint32_t need = rat_to_fixed(tv[v], 18, full, sizeof full, &ex);
+        for (uint32_t mx = 1; mx <= need + 1; mx++) {
+            char buf[128];
+            memset(buf, 0x5A, sizeof buf);
+            uint32_t got = rat_to_fixed(tv[v], 18, buf, mx, &ex);
+            size_t used = strnlen(buf, mx);
+            bool canary = true;
+            for (uint32_t k = mx; k < sizeof buf; k++) canary &= (unsigned char) buf[k] == 0x5A;
+            CHECK(got == need && used < mx && memcmp(buf, full, used) == 0 && canary,
+                  "to_fixed %u max=%u: length, terminator, prefix, nothing past max", v, mx);
+        }
+    }
 }
 
 /* rat_split: parts in {0, 1, 2, 3, 2^16}; out[] untouched on refusal. */
@@ -370,7 +590,9 @@ int main(void)
     axiom_make_and_from_int();
     axiom_arith_grid();
     axiom_parse();
+    axiom_parse_grid();
     axiom_render_bounds();
+    axiom_render_exact();
     axiom_fixed();
     axiom_split();
     axiom_rmag();

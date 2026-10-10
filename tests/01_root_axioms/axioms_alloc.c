@@ -35,6 +35,8 @@ static const tier_known_t KNOWN_FAILURES[] = {
     {"F-MM-FRAME0", "frame index 0 doubles as 'no frame': it can be allocated but never freed"},
     {"F-MM-QUOTA", "mm_free_frame zeroes page->frame before reading the RMAG quota, so the "
                    "freed frame's quota is charged to frame 0"},
+    {"F-MM-ALIGN", "kmalloc rounds sizes to 4 bytes, so on a 64-bit build the next block header "
+                   "is misaligned (UB)"},
     {"F-MM-SHIFT31", "the frame bitmap shifts the int 1 by 31 (signed overflow, UB)"},
 };
 
@@ -181,6 +183,128 @@ static void axiom_kmalloc(void)
                 "a second kfree of the same block changed heap_used %u -> %u", used, MM.heap_used);
 }
 
+/* heap list integrity: prev links mirror next links, and the accounting
+ * (used blocks + free blocks + one header per block) covers the page */
+static bool list_ok(void)
+{
+    uint32_t used = 0, total = 0;
+    heap_block_t *prev = NULL;
+    for (heap_block_t *b = MM.heap_head; b; b = b->next) {
+        if (b->prev != prev) return false;
+        if (!b->free) used += b->size + HDR;
+        total += b->size + HDR;
+        prev = b;
+    }
+    return used == MM.heap_used && total == PAGE_SIZE;
+}
+
+static void axiom_mm_more(void)
+{
+    /* mm_init clears every bitmap word, including the last one */
+    MM.frames_bitmap[0] = MM.frames_bitmap[MAX_PAGES / 32 - 1] = 0xFFFFFFFFu;
+    mm_init(&MM);
+    bool clear = true;
+    for (uint32_t i = 0; i < MAX_PAGES / 32; i++) clear &= MM.frames_bitmap[i] == 0;
+    CHECK(clear && MM.used_pages == 0 && MM.total_pages == MAX_PAGES, "mm_init clears the bitmap");
+    CHECK(MM.heap_end - MM.heap_start == PAGE_SIZE && MM.heap_start == KERNEL_HEAP_BASE,
+          "heap bounds are one page at KERNEL_HEAP_BASE");
+    CHECK(mm_get_total_memory() == (uint32_t) MAX_PAGES * PAGE_SIZE, "total memory");
+
+    /* split threshold: a block is split only when the rest can hold a header
+     * and more: exactly size + 2 headers is NOT split, 8 bytes less is (8, not
+     * 4: a 4-byte step misaligns the next header on 64-bit, see F-MM-ALIGN) */
+    uint32_t s = HEAP_FREE0 - 2 * HDR;
+    void *p = kmalloc(&MM, s);
+    CHECK(p && n_blocks() == 1 && MM.heap_used == PAGE_SIZE && list_ok(),
+          "no split at size + 2 headers");
+    kfree(&MM, p);
+    p = kmalloc(&MM, s - 8);
+    CHECK(p && n_blocks() == 2 && list_ok(), "split at size + 2 headers + 8");
+    kfree(&MM, p);
+    CHECK(n_blocks() == 1 && list_ok(), "back to one block");
+
+    /* block headers stay aligned for their pointer members */
+    TIER_UB_KNOWN("F-MM-ALIGN", ok, {
+        mm_init(&MM);
+        void *x = kmalloc(&MM, 4);
+        void *y = kmalloc(&MM, 8);
+        ok = x && y && ((uintptr_t) y % _Alignof(heap_block_t)) == 0;
+    });
+    mm_init(&MM);
+
+    /* prev links through a split of a middle block and a two-way coalesce */
+    uint8_t *a = kmalloc(&MM, 64), *b = kmalloc(&MM, 32), *c = kmalloc(&MM, 32),
+            *d = kmalloc(&MM, 32);
+    CHECK(a && b && c && d && list_ok(), "four blocks");
+    kfree(&MM, a);
+    uint8_t *a2 = kmalloc(&MM, 16); /* splits the freed first block, whose next is b */
+    CHECK(a2 == a && list_ok(), "split of a block with a successor keeps the links");
+    kfree(&MM, c);
+    kfree(&MM, b); /* b merges with c: d->prev must become b */
+    CHECK(list_ok(), "coalesce with the next block relinks its successor");
+    kfree(&MM, a2);
+    kfree(&MM, d);
+    CHECK(n_blocks() == 1 && MM.heap_used == 0 && list_ok(), "all freed: one block");
+
+    /* kcalloc: too large (no overflow) fails closed; zeroing stays inside the block */
+    CHECK(kcalloc(&MM, 1, PAGE_SIZE * 2) == NULL && MM.heap_used == 0, "kcalloc too large");
+    uint8_t *z = kcalloc(&MM, 16, 4);
+    CHECK(z && list_ok(), "kcalloc writes nothing past its block");
+
+    /* krealloc: grows really grow, same size keeps the block, too large keeps the original */
+    for (int i = 0; i < 64; i++) z[i] = (uint8_t) (i + 1);
+    CHECK(krealloc(&MM, z, 64) == z, "krealloc to the same size keeps the block");
+    uint32_t used = MM.heap_used;
+    CHECK(krealloc(&MM, z, PAGE_SIZE * 2) == NULL && MM.heap_used == used && z[63] == 64,
+          "krealloc beyond the heap fails and keeps the original block");
+    uint8_t *g = krealloc(&MM, z, 304);
+    CHECK(g && ((heap_block_t *) (g - HDR))->size >= 304 && g[0] == 1 && g[63] == 64 && list_ok(),
+          "krealloc grow gives a block at least the new size");
+    kfree(&MM, g);
+
+    /* frames: a page that already holds a frame is not given another; a freed
+     * nonzero frame decrements the count and clears the page */
+    mm_init(&MM);
+    page_t f0 = {0}, f1 = {0};
+    mm_alloc_frame(&MM, &f0, true, true); /* frame 0 (see F-MM-FRAME0) */
+    mm_alloc_frame(&MM, &f1, true, true);
+    uint32_t fr = f1.frame, up = MM.used_pages;
+    mm_alloc_frame(&MM, &f1, true, true);
+    CHECK(fr != 0 && f1.frame == fr && MM.used_pages == up, "a page holding frame %u is left alone",
+          fr);
+    CHECK(f1.rw && !f1.user, "kernel writable page flags");
+    mm_free_frame(&MM, &f1);
+    CHECK(MM.used_pages == up - 1 && f1.frame == 0 && !f1.present, "freeing frame %u", fr);
+    page_t f2 = {0};
+    mm_alloc_frame(&MM, &f2, false, false);
+    CHECK(f2.frame == fr && !f2.rw && f2.user, "the freed frame is reused; user read-only flags");
+
+    /* the exact rational used-memory total is the sum of the frame quotas */
+    int64_t sum = 0;
+    bool den1 = true;
+    for (uint32_t i = 0; i < MAX_PAGES; i++) {
+        rational_t q = rmag_get_quota(i);
+        den1 &= q.den == 1;
+        sum += q.num;
+    }
+    rational_t u = mm_get_used_rational();
+    CHECK(den1 && u.num == sum && u.den == 1, "used rational == sum of quotas (%lld)",
+          (long long) sum);
+
+    /* mm_get_page: present table -> its entry; absent table -> NULL */
+    static page_directory_t dir;
+    static page_table_t tab;
+    memset(&dir, 0, sizeof dir);
+    dir.tables[2] = &tab;
+    CHECK(mm_get_page(&MM, (2u * 1024u + 5u) * PAGE_SIZE, &dir, false) == &tab.pages[5] &&
+              mm_get_page(&MM, (2u * 1024u + 1023u) * PAGE_SIZE + 7u, &dir, false) ==
+                  &tab.pages[1023],
+          "mm_get_page finds the entry");
+    CHECK(mm_get_page(&MM, 3u * 1024u * PAGE_SIZE, &dir, false) == NULL &&
+              mm_get_page(&MM, 1u * 1024u * PAGE_SIZE, &dir, true) == NULL,
+          "mm_get_page on an absent table");
+}
+
 static void axiom_frames(void)
 {
     mm_init(&MM);
@@ -312,6 +436,7 @@ int main(void)
     if (map_heap()) {
         axiom_kmalloc();
         axiom_frames();
+        axiom_mm_more();
         axiom_frames_full();
     } else {
         CHECK(0, "cannot map the kernel heap page at 0x%x on this host", KERNEL_HEAP_BASE);
