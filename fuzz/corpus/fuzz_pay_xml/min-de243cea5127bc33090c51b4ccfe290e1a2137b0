@@ -1,0 +1,6 @@
+<?xml ver{ion="1.0  engoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+<GrpHdr><MsgId>C1</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm></GrpHdr>
+<Stmt>
+<Id>R((((((((((((((((((1</Id><CreDtTm>2052-10-09T12:00:00Z</CreFFFFFFFFFFF

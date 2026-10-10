@@ -1,0 +1,7 @@
+<?xml ver{ion="1.0  encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+<GrpHdr><MsgId>C1</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm></GrpHdr>
+<Stmt>
+<Id>R1</Id><CreDtTm>2052-10-09T12:0</CreDtTm><Acct><Id><IBAN>DE89370440532013{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{015</IBAN></Id><Ccy>USD</Ccy></Acct>
+<Bal><Tp><CdOrPrtry><Cd>OPBD</Cd></oCstmrStmt<?>

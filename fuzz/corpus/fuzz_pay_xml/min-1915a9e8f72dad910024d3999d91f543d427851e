@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTrf>
+<GrpHdr><MsgId>MSG-1</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm><NbOfTxs>2</NbOfTxs><SttlmInf><SttlmMtd>INDA</SttlmMtd></SttlmInf></GrpHdr>
+<CdtTrfTxInf>
+<PmtId><InstrId>I1</InstrId><EndToEndId>E2E-1</EndToEndId><TxId>TX-1</TxId><UETR>8a562c67-ca16-48ba-b074-65581be6f001</UETR></PmtId>
+<IntrBkSttlmAmt Ccy="USD">1234.56</IntrBkSttlmAmt><IntrBkSttlmDt>2026-10-09</IntrBkSttlmDt><InstdAmt Ccy="USD">1234.56</InstdAmt><ChrgBtrAgt>
+<CdtrAgt><FinInstnId><BICFI>CHASUS33</BICFI>trBkSttlmDt>2026-10-09</IntrBkSttlmDt><InstdAmt Ccy="USD">1234.r><Nm>Alice &amp; Co</Nm><PstlAdr><StrtNm>Taunusanlage</StrtNm><BldgNb>12</BldgNb>tlRmtInx01.08">
+MSG-1</MsgId><CreDtTm>2026-10-09T12:00:01Z</CreDtTm><NbOfTxs>2</NbOfTxs><SttlmInf><SttlmMtd>INDA</SttlmMtd></S<?t

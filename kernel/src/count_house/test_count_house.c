@@ -292,6 +292,22 @@ int main(void)
         assert(!count_house_audit(&a));
     }
 
+    /* ===== a top-up whose new balance would not fit in 64 bits is refused
+     * (-3) and changes nothing (it used to wrap; found by fuzz_econ_count_house) */
+    {
+        count_house_t w;
+        count_house_init(&w, 6, "WrapTest");
+        w.verify_sig = test_verify_hmac;
+        word168_t p = make_peer(11);
+        uint8_t s1[CH_PROOF_SIG_LEN], s2[CH_PROOF_SIG_LEN];
+        compute_ch_sig(&p, UINT64_MAX - 5, s1);
+        int32_t idx = count_house_deposit(&w, &p, PUBKEY_A, UINT64_MAX - 5, s1);
+        assert(idx >= 0 && w.buckets[idx].token_balance == UINT64_MAX - 5);
+        compute_ch_sig(&p, 10, s2);
+        assert(count_house_deposit(&w, &p, PUBKEY_A, 10, s2) == -3);
+        assert(w.buckets[idx].token_balance == UINT64_MAX - 5);
+    }
+
     printf("All Count House tests passed\n");
     return 0;
 }

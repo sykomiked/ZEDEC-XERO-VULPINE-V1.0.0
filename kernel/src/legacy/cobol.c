@@ -419,13 +419,21 @@ bool cobol_get_int(const uint8_t *rec, uint32_t rec_len, const cob_field *f, int
 {
     if (!field_fits(f, rec_len)) return false;
     const uint8_t *p = rec + f->offset;
+    /* An unsigned picture (PIC 9, no S) cannot hold a negative value: a
+     * negative sign nibble in its bytes is invalid data, not -n. Decoding it
+     * as -n made a get/set round trip change the value (found by
+     * fuzz/parsers/fuzz_cobol_copybook.c). */
+    bool ok;
     switch (f->type) {
     case COB_COMP3:
-        return comp3_decode(p, f->size, out);
+        ok = comp3_decode(p, f->size, out);
+        return ok && (f->is_signed || *out >= 0);
     case COB_ZONED:
-        return zoned_decode(p, f->size, out);
-    case COB_COMP:
-        return comp_decode(p, f->size, f->is_signed, out);
+        ok = zoned_decode(p, f->size, out);
+        return ok && (f->is_signed || *out >= 0);
+    case COB_COMP: /* an unsigned 8-byte value past INT64_MAX does not fit *out */
+        ok = comp_decode(p, f->size, f->is_signed, out);
+        return ok && (f->is_signed || *out >= 0);
     default:
         return false;
     }
@@ -434,6 +442,7 @@ bool cobol_get_int(const uint8_t *rec, uint32_t rec_len, const cob_field *f, int
 bool cobol_set_int(uint8_t *rec, uint32_t rec_len, const cob_field *f, int64_t value)
 {
     if (!field_fits(f, rec_len)) return false;
+    if (!f->is_signed && value < 0) return false; /* see cobol_get_int */
     uint8_t *p = rec + f->offset;
     switch (f->type) {
     case COB_COMP3:

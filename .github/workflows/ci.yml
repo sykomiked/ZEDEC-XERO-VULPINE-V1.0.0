@@ -390,3 +390,120 @@ jobs:
         with:
           name: mutation-results
           path: mutation-results/*.txt
+
+  # ---- sanitizers, fuzzing and coverage (fuzz/README.md) ----------------
+  # The kernel Makefile's host-test recipes call gcc/cc directly. These jobs
+  # put fuzz/tools/san-cc first on PATH as gcc and cc. It rebuilds each
+  # hosted test with the job's flags. Freestanding and cross compiles pass
+  # through unchanged. TSan: no job. Nothing in kernel/src or the hosted app
+  # uses threads (zx_notify_host.c forks a separate process), so a race
+  # detector has nothing to check.
+  sanitize-asan-ubsan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Host test suite under ASan + UBSan (clang, abort on first report)
+        run: |
+          mkdir -p "$RUNNER_TEMP/san" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/gcc" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/cc"
+          export PATH="$RUNNER_TEMP/san:$PATH" SANCC_CC=clang
+          # LeakSanitizer is off: kernel/src/sched/sched.c exports
+          # sched_yield(sched_t *), which in a hosted test binary replaces
+          # libc's sched_yield. LSan's stop-the-world calls sched_yield and
+          # crashes inside the kernel scheduler (test_dharma). See
+          # docs/AUDIT_REPORT.md.
+          export ASAN_OPTIONS=detect_leaks=0
+          export SANCC_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt -Wno-error -Wno-unknown-warning-option -Wno-unused-command-line-argument"
+          make -C kernel verify-all
+
+  sanitize-integer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Economy, pay, rational and RMAG tests under -fsanitize=integer
+        # Unsigned wrap that the algorithm needs (hash and cipher cores) is in
+        # fuzz/sanitizer-ignorelist.txt. No test is skipped.
+        run: |
+          mkdir -p "$RUNNER_TEMP/san" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/gcc" && ln -s "$PWD/fuzz/tools/san-cc" "$RUNNER_TEMP/san/cc"
+          export PATH="$RUNNER_TEMP/san:$PATH" SANCC_CC=clang
+          export SANCC_MATCH='src/(pay|vino|rmag|rational|count_house|finance|zcapital|cbank|porter_house|surplus)/test_|src/swarm/test_swarm_economy'
+          export SANCC_FLAGS="-fsanitize=integer -fno-sanitize-recover=all -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt -Wno-error -Wno-unknown-warning-option -Wno-unused-command-line-argument"
+          make -C kernel verify-all
+      - name: Ledger property harnesses under -fsanitize=integer
+        run: |
+          make -C fuzz OUT=build/int CC_REPLAY=clang ED25519_GCC= PROP_ITERS=500 \
+            REPLAY_SAN="-fsanitize=address,undefined,integer -fno-sanitize-recover=all -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt" prop
+
+  sanitize-msan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Fuzz corpora and ledger properties under MSan
+        # MSan needs every byte's producer instrumented. libc is not, so the
+        # job keeps to code whose libc use MSan intercepts (memcpy, stdio,
+        # dirent). That covers the replay harnesses and the subset of host
+        # tests that fuzz/tools/msan_tests.sh names.
+        run: |
+          make -C fuzz OUT=build/msan CC_REPLAY=clang ED25519_GCC= PROP_ITERS=300 \
+            REPLAY_SAN="-fsanitize=memory -fsanitize-memory-track-origins=2 -fno-omit-frame-pointer -fno-sanitize-recover=all" replay prop
+      - name: Host test subset under MSan
+        run: fuzz/tools/msan_tests.sh
+
+  fuzz-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Replay the committed corpora (gcc, ASan + UBSan)
+        run: make -C fuzz replay prop PROP_ITERS=1000
+      - name: Every libFuzzer harness for 30 s
+        run: make -C fuzz smoke SMOKE_SECS=30
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: fuzz/build/artifacts/
+
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
+          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
+      - name: Line, branch and MC/DC coverage (clang source-based)
+        run: |
+          fuzz/tools/coverage.sh
+          cat fuzz/build/cov/COVERAGE.table.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: coverage
+          path: |
+            fuzz/build/cov/summary.json
+            fuzz/build/cov/report.txt
+            fuzz/build/cov/COVERAGE.table.md

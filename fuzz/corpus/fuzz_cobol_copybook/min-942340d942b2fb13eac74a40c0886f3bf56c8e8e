@@ -1,0 +1,6 @@
+E
+    05  ACCT- PIC X(20)s
+    04A T      PIC X(20)s
+    04`    E    C    PIC X(20)s
+    04A M      PIC X(40)s
+алл R

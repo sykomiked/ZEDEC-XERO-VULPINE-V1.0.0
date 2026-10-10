@@ -1,0 +1,9 @@
+005  TXN-ID        
+    05  TXXN-ID        IC =(6).DE   PIC S8(9(9)V99 COMP-5.
+   ).DE   PIC S8(N-ID        
+    05  TXXN-ID        IC =(6).DE   PIC S8(9(9)V99 COMP-5.
+   ).DE   PIC 8(9(9)V99 COMP-5.
+    14     PIC C)ÖOMP.
+    05üHI9(9)V99 COMP-5.
+    14     PIC C)ÖOMP.
+    05üHI607     ME

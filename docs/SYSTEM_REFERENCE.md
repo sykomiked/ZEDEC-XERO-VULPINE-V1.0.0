@@ -347,7 +347,7 @@ What it does: CI runs five arch builds with QEMU boots, `host-tests` (`relicense
 Main entry points: `kernel/Makefile verify-all`, `build_system/Makefile test`, `build_desktop.sh`, `build_signed_app.sh`, `build.sh`.
 Tests: root suite before: did not compile; now 10/10 pass and fails closed (binaries in build/os_tests). Not in CI or verify-all (lines proposed in platform_verify_lines.mk). Tiered tests (tests/01_root_axioms, 02_integration, 03_metamorphic; driver tests/harness/tiers.py, plain + ASan/LSan/UBSan + Q32.32) run in verify-all; a deterministic mutation harness (tests/harness/mutator/mutate.py) gates a small subset in the `mutation-subset` CI job; scores in tests/MUTATION_REPORT.md, open bugs the tiers expose in tests/FINDINGS.md.
 Used by: CI and developers.
-Gaps: CI triggers only on push/PR to main and develop; non-arm64 boots `|| true`; no fuzz/verify-experimental job; mobile and language bindings not in CI; `build_desktop.sh` runs `make test-swarm`, which writes fixed `/tmp/test_*` paths.
+Gaps: CI triggers only on push/PR to main and develop; non-arm64 boots `|| true`; no verify-experimental job (fuzz, sanitizer and coverage jobs added: sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage; see fuzz/README.md; no TSan job because nothing is threaded); mobile and language bindings not in CI; `build_desktop.sh` runs `make test-swarm`, which writes fixed `/tmp/test_*` paths.
 
 ### Update publishing  —  signed update buckets on IPFS (build_system/zxv_publish_update.py, kernel/src/update)
 Status: WORKING (library and tool tested; not wired into the app)
@@ -940,7 +940,7 @@ gives a floor price for the node's self-minted currency, and minting is refused 
 collateral ratio would fall below a floor. A fractal mode aggregates child houses.
 Main entry points: count_house_init, count_house_deposit, count_house_find_bucket,
 count_house_set_crypto_reserves, count_house_mint, count_house_valuation.
-Tests: test_count_house.c is in verify-all and passes; it now includes the wrap case.
+Tests: test_count_house.c is in verify-all and passes; it now includes the wrap case and the deposit top-up wrap (-3) found by fuzz/econ/fuzz_econ_count_house.
 test_count_house_fractal.c is not in verify-all. It passes and has a proposed verify line.
 Used by: the arm64 kernel_main, finance and mesh_token. In every kernel image.
 Gaps: count_house_mint let the supply counter wrap to 0 and returned the huge amount (fixed).
@@ -1609,7 +1609,7 @@ Gaps: no networking, no hashing of chunks inside the module; untested.
 Status: WORKING (tested in verify-all)
 What it does: Bounded parsers/builders for telecom and mainframe formats: SIP messages and SDP audio offers, M3UA/SCCP/TCAP/MAP (USSD and SMS carriage), ISUP<->SIP cause mapping, DTMF tones/RTP events, EBCDIC code pages, COBOL copybooks and packed/zoned decimals, Fortran records and IBM float. Data model only; no carrier connection (stated).
 Main entry points: sip_parse, sdp_parse, m3ua_parse_data, sccp_parse_udt, tcap_parse, map_parse_*, cobol_parse_copybook, ebcdic_to_utf8.
-Tests: test_sip/ss7/isup_map/dtmf/ebcdic/cobol/fortran (50/46/33/61/795/49/36) — pass. bench/legacy checks COMP-3, zoned, COMP and IBM HFP conversions bit-exact against 44 published or hand-worked golden rows (verify-all: legacy_bench). group3 fuzzed all parsers 3M iterations under ASan/UBSan after fixing three memory bugs (findings).
+Tests: test_sip/ss7/isup_map/dtmf/ebcdic/cobol/fortran (50/46/33/61/795/59/36) — pass. bench/legacy checks COMP-3, zoned, COMP and IBM HFP conversions bit-exact against 44 published or hand-worked golden rows (verify-all: legacy_bench). group3 fuzzed all parsers 3M iterations under ASan/UBSan after fixing three memory bugs (findings). fuzz/parsers/fuzz_cobol_copybook (libFuzzer, see fuzz/FUZZ_REPORT.md) found that unsigned PIC 9 fields read a negative sign as -n; now refused.
 Used by: arch/arm, boot, net, orbital_compat (includes). Hosted only. Packaged in packages/libzxv-legacy (cobol, fortran, ebcdic only) (static library built from these sources; smoke program in verify-all).
 Gaps: none open after fixes.
 
@@ -1837,7 +1837,7 @@ Gaps: no test; not a VPN.
 Status: WORKING (tested in verify-all, under ASan+UBSan)
 What it does: Exact-integer three-rail ledger with all-or-nothing postings, hash-chained provenance, idempotency and replay protection, no interest; the 0.08889% assurance fee (pay_assure.h: floor(g·8889/10^7), per-account sub-unit carry, exact 50/25/15/10 split into reserve floor / V-Bill dividend pool / infrastructure-node bounties / regenerative capital; it replaced the φ% tithe 2026-10-10) checked against a Python reference; strict ISO 20022 builders and parsers checked against the official XSDs; share equity, group treasuries, role/IBAN checks and gateways as callbacks only (no SWIFT connection, stated).
 Main entry points: pay_ledger_init, pay_ledger_post, pay_ledger_transfer, pay_ledger_issue, pay_ledger_check, pay_ledger_verify_chain, pay_ledger_pay_with_fee, pay_assure_fee, pay_assure_charge, pay_assure_split, pay_iso_pacs008, pay_iso_parse_pacs008/camt053.
-Tests: pay/test_pay.c — passes. group3 fuzzed both ISO parsers 200k iterations: clean.
+Tests: pay/test_pay.c — passes. group3 fuzzed both ISO parsers 200k iterations: clean. fuzz/parsers/fuzz_pay_xml and the ledger property harness fuzz/econ/fuzz_econ_pay run in verify-all (corpus replay) and CI (fuzz-smoke, -fsanitize=integer).
 Used by: capmkt, devmesh, evolve, market, provider, quest. Hosted only.
 Gaps: not linked in a kernel.
 
@@ -2336,7 +2336,7 @@ Gaps: the vna_econ.c:333/342/363 counters add without saturation (LOW). The wire
 Status: WORKING (has a test, not in verify-all)
 What it does: accounts with per-capital-form balances, transfers recorded in a primary ledger plus an audit copy plus a SHA-256 hash chain (versioned, VINO_CHAIN_V2_SHA256), asset issuance, asset registry, peers, and labelled trade and bridge calls.
 Main entry points: vino_init, vino_create_account, vino_transfer, vino_issue, vino_trade, vino_bridge, vino_register_asset, vino_add_peer, vino_msg_from_iso20022/mt103/camt053/btc/eth (format adapters).
-Tests: test_vino.c is NEW (19 checks; passes under ASan). It is also exercised indirectly by the sutra and community_chest tests.
+Tests: test_vino.c is NEW (21 checks; passes under ASan). fuzz/econ/fuzz_econ_vino checks conservation after every op (found an out-of-range capital read, RMAG quota overflow and a wrapping volume counter; fixed). It is also exercised indirectly by the sutra and community_chest tests.
 Used by: vena, financial_fabric and others. Compiled into both kernels.
 Gaps: vino_trade ignores asset and price, and vino_bridge ignores its rails. Fixed: unbounded copies, unchecked capital index and overflow, unrecorded minting, duplicate accounts, the FNV chain (now SHA-256 with a tamper test), and the capital order (now the canonical zcap_form_t).
 

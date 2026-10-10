@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCotmrStmt>
+<GrpHdr><MsgId>C1</MsgId><CreDtTm>2026-10-09T12:00:00Z</CreDtTm></GrpHdr>
+<Stmt>
+<Id>R1</Id><CreDtTm>2026-10-09T12:00:00Z</CreDtTm><Acct><Id><IBAN>DE89370400440532013000</IBAN></Id><Ccy>USD</Ccy></Acct>
+<Bal><Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp><Amt Ccy="USD">1234.56</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-09</Dt></Dt></B><Fmly><Cd>RCDT</Cd><SubFmlyCd>OTHR</SubFmlyCd></Fmly></Domn></BkTxCd><NtryDtls><TxDtls><Refs><EndToEndId>E2E-1</EndTTR></Refs><RmtInf><Strd><AddtlRmtInftryDtls></Ntry>
+</Stmt>
+</BkToCstmrStmt>
+</Document>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+<FIToFICstmrCdtTrf>
+<GrpHdr><MsgId>MSG-1</MsgId><CreDtTm>2026-10-09T1Z</CreDtTm><NbOfTxs>0OfTxs>0</NbOfTxs><s.08">
+<FIToFument xmlns="urn:001.08">	<BkddtlRmtI>

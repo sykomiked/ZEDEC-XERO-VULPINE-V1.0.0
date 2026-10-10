@@ -1,0 +1,55 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Clang sanitizer ignorelist (-fsanitize-ignorelist=) for the fuzzers and the
+# CI sanitizer jobs. Every entry is a place where the flagged behaviour is
+# INTENDED, with the reason. Nothing here hides a bug in ledger, parser or
+# economy code: those files are never listed.
+
+# Vendored orlp/ed25519 (ref10 field arithmetic, kept byte-for-byte close to
+# upstream): carries are propagated with left shifts of negative limbs
+# (`h0 -= carry0 << 26`), which C calls undefined but every supported
+# compiler implements as the arithmetic shift ref10 relies on.
+[shift-base]
+src:*/third_party/ed25519/*
+
+# Hash and cipher cores: modular 2^32 / 2^64 arithmetic and truncating
+# byte extraction are the algorithm (SHA-2, SHA-3/Keccak, ChaCha20, Poly1305,
+# X25519, Ed25519, ML-KEM, ML-DSA, SLH-DSA, HQC, BLAKE-style mixing, FNV).
+# (clang 18 section names are globs: alternatives go in {a,b}, not a|b)
+[{unsigned-integer-overflow,unsigned-shift-base,implicit-integer-truncation,implicit-unsigned-integer-truncation,implicit-signed-integer-truncation,implicit-integer-sign-change,implicit-conversion,shift-base}]
+src:*/third_party/*
+src:*/robin_debanks/sha256.c
+src:*/robin_debanks/sha512.c
+src:*/robin_debanks/ed25519_verify.c
+src:*/robin_debanks/hmac*.c
+src:*/mlkem/*
+src:*/pqsec/*
+src:*/tls/aead.c
+src:*/tls/x25519.c
+src:*/tls/hkdf.c
+fun:vino_hash
+fun:fz_splitmix64
+# Multi-limb (128/192-bit) integer primitives: the low limb wraps and the
+# carry or borrow is taken from the wrap. That is how two-limb addition,
+# subtraction, multiplication and long division work. Only these functions
+# are listed. Callers in the ledger stay instrumented.
+fun:pay_u128_add
+fun:pay_u128_sub
+fun:pay_mul64
+fun:pay_udiv128_64
+fun:mul_u64
+fun:cb_mul64
+fun:cb_udiv128
+fun:swarm_muldiv
+fun:u192_add
+fun:u192_sub
+fun:pay_isqrt192
+fun:shr1
+fun:shr2
+fun:u192_shr
+fun:pay_floor_a_sqrt5
+# Test-only pseudo-random generators and toy key derivation inside test
+# drivers. They mix bits modulo 2^32 / 2^64 on purpose.
+fun:rnd
+fun:toy_sign
