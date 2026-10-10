@@ -39,7 +39,10 @@
      "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_audio t1_alloc"},
     {"name": "settle", "target": "kernel/src/settle/settle.c",
      "before": null, "before_note": "new module: the settlement spine (A1 in docs/GAP_AUDIT.md)",
-     "after": "make -C kernel --no-print-directory test-settle"}
+     "after": "make -C kernel --no-print-directory test-settle"},
+    {"name": "zxv_engine", "target": "kernel/src/engine/zxv_engine.c",
+     "before": null, "before_note": "new module: the libzxv facade (A2 in docs/GAP_AUDIT.md)",
+     "after": "make -C kernel --no-print-directory test-engine"}
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc", "settle"],

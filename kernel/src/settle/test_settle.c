@@ -193,6 +193,15 @@ static void test_mismatch(void)
      * source of truth for history */
     CHECK(settle_sync(&W.s, &W.m, 1) == SETTLE_OK, "sync restores agreement");
     CHECK(settle_reconciled(&W.s, &W.m), "and reconciles");
+
+    /* R2 after posting: a balance edited behind the ledger's back puts one
+     * unit more in the ledger than was ever issued, which no transfer can
+     * remove, so the books still disagree after S3 and the spine halts */
+    build(&W, 2, 0x45);
+    W.s.L.acct[W.s.acct[0]].debit += 1;
+    CHECK(settle_sync(&W.s, &W.m, 1) == SETTLE_ERR_MISMATCH && W.s.halted &&
+              W.s.why == SETTLE_ERR_MISMATCH,
+          "a unit nobody issued: R2 halts the spine");
 }
 
 static void test_edges(void)

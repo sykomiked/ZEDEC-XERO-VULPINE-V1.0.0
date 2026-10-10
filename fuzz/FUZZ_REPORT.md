@@ -131,6 +131,28 @@ workers share the machine's `/tmp/test_*` paths).
 | sanitize-msan: host test subset (`tools/msan_tests.sh`) | pass (after F4) |
 | TSan | no job. Nothing in kernel/src or kernel/arch/hosted creates threads; the hosted notifier forks a separate process. |
 
+## 50M-operation ledger property run (2026-10-10)
+
+The four ledger property harnesses, each driven with seeded random inputs until it had
+checked about 50 million operations. Every operation's invariants were re-checked after
+it ran: conservation, no overflow, refusals leave no state change, and the fee never
+exceeds the amount. Command per harness:
+`FUZZ_PROP_STATS=1 replay/<harness> --random 20261010 <iters> 4096`, built from commit
+f909145.
+
+| harness | inputs | operations checked | result |
+|---|---|---|---|
+| fuzz_econ_vino | 200,000 | 56,597,988 | pass |
+| fuzz_econ_pay | 420,000 | 53,592,076 | pass |
+| fuzz_econ_count_house | 135,000 | 56,079,867 | pass |
+| fuzz_econ_triple | 245,000 | 56,147,153 | pass |
+| total | 1,000,000 | 222,417,084 | pass |
+
+This harness counts a refused payment as correct, so it could not see one bug: a payment
+whose fee rounds to zero (under about 1,125 minor units with no carry) was refused. The
+libzxv pipeline test (kernel/src/engine/test_zxv_engine.c) found it. It was fixed in
+pay_ledger.c, with a regression check in test_pay.c.
+
 ## What this does not show
 
 * There is no formal verification and no MC/DC coverage target. `docs/COVERAGE.md`

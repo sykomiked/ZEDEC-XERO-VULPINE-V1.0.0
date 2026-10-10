@@ -545,8 +545,9 @@ pay_status_t pay_ledger_pay_with_fee(pay_ledger_t *L, pay_posting_req_t *req, ui
     pay_assure_split(fee, part);
     /* every sum is checked before anything is written */
     if (!pay_add_ok(amount, fee, &total) || !pay_add_ok(total, excess, &total) || !amt_ok(total) ||
-        !pay_add_ok(part[PAY_ASSURE_RESERVE_FLOOR], excess, &reserve) || !amt_ok(reserve))
-        return PAY_ERR_ARG;
+        !pay_add_ok(part[PAY_ASSURE_RESERVE_FLOOR], excess, &reserve) ||
+        reserve > (uint64_t) LINE_MAX_DELTA)
+        return PAY_ERR_ARG; /* a reserve of 0 is fine: a small payment's fee can round to 0 */
     part[PAY_ASSURE_RESERVE_FLOOR] = reserve;
     set_line(req, n++, from, -(int64_t) total, 0);
     set_line(req, n++, to, (int64_t) amount, 0);

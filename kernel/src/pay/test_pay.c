@@ -544,6 +544,19 @@ static void test_ledger(void)
                                       iss[0][0], acc[0][0][2], 0, &rc, 0) == PAY_ERR_ARG);
         CHECK(pay_ledger_account(&L, acc[1][0][2])->fee_carry == carry0);
     }
+    /* a payment whose fee rounds to 0 posts (it used to be refused: the empty
+     * reserve share failed the amount check), and its carry still counts */
+    {
+        uint32_t payer = acc[1][0][3];
+        uint64_t bal0 = pay_ledger_account(&L, payer)->debit, f = 99;
+        CHECK(pay_ledger_account(&L, payer)->fee_carry == 0);
+        mkreq(&r3, 3);
+        CHECK(pay_ledger_pay_with_fee(&L, &r3, payer, acc[1][0][2], 1, bk, 0, iss[0][0],
+                                      acc[0][0][2], 0, &rc, &f) == PAY_OK &&
+              f == 0);
+        CHECK(pay_ledger_account(&L, payer)->debit == bal0 - 1 &&
+              pay_ledger_account(&L, payer)->fee_carry == 8889);
+    }
     CHECK(pay_ledger_check(&L) && pay_ledger_verify_chain(&L));
     CHECK(L.seq > PAY_JOURNAL_MAX); /* the journal ring has wrapped */
 }
