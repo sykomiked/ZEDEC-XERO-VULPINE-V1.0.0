@@ -52,6 +52,44 @@ extern void license_print_all(void);
 
 static void boot_msg(const char *m) { uart_puts(m); uart_puts("\n"); }
 
+extern void uart_hex(uint32_t val);
+
+/* Fatal exception report, called from the vector stubs in boot.s with the
+ * vector number and the exception-mode LR. Before boot.s installed VBAR an
+ * abort here jumped to address 0 and the log simply stopped; now it names the
+ * fault. "[FAULT]" is the marker the CI boot step treats as a failed boot.
+ * Fault status/address registers: DFSR/DFAR (data abort), IFSR/IFAR
+ * (prefetch abort), read from CP15. Returns to the stub, which parks. */
+void arm32_fault_report(uint32_t vec, uint32_t lr);
+void arm32_fault_report(uint32_t vec, uint32_t lr)
+{
+    static const char *const names[8] = {"reset",
+                                         "undefined instruction",
+                                         "supervisor call",
+                                         "prefetch abort",
+                                         "data abort",
+                                         "reserved",
+                                         "IRQ",
+                                         "FIQ"};
+    uint32_t fsr = 0, far = 0;
+    if (vec == 4u) {
+        __asm__ volatile("mrc p15, 0, %0, c5, c0, 0" : "=r"(fsr));
+        __asm__ volatile("mrc p15, 0, %0, c6, c0, 0" : "=r"(far));
+    } else if (vec == 3u) {
+        __asm__ volatile("mrc p15, 0, %0, c5, c0, 1" : "=r"(fsr));
+        __asm__ volatile("mrc p15, 0, %0, c6, c0, 2" : "=r"(far));
+    }
+    uart_puts("\n[FAULT] ARM32 exception: ");
+    uart_puts(names[vec & 7u]);
+    uart_puts("\n  lr  = ");
+    uart_hex(lr);
+    uart_puts("\n  fsr = ");
+    uart_hex(fsr);
+    uart_puts("\n  far = ");
+    uart_hex(far);
+    uart_puts("\n[FAULT] halted.\n");
+}
+
 void kernel_main_arm32(void) {
     uart_init();
 

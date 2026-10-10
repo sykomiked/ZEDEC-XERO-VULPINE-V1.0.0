@@ -24,12 +24,9 @@ jobs:
           make -f build_system/Makefile.arm64 all
       - name: Run ARM64 in QEMU
         # The kernel never exits, so timeout always stops QEMU; the step
-        # passes only if the serial log reached [BOOT_OK] without a fault.
-        run: |
-          timeout 30 make -f build_system/Makefile.arm64 run < /dev/null > boot_arm64.log 2>&1 || true
-          cat boot_arm64.log
-          grep -q "\[BOOT_OK\]" boot_arm64.log || { echo "::error::ARM64 boot did not reach [BOOT_OK]"; exit 1; }
-          if grep -qE "\[FAULT\]|\[EL0 FAULT\]" boot_arm64.log; then echo "::error::ARM64 boot faulted"; exit 1; fi
+        # passes only if the serial log reached [BOOT_OK] without a fault
+        # marker. Same check on all five targets: build_system/ci_boot_check.sh.
+        run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30
       - name: Upload ARM64 artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -49,10 +46,7 @@ jobs:
           make -f build_system/Makefile.x86_64 clean
           make -f build_system/Makefile.x86_64 all
       - name: Run x86_64 in QEMU
-        run: |
-          timeout 30 make -f build_system/Makefile.x86_64 run < /dev/null > boot_x86_64.log 2>&1 || true
-          cat boot_x86_64.log
-          grep -q "\[BOOT_OK\]" boot_x86_64.log || { echo "::error::x86_64 boot did not reach [BOOT_OK]"; exit 1; }
+        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30
       - name: Upload x86_64 artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -66,22 +60,21 @@ jobs:
       - name: Install RISC-V 64-bit toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-riscv64
+          # qemu-system-riscv64 ships in qemu-system-misc (Ubuntu has no
+          # package of that name), with the rv64 OpenSBI firmware QEMU loads.
+          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
       - name: Build RISC-V 64-bit
         run: |
           make -f build_system/Makefile.riscv clean
           make -f build_system/Makefile.riscv all
       - name: Run RISC-V 64-bit in QEMU
-        run: |
-          # Not yet proven to reach [BOOT_OK] on this target; report, do not fail.
-          timeout 30 make -f build_system/Makefile.riscv run < /dev/null > boot_riscv64.log 2>&1 || true
-          cat boot_riscv64.log
-          grep -q "\[BOOT_OK\]" boot_riscv64.log || echo "::warning::riscv64 boot did not reach [BOOT_OK]"
+        run: build_system/ci_boot_check.sh riscv64 build_system/Makefile.riscv 30
       - name: Upload RISC-V 64-bit artifacts
         uses: actions/upload-artifact@v5
         with:
           name: kernel-riscv64
-          path: kernel_riscv64.elf
+          path: kernel_riscv.elf
+          if-no-files-found: error
 
   build-riscv32:
     runs-on: ubuntu-22.04
@@ -97,12 +90,17 @@ jobs:
         run: |
           make -f build_system/Makefile.riscv32 clean
           make -f build_system/Makefile.riscv32 all
-      - name: Run RISC-V 32-bit in QEMU
+      - name: Build rv32 OpenSBI firmware
+        # Ubuntu ships rv64 OpenSBI only, and qemu-system-riscv32 -M virt
+        # cannot start without an rv32 one (see build_system/riscv32_sbi.sh).
+        # Built from a pinned upstream tag with the same riscv64 cross gcc;
+        # the run target picks it up through ZXV_RV32_SBI.
         run: |
-          # Not yet proven to reach [BOOT_OK] on this target; report, do not fail.
-          timeout 30 make -f build_system/Makefile.riscv32 run < /dev/null > boot_riscv32.log 2>&1 || true
-          cat boot_riscv32.log
-          grep -q "\[BOOT_OK\]" boot_riscv32.log || echo "::warning::riscv32 boot did not reach [BOOT_OK]"
+          git clone --depth 1 --branch v1.3.1 https://github.com/riscv-software-src/opensbi.git "$RUNNER_TEMP/opensbi"
+          make -C "$RUNNER_TEMP/opensbi" -j"$(nproc)" PLATFORM=generic PLATFORM_RISCV_XLEN=32 CROSS_COMPILE=riscv64-linux-gnu-
+          echo "ZXV_RV32_SBI=$RUNNER_TEMP/opensbi/build/platform/generic/firmware/fw_dynamic.bin" >> "$GITHUB_ENV"
+      - name: Run RISC-V 32-bit in QEMU
+        run: build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
       - name: Upload RISC-V 32-bit artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -122,16 +120,13 @@ jobs:
           make -f build_system/Makefile.arm32 clean
           make -f build_system/Makefile.arm32 all
       - name: Run ARM32 in QEMU
-        run: |
-          # Not yet proven to reach [BOOT_OK] on this target; report, do not fail.
-          timeout 30 make -f build_system/Makefile.arm32 run < /dev/null > boot_arm32.log 2>&1 || true
-          cat boot_arm32.log
-          grep -q "\[BOOT_OK\]" boot_arm32.log || echo "::warning::arm32 boot did not reach [BOOT_OK]"
+        run: build_system/ci_boot_check.sh arm32 build_system/Makefile.arm32 30
       - name: Upload ARM32 artifacts
         uses: actions/upload-artifact@v5
         with:
           name: kernel-arm32
-          path: kernel_arm32.elf
+          path: zedec_xero_arm32.elf
+          if-no-files-found: error
 
   host-tests:
     runs-on: ubuntu-22.04
