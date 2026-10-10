@@ -44,11 +44,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "../pay/pay_rails.h"                   /* the canonical rail numerics */
-#define CB_RAIL_DEBIT           ZXV_RAIL_DEBIT  /* 555 */
-#define CB_RAIL_CREDIT          ZXV_RAIL_CREDIT /* 777 */
-#define CB_RAIL_EQUITY          ZXV_RAIL_EQUITY /* 888 */
-#define CB_VSS_RESOLUTION_CLASS 811u            /* procedure designator, not a rail */
+#include "../pay/pay_rails.h"                        /* the canonical rail numerics */
+#define CB_RAIL_DEBIT           ZXV_RAIL_CODE_DEBIT  /* 555 */
+#define CB_RAIL_CREDIT          ZXV_RAIL_CODE_CREDIT /* 777 */
+#define CB_RAIL_EQUITY          ZXV_RAIL_CODE_EQUITY /* 888 */
+#define CB_VSS_RESOLUTION_CLASS 811u                 /* procedure designator, not a rail */
 
 #define CB_VSS_ID_LEN  36u  /* Max35Text */
 #define CB_VSS_REF_LEN 141u /* Max140Text */

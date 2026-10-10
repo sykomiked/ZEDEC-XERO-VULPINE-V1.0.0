@@ -49,10 +49,10 @@
  * EQUITY). They are duplicated here as plain macros rather than by including
  * vino_stores.h so this interop layer stays free of the whole ledger/vino/
  * edp_risk dependency chain. If those ever diverge, that is a bug. */
-#include "../pay/pay_rails.h"          /* the canonical rail numerics */
-#define ISO_CCY_DEBIT  ZXV_RAIL_DEBIT  /* 555 asset/backing rail   (unassigned numeric) */
-#define ISO_CCY_CREDIT ZXV_RAIL_CREDIT /* 777 claim/liability rail (unassigned numeric) */
-#define ISO_CCY_EQUITY ZXV_RAIL_EQUITY /* 888 live equity rail     (unassigned numeric) */
+#include "../pay/pay_rails.h"               /* the canonical rail numerics */
+#define ISO_CCY_DEBIT  ZXV_RAIL_CODE_DEBIT  /* 555 asset/backing rail   (unassigned numeric) */
+#define ISO_CCY_CREDIT ZXV_RAIL_CODE_CREDIT /* 777 claim/liability rail (unassigned numeric) */
+#define ISO_CCY_EQUITY ZXV_RAIL_CODE_EQUITY /* 888 live equity rail     (unassigned numeric) */
 
 typedef enum { ISO_RAIL_DEBIT = 0, ISO_RAIL_CREDIT = 1, ISO_RAIL_EQUITY = 2 } iso_rail_t;
 

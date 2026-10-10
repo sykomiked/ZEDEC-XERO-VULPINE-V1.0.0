@@ -101,9 +101,9 @@
 
 /* Vino rails (canonical numerics: kernel/src/pay/pay_rails.h). */
 #include "../pay/pay_rails.h"
-#define CN_RAIL_DEBIT  ZXV_RAIL_DEBIT  /* 555 */
-#define CN_RAIL_CREDIT ZXV_RAIL_CREDIT /* 777 */
-#define CN_RAIL_EQUITY ZXV_RAIL_EQUITY /* 888 */
+#define CN_RAIL_DEBIT  ZXV_RAIL_CODE_DEBIT  /* 555 */
+#define CN_RAIL_CREDIT ZXV_RAIL_CODE_CREDIT /* 777 */
+#define CN_RAIL_EQUITY ZXV_RAIL_CODE_EQUITY /* 888 */
 
 /* ===== Networks ===== */
 typedef enum {

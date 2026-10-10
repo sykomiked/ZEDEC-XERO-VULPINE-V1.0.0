@@ -582,7 +582,7 @@ id_status_t id_kyc_check_payment(const id_kyc_profile_t *p, const id_kyc_status_
                                  uint64_t spent_today, uint8_t *need_level)
 {
     if (need_level) *need_level = 0;
-    if (!p || !ZXV_RAIL_IS_RAIL(rail)) return ID_ERR_ARG; /* 555 / 777 / 888 only */
+    if (!p || !ZXV_RAIL_CODE_IS_RAIL(rail)) return ID_ERR_ARG; /* 555 / 777 / 888 only */
     uint8_t eff = 0;
     if (s && s->verified && now_ms < s->expires_ms) eff = s->level;
     if (eff < p->required_level) {

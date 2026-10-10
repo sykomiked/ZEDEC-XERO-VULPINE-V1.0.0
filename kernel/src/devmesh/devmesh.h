@@ -254,10 +254,10 @@ typedef struct {
 } dm_event_t;
 
 /* ===== money actions (confirmed on a held device) ===== */
-#include "../pay/pay_rails.h"          /* the canonical rail numerics */
-#define DM_RAIL_DEBIT  ZXV_RAIL_DEBIT  /* 555 = PAY_RAIL_DEBIT_CODE */
-#define DM_RAIL_CREDIT ZXV_RAIL_CREDIT /* 777 = PAY_RAIL_CREDIT_CODE */
-#define DM_RAIL_EQUITY ZXV_RAIL_EQUITY /* 888 = PAY_RAIL_EQUITY_CODE */
+#include "../pay/pay_rails.h"               /* the canonical rail numerics */
+#define DM_RAIL_DEBIT  ZXV_RAIL_CODE_DEBIT  /* 555 = PAY_RAIL_DEBIT_CODE */
+#define DM_RAIL_CREDIT ZXV_RAIL_CODE_CREDIT /* 777 = PAY_RAIL_CREDIT_CODE */
+#define DM_RAIL_EQUITY ZXV_RAIL_CODE_EQUITY /* 888 = PAY_RAIL_EQUITY_CODE */
 
 #define DM_MONEY_PAY     1u
 #define DM_MONEY_ESCROW  2u /* lock funds for a capacity-market contract */

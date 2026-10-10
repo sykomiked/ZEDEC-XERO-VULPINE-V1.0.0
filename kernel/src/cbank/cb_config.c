@@ -70,7 +70,8 @@ int cb_config_add_ccy(cb_config *c, const char *alpha, const char *issuer_name,
     if (is_vfv_code(alpha)) return CB_E_VFV_AS_CCY;
     const cb_ccy_t *k = cb_ccy_by_alpha(alpha);
     if (!cb_ccy_payable(k)) return CB_E_BAD_CCY;
-    if (ZXV_RAIL_IS_RAIL(k->num)) return CB_E_VFV_AS_CCY; /* rail numerics are not currencies */
+    if (ZXV_RAIL_CODE_IS_RAIL(k->num))
+        return CB_E_VFV_AS_CCY; /* rail numerics are not currencies */
     if (cb_config_ccy(c, alpha)) return CB_E_DUP;
     if (c->n_ccy >= CB_MAX_CCY) return CB_E_FULL;
     if (!issuer_name || !issuer_name[0]) return CB_E_NAME;
