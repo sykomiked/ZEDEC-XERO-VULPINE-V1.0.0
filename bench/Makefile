@@ -1,12 +1,14 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# Benchmarks. See bench/README.md. Nothing here downloads anything.
+# Benchmarks. See bench/README.md. Only the qwen target downloads (a model,
+# into ~/.cache/zxv/models, never into the repository).
 #   make -C bench legacy            golden-trace check of the legacy transcoders
 #   make -C bench legacy-bench      the same plus a throughput figure
 #   make -C bench zt_bench          build the tensor-engine driver
 #   make -C bench smoke             build both and run the offline smoke checks
 #   make -C bench tensor MODEL=path/to/model.gguf [N=32] [PROMPT="..."]
+#   make -C bench qwen [ARM64=1]    Qwen2.5-1.5B-Instruct Q4_K_M: speed, cross-build bit check, quality
 CC ?= gcc
 OUT ?= /tmp/zxv_bench
 K := ../kernel
@@ -21,7 +23,7 @@ TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tens
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench smoke tensor
+.PHONY: all legacy legacy-bench zt_bench smoke tensor qwen
 all: smoke
 
 $(OUT):
@@ -58,3 +60,16 @@ tensor: $(OUT)/zt_bench
 	@test -n "$(MODEL)" || { echo "usage: make -C bench tensor MODEL=path/to/model.gguf"; exit 2; }
 	$(PY) tensor/run_tensor_bench.py --zt-bench $(OUT)/zt_bench --model "$(MODEL)" -n $(N) \
 		--prompt "$(PROMPT)"
+
+# Real-model test (bench/tensor/real_model_test.py). ARM64=1 also cross-builds
+# zt_bench for aarch64 and runs it under qemu-aarch64 to check the bits match.
+$(OUT)/zt_bench_arm64: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
+
+QWEN_BENCH := --bench $(OUT)/zt_bench
+ifeq ($(ARM64),1)
+qwen: $(OUT)/zt_bench_arm64
+QWEN_BENCH += --bench "qemu-aarch64 $(OUT)/zt_bench_arm64"
+endif
+qwen: $(OUT)/zt_bench
+	$(PY) tensor/real_model_test.py $(QWEN_BENCH) -n 64 --json $(OUT)/qwen_results.json
