@@ -1270,6 +1270,11 @@ verify-all: test
 	$(MAKE) -s -C ../bench legacy OUT=/tmp/zxv_p10_bench_verify > /tmp/zxv_p10_legacy_bench.log 2>&1 && \
 		echo "[PASS] legacy_bench ($$(grep -o '[0-9]* bit-exact' /tmp/zxv_p10_legacy_bench.log))" || \
 		{ cat /tmp/zxv_p10_legacy_bench.log; echo "[FAIL] legacy_bench"; exit 1; }; \
+	echo "=== Tiered tests: root axioms, integration, metamorphic (plain, ASan+LSan+UBSan, Q32.32) ==="; \
+	python3 ../tests/harness/tiers.py -q tier1 && echo "[PASS] tier1 root axioms (tests/01_root_axioms)" || { echo "[FAIL] tier1 root axioms"; exit 1; }; \
+	python3 ../tests/harness/tiers.py -q tier2 && echo "[PASS] tier2 integration (tests/02_integration)" || { echo "[FAIL] tier2 integration"; exit 1; }; \
+	python3 ../tests/harness/tiers.py -q tier3 && echo "[PASS] tier3 metamorphic (tests/03_metamorphic)" || { echo "[FAIL] tier3 metamorphic"; exit 1; }; \
+	python3 ../tests/harness/mutator/mutate.py --selftest && echo "[PASS] mutation harness self-test" || { echo "[FAIL] mutation harness self-test"; exit 1; }; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).

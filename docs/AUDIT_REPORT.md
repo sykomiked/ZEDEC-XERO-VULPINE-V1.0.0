@@ -84,6 +84,9 @@ swarm budget driving the model, Vinea over UDP (off/LAN/online), the update chec
 forms are ordered four different ways across modules.
 peer_audit (self-audit plus peer replay, quorum, canaries and evidence; docs/PEER_AUDIT.md) is a
 tested library, but it is not yet joined to the vinea/app transport or to the porter_house/vinea revoke hooks.
+community_chest, count_house and vino are not posted into finance/triple_ledger (the Tier 2 tests in
+tests/02_integration play that glue and check conservation across it); the tiered tests also expose 21
+open defects in the ledger and allocator modules, listed with proposed patches in tests/FINDINGS.md.
 
 
 ## Owner requirements traceability
