@@ -40,6 +40,7 @@
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc"],
-    "baseline": {}
+    "baseline_note": "measured 'after' scores (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 32/36, fs_malloc 25/29",
+    "baseline": {"rmag_core": 0.8888, "fs_malloc": 0.8620}
   }
 }

@@ -76,7 +76,7 @@ IPFS or socket glue (so no offline/LAN/online modes yet) and does not link notif
 the update checker; ehop is not wired into Vinea (payload and per-fragment overhead limits); capital
 forms are ordered four different ways across modules.
 community_chest, count_house and vino are not posted into finance/triple_ledger (the Tier 2 tests in
-tests/02_integration play that glue and check conservation across it); the tiered tests also expose 20
+tests/02_integration play that glue and check conservation across it); the tiered tests also expose 21
 open defects in the ledger and allocator modules, listed with proposed patches in tests/FINDINGS.md.
 
 

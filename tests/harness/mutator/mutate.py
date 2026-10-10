@@ -513,13 +513,16 @@ def main(argv):
         bad = 0
         for r in results:
             base = cfg["ci"]["baseline"].get(r["name"])
-            if base is not None and r["score"] + 1e-9 < base:
+            if base is None:
+                print("[FAIL] %s has no measured baseline in the config" % r["name"])
+                bad += 1
+            elif r["score"] + 1e-9 < base:
                 print("[FAIL] %s mutation score %.1f%% is below the baseline %.1f%%"
                       % (r["name"], 100 * r["score"], 100 * base))
                 bad += 1
             else:
                 print("[PASS] %s mutation score %.1f%% (baseline %.1f%%)"
-                      % (r["name"], 100 * r["score"], 100 * (base or 0)))
+                      % (r["name"], 100 * r["score"], 100 * base))
         return 1 if bad else 0
     return 0
 

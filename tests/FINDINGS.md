@@ -15,7 +15,7 @@ applied here.
 | id | where | test |
 |----|-------|------|
 | F-RMAG-DIV0 | kernel/src/rmag/rmag_core.c `rmag_div_quotas` | tests/01_root_axioms/axioms_rational.c |
-| F-RMAG-OVF | kernel/src/rmag/rmag_core.c all four `rmag_*_quotas` | axioms_rational.c |
+| F-RMAG-OVF | kernel/src/rmag/rmag_core.c all four `rmag_*_quotas` | axioms_rational.c, axioms_chest.c |
 | F-RMAG-REINIT | kernel/src/rmag/rmag_core.c `rmag_init` (via `vino_init`) | tests/02_integration/integ_escrow.c |
 | F-PAY-NULL | kernel/src/pay/pay_ledger.c, pay_tithe.c | axioms_pay.c |
 | F-TL-NULL | kernel/src/finance/triple_ledger.c | axioms_triple.c |
@@ -23,6 +23,7 @@ applied here.
 | F-VINO-ADDR | kernel/src/vino/vino.c `vino_create_account` | axioms_chest.c |
 | F-VINO-BALCAP | kernel/src/vino/vino.c `vino_get_balance` | axioms_chest.c |
 | F-VINO-NULL | kernel/src/vino/vino.c `vino_get_account` | axioms_chest.c |
+| F-VINO-SELFQ | kernel/src/vino/vino.c `vino_transfer` rmag mirror | axioms_chest.c |
 | F-CH-WRAP | kernel/src/count_house/count_house.c `count_house_deposit` | axioms_chest.c |
 | F-PH-FULL | kernel/src/porter_house/porter_house.c seal table | axioms_chest.c |
 | F-CC-REJECTED | kernel/src/community_chest/community_chest.c purchases | axioms_chest.c |
@@ -54,7 +55,11 @@ with no overflow check (`INT64_MAX/1 + 1/1` and `2^62 * 4` are signed
 overflow, UB; UBSan aborts on them). Patch: use checked arithmetic as
 kernel/src/rational does (`__builtin_mul_overflow` / `__builtin_add_overflow`
 on the cross products, reducing by the gcd first) and return `{0, 0}` on
-overflow.
+overflow. It is reachable from the ledger: `vino_transfer` accepts any amount
+up to `INT64_MAX` (its own bound), and its rmag mirror then computes
+`quota - INT64_MAX` on a quota that is already negative (axioms_chest.c).
+With the patch, `vino_transfer` must also refuse the transfer when the quota
+update comes back invalid, before any balance moves.
 
 **F-RMAG-REINIT.** `rmag_init` returns at once when a table already exists,
 so `vino_init` on a NEW ledger keeps the previous ledger's quota mirror (and a
@@ -98,6 +103,20 @@ check reports it). Patch: `if ((uint32_t) cap >= CAP_MAX || !out) return -1;`.
 **F-VINO-NULL.** `vino_get_account(v, NULL)` (and so `vino_transfer` with a
 NULL address) dereferences NULL in `str_cmp`. Patch:
 `if (!v || !addr) return 0;` at the top of `vino_get_account`.
+
+**F-VINO-SELFQ.** `vino_transfer(v, a, a, x, ...)` is accepted (balances are
+unchanged, correctly) but the rmag mirror reads both quotas first, then calls
+`rmag_set_quota(from, q - x)` and `rmag_set_quota(to, q + x)` on the same
+ordinal: the second write wins and the account's quota grows by `x` on every
+self transfer, so the rmag mirror no longer equals the balances. Patch: skip
+the quota update when `fa == ta` (or refuse self transfers outright):
+
+```c
+if (fa != ta) {
+    rmag_set_quota(from_ord, new_from);
+    rmag_set_quota(to_ord, new_to);
+}
+```
 
 ## count_house / porter_house / community_chest
 

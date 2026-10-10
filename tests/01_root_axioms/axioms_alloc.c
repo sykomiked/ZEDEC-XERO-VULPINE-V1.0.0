@@ -237,7 +237,8 @@ static void axiom_mm_more(void)
             *d = kmalloc(&MM, 32);
     CHECK(a && b && c && d && list_ok(), "four blocks");
     kfree(&MM, a);
-    uint8_t *a2 = kmalloc(&MM, 16); /* splits the freed first block, whose next is b */
+    uint8_t *a2 =
+        kmalloc(&MM, 8); /* 8 + 2 headers < 64: splits the freed first block, whose next is b */
     CHECK(a2 == a && list_ok(), "split of a block with a successor keeps the links");
     kfree(&MM, c);
     kfree(&MM, b); /* b merges with c: d->prev must become b */
@@ -291,6 +292,23 @@ static void axiom_mm_more(void)
     CHECK(den1 && u.num == sum && u.den == 1, "used rational == sum of quotas (%lld)",
           (long long) sum);
 
+    /* allocating then freeing a frame leaves the exact used total unchanged
+     * (this holds even with F-MM-QUOTA: the quota moves to frame 0, the sum
+     * over every frame is the same) */
+    rmag_init(64);
+    mm_init(&MM);
+    page_t g0 = {0}, g1 = {0};
+    mm_alloc_frame(&MM, &g0, true, true);      /* gets frame 0, see F-MM-FRAME0 */
+    rmag_set_quota(0, (rational_t){12345, 1}); /* a distinctive value where F-MM-QUOTA lands */
+    rational_t u0 = mm_get_used_rational();
+    mm_alloc_frame(&MM, &g1, true, true);
+    rational_t u1 = mm_get_used_rational();
+    mm_free_frame(&MM, &g1);
+    rational_t u2 = mm_get_used_rational();
+    CHECK(u1.num == u0.num + PAGE_SIZE && u1.den == 1 && u2.num == u0.num && u2.den == 1,
+          "used rational: +PAGE_SIZE on alloc, back on free (%lld, %lld, %lld)", (long long) u0.num,
+          (long long) u1.num, (long long) u2.num);
+
     /* mm_get_page: present table -> its entry; absent table -> NULL */
     static page_directory_t dir;
     static page_table_t tab;
@@ -301,6 +319,7 @@ static void axiom_mm_more(void)
                   &tab.pages[1023],
           "mm_get_page finds the entry");
     CHECK(mm_get_page(&MM, 3u * 1024u * PAGE_SIZE, &dir, false) == NULL &&
+              mm_get_page(&MM, (3u * 1024u + 5u) * PAGE_SIZE, &dir, false) == NULL &&
               mm_get_page(&MM, 1u * 1024u * PAGE_SIZE, &dir, true) == NULL,
           "mm_get_page on an absent table");
 }
@@ -429,6 +448,80 @@ static void axiom_audio(void)
     audio_init(&AD2, AUDIO_CTRL_HDA, "b");
 }
 
+/* audio behaviours a mutation run showed unobserved (ring cursors at their
+ * bounds, single-byte transfers, defaults, the pool slot being zeroed). */
+static void axiom_audio_more(void)
+{
+    uint8_t buf[64], rd[64];
+    for (int i = 0; i < 64; i++) buf[i] = (uint8_t) (0xA0 + i);
+
+    audio_init(&AD, AUDIO_CTRL_AC97, "c");
+    CHECK(AD.device_id == 1 && AD.reg_sample_rate == 48000 && AD.reg_volume == 255,
+          "init defaults: device 1, rate min(max, 48000), volume 255");
+    audio_init(&AD2, AUDIO_CTRL_HDA, "h");
+    CHECK(AD2.reg_sample_rate == 48000, "a 192 kHz device still defaults to 48000");
+    CHECK(audio_create_stream(&AD, false, AUDIO_FMT_PCM_U8, 48000, 2) == 1 &&
+              audio_create_stream(&AD2, false, AUDIO_FMT_PCM_S8, 192000, 1) == 1,
+          "1-byte formats; rate exactly the device maximum");
+    audio_stream_t *s = &AD.streams[0];
+    /* a write stores exactly n bytes: the ring byte after them is untouched */
+    CHECK(audio_write(&AD, 1, buf, 3) == 3 && s->buffer[0] == 0xA0 && s->buffer[2] == 0xA2 &&
+              s->buffer[3] == 0,
+          "write of 3 touches 3 ring bytes");
+    /* the pool slot comes back zeroed */
+    memset(s->buffer, 0x5C, s->buffer_size);
+    audio_init(&AD, AUDIO_CTRL_AC97, "c");
+    audio_create_stream(&AD, false, AUDIO_FMT_PCM_S16LE, 48000, 2);
+    bool zero = true;
+    for (uint32_t i = 0; i < AD.streams[0].buffer_size; i++) zero &= AD.streams[0].buffer[i] == 0;
+    CHECK(zero, "a claimed pool slot is zeroed");
+    s = &AD.streams[0];
+
+    /* ring field bounds: a 1-byte ring is usable (and full); cursor == size is not */
+    uint32_t keep = s->buffer_size;
+    s->buffer_size = 1;
+    s->buffer_head = s->buffer_tail = 0;
+    CHECK(audio_write(&AD, 1, buf, 1) == 0, "a 1-byte ring accepts nothing but is not invalid");
+    s->buffer_size = keep;
+    s->buffer_tail = keep;
+    CHECK(audio_write(&AD, 1, buf, 1) == AUDIO_EINVAL, "tail == buffer_size is invalid");
+    s->buffer_tail = 0;
+    s->buffer_head = keep;
+    CHECK(audio_write(&AD, 1, buf, 1) == AUDIO_EINVAL, "head == buffer_size is invalid");
+    s->buffer_head = 0;
+    /* a stale stream id past num_streams is never found */
+    AD.streams[AD.num_streams].stream_id = 99;
+    CHECK(audio_write(&AD, 99, buf, 1) == AUDIO_ENOSTREAM && audio_stream_space(&AD, 99) < 0,
+          "lookup stops at num_streams");
+    AD.streams[AD.num_streams].stream_id = 0;
+
+    /* capture: single-byte reads, exact count, stats */
+    uint32_t cid = audio_create_stream(&AD, true, AUDIO_FMT_PCM_S16LE, 48000, 2);
+    audio_stream_t *c = NULL;
+    for (uint32_t i = 0; i < AD.num_streams; i++)
+        if (AD.streams[i].stream_id == cid) c = &AD.streams[i];
+    CHECK(cid != 0 && c != NULL, "capture stream");
+    if (c) {
+        memcpy(c->buffer, buf, 4);
+        c->buffer_head = 4;
+        uint64_t br = AD.stats.bytes_read;
+        memset(rd, 0xEE, sizeof rd);
+        CHECK(audio_read(&AD, cid, rd, 1) == 1 && rd[0] == 0xA0 && rd[1] == 0xEE,
+              "read of 1 byte returns exactly 1");
+        CHECK(audio_read(&AD, cid, rd, 10) == 3 && rd[0] == 0xA1 && rd[2] == 0xA3 && rd[3] == 0xEE,
+              "read of 10 with 3 available returns 3 and writes 3");
+        CHECK(AD.stats.bytes_read == br + 4, "bytes_read counts every byte");
+        CHECK(audio_read(&AD, cid, rd, 4) == 0 && audio_read(&AD, cid, rd, 0) == 0,
+              "empty ring / zero-length read");
+        c->buffer_head = c->buffer_size;
+        CHECK(audio_read(&AD, cid, rd, 1) == AUDIO_EINVAL, "capture with a bad cursor refused");
+        c->buffer_head = 0;
+        c->buffer_tail = 0;
+    }
+    audio_init(&AD, AUDIO_CTRL_HDA, "a");
+    audio_init(&AD2, AUDIO_CTRL_HDA, "b");
+}
+
 int main(void)
 {
     tier_begin("tier1/axioms_alloc", KNOWN_FAILURES, TIER_N(KNOWN_FAILURES));
@@ -442,5 +535,6 @@ int main(void)
         CHECK(0, "cannot map the kernel heap page at 0x%x on this host", KERNEL_HEAP_BASE);
     }
     axiom_audio();
+    axiom_audio_more();
     return tier_end();
 }

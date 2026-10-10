@@ -128,7 +128,9 @@ static void axiom_arith_grid(void)
     for (unsigned i = 0; i < NV; i++) {
         if (!V[i].valid) continue;
         CHECK(rat_neg(V[i]).valid && rat_neg(V[i]).num == -V[i].num, "neg %u total", i);
-        CHECK(rat_abs(V[i]).num >= 0, "abs %u non-negative", i);
+        rat_t ab = rat_abs(V[i]);
+        CHECK(ab.valid && ab.den == V[i].den && ab.num == (V[i].num < 0 ? -V[i].num : V[i].num),
+              "abs %u is valid and exact", i);
         CHECK(rat_is_int(V[i]) == (V[i].den == 1), "is_int %u", i);
     }
 }
@@ -349,7 +351,7 @@ static void axiom_render_exact(void)
         for (unsigned j = 0; j < TIER_N(NUMS) && n < TIER_N(R); j++)
             R[n++] = rat_make(NUMS[j], INT64_C(1) << k);
     int64_t p5 = 1;
-    for (int k = 0; k < 28 && n + 3 < TIER_N(R); k++, p5 *= 5) {
+    for (int k = 0; k < 28 && n + 3 < TIER_N(R); k++, p5 = k < 28 ? p5 * 5 : p5) {
         R[n++] = rat_make(1, p5);
         R[n++] = rat_make(-3, p5);
         if (p5 <= INT64_MAX / 1024) R[n++] = rat_make(7, p5 * 1024);

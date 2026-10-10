@@ -696,6 +696,505 @@ static void axiom_commons(void)
           "usury check at repaid = principal +/- 1");
 }
 
+/* pay_ledger behaviours a mutation run showed unobserved (see
+ * tests/MUTATION_REPORT.md): defaults, registry bounds, the request digest,
+ * the invariant checker and chain verifier fed corrupted state, nonce slots,
+ * per-account balance ceilings and the exact line counts of the helpers. */
+static pay_status_t xfer(uint32_t from, uint32_t to, uint64_t x)
+{
+    pay_posting_req_t rq;
+    mkreq(&rq, 1);
+    return pay_ledger_transfer(&L, &rq, from, to, x, NULL);
+}
+static pay_status_t issue(uint32_t iss, uint32_t to, uint64_t x)
+{
+    pay_posting_req_t rq;
+    mkreq(&rq, 1);
+    return pay_ledger_issue(&L, &rq, iss, to, x, NULL);
+}
+
+static void axiom_pay_more(void)
+{
+    pay_posting_req_t rq, rq2;
+    pay_receipt_t rc;
+    uint16_t id;
+
+    /* platform defaults and custom platforms */
+    CHECK(pay_rail_code(PAY_RAIL_COUNT) == 0 && pay_rail_code(PAY_RAIL_DEBIT) == 555,
+          "rail code of an unknown rail is 0");
+    pay_platform_default(NULL);
+    pay_platform_t pf;
+    memset(&pf, 0xFF, sizeof pf);
+    pay_platform_default(&pf);
+    CHECK(strcmp(pf.vfv_alpha, "VFV") == 0 && pf.vfv_alpha[7] == 0 && pf.jurisdiction[7] == 0 &&
+              !pf.jurisdiction_iso && pf.vfv_minor == 2,
+          "platform defaults overwrite a dirty struct completely");
+    pay_ledger_init(NULL, NULL);
+    pay_platform_default(&pf);
+    strcpy(pf.vfv_alpha, "QQQ");
+    pay_ledger_init(&L, &pf);
+    CHECK(strcmp(L.platform.vfv_alpha, "QQQ") == 0 &&
+              strcmp(pay_ledger_asset(&L, L.vfv_asset)->code, "QQQ") == 0,
+          "a custom platform code is used");
+    pf.vfv_alpha[0] = 0;
+    pay_ledger_init(&L, &pf);
+    CHECK(strcmp(L.platform.vfv_alpha, "VFV") == 0, "an empty platform code becomes VFV");
+
+    /* asset registry */
+    pay_ledger_init(&L, NULL);
+    CHECK(pay_ledger_add_fiat(&L, "VFV", 840, 2, &id) == PAY_ERR_POLICY,
+          "fiat may not take the platform code");
+    CHECK(pay_ledger_add_fiat(&L, "1BC", 840, 2, &id) == PAY_ERR_ARG &&
+              pay_ledger_add_fiat(&L, "AB1", 840, 2, &id) == PAY_ERR_ARG,
+          "fiat code: every one of the three letters is checked");
+    CHECK(pay_ledger_add_asset(&L, "VFV", 2, PAY_ASSET_UNIT, &id) == PAY_ERR_STATE,
+          "duplicate of asset 0 refused");
+    CHECK(pay_ledger_add_asset(NULL, "U", 2, PAY_ASSET_UNIT, &id) == PAY_ERR_ARG &&
+              pay_ledger_add_asset(&L, "U", 2, PAY_ASSET_FIAT, &id) == PAY_ERR_ARG &&
+              pay_ledger_add_asset(&L, "U", 2, PAY_ASSET_PLATFORM, &id) == PAY_ERR_ARG,
+          "add_asset NULL / FIAT / PLATFORM refused");
+    CHECK(pay_ledger_add_asset(&L, "ABCDEFGHIJKL", 19, PAY_ASSET_UNIT, &id) == PAY_OK &&
+              pay_ledger_add_asset(&L, "ABCDEFGHIJKLM", 2, PAY_ASSET_UNIT, &id) == PAY_ERR_ARG &&
+              pay_ledger_add_asset(&L, "MINOR20", 20, PAY_ASSET_UNIT, &id) == PAY_ERR_ARG,
+          "code of PAY_CODE_MAX and minor 19 accepted; one more of either refused");
+    CHECK(pay_ledger_add_asset(&L, "SHR", 0, PAY_ASSET_SHARE, &id) == PAY_OK &&
+              pay_ledger_asset(&L, id)->numeric == 0 && pay_ledger_asset(&L, id)->dti[0] == 0 &&
+              !pay_ledger_asset(&L, id)->iso4217,
+          "a non-fiat asset has numeric 0 and no DTI");
+    CHECK(pay_ledger_add_crypto(NULL, "BTC", 8, NULL, &id) == PAY_ERR_ARG &&
+              pay_ledger_add_crypto(&L, "BTC", 8, "X", &id) == PAY_ERR_ARG,
+          "crypto NULL ledger / one-character DTI refused");
+    CHECK(pay_ledger_add_crypto(&L, "BTC", 8, "4H95J0R2X", &id) == PAY_OK &&
+              strcmp(pay_ledger_asset(&L, id)->dti, "4H95J0R2X") == 0 &&
+              pay_ledger_asset(&L, id)->numeric == 0,
+          "crypto DTI stored");
+    CHECK(!pay_dti_format_ok("A2345678B") && !pay_dti_format_ok("B2345678E") &&
+              pay_dti_format_ok("B2345678C"),
+          "DTI: first and last characters are checked");
+    uint32_t acct;
+    CHECK(pay_ledger_open(&L, 9, 0, PAY_CAP_FINANCIAL, 0, NULL) == PAY_OK &&
+              pay_ledger_open(&L, 9, 0, PAY_CAP_FINANCIAL, 0, &acct) == PAY_OK && acct == 1,
+          "open with a NULL out pointer");
+    L.acct[L.n_accounts].active = true; /* stale slot */
+    CHECK(pay_ledger_account(&L, L.n_accounts) == NULL, "account lookup stops at n_accounts");
+    L.acct[L.n_accounts].active = false;
+
+    /* the request digest covers every line: same idempotency key, any line changed */
+    setup();
+    issue(ISS, A, 1000);
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_transfer(&L, &rq, A, B, 5, NULL) == PAY_OK, "transfer");
+    rq2 = rq;
+    rq2.lines[0].d_debit = -6;
+    rq2.lines[1].d_debit = 6;
+    CHECK(pay_ledger_post(&L, &rq2, NULL) == PAY_ERR_REPLAY, "key reused, both lines changed");
+    rq2 = rq;
+    rq2.lines[1].account = COM;
+    CHECK(pay_ledger_post(&L, &rq2, NULL) == PAY_ERR_REPLAY, "key reused, line 1 changed");
+    rq2 = rq;
+    rq2.lines[0].account = ISS;
+    rq2.lines[0].d_debit = 0;
+    rq2.lines[0].d_credit = 0;
+    CHECK(pay_ledger_post(&L, &rq2, NULL) == PAY_ERR_REPLAY, "key reused, line 0 changed");
+    CHECK(pay_ledger_post(&L, &rq, &rc) == PAY_DUPLICATE, "identical request is a duplicate");
+    CHECK(pay_ledger_find_uetr(&L, rq.uetr)->n_lines == 2, "a transfer journals two lines");
+    /* keys differing only in their last byte are different keys */
+    mkreq(&rq2, 1);
+    memcpy(rq2.idem_key, rq.idem_key, 32);
+    rq2.idem_key[31] ^= 1;
+    CHECK(pay_ledger_transfer(&L, &rq2, A, B, 5, NULL) == PAY_OK, "last key byte differs");
+    /* same e2e under a new UETR */
+    mkreq(&rq2, 1);
+    strcpy(rq2.e2e, rq.e2e);
+    CHECK(pay_ledger_transfer(&L, &rq2, A, B, 5, NULL) == PAY_ERR_DUP_UETR, "e2e reused");
+    /* e2e character set: 0x20..0x7e, every character */
+    const struct {
+        const char *e;
+        pay_status_t want;
+    } E[] = {{"\x01"
+              "abc",
+              PAY_ERR_ARG},
+             {"a\x01", PAY_ERR_ARG},
+             {"a\x1f", PAY_ERR_ARG},
+             {"a\x7f", PAY_ERR_ARG},
+             {"a b", PAY_OK},
+             {"a~", PAY_OK}};
+    for (unsigned i = 0; i < TIER_N(E); i++) {
+        mkreq(&rq2, 1);
+        strcpy(rq2.e2e, E[i].e);
+        CHECK(pay_ledger_transfer(&L, &rq2, A, B, 1, NULL) == E[i].want, "e2e case %u", i);
+    }
+    /* a refused posting leaves a zeroed receipt */
+    mkreq(&rq2, 1);
+    memset(&rc, 0x5A, sizeof rc);
+    CHECK(pay_ledger_transfer(&L, &rq2, A, B, (uint64_t) 1 << 40, &rc) == PAY_ERR_FUNDS &&
+              rc.seq == 0 && rc.hash[0] == 0 && rc.digest[PAY_HASH_LEN - 1] == 0,
+          "refused: receipt zeroed");
+    /* an all-zero idempotency key is a key like any other */
+    mkreq(&rq2, 1);
+    memset(rq2.idem_key, 0, 32);
+    CHECK(pay_ledger_transfer(&L, &rq2, A, B, 1, NULL) == PAY_OK, "zero idempotency key");
+
+    /* nonces: one slot per principal, every slot searched */
+    setup();
+    issue(ISS, A, 1000);
+    uint32_t nn = L.n_nonce;
+    for (uint32_t who = 0; who < 3; who++) {
+        mkreq(&rq, who);
+        rq.nonce = 5;
+        CHECK(pay_ledger_transfer(&L, &rq, A, B, 1, NULL) == PAY_OK, "nonce 5 for %u", who);
+    }
+    for (uint32_t who = 0; who < 3; who++) {
+        mkreq(&rq, who);
+        rq.nonce = 5;
+        CHECK(pay_ledger_transfer(&L, &rq, A, B, 1, NULL) == PAY_ERR_REPLAY, "nonce 5 again for %u",
+              who);
+        mkreq(&rq, who);
+        rq.nonce = 6;
+        CHECK(pay_ledger_transfer(&L, &rq, A, B, 1, NULL) == PAY_OK, "nonce 6 for %u", who);
+    }
+    CHECK(L.n_nonce == nn + 3, "three principals, three nonce slots");
+
+    /* lines: a frozen account may take a zero line; balance groups; crown */
+    mkreq(&rq, 1);
+    rq.n_lines = 3;
+    rq.lines[0] = (pay_line_t){A, -2, 0};
+    rq.lines[1] = (pay_line_t){B, 2, 0};
+    rq.lines[2] = (pay_line_t){FRZ, 0, 0};
+    CHECK(post_checked(&rq, "frozen zero line") == PAY_OK, "a frozen account in a zero line");
+    mkreq(&rq, 1);
+    rq.n_lines = 3;
+    rq.lines[0] = (pay_line_t){A, -2, 0};
+    rq.lines[1] = (pay_line_t){B, 2, 0};
+    rq.lines[2] = (pay_line_t){CR1, 0, 3};
+    CHECK(post_checked(&rq, "second group unbalanced") == PAY_ERR_UNBALANCED,
+          "an unbalanced (asset, cap) group after a balanced one");
+    L.acct[L.n_accounts].active = true;
+    mkreq(&rq, 1);
+    rq.n_lines = 2;
+    rq.lines[0] = (pay_line_t){A, -1, 0};
+    rq.lines[1] = (pay_line_t){L.n_accounts, 1, 0};
+    CHECK(post_checked(&rq, "stale account") == PAY_ERR_NO_ACCOUNT, "line to n_accounts");
+    L.acct[L.n_accounts].active = false;
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_issue(&L, &rq, CR1, CR1B, 10, NULL) == PAY_OK, "crown issue, one owner");
+    mkreq(&rq, 1);
+    rq.n_lines = 3;
+    rq.lines[0] = (pay_line_t){CR1B, -1, 0};
+    rq.lines[1] = (pay_line_t){CR1, 0, -1};
+    rq.lines[2] = (pay_line_t){CR2, 0, 0};
+    CHECK(post_checked(&rq, "crown third owner") == PAY_ERR_CROWN,
+          "a crown posting touching a second owner in line 2");
+
+    /* issuer credit below zero is a CREDIT error, not an overflow */
+    uint32_t ISS2;
+    pay_ledger_open(&L, 101, usd, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER, &ISS2);
+    issue(ISS2, B, 5000);
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_redeem(&L, &rq, B, ISS, 2000, NULL) == PAY_ERR_CREDIT,
+          "redeem beyond the issuer's credit");
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_redeem(&L, &rq, B, ISS2, 7, NULL) == PAY_OK &&
+              pay_ledger_find_uetr(&L, rq.uetr)->n_lines == 2,
+          "a redemption journals two lines");
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_redeem(&L, &rq, B, ISS2, 0, NULL) == PAY_ERR_ARG &&
+              pay_ledger_redeem(&L, NULL, B, ISS2, 1, NULL) == PAY_ERR_ARG &&
+              pay_ledger_redeem(&L, &rq, B, ISS2, LMAX + 1, NULL) == PAY_ERR_ARG,
+          "redeem argument bounds");
+
+    /* balance ceiling exactly PAY_BAL_MAX, on the debit side and on the credit side */
+    uint32_t I2;
+    setup();
+    pay_ledger_open(&L, 102, usd, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER, &I2);
+    for (int k = 0; k < 4; k++) issue(ISS, A, LMAX);
+    for (int k = 0; k < 3; k++) issue(I2, A, LMAX);
+    CHECK(L.acct[A].debit == PAY_BAL_MAX - LMAX, "A at 2^62 - 2^59");
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_issue(&L, &rq, I2, A, LMAX, NULL) == PAY_ERR_OVERFLOW,
+          "a debit reaching exactly PAY_BAL_MAX is refused");
+    CHECK(pay_ledger_issue(&L, &rq, I2, A, LMAX - 1, NULL) == PAY_OK, "one below is accepted");
+    setup();
+    for (int k = 0; k < 4; k++) issue(ISS, A, LMAX);
+    for (int k = 0; k < 3; k++) issue(ISS, B, LMAX);
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_issue(&L, &rq, ISS, B, LMAX, NULL) == PAY_ERR_OVERFLOW &&
+              L.acct[ISS].credit == PAY_BAL_MAX - LMAX,
+          "an issuer credit reaching exactly PAY_BAL_MAX is refused");
+
+    /* totals: exact, per (asset, cap), NULL outputs allowed, saturation */
+    setup();
+    issue(ISS, A, 700);
+    issue(CR1, CR1B, 40);
+    uint64_t d, c;
+    int64_t e;
+    pay_ledger_totals(&L, usd, PAY_CAP_FINANCIAL, &d, &c, &e);
+    CHECK(d == 700 && c == 700 && e == 0, "financial totals exact");
+    pay_ledger_totals(&L, usd, PAY_CAP_SOCIAL, &d, &c, &e);
+    CHECK(d == 40 && c == 40 && e == 0, "social totals exact, separate from financial");
+    pay_ledger_totals(&L, usd, PAY_CAP_FINANCIAL, NULL, NULL, NULL);
+    SNAP = L;
+    L.acct[A].equity = (int64_t) (PAY_BAL_MAX - 1);
+    L.acct[B].equity = (int64_t) PAY_BAL_MAX;
+    L.acct[ISS].equity = 0;
+    pay_ledger_totals(&L, usd, PAY_CAP_FINANCIAL, &d, &c, &e);
+    CHECK(e == INT64_MAX, "positive equity of exactly INT64_MAX is reported");
+    L.acct[COM].equity = 5;
+    pay_ledger_totals(&L, usd, PAY_CAP_FINANCIAL, &d, &c, &e);
+    CHECK(e == INT64_MIN, "positive equity above INT64_MAX saturates");
+    L = SNAP;
+    L.acct[A].equity = 0;
+    L.acct[ISS].equity = -(int64_t) (PAY_BAL_MAX - 1);
+    L.acct[FRZ].equity = -(int64_t) PAY_BAL_MAX;
+    pay_ledger_totals(&L, usd, PAY_CAP_FINANCIAL, &d, &c, &e);
+    CHECK(e == -INT64_MAX, "negative equity of exactly INT64_MAX is reported");
+    L = SNAP;
+
+    /* pay_ledger_check on corrupted state; post restores on INVARIANT */
+    /* each corruption below keeps every total balanced, so only the
+     * per-account rule under test can catch it */
+    CHECK(pay_ledger_check(&L), "clean ledger checks");
+    CHECK(ISS == 0, "the issuer is account 0");
+    L.acct[ISS].equity += 1;
+    CHECK(!pay_ledger_check(&L), "equity != debit - credit on account 0");
+    L = SNAP;
+    L.acct[A].equity += 1;
+    L.acct[B].equity -= 1; /* equity totals still balance */
+    CHECK(!pay_ledger_check(&L), "equity != debit - credit, totals balanced");
+    L = SNAP;
+    L.acct[A].debit += 5;
+    L.acct[A].credit += 5;
+    CHECK(!pay_ledger_check(&L), "credit on a non-issuer, totals balanced");
+    L = SNAP;
+    L.acct[ISS].debit += PAY_BAL_MAX;
+    L.acct[ISS].credit += PAY_BAL_MAX;
+    CHECK(!pay_ledger_check(&L), "account 0 debit >= PAY_BAL_MAX, totals balanced");
+    L = SNAP;
+    {
+        uint32_t I3;
+        pay_ledger_open(&L, 103, usd, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER, &I3);
+        L.acct[ISS].debit = PAY_BAL_MAX; /* exactly the bound, credit below it */
+        L.acct[ISS].credit = PAY_BAL_MAX - 1;
+        L.acct[ISS].equity = 1;
+        L.acct[I3].credit = 701;
+        L.acct[I3].equity = -701;
+        CHECK(!pay_ledger_check(&L), "a debit of exactly PAY_BAL_MAX, totals balanced");
+    }
+    L = SNAP;
+    L.acct[ISS].debit += PAY_BAL_MAX - 700;
+    L.acct[ISS].credit += PAY_BAL_MAX - 700; /* credit exactly PAY_BAL_MAX */
+    CHECK(L.acct[ISS].credit == PAY_BAL_MAX && L.acct[ISS].debit < PAY_BAL_MAX &&
+              !pay_ledger_check(&L),
+          "a credit of exactly PAY_BAL_MAX, totals balanced");
+    L = SNAP;
+    L.acct[A].debit = PAY_BAL_MAX;
+    L.acct[A].equity = (int64_t) PAY_BAL_MAX;
+    CHECK(!pay_ledger_check(&L), "a debit at PAY_BAL_MAX");
+    L = SNAP;
+    L.acct[A].debit += 5;
+    L.acct[A].equity += 5;
+    CHECK(!pay_ledger_check(&L), "unbalanced financial totals");
+    L = SNAP;
+    L.acct[CR1B].debit += 5;
+    L.acct[CR1B].equity += 5;
+    CHECK(!pay_ledger_check(&L), "unbalanced social totals");
+    L = SNAP;
+    uint32_t V0;
+    pay_ledger_open(&L, 7, L.vfv_asset, PAY_CAP_FINANCIAL, 0, &V0);
+    L.acct[V0].debit = 5;
+    L.acct[V0].equity = 5;
+    CHECK(!pay_ledger_check(&L), "unbalanced totals in asset 0");
+    L = SNAP;
+    L.acct[L.n_accounts - 1].active = false;
+    L.acct[L.n_accounts - 1].debit = 99; /* garbage in an inactive account is ignored */
+    CHECK(pay_ledger_check(&L), "inactive accounts are skipped");
+    L = SNAP;
+    L.acct[COM].debit += 3; /* corrupt an account the posting does not touch */
+    L.acct[COM].equity += 3;
+    pay_account_t a0 = L.acct[A], b0 = L.acct[B];
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_transfer(&L, &rq, A, B, 10, NULL) == PAY_ERR_INVARIANT &&
+              memcmp(&L.acct[A], &a0, sizeof a0) == 0 && memcmp(&L.acct[B], &b0, sizeof b0) == 0,
+          "post refuses on a broken invariant and restores every touched account");
+    L = SNAP;
+
+    /* chain verification: empty, intact, and tampered */
+    pay_ledger_t *T = &L;
+    CHECK(pay_ledger_verify_chain(T), "intact chain");
+    pay_journal_t *j1 = &L.journal[1];
+    char sv = j1->e2e[0];
+    j1->e2e[0] ^= 1;
+    CHECK(!pay_ledger_verify_chain(T), "a changed record breaks its hash");
+    j1->e2e[0] = sv;
+    j1->seq += 7;
+    CHECK(!pay_ledger_verify_chain(T), "a changed sequence number is detected");
+    j1->seq -= 7;
+    j1->prev[3] ^= 1;
+    CHECK(!pay_ledger_verify_chain(T), "a broken prev link is detected");
+    j1->prev[3] ^= 1;
+    CHECK(pay_ledger_verify_chain(T), "restored chain verifies");
+    /* a record whose own hash is consistent but whose prev link belongs to
+     * another history: built by posting the same request on two ledgers that
+     * differ in the record before it */
+    {
+        static pay_ledger_t Y, Xs;
+        setup();
+        issue(ISS, A, 1000);
+        Y = L;
+        CHECK(xfer(A, B, 1) == PAY_OK, "history X");
+        Xs = L;
+        L = Y;
+        CHECK(xfer(A, B, 2) == PAY_OK, "history Y");
+        Y = L;
+        L = Xs;
+        mkreq(&rq, 1);
+        pay_posting_req_t same = rq;
+        CHECK(pay_ledger_transfer(&L, &rq, A, B, 3, NULL) == PAY_OK &&
+                  pay_ledger_transfer(&Y, &same, A, B, 3, NULL) == PAY_OK,
+              "the same request on both");
+        L.journal[2] = Y.journal[2];
+        memcpy(L.chain_head, Y.chain_head, sizeof L.chain_head);
+        CHECK(!pay_ledger_verify_chain(&L), "a self-consistent record from another history");
+    }
+    /* a single-record chain is verified too */
+    pay_ledger_init(&L, NULL);
+    CHECK(pay_ledger_verify_chain(&L), "an empty chain verifies");
+    setup();
+    issue(ISS, A, 10);
+    L.journal[0].e2e[0] ^= 1;
+    CHECK(!pay_ledger_verify_chain(&L), "a tampered single record is detected");
+
+    /* reversal that fails is not marked reversed */
+    setup();
+    issue(ISS, A, 100);
+    mkreq(&rq, 1);
+    pay_ledger_transfer(&L, &rq, A, B, 60, NULL);
+    char u[PAY_UETR_LEN + 1];
+    memcpy(u, rq.uetr, sizeof u);
+    CHECK(xfer(B, COM, 60) == PAY_OK, "B spends it");
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_reverse(&L, &rq, u, NULL) == PAY_ERR_FUNDS, "reversal unfunded");
+    CHECK(xfer(COM, B, 60) == PAY_OK, "B is refunded");
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_reverse(&L, &rq, u, NULL) == PAY_OK, "the retry reverses");
+    CHECK(pay_ledger_reverse(NULL, &rq, u, NULL) == PAY_ERR_ARG &&
+              pay_ledger_reverse(&L, NULL, u, NULL) == PAY_ERR_ARG,
+          "reverse NULL");
+
+    /* tithed payment: line counts, the VFV bound */
+    uint32_t VI, VT;
+    pay_ledger_open(&L, 200, L.vfv_asset, PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER, &VI);
+    pay_ledger_open(&L, 1, L.vfv_asset, PAY_CAP_FINANCIAL, 0, &VT);
+    issue(ISS, A, 1000);
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_pay_tithed(&L, &rq, A, B, 10, COM, 0, VI, VT, 0, NULL) == PAY_OK &&
+              pay_ledger_find_uetr(&L, rq.uetr)->n_lines == 2 &&
+              pay_ledger_find_uetr(&L, rq.uetr)->lines[0].account == A,
+          "no contribution, no VFV: two lines, payer first");
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_pay_tithed(&L, &rq, A, B, 10, COM, 1, VI, VT, LMAX, NULL) == PAY_OK &&
+              pay_ledger_find_uetr(&L, rq.uetr)->n_lines == 5,
+          "contribution and a VFV credit of exactly LINE_MAX: five lines");
+    mkreq(&rq, 1);
+    CHECK(pay_ledger_pay_tithed(&L, &rq, A, B, 10, COM, 1, VI, VT, LMAX + 1, NULL) == PAY_ERR_ARG,
+          "VFV credit above LINE_MAX refused");
+}
+
+/* pay_tithe behaviours a mutation run showed unobserved: the integer square
+ * root on exact squares and at the top of its range, the excess-free path,
+ * commons conservation on corrupted state, and the commons split's cap and
+ * equal-share rule. */
+static void isqrt_case(unsigned __int128 v)
+{
+    pay_u192 x = {{(uint64_t) v, (uint64_t) (v >> 64), 0}};
+    pay_u128 r = pay_isqrt192(x);
+    unsigned __int128 q = ((unsigned __int128) r.hi << 64) | r.lo;
+    /* q*q <= v < (q+1)^2, with v < 2^128 so q < 2^64 */
+    bool ok = r.hi == 0 && (unsigned __int128) r.lo * r.lo <= v &&
+              (r.lo == UINT64_MAX || (unsigned __int128) (r.lo + 1) * (r.lo + 1) > v);
+    CHECK(ok, "isqrt(%llx:%016llx) = %llu", (unsigned long long) (uint64_t) (v >> 64),
+          (unsigned long long) (uint64_t) v, (unsigned long long) (uint64_t) q);
+}
+
+static void axiom_tithe_more(void)
+{
+    const uint64_t R[] = {0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          15,
+                          16,
+                          17,
+                          255,
+                          256,
+                          65535,
+                          65536,
+                          4294967295u,
+                          4294967296u,
+                          3037000499u,
+                          3037000500u,
+                          (uint64_t) 1 << 40,
+                          0xFFFFFFFFFFFFFFFFull,
+                          0xFFFFFFFF00000000ull,
+                          0x8000000000000000ull};
+    for (unsigned i = 0; i < TIER_N(R); i++) {
+        unsigned __int128 sq = (unsigned __int128) R[i] * R[i];
+        isqrt_case(sq); /* an exact square */
+        if (sq) isqrt_case(sq - 1);
+        isqrt_case(sq + 1);
+    }
+    isqrt_case(~(unsigned __int128) 0); /* 2^128 - 1 */
+    pay_u192 big = {{0, 0, 1}};         /* 2^128: root 2^64 */
+    pay_u128 rb = pay_isqrt192(big);
+    CHECK(rb.hi == 1 && rb.lo == 0, "isqrt(2^128) = 2^64");
+
+    /* contribution == tithe takes no excess path, whatever the unit's rate */
+    pay_tithe_policy_t pol;
+    pay_tithe_policy_default(NULL);
+    pay_tithe_policy_default(&pol);
+    pay_tithe_result_t res;
+    CHECK(pay_tithe_compute(&pol, PAY_UNIT_COMPUTE, 1000000, NULL, NULL, &res) == PAY_TITHE_OK &&
+              res.excess == 0 && res.vfv_credit == 0,
+          "phi contribution on a unit with no posted rate is OK");
+
+    /* commons conservation on corrupted state, unit 0 included */
+    pay_commons_t cm;
+    pay_commons_init(NULL);
+    pay_commons_init(&cm);
+    pay_commons_deposit(&cm, PAY_UNIT_MONEY, 100);
+    CHECK(pay_commons_conserved(&cm), "conserved after a deposit");
+    cm.pool[PAY_UNIT_MONEY] += 1;
+    CHECK(!pay_commons_conserved(&cm), "pool != received - allocated in unit 0 is detected");
+    cm.pool[PAY_UNIT_MONEY] -= 1;
+    cm.allocated[PAY_UNIT_STORAGE] = 1;
+    CHECK(!pay_commons_conserved(&cm), "allocated > received is detected");
+    cm.allocated[PAY_UNIT_STORAGE] = 0;
+    uint64_t zw[3] = {0, 0, 0}, zo[4] = {9, 9, 9, 9};
+    CHECK(pay_commons_allocate(&cm, PAY_UNIT_MONEY, zw, 3, (pay_rat_t){8, 21}, zo) &&
+              cm.allocated[PAY_UNIT_MONEY] == 0 && cm.pool[PAY_UNIT_MONEY] == 100 &&
+              pay_commons_conserved(&cm) && zo[0] == 0 && zo[2] == 0 && zo[3] == 9,
+          "allocating to all-zero weights gives nothing and writes only n outputs");
+
+    /* split: the cap, and the equal share ceil(total / nonzero) that overrides it */
+    uint64_t w[3] = {1, 3, 7}, out[3];
+    uint64_t left = pay_commons_split(100, w, 2, (pay_rat_t){1, 1}, out);
+    CHECK(left == 0 && out[0] == 25 && out[1] == 75, "cap 1: plain 1:3 split (w[2] not read)");
+    left = pay_commons_split(100, w, 2, (pay_rat_t){0, 1}, out);
+    CHECK(left == 0 && out[0] == 50 && out[1] == 50, "cap 0: the equal share 50 caps both");
+    uint64_t w2[3] = {1, 1, 7};
+    left = pay_commons_split(101, w2, 2, (pay_rat_t){0, 1}, out);
+    CHECK(left == 0 && out[0] + out[1] == 101 && out[0] <= 51 && out[1] <= 51,
+          "equal share rounds up: 101 over two is fully given");
+    uint64_t w3[3] = {1, 0, 3}, o3[3];
+    left = pay_commons_split(100, w3, 3, (pay_rat_t){0, 1}, o3);
+    CHECK(left == 0 && o3[0] == 50 && o3[1] == 0 && o3[2] == 50,
+          "the equal share counts nonzero weights only (100 / 2)");
+    uint64_t w4[2] = {0, 5}, o4[2] = {7, 7};
+    left = pay_commons_split(100, w4, 2, (pay_rat_t){0, 1}, o4);
+    CHECK(left == 0 && o4[0] == 0 && o4[1] == 100, "a single nonzero weight takes everything");
+}
+
 int main(void)
 {
     tier_begin("tier1/axioms_pay", KNOWN_FAILURES, TIER_N(KNOWN_FAILURES));
@@ -709,5 +1208,7 @@ int main(void)
     axiom_capacity();
     axiom_tithe();
     axiom_commons();
+    axiom_pay_more();
+    axiom_tithe_more();
     return tier_end();
 }
