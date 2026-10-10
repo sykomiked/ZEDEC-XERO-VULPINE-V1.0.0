@@ -150,6 +150,24 @@ static void test_route(void)
     CHECK(zxv_route(&E, 0, 4, 1, p, 8, &n, &cost) == ZXV_E_OK && n == 3 && cost == 100 && p[1] == 1,
           "equal cost and hops: lowest predecessor id");
 
+    /* ties found late: a cheaper-to-reach member processed first, then an
+     * equal-cost path through a lower id; then fewer hops found later */
+    open_engine(&E, 5);
+    zxv_corridor_t u[] = {{0, 3, 10, 9}, {3, 4, 90, 9}, {0, 2, 50, 9}, {2, 4, 50, 9}};
+    for (unsigned i = 0; i < sizeof u / sizeof u[0]; i++) zxv_engine_add_corridor(&E, &u[i]);
+    CHECK(zxv_route(&E, 0, 4, 1, p, 8, &n, &cost) == ZXV_E_OK && n == 3 && cost == 100 && p[1] == 2,
+          "a tie found later through a lower id replaces the first");
+    open_engine(&E, 5);
+    zxv_corridor_t h[] = {{0, 1, 10, 9}, {1, 2, 10, 9}, {2, 4, 10, 9}, {0, 3, 25, 9}, {3, 4, 5, 9}};
+    for (unsigned i = 0; i < sizeof h / sizeof h[0]; i++) zxv_engine_add_corridor(&E, &h[i]);
+    CHECK(zxv_route(&E, 0, 4, 1, p, 8, &n, &cost) == ZXV_E_OK && n == 3 && cost == 30 && p[1] == 3,
+          "a tie found later with fewer hops replaces the first");
+    open_engine(&E, 5);
+    zxv_corridor_t g[] = {{0, 1, 10, 9}, {1, 4, 20, 9}, {0, 3, 10, 9}, {3, 4, 30, 9}};
+    for (unsigned i = 0; i < sizeof g / sizeof g[0]; i++) zxv_engine_add_corridor(&E, &g[i]);
+    CHECK(zxv_route(&E, 0, 4, 1, p, 8, &n, &cost) == ZXV_E_OK && n == 3 && cost == 30 && p[1] == 1,
+          "a dearer path found later never replaces a cheaper one");
+
     zxv_corridor_t bad = {0, 0, 1, 1};
     CHECK(zxv_engine_add_corridor(&E, &bad) == ZXV_E_ARG, "self corridor refused");
     bad = (zxv_corridor_t){0, 1, ZXV_FEE_PPM_MAX + 1, 1};
