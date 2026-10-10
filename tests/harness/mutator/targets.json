@@ -45,8 +45,8 @@
      "after": "make -C kernel --no-print-directory test-engine"}
   ],
   "ci": {
-    "targets": ["rmag_core", "fs_malloc", "settle"],
-    "baseline_note": "measured 'after' scores on p10-integrate (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 86/90 (after the F-RMAG-OVF fix and its tests), fs_malloc 30/36, settle 175/197 (the 22 survivors are equivalent: array sizes, ties in the payer/payee pick, a loose loop bound, a dead NULL branch)",
-    "baseline": {"rmag_core": 0.9555, "fs_malloc": 0.8333, "settle": 0.8883}
+    "targets": ["rmag_core", "fs_malloc", "settle", "zxv_engine"],
+    "baseline_note": "measured 'after' scores on p10-integrate (tests/MUTATION_REPORT.md), rounded down to 4 places: rmag_core 86/90 (after the F-RMAG-OVF fix and its tests), fs_malloc 30/36, settle 175/197 (the 22 survivors are equivalent: array sizes, ties in the payer/payee pick, a loose loop bound, a dead NULL branch); zxv_engine 325/377 measured locally, baseline set one mutant lower for runner variance (survivors: id-derivation buffer sizes, route tie-order equivalents, defensive re-checks of the abacus output)",
+    "baseline": {"rmag_core": 0.9555, "fs_malloc": 0.8333, "settle": 0.8883, "zxv_engine": 0.8594}
   }
 }
