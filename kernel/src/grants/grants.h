@@ -66,7 +66,7 @@
  *      ever been attested takes no new barrels (open a new lot).
  *   G4 G_RATE. The owner's public metric for an epoch is the exact rational
  *      inflow / active verified weight, where inflow is what grant_pool_credit
- *      brought in during that epoch and weight is W from that epoch's
+ *      or grant_pool_record brought in during that epoch and weight is W from that epoch's
  *      distribution; den 0 gives 0/0 flagged undefined. The last
  *      GRANT_HIST epochs are kept. grant_snapshot gives aggregates only (no
  *      account, holder or subject data): epoch, inflow, weight, rate, barrels
@@ -133,7 +133,7 @@ typedef enum {
     GRANT_ERR_DISPUTED = -6, /* G5 */
     GRANT_ERR_LEDGER = -7,   /* the ledger refused (see last_ledger) */
     GRANT_ERR_EMPTY = -8,    /* G3: the budget buys no whole barrel */
-    GRANT_ERR_FUNDS = -9,    /* G5: holder lacks barrels in that lot */
+    GRANT_ERR_FUNDS = -9,    /* G5: holder lacks barrels; G4: pool lacks uncounted Vino */
     GRANT_ERR_OVERFLOW = -10,
     GRANT_ERR_EPOCH = -11,      /* epoch or expiry not above the last */
     GRANT_ERR_STATE = -12,      /* already distributed / attested lot */
@@ -233,6 +233,7 @@ typedef struct {
     pay_ledger_t *L;
     uint16_t vino, barrel;
     uint32_t issuer, pool, reserve; /* ledger accounts */
+    uint64_t pool_seen;             /* pool Vino already counted as inflow (G4) */
     uint32_t funnel;                /* dispute-funnel signer id */
     grant_verify_fn verify;
     void *vctx;
@@ -267,6 +268,12 @@ grant_status_t grant_epoch_begin(grant_t *g, uint64_t epoch);
 /* Move `amount` Vino from `from` into the pool (the raffle slice) and count
  * it as this epoch's inflow. */
 grant_status_t grant_pool_credit(grant_t *g, uint32_t from, uint64_t amount, uint64_t tick);
+/* Record-only form, for a caller that posts the pool line itself inside a
+ * larger all-or-nothing posting (the raffle's settlement): call it AFTER
+ * that posting commits. It counts `amount` as this epoch's inflow only when
+ * the pool's ledger balance holds at least that much Vino not yet counted,
+ * so inflow can never be recorded for money that did not land. */
+grant_status_t grant_pool_record(grant_t *g, uint64_t amount);
 
 /* G2 */
 #define GRANT_APPEAL_MSG (19u + 4u + 8u + 4u)

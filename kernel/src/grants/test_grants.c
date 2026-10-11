@@ -975,6 +975,68 @@ static void test_check_and_msgs(void)
           "lot id 0 checks; empty rows are skipped");
 }
 
+/* the raffle posts the pool line itself, then records the inflow */
+static pay_status_t direct(uint32_t to, uint64_t amt)
+{
+    pay_posting_req_t r;
+    pay_receipt_t rc;
+    memset(&r, 0, sizeof r);
+    nfund++;
+    snprintf(r.uetr, sizeof r.uetr, "00000000-0000-4000-8000-%012llx", (unsigned long long) nfund);
+    snprintf(r.e2e, sizeof r.e2e, "DIRECT-%llu", (unsigned long long) nfund);
+    memcpy(r.idem_key, &nfund, sizeof nfund);
+    r.idem_key[31] = 0xD1;
+    return pay_ledger_transfer(&L, &r, raffle, to, amt, &rc);
+}
+
+static void test_record(void)
+{
+    setup();
+    CHECK(grant_pool_record(NULL, 5) == GRANT_ERR_ARG && grant_pool_record(&G, 0) == GRANT_ERR_ARG,
+          "record: bad arguments refused");
+    CHECK(grant_pool_record(&G, 1) == GRANT_ERR_FUNDS && G.hist[1].inflow == 0,
+          "nothing landed: nothing can be recorded");
+    CHECK(direct(G.pool, 300) == PAY_OK, "the raffle's own posting lands 300");
+    CHECK(grant_pool_record(&G, 301) == GRANT_ERR_FUNDS && G.hist[1].inflow == 0,
+          "more than landed is refused");
+    CHECK(grant_pool_record(&G, 300) == GRANT_OK && G.hist[1].inflow == 300 && G.pool_seen == 300,
+          "exactly what landed is counted");
+    CHECK(grant_pool_record(&G, 1) == GRANT_ERR_FUNDS && G.hist[1].inflow == 300,
+          "the same money cannot be counted twice");
+    CHECK(grant_pool_credit(&G, raffle, 100, 1) == GRANT_OK && G.pool_seen == 400 &&
+              grant_pool_record(&G, 1) == GRANT_ERR_FUNDS,
+          "a credit is counted once, by the credit");
+    grant_recipient_t r[2] = {rcp(0, 1), rcp(1, 1)};
+    CHECK(grant_epoch_distribute(&G, LOT, r, 2, 100, 2, NULL) == GRANT_OK && deb(G.pool) == 0 &&
+              G.pool_seen == 0,
+          "spending the pool lowers what is counted");
+    grant_epoch_begin(&G, 2);
+    CHECK(direct(G.pool, 50) == PAY_OK && grant_pool_record(&G, 50) == GRANT_OK &&
+              G.hist[2].inflow == 50 && grant_check(&G),
+          "the next epoch records its own inflow");
+    G.pool_seen = deb(G.pool) + 1; /* corrupt: counted more than the pool holds */
+    CHECK(grant_pool_record(&G, 1) == GRANT_ERR_FUNDS, "a corrupt count fails closed");
+    G.pool_seen = 0;
+    G.hist[2].inflow = UINT64_MAX;
+    CHECK(grant_pool_record(&G, 1) == GRANT_ERR_OVERFLOW && G.pool_seen == 0,
+          "inflow overflow refused, nothing counted");
+    /* a spend larger than what was counted floors the count at zero */
+    setup();
+    CHECK(direct(G.pool, 100) == PAY_OK && grant_pool_credit(&G, raffle, 100, 1) == GRANT_OK &&
+              G.pool_seen == 100,
+          "100 counted, 100 more landed uncounted");
+    CHECK(grant_epoch_distribute(&G, LOT, r, 2, 75, 2, NULL) == GRANT_OK && deb(G.pool) == 50 &&
+              G.pool_seen == 0 && grant_pool_record(&G, 50) == GRANT_OK && G.pool_seen == 50,
+          "spend 150 of 100 counted: count floors at 0, the 50 left can still be recorded");
+    /* a partial spend lowers the count by exactly the spend */
+    setup();
+    CHECK(grant_pool_credit(&G, raffle, 300, 1) == GRANT_OK && grant_set_cap(&G, 1, 2) == GRANT_OK,
+          "300 counted, half may be spent");
+    CHECK(grant_epoch_distribute(&G, LOT, r, 2, 100, 2, NULL) == GRANT_OK && deb(G.pool) == 200 &&
+              G.pool_seen == 200 && grant_pool_record(&G, 1) == GRANT_ERR_FUNDS,
+          "one barrel at 100 leaves 200 counted, nothing uncounted");
+}
+
 int main(void)
 {
     test_init();
@@ -989,6 +1051,7 @@ int main(void)
     test_backing();
     test_snapshot();
     test_check_and_msgs();
+    test_record();
     printf("test_grants: PASS %d FAIL %d\n", pass, fail);
     return fail ? 1 : 0;
 }

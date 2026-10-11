@@ -140,6 +140,19 @@ grant_status_t grant_pool_credit(grant_t *g, uint32_t from, uint64_t amount, uin
     if (post(g, &r, PAY_KIND_TRANSFER, "raffle slice to grant pool", tick) != PAY_OK)
         return GRANT_ERR_LEDGER;
     e->inflow = in;
+    g->pool_seen += amount; /* <= the pool balance, which fits */
+    return GRANT_OK;
+}
+
+grant_status_t grant_pool_record(grant_t *g, uint64_t amount)
+{
+    if (!g || !g->L || amount == 0) return GRANT_ERR_ARG;
+    uint64_t bal = debit(g, g->pool), in;
+    if (bal < g->pool_seen || bal - g->pool_seen < amount) return GRANT_ERR_FUNDS;
+    grant_epoch_t *e = cur(g);
+    if (!pay_add_ok(e->inflow, amount, &in)) return GRANT_ERR_OVERFLOW;
+    e->inflow = in;
+    g->pool_seen += amount;
     return GRANT_OK;
 }
 
@@ -350,6 +363,7 @@ grant_status_t grant_epoch_distribute(grant_t *g, uint32_t lot, const grant_reci
             return GRANT_ERR_LEDGER;
         e->distributed = true;
         out->postings++;
+        g->pool_seen = g->pool_seen > (uint64_t) c ? g->pool_seen - (uint64_t) c : 0;
         for (uint32_t j = 0; j + 3 < k; j++) {
             uint32_t x = idx[j];
             grant_hold_t *h = find_hold(g, r[x].account, lot);
