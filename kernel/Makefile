@@ -372,6 +372,7 @@ verify-all: test
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/vblock -Isrc/ipfs_node -Isrc/robin_debanks src/vblock/test_vblock.c src/vblock/vblock.c src/vblock/vblock_cpu.c src/vblock/vblock_sim.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/tensor/zt.c -o /tmp/test_vblock && /tmp/test_vblock > /tmp/test_vblock.log 2>&1 && echo "[PASS] test_vblock" || { tail -40 /tmp/test_vblock.log; echo "[FAIL] test_vblock"; exit 1; }
 	@echo "=== hosted app: API guard, budget gate, Vinea UDP host, end-to-end API, model slot, peers, updates, notifications ==="; \
 	$(MAKE) --no-print-directory test-settle
+	$(MAKE) --no-print-directory test-raffle
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-research
@@ -1525,6 +1526,18 @@ clean:
 .PHONY: test-settle
 test-settle:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/settle -Isrc/pay -Isrc/swarm -Isrc/tensor -Isrc/mlkem -Isrc/zcapital -Isrc/modbind src/settle/test_settle.c src/settle/settle.c src/peer_audit/pa_runtime.c src/robin_debanks/sha256.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/tensor/zt.c src/mlkem/keccak.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o $(ZXV_TMP)/test_settle && $(ZXV_TMP)/test_settle > $(ZXV_TMP)/test_settle.log 2>&1 && echo "[PASS] test_settle ($$(tail -1 $(ZXV_TMP)/test_settle.log))" || { cat $(ZXV_TMP)/test_settle.log; echo "[FAIL] test_settle"; exit 1; }
+
+# The Sicilian Crown Raffle (src/raffle/raffle.h): opt-in tickets, Fibonacci
+# epoch trigger, exact split, commit-reveal draw replayed against a Python model.
+RAFFLE_SRCS = src/raffle/raffle.c src/pay/pay_util.c src/mlkem/keccak.c src/tensor/zt.c
+RAFFLE_INC = -Iinclude -Isrc/modbind -Isrc/raffle -Isrc/pay -Isrc/mlkem -Isrc/tensor
+.PHONY: test-raffle
+test-raffle:
+	@python3 -I src/raffle/gen_raffle_ref.py $(ZXV_TMP)/raffle_ref.txt || { echo "[FAIL] gen_raffle_ref"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(RAFFLE_INC) src/raffle/test_raffle.c $(RAFFLE_SRCS) -o $(ZXV_TMP)/test_raffle && $(ZXV_TMP)/test_raffle $(ZXV_TMP)/raffle_ref.txt > $(ZXV_TMP)/test_raffle.log 2>&1 && echo "[PASS] test_raffle ($$(tail -1 $(ZXV_TMP)/test_raffle.log))" || { cat $(ZXV_TMP)/test_raffle.log; echo "[FAIL] test_raffle"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle.c -o $(ZXV_TMP)/raffle_a64.o && \
+	if nm -u $(ZXV_TMP)/raffle_a64.o | grep -vE ' (pay_[a-z0-9_]+|sha3_256|shake256)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_a64.o; echo "[FAIL] raffle libc symbol"; exit 1; fi && \
+	echo "[PASS] raffle freestanding (aarch64-none-elf, no libc)"
 
 # The 64-state hexagram tag on lpres (src/lpres/lpres_hex.h).
 .PHONY: test-lpres-hex
