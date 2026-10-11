@@ -197,11 +197,6 @@ static inline AVX512 __m512i mac_512(const int8_t *w, const int16_t *x)
     return _mm512_madd_epi16(w16, _mm512_loadu_si512((const void *) x));
 }
 
-static inline AVX512 __m256i fold512(__m512i a)
-{
-    return _mm256_add_epi32(_mm512_castsi512_si256(a), _mm512_extracti64x4_epi64(a, 1));
-}
-
 /* the 8 block sums of 8 blocks */
 static inline AVX512 __m256i hsum8_512(const __m512i p[8])
 {
