@@ -15,6 +15,11 @@ The CI gate (a small fixed subset, fails when a score drops below the
 baseline recorded in the config):
     python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci
 
+  CI splits that gate across parallel jobs with --shard I/N: the CI targets are
+  dealt to N shards by mutant count (largest first, each to the lightest
+  shard), so every target lands in exactly one shard and each shard still
+  fails below its own targets' baselines.
+
 How it works
   The target is scanned with comments, string/char literals and preprocessor
   lines masked out, so only real code is mutated. Each mutant changes exactly
@@ -431,6 +436,28 @@ def parse_lines(s):
     return out
 
 
+def shard_names(cfg, names, spec, ops):
+    """The CI targets of shard I of N ("I/N"), balanced by mutant count."""
+    i, _, n = spec.partition("/")
+    i, n = int(i), int(n)
+    if not 1 <= i <= n:
+        raise SystemExit("--shard %s: want I/N with 1 <= I <= N" % spec)
+    by_name = {t["name"]: t for t in cfg["targets"]}
+    sizes = []
+    for name in names:
+        t = by_name[name]
+        with open(os.path.join(ROOT, t["target"])) as f:
+            sizes.append((len(gen_mutants(f.read(), ops, parse_lines(t.get("lines")))), name))
+    load = [0] * n
+    shards = [[] for _ in range(n)]
+    for size, name in sorted(sizes, key=lambda x: (-x[0], x[1])):
+        k = load.index(min(load))
+        load[k] += size
+        shards[k].append(name)
+    print("[shard %d/%d] %s (%d mutants)" % (i, n, ",".join(shards[i - 1]) or "-", load[i - 1]))
+    return shards[i - 1]
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="deterministic C source mutation harness")
     ap.add_argument("--target")
@@ -442,6 +469,7 @@ def main(argv):
     ap.add_argument("--phase", default="after", choices=["before", "after", "both"])
     ap.add_argument("--ci", action="store_true",
                     help="run the config's CI subset and fail below its baselines")
+    ap.add_argument("--shard", help="with --ci: run shard I of N (I/N, 1-based)")
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2)))
     ap.add_argument("--build-code", type=int, default=3,
                     help="exit status of the test command meaning 'did not build' (tiers.py: 3)")
@@ -468,6 +496,8 @@ def main(argv):
                 names = [n for n in names if n in a.only.split(",")]
             else:  # "own_job" targets are gated by their own workflow, not the shared subset
                 names = [n for n in names if n not in cfg["ci"].get("own_job", [])]
+            if a.shard:
+                names = shard_names(cfg, names, a.shard, a.ops.split(","))
         elif a.only:
             names = a.only.split(",")
         for t in cfg["targets"]:

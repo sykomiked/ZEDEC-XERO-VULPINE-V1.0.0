@@ -24,7 +24,7 @@
 - **The surplus gate.** It keeps a vector only if it adds enough surplus over the vectors already kept, so redundant heads or answers are skipped.
 - **The open-system ledger.** Q' = Q − δQ + ηS − C decides whether the core grows this cycle or gets more efficient instead.
 - **Holographic coding.** Each place is stored as its difference from its parent's prediction: the prediction is the negative space, the data the positive. Decoding is exact. Decoding only the inner shells gives a coarse picture of the whole.
-- **UBH-168 frames.** Words travel in 21-octet frames: one tag octet, then five 32-bit words whose byte order alternates little, big, little. That is UBH_ENDIAN_MIXED, and decoding does not depend on the host machine's byte order.
+- **UBH-168 frames.** Words travel in 21-octet frames: one tag octet, then five 32-bit words whose byte order alternates little, big, little. That is UBH_ENDIAN_MIXED, and decoding does not depend on the host machine's byte order. The tag octet holds the phase, the word count and a 4-bit check. In wire format v2 (`ZT_FRAME_VERSION`) the check covers the phase and count bits as well as the payload, so every single flipped bit is refused; in v1 a flipped phase bit silently reversed every word's byte order. v1 and v2 frames always fail each other's check.
 
 ## Running real models (T17 to T20)
 

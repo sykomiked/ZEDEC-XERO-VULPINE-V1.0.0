@@ -30,12 +30,21 @@ public sealed class MessageService
 
     private const int AmtSettlement = 1, AmtOpening = 2, AmtClosing = 3;
 
-    private readonly ZxvContextHandle _ctx;
+    private readonly ContextRef _context;
+    private readonly Capability _service;
     private readonly ILogger _logger;
 
-    internal MessageService(ZxvContextHandle ctx, ILogger logger)
+    /// <summary>Initializes the service.</summary>
+    /// <param name="context">The platform context.</param>
+    /// <param name="service">
+    /// The platform's own capability (never exposed), presented by the members
+    /// that take none, so every message is made with <c>zxv_msg_create_cap</c>.
+    /// </param>
+    /// <param name="logger">The logger.</param>
+    internal MessageService(ContextRef context, Capability service, ILogger logger)
     {
-        _ctx = ctx;
+        _context = context;
+        _service = service;
         _logger = logger;
     }
 
@@ -82,7 +91,7 @@ public sealed class MessageService
     [Obsolete("Deprecated since ABI 1.2 (no capability): use BuildCamt053(Capability, Camt053Message), which needs LedgerRead.")]
     public MxDocument BuildCamt053(Camt053Message message) => BuildCamt053Core(null, message);
 
-    /// <summary>pacs.008 through <paramref name="cap"/>, or the 1.0 context form when it is null (platform services).</summary>
+    /// <summary>pacs.008 through <paramref name="cap"/>, or through the platform's own capability when it is null (platform services).</summary>
     internal MxDocument BuildPacs008Core(Capability? cap, Pacs008Message message)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -104,7 +113,7 @@ public sealed class MessageService
         });
     }
 
-    /// <summary>camt.053 through <paramref name="cap"/>, or the 1.0 context form when it is null (platform services).</summary>
+    /// <summary>camt.053 through <paramref name="cap"/>, or through the platform's own capability when it is null (platform services).</summary>
     /// <exception cref="ZxvUsageException">Includes <see cref="ZxvStatus.InvalidField"/> when opening plus booked entries is not the closing balance (libzxv 1.1.1; 1.1.0 reported <see cref="ZxvStatus.InvariantViolated"/>, which the SDK also maps to a usage error because the context does not halt).</exception>
     internal MxDocument BuildCamt053Core(Capability? cap, Camt053Message message)
     {
@@ -144,12 +153,28 @@ public sealed class MessageService
 
     /// <summary>Returns whether the loaded native library can build a message kind.</summary>
     /// <param name="kind">The message kind.</param>
-    /// <returns><see langword="true"/> when supported.</returns>
+    /// <returns><see langword="true"/> when supported; <see langword="false"/> also when the context is halted.</returns>
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    /// <remarks>Probes with <c>zxv_msg_create_cap</c> through the platform's own capability (ABI 1.2).</remarks>
     public bool IsSupported(MxMessageKind kind)
     {
-        int rc = NativeMethods.MsgCreate(_ctx, (int)kind, out ZxvMessageHandle h);
-        h.Dispose();
-        return rc == (int)ZxvStatus.Ok;
+        _context.ThrowIfDisposed();
+        bool added = false;
+        _service.Handle.DangerousAddRef(ref added);
+        try
+        {
+            // R6: the probe message is destroyed before the reference on its cap is dropped.
+            int rc = NativeMethods.MsgCreateCap(_service.Handle, (int)kind, out ZxvMessageHandle h);
+            h.Dispose();
+            return rc == (int)ZxvStatus.Ok;
+        }
+        finally
+        {
+            if (added)
+            {
+                _service.Handle.DangerousRelease();
+            }
+        }
     }
 
     private static void SetText(ZxvMessageHandle msg, int field, string value, string name)
@@ -161,7 +186,8 @@ public sealed class MessageService
     private Capability RequireOwn(Capability capability)
     {
         ArgumentNullException.ThrowIfNull(capability);
-        if (!ReferenceEquals(capability.Context.Handle, _ctx))
+        _context.ThrowIfDisposed();
+        if (!ReferenceEquals(capability.Context, _context))
         {
             throw new ArgumentException("The capability belongs to a different platform.", nameof(capability));
         }
@@ -169,30 +195,25 @@ public sealed class MessageService
         return capability;
     }
 
-    private unsafe MxDocument Build(Capability? cap, MxMessageKind kind, string messageId, Action<ZxvMessageHandle> fill)
+    private unsafe MxDocument Build(Capability? requested, MxMessageKind kind, string messageId, Action<ZxvMessageHandle> fill)
     {
+        _context.ThrowIfDisposed();
+        Capability cap = requested ?? _service;
+
         // R6: a message must not outlive its context, nor (ABI 1.2) the
-        // capability it was made with. Hold a reference on both for the whole
-        // lifetime of the native message.
-        bool added = false, capAdded = false;
-        _ctx.DangerousAddRef(ref added);
+        // capability it was made with. The cap already keeps its context
+        // alive; hold a reference on the cap for the whole lifetime of the
+        // native message.
+        cap.Enter("Messages.Create(" + kind + ")");
+        bool capAdded = false;
+        cap.Handle.DangerousAddRef(ref capAdded);
         try
         {
-            ZxvMessageHandle msg;
-            if (cap is null)
+            int crc = NativeMethods.MsgCreateCap(cap.Handle, (int)kind, out ZxvMessageHandle msg);
+            if (crc != (int)ZxvStatus.Ok)
             {
-                NativeCall.Check(NativeMethods.MsgCreate(_ctx, (int)kind, out msg), "Messages.Create(" + kind + ")");
-            }
-            else
-            {
-                cap.Enter("Messages.Create(" + kind + ")");
-                cap.Handle.DangerousAddRef(ref capAdded);
-                int crc = NativeMethods.MsgCreateCap(cap.Handle, (int)kind, out msg);
-                if (crc != (int)ZxvStatus.Ok)
-                {
-                    msg.Dispose();
-                    cap.Check(crc, "Messages.Create(" + kind + ")");
-                }
+                msg.Dispose();
+                cap.Check(crc, "Messages.Create(" + kind + ")");
             }
 
             using (msg)
@@ -204,7 +225,7 @@ public sealed class MessageService
                     // libzxv 1.1.0 reported an unreconciled statement as
                     // ZXV_E_INVARIANT without halting the context; passing the
                     // context lets NativeCall confirm that and keep it a usage error.
-                    throw NativeCall.Create(rc, "Messages.Render(" + kind + ")", _ctx);
+                    throw NativeCall.Create(rc, "Messages.Render(" + kind + ")", _context.Handle);
                 }
 
                 Log.MessageBuilt(_logger, kind.ToString(), messageId, xml.Length);
@@ -215,12 +236,7 @@ public sealed class MessageService
         {
             if (capAdded)
             {
-                cap!.Handle.DangerousRelease();
-            }
-
-            if (added)
-            {
-                _ctx.DangerousRelease();
+                cap.Handle.DangerousRelease();
             }
         }
     }

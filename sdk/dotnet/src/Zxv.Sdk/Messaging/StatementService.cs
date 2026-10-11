@@ -62,23 +62,42 @@ public sealed class StatementService
     /// builder enforces. Statements are in ISO 4217 currencies only; a private
     /// unit (VFV) account is refused with <see cref="Interop.ZxvStatus.InvalidCurrency"/>.
     /// </remarks>
-    public AccountStatement BuildStatement(AccountId account, StatementRequest? request = null)
+    public AccountStatement BuildStatement(AccountId account, StatementRequest? request = null) => BuildCore(null, account, request);
+
+    /// <summary>
+    /// Builds one statement page for an account through <paramref name="capability"/>
+    /// (needs <see cref="CapabilityRights.LedgerRead"/>; ABI 1.2).
+    /// </summary>
+    /// <param name="capability">A capability of this platform.</param>
+    /// <param name="account">The account.</param>
+    /// <param name="request">Paging; defaults to the first 32 lines.</param>
+    /// <returns>The page.</returns>
+    /// <exception cref="CapabilityDeniedException">The capability cannot read.</exception>
+    /// <exception cref="ArgumentException">The capability belongs to a different platform.</exception>
+    public AccountStatement BuildStatement(Capability capability, AccountId account, StatementRequest? request = null)
+    {
+        ArgumentNullException.ThrowIfNull(capability);
+        return BuildCore(capability, account, request);
+    }
+
+    private AccountStatement BuildCore(Capability? capability, AccountId account, StatementRequest? request)
     {
         request ??= new StatementRequest();
         ArgumentOutOfRangeException.ThrowIfNegative(request.Start);
         ArgumentOutOfRangeException.ThrowIfLessThan(request.MaxEntries, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(request.MaxEntries, MessageService.MaxStatementEntries);
+        CapabilityLedger? scoped = capability is null ? null : _ledger.WithCapability(capability);
 
-        Account acct = _ledger.GetAccountUnchecked(account);
-        IReadOnlyList<LedgerEntry> before = _ledger.GetEntriesUnchecked(account, 0, request.Start);
-        IReadOnlyList<LedgerEntry> page = _ledger.GetEntriesUnchecked(account, request.Start, request.MaxEntries);
-        Money zero = _ledger.GetBalances(account).Equity with { MinorUnits = 0 };
+        Account acct = scoped?.GetAccount(account) ?? _ledger.GetAccountUnchecked(account);
+        IReadOnlyList<LedgerEntry> before = scoped?.GetEntries(account, 0, request.Start) ?? _ledger.GetEntriesUnchecked(account, 0, request.Start);
+        IReadOnlyList<LedgerEntry> page = scoped?.GetEntries(account, request.Start, request.MaxEntries) ?? _ledger.GetEntriesUnchecked(account, request.Start, request.MaxEntries);
+        Money zero = (scoped?.GetBalances(account) ?? _ledger.GetBalances(account)).Equity with { MinorUnits = 0 };
         Money opening = before.Aggregate(zero, (sum, e) => sum + e.Amount);
         Money closing = page.Aggregate(opening, (sum, e) => sum + e.Amount);
-        int total = _ledger.GetEntryCountUnchecked(account);
+        int total = scoped?.GetEntryCount(account) ?? _ledger.GetEntryCountUnchecked(account);
         int next = request.Start + page.Count;
 
-        MxDocument doc = _messages.BuildCamt053Core(null, new Camt053Message(
+        MxDocument doc = _messages.BuildCamt053Core(capability, new Camt053Message(
             request.MessageId ?? _ids.NextMessageId(),
             _time.GetUtcNow(),
             _payments.ToIdentifier(account),

@@ -7,7 +7,7 @@
 #   macOS    ZXV.app: the native shell (macos/ZXVApp.m, AppKit + WKWebView)
 #            and the engine (kernel/arch/hosted), both universal (Intel +
 #            Apple Silicon), the window, the first-run model fetcher and its
-#            manifest; in a .dmg and a .app.zip. Signed and notarised when
+#            manifest; in a .dmg and a .app.zip. Ad-hoc signed; Developer ID signing and notarisation only when
 #            the signing variables are set (see build_signed_app.sh).
 #   Windows  zxv-swarm.exe in a .zip
 #   Linux    x86_64 and aarch64 static binaries with a .desktop entry, .tar.gz
@@ -192,12 +192,12 @@ step "macOS app ($MAC_ARCHS)"
 APP="$WORK/mac/ZXV.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/models"
 if [ -f "$WORK/zxvd-mac" ]; then
-    # zxvd finds libzxv in Contents/Frameworks; the shell sees the dylib and
+    # zxvd finds libzxv in Contents/Frameworks (its rpath, set when
+    # build_zxvd.sh links it); the shell sees the dylib and
     # passes --rpc (macos/ZXVApp.m, SOCKET)
     mkdir -p "$APP/Contents/Frameworks"
     cp "$WORK/zxvd-mac" "$APP/Contents/MacOS/zxv-engine"
     cp "$WORK/libzxv.dylib" "$APP/Contents/Frameworks/libzxv.dylib"
-    install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/zxv-engine"
     echo "  engine: zxvd with its control socket (libzxv.dylib in Contents/Frameworks)"
 else
     cp "$WORK/zxv-mac" "$APP/Contents/MacOS/zxv-engine"
@@ -242,8 +242,11 @@ step "Signing (skipped unless the signing variables are set)"
 printf '%s\n' "$README_TEXT" > "$WORK/mac/README.txt"
 cat >> "$WORK/mac/README.txt" <<'EOF'
 
-macOS: drag ZXV to Applications and open it. If this copy is not notarised,
-the first time right-click ZXV and choose Open, then Open again.
+macOS: drag ZXV to Applications and open it. ZXV is ad-hoc signed, not
+notarised, so macOS asks once on the first open:
+  macOS 15 and later: choose Done, then System Settings > Privacy & Security >
+    Open Anyway, then open ZXV again and choose Open Anyway.
+  macOS 14 and earlier: Control-click ZXV, choose Open, then Open again.
 EOF
 ln -s /Applications "$WORK/mac/Applications" 2>/dev/null || true
 
