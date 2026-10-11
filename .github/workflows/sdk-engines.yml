@@ -1,0 +1,183 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Game-engine kits (sdk/engines): emu-state (C), the Godot GDExtension and
+# its C++ layer, and the Unity package's Runtime built as netstandard2.1.
+# Every job builds libzxv itself and tests against the real library.
+name: SDK engines
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sdk/engines/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/conformance/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - 'kernel/src/**'
+      - 'kernel/third_party/**'
+      - '.github/workflows/sdk-engines.yml'
+  pull_request:
+    paths:
+      - 'sdk/engines/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/conformance/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - 'kernel/src/**'
+      - 'kernel/third_party/**'
+      - '.github/workflows/sdk-engines.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: '4.3-stable'
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-engines-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  emu-state:
+    name: emu-state ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/engines/emu-state
+    steps:
+      - uses: actions/checkout@v5
+      - run: make -C ../../libzxv all
+      - name: Unit tests, fuzz smoke run, demo and R11 no-float check
+        run: make CC=${{ matrix.cc }} PYTHON=python3 test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} PYTHON=python3 demo
+      - name: Fuzz, 4 x 20k programs
+        run: |
+          for seed in 1 2 3 4; do
+            ZXV_EMU_FUZZ_SEED=$seed make CC=${{ matrix.cc }} PYTHON=python3 fuzz FUZZ_ITERS=20000
+          done
+
+  emu-state-sanitize:
+    name: emu-state ASan + UBSan ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc, asan: 'detect_leaks=1' }
+          - { os: macos-14, cc: clang, asan: '' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/engines/emu-state
+    steps:
+      - uses: actions/checkout@v5
+      - run: make -C ../../libzxv all
+      - name: Tests under ASan + UBSan
+        env:
+          ASAN_OPTIONS: ${{ matrix.asan }}
+        run: make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python3 test
+      - name: Fuzz under ASan + UBSan, 4 x 100k programs
+        env:
+          ASAN_OPTIONS: ${{ matrix.asan }}
+        run: |
+          for seed in 1 2 3 4; do
+            ZXV_EMU_FUZZ_SEED=$seed make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python3 fuzz FUZZ_ITERS=100000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        if: runner.os == 'Linux'
+        run: make PYTHON=python3 fuzz-libfuzzer
+
+  godot-core:
+    name: godot-zxv core ${{ matrix.os }} ${{ matrix.cxx }}${{ matrix.sanitize == 'ON' && ' sanitize' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc, cxx: g++, sanitize: 'OFF' }
+          - { os: ubuntu-24.04, cc: clang, cxx: clang++, sanitize: 'OFF' }
+          - { os: ubuntu-24.04, cc: gcc, cxx: g++, sanitize: 'ON' }
+          - { os: macos-14, cc: clang, cxx: clang++, sanitize: 'OFF' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - run: make -C sdk/libzxv all
+      - name: Configure (the C++ layer and its tests; no Godot, no download)
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: cmake -S sdk/engines/godot-zxv -B build-godot-core -DZXV_GODOT_EXTENSION=OFF -DZXV_SANITIZE=${{ matrix.sanitize }}
+      - run: cmake --build build-godot-core -j 4
+      - run: ctest --test-dir build-godot-core --output-on-failure
+
+  godot-extension:
+    name: godot-zxv GDExtension in Godot 4.3 (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - run: make -C sdk/libzxv all
+      - name: Build the extension (fetches godot-cpp godot-4.3-stable, commit-checked)
+        run: |
+          cmake -S sdk/engines/godot-zxv -B sdk/engines/godot-zxv/build/ext -DCMAKE_BUILD_TYPE=Release
+          cmake --build sdk/engines/godot-zxv/build/ext -j 4
+          ctest --test-dir sdk/engines/godot-zxv/build/ext --output-on-failure
+      - name: Download Godot ${{ env.GODOT_VERSION }} and check its SHA-512
+        run: |
+          mkdir -p "$RUNNER_TEMP/godot" && cd "$RUNNER_TEMP/godot"
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          zip="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fsSL -o "$zip" "$base/$zip"
+          curl -fsSL -o SHA512-SUMS.txt "$base/SHA512-SUMS.txt"
+          grep "  $zip\$" SHA512-SUMS.txt | sha512sum -c -
+          unzip -q "$zip"
+          echo "GODOT=$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}_linux.x86_64" >> "$GITHUB_ENV"
+      - name: Import the demo project (registers the extension)
+        working-directory: sdk/engines/godot-zxv
+        run: |
+          timeout 300 "$GODOT" --headless --path demo --import || true
+          timeout 300 "$GODOT" --headless --path demo --import
+      - name: Headless tests inside Godot
+        working-directory: sdk/engines/godot-zxv
+        run: |
+          timeout 300 "$GODOT" --headless --path demo --script res://tests/test_zxv.gd 2>&1 | tee "$RUNNER_TEMP/godot-test.log"
+          grep -E '^test_zxv.gd: [0-9]+ checks, 0 failed$' "$RUNNER_TEMP/godot-test.log"
+      - name: Run the demo scene for 300 frames
+        working-directory: sdk/engines/godot-zxv
+        run: |
+          timeout 300 "$GODOT" --headless --path demo --quit-after 300 2>&1 | tee "$RUNNER_TEMP/godot-demo.log"
+          if grep -E 'SCRIPT ERROR|ERROR:' "$RUNNER_TEMP/godot-demo.log"; then exit 1; fi
+
+  unity-runtime:
+    name: unity-zxv Runtime (netstandard2.1) ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - run: make -C sdk/libzxv all
+      - run: make -C sdk/engines/emu-state all
+      - name: Build (C# 9, warnings as errors)
+        working-directory: sdk/engines/unity-zxv/dotnet
+        run: dotnet build Zxv.Unity.sln -c Release
+      - name: Test against the native libraries and the conformance vectors
+        working-directory: sdk/engines/unity-zxv/dotnet
+        run: dotnet test Zxv.Unity.sln -c Release --no-build
