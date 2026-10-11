@@ -1,0 +1,12 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! bounds.tb - x(i + 1) reads past the end when i = n: refused, with the
+! loop index in the message.
+trebago bounds
+  in  x(n)
+  out d(n)
+  d(i) = x(i + 1) - x(i)
+end
+!> in x = 1, 4, 9
+!> refuse TB_E_BOUNDS 9:10

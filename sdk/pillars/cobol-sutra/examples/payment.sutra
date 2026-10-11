@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# payment.sutra - the PAYMENT-REC copybook (payment.cpy) in Sutra.
+record payment-rec
+  pay-ref: x(16)
+  pay-amount: s9(13)v99 comp-3     # exact: 15 digits, 2 implied decimals
+  pay-ccy: x(3)
+  pay-from: 9(9) comp
+  pay-to: 9(9) comp
+  pay-value-date: 9(8)
+  pay-fee: s9(5)v99                # zoned decimal, sign overpunched
+  pay-status: x
+  filler: x(4)
