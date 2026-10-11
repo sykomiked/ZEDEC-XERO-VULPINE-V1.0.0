@@ -23,21 +23,22 @@ CFLAGS="-std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-
 INC="-I$K/include -I$K/src"
 for d in sdk_bridge sdk zcapital lpres surplus event_space modbind edp_risk rational orbital_compat crypto_wallet financial_fabric bridge constellation count_house finance pay finance_markets hardware identity interspace ipfs mesh_net mesh_token net onepolicy orbital_elevator orbital_fabric porter_house predictive update vena vino yantra desktop panopticon emu; do INC="$INC -I$K/src/$d"; done
 
-NAMES="emu_cpu6502 emu_cpu_z80 emu_relate emu_game_runner desktop sdk_bridge sdk_bridge_lang polyglot_matrix panopticon panopticon_vpn"
+NAMES="emu_cpu6502 emu_cpu_z80 emu_relate emu_game_runner desktop sdk_bridge sdk_bridge_lang polyglot_matrix panopticon panopticon_vpn render_boot"
 
 # srcs NAME: prints the include flags and sources for one test
 srcs() {
     case "$1" in
     emu_cpu6502) echo "-I$K/src/emu $T/test_emu_cpu6502.c $K/src/emu/cpu6502.c" ;;
-    emu_cpu_z80) echo "-I$K/src/emu $T/test_emu_cpu_z80.c $K/src/emu/cpu_z80.c" ;;
-    emu_relate) echo "-I$K/src/emu $T/test_emu_relate.c $K/src/emu/emu_relate.c $K/src/emu/cpu6502.c $K/src/emu/cpu_z80.c" ;;
-    emu_game_runner) echo "-I$K/src/emu $T/test_emu_game_runner.c $K/src/emu/game_runner.c $K/src/emu/cpu6502.c $K/src/emu/cpu_z80.c $K/src/emu/nes.c $K/src/emu/sms.c $K/src/emu/gb.c $K/src/emu/cpu_lr35902.c $K/src/emu/gba.c $K/src/emu/cpu_arm7.c $K/src/emu/genesis.c $K/src/emu/cpu_m68k.c $K/src/emu/pce.c $K/src/emu/cpu_huc6280.c $K/src/emu/snes.c $K/src/emu/cpu65816.c $K/src/emu/zxv_cover.c" ;;
+    emu_cpu_z80) echo "$INC $T/test_emu_cpu_z80.c $K/src/emu/cpu_z80.c" ;;
+    emu_relate) echo "$INC $T/test_emu_relate.c $K/src/emu/emu_relate.c $K/src/emu/cpu6502.c $K/src/emu/cpu_z80.c" ;;
+    emu_game_runner) echo "-Wno-misleading-indentation $INC $T/test_emu_game_runner.c $K/src/emu/game_runner.c $K/src/emu/cpu6502.c $K/src/emu/cpu_z80.c $K/src/emu/nes.c $K/src/emu/gb.c $K/src/emu/cpu_lr35902.c $K/src/emu/gba.c $K/src/emu/cpu_arm7.c $K/src/emu/genesis.c $K/src/emu/cpu_m68k.c $K/src/emu/pce.c $K/src/emu/cpu_huc6280.c $K/src/emu/snes.c $K/src/emu/cpu65816.c $K/src/emu/zxv_cover.c" ;;
     desktop) echo "$INC $T/test_desktop_units.c $K/src/desktop/desktop.c $K/src/event_space/event_envelope.c" ;;
     sdk_bridge) echo "$INC $T/test_sdk_bridge_units.c $K/src/sdk_bridge/sdk_bridge.c $K/src/lpres/lpres.c" ;;
-    sdk_bridge_lang) echo "$INC $T/test_sdk_bridge_lang.c $K/src/sdk_bridge/sdk_bridge_lang.c $K/src/sdk_bridge/sdk_bridge.c $K/src/lpres/lpres.c" ;;
-    polyglot_matrix) echo "$INC $T/test_polyglot_matrix.c $K/src/sdk_bridge/polyglot_matrix.c $K/src/lpres/lpres.c" ;;
+    sdk_bridge_lang) echo "-Wno-unused-parameter $INC $T/test_sdk_bridge_lang.c $K/src/sdk_bridge/sdk_bridge_lang.c $K/src/sdk_bridge/sdk_bridge.c $K/src/lpres/lpres.c $K/src/rational/rational.c" ;;
+    polyglot_matrix) echo "-Wno-unused-parameter $INC $T/test_polyglot_matrix.c $K/src/sdk_bridge/polyglot_matrix.c $K/src/lpres/lpres.c" ;;
     panopticon) echo "$INC $T/test_panopticon.c $K/src/panopticon/panopticon.c" ;;
     panopticon_vpn) echo "$INC $T/test_panopticon_vpn.c $K/src/panopticon/panopticon_vpn.c" ;;
+    render_boot) echo "$INC -I$K/src/prism_break -I$K/src/vbe -I$K/src/display -I$K/src/video $T/test_render_boot.c $K/src/desktop/render_boot.c" ;;
     *) return 1 ;;
     esac
 }
