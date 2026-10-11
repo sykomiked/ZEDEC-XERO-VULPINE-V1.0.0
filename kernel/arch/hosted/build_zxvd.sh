@@ -1,0 +1,66 @@
+#!/bin/sh
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# build_zxvd.sh OUTDIR — build zxvd: the hosted swarm (the same sources as
+# zxv-host, from app_sources.sh) with -DZXVD, its JSON-RPC socket
+# (zxvd_rpc.c) and the web4 JSON tokenizer, linked against libzxv's shared
+# library through its frozen C ABI (sdk/libzxv/include/zxv_api.h).
+#
+# libzxv is linked as a shared library on purpose: it is built from kernel
+# sources with its own flags (TEST_HOST number types, hidden visibility), so
+# a static link beside the app's own copies of the same kernel files could
+# mix two layouts of one struct. Behind the ABI, each side keeps its own.
+#
+# Writes OUTDIR/zxvd and OUTDIR/libzxv.{so,dylib} (found next to zxvd via
+# rpath). Linux and macOS.
+#
+#   CC=clang SANITIZE=1 kernel/arch/hosted/build_zxvd.sh /tmp/zxvd
+#   CC="xcrun clang -arch x86_64 -mmacosx-version-min=10.15" ... (one slice of
+#   the Mac app's universal engine; build_desktop.sh joins them with lipo)
+set -eu
+HERE="$(cd "$(dirname "$0")" && pwd)"
+K="$(cd "$HERE/../.." && pwd)"
+R="$(cd "$K/.." && pwd)"
+OUT="${1:?usage: build_zxvd.sh OUTDIR}"
+mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)"
+CC="${CC:-cc}"
+
+SAN=""
+if [ -n "${SANITIZE:-}" ]; then
+    SAN="-fsanitize=address,undefined -fno-omit-frame-pointer"
+fi
+
+# 1. libzxv, the ABI neck (its own Makefile; SANITIZE passes through)
+# (built under OUTDIR, so a sanitized and a plain build never share objects)
+make -C "$R/sdk/libzxv" CC="$CC" OUT="$OUT/libzxv-build" ${SANITIZE:+SANITIZE=1} \
+    >"$OUT/libzxv-build.log" 2>&1 ||
+    { tail -30 "$OUT/libzxv-build.log"; echo "[FAIL] libzxv build"; exit 1; }
+case "$(uname -s)" in
+    # Both rpaths at link time (next to the binary, and Contents/Frameworks
+    # in ZXV.app), with header room: the x86_64 slice has none left for a
+    # later install_name_tool -add_rpath.
+    Darwin) LIBF=libzxv.dylib
+            RP='-Wl,-rpath,@loader_path,-rpath,@executable_path/../Frameworks,-headerpad_max_install_names' ;;
+    *)      LIBF=libzxv.so;    RP='-Wl,-rpath,$ORIGIN' ;;
+esac
+cp "$OUT/libzxv-build/$LIBF" "$OUT/$LIBF"
+
+# 2. zxvd: app_sources.sh + the RPC layer
+T="$(mktemp -d "${TMPDIR:-/tmp}/zxvd-build.XXXXXX")"
+trap 'rm -rf "$T"' EXIT INT TERM
+python3 "$HERE/gen_ui.py" "$HERE/zxv_ui.html" "$T/zxv_ui.c"
+set --
+for d in $(sh "$HERE/app_sources.sh" incs); do set -- "$@" "-I$K/$d"; done
+set -- "$@" "-I$K/src/web4" "-I$R/sdk/libzxv/include"
+for f in $(sh "$HERE/app_sources.sh" srcs); do set -- "$@" "$K/$f"; done
+DEFS="-DZXVD"
+if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
+    set -- "$@" "$HERE/zxv_zt_glue.c"
+    DEFS="$DEFS -DZXV_HAVE_ZT_GLUE"
+fi
+set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
+# shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
+$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv "$RP" -lm -o "$OUT/zxvd"
+echo "[PASS] built $OUT/zxvd against $OUT/$LIBF"
