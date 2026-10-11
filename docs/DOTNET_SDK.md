@@ -203,8 +203,8 @@ account on three rails with platform-internal numeric codes:
 
 | Rail | Numeric | Jurisdiction | Meaning |
 | --- | --- | --- | --- |
-| DEBIT | 555 | NCR (New California Republic) | what the account has received (asset / backing) |
-| CREDIT | 777 | NRE (Neo Roman Empire) | what the account has sent (claim / liability) |
+| DEBIT | 555 | NRE (Neo Roman Empire) | what the account has received (asset / backing) |
+| CREDIT | 777 | NCR (New California Republic) | what the account has sent (claim / liability) |
 | EQUITY | 888 | PNS (Principality of New Sicily) | DEBIT minus CREDIT: the spendable position |
 
 None of these is an ISO 4217 currency: 555, 777 and 888 are all unassigned.

@@ -11,8 +11,8 @@
  * except the AU member list, its five AU regions and monetary-union tags.
  *
  * The Vino Floating Voucher (VFV) is NOT an ISO 4217 currency and is not in
- * these tables; neither are the Vino rail numerics 555 (DEBIT, NCR), 777
- * (CREDIT, NRE) and 888 (EQUITY, PNS), all unassigned in ISO 4217 (test_cb_ccy
+ * these tables; neither are the Vino rail numerics 555 (DEBIT, NRE), 777
+ * (CREDIT, NCR) and 888 (EQUITY, PNS), all unassigned in ISO 4217 (test_cb_ccy
  * scans the whole table to prove it; gen_cb_tables.py refuses to generate if
  * one ever appears). cb_ccy_by_alpha("VFV") and cb_ccy_by_num(555) return
  * NULL on purpose.

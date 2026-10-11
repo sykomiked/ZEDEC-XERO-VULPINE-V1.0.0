@@ -69,11 +69,11 @@ const char *iso20022_ccy_caveat(uint16_t code)
         return "ISO 4217 999=XXX 'no currency': it carries no value on "
                "the wire. Settle wire amounts in a real currency.";
     case ISO_CCY_DEBIT:
-        return "555 is the Vino DEBIT/backing rail numeric (jurisdiction NCR), "
+        return "555 is the Vino DEBIT/backing rail numeric (jurisdiction NRE), "
                "not an ISO 4217 currency; conventional parsers reject it. Use a "
                "real settlement currency (USD/EUR/INR/...) on the wire.";
     case ISO_CCY_CREDIT:
-        return "777 is the Vino CREDIT/claim rail numeric (jurisdiction NRE), "
+        return "777 is the Vino CREDIT/claim rail numeric (jurisdiction NCR), "
                "not an ISO 4217 currency; conventional parsers reject it. Use a "
                "real settlement currency on the wire.";
     case ISO_CCY_EQUITY:

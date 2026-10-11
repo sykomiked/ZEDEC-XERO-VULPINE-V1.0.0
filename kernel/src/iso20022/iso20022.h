@@ -13,8 +13,8 @@
  * so a too-small caller buffer returns a truncation error and NEVER overruns.
  *
  * It also maps the triple-ledger three rails to ISO 4217 numeric currency
- * codes (matching vino_stores.h's VINO_ISO_* rail codes) — DEBIT=555 (NCR),
- * CREDIT=777 (NRE), EQUITY=888 (PNS). None is an ISO 4217 currency: all
+ * codes (matching vino_stores.h's VINO_ISO_* rail codes) — DEBIT=555 (NRE),
+ * CREDIT=777 (NCR), EQUITY=888 (PNS). None is an ISO 4217 currency: all
  * three numerics are unassigned. A conventional parser rejects them, so wire
  * messages settle in a real currency (see iso20022_ccy_alpha /
  * iso20022_ccy_caveat).

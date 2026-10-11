@@ -144,8 +144,8 @@ public sealed class CurrencyService
     }
 
     /// <summary>
-    /// Gets the platform jurisdiction code a Vino rail carries: "NCR" (New
-    /// California Republic) for DEBIT 555, "NRE" (Neo Roman Empire) for
+    /// Gets the platform jurisdiction code a Vino rail carries: "NRE" (Neo
+    /// Roman Empire) for DEBIT 555, "NCR" (New California Republic) for
     /// CREDIT 777 and "PNS" (Principality of New Sicily) for EQUITY 888.
     /// These are not ISO 3166 country codes: they travel only as
     /// <c>/ZXV/...</c> remittance data, never in a <c>Ctry</c> field.
@@ -154,8 +154,8 @@ public sealed class CurrencyService
     /// <returns>The three-letter platform jurisdiction code.</returns>
     public static string GetRailJurisdiction(VinoRail rail) => rail switch
     {
-        VinoRail.Debit => "NCR",
-        VinoRail.Credit => "NRE",
+        VinoRail.Debit => "NRE",
+        VinoRail.Credit => "NCR",
         VinoRail.Equity => "PNS",
         _ => throw new ArgumentOutOfRangeException(nameof(rail), rail, "Unknown rail."),
     };

@@ -319,12 +319,12 @@ static void test_ledger(void)
     const pay_asset_t *vfv = pay_ledger_asset(&L, 0);
     CHECK(strcmp(vfv->code, "VFV") == 0 && vfv->numeric == 555 && vfv->minor == 2 &&
           !vfv->iso4217 && vfv->store_credit);
-    CHECK(strcmp(L.platform.jurisdiction, "NCR") == 0 && !L.platform.jurisdiction_iso);
-    CHECK(strcmp(L.platform.rail_juris[PAY_RAIL_DEBIT], "NCR") == 0 &&
-          strcmp(L.platform.rail_juris[PAY_RAIL_CREDIT], "NRE") == 0 &&
+    CHECK(strcmp(L.platform.jurisdiction, "NRE") == 0 && !L.platform.jurisdiction_iso);
+    CHECK(strcmp(L.platform.rail_juris[PAY_RAIL_DEBIT], "NRE") == 0 &&
+          strcmp(L.platform.rail_juris[PAY_RAIL_CREDIT], "NCR") == 0 &&
           strcmp(L.platform.rail_juris[PAY_RAIL_EQUITY], "PNS") == 0);
-    CHECK(strcmp(pay_rail_juris(PAY_RAIL_DEBIT), "NCR") == 0 &&
-          strcmp(pay_rail_juris(PAY_RAIL_CREDIT), "NRE") == 0 &&
+    CHECK(strcmp(pay_rail_juris(PAY_RAIL_DEBIT), "NRE") == 0 &&
+          strcmp(pay_rail_juris(PAY_RAIL_CREDIT), "NCR") == 0 &&
           strcmp(pay_rail_juris(PAY_RAIL_EQUITY), "PNS") == 0 &&
           strcmp(pay_rail_juris(PAY_RAIL_COUNT), "") == 0);
     CHECK(pay_ledger_add_fiat(&L, "USD", 840, 2, &usd) == PAY_OK);
@@ -633,7 +633,7 @@ static void test_ids(void)
     CHECK(!pay_iban_valid("GB82 WEST 1234 5698 7654 32"));
     CHECK(pay_iban_length("DE") == 22 && pay_iban_length("NO") == 15);
     CHECK(pay_iso3166_valid("DE") && pay_iso3166_valid("NC") && !pay_iso3166_valid("XX"));
-    CHECK(!pay_iso3166_valid("NCR") && !pay_iso3166_valid("NRE") && !pay_iso3166_valid("PNS"));
+    CHECK(!pay_iso3166_valid("NRE") && !pay_iso3166_valid("NCR") && !pay_iso3166_valid("PNS"));
     CHECK(pay_iso3166_valid("NR") && pay_iso3166_valid("PN"));
 }
 
@@ -702,7 +702,7 @@ static void test_roles_and_intent(void)
     static pay_role_cfg_t ind, sb, inst;
     static pay_ledger_t L;
     CHECK(pay_role_init(&ind, PAY_ROLE_INDIVIDUAL, 1, "Ann") == PAY_OK);
-    CHECK(strcmp(ind.jurisdiction, "NCR") == 0 && !ind.equity_enabled);
+    CHECK(strcmp(ind.jurisdiction, "NRE") == 0 && !ind.equity_enabled);
     CHECK(pay_role_validate(&ind) == PAY_OK);
     CHECK(pay_role_set_gateway(&ind, PAY_GW_SWIFT, gw_submit, 0, "x") == PAY_ERR_POLICY);
     CHECK(pay_role_set_gateway(&ind, PAY_GW_CHAIN, gw_submit, 0, "wallet") == PAY_OK);
@@ -885,7 +885,7 @@ static void test_iso_build(void)
         memcpy(g_p8_xml, g_buf, (size_t) n);
         g_p8_len = n;
         g_p8_xml[n] = 0;
-        CHECK(strstr(g_p8_xml, "/ZXV/JURIS/NCR") != NULL);
+        CHECK(strstr(g_p8_xml, "/ZXV/JURIS/NRE") != NULL);
         CHECK(strstr(g_p8_xml, "/ZXV/VFV/12.34") != NULL);
         CHECK(strstr(g_p8_xml, "<Ctry>NC") == NULL);
         CHECK(strstr(g_p8_xml, "Ccy=\"VFV\"") == NULL);
@@ -913,14 +913,14 @@ static void test_iso_build(void)
     CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) == PAY_ISO_ERR_CCY);
     p3.tx[0].amt.iso4217 = true; /* forged flag */
     CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) < 0);
-    /* countries: NCR/NRE/PNS never, NC/NR/PN only when confirmed */
+    /* countries: NRE/NCR/PNS never, NC/NR/PN only when confirmed */
     p3 = g_p8;
     strcpy(p3.tx[0].cdtr.adr.ctry, "NC");
     CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) == PAY_ISO_ERR_COUNTRY);
     p3.tx[0].cdtr.adr.ctry_confirmed = true;
     CHECK(pay_iso_pacs008(&x, &p3, g_buf, sizeof g_buf) > 0);
-    CHECK(pay_iso_country_ok(&x, "NCR", true) == PAY_ISO_ERR_COUNTRY);
     CHECK(pay_iso_country_ok(&x, "NRE", true) == PAY_ISO_ERR_COUNTRY);
+    CHECK(pay_iso_country_ok(&x, "NCR", true) == PAY_ISO_ERR_COUNTRY);
     CHECK(pay_iso_country_ok(&x, "PNS", true) == PAY_ISO_ERR_COUNTRY);
     /* NR (Nauru) and PN (Pitcairn) shadow NRE and PNS: confirmed only */
     CHECK(pay_iso_country_ok(&x, "NR", false) == PAY_ISO_ERR_COUNTRY);
@@ -941,7 +941,7 @@ static void test_iso_build(void)
     CHECK(n > 0);
     if (n > 0) {
         g_buf[n] = 0;
-        CHECK(strstr(g_buf, "/ZXV/JURIS/ZZQ") != NULL && strstr(g_buf, "NCR") == NULL);
+        CHECK(strstr(g_buf, "/ZXV/JURIS/ZZQ") != NULL && strstr(g_buf, "NRE") == NULL);
     }
     /* CBPR charset */
     p3 = g_p8;
@@ -969,7 +969,7 @@ static void test_iso_build(void)
     validate("pain001.xml", "pain.001.001.09.xsd", n);
     if (n > 0) {
         g_buf[n] = 0;
-        CHECK(strstr(g_buf, "/ZXV/JURIS/NCR") && !strstr(g_buf, "Ccy=\"VFV\""));
+        CHECK(strstr(g_buf, "/ZXV/JURIS/NRE") && !strstr(g_buf, "Ccy=\"VFV\""));
     }
 
     /* pain.002 */
@@ -993,7 +993,7 @@ static void test_iso_build(void)
     validate("pain002.xml", "pain.002.001.11.xsd", n);
     if (n > 0) {
         g_buf[n] = 0;
-        CHECK(strstr(g_buf, "/ZXV/JURIS/NCR") && strstr(g_buf, "/ZXV/VFV/0.99"));
+        CHECK(strstr(g_buf, "/ZXV/JURIS/NRE") && strstr(g_buf, "/ZXV/VFV/0.99"));
     }
 
     /* camt.052/053/054 */
@@ -1200,17 +1200,17 @@ static void test_equity(void)
     pay_equity_cfg_default(&cfg);
     CHECK(!cfg.enabled && cfg.default_cap.num == 8 && cfg.default_cap.den == 21);
     CHECK(pay_equity_init(&g_ex, &g_EL, &cfg) == PAY_OK);
-    CHECK(pay_equity_register(&g_ex, 1, PAY_ROLE_INDIVIDUAL, "NCR") == PAY_ERR_POLICY); /* off */
+    CHECK(pay_equity_register(&g_ex, 1, PAY_ROLE_INDIVIDUAL, "NRE") == PAY_ERR_POLICY); /* off */
     cfg.enabled = true;
     cfg.role_mask = (1u << PAY_ROLE_INDIVIDUAL) | (1u << PAY_ROLE_SELF_BANK);
     strcpy(cfg.disabled_juris[0], "BLK");
     cfg.n_disabled = 1;
     CHECK(pay_equity_init(&g_ex, &g_EL, &cfg) == PAY_OK);
-    CHECK(pay_equity_register(&g_ex, 50, PAY_ROLE_INSTITUTION, "NCR") == PAY_ERR_POLICY);
+    CHECK(pay_equity_register(&g_ex, 50, PAY_ROLE_INSTITUTION, "NRE") == PAY_ERR_POLICY);
     CHECK(pay_equity_register(&g_ex, 51, PAY_ROLE_INDIVIDUAL, "BLK") == PAY_ERR_POLICY);
     uint32_t money[8];
     for (uint32_t o = 1; o <= 7; o++) {
-        CHECK(pay_equity_register(&g_ex, o, PAY_ROLE_INDIVIDUAL, "NCR") == PAY_OK);
+        CHECK(pay_equity_register(&g_ex, o, PAY_ROLE_INDIVIDUAL, "NRE") == PAY_OK);
         money[o] = fund(&g_EL, o, 10000000);
     }
     money[0] = 0;
@@ -1352,7 +1352,7 @@ static void test_equity(void)
     CHECK(pay_equity_verify_audit(&g_ex));
 
     /* disabling by jurisdiction stops trading */
-    strcpy(g_ex.cfg.disabled_juris[1], "NCR");
+    strcpy(g_ex.cfg.disabled_juris[1], "NRE");
     g_ex.cfg.n_disabled = 2;
     uint64_t id;
     CHECK(pay_equity_order(&g_ex, gi, 4, money[4], PAY_SIDE_BUY, PAY_ORD_LIMIT, 100, 1, &id) ==
@@ -1361,9 +1361,9 @@ static void test_equity(void)
 
     /* VFV currency equity: non-voting, fractal reserve 5:3:2:1 */
     pay_eq_nonvoting_t vfv_eq;
-    CHECK(pay_equity_register(&g_ex, 900, PAY_ROLE_SELF_BANK, "NCR") == PAY_OK); /* node */
-    CHECK(pay_equity_register(&g_ex, 901, PAY_ROLE_SELF_BANK, "NCR") == PAY_OK); /* alliance */
-    CHECK(pay_equity_register(&g_ex, 902, PAY_ROLE_SELF_BANK, "NCR") == PAY_OK); /* global */
+    CHECK(pay_equity_register(&g_ex, 900, PAY_ROLE_SELF_BANK, "NRE") == PAY_OK); /* node */
+    CHECK(pay_equity_register(&g_ex, 901, PAY_ROLE_SELF_BANK, "NRE") == PAY_OK); /* alliance */
+    CHECK(pay_equity_register(&g_ex, 902, PAY_ROLE_SELF_BANK, "NRE") == PAY_OK); /* global */
     CHECK(pay_vfv_equity_init(&g_ex, 0, 0, 4, &vfv_eq) == PAY_OK);
     uint32_t vi = pay_eq_nv_index(vfv_eq);
     CHECK(!pay_equity_has_votes(&g_ex, vi));

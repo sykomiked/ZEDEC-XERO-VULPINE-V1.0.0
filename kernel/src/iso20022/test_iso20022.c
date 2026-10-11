@@ -64,8 +64,8 @@ static int test_rail_ccy(void)
     CHECK(strcmp(iso20022_ccy_alpha(555), "") == 0);
     CHECK(strcmp(iso20022_ccy_alpha(777), "") == 0);
     CHECK(strcmp(iso20022_ccy_alpha(888), "") == 0);
-    CHECK(strstr(iso20022_ccy_caveat(555), "NCR") != NULL);
-    CHECK(strstr(iso20022_ccy_caveat(777), "NRE") != NULL);
+    CHECK(strstr(iso20022_ccy_caveat(555), "NRE") != NULL);
+    CHECK(strstr(iso20022_ccy_caveat(777), "NCR") != NULL);
     CHECK(strstr(iso20022_ccy_caveat(888), "PNS") != NULL);
     /* The retired rail numerics carry no rail caveat any more. */
     CHECK(strcmp(iso20022_ccy_caveat(846), "") == 0);
