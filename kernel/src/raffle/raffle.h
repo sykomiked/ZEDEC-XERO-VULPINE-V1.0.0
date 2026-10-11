@@ -118,8 +118,13 @@
  *       the owner later routes it through the vault's sweep.
  *   S2  grant_pool = floor(pool * grant_num / grant_den), default 5/55
  *       (about 9.09%, owner decision 2026-10-11), credited to the Olive Oil
- *       Barrel grant pool account (built in the finance thread; this module
- *       only names the destination). grant_den = 0 turns the slice off.
+ *       Barrel grant pool account (kernel/src/grants, finance build; this
+ *       module only names the destination). The credit hook stages the
+ *       line on grant_pool_account(g) inside the one posting (S4) and, only
+ *       after that posting commits, calls grant_pool_record(g, amount) so
+ *       the grant rate counts money that actually landed (it refuses to
+ *       count more than the pool holds uncounted). grant_den = 0 turns the
+ *       slice off.
  *   S3  crown_pot = pool - reserve_skim - grant_pool - nav_slice -
  *       rebate_paid (S6), to the
  *       winning ticket's owner. Every floor's remainder lands in the crown
