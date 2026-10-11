@@ -1,0 +1,7 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Must NOT compile: <math.h> declares double sqrt(double), not a float argument.
+library badf;
+include <math.h>;
+fn sqrt(x: f32 from rat) -> f64 as rat;

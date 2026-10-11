@@ -1,0 +1,39 @@
+# Dockerfile.baremetal — one pinned toolchain image for the bare-metal UEFI discs
+#
+# Builds kernel_arm64 + BOOTAA64.EFI and kernel_x86_64 + BOOTX64.EFI (swarm and
+# tensor engine linked in by the arch Makefiles), wraps each in a GPT/FAT32 ESP
+# disc (mk_efi_disc.sh), and carries the UEFI firmware (OVMF, QEMU_EFI) that
+# uefi_boot_check.sh boots those discs with. Works on an arm64 host (Apple
+# Silicon Docker Desktop) and an amd64 host (CI): whichever arch is native uses
+# the distro gcc, the other gets the cross gcc.
+#
+#   docker build -f build_system/Dockerfile.baremetal -t zxv-baremetal .
+#   docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh
+#
+# The image never touches a physical disk: it only writes dist/discs/*.img.
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    SOURCE_DATE_EPOCH=1767225600 \
+    TZ=UTC LC_ALL=C.UTF-8
+
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      arm64) cross="gcc-x86-64-linux-gnu binutils-x86-64-linux-gnu" ;; \
+      amd64) cross="gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu" ;; \
+      *) echo "unsupported build host $arch"; exit 1 ;; \
+    esac; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      gcc libc6-dev make nasm python3 git ca-certificates file \
+      mtools gdisk dosfstools coreutils \
+      qemu-system-x86 qemu-system-arm ovmf qemu-efi-aarch64 \
+      $cross; \
+    rm -rf /var/lib/apt/lists/*; \
+    ln -sf "$(command -v gcc)" "/usr/local/bin/$(gcc -dumpmachine)-gcc"; \
+    command -v x86_64-linux-gnu-gcc aarch64-linux-gnu-gcc
+
+WORKDIR /src
+CMD ["bash", "build_system/baremetal_images.sh"]

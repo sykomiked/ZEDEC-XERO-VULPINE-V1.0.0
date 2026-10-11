@@ -38,7 +38,7 @@
 #include "zt_simd.h"
 
 #define GLUE_CTX     2048u
-#define GLUE_BATCH   16u
+#define GLUE_BATCH   64u
 #define GLUE_MAX_NEW 256u
 
 static struct {

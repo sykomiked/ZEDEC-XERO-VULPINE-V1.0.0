@@ -121,6 +121,7 @@ LIBGCC  := $(shell $(CC) -print-libgcc-file-name)
 
 SRCS := \
     kernel/arch/x86_64/uart_16550.c \
+    kernel/arch/x86_64/efifb_con.c \
     kernel/arch/x86_64/boot_evidence.c \
     kernel/arch/x86_64/ring3.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
