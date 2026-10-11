@@ -19,8 +19,10 @@ pass=0
 fail=0
 for f in "$dir"/*.f90; do
   base=$(basename "$f" .f90)
+  # gfortran quotes names with ‘…’ in a UTF-8 locale; the expectations use
+  # plain quotes, so the compiler runs in the C locale.
   # shellcheck disable=SC2086
-  $FC $FFLAGS -fsyntax-only "$f" > "$tmp" 2>&1
+  LC_ALL=C $FC $FFLAGS -fsyntax-only "$f" > "$tmp" 2>&1
   rc=$?
   case "$base" in
     ok_*)

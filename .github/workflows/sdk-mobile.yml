@@ -88,6 +88,10 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          # the default also asks for the retired 'tools' package, which the
+          # current sdkmanager no longer has
+          packages: platform-tools
       - name: Android SDK packages and NDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${NDK_VERSION}" "cmake;3.22.1"
       - uses: gradle/actions/setup-gradle@v4
