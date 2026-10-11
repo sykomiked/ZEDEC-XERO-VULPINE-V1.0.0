@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# libc.zf — a few C standard library functions behind z-ffi wrappers.
+# The ranges are where the C standard defines the behaviour.
+
+library libc;
+include <stdlib.h>;
+include <string.h>;
+include <ctype.h>;
+
+# abs(INT_MIN) is undefined behaviour (C11 7.22.6.1): the range leaves it out.
+fn abs(x: int[-INT_MAX..INT_MAX]) -> int[0..INT_MAX];
+fn llabs(x: llong[-LLONG_MAX..LLONG_MAX]) -> llong[0..LLONG_MAX];
+
+# The C side reads a NUL-terminated copy the wrapper makes, never the
+# caller's buffer; a NUL inside the bytes is refused.
+fn strlen(s: cstr[0..4096]) -> size;
+fn strncmp(a: cstr[0..256], b: cstr[0..256], n: size[0..256]) -> int;
+
+# The argument must be EOF or an unsigned char value (C11 7.4p1).
+fn toupper(c: int[-1..UCHAR_MAX]) -> int[-1..UCHAR_MAX];

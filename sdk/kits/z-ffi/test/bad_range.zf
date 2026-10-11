@@ -1,0 +1,8 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Must NOT compile: 3000000000 does not fit int (on every platform where
+# int is 32 bits; zf-gen cannot know, the compiler can).
+library badr;
+include <stdlib.h>;
+fn abs(x: int[-1..3000000000]) -> int;

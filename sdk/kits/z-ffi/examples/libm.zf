@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# libm.zf — C maths functions with exact rational arguments and results.
+# A float argument must be exactly representable (3/4 yes, 1/10 no); a
+# float result is turned into the exact rational its bits denote, and NaN
+# or an infinity is refused.
+
+library libm;
+include <math.h>;
+
+fn sqrt(x: f64 from rat) -> f64 as rat;
+fn floor(x: f64 from rat) -> f64 as rat;
+fn ilogb(x: f64 from rat) -> int;
+fn fabsf(x: f32 from rat) -> f32 as rat;
+
+# A capability bit chosen by the spec author: calls need ZXV_CAP_BUDGET.
+fn ldexp(x: f64 from rat, e: int[-1100..1100]) -> f64 as rat needs BUDGET;
