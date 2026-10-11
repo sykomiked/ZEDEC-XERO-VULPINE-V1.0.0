@@ -258,7 +258,8 @@ def copy_tree(dst):
     ign = shutil.ignore_patterns("*.o", "*.elf", "*.bin", "*.iso", "__pycache__", ".git")
     os.makedirs(dst, exist_ok=True)
     # sdk/libzxv: the zxvd_rpc target links libzxv, built from kernel/ in place
-    for d in ("kernel", "tests", os.path.join("sdk", "libzxv")):
+    # build_system: build checks (verify_strata) are mutation targets too
+    for d in ("kernel", "tests", "build_system", os.path.join("sdk", "libzxv")):
         s = os.path.join(ROOT, d)
         if os.path.isdir(s) and not os.path.exists(os.path.join(dst, d)):
             shutil.copytree(s, os.path.join(dst, d), ignore=ign, symlinks=True)
