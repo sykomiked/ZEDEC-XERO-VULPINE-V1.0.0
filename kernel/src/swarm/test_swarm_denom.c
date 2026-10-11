@@ -38,7 +38,8 @@ static void test_faces(void)
     CHECK(swarm_denom_face(23) == 75025, "RACING face 75025");
     CHECK(swarm_denom_face(63) == 17167680177565ULL, "top face F(65)");
     CHECK(swarm_denom_face(64) == 0, "tier 64 out of range");
-    for (uint32_t k = 0; k < 64; k++) CHECK(swarm_denom_face(k) == swarm_fib(k + 2), "face table = F(k+2)");
+    for (uint32_t k = 0; k < 64; k++)
+        CHECK(swarm_denom_face(k) == swarm_fib(k + 2), "face table = F(k+2)");
     CHECK(!swarm_denom_is_super(9), "tier 9 (89) is not super");
     CHECK(swarm_denom_is_super(10), "tier 10 (144) is super");
     CHECK(swarm_denom_is_super(63), "tier 63 is super");
@@ -85,7 +86,7 @@ static void test_canonical(void)
     swarm_wallet_t w;
     swarm_denom_init(&w, 1, SWARM_OCTANE_MAX);
     CHECK(swarm_denom_set(&w, 100) == SWARM_OK, "set 100");
-    {   /* 100 = 89 + 8 + 3 */
+    { /* 100 = 89 + 8 + 3 */
         const uint64_t c[10] = {0, 0, 1, 0, 1, 0, 0, 0, 0, 1};
         CHECK(counts_are(&w, c, 10), "Zeckendorf 100 = 89+8+3");
     }
@@ -94,7 +95,7 @@ static void test_canonical(void)
 
     swarm_denom_init(&w, 1, SWARM_OCTANE_REGULAR);
     swarm_denom_set(&w, 100);
-    {   /* 12 x 8 = 96, rest 4 = 3 + 1 */
+    { /* 12 x 8 = 96, rest 4 = 3 + 1 */
         const uint64_t c[5] = {1, 0, 1, 0, 12};
         CHECK(counts_are(&w, c, 5), "REGULAR 100 = 12x8 + 3 + 1");
     }
@@ -113,7 +114,7 @@ static void test_canonical(void)
 
     swarm_denom_init(&w, 1, SWARM_OCTANE_RACING);
     swarm_denom_set(&w, 1000000);
-    {   /* 13 x 75025 = 975325; 24675 = 17711 + 6765 + 144 + 55 */
+    { /* 13 x 75025 = 975325; 24675 = 17711 + 6765 + 144 + 55 */
         uint64_t c[24] = {0};
         c[23] = 13;
         c[20] = 1;
@@ -320,8 +321,8 @@ static void test_spend_transfer(void)
 static void test_code(void)
 {
     /* Fibonacci codes of n = v + 1, bits lowest first (A. Fraenkel and S. Klein) */
-    static const char *want[12] = {"11",     "011",    "0011",   "1011",   "00011",  "10011",
-                                   "01011",  "000011", "100011", "010011", "001011", "101011"};
+    static const char *want[12] = {"11",    "011",    "0011",   "1011",   "00011",  "10011",
+                                   "01011", "000011", "100011", "010011", "001011", "101011"};
     uint8_t buf[32] = {0};
     uint32_t pos = 0;
     for (uint64_t v = 0; v < 12; v++) {
@@ -331,7 +332,8 @@ static void test_code(void)
         while (want[v][len]) len++;
         CHECK(pos - start == len, "code length");
         for (uint32_t i = 0; i < len && i < pos - start; i++)
-            CHECK(((buf[(start + i) >> 3] >> ((start + i) & 7)) & 1) == (uint32_t) (want[v][i] - '0'),
+            CHECK(((buf[(start + i) >> 3] >> ((start + i) & 7)) & 1) ==
+                      (uint32_t) (want[v][i] - '0'),
                   "code bit");
     }
     uint32_t rpos = 0;
@@ -370,7 +372,8 @@ static void test_code(void)
     rpos = 0;
     CHECK(swarm_denom_code_get(one, 2, &rpos, &got) == SWARM_ERR_ARG && rpos == 0,
           "truncated code fails, pos kept");
-    CHECK(swarm_denom_code_get(one, 3, &rpos, &got) == SWARM_OK && got == 1, "with the last bit it reads");
+    CHECK(swarm_denom_code_get(one, 3, &rpos, &got) == SWARM_OK && got == 1,
+          "with the last bit it reads");
     CHECK(swarm_denom_code_get(0, 3, &rpos, &got) == SWARM_ERR_ARG, "get NULL buf");
     CHECK(swarm_denom_code_get(one, 3, 0, &got) == SWARM_ERR_ARG, "get NULL pos");
     CHECK(swarm_denom_code_get(one, 3, &rpos, 0) == SWARM_ERR_ARG, "get NULL v");
@@ -378,7 +381,8 @@ static void test_code(void)
     /* the extremes */
     uint8_t big[16] = {0};
     pos = 0;
-    CHECK(swarm_denom_code_put(big, 128, &pos, UINT64_MAX) == SWARM_ERR_ARG, "UINT64_MAX not codable");
+    CHECK(swarm_denom_code_put(big, 128, &pos, UINT64_MAX) == SWARM_ERR_ARG,
+          "UINT64_MAX not codable");
     CHECK(swarm_denom_code_put(big, 128, &pos, UINT64_MAX - 1) == SWARM_OK && pos == 93,
           "largest code is 93 bits");
     rpos = 0;
@@ -518,7 +522,8 @@ static void test_budget_lockstep(void)
           "octane change buys no tokens");
 
     g = 5;
-    CHECK(swarm_denom_consume(&b, w, 3, 99, 1, &g) == SWARM_ERR_NO_MODEL && g == 0, "unknown model");
+    CHECK(swarm_denom_consume(&b, w, 3, 99, 1, &g) == SWARM_ERR_NO_MODEL && g == 0,
+          "unknown model");
     CHECK(swarm_denom_consume(&b, w, 2, 7, 1, &g) == SWARM_ERR_ARG, "consume wrong n");
     CHECK(swarm_denom_consume(&b, w, 3, 7, 1, 0) == SWARM_ERR_ARG, "consume NULL granted");
     CHECK(swarm_denom_consume(0, w, 3, 7, 1, &g) == SWARM_ERR_ARG, "consume NULL budget");
