@@ -323,6 +323,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
+	$(MAKE) --no-print-directory test-econ
 	$(MAKE) --no-print-directory test-engine
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
 	@echo "=== i18n: CLDR locales, catalogs, formatting, UTF-8, Enochian core ==="; \
@@ -1432,3 +1433,43 @@ test-vinea:
 .PHONY: test-engine
 test-engine:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/engine -Isrc/pay -Isrc/abacus -Isrc/rational -Isrc/swarm -Isrc/tensor -Isrc/mlkem -Isrc/zcapital -Isrc/modbind src/engine/test_zxv_engine.c src/engine/zxv_engine.c src/abacus/abacus.c src/rational/rational.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/tensor/zt.c src/mlkem/keccak.c -o $(ZXV_TMP)/test_zxv_engine && $(ZXV_TMP)/test_zxv_engine > $(ZXV_TMP)/test_zxv_engine.log 2>&1 && echo "[PASS] test_zxv_engine ($$(tail -1 $(ZXV_TMP)/test_zxv_engine.log))" || { cat $(ZXV_TMP)/test_zxv_engine.log; echo "[FAIL] test_zxv_engine"; exit 1; }
+
+# ==== economy modules (generated block) ====
+ECON_FLAGS = -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST
+ECON_INC = -Iinclude -Isrc/pay -Isrc/mlkem -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/tensor -Isrc/swarm -Isrc/zcapital
+ECON_BASE = src/pay/pay_util.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/tensor/zt.c
+ECON_LEDGER = src/pay/pay_ledger.c src/pay/pay_assure.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c $(ECON_BASE)
+
+# Solvency vault (src/svault): 1/3 of the fee's reserve share buys V-Bills up to 1/3 of outstanding; vault V-Bills excluded from the redemption floor.
+.PHONY: test-svault
+test-svault:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/svault/test_svault.c src/svault/svault.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_svault -lm && $(ZXV_TMP)/test_svault > $(ZXV_TMP)/test_svault.log 2>&1 && echo "[PASS] test_svault" || { tail -40 $(ZXV_TMP)/test_svault.log; echo "[FAIL] test_svault"; exit 1; }
+
+# Vino <-> V-Bill swap (src/vswap): exact reserve-ratio swaps, perpetual lock tiers, realised-dividend split; off per jurisdiction.
+.PHONY: test-vswap
+test-vswap:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/vswap/test_vswap.c src/vswap/vswap.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vswap -lm && $(ZXV_TMP)/test_vswap > $(ZXV_TMP)/test_vswap.log 2>&1 && echo "[PASS] test_vswap" || { tail -40 $(ZXV_TMP)/test_vswap.log; echo "[FAIL] test_vswap"; exit 1; }
+
+# Sicily Account view, Player Card tiers, founder steward threshold, org card programs (src/sicily).
+.PHONY: test-sicily
+test-sicily:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/sicily/test_sicily.c src/sicily/sicily.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_sicily -lm && $(ZXV_TMP)/test_sicily > $(ZXV_TMP)/test_sicily.log 2>&1 && echo "[PASS] test_sicily" || { tail -40 $(ZXV_TMP)/test_sicily.log; echo "[FAIL] test_sicily"; exit 1; }
+
+# Account recovery (src/estate/recovery): 3-of-5 guardians, veto, 4-of-5 + 14-day override, staged thaw.
+.PHONY: test-recovery
+test-recovery:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/estate/test_recovery.c src/estate/recovery.c $(ECON_BASE) -o $(ZXV_TMP)/test_recovery -lm && $(ZXV_TMP)/test_recovery > $(ZXV_TMP)/test_recovery.log 2>&1 && echo "[PASS] test_recovery" || { tail -40 $(ZXV_TMP)/test_recovery.log; echo "[FAIL] test_recovery"; exit 1; }
+
+# Estate succession (src/estate): phases, exact manifests, escrow, forced heirship, faraid (advisory, needs a ruling).
+.PHONY: test-estate
+test-estate:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/estate/test_estate.c src/estate/estate.c src/estate/faraid.c $(ECON_BASE) -o $(ZXV_TMP)/test_estate -lm && $(ZXV_TMP)/test_estate > $(ZXV_TMP)/test_estate.log 2>&1 && echo "[PASS] test_estate" || { tail -40 $(ZXV_TMP)/test_estate.log; echo "[FAIL] test_estate"; exit 1; }
+
+.PHONY: test-econ
+test-econ:
+	$(MAKE) --no-print-directory test-svault
+	$(MAKE) --no-print-directory test-vswap
+	$(MAKE) --no-print-directory test-sicily
+	$(MAKE) --no-print-directory test-recovery
+	$(MAKE) --no-print-directory test-estate
+# ==== end economy modules ====
