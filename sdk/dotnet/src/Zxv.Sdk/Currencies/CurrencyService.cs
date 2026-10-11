@@ -16,11 +16,19 @@ namespace Zxv.Currencies;
 public sealed class CurrencyService
 {
     private const byte MinorNotApplicable = 255;
-    private readonly ZxvContextHandle _ctx;
+    private readonly ContextRef _context;
+    private readonly Capability _service;
 
-    internal CurrencyService(ZxvContextHandle ctx)
+    /// <summary>Initializes the service.</summary>
+    /// <param name="context">The platform context.</param>
+    /// <param name="service">
+    /// The platform's own capability (never exposed), used by the members that
+    /// take none so that they call the ABI 1.2 <c>*_cap</c> forms.
+    /// </param>
+    internal CurrencyService(ContextRef context, Capability service)
     {
-        _ctx = ctx;
+        _context = context;
+        _service = service;
     }
 
     /// <summary>Gets the publication date of the ISO 4217 list compiled into the native library.</summary>
@@ -236,27 +244,18 @@ public sealed class CurrencyService
     [Obsolete("Deprecated since ABI 1.2 (no capability): use RegisterPrivateUnit(Capability, string, byte).")]
     public Currency RegisterPrivateUnit(string code, byte minorUnits) => RegisterPrivateUnitUnchecked(code, minorUnits);
 
-    /// <summary>The 1.0 context form, kept for platform configuration (<see cref="ZxvOptions"/>).</summary>
-    internal Currency EnableUnchecked(string code, byte? minorUnits)
-    {
-        Guard.Text(code, nameof(code));
-        int rc = minorUnits is byte mu ? NativeMethods.CcyEnableWithMinor(_ctx, code, mu) : NativeMethods.CcyEnable(_ctx, code);
-        NativeCall.Check(rc, "Currencies.Enable");
-        return GetEnabled(code);
-    }
+    /// <summary>Enables a currency through the platform's own capability (configuration and the obsolete overloads).</summary>
+    internal Currency EnableUnchecked(string code, byte? minorUnits) =>
+        minorUnits is byte mu ? Enable(_service, code, mu) : Enable(_service, code);
 
-    /// <summary>The 1.0 context form, kept for platform configuration (<see cref="ZxvOptions"/>).</summary>
-    internal Currency RegisterPrivateUnitUnchecked(string code, byte minorUnits)
-    {
-        Guard.Text(code, nameof(code));
-        NativeCall.Check(NativeMethods.CcyRegisterPrivate(_ctx, code, minorUnits), "Currencies.RegisterPrivateUnit");
-        return GetEnabled(code);
-    }
+    /// <summary>Registers a private unit through the platform's own capability (configuration and the obsolete overload).</summary>
+    internal Currency RegisterPrivateUnitUnchecked(string code, byte minorUnits) => RegisterPrivateUnit(_service, code, minorUnits);
 
     private Capability RequireOwn(Capability capability)
     {
         ArgumentNullException.ThrowIfNull(capability);
-        if (!ReferenceEquals(capability.Context.Handle, _ctx))
+        _context.ThrowIfDisposed();
+        if (!ReferenceEquals(capability.Context, _context))
         {
             throw new ArgumentException("The capability belongs to a different platform.", nameof(capability));
         }
@@ -271,7 +270,7 @@ public sealed class CurrencyService
     public Currency GetEnabled(string code)
     {
         Guard.Text(code, nameof(code));
-        NativeCall.Check(NativeMethods.CcyGet(_ctx, code, out byte minor, out uint flags), "Currencies.GetEnabled");
+        NativeCall.Check(NativeMethods.CcyGet(_context.Live, code, out byte minor, out uint flags), "Currencies.GetEnabled");
         var cflags = (CurrencyAttributes)flags;
         if ((cflags & CurrencyAttributes.Private) != 0)
         {
@@ -298,19 +297,19 @@ public sealed class CurrencyService
             return false;
         }
 
-        return NativeMethods.CcyGet(_ctx, code, out _, out _) == (int)ZxvStatus.Ok;
+        return NativeMethods.CcyGet(_context.Live, code, out _, out _) == (int)ZxvStatus.Ok;
     }
 
     /// <summary>Lists the enabled currencies and private units, in the order they were enabled.</summary>
     /// <returns>The enabled currencies.</returns>
     public unsafe IReadOnlyList<Currency> ListEnabled()
     {
-        NativeCall.Check(NativeMethods.CcyEnabledCount(_ctx, out uint count), "Currencies.ListEnabled");
+        NativeCall.Check(NativeMethods.CcyEnabledCount(_context.Live, out uint count), "Currencies.ListEnabled");
         var list = new List<Currency>((int)count);
         for (uint i = 0; i < count; i++)
         {
             uint index = i;
-            string code = NativeCall.ReadText((byte* b, nuint c, out nuint l) => NativeMethods.CcyEnabledAt(_ctx, index, b, c, out l), "Currencies.ListEnabled");
+            string code = NativeCall.ReadText((byte* b, nuint c, out nuint l) => NativeMethods.CcyEnabledAt(_context.Live, index, b, c, out l), "Currencies.ListEnabled");
             list.Add(GetEnabled(code));
         }
 

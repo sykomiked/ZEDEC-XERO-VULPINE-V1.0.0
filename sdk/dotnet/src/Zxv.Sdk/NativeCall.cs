@@ -90,6 +90,7 @@ internal static class NativeCall
 internal sealed class ContextRef
 {
     private volatile bool _halted;
+    private volatile bool _disposed;
 
     internal ContextRef(ZxvContextHandle handle)
     {
@@ -100,7 +101,31 @@ internal sealed class ContextRef
 
     internal bool IsHalted => _halted;
 
+    /// <summary>Gets a value indicating whether the owning <see cref="ZxvPlatform"/> was disposed.</summary>
+    /// <remarks>
+    /// The native context can outlive the platform while child handles
+    /// (capabilities, budgets, ...) still hold a reference on it: SafeHandle
+    /// ref-counting keeps it alive and destroys it after the last child (R6).
+    /// This flag is what makes the platform itself observably disposed meanwhile.
+    /// </remarks>
+    internal bool IsDisposed => _disposed;
+
     internal void MarkHalted() => _halted = true;
+
+    internal void MarkDisposed() => _disposed = true;
+
+    /// <summary>Throws <see cref="ObjectDisposedException"/> once the owning platform is disposed.</summary>
+    internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, typeof(ZxvPlatform));
+
+    /// <summary>Gets the context handle for a platform-level call, or throws once the platform is disposed.</summary>
+    internal ZxvContextHandle Live
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return Handle;
+        }
+    }
 
     /// <summary>Throws <see cref="ZxvFatalException"/> when the context is already known to be halted.</summary>
     internal void ThrowIfHalted(string operation)

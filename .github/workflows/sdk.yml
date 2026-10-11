@@ -8,16 +8,67 @@ name: SDKs
 
 on:
   push:
-    paths: ['sdk/**', 'kernel/src/**', 'kernel/third_party/**', '.github/workflows/sdk.yml']
+    branches: [main, develop]
+    paths: ['sdk/**', 'kernel/src/**', 'kernel/third_party/**', '.github/workflows/sdk.yml',
+            '.github/scripts/sdk-changes.sh']
   pull_request:
-    paths: ['sdk/**', 'kernel/src/**', 'kernel/third_party/**', '.github/workflows/sdk.yml']
+    paths: ['sdk/**', 'kernel/src/**', 'kernel/third_party/**', '.github/workflows/sdk.yml',
+            '.github/scripts/sdk-changes.sh']
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Which areas this run tests (.github/scripts/sdk-changes.sh): on a pull
+  # request only the SDKs it changed, or all of them when libzxv, the
+  # conformance vectors or the kernel changed. Skipped jobs use no runner.
+  changes:
+    name: changed SDKs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      cpp: ${{ steps.areas.outputs.cpp }}
+      docs: ${{ steps.areas.outputs.docs }}
+      dotnet: ${{ steps.areas.outputs.dotnet }}
+      go: ${{ steps.areas.outputs.go }}
+      java: ${{ steps.areas.outputs.java }}
+      kits: ${{ steps.areas.outputs.kits }}
+      libzxv: ${{ steps.areas.outputs.libzxv }}
+      php: ${{ steps.areas.outputs.php }}
+      python: ${{ steps.areas.outputs.python }}
+      ruby: ${{ steps.areas.outputs.ruby }}
+      rust: ${{ steps.areas.outputs.rust }}
+      solidity: ${{ steps.areas.outputs.solidity }}
+      swift: ${{ steps.areas.outputs.swift }}
+      typescript: ${{ steps.areas.outputs.typescript }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: areas
+        run: .github/scripts/sdk-changes.sh "${{ github.event.pull_request.base.sha }}"
+
+  docs-links:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    name: docs links
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Every relative link and anchor in sdk/docs resolves
+        run: python3 sdk/docs/guides/check_links.py
+
   libzxv:
+    needs: changes
+    if: needs.changes.outputs.libzxv == 'true'
     name: libzxv ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -28,6 +79,7 @@ jobs:
           - { os: ubuntu-24.04-arm, cc: gcc }
           - { os: macos-14, cc: clang }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - name: Build and run the C conformance tests
@@ -58,13 +110,18 @@ jobs:
           path: sdk/libzxv/build/dist
 
   libzxv-sanitize:
+    needs: changes
+    if: needs.changes.outputs.libzxv == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - name: ASan + UBSan
         run: make -C sdk/libzxv CC=gcc SANITIZE=1 test
 
   python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     name: python ${{ matrix.os }} ${{ matrix.py }}
     strategy:
       fail-fast: false
@@ -72,6 +129,7 @@ jobs:
         os: [ubuntu-24.04, macos-14]
         py: ['3.10', '3.13']
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/python
@@ -86,6 +144,8 @@ jobs:
       - run: python -m mypy
 
   java:
+    needs: changes
+    if: needs.changes.outputs.java == 'true'
     name: java ${{ matrix.os }} jdk${{ matrix.jdk }}
     strategy:
       fail-fast: false
@@ -93,6 +153,7 @@ jobs:
         os: [ubuntu-24.04, macos-14]
         jdk: ['22', '25']
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/java
@@ -107,12 +168,15 @@ jobs:
       - run: mvn -B clean verify
 
   dotnet:
+    needs: changes
+    if: needs.changes.outputs.dotnet == 'true'
     name: dotnet ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/dotnet
@@ -127,6 +191,8 @@ jobs:
       - run: dotnet test Zxv.sln -c Release --no-build
 
   typescript:
+    needs: changes
+    if: needs.changes.outputs.typescript == 'true'
     name: typescript ${{ matrix.os }} node${{ matrix.node }}
     strategy:
       fail-fast: false
@@ -134,6 +200,7 @@ jobs:
         os: [ubuntu-24.04, macos-14]
         node: ['20', '22']
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/typescript
@@ -154,7 +221,10 @@ jobs:
       - run: npm test
 
   solidity:
+    needs: changes
+    if: needs.changes.outputs.solidity == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/solidity
@@ -168,12 +238,15 @@ jobs:
       - run: npm test
 
   ruby:
+    needs: changes
+    if: needs.changes.outputs.ruby == 'true'
     name: ruby ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/ruby
@@ -188,12 +261,15 @@ jobs:
       - run: bundle exec rake test
 
   php:
+    needs: changes
+    if: needs.changes.outputs.php == 'true'
     name: php ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/php
@@ -208,12 +284,15 @@ jobs:
       - run: php tests/run.php
 
   rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: rust ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/rust
@@ -231,12 +310,15 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/libzxv/build
 
   go:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     name: go ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/go/zxv
@@ -253,6 +335,8 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/libzxv/build
 
   cpp:
+    needs: changes
+    if: needs.changes.outputs.cpp == 'true'
     name: cpp ${{ matrix.os }} ${{ matrix.cxx }}${{ matrix.sanitize == 'ON' && ' sanitize' || '' }}
     strategy:
       fail-fast: false
@@ -263,6 +347,7 @@ jobs:
           - { os: ubuntu-24.04, cxx: g++, sanitize: 'ON' }
           - { os: macos-15, cxx: clang++, sanitize: 'OFF' } # Xcode 16.3+ libc++ has std::jthread
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - run: make -C sdk/libzxv all fixtures
@@ -275,12 +360,15 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1
 
   swift:
+    needs: changes
+    if: needs.changes.outputs.swift == 'true'
     name: swift ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - run: make -C sdk/libzxv all fixtures
@@ -291,6 +379,8 @@ jobs:
   # and the S0 proposal queue. The example plugins are compiled to wasm32
   # with zig at test time (no .wasm is committed).
   z-wasm:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
     name: z-wasm ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -300,6 +390,7 @@ jobs:
           - { os: ubuntu-24.04, cc: clang }
           - { os: macos-14, cc: clang }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/kits/z-wasm
@@ -321,7 +412,10 @@ jobs:
         run: make CC=${{ matrix.cc }} PYTHON=python demo
 
   z-wasm-sanitize:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: sdk/kits/z-wasm
@@ -352,18 +446,23 @@ jobs:
   #   adapter-matrix  JSON / MQTT / FIX adapters with trust labels
   # z-contract compiles the z-wasm example plugin with zig at test time.
   kits-plugin-layer:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
     name: ${{ matrix.kit }} ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
       matrix:
-        kit: [z-contract, z-ffi, adapter-matrix]
+        kit: [z-contract, z-ffi, adapter-matrix, z-audit, tri-isolate]
         os: [ubuntu-24.04]
         cc: [gcc, clang]
         include:
           - { kit: z-contract, os: macos-14, cc: clang }
           - { kit: z-ffi, os: macos-14, cc: clang }
           - { kit: adapter-matrix, os: macos-14, cc: clang }
+          - { kit: z-audit, os: macos-14, cc: clang }
+          - { kit: tri-isolate, os: macos-14, cc: clang }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/kits/${{ matrix.kit }}
@@ -380,6 +479,8 @@ jobs:
         run: make CC=${{ matrix.cc }} PYTHON=python demo
 
   kits-plugin-layer-sanitize:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
     name: ${{ matrix.kit }} ASan + UBSan
     strategy:
       fail-fast: false
@@ -388,7 +489,10 @@ jobs:
           - { kit: z-contract, seedvar: ZC_FUZZ_SEED }
           - { kit: z-ffi, seedvar: ZF_FUZZ_SEED }
           - { kit: adapter-matrix, seedvar: ZA_FUZZ_SEED }
+          - { kit: z-audit, seedvar: ZAU_FUZZ_SEED }
+          - { kit: tri-isolate, seedvar: TI_FUZZ_SEED }
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: sdk/kits/${{ matrix.kit }}

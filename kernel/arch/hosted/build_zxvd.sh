@@ -38,7 +38,11 @@ make -C "$R/sdk/libzxv" CC="$CC" OUT="$OUT/libzxv-build" ${SANITIZE:+SANITIZE=1}
     >"$OUT/libzxv-build.log" 2>&1 ||
     { tail -30 "$OUT/libzxv-build.log"; echo "[FAIL] libzxv build"; exit 1; }
 case "$(uname -s)" in
-    Darwin) LIBF=libzxv.dylib; RP='-Wl,-rpath,@loader_path' ;;
+    # Both rpaths at link time (next to the binary, and Contents/Frameworks
+    # in ZXV.app), with header room: the x86_64 slice has none left for a
+    # later install_name_tool -add_rpath.
+    Darwin) LIBF=libzxv.dylib
+            RP='-Wl,-rpath,@loader_path,-rpath,@executable_path/../Frameworks,-headerpad_max_install_names' ;;
     *)      LIBF=libzxv.so;    RP='-Wl,-rpath,$ORIGIN' ;;
 esac
 cp "$OUT/libzxv-build/$LIBF" "$OUT/$LIBF"

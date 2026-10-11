@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System;
+using System.Threading;
 using Zxv.Interop;
 
 namespace Zxv;
@@ -99,6 +100,10 @@ public sealed class Capability : IDisposable
 
     internal ZxvCapabilityHandle Handle { get; }
 
+    // SafeHandle.IsClosed stays false while children hold a reference, so
+    // disposal is tracked here to make this object observably disposed at once.
+    private int _disposed;
+
     internal ContextRef Context { get; }
 
     /// <summary>Reads the capability's state.</summary>
@@ -174,7 +179,14 @@ public sealed class Capability : IDisposable
     }
 
     /// <summary>Releases this handle. Children stay usable; the native parent is freed after the last child.</summary>
-    public void Dispose() => Handle.Dispose();
+    /// <remarks>This capability throws <see cref="ObjectDisposedException"/> at once, even while children still hold it.</remarks>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            Handle.Dispose();
+        }
+    }
 
     internal static Capability CreateRoot(ContextRef context, CapabilityRights rights, uint processId, ReadOnlySpan<byte> identity)
     {
@@ -183,6 +195,7 @@ public sealed class Capability : IDisposable
             throw new ArgumentException("An identity is exactly 21 bytes (168 bits), or empty for zeros.", nameof(identity));
         }
 
+        context.ThrowIfDisposed();
         context.ThrowIfHalted("Capability.CreateRoot");
         int rc;
         ZxvCapabilityHandle handle;
@@ -207,7 +220,7 @@ public sealed class Capability : IDisposable
     /// <summary>Fails fast in managed code when the handle is closed or the context is known to be halted.</summary>
     internal void Enter(string operation)
     {
-        ObjectDisposedException.ThrowIf(Handle.IsClosed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0 || Handle.IsClosed, this);
         Context.ThrowIfHalted(operation);
     }
 

@@ -45,11 +45,11 @@ public sealed record AuthorizationResult(bool Approved, string ResponseCode, str
 /// </remarks>
 public sealed class CardService
 {
-    private readonly ZxvContextHandle _ctx;
+    private readonly ContextRef _context;
 
-    internal CardService(ZxvContextHandle ctx)
+    internal CardService(ContextRef context)
     {
-        _ctx = ctx;
+        _context = context;
     }
 
     /// <summary>Validates the check digit of a PAN for a network.</summary>
@@ -72,7 +72,7 @@ public sealed class CardService
     {
         ulong id = 0;
         string masked = NativeCall.ReadText(
-            (byte* b, nuint c, out nuint l) => NativeMethods.CardIssue(_ctx, (int)network, account.Value, limit.MinorUnits, out id, b, c, out l),
+            (byte* b, nuint c, out nuint l) => NativeMethods.CardIssue(_context.Live, (int)network, account.Value, limit.MinorUnits, out id, b, c, out l),
             "Cards.Issue");
         return new IssuedCard(id, network, account, masked);
     }
@@ -82,7 +82,7 @@ public sealed class CardService
     /// <returns>The new card id.</returns>
     public ulong Reissue(ulong cardId)
     {
-        NativeCall.Check(NativeMethods.CardReissue(_ctx, cardId, out ulong newId), "Cards.Reissue");
+        NativeCall.Check(NativeMethods.CardReissue(_context.Live, cardId, out ulong newId), "Cards.Reissue");
         return newId;
     }
 
@@ -95,7 +95,7 @@ public sealed class CardService
         Guard.Text(amount.Currency, nameof(amount));
         int response = 0;
         int rc = NativeText.TryRead(
-            (byte* b, nuint c, out nuint l) => NativeMethods.CardAuthorize(_ctx, cardId, amount.MinorUnits, amount.Currency, out response, b, c, out l),
+            (byte* b, nuint c, out nuint l) => NativeMethods.CardAuthorize(_context.Live, cardId, amount.MinorUnits, amount.Currency, out response, b, c, out l),
             out string approval);
         if (rc == (int)ZxvStatus.Declined)
         {
