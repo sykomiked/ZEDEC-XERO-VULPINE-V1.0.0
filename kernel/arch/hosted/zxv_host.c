@@ -102,6 +102,12 @@ typedef int sock_t;
 #include "zx_upcheck.h"
 #if defined(ZXVD)
 #    include "zxvd_rpc.h" /* zxvd: the JSON-RPC socket and the libzxv books */
+#    if defined(_WIN32)
+#        include <afunix.h>
+#    else
+#        include <sys/stat.h>
+#        include <sys/un.h>
+#    endif
 #endif
 
 extern const char zxv_ui_html[];
@@ -239,6 +245,148 @@ static uint64_t pal_now_ms(void)
     return (uint64_t) ts.tv_sec * 1000u + (uint64_t) ts.tv_nsec / 1000000u;
 #endif
 }
+
+/* SIGTERM, SIGINT, SIGHUP (a logout, kill, Ctrl-C) or Windows' console
+ * close: leave the loop and clean up (the socket file, the window link). */
+#if defined(_WIN32)
+static volatile LONG STOP_ASKED;
+
+static BOOL WINAPI pal_on_console(DWORD ev)
+{
+    (void) ev;
+    InterlockedExchange(&STOP_ASKED, 1);
+    return TRUE;
+}
+#    define PAL_STOP_ASKED() InterlockedCompareExchange(&STOP_ASKED, 0, 0)
+#else
+static volatile sig_atomic_t STOP_ASKED;
+
+static void pal_on_signal(int sig)
+{
+    (void) sig;
+    STOP_ASKED = 1;
+}
+#    define PAL_STOP_ASKED() STOP_ASKED
+#endif
+
+static void pal_catch_stop(void)
+{
+#if defined(_WIN32)
+    SetConsoleCtrlHandler(pal_on_console, TRUE);
+#else
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = pal_on_signal;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGHUP, &sa, NULL);
+#endif
+}
+
+#if defined(_WIN32)
+/* --exit-with-parent on Windows: select() there takes sockets only, so a
+ * thread waits on stdin and raises this flag when the parent closes it. */
+static volatile LONG PARENT_GONE;
+
+static DWORD WINAPI pal_watch_stdin(LPVOID arg)
+{
+    (void) arg;
+    char tmp[64];
+    DWORD got;
+    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    while (ReadFile(in, tmp, sizeof tmp, &got, NULL) && got > 0) {
+    }
+    InterlockedExchange(&PARENT_GONE, 1);
+    return 0;
+}
+#endif
+
+#if defined(ZXVD)
+/* ===================== zxvd --desktop: the browser-window app ===================== */
+
+/* Where the desktop app keeps its control socket and window link, created
+ * as needed: the last folder is zxvd's own (zxvd_rpc.h T1/T5 check it), the
+ * ones above are the user's usual per-app folders.
+ *   Linux    $XDG_RUNTIME_DIR/zxv/, else ~/.local/state/zxv/run/
+ *   macOS    ~/Library/Application Support/ZXV/run/ (the Mac app's)
+ *   Windows  %LOCALAPPDATA%\ZXV\run\                                       */
+static int pal_desktop_dir(char *out, size_t cap)
+{
+    out[0] = 0;
+#    if defined(_WIN32)
+    const char *la = getenv("LOCALAPPDATA");
+    if (!la || !la[0]) return -1;
+    snprintf(out, cap, "%s\\ZXV", la);
+    CreateDirectoryA(out, NULL); /* the parent; zxvd's own folder is checked */
+    snprintf(out, cap, "%s\\ZXV\\run", la);
+#    else
+    const char *home = getenv("HOME");
+#        if defined(__APPLE__)
+    if (!home || home[0] != '/') return -1;
+    snprintf(out, cap, "%s/Library/Application Support/ZXV/run", home);
+#        else
+    const char *xdg = getenv("XDG_RUNTIME_DIR");
+    if (xdg && xdg[0] == '/')
+        snprintf(out, cap, "%s/zxv", xdg);
+    else if (home && home[0] == '/')
+        snprintf(out, cap, "%s/.local/state/zxv/run", home);
+    else
+        return -1;
+#        endif
+    /* mkdir -p of the parents, 0700 where we create them */
+    for (char *p = out + 1; *p; p++)
+        if (*p == '/') {
+            *p = 0;
+            (void) mkdir(out, S_IRWXU);
+            *p = '/';
+        }
+#    endif
+    return 0;
+}
+
+/* Is a zxvd answering on this socket path? */
+static bool pal_rpc_live(const char *path)
+{
+    struct sockaddr_un a;
+    if (strlen(path) >= sizeof a.sun_path) return false;
+    memset(&a, 0, sizeof a);
+    a.sun_family = AF_UNIX;
+    memcpy(a.sun_path, path, strlen(path) + 1);
+    sock_t s = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (s == BAD_SOCK) return false;
+    bool live = connect(s, (struct sockaddr *) &a, sizeof a) == 0;
+    CLOSESOCK(s);
+    return live;
+}
+
+/* The window link (URL with this launch's token) beside the socket, so a
+ * second launch of the app opens the running one's window. It lives in
+ * zxvd's checked, owner-only folder, like the socket itself. */
+static void pal_write_link(const char *file, const char *url)
+{
+#    if !defined(_WIN32)
+    mode_t old = umask(S_IRWXG | S_IRWXO);
+#    endif
+    FILE *f = fopen(file, "w");
+#    if !defined(_WIN32)
+    umask(old);
+#    endif
+    if (!f) return;
+    fprintf(f, "%s\n", url);
+    fclose(f);
+}
+
+static bool pal_read_link(const char *file, char *url, size_t cap)
+{
+    FILE *f = fopen(file, "r");
+    if (!f) return false;
+    bool ok = fgets(url, (int) cap, f) != NULL;
+    fclose(f);
+    if (ok) url[strcspn(url, "\r\n")] = 0;
+    return ok && url[0];
+}
+#endif
 
 /* ===================== the swarm ===================== */
 
@@ -1443,6 +1591,9 @@ int main(int argc, char **argv)
     const char *rpc_path = NULL;
     const char *earn_ccy = "VFV";
     uint64_t earn_rate = 1;
+    bool desktop = false;
+    char rpc_buf[512], link_path[560];
+    link_path[0] = 0;
     open_window = false; /* a daemon: the UI and SDKs come in over --rpc */
     port = 0;            /* the loopback window stays available, on any free port */
 #endif
@@ -1508,6 +1659,8 @@ int main(int argc, char **argv)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
             earn_rate = strtoull(argv[++i], NULL, 10);
+        else if (!strcmp(argv[i], "--desktop"))
+            desktop = true;
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
@@ -1519,6 +1672,10 @@ int main(int argc, char **argv)
                    "  --rpc PATH          JSON-RPC 2.0 socket (required; docs/ZXVD.md)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
+                   "  --desktop           the desktop app: the socket in the per-user\n"
+                   "                      folder (unless --rpc), and the window opened in\n"
+                   "                      the default browser; a second launch opens the\n"
+                   "                      running one's window\n"
 #endif
                    "  --server            run headless; open the window remotely "
                    "over SSH\n"
@@ -1549,7 +1706,13 @@ int main(int argc, char **argv)
     }
     if (server && !S.remote) S.remote = true; /* a server is a remote instance */
 #if defined(_WIN32)
-    if (exit_with_parent) fprintf(stderr, "zxv-host: --exit-with-parent is not supported here\n");
+    if (exit_with_parent) {
+        HANDLE th = CreateThread(NULL, 0, pal_watch_stdin, NULL, 0, NULL);
+        if (th)
+            CloseHandle(th);
+        else
+            fprintf(stderr, "zxv-host: --exit-with-parent could not start its watcher\n");
+    }
 #endif
 
     /* G1: this launch's token. The native shell may pick it (ZXV_TOKEN);
@@ -1572,6 +1735,7 @@ int main(int argc, char **argv)
 #else
     signal(SIGPIPE, SIG_IGN);
 #endif
+    pal_catch_stop();
     audit_start();
     S.instance_seed = (uint64_t) time(NULL) * 0x9E3779B97F4A7C15ull ^ 0x36A9u;
     S.rng = S.instance_seed | 1u;
@@ -1628,6 +1792,33 @@ int main(int argc, char **argv)
         fprintf(stderr, "zxv-host: %s\n", zxv_model_info()->status);
 
 #if defined(ZXVD)
+    if (desktop) {
+        open_window = !server;
+        if (!rpc_path) {
+            char dir[480];
+            if (pal_desktop_dir(dir, sizeof dir) != 0) {
+                fprintf(stderr, "zxvd: no per-user folder for the desktop socket; use --rpc\n");
+                return 2;
+            }
+#    if defined(_WIN32)
+            snprintf(rpc_buf, sizeof rpc_buf, "%s\\zxvd.sock", dir);
+#    else
+            snprintf(rpc_buf, sizeof rpc_buf, "%s/zxvd.sock", dir);
+#    endif
+            rpc_path = rpc_buf;
+        }
+        snprintf(link_path, sizeof link_path, "%s.url", rpc_path);
+        char running[200];
+        if (pal_rpc_live(rpc_path)) {
+            if (open_window && pal_read_link(link_path, running, sizeof running)) {
+                printf("ZXV is already running: opening its window\n");
+                pal_open_window(running);
+                return 0;
+            }
+            fprintf(stderr, "zxvd: ZXV is already running (socket %s)\n", rpc_path);
+            return 1;
+        }
+    }
     if (!rpc_path) {
         fprintf(stderr, "zxvd: --rpc PATH is required (try --help)\n");
         return 2;
@@ -1704,12 +1895,13 @@ int main(int argc, char **argv)
     printf("ZXV-URL: %s\n", url_tok);
 #if defined(ZXVD)
     printf("ZXVD-RPC: %s\n", rpc_path);
+    if (link_path[0]) pal_write_link(link_path, url_tok);
 #endif
     fflush(stdout);
     if (open_window) pal_open_window(url_tok);
 
     uint64_t next_step = pal_now_ms();
-    while (!S.quit) {
+    while (!S.quit && !PAL_STOP_ASKED()) {
         fd_set rd;
         FD_ZERO(&rd);
         FD_SET(ls, &rd);
@@ -1740,6 +1932,8 @@ int main(int argc, char **argv)
             char tmp[64];
             if (read(0, tmp, sizeof tmp) <= 0) break; /* the shell is gone */
         }
+#else
+        if (InterlockedCompareExchange(&PARENT_GONE, 0, 0)) break; /* the shell is gone */
 #endif
         if (r > 0 && FD_ISSET(ls, &rd)) {
             sock_t c = accept(ls, NULL, NULL);
@@ -1774,6 +1968,7 @@ int main(int argc, char **argv)
     }
     CLOSESOCK(ls);
 #if defined(ZXVD)
+    if (link_path[0]) remove(link_path);
     zxvd_rpc_close();
 #endif
     zxv_peer_free(S.peer);

@@ -733,27 +733,8 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
 /* ===================== the socket (T1-T4) ===================== */
 
 #if defined(_WIN32)
-int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
-{
-    (void) path;
-    (void) ops;
-    fprintf(stderr, "zxvd: the RPC socket is not built for Windows yet\n");
-    return -1;
-}
-int zxvd_rpc_fds(void *set)
-{
-    (void) set;
-    return -1;
-}
-void zxvd_rpc_service(void *set, uint64_t now_ms)
-{
-    (void) set;
-    (void) now_ms;
-}
-void zxvd_rpc_close(void)
-{
-    books_close();
-}
+/* Windows: the same transport on Winsock's AF_UNIX, in zxvd_rpc_win.c
+ * (zxvd_rpc_books_close above closes the books there). */
 #else
 
 typedef struct {
