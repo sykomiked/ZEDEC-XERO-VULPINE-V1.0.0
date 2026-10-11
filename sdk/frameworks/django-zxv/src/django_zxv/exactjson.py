@@ -15,7 +15,7 @@ from decimal import Decimal
 from fractions import Fraction
 from typing import Any, NoReturn, Union
 
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, JsonResponse
 from zxv import FloatRejectedError, Rational, ZxvError
 
 INT64_MAX = (1 << 63) - 1
@@ -132,11 +132,18 @@ def dumps_exact(obj: Any, **kwargs: Any) -> str:
     return json.dumps(to_exact_jsonable(obj), **kwargs)
 
 
-class ExactJsonResponse(HttpResponse):
+class _ExactEncoder(json.JSONEncoder):
+    """Lets :class:`~django.http.JsonResponse` write with :func:`dumps_exact`."""
+
+    def encode(self, o: Any) -> str:
+        return dumps_exact(o)
+
+
+class ExactJsonResponse(JsonResponse):
     """A JSON response written with :func:`dumps_exact` (floats refused, Rationals as text)."""
 
     def __init__(self, data: Any, *, status: int = 200, **kwargs: Any) -> None:
-        # Always JSON, never sniffed as HTML: the body can echo exact values
-        # parsed from the request.
-        super().__init__(content=dumps_exact(data), status=status, content_type="application/json", **kwargs)
+        # A JsonResponse is always application/json, never sniffed as HTML:
+        # the body can echo exact values parsed from the request.
+        super().__init__(data, encoder=_ExactEncoder, safe=False, status=status, **kwargs)
         self["X-Content-Type-Options"] = "nosniff"
