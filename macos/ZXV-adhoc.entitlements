@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Ad-hoc builds only (build_system/build_signed_app.sh): an ad-hoc
+     signature has no Team ID, so the Hardened Runtime's library validation
+     would refuse Contents/Frameworks/libzxv.dylib. Developer ID builds use
+     ZXV.entitlements and keep library validation on. -->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>

@@ -15,6 +15,7 @@ yet.
 | `make -C bench smoke` | Offline checks: `legacy`, plus `zt_bench` refusing a weightless GGUF, plus the Python parser self-test |
 | `make -C bench tensor MODEL=m.gguf [N=32] [PROMPT="..."]` | Tensor benchmark on a GGUF model you supply |
 | `make -C bench qwen [ARM64=1]` | Downloads Qwen2.5-1.5B-Instruct Q4_K_M (1,117,320,736 bytes) to `~/.cache/zxv/models`, checks its SHA-256 against the hash Hugging Face publishes, then runs 8 fixed chat prompts on every kernel set: tokens/s, whether every run computed the same logit bits, and whether each answer is right. `ARM64=1` adds an aarch64 build under qemu |
+| `make -C bench zt_dump zt_golden` | `zt_dump` writes every position's logits for a list of token ids (to compare with another runtime); `zt_golden` applies one golden-ratio part of the engine (phi scales, coil + holographic coding, E8) to a real model's weights first. Results and how to reproduce: `bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md`; comparison scripts and the llama.cpp reference runner are in `bench/tensor/compare/` |
 
 Build output goes to `/tmp/zxv_bench` (override with `OUT=dir`).
 `make -C kernel verify-all` runs the `legacy` golden check; CI runs it in the

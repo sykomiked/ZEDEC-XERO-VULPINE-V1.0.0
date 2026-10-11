@@ -1,0 +1,11 @@
+# 512 WikiText-2 tokens (ids.bin), every position, against ref_f64.py (float64, weights dequantized exactly by gguf-py)
+# KL(ref64||x) in nats; top1 = share of positions where the argmax matches the reference
+zxv_native_kquant.f32        KL(ref64||x) pos0 0.0000  pos1.. mean 0.00001 max 0.0007  top1 0.998
+zxv_converted_q8.f32         KL(ref64||x) pos0 0.0002  pos1.. mean 0.00050 max 0.0118  top1 0.992
+llama_cpp_ub512.f32          KL(ref64||x) pos0 2.7118  pos1.. mean 0.00728 max 0.1642  top1 0.959
+llama_cpp_ub7.f32            KL(ref64||x) pos0 2.7118  pos1.. mean 0.00743 max 0.1659  top1 0.951
+# perplexity over positions 0..510 predicting the next id
+ref64_512.f32                ppl 9.3664
+zxv_native_kquant.f32        ppl 9.3692
+zxv_converted_q8.f32         ppl 9.3713
+llama_cpp_ub512.f32          ppl 9.3616
