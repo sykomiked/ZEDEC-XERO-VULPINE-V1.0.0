@@ -11,7 +11,7 @@ This guide covers how to write an app today, which pieces are real and tested, a
 |---|---|---|
 | Write a native app inside the OS (editor, tool, game, assistant skill) | C11 in `kernel/src/apps`, with `kernel/src/appkit`, `speech`, `xlate`, `i18n` and the module headers | Works. This is how the bundled apps are built. |
 | Write against the documented SDK facade `m5_api.h` | `kernel/src/sdk` | **Declarations only.** See the gaps below. |
-| Write a .NET service or desktop app | `bindings/dotnet` (`Zxv.Sdk` over the C ABI `native/zxv_api.h`) | In progress. Covers payments, ledger and currencies. |
+| Write a .NET service or desktop app | `sdk/dotnet` (`Zxv.Sdk` over the C ABI `native/zxv_api.h`) | In progress. Covers payments, ledger and currencies. |
 | Call the core from COBOL, Fortran, Pascal, Ada, PL/I or RPG | `bindings/` (`zx_legacy_api.h`, `build_lib.sh`) | In progress. The C, COBOL, Fortran, Pascal and Ada examples build and run. |
 
 ## 1. A native app, step by step
@@ -124,7 +124,7 @@ make -C kernel -f build_system/Makefile.arm64 all
 
 `build_system/build_desktop.sh` builds the hosted swarm (`kernel/arch/hosted/zxv_host.c`) for macOS, Windows and Linux with zig. That build carries no Apple frameworks. To ship `zx_speech_mac.m`, compile it on a Mac with clang and link `-framework Speech -framework AVFoundation -framework Foundation`. The app bundle also needs a usage string in `Info.plist`.
 
-## 2. The .NET SDK (`bindings/dotnet`, in progress)
+## 2. The .NET SDK (`sdk/dotnet`, in progress)
 
 - `native/zxv_api.h` is a stable C ABI with opaque handles, scalars only, status codes, caller-owned buffers with a two-call length pattern, UTF-8, and versioning (rules R1-R8 in the header).
 - `src/Zxv.Native` holds the P/Invoke layer and `src/Zxv.Sdk` the idiomatic API: Money, Currencies, Ledger, Messaging, Cards, Conformance and DI extensions.
