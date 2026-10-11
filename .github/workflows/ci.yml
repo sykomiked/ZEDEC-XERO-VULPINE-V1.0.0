@@ -315,7 +315,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Cache pinned tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: proofs/.tools
           key: proofs-tools-tla${{ env.TLA_VERSION }}-lean${{ env.LEAN_VERSION }}
