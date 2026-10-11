@@ -43,7 +43,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: RPC layer unit test (stub host, real libzxv, socket)
         env:
           CC: ${{ matrix.cc }}
@@ -84,7 +84,7 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build ZXV.app (engine = zxvd + libzxv.dylib)
         run: build_system/build_desktop.sh --mac-only --out "$RUNNER_TEMP/dist"
       - name: Check the bundle
@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc --ci --jobs 4 --out mutation-results
 
   real-model:
@@ -140,8 +140,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
         with:
           path: ~/zxv-models
           key: qwen2.5-1.5b-instruct-q4_k_m-6a1a2eb6

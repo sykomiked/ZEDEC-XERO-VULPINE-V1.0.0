@@ -1,10 +1,21 @@
 version: 2
+# One grouped pull request per ecosystem per week, at most two open at once:
+# every Dependabot PR runs CI, and separate PRs per package used to fill the
+# 20-job runner limit (docs/CI.md).
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns: [ "*" ]
   - package-ecosystem: nuget
     directory: /sdk/dotnet
     schedule:
       interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      nuget:
+        patterns: [ "*" ]
