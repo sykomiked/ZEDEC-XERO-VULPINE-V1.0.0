@@ -28,7 +28,7 @@ jobs:
         # marker. Same check on all five targets: build_system/ci_boot_check.sh.
         run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
       - name: Upload ARM64 artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-arm64
           path: kernel_arm64.elf
@@ -48,7 +48,7 @@ jobs:
       - name: Run x86_64 in QEMU
         run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]"
       - name: Upload x86_64 artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-x86_64
           path: kernel_x86_64.elf
@@ -70,7 +70,7 @@ jobs:
       - name: Run RISC-V 64-bit in QEMU
         run: build_system/ci_boot_check.sh riscv64 build_system/Makefile.riscv 30
       - name: Upload RISC-V 64-bit artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-riscv64
           path: kernel_riscv.elf
@@ -102,7 +102,7 @@ jobs:
       - name: Run RISC-V 32-bit in QEMU
         run: build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
       - name: Upload RISC-V 32-bit artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-riscv32
           path: kernel_riscv32.elf
@@ -122,7 +122,7 @@ jobs:
       - name: Run ARM32 in QEMU
         run: build_system/ci_boot_check.sh arm32 build_system/Makefile.arm32 30
       - name: Upload ARM32 artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-arm32
           path: zedec_xero_arm32.elf
@@ -261,7 +261,7 @@ jobs:
           if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
       - name: Upload the Mac packages
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: zxv-macos
           path: |
@@ -292,7 +292,7 @@ jobs:
         run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
       - name: Test
         run: dotnet test Zxv.sln -c Release --no-build --logger "trx;LogFileName=results.trx"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: dotnet-test-results
@@ -340,7 +340,7 @@ jobs:
         run: LEAN="$PWD/proofs/.tools/lean-${LEAN_VERSION}-linux/bin/lean" proofs/check.sh lean
       - name: TLC model checking
         run: PROOFS_LOGDIR="$RUNNER_TEMP/tlc-logs" proofs/check.sh tla
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: tlc-logs
@@ -385,7 +385,7 @@ jobs:
         run: python3 tests/harness/mutator/mutate.py --selftest
       - name: Mutation score gate (CI subset)
         run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --jobs 4 --out mutation-results
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutation-results
@@ -480,7 +480,7 @@ jobs:
         run: make -C fuzz replay prop PROP_ITERS=1000
       - name: Every libFuzzer harness for 30 s
         run: make -C fuzz smoke SMOKE_SECS=30
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: fuzz-crashes
@@ -500,7 +500,7 @@ jobs:
         run: |
           fuzz/tools/coverage.sh
           cat fuzz/build/cov/COVERAGE.table.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: |
