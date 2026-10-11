@@ -13,11 +13,11 @@ Usage: gen_raffle_ref.py OUT
 import hashlib
 import sys
 
-FEE = (987, 61000)
+MIN_RATE = (987, 61000)  # the test deployment's floor
+MAX_RATE = (1, 2)
 SKIM = (987, 61000)
 GRANT = (5, 55)
 FIB_INDEX = 22  # F(22) = 17,711 fee units
-MAX_MULT = 13
 SHARE = (8, 21)
 EPOCHS = 3
 PARTIES = 3
@@ -64,9 +64,9 @@ def run_epoch(epoch, prev_link, out):
         owner = ident(b"owner", k % 7)
         j = k + 1000 * epoch
         amount = amount_of(j)
-        mult = 1 + j % 3
+        rate = (987 * (1 + j % 3), 61000)
         k += 1
-        fee = amount * FEE[0] * mult // FEE[1]
+        fee = amount * rate[0] // rate[1]
         n = fee  # one ticket per fee unit
         held = sum(c for f, c, o in ranges if o == owner)
         cap = max(threshold * SHARE[0] // SHARE[1], 1)
@@ -75,12 +75,12 @@ def run_epoch(epoch, prev_link, out):
             continue
         first = tickets
         ranges.append((first, n, owner))
-        chain = sha3(b"ZXV-RAFFLE-ENTRY" + chain + owner + u64(amount) + u64(mult) + u64(fee)
+        chain = sha3(b"ZXV-RAFFLE-ENTRY" + chain + owner + u64(amount) + u64(rate[0]) + u64(rate[1]) + u64(fee)
                      + u64(first) + u64(n) + b"\x00")
         pool += fee
         tickets += n
-    hdr = (b"ZXV-RAFFLE-HDR4" + u64(epoch) + u64(FEE[0]) + u64(FEE[1]) + u64(SKIM[0])
-           + u64(SKIM[1]) + u64(GRANT[0]) + u64(GRANT[1]) + u64(threshold) + u64(MAX_MULT) + u64(SHARE[0]) + u64(SHARE[1]) + u64(tickets) + u64(pool) + chain
+    hdr = (b"ZXV-RAFFLE-HDR5" + u64(epoch) + u64(MIN_RATE[0]) + u64(MIN_RATE[1]) + u64(MAX_RATE[0]) + u64(MAX_RATE[1]) + u64(SKIM[0])
+           + u64(SKIM[1]) + u64(GRANT[0]) + u64(GRANT[1]) + u64(threshold) + u64(SHARE[0]) + u64(SHARE[1]) + u64(tickets) + u64(pool) + chain
            + u64(PARTIES))
     for p, c in zip(parties, commits):
         hdr += p + c

@@ -8,7 +8,7 @@
  *   K1  A ladder holds n levels, 1 <= n <= RAFFLE_LADDER_MAX (144). Each
  *       level is a full raffle (raffle.h): its own threshold, proportional
  *       odds, share cap, commit-reveal draw and three-way split. Every level
- *       uses the same fee ratio, multiplier limit and split ratios.
+ *       uses the same rate limits and split ratios.
  *   K2  THRESHOLDS. Level j (0 = lowest) closes at
  *           T(j) = F(i) + floor((F(i+1) - F(i)) * r / (n - 1)),
  *           i = idx_lo + floor(j * (idx_hi - idx_lo) / (n - 1)),
@@ -92,12 +92,12 @@ bool raffle_ladder_ready(const raffle_ladder_t *L, uint32_t k);
 
 /* P1-P3 without state change: the per-level plan for a payment. */
 raffle_status_t raffle_ladder_plan(const raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
-                                   uint64_t amount, uint32_t multiplier, const uint64_t *weights,
-                                   raffle_ladder_receipt_t *plan);
+                                   uint64_t amount, const raffle_rate_t *rate,
+                                   const uint64_t *weights, raffle_ladder_receipt_t *plan);
 
 /* P1-P4: enter a payment into the ladder. `weights` NULL = the ladder's. */
 raffle_status_t raffle_ladder_enter(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
-                                    uint64_t amount, uint32_t multiplier, const uint64_t *weights,
-                                    raffle_ladder_receipt_t *out);
+                                    uint64_t amount, const raffle_rate_t *rate,
+                                    const uint64_t *weights, raffle_ladder_receipt_t *out);
 
 #endif /* ZXV_RAFFLE_LADDER_H */

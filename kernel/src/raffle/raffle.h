@@ -27,23 +27,23 @@
  *   F1  Entry is a separate, opt-in payment. The 0.08889% assurance fee
  *       (pay_assure.h) is untouched: a raffle fee is charged only on an
  *       amount the player chose to put into the raffle.
- *   F2  fee(a) = floor(a * fee_num / fee_den), default 987/61000 (about
- *       1.618%). Full 64x64 -> 128-bit product, 128/64 division: exact for
- *       every a < 2^64.
+ *   F2  RATE SLIDER (owner decision 2026-10-11). Each entry carries the
+ *       player's own exact rate r = num/den, which must lie in the
+ *       deployment's [min_rate, max_rate] (default [1/100, 1/2], and
+ *       max_rate may never exceed RAFFLE_RATE_CEIL = 1/2):
+ *           fee(a) = floor(a * num / den)
+ *       Full 64x64 -> 128-bit product, 128/64 division: exact for every
+ *       a < 2^64. A player is OUT (rate 0) until they opt in; raffle_guard.h
+ *       holds that choice and the player-protection controls.
  *   F3  PROPORTIONAL ODDS (owner decision 2026-10-11): one ticket per unit
  *       of fee. An entry paying fee f owns the next f ticket ids, so its
  *       chance is exactly f / (total fee in the epoch). Example: Alice pays
  *       610, Bob 987, pool 1597: Alice holds [0, 609], Bob [610, 1596], and
  *       the draw picks one integer in [0, 1596]. Tickets == pool, always:
  *       there is no ticket price and no leftover.
- *   F4  An amount whose fee rounds down to zero (below 62 base units at
- *       987/61000 and M = 1) is refused and nothing is charged.
- *   F5  MULTIPLIER (owner decision 2026-10-11). Each entry carries an integer
- *       M in [1, max_multiplier] chosen by the player:
- *           fee = floor(amount * fee_num * M / fee_den)
- *       M = 1 is the baseline rate; a higher M buys proportionally more
- *       tickets. Default max_multiplier = 13 (F(7)). A fee that would not
- *       fit 64 bits is refused (RAFFLE_ERR_OVERFLOW).
+ *   F4  An amount whose fee rounds down to zero (below 100 base units at
+ *       1%) is refused and nothing is charged.
+ *   F5  (Replaced the earlier integer multiplier on 987/61000.)
  *   F6  NO MONOPOLY (the project's cooperative no-monopoly rule). With
  *       share_den > 0, no owner may hold more than
  *           max(floor(threshold * share_num / share_den), 1)
@@ -127,10 +127,9 @@
 #define RAFFLE_FIB_MIN     2u  /* F(2)  = 1 ticket (tests)    */
 #define RAFFLE_FIB_MAX     80u /* F(80) ~ 2.3e16 fee units */
 #define RAFFLE_DRAW_TRIES  128u
-#define RAFFLE_MAX_MULT    1000u
 
-#define RAFFLE_DEFAULT_FEE_NUM   987u
-#define RAFFLE_DEFAULT_FEE_DEN   61000u
+#define RAFFLE_SKIM_NUM          987u
+#define RAFFLE_SKIM_DEN          61000u
 #define RAFFLE_DEFAULT_FIB_INDEX 18u /* 2584 fee units */
 
 typedef enum {
@@ -148,20 +147,40 @@ typedef enum {
     RAFFLE_ERR_NO_TICKETS = -11, /* nothing to draw from                    */
     RAFFLE_ERR_DRAW = -12,       /* rejection sampling ran out (2^-128)     */
     RAFFLE_ERR_SETTLEMENT = -13, /* settlement record does not match        */
-    RAFFLE_ERR_MULTIPLIER = -14, /* F5: M outside [1, max_multiplier]       */
-    RAFFLE_ERR_CAP = -15         /* F6: the owner would pass the share cap  */
+    RAFFLE_ERR_RATE = -14,       /* F2: rate outside [min_rate, max_rate]   */
+    RAFFLE_ERR_CAP = -15,        /* F6: the owner would pass the share cap  */
+    /* raffle_guard.h (player protection) */
+    RAFFLE_ERR_NOT_IN = -20,      /* G1: the player has not opted in         */
+    RAFFLE_ERR_EXCLUDED = -21,    /* G5: the player is self-excluded         */
+    RAFFLE_ERR_AGE = -22,         /* G6: the age / KYC gate said no          */
+    RAFFLE_ERR_NO_LIMITS = -23,   /* G3: limits must be set first            */
+    RAFFLE_ERR_DAY_LIMIT = -24,   /* G3: would pass the player's daily limit */
+    RAFFLE_ERR_EPOCH_LIMIT = -25, /* G3: would pass the per-epoch limit      */
+    RAFFLE_ERR_CONFIRM = -26      /* G2: exact-amount confirmation missing   */
 } raffle_status_t;
+
+/* An exact rational rate num/den (den > 0). */
+typedef struct {
+    uint64_t num, den;
+} raffle_rate_t;
+
+/* F2: the hard ceiling on any deployment's max_rate. */
+#define RAFFLE_RATE_CEIL_NUM 1u
+#define RAFFLE_RATE_CEIL_DEN 2u
+
+/* -1, 0, 1 as a/b <, ==, > c/d (dens > 0), exact in 128 bits. */
+int raffle_rate_cmp(raffle_rate_t a, raffle_rate_t b);
 
 typedef struct {
     bool jurisdiction_permits;     /* L1: default false                       */
     bool free_entry;               /* L2: default false                       */
-    uint64_t fee_num, fee_den;     /* F2: default 987/61000                   */
+    raffle_rate_t min_rate;        /* F2: default 1/100                       */
+    raffle_rate_t max_rate;        /* F2: default 1/2 (the ceiling)           */
     uint64_t skim_num, skim_den;   /* S1: default 987/61000                 */
     uint64_t grant_num, grant_den; /* S2: default 5/55; den 0 = no grants   */
     uint32_t fib_index;            /* E1: default 18 (2584 tickets)           */
     uint64_t threshold;            /* E1: explicit threshold; 0 = F(fib_index) */
     uint32_t min_reveals;          /* R3: 0 = every committed party (default) */
-    uint32_t max_multiplier;       /* F5: default 13, at most RAFFLE_MAX_MULT  */
     uint64_t share_num, share_den; /* F6: default 8/21; den 0 = no cap      */
 } raffle_config_t;
 
@@ -239,8 +258,9 @@ raffle_status_t raffle_config_check(const raffle_config_t *c);
 /* F(n) for 1 <= n <= 93 (fits 64 bits); 0 outside that range. */
 uint64_t raffle_fib(uint32_t n);
 
-/* F2/F3/F5 without state: fee (== tickets) for an amount at multiplier M. */
-raffle_status_t raffle_quote(const raffle_config_t *c, uint64_t amount, uint32_t multiplier,
+/* F2/F3 without state: fee (== tickets) for an amount at `rate` (NULL =
+ * the deployment's min_rate). */
+raffle_status_t raffle_quote(const raffle_config_t *c, uint64_t amount, const raffle_rate_t *rate,
                              uint64_t *fee, uint64_t *tickets);
 
 /* F6: how many more tickets `owner` may take this epoch (UINT64_MAX when
@@ -268,10 +288,10 @@ raffle_status_t raffle_commit(raffle_t *r, const uint8_t party[RAFFLE_ID_LEN],
 void raffle_commitment(uint64_t epoch, const uint8_t party[RAFFLE_ID_LEN],
                        const uint8_t secret[RAFFLE_HASH_LEN], uint8_t out[RAFFLE_HASH_LEN]);
 
-/* F1-F6, E2: a paid, opt-in entry of `amount` at multiplier M. On error
+/* F1-F6, E2: a paid, opt-in entry of `amount` at `rate`. On error
  * nothing changes. */
 raffle_status_t raffle_enter(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
-                             uint32_t multiplier, raffle_receipt_t *out);
+                             const raffle_rate_t *rate, raffle_receipt_t *out);
 
 /* Would minting `count` tickets for `fee` to `owner` succeed now? Checks the
  * switch, the phase, the share cap, overflow and the range table; changes
@@ -280,10 +300,10 @@ raffle_status_t raffle_mint_check(const raffle_t *r, const uint8_t owner[RAFFLE_
                                   uint64_t fee, uint64_t count);
 
 /* Ladder use (raffle_ladder.h): mint `fee` tickets for a share of a payment
- * whose fee was already computed. `amount` and `multiplier` are recorded in
+ * whose fee was already computed. `amount` and `rate` are recorded in
  * the chain for audit. */
 raffle_status_t raffle_enter_share(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
-                                   uint32_t multiplier, uint64_t fee, raffle_receipt_t *out);
+                                   const raffle_rate_t *rate, uint64_t fee, raffle_receipt_t *out);
 
 /* L2: one free ticket (no fee). Fails with RAFFLE_ERR_DISABLED unless both
  * jurisdiction_permits and free_entry are set. */

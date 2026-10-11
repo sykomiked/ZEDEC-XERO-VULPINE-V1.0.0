@@ -89,6 +89,8 @@ static raffle_config_t base_cfg(void)
     raffle_config_default(&c);
     c.jurisdiction_permits = true;
     c.share_den = 0;
+    c.min_rate.num = 987; /* this test deployment's floor: 987/61000 */
+    c.min_rate.den = 61000;
     return c;
 }
 
@@ -134,12 +136,12 @@ static void test_split_cascade(void)
 
     CHECK(raffle_ladder_init(&L, &c, N, 13, 40, g_lv, g_rg, PER, g_tl, TPER, NULL) == RAFFLE_OK,
           "init 144");
-    CHECK(raffle_ladder_enter(&L, who, 1000000, 1, NULL, &rc) == RAFFLE_ERR_PHASE,
+    CHECK(raffle_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == RAFFLE_ERR_PHASE,
           "no level has parties: refused");
     for (uint32_t k = 0; k < N; k++) commit_level(&L.lv[k], k);
 
     /* Equal weights: fee 16180 -> 112 per level (16128), 52 remainder to the apex. */
-    CHECK(raffle_ladder_enter(&L, who, 1000000, 1, NULL, &rc) == RAFFLE_OK, "enter");
+    CHECK(raffle_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == RAFFLE_OK, "enter");
     uint64_t sum = 0;
     unsigned bad = 0;
     for (uint32_t k = 0; k < N; k++) {
@@ -153,14 +155,14 @@ static void test_split_cascade(void)
 
     /* The 3rd payment (336 tickets each) closes every level whose threshold is
      * <= 336: levels 0-3 (233, 260, 287, 314). Then their shares cascade. */
-    CHECK(raffle_ladder_enter(&L, who, 1000000, 1, NULL, &rc) == RAFFLE_OK && rc.closed == 0,
+    CHECK(raffle_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == RAFFLE_OK && rc.closed == 0,
           "2nd");
-    CHECK(raffle_ladder_enter(&L, who, 1000000, 1, NULL, &rc) == RAFFLE_OK && rc.closed == 4,
+    CHECK(raffle_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == RAFFLE_OK && rc.closed == 4,
           "3rd closes levels 0-3");
     CHECK(L.lv[0].phase == RAFFLE_CLOSED && L.lv[3].phase == RAFFLE_CLOSED &&
               L.lv[4].phase == RAFFLE_OPEN && L.lv[4].threshold == 341,
           "level 4 (341) still open");
-    CHECK(raffle_ladder_enter(&L, who, 1000000, 1, NULL, &rc) == RAFFLE_OK, "4th");
+    CHECK(raffle_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == RAFFLE_OK, "4th");
     CHECK(rc.share[0] == 0 && rc.share[3] == 0 && rc.share[4] == 5 * 112 && rc.cascaded == 4 * 112,
           "closed levels 0-3 cascade 448 into level 4");
 
@@ -169,7 +171,7 @@ static void test_split_cascade(void)
     raffle_config_t mc = m->cfg;
     raffle_range_t *mr = m->ranges;
     raffle_init(m, &mc, 1, NULL, mr, PER); /* fresh, no parties */
-    CHECK(raffle_ladder_enter(&L, who, 1000000, 1, NULL, &rc) == RAFFLE_OK, "5th");
+    CHECK(raffle_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == RAFFLE_OK, "5th");
     CHECK(rc.share[70] == 0 && rc.share[71] == 224, "unready level 70 cascades to 71");
     commit_level(m, 70);
 
@@ -180,19 +182,20 @@ static void test_split_cascade(void)
     w[50] = 21;
     w[143] = 13;
     raffle_ladder_receipt_t plan;
-    CHECK(raffle_ladder_plan(&L, who, 1000000, 1, w, &plan) == RAFFLE_OK, "override plan");
+    CHECK(raffle_ladder_plan(&L, who, 1000000, NULL, w, &plan) == RAFFLE_OK, "override plan");
     CHECK(plan.share[10] == 16180 * 55 / 89 && plan.share[50] == 16180 * 21 / 89 &&
               plan.share[143] == 16180 - 16180 * 55 / 89 - 16180 * 21 / 89,
           "55/89, 21/89, rest to 13/89 + remainder (%llu %llu %llu)",
           (unsigned long long) plan.share[10], (unsigned long long) plan.share[50],
           (unsigned long long) plan.share[143]);
     memset(w, 0, sizeof w);
-    CHECK(raffle_ladder_plan(&L, who, 1000000, 1, w, &plan) == RAFFLE_ERR_CONFIG,
+    CHECK(raffle_ladder_plan(&L, who, 1000000, NULL, w, &plan) == RAFFLE_ERR_CONFIG,
           "all-zero weights");
-    CHECK(raffle_ladder_plan(&L, who, 61, 1, NULL, &plan) == RAFFLE_ERR_DUST, "zero fee");
-    CHECK(raffle_ladder_plan(&L, who, 1000, 14, NULL, &plan) == RAFFLE_ERR_MULTIPLIER, "M > 13");
+    CHECK(raffle_ladder_plan(&L, who, 61, NULL, NULL, &plan) == RAFFLE_ERR_DUST, "zero fee");
+    raffle_rate_t r60 = {3, 5};
+    CHECK(raffle_ladder_plan(&L, who, 1000, &r60, NULL, &plan) == RAFFLE_ERR_RATE, "60%% refused");
     /* Small fee: every level's floor share is 0, the whole fee goes to the apex. */
-    CHECK(raffle_ladder_plan(&L, who, 6200, 1, NULL, &plan) == RAFFLE_OK &&
+    CHECK(raffle_ladder_plan(&L, who, 6200, NULL, NULL, &plan) == RAFFLE_OK &&
               plan.share[N - 1] == plan.fee && plan.fee == 100,
           "fee below 144 lands on the apex");
 
@@ -202,13 +205,14 @@ static void test_split_cascade(void)
     f->range_cap = f->range_len;
     static raffle_t snap[N];
     memcpy(snap, g_lv, sizeof snap);
-    CHECK(raffle_ladder_enter(&L, who, 1000000, 1, NULL, &rc) == RAFFLE_ERR_FULL, "full refused");
+    CHECK(raffle_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == RAFFLE_ERR_FULL,
+          "full refused");
     CHECK(memcmp(snap, g_lv, sizeof snap) == 0, "refused payment changed no level");
     f->range_cap = saved;
 
     /* L1: one level switched off disables the ladder. */
     L.lv[5].cfg.jurisdiction_permits = false;
-    CHECK(raffle_ladder_enter(&L, who, 1000000, 1, NULL, &rc) == RAFFLE_ERR_DISABLED,
+    CHECK(raffle_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == RAFFLE_ERR_DISABLED,
           "a level switched off refuses");
     L.lv[5].cfg.jurisdiction_permits = true;
 
@@ -241,7 +245,7 @@ static void run_random(uint32_t payments, uint8_t digest[32], double *ns_per)
         uint8_t who[32];
         ident("owner", (uint32_t) (seed % 64), who);
         uint64_t amount = 62 + (seed >> 20) % 2000000;
-        uint32_t m = 1 + (uint32_t) ((seed >> 8) % 13);
+        raffle_rate_t m = {987 * (1 + (seed >> 8) % 13), 61000};
         uint64_t w[N], *wp = NULL;
         if (seed % 5 == 0) { /* a player-card override now and then */
             for (uint32_t k = 0; k < N; k++) w[k] = (k * 7 + seed) % 4;
@@ -250,7 +254,7 @@ static void run_random(uint32_t payments, uint8_t digest[32], double *ns_per)
         }
         raffle_ladder_receipt_t rc;
         clock_gettime(CLOCK_MONOTONIC, &t0);
-        raffle_status_t st = raffle_ladder_enter(&L, who, amount, m, wp, &rc);
+        raffle_status_t st = raffle_ladder_enter(&L, who, amount, &m, wp, &rc);
         clock_gettime(CLOCK_MONOTONIC, &t1);
         ns += (double) (t1.tv_sec - t0.tv_sec) * 1e9 + (double) (t1.tv_nsec - t0.tv_nsec);
         if (st != RAFFLE_OK) {

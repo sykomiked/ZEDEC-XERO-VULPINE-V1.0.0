@@ -58,14 +58,14 @@ bool raffle_ladder_ready(const raffle_ladder_t *L, uint32_t k)
 }
 
 raffle_status_t raffle_ladder_plan(const raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
-                                   uint64_t amount, uint32_t multiplier, const uint64_t *weights,
-                                   raffle_ladder_receipt_t *plan)
+                                   uint64_t amount, const raffle_rate_t *rate,
+                                   const uint64_t *weights, raffle_ladder_receipt_t *plan)
 {
     uint64_t fee, n, wsum = 0, given = 0, carry = 0;
     if (!L || !owner || !plan || L->n == 0) return RAFFLE_ERR_ARG;
     for (uint32_t k = 0; k < L->n; k++) /* L1: every level must be switched on */
         if (!L->lv[k].cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
-    raffle_status_t st = raffle_quote(&L->lv[0].cfg, amount, multiplier, &fee, &n);
+    raffle_status_t st = raffle_quote(&L->lv[0].cfg, amount, rate, &fee, &n);
     if (st != RAFFLE_OK) return st;
     if (fee == 0) return RAFFLE_ERR_DUST;
     const uint64_t *w = weights ? weights : L->weight;
@@ -104,16 +104,16 @@ raffle_status_t raffle_ladder_plan(const raffle_ladder_t *L, const uint8_t owner
 }
 
 raffle_status_t raffle_ladder_enter(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
-                                    uint64_t amount, uint32_t multiplier, const uint64_t *weights,
-                                    raffle_ladder_receipt_t *out)
+                                    uint64_t amount, const raffle_rate_t *rate,
+                                    const uint64_t *weights, raffle_ladder_receipt_t *out)
 {
     raffle_ladder_receipt_t plan;
-    raffle_status_t st = raffle_ladder_plan(L, owner, amount, multiplier, weights, &plan);
+    raffle_status_t st = raffle_ladder_plan(L, owner, amount, rate, weights, &plan);
     if (st != RAFFLE_OK) return st;
     for (uint32_t k = 0; k < L->n; k++) {
         if (!plan.share[k]) continue;
         raffle_receipt_t rc;
-        st = raffle_enter_share(&L->lv[k], owner, amount, multiplier, plan.share[k], &rc);
+        st = raffle_enter_share(&L->lv[k], owner, amount, rate, plan.share[k], &rc);
         if (st != RAFFLE_OK) return st; /* unreachable: checked in the plan */
         plan.closed += rc.closed_epoch ? 1u : 0u;
     }
