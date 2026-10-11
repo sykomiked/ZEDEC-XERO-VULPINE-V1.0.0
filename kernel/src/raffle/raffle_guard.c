@@ -89,30 +89,58 @@ static uint64_t day_of(const raffle_guard_policy_t *pol, uint64_t now)
     return pol->day_len ? pay_udiv64(now, pol->day_len, 0) : 0;
 }
 
-raffle_status_t raffle_guard_check(const raffle_guard_policy_t *pol, const raffle_config_t *cfg,
-                                   const raffle_player_t *pl, uint64_t amount, uint64_t now,
-                                   uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee)
+/* The switch, G1, G5, G6 and "limits set" (G3), in that order. */
+static raffle_status_t gates(const raffle_guard_policy_t *pol, const raffle_config_t *cfg,
+                             const raffle_player_t *pl, uint64_t now)
 {
-    uint64_t f, n, total;
-    if (!pol || !cfg || !pl || !fee) return RAFFLE_ERR_ARG;
     if (!cfg->jurisdiction_permits) return RAFFLE_ERR_DISABLED;
     if (pl->rate.num == 0) return RAFFLE_ERR_NOT_IN;               /* G1 */
     if (now < pl->excluded_until) return RAFFLE_ERR_EXCLUDED;      /* G5 */
     if (!pol->age_gate || !pol->age_gate(pol->age_ctx, pl->owner)) /* G6 */
         return RAFFLE_ERR_AGE;
-    uint64_t dl = raffle_player_day_limit(pl, now), el = raffle_player_epoch_limit(pl, now);
-    if (pol->require_limits && (dl == 0 || el == 0)) return RAFFLE_ERR_NO_LIMITS; /* G3 */
-    raffle_status_t st = raffle_quote(cfg, amount, &pl->rate, &f, &n);
-    if (st != RAFFLE_OK) return st;
+    if (pol->require_limits &&
+        (raffle_player_day_limit(pl, now) == 0 || raffle_player_epoch_limit(pl, now) == 0))
+        return RAFFLE_ERR_NO_LIMITS; /* G3 */
+    return RAFFLE_OK;
+}
+
+/* G3: would `f` pass the daily or per-epoch limit? */
+static raffle_status_t limits(const raffle_guard_policy_t *pol, const raffle_player_t *pl,
+                              uint64_t f, uint64_t now, uint64_t epoch)
+{
+    uint64_t total;
     if (f == 0) return RAFFLE_ERR_DUST;
+    uint64_t dl = raffle_player_day_limit(pl, now), el = raffle_player_epoch_limit(pl, now);
     uint64_t spent_day = pl->day == day_of(pol, now) ? pl->spent_day : 0;
     uint64_t spent_epoch = pl->epoch == epoch ? pl->spent_epoch : 0;
     if (dl && (!pay_add_ok(spent_day, f, &total) || total > dl)) return RAFFLE_ERR_DAY_LIMIT;
     if (el && (!pay_add_ok(spent_epoch, f, &total) || total > el)) return RAFFLE_ERR_EPOCH_LIMIT;
+    return RAFFLE_OK;
+}
+
+raffle_status_t raffle_guard_check(const raffle_guard_policy_t *pol, const raffle_config_t *cfg,
+                                   const raffle_player_t *pl, uint64_t amount, uint64_t now,
+                                   uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee)
+{
+    uint64_t f, n;
+    if (!pol || !cfg || !pl || !fee) return RAFFLE_ERR_ARG;
+    raffle_status_t st = gates(pol, cfg, pl, now);
+    if (st == RAFFLE_OK) st = raffle_quote(cfg, amount, &pl->rate, &f, &n);
+    if (st == RAFFLE_OK) st = limits(pol, pl, f, now, epoch);
+    if (st != RAFFLE_OK) return st;
     *fee = f;
     if (raffle_rate_cmp(pl->rate, pol->confirm_above) > 0 && confirmed_fee != f) /* G2 */
         return RAFFLE_ERR_CONFIRM;
     return RAFFLE_OK;
+}
+
+raffle_status_t raffle_guard_check_fee(const raffle_guard_policy_t *pol, const raffle_config_t *cfg,
+                                       const raffle_player_t *pl, uint64_t fee, uint64_t now,
+                                       uint64_t epoch)
+{
+    if (!pol || !cfg || !pl) return RAFFLE_ERR_ARG;
+    raffle_status_t st = gates(pol, cfg, pl, now);
+    return st != RAFFLE_OK ? st : limits(pol, pl, fee, now, epoch);
 }
 
 void raffle_guard_commit(const raffle_guard_policy_t *pol, raffle_player_t *pl, uint64_t now,

@@ -157,7 +157,10 @@ typedef enum {
     RAFFLE_ERR_NO_LIMITS = -23,   /* G3: limits must be set first            */
     RAFFLE_ERR_DAY_LIMIT = -24,   /* G3: would pass the player's daily limit */
     RAFFLE_ERR_EPOCH_LIMIT = -25, /* G3: would pass the per-epoch limit      */
-    RAFFLE_ERR_CONFIRM = -26      /* G2: exact-amount confirmation missing   */
+    RAFFLE_ERR_CONFIRM = -26,     /* G2: exact-amount confirmation missing   */
+    /* raffle_token.h */
+    RAFFLE_ERR_EVENT = -27,   /* T2: event not enabled, or an unknown event bit */
+    RAFFLE_ERR_MANIFEST = -28 /* T1: the manifest block is malformed            */
 } raffle_status_t;
 
 /* An exact rational rate num/den (den > 0). */

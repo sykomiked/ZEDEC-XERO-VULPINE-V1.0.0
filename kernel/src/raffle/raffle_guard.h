@@ -87,6 +87,13 @@ raffle_status_t raffle_guard_check(const raffle_guard_policy_t *pol, const raffl
                                    const raffle_player_t *pl, uint64_t amount, uint64_t now,
                                    uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee);
 
+/* G1, G3, G5, G6 and the switch for a fee the caller already computed and
+ * whose confirmation (G2) it already holds; pl->rate is only the opt-in
+ * flag here. Used by prize-linked savings (raffle_token.h T6). */
+raffle_status_t raffle_guard_check_fee(const raffle_guard_policy_t *pol, const raffle_config_t *cfg,
+                                       const raffle_player_t *pl, uint64_t fee, uint64_t now,
+                                       uint64_t epoch);
+
 /* Record `fee` as spent after the entry was accepted. */
 void raffle_guard_commit(const raffle_guard_policy_t *pol, raffle_player_t *pl, uint64_t now,
                          uint64_t epoch, uint64_t fee);

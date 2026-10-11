@@ -95,9 +95,21 @@ raffle_status_t raffle_ladder_plan(const raffle_ladder_t *L, const uint8_t owner
                                    uint64_t amount, const raffle_rate_t *rate,
                                    const uint64_t *weights, raffle_ladder_receipt_t *plan);
 
+/* P1-P3 for a fee already computed by the caller (e.g. prize-linked
+ * savings, raffle_token.h T6). */
+raffle_status_t raffle_ladder_plan_fee(const raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
+                                       uint64_t fee, const uint64_t *weights,
+                                       raffle_ladder_receipt_t *plan);
+
 /* P1-P4: enter a payment into the ladder. `weights` NULL = the ladder's. */
 raffle_status_t raffle_ladder_enter(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
                                     uint64_t amount, const raffle_rate_t *rate,
                                     const uint64_t *weights, raffle_ladder_receipt_t *out);
+
+/* P1-P4 with a fee the caller computed; `amount` and `rate` are recorded in
+ * each level's chain for audit. */
+raffle_status_t raffle_ladder_enter_fee(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
+                                        uint64_t amount, const raffle_rate_t *rate, uint64_t fee,
+                                        const uint64_t *weights, raffle_ladder_receipt_t *out);
 
 #endif /* ZXV_RAFFLE_LADDER_H */

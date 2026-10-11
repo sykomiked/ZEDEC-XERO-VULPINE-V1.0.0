@@ -1546,6 +1546,10 @@ test-raffle:
 	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle_guard.c -o $(ZXV_TMP)/raffle_guard_a64.o && \
 	if nm -u $(ZXV_TMP)/raffle_guard_a64.o | grep -vE ' (pay_[a-z0-9_]+|raffle_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_guard_a64.o; echo "[FAIL] raffle_guard libc symbol"; exit 1; fi && \
 	echo "[PASS] raffle_guard freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(RAFFLE_INC) src/raffle/test_raffle_token.c src/raffle/raffle_token.c src/raffle/raffle_guard.c src/raffle/raffle_ladder.c $(RAFFLE_SRCS) -o $(ZXV_TMP)/test_raffle_token && $(ZXV_TMP)/test_raffle_token > $(ZXV_TMP)/test_raffle_token.log 2>&1 && echo "[PASS] test_raffle_token ($$(tail -1 $(ZXV_TMP)/test_raffle_token.log))" || { cat $(ZXV_TMP)/test_raffle_token.log; echo "[FAIL] test_raffle_token"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle_token.c -o $(ZXV_TMP)/raffle_token_a64.o && \
+	if nm -u $(ZXV_TMP)/raffle_token_a64.o | grep -vE ' (pay_[a-z0-9_]+|raffle_[a-z_]+|sha3_256)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_token_a64.o; echo "[FAIL] raffle_token libc symbol"; exit 1; fi && \
+	echo "[PASS] raffle_token freestanding (aarch64-none-elf, no libc)"
 
 # The 64-state hexagram tag on lpres (src/lpres/lpres_hex.h).
 .PHONY: test-lpres-hex
