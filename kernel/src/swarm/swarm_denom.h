@@ -89,24 +89,24 @@
 #include <stdbool.h>
 #include "swarm_budget.h"
 
-#define SWARM_DENOM_TIERS 64u      /* faces F(2) .. F(65) */
+#define SWARM_DENOM_TIERS      64u /* faces F(2) .. F(65) */
 #define SWARM_DENOM_SUPER_TIER 10u /* face F(12) = 144 and up */
 
 /* The pump grades (D2): octane = the densest tier held. */
-#define SWARM_OCTANE_PLAIN 0u     /* face 1: plain tokens only      */
-#define SWARM_OCTANE_REGULAR 4u   /* up to face 8                   */
+#define SWARM_OCTANE_PLAIN    0u  /* face 1: plain tokens only      */
+#define SWARM_OCTANE_REGULAR  4u  /* up to face 8                   */
 #define SWARM_OCTANE_MIDGRADE 9u  /* up to face 89                  */
-#define SWARM_OCTANE_PREMIUM 14u  /* up to face 987 (super tokens)  */
-#define SWARM_OCTANE_RACING 23u   /* up to face 75025               */
-#define SWARM_OCTANE_MAX 63u      /* up to face F(65)               */
+#define SWARM_OCTANE_PREMIUM  14u /* up to face 987 (super tokens)  */
+#define SWARM_OCTANE_RACING   23u /* up to face 75025               */
+#define SWARM_OCTANE_MAX      63u /* up to face F(65)               */
 
 /* The longest Fibonacci code of a 64-bit amount: 92 Zeckendorf bits + 1. */
 #define SWARM_DENOM_CODE_MAX_BITS 93u
 
 typedef struct {
     uint32_t model_id;
-    uint32_t octane;                    /* densest tier allowed (D2) */
-    uint64_t count[SWARM_DENOM_TIERS];  /* tokens held per tier      */
+    uint32_t octane;                   /* densest tier allowed (D2) */
+    uint64_t count[SWARM_DENOM_TIERS]; /* tokens held per tier      */
 } swarm_wallet_t;
 
 /* D1: face value of tier k, F(k+2); 0 if k is out of range. */
