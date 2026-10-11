@@ -178,6 +178,7 @@ jobs:
           ./test_zxv_abi13.exe
           ./test_q16.exe
       - name: zxvd.exe end to end over its socket
+        if: success() || failure()  # report every Windows check, not only the first red
         run: |
           set -eu
           Z="$RUNNER_TEMP/pkg/ZXV/zxvd.exe"
@@ -185,6 +186,7 @@ jobs:
           python kernel/arch/hosted/test_zxvd.py "$Z" "$RUNNER_TEMP/wintest/tiny-test.gguf"
           python kernel/arch/hosted/check_zxvd_spec.py "$Z"
       - name: ZXV.exe starts the engine; a second launch; zxvd.shutdown
+        if: success() || failure()  # report every Windows check, not only the first red
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
