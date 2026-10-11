@@ -60,7 +60,7 @@
      "after": "cd kernel && sh src/treaty/mut_check.sh"},
     {"name": "zxt_exec", "target": "kernel/src/treaty/zxt_exec.c",
      "before": null, "before_note": "new module: running a treaty on the engine in userland",
-     "after": "cd kernel && sh src/treaty/mut_check.sh"}
+     "after": "cd kernel && sh src/treaty/mut_check.sh"},
     {"name": "swarm_denom", "target": "kernel/src/swarm/swarm_denom.c",
      "before": null, "before_note": "new module: token denominations and octane (plain, compressed and super tokens on the Fibonacci ladder)",
      "after": "cd kernel && T=${ZXV_TMP:-/tmp} && { gcc -std=c11 -O1 -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_denom.c src/swarm/swarm_denom.c src/swarm/swarm_budget.c -o $T/test_swarm_denom || exit 3; } && $T/test_swarm_denom > /dev/null 2>&1"},
