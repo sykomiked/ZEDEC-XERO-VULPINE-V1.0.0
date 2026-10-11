@@ -915,6 +915,58 @@
         }
       },
       "paramStructure": "by-name"
+    },
+    {
+      "name": "swarm.earnings",
+      "summary": "The swarm's earnings in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E4). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle.",
+      "params": [],
+      "result": {
+        "name": "earnings",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "currency": {
+              "type": "string",
+              "description": "Earnings currency (default VFV, a private unit with 2 minor units; --earnings-ccy)"
+            },
+            "rate_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Minor units per SWC (--earnings-rate); a bookkeeping rate, not a market price"
+            },
+            "source_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "The swarm market issuer account"
+            },
+            "owner_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "The owner's holder account"
+            },
+            "balance_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "The owner's earnings balance"
+            },
+            "postings": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Postings made"
+            },
+            "cycles": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Settled cycles mirrored"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     }
   ]
 }

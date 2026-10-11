@@ -91,6 +91,14 @@ def main(binary, gguf=None):
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
     out = subprocess.run([binary], capture_output=True, text=True, timeout=10)
     check(out.returncode == 2 and '--rpc' in out.stderr, 'refuses to start without --rpc')
+    bad = os.path.join(tempfile.mkdtemp(prefix='zxvd-bad-'), 'run', 'zxvd.sock')
+    out = subprocess.run([binary, '--rpc', bad, '--earnings-rate', '0'], capture_output=True,
+                         text=True, timeout=10)
+    check(out.returncode == 2 and '--earnings-rate' in out.stderr, 'refuses earnings rate 0')
+    out = subprocess.run([binary, '--rpc', bad, '--earnings-ccy', 'vfv'], capture_output=True,
+                         text=True, timeout=20)
+    check(out.returncode == 1 and 'earnings currency' in out.stderr and not os.path.exists(bad),
+          'refuses an earnings currency libzxv does not accept, leaving no socket')
 
     home = tempfile.mkdtemp(prefix='zxvd-test-')
     models = os.path.join(home, 'models')
@@ -130,7 +138,7 @@ def main(binary, gguf=None):
         want = {'zxvd.version', 'zxvd.shutdown', 'swarm.state', 'swarm.ask', 'model.info',
                 'notes.list', 'notes.mark_read', 'net.command', 'update.check',
                 'currency.enable', 'ledger.open_account', 'ledger.post', 'ledger.balance',
-                'ledger.accounts', 'ledger.entries', 'ledger.check'}
+                'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
               'rpc.discover lists every method')
         v = c.ok('zxvd.version')
@@ -158,6 +166,19 @@ def main(binary, gguf=None):
         check(s1['audit'] == 'active' and s1['ledger_audited'] == transfers,
               'the node self-audits every ledger transfer (%d of %d, %s)' %
               (s1['ledger_audited'], transfers, s1['audit']))
+        # ---- the swarm's earnings in the owner's books (zxvd_rpc.h E1-E4) ----
+        ea = c.ok('swarm.earnings')
+        check(ea['currency'] == 'VFV' and ea['rate_minor'] == '1' and
+              int(ea['cycles']) >= 1 and int(ea['postings']) >= 1 and
+              int(ea['balance_minor']) > 0,
+              'swarm.earnings: settled cycles post into the owner\'s books in VFV (%s)' % ea)
+        ob = c.ok('ledger.balance', {'account': ea['owner_account']})
+        oj = c.ok('ledger.entries', {'account': ea['owner_account']})['entries']
+        check(int(ob['equity_minor']) > 0 and
+              sum(int(e['signed_minor']) for e in oj) == int(ob['equity_minor']) and
+              all(e['counterparty'] == ea['source_account'] for e in oj) and
+              [e['reference'] for e in oj][:2] == ['swarm earnings 1', 'swarm earnings 2'][:len(oj)],
+              'the owner\'s VFV journal is the market\'s postings (%d entries)' % len(oj))
         mi = c.ok('model.info')
         if gguf:
             check(mi['loaded'] and mi['arch'] == 'qwen2' and mi['n_vocab'] > 1000,
@@ -229,7 +250,11 @@ def main(binary, gguf=None):
               ent[1]['counterparty'] == O and ent[1]['reference'] == 'E2E-PAY-1',
               'ledger.entries: alice\'s journal')
         acc = c.ok('ledger.accounts')['accounts']
-        check([a['name'] for a in acc] == ['bank', 'alice', 'bob'] and acc[0]['kind'] == 'issuer',
+        usd = [a for a in acc if a['currency'] == 'USD']
+        vfv = [a for a in acc if a['currency'] == 'VFV']
+        check([a['name'] for a in usd] == ['bank', 'alice', 'bob'] and usd[0]['kind'] == 'issuer' and
+              [(a['name'], a['kind']) for a in vfv] ==
+              [('swarm market', 'issuer'), ('owner: swarm earnings', 'holder')],
               'ledger.accounts')
         check(c.ok('ledger.check')['ok'] is True, 'ledger.check: the books balance')
 
