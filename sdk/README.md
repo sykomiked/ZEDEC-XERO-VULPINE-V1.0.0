@@ -61,6 +61,16 @@ health check, exact `Rational` JSON that refuses floats, and a halted
 context that is never answered as a normal response. CI:
 [`.github/workflows/sdk-frameworks.yml`](../.github/workflows/sdk-frameworks.yml).
 
+## Mobile
+
+Mobile SDKs follow the same design as the language SDKs; see
+[`mobile/`](mobile/).
+
+| Platform | Folder | Package | How it binds | Tests |
+|---|---|---|---|---|
+| Android and JVM (Kotlin) | [`kotlin`](mobile/kotlin/) | `org.zedec.zxv.mobile` | JNI shim (Android has no FFM) | 34 on the host JVM; AAR builds for arm64-v8a and x86_64, not yet run on a device |
+| Flutter and Dart | [`dart`](mobile/dart/) | `zxv` | `dart:ffi` | 33 on the host; no Flutter app or iOS run yet |
+
 ## Game engines
 
 Engine kits run deterministic lockstep games on exact rationals, with no

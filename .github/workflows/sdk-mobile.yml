@@ -1,0 +1,151 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Mobile SDKs (sdk/mobile): the Kotlin SDK (JNI shim) on the host JVM, its
+# Android AAR built with the NDK, the Dart/Flutter SDK on the Dart VM, and
+# the iOS xcframework of libzxv for Flutter apps. Every job builds libzxv
+# itself and tests against sdk/conformance/vectors.json.
+name: SDK mobile
+
+on:
+  push:
+    paths:
+      - 'sdk/mobile/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/conformance/**'
+      - 'kernel/src/**'
+      - 'kernel/third_party/**'
+      - '.github/workflows/sdk-mobile.yml'
+  pull_request:
+    paths:
+      - 'sdk/mobile/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/conformance/**'
+      - 'kernel/src/**'
+      - 'kernel/third_party/**'
+      - '.github/workflows/sdk-mobile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GRADLE_VERSION: '8.14.3'
+  NDK_VERSION: '27.2.12479018'
+
+jobs:
+  kotlin-host:
+    name: kotlin ${{ matrix.os }} JDK ${{ matrix.jdk }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+        jdk: ['22', '25']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: JDK ${{ matrix.jdk }} (runs the tests)
+        id: testjdk
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+      - name: JDK 21 (runs Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+      - name: Build libzxv and the test fixtures
+        run: make -C sdk/libzxv all fixtures
+      - name: Kotlin + JNI shim tests against vectors.json
+        run: gradle -p sdk/mobile/kotlin --no-daemon :zxv:test "-Pzxv.testJavaHome=${{ steps.testjdk.outputs.path }}"
+      - name: Test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-tests-${{ matrix.os }}-jdk${{ matrix.jdk }}
+          path: sdk/mobile/kotlin/zxv/build/reports/tests/
+
+  android-aar:
+    name: android aar (arm64-v8a, x86_64)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK packages and NDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${NDK_VERSION}" "cmake;3.22.1"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+      - name: libzxv.so for each ABI (NDK)
+        run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/${NDK_VERSION}" sdk/mobile/kotlin/scripts/build-libzxv-android.sh arm64-v8a x86_64
+      - name: Build the AAR and run Android lint
+        run: gradle -p sdk/mobile/kotlin --no-daemon -Pzxv.android=true :zxv-android:assembleRelease :zxv-android:lintRelease
+      - name: The AAR carries both libraries for both ABIs
+        run: |
+          aar=sdk/mobile/kotlin/android/build/outputs/aar/zxv-android-release.aar
+          unzip -l "$aar"
+          for abi in arm64-v8a x86_64; do
+            for lib in libzxv.so libzxvjni.so; do
+              unzip -l "$aar" | grep -q "jni/$abi/$lib" || { echo "missing jni/$abi/$lib"; exit 1; }
+            done
+          done
+          mkdir -p /tmp/aar && unzip -oq "$aar" -d /tmp/aar
+          readelf -d /tmp/aar/jni/arm64-v8a/libzxvjni.so | grep -q 'NEEDED.*libzxv.so'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zxv-android-aar
+          path: sdk/mobile/kotlin/android/build/outputs/aar/zxv-android-release.aar
+
+  dart:
+    name: dart ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: sdk/mobile/dart
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Build libzxv and the test fixtures
+        run: make -C ../../libzxv all fixtures
+      - run: dart pub get
+      - name: Analyze
+        run: dart analyze --fatal-infos
+      - name: Tests against vectors.json
+        run: |
+          lib=libzxv.so; [ "$RUNNER_OS" = macOS ] && lib=libzxv.dylib
+          ZXV_LIBRARY_PATH="$PWD/../../libzxv/build/$lib" dart test --reporter expanded
+      - name: Example
+        run: ZXV_LIBRARY_PATH="$PWD/../../libzxv/build" dart run example/main.dart
+
+  ios-xcframework:
+    name: ios xcframework (Flutter)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build Zxv.xcframework (device + simulator)
+        run: sdk/mobile/dart/scripts/build-libzxv-xcframework.sh
+      - name: Check the slices
+        run: |
+          fw=sdk/mobile/dart/build/Zxv.xcframework
+          ls -R "$fw"
+          xcrun lipo -info "$fw"/ios-arm64/libzxv.a
+          xcrun lipo -info "$fw"/ios-arm64_x86_64-simulator/libzxv.a
+          nm -gU "$fw"/ios-arm64/libzxv.a | grep -q '_zxv_hex_pack'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zxv.xcframework
+          path: sdk/mobile/dart/build/Zxv.xcframework
