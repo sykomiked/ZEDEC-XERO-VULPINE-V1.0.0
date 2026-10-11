@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A runnable tour of the ABI 1.1 groups: capabilities, exact rationals,
+       attestations, budgets, phase ticks, the swarm economy, post-quantum
+       signatures and deterministic generation. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Zxv.Samples.Agent</RootNamespace>
+    <NoWarn>$(NoWarn);CA1303;CA2007</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Zxv.Sdk/Zxv.Sdk.csproj" />
+  </ItemGroup>
+</Project>

@@ -111,13 +111,18 @@ mac_app() {
     if ! identity_checked; then
         # ad-hoc: the bundle's seal matches its contents, so it runs here;
         # it is not a Developer ID signature and is never notarised
+        [ -f "$app/Contents/Frameworks/libzxv.dylib" ] &&
+            codesign --force --sign - --options runtime "$app/Contents/Frameworks/libzxv.dylib"
         codesign --force --sign - --options runtime --entitlements "$ent" \
             "$app/Contents/MacOS/zxv-engine"
         codesign --force --sign - --options runtime --entitlements "$ent" "$app"
         log "ad-hoc signed (set ZXV_SIGN_IDENTITY for a Developer ID signature)"
         return 0
     fi
-    # inside out: the helper first, then the bundle (no --deep)
+    # inside out: the library and the helper first, then the bundle (no --deep)
+    if [ -f "$app/Contents/Frameworks/libzxv.dylib" ]; then
+        codesign_one "$app/Contents/Frameworks/libzxv.dylib"
+    fi
     codesign_one "$app/Contents/MacOS/zxv-engine" --entitlements "$ent"
     codesign_one "$app" --entitlements "$ent"
     codesign --verify --strict --deep --verbose=2 "$app"

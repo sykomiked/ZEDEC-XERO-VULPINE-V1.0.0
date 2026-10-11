@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const zt_kern_t K_C = {"c", 0, 0, 0, 0};
+static const zt_kern_t K_C = {"c", 0, 0, 0, 0, 0, 0};
 
 uint32_t zt_simd_list(const zt_kern_t **out, uint32_t cap)
 {

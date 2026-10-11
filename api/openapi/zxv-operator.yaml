@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ZXV Operator API, OpenAPI 3.1. Hand-written contract for the sample gateway
-# in bindings/dotnet/samples/Zxv.Gateway. Paths and operationIds match the
+# in sdk/dotnet/samples/Zxv.Gateway. Paths and operationIds match the
 # gateway; tests/Zxv.Gateway.Tests checks that every path the gateway serves
 # is described here and vice versa. The gateway also generates an OpenAPI 3.0
 # document at runtime at /openapi/v1.json.
