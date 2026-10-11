@@ -918,7 +918,7 @@
     },
     {
       "name": "swarm.earnings",
-      "summary": "The swarm's earnings in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E4). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle.",
+      "summary": "The swarm's earnings in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E5). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle. With a books file (--books), accounts brought back at start keep their balance: the run's first cycle is the base and later cycles post only the change (E5).",
       "params": [],
       "result": {
         "name": "earnings",
@@ -962,6 +962,108 @@
               "type": "string",
               "pattern": "^-?[0-9]+$",
               "description": "Settled cycles mirrored"
+            },
+            "resumed": {
+              "type": "boolean",
+              "description": "The accounts came back from the books file (E5)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "mesh.books",
+      "summary": "Settled peer requests in the owner's books (zxvd_rpc.h S1-S4): sales, purchases and the 0.08889% fee the node paid, in VFV, with the demo float posted as 'mesh float' when a purchase needs more than the wallet account holds. The accounts are null until the first settled request.",
+      "params": [],
+      "result": {
+        "name": "mesh",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "currency": {
+              "type": "string",
+              "description": "VFV, the peer book's unit"
+            },
+            "wallet_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "owner: mesh wallet (holder)"
+            },
+            "counterparty_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "mesh counterparties (issuer)"
+            },
+            "fee_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "mesh: assurance fees paid (holder)"
+            },
+            "wallet_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "The wallet account's balance"
+            },
+            "fees_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Fees paid"
+            },
+            "sold": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Sales posted this run"
+            },
+            "bought": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Purchases posted this run"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "books.file",
+      "summary": "Where the owner's books are saved (zxvd_rpc.h F1-F6): an append-only file of SHA-256-chained records, replayed at start. saved is false when the books live in memory only (no --books).",
+      "params": [],
+      "result": {
+        "name": "file",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "saved": {
+              "type": "boolean",
+              "description": "A books file is in use"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Its path"
+            },
+            "records": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Records in the file"
+            },
+            "head": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA-256 chain head after the last record"
+            },
+            "writable": {
+              "type": "boolean",
+              "description": "False after a failed write: the books are read-only until zxvd restarts (F5)"
             }
           }
         }

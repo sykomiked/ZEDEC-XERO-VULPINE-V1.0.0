@@ -85,7 +85,9 @@ CI checks it matches what zxvd serves.
 | `ledger.accounts` | | `accounts` |
 | `ledger.entries` | `account` | `entries` |
 | `ledger.check` | | `ok` |
-| `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles` |
+| `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles`, `resumed` |
+| `mesh.books` | | `currency`, `wallet_account`, `counterparty_account`, `fee_account`, `wallet_minor`, `fees_minor`, `sold`, `bought` |
+| `books.file` | | `saved`, `path`, `records`, `head`, `writable` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -117,6 +119,59 @@ owner's libzxv books, so they show up in a currency next to everything else.
 - `swarm.earnings` reports it; `ledger.balance` and `ledger.entries` on the
   owner account show the postings like any others.
 
+## The books file
+
+`--books PATH` saves the owner's books and reloads them at every start.
+`zxvd --desktop` uses it by default, and the Mac app passes it:
+
+| System | Default books file |
+|---|---|
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/zxv/books.zxvb` |
+| macOS | `~/Library/Application Support/ZXV/books.zxvb` |
+| Windows | `%LOCALAPPDATA%\ZXV\books.zxvb` |
+
+`--books -` keeps the books in memory, as plain `zxvd --rpc` does.
+
+- Every change (a currency, a private unit, an account, a posting) is one
+  line in an append-only file, mode 0600. Each line is a SHA-256 hash and a
+  small JSON record. The hash covers the previous line's hash, so an edited,
+  missing or reordered line breaks the chain.
+- A line is written and synced to disk before the call that made the change
+  answers.
+- At start the file is replayed through the same libzxv calls, and every
+  account and entry must get back its old number. A broken chain, an unknown
+  record or a number that differs stops zxvd from starting; nothing is
+  repaired silently. Move the file aside to start with empty books.
+- A line cut short by a crash was never answered, so it is dropped.
+- If a write fails, that change stays in memory for this run only, the call
+  answers `ZXV_E_IO`, and every later change is refused until zxvd restarts.
+- `books.file` shows the path, the number of records, the chain head and
+  whether the books still take changes.
+
+The earnings accounts come back with their balance (`resumed: true`). The
+swarm itself starts fresh each run, so the first settled cycle of a run is
+the base, and later cycles post only the change from it. The balance never
+goes below zero.
+
+## Mesh sales in your books
+
+Each peer request the node settles (`peer.ask`, or a sale while
+`peer.serve` is on) is posted to the owner's books in VFV:
+
+- The first one opens **mesh counterparties** (issuer), **owner: mesh
+  wallet** and **mesh: assurance fees paid** (holders).
+- A sale posts its price from the counterparties to the wallet. A purchase
+  posts the price to the counterparties and the 0.08889% fee to the fees
+  account.
+- References are `mesh sale T`, `mesh buy T`, `mesh fee T`, where T is the
+  first 16 hex digits of the signed invoice hash, so a request is never
+  posted twice.
+- The peer book starts from a demo float the owner's books never saw. When
+  a purchase needs more than the wallet account holds, the shortfall is
+  posted first as `mesh float T`.
+- `mesh.books` reports the three accounts, the wallet and fee balances, and
+  this run's counts.
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
@@ -134,9 +189,14 @@ installed .deb.
 - The swarm's books (the settlement spine, unit "SWC", never leaves the
   node) and the owner's libzxv books are separate ledgers in one process.
   Only the owner's total holdings cross over, once per cycle, at a fixed
-  rate. Mesh sales to peers are not posted yet, and the owner's earnings
-  account starts again at each start, because the books are not saved to
-  disk yet.
+  rate. Settled mesh requests are posted one by one. A payment the seller
+  refused is not a settled request and is not posted; the signed refusal is
+  the evidence for a dispute. The peer book itself (zxv_peer_host.h) still
+  lives in memory and starts again at each start; only its postings in the
+  owner's books are saved.
+- The books file is protected by its hash chain and its 0600 mode, not by a
+  signature or encryption: anyone who can write it as you can rebuild a
+  valid chain. Back it up like any other file of yours.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS
   has a native shell.

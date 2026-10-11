@@ -16,12 +16,20 @@
 #    include <fcntl.h>
 #    include <errno.h>
 #endif
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32)
+#    include <io.h>
+#    include <fcntl.h>
+#    include <sys/stat.h>
+#endif
+
 #include "zxvd_rpc.h"
+#include "sha256.h"    /* the books file's hash chain */
 #include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
 
@@ -108,6 +116,9 @@ void zxvd_rpc_set_ops(const zxvd_host_ops_t *ops)
 }
 
 static int earn_open(void);
+static void mesh_open(void);
+static int bf_load(void);
+static void bf_close(void);
 static void books_close(void);
 
 int zxvd_rpc_books_open(void)
@@ -122,19 +133,370 @@ int zxvd_rpc_books_open(void)
         CTX = NULL;
         return -1;
     }
-    if (earn_open() != 0) {
+    if (bf_load() != 0 || earn_open() != 0) {
         books_close();
         return -1;
     }
+    mesh_open();
     return 0;
 }
 
 static void books_close(void)
 {
+    bf_close();
     if (CAP) zxv_cap_destroy(CAP);
     if (CTX) zxv_ctx_destroy(CTX);
     CAP = NULL;
     CTX = NULL;
+}
+
+/* ===================== the books file (zxvd_rpc.h F1-F6) ===================== */
+
+#if defined(_WIN32)
+#    define BF_OPEN(p)                                                                             \
+        _open((p), _O_RDWR | _O_CREAT | _O_BINARY | _O_NOINHERIT, _S_IREAD | _S_IWRITE)
+#    define BF_READ(f, b, n)  _read((f), (b), (unsigned) (n))
+#    define BF_WRITE(f, b, n) _write((f), (b), (unsigned) (n))
+#    define BF_SYNC(f)        _commit(f)
+#    define BF_TRUNC(f, n)    _chsize_s((f), (long long) (n))
+#    define BF_END(f)         _lseeki64((f), 0, SEEK_END)
+#    define BF_CLOSE(f)       _close(f)
+#else
+#    define BF_OPEN(p)        open((p), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+#    define BF_READ(f, b, n)  read((f), (b), (n))
+#    define BF_WRITE(f, b, n) write((f), (b), (n))
+#    define BF_SYNC(f)        fsync(f)
+#    define BF_TRUNC(f, n)    ftruncate((f), (off_t) (n))
+#    define BF_END(f)         lseek((f), 0, SEEK_END)
+#    define BF_CLOSE(f)       close(f)
+#endif
+
+#define BF_MAGIC "{\"op\":\"books\",\"v\":1}"
+#define LIT(b, s)                                                                                  \
+    zxvd_buf_raw((b), (s), sizeof(s) - 1) /* a string literal, no count to get wrong */
+#define BF_MAX_LINE 1024u                 /* a record is far smaller; longer is damage */
+
+static char BF_PATH[1024];  /* "" = the books live in memory only (F1) */
+static int BF = -1;         /* the open file */
+static uint8_t BF_HEAD[32]; /* F2: the hash of the last record */
+static uint64_t BF_RECS;    /* records in the file */
+static bool BF_REPLAY;      /* true while F4 replays: nothing is appended */
+static bool BF_BROKEN;      /* F5: a write failed; the books are read-only */
+static char BF_WHY[160];    /* the reason for the last ZXV_E_IO */
+
+int zxvd_rpc_books_file(const char *path)
+{
+    if (CTX) return -1;
+    if (!path || !path[0]) {
+        BF_PATH[0] = 0;
+        return 0;
+    }
+    size_t n = strlen(path);
+    if (n >= sizeof BF_PATH) return -1;
+    memcpy(BF_PATH, path, n + 1);
+    return 0;
+}
+
+static void hex32(const uint8_t h[32], char out[65])
+{
+    static const char X[] = "0123456789abcdef";
+    for (int i = 0; i < 32; i++) {
+        out[2 * i] = X[h[i] >> 4];
+        out[2 * i + 1] = X[h[i] & 15];
+    }
+    out[64] = 0;
+}
+
+/* F2: h = SHA-256(previous h || the record's JSON) */
+static void chain(const uint8_t prev[32], const char *js, size_t n, uint8_t out[32])
+{
+    sha256_ctx_t c;
+    sha256_init(&c);
+    sha256_update(&c, prev, 32);
+    sha256_update(&c, (const uint8_t *) js, n);
+    sha256_final(&c, out);
+}
+
+static bool write_all(int fd, const char *p, size_t n)
+{
+    while (n) {
+        long k = (long) BF_WRITE(fd, p, n);
+        if (k <= 0) return false;
+        p += k;
+        n -= (size_t) k;
+    }
+    return true;
+}
+
+/* F3: append one record and make it durable before the call answers */
+static bool bf_append(const char *js, size_t n)
+{
+    if (BF < 0 || BF_REPLAY) return true;
+    uint8_t h[32];
+    char hx[65];
+    chain(BF_HEAD, js, n, h);
+    hex32(h, hx);
+    hx[64] = ' ';
+    if (!write_all(BF, hx, 65) || !write_all(BF, js, n) || !write_all(BF, "\n", 1) ||
+        BF_SYNC(BF) != 0)
+        return false;
+    memcpy(BF_HEAD, h, 32);
+    BF_RECS++;
+    return true;
+}
+
+static int32_t io_fail(const char *why)
+{
+    snprintf(BF_WHY, sizeof BF_WHY, "%s", why);
+    return ZXV_E_IO;
+}
+
+/* F5: a change libzxv made that the file did not take. It stays in memory
+ * for this run only, and nothing more is accepted until zxvd restarts. */
+static int32_t saved(zxvd_buf_t *rec)
+{
+    bool ok = !rec->oom && bf_append(rec->p, rec->len);
+    free(rec->p);
+    if (ok) return ZXV_OK;
+    BF_BROKEN = true;
+    return io_fail("the books file could not be written: this change is not saved and the "
+                   "books are read-only until zxvd restarts");
+}
+
+static bool writable(int32_t *st)
+{
+    BF_WHY[0] = 0;
+    if (!BF_BROKEN) return true;
+    *st = io_fail("the books file could not be written earlier: the books are read-only until "
+                  "zxvd restarts");
+    return false;
+}
+
+/* The four changes the books can take, each saved as one record (F3). */
+static int32_t bk_ccy(const char *code)
+{
+    int32_t st;
+    uint8_t mu;
+    uint32_t fl;
+    if (!writable(&st)) return st;
+    bool had = zxv_ccy_get(CTX, code, &mu, &fl) == ZXV_OK;
+    if ((st = zxv_ccy_enable_cap(CAP, code)) != ZXV_OK || had) return st;
+    zxvd_buf_t r = {0};
+    LIT(&r, "{\"op\":\"ccy\",\"code\":");
+    zxvd_buf_json_str(&r, code);
+    LIT(&r, "}");
+    return saved(&r);
+}
+
+static int32_t bk_unit(const char *code, uint8_t minor)
+{
+    int32_t st;
+    uint8_t mu;
+    uint32_t fl;
+    if (!writable(&st)) return st;
+    bool had = zxv_ccy_get(CTX, code, &mu, &fl) == ZXV_OK;
+    if ((st = zxv_ccy_register_private_cap(CAP, code, minor)) != ZXV_OK || had) return st;
+    zxvd_buf_t r = {0};
+    LIT(&r, "{\"op\":\"unit\",\"code\":");
+    zxvd_buf_json_str(&r, code);
+    zxvd_buf_printf(&r, ",\"minor\":%u}", (unsigned) minor);
+    return saved(&r);
+}
+
+static int32_t bk_acct(const char *name, const char *ccy, int32_t kind, uint32_t *id)
+{
+    int32_t st;
+    if (!writable(&st)) return st;
+    if ((st = zxv_ledger_open_account_cap(CAP, name, ccy, kind, id)) != ZXV_OK) return st;
+    zxvd_buf_t r = {0};
+    LIT(&r, "{\"op\":\"acct\",\"name\":");
+    zxvd_buf_json_str(&r, name);
+    LIT(&r, ",\"ccy\":");
+    zxvd_buf_json_str(&r, ccy);
+    zxvd_buf_printf(&r, ",\"kind\":%d,\"id\":%u}", (int) kind, (unsigned) *id);
+    return saved(&r);
+}
+
+static int32_t bk_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy, const char *ref,
+                       uint64_t *entry)
+{
+    int32_t st;
+    if (!writable(&st)) return st;
+    if ((st = zxv_ledger_post_cap(CAP, from, to, amount, ccy, ref, entry)) != ZXV_OK) return st;
+    zxvd_buf_t r = {0};
+    zxvd_buf_printf(&r, "{\"op\":\"post\",\"from\":%u,\"to\":%u,\"amount\":\"%lld\",\"ccy\":",
+                    (unsigned) from, (unsigned) to, (long long) amount);
+    zxvd_buf_json_str(&r, ccy);
+    LIT(&r, ",\"ref\":");
+    zxvd_buf_json_str(&r, ref);
+    zxvd_buf_printf(&r, ",\"id\":\"%llu\"}", (unsigned long long) *entry);
+    return saved(&r);
+}
+
+/* F4: apply one replayed record; NULL, or why it does not fit the books */
+static const char *bf_apply(const char *js, size_t n)
+{
+    static w4_jtok_t t[64];
+    int32_t k = w4_json_parse(js, (uint32_t) n, t, 64, 4);
+    if (k <= 0 || t[0].type != W4_J_OBJ) return "not a JSON object";
+    int32_t op = w4_json_get(js, t, k, 0, "op");
+    if (op < 0 || t[op].type != W4_J_STR) return "no op";
+    char a[72], b[16];
+    uint64_t x, y, z;
+    if (BF_RECS == 0)
+        return n == sizeof BF_MAGIC - 1 && !memcmp(js, BF_MAGIC, n) ? NULL
+                                                                    : "not a zxvd books file";
+    if (w4_json_str_eq(js, &t[op], "ccy")) {
+        if (w4_json_get_str(js, t, k, 0, "code", b, sizeof b) < 0) return "bad ccy record";
+        return zxv_ccy_enable_cap(CAP, b) == ZXV_OK ? NULL : "currency refused";
+    }
+    if (w4_json_str_eq(js, &t[op], "unit")) {
+        if (w4_json_get_str(js, t, k, 0, "code", b, sizeof b) < 0 ||
+            w4_json_get_u64(js, t, k, 0, "minor", &x) != W4_OK || x > 255)
+            return "bad unit record";
+        return zxv_ccy_register_private_cap(CAP, b, (uint8_t) x) == ZXV_OK ? NULL : "unit refused";
+    }
+    if (w4_json_str_eq(js, &t[op], "acct")) {
+        uint32_t id;
+        if (w4_json_get_str(js, t, k, 0, "name", a, sizeof a) < 0 ||
+            w4_json_get_str(js, t, k, 0, "ccy", b, sizeof b) < 0 ||
+            w4_json_get_u64(js, t, k, 0, "kind", &x) != W4_OK ||
+            w4_json_get_u64(js, t, k, 0, "id", &y) != W4_OK || x > 1)
+            return "bad account record";
+        if (zxv_ledger_open_account_cap(CAP, a, b, (int32_t) x, &id) != ZXV_OK)
+            return "account refused";
+        return id == y ? NULL : "account number differs";
+    }
+    if (w4_json_str_eq(js, &t[op], "post")) {
+        int32_t am = w4_json_get(js, t, k, 0, "amount"), ei = w4_json_get(js, t, k, 0, "id");
+        int64_t v;
+        uint64_t entry;
+        if (w4_json_get_u64(js, t, k, 0, "from", &x) != W4_OK ||
+            w4_json_get_u64(js, t, k, 0, "to", &y) != W4_OK || x > UINT32_MAX || y > UINT32_MAX ||
+            am < 0 || t[am].type != W4_J_STR || ei < 0 || t[ei].type != W4_J_STR ||
+            w4_json_get_str(js, t, k, 0, "ccy", b, sizeof b) < 0 ||
+            w4_json_get_str(js, t, k, 0, "ref", a, sizeof a) < 0)
+            return "bad posting record";
+        /* the amount and id are decimal strings, as on the socket (M3) */
+        char num[24];
+        if (w4_json_str(js, &t[am], num, sizeof num) <= 0 ||
+            sscanf(num, "%lld", (long long *) &v) != 1 ||
+            w4_json_str(js, &t[ei], num, sizeof num) <= 0 ||
+            sscanf(num, "%llu", (unsigned long long *) &z) != 1)
+            return "bad posting record";
+        if (zxv_ledger_post_cap(CAP, (uint32_t) x, (uint32_t) y, v, b, a, &entry) != ZXV_OK)
+            return "posting refused";
+        return entry == z ? NULL : "entry number differs";
+    }
+    return "unknown op";
+}
+
+static int bf_hexval(char c)
+{
+    return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+}
+
+/* F4: replay the file into the fresh books, then keep it open for appends */
+static int bf_load(void)
+{
+    BF_RECS = 0;
+    BF_BROKEN = false;
+    memset(BF_HEAD, 0, sizeof BF_HEAD);
+    if (!BF_PATH[0]) return 0;
+    BF = BF_OPEN(BF_PATH);
+    if (BF < 0) {
+        fprintf(stderr, "zxvd: cannot open the books file %s: %s\n", BF_PATH, strerror(errno));
+        return -1;
+    }
+#if !defined(_WIN32)
+    struct stat st;
+    if (fstat(BF, &st) != 0 || !S_ISREG(st.st_mode) || st.st_uid != geteuid() ||
+        (st.st_mode & (S_IRWXG | S_IRWXO))) {
+        fprintf(stderr,
+                "zxvd: the books file %s must be a regular file of ours that nobody else can "
+                "read or write (chmod 600)\n",
+                BF_PATH);
+        bf_close();
+        return -1;
+    }
+#endif
+    char *buf = NULL;
+    size_t len = 0, cap = 0;
+    for (;;) {
+        if (len + 65536 > cap) {
+            char *nb = realloc(buf, cap = cap * 2 + 65536);
+            if (!nb) break;
+            buf = nb;
+        }
+        long k = (long) BF_READ(BF, buf + len, cap - len);
+        if (k < 0) {
+            len = (size_t) -1;
+            break;
+        }
+        if (k == 0) break;
+        len += (size_t) k;
+    }
+    int rc = 0;
+    size_t off = 0, line = 0;
+    const char *why = NULL;
+    if (len == (size_t) -1 || (len && !buf)) {
+        why = "read failed";
+        len = 0;
+    }
+    BF_REPLAY = true;
+    while (!why && off < len) {
+        char *nl = memchr(buf + off, '\n', len - off);
+        line++;
+        if (!nl) { /* F6: a record cut short by a crash: drop it */
+            fprintf(stderr, "zxvd: the books file's last record was incomplete; dropped it\n");
+            if (BF_TRUNC(BF, off) != 0) why = "could not drop the incomplete last record";
+            break;
+        }
+        size_t ll = (size_t) (nl - (buf + off));
+        const char *p = buf + off;
+        uint8_t want[32], got[32];
+        if (ll < 66 || ll > BF_MAX_LINE || p[64] != ' ') {
+            why = "malformed record";
+            break;
+        }
+        for (int i = 0; i < 32 && !why; i++) {
+            int hi = bf_hexval(p[2 * i]), lo = bf_hexval(p[2 * i + 1]);
+            if (hi < 0 || lo < 0)
+                why = "malformed record";
+            else
+                want[i] = (uint8_t) (hi << 4 | lo);
+        }
+        if (why) break;
+        chain(BF_HEAD, p + 65, ll - 65, got);
+        if (memcmp(got, want, 32)) {
+            why = "the hash chain is broken (the file was changed outside zxvd)";
+            break;
+        }
+        if ((why = bf_apply(p + 65, ll - 65)) != NULL) break;
+        memcpy(BF_HEAD, got, 32);
+        BF_RECS++;
+        off += ll + 1;
+    }
+    BF_REPLAY = false;
+    free(buf);
+    if (!why && BF_END(BF) < 0) why = "seek failed";
+    if (!why && BF_RECS == 0 && !bf_append(BF_MAGIC, sizeof BF_MAGIC - 1))
+        why = "could not write the first record";
+    if (why) {
+        fprintf(stderr,
+                "zxvd: the books file %s, record %zu: %s. zxvd will not start on damaged "
+                "books; move the file aside to start with empty books.\n",
+                BF_PATH, line, why);
+        bf_close();
+        rc = -1;
+    }
+    return rc;
+}
+
+static void bf_close(void)
+{
+    if (BF >= 0) BF_CLOSE(BF);
+    BF = -1;
 }
 
 void zxvd_rpc_books_close(void)
@@ -147,9 +509,14 @@ void zxvd_rpc_books_close(void)
 static char EARN_CCY[9] = "VFV"; /* E1 */
 static uint64_t EARN_RATE = 1;   /* minor units per SWC */
 static uint32_t EARN_SRC, EARN_OWNER;
-static bool EARN_ACCTS;   /* both accounts are open */
-static int64_t EARN_HELD; /* the owner's balance, minor units */
+static bool EARN_ACCTS;    /* both accounts are open */
+static int64_t EARN_HELD;  /* the owner's balance, minor units */
+static int64_t EARN_CARRY; /* E5: the balance the books file brought back */
+static bool EARN_RESUMED;  /* E5: the accounts came back from the books file */
+static bool EARN_BASED;    /* E5: this run's first sync set EARN_BASE */
+static uint64_t EARN_BASE; /* E5: the SWC held at this run's first sync */
 static uint64_t EARN_POSTS, EARN_SYNCS;
+static uint64_t EARN_REF; /* the last "swarm earnings N" reference number used */
 
 int zxvd_rpc_earnings_set(const char *ccy, uint64_t rate)
 {
@@ -161,17 +528,85 @@ int zxvd_rpc_earnings_set(const char *ccy, uint64_t rate)
     return 0;
 }
 
+/* An account named `name` in `ccy` of `kind`, the first one; true if found. */
+static bool find_account(const char *name, const char *ccy, int32_t kind, uint32_t *id)
+{
+    uint32_t n = 0;
+    if (zxv_ledger_account_count_cap(CAP, &n) != ZXV_OK) return false;
+    for (uint32_t i = 0; i < n; i++) {
+        char nm[80], cc[16];
+        size_t l;
+        int32_t k;
+        if (zxv_ledger_account_name_cap(CAP, i, nm, sizeof nm, &l) == ZXV_OK &&
+            zxv_ledger_account_ccy_cap(CAP, i, cc, sizeof cc, &l) == ZXV_OK &&
+            zxv_ledger_account_kind_cap(CAP, i, &k) == ZXV_OK && k == kind && !strcmp(nm, name) &&
+            !strcmp(cc, ccy)) {
+            *id = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+static int64_t equity(uint32_t acct)
+{
+    int64_t eq = 0;
+    zxv_ledger_balance_cap(CAP, acct, NULL, NULL, &eq);
+    return eq;
+}
+
+static uint32_t entries(uint32_t acct)
+{
+    uint32_t n = 0;
+    zxv_ledger_entry_count_cap(CAP, acct, &n);
+    return n;
+}
+
+/* A currency for postings zxvd makes itself: an ISO 4217 code from the
+ * table, anything else a private unit with 2 minor units (E1). */
+static int32_t own_ccy(const char *code)
+{
+    int32_t st = bk_ccy(code);
+    return st == ZXV_E_CURRENCY ? bk_unit(code, 2) : st;
+}
+
 static int earn_open(void)
 {
-    /* E1: an ISO 4217 code is enabled from the table; anything else (VFV)
-     * is a private unit with 2 minor units */
-    int32_t st = zxv_ccy_enable_cap(CAP, EARN_CCY);
-    if (st == ZXV_E_CURRENCY) st = zxv_ccy_register_private_cap(CAP, EARN_CCY, 2);
+    int32_t st = own_ccy(EARN_CCY);
     EARN_ACCTS = false;
     EARN_HELD = 0;
+    EARN_CARRY = 0;
+    EARN_RESUMED = false;
+    EARN_BASED = false;
+    EARN_BASE = 0;
     EARN_POSTS = 0;
     EARN_SYNCS = 0;
+    EARN_REF = 0;
+    /* E5: accounts the books file brought back carry their balance on */
+    if (st == ZXV_OK && find_account("swarm market", EARN_CCY, ZXV_ACCT_ISSUER, &EARN_SRC) &&
+        find_account("owner: swarm earnings", EARN_CCY, ZXV_ACCT_HOLDER, &EARN_OWNER)) {
+        EARN_ACCTS = true;
+        EARN_RESUMED = true;
+        EARN_HELD = EARN_CARRY = equity(EARN_OWNER);
+        EARN_POSTS = EARN_REF = entries(EARN_OWNER);
+    }
     return st == ZXV_OK ? 0 : -1;
+}
+
+/* Post with a numbered reference "<prefix> N", skipping numbers already
+ * used (a reference is unique in the books, and a resumed book has some). */
+static int32_t post_numbered(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
+                             const char *prefix, uint64_t *counter)
+{
+    int32_t st = ZXV_E_DUPLICATE;
+    for (int tries = 0; tries < 64 && st == ZXV_E_DUPLICATE; tries++) {
+        char ref[36];
+        uint64_t entry;
+        snprintf(ref, sizeof ref, "%.14s %llu", prefix, (unsigned long long) *counter + 1u);
+        st = bk_post(from, to, amount, ccy, ref, &entry);
+        if (st == ZXV_OK || st == ZXV_E_DUPLICATE) ++*counter;
+    }
+    return st;
 }
 
 int zxvd_rpc_earnings_sync(uint64_t held_swc)
@@ -180,26 +615,93 @@ int zxvd_rpc_earnings_sync(uint64_t held_swc)
     if (held_swc > (uint64_t) ZXV_AMOUNT_MAX / EARN_RATE) return -1;
     /* E1: the accounts open with the first settled cycle */
     if (!EARN_ACCTS) {
-        if (zxv_ledger_open_account_cap(CAP, "swarm market", EARN_CCY, ZXV_ACCT_ISSUER,
-                                        &EARN_SRC) != ZXV_OK ||
-            zxv_ledger_open_account_cap(CAP, "owner: swarm earnings", EARN_CCY, ZXV_ACCT_HOLDER,
-                                        &EARN_OWNER) != ZXV_OK)
+        if (bk_acct("swarm market", EARN_CCY, ZXV_ACCT_ISSUER, &EARN_SRC) != ZXV_OK ||
+            bk_acct("owner: swarm earnings", EARN_CCY, ZXV_ACCT_HOLDER, &EARN_OWNER) != ZXV_OK)
             return -1;
         EARN_ACCTS = true;
     }
-    int64_t d = (int64_t) (held_swc * EARN_RATE) - EARN_HELD;
+    /* E5: a resumed book keeps its balance and follows this run's change */
+    if (EARN_RESUMED && !EARN_BASED) {
+        EARN_BASE = held_swc;
+        EARN_BASED = true;
+    }
+    int64_t target = EARN_CARRY + ((int64_t) held_swc - (int64_t) EARN_BASE) * (int64_t) EARN_RATE;
+    if (target < 0) target = 0; /* a holder account never goes below zero */
+    if (target > ZXV_AMOUNT_MAX) return -1;
+    int64_t d = target - EARN_HELD;
     if (d != 0) {
-        char ref[36];
-        uint64_t entry;
-        snprintf(ref, sizeof ref, "swarm earnings %llu", (unsigned long long) EARN_POSTS + 1u);
         int32_t st =
-            d > 0 ? zxv_ledger_post_cap(CAP, EARN_SRC, EARN_OWNER, d, EARN_CCY, ref, &entry)
-                  : zxv_ledger_post_cap(CAP, EARN_OWNER, EARN_SRC, -d, EARN_CCY, ref, &entry);
+            d > 0 ? post_numbered(EARN_SRC, EARN_OWNER, d, EARN_CCY, "swarm earnings", &EARN_REF)
+                  : post_numbered(EARN_OWNER, EARN_SRC, -d, EARN_CCY, "swarm earnings", &EARN_REF);
         if (st != ZXV_OK) return -1;
         EARN_HELD += d;
         EARN_POSTS++;
     }
     EARN_SYNCS++;
+    return 0;
+}
+
+/* ===================== mesh sales and purchases (zxvd_rpc.h S1-S4) ===================== */
+
+#define MESH_CCY "VFV" /* the peer book's unit (zxv_peer_host.h P6) */
+
+static uint32_t MESH_PEERS, MESH_WALLET, MESH_FEES;
+static bool MESH_ACCTS;
+static uint64_t MESH_SOLD, MESH_BOUGHT, MESH_SKIPPED;
+
+static void mesh_open(void)
+{
+    MESH_ACCTS = find_account("mesh counterparties", MESH_CCY, ZXV_ACCT_ISSUER, &MESH_PEERS) &&
+                 find_account("owner: mesh wallet", MESH_CCY, ZXV_ACCT_HOLDER, &MESH_WALLET) &&
+                 find_account("mesh: assurance fees paid", MESH_CCY, ZXV_ACCT_HOLDER, &MESH_FEES);
+    MESH_SOLD = MESH_BOUGHT = MESH_SKIPPED = 0;
+}
+
+static int32_t mesh_post(uint32_t from, uint32_t to, uint64_t amount, const char *what,
+                         const char *tag)
+{
+    char ref[36];
+    uint64_t entry;
+    snprintf(ref, sizeof ref, "mesh %.5s %.16s", what, tag);
+    int32_t st = bk_post(from, to, (int64_t) amount, MESH_CCY, ref, &entry);
+    return st == ZXV_E_DUPLICATE ? ZXV_OK : st; /* S3: already in the books */
+}
+
+int zxvd_rpc_mesh_post(bool sold, uint64_t gross, uint64_t fee, const uint8_t invoice[32])
+{
+    if (!CAP) return 0;
+    if (!invoice || gross > (uint64_t) ZXV_AMOUNT_MAX || fee > (uint64_t) ZXV_AMOUNT_MAX - gross)
+        return -1;
+    if (gross == 0) { /* a free answer moves no money */
+        MESH_SKIPPED++;
+        return 0;
+    }
+    if (!MESH_ACCTS) { /* S1 */
+        if (own_ccy(MESH_CCY) != ZXV_OK ||
+            bk_acct("mesh counterparties", MESH_CCY, ZXV_ACCT_ISSUER, &MESH_PEERS) != ZXV_OK ||
+            bk_acct("owner: mesh wallet", MESH_CCY, ZXV_ACCT_HOLDER, &MESH_WALLET) != ZXV_OK ||
+            bk_acct("mesh: assurance fees paid", MESH_CCY, ZXV_ACCT_HOLDER, &MESH_FEES) != ZXV_OK)
+            return -1;
+        MESH_ACCTS = true;
+    }
+    char tag[65];
+    hex32(invoice, tag);
+    tag[16] = 0; /* S3: the invoice hash's first 64 bits name the request */
+    if (sold) {  /* S2: the price comes in from the counterparties */
+        if (mesh_post(MESH_PEERS, MESH_WALLET, gross, "sale", tag) != ZXV_OK) return -1;
+        MESH_SOLD++;
+        return 0;
+    }
+    /* S2: the price and the fee go out; S4: a shortfall is the demo float */
+    int64_t have = equity(MESH_WALLET);
+    int64_t need = (int64_t) (gross + fee);
+    if (have < need &&
+        mesh_post(MESH_PEERS, MESH_WALLET, (uint64_t) (need - have), "float", tag) != ZXV_OK)
+        return -1;
+    if (mesh_post(MESH_WALLET, MESH_PEERS, gross, "buy", tag) != ZXV_OK ||
+        (fee && mesh_post(MESH_WALLET, MESH_FEES, fee, "fee", tag) != ZXV_OK))
+        return -1;
+    MESH_BOUGHT++;
     return 0;
 }
 
@@ -212,7 +714,7 @@ typedef struct {
     int32_t params;  /* token index of the params object, or -1 */
     zxvd_buf_t *res; /* the "result" value */
     int err;         /* 0, or a JSON-RPC error code */
-    char msg[160];
+    char msg[240];
     int32_t zst; /* libzxv status for E_LIBZXV */
 } call_t;
 
@@ -231,9 +733,12 @@ static void fail(call_t *c, int code, const char *fmt, ...)
 static bool zok(call_t *c, int32_t st)
 {
     if (st == ZXV_OK) return true;
-    char detail[120] = "";
+    char detail[160] = "";
     size_t dl = 0;
-    zxv_last_error(detail, sizeof detail, &dl);
+    if (st == ZXV_E_IO && BF_WHY[0])
+        snprintf(detail, sizeof detail, "%s", BF_WHY);
+    else
+        zxv_last_error(detail, sizeof detail, &dl);
     c->zst = st;
     fail(c, E_LIBZXV, "%s%s%s", zxv_status_name(st), detail[0] ? ": " : "", detail);
     return false;
@@ -471,7 +976,7 @@ static void m_ccy_enable(call_t *c)
 {
     char code[16];
     if (!books(c) || !p_str(c, "code", code, sizeof code, true)) return;
-    if (!zok(c, zxv_ccy_enable_cap(CAP, code))) return;
+    if (!zok(c, bk_ccy(code))) return;
     zxvd_buf_raw(c->res, "{\"enabled\":", 11);
     zxvd_buf_json_str(c->res, code);
     zxvd_buf_raw(c->res, "}", 1);
@@ -491,7 +996,7 @@ static void m_open_account(call_t *c)
         k = ZXV_ACCT_ISSUER;
     else
         return fail(c, E_PARAMS, "kind must be \"holder\" or \"issuer\"");
-    if (!zok(c, zxv_ledger_open_account_cap(CAP, name, ccy, k, &id))) return;
+    if (!zok(c, bk_acct(name, ccy, k, &id))) return;
     zxvd_buf_printf(c->res, "{\"account\":%u}", (unsigned) id);
 }
 
@@ -505,7 +1010,7 @@ static void m_post(call_t *c)
         !p_amount(c, "amount_minor", &amount) || !p_str(c, "currency", ccy, sizeof ccy, true) ||
         !p_str(c, "reference", ref, sizeof ref, true))
         return;
-    if (!zok(c, zxv_ledger_post_cap(CAP, from, to, amount, ccy, ref, &entry))) return;
+    if (!zok(c, bk_post(from, to, amount, ccy, ref, &entry))) return;
     zxvd_buf_printf(c->res, "{\"entry_id\":\"%llu\"}", (unsigned long long) entry);
 }
 
@@ -578,9 +1083,45 @@ static void m_earnings(call_t *c)
                         (unsigned) EARN_OWNER);
     else
         zxvd_buf_raw(c->res, ",\"source_account\":null,\"owner_account\":null", 43);
-    zxvd_buf_printf(
-        c->res, ",\"balance_minor\":\"%lld\",\"postings\":\"%llu\",\"cycles\":\"%llu\"}",
-        (long long) EARN_HELD, (unsigned long long) EARN_POSTS, (unsigned long long) EARN_SYNCS);
+    zxvd_buf_printf(c->res,
+                    ",\"balance_minor\":\"%lld\",\"postings\":\"%llu\",\"cycles\":\"%llu\","
+                    "\"resumed\":%s}",
+                    (long long) EARN_HELD, (unsigned long long) EARN_POSTS,
+                    (unsigned long long) EARN_SYNCS, EARN_RESUMED ? "true" : "false");
+}
+
+static void m_mesh(call_t *c)
+{
+    if (!books(c)) return;
+    zxvd_buf_printf(c->res, "{\"currency\":\"%s\"", MESH_CCY);
+    if (MESH_ACCTS)
+        zxvd_buf_printf(c->res,
+                        ",\"wallet_account\":%u,\"counterparty_account\":%u,\"fee_account\":%u,"
+                        "\"wallet_minor\":\"%lld\",\"fees_minor\":\"%lld\"",
+                        (unsigned) MESH_WALLET, (unsigned) MESH_PEERS, (unsigned) MESH_FEES,
+                        (long long) equity(MESH_WALLET), (long long) equity(MESH_FEES));
+    else
+        zxvd_buf_printf(c->res, "%s",
+                        ",\"wallet_account\":null,\"counterparty_account\":null,"
+                        "\"fee_account\":null,\"wallet_minor\":\"0\",\"fees_minor\":\"0\"");
+    zxvd_buf_printf(c->res, ",\"sold\":\"%llu\",\"bought\":\"%llu\"}",
+                    (unsigned long long) MESH_SOLD, (unsigned long long) MESH_BOUGHT);
+}
+
+static void m_books(call_t *c)
+{
+    if (!books(c)) return;
+    LIT(c->res, "{\"saved\":");
+    zxvd_buf_printf(c->res, "%s", BF >= 0 ? "true" : "false");
+    LIT(c->res, ",\"path\":");
+    if (BF >= 0)
+        zxvd_buf_json_str(c->res, BF_PATH);
+    else
+        LIT(c->res, "null");
+    char hx[65];
+    hex32(BF_HEAD, hx);
+    zxvd_buf_printf(c->res, ",\"records\":\"%llu\",\"head\":\"%s\",\"writable\":%s}",
+                    (unsigned long long) BF_RECS, hx, BF_BROKEN ? "false" : "true");
 }
 
 static void m_check(call_t *c)
@@ -618,6 +1159,8 @@ static const method_t METHODS[] = {
     {"ledger.entries", m_entries},
     {"ledger.check", m_check},
     {"swarm.earnings", m_earnings},
+    {"mesh.books", m_mesh},
+    {"books.file", m_books},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -830,8 +1373,10 @@ int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
         unlinkat(dfd, name, 0); /* stale */
     }
     if (zxvd_rpc_books_open() != 0) {
-        fprintf(stderr, "zxvd: the books could not be opened (libzxv older than ABI 1.3, "
-                        "or the earnings currency was refused)\n");
+        fprintf(
+            stderr,
+            "zxvd: the books could not be opened (a books file problem above, libzxv older than "
+            "ABI 1.3, or the earnings currency was refused)\n");
         return open_fail(dfd, false);
     }
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);

@@ -23,8 +23,11 @@
 #include <wchar.h>
 #include <stdint.h>
 
+#include <sys/resource.h>
+
 #include "zxvd_rpc.h"
 #include "zxv_api.h"
+#include "sha256.h"
 
 static int fails, checks;
 
@@ -377,7 +380,8 @@ static void test_host_methods(void)
               "\"notes.mark_read\",\"net.command\",\"peer.ask\",\"peer.serve\",\"peer.status\","
               "\"update.check\",\"currency.enable\","
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\"]}"));
+              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
+              "\"books.file\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -729,7 +733,7 @@ static void test_earnings(void)
     EXPECT(REQ("1", "swarm.earnings", ""),
            OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":null,"
                    "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
-                   "\"cycles\":\"0\"}"));
+                   "\"cycles\":\"0\",\"resumed\":false}"));
     uint32_t src = (uint32_t) count(rpc(REQ("1", "ledger.accounts", "")), "\"account\":");
     uint32_t own = src + 1u;
     CHECK(zxvd_rpc_earnings_sync(1000) == 0, "earnings: the first cycle posts");
@@ -737,7 +741,7 @@ static void test_earnings(void)
     snprintf(want, sizeof want,                                                                    \
              OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":%u,"           \
                      "\"owner_account\":%u,\"balance_minor\":\"" bal "\",\"postings\":\"" posts    \
-                     "\",\"cycles\":\"" cycles "\"}"),                                             \
+                     "\",\"cycles\":\"" cycles "\",\"resumed\":false}"),                           \
              src, own);                                                                            \
     EXPECT(REQ("1", "swarm.earnings", ""), want)
     EARN("1000", "1", "1");
@@ -784,9 +788,14 @@ static void test_earnings(void)
                  "\"reference\":\"swarm earnings 5\"}"),
              src, own);
     CHECK(has(req, "\"result\""), "a manual posting takes the next reference: %s", OUT.p);
-    CHECK(zxvd_rpc_earnings_sync(7) == -1, "earnings: a refused posting is reported");
-    EARN("5", "4", "5");
-    BAL(own, "1006", "1000", "6");
+    CHECK(zxvd_rpc_earnings_sync(7) == 0, "earnings: a used reference is skipped");
+    EARN("7", "5", "6");
+    BAL(own, "1008", "1000", "8");
+    snprintf(req, sizeof req, REQ("4", "ledger.entries", ",\"params\":{\"account\":%u}"), own);
+    snprintf(want, sizeof want,
+             "\"signed_minor\":\"2\",\"counterparty\":%u,\"reference\":\"swarm earnings 6\"}]",
+             src);
+    CHECK(has(req, want), "earnings: posted as swarm earnings 6: %s", OUT.p);
     EXPECT(REQ("6", "ledger.check", ""), OK("6", "{\"ok\":true}"));
 
     /* another currency and rate: an ISO code is enabled from the table */
@@ -797,7 +806,7 @@ static void test_earnings(void)
     EXPECT(REQ("1", "swarm.earnings", ""),
            OK("1", "{\"currency\":\"USD\",\"rate_minor\":\"100\",\"source_account\":null,"
                    "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
-                   "\"cycles\":\"0\"}"));
+                   "\"cycles\":\"0\",\"resumed\":false}"));
     CHECK(zxvd_rpc_earnings_sync((uint64_t) ZXV_AMOUNT_MAX / 100u + 1u) == -1,
           "earnings: credits times the rate above ZXV_AMOUNT_MAX are refused");
     EXPECT(REQ("1", "ledger.accounts", ""), OK("1", "{\"accounts\":[]}"));
@@ -805,7 +814,7 @@ static void test_earnings(void)
     EXPECT(REQ("1", "swarm.earnings", ""),
            OK("1", "{\"currency\":\"USD\",\"rate_minor\":\"100\",\"source_account\":0,"
                    "\"owner_account\":1,\"balance_minor\":\"300\",\"postings\":\"1\","
-                   "\"cycles\":\"1\"}"));
+                   "\"cycles\":\"1\",\"resumed\":false}"));
     BAL(1u, "300", "0", "300");
     /* a code libzxv refuses keeps the books closed */
     zxvd_rpc_books_close();
@@ -823,9 +832,390 @@ static void test_earnings(void)
     EXPECT(REQ("1", "swarm.earnings", ""),
            OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":1,"
                    "\"owner_account\":2,\"balance_minor\":\"2\",\"postings\":\"1\","
-                   "\"cycles\":\"1\"}"));
+                   "\"cycles\":\"1\",\"resumed\":false}"));
 #undef EARN
 #undef BAL
+}
+
+/* ---------------- the books file (zxvd_rpc.h F1-F6, E5) ---------------- */
+
+static char BOOKS[200];
+
+static long file_size(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 ? (long) st.st_size : -1;
+}
+
+static char *slurp(const char *path, long *n)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    *n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *b = malloc((size_t) *n + 1);
+    if (b && fread(b, 1, (size_t) *n, f) != (size_t) *n) *n = -1;
+    if (b) b[*n > 0 ? *n : 0] = 0;
+    fclose(f);
+    return b;
+}
+
+static void spit(const char *path, const char *b, long n)
+{
+    FILE *f = fopen(path, "wb");
+    if (f) {
+        fwrite(b, 1, (size_t) n, f);
+        fclose(f);
+    }
+    chmod(path, 0600);
+}
+
+/* the chain head after the file's last record (F2), as hex */
+static void last_hash(const char *b, long n, char out[65])
+{
+    out[0] = 0;
+    long end = n - 1, st = end - 1;
+    while (st > 0 && b[st - 1] != '\n') st--;
+    if (end > st + 64) {
+        memcpy(out, b + st, 64);
+        out[64] = 0;
+    }
+}
+
+/* append a record correctly chained after the file's last one */
+static void append_chained(const char *path, const char *js)
+{
+    long n;
+    char *b = slurp(path, &n), hx[65];
+    last_hash(b, n, hx);
+    uint8_t prev[32], h[32];
+    for (int i = 0; i < 32; i++) {
+        unsigned v;
+        sscanf(hx + 2 * i, "%2x", &v);
+        prev[i] = (uint8_t) v;
+    }
+    sha256_ctx_t c;
+    sha256_init(&c);
+    sha256_update(&c, prev, 32);
+    sha256_update(&c, (const uint8_t *) js, strlen(js));
+    sha256_final(&c, h);
+    FILE *f = fopen(path, "ab");
+    for (int i = 0; i < 32; i++) fprintf(f, "%02x", h[i]);
+    fprintf(f, " %s\n", js);
+    fclose(f);
+    free(b);
+}
+
+static void reopen(void)
+{
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0, "the books reopen from the file");
+}
+
+static void test_books_file(void)
+{
+    char tmpl[] = "/tmp/zxvdbooks.XXXXXX", req[400], want[400];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(BOOKS, sizeof BOOKS, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file(BOOKS) == 0, "F1: a books file is set while the books are closed");
+    char longp[1100];
+    memset(longp, 'a', sizeof longp - 1);
+    longp[sizeof longp - 1] = 0;
+    CHECK(zxvd_rpc_books_file(longp) == -1, "F1: too long a path is refused");
+    CHECK(zxvd_rpc_books_open() == 0, "F1: a new books file is created");
+    CHECK(zxvd_rpc_books_file(NULL) == -1, "F1: no change while the books are open");
+    struct stat st;
+    CHECK(stat(BOOKS, &st) == 0 && (st.st_mode & 0777) == 0600, "F1: the file is 0600");
+    long n;
+    char *b = slurp(BOOKS, &n);
+    CHECK(b && n > 66 && !memcmp(b + 65, "{\"op\":\"books\",\"v\":1}\n", 21),
+          "F2: the first record is the books header: %s", b ? b : "(none)");
+    CHECK(b && strstr(b, " {\"op\":\"unit\",\"code\":\"VFV\",\"minor\":2}\n"),
+          "F3: the earnings unit is a record");
+    free(b);
+    CHECK(has(REQ("1", "books.file", ""), "\"saved\":true") && strstr(OUT.p, "\"records\":\"2\"") &&
+              strstr(OUT.p, "\"writable\":true}"),
+          "books.file: saved, 2 records: %s", OUT.p);
+
+    /* owner changes and earnings, all saved */
+    EXPECT(REQ("2", "currency.enable", ",\"params\":{\"code\":\"USD\"}"),
+           OK("2", "{\"enabled\":\"USD\"}"));
+    EXPECT(REQ("2", "currency.enable", ",\"params\":{\"code\":\"USD\"}"),
+           OK("2", "{\"enabled\":\"USD\"}"));
+    EXPECT(
+        REQ("3", "ledger.open_account",
+            ",\"params\":{\"name\":\"bank \\\"one\\\"\",\"currency\":\"USD\",\"kind\":\"issuer\"}"),
+        OK("3", "{\"account\":0}"));
+    EXPECT(REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"cash\",\"currency\":\"USD\"}"),
+           OK("3", "{\"account\":1}"));
+    EXPECT(REQ("4", "ledger.post",
+               ",\"params\":{\"from\":0,\"to\":1,\"amount_minor\":\"9007199254740991\","
+               "\"currency\":\"USD\",\"reference\":\"e2e \\u00e9 1\"}"),
+           OK("4", "{\"entry_id\":\"1\"}"));
+    CHECK(has(REQ("4", "ledger.post",
+                  ",\"params\":{\"from\":1,\"to\":0,\"amount_minor\":-5,"
+                  "\"currency\":\"USD\",\"reference\":\"neg\"}"),
+              "\"name\":\"ZXV_E_RANGE\""),
+          "a refused posting is not saved: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(40) == 0, "earnings: 40 credits");
+    CHECK(zxvd_rpc_earnings_sync(25) == 0, "earnings: 25 credits");
+    b = slurp(BOOKS, &n);
+    size_t lines = 0;
+    for (long i = 0; b && i < n; i++) lines += b[i] == '\n';
+    CHECK(lines == 10, "F3: header, VFV, USD once, 2 + 2 accounts, 1 + 2 postings = 10 (%zu)",
+          lines);
+    free(b);
+
+    /* F4 + E5: everything comes back with the same numbers */
+    reopen();
+    EXPECT(REQ("5", "ledger.accounts", ""),
+           OK("5",
+              "{\"accounts\":[{\"account\":0,\"name\":\"bank \\\"one\\\"\",\"currency\":\"USD\","
+              "\"kind\":\"issuer\"},{\"account\":1,\"name\":\"cash\",\"currency\":\"USD\","
+              "\"kind\":\"holder\"},{\"account\":2,\"name\":\"swarm market\",\"currency\":"
+              "\"VFV\",\"kind\":\"issuer\"},{\"account\":3,\"name\":\"owner: swarm "
+              "earnings\",\"currency\":\"VFV\",\"kind\":\"holder\"}]}"));
+    EXPECT(REQ("6", "ledger.balance", ",\"params\":{\"account\":1}"),
+           OK("6", "{\"debit_minor\":\"9007199254740991\",\"credit_minor\":\"0\","
+                   "\"equity_minor\":\"9007199254740991\"}"));
+    EXPECT(REQ("6", "ledger.entries", ",\"params\":{\"account\":1}"),
+           OK("6", "{\"entries\":[{\"entry_id\":\"1\",\"signed_minor\":\"9007199254740991\","
+                   "\"counterparty\":0,\"reference\":\"e2e \xc3\xa9 1\"}]}"));
+    EXPECT(REQ("7", "swarm.earnings", ""),
+           OK("7", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":2,"
+                   "\"owner_account\":3,\"balance_minor\":\"25\",\"postings\":\"2\","
+                   "\"cycles\":\"0\",\"resumed\":true}"));
+    EXPECT(REQ("8", "ledger.check", ""), OK("8", "{\"ok\":true}"));
+    /* E5: the fresh swarm's holdings are the base; only the change posts */
+    CHECK(zxvd_rpc_earnings_sync(1000) == 0, "E5: first sync of the run sets the base");
+    EXPECT(REQ("7", "swarm.earnings", ""),
+           OK("7", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":2,"
+                   "\"owner_account\":3,\"balance_minor\":\"25\",\"postings\":\"2\","
+                   "\"cycles\":\"1\",\"resumed\":true}"));
+    CHECK(zxvd_rpc_earnings_sync(1010) == 0, "E5: +10 credits");
+    CHECK(has(REQ("7", "swarm.earnings", ""), "\"balance_minor\":\"35\",\"postings\":\"3\""),
+          "E5: 25 carried + 10: %s", OUT.p);
+    CHECK(has(REQ("6", "ledger.entries", ",\"params\":{\"account\":3}"),
+              "\"signed_minor\":\"10\",\"counterparty\":2,\"reference\":\"swarm earnings 3\"}]"),
+          "E5: the next reference continues the numbering: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(900) == 0, "E5: a fall below the carried balance");
+    CHECK(has(REQ("7", "swarm.earnings", ""), "\"balance_minor\":\"0\",\"postings\":\"4\""),
+          "E5: never below zero: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(899) == 0 &&
+              has(REQ("7", "swarm.earnings", ""), "\"postings\":\"4\""),
+          "E5: still zero, no posting");
+    reopen();
+    CHECK(has(REQ("7", "swarm.earnings", ""), "\"balance_minor\":\"0\",\"postings\":\"4\""),
+          "E5: the zero balance came back: %s", OUT.p);
+
+    /* F6: a record cut short by a crash is dropped */
+    long good = file_size(BOOKS);
+    FILE *f = fopen(BOOKS, "ab");
+    fputs("0123456789abcdef {\"op\":\"po", f);
+    fclose(f);
+    reopen();
+    CHECK(file_size(BOOKS) == good, "F6: the file is truncated to its last whole record");
+    EXPECT(REQ("8", "ledger.check", ""), OK("8", "{\"ok\":true}"));
+
+    /* F4: damage stops the books from opening; nothing is repaired */
+    b = slurp(BOOKS, &n);
+    char *copy = malloc((size_t) n + 1);
+    memcpy(copy, b, (size_t) n + 1);
+    char *amt = strstr(copy, "9007199254740991");
+    *amt = '8';
+    spit(BOOKS, copy, n);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == -1, "F4: an edited amount breaks the chain");
+    CHECK(file_size(BOOKS) == n, "F4: the damaged file is left as it was");
+    memcpy(copy, b, (size_t) n + 1);
+    copy[3] = copy[3] == 'a' ? 'b' : 'a';
+    spit(BOOKS, copy, n);
+    CHECK(zxvd_rpc_books_open() == -1, "F4: an edited hash breaks the chain");
+    memcpy(copy, b, (size_t) n + 1);
+    copy[64] = 'x';
+    spit(BOOKS, copy, n);
+    CHECK(zxvd_rpc_books_open() == -1, "F4: a malformed record is refused");
+    memcpy(copy, b, (size_t) n + 1);
+    copy[10] = 'G';
+    spit(BOOKS, copy, n);
+    CHECK(zxvd_rpc_books_open() == -1, "F4: a non-hex hash is refused");
+    char *nl = strchr(copy, '\n');
+    spit(BOOKS, nl + 1, n - (long) (nl + 1 - copy));
+    CHECK(zxvd_rpc_books_open() == -1, "F4: a file without its header is refused");
+    spit(BOOKS, b, n);
+    static const char *const BAD[] = {
+        "{\"op\":\"nope\"}",
+        "[1]",
+        "{\"code\":\"USD\"}",
+        "{\"op\":\"ccy\",\"code\":\"ZZZ\"}",
+        "{\"op\":\"ccy\",\"code\":5}",
+        "{\"op\":\"unit\",\"code\":\"GBP\",\"minor\":2}",
+        "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":256}",
+        "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"USD\",\"kind\":0,\"id\":9}",
+        "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"USD\",\"kind\":2,\"id\":4}",
+        "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"XXX\",\"kind\":0,\"id\":4}",
+        "{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":\"1\",\"ccy\":\"USD\",\"ref\":\"r\","
+        "\"id\":\"99\"}",
+        "{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":1,\"ccy\":\"USD\",\"ref\":\"r\","
+        "\"id\":\"5\"}",
+        "{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":\"x\",\"ccy\":\"USD\",\"ref\":\"r\","
+        "\"id\":\"5\"}",
+        "{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":\"1\",\"ccy\":\"USD\",\"ref\":\"neg\","
+        "\"id\":\"x\"}",
+        "{\"op\":\"post\",\"from\":4294967296,\"to\":1,\"amount\":\"1\",\"ccy\":\"USD\","
+        "\"ref\":\"r\",\"id\":\"5\"}",
+        "{\"op\":\"post\",\"from\":1,\"to\":0,\"amount\":\"1\",\"ccy\":\"USD\","
+        "\"ref\":\"e2e \\u00e9 1\",\"id\":\"5\"}",
+        "{\"op\":\"books\",\"v\":1}",
+    };
+    for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
+        spit(BOOKS, b, n);
+        append_chained(BOOKS, BAD[i]);
+        CHECK(zxvd_rpc_books_open() == -1, "F4: refused: %s", BAD[i]);
+    }
+    /* the same kinds of record, well formed, replay */
+    static const char *const GOOD[] = {
+        "{\"op\":\"ccy\",\"code\":\"EUR\"}",
+        "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":3}",
+        "{\"op\":\"acct\",\"name\":\"y\",\"ccy\":\"EUR\",\"kind\":1,\"id\":4}",
+        "{\"op\":\"acct\",\"name\":\"z\",\"ccy\":\"EUR\",\"kind\":0,\"id\":5}",
+        "{\"op\":\"post\",\"from\":4,\"to\":5,\"amount\":\"7\",\"ccy\":\"EUR\",\"ref\":\"g\","
+        "\"id\":\"6\"}",
+    };
+    spit(BOOKS, b, n);
+    for (size_t i = 0; i < sizeof GOOD / sizeof GOOD[0]; i++) append_chained(BOOKS, GOOD[i]);
+    CHECK(zxvd_rpc_books_open() == 0, "F4: well-formed records of every kind replay");
+    EXPECT(REQ("9", "ledger.balance", ",\"params\":{\"account\":5}"),
+           OK("9", "{\"debit_minor\":\"7\",\"credit_minor\":\"0\",\"equity_minor\":\"7\"}"));
+    CHECK(has(REQ("1", "books.file", ""), "\"records\":\"17\""), "books.file: 17 records: %s",
+          OUT.p);
+    free(copy);
+    free(b);
+
+    /* the file must be ours alone */
+    zxvd_rpc_books_close();
+    chmod(BOOKS, 0640);
+    CHECK(zxvd_rpc_books_open() == -1, "a group-readable books file is refused");
+    chmod(BOOKS, 0600);
+    char lnk[220];
+    snprintf(lnk, sizeof lnk, "%s/link.zxvb", tmpl);
+    CHECK(symlink(BOOKS, lnk) == 0, "symlink");
+    CHECK(zxvd_rpc_books_file(lnk) == 0 && zxvd_rpc_books_open() == -1,
+          "a books file behind a symlink is refused");
+    char dir[220];
+    snprintf(dir, sizeof dir, "%s/adir", tmpl);
+    mkdir(dir, 0700);
+    CHECK(zxvd_rpc_books_file(dir) == 0 && zxvd_rpc_books_open() == -1,
+          "a folder is not a books file");
+    CHECK(zxvd_rpc_books_file(BOOKS) == 0 && zxvd_rpc_books_open() == 0, "back to the file");
+
+    /* F5: a write that fails leaves the books read-only for the run */
+    signal(SIGXFSZ, SIG_IGN);
+    struct rlimit old, lim;
+    getrlimit(RLIMIT_FSIZE, &old);
+    lim = old;
+    lim.rlim_cur = (rlim_t) file_size(BOOKS);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size");
+    snprintf(want, sizeof want, "%s", "\"name\":\"ZXV_E_IO\",\"class\":\"SYSTEM\"}}}");
+    CHECK(has(REQ("10", "ledger.open_account",
+                  ",\"params\":{\"name\":\"lost\",\"currency\":\"EUR\"}"),
+              want) &&
+              strstr(OUT.p, "this change is not saved"),
+          "F5: the change that could not be saved answers ZXV_E_IO: %s", OUT.p);
+    CHECK(has(REQ("10", "ledger.post",
+                  ",\"params\":{\"from\":4,\"to\":5,\"amount_minor\":1,\"currency\":\"EUR\","
+                  "\"reference\":\"after\"}"),
+              want) &&
+              strstr(OUT.p, "could not be written earlier"),
+          "F5: later changes are refused: %s", OUT.p);
+    CHECK(has(REQ("10", "currency.enable", ",\"params\":{\"code\":\"JPY\"}"), want),
+          "F5: a currency too");
+    CHECK(zxvd_rpc_earnings_sync(5000) == 0, "F5: the run's base needs no posting");
+    CHECK(zxvd_rpc_earnings_sync(6000) == -1, "F5: earnings cannot post either");
+    CHECK(has(REQ("10", "books.file", ""), "\"writable\":false}"), "books.file: read-only");
+    EXPECT(REQ("10", "ledger.check", ""), OK("10", "{\"ok\":true}"));
+    setrlimit(RLIMIT_FSIZE, &old);
+    snprintf(req, sizeof req, "%s", REQ("10", "ledger.accounts", ""));
+    CHECK(has(req, "\"name\":\"lost\""), "F5: the unsaved account is in memory this run");
+    reopen();
+    CHECK(!has(req, "\"name\":\"lost\""), "F5: and gone after a restart");
+    CHECK(has(REQ("10", "books.file", ""), "\"writable\":true}"), "writable again");
+
+    /* the in-memory default */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "F1: no file");
+    EXPECT(REQ("11", "books.file", ""),
+           OK("11", "{\"saved\":false,\"path\":null,\"records\":\"0\",\"head\":"
+                    "\"0000000000000000000000000000000000000000000000000000000000000000\","
+                    "\"writable\":true}"));
+    EXPECT(REQ("11", "ledger.accounts", ""), OK("11", "{\"accounts\":[]}"));
+    unlink(lnk);
+    rmdir(dir);
+    unlink(BOOKS);
+    rmdir(tmpl);
+}
+
+/* ---------------- mesh sales in the books (zxvd_rpc.h S1-S4) ---------------- */
+
+static void test_mesh(void)
+{
+    uint8_t inv[32];
+    for (int i = 0; i < 32; i++) inv[i] = (uint8_t) (0xa0 + i);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == 0, "S: nothing to post while closed");
+    CHECK(zxvd_rpc_books_open() == 0, "books open");
+    EXPECT(REQ("1", "mesh.books", ""),
+           OK("1", "{\"currency\":\"VFV\",\"wallet_account\":null,\"counterparty_account\":null,"
+                   "\"fee_account\":null,\"wallet_minor\":\"0\",\"fees_minor\":\"0\","
+                   "\"sold\":\"0\",\"bought\":\"0\"}"));
+    CHECK(zxvd_rpc_mesh_post(true, 0, 0, inv) == 0 &&
+              has(REQ("1", "mesh.books", ""), "\"wallet_account\":null"),
+          "S: a free answer opens nothing");
+    CHECK(zxvd_rpc_mesh_post(true, 100, 7, NULL) == -1, "S: no invoice");
+    CHECK(zxvd_rpc_mesh_post(true, (uint64_t) ZXV_AMOUNT_MAX + 1u, 0, inv) == -1,
+          "S: a price above ZXV_AMOUNT_MAX");
+    CHECK(zxvd_rpc_mesh_post(false, (uint64_t) ZXV_AMOUNT_MAX, 1, inv) == -1,
+          "S: price + fee above ZXV_AMOUNT_MAX");
+    /* the earnings accounts are 0 and 1 (none yet: sync opens them) */
+    CHECK(zxvd_rpc_mesh_post(true, 100, 9, inv) == 0, "S2: a sale");
+    EXPECT(REQ("2", "mesh.books", ""),
+           OK("2", "{\"currency\":\"VFV\",\"wallet_account\":1,\"counterparty_account\":0,"
+                   "\"fee_account\":2,\"wallet_minor\":\"100\",\"fees_minor\":\"0\","
+                   "\"sold\":\"1\",\"bought\":\"0\"}"));
+    EXPECT(REQ("3", "ledger.entries", ",\"params\":{\"account\":1}"),
+           OK("3", "{\"entries\":[{\"entry_id\":\"1\",\"signed_minor\":\"100\","
+                   "\"counterparty\":0,\"reference\":\"mesh sale a0a1a2a3a4a5a6a7\"}]}"));
+    CHECK(zxvd_rpc_mesh_post(true, 100, 9, inv) == 0 &&
+              has(REQ("2", "mesh.books", ""), "\"wallet_minor\":\"100\""),
+          "S3: the same request is not posted twice");
+    inv[0] = 0x01;
+    CHECK(zxvd_rpc_mesh_post(false, 50, 1, inv) == 0, "S2: a purchase");
+    CHECK(has(REQ("2", "mesh.books", ""), "\"wallet_minor\":\"49\",\"fees_minor\":\"1\""),
+          "S2: 50 + fee 1 out of 100: %s", OUT.p);
+    inv[0] = 0x02;
+    CHECK(zxvd_rpc_mesh_post(false, 200, 2, inv) == 0, "S4: a purchase beyond the wallet");
+    CHECK(has(REQ("2", "mesh.books", ""), "\"wallet_minor\":\"0\",\"fees_minor\":\"3\""),
+          "S4: the float covers the 153 short: %s", OUT.p);
+    CHECK(has(REQ("3", "ledger.entries", ",\"params\":{\"account\":1}"),
+              "{\"entry_id\":\"4\",\"signed_minor\":\"153\",\"counterparty\":0,"
+              "\"reference\":\"mesh float 02a1a2a3a4a5a6a7\"},{\"entry_id\":\"5\","
+              "\"signed_minor\":\"-200\",\"counterparty\":0,\"reference\":\"mesh buy "
+              "02a1a2a3a4a5a6a7\"},{\"entry_id\":\"6\",\"signed_minor\":\"-2\",\"counterparty\":2,"
+              "\"reference\":\"mesh fee 02a1a2a3a4a5a6a7\"}"),
+          "S4: float, price and fee: %s", OUT.p);
+    inv[0] = 0x03;
+    CHECK(zxvd_rpc_mesh_post(false, 10, 0, inv) == 0, "S2: a purchase with no fee");
+    CHECK(has(REQ("2", "mesh.books", ""),
+              "\"wallet_minor\":\"0\",\"fees_minor\":\"3\",\"sold\":\"2\",\"bought\":\"3\""),
+          "S2: no fee posting: %s", OUT.p);
+    EXPECT(REQ("4", "ledger.check", ""), OK("4", "{\"ok\":true}"));
+    /* S1: the accounts are found again after a restart (in memory: a new book) */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0, "books open");
+    CHECK(has(REQ("2", "mesh.books", ""), "\"wallet_account\":null"),
+          "in memory, a restart starts empty");
 }
 
 static void test_socket(void)
@@ -1133,6 +1523,8 @@ int main(void)
     test_books_closed();
     test_books();
     test_earnings();
+    test_books_file();
+    test_mesh();
     test_socket();
     free(OUT.p);
     if (fails) {

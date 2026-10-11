@@ -71,6 +71,50 @@
  *   E4  swarm.earnings reports the currency, rate, both accounts, the
  *       balance and the counts; ledger.balance and ledger.entries show the
  *       postings like any others.
+ *   E5  RESUMED. When the books file (F1) brings both accounts back, the
+ *       owner keeps that balance: this run's first sync takes the SWC held
+ *       then as its base, and later syncs follow the change from it
+ *       (balance = carried + (held - base) * rate, never below zero). The
+ *       swarm itself starts fresh each run; the books do not.
+ *
+ * THE BOOKS FILE (--books PATH; zxvd --desktop saves by default)
+ *   F1  Without a path the books live in memory, as before. With one, every
+ *       change to them (a currency, a private unit, an account, a posting)
+ *       is one record in an append-only text file, mode 0600 and ours.
+ *   F2  A record is "<64 hex> <JSON>\n": the hex is SHA-256(previous hash ||
+ *       JSON), from 32 zero bytes, so an edited, dropped or reordered record
+ *       breaks the chain. The first record is {"op":"books","v":1}.
+ *   F3  A record is written and fsync'd before the call that made it
+ *       answers. ref, name and code travel as JSON strings, amounts and
+ *       entry ids as decimal strings, as on the socket.
+ *   F4  At start the file is replayed into fresh books through the same
+ *       libzxv calls. Each account and entry must get back the number it
+ *       had; any mismatch, a broken chain or an unknown record stops zxvd
+ *       from starting (move the file aside to start empty). Nothing is
+ *       repaired silently.
+ *   F5  If a write fails, the change stays in memory for this run only, the
+ *       call answers ZXV_E_IO, and every later change is refused with
+ *       ZXV_E_IO until zxvd restarts (which replays what was saved).
+ *   F6  A last record cut short by a crash (no newline) was never answered;
+ *       it is dropped and the file truncated to the last whole record.
+ *   books.file reports the path, the record count, the chain head and
+ *   whether the books are still writable.
+ *
+ * MESH SALES IN THE BOOKS (zxv_peer_host.h P6)
+ *   S1  The first settled peer request opens three VFV accounts: "mesh
+ *       counterparties" (issuer), "owner: mesh wallet" and "mesh: assurance
+ *       fees paid" (holders).
+ *   S2  A sale posts its price counterparties -> wallet ("mesh sale T"); a
+ *       purchase posts the price wallet -> counterparties ("mesh buy T") and
+ *       the 0.08889% fee wallet -> fees ("mesh fee T"). T is the first 16
+ *       hex digits of the signed invoice hash.
+ *   S3  T makes each posting's reference unique, so a request already in
+ *       the books is never posted twice.
+ *   S4  The peer book's wallet starts from a demo float that the owner's
+ *       books never saw; when a purchase needs more than the wallet account
+ *       holds, the shortfall is posted first as "mesh float T". A payment
+ *       the seller refused (zxv_peer_host.h) is not a settled request and
+ *       is not posted. mesh.books reports the three accounts and counts.
  */
 #ifndef ZXVD_RPC_H
 #define ZXVD_RPC_H
@@ -154,6 +198,13 @@ int zxvd_rpc_earnings_set(const char *ccy, uint64_t rate);
  * open), or -1 when the amount is out of range or libzxv refused the posting
  * (the balance is then unchanged). */
 int zxvd_rpc_earnings_sync(uint64_t held_swc);
+/* F1: the books file, set before the books open; NULL or "" keeps them in
+ * memory. 0, or -1 (books already open, path too long). */
+int zxvd_rpc_books_file(const char *path);
+/* S1-S4: post one settled peer request; sold = this node was the seller.
+ * 0 (also when the books are not open or gross is 0), or -1 when the
+ * amounts are out of range or the books refused a posting. */
+int zxvd_rpc_mesh_post(bool sold, uint64_t gross, uint64_t fee, const uint8_t invoice[32]);
 void zxvd_rpc_set_ops(const zxvd_host_ops_t *ops);
 
 #endif
