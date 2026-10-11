@@ -659,19 +659,24 @@ static bool closed_by_server(int fd)
 
 /* send a buffer larger than the socket's send buffer (8 KiB for AF_UNIX on
  * macOS) without blocking: the server runs on this thread, so it is pumped
- * whenever the buffer is full. Stops if the server closes the client. */
+ * whenever the buffer is full. macOS blocks such a send even with
+ * MSG_DONTWAIT, so the descriptor itself is made non-blocking meanwhile.
+ * Stops if the server closes the client. */
 static void send_pumped(int fd, const char *buf, size_t len)
 {
+    int fl = fcntl(fd, F_GETFL);
+    fcntl(fd, F_SETFL, fl | O_NONBLOCK);
     size_t off = 0;
     for (int tries = 0; off < len && tries < 1000; tries++) {
-        ssize_t k = send(fd, buf + off, len - off, MSG_DONTWAIT);
+        ssize_t k = send(fd, buf + off, len - off, 0);
         if (k > 0) {
             off += (size_t) k;
             continue;
         }
-        if (k < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return;
+        if (k < 0 && errno != EAGAIN && errno != EWOULDBLOCK) break;
         pump(1);
     }
+    fcntl(fd, F_SETFL, fl);
 }
 
 /* zxvd_rpc.h E1-E4. Runs after test_books: the books are open, in VFV. */
