@@ -54,7 +54,13 @@
      "after": "make -C kernel --no-print-directory test-market"},
     {"name": "vhub", "target": "kernel/src/vhub/vhub.c",
      "before": null, "before_note": "new module: V-Bill hub demo, fiat A -> V-Bill -> fiat B on pay_ledger with signed exact pegs and rule plug-ins",
-     "after": "make -C kernel --no-print-directory test-vhub"}
+     "after": "make -C kernel --no-print-directory test-vhub"},
+    {"name": "zxt", "target": "kernel/src/treaty/zxt.c",
+     "before": null, "before_note": "new module: treaty records and Sutra text, validate and lower (first language pillar)",
+     "after": "cd kernel && sh src/treaty/mut_check.sh"},
+    {"name": "zxt_exec", "target": "kernel/src/treaty/zxt_exec.c",
+     "before": null, "before_note": "new module: running a treaty on the engine in userland",
+     "after": "cd kernel && sh src/treaty/mut_check.sh"}
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc", "settle", "zxv_engine", "lpres_hex", "mk_pay", "vhub"],

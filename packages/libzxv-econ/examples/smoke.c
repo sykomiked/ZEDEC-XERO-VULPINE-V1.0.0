@@ -28,6 +28,16 @@ int main(void)
         hops != 3 || cost != 50)
         return 4;
     if (zxv_decompress(&E, legs, n, 2, &fees) || !zxv_engine_check(&E)) return 5;
+    /* the same circle as a treaty, run end to end */
+    static const char treaty[] = "TREATY CIRCLE EUR SETL\nPARTY A 100000 0 1/3\nPARTY B 0 0 1/3\n"
+                                 "PARTY C 0 0 1/3\nOWE A B 5000\nOWE B C 5000\nOWE C A 5000\n"
+                                 "OWE A C 2500\nEND\n";
+    static zxv_engine_t W;
+    zxt_treaty_t t;
+    zxt_result_t r;
+    if (zxt_parse_sutra(treaty, sizeof treaty - 1, &t, NULL) || zxt_exec(&t, &W, seed, &r) ||
+        r.n_leg != 1 || r.leg[0].amount != 2500 || r.balance[2] != 2500)
+        return 7;
     printf("gross 17500 -> 1 leg of %llu via %u hops (cost %llu ppm), fee %llu\n",
            (unsigned long long) legs[0].amount, hops, (unsigned long long) cost,
            (unsigned long long) fees);
