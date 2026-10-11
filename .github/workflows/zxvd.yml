@@ -10,11 +10,11 @@ name: zxvd
 on:
   push:
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
-            'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
+            'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             '.github/workflows/zxvd.yml']
   pull_request:
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
-            'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
+            'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             '.github/workflows/zxvd.yml']
   workflow_dispatch:
 
@@ -56,6 +56,13 @@ jobs:
             kernel/arch/hosted/test_write_gguf.c -o "$RUNNER_TEMP/write_gguf"
           "$RUNNER_TEMP/write_gguf" "$RUNNER_TEMP/tiny-test.gguf"
           python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/tiny-test.gguf"
+      - name: Two nodes, two loopback addresses (UDP discovery, PQ TCP session, paid answer)
+        run: |
+          if [ "$(uname -s)" = Darwin ]; then
+            sudo ifconfig lo0 alias 127.0.0.2 up
+            sudo ifconfig lo0 alias 127.0.0.3 up
+          fi
+          python3 tools/zxv_two_node_demo.py --zxvd "$RUNNER_TEMP/zxvd/zxvd" local --check
       - name: The native shell's socket client against zxvd
         run: |
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c \

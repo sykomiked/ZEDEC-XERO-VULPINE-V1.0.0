@@ -304,6 +304,62 @@ static void m_net(call_t *c)
     zxvd_buf_raw(c->res, "}", 1);
 }
 
+/* ----- peer.* (zxv_peer_host.h) ----- */
+
+static const zxvd_peer_ops_t *PEER;
+
+void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops)
+{
+    PEER = ops;
+}
+
+static bool p_price(call_t *c, const char *key, uint64_t *v)
+{
+    int64_t x;
+    if (!p_amount(c, key, &x)) return false;
+    if (x < 0) {
+        fail(c, E_PARAMS, "\"%s\" must not be negative", key);
+        return false;
+    }
+    *v = (uint64_t) x;
+    return true;
+}
+
+static void m_peer_ask(call_t *c)
+{
+    char peer[64], prompt[4097];
+    uint64_t max_price;
+    if (!PEER || !PEER->ask) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "peer", peer, sizeof peer, true) ||
+        !p_str(c, "prompt", prompt, sizeof prompt, true) ||
+        !p_price(c, "max_price_minor", &max_price))
+        return;
+    const char *why = PEER->ask(peer, prompt, max_price, c->res);
+    if (why) {
+        c->res->len = 0;
+        fail(c, ZXVD_E_PEER, "%s", why);
+    }
+}
+
+static void m_peer_serve(call_t *c)
+{
+    uint64_t price = 0;
+    if (!PEER || !PEER->serve) return fail(c, E_METHOD, "not available");
+    bool on = param(c, "price_minor") >= 0;
+    if (on && !p_price(c, "price_minor", &price)) return;
+    const char *why = PEER->serve(on, price, c->res);
+    if (why) {
+        c->res->len = 0;
+        fail(c, ZXVD_E_PEER, "%s", why);
+    }
+}
+
+static void m_peer_status(call_t *c)
+{
+    if (!PEER || !PEER->status) return fail(c, E_METHOD, "not available");
+    PEER->status(c->res);
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -461,6 +517,9 @@ static const method_t METHODS[] = {
     {"notes.list", m_notes},
     {"notes.mark_read", m_notes_read},
     {"net.command", m_net},
+    {"peer.ask", m_peer_ask},
+    {"peer.serve", m_peer_serve},
+    {"peer.status", m_peer_status},
     {"update.check", m_update},
     {"currency.enable", m_ccy_enable},
     {"ledger.open_account", m_open_account},
