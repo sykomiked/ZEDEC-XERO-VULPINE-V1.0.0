@@ -120,6 +120,19 @@ if [ "$ON_MAC" = 1 ]; then
         "${SRCS[@]}" -o "$WORK/zxv-mac"
     strip -x "$WORK/zxv-mac"
     MAC_ARCHS="universal (Intel + Apple Silicon)"
+    # The app's engine is zxvd: the same swarm plus its JSON-RPC control
+    # socket, linked to libzxv (docs/ZXVD.md). One slice per arch, then lipo.
+    echo "  zxvd + libzxv.dylib, universal (the app's engine with its control socket)"
+    for a in arm64 x86_64; do
+        CC="xcrun clang -arch $a -mmacosx-version-min=10.15" \
+            sh "$HOSTED/build_zxvd.sh" "$WORK/zxvd-$a" >"$WORK/zxvd-$a.log" 2>&1 ||
+            { tail -30 "$WORK/zxvd-$a.log"; echo "zxvd ($a) failed to build" >&2; exit 1; }
+    done
+    lipo -create "$WORK/zxvd-arm64/zxvd" "$WORK/zxvd-x86_64/zxvd" -output "$WORK/zxvd-mac"
+    lipo -create "$WORK/zxvd-arm64/libzxv.dylib" "$WORK/zxvd-x86_64/libzxv.dylib" \
+        -output "$WORK/libzxv.dylib"
+    strip -x "$WORK/zxvd-mac"
+    python3 "$HOSTED/test_zxvd.py" "$WORK/zxvd-$(uname -m | sed 's/aarch64/arm64/')/zxvd"
 else
     build x86_64-macos  "$WORK/zxv-mac-x86_64"
     build aarch64-macos "$WORK/zxv-mac-arm64"
@@ -178,7 +191,18 @@ tested only on tiny test models."
 step "macOS app ($MAC_ARCHS)"
 APP="$WORK/mac/ZXV.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/models"
-cp "$WORK/zxv-mac" "$APP/Contents/MacOS/zxv-engine"
+if [ -f "$WORK/zxvd-mac" ]; then
+    # zxvd finds libzxv in Contents/Frameworks; the shell sees the dylib and
+    # passes --rpc (macos/ZXVApp.m, SOCKET)
+    mkdir -p "$APP/Contents/Frameworks"
+    cp "$WORK/zxvd-mac" "$APP/Contents/MacOS/zxv-engine"
+    cp "$WORK/libzxv.dylib" "$APP/Contents/Frameworks/libzxv.dylib"
+    install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/zxv-engine"
+    echo "  engine: zxvd with its control socket (libzxv.dylib in Contents/Frameworks)"
+else
+    cp "$WORK/zxv-mac" "$APP/Contents/MacOS/zxv-engine"
+    echo "  engine: zxv-host (built off a Mac: no control socket)"
+fi
 chmod 755 "$APP/Contents/MacOS/zxv-engine"
 set +e
 sh "$MACOS/build_macos_shell.sh" "$APP/Contents/MacOS/ZXV"

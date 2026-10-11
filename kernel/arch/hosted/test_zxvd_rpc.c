@@ -301,13 +301,17 @@ static void test_host_methods(void)
     CHECK(!strcmp(last_net, "everything"), "the command reaches the host");
     EXPECT(REQ("8", "net.command", ""), ERR("8", "-32602", "missing string parameter \\\"command\\\""));
     /* 255-byte commands reach the host, 256 do not */
-    k = snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"net.command\",\"params\":{\"command\":\"");
+    k = snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"net.command\",\"params\":{\"command\":\"");
     memset(req + k, 'c', 255);
     strcpy(req + k + 255, "\"}}");
-    CHECK(has(req, "command must be off") && strlen(last_net) == 255, "a 255-byte command reaches the host");
+    CHECK(has(req, "command must be off") && strlen(last_net) == 255,
+          "a 255-byte command reaches the host");
     memset(req + k, 'c', 256);
     strcpy(req + k + 256, "\"}}");
-    CHECK(has(req, "\\\"command\\\" must be a string of at most 255 bytes"), "a 256-byte command is refused");
+    CHECK(has(req, "\\\"command\\\" must be a string of at most 255 bytes"),
+          "a 256-byte command is refused");
     updated = 0;
     EXPECT(REQ("9", "update.check", ""), OK("9", "{\"status\":\"up to date\"}"));
     CHECK(updated == 1, "update.check runs one check");
@@ -419,9 +423,11 @@ static void test_books(void)
     snprintf(req, sizeof req, REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"%s\",\"currency\":\"USD\"}"), nm);
     EXPECT(req, ERR("3", "-32602", "\\\"name\\\" must be a string of at most 63 bytes"));
     /* refused names, currencies and kinds open nothing (the account list is checked below) */
-    EXPECT(REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"a\\u0000b\",\"currency\":\"USD\"}"),
+    EXPECT(REQ("3", "ledger.open_account",
+               ",\"params\":{\"name\":\"a\\u0000b\",\"currency\":\"USD\"}"),
            ERR("3", "-32602", "\\\"name\\\" must not contain NUL"));
-    EXPECT(REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"c\",\"currency\":\"0123456789ABCDEF\"}"),
+    EXPECT(REQ("3", "ledger.open_account",
+               ",\"params\":{\"name\":\"c\",\"currency\":\"0123456789ABCDEF\"}"),
            ERR("3", "-32602", "\\\"currency\\\" must be a string of at most 15 bytes"));
     EXPECT(REQ("3", "ledger.open_account",
                ",\"params\":{\"name\":\"c\",\"currency\":\"USD\",\"kind\":\"0123456789ABCDEF\"}"),
@@ -468,11 +474,13 @@ static void test_books(void)
            ERR("4", "-32602", "missing string parameter \\\"reference\\\""));
     EXPECT(POST("1", "2", "1", "0123456789012345678901234567890123456789"),
            ERR("4", "-32602", "\\\"reference\\\" must be a string of at most 39 bytes"));
-    EXPECT(POST("1", "2", "1", "N\\u0000x"), ERR("4", "-32602", "\\\"reference\\\" must not contain NUL"));
-    EXPECT(REQ("4", "ledger.post",
-               ",\"params\":{\"from\":1,\"to\":2,\"amount_minor\":1,\"currency\":\"0123456789ABCDEF\","
-               "\"reference\":\"R10\"}"),
-           ERR("4", "-32602", "\\\"currency\\\" must be a string of at most 15 bytes"));
+    EXPECT(POST("1", "2", "1", "N\\u0000x"),
+           ERR("4", "-32602", "\\\"reference\\\" must not contain NUL"));
+    EXPECT(
+        REQ("4", "ledger.post",
+            ",\"params\":{\"from\":1,\"to\":2,\"amount_minor\":1,\"currency\":\"0123456789ABCDEF\","
+            "\"reference\":\"R10\"}"),
+        ERR("4", "-32602", "\\\"currency\\\" must be a string of at most 15 bytes"));
     EXPECT(POST("1", "2", "1", "R9"), OK("4", "{\"entry_id\":\"4\"}"));
 
     EXPECT(REQ("5", "ledger.balance", ",\"params\":{\"account\":1}"),
@@ -627,8 +635,10 @@ static void test_socket(void)
     snprintf(gws, sizeof gws, "%s/zxvd.sock", gw);
     CHECK(mkdir(gw, 0700) == 0 && chmod(gw, 0770) == 0, "group-writable folder");
     CHECK(zxvd_rpc_open(gws, &OPS) == -1, "a group-writable folder is refused");
-    CHECK(chmod(gw, 0702) == 0 && zxvd_rpc_open(gws, &OPS) == -1, "an other-writable folder is refused");
-    CHECK(chmod(gw, 0700) == 0 && zxvd_rpc_open(gws, &OPS) == 0, "the same folder at 0700 is served");
+    CHECK(chmod(gw, 0702) == 0 && zxvd_rpc_open(gws, &OPS) == -1,
+          "an other-writable folder is refused");
+    CHECK(chmod(gw, 0700) == 0 && zxvd_rpc_open(gws, &OPS) == 0,
+          "the same folder at 0700 is served");
     zxvd_rpc_close();
     rmdir(gw);
     snprintf(gws, sizeof gws, "%s/no/such/zxvd.sock", tmpl);
@@ -761,7 +771,8 @@ static void test_socket(void)
     int cz = connect_to(SOCK); /* takes slot 0 again */
     pump(3);
     send(cz, REQ("14", "swarm.state", "") "\n", sizeof(REQ("14", "swarm.state", "")), 0);
-    CHECK(read_line(cz, line, sizeof line) && !strcmp(line, OK("14", "{\"tick\":7}")), "slot 0 reused");
+    CHECK(read_line(cz, line, sizeof line) && !strcmp(line, OK("14", "{\"tick\":7}")),
+          "slot 0 reused");
 
     zxvd_rpc_close();
     CHECK(closed_by_server(cz) && closed_by_server(again), "close drops every client");

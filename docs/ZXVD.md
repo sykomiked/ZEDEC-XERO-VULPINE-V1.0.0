@@ -96,8 +96,11 @@ Q4_K_M (pinned SHA-256, cached, never in git).
   decision; nothing moves between them yet.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
 - Windows: zxvd builds without the RPC socket (`--rpc` fails there).
-- The Mac app still talks to `zxv-host` over the loopback window; moving the
-  native shell onto the socket is the next wiring step.
+- The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The
+  native shell uses the socket for a polite shutdown and the Dock badge
+  (`macos/zxv_rpc_client.c`, tested against zxvd by `macos/test_rpc_client.py`);
+  the window itself is still the loopback page. A Mac app built off a Mac
+  keeps `zxv-host` and has no socket.
 - `zxv_model_host.h` and libzxv both export `zxv_model_open` and
   `zxv_model_info` with different signatures. Linking libzxv as a shared
   library keeps them apart, and `zxvd_rpc.c` never calls libzxv's model API.

@@ -654,7 +654,8 @@ int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
         return -1;
     }
     if (ensure_dir(path) != 0) {
-        fprintf(stderr, "zxvd: the folder of %s is not usable (missing, not ours, or writable by others)\n",
+        fprintf(stderr,
+                "zxvd: the folder of %s is not usable (missing, not ours, or writable by others)\n",
                 path);
         return -1;
     }

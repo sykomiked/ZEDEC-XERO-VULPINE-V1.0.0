@@ -58,6 +58,7 @@ ZXV writes nothing else: no login item, no launch agent, no files outside these 
 
 - **It runs as a guest.** `swarm_governor` limits the swarm to at most 13/21 of the compute that is free, and always leaves at least 1/8 of RAM untouched. The swarm shrinks when you get busy.
 - **It runs only while it is open.** Closing the window quits ZXV. The engine is tied to the app through a pipe, so it stops even if the app crashes or is force-quit.
+- **A control socket for you only.** Built on a Mac, the engine is zxvd and also listens on `~/Library/Application Support/ZXV/run/zxvd.sock`: a UNIX socket, mode 0600 in a 0700 folder, that answers only processes running as you (docs/ZXVD.md). The app uses it to stop the engine politely on Quit and to show unread notifications on the Dock icon; scripts and the SDKs can use it too. It is removed when the engine stops.
 - **It stays off the network.** The window is served on `127.0.0.1` with a port picked at launch, and never on a network interface. Every API request must carry a random 256-bit token that is new at every launch. The engine also rejects requests whose `Host`, `Origin` or `Sec-Fetch-Site` header shows they came from another site, so a web page in your browser cannot drive or read ZXV. This is the fix for gap 14; see `kernel/arch/hosted/zxv_http_guard.h`.
 - **Links leave the app.** Links in the window open in your default browser. Only the engine's own page can load in the ZXV window.
 
@@ -95,7 +96,8 @@ On a Mac with Xcode or the Command Line Tools, it produces this bundle:
 ZXV.app/Contents/
   Info.plist                 from macos/Info.plist.in (LSUIElement false: Dock icon and menus)
   MacOS/ZXV                  native shell, macos/ZXVApp.m (AppKit + WKWebView), arm64 + x86_64
-  MacOS/zxv-engine           engine, kernel/arch/hosted + every swarm and tensor source, arm64 + x86_64
+  MacOS/zxv-engine           engine: zxvd (docs/ZXVD.md), the swarm plus its JSON-RPC control socket, arm64 + x86_64
+  Frameworks/libzxv.dylib    libzxv, the stable C ABI zxvd's books go through, arm64 + x86_64
   Resources/AppIcon.icns     from kernel/boot/zede_logo.png (needs Pillow)
   Resources/models.manifest  macos/models.manifest
   Resources/zxv-model-fetch.sh
@@ -153,7 +155,7 @@ Release steps on a Mac:
    ```
 
    This step:
-   - Signs `zxv-engine`, then `ZXV.app`, from the inside out with no `--deep`. It uses the Hardened Runtime (`--options runtime`), a secure timestamp and `macos/ZXV.entitlements`.
+   - Signs `Frameworks/libzxv.dylib` and `zxv-engine`, then `ZXV.app`, from the inside out with no `--deep`. It uses the Hardened Runtime (`--options runtime`), a secure timestamp and `macos/ZXV.entitlements`.
    - Verifies the signature with `codesign --verify --strict`.
    - Zips the app with `ditto`, submits it with `notarytool submit --wait` and requires the status `Accepted`; on failure it prints the notary log.
    - Staples the app, then checks it with `stapler validate` and `spctl --assess`.

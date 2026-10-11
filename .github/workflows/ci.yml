@@ -245,6 +245,11 @@ jobs:
           done
           pgrep -fl "ZXV.app/Contents/MacOS/zxv-engine"
           sleep 3
+          # the engine is zxvd: its control socket answers (macos/ZXVApp.m, SOCKET)
+          SOCK="$HOME/Library/Application Support/ZXV/run/zxvd.sock"
+          test -S "$SOCK"
+          cc -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c -o "$RUNNER_TEMP/zxv-rpc-call"
+          "$RUNNER_TEMP/zxv-rpc-call" "$SOCK" '{"jsonrpc":"2.0","id":1,"method":"zxvd.version"}' | grep '"protocol":"zxvd-rpc/1"'
           # a polite Quit (as from the menu); some runners refuse Apple Events
           osascript -e 'tell application id "com.36n9genetics.zxv-swarm" to quit' ||
             echo "::warning::Apple Event quit refused on this runner"
@@ -259,6 +264,7 @@ jobs:
             sleep 1
           done
           if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
+          if [ -e "$SOCK" ]; then echo "the control socket was left behind"; exit 1; fi
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
       - name: Upload the Mac packages
         uses: actions/upload-artifact@v5

@@ -2,7 +2,8 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# build_macos_shell.sh OUT — compile the native shell (ZXVApp.m) as one
+# build_macos_shell.sh OUT — compile the native shell (ZXVApp.m and its
+# zxvd socket client, zxv_rpc_client.c) as one
 # universal binary (arm64 + x86_64), macOS 10.15 and later. Mac only: it
 # needs Xcode or the Command Line Tools (xcrun clang and the macOS SDK).
 # Exit 0 and write OUT, or exit 3 when this is not a Mac (callers then ship
@@ -21,7 +22,7 @@ for a in $ARCHS; do FLAGS="$FLAGS -arch $a"; done
 xcrun clang $FLAGS -mmacosx-version-min=10.15 -fobjc-arc -O2 -Wall -Wextra \
     -Wno-unused-parameter -Werror=objc-method-access -Werror=incompatible-pointer-types \
     -Werror=implicit-function-declaration -Werror=unguarded-availability-new \
-    "$HERE/ZXVApp.m" \
+    -I"$HERE" "$HERE/ZXVApp.m" "$HERE/zxv_rpc_client.c" \
     -framework Cocoa -framework WebKit -framework Security -framework UserNotifications \
     -weak_framework UniformTypeIdentifiers \
     -o "$1"
