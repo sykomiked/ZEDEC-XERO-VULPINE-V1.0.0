@@ -125,6 +125,7 @@ raffle_status_t raffle_guard_check(const raffle_guard_policy_t *pol, const raffl
     uint64_t f, n;
     if (!pol || !cfg || !pl || !fee) return RAFFLE_ERR_ARG;
     raffle_status_t st = gates(pol, cfg, pl, now);
+    if (st == RAFFLE_OK && cfg->mode != RAFFLE_MODE_PAID) st = RAFFLE_ERR_MODE; /* M1 */
     if (st == RAFFLE_OK) st = raffle_quote(cfg, amount, &pl->rate, &f, &n);
     if (st == RAFFLE_OK) st = limits(pol, pl, f, now, epoch);
     if (st != RAFFLE_OK) return st;
@@ -158,4 +159,27 @@ void raffle_guard_commit(const raffle_guard_policy_t *pol, raffle_player_t *pl, 
     }
     if (!pay_add_ok(pl->spent_day, fee, &pl->spent_day)) pl->spent_day = UINT64_MAX;
     if (!pay_add_ok(pl->spent_epoch, fee, &pl->spent_epoch)) pl->spent_epoch = UINT64_MAX;
+}
+
+raffle_rate_t raffle_guard_luck(const raffle_guard_policy_t *pol, const raffle_config_t *cfg,
+                                const uint8_t owner[RAFFLE_ID_LEN], const raffle_luck_t *book,
+                                uint32_t n)
+{
+    raffle_rate_t one = {1, 1};
+    uint8_t id[RAFFLE_ID_LEN];
+    if (!pol || !cfg || !owner || !pol->identity_of) return one; /* G7: fail to 1x */
+    if (!pol->identity_of(pol->identity_ctx, owner, id)) return one;
+    for (uint32_t i = 0; book && i < n; i++)
+        if (pay_memeq(book[i].identity, id, RAFFLE_ID_LEN))
+            return raffle_luck_mult(cfg, book[i].misses);
+    return one;
+}
+
+void raffle_luck_note(raffle_luck_t *rec, bool won)
+{
+    if (!rec) return;
+    if (won)
+        rec->misses = 0;
+    else if (rec->misses != UINT32_MAX)
+        rec->misses++;
 }

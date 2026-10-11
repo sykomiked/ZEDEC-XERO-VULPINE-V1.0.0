@@ -23,8 +23,25 @@
  *       De-duplicating free entries (one per person per epoch) is the
  *       caller's job: it has the identity layer, this module does not.
  *
- * THE FEE (opt-in, separate from the assurance fee)
- * -------------------------------------------------
+ * TWO MODES (owner request 2026-10-11)
+ * -----------------------------------
+ *   M1  SAVINGS (the default, mode 0). Nothing is paid in. The amount a
+ *       player opts in is converted, outside this module, into their own
+ *       V-Notes (finance build); only a share of the REALISED profit those
+ *       notes earn buys tickets: raffle_enter_yield(), fee =
+ *       floor(profit * share), share in (0, 1]. raffle_enter() and every
+ *       other amount-at-a-rate entry are refused (RAFFLE_ERR_MODE).
+ *       HONEST LIMITS: the principal is kept in units, but V-Notes redeem
+ *       at the exact reserve ratio, so their value can still fall; this is
+ *       not a guarantee against loss. Forgone yield can itself count as
+ *       consideration, and prize-linked savings is lawful mainly through
+ *       licensed institutions, so L1 (the switch, default off) still
+ *       governs this mode too.
+ *   M2  PAID (mode 1, opt-in per deployment). The rate slider below: a
+ *       slice of an amount is paid into the pool and is gone.
+ *
+ * THE FEE (PAID mode; opt-in, separate from the assurance fee)
+ * ------------------------------------------------------------
  *   F1  Entry is a separate, opt-in payment. The 0.08889% assurance fee
  *       (pay_assure.h) is untouched: a raffle fee is charged only on an
  *       amount the player chose to put into the raffle.
@@ -103,22 +120,52 @@
  *       (about 9.09%, owner decision 2026-10-11), credited to the Olive Oil
  *       Barrel grant pool account (built in the finance thread; this module
  *       only names the destination). grant_den = 0 turns the slice off.
- *   S3  crown_pot = pool - reserve_skim - grant_pool - nav_slice, to the
+ *   S3  crown_pot = pool - reserve_skim - grant_pool - nav_slice -
+ *       rebate_paid (S6), to the
  *       winning ticket's owner. Every floor's remainder lands in the crown
  *       pot, so the parts always sum to the pool exactly.
- *       raffle_config_check requires skim + grant + nav < 1 (exact, by
+ *       raffle_config_check requires skim + grant + nav + rebate < 1 (exact, by
  *       cross-multiplication in 128 and 192 bits).
  *   S4  raffle_draw() only computes the settlement. raffle_post() hands its
  *       legs to a caller-supplied credit hook (reserve floor, grant pool,
  *       basket NAV, winner), which stages them into ONE balanced ledger posting;
  *       the caller commits that posting and then calls raffle_settle().
  *       Nothing moves inside this module.
+ *   S6  REBATE (default 1/5). rebate = floor(pool * rebate_num /
+ *       rebate_den) goes back to everyone except the winning owner, pro rata
+ *       to what each paid in this epoch: a range with fee f gets
+ *       floor(rebate * f / (pool - winner's fees)). The floors' dust, and
+ *       the whole rebate if nobody else paid, go to the crown pot. With the
+ *       defaults the pot splits about 69.3% crown, 20% rebate, 1.6% reserve
+ *       skim, 9.1% grants. raffle_post() credits each rebate
+ *       (RAFFLE_DEST_REBATE, `who` = the owner).
  *   S5  nav_slice = floor(pool * nav_num / nav_den), default off. Only a
  *       basket token's own pot turns it on (raffle_token.h T7): the slice
  *       is cut from the prize side, never from the reserve skim or the
  *       grant slice, and is credited to RAFFLE_DEST_BASKET_NAV, where the
  *       basket layer (finance build) buys more of that basket's BACKED
  *       components, raising its NAV. This module only names the leg.
+ *
+ * LUCK WEIGHT (owner request 2026-10-11)
+ * -------------------------------------
+ *   W1  A player who keeps entering without winning gets more tickets per
+ *       fee unit: m(n) = min(1 + n * F(20) / F(21), luck_cap), with n
+ *       consecutive non-wins (F(20)/F(21) = 6765/10946, a Fibonacci
+ *       convergent of 1/phi) and luck_cap at most RAFFLE_LUCK_CEIL (8),
+ *       default 5. Any win resets n to 0. Entries with a weight mint
+ *       floor(fee * m) tickets, so odds are no longer exactly fee-
+ *       proportional for those players. The ticket count, not the pool,
+ *       closes the epoch (E1) and the share cap (F6) counts tickets, so a
+ *       weighted player also reaches the cap sooner.
+ *   W2  The weight belongs to a PERSON, not an account: raffle_guard.h
+ *       looks it up through the deployment's verified-identity hook, and
+ *       with no hook every weight is 1 (otherwise splitting play across
+ *       many accounts would farm it). The ladder applies it only to its
+ *       lowest levels (default 24).
+ *   W3  "Eventually wins" holds only as a bounded expected wait in small
+ *       pots: with the cap, a player's chance per epoch is at most
+ *       luck_cap times their fee share, so in a large pot the wait can
+ *       still be very long. Nothing here guarantees a win.
  *
  * Freestanding: no libc, no allocation, no floating point.
  */
@@ -139,6 +186,14 @@
 #define RAFFLE_SKIM_NUM          987u
 #define RAFFLE_SKIM_DEN          61000u
 #define RAFFLE_DEFAULT_FIB_INDEX 18u /* 2584 fee units */
+
+#define RAFFLE_MODE_SAVINGS 0u /* M1, the default */
+#define RAFFLE_MODE_PAID    1u /* M2 */
+
+#define RAFFLE_LUCK_CEIL    8u /* W1: hard ceiling on luck_cap */
+#define RAFFLE_LUCK_DEFAULT 5u
+#define RAFFLE_LUCK_PHI_NUM 6765u  /* F(20) */
+#define RAFFLE_LUCK_PHI_DEN 10946u /* F(21) */
 
 typedef enum {
     RAFFLE_OK = 0,
@@ -166,8 +221,9 @@ typedef enum {
     RAFFLE_ERR_EPOCH_LIMIT = -25, /* G3: would pass the per-epoch limit      */
     RAFFLE_ERR_CONFIRM = -26,     /* G2: exact-amount confirmation missing   */
     /* raffle_token.h */
-    RAFFLE_ERR_EVENT = -27,   /* T2: event not enabled, or an unknown event bit */
-    RAFFLE_ERR_MANIFEST = -28 /* T1: the manifest block is malformed            */
+    RAFFLE_ERR_EVENT = -27,    /* T2: event not enabled, or an unknown event bit */
+    RAFFLE_ERR_MANIFEST = -28, /* T1: the manifest block is malformed            */
+    RAFFLE_ERR_MODE = -29      /* M1/M2: not allowed in this deployment's mode   */
 } raffle_status_t;
 
 /* An exact rational rate num/den (den > 0). */
@@ -183,17 +239,20 @@ typedef struct {
 int raffle_rate_cmp(raffle_rate_t a, raffle_rate_t b);
 
 typedef struct {
-    bool jurisdiction_permits;     /* L1: default false                       */
-    bool free_entry;               /* L2: default false                       */
-    raffle_rate_t min_rate;        /* F2: default 1/100                       */
-    raffle_rate_t max_rate;        /* F2: default 1/2 (the ceiling)           */
-    uint64_t skim_num, skim_den;   /* S1: default 987/61000                 */
-    uint64_t grant_num, grant_den; /* S2: default 5/55; den 0 = no grants   */
-    uint32_t fib_index;            /* E1: default 18 (2584 tickets)           */
-    uint64_t threshold;            /* E1: explicit threshold; 0 = F(fib_index) */
-    uint32_t min_reveals;          /* R3: 0 = every committed party (default) */
-    uint64_t share_num, share_den; /* F6: default 8/21; den 0 = no cap      */
-    uint64_t nav_num, nav_den;     /* S5: default off (den 0)               */
+    bool jurisdiction_permits;       /* L1: default false                       */
+    bool free_entry;                 /* L2: default false                       */
+    raffle_rate_t min_rate;          /* F2: default 1/100                       */
+    raffle_rate_t max_rate;          /* F2: default 1/2 (the ceiling)           */
+    uint64_t skim_num, skim_den;     /* S1: default 987/61000                 */
+    uint64_t grant_num, grant_den;   /* S2: default 5/55; den 0 = no grants   */
+    uint32_t fib_index;              /* E1: default 18 (2584 tickets)           */
+    uint64_t threshold;              /* E1: explicit threshold; 0 = F(fib_index) */
+    uint32_t min_reveals;            /* R3: 0 = every committed party (default) */
+    uint64_t share_num, share_den;   /* F6: default 8/21; den 0 = no cap      */
+    uint64_t nav_num, nav_den;       /* S5: default off (den 0)               */
+    uint32_t mode;                   /* M1/M2: default RAFFLE_MODE_SAVINGS      */
+    uint64_t rebate_num, rebate_den; /* S6: default 1/5; den 0 = off        */
+    uint32_t luck_cap;               /* W1: 1..8, default 5; 1 = no weight  */
 } raffle_config_t;
 
 /* One contiguous run of ticket ids owned by one player. */
@@ -201,6 +260,7 @@ typedef struct {
     uint8_t owner[RAFFLE_ID_LEN];
     uint64_t first;
     uint64_t count;
+    uint64_t fee; /* S6: what this run paid in */
 } raffle_range_t;
 
 typedef enum {
@@ -218,6 +278,8 @@ typedef struct {
     uint64_t reserve_skim; /* S1: to the reserve floor   */
     uint64_t grant_pool;   /* S2: to the grant pool      */
     uint64_t nav_slice;    /* S5: to the basket's NAV    */
+    uint64_t rebate_pool;  /* S6: the rebate slice       */
+    uint64_t rebate_paid;  /* S6: sum of the rebates     */
     uint64_t crown_pot;    /* S3: to the winner          */
     uint8_t header_hash[RAFFLE_HASH_LEN];
     uint8_t seed[RAFFLE_HASH_LEN];
@@ -318,6 +380,25 @@ raffle_status_t raffle_mint_check(const raffle_t *r, const uint8_t owner[RAFFLE_
 raffle_status_t raffle_enter_share(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
                                    const raffle_rate_t *rate, uint64_t fee, raffle_receipt_t *out);
 
+/* M1: a savings entry. fee = floor(profit * share), share in (0, 1]; it
+ * mints floor(fee * luck) tickets (luck NULL = 1; else 1 <= luck <=
+ * luck_cap, see raffle_luck_mult). Allowed in both modes. */
+raffle_status_t raffle_enter_yield(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t profit,
+                                   raffle_rate_t share, const raffle_rate_t *luck,
+                                   raffle_receipt_t *out);
+
+/* Ladder use: mint `tickets` for `fee` (fee <= tickets <= fee * luck_cap). */
+raffle_status_t raffle_enter_weighted(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN],
+                                      uint64_t amount, const raffle_rate_t *rate, uint64_t fee,
+                                      uint64_t tickets, raffle_receipt_t *out);
+
+/* W1: the weight after `misses` consecutive non-wins, capped at
+ * c->luck_cap. Always >= 1. */
+raffle_rate_t raffle_luck_mult(const raffle_config_t *c, uint32_t misses);
+
+/* W1: floor(fee * m), or 0 on overflow or a weight outside [1, luck_cap]. */
+uint64_t raffle_luck_tickets(const raffle_config_t *c, uint64_t fee, raffle_rate_t m);
+
 /* L2: one free ticket (no fee). Fails with RAFFLE_ERR_DISABLED unless both
  * jurisdiction_permits and free_entry are set. */
 raffle_status_t raffle_free_entry(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN],
@@ -335,7 +416,8 @@ typedef enum {
     RAFFLE_DEST_RESERVE_FLOOR = 0, /* PAY_ASSURE_RESERVE_FLOOR account   */
     RAFFLE_DEST_GRANT_POOL = 1,    /* Olive Oil Barrel grant pool account */
     RAFFLE_DEST_WINNER = 2,        /* `who` = the winning owner           */
-    RAFFLE_DEST_BASKET_NAV = 3     /* S5: the basket token's component buy */
+    RAFFLE_DEST_BASKET_NAV = 3,    /* S5: the basket token's component buy */
+    RAFFLE_DEST_REBATE = 4         /* S6: `who` = a non-winning owner      */
 } raffle_dest_t;
 
 /* Stage one leg; return false to abort. `who` is NULL except for the winner. */
@@ -343,9 +425,12 @@ typedef bool (*raffle_credit_fn)(void *ctx, raffle_dest_t dest, const uint8_t *w
                                  uint64_t amount);
 
 /* S4: call `credit` for the reserve floor, the grant pool, the basket NAV
- * leg (S5) and the winner, in that order, skipping zero legs. Returns false on the first refusal
- * (the caller then discards its staged posting). */
-bool raffle_post(const raffle_settlement_t *s, raffle_credit_fn credit, void *ctx);
+ * leg (S5), each rebate (S6, one per run of tickets, in ticket order) and the
+ * winner, in that order, skipping zero legs. `r` is the closed epoch `s` was
+ * drawn from (the rebates need its runs). Returns false on the first refusal
+ * or a mismatch (the caller then discards its staged posting). */
+bool raffle_post(const raffle_t *r, const raffle_settlement_t *s, raffle_credit_fn credit,
+                 void *ctx);
 
 /* S4: after the caller has posted `s` to the ledger, mark the epoch settled.
  * Refuses a record that raffle_draw would not produce now. */

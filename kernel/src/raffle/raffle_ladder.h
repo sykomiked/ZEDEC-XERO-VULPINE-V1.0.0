@@ -57,25 +57,28 @@
 
 #include "raffle.h"
 
-#define RAFFLE_LADDER_MAX    144u
-#define RAFFLE_LADDER_IDX_LO 13u /* F(13) = 233         */
-#define RAFFLE_LADDER_IDX_HI 40u /* F(40) = 102,334,155 */
+#define RAFFLE_LADDER_MAX         144u
+#define RAFFLE_LADDER_IDX_LO      13u /* F(13) = 233         */
+#define RAFFLE_LADDER_IDX_HI      40u /* F(40) = 102,334,155 */
+#define RAFFLE_LADDER_LUCK_LEVELS 24u /* raffle.h W2: luck weight on levels 0..23 */
 
 typedef struct {
     uint32_t n;
     raffle_t *lv; /* caller storage: n levels */
     uint64_t weight[RAFFLE_LADDER_MAX];
-    uint64_t payments; /* accepted, lifetime          */
-    uint64_t fees;     /* fee units minted, lifetime  */
-    uint64_t cascaded; /* fee units moved up by P2    */
+    uint64_t payments;    /* accepted, lifetime          */
+    uint64_t fees;        /* fee units minted, lifetime  */
+    uint64_t cascaded;    /* fee units moved up by P2    */
+    uint32_t luck_levels; /* W2: the luck weight applies below this level */
 } raffle_ladder_t;
 
 typedef struct {
-    uint64_t fee;                      /* total fee of the payment        */
-    uint64_t share[RAFFLE_LADDER_MAX]; /* tickets minted per level         */
-    uint64_t first[RAFFLE_LADDER_MAX]; /* first ticket id per level        */
-    uint64_t cascaded;                 /* units moved up by P2             */
-    uint32_t closed;                   /* levels this payment closed       */
+    uint64_t fee;                        /* total fee of the payment        */
+    uint64_t share[RAFFLE_LADDER_MAX];   /* fee units per level               */
+    uint64_t tickets[RAFFLE_LADDER_MAX]; /* tickets minted per level (W1)     */
+    uint64_t first[RAFFLE_LADDER_MAX];   /* first ticket id per level        */
+    uint64_t cascaded;                   /* units moved up by P2             */
+    uint32_t closed;                     /* levels this payment closed       */
 } raffle_ladder_receipt_t;
 
 /* K2: the threshold of level j of n. 0 when the arguments are invalid. */
@@ -111,18 +114,20 @@ raffle_status_t raffle_ladder_enter(raffle_ladder_t *L, const uint8_t owner[RAFF
                                     uint64_t amount, const raffle_rate_t *rate,
                                     const uint64_t *weights, raffle_ladder_receipt_t *out);
 
-/* P5: P1-P3 confined to levels [lo, hi]. */
+/* P5: P1-P3 confined to levels [lo, hi]. `luck` (NULL = none) is the
+ * player's weight (raffle.h W1), applied on levels below luck_levels. */
 raffle_status_t raffle_ladder_plan_span(const raffle_ladder_t *L,
                                         const uint8_t owner[RAFFLE_ID_LEN], uint64_t fee,
-                                        const uint64_t *weights, uint32_t lo, uint32_t hi,
-                                        raffle_ladder_receipt_t *plan);
+                                        const uint64_t *weights, const raffle_rate_t *luck,
+                                        uint32_t lo, uint32_t hi, raffle_ladder_receipt_t *plan);
 
-/* P1-P5: enter into levels [lo, hi]. `fee` 0 = quote `amount` at `rate`;
- * otherwise the caller's fee (amount and rate recorded for audit). */
+/* P1-P5: enter into levels [lo, hi]. `fee` 0 = quote `amount` at `rate`
+ * (PAID mode only); otherwise the caller's fee, e.g. a savings tick
+ * (amount and rate recorded for audit). `luck` as in plan_span. */
 raffle_status_t raffle_ladder_enter_span(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
                                          uint64_t amount, const raffle_rate_t *rate, uint64_t fee,
-                                         const uint64_t *weights, uint32_t lo, uint32_t hi,
-                                         raffle_ladder_receipt_t *out);
+                                         const raffle_rate_t *luck, const uint64_t *weights,
+                                         uint32_t lo, uint32_t hi, raffle_ladder_receipt_t *out);
 
 /* P1-P4 with a fee the caller computed; `amount` and `rate` are recorded in
  * each level's chain for audit. */

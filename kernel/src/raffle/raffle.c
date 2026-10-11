@@ -72,6 +72,10 @@ void raffle_config_default(raffle_config_t *c)
     c->min_reveals = 0;
     c->share_num = 8;
     c->share_den = 21;
+    c->mode = RAFFLE_MODE_SAVINGS; /* M1 */
+    c->rebate_num = 1;             /* S6 */
+    c->rebate_den = 5;
+    c->luck_cap = RAFFLE_LUCK_DEFAULT; /* W1 */
 }
 
 int raffle_rate_cmp(raffle_rate_t a, raffle_rate_t b)
@@ -79,45 +83,69 @@ int raffle_rate_cmp(raffle_rate_t a, raffle_rate_t b)
     return pay_u128_cmp(pay_mul64(a.num, b.den), pay_mul64(b.num, a.den));
 }
 
-/* A 192-bit product of a 128-bit and a 64-bit number, as three limbs. */
+/* Small unsigned bignums for S3: up to five 64-bit limbs, little-endian. */
+#define BIG_LIMBS 5
 typedef struct {
-    uint64_t hi, mid, lo;
-} u192;
+    uint64_t l[BIG_LIMBS];
+} big_t;
 
-static u192 mul128x64(pay_u128 a, uint64_t b)
+static void big_set(big_t *a, uint64_t v)
 {
-    pay_u128 l = pay_mul64(a.lo, b), h = pay_mul64(a.hi, b);
-    u192 r;
-    r.lo = l.lo;
-    r.mid = l.hi + h.lo;
-    r.hi = h.hi + (r.mid < l.hi ? 1u : 0u);
-    return r;
+    pay_memset(a, 0, sizeof *a);
+    a->l[0] = v;
 }
 
-static int cmp192(u192 a, u192 b)
+static void big_mul64(big_t *a, uint64_t v) /* the callers keep it inside 320 bits */
 {
-    if (a.hi != b.hi) return a.hi < b.hi ? -1 : 1;
-    if (a.mid != b.mid) return a.mid < b.mid ? -1 : 1;
-    if (a.lo != b.lo) return a.lo < b.lo ? -1 : 1;
+    uint64_t carry = 0;
+    for (int i = 0; i < BIG_LIMBS; i++) {
+        pay_u128 p = pay_u128_add64(pay_mul64(a->l[i], v), carry);
+        a->l[i] = p.lo;
+        carry = p.hi;
+    }
+}
+
+static void big_add(big_t *a, const big_t *b)
+{
+    uint64_t carry = 0;
+    for (int i = 0; i < BIG_LIMBS; i++) {
+        uint64_t x = a->l[i] + carry;
+        uint64_t c1 = x < carry ? 1u : 0u;
+        a->l[i] = x + b->l[i];
+        carry = c1 + (a->l[i] < x ? 1u : 0u);
+    }
+}
+
+static int big_cmp(const big_t *a, const big_t *b)
+{
+    for (int i = BIG_LIMBS - 1; i >= 0; i--)
+        if (a->l[i] != b->l[i]) return a->l[i] < b->l[i] ? -1 : 1;
     return 0;
 }
 
-/* S3: skim + grant + nav < 1, exactly. With D = skim_den * grant_den (128
- * bits), the room left after skim and grant is
- *     R = D - skim_num * grant_den - grant_num * skim_den   (out of D),
- * computed without wrapping because each ratio is already below 1; the NAV
- * slice fits iff nav_num * D < nav_den * R (192 bits). Each ratio's
- * num < den is checked by the caller first. */
+/* S3: skim + grant + nav + rebate < 1, exactly: with the ratios that are on
+ * (den != 0), sum_i num_i * prod_{j != i} den_j < prod_j den_j. At most four
+ * 64-bit factors per product (256 bits), so five limbs never overflow. */
 static bool split_fits(const raffle_config_t *c)
 {
-    uint64_t gn = c->grant_den ? c->grant_num : 0, gd = c->grant_den ? c->grant_den : 1;
-    pay_u128 d = pay_mul64(c->skim_den, gd);
-    pay_u128 rest = pay_u128_sub(d, pay_mul64(c->skim_num, gd)); /* > 0 */
-    pay_u128 g = pay_mul64(gn, c->skim_den);
-    if (pay_u128_cmp(g, rest) >= 0) return false;
-    rest = pay_u128_sub(rest, g);
-    if (!c->nav_den || c->nav_num == 0) return true;
-    return cmp192(mul128x64(d, c->nav_num), mul128x64(rest, c->nav_den)) < 0;
+    uint64_t num[4], den[4];
+    int n = 0;
+    num[n] = c->skim_num;
+    den[n++] = c->skim_den;
+    if (c->grant_den) num[n] = c->grant_num, den[n++] = c->grant_den;
+    if (c->nav_den) num[n] = c->nav_num, den[n++] = c->nav_den;
+    if (c->rebate_den) num[n] = c->rebate_num, den[n++] = c->rebate_den;
+    big_t sum, prod, t;
+    big_set(&sum, 0);
+    big_set(&prod, 1);
+    for (int i = 0; i < n; i++) {
+        big_mul64(&prod, den[i]);
+        big_set(&t, num[i]);
+        for (int j = 0; j < n; j++)
+            if (j != i) big_mul64(&t, den[j]);
+        big_add(&sum, &t);
+    }
+    return big_cmp(&sum, &prod) < 0;
 }
 
 raffle_status_t raffle_config_check(const raffle_config_t *c)
@@ -131,6 +159,9 @@ raffle_status_t raffle_config_check(const raffle_config_t *c)
     if (c->skim_den == 0 || c->skim_num >= c->skim_den) return RAFFLE_ERR_CONFIG;
     if (c->grant_den && c->grant_num >= c->grant_den) return RAFFLE_ERR_CONFIG;
     if (c->nav_den && c->nav_num >= c->nav_den) return RAFFLE_ERR_CONFIG;
+    if (c->rebate_den && c->rebate_num >= c->rebate_den) return RAFFLE_ERR_CONFIG;
+    if (c->mode > RAFFLE_MODE_PAID) return RAFFLE_ERR_CONFIG;
+    if (c->luck_cap < 1 || c->luck_cap > RAFFLE_LUCK_CEIL) return RAFFLE_ERR_CONFIG;
     if (!split_fits(c)) return RAFFLE_ERR_CONFIG; /* S3 */
     if (c->fib_index < RAFFLE_FIB_MIN || c->fib_index > RAFFLE_FIB_MAX) return RAFFLE_ERR_CONFIG;
     if (c->min_reveals > RAFFLE_MAX_PARTIES) return RAFFLE_ERR_CONFIG;
@@ -234,7 +265,7 @@ static void header_hash(const raffle_t *r, uint8_t out[RAFFLE_HASH_LEN])
 {
     pre_t p;
     p.len = 0;
-    pre_str(&p, "ZXV-RAFFLE-HDR6");
+    pre_str(&p, "ZXV-RAFFLE-HDR7");
     pre_u64(&p, r->epoch);
     pre_u64(&p, r->cfg.min_rate.num);
     pre_u64(&p, r->cfg.min_rate.den);
@@ -246,6 +277,10 @@ static void header_hash(const raffle_t *r, uint8_t out[RAFFLE_HASH_LEN])
     pre_u64(&p, r->cfg.grant_den);
     pre_u64(&p, r->cfg.nav_num);
     pre_u64(&p, r->cfg.nav_den);
+    pre_u64(&p, r->cfg.mode);
+    pre_u64(&p, r->cfg.rebate_num);
+    pre_u64(&p, r->cfg.rebate_den);
+    pre_u64(&p, r->cfg.luck_cap);
     pre_u64(&p, r->threshold);
     pre_u64(&p, r->cfg.share_num);
     pre_u64(&p, r->cfg.share_den);
@@ -318,7 +353,7 @@ raffle_status_t raffle_mint_check(const raffle_t *r, const uint8_t owner[RAFFLE_
 }
 
 /* Mint `count` tickets to `owner` for `fee` (kind 0 = paid, 1 = free, 2 = a
- * ladder share) at `rate` (0/1 for a free entry). */
+ * ladder share, 3 = weighted or savings) at `rate` (0/1 for a free entry). */
 static raffle_status_t mint(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
                             raffle_rate_t rate, uint64_t fee, uint64_t count, uint8_t kind,
                             raffle_receipt_t *out)
@@ -333,6 +368,7 @@ static raffle_status_t mint(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uin
         pay_memcpy(g->owner, owner, RAFFLE_ID_LEN);
         g->first = first;
         g->count = count;
+        g->fee = fee;
         if (r->tally) {
             raffle_tally_t *t = &r->tally[tally_slot(r, owner)];
             if (t->held == 0) {
@@ -385,6 +421,7 @@ raffle_status_t raffle_enter(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], ui
     uint64_t fee, n;
     if (!r || !owner) return RAFFLE_ERR_ARG;
     if (!r->cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
+    if (r->cfg.mode != RAFFLE_MODE_PAID) return RAFFLE_ERR_MODE; /* M1 */
     if (r->phase != RAFFLE_OPEN) return RAFFLE_ERR_PHASE;
     raffle_status_t st = raffle_quote(&r->cfg, amount, rate, &fee, &n);
     if (st != RAFFLE_OK) return st;
@@ -398,6 +435,59 @@ raffle_status_t raffle_enter_share(raffle_t *r, const uint8_t owner[RAFFLE_ID_LE
     if (!r || !owner) return RAFFLE_ERR_ARG;
     if (fee == 0) return RAFFLE_ERR_DUST;
     return mint(r, owner, amount, rate ? *rate : r->cfg.min_rate, fee, fee, 2, out);
+}
+
+raffle_rate_t raffle_luck_mult(const raffle_config_t *c, uint32_t misses)
+{
+    raffle_rate_t m = {1, 1};
+    if (!c || c->luck_cap <= 1 || misses == 0) return m;
+    /* 1 + n * F(20)/F(21) = (F(21) + n * F(20)) / F(21); n < 2^32, no wrap */
+    uint64_t num = RAFFLE_LUCK_PHI_DEN + (uint64_t) misses * RAFFLE_LUCK_PHI_NUM;
+    uint64_t cap = (uint64_t) c->luck_cap * RAFFLE_LUCK_PHI_DEN;
+    if (num >= cap) {
+        m.num = c->luck_cap; /* W1: capped */
+        return m;
+    }
+    m.num = num;
+    m.den = RAFFLE_LUCK_PHI_DEN;
+    return m;
+}
+
+uint64_t raffle_luck_tickets(const raffle_config_t *c, uint64_t fee, raffle_rate_t m)
+{
+    uint64_t t;
+    if (!c || m.den == 0 || m.num < m.den) return 0;
+    raffle_rate_t cap = {c->luck_cap, 1};
+    if (raffle_rate_cmp(m, cap) > 0) return 0;
+    if (!pay_muldiv(fee, m.num, m.den, &t, 0)) return 0;
+    return t;
+}
+
+raffle_status_t raffle_enter_weighted(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN],
+                                      uint64_t amount, const raffle_rate_t *rate, uint64_t fee,
+                                      uint64_t tickets, raffle_receipt_t *out)
+{
+    uint64_t most;
+    if (!r || !owner) return RAFFLE_ERR_ARG;
+    if (fee == 0) return RAFFLE_ERR_DUST;
+    if (tickets < fee) return RAFFLE_ERR_ARG;
+    if (pay_muldiv(fee, r->cfg.luck_cap, 1, &most, 0) && tickets > most) return RAFFLE_ERR_ARG;
+    return mint(r, owner, amount, rate ? *rate : r->cfg.min_rate, fee, tickets, 3, out);
+}
+
+raffle_status_t raffle_enter_yield(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t profit,
+                                   raffle_rate_t share, const raffle_rate_t *luck,
+                                   raffle_receipt_t *out)
+{
+    uint64_t fee, tickets;
+    if (!r || !owner) return RAFFLE_ERR_ARG;
+    if (!r->cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
+    if (share.den == 0 || share.num == 0 || share.num > share.den) return RAFFLE_ERR_RATE;
+    (void) pay_muldiv(profit, share.num, share.den, &fee, 0); /* <= profit */
+    if (fee == 0) return RAFFLE_ERR_DUST;
+    tickets = luck ? raffle_luck_tickets(&r->cfg, fee, *luck) : fee;
+    if (tickets == 0) return RAFFLE_ERR_RATE; /* a weight outside [1, luck_cap] */
+    return mint(r, owner, profit, share, fee, tickets, 3, out);
 }
 
 raffle_status_t raffle_free_entry(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN],
@@ -470,11 +560,37 @@ bool raffle_pick(const uint8_t seed[RAFFLE_HASH_LEN], uint64_t t, uint64_t *out)
     return false;
 }
 
+/* S6: the rebate of each run not owned by `winner`, pro rata to its fee
+ * over everyone else's fees. Returns their sum; with `credit`, also posts
+ * each one (stopping, with *ok = false, at the first refusal). */
+static uint64_t rebates(const raffle_t *r, const uint8_t winner[RAFFLE_ID_LEN], uint64_t pool,
+                        raffle_credit_fn credit, void *ctx, bool *ok)
+{
+    uint64_t wfee = 0, sum = 0;
+    if (pool == 0) return 0;
+    for (uint32_t i = 0; i < r->range_len; i++)
+        if (pay_memeq(r->ranges[i].owner, winner, RAFFLE_ID_LEN)) wfee += r->ranges[i].fee;
+    uint64_t base = r->pool - wfee; /* fees of runs sum to the pool */
+    if (base == 0) return 0;        /* nobody else paid: it stays in the crown pot */
+    for (uint32_t i = 0; i < r->range_len; i++) {
+        const raffle_range_t *g = &r->ranges[i];
+        uint64_t x = 0;
+        if (!g->fee || pay_memeq(g->owner, winner, RAFFLE_ID_LEN)) continue;
+        (void) pay_muldiv(pool, g->fee, base, &x, 0); /* <= pool */
+        sum += x;
+        if (credit && x && !credit(ctx, RAFFLE_DEST_REBATE, g->owner, x)) {
+            *ok = false;
+            return sum;
+        }
+    }
+    return sum;
+}
+
 static void settlement_link(const raffle_settlement_t *s, uint8_t out[RAFFLE_HASH_LEN])
 {
     pre_t p;
     p.len = 0;
-    pre_str(&p, "ZXV-RAFFLE-SETTLE2");
+    pre_str(&p, "ZXV-RAFFLE-SETTLE3");
     pre_u64(&p, s->epoch);
     pre_bytes(&p, s->header_hash, RAFFLE_HASH_LEN);
     pre_bytes(&p, s->seed, RAFFLE_HASH_LEN);
@@ -484,6 +600,8 @@ static void settlement_link(const raffle_settlement_t *s, uint8_t out[RAFFLE_HAS
     pre_u64(&p, s->reserve_skim);
     pre_u64(&p, s->grant_pool);
     pre_u64(&p, s->nav_slice);
+    pre_u64(&p, s->rebate_pool);
+    pre_u64(&p, s->rebate_paid);
     pre_u64(&p, s->crown_pot);
     sha3_256(p.buf, p.len, out);
 }
@@ -525,20 +643,31 @@ raffle_status_t raffle_draw(const raffle_t *r, raffle_settlement_t *out)
         r->cfg.grant_den ? ratio_floor(r->pool, r->cfg.grant_num, r->cfg.grant_den) : 0; /* S2 */
     s.nav_slice =
         r->cfg.nav_den ? ratio_floor(r->pool, r->cfg.nav_num, r->cfg.nav_den) : 0; /* S5 */
-    /* S3: config_check keeps the sum of the three ratios below 1 */
-    s.crown_pot = r->pool - s.reserve_skim - s.grant_pool - s.nav_slice;
+    s.rebate_pool =
+        r->cfg.rebate_den ? ratio_floor(r->pool, r->cfg.rebate_num, r->cfg.rebate_den) : 0;
+    s.rebate_paid = rebates(r, s.winner, s.rebate_pool, 0, 0, 0); /* S6 */
+    /* S3: config_check keeps the sum of the ratios below 1 */
+    s.crown_pot = r->pool - s.reserve_skim - s.grant_pool - s.nav_slice - s.rebate_paid;
     settlement_link(&s, s.link);
     *out = s;
     return RAFFLE_OK;
 }
 
-bool raffle_post(const raffle_settlement_t *s, raffle_credit_fn credit, void *ctx)
+bool raffle_post(const raffle_t *r, const raffle_settlement_t *s, raffle_credit_fn credit,
+                 void *ctx)
 {
-    if (!s || !credit) return false;
+    bool ok = true;
+    if (!r || !s || !credit) return false;
+    if (r->phase != RAFFLE_CLOSED || s->epoch != r->epoch || s->pool != r->pool ||
+        !pay_memeq(s->header_hash, r->header_hash, RAFFLE_HASH_LEN) ||
+        rebates(r, s->winner, s->rebate_pool, 0, 0, 0) != s->rebate_paid)
+        return false;
     if (s->reserve_skim && !credit(ctx, RAFFLE_DEST_RESERVE_FLOOR, 0, s->reserve_skim))
         return false;
     if (s->grant_pool && !credit(ctx, RAFFLE_DEST_GRANT_POOL, 0, s->grant_pool)) return false;
     if (s->nav_slice && !credit(ctx, RAFFLE_DEST_BASKET_NAV, 0, s->nav_slice)) return false;
+    (void) rebates(r, s->winner, s->rebate_pool, credit, ctx, &ok);
+    if (!ok) return false;
     if (s->crown_pot && !credit(ctx, RAFFLE_DEST_WINNER, s->winner, s->crown_pot)) return false;
     return true;
 }

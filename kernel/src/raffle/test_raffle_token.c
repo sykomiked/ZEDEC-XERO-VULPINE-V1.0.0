@@ -46,7 +46,7 @@ static void reveal_one(raffle_t *r, uint8_t tag)
 }
 
 typedef struct {
-    uint64_t to[4];
+    uint64_t to[5];
     unsigned calls;
 } book_t;
 
@@ -81,6 +81,7 @@ int main(void)
 {
     raffle_config_t dep;
     raffle_config_default(&dep);
+    dep.mode = RAFFLE_MODE_PAID; /* slices are paid-mode entries */
     raffle_guard_policy_t pol;
     raffle_guard_policy_default(&pol);
     pol.age_gate = adult;
@@ -331,12 +332,12 @@ int main(void)
           "guard limits apply to token slices");
     reveal_one(&pot, 0x11);
     raffle_settlement_t s;
-    book_t bk = {{0, 0, 0, 0}, 0};
-    CHECK(raffle_draw(&pot, &s) == RAFFLE_OK && raffle_post(&s, credit, &bk), "draw + post");
+    book_t bk = {{0, 0, 0, 0, 0}, 0};
+    CHECK(raffle_draw(&pot, &s) == RAFFLE_OK && raffle_post(&pot, &s, credit, &bk), "draw + post");
     CHECK(bk.to[RAFFLE_DEST_RESERVE_FLOOR] == 150 * 987 / 61000 &&
               bk.to[RAFFLE_DEST_GRANT_POOL] == 150 * 5 / 55 &&
-              bk.to[RAFFLE_DEST_BASKET_NAV] == 150 / 34 &&
-              bk.to[0] + bk.to[1] + bk.to[2] + bk.to[3] == 150 && bk.calls == 4,
+              bk.to[RAFFLE_DEST_BASKET_NAV] == 150 / 34 && bk.to[RAFFLE_DEST_REBATE] == 30 &&
+              bk.to[0] + bk.to[1] + bk.to[2] + bk.to[3] + bk.to[4] == 150 && bk.calls == 6,
           "local pot: skim to the main reserve floor, NAV leg from the prize side");
 
     /* ---- T6: prize-linked savings ---- */
@@ -390,6 +391,7 @@ int main(void)
     raffle_config_t lc;
     raffle_config_default(&lc);
     lc.jurisdiction_permits = true;
+    lc.mode = RAFFLE_MODE_PAID;
     CHECK(raffle_ladder_init(&L, &lc, LADDER_N, RAFFLE_LADDER_IDX_LO, RAFFLE_LADDER_IDX_HI, g_lv,
                              g_rg, 64, NULL, 0, NULL) == RAFFLE_OK,
           "ladder");
@@ -411,20 +413,20 @@ int main(void)
     top2.tier_hi = 3;
     uint64_t before0 = g_lv[0].tickets;
     raffle_token_span(&top2, LADDER_N, &lo, &hi);
-    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, lo, hi,
-                                   &lr) == RAFFLE_OK &&
+    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, NULL, lo,
+                                   hi, &lr) == RAFFLE_OK &&
               lr.fee == 100 && lr.share[0] == 0 && lr.share[1] + lr.share[2] == 100 &&
               g_lv[0].tickets == before0,
           "span 2-3: level 1 untouched, fee conserved");
-    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, 2, 1,
+    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, NULL, 2, 1,
                                    &lr) == RAFFLE_ERR_CONFIG &&
-              raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, 0,
+              raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, NULL, 0,
                                        LADDER_N, &lr) == RAFFLE_ERR_CONFIG,
           "bad spans refused");
     /* If no level in the span can take it, refuse rather than spill. */
     raffle_t keep = g_lv[2];
     g_lv[2].phase = RAFFLE_CLOSED;
-    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, 2, 2,
+    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, NULL, 2, 2,
                                    &lr) == RAFFLE_ERR_PHASE,
           "closed span: refused, no spill");
     g_lv[2] = keep;

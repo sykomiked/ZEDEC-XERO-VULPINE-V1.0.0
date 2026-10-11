@@ -17,7 +17,10 @@ MIN_RATE = (987, 61000)  # the test deployment's floor
 MAX_RATE = (1, 2)
 SKIM = (987, 61000)
 GRANT = (5, 55)
-NAV = (1, 34)  # S5: a basket pot's NAV leg
+NAV = (1, 34)
+REBATE = (1, 5)  # S6
+MODE = 1  # M2: paid
+LUCK_CAP = 5  # S5: a basket pot's NAV leg
 FIB_INDEX = 22  # F(22) = 17,711 fee units
 SHARE = (8, 21)
 EPOCHS = 3
@@ -80,8 +83,8 @@ def run_epoch(epoch, prev_link, out):
                      + u64(first) + u64(n) + b"\x00")
         pool += fee
         tickets += n
-    hdr = (b"ZXV-RAFFLE-HDR6" + u64(epoch) + u64(MIN_RATE[0]) + u64(MIN_RATE[1]) + u64(MAX_RATE[0]) + u64(MAX_RATE[1]) + u64(SKIM[0])
-           + u64(SKIM[1]) + u64(GRANT[0]) + u64(GRANT[1]) + u64(NAV[0]) + u64(NAV[1]) + u64(threshold) + u64(SHARE[0]) + u64(SHARE[1]) + u64(tickets) + u64(pool) + chain
+    hdr = (b"ZXV-RAFFLE-HDR7" + u64(epoch) + u64(MIN_RATE[0]) + u64(MIN_RATE[1]) + u64(MAX_RATE[0]) + u64(MAX_RATE[1]) + u64(SKIM[0])
+           + u64(SKIM[1]) + u64(GRANT[0]) + u64(GRANT[1]) + u64(NAV[0]) + u64(NAV[1]) + u64(MODE) + u64(REBATE[0]) + u64(REBATE[1]) + u64(LUCK_CAP) + u64(threshold) + u64(SHARE[0]) + u64(SHARE[1]) + u64(tickets) + u64(pool) + chain
            + u64(PARTIES))
     for p, c in zip(parties, commits):
         hdr += p + c
@@ -103,12 +106,17 @@ def run_epoch(epoch, prev_link, out):
     skim = pool * SKIM[0] // SKIM[1]
     grant = pool * GRANT[0] // GRANT[1]
     nav = pool * NAV[0] // NAV[1]
-    pot = pool - skim - grant - nav
-    assert skim + grant + nav + pot == pool and pot >= 0
-    link = sha3(b"ZXV-RAFFLE-SETTLE2" + u64(epoch) + hh + seed + u64(win) + winner + u64(pool)
-                + u64(skim) + u64(grant) + u64(nav) + u64(pot))
+    rebate = pool * REBATE[0] // REBATE[1]
+    wfee = sum(n for f, n, o in ranges if o == winner)  # paid mode: fee == tickets
+    base = pool - wfee
+    paid = sum(rebate * n // base for f, n, o in ranges if o != winner) if base else 0
+    pot = pool - skim - grant - nav - paid
+    assert skim + grant + nav + paid + pot == pool and pot >= 0
+    link = sha3(b"ZXV-RAFFLE-SETTLE3" + u64(epoch) + hh + seed + u64(win) + winner + u64(pool)
+                + u64(skim) + u64(grant) + u64(nav) + u64(rebate) + u64(paid) + u64(pot))
     for key, val in (("tickets", tickets), ("pool", pool), ("entries", len(ranges)),
-                     ("refused", refused), ("winning", win), ("skim", skim), ("grant", grant), ("nav", nav), ("pot", pot)):
+                     ("refused", refused), ("winning", win), ("skim", skim), ("grant", grant), ("nav", nav), ("pot", pot),
+                     ("rebate", rebate), ("rebate_paid", paid)):
         out.append(f"e{epoch}.{key} {val}")
     for key, val in (("header", hh), ("seed", seed), ("winner", winner), ("link", link)):
         out.append(f"e{epoch}.{key} {val.hex()}")

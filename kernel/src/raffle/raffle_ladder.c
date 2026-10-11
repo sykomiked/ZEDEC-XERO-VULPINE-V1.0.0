@@ -36,6 +36,7 @@ raffle_status_t raffle_ladder_init(raffle_ladder_t *L, const raffle_config_t *ba
     pay_memset(L, 0, sizeof *L);
     L->n = n;
     L->lv = levels;
+    L->luck_levels = RAFFLE_LADDER_LUCK_LEVELS; /* W2 */
     for (uint32_t k = 0; k < n; k++) {
         raffle_config_t c = *base;
         c.threshold = raffle_ladder_threshold(k, n, idx_lo, idx_hi);
@@ -59,8 +60,8 @@ bool raffle_ladder_ready(const raffle_ladder_t *L, uint32_t k)
 
 raffle_status_t raffle_ladder_plan_span(const raffle_ladder_t *L,
                                         const uint8_t owner[RAFFLE_ID_LEN], uint64_t fee,
-                                        const uint64_t *weights, uint32_t lo, uint32_t hi,
-                                        raffle_ladder_receipt_t *plan)
+                                        const uint64_t *weights, const raffle_rate_t *luck,
+                                        uint32_t lo, uint32_t hi, raffle_ladder_receipt_t *plan)
 {
     uint64_t wsum = 0, given = 0, carry = 0;
     raffle_status_t st;
@@ -84,6 +85,8 @@ raffle_status_t raffle_ladder_plan_span(const raffle_ladder_t *L,
         uint64_t want = s + carry, take = 0;
         if (raffle_ladder_ready(L, k)) { /* P2 */
             uint64_t room = raffle_room(&L->lv[k], owner);
+            if (luck && k < L->luck_levels && room != UINT64_MAX) /* W1: room in fee units */
+                (void) pay_muldiv(room, luck->den, luck->num, &room, 0);
             take = want < room ? want : room; /* P2: the excess over the cap moves up */
             top = (int32_t) k;
         }
@@ -97,7 +100,11 @@ raffle_status_t raffle_ladder_plan_span(const raffle_ladder_t *L,
     plan->share[top] += carry + (fee - given);
     for (uint32_t k = 0; k < L->n; k++) { /* P3: check everything first */
         if (!plan->share[k]) continue;
-        st = raffle_mint_check(&L->lv[k], owner, plan->share[k], plan->share[k]);
+        plan->tickets[k] = luck && k < L->luck_levels
+                               ? raffle_luck_tickets(&L->lv[k].cfg, plan->share[k], *luck)
+                               : plan->share[k];
+        if (plan->tickets[k] == 0) return RAFFLE_ERR_RATE; /* a weight outside [1, cap] */
+        st = raffle_mint_check(&L->lv[k], owner, plan->share[k], plan->tickets[k]);
         if (st != RAFFLE_OK) return st;
         plan->first[k] = L->lv[k].tickets;
     }
@@ -109,7 +116,7 @@ raffle_status_t raffle_ladder_plan_fee(const raffle_ladder_t *L, const uint8_t o
                                        raffle_ladder_receipt_t *plan)
 {
     if (!L || L->n == 0) return RAFFLE_ERR_ARG;
-    return raffle_ladder_plan_span(L, owner, fee, weights, 0, L->n - 1, plan);
+    return raffle_ladder_plan_span(L, owner, fee, weights, 0, 0, L->n - 1, plan);
 }
 
 raffle_status_t raffle_ladder_plan(const raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
@@ -120,6 +127,7 @@ raffle_status_t raffle_ladder_plan(const raffle_ladder_t *L, const uint8_t owner
     if (!L || !owner || !plan || L->n == 0) return RAFFLE_ERR_ARG;
     for (uint32_t k = 0; k < L->n; k++) /* L1 before anything else */
         if (!L->lv[k].cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
+    if (L->lv[0].cfg.mode != RAFFLE_MODE_PAID) return RAFFLE_ERR_MODE; /* M1 */
     raffle_status_t st = raffle_quote(&L->lv[0].cfg, amount, rate, &fee, &n);
     if (st != RAFFLE_OK) return st;
     return raffle_ladder_plan_fee(L, owner, fee, weights, plan);
@@ -152,8 +160,8 @@ raffle_status_t raffle_ladder_enter_fee(raffle_ladder_t *L, const uint8_t owner[
 
 raffle_status_t raffle_ladder_enter_span(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
                                          uint64_t amount, const raffle_rate_t *rate, uint64_t fee,
-                                         const uint64_t *weights, uint32_t lo, uint32_t hi,
-                                         raffle_ladder_receipt_t *out)
+                                         const raffle_rate_t *luck, const uint64_t *weights,
+                                         uint32_t lo, uint32_t hi, raffle_ladder_receipt_t *out)
 {
     raffle_ladder_receipt_t plan;
     uint64_t n;
@@ -161,10 +169,11 @@ raffle_status_t raffle_ladder_enter_span(raffle_ladder_t *L, const uint8_t owner
     if (fee == 0) { /* quote it, as raffle_ladder_enter does */
         for (uint32_t k = 0; k < L->n; k++)
             if (!L->lv[k].cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
+        if (L->lv[0].cfg.mode != RAFFLE_MODE_PAID) return RAFFLE_ERR_MODE; /* M1 */
         raffle_status_t q = raffle_quote(&L->lv[0].cfg, amount, rate, &fee, &n);
         if (q != RAFFLE_OK) return q;
     }
-    raffle_status_t st = raffle_ladder_plan_span(L, owner, fee, weights, lo, hi, &plan);
+    raffle_status_t st = raffle_ladder_plan_span(L, owner, fee, weights, luck, lo, hi, &plan);
     if (st != RAFFLE_OK) return st;
     return mint_plan(L, owner, amount, rate, &plan, out);
 }
@@ -177,7 +186,10 @@ static raffle_status_t mint_plan(raffle_ladder_t *L, const uint8_t owner[RAFFLE_
     for (uint32_t k = 0; k < L->n; k++) {
         if (!plan->share[k]) continue;
         raffle_receipt_t rc;
-        st = raffle_enter_share(&L->lv[k], owner, amount, rate, plan->share[k], &rc);
+        st = plan->tickets[k] == plan->share[k]
+                 ? raffle_enter_share(&L->lv[k], owner, amount, rate, plan->share[k], &rc)
+                 : raffle_enter_weighted(&L->lv[k], owner, amount, rate, plan->share[k],
+                                         plan->tickets[k], &rc);
         if (st != RAFFLE_OK) return st; /* unreachable: checked in the plan */
         plan->closed += rc.closed_epoch ? 1u : 0u;
     }

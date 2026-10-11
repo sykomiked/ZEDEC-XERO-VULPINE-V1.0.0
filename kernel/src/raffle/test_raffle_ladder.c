@@ -72,7 +72,9 @@ static uint64_t settle_closed(raffle_ladder_t *L, uint8_t digest[32])
             printf("[FAIL] settle level %u\n", k);
             continue;
         }
-        if (st.reserve_skim + st.grant_pool + st.crown_pot != st.pool) g_fail++;
+        if (st.reserve_skim + st.grant_pool + st.nav_slice + st.rebate_paid + st.crown_pot !=
+            st.pool)
+            g_fail++;
         settled += st.pool;
         uint8_t b[64];
         memcpy(b, digest, 32);
@@ -89,6 +91,7 @@ static raffle_config_t base_cfg(void)
     raffle_config_default(&c);
     c.jurisdiction_permits = true;
     c.share_den = 0;
+    c.mode = RAFFLE_MODE_PAID;
     c.min_rate.num = 987; /* this test deployment's floor: 987/61000 */
     c.min_rate.den = 61000;
     return c;

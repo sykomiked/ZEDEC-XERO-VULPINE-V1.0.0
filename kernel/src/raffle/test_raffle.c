@@ -51,8 +51,10 @@ static raffle_config_t enabled_cfg(void)
     raffle_config_t c;
     raffle_config_default(&c);
     c.jurisdiction_permits = true;
-    c.share_den = 0;      /* F6 off here; test_cap turns it on */
-    c.min_rate.num = 987; /* this test deployment's floor: 987/61000 */
+    c.share_den = 0;           /* F6 off here; test_cap turns it on */
+    c.mode = RAFFLE_MODE_PAID; /* M2: these tests exercise the paid mode */
+    c.rebate_den = 0;          /* S6 off here; test_rebate and the replay turn it on */
+    c.min_rate.num = 987;      /* this test deployment's floor: 987/61000 */
     c.min_rate.den = 61000;
     return c;
 }
@@ -599,7 +601,7 @@ static void test_post(void)
     post_log_t l;
     memset(&l, 0, sizeof l);
     l.refuse_at = -1;
-    CHECK(raffle_post(&s, record_leg, &l), "post");
+    CHECK(raffle_post(&r, &s, record_leg, &l), "post");
     CHECK(l.n == 3 && l.dest[0] == RAFFLE_DEST_RESERVE_FLOOR && l.amount[0] == 25 &&
               l.dest[1] == RAFFLE_DEST_GRANT_POOL && l.amount[1] == 145 &&
               l.dest[2] == RAFFLE_DEST_WINNER && l.amount[2] == 1427 &&
@@ -607,13 +609,15 @@ static void test_post(void)
           "three legs in order, winner named");
     memset(&l, 0, sizeof l);
     l.refuse_at = 1;
-    CHECK(!raffle_post(&s, record_leg, &l) && l.n == 1, "a refused leg stops the posting");
-    CHECK(!raffle_post(&s, NULL, &l) && !raffle_post(NULL, record_leg, &l), "null args");
+    CHECK(!raffle_post(&r, &s, record_leg, &l) && l.n == 1, "a refused leg stops the posting");
+    CHECK(!raffle_post(&r, &s, NULL, &l) && !raffle_post(&r, NULL, record_leg, &l) &&
+              !raffle_post(NULL, &s, record_leg, &l),
+          "null args");
     raffle_settlement_t z = s;
     z.grant_pool = 0;
     memset(&l, 0, sizeof l);
     l.refuse_at = -1;
-    CHECK(raffle_post(&z, record_leg, &l) && l.n == 2 && l.dest[1] == RAFFLE_DEST_WINNER,
+    CHECK(raffle_post(&r, &z, record_leg, &l) && l.n == 2 && l.dest[1] == RAFFLE_DEST_WINNER,
           "a zero leg is skipped");
 }
 
@@ -730,6 +734,7 @@ static void test_nav(void)
     k1.min_rate = k2.min_rate = c.min_rate;
     k1.max_rate = k2.max_rate = c.max_rate;
     k1.fib_index = k2.fib_index = c.fib_index;
+    k1.luck_cap = k2.luck_cap = 1;
     CHECK(raffle_config_check(&k1) == RAFFLE_ERR_CONFIG, "carry case 1: sum >= 1");
     CHECK(raffle_config_check(&k2) == RAFFLE_OK, "carry case 2: sum < 1");
 
@@ -901,6 +906,8 @@ static void run_scenario(raffle_settlement_t out[3], uint32_t refused[3])
     c.share_den = 21;
     c.nav_num = 1; /* S5 */
     c.nav_den = 34;
+    c.rebate_num = 1; /* S6 */
+    c.rebate_den = 5;
     raffle_t r;
     raffle_init(&r, &c, 1, NULL, ranges, 128);
     for (uint64_t e = 1; e <= 3; e++) {
@@ -945,10 +952,11 @@ static void test_replay(const char *ref)
         struct {
             const char *k;
             uint64_t v;
-        } nums[] = {{"tickets", a[e].tickets},   {"pool", a[e].pool},
-                    {"refused", ra[e]},          {"winning", a[e].winning_ticket},
-                    {"skim", a[e].reserve_skim}, {"grant", a[e].grant_pool},
-                    {"nav", a[e].nav_slice},     {"pot", a[e].crown_pot}};
+        } nums[] = {{"tickets", a[e].tickets},    {"pool", a[e].pool},
+                    {"refused", ra[e]},           {"winning", a[e].winning_ticket},
+                    {"skim", a[e].reserve_skim},  {"grant", a[e].grant_pool},
+                    {"nav", a[e].nav_slice},      {"pot", a[e].crown_pot},
+                    {"rebate", a[e].rebate_pool}, {"rebate_paid", a[e].rebate_paid}};
         for (size_t i = 0; i < sizeof nums / sizeof nums[0]; i++) {
             snprintf(key, sizeof key, "e%d.%s", e + 1, nums[i].k);
             snprintf(got, sizeof got, "%llu", (unsigned long long) nums[i].v);

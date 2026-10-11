@@ -23,6 +23,11 @@
  *       but never shortened or lifted early through this API.
  *   G6  AGE / KYC GATE. The deployment supplies age_gate(ctx, owner). With
  *       no gate set, every entry is refused (fail closed).
+ *   G7  LUCK BY PERSON (raffle.h W1-W3). The deployment supplies
+ *       identity_of(ctx, owner, identity), mapping an account to its
+ *       verified (KYC) person. raffle_guard_luck() keys the non-win count
+ *       by that identity, so several accounts of one person share one
+ *       count. With no hook, or an owner it cannot map, the weight is 1.
  *
  * USE. raffle_guard_check() (pure) -> raffle_enter / raffle_ladder_enter
  * with the player's rate -> raffle_guard_commit() to record the spend.
@@ -38,6 +43,8 @@
 #include "raffle.h"
 
 typedef bool (*raffle_age_gate_fn)(void *ctx, const uint8_t owner[RAFFLE_ID_LEN]);
+typedef bool (*raffle_identity_fn)(void *ctx, const uint8_t owner[RAFFLE_ID_LEN],
+                                   uint8_t identity[RAFFLE_ID_LEN]);
 
 typedef struct {
     raffle_rate_t confirm_above; /* G2: default 1/10                */
@@ -46,7 +53,15 @@ typedef struct {
     bool require_limits;         /* G3: default true                */
     raffle_age_gate_fn age_gate; /* G6: NULL = refuse everyone      */
     void *age_ctx;
+    raffle_identity_fn identity_of; /* G7: NULL = no luck weight     */
+    void *identity_ctx;
 } raffle_guard_policy_t;
+
+/* G7: one verified person's run of consecutive non-wins. */
+typedef struct {
+    uint8_t identity[RAFFLE_ID_LEN];
+    uint32_t misses;
+} raffle_luck_t;
 
 typedef struct {
     uint8_t owner[RAFFLE_ID_LEN];
@@ -79,7 +94,8 @@ void raffle_player_exclude(raffle_player_t *pl, uint64_t now, uint64_t duration)
 uint64_t raffle_player_day_limit(const raffle_player_t *pl, uint64_t now);
 uint64_t raffle_player_epoch_limit(const raffle_player_t *pl, uint64_t now);
 
-/* G1-G6 for an entry of `amount` at the player's rate. Changes nothing.
+/* G1-G6 for a PAID-mode entry (raffle.h M2; RAFFLE_ERR_MODE otherwise) of
+ * `amount` at the player's rate. Changes nothing.
  * `confirmed_fee` is the amount the player confirmed (ignored at or below
  * confirm_above). On RAFFLE_OK or RAFFLE_ERR_CONFIRM, *fee is the exact fee
  * to show / that was charged. */
@@ -93,6 +109,16 @@ raffle_status_t raffle_guard_check(const raffle_guard_policy_t *pol, const raffl
 raffle_status_t raffle_guard_check_fee(const raffle_guard_policy_t *pol, const raffle_config_t *cfg,
                                        const raffle_player_t *pl, uint64_t fee, uint64_t now,
                                        uint64_t epoch);
+
+/* G7: the weight for `owner`: raffle_luck_mult of their person's record in
+ * book[0..n) (no record = 0 misses). {1, 1} without a usable identity. */
+raffle_rate_t raffle_guard_luck(const raffle_guard_policy_t *pol, const raffle_config_t *cfg,
+                                const uint8_t owner[RAFFLE_ID_LEN], const raffle_luck_t *book,
+                                uint32_t n);
+
+/* G7/W1: after an epoch a person took part in, `won` (in any level) resets
+ * the count, otherwise it grows by one (saturating). */
+void raffle_luck_note(raffle_luck_t *rec, bool won);
 
 /* Record `fee` as spent after the entry was accepted. */
 void raffle_guard_commit(const raffle_guard_policy_t *pol, raffle_player_t *pl, uint64_t now,

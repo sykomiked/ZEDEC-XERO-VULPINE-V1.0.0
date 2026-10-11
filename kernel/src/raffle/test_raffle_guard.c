@@ -33,6 +33,7 @@ int main(void)
     raffle_config_t c;
     raffle_config_default(&c);
     c.jurisdiction_permits = true;
+    c.mode = RAFFLE_MODE_PAID;
     raffle_guard_policy_t pol;
     raffle_guard_policy_default(&pol);
     CHECK(pol.confirm_above.num == 1 && pol.confirm_above.den == 10 && pol.cooling_off == DAY &&
