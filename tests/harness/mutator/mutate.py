@@ -257,7 +257,8 @@ def apply(src, m):
 def copy_tree(dst):
     ign = shutil.ignore_patterns("*.o", "*.elf", "*.bin", "*.iso", "__pycache__", ".git")
     os.makedirs(dst, exist_ok=True)
-    for d in ("kernel", "tests"):
+    # sdk/libzxv: the zxvd_rpc target links libzxv, built from kernel/ in place
+    for d in ("kernel", "tests", os.path.join("sdk", "libzxv")):
         s = os.path.join(ROOT, d)
         if os.path.isdir(s) and not os.path.exists(os.path.join(dst, d)):
             shutil.copytree(s, os.path.join(dst, d), ignore=ign, symlinks=True)
@@ -491,6 +492,10 @@ def main(argv):
         names = None
         if a.ci:
             names = cfg["ci"]["targets"]
+            if a.only:  # one CI target on its own (e.g. the zxvd workflow's zxvd_rpc)
+                names = [n for n in names if n in a.only.split(",")]
+            else:  # "own_job" targets are gated by their own workflow, not the shared subset
+                names = [n for n in names if n not in cfg["ci"].get("own_job", [])]
             if a.shard:
                 names = shard_names(cfg, names, a.shard, a.ops.split(","))
         elif a.only:

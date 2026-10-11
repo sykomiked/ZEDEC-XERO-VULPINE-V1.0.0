@@ -20,8 +20,8 @@
 #
 # Flags:
 #   kernel  kernel/tests/fuzz/bench/build_system or anything not listed below
-#   dotnet  kernel or bindings/dotnet changed (the shim links kernel sources)
-#   sdk     kernel or a bindings/<language>/ directory changed
+#   dotnet  kernel or sdk/dotnet changed (the SDK links libzxv and the kernel)
+#   sdk     kernel, sdk/ or a bindings/<language>/ directory changed
 #   mac     kernel, macos/ or docs/MAC_APP.md (bundled into the app) changed
 #   proofs  proofs/ changed
 #   heavy   run the slow tier: nightly, manual runs, and pull requests that
@@ -31,7 +31,8 @@
 #
 # Only documentation is skipped: *.md outside docs/MAC_APP.md, docs/, LICENSE,
 # NOTICE, FUNDING.yml, CITATION.cff, issue templates, dependabot and CodeQL
-# config. A change to a workflow or to this script runs everything.
+# config. A change to ci.yml or to this script runs everything; other
+# workflows (sdk*.yml, zxvd.yml, codeql.yml) do not affect this one.
 set -euo pipefail
 BASE=${1:-}
 EVENT=${EVENT:-push}
@@ -50,10 +51,16 @@ if [ "$all" = false ]; then
     while IFS= read -r f; do
         [ -n "$f" ] || continue
         case "$f" in
-            .github/workflows/*|build_system/ci_changes.sh) all=true ;;
+            .github/workflows/ci.yml|build_system/ci_changes.sh) all=true ;;
+            # other workflows and their scripts test themselves
+            .github/workflows/*|.github/scripts/*) ;;
             docs/MAC_APP.md|macos/*) mac=true ;;
             proofs/*) proofs=true ;;
-            bindings/dotnet/*) dotnet=true; sdk=true ;;
+            # libzxv (the C ABI) and its conformance vectors are linked into
+            # the hosted engine and zxvd, so they count as kernel code.
+            sdk/libzxv/*|sdk/conformance/*) kernel=true ;;
+            sdk/dotnet/*) dotnet=true; sdk=true ;;
+            sdk/*) sdk=true ;;
             # bindings/*.c and *.h are built by kernel verify-all; only the
             # per-language subdirectories are SDK-only.
             bindings/*/*) sdk=true ;;

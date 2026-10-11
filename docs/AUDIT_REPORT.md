@@ -67,7 +67,7 @@ filtered out because vendored code stays identical to its upstream release.
   (PackageID, Version, Architecture, Dependencies, ContentCID; src/provenance/zx_provenance.h) in
   update, zxpkg and the zx_upcheck catalog bridge; broker listings sign CID + terms with the same
   encoder. Versions are strictly monotonic in update and loader/abupdate (stage and promote).
-- Fibonacci-only coin denominations: `vino_mint` accepts any amount today.
+- Fibonacci-only coin denominations: answered for swarm tokens (owner, 2026-10-11): Fibonacci numbers are the token denominations, and a higher Fibonacci number means a higher octane (denser token); built in swarm/swarm_denom.{h,c}. Whether VFV coins must also be Fibonacci rungs is still open: `vino_mint` accepts any amount today.
 - Fee waterfall 34% / 3.3% / 3% versus the φ% tithe: superseded. Owner decision 2026-10-10: the tithe is replaced by a 0.08889% assurance fee split 50/25/15/10 (reserve floor / V-Bill dividend pool / infrastructure-node bounties / regenerative capital); implemented in pay/pay_assure.{h,c}.
 - IPNS name versus the fixed bucket CID for updates.
 - What "STA" stands for (the tensor engine models it as an axial core).
@@ -167,7 +167,7 @@ but is not wired into a shipped product (the Mac app or a kernel image).
 
 #### Open questions still unanswered by the owner
 
-1. **Fibonacci-only coin denominations.** `kernel/src/vino_stores` has a Fibonacci ladder, but `vino_mint` accepts any value and `pay` amounts are free integers. Must every VFV coin be a Fibonacci rung, or is the ladder only for minted vouchers?
+1. **Fibonacci-only coin denominations.** `kernel/src/vino_stores` has a Fibonacci ladder, but `vino_mint` accepts any value and `pay` amounts are free integers. Must every VFV coin be a Fibonacci rung, or is the ladder only for minted vouchers? ANSWERED FOR SWARM TOKENS 2026-10-11: the owner confirmed Fibonacci numbers are the denominations of AI tokens, with a higher Fibonacci number meaning more octane (a denser token). Built in `kernel/src/swarm/swarm_denom.{h,c}` (rules D1-D9): tier k has face F(k+2), every amount has one canonical (Zeckendorf) form, wrap/unwrap is exact, and density carries no premium. See docs/TOKEN_DENOMINATIONS.md. Still open for VFV coins (`vino_mint`).
 2. **Fee waterfall 34% / 3.3% / 3% versus the phi tithe.** ANSWERED 2026-10-10: neither. The owner replaced the tithe with a 0.08889% assurance fee (8889/10^7 of gross, charged once, per-account sub-unit carry), partitioned 50% reserve floor / 25% V-Bill dividend pool / 15% infrastructure-node bounties / 10% regenerative capital (remainder to the reserve floor). The SLA solvency bond is not a fee bucket.
 3. **IPNS versus a fixed CID for the update bucket.** `zx_upcheck` supports both; the built-in entry is the fixed CID `bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354`, which can never change. The owner has not chosen an IPNS name or confirmed the fixed CID.
 4. **Meaning of "STA"** (the core coil in the torus hole). Modelled in `zt.h` as an axial core of F(b-1) slots; the owner never said what STA stands for.

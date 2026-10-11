@@ -1,0 +1,36 @@
+#  Intel(R) Xeon(R) Processor @ 2.80GHz, 4 vCPUs, 4 threads; 2026-10-11
+# same prompt (33 tokens), greedy, 64 new tokens; each run twice
+== ZXV native Q4_K/Q6_K (avx512), run 1
+zt.load=native
+zt.load_s=0.033
+zt.n_prompt=31
+zt.prefill_tps=21.679
+zt.gen_tps=12.854
+zt.logits_fnv=c4f5a93b3ef14130
+== ZXV converted 8-bit (--convert, avx512), run 1
+zt.load=convert
+zt.load_s=31.217
+zt.prefill_tps=20.347
+zt.gen_tps=9.819
+zt.logits_fnv=6a0714ec1c0d84ab
+== llama.cpp 781dbc5 (GGML_NATIVE, this CPU), run 1
+ref.n_prompt=31
+ref.prefill_tps=100.506
+ref.gen_tps=20.139
+== ZXV native Q4_K/Q6_K (avx512), run 2
+zt.load=native
+zt.load_s=0.032
+zt.n_prompt=31
+zt.prefill_tps=21.653
+zt.gen_tps=13.529
+zt.logits_fnv=c4f5a93b3ef14130
+== ZXV converted 8-bit (--convert, avx512), run 2
+zt.load=convert
+zt.load_s=31.203
+zt.prefill_tps=22.462
+zt.gen_tps=10.570
+zt.logits_fnv=6a0714ec1c0d84ab
+== llama.cpp 781dbc5 (GGML_NATIVE, this CPU), run 2
+ref.n_prompt=31
+ref.prefill_tps=81.478
+ref.gen_tps=19.861

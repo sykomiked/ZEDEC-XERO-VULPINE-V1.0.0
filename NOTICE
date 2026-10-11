@@ -1,7 +1,12 @@
 ZEDEC XERO VULPINE (ZXV)
 VOVINA SHAKINA M5 Axiomatic Kernel
 
-Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+Copyright (c) 2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC
+PO Box 6, Calpine, CA 96124-0006, United States
+deal@zedec.ai
+
+This product includes software developed by Michael Laurence Curzi and
+36N9 GENETICS LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License"). You may not
 use this Work except in compliance with the License. A copy is in the
@@ -12,13 +17,16 @@ http://www.apache.org/licenses/LICENSE-2.0.
 ATTRIBUTION
 --------------------------------------------------------------------------
 
-Under section 4(d) of the License, redistributions that include a NOTICE
-file must carry the following attribution, in the source distribution, the
-documentation, or a display where such notices normally appear (About box,
---version output, boot banner):
+Section 4(d) of the License requires anyone who distributes this Work or a
+Derivative Work of it to include a readable copy of the attribution below,
+in at least one of these places: a NOTICE file distributed with it; the
+source form or documentation, if provided with it; or a display the work
+generates, wherever such third-party notices normally appear (for example
+an About box, licences screen, or --version output). It may not be removed.
 
     ZEDEC XERO VULPINE (ZXV) / VOVINA SHAKINA M5 Axiomatic Kernel
-    Copyright (c) Michael Laurence Curzi and 36N9 Genetics, LLC
+    Copyright (c) 2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC
+    PO Box 6, Calpine, CA 96124-0006, United States - deal@zedec.ai
     Licensed under the Apache License, Version 2.0
 
 --------------------------------------------------------------------------
@@ -91,7 +99,9 @@ CONTRIBUTORS
 --------------------------------------------------------------------------
 
 Michael Laurence Curzi <mlcurzi@gmail.com>  —  author, architect
-36N9 Genetics, LLC                          —  rights holder
+36N9 GENETICS LLC                           —  rights holder
+                                              PO Box 6, Calpine, CA 96124-0006
+                                              deal@zedec.ai
 
 Contributions are accepted under the License (section 5). Contributors
 retain copyright in their own contributions. Add yourself here when you

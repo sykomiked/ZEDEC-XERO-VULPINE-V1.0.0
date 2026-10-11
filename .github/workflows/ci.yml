@@ -14,6 +14,15 @@ on:
   pull_request:
     branches: [ main, develop ]
     types: [ opened, synchronize, reopened, ready_for_review ]
+    # SDK-only pull requests are tested by the sdk*.yml workflows; this one
+    # still runs for libzxv and the .NET SDK, which its dotnet-sdk job builds.
+    paths:
+      - '**'
+      - '!sdk/**'
+      - '!.github/workflows/sdk*.yml'
+      - '!.github/scripts/sdk-changes.sh'
+      - 'sdk/libzxv/**'
+      - 'sdk/dotnet/**'
   schedule:
     - cron: '23 3 * * *'
   workflow_dispatch:
@@ -311,6 +320,11 @@ jobs:
           done
           pgrep -fl "ZXV.app/Contents/MacOS/zxv-engine"
           sleep 3
+          # the engine is zxvd: its control socket answers (macos/ZXVApp.m, SOCKET)
+          SOCK="$HOME/Library/Application Support/ZXV/run/zxvd.sock"
+          test -S "$SOCK"
+          cc -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c -o "$RUNNER_TEMP/zxv-rpc-call"
+          "$RUNNER_TEMP/zxv-rpc-call" "$SOCK" '{"jsonrpc":"2.0","id":1,"method":"zxvd.version"}' | grep '"protocol":"zxvd-rpc/1"'
           # a polite Quit (as from the menu); some runners refuse Apple Events
           osascript -e 'tell application id "com.36n9genetics.zxv-swarm" to quit' ||
             echo "::warning::Apple Event quit refused on this runner"
@@ -325,6 +339,7 @@ jobs:
             sleep 1
           done
           if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
+          if [ -e "$SOCK" ]; then echo "the control socket was left behind"; exit 1; fi
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
       - name: Upload the Mac packages
         uses: actions/upload-artifact@v7
@@ -348,7 +363,7 @@ jobs:
     runs-on: ubuntu-24.04
     defaults:
       run:
-        working-directory: bindings/dotnet
+        working-directory: sdk/dotnet
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
@@ -358,10 +373,10 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('bindings/dotnet/**/*.csproj', 'bindings/dotnet/Directory.Packages.props', 'bindings/dotnet/global.json') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('sdk/dotnet/**/*.csproj', 'sdk/dotnet/Directory.Packages.props', 'sdk/dotnet/global.json') }}
           restore-keys: nuget-${{ runner.os }}-
-      - name: Native shim (C ABI) and its conformance test
-        run: make -C native test
+      - name: libzxv (the C ABI) and its conformance tests
+        run: make -C ../libzxv test
       - name: Build (Release, warnings as errors)
         run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
       - name: Test
@@ -370,7 +385,7 @@ jobs:
         if: always()
         with:
           name: dotnet-test-results
-          path: bindings/dotnet/tests/**/TestResults/*.trx
+          path: sdk/dotnet/tests/**/TestResults/*.trx
 
   # Machine-checked models in proofs/ (see proofs/README.md): TLC on the
   # TLA+ ledger models, Lean 4 on the headroom and rational proofs. These are

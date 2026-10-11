@@ -24,12 +24,14 @@ merged, and every night on `main`.
    | Changed files | Jobs that run |
    |---|---|
    | `docs/**`, any `*.md` (except `docs/MAC_APP.md`), `LICENSE`, `NOTICE`, `FUNDING.yml`, `CITATION.cff`, issue templates, Dependabot or CodeQL config | quick-checks only; CodeQL is skipped |
-   | `bindings/dotnet/**` | quick-checks, dotnet-sdk |
-   | other `bindings/<language>/**` | quick-checks (the `sdk` flag is ready for SDK jobs) |
+   | `sdk/dotnet/**` | quick-checks, dotnet-sdk |
+   | other `sdk/**`, `bindings/<language>/**` | none here: the `sdk*.yml` workflows test them (and this workflow skips SDK-only pull requests) |
+   | `sdk/libzxv/**`, `sdk/conformance/**` | every job (libzxv is linked into the engine and zxvd) |
    | `macos/**`, `docs/MAC_APP.md` | quick-checks, macos-app |
    | `proofs/**` | quick-checks, proofs |
    | anything else (kernel, tests, fuzz, bench, build_system, packages, `bindings/*.c`) | every job |
-   | `.github/workflows/**` or `ci_changes.sh` itself | every job |
+   | `.github/workflows/ci.yml` or `ci_changes.sh` itself | every job |
+   | other workflows (`sdk*.yml`, `zxvd.yml`, `codeql.yml`) | quick-checks only |
 
    Nightly and manual runs (`workflow_dispatch`) always run every job.
 3. **The slow tier waits until a pull request is ready for review.** Draft
