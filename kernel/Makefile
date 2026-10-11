@@ -1485,6 +1485,11 @@ test-zenny:
 test-vbond:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/vbond/test_vbond.c src/vbond/vbond.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vbond -lm && $(ZXV_TMP)/test_vbond > $(ZXV_TMP)/test_vbond.log 2>&1 && echo "[PASS] test_vbond" || { tail -40 $(ZXV_TMP)/test_vbond.log; echo "[FAIL] test_vbond"; exit 1; }
 
+# Public stats feed (src/zstats): signed hash-chained per-epoch snapshots, aggregates only with a k-anonymity floor, integer JSON for zxvd.
+.PHONY: test-zstats
+test-zstats:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/zstats/test_zstats.c src/zstats/zstats.c src/grants/grants.c src/svault/svault.c src/vswap/vswap.c src/vauction/vauction.c src/vbond/vbond.c src/zenny/zenny.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_zstats -lm && $(ZXV_TMP)/test_zstats > $(ZXV_TMP)/test_zstats.log 2>&1 && echo "[PASS] test_zstats" || { tail -40 $(ZXV_TMP)/test_zstats.log; echo "[FAIL] test_zstats"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1496,4 +1501,5 @@ test-econ:
 	$(MAKE) --no-print-directory test-vauction
 	$(MAKE) --no-print-directory test-zenny
 	$(MAKE) --no-print-directory test-vbond
+	$(MAKE) --no-print-directory test-zstats
 # ==== end economy modules ====
