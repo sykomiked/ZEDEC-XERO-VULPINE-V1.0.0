@@ -1,0 +1,5 @@
+; broken.myra -- refused: both nodes can match ^ZXBAD(1,2).
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+^ZXBAD(id:i9,seq:i9)=amount:n9.2
+^ZXBAD(id:i9,day:d)=note:t20

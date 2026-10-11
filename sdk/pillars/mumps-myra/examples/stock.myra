@@ -1,0 +1,6 @@
+; stock.myra -- the same schema as stock.gmap, in MYRA.
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+^ZXSTK(site:t8,item:i12)=desc:t60!^qty:i9!^unit-cost:n12.4^received:d
+^ZXSTK(site:t8,item:i12,"LOT",lot:t12)=qty:i9!^expires:d
+^ZXSTK(site:t8,item:i12,"PRICE",effective:d)=price:n12.2!^^ccy:t3!

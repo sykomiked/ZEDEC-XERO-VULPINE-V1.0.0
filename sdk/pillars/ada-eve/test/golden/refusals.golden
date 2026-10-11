@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# refusals.golden - texts outside the subset are refused with a status and
+# a line:column, never read as something else.
+refuse-layout ../../examples/broken.ads ZE_E_UNSUPPORTED 8:18
+refuse-layout ../../examples/broken.eve ZE_E_CONSTRAINT 8:13
+refuse-layout refuse_access.ads ZE_E_UNSUPPORTED 5:17
+refuse-layout refuse_tagged.ads ZE_E_UNSUPPORTED 5:18
+refuse-layout refuse_variant.ads ZE_E_UNSUPPORTED 6:14
+refuse-layout refuse_rep.ads ZE_E_UNSUPPORTED 7:4
+refuse-layout refuse_modular.ads ZE_E_UNSUPPORTED 5:17
+refuse-layout refuse_round.eve ZE_E_SYNTAX 7:21
+refuse-layout refuse_order.eve ZE_E_NAME 5:14
+refuse-layout refuse_dup.eve ZE_E_NAME 6:1

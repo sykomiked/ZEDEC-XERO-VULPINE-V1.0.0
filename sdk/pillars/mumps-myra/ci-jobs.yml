@@ -1,0 +1,99 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# GitHub Actions jobs for sdk/pillars/mumps-myra, to paste under `jobs:` in
+# .github/workflows/sdk-pillars.yml (same shape as the fortran-trebago jobs):
+#   mumps-myra           C library, tool and tests, golden files written by
+#                        GT.M, fuzz smoke run, R11 check, demo
+#                        (ubuntu-24.04 gcc and clang, macos-14 clang)
+#   mumps-myra-sanitize  ASan + UBSan (gcc and clang), the fuzzer at
+#                        4 x 250k inputs, libFuzzer for 60 s (clang)
+#   mumps-myra-gtm       GT.M interop on ubuntu-24.04 (Ubuntu's fis-gtm
+#                        package): an M routine checks and posts the nodes of
+#                        a real global through the external-call table, and
+#                        GT.M's own collation, x=+x and $ZDATE are compared
+#                        with libzmyra (golden files plus a generated
+#                        cross-check of 200k numbers, 100k subscripts and
+#                        every $H day to 9999-12-31)
+
+  mumps-myra:
+    name: mumps-myra ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: sdk/pillars/mumps-myra
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: Unit, golden, collation and posting tests, fuzz smoke run, R11 check
+        run: make CC=${{ matrix.cc }} PYTHON=python test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} PYTHON=python demo
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  mumps-myra-sanitize:
+    name: mumps-myra ASan + UBSan ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: sdk/pillars/mumps-myra
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (library, tool and tests)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k inputs, 3 parsers + codec each)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            ZM_FUZZ_SEED=$seed make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        if: matrix.cc == 'clang'
+        run: make PYTHON=python fuzz-libfuzzer
+
+  mumps-myra-gtm:
+    name: mumps-myra GT.M interop
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: sdk/pillars/mumps-myra
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install GT.M (Ubuntu's fis-gtm package)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fis-gtm
+          ls -d /usr/lib/x86_64-linux-gnu/fis-gtm/V*_x86_64
+      - run: make -C ../../libzxv all
+      - name: M routine posts a real global through libzmyra; GT.M cross-checks collation, numbers and dates
+        run: make PYTHON=python m
+      - name: Golden-file tests (the files GT.M just matched)
+        run: make PYTHON=python build/test_golden && build/test_golden

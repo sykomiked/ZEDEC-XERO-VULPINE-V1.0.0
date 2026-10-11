@@ -105,6 +105,9 @@ see [`pillars/`](pillars/).
 |---|---|---|---|
 | COBOL → Sutra | [`cobol-sutra`](pillars/cobol-sutra/) | Copybook parser and the Sutra shorthand (same layout from both), exact zoned/COMP/COMP-3 codecs, a capability-gated ledger posting bridge, a GnuCOBOL example | 154,569 checks (mostly codec round trips) + fuzzing, GnuCOBOL golden records byte-identical |
 | Fortran → Trebago | [`fortran-trebago`](pillars/fortran-trebago/) | Fortran 2008+ module `zxv` (exact `rational`, four-valued `truth`, hexagram tags, capabilities, ledger) and Trebago, a short syntax for exact sum/dot/scale/prefix/matvec kernels over `INTEGER(INT64)` arrays that refuses overflow instead of rounding | 75,179 checks in C and Fortran, 26 golden cases, 14 compile-fail cases, fuzzed under ASan + UBSan |
+| Ada → Eve | [`ada-eve`](pillars/ada-eve/) | Ada 2012 package `Zxv` (exact rationals, four-valued `Truth`, controlled capabilities, `Zxv.Fixed` proved free of run-time errors by gnatprove) and Eve, a compact form of Ada type declarations with the same canonical layout | 2,811 checks in C and Ada, 153 golden checks, GNAT agrees on 10 layouts, fuzzed under ASan + UBSan |
+| APL / K → KRON | [`apl-kron`](pillars/apl-kron/) | KRON, an exact array language (rank ≤ 2, int64 rationals, four-valued truth) read from APL glyphs or K ASCII into one canonical program, with ngn/k and GNU APL bindings | 135,621 checks, 5,866 golden cases from Python fractions, bindings checked against ngn/k and GNU APL |
+| MUMPS → MYRA | [`mumps-myra`](pillars/mumps-myra/) | M globals with typed subscripts and ^-piece values, M canonical numbers and collation, `$H` dates, a capability-gated ledger bridge and a GT.M binding; MYRA writes one line per node | 628,012 checks, golden files written by GT.M, 0 differences in a GT.M cross-check |
 
 ## What every SDK gives you
 

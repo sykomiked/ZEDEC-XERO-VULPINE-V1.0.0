@@ -1,0 +1,6 @@
+; payment.myra -- the same schema as payment.gmap, in MYRA.
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+^ZXPAY(batch:i9, seq:i9) = ref:t16! ^ amount:n15.2! ^ ccy:t3! ^ from:i10! ^ to:i10! ^ value-date:d ^ status:t1 ^ ^ memo:t40
+^ZXPAY(batch:i9) = opened:d! ^ count:i6 ^ total:n18.2 ^ name:t30
+^ZXPAY("B", ref:t16, batch:i9, seq:i9) =     ; an index node: the value is empty

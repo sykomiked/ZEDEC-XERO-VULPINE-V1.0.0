@@ -1,0 +1,6 @@
+# schemas.expect -- the SHA3-256 of each example schema's canonical MYRA text. Both the
+# global map and the MYRA file must hash to it; a change here changes every digest.
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+payment 3fc2a11adbe2b2acd03a83ab0a2c0b682e5821623fccb19590f6cb2731ecf49d
+stock d8a693d91e425c5f8d0dc8c11b5f3e8ba22181263d0faa7f6c8b8a0b75e822dc

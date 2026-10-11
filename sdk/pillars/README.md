@@ -27,9 +27,13 @@ language. Every pillar follows the same pattern:
 |---|---|---|---|---|
 | cobol-sutra | COBOL copybooks (data division subset) | Sutra | [`cobol-sutra`](cobol-sutra/) | 154,569 checks, golden records from GnuCOBOL, fuzzed under ASan + UBSan |
 | fortran-trebago | Fortran 2008+ (module `zxv`, ISO_C_BINDING) | Trebago (exact numeric kernels) | [`fortran-trebago`](fortran-trebago/) | 75,179 checks in C and Fortran, 26 golden cases, 14 compile-fail cases, fuzzed under ASan + UBSan |
+| ada-eve | Ada 2012 (package `Zxv`, Interfaces.C; `Zxv.Fixed` in SPARK) | Eve (compact type declarations) | [`ada-eve`](ada-eve/) | 2,811 checks in C and Ada, 153 golden checks, GNAT agrees on 10 layouts, 13 compile-fail cases + control, fail-closed exit 70, fuzzed under ASan + UBSan |
+| apl-kron | APL (glyphs, ⎕IO 0) and K (ngn/k-style ASCII) array expressions | KRON (exact rank-2 rationals and four-valued truth) | [`apl-kron`](apl-kron/) | 135,621 checks, 5,866 golden cases from Python fractions, APL/K digest equivalence, bindings tested against ngn/k and GNU APL, fuzzed under ASan + UBSan |
+| mumps-myra | M (MUMPS) globals: typed subscripts and ^-piece values (GT.M / YottaDB) | MYRA (one line per node) | [`mumps-myra`](mumps-myra/) | 628,012 checks, golden files written by GT.M, GT.M interop and a 0-difference cross-check, fuzzed under ASan + UBSan |
 
 Status codes: the pillars own -2001 and below (cobol-sutra uses -2001 to
--2099, fortran-trebago -2101 to -2199). Codes 0 to -99 are libzxv's and
+-2099, fortran-trebago -2101 to -2199, ada-eve -2201 to -2299, apl-kron
+-2301 to -2399, mumps-myra -2401 to -2499). Codes 0 to -99 are libzxv's and
 pass through unchanged.
 
 CI: [`.github/workflows/sdk-pillars.yml`](../../.github/workflows/sdk-pillars.yml).

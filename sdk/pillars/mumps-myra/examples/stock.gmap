@@ -1,0 +1,23 @@
+; stock.gmap -- global map for ^ZXSTK, a synthetic stock ledger.
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+GLOBAL ^ZXSTK
+NODE ^ZXSTK(SITE,ITEM)
+  KEY   SITE         TEXT(8)
+  KEY   ITEM         INTEGER(12)
+  PIECE 1 DESC       TEXT(60)       REQUIRED
+  PIECE 2 QTY        INTEGER(9)     REQUIRED
+  PIECE 3 UNIT-COST  NUMBER(12,4)
+  PIECE 4 RECEIVED   DATE
+NODE ^ZXSTK(SITE,ITEM,"LOT",LOT)
+  KEY   SITE         TEXT(8)
+  KEY   ITEM         INTEGER(12)
+  KEY   LOT          TEXT(12)
+  PIECE 1 QTY        INTEGER(9)     REQUIRED
+  PIECE 2 EXPIRES    DATE
+NODE ^ZXSTK(SITE,ITEM,"PRICE",EFFECTIVE)
+  KEY   SITE         TEXT(8)
+  KEY   ITEM         INTEGER(12)
+  KEY   EFFECTIVE    DATE
+  PIECE 1 PRICE      NUMBER(12,2)   REQUIRED
+  PIECE 3 CCY        TEXT(3)        REQUIRED

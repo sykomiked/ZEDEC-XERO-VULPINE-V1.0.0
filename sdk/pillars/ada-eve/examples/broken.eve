@@ -1,0 +1,8 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# broken.eve - must be REFUSED: a bound with more decimals than the type
+# has (0.005 in a type of cents). Nothing is rounded to fit.
+eve broken
+money = dec(15, 2)
+fee = money 0.005 .. 10

@@ -1,0 +1,25 @@
+# zmyra.xc.in -- the GT.M / YottaDB external-call table for libzmyra (m/zmyra_xc.c).
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# make m writes build/m/zmyra.xc from it: these "#" lines are dropped and @LIB@
+# becomes the path of build/m/libzmyra_xc.so. Point GTMXC_zmyra (GT.M) or
+# ydb_xc_zmyra (YottaDB) at the result.
+@LIB@
+load:    gtm_long_t zmx_load(I:gtm_string_t*)
+unload:  gtm_long_t zmx_unload(I:gtm_long_t)
+check:   gtm_long_t zmx_check(I:gtm_long_t,I:gtm_string_t*,I:gtm_string_t*)
+node:    gtm_long_t zmx_node(I:gtm_long_t,I:gtm_string_t*)
+get:     gtm_long_t zmx_get(I:gtm_long_t,I:gtm_string_t*,I:gtm_string_t*,I:gtm_string_t*,O:gtm_string_t*[32767])
+put:     gtm_long_t zmx_put(I:gtm_long_t,I:gtm_string_t*,I:gtm_string_t*,I:gtm_string_t*,I:gtm_string_t*,O:gtm_string_t*[32767])
+canon:   gtm_long_t zmx_canon(I:gtm_long_t,I:gtm_string_t*,I:gtm_string_t*,O:gtm_string_t*[32767])
+collate: gtm_long_t zmx_collate(I:gtm_string_t*,I:gtm_string_t*)
+canonic: gtm_long_t zmx_canonic(I:gtm_string_t*)
+hdate:   gtm_long_t zmx_hdate(I:gtm_long_t,O:gtm_string_t*[600])
+ledger:  gtm_long_t zmx_ledger(I:gtm_string_t*)
+open:    gtm_long_t zmx_open(I:gtm_string_t*,I:gtm_string_t*,I:gtm_long_t)
+post:    gtm_long_t zmx_post(I:gtm_long_t,I:gtm_string_t*,I:gtm_string_t*,I:gtm_string_t*,O:gtm_string_t*[600])
+equity:  gtm_long_t zmx_equity(I:gtm_long_t,O:gtm_string_t*[600])
+lcheck:  gtm_long_t zmx_lcheck()
+revoke:  gtm_long_t zmx_revoke()
+error:   gtm_long_t zmx_error(O:gtm_string_t*[600])
+status:  gtm_long_t zmx_status(I:gtm_long_t,O:gtm_string_t*[600])
