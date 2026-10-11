@@ -1,0 +1,25 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+zxv:
+  currencies: [NGN]
+  # The root capability only needs what the named ones use.
+  root-permissions: [LEDGER_READ, LEDGER_POST]
+  capabilities:
+    teller:
+      permissions: [LEDGER_READ, LEDGER_POST]
+    auditor:
+      permissions: [LEDGER_READ]
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always        # a sample; use when-authorized in production
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,zxv

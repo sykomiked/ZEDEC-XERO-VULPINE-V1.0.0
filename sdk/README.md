@@ -18,7 +18,7 @@ every language.
 |---|---|---|---|---|
 | C / C ABI | [`libzxv`](libzxv/) | `libzxv.so` / `.dylib` | the library itself | 3,478 checks, ASan + UBSan |
 | Java, Kotlin, Scala | [`java`](java/) | `org.zedec.zxv` | Java 22 FFM (no JNI) | 48 |
-| .NET (C#, F#, Unity) | [`dotnet`](dotnet/) | `Zxv.Sdk` | `LibraryImport` | 128 |
+| .NET (C#, F#, Unity) | [`dotnet`](dotnet/) | `Zxv.Sdk` | `LibraryImport` | 141 |
 | Python | [`python`](python/) | `zxv-sdk` | cffi, GIL released | 111, `mypy --strict` |
 | TypeScript / JavaScript | [`typescript`](typescript/) | `@zedec/zxv` | Node-API addon and WebAssembly | 102 (both backends) |
 | Solidity / EVM | [`solidity`](solidity/) | `ZxvStateChannel.sol` | verifies libzxv's state encoding | 10 |
@@ -37,9 +37,74 @@ Kits are building blocks on top of the same C ABI; see
 | Kit | What it is |
 |---|---|
 | [Z-Wasm](kits/z-wasm/) | A sandbox for WebAssembly plugins: a no-float validator, fuel charged to an `rmag` budget, and a proposal queue the host must approve. |
-| [z-contract](kits/z-contract/) | Typed contracts with exact-rational bounds for plugin exports; a violation stops the plugin like a trap and is recorded in a SHA3-256 hash-chained evidence log. |
+| [z-contract](kits/z-contract/) | Typed contracts with exact-rational bounds for plugin exports; a violation stops the plugin like a trap and is recorded in a SHA3-256 hash-chained evidence log, and optionally in the ABI 1.3 quarantine log. |
 | [z-ffi](kits/z-ffi/) | Typed, capability-gated wrappers for calling C libraries, generated from a spec; float results only by exact conversion. Not a sandbox. |
 | [adapter-matrix](kits/adapter-matrix/) | JSON, MQTT and FIX adapters that parse numbers exactly and label every inbound record (accepted-unverified or refused, with reasons). |
+| [z-audit](kits/z-audit/) | A static checker for plugins, run in CI before publishing: validator, float/SIMD, import allow-list, contract declarations and bounds, and bounded checks on simple export bodies. Bounded checks, not a proof. |
+| [Tri-Isolate](kits/tri-isolate/) | Runs each plugin in its own worker process; the host keeps the fuel budget and the proposal queue, and kills the worker on fuel exhaustion or timeout. A process boundary, not a VM (POSIX; optional Linux seccomp). |
+
+## Frameworks
+
+Framework kits wire a language SDK into an enterprise framework's own
+idioms; see [`frameworks/`](frameworks/).
+
+| Framework | Folder | Package | Over | Tests |
+|---|---|---|---|---|
+| Spring Boot 3 | [`spring-zxv`](frameworks/spring-zxv/) | `org.zedec:zxv-spring-boot-starter` | [`java`](java/) | 36 |
+| ASP.NET Core 8 | [`aspnetcore-zxv`](frameworks/aspnetcore-zxv/) | `Zxv.AspNetCore` | [`dotnet`](dotnet/) | 56 |
+| NestJS 12 | [`nest-zxv`](frameworks/nest-zxv/) | `@zedec/zxv-nestjs` | [`typescript`](typescript/) | 35 |
+| Django 5.2+ | [`django-zxv`](frameworks/django-zxv/) | `django-zxv` | [`python`](python/) | 56 |
+
+Each gives a managed context closed in ABI order, narrow capabilities
+declared in configuration (the root is never injectable), a fail-closed
+health check, exact `Rational` JSON that refuses floats, and a halted
+context that is never answered as a normal response. CI:
+[`.github/workflows/sdk-frameworks.yml`](../.github/workflows/sdk-frameworks.yml).
+
+## Mobile
+
+Mobile SDKs follow the same design as the language SDKs; see
+[`mobile/`](mobile/).
+
+| Platform | Folder | Package | How it binds | Tests |
+|---|---|---|---|---|
+| Android and JVM (Kotlin) | [`kotlin`](mobile/kotlin/) | `org.zedec.zxv.mobile` | JNI shim (Android has no FFM) | 34 on the host JVM; AAR builds for arm64-v8a and x86_64, not yet run on a device |
+| Flutter and Dart | [`dart`](mobile/dart/) | `zxv` | `dart:ffi` | 33 on the host; no Flutter app or iOS run yet |
+
+## Embedded and RTOS
+
+Embedded kits run the exact core on microcontrollers through a small port
+layer (allocator, mutex, entropy, time); see [`embedded/`](embedded/).
+
+| Kit | Folder | What it gives you | Tests |
+|---|---|---|---|
+| Port + MCU subset | [`embedded`](embedded/) | Rationals, four-valued logic, hexagram tags, caps, quarantine log and budgets in about 35 KB flash on Cortex-M; a fixed-memory ledger (`zxe_ledger`); fails closed without an entropy source | 11,499 ledger checks, a 75,244-operation differential test against libzxv, libzxv's own suites through the port, QEMU Cortex-M3/M4 |
+| FreeRTOS | [`freertos-zxv`](embedded/freertos-zxv/) | Port and a sample task (ledger posting, budget tick) | POSIX simulator |
+| Zephyr | [`zephyr-zxv`](embedded/zephyr-zxv/) | Zephyr module (module.yml, Kconfig) and a sample | native_sim and qemu_cortex_m3 |
+
+Advisory only for any actuation; no safety-standard or real-time claims.
+Nothing has run on real hardware yet.
+
+## Game engines
+
+Engine kits run deterministic lockstep games on exact rationals, with no
+floats in game state; see [`engines/`](engines/).
+
+| Kit | Folder | What it gives you | Tests |
+|---|---|---|---|
+| Emu-State | [`emu-state`](engines/emu-state/) | C11 lockstep core: per-tick inputs, prediction and rollback, a SHA3-256 state hash per tick, four-valued desync check | 1,138 checks + fuzzing |
+| Godot 4 | [`godot-zxv`](engines/godot-zxv/) | GDExtension with `ZxvRational`, `ZxvHexagram`, `ZxvLockstep` and a two-peer demo | 1,010 core + 542 in headless Godot |
+| Unity | [`unity-zxv`](engines/unity-zxv/) | Package `com.zedec.zxv`: serializable exact `Rational`, `Hexagram`, `ZxvLockstep` | 27 (runtime on .NET; not yet run inside Unity) |
+
+## Legacy language pillars
+
+Pillars bring an older language's own data formats onto the exact core;
+see [`pillars/`](pillars/).
+
+| Pillar | Folder | What it gives you | Tests |
+|---|---|---|---|
+| COBOL → Sutra | [`cobol-sutra`](pillars/cobol-sutra/) | Copybook parser and the Sutra shorthand (same layout from both), exact zoned/COMP/COMP-3 codecs, a capability-gated ledger posting bridge, a GnuCOBOL example | 154,569 checks (mostly codec round trips) + fuzzing, GnuCOBOL golden records byte-identical |
+| Fortran → Trebago | [`fortran-trebago`](pillars/fortran-trebago/) | Fortran 2008+ module `zxv` (exact `rational`, four-valued `truth`, hexagram tags, capabilities, ledger) and Trebago, a short syntax for exact sum/dot/scale/prefix/matvec kernels over `INTEGER(INT64)` arrays that refuses overflow instead of rounding | 75,179 checks in C and Fortran, 26 golden cases, 14 compile-fail cases, fuzzed under ASan + UBSan |
 
 ## What every SDK gives you
 
@@ -57,6 +122,16 @@ Kits are building blocks on top of the same C ABI; see
 | UBH-168 wire frames | `Ubh168Frame` | [§11](docs/SDK_DESIGN.md#11-wire-framing-in-pure-host-code) |
 | Swarm token economy | `Swarm` | [ABI](docs/ABI.md#groups-added-in-11) |
 | EVM state channels | `StateChannel` | [solidity](solidity/) |
+
+## Guides
+
+Task-focused guides with tested examples live in
+[`docs/guides/`](docs/guides/README.md). Start with
+[Getting started](docs/guides/getting-started.md) (a first ledger in Java,
+.NET, Python, TypeScript or C), then follow the "start here" path in the
+catalogue. There are also guides on the ledger, budgets and time, crypto,
+wire frames, plugins, web frameworks, writing a binding, conformance
+testing and troubleshooting.
 
 ## Concepts
 

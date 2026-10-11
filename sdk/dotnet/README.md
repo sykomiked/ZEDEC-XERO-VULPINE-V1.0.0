@@ -94,10 +94,34 @@ A capability of another platform is refused with `ArgumentException`. The
 1.0 forms without a capability (`Currencies.Enable(code)`,
 `Ledger.OpenAccount`, `Ledger.GetAccount`, `Ledger.ListAccounts`,
 `Ledger.GetEntryCount`, `Ledger.GetEntries`, `Messages.BuildPacs008(msg)`,
-`Messages.BuildCamt053(msg)`) keep working and are `[Obsolete]`. The
-platform services themselves (`ZxvOptions` currency configuration,
-`Payments`, `Statements`) still run on the context: they are the platform's
-own trusted code, not a capability holder.
+`Messages.BuildCamt053(msg)`) keep working and are `[Obsolete]`.
+
+The members that take no capability (those obsolete forms, `ZxvOptions`
+currency configuration, `Ledger.Post`, `Ledger.GetBalances`,
+`Ledger.Verify`, `Payments.SubmitAsync(request)`,
+`Statements.BuildStatement(account)`, `Messages.IsSupported`) present the
+platform's own capability (`LedgerRead | LedgerPost`, created with the
+platform and never exposed), so the SDK calls only the ABI 1.2 `*_cap`
+forms; a test scans the sources for the deprecated ones. Code that should
+hold less passes its own:
+
+| Call | Needs |
+|---|---|
+| `Payments.SubmitAsync(cap, request)` | `LedgerRead` and `LedgerPost` |
+| `Statements.BuildStatement(cap, account[, request])` | `LedgerRead` |
+
+**Disposal.** `ZxvPlatform.Dispose()` makes the platform disposed at once:
+its members, its services and `CapabilityLedger` views throw
+`ObjectDisposedException`. Capabilities, budgets, clocks and logs created
+from it are children with their own lifetime: they keep working until you
+dispose them, and the native context is destroyed after the last of them
+(ABI.md R6).
+The same holds one level down. A disposed `Capability`, `Model` or
+`Budgets` throws at once, even while something still holds it, and so does
+anything that acts with its authority (a `CapabilityLedger` view, a `Budget`,
+a model opened with that capability). Its own handles keep working: an
+attenuated child capability, and a session or LoRA adapter of a disposed
+model. The native object is freed after the last of them.
 
 **No floats at the boundary.** No public method takes or returns `double` or
 `float`. `Rational` is a `readonly record struct` built with `Rational.Of(3, 4)`,
@@ -273,7 +297,8 @@ idle pilots, SHA3/SHAKE/Keccak digests, Ed25519, ML-DSA-87 and ML-KEM-1024
 digests, swarm allotments, greedy and seeded generation tokens, and the EVM
 encoding and digest; plus capability denial and revocation, the fatal path
 through `Halt` (and `FailFast` in a child process), budget exhaustion and
-async waiting, and phase deferral with both drivers.
+async waiting, phase deferral with both drivers, platform disposal while
+children are alive, and the platform services on the `*_cap` forms.
 
 ## Unity
 

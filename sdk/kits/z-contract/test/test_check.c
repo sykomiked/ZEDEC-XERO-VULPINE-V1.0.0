@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_check.c — values, the runtime checker (every ZC_V_* reason, exact
- * bounds), the provisional 64-state tag, and the evidence log (hash chain,
+ * bounds), the 64-state tag (against libzxv's zxv_hex_*), and the evidence log (hash chain,
  * the documented record hash, tampering, full log, sink). */
 #include "zc_internal.h"
 #include "zc_test.h"
@@ -345,6 +345,38 @@ static void test_tags(void) {
             ok = 0;
     }
     CHECK(ok, "all 64 tags round-trip through text and through make/split");
+    /* kit API 0.2: the codes and names are libzxv's (ABI 1.3, zxv_hex_*) */
+    ok = 1;
+    for (int32_t i = 0; i < 64; i++) {
+        uint8_t hb = 0, hp = 0, hf = 0, packed = 0;
+        int32_t hlp = -1, act = -1, hact = -2;
+        if (zc_tag_format(i, t, sizeof t, &n) != ZXV_OK || strcmp(t, zxv_hex_name((uint8_t) i)) != 0)
+            ok = 0;
+        if (zxv_hex_unpack((uint8_t) i, &hb, &hp, &hf) != ZXV_OK || zxv_hex_to_lp(hb, &hlp) != ZXV_OK ||
+            zc_tag_split(i, &lp, &pol, &ph) != ZXV_OK || lp != hlp || pol != hp || ph != hf)
+            ok = 0;
+        if (zxv_hex_pack(hb, hp, hf, &packed) != ZXV_OK || packed != i) ok = 0;
+        if (zc_tag_action(i, &act) != ZXV_OK || zxv_hex_action((uint8_t) i, &hact) != ZXV_OK || act != hact)
+            ok = 0;
+    }
+    CHECK(ok, "all 64 tags: text = zxv_hex_name, split = zxv_hex_unpack, action = zxv_hex_action");
+    CHECK(ZC_BASE_FALSE == ZXV_HEX_BASE_FALSE && ZC_BASE_NEITHER == ZXV_HEX_BASE_NEITHER &&
+              ZC_BASE_BOTH == ZXV_HEX_BASE_BOTH && ZC_BASE_TRUE == ZXV_HEX_BASE_TRUE &&
+              ZC_POL_ENTROPIC == ZXV_HEX_POL_ENTROPIC && ZC_POL_NEUTRAL == ZXV_HEX_POL_NEUTRAL &&
+              ZC_POL_FORBIDDEN == ZXV_HEX_POL_FORBIDDEN && ZC_POL_NEGENTROPIC == ZXV_HEX_POL_NEGENTROPIC &&
+              ZC_PH_POTENTIAL == ZXV_HEX_PHASE_POTENTIAL && ZC_PH_EMERGING == ZXV_HEX_PHASE_EMERGING &&
+              ZC_PH_DISSOLVING == ZXV_HEX_PHASE_DISSOLVING && ZC_PH_MANIFEST == ZXV_HEX_PHASE_MANIFEST &&
+              ZC_TAG_PROVISIONAL == 0 && ZC_VERSION_MINOR == 2,
+          "the 0.1 aliases equal the ZXV_HEX_* constants; the tag is no longer provisional");
+    {
+        int32_t act = -1;
+        CHECK(zc_tag_parse("false/forbidden/manifest", &code) == ZXV_OK && zc_tag_action(code, &act) == ZXV_OK &&
+                  act == ZXV_HEX_ACT_ROLLBACK, "an output violation's tag means rollback");
+        CHECK(zc_tag_parse("neither/neutral/emerging", &code) == ZXV_OK && zc_tag_action(code, &act) == ZXV_OK &&
+                  act == ZXV_HEX_ACT_WAIT, "an unverified inbound record means wait");
+        CHECK(zc_tag_action(64, &act) == ZXV_E_ARG && zc_tag_action(-1, &act) == ZXV_E_ARG &&
+                  zc_tag_action(0, NULL) == ZXV_E_ARG, "zc_tag_action ranges");
+    }
     CHECK(zc_tag_make(ZXV_LP_NEITHER, ZC_POL_NEUTRAL, ZC_PH_EMERGING, &code) == ZXV_OK &&
               zc_tag_format(code, t, sizeof t, &n) == ZXV_OK && strcmp(t, "neither/neutral/emerging") == 0 &&
               code == ((ZC_BASE_NEITHER << 4) | (ZC_POL_NEUTRAL << 2) | ZC_PH_EMERGING),
@@ -506,12 +538,52 @@ static void test_evlog(void) {
     zc_evlog_destroy(log);
 }
 
+static void test_bounds(void) {
+    zc_bounds b;
+    zc_contract *c = parse_ok("fn f(a: int[-5..10^12], r: rat[1/3..*] den<=1000, t: truth{true, false},\n"
+                              "      g: tag{*/forbidden/*}, s: bytes[2..9], o: int) -> int[0..*]\n"
+                              "    proposes rat[0..1] den|100 max 3;\n");
+    CHECK(c != NULL, "bounds contract parses");
+    if (!c) return;
+    CHECK(zc_slot_bounds(c, "f", ZC_PART_PARAMS, 0, &b) == ZXV_OK && b.type == ZC_T_INT && b.has_lo && b.has_hi &&
+              b.lo_num == -5 && b.lo_den == 1 && b.hi_num == 1000000000000LL && b.hi_den == 1 &&
+              b.den_mode == ZC_DEN_NONE, "int bounds");
+    CHECK(zc_slot_bounds(c, "f", ZC_PART_PARAMS, 1, &b) == ZXV_OK && b.type == ZC_T_RAT && b.has_lo && !b.has_hi &&
+              b.lo_num == 1 && b.lo_den == 3 && b.den_mode == ZC_DEN_LE && b.den_bound == 1000,
+          "rat bounds with an open side and den<=");
+    CHECK(zc_slot_bounds(c, "f", ZC_PART_PARAMS, 2, &b) == ZXV_OK && b.type == ZC_T_TRUTH &&
+              b.set_mask == ((1u << ZXV_LP_TRUE) | (1u << ZXV_LP_FALSE)), "truth set mask");
+    {
+        uint64_t want = 0;
+        for (uint8_t k = 0; k < 64; k++) {
+            uint8_t pl = 0;
+            zxv_hex_unpack(k, NULL, &pl, NULL);
+            if (pl == ZXV_HEX_POL_FORBIDDEN) want |= UINT64_C(1) << k;
+        }
+        CHECK(zc_slot_bounds(c, "f", ZC_PART_PARAMS, 3, &b) == ZXV_OK && b.type == ZC_T_TAG && b.set_mask == want,
+              "tag set mask = the 16 forbidden codes");
+    }
+    CHECK(zc_slot_bounds(c, "f", ZC_PART_PARAMS, 4, &b) == ZXV_OK && b.type == ZC_T_BYTES && b.lo_num == 2 &&
+              b.has_hi && b.hi_num == 9, "bytes length bounds");
+    CHECK(zc_slot_bounds(c, "f", ZC_PART_PARAMS, 5, &b) == ZXV_OK && !b.has_lo && !b.has_hi, "unbounded int");
+    CHECK(zc_slot_bounds(c, "f", ZC_PART_RESULT, 0, &b) == ZXV_OK && b.has_lo && !b.has_hi && b.lo_num == 0,
+          "result bounds");
+    CHECK(zc_slot_bounds(c, "f", ZC_PART_PROPOSALS, 0, &b) == ZXV_OK && b.type == ZC_T_RAT &&
+              b.den_mode == ZC_DEN_DIVIDES && b.den_bound == 100 && b.hi_num == 1, "proposal bounds");
+    CHECK(zc_slot_bounds(c, "f", ZC_PART_PARAMS, 6, &b) == ZXV_E_NOT_FOUND &&
+              zc_slot_bounds(c, "g", ZC_PART_PARAMS, 0, &b) == ZXV_E_NOT_FOUND &&
+              zc_slot_bounds(c, "f", 9, 0, &b) == ZXV_E_ARG && zc_slot_bounds(c, "f", ZC_PART_PARAMS, 0, NULL) == ZXV_E_ARG,
+          "zc_slot_bounds refusals");
+    zc_contract_destroy(c);
+}
+
 int main(void) {
     printf("test_check: values, checker, tags and the evidence log\n");
     test_vals();
     test_reasons();
     test_tags();
     test_evlog();
+    test_bounds();
     printf("test_check: %d checks, %d failed\n", g_checks, g_fail);
     return g_fail ? 1 : 0;
 }

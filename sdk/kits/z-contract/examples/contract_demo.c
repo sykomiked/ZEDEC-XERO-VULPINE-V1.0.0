@@ -8,7 +8,9 @@
  * It accepts fee(48000, 125) = 600, refuses fee(-5, 125) before it runs,
  * and stops the plugin when fee(333, 125) proposes 333/80, a fraction the
  * contract does not allow (80 does not divide 100). Then it prints the
- * evidence log and verifies its hash chain. */
+ * evidence log and verifies its hash chain. Every violation is also
+ * quarantined in a libzxv ABI 1.3 quarantine log (zxv_hexlog) as a
+ * Forbidden record, through the ready-made zc_hexsink. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,7 +51,9 @@ static void call(zw_plugin *p, zc_wasm_guard *g, int64_t amount, int64_t bps) {
 
 int main(int argc, char **argv) {
     zxv_ctx *ctx;
-    zxv_cap *root, *budget_cap;
+    zxv_cap *root, *budget_cap, *attest;
+    zxv_hexlog *quarantine;
+    zc_hexsink *hs;
     zxv_rmag *rm;
     uint32_t bud, line = 0, col = 0;
     zw_host *h;
@@ -78,6 +82,10 @@ int main(int argc, char **argv) {
         zw_host_create(budget_cap, rm, bud, &h) ||
         zw_host_grant(h, ZW_GRANT_RATIONAL | ZW_GRANT_LOGIC | ZW_GRANT_PROPOSE) ||
         zw_plugin_load(h, wasm, wlen, "rational", &p) || zc_evlog_create(1024, &log) ||
+        /* the quarantine log needs a cap that can attest */
+        zxv_cap_attenuate(root, ZXV_CAP_ATTEST, &attest) ||
+        zxv_hexlog_create(attest, 1024, &quarantine) || zc_hexsink_create(attest, quarantine, 0, &hs) ||
+        zc_hexsink_halt_on_full(hs, ctx) || zc_evlog_attach_hexsink(log, hs) ||
         zc_wasm_attach(p, "fee", c, "fee", log, &g)) {
         fprintf(stderr, "setup failed\n");
         return 2;
@@ -103,6 +111,19 @@ int main(int argc, char **argv) {
                hash[1], hash[2], hash[3], msg);
     }
     printf("evidence chain: %s\n", zc_evlog_verify(log) == ZXV_OK ? "verified" : "BROKEN");
+    uint32_t qn = 0;
+    zxv_hexlog_count(quarantine, &qn);
+    for (uint32_t i = 0; i < qn; i++) {
+        uint8_t qtag = 0, reason = 0, subject[32];
+        uint32_t who = 0;
+        int32_t act = 0;
+        zxv_hexlog_at(quarantine, i, NULL, &qtag, &reason, &who, subject, NULL, NULL);
+        zxv_hex_action(qtag, &act);
+        printf("quarantine #%u [%s -> %s] reason %s, from origin %u, evidence %02x%02x%02x%02x...\n",
+               (unsigned) i, zxv_hex_name(qtag), zxv_hex_action_name(act), zc_reason_name(reason),
+               (unsigned) who, subject[0], subject[1], subject[2], subject[3]);
+    }
+    printf("quarantine chain: %s\n", zxv_hexlog_verify(quarantine) == ZXV_OK ? "verified" : "BROKEN");
 
     uint64_t id;
     while (zw_queue_next(h, &id) == ZXV_OK) zw_proposal_reject(h, root, id);
@@ -110,6 +131,9 @@ int main(int argc, char **argv) {
     zw_plugin_destroy(p);
     zw_host_destroy(h);
     zc_evlog_destroy(log);
+    zc_hexsink_destroy(hs);
+    zxv_hexlog_destroy(quarantine);
+    zxv_cap_destroy(attest);
     zc_contract_destroy(c);
     zxv_rmag_destroy(rm);
     zxv_cap_destroy(budget_cap);

@@ -3,6 +3,20 @@
 /* test_gen.c — the spec parser and generator: accepted specs and the text
  * they produce, and refusals with their exact line, column and message. */
 #include "zf_test.h"
+#include <stdarg.h>
+#include <stdlib.h>
+
+/* Append to a test buffer; a test whose text would not fit is a bug in the
+ * test, so stop rather than truncate. */
+static size_t append(char *buf, size_t cap, size_t n, const char *fmt, ...) {
+    if (n >= cap) abort();
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vsnprintf(buf + n, cap - n, fmt, ap);
+    va_end(ap);
+    if (r < 0 || (size_t) r >= cap - n) abort();
+    return n + (size_t) r;
+}
 
 static int gen(const char *spec, char **h, char **c, uint32_t *line, uint32_t *col, uint64_t *off, char *msg,
                size_t cap) {
@@ -170,12 +184,12 @@ static void test_limits_and_misuse(void) {
     uint32_t line = 0, col = 0;
     size_t cap = 300u * 40u + 64u;
     char *big = (char *) malloc(cap);
-    size_t n = (size_t) snprintf(big, cap, "library m;\n");
-    for (int i = 0; i < 256; i++) n += (size_t) snprintf(big + n, cap - n, "fn g%d() -> void;\n", i);
+    size_t n = append(big, cap, 0, "library m;\n");
+    for (int i = 0; i < 256; i++) n = append(big, cap, n, "fn g%d() -> void;\n", i);
     CHECK(zf_gen(big, n, "m.h", &h, NULL, &c, NULL, NULL, NULL, NULL, msg, sizeof msg) == ZXV_OK, "256 functions");
     zf_gen_free(h);
     zf_gen_free(c);
-    n += (size_t) snprintf(big + n, cap - n, "fn g256() -> void;\n");
+    n = append(big, cap, n, "fn g256() -> void;\n");
     CHECK(zf_gen(big, n, "m.h", &h, NULL, &c, NULL, &line, &col, NULL, msg, sizeof msg) == ZF_E_SPEC &&
               strstr(msg, "more than 256 functions") && line == 258u, "257 functions: %s", msg);
     free(big);

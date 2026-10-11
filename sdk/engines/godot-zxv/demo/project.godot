@@ -1,0 +1,17 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+; Engine configuration file for the godot-zxv demo (Godot 4.3+).
+
+config_version=5
+
+[application]
+
+config/name="ZXV Lockstep Demo"
+config/description="Two lockstep peers with exact rational state, rollback and desync checks."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.3")
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540

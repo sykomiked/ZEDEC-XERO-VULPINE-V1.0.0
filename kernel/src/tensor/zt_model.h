@@ -8,10 +8,11 @@
  *       tensor's name, type and shape before anything runs. Q8_0 matrices are
  *       used in place from the mapped file: each 34-byte block's f16 scale is
  *       decoded as it is used, so a Q8_0 model costs no extra memory beyond
- *       the norms and biases. Matrices of other types (F32, F16, BF16, Q4_0,
- *       Q5_0, Q5_1, Q4_K, Q6_K) are converted once into zt_q8_t blocks in
- *       the caller's arena, with a 25-bit scale per block (value = q *
- *       scale >> shift).
+ *       the norms and biases. Q4_K and Q6_K matrices are used in place too
+ *       (T22). Matrices of other types (F32, F16, BF16, Q4_0, Q5_0, Q5_1,
+ *       and Q4_K/Q6_K under ZT_LOAD_CONVERT) are converted once into zt_q8_t
+ *       blocks in the caller's arena, with a 25-bit scale per block (value =
+ *       q * scale >> shift).
  *       All memory is the caller's: zt_model_arena_bytes for the weights,
  *       zt_model_state_bytes for the KV cache and the activations.
  *       Per layer, in llama.cpp's order: RMS norm; Q, K, V projections (plus
@@ -55,11 +56,26 @@
  *       stop id), a stop string, max_tokens, the end of the context, or the
  *       callback says stop. It appends to whatever the state already holds,
  *       so a chat can continue turn after turn.
+ *   T22 K-QUANTS IN PLACE.  A Q4_K or Q6_K matrix whose rows are a whole
+ *       number of 256-weight blocks is read straight from the file, with no
+ *       arena and no second rounding: each 32-weight sub-block meets one
+ *       activation block in exact 32-bit sums, then its 6-bit (Q4_K) or
+ *       int8 (Q6_K) scale and the block's f16 d (and dmin) are applied in 64
+ *       bits as for Q8_0. Q4_K's min term uses the activation block's exact
+ *       sum, which act_quant forms once per input. zt_kern.h holds the C
+ *       reference; the AVX2, AVX-512 and NEON kernels match it bit for bit
+ *       (test_zt_simd), and the C reference matches exact math (ggml's
+ *       dequantization in 128-bit integers) to within the Q16 rounding.
+ *       Measured on Qwen2.5-1.5B Q4_K_M (bench/results/2026-10-10-qwen2.5-
+ *       1.5b/REPORT.md): logits about 60 times closer (by KL) to a float64 forward
+ *       pass than the converted path, load in well under a second instead of
+ *       about 36, and faster decoding. ZT_LOAD_CONVERT keeps the old path.
  *       HONEST LIMITS.  Tested only on tiny random models (2 layers, 64
  *       wide) against a float64 numpy forward pass of llama.cpp's semantics;
- *       no real Qwen or Llama checkpoint has been run here (downloads were
- *       blocked), so real-model accuracy is unmeasured. On the test models
- *       (logits of standard deviation 3.4 to 5.1), with the Q16 KV cache:
+ *       since then one real checkpoint, Qwen2.5-1.5B Q4_K_M, has been run
+ *       and measured (T22's report); other models are unmeasured. On the
+ *       test models (logits of standard deviation 3.4 to 5.1), with the Q16
+ *       KV cache:
  *       max error 0.0013 for Q8_0 weights; 0.13 for F16 weights, which are
  *       rounded a second time to 8 bits (a numpy simulation of that rounding
  *       alone gives the same size); the Q8 KV cache adds about 0.1 (the
@@ -134,12 +150,13 @@ typedef struct {
     bool rope_neox, has_qk_norm, has_qkv_bias, has_rope_freqs, tied_output;
 } zt_model_cfg_t;
 
-/* A matrix of `rows` rows of `cols` values: GGUF Q8_0 blocks in place (raw),
- * or zt_q8_t blocks in the arena (q8). Exactly one is set. */
+/* A matrix of `rows` rows of `cols` values: GGUF Q8_0, Q4_K or Q6_K blocks in
+ * place (raw, qtype), or zt_q8_t blocks in the arena (q8). Exactly one is set. */
 typedef struct {
     const uint8_t *raw;
     const zt_q8_t *q8;
     uint32_t rows, cols;
+    uint32_t qtype; /* raw's ZT_GGML_* type: Q8_0, Q4_K or Q6_K (0 when q8 is set) */
 } zt_mat_t;
 
 typedef struct {
@@ -174,9 +191,17 @@ int32_t zt_model_config(const zt_gguf_t *g, zt_model_cfg_t *cfg, zt_model_err_t 
 /* Arena bytes zt_model_load needs for this file, or 0 if it cannot be loaded
  * (zt_model_config says why). Includes 64 bytes of alignment slack. */
 uint64_t zt_model_arena_bytes(const zt_gguf_t *g);
-/* The gguf buffer must outlive the model (Q8_0 weights are used in place). */
+/* The gguf buffer must outlive the model (Q8_0, Q4_K and Q6_K weights are
+ * used in place). */
 int32_t zt_model_load(zt_model_t *m, const zt_gguf_t *g, void *arena, uint64_t arena_bytes,
                       zt_model_err_t *err);
+/* The same with ZT_LOAD_* flags. ZT_LOAD_CONVERT converts Q4_K and Q6_K
+ * matrices into zt_q8_t blocks in the arena as before T22 (for experiments
+ * that rewrite weights, and to compare); the default uses them in place. */
+#define ZT_LOAD_CONVERT 1u
+uint64_t zt_model_arena_bytes_ex(const zt_gguf_t *g, uint32_t flags);
+int32_t zt_model_load_ex(zt_model_t *m, const zt_gguf_t *g, void *arena, uint64_t arena_bytes,
+                         uint32_t flags, zt_model_err_t *err);
 
 /* Per-sequence state: the KV cache and the activation scratch for batches of
  * up to n_batch tokens. */
@@ -190,10 +215,15 @@ typedef struct {
     zt_fx *x, *xn, *q, *k, *v, *att, *gt, *up; /* [n_batch][...] */
     int16_t *a16;                              /* [n_batch][a_stride] */
     uint8_t *ash;                              /* [n_batch][a_stride / 32] */
+    int32_t *asum;                             /* [n_batch][a_stride / 32] block sums of a16 */
     uint32_t a_stride;
     zt_fx *scores; /* [n_ctx] */
     int64_t *acc;  /* [head_dim] */
     int32_t *qs;   /* [head_dim] */
+    /* Values that hit the Q16 range limit (+-32768) since zt_model_state_init:
+     * matrix-product outputs and residual-stream additions. Same count on
+     * every kernel and thread count. 0 means nothing clipped. */
+    uint32_t n_sat;
 } zt_model_state_t;
 
 uint64_t zt_model_state_bytes(const zt_model_t *m, uint32_t n_ctx, uint32_t n_batch,

@@ -1,0 +1,6 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# Pinned tools for CI and local development (pip install -r requirements-dev.txt).
+Django==6.1.2
+django-stubs==6.1.2
+mypy==2.4.0

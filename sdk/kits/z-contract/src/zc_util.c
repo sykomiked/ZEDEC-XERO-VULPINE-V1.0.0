@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zc_util.c — status names, last error, UTF-8, text buffers, the
- * provisional 64-state tag. Integer code only (R11). */
+ * 64-state tag (on libzxv ABI 1.3 zxv_hex_*). Integer code only (R11). */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -169,37 +169,48 @@ void zc_buf_rat(zc_buf *b, int64_t n, int64_t d) {
     }
 }
 
-/* ----- the provisional 64-state tag ----- */
+/* ----- the 64-state tag: libzxv ABI 1.3 (zxv_hex_*) ----- */
 
+/* The name tables are the parser's vocabulary for tag{...} patterns; each
+ * position's index is the ZXV_HEX_* code (test_check compares every tag's
+ * text with zxv_hex_name). */
 const char *const zc_base_names[4] = {"false", "neither", "both", "true"};
 const char *const zc_pol_names[4] = {"entropic", "neutral", "forbidden", "negentropic"};
 const char *const zc_phase_names[4] = {"potential", "emerging", "dissolving", "manifest"};
 
-/* ZXV_LP_* (NEITHER 0, TRUE 1, FALSE 2, BOTH 3) <-> base code. */
-static const int32_t k_lp_to_base[4] = {ZC_BASE_NEITHER, ZC_BASE_TRUE, ZC_BASE_FALSE,
-                                        ZC_BASE_BOTH};
-static const int32_t k_base_to_lp[4] = {ZXV_LP_FALSE, ZXV_LP_NEITHER, ZXV_LP_BOTH, ZXV_LP_TRUE};
-
 int32_t zc_tag_make(int32_t lp_state, int32_t polarity, int32_t phase, int32_t *out_tag) {
+    uint8_t base = 0, tag = 0;
     if (!out_tag || lp_state < 0 || lp_state > 3 || polarity < 0 || polarity > 3 || phase < 0 ||
-        phase > 3) {
+        phase > 3 || zxv_hex_from_lp(lp_state, &base) != ZXV_OK ||
+        zxv_hex_pack(base, (uint8_t) polarity, (uint8_t) phase, &tag) != ZXV_OK) {
         zc_set_error("zc_tag_make: value out of range");
         return ZXV_E_ARG;
     }
-    *out_tag = (k_lp_to_base[lp_state] << 4) | (polarity << 2) | phase;
+    *out_tag = tag;
     return ZXV_OK;
 }
 
 int32_t zc_tag_split(int32_t tag, int32_t *out_lp_state, int32_t *out_polarity,
                      int32_t *out_phase) {
-    if (tag < 0 || tag > 63) {
+    uint8_t base = 0, pol = 0, ph = 0;
+    int32_t lp = 0;
+    if (tag < 0 || tag > 63 || zxv_hex_unpack((uint8_t) tag, &base, &pol, &ph) != ZXV_OK ||
+        zxv_hex_to_lp(base, &lp) != ZXV_OK) {
         zc_set_error("zc_tag_split: a tag is 0..63");
         return ZXV_E_ARG;
     }
-    if (out_lp_state) *out_lp_state = k_base_to_lp[(tag >> 4) & 3];
-    if (out_polarity) *out_polarity = (tag >> 2) & 3;
-    if (out_phase) *out_phase = tag & 3;
+    if (out_lp_state) *out_lp_state = lp;
+    if (out_polarity) *out_polarity = pol;
+    if (out_phase) *out_phase = ph;
     return ZXV_OK;
+}
+
+int32_t zc_tag_action(int32_t tag, int32_t *out_action) {
+    if (!out_action || tag < 0 || tag > 63) {
+        zc_set_error("zc_tag_action: a tag is 0..63");
+        return ZXV_E_ARG;
+    }
+    return zxv_hex_action((uint8_t) tag, out_action);
 }
 
 static int name_index(const char *const names[4], const char *s, size_t n) {
@@ -211,6 +222,7 @@ static int name_index(const char *const names[4], const char *s, size_t n) {
 int32_t zc_tag_parse(const char *text, int32_t *out_tag) {
     const char *a, *b;
     int x, y, z;
+    uint8_t tag = 0;
     if (!text || !out_tag) return ZXV_E_ARG;
     a = strchr(text, '/');
     b = a ? strchr(a + 1, '/') : NULL;
@@ -225,16 +237,17 @@ int32_t zc_tag_parse(const char *text, int32_t *out_tag) {
         zc_set_errorf("zc_tag_parse: unknown %s name", x < 0 ? "base" : y < 0 ? "polarity" : "phase");
         return ZXV_E_FORMAT;
     }
-    *out_tag = (x << 4) | (y << 2) | z;
+    if (zxv_hex_pack((uint8_t) x, (uint8_t) y, (uint8_t) z, &tag) != ZXV_OK) return ZXV_E_INTERNAL;
+    *out_tag = tag;
     return ZXV_OK;
 }
 
 int32_t zc_tag_format(int32_t tag, char *buf, size_t cap, size_t *out_len) {
-    char t[64];
+    const char *t;
     size_t n;
     if (!out_len || tag < 0 || tag > 63) return ZXV_E_ARG;
-    n = (size_t) snprintf(t, sizeof t, "%s/%s/%s", zc_base_names[(tag >> 4) & 3],
-                          zc_pol_names[(tag >> 2) & 3], zc_phase_names[tag & 3]);
+    t = zxv_hex_name((uint8_t) tag);
+    n = strlen(t);
     *out_len = n;
     if (!buf || cap <= n) return ZXV_E_BUFFER;
     memcpy(buf, t, n + 1u);

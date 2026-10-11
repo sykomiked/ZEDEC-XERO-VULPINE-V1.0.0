@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zcontract_wasm.h — enforce a z-contract on a Z-Wasm plugin export
- * (kit API 0.1). Needs sdk/kits/z-wasm (kit API 0.2, the call-check hook).
+ * (kit API 0.2). Needs sdk/kits/z-wasm (kit API 0.2, the call-check hook).
  *
  *   zc_wasm_attach(plugin, "fee", contract, "fee", log, &guard);
  *   st = zw_plugin_call(plugin, "fee", args, n, &res, &has, &fuel);
@@ -24,7 +24,7 @@
  *     (fail closed: no unrecorded violations).
  *
  * How contract types map onto Wasm i32/i64 arguments:
- *   int, truth, tag   one argument (truth 0..3, tag 0..63 provisional codes)
+ *   int, truth, tag   one argument (truth 0..3, tag 0..63 zxv_hex_* codes)
  *   rat               two arguments: numerator, then denominator
  *   bytes             not mappable (Wasm exports take no buffers): ZC_E_MAPPING
  * The result (one i32/i64) may be int, truth or tag; a rat or bytes result

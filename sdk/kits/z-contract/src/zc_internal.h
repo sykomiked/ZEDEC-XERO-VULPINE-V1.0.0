@@ -10,9 +10,7 @@
 
 #include "zcontract.h"
 
-#define ZC_DEN_NONE    0
-#define ZC_DEN_LE      1 /* den<=N */
-#define ZC_DEN_DIVIDES 2 /* den|N  */
+/* ZC_DEN_* are public (zcontract.h, kit API 0.2). */
 
 typedef struct {
     int32_t kind;          /* ZC_T_* */

@@ -37,10 +37,20 @@ The kit has three parts:
 > value: a fee plugin that charges 599 instead of 600 passes a contract that
 > allows 0..10^12. See [Threat model](#threat-model).
 
-Kit API version 0.1 (`include/zcontract.h`, `include/zcontract_wasm.h`).
-It may still change before 1.0. It calls only the libzxv ABI 1.2
+Kit API version 0.2 (`include/zcontract.h`, `include/zcontract_wasm.h`).
+It may still change before 1.0. It calls only the libzxv ABI 1.3
 (`sdk/libzxv/include/zxv_api.h`) and, for the Wasm binding, the Z-Wasm kit
 API 0.2.
+
+New in 0.2:
+
+- the 64-state tag is libzxv's real tag (`zxv_hex_*`); 0.1 carried a
+  placeholder with the same layout, so codes and names are unchanged;
+- `zc_tag_action`: what libzxv does next with a tag (`zxv_hex_action`);
+- `zc_hexsink`: a ready-made evidence sink that writes every violation as a
+  Forbidden record into a libzxv quarantine log (`zxv_hexlog`);
+- `zc_slot_bounds`: read a slot's declared bounds (used by
+  [z-audit](../z-audit/)).
 
 ## Quickstart
 
@@ -65,7 +75,14 @@ proposals waiting for the host: 1
 evidence #1 [false/neutral/potential] eb021e57...: fee: parameter 0 'amount' = -5 is below the minimum 0
 evidence #2 [false/forbidden/manifest] 344c6a00...: fee: proposal 0 = 4.1625 (333/80): denominator 80 does not divide 100
 evidence chain: verified
+quarantine #0 [false/forbidden/potential -> rollback] reason BELOW, from origin 1, evidence eb021e57...
+quarantine #1 [false/forbidden/manifest -> rollback] reason DENOMINATOR, from origin 1, evidence 344c6a00...
+quarantine chain: verified
 ```
+
+The last three lines are the libzxv quarantine log fed by `zc_hexsink`
+(see [The quarantine sink](#the-quarantine-sink-abi-13)): each quarantine
+record points at the evidence record with the same hash prefix.
 
 `zc-tool check` prints the canonical form of a contract, or the error in
 compiler style:
@@ -179,8 +196,8 @@ call-check hook (`zw_plugin_set_check`, Z-Wasm kit API 0.2). Every
 
 | Stage | Checked | On a violation | Evidence tag |
 |---|---|---|---|
-| before the call | the arguments | `ZW_E_CHECK`. Nothing runs, no fuel is used, and the plugin stays READY, because bad input is the caller's fault. | `false/neutral/potential` (an ordinary refusal of work not started) |
-| after a normal return | the result, then every staged proposal | `ZW_E_CHECK`. The plugin is DEAD and its proposals never reach the S0 queue, as after a trap. The call's fuel is still charged. | `false/forbidden/manifest` (the kernel's action for a forbidden tag is rollback and quarantine) |
+| before the call | the arguments | `ZW_E_CHECK`. Nothing runs, no fuel is used, and the plugin stays READY, because bad input is the caller's fault. | `false/neutral/potential` (an ordinary refusal of work not started; libzxv action `REFUSE`) |
+| after a normal return | the result, then every staged proposal | `ZW_E_CHECK`. The plugin is DEAD and its proposals never reach the S0 queue, as after a trap. The call's fuel is still charged. | `false/forbidden/manifest` (libzxv action `ROLLBACK`: roll back and quarantine) |
 
 How types map onto Wasm arguments: `int`, `truth` and `tag` take one
 `i32`/`i64` argument, and `rat` takes two (numerator, then denominator).
@@ -214,34 +231,64 @@ refuses the append (`ZXV_E_CAPACITY`) instead of evicting old records.
 Signing the head (`zc_evlog_head`) with ML-DSA-87 or Ed25519 through libzxv
 is the host's job.
 
-### Switching to the 64-state quarantine log (ABI 1.3)
+## The quarantine sink (ABI 1.3)
 
-libzxv ABI 1.3 will publish the kernel's 64-state tag and its quarantine
-log as `zxv_hex_*` functions. z-contract is built so it can switch over
-without an API change:
+libzxv ABI 1.3 has a quarantine log, `zxv_hexlog`: an append-only,
+SHA-256 hash-chained log of forbidden work. Writing to it needs
+`ZXV_CAP_ATTEST`. `zc_hexsink` is a ready-made evidence sink that writes
+every z-contract violation into one:
 
-- `zc_evlog_set_sink(log, fn, user)` calls `fn` for every record after it is
-  hashed and before it is committed, with the tag, the origin (the
-  quarantine log's *submitter*), the reason, the subject digest and the
-  hash. An ABI 1.3 host passes a sink that appends the same record to the
-  libzxv quarantine log. If the sink refuses, the record is refused
-  (`ZC_E_LOG`) and the Wasm guard fails closed.
-- Output violations already carry a forbidden tag, the only kind that the
-  kernel's log quarantines.
+```c
+zxv_cap *attest;  zxv_hexlog *q;  zc_hexsink *hs;
+zxv_cap_attenuate(root, ZXV_CAP_ATTEST, &attest);
+zxv_hexlog_create(attest, 4096, &q);
+zc_hexsink_create(attest, q, 0, &hs);     /* refused without ZXV_CAP_ATTEST */
+zc_hexsink_halt_on_full(hs, ctx);         /* optional, see below */
+zc_evlog_attach_hexsink(evlog, hs);       /* evlog keeps working as before */
+```
 
-## The 64-state tag (provisional)
+From then on every record appended to `evlog` (by the host, the Z-Wasm
+binding or adapter-matrix) is also one quarantine record:
 
-Until ABI 1.3 ships `zxv_hex_*`, `zcontract.h` carries a placeholder with
-the kernel's layout ([`lpres_hex.h`](../../../kernel/src/lpres/lpres_hex.h)):
+| Quarantine field | Value |
+|---|---|
+| tag | the evidence record's tag made forbidden (`zxv_hex_forbid`, base and phase kept): an input refusal `false/neutral/potential` becomes `false/forbidden/potential`, an output violation stays `false/forbidden/manifest`. libzxv's action for both is `ROLLBACK`. |
+| reason | the `ZC_V_*` reason; anything outside 0..254 is stored as 255 (`ZC_HEXSINK_REASON_OTHER`) |
+| submitter | the origin (`ZC_ORIGIN_HOST` 0, `WASM` 1, `ADAPTER` 2) |
+| subject | the hash of the evidence record, so each quarantine record points at exactly one evidence record (which holds the contract digest and the digest of the offending values) |
+
+Pass `ZC_HEXSINK_FORBIDDEN_ONLY` instead of 0 to quarantine only records
+that are already forbidden (the output violations) and leave input
+refusals in the evidence log alone.
+
+**Fail closed.** The sink runs before the evidence record is committed.
+If the quarantine log refuses (full: `ZXV_E_CAPACITY`, a revoked cap or a
+cap of another context: `ZXV_E_CAP`, a halted context: `ZXV_E_POISONED`),
+the evidence log refuses the record too (`ZC_E_LOG`) and a Z-Wasm guard
+then refuses every later call. libzxv's rule is that a host whose
+quarantine log is full must halt its context, because forbidden work it
+cannot record must not continue; `zc_hexsink_halt_on_full(hs, ctx)` calls
+`zxv_ctx_halt` for you at that moment. `zc_hexsink_stats` reports how many
+records were written and skipped and the last append's status.
+
+A host with its own sink can call `zc_hexsink_record` from it (it has the
+`zc_evlog_sink` signature). Run `make demo` to see both logs side by side.
+
+## The 64-state tag
+
+Tags are libzxv's 64-state tag (ABI 1.3, `zxv_hex_*`; the kernel's
+[`lpres_hex.h`](../../../kernel/src/lpres/lpres_hex.h)):
 `code = base << 4 | polarity << 2 | phase`, with base `false 0`,
 `neither 1`, `both 2`, `true 3` (not the `ZXV_LP_*` numbering), polarity
 `entropic`, `neutral`, `forbidden`, `negentropic`, and phase `potential`,
-`emerging`, `dissolving`, `manifest`. `ZC_TAG_PROVISIONAL` is 1.
+`emerging`, `dissolving`, `manifest`. `zc_tag_make`, `zc_tag_split`,
+`zc_tag_parse` and `zc_tag_format` call `zxv_hex_pack`, `zxv_hex_unpack`,
+`zxv_hex_from_lp`/`zxv_hex_to_lp` and `zxv_hex_name`, and `zc_tag_action`
+calls `zxv_hex_action`. `test_check` compares all 64 codes with libzxv.
 
-The **text** form `base/polarity/phase` is the stable interface. Contracts,
-logs and adapters use names. `zc_tag_make`, `zc_tag_split`,
-`zc_tag_parse` and `zc_tag_format` will be re-implemented on `zxv_hex_*`
-with the same signatures. Do not persist the numeric code.
+Kit API 0.1 used a placeholder with the same layout
+(`ZC_TAG_PROVISIONAL` was 1; it is 0 now). The `ZC_BASE_*`, `ZC_POL_*` and
+`ZC_PH_*` names are kept as aliases of the `ZXV_HEX_*` constants.
 
 ## Threat model
 
@@ -282,7 +329,9 @@ writes a contract the parser should refuse.
   export has.
 - **Threads.** A guard, a log and a `zc_vals` are not thread-safe. A parsed
   contract is read-only after `zc_parse` and can be shared.
-- **The 64-state tag is provisional** until ABI 1.3. Use the text names.
+- **The quarantine log is in the same process.** Like the evidence log it
+  shows tampering only through its hash chain (`zxv_hexlog_verify`); sign
+  its head and keep it elsewhere if that matters.
 - **Kit API 0.x.** It is not yet covered by the libzxv stability promise.
 
 ## Limits
@@ -314,12 +363,13 @@ make demo                          # the demo above (needs zig)
 | Suite | What |
 |---|---|
 | `test_parse` | 473 checks: 19 accepted texts against their exact canonical form, round trips and digests; 45 refusals, each with its exact line, column and message, the offset agreeing with them, and the last-error text; message truncation, `NULL` handling, non-terminated input, and every size limit (63/64-byte names, 16/17 parameters, 256/257 functions, 64/65 set entries, 1 MiB) |
-| `test_check` | 101 checks: values, every `ZC_V_*` reason with its index and message, inclusive bounds, reduction, the 0.1 double refused by `rat[0..1/10]`, values one unit either side of 1/10 at the `int64` limit, results and proposal counts, subject digests, all 64 tags through text and make/split, and the evidence log (the documented record hash recomputed independently, the sink, refusal when full, UTF-8 cut, and four kinds of tampering) |
-| `test_wasm` | 81 checks: input refusals with no fuel used and the plugin READY, output violations that kill the plugin with no proposal queued, record tags and digests, undeclared proposals, arity and missing or unexpected results, mapping errors, rational arguments, fail-closed on a full log, detach, and the z-wasm rational example plugin under `examples/fees.zc` |
+| `test_check` | 116 checks: values, every `ZC_V_*` reason with its index and message, inclusive bounds, reduction, the 0.1 double refused by `rat[0..1/10]`, values one unit either side of 1/10 at the `int64` limit, results and proposal counts, subject digests, all 64 tags through text and make/split and against libzxv (`zxv_hex_name`, `zxv_hex_unpack`, `zxv_hex_pack`, `zxv_hex_action`), the evidence log (the documented record hash recomputed independently, the sink, refusal when full, UTF-8 cut, and four kinds of tampering), and `zc_slot_bounds` for every type |
+| `test_hexsink` | 43 checks: the quarantine sink needs `ZXV_CAP_ATTEST`; each field of the quarantine record (forbidden tag with base and phase kept, reason, reason 255 for out-of-range codes, submitter, subject = evidence hash); `FORBIDDEN_ONLY`; bad tags refused in both logs; fail-closed on a full log, a revoked cap, a cap of another context and a halted context; `halt_on_full`; a host sink chaining `zc_hexsink_record` |
+| `test_wasm` | 94 checks: input refusals with no fuel used and the plugin READY, output violations that kill the plugin with no proposal queued, record tags and digests, undeclared proposals, arity and missing or unexpected results, mapping errors, rational arguments, fail-closed on a full log, detach, the quarantine sink behind a guard (input and output violations quarantined, a full quarantine log failing the guard closed and halting the context), and the z-wasm rational example plugin under `examples/fees.zc` |
 | `fuzz_parse` | for every input: deterministic status, position and message; the position inside the input and consistent with line and column; truncated messages are prefixes; accepted contracts round-trip to the same canonical text and digest; values at each declared `int` bound pass and one step outside fail at that parameter |
 | `check-nofloat` | R11 over every kit source (z-wasm's checker) |
 
-Clean runs on this branch: the three suites under gcc and clang, the same
+Clean runs on this branch: the four suites under gcc and clang, the same
 under ASan + UBSan with leak detection, and 4 x 250,000 sanitized fuzz
 mutants (seeds 1-4, about 38,000 accepted contracts each).
 
@@ -327,9 +377,9 @@ mutants (seeds 1-4, about 38,000 accepted contracts each).
 
 | Path | |
 |---|---|
-| `include/zcontract.h` | the kit API: parser, values, checker, tag placeholder, evidence log |
+| `include/zcontract.h` | the kit API: parser, values, checker, 64-state tag, evidence log, quarantine sink |
 | `include/zcontract_wasm.h` | the Z-Wasm binding |
-| `src/zc_parse.c`, `src/zc_check.c`, `src/zc_evlog.c`, `src/zc_util.c`, `src/zc_wasm.c` | the implementation (R11: integer code only) |
+| `src/zc_parse.c`, `src/zc_check.c`, `src/zc_evlog.c`, `src/zc_hexsink.c`, `src/zc_util.c`, `src/zc_wasm.c` | the implementation (R11: integer code only) |
 | `examples/fees.zc`, `examples/broken.zc` | contracts (the second must fail) |
 | `examples/contract_demo.c` | the demo above |
 | `tools/zc_tool.c` | `zc-tool check` / `zc-tool digest` |

@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! dot_spelled.tb - examples/dot.tb spelled differently: upper case,
+! comments, a continuation line, redundant parentheses and a unary plus.
+! Both parse to the same canonical text, so they have the same digest.
+
+TREBAGO Dot      ! the name is not case-sensitive either
+  IN X(N)
+  IN Y(N)
+  OUT S
+  S = SUM(I, +((X(I)) * &   ! continued
+          Y(I)))
+END
+!> in x = 2, 3
+!> in y = 1/2, 1/3
+!> expect s = 2

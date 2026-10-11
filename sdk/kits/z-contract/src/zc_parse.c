@@ -432,9 +432,11 @@ static int parse_type(P *p, zc_type *ty) {
             }
             for (uint32_t i = 0; i < ty->nset; i++)
                 if (memcmp(ty->set[i], e, 3) == 0) return fail_at(p, &et, "listed twice");
-            for (int code = 0; code < 64; code++) {
-                if ((e[0] == 0xFF || e[0] == ((code >> 4) & 3)) &&
-                    (e[1] == 0xFF || e[1] == ((code >> 2) & 3)) && (e[2] == 0xFF || e[2] == (code & 3)))
+            for (uint8_t code = 0; code < ZXV_HEX_STATES; code++) {
+                uint8_t cb = 0, cp = 0, cf = 0;
+                if (zxv_hex_unpack(code, &cb, &cp, &cf) != ZXV_OK) return fail_at(p, &et, "zxv_hex_unpack failed");
+                if ((e[0] == 0xFF || e[0] == cb) && (e[1] == 0xFF || e[1] == cp) &&
+                    (e[2] == 0xFF || e[2] == cf))
                     ty->allowed |= UINT64_C(1) << code;
             }
         }
@@ -776,5 +778,57 @@ int32_t zc_slot_type(const zc_contract *contract, const char *fn, int32_t part, 
     if (!t) return ZXV_E_NOT_FOUND;
     *out_type = t->kind;
     if (out_name) *out_name = name;
+    return ZXV_OK;
+}
+
+int32_t zc_slot_bounds(const zc_contract *contract, const char *fn, int32_t part, uint32_t index,
+                       zc_bounds *out) {
+    const zc_fn *f;
+    const zc_type *t = NULL;
+    if (!contract || !fn || !out) return ZXV_E_ARG;
+    f = zc_find_fn(contract, fn);
+    if (!f) {
+        zc_set_errorf("the contract declares no function '%.64s'", fn);
+        return ZXV_E_NOT_FOUND;
+    }
+    if (part == ZC_PART_PARAMS && index < f->nparams) t = &f->params[index].type;
+    else if (part == ZC_PART_RESULT && index == 0 && f->has_result) t = &f->result;
+    else if (part == ZC_PART_PROPOSALS && index == 0 && f->has_proposes) t = &f->proposes;
+    else if (part != ZC_PART_PARAMS && part != ZC_PART_RESULT && part != ZC_PART_PROPOSALS)
+        return ZXV_E_ARG;
+    if (!t) return ZXV_E_NOT_FOUND;
+    memset(out, 0, sizeof *out);
+    out->type = t->kind;
+    out->lo_den = out->hi_den = 1;
+    switch (t->kind) {
+    case ZC_T_INT:
+    case ZC_T_RAT:
+        out->has_lo = t->has_lo ? 1 : 0;
+        out->has_hi = t->has_hi ? 1 : 0;
+        if (t->has_lo) {
+            out->lo_num = t->lo_n;
+            out->lo_den = t->kind == ZC_T_INT ? 1 : t->lo_d;
+        }
+        if (t->has_hi) {
+            out->hi_num = t->hi_n;
+            out->hi_den = t->kind == ZC_T_INT ? 1 : t->hi_d;
+        }
+        out->den_mode = t->den_mode;
+        out->den_bound = t->den_bound;
+        break;
+    case ZC_T_BYTES:
+        out->has_lo = 1;
+        out->lo_num = (int64_t) t->blo;
+        out->has_hi = t->has_hi ? 1 : 0;
+        if (t->has_hi) out->hi_num = (int64_t) t->bhi;
+        break;
+    case ZC_T_TRUTH:
+        out->set_mask = t->allowed & 0xFu;
+        break;
+    case ZC_T_TAG:
+        out->set_mask = t->allowed;
+        break;
+    default: break;
+    }
     return ZXV_OK;
 }

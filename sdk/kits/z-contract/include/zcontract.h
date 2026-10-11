@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zcontract.h — z-contract, typed contracts with exact bounds for ZXV
- * plugin inputs and outputs (kit API 0.1).
+ * plugin inputs and outputs (kit API 0.2).
  *
  * A contract is a short text that declares functions and the exact values
  * their parameters, result and proposals may take:
@@ -25,9 +25,10 @@
  *      message.
  *   3. EVIDENCE (zc_evlog). An append-only log, each record linked to the
  *      previous one by SHA-3-256 (zxv_sha3_256), so a removed or altered
- *      record is detected by zc_evlog_verify. A sink callback lets the
- *      records also go to the libzxv 64-state quarantine log once ABI 1.3
- *      ships it (see "The 64-state tag" below).
+ *      record is detected by zc_evlog_verify. A sink callback sends every
+ *      record somewhere else too; the ready-made zc_hexsink writes each
+ *      violation as a Forbidden record into a libzxv ABI 1.3 quarantine
+ *      log (zxv_hexlog), see "The quarantine sink" below.
  *
  * The Z-Wasm binding (attach a contract to a plugin export; a violating
  * result kills the plugin like a trap) is in zcontract_wasm.h.
@@ -37,8 +38,10 @@
  * "Threat model".
  *
  * KIT API STABILITY. 0.x: it may change before 1.0. It calls only the
- * libzxv ABI 1.2 (zxv_api.h). Opaque handles, int32_t status returns,
- * fixed-width integers, no floats.
+ * libzxv ABI 1.3 (zxv_api.h). Opaque handles, int32_t status returns,
+ * fixed-width integers, no floats. 0.2 (over 0.1): the tag is libzxv's
+ * real 64-state tag (zxv_hex_*), zc_tag_action, the zc_hexsink quarantine
+ * sink, and zc_slot_bounds.
  */
 #ifndef ZCONTRACT_H
 #define ZCONTRACT_H
@@ -53,7 +56,7 @@ extern "C" {
 #endif
 
 #define ZC_VERSION_MAJOR 0
-#define ZC_VERSION_MINOR 1
+#define ZC_VERSION_MINOR 2
 #define ZC_VERSION_PATCH 0
 
 /* ===== Status codes =====
@@ -86,46 +89,49 @@ int32_t zc_last_error(char *buf, size_t cap, size_t *out_len);
 #define ZC_T_INT   1 /* int64                                                     */
 #define ZC_T_RAT   2 /* exact rational, two int64 (reduced, den > 0)              */
 #define ZC_T_TRUTH 3 /* ZXV_LP_NEITHER / TRUE / FALSE / BOTH                      */
-#define ZC_T_TAG   4 /* the 64-state tag, 0..63 (PROVISIONAL codes, see below)    */
+#define ZC_T_TAG   4 /* the 64-state tag, 0..63 (libzxv zxv_hex_* codes)          */
 #define ZC_T_BYTES 5 /* a byte string (its length is what a contract bounds)      */
 
-/* ===== The 64-state tag (PROVISIONAL until libzxv ABI 1.3) =====
- * The kernel's 64-state tag (kernel/src/lpres/lpres_hex.h) will reach the
- * public ABI as zxv_hex_* functions in ABI 1.3. Until then this kit
- * carries a PLACEHOLDER with the same layout, so contracts written today
- * keep their meaning:
+/* ===== The 64-state tag (libzxv ABI 1.3) =====
+ * A tag is libzxv's 64-state hexagram tag (zxv_hex_* in zxv_api.h, from
+ * kernel/src/lpres/lpres_hex.h):
  *
  *   code = base << 4 | polarity << 2 | phase          (0..63)
  *   base      false 0, neither 1, both 2, true 3      (NOT the ZXV_LP_* numbering)
  *   polarity  entropic 0, neutral 1, forbidden 2, negentropic 3
  *   phase     potential 0, emerging 1, dissolving 2, manifest 3
  *
- * The TEXT form "base/polarity/phase" (e.g. "neither/neutral/emerging") is
- * the stable interface: contracts, logs and adapters store text names or
- * go through these functions. When ABI 1.3 lands, these functions are
- * re-implemented on zxv_hex_* (and the codes checked against it) without
- * changing their signatures. Do not persist the numeric code. */
-#define ZC_TAG_PROVISIONAL 1
+ * Kit API 0.1 carried a placeholder with the same layout; since 0.2 these
+ * functions call zxv_hex_*, so the codes ARE libzxv's codes. The text form
+ * "base/polarity/phase" (e.g. "neither/neutral/emerging", the same text as
+ * zxv_hex_name) is still the friendliest thing to store. */
+#define ZC_TAG_PROVISIONAL 0 /* was 1 in kit API 0.1 (placeholder codes) */
 
-#define ZC_BASE_FALSE   0
-#define ZC_BASE_NEITHER 1
-#define ZC_BASE_BOTH    2
-#define ZC_BASE_TRUE    3
-#define ZC_POL_ENTROPIC    0
-#define ZC_POL_NEUTRAL     1
-#define ZC_POL_FORBIDDEN   2
-#define ZC_POL_NEGENTROPIC 3
-#define ZC_PH_POTENTIAL  0
-#define ZC_PH_EMERGING   1
-#define ZC_PH_DISSOLVING 2
-#define ZC_PH_MANIFEST   3
+/* Aliases kept from 0.1; they equal the ZXV_HEX_* constants. */
+#define ZC_BASE_FALSE   ZXV_HEX_BASE_FALSE
+#define ZC_BASE_NEITHER ZXV_HEX_BASE_NEITHER
+#define ZC_BASE_BOTH    ZXV_HEX_BASE_BOTH
+#define ZC_BASE_TRUE    ZXV_HEX_BASE_TRUE
+#define ZC_POL_ENTROPIC    ZXV_HEX_POL_ENTROPIC
+#define ZC_POL_NEUTRAL     ZXV_HEX_POL_NEUTRAL
+#define ZC_POL_FORBIDDEN   ZXV_HEX_POL_FORBIDDEN
+#define ZC_POL_NEGENTROPIC ZXV_HEX_POL_NEGENTROPIC
+#define ZC_PH_POTENTIAL  ZXV_HEX_PHASE_POTENTIAL
+#define ZC_PH_EMERGING   ZXV_HEX_PHASE_EMERGING
+#define ZC_PH_DISSOLVING ZXV_HEX_PHASE_DISSOLVING
+#define ZC_PH_MANIFEST   ZXV_HEX_PHASE_MANIFEST
 
-/* Build a tag from a four-valued ZXV_LP_* state (mapped to its base), a
- * ZC_POL_* polarity and a ZC_PH_* phase. ZXV_E_ARG for values out of range. */
+/* Build a tag from a four-valued ZXV_LP_* state (zxv_hex_from_lp), a
+ * ZXV_HEX_POL_* polarity and a ZXV_HEX_PHASE_* phase (zxv_hex_pack).
+ * ZXV_E_ARG for values out of range. */
 int32_t zc_tag_make(int32_t lp_state, int32_t polarity, int32_t phase, int32_t *out_tag);
-/* Split a tag; *out_lp_state is the ZXV_LP_* value of its base. */
+/* Split a tag (zxv_hex_unpack); *out_lp_state is the ZXV_LP_* value of its
+ * base (zxv_hex_to_lp). Any out pointer may be NULL. */
 int32_t zc_tag_split(int32_t tag, int32_t *out_lp_state, int32_t *out_polarity,
                      int32_t *out_phase);
+/* What libzxv says happens next for a tag: a ZXV_HEX_ACT_* value
+ * (zxv_hex_action). A forbidden tag gives ZXV_HEX_ACT_ROLLBACK. (0.2) */
+int32_t zc_tag_action(int32_t tag, int32_t *out_action);
 /* "true/negentropic/manifest" <-> code. ZXV_E_FORMAT for unknown names. */
 int32_t zc_tag_parse(const char *text, int32_t *out_tag);
 int32_t zc_tag_format(int32_t tag, char *buf, size_t cap, size_t *out_len);
@@ -173,6 +179,32 @@ int32_t zc_fn_info(const zc_contract *contract, const char *fn, uint32_t *out_np
  * and for a parameter its name (static to the contract; "" otherwise). */
 int32_t zc_slot_type(const zc_contract *contract, const char *fn, int32_t part, uint32_t index,
                      int32_t *out_type, const char **out_name);
+
+/* The declared bounds of one slot (kit API 0.2), for tools such as
+ * sdk/kits/z-audit. A plain output structure, filled by zc_slot_bounds.
+ *   INT, RAT   has_lo / has_hi are 0 when that side is open ("*", or no
+ *              range at all); lo and hi are reduced rationals (INT: den 1).
+ *              den_mode / den_bound are the den<=N or den|N rule.
+ *   BYTES      the length range, in lo_num / hi_num (den 1).
+ *   TRUTH, TAG set_mask: bit k set when code k is allowed (all of them
+ *              when no {...} set was written). */
+#define ZC_DEN_NONE    0
+#define ZC_DEN_LE      1 /* den<=N */
+#define ZC_DEN_DIVIDES 2 /* den|N  */
+
+typedef struct {
+    int32_t type; /* ZC_T_* */
+    int32_t has_lo, has_hi;
+    int64_t lo_num, lo_den, hi_num, hi_den;
+    int32_t den_mode; /* ZC_DEN_* */
+    int64_t den_bound;
+    uint64_t set_mask;
+} zc_bounds;
+
+/* Fill *out for the slot named as in zc_slot_type. ZXV_E_NOT_FOUND for an
+ * unknown function or slot. */
+int32_t zc_slot_bounds(const zc_contract *contract, const char *fn, int32_t part, uint32_t index,
+                       zc_bounds *out);
 
 /* ===== Values ===== */
 typedef struct zc_vals zc_vals;
@@ -247,13 +279,11 @@ int32_t zc_vals_digest(const zc_vals *vals, int32_t part, uint8_t out[32]);
  * which the Z-Wasm binding does by refusing the call. Signing the head is
  * the caller's job (zc_evlog_head, then ML-DSA-87 or Ed25519 via libzxv).
  *
- * SWITCH-OVER TO ABI 1.3. zc_evlog_set_sink registers a function called
- * for every record after it is hashed and before it is committed. A
- * non-zero return refuses the record (ZC_E_LOG). An ABI 1.3 host passes a
- * sink that appends the same record to libzxv's 64-state quarantine log
- * (zxv_hex_*), so both logs see every violation; the record layout above
- * carries everything that log needs (tag, submitter = origin, subject
- * digest, reason). */
+ * SINKS. zc_evlog_set_sink registers a function called for every record
+ * after it is hashed and before it is committed. A non-zero return
+ * refuses the record (ZC_E_LOG), so a record is in this log only if the
+ * sink took it. zc_hexsink (below) is a ready-made sink for libzxv's
+ * ABI 1.3 quarantine log. */
 typedef struct zc_evlog zc_evlog;
 
 #define ZC_ORIGIN_HOST    0 /* the host appended it directly        */
@@ -290,6 +320,66 @@ int32_t zc_evlog_get(const zc_evlog *log, uint64_t seq, uint32_t *out_origin, in
 /* Recompute every link. ZXV_OK, or ZXV_E_VERIFY (zc_last_error names the
  * first bad record). */
 int32_t zc_evlog_verify(const zc_evlog *log);
+
+/* ===== The quarantine sink (libzxv ABI 1.3, kit API 0.2) =====
+ * zc_hexsink writes contract violations as Forbidden records into a
+ * libzxv quarantine log (zxv_hexlog, see zxv_api.h). Attach it to an
+ * evidence log and every record appended there (by the host, the Z-Wasm
+ * binding or adapter-matrix) is also quarantined:
+ *
+ *   zxv_hexlog_create(attest_cap, 4096, &q);
+ *   zc_hexsink_create(attest_cap, q, 0, &hs);
+ *   zc_evlog_attach_hexsink(evlog, hs);
+ *
+ * Each evidence record becomes one zxv_hexlog_append with
+ *   tag        the record's tag made forbidden (zxv_hex_forbid: the base
+ *              and phase are kept, so an input refusal false/neutral/
+ *              potential becomes false/forbidden/potential and an output
+ *              violation stays false/forbidden/manifest);
+ *   reason     the record's reason (a ZC_V_* code); a reason outside
+ *              0..254 is stored as ZC_HEXSINK_REASON_OTHER (255);
+ *   submitter  the record's origin (ZC_ORIGIN_*);
+ *   subject    the evidence record's own hash, so each quarantine record
+ *              points at exactly one evidence record (which in turn holds
+ *              the contract digest and the subject digest of the values).
+ *
+ * The cap must pass zxv_cap_check(cap, ZXV_CAP_ATTEST) and belong to the
+ * hexlog's context; libzxv checks both again on every append. If the
+ * append fails (a full log: ZXV_E_CAPACITY, a revoked cap: ZXV_E_CAP, a
+ * halted context: ZXV_E_POISONED) the sink refuses, so the evidence log
+ * refuses the record too (ZC_E_LOG) and a Z-Wasm guard fails closed.
+ * libzxv says a host whose quarantine log is full must halt its context:
+ * zc_hexsink_halt_on_full does that for you.
+ *
+ * The sink keeps the cap and hexlog pointers (no copies): both must
+ * outlive it, and it must outlive the evidence log it is attached to (or
+ * be detached with zc_evlog_set_sink(log, NULL, NULL)). Not thread-safe,
+ * like the evidence log (the zxv_hexlog itself is serialized). */
+typedef struct zc_hexsink zc_hexsink;
+
+#define ZC_HEXSINK_FORBIDDEN_ONLY 0x1u /* flag: only quarantine records whose  */
+                                       /* tag is already forbidden (the output */
+                                       /* violations); skip the others         */
+#define ZC_HEXSINK_REASON_OTHER 255
+
+int32_t zc_hexsink_create(const zxv_cap *cap, zxv_hexlog *hexlog, uint32_t flags,
+                          zc_hexsink **out_sink);
+void zc_hexsink_destroy(zc_hexsink *sink);
+/* Halt `ctx` (zxv_ctx_halt) when the quarantine log is full, before the
+ * record is refused. NULL turns it off. `ctx` must be the hexlog's. */
+int32_t zc_hexsink_halt_on_full(zc_hexsink *sink, zxv_ctx *ctx);
+/* zc_evlog_set_sink(log, zc_hexsink_record, sink). */
+int32_t zc_evlog_attach_hexsink(zc_evlog *log, zc_hexsink *sink);
+/* The sink function itself (a zc_evlog_sink; `user` is the zc_hexsink),
+ * for a host that chains it behind its own sink. Returns 0 when the record
+ * was quarantined or skipped, else the libzxv status of the failed append
+ * (or ZXV_E_ARG for a tag outside 0..63). */
+int32_t zc_hexsink_record(void *user, uint64_t seq, uint32_t origin, int32_t tag, int32_t reason,
+                          const uint8_t subject[32], const uint8_t hash[32], const char *text);
+/* Records quarantined, records skipped (FORBIDDEN_ONLY), and the status of
+ * the last append (ZXV_OK before the first). Any out pointer may be NULL. */
+int32_t zc_hexsink_stats(const zc_hexsink *sink, uint64_t *out_written, uint64_t *out_skipped,
+                         int32_t *out_last_status);
 
 #ifdef __cplusplus
 }

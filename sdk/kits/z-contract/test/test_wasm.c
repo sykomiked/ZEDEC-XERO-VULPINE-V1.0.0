@@ -3,7 +3,8 @@
 /* test_wasm.c — z-contract on Z-Wasm exports: input refusals that leave
  * the plugin READY, output violations that kill it like a trap and drop
  * its proposals, the evidence records, mapping errors, fail-closed on a
- * full log, and (when its path is given) the z-wasm rational example.
+ * full log, the quarantine sink (kit API 0.2), and (when its path is given)
+ * the z-wasm rational example.
  *
  *   test_wasm [rational_plugin.wasm]
  *
@@ -409,6 +410,91 @@ static void test_example(const char *path) {
     free(w);
 }
 
+/* kit API 0.2: the guard's evidence log feeds a libzxv quarantine log. */
+static void test_hexsink(void) {
+    zw_host *h = NULL;
+    zc_evlog *log = NULL;
+    zc_wasm_guard *g = NULL;
+    zxv_hexlog *q = NULL;
+    zc_hexsink *hs = NULL;
+    zw_plugin *p;
+    int64_t args[2], res = 0;
+    uint32_t count = 9, submitter = 9;
+    uint8_t htag = 0, hreason = 0, subj[32], eh[32];
+    int32_t state = -1, poisoned = 0;
+    char txt[300];
+    zc_contract *c = parse_ok("fn fee(amount: int[0..10^12], bps: int[0..10000]) -> int[0..0]\n"
+                              "    proposes rat[0..10^12] den|100 max 1;\n");
+    zxv_cap *attest = NULL;
+    CHECK(c != NULL && zxv_cap_attenuate(root, ZXV_CAP_ATTEST, &attest) == ZXV_OK &&
+              zxv_hexlog_create(attest, 2, &q) == ZXV_OK && zc_hexsink_create(attest, q, 0, &hs) == ZXV_OK &&
+              zc_hexsink_halt_on_full(hs, ctx) == ZXV_OK && zc_evlog_create(16, &log) == ZXV_OK &&
+              zc_evlog_attach_hexsink(log, hs) == ZXV_OK,
+          "evidence log with a quarantine sink");
+    CHECK(zw_host_create(budget_cap, rm, bud, &h) == ZXV_OK && zw_host_grant(h, ZW_GRANT_PROPOSE) == ZXV_OK,
+          "host");
+    p = load_fee(h, 1);
+    CHECK(p != NULL && zc_wasm_attach(p, "fee", c, "fee", log, &g) == ZXV_OK, "attach");
+    if (!p || !g) return;
+
+    /* bad input: quarantined as false/forbidden/potential, plugin READY */
+    args[0] = -5;
+    args[1] = 125;
+    CHECK(zw_plugin_call(p, "fee", args, 2, &res, NULL, NULL) == ZW_E_CHECK &&
+              zw_plugin_state(p, &state) == ZXV_OK && state == ZW_PLUGIN_READY,
+          "input refused");
+    CHECK(zxv_hexlog_count(q, &count) == ZXV_OK && count == 1 &&
+              zxv_hexlog_at(q, 0, NULL, &htag, &hreason, &submitter, subj, NULL, NULL) == ZXV_OK &&
+              strcmp(zxv_hex_name(htag), "false/forbidden/potential") == 0 && hreason == ZC_V_BELOW &&
+              submitter == ZC_ORIGIN_WASM,
+          "quarantine record 0: %s reason %u submitter %u", zxv_hex_name(htag), (unsigned) hreason,
+          (unsigned) submitter);
+    CHECK(zc_evlog_get(log, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, eh, txt, sizeof txt, NULL) == ZXV_OK &&
+              memcmp(eh, subj, 32) == 0,
+          "its subject is the evidence record's hash");
+
+    /* a bad output (a fraction with den 10000 against den|100): forbidden/manifest */
+    args[0] = 333;
+    args[1] = 125;
+    CHECK(zw_plugin_call(p, "fee", args, 2, &res, NULL, NULL) == ZW_E_CHECK &&
+              zw_plugin_state(p, &state) == ZXV_OK && state == ZW_PLUGIN_DEAD && pending(h) == 0,
+          "output violation kills the plugin, nothing queued");
+    CHECK(zxv_hexlog_count(q, &count) == ZXV_OK && count == 2 &&
+              zxv_hexlog_at(q, 1, NULL, &htag, &hreason, &submitter, NULL, NULL, NULL) == ZXV_OK &&
+              strcmp(zxv_hex_name(htag), "false/forbidden/manifest") == 0 && hreason == ZC_V_DENOMINATOR,
+          "quarantine record 1: %s reason %u", zxv_hex_name(htag), (unsigned) hreason);
+    CHECK(zxv_hexlog_verify(q) == ZXV_OK, "the quarantine chain verifies");
+    zc_wasm_detach(g);
+    zw_plugin_destroy(p);
+
+    /* the quarantine log is now full: the next violation cannot be
+     * recorded, so the guard fails closed and the context is halted */
+    p = load_fee(h, 1);
+    g = NULL;
+    CHECK(p != NULL && zc_wasm_attach(p, "fee", c, "fee", log, &g) == ZXV_OK, "re-attach");
+    if (p && g) {
+        int32_t log_failed = 0;
+        args[0] = -1;
+        CHECK(zw_plugin_call(p, "fee", args, 2, &res, NULL, NULL) == ZW_E_CHECK &&
+                  zc_wasm_stats(g, NULL, NULL, &log_failed) == ZXV_OK && log_failed == 1,
+              "full quarantine log: the guard fails closed");
+        args[0] = 48000;
+        CHECK(zw_plugin_call(p, "fee", args, 2, &res, NULL, NULL) == ZW_E_CHECK && pending(h) == 0,
+              "even a good call is refused afterwards");
+        CHECK(zxv_ctx_is_poisoned(ctx, &poisoned) == ZXV_OK && poisoned == 1,
+              "halt_on_full halted the context");
+    }
+    zc_wasm_detach(g);
+    zw_plugin_destroy(p);
+    drain(h);
+    zw_host_destroy(h);
+    zc_evlog_destroy(log);
+    zc_hexsink_destroy(hs);
+    zxv_hexlog_destroy(q);
+    zxv_cap_destroy(attest);
+    zc_contract_destroy(c);
+}
+
 int main(int argc, char **argv) {
     printf("test_wasm: z-contract on Z-Wasm exports\n");
     setup();
@@ -418,6 +504,7 @@ int main(int argc, char **argv) {
         test_example(argv[1]);
     else
         printf("  (rational_plugin.wasm not given: skipping the example-plugin tests)\n");
+    test_hexsink(); /* last: it halts the shared context on purpose */
     zxv_rmag_destroy(rm);
     zxv_cap_destroy(budget_cap);
     zxv_cap_destroy(root);

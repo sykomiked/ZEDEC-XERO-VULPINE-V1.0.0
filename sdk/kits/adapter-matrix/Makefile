@@ -111,7 +111,7 @@ fuzz-libfuzzer: $(ZC_LIB)
 	  mkdir -p $(OUT)/corpus && \
 	  clang -std=gnu11 -O1 -g -fsanitize=fuzzer,address,undefined -Iinclude -Isrc -I$(ZXV)/include \
 	    -I$(ZC)/include test/fuzz_adapters.c $(SRC) $(ZC)/src/zc_util.c $(ZC)/src/zc_parse.c \
-	    $(ZC)/src/zc_check.c $(ZC)/src/zc_evlog.c -I$(ZC)/src \
+	    $(ZC)/src/zc_check.c $(ZC)/src/zc_evlog.c $(ZC)/src/zc_hexsink.c -I$(ZC)/src \
 	    -L$(ZXV_ABS) -lzxv -Wl,-rpath,$(ZXV_ABS) -lpthread -lm -o $(OUT)/fuzz_libfuzzer && \
 	  $(OUT)/fuzz_libfuzzer -max_total_time=60 $(OUT)/corpus; \
 	else echo "clang has no libFuzzer runtime here; use 'make fuzz'"; fi

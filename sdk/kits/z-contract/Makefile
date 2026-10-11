@@ -4,7 +4,7 @@
 # sdk/kits/z-contract — typed contracts with exact bounds for ZXV plugins.
 #
 #   make                 build/libzcontract.a, build/libzcontract_wasm.a, build/zc-tool
-#   make test            parser, checker, evidence-log and Z-Wasm tests, a fuzz
+#   make test            parser, checker, evidence-log, quarantine-sink and Z-Wasm tests, a fuzz
 #                        smoke run and the no-float check
 #   make demo            the contract demo on the z-wasm rational example plugin
 #   make fuzz            the deterministic parser fuzzer (FUZZ_ITERS=...)
@@ -51,7 +51,7 @@ WARN    := -Wall -Wextra -Werror -Wshadow -Wstrict-prototypes -Wmissing-prototyp
 CFLAGS_ := -std=c11 -O2 -g -fPIC $(WARN) -fstack-protector-strong $(SAN) $(NOFLOAT) \
            -Iinclude -Isrc -I$(ZXV)/include -I$(ZW)/include
 
-CORE_SRC := src/zc_util.c src/zc_parse.c src/zc_check.c src/zc_evlog.c
+CORE_SRC := src/zc_util.c src/zc_parse.c src/zc_check.c src/zc_evlog.c src/zc_hexsink.c
 WASM_SRC := src/zc_wasm.c
 CORE_OBJ := $(patsubst src/%.c,$(OUT)/obj/%.o,$(CORE_SRC))
 WASM_OBJ := $(patsubst src/%.c,$(OUT)/obj/%.o,$(WASM_SRC))
@@ -107,6 +107,9 @@ $(OUT)/test_parse: test/test_parse.c test/zc_test.h $(LIB) $(ZXV_LIB)
 $(OUT)/test_check: test/test_check.c test/zc_test.h $(LIB) $(ZXV_LIB)
 	$(TESTCC) $< $(LIB) $(LINK) -o $@
 
+$(OUT)/test_hexsink: test/test_hexsink.c test/zc_test.h $(LIB) $(ZXV_LIB)
+	$(TESTCC) $< $(LIB) $(LINK) -o $@
+
 $(OUT)/test_wasm: test/test_wasm.c test/zc_test.h $(WLIB) $(LIB) $(ZW_LIB) $(ZXV_LIB)
 	$(TESTCC) $< $(WLIB) $(LIB) $(ZW_LIB) $(LINK) -o $@
 
@@ -116,10 +119,11 @@ $(OUT)/fuzz_parse: test/fuzz_parse.c $(LIB) $(ZXV_LIB)
 $(OUT)/contract_demo: examples/contract_demo.c $(WLIB) $(LIB) $(ZW_LIB) $(ZXV_LIB)
 	$(TESTCC) $< $(WLIB) $(LIB) $(ZW_LIB) $(LINK) -o $@
 
-test: check-nofloat $(OUT)/test_parse $(OUT)/test_check $(OUT)/test_wasm $(OUT)/fuzz_parse \
+test: check-nofloat $(OUT)/test_parse $(OUT)/test_check $(OUT)/test_hexsink $(OUT)/test_wasm $(OUT)/fuzz_parse \
       $(OUT)/zc-tool $(TEST_EXAMPLES)
 	$(OUT)/test_parse
 	$(OUT)/test_check
+	$(OUT)/test_hexsink
 	$(OUT)/test_wasm $(EXAMPLE_ARGS)
 	$(OUT)/fuzz_parse 3000 examples/*.zc
 	$(OUT)/zc-tool check examples/fees.zc

@@ -4,5 +4,5 @@
 
 module Zxv
   # Version of this gem (the C ABI version is Zxv.abi_version).
-  VERSION = "1.1.0"
+  VERSION = "1.3.0"
 end

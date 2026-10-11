@@ -75,9 +75,12 @@ int za_utf8_ok(const uint8_t *s, size_t n) {
     return 1;
 }
 
-static int32_t tag_of(int32_t lp, int32_t phase) {
-    int32_t t = 0;
-    (void) zc_tag_make(lp, ZC_POL_NEUTRAL, phase, &t);
+/* A neutral libzxv 64-state tag (ABI 1.3) for a ZXV_LP_* state and phase. */
+static int32_t tag_of(int32_t lp, uint8_t phase) {
+    uint8_t base = 0, t = 0;
+    if (zxv_hex_from_lp(lp, &base) != ZXV_OK ||
+        zxv_hex_pack(base, ZXV_HEX_POL_NEUTRAL, phase, &t) != ZXV_OK)
+        return -1;
     return t;
 }
 
@@ -93,7 +96,7 @@ za_record *za_rec_new(int32_t kind, const char *source, size_t source_len) {
     r->source[source_len] = '\0';
     r->kind = kind;
     r->lp = ZXV_LP_NEITHER;
-    r->tag = tag_of(ZXV_LP_NEITHER, ZC_PH_EMERGING);
+    r->tag = tag_of(ZXV_LP_NEITHER, ZXV_HEX_PHASE_EMERGING);
     return r;
 }
 
@@ -156,7 +159,7 @@ int za_rec_add(za_record *rec, const char *name, size_t name_len, int32_t kind, 
 void za_rec_refuse(za_record *rec, int32_t code, const char *fmt, ...) {
     va_list ap;
     rec->lp = ZXV_LP_FALSE;
-    rec->tag = tag_of(ZXV_LP_FALSE, ZC_PH_EMERGING);
+    rec->tag = tag_of(ZXV_LP_FALSE, ZXV_HEX_PHASE_EMERGING);
     if (rec->nr >= ZA_MAX_REASONS) return;
     rec->r[rec->nr].code = code;
     va_start(ap, fmt);
@@ -354,8 +357,24 @@ int32_t za_record_attest(za_record *record, const zxv_cap *cap, int32_t lp_state
         za_set_error("za_record_attest: a refused record cannot be attested TRUE or BOTH");
         return ZXV_E_STATE;
     }
+    {
+        /* The libzxv tag rules: replace base and polarity (zxv_hex_set),
+         * then move the phase one step, emerging -> manifest (zxv_hex_step). */
+        uint8_t base = 0, t = 0, stepped = 0;
+        if (record->tag < 0 || record->tag > 63 || zxv_hex_from_lp(lp_state, &base) != ZXV_OK ||
+            zxv_hex_set((uint8_t) record->tag, base, ZXV_HEX_POL_NEUTRAL, &t) != ZXV_OK ||
+            zxv_hex_step(t, ZXV_HEX_PHASE_MANIFEST, &stepped) != ZXV_OK) {
+            za_set_error("za_record_attest: the record's tag cannot move to manifest");
+            return ZXV_E_STATE;
+        }
+        record->tag = stepped;
+    }
     record->lp = lp_state;
-    record->tag = tag_of(lp_state, ZC_PH_MANIFEST);
     record->attested = 1;
     return ZXV_OK;
+}
+
+int32_t za_record_action(const za_record *record, int32_t *out_action) {
+    if (!record || !out_action || record->tag < 0 || record->tag > 63) return ZXV_E_ARG;
+    return zxv_hex_action((uint8_t) record->tag, out_action);
 }

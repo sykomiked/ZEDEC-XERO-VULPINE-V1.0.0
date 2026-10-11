@@ -6,7 +6,9 @@
  * independent reference, tax, inventory, bookings, digital delivery,
  * disputes, returns, reviews, ISF discovery through concord, agent
  * confirmation tokens, subscriptions without traps, B2B POs and invoices,
- * and a real ML-DSA-65 signed storefront. */
+ * and a real ML-DSA-65 signed storefront. Every settlement is also posted to a
+ * real pay_ledger through mk_pay (the production settle hook) and the two
+ * books are compared after each one. */
 #include <stdio.h>
 #include <string.h>
 #include "mk_internal.h"
@@ -14,6 +16,8 @@
 #include "mk_pq.h"
 #include "pq_security.h"
 #include "pay_assure.h"
+#include "mk_pay.h"
+#include "../robin_debanks/sha256.h"
 
 _Static_assert(MK_PQ_PK_BYTES == PQ_MLDSA65_PK_BYTES, "pk size");
 _Static_assert(MK_PQ_SK_BYTES == PQ_MLDSA65_SK_BYTES, "sk size");
@@ -63,6 +67,7 @@ typedef struct {
     uint32_t n;
     int64_t escrow, commons, tax;
     int64_t minted; /* initial balances */
+    int64_t funded[NP];
     bool fail_next;
     uint32_t settles;
     mk_settle_kind_t last_kind;
@@ -90,7 +95,9 @@ static int64_t *acct(const mk_id_t *id)
 }
 static void fund(const mk_id_t *id, int64_t v)
 {
-    *acct(id) += v;
+    int64_t *a = acct(id);
+    LG.funded[a - LG.bal] += v;
+    *a += v;
     LG.minted += v;
 }
 static int64_t bal(const char *name)
@@ -105,12 +112,115 @@ static bool ledger_total_ok(void)
     return t == LG.minted;
 }
 
+/* ===== the shadow: the same settlements on a real pay_ledger via mk_pay =====
+ * Every account and pool starts at PAY_START so refunds out of the commons
+ * and tax pools have something to draw on; the books are compared as
+ * changes from that start. */
+#define PAY_START ((int64_t) 1 << 50)
+static pay_ledger_t PL;
+static mk_pay_t MP;
+static struct {
+    mk_id_t id;
+    uint8_t ccy;
+    uint32_t acct;
+} PM[160];
+static uint32_t n_pm, pay_issuer[MK_MAX_CCY + 1], pay_owner;
+static uint16_t pay_asset[MK_MAX_CCY + 1];
+static uint32_t pay_mismatch, pay_refused_ok;
+static uint64_t pay_posted_all, pay_refused_all;
+
+static uint32_t pay_open(uint8_t c)
+{
+    uint32_t a = MK_PAY_NONE;
+    pay_posting_req_t r;
+    pay_receipt_t rc;
+    if (pay_ledger_open(&PL, ++pay_owner, pay_asset[c], PAY_CAP_FINANCIAL, 0, &a) != PAY_OK)
+        return MK_PAY_NONE;
+    memset(&r, 0, sizeof r);
+    snprintf(r.uetr, sizeof r.uetr, "00000000-0000-4000-8000-%012x", pay_owner);
+    snprintf(r.e2e, sizeof r.e2e, "FUND-%u", pay_owner);
+    memcpy(r.idem_key, &pay_owner, sizeof pay_owner);
+    r.idem_key[31] = 0xF0;
+    if (pay_ledger_issue(&PL, &r, pay_issuer[c], a, (uint64_t) PAY_START, &rc) != PAY_OK)
+        return MK_PAY_NONE;
+    return a;
+}
+
+static void pay_ccy(uint8_t c)
+{
+    if (c == MK_NONE || c > MK_MAX_CCY || MP.pool[c].bound) return;
+    char code[8] = {'M', 'K', (char) ('A' + c), 0};
+    if (pay_ledger_add_asset(&PL, code, 2, PAY_ASSET_UNIT, &pay_asset[c]) != PAY_OK ||
+        pay_ledger_open(&PL, ++pay_owner, pay_asset[c], PAY_CAP_FINANCIAL, PAY_ACCT_ISSUER,
+                        &pay_issuer[c]) != PAY_OK)
+        return;
+    uint32_t e = pay_open(c), k = pay_open(c), t = pay_open(c);
+    mk_pay_bind(&MP, c, e, k, t);
+}
+
+static uint32_t pay_acct(void *ctx, const mk_id_t *id, uint8_t c)
+{
+    (void) ctx;
+    for (uint32_t i = 0; i < n_pm; i++)
+        if (PM[i].ccy == c && !memcmp(PM[i].id.b, id->b, 32)) return PM[i].acct;
+    if (n_pm >= sizeof PM / sizeof PM[0]) return MK_PAY_NONE;
+    uint32_t a = pay_open(c);
+    if (a == MK_PAY_NONE) return a;
+    PM[n_pm].id = *id;
+    PM[n_pm].ccy = c;
+    PM[n_pm++].acct = a;
+    return a;
+}
+
+static int64_t pay_delta(uint32_t a)
+{
+    const pay_account_t *x = pay_ledger_account(&PL, a);
+    return x ? x->equity - PAY_START : INT64_MIN;
+}
+
+static void pay_reset(void)
+{
+    static const uint8_t seed[32] = {7};
+    pay_posted_all += MP.posted;
+    pay_refused_all += MP.refused;
+    if (MP.L && !(pay_ledger_check(&PL) && pay_ledger_verify_chain(&PL))) pay_mismatch++;
+    pay_ledger_init(&PL, NULL);
+    mk_pay_init(&MP, &PL, pay_acct, NULL, seed, 0);
+    n_pm = 0;
+    pay_owner = 0;
+}
+
+/* both books agree: every party, and the escrow, commons and tax pools */
+static void pay_compare(void)
+{
+    for (uint32_t i = 0; i < LG.n; i++) {
+        int64_t d = 0;
+        for (uint32_t j = 0; j < n_pm; j++)
+            if (!memcmp(PM[j].id.b, LG.who[i].b, 32)) d += pay_delta(PM[j].acct);
+        if (d != LG.bal[i] - LG.funded[i]) pay_mismatch++;
+    }
+    int64_t e = 0, k = 0, t = 0;
+    for (uint32_t c = 1; c <= MK_MAX_CCY; c++)
+        if (MP.pool[c].bound) {
+            e += pay_delta(MP.pool[c].escrow);
+            k += pay_delta(MP.pool[c].commons);
+            t += pay_delta(MP.pool[c].tax);
+        }
+    if (e != LG.escrow || k != LG.commons || t != LG.tax) pay_mismatch++;
+    if (!pay_ledger_check(&PL)) pay_mismatch++;
+}
+
 static bool h_settle(void *ctx, const mk_settle_t *s)
 {
     (void) ctx;
     LG.settles++;
     if (LG.fail_next) {
         LG.fail_next = false;
+        return false;
+    }
+    pay_ccy(s->ccy);
+    if (!mk_pay_settle(&MP, s)) {
+        pay_refused_ok++; /* the ledger refused: the market must roll back */
         return false;
     }
     LG.last_kind = s->kind;
@@ -126,6 +236,7 @@ static bool h_settle(void *ctx, const mk_settle_t *s)
         int64_t out = (int64_t) (s->to_seller + s->to_commons + s->to_tax + s->to_buyer);
         LG.escrow += in - out; /* must stay 0 for invoices */
         *b += (int64_t) s->to_buyer;
+        pay_compare();
         return true;
     }
     *b -= (int64_t) s->from_buyer;
@@ -138,6 +249,7 @@ static bool h_settle(void *ctx, const mk_settle_t *s)
     *b += (int64_t) s->to_buyer;
     LG.commons += (int64_t) s->to_commons;
     LG.tax += (int64_t) s->to_tax;
+    pay_compare();
     return LG.escrow >= 0;
 }
 
@@ -212,6 +324,7 @@ static con_commons_t CC;
 static void setup(void)
 {
     memset(&LG, 0, sizeof LG);
+    pay_reset();
     LG.review_w = MK_Q16;
     LG.concord = &CC;
     mk_hooks_t h;
@@ -1500,6 +1613,222 @@ static void test_random_conservation(void)
     printf("  randomized conservation steps: %u\n", steps);
 }
 
+/* P4 reference: SHA-256(seed || tag || seq le64), written out here */
+static void ref_id(const uint8_t seed[32], uint8_t tag, uint64_t seq, uint8_t out[32])
+{
+    uint8_t in[41];
+    memcpy(in, seed, 32);
+    in[32] = tag;
+    for (int i = 0; i < 8; i++) in[33 + i] = (uint8_t) (seq >> (8 * i));
+    sha256(in, sizeof in, out);
+}
+
+static const pay_journal_t *last_post(void)
+{
+    return &PL.journal[(PL.seq - 1) % PAY_JOURNAL_MAX];
+}
+
+static void test_mk_pay_ids(void)
+{
+    setup();
+    pay_ccy(1);
+    mk_id_t a = ID("id-a"), b = ID("id-b");
+    pay_acct(NULL, &a, 1);
+    pay_acct(NULL, &b, 1);
+    mk_settle_t s;
+    memset(&s, 0, sizeof s);
+    s.kind = MK_SETTLE_INVOICE;
+    s.ccy = 1;
+    s.buyer = &a;
+    s.seller = &b;
+    s.from_buyer = s.to_seller = 5;
+    static const uint8_t seed0[32] = {7};
+    uint8_t want[32];
+    char uetr[PAY_UETR_LEN + 1];
+    for (uint64_t n = 0; n < 3; n++) {
+        CHECK(MP.seq == n && mk_pay_settle(&MP, &s) && MP.seq == n + 1);
+        ref_id(seed0, 'I', n, want);
+        CHECK(!memcmp(last_post()->idem_key, want, 32));
+        ref_id(seed0, 'U', n, want);
+        pay_uetr_from_random(want, uetr);
+        CHECK(!strcmp(last_post()->uetr, uetr));
+    }
+    /* every seed byte matters: a fresh ledger, the seed's last byte changed */
+    uint8_t seed1[32] = {7};
+    seed1[31] = 1;
+    pay_reset();
+    mk_pay_init(&MP, &PL, pay_acct, NULL, seed1, 0);
+    pay_ccy(1);
+    pay_acct(NULL, &a, 1);
+    pay_acct(NULL, &b, 1);
+    CHECK(mk_pay_settle(&MP, &s));
+    ref_id(seed1, 'I', 0, want);
+    CHECK(!memcmp(last_post()->idem_key, want, 32));
+    mk_pay_t q;
+    static const uint8_t zero[32];
+    memset(&q, 0xAA, sizeof q);
+    mk_pay_init(&q, &PL, pay_acct, NULL, NULL, 9);
+    CHECK(!memcmp(q.seed, zero, 32) && q.seq == 0 && q.owner == 9 && q.L == &PL);
+    mk_pay_init(NULL, &PL, pay_acct, NULL, seed0, 0); /* no crash */
+    /* the top currency handle binds and settles */
+    CHECK(mk_pay_bind(&MP, MK_MAX_CCY, MP.pool[1].escrow, MP.pool[1].commons, MP.pool[1].tax));
+    s.ccy = MK_MAX_CCY;
+    PM[0].ccy = PM[1].ccy = MK_MAX_CCY; /* the same accounts under the top handle */
+    CHECK(mk_pay_settle(&MP, &s));
+    PM[0].ccy = PM[1].ccy = 1;
+    /* each of the eight amounts is limited on its own; refusals made before
+     * the posting consume no identifier */
+    s.ccy = 1;
+    for (int f = 0; f < 8; f++) {
+        mk_settle_t t = s;
+        uint64_t *field[8] = {&t.from_buyer, &t.from_seller, &t.from_commons, &t.from_tax,
+                              &t.to_seller,  &t.to_commons,  &t.to_tax,       &t.to_buyer};
+        *field[f] = (uint64_t) 1 << 60;
+        uint64_t q0 = MP.seq;
+        CHECK(!mk_pay_settle(&MP, &t) && MP.last == PAY_ERR_ARG && MP.seq == q0);
+    }
+    uint64_t q0 = MP.seq;
+    mk_settle_t t = s;
+    t.to_seller = 4; /* unbalanced invoice */
+    CHECK(!mk_pay_settle(&MP, &t) && MP.last == PAY_ERR_UNBALANCED && MP.seq == q0);
+    uint32_t keep = n_pm;
+    n_pm = sizeof PM / sizeof PM[0];
+    mk_id_t ghost = ID("id-ghost");
+    t = s;
+    t.seller = &ghost;
+    CHECK(!mk_pay_settle(&MP, &t) && MP.last == PAY_ERR_ARG && MP.seq == q0);
+    n_pm = keep;
+}
+
+/* mk_pay's own refusals and edge cases (P1-P5), straight on the hook */
+static void test_mk_pay(void)
+{
+    setup();
+    pay_ccy(1);
+    mk_id_t a = ID("pay-a"), b = ID("pay-b"), ghost = ID("pay-ghost");
+    uint32_t aa = pay_acct(NULL, &a, 1), ab = pay_acct(NULL, &b, 1);
+    mk_settle_t s;
+    memset(&s, 0, sizeof s);
+    s.kind = MK_SETTLE_CAPTURE;
+    s.ccy = 1;
+    s.buyer = &a;
+    s.seller = &b;
+    s.from_buyer = 500;
+    uint64_t posted = MP.posted;
+    CHECK(mk_pay_settle(&MP, &s) && MP.posted == posted + 1);
+    CHECK(pay_delta(aa) == -500 && pay_delta(MP.pool[1].escrow) == 500);
+    const pay_journal_t *j = last_post();
+    CHECK(j && j->n_lines == 2 && j->kind == PAY_KIND_TRADE && !memcmp(j->e2e, "MKT-0-", 6));
+
+    /* release split three ways in one posting */
+    memset(&s, 0, sizeof s);
+    s.kind = MK_SETTLE_RELEASE;
+    s.ccy = 1;
+    s.buyer = &a;
+    s.seller = &b;
+    s.to_seller = 450;
+    s.to_commons = 30;
+    s.to_tax = 20;
+    CHECK(mk_pay_settle(&MP, &s));
+    CHECK(pay_delta(ab) == 450 && pay_delta(MP.pool[1].commons) == 30 &&
+          pay_delta(MP.pool[1].tax) == 20 && pay_delta(MP.pool[1].escrow) == 0);
+    j = last_post();
+    CHECK(j && j->n_lines == 4);
+
+    /* refund kind is recorded as a return */
+    memset(&s, 0, sizeof s);
+    s.kind = MK_SETTLE_REFUND;
+    s.ccy = 1;
+    s.buyer = &a;
+    s.seller = &b;
+    s.from_seller = 50;
+    s.to_buyer = 50;
+    CHECK(mk_pay_settle(&MP, &s));
+    j = last_post();
+    CHECK(j && j->kind == PAY_KIND_RETURN && j->n_lines == 2);
+
+    /* buyer == seller: lines merge, and a full cancel posts nothing */
+    memset(&s, 0, sizeof s);
+    s.kind = MK_SETTLE_INVOICE;
+    s.ccy = 1;
+    s.buyer = &a;
+    s.seller = &a;
+    s.from_buyer = 70;
+    s.to_seller = 70;
+    posted = MP.posted;
+    CHECK(mk_pay_settle(&MP, &s) && MP.posted == posted);
+    memset(&s, 0, sizeof s);
+    s.kind = MK_SETTLE_CAPTURE;
+    s.ccy = 1;
+    s.buyer = &a;
+    s.seller = &b;
+    CHECK(mk_pay_settle(&MP, &s) && MP.posted == posted); /* nothing moves */
+
+    /* refusals leave the ledger untouched */
+    uint64_t refused = MP.refused, seq = PL.seq;
+    memset(&s, 0, sizeof s);
+    s.kind = MK_SETTLE_INVOICE;
+    s.ccy = 1;
+    s.buyer = &a;
+    s.seller = &b;
+    s.from_buyer = 100;
+    s.to_seller = 90; /* 10 unaccounted for */
+    CHECK(!mk_pay_settle(&MP, &s) && MP.last == PAY_ERR_UNBALANCED);
+    s.to_seller = 100;
+    s.ccy = 2; /* unbound */
+    CHECK(!mk_pay_settle(&MP, &s));
+    s.ccy = MK_MAX_CCY + 1;
+    CHECK(!mk_pay_settle(&MP, &s));
+    s.ccy = MK_NONE;
+    CHECK(!mk_pay_settle(&MP, &s));
+    s.ccy = 1;
+    s.from_buyer = s.to_seller = (uint64_t) 1 << 60;
+    CHECK(!mk_pay_settle(&MP, &s) && MP.last == PAY_ERR_ARG);
+    s.from_buyer = s.to_seller = ((uint64_t) 1 << 60) - 1;
+    CHECK(!mk_pay_settle(&MP, &s) && MP.last != PAY_ERR_ARG); /* the ledger: no funds */
+    s.from_buyer = s.to_seller = 10;
+    s.buyer = NULL;
+    CHECK(!mk_pay_settle(&MP, &s));
+    s.buyer = &a;
+    s.seller = NULL;
+    CHECK(!mk_pay_settle(&MP, &s));
+    s.seller = &b;
+    CHECK(!mk_pay_settle(NULL, &s) && !mk_pay_settle(&MP, NULL));
+    CHECK(MP.refused == refused + 9 && PL.seq == seq);
+    /* an unknown party: the account map refuses */
+    n_pm = sizeof PM / sizeof PM[0];
+    s.seller = &ghost;
+    CHECK(!mk_pay_settle(&MP, &s) && PL.seq == seq);
+    n_pm = 2;
+    s.seller = &b;
+    /* a frozen buyer: the ledger refuses (L3 freeze), nothing posts */
+    CHECK(pay_ledger_set_flags(&PL, aa, PAY_ACCT_FROZEN) == PAY_OK);
+    CHECK(!mk_pay_settle(&MP, &s) && PL.seq == seq && MP.last != PAY_OK);
+    CHECK(pay_ledger_set_flags(&PL, aa, 0) == PAY_OK);
+    CHECK(mk_pay_settle(&MP, &s) && PL.seq == seq + 1);
+    /* pools that share an account merge into one line */
+    CHECK(mk_pay_bind(&MP, 1, MP.pool[1].escrow, MP.pool[1].commons, MP.pool[1].commons));
+    memset(&s, 0, sizeof s);
+    s.kind = MK_SETTLE_INVOICE;
+    s.ccy = 1;
+    s.buyer = &a;
+    s.seller = &b;
+    s.from_buyer = 100;
+    s.to_seller = 70;
+    s.to_commons = 20;
+    s.to_tax = 10;
+    int64_t k0 = pay_delta(MP.pool[1].commons);
+    CHECK(mk_pay_settle(&MP, &s));
+    j = last_post();
+    CHECK(j->n_lines == 3 && pay_delta(MP.pool[1].commons) == k0 + 30);
+    /* bad bindings */
+    CHECK(!mk_pay_bind(&MP, MK_NONE, 0, 0, 0) && !mk_pay_bind(&MP, MK_MAX_CCY + 1, 0, 0, 0) &&
+          !mk_pay_bind(NULL, 1, 0, 0, 0));
+    CHECK(pay_ledger_check(&PL) && pay_ledger_verify_chain(&PL));
+    printf("  mk_pay edge cases: %llu posted, %llu refused\n", (unsigned long long) MP.posted,
+           (unsigned long long) MP.refused);
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -1518,6 +1847,16 @@ int main(void)
     test_subs();
     test_b2b();
     test_random_conservation();
+    test_mk_pay();
+    test_mk_pay_ids();
+    /* mk_pay: the production settle hook kept a real pay_ledger in step */
+    pay_posted_all += MP.posted;
+    pay_refused_all += MP.refused;
+    printf("  mk_pay: %llu postings, %llu refused, %u mismatches\n",
+           (unsigned long long) pay_posted_all, (unsigned long long) pay_refused_all, pay_mismatch);
+    CHECK(pay_mismatch == 0);
+    CHECK(pay_posted_all > 500);
+    CHECK(pay_ledger_check(&PL) && pay_ledger_verify_chain(&PL));
     printf("test_market: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

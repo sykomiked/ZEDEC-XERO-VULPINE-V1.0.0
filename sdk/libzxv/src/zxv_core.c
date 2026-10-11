@@ -24,7 +24,10 @@
  * build (the TypeScript wasm build maps it to WASI random_get). */
 #if defined(ZXV_HAVE_ARC4RANDOM)
 #    include <stdlib.h> /* arc4random_buf */
-#elif defined(__APPLE__) || defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#elif defined(__APPLE__) || defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__) || \
+    defined(__ANDROID__)
+/* Android: bionic has arc4random_buf at every API level, while getrandom()
+ * is only declared from API 28. */
 #    include <stdlib.h>
 #    define ZXV_HAVE_ARC4RANDOM 1
 #elif defined(_WIN32)

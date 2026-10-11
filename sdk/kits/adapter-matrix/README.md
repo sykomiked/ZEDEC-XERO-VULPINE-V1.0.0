@@ -19,11 +19,11 @@ record; nothing is rounded.
 
 Every record carries a **label**:
 
-| Record | Four-valued state | 64-state tag (provisional) |
-|---|---|---|
-| accepted: well-formed, and passed its contract if one was checked | `ZXV_LP_NEITHER` | `neither/neutral/emerging` |
-| refused: malformed, or failed its contract | `ZXV_LP_FALSE`, with reasons | `false/neutral/emerging` |
-| attested by the host (`za_record_attest`, needs `ZXV_CAP_ATTEST`) | `TRUE`, `FALSE` or `BOTH` | `<state>/neutral/manifest` |
+| Record | Four-valued state | 64-state tag (libzxv `zxv_hex_*`) | `za_record_action` |
+|---|---|---|---|
+| accepted: well-formed, and passed its contract if one was checked | `ZXV_LP_NEITHER` | `neither/neutral/emerging` | `WAIT` |
+| refused: malformed, or failed its contract | `ZXV_LP_FALSE`, with reasons | `false/neutral/emerging` | `REFUSE` |
+| attested by the host (`za_record_attest`, needs `ZXV_CAP_ATTEST`) | `TRUE`, `FALSE` or `BOTH` | `<state>/neutral/manifest` | `PROCEED`, `REFUSE` or `ESCALATE` |
 
 `za_validate` checks a record against a [z-contract](../z-contract/)
 function whose parameter names are field names. A failure refuses the
@@ -38,8 +38,12 @@ record (origin `ZC_ORIGIN_ADAPTER`) to a `zc_evlog`.
 > it. Truth comes only from the host attesting a record, with its own
 > capability, on its own evidence. See [Threat model](#threat-model).
 
-Kit API version 0.1 (`include/zadapter.h`). It calls libzxv ABI 1.2 and
-z-contract 0.1.
+Kit API version 0.2 (`include/zadapter.h`). It calls libzxv ABI 1.3 and
+z-contract 0.2. New in 0.2: the tag is libzxv's real 64-state tag (it was a
+placeholder with the same layout in 0.1), attestation moves it by the
+libzxv rules, `za_record_action` says what libzxv's table does with it, and
+validation refusals can be quarantined in a libzxv quarantine log (see
+[Quarantine log](#quarantine-log-abi-13)).
 
 ## Quickstart
 
@@ -54,22 +58,26 @@ payloads (two JSON payments, two FIX orders, two MQTT readings), each
 validated against [`examples/market.zc`](examples/market.zc):
 
 ```text
-https://bank.example/api/payments/42   payment    accepted, unverified [neither/neutral/emerging]
-https://bank.example/api/payments/43   payment    REFUSED [false/neutral/emerging]
+https://bank.example/api/payments/42   payment    accepted, unverified [neither/neutral/emerging -> wait]
+https://bank.example/api/payments/43   payment    REFUSED [false/neutral/emerging -> refuse]
     CONTRACT: payment: parameter 0 'amount.value' = 0.105 (21/200): denominator 200 does not divide 100
-BUYSIDE->EXCHANGE                      new_order  accepted, unverified [neither/neutral/emerging]
-BUYSIDE->EXCHANGE                      new_order  REFUSED [false/neutral/emerging]
+BUYSIDE->EXCHANGE                      new_order  accepted, unverified [neither/neutral/emerging -> wait]
+BUYSIDE->EXCHANGE                      new_order  REFUSED [false/neutral/emerging -> refuse]
     CONTRACT: new_order: parameter 3 'Price' = 12.34567 (1234567/100000): denominator 100000 does not divide 10000
-plant/7/boiler                         reading    accepted, unverified [neither/neutral/emerging]
-plant/7/boiler                         reading    REFUSED [false/neutral/emerging]
+plant/7/boiler                         reading    accepted, unverified [neither/neutral/emerging -> wait]
+plant/7/boiler                         reading    REFUSED [false/neutral/emerging -> refuse]
     UTF8: MQTT payload is neither JSON, a decimal, nor UTF-8 text
-host attests the first payment:        attested [true/neutral/manifest]
+host attests the first payment:        attested [true/neutral/manifest -> proceed]
 evidence records: 2, chain verifies
+quarantine records: 2, chain verifies
+    #0 false/forbidden/emerging, DENOMINATOR
+    #1 false/forbidden/emerging, DENOMINATOR
 ```
 
 The payloads are bytes in the C source: nothing is fetched. The binary MQTT
 payload is refused at ingest, so it never reaches the contract and leaves
-no contract evidence; the two contract refusals do.
+no contract evidence; the two contract refusals do, and each of them is
+also quarantined as a Forbidden record (next section).
 
 `build/za-tool` does the same for one payload file:
 
@@ -199,15 +207,45 @@ attest bit whose own attestation is `TRUE`. The host may attest `TRUE`,
 `FALSE` or `BOTH` (it holds contradicting evidence). A refused record can
 only be confirmed `FALSE`. Attestation is once only.
 
-## The 64-state tag (provisional)
+Attestation follows the libzxv tag rules: the base and polarity are
+replaced with `zxv_hex_set`, then the phase moves one step, `emerging` to
+`manifest`, with `zxv_hex_step`.
 
-Labels use z-contract's placeholder for the kernel's 64-state tag until
-libzxv ABI 1.3 ships `zxv_hex_*` (see the
-[z-contract README](../z-contract/README.md#the-64-state-tag-provisional)).
-Untrusted inbound data is `neutral` in polarity: an adapter has no basis
-for calling a source entropic or negentropic. Its phase is `emerging`
-until the host attests it (`manifest`). Use the text form; the numeric
-code may change with ABI 1.3.
+## The 64-state tag
+
+Labels are libzxv's 64-state tag (ABI 1.3, `zxv_hex_*` in
+[`zxv_api.h`](../../libzxv/include/zxv_api.h)); `za_record_state` gives
+the code, and `zxv_hex_name` or `zc_tag_format` its text. Untrusted
+inbound data is `neutral` in polarity: an adapter has no basis for calling
+a source entropic or negentropic. Its phase is `emerging` until the host
+attests it (`manifest`). `za_record_action` returns what libzxv's action
+table says (`zxv_hex_action`): `WAIT` for accepted-unverified, `REFUSE`
+for refused, `PROCEED` once attested `TRUE`.
+
+## Quarantine log (ABI 1.3)
+
+To keep every validation refusal in a libzxv quarantine log as well,
+attach z-contract's ready-made sink to the evidence log you pass to
+`za_validate`:
+
+```c
+zxv_hexlog *q;  zc_hexsink *hs;  zc_evlog *log;
+zxv_hexlog_create(attest_cap, 4096, &q);       /* needs ZXV_CAP_ATTEST */
+zc_hexsink_create(attest_cap, q, 0, &hs);
+zc_evlog_create(4096, &log);
+zc_evlog_attach_hexsink(log, hs);
+za_validate(record, contract, "payment", log); /* a refusal lands in both logs */
+```
+
+Each refusal becomes one quarantine record: the record's tag made
+forbidden (`false/forbidden/emerging`), the z-contract reason, submitter
+`ZC_ORIGIN_ADAPTER`, and as subject the hash of the evidence record. The
+record itself keeps its own label (`false/neutral/emerging`, `REFUSE`):
+the quarantine record is about the refused work, not a new state of the
+data. If the quarantine log cannot take the record (full, revoked cap,
+halted context), `za_validate` returns `ZC_E_LOG` and the record is
+refused anyway. Details are in the
+[z-contract README](../z-contract/README.md#the-quarantine-sink-abi-13).
 
 ## Threat model
 
@@ -249,7 +287,6 @@ them and the host.
 - **In-process.** The kit runs in the host's process and trusts the host.
 - **Threads.** A record is not thread-safe; distinct records are
   independent.
-- **The 64-state tag is provisional** until ABI 1.3.
 - **Kit API 0.x.** It is not yet covered by the libzxv stability promise.
 
 ## Limits
@@ -277,7 +314,7 @@ make fuzz-libfuzzer                # libFuzzer, if clang ships its runtime
 | Suite | What |
 |---|---|
 | `test_adapters` | 394 checks: a table of exact decimals (reduction, exponents, the `int64` edges, refusals) cross-checked with `zxv_rat_parse`; JSON accept and refuse cases (nesting, arrays, escapes and surrogates, duplicates, every limit at and one past its value); MQTT topics and payload kinds; FIX known-answer logon, a new order with SOH and `\|`, repeating groups, unknown tags, and refusals for checksum, body length, header order, leading-zero tags, exponents in prices, data fields and invalid UTF-8 |
-| `test_validate` | 290 checks against `examples/market.zc`: passing JSON, FIX and MQTT records stay `NEITHER`; every refusal kind (`MISSING`, `TYPE`, `CONTRACT` with `BELOW`, `ABOVE`, `DENOMINATOR`, `LENGTH`, `NOT_INTEGER`, `NOT_IN_SET`) with its evidence record (origin, reason, contract and record digests, text, chain); a full log and a refusing sink (fail closed); attestation with and without `ZXV_CAP_ATTEST`, with a contradictory and a revoked cap, once only, and of refused records |
+| `test_validate` | 310 checks against `examples/market.zc`: passing JSON, FIX and MQTT records stay `NEITHER`; every refusal kind (`MISSING`, `TYPE`, `CONTRACT` with `BELOW`, `ABOVE`, `DENOMINATOR`, `LENGTH`, `NOT_INTEGER`, `NOT_IN_SET`) with its evidence record (origin, reason, contract and record digests, text, chain); a full log and a refusing sink (fail closed); attestation with and without `ZXV_CAP_ATTEST`, with a contradictory and a revoked cap, once only, and of refused records; kit API 0.2: every label is the libzxv tag (`zxv_hex_unpack`, `zxv_hex_name`), `za_record_action` for accepted, refused and attested records, and the quarantine sink (a refusal quarantined as `false/forbidden/emerging` pointing at its evidence record, a passing record not quarantined, a full quarantine log failing closed) |
 | `fuzz_adapters` | for every input: deterministic records and digests; consistent labels and reasons; unique field names; each NUMBER reduced, re-parsed from its own text, agreeing with `zxv_rat_parse` and surviving `zxv_rat_format`; validation leaves `NEITHER` or gives `FALSE` with one verified evidence record. FIX mutants get their BodyLength and CheckSum recomputed most of the time, so they reach the field parser |
 | `ingest_demo` | the demo runs as part of `make test` |
 | `check-nofloat` | R11 over the kit sources, tests and example (z-wasm's checker) |

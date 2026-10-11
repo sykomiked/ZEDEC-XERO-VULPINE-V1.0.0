@@ -137,6 +137,27 @@ public sealed class EngineTests : IDisposable
     }
 
     [Fact]
+    public void Disposed_model_and_budgets_throw_while_a_session_still_holds_them()
+    {
+        Model model = Model.Open(_cap, Conformance.Fixture(_v.GetProperty("model").GetString()!), Conformance.Fixture(_v.GetProperty("tokenizer").GetString()!));
+        Budgets budgets = _p.CreateBudgets(_cap);
+        Budget b = budgets.Create("gen", BudgetResource.Tokens, 1000);
+        using Session s = model.NewSession(128);
+        s.BindBudget(b);
+
+        model.Dispose();
+        model.Dispose();
+        budgets.Dispose();
+        budgets.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => model.Tokenize("hi"));
+        Assert.Throws<ObjectDisposedException>(() => model.NewSession(16));
+        Assert.Throws<ObjectDisposedException>(() => budgets.Create("late", BudgetResource.Tokens, 1));
+        s.BindBudget(null);
+        Assert.Equal(4, s.Generate(_prompt, new GenerateOptions { MaxTokens = 4 }).Tokens.Count);
+    }
+
+    [Fact]
     public void Bound_budget_stops_generation_and_refuses_an_unaffordable_prompt()
     {
         using Budgets budgets = _p.CreateBudgets(_cap);

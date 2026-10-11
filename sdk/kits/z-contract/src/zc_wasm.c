@@ -48,7 +48,8 @@ static int32_t args_needed(const zc_fn *f, uint32_t *out) {
 static int32_t violation(zc_wasm_guard *g, int32_t part, uint32_t index, int32_t reason,
                          const char *msg, int output) {
     uint8_t subject[32];
-    int32_t tag = 0, st;
+    uint8_t tag = 0;
+    int32_t st;
     uint64_t seq = 0;
     g->violations++;
     g->has_last = 1;
@@ -58,8 +59,9 @@ static int32_t violation(zc_wasm_guard *g, int32_t part, uint32_t index, int32_t
     snprintf(g->last_msg, sizeof g->last_msg, "%s", msg);
     memset(subject, 0, sizeof subject);
     (void) zc_vals_digest(&g->vals, part, subject);
-    (void) zc_tag_make(ZXV_LP_FALSE, output ? ZC_POL_FORBIDDEN : ZC_POL_NEUTRAL,
-                       output ? ZC_PH_MANIFEST : ZC_PH_POTENTIAL, &tag);
+    /* input: false/neutral/potential; output: false/forbidden/manifest */
+    (void) zxv_hex_pack(ZXV_HEX_BASE_FALSE, output ? ZXV_HEX_POL_FORBIDDEN : ZXV_HEX_POL_NEUTRAL,
+                        output ? ZXV_HEX_PHASE_MANIFEST : ZXV_HEX_PHASE_POTENTIAL, &tag);
     st = g->log ? zc_evlog_append(g->log, ZC_ORIGIN_WASM, part, index, reason, tag, g->digest,
                                   subject, msg, &seq)
                 : ZC_E_LOG;

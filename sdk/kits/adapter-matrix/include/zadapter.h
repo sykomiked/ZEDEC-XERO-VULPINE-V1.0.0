@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zadapter.h — adapter-matrix: ingest external records and label each one
- * with a lifecycle / trust state (kit API 0.1).
+ * with a lifecycle / trust state (kit API 0.2).
  *
  * An adapter turns an inbound payload into a RECORD: a flat list of named
  * fields (exact rationals, text, booleans, nulls) plus a label:
@@ -35,11 +35,17 @@
  * "accepted, unverified" (NEITHER). Truth comes from the host attesting it
  * with its own capability, on its own evidence. See README.md.
  *
- * The 64-state tag is z-contract's PROVISIONAL placeholder until libzxv
- * ABI 1.3 ships zxv_hex_* (see zcontract.h); use its text form.
+ * The tag is libzxv's 64-state tag (ABI 1.3, zxv_hex_*): zxv_hex_name or
+ * zc_tag_format gives its text, za_record_action what libzxv says happens
+ * next (accepted-unverified: WAIT, refused: REFUSE, attested TRUE:
+ * PROCEED). To quarantine every validation refusal in a libzxv quarantine
+ * log as a Forbidden record, attach z-contract's zc_hexsink to the
+ * evidence log passed to za_validate (see README.md).
  *
- * KIT API STABILITY. 0.x. Calls only libzxv ABI 1.2 and z-contract 0.1.
- * Opaque handles, int32_t status returns, no floats.
+ * KIT API STABILITY. 0.x. Calls only libzxv ABI 1.3 and z-contract 0.2.
+ * Opaque handles, int32_t status returns, no floats. 0.2 (over 0.1): real
+ * zxv_hex_* tags, attestation moves the tag by the libzxv rules
+ * (zxv_hex_set, then zxv_hex_step to manifest), za_record_action.
  */
 #ifndef ZADAPTER_H
 #define ZADAPTER_H
@@ -55,7 +61,7 @@ extern "C" {
 #endif
 
 #define ZA_VERSION_MAJOR 0
-#define ZA_VERSION_MINOR 1
+#define ZA_VERSION_MINOR 2
 #define ZA_VERSION_PATCH 0
 
 /* adapter-matrix status codes start at -1301. A malformed payload is NOT
@@ -118,9 +124,13 @@ int32_t za_ingest(int32_t kind, const char *source, const uint8_t *payload, size
 void za_record_destroy(za_record *record);
 
 /* *out_lp_state: ZXV_LP_NEITHER (accepted, unverified), ZXV_LP_FALSE
- * (refused), or what the host attested. *out_tag: the provisional 64-state
- * code (zc_tag_format gives its text). Either pointer may be NULL. */
+ * (refused), or what the host attested. *out_tag: the libzxv 64-state tag
+ * code (zxv_hex_name / zc_tag_format give its text). Either pointer may be
+ * NULL. */
 int32_t za_record_state(const za_record *record, int32_t *out_lp_state, int32_t *out_tag);
+/* What libzxv says happens next for the record's tag: a ZXV_HEX_ACT_*
+ * value (zxv_hex_action). Kit API 0.2. */
+int32_t za_record_action(const za_record *record, int32_t *out_action);
 /* ZA_SRC_*, and the source label (static to the record). For FIX, when
  * the caller passed "" or NULL, the label is "SenderCompID->TargetCompID"
  * taken from the message (both must be present). That label is what the

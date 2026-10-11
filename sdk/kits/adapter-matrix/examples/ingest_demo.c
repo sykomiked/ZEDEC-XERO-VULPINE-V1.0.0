@@ -64,18 +64,21 @@ static const char *label(const za_record *r) {
     static char out[96];
     char tn[64];
     size_t tl = 0;
-    int32_t lp = 0, tag = 0;
+    int32_t lp = 0, tag = 0, act = 0;
     za_record_state(r, &lp, &tag);
+    za_record_action(r, &act);
     zc_tag_format(tag, tn, sizeof tn, &tl);
-    snprintf(out, sizeof out, "%s [%s]",
+    snprintf(out, sizeof out, "%s [%s -> %s]",
              lp == ZXV_LP_NEITHER ? "accepted, unverified" : lp == ZXV_LP_FALSE ? "REFUSED" : "attested",
-             tn);
+             tn, zxv_hex_action_name(act));
     return out;
 }
 
 int main(int argc, char **argv) {
     zc_contract *c = NULL;
     zc_evlog *log = NULL;
+    zxv_hexlog *quarantine = NULL;
+    zc_hexsink *hs = NULL;
     zxv_ctx *ctx = NULL;
     zxv_cap *root = NULL, *attester = NULL;
     za_record *keep = NULL;
@@ -92,7 +95,15 @@ int main(int argc, char **argv) {
         return 2;
     }
     free(text);
-    if (zc_evlog_create(64, &log) != ZXV_OK) return 2;
+    /* The host's authority, and a quarantine log (libzxv ABI 1.3) that gets
+     * every validation refusal as a Forbidden record, through z-contract's
+     * ready-made sink. Writing to it needs ZXV_CAP_ATTEST. */
+    if (zxv_ctx_create(&ctx) != ZXV_OK || zxv_cap_create(ctx, 1, NULL, ZXV_CAP_ALL, &root) != ZXV_OK ||
+        zxv_cap_attenuate(root, ZXV_CAP_ATTEST, &attester) != ZXV_OK ||
+        zxv_hexlog_create(attester, 64, &quarantine) != ZXV_OK ||
+        zc_hexsink_create(attester, quarantine, 0, &hs) != ZXV_OK || zc_evlog_create(64, &log) != ZXV_OK ||
+        zc_evlog_attach_hexsink(log, hs) != ZXV_OK)
+        return 2;
 
     for (size_t i = 0; i < sizeof k_inbound / sizeof k_inbound[0]; i++) {
         const struct inbound *in = &k_inbound[i];
@@ -120,9 +131,6 @@ int main(int argc, char **argv) {
 
     /* The host settles the first payment against its own ledger and says
      * so with a capability that may attest. The adapter could not. */
-    if (zxv_ctx_create(&ctx) != ZXV_OK || zxv_cap_create(ctx, 1, NULL, ZXV_CAP_ALL, &root) != ZXV_OK ||
-        zxv_cap_attenuate(root, ZXV_CAP_ATTEST, &attester) != ZXV_OK)
-        return 2;
     if (za_record_attest(keep, attester, ZXV_LP_TRUE) == ZXV_OK)
         printf("host attests the first payment:        %s\n", label(keep));
 
@@ -130,12 +138,23 @@ int main(int argc, char **argv) {
     zc_evlog_count(log, &count);
     printf("evidence records: %llu, chain %s\n", (unsigned long long) count,
            zc_evlog_verify(log) == ZXV_OK ? "verifies" : "BROKEN");
+    uint32_t qn = 0;
+    zxv_hexlog_count(quarantine, &qn);
+    printf("quarantine records: %u, chain %s\n", (unsigned) qn,
+           zxv_hexlog_verify(quarantine) == ZXV_OK ? "verifies" : "BROKEN");
+    for (uint32_t i = 0; i < qn; i++) {
+        uint8_t qtag = 0, reason = 0;
+        zxv_hexlog_at(quarantine, i, NULL, &qtag, &reason, NULL, NULL, NULL, NULL);
+        printf("    #%u %s, %s\n", (unsigned) i, zxv_hex_name(qtag), zc_reason_name(reason));
+    }
 
     za_record_destroy(keep);
+    zc_evlog_destroy(log);
+    zc_hexsink_destroy(hs);
+    zxv_hexlog_destroy(quarantine);
     zxv_cap_destroy(attester);
     zxv_cap_destroy(root);
     zxv_ctx_destroy(ctx);
-    zc_evlog_destroy(log);
     zc_contract_destroy(c);
     return 0;
 }

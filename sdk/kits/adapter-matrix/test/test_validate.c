@@ -1,7 +1,8 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_validate.c — records from each adapter checked against
- * examples/market.zc, evidence records, and host attestation.
+ * examples/market.zc, evidence records, host attestation, libzxv tags and
+ * actions, and the quarantine sink (kit API 0.2).
  *
  *   test_validate examples/market.zc */
 #include "za_test.h"
@@ -276,6 +277,88 @@ static void test_attest(void) {
     zxv_ctx_destroy(ctx);
 }
 
+/* Kit API 0.2: libzxv tags, actions, and the quarantine sink. */
+static int32_t action_of(const za_record *r) {
+    int32_t a = -1;
+    return za_record_action(r, &a) == ZXV_OK ? a : -1;
+}
+
+static void test_hex(void) {
+    static const char good[] = "{\"value\": 20, \"unit\": \"C\"}";
+    static const char bad[] = "{\"value\": 999, \"unit\": \"C\"}";
+    zxv_ctx *ctx = NULL;
+    zxv_cap *root = NULL, *attest = NULL;
+    zxv_hexlog *q = NULL;
+    zc_hexsink *hs = NULL;
+    zc_evlog *log = NULL;
+    za_record *r = NULL;
+    int32_t lp = -1, tag = -1;
+    uint8_t base = 9, pol = 9, ph = 9, htag = 0, hreason = 0, subj[32], eh[32];
+    uint32_t count = 9, submitter = 9;
+    char text[300];
+
+    r = ingest(ZA_SRC_JSON, "", good);
+    CHECK(r && za_record_state(r, &lp, &tag) == ZXV_OK && tag >= 0 && tag <= 63 &&
+              zxv_hex_unpack((uint8_t) tag, &base, &pol, &ph) == ZXV_OK && base == ZXV_HEX_BASE_NEITHER &&
+              pol == ZXV_HEX_POL_NEUTRAL && ph == ZXV_HEX_PHASE_EMERGING &&
+              strcmp(zxv_hex_name((uint8_t) tag), "neither/neutral/emerging") == 0,
+          "an accepted record carries the libzxv tag neither/neutral/emerging");
+    CHECK(action_of(r) == ZXV_HEX_ACT_WAIT, "accepted, unverified: libzxv says WAIT");
+    CHECK(za_record_action(NULL, &lp) == ZXV_E_ARG && za_record_action(r, NULL) == ZXV_E_ARG, "action NULLs");
+    za_record_destroy(r);
+    r = ingest(ZA_SRC_JSON, "", "{");
+    CHECK(r && action_of(r) == ZXV_HEX_ACT_REFUSE && strcmp(tag_text(r), "false/neutral/emerging") == 0,
+          "refused at ingest: REFUSE");
+    za_record_destroy(r);
+
+    CHECK(zxv_ctx_create(&ctx) == ZXV_OK && zxv_cap_create(ctx, 1, NULL, ZXV_CAP_ALL, &root) == ZXV_OK &&
+              zxv_cap_attenuate(root, ZXV_CAP_ATTEST, &attest) == ZXV_OK, "caps");
+    r = ingest(ZA_SRC_JSON, "", good);
+    CHECK(za_record_attest(r, attest, ZXV_LP_TRUE) == ZXV_OK && za_record_state(r, NULL, &tag) == ZXV_OK &&
+              zxv_hex_unpack((uint8_t) tag, &base, &pol, &ph) == ZXV_OK && base == ZXV_HEX_BASE_TRUE &&
+              ph == ZXV_HEX_PHASE_MANIFEST && action_of(r) == ZXV_HEX_ACT_PROCEED,
+          "attested TRUE: true/neutral/manifest, PROCEED");
+    za_record_destroy(r);
+    r = ingest(ZA_SRC_JSON, "", good);
+    CHECK(za_record_attest(r, attest, ZXV_LP_BOTH) == ZXV_OK && action_of(r) == ZXV_HEX_ACT_ESCALATE,
+          "attested BOTH: ESCALATE");
+    za_record_destroy(r);
+
+    /* the quarantine sink: every validation refusal becomes a Forbidden record */
+    CHECK(zxv_hexlog_create(attest, 2, &q) == ZXV_OK && zc_hexsink_create(attest, q, 0, &hs) == ZXV_OK &&
+              zc_evlog_create(8, &log) == ZXV_OK && zc_evlog_attach_hexsink(log, hs) == ZXV_OK,
+          "evidence log with the quarantine sink");
+    CHECK(run(ZA_SRC_MQTT, "plant/7", good, "reading", log, NULL) == ZXV_OK &&
+              zxv_hexlog_count(q, &count) == ZXV_OK && count == 0,
+          "a passing record is not quarantined");
+    CHECK(run(ZA_SRC_MQTT, "plant/7", bad, "reading", log, &r) == ZA_E_REFUSED, "a refused record");
+    CHECK(zxv_hexlog_count(q, &count) == ZXV_OK && count == 1 &&
+              zxv_hexlog_at(q, 0, NULL, &htag, &hreason, &submitter, subj, NULL, NULL) == ZXV_OK &&
+              strcmp(zxv_hex_name(htag), "false/forbidden/emerging") == 0 && hreason == ZC_V_ABOVE &&
+              submitter == ZC_ORIGIN_ADAPTER,
+          "quarantined as %s, reason %u, submitter %u", zxv_hex_name(htag), (unsigned) hreason,
+          (unsigned) submitter);
+    CHECK(zc_evlog_get(log, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, eh, text, sizeof text, NULL) == ZXV_OK &&
+              memcmp(eh, subj, 32) == 0,
+          "the quarantine record points at the evidence record");
+    CHECK(strcmp(tag_text(r), "false/neutral/emerging") == 0 && action_of(r) == ZXV_HEX_ACT_REFUSE,
+          "the record itself stays false/neutral/emerging (refused, not forbidden work)");
+    za_record_destroy(r);
+    r = NULL;
+    CHECK(run(ZA_SRC_MQTT, "plant/7", bad, "reading", log, NULL) == ZA_E_REFUSED &&
+              run(ZA_SRC_MQTT, "plant/7", bad, "reading", log, &r) == ZC_E_LOG,
+          "a full quarantine log refuses the evidence (ZC_E_LOG)");
+    CHECK(r && lp_of(r) == ZXV_LP_FALSE, "and the record is refused anyway (fail closed)");
+    CHECK(zxv_hexlog_verify(q) == ZXV_OK && zc_evlog_verify(log) == ZXV_OK, "both chains verify");
+    za_record_destroy(r);
+    zc_evlog_destroy(log);
+    zc_hexsink_destroy(hs);
+    zxv_hexlog_destroy(q);
+    zxv_cap_destroy(attest);
+    zxv_cap_destroy(root);
+    zxv_ctx_destroy(ctx);
+}
+
 int main(int argc, char **argv) {
     size_t len = 0;
     unsigned char *text;
@@ -301,6 +384,7 @@ int main(int argc, char **argv) {
     test_log_failures();
     test_misuse();
     test_attest();
+    test_hex();
     zc_contract_destroy(C);
     printf("test_validate: %d checks, %d failed\n", g_checks, g_fail);
     return g_fail ? 1 : 0;
