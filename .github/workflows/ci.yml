@@ -104,6 +104,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install ARM64 and x86_64 toolchains
+      - uses: actions/checkout@v7
+      - name: Install ARM64 toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y ccache gcc-aarch64-linux-gnu qemu-system-arm gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
@@ -125,10 +127,19 @@ jobs:
         # marker. Same check on all five targets: build_system/ci_boot_check.sh.
         run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
       - name: Upload ARM64 artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-arm64
           path: kernel_arm64.elf
+
+  build-x86_64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install x86_64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
       - name: Build x86_64
         if: ${{ !cancelled() }}
         run: |
@@ -140,6 +151,7 @@ jobs:
       - name: Upload x86_64 artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-x86_64
           path: kernel_x86_64.elf
@@ -159,6 +171,8 @@ jobs:
         # package of that name), with the rv64 OpenSBI firmware QEMU loads.
         # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
         # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
+      - uses: actions/checkout@v7
+      - name: Install RISC-V 64-bit toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y ccache gcc-riscv64-linux-gnu qemu-system-misc gcc-arm-linux-gnueabihf qemu-system-arm
@@ -177,11 +191,22 @@ jobs:
       - name: Run RISC-V 64-bit in QEMU
         run: build_system/ci_boot_check.sh riscv64 build_system/Makefile.riscv 30
       - name: Upload RISC-V 64-bit artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-riscv64
           path: kernel_riscv.elf
           if-no-files-found: error
+
+  build-riscv32:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install RISC-V 32-bit toolchain
+        # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
+        # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
       - name: Build RISC-V 32-bit
         if: ${{ !cancelled() }}
         run: |
@@ -214,6 +239,19 @@ jobs:
         with:
           name: kernel-riscv32
           path: kernel_riscv32.elf
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-riscv32
+          path: kernel_riscv32.elf
+
+  build-arm32:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install ARM32 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf qemu-system-arm
       - name: Build ARM32
         if: ${{ !cancelled() }}
         run: |
@@ -225,11 +263,57 @@ jobs:
       - name: Upload ARM32 artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: kernel-arm32
           path: zedec_xero_arm32.elf
           if-no-files-found: error
       - run: ccache -s
+
+  host-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make clang libxml2-utils
+      - name: Check every file is on Apache-2.0
+        run: python3 build_system/relicense_apache.py --check
+      - name: Run host tests
+        run: |
+          cd kernel
+          make verify-all
+
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install clang-format
+        run: pip install clang-format==18.1.8
+      - name: Check formatting of the C files this change touches
+        # Style is in .clang-format. Older files predate it, so only the lines
+        # a pull request or push changes are checked.
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: |
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
+          # Only the changed lines are checked, so a one-line header edit does
+          # not force a full reformat of an older file. New files are all
+          # changed lines, so they stay fully checked.
+          MB=$(git merge-base "$BASE" HEAD)
+          # git clang-format does not read .clang-format-ignore, so its
+          # entries (generated tables, vendored code) become exclude pathspecs.
+          set -f
+          EXCL=$(grep -vE '^[[:space:]]*(#|$)' .clang-format-ignore | sed 's/^/:(exclude,glob)/')
+          out=$(git clang-format --binary "$(command -v clang-format)" --diff "$MB" HEAD -- 'kernel/*.c' 'kernel/*.h' $EXCL || true)
+          set +f
+          case "$out" in
+            ""|"no modified files to format"|"clang-format did not modify any files") echo "formatting OK" ;;
+            *) echo "$out"; exit 1 ;;
+          esac
 
   # The turnkey Mac app: native shell + engine, universal (arm64 + x86_64),
   # tested and packaged by build_desktop.sh on Apple's own toolchain. Signs
@@ -254,7 +338,7 @@ jobs:
       ZXV_NOTARY_KEY_ID: ${{ secrets.ZXV_NOTARY_KEY_ID }}
       ZXV_NOTARY_ISSUER: ${{ secrets.ZXV_NOTARY_ISSUER }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -326,7 +410,7 @@ jobs:
           if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
       - name: Upload the Mac packages
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: zxv-macos
           path: |
@@ -349,7 +433,7 @@ jobs:
       run:
         working-directory: bindings/dotnet
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
@@ -365,7 +449,7 @@ jobs:
         run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
       - name: Test
         run: dotnet test Zxv.sln -c Release --no-build --logger "trx;LogFileName=results.trx"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: dotnet-test-results
@@ -384,7 +468,7 @@ jobs:
       LEAN_VERSION: '4.15.0'
       LEAN_SHA256: af71a2569a9f68337de2434829b3008cd8e32c436e9cb6bd8c84a2c2ba3585c9
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -415,7 +499,7 @@ jobs:
         run: LEAN="$PWD/proofs/.tools/lean-${LEAN_VERSION}-linux/bin/lean" proofs/check.sh lean
       - name: TLC model checking
         run: PROOFS_LOGDIR="$RUNNER_TEMP/tlc-logs" proofs/check.sh tla
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: tlc-logs
@@ -431,7 +515,7 @@ jobs:
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install cross toolchains, qemu-user and valgrind
         run: |
           sudo apt-get update
@@ -462,7 +546,7 @@ jobs:
         shard: [ 1, 2, 3 ]
     name: mutation-subset (${{ matrix.shard }}/3)
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -472,6 +556,9 @@ jobs:
       - name: Mutation score gate (CI subset, shard ${{ matrix.shard }}/3)
         run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --shard ${{ matrix.shard }}/3 --jobs 4 --out mutation-results
       - uses: actions/upload-artifact@v5
+      - name: Mutation score gate (CI subset)
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --jobs 4 --out mutation-results
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutation-results-${{ matrix.shard }}
@@ -489,7 +576,7 @@ jobs:
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -514,7 +601,7 @@ jobs:
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -540,7 +627,7 @@ jobs:
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -563,7 +650,7 @@ jobs:
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -574,7 +661,7 @@ jobs:
         run: make -C fuzz replay prop PROP_ITERS=1000
       - name: Every libFuzzer harness for 30 s
         run: make -C fuzz smoke SMOKE_SECS=30
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: fuzz-crashes
@@ -585,7 +672,7 @@ jobs:
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -596,7 +683,7 @@ jobs:
         run: |
           fuzz/tools/coverage.sh
           cat fuzz/build/cov/COVERAGE.table.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: |
