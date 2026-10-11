@@ -8,8 +8,8 @@
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates git make python3 python3-pip ccache \
-        gcc-11 gcc clang llvm libxml2-utils valgrind \
+        ca-certificates curl git make python3 python3-pip ccache \
+        gcc-11 gcc clang llvm libclang-rt-18-dev libxml2-utils valgrind \
         nasm xorriso grub-pc-bin grub-common mtools \
         qemu-system-arm qemu-system-x86 qemu-system-misc qemu-user \
         gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu gcc-arm-linux-gnueabihf \

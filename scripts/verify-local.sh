@@ -81,7 +81,7 @@ if [ "$DOCKER" = 1 ]; then
     fi
     exec docker run --rm --platform "$PLATFORM" \
         -e ZXV_IN_DOCKER=1 -e CCACHE_DIR=/ccache -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
-        -v zxv-ci-ccache:/ccache -v "$ROOT":/src -w /src \
+        -v zxv-ci-ccache:/ccache -v zxv-ci-cache:/root/.cache/zxv -v "$ROOT":/src -w /src \
         "$TAG" scripts/verify-local.sh "${ARGS[@]}"
 fi
 
@@ -171,7 +171,9 @@ rv32_boot() {
     if [ ! -f "$fw" ]; then
         git clone -q --depth 1 --branch v1.3.1 https://github.com/riscv-software-src/opensbi.git "$TMP/opensbi" &&
             make -C "$TMP/opensbi" -j"$(nproc)" PLATFORM=generic PLATFORM_RISCV_XLEN=32 CROSS_COMPILE=riscv64-linux-gnu- >/dev/null &&
-            mkdir -p "$(dirname "$fw")" && cp "$TMP/opensbi/build/platform/generic/firmware/fw_dynamic.bin" "$fw" || return 1
+            mkdir -p "$(dirname "$fw")" &&
+            # riscv32_sbi.sh accepts a .bin only with its .elf beside it
+            cp "$TMP"/opensbi/build/platform/generic/firmware/fw_dynamic.{bin,elf} "$(dirname "$fw")/" || return 1
     fi
     ZXV_RV32_SBI="$fw" boot_one riscv32 build_system/Makefile.riscv32
 }

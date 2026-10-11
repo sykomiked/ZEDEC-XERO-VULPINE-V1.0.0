@@ -193,7 +193,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/opensbi-fw
-          key: opensbi-rv32-${{ env.OPENSBI_TAG }}-ubuntu-22.04
+          key: opensbi-rv32-${{ env.OPENSBI_TAG }}-ubuntu-22.04-elf
       - name: Build rv32 OpenSBI firmware
         # Ubuntu ships rv64 OpenSBI only, and qemu-system-riscv32 -M virt
         # cannot start without an rv32 one (see build_system/riscv32_sbi.sh).
@@ -204,7 +204,8 @@ jobs:
           git clone --depth 1 --branch "$OPENSBI_TAG" https://github.com/riscv-software-src/opensbi.git "$RUNNER_TEMP/opensbi"
           make -C "$RUNNER_TEMP/opensbi" -j"$(nproc)" PLATFORM=generic PLATFORM_RISCV_XLEN=32 CROSS_COMPILE=riscv64-linux-gnu-
           mkdir -p "$RUNNER_TEMP/opensbi-fw"
-          cp "$RUNNER_TEMP/opensbi/build/platform/generic/firmware/fw_dynamic.bin" "$RUNNER_TEMP/opensbi-fw/"
+          # riscv32_sbi.sh accepts the .bin only with its .elf beside it
+          cp "$RUNNER_TEMP"/opensbi/build/platform/generic/firmware/fw_dynamic.{bin,elf} "$RUNNER_TEMP/opensbi-fw/"
       - name: Run RISC-V 32-bit in QEMU
         if: ${{ !cancelled() }}
         run: ZXV_RV32_SBI="$RUNNER_TEMP/opensbi-fw/fw_dynamic.bin" build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
