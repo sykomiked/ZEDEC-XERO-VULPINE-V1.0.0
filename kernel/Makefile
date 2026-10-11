@@ -330,6 +330,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
 	$(MAKE) --no-print-directory test-b2-small
+	$(MAKE) --no-print-directory test-b2
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
 	@echo "=== i18n: CLDR locales, catalogs, formatting, UTF-8, Enochian core ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/i18n src/i18n/test_i18n.c src/i18n/i18n_text.c src/i18n/i18n_locale.c src/i18n/i18n_format.c src/i18n/i18n_tables.c src/i18n/i18n_catalog.c -o /tmp/test_i18n && /tmp/test_i18n > /tmp/test_i18n.log 2>&1 && echo "[PASS] test_i18n" || { tail -40 /tmp/test_i18n.log; echo "[FAIL] test_i18n"; exit 1; }
@@ -1450,6 +1451,12 @@ hwe-vectors:
 .PHONY: bench-hwemu
 bench-hwemu:
 	gcc -std=c11 -O2 -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/hwemu/bench_hwm.c src/hwemu/hwm.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/bench_hwm && $(ZXV_TMP)/bench_hwm
+
+# B2 unit tests for src/emu, src/desktop, src/sdk_bridge and src/panopticon
+# (mutation-killing; the table of tests lives in tests/host/b2/run.sh).
+.PHONY: test-b2
+test-b2:
+	@ZXV_TMP=$(ZXV_TMP) sh ../tests/host/b2/run.sh all
 
 # The SDK capability bridge (src/sdk_bridge/sdk_bridge.h): one id per capability.
 .PHONY: test-sdk-bridge
