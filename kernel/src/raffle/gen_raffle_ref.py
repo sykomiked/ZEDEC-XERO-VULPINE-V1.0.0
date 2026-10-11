@@ -15,8 +15,9 @@ import sys
 
 FEE = (987, 61000)
 SKIM = (987, 61000)
-PRICE = 1000
-FIB_INDEX = 10  # F(10) = 55 tickets
+FIB_INDEX = 22  # F(22) = 17,711 fee units
+MAX_MULT = 13
+SHARE = (8, 21)
 EPOCHS = 3
 PARTIES = 3
 
@@ -44,8 +45,8 @@ def commitment(epoch, party, secret):
     return sha3(b"ZXV-RAFFLE-COMMIT" + u64(epoch) + party + secret)
 
 
-def amount_of(k):
-    return 1_000 + (k * 104_729) % 300_000
+def amount_of(j):
+    return j % 61 if j % 5 == 0 else 62 + (j * 104_729) % 300_000
 
 
 def run_epoch(epoch, prev_link, out):
@@ -60,21 +61,25 @@ def run_epoch(epoch, prev_link, out):
     refused = 0
     while tickets < threshold:
         owner = ident(b"owner", k % 7)
-        amount = amount_of(k + 1000 * epoch)
+        j = k + 1000 * epoch
+        amount = amount_of(j)
+        mult = 1 + j % 3
         k += 1
-        fee = amount * FEE[0] // FEE[1]
-        n = fee // PRICE
-        if n == 0:
+        fee = amount * FEE[0] * mult // FEE[1]
+        n = fee  # one ticket per fee unit
+        held = sum(c for f, c, o in ranges if o == owner)
+        cap = max(threshold * SHARE[0] // SHARE[1], 1)
+        if n == 0 or held + n > cap:
             refused += 1
             continue
         first = tickets
         ranges.append((first, n, owner))
-        chain = sha3(b"ZXV-RAFFLE-ENTRY" + chain + owner + u64(amount) + u64(fee)
+        chain = sha3(b"ZXV-RAFFLE-ENTRY" + chain + owner + u64(amount) + u64(mult) + u64(fee)
                      + u64(first) + u64(n) + b"\x00")
         pool += fee
         tickets += n
-    hdr = (b"ZXV-RAFFLE-HDR1" + u64(epoch) + u64(FEE[0]) + u64(FEE[1]) + u64(SKIM[0])
-           + u64(SKIM[1]) + u64(PRICE) + u64(threshold) + u64(tickets) + u64(pool) + chain
+    hdr = (b"ZXV-RAFFLE-HDR3" + u64(epoch) + u64(FEE[0]) + u64(FEE[1]) + u64(SKIM[0])
+           + u64(SKIM[1]) + u64(threshold) + u64(MAX_MULT) + u64(SHARE[0]) + u64(SHARE[1]) + u64(tickets) + u64(pool) + chain
            + u64(PARTIES))
     for p, c in zip(parties, commits):
         hdr += p + c
@@ -109,7 +114,7 @@ def run_epoch(epoch, prev_link, out):
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    assert fib(18) == 2584 and fib(20) == 6765 and fib(FIB_INDEX) == 55
+    assert fib(18) == 2584 and fib(20) == 6765 and fib(FIB_INDEX) == 17711
     out = []
     link = bytes(32)
     for e in range(1, EPOCHS + 1):

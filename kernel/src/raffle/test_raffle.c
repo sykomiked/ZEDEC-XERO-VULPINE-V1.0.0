@@ -51,6 +51,7 @@ static raffle_config_t enabled_cfg(void)
     raffle_config_t c;
     raffle_config_default(&c);
     c.jurisdiction_permits = true;
+    c.share_den = 0; /* F6 off here; test_cap turns it on */
     return c;
 }
 
@@ -61,10 +62,11 @@ static void test_config(void)
 {
     raffle_config_t c;
     raffle_config_default(&c);
-    CHECK(!c.jurisdiction_permits && !c.free_entry && c.refuse_dust, "defaults are off");
+    CHECK(!c.jurisdiction_permits && !c.free_entry, "defaults are off");
     CHECK(c.fee_num == 987 && c.fee_den == 61000 && c.skim_num == 987 && c.skim_den == 61000,
           "default ratios");
-    CHECK(c.fib_index == 18 && c.min_reveals == 0 && c.ticket_price == 1, "default epoch");
+    CHECK(c.fib_index == 18 && c.min_reveals == 0, "default epoch");
+    CHECK(c.max_multiplier == 13 && c.share_num == 8 && c.share_den == 21, "default M and cap");
     CHECK(raffle_config_check(&c) == RAFFLE_OK, "defaults valid");
     CHECK(raffle_config_check(NULL) == RAFFLE_ERR_ARG, "null config");
 
@@ -81,15 +83,24 @@ static void test_config(void)
     b.skim_den = 0;
     CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "skim den 0");
     b = c;
-    b.ticket_price = 0;
-    CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "price 0");
-    b = c;
     b.fib_index = RAFFLE_FIB_MIN - 1;
     CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "fib index low");
     b.fib_index = RAFFLE_FIB_MAX + 1;
     CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "fib index high");
     b.fib_index = RAFFLE_FIB_MAX;
     CHECK(raffle_config_check(&b) == RAFFLE_OK, "fib index max ok");
+    b = c;
+    b.max_multiplier = 0;
+    CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "max M 0");
+    b.max_multiplier = RAFFLE_MAX_MULT + 1;
+    CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "max M too high");
+    b = c;
+    b.share_num = 0;
+    CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "share 0 with cap on");
+    b.share_num = 22;
+    CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "share > 1");
+    b.share_den = 0;
+    CHECK(raffle_config_check(&b) == RAFFLE_OK, "cap off");
     b = c;
     b.min_reveals = RAFFLE_MAX_PARTIES + 1;
     CHECK(raffle_config_check(&b) == RAFFLE_ERR_CONFIG, "min_reveals too high");
@@ -101,7 +112,7 @@ static void test_config(void)
     CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 16) == RAFFLE_OK, "init disabled");
     raffle_t before = r;
     raffle_receipt_t rc;
-    CHECK(raffle_enter(&r, who, 1000000000u, &rc) == RAFFLE_ERR_DISABLED, "disabled enter");
+    CHECK(raffle_enter(&r, who, 1000000000u, 1, &rc) == RAFFLE_ERR_DISABLED, "disabled enter");
     CHECK(raffle_free_entry(&r, who, &rc) == RAFFLE_ERR_DISABLED, "disabled free entry");
     CHECK(memcmp(&before, &r, sizeof r) == 0, "disabled: state untouched");
 
@@ -147,7 +158,6 @@ static uint64_t xorshift(uint64_t *s)
 static void test_fee(void)
 {
     raffle_config_t c = enabled_cfg();
-    c.ticket_price = 1000;
     uint64_t fee, n, seed = 0x2026101114u;
     unsigned bad = 0;
     for (int i = 0; i < 200000; i++) {
@@ -158,34 +168,35 @@ static void test_fee(void)
             a = UINT64_MAX - (uint64_t) (i - 70000);
         else
             a = xorshift(&seed) >> (i % 64);
-        if (raffle_quote(&c, a, &fee, &n) != RAFFLE_OK) {
+        if (raffle_quote(&c, a, 1, &fee, &n) != RAFFLE_OK) {
             bad++;
             continue;
         }
         unsigned __int128 x = (unsigned __int128) a * 987u;
         if (!((unsigned __int128) fee * 61000u <= x && x < ((unsigned __int128) fee + 1) * 61000u))
             bad++;
-        if (n != fee / 1000 || n * 1000 > fee || fee - n * 1000 >= 1000) bad++;
+        if (n != fee) bad++; /* F3: one ticket per fee unit */
     }
-    CHECK(bad == 0, "fee is the exact floor and tickets = floor(fee/price) (%u bad)", bad);
-    CHECK(raffle_quote(&c, 61803, &fee, &n) == RAFFLE_OK && fee == 999 && n == 0, "just below");
-    CHECK(raffle_quote(&c, 61804, &fee, &n) == RAFFLE_OK && fee == 1000 && n == 1, "one ticket");
-    CHECK(raffle_quote(&c, 100000, &fee, &n) == RAFFLE_OK && fee == 1618 && n == 1, "1.618%%");
+    CHECK(bad == 0, "fee is the exact floor and tickets == fee (%u bad)", bad);
+    CHECK(raffle_quote(&c, 61, 1, &fee, &n) == RAFFLE_OK && fee == 0 && n == 0, "61 rounds to 0");
+    CHECK(raffle_quote(&c, 62, 1, &fee, &n) == RAFFLE_OK && fee == 1 && n == 1, "62 is one ticket");
+    CHECK(raffle_quote(&c, 100000, 1, &fee, &n) == RAFFLE_OK && fee == 1618 && n == 1618,
+          "1.618%%");
 
-    /* Sequential ids; leftovers stay in the pool. */
+    /* Sequential ids; tickets == pool. */
     raffle_t r;
-    c.fib_index = 30; /* large: no close here */
+    c.fib_index = 60; /* large: no close here */
     CHECK(raffle_init(&r, &c, 7, NULL, g_ranges, 4096) == RAFFLE_OK, "init");
     uint64_t next = 0, fees = 0;
     seed = 99;
     for (int k = 0; k < 500; k++) {
         uint8_t who[32];
         ident("owner", (uint8_t) (k % 11), who);
-        uint64_t a = 61805 + xorshift(&seed) % 5000000;
+        uint64_t a = 62 + xorshift(&seed) % 5000000;
         raffle_receipt_t rc;
         uint64_t qf, qn;
-        raffle_quote(&c, a, &qf, &qn);
-        if (raffle_enter(&r, who, a, &rc) != RAFFLE_OK) {
+        raffle_quote(&c, a, 1, &qf, &qn);
+        if (raffle_enter(&r, who, a, 1, &rc) != RAFFLE_OK) {
             bad++;
             continue;
         }
@@ -194,8 +205,8 @@ static void test_fee(void)
         fees += rc.fee;
     }
     CHECK(bad == 0, "ids sequential, receipts match quotes");
-    CHECK(r.tickets == next && r.pool == fees, "pool holds every fee, leftovers included");
-    CHECK(r.pool > r.tickets * 1000, "the sub-ticket leftovers are in the pool");
+    CHECK(r.tickets == next && r.pool == fees && r.tickets == r.pool,
+          "pool holds every fee and tickets == pool (no dust)");
     uint64_t sum = 0;
     for (uint32_t i = 0; i < r.range_len; i++) {
         if (r.ranges[i].first != sum) bad++;
@@ -220,42 +231,122 @@ static void test_fee(void)
     uint8_t who[32];
     ident("owner", 1, who);
     raffle_receipt_t rc;
-    CHECK(raffle_enter(&r, who, 61803, &rc) == RAFFLE_ERR_DUST, "dust refused");
-    CHECK(memcmp(&before, &r, sizeof r) == 0, "dust: state untouched");
-    /* refuse_dust off: the fee is taken, no ticket, no range. */
-    r.cfg.refuse_dust = false;
-    CHECK(raffle_enter(&r, who, 61803, &rc) == RAFFLE_OK && rc.count == 0 && rc.fee == 999,
-          "dust taken when allowed");
-    CHECK(r.pool == before.pool + 999 && r.tickets == before.tickets &&
-              r.range_len == before.range_len,
-          "dust went to the pool only");
-    CHECK(memcmp(r.chain, before.chain, 32) != 0, "dust entry is in the chain");
+    CHECK(raffle_enter(&r, who, 61, 1, &rc) == RAFFLE_ERR_DUST, "zero fee refused");
+    CHECK(memcmp(&before, &r, sizeof r) == 0, "zero fee: state untouched");
+
+    /* F3, the owner's example: Alice 610, Bob 987, pool 1597 = F(17). */
+    uint8_t alice[32], bob[32], o[32];
+    ident("alice", 0, alice);
+    ident("bob", 0, bob);
+    uint64_t a610 = 0, a987 = 0;
+    for (uint64_t a = 1; !a610 || !a987; a++) {
+        raffle_quote(&c, a, 1, &fee, &n);
+        if (fee == 610 && !a610) a610 = a;
+        if (fee == 987 && !a987) a987 = a;
+    }
+    c.fib_index = 17;
+    CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 8) == RAFFLE_OK, "init F17");
+    CHECK(raffle_enter(&r, alice, a610, 1, &rc) == RAFFLE_OK && rc.first_ticket == 0 &&
+              rc.count == 610 && !rc.closed_epoch,
+          "Alice holds [0, 609]");
+    CHECK(raffle_enter(&r, bob, a987, 1, &rc) == RAFFLE_OK && rc.first_ticket == 610 &&
+              rc.count == 987 && rc.closed_epoch,
+          "Bob holds [610, 1596] and closes F(17)");
+    CHECK(r.tickets == 1597 && r.pool == 1597, "1597 tickets, pool 1597");
+    CHECK(raffle_owner_of(&r, 0, o) && memcmp(o, alice, 32) == 0, "0 is Alice");
+    CHECK(raffle_owner_of(&r, 609, o) && memcmp(o, alice, 32) == 0, "609 is Alice");
+    CHECK(raffle_owner_of(&r, 610, o) && memcmp(o, bob, 32) == 0, "610 is Bob");
+    CHECK(raffle_owner_of(&r, 1596, o) && memcmp(o, bob, 32) == 0, "1596 is Bob");
+    CHECK(!raffle_owner_of(&r, 1597, o), "1597 is nobody");
 
     /* Range table full: refused, untouched. */
     c.fib_index = 30;
     CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 2) == RAFFLE_OK, "init cap 2");
-    CHECK(raffle_enter(&r, who, 100000, &rc) == RAFFLE_OK, "1st");
-    CHECK(raffle_enter(&r, who, 100000, &rc) == RAFFLE_OK, "2nd");
+    CHECK(raffle_enter(&r, who, 100000, 1, &rc) == RAFFLE_OK, "1st");
+    CHECK(raffle_enter(&r, who, 100000, 1, &rc) == RAFFLE_OK, "2nd");
     before = r;
-    CHECK(raffle_enter(&r, who, 100000, &rc) == RAFFLE_ERR_FULL, "full");
+    CHECK(raffle_enter(&r, who, 100000, 1, &rc) == RAFFLE_ERR_FULL, "full");
     CHECK(memcmp(&before, &r, sizeof r) == 0, "full: state untouched");
 
     /* Pool overflow: refused, untouched. */
-    c.ticket_price = 1;
     CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 16) == RAFFLE_OK, "init");
     r.pool = UINT64_MAX - 5;
     before = r;
-    CHECK(raffle_enter(&r, who, 100000, &rc) == RAFFLE_ERR_OVERFLOW, "pool overflow");
+    CHECK(raffle_enter(&r, who, 100000, 1, &rc) == RAFFLE_ERR_OVERFLOW, "pool overflow");
     CHECK(memcmp(&before, &r, sizeof r) == 0, "overflow: state untouched");
-    CHECK(raffle_enter(NULL, who, 1, &rc) == RAFFLE_ERR_ARG, "enter null");
-    CHECK(raffle_enter(&r, NULL, 1, &rc) == RAFFLE_ERR_ARG, "enter null owner");
+    CHECK(raffle_enter(NULL, who, 1, 1, &rc) == RAFFLE_ERR_ARG, "enter null");
+    CHECK(raffle_enter(&r, NULL, 1, 1, &rc) == RAFFLE_ERR_ARG, "enter null owner");
+}
+
+/* ===== F5/F6: the multiplier and the share cap ===== */
+static void test_multiplier_cap(void)
+{
+    raffle_config_t c = enabled_cfg();
+    uint64_t fee, n, seed = 5;
+    unsigned bad = 0;
+    for (int i = 0; i < 100000; i++) {
+        uint64_t a = xorshift(&seed) >> (i % 64);
+        uint32_t m = 1 + (uint32_t) (xorshift(&seed) % 13);
+        raffle_status_t st = raffle_quote(&c, a, m, &fee, &n);
+        unsigned __int128 x = (unsigned __int128) a * 987u * m;
+        if (x / 61000u > UINT64_MAX) {
+            if (st != RAFFLE_ERR_OVERFLOW) bad++;
+            continue;
+        }
+        if (st != RAFFLE_OK || fee != (uint64_t) (x / 61000u) || n != fee) bad++;
+    }
+    CHECK(bad == 0, "fee = floor(a * 987 * M / 61000) or overflow refused (%u bad)", bad);
+    CHECK(raffle_quote(&c, 100000, 10, &fee, &n) == RAFFLE_OK && fee == 16180, "M = 10");
+    CHECK(raffle_quote(&c, 100000, 0, &fee, &n) == RAFFLE_ERR_MULTIPLIER, "M = 0 refused");
+    CHECK(raffle_quote(&c, 100000, 14, &fee, &n) == RAFFLE_ERR_MULTIPLIER, "M > max refused");
+    CHECK(raffle_quote(&c, 7, 13, &fee, &n) == RAFFLE_OK && fee == 1, "M lifts a micro entry");
+    c.max_multiplier = RAFFLE_MAX_MULT; /* 987 * 1000 / 61000 > 16: the fee can pass 2^64 */
+    CHECK(raffle_quote(&c, UINT64_MAX, 1000, &fee, &n) == RAFFLE_ERR_OVERFLOW, "overflow refused");
+    CHECK(raffle_quote(&c, UINT64_MAX / 17, 1000, &fee, &n) == RAFFLE_OK, "just fits");
+    c.max_multiplier = 13;
+
+    /* F6: 8/21 of F(18) = 2584 is 984 tickets per owner. */
+    c.share_num = 8;
+    c.share_den = 21;
+    raffle_t r;
+    raffle_receipt_t rc;
+    uint8_t whale[32], minnow[32];
+    ident("whale", 0, whale);
+    ident("minnow", 0, minnow);
+    CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 64) == RAFFLE_OK, "init");
+    CHECK(raffle_room(&r, whale) == 984, "room 984");
+    uint64_t a984 = 0, a985 = 0;
+    for (uint64_t a = 1; !a985; a++) {
+        raffle_quote(&c, a, 1, &fee, &n);
+        if (fee == 984 && !a984) a984 = a;
+        if (fee == 985) a985 = a;
+    }
+    raffle_t before = r;
+    CHECK(raffle_enter(&r, whale, a985, 1, &rc) == RAFFLE_ERR_CAP, "985 refused");
+    CHECK(memcmp(&before, &r, sizeof r) == 0, "cap: state untouched");
+    CHECK(raffle_enter(&r, whale, a984, 1, &rc) == RAFFLE_OK && rc.count == 984, "984 fits");
+    CHECK(raffle_room(&r, whale) == 0 && raffle_room(&r, minnow) == 984, "whale full");
+    CHECK(raffle_enter(&r, whale, 62, 1, &rc) == RAFFLE_ERR_CAP, "whale cannot add one");
+    CHECK(raffle_enter(&r, minnow, 62, 13, &rc) == RAFFLE_OK && rc.count == 13, "minnow at M=13");
+    CHECK(raffle_room(&r, minnow) == 971, "room counts every range");
+    c.free_entry = true;
+    r.cfg.free_entry = true;
+    CHECK(raffle_free_entry(&r, whale, &rc) == RAFFLE_ERR_CAP, "free entry capped too");
+    CHECK(raffle_free_entry(&r, minnow, &rc) == RAFFLE_OK, "free entry under cap");
+
+    /* Tiny threshold: the cap is at least 1 ticket. */
+    c.fib_index = 2;
+    CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 4) == RAFFLE_OK, "init F2");
+    CHECK(raffle_room(&r, whale) == 1, "cap floor 1");
+    c.share_den = 0;
+    CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 4) == RAFFLE_OK, "init no cap");
+    CHECK(raffle_room(&r, whale) == UINT64_MAX, "cap off");
 }
 
 /* ===== E1/E2: the Fibonacci trigger ===== */
 static void test_epoch(void)
 {
     raffle_config_t c = enabled_cfg();
-    c.ticket_price = 1000;
     uint8_t who[32], p0[32], s0[32], cm[32];
     ident("owner", 3, who);
     ident("party", 0, p0);
@@ -271,7 +362,7 @@ static void test_epoch(void)
         while (r.phase == RAFFLE_OPEN) {
             last_before = r.tickets;
             /* 2 tickets per entry: overshoot happens on odd thresholds. */
-            if (raffle_enter(&r, who, 123610, &rc) != RAFFLE_OK) break;
+            if (raffle_enter(&r, who, 124, 1, &rc) != RAFFLE_OK) break;
             closes += rc.closed_epoch;
         }
         CHECK(r.phase == RAFFLE_CLOSED && closes == 1, "closes exactly once at F(%u)", idx);
@@ -281,7 +372,6 @@ static void test_epoch(void)
 
     /* Exactly at the threshold: F(10) = 55 = 5 x 11 tickets. */
     c.fib_index = 10;
-    c.ticket_price = 1;
     CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 64) == RAFFLE_OK, "init");
     raffle_commitment(1, p0, s0, cm);
     CHECK(raffle_commit(&r, p0, cm) == RAFFLE_OK, "commit before tickets");
@@ -289,14 +379,14 @@ static void test_epoch(void)
     uint64_t amt11 = 0;
     for (uint64_t a = 1;; a++) {
         uint64_t f, n;
-        raffle_quote(&c, a, &f, &n);
+        raffle_quote(&c, a, 1, &f, &n);
         if (n == 11) {
             amt11 = a;
             break;
         }
     }
     for (int i = 0; i < 4; i++) {
-        CHECK(raffle_enter(&r, who, amt11, &rc) == RAFFLE_OK && !rc.closed_epoch, "below F10");
+        CHECK(raffle_enter(&r, who, amt11, 1, &rc) == RAFFLE_OK && !rc.closed_epoch, "below F10");
         if (i == 0) {
             uint8_t p1[32];
             ident("party", 1, p1);
@@ -306,17 +396,19 @@ static void test_epoch(void)
     CHECK(raffle_reveal(&r, p0, s0) == RAFFLE_ERR_PHASE, "no reveal while open");
     raffle_settlement_t s;
     CHECK(raffle_draw(&r, &s) == RAFFLE_ERR_PHASE, "no draw while open");
-    CHECK(raffle_enter(&r, who, amt11, &rc) == RAFFLE_OK && rc.closed_epoch, "55th ticket closes");
+    CHECK(raffle_enter(&r, who, amt11, 1, &rc) == RAFFLE_OK && rc.closed_epoch,
+          "55th ticket closes");
     CHECK(r.tickets == 55 && r.phase == RAFFLE_CLOSED, "exactly F10");
     raffle_t before = r;
-    CHECK(raffle_enter(&r, who, amt11, &rc) == RAFFLE_ERR_PHASE, "closed epoch refuses entries");
+    CHECK(raffle_enter(&r, who, amt11, 1, &rc) == RAFFLE_ERR_PHASE, "closed epoch refuses entries");
     CHECK(memcmp(&before, &r, sizeof r) == 0, "closed: state untouched");
     CHECK(raffle_next_epoch(&r) == RAFFLE_ERR_PHASE, "no next epoch before settle");
 
     /* F(2) = 1: the first ticket closes. */
     c.fib_index = 2;
     CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 64) == RAFFLE_OK, "init");
-    CHECK(raffle_enter(&r, who, 61805, &rc) == RAFFLE_OK && rc.closed_epoch, "F2 closes at once");
+    CHECK(raffle_enter(&r, who, 61805, 1, &rc) == RAFFLE_OK && rc.closed_epoch,
+          "F2 closes at once");
 }
 
 /* ===== R2/R3: commit-reveal ===== */
@@ -332,14 +424,13 @@ static void fill_epoch(raffle_t *r, uint32_t parties, uint64_t epoch)
     for (uint8_t k = 0; r->phase == RAFFLE_OPEN; k++) {
         uint8_t who[32];
         ident("owner", (uint8_t) (k % 5), who);
-        raffle_enter(r, who, 61805u * (1u + k % 4), NULL);
+        raffle_enter(r, who, 62u * (1u + k % 4), 1, NULL);
     }
 }
 
 static void test_commit_reveal(void)
 {
     raffle_config_t c = enabled_cfg();
-    c.ticket_price = 1000;
     c.fib_index = 8;
     raffle_t r;
     raffle_settlement_t s;
@@ -390,7 +481,7 @@ static void test_commit_reveal(void)
         for (uint8_t k = 0; r2.phase == RAFFLE_OPEN; k++) {
             uint8_t who[32];
             ident("owner", (uint8_t) (k % 5), who);
-            raffle_enter(&r2, who, 61805u * (1u + k % 4), NULL);
+            raffle_enter(&r2, who, 62u * (1u + k % 4), 1, NULL);
         }
         for (uint8_t j = 0; j < 3; j++) {
             uint8_t sj[32];
@@ -429,7 +520,7 @@ static void test_split(void)
         raffle_commit(&r, p, cm);
         uint64_t a = i < 100 ? 61805u + (uint64_t) i : xorshift(&seed);
         if (i == 2999) a = UINT64_MAX;
-        if (raffle_enter(&r, who, a, NULL) != RAFFLE_OK) {
+        if (raffle_enter(&r, who, a, 1, NULL) != RAFFLE_OK) {
             bad++;
             continue;
         }
@@ -455,7 +546,6 @@ static void test_draw_uniform(void)
      * rejection matters. Loose chi-square bound (df 2, p ~ 1e-6: 27.6). */
     raffle_config_t c = enabled_cfg();
     c.fib_index = 4; /* F4 = 3 */
-    c.ticket_price = 1;
     unsigned cnt[3] = {0, 0, 0}, bad = 0;
     const unsigned N = 6000;
     for (unsigned i = 0; i < N; i++) {
@@ -470,7 +560,7 @@ static void test_draw_uniform(void)
         for (uint8_t k = 0; k < 3; k++) {
             uint8_t who[32];
             ident("owner", k, who);
-            raffle_enter(&r, who, 62, NULL); /* floor(62*987/61000) = 1 */
+            raffle_enter(&r, who, 62, 1, NULL); /* floor(62*987/61000) = 1 */
         }
         raffle_reveal(&r, p, sec);
         if (r.tickets != 3 || raffle_draw(&r, &s) != RAFFLE_OK || s.winning_ticket >= 3) {
@@ -552,15 +642,17 @@ static void hex(const uint8_t *p, size_t n, char *out)
     for (size_t i = 0; i < n; i++) sprintf(out + 2 * i, "%02x", p[i]);
 }
 
-/* The scenario of gen_raffle_ref.py: price 1000, F(10) = 55, 3 parties,
- * owners k % 7, amounts 1,000 + (k * 104,729) mod 300,000, three chained
- * epochs. Returns each epoch's settlement. */
+/* The scenario of gen_raffle_ref.py: F(22) = 17,711 fee units, 3 parties,
+ * share cap 8/21, owners k % 7 at multiplier 1 + j % 3, amounts (j = k + 1000 * epoch) j mod 61
+ * when 5 divides j (fee 0: refused), else 62 + (j * 104,729) mod 300,000; three chained epochs.
+ * Returns each epoch's settlement. */
 static void run_scenario(raffle_settlement_t out[3], uint32_t refused[3])
 {
     static raffle_range_t ranges[128];
     raffle_config_t c = enabled_cfg();
-    c.ticket_price = 1000;
-    c.fib_index = 10;
+    c.fib_index = 22;
+    c.share_num = 8;
+    c.share_den = 21;
     raffle_t r;
     raffle_init(&r, &c, 1, NULL, ranges, 128);
     for (uint64_t e = 1; e <= 3; e++) {
@@ -576,9 +668,10 @@ static void run_scenario(raffle_settlement_t out[3], uint32_t refused[3])
         for (uint64_t k = 0; r.phase == RAFFLE_OPEN; k++) {
             uint8_t who[32];
             ident("owner", (uint8_t) (k % 7), who);
-            uint64_t a = 1000 + ((k + 1000 * e) * 104729u) % 300000u;
-            raffle_status_t st = raffle_enter(&r, who, a, NULL);
-            if (st == RAFFLE_ERR_DUST) refused[e - 1]++;
+            uint64_t j = k + 1000 * e;
+            uint64_t a = j % 5 == 0 ? j % 61 : 62 + (j * 104729u) % 300000u;
+            raffle_status_t st = raffle_enter(&r, who, a, (uint32_t) (1 + j % 3), NULL);
+            if (st == RAFFLE_ERR_DUST || st == RAFFLE_ERR_CAP) refused[e - 1]++;
         }
         for (uint8_t i = 0; i < 3; i++) raffle_reveal(&r, p[i], s[i]);
         raffle_draw(&r, &out[e - 1]);
@@ -631,7 +724,6 @@ static void test_replay(const char *ref)
     /* raffle_settle refuses a record that is not the draw. */
     static raffle_range_t ranges[128];
     raffle_config_t c = enabled_cfg();
-    c.ticket_price = 1000;
     c.fib_index = 10;
     raffle_t r;
     raffle_init(&r, &c, 1, NULL, ranges, 128);
@@ -666,6 +758,7 @@ int main(int argc, char **argv)
     test_config();
     test_fib();
     test_fee();
+    test_multiplier_cap();
     test_epoch();
     test_commit_reveal();
     test_split();

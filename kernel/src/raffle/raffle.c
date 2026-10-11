@@ -60,14 +60,15 @@ void raffle_config_default(raffle_config_t *c)
     pay_memset(c, 0, sizeof *c);
     c->jurisdiction_permits = false;
     c->free_entry = false;
-    c->refuse_dust = true;
     c->fee_num = RAFFLE_DEFAULT_FEE_NUM;
     c->fee_den = RAFFLE_DEFAULT_FEE_DEN;
     c->skim_num = RAFFLE_DEFAULT_FEE_NUM;
     c->skim_den = RAFFLE_DEFAULT_FEE_DEN;
-    c->ticket_price = 1;
     c->fib_index = RAFFLE_DEFAULT_FIB_INDEX;
     c->min_reveals = 0;
+    c->max_multiplier = 13;
+    c->share_num = 8;
+    c->share_den = 21;
 }
 
 raffle_status_t raffle_config_check(const raffle_config_t *c)
@@ -75,9 +76,11 @@ raffle_status_t raffle_config_check(const raffle_config_t *c)
     if (!c) return RAFFLE_ERR_ARG;
     if (c->fee_den == 0 || c->fee_num >= c->fee_den) return RAFFLE_ERR_CONFIG;
     if (c->skim_den == 0 || c->skim_num >= c->skim_den) return RAFFLE_ERR_CONFIG;
-    if (c->ticket_price == 0) return RAFFLE_ERR_CONFIG;
     if (c->fib_index < RAFFLE_FIB_MIN || c->fib_index > RAFFLE_FIB_MAX) return RAFFLE_ERR_CONFIG;
     if (c->min_reveals > RAFFLE_MAX_PARTIES) return RAFFLE_ERR_CONFIG;
+    if (c->max_multiplier < 1 || c->max_multiplier > RAFFLE_MAX_MULT) return RAFFLE_ERR_CONFIG;
+    if (c->share_den && (c->share_num == 0 || c->share_num > c->share_den))
+        return RAFFLE_ERR_CONFIG;
     return RAFFLE_OK;
 }
 
@@ -93,13 +96,19 @@ uint64_t raffle_fib(uint32_t n)
     return n == 1 ? a : b;
 }
 
-raffle_status_t raffle_quote(const raffle_config_t *c, uint64_t amount, uint64_t *fee,
-                             uint64_t *tickets)
+raffle_status_t raffle_quote(const raffle_config_t *c, uint64_t amount, uint32_t multiplier,
+                             uint64_t *fee, uint64_t *tickets)
 {
+    uint64_t rem;
     raffle_status_t st = raffle_config_check(c);
     if (st != RAFFLE_OK) return st;
-    uint64_t f = ratio_floor(amount, c->fee_num, c->fee_den);
-    uint64_t n = pay_udiv64(f, c->ticket_price, 0);
+    if (multiplier < 1 || multiplier > c->max_multiplier) return RAFFLE_ERR_MULTIPLIER;
+    pay_u128 k = pay_mul64(c->fee_num, multiplier); /* F5 */
+    if (k.hi) return RAFFLE_ERR_OVERFLOW;
+    pay_u128 x = pay_mul64(amount, k.lo);
+    if (x.hi >= c->fee_den) return RAFFLE_ERR_OVERFLOW; /* quotient >= 2^64 */
+    uint64_t f = pay_udiv128_64(x, c->fee_den, &rem).lo;
+    uint64_t n = f; /* F3: one ticket per fee unit */
     if (fee) *fee = f;
     if (tickets) *tickets = n;
     return RAFFLE_OK;
@@ -173,14 +182,16 @@ static void header_hash(const raffle_t *r, uint8_t out[RAFFLE_HASH_LEN])
 {
     pre_t p;
     p.len = 0;
-    pre_str(&p, "ZXV-RAFFLE-HDR1");
+    pre_str(&p, "ZXV-RAFFLE-HDR3");
     pre_u64(&p, r->epoch);
     pre_u64(&p, r->cfg.fee_num);
     pre_u64(&p, r->cfg.fee_den);
     pre_u64(&p, r->cfg.skim_num);
     pre_u64(&p, r->cfg.skim_den);
-    pre_u64(&p, r->cfg.ticket_price);
     pre_u64(&p, r->threshold);
+    pre_u64(&p, r->cfg.max_multiplier);
+    pre_u64(&p, r->cfg.share_num);
+    pre_u64(&p, r->cfg.share_den);
     pre_u64(&p, r->tickets);
     pre_u64(&p, r->pool);
     pre_bytes(&p, r->chain, RAFFLE_HASH_LEN);
@@ -192,11 +203,26 @@ static void header_hash(const raffle_t *r, uint8_t out[RAFFLE_HASH_LEN])
     sha3_256(p.buf, p.len, out);
 }
 
-/* Mint `count` tickets to `owner` for `fee` (kind 0 = paid, 1 = free). */
+uint64_t raffle_room(const raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN])
+{
+    if (!r || !owner) return 0;
+    if (!r->cfg.share_den) return UINT64_MAX;
+    uint64_t cap = ratio_floor(r->threshold, r->cfg.share_num, r->cfg.share_den);
+    if (cap == 0) cap = 1;
+    uint64_t held = 0;
+    for (uint32_t i = 0; i < r->range_len; i++)
+        if (pay_memeq(r->ranges[i].owner, owner, RAFFLE_ID_LEN)) held += r->ranges[i].count;
+    return held >= cap ? 0 : cap - held;
+}
+
+/* Mint `count` tickets to `owner` for `fee` (kind 0 = paid, 1 = free) at
+ * multiplier `mult` (0 for a free entry). */
 static raffle_status_t mint(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
-                            uint64_t fee, uint64_t count, uint8_t kind, raffle_receipt_t *out)
+                            uint32_t mult, uint64_t fee, uint64_t count, uint8_t kind,
+                            raffle_receipt_t *out)
 {
     uint64_t tickets2 = r->tickets, pool2;
+    if (count > raffle_room(r, owner)) return RAFFLE_ERR_CAP; /* F6 */
     if (!pay_add_ok(r->pool, fee, &pool2)) return RAFFLE_ERR_OVERFLOW;
     if (count && !pay_add_ok(r->tickets, count, &tickets2)) return RAFFLE_ERR_OVERFLOW;
     if (count && r->range_len >= r->range_cap) return RAFFLE_ERR_FULL;
@@ -215,6 +241,7 @@ static raffle_status_t mint(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uin
     pre_bytes(&p, r->chain, RAFFLE_HASH_LEN);
     pre_bytes(&p, owner, RAFFLE_ID_LEN);
     pre_u64(&p, amount);
+    pre_u64(&p, mult);
     pre_u64(&p, fee);
     pre_u64(&p, first);
     pre_u64(&p, count);
@@ -244,16 +271,16 @@ static raffle_status_t mint(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uin
 }
 
 raffle_status_t raffle_enter(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
-                             raffle_receipt_t *out)
+                             uint32_t multiplier, raffle_receipt_t *out)
 {
     uint64_t fee, n;
     if (!r || !owner) return RAFFLE_ERR_ARG;
     if (!r->cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
     if (r->phase != RAFFLE_OPEN) return RAFFLE_ERR_PHASE;
-    raffle_status_t st = raffle_quote(&r->cfg, amount, &fee, &n);
+    raffle_status_t st = raffle_quote(&r->cfg, amount, multiplier, &fee, &n);
     if (st != RAFFLE_OK) return st;
-    if (n == 0 && r->cfg.refuse_dust) return RAFFLE_ERR_DUST;
-    return mint(r, owner, amount, fee, n, 0, out);
+    if (n == 0) return RAFFLE_ERR_DUST;
+    return mint(r, owner, amount, multiplier, fee, n, 0, out);
 }
 
 raffle_status_t raffle_free_entry(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN],
@@ -262,7 +289,7 @@ raffle_status_t raffle_free_entry(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN
     if (!r || !owner) return RAFFLE_ERR_ARG;
     if (!r->cfg.jurisdiction_permits || !r->cfg.free_entry) return RAFFLE_ERR_DISABLED;
     if (r->phase != RAFFLE_OPEN) return RAFFLE_ERR_PHASE;
-    return mint(r, owner, 0, 0, 1, 1, out);
+    return mint(r, owner, 0, 0, 0, 1, 1, out);
 }
 
 raffle_status_t raffle_reveal(raffle_t *r, const uint8_t party[RAFFLE_ID_LEN],
