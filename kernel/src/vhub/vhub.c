@@ -182,15 +182,26 @@ static vhub_status_t judge(vhub_t *h, vhub_ccy_t *A, vhub_ccy_t *B, const vhub_s
     return worst;
 }
 
+/* A pool or V-Bill float of any registered currency is the hub's own
+ * account: it may never be a swap's sender or receiver, else a swap could
+ * move a pool against itself and drain the backing. */
+static bool hub_owned(const vhub_t *h, uint32_t acct)
+{
+    for (uint32_t c = 0; c < VHUB_MAX_CCY; c++)
+        if (h->ccy[c].used && (h->ccy[c].pool == acct || h->ccy[c].vfloat == acct)) return true;
+    return false;
+}
+
 vhub_status_t vhub_swap(vhub_t *h, vhub_swap_t *sw, uint64_t tick)
 {
     if (!h || !sw || !h->L) return VHUB_ERR_ARG;
     if (h->qlog.cap && h->qlog.n >= h->qlog.cap) return VHUB_HALTED;
     vhub_ccy_t *A = slot(h, sw->from_ccy), *B = slot(h, sw->to_ccy);
-    if (!pegged(A) || !pegged(B) || A == B || sw->amount == 0 || sw->amount >= PAY_BAL_MAX)
+    if (!pegged(A) || !pegged(B) || A == B || sw->amount == 0 || sw->amount > VHUB_LINE_MAX ||
+        hub_owned(h, sw->sender) || hub_owned(h, sw->receiver))
         return VHUB_ERR_ARG;
     if (!convert(A, B, sw->amount, &sw->vbills, &sw->out) || sw->vbills == 0 || sw->out == 0 ||
-        sw->vbills >= PAY_BAL_MAX || sw->out >= PAY_BAL_MAX)
+        sw->vbills > VHUB_LINE_MAX || sw->out > VHUB_LINE_MAX)
         return VHUB_ERR_INEXACT;
     sw->epoch = h->epoch;
 

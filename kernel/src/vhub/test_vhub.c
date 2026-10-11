@@ -579,25 +579,26 @@ static void test_details(void)
     vhub_limit_commit(NULL, &s, 0);
     vhub_limit_commit(&full, NULL, 0);
 
-    /* V-Bill amounts at the ledger's limit are refused */
+    /* V-Bill amounts above the ledger's per-line cap (2^59) are refused */
     ready();
     vhub_add_rule(&H, A, rule_ok, NULL, NULL);
     vhub_add_rule(&H, B, rule_ok, NULL, NULL);
     H.ccy[A].num = 1;
-    H.ccy[A].den = (uint64_t) 1 << 40;
+    H.ccy[A].den = (uint64_t) 1 << 37;
     H.ccy[B].num = 1;
     H.ccy[B].den = 1;
+    s = sw(A, B, alice, bob, ((uint64_t) 1 << 22) + 1);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_INEXACT, "2^59 + 2^37 V-Bills is above the line cap");
     s = sw(A, B, alice, bob, (uint64_t) 1 << 22);
-    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_INEXACT, "2^62 V-Bills is at the ledger maximum");
-    s = sw(A, B, alice, bob, ((uint64_t) 1 << 22) - 1);
     uint64_t q0 = L.seq;
     CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_LEDGER && L.seq == q0,
-          "just below it the hub tries, and the ledger refuses (no backing)");
+          "exactly at the cap the hub tries, and the ledger refuses (no backing)");
     H.ccy[B].num = 1;
-    H.ccy[B].den = 2; /* only the V-Bill amount is at the maximum */
-    s = sw(A, B, alice, bob, (uint64_t) 1 << 22);
-    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_INEXACT && s.out == (uint64_t) 1 << 61,
-          "2^62 V-Bills is refused even when the payout is smaller");
+    H.ccy[B].den = 2; /* only the V-Bill amount is above the cap */
+    s = sw(A, B, alice, bob, ((uint64_t) 1 << 22) + 1);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_INEXACT &&
+              s.out == (((uint64_t) 1 << 59) + ((uint64_t) 1 << 37)) / 2,
+          "V-Bills above the cap are refused even when the payout is smaller");
     H.ccy[A].num = 1;
     H.ccy[A].den = 1;
     H.ccy[B].num = (uint64_t) 1 << 62;
@@ -638,6 +639,36 @@ static void test_details(void)
     CHECK(lpx_action(vhub_rule_limit(&ft, &s, 0)) == LPX_ACT_REFUSE, "an untracked one is refused");
 }
 
+/* H7: the hub's own pools and floats are never swap parties, and every
+ * amount stays within the ledger's 2^59 per-line cap. */
+static void test_parties(void)
+{
+    ready();
+    vhub_add_rule(&H, A, rule_ok, NULL, NULL);
+    vhub_add_rule(&H, B, rule_ok, NULL, NULL);
+    uint64_t seq = L.seq;
+    vhub_swap_t s = sw(A, B, pool[A], bob, 35000);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_ARG, "the A pool cannot send");
+    s = sw(A, B, alice, pool[B], 35000);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_ARG, "the B pool cannot receive");
+    s = sw(A, B, pool[C], bob, 35000);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_ARG, "another currency's pool cannot send");
+    s = sw(A, B, alice, vfl[A], 35000);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_ARG, "a V-Bill float cannot receive");
+    s = sw(A, B, vfl[C], bob, 35000);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_ARG, "a V-Bill float cannot send");
+    CHECK(L.seq == seq && bal(pool[A]) == 500000 && bal(pool[B]) == 500000,
+          "nothing posted, the pools are untouched");
+    s = sw(A, B, alice, bob, VHUB_LINE_MAX + 350);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_ARG, "an amount above 2^59 is refused");
+    s = sw(A, B, alice, bob, 35000);
+    CHECK(vhub_swap(&H, &s, 1) == VHUB_OK && L.seq == seq + 1, "an ordinary swap still posts");
+    peg(A, 1, 4, 2, issuer[A]); /* 1 A cent per 4 V-Bills: V-Bills outgrow the amount */
+    s = sw(A, B, alice, bob, ((uint64_t) 1 << 57) + 1);
+    CHECK(vhub_swap(&H, &s, 2) == VHUB_ERR_INEXACT, "V-Bills above 2^59 are refused");
+    CHECK(VHUB_LINE_MAX == (uint64_t) 1 << 59, "the cap is the ledger's per-line cap");
+}
+
 int main(void)
 {
     test_pegs();
@@ -646,6 +677,7 @@ int main(void)
     test_limit_and_backing();
     test_rules();
     test_details();
+    test_parties();
     printf("test_vhub: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

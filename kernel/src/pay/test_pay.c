@@ -280,6 +280,7 @@ static void test_assure(void)
     CHECK(pay_commons_allocate(&cm, PAY_UNIT_COMPUTE, w, 3, cap, out));
     CHECK(out[0] <= 8000 && out[0] + out[1] + out[2] + cm.pool[PAY_UNIT_COMPUTE] == 21000);
     CHECK(pay_commons_conserved(&cm));
+    CHECK(!pay_commons_conserved(NULL));
     uint64_t w2[2] = {5, 1}, o2[2];
     uint64_t left = pay_commons_split(1000, w2, 2, cap, o2); /* equal-share floor 500 */
     CHECK(o2[0] <= 500 && o2[0] + o2[1] + left == 1000);
