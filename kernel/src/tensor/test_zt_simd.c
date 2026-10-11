@@ -525,7 +525,7 @@ static void ggml_q4k_ints(const uint8_t *blk, int32_t wd[256], int32_t wm[256])
     const uint8_t *sc = blk + 4, *q = blk + 16;
     int is = 0;
     for (int j = 0; j < 256; j += 64, q += 32, is += 2) {
-        int s1, m1, s2, m2;
+        int s1 = 0, m1 = 0, s2 = 0, m2 = 0;
         for (int h = 0; h < 2; h++) {
             int jj = is + h, sv, mv;
             if (jj < 4) {
