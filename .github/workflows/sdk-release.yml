@@ -1,0 +1,732 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# SDK release packaging. Builds every SDK's release artifacts, writes
+# SHA256SUMS and an SPDX SBOM, and creates a DRAFT GitHub release.
+#
+#   - It never publishes anything. The release stays a draft until the owner
+#     reviews it and presses "Publish release" by hand.
+#   - It NEVER uploads to a package registry (PyPI, Maven Central, NuGet,
+#     npm, crates.io, RubyGems, pub.dev). Registry publishing is a separate,
+#     owner-approved step done by hand with the owner's own credentials; see
+#     sdk/RELEASING.md. No registry token is referenced anywhere here, and none
+#     should ever be added to this workflow.
+#   - Only the final job can write (contents: write, to create the draft);
+#     every other job is read-only. No build caches are used.
+#
+# Run it from the Actions tab (workflow_dispatch, input `version`, e.g.
+# 1.3.0), or push a tag sdk-vX.Y.Z. The checklist is sdk/RELEASING.md.
+name: SDK release (draft)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'SDK version to package, X.Y.Z or X.Y.Z-pre (no leading v), e.g. 1.3.0'
+        required: true
+        type: string
+  push:
+    tags: ['sdk-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preflight:
+    name: preflight (version, manifests, ABI)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      core: ${{ steps.v.outputs.core }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - name: Resolve and validate the version
+        id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            v="$INPUT_VERSION"
+          else
+            v="${GITHUB_REF_NAME#sdk-v}"
+          fi
+          re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if ! [[ "$v" =~ $re ]]; then
+            echo "::error::'$v' is not a version of the form X.Y.Z or X.Y.Z-pre (no leading v)"
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          core="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+          suffix="${BASH_REMATCH[4]}"
+          prerelease=false
+          if [ "$major" = 0 ] || [ -n "$suffix" ]; then prerelease=true; fi
+          tag="sdk-v$v"
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" != "$tag" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not name version $v"
+            exit 1
+          fi
+          {
+            echo "version=$v"
+            echo "core=$core"
+            echo "prerelease=$prerelease"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+          echo "Release $v (core $core), tag $tag, prerelease=$prerelease" >> "$GITHUB_STEP_SUMMARY"
+      - name: zxv_api.h ZXV_ABI_VERSION_MAJOR/MINOR/PATCH match the version
+        env:
+          CORE: ${{ steps.v.outputs.core }}
+        run: |
+          set -euo pipefail
+          h=sdk/libzxv/include/zxv_api.h
+          hv=""
+          for k in MAJOR MINOR PATCH; do
+            n=$(sed -n "s/^[[:space:]]*#[[:space:]]*define[[:space:]]\{1,\}ZXV_ABI_VERSION_${k}[[:space:]]\{1,\}\([0-9]\{1,\}\).*/\1/p" "$h")
+            [ -n "$n" ] || { echo "::error::ZXV_ABI_VERSION_$k not found in $h"; exit 1; }
+            hv="${hv:+$hv.}$n"
+          done
+          if [ "$hv" != "$CORE" ]; then
+            echo "::error::zxv_api.h declares $hv, the release is $CORE"
+            exit 1
+          fi
+          echo "zxv_api.h: $hv"
+      - name: Every SDK manifest declares the version (sdk/release/check_versions.py)
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: python3 sdk/release/check_versions.py --version "$V"
+      - name: Build libzxv
+        run: make -C sdk/libzxv all
+      - name: The release's ABI baseline exists and matches the header
+        env:
+          CORE: ${{ steps.v.outputs.core }}
+        run: |
+          set -euo pipefail
+          base="sdk/libzxv/abi/libzxv-$CORE.json"
+          if [ ! -f "$base" ]; then
+            echo "::error::$base is missing. Record it with: python3 sdk/libzxv/tools/abi_check.py snapshot sdk/libzxv/include/zxv_api.h $base"
+            exit 1
+          fi
+          python3 sdk/libzxv/tools/abi_check.py snapshot sdk/libzxv/include/zxv_api.h "$RUNNER_TEMP/snapshot.json"
+          python3 - "$RUNNER_TEMP/snapshot.json" "$base" <<'EOF'
+          import json, sys
+          now, base = (json.load(open(p)) for p in sys.argv[1:3])
+          if now != base:
+              print(f"::error::{sys.argv[2]} differs from a fresh snapshot of zxv_api.h; re-run the snapshot")
+              sys.exit(1)
+          print(f"{sys.argv[2]} matches the header")
+          EOF
+      - name: ABI unchanged against every released baseline (add-only)
+        run: |
+          set -euo pipefail
+          for base in sdk/libzxv/abi/libzxv-*.json; do
+            python3 sdk/libzxv/tools/abi_check.py check sdk/libzxv/include/zxv_api.h "$base" sdk/libzxv/build/libzxv.so
+          done
+
+  # libzxv prebuilt binaries and the Python wheel that bundles each one.
+  # Windows is left out: libzxv uses POSIX threads and a Unix Makefile and
+  # does not build there yet. macos-x86_64 is cross-compiled on the
+  # Apple-silicon runner and tested only when Rosetta 2 is present.
+  libzxv:
+    name: libzxv + python wheel ${{ matrix.platform }}
+    needs: preflight
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { platform: linux-x86_64, os: ubuntu-24.04, cc: gcc, arch: x86_64 }
+          - { platform: linux-arm64, os: ubuntu-24.04-arm, cc: gcc, arch: aarch64 }
+          - { platform: macos-arm64, os: macos-14, cc: clang, arch: arm64 }
+          - { platform: macos-x86_64, os: macos-14, cc: 'clang -arch x86_64', arch: x86_64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+      CC: ${{ matrix.cc }}
+      PLATFORM: ${{ matrix.platform }}
+      ARCH: ${{ matrix.arch }}
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6.3.0
+        with:
+          python-version: '3.12'
+      - name: Build libzxv and run the C conformance tests
+        id: build
+        run: |
+          set -euo pipefail
+          runs=true
+          if [ "$PLATFORM" = macos-x86_64 ] && ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            runs=false
+            echo "::warning::Rosetta 2 is not available: macos-x86_64 libzxv is built but its tests are not run"
+          fi
+          if [ "$runs" = true ]; then
+            make -C sdk/libzxv CC="$CC" test
+          else
+            make -C sdk/libzxv CC="$CC" all
+          fi
+          echo "runs=$runs" >> "$GITHUB_OUTPUT"
+      - name: The library is built for ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = macOS ]; then
+            got=$(lipo -archs sdk/libzxv/build/libzxv.dylib)
+            [ "$got" = "$ARCH" ] || { echo "::error::libzxv.dylib is '$got', expected $ARCH"; exit 1; }
+          else
+            file sdk/libzxv/build/libzxv.so | tee /dev/stderr | grep -q "$( [ "$ARCH" = x86_64 ] && echo x86-64 || echo aarch64 )"
+          fi
+      - name: ABI check of this binary against every baseline
+        run: |
+          set -euo pipefail
+          lib=sdk/libzxv/build/libzxv.so; [ "$RUNNER_OS" = macOS ] && lib=sdk/libzxv/build/libzxv.dylib
+          # The probe that reads constant values is compiled for the host.
+          for base in sdk/libzxv/abi/libzxv-*.json; do
+            CC=cc python3 sdk/libzxv/tools/abi_check.py check sdk/libzxv/include/zxv_api.h "$base" "$lib"
+          done
+      - name: Package libzxv-${{ env.V }}-${{ matrix.platform }}.tar.gz
+        run: |
+          set -euo pipefail
+          make -C sdk/libzxv CC="$CC" dist
+          d="libzxv-$V-$PLATFORM"
+          mkdir -p "stage/$d" release
+          cp -R sdk/libzxv/build/dist/. "stage/$d/"
+          cp LICENSE NOTICE "stage/$d/"
+          {
+            echo "libzxv $V for $PLATFORM"
+            echo "commit: $GITHUB_SHA"
+            echo "runner: ${{ matrix.os }}"
+            echo "compiler: $($CC --version | head -n 1)"
+            echo "tests run on this build: ${{ steps.build.outputs.runs }}"
+          } > "stage/$d/BUILDINFO.txt"
+          tar -C stage -czf "release/$d.tar.gz" "$d"
+          tar -tzf "release/$d.tar.gz"
+      - name: Python sdist (once, before any library is bundled)
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          set -euo pipefail
+          python -m pip install build==1.2.2.post1
+          python -m build --sdist --outdir release sdk/python
+          if tar -tzf release/zxv_sdk-*.tar.gz | grep -q '/_lib/libzxv'; then
+            echo "::error::the sdist must not carry a native library"; exit 1
+          fi
+      - name: Python wheel bundling this libzxv
+        run: |
+          set -euo pipefail
+          python -m pip install build==1.2.2.post1
+          lib=sdk/libzxv/build/libzxv.so; [ "$RUNNER_OS" = macOS ] && lib=sdk/libzxv/build/libzxv.dylib
+          python sdk/python/scripts/bundle_lib.py "$lib"
+          if [ "$RUNNER_OS" = macOS ]; then
+            # Tag the wheel for the architecture and minimum macOS the
+            # library was built for, not for the runner's Python.
+            export _PYTHON_HOST_PLATFORM="macosx-13.0-$ARCH" ARCHFLAGS="-arch $ARCH"
+          fi
+          python -m build --wheel --outdir release sdk/python
+          ls -l release
+      - name: Smoke-test the wheel in a fresh virtual environment
+        # The runner's Python is arm64 on macos-14, so it cannot load the
+        # cross-built x86_64 library.
+        if: matrix.platform != 'macos-x86_64'
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/whl"
+          "$RUNNER_TEMP/whl/bin/pip" install release/zxv_sdk-*.whl
+          cd "$RUNNER_TEMP"
+          env -u ZXV_LIBRARY_PATH "$RUNNER_TEMP/whl/bin/python" -I -c \
+            "import zxv; print(zxv.__version__, zxv.abi_version()); assert zxv.abi_version() >= (1, 3, 0)"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-libzxv-${{ matrix.platform }}
+          path: release/
+          if-no-files-found: error
+
+  java:
+    name: java jar + spring starter
+    needs: [preflight, libzxv]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4.9.1
+        with:
+          distribution: temurin
+          java-version: '22'
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          pattern: release-libzxv-*
+          path: natives
+          merge-multiple: true
+      - name: org.zedec:zxv jar, sources and javadoc (installed locally for the starter)
+        run: |
+          set -euo pipefail
+          # bundle-native is switched off: the four platforms are added below.
+          mvn -B -f sdk/java/pom.xml -P '!bundle-native' install -DskipTests \
+            org.apache.maven.plugins:maven-source-plugin:3.3.1:jar-no-fork \
+            org.apache.maven.plugins:maven-javadoc-plugin:3.11.2:jar -Ddoclint=none
+          mkdir -p release
+          cp "sdk/java/target/zxv-$V.jar" "sdk/java/target/zxv-$V-sources.jar" \
+             "sdk/java/target/zxv-$V-javadoc.jar" release/
+      - name: Bundle libzxv for every platform under /native/<os>-<arch>/
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/jarnative"
+          for row in linux-x86_64:linux-x86_64:libzxv.so linux-arm64:linux-aarch64:libzxv.so \
+                     macos-arm64:macos-aarch64:libzxv.dylib macos-x86_64:macos-x86_64:libzxv.dylib; do
+            IFS=: read -r plat jplat lib <<<"$row"
+            tar -xzf "natives/libzxv-$V-$plat.tar.gz" -C "$RUNNER_TEMP" "libzxv-$V-$plat/lib/$lib"
+            mkdir -p "$stage/native/$jplat"
+            cp "$RUNNER_TEMP/libzxv-$V-$plat/lib/$lib" "$stage/native/$jplat/"
+          done
+          jar uf "release/zxv-$V.jar" -C "$stage" native
+          jar tf "release/zxv-$V.jar" | grep '^native/'
+      - name: Smoke-test the jar (bundled library, no ZXV_LIBRARY_PATH)
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/Smoke.java" <<'EOF'
+          public class Smoke {
+              public static void main(String[] a) {
+                  System.out.println(org.zedec.zxv.Zxv.version() + " from " + org.zedec.zxv.Zxv.libraryLocation());
+              }
+          }
+          EOF
+          env -u ZXV_LIBRARY_PATH java --enable-native-access=ALL-UNNAMED -cp "release/zxv-$V.jar" "$RUNNER_TEMP/Smoke.java"
+      - name: Spring Boot starter jar and sources
+        run: |
+          set -euo pipefail
+          mvn -B -f sdk/frameworks/spring-zxv/pom.xml -pl zxv-spring-boot-starter -am package -DskipTests \
+            org.apache.maven.plugins:maven-source-plugin:3.3.1:jar-no-fork
+          cp sdk/frameworks/spring-zxv/zxv-spring-boot-starter/target/zxv-spring-boot-starter-*.jar release/
+          ls -l release
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-java
+          path: release/
+          if-no-files-found: error
+
+  dotnet:
+    name: dotnet nupkgs
+    needs: [preflight, libzxv]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5.4.0
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          pattern: release-libzxv-*
+          path: natives
+          merge-multiple: true
+      - name: Pack Zxv.Native, Zxv.Sdk and Zxv.AspNetCore
+        run: |
+          set -euo pipefail
+          # libzxv is not built in this job, so the csproj adds no host-only
+          # runtime folder; all four are added uniformly in the next step.
+          for p in sdk/dotnet/src/Zxv.Native/Zxv.Native.csproj sdk/dotnet/src/Zxv.Sdk/Zxv.Sdk.csproj \
+                   sdk/frameworks/aspnetcore-zxv/src/Zxv.AspNetCore/Zxv.AspNetCore.csproj; do
+            dotnet pack "$p" -c Release -p:ZxvSkipNativeBuild=true -o release
+          done
+      - name: Add libzxv to Zxv.Native under runtimes/<rid>/native/
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/nuget"
+          for row in linux-x86_64:linux-x64:libzxv.so linux-arm64:linux-arm64:libzxv.so \
+                     macos-arm64:osx-arm64:libzxv.dylib macos-x86_64:osx-x64:libzxv.dylib; do
+            IFS=: read -r plat rid lib <<<"$row"
+            tar -xzf "natives/libzxv-$V-$plat.tar.gz" -C "$RUNNER_TEMP" "libzxv-$V-$plat/lib/$lib"
+            mkdir -p "$stage/runtimes/$rid/native"
+            cp "$RUNNER_TEMP/libzxv-$V-$plat/lib/$lib" "$stage/runtimes/$rid/native/"
+          done
+          pkg=$(ls release/Zxv.Native.*.nupkg)
+          (cd "$stage" && zip -qrD "$GITHUB_WORKSPACE/$pkg" runtimes)
+          unzip -l "$pkg"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-dotnet
+          path: release/
+          if-no-files-found: error
+
+  node:
+    name: npm tarballs (@zedec/zxv, @zedec/zxv-nestjs)
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v6.3.0
+        with:
+          python-version: '3.12'
+      - name: Wasm compiler (zig cc)
+        run: python -m pip install ziglang==0.17.0
+      - name: npm pack @zedec/zxv (WebAssembly inside; addon compiled at install)
+        working-directory: sdk/typescript
+        run: |
+          set -euo pipefail
+          # --ignore-scripts: do not build the Node-API addon here, so the
+          # tarball carries no host-specific binary. libzxv is not built in
+          # this job either, so prepack bundles no native library.
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build:wasm
+          mkdir -p "$GITHUB_WORKSPACE/release"
+          npm pack --pack-destination "$GITHUB_WORKSPACE/release"
+          t=$(ls "$GITHUB_WORKSPACE"/release/zedec-zxv-[0-9]*.tgz)
+          tar -tzf "$t"
+          if tar -tzf "$t" | grep -Eq '^package/lib/|\.node$'; then
+            echo "::error::$t carries a host-specific binary"; exit 1
+          fi
+      - name: npm pack @zedec/zxv-nestjs
+        working-directory: sdk/frameworks/nest-zxv
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          npm pack --pack-destination "$GITHUB_WORKSPACE/release"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-node
+          path: release/
+          if-no-files-found: error
+
+  rust:
+    name: rust crates
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: rustup toolchain install 1.97.0 --profile minimal
+      - name: cargo package (both crates; build verification is CI's job)
+        working-directory: sdk/rust
+        run: |
+          set -euo pipefail
+          cargo +1.97.0 package --workspace --no-verify --locked
+          mkdir -p "$GITHUB_WORKSPACE/release"
+          cp target/package/*.crate "$GITHUB_WORKSPACE/release/"
+          ls -l "$GITHUB_WORKSPACE/release"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-rust
+          path: release/
+          if-no-files-found: error
+
+  ruby:
+    name: ruby gem
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - name: gem build (the runner's Ruby; libzxv is not bundled)
+        working-directory: sdk/ruby
+        run: |
+          set -euo pipefail
+          ruby --version
+          test ! -e lib/zxv/native
+          gem build zxv.gemspec
+          mkdir -p "$GITHUB_WORKSPACE/release"
+          mv zxv-*.gem "$GITHUB_WORKSPACE/release/"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-ruby
+          path: release/
+          if-no-files-found: error
+
+  dart:
+    name: dart package + pub dry run
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@v1.7.1
+        with:
+          sdk: stable
+      - name: Source package
+        run: |
+          set -euo pipefail
+          d="zxv-dart-$V"
+          mkdir -p "$RUNNER_TEMP/$d" release
+          git archive HEAD:sdk/mobile/dart | tar -x -C "$RUNNER_TEMP/$d"
+          cp LICENSE NOTICE "$RUNNER_TEMP/$d/"
+          tar -C "$RUNNER_TEMP" -czf "release/$d.tar.gz" "$d"
+      - name: dart pub publish --dry-run (checks only; nothing is uploaded)
+        run: |
+          set -uo pipefail
+          # pubspec.yaml says publish_to: none, which keeps the package from
+          # being uploaded by accident. The dry run needs it removed, so it
+          # runs on a throwaway copy; the repository and the attached source
+          # package keep the guard.
+          work="$RUNNER_TEMP/pubcheck"
+          cp -R "$RUNNER_TEMP/zxv-dart-$V" "$work"
+          sed -i '/^publish_to:/d' "$work/pubspec.yaml"
+          log="$GITHUB_WORKSPACE/release/dart-pub-publish-dry-run.txt"
+          ( cd "$work" && dart pub get && dart pub publish --dry-run ) > "$log" 2>&1
+          rc=$?
+          echo "exit code: $rc" >> "$log"
+          cat "$log"
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::dart pub publish --dry-run exited $rc; the report is attached to the draft"
+          fi
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-dart
+          path: release/
+          if-no-files-found: error
+
+  kotlin:
+    name: kotlin jvm jar
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4.9.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4.4.4
+        with:
+          gradle-version: '8.14.3'
+          cache-disabled: true
+      - name: :zxv jar and sources
+        run: |
+          set -euo pipefail
+          gradle -p sdk/mobile/kotlin --no-daemon :zxv:jar :zxv:kotlinSourcesJar
+          mkdir -p release
+          libs=sdk/mobile/kotlin/zxv/build/libs
+          ls -l "$libs"
+          cp "$libs/zxv-$V.jar" "release/zxv-kotlin-$V.jar"
+          cp "$libs/zxv-$V-sources.jar" "release/zxv-kotlin-$V-sources.jar"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-kotlin
+          path: release/
+          if-no-files-found: error
+
+  android:
+    name: android aar (arm64-v8a, x86_64)
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+      NDK_VERSION: '27.2.12479018'
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4.9.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3.2.2
+      - name: Android SDK packages and NDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;${NDK_VERSION}" "cmake;3.22.1"
+      - uses: gradle/actions/setup-gradle@v4.4.4
+        with:
+          gradle-version: '8.14.3'
+          cache-disabled: true
+      - name: libzxv.so for each ABI (NDK)
+        run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/${NDK_VERSION}" sdk/mobile/kotlin/scripts/build-libzxv-android.sh arm64-v8a x86_64
+      - name: Build the AAR and run Android lint
+        run: gradle -p sdk/mobile/kotlin --no-daemon -Pzxv.android=true :zxv-android:assembleRelease :zxv-android:lintRelease
+      - name: The AAR carries both libraries for both ABIs
+        run: |
+          set -euo pipefail
+          aar=sdk/mobile/kotlin/android/build/outputs/aar/zxv-android-release.aar
+          for abi in arm64-v8a x86_64; do
+            for lib in libzxv.so libzxvjni.so; do
+              unzip -l "$aar" | grep -q "jni/$abi/$lib" || { echo "::error::missing jni/$abi/$lib"; exit 1; }
+            done
+          done
+          mkdir -p release
+          cp "$aar" "release/zxv-android-$V.aar"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-android
+          path: release/
+          if-no-files-found: error
+
+  # Source archives (git archive of the checked-out commit, so only tracked
+  # files). They keep the repository layout and carry LICENSE and NOTICE, so
+  # a kit tarball unpacks next to the libzxv source tarball and builds.
+  sources:
+    name: source tarballs (libzxv, swift, php, c++, kits, pillars, engines, embedded)
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - name: Archives
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          archive() {
+            local name="$1"; shift
+            git archive --format=tar.gz --prefix="$name/" -o "release/$name.tar.gz" HEAD "$@" LICENSE NOTICE
+            echo "release/$name.tar.gz: $(tar -tzf "release/$name.tar.gz" | wc -l) entries"
+          }
+          archive "libzxv-$V-src" sdk/libzxv sdk/conformance kernel/include kernel/src kernel/third_party
+          archive "zxv-swift-$V" sdk/swift
+          archive "zxv-cpp-src-$V" sdk/cpp
+          archive "zxv-solidity-src-$V" sdk/solidity
+          archive "zxv-embedded-src-$V" sdk/embedded
+          for d in $(git ls-tree -d --name-only HEAD sdk/kits/ sdk/pillars/ sdk/engines/); do
+            archive "$(basename "$d")-src-$V" "$d"
+          done
+      - name: PHP / Composer source zip
+        env:
+          COMPOSER_ROOT_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          composer validate --no-check-publish --working-dir=sdk/php
+          git archive --format=zip --prefix="zxv-php-$V/" -o "release/zxv-php-$V.zip" HEAD:sdk/php
+          unzip -l "release/zxv-php-$V.zip" | tail -n 1
+      - name: The libzxv source tarball builds and passes its tests on its own
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/src" && tar -xzf "release/libzxv-$V-src.tar.gz" -C "$RUNNER_TEMP/src"
+          make -C "$RUNNER_TEMP/src/libzxv-$V-src/sdk/libzxv" test
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-sources
+          path: release/
+          if-no-files-found: error
+
+  sbom:
+    name: SBOM (SPDX JSON)
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - run: mkdir -p release
+      - uses: anchore/sbom-action@v0.23.1
+        with:
+          path: .
+          format: spdx-json
+          output-file: release/zxv-sdk-${{ needs.preflight.outputs.version }}.spdx.json
+          # The SBOM goes to the draft through the release job only.
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: release-sbom
+          path: release/
+          if-no-files-found: error
+
+  # The only job that can write: it creates the DRAFT release. Publishing the
+  # draft, pushing the Go module tag and every registry upload are manual,
+  # owner-only steps (sdk/RELEASING.md). Do not add registry publishing here.
+  release:
+    name: draft GitHub release
+    needs: [preflight, libzxv, java, dotnet, node, rust, ruby, dart, kotlin, android, sources, sbom]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+      TAG: ${{ needs.preflight.outputs.tag }}
+      PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          pattern: release-*
+          path: parts
+      - name: Gather the files (refusing duplicate names)
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          dupes=$(find parts -type f -printf '%f\n' | sort | uniq -d)
+          if [ -n "$dupes" ]; then echo "::error::duplicate asset names: $dupes"; exit 1; fi
+          find parts -type f -exec cp {} dist/ \;
+          ls -l dist
+      - name: SHA256SUMS
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS")
+          mv "$RUNNER_TEMP/SHA256SUMS" dist/SHA256SUMS
+          cat dist/SHA256SUMS
+      - name: Release notes from sdk/release/NOTES_TEMPLATE.md
+        run: |
+          python3 sdk/release/render_notes.py --version "$V" --tag "$TAG" --commit "$GITHUB_SHA" \
+            --dist dist --prerelease "$PRERELEASE" --out "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Refuse to replace an existing release or tag
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::a release (draft or published) named $TAG already exists; delete the old draft first"
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && gh api "repos/$GH_REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::tag $TAG already exists; push it to run this workflow on it, or choose another version"
+            exit 1
+          fi
+      - name: Create the DRAFT release (not published; nothing goes to any registry)
+        run: |
+          set -euo pipefail
+          args=(--draft --title "ZXV SDKs $V" --notes-file "$RUNNER_TEMP/notes.md")
+          if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            args+=(--verify-tag)
+          else
+            # The tag is created at this commit only when the owner publishes.
+            args+=(--target "$GITHUB_SHA")
+          fi
+          gh release create "$TAG" "${args[@]}" dist/*
+          echo "Draft release $TAG created. Review it, then follow sdk/RELEASING.md." >> "$GITHUB_STEP_SUMMARY"
