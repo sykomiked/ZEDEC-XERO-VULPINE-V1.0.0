@@ -5,6 +5,7 @@
  * quorum verification, escrow, expiry and privacy. Several in-process nodes
  * stand in for the mesh; the executor is a small fake sandbox (the real
  * Z-Wasm binding is tested in sdk/kits/aipi). */
+#define _GNU_SOURCE /* memmem */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2310,6 +2311,46 @@ static void test_edge_nulls(void)
     node_free(n);
 }
 
+static void test_sealed_stays_sealed(void)
+{
+    /* A block held sealed (private) must never gain a plaintext copy: not by
+     * a later public put of the same bytes, nor by a memoized output that
+     * happens to equal it. Each attempt is refused before anything is
+     * written. */
+    node_t *n = node_new(1);
+    ipfsn_cid_t sec, again;
+    uint8_t buf[64];
+    uint32_t len = 0;
+    uint64_t before;
+    static const uint8_t SECRET[] = "sealed: never in the clear";
+    CHECK(aipi_put_blob(&n->a, SECRET, sizeof SECRET, IPFSN_VIS_PRIVATE, &sec) == AIPI_OK);
+    CHECK(!memmem(n->ms.buf, n->ms.len, SECRET, sizeof SECRET));
+    before = n->ms.len;
+    CHECK(aipi_put_blob(&n->a, SECRET, sizeof SECRET, IPFSN_VIS_PUBLIC, &again) == AIPI_ERR_STATE);
+    CHECK(ipfsn_cid_equal(&again, &sec));
+    CHECK(n->ms.len == before && !memmem(n->ms.buf, n->ms.len, SECRET, sizeof SECRET));
+    CHECK(ipfsn_bs_visibility(&n->bs, &sec) == (int) IPFSN_VIS_PRIVATE);
+    CHECK(ipfsn_is_private(&n->in, &sec));
+    /* still served locally, still sealed, still refused to peers */
+    CHECK(aipi_get(&n->a, &sec, buf, sizeof buf, &len, NULL) == AIPI_OK && len == sizeof SECRET);
+    CHECK(ipfsn_serve_block(&n->in, &sec, IPFSN_WIRE_PLAIN, buf, sizeof buf, &len) != IPFSN_OK);
+    /* a memoized result equal to the sealed bytes is not written in the clear */
+    {
+        ipfsn_cid_t f;
+        uint32_t job;
+        uint8_t o8[8];
+        local_fn(n, "isqrt", &f, NULL);
+        wr64(o8, 12);
+        CHECK(aipi_put_blob(&n->a, o8, 8, IPFSN_VIS_PRIVATE, &sec) == AIPI_OK);
+        CHECK(aipi_execute(&n->a, &f, u64in(144), 8, false, 0, 0, 1, &job) == AIPI_OK);
+        CHECK(aipi_result(&n->a, job, buf, sizeof buf, &len) == AIPI_OK && rd64(buf) == 12);
+        CHECK(ipfsn_bs_visibility(&n->bs, &sec) == (int) IPFSN_VIS_PRIVATE);
+        CHECK(memo_used(n) == 0); /* nothing public to point a memo entry at */
+        aipi_release(&n->a, job);
+    }
+    node_free(n);
+}
+
 int main(void)
 {
     test_cids_and_text();
@@ -2333,6 +2374,7 @@ int main(void)
     test_edge_quorum_pay();
     test_edge_serve();
     test_edge_nulls();
+    test_sealed_stays_sealed();
     printf("%d passed, %d failed\n", passes, failures);
     return failures ? 1 : 0;
 }

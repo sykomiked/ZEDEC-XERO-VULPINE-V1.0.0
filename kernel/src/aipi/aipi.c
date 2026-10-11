@@ -555,7 +555,15 @@ static int store_block(aipi_ctx_t *c, const ipfsn_cid_t *cid, const uint8_t *dat
                        uint32_t vis, bool pin)
 {
     ipfsn_cid_t pcid;
-    int r = ipfsn_bs_put(c->node->bs, cid, data, len, vis, &pcid);
+    int r;
+    /* A1: bytes this node holds sealed never get a plaintext copy. The
+     * blockstore would accept a public put over a sealed entry (and write
+     * the clear bytes before any pin conflict), so refuse it here first. */
+    if (vis == IPFSN_VIS_PUBLIC &&
+        (ipfsn_is_private(c->node, cid) ||
+         ipfsn_bs_visibility(c->node->bs, cid) == (int) IPFSN_VIS_PRIVATE))
+        return AIPI_ERR_STATE;
+    r = ipfsn_bs_put(c->node->bs, cid, data, len, vis, &pcid);
     if (r != IPFSN_OK) return a_map(r);
     if (pin) {
         r = ipfsn_pin(c->node, cid, vis, vis == IPFSN_VIS_PRIVATE ? &pcid : 0);

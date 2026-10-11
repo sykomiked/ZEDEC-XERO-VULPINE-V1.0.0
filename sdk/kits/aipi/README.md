@@ -75,7 +75,7 @@ bad certificates refused (including one that makes the checker trap), and
 payment only after verification. CI runs them with gcc and clang on Linux,
 clang on macOS, and under ASan + UBSan.
 
-The core's own tests (601 checks, including quorum, disputes, expiry,
+The core's own tests (617 checks, including quorum, disputes, expiry,
 privacy and an escrow invariant over random runs) are `make -C kernel
 test-aipi`.
 

@@ -198,6 +198,9 @@ key-bearing functions), or when the caller marks the input private.
   its CID.
 - An executor refuses to serve a private function, and also refuses a
   LOCAL-verified one.
+- Bytes a node holds sealed never get a plaintext copy: a public put of the
+  same block, or a verified result that happens to equal it, is refused
+  (`AIPI_ERR_STATE`) before anything is written.
 - Results of private calls are not memoized.
 
 ## 9. Offline operation and availability
@@ -302,7 +305,7 @@ work):
 
 ## 14. Tests
 
-- `make -C kernel test-aipi`: 601 checks under ASan + UBSan, plus the
+- `make -C kernel test-aipi`: 617 checks under ASan + UBSan, plus the
   freestanding build for aarch64 and i386. Covers CIDs and text forms,
   descriptor rules and canonical encoding (every bit flip), records, GET
   with a lying peer or gateway, routes, CHECKER / CERT / QUORUM, disputes,
