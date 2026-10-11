@@ -1,0 +1,143 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# sdk/embedded: libzxv on microcontrollers and RTOSes. Host tests (port
+# layer, MCU subset, zxe ledger + differential, libzxv's own conformance
+# tests through the port), cross size builds with the binary no-float
+# check, the QEMU Cortex-M3/M4 target test, the FreeRTOS POSIX-simulator
+# sample and the Zephyr sample. Advisory software: nothing here claims
+# functional-safety certification or real-time behaviour.
+name: SDK embedded
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['sdk/embedded/**', 'sdk/libzxv/**', 'sdk/conformance/**', 'kernel/src/**',
+            'kernel/include/**', 'kernel/third_party/**', '.github/workflows/sdk-embedded.yml']
+  pull_request:
+    paths: ['sdk/embedded/**', 'sdk/libzxv/**', 'sdk/conformance/**', 'kernel/src/**',
+            'kernel/include/**', 'kernel/third_party/**', '.github/workflows/sdk-embedded.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-embedded-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  host:
+    name: host ${{ matrix.cc }}${{ matrix.san && ' ASan+UBSan' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cc: gcc, san: '' }
+          - { cc: clang, san: '' }
+          - { cc: gcc, san: '1' }
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Port layer, MCU subset, zxe ledger (differential), libzxv conformance through the port
+        run: make -C sdk/embedded test CC=${{ matrix.cc }} SANITIZE=${{ matrix.san }} OUT=build/${{ matrix.cc }}${{ matrix.san }}
+      - name: The same in the q32 profile (libzxv and zxe capped at 2^31-1, differential)
+        run: make -C sdk/embedded test ZXE_PROFILE=q32 CC=${{ matrix.cc }} SANITIZE=${{ matrix.san }} OUT=build/q32-${{ matrix.cc }}${{ matrix.san }}
+
+  cross:
+    name: cross sizes, no-float, QEMU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cross toolchains and QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi \
+            gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf qemu-system-arm
+      - name: Size build (Cortex-M0+, M4, M33, RV32IMAC), exact profile
+        run: make -C sdk/embedded size
+      - name: Binary no-float check (soft-float only in the documented ledger-mirror objects)
+        run: make -C sdk/embedded check-nofloat
+      - name: q32 profile has no soft-float at all
+        run: |
+          make -C sdk/embedded size OUT=build/q32 ZXE_PROFILE=q32
+          make -C sdk/embedded check-nofloat OUT=build/q32 ZXE_PROFILE=q32
+      - name: PQC size build (Cortex-M4)
+        run: make -C sdk/embedded cross TARGET=cortex-m4 ZXE_PQC=1 OUT=build/pqc
+      - name: Target test on QEMU mps2-an385 (Cortex-M3) and mps2-an386 (Cortex-M4)
+        run: make -C sdk/embedded qemu-test
+      - name: Size report to the job summary
+        if: always()
+        run: |
+          if [ -f sdk/embedded/build/size-report.md ]; then cat sdk/embedded/build/size-report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: embedded-size-report
+          path: |
+            sdk/embedded/build/size-report.md
+            sdk/embedded/build/q32/size-report.md
+            sdk/embedded/build/*/probe_*.map
+          if-no-files-found: ignore
+
+  freertos:
+    name: FreeRTOS POSIX simulator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch FreeRTOS-Kernel V11.2.0 (pinned commit), build, run the three scenarios
+        run: make -C sdk/embedded/freertos-zxv test
+      - name: Same under ASan + UBSan
+        run: |
+          make -C sdk/embedded/freertos-zxv clean
+          make -C sdk/embedded/freertos-zxv SANITIZE=1 test
+
+  zephyr:
+    name: Zephyr v4.2.2 (qemu_cortex_m3, native_sim)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ZEPHYR_REF: v4.2.2
+      ZXV_MODULE: ${{ github.workspace }}/sdk/embedded/zephyr-zxv
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build device-tree-compiler gperf ccache
+      - name: Zephyr workspace (zephyr + cmsis_6 only) and Zephyr SDK (arm)
+        run: |
+          pip install west
+          west init -m https://github.com/zephyrproject-rtos/zephyr --mr "$ZEPHYR_REF" "$HOME/zp"
+          cd "$HOME/zp"
+          west update --narrow -o=--depth=1 cmsis_6
+          west zephyr-export
+          pip install -r zephyr/scripts/requirements-base.txt \
+                      -r zephyr/scripts/requirements-build-test.txt \
+                      -r zephyr/scripts/requirements-run-test.txt
+          west sdk install --toolchains arm-zephyr-eabi
+      - name: Twister - the ledger_budget sample on qemu_cortex_m3 and native_sim/native/64
+        run: |
+          cd "$HOME/zp"
+          west twister -T "$ZXV_MODULE/samples" -p qemu_cortex_m3 -p native_sim/native/64 \
+            -x=EXTRA_ZEPHYR_MODULES="$ZXV_MODULE" --inline-logs -v -O "$HOME/twister-out"
+      - name: Build with CONFIG_THREAD_LOCAL_STORAGE=y (thread-safe mode, Zephyr SDK toolchain)
+        run: |
+          cd "$HOME/zp"
+          west build -p -b qemu_cortex_m3 -d "$HOME/build-tls" "$ZXV_MODULE/samples/ledger_budget" -- \
+            -DEXTRA_ZEPHYR_MODULES="$ZXV_MODULE" -DCONFIG_THREAD_LOCAL_STORAGE=y
+          grep -q '^CONFIG_THREAD_LOCAL_STORAGE=y' "$HOME/build-tls/zephyr/.config"
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: zephyr-twister-out
+          path: ~/twister-out
+          if-no-files-found: ignore
