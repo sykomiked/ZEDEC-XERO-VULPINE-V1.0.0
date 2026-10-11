@@ -167,7 +167,9 @@ swarm_status_t swarm_denom_compress(swarm_wallet_t *w)
 
 swarm_status_t swarm_denom_fuse(swarm_wallet_t *w, uint32_t tier)
 {
-    if (!w || tier + 2 > w->octane || w->octane >= SWARM_DENOM_TIERS) return SWARM_ERR_ARG;
+    /* tier <= octane - 2, written so that no huge tier can wrap into range. */
+    if (!w || w->octane >= SWARM_DENOM_TIERS || w->octane < 2 || tier > w->octane - 2)
+        return SWARM_ERR_ARG;
     if (w->count[tier] == 0 || w->count[tier + 1] == 0) return SWARM_ERR_ARG;
     if (w->count[tier + 2] == UINT64_MAX) return SWARM_ERR_ARG;
     w->count[tier]--;

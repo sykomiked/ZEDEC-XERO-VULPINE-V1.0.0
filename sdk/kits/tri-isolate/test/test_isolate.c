@@ -129,7 +129,11 @@ static void test_api(void) {
     CHECK(ti_host_set_timeouts(e.h, 0, 10) == ZXV_E_ARG && ti_host_set_timeouts(e.h, 10, 3600001u) == ZXV_E_ARG,
           "timeouts out of range refused");
     CHECK(ti_host_set_accept_caps(e.h, 0) == ZXV_E_ARG, "zero accept caps refused");
+#if defined(__linux__)
     CHECK(ti_host_set_memory_limit(e.h, 4096) == ZXV_E_RANGE, "a memory limit under 1 MiB refused");
+#else
+    CHECK(ti_host_set_memory_limit(e.h, 4096) == ZXV_E_NOTIMPL, "a memory limit refused off Linux");
+#endif
     CHECK(ti_host_set_flags(e.h, 0x80u) == ZXV_E_ARG, "unknown flag refused");
     CHECK(ti_host_set_limit(e.h, 99, 1) == ZXV_E_ARG, "unknown Z-Wasm limit refused");
     if (!ti_seccomp_available())

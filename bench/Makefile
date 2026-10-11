@@ -18,6 +18,8 @@ CFLAGS := -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST
 N ?= 32
 PROMPT ?= The capital of France is
 PY ?= python3
+THREADS ?=
+BATCH ?=
 
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
 	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
@@ -72,7 +74,7 @@ smoke: legacy $(OUT)/zt_bench
 tensor: $(OUT)/zt_bench
 	@test -n "$(MODEL)" || { echo "usage: make -C bench tensor MODEL=path/to/model.gguf"; exit 2; }
 	$(PY) tensor/run_tensor_bench.py --zt-bench $(OUT)/zt_bench --model "$(MODEL)" -n $(N) \
-		--prompt "$(PROMPT)"
+		--prompt "$(PROMPT)" $(if $(THREADS),--threads $(THREADS)) $(if $(BATCH),--batch $(BATCH))
 
 # Real-model test (bench/tensor/real_model_test.py). ARM64=1 also cross-builds
 # zt_bench for aarch64 and runs it under qemu-aarch64 to check the bits match.

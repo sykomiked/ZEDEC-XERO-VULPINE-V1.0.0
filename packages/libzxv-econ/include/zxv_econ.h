@@ -13,7 +13,9 @@
  *                   each with the 0.08889% assurance fee split into its four
  *                   buckets; all or nothing, with rollback
  * plus the engine's lifecycle (init, members, fund, withdraw, corridors,
- * check). Integer only; no allocation; no randomness source (the caller's
+ * check), and treaties run end to end (zxt_exec.h): a treaty parsed by
+ * zxt.h is funded, netted and, for SETL, posted with its claims paid out;
+ * COBOL reaches the same path with CALL 'ZXV_ENGINE'. Integer only; no allocation; no randomness source (the caller's
  * seed derives every posting id). See zxv/engine/zxv_engine.h for the
  * guarantees and HONEST LIMITS.
  *
@@ -32,6 +34,7 @@ extern "C" {
 #endif
 
 #include "zxv/engine/zxv_engine.h"
+#include "zxv/treaty/zxt_exec.h"
 
 #ifdef __cplusplus
 }

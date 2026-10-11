@@ -9,6 +9,7 @@
 | Answer tag and quarantine log | `zxv_answer_tag.c`, `kernel/src/lpres` | on every model answer |
 | Settlement spine on the ledger of record, fee loop, self-audit | `kernel/src/settle`, `pay`, `peer_audit` | every cycle |
 | Vinea peer node (off by default) | `zxv_net_host.c`, `kernel/src/vinea` | `net.command` |
+| Remote inference between nodes over TCP, PQ session, fee settlement (off by default) | `zxv_peer_host.c`, `vna_session`, `pay` | `peer.*` |
 | Signed update checks, notifications | `zxv_update_host.c`, `zx_notify` | `update.check`, `notes.*` |
 | Owner's books: currencies, accounts, exact postings, invariants | **libzxv** through its frozen C ABI | `currency.*`, `ledger.*` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
@@ -24,6 +25,10 @@ kernel/arch/hosted/build_zxvd.sh /tmp/zxvd          # builds libzxv, then zxvd
 ```
 
 Every `zxv-host` option works too (`--net`, `--peer`, `--models-dir`, ...).
+`zxvd --desktop` is the Linux and Windows desktop app
+([DESKTOP_LINUX_WINDOWS.md](DESKTOP_LINUX_WINDOWS.md)): the socket goes in the
+per-user folder unless `--rpc` is given, the window opens in the default
+browser, and a second launch opens the running one's window.
 zxvd opens no window; the loopback HTML window is still served on a free
 port with its token, printed on the `ZXV-URL:` line.
 
@@ -33,6 +38,12 @@ port with its token, printed on the `ZXV-URL:` line.
 - A UNIX socket, mode 0600, in a folder zxvd creates 0700 (an existing folder
   must belong to the same user and not be writable by group or others). Only processes of
   the same user are served (checked with `SO_PEERCRED` / `getpeereid`).
+- Windows 10 1803 and later: the same socket on Winsock's AF_UNIX
+  (`zxvd_rpc_win.c`). The folder zxvd creates gets a DACL for the owner
+  alone; an existing folder must be ours, not a link, and writable by nobody
+  but us, SYSTEM and Administrators. The socket file gets an owner-only DACL,
+  and the peer process's user SID must equal ours
+  (`SIO_AF_UNIX_GETPEERPID`).
 - A regular file at the path is never replaced; a live zxvd on the path is
   never displaced.
 - Batches are refused. Notifications run and get no reply.
@@ -63,6 +74,9 @@ CI checks it matches what zxvd serves.
 | `model.info` | | `loaded`, `can_generate`, `name`, `arch`, `n_layers`, `n_vocab`, `status` |
 | `notes.list` / `notes.mark_read` | | notes / `marked` |
 | `net.command` | `command` | `result` |
+| `peer.ask` | `peer` (IP or IP:PORT), `prompt`, `max_price_minor` | `answer`, `settlement`, `security` |
+| `peer.serve` | `price_minor`? (absent stops) | the `peer.status` object |
+| `peer.status` | | `serving`, `port`, `price_minor`, `wallet_minor`, `fees_paid_minor`, `buckets`, `sold`, `bought`, `refused`, `sessions`, `book_ok`, `history` |
 | `update.check` | | `status` |
 | `currency.enable` | `code` | `enabled` |
 | `ledger.open_account` | `name`, `currency`, `kind`? | `account` |
@@ -74,7 +88,9 @@ CI checks it matches what zxvd serves.
 | `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
--32602 bad params, -32603 internal, -32000 a libzxv status, with
+-32602 bad params, -32603 internal, -32010 a peer request refused or failed
+(the message says why: price, funds, handshake, signature, connect), -32000 a
+libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
 never sent over the socket.
@@ -109,7 +125,9 @@ the mutation harness's test for `zxvd_rpc.c`. `kernel/arch/hosted/test_zxvd.py Z
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
 with the tokenizer test model, and once with the real Qwen2.5-1.5B-Instruct
-Q4_K_M (pinned SHA-256, cached, never in git).
+Q4_K_M (pinned SHA-256, cached, never in git). `.github/workflows/desktop.yml`
+runs it on Windows against the packaged zxvd.exe, and on Linux against the
+installed .deb.
 
 ## Honest limits
 
@@ -120,7 +138,8 @@ Q4_K_M (pinned SHA-256, cached, never in git).
   account starts again at each start, because the books are not saved to
   disk yet.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
-- Windows: zxvd builds without the RPC socket (`--rpc` fails there).
+- Windows and Linux use the browser window (`zxvd --desktop`); only macOS
+  has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The
   native shell uses the socket for a polite shutdown and the Dock badge
   (`macos/zxv_rpc_client.c`, tested against zxvd by `macos/test_rpc_client.py`);

@@ -192,12 +192,12 @@ step "macOS app ($MAC_ARCHS)"
 APP="$WORK/mac/ZXV.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/models"
 if [ -f "$WORK/zxvd-mac" ]; then
-    # zxvd finds libzxv in Contents/Frameworks; the shell sees the dylib and
+    # zxvd finds libzxv in Contents/Frameworks (its rpath, set when
+    # build_zxvd.sh links it); the shell sees the dylib and
     # passes --rpc (macos/ZXVApp.m, SOCKET)
     mkdir -p "$APP/Contents/Frameworks"
     cp "$WORK/zxvd-mac" "$APP/Contents/MacOS/zxv-engine"
     cp "$WORK/libzxv.dylib" "$APP/Contents/Frameworks/libzxv.dylib"
-    install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/zxv-engine"
     echo "  engine: zxvd with its control socket (libzxv.dylib in Contents/Frameworks)"
 else
     cp "$WORK/zxv-mac" "$APP/Contents/MacOS/zxv-engine"

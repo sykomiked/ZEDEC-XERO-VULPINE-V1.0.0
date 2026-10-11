@@ -120,13 +120,160 @@ int main(void)
     CHECK(fabs(sr_to_d(draw) - 618.0) < 1.0, "A4: phi_draw_max(1000) ~= 618");
 
     /* ---- Anchor 5: the Fibonacci denomination ladder ---------------------- */
-    static const uint64_t ladder[VINO_LADDER_RUNGS] = {1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233};
+    static const uint64_t ladder[12] = {1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233};
     int ladder_ok = 1;
-    for (uint32_t r = 1; r <= VINO_LADDER_RUNGS; r++) {
+    for (uint32_t r = 1; r <= 12; r++) {
         if (vino_ladder_denomination(r) != ladder[r - 1]) ladder_ok = 0;
     }
-    CHECK(ladder_ok, "A5: ladder == 1,2,3,5,8,13,21,34,55,89,144,233");
+    CHECK(ladder_ok, "A5: ladder starts 1,2,3,5,8,13,21,34,55,89,144,233");
+    for (uint32_t r = 3; r <= VINO_LADDER_RUNGS; r++)
+        if (vino_ladder_denomination(r) !=
+            vino_ladder_denomination(r - 1) + vino_ladder_denomination(r - 2))
+            ladder_ok = 0;
+    CHECK(ladder_ok, "A5: every rung is the sum of the two below");
+    CHECK(VINO_LADDER_RUNGS == 45 && vino_ladder_denomination(45) == 1836311903ULL,
+          "A5: top rung 45 = F(46) = 1,836,311,903");
+    CHECK(vino_ladder_denomination(46) == 0, "A5: rung 46 is off the ladder");
     CHECK(vino_ladder_denomination(0) == 0, "A5: V0 ceremonial note is zero-value");
+
+    /* ---- Anchor 5b: Fibonacci-only coins (owner decision 2026-10-11) ----- */
+    CHECK(vino_denomination_rung(SR_FROM_INT(1)) == 1, "A5b: 1 is rung 1");
+    CHECK(vino_denomination_rung(SR_FROM_INT(2)) == 2, "A5b: 2 is rung 2");
+    CHECK(vino_denomination_rung(SR_FROM_INT(89)) == 10, "A5b: 89 is rung 10");
+    CHECK(vino_denomination_rung(SR_FROM_INT(1836311903)) == 45, "A5b: top face is rung 45");
+    CHECK(vino_denomination_rung(SR_FROM_INT(4)) == 0, "A5b: 4 is not a coin");
+    CHECK(vino_denomination_rung(SR_FROM_INT(90)) == 0, "A5b: 90 is not a coin");
+    CHECK(vino_denomination_rung(SR_ZERO) == 0, "A5b: 0 is not a coin");
+    CHECK(vino_denomination_rung(SR_FROM_INT(-1)) == 0, "A5b: -1 is not a coin");
+    CHECK(vino_denomination_rung(SR_DIV(SR_FROM_INT(3), SR_FROM_INT(2))) == 0,
+          "A5b: 1.5 is not a coin");
+
+    {
+        static vino_stores_t vf;
+        static triple_ledger_t tf;
+        triple_ledger_init(&tf);
+        vino_stores_init(&vf, &tf);
+        uint64_t id = 0;
+        CHECK(vino_mint(0, &id, SR_FROM_INT(1), SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid) ==
+                  VINO_ERR_NULL,
+              "A5b: mint with no engine");
+        CHECK(vino_mint(&vf, 0, SR_FROM_INT(1), SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid) ==
+                      VINO_ERR_NULL &&
+                  vf.num_vouchers == 0,
+              "A5b: mint with no id out");
+        CHECK(vino_mint(&vf, &id, SR_FROM_INT(4), SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid) ==
+                      VINO_ERR_DENOM &&
+                  vf.num_vouchers == 0 && id == 0,
+              "A5b: minting a 4 is refused, nothing registered");
+        CHECK(vino_mint(&vf, &id, SR_ZERO, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid) ==
+                  VINO_ERR_DENOM,
+              "A5b: a zero coin outside MINT_ZERO is refused");
+        CHECK(vino_mint(&vf, &id, SR_FROM_INT(1), MINT_ZERO, VINO_ACTIVE_DIGITAL, cid) ==
+                  VINO_ERR_DENOM,
+              "A5b: the ceremonial V0 note cannot carry value");
+        CHECK(vino_mint(&vf, &id, SR_ZERO, MINT_ZERO, VINO_ACTIVE_DIGITAL, cid) == VINO_OK &&
+                  id == 1,
+              "A5b: the ceremonial V0 note mints at zero");
+        CHECK(vino_mint(&vf, &id, SR_FROM_INT(233), FIRST_MINTS_VINO, VINO_ACTIVE_PHYSICAL,
+                        cid) == VINO_OK &&
+                  id == 2,
+              "A5b: a 233 coin mints");
+        CHECK(vino_mint(&vf, &id, SR_FROM_INT(1836311903), FIRST_MINTS_VINO,
+                        VINO_ACTIVE_PHYSICAL, cid) == VINO_OK,
+              "A5b: the top coin mints");
+
+        /* Zeckendorf: 100 = 89 + 8 + 3 */
+        uint32_t rg[8] = {0}, n = 99;
+        CHECK(vino_zeckendorf(100, rg, 8, &n) == VINO_OK && n == 3 && rg[0] == 10 &&
+                  rg[1] == 5 && rg[2] == 3,
+              "A5b: 100 splits into 89 + 8 + 3");
+        CHECK(vino_zeckendorf(4, rg, 8, &n) == VINO_OK && n == 2 && rg[0] == 3 && rg[1] == 1,
+              "A5b: 4 splits into 3 + 1");
+        CHECK(vino_zeckendorf(0, rg, 8, &n) == VINO_OK && n == 0, "A5b: 0 splits into nothing");
+        rg[0] = 77;
+        CHECK(vino_zeckendorf(100, rg, 2, &n) == VINO_ERR_CAPACITY && n == 3 && rg[0] == 77,
+              "A5b: a short buffer reports the count and writes nothing");
+        CHECK(vino_zeckendorf(100, rg, 3, &n) == VINO_OK && n == 3, "A5b: an exact buffer fits");
+        CHECK(vino_zeckendorf(1836311903ULL * 2 + 1, rg, 8, &n) == VINO_OK && n == 3 &&
+                  rg[0] == 45 && rg[1] == 45 && rg[2] == 1,
+              "A5b: past the top face the top rung repeats");
+        {   /* F(46) - 1 = F(45) + F(43) + ... + F(3): 22 coins, rungs 44, 42, ..., 2 */
+            uint32_t big[32] = {0};
+            int odd_ok = 1;
+            CHECK(vino_zeckendorf(1836311902ULL, big, 32, &n) == VINO_OK && n == 22,
+                  "A5b: top face - 1 needs 22 coins");
+            for (uint32_t i = 0; i < 22; i++)
+                if (big[i] != 44 - 2 * i) odd_ok = 0;
+            CHECK(odd_ok, "A5b: and they are every other rung from 44 down to 2");
+        }
+        CHECK(vino_zeckendorf(UINT64_MAX, rg, 8, &n) == VINO_ERR_CAPACITY && n > 8,
+              "A5b: an enormous amount needs more room than given");
+        CHECK(vino_zeckendorf(1, 0, 0, &n) == VINO_ERR_CAPACITY && n == 1, "A5b: count only");
+        CHECK(vino_zeckendorf(0, 0, 0, &n) == VINO_OK && n == 0, "A5b: count only, zero");
+        CHECK(vino_zeckendorf(1, 0, 1, &n) == VINO_ERR_NULL, "A5b: NULL rungs with room");
+        CHECK(vino_zeckendorf(1, rg, 1, 0) == VINO_ERR_NULL, "A5b: NULL count");
+        /* every amount 1..2000: unique, non-adjacent, sums back exactly */
+        int zk_ok = 1;
+        for (uint64_t a = 1; a <= 2000; a++) {
+            uint64_t sum = 0;
+            if (vino_zeckendorf(a, rg, 8, &n) != VINO_OK) zk_ok = 0;
+            for (uint32_t i = 0; i < n && i < 8; i++) {
+                sum += vino_ladder_denomination(rg[i]);
+                if (i && rg[i] + 1 >= rg[i - 1]) zk_ok = 0; /* strictly descending, gap >= 2 */
+            }
+            if (sum != a) zk_ok = 0;
+        }
+        CHECK(zk_ok, "A5b: 1..2000 split exactly into non-adjacent rungs");
+
+        /* mint an arbitrary amount as coins */
+        uint64_t ids[8] = {0};
+        uint32_t before = vf.num_vouchers;
+        CHECK(vino_mint_amount(&vf, 100, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid, ids, 8, &n) ==
+                      VINO_OK &&
+                  n == 3 && vf.num_vouchers == before + 3,
+              "A5b: 100 VFV mints as three coins");
+        CHECK(SR_CMP(vino_find(&vf, ids[0])->denomination, SR_FROM_INT(89)) == 0 &&
+                  SR_CMP(vino_find(&vf, ids[1])->denomination, SR_FROM_INT(8)) == 0 &&
+                  SR_CMP(vino_find(&vf, ids[2])->denomination, SR_FROM_INT(3)) == 0,
+              "A5b: the coins are 89, 8 and 3");
+        CHECK(vino_find(&vf, ids[2])->mint_tier == SECOND_MINTS_OIL &&
+                  vino_find(&vf, ids[2])->state == VINO_ACTIVE_DIGITAL,
+              "A5b: every coin carries the tier and state");
+        before = vf.num_vouchers;
+        CHECK(vino_mint_amount(&vf, 100, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid, ids, 2, &n) ==
+                      VINO_ERR_CAPACITY &&
+                  n == 0 && vf.num_vouchers == before,
+              "A5b: too few id slots mints nothing");
+        CHECK(vino_mint_amount(&vf, 1, MINT_ZERO, VINO_ACTIVE_DIGITAL, cid, ids, 8, &n) ==
+                      VINO_ERR_DENOM &&
+                  vf.num_vouchers == before,
+              "A5b: MINT_ZERO has no value to split");
+        CHECK(vino_mint_amount(&vf, 0, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid, ids, 8, &n) ==
+                      VINO_OK &&
+                  n == 0 && vf.num_vouchers == before,
+              "A5b: zero mints no coins");
+        CHECK(vino_mint_amount(0, 1, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid, ids, 8, &n) ==
+                  VINO_ERR_NULL,
+              "A5b: NULL engine");
+        CHECK(vino_mint_amount(&vf, 1, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid, ids, 8, 0) ==
+                  VINO_ERR_NULL,
+              "A5b: NULL count");
+        CHECK(vino_mint_amount(&vf, 1, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid, 0, 1, &n) ==
+                  VINO_ERR_NULL,
+              "A5b: NULL ids with room");
+        /* fill the table to one free slot: a two-coin amount must not half-mint */
+        while (vf.num_vouchers < VINO_STORES_MAX_VOUCHERS - 1)
+            vino_mint(&vf, &id, SR_FROM_INT(1), SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid);
+        before = vf.num_vouchers;
+        CHECK(vino_mint_amount(&vf, 4, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid, ids, 8, &n) ==
+                      VINO_ERR_CAPACITY &&
+                  n == 0 && vf.num_vouchers == before,
+              "A5b: a full table mints nothing (all or nothing)");
+        CHECK(vino_mint_amount(&vf, 3, SECOND_MINTS_OIL, VINO_ACTIVE_DIGITAL, cid, ids, 8, &n) ==
+                      VINO_OK &&
+                  n == 1 && vf.num_vouchers == VINO_STORES_MAX_VOUCHERS,
+              "A5b: a one-coin amount fills the last slot");
+    }
 
     /* ---- Anchor 6: the 112% Gratuity split 11/11/11/66/1 (+12) ------------ */
     surplus_real_t g[6];

@@ -20,6 +20,7 @@
  * many instructions as SMLAL does; it would only pay off with 8-bit
  * activations, which would change the engine's results. */
 #include "zt_simd.h"
+#include "zt_gguf.h"
 
 #if defined(__aarch64__) && defined(__ARM_NEON)
 #    include <arm_neon.h>
@@ -174,6 +175,26 @@ static inline int64x2_t term52v_neon(int64x2_t v, int32x2_t k)
     return vbslq_s64(vcltq_s64(v, nlim), nlim, v);
 }
 
+/* term52_neon without the saturation, for callers that have proved
+ * |s * mul| << k stays under 2^52: a shift by a signed count (left, or a
+ * floor right shift) is then exactly zt_term52 */
+static inline int64x2_t term52s_neon(int32x4_t s, int32x4_t mul, int32x4_t k)
+{
+    k = vmaxq_s32(k, vdupq_n_s32(-64));
+    int64x2_t lo =
+        vshlq_s64(vmull_s32(vget_low_s32(s), vget_low_s32(mul)), vmovl_s32(vget_low_s32(k)));
+    int64x2_t hi = vshlq_s64(vmull_high_s32(s, mul), vmovl_high_s32(k));
+    return vaddq_s64(lo, hi);
+}
+
+/* Unsaturated shifts are exact when the largest count is at most these:
+ * Q4_K |s| < 2^24 (32 weights 0..15 by |a16| <= 2^15) and |sc * d.mm| < 2^17,
+ * |asum| < 2^20 and |m * dmin.mm| < 2^17, so every product is under 2^41;
+ * Q6_K two products of |s| < 2^24 (16 weights -32..31) by |sc * d.mm| < 2^18
+ * are under 2^43. */
+#    define Q4K_FAST_K 11
+#    define Q6K_FAST_K 9
+
 static zt_fx dot_q4k_neon(const uint8_t *row, const int16_t *a, const uint8_t *ash,
                           const int32_t *asum, uint32_t nb)
 {
@@ -182,7 +203,8 @@ static zt_fx dot_q4k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
     for (uint32_t k = 0; k < nb / 8; k++, row += ZT_Q4K_BYTES) {
         const int16_t *x = a + k * 256;
         int32x4_t ps[8];
-        for (uint32_t p = 0; p < 4; p++) {
+        _Pragma("GCC unroll 4") for (uint32_t p = 0; p < 4; p++)
+        {
             uint8x16_t b0 = vld1q_u8(row + 16 + 32 * p), b1 = vld1q_u8(row + 32 + 32 * p);
             ps[2 * p] = mac_neon_v(vreinterpretq_s8_u8(vandq_u8(b0, m4)),
                                    vreinterpretq_s8_u8(vandq_u8(b1, m4)), x + 64 * p);
@@ -192,10 +214,21 @@ static zt_fx dot_q4k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
         int32_t dm, de, mm, me;
         zt_kern_f16(ld16(row), &dm, &de);
         zt_kern_f16(ld16(row + 2), &mm, &me);
-        uint8_t sm[16];
-        zt_kern_q4k_scales(row + 4, sm);
-        uint8x16_t smv = vld1q_u8(sm);
-        uint16x8_t sc16 = vmovl_u8(vget_low_u8(smv)), mn16 = vmovl_high_u8(smv);
+        /* zt_kern_q4k_scales in registers: bytes p0..p11 at row + 4 give
+         * sc 0..3 = p0..3 & 63, mn 0..3 = p4..7 & 63,
+         * sc 4..7 = (p8..11 & 15) | (p0..3 >> 6) << 4,
+         * mn 4..7 = (p8..11 >> 4) | (p4..7 >> 6) << 4 */
+        uint8x16_t pv = vld1q_u8(row + 4);
+        uint8x8_t x8 = vget_low_u8(pv);
+        uint8x8_t y8 = vreinterpret_u8_u32(vdup_lane_u32(vreinterpret_u32_u8(vget_high_u8(pv)), 0));
+        uint8x8_t z8 = vand_u8(vshl_u8(y8, vcreate_s8(0xFCFCFCFC00000000ull)), vdup_n_u8(15));
+        uint8x8_t L = vand_u8(x8, vdup_n_u8(63));
+        uint8x8_t H = vorr_u8(z8, vshl_n_u8(vshr_n_u8(x8, 6), 4));
+        uint8x8_t scb =
+            vreinterpret_u8_u32(vzip1_u32(vreinterpret_u32_u8(L), vreinterpret_u32_u8(H)));
+        uint8x8_t mnb =
+            vreinterpret_u8_u32(vzip2_u32(vreinterpret_u32_u8(L), vreinterpret_u32_u8(H)));
+        uint16x8_t sc16 = vmovl_u8(scb), mn16 = vmovl_u8(mnb);
         int32x4_t sh0 =
             vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(vmovl_u8(vld1_u8(ash + k * 8)))));
         int32x4_t sh1 = vreinterpretq_s32_u32(vmovl_high_u16(vmovl_u8(vld1_u8(ash + k * 8))));
@@ -203,6 +236,20 @@ static zt_fx dot_q4k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
         int32x4_t de16 = vdupq_n_s32(de + 16), me16 = vdupq_n_s32(me + 16);
         int32x4_t s0 = hsum4_neon(ps[0], ps[1], ps[2], ps[3]);
         int32x4_t s1 = hsum4_neon(ps[4], ps[5], ps[6], ps[7]);
+        int32_t kx = (int32_t) vmaxvq_s32(vmaxq_s32(sh0, sh1)) + (de > me ? de : me) + 16;
+        if (kx <= Q4K_FAST_K) {
+            int32x4_t sc0 = vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(sc16)));
+            int32x4_t sc1 = vreinterpretq_s32_u32(vmovl_high_u16(sc16));
+            int32x4_t mn0 = vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(mn16)));
+            int32x4_t mn1 = vreinterpretq_s32_u32(vmovl_high_u16(mn16));
+            acc = vaddq_s64(acc, term52s_neon(s0, vmulq_s32(sc0, dmv), vaddq_s32(sh0, de16)));
+            acc = vaddq_s64(acc, term52s_neon(s1, vmulq_s32(sc1, dmv), vaddq_s32(sh1, de16)));
+            acc = vsubq_s64(acc, term52s_neon(vld1q_s32(asum + k * 8), vmulq_s32(mn0, mmv),
+                                              vaddq_s32(sh0, me16)));
+            acc = vsubq_s64(acc, term52s_neon(vld1q_s32(asum + k * 8 + 4), vmulq_s32(mn1, mmv),
+                                              vaddq_s32(sh1, me16)));
+            continue;
+        }
         acc = vaddq_s64(
             acc,
             term52_neon(s0, vmulq_s32(vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(sc16))), dmv),
@@ -230,27 +277,6 @@ static zt_fx dot_q6k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
     int64x2_t acc = vdupq_n_s64(0);
     for (uint32_t k = 0; k < nb / 8; k++, row += ZT_Q6K_BYTES) {
         const int16_t *x = a + k * 256;
-        int32x4_t p0[8], p1[8]; /* weights 0..15, 16..31 of each sub-block */
-        for (uint32_t h = 0; h < 2; h++) {
-            for (uint32_t i = 0; i < 2; i++) { /* 16 of the 32 weights of each sub-block */
-                uint8x16_t l0 = vld1q_u8(row + h * 64 + 16 * i);
-                uint8x16_t l1 = vld1q_u8(row + h * 64 + 32 + 16 * i);
-                uint8x16_t hb = vld1q_u8(row + 128 + h * 32 + 16 * i);
-                uint8x16_t q[4] = {vorrq_u8(vandq_u8(l0, m4), vandq_u8(vshlq_n_u8(hb, 4), m30)),
-                                   vorrq_u8(vandq_u8(l1, m4), vandq_u8(vshlq_n_u8(hb, 2), m30)),
-                                   vorrq_u8(vshrq_n_u8(l0, 4), vandq_u8(hb, m30)),
-                                   vorrq_u8(vshrq_n_u8(l1, 4), vandq_u8(vshrq_n_u8(hb, 2), m30))};
-                for (uint32_t u = 0; u < 4; u++) {
-                    uint32_t j = 4 * h + u;
-                    int32x4_t r =
-                        mac16_neon(vreinterpretq_s8_u8(vsubq_u8(q[u], o)), x + 32 * j + 16 * i);
-                    if (i)
-                        p1[j] = r;
-                    else
-                        p0[j] = r;
-                }
-            }
-        }
         int32_t dm, de;
         zt_kern_f16(ld16(row + 208), &dm, &de);
         /* sc[2j] (first 16 weights) and sc[2j + 1], times d.mm */
@@ -264,21 +290,328 @@ static zt_fx dot_q6k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
                            vmulq_s32(vmovl_high_s16(sc0), dmv)};
         int32x4_t m1[2] = {vmulq_s32(vmovl_s16(vget_low_s16(sc1)), dmv),
                            vmulq_s32(vmovl_high_s16(sc1), dmv)};
-        for (uint32_t g = 0; g < 2; g++) {
-            int32x4_t s0 = hsum4_neon(p0[4 * g], p0[4 * g + 1], p0[4 * g + 2], p0[4 * g + 3]);
-            int32x4_t s1 = hsum4_neon(p1[4 * g], p1[4 * g + 1], p1[4 * g + 2], p1[4 * g + 3]);
-            int64x2_t vlo = vmlal_s32(vmull_s32(vget_low_s32(s0), vget_low_s32(m0[g])),
-                                      vget_low_s32(s1), vget_low_s32(m1[g]));
-            int64x2_t vhi = vmlal_high_s32(vmull_high_s32(s0, m0[g]), s1, m1[g]);
-            acc = vaddq_s64(acc, term52v_neon(vlo, vget_low_s32(kv[g])));
-            acc = vaddq_s64(acc, term52v_neon(vhi, vget_high_s32(kv[g])));
+        int fast = (int32_t) vmaxvq_s32(vmaxq_s32(kv[0], kv[1])) <= Q6K_FAST_K;
+        /* half h holds sub-blocks 4h..4h+3: their sums s0 (weights 0..15 of
+         * each) and s1 (16..31) are finished inside the half, so only 8
+         * partial vectors are live at a time */
+        _Pragma("GCC unroll 2") for (uint32_t h = 0; h < 2; h++)
+        {
+            int32x4_t p[2][4];
+            _Pragma("GCC unroll 2") for (uint32_t i = 0; i < 2; i++)
+            {
+                uint8x16_t l0 = vld1q_u8(row + h * 64 + 16 * i);
+                uint8x16_t l1 = vld1q_u8(row + h * 64 + 32 + 16 * i);
+                uint8x16_t hb = vld1q_u8(row + 128 + h * 32 + 16 * i);
+                const int16_t *xi = x + 128 * h + 16 * i;
+                p[i][0] = mac16_neon(
+                    vreinterpretq_s8_u8(
+                        vsubq_u8(vorrq_u8(vandq_u8(l0, m4), vandq_u8(vshlq_n_u8(hb, 4), m30)), o)),
+                    xi);
+                p[i][1] = mac16_neon(
+                    vreinterpretq_s8_u8(
+                        vsubq_u8(vorrq_u8(vandq_u8(l1, m4), vandq_u8(vshlq_n_u8(hb, 2), m30)), o)),
+                    xi + 32);
+                p[i][2] = mac16_neon(vreinterpretq_s8_u8(vsubq_u8(
+                                         vorrq_u8(vshrq_n_u8(l0, 4), vandq_u8(hb, m30)), o)),
+                                     xi + 64);
+                p[i][3] = mac16_neon(
+                    vreinterpretq_s8_u8(
+                        vsubq_u8(vorrq_u8(vshrq_n_u8(l1, 4), vandq_u8(vshrq_n_u8(hb, 2), m30)), o)),
+                    xi + 96);
+            }
+            int32x4_t s0 = hsum4_neon(p[0][0], p[0][1], p[0][2], p[0][3]);
+            int32x4_t s1 = hsum4_neon(p[1][0], p[1][1], p[1][2], p[1][3]);
+            int64x2_t vlo = vmlal_s32(vmull_s32(vget_low_s32(s0), vget_low_s32(m0[h])),
+                                      vget_low_s32(s1), vget_low_s32(m1[h]));
+            int64x2_t vhi = vmlal_high_s32(vmull_high_s32(s0, m0[h]), s1, m1[h]);
+            if (fast) {
+                int32x4_t kk = vmaxq_s32(kv[h], vdupq_n_s32(-64));
+                acc = vaddq_s64(acc, vshlq_s64(vlo, vmovl_s32(vget_low_s32(kk))));
+                acc = vaddq_s64(acc, vshlq_s64(vhi, vmovl_high_s32(kk)));
+            } else {
+                acc = vaddq_s64(acc, term52v_neon(vlo, vget_low_s32(kv[h])));
+                acc = vaddq_s64(acc, term52v_neon(vhi, vget_high_s32(kv[h])));
+            }
         }
     }
     return zt_kern_round(vaddvq_s64(acc));
 }
 
-static const zt_kern_t K_NEON = {"neon", dot_raw_neon, dot_q8_neon, 0,
-                                 0,      dot_q4k_neon, dot_q6k_neon};
+/* ---- batched rows (zt_kern.h zt_mmb_t): a lane per token ----
+ * As the x86 tiles: each row's 256 weights are unpacked once to int16, a
+ * weight pair is duplicated across the vector, and SMLAL/SMLAL2 against the
+ * token-major activations collect each token's two products in two lanes,
+ * which one pairwise add turns into the 4 tokens' exact block sums. A tile is
+ * TRN rows by 8 tokens (two quads). The scale terms are added in slot order
+ * (zt_kern.h ZT_MMB_SLOT): UZP1/UZP2 split a quad into its even and odd
+ * tokens. term52 is one SSHL (a signed count: left, or a floor right shift)
+ * when the block's largest exponent proves it cannot saturate, else
+ * term52v_neon. */
+#    define TRN    4u
+#    define MMB_GC 8u
+
+typedef struct {
+    int32_t m0[8], m1[8], mt[8], ek[8], e, em;
+} tparam_t;
+
+static inline int32_t ld32(const int16_t *p)
+{
+    int32_t v;
+    __builtin_memcpy(&v, p, 4);
+    return v;
+}
+
+static inline void unpack_q4k_neon(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    int32_t dm, mm;
+    zt_kern_f16(ld16(blk), &dm, &t->e);
+    zt_kern_f16(ld16(blk + 2), &mm, &t->em);
+    t->e += 16;
+    t->em += 16;
+    uint8_t sm[16];
+    zt_kern_q4k_scales(blk + 4, sm);
+    for (uint32_t i = 0; i < 8; i++) {
+        t->m0[i] = sm[i] * dm;
+        t->mt[i] = sm[8 + i] * mm;
+    }
+    const uint8x16_t m4 = vdupq_n_u8(0x0F);
+    for (uint32_t p = 0; p < 8; p++) {
+        uint8x16_t b = vld1q_u8(blk + 16 + 16 * p);
+        uint8x16_t lo = vandq_u8(b, m4), hi = vshrq_n_u8(b, 4);
+        int16_t *o = w + 64 * (p / 2) + 16 * (p % 2);
+        vst1q_s16(o, vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(lo))));
+        vst1q_s16(o + 8, vreinterpretq_s16_u16(vmovl_high_u8(lo)));
+        vst1q_s16(o + 32, vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(hi))));
+        vst1q_s16(o + 40, vreinterpretq_s16_u16(vmovl_high_u8(hi)));
+    }
+}
+
+static inline void unpack_q6k_neon(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    int32_t dm;
+    zt_kern_f16(ld16(blk + 208), &dm, &t->e);
+    t->e += 16;
+    const int8_t *sc = (const int8_t *) (blk + 192);
+    for (uint32_t i = 0; i < 8; i++) {
+        t->m0[i] = sc[2 * i] * dm;
+        t->m1[i] = sc[2 * i + 1] * dm;
+    }
+    const uint8x16_t m4 = vdupq_n_u8(0x0F), m30 = vdupq_n_u8(0x30), o = vdupq_n_u8(32);
+    for (uint32_t h = 0; h < 2; h++)
+        for (uint32_t i = 0; i < 2; i++) {
+            uint8x16_t l0 = vld1q_u8(blk + h * 64 + 16 * i);
+            uint8x16_t l1 = vld1q_u8(blk + h * 64 + 32 + 16 * i);
+            uint8x16_t hb = vld1q_u8(blk + 128 + h * 32 + 16 * i);
+            uint8x16_t q[4] = {vorrq_u8(vandq_u8(l0, m4), vandq_u8(vshlq_n_u8(hb, 4), m30)),
+                               vorrq_u8(vandq_u8(l1, m4), vandq_u8(vshlq_n_u8(hb, 2), m30)),
+                               vorrq_u8(vshrq_n_u8(l0, 4), vandq_u8(hb, m30)),
+                               vorrq_u8(vshrq_n_u8(l1, 4), vandq_u8(vshrq_n_u8(hb, 2), m30))};
+            for (uint32_t u = 0; u < 4; u++) {
+                int8x16_t v = vreinterpretq_s8_u8(vsubq_u8(q[u], o));
+                int16_t *d = w + 32 * (4 * h + u) + 16 * i;
+                vst1q_s16(d, vmovl_s8(vget_low_s8(v)));
+                vst1q_s16(d + 8, vmovl_high_s8(v));
+            }
+        }
+}
+
+static inline void unpack_q8_0_neon(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    for (uint32_t i = 0; i < 8; i++, blk += 34) {
+        zt_kern_f16(ld16(blk), &t->m0[i], &t->ek[i]);
+        t->ek[i] += 16;
+        int8x16_t a = vld1q_s8((const int8_t *) blk + 2), b = vld1q_s8((const int8_t *) blk + 18);
+        vst1q_s16(w + 32 * i, vmovl_s8(vget_low_s8(a)));
+        vst1q_s16(w + 32 * i + 8, vmovl_high_s8(a));
+        vst1q_s16(w + 32 * i + 16, vmovl_s8(vget_low_s8(b)));
+        vst1q_s16(w + 32 * i + 24, vmovl_high_s8(b));
+    }
+}
+
+/* term52(v, e + h) for 2 slots */
+static inline int64x2_t term2_neon(int64x2_t v, int64x2_t h, int32_t e, int32_t hx, int32_t safe)
+{
+    int64x2_t k = vaddq_s64(h, vdupq_n_s64(e));
+    if (hx + e <= safe) return vshlq_s64(v, k);
+    return term52v_neon(v, vmovn_s64(k));
+}
+
+/* s[i][q] = row i's pairs [p0, p1) against quad q of the half (x: its 2 quads) */
+static inline void dot_neon(const int16_t *ws, const int16_t *x, uint32_t p0, uint32_t p1,
+                            int32x4_t s[TRN][2])
+{
+    int32x4_t l[TRN][2], h[TRN][2];
+    for (uint32_t i = 0; i < TRN; i++)
+        for (uint32_t q = 0; q < 2; q++) l[i][q] = h[i][q] = vdupq_n_s32(0);
+    for (uint32_t p = p0; p < p1; p++) {
+        int16x8_t x0 = vld1q_s16(x + 32 * p), x1 = vld1q_s16(x + 32 * p + 8);
+        for (uint32_t i = 0; i < TRN; i++) {
+            int16x8_t wv = vreinterpretq_s16_s32(vdupq_n_s32(ld32(ws + 256 * i + 2 * p)));
+            l[i][0] = vmlal_s16(l[i][0], vget_low_s16(x0), vget_low_s16(wv));
+            h[i][0] = vmlal_high_s16(h[i][0], x0, wv);
+            l[i][1] = vmlal_s16(l[i][1], vget_low_s16(x1), vget_low_s16(wv));
+            h[i][1] = vmlal_high_s16(h[i][1], x1, wv);
+        }
+    }
+    for (uint32_t i = 0; i < TRN; i++)
+        for (uint32_t q = 0; q < 2; q++) s[i][q] = vpaddq_s32(l[i][q], h[i][q]);
+}
+
+static inline __attribute__((always_inline)) void mmb_body_neon(const zt_mmb_t *j, uint32_t r0,
+                                                                uint32_t r1, const uint32_t qt)
+{
+    uint32_t nb = j->cols / 32, nk = nb / 8, ng = (j->B + ZT_MMB_G - 1) / ZT_MMB_G;
+    uint64_t kbytes = qt == ZT_GGML_Q4_K   ? ZT_Q4K_BYTES
+                      : qt == ZT_GGML_Q6_K ? ZT_Q6K_BYTES
+                                           : 8 * 34;
+    int32_t safe = qt == ZT_GGML_Q4_K   ? ZT_MMB_SAFE_Q4K
+                   : qt == ZT_GGML_Q6_K ? ZT_MMB_SAFE_Q6K
+                                        : ZT_MMB_SAFE_Q8;
+    int16_t w[TRN * 256] __attribute__((aligned(64)));
+    int64_t acc[TRN][MMB_GC][ZT_MMB_G] __attribute__((aligned(64)));
+    tparam_t tp[TRN];
+    for (uint32_t r = r0; r < r1; r += TRN) {
+        uint32_t nr = r1 - r < TRN ? r1 - r : TRN;
+        if (nr < TRN) __builtin_memset(w, 0, sizeof w);
+        for (uint32_t g0 = 0; g0 < ng; g0 += MMB_GC) {
+            uint32_t gn = ng - g0 < MMB_GC ? ng - g0 : MMB_GC;
+            __builtin_memset(acc, 0, sizeof acc);
+            for (uint32_t k = 0; k < nk; k++) {
+                for (uint32_t i = 0; i < nr; i++) {
+                    const uint8_t *blk = j->raw + ((uint64_t) (r + i) * nk + k) * kbytes;
+                    if (qt == ZT_GGML_Q4_K)
+                        unpack_q4k_neon(blk, w + 256 * i, &tp[i]);
+                    else if (qt == ZT_GGML_Q6_K)
+                        unpack_q6k_neon(blk, w + 256 * i, &tp[i]);
+                    else
+                        unpack_q8_0_neon(blk, w + 256 * i, &tp[i]);
+                }
+                for (uint32_t gi = 0; gi < gn; gi++)
+                    for (uint32_t sb = 0; sb < 8; sb++) {
+                        uint64_t gb = (uint64_t) (g0 + gi) * nb + k * 8 + sb;
+                        const int64_t *hp = j->ashT + gb * ZT_MMB_G;
+                        const int64_t *up = j->asumT + gb * ZT_MMB_G;
+                        int32_t hx = j->ashx[gb];
+                        for (uint32_t hf = 0; hf < 2; hf++) {
+                            const int16_t *x = j->aT + gb * 32 * ZT_MMB_G + 16 * hf;
+                            int32x4_t s[TRN][2], s2[TRN][2];
+                            if (qt == ZT_GGML_Q6_K) {
+                                dot_neon(w + 32 * sb, x, 0, 8, s);
+                                dot_neon(w + 32 * sb, x, 8, 16, s2);
+                            } else {
+                                dot_neon(w + 32 * sb, x, 0, 16, s);
+                            }
+                            for (uint32_t i = 0; i < nr; i++) {
+                                const tparam_t *t = &tp[i];
+                                int64_t *a = acc[i][gi];
+                                for (uint32_t q = 0; q < 2; q++) {
+                                    uint32_t Q =
+                                        2 * hf + q; /* quad of the group: slots 2Q, 8 + 2Q */
+                                    int64x2_t he = vld1q_s64(hp + 2 * Q),
+                                              ho = vld1q_s64(hp + 8 + 2 * Q);
+                                    int32x4_t sv = s[i][q];
+                                    int32x2_t se = vget_low_s32(vuzp1q_s32(sv, sv));
+                                    int32x2_t so = vget_low_s32(vuzp2q_s32(sv, sv));
+                                    int32x2_t M0 = vdup_n_s32(t->m0[sb]);
+                                    int64x2_t ve = vmull_s32(se, M0), vo = vmull_s32(so, M0);
+                                    if (qt == ZT_GGML_Q6_K) {
+                                        int32x4_t s2v = s2[i][q];
+                                        int32x2_t M1 = vdup_n_s32(t->m1[sb]);
+                                        ve = vmlal_s32(ve, vget_low_s32(vuzp1q_s32(s2v, s2v)), M1);
+                                        vo = vmlal_s32(vo, vget_low_s32(vuzp2q_s32(s2v, s2v)), M1);
+                                        ve = term2_neon(ve, he, t->e, hx, safe);
+                                        vo = term2_neon(vo, ho, t->e, hx, safe);
+                                    } else if (qt == ZT_GGML_Q4_K) {
+                                        int32x2_t MT = vdup_n_s32(t->mt[sb]);
+                                        int64x2_t ue =
+                                            vmull_s32(vmovn_s64(vld1q_s64(up + 2 * Q)), MT);
+                                        int64x2_t uo =
+                                            vmull_s32(vmovn_s64(vld1q_s64(up + 8 + 2 * Q)), MT);
+                                        ve = vsubq_s64(term2_neon(ve, he, t->e, hx, safe),
+                                                       term2_neon(ue, he, t->em, hx, safe));
+                                        vo = vsubq_s64(term2_neon(vo, ho, t->e, hx, safe),
+                                                       term2_neon(uo, ho, t->em, hx, safe));
+                                    } else {
+                                        ve = term2_neon(ve, he, t->ek[sb], hx, safe);
+                                        vo = term2_neon(vo, ho, t->ek[sb], hx, safe);
+                                    }
+                                    vst1q_s64(a + 2 * Q, vaddq_s64(vld1q_s64(a + 2 * Q), ve));
+                                    vst1q_s64(a + 8 + 2 * Q,
+                                              vaddq_s64(vld1q_s64(a + 8 + 2 * Q), vo));
+                                }
+                            }
+                        }
+                    }
+            }
+            for (uint32_t i = 0; i < nr; i++)
+                for (uint32_t gi = 0; gi < gn; gi++)
+                    for (uint32_t t = 0; t < ZT_MMB_G; t++) {
+                        uint32_t tok = (g0 + gi) * ZT_MMB_G + t;
+                        if (tok < j->B)
+                            j->y[(uint64_t) tok * j->ystride + r + i] =
+                                zt_kern_round(acc[i][gi][ZT_MMB_SLOT(t)]);
+                    }
+        }
+    }
+}
+
+static int mmb_neon(const zt_mmb_t *j, uint32_t r0, uint32_t r1)
+{
+    if (!j->raw) return 1;
+    if (j->qtype == ZT_GGML_Q4_K)
+        mmb_body_neon(j, r0, r1, ZT_GGML_Q4_K);
+    else if (j->qtype == ZT_GGML_Q6_K)
+        mmb_body_neon(j, r0, r1, ZT_GGML_Q6_K);
+    else if (j->qtype == ZT_GGML_Q8_0 && j->cols % 256 == 0)
+        mmb_body_neon(j, r0, r1, ZT_GGML_Q8_0);
+    else
+        return 1;
+    return 0;
+}
+
+/* ---- attention over a Q16 KV cache (zt_kern.h): SMULL/SMLAL 32 x 32 -> 64 ---- */
+
+static void att_qk_neon(const int32_t *q, const int32_t *k, uint64_t kstride, uint32_t n,
+                        uint32_t hd, int64_t *S)
+{
+    for (uint32_t i = 0; i < n; i++, k += kstride) {
+        int64x2_t a = vdupq_n_s64(0), b = vdupq_n_s64(0);
+        uint32_t j = 0;
+        for (; j + 4 <= hd; j += 4) {
+            int32x4_t x = vld1q_s32(q + j), y = vld1q_s32(k + j);
+            a = vmlal_s32(a, vget_low_s32(x), vget_low_s32(y));
+            b = vmlal_high_s32(b, x, y);
+        }
+        int64_t t = vaddvq_s64(vaddq_s64(a, b));
+        for (; j < hd; j++) t += (int64_t) q[j] * k[j];
+        S[i] = t;
+    }
+}
+
+static void att_wv_neon(const int32_t *w, const int32_t *v, uint64_t vstride, uint32_t n,
+                        uint32_t hd, int64_t *acc)
+{
+    uint32_t j0 = 0;
+    for (; j0 + 32 <= hd; j0 += 32) {
+        int64x2_t a[16];
+        for (uint32_t c = 0; c < 16; c++) a[c] = vld1q_s64(acc + j0 + 2 * c);
+        const int32_t *vi = v + j0;
+        for (uint32_t i = 0; i < n; i++, vi += vstride) {
+            if (!w[i]) continue;
+            int32x2_t wv = vdup_n_s32(w[i]);
+            for (uint32_t c = 0; c < 8; c++) {
+                int32x4_t x = vld1q_s32(vi + 4 * c);
+                a[2 * c] = vmlal_s32(a[2 * c], vget_low_s32(x), wv);
+                a[2 * c + 1] = vmlal_s32(a[2 * c + 1], vget_high_s32(x), wv);
+            }
+        }
+        for (uint32_t c = 0; c < 16; c++) vst1q_s64(acc + j0 + 2 * c, a[c]);
+    }
+    if (j0 < hd) zt_att_wv_c(w, v + j0, vstride, n, hd - j0, acc + j0);
+}
+
+static const zt_kern_t K_NEON = {"neon",       dot_raw_neon, dot_q8_neon, 0,           0,
+                                 dot_q4k_neon, dot_q6k_neon, mmb_neon,    att_qk_neon, att_wv_neon};
 
 const zt_kern_t *zt_simd_neon(void)
 {

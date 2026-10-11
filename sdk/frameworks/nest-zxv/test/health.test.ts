@@ -9,9 +9,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { Test } from '@nestjs/testing';
+import { Cap } from '@zedec/zxv';
 import type { ZxvContext, ZxvFatalError } from '@zedec/zxv';
 
-import { ZXV_CONTEXT, ZxvFatalState, ZxvHealthIndicator, ZxvModule } from '../src/index.js';
+import { ZXV_CONTEXT, ZxvFatalState, ZxvHealthIndicator, ZxvModule, rightNames } from '../src/index.js';
 
 async function start(onFatal?: (e: ZxvFatalError | undefined) => void) {
   const ref = await Test.createTestingModule({
@@ -79,5 +80,14 @@ describe('ZxvHealthIndicator', () => {
     } finally {
       await app.close();
     }
+  });
+});
+
+describe('rightNames', () => {
+  it('names single rights only, never a group such as ALL', () => {
+    assert.deepEqual(rightNames(Cap.LEDGER_READ | Cap.LEDGER_POST), ['LEDGER_READ', 'LEDGER_POST']);
+    const all = rightNames(Cap.ALL);
+    assert.equal(all.length, 10);
+    assert.ok(!all.includes('ALL'));
   });
 });
