@@ -26,9 +26,11 @@ language. Every pillar follows the same pattern:
 | Pillar | Language | Shorthand | Folder | Tests |
 |---|---|---|---|---|
 | cobol-sutra | COBOL copybooks (data division subset) | Sutra | [`cobol-sutra`](cobol-sutra/) | 154,569 checks, golden records from GnuCOBOL, fuzzed under ASan + UBSan |
+| fortran-trebago | Fortran 2008+ (module `zxv`, ISO_C_BINDING) | Trebago (exact numeric kernels) | [`fortran-trebago`](fortran-trebago/) | 75,179 checks in C and Fortran, 26 golden cases, 14 compile-fail cases, fuzzed under ASan + UBSan |
 
 Status codes: the pillars own -2001 and below (cobol-sutra uses -2001 to
--2099). Codes 0 to -99 are libzxv's and pass through unchanged.
+-2099, fortran-trebago -2101 to -2199). Codes 0 to -99 are libzxv's and
+pass through unchanged.
 
 CI: [`.github/workflows/sdk-pillars.yml`](../../.github/workflows/sdk-pillars.yml).
 

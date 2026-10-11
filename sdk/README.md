@@ -104,6 +104,7 @@ see [`pillars/`](pillars/).
 | Pillar | Folder | What it gives you | Tests |
 |---|---|---|---|
 | COBOL → Sutra | [`cobol-sutra`](pillars/cobol-sutra/) | Copybook parser and the Sutra shorthand (same layout from both), exact zoned/COMP/COMP-3 codecs, a capability-gated ledger posting bridge, a GnuCOBOL example | 154,569 checks (mostly codec round trips) + fuzzing, GnuCOBOL golden records byte-identical |
+| Fortran → Trebago | [`fortran-trebago`](pillars/fortran-trebago/) | Fortran 2008+ module `zxv` (exact `rational`, four-valued `truth`, hexagram tags, capabilities, ledger) and Trebago, a short syntax for exact sum/dot/scale/prefix/matvec kernels over `INTEGER(INT64)` arrays that refuses overflow instead of rounding | 75,179 checks in C and Fortran, 26 golden cases, 14 compile-fail cases, fuzzed under ASan + UBSan |
 
 ## What every SDK gives you
 

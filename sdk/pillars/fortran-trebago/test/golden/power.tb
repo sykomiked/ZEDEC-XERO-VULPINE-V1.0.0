@@ -1,0 +1,25 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! power.tb - integer powers, negative exponents and min/max/abs; 2 ** 63
+! (n = 4) does not fit int64 and is refused; 0 ** -1 divides by zero.
+trebago power
+  in  x(n)
+  out p(n), q(n), m, big
+  p(i) = x(i) ** 3 - x(i) ** -1
+  q(i) = abs(min(x(i), -x(i) / 2, 1)) + max(x(i), 0)
+  m = max(x(1), x(n)) ** 2
+  big = 2 ** (59 + n)
+end
+!> case fits
+!> in x = 1/2, -2, 3
+!> expect p = -15/8, -15/2, 80/3
+!> expect q = 3/4, 2, 9/2
+!> expect m = 9
+!> expect big = 4611686018427387904
+!> case 2 ** 63 is refused (n = 4)
+!> in x = 1/2, -2, 3, 1
+!> refuse ZXV_E_RANGE 12:11
+!> case 0 ** -1
+!> in x = 0, 1, 2
+!> refuse TB_E_DIVZERO 9:27
