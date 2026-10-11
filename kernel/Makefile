@@ -1451,9 +1451,9 @@ test-treaty-cobol:
 	cobc -x -o $$d/PICPAR src/treaty/cobol/PICPAR.cob 2>$$d/cobc.log && \
 	( cd $$d && ./pic_parity gen 1000000 1 vec.txt && ./PICPAR && ./pic_parity check vec.txt out.txt > pic.log ) && \
 	echo "[PASS] PIC S9(18) parity with GnuCOBOL ($$(tail -1 $$d/pic.log))" || { cat $$d/cobc.log $$d/pic.log 2>/dev/null; echo "[FAIL] PIC S9(18) parity"; exit 1; }; \
-	for s in src/treaty/zxt.c $(TREATY_RUN); do gcc -std=c11 -O1 -Wall -Werror -Wextra -DTEST_HOST $(TREATY_INC) -c $$s -o $$d/$$(basename $$s .c).o 2>>$$d/build.log || { cat $$d/build.log; echo "[FAIL] treaty objects"; exit 1; }; done; \
+	for s in src/treaty/zxt.c $(TREATY_RUN); do gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST $(TREATY_INC) -c $$s -o $$d/$$(basename $$s .c).o 2>>$$d/build.log || { cat $$d/build.log; echo "[FAIL] treaty objects"; exit 1; }; done; \
 	cobc -x -I src/treaty/copybooks -o $$d/TRTYDEMO src/treaty/cobol/TRTYDEMO.cob $$d/*.o 2>$$d/cobc.log && \
-	gcc -std=c11 -O1 -Wall -Werror -Wextra -DTEST_HOST $(TREATY_INC) src/treaty/cobol/treaty_parity.c $$d/*.o -o $$d/treaty_parity 2>>$$d/build.log && \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST $(TREATY_INC) src/treaty/cobol/treaty_parity.c $$d/*.o -o $$d/treaty_parity 2>>$$d/build.log && \
 	( cd $$d && ./TRTYDEMO > demo.txt; ./treaty_parity demo.txt > parity.log ) && \
 	echo "[PASS] CALL 'ZXV_ENGINE' from GnuCOBOL ($$(tail -1 $$d/parity.log))" || { cat $$d/cobc.log $$d/build.log $$d/demo.txt $$d/parity.log 2>/dev/null; echo "[FAIL] COBOL treaty parity"; exit 1; }; \
 	rm -rf $$d
