@@ -1,0 +1,43 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-zxv"
+version = "0.1.0"
+description = "Django integration over the ZXV Python SDK (zxv-sdk): an app config that owns the context, exact RationalField storage, float-refusing JSON helpers, a fail-closed health view, and an advisory A = L + E ledger admin check."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "Michael Laurence Curzi and 36N9 Genetics, LLC" }]
+dependencies = ["Django>=5.2", "zxv-sdk>=1.3"]
+classifiers = [
+    "Framework :: Django",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Typing :: Typed",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["django_zxv"]
+
+[tool.setuptools.package-data]
+django_zxv = ["py.typed", "templates/django_zxv/*.html"]
+
+[tool.mypy]
+strict = true
+files = ["src/django_zxv", "sample", "tests", "runtests.py"]
+mypy_path = ["src", "sample", "."]
+exclude = ["/migrations/"]
+explicit_package_bases = true
+plugins = ["mypy_django_plugin.main"]
+
+[tool.django-stubs]
+django_settings_module = "tests.settings"
+
+[[tool.mypy.overrides]]
+module = ["cffi"]
+ignore_missing_imports = true

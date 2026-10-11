@@ -1,0 +1,54 @@
+{
+  "name": "@zedec/zxv-nestjs",
+  "version": "0.1.0",
+  "description": "NestJS module over the ZXV TypeScript SDK (@zedec/zxv, Node-API backend): a managed context closed in ABI order, named capabilities (the root is never injectable), a fail-closed Terminus health indicator, exact Rational pipes and JSON that refuse floats, and an exception filter that maps ZXV status classes to HTTP without native detail text.",
+  "license": "Apache-2.0",
+  "author": "Michael Laurence Curzi and 36N9 Genetics, LLC",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test --test-concurrency=1 'dist/test/*.test.js'",
+    "sample": "npm run build && node dist/sample/main.js"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^12.0.0",
+    "@nestjs/core": "^12.0.0",
+    "@nestjs/terminus": "^12.0.0",
+    "@zedec/zxv": "^1.1.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.1.0"
+  },
+  "devDependencies": {
+    "@nestjs/common": "12.1.2",
+    "@nestjs/core": "12.1.2",
+    "@nestjs/platform-express": "12.1.2",
+    "@nestjs/terminus": "12.1.0",
+    "@nestjs/testing": "12.1.2",
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "@types/supertest": "7.2.1",
+    "@zedec/zxv": "file:../../typescript",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "supertest": "7.3.1",
+    "typescript": "5.9.3"
+  }
+}

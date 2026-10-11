@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+  <!-- SPDX-License-Identifier: Apache-2.0 -->
+  <!-- Zxv.AspNetCore: ASP.NET Core integration over Zxv.Sdk. -->
+  <PropertyGroup>
+    <RootNamespace>Zxv.AspNetCore</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>ASP.NET Core integration for the ZXV SDK: AddZxv with keyed capability services, a hosted context disposed in ABI order, a fail-closed health check, exact Rational JSON converters, and problem-details middleware for ZXV status classes.</Description>
+    <PackageTags>zxv;aspnetcore;health-checks;problem-details;rational</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../../dotnet/src/Zxv.Sdk/Zxv.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Zxv.AspNetCore.Tests" />
+  </ItemGroup>
+</Project>

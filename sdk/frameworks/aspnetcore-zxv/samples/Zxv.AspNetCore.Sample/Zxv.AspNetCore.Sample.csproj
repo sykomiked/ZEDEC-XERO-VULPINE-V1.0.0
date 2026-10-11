@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+  <!-- SPDX-License-Identifier: Apache-2.0 -->
+  <!-- Minimal-API sample on Zxv.AspNetCore. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Zxv.AspNetCore.Sample</RootNamespace>
+    <!-- CA1515: types are public for WebApplicationFactory. CA2007: no
+         ConfigureAwait in an app. CA1812: types are created by the framework. -->
+    <NoWarn>$(NoWarn);CA1515;CA2007;CA1812</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Zxv.AspNetCore/Zxv.AspNetCore.csproj" />
+  </ItemGroup>
+</Project>

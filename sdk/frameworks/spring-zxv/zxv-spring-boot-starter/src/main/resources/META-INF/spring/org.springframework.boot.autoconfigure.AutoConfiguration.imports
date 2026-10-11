@@ -1,0 +1,6 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+org.zedec.zxv.spring.ZxvAutoConfiguration
+org.zedec.zxv.spring.jackson.ZxvJacksonAutoConfiguration
+org.zedec.zxv.spring.web.ZxvWebMvcAutoConfiguration
+org.zedec.zxv.spring.actuate.ZxvHealthContributorAutoConfiguration
