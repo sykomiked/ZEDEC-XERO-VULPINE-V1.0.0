@@ -10,6 +10,7 @@ name: SDK frameworks
 
 on:
   push:
+    branches: [main, develop]
     paths:
       - 'sdk/frameworks/**'
       - 'sdk/java/**'
@@ -36,6 +37,12 @@ on:
 permissions:
   contents: read
 
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-frameworks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   spring:
     name: spring ${{ matrix.os }} jdk${{ matrix.jdk }}
@@ -45,6 +52,7 @@ jobs:
         os: [ubuntu-24.04, macos-14]
         jdk: ['22', '25']
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/frameworks/spring-zxv
@@ -68,6 +76,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/frameworks/aspnetcore-zxv
@@ -88,6 +97,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/frameworks/nest-zxv
@@ -118,6 +128,7 @@ jobs:
         os: [ubuntu-24.04, macos-14]
         py: ['3.12', '3.13']
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/frameworks/django-zxv

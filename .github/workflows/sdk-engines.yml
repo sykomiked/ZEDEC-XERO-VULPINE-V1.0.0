@@ -8,6 +8,7 @@ name: SDK engines
 
 on:
   push:
+    branches: [main, develop]
     paths:
       - 'sdk/engines/**'
       - 'sdk/libzxv/**'
@@ -33,6 +34,12 @@ permissions:
 env:
   GODOT_VERSION: '4.3-stable'
 
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-engines-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   emu-state:
     name: emu-state ${{ matrix.os }} ${{ matrix.cc }}
@@ -44,6 +51,7 @@ jobs:
           - { os: ubuntu-24.04, cc: clang }
           - { os: macos-14, cc: clang }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/engines/emu-state
@@ -69,6 +77,7 @@ jobs:
           - { os: ubuntu-24.04, cc: gcc, asan: 'detect_leaks=1' }
           - { os: macos-14, cc: clang, asan: '' }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: sdk/engines/emu-state
@@ -101,6 +110,7 @@ jobs:
           - { os: ubuntu-24.04, cc: gcc, cxx: g++, sanitize: 'ON' }
           - { os: macos-14, cc: clang, cxx: clang++, sanitize: 'OFF' }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - run: make -C sdk/libzxv all
@@ -115,6 +125,7 @@ jobs:
   godot-extension:
     name: godot-zxv GDExtension in Godot 4.3 (Linux)
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - run: make -C sdk/libzxv all
@@ -156,6 +167,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5

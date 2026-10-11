@@ -11,6 +11,7 @@ name: SDK embedded
 
 on:
   push:
+    branches: [main, develop]
     paths: ['sdk/embedded/**', 'sdk/libzxv/**', 'sdk/conformance/**', 'kernel/src/**',
             'kernel/include/**', 'kernel/third_party/**', '.github/workflows/sdk-embedded.yml']
   pull_request:
@@ -20,6 +21,12 @@ on:
 
 permissions:
   contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-embedded-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   host:
@@ -32,6 +39,7 @@ jobs:
           - { cc: clang, san: '' }
           - { cc: gcc, san: '1' }
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - name: Port layer, MCU subset, zxe ledger (differential), libzxv conformance through the port
@@ -42,6 +50,7 @@ jobs:
   cross:
     name: cross sizes, no-float, QEMU
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - name: Install cross toolchains and QEMU
@@ -78,6 +87,7 @@ jobs:
   freertos:
     name: FreeRTOS POSIX simulator
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - name: Fetch FreeRTOS-Kernel V11.2.0 (pinned commit), build, run the three scenarios
@@ -90,6 +100,7 @@ jobs:
   zephyr:
     name: Zephyr v4.2.2 (qemu_cortex_m3, native_sim)
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     env:
       ZEPHYR_REF: v4.2.2
       ZXV_MODULE: ${{ github.workspace }}/sdk/embedded/zephyr-zxv

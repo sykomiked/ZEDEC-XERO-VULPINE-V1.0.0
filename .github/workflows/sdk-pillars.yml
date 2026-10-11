@@ -26,6 +26,7 @@ name: SDK pillars
 
 on:
   push:
+    branches: [main, develop]
     paths:
       - 'sdk/pillars/**'
       - 'sdk/libzxv/**'
@@ -46,6 +47,12 @@ on:
 permissions:
   contents: read
 
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-pillars-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pillars:
     name: ${{ matrix.pillar }} ${{ matrix.os }} ${{ matrix.cc }}
@@ -58,6 +65,7 @@ jobs:
         include:
           - { pillar: cobol-sutra, os: macos-14, cc: clang }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/pillars/${{ matrix.pillar }}
@@ -85,6 +93,7 @@ jobs:
         pillar: [cobol-sutra]
         cc: [gcc, clang]
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: sdk/pillars/${{ matrix.pillar }}
@@ -112,6 +121,7 @@ jobs:
   pillars-gnucobol:
     name: cobol-sutra GnuCOBOL interop
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: sdk/pillars/cobol-sutra
@@ -143,6 +153,7 @@ jobs:
           - { os: ubuntu-24.04, cc: clang }
           - { os: macos-14, cc: clang }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: sdk/pillars/fortran-trebago
@@ -194,6 +205,7 @@ jobs:
           - { cc: gcc, fortran: '1' }
           - { cc: clang, fortran: '0' }
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: sdk/pillars/fortran-trebago
