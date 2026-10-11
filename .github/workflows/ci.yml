@@ -137,7 +137,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [arm64, x86_64]
+        include:
+          - arch: arm64
+            screen: "[AI_OK]"
+          # x86_64 must also bring up the on-screen console a real PC needs.
+          - arch: x86_64
+            screen: "UEFI GOP text console"
     steps:
       - uses: actions/checkout@v5
       - name: Build toolchain image
@@ -145,7 +150,7 @@ jobs:
       - name: Build ${{ matrix.arch }} kernel and UEFI disc
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
       - name: Boot ${{ matrix.arch }} disc under UEFI firmware
-        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]"
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v5
         with:

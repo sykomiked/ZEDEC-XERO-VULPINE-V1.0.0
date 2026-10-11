@@ -51,6 +51,25 @@ typedef EFI_STATUS (EFIAPI *FN_GMM)(u64*, void*, u64*, u64*, u32*);
 typedef EFI_STATUS (EFIAPI *FN_EBS)(EFI_HANDLE, u64);
 typedef EFI_STATUS (EFIAPI *FN_POOL)(u32, u64, void**);
 typedef EFI_STATUS (EFIAPI *FN_PAGES)(u32, u32, u64, u64*);
+typedef EFI_STATUS(EFIAPI *FN_LOCATE)(EFI_GUID *, void *, void **);
+
+/* Graphics Output Protocol, only the fields the handoff needs. */
+typedef struct {
+    u32 Ver, HRes, VRes, PixFmt, PixInfo[4], PixPerScan;
+} GOP_INFO;
+typedef struct {
+    u32 MaxMode, Mode;
+    GOP_INFO *Info;
+    u64 SizeOfInfo, FrameBufferBase, FrameBufferSize;
+} GOP_MODE;
+typedef struct {
+    void *QueryMode, *SetMode, *Blt;
+    GOP_MODE *Mode;
+} GOP;
+
+/* Handoff record for the kernel's GOP text console (efifb_con.h). */
+#define BOOTINFO_ADDR  0x80000ULL
+#define BOOTINFO_MAGIC 0x5A585642464F4F49ULL
 
 /* The asm trampoline: drops to 32-bit protected mode and jumps to `entry`. */
 extern void x86_efi_handoff(u64 entry);
@@ -69,6 +88,38 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
     FN_EBS   ExitBootServices= (FN_EBS)  st->BootSvc->ExitBootServices;
     FN_POOL  AllocatePool    = (FN_POOL) st->BootSvc->AllocatePool;
 
+    /* Find the firmware framebuffer while boot services still exist. Only
+     * 32-bit RGBx/BGRx linear modes (PixFmt 0/1) can be drawn into directly. */
+    u64 fb = 0;
+    u32 w = 0, h = 0, pps = 0, pixfmt = 0;
+    {
+        EFI_GUID gop_guid = {
+            0x9042a9de, 0x23dc, 0x4a38, {0x96, 0xfb, 0x7a, 0xde, 0xd0, 0x80, 0x51, 0x6a}};
+        GOP *gop = 0;
+        FN_LOCATE LocateProtocol = (FN_LOCATE) st->BootSvc->LocateProtocol;
+        EFI_STATUS gs = LocateProtocol(&gop_guid, 0, (void **) &gop);
+        if (gs == 0 && gop && gop->Mode && gop->Mode->Info && gop->Mode->Info->PixFmt <= 1) {
+            fb = gop->Mode->FrameBufferBase;
+            w = gop->Mode->Info->HRes;
+            h = gop->Mode->Info->VRes;
+            pps = gop->Mode->Info->PixPerScan;
+            pixfmt = gop->Mode->Info->PixFmt;
+            uputs("GOP fb=");
+            udec(fb);
+            uputs(" res=");
+            udec(w);
+            uputc('x');
+            udec(h);
+            uputs(" stride=");
+            udec(pps);
+            uputs("\n");
+        } else {
+            uputs("no usable GOP (status=");
+            udec(gs);
+            uputs(") -- serial console only\n");
+        }
+    }
+
     u64 ksize = (u64)(_kernel_blob_end - _kernel_blob_start);
     u64 kpages = (ksize + 0xFFF) / 0x1000;
 
@@ -78,6 +129,16 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
     u64 addr = KERNEL_LOAD;
     EFI_STATUS as = AllocatePages(2 /*AllocateAddress*/, 2 /*EfiLoaderData*/, kpages, &addr);
     uputs("reserve 0x100000 status="); udec(as); uputs(" ("); udec(ksize); uputs(" bytes)\n");
+
+    /* Reserve the handoff page too, so no firmware or loader data sits there
+     * when it is written. If the firmware already uses it, go serial-only. */
+    if (fb) {
+        u64 bia = BOOTINFO_ADDR;
+        if (AllocatePages(2 /*AllocateAddress*/, 2 /*EfiLoaderData*/, 1, &bia)) {
+            uputs("handoff page 0x80000 busy -- serial console only\n");
+            fb = 0;
+        }
+    }
 
     /* ---- GetMemoryMap + ExitBootServices (UEFI spec 7.4) ---- */
     u64 msz=0, mkey=0, dsz=0; u32 dver=0; void *mmap=0;
@@ -92,7 +153,24 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
     }
     uputs("ExitBootServices status="); udec(es); uputs("\n");
 
-    /* Boot services are gone. Copy the kernel to its link address and hand off. */
+    /* Boot services are gone, low memory is ours: publish the framebuffer
+     * record (only when this boot found a GOP and owns the page). */
+    {
+        volatile u64 *bi = (volatile u64 *) BOOTINFO_ADDR;
+        if (fb) {
+            for (int i = 0; i < 8; i++) bi[i] = 0;
+            bi[1] = fb;
+            ((volatile u32 *) bi)[4] = w;
+            ((volatile u32 *) bi)[5] = h;
+            ((volatile u32 *) bi)[6] = pps;
+            ((volatile u32 *) bi)[7] = pixfmt;
+            bi[4] = BOOTINFO_MAGIC ^ fb ^ w ^ h ^ pps;
+            bi[0] = BOOTINFO_MAGIC;
+            uputs("GOP handoff record published @0x80000\n");
+        }
+    }
+
+    /* Copy the kernel to its link address and hand off. */
     u8 *src = _kernel_blob_start, *dst = (u8*)KERNEL_LOAD;
     for(u64 i=0;i<ksize;i++) dst[i]=src[i];
 
