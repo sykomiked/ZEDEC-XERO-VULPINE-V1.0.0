@@ -1,0 +1,201 @@
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+/* The declarations of zxv_api.h (ABI 1.2) that PHP's FFI parses: no
+ * preprocessor, no enums (passed as int32_t). Keep in sync with
+ * sdk/libzxv/include/zxv_api.h. */
+typedef struct zxv_ctx zxv_ctx;
+typedef struct zxv_msg zxv_msg;
+typedef struct zxv_cap zxv_cap;
+typedef struct zxv_lpres zxv_lpres;
+typedef struct zxv_rmag zxv_rmag;
+typedef struct zxv_phase zxv_phase;
+typedef struct zxv_swarm zxv_swarm;
+typedef struct zxv_model zxv_model;
+typedef struct zxv_session zxv_session;
+typedef struct zxv_lora zxv_lora;
+typedef struct zxv_hexlog zxv_hexlog;
+typedef void (*zxv_rmag_listener)(void *user, uint32_t budget, int32_t event);
+typedef int32_t (*zxv_token_fn)(void *user, int32_t token, const uint8_t *piece, size_t len);
+
+int32_t zxv_version(uint32_t *major, uint32_t *minor, uint32_t *patch);
+int32_t zxv_features(uint32_t *out_mask);
+const char *zxv_status_name(int32_t status);
+int32_t zxv_status_class(int32_t status);
+int32_t zxv_last_error(char *buf, size_t cap, size_t *out_len);
+int32_t zxv_ctx_create(zxv_ctx **out_ctx);
+void zxv_ctx_destroy(zxv_ctx *ctx);
+int32_t zxv_ctx_is_poisoned(zxv_ctx *ctx, int32_t *out_poisoned);
+int32_t zxv_ctx_halt(zxv_ctx *ctx, const char *reason);
+
+int32_t zxv_iso4217_by_alpha(const char *alpha, uint16_t *out_numeric, uint8_t *out_minor_units, uint32_t *out_flags);
+int32_t zxv_iso4217_by_numeric(uint16_t numeric, char *alpha_buf, size_t cap, size_t *out_len, uint8_t *out_minor_units, uint32_t *out_flags);
+int32_t zxv_iso4217_name(const char *alpha, char *buf, size_t cap, size_t *out_len);
+int32_t zxv_iso4217_count(uint32_t *out_count);
+int32_t zxv_iso4217_at(uint32_t index, char *alpha_buf, size_t cap, size_t *out_len);
+int32_t zxv_iso4217_published(char *buf, size_t cap, size_t *out_len);
+int32_t zxv_au_is_member(const char *country_a2, int32_t *out_is_member);
+int32_t zxv_ccy_enable(zxv_ctx *ctx, const char *alpha);
+int32_t zxv_ccy_enable_with_minor(zxv_ctx *ctx, const char *alpha, uint8_t minor_units);
+int32_t zxv_ccy_register_private(zxv_ctx *ctx, const char *code, uint8_t minor_units);
+int32_t zxv_ccy_get(zxv_ctx *ctx, const char *code, uint8_t *out_minor_units, uint32_t *out_flags);
+
+int32_t zxv_ledger_open_account(zxv_ctx *ctx, const char *name, const char *ccy, int32_t kind, uint32_t *out_account_id);
+int32_t zxv_ledger_account_count(zxv_ctx *ctx, uint32_t *out_count);
+int32_t zxv_ledger_entry_count(zxv_ctx *ctx, uint32_t account, uint32_t *out_count);
+int32_t zxv_ledger_entry_at(zxv_ctx *ctx, uint32_t account, uint32_t index, uint64_t *out_entry_id, int64_t *out_signed_minor, uint32_t *out_counterparty, char *ref_buf, size_t ref_cap, size_t *out_ref_len);
+int32_t zxv_ledger_post_cap(const zxv_cap *cap, uint32_t from_account, uint32_t to_account, int64_t amount_minor, const char *ccy, const char *reference, uint64_t *out_entry_id);
+int32_t zxv_ledger_balance_cap(const zxv_cap *cap, uint32_t account, int64_t *out_debit_minor, int64_t *out_credit_minor, int64_t *out_equity_minor);
+int32_t zxv_ledger_check_cap(const zxv_cap *cap);
+int32_t zxv_ccy_enable_cap(const zxv_cap *cap, const char *alpha);
+int32_t zxv_ccy_enable_with_minor_cap(const zxv_cap *cap, const char *alpha, uint8_t minor_units);
+int32_t zxv_ccy_register_private_cap(const zxv_cap *cap, const char *code, uint8_t minor_units);
+int32_t zxv_ledger_open_account_cap(const zxv_cap *cap, const char *name, const char *ccy, int32_t kind, uint32_t *out_account_id);
+int32_t zxv_ledger_account_ccy_cap(const zxv_cap *cap, uint32_t account, char *buf, size_t cap_len, size_t *out_len);
+int32_t zxv_ledger_account_name_cap(const zxv_cap *cap, uint32_t account, char *buf, size_t cap_len, size_t *out_len);
+int32_t zxv_ledger_account_kind_cap(const zxv_cap *cap, uint32_t account, int32_t *out_kind);
+int32_t zxv_ledger_account_count_cap(const zxv_cap *cap, uint32_t *out_count);
+int32_t zxv_ledger_entry_count_cap(const zxv_cap *cap, uint32_t account, uint32_t *out_count);
+int32_t zxv_ledger_entry_at_cap(const zxv_cap *cap, uint32_t account, uint32_t index, uint64_t *out_entry_id, int64_t *out_signed_minor, uint32_t *out_counterparty, char *ref_buf, size_t ref_cap, size_t *out_ref_len);
+
+int32_t zxv_msg_create(zxv_ctx *ctx, int32_t kind, zxv_msg **out_msg);
+int32_t zxv_msg_create_cap(const zxv_cap *cap, int32_t kind, zxv_msg **out_msg);
+void zxv_msg_destroy(zxv_msg *msg);
+int32_t zxv_msg_set_text(zxv_msg *msg, int32_t field, const char *utf8);
+int32_t zxv_msg_set_amount(zxv_msg *msg, int32_t field, int64_t units, uint8_t frac_digits);
+int32_t zxv_msg_render(zxv_msg *msg, char *buf, size_t cap, size_t *out_len);
+
+int32_t zxv_rat_normalize(int64_t num, int64_t den, int64_t *out_num, int64_t *out_den);
+int32_t zxv_rat_add(int64_t an, int64_t ad, int64_t bn, int64_t bd, int64_t *out_num, int64_t *out_den);
+int32_t zxv_rat_sub(int64_t an, int64_t ad, int64_t bn, int64_t bd, int64_t *out_num, int64_t *out_den);
+int32_t zxv_rat_mul(int64_t an, int64_t ad, int64_t bn, int64_t bd, int64_t *out_num, int64_t *out_den);
+int32_t zxv_rat_div(int64_t an, int64_t ad, int64_t bn, int64_t bd, int64_t *out_num, int64_t *out_den);
+int32_t zxv_rat_cmp(int64_t an, int64_t ad, int64_t bn, int64_t bd, int32_t *out_cmp);
+int32_t zxv_rat_parse(const char *text, int64_t *out_num, int64_t *out_den);
+int32_t zxv_rat_format(int64_t num, int64_t den, char *buf, size_t cap, size_t *out_len);
+int32_t zxv_rat_from_ieee754(uint64_t bits, int64_t *out_num, int64_t *out_den);
+int32_t zxv_rat_to_q16(int64_t num, int64_t den, int32_t *out_q16);
+
+int32_t zxv_lp_not(int32_t a, int32_t *out);
+int32_t zxv_lp_and(int32_t a, int32_t b, int32_t *out);
+int32_t zxv_lp_or(int32_t a, int32_t b, int32_t *out);
+int32_t zxv_lp_from_evidence(uint32_t positive, uint32_t negative, int32_t *out);
+
+int32_t zxv_cap_create(zxv_ctx *ctx, uint32_t process_id, const uint8_t *identity, uint64_t caps, zxv_cap **out_cap);
+int32_t zxv_cap_attenuate(const zxv_cap *parent, uint64_t keep, zxv_cap **out_cap);
+int32_t zxv_cap_revoke(zxv_cap *cap);
+int32_t zxv_cap_set_attestation(zxv_cap *cap, int32_t lp_state);
+int32_t zxv_cap_info(const zxv_cap *cap, uint64_t *out_caps, uint32_t *out_process_id, int32_t *out_attestation, int32_t *out_revoked);
+int32_t zxv_cap_check(const zxv_cap *cap, uint64_t needed);
+void zxv_cap_destroy(zxv_cap *cap);
+
+int32_t zxv_lpres_create(zxv_ctx *ctx, zxv_lpres **out_reg);
+int32_t zxv_lpres_create_cap(const zxv_cap *cap, zxv_lpres **out_reg);
+void zxv_lpres_destroy(zxv_lpres *reg);
+int32_t zxv_lpres_attest(const zxv_cap *cap, zxv_lpres *reg, const char *name, int32_t subject, int32_t lp_state, const char *attester, const uint8_t *digest, uint32_t digest_len, uint32_t *out_index);
+int32_t zxv_lpres_evidence(const zxv_cap *cap, zxv_lpres *reg, uint32_t index, int32_t positive);
+int32_t zxv_lpres_find(zxv_lpres *reg, const char *name, uint32_t *out_index);
+int32_t zxv_lpres_state(zxv_lpres *reg, uint32_t index, int32_t *out_lp_state, uint32_t *out_positive, uint32_t *out_negative);
+int32_t zxv_lpres_gate(zxv_lpres *reg, int32_t *out_clear);
+
+int32_t zxv_rmag_create(zxv_ctx *ctx, zxv_rmag **out_rmag);
+int32_t zxv_rmag_create_cap(const zxv_cap *cap, zxv_rmag **out_rmag);
+void zxv_rmag_destroy(zxv_rmag *rmag);
+int32_t zxv_rmag_budget(const zxv_cap *cap, zxv_rmag *rmag, const char *name, int32_t resource, int64_t limit_num, int64_t limit_den, int32_t enforce, uint32_t *out_budget);
+int32_t zxv_rmag_consume(const zxv_cap *cap, zxv_rmag *rmag, uint32_t budget, int64_t num, int64_t den);
+int32_t zxv_rmag_release(const zxv_cap *cap, zxv_rmag *rmag, uint32_t budget, int64_t num, int64_t den);
+int32_t zxv_rmag_set_limit(const zxv_cap *cap, zxv_rmag *rmag, uint32_t budget, int64_t num, int64_t den);
+int32_t zxv_rmag_status(zxv_rmag *rmag, uint32_t budget, int64_t *out_rem_num, int64_t *out_rem_den, int64_t *out_used_num, int64_t *out_used_den, uint64_t *out_epoch);
+int32_t zxv_rmag_listen(zxv_rmag *rmag, zxv_rmag_listener fn, void *user);
+
+int32_t zxv_phase_create(zxv_ctx *ctx, zxv_phase **out_phase);
+int32_t zxv_phase_create_cap(const zxv_cap *cap, zxv_phase **out_phase);
+void zxv_phase_destroy(zxv_phase *phase);
+int32_t zxv_phase_now(zxv_phase *phase, uint64_t *out_tick);
+int32_t zxv_phase_advance(const zxv_cap *cap, zxv_phase *phase, uint64_t delta, uint64_t *out_now, uint32_t *out_cleared);
+int32_t zxv_phase_admit(const zxv_cap *cap, zxv_phase *phase, uint32_t phase_id, uint32_t step_id, uint32_t flags, int32_t *out_decision, uint64_t *out_token);
+int32_t zxv_phase_set_health(const zxv_cap *cap, zxv_phase *phase, uint32_t phase_id, int32_t health);
+int32_t zxv_phase_defer(const zxv_cap *cap, zxv_phase *phase, uint64_t due_tick, uint64_t *out_event);
+int32_t zxv_phase_event(zxv_phase *phase, uint64_t event, int32_t *out_state, uint64_t *out_due_tick);
+int32_t zxv_phase_cancel(const zxv_cap *cap, zxv_phase *phase, uint64_t event);
+int32_t zxv_phase_next_due(zxv_phase *phase, uint64_t *out_tick);
+
+int32_t zxv_wire_tag(uint32_t trunk, uint32_t shell, uint32_t sync, uint8_t *out_tag);
+int32_t zxv_wire_pack(uint8_t tag, const uint32_t *s_plus, const uint32_t *s_minus, uint8_t *out_frame);
+int32_t zxv_wire_unpack(const uint8_t *frame, uint8_t *out_tag, uint32_t *out_s_plus, uint32_t *out_s_minus);
+int32_t zxv_wire_resolve(const uint8_t *frame, int32_t *out_truth);
+int32_t zxv_wire_idle(uint32_t trunk, uint8_t *out_frame);
+
+int32_t zxv_swarm_create(zxv_ctx *ctx, uint32_t num_levels, uint64_t tokens_per_cycle, zxv_swarm **out_swarm);
+int32_t zxv_swarm_create_cap(const zxv_cap *cap, uint32_t num_levels, uint64_t tokens_per_cycle, zxv_swarm **out_swarm);
+void zxv_swarm_destroy(zxv_swarm *swarm);
+int32_t zxv_swarm_register(const zxv_cap *cap, zxv_swarm *swarm, uint32_t model_id, uint32_t level);
+int32_t zxv_swarm_set_active(const zxv_cap *cap, zxv_swarm *swarm, uint32_t model_id, int32_t active);
+int32_t zxv_swarm_set_rate(const zxv_cap *cap, zxv_swarm *swarm, uint64_t tokens_per_cycle);
+int32_t zxv_swarm_set_mood(const zxv_cap *cap, zxv_swarm *swarm, uint32_t codepoint, uint32_t intensity);
+int32_t zxv_swarm_set_feeling(const zxv_cap *cap, zxv_swarm *swarm, uint32_t model_id, uint32_t codepoint, uint32_t intensity);
+int32_t zxv_swarm_begin_cycle(const zxv_cap *cap, zxv_swarm *swarm, uint64_t *out_cycle);
+int32_t zxv_swarm_consume(const zxv_cap *cap, zxv_swarm *swarm, uint32_t model_id, uint64_t requested, uint64_t *out_granted);
+int32_t zxv_swarm_allotment(zxv_swarm *swarm, uint32_t model_id, uint64_t *out_allotted, uint64_t *out_imaginary, uint64_t *out_used);
+int32_t zxv_swarm_end_cycle(const zxv_cap *cap, zxv_swarm *swarm, uint64_t *out_expired);
+int32_t zxv_swarm_level_capacity(uint32_t level, uint32_t *out_capacity);
+int32_t zxv_swarm_emotion_profile(uint32_t codepoint, int32_t *out_valence, uint32_t *out_temperature_milli, uint32_t *out_explore_permille, uint32_t *out_verify_passes, uint32_t *out_priority);
+
+int32_t zxv_sha3_256(const uint8_t *data, size_t len, uint8_t *out);
+int32_t zxv_shake256(const uint8_t *data, size_t len, uint8_t *out, size_t out_len);
+int32_t zxv_keccak256(const uint8_t *data, size_t len, uint8_t *out);
+int32_t zxv_random(uint8_t *buf, size_t len);
+int32_t zxv_secure_zero(void *buf, size_t len);
+
+int32_t zxv_mlkem1024_keygen(const zxv_cap *cap, uint8_t *ek, uint8_t *dk);
+int32_t zxv_mlkem1024_keygen_derand(const zxv_cap *cap, const uint8_t *d, const uint8_t *z, uint8_t *ek, uint8_t *dk);
+int32_t zxv_mlkem1024_encaps(const zxv_cap *cap, const uint8_t *ek, uint8_t *ct, uint8_t *ss);
+int32_t zxv_mlkem1024_encaps_derand(const zxv_cap *cap, const uint8_t *ek, const uint8_t *m, uint8_t *ct, uint8_t *ss);
+int32_t zxv_mlkem1024_decaps(const zxv_cap *cap, const uint8_t *dk, const uint8_t *ct, uint8_t *ss);
+int32_t zxv_mldsa87_keygen(const zxv_cap *cap, uint8_t *pk, uint8_t *sk);
+int32_t zxv_mldsa87_keygen_seed(const zxv_cap *cap, const uint8_t *seed, uint8_t *pk, uint8_t *sk);
+int32_t zxv_mldsa87_sign(const zxv_cap *cap, const uint8_t *sk, const uint8_t *msg, size_t msg_len, const uint8_t *ctx, size_t ctx_len, uint8_t *sig);
+int32_t zxv_mldsa87_sign_deterministic(const zxv_cap *cap, const uint8_t *sk, const uint8_t *msg, size_t msg_len, const uint8_t *ctx, size_t ctx_len, uint8_t *sig);
+int32_t zxv_mldsa87_verify(const zxv_cap *cap, const uint8_t *pk, const uint8_t *msg, size_t msg_len, const uint8_t *ctx, size_t ctx_len, const uint8_t *sig);
+int32_t zxv_ed25519_keygen(const zxv_cap *cap, uint8_t *pk, uint8_t *sk);
+int32_t zxv_ed25519_public(const zxv_cap *cap, const uint8_t *sk, uint8_t *pk);
+int32_t zxv_ed25519_sign(const zxv_cap *cap, const uint8_t *sk, const uint8_t *msg, size_t msg_len, uint8_t *sig);
+int32_t zxv_ed25519_verify(const zxv_cap *cap, const uint8_t *pk, const uint8_t *msg, size_t msg_len, const uint8_t *sig);
+
+int32_t zxv_model_open(const zxv_cap *cap, const char *model_path, const char *tokenizer_path, zxv_model **out_model);
+void zxv_model_destroy(zxv_model *model);
+int32_t zxv_model_info(const zxv_model *model, int32_t key, int64_t *out_value);
+int32_t zxv_tokenize(const zxv_model *model, const uint8_t *text, size_t len, int32_t parse_special, int32_t *ids, size_t cap, size_t *out_count);
+int32_t zxv_detokenize(const zxv_model *model, const int32_t *ids, size_t count, char *buf, size_t cap, size_t *out_len);
+int32_t zxv_session_create(const zxv_model *model, uint32_t n_ctx, int32_t kv_type, zxv_session **out_session);
+void zxv_session_destroy(zxv_session *session);
+int32_t zxv_session_reset(zxv_session *session);
+int32_t zxv_session_position(zxv_session *session, uint32_t *out_pos);
+int32_t zxv_session_bind_budget(zxv_session *session, zxv_rmag *rmag, uint32_t budget);
+int32_t zxv_generate(const zxv_cap *cap, zxv_session *session, const uint8_t *prompt, size_t prompt_len, uint32_t max_tokens, int32_t temperature_q16, uint32_t top_k, int32_t top_p_q16, int32_t repeat_penalty_q16, uint32_t repeat_last_n, uint64_t seed, zxv_token_fn on_token, void *user, uint32_t *out_n_prompt, uint32_t *out_n_generated, int32_t *out_stop);
+int32_t zxv_lora_load(const zxv_cap *cap, zxv_model *model, const char *path, int32_t scale_q16, zxv_lora **out_lora);
+
+int32_t zxv_evm_encode_state(const zxv_cap *cap, const uint8_t *channel_id, uint64_t nonce, const uint8_t *addresses, const int64_t *balances, uint32_t count, uint8_t *buf, size_t cap_bytes, size_t *out_len, uint8_t *digest);
+int32_t zxv_evm_ledger_state(const zxv_cap *cap, const uint8_t *channel_id, uint64_t nonce, const char *ccy, const uint32_t *accounts, const uint8_t *addresses, uint32_t count, uint8_t *buf, size_t cap_bytes, size_t *out_len, uint8_t *digest);
+
+int32_t zxv_hex_pack(uint8_t base, uint8_t polarity, uint8_t phase, uint8_t *out_tag);
+int32_t zxv_hex_unpack(uint8_t tag, uint8_t *out_base, uint8_t *out_polarity, uint8_t *out_phase);
+int32_t zxv_hex_action(uint8_t tag, int32_t *out_action);
+int32_t zxv_hex_phase_next(uint8_t phase, uint8_t *out_phase);
+int32_t zxv_hex_step(uint8_t tag, uint8_t phase, uint8_t *out_tag);
+int32_t zxv_hex_set(uint8_t tag, uint8_t base, uint8_t polarity, uint8_t *out_tag);
+int32_t zxv_hex_forbid(uint8_t tag, uint8_t *out_tag);
+int32_t zxv_hex_and(uint8_t a, uint8_t b, uint8_t *out_tag);
+int32_t zxv_hex_or(uint8_t a, uint8_t b, uint8_t *out_tag);
+int32_t zxv_hex_not(uint8_t a, uint8_t *out_tag);
+int32_t zxv_hex_polarity(uint32_t pos0, uint32_t neg0, uint32_t pos1, uint32_t neg1, int32_t stale, uint8_t *out_polarity);
+int32_t zxv_hex_from_lp(int32_t lp_state, uint8_t *out_base);
+int32_t zxv_hex_to_lp(uint8_t base, int32_t *out_lp_state);
+const char *zxv_hex_name(uint8_t tag);
+const char *zxv_hex_action_name(int32_t action);
+int32_t zxv_hexlog_create(const zxv_cap *cap, uint32_t capacity, zxv_hexlog **out_log);
+void zxv_hexlog_destroy(zxv_hexlog *log);
+int32_t zxv_hexlog_append(const zxv_cap *cap, zxv_hexlog *log, uint8_t tag, uint8_t reason, uint32_t submitter, const uint8_t subject[32], uint64_t *out_seq);
+int32_t zxv_hexlog_count(zxv_hexlog *log, uint32_t *out_count);
+int32_t zxv_hexlog_head(zxv_hexlog *log, uint8_t out_head[32]);
+int32_t zxv_hexlog_at(zxv_hexlog *log, uint32_t index, uint64_t *out_seq, uint8_t *out_tag, uint8_t *out_reason, uint32_t *out_submitter, uint8_t out_subject[32], uint8_t out_prev[32], uint8_t out_hash[32]);
+int32_t zxv_hexlog_verify(zxv_hexlog *log);
