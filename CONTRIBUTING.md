@@ -126,6 +126,17 @@ make -f build_system/Makefile.arm64 run
 make -f build_system/Makefile.x86_64 run
 ```
 
+### Before you push
+
+```bash
+scripts/verify-local.sh            # what CI's fast tier checks, in minutes
+scripts/verify-local.sh --all      # everything CI runs on Linux
+scripts/verify-local.sh --docker   # same, inside CI's image (default on macOS)
+```
+
+`docs/CI.md` explains which CI jobs run when, and why draft pull requests
+skip the slow tier.
+
 ## Submitting Changes
 
 ### Pull Request Checklist
