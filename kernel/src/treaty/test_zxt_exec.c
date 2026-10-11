@@ -227,6 +227,25 @@ static void test_dividend_rule(void)
               r.dividend[2] == (int64_t)(div / 3),
           "ties to the lowest index: %lld %lld %lld", (long long)r.dividend[0],
           (long long)r.dividend[1], (long long)r.dividend[2]);
+    /* near the ledger's 2^59 line limit with 9-digit weights: the dividend
+     * times the weight needs more than 64 bits, so the 128-bit share
+     * arithmetic is exercised in full */
+    t = parse("TREATY H USD SETL\nPARTY A 576460752303423488 0 999999936/999999937\n"
+              "PARTY B 0 0 1/999999937\n"
+              "OWE A B 500000000000000000\nEND\n");
+    CHECK(zxt_exec(&t, &ws, SEED, &r) == ZXT_OK, "huge setl (%d)", r.status);
+    div = zxv_engine_bucket(&ws, PAY_ASSURE_VBILL_DIVIDEND);
+    ref_share(&t, div, ref);
+    CHECK(div > (1ULL << 40) && memcmp(ref, r.dividend, 2 * sizeof ref[0]) == 0,
+          "huge dividend %llu == reference (%lld %lld vs %lld %lld)", (unsigned long long)div,
+          (long long)r.dividend[0], (long long)r.dividend[1], (long long)ref[0], (long long)ref[1]);
+    t.party[0].w_num = 1;
+    t.party[0].w_den = 999999937;
+    t.party[1].w_num = 999999936;
+    t.party[1].w_den = 999999937;
+    CHECK(zxt_exec(&t, &ws, SEED, &r) == ZXT_OK, "huge setl, weights swapped");
+    ref_share(&t, zxv_engine_bucket(&ws, PAY_ASSURE_VBILL_DIVIDEND), ref);
+    CHECK(memcmp(ref, r.dividend, 2 * sizeof ref[0]) == 0, "swapped == reference");
     /* a zero weight gets nothing even with remainder units about */
     t = parse("TREATY T USD SETL\nPARTY A 100000000 0 0/1\nPARTY B 100000000 0 1/3\n"
               "PARTY C 100000000 0 2/3\nOWE A B 3000000\nEND\n");

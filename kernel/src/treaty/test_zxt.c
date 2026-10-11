@@ -303,6 +303,7 @@ static void test_args(void)
     CHECK(zxt_parse_record(NULL, ZXT_REC_LEN, &t, &off) == ZXT_E_ARG && all_zero(&t, sizeof t),
           "record NULL rec");
     CHECK(zxt_parse_record(rec, ZXT_REC_LEN - 1u, &t, &off) == ZXT_E_ARG, "record short");
+    CHECK(zxt_parse_record(rec, ZXT_REC_LEN, &t, NULL) == ZXT_E_MAGIC, "record NULL err_off");
     CHECK(zxt_parse_record(rec, ZXT_REC_LEN + 1u, &t, &off) == ZXT_E_ARG, "record long");
     CHECK(zxt_validate(NULL) == ZXT_E_ARG, "validate NULL");
     CHECK(!zxt_equal(NULL, &t) && !zxt_equal(&t, NULL), "equal NULL");
@@ -506,6 +507,8 @@ static void test_validate(void)
        u.party[1].w_den = 999999999u),
       ZXT_OK);
     V((u.party[0].w_num = 3u, u.party[0].w_den = 2u), ZXT_E_WEIGHT);
+    V((u.party[0].w_num = 1u, u.party[0].w_den = 3u), ZXT_E_WEIGHT); /* 1/3 + 1/2 */
+    V((u.party[0].w_num = 0u, u.party[0].w_den = 1u), ZXT_E_WEIGHT); /* 0 + 1/2 */
     V(u.owe[0].from = 2, ZXT_E_PARTY);
     V(u.owe[0].to = 2, ZXT_E_PARTY);
     V(u.owe[0].to = 0, ZXT_E_OWE);
