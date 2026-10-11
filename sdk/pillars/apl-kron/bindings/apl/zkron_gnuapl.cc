@@ -238,12 +238,11 @@ static Token eval_AB(Value_P A, Value_P B, const NativeFunction *caller) {
         kr_program_text(r.p, nullptr, 0, &need);
         char *b = (char *) malloc(need + 1u);
         if (!b) WS_FULL;
-        if (kr_program_text(r.p, b, need + 1u, &need) != ZXV_OK) {
-            free(b);
-            DOMAIN_ERROR;
-        }
-        Token t = chars(b, need);
+        /* One free on every path: DOMAIN_ERROR throws, after the buffer is gone. */
+        const bool ok = kr_program_text(r.p, b, need + 1u, &need) == ZXV_OK;
+        Token t = chars(ok ? b : "", ok ? need : 0);
         free(b);
+        if (!ok) DOMAIN_ERROR;
         return t;
     }
     if (what == 3) {
