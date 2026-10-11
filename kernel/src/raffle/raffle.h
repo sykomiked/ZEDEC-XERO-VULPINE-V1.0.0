@@ -10,12 +10,13 @@
  *
  * OFF BY DEFAULT (LEGAL)
  * ----------------------
- *   L1  Paying for a chance to win a prize is a lottery under most laws (in
- *       the US: prize + chance + consideration) and is illegal without a
- *       licence. raffle_config_default() leaves `jurisdiction_permits` false,
- *       and while it is false every entry call fails closed with
- *       RAFFLE_ERR_DISABLED. Only a jurisdiction plug-in, after legal review,
- *       should set it.
+ *   L1  A raffle where people pay for a chance to win a prize is regulated
+ *       gaming under most laws (in the US the test is prize + chance +
+ *       consideration). In many places only licensed or charitable
+ *       organisers may run one, often under limits. raffle_config_default()
+ *       leaves `jurisdiction_permits` false, and while it is false every
+ *       entry call fails closed with RAFFLE_ERR_DISABLED. Only a jurisdiction
+ *       plug-in, after legal review, should set it.
  *   L2  `free_entry` turns on a no-purchase entry route (one ticket, no fee),
  *       the usual sweepstakes-style mitigation. Whether that makes a given
  *       deployment lawful is for counsel; this code makes no such claim.
