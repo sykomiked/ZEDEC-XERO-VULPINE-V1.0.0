@@ -52,6 +52,12 @@ int32_t vino_mint(vino_stores_t *vs, uint64_t *out_id, surplus_real_t denominati
                   const uint8_t proof_cid[VINO_PROOF_CID_LEN])
 {
     if (!vs || !out_id) return VINO_ERR_NULL;
+    /* Fibonacci-only: a ladder face, or zero for the ceremonial V0 note. */
+    if (tier == MINT_ZERO) {
+        if (SR_CMP(denomination, SR_ZERO) != 0) return VINO_ERR_DENOM;
+    } else if (vino_denomination_rung(denomination) == 0) {
+        return VINO_ERR_DENOM;
+    }
     if (vs->num_vouchers >= VINO_STORES_MAX_VOUCHERS) return VINO_ERR_CAPACITY;
 
     vino_voucher_t *v = &vs->vouchers[vs->num_vouchers];
@@ -273,8 +279,66 @@ uint64_t vino_ladder_denomination(uint32_t rung)
 {
     if (rung == 0) return 0;                /* V0 ceremonial, zero value */
     if (rung > VINO_LADDER_RUNGS) return 0; /* off the ladder */
-    /* rung 1..12 -> edp_fibonacci(2..13) = 1,2,3,5,8,13,21,34,55,89,144,233. */
+    /* rung 1..45 -> edp_fibonacci(2..46) = 1,2,3,5,8,...,1836311903. */
     return (uint64_t) edp_fibonacci(rung + 1);
+}
+
+uint32_t vino_denomination_rung(surplus_real_t denomination)
+{
+    for (uint32_t r = 1; r <= VINO_LADDER_RUNGS; r++)
+        if (SR_CMP(denomination, SR_FROM_INT(vino_ladder_denomination(r))) == 0) return r;
+    return 0;
+}
+
+int32_t vino_zeckendorf(uint64_t amount, uint32_t *rungs, uint32_t cap, uint32_t *n)
+{
+    if (!n || (cap && !rungs)) return VINO_ERR_NULL;
+    uint64_t top = vino_ladder_denomination(VINO_LADDER_RUNGS);
+    uint64_t count = amount / top, rest = amount % top;
+    for (uint32_t r = VINO_LADDER_RUNGS; r-- > 1;) {
+        uint64_t f = vino_ladder_denomination(r);
+        if (rest >= f) {
+            rest -= f;
+            count++;
+        }
+    }
+    if (count > cap) {
+        *n = count > UINT32_MAX ? UINT32_MAX : (uint32_t) count;
+        return VINO_ERR_CAPACITY;
+    }
+    *n = (uint32_t) count;
+    uint32_t k = 0;
+    for (uint64_t i = 0; i < amount / top; i++) rungs[k++] = VINO_LADDER_RUNGS;
+    rest = amount % top;
+    for (uint32_t r = VINO_LADDER_RUNGS; r-- > 1;) {
+        uint64_t f = vino_ladder_denomination(r);
+        if (rest >= f) {
+            rest -= f;
+            rungs[k++] = r;
+        }
+    }
+    return VINO_OK;
+}
+
+int32_t vino_mint_amount(vino_stores_t *vs, uint64_t amount, mint_tier_t tier,
+                         vino_state_t initial_state, const uint8_t proof_cid[VINO_PROOF_CID_LEN],
+                         uint64_t *ids, uint32_t cap, uint32_t *n)
+{
+    if (!vs || !n || (cap && !ids)) return VINO_ERR_NULL;
+    *n = 0;
+    uint32_t rungs[VINO_STORES_MAX_VOUCHERS];
+    uint32_t count = 0;
+    uint32_t room = VINO_STORES_MAX_VOUCHERS - vs->num_vouchers;
+    if (cap < room) room = cap;
+    int32_t rc = vino_zeckendorf(amount, rungs, room, &count);
+    if (rc != VINO_OK) return rc;
+    for (uint32_t i = 0; i < count; i++) {
+        rc = vino_mint(vs, &ids[i], SR_FROM_INT(vino_ladder_denomination(rungs[i])), tier,
+                       initial_state, proof_cid);
+        if (rc != VINO_OK) return rc; /* MINT_ZERO: vino_mint refuses a valued V0 */
+        *n = i + 1;
+    }
+    return VINO_OK;
 }
 
 int32_t vino_gratuity_112(surplus_real_t yield, surplus_real_t out[6])
