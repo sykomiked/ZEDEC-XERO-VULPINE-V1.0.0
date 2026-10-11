@@ -128,6 +128,33 @@ jobs:
           path: zedec_xero_arm32.elf
           if-no-files-found: error
 
+  uefi-disc:
+    # Bare-metal UEFI discs, built in the same pinned Docker toolchain used on a
+    # Mac (build_system/Dockerfile.baremetal), then booted from the disc by the
+    # real firmware (OVMF / QEMU_EFI). Fails closed: the step passes only if the
+    # serial log reaches [BOOT_OK] and [AI_OK] with no fault marker.
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x86_64]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build toolchain image
+        run: docker build -f build_system/Dockerfile.baremetal -t zxv-baremetal .
+      - name: Build ${{ matrix.arch }} kernel and UEFI disc
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
+      - name: Boot ${{ matrix.arch }} disc under UEFI firmware
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]"
+      - name: Upload ${{ matrix.arch }} disc
+        uses: actions/upload-artifact@v5
+        with:
+          name: uefi-disc-${{ matrix.arch }}
+          path: |
+            dist/discs/zxv-${{ matrix.arch }}-uefi.img
+            dist/discs/SHA256SUMS
+          if-no-files-found: error
+
   host-tests:
     runs-on: ubuntu-22.04
     steps:
