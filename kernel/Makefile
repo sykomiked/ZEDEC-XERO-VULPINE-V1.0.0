@@ -327,6 +327,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
+	$(MAKE) --no-print-directory test-b2-small
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
 	@echo "=== i18n: CLDR locales, catalogs, formatting, UTF-8, Enochian core ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/i18n src/i18n/test_i18n.c src/i18n/i18n_text.c src/i18n/i18n_locale.c src/i18n/i18n_format.c src/i18n/i18n_tables.c src/i18n/i18n_catalog.c -o /tmp/test_i18n && /tmp/test_i18n > /tmp/test_i18n.log 2>&1 && echo "[PASS] test_i18n" || { tail -40 /tmp/test_i18n.log; echo "[FAIL] test_i18n"; exit 1; }
@@ -1434,6 +1435,76 @@ test-denom:
 .PHONY: test-vhub
 test-vhub:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/pay -Isrc/mlkem -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/tensor -Isrc/swarm -Isrc/zcapital src/vhub/test_vhub.c src/vhub/vhub.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/tensor/zt.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o $(ZXV_TMP)/test_vhub -lm && $(ZXV_TMP)/test_vhub > $(ZXV_TMP)/test_vhub.log 2>&1 && echo "[PASS] test_vhub" || { tail -40 $(ZXV_TMP)/test_vhub.log; echo "[FAIL] test_vhub"; exit 1; }
+
+
+# Gap B2: shipped modules that no test compiled before (docs/GAP_AUDIT.md).
+.PHONY: test-b2-small
+test-b2-small:
+	$(MAKE) --no-print-directory test-mixmat
+	$(MAKE) --no-print-directory test-curzi8889a
+	$(MAKE) --no-print-directory test-situation
+	$(MAKE) --no-print-directory test-rtl-device
+	$(MAKE) --no-print-directory test-vfs
+	$(MAKE) --no-print-directory test-boot-features
+	$(MAKE) --no-print-directory test-blockdev
+	$(MAKE) --no-print-directory test-vbe
+	$(MAKE) --no-print-directory test-ramfb
+	$(MAKE) --no-print-directory test-virtio-gpu
+
+.PHONY: test-mixmat
+test-mixmat:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/rational src/mixmat/test_mixmat.c src/mixmat/mixmat.c src/rational/rational.c -Wl,--wrap=rat_add,--wrap=rat_sub,--wrap=rat_mul,--wrap=rat_div,--wrap=rat_make,--wrap=rat_eq,--wrap=rat_cmp,--wrap=rat_is_zero -o $(ZXV_TMP)/test_mixmat && $(ZXV_TMP)/test_mixmat > $(ZXV_TMP)/test_mixmat.log 2>&1 && echo "[PASS] test_mixmat" || { tail -40 $(ZXV_TMP)/test_mixmat.log; echo "[FAIL] test_mixmat"; exit 1; }
+
+.PHONY: test-curzi8889a
+test-curzi8889a:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/curzi -Isrc/pqsec -Isrc/lpres -Isrc/mlkem src/curzi/test_curzi8889a.c src/curzi/curzi8889a.c src/mlkem/keccak.c -Wl,--wrap=shake256 -o $(ZXV_TMP)/test_curzi8889a && $(ZXV_TMP)/test_curzi8889a > $(ZXV_TMP)/test_curzi8889a.log 2>&1 && echo "[PASS] test_curzi8889a" || { tail -40 $(ZXV_TMP)/test_curzi8889a.log; echo "[FAIL] test_curzi8889a"; exit 1; }
+
+.PHONY: test-situation
+test-situation:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/situation -Isrc/edp_risk -Isrc/predictive src/situation/test_situation_model.c -o $(ZXV_TMP)/test_situation_model -lm && $(ZXV_TMP)/test_situation_model > $(ZXV_TMP)/test_situation_model.log 2>&1 && echo "[PASS] test_situation_model" || { tail -40 $(ZXV_TMP)/test_situation_model.log; echo "[FAIL] test_situation_model"; exit 1; }
+
+.PHONY: test-rtl-device
+test-rtl-device:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hardware -Isrc/surplus -Isrc/edp_risk src/hardware/test_rtl_device.c src/hardware/rtl_device.c -o $(ZXV_TMP)/test_rtl_device -lm && $(ZXV_TMP)/test_rtl_device > $(ZXV_TMP)/test_rtl_device.log 2>&1 && echo "[PASS] test_rtl_device ($$(tail -1 $(ZXV_TMP)/test_rtl_device.log))" || { tail -40 $(ZXV_TMP)/test_rtl_device.log; echo "[FAIL] test_rtl_device"; exit 1; }
+
+.PHONY: test-vfs
+test-vfs:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/vfs -Isrc/lpres -Isrc/oseq -Isrc/fat32 -Isrc/surplus -Isrc/modbind src/vfs/test_vfs.c src/vfs/vfs.c src/fat32/fat32.c src/lpres/lpres_core.c -o $(ZXV_TMP)/test_vfs -lm && $(ZXV_TMP)/test_vfs > $(ZXV_TMP)/test_vfs.log 2>&1 && echo "[PASS] test_vfs ($$(tail -1 $(ZXV_TMP)/test_vfs.log))" || { tail -40 $(ZXV_TMP)/test_vfs.log; echo "[FAIL] test_vfs"; exit 1; }
+
+.PHONY: test-boot-features
+test-boot-features:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/bootfeat -Isrc/deploy -Isrc/theme -Isrc/icon -Isrc/font -Isrc/bridge -Isrc/update -Isrc/mage -Isrc/reality -Isrc/cards -Isrc/onepolicy -Isrc/zcapital -Isrc/crown -Isrc/ministry -Isrc/ipfs -Isrc/tolvovina -Isrc/surplus -Isrc/edp_risk -Isrc/identity -Isrc/robin_debanks -Isrc/finance -Isrc/vino -Isrc/modbind src/bootfeat/test_boot_features.c src/bootfeat/boot_features.c src/deploy/deploy.c src/theme/theme.c src/icon/icon.c src/font/font.c src/font/script.c src/font/truetype.c src/bridge/bridge.c src/update/update.c src/mage/mage.c src/reality/reality.c src/cards/sigil.c src/onepolicy/onepolicy.c src/zcapital/zcapital.c src/crown/crown.c src/ministry/ministry.c src/finance/triple_ledger.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c -Wl,--wrap=deploy_resolve,--wrap=theme_get,--wrap=icon_for,--wrap=icon_is_builtin,--wrap=font_register,--wrap=font_resolve,--wrap=bridge_classify,--wrap=sig_init,--wrap=sig_add_node,--wrap=sig_add_edge,--wrap=reality_tick,--wrap=op_symbiotic_ok,--wrap=zcap_exchange,--wrap=crown_register,--wrap=ministry_tribute,--wrap=ipfs_cid_from_bytes -o $(ZXV_TMP)/test_boot_features -lm && $(ZXV_TMP)/test_boot_features > $(ZXV_TMP)/test_boot_features.log 2>&1 && echo "[PASS] test_boot_features ($$(tail -1 $(ZXV_TMP)/test_boot_features.log))" || { tail -40 $(ZXV_TMP)/test_boot_features.log; echo "[FAIL] test_boot_features"; exit 1; }
+
+.PHONY: test-blockdev
+test-blockdev:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude src/blockdev/test_blockdev.c src/blockdev/blockdev.c -o $(ZXV_TMP)/test_blockdev && $(ZXV_TMP)/test_blockdev > $(ZXV_TMP)/test_blockdev.log 2>&1 && echo "[PASS] test_blockdev" || { tail -40 $(ZXV_TMP)/test_blockdev.log; echo "[FAIL] test_blockdev"; exit 1; }
+
+# vbe.h uses bool without <stdbool.h>; the recipe supplies it.
+.PHONY: test-vbe
+test-vbe:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -include stdbool.h -Isrc/vbe src/vbe/test_vbe.c src/vbe/vbe.c -o $(ZXV_TMP)/test_vbe && $(ZXV_TMP)/test_vbe > $(ZXV_TMP)/test_vbe.log 2>&1 && echo "[PASS] test_vbe" || { tail -40 $(ZXV_TMP)/test_vbe.log; echo "[FAIL] test_vbe"; exit 1; }
+
+# ramfb and virtio_gpu run against a fake device on a trapped page (SIGSEGV
+# decodes the access, SIGTRAP single-steps it), which needs Linux on x86_64.
+ZXV_TRAP_MMIO := $(filter Linux-x86_64,$(shell uname -s)-$(shell uname -m))
+
+.PHONY: test-ramfb
+test-ramfb:
+ifneq ($(ZXV_TRAP_MMIO),)
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude src/video/test_ramfb.c src/video/ramfb.c -o $(ZXV_TMP)/test_ramfb && $(ZXV_TMP)/test_ramfb > $(ZXV_TMP)/test_ramfb.log 2>&1 && echo "[PASS] test_ramfb" || { tail -40 $(ZXV_TMP)/test_ramfb.log; echo "[FAIL] test_ramfb"; exit 1; }
+else
+	@echo "[SKIP] test_ramfb (needs Linux x86_64)"
+endif
+
+# Two builds: -no-pie keeps the rings below 16 TiB for the legacy 32-bit PFN,
+# PIE reruns the modern paths with non-zero high address halves.
+.PHONY: test-virtio-gpu
+test-virtio-gpu:
+ifneq ($(ZXV_TRAP_MMIO),)
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DHOST_TEST -no-pie -Iinclude -Isrc/virtio -Isrc/modbind src/virtio/test_virtio_gpu.c src/virtio/vring.c src/virtio/virtio_bus.c -o $(ZXV_TMP)/test_virtio_gpu && gcc -std=c11 -O1 -g -Wall -Werror -Wextra -DTEST_HOST -DHOST_TEST -Iinclude -Isrc/virtio -Isrc/modbind src/virtio/test_virtio_gpu.c src/virtio/vring.c src/virtio/virtio_bus.c -o $(ZXV_TMP)/test_virtio_gpu_pie && $(ZXV_TMP)/test_virtio_gpu > $(ZXV_TMP)/test_virtio_gpu.log 2>&1 && VGPU_SKIP_TIMEOUT=1 $(ZXV_TMP)/test_virtio_gpu_pie >> $(ZXV_TMP)/test_virtio_gpu.log 2>&1 && echo "[PASS] test_virtio_gpu" || { tail -40 $(ZXV_TMP)/test_virtio_gpu.log; echo "[FAIL] test_virtio_gpu"; exit 1; }
+else
+	@echo "[SKIP] test_virtio_gpu (needs Linux x86_64)"
+endif
 
 # The libzxv facade (src/engine/zxv_engine.h): compress, route, decompress.
 .PHONY: test-vinea
