@@ -5,8 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # ZEDEC XERO VULPINE — ZEDEC pqOS
 
-[![CI](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml/badge.svg)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml/badge.svg)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml)
+[![CI](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml)
 [![sanitizers + fuzz](https://img.shields.io/badge/CI%20jobs-ASan%20%C2%B7%20UBSan%20%C2%B7%20integer%20%C2%B7%20MSan%20%C2%B7%20fuzz%20%C2%B7%20coverage-informational)](fuzz/README.md)
 
 The CI workflow includes the sanitizer, fuzz-smoke and coverage jobs; see
@@ -190,3 +190,5 @@ SPDX-License-Identifier: Apache-2.0
 Credit: **Michael Laurence Curzi & 36N9 GENETICS LLC**, PO Box 6, Calpine, CA 96124-0006, United States, deal@zedec.ai.
 
 Under section 4(d) of the Apache License, anyone who redistributes this software or a work derived from it must keep the attribution in [`NOTICE`](NOTICE). Vendored third-party code keeps its own licence (see each vendored directory's LICENSE and README.zxv). The software is provided as is, with no warranty of any kind.
+
+**Hardware designs** under [`hardware/`](hardware/) are not covered by the Apache License. They are source-available under the [ZXV Hardware License 1.0](hardware/LICENSE): free for noncommercial use, with an 18% gross royalty to ILLUMAHEART FOUNDATION for commercial manufacture, and required attribution. See [`LICENSE-HARDWARE.md`](LICENSE-HARDWARE.md) and [`hardware/README.md`](hardware/README.md).

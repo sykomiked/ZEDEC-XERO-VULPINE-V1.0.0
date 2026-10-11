@@ -13,6 +13,10 @@ use this Work except in compliance with the License. A copy is in the
 LICENSE file at the repository root and at
 http://www.apache.org/licenses/LICENSE-2.0.
 
+Hardware designs under the hardware/ directory are NOT covered by the Apache
+License. They are licensed under the ZXV Hardware License 1.0; see
+hardware/LICENSE and hardware/NOTICE.
+
 --------------------------------------------------------------------------
 ATTRIBUTION
 --------------------------------------------------------------------------
