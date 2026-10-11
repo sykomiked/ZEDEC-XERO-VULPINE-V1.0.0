@@ -29,14 +29,13 @@ static bool all_zero(const void *p, size_t n)
 {
     const unsigned char *b = p;
     for (size_t i = 0; i < n; i++)
-        if (b[i])
-            return false;
+        if (b[i]) return false;
     return true;
 }
 
 static zxt_status_t ps(const char *s, zxt_treaty_t *t, uint32_t *off)
 {
-    return zxt_parse_sutra(s, (uint32_t)strlen(s), t, off);
+    return zxt_parse_sutra(s, (uint32_t) strlen(s), t, off);
 }
 
 /* Sutra must refuse `s` with `want` at offset `off`, leaving the AST zero. */
@@ -61,11 +60,11 @@ static void accept_rt(const char *s, int line)
     uint32_t n = 0, off = 99;
     zxt_status_t st = ps(s, &t, &off);
     CHECK(st == ZXT_OK && off == 0, "line %d: parse %d@%u", line, st, off);
-    if (st != ZXT_OK)
-        return;
+    if (st != ZXT_OK) return;
     CHECK(zxt_validate(&t) == ZXT_OK, "line %d: validate", line);
     st = zxt_emit_sutra(&t, out, sizeof out, &n);
-    CHECK(st == ZXT_OK && n == strlen(s) && memcmp(out, s, n) == 0, "line %d: sutra round trip", line);
+    CHECK(st == ZXT_OK && n == strlen(s) && memcmp(out, s, n) == 0, "line %d: sutra round trip",
+          line);
     CHECK(zxt_emit_record(&t, rec, sizeof rec) == ZXT_OK, "line %d: emit record", line);
     CHECK(zxt_parse_record(rec, sizeof rec, &u, &off) == ZXT_OK && off == 0 && zxt_equal(&t, &u),
           "line %d: record round trip", line);
@@ -141,7 +140,8 @@ static void test_sutra_base(void)
     CHECK(t.owe[0].from == 0 && t.owe[0].to == 1 && t.owe[0].amount == 1200, "owe 0");
     ACCEPT(BASE);
     ACCEPT("TREATY N USD NET\nPARTY A 0 0 1/1\nEND\n");
-    ACCEPT("TREATY N USD NET\nPARTY A 0 0 0/1\nPARTY B 1 1 1/1\nOWE B A 1\nOWE A B 999999999999999999\nEND\n");
+    ACCEPT("TREATY N USD NET\nPARTY A 0 0 0/1\nPARTY B 1 1 1/1\nOWE B A 1\nOWE A B "
+           "999999999999999999\nEND\n");
     ACCEPT("TREATY ABCDEFGHIJKLMNOPQRSTUVWXYZ0123 EUR NET\n"
            "PARTY ABCDEFGH 999999999999999999 999999999999999999 1/999999937\n"
            "PARTY Z9-Z 1 0 999999936/999999937\nEND\n");
@@ -154,10 +154,8 @@ static void test_sutra_limits(void)
     static char buf[ZXT_SUTRA_MAX + 64];
     /* 16 parties and 64 obligations: the most a treaty can hold */
     int n = sprintf(buf, "TREATY BIG USD SETL\n");
-    for (int i = 0; i < 16; i++)
-        n += sprintf(buf + n, "PARTY P%02d 100 0 1/16\n", i);
-    for (int j = 0; j < 64; j++)
-        n += sprintf(buf + n, "OWE P%02d P%02d 1\n", j % 16, (j + 1) % 16);
+    for (int i = 0; i < 16; i++) n += sprintf(buf + n, "PARTY P%02d 100 0 1/16\n", i);
+    for (int j = 0; j < 64; j++) n += sprintf(buf + n, "OWE P%02d P%02d 1\n", j % 16, (j + 1) % 16);
     strcpy(buf + n, "END\n");
     ACCEPT(buf);
 
@@ -172,12 +170,11 @@ static void test_sutra_limits(void)
     n = sprintf(buf, "TREATY BIG USD SETL\nPARTY A 1 0 1/2\nPARTY B 1 0 1/2\n");
     int at = 0;
     for (int j = 0; j < 65; j++) {
-        if (j == 64)
-            at = n;
+        if (j == 64) at = n;
         n += sprintf(buf + n, "OWE A B 1\n");
     }
     strcpy(buf + n, "END\n");
-    REJECT(buf, ZXT_E_COUNT, (uint32_t)at);
+    REJECT(buf, ZXT_E_COUNT, (uint32_t) at);
 
     /* the longest canonical text fits ZXT_SUTRA_MAX exactly */
     n = sprintf(buf, "TREATY ABCDEFGHIJKLMNOPQRSTUVWXYZ0123 USD SETL\n");
@@ -272,15 +269,21 @@ static void test_sutra_reject(void)
     REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B 0\nEND\n", ZXT_E_OWE, 49);
     REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A C 1\nEND\n", ZXT_E_PARTY, 55);
     REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE C B 1\nEND\n", ZXT_E_PARTY, 53);
-    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B 01\nEND\n", ZXT_E_NUMBER, 57);
-    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B -1\nEND\n", ZXT_E_NUMBER, 57);
+    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B 01\nEND\n", ZXT_E_NUMBER,
+           57);
+    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B -1\nEND\n", ZXT_E_NUMBER,
+           57);
     REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B 1000000000000000000\nEND\n",
            ZXT_E_NUMBER, 57);
-    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A  B 1\nEND\n", ZXT_E_PARTY, 55);
-    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B 1 \nEND\n", ZXT_E_NUMBER, 57);
-    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE  A B 1\nEND\n", ZXT_E_PARTY, 53);
+    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A  B 1\nEND\n", ZXT_E_PARTY,
+           55);
+    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B 1 \nEND\n", ZXT_E_NUMBER,
+           57);
+    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE  A B 1\nEND\n", ZXT_E_PARTY,
+           53);
     REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY A 1 1 1/2\nEND\n", ZXT_E_PARTY, 33);
-    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B 5\x00\nEND\n", ZXT_E_NUMBER, 57);
+    REJECT("TREATY N USD NET\nPARTY A 1 1 1/2\nPARTY B 1 1 1/2\nOWE A B 5\x00\nEND\n", ZXT_E_NUMBER,
+           57);
 }
 
 static void test_args(void)
@@ -290,13 +293,13 @@ static void test_args(void)
     static char out[ZXT_SUTRA_MAX];
     static uint8_t rec[ZXT_REC_LEN + 1];
     uint32_t n = 77;
-    CHECK(zxt_parse_sutra(BASE, (uint32_t)strlen(BASE), NULL, &off) == ZXT_E_ARG && off == 0,
+    CHECK(zxt_parse_sutra(BASE, (uint32_t) strlen(BASE), NULL, &off) == ZXT_E_ARG && off == 0,
           "sutra NULL out");
     memset(&t, 0x5A, sizeof t);
     CHECK(zxt_parse_sutra(NULL, 4, &t, &off) == ZXT_E_ARG && all_zero(&t, sizeof t),
           "sutra NULL src clears out");
-    CHECK(zxt_parse_sutra(BASE, (uint32_t)strlen(BASE), &t, NULL) == ZXT_OK, "NULL err_off ok");
-    CHECK(zxt_parse_sutra(BASE, (uint32_t)strlen(BASE) - 1u, &t, NULL) == ZXT_E_SYNTAX,
+    CHECK(zxt_parse_sutra(BASE, (uint32_t) strlen(BASE), &t, NULL) == ZXT_OK, "NULL err_off ok");
+    CHECK(zxt_parse_sutra(BASE, (uint32_t) strlen(BASE) - 1u, &t, NULL) == ZXT_E_SYNTAX,
           "NULL err_off on failure");
     CHECK(zxt_parse_record(rec, ZXT_REC_LEN, NULL, &off) == ZXT_E_ARG, "record NULL out");
     memset(&t, 0x5A, sizeof t);
@@ -315,7 +318,7 @@ static void test_args(void)
     CHECK(zxt_emit_record(&t, NULL, ZXT_REC_LEN) == ZXT_E_ARG, "emit record NULL");
     CHECK(zxt_emit_record(NULL, rec, ZXT_REC_LEN) == ZXT_E_ARG, "emit record NULL t");
     /* capacity */
-    uint32_t len = (uint32_t)strlen(BASE);
+    uint32_t len = (uint32_t) strlen(BASE);
     CHECK(zxt_emit_sutra(&t, out, len, &n) == ZXT_OK && n == len, "emit sutra exact cap");
     n = 77;
     CHECK(zxt_emit_sutra(&t, out, len - 1u, &n) == ZXT_E_CAP && n == 0, "emit sutra cap-1");
@@ -325,7 +328,10 @@ static void test_args(void)
 
 /* --------------------------------------------------------------- RECORD */
 
-static void put(uint8_t *rec, uint32_t off, const char *s) { memcpy(rec + off, s, strlen(s)); }
+static void put(uint8_t *rec, uint32_t off, const char *s)
+{
+    memcpy(rec + off, s, strlen(s));
+}
 
 static void base_record(uint8_t *rec)
 {
@@ -344,16 +350,16 @@ static void rec_reject(const char *what, uint32_t off, const char *bytes, zxt_st
     put(rec, off, bytes);
     memset(&t, 0xA5, sizeof t);
     zxt_status_t st = zxt_parse_record(rec, ZXT_REC_LEN, &t, &o);
-    CHECK(st == want && o == want_off && (st == ZXT_OK || all_zero(&t, sizeof t)), "line %d %s: got %d@%u want %d@%u",
-          line, what, st, o, want, want_off);
+    CHECK(st == want && o == want_off && (st == ZXT_OK || all_zero(&t, sizeof t)),
+          "line %d %s: got %d@%u want %d@%u", line, what, st, o, want, want_off);
 }
 #define REC_REJECT(w, off, b, st, wo) rec_reject((w), (off), (b), (st), (wo), __LINE__)
 
-#define P0 46u              /* party 0 */
-#define P1 (46u + 64u)      /* party 1 */
-#define P2 (46u + 128u)     /* party 2: unused in BASE */
-#define W0 (46u + 1024u)    /* owe 0 */
-#define W1 (W0 + 23u)       /* owe 1: unused in BASE */
+#define P0 46u           /* party 0 */
+#define P1 (46u + 64u)   /* party 1 */
+#define P2 (46u + 128u)  /* party 2: unused in BASE */
+#define W0 (46u + 1024u) /* owe 0 */
+#define W1 (W0 + 23u)    /* owe 1: unused in BASE */
 
 static void test_record(void)
 {
@@ -363,9 +369,11 @@ static void test_record(void)
     CHECK(ZXT_REC_LEN == 2542u, "record length");
     base_record(rec);
     CHECK(memcmp(rec, "ZXT1CORRIDOR-7                    USDSETL02001", 46) == 0, "header bytes");
-    CHECK(memcmp(rec + P0, "ACME    +000000000000005000+000000000000004000000000001000000002", 64) == 0,
+    CHECK(memcmp(rec + P0, "ACME    +000000000000005000+000000000000004000000000001000000002",
+                 64) == 0,
           "party 0 bytes");
-    CHECK(memcmp(rec + P2, "        +000000000000000000+000000000000000000000000000000000000", 64) == 0,
+    CHECK(memcmp(rec + P2, "        +000000000000000000+000000000000000000000000000000000000",
+                 64) == 0,
           "unused party bytes (INITIALIZE)");
     CHECK(memcmp(rec + W0, "0102+000000000000001200", 23) == 0, "owe 0 bytes");
     CHECK(memcmp(rec + W1, "0000+000000000000000000", 23) == 0, "unused owe bytes");
@@ -548,7 +556,8 @@ static void test_equal(void)
 #undef NE
     /* a parse of a different treaty into a used struct leaves no trace */
     CHECK(ps("TREATY N USD NET\nPARTY A 1 1 1/1\nEND\n", &u, NULL) == ZXT_OK, "reuse parse");
-    CHECK(u.party[1].id[0] == 0 && u.party[1].deposit == 0 && u.owe[0].amount == 0, "reuse is clean");
+    CHECK(u.party[1].id[0] == 0 && u.party[1].deposit == 0 && u.owe[0].amount == 0,
+          "reuse is clean");
 }
 
 int main(void)

@@ -35,7 +35,7 @@ static const char TRI[] = "TREATY CORRIDOR-7 USD SETL\n"
 static zxt_treaty_t parse(const char *s)
 {
     zxt_treaty_t t;
-    zxt_status_t st = zxt_parse_sutra(s, (uint32_t)strlen(s), &t, NULL);
+    zxt_status_t st = zxt_parse_sutra(s, (uint32_t) strlen(s), &t, NULL);
     CHECK(st == ZXT_OK, "fixture parses (%d)", st);
     return t;
 }
@@ -55,16 +55,17 @@ static void ref_share(const zxt_treaty_t *t, uint64_t total, int64_t *out)
     uint64_t given = 0;
     bool got[ZXT_MAX_PARTIES] = {0};
     for (uint32_t i = 0; i < t->n_party; i++) {
-        unsigned __int128 p = (unsigned __int128)total * t->party[i].w_num;
-        out[i] = (int64_t)(p / t->party[i].w_den);
+        unsigned __int128 p = (unsigned __int128) total * t->party[i].w_num;
+        out[i] = (int64_t) (p / t->party[i].w_den);
         rem[i] = p % t->party[i].w_den;
-        given += (uint64_t)out[i];
+        given += (uint64_t) out[i];
     }
     while (given < total) {
         int best = -1;
         for (uint32_t i = 0; i < t->n_party; i++)
-            if (!got[i] && (best < 0 || rem[i] * t->party[best].w_den > rem[best] * t->party[i].w_den))
-                best = (int)i;
+            if (!got[i] &&
+                (best < 0 || rem[i] * t->party[best].w_den > rem[best] * t->party[i].w_den))
+                best = (int) i;
         got[best] = true;
         out[best]++;
         given++;
@@ -81,13 +82,14 @@ static void test_setl(void)
     CHECK(r.leg[0].from == 0 && r.leg[0].to == 2 && r.leg[0].amount == 600000, "leg 0");
     CHECK(r.leg[1].from == 0 && r.leg[1].to == 1 && r.leg[1].amount == 500000, "leg 1");
     /* 0.08889% of 1 100 000 = 977.79: 977 charged, the rest carried */
-    CHECK(r.fees == 977, "fees %lld", (long long)r.fees);
-    CHECK(r.balance[0] == 5000000 - 1100000 - 977 - 4000, "acme balance %lld", (long long)r.balance[0]);
+    CHECK(r.fees == 977, "fees %lld", (long long) r.fees);
+    CHECK(r.balance[0] == 5000000 - 1100000 - 977 - 4000, "acme balance %lld",
+          (long long) r.balance[0]);
     CHECK(r.balance[1] == 3000000 + 500000 - 3000, "beta balance");
     CHECK(r.balance[2] == 900000 + 600000, "gamma balance");
     /* 244 into the dividend bucket: 81.33, 34.86, 127.81 -> 81, 35, 128 */
     uint64_t div = zxv_engine_bucket(&ws, PAY_ASSURE_VBILL_DIVIDEND);
-    CHECK(div == 244, "dividend bucket %llu", (unsigned long long)div);
+    CHECK(div == 244, "dividend bucket %llu", (unsigned long long) div);
     CHECK(r.dividend[0] == 81 && r.dividend[1] == 35 && r.dividend[2] == 128, "dividend shares");
     int64_t ref[ZXT_MAX_PARTIES];
     ref_share(&t, div, ref);
@@ -97,12 +99,12 @@ static void test_setl(void)
     CHECK(zxv_engine_check(&ws), "engine invariants hold after the run");
     /* conservation: deposits = balances + claims + fees */
     int64_t lhs = 5000000 + 3000000 + 900000, rhs = r.fees + 4000 + 3000;
-    for (int i = 0; i < 3; i++)
-        rhs += r.balance[i];
-    CHECK(lhs == rhs, "conservation %lld vs %lld", (long long)lhs, (long long)rhs);
+    for (int i = 0; i < 3; i++) rhs += r.balance[i];
+    CHECK(lhs == rhs, "conservation %lld vs %lld", (long long) lhs, (long long) rhs);
     /* E3 determinism */
     memset(&r2, 0x77, sizeof r2);
-    CHECK(zxt_exec(&t, &ws, SEED, &r2) == ZXT_OK && memcmp(&r, &r2, sizeof r) == 0, "deterministic");
+    CHECK(zxt_exec(&t, &ws, SEED, &r2) == ZXT_OK && memcmp(&r, &r2, sizeof r) == 0,
+          "deterministic");
 }
 
 static void test_net(void)
@@ -144,7 +146,8 @@ static void test_fail_closed(void)
 
     /* a payer that cannot cover its legs */
     t = parse("TREATY P USD SETL\nPARTY A 100 0 1/2\nPARTY B 0 0 1/2\nOWE A B 100\nEND\n");
-    CHECK(zxt_exec(&t, &ws, SEED, &r) == ZXT_E_EXEC + ZXV_E_FUNDS && result_zero_but_status(&r, r.status),
+    CHECK(zxt_exec(&t, &ws, SEED, &r) == ZXT_E_EXEC + ZXV_E_FUNDS &&
+              result_zero_but_status(&r, r.status),
           "uncovered fee fails closed");
     t.op = ZXT_OP_NET;
     CHECK(zxt_exec(&t, &ws, SEED, &r) == ZXT_OK && r.balance[0] == 100, "same treaty nets");
@@ -196,9 +199,11 @@ static void test_dividend_rule(void)
     int n = sprintf(buf, "TREATY W USD SETL\n");
     /* weights: 1/2, 1/4, ..., 1/2^15, 1/2^15 */
     for (int i = 0; i < 16; i++)
-        n += sprintf(buf + n, "PARTY P%02d 100000000000000 0 1/%u\n", i, 1u << (i < 15 ? i + 1 : 15));
+        n += sprintf(buf + n, "PARTY P%02d 100000000000000 0 1/%u\n", i,
+                     1u << (i < 15 ? i + 1 : 15));
     for (int j = 0; j < 15; j++)
-        n += sprintf(buf + n, "OWE P%02d P%02d %llu\n", j, j + 1, 12345678901ULL * (unsigned)(j + 3));
+        n += sprintf(buf + n, "OWE P%02d P%02d %llu\n", j, j + 1,
+                     12345678901ULL * (unsigned) (j + 3));
     strcpy(buf + n, "END\n");
     zxt_treaty_t t = parse(buf);
     zxt_result_t r;
@@ -207,10 +212,9 @@ static void test_dividend_rule(void)
     int64_t ref[ZXT_MAX_PARTIES], sum = 0;
     ref_share(&t, div, ref);
     CHECK(memcmp(ref, r.dividend, sizeof ref) == 0, "16-party dividend == reference");
-    for (int i = 0; i < 16; i++)
-        sum += r.dividend[i];
-    CHECK(sum == (int64_t)div && div > 1000, "dividend conserved (%lld of %llu)", (long long)sum,
-          (unsigned long long)div);
+    for (int i = 0; i < 16; i++) sum += r.dividend[i];
+    CHECK(sum == (int64_t) div && div > 1000, "dividend conserved (%lld of %llu)", (long long) sum,
+          (unsigned long long) div);
 
     /* ties go to the lowest index: three equal thirds of a bucket that is
      * 2 mod 3 give the extra units to parties 0 and 1 */
@@ -219,14 +223,13 @@ static void test_dividend_rule(void)
     for (int k = 0; k < 64; k++, t.owe[0].amount += 1000) {
         CHECK(zxt_exec(&t, &ws, SEED, &r) == ZXT_OK, "thirds run");
         div = zxv_engine_bucket(&ws, PAY_ASSURE_VBILL_DIVIDEND);
-        if (div % 3 == 2)
-            break;
+        if (div % 3 == 2) break;
     }
-    CHECK(div % 3 == 2, "bucket %llu is 2 mod 3", (unsigned long long)div);
-    CHECK(r.dividend[0] == (int64_t)(div / 3 + 1) && r.dividend[1] == (int64_t)(div / 3 + 1) &&
-              r.dividend[2] == (int64_t)(div / 3),
-          "ties to the lowest index: %lld %lld %lld", (long long)r.dividend[0],
-          (long long)r.dividend[1], (long long)r.dividend[2]);
+    CHECK(div % 3 == 2, "bucket %llu is 2 mod 3", (unsigned long long) div);
+    CHECK(r.dividend[0] == (int64_t) (div / 3 + 1) && r.dividend[1] == (int64_t) (div / 3 + 1) &&
+              r.dividend[2] == (int64_t) (div / 3),
+          "ties to the lowest index: %lld %lld %lld", (long long) r.dividend[0],
+          (long long) r.dividend[1], (long long) r.dividend[2]);
     /* near the ledger's 2^59 line limit with 9-digit weights: the dividend
      * times the weight needs more than 64 bits, so the 128-bit share
      * arithmetic is exercised in full */
@@ -237,8 +240,9 @@ static void test_dividend_rule(void)
     div = zxv_engine_bucket(&ws, PAY_ASSURE_VBILL_DIVIDEND);
     ref_share(&t, div, ref);
     CHECK(div > (1ULL << 40) && memcmp(ref, r.dividend, 2 * sizeof ref[0]) == 0,
-          "huge dividend %llu == reference (%lld %lld vs %lld %lld)", (unsigned long long)div,
-          (long long)r.dividend[0], (long long)r.dividend[1], (long long)ref[0], (long long)ref[1]);
+          "huge dividend %llu == reference (%lld %lld vs %lld %lld)", (unsigned long long) div,
+          (long long) r.dividend[0], (long long) r.dividend[1], (long long) ref[0],
+          (long long) ref[1]);
     t.party[0].w_num = 1;
     t.party[0].w_den = 999999937;
     t.party[1].w_num = 999999936;
@@ -262,12 +266,15 @@ static void test_result_record(void)
     CHECK(ZXT_RES_LEN == 2422u, "result length");
     zxt_exec(&t, &ws, SEED, &r);
     CHECK(zxt_emit_result(&r, rec, ZXT_RES_LEN) == ZXT_OK, "emit result");
-    CHECK(memcmp(rec, "ZXR1+00000000003002+000000000000000977", 38) == 0, "result head: %.38s", rec);
+    CHECK(memcmp(rec, "ZXR1+00000000003002+000000000000000977", 38) == 0, "result head: %.38s",
+          rec);
     CHECK(memcmp(rec + 38, "-000000000001100000+000000000003895023+000000000000000081", 57) == 0,
           "party 0: %.57s", rec + 38);
-    CHECK(memcmp(rec + 38 + 2 * 57, "+000000000000600000+000000000001500000+000000000000000128", 57) == 0,
+    CHECK(memcmp(rec + 38 + 2 * 57, "+000000000000600000+000000000001500000+000000000000000128",
+                 57) == 0,
           "party 2");
-    CHECK(memcmp(rec + 38 + 3 * 57, "+000000000000000000+000000000000000000+000000000000000000", 57) == 0,
+    CHECK(memcmp(rec + 38 + 3 * 57, "+000000000000000000+000000000000000000+000000000000000000",
+                 57) == 0,
           "unused party");
     const uint8_t *legs = rec + 38 + 16 * 57;
     CHECK(memcmp(legs, "0103+000000000000600000", 23) == 0 &&
@@ -300,7 +307,8 @@ static void test_result_record(void)
     e.where = 99999;
     e.n_party = 16;
     e.n_leg = 64;
-    CHECK(zxt_emit_result(&e, rec, ZXT_RES_LEN) == ZXT_OK && memcmp(rec, "ZXR1-99999999916064", 19) == 0,
+    CHECK(zxt_emit_result(&e, rec, ZXT_RES_LEN) == ZXT_OK &&
+              memcmp(rec, "ZXR1-99999999916064", 19) == 0,
           "widest header: %.19s", rec);
 }
 
@@ -314,16 +322,19 @@ static void test_cobol_entry(void)
     memcpy(seed, trec + 4, 32);
     zxt_exec(&t, &ws, seed, &r);
     zxt_emit_result(&r, want, sizeof want);
-    CHECK(ZXV_ENGINE((const char *)trec, (char *)res) == ZXT_OK && memcmp(res, want, sizeof res) == 0,
+    CHECK(ZXV_ENGINE((const char *) trec, (char *) res) == ZXT_OK &&
+              memcmp(res, want, sizeof res) == 0,
           "ZXV_ENGINE == parse + exec + emit");
     /* a refused record: status and offset, nothing else */
     memcpy(trec + 46 + 27, "+000000000005000001", 19); /* ACME claim > deposit */
-    CHECK(ZXV_ENGINE((const char *)trec, (char *)res) == ZXT_E_CLAIM, "refused record");
+    CHECK(ZXV_ENGINE((const char *) trec, (char *) res) == ZXT_E_CLAIM, "refused record");
     CHECK(memcmp(res, "ZXR1-001100046000", 17) == 0, "refusal head: %.19s", res);
     CHECK(memcmp(res + 19, "+000000000000000000", 19) == 0 &&
-              memcmp(res + 38, "+000000000000000000+000000000000000000+000000000000000000", 57) == 0,
+              memcmp(res + 38, "+000000000000000000+000000000000000000+000000000000000000", 57) ==
+                  0,
           "refusal carries no numbers");
-    CHECK(ZXV_ENGINE(NULL, (char *)res) == ZXT_E_ARG && ZXV_ENGINE((const char *)trec, NULL) == ZXT_E_ARG,
+    CHECK(ZXV_ENGINE(NULL, (char *) res) == ZXT_E_ARG &&
+              ZXV_ENGINE((const char *) trec, NULL) == ZXT_E_ARG,
           "NULL records");
 }
 

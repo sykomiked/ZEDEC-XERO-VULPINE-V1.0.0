@@ -26,27 +26,42 @@ static uint64_t rnd(void)
 
 static int64_t value(void)
 {
-    static const int64_t edge[] = {0, 1, 2, 3, 7, 9, 10, 99, 999999999, 1000000000, 1000000001,
-                                   31622776, 316227766, 999999999999999999LL, 999999999999999998LL,
-                                   500000000000000000LL, 499999999999999999LL, 500000000000000001LL,
-                                   333333333333333333LL, 576460752303423488LL};
+    static const int64_t edge[] = {0,
+                                   1,
+                                   2,
+                                   3,
+                                   7,
+                                   9,
+                                   10,
+                                   99,
+                                   999999999,
+                                   1000000000,
+                                   1000000001,
+                                   31622776,
+                                   316227766,
+                                   999999999999999999LL,
+                                   999999999999999998LL,
+                                   500000000000000000LL,
+                                   499999999999999999LL,
+                                   500000000000000001LL,
+                                   333333333333333333LL,
+                                   576460752303423488LL};
     int64_t v;
     if (rnd() % 3 == 0) {
         v = edge[rnd() % (sizeof edge / sizeof edge[0])];
     } else {
         v = 0;
-        for (uint64_t d = 1 + rnd() % 18; d > 0; d--)
-            v = v * 10 + (int64_t)(rnd() % 10);
+        for (uint64_t d = 1 + rnd() % 18; d > 0; d--) v = v * 10 + (int64_t) (rnd() % 10);
     }
     return rnd() % 2 ? -v : v;
 }
 
 static void put_s18(char *d, int64_t v)
 {
-    uint64_t m = (uint64_t)(v < 0 ? -v : v);
+    uint64_t m = (uint64_t) (v < 0 ? -v : v);
     d[0] = v < 0 ? '-' : '+';
     for (int i = 18; i >= 1; i--) {
-        d[i] = (char)('0' + m % 10);
+        d[i] = (char) ('0' + m % 10);
         m /= 10;
     }
 }
@@ -54,11 +69,9 @@ static void put_s18(char *d, int64_t v)
 static bool get_s18(const char *s, int64_t *v)
 {
     int64_t m = 0;
-    if (s[0] != '+' && s[0] != '-')
-        return false;
+    if (s[0] != '+' && s[0] != '-') return false;
     for (int i = 1; i <= 18; i++) {
-        if (s[i] < '0' || s[i] > '9')
-            return false;
+        if (s[i] < '0' || s[i] > '9') return false;
         m = m * 10 + (s[i] - '0');
     }
     *v = s[0] == '-' ? -m : m;
@@ -71,8 +84,7 @@ int main(int argc, char **argv)
         unsigned long long n = strtoull(argv[2], NULL, 10);
         g_rng = strtoull(argv[3], NULL, 10) * 0x9E3779B97F4A7C15ULL + 1;
         FILE *f = fopen(argv[4], "w");
-        if (!f)
-            return 2;
+        if (!f) return 2;
         char line[40];
         for (unsigned long long i = 0; i < n; i++) {
             line[0] = "ASMD"[rnd() % 4];
@@ -85,8 +97,7 @@ int main(int argc, char **argv)
     }
     if (argc == 4 && strcmp(argv[1], "check") == 0) {
         FILE *v = fopen(argv[2], "r"), *o = fopen(argv[3], "r");
-        if (!v || !o)
-            return 2;
+        if (!v || !o) return 2;
         char vl[64], ol[64];
         unsigned long long n = 0, bad = 0, size_err = 0, by_op[4] = {0};
         while (fgets(vl, sizeof vl, v)) {
@@ -98,27 +109,41 @@ int main(int argc, char **argv)
             }
             bool ok;
             switch (vl[0]) {
-            case 'A': ok = zxt_pic_add(a, b, &r); by_op[0]++; break;
-            case 'S': ok = zxt_pic_sub(a, b, &r); by_op[1]++; break;
-            case 'M': ok = zxt_pic_mul(a, b, &r); by_op[2]++; break;
-            default: ok = zxt_pic_div(a, b, &r, &rem); by_op[3]++; break;
+            case 'A':
+                ok = zxt_pic_add(a, b, &r);
+                by_op[0]++;
+                break;
+            case 'S':
+                ok = zxt_pic_sub(a, b, &r);
+                by_op[1]++;
+                break;
+            case 'M':
+                ok = zxt_pic_mul(a, b, &r);
+                by_op[2]++;
+                break;
+            default:
+                ok = zxt_pic_div(a, b, &r, &rem);
+                by_op[3]++;
+                break;
             }
             n++;
             size_err += !ok;
             bool cobol_ok = ol[0] == 'K';
             if (ok != cobol_ok || (ok && (r != cr || rem != crem))) {
                 if (bad++ < 10)
-                    printf("line %llu: %c %lld %lld: C %s %lld r%lld, COBOL %c %lld r%lld\n", n, vl[0],
-                           (long long)a, (long long)b, ok ? "ok" : "size error", (long long)r,
-                           (long long)rem, ol[0], (long long)cr, (long long)crem);
+                    printf("line %llu: %c %lld %lld: C %s %lld r%lld, COBOL %c %lld r%lld\n", n,
+                           vl[0], (long long) a, (long long) b, ok ? "ok" : "size error",
+                           (long long) r, (long long) rem, ol[0], (long long) cr, (long long) crem);
             }
         }
         if (fgets(ol, sizeof ol, o)) {
             printf("COBOL wrote more answers than vectors\n");
             return 1;
         }
-        printf("%s: %llu vectors (A %llu, S %llu, M %llu, D %llu), %llu size errors, %llu mismatches\n",
-               bad || !n ? "FAIL" : "PASS", n, by_op[0], by_op[1], by_op[2], by_op[3], size_err, bad);
+        printf("%s: %llu vectors (A %llu, S %llu, M %llu, D %llu), %llu size errors, %llu "
+               "mismatches\n",
+               bad || !n ? "FAIL" : "PASS", n, by_op[0], by_op[1], by_op[2], by_op[3], size_err,
+               bad);
         return bad || !n || !size_err ? 1 : 0;
     }
     fprintf(stderr, "usage: pic_parity gen N SEED FILE | check VEC OUT\n");

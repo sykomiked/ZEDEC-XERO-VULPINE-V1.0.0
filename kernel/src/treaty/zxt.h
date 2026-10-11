@@ -59,24 +59,24 @@
 #include <stdint.h>
 
 #define ZXT_MAX_PARTIES 16u
-#define ZXT_MAX_OWES 64u
-#define ZXT_NAME_MAX 30u
-#define ZXT_ID_MAX 8u
-#define ZXT_PIC18_MAX 999999999999999999LL /* PIC S9(18) */
-#define ZXT_WEIGHT_MAX 999999999u          /* PIC 9(9)   */
+#define ZXT_MAX_OWES    64u
+#define ZXT_NAME_MAX    30u
+#define ZXT_ID_MAX      8u
+#define ZXT_PIC18_MAX   999999999999999999LL /* PIC S9(18) */
+#define ZXT_WEIGHT_MAX  999999999u           /* PIC 9(9)   */
 
 /* RECORD layout (copybooks/ZXVTRTY.cpy), byte offsets from 0. */
 #define ZXT_REC_MAGIC "ZXT1"
-#define ZXT_REC_HEAD 46u   /* MAGIC 4, NAME 30, ASSET 3, OP 4, NPARTY 2, NOWE 3 */
-#define ZXT_REC_PARTY 64u  /* ID 8, DEPOSIT 19, CLAIM 19, WNUM 9, WDEN 9      */
-#define ZXT_REC_OWE 23u    /* FROM 2, TO 2, AMOUNT 19                         */
-#define ZXT_REC_LEN (ZXT_REC_HEAD + ZXT_MAX_PARTIES * ZXT_REC_PARTY + ZXT_MAX_OWES * ZXT_REC_OWE)
+#define ZXT_REC_HEAD  46u /* MAGIC 4, NAME 30, ASSET 3, OP 4, NPARTY 2, NOWE 3 */
+#define ZXT_REC_PARTY 64u /* ID 8, DEPOSIT 19, CLAIM 19, WNUM 9, WDEN 9      */
+#define ZXT_REC_OWE   23u /* FROM 2, TO 2, AMOUNT 19                         */
+#define ZXT_REC_LEN   (ZXT_REC_HEAD + ZXT_MAX_PARTIES * ZXT_REC_PARTY + ZXT_MAX_OWES * ZXT_REC_OWE)
 
 /* The longest canonical Sutra text: header, 16 full PARTY lines, 64 full
  * OWE lines and END. */
-#define ZXT_SUTRA_MAX (7u + ZXT_NAME_MAX + 5u + 5u + \
-                       ZXT_MAX_PARTIES * (6u + ZXT_ID_MAX + 19u + 19u + 21u) + \
-                       ZXT_MAX_OWES * (4u + 2u * (ZXT_ID_MAX + 1u) + 19u) + 4u)
+#define ZXT_SUTRA_MAX                                                                              \
+    (7u + ZXT_NAME_MAX + 5u + 5u + ZXT_MAX_PARTIES * (6u + ZXT_ID_MAX + 19u + 19u + 21u) +         \
+     ZXT_MAX_OWES * (4u + 2u * (ZXT_ID_MAX + 1u) + 19u) + 4u)
 
 typedef enum {
     ZXT_OK = 0,

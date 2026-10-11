@@ -32,12 +32,10 @@ int main(int argc, char **argv)
     zxt_treaty_t t;
     zxt_result_t r;
     int ok = 0, want = 5;
-    if (argc != 2)
-        return 2;
+    if (argc != 2) return 2;
     FILE *f = fopen(argv[1], "r");
-    if (!f)
-        return 2;
-    if (zxt_parse_sutra(TRI, (uint32_t)strlen(TRI), &t, NULL) != ZXT_OK ||
+    if (!f) return 2;
+    if (zxt_parse_sutra(TRI, (uint32_t) strlen(TRI), &t, NULL) != ZXT_OK ||
         zxt_emit_record(&t, trec, sizeof trec) != ZXT_OK)
         return 1;
     if (zxt_exec(&t, &ws, trec + 4, &r) != ZXT_OK || zxt_emit_result(&r, res, sizeof res) != ZXT_OK)

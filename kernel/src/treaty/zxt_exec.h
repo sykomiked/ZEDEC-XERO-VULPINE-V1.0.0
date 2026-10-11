@@ -39,14 +39,14 @@
 
 /* RESULT record (copybooks/ZXVRSLT.cpy). */
 #define ZXT_RES_MAGIC "ZXR1"
-#define ZXT_RES_HEAD 38u  /* MAGIC 4, STATUS 5, WHERE 5, NPARTY 2, NLEG 3, FEES 19 */
+#define ZXT_RES_HEAD  38u /* MAGIC 4, STATUS 5, WHERE 5, NPARTY 2, NLEG 3, FEES 19 */
 #define ZXT_RES_PARTY 57u /* NET 19, BALANCE 19, DIVIDEND 19                       */
-#define ZXT_RES_LEG 23u   /* FROM 2, TO 2, AMOUNT 19                               */
-#define ZXT_RES_LEN (ZXT_RES_HEAD + ZXT_MAX_PARTIES * ZXT_RES_PARTY + ZXT_MAX_OWES * ZXT_RES_LEG)
+#define ZXT_RES_LEG   23u /* FROM 2, TO 2, AMOUNT 19                               */
+#define ZXT_RES_LEN   (ZXT_RES_HEAD + ZXT_MAX_PARTIES * ZXT_RES_PARTY + ZXT_MAX_OWES * ZXT_RES_LEG)
 
 typedef struct {
-    int32_t status;  /* ZXT_OK or a negative code              */
-    uint32_t where;  /* parse fault offset (zxt_cobol.c), else 0 */
+    int32_t status; /* ZXT_OK or a negative code              */
+    uint32_t where; /* parse fault offset (zxt_cobol.c), else 0 */
     uint8_t n_party;
     uint8_t n_leg;
     int64_t fees;
