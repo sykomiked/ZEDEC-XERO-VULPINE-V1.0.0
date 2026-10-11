@@ -190,7 +190,7 @@ jobs:
       ZXV_NOTARY_ISSUER: ${{ secrets.ZXV_NOTARY_ISSUER }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install tools
@@ -310,12 +310,12 @@ jobs:
       LEAN_SHA256: af71a2569a9f68337de2434829b3008cd8e32c436e9cb6bd8c84a2c2ba3585c9
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
       - name: Cache pinned tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: proofs/.tools
           key: proofs-tools-tla${{ env.TLA_VERSION }}-lean${{ env.LEAN_VERSION }}
