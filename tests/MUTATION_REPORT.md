@@ -225,3 +225,31 @@ cross-reduction in mul). Measured with the CI subset command: 86 of 90
 mutants killed (95.6%; 9 do not compile). The 4 survivors are the
 `rmag_init` allocation-failure guards, which need allocator fault injection
 (see above). The CI baseline is raised to 0.9555.
+
+## mk_order settlement paths with the end-to-end harness (gap A6)
+
+Target `mk_order_settle`: `kernel/src/market/mk_order.c` lines 98-135,
+214-275, 385-398 and 708-727 (release, full refund, pay, confirm and the
+PAID/FULFILLED timers), measured with host gcc 13, 117 mutants, no compile
+errors.
+
+| phase | command | score |
+|---|---|---|
+| before | `make test-market` | 71.8% (84 killed, 33 survived) |
+| after | `make test-market` + `t2_e2e` | 80.3% (94 killed, 23 survived) |
+| e2e alone (before the tax, two-line and settle-amount checks were added) | `t2_e2e` | 50.9% (54 killed, 52 survived, 11 compile errors) |
+
+The 23 survivors are equivalent or unreachable on these paths:
+
+| lines | why it survives |
+|---|---|
+| 102-104 | `returned_base` is 0 whenever a whole order is released, and the overflow guard is unreachable by design (fee(a+b) - fee(a) <= b). |
+| 122 | `complete` sets `settled` itself right after. |
+| 216-218 | Loop variants that read a zeroed line past `n_lines` or a line not yet refunded: `k` is never 0 and `refunded_qty` is 0 here. |
+| 234 | The payment window: every caller that ticks the clock first sees the order EXPIRED before this guard. |
+| 243, 247, 256, 258 | Fulfilment deadline: ties between lines with the same window, the booking-slot formula (no bookings here), and a decrementing loop over identical lines. |
+| 710, 713 | The timer loop's bound reads a zeroed tail, and unused orders are FREE (no case). |
+
+The harness's two bogus order handles kill the NULL-order guards at 230 and 388
+(the clearing node would crash). The target is listed in `targets.json` but
+not in the CI subset.

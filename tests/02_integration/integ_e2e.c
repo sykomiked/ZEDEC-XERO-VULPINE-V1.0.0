@@ -32,6 +32,10 @@
  * heartbeat timeout), and compliance freezes on the buyer or escrow ledger
  * accounts that make the ledger refuse captures, releases and refunds.
  *
+ * Odd jobs carry a second, differently taxed line; the operator's sales tax
+ * is remitted by the facilitator in two seeds of three and by the seller in
+ * the third (both kinds of release).
+ *
  * PROPERTIES
  *   E1 conservation, on EVERY clearing cycle at C (once a simulated second):
  *      pay_ledger L2/L3 and the provenance chain; supply (holder DEBIT ==
@@ -41,7 +45,11 @@
  *      market's order records; the fee buckets hold exactly
  *      pay_assure_split of every sweep.
  *   E2 rollback: a settlement the ledger refuses changes no ledger account,
- *      no journal entry and no order (the market rolls back too).
+ *      no journal entry and no order (the market rolls back too). Every
+ *      settlement names its own order and moves exactly its money: a
+ *      capture the order total, a release all of escrow, a refund one whole
+ *      line. Every paid order's fulfilment deadline is the store's window,
+ *      and a handle that names no order is refused (MK_ERR_NOT_FOUND).
  *   E3 escrow timeout: an order whose fulfilment is late is REFUNDED to the
  *      minor unit, the seller gets nothing for it, and the late fulfilment
  *      is refused.
@@ -81,6 +89,7 @@ enum { NA = 0, NB = 1, NC = 2 };
 #define FULFIL_S   20u
 #define RELEASE_S  15u
 #define PRICE      1234567u
+#define PRICE2     345678u /* the add-on line some orders carry */
 #define START      1000000000u
 #define MAX_JOBS   12u
 #define MAX_MSG    1024u
@@ -188,7 +197,8 @@ static mk_pay_t MP;
 static uint32_t acct_issuer, acct_a, acct_b, acct_escrow, acct_commons, acct_tax;
 static uint32_t acct_bucket[PAY_ASSURE_BUCKETS];
 static uint8_t vfv;
-static uint16_t store_h, listing_h, cart_h;
+static uint16_t store_h, listing_h, listing2_h, cart_h;
+static bool remit_tax; /* the facilitator remits sales tax (else the seller does) */
 static uint16_t handle_of_job[MAX_JOBS];
 
 typedef struct {
@@ -198,7 +208,7 @@ typedef struct {
     /* transport ground truth */
     uint64_t stale_tried, stale_accepted, dup_tried, dup_accepted, dup_suppressed;
     /* violations: must stay 0 */
-    uint64_t cycles, conserve_fail, rollback_fail, result_bad, end_fail;
+    uint64_t cycles, conserve_fail, rollback_fail, result_bad, end_fail, settle_bad, probes_refused;
     /* fee sweeps */
     uint64_t swept, bucket_expect[PAY_ASSURE_BUCKETS];
 } stats_t;
@@ -232,6 +242,23 @@ static uint32_t acct_of(void *ctx, const mk_id_t *id, uint8_t ccy)
     return MK_PAY_NONE;
 }
 
+/* A capture takes the order total; a release empties escrow; a refund (one
+ * per line, M4) gives the buyer back what is left of one whole line. */
+static bool settle_amount_ok(const mk_order_t *o, const mk_settle_t *s)
+{
+    uint64_t in = s->from_buyer + s->from_seller + s->from_commons + s->from_tax;
+    uint64_t out = s->to_seller + s->to_commons + s->to_tax + s->to_buyer;
+    if (s->kind == MK_SETTLE_CAPTURE) return in == o->total && out == 0;
+    if (out < in) return false;
+    if (s->kind == MK_SETTLE_RELEASE) return out - in == o->held_base + o->held_tax;
+    if (s->kind != MK_SETTLE_REFUND || s->to_buyer != out - in) return false;
+    for (uint32_t i = 0; i < o->n_lines; i++)
+        if (o->line[i].refunded_qty < o->line[i].qty &&
+            o->line[i].line_total - o->line[i].refunded_total == out - in)
+            return true;
+    return false;
+}
+
 /* E2: a refused settlement changes nothing on the ledger */
 static uint16_t g_refused_ref[MK_MAX_ORDERS];
 static uint32_t g_n_refused_ref;
@@ -245,6 +272,11 @@ static bool h_settle(void *ctx, const mk_settle_t *s)
     memcpy(head, PL.chain_head, sizeof head);
     memcpy(g_acct_before, PL.acct, sizeof g_acct_before);
     MP.tick = g_now;
+    /* the instruction names the right order and moves exactly its money */
+    const mk_order_t *o = mk_order(&M, (uint16_t) s->ref);
+    if (!o || o->ccy != s->ccy || memcmp(s->buyer->b, o->buyer.b, 32) ||
+        memcmp(s->seller->b, o->seller.b, 32) || !settle_amount_ok(o, s))
+        S.settle_bad++;
     if (mk_pay_settle(&MP, s)) return true;
     S.refused++;
     if (PL.seq != seq || memcmp(head, PL.chain_head, sizeof head) ||
@@ -361,6 +393,8 @@ static bool conserved(void)
     for (uint32_t i = 0; i < MK_MAX_ORDERS; i++) {
         const mk_order_t *o = &M.order[i];
         if (!o->used) continue;
+        if (o->paid_at && o->fulfil_by != o->paid_at + FULFIL_S)
+            ok = false; /* the store's window */
         held += o->held_base + o->held_tax;
         paid += o->captured;
         back += o->to_buyer;
@@ -662,6 +696,16 @@ static mk_order_state_t state_of(uint16_t h)
     return o ? o->state : MK_ORD_FREE;
 }
 
+/* An authenticated peer naming an order that does not exist is refused. */
+static void probe_check(uint16_t h, mk_status_t rc)
+{
+    if (h != 0 && h <= MK_MAX_ORDERS && M.order[h - 1].used) return;
+    if (rc == MK_ERR_NOT_FOUND)
+        S.probes_refused++;
+    else
+        S.end_fail++;
+}
+
 /* C: the clearing node; the actor is the PQ-authenticated peer */
 static void at_c(uint8_t from, uint8_t op, uint32_t job, uint32_t h16, const uint8_t *tail,
                  uint32_t tlen)
@@ -677,7 +721,8 @@ static void at_c(uint8_t from, uint8_t op, uint32_t job, uint32_t h16, const uin
             uint16_t out = 0;
             mk_cart_clear(&M, cart_h);
             market_tick();
-            if (mk_cart_add(&M, cart_h, listing_h, JOBS[job].qty, 0) == MK_OK) {
+            if (mk_cart_add(&M, cart_h, listing_h, JOBS[job].qty, 0) == MK_OK &&
+                (job % 2 == 0 || mk_cart_add(&M, cart_h, listing2_h, 1, 0) == MK_OK)) {
                 mk_checkout_opts_t o;
                 memset(&o, 0, sizeof o);
                 strcpy(o.region, "XA");
@@ -690,6 +735,7 @@ static void at_c(uint8_t from, uint8_t op, uint32_t job, uint32_t h16, const uin
     case OP_PAY:
         call_begin(h);
         rc = call_end(h, mk_order_pay(&M, h, &actor));
+        probe_check(h, rc);
         msg(NC, from, OP_PAY_R, job, h, state_of(h), (uint32_t) rc, NULL, 0);
         break;
     case OP_FULFIL:
@@ -702,6 +748,7 @@ static void at_c(uint8_t from, uint8_t op, uint32_t job, uint32_t h16, const uin
     case OP_CONFIRM:
         call_begin(h);
         rc = call_end(h, mk_order_confirm(&M, h, &actor));
+        probe_check(h, rc);
         msg(NC, from, OP_CONFIRM_R, job, h, state_of(h), (uint32_t) rc, NULL, 0);
         break;
     default:
@@ -811,8 +858,14 @@ static void app_deliver(uint8_t me, uint8_t from, const uint8_t *b, uint32_t len
     if (me == NA) at_a(from, b[0], job, h, a, c, b + 17, len - 17);
 }
 
+static bool g_probed;
 static void a_step(void)
 {
+    if (!g_probed && g_now >= 100) { /* handles that name no order */
+        g_probed = true;
+        msg(NA, NC, OP_PAY, MAX_JOBS, 0, 0, 0, NULL, 0);
+        msg(NA, NC, OP_CONFIRM, MAX_JOBS, MK_MAX_ORDERS + 1, 0, 0, NULL, 0);
+    }
     for (uint32_t k = 0; k < n_jobs; k++) {
         job_t *j = &JOBS[k];
         if (j->st == J_IDLE && g_now >= j->start_ms) {
@@ -851,6 +904,7 @@ static void setup_world(uint64_t seed)
     memset(g_accepted, 0, sizeof g_accepted);
     link_gen = 0;
     g_sweeps = 0;
+    g_probed = false;
     g_now = 0;
     g_rng = seed * 0x2545F4914F6CDD1Dull + 1;
 
@@ -892,6 +946,8 @@ static void setup_world(uint64_t seed)
     mk_policy_default(&pol);
     pol.min_auto_release = 10;
     pol.max_auto_release = 3600;
+    remit_tax = seed % 3 != 0;
+    pol.facilitator_remits_tax = remit_tax;
     mk_init(&M, &h, &pol);
     mk_tick(&M, T0_S);
     vfv = (uint8_t) mk_ccy_find(&M, "VFV");
@@ -927,6 +983,25 @@ static void setup_world(uint64_t seed)
     sign_digest(NB, d, sig);
     listing_h = 0;
     mk_listing_publish(&M, &ls, sig, VNA_SIG_LEN, &listing_h);
+    strcpy(ls.title, "priority add-on");
+    ls.price = PRICE2;
+    ls.tax_class = 1;
+    mk_listing_digest(&M, &ls, d);
+    sign_digest(NB, d, sig);
+    listing2_h = 0;
+    mk_listing_publish(&M, &ls, sig, VNA_SIG_LEN, &listing2_h);
+    /* operator-supplied sales tax on both lines, at different rates */
+    mk_tax_rate_t tr;
+    memset(&tr, 0, sizeof tr);
+    strcpy(tr.region, "XA");
+    tr.num = 7;
+    tr.den = 100;
+    mk_tax_set(&M, &tr);
+    tr.tax_class = 1;
+    tr.num = 1;
+    tr.den = 8;
+    tr.rounding = MK_ROUND_CEIL;
+    mk_tax_set(&M, &tr);
     mk_id_t a;
     id_of(NA, &a);
     cart_h = (uint16_t) mk_cart_open(&M, &a);
@@ -1080,14 +1155,21 @@ int main(int argc, char **argv)
               S.result_bad == 0 && S.cycles > 0,
           "clean network: %llu/%u jobs completed, books conserved",
           (unsigned long long) S.completed, n_jobs);
-    uint64_t want_fee = 0, want_seller = 0;
+    uint64_t want_fee = 0, want_seller = 0, want_tax = 0;
     for (uint32_t k = 0; k < n_jobs; k++) {
-        uint64_t gross = (uint64_t) PRICE * JOBS[k].qty;
-        want_fee += pay_assure_fee(gross);
-        want_seller += gross - pay_assure_fee(gross);
+        const mk_order_t *o = mk_order(&M, handle_of_job[k]);
+        uint64_t net = (uint64_t) PRICE * JOBS[k].qty + (k % 2 ? PRICE2 : 0);
+        uint64_t tax =
+            ((uint64_t) PRICE * JOBS[k].qty * 7 + 50) / 100 + (k % 2 ? (PRICE2 + 7) / 8 : 0);
+        want_fee += pay_assure_fee(net);
+        want_seller += net - pay_assure_fee(net) + (remit_tax ? 0 : tax);
+        want_tax += remit_tax ? tax : 0;
+        if (!o || o->total != net + tax || o->n_lines != (k % 2 ? 2 : 1)) want_tax = UINT64_MAX;
     }
-    CHECK(bal(acct_b) == want_seller && S.swept == want_fee,
-          "clean network: seller holds price - 0.08889%% fee, buckets hold the fee");
+    CHECK(bal(acct_b) == want_seller && S.swept == want_fee && bal(acct_tax) == want_tax &&
+              S.settle_bad == 0,
+          "clean network: seller holds price - 0.08889%% fee, buckets hold the fee, tax %s",
+          remit_tax ? "remitted by the facilitator" : "kept by the seller");
 
     /* the harness can fail: one minor unit out of thin air breaks E1 */
     PL.acct[acct_b].debit++;
@@ -1107,7 +1189,8 @@ int main(int argc, char **argv)
         if (i == 0) first = o;
         jobs_total += n_jobs;
         bool ok = S.conserve_fail == 0 && S.rollback_fail == 0 && S.result_bad == 0 &&
-                  S.end_fail == 0 && S.stale_accepted == 0 && S.dup_accepted == 0;
+                  S.settle_bad == 0 && S.probes_refused == 2 && S.end_fail == 0 &&
+                  S.stale_accepted == 0 && S.dup_accepted == 0;
         CHECK(ok,
               "seed %llu: %llu cycles conserved, %llu/%llu/%llu completed/refunded/expired, "
               "net sent %llu lost %llu dup %llu reord %llu, %llu handshakes, %llu resets, "
