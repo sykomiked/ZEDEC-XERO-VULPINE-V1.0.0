@@ -1538,6 +1538,10 @@ test-raffle:
 	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle.c -o $(ZXV_TMP)/raffle_a64.o && \
 	if nm -u $(ZXV_TMP)/raffle_a64.o | grep -vE ' (pay_[a-z0-9_]+|sha3_256|shake256)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_a64.o; echo "[FAIL] raffle libc symbol"; exit 1; fi && \
 	echo "[PASS] raffle freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(RAFFLE_INC) src/raffle/test_raffle_ladder.c src/raffle/raffle_ladder.c $(RAFFLE_SRCS) -o $(ZXV_TMP)/test_raffle_ladder && $(ZXV_TMP)/test_raffle_ladder > $(ZXV_TMP)/test_raffle_ladder.log 2>&1 && echo "[PASS] test_raffle_ladder ($$(tail -1 $(ZXV_TMP)/test_raffle_ladder.log); $$(grep '^cost:' $(ZXV_TMP)/test_raffle_ladder.log))" || { cat $(ZXV_TMP)/test_raffle_ladder.log; echo "[FAIL] test_raffle_ladder"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle_ladder.c -o $(ZXV_TMP)/raffle_ladder_a64.o && \
+	if nm -u $(ZXV_TMP)/raffle_ladder_a64.o | grep -vE ' (pay_[a-z0-9_]+|raffle_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_ladder_a64.o; echo "[FAIL] raffle_ladder libc symbol"; exit 1; fi && \
+	echo "[PASS] raffle_ladder freestanding (aarch64-none-elf, no libc)"
 
 # The 64-state hexagram tag on lpres (src/lpres/lpres_hex.h).
 .PHONY: test-lpres-hex

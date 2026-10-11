@@ -334,6 +334,33 @@ static void test_multiplier_cap(void)
     CHECK(raffle_free_entry(&r, whale, &rc) == RAFFLE_ERR_CAP, "free entry capped too");
     CHECK(raffle_free_entry(&r, minnow, &rc) == RAFFLE_OK, "free entry under cap");
 
+    /* The tally gives the same room as the scan, and refuses new owners
+     * once 3/4 full. */
+    static raffle_tally_t tl[16];
+    raffle_t a, b;
+    bad = 0;
+    c.fib_index = 40;
+    raffle_init(&a, &c, 1, NULL, g_ranges, 2048);
+    raffle_init(&b, &c, 1, NULL, g_ranges + 2048, 2048);
+    CHECK(raffle_set_tally(&b, tl, 12) == RAFFLE_ERR_ARG, "tally cap must be a power of two");
+    CHECK(raffle_set_tally(&b, tl, 16) == RAFFLE_OK, "tally 16");
+    uint64_t sd = 3;
+    for (int i = 0; i < 400; i++) {
+        uint8_t o[32];
+        ident("owner", (uint8_t) (xorshift(&sd) % 12), o);
+        uint64_t amt = 62 + xorshift(&sd) % 300000;
+        raffle_status_t sa = raffle_enter(&a, o, amt, 1, NULL);
+        raffle_status_t sb = raffle_enter(&b, o, amt, 1, NULL);
+        if (sa != sb || raffle_room(&a, o) != raffle_room(&b, o)) bad++;
+    }
+    CHECK(bad == 0 && b.tally_len == 12, "tally matches the scan (%u bad)", bad);
+    uint8_t o13[32];
+    ident("owner", 13, o13);
+    CHECK(raffle_enter(&b, o13, 100000, 1, &rc) == RAFFLE_ERR_FULL, "13th owner: table 3/4 full");
+    CHECK(raffle_enter(&a, o13, 100000, 1, &rc) == RAFFLE_OK, "no limit without a tally");
+    CHECK(raffle_set_tally(&b, tl, 16) == RAFFLE_ERR_PHASE, "no tally after the first ticket");
+    c.fib_index = 18;
+
     /* Tiny threshold: the cap is at least 1 ticket. */
     c.fib_index = 2;
     CHECK(raffle_init(&r, &c, 1, NULL, g_ranges, 4) == RAFFLE_OK, "init F2");

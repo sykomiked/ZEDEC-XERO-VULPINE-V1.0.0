@@ -150,7 +150,7 @@ raffle_status_t raffle_init(raffle_t *r, const raffle_config_t *c, uint64_t epoc
     pay_memset(r, 0, sizeof *r);
     r->cfg = *c;
     r->epoch = epoch;
-    r->threshold = raffle_fib(c->fib_index);
+    r->threshold = c->threshold ? c->threshold : raffle_fib(c->fib_index); /* E1 */
     r->phase = RAFFLE_OPEN;
     r->ranges = ranges;
     r->range_cap = range_cap;
@@ -217,29 +217,72 @@ static void header_hash(const raffle_t *r, uint8_t out[RAFFLE_HASH_LEN])
     sha3_256(p.buf, p.len, out);
 }
 
+raffle_status_t raffle_set_tally(raffle_t *r, raffle_tally_t *tally, uint32_t cap)
+{
+    if (!r || !tally || cap < 4 || (cap & (cap - 1))) return RAFFLE_ERR_ARG;
+    if (r->phase != RAFFLE_OPEN || r->tickets != 0) return RAFFLE_ERR_PHASE;
+    pay_memset(tally, 0, (size_t) cap * sizeof *tally);
+    r->tally = tally;
+    r->tally_cap = cap;
+    r->tally_len = 0;
+    return RAFFLE_OK;
+}
+
+/* The tally slot of `owner`: its own slot, else the empty slot where it
+ * would go. Never loops forever: the table is at most 3/4 full. */
+static uint32_t tally_slot(const raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN])
+{
+    uint32_t mask = r->tally_cap - 1, i = (uint32_t) get64(owner) & mask;
+    while (r->tally[i].held && !pay_memeq(r->tally[i].owner, owner, RAFFLE_ID_LEN))
+        i = (i + 1) & mask;
+    return i;
+}
+
+static uint64_t held_by(const raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN])
+{
+    if (r->tally) return r->tally[tally_slot(r, owner)].held;
+    uint64_t held = 0;
+    for (uint32_t i = 0; i < r->range_len; i++)
+        if (pay_memeq(r->ranges[i].owner, owner, RAFFLE_ID_LEN)) held += r->ranges[i].count;
+    return held;
+}
+
 uint64_t raffle_room(const raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN])
 {
     if (!r || !owner) return 0;
     if (!r->cfg.share_den) return UINT64_MAX;
     uint64_t cap = ratio_floor(r->threshold, r->cfg.share_num, r->cfg.share_den);
     if (cap == 0) cap = 1;
-    uint64_t held = 0;
-    for (uint32_t i = 0; i < r->range_len; i++)
-        if (pay_memeq(r->ranges[i].owner, owner, RAFFLE_ID_LEN)) held += r->ranges[i].count;
+    uint64_t held = held_by(r, owner);
     return held >= cap ? 0 : cap - held;
 }
 
-/* Mint `count` tickets to `owner` for `fee` (kind 0 = paid, 1 = free) at
- * multiplier `mult` (0 for a free entry). */
+raffle_status_t raffle_mint_check(const raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN],
+                                  uint64_t fee, uint64_t count)
+{
+    uint64_t t;
+    if (!r || !owner) return RAFFLE_ERR_ARG;
+    if (!r->cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
+    if (r->phase != RAFFLE_OPEN) return RAFFLE_ERR_PHASE;
+    if (count > raffle_room(r, owner)) return RAFFLE_ERR_CAP; /* F6 */
+    if (!pay_add_ok(r->pool, fee, &t)) return RAFFLE_ERR_OVERFLOW;
+    if (count && !pay_add_ok(r->tickets, count, &t)) return RAFFLE_ERR_OVERFLOW;
+    if (count && r->range_len >= r->range_cap) return RAFFLE_ERR_FULL;
+    if (count && r->tally && r->tally[tally_slot(r, owner)].held == 0 &&
+        r->tally_len + 1 > r->tally_cap - r->tally_cap / 4)
+        return RAFFLE_ERR_FULL;
+    return RAFFLE_OK;
+}
+
+/* Mint `count` tickets to `owner` for `fee` (kind 0 = paid, 1 = free, 2 = a
+ * ladder share) at multiplier `mult` (0 for a free entry). */
 static raffle_status_t mint(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
                             uint32_t mult, uint64_t fee, uint64_t count, uint8_t kind,
                             raffle_receipt_t *out)
 {
-    uint64_t tickets2 = r->tickets, pool2;
-    if (count > raffle_room(r, owner)) return RAFFLE_ERR_CAP; /* F6 */
-    if (!pay_add_ok(r->pool, fee, &pool2)) return RAFFLE_ERR_OVERFLOW;
-    if (count && !pay_add_ok(r->tickets, count, &tickets2)) return RAFFLE_ERR_OVERFLOW;
-    if (count && r->range_len >= r->range_cap) return RAFFLE_ERR_FULL;
+    raffle_status_t st = raffle_mint_check(r, owner, fee, count);
+    if (st != RAFFLE_OK) return st;
+    uint64_t pool2 = r->pool + fee, tickets2 = r->tickets + count;
 
     uint64_t first = r->tickets;
     if (count) {
@@ -247,6 +290,14 @@ static raffle_status_t mint(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uin
         pay_memcpy(g->owner, owner, RAFFLE_ID_LEN);
         g->first = first;
         g->count = count;
+        if (r->tally) {
+            raffle_tally_t *t = &r->tally[tally_slot(r, owner)];
+            if (t->held == 0) {
+                pay_memcpy(t->owner, owner, RAFFLE_ID_LEN);
+                r->tally_len++;
+            }
+            t->held += count; /* <= tickets, which did not overflow */
+        }
     }
     /* E3: fold the entry into the chain. */
     pre_t p;
@@ -264,7 +315,7 @@ static raffle_status_t mint(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uin
 
     r->pool = pool2;
     r->tickets = tickets2;
-    if (kind)
+    if (kind == 1)
         r->free_entries++;
     else
         r->paid_entries++;
@@ -295,6 +346,14 @@ raffle_status_t raffle_enter(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], ui
     if (st != RAFFLE_OK) return st;
     if (n == 0) return RAFFLE_ERR_DUST;
     return mint(r, owner, amount, multiplier, fee, n, 0, out);
+}
+
+raffle_status_t raffle_enter_share(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
+                                   uint32_t multiplier, uint64_t fee, raffle_receipt_t *out)
+{
+    if (!r || !owner) return RAFFLE_ERR_ARG;
+    if (fee == 0) return RAFFLE_ERR_DUST;
+    return mint(r, owner, amount, multiplier, fee, fee, 2, out);
 }
 
 raffle_status_t raffle_free_entry(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN],
@@ -454,7 +513,11 @@ raffle_status_t raffle_next_epoch(raffle_t *r)
     raffle_config_t c = r->cfg;
     raffle_range_t *g = r->ranges;
     uint32_t cap = r->range_cap;
+    raffle_tally_t *t = r->tally;
+    uint32_t tcap = r->tally_cap;
     uint8_t link[RAFFLE_HASH_LEN];
     pay_memcpy(link, r->last.link, RAFFLE_HASH_LEN);
-    return raffle_init(r, &c, r->epoch + 1, link, g, cap);
+    raffle_status_t st = raffle_init(r, &c, r->epoch + 1, link, g, cap);
+    if (st == RAFFLE_OK && t) st = raffle_set_tally(r, t, tcap);
+    return st;
 }

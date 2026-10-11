@@ -159,6 +159,7 @@ typedef struct {
     uint64_t skim_num, skim_den;   /* S1: default 987/61000                 */
     uint64_t grant_num, grant_den; /* S2: default 5/55; den 0 = no grants   */
     uint32_t fib_index;            /* E1: default 18 (2584 tickets)           */
+    uint64_t threshold;            /* E1: explicit threshold; 0 = F(fib_index) */
     uint32_t min_reveals;          /* R3: 0 = every committed party (default) */
     uint32_t max_multiplier;       /* F5: default 13, at most RAFFLE_MAX_MULT  */
     uint64_t share_num, share_den; /* F6: default 8/21; den 0 = no cap      */
@@ -191,6 +192,13 @@ typedef struct {
     uint8_t link[RAFFLE_HASH_LEN]; /* hash of this record; seeds the next epoch's chain */
 } raffle_settlement_t;
 
+/* F6 bookkeeping: tickets held per owner this epoch (optional, see
+ * raffle_set_tally). An empty slot has held == 0. */
+typedef struct {
+    uint8_t owner[RAFFLE_ID_LEN];
+    uint64_t held;
+} raffle_tally_t;
+
 typedef struct {
     raffle_config_t cfg;
     uint64_t epoch;
@@ -203,6 +211,8 @@ typedef struct {
     uint8_t header_hash[RAFFLE_HASH_LEN];
     raffle_range_t *ranges; /* caller storage */
     uint32_t range_cap, range_len;
+    raffle_tally_t *tally; /* optional caller storage, power-of-two slots */
+    uint32_t tally_cap, tally_len;
     uint32_t n_parties;
     uint8_t party[RAFFLE_MAX_PARTIES][RAFFLE_ID_LEN];
     uint8_t commit[RAFFLE_MAX_PARTIES][RAFFLE_HASH_LEN];
@@ -237,6 +247,13 @@ raffle_status_t raffle_quote(const raffle_config_t *c, uint64_t amount, uint32_t
  * the cap is off). */
 uint64_t raffle_room(const raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN]);
 
+/* F6 speed-up: give the raffle a hash table of `cap` slots (a power of two,
+ * >= 4) so raffle_room is O(1) instead of a scan of the ranges. Only before
+ * the first ticket; kept and cleared by raffle_next_epoch. At most 3/4 of
+ * the slots are used; an entry by a new owner past that is refused with
+ * RAFFLE_ERR_FULL. */
+raffle_status_t raffle_set_tally(raffle_t *r, raffle_tally_t *tally, uint32_t cap);
+
 /* Start epoch `epoch`. `prev_link` is the previous settlement's link (zeros
  * for the first epoch). `ranges` is caller storage for range_cap runs. */
 raffle_status_t raffle_init(raffle_t *r, const raffle_config_t *c, uint64_t epoch,
@@ -255,6 +272,18 @@ void raffle_commitment(uint64_t epoch, const uint8_t party[RAFFLE_ID_LEN],
  * nothing changes. */
 raffle_status_t raffle_enter(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
                              uint32_t multiplier, raffle_receipt_t *out);
+
+/* Would minting `count` tickets for `fee` to `owner` succeed now? Checks the
+ * switch, the phase, the share cap, overflow and the range table; changes
+ * nothing. */
+raffle_status_t raffle_mint_check(const raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN],
+                                  uint64_t fee, uint64_t count);
+
+/* Ladder use (raffle_ladder.h): mint `fee` tickets for a share of a payment
+ * whose fee was already computed. `amount` and `multiplier` are recorded in
+ * the chain for audit. */
+raffle_status_t raffle_enter_share(raffle_t *r, const uint8_t owner[RAFFLE_ID_LEN], uint64_t amount,
+                                   uint32_t multiplier, uint64_t fee, raffle_receipt_t *out);
 
 /* L2: one free ticket (no fee). Fails with RAFFLE_ERR_DISABLED unless both
  * jurisdiction_permits and free_entry are set. */
