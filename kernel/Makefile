@@ -1475,6 +1475,11 @@ test-grants:
 test-vauction:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/vauction/test_vauction.c src/vauction/vauction.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vauction -lm && $(ZXV_TMP)/test_vauction > $(ZXV_TMP)/test_vauction.log 2>&1 && echo "[PASS] test_vauction" || { tail -40 $(ZXV_TMP)/test_vauction.log; echo "[FAIL] test_vauction"; exit 1; }
 
+# Zenny chips (src/zenny): user-built baskets, kappa-exact valuation, signed hash-chained versions, attested commodity legs, top-up.
+.PHONY: test-zenny
+test-zenny:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/zenny/test_zenny.c src/zenny/zenny.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_zenny -lm && $(ZXV_TMP)/test_zenny > $(ZXV_TMP)/test_zenny.log 2>&1 && echo "[PASS] test_zenny" || { tail -40 $(ZXV_TMP)/test_zenny.log; echo "[FAIL] test_zenny"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1484,4 +1489,5 @@ test-econ:
 	$(MAKE) --no-print-directory test-estate
 	$(MAKE) --no-print-directory test-grants
 	$(MAKE) --no-print-directory test-vauction
+	$(MAKE) --no-print-directory test-zenny
 # ==== end economy modules ====
