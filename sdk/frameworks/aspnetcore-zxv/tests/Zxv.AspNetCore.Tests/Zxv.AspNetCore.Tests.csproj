@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+  <!-- SPDX-License-Identifier: Apache-2.0 -->
+  <!-- Integration tests: WebApplicationFactory over the sample and in-memory
+       hosts over the library, against the real libzxv. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA2007;CA2234;CA1861</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../samples/Zxv.AspNetCore.Sample/Zxv.AspNetCore.Sample.csproj" />
+    <ProjectReference Include="../../src/Zxv.AspNetCore/Zxv.AspNetCore.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>
