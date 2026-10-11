@@ -1470,6 +1470,11 @@ test-estate:
 test-grants:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/grants/test_grants.c src/grants/grants.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_grants -lm && $(ZXV_TMP)/test_grants > $(ZXV_TMP)/test_grants.log 2>&1 && echo "[PASS] test_grants" || { tail -40 $(ZXV_TMP)/test_grants.log; echo "[FAIL] test_grants"; exit 1; }
 
+# V-Bill issuance (src/vauction): descending uniform-price auction epochs, backed only, custodian receipts with haircuts, fiat to the reserve.
+.PHONY: test-vauction
+test-vauction:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/vauction/test_vauction.c src/vauction/vauction.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vauction -lm && $(ZXV_TMP)/test_vauction > $(ZXV_TMP)/test_vauction.log 2>&1 && echo "[PASS] test_vauction" || { tail -40 $(ZXV_TMP)/test_vauction.log; echo "[FAIL] test_vauction"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1478,4 +1483,5 @@ test-econ:
 	$(MAKE) --no-print-directory test-recovery
 	$(MAKE) --no-print-directory test-estate
 	$(MAKE) --no-print-directory test-grants
+	$(MAKE) --no-print-directory test-vauction
 # ==== end economy modules ====
