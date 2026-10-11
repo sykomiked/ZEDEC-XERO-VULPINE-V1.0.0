@@ -48,7 +48,7 @@ HOSTFULL := $(OUT)/host-full
 LIBMK    := $(MAKE) --no-print-directory -f lib.mk
 
 TESTCC = $(CC) -std=c11 -O1 -g -Wall -Wextra -Werror $(SAN) -Itest -Iport/include -Izxe/include \
-         -I$(ZXV)/include
+         -I$(ZXV)/include $(if $(filter q32,$(ZXE_PROFILE)),-DZXE_Q32)
 HOSTLIBS = $(1)/libzxe.a $(1)/libzxv_embedded.a $(1)/libzxp.a -lpthread $(SAN)
 
 .PHONY: all test host-libs host-tests conformance cross size check-nofloat check-nofloat-src \

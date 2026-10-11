@@ -35,6 +35,16 @@ extern "C" {
 
 #define ZXE_LEDGER_NAME_MAX 63u /* as libzxv */
 #define ZXE_LEDGER_REF_MAX  35u /* as libzxv */
+
+/* The largest amount and rail total, as libzxv in the same build: 2^53 - 1
+ * (ZXV_AMOUNT_MAX) in the exact profile, 2^31 - 1 in the q32 profile
+ * (ZXE_Q32, set by sources.mk), where libzxv's Q32.32 ledger mirror holds no
+ * more. In q32 the ledger's total of all debits is capped there as well. */
+#ifdef ZXE_Q32
+#define ZXE_AMOUNT_LIMIT ((int64_t) INT32_MAX)
+#else
+#define ZXE_AMOUNT_LIMIT ZXV_AMOUNT_MAX
+#endif
 #ifndef ZXE_LEDGER_MAX_CCY
 #    define ZXE_LEDGER_MAX_CCY 4u
 #endif

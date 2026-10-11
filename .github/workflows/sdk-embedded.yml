@@ -36,6 +36,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: Port layer, MCU subset, zxe ledger (differential), libzxv conformance through the port
         run: make -C sdk/embedded test CC=${{ matrix.cc }} SANITIZE=${{ matrix.san }} OUT=build/${{ matrix.cc }}${{ matrix.san }}
+      - name: The same in the q32 profile (libzxv and zxe capped at 2^31-1, differential)
+        run: make -C sdk/embedded test ZXE_PROFILE=q32 CC=${{ matrix.cc }} SANITIZE=${{ matrix.san }} OUT=build/q32-${{ matrix.cc }}${{ matrix.san }}
 
   cross:
     name: cross sizes, no-float, QEMU

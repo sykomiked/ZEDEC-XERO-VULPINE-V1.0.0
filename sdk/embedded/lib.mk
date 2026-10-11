@@ -39,7 +39,7 @@ ZXV_CFLAGS := $(COMMON) $(ZXE_DEFS) $(ZXE_INC) -w -Werror=implicit-function-decl
               -Werror=incompatible-pointer-types -Werror=int-conversion
 # Our own sources: strict.
 WARN := -Wall -Wextra -Werror -Wshadow -Wstrict-prototypes -Wmissing-prototypes
-OWN_CFLAGS := $(COMMON) $(WARN) $(TESTDEF) $(NOFLOAT_FLAG)
+OWN_CFLAGS := $(COMMON) $(WARN) $(TESTDEF) $(NOFLOAT_FLAG) $(ZXE_KIT_DEFS)
 
 ZXV_PLAIN_CFLAGS := $(COMMON) -DTEST_HOST $(filter-out -I$(ZXE_ROOT)/port/compat,$(ZXE_INC)) -w
 

@@ -84,7 +84,7 @@ static void test_unit(void)
     IS(zxe_ledger_post(&L, root, al, al, 1, "EUR", "pay-3", &id), ZXV_E_ARG);
     IS(zxe_ledger_post(&L, root, al, 99, 1, "EUR", "pay-3", &id), ZXV_E_NOT_FOUND);
     IS(zxe_ledger_post(&L, root, al, bo, 0, "EUR", "pay-3", &id), ZXV_E_RANGE);
-    IS(zxe_ledger_post(&L, root, al, bo, ZXV_AMOUNT_MAX + 1, "EUR", "pay-3", &id), ZXV_E_RANGE);
+    IS(zxe_ledger_post(&L, root, al, bo, ZXE_AMOUNT_LIMIT + 1, "EUR", "pay-3", &id), ZXV_E_RANGE);
     IS(zxe_ledger_post(&L, root, al, bo, 1, "EUR", "123456789012345678901234567890123456", &id),
        ZXV_E_TOO_LONG);
     IS(zxe_ledger_post(&L, ro, al, bo, 1, "EUR", "pay-3", &id), ZXV_E_CAP);
@@ -190,8 +190,8 @@ static void diff_run(uint64_t seed, int ops)
             int64_t amt;
             uint32_t m = (uint32_t) (next() % 10);
             if (m == 0) amt = -(int64_t) (next() % 5);
-            else if (m == 1) amt = ZXV_AMOUNT_MAX - (int64_t) (next() % 3) + 1;
-            else if (m == 2) amt = (int64_t) (next() % (uint64_t) ZXV_AMOUNT_MAX);
+            else if (m == 1) amt = ZXE_AMOUNT_LIMIT - (int64_t) (next() % 3) + 1;
+            else if (m == 2) amt = (int64_t) (next() % (uint64_t) ZXE_AMOUNT_LIMIT);
             else amt = (int64_t) (next() % 100000);
             char ref[48];
             uint32_t rk = (uint32_t) (next() % 50);

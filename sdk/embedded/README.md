@@ -153,7 +153,7 @@ per object.
 | profile | soft-float helpers | why |
 |---|---|---|
 | `ZXE_PROFILE=exact` (default) | only in `zxv_api.o` and `triple_ledger.o` (Cortex-M4: 2,220 B flash; M0+: 7,596 B; rv32: 6,234 B), and only in the ledger probe | libzxv builds the kernel's triple-ledger mirror with `-DTEST_HOST`, where its number type is a `double` (exact for integers up to 2^53). The kits keep that so results are bit-identical to the hosted library. |
-| `ZXE_PROFILE=q32` | **none** (ledger probe: Cortex-M0+ 42,231 B, M4 41,455 B, rv32 50,051 B) | the kernel's Q32.32 path. **Measurement only**: libzxv overflows there for amounts of 2^31 or more (UBSan: `2147483648 * 4294967296`); proposed fix P2. |
+| `ZXE_PROFILE=q32` | **none** (ledger probe: Cortex-M0+ 42,231 B, M4 41,455 B, rv32 50,051 B) | the kernel's Q32.32 path. Amounts, rail totals and the context's total of all debits are capped at 2^31 - 1 minor units (`ZXV_E_RANGE` beyond; P2, applied), in libzxv and `zxe_ledger` alike. Use it when that lifetime volume is enough. |
 
 The MCU set (`pure`, `core`) never links a float helper in either profile,
 because `zxe_ledger` is integer-only.

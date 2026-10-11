@@ -3,7 +3,8 @@
 
 # Proposed libzxv and kernel changes for microcontrollers
 
-**None of these changes has been applied.** The embedded kits in this
+**P2 has been applied** (libzxv and zxe cap amounts at 2^31 - 1 in Q32.32
+builds; see P2 below). **None of the others has.** The embedded kits in this
 folder build `sdk/libzxv/src` and `kernel/src` exactly as they are. They
 reroute the OS calls with a force-included prelude and a `pthread.h` shim,
 described in [README.md](README.md), "How libzxv is built here". That works,
@@ -83,7 +84,20 @@ deleted.
 
 ABI: no change. Build: no change for hosted builds.
 
-## P2. Q32.32 profile: posting amounts of 2^31 or more overflow (fix needed before any non-TEST_HOST build)
+## P2. Q32.32 profile: posting amounts of 2^31 or more overflow (APPLIED)
+
+**Applied.** `zxv_ledger_post` now refuses with `ZXV_E_RANGE`, in builds
+without `TEST_HOST`, any amount or rail total above 2^31 - 1 **and** any
+posting that would take the context's total of all debits above 2^31 - 1:
+segment books are shared across currencies and each book's `total_assets`
+sums every financial debit it has seen, so the patch below alone was not
+enough (the kernel refused a reserved posting and the context halted).
+`zxe_ledger` applies the same caps under `ZXE_Q32` (set by
+`ZXE_PROFILE=q32`), and the differential test passes in both profiles,
+also under ASan + UBSan; CI runs both. The q32 limit is a lifetime total per
+context, so q32 suits small devices with modest volumes; the exact profile
+keeps the 2^53 - 1 range. The original analysis follows.
+
 
 **Where:** `zxv_api.c:929`, `surplus_real_t amt = SR_FROM_INT(amount_minor);`,
 and the shadow check at `zxv_api.c:1099`, `SR_FROM_INT(eq)`.

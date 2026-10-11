@@ -14,9 +14,9 @@
 #                   as on the host (-DTEST_HOST), bit-identical to libzxv;
 #                   its double arithmetic is software floating point on a
 #                   core without a double FPU (see README "Floats").
-#                   q32: the kernel's Q32.32 integer path. Measurement only:
-#                   libzxv's ledger overflows in that mode above 2^31-1
-#                   minor units (PROPOSED_LIBZXV_CHANGES.md, P2).
+#                   q32: the kernel's Q32.32 integer path. Amounts, rail
+#                   totals and the total of all debits are capped at 2^31-1
+#                   minor units (PROPOSED_LIBZXV_CHANGES.md, P2, applied).
 
 ZXE_LIBZXV := $(ZXE_ROOT)/../libzxv
 ZXE_K      := $(ZXE_ROOT)/../../kernel
@@ -43,9 +43,14 @@ ZXE_DEFS := -DZXV_NO_TENSOR -DZXV_RANDOM_GETENTROPY -include zxp_prelude.h
 # libzxv never walks those records; plain `used` lets the linker drop them.
 ZXE_DEFS += -Dretain=used
 
+# ZXE_KIT_DEFS go to the kit's own sources (zxe) and tests, which must use
+# the same amount limit as the libzxv they are built with.
 ifeq ($(ZXE_PROFILE),exact)
   ZXE_DEFS += -DTEST_HOST
-else ifneq ($(ZXE_PROFILE),q32)
+  ZXE_KIT_DEFS :=
+else ifeq ($(ZXE_PROFILE),q32)
+  ZXE_KIT_DEFS := -DZXE_Q32
+else
   $(error ZXE_PROFILE must be exact or q32)
 endif
 

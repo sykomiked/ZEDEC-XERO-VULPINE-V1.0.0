@@ -2,7 +2,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zxe_ledger.c — an exact double-entry ledger in fixed caller memory, with
  * libzxv's posting rules (see zxe.h). Integers only: every amount and rail
- * total is an int64 bounded by ZXV_AMOUNT_MAX (2^53 - 1). */
+ * total is an int64 bounded by ZXE_AMOUNT_LIMIT (2^53 - 1, or 2^31 - 1 in the
+ * q32 profile, as libzxv). */
 #include <string.h>
 
 #include "zxe.h"
@@ -243,7 +244,7 @@ int32_t zxe_ledger_post(zxe_ledger *l, const zxv_cap *cap, uint32_t from_account
     if (rc) return rc;
     if ((rc = check_str(ccy, 8, 0))) return rc;
     if ((rc = check_str(reference, ZXE_LEDGER_REF_MAX, 0))) return rc;
-    if (amount_minor <= 0 || amount_minor > ZXV_AMOUNT_MAX) return ZXV_E_RANGE;
+    if (amount_minor <= 0 || amount_minor > ZXE_AMOUNT_LIMIT) return ZXV_E_RANGE;
     if (from_account == to_account) return ZXV_E_ARG;
 
     zxp_mutex_lock(&l->mu);
@@ -266,10 +267,21 @@ int32_t zxe_ledger_post(zxe_ledger *l, const zxv_cap *cap, uint32_t from_account
         rc = ZXV_E_FUNDS;
         goto out;
     }
-    if (f->credit > ZXV_AMOUNT_MAX - amount_minor || t->debit > ZXV_AMOUNT_MAX - amount_minor) {
+    if (f->credit > ZXE_AMOUNT_LIMIT - amount_minor || t->debit > ZXE_AMOUNT_LIMIT - amount_minor) {
         rc = ZXV_E_RANGE;
         goto out;
     }
+#ifdef ZXE_Q32
+    /* q32, as libzxv: all debits in the ledger together must fit as well. */
+    {
+        int64_t sum_debit = 0;
+        for (uint32_t i = 0; i < l->n_acct; i++) sum_debit += l->acct[i].debit;
+        if (sum_debit > ZXE_AMOUNT_LIMIT - amount_minor) {
+            rc = ZXV_E_RANGE;
+            goto out;
+        }
+    }
+#endif
     ref_key(reference, &key);
     slot = ref_slot(l, &key, &dup);
     if (dup) {
@@ -334,8 +346,8 @@ int32_t zxe_ledger_check(zxe_ledger *l, const zxv_cap *cap)
     }
     for (uint32_t i = 0; i < l->n_acct && rc == ZXV_OK; i++) {
         const zxe_account *a = &l->acct[i];
-        if (a->debit < 0 || a->credit < 0 || a->debit > ZXV_AMOUNT_MAX ||
-            a->credit > ZXV_AMOUNT_MAX)
+        if (a->debit < 0 || a->credit < 0 || a->debit > ZXE_AMOUNT_LIMIT ||
+            a->credit > ZXE_AMOUNT_LIMIT)
             rc = halt(l, "zxe_ledger: rail total out of range");
         else if (a->kind == ZXV_ACCT_HOLDER && a->debit - a->credit < 0)
             rc = halt(l, "zxe_ledger: holder account is negative");
