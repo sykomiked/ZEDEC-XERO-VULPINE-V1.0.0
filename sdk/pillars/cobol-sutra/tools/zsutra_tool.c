@@ -117,10 +117,10 @@ static int cmd_fields(const zs_layout *l) {
         zs_field_at(l, i, &f);
         if (f.kind == ZS_K_TEXT) snprintf(pic, sizeof pic, "x(%u)", (unsigned) f.digits);
         else if (f.kind == ZS_K_NUM) {
-            int k = snprintf(pic, sizeof pic, "%s", f.sign ? "s" : "");
-            if (f.digits > f.scale)
-                k += snprintf(pic + k, sizeof pic - (size_t) k, "9(%u)", (unsigned) (f.digits - f.scale));
-            if (f.scale) snprintf(pic + k, sizeof pic - (size_t) k, "v9(%u)", (unsigned) f.scale);
+            char ip[16] = "", sp[16] = "";
+            if (f.digits > f.scale) snprintf(ip, sizeof ip, "9(%u)", (unsigned) (f.digits - f.scale));
+            if (f.scale) snprintf(sp, sizeof sp, "v9(%u)", (unsigned) f.scale);
+            snprintf(pic, sizeof pic, "%s%s%s", f.sign ? "s" : "", ip, sp);
         }
         printf("%*s%-*s %7llu %6llu %-6u %-8s %s\n", (int) (2u * f.depth), "",
                (int) (32u - 2u * (f.depth > 16u ? 16u : f.depth)), f.name,

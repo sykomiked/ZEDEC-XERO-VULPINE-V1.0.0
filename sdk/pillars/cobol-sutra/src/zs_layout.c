@@ -243,15 +243,14 @@ static void sb_lower(sbuf *s, const char *t) {
 /* "S9(13)V9(2)" / "X(12)", upper or lower case */
 static void picture_text(const zs_field *f, int lower, char *b, size_t cap) {
     uint32_t ints = f->digits - f->scale;
-    size_t k = 0;
     if (f->kind == ZS_K_TEXT) {
         snprintf(b, cap, "%c(%u)", lower ? 'x' : 'X', (unsigned) f->digits);
         return;
     }
-    if (f->sign != ZS_SIGN_NONE) b[k++] = lower ? 's' : 'S';
-    b[k] = '\0';
-    if (ints) k += (size_t) snprintf(b + k, cap - k, "9(%u)", (unsigned) ints);
-    if (f->scale) snprintf(b + k, cap - k, "%c9(%u)", lower ? 'v' : 'V', (unsigned) f->scale);
+    char ip[16] = "", sp[16] = "";
+    if (ints) snprintf(ip, sizeof ip, "9(%u)", (unsigned) ints);
+    if (f->scale) snprintf(sp, sizeof sp, "%c9(%u)", lower ? 'v' : 'V', (unsigned) f->scale);
+    snprintf(b, cap, "%s%s%s", f->sign != ZS_SIGN_NONE ? (lower ? "s" : "S") : "", ip, sp);
 }
 
 static const char *sign_text(int32_t sign) {

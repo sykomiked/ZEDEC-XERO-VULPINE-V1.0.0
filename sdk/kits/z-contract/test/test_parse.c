@@ -4,6 +4,20 @@
  * form, refusals with their exact line, column and message, round trips,
  * digests and introspection. */
 #include "zc_test.h"
+#include <stdarg.h>
+#include <stdlib.h>
+
+/* Append to a test buffer; a test whose text would not fit is a bug in the
+ * test, so stop rather than truncate. */
+static size_t append(char *buf, size_t cap, size_t n, const char *fmt, ...) {
+    if (n >= cap) abort();
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vsnprintf(buf + n, cap - n, fmt, ap);
+    va_end(ap);
+    if (r < 0 || (size_t) r >= cap - n) abort();
+    return n + (size_t) r;
+}
 
 typedef struct {
     const char *text;
@@ -183,13 +197,13 @@ static void test_limits(void) {
     strcpy(big, "fn f(a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z.a.b.c.d.e.f.g: int);");
     CHECK(zc_parse(big, strlen(big), &c, NULL, NULL, NULL, NULL, 0, NULL) == ZC_E_SYNTAX &&
               strstr(last_err(), "longer than 63 bytes"), "65-byte dotted name");
-    size_t n = (size_t) snprintf(big, sizeof big, "fn f(");
-    for (int i = 0; i < 17; i++) n += (size_t) snprintf(big + n, sizeof big - n, "%sp%d: int", i ? ", " : "", i);
-    snprintf(big + n, sizeof big - n, ");");
+    size_t n = append(big, sizeof big, 0, "fn f(");
+    for (int i = 0; i < 17; i++) n = append(big, sizeof big, n, "%sp%d: int", i ? ", " : "", i);
+    (void) append(big, sizeof big, n, ");");
     CHECK(zc_parse(big, strlen(big), &c, NULL, NULL, NULL, NULL, 0, NULL) == ZC_E_SYNTAX &&
               strstr(last_err(), "more than 16 parameters"), "17 parameters");
     n = 0;
-    for (int i = 0; i < 256; i++) n += (size_t) snprintf(big + n, sizeof big - n, "fn f%d();\n", i);
+    for (int i = 0; i < 256; i++) n = append(big, sizeof big, n, "fn f%d();\n", i);
     CHECK(zc_parse(big, n, &c, NULL, NULL, NULL, NULL, 0, NULL) == ZXV_OK, "256 functions");
     uint32_t count = 0;
     const char *name = NULL;
@@ -197,21 +211,21 @@ static void test_limits(void) {
     CHECK(zc_fn_name(c, 255, &name) == ZXV_OK && strcmp(name, "f255") == 0, "fn_name 255");
     CHECK(zc_fn_name(c, 256, &name) == ZXV_E_NOT_FOUND, "fn_name 256");
     zc_contract_destroy(c);
-    n += (size_t) snprintf(big + n, sizeof big - n, "fn g();\n");
+    n = append(big, sizeof big, n, "fn g();\n");
     CHECK(zc_parse(big, n, &c, &line, &col, NULL, NULL, 0, NULL) == ZC_E_SYNTAX &&
               strstr(last_err(), "more than 256 functions") && line == 257 && col == 1, "257 functions");
     {
         static const char *const bn[4] = {"false", "neither", "both", "true"};
         static const char *const pn[4] = {"entropic", "neutral", "forbidden", "negentropic"};
         static const char *const hn[4] = {"potential", "emerging", "dissolving", "manifest"};
-        n = (size_t) snprintf(big, sizeof big, "fn f(t: tag{");
+        n = append(big, sizeof big, 0, "fn f(t: tag{");
         for (int i = 0; i < 64; i++)
-            n += (size_t) snprintf(big + n, sizeof big - n, "%s%s/%s/%s", i ? "," : "", bn[i % 4],
+            n = append(big, sizeof big, n, "%s%s/%s/%s", i ? "," : "", bn[i % 4],
                                    pn[(i / 4) % 4], hn[i / 16]);
-        snprintf(big + n, sizeof big - n, "});");
+        (void) append(big, sizeof big, n, "});");
         CHECK(zc_parse(big, strlen(big), &c, NULL, NULL, NULL, NULL, 0, NULL) == ZXV_OK, "64-entry set");
         zc_contract_destroy(c);
-        snprintf(big + n, sizeof big - n, ",*/*/*});");
+        (void) append(big, sizeof big, n, ",*/*/*});");
     }
     st = zc_parse(big, strlen(big), &c, NULL, NULL, NULL, NULL, 0, NULL);
     CHECK(st == ZC_E_SYNTAX && strstr(last_err(), "more than 64 entries"), "65-entry set refused");

@@ -109,6 +109,7 @@ static void test_sizes(void) {
  * padded to column 72, then an identification area in 73-80. */
 static void card(char *out, size_t cap, int seq, const char *code) {
     size_t n = strlen(out);
+    if (n >= cap) return;
     snprintf(out + n, cap - n, "%06d%-66.66sSEQ%05d\n", seq, code, seq);
 }
 

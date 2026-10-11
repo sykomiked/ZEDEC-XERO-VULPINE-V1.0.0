@@ -41,8 +41,12 @@ static const char *hex_of(const zs_layout *l, const char *ref) {
     size_t k = 0;
     b[0] = '\0';
     if (zs_find(l, ref, &idx, &off) != ZXV_OK || zs_field_at(l, idx, &f) != ZXV_OK) return "?";
-    for (uint64_t i = 0; i < f.size && k + 3u < sizeof b; i++)
-        k += (size_t) snprintf(b + k, sizeof b - k, "%02x", g_rec[off + i]);
+    static const char hexd[] = "0123456789abcdef";
+    for (uint64_t i = 0; i < f.size && k + 3u < sizeof b; i++) {
+        b[k++] = hexd[g_rec[off + i] >> 4];
+        b[k++] = hexd[g_rec[off + i] & 15u];
+    }
+    b[k] = '\0';
     return b;
 }
 
@@ -260,11 +264,11 @@ static void round_trip(void) {
                     zs_layout *l;
                     uint8_t r[32];
                     zs_diag d;
-                    int pk = 0;
                     if (!sgn && k >= 1 && k <= 3) continue; /* sign clauses need S */
-                    pk += snprintf(pic + pk, sizeof pic - (size_t) pk, "%s", sgn ? "s" : "");
-                    if (dg > sc) pk += snprintf(pic + pk, sizeof pic - (size_t) pk, "9(%u)", (unsigned) (dg - sc));
-                    if (sc) snprintf(pic + pk, sizeof pic - (size_t) pk, "v9(%u)", (unsigned) sc);
+                    char ip[16] = "", sp[16] = "";
+                    if (dg > sc) snprintf(ip, sizeof ip, "9(%u)", (unsigned) (dg - sc));
+                    if (sc) snprintf(sp, sizeof sp, "v9(%u)", (unsigned) sc);
+                    snprintf(pic, sizeof pic, "%s%s%s", sgn ? "s" : "", ip, sp);
                     snprintf(text, sizeof text, "record r\n  a: %s%s\n  b: x\n", pic, kinds[k]);
                     l = NULL;
                     if (zs_sutra_parse(text, strlen(text), &l, &d) != ZXV_OK) {

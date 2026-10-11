@@ -67,10 +67,16 @@ static char *text_of(const zs_layout *l, int copybook) {
 
 /* "NAME(1,1,...)" for the first occurrence of a field. */
 static void ref_of(const zs_field *f, char *b, size_t cap) {
-    size_t k = (size_t) snprintf(b, cap, "%s", f->name);
-    if (!f->dims) return;
-    for (uint32_t i = 0; i < f->dims; i++) k += (size_t) snprintf(b + k, cap - k, i ? ",1" : "(1");
-    snprintf(b + k, cap - k, ")");
+    /* at most 7 dimensions: "(1,1,1,1,1,1,1)" is 15 bytes */
+    char idx[2 * 7 + 2] = "";
+    size_t k = 0;
+    for (uint32_t i = 0; i < f->dims && i < 7u; i++) {
+        idx[k++] = i ? ',' : '(';
+        idx[k++] = '1';
+    }
+    if (k) idx[k++] = ')';
+    idx[k] = '\0';
+    snprintf(b, cap, "%s%s", f->name, idx);
 }
 
 static void codec(const zs_layout *l, const uint8_t *d, size_t n) {
