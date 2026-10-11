@@ -1,0 +1,28 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls %}
+{% comment %}Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC. SPDX-License-Identifier: Apache-2.0{% endcomment %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a> &rsaquo;
+  <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a> &rsaquo;
+  <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a> &rsaquo;
+  Accounting equation
+</div>
+{% endblock %}
+{% block content %}
+<p>Assets = Liabilities + Equity, summed exactly (no floats, no rounding) over the lines you can view.
+This check is advisory and read-only: it changes nothing and blocks nothing.</p>
+<p id="zxv-verdict">Overall: <strong>{{ verdict }}</strong>
+  {% if verdict == "TRUE" %}(the equation holds in every currency){% elif verdict == "FALSE" %}(the equation does not hold; see the difference){% else %}(no lines, or lines of an unknown kind){% endif %}</p>
+<table>
+  <thead><tr><th>Currency</th><th>Assets</th><th>Liabilities</th><th>Equity</th><th>L + E</th><th>A - (L + E)</th><th>Lines</th><th>Unclassified</th><th>Holds</th></tr></thead>
+  <tbody>
+  {% for r in results %}
+    <tr><td>{{ r.currency|default:"-" }}</td><td>{{ r.assets }}</td><td>{{ r.liabilities }}</td><td>{{ r.equity }}</td>
+        <td>{{ r.liabilities_plus_equity }}</td><td>{{ r.difference }}</td><td>{{ r.lines }}</td><td>{{ r.unclassified }}</td><td>{{ r.holds }}</td></tr>
+  {% empty %}
+    <tr><td colspan="9">No lines.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
