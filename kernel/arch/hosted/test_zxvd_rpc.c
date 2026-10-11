@@ -657,6 +657,28 @@ static bool closed_by_server(int fd)
     return false;
 }
 
+/* send a buffer larger than the socket's send buffer (8 KiB for AF_UNIX on
+ * macOS) without blocking: the server runs on this thread, so it is pumped
+ * whenever the buffer is full. macOS blocks such a send even with
+ * MSG_DONTWAIT, so the descriptor itself is made non-blocking meanwhile.
+ * Stops if the server closes the client. */
+static void send_pumped(int fd, const char *buf, size_t len)
+{
+    int fl = fcntl(fd, F_GETFL);
+    fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+    size_t off = 0;
+    for (int tries = 0; off < len && tries < 1000; tries++) {
+        ssize_t k = send(fd, buf + off, len - off, 0);
+        if (k > 0) {
+            off += (size_t) k;
+            continue;
+        }
+        if (k < 0 && errno != EAGAIN && errno != EWOULDBLOCK) break;
+        pump(1);
+    }
+    fcntl(fd, F_SETFL, fl);
+}
+
 /* zxvd_rpc.h E1-E4. Runs after test_books: the books are open, in VFV. */
 static size_t count(const char *s, const char *needle)
 {
@@ -914,7 +936,7 @@ static void test_socket(void)
     /* T3: an over-long line closes that client only */
     static char junk[ZXVD_RPC_MAX_LINE + 64];
     memset(junk, 'x', sizeof junk);
-    send(cs[1], junk, sizeof junk, 0);
+    send_pumped(cs[1], junk, sizeof junk);
     CHECK(closed_by_server(cs[1]), "over-long line: client closed");
     close(cs[1]);
     /* the line limit is exact: ZXVD_RPC_MAX_LINE bytes and LF are served,
@@ -923,11 +945,11 @@ static void test_socket(void)
     memset(edge_line, ' ', sizeof edge_line);
     memcpy(edge_line, REQ("13", "swarm.state", ""), sizeof(REQ("13", "swarm.state", "")) - 1);
     edge_line[ZXVD_RPC_MAX_LINE] = '\n';
-    send(cs[3], edge_line, ZXVD_RPC_MAX_LINE + 1, 0);
+    send_pumped(cs[3], edge_line, ZXVD_RPC_MAX_LINE + 1);
     CHECK(read_line(cs[3], line, sizeof line) && !strcmp(line, OK("13", "{\"tick\":7}")),
           "a line of exactly the limit is served");
     edge_line[ZXVD_RPC_MAX_LINE] = ' ';
-    send(cs[4], edge_line, ZXVD_RPC_MAX_LINE + 1, 0); /* no LF yet: the buffer is full */
+    send_pumped(cs[4], edge_line, ZXVD_RPC_MAX_LINE + 1); /* no LF yet: the buffer is full */
     CHECK(closed_by_server(cs[4]), "one byte over the limit: client closed at once");
     /* a client that closes is dropped, freeing its slot */
     close(cs[2]);
