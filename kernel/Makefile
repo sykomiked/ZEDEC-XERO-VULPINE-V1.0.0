@@ -1480,6 +1480,11 @@ test-vauction:
 test-zenny:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/zenny/test_zenny.c src/zenny/zenny.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_zenny -lm && $(ZXV_TMP)/test_zenny > $(ZXV_TMP)/test_zenny.log 2>&1 && echo "[PASS] test_zenny" || { tail -40 $(ZXV_TMP)/test_zenny.log; echo "[FAIL] test_zenny"; exit 1; }
 
+# V-Bonds (src/vbond): fixed-term locked V-Bills, Fibonacci term weights, premium-share pool paid by largest remainder; off per jurisdiction.
+.PHONY: test-vbond
+test-vbond:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/vbond/test_vbond.c src/vbond/vbond.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vbond -lm && $(ZXV_TMP)/test_vbond > $(ZXV_TMP)/test_vbond.log 2>&1 && echo "[PASS] test_vbond" || { tail -40 $(ZXV_TMP)/test_vbond.log; echo "[FAIL] test_vbond"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1490,4 +1495,5 @@ test-econ:
 	$(MAKE) --no-print-directory test-grants
 	$(MAKE) --no-print-directory test-vauction
 	$(MAKE) --no-print-directory test-zenny
+	$(MAKE) --no-print-directory test-vbond
 # ==== end economy modules ====
