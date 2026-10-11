@@ -67,3 +67,7 @@ __pycache__/
 *.exe
 *.o
 *.elf
+
+# Model weights live outside the repository (~/.cache/zxv/models)
+*.gguf
+*.gguf.part

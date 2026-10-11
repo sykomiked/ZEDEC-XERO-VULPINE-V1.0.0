@@ -103,6 +103,15 @@
  *       neighbours are. The same code runs on E8 points (8-wide blocks from
  *       zt_e8_nearest): E8 is a group, so every residual is again a lattice
  *       point, and a small one is a single 15-bit codebook index.
+ *       MEASURED ON A REAL MODEL (Qwen2.5-1.5B Q4_K_M, bench/results/
+ *       2026-10-10-qwen2.5-1.5b): on the 8-bit weight codes, row by row on
+ *       a golden coil, decoding all 10 shells gives the model back bit for
+ *       bit, but the residuals take MORE bits than the codes (entropy 8.12
+ *       against 7.31 bits a weight): neighbouring weights are not alike
+ *       enough. So residuals stay on the device and the network carries the
+ *       codes (kernel/Makefile checks it). Stopping after 9 shells changes
+ *       34% of the weights and wrecks the model (perplexity 9.37 -> 332055):
+ *       weights must always be decoded with all 10 shells.
  *   T16 UBH-168 FRAMES WITH ALTERNATING ENDIANNESS.  Tensor words travel in
  *       21-octet UBH-168 frames: one tag octet, then five 32-bit words. The
  *       byte order alternates word by word, little then big then little

@@ -1,161 +1,76 @@
 name: CI
 
+# Speed (docs/CI.md): superseded runs on a pull request are cancelled, each
+# job runs only when its inputs changed (build_system/ci_changes.sh), and the
+# slow tier (mutation, fuzzing, coverage, cross-CPU KATs, MSan, integer
+# sanitizer, riscv/arm32 boots) runs nightly, on manual runs, and on pull
+# requests once they are ready for review. A draft cannot be merged, so every
+# merge has passed the slow tier. Locally, scripts/verify-local.sh runs the
+# fast tier before a push.
+
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
+    # SDK-only pull requests are tested by the sdk*.yml workflows; this one
+    # still runs for libzxv and the .NET SDK, which its dotnet-sdk job builds.
+    paths:
+      - '**'
+      - '!sdk/**'
+      - '!.github/workflows/sdk*.yml'
+      - '!.github/scripts/sdk-changes.sh'
+      - 'sdk/libzxv/**'
+      - 'sdk/dotnet/**'
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # Only pull request runs are cancelled by a newer push; every commit on
+  # main/develop keeps its result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build-arm64:
+  # Change detection, Apache-2.0 check and clang-format in one short job.
+  # Every other job reads its outputs; a lint failure does not hide them.
+  quick-checks:
     runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install ARM64 toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu qemu-system-arm xorriso
-      - name: Build ARM64
-        run: |
-          make -f build_system/Makefile.arm64 clean
-          make -f build_system/Makefile.arm64 all
-      - name: Run ARM64 in QEMU
-        # The kernel never exits, so timeout always stops QEMU; the step
-        # passes only if the serial log reached [BOOT_OK] without a fault
-        # marker. Same check on all five targets: build_system/ci_boot_check.sh.
-        run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
-      - name: Upload ARM64 artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: kernel-arm64
-          path: kernel_arm64.elf
-
-  build-x86_64:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install x86_64 toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
-      - name: Build x86_64
-        run: |
-          make -f build_system/Makefile.x86_64 clean
-          make -f build_system/Makefile.x86_64 all
-      - name: Run x86_64 in QEMU
-        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]"
-      - name: Upload x86_64 artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: kernel-x86_64
-          path: kernel_x86_64.elf
-
-  build-riscv64:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install RISC-V 64-bit toolchain
-        run: |
-          sudo apt-get update
-          # qemu-system-riscv64 ships in qemu-system-misc (Ubuntu has no
-          # package of that name), with the rv64 OpenSBI firmware QEMU loads.
-          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
-      - name: Build RISC-V 64-bit
-        run: |
-          make -f build_system/Makefile.riscv clean
-          make -f build_system/Makefile.riscv all
-      - name: Run RISC-V 64-bit in QEMU
-        run: build_system/ci_boot_check.sh riscv64 build_system/Makefile.riscv 30
-      - name: Upload RISC-V 64-bit artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: kernel-riscv64
-          path: kernel_riscv.elf
-          if-no-files-found: error
-
-  build-riscv32:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install RISC-V 32-bit toolchain
-        # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
-        # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
-      - name: Build RISC-V 32-bit
-        run: |
-          make -f build_system/Makefile.riscv32 clean
-          make -f build_system/Makefile.riscv32 all
-      - name: Build rv32 OpenSBI firmware
-        # Ubuntu ships rv64 OpenSBI only, and qemu-system-riscv32 -M virt
-        # cannot start without an rv32 one (see build_system/riscv32_sbi.sh).
-        # Built from a pinned upstream tag with the same riscv64 cross gcc;
-        # the run target picks it up through ZXV_RV32_SBI.
-        run: |
-          git clone --depth 1 --branch v1.3.1 https://github.com/riscv-software-src/opensbi.git "$RUNNER_TEMP/opensbi"
-          make -C "$RUNNER_TEMP/opensbi" -j"$(nproc)" PLATFORM=generic PLATFORM_RISCV_XLEN=32 CROSS_COMPILE=riscv64-linux-gnu-
-          echo "ZXV_RV32_SBI=$RUNNER_TEMP/opensbi/build/platform/generic/firmware/fw_dynamic.bin" >> "$GITHUB_ENV"
-      - name: Run RISC-V 32-bit in QEMU
-        run: build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
-      - name: Upload RISC-V 32-bit artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: kernel-riscv32
-          path: kernel_riscv32.elf
-
-  build-arm32:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install ARM32 toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf qemu-system-arm
-      - name: Build ARM32
-        run: |
-          make -f build_system/Makefile.arm32 clean
-          make -f build_system/Makefile.arm32 all
-      - name: Run ARM32 in QEMU
-        run: build_system/ci_boot_check.sh arm32 build_system/Makefile.arm32 30
-      - name: Upload ARM32 artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: kernel-arm32
-          path: zedec_xero_arm32.elf
-          if-no-files-found: error
-
-  host-tests:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils
-      - name: Check every file is on Apache-2.0
-        run: python3 build_system/relicense_apache.py --check
-      - name: Run host tests
-        run: |
-          cd kernel
-          make verify-all
-
-  lint:
-    runs-on: ubuntu-22.04
+    outputs:
+      kernel: ${{ steps.changes.outputs.kernel }}
+      dotnet: ${{ steps.changes.outputs.dotnet }}
+      mac: ${{ steps.changes.outputs.mac }}
+      proofs: ${{ steps.changes.outputs.proofs }}
+      heavy: ${{ steps.changes.outputs.heavy }}
+    env:
+      BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Which jobs this change needs
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          # A pull request is compared with its merge base on the target
+          # branch, so files that only changed there do not count.
+          B="$BASE"
+          if git cat-file -e "$B^{commit}" 2>/dev/null; then B=$(git merge-base "$B" HEAD); fi
+          build_system/ci_changes.sh "$B" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Check every file is on Apache-2.0
+        run: python3 build_system/relicense_apache.py --check
       - name: Install clang-format
         run: pip install clang-format==18.1.8
       - name: Check formatting of the C files this change touches
         # Style is in .clang-format. Older files predate it, so only the lines
         # a pull request or push changes are checked.
-        env:
-          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
         run: |
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
           # Only the changed lines are checked, so a one-line header edit does
@@ -173,12 +88,172 @@ jobs:
             *) echo "$out"; exit 1 ;;
           esac
 
+  host-tests:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make clang libxml2-utils
+      - name: Run host tests
+        run: |
+          cd kernel
+          make verify-all
+
+  # QEMU boots of the two shipping targets (Apple Silicon/ARM PCs and x86_64
+  # PCs) on every push. Each arch is its own step and every step runs even
+  # after a failure, so one red arch does not hide the other.
+  boot:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install ARM64 and x86_64 toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache gcc-aarch64-linux-gnu qemu-system-arm gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
+          sudo /usr/sbin/update-ccache-symlinks
+          echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+      - name: Cache ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-boot-${{ github.sha }}
+          restore-keys: ccache-boot-
+      - name: Build ARM64
+        run: |
+          make -f build_system/Makefile.arm64 clean
+          make -j"$(nproc)" -f build_system/Makefile.arm64 all
+      - name: Run ARM64 in QEMU
+        # The kernel never exits, so timeout always stops QEMU; the step
+        # passes only if the serial log reached [BOOT_OK] without a fault
+        # marker. Same check on all five targets: build_system/ci_boot_check.sh.
+        run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
+      - name: Upload ARM64 artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-arm64
+          path: kernel_arm64.elf
+      - name: Build x86_64
+        if: ${{ !cancelled() }}
+        run: |
+          make -f build_system/Makefile.x86_64 clean
+          make -j"$(nproc)" -f build_system/Makefile.x86_64 all
+      - name: Run x86_64 in QEMU
+        if: ${{ !cancelled() }}
+        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]"
+      - name: Upload x86_64 artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-x86_64
+          path: kernel_x86_64.elf
+      - run: ccache -s
+
+  # Slow tier: the other three boots (riscv64, riscv32, arm32), one job.
+  boot-extra:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
+    runs-on: ubuntu-22.04
+    env:
+      OPENSBI_TAG: v1.3.1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install RISC-V and ARM32 toolchains
+        # qemu-system-riscv64 ships in qemu-system-misc (Ubuntu has no
+        # package of that name), with the rv64 OpenSBI firmware QEMU loads.
+        # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
+        # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache gcc-riscv64-linux-gnu qemu-system-misc gcc-arm-linux-gnueabihf qemu-system-arm
+          sudo /usr/sbin/update-ccache-symlinks
+          echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+      - name: Cache ccache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ccache
+          key: ccache-boot-extra-${{ github.sha }}
+          restore-keys: ccache-boot-extra-
+      - name: Build RISC-V 64-bit
+        run: |
+          make -f build_system/Makefile.riscv clean
+          make -j"$(nproc)" -f build_system/Makefile.riscv all
+      - name: Run RISC-V 64-bit in QEMU
+        run: build_system/ci_boot_check.sh riscv64 build_system/Makefile.riscv 30
+      - name: Upload RISC-V 64-bit artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-riscv64
+          path: kernel_riscv.elf
+          if-no-files-found: error
+      - name: Build RISC-V 32-bit
+        if: ${{ !cancelled() }}
+        run: |
+          make -f build_system/Makefile.riscv32 clean
+          make -j"$(nproc)" -f build_system/Makefile.riscv32 all
+      - name: Cache the rv32 OpenSBI firmware
+        id: sbi-cache
+        if: ${{ !cancelled() }}
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/opensbi-fw
+          key: opensbi-rv32-${{ env.OPENSBI_TAG }}-ubuntu-22.04-elf
+      - name: Build rv32 OpenSBI firmware
+        # Ubuntu ships rv64 OpenSBI only, and qemu-system-riscv32 -M virt
+        # cannot start without an rv32 one (see build_system/riscv32_sbi.sh).
+        # Built from a pinned upstream tag with the same riscv64 cross gcc;
+        # the run target picks it up through ZXV_RV32_SBI.
+        if: ${{ !cancelled() && steps.sbi-cache.outputs.cache-hit != 'true' }}
+        run: |
+          git clone --depth 1 --branch "$OPENSBI_TAG" https://github.com/riscv-software-src/opensbi.git "$RUNNER_TEMP/opensbi"
+          make -C "$RUNNER_TEMP/opensbi" -j"$(nproc)" PLATFORM=generic PLATFORM_RISCV_XLEN=32 CROSS_COMPILE=riscv64-linux-gnu-
+          mkdir -p "$RUNNER_TEMP/opensbi-fw"
+          # riscv32_sbi.sh accepts the .bin only with its .elf beside it
+          cp "$RUNNER_TEMP"/opensbi/build/platform/generic/firmware/fw_dynamic.{bin,elf} "$RUNNER_TEMP/opensbi-fw/"
+      - name: Run RISC-V 32-bit in QEMU
+        if: ${{ !cancelled() }}
+        run: ZXV_RV32_SBI="$RUNNER_TEMP/opensbi-fw/fw_dynamic.bin" build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
+      - name: Upload RISC-V 32-bit artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-riscv32
+          path: kernel_riscv32.elf
+      - name: Build ARM32
+        if: ${{ !cancelled() }}
+        run: |
+          make -f build_system/Makefile.arm32 clean
+          make -j"$(nproc)" -f build_system/Makefile.arm32 all
+      - name: Run ARM32 in QEMU
+        if: ${{ !cancelled() }}
+        run: build_system/ci_boot_check.sh arm32 build_system/Makefile.arm32 30
+      - name: Upload ARM32 artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-arm32
+          path: zedec_xero_arm32.elf
+          if-no-files-found: error
+      - run: ccache -s
+
   # The turnkey Mac app: native shell + engine, universal (arm64 + x86_64),
   # tested and packaged by build_desktop.sh on Apple's own toolchain. Signs
   # and notarises only when the repository has the signing secrets; without
   # them (forks, pull requests) the app is ad-hoc signed and still tested.
+  #
+  # Optional self-hosted Mac (docs/CI.md, "Self-hosted Mac runner"): OFF
+  # unless the repository variable ZXV_MAC_RUNNER is set to "self-hosted".
+  # Even then, pull requests from forks always stay on GitHub's macos-14, so
+  # outside code never runs on the owner's machine.
   macos-app:
-    runs-on: macos-14
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.mac == 'true' }}
+    runs-on: ${{ (vars.ZXV_MAC_RUNNER == 'self-hosted' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted", "macOS", "ARM64", "zxv-mac"]') || 'macos-14' }}
     timeout-minutes: 45
     env:
       ZXV_SIGN_IDENTITY: ${{ secrets.ZXV_SIGN_IDENTITY }}
@@ -245,6 +320,11 @@ jobs:
           done
           pgrep -fl "ZXV.app/Contents/MacOS/zxv-engine"
           sleep 3
+          # the engine is zxvd: its control socket answers (macos/ZXVApp.m, SOCKET)
+          SOCK="$HOME/Library/Application Support/ZXV/run/zxvd.sock"
+          test -S "$SOCK"
+          cc -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c -o "$RUNNER_TEMP/zxv-rpc-call"
+          "$RUNNER_TEMP/zxv-rpc-call" "$SOCK" '{"jsonrpc":"2.0","id":1,"method":"zxvd.version"}' | grep '"protocol":"zxvd-rpc/1"'
           # a polite Quit (as from the menu); some runners refuse Apple Events
           osascript -e 'tell application id "com.36n9genetics.zxv-swarm" to quit' ||
             echo "::warning::Apple Event quit refused on this runner"
@@ -259,6 +339,7 @@ jobs:
             sleep 1
           done
           if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
+          if [ -e "$SOCK" ]; then echo "the control socket was left behind"; exit 1; fi
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
       - name: Upload the Mac packages
         uses: actions/upload-artifact@v7
@@ -277,17 +358,25 @@ jobs:
   # The .NET SDK for operator teams: the C ABI shim with its conformance
   # test, then the SDK and gateway built with warnings as errors and tested.
   dotnet-sdk:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.dotnet == 'true' }}
     runs-on: ubuntu-24.04
     defaults:
       run:
-        working-directory: bindings/dotnet
+        working-directory: sdk/dotnet
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
-      - name: Native shim (C ABI) and its conformance test
-        run: make -C native test
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('sdk/dotnet/**/*.csproj', 'sdk/dotnet/Directory.Packages.props', 'sdk/dotnet/global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: libzxv (the C ABI) and its conformance tests
+        run: make -C ../libzxv test
       - name: Build (Release, warnings as errors)
         run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
       - name: Test
@@ -296,12 +385,14 @@ jobs:
         if: always()
         with:
           name: dotnet-test-results
-          path: bindings/dotnet/tests/**/TestResults/*.trx
+          path: sdk/dotnet/tests/**/TestResults/*.trx
 
   # Machine-checked models in proofs/ (see proofs/README.md): TLC on the
   # TLA+ ledger models, Lean 4 on the headroom and rational proofs. These are
   # models of the C code, not a proof of the C code itself.
   proofs:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.proofs == 'true' }}
     runs-on: ubuntu-24.04
     env:
       TLA_VERSION: '1.7.4'
@@ -352,6 +443,8 @@ jobs:
   # ML-KEM-768 decaps/encaps (gated) and ML-DSA-65 sign (reported only), and
   # the legacy-transcoder golden traces. No model is downloaded.
   kat-cross:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -371,10 +464,19 @@ jobs:
         run: make -C bench legacy
 
   # Mutation testing on a small fixed subset (the full run is slow; see
-  # tests/MUTATION_REPORT.md). Fails when a mutation score drops below the
-  # measured baseline recorded in tests/harness/mutator/targets.json.
+  # tests/MUTATION_REPORT.md), split into three parallel shards balanced by
+  # mutant count (mutate.py --shard). Every CI target is in exactly one shard,
+  # and each shard fails when one of its scores drops below the measured
+  # baseline recorded in tests/harness/mutator/targets.json.
   mutation-subset:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 1, 2, 3 ]
+    name: mutation-subset (${{ matrix.shard }}/3)
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -383,12 +485,12 @@ jobs:
           sudo apt-get install -y gcc make
       - name: Mutation harness self-test
         run: python3 tests/harness/mutator/mutate.py --selftest
-      - name: Mutation score gate (CI subset)
-        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --jobs 4 --out mutation-results
+      - name: Mutation score gate (CI subset, shard ${{ matrix.shard }}/3)
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --shard ${{ matrix.shard }}/3 --jobs 4 --out mutation-results
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: mutation-results
+          name: mutation-results-${{ matrix.shard }}
           path: mutation-results/*.txt
 
   # ---- sanitizers, fuzzing and coverage (fuzz/README.md) ----------------
@@ -399,6 +501,8 @@ jobs:
   # uses threads (zx_notify_host.c forks a separate process), so a race
   # detector has nothing to check.
   sanitize-asan-ubsan:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -422,6 +526,8 @@ jobs:
           make -C kernel verify-all
 
   sanitize-integer:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -446,6 +552,8 @@ jobs:
             REPLAY_SAN="-fsanitize=address,undefined,integer -fno-sanitize-recover=all -fsanitize-ignorelist=$PWD/fuzz/sanitizer-ignorelist.txt" prop
 
   sanitize-msan:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -467,6 +575,8 @@ jobs:
         run: fuzz/tools/msan_tests.sh
 
   fuzz-smoke:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -487,6 +597,8 @@ jobs:
           path: fuzz/build/artifacts/
 
   coverage:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

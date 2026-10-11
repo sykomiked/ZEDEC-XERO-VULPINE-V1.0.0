@@ -526,7 +526,7 @@ Ordered by how much each one blocks the product goal: a signed macOS companion a
   - No macOS CI runner (`.github/workflows/ci.yml`).
   - The hosted app has no update check.
 - **Fix:**
-  - Add a `macos-14` CI job that runs `build_desktop.sh` then `codesign --options runtime` with entitlements (network client and server, user-selected files read-only for models), `notarytool submit --wait` and `stapler`.
+  - Add a `macos-14` CI job that runs `build_desktop.sh` then `codesign --options runtime` with entitlements (network client and server, user-selected files read-only for models), `notarytool submit --wait` and `stapler`. (Decided 2026-10-11: releases ship ad-hoc signed without a Developer ID or notarisation; users allow the first open once, as `docs/MAC_APP.md` describes.)
   - Add a first-run model picker that downloads a licence-checked GGUF to `~/Library/Application Support/ZXV/models` and verifies it by CID.
   - Add a hybrid-signed update check (Gap 8).
   - Ship a LaunchAgent plist as an opt-in "start at login".
