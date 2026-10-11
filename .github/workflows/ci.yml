@@ -70,7 +70,10 @@ jobs:
         run: pip install clang-format==18.1.8
       - name: Check formatting of the C files this change touches
         # Style is in .clang-format. Older files predate it, so only the lines
-        # a pull request or push changes are checked.
+        # a pull request or push changes are checked. Nightly and manual runs
+        # have no change to compare, so the whole history would be "changed"
+        # and every pre-.clang-format file would fail; they skip this step.
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
         run: |
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
           # Only the changed lines are checked, so a one-line header edit does
