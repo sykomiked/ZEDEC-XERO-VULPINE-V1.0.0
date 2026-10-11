@@ -494,13 +494,81 @@ static void test_commit_reveal(void)
     }
 }
 
+/* ===== S4: the posting hook ===== */
+typedef struct {
+    int n, refuse_at;
+    raffle_dest_t dest[4];
+    uint64_t amount[4];
+    uint8_t who[32];
+} post_log_t;
+
+static bool record_leg(void *ctx, raffle_dest_t dest, const uint8_t *who, uint64_t amount)
+{
+    post_log_t *l = ctx;
+    if (l->n == l->refuse_at) return false;
+    l->dest[l->n] = dest;
+    l->amount[l->n] = amount;
+    if (who) memcpy(l->who, who, 32);
+    l->n++;
+    return true;
+}
+
+static void test_post(void)
+{
+    /* Alice 610 + Bob 987 = 1597: skim 25, grant 145, pot 1427. */
+    raffle_config_t c = enabled_cfg();
+    c.fib_index = 17;
+    raffle_t r;
+    raffle_settlement_t s;
+    uint8_t alice[32], bob[32], p[32], sec[32], cm[32];
+    uint64_t fee, n, a610 = 0, a987 = 0;
+    ident("alice", 0, alice);
+    ident("bob", 0, bob);
+    ident("party", 0, p);
+    epoch_secret(1, 0, sec);
+    for (uint64_t a = 1; !a610 || !a987; a++) {
+        raffle_quote(&c, a, 1, &fee, &n);
+        if (fee == 610 && !a610) a610 = a;
+        if (fee == 987 && !a987) a987 = a;
+    }
+    raffle_init(&r, &c, 1, NULL, g_ranges, 8);
+    raffle_commitment(1, p, sec, cm);
+    raffle_commit(&r, p, cm);
+    raffle_enter(&r, alice, a610, 1, NULL);
+    raffle_enter(&r, bob, a987, 1, NULL);
+    raffle_reveal(&r, p, sec);
+    CHECK(raffle_draw(&r, &s) == RAFFLE_OK, "draw");
+    CHECK(s.pool == 1597 && s.reserve_skim == 25 && s.grant_pool == 145 && s.crown_pot == 1427,
+          "1597 -> 25 + 145 + 1427 (got %llu %llu %llu)", (unsigned long long) s.reserve_skim,
+          (unsigned long long) s.grant_pool, (unsigned long long) s.crown_pot);
+    post_log_t l;
+    memset(&l, 0, sizeof l);
+    l.refuse_at = -1;
+    CHECK(raffle_post(&s, record_leg, &l), "post");
+    CHECK(l.n == 3 && l.dest[0] == RAFFLE_DEST_RESERVE_FLOOR && l.amount[0] == 25 &&
+              l.dest[1] == RAFFLE_DEST_GRANT_POOL && l.amount[1] == 145 &&
+              l.dest[2] == RAFFLE_DEST_WINNER && l.amount[2] == 1427 &&
+              memcmp(l.who, s.winner, 32) == 0,
+          "three legs in order, winner named");
+    memset(&l, 0, sizeof l);
+    l.refuse_at = 1;
+    CHECK(!raffle_post(&s, record_leg, &l) && l.n == 1, "a refused leg stops the posting");
+    CHECK(!raffle_post(&s, NULL, &l) && !raffle_post(NULL, record_leg, &l), "null args");
+    raffle_settlement_t z = s;
+    z.grant_pool = 0;
+    memset(&l, 0, sizeof l);
+    l.refuse_at = -1;
+    CHECK(raffle_post(&z, record_leg, &l) && l.n == 2 && l.dest[1] == RAFFLE_DEST_WINNER,
+          "a zero leg is skipped");
+}
+
 /* ===== S1: the split, no rounding loss ===== */
 static void test_split(void)
 {
     raffle_config_t c = enabled_cfg();
     c.fib_index = 2;
     uint64_t seed = 7;
-    unsigned bad = 0;
+    unsigned bad = 0, checked = 0, rejected = 0;
     for (int i = 0; i < 3000; i++) {
         raffle_t r;
         raffle_settlement_t s;
@@ -508,12 +576,26 @@ static void test_split(void)
         ident("owner", 1, who);
         ident("party", 0, p);
         epoch_secret((uint64_t) i, 0, sec);
-        if (i % 3 == 1) { /* other ratios too */
+        if (i % 3 == 1) { /* other ratios too, some summing to >= 1 */
             c.skim_num = 1 + xorshift(&seed) % 999;
-            c.skim_den = c.skim_num + 1 + xorshift(&seed) % 100000;
+            c.skim_den = c.skim_num + 1 + xorshift(&seed) % 2000;
+            c.grant_num = xorshift(&seed) % 999;
+            c.grant_den = c.grant_num + 1 + xorshift(&seed) % 2000;
         } else {
             c.skim_num = 987;
             c.skim_den = 61000;
+            c.grant_num = 5;
+            c.grant_den = i % 3 == 2 ? 0 : 55; /* grants off every third run */
+        }
+        if (c.grant_den) {
+            unsigned __int128 lhs = (unsigned __int128) c.skim_num * c.grant_den +
+                                    (unsigned __int128) c.grant_num * c.skim_den;
+            int ok = lhs < (unsigned __int128) c.skim_den * c.grant_den;
+            if (ok != (raffle_config_check(&c) == RAFFLE_OK)) bad++;
+            if (!ok) {
+                rejected++;
+                continue;
+            }
         }
         raffle_init(&r, &c, 1, NULL, g_ranges, 4);
         raffle_commitment(1, p, sec, cm);
@@ -530,13 +612,25 @@ static void test_split(void)
             continue;
         }
         unsigned __int128 x = (unsigned __int128) s.pool * c.skim_num;
-        if (s.reserve_skim + s.crown_pot != s.pool) bad++;
+        unsigned __int128 g = (unsigned __int128) s.pool * c.grant_num;
+        if ((unsigned __int128) s.reserve_skim + s.grant_pool + s.crown_pot != s.pool) bad++;
         if (!((unsigned __int128) s.reserve_skim * c.skim_den <= x &&
               x < ((unsigned __int128) s.reserve_skim + 1) * c.skim_den))
             bad++;
-        if (i % 3 != 1 && s.crown_pot < s.reserve_skim) bad++; /* default 1.618% skim */
+        if (c.grant_den ? !((unsigned __int128) s.grant_pool * c.grant_den <= g &&
+                            g < ((unsigned __int128) s.grant_pool + 1) * c.grant_den)
+                        : s.grant_pool != 0)
+            bad++;
+        if (i % 3 != 1 && s.crown_pot < s.reserve_skim + s.grant_pool) bad++; /* defaults */
+        checked++;
     }
-    CHECK(bad == 0, "skim + pot == pool, skim is the exact floor (%u bad)", bad);
+    CHECK(bad == 0, "skim + grant + pot == pool, each slice the exact floor (%u bad)", bad);
+    CHECK(checked > 2500 && rejected > 50, "ran %u splits, rejected %u bad ratios", checked,
+          rejected);
+
+    /* The defaults: 1597 -> skim 25, grant 145, pot 1427. */
+    raffle_config_default(&c);
+    CHECK(c.grant_num == 5 && c.grant_den == 55, "default grant 5/55");
 }
 
 /* ===== R4: no modulo bias ===== */
@@ -698,7 +792,8 @@ static void test_replay(const char *ref)
             uint64_t v;
         } nums[] = {{"tickets", a[e].tickets},   {"pool", a[e].pool},
                     {"refused", ra[e]},          {"winning", a[e].winning_ticket},
-                    {"skim", a[e].reserve_skim}, {"pot", a[e].crown_pot}};
+                    {"skim", a[e].reserve_skim}, {"grant", a[e].grant_pool},
+                    {"pot", a[e].crown_pot}};
         for (size_t i = 0; i < sizeof nums / sizeof nums[0]; i++) {
             snprintf(key, sizeof key, "e%d.%s", e + 1, nums[i].k);
             snprintf(got, sizeof got, "%llu", (unsigned long long) nums[i].v);
@@ -762,6 +857,7 @@ int main(int argc, char **argv)
     test_epoch();
     test_commit_reveal();
     test_split();
+    test_post();
     test_draw_uniform();
     test_pick();
     test_replay(argv[1]);

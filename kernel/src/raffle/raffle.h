@@ -98,11 +98,19 @@
  *       reserve money. The solvency vault itself is funded only by its share
  *       of the assurance fee (owner decision), so the skim reaches it only if
  *       the owner later routes it through the vault's sweep.
- *       crown_pot = pool - reserve_skim, to the winning ticket's owner.
- *       The two always sum to the pool.
- *   S2  raffle_draw() only computes the settlement. The caller posts it
- *       (vault deposit + winner credit) as one balanced ledger posting, then
- *       calls raffle_settle(); nothing moves here.
+ *   S2  grant_pool = floor(pool * grant_num / grant_den), default 5/55
+ *       (about 9.09%, owner decision 2026-10-11), credited to the Olive Oil
+ *       Barrel grant pool account (built in the finance thread; this module
+ *       only names the destination). grant_den = 0 turns the slice off.
+ *   S3  crown_pot = pool - reserve_skim - grant_pool, to the winning
+ *       ticket's owner. Both floors' remainders land in the crown pot, so
+ *       the three parts always sum to the pool exactly. raffle_config_check
+ *       requires skim + grant < 1 (by cross-multiplication, 128-bit).
+ *   S4  raffle_draw() only computes the settlement. raffle_post() hands its
+ *       three legs to a caller-supplied credit hook (reserve floor, grant
+ *       pool, winner), which stages them into ONE balanced ledger posting;
+ *       the caller commits that posting and then calls raffle_settle().
+ *       Nothing moves inside this module.
  *
  * Freestanding: no libc, no allocation, no floating point.
  */
@@ -149,6 +157,7 @@ typedef struct {
     bool free_entry;               /* L2: default false                       */
     uint64_t fee_num, fee_den;     /* F2: default 987/61000                   */
     uint64_t skim_num, skim_den;   /* S1: default 987/61000                 */
+    uint64_t grant_num, grant_den; /* S2: default 5/55; den 0 = no grants   */
     uint32_t fib_index;            /* E1: default 18 (2584 tickets)           */
     uint32_t min_reveals;          /* R3: 0 = every committed party (default) */
     uint32_t max_multiplier;       /* F5: default 13, at most RAFFLE_MAX_MULT  */
@@ -174,8 +183,9 @@ typedef struct {
     uint64_t pool;
     uint64_t winning_ticket;
     uint8_t winner[RAFFLE_ID_LEN];
-    uint64_t reserve_skim; /* S1: to the solvency vault  */
-    uint64_t crown_pot;    /* S1: to the winner          */
+    uint64_t reserve_skim; /* S1: to the reserve floor   */
+    uint64_t grant_pool;   /* S2: to the grant pool      */
+    uint64_t crown_pot;    /* S3: to the winner          */
     uint8_t header_hash[RAFFLE_HASH_LEN];
     uint8_t seed[RAFFLE_HASH_LEN];
     uint8_t link[RAFFLE_HASH_LEN]; /* hash of this record; seeds the next epoch's chain */
@@ -258,7 +268,23 @@ raffle_status_t raffle_reveal(raffle_t *r, const uint8_t party[RAFFLE_ID_LEN],
 /* R2-R4, S1: compute the settlement. Pure with respect to `r`. */
 raffle_status_t raffle_draw(const raffle_t *r, raffle_settlement_t *out);
 
-/* S2: after the caller has posted `s` to the ledger, mark the epoch settled.
+/* S4: the destinations of a settlement's legs. */
+typedef enum {
+    RAFFLE_DEST_RESERVE_FLOOR = 0, /* PAY_ASSURE_RESERVE_FLOOR account   */
+    RAFFLE_DEST_GRANT_POOL = 1,    /* Olive Oil Barrel grant pool account */
+    RAFFLE_DEST_WINNER = 2         /* `who` = the winning owner           */
+} raffle_dest_t;
+
+/* Stage one leg; return false to abort. `who` is NULL except for the winner. */
+typedef bool (*raffle_credit_fn)(void *ctx, raffle_dest_t dest, const uint8_t *who,
+                                 uint64_t amount);
+
+/* S4: call `credit` for the reserve floor, the grant pool and the winner, in
+ * that order, skipping zero legs. Returns false on the first refusal (the
+ * caller then discards its staged posting). */
+bool raffle_post(const raffle_settlement_t *s, raffle_credit_fn credit, void *ctx);
+
+/* S4: after the caller has posted `s` to the ledger, mark the epoch settled.
  * Refuses a record that raffle_draw would not produce now. */
 raffle_status_t raffle_settle(raffle_t *r, const raffle_settlement_t *s);
 

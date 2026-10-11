@@ -64,6 +64,8 @@ void raffle_config_default(raffle_config_t *c)
     c->fee_den = RAFFLE_DEFAULT_FEE_DEN;
     c->skim_num = RAFFLE_DEFAULT_FEE_NUM;
     c->skim_den = RAFFLE_DEFAULT_FEE_DEN;
+    c->grant_num = 5;
+    c->grant_den = 55;
     c->fib_index = RAFFLE_DEFAULT_FIB_INDEX;
     c->min_reveals = 0;
     c->max_multiplier = 13;
@@ -76,6 +78,16 @@ raffle_status_t raffle_config_check(const raffle_config_t *c)
     if (!c) return RAFFLE_ERR_ARG;
     if (c->fee_den == 0 || c->fee_num >= c->fee_den) return RAFFLE_ERR_CONFIG;
     if (c->skim_den == 0 || c->skim_num >= c->skim_den) return RAFFLE_ERR_CONFIG;
+    if (c->grant_den) {
+        /* S3: skim_num/skim_den + grant_num/grant_den < 1, in 128 bits:
+         * skim_num * grant_den + grant_num * skim_den < skim_den * grant_den,
+         * tested as grant_num * skim_den < D - skim_num * grant_den, which
+         * never wraps (skim_num < skim_den keeps the subtraction positive). */
+        if (c->grant_num >= c->grant_den) return RAFFLE_ERR_CONFIG;
+        pay_u128 rest = pay_u128_sub(pay_mul64(c->skim_den, c->grant_den),
+                                     pay_mul64(c->skim_num, c->grant_den));
+        if (pay_u128_cmp(pay_mul64(c->grant_num, c->skim_den), rest) >= 0) return RAFFLE_ERR_CONFIG;
+    }
     if (c->fib_index < RAFFLE_FIB_MIN || c->fib_index > RAFFLE_FIB_MAX) return RAFFLE_ERR_CONFIG;
     if (c->min_reveals > RAFFLE_MAX_PARTIES) return RAFFLE_ERR_CONFIG;
     if (c->max_multiplier < 1 || c->max_multiplier > RAFFLE_MAX_MULT) return RAFFLE_ERR_CONFIG;
@@ -182,12 +194,14 @@ static void header_hash(const raffle_t *r, uint8_t out[RAFFLE_HASH_LEN])
 {
     pre_t p;
     p.len = 0;
-    pre_str(&p, "ZXV-RAFFLE-HDR3");
+    pre_str(&p, "ZXV-RAFFLE-HDR4");
     pre_u64(&p, r->epoch);
     pre_u64(&p, r->cfg.fee_num);
     pre_u64(&p, r->cfg.fee_den);
     pre_u64(&p, r->cfg.skim_num);
     pre_u64(&p, r->cfg.skim_den);
+    pre_u64(&p, r->cfg.grant_num);
+    pre_u64(&p, r->cfg.grant_den);
     pre_u64(&p, r->threshold);
     pre_u64(&p, r->cfg.max_multiplier);
     pre_u64(&p, r->cfg.share_num);
@@ -364,6 +378,7 @@ static void settlement_link(const raffle_settlement_t *s, uint8_t out[RAFFLE_HAS
     pre_bytes(&p, s->winner, RAFFLE_ID_LEN);
     pre_u64(&p, s->pool);
     pre_u64(&p, s->reserve_skim);
+    pre_u64(&p, s->grant_pool);
     pre_u64(&p, s->crown_pot);
     sha3_256(p.buf, p.len, out);
 }
@@ -401,10 +416,22 @@ raffle_status_t raffle_draw(const raffle_t *r, raffle_settlement_t *out)
     if (!raffle_owner_of(r, s.winning_ticket, s.winner)) return RAFFLE_ERR_DRAW;
 
     s.reserve_skim = ratio_floor(r->pool, r->cfg.skim_num, r->cfg.skim_den); /* S1 */
-    s.crown_pot = r->pool - s.reserve_skim;
+    s.grant_pool =
+        r->cfg.grant_den ? ratio_floor(r->pool, r->cfg.grant_num, r->cfg.grant_den) : 0; /* S2 */
+    s.crown_pot = r->pool - s.reserve_skim - s.grant_pool; /* S3: config_check keeps it >= 0 */
     settlement_link(&s, s.link);
     *out = s;
     return RAFFLE_OK;
+}
+
+bool raffle_post(const raffle_settlement_t *s, raffle_credit_fn credit, void *ctx)
+{
+    if (!s || !credit) return false;
+    if (s->reserve_skim && !credit(ctx, RAFFLE_DEST_RESERVE_FLOOR, 0, s->reserve_skim))
+        return false;
+    if (s->grant_pool && !credit(ctx, RAFFLE_DEST_GRANT_POOL, 0, s->grant_pool)) return false;
+    if (s->crown_pot && !credit(ctx, RAFFLE_DEST_WINNER, s->winner, s->crown_pot)) return false;
+    return true;
 }
 
 raffle_status_t raffle_settle(raffle_t *r, const raffle_settlement_t *s)
