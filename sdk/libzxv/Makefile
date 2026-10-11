@@ -26,6 +26,9 @@ endif
 AR      ?= ar
 K       := ../../kernel
 OUT     := build
+# The Android NDK has pthreads in libc and ships no libpthread: build with
+# PTHREAD= there.
+PTHREAD ?= -lpthread
 UNAME_S := $(shell uname -s)
 
 # The target, not the build machine, picks the library form: a MinGW or
@@ -63,7 +66,7 @@ STATIC := $(OUT)/libzxv.a
 # Windows cross build; HOSTCC builds the fixture writer for this machine.
 RUN    ?=
 HOSTCC ?= $(if $(EXE),cc,$(CC))
-TESTLIBS ?= -lpthread
+TESTLIBS ?= $(PTHREAD)
 PICFLAG ?= -fPIC
 FORTIFY ?= -D_FORTIFY_SOURCE=2
 
@@ -141,18 +144,22 @@ all: $(LIB) $(STATIC)
 
 $(OUT)/k/%.o: $(K)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(KFLAGS) $(INC) -c $< -o $@
+	$(CC) $(KFLAGS) -MMD -MP $(INC) -c $< -o $@
 
 $(OUT)/%.o: src/%.c include/zxv_api.h src/zxv_internal.h src/zxv_q16.h
 	@mkdir -p $(OUT)
-	$(CC) $(CFLAGS_COMMON) -DZXV_BUILD_SHARED $(DEFS) $(INC) -c $< -o $@
+	$(CC) $(CFLAGS_COMMON) -MMD -MP -DZXV_BUILD_SHARED $(DEFS) $(INC) -c $< -o $@
 
 $(LIB): $(OBJ) $(KOBJ)
-	$(CC) $(SOFLAG) $(SAN) -o $@ $^ -lpthread -lm $(OSLIBS)
+	$(CC) $(SOFLAG) $(SAN) -o $@ $^ $(PTHREAD) -lm $(OSLIBS)
 
 $(STATIC): $(OBJ) $(KOBJ)
 	@rm -f $@
 	$(AR) rcs $@ $^
+
+# Header dependencies (kernel headers included), so an incremental build
+# after a kernel merge never links stale objects.
+-include $(OBJ:.o=.d) $(KOBJ:.o=.d)
 
 TESTCC := $(CC) -std=c11 -O1 -g -Wall -Wextra -Werror -Iinclude $(OSDEFS) $(SAN)
 $(OUT)/test_zxv_api$(EXE): test/test_zxv_api.c include/zxv_api.h $(LIB)

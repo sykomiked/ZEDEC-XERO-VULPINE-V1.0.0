@@ -668,6 +668,12 @@ static void close_cycle(void)
      * with it, the market: no further cycle runs on books that disagree. */
     if (settle_sync(&S.spine, &S.m, S.tick) != SETTLE_OK)
         fprintf(stderr, "zxv: ledger halted (%d): market stopped\n", (int) S.spine.why);
+#if defined(ZXVD)
+    /* zxvd_rpc.h E2: the owner's books follow what the swarm's models hold */
+    uint64_t held = 0;
+    for (uint32_t i = 0; i < S.m.n; i++) held += S.m.t[i].cap[SWARM_CAP_FINANCIAL];
+    if (zxvd_rpc_earnings_sync(held) != 0) fprintf(stderr, "zxvd: earnings posting refused\n");
+#endif
 }
 
 /* Open the next market cycle and leave it open until the next reflex, so the
@@ -1400,6 +1406,8 @@ int main(int argc, char **argv)
     S.net_port = ZXV_NET_DEFAULT_PORT;
 #if defined(ZXVD)
     const char *rpc_path = NULL;
+    const char *earn_ccy = "VFV";
+    uint64_t earn_rate = 1;
     bool desktop = false;
     char rpc_buf[512], link_path[560];
     link_path[0] = 0;
@@ -1448,6 +1456,10 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
         else if (!strcmp(argv[i], "--rpc") && i + 1 < argc)
             rpc_path = argv[++i];
+        else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
+            earn_ccy = argv[++i];
+        else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
+            earn_rate = strtoull(argv[++i], NULL, 10);
         else if (!strcmp(argv[i], "--desktop"))
             desktop = true;
 #endif
@@ -1459,6 +1471,8 @@ int main(int argc, char **argv)
                    " %s\n"
 #if defined(ZXVD)
                    "  --rpc PATH          JSON-RPC 2.0 socket (required; docs/ZXVD.md)\n"
+                   "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
+                   "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
                    "  --desktop           the desktop app: the socket in the per-user\n"
                    "                      folder (unless --rpc), and the window opened in\n"
                    "                      the default browser; a second launch opens the\n"
@@ -1599,6 +1613,11 @@ int main(int argc, char **argv)
     }
     if (!rpc_path) {
         fprintf(stderr, "zxvd: --rpc PATH is required (try --help)\n");
+        return 2;
+    }
+    if (zxvd_rpc_earnings_set(earn_ccy, earn_rate) != 0) {
+        fprintf(stderr, "zxvd: --earnings-ccy needs 3..8 characters and --earnings-rate "
+                        "a whole number from 1\n");
         return 2;
     }
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;

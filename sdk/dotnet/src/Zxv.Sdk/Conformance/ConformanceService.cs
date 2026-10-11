@@ -51,11 +51,11 @@ public sealed record ConformanceResult(VssCheck Check, bool Passed, string Detai
 /// </summary>
 public sealed class ConformanceService
 {
-    private readonly ZxvContextHandle _ctx;
+    private readonly ContextRef _context;
 
-    internal ConformanceService(ZxvContextHandle ctx)
+    internal ConformanceService(ContextRef context)
     {
-        _ctx = ctx;
+        _context = context;
     }
 
     /// <summary>Runs one check.</summary>
@@ -64,7 +64,7 @@ public sealed class ConformanceService
     public unsafe ConformanceResult Run(VssCheck check)
     {
         int passed = 0;
-        string detail = NativeCall.ReadText((byte* b, nuint c, out nuint l) => NativeMethods.VssRun(_ctx, (int)check, out passed, b, c, out l), "Conformance.Run");
+        string detail = NativeCall.ReadText((byte* b, nuint c, out nuint l) => NativeMethods.VssRun(_context.Live, (int)check, out passed, b, c, out l), "Conformance.Run");
         return new ConformanceResult(check, passed != 0, detail);
     }
 
@@ -72,7 +72,7 @@ public sealed class ConformanceService
     /// <returns>The level.</returns>
     public VssLevel GetLevel()
     {
-        NativeCall.Check(NativeMethods.VssLevelGet(_ctx, out int level), "Conformance.GetLevel");
+        NativeCall.Check(NativeMethods.VssLevelGet(_context.Live, out int level), "Conformance.GetLevel");
         return (VssLevel)level;
     }
 }

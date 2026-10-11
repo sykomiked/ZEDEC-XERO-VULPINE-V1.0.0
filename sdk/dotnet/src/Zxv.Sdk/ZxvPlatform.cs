@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -38,7 +39,17 @@ public sealed class ZxvPlatform : IDisposable
 {
     private readonly ZxvContextHandle _ctx;
     private readonly ContextRef _context;
+    private readonly Capability _service;
     private readonly ILogger _logger;
+    private readonly CurrencyService _currencies;
+    private readonly LedgerService _ledger;
+    private readonly MessageService _messages;
+    private readonly PaymentService _payments;
+    private readonly StatementService _statements;
+    private readonly NettingService _netting;
+    private readonly CardService _cards;
+    private readonly ConformanceService _conformance;
+    private int _disposed;
 
     /// <summary>Initializes a new platform from options (the DI constructor).</summary>
     /// <param name="options">The options.</param>
@@ -63,27 +74,37 @@ public sealed class ZxvPlatform : IDisposable
 
         NativeCall.Check(NativeMethods.CtxCreate(out _ctx), "Platform.Create");
         _context = new ContextRef(_ctx);
+        Capability? service = null;
         try
         {
+            // The platform's own capability, never exposed: the members that
+            // take no capability present it, so every native call the platform
+            // services make is an ABI 1.2 *_cap form (R10).
+            service = Capability.CreateRoot(_context, ServiceRights, 0, default);
+            _service = service;
             var ids = new IdGenerator(o.IdentifierPrefix, time);
-            Currencies = new CurrencyService(_ctx);
-            Ledger = new LedgerService(_ctx, Currencies, _logger);
-            Messages = new MessageService(_ctx, _logger);
-            Payments = new PaymentService(Ledger, Messages, transport ?? NullMxTransport.Instance, ids, time, o.IdentifierPrefix, _logger);
-            Statements = new StatementService(Ledger, Messages, Payments, ids, time);
-            Netting = new NettingService(_ctx, Currencies);
-            Cards = new CardService(_ctx);
-            Conformance = new ConformanceService(_ctx);
+            _currencies = new CurrencyService(_context, service);
+            _ledger = new LedgerService(_context, _currencies, service, _logger);
+            _messages = new MessageService(_context, service, _logger);
+            _payments = new PaymentService(_ledger, _messages, transport ?? NullMxTransport.Instance, ids, time, o.IdentifierPrefix, _logger);
+            _statements = new StatementService(_ledger, _messages, _payments, ids, time);
+            _netting = new NettingService(_context, _currencies);
+            _cards = new CardService(_context);
+            _conformance = new ConformanceService(_context);
             Configure(o);
         }
         catch
         {
+            service?.Dispose();
             _ctx.Dispose();
             throw;
         }
 
         Log.PlatformStarted(_logger, AbiVersion.ToString(), Features);
     }
+
+    /// <summary>The rights of the platform's own capability, presented by the members that take none.</summary>
+    private const CapabilityRights ServiceRights = CapabilityRights.LedgerRead | CapabilityRights.LedgerPost;
 
     /// <summary>The major version of the C ABI this SDK was written against.</summary>
     public const int SupportedAbiMajor = ZxvLibrary.SupportedAbiMajor;
@@ -95,28 +116,36 @@ public sealed class ZxvPlatform : IDisposable
     public ZxvFeatures Features { get; }
 
     /// <summary>Gets ISO 4217 reference data and currency configuration.</summary>
-    public CurrencyService Currencies { get; }
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public CurrencyService Currencies => Live(_currencies);
 
     /// <summary>Gets the ledger.</summary>
-    public LedgerService Ledger { get; }
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public LedgerService Ledger => Live(_ledger);
 
     /// <summary>Gets the ISO 20022 serializers.</summary>
-    public MessageService Messages { get; }
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public MessageService Messages => Live(_messages);
 
     /// <summary>Gets customer credit transfers (ledger + pacs.008 + transport).</summary>
-    public PaymentService Payments { get; }
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public PaymentService Payments => Live(_payments);
 
     /// <summary>Gets camt.053 statements.</summary>
-    public StatementService Statements { get; }
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public StatementService Statements => Live(_statements);
 
     /// <summary>Gets multilateral netting (pending kernel/src/cbank).</summary>
-    public NettingService Netting { get; }
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public NettingService Netting => Live(_netting);
 
     /// <summary>Gets charge cards (check digits live; lifecycle pending kernel/src/cardnet).</summary>
-    public CardService Cards { get; }
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public CardService Cards => Live(_cards);
 
     /// <summary>Gets VSS conformance checks (pending kernel/src/cbank).</summary>
-    public ConformanceService Conformance { get; }
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public ConformanceService Conformance => Live(_conformance);
 
     /// <summary>Creates a platform without dependency injection.</summary>
     /// <param name="configure">Configures the options.</param>
@@ -140,16 +169,17 @@ public sealed class ZxvPlatform : IDisposable
     /// invariant was rolled back, or <see cref="Halt(string)"/> was called).
     /// A halted platform refuses every call with <see cref="ZxvFatalException"/>.
     /// </summary>
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
     public bool IsHalted
     {
         get
         {
+            ThrowIfDisposed();
             if (_context.IsHalted)
             {
                 return true;
             }
 
-            ObjectDisposedException.ThrowIf(_ctx.IsClosed, this);
             NativeCall.Check(NativeMethods.CtxIsPoisoned(_ctx, out int poisoned), "Platform.IsHalted");
             return poisoned != 0;
         }
@@ -166,6 +196,7 @@ public sealed class ZxvPlatform : IDisposable
     /// <param name="reason">Why (at most 150 bytes of UTF-8; longer text is cut).</param>
     public void Halt(string reason)
     {
+        ThrowIfDisposed();
         Guard.Text(reason, nameof(reason), allowEmpty: true);
         NativeCall.Check(NativeMethods.CtxHalt(_ctx, reason), "Platform.Halt");
         _context.MarkHalted();
@@ -180,8 +211,12 @@ public sealed class ZxvPlatform : IDisposable
     /// <param name="processId">The process id recorded in the capability.</param>
     /// <param name="identity">A 21-byte (168-bit) identity, or empty for zeros.</param>
     /// <returns>The capability, with attestation <see cref="Truth.True"/>.</returns>
-    public Capability CreateRootCapability(CapabilityRights rights = CapabilityRights.All, uint processId = 0, ReadOnlySpan<byte> identity = default) =>
-        Capability.CreateRoot(_context, rights, processId, identity);
+    /// <exception cref="ObjectDisposedException">The platform is disposed.</exception>
+    public Capability CreateRootCapability(CapabilityRights rights = CapabilityRights.All, uint processId = 0, ReadOnlySpan<byte> identity = default)
+    {
+        ThrowIfDisposed();
+        return Capability.CreateRoot(_context, rights, processId, identity);
+    }
 
     /// <summary>Creates an attestation registry (<c>lpres</c>) that attests through <paramref name="capability"/>.</summary>
     /// <param name="capability">A capability of this platform; attesting needs <see cref="CapabilityRights.Attest"/>.</param>
@@ -211,19 +246,42 @@ public sealed class ZxvPlatform : IDisposable
     /// <returns>The swarm; dispose it when done.</returns>
     public Swarm CreateSwarm(Capability capability, int levels, ulong tokensPerCycle) => new(RequireOwn(capability), levels, tokensPerCycle);
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Disposes the platform. From now on its members throw
+    /// <see cref="ObjectDisposedException"/>, even while objects created from
+    /// it (capabilities, budgets, clocks, logs, ...) are still alive.
+    /// </summary>
+    /// <remarks>
+    /// Native teardown follows ABI.md R6: each child handle keeps a reference
+    /// on the context, so the native context is destroyed only after the last
+    /// child created from it is disposed (or finalized). Those children stay
+    /// usable until then; dispose them before, or soon after, the platform.
+    /// </remarks>
     public void Dispose()
     {
-        if (!_ctx.IsClosed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
-            _ctx.Dispose();
-            Log.PlatformDisposed(_logger);
+            return;
         }
+
+        _context.MarkDisposed();
+        _service.Dispose();
+        _ctx.Dispose();
+        Log.PlatformDisposed(_logger);
     }
+
+    private T Live<T>(T service)
+    {
+        ThrowIfDisposed();
+        return service;
+    }
+
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
     private Capability RequireOwn(Capability capability)
     {
         ArgumentNullException.ThrowIfNull(capability);
+        ThrowIfDisposed();
         if (!ReferenceEquals(capability.Context, _context))
         {
             throw new ArgumentException("The capability belongs to a different platform.", nameof(capability));
@@ -236,7 +294,7 @@ public sealed class ZxvPlatform : IDisposable
     {
         foreach (string code in o.Currencies)
         {
-            Currency c = Currencies.EnableUnchecked(code, o.MinorUnits.TryGetValue(code, out byte mu) ? mu : null);
+            Currency c = _currencies.EnableUnchecked(code, o.MinorUnits.TryGetValue(code, out byte mu) ? mu : null);
             Log.CurrencyEnabled(_logger, c.Code, c.MinorUnits);
         }
 
@@ -250,7 +308,7 @@ public sealed class ZxvPlatform : IDisposable
 
         foreach (PrivateUnitOptions p in o.PrivateUnits)
         {
-            Currencies.RegisterPrivateUnitUnchecked(p.Code, p.MinorUnits);
+            _currencies.RegisterPrivateUnitUnchecked(p.Code, p.MinorUnits);
         }
     }
 }

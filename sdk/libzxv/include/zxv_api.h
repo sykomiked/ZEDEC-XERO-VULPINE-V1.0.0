@@ -312,7 +312,11 @@ typedef enum {
 } zxv_account_kind;
 
 /* Largest amount accepted in one posting and largest |balance| (2^53 - 1),
- * so that every value is exact in every kernel number representation. */
+ * so that every value is exact in every kernel number representation.
+ * The hosted library has this range. A firmware build of libzxv on the
+ * kernel's Q32.32 numbers (no TEST_HOST) caps amounts, rail totals and the
+ * context's total of all debits at 2^31 - 1 instead; beyond that a posting
+ * is ZXV_E_RANGE (sdk/embedded/README.md, "Floats"). */
 #define ZXV_AMOUNT_MAX ((int64_t) 9007199254740991LL)
 
 /* Open an account in an enabled currency. `name` <= 63 bytes. */

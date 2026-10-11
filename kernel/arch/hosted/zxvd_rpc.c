@@ -107,6 +107,9 @@ void zxvd_rpc_set_ops(const zxvd_host_ops_t *ops)
     OPS = ops;
 }
 
+static int earn_open(void);
+static void books_close(void);
+
 int zxvd_rpc_books_open(void)
 {
     uint32_t ma = 0, mi = 0, pa = 0;
@@ -119,6 +122,10 @@ int zxvd_rpc_books_open(void)
         CTX = NULL;
         return -1;
     }
+    if (earn_open() != 0) {
+        books_close();
+        return -1;
+    }
     return 0;
 }
 
@@ -128,6 +135,72 @@ static void books_close(void)
     if (CTX) zxv_ctx_destroy(CTX);
     CAP = NULL;
     CTX = NULL;
+}
+
+void zxvd_rpc_books_close(void)
+{
+    books_close();
+}
+
+/* ===================== swarm earnings (zxvd_rpc.h E1-E4) ===================== */
+
+static char EARN_CCY[9] = "VFV"; /* E1 */
+static uint64_t EARN_RATE = 1;   /* minor units per SWC */
+static uint32_t EARN_SRC, EARN_OWNER;
+static bool EARN_ACCTS;   /* both accounts are open */
+static int64_t EARN_HELD; /* the owner's balance, minor units */
+static uint64_t EARN_POSTS, EARN_SYNCS;
+
+int zxvd_rpc_earnings_set(const char *ccy, uint64_t rate)
+{
+    size_t n = strlen(ccy);
+    if (CTX || n < 3 || n >= sizeof EARN_CCY || rate == 0 || rate > (uint64_t) ZXV_AMOUNT_MAX)
+        return -1;
+    memcpy(EARN_CCY, ccy, n + 1);
+    EARN_RATE = rate;
+    return 0;
+}
+
+static int earn_open(void)
+{
+    /* E1: an ISO 4217 code is enabled from the table; anything else (VFV)
+     * is a private unit with 2 minor units */
+    int32_t st = zxv_ccy_enable_cap(CAP, EARN_CCY);
+    if (st == ZXV_E_CURRENCY) st = zxv_ccy_register_private_cap(CAP, EARN_CCY, 2);
+    EARN_ACCTS = false;
+    EARN_HELD = 0;
+    EARN_POSTS = 0;
+    EARN_SYNCS = 0;
+    return st == ZXV_OK ? 0 : -1;
+}
+
+int zxvd_rpc_earnings_sync(uint64_t held_swc)
+{
+    if (!CAP) return 0; /* no books yet, nothing to mirror */
+    if (held_swc > (uint64_t) ZXV_AMOUNT_MAX / EARN_RATE) return -1;
+    /* E1: the accounts open with the first settled cycle */
+    if (!EARN_ACCTS) {
+        if (zxv_ledger_open_account_cap(CAP, "swarm market", EARN_CCY, ZXV_ACCT_ISSUER,
+                                        &EARN_SRC) != ZXV_OK ||
+            zxv_ledger_open_account_cap(CAP, "owner: swarm earnings", EARN_CCY, ZXV_ACCT_HOLDER,
+                                        &EARN_OWNER) != ZXV_OK)
+            return -1;
+        EARN_ACCTS = true;
+    }
+    int64_t d = (int64_t) (held_swc * EARN_RATE) - EARN_HELD;
+    if (d != 0) {
+        char ref[36];
+        uint64_t entry;
+        snprintf(ref, sizeof ref, "swarm earnings %llu", (unsigned long long) EARN_POSTS + 1u);
+        int32_t st =
+            d > 0 ? zxv_ledger_post_cap(CAP, EARN_SRC, EARN_OWNER, d, EARN_CCY, ref, &entry)
+                  : zxv_ledger_post_cap(CAP, EARN_OWNER, EARN_SRC, -d, EARN_CCY, ref, &entry);
+        if (st != ZXV_OK) return -1;
+        EARN_HELD += d;
+        EARN_POSTS++;
+    }
+    EARN_SYNCS++;
+    return 0;
 }
 
 /* ===================== one request ===================== */
@@ -438,6 +511,22 @@ static void m_entries(call_t *c)
     zxvd_buf_raw(c->res, "]}", 2);
 }
 
+static void m_earnings(call_t *c)
+{
+    if (!books(c)) return;
+    zxvd_buf_raw(c->res, "{\"currency\":", 12);
+    zxvd_buf_json_str(c->res, EARN_CCY);
+    zxvd_buf_printf(c->res, ",\"rate_minor\":\"%llu\"", (unsigned long long) EARN_RATE);
+    if (EARN_ACCTS)
+        zxvd_buf_printf(c->res, ",\"source_account\":%u,\"owner_account\":%u", (unsigned) EARN_SRC,
+                        (unsigned) EARN_OWNER);
+    else
+        zxvd_buf_raw(c->res, ",\"source_account\":null,\"owner_account\":null", 43);
+    zxvd_buf_printf(
+        c->res, ",\"balance_minor\":\"%lld\",\"postings\":\"%llu\",\"cycles\":\"%llu\"}",
+        (long long) EARN_HELD, (unsigned long long) EARN_POSTS, (unsigned long long) EARN_SYNCS);
+}
+
 static void m_check(call_t *c)
 {
     if (!books(c) || !zok(c, zxv_ledger_check_cap(CAP))) return;
@@ -469,6 +558,7 @@ static const method_t METHODS[] = {
     {"ledger.accounts", m_accounts},
     {"ledger.entries", m_entries},
     {"ledger.check", m_check},
+    {"swarm.earnings", m_earnings},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -584,11 +674,8 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
 /* ===================== the socket (T1-T4) ===================== */
 
 #if defined(_WIN32)
-/* Windows: the same transport on Winsock's AF_UNIX, in zxvd_rpc_win.c. */
-void zxvd_rpc_books_close(void)
-{
-    books_close();
-}
+/* Windows: the same transport on Winsock's AF_UNIX, in zxvd_rpc_win.c
+ * (zxvd_rpc_books_close above closes the books there). */
 #else
 
 typedef struct {
@@ -684,7 +771,8 @@ int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
         unlinkat(dfd, name, 0); /* stale */
     }
     if (zxvd_rpc_books_open() != 0) {
-        fprintf(stderr, "zxvd: libzxv context could not be created\n");
+        fprintf(stderr, "zxvd: the books could not be opened (libzxv older than ABI 1.3, "
+                        "or the earnings currency was refused)\n");
         return open_fail(dfd, false);
     }
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
