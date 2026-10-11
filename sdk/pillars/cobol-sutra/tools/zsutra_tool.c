@@ -11,11 +11,25 @@
  * FILE is Sutra when it ends in .sutra, otherwise a copybook (fixed
  * format; --free before the command for free format). --ascii-sign reads
  * overpunched signs in the ASCII (GnuCOBOL default) convention. */
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "zsutra.h"
+
+/* Appends to buf (capacity cap) at n and returns the new length, clamped so
+ * the text is truncated, never overrun. */
+static size_t appendf(char *buf, size_t cap, size_t n, const char *fmt, ...) {
+    va_list ap;
+    int r;
+    if (n >= cap) return n;
+    va_start(ap, fmt);
+    r = vsnprintf(buf + n, cap - n, fmt, ap);
+    va_end(ap);
+    if (r < 0) return n;
+    return (size_t) r >= cap - n ? cap - 1u : n + (size_t) r;
+}
 
 static uint32_t g_format = ZS_CB_FIXED;
 static int32_t g_overpunch = ZS_OVERPUNCH_IBM;
@@ -207,11 +221,9 @@ static int cmd_decode(const zs_layout *l, const char *hexpath) {
                 size_t k = 0, rn;
                 int32_t st;
                 uint32_t d;
-                rn = (size_t) snprintf(ref, sizeof ref, "%s", f.name);
-                for (d = 0; d < nd; d++)
-                    rn += (size_t) snprintf(ref + rn, sizeof ref - rn, "%s%u", d ? "," : "(",
-                                            (unsigned) sub[d]);
-                if (nd) snprintf(ref + rn, sizeof ref - rn, ")");
+                rn = appendf(ref, sizeof ref, 0, "%s", f.name);
+                for (d = 0; d < nd; d++) rn = appendf(ref, sizeof ref, rn, "%s%u", d ? "," : "(", (unsigned) sub[d]);
+                if (nd) rn = appendf(ref, sizeof ref, rn, ")");
                 st = zs_get_value(l, rec, (size_t) size, ref, out, sizeof out, &k);
                 if (st == ZXV_OK) printf("  %s = %s\n", ref, out);
                 else {

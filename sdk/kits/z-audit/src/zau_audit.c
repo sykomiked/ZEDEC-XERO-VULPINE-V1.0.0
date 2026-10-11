@@ -2,11 +2,25 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zau_audit.c — options and the checks of one audit. Integer code only
  * (R11). */
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "zau_internal.h"
+
+/* Appends to buf (capacity cap) at n and returns the new length, clamped so
+ * the text is truncated, never overrun. */
+static size_t appendf(char *buf, size_t cap, size_t n, const char *fmt, ...) {
+    va_list ap;
+    int r;
+    if (n >= cap) return n;
+    va_start(ap, fmt);
+    r = vsnprintf(buf + n, cap - n, fmt, ap);
+    va_end(ap);
+    if (r < 0) return n;
+    return (size_t) r >= cap - n ? cap - 1u : n + (size_t) r;
+}
 
 /* The host functions behind each Z-Wasm grant (z-wasm src/zw_host.c,
  * README "Host functions"). test_audit checks this table against a real
@@ -163,11 +177,11 @@ static int binds(zau_report *r, const zau_module *m, const zau_export *e, const 
                 "export %s has no declaration in the contract: add `fn %s(...)`", e->name, e->name);
         return 0;
     }
-    dl += (size_t) snprintf(decl + dl, sizeof decl - dl, "%s(", e->name);
-    for (uint32_t i = 0; i < np && dl < sizeof decl; i++) {
+    dl = appendf(decl, sizeof decl, dl, "%s(", e->name);
+    for (uint32_t i = 0; i < np; i++) {
         int32_t k = 0;
         (void) zc_slot_type(c, e->name, ZC_PART_PARAMS, i, &k, NULL);
-        dl += (size_t) snprintf(decl + dl, sizeof decl - dl, "%s%s", i ? ", " : "", kind_name(k));
+        dl = appendf(decl, sizeof decl, dl, "%s%s", i ? ", " : "", kind_name(k));
         if (k == ZC_T_BYTES) {
             zau_add(r, ZAU_C_DECLARED, ZAU_ERROR, "MAPPING", e->name, (int64_t) e->idx, (int64_t) e->off,
                     "%s: parameter %u is bytes, which a Wasm export cannot take", e->name, (unsigned) i);
@@ -175,7 +189,7 @@ static int binds(zau_report *r, const zau_module *m, const zau_export *e, const 
         }
         flat += k == ZC_T_RAT ? 2u : 1u;
     }
-    if (dl < sizeof decl) dl += (size_t) snprintf(decl + dl, sizeof decl - dl, ")");
+    dl = appendf(decl, sizeof decl, dl, ")");
     if (ok && flat != t->np) {
         zau_add(r, ZAU_C_DECLARED, ZAU_ERROR, "ARITY", e->name, (int64_t) e->idx, (int64_t) e->off,
                 "%s: the declaration needs %u Wasm argument(s) (a rat takes two), the export has %u",
