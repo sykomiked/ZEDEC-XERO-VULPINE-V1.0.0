@@ -807,13 +807,16 @@ static void test_socket(void)
     char gw[260], gws[300];
     snprintf(gw, sizeof gw, "%s/gw", tmpl);
     snprintf(gws, sizeof gws, "%s/zxvd.sock", gw);
-    CHECK(mkdir(gw, 0700) == 0 && chmod(gw, 0770) == 0, "group-writable folder");
+    CHECK(mkdir(gw, 0700) == 0, "folder made");
+    int gfd = open(gw, O_RDONLY | O_DIRECTORY | O_CLOEXEC); /* modes set through it */
+    CHECK(gfd >= 0 && fchmod(gfd, 0770) == 0, "group-writable folder");
     CHECK(zxvd_rpc_open(gws, &OPS) == -1, "a group-writable folder is refused");
-    CHECK(chmod(gw, 0702) == 0 && zxvd_rpc_open(gws, &OPS) == -1,
+    CHECK(fchmod(gfd, 0702) == 0 && zxvd_rpc_open(gws, &OPS) == -1,
           "an other-writable folder is refused");
-    CHECK(chmod(gw, 0700) == 0 && zxvd_rpc_open(gws, &OPS) == 0,
+    CHECK(fchmod(gfd, 0700) == 0 && zxvd_rpc_open(gws, &OPS) == 0,
           "the same folder at 0700 is served");
     zxvd_rpc_close();
+    close(gfd);
     rmdir(gw);
     snprintf(gws, sizeof gws, "%s/no/such/zxvd.sock", tmpl);
     CHECK(zxvd_rpc_open(gws, &OPS) == -1, "a folder whose parent is missing is refused");
