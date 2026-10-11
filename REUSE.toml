@@ -1,0 +1,8 @@
+# Licence map (REUSE 3.x). Per-file SPDX headers take precedence where present.
+version = 1
+
+[[annotations]]
+path = "hardware/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
+SPDX-License-Identifier = "LicenseRef-ZXV-Hardware-1.0"
