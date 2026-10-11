@@ -46,6 +46,7 @@ const char *zw_status_name(int32_t status) {
     case ZW_E_FUEL: return "ZW_E_FUEL";
     case ZW_E_EXPORT: return "ZW_E_EXPORT";
     case ZW_E_DEAD: return "ZW_E_DEAD";
+    case ZW_E_CHECK: return "ZW_E_CHECK";
     default: return zxv_status_name(status);
     }
 }

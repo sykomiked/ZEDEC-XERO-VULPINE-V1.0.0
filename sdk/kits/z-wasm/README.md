@@ -32,7 +32,7 @@ A plugin goes through three stages:
 > thing. The host must still judge every proposal. See
 > [Threat model](#threat-model).
 
-Kit API version 0.1 (`include/zwasm.h`). It may still change before 1.0.
+Kit API version 0.2 (`include/zwasm.h`; 0.2 added the call-check hook). It may still change before 1.0.
 It calls the libzxv ABI 1.2 (`sdk/libzxv/include/zxv_api.h`), which is
 frozen as usual.
 
@@ -154,6 +154,7 @@ error surfaces as `ZW_E_LINK` from `zw_plugin_load`.
 | `zw_plugin_load(host, wasm, len, name, &pl)` | Validate, meter, re-validate the metered module, then parse, link and compile with wasm3. |
 | `zw_plugin_call(pl, export, args, n, &result, &has_result, &fuel_used)` | Run one exported function. |
 | `zw_plugin_state`, `zw_plugin_destroy` | `ZW_PLUGIN_READY` or `ZW_PLUGIN_DEAD`. |
+| `zw_plugin_set_check(pl, export, fn, user)` | Attach a call check to one export (0.2). See [Call checks](#call-checks-kit-api-02). |
 
 **Fuel.** The meter injects a mutable `i64` global, exported as `__zw_fuel`,
 and charges it at the start of every basic block: one unit per
@@ -180,6 +181,26 @@ fresh one. The host's `zxv_ctx` is never touched. If the host wants a
 plugin failure to halt the platform, it calls `zxv_ctx_halt` itself.
 Conversely, a halted (poisoned) context refuses plugin calls
 (`ZXV_E_POISONED`), because the budget capability no longer verifies.
+
+### Call checks (kit API 0.2)
+
+A small integration hook, added for [z-contract](../z-contract/), which
+enforces a typed contract with exact bounds on an export.
+`zw_plugin_set_check(pl, export, fn, user)` attaches one check to one
+export (at most `ZW_CHECKS_MAX`, 16, per plugin). Every `zw_plugin_call` of
+that export then runs it twice:
+
+| Stage | When | A non-zero return |
+|---|---|---|
+| `ZW_CHECK_BEFORE` | after the arguments fit the export's types, before any fuel is set | refuses the call with `ZW_E_CHECK`. Nothing runs, no fuel is used, and the plugin stays READY, because bad input is the caller's fault. |
+| `ZW_CHECK_AFTER` | after a normal return and the fuel charge, before staged proposals reach the queue | is handled like a trap. The staged proposals are discarded, the plugin becomes DEAD, and the call returns `ZW_E_CHECK`. |
+
+During `ZW_CHECK_AFTER`, `zw_plugin_staged_count` and
+`zw_plugin_staged_get` read the proposals the call staged, so a check can
+judge a plugin's real outputs before the host sees them. A check cannot
+call the plugin or change checks from inside itself (`ZXV_E_STATE`). The
+check is host code: it runs in the host's process with the host's
+privileges, like any callback.
 
 ### Host functions (import module `zxv`)
 
@@ -310,7 +331,7 @@ make test-node                     # metered modules re-validated by V8
 | Suite | What |
 |---|---|
 | `test_validate` | 1140 checks: all 256 opcodes and the 0xFC sub-opcodes classified against the spec list, float and SIMD types in every position, memory, table, import, start and size limits, index checks, malformed binaries, LEB128 and UTF-8 edge cases, exact error location, and the meter's output passing the profile again |
-| `test_host` | 126 checks: exact fuel accounting against the rmag budget, fuel and budget exhaustion, traps (unreachable, divide by zero, out-of-bounds, stack overflow), grants, i32 argument ranges, the S0 queue (caps, decide-once, capacity, discard on trap), `accept_post` against the ledger, fail-closed on a halted context, and the three example plugins |
+| `test_host` | 149 checks: exact fuel accounting against the rmag budget, fuel and budget exhaustion, traps (unreachable, divide by zero, out-of-bounds, stack overflow), grants, i32 argument ranges, the S0 queue (caps, decide-once, capacity, discard on trap), call checks (refuse before, kill after, staged proposals discarded, no re-entry), `accept_post` against the ledger, fail-closed on a halted context, and the three example plugins |
 | `fuzz_validate` | for every input: `zw_validate` is deterministic, reports an in-range reason and offset and terminates its message; accepted modules meter and re-validate, load into wasm3 (or get `ZW_E_LINK`), and every export runs to a result, a trap or out of fuel without poisoning the host |
 | `node_crosscheck.mjs` | V8's `WebAssembly.validate` accepts every metered module whose input it accepts (the examples plus 300 mutants each, and the fuzz seeds) |
 | `check-nofloat` | R11: no float type in the validator, meter or policy sources (comments and strings excluded), plus `-mgeneral-regs-only` where the compiler enforces it |

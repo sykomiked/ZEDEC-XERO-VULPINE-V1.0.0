@@ -1,0 +1,15 @@
+scan base rules=none:all mats=0 weights=0 transform_s=0.00 run_s=7.01
+scan phi_all rules=phi:all,out mats=197 weights=1543569408 transform_s=5.90 run_s=7.07
+scan pow2_all rules=pow2:all,out mats=197 weights=1543569408 transform_s=6.31 run_s=7.08
+scan sqrt2_all rules=sqrt2:all,out mats=197 weights=1543569408 transform_s=6.51 run_s=7.28
+scan phi16_all rules=phi16:all,out mats=197 weights=1543569408 transform_s=9.30 run_s=7.22
+scan phi_tier rules=none:out,q@4-7,g@0-3,d@24-27,g@24-27,g@4-7,u@24-27,d@20-23,d@0-3,o@0-3,v@0-3,k@4-7,u@0-3,u@20-23,g@20-23;phi:all mats=140 weights=737673216 transform_s=3.01 run_s=7.16
+scan holo9_q12 rules=holo9:q@12-15 mats=4 weights=9437184 transform_s=0.67 run_s=7.30
+scan holo9_low10 rules=holo9:q@12-15,q@24-27,v@12-15,q@20-23,q@8-11,v@8-11,q@16-19,g@12-15,o@4-7,o@8-11 mats=40 weights=124256256 transform_s=8.32 run_s=7.58
+scan e8_low5 rules=e8:q@12-15,q@24-27,v@12-15,q@20-23,q@8-11 mats=20 weights=39321600 transform_s=3.27 run_s=7.34
+scan e8_low10 rules=e8:q@12-15,q@24-27,v@12-15,q@20-23,q@8-11,v@8-11,q@16-19,g@12-15,o@4-7,o@8-11 mats=40 weights=124256256 transform_s=10.68 run_s=6.98
+scan int2_low10 rules=int2:q@12-15,q@24-27,v@12-15,q@20-23,q@8-11,v@8-11,q@16-19,g@12-15,o@4-7,o@8-11 mats=40 weights=124256256 transform_s=11.41 run_s=7.23
+scan int4_all rules=int4:all,out mats=197 weights=1543569408 transform_s=10.55 run_s=7.27
+scan int4_tier rules=none:out,q@4-7,g@0-3,d@24-27,g@24-27,g@4-7,u@24-27,d@20-23,d@0-3,o@0-3,v@0-3,k@4-7,u@0-3,u@20-23,g@20-23;int4:all mats=140 weights=737673216 transform_s=5.69 run_s=8.15
+scan mix_e8_int4 rules=none:out,q@4-7,g@0-3,d@24-27,g@24-27,g@4-7,u@24-27,d@20-23,d@0-3,o@0-3,v@0-3,k@4-7,u@0-3,u@20-23,g@20-23;e8:q@12-15,q@24-27,v@12-15,q@20-23,q@8-11,v@8-11,q@16-19,g@12-15,o@4-7,o@8-11;int4:all mats=140 weights=737673216 transform_s=14.92 run_s=7.67
+scan mix_int2_int4 rules=none:out,q@4-7,g@0-3,d@24-27,g@24-27,g@4-7,u@24-27,d@20-23,d@0-3,o@0-3,v@0-3,k@4-7,u@0-3,u@20-23,g@20-23;int2:q@12-15,q@24-27,v@12-15,q@20-23,q@8-11,v@8-11,q@16-19,g@12-15,o@4-7,o@8-11;int4:all mats=140 weights=737673216 transform_s=15.59 run_s=7.28

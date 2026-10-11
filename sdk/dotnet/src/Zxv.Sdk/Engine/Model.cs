@@ -3,6 +3,7 @@
 
 using System;
 using System.Text;
+using System.Threading;
 using Zxv.Interop;
 
 namespace Zxv.Engine;
@@ -85,6 +86,10 @@ public sealed class Model : IDisposable
     internal Capability Capability { get; }
 
     internal ZxvModelHandle Handle { get; }
+
+    // SafeHandle.IsClosed stays false while sessions or adapters hold a
+    // reference, so disposal is tracked here (observably disposed at once).
+    private int _disposed;
 
     /// <summary>Opens a GGUF file. Needs <see cref="CapabilityRights.AiInference"/>.</summary>
     /// <param name="capability">The capability presented now and on every generation.</param>
@@ -236,9 +241,27 @@ public sealed class Model : IDisposable
     }
 
     /// <summary>Releases the model (the native model lives until its last session is released).</summary>
-    public void Dispose() => Handle.Dispose();
+    /// <remarks>This model throws <see cref="ObjectDisposedException"/> at once, even while sessions still hold it.</remarks>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            Handle.Dispose();
+        }
+    }
 
     internal void Enter(string operation)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        EnterHeld(operation);
+    }
+
+    /// <summary>
+    /// The check for a session or adapter that holds this model: it keeps
+    /// working after <see cref="Dispose"/>, since its reference keeps the
+    /// native model alive, but not once the capability is gone or the context halts.
+    /// </summary>
+    internal void EnterHeld(string operation)
     {
         ObjectDisposedException.ThrowIf(Handle.IsClosed, this);
         Capability.Enter(operation);
@@ -281,7 +304,7 @@ public sealed class LoraAdapter : IDisposable
     public void ApplyTo(Session session)
     {
         ArgumentNullException.ThrowIfNull(session);
-        _model.Enter("LoraAdapter.ApplyTo");
+        _model.EnterHeld("LoraAdapter.ApplyTo");
         _model.Capability.Check(NativeMethods.LoraApply(_model.Capability.Handle, session.Handle, _handle), "LoraAdapter.ApplyTo");
     }
 

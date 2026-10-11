@@ -57,6 +57,10 @@ The swarm is arranged in levels. Level `d` holds at most `F(d+2)` models
 levels). Every split is an exact whole-number split, and unspent tokens
 expire. Full statement: `kernel/src/swarm/swarm_budget.h` (rules R1–R6).
 
+Allotments can be held in Fibonacci denominations (plain tokens, compressed
+tokens and super tokens) at a per-wallet octane, with exact wrap and unwrap and
+no premium for density: see `docs/TOKEN_DENOMINATIONS.md` (rules D1–D9).
+
 ## 4. How a cycle's tokens are divided
 
 1. **Emotion first.** The swarm's mood moves `charge/21` of `T` onto the

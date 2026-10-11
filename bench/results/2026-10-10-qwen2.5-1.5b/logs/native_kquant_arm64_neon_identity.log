@@ -1,0 +1,6 @@
+# arm64 build (aarch64-linux-gnu-gcc -static), NEON kernels, under qemu-aarch64: zt_dump on 16 WikiText-2 ids
+# then cmp against the x86_64 C-kernel logits of the same ids (every byte of 16 x 151936 float32)
+zt.n=16
+zt.tps=0.550
+neon identical
+# zt.tps is emulation speed, meaningless for real arm64

@@ -1,0 +1,9 @@
+golden.mode=e8
+golden.rules=e8:all,out
+golden.mats=197
+golden.weights=1543569408
+golden.transform_s=133.86
+golden.out_matrix=converted (transformed)
+golden.shift_range=0..24
+golden.run_s=7.94
+exit=0

@@ -458,6 +458,98 @@ static void test_examples(const char *rational, const char *flt, const char *spi
     zw_host_destroy(h);
 }
 
+/* Call checks (kit API 0.2): the hook z-contract uses. */
+typedef struct {
+    int before, after, nested_state, staged_seen;
+    int64_t staged_num, staged_den;
+} chk_rec;
+
+static int32_t chk_fn(void *user, zw_plugin *pl, int32_t stage, const char *export_name,
+                      const int64_t *args, uint32_t nargs, int64_t result, int32_t has_result) {
+    chk_rec *r = (chk_rec *) user;
+    uint32_t n = 0, kind = 0;
+    int64_t num = 0, den = 0;
+    (void) export_name;
+    r->nested_state = zw_plugin_call(pl, "p", args, nargs, NULL, NULL, NULL);
+    if (stage == ZW_CHECK_BEFORE) {
+        r->before++;
+        return nargs == 1 && args[0] >= 0 ? 0 : 1;
+    }
+    r->after++;
+    if (zw_plugin_staged_count(pl, &n) != ZXV_OK || n != 1) return 1;
+    if (zw_plugin_staged_get(pl, 0, &kind, &num, &den, NULL, 0, NULL) != ZXV_OK) return 1;
+    r->staged_seen = (int) n;
+    r->staged_num = num;
+    r->staged_den = den;
+    return (has_result && result == 0 && kind == 7 && num <= 100) ? 0 : 1;
+}
+
+static void test_checks(void) {
+    zw_host *h = new_host(ZW_GRANT_PROPOSE);
+    wt t;
+    int32_t st, state = -1;
+    int64_t res = -5, arg;
+    uint32_t pending = 9, n = 0;
+    chk_rec rec;
+    memset(&rec, 0, sizeof rec);
+    /* p(x: i64) -> i32 = zxv.propose(7, x, 4, 0, 0) */
+    static const uint8_t prop[] = {0x41, 0x07, 0x20, 0x00, 0x42, 0x04, 0x41, 0x00, 0x41, 0x00,
+                                   0x10, 0x00};
+    wt_one(&t, prop, sizeof prop);
+    t.types[0] = "I:i";
+    t.types[1] = "iIIii:i";
+    t.ntypes = 2;
+    t.fimports[0].mod = "zxv";
+    t.fimports[0].name = "propose";
+    t.fimports[0].type = 1;
+    t.nfimports = 1;
+    t.exports[0] = "p";
+    t.nexports = 1;
+    zw_plugin *p = load_wt(h, &t, &st);
+    CHECK(st == ZXV_OK, "load checked proposer");
+    CHECK(zw_plugin_set_check(p, "nope", chk_fn, &rec) == ZW_E_EXPORT, "check on a missing export");
+    CHECK(zw_plugin_set_check(NULL, "p", chk_fn, &rec) == ZXV_E_ARG, "NULL plugin");
+    CHECK(zw_plugin_set_check(p, "p", chk_fn, &rec) == ZXV_OK, "attach");
+    CHECK(zw_plugin_set_check(p, "p", chk_fn, &rec) == ZXV_OK, "replace");
+    CHECK(zw_plugin_staged_count(p, &n) == ZXV_E_STATE, "staged_count outside a check");
+    CHECK(zw_plugin_staged_get(p, 0, NULL, NULL, NULL, NULL, 0, NULL) == ZXV_E_STATE,
+          "staged_get outside a check");
+    int64_t used0 = budget_used();
+    arg = -1;
+    st = zw_plugin_call(p, "p", &arg, 1, &res, NULL, NULL);
+    CHECK(st == ZW_E_CHECK && res == -5, "BEFORE refuses (%s)", zw_status_name(st));
+    CHECK(budget_used() == used0, "nothing ran, no fuel charged");
+    CHECK(zw_plugin_state(p, &state) == ZXV_OK && state == ZW_PLUGIN_READY, "still READY");
+    CHECK(rec.nested_state == ZXV_E_STATE, "a check cannot call the plugin");
+    arg = 8;
+    st = zw_plugin_call(p, "p", &arg, 1, &res, NULL, NULL);
+    CHECK(st == ZXV_OK && res == 0, "passing call (%s)", zw_status_name(st));
+    CHECK(rec.before == 2 && rec.after == 1 && rec.staged_seen == 1 && rec.staged_num == 2 &&
+              rec.staged_den == 1, "AFTER saw the staged 8/4 = 2");
+    CHECK(zw_queue_pending(h, &pending) == ZXV_OK && pending == 1, "it reached the queue");
+    int64_t used1 = budget_used();
+    arg = 1000;
+    res = -5;
+    st = zw_plugin_call(p, "p", &arg, 1, &res, NULL, NULL);
+    CHECK(st == ZW_E_CHECK && res == -5, "AFTER refuses 1000/4");
+    CHECK(budget_used() > used1, "the refused call's fuel is charged");
+    CHECK(zw_queue_pending(h, &pending) == ZXV_OK && pending == 1, "its proposal was discarded");
+    CHECK(zw_plugin_state(p, &state) == ZXV_OK && state == ZW_PLUGIN_DEAD, "plugin DEAD");
+    CHECK(zw_plugin_call(p, "p", &arg, 1, &res, NULL, NULL) == ZW_E_DEAD, "dead stays dead");
+    CHECK(strcmp(zw_status_name(ZW_E_CHECK), "ZW_E_CHECK") == 0, "status name");
+    zw_plugin_destroy(p);
+
+    p = load_wt(h, &t, &st);
+    CHECK(zw_plugin_set_check(p, "p", chk_fn, &rec) == ZXV_OK, "attach again");
+    CHECK(zw_plugin_set_check(p, "p", NULL, NULL) == ZXV_OK, "detach");
+    arg = 1000;
+    CHECK(zw_plugin_call(p, "p", &arg, 1, &res, NULL, NULL) == ZXV_OK, "no check after detach");
+    zw_plugin_destroy(p);
+    uint64_t id;
+    while (zw_queue_next(h, &id) == ZXV_OK) (void) zw_proposal_reject(h, post_cap, id);
+    zw_host_destroy(h);
+}
+
 static void test_fail_closed(void) {
     zw_host *h = new_host(ZW_GRANT_PROPOSE);
     wt t;
@@ -499,6 +591,7 @@ int main(int argc, char **argv) {
         test_examples(argv[1], argv[2], argv[3]);
     else
         printf("  (example plugins not given: skipping their tests)\n");
+    test_checks();
     test_fail_closed();
     zxv_rmag_destroy(rm);
     zxv_cap_destroy(read_cap);

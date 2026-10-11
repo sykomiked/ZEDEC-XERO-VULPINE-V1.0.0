@@ -1,0 +1,4 @@
+label	kl_vs_float64	top1	ppl
+zxv_native_kquant	0.000010	1.000	10.1804
+zxv_converted_8bit	0.000573	1.000	10.1826
+llama_cpp	0.009036	0.953	9.7494

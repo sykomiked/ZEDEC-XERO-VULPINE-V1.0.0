@@ -8,6 +8,8 @@ Every ZXV SDK wraps the same C library, `sdk/libzxv` (header
 product in many languages. A developer who knows one SDK should be able to
 guess the names in another.
 
+For task-focused walk-throughs with tested examples, see the [guides](guides/README.md).
+
 ## 1. One library, many languages
 
 - The only native dependency is `libzxv` (`libzxv.so`, `libzxv.dylib`,

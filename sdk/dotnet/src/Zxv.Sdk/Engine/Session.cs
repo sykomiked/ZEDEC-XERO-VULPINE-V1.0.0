@@ -316,7 +316,7 @@ public sealed class Session : IDisposable
     private void Enter(string operation)
     {
         ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
-        _model.Enter(operation);
+        _model.EnterHeld(operation);
     }
 
     /// <summary>Per-call state reached from the native token callback through a <see cref="GCHandle"/>.</summary>

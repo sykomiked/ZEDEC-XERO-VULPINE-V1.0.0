@@ -1,0 +1,9 @@
+# zt_dump, native Q4_K/Q6_K, 16 WikiText-2 ids, all-position logits; sha256 of each output file
+zt.n=16 zt.tps=0.616 kern=c threads=1 sha256=79b95cba8ee63985
+zt.n=16 zt.tps=1.137 kern=c threads=4 sha256=79b95cba8ee63985
+zt.n=16 zt.tps=4.425 kern=avx2 threads=1 sha256=79b95cba8ee63985
+zt.n=16 zt.tps=6.979 kern=avx2 threads=4 sha256=79b95cba8ee63985
+zt.n=16 zt.tps=6.483 kern=avx512 threads=1 sha256=79b95cba8ee63985
+zt.n=16 zt.tps=9.023 kern=avx512 threads=4 sha256=79b95cba8ee63985
+zt.n=16 zt.tps=5.429 kern=avx512 threads=4 batch=1 sha256=79b95cba8ee63985
+arm64 NEON (qemu) sha256=79b95cba8ee63985

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+  <!-- SPDX-License-Identifier: Apache-2.0 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Zxv.Unity.Runtime.csproj" />
+  </ItemGroup>
+  <!-- The native libraries sit next to the test assembly, as they would in a
+       Unity Plugins folder. Build them first: make -C sdk/libzxv && make -C
+       sdk/engines/emu-state. -->
+  <ItemGroup>
+    <None Include="$(ZxvNativeLib)" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(ZxvEmuLib)" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="ZxvCheckNative" BeforeTargets="Build">
+    <Error Condition="!Exists('$(ZxvNativeLib)')" Text="libzxv not built: run 'make -C sdk/libzxv' ($(ZxvNativeLib))" />
+    <Error Condition="!Exists('$(ZxvEmuLib)')" Text="emu-state not built: run 'make -C sdk/engines/emu-state' ($(ZxvEmuLib))" />
+  </Target>
+</Project>

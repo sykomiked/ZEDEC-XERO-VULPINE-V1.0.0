@@ -13,7 +13,7 @@
     <Authors>Michael Laurence Curzi; 36N9 Genetics, LLC</Authors>
     <Copyright>Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC</Copyright>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <Version>1.0.0-preview.1</Version>
+    <Version>1.3.0</Version>
   </PropertyGroup>
 
   <!-- Location of libzxv, the one C ABI every SDK wraps (sdk/libzxv). -->

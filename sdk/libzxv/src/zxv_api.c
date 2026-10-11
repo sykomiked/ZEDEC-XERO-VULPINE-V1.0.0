@@ -885,6 +885,17 @@ static int32_t post_side(zxv_ctx *ctx, const zxv_acct *a, bool receive, surplus_
     return ZXV_OK;
 }
 
+/* The triple-ledger mirror's number type bounds the exact range. Under
+ * TEST_HOST it is a double (exact to 2^53-1, ZXV_AMOUNT_MAX). In the
+ * kernel's Q32.32 build it holds +-(2^31-1) whole units, so amounts, rail
+ * totals and the context's total of all debits are capped there; anything larger
+ * is ZXV_E_RANGE, never a wrapped multiply. */
+#ifdef TEST_HOST
+#define ZXVI_AMOUNT_LIMIT ZXV_AMOUNT_MAX
+#else
+#define ZXVI_AMOUNT_LIMIT ((int64_t) INT32_MAX)
+#endif
+
 int32_t zxv_ledger_post(zxv_ctx *ctx, uint32_t from_account, uint32_t to_account,
                         int64_t amount_minor, const char *ccy, const char *reference,
                         uint64_t *out_entry_id)
@@ -894,9 +905,9 @@ int32_t zxv_ledger_post(zxv_ctx *ctx, uint32_t from_account, uint32_t to_account
     if ((rc = zxvi_ctx_check(ctx, "ledger_post"))) return rc; /* fail closed first */
     if ((rc = zxvi_check_str(ccy, ZXV_CODE_MAX, "ccy", false))) return rc;
     if ((rc = zxvi_check_str(reference, ZXV_REF_MAX, "reference", false))) return rc;
-    if (amount_minor <= 0 || amount_minor > ZXV_AMOUNT_MAX)
+    if (amount_minor <= 0 || amount_minor > ZXVI_AMOUNT_LIMIT)
         return zxvi_fail(ZXV_E_RANGE, "amount %lld must be in 1..%lld minor units",
-                    (long long) amount_minor, (long long) ZXV_AMOUNT_MAX);
+                    (long long) amount_minor, (long long) ZXVI_AMOUNT_LIMIT);
     if (from_account == to_account) return zxvi_fail(ZXV_E_ARG, "from and to are the same account");
 
     LOCK(ctx);
@@ -917,10 +928,25 @@ int32_t zxv_ledger_post(zxv_ctx *ctx, uint32_t from_account, uint32_t to_account
                   (long long) (f->debit - f->credit), (long long) amount_minor);
         goto out;
     }
-    if (f->credit > ZXV_AMOUNT_MAX - amount_minor || t->debit > ZXV_AMOUNT_MAX - amount_minor) {
-        rc = zxvi_fail(ZXV_E_RANGE, "rail total would exceed the exact range (2^53-1)");
+    if (f->credit > ZXVI_AMOUNT_LIMIT - amount_minor || t->debit > ZXVI_AMOUNT_LIMIT - amount_minor) {
+        rc = zxvi_fail(ZXV_E_RANGE, "rail total would exceed the exact range (%lld)",
+                  (long long) ZXVI_AMOUNT_LIMIT);
         goto out;
     }
+#ifndef TEST_HOST
+    /* Q32.32: each segment book also sums every financial debit it has ever
+     * seen (total_assets), and books are shared across currencies, so all
+     * debits in the context together must fit too. */
+    {
+        int64_t sum_debit = 0;
+        for (uint32_t i = 0; i < ctx->n_acct; i++) sum_debit += ctx->acct[i].debit;
+        if (sum_debit > ZXVI_AMOUNT_LIMIT - amount_minor) {
+            rc = zxvi_fail(ZXV_E_RANGE, "context debit total would exceed the exact range (%lld)",
+                      (long long) ZXVI_AMOUNT_LIMIT);
+            goto out;
+        }
+    }
+#endif
     if (ref_exists(ctx, reference)) {
         rc = zxvi_fail(ZXV_E_DUPLICATE, "reference '%s' already posted", reference);
         goto out;
@@ -939,7 +965,7 @@ int32_t zxv_ledger_post(zxv_ctx *ctx, uint32_t from_account, uint32_t to_account
         goto out;
     }
 
-    /* amount <= 2^53-1, so the TEST_HOST double is exact. */
+    /* amount <= ZXVI_AMOUNT_LIMIT, so the mirror's number type holds it exactly. */
     surplus_real_t amt = SR_FROM_INT(amount_minor);
     if (post_side(ctx, f, false, amt, to_account, reference) != ZXV_OK ||
         post_side(ctx, t, true, amt, from_account, reference) != ZXV_OK) {

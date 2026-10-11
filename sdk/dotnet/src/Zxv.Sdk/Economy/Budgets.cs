@@ -84,6 +84,10 @@ public readonly record struct BudgetStatus(Rational Remaining, Rational Used, ul
 public sealed class Budgets : IDisposable
 {
     private readonly Capability _cap;
+
+    // SafeHandle.IsClosed stays false while a session bound to a budget holds
+    // a reference, so disposal is tracked here (once, observably at once).
+    private int _disposed;
     private readonly ZxvBudgetsHandle _handle;
     private readonly object _gate = new();
     private readonly Dictionary<uint, Budget> _budgets = new();
@@ -148,7 +152,7 @@ public sealed class Budgets : IDisposable
     /// <summary>Stops listening and releases the native budgets. Pending <see cref="Budget.ConsumeAsync(Rational, CancellationToken)"/> calls fail with <see cref="ObjectDisposedException"/>.</summary>
     public unsafe void Dispose()
     {
-        if (_handle.IsClosed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
@@ -180,7 +184,7 @@ public sealed class Budgets : IDisposable
 
     internal void Enter(string operation)
     {
-        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         _cap.Enter(operation);
     }
 
@@ -189,7 +193,7 @@ public sealed class Budgets : IDisposable
     {
         lock (_gate)
         {
-            ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             if (!_replenished.TryGetValue(index, out TaskCompletionSource? tcs))
             {
                 tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

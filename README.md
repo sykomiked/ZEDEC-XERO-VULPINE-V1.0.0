@@ -91,4 +91,6 @@ The code is licensed under the [Apache License, Version 2.0](LICENSE), and every
 SPDX-License-Identifier: Apache-2.0
 ```
 
-Redistributions must keep the attribution in [`NOTICE`](NOTICE). Vendored third-party code keeps its own licence (see each vendored directory's LICENSE and README.zxv). The software is provided as is, with no warranty of any kind.
+Credit: **Michael Laurence Curzi & 36N9 GENETICS LLC**, PO Box 6, Calpine, CA 96124-0006, United States, deal@zedec.ai.
+
+Under section 4(d) of the Apache License, anyone who redistributes this software or a work derived from it must keep the attribution in [`NOTICE`](NOTICE). Vendored third-party code keeps its own licence (see each vendored directory's LICENSE and README.zxv). The software is provided as is, with no warranty of any kind.

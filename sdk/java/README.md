@@ -22,15 +22,15 @@ Build the jar (the C library must already be built in `sdk/libzxv/build`):
 ```sh
 export JAVA_HOME=/path/to/jdk-22-or-later
 cd sdk/java
-mvn package                 # compiles, runs the tests, writes target/zxv-1.1.0.jar
-mvn install                 # optional: puts org.zedec:zxv:1.1.0 in ~/.m2
+mvn package                 # compiles, runs the tests, writes target/zxv-1.3.0.jar
+mvn install                 # optional: puts org.zedec:zxv:1.3.0 in ~/.m2
 ```
 
 ```xml
 <dependency>
   <groupId>org.zedec</groupId>
   <artifactId>zxv</artifactId>
-  <version>1.1.0</version>
+  <version>1.3.0</version>
 </dependency>
 ```
 
@@ -41,8 +41,8 @@ under `/native/linux-x86_64/`. Set `-Dzxv.native.platform=` (and point
 FFM calls into native code are "restricted": grant access when you run.
 
 ```sh
-java --enable-native-access=org.zedec.zxv  -p zxv-1.1.0.jar ...   # module path
-java --enable-native-access=ALL-UNNAMED    -cp zxv-1.1.0.jar ...  # class path
+java --enable-native-access=org.zedec.zxv  -p zxv-1.3.0.jar ...   # module path
+java --enable-native-access=ALL-UNNAMED    -cp zxv-1.3.0.jar ...  # class path
 ```
 
 ### Where the library comes from
@@ -79,7 +79,7 @@ A longer runnable tour is `examples/Quickstart.java`:
 
 ```sh
 mvn -q package -DskipTests
-java --enable-native-access=org.zedec.zxv -p target/zxv-1.1.0.jar --add-modules org.zedec.zxv \
+java --enable-native-access=org.zedec.zxv -p target/zxv-1.3.0.jar --add-modules org.zedec.zxv \
      examples/Quickstart.java ../conformance/fixtures
 ```
 

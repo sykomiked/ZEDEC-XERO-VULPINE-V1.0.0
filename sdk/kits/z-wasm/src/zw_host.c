@@ -57,6 +57,13 @@ struct zw_plugin {
     char name[32];
     zw_prop staged[ZW_STAGE_MAX];
     uint32_t nstaged;
+    /* call checks (kit API 0.2): one per export */
+    struct {
+        char *export_name;
+        zw_check_fn fn;
+        void *user;
+    } checks[ZW_CHECKS_MAX];
+    int in_check; /* 0, or ZW_CHECK_BEFORE + 1 / ZW_CHECK_AFTER + 1 */
 };
 
 /* Returned by a host function that finds the fuel exhausted. */
@@ -485,6 +492,7 @@ fail:
 
 void zw_plugin_destroy(zw_plugin *plugin) {
     if (!plugin) return;
+    for (int i = 0; i < ZW_CHECKS_MAX; i++) free(plugin->checks[i].export_name);
     if (plugin->rt) m3_FreeRuntime(plugin->rt);
     free(plugin->code);
     free(plugin);
@@ -526,6 +534,98 @@ static int32_t queue_push(zw_host *h, const zw_prop *p) {
     return ZXV_OK;
 }
 
+/* ===== Call checks (kit API 0.2) ===== */
+
+static int find_check(const zw_plugin *pl, const char *export_name) {
+    for (int i = 0; i < ZW_CHECKS_MAX; i++)
+        if (pl->checks[i].export_name && strcmp(pl->checks[i].export_name, export_name) == 0)
+            return i;
+    return -1;
+}
+
+int32_t zw_plugin_set_check(zw_plugin *plugin, const char *export_name, zw_check_fn fn,
+                            void *user) {
+    int i;
+    if (!plugin || !export_name) {
+        zw_set_error("zw_plugin_set_check: NULL argument");
+        return ZXV_E_ARG;
+    }
+    if (plugin->in_check) {
+        zw_set_error("zw_plugin_set_check: called from inside a check");
+        return ZXV_E_STATE;
+    }
+    if (!exported_func(plugin->code, plugin->code_len, export_name)) {
+        zw_set_errorf("plugin '%s' exports no function '%s'", plugin->name, export_name);
+        return ZW_E_EXPORT;
+    }
+    i = find_check(plugin, export_name);
+    if (!fn) {
+        if (i >= 0) {
+            free(plugin->checks[i].export_name);
+            memset(&plugin->checks[i], 0, sizeof plugin->checks[i]);
+        }
+        return ZXV_OK;
+    }
+    if (i < 0) {
+        size_t n = strlen(export_name);
+        for (i = 0; i < ZW_CHECKS_MAX && plugin->checks[i].export_name; i++) {
+        }
+        if (i == ZW_CHECKS_MAX) {
+            zw_set_error("zw_plugin_set_check: every check slot is in use");
+            return ZXV_E_CAPACITY;
+        }
+        plugin->checks[i].export_name = (char *) malloc(n + 1);
+        if (!plugin->checks[i].export_name) return ZXV_E_NOMEM;
+        memcpy(plugin->checks[i].export_name, export_name, n + 1);
+    }
+    plugin->checks[i].fn = fn;
+    plugin->checks[i].user = user;
+    return ZXV_OK;
+}
+
+int32_t zw_plugin_staged_count(const zw_plugin *plugin, uint32_t *out_count) {
+    if (!plugin || !out_count) return ZXV_E_ARG;
+    if (plugin->in_check != ZW_CHECK_AFTER + 1) {
+        zw_set_error("zw_plugin_staged_count: only inside a ZW_CHECK_AFTER check");
+        return ZXV_E_STATE;
+    }
+    *out_count = plugin->nstaged;
+    return ZXV_OK;
+}
+
+int32_t zw_plugin_staged_get(const zw_plugin *plugin, uint32_t index, uint32_t *out_kind,
+                             int64_t *out_num, int64_t *out_den, uint8_t *label,
+                             size_t label_cap, size_t *out_label_len) {
+    const zw_prop *p;
+    if (!plugin) return ZXV_E_ARG;
+    if (plugin->in_check != ZW_CHECK_AFTER + 1) {
+        zw_set_error("zw_plugin_staged_get: only inside a ZW_CHECK_AFTER check");
+        return ZXV_E_STATE;
+    }
+    if (index >= plugin->nstaged) return ZXV_E_NOT_FOUND;
+    p = &plugin->staged[index];
+    if (out_label_len) *out_label_len = p->label_len;
+    if (p->label_len && (!label || label_cap <= p->label_len)) return ZXV_E_BUFFER;
+    if (out_kind) *out_kind = p->kind;
+    if (out_num) *out_num = p->num;
+    if (out_den) *out_den = p->den;
+    if (label && label_cap) {
+        if (p->label_len) memcpy(label, p->label, p->label_len);
+        label[p->label_len] = 0;
+    }
+    return ZXV_OK;
+}
+
+static int32_t run_check(zw_plugin *pl, int ci, int32_t stage, const char *export_name,
+                         const int64_t *args, uint32_t nargs, int64_t result, int32_t has_result) {
+    int32_t rc;
+    pl->in_check = stage + 1;
+    rc = pl->checks[ci].fn(pl->checks[ci].user, pl, stage, export_name, args, nargs, result,
+                           has_result);
+    pl->in_check = 0;
+    return rc;
+}
+
 int32_t zw_plugin_call(zw_plugin *plugin, const char *export_name, const int64_t *args,
                        uint32_t nargs, int64_t *out_result, int32_t *out_has_result,
                        uint64_t *out_fuel_used) {
@@ -544,6 +644,10 @@ int32_t zw_plugin_call(zw_plugin *plugin, const char *export_name, const int64_t
         return ZXV_E_ARG;
     }
     h = plugin->host;
+    if (plugin->in_check) {
+        zw_set_error("zw_plugin_call: called from inside a check");
+        return ZXV_E_STATE;
+    }
     if (plugin->state == ZW_PLUGIN_DEAD) {
         zw_set_errorf("plugin '%s' is dead (it trapped or ran out of fuel); destroy it",
                       plugin->name);
@@ -585,6 +689,12 @@ int32_t zw_plugin_call(zw_plugin *plugin, const char *export_name, const int64_t
     if (rt != c_m3Type_none && rt != c_m3Type_i32 && rt != c_m3Type_i64) {
         zw_set_errorf("'%s' result is not i32/i64", export_name);
         return ZW_E_EXPORT;
+    }
+    int ci = find_check(plugin, export_name);
+    if (ci >= 0 && run_check(plugin, ci, ZW_CHECK_BEFORE, export_name, args, nargs, 0, 0) != 0) {
+        zw_set_errorf("plugin '%s': the check on '%s' refused the arguments (nothing ran)",
+                      plugin->name, export_name);
+        return ZW_E_CHECK;
     }
 
     /* Fuel = min(call fuel, floor(remaining budget)). */
@@ -643,18 +753,28 @@ int32_t zw_plugin_call(zw_plugin *plugin, const char *export_name, const int64_t
         return ZW_E_TRAP;
     }
 
-    if (out_has_result) *out_has_result = rt != c_m3Type_none;
+    int64_t res = 0;
     if (rt == c_m3Type_i32) {
         uint32_t v = 0;
         const void *rp[1] = {&v};
         (void) m3_GetResults(f, 1, rp);
-        if (out_result) *out_result = (int64_t) (int32_t) v;
+        res = (int64_t) (int32_t) v;
     } else if (rt == c_m3Type_i64) {
         uint64_t v = 0;
         const void *rp[1] = {&v};
         (void) m3_GetResults(f, 1, rp);
-        if (out_result) *out_result = (int64_t) v;
+        res = (int64_t) v;
     }
+    if (ci >= 0 && run_check(plugin, ci, ZW_CHECK_AFTER, export_name, args, nargs, res,
+                             rt != c_m3Type_none) != 0) {
+        plugin->state = ZW_PLUGIN_DEAD;
+        plugin->nstaged = 0; /* like a trap: nothing reaches the queue */
+        zw_set_errorf("plugin '%s': the check on '%s' refused the result; the plugin is dead",
+                      plugin->name, export_name);
+        return ZW_E_CHECK;
+    }
+    if (out_has_result) *out_has_result = rt != c_m3Type_none;
+    if (out_result && rt != c_m3Type_none) *out_result = res;
     for (uint32_t i = 0; i < plugin->nstaged; i++) {
         st = queue_push(h, &plugin->staged[i]);
         if (st != ZXV_OK) {

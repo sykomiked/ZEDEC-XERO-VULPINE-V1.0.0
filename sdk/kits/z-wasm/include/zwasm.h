@@ -1,6 +1,6 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* zwasm.h — Z-Wasm, the ZXV plugin sandbox kit (kit API 0.1).
+/* zwasm.h — Z-Wasm, the ZXV plugin sandbox kit (kit API 0.2).
  *
  * A ZXV plugin is a WebAssembly module. Z-Wasm does three things with it:
  *
@@ -48,7 +48,7 @@ extern "C" {
 #endif
 
 #define ZW_VERSION_MAJOR 0
-#define ZW_VERSION_MINOR 1
+#define ZW_VERSION_MINOR 2
 #define ZW_VERSION_PATCH 0
 
 /* ===== Status codes =====
@@ -62,6 +62,7 @@ extern "C" {
 #define ZW_E_FUEL      (-1004) /* the call ran out of fuel; the plugin is now DEAD  */
 #define ZW_E_EXPORT    (-1005) /* no such exported function, or not an i32/i64 one */
 #define ZW_E_DEAD      (-1006) /* the plugin stopped earlier; destroy and reload it */
+#define ZW_E_CHECK     (-1007) /* an attached call check refused the call (0.2)     */
 
 /* Static, never-NULL name ("ZW_E_FUEL"); ZXV codes give libzxv's name. */
 const char *zw_status_name(int32_t status);
@@ -220,6 +221,55 @@ int32_t zw_plugin_state(const zw_plugin *plugin, int32_t *out_state);
 int32_t zw_plugin_call(zw_plugin *plugin, const char *export_name, const int64_t *args,
                        uint32_t nargs, int64_t *out_result, int32_t *out_has_result,
                        uint64_t *out_fuel_used);
+
+/* ===== Call checks (kit API 0.2) =====
+ * An integration hook, used by sdk/kits/z-contract to enforce a contract on
+ * an export. A host attaches at most one check to each export of a plugin
+ * (up to ZW_CHECKS_MAX exports). Every zw_plugin_call of that export then
+ * runs the check twice:
+ *
+ *   ZW_CHECK_BEFORE  after the arguments are checked against the export's
+ *                    i32/i64 types, before any fuel is set or code runs.
+ *                    `result`/`has_result` are 0. A non-zero return refuses
+ *                    the call: ZW_E_CHECK, nothing runs, no fuel is used,
+ *                    the plugin stays READY (bad input is the caller's
+ *                    fault, not the plugin's).
+ *   ZW_CHECK_AFTER   after the call returned normally and its fuel was
+ *                    charged, before its staged proposals reach the S0
+ *                    queue. zw_plugin_staged_count / zw_plugin_staged_get
+ *                    read those proposals (only during this stage). A
+ *                    non-zero return is handled like a trap: the staged
+ *                    proposals are discarded, the plugin becomes DEAD and
+ *                    the call returns ZW_E_CHECK. *out_result is not
+ *                    written.
+ *
+ * A check must not call zw_plugin_call, zw_plugin_set_check or
+ * zw_plugin_destroy on the same plugin (ZXV_E_STATE for the first two).
+ * The check keeps its own record of why it refused; zw_last_error only
+ * names the export and the stage. `user` is passed through untouched and
+ * must outlive the attachment. */
+#define ZW_CHECK_BEFORE 0
+#define ZW_CHECK_AFTER  1
+#define ZW_CHECKS_MAX   16
+
+typedef int32_t (*zw_check_fn)(void *user, zw_plugin *plugin, int32_t stage,
+                               const char *export_name, const int64_t *args, uint32_t nargs,
+                               int64_t result, int32_t has_result);
+
+/* Attach (fn != NULL) or remove (fn == NULL) the check of one export.
+ * ZW_E_EXPORT if the plugin exports no such function, ZXV_E_CAPACITY past
+ * ZW_CHECKS_MAX exports, ZXV_E_STATE from inside a check. Replacing an
+ * export's check is allowed. A DEAD plugin accepts the call (it changes
+ * nothing that can still run). */
+int32_t zw_plugin_set_check(zw_plugin *plugin, const char *export_name, zw_check_fn fn,
+                            void *user);
+/* During ZW_CHECK_AFTER only (ZXV_E_STATE otherwise): the proposals the
+ * call staged, in order. The label follows the R4 two-call rule of
+ * zw_proposal_get. */
+int32_t zw_plugin_staged_count(const zw_plugin *plugin, uint32_t *out_count);
+int32_t zw_plugin_staged_get(const zw_plugin *plugin, uint32_t index, uint32_t *out_kind,
+                             int64_t *out_num, int64_t *out_den, uint8_t *label,
+                             size_t label_cap, size_t *out_label_len);
 
 /* ===== The S0 proposal queue (host side) =====
  * Proposal states are libzxv's four-valued logic values:
