@@ -1490,6 +1490,11 @@ test-vbond:
 test-zstats:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/zstats/test_zstats.c src/zstats/zstats.c src/grants/grants.c src/svault/svault.c src/vswap/vswap.c src/vauction/vauction.c src/vbond/vbond.c src/zenny/zenny.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_zstats -lm && $(ZXV_TMP)/test_zstats > $(ZXV_TMP)/test_zstats.log 2>&1 && echo "[PASS] test_zstats" || { tail -40 $(ZXV_TMP)/test_zstats.log; echo "[FAIL] test_zstats"; exit 1; }
 
+# V-Calls and V-Perps (src/vderiv): bilateral fully collateralised calls and perps on the auction index, capped payoffs, fee to the reserve floor; off per jurisdiction.
+.PHONY: test-vderiv
+test-vderiv:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/vderiv/test_vderiv.c src/vderiv/vderiv.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vderiv -lm && $(ZXV_TMP)/test_vderiv > $(ZXV_TMP)/test_vderiv.log 2>&1 && echo "[PASS] test_vderiv" || { tail -40 $(ZXV_TMP)/test_vderiv.log; echo "[FAIL] test_vderiv"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1502,4 +1507,5 @@ test-econ:
 	$(MAKE) --no-print-directory test-zenny
 	$(MAKE) --no-print-directory test-vbond
 	$(MAKE) --no-print-directory test-zstats
+	$(MAKE) --no-print-directory test-vderiv
 # ==== end economy modules ====
