@@ -324,7 +324,7 @@ jobs:
         working-directory: sdk/go/zxv
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: sdk/go/zxv/go.mod
       - run: make -C ../../libzxv all fixtures
