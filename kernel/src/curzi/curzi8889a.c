@@ -255,7 +255,7 @@ uint32_t curzi_chunk_payload(const uint8_t *payload, uint32_t payload_len,
         header[5] = (uint8_t)((len >> 8) & 0xff);
         header[6] = (uint8_t)(len >> 16);
         header[7] = (uint8_t)(len >> 24);
-        (void)header;  /* not signed here yet; keeps -Werror host builds clean */
+        (void) header; /* not signed here yet; keeps -Werror host builds clean */
         /* The chunk_sig is filled by the caller with pq_mldsa65_sign */
         out_chunks[i].chunk_sig.mldsa_verified = LPRES_STATE_NEITHER;
         out_chunks[i].chunk_sig.slh_verified = LPRES_STATE_NEITHER;
