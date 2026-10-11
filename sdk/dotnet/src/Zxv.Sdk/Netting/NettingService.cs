@@ -22,12 +22,12 @@ public sealed record NetPosition(string Participant, Money Net);
 /// </remarks>
 public sealed class NettingService
 {
-    private readonly ZxvContextHandle _ctx;
+    private readonly ContextRef _context;
     private readonly Currencies.CurrencyService _currencies;
 
-    internal NettingService(ZxvContextHandle ctx, Currencies.CurrencyService currencies)
+    internal NettingService(ContextRef context, Currencies.CurrencyService currencies)
     {
-        _ctx = ctx;
+        _context = context;
         _currencies = currencies;
     }
 
@@ -39,8 +39,9 @@ public sealed class NettingService
     {
         Guard.Text(cycleId, nameof(cycleId));
         Guard.Text(currency, nameof(currency));
-        NativeCall.Check(NativeMethods.NettingOpen(_ctx, cycleId, currency, out ZxvNettingHandle h), "Netting.OpenCycle");
-        return new NettingCycle(_ctx, h, cycleId, _currencies.GetEnabled(currency));
+        ZxvContextHandle ctx = _context.Live;
+        NativeCall.Check(NativeMethods.NettingOpen(ctx, cycleId, currency, out ZxvNettingHandle h), "Netting.OpenCycle");
+        return new NettingCycle(ctx, h, cycleId, _currencies.GetEnabled(currency));
     }
 }
 

@@ -9,6 +9,7 @@ name: zxvd
 
 on:
   push:
+    branches: [main, develop]
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             '.github/workflows/zxvd.yml']
@@ -20,6 +21,12 @@ on:
 
 permissions:
   contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: zxvd-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   e2e:

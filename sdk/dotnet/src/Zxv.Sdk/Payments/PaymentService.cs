@@ -78,15 +78,43 @@ public sealed class PaymentService
     /// <returns>The receipt.</returns>
     /// <exception cref="ZxvException">Validation or ledger refusal; nothing was booked.</exception>
     /// <exception cref="ZxvTransportException">Booked, but the transport failed.</exception>
-    public async Task<PaymentReceipt> SubmitAsync(PaymentRequest request, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// Presents the platform's own capability. Code that should hold no more
+    /// than a teller's rights calls <see cref="SubmitAsync(Capability, PaymentRequest, CancellationToken)"/>.
+    /// </remarks>
+    public Task<PaymentReceipt> SubmitAsync(PaymentRequest request, CancellationToken cancellationToken = default) =>
+        SubmitCoreAsync(null, request, cancellationToken);
+
+    /// <summary>
+    /// Books a payment and sends its pacs.008 through <paramref name="capability"/>:
+    /// reading the accounts and building the message need
+    /// <see cref="CapabilityRights.LedgerRead"/>, posting needs
+    /// <see cref="CapabilityRights.LedgerPost"/> (ABI 1.2).
+    /// </summary>
+    /// <param name="capability">A capability of this platform.</param>
+    /// <param name="request">The payment.</param>
+    /// <param name="cancellationToken">Cancels before booking, or the transport send.</param>
+    /// <returns>The receipt.</returns>
+    /// <exception cref="CapabilityDeniedException">The capability lacks a needed right, is revoked or is not attested; nothing was booked unless only the transport failed afterwards.</exception>
+    /// <exception cref="ArgumentException">The capability belongs to a different platform.</exception>
+    /// <exception cref="ZxvException">Validation or ledger refusal; nothing was booked.</exception>
+    /// <exception cref="ZxvTransportException">Booked, but the transport failed.</exception>
+    public Task<PaymentReceipt> SubmitAsync(Capability capability, PaymentRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(capability);
+        return SubmitCoreAsync(capability, request, cancellationToken);
+    }
+
+    private async Task<PaymentReceipt> SubmitCoreAsync(Capability? capability, PaymentRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        CapabilityLedger? scoped = capability is null ? null : _ledger.WithCapability(capability);
         cancellationToken.ThrowIfCancellationRequested();
 
         string e2e = request.EndToEndId ?? _ids.NextEndToEndId();
         DateTimeOffset now = _time.GetUtcNow();
-        Account from = _ledger.GetAccountUnchecked(request.From);
-        Account to = _ledger.GetAccountUnchecked(request.To);
+        Account from = scoped?.GetAccount(request.From) ?? _ledger.GetAccountUnchecked(request.From);
+        Account to = scoped?.GetAccount(request.To) ?? _ledger.GetAccountUnchecked(request.To);
         var message = new Pacs008Message(
             _ids.NextMessageId(),
             now,
@@ -95,8 +123,9 @@ public sealed class PaymentService
             request.Amount,
             e2e);
 
-        MxDocument document = _messages.BuildPacs008Core(null, message);
-        PostingReceipt posting = _ledger.Post(new Transfer(request.From, request.To, request.Amount, e2e));
+        MxDocument document = _messages.BuildPacs008Core(capability, message);
+        var transfer = new Transfer(request.From, request.To, request.Amount, e2e);
+        PostingReceipt posting = scoped is null ? _ledger.Post(transfer) : scoped.Post(transfer);
         var receipt = new PaymentReceipt(e2e, posting.EntryId, request.Amount, request.From, request.To, now, document);
 
         await SendAsync(receipt, cancellationToken).ConfigureAwait(false);
@@ -105,7 +134,7 @@ public sealed class PaymentService
     }
 
     /// <summary>Sends the message of an already booked payment again.</summary>
-    /// <param name="receipt">The receipt from <see cref="SubmitAsync"/> or <see cref="ZxvTransportException.Receipt"/>.</param>
+    /// <param name="receipt">The receipt from <see cref="SubmitAsync(PaymentRequest, CancellationToken)"/> or <see cref="ZxvTransportException.Receipt"/>.</param>
     /// <param name="cancellationToken">Cancels the send.</param>
     /// <returns>A task that completes when the transport accepted the message.</returns>
     public Task RetransmitAsync(PaymentReceipt receipt, CancellationToken cancellationToken = default)

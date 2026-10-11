@@ -15,7 +15,9 @@ namespace Zxv.Ledger;
 /// <see cref="CapabilityRights.LedgerPost"/>; balances, accounts and journals
 /// need <see cref="CapabilityRights.LedgerRead"/>; ABI 1.2). Obtain it with
 /// <see cref="LedgerService.WithCapability(Capability)"/> and hand it to code
-/// that should hold no more than that capability. Thread-safe.
+/// that should hold no more than that capability. Thread-safe. Like the
+/// platform it belongs to, it throws <see cref="ObjectDisposedException"/>
+/// once the platform is disposed.
 /// </summary>
 public sealed class CapabilityLedger
 {
@@ -41,7 +43,7 @@ public sealed class CapabilityLedger
         ArgumentNullException.ThrowIfNull(transfer);
         Guard.Text(transfer.Reference, nameof(transfer));
         Guard.Text(transfer.Amount.Currency, nameof(transfer));
-        _cap.Enter("Ledger.Post");
+        Enter("Ledger.Post");
         int rc = NativeMethods.LedgerPostCap(_cap.Handle, transfer.From.Value, transfer.To.Value, transfer.Amount.MinorUnits, transfer.Amount.Currency, transfer.Reference, out ulong entryId);
         _cap.Check(rc, "Ledger.Post");
         return new PostingReceipt(entryId, transfer);
@@ -74,7 +76,7 @@ public sealed class CapabilityLedger
     {
         Guard.Text(name, nameof(name));
         Guard.Text(currency, nameof(currency));
-        _cap.Enter("Ledger.OpenAccount");
+        Enter("Ledger.OpenAccount");
         _cap.Check(NativeMethods.LedgerOpenAccountCap(_cap.Handle, name, currency, (int)kind, out uint id), "Ledger.OpenAccount");
         return new Account(new AccountId(id), name, currency, kind);
     }
@@ -86,7 +88,7 @@ public sealed class CapabilityLedger
     public unsafe Account GetAccount(AccountId id)
     {
         uint v = id.Value;
-        _cap.Enter("Ledger.GetAccount");
+        Enter("Ledger.GetAccount");
         string ccy = ReadText((byte* b, nuint c, out nuint l) => NativeMethods.LedgerAccountCcyCap(_cap.Handle, v, b, c, out l), "Ledger.GetAccount");
         string name = ReadText((byte* b, nuint c, out nuint l) => NativeMethods.LedgerAccountNameCap(_cap.Handle, v, b, c, out l), "Ledger.GetAccount");
         _cap.Check(NativeMethods.LedgerAccountKindCap(_cap.Handle, v, out int kind), "Ledger.GetAccount");
@@ -97,7 +99,7 @@ public sealed class CapabilityLedger
     /// <returns>The accounts.</returns>
     public IReadOnlyList<Account> ListAccounts()
     {
-        _cap.Enter("Ledger.ListAccounts");
+        Enter("Ledger.ListAccounts");
         _cap.Check(NativeMethods.LedgerAccountCountCap(_cap.Handle, out uint count), "Ledger.ListAccounts");
         var list = new List<Account>((int)count);
         for (uint i = 0; i < count; i++)
@@ -113,7 +115,7 @@ public sealed class CapabilityLedger
     /// <returns>The line count.</returns>
     public int GetEntryCount(AccountId id)
     {
-        _cap.Enter("Ledger.GetEntryCount");
+        Enter("Ledger.GetEntryCount");
         _cap.Check(NativeMethods.LedgerEntryCountCap(_cap.Handle, id.Value, out uint n), "Ledger.GetEntryCount");
         return checked((int)n);
     }
@@ -156,7 +158,7 @@ public sealed class CapabilityLedger
     /// <returns>The balances.</returns>
     public RailBalances GetBalances(AccountId id)
     {
-        _cap.Enter("Ledger.GetBalances");
+        Enter("Ledger.GetBalances");
         _cap.Check(NativeMethods.LedgerBalanceCap(_cap.Handle, id.Value, out long d, out long c, out long e), "Ledger.GetBalances");
         Account account = GetAccount(id);
         byte scale = _ledger.ScaleOf(account.Currency);
@@ -169,8 +171,15 @@ public sealed class CapabilityLedger
     /// </summary>
     public void Verify()
     {
-        _cap.Enter("Ledger.Verify");
+        Enter("Ledger.Verify");
         _cap.Check(NativeMethods.LedgerCheckCap(_cap.Handle), "Ledger.Verify");
+    }
+
+    /// <summary>Fails fast once the platform is disposed, or the capability is disposed or its context known halted.</summary>
+    private void Enter(string operation)
+    {
+        _ledger.ThrowIfDisposed();
+        _cap.Enter(operation);
     }
 
     private string ReadText(NativeTextCall read, string operation)
