@@ -9,6 +9,7 @@
 | Answer tag and quarantine log | `zxv_answer_tag.c`, `kernel/src/lpres` | on every model answer |
 | Settlement spine on the ledger of record, fee loop, self-audit | `kernel/src/settle`, `pay`, `peer_audit` | every cycle |
 | Vinea peer node (off by default) | `zxv_net_host.c`, `kernel/src/vinea` | `net.command` |
+| Remote inference between nodes over TCP, PQ session, fee settlement (off by default) | `zxv_peer_host.c`, `vna_session`, `pay` | `peer.*` |
 | Signed update checks, notifications | `zxv_update_host.c`, `zx_notify` | `update.check`, `notes.*` |
 | Owner's books: currencies, accounts, exact postings, invariants | **libzxv** through its frozen C ABI | `currency.*`, `ledger.*` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
@@ -63,6 +64,9 @@ CI checks it matches what zxvd serves.
 | `model.info` | | `loaded`, `can_generate`, `name`, `arch`, `n_layers`, `n_vocab`, `status` |
 | `notes.list` / `notes.mark_read` | | notes / `marked` |
 | `net.command` | `command` | `result` |
+| `peer.ask` | `peer` (IP or IP:PORT), `prompt`, `max_price_minor` | `answer`, `settlement`, `security` |
+| `peer.serve` | `price_minor`? (absent stops) | the `peer.status` object |
+| `peer.status` | | `serving`, `port`, `price_minor`, `wallet_minor`, `fees_paid_minor`, `buckets`, `sold`, `bought`, `refused`, `sessions`, `book_ok`, `history` |
 | `update.check` | | `status` |
 | `currency.enable` | `code` | `enabled` |
 | `ledger.open_account` | `name`, `currency`, `kind`? | `account` |
@@ -74,7 +78,9 @@ CI checks it matches what zxvd serves.
 | `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
--32602 bad params, -32603 internal, -32000 a libzxv status, with
+-32602 bad params, -32603 internal, -32010 a peer request refused or failed
+(the message says why: price, funds, handshake, signature, connect), -32000 a
+libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
 never sent over the socket.
