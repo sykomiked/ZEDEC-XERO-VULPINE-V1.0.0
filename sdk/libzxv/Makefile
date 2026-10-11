@@ -26,6 +26,9 @@ endif
 AR      ?= ar
 K       := ../../kernel
 OUT     := build
+# The Android NDK has pthreads in libc and ships no libpthread: build with
+# PTHREAD= there.
+PTHREAD ?= -lpthread
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S),Darwin)
@@ -122,7 +125,7 @@ $(OUT)/%.o: src/%.c include/zxv_api.h src/zxv_internal.h src/zxv_q16.h
 	$(CC) $(CFLAGS_COMMON) -MMD -MP -DZXV_BUILD_SHARED $(DEFS) $(INC) -c $< -o $@
 
 $(LIB): $(OBJ) $(KOBJ)
-	$(CC) $(SOFLAG) $(SAN) -o $@ $^ -lpthread -lm
+	$(CC) $(SOFLAG) $(SAN) -o $@ $^ $(PTHREAD) -lm
 
 $(STATIC): $(OBJ) $(KOBJ)
 	@rm -f $@
@@ -134,19 +137,19 @@ $(STATIC): $(OBJ) $(KOBJ)
 
 TESTCC := $(CC) -std=c11 -O1 -g -Wall -Wextra -Werror -Iinclude $(SAN)
 $(OUT)/test_zxv_api: test/test_zxv_api.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) -lpthread -o $@
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
 $(OUT)/test_zxv_abi11: test/test_zxv_abi11.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) -lpthread -o $@
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
 $(OUT)/test_zxv_abi12: test/test_zxv_abi12.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) -lpthread -o $@
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
 $(OUT)/test_zxv_abi13: test/test_zxv_abi13.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) -lpthread -o $@
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
 # The portable (no __int128) Q16 rounding, forced with -DZXV_NO_INT128 and
 # checked against the 128-bit path and the library.
 $(OUT)/test_q16: test/test_q16.c src/zxv_q16.h include/zxv_api.h $(LIB)
-	$(TESTCC) -DZXV_NO_INT128 -Isrc $< -L$(OUT) -lzxv $(RPATH) -lpthread -o $@
+	$(TESTCC) -DZXV_NO_INT128 -Isrc $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
 $(OUT)/gen_vectors: tools/gen_vectors.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) -lpthread -o $@
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
 $(OUT)/mkfixture: tools/mkfixture.c
 	$(CC) -std=c11 -O1 -I$(K)/src/tensor -o $@ $<
 
