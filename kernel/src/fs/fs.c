@@ -134,32 +134,77 @@ bool fs_delete_node(fs_registry_t *reg, uint32_t idx) {
 
 /* ===== Tri-Space Replication ===== */
 
-bool fs_replicate_to_s_minus(fs_registry_t *reg, uint32_t idx) {
+/* The replica slot for node idx in a backup space; NULL for S+ or a bad index. */
+static fs_replica_t *fs_replica_slot(fs_registry_t *reg, uint32_t idx, fs_space_t space) {
+    if (!reg || idx >= reg->node_count) return NULL;
+    if (space == FS_SPACE_S_MINUS) return &reg->replica_s_minus[idx];
+    if (space == FS_SPACE_S_ZERO) return &reg->replica_s_zero[idx];
+    return NULL;
+}
+
+static bool fs_replicate(fs_registry_t *reg, uint32_t idx, fs_space_t space) {
     fs_node_t *n = fs_get_node(reg, idx);
-    if (!n || !n->exists_in_s_plus) return false;
-    n->exists_in_s_minus = true;
+    fs_replica_t *r = fs_replica_slot(reg, idx, space);
+    if (!n || !r || !n->exists_in_s_plus) return false;
+    if (n->data_len > FS_MAX_DATA_LEN) return false;
+
+    ev_memset(r, 0, sizeof(*r));
+    ev_memcpy(r->data, n->data, n->data_len);
+    r->data_len = n->data_len;
+    r->crc = fs_crc32(n->data, n->data_len);
+    r->version = n->version;
+    r->node_id = n->id;
+    if (space == FS_SPACE_S_MINUS)
+        n->exists_in_s_minus = true;
+    else
+        n->exists_in_s_zero = true;
     return true;
+}
+
+static bool fs_recover(fs_registry_t *reg, uint32_t idx, fs_space_t space) {
+    fs_node_t *n = fs_get_node(reg, idx);
+    fs_replica_t *r = fs_replica_slot(reg, idx, space);
+    if (!n || !r) return false;
+    /* The replica table, not the node's flag, decides: a snapshot restore can
+     * roll the flag back while the replica (outside the snapshot) survives. */
+    if (r->node_id == 0 || r->node_id != n->id) return false;
+    if (r->data_len > FS_MAX_DATA_LEN) return false;
+    if (fs_crc32(r->data, r->data_len) != r->crc) return false; /* corrupted backup */
+
+    ev_memset(n->data, 0, sizeof(n->data));
+    ev_memcpy(n->data, r->data, r->data_len);
+    n->data_len = r->data_len;
+    n->crc = r->crc;
+    n->version = r->version;
+    n->exists_in_s_plus = true;
+    if (space == FS_SPACE_S_MINUS)
+        n->exists_in_s_minus = true;
+    else
+        n->exists_in_s_zero = true;
+    reg->total_version++;
+    return true;
+}
+
+bool fs_replicate_to_s_minus(fs_registry_t *reg, uint32_t idx) {
+    return fs_replicate(reg, idx, FS_SPACE_S_MINUS);
 }
 
 bool fs_replicate_to_s_zero(fs_registry_t *reg, uint32_t idx) {
-    fs_node_t *n = fs_get_node(reg, idx);
-    if (!n || !n->exists_in_s_plus) return false;
-    n->exists_in_s_zero = true;
-    return true;
+    return fs_replicate(reg, idx, FS_SPACE_S_ZERO);
 }
 
 bool fs_recover_from_s_minus(fs_registry_t *reg, uint32_t idx) {
-    fs_node_t *n = fs_get_node(reg, idx);
-    if (!n || !n->exists_in_s_minus) return false;
-    n->exists_in_s_plus = true;
-    return true;
+    return fs_recover(reg, idx, FS_SPACE_S_MINUS);
 }
 
 bool fs_recover_from_s_zero(fs_registry_t *reg, uint32_t idx) {
-    fs_node_t *n = fs_get_node(reg, idx);
-    if (!n || !n->exists_in_s_zero) return false;
-    n->exists_in_s_plus = true;
-    return true;
+    return fs_recover(reg, idx, FS_SPACE_S_ZERO);
+}
+
+const fs_replica_t *fs_get_replica(const fs_registry_t *reg, uint32_t idx, fs_space_t space) {
+    const fs_replica_t *r = fs_replica_slot((fs_registry_t *) reg, idx, space);
+    if (!r || r->node_id == 0 || r->node_id != reg->nodes[idx].id) return NULL;
+    return r;
 }
 
 bool fs_verify_integrity(fs_registry_t *reg, uint32_t idx) {

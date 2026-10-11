@@ -120,6 +120,23 @@ typedef struct fs_snapshot {
     bool valid;
 } fs_snapshot_t;
 
+/* ===== Replica (one per node per backup space) =====
+ *
+ * S- and S0 hold real copies of a node's data, not just a flag. A replica is
+ * tagged with the node id it was taken from (ids are never reused, even after a
+ * snapshot restore), so a slot left over from a node that a restore removed can
+ * never be recovered into a different node. Replicas live outside fs_node_t so
+ * snapshots of S+ do not copy them and a snapshot restore does not roll them
+ * back: they are the independent copy recovery falls back on. */
+
+typedef struct fs_replica {
+    uint32_t node_id;            /* id of the node copied; 0 = empty slot */
+    uint8_t data[FS_MAX_DATA_LEN];
+    uint32_t data_len;
+    uint32_t crc;                /* CRC-32 of data at replication time */
+    uint64_t version;            /* node version at replication time */
+} fs_replica_t;
+
 /* ===== FS Registry ===== */
 
 typedef struct fs_registry {
@@ -136,6 +153,9 @@ typedef struct fs_registry {
     uint32_t next_snapshot_id;
 
     uint64_t total_version;      /* global version counter */
+
+    fs_replica_t replica_s_minus[FS_MAX_NODES]; /* indexed like nodes[] */
+    fs_replica_t replica_s_zero[FS_MAX_NODES];
 } fs_registry_t;
 
 /* ===== API ===== */
@@ -151,12 +171,21 @@ bool fs_write_data(fs_registry_t *reg, uint32_t idx, const uint8_t *data,
                    uint32_t data_len);
 bool fs_delete_node(fs_registry_t *reg, uint32_t idx);
 
-/* Tri-Space Replication */
+/* Tri-Space Replication
+ *
+ * replicate copies the node's current data, length, CRC and version into the
+ * S- or S0 replica (a live S+ node is required). recover copies the replica
+ * back into S+ and marks it present: the node's data, length, CRC and version
+ * become the replica's. recover refuses (returns false, node untouched) when
+ * there is no replica for this node or the replica's CRC no longer matches its
+ * data (a corrupted backup is never restored). fs_get_replica exposes a
+ * replica read-only, NULL when there is none for that node. */
 bool fs_replicate_to_s_minus(fs_registry_t *reg, uint32_t idx);
 bool fs_replicate_to_s_zero(fs_registry_t *reg, uint32_t idx);
 bool fs_recover_from_s_minus(fs_registry_t *reg, uint32_t idx);
 bool fs_recover_from_s_zero(fs_registry_t *reg, uint32_t idx);
 bool fs_verify_integrity(fs_registry_t *reg, uint32_t idx);
+const fs_replica_t *fs_get_replica(const fs_registry_t *reg, uint32_t idx, fs_space_t space);
 
 /* Snapshots */
 int32_t fs_create_snapshot(fs_registry_t *reg, const char *label);
