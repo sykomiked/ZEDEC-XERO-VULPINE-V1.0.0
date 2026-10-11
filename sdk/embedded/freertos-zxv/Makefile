@@ -52,6 +52,10 @@ $(FR)/tasks.c:
 	@test "$$(git -C $(FR) rev-parse HEAD)" = "$(FREERTOS_COMMIT)" || \
 	  { echo "FreeRTOS-Kernel $(FREERTOS_TAG) is not commit $(FREERTOS_COMMIT)"; exit 1; }
 
+# The clone brings every other kernel source with tasks.c. Saying so gives
+# make a rule for them in a fresh checkout, where they do not exist yet.
+$(filter-out $(FR)/tasks.c,$(FR_SRC)): $(FR)/tasks.c ;
+
 # The FreeRTOS kernel and its POSIX port: third-party, no -Werror.
 $(OUT)/freertos/%.o: $(FR)/%.c FreeRTOSConfig.h | fetch
 	@mkdir -p $(dir $@)

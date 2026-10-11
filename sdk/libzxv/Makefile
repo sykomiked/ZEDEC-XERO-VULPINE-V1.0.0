@@ -151,6 +151,7 @@ $(OUT)/test_q16: test/test_q16.c src/zxv_q16.h include/zxv_api.h $(LIB)
 $(OUT)/gen_vectors: tools/gen_vectors.c include/zxv_api.h $(LIB)
 	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
 $(OUT)/mkfixture: tools/mkfixture.c
+	@mkdir -p $(OUT)
 	$(CC) -std=c11 -O1 -I$(K)/src/tensor -o $@ $<
 
 test: $(OUT)/test_zxv_api $(OUT)/test_zxv_abi11 $(OUT)/test_zxv_abi12 $(OUT)/test_zxv_abi13 \
