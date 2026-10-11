@@ -1465,6 +1465,11 @@ test-recovery:
 test-estate:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/estate/test_estate.c src/estate/estate.c src/estate/faraid.c $(ECON_BASE) -o $(ZXV_TMP)/test_estate -lm && $(ZXV_TMP)/test_estate > $(ZXV_TMP)/test_estate.log 2>&1 && echo "[PASS] test_estate" || { tail -40 $(ZXV_TMP)/test_estate.log; echo "[FAIL] test_estate"; exit 1; }
 
+# Olive Oil Barrel grants (src/grants): virtual until an underwriter attests; paid only from the funded pool; G_RATE.
+.PHONY: test-grants
+test-grants:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/grants/test_grants.c src/grants/grants.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_grants -lm && $(ZXV_TMP)/test_grants > $(ZXV_TMP)/test_grants.log 2>&1 && echo "[PASS] test_grants" || { tail -40 $(ZXV_TMP)/test_grants.log; echo "[FAIL] test_grants"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1472,4 +1477,5 @@ test-econ:
 	$(MAKE) --no-print-directory test-sicily
 	$(MAKE) --no-print-directory test-recovery
 	$(MAKE) --no-print-directory test-estate
+	$(MAKE) --no-print-directory test-grants
 # ==== end economy modules ====
