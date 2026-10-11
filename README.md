@@ -5,8 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # ZEDEC XERO VULPINE — ZEDEC pqOS
 
-[![CI](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml/badge.svg)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml/badge.svg)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml)
+[![CI](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/actions/workflows/codeql.yml)
 [![sanitizers + fuzz](https://img.shields.io/badge/CI%20jobs-ASan%20%C2%B7%20UBSan%20%C2%B7%20integer%20%C2%B7%20MSan%20%C2%B7%20fuzz%20%C2%B7%20coverage-informational)](fuzz/README.md)
 
 The CI workflow includes the sanitizer, fuzz-smoke and coverage jobs; see
