@@ -19,7 +19,6 @@
  *
  * Usage: zt_bench MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B]
  *                 [--kv q16|q8] [--text FILE] [--kern NAME] [--threads T]
- *                 [--special]
  *                 [--special] [--convert]
  * --special parses special-token text in the prompt (a chat template such as
  * "<|im_start|>user\n...<|im_end|>\n<|im_start|>assistant\n").
@@ -119,13 +118,6 @@ int main(int argc, char **argv)
             n_threads = (uint32_t) strtoul(argv[++i], NULL, 10);
         else if (!strcmp(a, "--special"))
             special = true;
-        else if (a[0] != '-' && !path)
-            path = a;
-        else {
-            fprintf(stderr,
-                    "usage: %s MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B] "
-                    "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T] [--special]\n",
-                    argv[0]);
         else if (!strcmp(a, "--convert"))
             lflags = ZT_LOAD_CONVERT;
         else if (a[0] != '-' && !path)
@@ -258,7 +250,6 @@ int main(int argc, char **argv)
     printf("zt.stop=%s\nzt.ids=", stop);
     for (uint32_t i = 0; i < n_out; i++) printf(i ? ",%d" : "%d", gen[i]);
     printf("\n");
-    printf("zt.logits_fnv=%016llx\n", (unsigned long long) lh);
     printf("zt.logits_fnv=%016llx\nzt.n_sat=%u\n", (unsigned long long) lh, st.n_sat);
 
     if (text_out) {

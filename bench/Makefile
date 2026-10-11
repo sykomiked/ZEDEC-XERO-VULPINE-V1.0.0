@@ -25,7 +25,6 @@ TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tens
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench smoke tensor qwen
 .PHONY: all legacy legacy-bench zt_bench zt_dump zt_golden smoke tensor qwen
 all: smoke
 
