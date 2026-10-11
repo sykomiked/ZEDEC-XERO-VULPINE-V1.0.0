@@ -1,0 +1,7 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Must NOT compile: <stdlib.h> declares int abs(int), not long abs(long).
+library bad;
+include <stdlib.h>;
+fn abs(x: long) -> long;
