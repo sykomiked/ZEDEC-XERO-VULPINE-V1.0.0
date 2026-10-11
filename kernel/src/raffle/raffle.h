@@ -149,7 +149,12 @@
  *       is cut from the prize side, never from the reserve skim or the
  *       grant slice, and is credited to RAFFLE_DEST_BASKET_NAV, where the
  *       basket layer (finance build) buys more of that basket's BACKED
- *       components, raising its NAV. This module only names the leg.
+ *       components, raising its NAV. This module only names the leg. The
+ *       credit hook should stage it, in full, to a per-basket NAV holding
+ *       account and buy components later from that account in whole top-up
+ *       units (kernel/src/zenny zenny_topup). The unit moves with prices and
+ *       a top-up can be refused (prices moved, an unbacked leg), and neither
+ *       may stall or change a settlement that anyone can replay.
  *
  * LUCK WEIGHT (owner request 2026-10-11)
  * -------------------------------------
