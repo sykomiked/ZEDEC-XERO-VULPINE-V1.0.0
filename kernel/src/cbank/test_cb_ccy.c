@@ -147,8 +147,8 @@ int main(void)
                 if (cb_ccy_tbl[i].num == rails[j]) clash = true;
         CHECK(!clash && CB_RAIL_DEBIT == 555u && CB_RAIL_CREDIT == 777u && CB_RAIL_EQUITY == 888u,
               "555/777/888 are unassigned numerics in every ISO 4217 list-one entry");
-        CHECK(!cb_country_by_a3("NCR") && !cb_country_by_a3("NRE") && !cb_country_by_a3("PNS"),
-              "rail jurisdictions NCR/NRE/PNS are not ISO 3166-1 alpha-3 codes");
+        CHECK(!cb_country_by_a3("NRE") && !cb_country_by_a3("NCR") && !cb_country_by_a3("PNS"),
+              "rail jurisdictions NRE/NCR/PNS are not ISO 3166-1 alpha-3 codes");
     }
     CHECK(!cb_ccy_by_alpha("usd") && !cb_ccy_by_alpha("US") && !cb_ccy_by_alpha("USDX") &&
               !cb_ccy_by_alpha(0),

@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "pay_rails.h" /* canonical rail numerics 555/777/888 and NCR/NRE/PNS */
+#include "pay_rails.h" /* canonical rail numerics 555/777/888 and NRE/NCR/PNS */
 
 #define PAY_ISO3166_COUNT 249u
 
@@ -23,7 +23,7 @@ extern const char pay_iso3166_a2[PAY_ISO3166_COUNT][3];
 
 /* True iff `cc` is an assigned ISO 3166-1 alpha-2 code (exactly 2 letters).
  * "NC", "NR" and "PN" are valid (New Caledonia, Nauru, Pitcairn); the rail
- * jurisdictions "NCR", "NRE" and "PNS" are not, and pay_iso never maps one
+ * jurisdictions "NRE", "NCR" and "PNS" are not, and pay_iso never maps one
  * to the other. */
 bool pay_iso3166_valid(const char *cc);
 

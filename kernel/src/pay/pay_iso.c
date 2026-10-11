@@ -172,8 +172,8 @@ int32_t pay_iso_country_ok(const pay_iso_ctx_t *x, const char *cc, bool confirme
     const pay_platform_t *p = plat(x);
     if (!cc || !pay_iso3166_valid(cc)) return PAY_ISO_ERR_COUNTRY;
     if (juris_clash(p->jurisdiction, cc, p->jurisdiction_iso, confirmed))
-        return PAY_ISO_ERR_COUNTRY; /* "NC" must never stand in for "NCR" */
-    /* The per-rail jurisdictions (NCR, NRE, PNS) are never ISO 3166: "NC",
+        return PAY_ISO_ERR_COUNTRY; /* "NR" must never stand in for "NRE" */
+    /* The per-rail jurisdictions (NRE, NCR, PNS) are never ISO 3166: "NC",
      * "NR" and "PN" pass only for a confirmed real address. */
     for (int r = 0; r < PAY_RAIL_COUNT; r++)
         if (juris_clash(p->rail_juris[r], cc, false, confirmed)) return PAY_ISO_ERR_COUNTRY;

@@ -67,8 +67,8 @@
  * refused the same way.
  *
  * CURRENCIES. ISO 20022 wire messages carry ISO 4217 ALPHA codes ("NGN",
- * "GHS", "XOF") in Ccy attributes. The Vino rail numerics DEBIT 555 (NCR),
- * CREDIT 777 (NRE) and EQUITY 888 (PNS) are platform-internal: all three are
+ * "GHS", "XOF") in Ccy attributes. The Vino rail numerics DEBIT 555 (NRE),
+ * CREDIT 777 (NCR) and EQUITY 888 (PNS) are platform-internal: all three are
  * unassigned in ISO 4217, so this ABI refuses them, and any
  * private platform unit such as VFV, as a message currency (ZXV_E_CURRENCY).
  * They appear only in ledger rail balances and proprietary fields.
@@ -263,8 +263,8 @@ ZXV_API int32_t zxv_au_is_member(const char *country_a2, int32_t *out_is_member)
 
 /* ===== Vino rails ===== */
 typedef enum {
-    ZXV_RAIL_DEBIT = 0,  /* 555 NCR: asset / backing  */
-    ZXV_RAIL_CREDIT = 1, /* 777 NRE: claim / liability */
+    ZXV_RAIL_DEBIT = 0,  /* 555 NRE: asset / backing  */
+    ZXV_RAIL_CREDIT = 1, /* 777 NCR: claim / liability */
     ZXV_RAIL_EQUITY = 2  /* 888 PNS: debit - credit   */
 } zxv_rail;
 
