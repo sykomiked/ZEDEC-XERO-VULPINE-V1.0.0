@@ -72,6 +72,15 @@ floats in game state; see [`engines/`](engines/).
 | Godot 4 | [`godot-zxv`](engines/godot-zxv/) | GDExtension with `ZxvRational`, `ZxvHexagram`, `ZxvLockstep` and a two-peer demo | 1,010 core + 542 in headless Godot |
 | Unity | [`unity-zxv`](engines/unity-zxv/) | Package `com.zedec.zxv`: serializable exact `Rational`, `Hexagram`, `ZxvLockstep` | 27 (runtime on .NET; not yet run inside Unity) |
 
+## Legacy language pillars
+
+Pillars bring an older language's own data formats onto the exact core;
+see [`pillars/`](pillars/).
+
+| Pillar | Folder | What it gives you | Tests |
+|---|---|---|---|
+| COBOL → Sutra | [`cobol-sutra`](pillars/cobol-sutra/) | Copybook parser and the Sutra shorthand (same layout from both), exact zoned/COMP/COMP-3 codecs, a capability-gated ledger posting bridge, a GnuCOBOL example | 154,569 checks (mostly codec round trips) + fuzzing, GnuCOBOL golden records byte-identical |
+
 ## What every SDK gives you
 
 | Feature | Type names | Guide |

@@ -1,0 +1,124 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Legacy-language pillars (sdk/pillars). The first is cobol-sutra: COBOL
+# copybooks and Sutra over libzxv. Each job builds libzxv itself, then the
+# pillar, and runs its tests against the real library:
+#   pillars          unit, golden, equivalence and posting tests, a fuzz
+#                    smoke run, the no-float check and the demo
+#                    (ubuntu-24.04 gcc and clang, macos-14 clang)
+#   pillars-sanitize the same under ASan + UBSan (gcc and clang), the
+#                    mutation fuzzer at 4 x 250k inputs, libFuzzer for 60 s
+#   pillars-gnucobol GnuCOBOL interop: a COBOL program CALLs libzsutra and
+#                    libzxv with BY REFERENCE records, and GnuCOBOL rewrites
+#                    the golden records, which must equal test/golden
+name: SDK pillars
+
+on:
+  push:
+    paths:
+      - 'sdk/pillars/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - 'kernel/src/**'
+      - 'kernel/third_party/**'
+      - '.github/workflows/sdk-pillars.yml'
+  pull_request:
+    paths:
+      - 'sdk/pillars/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - 'kernel/src/**'
+      - 'kernel/third_party/**'
+      - '.github/workflows/sdk-pillars.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pillars:
+    name: ${{ matrix.pillar }} ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        pillar: [cobol-sutra]
+        os: [ubuntu-24.04]
+        cc: [gcc, clang]
+        include:
+          - { pillar: cobol-sutra, os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: sdk/pillars/${{ matrix.pillar }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: Tests, fuzz smoke run and R11 check
+        run: make CC=${{ matrix.cc }} PYTHON=python test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} PYTHON=python demo
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  pillars-sanitize:
+    name: ${{ matrix.pillar }} ASan + UBSan ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        pillar: [cobol-sutra]
+        cc: [gcc, clang]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: sdk/pillars/${{ matrix.pillar }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (pillar and tests)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k inputs, 3 parsers each)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            ZS_FUZZ_SEED=$seed make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        if: matrix.cc == 'clang'
+        run: make PYTHON=python fuzz-libfuzzer
+
+  pillars-gnucobol:
+    name: cobol-sutra GnuCOBOL interop
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: sdk/pillars/cobol-sutra
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install GnuCOBOL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnucobol
+          cobc --version | head -1
+      - run: make -C ../../libzxv all
+      - name: COBOL program posts through libzsutra (cobol/PAYPOST.cbl)
+        run: make PYTHON=python cobol
+      - name: GnuCOBOL rewrites the golden records; they must equal test/golden
+        run: make PYTHON=python golden-cobol
+      - name: Golden-record tests
+        run: make PYTHON=python build/test_golden && build/test_golden
