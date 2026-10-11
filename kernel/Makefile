@@ -325,6 +325,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-engine
+	$(MAKE) --no-print-directory test-treaty
+	$(MAKE) --no-print-directory test-treaty-cobol
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
 	@echo "=== i18n: CLDR locales, catalogs, formatting, UTF-8, Enochian core ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/i18n src/i18n/test_i18n.c src/i18n/i18n_text.c src/i18n/i18n_locale.c src/i18n/i18n_format.c src/i18n/i18n_tables.c src/i18n/i18n_catalog.c -o /tmp/test_i18n && /tmp/test_i18n > /tmp/test_i18n.log 2>&1 && echo "[PASS] test_i18n" || { tail -40 /tmp/test_i18n.log; echo "[FAIL] test_i18n"; exit 1; }
@@ -1441,3 +1443,39 @@ test-vinea:
 .PHONY: test-engine
 test-engine:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/engine -Isrc/pay -Isrc/abacus -Isrc/rational -Isrc/swarm -Isrc/tensor -Isrc/mlkem -Isrc/zcapital -Isrc/modbind src/engine/test_zxv_engine.c src/engine/zxv_engine.c src/abacus/abacus.c src/rational/rational.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/tensor/zt.c src/mlkem/keccak.c -o $(ZXV_TMP)/test_zxv_engine && $(ZXV_TMP)/test_zxv_engine > $(ZXV_TMP)/test_zxv_engine.log 2>&1 && echo "[PASS] test_zxv_engine ($$(tail -1 $(ZXV_TMP)/test_zxv_engine.log))" || { cat $(ZXV_TMP)/test_zxv_engine.log; echo "[FAIL] test_zxv_engine"; exit 1; }
+
+# Treaties (src/treaty): the COBOL copybook record and its compact Sutra form,
+# validated and lowered in zxt.c (freestanding, no libc symbols at all), run on
+# the engine in userland by zxt_exec.c, entered from COBOL as ZXV_ENGINE.
+TREATY_INC := -Iinclude -Isrc/treaty -Isrc/engine -Isrc/pay -Isrc/abacus -Isrc/rational -Isrc/swarm -Isrc/tensor -Isrc/mlkem -Isrc/zcapital -Isrc/modbind
+TREATY_RUN := src/treaty/zxt_exec.c src/treaty/zxt_cobol.c src/engine/zxv_engine.c src/abacus/abacus.c src/rational/rational.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/tensor/zt.c src/mlkem/keccak.c
+TREATY_FUZZ ?= 1000000
+.PHONY: test-treaty test-treaty-cobol test-treaty-mut
+# What the mutation harness runs per mutant (exit 3 = build failed only).
+test-treaty-mut:
+	@sh src/treaty/mut_check.sh
+test-treaty:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/treaty src/treaty/test_zxt.c src/treaty/zxt.c -o $(ZXV_TMP)/test_zxt && $(ZXV_TMP)/test_zxt > $(ZXV_TMP)/test_zxt.log 2>&1 && echo "[PASS] test_zxt ($$(tail -1 $(ZXV_TMP)/test_zxt.log))" || { cat $(ZXV_TMP)/test_zxt.log; echo "[FAIL] test_zxt"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(TREATY_INC) src/treaty/test_zxt_exec.c src/treaty/zxt.c $(TREATY_RUN) -o $(ZXV_TMP)/test_zxt_exec 2>$(ZXV_TMP)/test_zxt_exec.build && $(ZXV_TMP)/test_zxt_exec > $(ZXV_TMP)/test_zxt_exec.log 2>&1 && echo "[PASS] test_zxt_exec ($$(tail -1 $(ZXV_TMP)/test_zxt_exec.log))" || { cat $(ZXV_TMP)/test_zxt_exec.build $(ZXV_TMP)/test_zxt_exec.log; echo "[FAIL] test_zxt_exec"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/treaty src/treaty/fuzz_zxt.c src/treaty/zxt.c -o $(ZXV_TMP)/fuzz_zxt && $(ZXV_TMP)/fuzz_zxt $(TREATY_FUZZ) 1 > $(ZXV_TMP)/fuzz_zxt.log 2>&1 && echo "[PASS] fuzz_zxt ($$(tail -1 $(ZXV_TMP)/fuzz_zxt.log))" || { cat $(ZXV_TMP)/fuzz_zxt.log; echo "[FAIL] fuzz_zxt"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/treaty src/treaty/fuzz_zxt.c src/treaty/zxt.c -o $(ZXV_TMP)/fuzz_zxt_san && $(ZXV_TMP)/fuzz_zxt_san 100000 2 > $(ZXV_TMP)/fuzz_zxt_san.log 2>&1 && echo "[PASS] fuzz_zxt under ASan/UBSan ($$(tail -1 $(ZXV_TMP)/fuzz_zxt_san.log))" || { cat $(ZXV_TMP)/fuzz_zxt_san.log; echo "[FAIL] fuzz_zxt_san"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/treaty -c src/treaty/zxt.c -o $(ZXV_TMP)/zxt_a64.o && gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -Isrc/treaty -c src/treaty/zxt.c -o $(ZXV_TMP)/zxt_x64.o && \
+	if nm -u $(ZXV_TMP)/zxt_a64.o $(ZXV_TMP)/zxt_x64.o | grep -q ' U '; then nm -u $(ZXV_TMP)/zxt_a64.o $(ZXV_TMP)/zxt_x64.o; echo "[FAIL] zxt.c is not freestanding"; exit 1; fi; echo "[PASS] zxt.c freestanding (aarch64-none-elf, x86_64: no external symbols)"
+
+# COBOL parity (needs GnuCOBOL's cobc; CI installs gnucobol3 and sets
+# ZXV_REQUIRE_COBOL=1 so a missing compiler fails instead of skipping).
+test-treaty-cobol:
+	@if ! command -v cobc >/dev/null 2>&1; then \
+	  if [ "$(ZXV_REQUIRE_COBOL)" = 1 ]; then echo "[FAIL] test-treaty-cobol: cobc not found"; exit 1; fi; \
+	  echo "[SKIP] test-treaty-cobol: GnuCOBOL (cobc) not installed"; exit 0; fi; \
+	d=$$(mktemp -d $(ZXV_TMP)/zxt_cobol.XXXXXX) && k=$$(pwd) && \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/treaty src/treaty/cobol/pic_parity.c src/treaty/zxt.c -o $$d/pic_parity && \
+	cobc -x -o $$d/PICPAR src/treaty/cobol/PICPAR.cob 2>$$d/cobc.log && \
+	( cd $$d && ./pic_parity gen 1000000 1 vec.txt && ./PICPAR && ./pic_parity check vec.txt out.txt > pic.log ) && \
+	echo "[PASS] PIC S9(18) parity with GnuCOBOL ($$(tail -1 $$d/pic.log))" || { cat $$d/cobc.log $$d/pic.log 2>/dev/null; echo "[FAIL] PIC S9(18) parity"; exit 1; }; \
+	for s in src/treaty/zxt.c $(TREATY_RUN); do gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST $(TREATY_INC) -c $$s -o $$d/$$(basename $$s .c).o 2>>$$d/build.log || { cat $$d/build.log; echo "[FAIL] treaty objects"; exit 1; }; done; \
+	cobc -x -I src/treaty/copybooks -o $$d/TRTYDEMO src/treaty/cobol/TRTYDEMO.cob $$d/*.o 2>$$d/cobc.log && \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST $(TREATY_INC) src/treaty/cobol/treaty_parity.c $$d/*.o -o $$d/treaty_parity 2>>$$d/build.log && \
+	( cd $$d && ./TRTYDEMO > demo.txt; ./treaty_parity demo.txt > parity.log ) && \
+	echo "[PASS] CALL 'ZXV_ENGINE' from GnuCOBOL ($$(tail -1 $$d/parity.log))" || { cat $$d/cobc.log $$d/build.log $$d/demo.txt $$d/parity.log 2>/dev/null; echo "[FAIL] COBOL treaty parity"; exit 1; }; \
+	rm -rf $$d
