@@ -631,23 +631,39 @@ static bool same_user(int fd)
 #    endif
 }
 
-/* the parent directory exists (created 0700 if not), is ours, and nobody
- * else can write in it (else they could swap the socket file under us) */
-static int ensure_dir(const char *path)
+/* Open the socket's folder, creating it 0700 if missing, and check that it is
+ * ours and that nobody else can write in it (else they could swap the socket
+ * file under us). Returns the folder's descriptor (name = the socket's file
+ * name in it), or -1. Every later look at or change to the socket file goes
+ * through this descriptor (fstatat, unlinkat, fchmodat), so what was checked
+ * is what is changed. A bare file name is the current folder, the owner's own
+ * choice, and is not checked; a file in "/" is refused (not our folder). */
+static int open_dir(const char *path, const char **name)
 {
     char dir[sizeof PATH_];
     snprintf(dir, sizeof dir, "%s", path);
     char *slash = strrchr(dir, '/');
-    if (!slash || slash == dir) return 0; /* relative file in cwd, or "/x" */
-    *slash = 0;
-    struct stat st;
-    if (stat(dir, &st) != 0) {
-        if (mkdir(dir, S_IRWXU) != 0) return -1;
-        return 0;
+    if (!slash) {
+        *name = path;
+        return open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     }
-    if (!S_ISDIR(st.st_mode) || st.st_uid != geteuid() || (st.st_mode & (S_IWGRP | S_IWOTH)))
+    *name = path + (slash - dir) + 1;
+    *slash = 0;
+    (void) mkdir(dir, S_IRWXU); /* EEXIST is fine: the checks below decide */
+    int dfd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    struct stat st;
+    if (fstat(dfd, &st) != 0 || st.st_uid != geteuid() || (st.st_mode & (S_IWGRP | S_IWOTH))) {
+        close(dfd);
         return -1;
-    return 0;
+    }
+    return dfd;
+}
+
+static int open_fail(int dfd, bool books)
+{
+    close(dfd);
+    if (books) books_close();
+    return -1;
 }
 
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
@@ -657,51 +673,47 @@ int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
         fprintf(stderr, "zxvd: --rpc path too long (max %zu bytes)\n", sizeof a.sun_path - 1);
         return -1;
     }
-    if (ensure_dir(path) != 0) {
+    const char *name;
+    int dfd = open_dir(path, &name);
+    if (dfd < 0) {
         fprintf(stderr,
                 "zxvd: the folder of %s is not usable (missing, not ours, or writable by others)\n",
                 path);
         return -1;
     }
+    memset(&a, 0, sizeof a);
+    a.sun_family = AF_UNIX;
+    memcpy(a.sun_path, path, strlen(path) + 1);
     struct stat st;
-    if (lstat(path, &st) == 0) {
+    if (fstatat(dfd, name, &st, AT_SYMLINK_NOFOLLOW) == 0) {
         if (!S_ISSOCK(st.st_mode)) {
             fprintf(stderr, "zxvd: %s exists and is not a socket; refusing to replace it\n", path);
-            return -1;
+            return open_fail(dfd, false);
         }
         int probe = socket(AF_UNIX, SOCK_STREAM, 0);
-        memset(&a, 0, sizeof a);
-        a.sun_family = AF_UNIX;
-        memcpy(a.sun_path, path, strlen(path) + 1);
         bool live = probe >= 0 && connect(probe, (struct sockaddr *) &a, sizeof a) == 0;
         if (probe >= 0) close(probe);
         if (live) {
             fprintf(stderr, "zxvd: another zxvd answers on %s\n", path);
-            return -1;
+            return open_fail(dfd, false);
         }
-        unlink(path); /* stale */
+        unlinkat(dfd, name, 0); /* stale */
     }
     if (zxvd_rpc_books_open() != 0) {
         fprintf(stderr, "zxvd: libzxv context could not be created\n");
-        return -1;
+        return open_fail(dfd, false);
     }
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) {
-        books_close();
-        return -1;
-    }
-    memset(&a, 0, sizeof a);
-    a.sun_family = AF_UNIX;
-    memcpy(a.sun_path, path, strlen(path) + 1);
+    if (fd < 0) return open_fail(dfd, true);
     mode_t old = umask(S_IXUSR | S_IRWXG | S_IRWXO); /* the socket file is born 0600 */
     int b = bind(fd, (struct sockaddr *) &a, sizeof a);
     umask(old);
-    if (b != 0 || chmod(path, S_IRUSR | S_IWUSR) != 0 || listen(fd, 8) != 0) {
+    if (b != 0 || fchmodat(dfd, name, S_IRUSR | S_IWUSR, 0) != 0 || listen(fd, 8) != 0) {
         fprintf(stderr, "zxvd: cannot listen on %s: %s\n", path, strerror(errno));
         close(fd);
-        books_close();
-        return -1;
+        return open_fail(dfd, true);
     }
+    close(dfd);
     fcntl(fd, F_SETFD, FD_CLOEXEC);
     LS = fd;
     snprintf(PATH_, sizeof PATH_, "%s", path);

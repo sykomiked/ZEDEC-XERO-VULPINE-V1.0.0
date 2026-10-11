@@ -234,13 +234,16 @@ static void test_protocol(void)
     EXPECT("{\"jsonrpc\":\"2.0\",\"method\":\"swarm.ask\",\"params\":5}", "<none>");
     EXPECT("{\"jsonrpc\":\"1.0\",\"method\":\"swarm.state\"}", "<none>");
     /* a request with more than 512 tokens */
+    static const char head[] =
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"swarm.state\",\"params\":{\"a\":[";
     char big[8192];
-    size_t n = (size_t) snprintf(
-        big, sizeof big,
-        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"swarm.state\",\"params\":{\"a\":[");
-    for (int i = 0; i < 600; i++)
-        n += (size_t) snprintf(big + n, sizeof big - n, "%s0", i ? "," : "");
-    snprintf(big + n, sizeof big - n, "]}}");
+    size_t n = sizeof head - 1;
+    memcpy(big, head, n);
+    for (int i = 0; i < 600; i++) { /* "0,0,...,0": 1199 bytes */
+        if (i) big[n++] = ',';
+        big[n++] = '0';
+    }
+    memcpy(big + n, "]}}", 4);
     EXPECT(big, ERR("null", "-32600", "request too complex"));
     /* nesting deeper than 16 */
     EXPECT("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"swarm.state\",\"params\":{\"a\":"
