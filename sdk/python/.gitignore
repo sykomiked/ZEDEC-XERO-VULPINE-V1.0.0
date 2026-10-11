@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+.venv/
+build/
+dist/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+src/zxv/_lib/*
+!src/zxv/_lib/.gitkeep
