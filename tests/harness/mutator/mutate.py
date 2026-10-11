@@ -466,6 +466,8 @@ def main(argv):
             names = cfg["ci"]["targets"]
             if a.only:  # one CI target on its own (e.g. the zxvd workflow's zxvd_rpc)
                 names = [n for n in names if n in a.only.split(",")]
+            else:  # "own_job" targets are gated by their own workflow, not the shared subset
+                names = [n for n in names if n not in cfg["ci"].get("own_job", [])]
         elif a.only:
             names = a.only.split(",")
         for t in cfg["targets"]:

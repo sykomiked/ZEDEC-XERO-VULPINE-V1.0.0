@@ -26,6 +26,15 @@
  *             models. With none, the app runs without one and, once, offers
  *             to fetch one from IPFS (when the bundled manifest names any)
  *             or to choose a file. Nothing is downloaded without consent.
+ *   SOCKET.   When the bundle carries Contents/Frameworks/libzxv.dylib, the
+ *             engine is zxvd (kernel/arch/hosted/build_zxvd.sh) and is also
+ *             given --rpc ~/Library/Application Support/ZXV/run/zxvd.sock:
+ *             its JSON-RPC control socket (docs/ZXVD.md), mode 0600 in a
+ *             0700 folder, same-user peers only. The shell uses it through
+ *             zxv_rpc_client.c, off the main thread: quitting asks
+ *             zxvd.shutdown first (closing stdin stays the fallback), and the
+ *             Dock badge shows the unread count from notes.list. The window
+ *             is unchanged and still served on 127.0.0.1 with the token.
  *   LOGS.     ~/Library/Logs/ZXV/engine.log and fetch.log.
  *
  * Build (universal): macos/build_macos_shell.sh. Needs Xcode or the Command
@@ -35,6 +44,7 @@
 #import <Security/Security.h>
 #import <UserNotifications/UserNotifications.h>
 #import <WebKit/WebKit.h>
+#include "zxv_rpc_client.h"
 #if __has_include(<UniformTypeIdentifiers/UniformTypeIdentifiers.h>)
 #    import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #endif
@@ -58,6 +68,9 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
 @property(assign) BOOL restarting;
 @property(copy) NSString *supportDir, *modelsDir, *logsDir;
 @property(strong) NSMenuItem *fetchItem;
+@property(copy) NSString *rpcPath;          /* nil: the engine has no control socket */
+@property(strong) dispatch_queue_t rpcQueue; /* the socket is blocking: never the main thread */
+@property(strong) NSTimer *notesTimer;
 @end
 
 @implementation ZXVApp
@@ -68,6 +81,7 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
 {
     (void) note;
     [self makeFolders];
+    self.rpcQueue = dispatch_queue_create("zxv.rpc", DISPATCH_QUEUE_SERIAL);
     [self buildMenus];
     [self buildWindow];
     if (@available(macOS 10.14, *)) UNUserNotificationCenter.currentNotificationCenter.delegate = self;
@@ -271,6 +285,17 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
     }
     self.port = 0;
     NSMutableArray *args = [@[ @"--no-window", @"--port", @"0", @"--exit-with-parent" ] mutableCopy];
+    NSString *dylib = [NSBundle.mainBundle.privateFrameworksPath
+        stringByAppendingPathComponent:@"libzxv.dylib"];
+    self.rpcPath = nil;
+    if ([NSFileManager.defaultManager fileExistsAtPath:dylib]) { /* the engine is zxvd */
+        NSString *sock = [[self.supportDir stringByAppendingPathComponent:@"run"]
+            stringByAppendingPathComponent:@"zxvd.sock"];
+        if (strlen(sock.fileSystemRepresentation) < 100) { /* sun_path is 104 on macOS */
+            [args addObjectsFromArray:@[ @"--rpc", sock ]];
+            self.rpcPath = sock;
+        }
+    }
     NSString *model = [self currentModel];
     if (model) {
         [args addObjectsFromArray:@[ @"--model", model ]];
@@ -338,6 +363,7 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
             continue; /* not our engine's line: never load it */
         self.port = u.port.integerValue;
         [self.web loadRequest:[NSURLRequest requestWithURL:u.URL]];
+        [self startNotesBadge];
         return;
     }
 }
@@ -347,6 +373,9 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
     if (task != self.engine) return;
     self.engine = nil;
     self.port = 0;
+    [self.notesTimer invalidate];
+    self.notesTimer = nil;
+    NSApp.dockTile.badgeLabel = nil;
     [self.engineLog closeFile];
     self.engineLog = nil;
     if (self.quitting) {
@@ -368,15 +397,61 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
                       @"~/Library/Logs/ZXV/engine.log."];
 }
 
-/* Stop the engine politely: closing its stdin makes it exit cleanly; a
- * stubborn one is terminated after two seconds. */
+/* Stop the engine politely: zxvd is asked over its socket first; closing
+ * its stdin makes any engine exit cleanly; a stubborn one is terminated
+ * after two seconds. */
 - (void)stopEngine
 {
     NSTask *t = self.engine;
     if (!t) return;
-    [self.engineIn.fileHandleForWriting closeFile];
+    NSString *sock = self.rpcPath;
+    NSFileHandle *in = self.engineIn.fileHandleForWriting;
+    dispatch_async(self.rpcQueue, ^{
+      if (sock) {
+          char reply[512];
+          zxv_rpc_call(sock.fileSystemRepresentation,
+                       "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"zxvd.shutdown\"}", reply,
+                       sizeof reply, 1000);
+      }
+      dispatch_async(dispatch_get_main_queue(), ^{
+        [in closeFile];
+      });
+    });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
       if (t.running) [t terminate];
+    });
+}
+
+/* The Dock badge: the unread count from zxvd's notes.list, every 15 s. */
+- (void)startNotesBadge
+{
+    [self.notesTimer invalidate];
+    self.notesTimer = nil;
+    if (!self.rpcPath) return;
+    self.notesTimer = [NSTimer scheduledTimerWithTimeInterval:15
+                                                       target:self
+                                                     selector:@selector(refreshBadge:)
+                                                     userInfo:nil
+                                                      repeats:YES];
+    [self refreshBadge:nil];
+}
+
+- (void)refreshBadge:(NSTimer *)timer
+{
+    (void) timer;
+    NSString *sock = self.rpcPath;
+    if (!sock) return;
+    dispatch_async(self.rpcQueue, ^{
+      static char reply[65536]; /* only ever touched on the serial rpcQueue */
+      long n = -1;
+      if (zxv_rpc_call(sock.fileSystemRepresentation,
+                       "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"notes.list\"}", reply,
+                       sizeof reply, 2000) >= 0)
+          n = zxv_rpc_unread(reply);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (!self.engine) return;
+        NSApp.dockTile.badgeLabel = n > 0 ? [NSString stringWithFormat:@"%ld", n] : nil;
+      });
     });
 }
 

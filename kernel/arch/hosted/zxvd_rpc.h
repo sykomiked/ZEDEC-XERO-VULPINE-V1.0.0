@@ -13,8 +13,9 @@
  * TRANSPORT
  *   T1  A stream UNIX socket at a path the owner chooses (--rpc PATH). It is
  *       created with mode 0600 inside a directory zxvd creates with 0700 if
- *       missing; a stale socket file is replaced only if nothing answers on
- *       it, and a path that exists and is not a socket is refused.
+ *       missing; an existing directory must be ours and not group- or
+ *       other-writable. A stale socket file is replaced only if nothing
+ *       answers on it, and a path that exists and is not a socket is refused.
  *   T2  Every connection's peer must run as the same user as zxvd
  *       (SO_PEERCRED on Linux, getpeereid on macOS/BSD); others are closed
  *       before a byte is read. There is no token: the file permission and
@@ -43,6 +44,25 @@
  *       expect; "amount_minor" may be sent as a JSON integer or a decimal
  *       string. A fraction or exponent is -32602, never rounded.
  *   M4  A notification (no "id") is executed and gets no response.
+ *
+ * SWARM EARNINGS (the owner's books mirror the swarm's money)
+ *   E1  At start the books get one currency for earnings, VFV by default
+ *       (--earnings-ccy): an ISO 4217 code is enabled from the table, any
+ *       other code is registered as a private unit with 2 minor units. The
+ *       first settled cycle opens two accounts in it: "swarm market"
+ *       (issuer) and "owner: swarm earnings" (holder).
+ *   E2  After every settled market cycle the host calls
+ *       zxvd_rpc_earnings_sync with the Financial capital (SWC) all the
+ *       owner's models hold. The owner's balance is set to that times the
+ *       rate (--earnings-rate, minor units per SWC, default 1) by one
+ *       balanced posting: market -> owner when it grew, owner -> market when
+ *       it fell (the assurance fee leaves the models; returned bounties come
+ *       back). Fee buckets are not the owner's and are not counted.
+ *   E3  The rate is a fixed bookkeeping rate set by the owner, not a market
+ *       price: no exchange rate between SWC and VFV is posted anywhere yet.
+ *   E4  swarm.earnings reports the currency, rate, both accounts, the
+ *       balance and the counts; ledger.balance and ledger.entries show the
+ *       postings like any others.
  */
 #ifndef ZXVD_RPC_H
 #define ZXVD_RPC_H
@@ -74,14 +94,14 @@ void zxvd_buf_json_str(zxvd_buf_t *b, const char *s); /* a quoted, escaped JSON 
 /* What the host provides. Each writes one JSON value into `out` (an object,
  * or a string via zxvd_buf_json_str). NULL members answer -32601. */
 typedef struct {
-    void (*state)(zxvd_buf_t *out);                    /* swarm.state   */
-    void (*ask)(const char *prompt, zxvd_buf_t *out);  /* swarm.ask     */
-    void (*model)(zxvd_buf_t *out);                    /* model.info    */
-    void (*notes)(zxvd_buf_t *out);                    /* notes.list    */
-    uint32_t (*notes_read)(void);                      /* notes.mark_read */
-    const char *(*net)(const char *command);           /* net.command; NULL = bad command */
-    void (*update_check)(zxvd_buf_t *out);             /* update.check  */
-    void (*shutdown)(void);                            /* zxvd.shutdown */
+    void (*state)(zxvd_buf_t *out);                   /* swarm.state   */
+    void (*ask)(const char *prompt, zxvd_buf_t *out); /* swarm.ask     */
+    void (*model)(zxvd_buf_t *out);                   /* model.info    */
+    void (*notes)(zxvd_buf_t *out);                   /* notes.list    */
+    uint32_t (*notes_read)(void);                     /* notes.mark_read */
+    const char *(*net)(const char *command);          /* net.command; NULL = bad command */
+    void (*update_check)(zxvd_buf_t *out);            /* update.check  */
+    void (*shutdown)(void);                           /* zxvd.shutdown */
     const char *app_version;
 } zxvd_host_ops_t;
 
@@ -104,6 +124,15 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out);
 /* The libzxv side only, for the unit test: open/close the context and cap
  * without a socket. */
 int zxvd_rpc_books_open(void);
+void zxvd_rpc_books_close(void);
+/* E1: choose the earnings currency and rate before the books open. 0, or -1
+ * (books already open, code not 3..8 bytes, rate 0 or above ZXV_AMOUNT_MAX);
+ * a code libzxv refuses makes the books fail to open. */
+int zxvd_rpc_earnings_set(const char *ccy, uint64_t rate);
+/* E2: mirror the SWC the owner's models hold. 0 (also when the books are not
+ * open), or -1 when the amount is out of range or libzxv refused the posting
+ * (the balance is then unchanged). */
+int zxvd_rpc_earnings_sync(uint64_t held_swc);
 void zxvd_rpc_set_ops(const zxvd_host_ops_t *ops);
 
 #endif

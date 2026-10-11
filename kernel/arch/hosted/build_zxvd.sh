@@ -16,6 +16,8 @@
 # rpath). Linux and macOS.
 #
 #   CC=clang SANITIZE=1 kernel/arch/hosted/build_zxvd.sh /tmp/zxvd
+#   CC="xcrun clang -arch x86_64 -mmacosx-version-min=10.15" ... (one slice of
+#   the Mac app's universal engine; build_desktop.sh joins them with lipo)
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K="$(cd "$HERE/../.." && pwd)"
@@ -55,6 +57,6 @@ if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
     DEFS="$DEFS -DZXV_HAVE_ZT_GLUE"
 fi
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
-# shellcheck disable=SC2086
-"$CC" -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv "$RP" -lm -o "$OUT/zxvd"
+# shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
+$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv "$RP" -lm -o "$OUT/zxvd"
 echo "[PASS] built $OUT/zxvd against $OUT/$LIBF"

@@ -10,9 +10,11 @@ name: zxvd
 on:
   push:
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
+            'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             '.github/workflows/zxvd.yml']
   pull_request:
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
+            'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             '.github/workflows/zxvd.yml']
   workflow_dispatch:
 
@@ -54,16 +56,69 @@ jobs:
             kernel/arch/hosted/test_write_gguf.c -o "$RUNNER_TEMP/write_gguf"
           "$RUNNER_TEMP/write_gguf" "$RUNNER_TEMP/tiny-test.gguf"
           python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/tiny-test.gguf"
+      - name: The native shell's socket client against zxvd
+        run: |
+          ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c \
+            -o "$RUNNER_TEMP/zxv-rpc-call"
+          python3 macos/test_rpc_client.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/zxv-rpc-call"
+
+  mac-app:
+    # W2: the Mac app's engine is zxvd with libzxv.dylib in the bundle, and the
+    # shell talks to it over the socket. Build the app (ad-hoc signed), launch
+    # it, ask the engine through the socket, quit, and check nothing is left.
+    name: Mac app on zxvd
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build ZXV.app (engine = zxvd + libzxv.dylib)
+        run: build_system/build_desktop.sh --mac-only --out "$RUNNER_TEMP/dist"
+      - name: Check the bundle
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/x"
+          ditto -x -k "$RUNNER_TEMP"/dist/ZXV-*-macos.app.zip "$RUNNER_TEMP/x"
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          for b in MacOS/ZXV MacOS/zxv-engine Frameworks/libzxv.dylib; do
+            archs="$(lipo -archs "$APP/Contents/$b")"; echo "$b: $archs"
+            case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) exit 1 ;; esac
+          done
+          otool -L "$APP/Contents/MacOS/zxv-engine" | grep '@rpath/libzxv.dylib'
+          codesign --verify --strict --deep --verbose=2 "$APP"
+          "$APP/Contents/MacOS/zxv-engine" --version | grep '^zxvd '
+      - name: Launch, ask over the socket, quit
+        run: |
+          set -eu
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          SOCK="$HOME/Library/Application Support/ZXV/run/zxvd.sock"
+          cc -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c -o "$RUNNER_TEMP/zxv-rpc-call"
+          defaults write com.36n9genetics.zxv-swarm ZXVAskedForModel -bool true
+          open -n "$APP"
+          for i in $(seq 1 60); do test -S "$SOCK" && break; sleep 1; done
+          test -S "$SOCK"
+          test "$(stat -f %Lp "$SOCK")" = 600
+          test "$(stat -f %Lp "$(dirname "$SOCK")")" = 700
+          "$RUNNER_TEMP/zxv-rpc-call" "$SOCK" '{"jsonrpc":"2.0","id":1,"method":"zxvd.version"}' | grep '"protocol":"zxvd-rpc/1"'
+          "$RUNNER_TEMP/zxv-rpc-call" "$SOCK" '{"jsonrpc":"2.0","id":2,"method":"ledger.check"}' | grep '"ok":true'
+          "$RUNNER_TEMP/zxv-rpc-call" --unread "$SOCK"
+          osascript -e 'tell application id "com.36n9genetics.zxv-swarm" to quit' ||
+            pkill -TERM -f "ZXV.app/Contents/MacOS/ZXV" || true
+          for i in $(seq 1 15); do pgrep -f "ZXV.app/Contents/MacOS/" >/dev/null || break; sleep 1; done
+          pkill -TERM -f "ZXV.app/Contents/MacOS/ZXV" || true
+          for i in $(seq 1 10); do pgrep -f "ZXV.app/Contents/MacOS/zxv-engine" >/dev/null || break; sleep 1; done
+          if pgrep -fl "ZXV.app/Contents/MacOS/"; then echo "ZXV left a process running"; exit 1; fi
+          if [ -e "$SOCK" ]; then echo "the control socket was left behind"; exit 1; fi
+          tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
 
   mutation:
     # zxvd_rpc.c against its unit test; fails below the baseline in
     # tests/harness/mutator/targets.json (ci.yml's gate only runs on PRs to main)
     name: zxvd_rpc mutation score
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc --phase after --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc --ci --jobs 4 --out mutation-results
 
   real-model:
     # Qwen2.5-1.5B-Instruct Q4_K_M (Apache-2.0), pinned by SHA-256, never in git.

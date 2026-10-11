@@ -520,6 +520,12 @@ static void close_cycle(void)
      * with it, the market: no further cycle runs on books that disagree. */
     if (settle_sync(&S.spine, &S.m, S.tick) != SETTLE_OK)
         fprintf(stderr, "zxv: ledger halted (%d): market stopped\n", (int) S.spine.why);
+#if defined(ZXVD)
+    /* zxvd_rpc.h E2: the owner's books follow what the swarm's models hold */
+    uint64_t held = 0;
+    for (uint32_t i = 0; i < S.m.n; i++) held += S.m.t[i].cap[SWARM_CAP_FINANCIAL];
+    if (zxvd_rpc_earnings_sync(held) != 0) fprintf(stderr, "zxvd: earnings posting refused\n");
+#endif
 }
 
 /* Open the next market cycle and leave it open until the next reflex, so the
@@ -1193,8 +1199,9 @@ static void rpc_ask(const char *q, zxvd_buf_t *o)
 static void rpc_model(zxvd_buf_t *o)
 {
     const zxv_model_info_t *mi = zxv_model_info();
-    zxvd_buf_printf(o, "{\"loaded\":%s,\"can_generate\":%s,\"name\":",
-                    mi->loaded ? "true" : "false", mi->can_generate ? "true" : "false");
+    zxvd_buf_printf(o,
+                    "{\"loaded\":%s,\"can_generate\":%s,\"name\":", mi->loaded ? "true" : "false",
+                    mi->can_generate ? "true" : "false");
     zxvd_buf_json_str(o, mi->name);
     zxvd_buf_raw(o, ",\"arch\":", 8);
     zxvd_buf_json_str(o, mi->arch);
@@ -1233,9 +1240,9 @@ static void rpc_shutdown(void)
     S.quit = true;
 }
 
-static const zxvd_host_ops_t RPC_OPS = {rpc_state, rpc_ask,    rpc_model,    rpc_notes,
-                                        rpc_notes_read, net_command, rpc_update, rpc_shutdown,
-                                        ZXV_VERSION};
+static const zxvd_host_ops_t RPC_OPS = {rpc_state,  rpc_ask,        rpc_model,
+                                        rpc_notes,  rpc_notes_read, net_command,
+                                        rpc_update, rpc_shutdown,   ZXV_VERSION};
 #    define PROG "zxvd"
 #else
 #    define PROG "zxv-host"
@@ -1251,6 +1258,8 @@ int main(int argc, char **argv)
     S.net_port = ZXV_NET_DEFAULT_PORT;
 #if defined(ZXVD)
     const char *rpc_path = NULL;
+    const char *earn_ccy = "VFV";
+    uint64_t earn_rate = 1;
     open_window = false; /* a daemon: the UI and SDKs come in over --rpc */
     port = 0;            /* the loopback window stays available, on any free port */
 #endif
@@ -1296,14 +1305,21 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
         else if (!strcmp(argv[i], "--rpc") && i + 1 < argc)
             rpc_path = argv[++i];
+        else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
+            earn_ccy = argv[++i];
+        else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
+            earn_rate = strtoull(argv[++i], NULL, 10);
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
             return 0;
         } else if (!strcmp(argv[i], "--help")) {
-            printf(PROG " %s\n"
+            printf(PROG
+                   " %s\n"
 #if defined(ZXVD)
                    "  --rpc PATH          JSON-RPC 2.0 socket (required; docs/ZXVD.md)\n"
+                   "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
+                   "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
 #endif
                    "  --server            run headless; open the window remotely "
                    "over SSH\n"
@@ -1406,6 +1422,11 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
     if (!rpc_path) {
         fprintf(stderr, "zxvd: --rpc PATH is required (try --help)\n");
+        return 2;
+    }
+    if (zxvd_rpc_earnings_set(earn_ccy, earn_rate) != 0) {
+        fprintf(stderr, "zxvd: --earnings-ccy needs 3..8 characters and --earnings-rate "
+                        "a whole number from 1\n");
         return 2;
     }
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;

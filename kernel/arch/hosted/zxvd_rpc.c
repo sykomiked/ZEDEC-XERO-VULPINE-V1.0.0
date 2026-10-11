@@ -29,8 +29,8 @@
  * with other signatures; the executable's definitions win over libzxv's
  * exported ones, so this file must never call libzxv's zxv_model_* forms. */
 
-#define MAX_TOK   512
-#define PROTOCOL  "zxvd-rpc/1"
+#define MAX_TOK  512
+#define PROTOCOL "zxvd-rpc/1"
 
 /* JSON-RPC 2.0 error codes */
 #define E_PARSE    (-32700)
@@ -107,6 +107,9 @@ void zxvd_rpc_set_ops(const zxvd_host_ops_t *ops)
     OPS = ops;
 }
 
+static int earn_open(void);
+static void books_close(void);
+
 int zxvd_rpc_books_open(void)
 {
     uint32_t ma = 0, mi = 0, pa = 0;
@@ -117,6 +120,10 @@ int zxvd_rpc_books_open(void)
     if (zxv_cap_create(CTX, 1, NULL, ZXV_CAP_LEDGER_READ | ZXV_CAP_LEDGER_POST, &CAP) != ZXV_OK) {
         zxv_ctx_destroy(CTX);
         CTX = NULL;
+        return -1;
+    }
+    if (earn_open() != 0) {
+        books_close();
         return -1;
     }
     return 0;
@@ -130,13 +137,79 @@ static void books_close(void)
     CTX = NULL;
 }
 
+void zxvd_rpc_books_close(void)
+{
+    books_close();
+}
+
+/* ===================== swarm earnings (zxvd_rpc.h E1-E4) ===================== */
+
+static char EARN_CCY[9] = "VFV"; /* E1 */
+static uint64_t EARN_RATE = 1;   /* minor units per SWC */
+static uint32_t EARN_SRC, EARN_OWNER;
+static bool EARN_ACCTS;   /* both accounts are open */
+static int64_t EARN_HELD; /* the owner's balance, minor units */
+static uint64_t EARN_POSTS, EARN_SYNCS;
+
+int zxvd_rpc_earnings_set(const char *ccy, uint64_t rate)
+{
+    size_t n = strlen(ccy);
+    if (CTX || n < 3 || n >= sizeof EARN_CCY || rate == 0 || rate > (uint64_t) ZXV_AMOUNT_MAX)
+        return -1;
+    memcpy(EARN_CCY, ccy, n + 1);
+    EARN_RATE = rate;
+    return 0;
+}
+
+static int earn_open(void)
+{
+    /* E1: an ISO 4217 code is enabled from the table; anything else (VFV)
+     * is a private unit with 2 minor units */
+    int32_t st = zxv_ccy_enable_cap(CAP, EARN_CCY);
+    if (st == ZXV_E_CURRENCY) st = zxv_ccy_register_private_cap(CAP, EARN_CCY, 2);
+    EARN_ACCTS = false;
+    EARN_HELD = 0;
+    EARN_POSTS = 0;
+    EARN_SYNCS = 0;
+    return st == ZXV_OK ? 0 : -1;
+}
+
+int zxvd_rpc_earnings_sync(uint64_t held_swc)
+{
+    if (!CAP) return 0; /* no books yet, nothing to mirror */
+    if (held_swc > (uint64_t) ZXV_AMOUNT_MAX / EARN_RATE) return -1;
+    /* E1: the accounts open with the first settled cycle */
+    if (!EARN_ACCTS) {
+        if (zxv_ledger_open_account_cap(CAP, "swarm market", EARN_CCY, ZXV_ACCT_ISSUER,
+                                        &EARN_SRC) != ZXV_OK ||
+            zxv_ledger_open_account_cap(CAP, "owner: swarm earnings", EARN_CCY, ZXV_ACCT_HOLDER,
+                                        &EARN_OWNER) != ZXV_OK)
+            return -1;
+        EARN_ACCTS = true;
+    }
+    int64_t d = (int64_t) (held_swc * EARN_RATE) - EARN_HELD;
+    if (d != 0) {
+        char ref[36];
+        uint64_t entry;
+        snprintf(ref, sizeof ref, "swarm earnings %llu", (unsigned long long) EARN_POSTS + 1u);
+        int32_t st =
+            d > 0 ? zxv_ledger_post_cap(CAP, EARN_SRC, EARN_OWNER, d, EARN_CCY, ref, &entry)
+                  : zxv_ledger_post_cap(CAP, EARN_OWNER, EARN_SRC, -d, EARN_CCY, ref, &entry);
+        if (st != ZXV_OK) return -1;
+        EARN_HELD += d;
+        EARN_POSTS++;
+    }
+    EARN_SYNCS++;
+    return 0;
+}
+
 /* ===================== one request ===================== */
 
 typedef struct {
     const char *js;
     const w4_jtok_t *t;
     int32_t n;
-    int32_t params; /* token index of the params object, or -1 */
+    int32_t params;  /* token index of the params object, or -1 */
     zxvd_buf_t *res; /* the "result" value */
     int err;         /* 0, or a JSON-RPC error code */
     char msg[160];
@@ -235,8 +308,10 @@ static bool p_amount(call_t *c, const char *key, int64_t *v)
         uint64_t x = 0;
         bool ok = p < e && e - p <= 19;
         for (; ok && p < e; p++) {
-            if (*p < '0' || *p > '9') ok = false;
-            else x = x * 10u + (uint64_t) (*p - '0');
+            if (*p < '0' || *p > '9')
+                ok = false;
+            else
+                x = x * 10u + (uint64_t) (*p - '0');
         }
         if (ok && x <= (uint64_t) INT64_MAX) {
             *v = neg ? -(int64_t) x : (int64_t) x;
@@ -264,8 +339,10 @@ static void m_ask(call_t *c)
     zxvd_buf_t a = {0};
     OPS->ask(prompt, &a);
     zxvd_buf_raw(c->res, "{\"answer\":", 10);
-    if (a.p) zxvd_buf_raw(c->res, a.p, a.len);
-    else zxvd_buf_raw(c->res, "\"\"", 2);
+    if (a.p)
+        zxvd_buf_raw(c->res, a.p, a.len);
+    else
+        zxvd_buf_raw(c->res, "\"\"", 2);
     zxvd_buf_raw(c->res, "}", 1);
     free(a.p);
 }
@@ -320,9 +397,9 @@ static void m_version(call_t *c)
     zxv_features(&feat);
     zxvd_buf_raw(c->res, "{\"app\":", 7);
     zxvd_buf_json_str(c->res, OPS && OPS->app_version ? OPS->app_version : "unknown");
-    zxvd_buf_printf(c->res,
-                    ",\"protocol\":\"" PROTOCOL "\",\"libzxv\":\"%u.%u.%u\",\"libzxv_features\":%u}",
-                    (unsigned) ma, (unsigned) mi, (unsigned) pa, (unsigned) feat);
+    zxvd_buf_printf(
+        c->res, ",\"protocol\":\"" PROTOCOL "\",\"libzxv\":\"%u.%u.%u\",\"libzxv_features\":%u}",
+        (unsigned) ma, (unsigned) mi, (unsigned) pa, (unsigned) feat);
 }
 
 /* ----- book methods (M2), all through CAP ----- */
@@ -382,8 +459,9 @@ static void m_balance(call_t *c)
     int64_t d, cr, eq;
     if (!books(c) || !p_u32(c, "account", &acct)) return;
     if (!zok(c, zxv_ledger_balance_cap(CAP, acct, &d, &cr, &eq))) return;
-    zxvd_buf_printf(c->res, "{\"debit_minor\":\"%lld\",\"credit_minor\":\"%lld\",\"equity_minor\":\"%lld\"}",
-                    (long long) d, (long long) cr, (long long) eq);
+    zxvd_buf_printf(
+        c->res, "{\"debit_minor\":\"%lld\",\"credit_minor\":\"%lld\",\"equity_minor\":\"%lld\"}",
+        (long long) d, (long long) cr, (long long) eq);
 }
 
 static void m_accounts(call_t *c)
@@ -433,6 +511,22 @@ static void m_entries(call_t *c)
     zxvd_buf_raw(c->res, "]}", 2);
 }
 
+static void m_earnings(call_t *c)
+{
+    if (!books(c)) return;
+    zxvd_buf_raw(c->res, "{\"currency\":", 12);
+    zxvd_buf_json_str(c->res, EARN_CCY);
+    zxvd_buf_printf(c->res, ",\"rate_minor\":\"%llu\"", (unsigned long long) EARN_RATE);
+    if (EARN_ACCTS)
+        zxvd_buf_printf(c->res, ",\"source_account\":%u,\"owner_account\":%u", (unsigned) EARN_SRC,
+                        (unsigned) EARN_OWNER);
+    else
+        zxvd_buf_raw(c->res, ",\"source_account\":null,\"owner_account\":null", 43);
+    zxvd_buf_printf(
+        c->res, ",\"balance_minor\":\"%lld\",\"postings\":\"%llu\",\"cycles\":\"%llu\"}",
+        (long long) EARN_HELD, (unsigned long long) EARN_POSTS, (unsigned long long) EARN_SYNCS);
+}
+
 static void m_check(call_t *c)
 {
     if (!books(c) || !zok(c, zxv_ledger_check_cap(CAP))) return;
@@ -464,6 +558,7 @@ static const method_t METHODS[] = {
     {"ledger.accounts", m_accounts},
     {"ledger.entries", m_entries},
     {"ledger.check", m_check},
+    {"swarm.earnings", m_earnings},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -525,8 +620,7 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     }
     if (t[0].type != W4_J_OBJ) {
         put_error(out, line, t, -1, E_REQUEST,
-                  t[0].type == W4_J_ARR ? "batches are not supported" : "not a request object",
-                  0);
+                  t[0].type == W4_J_ARR ? "batches are not supported" : "not a request object", 0);
         return true;
     }
     int32_t id = w4_json_get(line, t, n, 0, "id");
@@ -604,8 +698,8 @@ void zxvd_rpc_close(void)
 #else
 
 typedef struct {
-    int fd; /* -1 when free */
-    char in[ZXVD_RPC_MAX_LINE + 1];
+    int fd;                         /* -1 when free */
+    char in[ZXVD_RPC_MAX_LINE + 2]; /* a full-length line, its LF, and a NUL */
     size_t n;
     uint64_t last_ms;
 } client_t;
@@ -627,21 +721,39 @@ static bool same_user(int fd)
 #    endif
 }
 
-/* the parent directory exists (created 0700 if not) and is ours */
-static int ensure_dir(const char *path)
+/* Open the socket's folder, creating it 0700 if missing, and check that it is
+ * ours and that nobody else can write in it (else they could swap the socket
+ * file under us). Returns the folder's descriptor (name = the socket's file
+ * name in it), or -1. Every later look at or change to the socket file goes
+ * through this descriptor (fstatat, unlinkat, fchmodat), so what was checked
+ * is what is changed. A bare file name is the current folder, the owner's own
+ * choice, and is not checked; a file in "/" is refused (not our folder). */
+static int open_dir(const char *path, const char **name)
 {
     char dir[sizeof PATH_];
     snprintf(dir, sizeof dir, "%s", path);
     char *slash = strrchr(dir, '/');
-    if (!slash || slash == dir) return 0; /* relative file in cwd, or "/x" */
-    *slash = 0;
-    struct stat st;
-    if (stat(dir, &st) != 0) {
-        if (mkdir(dir, S_IRWXU) != 0) return -1;
-        return 0;
+    if (!slash) {
+        *name = path;
+        return open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     }
-    if (!S_ISDIR(st.st_mode) || st.st_uid != geteuid()) return -1;
-    return 0;
+    *name = path + (slash - dir) + 1;
+    *slash = 0;
+    (void) mkdir(dir, S_IRWXU); /* EEXIST is fine: the checks below decide */
+    int dfd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    struct stat st;
+    if (fstat(dfd, &st) != 0 || st.st_uid != geteuid() || (st.st_mode & (S_IWGRP | S_IWOTH))) {
+        close(dfd);
+        return -1;
+    }
+    return dfd;
+}
+
+static int open_fail(int dfd, bool books)
+{
+    close(dfd);
+    if (books) books_close();
+    return -1;
 }
 
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
@@ -651,49 +763,48 @@ int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
         fprintf(stderr, "zxvd: --rpc path too long (max %zu bytes)\n", sizeof a.sun_path - 1);
         return -1;
     }
-    if (ensure_dir(path) != 0) {
-        fprintf(stderr, "zxvd: the folder of %s is not usable (missing, or not ours)\n", path);
-        return -1;
-    }
-    struct stat st;
-    if (lstat(path, &st) == 0) {
-        if (!S_ISSOCK(st.st_mode)) {
-            fprintf(stderr, "zxvd: %s exists and is not a socket; refusing to replace it\n", path);
-            return -1;
-        }
-        int probe = socket(AF_UNIX, SOCK_STREAM, 0);
-        memset(&a, 0, sizeof a);
-        a.sun_family = AF_UNIX;
-        memcpy(a.sun_path, path, strlen(path) + 1);
-        bool live = probe >= 0 && connect(probe, (struct sockaddr *) &a, sizeof a) == 0;
-        if (probe >= 0) close(probe);
-        if (live) {
-            fprintf(stderr, "zxvd: another zxvd answers on %s\n", path);
-            return -1;
-        }
-        unlink(path); /* stale */
-    }
-    if (zxvd_rpc_books_open() != 0) {
-        fprintf(stderr, "zxvd: libzxv context could not be created\n");
-        return -1;
-    }
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) {
-        books_close();
+    const char *name;
+    int dfd = open_dir(path, &name);
+    if (dfd < 0) {
+        fprintf(stderr,
+                "zxvd: the folder of %s is not usable (missing, not ours, or writable by others)\n",
+                path);
         return -1;
     }
     memset(&a, 0, sizeof a);
     a.sun_family = AF_UNIX;
     memcpy(a.sun_path, path, strlen(path) + 1);
+    struct stat st;
+    if (fstatat(dfd, name, &st, AT_SYMLINK_NOFOLLOW) == 0) {
+        if (!S_ISSOCK(st.st_mode)) {
+            fprintf(stderr, "zxvd: %s exists and is not a socket; refusing to replace it\n", path);
+            return open_fail(dfd, false);
+        }
+        int probe = socket(AF_UNIX, SOCK_STREAM, 0);
+        bool live = probe >= 0 && connect(probe, (struct sockaddr *) &a, sizeof a) == 0;
+        if (probe >= 0) close(probe);
+        if (live) {
+            fprintf(stderr, "zxvd: another zxvd answers on %s\n", path);
+            return open_fail(dfd, false);
+        }
+        unlinkat(dfd, name, 0); /* stale */
+    }
+    if (zxvd_rpc_books_open() != 0) {
+        fprintf(stderr, "zxvd: the books could not be opened (libzxv older than ABI 1.3, "
+                        "or the earnings currency was refused)\n");
+        return open_fail(dfd, false);
+    }
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) return open_fail(dfd, true);
     mode_t old = umask(S_IXUSR | S_IRWXG | S_IRWXO); /* the socket file is born 0600 */
     int b = bind(fd, (struct sockaddr *) &a, sizeof a);
     umask(old);
-    if (b != 0 || chmod(path, S_IRUSR | S_IWUSR) != 0 || listen(fd, 8) != 0) {
+    if (b != 0 || fchmodat(dfd, name, S_IRUSR | S_IWUSR, 0) != 0 || listen(fd, 8) != 0) {
         fprintf(stderr, "zxvd: cannot listen on %s: %s\n", path, strerror(errno));
         close(fd);
-        books_close();
-        return -1;
+        return open_fail(dfd, true);
     }
+    close(dfd);
     fcntl(fd, F_SETFD, FD_CLOEXEC);
     LS = fd;
     snprintf(PATH_, sizeof PATH_, "%s", path);
@@ -758,7 +869,6 @@ static void serve(client_t *c, uint64_t now_ms)
         }
         memmove(c->in, nl + 1, c->n - ll - 1);
         c->n -= ll + 1;
-        if (c->fd < 0) break;
     }
     free(out.p);
     if (c->n >= sizeof c->in - 1) drop(c); /* T3: line too long */
