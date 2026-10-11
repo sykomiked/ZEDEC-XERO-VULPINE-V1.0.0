@@ -11,6 +11,8 @@
  *   1b. the Q4_K and Q6_K dot products (GGUF K-quant rows used in place) the
  *      same way, and the C reference against exact math: ggml's own
  *      dequantization, transcribed here, summed in 128-bit integers;
+ *   1c. the batched-row kernels (prefill) against the dot products, and the
+ *      attention kernels against their C reference;
  *   2. the thread pool: every row computed exactly once for 2..8 threads;
  *   3. whole forward passes of the three fixture models (test_model_fixture.h)
  *      through each kernel set, alone and threaded: all logits identical.
@@ -22,7 +24,8 @@
  *       src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c \
  *       src/tensor/zt.c -lpthread -o /tmp/test_zt_simd && /tmp/test_zt_simd
  * The same file cross-compiles for aarch64 and runs under qemu-aarch64. */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200112L
+#define _ISOC11_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -374,6 +377,143 @@ static void test_kdots(const zt_kern_t *k)
           (unsigned long long) st.mism6);
 }
 
+/* ---- 1c. batched rows (zt_kern.h zt_mmb_t) and attention ----
+ * mm_batch on R rows x B tokens against the C dot product of every (row,
+ * token): Q4_K, Q6_K and Q8_0 rows, token counts that leave the last group
+ * of 16 partial and that span several accumulator chunks, row counts that
+ * leave the last tile partial, rows split into ranges as threads do, and
+ * every f16 class and activation shift 0..255 (so term52's single-shift,
+ * two-shift and saturating paths are all taken). */
+
+typedef struct {
+    uint64_t jobs, outs, mism;
+} mstat_t;
+
+static void mmb_case(const zt_kern_t *k, uint32_t qt, uint32_t R, uint32_t nkb, uint32_t B,
+                     uint32_t qmode, uint32_t xmode, uint32_t shmode, uint32_t model, mstat_t *st)
+{
+    uint32_t cols = nkb * 256, nb = cols / 32, ng = (B + ZT_MMB_G - 1) / ZT_MMB_G;
+    uint64_t rowb = qt == ZT_GGML_Q4_K ? (uint64_t) nkb * ZT_Q4K_BYTES
+                    : qt == ZT_GGML_Q6_K ? (uint64_t) nkb * ZT_Q6K_BYTES
+                                         : (uint64_t) nb * 34;
+    uint8_t *W = malloc(R * rowb);
+    krow_t kr;
+    row_t qr;
+    for (uint32_t r = 0; r < R; r++) { /* weights from the dot tests' generators */
+        if (qt == ZT_GGML_Q8_0) {
+            row_alloc(&qr, nb);
+            fill(&qr, below(5), 3, 0);
+            memcpy(W + r * rowb, qr.raw, rowb);
+            row_free(&qr);
+        } else {
+            krow_alloc(&kr, nkb);
+            kfill(&kr, qmode, 3, 0, model);
+            memcpy(W + r * rowb, qt == ZT_GGML_Q4_K ? kr.q4 : kr.q6, rowb);
+            krow_free(&kr);
+        }
+    }
+    int16_t *a = malloc((size_t) B * cols * 2);
+    uint8_t *ash = malloc((size_t) B * nb);
+    int32_t *asum = malloc((size_t) B * nb * 4);
+    for (uint32_t t = 0; t < B; t++)
+        for (uint32_t b = 0; b < nb; b++) {
+            int32_t sum = 0;
+            for (uint32_t i = 0; i < 32; i++) {
+                int16_t x = model ? (int16_t) ((int) below(65535) - 32767) : xval(xmode, 1);
+                a[(size_t) t * cols + b * 32 + i] = x;
+                sum += x;
+            }
+            ash[t * nb + b] = (uint8_t) (shmode == 1 ? below(256) : below(model ? 6 : 18));
+            asum[t * nb + b] = sum;
+        }
+    int16_t *aT = aligned_alloc(64, (size_t) ng * cols * ZT_MMB_G * 2);
+    int64_t *ashT = aligned_alloc(64, (size_t) ng * nb * ZT_MMB_G * 8);
+    int64_t *asumT = aligned_alloc(64, (size_t) ng * nb * ZT_MMB_G * 8);
+    uint8_t *ashx = malloc((size_t) ng * nb);
+    zt_mmb_pack(a, ash, asum, cols, B, cols, aT, ashT, asumT, ashx);
+    zt_fx *y = malloc((size_t) B * R * 4);
+    for (uint32_t i = 0; i < B * R; i++) y[i] = 0x5A5A5A5A;
+    zt_mmb_t j = {W, 0, qt, cols, aT, ashT, asumT, ashx, B, y, R};
+    /* rows in 1..3 random ranges, as the thread pool splits them */
+    uint32_t cut1 = below(R + 1), cut2 = cut1 + below(R - cut1 + 1);
+    int rc = k->mm_batch(&j, 0, cut1) | k->mm_batch(&j, cut1, cut2) | k->mm_batch(&j, cut2, R);
+    st->jobs++;
+    for (uint32_t r = 0; r < R; r++)
+        for (uint32_t t = 0; t < B; t++) {
+            const uint8_t *row = W + r * rowb;
+            const int16_t *x = a + (size_t) t * cols;
+            zt_fx c = qt == ZT_GGML_Q4_K   ? zt_dot_q4k_c(row, x, ash + t * nb, asum + t * nb, nb)
+                      : qt == ZT_GGML_Q6_K ? zt_dot_q6k_c(row, x, ash + t * nb, asum + t * nb, nb)
+                                           : zt_dot_raw_c(row, x, ash + t * nb, nb);
+            st->outs++;
+            if ((rc || y[(size_t) t * R + r] != c) && st->mism++ < 4)
+                printf("  mm_batch mismatch qt=%u R=%u cols=%u B=%u row %u token %u: C %d, %s %d%s\n",
+                       qt, R, cols, B, r, t, c, k->name, y[(size_t) t * R + r],
+                       rc ? " (not handled)" : "");
+        }
+    free(W), free(a), free(ash), free(asum), free(aT), free(ashT), free(asumT), free(ashx), free(y);
+}
+
+static void test_mmb(const zt_kern_t *k)
+{
+    static const uint32_t qts[] = {ZT_GGML_Q4_K, ZT_GGML_Q6_K, ZT_GGML_Q8_0};
+    static const uint32_t Bs[] = {4, 5, 15, 16, 17, 31, 32, 33, 47, 64, 129, 150};
+    mstat_t st = {0, 0, 0};
+    for (uint32_t qi = 0; qi < 3; qi++) {
+        for (uint32_t bi = 0; bi < sizeof Bs / sizeof Bs[0]; bi++)
+            mmb_case(k, qts[qi], 1 + below(9), 1 + below(3), Bs[bi], below(3), below(5), below(2),
+                     below(2), &st);
+        for (uint32_t t = 0; t < 40; t++)
+            mmb_case(k, qts[qi], 1 + below(13), 1 + below(4), ZT_MMB_MIN + below(40), below(3),
+                     below(5), below(2), below(2), &st);
+        /* one realistic shape: 37 rows of 1536, 23 tokens */
+        mmb_case(k, qts[qi], 37, 6, 23, 0, 3, 0, 1, &st);
+    }
+    CHECK(st.mism == 0,
+          "%s: batched rows (mm_batch) == C dot products for Q4_K, Q6_K and Q8_0 on %llu jobs, "
+          "%llu outputs (4..150 tokens, 1..37 rows, split ranges, every f16 class, shifts "
+          "0..255; %llu mismatches)",
+          k->name, (unsigned long long) st.jobs, (unsigned long long) st.outs,
+          (unsigned long long) st.mism);
+    /* a zt_q8_t matrix and an unaligned Q8_0 width are left to the dot products */
+    zt_mmb_t j = {0, 0, 0, 64, 0, 0, 0, 0, 4, 0, 1};
+    int rq8 = k->mm_batch(&j, 0, 1);
+    uint8_t row[2 * 34] = {0};
+    zt_mmb_t j2 = {row, 0, ZT_GGML_Q8_0, 64, 0, 0, 0, 0, 4, 0, 1};
+    CHECK(rq8 != 0 && k->mm_batch(&j2, 0, 1) != 0,
+          "%s: mm_batch declines zt_q8_t rows and Q8_0 rows that are not a whole number of 256 "
+          "values (the caller falls back to the dot products)",
+          k->name);
+}
+
+static void test_att(const zt_kern_t *k)
+{
+    static const uint32_t hds[] = {32, 64, 80, 100, 128, 256};
+    uint64_t mism = 0, n_cases = 0;
+    for (uint32_t t = 0; t < 400; t++) {
+        uint32_t hd = hds[below(6)], n = 1 + below(300), stride = hd + below(3) * 64;
+        int32_t *q = malloc(hd * 4), *kv = malloc(((size_t) n * stride + hd) * 4), *w = malloc(n * 4);
+        int64_t S1[300], S2[300], *a1 = malloc(hd * 8), *a2 = malloc(hd * 8);
+        for (uint32_t i = 0; i < hd; i++) q[i] = (int32_t) (rnd() % ((1u << 23) - 1)) - ((1 << 22) - 1);
+        for (size_t i = 0; i < (size_t) n * stride + hd; i++)
+            kv[i] = below(4) ? (int32_t) (uint32_t) rnd() : (below(2) ? INT32_MAX : INT32_MIN);
+        for (uint32_t i = 0; i < n; i++) w[i] = below(3) ? (int32_t) below(65537) : 0;
+        for (uint32_t i = 0; i < hd; i++) a1[i] = a2[i] = (int64_t) rnd() >> 20;
+        zt_att_qk_c(q, kv, stride, n, hd, S1);
+        k->att_qk(q, kv, stride, n, hd, S2);
+        zt_att_wv_c(w, kv, stride, n, hd, a1);
+        k->att_wv(w, kv, stride, n, hd, a2);
+        mism += memcmp(S1, S2, n * 8) != 0;
+        mism += memcmp(a1, a2, hd * 8) != 0;
+        n_cases++;
+        free(q), free(kv), free(w), free(a1), free(a2);
+    }
+    CHECK(mism == 0,
+          "%s: attention q.k and weighted V sums == C on %llu cases (head sizes 32..256, 1..300 "
+          "positions, full-range K/V, zero weights; %llu mismatches)",
+          k->name, (unsigned long long) n_cases, (unsigned long long) mism);
+}
+
 /* ggml's own dequantization (ggml-quants.c dequantize_row_q4_K / _q6_K),
  * transcribed independently of zt_kern.h, as integers: weight i of block k is
  * wd[i] * d - wm[i] * dmin (Q4_K) or wd[i] * d (Q6_K, wm = 0). */
@@ -693,8 +833,8 @@ int main(int argc, char **argv)
     printf("[INFO] kernel sets on this CPU:");
     for (uint32_t i = 0; i < nk; i++) printf(" %s", ks[i]->name);
     printf(" (best: %s)\n", zt_simd_best()->name);
-    static const char *names[] = {"avx2", "avx512", "neon"};
-    for (uint32_t i = 0; i < 3; i++)
+    static const char *names[] = {"avx2", "avx512", "avx512vnni", "neon"};
+    for (uint32_t i = 0; i < 4; i++)
         if (!zt_simd_find(names[i]))
             printf("[SKIP] %s: not compiled for this target or not on this CPU\n", names[i]);
     CHECK(nk >= 1 && !strcmp(ks[nk - 1]->name, "c") && zt_simd_find("c") == ks[nk - 1],
@@ -705,6 +845,8 @@ int main(int argc, char **argv)
         simd++;
         test_dots(ks[i]);
         if (ks[i]->dot_q4k && ks[i]->dot_q6k) test_kdots(ks[i]);
+        if (ks[i]->mm_batch) test_mmb(ks[i]);
+        if (ks[i]->att_qk && ks[i]->att_wv) test_att(ks[i]);
     }
     test_kexact();
     test_pool();

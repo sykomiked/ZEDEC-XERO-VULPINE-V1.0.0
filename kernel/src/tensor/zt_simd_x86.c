@@ -75,12 +75,12 @@ static inline AVX2 __m256i blend64(__m256i a, __m256i b, __m256i mask)
 }
 
 /* zt_term52(v[i], k[i]) for 4 lanes of exact 64-bit products */
-static inline AVX2 __m256i term52v_avx2(__m256i v, __m128i k)
+/* zt_term52(v[i], kk[i]) for 4 lanes, kk as 64-bit lanes */
+static inline AVX2 __m256i term52q_avx2(__m256i v, __m256i kk)
 {
     const __m256i zero = _mm256_setzero_si256();
     const __m256i lim = _mm256_set1_epi64x(ZT_KERN_LIM52);
     const __m256i nlim = _mm256_set1_epi64x(-ZT_KERN_LIM52);
-    __m256i kk = _mm256_cvtepi32_epi64(k);
     __m256i sign = _mm256_cmpgt_epi64(zero, v);
     __m256i vx = _mm256_xor_si256(v, sign);
     /* k <= 0: floor(v / 2^-k); a count of 64 or more gives the sign (0 or -1) */
@@ -93,6 +93,11 @@ static inline AVX2 __m256i term52v_avx2(__m256i v, __m128i k)
     __m256i r = blend64(right, left, _mm256_cmpgt_epi64(kk, zero));
     r = blend64(r, lim, _mm256_cmpgt_epi64(r, lim));
     return blend64(r, nlim, _mm256_cmpgt_epi64(nlim, r));
+}
+
+static inline AVX2 __m256i term52v_avx2(__m256i v, __m128i k)
+{
+    return term52q_avx2(v, _mm256_cvtepi32_epi64(k));
 }
 
 /* exact 64-bit s[i] * mul[i] for 4 int32 lanes */
@@ -688,6 +693,211 @@ static inline AVX512 void term16_512(__m512i *ve, __m512i *vo, __m512i h0, __m51
 #    define MMB_VNNI 1
 #    include "zt_simd_x86_mmb.h"
 
+/* AVX2: 8 tokens per vector, a group of 16 in two halves. A tile is TR rows
+ * by one group (TR x 2 accumulators of 8 lanes), with the same unpacking, slot
+ * order and term52 shortcuts as the AVX-512 tile; AVX2 has no 64-bit
+ * arithmetic shift, so a floor shift is a logical shift of v ^ sign. */
+
+static inline AVX2 __m256i srav64_avx2(__m256i v, __m256i n)
+{
+    __m256i sign = _mm256_cmpgt_epi64(_mm256_setzero_si256(), v);
+    return _mm256_xor_si256(_mm256_srlv_epi64(_mm256_xor_si256(v, sign), n), sign);
+}
+
+/* term52(v, e + ash) for 4 slots, as term16_512 */
+static inline AVX2 __m256i term4_avx2(__m256i v, __m256i h, int32_t e, int32_t hx, int32_t safe)
+{
+    if (e <= 0 && hx <= -e) return srav64_avx2(v, _mm256_sub_epi64(_mm256_set1_epi64x(-e), h));
+    if (hx + e <= safe) {
+        v = _mm256_sllv_epi64(v, _mm256_add_epi64(h, _mm256_set1_epi64x(e > 0 ? e : 0)));
+        return e < 0 ? srav64_avx2(v, _mm256_set1_epi64x(-e)) : v;
+    }
+    return term52q_avx2(v, _mm256_add_epi64(h, _mm256_set1_epi64x(e)));
+}
+
+static inline AVX2 void unpack_q4k_avx2(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    int32_t dm, mm;
+    zt_kern_f16(ld16(blk), &dm, &t->e);
+    zt_kern_f16(ld16(blk + 2), &mm, &t->em);
+    t->e += 16;
+    t->em += 16;
+    uint8_t sm[16];
+    zt_kern_q4k_scales(blk + 4, sm);
+    for (uint32_t i = 0; i < 8; i++) {
+        t->m0[i] = sm[i] * dm;
+        t->mt[i] = sm[8 + i] * mm;
+    }
+    const __m256i m4 = _mm256_set1_epi16(0x0F);
+    for (uint32_t p = 0; p < 8; p++) {
+        __m256i q = _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *) (blk + 16 + 16 * p)));
+        /* bytes 32(p/2) + 16(p%2) ..: low nibbles to sub-block 2(p/2), high to 2(p/2) + 1 */
+        int16_t *o = w + 64 * (p / 2) + 16 * (p % 2);
+        _mm256_store_si256((__m256i *) o, _mm256_and_si256(q, m4));
+        _mm256_store_si256((__m256i *) (o + 32), _mm256_srli_epi16(q, 4));
+    }
+}
+
+static inline AVX2 void unpack_q6k_avx2(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    int32_t dm;
+    zt_kern_f16(ld16(blk + 208), &dm, &t->e);
+    t->e += 16;
+    const int8_t *sc = (const int8_t *) (blk + 192);
+    for (uint32_t i = 0; i < 8; i++) {
+        t->m0[i] = sc[2 * i] * dm;
+        t->m1[i] = sc[2 * i + 1] * dm;
+    }
+    __m256i qb[8];
+    q6k_bytes_avx2(blk, 0, qb);
+    q6k_bytes_avx2(blk, 1, qb + 4);
+    for (uint32_t i = 0; i < 8; i++) {
+        _mm256_store_si256((__m256i *) (w + 32 * i),
+                           _mm256_cvtepi8_epi16(_mm256_castsi256_si128(qb[i])));
+        _mm256_store_si256((__m256i *) (w + 32 * i + 16),
+                           _mm256_cvtepi8_epi16(_mm256_extracti128_si256(qb[i], 1)));
+    }
+}
+
+static inline AVX2 void unpack_q8_0_avx2(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    for (uint32_t i = 0; i < 8; i++, blk += 34) {
+        int32_t mm;
+        zt_kern_f16(ld16(blk), &mm, &t->ek[i]);
+        t->m0[i] = mm;
+        t->ek[i] += 16;
+        _mm256_store_si256((__m256i *) (w + 32 * i),
+                           _mm256_cvtepi8_epi16(_mm_loadu_si128((const __m128i *) (blk + 2))));
+        _mm256_store_si256((__m256i *) (w + 32 * i + 16),
+                           _mm256_cvtepi8_epi16(_mm_loadu_si128((const __m128i *) (blk + 18))));
+    }
+}
+
+/* d[2i + hh] = row i's pairs [p0, p1) against half hh (8 tokens) of the group */
+#    define DOT_AVX2(d, p0, p1)                                                                   \
+        do {                                                                                      \
+            __m256i d0 = _mm256_setzero_si256(), d1 = d0, d2 = d0, d3 = d0, d4 = d0, d5 = d0,     \
+                    d6 = d0, d7 = d0;                                                             \
+            _Pragma("GCC unroll 16") for (uint32_t p = (p0); p < (p1); p++)                       \
+            {                                                                                     \
+                __m256i x0 = _mm256_load_si256((const __m256i *) (xa + 32 * p));                  \
+                __m256i x1 = _mm256_load_si256((const __m256i *) (xa + 32 * p + 16));             \
+                __m256i w0 = _mm256_set1_epi32(ld32(ws + 2 * p));                                 \
+                __m256i w1 = _mm256_set1_epi32(ld32(ws + 256 + 2 * p));                           \
+                d0 = _mm256_add_epi32(d0, _mm256_madd_epi16(w0, x0));                             \
+                d1 = _mm256_add_epi32(d1, _mm256_madd_epi16(w0, x1));                             \
+                d2 = _mm256_add_epi32(d2, _mm256_madd_epi16(w1, x0));                             \
+                d3 = _mm256_add_epi32(d3, _mm256_madd_epi16(w1, x1));                             \
+                w0 = _mm256_set1_epi32(ld32(ws + 512 + 2 * p));                                   \
+                w1 = _mm256_set1_epi32(ld32(ws + 768 + 2 * p));                                   \
+                d4 = _mm256_add_epi32(d4, _mm256_madd_epi16(w0, x0));                             \
+                d5 = _mm256_add_epi32(d5, _mm256_madd_epi16(w0, x1));                             \
+                d6 = _mm256_add_epi32(d6, _mm256_madd_epi16(w1, x0));                             \
+                d7 = _mm256_add_epi32(d7, _mm256_madd_epi16(w1, x1));                             \
+            }                                                                                     \
+            d[0] = d0, d[1] = d1, d[2] = d2, d[3] = d3, d[4] = d4, d[5] = d5, d[6] = d6,          \
+            d[7] = d7;                                                                            \
+        } while (0)
+
+static inline __attribute__((always_inline)) AVX2 void mmb_body_avx2(const zt_mmb_t *j, uint32_t r0,
+                                                                     uint32_t r1, const uint32_t qt)
+{
+    uint32_t nb = j->cols / 32, nk = nb / 8, ng = mmb_groups(j);
+    uint64_t kbytes = qt == ZT_GGML_Q4_K ? ZT_Q4K_BYTES : qt == ZT_GGML_Q6_K ? ZT_Q6K_BYTES : 8 * 34;
+    int32_t safe = qt == ZT_GGML_Q4_K   ? ZT_MMB_SAFE_Q4K
+                   : qt == ZT_GGML_Q6_K ? ZT_MMB_SAFE_Q6K
+                                        : ZT_MMB_SAFE_Q8;
+    int16_t w[TR * 256] __attribute__((aligned(64)));
+    int64_t acc[TR][MMB_GC][ZT_MMB_G] __attribute__((aligned(64)));
+    tparam_t tp[TR];
+    for (uint32_t r = r0; r < r1; r += TR) {
+        uint32_t nr = r1 - r < TR ? r1 - r : TR;
+        if (nr < TR) __builtin_memset(w, 0, sizeof w);
+        for (uint32_t g0 = 0; g0 < ng; g0 += MMB_GC) {
+            uint32_t gn = ng - g0 < MMB_GC ? ng - g0 : MMB_GC;
+            __builtin_memset(acc, 0, sizeof acc);
+            for (uint32_t k = 0; k < nk; k++) {
+                for (uint32_t i = 0; i < nr; i++) {
+                    const uint8_t *blk = j->raw + ((uint64_t) (r + i) * nk + k) * kbytes;
+                    if (qt == ZT_GGML_Q4_K)
+                        unpack_q4k_avx2(blk, w + 256 * i, &tp[i]);
+                    else if (qt == ZT_GGML_Q6_K)
+                        unpack_q6k_avx2(blk, w + 256 * i, &tp[i]);
+                    else
+                        unpack_q8_0_avx2(blk, w + 256 * i, &tp[i]);
+                }
+                for (uint32_t gi = 0; gi < gn; gi++)
+                    for (uint32_t sb = 0; sb < 8; sb++) {
+                        uint64_t gb = (uint64_t) (g0 + gi) * nb + k * 8 + sb;
+                        const int16_t *xa = j->aT + gb * 32 * ZT_MMB_G;
+                        const int16_t *ws = w + 32 * sb;
+                        __m256i s[2 * TR], s2[2 * TR];
+                        if (qt == ZT_GGML_Q6_K) {
+                            DOT_AVX2(s, 0, 8);
+                            DOT_AVX2(s2, 8, 16);
+                        } else {
+                            DOT_AVX2(s, 0, 16);
+                        }
+                        const int64_t *hp = j->ashT + gb * ZT_MMB_G;
+                        const int64_t *up = j->asumT + gb * ZT_MMB_G;
+                        int32_t hx = j->ashx[gb];
+                        for (uint32_t i = 0; i < nr; i++) {
+                            const tparam_t *t = &tp[i];
+                            int64_t *a = acc[i][gi];
+                            for (uint32_t hh = 0; hh < 2; hh++) {
+                                /* even slots 4hh.., odd slots 8 + 4hh.. */
+                                __m256i he = _mm256_load_si256((const __m256i *) (hp + 4 * hh));
+                                __m256i ho = _mm256_load_si256((const __m256i *) (hp + 8 + 4 * hh));
+                                __m256i sv = s[2 * i + hh], so = _mm256_srli_epi64(sv, 32);
+                                __m256i M0 = _mm256_set1_epi64x(t->m0[sb]);
+                                __m256i ve = _mm256_mul_epi32(sv, M0), vo = _mm256_mul_epi32(so, M0);
+                                if (qt == ZT_GGML_Q6_K) {
+                                    __m256i M1 = _mm256_set1_epi64x(t->m1[sb]);
+                                    __m256i s2v = s2[2 * i + hh];
+                                    ve = _mm256_add_epi64(ve, _mm256_mul_epi32(s2v, M1));
+                                    vo = _mm256_add_epi64(
+                                        vo, _mm256_mul_epi32(_mm256_srli_epi64(s2v, 32), M1));
+                                    ve = term4_avx2(ve, he, t->e, hx, safe);
+                                    vo = term4_avx2(vo, ho, t->e, hx, safe);
+                                } else if (qt == ZT_GGML_Q4_K) {
+                                    __m256i MT = _mm256_set1_epi64x(t->mt[sb]);
+                                    __m256i ue = _mm256_mul_epi32(
+                                        _mm256_load_si256((const __m256i *) (up + 4 * hh)), MT);
+                                    __m256i uo = _mm256_mul_epi32(
+                                        _mm256_load_si256((const __m256i *) (up + 8 + 4 * hh)), MT);
+                                    ve = _mm256_sub_epi64(term4_avx2(ve, he, t->e, hx, safe),
+                                                          term4_avx2(ue, he, t->em, hx, safe));
+                                    vo = _mm256_sub_epi64(term4_avx2(vo, ho, t->e, hx, safe),
+                                                          term4_avx2(uo, ho, t->em, hx, safe));
+                                } else {
+                                    ve = term4_avx2(ve, he, t->ek[sb], hx, safe);
+                                    vo = term4_avx2(vo, ho, t->ek[sb], hx, safe);
+                                }
+                                __m256i *ae = (__m256i *) (a + 4 * hh), *ao = (__m256i *) (a + 8 + 4 * hh);
+                                _mm256_store_si256(ae, _mm256_add_epi64(_mm256_load_si256(ae), ve));
+                                _mm256_store_si256(ao, _mm256_add_epi64(_mm256_load_si256(ao), vo));
+                            }
+                        }
+                    }
+            }
+            for (uint32_t i = 0; i < nr; i++)
+                mmb_store(j, r + i, g0, gn, (const int64_t (*)[ZT_MMB_G]) acc[i]);
+        }
+    }
+}
+
+#    undef DOT_AVX2
+
+static AVX2 void mmb_tile_avx2(const zt_mmb_t *j, uint32_t r0, uint32_t r1)
+{
+    if (j->qtype == ZT_GGML_Q4_K)
+        mmb_body_avx2(j, r0, r1, ZT_GGML_Q4_K);
+    else if (j->qtype == ZT_GGML_Q6_K)
+        mmb_body_avx2(j, r0, r1, ZT_GGML_Q6_K);
+    else
+        mmb_body_avx2(j, r0, r1, ZT_GGML_Q8_0);
+}
+
 /* the weight types the tiles handle: Q4_K and Q6_K (rows of whole blocks),
  * Q8_0 when a row is a whole number of 8 blocks */
 static int mmb_handles(const zt_mmb_t *j)
@@ -700,6 +910,13 @@ static int mmb_512(const zt_mmb_t *j, uint32_t r0, uint32_t r1)
 {
     if (!mmb_handles(j)) return 1;
     mmb_tile_512(j, r0, r1);
+    return 0;
+}
+
+static int mmb_avx2(const zt_mmb_t *j, uint32_t r0, uint32_t r1)
+{
+    if (!mmb_handles(j)) return 1;
+    mmb_tile_avx2(j, r0, r1);
     return 0;
 }
 
@@ -797,7 +1014,7 @@ static AVX512 void att_wv_512(const int32_t *w, const int32_t *v, uint64_t vstri
 }
 
 static const zt_kern_t K_AVX2 = {"avx2",       dot_raw_avx2, dot_q8_avx2, 0, 0, dot_q4k_avx2,
-                                 dot_q6k_avx2, 0,           att_qk_avx2, att_wv_avx2};
+                                 dot_q6k_avx2, mmb_avx2,    att_qk_avx2, att_wv_avx2};
 static const zt_kern_t K_AVX512 = {"avx512", dot_raw_512, dot_q8_512, 0, 0, dot_q4k_512,
                                    dot_q6k_512, mmb_512,  att_qk_512, att_wv_512};
 /* the same with the AVX512-VNNI tile */

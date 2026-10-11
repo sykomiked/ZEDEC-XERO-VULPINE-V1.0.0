@@ -226,8 +226,10 @@ typedef struct {
     int64_t *ashT, *asumT;
     uint8_t *ashx;
     uint32_t mmb_cols;
-    /* Attention scratch for each of n_head * ZT_ATT_TILES work items (the
-     * items may run in threads; each writes only its own). */
+    /* Attention scratch for each of n_head * att_tiles work items (the items
+     * may run in threads; each writes only its own). att_tiles is
+     * ZT_ATT_TILES, or n_batch when that is smaller. */
+    uint32_t att_tiles;
     zt_fx *scores; /* [items][n_ctx] */
     int64_t *acc;  /* [items][head_dim] */
     int32_t *qs;   /* [items][head_dim] */

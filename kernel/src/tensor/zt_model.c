@@ -876,7 +876,8 @@ static void state_layout(const zt_model_t *m, zt_model_state_t *s, uint32_t n_ct
         s->asumT = lay(L, gb * ZT_MMB_G * 8);
         s->ashx = lay(L, gb);
     }
-    uint64_t items = (uint64_t) c->n_head * ZT_ATT_TILES;
+    s->att_tiles = B < ZT_ATT_TILES ? B : ZT_ATT_TILES;
+    uint64_t items = (uint64_t) c->n_head * s->att_tiles;
     s->scores = lay(L, items * n_ctx * 4);
     s->acc = lay(L, items * c->head_dim * 8);
     s->qs = lay(L, items * c->head_dim * 4);
@@ -1013,7 +1014,7 @@ static void attend(const zt_model_t *m, const zt_model_state_t *s, uint32_t l, c
 }
 
 /* Attention of B tokens (positions p0..p0 + B - 1) for layer l, split into
- * n_head * ZT_ATT_TILES items (head, every ZT_ATT_TILES-th token) that may
+ * n_head * s->att_tiles items (head, every att_tiles-th token) that may
  * run in threads: each item has its own scratch and writes its own outputs,
  * and each output is computed whole by one item, so the result does not
  * depend on the split. */
@@ -1029,8 +1030,8 @@ static void att_items(void *ctx, uint32_t i0, uint32_t i1)
     const zt_model_state_t *s = j->s;
     uint32_t qd = j->m->q_dim, hd = j->m->cfg.head_dim;
     for (uint32_t i = i0; i < i1; i++) {
-        uint32_t h = i / ZT_ATT_TILES, tile = i % ZT_ATT_TILES;
-        for (uint32_t b = tile; b < j->B; b += ZT_ATT_TILES)
+        uint32_t nt = s->att_tiles, h = i / nt, tile = i % nt;
+        for (uint32_t b = tile; b < j->B; b += nt)
             attend(j->m, s, j->l, s->q + (uint64_t) b * qd, j->p0 + b, s->att + (uint64_t) b * qd,
                    h, s->scores + (uint64_t) i * s->n_ctx, s->acc + (uint64_t) i * hd,
                    s->qs + (uint64_t) i * hd);
@@ -1040,7 +1041,7 @@ static void att_items(void *ctx, uint32_t i0, uint32_t i1)
 static void attention(const zt_model_t *m, zt_model_state_t *s, uint32_t l, uint32_t p0, uint32_t B)
 {
     att_job_t j = {m, s, l, p0, B};
-    uint32_t n = m->cfg.n_head * ZT_ATT_TILES;
+    uint32_t n = m->cfg.n_head * s->att_tiles;
     const zt_kern_t *k = m->kern;
     if (k && k->par_rows) {
         /* about (p0 + B) * head_dim multiply-adds twice per token and head */
