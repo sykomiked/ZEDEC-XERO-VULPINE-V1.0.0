@@ -1,0 +1,505 @@
+{
+ "model": "/home/user/models/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+ "sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+ "machine": "x86_64",
+ "threads": 4,
+ "n": 64,
+ "results": [
+  {
+   "prompt": "What is the capital of France? Answer in one word.",
+   "expect": [
+    "paris"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "Paris",
+   "runs": [
+    {
+     "load": "native",
+     "load_s": "0.037",
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "31",
+     "prefill_s": "9.381576",
+     "prefill_tps": "3.304",
+     "n_gen": "1",
+     "gen_s": "0.450540",
+     "gen_tps": "2.220",
+     "stop": "eos",
+     "ids": "59604",
+     "logits_fnv": "17cbf91d73a47ab6",
+     "text": "Paris",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.035",
+     "kern": "avx2",
+     "threads": "4",
+     "n_prompt": "31",
+     "prefill_s": "2.095325",
+     "prefill_tps": "14.795",
+     "n_gen": "1",
+     "gen_s": "0.087843",
+     "gen_tps": "11.384",
+     "stop": "eos",
+     "ids": "59604",
+     "logits_fnv": "17cbf91d73a47ab6",
+     "text": "Paris",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.037",
+     "kern": "avx512",
+     "threads": "4",
+     "n_prompt": "31",
+     "prefill_s": "1.525843",
+     "prefill_tps": "20.317",
+     "n_gen": "1",
+     "gen_s": "0.079552",
+     "gen_tps": "12.570",
+     "stop": "eos",
+     "ids": "59604",
+     "logits_fnv": "17cbf91d73a47ab6",
+     "text": "Paris",
+     "bench": "/tmp/zb4/zt_bench"
+    }
+   ]
+  },
+  {
+   "prompt": "What is 17 + 25? Answer with the number only.",
+   "expect": [
+    "42"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "42",
+   "runs": [
+    {
+     "load": "native",
+     "load_s": "0.046",
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "10.789971",
+     "prefill_tps": "3.244",
+     "n_gen": "2",
+     "gen_s": "1.036730",
+     "gen_tps": "1.929",
+     "stop": "eos",
+     "ids": "19,17",
+     "logits_fnv": "16dc0e489e175906",
+     "text": "42",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.038",
+     "kern": "avx2",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "2.411661",
+     "prefill_tps": "14.513",
+     "n_gen": "2",
+     "gen_s": "0.210782",
+     "gen_tps": "9.488",
+     "stop": "eos",
+     "ids": "19,17",
+     "logits_fnv": "16dc0e489e175906",
+     "text": "42",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.035",
+     "kern": "avx512",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "1.886817",
+     "prefill_tps": "18.550",
+     "n_gen": "2",
+     "gen_s": "0.162503",
+     "gen_tps": "12.307",
+     "stop": "eos",
+     "ids": "19,17",
+     "logits_fnv": "16dc0e489e175906",
+     "text": "42",
+     "bench": "/tmp/zb4/zt_bench"
+    }
+   ]
+  },
+  {
+   "prompt": "How many days are in a leap year? Answer with the number only.",
+   "expect": [
+    "366"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "366",
+   "runs": [
+    {
+     "load": "native",
+     "load_s": "0.033",
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "10.486492",
+     "prefill_tps": "3.242",
+     "n_gen": "3",
+     "gen_s": "1.686893",
+     "gen_tps": "1.778",
+     "stop": "eos",
+     "ids": "18,21,21",
+     "logits_fnv": "82a46531ee5bfb0e",
+     "text": "366",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.036",
+     "kern": "avx2",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "2.339495",
+     "prefill_tps": "14.533",
+     "n_gen": "3",
+     "gen_s": "0.271249",
+     "gen_tps": "11.060",
+     "stop": "eos",
+     "ids": "18,21,21",
+     "logits_fnv": "82a46531ee5bfb0e",
+     "text": "366",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.032",
+     "kern": "avx512",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "1.756863",
+     "prefill_tps": "19.353",
+     "n_gen": "3",
+     "gen_s": "0.263362",
+     "gen_tps": "11.391",
+     "stop": "eos",
+     "ids": "18,21,21",
+     "logits_fnv": "82a46531ee5bfb0e",
+     "text": "366",
+     "bench": "/tmp/zb4/zt_bench"
+    }
+   ]
+  },
+  {
+   "prompt": "Which planet is known as the Red Planet? Answer in one word.",
+   "expect": [
+    "mars"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "Mars",
+   "runs": [
+    {
+     "load": "native",
+     "load_s": "0.033",
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "10.361936",
+     "prefill_tps": "3.185",
+     "n_gen": "2",
+     "gen_s": "1.167440",
+     "gen_tps": "1.713",
+     "stop": "eos",
+     "ids": "44,1561",
+     "logits_fnv": "08f4c2e7950921fc",
+     "text": "Mars",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.033",
+     "kern": "avx2",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "2.217142",
+     "prefill_tps": "14.884",
+     "n_gen": "2",
+     "gen_s": "0.169368",
+     "gen_tps": "11.809",
+     "stop": "eos",
+     "ids": "44,1561",
+     "logits_fnv": "08f4c2e7950921fc",
+     "text": "Mars",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.055",
+     "kern": "avx512",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "1.742248",
+     "prefill_tps": "18.941",
+     "n_gen": "2",
+     "gen_s": "0.155470",
+     "gen_tps": "12.864",
+     "stop": "eos",
+     "ids": "44,1561",
+     "logits_fnv": "08f4c2e7950921fc",
+     "text": "Mars",
+     "bench": "/tmp/zb4/zt_bench"
+    }
+   ]
+  },
+  {
+   "prompt": "Translate 'thank you' into Spanish. Answer with the translation only.",
+   "expect": [
+    "gracias"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "gracias",
+   "runs": [
+    {
+     "load": "native",
+     "load_s": "0.049",
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "10.529010",
+     "prefill_tps": "3.134",
+     "n_gen": "2",
+     "gen_s": "1.059574",
+     "gen_tps": "1.888",
+     "stop": "eos",
+     "ids": "901,42442",
+     "logits_fnv": "6a930dfae35f3a15",
+     "text": "gracias",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.044",
+     "kern": "avx2",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "2.103865",
+     "prefill_tps": "15.685",
+     "n_gen": "2",
+     "gen_s": "0.186042",
+     "gen_tps": "10.750",
+     "stop": "eos",
+     "ids": "901,42442",
+     "logits_fnv": "6a930dfae35f3a15",
+     "text": "gracias",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.032",
+     "kern": "avx512",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "1.548578",
+     "prefill_tps": "21.310",
+     "n_gen": "2",
+     "gen_s": "0.193220",
+     "gen_tps": "10.351",
+     "stop": "eos",
+     "ids": "901,42442",
+     "logits_fnv": "6a930dfae35f3a15",
+     "text": "gracias",
+     "bench": "/tmp/zb4/zt_bench"
+    }
+   ]
+  },
+  {
+   "prompt": "What is the chemical symbol for gold? Answer with the symbol only.",
+   "expect": [
+    "au"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "Au",
+   "runs": [
+    {
+     "load": "native",
+     "load_s": "0.033",
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "10.268554",
+     "prefill_tps": "3.214",
+     "n_gen": "1",
+     "gen_s": "0.445191",
+     "gen_tps": "2.246",
+     "stop": "eos",
+     "ids": "65332",
+     "logits_fnv": "a9d9268977f3f64b",
+     "text": "Au",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.032",
+     "kern": "avx2",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "2.006038",
+     "prefill_tps": "16.450",
+     "n_gen": "1",
+     "gen_s": "0.088086",
+     "gen_tps": "11.353",
+     "stop": "eos",
+     "ids": "65332",
+     "logits_fnv": "a9d9268977f3f64b",
+     "text": "Au",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.033",
+     "kern": "avx512",
+     "threads": "4",
+     "n_prompt": "33",
+     "prefill_s": "1.603347",
+     "prefill_tps": "20.582",
+     "n_gen": "1",
+     "gen_s": "0.067418",
+     "gen_tps": "14.833",
+     "stop": "eos",
+     "ids": "65332",
+     "logits_fnv": "a9d9268977f3f64b",
+     "text": "Au",
+     "bench": "/tmp/zb4/zt_bench"
+    }
+   ]
+  },
+  {
+   "prompt": "Write a Python expression that reverses a string s. Answer with code only.",
+   "expect": [
+    "[::-1]"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "```python\ns[::-1]\n```",
+   "runs": [
+    {
+     "load": "native",
+     "load_s": "0.033",
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "11.059624",
+     "prefill_tps": "3.165",
+     "n_gen": "8",
+     "gen_s": "4.862545",
+     "gen_tps": "1.645",
+     "stop": "eos",
+     "ids": "73594,12669,198,82,62154,16,921,73594",
+     "logits_fnv": "989c9148f5f1cae4",
+     "text": "```python\ns[::-1]\n```",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.038",
+     "kern": "avx2",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "2.929884",
+     "prefill_tps": "11.946",
+     "n_gen": "8",
+     "gen_s": "0.886322",
+     "gen_tps": "9.026",
+     "stop": "eos",
+     "ids": "73594,12669,198,82,62154,16,921,73594",
+     "logits_fnv": "989c9148f5f1cae4",
+     "text": "```python\ns[::-1]\n```",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.033",
+     "kern": "avx512",
+     "threads": "4",
+     "n_prompt": "35",
+     "prefill_s": "2.079089",
+     "prefill_tps": "16.834",
+     "n_gen": "8",
+     "gen_s": "0.731219",
+     "gen_tps": "10.941",
+     "stop": "eos",
+     "ids": "73594,12669,198,82,62154,16,921,73594",
+     "logits_fnv": "989c9148f5f1cae4",
+     "text": "```python\ns[::-1]\n```",
+     "bench": "/tmp/zb4/zt_bench"
+    }
+   ]
+  },
+  {
+   "prompt": "Who wrote 'Romeo and Juliet'? Answer with the name only.",
+   "expect": [
+    "shakespeare"
+   ],
+   "correct": true,
+   "bit_identical": true,
+   "answer": "William Shakespeare",
+   "runs": [
+    {
+     "load": "native",
+     "load_s": "0.034",
+     "kern": "c",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "13.577877",
+     "prefill_tps": "2.504",
+     "n_gen": "2",
+     "gen_s": "1.261983",
+     "gen_tps": "1.585",
+     "stop": "eos",
+     "ids": "44787,41382",
+     "logits_fnv": "3bf5e19cbf6efedb",
+     "text": "William Shakespeare",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.036",
+     "kern": "avx2",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "2.873359",
+     "prefill_tps": "11.833",
+     "n_gen": "2",
+     "gen_s": "0.216962",
+     "gen_tps": "9.218",
+     "stop": "eos",
+     "ids": "44787,41382",
+     "logits_fnv": "3bf5e19cbf6efedb",
+     "text": "William Shakespeare",
+     "bench": "/tmp/zb4/zt_bench"
+    },
+    {
+     "load": "native",
+     "load_s": "0.035",
+     "kern": "avx512",
+     "threads": "4",
+     "n_prompt": "34",
+     "prefill_s": "2.118652",
+     "prefill_tps": "16.048",
+     "n_gen": "2",
+     "gen_s": "0.204722",
+     "gen_tps": "9.769",
+     "stop": "eos",
+     "ids": "44787,41382",
+     "logits_fnv": "3bf5e19cbf6efedb",
+     "text": "William Shakespeare",
+     "bench": "/tmp/zb4/zt_bench"
+    }
+   ]
+  }
+ ]
+}

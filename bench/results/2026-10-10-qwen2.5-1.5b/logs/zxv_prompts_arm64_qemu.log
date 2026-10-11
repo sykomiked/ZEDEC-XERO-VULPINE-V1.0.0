@@ -1,0 +1,53 @@
+model /home/user/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+sha256 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
+host x86_64 x86_64 cpus=4
+
+[1] What is the capital of France? Answer in one word.
+    answer: 'Paris'
+    correct=True bit_identical=True across 2 runs
+    /tmp/zxv_bench/zt_bench_arm64 neon    prefill     1.58 tok/s  gen    1.34 tok/s  n_gen=1 fnv=58cc9dd5807f7105
+    /tmp/zxv_bench/zt_bench_arm64 c       prefill     1.01 tok/s  gen    0.71 tok/s  n_gen=1 fnv=58cc9dd5807f7105
+
+[2] What is 17 + 25? Answer with the number only.
+    answer: '42'
+    correct=True bit_identical=True across 2 runs
+    /tmp/zxv_bench/zt_bench_arm64 neon    prefill     1.22 tok/s  gen    0.84 tok/s  n_gen=2 fnv=c7bf4fda7ed3e0d1
+    /tmp/zxv_bench/zt_bench_arm64 c       prefill     1.00 tok/s  gen    0.78 tok/s  n_gen=2 fnv=c7bf4fda7ed3e0d1
+
+[3] How many days are in a leap year? Answer with the number only.
+    answer: '366'
+    correct=True bit_identical=True across 2 runs
+    /tmp/zxv_bench/zt_bench_arm64 neon    prefill     1.13 tok/s  gen    0.87 tok/s  n_gen=3 fnv=b3ff05b269988029
+    /tmp/zxv_bench/zt_bench_arm64 c       prefill     1.01 tok/s  gen    0.75 tok/s  n_gen=3 fnv=b3ff05b269988029
+
+[4] Which planet is known as the Red Planet? Answer in one word.
+    answer: 'Mars'
+    correct=True bit_identical=True across 2 runs
+    /tmp/zxv_bench/zt_bench_arm64 neon    prefill     0.91 tok/s  gen    0.69 tok/s  n_gen=2 fnv=ab736055ec76125e
+    /tmp/zxv_bench/zt_bench_arm64 c       prefill     0.93 tok/s  gen    0.76 tok/s  n_gen=2 fnv=ab736055ec76125e
+
+[5] Translate 'thank you' into Spanish. Answer with the translation only.
+    answer: 'gracias'
+    correct=True bit_identical=True across 2 runs
+    /tmp/zxv_bench/zt_bench_arm64 neon    prefill     1.26 tok/s  gen    1.01 tok/s  n_gen=2 fnv=67a218956ac10d8a
+    /tmp/zxv_bench/zt_bench_arm64 c       prefill     1.04 tok/s  gen    0.80 tok/s  n_gen=2 fnv=67a218956ac10d8a
+
+[6] What is the chemical symbol for gold? Answer with the symbol only.
+    answer: 'Au'
+    correct=True bit_identical=True across 2 runs
+    /tmp/zxv_bench/zt_bench_arm64 neon    prefill     1.24 tok/s  gen    1.02 tok/s  n_gen=1 fnv=03ca95b1c0aea700
+    /tmp/zxv_bench/zt_bench_arm64 c       prefill     0.98 tok/s  gen    0.73 tok/s  n_gen=1 fnv=03ca95b1c0aea700
+
+[7] Write a Python expression that reverses a string s. Answer with code only.
+    answer: '```python\ns[::-1]\n```'
+    correct=True bit_identical=True across 2 runs
+    /tmp/zxv_bench/zt_bench_arm64 neon    prefill     1.18 tok/s  gen    0.87 tok/s  n_gen=8 fnv=fe1767b64565c363
+    /tmp/zxv_bench/zt_bench_arm64 c       prefill     1.05 tok/s  gen    0.83 tok/s  n_gen=8 fnv=fe1767b64565c363
+
+[8] Who wrote 'Romeo and Juliet'? Answer with the name only.
+    answer: 'William Shakespeare'
+    correct=True bit_identical=True across 2 runs
+    /tmp/zxv_bench/zt_bench_arm64 neon    prefill     1.20 tok/s  gen    0.86 tok/s  n_gen=2 fnv=66f73830812e8719
+    /tmp/zxv_bench/zt_bench_arm64 c       prefill     0.72 tok/s  gen    0.70 tok/s  n_gen=2 fnv=66f73830812e8719
+
+quality: 8/8 correct; bit-identical on every prompt: True

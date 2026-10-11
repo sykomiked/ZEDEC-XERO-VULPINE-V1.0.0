@@ -1,0 +1,4 @@
+scan share2_q rules=share2:q@8-23 mats=8 weights=18874368 transform_s=0.00 run_s=7.36
+scan share4_q rules=share4:q@8-23 mats=12 weights=28311552 transform_s=0.01 run_s=7.24
+scan share2_d rules=share2:d@8-23 mats=8 weights=110100480 transform_s=0.03 run_s=7.09
+scan share4_all rules=share4:all@8-23 mats=84 weights=561512448 transform_s=0.13 run_s=7.32

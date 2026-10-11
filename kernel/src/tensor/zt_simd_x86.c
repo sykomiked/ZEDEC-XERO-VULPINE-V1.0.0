@@ -71,13 +71,12 @@ static inline AVX2 __m256i blend64(__m256i a, __m256i b, __m256i mask)
     return _mm256_blendv_epi8(a, b, mask);
 }
 
-/* zt_term52(s[i] * mul[i], k[i]) for 4 lanes */
-static inline AVX2 __m256i term52_avx2(__m128i s, __m128i mul, __m128i k)
+/* zt_term52(v[i], k[i]) for 4 lanes of exact 64-bit products */
+static inline AVX2 __m256i term52v_avx2(__m256i v, __m128i k)
 {
     const __m256i zero = _mm256_setzero_si256();
     const __m256i lim = _mm256_set1_epi64x(ZT_KERN_LIM52);
     const __m256i nlim = _mm256_set1_epi64x(-ZT_KERN_LIM52);
-    __m256i v = _mm256_mul_epi32(_mm256_cvtepi32_epi64(s), _mm256_cvtepi32_epi64(mul));
     __m256i kk = _mm256_cvtepi32_epi64(k);
     __m256i sign = _mm256_cmpgt_epi64(zero, v);
     __m256i vx = _mm256_xor_si256(v, sign);
@@ -91,6 +90,18 @@ static inline AVX2 __m256i term52_avx2(__m128i s, __m128i mul, __m128i k)
     __m256i r = blend64(right, left, _mm256_cmpgt_epi64(kk, zero));
     r = blend64(r, lim, _mm256_cmpgt_epi64(r, lim));
     return blend64(r, nlim, _mm256_cmpgt_epi64(nlim, r));
+}
+
+/* exact 64-bit s[i] * mul[i] for 4 int32 lanes */
+static inline AVX2 __m256i mul64_avx2(__m128i s, __m128i mul)
+{
+    return _mm256_mul_epi32(_mm256_cvtepi32_epi64(s), _mm256_cvtepi32_epi64(mul));
+}
+
+/* zt_term52(s[i] * mul[i], k[i]) for 4 lanes */
+static inline AVX2 __m256i term52_avx2(__m128i s, __m128i mul, __m128i k)
+{
+    return term52v_avx2(mul64_avx2(s, mul), k);
 }
 
 static inline AVX2 int64_t hsum64_avx2(__m256i a)
@@ -186,23 +197,36 @@ static inline AVX512 __m256i fold512(__m512i a)
 /* the 8 block sums of 8 blocks */
 static inline AVX512 __m256i hsum8_512(const __m512i p[8])
 {
-    __m256i ab = _mm256_hadd_epi32(fold512(p[0]), fold512(p[1]));
-    __m256i cd = _mm256_hadd_epi32(fold512(p[2]), fold512(p[3]));
-    __m256i ef = _mm256_hadd_epi32(fold512(p[4]), fold512(p[5]));
-    __m256i gh = _mm256_hadd_epi32(fold512(p[6]), fold512(p[7]));
-    __m256i abcd = _mm256_hadd_epi32(ab, cd); /* a b c d | a b c d (halves) */
-    __m256i efgh = _mm256_hadd_epi32(ef, gh);
-    __m256i lo = _mm256_permute2x128_si256(abcd, efgh, 0x20);
-    __m256i hi = _mm256_permute2x128_si256(abcd, efgh, 0x31);
-    return _mm256_add_epi32(lo, hi); /* a b c d e f g h */
+    /* interleave and add: each step halves the partial sums per vector */
+    __m512i a =
+        _mm512_add_epi32(_mm512_unpacklo_epi32(p[0], p[1]), _mm512_unpackhi_epi32(p[0], p[1]));
+    __m512i b =
+        _mm512_add_epi32(_mm512_unpacklo_epi32(p[2], p[3]), _mm512_unpackhi_epi32(p[2], p[3]));
+    __m512i c =
+        _mm512_add_epi32(_mm512_unpacklo_epi32(p[4], p[5]), _mm512_unpackhi_epi32(p[4], p[5]));
+    __m512i d =
+        _mm512_add_epi32(_mm512_unpacklo_epi32(p[6], p[7]), _mm512_unpackhi_epi32(p[6], p[7]));
+    __m512i ab = _mm512_add_epi32(_mm512_unpacklo_epi64(a, b), _mm512_unpackhi_epi64(a, b));
+    __m512i cd = _mm512_add_epi32(_mm512_unpacklo_epi64(c, d), _mm512_unpackhi_epi64(c, d));
+    /* each 128-bit chunk of ab holds partial sums of 0 1 2 3, of cd 4 5 6 7 */
+    __m512i x =
+        _mm512_add_epi32(_mm512_shuffle_i32x4(ab, cd, 0x88), _mm512_shuffle_i32x4(ab, cd, 0xDD));
+    /* x chunks: 0123 0123 4567 4567 */
+    __m512i y =
+        _mm512_add_epi32(_mm512_shuffle_i32x4(x, x, 0x08), _mm512_shuffle_i32x4(x, x, 0x0D));
+    return _mm512_castsi512_si256(y); /* 0 1 2 3 4 5 6 7 */
 }
 
-static inline AVX512 __m512i term52_512(__m256i s, __m256i mul, __m256i k)
+static inline AVX512 __m512i mul64_512(__m256i s, __m256i mul)
+{
+    return _mm512_mul_epi32(_mm512_cvtepi32_epi64(s), _mm512_cvtepi32_epi64(mul));
+}
+
+static inline AVX512 __m512i term52v_512(__m512i v, __m256i k)
 {
     const __m512i zero = _mm512_setzero_si512();
     const __m512i lim = _mm512_set1_epi64(ZT_KERN_LIM52);
     const __m512i nlim = _mm512_set1_epi64(-ZT_KERN_LIM52);
-    __m512i v = _mm512_mul_epi32(_mm512_cvtepi32_epi64(s), _mm512_cvtepi32_epi64(mul));
     __m512i kk = _mm512_cvtepi32_epi64(k);
     /* k <= 0: arithmetic shift right by min(-k, 63) is floor(v / 2^-k) */
     __m512i n = _mm512_min_epi64(_mm512_sub_epi64(zero, kk), _mm512_set1_epi64(63));
@@ -214,6 +238,11 @@ static inline AVX512 __m512i term52_512(__m256i s, __m256i mul, __m256i k)
     left = _mm512_mask_mov_epi64(left, sat, _mm512_mask_mov_epi64(lim, neg, nlim));
     __m512i r = _mm512_mask_mov_epi64(right, _mm512_cmpgt_epi64_mask(kk, zero), left);
     return _mm512_max_epi64(_mm512_min_epi64(r, lim), nlim);
+}
+
+static inline AVX512 __m512i term52_512(__m256i s, __m256i mul, __m256i k)
+{
+    return term52v_512(mul64_512(s, mul), k);
 }
 
 static AVX512 zt_fx dot_raw_512(const uint8_t *row, const int16_t *a, const uint8_t *ash,
@@ -270,8 +299,250 @@ static AVX512 zt_fx dot_q8_512(const zt_q8_t *w, const int16_t *a, const uint8_t
     return zt_kern_round(t);
 }
 
-static const zt_kern_t K_AVX2 = {"avx2", dot_raw_avx2, dot_q8_avx2, 0, 0};
-static const zt_kern_t K_AVX512 = {"avx512", dot_raw_512, dot_q8_512, 0, 0};
+/* ---- K-quant rows in place (zt_kern.h zt_dot_q4k_c / zt_dot_q6k_c) ---- */
+
+/* One Q4_K block's scale terms for its 8 sub-blocks: sc * d.mm with
+ * k = d.e + 16 + ash, and mn * dmin.mm with dmin.e + 16 + ash. */
+static inline AVX2 void q4k_params_avx2(const uint8_t *blk, const uint8_t *ash, __m256i *ms,
+                                        __m256i *ks, __m256i *mt, __m256i *kt)
+{
+    int32_t dm, de, mm, me;
+    zt_kern_f16(ld16(blk), &dm, &de);
+    zt_kern_f16(ld16(blk + 2), &mm, &me);
+    /* zt_kern_q4k_scales on lanes: v = d|dmin, u0, u1, u2 (the 12 scale bytes) */
+    __m128i v = _mm_loadu_si128((const __m128i *) blk);
+    __m128i A = _mm_shuffle_epi32(v, 0xED); /* u0 u2 u1 u2 */
+    __m128i B = _mm_shuffle_epi32(v, 0xA5); /* u0 u0 u1 u1 */
+    __m128i even = _mm_and_si128(A, _mm_set1_epi32(0x3f3f3f3f));
+    __m128i odd = _mm_or_si128(
+        _mm_and_si128(_mm_srlv_epi32(A, _mm_setr_epi32(0, 0, 0, 4)), _mm_set1_epi32(0x0f0f0f0f)),
+        _mm_slli_epi32(_mm_and_si128(_mm_srli_epi32(B, 6), _mm_set1_epi32(0x03030303)), 4));
+    __m128i sm = _mm_blend_epi32(even, odd, 0xA); /* sc[0..7] mn[0..7] */
+    __m256i sh = _mm256_cvtepu8_epi32(_mm_loadl_epi64((const __m128i *) ash));
+    *ms = _mm256_mullo_epi32(_mm256_cvtepu8_epi32(sm), _mm256_set1_epi32(dm));
+    *mt = _mm256_mullo_epi32(_mm256_cvtepu8_epi32(_mm_srli_si128(sm, 8)), _mm256_set1_epi32(mm));
+    *ks = _mm256_add_epi32(sh, _mm256_set1_epi32(de + 16));
+    *kt = _mm256_add_epi32(sh, _mm256_set1_epi32(me + 16));
+}
+
+/* Q6_K: per sub-block j, the two scales times d.mm and k = d.e + 16 + ash. */
+static inline void q6k_params(const uint8_t *blk, const uint8_t *ash, int32_t m0[8], int32_t m1[8],
+                              int32_t ks[8])
+{
+    int32_t dm, de;
+    zt_kern_f16(ld16(blk + 208), &dm, &de);
+    const int8_t *sc = (const int8_t *) (blk + 192);
+    for (uint32_t j = 0; j < 8; j++) {
+        m0[j] = sc[2 * j] * dm;
+        m1[j] = sc[2 * j + 1] * dm;
+        ks[j] = de + 16 + ash[j];
+    }
+}
+
+/* the 4 x 32 signed 6-bit weights of Q6_K half h (sub-blocks 4h..4h+3), as
+ * int8. 16-bit shifts may carry bits across bytes; the masks drop them. */
+static inline AVX2 void q6k_bytes_avx2(const uint8_t *blk, uint32_t h, __m256i q[4])
+{
+    __m256i l0 = _mm256_loadu_si256((const __m256i *) (blk + h * 64));
+    __m256i l1 = _mm256_loadu_si256((const __m256i *) (blk + h * 64 + 32));
+    __m256i hb = _mm256_loadu_si256((const __m256i *) (blk + 128 + h * 32));
+    const __m256i m4 = _mm256_set1_epi8(0x0F), m30 = _mm256_set1_epi8(0x30),
+                  o = _mm256_set1_epi8(32);
+    q[0] =
+        _mm256_or_si256(_mm256_and_si256(l0, m4), _mm256_and_si256(_mm256_slli_epi16(hb, 4), m30));
+    q[1] =
+        _mm256_or_si256(_mm256_and_si256(l1, m4), _mm256_and_si256(_mm256_slli_epi16(hb, 2), m30));
+    q[2] =
+        _mm256_or_si256(_mm256_and_si256(_mm256_srli_epi16(l0, 4), m4), _mm256_and_si256(hb, m30));
+    q[3] = _mm256_or_si256(_mm256_and_si256(_mm256_srli_epi16(l1, 4), m4),
+                           _mm256_and_si256(_mm256_srli_epi16(hb, 2), m30));
+    for (uint32_t i = 0; i < 4; i++) q[i] = _mm256_sub_epi8(q[i], o);
+}
+
+static AVX2 zt_fx dot_q4k_avx2(const uint8_t *row, const int16_t *a, const uint8_t *ash,
+                               const int32_t *asum, uint32_t nb)
+{
+    const __m256i m4 = _mm256_set1_epi16(0x0F);
+    __m256i acc = _mm256_setzero_si256();
+    for (uint32_t k = 0; k < nb / 8; k++, row += ZT_Q4K_BYTES) {
+        _mm_prefetch((const char *) row + PF_AHEAD, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 64, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 128, _MM_HINT_T0);
+        const int16_t *x = a + k * 256;
+        __m256i ps[8];
+        for (uint32_t p = 0; p < 4; p++) {
+            const uint8_t *qp = row + 16 + 32 * p;
+            __m256i w0 = _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *) qp));
+            __m256i w1 = _mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i *) (qp + 16)));
+            const int16_t *xp = x + 64 * p;
+            /* low nibbles: sub-block 2p; high nibbles: 2p + 1 */
+            ps[2 * p] = _mm256_add_epi32(
+                _mm256_madd_epi16(_mm256_and_si256(w0, m4),
+                                  _mm256_loadu_si256((const __m256i *) xp)),
+                _mm256_madd_epi16(_mm256_and_si256(w1, m4),
+                                  _mm256_loadu_si256((const __m256i *) (xp + 16))));
+            ps[2 * p + 1] = _mm256_add_epi32(
+                _mm256_madd_epi16(_mm256_srli_epi16(w0, 4),
+                                  _mm256_loadu_si256((const __m256i *) (xp + 32))),
+                _mm256_madd_epi16(_mm256_srli_epi16(w1, 4),
+                                  _mm256_loadu_si256((const __m256i *) (xp + 48))));
+        }
+        __m256i ms, ks, mt, kt;
+        q4k_params_avx2(row, ash + k * 8, &ms, &ks, &mt, &kt);
+        __m256i t = _mm256_loadu_si256((const __m256i *) (asum + k * 8));
+        __m128i s0 = hsum4_avx2(ps[0], ps[1], ps[2], ps[3]);
+        __m128i s1 = hsum4_avx2(ps[4], ps[5], ps[6], ps[7]);
+        acc = _mm256_add_epi64(
+            acc, term52_avx2(s0, _mm256_castsi256_si128(ms), _mm256_castsi256_si128(ks)));
+        acc = _mm256_add_epi64(
+            acc, term52_avx2(s1, _mm256_extracti128_si256(ms, 1), _mm256_extracti128_si256(ks, 1)));
+        acc =
+            _mm256_sub_epi64(acc, term52_avx2(_mm256_castsi256_si128(t), _mm256_castsi256_si128(mt),
+                                              _mm256_castsi256_si128(kt)));
+        acc = _mm256_sub_epi64(acc, term52_avx2(_mm256_extracti128_si256(t, 1),
+                                                _mm256_extracti128_si256(mt, 1),
+                                                _mm256_extracti128_si256(kt, 1)));
+    }
+    return zt_kern_round(hsum64_avx2(acc));
+}
+
+static AVX2 zt_fx dot_q6k_avx2(const uint8_t *row, const int16_t *a, const uint8_t *ash,
+                               const int32_t *asum, uint32_t nb)
+{
+    (void) asum;
+    __m256i acc = _mm256_setzero_si256();
+    for (uint32_t k = 0; k < nb / 8; k++, row += ZT_Q6K_BYTES) {
+        _mm_prefetch((const char *) row + PF_AHEAD, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 64, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 128, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 192, _MM_HINT_T0);
+        const int16_t *x = a + k * 256;
+        __m256i p0[8], p1[8];
+        __m256i qb[8];
+        q6k_bytes_avx2(row, 0, qb);
+        q6k_bytes_avx2(row, 1, qb + 4);
+        for (uint32_t j = 0; j < 8; j++) {
+            __m256i q = qb[j];
+            __m256i w0 = _mm256_cvtepi8_epi16(_mm256_castsi256_si128(q));
+            __m256i w1 = _mm256_cvtepi8_epi16(_mm256_extracti128_si256(q, 1));
+            p0[j] = _mm256_madd_epi16(w0, _mm256_loadu_si256((const __m256i *) (x + 32 * j)));
+            p1[j] = _mm256_madd_epi16(w1, _mm256_loadu_si256((const __m256i *) (x + 32 * j + 16)));
+        }
+        int32_t m0[8], m1[8], ks[8];
+        q6k_params(row, ash + k * 8, m0, m1, ks);
+        for (uint32_t h = 0; h < 2; h++) {
+            __m128i s0 = hsum4_avx2(p0[4 * h], p0[4 * h + 1], p0[4 * h + 2], p0[4 * h + 3]);
+            __m128i s1 = hsum4_avx2(p1[4 * h], p1[4 * h + 1], p1[4 * h + 2], p1[4 * h + 3]);
+            __m256i v =
+                _mm256_add_epi64(mul64_avx2(s0, _mm_loadu_si128((const __m128i *) (m0 + 4 * h))),
+                                 mul64_avx2(s1, _mm_loadu_si128((const __m128i *) (m1 + 4 * h))));
+            acc = _mm256_add_epi64(
+                acc, term52v_avx2(v, _mm_loadu_si128((const __m128i *) (ks + 4 * h))));
+        }
+    }
+    return zt_kern_round(hsum64_avx2(acc));
+}
+
+static AVX512 zt_fx dot_q4k_512(const uint8_t *row, const int16_t *a, const uint8_t *ash,
+                                const int32_t *asum, uint32_t nb)
+{
+    const __m512i m4 = _mm512_set1_epi16(0x0F);
+    __m512i acc = _mm512_setzero_si512();
+    for (uint32_t k = 0; k < nb / 8; k++, row += ZT_Q4K_BYTES) {
+        _mm_prefetch((const char *) row + PF_AHEAD, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 64, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 128, _MM_HINT_T0);
+        const int16_t *x = a + k * 256;
+        __m512i ps[8];
+        for (uint32_t p = 0; p < 4; p++) {
+            __m512i w =
+                _mm512_cvtepu8_epi16(_mm256_loadu_si256((const __m256i *) (row + 16 + 32 * p)));
+            ps[2 * p] = _mm512_madd_epi16(_mm512_and_si512(w, m4),
+                                          _mm512_loadu_si512((const void *) (x + 64 * p)));
+            ps[2 * p + 1] = _mm512_madd_epi16(_mm512_srli_epi16(w, 4),
+                                              _mm512_loadu_si512((const void *) (x + 64 * p + 32)));
+        }
+        __m256i ms, ks, mt, kt;
+        q4k_params_avx2(row, ash + k * 8, &ms, &ks, &mt, &kt);
+        __m256i t = _mm256_loadu_si256((const __m256i *) (asum + k * 8));
+        acc = _mm512_add_epi64(acc, term52_512(hsum8_512(ps), ms, ks));
+        acc = _mm512_sub_epi64(acc, term52_512(t, mt, kt));
+    }
+    return zt_kern_round(_mm512_reduce_add_epi64(acc));
+}
+
+/* as hsum8_512, stopping one step early: the sums of lanes 0..7 of each
+ * vector, then of lanes 8..15 */
+static inline AVX512 __m512i hsum8x2_512(const __m512i p[8])
+{
+    __m512i a =
+        _mm512_add_epi32(_mm512_unpacklo_epi32(p[0], p[1]), _mm512_unpackhi_epi32(p[0], p[1]));
+    __m512i b =
+        _mm512_add_epi32(_mm512_unpacklo_epi32(p[2], p[3]), _mm512_unpackhi_epi32(p[2], p[3]));
+    __m512i c =
+        _mm512_add_epi32(_mm512_unpacklo_epi32(p[4], p[5]), _mm512_unpackhi_epi32(p[4], p[5]));
+    __m512i d =
+        _mm512_add_epi32(_mm512_unpacklo_epi32(p[6], p[7]), _mm512_unpackhi_epi32(p[6], p[7]));
+    __m512i ab = _mm512_add_epi32(_mm512_unpacklo_epi64(a, b), _mm512_unpackhi_epi64(a, b));
+    __m512i cd = _mm512_add_epi32(_mm512_unpacklo_epi64(c, d), _mm512_unpackhi_epi64(c, d));
+    __m512i x =
+        _mm512_add_epi32(_mm512_shuffle_i32x4(ab, cd, 0x88), _mm512_shuffle_i32x4(ab, cd, 0xDD));
+    return _mm512_shuffle_i32x4(x, x, 0xD8); /* lo 0..7 | hi 0..7 */
+}
+
+static AVX512 zt_fx dot_q6k_512(const uint8_t *row, const int16_t *a, const uint8_t *ash,
+                                const int32_t *asum, uint32_t nb)
+{
+    (void) asum;
+    const __m512i m4 = _mm512_set1_epi16(0x0F), m30 = _mm512_set1_epi16(0x30);
+    const __m512i o = _mm512_set1_epi16(32);
+    const __m512i eo = _mm512_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15);
+    __m512i acc = _mm512_setzero_si512();
+    for (uint32_t k = 0; k < nb / 8; k++, row += ZT_Q6K_BYTES) {
+        _mm_prefetch((const char *) row + PF_AHEAD, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 64, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 128, _MM_HINT_T0);
+        _mm_prefetch((const char *) row + PF_AHEAD + 192, _MM_HINT_T0);
+        const int16_t *x = a + k * 256;
+        __m512i p[8];
+        for (uint32_t h = 0; h < 2; h++) {
+            __m512i l0 = _mm512_cvtepu8_epi16(_mm256_loadu_si256((const __m256i *) (row + h * 64)));
+            __m512i l1 =
+                _mm512_cvtepu8_epi16(_mm256_loadu_si256((const __m256i *) (row + h * 64 + 32)));
+            __m512i hb =
+                _mm512_cvtepu8_epi16(_mm256_loadu_si256((const __m256i *) (row + 128 + h * 32)));
+            __m512i q[4] = {_mm512_or_si512(_mm512_and_si512(l0, m4),
+                                            _mm512_and_si512(_mm512_slli_epi16(hb, 4), m30)),
+                            _mm512_or_si512(_mm512_and_si512(l1, m4),
+                                            _mm512_and_si512(_mm512_slli_epi16(hb, 2), m30)),
+                            _mm512_or_si512(_mm512_srli_epi16(l0, 4), _mm512_and_si512(hb, m30)),
+                            _mm512_or_si512(_mm512_srli_epi16(l1, 4),
+                                            _mm512_and_si512(_mm512_srli_epi16(hb, 2), m30))};
+            for (uint32_t u = 0; u < 4; u++)
+                p[4 * h + u] =
+                    _mm512_madd_epi16(_mm512_sub_epi16(q[u], o),
+                                      _mm512_loadu_si512((const void *) (x + 32 * (4 * h + u))));
+        }
+        int32_t dm, de;
+        zt_kern_f16(ld16(row + 208), &dm, &de);
+        __m512i sc = _mm512_cvtepi8_epi32(_mm_loadu_si128((const __m128i *) (row + 192)));
+        sc = _mm512_permutexvar_epi32(eo, _mm512_mullo_epi32(sc, _mm512_set1_epi32(dm)));
+        __m512i hs = hsum8x2_512(p); /* weights 0..15 of each sub-block, then 16..31 */
+        __m512i v = _mm512_add_epi64(
+            mul64_512(_mm512_castsi512_si256(hs), _mm512_castsi512_si256(sc)),
+            mul64_512(_mm512_extracti64x4_epi64(hs, 1), _mm512_extracti64x4_epi64(sc, 1)));
+        __m256i ks =
+            _mm256_add_epi32(_mm256_cvtepu8_epi32(_mm_loadl_epi64((const __m128i *) (ash + k * 8))),
+                             _mm256_set1_epi32(de + 16));
+        acc = _mm512_add_epi64(acc, term52v_512(v, ks));
+    }
+    return zt_kern_round(_mm512_reduce_add_epi64(acc));
+}
+
+static const zt_kern_t K_AVX2 = {"avx2", dot_raw_avx2, dot_q8_avx2, 0,
+                                 0,      dot_q4k_avx2, dot_q6k_avx2};
+static const zt_kern_t K_AVX512 = {"avx512", dot_raw_512, dot_q8_512, 0,
+                                   0,        dot_q4k_512, dot_q6k_512};
 
 const zt_kern_t *zt_simd_x86_avx2(void)
 {

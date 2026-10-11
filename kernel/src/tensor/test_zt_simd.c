@@ -8,6 +8,9 @@
  *      whole int32 range, every shift that reaches term52's saturation and
  *      floor paths, and row lengths that exercise every tail (1..80 blocks,
  *      plus 280 and 1024);
+ *   1b. the Q4_K and Q6_K dot products (GGUF K-quant rows used in place) the
+ *      same way, and the C reference against exact math: ggml's own
+ *      dequantization, transcribed here, summed in 128-bit integers;
  *   2. the thread pool: every row computed exactly once for 2..8 threads;
  *   3. whole forward passes of the three fixture models (test_model_fixture.h)
  *      through each kernel set, alone and threaded: all logits identical.
@@ -249,6 +252,251 @@ static void test_dots(const zt_kern_t *k)
           k->name, (unsigned long long) s3.rows, (unsigned long long) s3.sat);
 }
 
+/* ---- 1b. K-quant rows (GGUF Q4_K / Q6_K used in place) ---- */
+
+typedef struct {
+    uint32_t nb;      /* activation blocks (8 per K-quant block) */
+    uint8_t *q4, *q6; /* nb / 8 blocks of ZT_Q4K_BYTES / ZT_Q6K_BYTES */
+    int16_t *a;
+    uint8_t *ash;
+    int32_t *asum;
+} krow_t;
+
+static void krow_alloc(krow_t *r, uint32_t nkb)
+{
+    r->nb = nkb * 8;
+    r->q4 = malloc((size_t) nkb * ZT_Q4K_BYTES);
+    r->q6 = malloc((size_t) nkb * ZT_Q6K_BYTES);
+    r->a = malloc((size_t) r->nb * 32 * 2);
+    r->ash = malloc(r->nb);
+    r->asum = malloc((size_t) r->nb * 4);
+}
+
+static void krow_free(krow_t *r)
+{
+    free(r->q4);
+    free(r->q6);
+    free(r->a);
+    free(r->ash);
+    free(r->asum);
+}
+
+static uint8_t qbyte(uint32_t mode)
+{
+    return mode == 1 ? 0xFF : mode == 2 ? 0x00 : (uint8_t) rnd();
+}
+
+/* f16val, or (model) finite normal scales of model-like size, 2^-23..2^-7
+ * (real Q4_K/Q6_K scales are about 1e-4 to 1e-2) */
+static uint16_t kf16(uint32_t model)
+{
+    return model ? (uint16_t) ((rnd() & 0x8000) | ((uint32_t) (2 + below(7)) << 10) | below(0x400))
+                 : f16val();
+}
+
+/* qmode: 0 random, 1 all bits set, 2 all clear; model: model-like scales and
+ * activations (no saturation), as the exact check below needs */
+static void kfill(krow_t *r, uint32_t qmode, uint32_t xmode, uint32_t shmode, uint32_t model)
+{
+    for (uint32_t k = 0; k < r->nb / 8; k++) {
+        uint8_t *b4 = r->q4 + (size_t) k * ZT_Q4K_BYTES, *b6 = r->q6 + (size_t) k * ZT_Q6K_BYTES;
+        uint16_t d = kf16(model), dmin = kf16(model), d6 = kf16(model);
+        b4[0] = (uint8_t) d, b4[1] = (uint8_t) (d >> 8);
+        b4[2] = (uint8_t) dmin, b4[3] = (uint8_t) (dmin >> 8);
+        for (uint32_t i = 4; i < 16; i++) b4[i] = qmode == 1 ? 0xFF : (uint8_t) rnd();
+        for (uint32_t i = 16; i < ZT_Q4K_BYTES; i++) b4[i] = qbyte(qmode);
+        for (uint32_t i = 0; i < 192; i++) b6[i] = qbyte(qmode);
+        for (uint32_t i = 192; i < 208; i++)
+            b6[i] = qmode == 1 ? (uint8_t) (rnd() & 1 ? 0x7F : 0x80) : (uint8_t) rnd();
+        b6[208] = (uint8_t) d6, b6[209] = (uint8_t) (d6 >> 8);
+    }
+    for (uint32_t b = 0; b < r->nb; b++) {
+        r->ash[b] = (uint8_t) (shmode == 1 ? below(256) : below(model ? 6 : 18));
+        int32_t sum = 0;
+        for (uint32_t i = 0; i < 32; i++) {
+            int16_t x = model ? (int16_t) ((int) below(65535) - 32767) : xval(xmode, 1);
+            r->a[b * 32 + i] = x;
+            sum += x;
+        }
+        r->asum[b] = sum;
+    }
+}
+
+typedef struct {
+    uint64_t rows, mism4, mism6;
+} kstat_t;
+
+static void kcmp_row(const zt_kern_t *k, const krow_t *r, kstat_t *st)
+{
+    zt_fx c4 = zt_dot_q4k_c(r->q4, r->a, r->ash, r->asum, r->nb);
+    zt_fx s4 = k->dot_q4k(r->q4, r->a, r->ash, r->asum, r->nb);
+    zt_fx c6 = zt_dot_q6k_c(r->q6, r->a, r->ash, r->asum, r->nb);
+    zt_fx s6 = k->dot_q6k(r->q6, r->a, r->ash, r->asum, r->nb);
+    st->rows++;
+    if (c4 != s4 && st->mism4++ < 4)
+        printf("  q4k mismatch nb=%u: C %d, %s %d\n", r->nb, c4, k->name, s4);
+    if (c6 != s6 && st->mism6++ < 4)
+        printf("  q6k mismatch nb=%u: C %d, %s %d\n", r->nb, c6, k->name, s6);
+}
+
+static void test_kdots(const zt_kern_t *k)
+{
+    static const uint32_t lens[] = {1, 2, 3, 6, 35}; /* K-quant blocks: 256 .. 8960 values */
+    kstat_t st = {0, 0, 0};
+    krow_t r;
+    for (uint32_t t = 0; t < 3000; t++) {
+        krow_alloc(&r, 1 + below(8));
+        kfill(&r, below(3), below(5), below(2), 0);
+        kcmp_row(k, &r, &st);
+        krow_free(&r);
+    }
+    for (uint32_t li = 0; li < sizeof lens / sizeof lens[0]; li++)
+        for (uint32_t qm = 0; qm < 3; qm++)
+            for (uint32_t xm = 0; xm < 5; xm++)
+                for (uint32_t sm = 0; sm < 2; sm++) {
+                    krow_alloc(&r, lens[li]);
+                    kfill(&r, qm, xm, sm, 0);
+                    kcmp_row(k, &r, &st);
+                    krow_free(&r);
+                }
+    /* every activation shift from 0 to 255 (term52's floor, exact and saturating paths) */
+    for (uint32_t kk = 0; kk < 256; kk++) {
+        krow_alloc(&r, 2);
+        kfill(&r, kk % 3, 1, 0, 0);
+        for (uint32_t b = 0; b < r.nb; b++) r.ash[b] = (uint8_t) kk;
+        kcmp_row(k, &r, &st);
+        krow_free(&r);
+    }
+    CHECK(st.mism4 == 0 && st.mism6 == 0,
+          "%s: Q4_K and Q6_K dot products == C on %llu rows (random, all-ones and all-zero "
+          "quants, every f16 class, activation shifts 0..255; %llu / %llu mismatches)",
+          k->name, (unsigned long long) st.rows, (unsigned long long) st.mism4,
+          (unsigned long long) st.mism6);
+}
+
+/* ggml's own dequantization (ggml-quants.c dequantize_row_q4_K / _q6_K),
+ * transcribed independently of zt_kern.h, as integers: weight i of block k is
+ * wd[i] * d - wm[i] * dmin (Q4_K) or wd[i] * d (Q6_K, wm = 0). */
+static void ggml_q4k_ints(const uint8_t *blk, int32_t wd[256], int32_t wm[256])
+{
+    const uint8_t *sc = blk + 4, *q = blk + 16;
+    int is = 0;
+    for (int j = 0; j < 256; j += 64, q += 32, is += 2) {
+        int s1, m1, s2, m2;
+        for (int h = 0; h < 2; h++) {
+            int jj = is + h, sv, mv;
+            if (jj < 4) {
+                sv = sc[jj] & 63;
+                mv = sc[jj + 4] & 63;
+            } else {
+                sv = (sc[jj + 4] & 0xF) | ((sc[jj - 4] >> 6) << 4);
+                mv = (sc[jj + 4] >> 4) | ((sc[jj] >> 6) << 4);
+            }
+            if (h)
+                s2 = sv, m2 = mv;
+            else
+                s1 = sv, m1 = mv;
+        }
+        for (int l = 0; l < 32; l++) {
+            wd[j + l] = s1 * (q[l] & 0xF), wm[j + l] = m1;
+            wd[j + 32 + l] = s2 * (q[l] >> 4), wm[j + 32 + l] = m2;
+        }
+    }
+}
+
+static void ggml_q6k_ints(const uint8_t *blk, int32_t wd[256])
+{
+    const uint8_t *ql = blk, *qh = blk + 128;
+    const int8_t *sc = (const int8_t *) (blk + 192);
+    for (int n = 0; n < 256; n += 128, ql += 64, qh += 32, sc += 8)
+        for (int l = 0; l < 32; l++) {
+            int is = l / 16;
+            int q1 = ((ql[l] & 0xF) | (((qh[l] >> 0) & 3) << 4)) - 32;
+            int q2 = ((ql[l + 32] & 0xF) | (((qh[l] >> 2) & 3) << 4)) - 32;
+            int q3 = ((ql[l] >> 4) | (((qh[l] >> 4) & 3) << 4)) - 32;
+            int q4 = ((ql[l + 32] >> 4) | (((qh[l] >> 6) & 3) << 4)) - 32;
+            wd[n + l] = sc[is] * q1;
+            wd[n + l + 32] = sc[is + 2] * q2;
+            wd[n + l + 64] = sc[is + 4] * q3;
+            wd[n + l + 96] = sc[is + 6] * q4;
+        }
+}
+
+/* f16 as mm * 2^e, decoded here without zt_kern_f16 (finite normals only) */
+static void f16_norm(uint16_t h, int32_t *mm, int32_t *e)
+{
+    int32_t m = (h & 0x3FF) | 0x400;
+    *e = (int32_t) ((h >> 10) & 31) - 25;
+    *mm = (h & 0x8000) ? -m : m;
+}
+
+/* The exact dot product of one row times 2^24 (Q32 times 2^8), and the number
+ * of term52 floors the C reference takes. Model-like rows keep every
+ * exponent at or above -8, so the sum is an exact integer, and every term
+ * below 2^46 Q32 units, so term52 never saturates. */
+typedef __int128 i128;
+static i128 kexact(const uint8_t *row, uint32_t is6, const krow_t *r, uint32_t *nterms)
+{
+    i128 tot = 0;
+    *nterms = 0;
+    for (uint32_t k = 0; k < r->nb / 8; k++) {
+        const uint8_t *blk = row + (size_t) k * (is6 ? ZT_Q6K_BYTES : ZT_Q4K_BYTES);
+        int32_t wd[256], wm[256] = {0}, dm, de, mm = 0, me = 0;
+        if (is6) {
+            ggml_q6k_ints(blk, wd);
+            f16_norm((uint16_t) (blk[208] | (blk[209] << 8)), &dm, &de);
+        } else {
+            ggml_q4k_ints(blk, wd, wm);
+            f16_norm((uint16_t) (blk[0] | (blk[1] << 8)), &dm, &de);
+            f16_norm((uint16_t) (blk[2] | (blk[3] << 8)), &mm, &me);
+        }
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t b = k * 8 + i / 32;
+            i128 x = r->a[k * 256 + i];
+            /* weight * act in Q32 * 2^8: wd dm 2^(de + 16 + ash + 8), likewise for the min */
+            tot += x * wd[i] * dm * ((i128) 1 << (de + 24 + r->ash[b]));
+            tot -= x * wm[i] * mm * ((i128) 1 << (me + 24 + r->ash[b]));
+        }
+        *nterms += is6 ? 8 : 16;
+    }
+    return tot;
+}
+
+static void test_kexact(void)
+{
+    krow_t r;
+    uint64_t rows = 0, bad4 = 0, bad6 = 0;
+    i128 worst4 = 0, worst6 = 0;
+    for (uint32_t t = 0; t < 400; t++) {
+        krow_alloc(&r, 1 + below(6));
+        kfill(&r, below(3), 3, 0, 1);
+        for (uint32_t is6 = 0; is6 < 2; is6++) {
+            uint32_t nt;
+            i128 ex = kexact(is6 ? r.q6 : r.q4, is6, &r, &nt);
+            zt_fx c = is6 ? zt_dot_q6k_c(r.q6, r.a, r.ash, r.asum, r.nb)
+                          : zt_dot_q4k_c(r.q4, r.a, r.ash, r.asum, r.nb);
+            i128 err = (i128) c * (1 << 24) - ex;
+            if (err < 0) err = -err;
+            /* rounding to Q16 (2^15 Q32) plus one Q32 unit per floored term */
+            int ok = c != INT32_MAX && c != INT32_MIN && err <= (i128) (32768 + nt) * 256;
+            if (is6) {
+                bad6 += !ok;
+                if (err > worst6) worst6 = err;
+            } else {
+                bad4 += !ok;
+                if (err > worst4) worst4 = err;
+            }
+        }
+        rows++;
+        krow_free(&r);
+    }
+    CHECK(bad4 == 0 && bad6 == 0,
+          "C Q4_K / Q6_K dot products == exact math (ggml's own dequantization, 128-bit "
+          "integers) to within Q16 rounding plus one Q32 unit per term on %llu model-like rows "
+          "(worst error %.4f / %.4f Q16 units)",
+          (unsigned long long) rows, (double) worst4 / (1 << 24), (double) worst6 / (1 << 24));
+}
+
 /* ---- 2. thread pool ---- */
 
 typedef struct {
@@ -456,7 +704,9 @@ int main(int argc, char **argv)
         if (!ks[i]->dot_raw) continue;
         simd++;
         test_dots(ks[i]);
+        if (ks[i]->dot_q4k && ks[i]->dot_q6k) test_kdots(ks[i]);
     }
+    test_kexact();
     test_pool();
     test_models(ks, nk);
     if (argc > 1 && !strcmp(argv[1], "bench")) bench(ks, nk);
