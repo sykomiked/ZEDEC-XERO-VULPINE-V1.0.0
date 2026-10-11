@@ -175,6 +175,26 @@ static inline int64x2_t term52v_neon(int64x2_t v, int32x2_t k)
     return vbslq_s64(vcltq_s64(v, nlim), nlim, v);
 }
 
+/* term52_neon without the saturation, for callers that have proved
+ * |s * mul| << k stays under 2^52: a shift by a signed count (left, or a
+ * floor right shift) is then exactly zt_term52 */
+static inline int64x2_t term52s_neon(int32x4_t s, int32x4_t mul, int32x4_t k)
+{
+    k = vmaxq_s32(k, vdupq_n_s32(-64));
+    int64x2_t lo =
+        vshlq_s64(vmull_s32(vget_low_s32(s), vget_low_s32(mul)), vmovl_s32(vget_low_s32(k)));
+    int64x2_t hi = vshlq_s64(vmull_high_s32(s, mul), vmovl_high_s32(k));
+    return vaddq_s64(lo, hi);
+}
+
+/* Unsaturated shifts are exact when the largest count is at most these:
+ * Q4_K |s| < 2^24 (32 weights 0..15 by |a16| <= 2^15) and |sc * d.mm| < 2^17,
+ * |asum| < 2^20 and |m * dmin.mm| < 2^17, so every product is under 2^41;
+ * Q6_K two products of |s| < 2^24 (16 weights -32..31) by |sc * d.mm| < 2^18
+ * are under 2^43. */
+#    define Q4K_FAST_K 11
+#    define Q6K_FAST_K 9
+
 static zt_fx dot_q4k_neon(const uint8_t *row, const int16_t *a, const uint8_t *ash,
                           const int32_t *asum, uint32_t nb)
 {
@@ -183,7 +203,8 @@ static zt_fx dot_q4k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
     for (uint32_t k = 0; k < nb / 8; k++, row += ZT_Q4K_BYTES) {
         const int16_t *x = a + k * 256;
         int32x4_t ps[8];
-        for (uint32_t p = 0; p < 4; p++) {
+        _Pragma("GCC unroll 4") for (uint32_t p = 0; p < 4; p++)
+        {
             uint8x16_t b0 = vld1q_u8(row + 16 + 32 * p), b1 = vld1q_u8(row + 32 + 32 * p);
             ps[2 * p] = mac_neon_v(vreinterpretq_s8_u8(vandq_u8(b0, m4)),
                                    vreinterpretq_s8_u8(vandq_u8(b1, m4)), x + 64 * p);
@@ -193,10 +214,21 @@ static zt_fx dot_q4k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
         int32_t dm, de, mm, me;
         zt_kern_f16(ld16(row), &dm, &de);
         zt_kern_f16(ld16(row + 2), &mm, &me);
-        uint8_t sm[16];
-        zt_kern_q4k_scales(row + 4, sm);
-        uint8x16_t smv = vld1q_u8(sm);
-        uint16x8_t sc16 = vmovl_u8(vget_low_u8(smv)), mn16 = vmovl_high_u8(smv);
+        /* zt_kern_q4k_scales in registers: bytes p0..p11 at row + 4 give
+         * sc 0..3 = p0..3 & 63, mn 0..3 = p4..7 & 63,
+         * sc 4..7 = (p8..11 & 15) | (p0..3 >> 6) << 4,
+         * mn 4..7 = (p8..11 >> 4) | (p4..7 >> 6) << 4 */
+        uint8x16_t pv = vld1q_u8(row + 4);
+        uint8x8_t x8 = vget_low_u8(pv);
+        uint8x8_t y8 = vreinterpret_u8_u32(vdup_lane_u32(vreinterpret_u32_u8(vget_high_u8(pv)), 0));
+        uint8x8_t z8 = vand_u8(vshl_u8(y8, vcreate_s8(0xFCFCFCFC00000000ull)), vdup_n_u8(15));
+        uint8x8_t L = vand_u8(x8, vdup_n_u8(63));
+        uint8x8_t H = vorr_u8(z8, vshl_n_u8(vshr_n_u8(x8, 6), 4));
+        uint8x8_t scb =
+            vreinterpret_u8_u32(vzip1_u32(vreinterpret_u32_u8(L), vreinterpret_u32_u8(H)));
+        uint8x8_t mnb =
+            vreinterpret_u8_u32(vzip2_u32(vreinterpret_u32_u8(L), vreinterpret_u32_u8(H)));
+        uint16x8_t sc16 = vmovl_u8(scb), mn16 = vmovl_u8(mnb);
         int32x4_t sh0 =
             vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(vmovl_u8(vld1_u8(ash + k * 8)))));
         int32x4_t sh1 = vreinterpretq_s32_u32(vmovl_high_u16(vmovl_u8(vld1_u8(ash + k * 8))));
@@ -204,6 +236,20 @@ static zt_fx dot_q4k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
         int32x4_t de16 = vdupq_n_s32(de + 16), me16 = vdupq_n_s32(me + 16);
         int32x4_t s0 = hsum4_neon(ps[0], ps[1], ps[2], ps[3]);
         int32x4_t s1 = hsum4_neon(ps[4], ps[5], ps[6], ps[7]);
+        int32_t kx = (int32_t) vmaxvq_s32(vmaxq_s32(sh0, sh1)) + (de > me ? de : me) + 16;
+        if (kx <= Q4K_FAST_K) {
+            int32x4_t sc0 = vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(sc16)));
+            int32x4_t sc1 = vreinterpretq_s32_u32(vmovl_high_u16(sc16));
+            int32x4_t mn0 = vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(mn16)));
+            int32x4_t mn1 = vreinterpretq_s32_u32(vmovl_high_u16(mn16));
+            acc = vaddq_s64(acc, term52s_neon(s0, vmulq_s32(sc0, dmv), vaddq_s32(sh0, de16)));
+            acc = vaddq_s64(acc, term52s_neon(s1, vmulq_s32(sc1, dmv), vaddq_s32(sh1, de16)));
+            acc = vsubq_s64(acc, term52s_neon(vld1q_s32(asum + k * 8), vmulq_s32(mn0, mmv),
+                                              vaddq_s32(sh0, me16)));
+            acc = vsubq_s64(acc, term52s_neon(vld1q_s32(asum + k * 8 + 4), vmulq_s32(mn1, mmv),
+                                              vaddq_s32(sh1, me16)));
+            continue;
+        }
         acc = vaddq_s64(
             acc,
             term52_neon(s0, vmulq_s32(vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(sc16))), dmv),
@@ -231,27 +277,6 @@ static zt_fx dot_q6k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
     int64x2_t acc = vdupq_n_s64(0);
     for (uint32_t k = 0; k < nb / 8; k++, row += ZT_Q6K_BYTES) {
         const int16_t *x = a + k * 256;
-        int32x4_t p0[8], p1[8]; /* weights 0..15, 16..31 of each sub-block */
-        for (uint32_t h = 0; h < 2; h++) {
-            for (uint32_t i = 0; i < 2; i++) { /* 16 of the 32 weights of each sub-block */
-                uint8x16_t l0 = vld1q_u8(row + h * 64 + 16 * i);
-                uint8x16_t l1 = vld1q_u8(row + h * 64 + 32 + 16 * i);
-                uint8x16_t hb = vld1q_u8(row + 128 + h * 32 + 16 * i);
-                uint8x16_t q[4] = {vorrq_u8(vandq_u8(l0, m4), vandq_u8(vshlq_n_u8(hb, 4), m30)),
-                                   vorrq_u8(vandq_u8(l1, m4), vandq_u8(vshlq_n_u8(hb, 2), m30)),
-                                   vorrq_u8(vshrq_n_u8(l0, 4), vandq_u8(hb, m30)),
-                                   vorrq_u8(vshrq_n_u8(l1, 4), vandq_u8(vshrq_n_u8(hb, 2), m30))};
-                for (uint32_t u = 0; u < 4; u++) {
-                    uint32_t j = 4 * h + u;
-                    int32x4_t r =
-                        mac16_neon(vreinterpretq_s8_u8(vsubq_u8(q[u], o)), x + 32 * j + 16 * i);
-                    if (i)
-                        p1[j] = r;
-                    else
-                        p0[j] = r;
-                }
-            }
-        }
         int32_t dm, de;
         zt_kern_f16(ld16(row + 208), &dm, &de);
         /* sc[2j] (first 16 weights) and sc[2j + 1], times d.mm */
@@ -265,14 +290,48 @@ static zt_fx dot_q6k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
                            vmulq_s32(vmovl_high_s16(sc0), dmv)};
         int32x4_t m1[2] = {vmulq_s32(vmovl_s16(vget_low_s16(sc1)), dmv),
                            vmulq_s32(vmovl_high_s16(sc1), dmv)};
-        for (uint32_t g = 0; g < 2; g++) {
-            int32x4_t s0 = hsum4_neon(p0[4 * g], p0[4 * g + 1], p0[4 * g + 2], p0[4 * g + 3]);
-            int32x4_t s1 = hsum4_neon(p1[4 * g], p1[4 * g + 1], p1[4 * g + 2], p1[4 * g + 3]);
-            int64x2_t vlo = vmlal_s32(vmull_s32(vget_low_s32(s0), vget_low_s32(m0[g])),
-                                      vget_low_s32(s1), vget_low_s32(m1[g]));
-            int64x2_t vhi = vmlal_high_s32(vmull_high_s32(s0, m0[g]), s1, m1[g]);
-            acc = vaddq_s64(acc, term52v_neon(vlo, vget_low_s32(kv[g])));
-            acc = vaddq_s64(acc, term52v_neon(vhi, vget_high_s32(kv[g])));
+        int fast = (int32_t) vmaxvq_s32(vmaxq_s32(kv[0], kv[1])) <= Q6K_FAST_K;
+        /* half h holds sub-blocks 4h..4h+3: their sums s0 (weights 0..15 of
+         * each) and s1 (16..31) are finished inside the half, so only 8
+         * partial vectors are live at a time */
+        _Pragma("GCC unroll 2") for (uint32_t h = 0; h < 2; h++)
+        {
+            int32x4_t p[2][4];
+            _Pragma("GCC unroll 2") for (uint32_t i = 0; i < 2; i++)
+            {
+                uint8x16_t l0 = vld1q_u8(row + h * 64 + 16 * i);
+                uint8x16_t l1 = vld1q_u8(row + h * 64 + 32 + 16 * i);
+                uint8x16_t hb = vld1q_u8(row + 128 + h * 32 + 16 * i);
+                const int16_t *xi = x + 128 * h + 16 * i;
+                p[i][0] = mac16_neon(
+                    vreinterpretq_s8_u8(
+                        vsubq_u8(vorrq_u8(vandq_u8(l0, m4), vandq_u8(vshlq_n_u8(hb, 4), m30)), o)),
+                    xi);
+                p[i][1] = mac16_neon(
+                    vreinterpretq_s8_u8(
+                        vsubq_u8(vorrq_u8(vandq_u8(l1, m4), vandq_u8(vshlq_n_u8(hb, 2), m30)), o)),
+                    xi + 32);
+                p[i][2] = mac16_neon(vreinterpretq_s8_u8(vsubq_u8(
+                                         vorrq_u8(vshrq_n_u8(l0, 4), vandq_u8(hb, m30)), o)),
+                                     xi + 64);
+                p[i][3] = mac16_neon(
+                    vreinterpretq_s8_u8(
+                        vsubq_u8(vorrq_u8(vshrq_n_u8(l1, 4), vandq_u8(vshrq_n_u8(hb, 2), m30)), o)),
+                    xi + 96);
+            }
+            int32x4_t s0 = hsum4_neon(p[0][0], p[0][1], p[0][2], p[0][3]);
+            int32x4_t s1 = hsum4_neon(p[1][0], p[1][1], p[1][2], p[1][3]);
+            int64x2_t vlo = vmlal_s32(vmull_s32(vget_low_s32(s0), vget_low_s32(m0[h])),
+                                      vget_low_s32(s1), vget_low_s32(m1[h]));
+            int64x2_t vhi = vmlal_high_s32(vmull_high_s32(s0, m0[h]), s1, m1[h]);
+            if (fast) {
+                int32x4_t kk = vmaxq_s32(kv[h], vdupq_n_s32(-64));
+                acc = vaddq_s64(acc, vshlq_s64(vlo, vmovl_s32(vget_low_s32(kk))));
+                acc = vaddq_s64(acc, vshlq_s64(vhi, vmovl_high_s32(kk)));
+            } else {
+                acc = vaddq_s64(acc, term52v_neon(vlo, vget_low_s32(kv[h])));
+                acc = vaddq_s64(acc, term52v_neon(vhi, vget_high_s32(kv[h])));
+            }
         }
     }
     return zt_kern_round(vaddvq_s64(acc));
