@@ -27,7 +27,9 @@
  * --kern picks the matrix kernels (zt_simd.h: c, avx2, avx512, neon; default
  * the fastest this CPU runs), --threads the thread count (default 1). Every
  * choice gives the same token ids; only the speed differs. It prints
- * zt.kern=<name> zt.threads=<T>.
+ * zt.kern=<name> zt.threads=<T>. --batch is the prefill batch (default 128):
+ * prompts are read that many tokens at a time, which the batched matrix
+ * kernels need (zt_kern.h zt_mmb_t); it does not change the result.
  * --convert loads Q4_K/Q6_K matrices the older way, re-quantized to 8-bit
  * blocks (ZT_LOAD_CONVERT), instead of using them in place; it prints
  * zt.load=convert|native and the load time zt.load_s.
@@ -96,7 +98,7 @@ int main(int argc, char **argv)
     bool special = false;
     const char *path = NULL, *prompt = "The capital of France is", *text_out = NULL;
     const char *kern_name = NULL;
-    uint32_t n_gen = 32, n_ctx = 0, n_batch = 32, kv = ZT_KV_Q16, n_threads = 1, lflags = 0;
+    uint32_t n_gen = 32, n_ctx = 0, n_batch = 128, kv = ZT_KV_Q16, n_threads = 1, lflags = 0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         const char *v = i + 1 < argc ? argv[i + 1] : NULL;

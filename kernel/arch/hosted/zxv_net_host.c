@@ -480,6 +480,27 @@ bool zxv_net_knows(const zxv_net_t *n, const char *ip, uint16_t port)
     return false;
 }
 
+int zxv_net_contact_id(const zxv_net_t *n, const char *ip, uint16_t port, uint8_t id[32])
+{
+    uint8_t a[ADDR_LEN];
+    if (!n || !id || n->s == NBAD_SOCK || parse_ip(ip, a) != 0) return -1;
+    a[4] = (uint8_t) (port >> 8);
+    a[5] = (uint8_t) port;
+    static vna_contact_t c[POOL_CAP];
+    uint32_t k = vna_node_contacts(&n->node, c, POOL_CAP);
+    for (uint32_t i = 0; i < k; i++)
+        if (c[i].addr_len == ADDR_LEN && !memcmp(c[i].addr, a, ADDR_LEN)) {
+            memcpy(id, c[i].id.b, 32);
+            return 0;
+        }
+    return -1;
+}
+
+const vna_identity_t *zxv_net_identity(const zxv_net_t *n)
+{
+    return (n && n->s != NBAD_SOCK) ? &n->idn : NULL;
+}
+
 int zxv_net_econ_cycle(zxv_net_t *n, swarm_budget_t *sb, uint64_t base_rate, uint64_t now_ms,
                        uint64_t *imported)
 {

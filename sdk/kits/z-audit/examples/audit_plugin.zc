@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# audit_plugin.zc — the contract for examples/plugins/audit_plugin.c, written
+# to show what z-audit's bounded analysis can and cannot say.
+
+# level: returns 1 or 2, and says so: the analysis shows the result stays
+# in range.
+fn level(pct: int[0..100]) -> int[1..2];
+
+# bucket: also returns 1 or 2, but the contract says 0..1: a warning (the
+# guard would stop the plugin whenever pct >= 90).
+fn bucket(pct: int[0..100]) -> int[0..1];
+
+# half: proposes the constant 3/2, outside rat[0..1]: an error.
+fn half() -> int proposes rat[0..1] max 1;
+
+# hash: a loop, so the analysis skips it and says so.
+fn hash(n: int[0..1000]) -> int;

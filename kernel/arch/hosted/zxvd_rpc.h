@@ -113,6 +113,19 @@ typedef struct {
     const char *app_version;
 } zxvd_host_ops_t;
 
+/* peer.* (zxv_peer_host.h): remote inference between nodes, settled with the
+ * assurance fee. Set separately from the host ops; unset methods answer
+ * -32601. ask and serve return NULL on success (the result object written
+ * into `out`) or the reason they failed (error ZXVD_E_PEER). */
+#define ZXVD_E_PEER (-32010)
+typedef struct {
+    const char *(*ask)(const char *peer, const char *prompt, uint64_t max_price_minor,
+                       zxvd_buf_t *out);                                  /* peer.ask    */
+    const char *(*serve)(bool on, uint64_t price_minor, zxvd_buf_t *out); /* peer.serve  */
+    void (*status)(zxvd_buf_t *out);                                      /* peer.status */
+} zxvd_peer_ops_t;
+void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops);
+
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops);

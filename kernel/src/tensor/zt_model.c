@@ -700,6 +700,35 @@ static void mm_rows(void *ctx, uint32_t r0, uint32_t r1)
     if (nsat) __atomic_fetch_add(j->nsat, nsat, __ATOMIC_RELAXED); /* rows may run in threads */
 }
 
+/* The batched kernel (zt_kern.h zt_mmb_t) for rows [r0, r1), then the bias
+ * and the range count as mm_rows does; rows its weight type is not handled
+ * for go through mm_rows. */
+typedef struct {
+    mm_job_t j;
+    zt_mmb_t b;
+    int (*fn)(const zt_mmb_t *j, uint32_t r0, uint32_t r1);
+} mmb_job_t;
+
+static void mmb_rows(void *ctx, uint32_t r0, uint32_t r1)
+{
+    const mmb_job_t *jb = ctx;
+    const mm_job_t *j = &jb->j;
+    if (jb->fn(&jb->b, r0, r1)) {
+        mm_rows((void *) j, r0, r1);
+        return;
+    }
+    uint32_t nsat = 0;
+    for (uint32_t b = 0; b < j->B; b++) {
+        zt_fx *y = j->y + (uint64_t) b * j->ystride;
+        for (uint32_t r = r0; r < r1; r++) {
+            int64_t v = (int64_t) y[r] + (j->bias ? j->bias[r] : 0);
+            nsat += v >= INT32_MAX || v <= INT32_MIN;
+            y[r] = sat32(v);
+        }
+    }
+    if (nsat) __atomic_fetch_add(j->nsat, nsat, __ATOMIC_RELAXED);
+}
+
 static void matmul(const zt_model_t *m, const zt_mat_t *w, zt_model_state_t *s, uint32_t B,
                    zt_fx *y, uint32_t ystride, const zt_fx *bias)
 {
@@ -718,8 +747,20 @@ static void matmul(const zt_model_t *m, const zt_mat_t *w, zt_model_state_t *s, 
                   k ? k->dot_q4k : 0,
                   k ? k->dot_q6k : 0,
                   &s->n_sat};
+    uint64_t work = (uint64_t) w->rows * w->cols * B;
+    if (k && k->mm_batch && s->mmb_cols == w->cols && B >= ZT_MMB_MIN) {
+        mmb_job_t jb = {
+            j,
+            {w->raw, w->q8, w->qtype, w->cols, s->aT, s->ashT, s->asumT, s->ashx, B, y, ystride},
+            k->mm_batch};
+        if (k->par_rows)
+            k->par_rows(k->pctx, mmb_rows, &jb, w->rows, work);
+        else
+            mmb_rows(&jb, 0, w->rows);
+        return;
+    }
     if (k && k->par_rows)
-        k->par_rows(k->pctx, mm_rows, &j, w->rows, (uint64_t) w->rows * w->cols * B);
+        k->par_rows(k->pctx, mm_rows, &j, w->rows, work);
     else
         mm_rows(&j, 0, w->rows);
 }
@@ -824,9 +865,22 @@ static void state_layout(const zt_model_t *m, zt_model_state_t *s, uint32_t n_ct
     s->a16 = lay(L, (uint64_t) B * as * 2);
     s->asum = lay(L, (uint64_t) B * (as / 32) * 4);
     s->ash = lay(L, (uint64_t) B * (as / 32));
-    s->scores = lay(L, (uint64_t) n_ctx * 4);
-    s->acc = lay(L, (uint64_t) c->head_dim * 8);
-    s->qs = lay(L, (uint64_t) c->head_dim * 4);
+    s->aT = 0;
+    s->ashT = s->asumT = 0;
+    s->ashx = 0;
+    if (B >= ZT_MMB_MIN) {
+        uint64_t ng = (B + ZT_MMB_G - 1) / ZT_MMB_G, gb = ng * (as / 32);
+        L->used = (L->used + 63) & ~63ull; /* whole cache lines for the vector loads */
+        s->aT = lay(L, gb * 32 * ZT_MMB_G * 2);
+        s->ashT = lay(L, gb * ZT_MMB_G * 8);
+        s->asumT = lay(L, gb * ZT_MMB_G * 8);
+        s->ashx = lay(L, gb);
+    }
+    s->att_tiles = B < ZT_ATT_TILES ? B : ZT_ATT_TILES;
+    uint64_t items = (uint64_t) c->n_head * s->att_tiles;
+    s->scores = lay(L, items * n_ctx * 4);
+    s->acc = lay(L, items * c->head_dim * 8);
+    s->qs = lay(L, items * c->head_dim * 4);
 }
 
 uint64_t zt_model_state_bytes(const zt_model_t *m, uint32_t n_ctx, uint32_t n_batch,
@@ -852,6 +906,7 @@ int32_t zt_model_state_init(zt_model_state_t *s, const zt_model_t *m, uint32_t n
     s->n_batch = n_batch;
     s->pos = 0;
     s->n_sat = 0;
+    s->mmb_cols = 0;
     return ZT_GGUF_OK;
 }
 
@@ -884,14 +939,15 @@ static void kv_store(const zt_model_t *m, zt_model_state_t *s, uint32_t l, uint3
         }
 }
 
-/* Attention of one token at position p (all heads), out has q_dim values. */
-static void attend(const zt_model_t *m, zt_model_state_t *s, uint32_t l, const zt_fx *q, uint32_t p,
-                   zt_fx *out)
+/* Attention of head h of one token at position p; out has q_dim values.
+ * scores, acc and qs are this call's scratch (n_ctx and head_dim values). */
+static void attend(const zt_model_t *m, const zt_model_state_t *s, uint32_t l, const zt_fx *q,
+                   uint32_t p, zt_fx *out, uint32_t h, zt_fx *scores, int64_t *acc, int32_t *qs)
 {
     const zt_model_cfg_t *c = &m->cfg;
     uint32_t hd = c->head_dim, kvd = m->kv_dim, grp = c->n_head / c->n_head_kv;
     uint64_t base = (uint64_t) l * s->n_ctx;
-    for (uint32_t h = 0; h < c->n_head; h++) {
+    {
         uint32_t kvh = h / grp;
         const zt_fx *qh = q + h * hd;
         /* scale the query so |q| < 2^22: q.k over head_dim <= 512 values of
@@ -901,54 +957,199 @@ static void attend(const zt_model_t *m, zt_model_state_t *s, uint32_t l, const z
             if (uabs32(qh[j]) > qmax) qmax = uabs32(qh[j]);
         while ((qmax >> sq) >= (1u << 22)) sq++;
         for (uint32_t j = 0; j < hd; j++)
-            s->qs[j] = sq ? (int32_t) (((int64_t) qh[j] + (1 << (sq - 1))) >> sq) : qh[j];
+            qs[j] = sq ? (int32_t) (((int64_t) qh[j] + (1 << (sq - 1))) >> sq) : qh[j];
         zt_fx mx = INT32_MIN;
-        for (uint32_t i = 0; i <= p; i++) {
-            int64_t S = 0; /* q.k in Q32 / 2^sq, 64 bits */
-            uint64_t cell = (base + i) * kvd + (uint64_t) kvh * hd;
-            if (s->kv_type == ZT_KV_Q16) {
-                const int32_t *kr = s->k16 + cell;
-                for (uint32_t j = 0; j < hd; j++) S += (int64_t) s->qs[j] * kr[j];
-            } else {
-                const int8_t *kr = s->k8 + cell;
-                uint64_t si = (base + i) * c->n_head_kv * s->nbh + (uint64_t) kvh * s->nbh;
-                for (uint32_t b = 0; b < s->nbh; b++) {
-                    uint32_t o = b * 32, len = hd - o < 32 ? hd - o : 32;
-                    int64_t Sb = 0;
-                    for (uint32_t j = 0; j < len; j++) Sb += (int64_t) s->qs[o + j] * kr[o + j];
-                    S += mul_shr(Sb, (uint32_t) s->ks[si + b], s->ksh[si + b]);
+        const zt_kern_t *K = m->kern;
+        uint64_t cell0 = base * kvd + (uint64_t) kvh * hd;
+        if (s->kv_type == ZT_KV_Q16) {
+            zt_att_qk_fn qk = K && K->att_qk ? K->att_qk : zt_att_qk_c;
+            int64_t S[256]; /* q.k in Q32 / 2^sq, 64 bits, 256 positions at a time */
+            for (uint32_t i0 = 0; i0 <= p; i0 += 256) {
+                uint32_t n = p + 1 - i0 < 256 ? p + 1 - i0 : 256;
+                qk(qs, s->k16 + cell0 + (uint64_t) i0 * kvd, kvd, n, hd, S);
+                for (uint32_t i = 0; i < n; i++) {
+                    zt_fx sc = sat32(mul_shr(S[i], m->inv_sqrt_q30, 46 - sq));
+                    scores[i0 + i] = sc;
+                    if (sc > mx) mx = sc;
                 }
             }
+        }
+        for (uint32_t i = 0; i <= p && s->kv_type == ZT_KV_Q8; i++) {
+            int64_t S = 0; /* q.k in Q32 / 2^sq, 64 bits */
+            const int8_t *kr = s->k8 + (base + i) * kvd + (uint64_t) kvh * hd;
+            uint64_t si = (base + i) * c->n_head_kv * s->nbh + (uint64_t) kvh * s->nbh;
+            for (uint32_t b = 0; b < s->nbh; b++) {
+                uint32_t o = b * 32, len = hd - o < 32 ? hd - o : 32;
+                int64_t Sb = 0;
+                for (uint32_t j = 0; j < len; j++) Sb += (int64_t) qs[o + j] * kr[o + j];
+                S += mul_shr(Sb, (uint32_t) s->ks[si + b], s->ksh[si + b]);
+            }
             zt_fx sc = sat32(mul_shr(S, m->inv_sqrt_q30, 46 - sq));
-            s->scores[i] = sc;
+            scores[i] = sc;
             if (sc > mx) mx = sc;
         }
         uint64_t sum = 0;
         for (uint32_t i = 0; i <= p; i++) {
-            int64_t d = (int64_t) s->scores[i] - mx;
-            s->scores[i] = zt_exp(d < INT32_MIN ? INT32_MIN : (zt_fx) d);
-            sum += (uint32_t) s->scores[i];
+            int64_t d = (int64_t) scores[i] - mx;
+            scores[i] = zt_exp(d < INT32_MIN ? INT32_MIN : (zt_fx) d);
+            sum += (uint32_t) scores[i];
         }
-        for (uint32_t j = 0; j < hd; j++) s->acc[j] = 0;
-        for (uint32_t i = 0; i <= p; i++) {
-            int64_t w = s->scores[i];
+        for (uint32_t j = 0; j < hd; j++) acc[j] = 0;
+        if (s->kv_type == ZT_KV_Q16)
+            (K && K->att_wv ? K->att_wv : zt_att_wv_c)(scores, s->v16 + cell0, kvd, p + 1, hd, acc);
+        for (uint32_t i = 0; i <= p && s->kv_type == ZT_KV_Q8; i++) {
+            int64_t w = scores[i];
             if (!w) continue;
-            uint64_t cell = (base + i) * kvd + (uint64_t) kvh * hd;
-            if (s->kv_type == ZT_KV_Q16) {
-                const int32_t *vr = s->v16 + cell;
-                for (uint32_t j = 0; j < hd; j++) s->acc[j] += w * vr[j];
-            } else {
-                const int8_t *vr = s->v8 + cell;
-                uint64_t si = (base + i) * c->n_head_kv * s->nbh + (uint64_t) kvh * s->nbh;
-                for (uint32_t j = 0; j < hd; j++) {
-                    uint32_t b = j / 32, sh = s->vsh[si + b];
-                    int64_t pv = (int64_t) vr[j] * s->vs[si + b];
-                    int64_t dv = sh ? (pv + ((int64_t) 1 << (sh - 1))) >> sh : pv;
-                    s->acc[j] += w * sat32(dv);
-                }
+            const int8_t *vr = s->v8 + (base + i) * kvd + (uint64_t) kvh * hd;
+            uint64_t si = (base + i) * c->n_head_kv * s->nbh + (uint64_t) kvh * s->nbh;
+            for (uint32_t j = 0; j < hd; j++) {
+                uint32_t b = j / 32, sh = s->vsh[si + b];
+                int64_t pv = (int64_t) vr[j] * s->vs[si + b];
+                int64_t dv = sh ? (pv + ((int64_t) 1 << (sh - 1))) >> sh : pv;
+                acc[j] += w * sat32(dv);
             }
         }
-        for (uint32_t j = 0; j < hd; j++) out[h * hd + j] = sat32(round_div(s->acc[j], sum));
+        for (uint32_t j = 0; j < hd; j++) out[h * hd + j] = sat32(round_div(acc[j], sum));
+    }
+}
+
+/* Attention of B tokens (positions p0..p0 + B - 1) for layer l, split into
+ * n_head * s->att_tiles items (head, every att_tiles-th token) that may
+ * run in threads: each item has its own scratch and writes its own outputs,
+ * and each output is computed whole by one item, so the result does not
+ * depend on the split. */
+typedef struct {
+    const zt_model_t *m;
+    const zt_model_state_t *s;
+    uint32_t l, p0, B;
+} att_job_t;
+
+static void att_items(void *ctx, uint32_t i0, uint32_t i1)
+{
+    const att_job_t *j = ctx;
+    const zt_model_state_t *s = j->s;
+    uint32_t qd = j->m->q_dim, hd = j->m->cfg.head_dim;
+    for (uint32_t i = i0; i < i1; i++) {
+        uint32_t nt = s->att_tiles, h = i / nt, tile = i % nt;
+        for (uint32_t b = tile; b < j->B; b += nt)
+            attend(j->m, s, j->l, s->q + (uint64_t) b * qd, j->p0 + b, s->att + (uint64_t) b * qd,
+                   h, s->scores + (uint64_t) i * s->n_ctx, s->acc + (uint64_t) i * hd,
+                   s->qs + (uint64_t) i * hd);
+    }
+}
+
+static void attention(const zt_model_t *m, zt_model_state_t *s, uint32_t l, uint32_t p0, uint32_t B)
+{
+    att_job_t j = {m, s, l, p0, B};
+    uint32_t n = m->cfg.n_head * s->att_tiles;
+    const zt_kern_t *k = m->kern;
+    if (k && k->par_rows) {
+        /* about (p0 + B) * head_dim multiply-adds twice per token and head */
+        uint64_t work = (uint64_t) B * m->cfg.n_head * (p0 + B) * m->cfg.head_dim * 2;
+        k->par_rows(k->pctx, att_items, &j, n, work);
+    } else {
+        att_items(&j, 0, n);
+    }
+}
+
+/* ---- the forward pass ---- */
+
+/* The per-token steps between the matrix products. Tokens are independent
+ * there, so a batch's tokens may be split across threads (m->kern->par_rows);
+ * each token is computed whole by one thread with the same code, and the
+ * saturation count is a sum, so nothing depends on the split. */
+enum { TS_ATTN_NORM, TS_QK, TS_RESID_NORM, TS_SILU, TS_RESID, TS_ACT, TS_PACK };
+
+typedef struct {
+    const zt_model_t *m;
+    zt_model_state_t *s;
+    const zt_layer_t *L;
+    uint32_t stage, l, p0, B;
+    const zt_fx *x; /* TS_ACT: inputs x[b * xstride], n values each */
+    uint32_t xstride, n;
+} tok_job_t;
+
+static void tok_rows(void *ctx, uint32_t b0, uint32_t b1)
+{
+    const tok_job_t *j = ctx;
+    const zt_model_t *m = j->m;
+    zt_model_state_t *s = j->s;
+    const zt_layer_t *L = j->L;
+    const zt_model_cfg_t *c = &m->cfg;
+    uint32_t ne = c->n_embd, nf = c->n_ff, qd = m->q_dim, kvd = m->kv_dim, hd = c->head_dim;
+    uint32_t as = s->a_stride, nsat = 0;
+    for (uint32_t b = b0; b < b1; b++) {
+        zt_fx *x = s->x + (uint64_t) b * ne, *o = s->xn + (uint64_t) b * ne;
+        switch (j->stage) {
+        case TS_ATTN_NORM:
+            rmsnorm(x, ne, &L->attn_norm, m->eps_q48, o);
+            break;
+        case TS_QK: {
+            zt_fx *q = s->q + (uint64_t) b * qd, *k = s->k + (uint64_t) b * kvd;
+            if (L->q_norm.g) {
+                for (uint32_t h = 0; h < c->n_head; h++)
+                    rmsnorm(q + h * hd, hd, &L->q_norm, m->eps_q48, q + h * hd);
+                for (uint32_t h = 0; h < c->n_head_kv; h++)
+                    rmsnorm(k + h * hd, hd, &L->k_norm, m->eps_q48, k + h * hd);
+            }
+            zt_rope_apply_heads(&m->rope, q, c->n_head, hd, j->p0 + b);
+            zt_rope_apply_heads(&m->rope, k, c->n_head_kv, hd, j->p0 + b);
+            kv_store(m, s, j->l, j->p0 + b, k, s->v + (uint64_t) b * kvd);
+            break;
+        }
+        case TS_RESID_NORM:
+        case TS_RESID:
+            for (uint32_t i = 0; i < ne; i++) {
+                int64_t v = (int64_t) x[i] + o[i];
+                nsat += v > INT32_MAX || v < INT32_MIN;
+                x[i] = sat32(v);
+            }
+            if (j->stage == TS_RESID_NORM) rmsnorm(x, ne, &L->ffn_norm, m->eps_q48, o);
+            break;
+        case TS_SILU: {
+            zt_fx *g = s->gt + (uint64_t) b * nf, *u = s->up + (uint64_t) b * nf;
+            for (uint32_t i = 0; i < nf; i++) g[i] = silu_mul(g[i], u[i]);
+            break;
+        }
+        case TS_ACT:
+            act_quant(j->x + (uint64_t) b * j->xstride, j->n, s->a16 + (uint64_t) b * as,
+                      s->ash + b * (as / 32), s->asum + b * (as / 32));
+            break;
+        case TS_PACK: { /* b is a group of ZT_MMB_G tokens here */
+            uint32_t t0 = b * ZT_MMB_G, nt = j->B - t0 < ZT_MMB_G ? j->B - t0 : ZT_MMB_G;
+            uint64_t gb = (uint64_t) b * (j->n / 32);
+            zt_mmb_pack(s->a16 + (uint64_t) t0 * as, s->ash + t0 * (as / 32),
+                        s->asum + t0 * (as / 32), as, nt, j->n, s->aT + gb * 32 * ZT_MMB_G,
+                        s->ashT + gb * ZT_MMB_G, s->asumT + gb * ZT_MMB_G, s->ashx + gb);
+            break;
+        }
+        }
+    }
+    if (nsat) __atomic_fetch_add(&s->n_sat, nsat, __ATOMIC_RELAXED);
+}
+
+/* run stage j->stage for items [0, n) (tokens, or groups for TS_PACK) */
+static void per_token(const zt_model_t *m, tok_job_t *j, uint32_t n, uint64_t work)
+{
+    const zt_kern_t *k = m->kern;
+    if (k && k->par_rows)
+        k->par_rows(k->pctx, tok_rows, j, n, work);
+    else
+        tok_rows(j, 0, n);
+}
+
+/* act_quant B inputs (x[b * xstride], n values each) into the matrix-product
+ * input, plus the batched kernels' token-major copy when they will be used. */
+static void act_batch(const zt_model_t *m, zt_model_state_t *s, const zt_fx *x, uint32_t xstride,
+                      uint32_t n, uint32_t B)
+{
+    tok_job_t j = {m, s, 0, TS_ACT, 0, 0, B, x, xstride, n};
+    per_token(m, &j, B, (uint64_t) B * n * 4);
+    s->mmb_cols = 0;
+    if (m->kern && m->kern->mm_batch && B >= ZT_MMB_MIN && s->aT) {
+        j.stage = TS_PACK;
+        per_token(m, &j, (B + ZT_MMB_G - 1) / ZT_MMB_G, (uint64_t) B * n * 4);
+        s->mmb_cols = n;
     }
 }
 
@@ -958,75 +1159,45 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
                        zt_fx *logits, bool all)
 {
     const zt_model_cfg_t *c = &m->cfg;
-    uint32_t ne = c->n_embd, nf = c->n_ff, qd = m->q_dim, kvd = m->kv_dim, hd = c->head_dim;
-    uint32_t as = s->a_stride, p0 = s->pos;
+    uint32_t ne = c->n_embd, nf = c->n_ff, qd = m->q_dim, kvd = m->kv_dim;
+    uint32_t p0 = s->pos;
     for (uint32_t b = 0; b < B; b++) {
         int32_t r = zt_gguf_dequant(&m->embd, (uint64_t) tok[b] * ne, ne, s->x + b * ne);
         if (r) return r;
     }
+    /* work estimates for the thread pool's threshold (values touched) */
+    uint64_t wn = (uint64_t) B * ne * 8, wf = (uint64_t) B * nf * 32;
     for (uint32_t l = 0; l < c->n_layer; l++) {
         const zt_layer_t *L = &m->layers[l];
-        for (uint32_t b = 0; b < B; b++) {
-            rmsnorm(s->x + b * ne, ne, &L->attn_norm, m->eps_q48, s->xn + b * ne);
-            act_quant(s->xn + b * ne, ne, s->a16 + b * as, s->ash + b * (as / 32),
-                      s->asum + b * (as / 32));
-        }
+        tok_job_t j = {m, s, L, TS_ATTN_NORM, l, p0, B, 0, 0, 0};
+        per_token(m, &j, B, wn);
+        act_batch(m, s, s->xn, ne, ne, B);
         matmul(m, &L->wq, s, B, s->q, qd, L->bq);
         matmul(m, &L->wk, s, B, s->k, kvd, L->bk);
         matmul(m, &L->wv, s, B, s->v, kvd, L->bv);
-        for (uint32_t b = 0; b < B; b++) {
-            zt_fx *q = s->q + b * qd, *k = s->k + b * kvd;
-            if (L->q_norm.g) {
-                for (uint32_t h = 0; h < c->n_head; h++)
-                    rmsnorm(q + h * hd, hd, &L->q_norm, m->eps_q48, q + h * hd);
-                for (uint32_t h = 0; h < c->n_head_kv; h++)
-                    rmsnorm(k + h * hd, hd, &L->k_norm, m->eps_q48, k + h * hd);
-            }
-            zt_rope_apply_heads(&m->rope, q, c->n_head, hd, p0 + b);
-            zt_rope_apply_heads(&m->rope, k, c->n_head_kv, hd, p0 + b);
-            kv_store(m, s, l, p0 + b, k, s->v + b * kvd);
-        }
-        for (uint32_t b = 0; b < B; b++) {
-            attend(m, s, l, s->q + b * qd, p0 + b, s->att + b * qd);
-            act_quant(s->att + b * qd, qd, s->a16 + b * as, s->ash + b * (as / 32),
-                      s->asum + b * (as / 32));
-        }
+        j.stage = TS_QK;
+        per_token(m, &j, B, (uint64_t) B * (qd + kvd) * 16);
+        attention(m, s, l, p0, B);
+        act_batch(m, s, s->att, qd, qd, B);
         matmul(m, &L->wo, s, B, s->xn, ne, 0);
-        for (uint32_t b = 0; b < B; b++) {
-            zt_fx *x = s->x + b * ne, *o = s->xn + b * ne;
-            for (uint32_t i = 0; i < ne; i++) {
-                int64_t v = (int64_t) x[i] + o[i];
-                s->n_sat += v > INT32_MAX || v < INT32_MIN;
-                x[i] = sat32(v);
-            }
-            rmsnorm(x, ne, &L->ffn_norm, m->eps_q48, o);
-            act_quant(o, ne, s->a16 + b * as, s->ash + b * (as / 32), s->asum + b * (as / 32));
-        }
+        j.stage = TS_RESID_NORM;
+        per_token(m, &j, B, wn);
+        act_batch(m, s, s->xn, ne, ne, B);
         matmul(m, &L->wg, s, B, s->gt, nf, 0);
         matmul(m, &L->wu, s, B, s->up, nf, 0);
-        for (uint32_t b = 0; b < B; b++) {
-            zt_fx *g = s->gt + b * nf, *u = s->up + b * nf;
-            for (uint32_t i = 0; i < nf; i++) g[i] = silu_mul(g[i], u[i]);
-            act_quant(g, nf, s->a16 + b * as, s->ash + b * (as / 32), s->asum + b * (as / 32));
-        }
+        j.stage = TS_SILU;
+        per_token(m, &j, B, wf);
+        act_batch(m, s, s->gt, nf, nf, B);
         matmul(m, &L->wd, s, B, s->xn, ne, 0);
-        for (uint32_t b = 0; b < B; b++) {
-            zt_fx *x = s->x + b * ne, *o = s->xn + b * ne;
-            for (uint32_t i = 0; i < ne; i++) {
-                int64_t v = (int64_t) x[i] + o[i];
-                s->n_sat += v > INT32_MAX || v < INT32_MIN;
-                x[i] = sat32(v);
-            }
-        }
+        j.stage = TS_RESID;
+        per_token(m, &j, B, wn);
     }
     s->pos = p0 + B;
     if (!logits) return ZT_GGUF_OK;
     uint32_t first = all ? 0 : B - 1;
-    for (uint32_t b = first; b < B; b++) {
+    for (uint32_t b = first; b < B; b++)
         rmsnorm(s->x + b * ne, ne, &m->out_norm, m->eps_q48, s->xn + b * ne);
-        act_quant(s->xn + b * ne, ne, s->a16 + (b - first) * as, s->ash + (b - first) * (as / 32),
-                  s->asum + (b - first) * (as / 32));
-    }
+    act_batch(m, s, s->xn + (uint64_t) first * ne, ne, ne, B - first);
     matmul(m, &m->out, s, B - first, logits, c->n_vocab, 0);
     return ZT_GGUF_OK;
 }
