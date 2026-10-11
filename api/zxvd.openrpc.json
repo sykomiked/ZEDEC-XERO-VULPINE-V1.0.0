@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}. 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -199,6 +199,413 @@
           "properties": {
             "result": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "peer.ask",
+      "summary": "Ask another node (found over UDP, then a TCP session: X25519 + ML-KEM-1024 key exchange, ML-DSA-87 on both sides) and pay its price plus the 0.08889% assurance fee from the peer wallet (kernel/arch/hosted/zxv_peer_host.h). Needs networking on. The daemon's loop waits while the request runs.",
+      "params": [
+        {
+          "name": "peer",
+          "required": true,
+          "description": "IPV4 or IPV4:PORT (default port 8723)",
+          "schema": {
+            "type": "string",
+            "maxLength": 63
+          }
+        },
+        {
+          "name": "prompt",
+          "required": true,
+          "description": "UTF-8, at most 4096 bytes",
+          "schema": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        {
+          "name": "max_price_minor",
+          "required": true,
+          "description": "the most this node will pay, VFV minor units, before the fee",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "answer",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "answer": {
+              "type": "string"
+            },
+            "settlement": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "buyer",
+                    "seller"
+                  ]
+                },
+                "peer": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "price_minor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "fee_minor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "paid_minor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "fee_parts": {
+                  "type": "object",
+                  "properties": {
+                    "reserve floor": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "V-Bill dividend pool": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "infrastructure/node bounties": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "regenerative capital": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    }
+                  }
+                },
+                "invoice": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "settle": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "session": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            "security": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "peer.serve",
+      "summary": "Start answering other nodes over TCP for price_minor VFV minor units per answer, or stop when price_minor is absent. Off by default; needs networking on.",
+      "params": [
+        {
+          "name": "price_minor",
+          "required": false,
+          "description": "VFV minor units per answer; absent stops serving",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "serving": {
+              "type": "boolean"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "price_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "currency": {
+              "type": "string",
+              "const": "VFV"
+            },
+            "wallet_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "fees_paid_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "buckets": {
+              "type": "object",
+              "properties": {
+                "reserve floor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "V-Bill dividend pool": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "infrastructure/node bounties": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "regenerative capital": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
+            "sold": {
+              "type": "integer"
+            },
+            "bought": {
+              "type": "integer"
+            },
+            "refused": {
+              "type": "integer"
+            },
+            "sessions": {
+              "type": "integer"
+            },
+            "book_ok": {
+              "type": "boolean"
+            },
+            "history": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "buyer",
+                      "seller"
+                    ]
+                  },
+                  "peer": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "price_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "fee_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "paid_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "fee_parts": {
+                    "type": "object",
+                    "properties": {
+                      "reserve floor": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      },
+                      "V-Bill dividend pool": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      },
+                      "infrastructure/node bounties": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      },
+                      "regenerative capital": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      }
+                    }
+                  },
+                  "invoice": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "settle": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "session": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "peer.status",
+      "summary": "The peer book: wallet, fee buckets, sales, purchases, the last 16 settlements, and whether the book verifies.",
+      "params": [],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "serving": {
+              "type": "boolean"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "price_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "currency": {
+              "type": "string",
+              "const": "VFV"
+            },
+            "wallet_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "fees_paid_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "buckets": {
+              "type": "object",
+              "properties": {
+                "reserve floor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "V-Bill dividend pool": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "infrastructure/node bounties": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "regenerative capital": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
+            "sold": {
+              "type": "integer"
+            },
+            "bought": {
+              "type": "integer"
+            },
+            "refused": {
+              "type": "integer"
+            },
+            "sessions": {
+              "type": "integer"
+            },
+            "book_ok": {
+              "type": "boolean"
+            },
+            "history": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "buyer",
+                      "seller"
+                    ]
+                  },
+                  "peer": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "price_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "fee_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "paid_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "fee_parts": {
+                    "type": "object",
+                    "properties": {
+                      "reserve floor": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      },
+                      "V-Bill dividend pool": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      },
+                      "infrastructure/node bounties": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      },
+                      "regenerative capital": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      }
+                    }
+                  },
+                  "invoice": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "settle": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "session": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
             }
           }
         }

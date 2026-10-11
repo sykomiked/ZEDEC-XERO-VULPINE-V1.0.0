@@ -531,7 +531,8 @@ part.
   - *Residual tap.* The tap (T15) feeds the residual carrier.
   - *zt.h T16 frames* have the same 21 octets, and at phase 0 octets 1–20 are
     laid out like this frame (`test_residual_tap.c` checks this).
-  - *The T16 tag differs.* It is `phase | count<<1 | check4<<4`, not
+  - *The T16 tag differs.* It is `phase | count<<1 | check4<<4` (wire
+    format v2: check4 covers the phase and count bits too), not
     `100·sync + 10·shell + trunk`, and the phase alternates from frame to
     frame. A T16 frame is not a harmonic frame, and the reverse is also true.
   - *Name collision, now resolved.* zt.h's T14 truth enumerators used to be

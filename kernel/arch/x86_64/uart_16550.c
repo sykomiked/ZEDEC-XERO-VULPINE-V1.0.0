@@ -8,6 +8,7 @@
  */
 #include "uart_16550.h"
 #include "x86_64_arch.h"
+#include "efifb_con.h"
 
 #define COM1 0x3F8
 
@@ -36,6 +37,7 @@ static int uart_ready(void) {
 void uart_putc(char c) {
     while (!uart_ready()) { }
     outb(COM1, (uint8_t)c);
+    efifb_putc(c); /* no-op unless booted from UEFI with a GOP framebuffer */
 }
 
 void uart_puts(const char *s) {

@@ -31,7 +31,26 @@ OUT     := build
 PTHREAD ?= -lpthread
 UNAME_S := $(shell uname -s)
 
-ifeq ($(UNAME_S),Darwin)
+# The target, not the build machine, picks the library form: a MinGW or
+# zig cross compiler (CC=x86_64-w64-mingw32-gcc, CC="zig cc -target
+# x86_64-windows-gnu") makes libzxv.dll with its import library.
+TARGET_OS := $(shell $(CC) -dumpmachine 2>/dev/null)
+
+ifneq ($(findstring mingw,$(TARGET_OS))$(findstring windows,$(TARGET_OS)),)
+  LIB    := $(OUT)/libzxv.dll
+  # locks come from src/win/pthread.h, so the DLL needs no winpthreads
+  SOFLAG := -shared -Wl,--out-implib,$(OUT)/libzxv.dll.a -static-libgcc
+  RPATH  :=
+  OSLIBS := -lbcrypt
+  OSDEFS := -D__USE_MINGW_ANSI_STDIO=1
+  # no PIC on PE, and _FORTIFY_SOURCE would need MinGW's libssp
+  PICFLAG :=
+  FORTIFY :=
+  EXE    := .exe
+  WININC := -Isrc/win
+  # the multi-thread tests use MinGW's winpthreads, linked in statically
+  TESTLIBS := -static-libgcc -Wl,-Bstatic -lpthread -Wl,-Bdynamic
+else ifeq ($(UNAME_S),Darwin)
   LIB    := $(OUT)/libzxv.dylib
   SOFLAG := -dynamiclib -install_name @rpath/libzxv.dylib
   RPATH  := -Wl,-rpath,@loader_path
@@ -43,6 +62,13 @@ else
   RPATH  := -Wl,-rpath,'$$ORIGIN'
 endif
 STATIC := $(OUT)/libzxv.a
+# RUN runs a test binary built for another OS, e.g. RUN=wine for a
+# Windows cross build; HOSTCC builds the fixture writer for this machine.
+RUN    ?=
+HOSTCC ?= $(if $(EXE),cc,$(CC))
+TESTLIBS ?= $(PTHREAD)
+PICFLAG ?= -fPIC
+FORTIFY ?= -D_FORTIFY_SOURCE=2
 
 ifneq ($(SANITIZE),)
   # shift-base: the vendored ref10 Ed25519 left-shifts negative limbs, which
@@ -53,12 +79,12 @@ endif
 
 # TEST_HOST selects the hosted representation of the kernel number types
 # for the triple ledger only (see the exactness note in src/zxv_api.c).
-CFLAGS_COMMON := -std=c11 -O2 -g -fPIC -fvisibility=hidden -Wall -Wextra -Werror \
-                 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -DTEST_HOST $(OSDEFS) $(SAN)
+CFLAGS_COMMON := -std=c11 -O2 -g $(PICFLAG) -fvisibility=hidden -Wall -Wextra -Werror \
+                 -fstack-protector-strong $(FORTIFY) -DTEST_HOST $(OSDEFS) $(SAN)
 # Kernel files are third-party to this build: no -Werror on them.
-KFLAGS := -std=c11 -O2 -g -fPIC -fvisibility=hidden -DTEST_HOST $(OSDEFS) $(SAN) -w
+KFLAGS := -std=c11 -O2 -g $(PICFLAG) -fvisibility=hidden -DTEST_HOST $(OSDEFS) $(SAN) -w
 
-INC := -Iinclude -Isrc -I$(K)/src/iso20022 -I$(K)/src/finance -I$(K)/src/vino_stores \
+INC := -Iinclude -Isrc $(WININC) -I$(K)/src/iso20022 -I$(K)/src/finance -I$(K)/src/vino_stores \
        -I$(K)/src/vino -I$(K)/src/surplus -I$(K)/src/edp_risk -I$(K)/src/onepolicy \
        -I$(K)/include -I$(K)/src/rational -I$(K)/src/lpres -I$(K)/src/event_space \
        -I$(K)/src/rmag -I$(K)/src/phase_coord -I$(K)/src/harmonic -I$(K)/src/swarm \
@@ -125,7 +151,7 @@ $(OUT)/%.o: src/%.c include/zxv_api.h src/zxv_internal.h src/zxv_q16.h
 	$(CC) $(CFLAGS_COMMON) -MMD -MP -DZXV_BUILD_SHARED $(DEFS) $(INC) -c $< -o $@
 
 $(LIB): $(OBJ) $(KOBJ)
-	$(CC) $(SOFLAG) $(SAN) -o $@ $^ $(PTHREAD) -lm
+	$(CC) $(SOFLAG) $(SAN) -o $@ $^ $(PTHREAD) -lm $(OSLIBS)
 
 $(STATIC): $(OBJ) $(KOBJ)
 	@rm -f $@
@@ -135,44 +161,45 @@ $(STATIC): $(OBJ) $(KOBJ)
 # after a kernel merge never links stale objects.
 -include $(OBJ:.o=.d) $(KOBJ:.o=.d)
 
-TESTCC := $(CC) -std=c11 -O1 -g -Wall -Wextra -Werror -Iinclude $(SAN)
-$(OUT)/test_zxv_api: test/test_zxv_api.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
-$(OUT)/test_zxv_abi11: test/test_zxv_abi11.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
-$(OUT)/test_zxv_abi12: test/test_zxv_abi12.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
-$(OUT)/test_zxv_abi13: test/test_zxv_abi13.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
+TESTCC := $(CC) -std=c11 -O1 -g -Wall -Wextra -Werror -Iinclude $(OSDEFS) $(SAN)
+$(OUT)/test_zxv_api$(EXE): test/test_zxv_api.c include/zxv_api.h $(LIB)
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
+$(OUT)/test_zxv_abi11$(EXE): test/test_zxv_abi11.c include/zxv_api.h $(LIB)
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
+$(OUT)/test_zxv_abi12$(EXE): test/test_zxv_abi12.c include/zxv_api.h $(LIB)
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
+$(OUT)/test_zxv_abi13$(EXE): test/test_zxv_abi13.c include/zxv_api.h $(LIB)
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
 # The portable (no __int128) Q16 rounding, forced with -DZXV_NO_INT128 and
 # checked against the 128-bit path and the library.
-$(OUT)/test_q16: test/test_q16.c src/zxv_q16.h include/zxv_api.h $(LIB)
-	$(TESTCC) -DZXV_NO_INT128 -Isrc $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
-$(OUT)/gen_vectors: tools/gen_vectors.c include/zxv_api.h $(LIB)
-	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(PTHREAD) -o $@
+$(OUT)/test_q16$(EXE): test/test_q16.c src/zxv_q16.h include/zxv_api.h $(LIB)
+	$(TESTCC) -DZXV_NO_INT128 -Isrc $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
+$(OUT)/gen_vectors$(EXE): tools/gen_vectors.c include/zxv_api.h $(LIB)
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
+# a build-machine tool: it writes the fixtures, so a cross build runs it here
 $(OUT)/mkfixture: tools/mkfixture.c
 	@mkdir -p $(OUT)
-	$(CC) -std=c11 -O1 -I$(K)/src/tensor -o $@ $<
+	$(HOSTCC) -std=c11 -O1 -I$(K)/src/tensor -o $@ $<
 
-test: $(OUT)/test_zxv_api $(OUT)/test_zxv_abi11 $(OUT)/test_zxv_abi12 $(OUT)/test_zxv_abi13 \
-      $(OUT)/test_q16 fixtures
-	./$(OUT)/test_zxv_api
-	./$(OUT)/test_zxv_abi11 ../conformance/fixtures
-	./$(OUT)/test_zxv_abi12 ../conformance/fixtures
-	./$(OUT)/test_zxv_abi13
-	./$(OUT)/test_q16
+test: $(OUT)/test_zxv_api$(EXE) $(OUT)/test_zxv_abi11$(EXE) $(OUT)/test_zxv_abi12$(EXE) $(OUT)/test_zxv_abi13$(EXE) \
+      $(OUT)/test_q16$(EXE) fixtures
+	$(RUN) ./$(OUT)/test_zxv_api$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi11$(EXE) ../conformance/fixtures
+	$(RUN) ./$(OUT)/test_zxv_abi12$(EXE) ../conformance/fixtures
+	$(RUN) ./$(OUT)/test_zxv_abi13$(EXE)
+	$(RUN) ./$(OUT)/test_q16$(EXE)
 
 fixtures: $(OUT)/mkfixture
 	@mkdir -p ../conformance/fixtures
 	./$(OUT)/mkfixture ../conformance/fixtures
 
-vectors: $(OUT)/gen_vectors fixtures
-	./$(OUT)/gen_vectors ../conformance/fixtures > ../conformance/vectors.json
+vectors: $(OUT)/gen_vectors$(EXE) fixtures
+	$(RUN) ./$(OUT)/gen_vectors$(EXE) ../conformance/fixtures > ../conformance/vectors.json
 
 dist: all
 	@rm -rf $(OUT)/dist && mkdir -p $(OUT)/dist/include $(OUT)/dist/lib
 	cp include/zxv_api.h $(OUT)/dist/include/
-	cp $(LIB) $(STATIC) $(OUT)/dist/lib/
+	cp $(LIB) $(STATIC) $(wildcard $(OUT)/libzxv.dll.a) $(OUT)/dist/lib/
 
 print-config:
 	@echo "LIB=$(LIB)"; echo "DEFS=$(DEFS)"; echo "KSRC=$(KSRC)"

@@ -183,6 +183,11 @@ curzi_err_t curzi_hybrid_combine_signed(const uint8_t ss_pq[CURZI_SS_BYTES],
 {
     uint8_t transcript_buf[1024];
     uint32_t tlen = transcript_len;
+    /* Same refusals as curzi_hybrid_combine: every pointer below is
+     * dereferenced, and a NULL transcript with a nonzero length must not be
+     * silently signed as the EMPTY transcript. */
+    if (!ss_pq || !ss_classical || !mldsa_sk || !out_key || !out_sig) return CURZI_E_NULL;
+    if (transcript_len != 0u && !transcript) return CURZI_E_NULL;
     if (tlen > 1024) return CURZI_E_TRANSCRIPT;
     if (tlen > 0 && transcript) {
         for (uint32_t i = 0; i < tlen; i++) transcript_buf[i] = transcript[i];
@@ -250,6 +255,7 @@ uint32_t curzi_chunk_payload(const uint8_t *payload, uint32_t payload_len,
         header[5] = (uint8_t)((len >> 8) & 0xff);
         header[6] = (uint8_t)(len >> 16);
         header[7] = (uint8_t)(len >> 24);
+        (void) header; /* not signed here yet; keeps -Werror host builds clean */
         /* The chunk_sig is filled by the caller with pq_mldsa65_sign */
         out_chunks[i].chunk_sig.mldsa_verified = LPRES_STATE_NEITHER;
         out_chunks[i].chunk_sig.slh_verified = LPRES_STATE_NEITHER;

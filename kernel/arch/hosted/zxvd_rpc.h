@@ -26,7 +26,15 @@
  *   T4  At most ZXVD_RPC_MAX_CLIENTS connections at once; a client that
  *       stays silent for ZXVD_RPC_IDLE_MS is closed, so a stalled client can
  *       never hold the swarm's loop.
- *   T5  Windows: not built yet (zxvd_rpc_open returns -1 there).
+ *   T5  Windows 10 1803 and later (zxvd_rpc_win.c): the same stream socket
+ *       on Winsock's AF_UNIX, at a path such as
+ *       %LOCALAPPDATA%\ZXV\run\zxvd.sock. Permissions are ACLs there: a
+ *       folder zxvd creates gets a protected DACL for the owner alone; an
+ *       existing one must be owned by us, not be a link, and grant write
+ *       to nobody but us, SYSTEM and Administrators. The socket file gets a
+ *       protected owner-only DACL after bind (the 0600 of T1). T2's peer
+ *       check is SIO_AF_UNIX_GETPEERPID, then the peer process token's
+ *       user SID must equal ours. T3 and T4 are unchanged.
  *
  * METHODS
  *   M1  Host methods (swarm.*, model.*, notes.*, net.*, update.*,
@@ -105,6 +113,19 @@ typedef struct {
     const char *app_version;
 } zxvd_host_ops_t;
 
+/* peer.* (zxv_peer_host.h): remote inference between nodes, settled with the
+ * assurance fee. Set separately from the host ops; unset methods answer
+ * -32601. ask and serve return NULL on success (the result object written
+ * into `out`) or the reason they failed (error ZXVD_E_PEER). */
+#define ZXVD_E_PEER (-32010)
+typedef struct {
+    const char *(*ask)(const char *peer, const char *prompt, uint64_t max_price_minor,
+                       zxvd_buf_t *out);                                  /* peer.ask    */
+    const char *(*serve)(bool on, uint64_t price_minor, zxvd_buf_t *out); /* peer.serve  */
+    void (*status)(zxvd_buf_t *out);                                      /* peer.status */
+} zxvd_peer_ops_t;
+void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops);
+
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops);
@@ -124,7 +145,7 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out);
 /* The libzxv side only, for the unit test: open/close the context and cap
  * without a socket. */
 int zxvd_rpc_books_open(void);
-void zxvd_rpc_books_close(void);
+void zxvd_rpc_books_close(void); /* Windows: the transport in zxvd_rpc_win.c */
 /* E1: choose the earnings currency and rate before the books open. 0, or -1
  * (books already open, code not 3..8 bytes, rate 0 or above ZXV_AMOUNT_MAX);
  * a code libzxv refuses makes the books fail to open. */

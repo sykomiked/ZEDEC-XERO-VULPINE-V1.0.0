@@ -32,6 +32,7 @@
 #include "vena/vena.h"
 #include "holographic/holo.h"
 #include "bootfeat/boot_features.h"
+#include "efifb_con.h"        /* UEFI GOP text console (real PCs have no COM1) */
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
@@ -178,6 +179,8 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     boot_msg("[BOOT] Long mode entered; x86-64 kernel main");
     boot_msg("[BOOT] Initializing COM1 serial console");
     boot_msg("  [DRIVER ONLINE] 16550A COM1 at 0x3F8");
+    if (efifb_init())
+        boot_msg("  [DRIVER ONLINE] UEFI GOP text console (serial mirrored on screen)");
 
     /* Ring-3 (user-mode) parity — mirrors the arm64 EL0 path. Runs FIRST so it is
      * isolated from the rest of bring-up during development. */

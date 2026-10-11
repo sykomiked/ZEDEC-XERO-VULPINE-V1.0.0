@@ -12,6 +12,9 @@
  *   lightningrod.h  representation adapters into exact rationals, with an
  *                   explicit lossless / lossy / no-bridge verdict
  *   rational.h      the 64-bit exact rationals those convert into
+ *   zxt.h           ZXV treaties: the COBOL copybook record (ZXVTRTY) and
+ *                   its compact Sutra text, validated and lowered to one
+ *                   AST; fail closed, one canonical spelling per treaty
  * Integer only; no allocation. Each header's HONEST LIMITS section lists
  * what is not handled (no COMP-1/COMP-2, no edited pictures, single-byte
  * EBCDIC only, ...).
@@ -37,6 +40,7 @@ extern "C" {
 #include "zxv/legacy/ebcdic.h"
 #include "zxv/rational/rational.h"
 #include "zxv/lightningrod/lightningrod.h"
+#include "zxv/treaty/zxt.h"
 
 #ifdef __cplusplus
 }

@@ -30,7 +30,10 @@ Build output goes to `/tmp/zxv_bench` (override with `OUT=dir`).
 - `run_tensor_bench.py` runs `zt_bench`, then, **only if llama.cpp is on PATH**:
   `llama-bench` on the same model with the same prompt length and N (tokens/s),
   and `llama-completion` (or `llama-cli`) greedy (`--temp 0 --top-k 1`) on the
-  same prompt. It reports whether the first N generated tokens match. The match
+  same prompt. Both llama.cpp tools run on the CPU (`-ngl 0`) as plain
+  completion (`-no-cnv`), and every program gets the same `--threads`
+  (default: every CPU; `make -C bench tensor ... THREADS=8 BATCH=128`).
+  It reports whether the first N generated tokens match. The match
   is checked on the decoded text, byte for byte, because the llama.cpp tools do
   not print token ids. A mismatch is reported with the offset of the first
   differing byte. `--json out.json` writes the summary.

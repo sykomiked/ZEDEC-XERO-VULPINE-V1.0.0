@@ -17,6 +17,10 @@
  *                       no socket, nothing leaves the machine; see
  *                       zxv_net_host.h). --net-port N, --net-bind IP and
  *                       --peer IP:PORT (repeatable) go with it.
+ *   zxv-host --peer-serve PRICE   answer other nodes' prompts over TCP in a
+ *                       post-quantum session for PRICE VFV minor units each
+ *                       (zxv_peer_host.h; needs --net). --peer-float MINOR
+ *                       puts demo VFV in the peer wallet (tests and demos).
  *   zxv-host --notify auto|print|off   where notifications go besides the
  *                       window (default auto: the OS notifier if present)
  *   zxv-host --update-gateway URL   trustless gateway for update checks
@@ -92,11 +96,18 @@ typedef int sock_t;
 #include "zxv_answer_tag.h"
 #include "sha256.h"
 #include "zxv_net_host.h"
+#include "zxv_peer_host.h"
 #include "zxv_update_host.h"
 #include "zx_notify.h"
 #include "zx_upcheck.h"
 #if defined(ZXVD)
 #    include "zxvd_rpc.h" /* zxvd: the JSON-RPC socket and the libzxv books */
+#    if defined(_WIN32)
+#        include <afunix.h>
+#    else
+#        include <sys/stat.h>
+#        include <sys/un.h>
+#    endif
 #endif
 
 extern const char zxv_ui_html[];
@@ -235,6 +246,148 @@ static uint64_t pal_now_ms(void)
 #endif
 }
 
+/* SIGTERM, SIGINT, SIGHUP (a logout, kill, Ctrl-C) or Windows' console
+ * close: leave the loop and clean up (the socket file, the window link). */
+#if defined(_WIN32)
+static volatile LONG STOP_ASKED;
+
+static BOOL WINAPI pal_on_console(DWORD ev)
+{
+    (void) ev;
+    InterlockedExchange(&STOP_ASKED, 1);
+    return TRUE;
+}
+#    define PAL_STOP_ASKED() InterlockedCompareExchange(&STOP_ASKED, 0, 0)
+#else
+static volatile sig_atomic_t STOP_ASKED;
+
+static void pal_on_signal(int sig)
+{
+    (void) sig;
+    STOP_ASKED = 1;
+}
+#    define PAL_STOP_ASKED() STOP_ASKED
+#endif
+
+static void pal_catch_stop(void)
+{
+#if defined(_WIN32)
+    SetConsoleCtrlHandler(pal_on_console, TRUE);
+#else
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = pal_on_signal;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGHUP, &sa, NULL);
+#endif
+}
+
+#if defined(_WIN32)
+/* --exit-with-parent on Windows: select() there takes sockets only, so a
+ * thread waits on stdin and raises this flag when the parent closes it. */
+static volatile LONG PARENT_GONE;
+
+static DWORD WINAPI pal_watch_stdin(LPVOID arg)
+{
+    (void) arg;
+    char tmp[64];
+    DWORD got;
+    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    while (ReadFile(in, tmp, sizeof tmp, &got, NULL) && got > 0) {
+    }
+    InterlockedExchange(&PARENT_GONE, 1);
+    return 0;
+}
+#endif
+
+#if defined(ZXVD)
+/* ===================== zxvd --desktop: the browser-window app ===================== */
+
+/* Where the desktop app keeps its control socket and window link, created
+ * as needed: the last folder is zxvd's own (zxvd_rpc.h T1/T5 check it), the
+ * ones above are the user's usual per-app folders.
+ *   Linux    $XDG_RUNTIME_DIR/zxv/, else ~/.local/state/zxv/run/
+ *   macOS    ~/Library/Application Support/ZXV/run/ (the Mac app's)
+ *   Windows  %LOCALAPPDATA%\ZXV\run\                                       */
+static int pal_desktop_dir(char *out, size_t cap)
+{
+    out[0] = 0;
+#    if defined(_WIN32)
+    const char *la = getenv("LOCALAPPDATA");
+    if (!la || !la[0]) return -1;
+    snprintf(out, cap, "%s\\ZXV", la);
+    CreateDirectoryA(out, NULL); /* the parent; zxvd's own folder is checked */
+    snprintf(out, cap, "%s\\ZXV\\run", la);
+#    else
+    const char *home = getenv("HOME");
+#        if defined(__APPLE__)
+    if (!home || home[0] != '/') return -1;
+    snprintf(out, cap, "%s/Library/Application Support/ZXV/run", home);
+#        else
+    const char *xdg = getenv("XDG_RUNTIME_DIR");
+    if (xdg && xdg[0] == '/')
+        snprintf(out, cap, "%s/zxv", xdg);
+    else if (home && home[0] == '/')
+        snprintf(out, cap, "%s/.local/state/zxv/run", home);
+    else
+        return -1;
+#        endif
+    /* mkdir -p of the parents, 0700 where we create them */
+    for (char *p = out + 1; *p; p++)
+        if (*p == '/') {
+            *p = 0;
+            (void) mkdir(out, S_IRWXU);
+            *p = '/';
+        }
+#    endif
+    return 0;
+}
+
+/* Is a zxvd answering on this socket path? */
+static bool pal_rpc_live(const char *path)
+{
+    struct sockaddr_un a;
+    if (strlen(path) >= sizeof a.sun_path) return false;
+    memset(&a, 0, sizeof a);
+    a.sun_family = AF_UNIX;
+    memcpy(a.sun_path, path, strlen(path) + 1);
+    sock_t s = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (s == BAD_SOCK) return false;
+    bool live = connect(s, (struct sockaddr *) &a, sizeof a) == 0;
+    CLOSESOCK(s);
+    return live;
+}
+
+/* The window link (URL with this launch's token) beside the socket, so a
+ * second launch of the app opens the running one's window. It lives in
+ * zxvd's checked, owner-only folder, like the socket itself. */
+static void pal_write_link(const char *file, const char *url)
+{
+#    if !defined(_WIN32)
+    mode_t old = umask(S_IRWXG | S_IRWXO);
+#    endif
+    FILE *f = fopen(file, "w");
+#    if !defined(_WIN32)
+    umask(old);
+#    endif
+    if (!f) return;
+    fprintf(f, "%s\n", url);
+    fclose(f);
+}
+
+static bool pal_read_link(const char *file, char *url, size_t cap)
+{
+    FILE *f = fopen(file, "r");
+    if (!f) return false;
+    bool ok = fgets(url, (int) cap, f) != NULL;
+    fclose(f);
+    if (ok) url[strcspn(url, "\r\n")] = 0;
+    return ok && url[0];
+}
+#endif
+
 /* ===================== the swarm ===================== */
 
 typedef struct {
@@ -294,6 +447,10 @@ static struct {
     zxv_net_mode_t net_want; /* what the user chose */
     uint16_t net_port;
     const char *net_bind;
+    /* remote inference between nodes (zxv_peer_host.h) */
+    zxv_peer_t *peer;
+    bool peer_serve;
+    uint64_t peer_price;
     zxn_bus_t bus;
     zxn_note_t notes[NOTE_SLOTS];
 } S;
@@ -967,6 +1124,35 @@ static bool hex32(const char *h, uint8_t out[32])
     return true;
 }
 
+/* ===================== remote inference between nodes ===================== */
+
+static void answer(const char *q, char *out, size_t cap);
+
+static void peer_answer(void *ctx, const char *prompt, char *out, size_t cap)
+{
+    (void) ctx;
+    answer(prompt, out, cap);
+}
+
+/* Follow the UDP node: same identity, same LAN policy, TCP on the same
+ * address and port number; serving only while the owner asked for it and
+ * networking is on (zxv_peer_host.h P1, P2). NULL, or why serving failed. */
+static const char *peer_sync(void)
+{
+    zxv_net_status_t ns;
+    zxv_net_status(S.net, &ns);
+    const vna_identity_t *id = zxv_net_identity(S.net);
+    zxv_peer_set_identity(S.peer, id, ns.mode != ZXV_NET_ONLINE);
+    if (!id || !S.peer_serve) {
+        zxv_peer_stop(S.peer);
+        return NULL;
+    }
+    const char *why = NULL;
+    if (zxv_peer_serve(S.peer, S.net_bind, ns.port, S.peer_price, peer_answer, NULL, &why) != 0)
+        return why;
+    return NULL;
+}
+
 /* POST /api/net: "off", "lan", "online", "peer A.B.C.D:PORT", and the owner's
  * trading (zxv_net_host.h U8): "share COMPUTE STORAGE" (both 0 stops
  * sharing), "want compute|storage UNITS MAX_PRICE" and
@@ -977,7 +1163,12 @@ static const char *net_command(const char *body)
     uint64_t now = zxv_net_wall_ms();
     if (zxv_net_mode_parse(body, &m) == 0) {
         S.net_want = m;
-        if (zxv_net_start(S.net, m, S.net_bind, S.net_port, now) != 0) return "could not start";
+        if (zxv_net_start(S.net, m, S.net_bind, S.net_port, now) != 0) {
+            peer_sync();
+            return "could not start";
+        }
+        const char *pw = peer_sync();
+        if (pw) return pw;
         return m == ZXV_NET_OFF ? "networking is off" : "networking is on";
     }
     if (!strncmp(body, "peer ", 5))
@@ -1243,6 +1434,145 @@ static void rpc_shutdown(void)
 static const zxvd_host_ops_t RPC_OPS = {rpc_state,  rpc_ask,        rpc_model,
                                         rpc_notes,  rpc_notes_read, net_command,
                                         rpc_update, rpc_shutdown,   ZXV_VERSION};
+
+/* ----- peer.* (zxv_peer_host.h) ----- */
+
+static void put_hex(zxvd_buf_t *o, const uint8_t *b, size_t n)
+{
+    static const char hx[] = "0123456789abcdef";
+    char tmp[2];
+    zxvd_buf_raw(o, "\"", 1);
+    for (size_t i = 0; i < n; i++) {
+        tmp[0] = hx[b[i] >> 4];
+        tmp[1] = hx[b[i] & 15];
+        zxvd_buf_raw(o, tmp, 2);
+    }
+    zxvd_buf_raw(o, "\"", 1);
+}
+
+static void put_settlement(zxvd_buf_t *o, const zxv_peer_settlement_t *st)
+{
+    zxvd_buf_printf(
+        o, "{\"role\":\"%s\",\"peer\":", st->role == ZXV_PEER_ROLE_BUYER ? "buyer" : "seller");
+    put_hex(o, st->peer.b, 32);
+    zxvd_buf_printf(
+        o,
+        ",\"price_minor\":\"%llu\",\"fee_minor\":\"%llu\",\"paid_minor\":\"%llu\","
+        "\"fee_parts\":{",
+        (unsigned long long) st->gross, (unsigned long long) st->fee,
+        (unsigned long long) (st->role == ZXV_PEER_ROLE_BUYER ? st->gross + st->fee : 0));
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++) {
+        zxvd_buf_printf(o, "%s", i ? "," : "");
+        zxvd_buf_json_str(o, pay_assure_bucket_name[i]);
+        zxvd_buf_printf(o, ":\"%llu\"", (unsigned long long) st->parts[i]);
+    }
+    zxvd_buf_raw(o, "},\"invoice\":", 12);
+    put_hex(o, st->invoice, 32);
+    zxvd_buf_raw(o, ",\"settle\":", 10);
+    put_hex(o, st->settle, 32);
+    zxvd_buf_raw(o, ",\"session\":", 11);
+    put_hex(o, st->session, 32);
+    zxvd_buf_raw(o, "}", 1);
+}
+
+static void rpc_peer_status(zxvd_buf_t *o)
+{
+    static zxv_peer_status_t st;
+    zxv_peer_status(S.peer, &st);
+    zxvd_buf_printf(o,
+                    "{\"serving\":%s,\"port\":%u,\"price_minor\":\"%llu\",\"currency\":\"VFV\","
+                    "\"wallet_minor\":\"%llu\",\"fees_paid_minor\":\"%llu\",\"buckets\":{",
+                    st.serving ? "true" : "false", (unsigned) st.port,
+                    (unsigned long long) st.price, (unsigned long long) st.wallet,
+                    (unsigned long long) st.fees_paid);
+    for (int i = 0; i < PAY_ASSURE_BUCKETS; i++) {
+        zxvd_buf_printf(o, "%s", i ? "," : "");
+        zxvd_buf_json_str(o, pay_assure_bucket_name[i]);
+        zxvd_buf_printf(o, ":\"%llu\"", (unsigned long long) st.buckets[i]);
+    }
+    zxvd_buf_printf(o,
+                    "},\"sold\":%u,\"bought\":%u,\"refused\":%u,\"sessions\":%u,\"book_ok\":%s,"
+                    "\"history\":[",
+                    (unsigned) st.sold, (unsigned) st.bought, (unsigned) st.refused,
+                    (unsigned) st.sessions, st.book_ok ? "true" : "false");
+    for (uint32_t i = 0; i < st.n_history; i++) {
+        if (i) zxvd_buf_raw(o, ",", 1);
+        put_settlement(o, &st.history[i]);
+    }
+    zxvd_buf_raw(o, "]}", 2);
+}
+
+static const char *rpc_peer_serve(bool on, uint64_t price, zxvd_buf_t *o)
+{
+    if (on && !zxv_net_identity(S.net))
+        return "networking is off: turn it on first (net.command \"lan\")";
+    S.peer_serve = on;
+    S.peer_price = price;
+    const char *why = peer_sync();
+    if (why) {
+        S.peer_serve = false;
+        return why;
+    }
+    rpc_peer_status(o);
+    return NULL;
+}
+
+/* Wait (up to ms) for the UDP node to hold a verified contact at ip:port,
+ * pinging it first if needed. */
+static bool peer_known(const char *ip, uint16_t port, uint8_t id[32], uint32_t ms)
+{
+    if (zxv_net_contact_id(S.net, ip, port, id) == 0) return true;
+    if (zxv_net_add_peer(S.net, ip, port, zxv_net_wall_ms()) != 0) return false;
+    uint64_t end = pal_now_ms() + ms;
+    while (pal_now_ms() < end) {
+        intptr_t nfd = zxv_net_fd(S.net);
+        if (nfd < 0) return false;
+        fd_set rd;
+        FD_ZERO(&rd);
+        FD_SET((sock_t) nfd, &rd);
+        struct timeval tv = {0, 50000};
+        if (select((int) nfd + 1, &rd, NULL, NULL, &tv) > 0)
+            zxv_net_on_readable(S.net, zxv_net_wall_ms());
+        zxv_net_tick(S.net, zxv_net_wall_ms());
+        if (zxv_net_contact_id(S.net, ip, port, id) == 0) return true;
+    }
+    return false;
+}
+
+static const char *rpc_peer_ask(const char *peer, const char *prompt, uint64_t max_price,
+                                zxvd_buf_t *o)
+{
+    static char why[160];
+    static zxv_peer_result_t r;
+    char ip[40];
+    unsigned port = ZXV_NET_DEFAULT_PORT;
+    int used = -1;
+    if (!zxv_net_identity(S.net))
+        return "networking is off: turn it on first (net.command \"lan\")";
+    if (!(sscanf(peer, "%39[0-9.]:%u%n", ip, &port, &used) == 2 && peer[used] == 0) &&
+        !(sscanf(peer, "%39[0-9.]%n", ip, &used) == 1 && peer[used] == 0))
+        return "peer must be IPV4 or IPV4:PORT";
+    if (!port || port > 65535) return "bad port";
+    uint8_t id[32];
+    if (!peer_known(ip, (uint16_t) port, id, 3000))
+        return "the peer did not answer over UDP (is it on, and in the same network mode?)";
+    vna_id_t vid;
+    memcpy(vid.b, id, 32);
+    if (zxv_peer_ask(S.peer, ip, (uint16_t) port, &vid, prompt, max_price, zxv_net_wall_ms(), &r) !=
+        0) {
+        snprintf(why, sizeof why, "%s", r.error);
+        return why;
+    }
+    zxvd_buf_raw(o, "{\"answer\":", 10);
+    zxvd_buf_json_str(o, r.answer);
+    zxvd_buf_raw(o, ",\"settlement\":", 14);
+    put_settlement(o, &r.s);
+    static const char sec[] = ",\"security\":\"X25519+ML-KEM-1024 session, ML-DSA-87 signatures\"}";
+    zxvd_buf_raw(o, sec, sizeof sec - 1);
+    return NULL;
+}
+
+static const zxvd_peer_ops_t PEER_OPS = {rpc_peer_ask, rpc_peer_serve, rpc_peer_status};
 #    define PROG "zxvd"
 #else
 #    define PROG "zxv-host"
@@ -1255,11 +1585,15 @@ int main(int argc, char **argv)
     const char *model = NULL, *models_dir = NULL;
     const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
     int npeers = 0;
+    uint64_t peer_float = 0;
     S.net_port = ZXV_NET_DEFAULT_PORT;
 #if defined(ZXVD)
     const char *rpc_path = NULL;
     const char *earn_ccy = "VFV";
     uint64_t earn_rate = 1;
+    bool desktop = false;
+    char rpc_buf[512], link_path[560];
+    link_path[0] = 0;
     open_window = false; /* a daemon: the UI and SDKs come in over --rpc */
     port = 0;            /* the loopback window stays available, on any free port */
 #endif
@@ -1298,6 +1632,22 @@ int main(int argc, char **argv)
                 peers[npeers++] = argv[++i];
             else
                 ++i;
+        } else if ((!strcmp(argv[i], "--peer-serve") || !strcmp(argv[i], "--peer-float")) &&
+                   i + 1 < argc) {
+            char *end = NULL;
+            const char *v = argv[i + 1];
+            unsigned long long x = strtoull(v, &end, 10);
+            if (!v[0] || v[0] == '-' || !end || *end) {
+                fprintf(stderr, "zxv-host: %s takes a whole number of VFV minor units\n", argv[i]);
+                return 2;
+            }
+            if (!strcmp(argv[i], "--peer-serve")) {
+                S.peer_serve = true;
+                S.peer_price = x;
+            } else {
+                peer_float = x;
+            }
+            i++;
         } else if (!strcmp(argv[i], "--update-gateway") && i + 1 < argc)
             gateway = argv[++i];
         else if (!strcmp(argv[i], "--notify") && i + 1 < argc)
@@ -1309,6 +1659,8 @@ int main(int argc, char **argv)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
             earn_rate = strtoull(argv[++i], NULL, 10);
+        else if (!strcmp(argv[i], "--desktop"))
+            desktop = true;
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
@@ -1320,6 +1672,10 @@ int main(int argc, char **argv)
                    "  --rpc PATH          JSON-RPC 2.0 socket (required; docs/ZXVD.md)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
+                   "  --desktop           the desktop app: the socket in the per-user\n"
+                   "                      folder (unless --rpc), and the window opened in\n"
+                   "                      the default browser; a second launch opens the\n"
+                   "                      running one's window\n"
 #endif
                    "  --server            run headless; open the window remotely "
                    "over SSH\n"
@@ -1333,6 +1689,8 @@ int main(int argc, char **argv)
                    "  --net-port N        its UDP port (default 8723; 0 = any free port)\n"
                    "  --net-bind IP       its address (default 0.0.0.0)\n"
                    "  --peer IP:PORT      ping this peer at start (repeatable)\n"
+                   "  --peer-serve PRICE  answer peers over TCP for PRICE VFV minor units\n"
+                   "  --peer-float MINOR  demo VFV for the peer wallet (tests, demos)\n"
                    "  --notify MODE       auto (OS notifier if present), print or off\n"
                    "  --update-gateway U  trustless gateway for update checks\n",
                    ZXV_VERSION);
@@ -1348,7 +1706,13 @@ int main(int argc, char **argv)
     }
     if (server && !S.remote) S.remote = true; /* a server is a remote instance */
 #if defined(_WIN32)
-    if (exit_with_parent) fprintf(stderr, "zxv-host: --exit-with-parent is not supported here\n");
+    if (exit_with_parent) {
+        HANDLE th = CreateThread(NULL, 0, pal_watch_stdin, NULL, 0, NULL);
+        if (th)
+            CloseHandle(th);
+        else
+            fprintf(stderr, "zxv-host: --exit-with-parent could not start its watcher\n");
+    }
 #endif
 
     /* G1: this launch's token. The native shell may pick it (ZXV_TOKEN);
@@ -1371,6 +1735,7 @@ int main(int argc, char **argv)
 #else
     signal(SIGPIPE, SIG_IGN);
 #endif
+    pal_catch_stop();
     audit_start();
     S.instance_seed = (uint64_t) time(NULL) * 0x9E3779B97F4A7C15ull ^ 0x36A9u;
     S.rng = S.instance_seed | 1u;
@@ -1405,6 +1770,13 @@ int main(int argc, char **argv)
     qst_init(&S.quest, NULL, NULL, &S.bus); /* single-user desktop: no age policy */
     qst_enrol(&S.quest, QUEST_OWNER);
     zxv_net_on_trade(S.net, quest_trade, NULL);
+    if (!(S.peer = zxv_peer_new()) || (peer_float && zxv_peer_fund(S.peer, peer_float) != 0)) {
+        fprintf(stderr, "zxv-host: out of memory\n");
+        return 1;
+    }
+#if defined(ZXVD)
+    zxvd_rpc_set_peer_ops(&PEER_OPS);
+#endif
 
     /* the model slot: an explicit file, else the first *.gguf in the
      * models folder, else none (the swarm runs without one) */
@@ -1420,6 +1792,33 @@ int main(int argc, char **argv)
         fprintf(stderr, "zxv-host: %s\n", zxv_model_info()->status);
 
 #if defined(ZXVD)
+    if (desktop) {
+        open_window = !server;
+        if (!rpc_path) {
+            char dir[480];
+            if (pal_desktop_dir(dir, sizeof dir) != 0) {
+                fprintf(stderr, "zxvd: no per-user folder for the desktop socket; use --rpc\n");
+                return 2;
+            }
+#    if defined(_WIN32)
+            snprintf(rpc_buf, sizeof rpc_buf, "%s\\zxvd.sock", dir);
+#    else
+            snprintf(rpc_buf, sizeof rpc_buf, "%s/zxvd.sock", dir);
+#    endif
+            rpc_path = rpc_buf;
+        }
+        snprintf(link_path, sizeof link_path, "%s.url", rpc_path);
+        char running[200];
+        if (pal_rpc_live(rpc_path)) {
+            if (open_window && pal_read_link(link_path, running, sizeof running)) {
+                printf("ZXV is already running: opening its window\n");
+                pal_open_window(running);
+                return 0;
+            }
+            fprintf(stderr, "zxvd: ZXV is already running (socket %s)\n", rpc_path);
+            return 1;
+        }
+    }
     if (!rpc_path) {
         fprintf(stderr, "zxvd: --rpc PATH is required (try --help)\n");
         return 2;
@@ -1475,6 +1874,12 @@ int main(int argc, char **argv)
             for (int k = 0; k < npeers; k++)
                 if (zxv_net_add_peer_str(S.net, peers[k], wnow) != 0)
                     fprintf(stderr, "zxv-host: peer %s refused\n", peers[k]);
+            const char *pw = peer_sync();
+            if (pw)
+                fprintf(stderr, "zxv-host: not serving peers: %s\n", pw);
+            else if (S.peer_serve)
+                printf("Peers: answering over TCP %s:%u for %llu VFV minor units each\n",
+                       ns.bind_ip, (unsigned) ns.port, (unsigned long long) S.peer_price);
         } else {
             zxv_net_status(S.net, &ns);
             fprintf(stderr, "zxv-host: network not started: %s\n", ns.error);
@@ -1490,12 +1895,13 @@ int main(int argc, char **argv)
     printf("ZXV-URL: %s\n", url_tok);
 #if defined(ZXVD)
     printf("ZXVD-RPC: %s\n", rpc_path);
+    if (link_path[0]) pal_write_link(link_path, url_tok);
 #endif
     fflush(stdout);
     if (open_window) pal_open_window(url_tok);
 
     uint64_t next_step = pal_now_ms();
-    while (!S.quit) {
+    while (!S.quit && !PAL_STOP_ASKED()) {
         fd_set rd;
         FD_ZERO(&rd);
         FD_SET(ls, &rd);
@@ -1504,6 +1910,11 @@ int main(int argc, char **argv)
         if (nfd >= 0) {
             FD_SET((sock_t) nfd, &rd);
             if ((int) nfd > maxfd) maxfd = (int) nfd;
+        }
+        intptr_t pfd = zxv_peer_fd(S.peer);
+        if (pfd >= 0) {
+            FD_SET((sock_t) pfd, &rd);
+            if ((int) pfd > maxfd) maxfd = (int) pfd;
         }
 #if !defined(_WIN32)
         if (exit_with_parent) {
@@ -1521,6 +1932,8 @@ int main(int argc, char **argv)
             char tmp[64];
             if (read(0, tmp, sizeof tmp) <= 0) break; /* the shell is gone */
         }
+#else
+        if (InterlockedCompareExchange(&PARENT_GONE, 0, 0)) break; /* the shell is gone */
 #endif
         if (r > 0 && FD_ISSET(ls, &rd)) {
             sock_t c = accept(ls, NULL, NULL);
@@ -1539,6 +1952,8 @@ int main(int argc, char **argv)
         }
         if (r > 0 && nfd >= 0 && FD_ISSET((sock_t) nfd, &rd))
             zxv_net_on_readable(S.net, zxv_net_wall_ms());
+        if (r > 0 && pfd >= 0 && FD_ISSET((sock_t) pfd, &rd))
+            zxv_peer_on_readable(S.peer, zxv_net_wall_ms());
 #if defined(ZXVD)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
 #endif
@@ -1553,8 +1968,10 @@ int main(int argc, char **argv)
     }
     CLOSESOCK(ls);
 #if defined(ZXVD)
+    if (link_path[0]) remove(link_path);
     zxvd_rpc_close();
 #endif
+    zxv_peer_free(S.peer);
     zxv_net_free(S.net);
     zxv_update_free();
     zxv_model_close();

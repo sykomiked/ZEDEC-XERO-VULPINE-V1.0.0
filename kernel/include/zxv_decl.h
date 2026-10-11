@@ -116,6 +116,12 @@ typedef struct {
 #else
 #  define ZXV_DECL_KEEP __attribute__((used))
 #endif
+/* PE/COFF (a Windows host build) has no SHF_GNU_RETAIN; `used` is enough
+ * there, since nothing walks the section on a host. */
+#if defined(_WIN32)
+#    undef ZXV_DECL_KEEP
+#    define ZXV_DECL_KEEP __attribute__((used))
+#endif
 /* The section name is an ELF name. Mach-O requires "SEG,sect" and rejects this
  * outright, so a HOST test on macOS that happens to pull in a declaring TU fails
  * to compile — which is how test_mlkem_kat.c (it links keccak.c) first hit this.

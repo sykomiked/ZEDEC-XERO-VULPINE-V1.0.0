@@ -11,11 +11,11 @@ on:
   push:
     branches: [main, develop]
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
-            'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
+            'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             '.github/workflows/zxvd.yml']
   pull_request:
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
-            'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
+            'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             '.github/workflows/zxvd.yml']
   workflow_dispatch:
 
@@ -43,7 +43,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: RPC layer unit test (stub host, real libzxv, socket)
         env:
           CC: ${{ matrix.cc }}
@@ -63,6 +63,13 @@ jobs:
             kernel/arch/hosted/test_write_gguf.c -o "$RUNNER_TEMP/write_gguf"
           "$RUNNER_TEMP/write_gguf" "$RUNNER_TEMP/tiny-test.gguf"
           python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/tiny-test.gguf"
+      - name: Two nodes, two loopback addresses (UDP discovery, PQ TCP session, paid answer)
+        run: |
+          if [ "$(uname -s)" = Darwin ]; then
+            sudo ifconfig lo0 alias 127.0.0.2 up
+            sudo ifconfig lo0 alias 127.0.0.3 up
+          fi
+          python3 tools/zxv_two_node_demo.py --zxvd "$RUNNER_TEMP/zxvd/zxvd" local --check
       - name: The native shell's socket client against zxvd
         run: |
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c \
@@ -77,7 +84,7 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build ZXV.app (engine = zxvd + libzxv.dylib)
         run: build_system/build_desktop.sh --mac-only --out "$RUNNER_TEMP/dist"
       - name: Check the bundle
@@ -124,7 +131,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc --ci --jobs 4 --out mutation-results
 
   real-model:
@@ -133,8 +140,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
         with:
           path: ~/zxv-models
           key: qwen2.5-1.5b-instruct-q4_k_m-6a1a2eb6

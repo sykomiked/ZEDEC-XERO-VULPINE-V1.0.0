@@ -189,6 +189,9 @@ static void test_wrap_unwrap(void)
     swarm_denom_init(&w, 1, 2);
     w.count[0] = 1;
     w.count[1] = 1;
+    w.count[2] = 1;
+    CHECK(swarm_denom_fuse(&w, 1) == SWARM_ERR_ARG && w.count[3] == 0, "fuse one past the octane");
+    w.count[2] = 0;
     CHECK(swarm_denom_fuse(&w, 0) == SWARM_OK, "fuse up to exactly the octane");
     swarm_denom_init(&w, 1, 1);
     w.count[0] = 1;
@@ -212,6 +215,14 @@ static void test_wrap_unwrap(void)
     w.count[61] = 1;
     w.count[62] = 1;
     CHECK(swarm_denom_fuse(&w, 61) == SWARM_ERR_ARG && w.count[63] == 0, "fuse with a bad octane");
+    /* tier + 2 must not wrap past 32 bits into a small, in-octane tier */
+    swarm_denom_init(&w, 1, SWARM_OCTANE_MAX);
+    w.count[0] = 1;
+    w.count[1] = 1;
+    CHECK(swarm_denom_fuse(&w, 0xFFFFFFFEu) == SWARM_ERR_ARG, "fuse tier 2^32-2 (wraps to 0)");
+    CHECK(swarm_denom_fuse(&w, 0xFFFFFFFFu) == SWARM_ERR_ARG, "fuse tier 2^32-1 (wraps to 1)");
+    CHECK(swarm_denom_fuse(&w, SWARM_DENOM_TIERS) == SWARM_ERR_ARG, "fuse tier 64");
+    CHECK(w.count[0] == 1 && w.count[1] == 1 && w.count[2] == 0, "wrapped fuses change nothing");
 
     swarm_denom_init(&w, 1, SWARM_OCTANE_MAX);
     w.count[1] = 1;
