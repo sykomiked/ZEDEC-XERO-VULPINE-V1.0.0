@@ -68,6 +68,22 @@ int main(void)
     r = lr_double_bits_to_rat(0x3FB999999999999Aull, &v);
     CHECK(!r.exact, "double 0.1 reported as not exact");
 
+    /* a treaty in Sutra lowers to the COBOL record and back, unchanged */
+    static const char treaty[] = "TREATY DEMO USD NET\nPARTY A 100 50 1/2\nPARTY B 0 0 1/2\n"
+                                 "OWE A B 40\nEND\n";
+    static zxt_treaty_t tr, tr2;
+    static uint8_t trec[ZXT_REC_LEN];
+    char txt[sizeof treaty];
+    uint32_t tn = 0;
+    CHECK(zxt_parse_sutra(treaty, sizeof treaty - 1, &tr, NULL) == ZXT_OK &&
+              zxt_emit_record(&tr, trec, sizeof trec) == ZXT_OK &&
+              zxt_parse_record(trec, sizeof trec, &tr2, NULL) == ZXT_OK && zxt_equal(&tr, &tr2) &&
+              zxt_emit_sutra(&tr2, txt, sizeof txt, &tn) == ZXT_OK && tn == sizeof treaty - 1 &&
+              !memcmp(txt, treaty, tn),
+          "treaty Sutra -> record -> Sutra");
+    CHECK(zxt_parse_sutra("TREATY DEMO USD NET\nPARTY A 1 2 1/1\nEND\n", 37, &tr, NULL) == ZXT_E_CLAIM,
+          "treaty claim > deposit refused");
+
     printf("%d/%d checks\n", checks - fails, checks);
     return fails ? 1 : 0;
 }
