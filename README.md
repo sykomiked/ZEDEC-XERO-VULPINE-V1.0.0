@@ -121,6 +121,11 @@ above as each one merges.
   and escrowed bounties (#22).
 - **Fibonacci-only VFV coins**, minting any amount as its Zeckendorf split (#29).
 - **Audit fixes**: filesystem recovery, frame check v2 and the gcc 13 build (#30).
+- **Paradox engine**: sorts each contradiction the four-valued logic finds
+  into one of four kinds (constructive, destructive, neutral, unclassified)
+  and handles each by containing it, deferring it or logging it. It is
+  contradiction-tolerant: it routes contradictions, it does not make both
+  sides true. It is in testing and not yet in a pull request.
 
 ## Orientation
 
