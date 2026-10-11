@@ -116,6 +116,12 @@ its members, its services and `CapabilityLedger` views throw
 from it are children with their own lifetime: they keep working until you
 dispose them, and the native context is destroyed after the last of them
 (ABI.md R6).
+The same holds one level down. A disposed `Capability`, `Model` or
+`Budgets` throws at once, even while something still holds it, and so does
+anything that acts with its authority (a `CapabilityLedger` view, a `Budget`,
+a model opened with that capability). Its own handles keep working: an
+attenuated child capability, and a session or LoRA adapter of a disposed
+model. The native object is freed after the last of them.
 
 **No floats at the boundary.** No public method takes or returns `double` or
 `float`. `Rational` is a `readonly record struct` built with `Rational.Of(3, 4)`,

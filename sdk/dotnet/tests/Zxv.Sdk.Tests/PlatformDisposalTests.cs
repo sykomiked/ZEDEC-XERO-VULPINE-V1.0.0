@@ -84,6 +84,23 @@ public sealed class PlatformDisposalTests
     }
 
     [Fact]
+    public void Disposed_capability_throws_while_its_child_still_works()
+    {
+        using ZxvPlatform p = TestPlatform.Create();
+        Capability root = p.CreateRootCapability();
+        using Capability child = root.Attenuate(CapabilityRights.LedgerRead);
+
+        root.Dispose();
+        root.Dispose(); // idempotent
+
+        Assert.Throws<ObjectDisposedException>(() => root.GetInfo());
+        Assert.Throws<ObjectDisposedException>(() => root.Attenuate(CapabilityRights.LedgerRead));
+        Assert.Throws<ObjectDisposedException>(() => root.Demand(CapabilityRights.LedgerRead));
+        Assert.False(child.GetInfo().IsRevoked);
+        child.Demand(CapabilityRights.LedgerRead);
+    }
+
+    [Fact]
     public void Without_children_the_context_is_destroyed_at_once()
     {
         ZxvPlatform p = TestPlatform.Create();
