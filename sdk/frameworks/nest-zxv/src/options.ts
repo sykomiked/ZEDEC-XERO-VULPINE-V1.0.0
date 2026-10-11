@@ -83,9 +83,9 @@ const NAME = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const CCY = /^[A-Z]{3}$/;
 const PRIVATE = /^[A-Z0-9]{3,8}$/;
 
-/** The names of the rights set in `bits` (never `ALL`). */
+/** The names of the single rights set in `bits` (never `ALL` or `ALL_1_4`). */
 export function rightNames(bits: bigint): CapabilityRight[] {
-  return RIGHT_NAMES.filter((n) => n !== 'ALL' && (bits & Cap[n]) !== 0n);
+  return RIGHT_NAMES.filter((n) => (Cap[n] & (Cap[n] - 1n)) === 0n && (bits & Cap[n]) !== 0n);
 }
 
 /**
