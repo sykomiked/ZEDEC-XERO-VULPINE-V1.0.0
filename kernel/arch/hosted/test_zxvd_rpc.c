@@ -96,6 +96,40 @@ static const zxvd_host_ops_t NONE = {0};
 static const zxvd_host_ops_t EMPTY = {h_empty, 0, 0, 0, 0, 0, 0, 0, 0};
 static const zxvd_host_ops_t SILENT = {0, h_ask_silent, 0, 0, 0, 0, 0, 0, 0};
 
+/* peer.* stubs (zxvd_peer_ops_t) */
+static char last_peer[64], last_peer_prompt[4200];
+static uint64_t last_max, last_serve_price;
+static int peer_asks, serve_calls;
+static bool last_serve_on;
+static const char *p_ask(const char *peer, const char *prompt, uint64_t max_price, zxvd_buf_t *o)
+{
+    peer_asks++;
+    snprintf(last_peer, sizeof last_peer, "%s", peer);
+    snprintf(last_peer_prompt, sizeof last_peer_prompt, "%s", prompt);
+    last_max = max_price;
+    if (!strcmp(prompt, "fail")) {
+        zxvd_buf_raw(o, "{\"partial\":", 11); /* must be discarded */
+        return "the peer's price is above max_price";
+    }
+    zxvd_buf_raw(o, "{\"answer\":\"ok\"}", 15);
+    return NULL;
+}
+static const char *p_serve(bool on, uint64_t price, zxvd_buf_t *o)
+{
+    serve_calls++;
+    last_serve_on = on;
+    last_serve_price = price;
+    if (on && price == 13) return "networking is off";
+    zxvd_buf_printf(o, "{\"serving\":%s}", on ? "true" : "false");
+    return NULL;
+}
+static void p_status(zxvd_buf_t *o)
+{
+    zxvd_buf_raw(o, "{\"sold\":2}", 10);
+}
+static const zxvd_peer_ops_t PEER_STUB = {p_ask, p_serve, p_status};
+static const zxvd_peer_ops_t PEER_NONE = {0};
+
 /* ---------------- helpers ---------------- */
 
 static zxvd_buf_t OUT;
@@ -340,7 +374,8 @@ static void test_host_methods(void)
            OK("11",
               "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
               "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
-              "\"notes.mark_read\",\"net.command\",\"update.check\",\"currency.enable\","
+              "\"notes.mark_read\",\"net.command\",\"peer.ask\",\"peer.serve\",\"peer.status\","
+              "\"update.check\",\"currency.enable\","
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
               "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\"]}"));
     stopped = 0;
@@ -1004,12 +1039,97 @@ static void test_socket(void)
     rmdir(tmpl);
 }
 
+/* ---------------- peer.* ---------------- */
+
+static void test_peer_methods(void)
+{
+    zxvd_rpc_set_peer_ops(NULL);
+    EXPECT(REQ("1", "peer.status", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "peer.ask", ",\"params\":{\"peer\":\"1.2.3.4\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_peer_ops(&PEER_NONE);
+    EXPECT(REQ("1", "peer.serve", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "peer.status", ""), ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_peer_ops(&PEER_STUB);
+    EXPECT(REQ("2", "peer.status", ""), OK("2", "{\"sold\":2}"));
+    EXPECT(
+        REQ("3", "peer.ask",
+            ",\"params\":{\"peer\":\"10.0.0.2:9\",\"prompt\":\"hi\",\"max_price_minor\":125000}"),
+        OK("3", "{\"answer\":\"ok\"}"));
+    CHECK(!strcmp(last_peer, "10.0.0.2:9") && !strcmp(last_peer_prompt, "hi") && last_max == 125000,
+          "peer.ask passes peer, prompt and price (%s %s %llu)", last_peer, last_peer_prompt,
+          (unsigned long long) last_max);
+    EXPECT(REQ("3", "peer.ask",
+               ",\"params\":{\"peer\":\"10.0.0.2\",\"prompt\":\"hi\",\"max_price_minor\":"
+               "\"9223372036854775807\"}"),
+           OK("3", "{\"answer\":\"ok\"}"));
+    CHECK(last_max == 9223372036854775807ull, "a price as a decimal string");
+    EXPECT(REQ("4", "peer.ask",
+               ",\"params\":{\"peer\":\"10.0.0.2\",\"prompt\":\"fail\",\"max_price_minor\":1}"),
+           ERR("4", "-32010", "the peer's price is above max_price"));
+    int n = peer_asks;
+    EXPECT(REQ("5", "peer.ask", ",\"params\":{\"prompt\":\"hi\",\"max_price_minor\":1}"),
+           ERR("5", "-32602", "missing string parameter \\\"peer\\\""));
+    EXPECT(REQ("5", "peer.ask", ",\"params\":{\"peer\":\"10.0.0.2\",\"max_price_minor\":1}"),
+           ERR("5", "-32602", "missing string parameter \\\"prompt\\\""));
+    EXPECT(REQ("5", "peer.ask", ",\"params\":{\"peer\":\"10.0.0.2\",\"prompt\":\"hi\"}"),
+           ERR("5", "-32602", "missing integer parameter \\\"max_price_minor\\\""));
+    EXPECT(REQ("5", "peer.ask",
+               ",\"params\":{\"peer\":\"10.0.0.2\",\"prompt\":\"hi\",\"max_price_minor\":-1}"),
+           ERR("5", "-32602", "\\\"max_price_minor\\\" must not be negative"));
+    CHECK(has(REQ("5", "peer.ask",
+                  ",\"params\":{\"peer\":\"10.0.0.2\",\"prompt\":\"hi\",\"max_price_minor\":1.5}"),
+              "-32602"),
+          "a fractional price is refused");
+    CHECK(peer_asks == n, "bad params never reach the host");
+    /* 4096-byte prompts reach the host, 4097 do not; 63-byte peers do, 64 do not */
+    static char req[5000];
+    int k = snprintf(req, sizeof req,
+                     "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"peer.ask\",\"params\":{"
+                     "\"peer\":\"1.2.3.4\",\"max_price_minor\":0,\"prompt\":\"");
+    memset(req + k, 'p', 4096);
+    strcpy(req + k + 4096, "\"}}");
+    CHECK(has(req, "\"result\"") && strlen(last_peer_prompt) == 4096,
+          "a 4096-byte peer prompt is accepted");
+    memset(req + k, 'p', 4097);
+    strcpy(req + k + 4097, "\"}}");
+    CHECK(has(req, "at most 4096 bytes"), "a 4097-byte peer prompt is refused");
+    k = snprintf(req, sizeof req,
+                 "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"peer.ask\",\"params\":{"
+                 "\"prompt\":\"x\",\"max_price_minor\":0,\"peer\":\"");
+    memset(req + k, '1', 63);
+    strcpy(req + k + 63, "\"}}");
+    CHECK(has(req, "\"result\"") && strlen(last_peer) == 63, "a 63-byte peer is accepted");
+    memset(req + k, '1', 64);
+    strcpy(req + k + 64, "\"}}");
+    CHECK(has(req, "at most 63 bytes"), "a 64-byte peer is refused");
+
+    EXPECT(REQ("7", "peer.serve", ",\"params\":{\"price_minor\":125000}"),
+           OK("7", "{\"serving\":true}"));
+    CHECK(last_serve_on && last_serve_price == 125000, "peer.serve with a price starts serving");
+    EXPECT(REQ("7", "peer.serve", ",\"params\":{}"), OK("7", "{\"serving\":false}"));
+    CHECK(!last_serve_on, "peer.serve without a price stops");
+    EXPECT(REQ("7", "peer.serve", ""), OK("7", "{\"serving\":false}"));
+    EXPECT(REQ("7", "peer.serve", ",\"params\":{\"price_minor\":13}"),
+           ERR("7", "-32010", "networking is off"));
+    n = serve_calls;
+    EXPECT(REQ("7", "peer.serve", ",\"params\":{\"price_minor\":-5}"),
+           ERR("7", "-32602", "\\\"price_minor\\\" must not be negative"));
+    EXPECT(REQ("7", "peer.serve", ",\"params\":{\"price_minor\":\"x\"}"),
+           ERR("7", "-32602",
+               "\\\"price_minor\\\" must be an integer or a decimal string (no "
+               "fraction or exponent)"));
+    CHECK(serve_calls == n, "a bad price never reaches the host");
+    zxvd_rpc_set_peer_ops(NULL);
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
     test_buf();
     test_protocol();
     test_host_methods();
+    test_peer_methods();
     test_books_closed();
     test_books();
     test_earnings();

@@ -13,7 +13,8 @@
 # mix two layouts of one struct. Behind the ABI, each side keeps its own.
 #
 # Writes OUTDIR/zxvd and OUTDIR/libzxv.{so,dylib} (found next to zxvd via
-# rpath). Linux and macOS.
+# rpath), or OUTDIR/zxvd.exe and OUTDIR/libzxv.dll for a Windows target
+# (CC=x86_64-w64-mingw32-gcc, from Linux or from MSYS2).
 #
 #   CC=clang SANITIZE=1 kernel/arch/hosted/build_zxvd.sh /tmp/zxvd
 #   CC="xcrun clang -arch x86_64 -mmacosx-version-min=10.15" ... (one slice of
@@ -37,13 +38,24 @@ fi
 make -C "$R/sdk/libzxv" CC="$CC" OUT="$OUT/libzxv-build" ${SANITIZE:+SANITIZE=1} \
     >"$OUT/libzxv-build.log" 2>&1 ||
     { tail -30 "$OUT/libzxv-build.log"; echo "[FAIL] libzxv build"; exit 1; }
-case "$(uname -s)" in
+# The compiler's target decides (a MinGW cross compiler builds for Windows
+# from Linux): zxvd.exe finds libzxv.dll beside it, Windows' own rule.
+EXE=""
+OSLIBS=""
+OSDEFS=""
+case "$($CC -dumpmachine 2>/dev/null)" in
+    *mingw*|*windows*)
+        LIBF=libzxv.dll; RP=""; EXE=.exe
+        OSLIBS="-lws2_32 -lshell32 -lbcrypt -ladvapi32 -static-libgcc"
+        OSDEFS="-D__USE_MINGW_ANSI_STDIO=1 -D_WIN32_WINNT=0x0A00"
+        ;;
     # Both rpaths at link time (next to the binary, and Contents/Frameworks
     # in ZXV.app), with header room: the x86_64 slice has none left for a
     # later install_name_tool -add_rpath.
-    Darwin) LIBF=libzxv.dylib
-            RP='-Wl,-rpath,@loader_path,-rpath,@executable_path/../Frameworks,-headerpad_max_install_names' ;;
-    *)      LIBF=libzxv.so;    RP='-Wl,-rpath,$ORIGIN' ;;
+    *darwin*|*apple*)
+        LIBF=libzxv.dylib
+        RP='-Wl,-rpath,@loader_path,-rpath,@executable_path/../Frameworks,-headerpad_max_install_names' ;;
+    *)                LIBF=libzxv.so;    RP='-Wl,-rpath,$ORIGIN' ;;
 esac
 cp "$OUT/libzxv-build/$LIBF" "$OUT/$LIBF"
 
@@ -55,12 +67,14 @@ set --
 for d in $(sh "$HERE/app_sources.sh" incs); do set -- "$@" "-I$K/$d"; done
 set -- "$@" "-I$K/src/web4" "-I$R/sdk/libzxv/include"
 for f in $(sh "$HERE/app_sources.sh" srcs); do set -- "$@" "$K/$f"; done
-DEFS="-DZXVD"
+DEFS="-DZXVD $OSDEFS"
 if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
     set -- "$@" "$HERE/zxv_zt_glue.c"
     DEFS="$DEFS -DZXV_HAVE_ZT_GLUE"
 fi
+[ -n "$EXE" ] && set -- "$@" "$HERE/zxvd_rpc_win.c"
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
-$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv "$RP" -lm -o "$OUT/zxvd"
-echo "[PASS] built $OUT/zxvd against $OUT/$LIBF"
+$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
+    -o "$OUT/zxvd$EXE"
+echo "[PASS] built $OUT/zxvd$EXE against $OUT/$LIBF"

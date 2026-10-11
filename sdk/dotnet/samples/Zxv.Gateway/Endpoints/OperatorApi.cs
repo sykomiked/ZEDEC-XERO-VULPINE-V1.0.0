@@ -30,7 +30,7 @@ public static class OperatorApi
 {
     public static IEndpointRouteBuilder MapOperatorApi(this IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder v1 = app.MapGroup("/v1").RequireAuthorization(GatewayAuthentication.OperatorPolicy).WithOpenApi();
+        RouteGroupBuilder v1 = app.MapGroup("/v1").RequireAuthorization(GatewayAuthentication.OperatorPolicy);
 
         // Every operation may answer with RFC 9457 problem details (see ZxvExceptionHandler.HttpStatusFor).
         foreach (int status in new[] { 400, 401, 403, 404, 409, 422, 501, 503 })

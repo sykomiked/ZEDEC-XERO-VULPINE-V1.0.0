@@ -6,13 +6,14 @@ methods zxvd serves (rpc.discover) are exactly the spec's, so SDKs generated
 from the spec never call a method that does not exist or miss one."""
 import json
 import os
-import socket
 import subprocess
 import sys
 import tempfile
 import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from test_zxvd import unix_socket  # noqa: E402 (AF_UNIX, also on Windows)
 
 
 def main(binary):
@@ -27,7 +28,7 @@ def main(binary):
         t0 = time.time()
         while not os.path.exists(sock) and time.time() - t0 < 20:
             time.sleep(0.05)
-        s = socket.socket(socket.AF_UNIX)
+        s = unix_socket()
         s.settimeout(10)
         s.connect(sock)
         s.sendall(b'{"jsonrpc":"2.0","id":1,"method":"rpc.discover"}\n')

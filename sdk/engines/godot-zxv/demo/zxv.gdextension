@@ -1,0 +1,22 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+; The ZXV GDExtension. Build it with CMake (see ../README.md); it lands in
+; bin/ next to a copy of libzxv, which the extension loads from beside itself.
+
+[configuration]
+
+entry_symbol = "zxv_godot_init"
+compatibility_minimum = "4.3"
+reloadable = false
+
+[libraries]
+
+linux.x86_64 = "res://bin/libzxv_godot.so"
+linux.arm64 = "res://bin/libzxv_godot.so"
+macos = "res://bin/libzxv_godot.dylib"
+
+[dependencies]
+
+linux.x86_64 = { "res://bin/libzxv.so" : "" }
+linux.arm64 = { "res://bin/libzxv.so" : "" }
+macos = { "res://bin/libzxv.dylib" : "" }

@@ -70,7 +70,10 @@ jobs:
         run: pip install clang-format==18.1.8
       - name: Check formatting of the C files this change touches
         # Style is in .clang-format. Older files predate it, so only the lines
-        # a pull request or push changes are checked.
+        # a pull request or push changes are checked. Nightly and manual runs
+        # have no change to compare, so the whole history would be "changed"
+        # and every pre-.clang-format file would fail; they skip this step.
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
         run: |
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
           # Only the changed lines are checked, so a one-line header edit does
@@ -242,6 +245,42 @@ jobs:
           path: zedec_xero_arm32.elf
           if-no-files-found: error
       - run: ccache -s
+
+  uefi-disc:
+    # Bare-metal UEFI discs, built in the same pinned Docker toolchain used on a
+    # Mac (build_system/Dockerfile.baremetal), then booted from the disc by the
+    # real firmware (OVMF / QEMU_EFI). Fails closed: the step passes only if the
+    # serial log reaches [BOOT_OK] and [AI_OK] with no fault marker. Slow tier:
+    # the toolchain image is built from scratch each run.
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            screen: "[AI_OK]"
+          # x86_64 must also bring up the on-screen console a real PC needs.
+          - arch: x86_64
+            screen: "UEFI GOP text console"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build toolchain image
+        run: docker build -f build_system/Dockerfile.baremetal -t zxv-baremetal .
+      - name: Build ${{ matrix.arch }} kernel and UEFI disc
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
+      - name: Boot ${{ matrix.arch }} disc under UEFI firmware
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+      - name: Upload ${{ matrix.arch }} disc
+        uses: actions/upload-artifact@v7
+        with:
+          name: uefi-disc-${{ matrix.arch }}
+          path: |
+            dist/discs/zxv-${{ matrix.arch }}-uefi.img
+            dist/discs/SHA256SUMS
+          if-no-files-found: error
 
   # The turnkey Mac app: native shell + engine, universal (arm64 + x86_64),
   # tested and packaged by build_desktop.sh on Apple's own toolchain. Signs
