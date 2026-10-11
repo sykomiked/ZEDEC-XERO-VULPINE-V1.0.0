@@ -14,7 +14,12 @@ balanced flow, refuse an overdraft, a fractional amount and a reused
 reference, and verify their invariants; the protocol errors are the JSON-RPC
 2.0 ones; notifications get no reply; several clients are served at once; an
 over-long line closes only that client; a second zxvd cannot take the
-socket; and zxvd.shutdown stops it and removes the socket file."""
+socket; and zxvd.shutdown stops it and removes the socket file.
+
+On Windows (zxvd.exe, zxvd_rpc.h T5) the same checks run over Winsock's
+AF_UNIX, through ctypes when this Python has no socket.AF_UNIX, and the
+0600/0700 checks become: the socket file's and the folder's DACLs grant
+access to this user only."""
 import json
 import os
 import shutil
@@ -26,6 +31,86 @@ import tempfile
 import time
 
 FAILS = []
+WINDOWS = os.name == 'nt'
+
+
+class _WinUnixSocket:
+    """A stream AF_UNIX socket on Winsock (Windows 10 1803+), for Pythons
+    whose socket module has no AF_UNIX on Windows. Only what Client uses."""
+
+    def __init__(self):
+        import ctypes
+        from ctypes import wintypes
+        self.ct = ctypes
+        self.ws = ctypes.WinDLL('ws2_32', use_last_error=True)
+        self.ws.socket.restype = ctypes.c_size_t
+        self.ws.socket.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
+        for f in ('connect', 'send', 'recv', 'closesocket', 'setsockopt'):
+            getattr(self.ws, f).restype = ctypes.c_int
+        self.ws.connect.argtypes = [ctypes.c_size_t, ctypes.c_void_p, ctypes.c_int]
+        self.ws.send.argtypes = [ctypes.c_size_t, ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+        self.ws.recv.argtypes = [ctypes.c_size_t, ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+        self.ws.closesocket.argtypes = [ctypes.c_size_t]
+        self.ws.setsockopt.argtypes = [ctypes.c_size_t, ctypes.c_int, ctypes.c_int,
+                                       ctypes.c_void_p, ctypes.c_int]
+        socket.socket(socket.AF_INET).close()  # the socket module has run WSAStartup
+        self.fd = self.ws.socket(1, 1, 0)  # AF_UNIX, SOCK_STREAM
+        if self.fd == ctypes.c_size_t(-1).value:
+            raise OSError('AF_UNIX socket: error %d' % ctypes.get_last_error())
+        self.wintypes = wintypes
+
+    def _err(self, what):
+        raise OSError('%s: winsock error %d' % (what, self.ct.get_last_error()))
+
+    def settimeout(self, secs):
+        ms = self.wintypes.DWORD(int(secs * 1000))
+        for opt in (0x1005, 0x1006):  # SO_SNDTIMEO, SO_RCVTIMEO
+            self.ws.setsockopt(self.fd, 0xFFFF, opt, self.ct.byref(ms), 4)
+
+    def connect(self, path):
+        raw = path.encode()
+        if len(raw) >= 108:
+            raise OSError('path too long')
+        addr = self.ct.create_string_buffer(2 + 108)
+        addr[0:2] = (1).to_bytes(2, 'little')
+        addr[2:2 + len(raw)] = raw
+        if self.ws.connect(self.fd, addr, len(addr)) != 0:
+            self._err('connect')
+
+    def sendall(self, data):
+        off = 0
+        while off < len(data):
+            k = self.ws.send(self.fd, data[off:off + 65536], min(65536, len(data) - off), 0)
+            if k <= 0:
+                self._err('send')
+            off += k
+
+    def recv(self, n):
+        buf = self.ct.create_string_buffer(n)
+        k = self.ws.recv(self.fd, buf, n, 0)
+        if k < 0:
+            self._err('recv')
+        return buf.raw[:k]
+
+    def close(self):
+        if self.fd is not None:
+            self.ws.closesocket(self.fd)
+            self.fd = None
+
+
+def unix_socket():
+    if hasattr(socket, 'AF_UNIX'):
+        return socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    return _WinUnixSocket()
+
+
+def owner_only_acl(path):
+    """Windows: every ACE icacls lists for `path` names this user."""
+    out = subprocess.run(['icacls', path], capture_output=True, text=True, timeout=20).stdout
+    me = subprocess.run(['whoami'], capture_output=True, text=True, timeout=20).stdout.strip()
+    aces = [ln.replace(path, '', 1).strip() for ln in out.splitlines()
+            if ':' in ln and '(' in ln and not ln.startswith('Successfully')]
+    return bool(aces) and all(a.lower().startswith(me.lower() + ':') for a in aces), aces
 
 
 def check(cond, msg):
@@ -36,7 +121,7 @@ def check(cond, msg):
 
 class Client:
     def __init__(self, path):
-        self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.s = unix_socket()
         self.s.settimeout(300)  # a real model on a slow CPU can take a while
         self.s.connect(path)
         self.buf = b''
@@ -120,10 +205,16 @@ def main(binary, gguf=None):
         check(got == sock, 'zxvd announces its socket')
         if got != sock:
             return
-        st = os.stat(sock)
-        check(stat.S_ISSOCK(st.st_mode) and stat.S_IMODE(st.st_mode) == 0o600,
-              'socket is mode 0600 (%o)' % stat.S_IMODE(st.st_mode))
-        check(stat.S_IMODE(os.stat(run).st_mode) == 0o700, 'its folder is created 0700')
+        if WINDOWS:
+            ok, aces = owner_only_acl(sock)
+            check(ok, 'the socket file\'s DACL is this user only: %s' % aces)
+            ok, aces = owner_only_acl(run)
+            check(ok, 'its folder is created with this user only: %s' % aces)
+        else:
+            st = os.stat(sock)
+            check(stat.S_ISSOCK(st.st_mode) and stat.S_IMODE(st.st_mode) == 0o600,
+                  'socket is mode 0600 (%o)' % stat.S_IMODE(st.st_mode))
+            check(stat.S_IMODE(os.stat(run).st_mode) == 0o700, 'its folder is created 0700')
 
         c = Client(sock)
         d = c.ok('rpc.discover')
@@ -277,6 +368,21 @@ def main(binary, gguf=None):
         proc.wait(timeout=10)
         check(proc.returncode == 0, 'zxvd exits cleanly')
         check(not os.path.exists(sock), 'the socket file is removed')
+
+        if not WINDOWS:  # a logout or kill: SIGTERM stops it as cleanly
+            p3 = subprocess.Popen([binary, '--rpc', sock, '--models-dir', models],
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                  env=env)
+            try:
+                check(wait_line(p3, 'ZXVD-RPC: ') == sock, 'a new zxvd takes the socket')
+                p3.terminate()
+                p3.wait(timeout=10)
+                check(p3.returncode == 0 and not os.path.exists(sock),
+                      'SIGTERM: zxvd exits cleanly and removes its socket')
+            finally:
+                if p3.poll() is None:
+                    p3.kill()
+                    p3.wait()
     finally:
         if proc.poll() is None:
             proc.kill()

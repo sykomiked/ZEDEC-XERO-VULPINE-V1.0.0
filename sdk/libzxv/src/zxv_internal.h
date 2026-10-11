@@ -12,8 +12,15 @@
 
 #include "zxv_api.h"
 
+/* MinGW builds use its C99 printf (__USE_MINGW_ANSI_STDIO, set by the
+ * Makefile), which knows %zu; tell the format checker so. */
+#if defined(__MINGW32__) && !defined(__clang__)
+#    define ZXVI_PRINTF gnu_printf
+#else
+#    define ZXVI_PRINTF printf
+#endif
 /* Record a failure detail (R7) and return `status`. */
-int32_t zxvi_fail(int32_t status, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+int32_t zxvi_fail(int32_t status, const char *fmt, ...) __attribute__((format(ZXVI_PRINTF, 2, 3)));
 /* Clear the detail and return ZXV_OK. */
 int32_t zxvi_ok(void);
 /* Save / restore the calling thread's detail around a host callback, so a

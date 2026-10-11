@@ -1,0 +1,203 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Linux and Windows desktop apps (zxvd --desktop with the browser
+# window; docs/DESKTOP_LINUX_WINDOWS.md): build every package, install it,
+# and drive the installed engine end to end over its control socket.
+#
+# Follows the CI rules in docs/CI.md: it runs only when its inputs change
+# (the paths below; docs-only changes never start it), and a newer push
+# cancels the older run of the same branch or pull request, except on main
+# and develop, where every commit keeps its result.
+name: desktop
+
+on:
+  push:
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'kernel/include/**', 'sdk/libzxv/**',
+            'build_system/package_desktop.sh', 'build_system/zip_tree.py',
+            'macos/zxv-model-fetch.sh', 'macos/models.manifest', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'kernel/include/**', 'sdk/libzxv/**',
+            'build_system/package_desktop.sh', 'build_system/zip_tree.py',
+            'macos/zxv-model-fetch.sh', 'macos/models.manifest', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    # Built on Ubuntu 22.04, so the packages run on glibc 2.35 and later.
+    name: Linux ${{ matrix.arch }} (.deb, AppImage, .tar.gz)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, arch: x86_64 }
+          - { os: ubuntu-22.04-arm, arch: aarch64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools
+      - name: AppImage runtime (used only if its hash is one the script pins)
+        run: |
+          set -eu
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/runtime" \
+            "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${{ matrix.arch }}"
+          got="$(sha256sum "$RUNNER_TEMP/runtime" | cut -d' ' -f1)"
+          if grep -q "^$got ${{ matrix.arch }}\$" build_system/package_desktop.sh; then
+            echo "ZXV_APPIMAGE_RUNTIME=$RUNNER_TEMP/runtime" >> "$GITHUB_ENV"
+          else
+            echo "::warning::the upstream AppImage runtime changed ($got); check it and pin its hash in build_system/package_desktop.sh. AppImage skipped."
+          fi
+      - name: Package
+        run: build_system/package_desktop.sh linux "$RUNNER_TEMP/dist"
+      - name: Install the .deb
+        run: sudo apt-get install -y "$RUNNER_TEMP"/dist/ZXV-*-linux-${{ matrix.arch }}.deb
+      - name: The installed engine, end to end over its socket
+        run: |
+          gcc -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor kernel/arch/hosted/test_write_gguf.c \
+            -o "$RUNNER_TEMP/write_gguf"
+          "$RUNNER_TEMP/write_gguf" "$RUNNER_TEMP/tiny-test.gguf"
+          python3 kernel/arch/hosted/test_zxvd.py /usr/lib/zxv/zxvd
+          python3 kernel/arch/hosted/test_zxvd.py /usr/lib/zxv/zxvd "$RUNNER_TEMP/tiny-test.gguf"
+          python3 kernel/arch/hosted/check_zxvd_spec.py /usr/lib/zxv/zxvd
+      - name: The desktop launch (zxv), a second launch, and a clean stop
+        run: |
+          set -eu
+          export HOME="$RUNNER_TEMP/home" BROWSER=true
+          unset XDG_RUNTIME_DIR
+          mkdir -p "$HOME"
+          SOCK="$HOME/.local/state/zxv/run/zxvd.sock"
+          zxv --models-dir "$RUNNER_TEMP/none" > "$RUNNER_TEMP/zxv.log" 2>&1 &
+          PID=$!  # zxv execs zxvd, so this is the engine
+          for i in $(seq 1 30); do test -S "$SOCK" && break; sleep 1; done
+          test -S "$SOCK"
+          test "$(stat -c %a "$SOCK")" = 600
+          test "$(stat -c %a "$(dirname "$SOCK")")" = 700
+          zxv | grep 'already running'
+          kill -TERM "$PID"
+          wait "$PID"
+          test ! -e "$SOCK" && test ! -e "$SOCK.url"
+          cat "$RUNNER_TEMP/zxv.log"
+      - name: The AppImage starts
+        if: env.ZXV_APPIMAGE_RUNTIME != ''
+        run: |
+          APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP"/dist/ZXV-*-linux-${{ matrix.arch }}.AppImage --version |
+            grep '^zxvd '
+      - name: Remove the .deb
+        run: sudo apt-get remove -y zxv && test ! -e /usr/lib/zxv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zxv-linux-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/dist/ZXV-*.deb
+            ${{ runner.temp }}/dist/ZXV-*.AppImage
+            ${{ runner.temp }}/dist/ZXV-*.tar.gz
+          if-no-files-found: error
+
+  windows-build:
+    # Cross-built with MinGW-w64 on Linux: zxvd.exe, libzxv.dll, ZXV.exe, and
+    # libzxv's C tests as .exe files for the Windows job to run.
+    name: Windows x64 build (MinGW-w64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 python3-pil
+      - name: Package
+        run: build_system/package_desktop.sh windows "$RUNNER_TEMP/dist"
+      - name: libzxv's C tests for Windows, the fixtures and the tokenizer test model
+        run: |
+          set -eu
+          W=x86_64-w64-mingw32-gcc
+          make -C sdk/libzxv CC=$W OUT=build-win -j4 build-win/test_zxv_api.exe build-win/test_zxv_abi11.exe \
+            build-win/test_zxv_abi12.exe build-win/test_zxv_abi13.exe build-win/test_q16.exe
+          make -C sdk/libzxv OUT=build-host fixtures
+          T="$RUNNER_TEMP/wintest"
+          mkdir -p "$T"
+          cp sdk/libzxv/build-win/*.exe sdk/libzxv/build-win/libzxv.dll "$T/"
+          cp -r sdk/conformance/fixtures "$T/fixtures"
+          gcc -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor kernel/arch/hosted/test_write_gguf.c \
+            -o "$RUNNER_TEMP/write_gguf"
+          "$RUNNER_TEMP/write_gguf" "$T/tiny-test.gguf"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zxv-windows-x86_64
+          path: ${{ runner.temp }}/dist/ZXV-*-windows-x86_64.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zxv-windows-tests
+          path: ${{ runner.temp }}/wintest
+          if-no-files-found: error
+
+  windows-test:
+    # The Windows socket (zxvd_rpc_win.c) needs real Windows: Wine has no
+    # AF_UNIX sockets.
+    name: Windows x64 end to end
+    needs: windows-build
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: zxv-windows-x86_64
+          path: ${{ runner.temp }}/pkg
+      - uses: actions/download-artifact@v4
+        with:
+          name: zxv-windows-tests
+          path: ${{ runner.temp }}/wintest
+      - name: Unpack the app
+        run: cd "$RUNNER_TEMP/pkg" && unzip -q ZXV-*-windows-x86_64.zip && ls -l ZXV
+      - name: libzxv's C tests (the DLL on Windows' own locks)
+        working-directory: ${{ runner.temp }}/wintest
+        run: |
+          set -eu
+          ./test_zxv_api.exe
+          ./test_zxv_abi11.exe fixtures
+          ./test_zxv_abi12.exe fixtures
+          ./test_zxv_abi13.exe
+          ./test_q16.exe
+      - name: zxvd.exe end to end over its socket
+        run: |
+          set -eu
+          Z="$RUNNER_TEMP/pkg/ZXV/zxvd.exe"
+          python kernel/arch/hosted/test_zxvd.py "$Z"
+          python kernel/arch/hosted/test_zxvd.py "$Z" "$RUNNER_TEMP/wintest/tiny-test.gguf"
+          python kernel/arch/hosted/check_zxvd_spec.py "$Z"
+      - name: ZXV.exe starts the engine; a second launch; zxvd.shutdown
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:BROWSER = 'none'
+          $sock = Join-Path $env:LOCALAPPDATA 'ZXV\run\zxvd.sock'
+          Start-Process -FilePath "$env:RUNNER_TEMP\pkg\ZXV\ZXV.exe" -ArgumentList '--models-dir','C:\none'
+          for ($i = 0; $i -lt 30 -and -not (Test-Path $sock); $i++) { Start-Sleep 1 }
+          if (-not (Test-Path $sock)) { Get-Content "$env:LOCALAPPDATA\ZXV\logs\engine.log"; throw 'no socket' }
+          if (-not (Get-Process zxvd -ErrorAction SilentlyContinue)) { throw 'zxvd is not running' }
+          $second = Start-Process -FilePath "$env:RUNNER_TEMP\pkg\ZXV\zxvd.exe" -ArgumentList '--desktop' -Wait -PassThru -NoNewWindow
+          if ($second.ExitCode -ne 0) { throw "second launch exit $($second.ExitCode)" }
+          python -c "import sys; sys.path.insert(0, 'kernel/arch/hosted'); import test_zxvd as t; c = t.Client(sys.argv[1]); print(c.ok('zxvd.version')); print(c.ok('zxvd.shutdown'))" $sock
+          for ($i = 0; $i -lt 15 -and (Get-Process zxvd -ErrorAction SilentlyContinue); $i++) { Start-Sleep 1 }
+          if (Get-Process zxvd -ErrorAction SilentlyContinue) { throw 'zxvd did not stop' }
+          if (Test-Path $sock) { throw 'the socket file was left behind' }
+          Get-Content "$env:LOCALAPPDATA\ZXV\logs\engine.log"

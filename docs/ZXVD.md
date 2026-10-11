@@ -24,6 +24,10 @@ kernel/arch/hosted/build_zxvd.sh /tmp/zxvd          # builds libzxv, then zxvd
 ```
 
 Every `zxv-host` option works too (`--net`, `--peer`, `--models-dir`, ...).
+`zxvd --desktop` is the Linux and Windows desktop app
+([DESKTOP_LINUX_WINDOWS.md](DESKTOP_LINUX_WINDOWS.md)): the socket goes in the
+per-user folder unless `--rpc` is given, the window opens in the default
+browser, and a second launch opens the running one's window.
 zxvd opens no window; the loopback HTML window is still served on a free
 port with its token, printed on the `ZXV-URL:` line.
 
@@ -33,6 +37,12 @@ port with its token, printed on the `ZXV-URL:` line.
 - A UNIX socket, mode 0600, in a folder zxvd creates 0700 (an existing folder
   must belong to the same user and not be writable by group or others). Only processes of
   the same user are served (checked with `SO_PEERCRED` / `getpeereid`).
+- Windows 10 1803 and later: the same socket on Winsock's AF_UNIX
+  (`zxvd_rpc_win.c`). The folder zxvd creates gets a DACL for the owner
+  alone; an existing folder must be ours, not a link, and writable by nobody
+  but us, SYSTEM and Administrators. The socket file gets an owner-only DACL,
+  and the peer process's user SID must equal ours
+  (`SIO_AF_UNIX_GETPEERPID`).
 - A regular file at the path is never replaced; a live zxvd on the path is
   never displaced.
 - Batches are refused. Notifications run and get no reply.
@@ -86,7 +96,9 @@ the mutation harness's test for `zxvd_rpc.c`. `kernel/arch/hosted/test_zxvd.py Z
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
 with the tokenizer test model, and once with the real Qwen2.5-1.5B-Instruct
-Q4_K_M (pinned SHA-256, cached, never in git).
+Q4_K_M (pinned SHA-256, cached, never in git). `.github/workflows/desktop.yml`
+runs it on Windows against the packaged zxvd.exe, and on Linux against the
+installed .deb.
 
 ## Honest limits
 
@@ -95,7 +107,8 @@ Q4_K_M (pinned SHA-256, cached, never in git).
   How swarm settlement should show up in the owner's books is an owner
   decision; nothing moves between them yet.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
-- Windows: zxvd builds without the RPC socket (`--rpc` fails there).
+- Windows and Linux use the browser window (`zxvd --desktop`); only macOS
+  has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The
   native shell uses the socket for a polite shutdown and the Dock badge
   (`macos/zxv_rpc_client.c`, tested against zxvd by `macos/test_rpc_client.py`);
