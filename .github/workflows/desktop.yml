@@ -123,7 +123,7 @@ jobs:
           set -eu
           W=x86_64-w64-mingw32-gcc
           make -C sdk/libzxv CC=$W OUT=build-win -j4 build-win/test_zxv_api.exe build-win/test_zxv_abi11.exe \
-            build-win/test_zxv_abi12.exe build-win/test_zxv_abi13.exe build-win/test_q16.exe
+            build-win/test_zxv_abi12.exe build-win/test_zxv_abi13.exe build-win/test_zxv_abi14.exe build-win/test_q16.exe
           make -C sdk/libzxv OUT=build-host fixtures
           T="$RUNNER_TEMP/wintest"
           mkdir -p "$T"
@@ -176,6 +176,7 @@ jobs:
           ./test_zxv_abi11.exe fixtures
           ./test_zxv_abi12.exe fixtures
           ./test_zxv_abi13.exe
+          ./test_zxv_abi14.exe
           ./test_q16.exe
       - name: zxvd.exe end to end over its socket
         if: success() || failure()  # report every Windows check, not only the first red

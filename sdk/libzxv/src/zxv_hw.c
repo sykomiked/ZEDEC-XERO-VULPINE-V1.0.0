@@ -37,6 +37,29 @@
 #    endif
 #endif
 
+/* The matrix lock is recursive: a provider may call its dependencies back
+ * through the matrix. libzxv's Windows pthread shim has only SRWLOCKs, which
+ * cannot recurse, so Windows uses a CRITICAL_SECTION (recursive by design). */
+#if defined(_WIN32)
+typedef CRITICAL_SECTION rmutex_t;
+static void rmutex_init(rmutex_t *m) { InitializeCriticalSection(m); }
+static void rmutex_destroy(rmutex_t *m) { DeleteCriticalSection(m); }
+static void rmutex_lock(rmutex_t *m) { EnterCriticalSection(m); }
+static void rmutex_unlock(rmutex_t *m) { LeaveCriticalSection(m); }
+#else
+typedef pthread_mutex_t rmutex_t;
+static void rmutex_init(rmutex_t *m) {
+    pthread_mutexattr_t a;
+    pthread_mutexattr_init(&a);
+    pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(m, &a);
+    pthread_mutexattr_destroy(&a);
+}
+static void rmutex_destroy(rmutex_t *m) { pthread_mutex_destroy(m); }
+static void rmutex_lock(rmutex_t *m) { pthread_mutex_lock(m); }
+static void rmutex_unlock(rmutex_t *m) { pthread_mutex_unlock(m); }
+#endif
+
 /* The kernel and ABI numbers are the same values; keep them so. */
 _Static_assert(ZXV_HW_CAP_ISA == HWP_CAP_ISA, "cap key");
 _Static_assert(ZXV_HW_CAP_PEAK_OPS_MHZ == HWP_CAP_PEAK_OPS_MHZ, "cap key");
@@ -398,7 +421,7 @@ typedef struct {
 
 struct zxv_hw_matrix {
     zxv_ctx *ctx;
-    pthread_mutex_t mu; /* recursive: providers may call their dependencies */
+    rmutex_t mu; /* recursive: providers may call their dependencies */
     hwm_t m;
     prov_t prov[HWM_MAX_PROVIDERS];
     uint8_t *vec_bytes[HWM_MAX_FUNCS][HWM_MAX_VECTORS]; /* copies we own */
@@ -474,7 +497,7 @@ void zxv_hw_matrix_destroy(zxv_hw_matrix *mx)
         free(mx->memo[f]);
     }
     free(mx->logrec);
-    pthread_mutex_destroy(&mx->mu);
+    rmutex_destroy(&mx->mu);
     free(mx);
 }
 
@@ -493,11 +516,7 @@ int32_t zxv_hw_matrix_create_cap(const zxv_cap *cap, zxv_hw_matrix **out)
         return zxvi_fail(ZXV_E_NOMEM, "matrix log");
     }
     hwa_init(&mx->log, mx->logrec, MX_LOG_CAP);
-    pthread_mutexattr_t a;
-    pthread_mutexattr_init(&a);
-    pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&mx->mu, &a);
-    pthread_mutexattr_destroy(&a);
+    rmutex_init(&mx->mu);
     mx->ctx = ctx;
     hwm_init(&mx->m);
     /* Every matrix starts with the standard engines and their SOFT
@@ -516,12 +535,12 @@ int32_t zxv_hw_matrix_create_cap(const zxv_cap *cap, zxv_hw_matrix **out)
     if (!(mx)) return zxvi_fail(ZXV_E_ARG, "matrix is NULL");                   \
     int32_t rc_ = zxvi_cap_gate_ctx(cap, bit, what, (mx)->ctx);                 \
     if (rc_) return rc_;                                                         \
-    pthread_mutex_lock(&(mx)->mu)
+    rmutex_lock(&(mx)->mu)
 #define MX_ENTER(mx, what) MX_ENTER_CAP(mx, what, ZXV_CAP_HW_MATRIX)
 #define MX_LEAVE(mx, value)                                                      \
     do {                                                                         \
         int32_t v_ = (value);                                                    \
-        pthread_mutex_unlock(&(mx)->mu);                                         \
+        rmutex_unlock(&(mx)->mu);                                                \
         return v_;                                                               \
     } while (0)
 
@@ -1206,11 +1225,11 @@ int32_t zxv_hw_region_create_cap(const zxv_cap *cap, zxv_hw_matrix *mx, uint32_t
                     &rg->ops, rg, &rg->log);
     hwr_set_event(&rg->r, region_event, rg);
     if (mx) {
-        pthread_mutex_lock(&mx->mu);
+        rmutex_lock(&mx->mu);
         int lrc = provider < mx->m.npv
                       ? hwr_link(&rg->r, &mx->m, mx->m.pv[provider].resource, provider)
                       : HWR_E_ARG;
-        pthread_mutex_unlock(&mx->mu);
+        rmutex_unlock(&mx->mu);
         if (lrc != HWR_OK) {
             free(rg->logrec);
             free(rg);
@@ -1240,7 +1259,7 @@ void zxv_hw_region_destroy(zxv_hw_region *rg)
     int32_t rc_ = zxvi_cap_gate_ctx(cap, ZXV_CAP_HW_RECONF, what, (rg)->ctx);   \
     if (rc_) return rc_;                                                         \
     pthread_mutex_lock(&(rg)->mu);                                               \
-    if ((rg)->mx) pthread_mutex_lock(&(rg)->mx->mu)
+    if ((rg)->mx) rmutex_lock(&(rg)->mx->mu)
 #define RG_LEAVE(rg, value) return rg_leave((rg), (value))
 
 static int32_t rg_leave(zxv_hw_region *rg, int32_t v)
@@ -1252,7 +1271,7 @@ static int32_t rg_leave(zxv_hw_region *rg, int32_t v)
     uint32_t id = rg->r.id;
     memcpy(pend, rg->pend, n * sizeof *pend);
     rg->npend = 0;
-    if (rg->mx) pthread_mutex_unlock(&rg->mx->mu);
+    if (rg->mx) rmutex_unlock(&rg->mx->mu);
     pthread_mutex_unlock(&rg->mu);
     if (fn && n) {
         char saved[ZXVI_ERR_MAX];
