@@ -749,10 +749,10 @@ static void matmul(const zt_model_t *m, const zt_mat_t *w, zt_model_state_t *s, 
                   &s->n_sat};
     uint64_t work = (uint64_t) w->rows * w->cols * B;
     if (k && k->mm_batch && s->mmb_cols == w->cols && B >= ZT_MMB_MIN) {
-        mmb_job_t jb = {j,
-                        {w->raw, w->q8, w->qtype, w->cols, s->aT, s->ashT, s->asumT, s->ashx, B, y,
-                         ystride},
-                        k->mm_batch};
+        mmb_job_t jb = {
+            j,
+            {w->raw, w->q8, w->qtype, w->cols, s->aT, s->ashT, s->asumT, s->ashx, B, y, ystride},
+            k->mm_batch};
         if (k->par_rows)
             k->par_rows(k->pctx, mmb_rows, &jb, w->rows, work);
         else

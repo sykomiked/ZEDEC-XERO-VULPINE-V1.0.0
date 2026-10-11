@@ -206,7 +206,7 @@ static inline zt_fx zt_dot_q6k_c(const uint8_t *row, const int16_t *a, const uin
  * The block sums are the same exact integers as the per-row kernels', and
  * term52 is applied to the same values, so y is bit for bit what the dot
  * products above give for each token. */
-#define ZT_MMB_G 16u
+#define ZT_MMB_G       16u
 #define ZT_MMB_SLOT(t) (((t) & 1u) * (ZT_MMB_G / 2) + (t) / 2)
 
 typedef struct zt_mmb {
@@ -245,7 +245,8 @@ static inline void zt_mmb_pack(const int16_t *a16, const uint8_t *ash, const int
                     }
                     uint8_t sh = ash[(uint64_t) tok * (astride / 32) + b];
                     ashT[gb * ZT_MMB_G + ZT_MMB_SLOT(t)] = sh;
-                    asumT[gb * ZT_MMB_G + ZT_MMB_SLOT(t)] = asum[(uint64_t) tok * (astride / 32) + b];
+                    asumT[gb * ZT_MMB_G + ZT_MMB_SLOT(t)] =
+                        asum[(uint64_t) tok * (astride / 32) + b];
                     if (sh > mx) mx = sh;
                 } else {
                     for (uint32_t p = 0; p < 16; p++) {

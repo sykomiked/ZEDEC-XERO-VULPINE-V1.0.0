@@ -402,7 +402,9 @@ static inline __attribute__((always_inline)) void mmb_body_neon(const zt_mmb_t *
                                                                 uint32_t r1, const uint32_t qt)
 {
     uint32_t nb = j->cols / 32, nk = nb / 8, ng = (j->B + ZT_MMB_G - 1) / ZT_MMB_G;
-    uint64_t kbytes = qt == ZT_GGML_Q4_K ? ZT_Q4K_BYTES : qt == ZT_GGML_Q6_K ? ZT_Q6K_BYTES : 8 * 34;
+    uint64_t kbytes = qt == ZT_GGML_Q4_K   ? ZT_Q4K_BYTES
+                      : qt == ZT_GGML_Q6_K ? ZT_Q6K_BYTES
+                                           : 8 * 34;
     int32_t safe = qt == ZT_GGML_Q4_K   ? ZT_MMB_SAFE_Q4K
                    : qt == ZT_GGML_Q6_K ? ZT_MMB_SAFE_Q6K
                                         : ZT_MMB_SAFE_Q8;
@@ -444,8 +446,10 @@ static inline __attribute__((always_inline)) void mmb_body_neon(const zt_mmb_t *
                                 const tparam_t *t = &tp[i];
                                 int64_t *a = acc[i][gi];
                                 for (uint32_t q = 0; q < 2; q++) {
-                                    uint32_t Q = 2 * hf + q; /* quad of the group: slots 2Q, 8 + 2Q */
-                                    int64x2_t he = vld1q_s64(hp + 2 * Q), ho = vld1q_s64(hp + 8 + 2 * Q);
+                                    uint32_t Q =
+                                        2 * hf + q; /* quad of the group: slots 2Q, 8 + 2Q */
+                                    int64x2_t he = vld1q_s64(hp + 2 * Q),
+                                              ho = vld1q_s64(hp + 8 + 2 * Q);
                                     int32x4_t sv = s[i][q];
                                     int32x2_t se = vget_low_s32(vuzp1q_s32(sv, sv));
                                     int32x2_t so = vget_low_s32(vuzp2q_s32(sv, sv));
@@ -460,7 +464,8 @@ static inline __attribute__((always_inline)) void mmb_body_neon(const zt_mmb_t *
                                         vo = term2_neon(vo, ho, t->e, hx, safe);
                                     } else if (qt == ZT_GGML_Q4_K) {
                                         int32x2_t MT = vdup_n_s32(t->mt[sb]);
-                                        int64x2_t ue = vmull_s32(vmovn_s64(vld1q_s64(up + 2 * Q)), MT);
+                                        int64x2_t ue =
+                                            vmull_s32(vmovn_s64(vld1q_s64(up + 2 * Q)), MT);
                                         int64x2_t uo =
                                             vmull_s32(vmovn_s64(vld1q_s64(up + 8 + 2 * Q)), MT);
                                         ve = vsubq_s64(term2_neon(ve, he, t->e, hx, safe),
@@ -472,7 +477,8 @@ static inline __attribute__((always_inline)) void mmb_body_neon(const zt_mmb_t *
                                         vo = term2_neon(vo, ho, t->ek[sb], hx, safe);
                                     }
                                     vst1q_s64(a + 2 * Q, vaddq_s64(vld1q_s64(a + 2 * Q), ve));
-                                    vst1q_s64(a + 8 + 2 * Q, vaddq_s64(vld1q_s64(a + 8 + 2 * Q), vo));
+                                    vst1q_s64(a + 8 + 2 * Q,
+                                              vaddq_s64(vld1q_s64(a + 8 + 2 * Q), vo));
                                 }
                             }
                         }
@@ -545,8 +551,8 @@ static void att_wv_neon(const int32_t *w, const int32_t *v, uint64_t vstride, ui
     if (j0 < hd) zt_att_wv_c(w, v + j0, vstride, n, hd - j0, acc + j0);
 }
 
-static const zt_kern_t K_NEON = {"neon", dot_raw_neon, dot_q8_neon, 0, 0, dot_q4k_neon,
-                                 dot_q6k_neon, mmb_neon,     att_qk_neon, att_wv_neon};
+static const zt_kern_t K_NEON = {"neon",       dot_raw_neon, dot_q8_neon, 0,           0,
+                                 dot_q4k_neon, dot_q6k_neon, mmb_neon,    att_qk_neon, att_wv_neon};
 
 const zt_kern_t *zt_simd_neon(void)
 {

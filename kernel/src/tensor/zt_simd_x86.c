@@ -26,8 +26,7 @@
 
 #    define AVX2   __attribute__((target("avx2")))
 #    define AVX512 __attribute__((target("avx2,avx512f,avx512bw,avx512vl,avx512dq")))
-#    define AVX512VNNI                                                                            \
-        __attribute__((target("avx2,avx512f,avx512bw,avx512vl,avx512dq,avx512vnni")))
+#    define AVX512VNNI __attribute__((target("avx2,avx512f,avx512bw,avx512vl,avx512dq,avx512vnni")))
 
 /* Bytes ahead to prefetch: a decode step streams the weights once, and the
  * hardware prefetcher alone leaves half the memory bandwidth unused here. */
@@ -769,36 +768,38 @@ static inline AVX2 void unpack_q8_0_avx2(const uint8_t *blk, int16_t *w, tparam_
 }
 
 /* d[2i + hh] = row i's pairs [p0, p1) against half hh (8 tokens) of the group */
-#    define DOT_AVX2(d, p0, p1)                                                                   \
-        do {                                                                                      \
-            __m256i d0 = _mm256_setzero_si256(), d1 = d0, d2 = d0, d3 = d0, d4 = d0, d5 = d0,     \
-                    d6 = d0, d7 = d0;                                                             \
-            _Pragma("GCC unroll 16") for (uint32_t p = (p0); p < (p1); p++)                       \
-            {                                                                                     \
-                __m256i x0 = _mm256_load_si256((const __m256i *) (xa + 32 * p));                  \
-                __m256i x1 = _mm256_load_si256((const __m256i *) (xa + 32 * p + 16));             \
-                __m256i w0 = _mm256_set1_epi32(ld32(ws + 2 * p));                                 \
-                __m256i w1 = _mm256_set1_epi32(ld32(ws + 256 + 2 * p));                           \
-                d0 = _mm256_add_epi32(d0, _mm256_madd_epi16(w0, x0));                             \
-                d1 = _mm256_add_epi32(d1, _mm256_madd_epi16(w0, x1));                             \
-                d2 = _mm256_add_epi32(d2, _mm256_madd_epi16(w1, x0));                             \
-                d3 = _mm256_add_epi32(d3, _mm256_madd_epi16(w1, x1));                             \
-                w0 = _mm256_set1_epi32(ld32(ws + 512 + 2 * p));                                   \
-                w1 = _mm256_set1_epi32(ld32(ws + 768 + 2 * p));                                   \
-                d4 = _mm256_add_epi32(d4, _mm256_madd_epi16(w0, x0));                             \
-                d5 = _mm256_add_epi32(d5, _mm256_madd_epi16(w0, x1));                             \
-                d6 = _mm256_add_epi32(d6, _mm256_madd_epi16(w1, x0));                             \
-                d7 = _mm256_add_epi32(d7, _mm256_madd_epi16(w1, x1));                             \
-            }                                                                                     \
-            d[0] = d0, d[1] = d1, d[2] = d2, d[3] = d3, d[4] = d4, d[5] = d5, d[6] = d6,          \
-            d[7] = d7;                                                                            \
+#    define DOT_AVX2(d, p0, p1)                                                                    \
+        do {                                                                                       \
+            __m256i d0 = _mm256_setzero_si256(), d1 = d0, d2 = d0, d3 = d0, d4 = d0, d5 = d0,      \
+                    d6 = d0, d7 = d0;                                                              \
+            _Pragma("GCC unroll 16") for (uint32_t p = (p0); p < (p1); p++)                        \
+            {                                                                                      \
+                __m256i x0 = _mm256_load_si256((const __m256i *) (xa + 32 * p));                   \
+                __m256i x1 = _mm256_load_si256((const __m256i *) (xa + 32 * p + 16));              \
+                __m256i w0 = _mm256_set1_epi32(ld32(ws + 2 * p));                                  \
+                __m256i w1 = _mm256_set1_epi32(ld32(ws + 256 + 2 * p));                            \
+                d0 = _mm256_add_epi32(d0, _mm256_madd_epi16(w0, x0));                              \
+                d1 = _mm256_add_epi32(d1, _mm256_madd_epi16(w0, x1));                              \
+                d2 = _mm256_add_epi32(d2, _mm256_madd_epi16(w1, x0));                              \
+                d3 = _mm256_add_epi32(d3, _mm256_madd_epi16(w1, x1));                              \
+                w0 = _mm256_set1_epi32(ld32(ws + 512 + 2 * p));                                    \
+                w1 = _mm256_set1_epi32(ld32(ws + 768 + 2 * p));                                    \
+                d4 = _mm256_add_epi32(d4, _mm256_madd_epi16(w0, x0));                              \
+                d5 = _mm256_add_epi32(d5, _mm256_madd_epi16(w0, x1));                              \
+                d6 = _mm256_add_epi32(d6, _mm256_madd_epi16(w1, x0));                              \
+                d7 = _mm256_add_epi32(d7, _mm256_madd_epi16(w1, x1));                              \
+            }                                                                                      \
+            d[0] = d0, d[1] = d1, d[2] = d2, d[3] = d3, d[4] = d4, d[5] = d5, d[6] = d6,           \
+            d[7] = d7;                                                                             \
         } while (0)
 
 static inline __attribute__((always_inline)) AVX2 void mmb_body_avx2(const zt_mmb_t *j, uint32_t r0,
                                                                      uint32_t r1, const uint32_t qt)
 {
     uint32_t nb = j->cols / 32, nk = nb / 8, ng = mmb_groups(j);
-    uint64_t kbytes = qt == ZT_GGML_Q4_K ? ZT_Q4K_BYTES : qt == ZT_GGML_Q6_K ? ZT_Q6K_BYTES : 8 * 34;
+    uint64_t kbytes = qt == ZT_GGML_Q4_K   ? ZT_Q4K_BYTES
+                      : qt == ZT_GGML_Q6_K ? ZT_Q6K_BYTES
+                                           : 8 * 34;
     int32_t safe = qt == ZT_GGML_Q4_K   ? ZT_MMB_SAFE_Q4K
                    : qt == ZT_GGML_Q6_K ? ZT_MMB_SAFE_Q6K
                                         : ZT_MMB_SAFE_Q8;
@@ -845,7 +846,8 @@ static inline __attribute__((always_inline)) AVX2 void mmb_body_avx2(const zt_mm
                                 __m256i ho = _mm256_load_si256((const __m256i *) (hp + 8 + 4 * hh));
                                 __m256i sv = s[2 * i + hh], so = _mm256_srli_epi64(sv, 32);
                                 __m256i M0 = _mm256_set1_epi64x(t->m0[sb]);
-                                __m256i ve = _mm256_mul_epi32(sv, M0), vo = _mm256_mul_epi32(so, M0);
+                                __m256i ve = _mm256_mul_epi32(sv, M0),
+                                        vo = _mm256_mul_epi32(so, M0);
                                 if (qt == ZT_GGML_Q6_K) {
                                     __m256i M1 = _mm256_set1_epi64x(t->m1[sb]);
                                     __m256i s2v = s2[2 * i + hh];
@@ -868,7 +870,8 @@ static inline __attribute__((always_inline)) AVX2 void mmb_body_avx2(const zt_mm
                                     ve = term4_avx2(ve, he, t->ek[sb], hx, safe);
                                     vo = term4_avx2(vo, ho, t->ek[sb], hx, safe);
                                 }
-                                __m256i *ae = (__m256i *) (a + 4 * hh), *ao = (__m256i *) (a + 8 + 4 * hh);
+                                __m256i *ae = (__m256i *) (a + 4 * hh),
+                                        *ao = (__m256i *) (a + 8 + 4 * hh);
                                 _mm256_store_si256(ae, _mm256_add_epi64(_mm256_load_si256(ae), ve));
                                 _mm256_store_si256(ao, _mm256_add_epi64(_mm256_load_si256(ao), vo));
                             }
@@ -876,7 +879,7 @@ static inline __attribute__((always_inline)) AVX2 void mmb_body_avx2(const zt_mm
                     }
             }
             for (uint32_t i = 0; i < nr; i++)
-                mmb_store(j, r + i, g0, gn, (const int64_t (*)[ZT_MMB_G]) acc[i]);
+                mmb_store(j, r + i, g0, gn, (const int64_t(*)[ZT_MMB_G]) acc[i]);
         }
     }
 }
@@ -951,16 +954,17 @@ static AVX2 void att_wv_avx2(const int32_t *w, const int32_t *v, uint64_t vstrid
     uint32_t j0 = 0;
     for (; j0 + 32 <= hd; j0 += 32) {
         __m256i a[8];
-        for (uint32_t c = 0; c < 8; c++) a[c] = _mm256_loadu_si256((const __m256i *) (acc + j0 + 4 * c));
+        for (uint32_t c = 0; c < 8; c++)
+            a[c] = _mm256_loadu_si256((const __m256i *) (acc + j0 + 4 * c));
         const int32_t *vi = v + j0;
         for (uint32_t i = 0; i < n; i++, vi += vstride) {
             if (!w[i]) continue;
             __m256i wv = _mm256_set1_epi64x(w[i]);
             for (uint32_t c = 0; c < 8; c++)
-                a[c] = _mm256_add_epi64(
-                    a[c], _mm256_mul_epi32(_mm256_cvtepi32_epi64(
-                                               _mm_loadu_si128((const __m128i *) (vi + 4 * c))),
-                                           wv));
+                a[c] =
+                    _mm256_add_epi64(a[c], _mm256_mul_epi32(_mm256_cvtepi32_epi64(_mm_loadu_si128(
+                                                                (const __m128i *) (vi + 4 * c))),
+                                                            wv));
         }
         for (uint32_t c = 0; c < 8; c++) _mm256_storeu_si256((__m256i *) (acc + j0 + 4 * c), a[c]);
     }
@@ -992,15 +996,16 @@ static AVX512 void att_wv_512(const int32_t *w, const int32_t *v, uint64_t vstri
     uint32_t j0 = 0;
     for (; j0 + 64 <= hd; j0 += 64) {
         __m512i a[8];
-        for (uint32_t c = 0; c < 8; c++) a[c] = _mm512_loadu_si512((const void *) (acc + j0 + 8 * c));
+        for (uint32_t c = 0; c < 8; c++)
+            a[c] = _mm512_loadu_si512((const void *) (acc + j0 + 8 * c));
         const int32_t *vi = v + j0;
         for (uint32_t i = 0; i < n; i++, vi += vstride) {
             if (!w[i]) continue;
             __m512i wv = _mm512_set1_epi64(w[i]);
             for (uint32_t c = 0; c < 8; c++)
                 a[c] = _mm512_add_epi64(
-                    a[c], _mm512_mul_epi32(_mm512_cvtepi32_epi64(_mm256_loadu_si256(
-                                               (const __m256i *) (vi + 8 * c))),
+                    a[c], _mm512_mul_epi32(_mm512_cvtepi32_epi64(
+                                               _mm256_loadu_si256((const __m256i *) (vi + 8 * c))),
                                            wv));
         }
         for (uint32_t c = 0; c < 8; c++) _mm512_storeu_si512((void *) (acc + j0 + 8 * c), a[c]);
@@ -1008,13 +1013,13 @@ static AVX512 void att_wv_512(const int32_t *w, const int32_t *v, uint64_t vstri
     if (j0 < hd) att_wv_avx2(w, v + j0, vstride, n, hd - j0, acc + j0);
 }
 
-static const zt_kern_t K_AVX2 = {"avx2",       dot_raw_avx2, dot_q8_avx2, 0, 0, dot_q4k_avx2,
-                                 dot_q6k_avx2, mmb_avx2,    att_qk_avx2, att_wv_avx2};
-static const zt_kern_t K_AVX512 = {"avx512", dot_raw_512, dot_q8_512, 0, 0, dot_q4k_512,
-                                   dot_q6k_512, mmb_512,  att_qk_512, att_wv_512};
+static const zt_kern_t K_AVX2 = {"avx2",       dot_raw_avx2, dot_q8_avx2, 0,           0,
+                                 dot_q4k_avx2, dot_q6k_avx2, mmb_avx2,    att_qk_avx2, att_wv_avx2};
+static const zt_kern_t K_AVX512 = {"avx512",    dot_raw_512, dot_q8_512, 0,          0,
+                                   dot_q4k_512, dot_q6k_512, mmb_512,    att_qk_512, att_wv_512};
 /* the same with the AVX512-VNNI tile */
-static const zt_kern_t K_AVX512V = {"avx512vnni", dot_raw_512, dot_q8_512, 0, 0, dot_q4k_512,
-                                    dot_q6k_512, mmb_vnni, att_qk_512, att_wv_512};
+static const zt_kern_t K_AVX512V = {"avx512vnni", dot_raw_512, dot_q8_512, 0,          0,
+                                    dot_q4k_512,  dot_q6k_512, mmb_vnni,   att_qk_512, att_wv_512};
 
 const zt_kern_t *zt_simd_x86_avx2(void)
 {

@@ -393,7 +393,7 @@ static void mmb_case(const zt_kern_t *k, uint32_t qt, uint32_t R, uint32_t nkb, 
                      uint32_t qmode, uint32_t xmode, uint32_t shmode, uint32_t model, mstat_t *st)
 {
     uint32_t cols = nkb * 256, nb = cols / 32, ng = (B + ZT_MMB_G - 1) / ZT_MMB_G;
-    uint64_t rowb = qt == ZT_GGML_Q4_K ? (uint64_t) nkb * ZT_Q4K_BYTES
+    uint64_t rowb = qt == ZT_GGML_Q4_K   ? (uint64_t) nkb * ZT_Q4K_BYTES
                     : qt == ZT_GGML_Q6_K ? (uint64_t) nkb * ZT_Q6K_BYTES
                                          : (uint64_t) nb * 34;
     uint8_t *W = malloc(R * rowb);
@@ -447,9 +447,10 @@ static void mmb_case(const zt_kern_t *k, uint32_t qt, uint32_t R, uint32_t nkb, 
                                            : zt_dot_raw_c(row, x, ash + t * nb, nb);
             st->outs++;
             if ((rc || y[(size_t) t * R + r] != c) && st->mism++ < 4)
-                printf("  mm_batch mismatch qt=%u R=%u cols=%u B=%u row %u token %u: C %d, %s %d%s\n",
-                       qt, R, cols, B, r, t, c, k->name, y[(size_t) t * R + r],
-                       rc ? " (not handled)" : "");
+                printf(
+                    "  mm_batch mismatch qt=%u R=%u cols=%u B=%u row %u token %u: C %d, %s %d%s\n",
+                    qt, R, cols, B, r, t, c, k->name, y[(size_t) t * R + r],
+                    rc ? " (not handled)" : "");
         }
     free(W), free(a), free(ash), free(asum), free(aT), free(ashT), free(asumT), free(ashx), free(y);
 }
@@ -492,9 +493,11 @@ static void test_att(const zt_kern_t *k)
     uint64_t mism = 0, n_cases = 0;
     for (uint32_t t = 0; t < 400; t++) {
         uint32_t hd = hds[below(6)], n = 1 + below(300), stride = hd + below(3) * 64;
-        int32_t *q = malloc(hd * 4), *kv = malloc(((size_t) n * stride + hd) * 4), *w = malloc(n * 4);
+        int32_t *q = malloc(hd * 4), *kv = malloc(((size_t) n * stride + hd) * 4),
+                *w = malloc(n * 4);
         int64_t S1[300], S2[300], *a1 = malloc(hd * 8), *a2 = malloc(hd * 8);
-        for (uint32_t i = 0; i < hd; i++) q[i] = (int32_t) (rnd() % ((1u << 23) - 1)) - ((1 << 22) - 1);
+        for (uint32_t i = 0; i < hd; i++)
+            q[i] = (int32_t) (rnd() % ((1u << 23) - 1)) - ((1 << 22) - 1);
         for (size_t i = 0; i < (size_t) n * stride + hd; i++)
             kv[i] = below(4) ? (int32_t) (uint32_t) rnd() : (below(2) ? INT32_MAX : INT32_MIN);
         for (uint32_t i = 0; i < n; i++) w[i] = below(3) ? (int32_t) below(65537) : 0;
