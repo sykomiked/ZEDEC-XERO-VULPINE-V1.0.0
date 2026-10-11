@@ -49,7 +49,7 @@ jobs:
       swift: ${{ steps.areas.outputs.swift }}
       typescript: ${{ steps.areas.outputs.typescript }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: areas
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Every relative link and anchor in sdk/docs resolves
         run: python3 sdk/docs/guides/check_links.py
 
@@ -81,7 +81,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build and run the C conformance tests
         run: make -C sdk/libzxv CC=${{ matrix.cc }} test
       - name: vectors.json is up to date
@@ -104,7 +104,7 @@ jobs:
         run: |
           make -C sdk/libzxv clean
           make -C sdk/libzxv CC=${{ matrix.cc }} dist
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: libzxv-${{ matrix.os }}-${{ matrix.cc }}
           path: sdk/libzxv/build/dist
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: ASan + UBSan
         run: make -C sdk/libzxv CC=gcc SANITIZE=1 test
 
@@ -134,8 +134,8 @@ jobs:
       run:
         working-directory: sdk/python
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.py }}
       - run: make -C ../libzxv all fixtures
@@ -158,8 +158,8 @@ jobs:
       run:
         working-directory: sdk/java
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ matrix.jdk }}
@@ -181,8 +181,8 @@ jobs:
       run:
         working-directory: sdk/dotnet
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
       - run: make -C ../libzxv all fixtures
@@ -205,11 +205,11 @@ jobs:
       run:
         working-directory: sdk/typescript
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: make -C ../libzxv all fixtures
@@ -229,8 +229,8 @@ jobs:
       run:
         working-directory: sdk/solidity
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: make -C ../libzxv all fixtures
@@ -251,7 +251,7 @@ jobs:
       run:
         working-directory: sdk/ruby
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -274,7 +274,7 @@ jobs:
       run:
         working-directory: sdk/php
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -297,7 +297,7 @@ jobs:
       run:
         working-directory: sdk/rust
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -323,8 +323,8 @@ jobs:
       run:
         working-directory: sdk/go/zxv
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: sdk/go/zxv/go.mod
       - run: make -C ../../libzxv all fixtures
@@ -349,7 +349,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C sdk/libzxv all fixtures
       - run: cmake -S sdk/cpp -B build-cpp -DZXV_SANITIZE=${{ matrix.sanitize }}
         env:
@@ -370,7 +370,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: make -C sdk/libzxv all fixtures
       - run: swift --version && swift test
         working-directory: sdk/swift
@@ -395,11 +395,11 @@ jobs:
       run:
         working-directory: sdk/kits/z-wasm
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: python -m pip install ziglang==0.17.0
@@ -420,8 +420,8 @@ jobs:
       run:
         working-directory: sdk/kits/z-wasm
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: python -m pip install ziglang==0.17.0
@@ -467,8 +467,8 @@ jobs:
       run:
         working-directory: sdk/kits/${{ matrix.kit }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: python -m pip install ziglang==0.17.0
@@ -497,8 +497,8 @@ jobs:
       run:
         working-directory: sdk/kits/${{ matrix.kit }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: python -m pip install ziglang==0.17.0
