@@ -135,14 +135,16 @@ bool fs_delete_node(fs_registry_t *reg, uint32_t idx) {
 /* ===== Tri-Space Replication ===== */
 
 /* The replica slot for node idx in a backup space; NULL for S+ or a bad index. */
-static fs_replica_t *fs_replica_slot(fs_registry_t *reg, uint32_t idx, fs_space_t space) {
+static fs_replica_t *fs_replica_slot(fs_registry_t *reg, uint32_t idx, fs_space_t space)
+{
     if (!reg || idx >= reg->node_count) return NULL;
     if (space == FS_SPACE_S_MINUS) return &reg->replica_s_minus[idx];
     if (space == FS_SPACE_S_ZERO) return &reg->replica_s_zero[idx];
     return NULL;
 }
 
-static bool fs_replicate(fs_registry_t *reg, uint32_t idx, fs_space_t space) {
+static bool fs_replicate(fs_registry_t *reg, uint32_t idx, fs_space_t space)
+{
     fs_node_t *n = fs_get_node(reg, idx);
     fs_replica_t *r = fs_replica_slot(reg, idx, space);
     if (!n || !r || !n->exists_in_s_plus) return false;
@@ -161,7 +163,8 @@ static bool fs_replicate(fs_registry_t *reg, uint32_t idx, fs_space_t space) {
     return true;
 }
 
-static bool fs_recover(fs_registry_t *reg, uint32_t idx, fs_space_t space) {
+static bool fs_recover(fs_registry_t *reg, uint32_t idx, fs_space_t space)
+{
     fs_node_t *n = fs_get_node(reg, idx);
     fs_replica_t *r = fs_replica_slot(reg, idx, space);
     if (!n || !r) return false;
@@ -185,15 +188,18 @@ static bool fs_recover(fs_registry_t *reg, uint32_t idx, fs_space_t space) {
     return true;
 }
 
-bool fs_replicate_to_s_minus(fs_registry_t *reg, uint32_t idx) {
+bool fs_replicate_to_s_minus(fs_registry_t *reg, uint32_t idx)
+{
     return fs_replicate(reg, idx, FS_SPACE_S_MINUS);
 }
 
-bool fs_replicate_to_s_zero(fs_registry_t *reg, uint32_t idx) {
+bool fs_replicate_to_s_zero(fs_registry_t *reg, uint32_t idx)
+{
     return fs_replicate(reg, idx, FS_SPACE_S_ZERO);
 }
 
-bool fs_recover_from_s_minus(fs_registry_t *reg, uint32_t idx) {
+bool fs_recover_from_s_minus(fs_registry_t *reg, uint32_t idx)
+{
     return fs_recover(reg, idx, FS_SPACE_S_MINUS);
 }
 
@@ -201,7 +207,8 @@ bool fs_recover_from_s_zero(fs_registry_t *reg, uint32_t idx) {
     return fs_recover(reg, idx, FS_SPACE_S_ZERO);
 }
 
-const fs_replica_t *fs_get_replica(const fs_registry_t *reg, uint32_t idx, fs_space_t space) {
+const fs_replica_t *fs_get_replica(const fs_registry_t *reg, uint32_t idx, fs_space_t space)
+{
     const fs_replica_t *r = fs_replica_slot((fs_registry_t *) reg, idx, space);
     if (!r || r->node_id == 0 || r->node_id != reg->nodes[idx].id) return NULL;
     return r;

@@ -130,11 +130,11 @@ typedef struct fs_snapshot {
  * back: they are the independent copy recovery falls back on. */
 
 typedef struct fs_replica {
-    uint32_t node_id;            /* id of the node copied; 0 = empty slot */
+    uint32_t node_id; /* id of the node copied; 0 = empty slot */
     uint8_t data[FS_MAX_DATA_LEN];
     uint32_t data_len;
-    uint32_t crc;                /* CRC-32 of data at replication time */
-    uint64_t version;            /* node version at replication time */
+    uint32_t crc;     /* CRC-32 of data at replication time */
+    uint64_t version; /* node version at replication time */
 } fs_replica_t;
 
 /* ===== FS Registry ===== */

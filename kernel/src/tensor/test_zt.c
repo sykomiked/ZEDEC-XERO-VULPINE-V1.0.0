@@ -359,9 +359,11 @@ static void test_holo(void)
             uint8_t v1 = 0;
             for (uint32_t i = 1; i < ZT_FRAME_OCTETS; i++) v1 ^= one[i] ^ (uint8_t) (one[i] >> 4);
             v1 &= 0xFu;
-            CHECK((one[0] >> 4) != v1, "a v1 decoder refuses a v2 frame (phase %u, %u words)", ph, n);
+            CHECK((one[0] >> 4) != v1, "a v1 decoder refuses a v2 frame (phase %u, %u words)", ph,
+                  n);
             one[0] = (uint8_t) ((one[0] & 0xFu) | (v1 << 4)); /* re-tag as v1 */
-            CHECK(zt_frame_unpack(one, 1, back) == -1, "v2 refuses a v1 frame (phase %u, %u words)", ph, n);
+            CHECK(zt_frame_unpack(one, 1, back) == -1, "v2 refuses a v1 frame (phase %u, %u words)",
+                  ph, n);
         }
 }
 

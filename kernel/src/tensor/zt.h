@@ -249,7 +249,7 @@ void zt_set_shell_tap(zt_shell_tap_t *tap); /* NULL disables */
 /* T16 */
 #define ZT_FRAME_OCTETS 21u
 #define ZT_FRAME_WORDS  5u
-#define ZT_FRAME_VERSION 2u      /* v2: the check covers the phase and count bits */
+#define ZT_FRAME_VERSION    2u   /* v2: the check covers the phase and count bits */
 #define ZT_FRAME_CHECK_SEED 0xFu /* never a valid low nibble (2..11) */
 /* Pack n words into ceil(n/5) frames; phase 0 starts little-endian. */
 uint32_t zt_frame_pack(const uint32_t *words, uint32_t n, uint32_t phase, uint8_t *out);
