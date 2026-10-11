@@ -218,6 +218,7 @@ static size_t dec_fmt(int64_t unscaled, uint32_t scale, char *b, int canonic) {
         while (flen && frac[flen - 1u] == '0') flen--;
         if (a == 0) {
             b[0] = '0';
+            b[1] = '\0';
             return 1;
         }
     } else if (ilen == 0) {

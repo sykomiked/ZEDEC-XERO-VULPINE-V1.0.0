@@ -49,9 +49,12 @@ static void decimal_vectors(void) {
     };
     char b[32];
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) {
+        /* Junk in the buffer first, so a missing terminator shows on every platform. */
+        memset(b, 0x7f, sizeof b);
         size_t n = zm_dec_mtext(k[i].v, k[i].sc, b);
         CHECK(strcmp(b, k[i].m) == 0 && n == strlen(b), "mtext %lld/10^%u: %s, want %s",
               (long long) k[i].v, (unsigned) k[i].sc, b, k[i].m);
+        memset(b, 0x7f, sizeof b);
         n = zm_dec_text(k[i].v, k[i].sc, b);
         CHECK(strcmp(b, k[i].t) == 0 && n == strlen(b), "text %lld/10^%u: %s, want %s",
               (long long) k[i].v, (unsigned) k[i].sc, b, k[i].t);
