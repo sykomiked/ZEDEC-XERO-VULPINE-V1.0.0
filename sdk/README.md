@@ -61,6 +61,17 @@ health check, exact `Rational` JSON that refuses floats, and a halted
 context that is never answered as a normal response. CI:
 [`.github/workflows/sdk-frameworks.yml`](../.github/workflows/sdk-frameworks.yml).
 
+## Game engines
+
+Engine kits run deterministic lockstep games on exact rationals, with no
+floats in game state; see [`engines/`](engines/).
+
+| Kit | Folder | What it gives you | Tests |
+|---|---|---|---|
+| Emu-State | [`emu-state`](engines/emu-state/) | C11 lockstep core: per-tick inputs, prediction and rollback, a SHA3-256 state hash per tick, four-valued desync check | 1,138 checks + fuzzing |
+| Godot 4 | [`godot-zxv`](engines/godot-zxv/) | GDExtension with `ZxvRational`, `ZxvHexagram`, `ZxvLockstep` and a two-peer demo | 1,010 core + 542 in headless Godot |
+| Unity | [`unity-zxv`](engines/unity-zxv/) | Package `com.zedec.zxv`: serializable exact `Rational`, `Hexagram`, `ZxvLockstep` | 27 (runtime on .NET; not yet run inside Unity) |
+
 ## What every SDK gives you
 
 | Feature | Type names | Guide |

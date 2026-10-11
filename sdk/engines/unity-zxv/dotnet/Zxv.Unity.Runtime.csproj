@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+  <!-- SPDX-License-Identifier: Apache-2.0 -->
+  <!-- The Unity package's Runtime folder compiled as a plain netstandard2.1
+       library, so it can be built and tested without Unity. Unity does not
+       use this file. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>Zedec.Zxv</AssemblyName>
+    <RootNamespace>Zedec.Zxv</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../com.zedec.zxv/Runtime/**/*.cs" />
+  </ItemGroup>
+</Project>
