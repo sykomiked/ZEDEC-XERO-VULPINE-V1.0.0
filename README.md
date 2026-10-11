@@ -36,6 +36,7 @@ lists the modules whose claims are not yet backed.
 
 | I want to… | Read |
 |---|---|
+| Read the design philosophy | [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md) |
 | Understand the license | [`LICENSE`](LICENSE) |
 | Build the kernel | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Navigate the source | [`SOURCE_CODE_NAVIGATION_GUIDE.md`](SOURCE_CODE_NAVIGATION_GUIDE.md), [`SUBSYSTEM_INDEX.md`](SUBSYSTEM_INDEX.md) |
