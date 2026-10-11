@@ -113,7 +113,9 @@ mac_app() {
         # it is not a Developer ID signature and is never notarised
         [ -f "$app/Contents/Frameworks/libzxv.dylib" ] &&
             codesign --force --sign - --options runtime "$app/Contents/Frameworks/libzxv.dylib"
-        codesign --force --sign - --options runtime --entitlements "$ent" \
+        # no Team ID on an ad-hoc signature, so the engine must accept the
+        # bundled libzxv without library validation (macos/ZXV-adhoc.entitlements)
+        codesign --force --sign - --options runtime --entitlements "$here/macos/ZXV-adhoc.entitlements" \
             "$app/Contents/MacOS/zxv-engine"
         codesign --force --sign - --options runtime --entitlements "$ent" "$app"
         log "ad-hoc signed (set ZXV_SIGN_IDENTITY for a Developer ID signature)"
