@@ -41,7 +41,7 @@ jobs:
     env:
       BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Which jobs this change needs
@@ -84,7 +84,7 @@ jobs:
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -102,10 +102,8 @@ jobs:
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
-      - name: Install ARM64 and x86_64 toolchains
       - uses: actions/checkout@v7
-      - name: Install ARM64 toolchain
+      - name: Install ARM64 and x86_64 toolchains
         run: |
           sudo apt-get update
           sudo apt-get install -y ccache gcc-aarch64-linux-gnu qemu-system-arm gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
@@ -131,15 +129,6 @@ jobs:
         with:
           name: kernel-arm64
           path: kernel_arm64.elf
-
-  build-x86_64:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install x86_64 toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc nasm qemu-system-x86 xorriso grub-pc-bin grub-common
       - name: Build x86_64
         if: ${{ !cancelled() }}
         run: |
@@ -150,7 +139,6 @@ jobs:
         run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]"
       - name: Upload x86_64 artifacts
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v5
         uses: actions/upload-artifact@v7
         with:
           name: kernel-x86_64
@@ -165,14 +153,12 @@ jobs:
     env:
       OPENSBI_TAG: v1.3.1
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install RISC-V and ARM32 toolchains
         # qemu-system-riscv64 ships in qemu-system-misc (Ubuntu has no
         # package of that name), with the rv64 OpenSBI firmware QEMU loads.
         # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
         # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
-      - uses: actions/checkout@v7
-      - name: Install RISC-V 64-bit toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y ccache gcc-riscv64-linux-gnu qemu-system-misc gcc-arm-linux-gnueabihf qemu-system-arm
@@ -196,17 +182,6 @@ jobs:
           name: kernel-riscv64
           path: kernel_riscv.elf
           if-no-files-found: error
-
-  build-riscv32:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install RISC-V 32-bit toolchain
-        # Ubuntu ships no riscv32 cross compiler; the riscv64 one builds rv32
-        # through -march=rv32... -mabi=ilp32d (see Makefile.riscv32).
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-riscv64-linux-gnu qemu-system-misc
       - name: Build RISC-V 32-bit
         if: ${{ !cancelled() }}
         run: |
@@ -235,23 +210,10 @@ jobs:
         run: ZXV_RV32_SBI="$RUNNER_TEMP/opensbi-fw/fw_dynamic.bin" build_system/ci_boot_check.sh riscv32 build_system/Makefile.riscv32 30
       - name: Upload RISC-V 32-bit artifacts
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v5
-        with:
-          name: kernel-riscv32
-          path: kernel_riscv32.elf
         uses: actions/upload-artifact@v7
         with:
           name: kernel-riscv32
           path: kernel_riscv32.elf
-
-  build-arm32:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install ARM32 toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf qemu-system-arm
       - name: Build ARM32
         if: ${{ !cancelled() }}
         run: |
@@ -262,58 +224,12 @@ jobs:
         run: build_system/ci_boot_check.sh arm32 build_system/Makefile.arm32 30
       - name: Upload ARM32 artifacts
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v5
         uses: actions/upload-artifact@v7
         with:
           name: kernel-arm32
           path: zedec_xero_arm32.elf
           if-no-files-found: error
       - run: ccache -s
-
-  host-tests:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils
-      - name: Check every file is on Apache-2.0
-        run: python3 build_system/relicense_apache.py --check
-      - name: Run host tests
-        run: |
-          cd kernel
-          make verify-all
-
-  lint:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Install clang-format
-        run: pip install clang-format==18.1.8
-      - name: Check formatting of the C files this change touches
-        # Style is in .clang-format. Older files predate it, so only the lines
-        # a pull request or push changes are checked.
-        env:
-          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
-        run: |
-          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-list --max-parents=0 HEAD | tail -1); fi
-          # Only the changed lines are checked, so a one-line header edit does
-          # not force a full reformat of an older file. New files are all
-          # changed lines, so they stay fully checked.
-          MB=$(git merge-base "$BASE" HEAD)
-          # git clang-format does not read .clang-format-ignore, so its
-          # entries (generated tables, vendored code) become exclude pathspecs.
-          set -f
-          EXCL=$(grep -vE '^[[:space:]]*(#|$)' .clang-format-ignore | sed 's/^/:(exclude,glob)/')
-          out=$(git clang-format --binary "$(command -v clang-format)" --diff "$MB" HEAD -- 'kernel/*.c' 'kernel/*.h' $EXCL || true)
-          set +f
-          case "$out" in
-            ""|"no modified files to format"|"clang-format did not modify any files") echo "formatting OK" ;;
-            *) echo "$out"; exit 1 ;;
-          esac
 
   # The turnkey Mac app: native shell + engine, universal (arm64 + x86_64),
   # tested and packaged by build_desktop.sh on Apple's own toolchain. Signs
@@ -555,9 +471,6 @@ jobs:
         run: python3 tests/harness/mutator/mutate.py --selftest
       - name: Mutation score gate (CI subset, shard ${{ matrix.shard }}/3)
         run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --shard ${{ matrix.shard }}/3 --jobs 4 --out mutation-results
-      - uses: actions/upload-artifact@v5
-      - name: Mutation score gate (CI subset)
-        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --ci --jobs 4 --out mutation-results
       - uses: actions/upload-artifact@v7
         if: always()
         with:
