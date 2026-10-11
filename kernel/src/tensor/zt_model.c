@@ -958,21 +958,30 @@ static void attend(const zt_model_t *m, const zt_model_state_t *s, uint32_t l, c
         for (uint32_t j = 0; j < hd; j++)
             qs[j] = sq ? (int32_t) (((int64_t) qh[j] + (1 << (sq - 1))) >> sq) : qh[j];
         zt_fx mx = INT32_MIN;
-        for (uint32_t i = 0; i <= p; i++) {
-            int64_t S = 0; /* q.k in Q32 / 2^sq, 64 bits */
-            uint64_t cell = (base + i) * kvd + (uint64_t) kvh * hd;
-            if (s->kv_type == ZT_KV_Q16) {
-                const int32_t *kr = s->k16 + cell;
-                for (uint32_t j = 0; j < hd; j++) S += (int64_t) qs[j] * kr[j];
-            } else {
-                const int8_t *kr = s->k8 + cell;
-                uint64_t si = (base + i) * c->n_head_kv * s->nbh + (uint64_t) kvh * s->nbh;
-                for (uint32_t b = 0; b < s->nbh; b++) {
-                    uint32_t o = b * 32, len = hd - o < 32 ? hd - o : 32;
-                    int64_t Sb = 0;
-                    for (uint32_t j = 0; j < len; j++) Sb += (int64_t) qs[o + j] * kr[o + j];
-                    S += mul_shr(Sb, (uint32_t) s->ks[si + b], s->ksh[si + b]);
+        const zt_kern_t *K = m->kern;
+        uint64_t cell0 = base * kvd + (uint64_t) kvh * hd;
+        if (s->kv_type == ZT_KV_Q16) {
+            zt_att_qk_fn qk = K && K->att_qk ? K->att_qk : zt_att_qk_c;
+            int64_t S[256]; /* q.k in Q32 / 2^sq, 64 bits, 256 positions at a time */
+            for (uint32_t i0 = 0; i0 <= p; i0 += 256) {
+                uint32_t n = p + 1 - i0 < 256 ? p + 1 - i0 : 256;
+                qk(qs, s->k16 + cell0 + (uint64_t) i0 * kvd, kvd, n, hd, S);
+                for (uint32_t i = 0; i < n; i++) {
+                    zt_fx sc = sat32(mul_shr(S[i], m->inv_sqrt_q30, 46 - sq));
+                    scores[i0 + i] = sc;
+                    if (sc > mx) mx = sc;
                 }
+            }
+        }
+        for (uint32_t i = 0; i <= p && s->kv_type == ZT_KV_Q8; i++) {
+            int64_t S = 0; /* q.k in Q32 / 2^sq, 64 bits */
+            const int8_t *kr = s->k8 + (base + i) * kvd + (uint64_t) kvh * hd;
+            uint64_t si = (base + i) * c->n_head_kv * s->nbh + (uint64_t) kvh * s->nbh;
+            for (uint32_t b = 0; b < s->nbh; b++) {
+                uint32_t o = b * 32, len = hd - o < 32 ? hd - o : 32;
+                int64_t Sb = 0;
+                for (uint32_t j = 0; j < len; j++) Sb += (int64_t) qs[o + j] * kr[o + j];
+                S += mul_shr(Sb, (uint32_t) s->ks[si + b], s->ksh[si + b]);
             }
             zt_fx sc = sat32(mul_shr(S, m->inv_sqrt_q30, 46 - sq));
             scores[i] = sc;
@@ -985,22 +994,18 @@ static void attend(const zt_model_t *m, const zt_model_state_t *s, uint32_t l, c
             sum += (uint32_t) scores[i];
         }
         for (uint32_t j = 0; j < hd; j++) acc[j] = 0;
-        for (uint32_t i = 0; i <= p; i++) {
+        if (s->kv_type == ZT_KV_Q16)
+            (K && K->att_wv ? K->att_wv : zt_att_wv_c)(scores, s->v16 + cell0, kvd, p + 1, hd, acc);
+        for (uint32_t i = 0; i <= p && s->kv_type == ZT_KV_Q8; i++) {
             int64_t w = scores[i];
             if (!w) continue;
-            uint64_t cell = (base + i) * kvd + (uint64_t) kvh * hd;
-            if (s->kv_type == ZT_KV_Q16) {
-                const int32_t *vr = s->v16 + cell;
-                for (uint32_t j = 0; j < hd; j++) acc[j] += w * vr[j];
-            } else {
-                const int8_t *vr = s->v8 + cell;
-                uint64_t si = (base + i) * c->n_head_kv * s->nbh + (uint64_t) kvh * s->nbh;
-                for (uint32_t j = 0; j < hd; j++) {
-                    uint32_t b = j / 32, sh = s->vsh[si + b];
-                    int64_t pv = (int64_t) vr[j] * s->vs[si + b];
-                    int64_t dv = sh ? (pv + ((int64_t) 1 << (sh - 1))) >> sh : pv;
-                    acc[j] += w * sat32(dv);
-                }
+            const int8_t *vr = s->v8 + (base + i) * kvd + (uint64_t) kvh * hd;
+            uint64_t si = (base + i) * c->n_head_kv * s->nbh + (uint64_t) kvh * s->nbh;
+            for (uint32_t j = 0; j < hd; j++) {
+                uint32_t b = j / 32, sh = s->vsh[si + b];
+                int64_t pv = (int64_t) vr[j] * s->vs[si + b];
+                int64_t dv = sh ? (pv + ((int64_t) 1 << (sh - 1))) >> sh : pv;
+                acc[j] += w * sat32(dv);
             }
         }
         for (uint32_t j = 0; j < hd; j++) out[h * hd + j] = sat32(round_div(acc[j], sum));

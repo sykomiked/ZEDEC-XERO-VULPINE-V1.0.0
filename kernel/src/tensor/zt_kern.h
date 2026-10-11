@@ -270,6 +270,36 @@ static inline void zt_mmb_pack(const int16_t *a16, const uint8_t *ash, const int
 #define ZT_MMB_SAFE_Q6K 9
 #define ZT_MMB_SAFE_Q8  14
 
+/* ---- attention over a Q16 KV cache ----
+ * S[i] = q . k_i (n positions, k_i = k + i * kstride, hd values) and
+ * acc[j] += sum_i w[i] v_i[j]: exact 64-bit sums of 32 x 32-bit products
+ * (|q| < 2^22 and |w| <= 2^16, so no sum can overflow), the same in any
+ * order. */
+static inline void zt_att_qk_c(const int32_t *q, const int32_t *k, uint64_t kstride, uint32_t n,
+                               uint32_t hd, int64_t *S)
+{
+    for (uint32_t i = 0; i < n; i++, k += kstride) {
+        int64_t t = 0;
+        for (uint32_t j = 0; j < hd; j++) t += (int64_t) q[j] * k[j];
+        S[i] = t;
+    }
+}
+
+static inline void zt_att_wv_c(const int32_t *w, const int32_t *v, uint64_t vstride, uint32_t n,
+                               uint32_t hd, int64_t *acc)
+{
+    for (uint32_t i = 0; i < n; i++, v += vstride) {
+        int64_t wi = w[i];
+        if (!wi) continue;
+        for (uint32_t j = 0; j < hd; j++) acc[j] += wi * v[j];
+    }
+}
+
+typedef void (*zt_att_qk_fn)(const int32_t *q, const int32_t *k, uint64_t kstride, uint32_t n,
+                             uint32_t hd, int64_t *S);
+typedef void (*zt_att_wv_fn)(const int32_t *w, const int32_t *v, uint64_t vstride, uint32_t n,
+                             uint32_t hd, int64_t *acc);
+
 /* A set of kernels. Each function must return exactly what the C reference
  * returns for every input (test_zt_simd checks this). */
 typedef zt_fx (*zt_dot_raw_fn)(const uint8_t *row, const int16_t *a, const uint8_t *ash,
@@ -296,6 +326,8 @@ typedef struct zt_kern {
      * when done, nonzero (having written nothing) when it does not handle the
      * job's weight type; the caller then uses the dot products above. */
     int (*mm_batch)(const zt_mmb_t *j, uint32_t r0, uint32_t r1);
+    zt_att_qk_fn att_qk; /* null: the C reference (Q16 KV cache only) */
+    zt_att_wv_fn att_wv; /* null: the C reference (Q16 KV cache only) */
 } zt_kern_t;
 
 #endif /* ZT_KERN_H */

@@ -116,52 +116,20 @@ static inline __attribute__((always_inline)) MMB_TGT void MMB_BODY(const zt_mmb_
                                     ve = _mm512_add_epi64(ve, _mm512_mul_epi32(s2v, M1));
                                     vo = _mm512_add_epi64(
                                         vo, _mm512_mul_epi32(_mm512_srli_epi64(s2v, 32), M1));
-                                    if (t->e <= 0 && hx + t->e <= safe) {
-                                        __m512i R = _mm512_set1_epi64(-(int64_t) t->e);
-                                        ve = _mm512_srav_epi64(_mm512_sllv_epi64(ve, h0), R);
-                                        vo = _mm512_srav_epi64(_mm512_sllv_epi64(vo, h1), R);
-                                    } else {
-                                        int fast = hx + t->e <= safe;
-                                        ve = shift_512(ve, h0, t->e, fast);
-                                        vo = shift_512(vo, h1, t->e, fast);
-                                    }
-                                    A0 = _mm512_add_epi64(A0, ve);
-                                    A1 = _mm512_add_epi64(A1, vo);
+                                    term16_512(&ve, &vo, h0, h1, t->e, hx, safe);
                                 } else if (qt == ZT_GGML_Q4_K) {
-                                    int32_t emax = t->e > t->em ? t->e : t->em;
-                                    int fast = hx + emax <= safe;
                                     __m512i MT = _mm512_set1_epi64(t->mt[sb]);
                                     __m512i ue = _mm512_mul_epi32(u0, MT);
                                     __m512i uo = _mm512_mul_epi32(u1, MT);
-                                    if (fast && emax <= 0) {
-                                        __m512i R = _mm512_set1_epi64(-(int64_t) t->e);
-                                        __m512i Rm = _mm512_set1_epi64(-(int64_t) t->em);
-                                        ve = _mm512_srav_epi64(_mm512_sllv_epi64(ve, h0), R);
-                                        vo = _mm512_srav_epi64(_mm512_sllv_epi64(vo, h1), R);
-                                        ue = _mm512_srav_epi64(_mm512_sllv_epi64(ue, h0), Rm);
-                                        uo = _mm512_srav_epi64(_mm512_sllv_epi64(uo, h1), Rm);
-                                    } else {
-                                        ve = shift_512(ve, h0, t->e, fast);
-                                        vo = shift_512(vo, h1, t->e, fast);
-                                        ue = shift_512(ue, h0, t->em, fast);
-                                        uo = shift_512(uo, h1, t->em, fast);
-                                    }
-                                    A0 = _mm512_add_epi64(A0, _mm512_sub_epi64(ve, ue));
-                                    A1 = _mm512_add_epi64(A1, _mm512_sub_epi64(vo, uo));
+                                    term16_512(&ve, &vo, h0, h1, t->e, hx, safe);
+                                    term16_512(&ue, &uo, h0, h1, t->em, hx, safe);
+                                    ve = _mm512_sub_epi64(ve, ue);
+                                    vo = _mm512_sub_epi64(vo, uo);
                                 } else {
-                                    int32_t e = t->ek[sb];
-                                    if (e <= 0 && hx + e <= safe) {
-                                        __m512i R = _mm512_set1_epi64(-(int64_t) e);
-                                        ve = _mm512_srav_epi64(_mm512_sllv_epi64(ve, h0), R);
-                                        vo = _mm512_srav_epi64(_mm512_sllv_epi64(vo, h1), R);
-                                    } else {
-                                        int fast = hx + e <= safe;
-                                        ve = shift_512(ve, h0, e, fast);
-                                        vo = shift_512(vo, h1, e, fast);
-                                    }
-                                    A0 = _mm512_add_epi64(A0, ve);
-                                    A1 = _mm512_add_epi64(A1, vo);
+                                    term16_512(&ve, &vo, h0, h1, t->ek[sb], hx, safe);
                                 }
+                                A0 = _mm512_add_epi64(A0, ve);
+                                A1 = _mm512_add_epi64(A1, vo);
                                 _mm512_store_si512((void *) a, A0);
                                 _mm512_store_si512((void *) (a + 8), A1);
                             }

@@ -661,6 +661,24 @@ static inline AVX512 __m512i shift_512(__m512i v, __m512i ash, int32_t e, int fa
     return term52q_512(v, _mm512_add_epi64(ash, _mm512_set1_epi64(e)));
 }
 
+/* term52(v, e + ash) of a group's 16 slots (ve: even, vo: odd) for weight
+ * exponent e and the group's block exponents (h0, h1; hx = their largest):
+ * one arithmetic right shift by -e - ash when e + ash <= 0 for every token
+ * (the usual case), else shift_512 */
+static inline AVX512 void term16_512(__m512i *ve, __m512i *vo, __m512i h0, __m512i h1, int32_t e,
+                                     int32_t hx, int32_t safe)
+{
+    if (e <= 0 && hx <= -e) {
+        __m512i R = _mm512_set1_epi64(-(int64_t) e);
+        *ve = _mm512_srav_epi64(*ve, _mm512_sub_epi64(R, h0));
+        *vo = _mm512_srav_epi64(*vo, _mm512_sub_epi64(R, h1));
+    } else {
+        int fast = hx + e <= safe;
+        *ve = shift_512(*ve, h0, e, fast);
+        *vo = shift_512(*vo, h1, e, fast);
+    }
+}
+
 #    define MMB_NAME mmb_tile_512
 #    define MMB_TGT  AVX512
 #    define MMB_VNNI 0
@@ -692,13 +710,99 @@ static int mmb_vnni(const zt_mmb_t *j, uint32_t r0, uint32_t r1)
     return 0;
 }
 
-static const zt_kern_t K_AVX2 = {"avx2", dot_raw_avx2, dot_q8_avx2, 0, 0, dot_q4k_avx2,
-                                 dot_q6k_avx2, 0};
+/* ---- attention over a Q16 KV cache (zt_kern.h zt_att_qk_c, zt_att_wv_c):
+ * exact 32 x 32 -> 64-bit products (VPMULDQ on the even lanes, and on the odd
+ * lanes shifted down), summed in 64-bit lanes ---- */
+
+static AVX2 void att_qk_avx2(const int32_t *q, const int32_t *k, uint64_t kstride, uint32_t n,
+                             uint32_t hd, int64_t *S)
+{
+    for (uint32_t i = 0; i < n; i++, k += kstride) {
+        __m256i a = _mm256_setzero_si256();
+        uint32_t j = 0;
+        for (; j + 8 <= hd; j += 8) {
+            __m256i x = _mm256_loadu_si256((const __m256i *) (q + j));
+            __m256i y = _mm256_loadu_si256((const __m256i *) (k + j));
+            a = _mm256_add_epi64(a, _mm256_mul_epi32(x, y));
+            a = _mm256_add_epi64(
+                a, _mm256_mul_epi32(_mm256_srli_epi64(x, 32), _mm256_srli_epi64(y, 32)));
+        }
+        int64_t t = hsum64_avx2(a);
+        for (; j < hd; j++) t += (int64_t) q[j] * k[j];
+        S[i] = t;
+    }
+}
+
+static AVX2 void att_wv_avx2(const int32_t *w, const int32_t *v, uint64_t vstride, uint32_t n,
+                             uint32_t hd, int64_t *acc)
+{
+    uint32_t j0 = 0;
+    for (; j0 + 32 <= hd; j0 += 32) {
+        __m256i a[8];
+        for (uint32_t c = 0; c < 8; c++) a[c] = _mm256_loadu_si256((const __m256i *) (acc + j0 + 4 * c));
+        const int32_t *vi = v + j0;
+        for (uint32_t i = 0; i < n; i++, vi += vstride) {
+            if (!w[i]) continue;
+            __m256i wv = _mm256_set1_epi64x(w[i]);
+            for (uint32_t c = 0; c < 8; c++)
+                a[c] = _mm256_add_epi64(
+                    a[c], _mm256_mul_epi32(_mm256_cvtepi32_epi64(
+                                               _mm_loadu_si128((const __m128i *) (vi + 4 * c))),
+                                           wv));
+        }
+        for (uint32_t c = 0; c < 8; c++) _mm256_storeu_si256((__m256i *) (acc + j0 + 4 * c), a[c]);
+    }
+    if (j0 < hd) zt_att_wv_c(w, v + j0, vstride, n, hd - j0, acc + j0);
+}
+
+static AVX512 void att_qk_512(const int32_t *q, const int32_t *k, uint64_t kstride, uint32_t n,
+                              uint32_t hd, int64_t *S)
+{
+    for (uint32_t i = 0; i < n; i++, k += kstride) {
+        __m512i a = _mm512_setzero_si512();
+        uint32_t j = 0;
+        for (; j + 16 <= hd; j += 16) {
+            __m512i x = _mm512_loadu_si512((const void *) (q + j));
+            __m512i y = _mm512_loadu_si512((const void *) (k + j));
+            a = _mm512_add_epi64(a, _mm512_mul_epi32(x, y));
+            a = _mm512_add_epi64(
+                a, _mm512_mul_epi32(_mm512_srli_epi64(x, 32), _mm512_srli_epi64(y, 32)));
+        }
+        int64_t t = _mm512_reduce_add_epi64(a);
+        for (; j < hd; j++) t += (int64_t) q[j] * k[j];
+        S[i] = t;
+    }
+}
+
+static AVX512 void att_wv_512(const int32_t *w, const int32_t *v, uint64_t vstride, uint32_t n,
+                              uint32_t hd, int64_t *acc)
+{
+    uint32_t j0 = 0;
+    for (; j0 + 64 <= hd; j0 += 64) {
+        __m512i a[8];
+        for (uint32_t c = 0; c < 8; c++) a[c] = _mm512_loadu_si512((const void *) (acc + j0 + 8 * c));
+        const int32_t *vi = v + j0;
+        for (uint32_t i = 0; i < n; i++, vi += vstride) {
+            if (!w[i]) continue;
+            __m512i wv = _mm512_set1_epi64(w[i]);
+            for (uint32_t c = 0; c < 8; c++)
+                a[c] = _mm512_add_epi64(
+                    a[c], _mm512_mul_epi32(_mm512_cvtepi32_epi64(_mm256_loadu_si256(
+                                               (const __m256i *) (vi + 8 * c))),
+                                           wv));
+        }
+        for (uint32_t c = 0; c < 8; c++) _mm512_storeu_si512((void *) (acc + j0 + 8 * c), a[c]);
+    }
+    if (j0 < hd) att_wv_avx2(w, v + j0, vstride, n, hd - j0, acc + j0);
+}
+
+static const zt_kern_t K_AVX2 = {"avx2",       dot_raw_avx2, dot_q8_avx2, 0, 0, dot_q4k_avx2,
+                                 dot_q6k_avx2, 0,           att_qk_avx2, att_wv_avx2};
 static const zt_kern_t K_AVX512 = {"avx512", dot_raw_512, dot_q8_512, 0, 0, dot_q4k_512,
-                                   dot_q6k_512, mmb_512};
+                                   dot_q6k_512, mmb_512,  att_qk_512, att_wv_512};
 /* the same with the AVX512-VNNI tile */
 static const zt_kern_t K_AVX512V = {"avx512vnni", dot_raw_512, dot_q8_512, 0, 0, dot_q4k_512,
-                                    dot_q6k_512, mmb_vnni};
+                                    dot_q6k_512, mmb_vnni, att_qk_512, att_wv_512};
 
 const zt_kern_t *zt_simd_x86_avx2(void)
 {

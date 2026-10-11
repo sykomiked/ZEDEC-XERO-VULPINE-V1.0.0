@@ -278,7 +278,7 @@ static zt_fx dot_q6k_neon(const uint8_t *row, const int16_t *a, const uint8_t *a
 }
 
 static const zt_kern_t K_NEON = {"neon", dot_raw_neon, dot_q8_neon, 0, 0, dot_q4k_neon,
-                                 dot_q6k_neon, 0};
+                                 dot_q6k_neon, 0,            0,           0};
 
 const zt_kern_t *zt_simd_neon(void)
 {
