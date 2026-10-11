@@ -6,12 +6,12 @@
 #define HWE_IDS_H
 
 /* Contract ids ('Z' 'E' family 0x5A45xxxx). The values never change. */
-#define HWE_FN_SHA256  0x5A450001u
-#define HWE_FN_KECCAK  0x5A450002u
-#define HWE_FN_MAC     0x5A450003u
-#define HWE_FN_GCD     0x5A450004u
-#define HWE_FN_LOGIC64 0x5A450005u
-#define HWE_FN_TENSOR  0x5A450006u
+#define HWE_FN_SHA256   0x5A450001u
+#define HWE_FN_KECCAK   0x5A450002u
+#define HWE_FN_MAC      0x5A450003u
+#define HWE_FN_GCD      0x5A450004u
+#define HWE_FN_LOGIC64  0x5A450005u
+#define HWE_FN_TENSOR   0x5A450006u
 #define HWE_CONTRACT_V1 1u
 
 #endif /* HWE_IDS_H */

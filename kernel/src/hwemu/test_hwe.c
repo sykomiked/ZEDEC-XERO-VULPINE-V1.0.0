@@ -8,13 +8,13 @@
 #include "hwe.h"
 
 static int fails, checks;
-#define CHECK(c)                                                         \
-    do {                                                                 \
-        checks++;                                                        \
-        if (!(c)) {                                                      \
-            fails++;                                                     \
-            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c);          \
-        }                                                                \
+#define CHECK(c)                                                                                   \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(c)) {                                                                                \
+            fails++;                                                                               \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c);                                    \
+        }                                                                                          \
     } while (0)
 
 static int hex_eq(const uint8_t *b, const char *hex)
@@ -113,8 +113,8 @@ int main(void)
         for (int i = 0; i < 32; i++) t[6 + i] = (uint8_t) (i + 1);
         for (int i = 0; i < 32; i++) t[38 + 2 * i] = 1;
         CHECK(hwm_call(&m, f, 0, t, sizeof t, out, sizeof out, &n) == HWM_OK && n == 4);
-        int32_t r = (int32_t) ((uint32_t) out[0] | ((uint32_t) out[1] << 8) | ((uint32_t) out[2] << 16) |
-                               ((uint32_t) out[3] << 24));
+        int32_t r = (int32_t) ((uint32_t) out[0] | ((uint32_t) out[1] << 8) |
+                               ((uint32_t) out[2] << 16) | ((uint32_t) out[3] << 24));
         CHECK(r == 528); /* activations are a * 2^(ash-16): 528 * 2^-16 in Q16 is 528 */
     }
 #endif

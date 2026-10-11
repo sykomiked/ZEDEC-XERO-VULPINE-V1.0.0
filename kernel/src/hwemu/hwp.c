@@ -5,11 +5,11 @@
 #include "hwe_ids.h"
 #include "../robin_debanks/sha256.h"
 
-#define HWP_MAGIC0 'Z'
-#define HWP_MAGIC1 'H'
-#define HWP_MAGIC2 'P'
-#define HWP_MAGIC3 '1'
-#define HWP_FORMAT 1u
+#define HWP_MAGIC0       'Z'
+#define HWP_MAGIC1       'H'
+#define HWP_MAGIC2       'P'
+#define HWP_MAGIC3       '1'
+#define HWP_FORMAT       1u
 #define HWP_KNOWN_MAX_ID 24u /* highest public cap id this reader knows */
 
 void hwp_init(hwp_profile_t *p)
@@ -34,9 +34,9 @@ int hwp_node_add(hwp_profile_t *p, uint16_t id, uint16_t parent, uint32_t cls, u
 {
     if (!p || id == HWP_ROOT || cls == 0) return HWP_E_ARG;
     if (p->n >= HWP_MAX_NODES) return HWP_E_FULL;
-    if (p->n && p->node[p->n - 1u].id >= id) return HWP_E_CANONICAL;              /* P1 */
+    if (p->n && p->node[p->n - 1u].id >= id) return HWP_E_CANONICAL; /* P1 */
     if (parent != HWP_ROOT && (parent >= id || hwp_node_find(p, parent, 0) != HWP_OK))
-        return HWP_E_CANONICAL;                                                    /* P1 */
+        return HWP_E_CANONICAL; /* P1 */
     hwp_node_t *n = &p->node[p->n];
     n->id = id;
     n->parent = parent;
@@ -120,7 +120,8 @@ static uint16_t get16(const uint8_t *b)
 }
 static uint32_t get32(const uint8_t *b)
 {
-    return (uint32_t) b[0] | ((uint32_t) b[1] << 8) | ((uint32_t) b[2] << 16) | ((uint32_t) b[3] << 24);
+    return (uint32_t) b[0] | ((uint32_t) b[1] << 8) | ((uint32_t) b[2] << 16) |
+           ((uint32_t) b[3] << 24);
 }
 static uint64_t get64(const uint8_t *b)
 {
@@ -195,7 +196,8 @@ int hwp_decode(const uint8_t *buf, uint32_t len, hwp_profile_t *p)
     if (len < HWP_HEADER || buf[0] != HWP_MAGIC0 || buf[1] != HWP_MAGIC1 || buf[2] != HWP_MAGIC2 ||
         buf[3] != HWP_MAGIC3 || get16(buf + 4) != HWP_FORMAT)
         return HWP_E_FORMAT;
-    if (get16(buf + 6) != 0 || get16(buf + 10) != 0 || get32(buf + 12) != len) return HWP_E_CANONICAL;
+    if (get16(buf + 6) != 0 || get16(buf + 10) != 0 || get32(buf + 12) != len)
+        return HWP_E_CANONICAL;
     uint16_t nodes = get16(buf + 8);
     if (nodes > HWP_MAX_NODES) return HWP_E_FULL;
     uint32_t o = HWP_HEADER;
@@ -425,16 +427,41 @@ int hwp_present(const hwp_profile_t *host, const hwp_profile_t *target, hwp_prof
 
 const char *hwp_class_name(uint32_t cls)
 {
-    static const char *const names[] = {
-        "invalid",        "device",        "cluster",         "core",
-        "mem.cache",      "mem",           "interconnect",    "engine.tensor.int",
-        "engine.vector",  "engine.ternary", "engine.hash",    "engine.crypto",
-        "engine.codec",   "fabric.reconfig", "io.storage",    "io.network",
-        "radio",          "sensor",        "actuator",        "clock",
-        "power",          "secure.element", "io.display",     "io.audio",
-        "io.wire",        "engine.gpu",    "package",         "lane",
-        "engine.logic64", "engine.ntt",    "engine.frame.ubh168", "engine.gcd",
-        "mem.channel",    "secure.island", "io"};
+    static const char *const names[] = {"invalid",
+                                        "device",
+                                        "cluster",
+                                        "core",
+                                        "mem.cache",
+                                        "mem",
+                                        "interconnect",
+                                        "engine.tensor.int",
+                                        "engine.vector",
+                                        "engine.ternary",
+                                        "engine.hash",
+                                        "engine.crypto",
+                                        "engine.codec",
+                                        "fabric.reconfig",
+                                        "io.storage",
+                                        "io.network",
+                                        "radio",
+                                        "sensor",
+                                        "actuator",
+                                        "clock",
+                                        "power",
+                                        "secure.element",
+                                        "io.display",
+                                        "io.audio",
+                                        "io.wire",
+                                        "engine.gpu",
+                                        "package",
+                                        "lane",
+                                        "engine.logic64",
+                                        "engine.ntt",
+                                        "engine.frame.ubh168",
+                                        "engine.gcd",
+                                        "mem.channel",
+                                        "secure.island",
+                                        "io"};
     if (cls >= HWP_CLASS_PRIVATE) return "private";
     if (cls > HWP_CLASS_PUBLIC_MAX) return "unknown";
     return names[cls];

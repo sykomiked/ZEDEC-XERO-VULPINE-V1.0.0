@@ -133,7 +133,8 @@ static void make_stream(uint8_t (*blk)[32], long n, int dup_pct, uint32_t seed)
         if ((int) ((x >> 8) % 100u) < dup_pct) {
             memcpy(blk[k], hot[(x >> 16) & 255u], 32);
         } else {
-            for (int i = 0; i < 32; i++) blk[k][i] = (uint8_t) ((x = x * 1664525u + 1013904223u) >> 24);
+            for (int i = 0; i < 32; i++)
+                blk[k][i] = (uint8_t) ((x = x * 1664525u + 1013904223u) >> 24);
             memcpy(blk[k], &k, sizeof k); /* unique */
         }
     }
@@ -172,7 +173,8 @@ int main(void)
     double ceil = c16 > c32 ? c16 : c32;
     printf("# Emulation matrix benchmark\n\n");
     printf("Measured ceiling, one core: int32 multiply-add %.2f ops/ns, int16 %.2f ops/ns;\n"
-           "the higher one is used.\n\n", c32, c16);
+           "the higher one is used.\n\n",
+           c32, c16);
 
     /* Workload 1 */
     const long N1 = 200000;
@@ -205,11 +207,12 @@ int main(void)
 
     /* Workload 2 */
     const long N2 = 300000;
-    uint8_t (*blk)[32] = malloc((size_t) N2 * 32);
+    uint8_t(*blk)[32] = malloc((size_t) N2 * 32);
     if (!blk) return 1;
     static const int dups[] = {0, 50, 90};
     printf("## SHA-256 of 32-byte blocks (%ld blocks)\n\n", N2);
-    printf("| repeats | native ns | matrix ns | matrix+memo ns | native+memo ns | memo hit rate |\n");
+    printf(
+        "| repeats | native ns | matrix ns | matrix+memo ns | native+memo ns | memo hit rate |\n");
     printf("|---|---|---|---|---|---|\n");
     for (int d = 0; d < 3; d++) {
         make_stream(blk, N2, dups[d], 777u + (uint32_t) d);
@@ -252,8 +255,8 @@ int main(void)
         }
         double e = now_s() - t0;
         sink = chk;
-        printf("| %d%% | %.1f | %.1f | %.1f | %.1f | %.0f%% |\n", dups[d], a * 1e9 / N2, b * 1e9 / N2,
-               c * 1e9 / N2, e * 1e9 / N2, 100.0 * hit);
+        printf("| %d%% | %.1f | %.1f | %.1f | %.1f | %.0f%% |\n", dups[d], a * 1e9 / N2,
+               b * 1e9 / N2, c * 1e9 / N2, e * 1e9 / N2, 100.0 * hit);
     }
     free(blk);
     printf("\nReading: the matrix adds dispatch cost to every call; the memo wins only\n"

@@ -8,8 +8,8 @@
 #define CTX     ((const uint8_t *) HWR_SIG_CONTEXT)
 #define CTX_LEN (sizeof HWR_SIG_CONTEXT - 1u)
 
-bool hwr_pq_verify(void *ctx, uint16_t alg, const uint8_t *pk, uint32_t pk_len,
-                   const uint8_t *msg, uint32_t msg_len, const uint8_t *sig, uint32_t sig_len)
+bool hwr_pq_verify(void *ctx, uint16_t alg, const uint8_t *pk, uint32_t pk_len, const uint8_t *msg,
+                   uint32_t msg_len, const uint8_t *sig, uint32_t sig_len)
 {
     (void) ctx;
     if (!pk || !msg || !sig) return false;
@@ -34,8 +34,8 @@ void hwr_mldsa87_sign(const uint8_t *sk, const uint8_t header[HWR_HEADER], const
     pqm_mldsa87_sign(sk, header, HWR_HEADER, CTX, CTX_LEN, rnd, sig);
 }
 
-void hwr_dual_sign(const uint8_t *mldsa_sk, const uint8_t *slh_sk,
-                   const uint8_t header[HWR_HEADER], const uint8_t *rnd, uint8_t *sig)
+void hwr_dual_sign(const uint8_t *mldsa_sk, const uint8_t *slh_sk, const uint8_t header[HWR_HEADER],
+                   const uint8_t *rnd, uint8_t *sig)
 {
     pqm_mldsa87_sign(mldsa_sk, header, HWR_HEADER, CTX, CTX_LEN, rnd, sig);
     pqm_slh256s_sign(slh_sk, header, HWR_HEADER, CTX, CTX_LEN, rnd, sig + HWR_MLDSA87_SIG);

@@ -129,7 +129,8 @@ static int e_gcd(uint32_t op, const uint8_t *in, uint32_t n, uint8_t *out, uint3
     if (op != 0 || n == 0 || n % 16u || n / 16u > 32u) return HWM_E_ARG;
     uint32_t k = n / 16u;
     if (cap < 8u * k) return HWM_E_BUFFER;
-    for (uint32_t i = 0; i < k; i++) wr64(out + 8u * i, gcd64(rd64(in + 16u * i), rd64(in + 16u * i + 8u)));
+    for (uint32_t i = 0; i < k; i++)
+        wr64(out + 8u * i, gcd64(rd64(in + 16u * i), rd64(in + 16u * i + 8u)));
     *len = 8u * k;
     return HWM_OK;
 }
@@ -205,7 +206,7 @@ int hwe_soft_call(void *inst, hwm_t *m, uint32_t op, const uint8_t *in, uint32_t
 
 /* ---- the catalogue ---- */
 
-static const uint32_t FN_IDS[HWE_COUNT] = {HWE_FN_SHA256, HWE_FN_KECCAK, HWE_FN_MAC,
+static const uint32_t FN_IDS[HWE_COUNT] = {HWE_FN_SHA256, HWE_FN_KECCAK,  HWE_FN_MAC,
                                            HWE_FN_GCD,    HWE_FN_LOGIC64, HWE_FN_TENSOR};
 static const char *const NAMES[HWE_COUNT] = {"hash.sha256", "hash.keccak", "mac.hmac-sha256",
                                              "gcd",         "logic64",     "tensor.int"};

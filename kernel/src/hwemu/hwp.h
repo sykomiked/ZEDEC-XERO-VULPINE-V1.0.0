@@ -57,28 +57,28 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define HWP_MAX_NODES   64u
-#define HWP_MAX_CAPS    16u
-#define HWP_MAX_STATE   256u
-#define HWP_MAX_EXT     256u
-#define HWP_HEADER      16u
-#define HWP_ROOT        0xFFFFu
-#define HWP_NONE        0xFFFFu
+#define HWP_MAX_NODES 64u
+#define HWP_MAX_CAPS  16u
+#define HWP_MAX_STATE 256u
+#define HWP_MAX_EXT   256u
+#define HWP_HEADER    16u
+#define HWP_ROOT      0xFFFFu
+#define HWP_NONE      0xFFFFu
 
 /* ---- capability keys ---- */
-#define HWP_KEY_CRITICAL 0x8000u
-#define HWP_CMP_MIN      (0u << 13)
-#define HWP_CMP_EXACT    (1u << 13)
-#define HWP_CMP_MASK     (2u << 13)
-#define HWP_CMP_INFO     (3u << 13)
-#define HWP_KEY_CMP(k)   ((uint16_t) ((k) & 0x6000u))
-#define HWP_KEY_ID(k)    ((uint16_t) ((k) & 0x1FFFu))
+#define HWP_KEY_CRITICAL   0x8000u
+#define HWP_CMP_MIN        (0u << 13)
+#define HWP_CMP_EXACT      (1u << 13)
+#define HWP_CMP_MASK       (2u << 13)
+#define HWP_CMP_INFO       (3u << 13)
+#define HWP_KEY_CMP(k)     ((uint16_t) ((k) & 0x6000u))
+#define HWP_KEY_ID(k)      ((uint16_t) ((k) & 0x1FFFu))
 #define HWP_KEY_PRIVATE(k) (HWP_KEY_ID(k) >= 0x1000u)
 
-#define HWP_CAP_WORD_BITS      (HWP_CMP_MIN | 1u)   /* native integer width       */
-#define HWP_CAP_COUNT          (HWP_CMP_MIN | 2u)   /* cores, lanes, units        */
+#define HWP_CAP_WORD_BITS      (HWP_CMP_MIN | 1u) /* native integer width       */
+#define HWP_CAP_COUNT          (HWP_CMP_MIN | 2u) /* cores, lanes, units        */
 #define HWP_CAP_FREQ_KHZ       (HWP_CMP_INFO | 3u)
-#define HWP_CAP_BYTES          (HWP_CMP_MIN | 4u)   /* memory / cache / storage   */
+#define HWP_CAP_BYTES          (HWP_CMP_MIN | 4u) /* memory / cache / storage   */
 #define HWP_CAP_LINE_BYTES     (HWP_CMP_INFO | 5u)
 #define HWP_CAP_ISA            (HWP_CMP_EXACT | 6u) /* HWP_ISA_*                  */
 #define HWP_CAP_INT_WIDTHS     (HWP_CMP_MASK | 7u)  /* HWP_INT_*                  */
@@ -89,10 +89,10 @@
 #define HWP_CAP_REGIONS        (HWP_CMP_MIN | 12u)  /* reconfigurable regions     */
 #define HWP_CAP_BANDWIDTH_MBPS (HWP_CMP_MIN | 13u)
 #define HWP_CAP_LATENCY_NS     (HWP_CMP_INFO | 14u)
-#define HWP_CAP_PQ_ALGS        (HWP_CMP_MASK | 15u) /* HWP_PQ_*                   */
-#define HWP_CAP_HASH_ALGS      (HWP_CMP_MASK | 16u) /* HWP_HASH_*                 */
+#define HWP_CAP_PQ_ALGS        (HWP_CMP_MASK | 15u)  /* HWP_PQ_*                   */
+#define HWP_CAP_HASH_ALGS      (HWP_CMP_MASK | 16u)  /* HWP_HASH_*                 */
 #define HWP_CAP_WIRE_BITS      (HWP_CMP_EXACT | 17u) /* frame width, 168 for UBH  */
-#define HWP_CAP_PEAK_OPS_MHZ   (HWP_CMP_INFO | 18u) /* peak int ops per us, for   */
+#define HWP_CAP_PEAK_OPS_MHZ   (HWP_CMP_INFO | 18u)  /* peak int ops per us, for   */
                                                      /* utilisation reports       */
 #define HWP_CAP_CONTRACT_ID    (HWP_CMP_EXACT | 19u) /* hwe.h contract (function) id */
 #define HWP_CAP_CONTRACT_VER   (HWP_CMP_MIN | 20u)   /* its golden-vector version   */
@@ -114,11 +114,11 @@
 #define HWP_ISA_RISCV64 3u
 #define HWP_ISA_WASM32  4u
 
-#define HWP_INT_4  0x01u
-#define HWP_INT_8  0x02u
-#define HWP_INT_16 0x04u
-#define HWP_INT_32 0x08u
-#define HWP_INT_64 0x10u
+#define HWP_INT_4    0x01u
+#define HWP_INT_8    0x02u
+#define HWP_INT_16   0x04u
+#define HWP_INT_32   0x08u
+#define HWP_INT_64   0x10u
 #define HWP_INT_TRIT 0x20u
 
 #define HWP_SIMD_SSE42   0x001u
@@ -131,9 +131,9 @@
 #define HWP_SIMD_SVE     0x080u
 #define HWP_SIMD_RVV     0x100u
 
-#define HWP_PQ_MLKEM   0x1u
-#define HWP_PQ_MLDSA   0x2u
-#define HWP_PQ_SLHDSA  0x4u
+#define HWP_PQ_MLKEM    0x1u
+#define HWP_PQ_MLDSA    0x2u
+#define HWP_PQ_SLHDSA   0x4u
 #define HWP_HASH_SHA256 0x1u
 #define HWP_HASH_SHA3   0x2u
 
@@ -148,7 +148,7 @@ typedef enum {
     HWP_CLASS_CACHE = 4,
     HWP_CLASS_MEMORY = 5,
     HWP_CLASS_INTERCONNECT = 6,
-    HWP_CLASS_MATRIX_UNIT = 7,  /* integer multiply-accumulate arrays */
+    HWP_CLASS_MATRIX_UNIT = 7, /* integer multiply-accumulate arrays */
     HWP_CLASS_VECTOR_UNIT = 8,
     HWP_CLASS_TERNARY_UNIT = 9, /* trit logic */
     HWP_CLASS_HASH_UNIT = 10,
@@ -232,18 +232,18 @@ void hwp_digest(const hwp_profile_t *p, uint8_t out[32]);
 
 /* ---- matching (TARGET against HOST) ---- */
 typedef enum {
-    HWP_M_NATIVE = 0,   /* a host component satisfies it */
-    HWP_M_EMULATE = 1,  /* no host component does: the matrix emulates it */
-    HWP_M_GROUP = 2     /* a device or package node: grouping, nothing to run */
+    HWP_M_NATIVE = 0,  /* a host component satisfies it */
+    HWP_M_EMULATE = 1, /* no host component does: the matrix emulates it */
+    HWP_M_GROUP = 2    /* a device or package node: grouping, nothing to run */
 } hwp_mkind_t;
 
 typedef struct {
     uint16_t need_id;
     hwp_mkind_t kind;
-    uint16_t have_id;     /* HWP_NONE unless NATIVE */
-    uint16_t unmet_key;   /* EMULATE: the first cap that failed on the
-                             closest host component of that class, 0 if
-                             the host has no component of that class */
+    uint16_t have_id;   /* HWP_NONE unless NATIVE */
+    uint16_t unmet_key; /* EMULATE: the first cap that failed on the
+                           closest host component of that class, 0 if
+                           the host has no component of that class */
 } hwp_pair_t;
 
 typedef struct {

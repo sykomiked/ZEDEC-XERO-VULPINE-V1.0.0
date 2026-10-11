@@ -372,8 +372,8 @@ int hwm_memo_attach(hwm_t *m, uint32_t fn_index, hwm_memo_entry_t *entries, uint
 
 /* ---- calling ---- */
 
-static int run(hwm_t *m, uint32_t pv, uint32_t op, const uint8_t *in, uint32_t in_len,
-               uint8_t *out, uint32_t out_cap, uint32_t *out_len)
+static int run(hwm_t *m, uint32_t pv, uint32_t op, const uint8_t *in, uint32_t in_len, uint8_t *out,
+               uint32_t out_cap, uint32_t *out_len)
 {
     if (m->depth > HWM_MAX_DEPTH) return HWM_E_DEPTH;
     hwm_provider_t *p = &m->pv[pv];

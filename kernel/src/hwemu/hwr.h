@@ -60,12 +60,12 @@
 #include "hwa.h"
 #include "lpres_hex.h"
 
-#define HWR_HEADER        96u
-#define HWR_MAX_KEYS      4u
-#define HWR_MAX_BAD       16u
-#define HWR_MAX_PAYLOAD   (64u << 20)
-#define HWR_NO_SLOT       0xFFFFFFFFu
-#define HWR_SIG_CONTEXT   "zxv-hwreconf-v1"
+#define HWR_HEADER      96u
+#define HWR_MAX_KEYS    4u
+#define HWR_MAX_BAD     16u
+#define HWR_MAX_PAYLOAD (64u << 20)
+#define HWR_NO_SLOT     0xFFFFFFFFu
+#define HWR_SIG_CONTEXT "zxv-hwreconf-v1"
 
 /* Signature suites (the header's alg field). */
 #define HWR_ALG_MLDSA87 1u /* 2592-byte keys, 4627-byte signatures */
@@ -86,8 +86,9 @@
 #define HWR_KIND_PARTIAL   2u /* partial reconfiguration of one region */
 #define HWR_KIND_MICROCODE 3u
 #define HWR_KIND_FIRMWARE  4u
-#define HWR_KIND_VECTORS   5u /* a conformance contract: never loaded into a
-                                 region; applied to the matrix (hwr_vectors_*) */
+#define HWR_KIND_VECTORS                                                                           \
+    5u /* a conformance contract: never loaded into a                                              \
+          region; applied to the matrix (hwr_vectors_*) */
 
 typedef enum {
     HWR_OK = 0,
@@ -102,10 +103,10 @@ typedef enum {
     HWR_E_CONFORMANCE = -9, /* R5: vectors failed (quarantined) */
     HWR_E_STATE = -10,      /* wrong step for the region's state */
     HWR_E_FULL = -11,
-    HWR_E_FUNCTION = -12,   /* the image's function is not in the matrix */
-    HWR_E_HALTED = -13,     /* the quarantine log is full: fail closed */
-    HWR_E_DEVICE = -14,     /* load failed before anything changed */
-    HWR_E_KIND = -15        /* the image kind does not belong here */
+    HWR_E_FUNCTION = -12, /* the image's function is not in the matrix */
+    HWR_E_HALTED = -13,   /* the quarantine log is full: fail closed */
+    HWR_E_DEVICE = -14,   /* load failed before anything changed */
+    HWR_E_KIND = -15      /* the image kind does not belong here */
 } hwr_status_t;
 
 /* Quarantine reason codes (lpx_qrec_t.reason). */
@@ -236,7 +237,6 @@ int hwr_package_verify(const uint8_t *img, uint32_t len, uint16_t alg, hwr_verif
 /* Iterate vectors: *off starts at 0. HWR_OK with a vector, 1 at the end,
  * HWR_E_FORMAT on a malformed payload. */
 int hwr_vectors_next(const uint8_t *payload, uint32_t len, uint32_t *off, uint32_t *op,
-                     const uint8_t **in, uint32_t *in_len, const uint8_t **out,
-                     uint32_t *out_len);
+                     const uint8_t **in, uint32_t *in_len, const uint8_t **out, uint32_t *out_len);
 
 #endif /* HWR_H */

@@ -6,7 +6,8 @@
 
 static uint32_t rd32(const uint8_t *b)
 {
-    return (uint32_t) b[0] | ((uint32_t) b[1] << 8) | ((uint32_t) b[2] << 16) | ((uint32_t) b[3] << 24);
+    return (uint32_t) b[0] | ((uint32_t) b[1] << 8) | ((uint32_t) b[2] << 16) |
+           ((uint32_t) b[3] << 24);
 }
 static void wr32(uint8_t *b, uint32_t v)
 {
@@ -97,7 +98,8 @@ int hwr_parse(const uint8_t *img, uint32_t len, hwr_image_t *out)
         out->payload_len == 0 || out->payload_len > HWR_MAX_PAYLOAD)
         return HWR_E_FORMAT;
     /* The length must be exact: header + payload + signature, nothing else. */
-    if ((uint64_t) len != (uint64_t) HWR_HEADER + out->payload_len + out->sig_len) return HWR_E_FORMAT;
+    if ((uint64_t) len != (uint64_t) HWR_HEADER + out->payload_len + out->sig_len)
+        return HWR_E_FORMAT;
     out->header = img;
     out->payload = img + HWR_HEADER;
     out->sig = img + HWR_HEADER + out->payload_len;
@@ -145,8 +147,8 @@ int hwr_trust_key(hwr_region_t *r, const uint8_t *pk)
 
 int hwr_link(hwr_region_t *r, hwm_t *m, uint32_t res_index, uint32_t pv_index)
 {
-    if (!r || !m || res_index >= m->nres || pv_index >= m->npv || m->pv[pv_index].resource != res_index ||
-        !hwm_kind_reconfigurable(m->pv[pv_index].kind))
+    if (!r || !m || res_index >= m->nres || pv_index >= m->npv ||
+        m->pv[pv_index].resource != res_index || !hwm_kind_reconfigurable(m->pv[pv_index].kind))
         return HWR_E_ARG;
     r->m = m;
     r->resource = res_index;
@@ -180,8 +182,8 @@ static int quarantine(hwr_region_t *r, const uint8_t *header, uint8_t phase, hwr
                       const uint8_t *block_digest)
 {
     lpx_t tag = lpx_make(LPX_B_FALSE, LPX_P_FORBIDDEN, phase);
-    hwa_event_t ev = phase == LPX_PH_EMERGING && !block_digest ? HWA_EV_REJECTED
-                                                                : HWA_EV_QUARANTINED;
+    hwa_event_t ev =
+        phase == LPX_PH_EMERGING && !block_digest ? HWA_EV_REJECTED : HWA_EV_QUARANTINED;
     if (!record(r, header, tag, ev, (uint8_t) why, hdr_version(header))) return HWR_E_HALTED;
     r->n_quarantined++;
     if (block_digest && r->nbad < HWR_MAX_BAD) cp32(r->bad[r->nbad++], block_digest);
@@ -226,7 +228,8 @@ int hwr_stage(hwr_region_t *r, const uint8_t *img, uint32_t len)
         return rc == HWR_OK ? HWR_E_VERIFY : rc;
     }
     /* R3 */
-    if ((r->active != HWR_NO_SLOT && im.version <= r->slot[r->active].version) || im.svn < r->floor) {
+    if ((r->active != HWR_NO_SLOT && im.version <= r->slot[r->active].version) ||
+        im.svn < r->floor) {
         rc = quarantine(r, im.header, LPX_PH_EMERGING, HWR_Q_ROLLBACK, 0);
         return rc == HWR_OK ? HWR_E_ROLLBACK : rc;
     }
@@ -325,7 +328,8 @@ int hwr_trial(hwr_region_t *r, uint32_t probation_ticks)
     if (r->state == HWR_ST_HALTED) return HWR_E_HALTED;
     if (r->state != HWR_ST_STAGED) return HWR_E_STATE;
     res_state(r, HWM_RES_RECONFIGURING); /* R5: callers fail over meanwhile */
-    if (r->ops->activate(r->dev, r->staged) != 0) return fail_trial(r, HWR_Q_ACTIVATE, HWR_E_ACTIVATE);
+    if (r->ops->activate(r->dev, r->staged) != 0)
+        return fail_trial(r, HWR_Q_ACTIVATE, HWR_E_ACTIVATE);
     lpres_state_t st = prove(r, r->staged);
     if (st != LPRES_STATE_TRUE) return fail_trial(r, HWR_Q_CONFORMANCE, HWR_E_CONFORMANCE);
     res_state(r, HWM_RES_OK);
@@ -412,8 +416,7 @@ int hwr_package_verify(const uint8_t *img, uint32_t len, uint16_t alg, hwr_verif
 }
 
 int hwr_vectors_next(const uint8_t *payload, uint32_t len, uint32_t *off, uint32_t *op,
-                     const uint8_t **in, uint32_t *in_len, const uint8_t **out,
-                     uint32_t *out_len)
+                     const uint8_t **in, uint32_t *in_len, const uint8_t **out, uint32_t *out_len)
 {
     if (!payload || !off || !op || !in || !in_len || !out || !out_len) return HWR_E_ARG;
     uint32_t o = *off;

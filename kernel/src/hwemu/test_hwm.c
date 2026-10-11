@@ -6,13 +6,13 @@
 #include "hwm.h"
 
 static int fails, checks;
-#define CHECK(c)                                                         \
-    do {                                                                 \
-        checks++;                                                        \
-        if (!(c)) {                                                      \
-            fails++;                                                     \
-            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c);          \
-        }                                                                \
+#define CHECK(c)                                                                                   \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(c)) {                                                                                \
+            fails++;                                                                               \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c);                                    \
+        }                                                                                          \
     } while (0)
 
 /* Function "add8": out[i] = in[i] + k. Providers differ only in how. */
@@ -29,15 +29,16 @@ static int addk(void *inst, hwm_t *m, uint32_t op, const uint8_t *in, uint32_t n
     addk_t *a = inst;
     if (a->broken == 2) return -42;
     if (n > cap) return -1;
-    for (uint32_t i = 0; i < n; i++) out[i] = (uint8_t) (in[i] + a->k + (a->broken == 1 && in[i] == 0x7f));
+    for (uint32_t i = 0; i < n; i++)
+        out[i] = (uint8_t) (in[i] + a->k + (a->broken == 1 && in[i] == 0x7f));
     *out_len = n;
     return 0;
 }
 
 /* Function "add16" emulated by calling "add8" twice (a PEER/SOFT chain). */
 static uint32_t g_add8;
-static int add_twice(void *inst, hwm_t *m, uint32_t op, const uint8_t *in, uint32_t n,
-                     uint8_t *out, uint32_t cap, uint32_t *out_len)
+static int add_twice(void *inst, hwm_t *m, uint32_t op, const uint8_t *in, uint32_t n, uint8_t *out,
+                     uint32_t cap, uint32_t *out_len)
 {
     uint32_t dep = inst ? *(uint32_t *) inst : g_add8;
     uint8_t tmp[64];
@@ -168,7 +169,8 @@ int main(void)
     /* Provider error surfaces as HWM_E_PROVIDER. */
     fixed.broken = 2;
     CHECK(hwm_attest(&m, pfix, 0) == LPRES_STATE_FALSE);
-    CHECK(hwm_provider_retarget(&m, pbad, f16) == HWM_OK && m.pv[pbad].attest == LPRES_STATE_NEITHER);
+    CHECK(hwm_provider_retarget(&m, pbad, f16) == HWM_OK &&
+          m.pv[pbad].attest == LPRES_STATE_NEITHER);
 
     /* M7: memo skips the provider on a repeat, and flushes on rebinding. */
     {
@@ -191,7 +193,8 @@ int main(void)
         CHECK(hwm_call(&q, fq, 0, in1, 4, out, sizeof out, &n) == HWM_OK && !memcmp(out, ex8, 4));
         CHECK(q.pv[pq1].calls == before + 1 && q.fn[fq].memo_hits == 1);
         /* Different op: a miss, never a wrong hit. */
-        CHECK(hwm_call(&q, fq, 1, in1, 4, out, sizeof out, &n) == HWM_OK && q.fn[fq].memo_hits == 1);
+        CHECK(hwm_call(&q, fq, 1, in1, 4, out, sizeof out, &n) == HWM_OK &&
+              q.fn[fq].memo_hits == 1);
         /* pq1 is disabled: the binding moves and the memo is flushed. */
         hwm_provider_enable(&q, pq1, false);
         CHECK(hwm_call(&q, fq, 0, in1, 4, out, sizeof out, &n) == HWM_OK);
@@ -246,8 +249,8 @@ int main(void)
         CHECK(hwm_memo_attach(&p, fk, memo, 4) == HWM_E_POLICY);
         /* setting key-bearing on a memoized function wipes the memo */
         CHECK(hwm_memo_attach(&p, fd, memo, 4) == HWM_OK);
-        CHECK(hwm_call(&p, fd, 0, in1, 4, out, sizeof out, &n) == HWM_OK && memo[0].used + memo[1].used +
-                                                                               memo[2].used + memo[3].used == 1);
+        CHECK(hwm_call(&p, fd, 0, in1, 4, out, sizeof out, &n) == HWM_OK &&
+              memo[0].used + memo[1].used + memo[2].used + memo[3].used == 1);
         CHECK(hwm_policy_set(&p, fd, HWM_F_KEY_BEARING, 0, 0) == HWM_OK && p.fn[fd].memo == 0);
         {
             uint8_t z = 0;

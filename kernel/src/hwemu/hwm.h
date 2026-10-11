@@ -179,9 +179,9 @@ typedef struct {
     hwm_memo_entry_t *memo; /* M7, caller-owned; NULL = none */
     uint32_t memo_cap;      /* a power of two */
     uint64_t memo_hits, memo_misses;
-    uint32_t contract;       /* M9: version of the vector set (0: unversioned) */
-    uint32_t flags;          /* M8: HWM_F_* */
-    uint32_t max_latency_ns; /* M8: 0 = no ceiling */
+    uint32_t contract;        /* M9: version of the vector set (0: unversioned) */
+    uint32_t flags;           /* M8: HWM_F_* */
+    uint32_t max_latency_ns;  /* M8: 0 = no ceiling */
     uint32_t power_budget_mw; /* M8: 0 = no budget */
 } hwm_func_t;
 
@@ -197,9 +197,9 @@ typedef struct {
     lpres_state_t attest;
     bool enabled;
     uint32_t calls;
-    uint64_t cost_spent; /* calls * cost, for measuring (not billing) */
-    uint32_t latency_ns;     /* declared typical latency per call (0: unknown) */
-    uint32_t power_mw;       /* declared power while serving (0: unknown) */
+    uint64_t cost_spent;      /* calls * cost, for measuring (not billing) */
+    uint32_t latency_ns;      /* declared typical latency per call (0: unknown) */
+    uint32_t power_mw;        /* declared power while serving (0: unknown) */
     uint8_t throughput_class; /* declared, 0 (slowest) .. 15 */
     uint32_t proven_contract; /* M9: contract version of its last TRUE proof */
 } hwm_provider_t;

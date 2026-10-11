@@ -7,13 +7,13 @@
 #include "hwe_ids.h"
 
 static int fails, checks;
-#define CHECK(c)                                                         \
-    do {                                                                 \
-        checks++;                                                        \
-        if (!(c)) {                                                      \
-            fails++;                                                     \
-            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c);          \
-        }                                                                \
+#define CHECK(c)                                                                                   \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(c)) {                                                                                \
+            fails++;                                                                               \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c);                                    \
+        }                                                                                          \
     } while (0)
 
 /* A commodity arm64 laptop, as the host probe would describe it. */
@@ -132,7 +132,8 @@ int main(void)
         static hwp_profile_t pr;
         uint64_t k = 99;
         CHECK(hwp_present(&a, r1, &pr) == HWP_OK && pr.n == r1->n);
-        CHECK(!hwp_cap_get(&pr.node[0], HWP_CAP_KIND, &k) && !hwp_cap_get(&pr.node[1], HWP_CAP_KIND, &k));
+        CHECK(!hwp_cap_get(&pr.node[0], HWP_CAP_KIND, &k) &&
+              !hwp_cap_get(&pr.node[1], HWP_CAP_KIND, &k));
         CHECK(hwp_cap_get(&pr.node[2], HWP_CAP_KIND, &k) && k == HWP_KIND_HARD);
         CHECK(hwp_cap_get(&pr.node[5], HWP_CAP_KIND, &k) && k == HWP_KIND_SOFT);
         CHECK(hwp_present(&a, r1, (hwp_profile_t *) r1) == HWP_E_ARG);

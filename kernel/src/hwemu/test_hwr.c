@@ -13,22 +13,22 @@
 #include "../pqsec/pq_matrix_algs.h"
 
 static int fails, checks;
-#define CHECK(c)                                                         \
-    do {                                                                 \
-        checks++;                                                        \
-        if (!(c)) {                                                      \
-            fails++;                                                     \
-            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c);          \
-        }                                                                \
+#define CHECK(c)                                                                                   \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (!(c)) {                                                                                \
+            fails++;                                                                               \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c);                                    \
+        }                                                                                          \
     } while (0)
 
 /* ---- the simulated region ---- */
 typedef struct {
     uint8_t slot[2][256];
     uint32_t len[2];
-    int active;      /* -1: blank */
-    int corrupt;     /* 1: flip a bit on load (bad flash) */
-    int refuse;      /* 1: activate fails */
+    int active;  /* -1: blank */
+    int corrupt; /* 1: flip a bit on load (bad flash) */
+    int refuse;  /* 1: activate fails */
     uint32_t loads;
 } sim_t;
 
@@ -218,8 +218,9 @@ int main(void)
     n = make(img, wrong, 0x200, 2, 1, sk, NULL);
     CHECK(hwr_stage(&r, img, n) == HWR_OK);
     CHECK(hwr_trial(&r, 3) == HWR_E_CONFORMANCE && r.state == HWR_ST_ACTIVE);
-    CHECK(q.n == 9 && q.rec[7].event == HWA_EV_ROLLED_BACK && q.rec[8].event == HWA_EV_QUARANTINED &&
-          q.rec[8].reason == HWR_Q_CONFORMANCE && hwa_verify(&q));
+    CHECK(q.n == 9 && q.rec[7].event == HWA_EV_ROLLED_BACK &&
+          q.rec[8].event == HWA_EV_QUARANTINED && q.rec[8].reason == HWR_Q_CONFORMANCE &&
+          hwa_verify(&q));
     CHECK(m.pv[preg].attest == LPRES_STATE_TRUE && sim.active == (int) r.active);
     CHECK(hwm_bind(&m, finc, &pv) == HWM_OK && pv == preg);
     n = make(img, wrong, 0x200, 3, 1, sk, NULL); /* same bytes, new version */
@@ -278,7 +279,8 @@ int main(void)
         static hwa_rec_t rec3[4];
         hwa_log_t l3;
         hwa_init(&l3, rec3, 4);
-        hwr_region_init(&r3, 3, TCLASS, tdig, HWR_ALG_MLDSA87, hwr_pq_verify, 0, &SIM_OPS, &sim, &l3);
+        hwr_region_init(&r3, 3, TCLASS, tdig, HWR_ALG_MLDSA87, hwr_pq_verify, 0, &SIM_OPS, &sim,
+                        &l3);
         hwr_trust_key(&r3, pk);
         n = make(img, inc, 0x200, 1, 1, sk, NULL);
         img[8] = HWR_KIND_VECTORS;
@@ -302,8 +304,8 @@ int main(void)
         hwa_log_t l2;
         hwa_init(&l2, rec2, 2);
         sim.active = -1;
-        CHECK(hwr_region_init(&r2, 4, TCLASS, tdig, HWR_ALG_MLDSA87, hwr_pq_verify, 0, &SIM_OPS, &sim,
-                              &l2) == HWR_OK);
+        CHECK(hwr_region_init(&r2, 4, TCLASS, tdig, HWR_ALG_MLDSA87, hwr_pq_verify, 0, &SIM_OPS,
+                              &sim, &l2) == HWR_OK);
         hwr_trust_key(&r2, pk);
         CHECK(hwr_link(&r2, &m2, rf, pr) == HWR_OK); /* MICRO is reconfigurable */
         n = make(img, inc, 0x200, 1, 1, sk, tdig);
@@ -320,8 +322,8 @@ int main(void)
         uint8_t pay[64];
         uint32_t o = 0;
         /* two vectors: op 0, "ab" -> "bc"; op 0, "z" -> "{" */
-        const uint8_t v[] = {0, 0, 0, 0, 2, 0, 0, 0, 'a', 'b', 2, 0, 0, 0, 'b', 'c',
-                             0, 0, 0, 0, 1, 0, 0, 0, 'z', 1, 0, 0, 0, '{'};
+        const uint8_t v[] = {0,   0, 0, 0, 2, 0, 0, 0, 'a', 'b', 2, 0, 0, 0, 'b',
+                             'c', 0, 0, 0, 0, 1, 0, 0, 0,   'z', 1, 0, 0, 0, '{'};
         memcpy(pay, v, sizeof v);
         o = sizeof v;
         hwr_image_t im;
@@ -352,8 +354,8 @@ int main(void)
         uint32_t off = 0, op, il, ol, cnt = 0;
         const uint8_t *vi, *vo;
         int rc;
-        while ((rc = hwr_vectors_next(got.payload, got.payload_len, &off, &op, &vi, &il, &vo, &ol)) ==
-               HWR_OK)
+        while ((rc = hwr_vectors_next(got.payload, got.payload_len, &off, &op, &vi, &il, &vo,
+                                      &ol)) == HWR_OK)
             cnt++;
         CHECK(rc == 1 && cnt == 2);
         off = 0;
