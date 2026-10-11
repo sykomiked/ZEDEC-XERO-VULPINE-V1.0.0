@@ -1,0 +1,10 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+! refuse_rank.tb - must be refused at the marked place.
+trebago refuse_rank
+  in  x(n)
+  out s
+  ! the next statement is refused
+  s = sum(i, x(i, i))
+end
+!> refuse TB_E_SHAPE 8:17
