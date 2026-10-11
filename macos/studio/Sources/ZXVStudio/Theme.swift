@@ -4,6 +4,7 @@
 // The look approved in the mockups: dark ground, gold accent, IBM Plex-like
 // system faces (SF and SF Mono), panels with a thin border.
 import SwiftUI
+import ZXVRPC
 
 enum Theme {
     static let ground = Color(red: 0x0C / 255, green: 0x0F / 255, blue: 0x14 / 255)
