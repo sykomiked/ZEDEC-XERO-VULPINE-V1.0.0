@@ -135,5 +135,8 @@ def dumps_exact(obj: Any, **kwargs: Any) -> str:
 class ExactJsonResponse(HttpResponse):
     """A JSON response written with :func:`dumps_exact` (floats refused, Rationals as text)."""
 
-    def __init__(self, data: Any, *, status: int = 200, content_type: str = "application/json", **kwargs: Any) -> None:
-        super().__init__(content=dumps_exact(data), status=status, content_type=content_type, **kwargs)
+    def __init__(self, data: Any, *, status: int = 200, **kwargs: Any) -> None:
+        # Always JSON, never sniffed as HTML: the body can echo exact values
+        # parsed from the request.
+        super().__init__(content=dumps_exact(data), status=status, content_type="application/json", **kwargs)
+        self["X-Content-Type-Options"] = "nosniff"
