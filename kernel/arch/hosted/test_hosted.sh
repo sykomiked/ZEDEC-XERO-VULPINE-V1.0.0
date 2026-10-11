@@ -90,10 +90,20 @@ args "$T/net" "$T/vinea"
 run_cc "$T/test_net"
 "$T/test_net"
 
+# remote inference between two nodes: PQ TCP session, paid request, fee settlement
+# (zxv_peer_host.h), the server in a forked child as on a second machine
+printf '%s\n' arch/hosted/test_zxv_peer_host.c arch/hosted/zxv_peer_host.c \
+    arch/hosted/zxv_http_guard.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c \
+    src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c \
+    src/swarm/swarm_hk.c src/tensor/zt.c > "$T/peer"
+args "$T/peer" "$T/vinea"
+run_cc "$T/test_peer"
+"$T/test_peer"
+
 "$CC" -std=c11 -Wall -Wextra -Werror -I"$K/src/tensor" "$HERE/test_write_gguf.c" -o "$T/write_gguf"
 "$T/write_gguf" "$T/tiny-test.gguf"
 
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_api.py" "$T/zxv-host"
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_api.py" "$T/zxv-host" "$T/tiny-test.gguf"
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_net.py" "$T/zxv-host"
-echo "[PASS] hosted app: API guard, forward-pass glue, budget gate, net host, end-to-end API, model slot, peers, updates, notifications"
+echo "[PASS] hosted app: API guard, forward-pass glue, budget gate, net host, peer host, end-to-end API, model slot, peers, updates, notifications"

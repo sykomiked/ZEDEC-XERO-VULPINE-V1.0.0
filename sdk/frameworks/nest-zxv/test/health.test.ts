@@ -84,11 +84,12 @@ describe('ZxvHealthIndicator', () => {
 });
 
 describe('rightNames', () => {
-  it('names single rights only, never the ALL or ALL_1_4 groups', () => {
+  it('names single rights only, never a group such as ALL or ALL_1_4', () => {
     assert.deepEqual(rightNames(Cap.LEDGER_READ | Cap.LEDGER_POST), ['LEDGER_READ', 'LEDGER_POST']);
     const all = rightNames(Cap.ALL_1_4);
     assert.equal(all.length, 12);
     assert.ok(!all.includes('ALL') && !all.includes('ALL_1_4'));
     assert.deepEqual(rightNames(Cap.HW_MATRIX), ['HW_MATRIX']);
+    assert.equal(rightNames(Cap.ALL).length, 10);
   });
 });

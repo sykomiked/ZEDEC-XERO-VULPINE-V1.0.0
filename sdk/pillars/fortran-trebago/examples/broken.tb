@@ -1,9 +1,0 @@
-! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
-! SPDX-License-Identifier: Apache-2.0
-!
-! broken.tb - must be refused: Trebago has no floating-point literals.
-trebago broken
-  in  x(n)
-  out s
-  s = sum(i, x(i) * 1.0e-3)
-end

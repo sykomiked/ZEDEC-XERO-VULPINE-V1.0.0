@@ -128,6 +128,11 @@ void zxv_net_node_id(const zxv_net_t *n, uint8_t out[32]);
 
 /* True when this host knows a contact at ip:port (tests). */
 bool zxv_net_knows(const zxv_net_t *n, const char *ip, uint16_t port);
+/* The verified NodeID of the contact at ip:port: 0, or -1 if none. */
+int zxv_net_contact_id(const zxv_net_t *n, const char *ip, uint16_t port, uint8_t id[32]);
+/* This start's identity (zxv_peer_host.h uses it for TCP sessions), or NULL
+ * when off. The pointer stays valid across restarts; the key changes. */
+const vna_identity_t *zxv_net_identity(const zxv_net_t *n);
 
 /* U6: close the economic cycle: verified remote compute -> next cycle's rate
  * (base_rate + imported) on sb, then settle the book. Off: does nothing,

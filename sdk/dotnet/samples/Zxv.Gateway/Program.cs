@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Zxv;
 using Zxv.Gateway.Auth;
 using Zxv.Gateway.Endpoints;
@@ -67,9 +67,9 @@ builder.Services.AddSwaggerGen(o =>
         BearerFormat = "JWT",
         Description = "OAuth 2.0 access token from the operator's identity provider, with scope zxv.operator.",
     });
-    o.AddSecurityRequirement(new OpenApiSecurityRequirement
+    o.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {
-        [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "oidc" } }] = new[] { "zxv.operator" },
+        [new OpenApiSecuritySchemeReference("oidc", document)] = ["zxv.operator"],
     });
 });
 

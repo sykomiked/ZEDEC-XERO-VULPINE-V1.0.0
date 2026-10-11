@@ -1,0 +1,14 @@
+p128.txt base --batch 32 n_prompt=128 prefill=19.643 gen=11.321 fnv=15a77e3f8755059c
+p128.txt new --batch 32 n_prompt=128 prefill=48.28 gen=15.647 fnv=15a77e3f8755059c
+p128.txt new --batch 128 n_prompt=128 prefill=56.019 gen=14.974 fnv=15a77e3f8755059c
+p128.txt new-avx2 --batch 128 --kern avx2 n_prompt=128 prefill=38.438 gen=12.768 fnv=15a77e3f8755059c
+p128.txt new-c --batch 128 --kern c n_prompt=128 prefill=3.485 gen=2.068 fnv=15a77e3f8755059c
+| qwen2 1.5B Q4_K - Medium       |   1.04 GiB |     1.78 B | CPU        |       4 |           pp128 |        132.61 ± 3.20 |
+| qwen2 1.5B Q4_K - Medium       |   1.04 GiB |     1.78 B | CPU        |       4 |            tg16 |         21.64 ± 0.26 |
+p512.txt base --batch 32 n_prompt=470 prefill=16.188 gen=8.283 fnv=1394d5ac3faf38b9
+p512.txt new --batch 32 n_prompt=470 prefill=41.133 gen=12.781 fnv=1394d5ac3faf38b9
+p512.txt new --batch 128 n_prompt=470 prefill=49.916 gen=12.722 fnv=1394d5ac3faf38b9
+p512.txt new-avx2 --batch 128 --kern avx2 n_prompt=470 prefill=31.885 gen=9.724 fnv=1394d5ac3faf38b9
+p512.txt new-c --batch 128 --kern c n_prompt=470 prefill=3.356 gen=2.144 fnv=1394d5ac3faf38b9
+| qwen2 1.5B Q4_K - Medium       |   1.04 GiB |     1.78 B | CPU        |       4 |           pp470 |        121.02 ± 3.05 |
+| qwen2 1.5B Q4_K - Medium       |   1.04 GiB |     1.78 B | CPU        |       4 |            tg16 |         20.88 ± 1.42 |

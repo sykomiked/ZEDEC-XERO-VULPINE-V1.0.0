@@ -209,3 +209,10 @@ contract packages (`zxv_hw_keygen`, `zxv_hw_image_build`), driving a region
 (`zxv_hw_region_*`, with `zxv_hw_region_events`), reading the audit logs
 (`zxv_hw_region_log_entry`, `zxv_hw_matrix_log_entry`), and describing and
 matching machines (`zxv_hw_profile_*`). Every language SDK binds them.
+
+The hardware group adds two capability bits (`ZXV_CAP_HW_MATRIX`,
+`ZXV_CAP_HW_RECONF`). Because `ZXV_CAP_ALL` is a released constant, its value
+stays `(1 << 10) - 1` forever; the new `ZXV_CAP_ALL_1_4` names every bit as of
+1.4. Each later minor that adds capability bits adds its own `ZXV_CAP_ALL_1_N`
+the same way. Code that prints rights by name should list single bits only,
+never these groups.

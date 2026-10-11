@@ -507,6 +507,10 @@ static void test_listener_race(void)
         atomic_init(&v->calls, 0);
         zxv_rmag_listen(s.rm, slow_listener, v);
         nap_us(500);
+        /* Windows rounds sub-millisecond sleeps down, so the nap above can
+         * end before any consumer reaches the listener: wait (bounded) for
+         * one delivery, so every round removes a listener that is in use. */
+        for (int w = 0; w < 200 && atomic_load(&v->calls) == 0; w++) nap_us(500);
         zxv_rmag_listen(s.rm, NULL, NULL);
         /* After removal returns, no thread may still be inside (or about
          * to enter) slow_listener with v: poison it, then free it. ASan

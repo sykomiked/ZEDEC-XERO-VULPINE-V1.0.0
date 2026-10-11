@@ -170,12 +170,16 @@ public struct Budget: Sendable {
         while true {
             try Task.checkCancellation()
             let seen = registry.epoch
-            do {
+            // A plain typed catch, then the await outside it: Swift 6.2's
+            // compiler crashes on `catch let e where ...` here (ownership of
+            // the caught ZxvError across the suspension).
+            do throws(ZxvError) {
                 try consume(amount)
                 return
-            } catch let e where e.refusal == .budgetExhausted {
-                try await registry.waitForReplenish(after: seen, deadline: deadline)
+            } catch {
+                guard error.refusal == .budgetExhausted else { throw error }
             }
+            try await registry.waitForReplenish(after: seen, deadline: deadline)
         }
     }
 

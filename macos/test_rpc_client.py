@@ -56,7 +56,9 @@ def call(cli, *args):
 
 
 def main(zxvd, cli):
-    home = tempfile.mkdtemp(prefix='zxv-shell-')
+    # in /tmp: under macOS's long $TMPDIR the socket path below would pass
+    # zxvd's 103-byte limit
+    home = tempfile.mkdtemp(prefix='zxv-shell-', dir='/tmp')
     sock = os.path.join(home, 'Application Support', 'ZXV', 'run', 'zxvd.sock')
     os.makedirs(os.path.dirname(os.path.dirname(sock)), 0o700)
     p, lines = start(zxvd, home, sock)
