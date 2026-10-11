@@ -40,7 +40,7 @@
  *
  * VFV, CRYPTO AND THE RAIL JURISDICTIONS (standards-correct handling)
  *   - VFV is a platform-internal, non-ISO unit (default alpha "VFV", numeric
- *     555 on the DEBIT rail, jurisdiction NCR, 2 minor units). It is NEVER
+ *     555 on the DEBIT rail, jurisdiction NRE, 2 minor units). It is NEVER
  *     written into a Ccy attribute or a Ccy element: the schema pattern
  *     [A-Z]{3} would accept "VFV", but ISO 4217 does not, so doing so would
  *     be schema-valid and standards-wrong. Crypto assets and share assets are
@@ -56,7 +56,7 @@
  *     the FIN X character set). SplmtryData is not used because CBPR+ does
  *     not allow it.
  *   - Country fields are ISO 3166-1 alpha-2 only. The rail jurisdictions
- *     ("NCR" New California Republic on DEBIT 555, "NRE" Neo Roman Empire on
+ *     ("NRE" Neo Roman Empire on DEBIT 555, "NCR" New California Republic on
  *     CREDIT 777, "PNS" Principality of New Sicily on EQUITY 888) and the
  *     platform jurisdiction are never emitted as a country. A real code
  *     equal to the first two letters of one of them ("NC" New Caledonia,

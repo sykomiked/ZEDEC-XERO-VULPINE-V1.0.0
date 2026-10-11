@@ -58,9 +58,9 @@ int main(void)
     char buf[512];
     size_t len = 0;
     CHECK(zxv_ccy_caveat(777, NULL, 0, &len) == ZXV_E_BUFFER && len > 0, "caveat size query");
-    CHECK(zxv_ccy_caveat(777, buf, len + 1, &len) == ZXV_OK && strstr(buf, "NRE"), "777 caveat");
+    CHECK(zxv_ccy_caveat(777, buf, len + 1, &len) == ZXV_OK && strstr(buf, "NCR"), "777 caveat");
     CHECK(zxv_ccy_caveat(777, buf, len, &len) == ZXV_E_BUFFER, "exact-length buffer lacks NUL room");
-    CHECK(zxv_ccy_caveat(555, buf, sizeof buf, &len) == ZXV_OK && strstr(buf, "NCR"), "555 caveat");
+    CHECK(zxv_ccy_caveat(555, buf, sizeof buf, &len) == ZXV_OK && strstr(buf, "NRE"), "555 caveat");
     CHECK(zxv_ccy_caveat(888, buf, sizeof buf, &len) == ZXV_OK && strstr(buf, "PNS"), "888 caveat");
 
     /* ISO 4217 */

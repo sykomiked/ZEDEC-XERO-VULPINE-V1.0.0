@@ -53,16 +53,16 @@
  * Each rail carries a platform jurisdiction code. These are NOT ISO 3166
  * country codes and are never written into a Ctry field; they travel only
  * as /ZXV/... remittance data:
- *   DEBIT  555  NCR  New California Republic
- *   CREDIT 777  NRE  Neo Roman Empire
+ *   DEBIT  555  NRE  Neo Roman Empire
+ *   CREDIT 777  NCR  New California Republic
  *   EQUITY 888  PNS  Principality of New Sicily */
 #include "../pay/pay_rails.h"                /* the canonical rail numerics */
-#define VINO_ISO_DEBIT  ZXV_RAIL_CODE_DEBIT  /* 555 the asset/backing rail   (NCR) */
-#define VINO_ISO_CREDIT ZXV_RAIL_CODE_CREDIT /* 777 the claim/liability rail (NRE) */
+#define VINO_ISO_DEBIT  ZXV_RAIL_CODE_DEBIT  /* 555 the asset/backing rail   (NRE) */
+#define VINO_ISO_CREDIT ZXV_RAIL_CODE_CREDIT /* 777 the claim/liability rail (NCR) */
 #define VINO_ISO_EQUITY ZXV_RAIL_CODE_EQUITY /* 888 the live equity rail     (PNS) */
 
-#define VINO_JURIS_DEBIT  ZXV_RAIL_CODE_DEBIT_JURIS  /* New California Republic    */
-#define VINO_JURIS_CREDIT ZXV_RAIL_CODE_CREDIT_JURIS /* Neo Roman Empire           */
+#define VINO_JURIS_DEBIT  ZXV_RAIL_CODE_DEBIT_JURIS  /* Neo Roman Empire    */
+#define VINO_JURIS_CREDIT ZXV_RAIL_CODE_CREDIT_JURIS /* New California Republic           */
 #define VINO_JURIS_EQUITY ZXV_RAIL_CODE_EQUITY_JURIS /* Principality of New Sicily */
 
 /* Proof-CID witness length — one SHA-256 digest, same as ipfs IPFS_CID_LEN. */

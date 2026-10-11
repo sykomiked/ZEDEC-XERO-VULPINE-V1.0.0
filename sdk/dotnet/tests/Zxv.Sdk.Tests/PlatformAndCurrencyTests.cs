@@ -63,12 +63,12 @@ public sealed class PlatformAndCurrencyTests : IDisposable
             Assert.Equal(ZxvStatus.NotFound, ex.Status);
         }
 
-        Assert.Contains("NCR", _p.Currencies.GetCaveat(555), StringComparison.Ordinal);
-        Assert.Contains("NRE", _p.Currencies.GetCaveat(777), StringComparison.Ordinal);
+        Assert.Contains("NRE", _p.Currencies.GetCaveat(555), StringComparison.Ordinal);
+        Assert.Contains("NCR", _p.Currencies.GetCaveat(777), StringComparison.Ordinal);
         Assert.Contains("PNS", _p.Currencies.GetCaveat(888), StringComparison.Ordinal);
         Assert.Equal(string.Empty, _p.Currencies.GetCaveat(810));
-        Assert.Equal("NCR", CurrencyService.GetRailJurisdiction(VinoRail.Debit));
-        Assert.Equal("NRE", CurrencyService.GetRailJurisdiction(VinoRail.Credit));
+        Assert.Equal("NRE", CurrencyService.GetRailJurisdiction(VinoRail.Debit));
+        Assert.Equal("NCR", CurrencyService.GetRailJurisdiction(VinoRail.Credit));
         Assert.Equal("PNS", CurrencyService.GetRailJurisdiction(VinoRail.Equity));
         Assert.Equal(string.Empty, _p.Currencies.GetCaveat(566));
     }

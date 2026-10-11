@@ -109,8 +109,8 @@ uint64_t m5_pc_current_tick(void);
 
 /* ===== 7. Triple Ledger (Vino) ===== */
 typedef enum {
-    M5_LEDGER_FINANCIAL = 0,  /* Rail 555 (DEBIT, NCR)  */
-    M5_LEDGER_PROVENANCE = 1, /* Rail 777 (CREDIT, NRE) */
+    M5_LEDGER_FINANCIAL = 0,  /* Rail 555 (DEBIT, NRE)  */
+    M5_LEDGER_PROVENANCE = 1, /* Rail 777 (CREDIT, NCR) */
     M5_LEDGER_EXTERNALITY = 2 /* Rail 888 (EQUITY, PNS) */
 } m5_ledger_type_t;
 

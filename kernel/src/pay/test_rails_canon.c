@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0 */
 /* test_rails_canon.c — the three rail numerics (555 / 777 / 888) and their
- * jurisdictions (NCR / NRE / PNS) are one set across every module. Each
+ * jurisdictions (NRE / NCR / PNS) are one set across every module. Each
  * module's macro is defined from pay_rails.h; the static asserts below fail
  * the build if anyone re-literalises one, and the runtime checks cover the
  * functions that map a rail to its numeric. */
@@ -50,19 +50,19 @@ int main(void)
               pay_rail_code(PAY_RAIL_CREDIT) == ZXV_RAIL_CODE_CREDIT &&
               pay_rail_code(PAY_RAIL_EQUITY) == ZXV_RAIL_CODE_EQUITY,
           "pay_rail_code maps DEBIT/CREDIT/EQUITY to 555/777/888");
-    CHECK(strcmp(pay_rail_juris(PAY_RAIL_DEBIT), "NCR") == 0 &&
-              strcmp(pay_rail_juris(PAY_RAIL_CREDIT), "NRE") == 0 &&
+    CHECK(strcmp(pay_rail_juris(PAY_RAIL_DEBIT), "NRE") == 0 &&
+              strcmp(pay_rail_juris(PAY_RAIL_CREDIT), "NCR") == 0 &&
               strcmp(pay_rail_juris(PAY_RAIL_EQUITY), "PNS") == 0 &&
               strcmp(VINO_JURIS_DEBIT, ZXV_RAIL_CODE_DEBIT_JURIS) == 0 &&
               strcmp(VINO_JURIS_CREDIT, ZXV_RAIL_CODE_CREDIT_JURIS) == 0 &&
               strcmp(VINO_JURIS_EQUITY, ZXV_RAIL_CODE_EQUITY_JURIS) == 0,
-          "pay and vino_stores jurisdictions are NCR/NRE/PNS");
+          "pay and vino_stores jurisdictions are NRE/NCR/PNS");
     CHECK(iso20022_rail_ccy(ISO_RAIL_DEBIT) == ZXV_RAIL_CODE_DEBIT &&
               iso20022_rail_ccy(ISO_RAIL_CREDIT) == ZXV_RAIL_CODE_CREDIT &&
               iso20022_rail_ccy(ISO_RAIL_EQUITY) == ZXV_RAIL_CODE_EQUITY,
           "iso20022_rail_ccy maps the same three rails");
-    CHECK(strstr(iso20022_ccy_caveat(ZXV_RAIL_CODE_DEBIT), "NCR") &&
-              strstr(iso20022_ccy_caveat(ZXV_RAIL_CODE_CREDIT), "NRE") &&
+    CHECK(strstr(iso20022_ccy_caveat(ZXV_RAIL_CODE_DEBIT), "NRE") &&
+              strstr(iso20022_ccy_caveat(ZXV_RAIL_CODE_CREDIT), "NCR") &&
               strstr(iso20022_ccy_caveat(ZXV_RAIL_CODE_EQUITY), "PNS"),
           "iso20022 caveats name each rail's jurisdiction");
     CHECK(cb_vss_rail_valid(ZXV_RAIL_CODE_DEBIT) && cb_vss_rail_valid(ZXV_RAIL_CODE_CREDIT) &&

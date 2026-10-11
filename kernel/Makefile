@@ -324,6 +324,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
+	$(MAKE) --no-print-directory test-econ
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
@@ -1550,3 +1551,79 @@ test-treaty-cobol:
 	( cd $$d && ./TRTYDEMO > demo.txt; ./treaty_parity demo.txt > parity.log ) && \
 	echo "[PASS] CALL 'ZXV_ENGINE' from GnuCOBOL ($$(tail -1 $$d/parity.log))" || { cat $$d/cobc.log $$d/build.log $$d/demo.txt $$d/parity.log 2>/dev/null; echo "[FAIL] COBOL treaty parity"; exit 1; }; \
 	rm -rf $$d
+
+# ==== economy modules (generated block) ====
+ECON_FLAGS = -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST
+ECON_INC = -Iinclude -Isrc/pay -Isrc/mlkem -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/tensor -Isrc/swarm -Isrc/zcapital
+ECON_BASE = src/pay/pay_util.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/tensor/zt.c
+ECON_LEDGER = src/pay/pay_ledger.c src/pay/pay_assure.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c $(ECON_BASE)
+
+# Solvency vault (src/svault): 1/3 of the fee's reserve share buys V-Bills up to 1/3 of outstanding; vault V-Bills excluded from the redemption floor.
+.PHONY: test-svault
+test-svault:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/svault/test_svault.c src/svault/svault.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_svault -lm && $(ZXV_TMP)/test_svault > $(ZXV_TMP)/test_svault.log 2>&1 && echo "[PASS] test_svault" || { tail -40 $(ZXV_TMP)/test_svault.log; echo "[FAIL] test_svault"; exit 1; }
+
+# Vino <-> V-Bill swap (src/vswap): exact reserve-ratio swaps, perpetual lock tiers, realised-dividend split; off per jurisdiction.
+.PHONY: test-vswap
+test-vswap:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/vswap/test_vswap.c src/vswap/vswap.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vswap -lm && $(ZXV_TMP)/test_vswap > $(ZXV_TMP)/test_vswap.log 2>&1 && echo "[PASS] test_vswap" || { tail -40 $(ZXV_TMP)/test_vswap.log; echo "[FAIL] test_vswap"; exit 1; }
+
+# Sicily Account view, Player Card tiers, founder steward threshold, org card programs (src/sicily).
+.PHONY: test-sicily
+test-sicily:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/sicily/test_sicily.c src/sicily/sicily.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_sicily -lm && $(ZXV_TMP)/test_sicily > $(ZXV_TMP)/test_sicily.log 2>&1 && echo "[PASS] test_sicily" || { tail -40 $(ZXV_TMP)/test_sicily.log; echo "[FAIL] test_sicily"; exit 1; }
+
+# Account recovery (src/estate/recovery): 3-of-5 guardians, veto, 4-of-5 + 14-day override, staged thaw.
+.PHONY: test-recovery
+test-recovery:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/estate/test_recovery.c src/estate/recovery.c $(ECON_BASE) -o $(ZXV_TMP)/test_recovery -lm && $(ZXV_TMP)/test_recovery > $(ZXV_TMP)/test_recovery.log 2>&1 && echo "[PASS] test_recovery" || { tail -40 $(ZXV_TMP)/test_recovery.log; echo "[FAIL] test_recovery"; exit 1; }
+
+# Estate succession (src/estate): phases, exact manifests, escrow, forced heirship, faraid (advisory, needs a ruling).
+.PHONY: test-estate
+test-estate:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/estate/test_estate.c src/estate/estate.c src/estate/faraid.c $(ECON_BASE) -o $(ZXV_TMP)/test_estate -lm && $(ZXV_TMP)/test_estate > $(ZXV_TMP)/test_estate.log 2>&1 && echo "[PASS] test_estate" || { tail -40 $(ZXV_TMP)/test_estate.log; echo "[FAIL] test_estate"; exit 1; }
+
+# Olive Oil Barrel grants (src/grants): virtual until an underwriter attests; paid only from the funded pool; G_RATE.
+.PHONY: test-grants
+test-grants:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/grants/test_grants.c src/grants/grants.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_grants -lm && $(ZXV_TMP)/test_grants > $(ZXV_TMP)/test_grants.log 2>&1 && echo "[PASS] test_grants" || { tail -40 $(ZXV_TMP)/test_grants.log; echo "[FAIL] test_grants"; exit 1; }
+
+# V-Bill issuance (src/vauction): descending uniform-price auction epochs, backed only, custodian receipts with haircuts, fiat to the reserve.
+.PHONY: test-vauction
+test-vauction:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/vauction/test_vauction.c src/vauction/vauction.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vauction -lm && $(ZXV_TMP)/test_vauction > $(ZXV_TMP)/test_vauction.log 2>&1 && echo "[PASS] test_vauction" || { tail -40 $(ZXV_TMP)/test_vauction.log; echo "[FAIL] test_vauction"; exit 1; }
+
+# Zenny chips (src/zenny): user-built baskets, kappa-exact valuation, signed hash-chained versions, attested commodity legs, top-up.
+.PHONY: test-zenny
+test-zenny:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/zenny/test_zenny.c src/zenny/zenny.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_zenny -lm && $(ZXV_TMP)/test_zenny > $(ZXV_TMP)/test_zenny.log 2>&1 && echo "[PASS] test_zenny" || { tail -40 $(ZXV_TMP)/test_zenny.log; echo "[FAIL] test_zenny"; exit 1; }
+
+# V-Bonds (src/vbond): fixed-term locked V-Bills, Fibonacci term weights, premium-share pool paid by largest remainder; off per jurisdiction.
+.PHONY: test-vbond
+test-vbond:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/vbond/test_vbond.c src/vbond/vbond.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vbond -lm && $(ZXV_TMP)/test_vbond > $(ZXV_TMP)/test_vbond.log 2>&1 && echo "[PASS] test_vbond" || { tail -40 $(ZXV_TMP)/test_vbond.log; echo "[FAIL] test_vbond"; exit 1; }
+
+# Public stats feed (src/zstats): signed hash-chained per-epoch snapshots, aggregates only with a k-anonymity floor, integer JSON for zxvd.
+.PHONY: test-zstats
+test-zstats:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/zstats/test_zstats.c src/zstats/zstats.c src/grants/grants.c src/svault/svault.c src/vswap/vswap.c src/vauction/vauction.c src/vbond/vbond.c src/zenny/zenny.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_zstats -lm && $(ZXV_TMP)/test_zstats > $(ZXV_TMP)/test_zstats.log 2>&1 && echo "[PASS] test_zstats" || { tail -40 $(ZXV_TMP)/test_zstats.log; echo "[FAIL] test_zstats"; exit 1; }
+
+# V-Calls and V-Perps (src/vderiv): bilateral fully collateralised calls and perps on the auction index, capped payoffs, fee to the reserve floor; off per jurisdiction.
+.PHONY: test-vderiv
+test-vderiv:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/vderiv/test_vderiv.c src/vderiv/vderiv.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vderiv -lm && $(ZXV_TMP)/test_vderiv > $(ZXV_TMP)/test_vderiv.log 2>&1 && echo "[PASS] test_vderiv" || { tail -40 $(ZXV_TMP)/test_vderiv.log; echo "[FAIL] test_vderiv"; exit 1; }
+
+.PHONY: test-econ
+test-econ:
+	$(MAKE) --no-print-directory test-svault
+	$(MAKE) --no-print-directory test-vswap
+	$(MAKE) --no-print-directory test-sicily
+	$(MAKE) --no-print-directory test-recovery
+	$(MAKE) --no-print-directory test-estate
+	$(MAKE) --no-print-directory test-grants
+	$(MAKE) --no-print-directory test-vauction
+	$(MAKE) --no-print-directory test-zenny
+	$(MAKE) --no-print-directory test-vbond
+	$(MAKE) --no-print-directory test-zstats
+	$(MAKE) --no-print-directory test-vderiv
+# ==== end economy modules ====

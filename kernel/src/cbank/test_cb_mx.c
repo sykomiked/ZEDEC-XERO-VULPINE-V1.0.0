@@ -60,8 +60,8 @@ static bool rails_only_in_splmtry(const char *xml)
     static char rest[16384];
     strip_vss(xml, rest, sizeof rest);
     return !strstr(rest, "555") && !strstr(rest, "777") && !strstr(rest, "888") &&
-           !strstr(rest, "VFV") && !strstr(rest, "<Ctry>NC") && !strstr(rest, "NCR") &&
-           !strstr(rest, "<Ctry>NR") && !strstr(rest, "NRE") && !strstr(rest, "<Ctry>PN") &&
+           !strstr(rest, "VFV") && !strstr(rest, "<Ctry>NC") && !strstr(rest, "NRE") &&
+           !strstr(rest, "<Ctry>NR") && !strstr(rest, "NCR") && !strstr(rest, "<Ctry>PN") &&
            !strstr(rest, "PNS");
 }
 
@@ -154,10 +154,10 @@ int main(int argc, char **argv)
     bad.amt.ccy = "xof";
     CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_CCY, "lowercase Ccy refused");
     bad = p8;
-    bad.dbtr.ctry = "NCR";
-    CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_CTRY, "country NCR refused");
     bad.dbtr.ctry = "NRE";
     CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_CTRY, "country NRE refused");
+    bad.dbtr.ctry = "NCR";
+    CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_CTRY, "country NCR refused");
     bad.cdtr.ctry = bad.dbtr.ctry = "PNS";
     CHECK(cb_mx_pacs008_write(&bad, buf, sizeof buf) == CB_MX_E_CTRY, "country PNS refused");
     bad = p8;
