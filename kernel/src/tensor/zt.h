@@ -103,13 +103,26 @@
  *       neighbours are. The same code runs on E8 points (8-wide blocks from
  *       zt_e8_nearest): E8 is a group, so every residual is again a lattice
  *       point, and a small one is a single 15-bit codebook index.
+ *       MEASURED ON A REAL MODEL (Qwen2.5-1.5B Q4_K_M, bench/results/
+ *       2026-10-10-qwen2.5-1.5b): on the 8-bit weight codes, row by row on
+ *       a golden coil, decoding all 10 shells gives the model back bit for
+ *       bit, but the residuals take MORE bits than the codes (entropy 8.12
+ *       against 7.31 bits a weight): neighbouring weights are not alike
+ *       enough. So residuals stay on the device and the network carries the
+ *       codes (kernel/Makefile checks it). Stopping after 9 shells changes
+ *       34% of the weights and wrecks the model (perplexity 9.37 -> 332055):
+ *       weights must always be decoded with all 10 shells.
  *   T16 UBH-168 FRAMES WITH ALTERNATING ENDIANNESS.  Tensor words travel in
  *       21-octet UBH-168 frames: one tag octet, then five 32-bit words. The
  *       byte order alternates word by word, little then big then little
  *       (UBH_ENDIAN_MIXED in ubh.h), so a constant reads as a square wave in
- *       the raw bytes. The tag holds the phase of the first word, the word
- *       count and a 4-bit check. Decoding never depends on the machine's own
- *       byte order.
+ *       the raw bytes. The tag holds the phase of the first word (bit 0),
+ *       the word count (bits 1-3) and a 4-bit check (bits 4-7). Wire format
+ *       v2 (ZT_FRAME_VERSION): the check is the XOR of the tag's low nibble,
+ *       every payload nibble and ZT_FRAME_CHECK_SEED, so any one flipped bit,
+ *       phase and count included, is refused. v1 checked the payload only;
+ *       v1 and v2 frames each fail the other's check, always. Decoding never
+ *       depends on the machine's own byte order.
  *   T13 ANY HARDWARE.  A device is described by its fast memory, its banks
  *       and its lanes. zt_device_plan picks the coil and the fractal depth
  *       for it; the arithmetic never changes, so every device computes the
@@ -245,6 +258,8 @@ void zt_set_shell_tap(zt_shell_tap_t *tap); /* NULL disables */
 /* T16 */
 #define ZT_FRAME_OCTETS 21u
 #define ZT_FRAME_WORDS  5u
+#define ZT_FRAME_VERSION    2u   /* v2: the check covers the phase and count bits */
+#define ZT_FRAME_CHECK_SEED 0xFu /* never a valid low nibble (2..11) */
 /* Pack n words into ceil(n/5) frames; phase 0 starts little-endian. */
 uint32_t zt_frame_pack(const uint32_t *words, uint32_t n, uint32_t phase, uint8_t *out);
 /* Unpack `frames` frames; returns the word count, or -1 on a bad frame. */

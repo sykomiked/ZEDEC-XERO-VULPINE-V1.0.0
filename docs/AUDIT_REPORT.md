@@ -15,10 +15,14 @@ After the fixes, `make -C kernel verify-all` passes in a clean checkout (3,984 p
 | Severity | Fixed | Not fixed |
 |---|---|---|
 | CRIT (security hole, money or ledger wrong, data loss) | 15 | 0 |
-| HIGH (wrong result, crash or overflow on bad input) | 37 | 3 |
-| MED (misleading claim, missing test, stub reporting success) | 50 | 74 |
+| HIGH (wrong result, crash or overflow on bad input) | 41 | 0 |
+| MED (misleading claim, missing test, stub reporting success) | 51 | 74 |
 | LOW (style, dead code) | 15 | 53 |
-| **Total** | **117** | **130** |
+| **Total** | **122** | **127** |
+
+Update 2026-10-11: the last three open HIGH items are closed (bootlegger and CI boot checks were
+already fixed on main, fs replica recovery fixed now), plus one new HIGH (the T16 frame check
+missed the phase and count bits) and one new MED (gcc 13 build error in test_browser), both fixed.
 
 Plus 24 CodeQL alerts (integer overflow before widening, snprintf length, narrow loop counters):
 all fixed, except one in the vendored HQC reference code, which cannot overflow and is now
@@ -45,7 +49,7 @@ filtered out because vendored code stays identical to its upstream release.
 - **sutra**: payment coverage used floating point and approved underpayments.
 - **vino**: minting left no trace in any of the three ledgers.
 
-### Still open: the three HIGH items
+### The three HIGH items left open by the first pass (all now fixed)
 
 - ~~**bootlegger** handshake: the signature covers no nonce (replayable) and the ML-KEM key is not
   bound to the identity (man-in-the-middle).~~ RESOLVED (p10): protocol v2, both peers send a fresh
@@ -53,7 +57,10 @@ filtered out because vendored code stays identical to its upstream release.
   length-prefixed transcript Identity_A || EK_A || Nonce_B || Identity_B || EK_B || Nonce_A with
   the version; session keys come from both KEM secrets and the transcript hash; replayed,
   zero-nonce, downgraded, MITM-substituted and tampered messages are rejected (test_bootlegger).
-- **fs** replicate/recover only set flags, so "recovery" restores an empty node. Needs a design.
+- ~~**fs** replicate/recover only set flags, so "recovery" restores an empty node.~~ RESOLVED
+  (2026-10-11): S- and S0 hold real per-node replica copies (data, length, CRC, version, tagged with
+  the node id), kept outside snapshots; recover restores them, refuses a corrupted replica (CRC) and
+  never restores a removed node's replica into a new node at the same index (test_fs, 7 new tests).
 - **CI** boot checks: all five (arm64, x86_64, riscv64, riscv32, arm32) now fail closed through
   `build_system/ci_boot_check.sh`: `[BOOT_OK]` required, any fault marker or non-timeout QEMU exit
   fails the job. All five were booted that way locally. CI fixes: riscv64 installed a package that
@@ -67,7 +74,7 @@ filtered out because vendored code stays identical to its upstream release.
   (PackageID, Version, Architecture, Dependencies, ContentCID; src/provenance/zx_provenance.h) in
   update, zxpkg and the zx_upcheck catalog bridge; broker listings sign CID + terms with the same
   encoder. Versions are strictly monotonic in update and loader/abupdate (stage and promote).
-- Fibonacci-only coin denominations: `vino_mint` accepts any amount today.
+- Fibonacci-only coin denominations: answered for swarm tokens (owner, 2026-10-11): Fibonacci numbers are the token denominations, and a higher Fibonacci number means a higher octane (denser token); built in swarm/swarm_denom.{h,c}. Whether VFV coins must also be Fibonacci rungs is still open: `vino_mint` accepts any amount today.
 - Fee waterfall 34% / 3.3% / 3% versus the φ% tithe: superseded. Owner decision 2026-10-10: the tithe is replaced by a 0.08889% assurance fee split 50/25/15/10 (reserve floor / V-Bill dividend pool / infrastructure-node bounties / regenerative capital); implemented in pay/pay_assure.{h,c}.
 - IPNS name versus the fixed bucket CID for updates.
 - What "STA" stands for (the tensor engine models it as an axial core).
@@ -167,7 +174,7 @@ but is not wired into a shipped product (the Mac app or a kernel image).
 
 #### Open questions still unanswered by the owner
 
-1. **Fibonacci-only coin denominations.** `kernel/src/vino_stores` has a Fibonacci ladder, but `vino_mint` accepts any value and `pay` amounts are free integers. Must every VFV coin be a Fibonacci rung, or is the ladder only for minted vouchers?
+1. **Fibonacci-only coin denominations.** `kernel/src/vino_stores` has a Fibonacci ladder, but `vino_mint` accepts any value and `pay` amounts are free integers. Must every VFV coin be a Fibonacci rung, or is the ladder only for minted vouchers? ANSWERED FOR SWARM TOKENS 2026-10-11: the owner confirmed Fibonacci numbers are the denominations of AI tokens, with a higher Fibonacci number meaning more octane (a denser token). Built in `kernel/src/swarm/swarm_denom.{h,c}` (rules D1-D9): tier k has face F(k+2), every amount has one canonical (Zeckendorf) form, wrap/unwrap is exact, and density carries no premium. See docs/TOKEN_DENOMINATIONS.md. Still open for VFV coins (`vino_mint`).
 2. **Fee waterfall 34% / 3.3% / 3% versus the phi tithe.** ANSWERED 2026-10-10: neither. The owner replaced the tithe with a 0.08889% assurance fee (8889/10^7 of gross, charged once, per-account sub-unit carry), partitioned 50% reserve floor / 25% V-Bill dividend pool / 15% infrastructure-node bounties / 10% regenerative capital (remainder to the reserve floor). The SLA solvency bond is not a fee bucket.
 3. **IPNS versus a fixed CID for the update bucket.** `zx_upcheck` supports both; the built-in entry is the fixed CID `bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354`, which can never change. The owner has not chosen an IPNS name or confirmed the fixed CID.
 4. **Meaning of "STA"** (the core coil in the torus hole). Modelled in `zt.h` as an axial core of F(b-1) slots; the owner never said what STA stands for.
@@ -278,6 +285,7 @@ reading the code. Nothing here is speculative.
 - [MED] src/count_house/test_count_house_fractal.c — the test passes but is not in verify-all. FIXED in part (verify line proposed)
 - [MED] ../tests/test_new_modules.c — the only tests for ascent, plus extra crypto_wallet and decent coverage, are in a file no Makefile target or CI job builds. NOT FIXED (outside scope; proposed: add a build target or move the tests into the module directories)
 - [MED] src/cotier/test_ct_measure.c:316,317,344,356 — CodeQL cpp/integer-multiplication-cast-to-long on index arithmetic. FIXED (widened with (size_t) hh * hd and (size_t) kv * hd, matching upstream exactly; 30/30)
+- [MED] src/browser/test_browser.c:331 — with gcc 13 the test does not build: `-Werror=format-truncation` on the RFC 3986 resolve message (two 2048-byte case strings into msg[256]). verify-all failed at test_browser on gcc 13 (CI uses gcc 11). FIXED (2026-10-11): msg sized BROWSER_MAX_URL_LEN + 256 and the case strings printed with %.64s; builds clean at -O0 and -O2 with gcc 13.3; 386 checks pass.
 - [MED] src/browser/test_browser.c:389,390,682,1954 — CodeQL cpp/overflowing-snprintf: running offsets fed back into snprintf could pass the end of the buffer. FIXED (added a buf_appendf helper that clamps to cap-1 on error or truncation; replaced all 10 sites, including :946; 386 checks pass, also under ASan)
 
 #### LOW
@@ -319,7 +327,7 @@ reproduced with a probe, a sanitizer run or a test before it was written down.
 - [HIGH] src/financial_fabric/financial_fabric.c:32 — six amounts were converted to rationals as (int64_t)(v >> 32) with den 1, so fractions were dropped (generation ratio 1.5 became 1, passing or failing gates wrongly). It also did not compile under TEST_HOST, where surplus_real_t is a double. FIXED (ff_sr_to_rat: exact num/den, powers of two reduced by shifts, no 64-bit division).
 - [HIGH] src/dharma/naga_raja.c:113 — naga_raja_send with sender == receiver doubled quota, and a send into a fresh rmag slot (0/0) vanished. Comparisons used double, and spawn/terminate returned fixed values instead of upaah phase results. test_chakra_naga had 6 failures. FIXED (self-send refused; nr_quota reads 0/0 as 0/1; integer nr_rat_cmp using __builtin_mul_overflow, failing toward a partial send; phase7_unbridge results; 17/17 pass).
 - [HIGH] src/display/display.c:91 — a firmware mode whose stride was smaller than its width, or whose stride*height exceeded the pixel budget, was accepted, so the compositor wrote past the framebuffer. FIXED (stride >= width and stride*h <= ZXV_DISPLAY_MAX_PIXELS, otherwise -2; check added to test_display, which passes in all 3 budgets).
-- [HIGH] src/fs/fs.c:137 — fs_replicate_to_s_minus/s_zero and fs_recover_from_* only set flags and copy no data, so "recovery" after a delete restores an empty node. NOT FIXED (needs a design decision on replica storage; proposed: keep a bounded replica copy of node data per space and restore from it, or rename the API to show it only marks state).
+- [HIGH] src/fs/fs.c:137 — fs_replicate_to_s_minus/s_zero and fs_recover_from_* only set flags and copy no data, so "recovery" after a delete restores an empty node. FIXED (2026-10-11): the registry keeps one `fs_replica_t` per node per backup space (data, length, CRC, version, source node id), outside `fs_node_t` so snapshots neither copy nor roll it back. replicate copies the live node; recover copies the replica back, clears stale bytes past the recovered length, re-sets the space flag, and refuses (node untouched) when the replica's CRC no longer matches or its node id is not the node's (ids are never reused). New `fs_get_replica`. tests/host/test_fs.c: 7 new tests (data/CRC/version restored after delete; replica is a copy; S- and S0 independent; corrupted replica refused; removed node's replica not recovered into a new node at the same index; replica survives a snapshot restore; replicating a deleted node keeps the old replica). 14 hand-made mutants of the new code all killed; passes under ASan/UBSan.
 - [MED] src/hardware/rtl_device.c:279 — rtl_device_generate_hdl summed snprintf return values. After truncation pos passed max_len, `max_len - pos` wrapped, and the next write overflowed the output buffer (ASan stack-buffer-overflow with a 24-byte buffer). FIXED (RTL_EMIT clamps pos; no callers today).
 - [MED] src/hardware/rtl_device.c:122 — rtl_device_add_dma accepted depth 0, so the `% dma->depth` in push/pop (lines 186/198) divided by zero. FIXED (depth or width 0 refused).
 - [MED] src/hardware/rtl_device.c:183 — rtl_dma_push discards its data and rtl_dma_pop always returns 0. The header (lines 16-17) claims FPGA bitstream and GDSII ASIC output, which do not exist. NOT FIXED (proposed: add a backing buffer, or mark them as stubs in the header).
@@ -486,6 +494,10 @@ Paths are relative to kernel/. Line numbers refer to the working tree after the 
 ## Findings: modules group 5 (syscall to zxvfs)
 
 Each finding was verified by reading the code, and where possible by a failing test or a sanitizer report before the fix. Line numbers refer to HEAD (the pre-fix code) unless they are marked "now".
+
+#### Tensor wire frames (tensor)
+
+- [HIGH] kernel/src/tensor/zt_holo.c:120 — the T16 UBH-168 frame check (check4) covered only the 20 payload octets, not the tag's low nibble (phase bit 0, count bits 1-3). A single flipped phase bit passed the check and reversed the byte order of every word in the frame; a flipped count bit could silently drop or add words. Found by the hardware thread. FIXED (2026-10-11) as wire format v2 (`ZT_FRAME_VERSION` 2 in zt.h): the check is the XOR of the low nibble, every payload nibble and `ZT_FRAME_CHECK_SEED` 0xF. Every single-bit flip of all 168 bits is refused. Valid low nibbles are 2..11, never 0xF, so v1 frames always fail a v2 check and v2 frames always fail a v1 check (no silent mixing). test_zt: every one of the 168 single-bit flips refused for phases 0/1 and 1..5 words; known-answer tags 0x5A and 0x87; v1 and v2 refuse each other's frames. Mutants (v1 check, no seed, phase bit left out) are killed. docs/TENSOR_ENGINE.md and docs/HARMONIC_WIRE.md updated.
 
 #### Money (vino, zcapital, vino_stores)
 

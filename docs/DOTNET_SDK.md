@@ -23,28 +23,32 @@ asynchronous or batch operation.
 9. [Threading, lifetime and async](#threading-lifetime-and-async)
 10. [Features that are still being built](#features-that-are-still-being-built)
 11. [The operator gateway sample](#the-operator-gateway-sample)
-12. [The native C ABI](#the-native-c-abi)
-13. [Honest limits](#honest-limits)
-14. [Continuous integration](#continuous-integration)
+12. [The ABI 1.1 groups](#the-abi-11-groups)
+13. [The native C ABI](#the-native-c-abi)
+14. [Honest limits](#honest-limits)
+15. [Continuous integration](#continuous-integration)
 
 ## Layout
 
 ```
-bindings/dotnet/
+sdk/libzxv/                    the one native library every ZXV SDK wraps (shared with Java, Python, ...)
+  include/zxv_api.h            the stable C ABI (handles, status codes, UTF-8, caller-owned buffers)
+  src/zxv_*.c                  adapters over the kernel modules; the only files that include kernel headers
+  test/                        C conformance tests of the ABI (1.0 and 1.1 groups)
+  Makefile                     builds sdk/libzxv/build/libzxv.so (libzxv.dylib on macOS)
+sdk/conformance/               vectors.json (the cross-SDK answer key) and the engine fixtures
+sdk/dotnet/
   Zxv.sln
-  Directory.Build.props        shared settings (net8.0, nullable, analyzers, warnings as errors)
+  Directory.Build.props        shared settings (net8.0, nullable, analyzers, warnings as errors); ZxvNativeDir = ../libzxv/
   Directory.Packages.props     every NuGet version, in one place
-  native/
-    zxv_api.h                  the stable C ABI (handles, status codes, UTF-8, caller-owned buffers)
-    zxv_api.c                  adapter over the kernel modules; the only file that includes kernel headers
-    test_zxv_api.c             C conformance test of the ABI
-    Makefile                   builds native/build/libzxv.so (libzxv.dylib on macOS)
   src/Zxv.Native/              P/Invoke (LibraryImport source generator) and SafeHandle types
-  src/Zxv.Sdk/                 the supported API: ZxvPlatform and its services
-  tests/Zxv.Sdk.Tests/         xUnit tests against the real native library
+  src/Zxv.Sdk/                 the supported API: ZxvPlatform, its services, and the ABI 1.1 types
+  tests/Zxv.Sdk.Tests/         xUnit tests against the real native library and vectors.json
   tests/Zxv.Gateway.Tests/     integration tests of the gateway (in-memory TestServer)
-  samples/Zxv.Samples.Console/ a guided tour of the SDK
+  samples/Zxv.Samples.Console/ a guided tour of the finance groups
+  samples/Zxv.Samples.Agent/   a guided tour of the ABI 1.1 groups (capabilities, budgets, engine, crypto)
   samples/Zxv.Gateway/         operator REST gateway (ASP.NET Core minimal API)
+  README.md                    quick start and API overview of the whole SDK
 api/openapi/zxv-operator.yaml  OpenAPI 3.1 contract of the gateway
 ```
 
@@ -66,21 +70,27 @@ Requirements:
 Build and test:
 
 ```sh
-cd bindings/dotnet
-make -C native            # builds native/build/libzxv.so and checks the C ABI with `make -C native test`
-dotnet build Zxv.sln -c Release
-dotnet test  Zxv.sln -c Release
+make -C sdk/libzxv        # builds sdk/libzxv/build/libzxv.so; `make -C sdk/libzxv test` checks the C ABI
+cd sdk/dotnet
+dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
+dotnet test  Zxv.sln -c Release --no-build
 dotnet run --project samples/Zxv.Samples.Console
+dotnet run --project samples/Zxv.Samples.Agent
 ```
 
-If you skip `make`, the first `dotnet build` runs it for you (Unix only). Set
-`-p:ZxvSkipNativeBuild=true` to turn that off, for example when your CI
-builds the native library in a separate job.
+If you skip `make`, the first `dotnet build` runs `make -C sdk/libzxv` for
+you (Unix only). Set `-p:ZxvSkipNativeBuild=true` to turn that off, for
+example when your CI builds the native library in a separate job, or when
+other SDK builds share `sdk/libzxv/build`. `ZxvNativeDir` in
+`Directory.Build.props` says where the library is.
 
-At run time the library is found next to the application (it is copied to
-every output folder, and packed under `runtimes/<rid>/native/` in a NuGet
-package). To use a library elsewhere, set `ZXV_NATIVE_LIBRARY` to its full
-path.
+At run time the library is found in this order (the same in every ZXV SDK):
+a path set in code with `ZxvLibrary.UseLibraryPath(...)`, the
+`ZXV_LIBRARY_PATH` environment variable (the older `ZXV_NATIVE_LIBRARY` also
+works), the copy next to the application (it is copied to every output
+folder, and packed under `runtimes/<rid>/native/` in a NuGet package), then
+the system loader path (`LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, `PATH`). The
+SDK refuses a library whose ABI is not 1.1 or a later 1.x.
 
 NuGet packages used (versions in `Directory.Packages.props`):
 
@@ -267,8 +277,12 @@ One rule: **a refused operation throws; a card decline is a result.**
 | Exception | When |
 | --- | --- |
 | `ArgumentException` family | Detected in managed code before any native call: null, empty, embedded NUL, out-of-range page sizes, inexact `FromDecimal`. |
-| `ZxvException` | The native core refused the operation. Branch on `Status` (`ZxvStatus`); `Code` is the stable symbolic name (`ZXV_E_FUNDS`); `Detail` is diagnostic text only. |
-| `ZxvFeatureNotAvailableException` (a `ZxvException`) | The feature exists in the API but not in the loaded native library yet (`ZxvStatus.NotImplemented`). |
+| `ZxvException` | The native core refused the operation. Branch on `Status` (`ZxvStatus`); `Code`/`StatusName` is the stable symbolic name (`ZXV_E_FUNDS`); `StatusClass` is its class; `Detail` is diagnostic text only. The SDK always throws one of the class subtypes below. |
+| `ZxvUsageException` (a `ZxvException`) | USAGE class: a caller bug (bad argument, unknown id, malformed text). `FloatRejectedException` is the NaN/infinity case. |
+| `ZxvRefusedException` (a `ZxvException`) | REFUSED class: handle it; a retry may succeed later. Subtypes `InsufficientFundsException`, `CapabilityDeniedException`, `BudgetExhaustedException`, `VerificationFailedException`, `ZxvFeatureNotAvailableException`. |
+| `ZxvFeatureNotAvailableException` (a `ZxvRefusedException`) | The feature exists in the API but not in the loaded native library yet (`ZxvStatus.NotImplemented`). |
+| `ZxvSystemException` (a `ZxvException`) | SYSTEM class: out of memory, unreadable file, internal fault. |
+| `ZxvFatalException` (**not** a `ZxvException`) | FATAL class: the context halted after a broken invariant or `ZxvPlatform.Halt`. Never retry; dispose the platform. With `ZxvLibrary.FatalPolicy = FatalPolicy.FailFast` the SDK calls `Environment.FailFast` instead. |
 | `ZxvTransportException` (a `ZxvException`) | A payment was booked but the transport failed; `Receipt` is set. |
 | `ObjectDisposedException` | The platform was disposed. |
 | `OperationCanceledException` | The token was cancelled (before booking, or during the send). |
@@ -282,7 +296,7 @@ Common statuses and the gateway's HTTP mapping:
 | `Duplicate` | `ZXV_E_DUPLICATE` | reference / EndToEndId reused | 409 |
 | `InsufficientFunds` | `ZXV_E_FUNDS` | a holder would go below zero | 422 |
 | `InvalidCurrency` | `ZXV_E_CURRENCY` | not ISO 4217, not enabled, private unit on the wire, scale mismatch, cross-currency | 422 |
-| `InvariantViolated` | `ZXV_E_INVARIANT` | e.g. a camt.053 page that does not reconcile | 422 |
+| `InvariantViolated`, `Poisoned` | `ZXV_E_INVARIANT`, `ZXV_E_POISONED` | the context halted (`ZxvFatalException`); a camt.053 page that does not reconcile is `InvalidField` since libzxv 1.1.1 | 500 |
 | `NotImplemented` | `ZXV_E_NOTIMPL` | feature not built in yet | 501 |
 | `CapacityExceeded`, `OutOfMemory` | | resource limits | 503 |
 
@@ -331,13 +345,13 @@ if (zxv.Supports(ZxvFeatures.Netting)) { /* ... */ }
 | Card issue, reissue, authorize | pending | cardnet |
 | VSS conformance checks | pending | cbank/cb_vss |
 
-When those modules land, only `native/zxv_api.c` changes; the C ABI, the SDK
+When those modules land, only `sdk/libzxv/src` changes; the C ABI, the SDK
 API and the gateway contract stay the same.
 
 ## The operator gateway sample
 
 ```sh
-cd bindings/dotnet
+cd sdk/dotnet
 ASPNETCORE_ENVIRONMENT=Development dotnet run --project samples/Zxv.Gateway
 # http://localhost:5080/openapi/v1.json   generated OpenAPI 3.0
 # http://localhost:5080/swagger           Swagger UI (Development only)
@@ -393,12 +407,35 @@ Other settings: `Gateway:Transport:Directory` switches the transport to a
 file drop. Payments and netting cycles are kept in memory by the sample; a
 production gateway persists receipts in its own store.
 
+## The ABI 1.1 groups
+
+libzxv 1.1 adds the groups that the AI swarm, exactness, security and engine
+work needs. The SDK covers every one of them; `sdk/dotnet/README.md` has the
+quick start, the API table and examples.
+
+| Group | .NET types |
+| --- | --- |
+| Status classes, halting | `ZxvLibrary.ClassOf`, `ZxvPlatform.Halt`, `IsHalted`, `ZxvFatalException`, `FatalPolicy` |
+| Exact rationals | `Rational` (`Of`, `Parse`, `FromDecimal`, `FromDoubleExact`, `ToQ16`) |
+| Four-valued logic | `Truth` + `TruthExtensions` |
+| Capabilities | `Capability`, `CapabilityRights`, `LedgerService.WithCapability` |
+| Attestations | `Attestations`, `AttestationSubject` |
+| Budgets | `Budgets`, `Budget` (`Consume`, `ConsumeAsync`, events) |
+| Phase ticks | `PhaseClock`, `DeferredEvent` (`WaitClearedAsync`), `StartRealtime` |
+| UBH-168 wire | `Zxv.Wire.Ubh168Frame` (pure managed, cross-checked with C) |
+| Swarm economy | `Swarm` |
+| Hashes, randomness | `Hashes`, `SecureMemory` |
+| Signatures, KEM | `Ed25519`, `MlDsa87`, `MlKem1024`, `SecretKey` (off-heap) |
+| Engine | `Zxv.Engine.Model`, `Session` (`Generate`, `GenerateAsync`, `StreamAsync`) |
+| EVM state channels | `Zxv.Evm.StateChannel` |
+
 ## The native C ABI
 
-`bindings/dotnet/native/zxv_api.h` is usable from any language with a C FFI
+`sdk/libzxv/include/zxv_api.h` is usable from any language with a C FFI
 (Java/Panama, Python ctypes, Go cgo, Rust). Its rules, in short:
 
-- opaque handles only (`zxv_ctx`, `zxv_msg`, `zxv_netting`); no kernel struct
+- opaque handles only (`zxv_ctx`, `zxv_msg`, `zxv_netting`, and in 1.1 `zxv_cap`,
+  `zxv_lpres`, `zxv_rmag`, `zxv_phase`, `zxv_swarm`, `zxv_model`, `zxv_session`); no kernel struct
   crosses the ABI;
 - fixed-width integers and NUL-terminated UTF-8; amounts are `int64_t` minor
   units; no floats;
@@ -409,7 +446,9 @@ production gateway persists receipts in its own store.
 - a context is internally serialized; message and netting handles are
   single-threaded; a child handle is destroyed before its context;
 - `zxv_last_error` gives thread-local diagnostic text; `zxv_features` reports
-  the live feature groups; ABI major version 1, additive minor versions.
+  the live feature groups; ABI major version 1, additive minor versions;
+- 1.1: every call that touches state, keys or the engine takes a capability
+  first (R10) and no parameter is a float (R11).
 
 Build details: the shim compiles the kernel modules with `-DTEST_HOST` (the
 hosted representation, where the kernel's `surplus_real_t` is an IEEE
@@ -418,7 +457,7 @@ to 2^53 - 1, the adapter keeps an exact `int64_t` shadow of every balance, and
 `zxv_ledger_check` verifies the two agree. The kernel triple ledger is
 fixed-size (512 accounts per book, 256 entries per account); the adapter
 chains books and segments so platform journals are unbounded. Only `zxv_*`
-symbols are exported. The C test (`make -C native test`) passes under
+symbols are exported. The C tests (`make -C sdk/libzxv test`) pass under
 AddressSanitizer and UndefinedBehaviorSanitizer.
 
 ## Honest limits
@@ -456,14 +495,14 @@ solution with warnings as errors, and runs every .NET test:
     runs-on: ubuntu-24.04
     defaults:
       run:
-        working-directory: bindings/dotnet
+        working-directory: sdk/dotnet
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Native shim (C ABI) and its conformance test
-        run: make -C native test
+      - name: libzxv (C ABI) and its conformance tests
+        run: make -C ../libzxv test fixtures
       - name: Build (Release, warnings as errors)
         run: dotnet build Zxv.sln -c Release -p:ZxvSkipNativeBuild=true
       - name: Test
@@ -472,5 +511,5 @@ solution with warnings as errors, and runs every .NET test:
         if: always()
         with:
           name: dotnet-test-results
-          path: bindings/dotnet/tests/**/TestResults/*.trx
+          path: sdk/dotnet/tests/**/TestResults/*.trx
 ```

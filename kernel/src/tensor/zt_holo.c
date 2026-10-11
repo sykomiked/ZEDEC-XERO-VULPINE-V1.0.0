@@ -117,9 +117,15 @@ void zt_holo_e8_decode(const zt_coil_t *c, const int16_t *res2, uint32_t shells,
         }
 }
 
-static uint8_t check4(const uint8_t *b)
+/* T16 frame v2 check: the XOR of the tag's low nibble (phase and count), every
+ * payload nibble and ZT_FRAME_CHECK_SEED. v1 left the low nibble out, so one
+ * flipped phase bit reversed every word's byte order unnoticed. Any single
+ * flipped bit in the frame now changes the check. Valid low nibbles are 2..11,
+ * never the seed 0xF, so a v1 frame always fails a v2 check and a v2 frame
+ * always fails a v1 check: the two versions cannot be mistaken for each other. */
+static uint8_t check4(uint8_t lo, const uint8_t *b)
 {
-    uint8_t x = 0;
+    uint8_t x = (uint8_t) ((lo ^ ZT_FRAME_CHECK_SEED) & 0xFu);
     for (uint32_t i = 0; i < 20; i++) x ^= b[i] ^ (uint8_t) (b[i] >> 4);
     return x & 0xFu;
 }
@@ -138,7 +144,8 @@ uint32_t zt_frame_pack(const uint32_t *words, uint32_t n, uint32_t phase, uint8_
             bool big = ((ph + w) & 1u) != 0;
             for (uint32_t k = 0; k < 4; k++) b[big ? 3 - k : k] = (uint8_t) (v >> (8 * k));
         }
-        o[0] = (uint8_t) (ph | (count << 1) | (check4(o + 1) << 4));
+        uint8_t lo = (uint8_t) (ph | (count << 1));
+        o[0] = (uint8_t) (lo | (check4(lo, o + 1) << 4));
     }
     return frames;
 }
@@ -149,7 +156,8 @@ int32_t zt_frame_unpack(const uint8_t *in, uint32_t frames, uint32_t *words)
     for (uint32_t f = 0; f < frames; f++) {
         const uint8_t *o = in + f * ZT_FRAME_OCTETS;
         uint32_t ph = o[0] & 1u, count = (o[0] >> 1) & 7u;
-        if (count == 0 || count > ZT_FRAME_WORDS || (o[0] >> 4) != check4(o + 1)) return -1;
+        if (count == 0 || count > ZT_FRAME_WORDS || (o[0] >> 4) != check4(o[0] & 0xFu, o + 1))
+            return -1;
         if (f + 1 < frames && count != ZT_FRAME_WORDS) return -1;
         for (uint32_t w = 0; w < count; w++) {
             const uint8_t *b = o + 1 + 4 * w;
