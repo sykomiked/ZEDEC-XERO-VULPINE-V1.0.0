@@ -55,7 +55,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resourc
 cp "$BIN" "$APP/Contents/MacOS/ZXVStudio"
 cp "$WORK/zxvd" "$APP/Contents/MacOS/zxvd"
 cp "$WORK/libzxv.dylib" "$APP/Contents/Frameworks/libzxv.dylib"
-install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/zxvd"
+# build_zxvd.sh already links zxvd with @executable_path/../Frameworks as an rpath.
 strip -x "$APP/Contents/MacOS/zxvd"
 sed -e "s/@VERSION@/$VERSION/g" "$HERE/Info.plist.in" >"$APP/Contents/Info.plist"
 if python3 -c 'import PIL' 2>/dev/null; then
