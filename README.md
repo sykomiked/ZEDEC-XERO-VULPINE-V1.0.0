@@ -32,6 +32,96 @@ yet the state of every test: older suites (for example `tests/test_drivers.c`)
 still check structure sizes and constants, and `docs/ARCHITECTURE_OVERVIEW.md`
 lists the modules whose claims are not yet backed.
 
+## What's in this release
+
+Each item below says where it stands. "On `main`" means it is merged and
+tested in CI. "Landing" means it is built and tested on an open pull request
+and is planned for this release, but is not on `main` yet. Nothing here is
+listed as working unless the code does it.
+
+### On `main`
+
+**AI runtime**
+- Integer-only tensor engine: no floating point, and the same output bits on
+  every CPU ([docs/TENSOR_ENGINE.md](docs/TENSOR_ENGINE.md)).
+- GGUF model loader, tokenizer, rotary position encoding, and native
+  Q4_K / Q6_K kernels with AVX2, AVX-512 and NEON paths.
+- A real model runs on it: Qwen2.5-1.5B-Instruct (Q4_K_M) gives the same
+  answers as llama.cpp on the test prompts, with perplexity 9.371 against
+  llama.cpp's 9.362. It is still slower than llama.cpp (see [bench/](bench/README.md)).
+- E8 and Leech lattice quantisers.
+
+**Swarm and its economies**
+- Tokens-per-cycle budget with Fibonacci scaling across swarm levels, and a
+  budget gate on every generated token.
+- The emotional economy (emoji type and intensity steer token allocation)
+  and a cooperative market over the nine forms of capital, with no monopoly
+  ([docs/SWARM_ECONOMY.md](docs/SWARM_ECONOMY.md)).
+- Ledger of record and settlement spine that check assets = liabilities +
+  equity every cycle, the 0.08889% assurance fee with its 50/25/15/10 split,
+  escrow market postings, and peer audit of every ledger posting
+  ([docs/PEER_AUDIT.md](docs/PEER_AUDIT.md)).
+
+**Operating system**
+- Kernel builds for arm64, x86_64, riscv64, riscv32 and arm32 that boot under
+  emulation in CI. It has not yet booted on a physical board.
+- Floating point banned in kernel images at compile time; capability-checked
+  syscalls; zxvfs with journal and extents; AI self-check at boot.
+
+**Desktop app and daemon**
+- ZXV Swarm desktop app: a universal Mac app (Apple Silicon and Intel), with
+  a model install flow, a local API guard, a signed update checker and
+  notifications ([docs/MAC_APP.md](docs/MAC_APP.md)). It is ad-hoc signed,
+  not notarised.
+- `zxvd`, a headless daemon with JSON-RPC over a local socket
+  ([docs/ZXVD.md](docs/ZXVD.md)).
+
+**Security and networking**
+- Post-quantum cryptography from vendored upstream reference code: ML-KEM,
+  ML-DSA, SLH-DSA and HQC, checked against NIST known-answer vectors on
+  several CPUs ([docs/PQ_MATRIX.md](docs/PQ_MATRIX.md)).
+- One PQ session layer (ML-KEM-1024 + ML-DSA-87) for peer links.
+- Vinea peer-to-peer node (Kademlia-style), off by default; two app instances
+  can trade compute end to end ([docs/VINEA.md](docs/VINEA.md)).
+
+**Developer platform**
+- libzxv, the engine as a library with a stable C ABI (version 1.3) and an
+  add-only ABI check in CI, plus a conformance suite and the .NET SDK
+  ([sdk/](sdk/), [docs/DOTNET_SDK.md](docs/DOTNET_SDK.md)).
+
+**Quality**
+- Host tests, sanitizers (ASan, UBSan, MSan, integer), fuzzing, a mutation
+  gate, coverage, CodeQL, TLA+ models of the ledger, and Lean proofs of the
+  rational and headroom code.
+
+### Landing in this release
+
+These are built and tested on open pull requests and will move to the list
+above as each one merges.
+
+- **SDKs for 11 more languages** (C++, Java, Python, TypeScript, Go, Rust,
+  Ruby, PHP, Swift, Solidity, Kotlin), plugin kits, framework kits (Spring,
+  ASP.NET Core, Nest, Django) and the Z-Wasm plugin sandbox, in seven parts
+  (#5).
+- **Hardware emulation standard**: a per-component emulation matrix, ZHP-1
+  hardware profiles, and dual-signed hardware updates with rollback, as
+  libzxv ABI 1.4 (#6).
+- **Two-node demo**: one node asks another a question over a PQ session and
+  pays it with the assurance fee (#31).
+- **Linux and Windows desktop app** built on `zxvd` with a browser window (#32).
+- **ZXV Studio**, a native SwiftUI Mac app on `zxvd`. It is built but has not
+  been compiled on a Mac yet (#27).
+- **Bare-metal discs**: UEFI images for x86_64 and arm64 that boot in QEMU
+  (#25). Booting a physical machine is still to do.
+- **COBOL treaties and Sutra**: COBOL copybooks as the treaty record format,
+  with a compact Sutra syntax, checked for parity against GnuCOBOL (#24).
+- **Faster prompt reading**: batched prefill, about 3x faster with the same
+  output bits (#28).
+- **AIPI**: content-addressed functions and data, with verified execution
+  and escrowed bounties (#22).
+- **Fibonacci-only VFV coins**, minting any amount as its Zeckendorf split (#29).
+- **Audit fixes**: filesystem recovery, frame check v2 and the gcc 13 build (#30).
+
 ## Orientation
 
 | I want to… | Read |
