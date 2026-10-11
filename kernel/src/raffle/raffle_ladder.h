@@ -39,6 +39,11 @@
  *       range table, overflow); if any fails the whole payment is refused
  *       and nothing changes. Then each share is minted into its level.
  *   P4  CONSERVATION. The shares minted always sum to the fee.
+ *   P5  SPAN. A payment may be confined to levels [lo, hi] (0-based; a
+ *       token's tier map, raffle_token.h T8). P1-P4 then run on the span
+ *       only: weights outside it are ignored, nothing cascades past hi,
+ *       and if no level in the span can take the fee the payment is
+ *       refused rather than spilling outside it.
  *
  * COST. One payment does at most n share-cap scans and one SHA3-256 chain
  * update per level that receives a share. test_raffle prints the measured
@@ -105,6 +110,19 @@ raffle_status_t raffle_ladder_plan_fee(const raffle_ladder_t *L, const uint8_t o
 raffle_status_t raffle_ladder_enter(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
                                     uint64_t amount, const raffle_rate_t *rate,
                                     const uint64_t *weights, raffle_ladder_receipt_t *out);
+
+/* P5: P1-P3 confined to levels [lo, hi]. */
+raffle_status_t raffle_ladder_plan_span(const raffle_ladder_t *L,
+                                        const uint8_t owner[RAFFLE_ID_LEN], uint64_t fee,
+                                        const uint64_t *weights, uint32_t lo, uint32_t hi,
+                                        raffle_ladder_receipt_t *plan);
+
+/* P1-P5: enter into levels [lo, hi]. `fee` 0 = quote `amount` at `rate`;
+ * otherwise the caller's fee (amount and rate recorded for audit). */
+raffle_status_t raffle_ladder_enter_span(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
+                                         uint64_t amount, const raffle_rate_t *rate, uint64_t fee,
+                                         const uint64_t *weights, uint32_t lo, uint32_t hi,
+                                         raffle_ladder_receipt_t *out);
 
 /* P1-P4 with a fee the caller computed; `amount` and `rate` are recorded in
  * each level's chain for audit. */

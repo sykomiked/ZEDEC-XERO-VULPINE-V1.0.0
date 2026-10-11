@@ -688,6 +688,103 @@ static void test_split(void)
     CHECK(c.grant_num == 5 && c.grant_den == 55, "default grant 5/55");
 }
 
+/* ===== S5: the basket NAV leg ===== */
+static void test_nav(void)
+{
+    raffle_config_t c = enabled_cfg();
+    CHECK(c.nav_den == 0, "NAV leg off by default");
+    /* 987/61000 + 5/55 + nav < 1. Room left = 1 - 987/61000 - 5/55 =
+     * 2,995,715 / 3,355,000, so nav = 2,995,714 / 3,355,000 fits and
+     * 2,995,715 / 3,355,000 does not. */
+    c.nav_den = 3355000;
+    c.nav_num = 2995714;
+    CHECK(raffle_config_check(&c) == RAFFLE_OK, "just below 1 fits");
+    c.nav_num = 2995715;
+    CHECK(raffle_config_check(&c) == RAFFLE_ERR_CONFIG, "exactly 1 refused");
+    c.nav_num = 3355000;
+    CHECK(raffle_config_check(&c) == RAFFLE_ERR_CONFIG, "nav >= 1 refused");
+    /* Huge denominators: the check must not wrap (192-bit products). */
+    c.skim_num = 1;
+    c.skim_den = UINT64_MAX;
+    c.grant_num = 1;
+    c.grant_den = UINT64_MAX - 1;
+    c.nav_den = UINT64_MAX;
+    c.nav_num = UINT64_MAX - 3; /* 1/M + 1/(M-1) + (M-3)/M = 1 - 2/M + 1/(M-1) < 1 */
+    CHECK(raffle_config_check(&c) == RAFFLE_OK, "huge dens, sum just below 1");
+    c.nav_num = UINT64_MAX - 2; /* = 1 - 1/M + 1/(M-1) > 1 */
+    CHECK(raffle_config_check(&c) == RAFFLE_ERR_CONFIG, "huge dens, sum just above 1");
+    /* Two boundary cases (found by search) where the middle limb of the
+     * 192-bit product carries into the top limb. */
+    raffle_config_t k1 = {.skim_num = 44014762627701610u,
+                          .skim_den = 6285553496060013302u,
+                          .grant_num = 97986660132726312u,
+                          .grant_den = 16935719385909495326u,
+                          .nav_num = 16830415908127182580u,
+                          .nav_den = 17048436880914430469u};
+    raffle_config_t k2 = {.skim_num = 4945820902038762u,
+                          .skim_den = 10837172685248731065u,
+                          .grant_num = 40302845090192681u,
+                          .grant_den = 5639152777121214260u,
+                          .nav_num = 12234363465484111036u,
+                          .nav_den = 12328098233373433401u};
+    k1.min_rate = k2.min_rate = c.min_rate;
+    k1.max_rate = k2.max_rate = c.max_rate;
+    k1.fib_index = k2.fib_index = c.fib_index;
+    CHECK(raffle_config_check(&k1) == RAFFLE_ERR_CONFIG, "carry case 1: sum >= 1");
+    CHECK(raffle_config_check(&k2) == RAFFLE_OK, "carry case 2: sum < 1");
+
+    /* Exact split with a NAV leg, random ratios, against 128-bit sums. */
+    uint64_t seed = 11;
+    unsigned bad = 0, ran = 0, refused = 0;
+    c = enabled_cfg();
+    c.fib_index = 2;
+    for (int i = 0; i < 2000; i++) {
+        c.nav_num = xorshift(&seed) % 500;
+        c.nav_den = c.nav_num + 1 + xorshift(&seed) % 700;
+        unsigned __int128 D = (unsigned __int128) 61000 * 55 * c.nav_den;
+        unsigned __int128 sum = (unsigned __int128) 987 * 55 * c.nav_den +
+                                (unsigned __int128) 5 * 61000 * c.nav_den +
+                                (unsigned __int128) c.nav_num * 61000 * 55;
+        int ok = sum < D;
+        if (ok != (raffle_config_check(&c) == RAFFLE_OK)) bad++;
+        if (!ok) {
+            refused++;
+            continue;
+        }
+        raffle_t r;
+        raffle_settlement_t s;
+        uint8_t who[32], p[32], sec[32], cm[32];
+        ident("owner", 2, who);
+        ident("party", 0, p);
+        epoch_secret((uint64_t) i, 0, sec);
+        raffle_init(&r, &c, 1, NULL, g_ranges, 4);
+        raffle_commitment(1, p, sec, cm);
+        raffle_commit(&r, p, cm);
+        uint64_t a = i == 0 ? UINT64_MAX : xorshift(&seed);
+        if (raffle_enter(&r, who, a, NULL, NULL) != RAFFLE_OK) {
+            bad++;
+            continue;
+        }
+        raffle_reveal(&r, p, sec);
+        if (raffle_draw(&r, &s) != RAFFLE_OK) {
+            bad++;
+            continue;
+        }
+        unsigned __int128 n = (unsigned __int128) s.pool * c.nav_num;
+        if ((unsigned __int128) s.reserve_skim + s.grant_pool + s.nav_slice + s.crown_pot != s.pool)
+            bad++;
+        if (!((unsigned __int128) s.nav_slice * c.nav_den <= n &&
+              n < ((unsigned __int128) s.nav_slice + 1) * c.nav_den))
+            bad++;
+        if (s.reserve_skim != (uint64_t) ((unsigned __int128) s.pool * 987 / 61000) ||
+            s.grant_pool != (uint64_t) ((unsigned __int128) s.pool * 5 / 55))
+            bad++; /* the NAV leg never touches the skim or the grants */
+        ran++;
+    }
+    CHECK(bad == 0, "four-way split exact (%u bad)", bad);
+    CHECK(ran > 1000 && refused > 50, "ran %u, refused %u", ran, refused);
+}
+
 /* ===== R4: no modulo bias ===== */
 static void test_draw_uniform(void)
 {
@@ -802,6 +899,8 @@ static void run_scenario(raffle_settlement_t out[3], uint32_t refused[3])
     c.fib_index = 22;
     c.share_num = 8;
     c.share_den = 21;
+    c.nav_num = 1; /* S5 */
+    c.nav_den = 34;
     raffle_t r;
     raffle_init(&r, &c, 1, NULL, ranges, 128);
     for (uint64_t e = 1; e <= 3; e++) {
@@ -849,7 +948,7 @@ static void test_replay(const char *ref)
         } nums[] = {{"tickets", a[e].tickets},   {"pool", a[e].pool},
                     {"refused", ra[e]},          {"winning", a[e].winning_ticket},
                     {"skim", a[e].reserve_skim}, {"grant", a[e].grant_pool},
-                    {"pot", a[e].crown_pot}};
+                    {"nav", a[e].nav_slice},     {"pot", a[e].crown_pot}};
         for (size_t i = 0; i < sizeof nums / sizeof nums[0]; i++) {
             snprintf(key, sizeof key, "e%d.%s", e + 1, nums[i].k);
             snprintf(got, sizeof got, "%llu", (unsigned long long) nums[i].v);
@@ -913,6 +1012,7 @@ int main(int argc, char **argv)
     test_epoch();
     test_commit_reveal();
     test_split();
+    test_nav();
     test_post();
     test_draw_uniform();
     test_pick();

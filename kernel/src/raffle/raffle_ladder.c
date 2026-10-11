@@ -57,25 +57,27 @@ bool raffle_ladder_ready(const raffle_ladder_t *L, uint32_t k)
     return r->phase == RAFFLE_OPEN && r->n_parties > 0;
 }
 
-raffle_status_t raffle_ladder_plan_fee(const raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
-                                       uint64_t fee, const uint64_t *weights,
-                                       raffle_ladder_receipt_t *plan)
+raffle_status_t raffle_ladder_plan_span(const raffle_ladder_t *L,
+                                        const uint8_t owner[RAFFLE_ID_LEN], uint64_t fee,
+                                        const uint64_t *weights, uint32_t lo, uint32_t hi,
+                                        raffle_ladder_receipt_t *plan)
 {
     uint64_t wsum = 0, given = 0, carry = 0;
     raffle_status_t st;
     if (!L || !owner || !plan || L->n == 0) return RAFFLE_ERR_ARG;
-    for (uint32_t k = 0; k < L->n; k++) /* L1: every level must be switched on */
+    if (lo > hi || hi >= L->n) return RAFFLE_ERR_CONFIG; /* P5 */
+    for (uint32_t k = 0; k < L->n; k++)                  /* L1: every level must be switched on */
         if (!L->lv[k].cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
     if (fee == 0) return RAFFLE_ERR_DUST;
     const uint64_t *w = weights ? weights : L->weight;
-    for (uint32_t k = 0; k < L->n; k++)
+    for (uint32_t k = lo; k <= hi; k++)
         if (!pay_add_ok(wsum, w[k], &wsum)) return RAFFLE_ERR_CONFIG;
     if (wsum == 0) return RAFFLE_ERR_CONFIG;
 
     pay_memset(plan, 0, sizeof *plan);
     plan->fee = fee;
     int32_t top = -1;
-    for (uint32_t k = 0; k < L->n; k++) {
+    for (uint32_t k = lo; k <= hi; k++) { /* P5: nothing outside [lo, hi] */
         uint64_t s = 0;
         if (w[k]) (void) pay_muldiv(fee, w[k], wsum, &s, 0); /* P1: s <= fee */
         given += s;
@@ -91,7 +93,7 @@ raffle_status_t raffle_ladder_plan_fee(const raffle_ladder_t *L, const uint8_t o
     }
     if (top < 0) return RAFFLE_ERR_PHASE;
     /* P2: floor remainders and what cascaded past the top go to the highest
-     * ready level. Cascade already counted: only the remainder is new. */
+     * ready level (of the span). Cascade already counted: only the remainder is new. */
     plan->share[top] += carry + (fee - given);
     for (uint32_t k = 0; k < L->n; k++) { /* P3: check everything first */
         if (!plan->share[k]) continue;
@@ -100,6 +102,14 @@ raffle_status_t raffle_ladder_plan_fee(const raffle_ladder_t *L, const uint8_t o
         plan->first[k] = L->lv[k].tickets;
     }
     return RAFFLE_OK;
+}
+
+raffle_status_t raffle_ladder_plan_fee(const raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
+                                       uint64_t fee, const uint64_t *weights,
+                                       raffle_ladder_receipt_t *plan)
+{
+    if (!L || L->n == 0) return RAFFLE_ERR_ARG;
+    return raffle_ladder_plan_span(L, owner, fee, weights, 0, L->n - 1, plan);
 }
 
 raffle_status_t raffle_ladder_plan(const raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
@@ -136,6 +146,25 @@ raffle_status_t raffle_ladder_enter_fee(raffle_ladder_t *L, const uint8_t owner[
     raffle_ladder_receipt_t plan;
     if (!rate || rate->den == 0) return RAFFLE_ERR_ARG;
     raffle_status_t st = raffle_ladder_plan_fee(L, owner, fee, weights, &plan);
+    if (st != RAFFLE_OK) return st;
+    return mint_plan(L, owner, amount, rate, &plan, out);
+}
+
+raffle_status_t raffle_ladder_enter_span(raffle_ladder_t *L, const uint8_t owner[RAFFLE_ID_LEN],
+                                         uint64_t amount, const raffle_rate_t *rate, uint64_t fee,
+                                         const uint64_t *weights, uint32_t lo, uint32_t hi,
+                                         raffle_ladder_receipt_t *out)
+{
+    raffle_ladder_receipt_t plan;
+    uint64_t n;
+    if (!L || !rate || rate->den == 0 || L->n == 0) return RAFFLE_ERR_ARG;
+    if (fee == 0) { /* quote it, as raffle_ladder_enter does */
+        for (uint32_t k = 0; k < L->n; k++)
+            if (!L->lv[k].cfg.jurisdiction_permits) return RAFFLE_ERR_DISABLED;
+        raffle_status_t q = raffle_quote(&L->lv[0].cfg, amount, rate, &fee, &n);
+        if (q != RAFFLE_OK) return q;
+    }
+    raffle_status_t st = raffle_ladder_plan_span(L, owner, fee, weights, lo, hi, &plan);
     if (st != RAFFLE_OK) return st;
     return mint_plan(L, owner, amount, rate, &plan, out);
 }

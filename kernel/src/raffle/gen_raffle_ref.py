@@ -17,6 +17,7 @@ MIN_RATE = (987, 61000)  # the test deployment's floor
 MAX_RATE = (1, 2)
 SKIM = (987, 61000)
 GRANT = (5, 55)
+NAV = (1, 34)  # S5: a basket pot's NAV leg
 FIB_INDEX = 22  # F(22) = 17,711 fee units
 SHARE = (8, 21)
 EPOCHS = 3
@@ -79,8 +80,8 @@ def run_epoch(epoch, prev_link, out):
                      + u64(first) + u64(n) + b"\x00")
         pool += fee
         tickets += n
-    hdr = (b"ZXV-RAFFLE-HDR5" + u64(epoch) + u64(MIN_RATE[0]) + u64(MIN_RATE[1]) + u64(MAX_RATE[0]) + u64(MAX_RATE[1]) + u64(SKIM[0])
-           + u64(SKIM[1]) + u64(GRANT[0]) + u64(GRANT[1]) + u64(threshold) + u64(SHARE[0]) + u64(SHARE[1]) + u64(tickets) + u64(pool) + chain
+    hdr = (b"ZXV-RAFFLE-HDR6" + u64(epoch) + u64(MIN_RATE[0]) + u64(MIN_RATE[1]) + u64(MAX_RATE[0]) + u64(MAX_RATE[1]) + u64(SKIM[0])
+           + u64(SKIM[1]) + u64(GRANT[0]) + u64(GRANT[1]) + u64(NAV[0]) + u64(NAV[1]) + u64(threshold) + u64(SHARE[0]) + u64(SHARE[1]) + u64(tickets) + u64(pool) + chain
            + u64(PARTIES))
     for p, c in zip(parties, commits):
         hdr += p + c
@@ -101,12 +102,13 @@ def run_epoch(epoch, prev_link, out):
     winner = next(o for f, n, o in ranges if f <= win < f + n)
     skim = pool * SKIM[0] // SKIM[1]
     grant = pool * GRANT[0] // GRANT[1]
-    pot = pool - skim - grant
-    assert skim + grant + pot == pool and pot >= 0
-    link = sha3(b"ZXV-RAFFLE-SETTLE" + u64(epoch) + hh + seed + u64(win) + winner + u64(pool)
-                + u64(skim) + u64(grant) + u64(pot))
+    nav = pool * NAV[0] // NAV[1]
+    pot = pool - skim - grant - nav
+    assert skim + grant + nav + pot == pool and pot >= 0
+    link = sha3(b"ZXV-RAFFLE-SETTLE2" + u64(epoch) + hh + seed + u64(win) + winner + u64(pool)
+                + u64(skim) + u64(grant) + u64(nav) + u64(pot))
     for key, val in (("tickets", tickets), ("pool", pool), ("entries", len(ranges)),
-                     ("refused", refused), ("winning", win), ("skim", skim), ("grant", grant), ("pot", pot)):
+                     ("refused", refused), ("winning", win), ("skim", skim), ("grant", grant), ("nav", nav), ("pot", pot)):
         out.append(f"e{epoch}.{key} {val}")
     for key, val in (("header", hh), ("seed", seed), ("winner", winner), ("link", link)):
         out.append(f"e{epoch}.{key} {val.hex()}")

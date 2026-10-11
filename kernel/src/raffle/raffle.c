@@ -79,6 +79,47 @@ int raffle_rate_cmp(raffle_rate_t a, raffle_rate_t b)
     return pay_u128_cmp(pay_mul64(a.num, b.den), pay_mul64(b.num, a.den));
 }
 
+/* A 192-bit product of a 128-bit and a 64-bit number, as three limbs. */
+typedef struct {
+    uint64_t hi, mid, lo;
+} u192;
+
+static u192 mul128x64(pay_u128 a, uint64_t b)
+{
+    pay_u128 l = pay_mul64(a.lo, b), h = pay_mul64(a.hi, b);
+    u192 r;
+    r.lo = l.lo;
+    r.mid = l.hi + h.lo;
+    r.hi = h.hi + (r.mid < l.hi ? 1u : 0u);
+    return r;
+}
+
+static int cmp192(u192 a, u192 b)
+{
+    if (a.hi != b.hi) return a.hi < b.hi ? -1 : 1;
+    if (a.mid != b.mid) return a.mid < b.mid ? -1 : 1;
+    if (a.lo != b.lo) return a.lo < b.lo ? -1 : 1;
+    return 0;
+}
+
+/* S3: skim + grant + nav < 1, exactly. With D = skim_den * grant_den (128
+ * bits), the room left after skim and grant is
+ *     R = D - skim_num * grant_den - grant_num * skim_den   (out of D),
+ * computed without wrapping because each ratio is already below 1; the NAV
+ * slice fits iff nav_num * D < nav_den * R (192 bits). Each ratio's
+ * num < den is checked by the caller first. */
+static bool split_fits(const raffle_config_t *c)
+{
+    uint64_t gn = c->grant_den ? c->grant_num : 0, gd = c->grant_den ? c->grant_den : 1;
+    pay_u128 d = pay_mul64(c->skim_den, gd);
+    pay_u128 rest = pay_u128_sub(d, pay_mul64(c->skim_num, gd)); /* > 0 */
+    pay_u128 g = pay_mul64(gn, c->skim_den);
+    if (pay_u128_cmp(g, rest) >= 0) return false;
+    rest = pay_u128_sub(rest, g);
+    if (!c->nav_den || c->nav_num == 0) return true;
+    return cmp192(mul128x64(d, c->nav_num), mul128x64(rest, c->nav_den)) < 0;
+}
+
 raffle_status_t raffle_config_check(const raffle_config_t *c)
 {
     static const raffle_rate_t ceil = {RAFFLE_RATE_CEIL_NUM, RAFFLE_RATE_CEIL_DEN};
@@ -88,16 +129,9 @@ raffle_status_t raffle_config_check(const raffle_config_t *c)
     if (raffle_rate_cmp(c->min_rate, c->max_rate) > 0) return RAFFLE_ERR_CONFIG;
     if (raffle_rate_cmp(c->max_rate, ceil) > 0) return RAFFLE_ERR_CONFIG; /* F2 */
     if (c->skim_den == 0 || c->skim_num >= c->skim_den) return RAFFLE_ERR_CONFIG;
-    if (c->grant_den) {
-        /* S3: skim_num/skim_den + grant_num/grant_den < 1, in 128 bits:
-         * skim_num * grant_den + grant_num * skim_den < skim_den * grant_den,
-         * tested as grant_num * skim_den < D - skim_num * grant_den, which
-         * never wraps (skim_num < skim_den keeps the subtraction positive). */
-        if (c->grant_num >= c->grant_den) return RAFFLE_ERR_CONFIG;
-        pay_u128 rest = pay_u128_sub(pay_mul64(c->skim_den, c->grant_den),
-                                     pay_mul64(c->skim_num, c->grant_den));
-        if (pay_u128_cmp(pay_mul64(c->grant_num, c->skim_den), rest) >= 0) return RAFFLE_ERR_CONFIG;
-    }
+    if (c->grant_den && c->grant_num >= c->grant_den) return RAFFLE_ERR_CONFIG;
+    if (c->nav_den && c->nav_num >= c->nav_den) return RAFFLE_ERR_CONFIG;
+    if (!split_fits(c)) return RAFFLE_ERR_CONFIG; /* S3 */
     if (c->fib_index < RAFFLE_FIB_MIN || c->fib_index > RAFFLE_FIB_MAX) return RAFFLE_ERR_CONFIG;
     if (c->min_reveals > RAFFLE_MAX_PARTIES) return RAFFLE_ERR_CONFIG;
     if (c->share_den && (c->share_num == 0 || c->share_num > c->share_den))
@@ -200,7 +234,7 @@ static void header_hash(const raffle_t *r, uint8_t out[RAFFLE_HASH_LEN])
 {
     pre_t p;
     p.len = 0;
-    pre_str(&p, "ZXV-RAFFLE-HDR5");
+    pre_str(&p, "ZXV-RAFFLE-HDR6");
     pre_u64(&p, r->epoch);
     pre_u64(&p, r->cfg.min_rate.num);
     pre_u64(&p, r->cfg.min_rate.den);
@@ -210,6 +244,8 @@ static void header_hash(const raffle_t *r, uint8_t out[RAFFLE_HASH_LEN])
     pre_u64(&p, r->cfg.skim_den);
     pre_u64(&p, r->cfg.grant_num);
     pre_u64(&p, r->cfg.grant_den);
+    pre_u64(&p, r->cfg.nav_num);
+    pre_u64(&p, r->cfg.nav_den);
     pre_u64(&p, r->threshold);
     pre_u64(&p, r->cfg.share_num);
     pre_u64(&p, r->cfg.share_den);
@@ -438,7 +474,7 @@ static void settlement_link(const raffle_settlement_t *s, uint8_t out[RAFFLE_HAS
 {
     pre_t p;
     p.len = 0;
-    pre_str(&p, "ZXV-RAFFLE-SETTLE");
+    pre_str(&p, "ZXV-RAFFLE-SETTLE2");
     pre_u64(&p, s->epoch);
     pre_bytes(&p, s->header_hash, RAFFLE_HASH_LEN);
     pre_bytes(&p, s->seed, RAFFLE_HASH_LEN);
@@ -447,6 +483,7 @@ static void settlement_link(const raffle_settlement_t *s, uint8_t out[RAFFLE_HAS
     pre_u64(&p, s->pool);
     pre_u64(&p, s->reserve_skim);
     pre_u64(&p, s->grant_pool);
+    pre_u64(&p, s->nav_slice);
     pre_u64(&p, s->crown_pot);
     sha3_256(p.buf, p.len, out);
 }
@@ -486,7 +523,10 @@ raffle_status_t raffle_draw(const raffle_t *r, raffle_settlement_t *out)
     s.reserve_skim = ratio_floor(r->pool, r->cfg.skim_num, r->cfg.skim_den); /* S1 */
     s.grant_pool =
         r->cfg.grant_den ? ratio_floor(r->pool, r->cfg.grant_num, r->cfg.grant_den) : 0; /* S2 */
-    s.crown_pot = r->pool - s.reserve_skim - s.grant_pool; /* S3: config_check keeps it >= 0 */
+    s.nav_slice =
+        r->cfg.nav_den ? ratio_floor(r->pool, r->cfg.nav_num, r->cfg.nav_den) : 0; /* S5 */
+    /* S3: config_check keeps the sum of the three ratios below 1 */
+    s.crown_pot = r->pool - s.reserve_skim - s.grant_pool - s.nav_slice;
     settlement_link(&s, s.link);
     *out = s;
     return RAFFLE_OK;
@@ -498,6 +538,7 @@ bool raffle_post(const raffle_settlement_t *s, raffle_credit_fn credit, void *ct
     if (s->reserve_skim && !credit(ctx, RAFFLE_DEST_RESERVE_FLOOR, 0, s->reserve_skim))
         return false;
     if (s->grant_pool && !credit(ctx, RAFFLE_DEST_GRANT_POOL, 0, s->grant_pool)) return false;
+    if (s->nav_slice && !credit(ctx, RAFFLE_DEST_BASKET_NAV, 0, s->nav_slice)) return false;
     if (s->crown_pot && !credit(ctx, RAFFLE_DEST_WINNER, s->winner, s->crown_pot)) return false;
     return true;
 }

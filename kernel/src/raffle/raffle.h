@@ -103,15 +103,22 @@
  *       (about 9.09%, owner decision 2026-10-11), credited to the Olive Oil
  *       Barrel grant pool account (built in the finance thread; this module
  *       only names the destination). grant_den = 0 turns the slice off.
- *   S3  crown_pot = pool - reserve_skim - grant_pool, to the winning
- *       ticket's owner. Both floors' remainders land in the crown pot, so
- *       the three parts always sum to the pool exactly. raffle_config_check
- *       requires skim + grant < 1 (by cross-multiplication, 128-bit).
+ *   S3  crown_pot = pool - reserve_skim - grant_pool - nav_slice, to the
+ *       winning ticket's owner. Every floor's remainder lands in the crown
+ *       pot, so the parts always sum to the pool exactly.
+ *       raffle_config_check requires skim + grant + nav < 1 (exact, by
+ *       cross-multiplication in 128 and 192 bits).
  *   S4  raffle_draw() only computes the settlement. raffle_post() hands its
- *       three legs to a caller-supplied credit hook (reserve floor, grant
- *       pool, winner), which stages them into ONE balanced ledger posting;
+ *       legs to a caller-supplied credit hook (reserve floor, grant pool,
+ *       basket NAV, winner), which stages them into ONE balanced ledger posting;
  *       the caller commits that posting and then calls raffle_settle().
  *       Nothing moves inside this module.
+ *   S5  nav_slice = floor(pool * nav_num / nav_den), default off. Only a
+ *       basket token's own pot turns it on (raffle_token.h T7): the slice
+ *       is cut from the prize side, never from the reserve skim or the
+ *       grant slice, and is credited to RAFFLE_DEST_BASKET_NAV, where the
+ *       basket layer (finance build) buys more of that basket's BACKED
+ *       components, raising its NAV. This module only names the leg.
  *
  * Freestanding: no libc, no allocation, no floating point.
  */
@@ -186,6 +193,7 @@ typedef struct {
     uint64_t threshold;            /* E1: explicit threshold; 0 = F(fib_index) */
     uint32_t min_reveals;          /* R3: 0 = every committed party (default) */
     uint64_t share_num, share_den; /* F6: default 8/21; den 0 = no cap      */
+    uint64_t nav_num, nav_den;     /* S5: default off (den 0)               */
 } raffle_config_t;
 
 /* One contiguous run of ticket ids owned by one player. */
@@ -209,6 +217,7 @@ typedef struct {
     uint8_t winner[RAFFLE_ID_LEN];
     uint64_t reserve_skim; /* S1: to the reserve floor   */
     uint64_t grant_pool;   /* S2: to the grant pool      */
+    uint64_t nav_slice;    /* S5: to the basket's NAV    */
     uint64_t crown_pot;    /* S3: to the winner          */
     uint8_t header_hash[RAFFLE_HASH_LEN];
     uint8_t seed[RAFFLE_HASH_LEN];
@@ -325,16 +334,17 @@ raffle_status_t raffle_draw(const raffle_t *r, raffle_settlement_t *out);
 typedef enum {
     RAFFLE_DEST_RESERVE_FLOOR = 0, /* PAY_ASSURE_RESERVE_FLOOR account   */
     RAFFLE_DEST_GRANT_POOL = 1,    /* Olive Oil Barrel grant pool account */
-    RAFFLE_DEST_WINNER = 2         /* `who` = the winning owner           */
+    RAFFLE_DEST_WINNER = 2,        /* `who` = the winning owner           */
+    RAFFLE_DEST_BASKET_NAV = 3     /* S5: the basket token's component buy */
 } raffle_dest_t;
 
 /* Stage one leg; return false to abort. `who` is NULL except for the winner. */
 typedef bool (*raffle_credit_fn)(void *ctx, raffle_dest_t dest, const uint8_t *who,
                                  uint64_t amount);
 
-/* S4: call `credit` for the reserve floor, the grant pool and the winner, in
- * that order, skipping zero legs. Returns false on the first refusal (the
- * caller then discards its staged posting). */
+/* S4: call `credit` for the reserve floor, the grant pool, the basket NAV
+ * leg (S5) and the winner, in that order, skipping zero legs. Returns false on the first refusal
+ * (the caller then discards its staged posting). */
 bool raffle_post(const raffle_settlement_t *s, raffle_credit_fn credit, void *ctx);
 
 /* S4: after the caller has posted `s` to the ledger, mark the epoch settled.

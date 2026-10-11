@@ -46,7 +46,7 @@ static void reveal_one(raffle_t *r, uint8_t tag)
 }
 
 typedef struct {
-    uint64_t to[3];
+    uint64_t to[4];
     unsigned calls;
 } book_t;
 
@@ -69,6 +69,7 @@ static raffle_token_block_t zenny_block(void)
     b.slice_max = (raffle_rate_t){3, 5};  /* 60%: invalid, fixed below */
     b.savings_max = (raffle_rate_t){1, 2};
     b.local_fib_index = 12; /* 144 tickets */
+    b.nav = (raffle_rate_t){1, 34};
     return b;
 }
 
@@ -154,10 +155,48 @@ int main(void)
     t.target = RAFFLE_TOKEN_TARGET_NETWORK;
     CHECK(raffle_token_block_check(&t) == RAFFLE_ERR_MANIFEST, "fib index only for a local pot");
     t.local_fib_index = 0;
+    CHECK(raffle_token_block_check(&t) == RAFFLE_ERR_MANIFEST, "NAV leg only for a local pot");
+    t.nav = (raffle_rate_t){0, 0};
     CHECK(raffle_token_block_check(&t) == RAFFLE_OK, "network block");
     t = b;
     t.target = 2;
     CHECK(raffle_token_block_check(&t) == RAFFLE_ERR_MANIFEST, "unknown target");
+    t = b;
+    t.tier_lo = 1;
+    t.tier_hi = 12;
+    CHECK(raffle_token_block_check(&t) == RAFFLE_ERR_MANIFEST, "tier map only on the network");
+    t = b;
+    t.nav = (raffle_rate_t){1, 1};
+    CHECK(raffle_token_block_check(&t) == RAFFLE_ERR_MANIFEST, "NAV slice below 1");
+    raffle_token_block_t net;
+    raffle_token_block_default(&net);
+    net.events = RAFFLE_TOKEN_EV_TRANSFER;
+    net.slice_min = (raffle_rate_t){1, 100};
+    net.slice_max = (raffle_rate_t){1, 10};
+    net.tier_lo = 89;
+    net.tier_hi = 144;
+    CHECK(raffle_token_block_check(&net) == RAFFLE_OK, "tiers 89-144");
+    net.nav = (raffle_rate_t){1, 34};
+    CHECK(raffle_token_block_check(&net) == RAFFLE_ERR_MANIFEST, "no NAV leg on network pots");
+    net.nav = (raffle_rate_t){0, 0};
+    net.tier_hi = 145;
+    CHECK(raffle_token_block_check(&net) == RAFFLE_ERR_MANIFEST, "tier above 144");
+    net.tier_lo = 13;
+    net.tier_hi = 12;
+    CHECK(raffle_token_block_check(&net) == RAFFLE_ERR_MANIFEST, "tier lo above hi");
+    net.tier_lo = 0;
+    net.tier_hi = 12;
+    CHECK(raffle_token_block_check(&net) == RAFFLE_ERR_MANIFEST, "tier lo 0 with hi set");
+    net.tier_lo = 89;
+    net.tier_hi = 144;
+    uint32_t lo = 0, hi = 0;
+    CHECK(raffle_token_span(&net, 144, &lo, &hi) == RAFFLE_OK && lo == 88 && hi == 143,
+          "span 88..143 (0-based)");
+    CHECK(raffle_token_span(&net, 100, &lo, &hi) == RAFFLE_ERR_CONFIG, "ladder too short");
+    CHECK(raffle_token_span(&b, 144, &lo, &hi) == RAFFLE_ERR_MANIFEST, "local token has no span");
+    net.tier_lo = net.tier_hi = 0;
+    CHECK(raffle_token_span(&net, 144, &lo, &hi) == RAFFLE_OK && lo == 0 && hi == 143,
+          "no map = every level");
 
     /* ---- T5: the deployment switch wins ---- */
     raffle_config_t c;
@@ -189,10 +228,28 @@ int main(void)
     raffle_config_t dep2 = dep;
     dep2.max_rate = (raffle_rate_t){1, 100};
     CHECK(raffle_token_config(&dep2, &b, &c) == RAFFLE_ERR_RATE, "empty intersection");
+    CHECK(raffle_token_config(&dep, &b, &c) == RAFFLE_OK && c.nav_num == 1 && c.nav_den == 34,
+          "LOCAL pot carries the NAV slice");
+    t = b;
+    t.nav = (raffle_rate_t){9, 10}; /* 1.6% + 9.1% + 90% >= 1 */
+    CHECK(raffle_token_config(&dep, &t, &c) == RAFFLE_ERR_CONFIG, "NAV may not eat the skim");
+    raffle_config_t dep3 = dep;
+    dep3.nav_num = 1;
+    dep3.nav_den = 2;
+    t = b;
+    t.target = RAFFLE_TOKEN_TARGET_NETWORK;
+    t.local_fib_index = 0;
+    t.nav = (raffle_rate_t){0, 0};
+    CHECK(raffle_token_config(&dep3, &t, &c) == RAFFLE_OK && c.nav_den == 0,
+          "network config never carries a NAV slice");
     t = b;
     t.events = RAFFLE_TOKEN_EV_SAVINGS;
     t.slice_min = t.slice_max = (raffle_rate_t){0, 0};
-    CHECK(raffle_token_config(&dep, &t, &c) == RAFFLE_ERR_EVENT, "no slice events");
+    CHECK(raffle_token_config(&dep, &t, &c) == RAFFLE_OK && c.min_rate.den == dep.min_rate.den,
+          "savings-only pot: deployment rate range");
+    CHECK(raffle_token_check(&pol, &dep, &t, RAFFLE_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0,
+                             &fee) == RAFFLE_ERR_EVENT,
+          "no slice events");
     raffle_token_config(&dep, &b, &c);
 
     /* ---- G1 + T2: holder opt-in and events ---- */
@@ -232,6 +289,16 @@ int main(void)
     cc.grant_num = 0;
     raffle_init(&cheat, &cc, 1, NULL, rg, 64);
     CHECK(raffle_token_pot_check(&dep, &b, &cheat) == RAFFLE_ERR_CONFIG, "dropping grants refused");
+    cc = c;
+    cc.nav_num = 0; /* den kept: the leg would pay nothing */
+    raffle_init(&cheat, &cc, 1, NULL, rg, 64);
+    CHECK(raffle_token_pot_check(&dep, &b, &cheat) == RAFFLE_ERR_CONFIG,
+          "zeroing the NAV leg refused");
+    cc = c;
+    cc.nav_den = 35; /* a smaller NAV slice than the manifest says */
+    raffle_init(&cheat, &cc, 1, NULL, rg, 64);
+    CHECK(raffle_token_pot_check(&dep, &b, &cheat) == RAFFLE_ERR_CONFIG,
+          "a different NAV slice refused");
     t = b;
     t.target = RAFFLE_TOKEN_TARGET_NETWORK;
     t.local_fib_index = 0;
@@ -264,12 +331,13 @@ int main(void)
           "guard limits apply to token slices");
     reveal_one(&pot, 0x11);
     raffle_settlement_t s;
-    book_t bk = {{0, 0, 0}, 0};
+    book_t bk = {{0, 0, 0, 0}, 0};
     CHECK(raffle_draw(&pot, &s) == RAFFLE_OK && raffle_post(&s, credit, &bk), "draw + post");
     CHECK(bk.to[RAFFLE_DEST_RESERVE_FLOOR] == 150 * 987 / 61000 &&
               bk.to[RAFFLE_DEST_GRANT_POOL] == 150 * 5 / 55 &&
-              bk.to[0] + bk.to[1] + bk.to[2] == 150,
-          "local pot's skim goes to the main reserve floor");
+              bk.to[RAFFLE_DEST_BASKET_NAV] == 150 / 34 &&
+              bk.to[0] + bk.to[1] + bk.to[2] + bk.to[3] == 150 && bk.calls == 4,
+          "local pot: skim to the main reserve floor, NAV leg from the prize side");
 
     /* ---- T6: prize-linked savings ---- */
     raffle_player_t sv;
@@ -333,6 +401,34 @@ int main(void)
           "savings fee spread over the ladder, conserved");
     CHECK(raffle_ladder_enter_fee(&L, bob, 1003, &sv.rate, 0, NULL, &lr) == RAFFLE_ERR_DUST,
           "zero fee refused by the ladder");
+    /* T8 / P5: a payment confined to levels 2-3 never touches level 1. */
+    raffle_token_block_t top2;
+    raffle_token_block_default(&top2);
+    top2.events = RAFFLE_TOKEN_EV_TRANSFER;
+    top2.slice_min = (raffle_rate_t){1, 100};
+    top2.slice_max = (raffle_rate_t){1, 2};
+    top2.tier_lo = 2;
+    top2.tier_hi = 3;
+    uint64_t before0 = g_lv[0].tickets;
+    raffle_token_span(&top2, LADDER_N, &lo, &hi);
+    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, lo, hi,
+                                   &lr) == RAFFLE_OK &&
+              lr.fee == 100 && lr.share[0] == 0 && lr.share[1] + lr.share[2] == 100 &&
+              g_lv[0].tickets == before0,
+          "span 2-3: level 1 untouched, fee conserved");
+    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, 2, 1,
+                                   &lr) == RAFFLE_ERR_CONFIG &&
+              raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, 0,
+                                       LADDER_N, &lr) == RAFFLE_ERR_CONFIG,
+          "bad spans refused");
+    /* If no level in the span can take it, refuse rather than spill. */
+    raffle_t keep = g_lv[2];
+    g_lv[2].phase = RAFFLE_CLOSED;
+    CHECK(raffle_ladder_enter_span(&L, alice, 10000, &(raffle_rate_t){1, 100}, 0, NULL, 2, 2,
+                                   &lr) == RAFFLE_ERR_PHASE,
+          "closed span: refused, no spill");
+    g_lv[2] = keep;
+
     raffle_guard_commit(&pol, &sv, now, 1, fee);
     CHECK(raffle_token_savings_check(&pol, &dep, &b, &sv, 1600, now, 1, &fee) ==
               RAFFLE_ERR_DAY_LIMIT,

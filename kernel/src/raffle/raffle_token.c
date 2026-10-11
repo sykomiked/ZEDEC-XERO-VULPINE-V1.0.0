@@ -67,7 +67,19 @@ raffle_status_t raffle_token_block_check(const raffle_token_block_t *b)
         (b->target != RAFFLE_TOKEN_TARGET_LOCAL || b->local_fib_index < RAFFLE_FIB_MIN ||
          b->local_fib_index > RAFFLE_FIB_MAX))
         return RAFFLE_ERR_MANIFEST;
-    if (b->events == 0 && (b->target != 0 || b->local_fib_index != 0)) return RAFFLE_ERR_MANIFEST;
+    if (b->tier_lo || b->tier_hi) { /* T8 */
+        if (b->target != RAFFLE_TOKEN_TARGET_NETWORK || b->tier_lo == 0 ||
+            b->tier_lo > b->tier_hi || b->tier_hi > RAFFLE_LADDER_MAX)
+            return RAFFLE_ERR_MANIFEST;
+    }
+    if (!rate_zero(b->nav)) { /* T7 */
+        if (b->target != RAFFLE_TOKEN_TARGET_LOCAL || b->nav.den == 0 || b->nav.num == 0 ||
+            b->nav.num >= b->nav.den)
+            return RAFFLE_ERR_MANIFEST;
+    }
+    if (b->events == 0 && (b->target != 0 || b->local_fib_index != 0 || b->tier_lo || b->tier_hi ||
+                           !rate_zero(b->nav)))
+        return RAFFLE_ERR_MANIFEST;
     return RAFFLE_OK;
 }
 
@@ -89,6 +101,10 @@ raffle_status_t raffle_token_encode(const raffle_token_block_t *b,
     put64(out + 40, b->savings_max.num);
     put64(out + 48, b->savings_max.den);
     for (int i = 0; i < 4; i++) out[56 + i] = (uint8_t) (b->local_fib_index >> (24 - 8 * i));
+    out[60] = b->tier_lo;
+    out[61] = b->tier_hi;
+    put64(out + 64, b->nav.num);
+    put64(out + 72, b->nav.den);
     return RAFFLE_OK;
 }
 
@@ -97,7 +113,7 @@ raffle_status_t raffle_token_decode(const uint8_t *in, size_t len, raffle_token_
     raffle_token_block_t t;
     if (!in || !b) return RAFFLE_ERR_ARG;
     if (len != RAFFLE_TOKEN_BLOCK_LEN || !pay_memeq(in, MAGIC, 4) ||
-        in[4] != RAFFLE_TOKEN_VERSION || in[7] != 0 || in[60] || in[61] || in[62] || in[63])
+        in[4] != RAFFLE_TOKEN_VERSION || in[7] != 0 || in[62] || in[63])
         return RAFFLE_ERR_MANIFEST;
     t.events = in[5];
     t.target = in[6];
@@ -109,6 +125,10 @@ raffle_status_t raffle_token_decode(const uint8_t *in, size_t len, raffle_token_
     t.savings_max.den = get64(in + 48);
     t.local_fib_index = 0;
     for (int i = 0; i < 4; i++) t.local_fib_index = (t.local_fib_index << 8) | in[56 + i];
+    t.tier_lo = in[60];
+    t.tier_hi = in[61];
+    t.nav.num = get64(in + 64);
+    t.nav.den = get64(in + 72);
     raffle_status_t st = raffle_token_block_check(&t);
     if (st != RAFFLE_OK) return st;
     pay_memcpy(b, &t, sizeof t);
@@ -135,17 +155,40 @@ raffle_status_t raffle_token_config(const raffle_config_t *dep, const raffle_tok
     if (st == RAFFLE_OK) st = raffle_token_block_check(b);
     if (st != RAFFLE_OK) return st;
     if (!dep->jurisdiction_permits) return RAFFLE_ERR_DISABLED; /* T5 */
-    if (!(b->events & RAFFLE_TOKEN_EV_SLICES)) return RAFFLE_ERR_EVENT;
+    if (b->events == 0) return RAFFLE_ERR_EVENT;
     raffle_config_t c;
     pay_memcpy(&c, dep, sizeof c);
-    if (raffle_rate_cmp(b->slice_min, c.min_rate) > 0) c.min_rate = b->slice_min; /* T3 */
-    if (raffle_rate_cmp(b->slice_max, c.max_rate) < 0) c.max_rate = b->slice_max;
-    if (raffle_rate_cmp(c.min_rate, c.max_rate) > 0) return RAFFLE_ERR_RATE;
+    if (b->events & RAFFLE_TOKEN_EV_SLICES) { /* T3 */
+        if (raffle_rate_cmp(b->slice_min, c.min_rate) > 0) c.min_rate = b->slice_min;
+        if (raffle_rate_cmp(b->slice_max, c.max_rate) < 0) c.max_rate = b->slice_max;
+        if (raffle_rate_cmp(c.min_rate, c.max_rate) > 0) return RAFFLE_ERR_RATE;
+    }
     if (b->target == RAFFLE_TOKEN_TARGET_LOCAL && b->local_fib_index) { /* T4 */
         c.fib_index = b->local_fib_index;
         c.threshold = 0;
     }
+    c.nav_num = b->target == RAFFLE_TOKEN_TARGET_LOCAL ? b->nav.num : 0; /* T7 */
+    c.nav_den = b->target == RAFFLE_TOKEN_TARGET_LOCAL ? b->nav.den : 0;
+    if (raffle_config_check(&c) != RAFFLE_OK) return RAFFLE_ERR_CONFIG;
     pay_memcpy(out, &c, sizeof c);
+    return RAFFLE_OK;
+}
+
+raffle_status_t raffle_token_span(const raffle_token_block_t *b, uint32_t n, uint32_t *lo,
+                                  uint32_t *hi)
+{
+    if (!b || !lo || !hi || n == 0) return RAFFLE_ERR_ARG;
+    raffle_status_t st = raffle_token_block_check(b);
+    if (st != RAFFLE_OK) return st;
+    if (b->target != RAFFLE_TOKEN_TARGET_NETWORK) return RAFFLE_ERR_MANIFEST;
+    if (b->tier_lo == 0) { /* every level */
+        *lo = 0;
+        *hi = n - 1;
+        return RAFFLE_OK;
+    }
+    if (b->tier_hi > n) return RAFFLE_ERR_CONFIG;
+    *lo = b->tier_lo - 1u;
+    *hi = b->tier_hi - 1u;
     return RAFFLE_OK;
 }
 
@@ -163,7 +206,7 @@ raffle_status_t raffle_token_pot_check(const raffle_config_t *dep, const raffle_
         p->skim_num != c.skim_num || p->skim_den != c.skim_den || p->grant_num != c.grant_num ||
         p->grant_den != c.grant_den || p->fib_index != c.fib_index || p->threshold != c.threshold ||
         p->min_reveals != c.min_reveals || p->share_num != c.share_num ||
-        p->share_den != c.share_den)
+        p->share_den != c.share_den || p->nav_num != c.nav_num || p->nav_den != c.nav_den)
         return RAFFLE_ERR_CONFIG;
     return RAFFLE_OK;
 }
