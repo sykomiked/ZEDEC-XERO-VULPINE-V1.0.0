@@ -1,0 +1,24 @@
+<Project>
+  <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+  <!-- SPDX-License-Identifier: Apache-2.0 -->
+  <!-- Settings for the plain-.NET build of the Unity package's Runtime
+       (Unity itself compiles com.zedec.zxv/Runtime from its .asmdef). -->
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <Authors>Michael Laurence Curzi; 36N9 Genetics, LLC</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ZxvRepoSdk>$(MSBuildThisFileDirectory)../../../</ZxvRepoSdk>
+    <ZxvLibExt Condition="$([MSBuild]::IsOSPlatform('OSX'))">dylib</ZxvLibExt>
+    <ZxvLibExt Condition="'$(ZxvLibExt)' == ''">so</ZxvLibExt>
+    <ZxvNativeLib>$(ZxvRepoSdk)libzxv/build/libzxv.$(ZxvLibExt)</ZxvNativeLib>
+    <ZxvEmuLib>$(ZxvRepoSdk)engines/emu-state/build/libzxv_emu.$(ZxvLibExt)</ZxvEmuLib>
+  </PropertyGroup>
+</Project>
