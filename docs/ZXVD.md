@@ -71,12 +71,35 @@ CI checks it matches what zxvd serves.
 | `ledger.accounts` | | `accounts` |
 | `ledger.entries` | `account` | `entries` |
 | `ledger.check` | | `ok` |
+| `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32000 a libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
 never sent over the socket.
+
+## Swarm earnings in your books
+
+After every settled market cycle, zxvd posts the swarm's earnings into the
+owner's libzxv books, so they show up in a currency next to everything else.
+
+- The currency is VFV by default. `--earnings-ccy CODE` picks another: an ISO
+  4217 code (USD, NGN, ...) is enabled from the table, and any other code is
+  registered as a private unit with 2 minor units, as VFV is.
+- The first settled cycle opens two accounts in that currency: **swarm
+  market** (issuer) and **owner: swarm earnings** (holder).
+- Each cycle, the owner's balance is set to the swarm credit (SWC) that the
+  owner's models hold, times `--earnings-rate` (minor units per SWC, default
+  1, so 1 SWC shows as VFV 0.01). One balanced posting does it, referenced
+  `swarm earnings N`: market to owner when the holdings grew, owner to market
+  when they fell. The 0.08889% assurance fee shows as a fall; node bounties
+  coming back show as a rise. The fee buckets belong to no model and are not
+  counted.
+- The rate is a bookkeeping rate the owner sets, not a market price. No
+  exchange rate between SWC and VFV is published anywhere yet.
+- `swarm.earnings` reports it; `ledger.balance` and `ledger.entries` on the
+  owner account show the postings like any others.
 
 ## Tests
 
@@ -92,8 +115,10 @@ Q4_K_M (pinned SHA-256, cached, never in git).
 
 - The swarm's books (the settlement spine, unit "SWC", never leaves the
   node) and the owner's libzxv books are separate ledgers in one process.
-  How swarm settlement should show up in the owner's books is an owner
-  decision; nothing moves between them yet.
+  Only the owner's total holdings cross over, once per cycle, at a fixed
+  rate. Mesh sales to peers are not posted yet, and the owner's earnings
+  account starts again at each start, because the books are not saved to
+  disk yet.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
 - Windows: zxvd builds without the RPC socket (`--rpc` fails there).
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The

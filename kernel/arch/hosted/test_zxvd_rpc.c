@@ -342,7 +342,7 @@ static void test_host_methods(void)
               "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
               "\"notes.mark_read\",\"net.command\",\"update.check\",\"currency.enable\","
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-              "\"ledger.entries\",\"ledger.check\"]}"));
+              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -382,6 +382,18 @@ static void test_books_closed(void)
     EXPECT(REQ("1", "currency.enable", ",\"params\":{\"code\":\"USD\"}"),
            ERR("1", "-32603", "the books are not open"));
     EXPECT(REQ("1", "ledger.accounts", ""), ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "swarm.earnings", ""), ERR("1", "-32603", "the books are not open"));
+    CHECK(zxvd_rpc_earnings_sync(5) == 0, "earnings: nothing to mirror before the books open");
+    /* E1: the code is 3..8 bytes, the rate 1..ZXV_AMOUNT_MAX */
+    CHECK(zxvd_rpc_earnings_set("VF", 1) == -1, "earnings: a 2-byte code is refused");
+    CHECK(zxvd_rpc_earnings_set("ABCDEFGHI", 1) == -1, "earnings: a 9-byte code is refused");
+    CHECK(zxvd_rpc_earnings_set("ABCDEFGH", 1) == 0, "earnings: an 8-byte code is accepted");
+    CHECK(zxvd_rpc_earnings_set("VFV", 0) == -1, "earnings: rate 0 is refused");
+    CHECK(zxvd_rpc_earnings_set("VFV", (uint64_t) ZXV_AMOUNT_MAX + 1u) == -1,
+          "earnings: a rate above ZXV_AMOUNT_MAX is refused");
+    CHECK(zxvd_rpc_earnings_set("VFV", (uint64_t) ZXV_AMOUNT_MAX) == 0,
+          "earnings: rate ZXV_AMOUNT_MAX is accepted");
+    CHECK(zxvd_rpc_earnings_set("VFV", 1) == 0, "earnings: back to the default");
 }
 
 static void test_books(void)
@@ -645,6 +657,120 @@ static bool closed_by_server(int fd)
     return false;
 }
 
+/* zxvd_rpc.h E1-E4. Runs after test_books: the books are open, in VFV. */
+static size_t count(const char *s, const char *needle)
+{
+    size_t n = 0;
+    for (const char *p = strstr(s, needle); p; p = strstr(p + 1, needle)) n++;
+    return n;
+}
+
+static void test_earnings(void)
+{
+    char req[400], want[400];
+    CHECK(zxvd_rpc_earnings_set("USD", 1) == -1, "earnings: no change once the books are open");
+    EXPECT(REQ("1", "swarm.earnings", ""),
+           OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":null,"
+                   "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
+                   "\"cycles\":\"0\"}"));
+    uint32_t src = (uint32_t) count(rpc(REQ("1", "ledger.accounts", "")), "\"account\":");
+    uint32_t own = src + 1u;
+    CHECK(zxvd_rpc_earnings_sync(1000) == 0, "earnings: the first cycle posts");
+#define EARN(bal, posts, cycles)                                                                   \
+    snprintf(want, sizeof want,                                                                    \
+             OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":%u,"           \
+                     "\"owner_account\":%u,\"balance_minor\":\"" bal "\",\"postings\":\"" posts    \
+                     "\",\"cycles\":\"" cycles "\"}"),                                             \
+             src, own);                                                                            \
+    EXPECT(REQ("1", "swarm.earnings", ""), want)
+    EARN("1000", "1", "1");
+    snprintf(req, sizeof req, REQ("2", "ledger.accounts", ""));
+    snprintf(want, sizeof want,
+             "{\"account\":%u,\"name\":\"swarm market\",\"currency\":\"VFV\",\"kind\":\"issuer\"},"
+             "{\"account\":%u,\"name\":\"owner: swarm earnings\",\"currency\":\"VFV\","
+             "\"kind\":\"holder\"}]",
+             src, own);
+    CHECK(has(req, want), "earnings: an issuer and a holder in VFV: %s", OUT.p);
+#define BAL(acct, d, cr, eq)                                                                       \
+    snprintf(req, sizeof req, REQ("3", "ledger.balance", ",\"params\":{\"account\":%u}"), acct);   \
+    EXPECT(req, OK("3", "{\"debit_minor\":\"" d "\",\"credit_minor\":\"" cr                        \
+                        "\",\"equity_minor\":\"" eq "\"}"))
+    BAL(own, "1000", "0", "1000");
+    snprintf(req, sizeof req, REQ("4", "ledger.entries", ",\"params\":{\"account\":%u}"), own);
+    snprintf(want, sizeof want,
+             "\"signed_minor\":\"1000\",\"counterparty\":%u,\"reference\":\"swarm earnings 1\"}]",
+             src);
+    CHECK(has(req, want), "earnings: posted from the market: %s", OUT.p);
+    /* unchanged holdings: a cycle, no posting */
+    CHECK(zxvd_rpc_earnings_sync(1000) == 0, "earnings: an unchanged cycle");
+    EARN("1000", "1", "2");
+    /* the fee leaves the models: owner -> market */
+    CHECK(zxvd_rpc_earnings_sync(997) == 0, "earnings: a fall posts back");
+    EARN("997", "2", "3");
+    BAL(own, "1000", "3", "997");
+    snprintf(req, sizeof req, REQ("4", "ledger.entries", ",\"params\":{\"account\":%u}"), own);
+    snprintf(want, sizeof want,
+             "\"signed_minor\":\"-3\",\"counterparty\":%u,\"reference\":\"swarm earnings 2\"}]",
+             src);
+    CHECK(has(req, want), "earnings: 3 back to the market: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(0) == 0, "earnings: down to nothing");
+    EARN("0", "3", "4");
+    CHECK(zxvd_rpc_earnings_sync((uint64_t) ZXV_AMOUNT_MAX + 1u) == -1,
+          "earnings: above ZXV_AMOUNT_MAX is refused");
+    EARN("0", "3", "4");
+    CHECK(zxvd_rpc_earnings_sync(5) == 0, "earnings: back up");
+    EARN("5", "4", "5");
+    /* a refused posting (its reference already used) changes nothing */
+    snprintf(req, sizeof req,
+             REQ("5", "ledger.post",
+                 ",\"params\":{\"from\":%u,\"to\":%u,\"amount_minor\":1,\"currency\":\"VFV\","
+                 "\"reference\":\"swarm earnings 5\"}"),
+             src, own);
+    CHECK(has(req, "\"result\""), "a manual posting takes the next reference: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(7) == -1, "earnings: a refused posting is reported");
+    EARN("5", "4", "5");
+    BAL(own, "1006", "1000", "6");
+    EXPECT(REQ("6", "ledger.check", ""), OK("6", "{\"ok\":true}"));
+
+    /* another currency and rate: an ISO code is enabled from the table */
+    zxvd_rpc_books_close();
+    EXPECT(REQ("1", "swarm.earnings", ""), ERR("1", "-32603", "the books are not open"));
+    CHECK(zxvd_rpc_earnings_set("USD", 100) == 0, "earnings: USD at 100 per credit");
+    CHECK(zxvd_rpc_books_open() == 0, "books open in USD");
+    EXPECT(REQ("1", "swarm.earnings", ""),
+           OK("1", "{\"currency\":\"USD\",\"rate_minor\":\"100\",\"source_account\":null,"
+                   "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
+                   "\"cycles\":\"0\"}"));
+    CHECK(zxvd_rpc_earnings_sync((uint64_t) ZXV_AMOUNT_MAX / 100u + 1u) == -1,
+          "earnings: credits times the rate above ZXV_AMOUNT_MAX are refused");
+    EXPECT(REQ("1", "ledger.accounts", ""), OK("1", "{\"accounts\":[]}"));
+    CHECK(zxvd_rpc_earnings_sync(3) == 0, "earnings: 3 credits");
+    EXPECT(REQ("1", "swarm.earnings", ""),
+           OK("1", "{\"currency\":\"USD\",\"rate_minor\":\"100\",\"source_account\":0,"
+                   "\"owner_account\":1,\"balance_minor\":\"300\",\"postings\":\"1\","
+                   "\"cycles\":\"1\"}"));
+    BAL(1u, "300", "0", "300");
+    /* a code libzxv refuses keeps the books closed */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_earnings_set("vfv", 1) == 0, "earnings: a lower-case code is set");
+    CHECK(zxvd_rpc_books_open() == -1, "and refused when the books open");
+    EXPECT(REQ("1", "ledger.check", ""), ERR("1", "-32603", "the books are not open"));
+    CHECK(zxvd_rpc_earnings_sync(3) == 0, "earnings: nothing to mirror while closed");
+    /* the accounts open at the first settled cycle, after any the owner opened */
+    CHECK(zxvd_rpc_earnings_set("VFV", 1) == 0, "earnings: back to VFV");
+    CHECK(zxvd_rpc_books_open() == 0, "books open in VFV");
+    EXPECT(
+        REQ("1", "ledger.open_account", ",\"params\":{\"name\":\"filler\",\"currency\":\"VFV\"}"),
+        OK("1", "{\"account\":0}"));
+    CHECK(zxvd_rpc_earnings_sync(2) == 0, "earnings: 2 credits");
+    EXPECT(REQ("1", "swarm.earnings", ""),
+           OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":1,"
+                   "\"owner_account\":2,\"balance_minor\":\"2\",\"postings\":\"1\","
+                   "\"cycles\":\"1\"}"));
+#undef EARN
+#undef BAL
+}
+
 static void test_socket(void)
 {
     char tmpl[] = "/tmp/zxvdrpc.XXXXXX";
@@ -861,6 +987,7 @@ int main(void)
     test_host_methods();
     test_books_closed();
     test_books();
+    test_earnings();
     test_socket();
     free(OUT.p);
     if (fails) {
