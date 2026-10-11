@@ -29,8 +29,8 @@
  * with other signatures; the executable's definitions win over libzxv's
  * exported ones, so this file must never call libzxv's zxv_model_* forms. */
 
-#define MAX_TOK   512
-#define PROTOCOL  "zxvd-rpc/1"
+#define MAX_TOK  512
+#define PROTOCOL "zxvd-rpc/1"
 
 /* JSON-RPC 2.0 error codes */
 #define E_PARSE    (-32700)
@@ -136,7 +136,7 @@ typedef struct {
     const char *js;
     const w4_jtok_t *t;
     int32_t n;
-    int32_t params; /* token index of the params object, or -1 */
+    int32_t params;  /* token index of the params object, or -1 */
     zxvd_buf_t *res; /* the "result" value */
     int err;         /* 0, or a JSON-RPC error code */
     char msg[160];
@@ -235,8 +235,10 @@ static bool p_amount(call_t *c, const char *key, int64_t *v)
         uint64_t x = 0;
         bool ok = p < e && e - p <= 19;
         for (; ok && p < e; p++) {
-            if (*p < '0' || *p > '9') ok = false;
-            else x = x * 10u + (uint64_t) (*p - '0');
+            if (*p < '0' || *p > '9')
+                ok = false;
+            else
+                x = x * 10u + (uint64_t) (*p - '0');
         }
         if (ok && x <= (uint64_t) INT64_MAX) {
             *v = neg ? -(int64_t) x : (int64_t) x;
@@ -264,8 +266,10 @@ static void m_ask(call_t *c)
     zxvd_buf_t a = {0};
     OPS->ask(prompt, &a);
     zxvd_buf_raw(c->res, "{\"answer\":", 10);
-    if (a.p) zxvd_buf_raw(c->res, a.p, a.len);
-    else zxvd_buf_raw(c->res, "\"\"", 2);
+    if (a.p)
+        zxvd_buf_raw(c->res, a.p, a.len);
+    else
+        zxvd_buf_raw(c->res, "\"\"", 2);
     zxvd_buf_raw(c->res, "}", 1);
     free(a.p);
 }
@@ -320,9 +324,9 @@ static void m_version(call_t *c)
     zxv_features(&feat);
     zxvd_buf_raw(c->res, "{\"app\":", 7);
     zxvd_buf_json_str(c->res, OPS && OPS->app_version ? OPS->app_version : "unknown");
-    zxvd_buf_printf(c->res,
-                    ",\"protocol\":\"" PROTOCOL "\",\"libzxv\":\"%u.%u.%u\",\"libzxv_features\":%u}",
-                    (unsigned) ma, (unsigned) mi, (unsigned) pa, (unsigned) feat);
+    zxvd_buf_printf(
+        c->res, ",\"protocol\":\"" PROTOCOL "\",\"libzxv\":\"%u.%u.%u\",\"libzxv_features\":%u}",
+        (unsigned) ma, (unsigned) mi, (unsigned) pa, (unsigned) feat);
 }
 
 /* ----- book methods (M2), all through CAP ----- */
@@ -382,8 +386,9 @@ static void m_balance(call_t *c)
     int64_t d, cr, eq;
     if (!books(c) || !p_u32(c, "account", &acct)) return;
     if (!zok(c, zxv_ledger_balance_cap(CAP, acct, &d, &cr, &eq))) return;
-    zxvd_buf_printf(c->res, "{\"debit_minor\":\"%lld\",\"credit_minor\":\"%lld\",\"equity_minor\":\"%lld\"}",
-                    (long long) d, (long long) cr, (long long) eq);
+    zxvd_buf_printf(
+        c->res, "{\"debit_minor\":\"%lld\",\"credit_minor\":\"%lld\",\"equity_minor\":\"%lld\"}",
+        (long long) d, (long long) cr, (long long) eq);
 }
 
 static void m_accounts(call_t *c)
@@ -525,8 +530,7 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     }
     if (t[0].type != W4_J_OBJ) {
         put_error(out, line, t, -1, E_REQUEST,
-                  t[0].type == W4_J_ARR ? "batches are not supported" : "not a request object",
-                  0);
+                  t[0].type == W4_J_ARR ? "batches are not supported" : "not a request object", 0);
         return true;
     }
     int32_t id = w4_json_get(line, t, n, 0, "id");
@@ -604,7 +608,7 @@ void zxvd_rpc_close(void)
 #else
 
 typedef struct {
-    int fd; /* -1 when free */
+    int fd;                         /* -1 when free */
     char in[ZXVD_RPC_MAX_LINE + 2]; /* a full-length line, its LF, and a NUL */
     size_t n;
     uint64_t last_ms;

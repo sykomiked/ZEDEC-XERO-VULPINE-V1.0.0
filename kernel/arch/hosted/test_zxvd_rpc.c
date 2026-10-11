@@ -90,8 +90,8 @@ static void h_empty(zxvd_buf_t *o)
     (void) o; /* writes nothing: must become -32603 "no result" */
 }
 
-static const zxvd_host_ops_t OPS = {h_state,      h_ask, h_model,  h_notes,   h_notes_read,
-                                    h_net,        h_update, h_shutdown, "9.8.7"};
+static const zxvd_host_ops_t OPS = {h_state, h_ask,    h_model,    h_notes, h_notes_read,
+                                    h_net,   h_update, h_shutdown, "9.8.7"};
 static const zxvd_host_ops_t NONE = {0};
 static const zxvd_host_ops_t EMPTY = {h_empty, 0, 0, 0, 0, 0, 0, 0, 0};
 static const zxvd_host_ops_t SILENT = {0, h_ask_silent, 0, 0, 0, 0, 0, 0, 0};
@@ -139,7 +139,8 @@ static bool has(const char *req, const char *needle)
 static void test_buf(void)
 {
     zxvd_buf_t b = {0};
-    zxvd_buf_json_str(&b, "a\"b\\c\n\x1f" "d\x7f");
+    zxvd_buf_json_str(&b, "a\"b\\c\n\x1f"
+                          "d\x7f");
     CHECK(b.p && !strcmp(b.p, "\"a\\\"b\\\\c\\u000a\\u001fd\x7f\""), "json_str escapes: %s", b.p);
     size_t before = b.len;
     zxvd_buf_printf(&b, "%d-%s", -42, "x");
@@ -234,8 +235,11 @@ static void test_protocol(void)
     EXPECT("{\"jsonrpc\":\"1.0\",\"method\":\"swarm.state\"}", "<none>");
     /* a request with more than 512 tokens */
     char big[8192];
-    size_t n = (size_t) snprintf(big, sizeof big, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"swarm.state\",\"params\":{\"a\":[");
-    for (int i = 0; i < 600; i++) n += (size_t) snprintf(big + n, sizeof big - n, "%s0", i ? "," : "");
+    size_t n = (size_t) snprintf(
+        big, sizeof big,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"swarm.state\",\"params\":{\"a\":[");
+    for (int i = 0; i < 600; i++)
+        n += (size_t) snprintf(big + n, sizeof big - n, "%s0", i ? "," : "");
     snprintf(big + n, sizeof big - n, "]}}");
     EXPECT(big, ERR("null", "-32600", "request too complex"));
     /* nesting deeper than 16 */
@@ -269,7 +273,8 @@ static void test_host_methods(void)
     EXPECT(REQ("2", "swarm.ask", ",\"params\":{\"prompt\":\"hi \\u00e9\"}"),
            OK("2", "{\"answer\":\"re: \\\"x\\\"\\\\\\u000a\\u0001\"}"));
     CHECK(!strcmp(last_prompt, "hi \xc3\xa9"), "prompt decoded: %s", last_prompt);
-    EXPECT(REQ("3", "swarm.ask", ""), ERR("3", "-32602", "missing string parameter \\\"prompt\\\""));
+    EXPECT(REQ("3", "swarm.ask", ""),
+           ERR("3", "-32602", "missing string parameter \\\"prompt\\\""));
     EXPECT(REQ("3", "swarm.ask", ",\"params\":{\"prompt\":1}"),
            ERR("3", "-32602", "\\\"prompt\\\" must be a string of at most 4095 bytes"));
     EXPECT(REQ("3", "swarm.ask", ",\"params\":{\"prompt\":null}"),
@@ -278,7 +283,9 @@ static void test_host_methods(void)
            ERR("3", "-32602", "\\\"prompt\\\" must not contain NUL"));
     /* 4095 bytes fit, 4096 do not */
     static char req[5000];
-    int k = snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"swarm.ask\",\"params\":{\"prompt\":\"");
+    int k = snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"swarm.ask\",\"params\":{\"prompt\":\"");
     memset(req + k, 'p', 4095);
     strcpy(req + k + 4095, "\"}}");
     CHECK(has(req, "\"result\"") && strlen(last_prompt) == 4095, "a 4095-byte prompt is accepted");
@@ -299,7 +306,8 @@ static void test_host_methods(void)
     EXPECT(REQ("8", "net.command", ",\"params\":{\"command\":\"everything\"}"),
            ERR("8", "-32602", "command must be off, lan, online, peer, share, want or sell"));
     CHECK(!strcmp(last_net, "everything"), "the command reaches the host");
-    EXPECT(REQ("8", "net.command", ""), ERR("8", "-32602", "missing string parameter \\\"command\\\""));
+    EXPECT(REQ("8", "net.command", ""),
+           ERR("8", "-32602", "missing string parameter \\\"command\\\""));
     /* 255-byte commands reach the host, 256 do not */
     k = snprintf(
         req, sizeof req,
@@ -326,22 +334,26 @@ static void test_host_methods(void)
     EXPECT(REQ("10", "zxvd.version", ""), want);
     CHECK(ma == 1 && mi >= 2, "libzxv ABI 1.2 or later (%u.%u)", ma, mi);
     EXPECT(REQ("11", "rpc.discover", ""),
-           OK("11", "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
-                    "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
-                    "\"notes.mark_read\",\"net.command\",\"update.check\",\"currency.enable\","
-                    "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-                    "\"ledger.entries\",\"ledger.check\"]}"));
+           OK("11",
+              "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
+              "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
+              "\"notes.mark_read\",\"net.command\",\"update.check\",\"currency.enable\","
+              "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
+              "\"ledger.entries\",\"ledger.check\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
 
     /* a host without these ops */
     zxvd_rpc_set_ops(&NONE);
-    const char *ms[] = {"swarm.state", "swarm.ask", "model.info", "notes.list", "notes.mark_read",
-                        "net.command", "update.check", "zxvd.shutdown"};
+    const char *ms[] = {"swarm.state",     "swarm.ask",   "model.info",   "notes.list",
+                        "notes.mark_read", "net.command", "update.check", "zxvd.shutdown"};
     for (size_t i = 0; i < sizeof ms / sizeof ms[0]; i++) {
         char r[200], w[200];
-        snprintf(r, sizeof r, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\",\"params\":{\"prompt\":\"x\",\"command\":\"lan\"}}", ms[i]);
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\",\"params\":{\"prompt\":\"x\","
+                 "\"command\":\"lan\"}}",
+                 ms[i]);
         snprintf(w, sizeof w, ERR("1", "-32601", "not available"));
         EXPECT(r, w);
     }
@@ -379,11 +391,13 @@ static void test_books(void)
            OK("2", "{\"enabled\":\"USD\"}"));
     EXPECT(REQ("2", "currency.enable", ",\"params\":{\"code\":\"NGN\"}"),
            OK("2", "{\"enabled\":\"NGN\"}"));
-    EXPECT(REQ("2", "currency.enable", ",\"params\":{\"code\":\"XXQ\"}"),
-           "{\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":-32000,\"message\":\"ZXV_E_CURRENCY: "
-           "'XXQ' is not an ISO 4217 currency\",\"data\":{\"status\":-7,\"name\":\"ZXV_E_CURRENCY\","
-           "\"class\":\"USAGE\"}}}");
-    EXPECT(REQ("2", "currency.enable", ""), ERR("2", "-32602", "missing string parameter \\\"code\\\""));
+    EXPECT(
+        REQ("2", "currency.enable", ",\"params\":{\"code\":\"XXQ\"}"),
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":-32000,\"message\":\"ZXV_E_CURRENCY: "
+        "'XXQ' is not an ISO 4217 currency\",\"data\":{\"status\":-7,\"name\":\"ZXV_E_CURRENCY\","
+        "\"class\":\"USAGE\"}}}");
+    EXPECT(REQ("2", "currency.enable", ""),
+           ERR("2", "-32602", "missing string parameter \\\"code\\\""));
     EXPECT(REQ("2", "currency.enable", ",\"params\":{\"code\":\"0123456789ABCDEF\"}"),
            ERR("2", "-32602", "\\\"code\\\" must be a string of at most 15 bytes"));
 
@@ -408,19 +422,22 @@ static void test_books(void)
            ERR("3", "-32602", "missing string parameter \\\"name\\\""));
     EXPECT(REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"x\"}"),
            ERR("3", "-32602", "missing string parameter \\\"currency\\\""));
-    CHECK(has(REQ("3", "ledger.open_account",
-                  ",\"params\":{\"name\":\"x\",\"currency\":\"EUR\"}"),
+    CHECK(has(REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"x\",\"currency\":\"EUR\"}"),
               "\"name\":\"ZXV_E_CURRENCY\""),
           "a disabled currency is refused by libzxv");
     /* 63-byte names fit, 64 do not */
     char req[800], nm[80];
     memset(nm, 'n', 63);
     nm[63] = 0;
-    snprintf(req, sizeof req, REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"%s\",\"currency\":\"USD\"}"), nm);
+    snprintf(req, sizeof req,
+             REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"%s\",\"currency\":\"USD\"}"),
+             nm);
     EXPECT(req, OK("3", "{\"account\":4}"));
     nm[63] = 'n';
     nm[64] = 0;
-    snprintf(req, sizeof req, REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"%s\",\"currency\":\"USD\"}"), nm);
+    snprintf(req, sizeof req,
+             REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"%s\",\"currency\":\"USD\"}"),
+             nm);
     EXPECT(req, ERR("3", "-32602", "\\\"name\\\" must be a string of at most 63 bytes"));
     /* refused names, currencies and kinds open nothing (the account list is checked below) */
     EXPECT(REQ("3", "ledger.open_account",
@@ -443,19 +460,23 @@ static void test_books(void)
         ",\"currency\":\"USD\",\"reference\":\"" ref "\"}")
     EXPECT(POST("0", "1", "10000", "R1"), OK("4", "{\"entry_id\":\"1\"}"));
     EXPECT(POST("1", "2", "2550", "R2"), OK("4", "{\"entry_id\":\"2\"}"));
-    CHECK(has(POST("2", "1", "2551", "R3"), "\"data\":{\"status\":-6,\"name\":\"ZXV_E_FUNDS\",\"class\":\"REFUSED\"}"),
+    CHECK(has(POST("2", "1", "2551", "R3"),
+              "\"data\":{\"status\":-6,\"name\":\"ZXV_E_FUNDS\",\"class\":\"REFUSED\"}"),
           "overdraft: ZXV_E_FUNDS");
     EXPECT(POST("2", "1", "2550", "R4"), OK("4", "{\"entry_id\":\"3\"}"));
     CHECK(has(POST("1", "2", "1", "R1"), "\"name\":\"ZXV_E_DUPLICATE\""), "reused reference");
     CHECK(has(POST("1", "2", "0", "R5"), "\"name\":\"ZXV_E_RANGE\""), "zero amount");
     CHECK(has(POST("1", "2", "-5", "R6"), "\"name\":\"ZXV_E_RANGE\""), "negative amount");
     CHECK(has(POST("1", "9", "1", "R7"), "\"name\":\"ZXV_E_NOT_FOUND\""), "unknown account");
-    EXPECT(POST("1", "2", "1.5", "R8"),
-           ERR("4", "-32602", "\\\"amount_minor\\\" must be an integer or a decimal string (no fraction or exponent)"));
-    EXPECT(POST("1", "2", "1e3", "R8"),
-           ERR("4", "-32602", "\\\"amount_minor\\\" must be an integer or a decimal string (no fraction or exponent)"));
-    EXPECT(POST("1", "2", "\"5.0\"", "R8"),
-           ERR("4", "-32602", "\\\"amount_minor\\\" must be an integer or a decimal string (no fraction or exponent)"));
+    EXPECT(POST("1", "2", "1.5", "R8"), ERR("4", "-32602",
+                                            "\\\"amount_minor\\\" must be an integer or a decimal "
+                                            "string (no fraction or exponent)"));
+    EXPECT(POST("1", "2", "1e3", "R8"), ERR("4", "-32602",
+                                            "\\\"amount_minor\\\" must be an integer or a decimal "
+                                            "string (no fraction or exponent)"));
+    EXPECT(POST("1", "2", "\"5.0\"", "R8"), ERR("4", "-32602",
+                                                "\\\"amount_minor\\\" must be an integer or a "
+                                                "decimal string (no fraction or exponent)"));
     EXPECT(POST("-1", "2", "1", "R8"), ERR("4", "-32602", "\\\"from\\\" is out of range"));
     EXPECT(POST("4294967296", "2", "1", "R8"), ERR("4", "-32602", "\\\"from\\\" is out of range"));
     CHECK(has(POST("4294967295", "2", "1", "R8"), "\"name\":\"ZXV_E_NOT_FOUND\""),
@@ -483,28 +504,35 @@ static void test_books(void)
         ERR("4", "-32602", "\\\"currency\\\" must be a string of at most 15 bytes"));
     EXPECT(POST("1", "2", "1", "R9"), OK("4", "{\"entry_id\":\"4\"}"));
 
-    EXPECT(REQ("5", "ledger.balance", ",\"params\":{\"account\":1}"),
-           OK("5", "{\"debit_minor\":\"12550\",\"credit_minor\":\"2551\",\"equity_minor\":\"9999\"}"));
+    EXPECT(
+        REQ("5", "ledger.balance", ",\"params\":{\"account\":1}"),
+        OK("5", "{\"debit_minor\":\"12550\",\"credit_minor\":\"2551\",\"equity_minor\":\"9999\"}"));
     EXPECT(REQ("5", "ledger.balance", ",\"params\":{\"account\":2}"),
            OK("5", "{\"debit_minor\":\"2551\",\"credit_minor\":\"2550\",\"equity_minor\":\"1\"}"));
-    EXPECT(REQ("5", "ledger.balance", ",\"params\":{\"account\":0}"),
-           OK("5", "{\"debit_minor\":\"0\",\"credit_minor\":\"10000\",\"equity_minor\":\"-10000\"}"));
+    EXPECT(
+        REQ("5", "ledger.balance", ",\"params\":{\"account\":0}"),
+        OK("5", "{\"debit_minor\":\"0\",\"credit_minor\":\"10000\",\"equity_minor\":\"-10000\"}"));
     CHECK(has(REQ("5", "ledger.balance", ",\"params\":{\"account\":44}"), "ZXV_E_NOT_FOUND"),
           "unknown account balance");
-    EXPECT(REQ("5", "ledger.balance", ""), ERR("5", "-32602", "missing integer parameter \\\"account\\\""));
+    EXPECT(REQ("5", "ledger.balance", ""),
+           ERR("5", "-32602", "missing integer parameter \\\"account\\\""));
 
     EXPECT(REQ("6", "ledger.entries", ",\"params\":{\"account\":2}"),
-           OK("6", "{\"entries\":[{\"entry_id\":\"2\",\"signed_minor\":\"2550\",\"counterparty\":1,"
-                   "\"reference\":\"R2\"},{\"entry_id\":\"3\",\"signed_minor\":\"-2550\",\"counterparty\":1,"
-                   "\"reference\":\"R4\"},{\"entry_id\":\"4\",\"signed_minor\":\"1\",\"counterparty\":1,"
-                   "\"reference\":\"R9\"}]}"));
+           OK("6",
+              "{\"entries\":[{\"entry_id\":\"2\",\"signed_minor\":\"2550\",\"counterparty\":1,"
+              "\"reference\":\"R2\"},{\"entry_id\":\"3\",\"signed_minor\":\"-2550\","
+              "\"counterparty\":1,"
+              "\"reference\":\"R4\"},{\"entry_id\":\"4\",\"signed_minor\":\"1\",\"counterparty\":1,"
+              "\"reference\":\"R9\"}]}"));
     EXPECT(REQ("6", "ledger.entries", ",\"params\":{\"account\":3}"), OK("6", "{\"entries\":[]}"));
     CHECK(has(REQ("6", "ledger.entries", ",\"params\":{\"account\":99}"), "ZXV_E_NOT_FOUND"),
           "unknown account journal");
-    EXPECT(REQ("6", "ledger.entries", ""), ERR("6", "-32602", "missing integer parameter \\\"account\\\""));
+    EXPECT(REQ("6", "ledger.entries", ""),
+           ERR("6", "-32602", "missing integer parameter \\\"account\\\""));
 
     snprintf(req, sizeof req,
-             OK("7", "{\"accounts\":[{\"account\":0,\"name\":\"bank\",\"currency\":\"USD\",\"kind\":\"issuer\"},"
+             OK("7", "{\"accounts\":[{\"account\":0,\"name\":\"bank\",\"currency\":\"USD\","
+                     "\"kind\":\"issuer\"},"
                      "{\"account\":1,\"name\":\"alice\",\"currency\":\"USD\",\"kind\":\"holder\"},"
                      "{\"account\":2,\"name\":\"bob\",\"currency\":\"USD\",\"kind\":\"holder\"},"
                      "{\"account\":3,\"name\":\"ng\",\"currency\":\"NGN\",\"kind\":\"holder\"},"
@@ -513,18 +541,35 @@ static void test_books(void)
     EXPECT(REQ("7", "ledger.accounts", ""), req);
     EXPECT(POST("1", "2", "\"2\"", "S1"), OK("4", "{\"entry_id\":\"5\"}"));
     EXPECT(POST("2", "1", "\"0002\"", "S2"), OK("4", "{\"entry_id\":\"6\"}"));
-    CHECK(has(POST("1", "2", "\"-3\"", "S3"), "\"name\":\"ZXV_E_RANGE\""), "a negative string amount");
+    CHECK(has(POST("1", "2", "\"-3\"", "S3"), "\"name\":\"ZXV_E_RANGE\""),
+          "a negative string amount");
     CHECK(has(POST("1", "2", "\"9223372036854775807\"", "S4"), "\"name\":\"ZXV_E_RANGE\""),
           "INT64_MAX parses, then libzxv refuses its range");
-    const char *bad[] = {"\"\"", "\"-\"", "\"+5\"", "\" 5\"", "\"5 \"", "\"1.0\"", "\"12a\"", "\"1e3\"",
-                         "\"9223372036854775808\"", "\"10000000000000000000\"", "\"-9223372036854775809\"",
-                         "\"99999999999999999999\"", "true", "null", "{}", "[1]"};
+    const char *bad[] = {"\"\"",
+                         "\"-\"",
+                         "\"+5\"",
+                         "\" 5\"",
+                         "\"5 \"",
+                         "\"1.0\"",
+                         "\"12a\"",
+                         "\"1e3\"",
+                         "\"9223372036854775808\"",
+                         "\"10000000000000000000\"",
+                         "\"-9223372036854775809\"",
+                         "\"99999999999999999999\"",
+                         "true",
+                         "null",
+                         "{}",
+                         "[1]"};
     for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
         char r[300];
-        snprintf(r, sizeof r, "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"ledger.post\",\"params\":{\"from\":1,"
-                 "\"to\":2,\"amount_minor\":%s,\"currency\":\"USD\",\"reference\":\"SB\"}}", bad[i]);
-        EXPECT(r, ERR("4", "-32602", "\\\"amount_minor\\\" must be an integer or a decimal string (no "
-                                     "fraction or exponent)"));
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"ledger.post\",\"params\":{\"from\":1,"
+                 "\"to\":2,\"amount_minor\":%s,\"currency\":\"USD\",\"reference\":\"SB\"}}",
+                 bad[i]);
+        EXPECT(r, ERR("4", "-32602",
+                      "\\\"amount_minor\\\" must be an integer or a decimal string (no "
+                      "fraction or exponent)"));
     }
     EXPECT(REQ("8", "ledger.check", ""), OK("8", "{\"ok\":true}"));
 }
@@ -701,13 +746,15 @@ static void test_socket(void)
     const char *two = REQ("1", "swarm.state", "") "\n" REQ("2", "notes.list", "") "\n";
     send(c1, two, strlen(two), 0);
     char line[70000];
-    CHECK(read_line(c1, line, sizeof line) && !strcmp(line, OK("1", "{\"tick\":7}")), "first: %s", line);
+    CHECK(read_line(c1, line, sizeof line) && !strcmp(line, OK("1", "{\"tick\":7}")), "first: %s",
+          line);
     CHECK(read_line(c1, line, sizeof line) && !strcmp(line, OK("2", "{\"unread\":0,\"notes\":[]}")),
           "second: %s", line);
     send(c1, "{\"jsonrpc\":\"2.0\",\"id\":3,", 24, 0);
     pump(3);
     send(c1, "\"method\":\"swarm.state\"}\r\n\n", 26, 0);
-    CHECK(read_line(c1, line, sizeof line) && !strcmp(line, OK("3", "{\"tick\":7}")), "split + CRLF: %s", line);
+    CHECK(read_line(c1, line, sizeof line) && !strcmp(line, OK("3", "{\"tick\":7}")),
+          "split + CRLF: %s", line);
     send(c1, "{\"jsonrpc\":\"2.0\",\"method\":\"notes.mark_read\"}\n", 45, 0);
     send(c1, REQ("4", "swarm.state", "") "\n", sizeof(REQ("4", "swarm.state", "")), 0);
     CHECK(read_line(c1, line, sizeof line) && !strncmp(line, "{\"jsonrpc\":\"2.0\",\"id\":4,", 24),

@@ -1193,8 +1193,9 @@ static void rpc_ask(const char *q, zxvd_buf_t *o)
 static void rpc_model(zxvd_buf_t *o)
 {
     const zxv_model_info_t *mi = zxv_model_info();
-    zxvd_buf_printf(o, "{\"loaded\":%s,\"can_generate\":%s,\"name\":",
-                    mi->loaded ? "true" : "false", mi->can_generate ? "true" : "false");
+    zxvd_buf_printf(o,
+                    "{\"loaded\":%s,\"can_generate\":%s,\"name\":", mi->loaded ? "true" : "false",
+                    mi->can_generate ? "true" : "false");
     zxvd_buf_json_str(o, mi->name);
     zxvd_buf_raw(o, ",\"arch\":", 8);
     zxvd_buf_json_str(o, mi->arch);
@@ -1233,9 +1234,9 @@ static void rpc_shutdown(void)
     S.quit = true;
 }
 
-static const zxvd_host_ops_t RPC_OPS = {rpc_state, rpc_ask,    rpc_model,    rpc_notes,
-                                        rpc_notes_read, net_command, rpc_update, rpc_shutdown,
-                                        ZXV_VERSION};
+static const zxvd_host_ops_t RPC_OPS = {rpc_state,  rpc_ask,        rpc_model,
+                                        rpc_notes,  rpc_notes_read, net_command,
+                                        rpc_update, rpc_shutdown,   ZXV_VERSION};
 #    define PROG "zxvd"
 #else
 #    define PROG "zxv-host"
@@ -1301,7 +1302,8 @@ int main(int argc, char **argv)
             printf(PROG " %s\n", ZXV_VERSION);
             return 0;
         } else if (!strcmp(argv[i], "--help")) {
-            printf(PROG " %s\n"
+            printf(PROG
+                   " %s\n"
 #if defined(ZXVD)
                    "  --rpc PATH          JSON-RPC 2.0 socket (required; docs/ZXVD.md)\n"
 #endif

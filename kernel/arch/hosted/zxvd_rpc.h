@@ -75,14 +75,14 @@ void zxvd_buf_json_str(zxvd_buf_t *b, const char *s); /* a quoted, escaped JSON 
 /* What the host provides. Each writes one JSON value into `out` (an object,
  * or a string via zxvd_buf_json_str). NULL members answer -32601. */
 typedef struct {
-    void (*state)(zxvd_buf_t *out);                    /* swarm.state   */
-    void (*ask)(const char *prompt, zxvd_buf_t *out);  /* swarm.ask     */
-    void (*model)(zxvd_buf_t *out);                    /* model.info    */
-    void (*notes)(zxvd_buf_t *out);                    /* notes.list    */
-    uint32_t (*notes_read)(void);                      /* notes.mark_read */
-    const char *(*net)(const char *command);           /* net.command; NULL = bad command */
-    void (*update_check)(zxvd_buf_t *out);             /* update.check  */
-    void (*shutdown)(void);                            /* zxvd.shutdown */
+    void (*state)(zxvd_buf_t *out);                   /* swarm.state   */
+    void (*ask)(const char *prompt, zxvd_buf_t *out); /* swarm.ask     */
+    void (*model)(zxvd_buf_t *out);                   /* model.info    */
+    void (*notes)(zxvd_buf_t *out);                   /* notes.list    */
+    uint32_t (*notes_read)(void);                     /* notes.mark_read */
+    const char *(*net)(const char *command);          /* net.command; NULL = bad command */
+    void (*update_check)(zxvd_buf_t *out);            /* update.check  */
+    void (*shutdown)(void);                           /* zxvd.shutdown */
     const char *app_version;
 } zxvd_host_ops_t;
 
