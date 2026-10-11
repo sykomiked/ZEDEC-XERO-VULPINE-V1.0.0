@@ -17,6 +17,14 @@ permissions:
   contents: read
 
 jobs:
+  docs-links:
+    name: docs links
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Every relative link and anchor in sdk/docs resolves
+        run: python3 sdk/docs/guides/check_links.py
+
   libzxv:
     name: libzxv ${{ matrix.os }} ${{ matrix.cc }}
     strategy:

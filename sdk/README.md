@@ -78,6 +78,16 @@ context that is never answered as a normal response. CI:
 | Swarm token economy | `Swarm` | [ABI](docs/ABI.md#groups-added-in-11) |
 | EVM state channels | `StateChannel` | [solidity](solidity/) |
 
+## Guides
+
+Task-focused guides with tested examples live in
+[`docs/guides/`](docs/guides/README.md). Start with
+[Getting started](docs/guides/getting-started.md) (a first ledger in Java,
+.NET, Python, TypeScript or C), then follow the "start here" path in the
+catalogue. There are also guides on the ledger, budgets and time, crypto,
+wire frames, plugins, web frameworks, writing a binding, conformance
+testing and troubleshooting.
+
 ## Concepts
 
 - [SDK design rules](docs/SDK_DESIGN.md): the names, error model and
