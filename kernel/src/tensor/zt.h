@@ -116,9 +116,13 @@
  *       21-octet UBH-168 frames: one tag octet, then five 32-bit words. The
  *       byte order alternates word by word, little then big then little
  *       (UBH_ENDIAN_MIXED in ubh.h), so a constant reads as a square wave in
- *       the raw bytes. The tag holds the phase of the first word, the word
- *       count and a 4-bit check. Decoding never depends on the machine's own
- *       byte order.
+ *       the raw bytes. The tag holds the phase of the first word (bit 0),
+ *       the word count (bits 1-3) and a 4-bit check (bits 4-7). Wire format
+ *       v2 (ZT_FRAME_VERSION): the check is the XOR of the tag's low nibble,
+ *       every payload nibble and ZT_FRAME_CHECK_SEED, so any one flipped bit,
+ *       phase and count included, is refused. v1 checked the payload only;
+ *       v1 and v2 frames each fail the other's check, always. Decoding never
+ *       depends on the machine's own byte order.
  *   T13 ANY HARDWARE.  A device is described by its fast memory, its banks
  *       and its lanes. zt_device_plan picks the coil and the fractal depth
  *       for it; the arithmetic never changes, so every device computes the
@@ -254,6 +258,8 @@ void zt_set_shell_tap(zt_shell_tap_t *tap); /* NULL disables */
 /* T16 */
 #define ZT_FRAME_OCTETS 21u
 #define ZT_FRAME_WORDS  5u
+#define ZT_FRAME_VERSION    2u   /* v2: the check covers the phase and count bits */
+#define ZT_FRAME_CHECK_SEED 0xFu /* never a valid low nibble (2..11) */
 /* Pack n words into ceil(n/5) frames; phase 0 starts little-endian. */
 uint32_t zt_frame_pack(const uint32_t *words, uint32_t n, uint32_t phase, uint8_t *out);
 /* Unpack `frames` frames; returns the word count, or -1 on a bad frame. */

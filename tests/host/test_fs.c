@@ -463,6 +463,123 @@ TEST(name_functions_test) {
     PASS();
 }
 
+/* ===== Replica data (audit HIGH: recover used to set flags only) ===== */
+
+static fs_registry_t rreg; /* registry is ~3 MB; keep it off the stack */
+
+static int node_has(fs_registry_t *reg, uint32_t idx, const char *text) {
+    fs_node_t *n = fs_get_node(reg, idx);
+    uint32_t len = (uint32_t)strlen(text);
+    return n && n->exists_in_s_plus && n->data_len == len && memcmp(n->data, text, len) == 0;
+}
+
+TEST(recover_restores_data_test) {
+    fs_registry_init(&rreg);
+    fs_create_node(&rreg, "/doc", FS_NODE_FILE, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"precious", 8);
+    fs_write_data(&rreg, 0, (const uint8_t *)"precious", 8); /* version 2 */
+    uint32_t crc = fs_get_node(&rreg, 0)->crc;
+    ASSERT(fs_replicate_to_s_minus(&rreg, 0), "replicated");
+    fs_delete_node(&rreg, 0);
+    ASSERT(fs_get_node(&rreg, 0)->data_len == 0, "delete emptied S+");
+    uint64_t tv = rreg.total_version;
+    ASSERT(fs_recover_from_s_minus(&rreg, 0), "recovered");
+    ASSERT(node_has(&rreg, 0, "precious"), "recovered node holds the replicated bytes");
+    ASSERT(fs_get_node(&rreg, 0)->crc == crc, "CRC restored");
+    ASSERT(fs_get_node(&rreg, 0)->version == 2, "version restored");
+    ASSERT(fs_verify_integrity(&rreg, 0), "recovered node passes integrity");
+    ASSERT(rreg.total_version == tv + 1, "recovery is a versioned change");
+    PASS();
+}
+
+TEST(replica_is_a_copy_test) {
+    fs_registry_init(&rreg);
+    fs_create_node(&rreg, "/doc", FS_NODE_FILE, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"old", 3);
+    fs_replicate_to_s_zero(&rreg, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"new-longer", 10);
+    const fs_replica_t *r = fs_get_replica(&rreg, 0, FS_SPACE_S_ZERO);
+    ASSERT(r && r->data_len == 3 && memcmp(r->data, "old", 3) == 0, "a later write does not change the replica");
+    /* recover over a live node rolls it back to the replica */
+    ASSERT(fs_recover_from_s_zero(&rreg, 0), "recovered over live node");
+    ASSERT(node_has(&rreg, 0, "old"), "rolled back to replica");
+    ASSERT(fs_get_node(&rreg, 0)->version == 1, "version rolled back to the replica's");
+    fs_node_t *n = fs_get_node(&rreg, 0);
+    int clean = 1;
+    for (uint32_t i = 3; i < FS_MAX_DATA_LEN; i++) if (n->data[i]) clean = 0;
+    ASSERT(clean, "no bytes of the longer data survive past the recovered length");
+    PASS();
+}
+
+TEST(spaces_are_independent_test) {
+    fs_registry_init(&rreg);
+    fs_create_node(&rreg, "/doc", FS_NODE_FILE, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"v1", 2);
+    fs_replicate_to_s_minus(&rreg, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"v2", 2);
+    fs_replicate_to_s_zero(&rreg, 0);
+    fs_delete_node(&rreg, 0);
+    ASSERT(fs_recover_from_s_zero(&rreg, 0) && node_has(&rreg, 0, "v2"), "S0 holds v2");
+    ASSERT(fs_recover_from_s_minus(&rreg, 0) && node_has(&rreg, 0, "v1"), "S- holds v1");
+    ASSERT(fs_get_replica(&rreg, 0, FS_SPACE_S_PLUS) == NULL, "S+ has no replica slot");
+    PASS();
+}
+
+TEST(corrupt_replica_refused_test) {
+    fs_registry_init(&rreg);
+    fs_create_node(&rreg, "/doc", FS_NODE_FILE, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"abcd", 4);
+    fs_replicate_to_s_minus(&rreg, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"live", 4);
+    rreg.replica_s_minus[0].data[1] ^= 0x01; /* bit rot in the backup */
+    ASSERT(!fs_recover_from_s_minus(&rreg, 0), "corrupted replica is not restored");
+    ASSERT(node_has(&rreg, 0, "live"), "node untouched by the refused recovery");
+    PASS();
+}
+
+TEST(stale_replica_not_recovered_into_new_node_test) {
+    fs_registry_init(&rreg);
+    fs_create_node(&rreg, "/a", FS_NODE_FILE, 0);
+    int32_t snap = fs_create_snapshot(&rreg, "before-b");
+    fs_create_node(&rreg, "/b", FS_NODE_FILE, 0);
+    fs_write_data(&rreg, 1, (const uint8_t *)"b-data", 6);
+    fs_replicate_to_s_minus(&rreg, 1);
+    fs_restore_snapshot(&rreg, (uint32_t)snap); /* /b is gone, slot 1 free */
+    int32_t c = fs_create_node(&rreg, "/c", FS_NODE_FILE, 0);
+    ASSERT(c == 1, "/c reuses index 1");
+    ASSERT(fs_get_replica(&rreg, 1, FS_SPACE_S_MINUS) == NULL, "no replica for /c");
+    ASSERT(!fs_recover_from_s_minus(&rreg, 1), "/b's replica is not recovered into /c");
+    ASSERT(fs_get_node(&rreg, 1)->data_len == 0, "/c stays empty");
+    PASS();
+}
+
+TEST(replica_survives_snapshot_restore_test) {
+    fs_registry_init(&rreg);
+    fs_create_node(&rreg, "/doc", FS_NODE_FILE, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"keep", 4);
+    int32_t snap = fs_create_snapshot(&rreg, "pre-replica");
+    fs_replicate_to_s_minus(&rreg, 0);
+    fs_restore_snapshot(&rreg, (uint32_t)snap); /* rolls the S- flag back */
+    ASSERT(!fs_get_node(&rreg, 0)->exists_in_s_minus, "flag rolled back");
+    fs_delete_node(&rreg, 0);
+    ASSERT(fs_recover_from_s_minus(&rreg, 0), "replica outside the snapshot still recovers");
+    ASSERT(node_has(&rreg, 0, "keep"), "data back");
+    ASSERT(fs_get_node(&rreg, 0)->exists_in_s_minus, "flag re-set");
+    PASS();
+}
+
+TEST(replicate_deleted_keeps_old_replica_test) {
+    fs_registry_init(&rreg);
+    fs_create_node(&rreg, "/doc", FS_NODE_FILE, 0);
+    fs_write_data(&rreg, 0, (const uint8_t *)"good", 4);
+    fs_replicate_to_s_minus(&rreg, 0);
+    fs_delete_node(&rreg, 0);
+    ASSERT(!fs_replicate_to_s_minus(&rreg, 0), "a deleted node cannot be replicated");
+    ASSERT(!fs_replicate_to_s_minus(&rreg, 7), "bad index refused");
+    ASSERT(fs_recover_from_s_minus(&rreg, 0) && node_has(&rreg, 0, "good"), "the earlier replica was not wiped");
+    PASS();
+}
+
 /* ===== Main ===== */
 
 int main(void) {
@@ -496,6 +613,13 @@ int main(void) {
     RUN(count_by_space_test);
     RUN(count_tx_by_status_test);
     RUN(name_functions_test);
+    RUN(recover_restores_data_test);
+    RUN(replica_is_a_copy_test);
+    RUN(spaces_are_independent_test);
+    RUN(corrupt_replica_refused_test);
+    RUN(stale_replica_not_recovered_into_new_node_test);
+    RUN(replica_survives_snapshot_restore_test);
+    RUN(replicate_deleted_keeps_old_replica_test);
 
     printf("\n=== Results: %d/%d passed, %d failed ===\n",
            tests_passed, tests_run, tests_failed);
