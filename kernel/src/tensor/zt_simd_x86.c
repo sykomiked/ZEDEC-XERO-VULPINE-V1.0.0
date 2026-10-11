@@ -19,12 +19,15 @@
  * C loop, which cannot change the result: every term is at most 2^52 and a
  * row has at most 1024 blocks, so no partial sum overflows. */
 #include "zt_simd.h"
+#include "zt_gguf.h"
 
 #if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
 #    include <immintrin.h>
 
 #    define AVX2   __attribute__((target("avx2")))
 #    define AVX512 __attribute__((target("avx2,avx512f,avx512bw,avx512vl,avx512dq")))
+#    define AVX512VNNI                                                                            \
+        __attribute__((target("avx2,avx512f,avx512bw,avx512vl,avx512dq,avx512vnni")))
 
 /* Bytes ahead to prefetch: a decode step streams the weights once, and the
  * hardware prefetcher alone leaves half the memory bandwidth unused here. */
@@ -222,12 +225,12 @@ static inline AVX512 __m512i mul64_512(__m256i s, __m256i mul)
     return _mm512_mul_epi32(_mm512_cvtepi32_epi64(s), _mm512_cvtepi32_epi64(mul));
 }
 
-static inline AVX512 __m512i term52v_512(__m512i v, __m256i k)
+/* zt_term52(v[i], kk[i]) for 8 lanes, kk as 64-bit lanes */
+static inline AVX512 __m512i term52q_512(__m512i v, __m512i kk)
 {
     const __m512i zero = _mm512_setzero_si512();
     const __m512i lim = _mm512_set1_epi64(ZT_KERN_LIM52);
     const __m512i nlim = _mm512_set1_epi64(-ZT_KERN_LIM52);
-    __m512i kk = _mm512_cvtepi32_epi64(k);
     /* k <= 0: arithmetic shift right by min(-k, 63) is floor(v / 2^-k) */
     __m512i n = _mm512_min_epi64(_mm512_sub_epi64(zero, kk), _mm512_set1_epi64(63));
     __m512i right = _mm512_srav_epi64(v, n);
@@ -238,6 +241,11 @@ static inline AVX512 __m512i term52v_512(__m512i v, __m256i k)
     left = _mm512_mask_mov_epi64(left, sat, _mm512_mask_mov_epi64(lim, neg, nlim));
     __m512i r = _mm512_mask_mov_epi64(right, _mm512_cmpgt_epi64_mask(kk, zero), left);
     return _mm512_max_epi64(_mm512_min_epi64(r, lim), nlim);
+}
+
+static inline AVX512 __m512i term52v_512(__m512i v, __m256i k)
+{
+    return term52q_512(v, _mm512_cvtepi32_epi64(k));
 }
 
 static inline AVX512 __m512i term52_512(__m256i s, __m256i mul, __m256i k)
@@ -539,10 +547,158 @@ static AVX512 zt_fx dot_q6k_512(const uint8_t *row, const int16_t *a, const uint
     return zt_kern_round(_mm512_reduce_add_epi64(acc));
 }
 
-static const zt_kern_t K_AVX2 = {"avx2", dot_raw_avx2, dot_q8_avx2, 0,
-                                 0,      dot_q4k_avx2, dot_q6k_avx2};
-static const zt_kern_t K_AVX512 = {"avx512", dot_raw_512, dot_q8_512, 0,
-                                   0,        dot_q4k_512, dot_q6k_512};
+/* ---- batched rows (zt_kern.h zt_mmb_t): a lane per token ----
+ * For each weight block the row's weights are unpacked once to int16 (w), a
+ * weight pair is broadcast to every lane, and VPMADDWD against the token-major
+ * activations gives 16 tokens' exact block sums with no horizontal adds. The
+ * scale products are exact in 64-bit lanes as above. term52 is the general
+ * form unless the (group, block)'s largest exponent proves it cannot saturate
+ * (zt_kern.h ZT_MMB_SAFE_*): then it is (v << (ash + max(e, 0))) >> max(-e, 0),
+ * an exact left shift and one floor shift, which is the same value. Groups of
+ * tokens are taken MMB_GC at a time so the accumulators stay small. */
+#    define MMB_GC 8u
+
+static inline int32_t ld32(const int16_t *p)
+{
+    int32_t v;
+    __builtin_memcpy(&v, p, 4);
+    return v;
+}
+
+static inline uint32_t mmb_groups(const zt_mmb_t *j)
+{
+    return (j->B + ZT_MMB_G - 1) / ZT_MMB_G;
+}
+
+/* the rounded results of a chunk of groups for row r */
+static inline void mmb_store(const zt_mmb_t *j, uint32_t r, uint32_t g0, uint32_t gn,
+                             const int64_t (*acc)[ZT_MMB_G])
+{
+    for (uint32_t gi = 0; gi < gn; gi++)
+        for (uint32_t t = 0; t < ZT_MMB_G; t++) {
+            uint32_t tok = (g0 + gi) * ZT_MMB_G + t;
+            if (tok < j->B)
+                j->y[(uint64_t) tok * j->ystride + r] = zt_kern_round(acc[gi][ZT_MMB_SLOT(t)]);
+        }
+}
+
+/* AVX-512: 16 tokens per vector. A tile is TR weight rows by two groups
+ * (32 tokens): each activation vector loaded serves TR rows, each broadcast
+ * weight pair two groups. The forward pass feeds n_batch tokens at a time, so
+ * the activations of one batch stay in L2 while the rows stream past. The
+ * tile is compiled twice from zt_simd_x86_mmb.h: with VPDPWSSD (AVX512-VNNI,
+ * the same exact sums with the add fused) and with VPMADDWD + VPADDD. */
+#    define TR 4u
+
+/* Per weight type: unpack 256 weights of row i into w + 256 i and the
+ * per-sub-block terms. Q4_K and Q8_0 have one multiplier per sub-block (m0),
+ * Q6_K two (m0 for pairs 0..7, m1 for 8..15); Q4_K adds a min term (mt, em);
+ * Q8_0 has an exponent per sub-block (ek). */
+typedef struct {
+    int64_t m0[8], m1[8], mt[8];
+    int32_t ek[8], e, em;
+} tparam_t;
+
+static inline AVX512 void unpack_q4k_512(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    int32_t dm, mm;
+    zt_kern_f16(ld16(blk), &dm, &t->e);
+    zt_kern_f16(ld16(blk + 2), &mm, &t->em);
+    t->e += 16;
+    t->em += 16;
+    uint8_t sm[16];
+    zt_kern_q4k_scales(blk + 4, sm);
+    for (uint32_t i = 0; i < 8; i++) {
+        t->m0[i] = sm[i] * dm;
+        t->mt[i] = sm[8 + i] * mm;
+    }
+    const __m512i m4 = _mm512_set1_epi16(0x0F);
+    for (uint32_t p = 0; p < 4; p++) {
+        __m512i q = _mm512_cvtepu8_epi16(_mm256_loadu_si256((const __m256i *) (blk + 16 + 32 * p)));
+        _mm512_store_si512((void *) (w + 64 * p), _mm512_and_si512(q, m4));
+        _mm512_store_si512((void *) (w + 64 * p + 32), _mm512_srli_epi16(q, 4));
+    }
+}
+
+static inline AVX512 void unpack_q6k_512(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    int32_t dm;
+    zt_kern_f16(ld16(blk + 208), &dm, &t->e);
+    t->e += 16;
+    const int8_t *sc = (const int8_t *) (blk + 192);
+    for (uint32_t i = 0; i < 8; i++) {
+        t->m0[i] = sc[2 * i] * dm;
+        t->m1[i] = sc[2 * i + 1] * dm;
+    }
+    __m256i qb[8];
+    q6k_bytes_avx2(blk, 0, qb);
+    q6k_bytes_avx2(blk, 1, qb + 4);
+    for (uint32_t i = 0; i < 8; i++)
+        _mm512_store_si512((void *) (w + 32 * i), _mm512_cvtepi8_epi16(qb[i]));
+}
+
+/* 8 Q8_0 blocks (8 * 34 bytes), each with its own f16 scale */
+static inline AVX512 void unpack_q8_0_512(const uint8_t *blk, int16_t *w, tparam_t *t)
+{
+    for (uint32_t i = 0; i < 8; i++, blk += 34) {
+        int32_t mm;
+        zt_kern_f16(ld16(blk), &mm, &t->ek[i]);
+        t->m0[i] = mm;
+        t->ek[i] += 16;
+        _mm512_store_si512((void *) (w + 32 * i),
+                           _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i *) (blk + 2))));
+    }
+}
+
+/* term52(v, e + ash) for 8 slots; fast as in the comment above */
+static inline AVX512 __m512i shift_512(__m512i v, __m512i ash, int32_t e, int fast)
+{
+    if (fast) {
+        if (e > 0) return _mm512_sllv_epi64(v, _mm512_add_epi64(ash, _mm512_set1_epi64(e)));
+        v = _mm512_sllv_epi64(v, ash);
+        return e < 0 ? _mm512_srav_epi64(v, _mm512_set1_epi64(-e)) : v;
+    }
+    return term52q_512(v, _mm512_add_epi64(ash, _mm512_set1_epi64(e)));
+}
+
+#    define MMB_NAME mmb_tile_512
+#    define MMB_TGT  AVX512
+#    define MMB_VNNI 0
+#    include "zt_simd_x86_mmb.h"
+#    define MMB_NAME mmb_tile_vnni
+#    define MMB_TGT  AVX512VNNI
+#    define MMB_VNNI 1
+#    include "zt_simd_x86_mmb.h"
+
+/* the weight types the tiles handle: Q4_K and Q6_K (rows of whole blocks),
+ * Q8_0 when a row is a whole number of 8 blocks */
+static int mmb_handles(const zt_mmb_t *j)
+{
+    return j->raw && (j->qtype == ZT_GGML_Q4_K || j->qtype == ZT_GGML_Q6_K ||
+                      (j->qtype == ZT_GGML_Q8_0 && j->cols % 256 == 0));
+}
+
+static int mmb_512(const zt_mmb_t *j, uint32_t r0, uint32_t r1)
+{
+    if (!mmb_handles(j)) return 1;
+    mmb_tile_512(j, r0, r1);
+    return 0;
+}
+
+static int mmb_vnni(const zt_mmb_t *j, uint32_t r0, uint32_t r1)
+{
+    if (!mmb_handles(j)) return 1;
+    mmb_tile_vnni(j, r0, r1);
+    return 0;
+}
+
+static const zt_kern_t K_AVX2 = {"avx2", dot_raw_avx2, dot_q8_avx2, 0, 0, dot_q4k_avx2,
+                                 dot_q6k_avx2, 0};
+static const zt_kern_t K_AVX512 = {"avx512", dot_raw_512, dot_q8_512, 0, 0, dot_q4k_512,
+                                   dot_q6k_512, mmb_512};
+/* the same with the AVX512-VNNI tile */
+static const zt_kern_t K_AVX512V = {"avx512vnni", dot_raw_512, dot_q8_512, 0, 0, dot_q4k_512,
+                                    dot_q6k_512, mmb_vnni};
 
 const zt_kern_t *zt_simd_x86_avx2(void)
 {
@@ -560,6 +716,11 @@ const zt_kern_t *zt_simd_x86_avx512(void)
                : 0;
 }
 
+const zt_kern_t *zt_simd_x86_avx512vnni(void)
+{
+    return zt_simd_x86_avx512() && __builtin_cpu_supports("avx512vnni") ? &K_AVX512V : 0;
+}
+
 #else
 
 const zt_kern_t *zt_simd_x86_avx2(void)
@@ -568,6 +729,11 @@ const zt_kern_t *zt_simd_x86_avx2(void)
 }
 
 const zt_kern_t *zt_simd_x86_avx512(void)
+{
+    return 0;
+}
+
+const zt_kern_t *zt_simd_x86_avx512vnni(void)
 {
     return 0;
 }

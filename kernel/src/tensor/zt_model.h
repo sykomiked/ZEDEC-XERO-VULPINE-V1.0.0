@@ -133,6 +133,8 @@ enum {
 #define ZT_MODEL_MAX_DIM    32768u /* longest matrix row (n_embd, n_ff, n_head * head_dim) */
 #define ZT_MODEL_MAX_HEAD   512u
 #define ZT_MODEL_MAX_CTX    65535u
+#define ZT_MMB_MIN          4u /* fewest tokens for the batched matrix kernels */
+#define ZT_ATT_TILES        4u /* attention work items per head (token tiles) */
 
 typedef struct {
     int32_t code;
@@ -217,9 +219,18 @@ typedef struct {
     uint8_t *ash;                              /* [n_batch][a_stride / 32] */
     int32_t *asum;                             /* [n_batch][a_stride / 32] block sums of a16 */
     uint32_t a_stride;
-    zt_fx *scores; /* [n_ctx] */
-    int64_t *acc;  /* [head_dim] */
-    int32_t *qs;   /* [head_dim] */
+    /* Batched matrix products (zt_kern.h zt_mmb_t), used when the kernel set
+     * has mm_batch and a batch holds at least ZT_MMB_MIN tokens: a16, ash
+     * and asum repacked token-major for the mmb_cols-wide input (0: none). */
+    int16_t *aT;
+    int64_t *ashT, *asumT;
+    uint8_t *ashx;
+    uint32_t mmb_cols;
+    /* Attention scratch for each of n_head * ZT_ATT_TILES work items (the
+     * items may run in threads; each writes only its own). */
+    zt_fx *scores; /* [items][n_ctx] */
+    int64_t *acc;  /* [items][head_dim] */
+    int32_t *qs;   /* [items][head_dim] */
     /* Values that hit the Q16 range limit (+-32768) since zt_model_state_init:
      * matrix-product outputs and residual-stream additions. Same count on
      * every kernel and thread count. 0 means nothing clipped. */

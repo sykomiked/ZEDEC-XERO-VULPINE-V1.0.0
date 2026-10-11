@@ -10,13 +10,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const zt_kern_t K_C = {"c", 0, 0, 0, 0, 0, 0};
+static const zt_kern_t K_C = {"c", 0, 0, 0, 0, 0, 0, 0};
 
 uint32_t zt_simd_list(const zt_kern_t **out, uint32_t cap)
 {
-    const zt_kern_t *all[4] = {zt_simd_x86_avx512(), zt_simd_x86_avx2(), zt_simd_neon(), &K_C};
+    const zt_kern_t *all[5] = {zt_simd_x86_avx512vnni(), zt_simd_x86_avx512(), zt_simd_x86_avx2(),
+                               zt_simd_neon(), &K_C};
     uint32_t n = 0;
-    for (uint32_t i = 0; i < 4; i++)
+    for (uint32_t i = 0; i < 5; i++)
         if (all[i] && n < cap) out[n++] = all[i];
     return n;
 }
@@ -30,8 +31,8 @@ const zt_kern_t *zt_simd_best(void)
 
 const zt_kern_t *zt_simd_find(const char *name)
 {
-    const zt_kern_t *l[4];
-    uint32_t n = zt_simd_list(l, 4);
+    const zt_kern_t *l[5];
+    uint32_t n = zt_simd_list(l, 5);
     for (uint32_t i = 0; name && i < n; i++)
         if (!strcmp(l[i]->name, name)) return l[i];
     return 0;
@@ -151,7 +152,7 @@ static void pool_run(void *pctx, zt_rows_fn fn, void *ctx, uint32_t n, uint64_t 
         return;
     }
     uint32_t chunk = n / (p->n * 4);
-    if (chunk < 8) chunk = 8;
+    if (chunk < 1) chunk = 1;
     p->fn = fn;
     p->ctx = ctx;
     p->rows = n;

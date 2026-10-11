@@ -14,6 +14,7 @@
  * Kernel sets:
  *   c        the C reference (zt_kern.h); always present
  *   avx2     x86-64 AVX2 (run-time CPU check)
+ *   avx512vnni  avx512, with the AVX512-VNNI batched (prefill) tile
  *   avx512   x86-64 AVX-512 F/BW/VL/DQ (run-time CPU check)
  *   neon     AArch64 Advanced SIMD (every AArch64 CPU, Apple M-series too)
  * Threads: zt_pool_* splits a matrix's rows across worker threads (pthreads;
@@ -30,7 +31,7 @@
 uint32_t zt_simd_list(const zt_kern_t **out, uint32_t cap);
 /* The fastest kernel set this CPU can run (never null). */
 const zt_kern_t *zt_simd_best(void);
-/* A kernel set by name ("c", "avx2", "avx512", "neon"), or null when it is
+/* A kernel set by name ("c", "avx2", "avx512", "avx512vnni", "neon"), or null when it is
  * not compiled in or this CPU cannot run it. */
 const zt_kern_t *zt_simd_find(const char *name);
 
@@ -58,6 +59,7 @@ const zt_kern_t *zt_simd_default(void);
  * null when it is not compiled for this target or the CPU lacks it. */
 const zt_kern_t *zt_simd_x86_avx2(void);
 const zt_kern_t *zt_simd_x86_avx512(void);
+const zt_kern_t *zt_simd_x86_avx512vnni(void);
 const zt_kern_t *zt_simd_neon(void);
 
 #endif /* ZT_SIMD_H */

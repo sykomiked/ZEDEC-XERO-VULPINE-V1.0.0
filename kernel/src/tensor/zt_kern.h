@@ -190,6 +190,86 @@ static inline zt_fx zt_dot_q6k_c(const uint8_t *row, const int16_t *a, const uin
     return zt_kern_round(acc);
 }
 
+/* ---- batched rows (prefill): one weight row against many tokens ----
+ * A batch of B activation vectors (act_quant's a16, ash and asum for each
+ * token) is repacked token-major so that a SIMD lane holds one token: groups
+ * of ZT_MMB_G tokens; for each group g, block b (32 values) and pair p
+ * (values 2p and 2p + 1 of the block), the 16 tokens' two int16 values side
+ * by side (64 bytes). A kernel then unpacks each weight block once, broadcasts
+ * a weight pair to every lane, and forms 16 tokens' exact block sums with no
+ * horizontal adds. The block exponents and sums sit beside them as int64 per
+ * token, even tokens first (slot ZT_MMB_SLOT(t)), which is the order in
+ * which a 64-bit multiply of the even and then the odd 32-bit lanes yields the
+ * products, and ashx holds each (group, block)'s largest exponent so a kernel can
+ * tell when term52 cannot saturate. Missing tokens of the last group are
+ * zero (their sums are 0, their outputs are not written).
+ * The block sums are the same exact integers as the per-row kernels', and
+ * term52 is applied to the same values, so y is bit for bit what the dot
+ * products above give for each token. */
+#define ZT_MMB_G 16u
+#define ZT_MMB_SLOT(t) (((t) & 1u) * (ZT_MMB_G / 2) + (t) / 2)
+
+typedef struct zt_mmb {
+    const uint8_t *raw; /* GGUF rows (qtype), or null with q8 */
+    const zt_q8_t *q8;
+    uint32_t qtype, cols;
+    const int16_t *aT;    /* [ng][cols / 32][16 pairs][ZT_MMB_G][2] */
+    const int64_t *ashT;  /* [ng][cols / 32][ZT_MMB_G slots] */
+    const int64_t *asumT; /* [ng][cols / 32][ZT_MMB_G slots] */
+    const uint8_t *ashx;  /* [ng][cols / 32] */
+    uint32_t B;           /* tokens; ng = (B + ZT_MMB_G - 1) / ZT_MMB_G */
+    zt_fx *y;             /* y[t * ystride + r] = the row r, token t dot product (Q16) */
+    uint32_t ystride;
+} zt_mmb_t;
+
+/* Repack B tokens' activations (a16 rows of astride values, cols used) into
+ * the layout above: aT holds ng * cols * ZT_MMB_G int16, ashT and asumT
+ * ng * (cols / 32) * ZT_MMB_G values each, ashx ng * (cols / 32). */
+static inline void zt_mmb_pack(const int16_t *a16, const uint8_t *ash, const int32_t *asum,
+                               uint32_t astride, uint32_t B, uint32_t cols, int16_t *aT,
+                               int64_t *ashT, int64_t *asumT, uint8_t *ashx)
+{
+    uint32_t nb = cols / 32, ng = (B + ZT_MMB_G - 1) / ZT_MMB_G;
+    for (uint32_t g = 0; g < ng; g++)
+        for (uint32_t b = 0; b < nb; b++) {
+            uint64_t gb = (uint64_t) g * nb + b;
+            int16_t *o = aT + gb * 32 * ZT_MMB_G;
+            uint8_t mx = 0;
+            for (uint32_t t = 0; t < ZT_MMB_G; t++) {
+                uint32_t tok = g * ZT_MMB_G + t;
+                if (tok < B) {
+                    const int16_t *x = a16 + (uint64_t) tok * astride + b * 32;
+                    for (uint32_t p = 0; p < 16; p++) {
+                        o[(p * ZT_MMB_G + t) * 2] = x[2 * p];
+                        o[(p * ZT_MMB_G + t) * 2 + 1] = x[2 * p + 1];
+                    }
+                    uint8_t sh = ash[(uint64_t) tok * (astride / 32) + b];
+                    ashT[gb * ZT_MMB_G + ZT_MMB_SLOT(t)] = sh;
+                    asumT[gb * ZT_MMB_G + ZT_MMB_SLOT(t)] = asum[(uint64_t) tok * (astride / 32) + b];
+                    if (sh > mx) mx = sh;
+                } else {
+                    for (uint32_t p = 0; p < 16; p++) {
+                        o[(p * ZT_MMB_G + t) * 2] = 0;
+                        o[(p * ZT_MMB_G + t) * 2 + 1] = 0;
+                    }
+                    ashT[gb * ZT_MMB_G + ZT_MMB_SLOT(t)] = 0;
+                    asumT[gb * ZT_MMB_G + ZT_MMB_SLOT(t)] = 0;
+                }
+            }
+            ashx[gb] = mx;
+        }
+}
+
+/* Largest k = e + ash for which term52(v, k) cannot saturate, for each
+ * weight type's bound on |v| (|x| <= 32767): Q4_K |s * sc * d| < 2^41 (and
+ * its min term < 2^37), Q6_K |(sc0 s0 + sc1 s1) d| < 2^43, Q8_0 |s d| < 2^38.
+ * At or below it, term52 is floor(v * 2^k), which a kernel may form as
+ * (v << L) >> R with L, R >= 0 and L - R = k (no 64-bit overflow while
+ * L <= 17 + max(e, 0)). */
+#define ZT_MMB_SAFE_Q4K 11
+#define ZT_MMB_SAFE_Q6K 9
+#define ZT_MMB_SAFE_Q8  14
+
 /* A set of kernels. Each function must return exactly what the C reference
  * returns for every input (test_zt_simd checks this). */
 typedef zt_fx (*zt_dot_raw_fn)(const uint8_t *row, const int16_t *a, const uint8_t *ash,
@@ -212,6 +292,10 @@ typedef struct zt_kern {
     void *pctx;
     zt_dot_k_fn dot_q4k; /* null: the C reference (rows of ZT_Q4K_BYTES blocks) */
     zt_dot_k_fn dot_q6k; /* null: the C reference (rows of ZT_Q6K_BYTES blocks) */
+    /* Optional: rows [r0, r1) of a zt_mmb_t job for all its tokens. Returns 0
+     * when done, nonzero (having written nothing) when it does not handle the
+     * job's weight type; the caller then uses the dot products above. */
+    int (*mm_batch)(const zt_mmb_t *j, uint32_t r0, uint32_t r1);
 } zt_kern_t;
 
 #endif /* ZT_KERN_H */
