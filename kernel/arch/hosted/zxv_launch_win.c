@@ -110,7 +110,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR line, int show)
     si.hStdInput = nul;
     si.hStdOutput = out;
     si.hStdError = out;
-    BOOL ok = CreateProcessW(engine, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, self, &si, &pi);
+    /* cmd + 1: append_arg put a space before every argument, and a command
+     * line that starts with one makes zxvd's argv[0] empty */
+    BOOL ok =
+        CreateProcessW(engine, cmd + 1, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, self, &si, &pi);
     if (out != INVALID_HANDLE_VALUE) CloseHandle(out);
     if (nul != INVALID_HANDLE_VALUE) CloseHandle(nul);
     if (!ok) {

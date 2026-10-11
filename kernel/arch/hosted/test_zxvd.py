@@ -205,9 +205,12 @@ def main(binary, gguf=None):
     os.unlink(sock)
     os.rmdir(run)
 
+    # zxvd's stderr is kept and shown if a check fails: it says why a peer
+    # or a request was refused
+    err = open(os.path.join(home, 'zxvd.err'), 'w')
     proc = subprocess.Popen([binary, '--rpc', sock, '--models-dir', models, '--exit-with-parent'],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True, env=env)
+                            stderr=err, text=True, env=env)
     try:
         got = wait_line(proc, 'ZXVD-RPC: ')
         check(got == sock, 'zxvd announces its socket')
@@ -412,6 +415,10 @@ def main(binary, gguf=None):
         if proc.poll() is None:
             proc.kill()
             proc.wait()
+        err.close()
+        if FAILS:
+            with open(err.name) as f:
+                print('zxvd stderr (exit %s):\n%s' % (proc.returncode, f.read()[-4000:]))
         shutil.rmtree(home, ignore_errors=True)
 
 

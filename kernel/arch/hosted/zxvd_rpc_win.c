@@ -80,13 +80,19 @@ static bool same_user(SOCKET fd)
     ULONG pid = 0;
     DWORD got = 0;
     if (WSAIoctl(fd, SIO_AF_UNIX_GETPEERPID, NULL, 0, &pid, sizeof pid, &got, NULL, NULL) != 0 ||
-        got != sizeof pid || pid == 0)
+        pid == 0) {
+        fprintf(stderr, "zxvd: peer refused: its process is unknown (error %d)\n",
+                WSAGetLastError());
         return false;
+    }
     HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-    if (!p) return false;
-    TOKEN_USER *tu = token_user(p);
-    CloseHandle(p);
+    TOKEN_USER *tu = p ? token_user(p) : NULL;
+    DWORD e = GetLastError();
+    if (p) CloseHandle(p);
     bool ok = tu && EqualSid(tu->User.Sid, ME);
+    if (!ok)
+        fprintf(stderr, "zxvd: peer refused: process %lu is %s (error %lu)\n", (unsigned long) pid,
+                tu ? "another user" : "not readable", (unsigned long) e);
     free(tu);
     return ok;
 }
@@ -265,7 +271,8 @@ int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
         DeleteFileA(path); /* stale */
     }
     if (zxvd_rpc_books_open() != 0) {
-        fprintf(stderr, "zxvd: libzxv context could not be created\n");
+        fprintf(stderr, "zxvd: the books could not be opened (libzxv older than ABI 1.3, "
+                        "or the earnings currency was refused)\n");
         forget_me();
         return -1;
     }
