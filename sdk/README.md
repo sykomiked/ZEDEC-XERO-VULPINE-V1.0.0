@@ -71,6 +71,20 @@ Mobile SDKs follow the same design as the language SDKs; see
 | Android and JVM (Kotlin) | [`kotlin`](mobile/kotlin/) | `org.zedec.zxv.mobile` | JNI shim (Android has no FFM) | 34 on the host JVM; AAR builds for arm64-v8a and x86_64, not yet run on a device |
 | Flutter and Dart | [`dart`](mobile/dart/) | `zxv` | `dart:ffi` | 33 on the host; no Flutter app or iOS run yet |
 
+## Embedded and RTOS
+
+Embedded kits run the exact core on microcontrollers through a small port
+layer (allocator, mutex, entropy, time); see [`embedded/`](embedded/).
+
+| Kit | Folder | What it gives you | Tests |
+|---|---|---|---|
+| Port + MCU subset | [`embedded`](embedded/) | Rationals, four-valued logic, hexagram tags, caps, quarantine log and budgets in about 35 KB flash on Cortex-M; a fixed-memory ledger (`zxe_ledger`); fails closed without an entropy source | 11,499 ledger checks, a 75,244-operation differential test against libzxv, libzxv's own suites through the port, QEMU Cortex-M3/M4 |
+| FreeRTOS | [`freertos-zxv`](embedded/freertos-zxv/) | Port and a sample task (ledger posting, budget tick) | POSIX simulator |
+| Zephyr | [`zephyr-zxv`](embedded/zephyr-zxv/) | Zephyr module (module.yml, Kconfig) and a sample | native_sim and qemu_cortex_m3 |
+
+Advisory only for any actuation; no safety-standard or real-time claims.
+Nothing has run on real hardware yet.
+
 ## Game engines
 
 Engine kits run deterministic lockstep games on exact rationals, with no
