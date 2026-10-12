@@ -29,6 +29,7 @@
 #include "zxvd_rpc.h"
 #include "zxv_api.h"
 #include "sha256.h"
+#include "web4_web2.h"
 
 static int fails, checks;
 
@@ -1904,6 +1905,61 @@ static void x_shadow(zxvd_call_t *c)
     zxvd_buf_raw(zxvd_result(c), "\"ext\"", 5);
 }
 
+static void x_num(zxvd_call_t *c)
+{
+    uint32_t u = 7;
+    int64_t a = -1;
+    bool need = false;
+    if (!zxvd_param_bool(c, "need", &need, false) || !zxvd_param_u32(c, "u", &u, need) ||
+        !zxvd_param_amount(c, "a", &a, need))
+        return;
+    zxvd_buf_printf(zxvd_result(c), "[%u,%lld]", (unsigned) u, (long long) a);
+}
+/* X2: walk an array of integers with the web4 tokenizer */
+static void x_json(zxvd_call_t *c)
+{
+    zxvd_json_t v;
+    if (!zxvd_param_json(c, "list", &v)) {
+        zxvd_buf_printf(zxvd_result(c), "%s",
+                        zxvd_param_json(c, NULL, &v) ? "\"none\"" : "\"no params\"");
+        return;
+    }
+    const w4_jtok_t *t = v.tok;
+    if (t[v.at].type != W4_J_ARR) return zxvd_fail(c, ZXVD_E_PARAMS, "\"list\" must be an array");
+    int64_t sum = 0;
+    int32_t i = v.at + 1;
+    for (uint32_t k = 0; k < t[v.at].size; k++, i++) {
+        int64_t x;
+        if (t[i].type != W4_J_NUM || w4_json_i64(v.js, &t[i], &x) != W4_OK)
+            return zxvd_fail(c, ZXVD_E_PARAMS, "\"list\" must hold integers");
+        sum += x;
+    }
+    zxvd_buf_printf(zxvd_result(c), "%lld", (long long) sum);
+}
+static void x_zok(zxvd_call_t *c)
+{
+    bool bad = false;
+    if (!zxvd_param_bool(c, "bad", &bad, false)) return;
+    if (zxvd_libzxv_ok(c, bad ? ZXV_E_FUNDS : ZXV_OK)) zxvd_buf_raw(zxvd_result(c), "true", 4);
+}
+/* X6-X7 */
+static void x_books(zxvd_call_t *c)
+{
+    uint32_t a, b;
+    uint64_t e;
+    if (!zxvd_books_cap() || !zxvd_books_ctx()) return zxvd_fail(c, -32050, "closed");
+    if (!zxvd_libzxv_ok(c, zxvd_books_account("x issuer", "NGN", ZXV_ACCT_ISSUER, &a)) ||
+        !zxvd_libzxv_ok(c, zxvd_books_account("x holder", "NGN", ZXV_ACCT_HOLDER, &b)) ||
+        !zxvd_libzxv_ok(c, zxvd_books_post(a, b, 250, "NGN", "x ref", &e)))
+        return;
+    zxvd_buf_printf(zxvd_result(c), "[%u,%u,%llu]", (unsigned) a, (unsigned) b,
+                    (unsigned long long) e);
+}
+static void x_other(zxvd_call_t *c)
+{
+    zxvd_buf_raw(zxvd_result(c), "\"second\"", 8);
+}
+
 static void test_ext(void)
 {
     static const zxvd_method_t TAB[] = {{"x.echo", x_echo},
@@ -1939,18 +1995,111 @@ static void test_ext(void)
     int before = ext_calls;
     CHECK(has(REQ("6", "zxvd.version", ""), "\"app\":\"9.8.7\"") && ext_calls == before,
           "X1: a built-in name wins: %s", OUT.p);
-    zxvd_rpc_add_methods(TAB, 1);
+    CHECK(zxvd_rpc_add_methods(TAB, 1) == 0, "X1: re-adding a table held updates its count");
     CHECK(has(REQ("7", "rpc.discover", ""), "\"aipi.status\",\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
-          "X1: a later table replaces it: %s", OUT.p);
-    zxvd_rpc_add_methods(TAB, 0);
-    CHECK(has(REQ("8", "rpc.discover", ""), "\"aipi.status\"]}") &&
-              has(REQ("8", "x.echo", ""), "method not found"),
-          "X1: 0 removes it");
-    zxvd_rpc_add_methods(NULL, 3);
-    CHECK(has(REQ("9", "rpc.discover", ""), "\"aipi.status\"]}") &&
-              has(REQ("9", "x.echo", ""), "method not found"),
-          "X1: NULL removes it");
+          "X1: the count is the new one: %s", OUT.p);
+    CHECK(zxvd_rpc_add_methods(TAB, 0) == -1 && zxvd_rpc_add_methods(NULL, 3) == -1,
+          "X1: 0 or NULL adds nothing");
+    CHECK(has(REQ("8", "rpc.discover", ""), "\"aipi.status\",\"x.echo\"]}"),
+          "X1: a refused add leaves the tables as they were: %s", OUT.p);
+
+    /* several tables: each add appends; the first added wins a shared name */
+    static const zxvd_method_t T2[] = {{"x.num", x_num},
+                                       {"x.json", x_json},
+                                       {"x.echo", x_other},
+                                       {"x.zok", x_zok},
+                                       {"x.books", x_books}};
+    static const zxvd_method_t T3[] = {{"y.one", x_other}};
+    static const zxvd_method_t T4[] = {{"y.two", x_other}};
+    static const zxvd_method_t T5[] = {{"y.three", x_other}};
+    CHECK(zxvd_rpc_add_methods(T2, 5) == 0 && zxvd_rpc_add_methods(T3, 1) == 0 &&
+              zxvd_rpc_add_methods(T4, 1) == 0,
+          "X1: four tables");
+    CHECK(zxvd_rpc_add_methods(T5, 1) == -1, "X1: a fifth is refused");
+    CHECK(has(REQ("9", "rpc.discover", ""),
+              "\"aipi.status\",\"x.echo\",\"x.num\",\"x.json\",\"x.echo\",\"x.zok\",\"x.books\","
+              "\"y.one\",\"y.two\"]}"),
+          "X1: every table's names, in the order added: %s", OUT.p);
+    EXPECT(REQ("9", "x.echo", ""), OK("9", "{\"s\":\"\",\"flag\":false}"));
+    EXPECT(REQ("9", "y.two", ""), OK("9", "\"second\""));
+    EXPECT(REQ("9", "y.three", ""), ERR("9", "-32601", "method not found"));
+    zxvd_rpc_remove_methods(TAB);
+    EXPECT(REQ("9", "x.echo", ""), OK("9", "\"second\""));
+    CHECK(has(REQ("9", "rpc.discover", ""),
+              "\"aipi.status\",\"x.num\",\"x.json\",\"x.echo\",\"x.zok\",\"x.books\",\"y.one\","
+              "\"y.two\"]}"),
+          "X1: removing one keeps the others in order: %s", OUT.p);
+    zxvd_rpc_remove_methods(TAB); /* not held: ignored */
+    zxvd_rpc_remove_methods(T3);
+    CHECK(zxvd_rpc_add_methods(T5, 1) == 0 && has(REQ("9", "y.three", ""), "\"second\"") &&
+              has(REQ("9", "y.one", ""), "method not found"),
+          "X1: a freed slot takes a new table");
+
+    /* X2: integers, amounts and raw JSON */
+    EXPECT(REQ("10", "x.num", ""), OK("10", "[7,-1]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":4294967295,\"a\":\"-9223372036854775807\"}"),
+           OK("10", "[4294967295,-9223372036854775807]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":0,\"a\":12}"), OK("10", "[0,12]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"need\":true}"),
+           ERR("10", "-32602", "missing integer parameter \\\"u\\\""));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"need\":true,\"u\":1}"),
+           ERR("10", "-32602", "missing integer parameter \\\"a\\\""));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":4294967296}"),
+           ERR("10", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":-1}"),
+           ERR("10", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":\"1\"}"),
+           ERR("10", "-32602", "\\\"u\\\" must be an integer (no fraction or exponent)"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"a\":1.5}"),
+           ERR("10", "-32602",
+               "\\\"a\\\" must be an integer or a decimal string (no fraction or exponent)"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[1,2,-4]}"), OK("10", "-1"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[]}"), OK("10", "0"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":{}}"),
+           ERR("10", "-32602", "\\\"list\\\" must be an array"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[1,\"2\"]}"),
+           ERR("10", "-32602", "\\\"list\\\" must hold integers"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{}"), OK("10", "\"none\""));
+    EXPECT(REQ("10", "x.json", ""), OK("10", "\"no params\""));
+
+    /* X5 */
+    EXPECT(REQ("11", "x.zok", ""), OK("11", "true"));
+    CHECK(has(REQ("11", "x.zok", ",\"params\":{\"bad\":true}"),
+              "\"error\":{\"code\":-32000,\"message\":\"ZXV_E_FUNDS") &&
+              has(REQ("11", "x.zok", ",\"params\":{\"bad\":true}"),
+                  "\"data\":{\"status\":-6,\"name\":\"ZXV_E_FUNDS\",\"class\":\"REFUSED\"}"),
+          "X5: a libzxv status as the book methods report it: %s", OUT.p);
+
+    /* X6-X7: the books through the extension, recorded like ledger.* */
+    zxvd_rpc_books_close();
+    uint32_t aa, bb;
+    uint64_t ee;
+    CHECK(!zxvd_books_cap() && !zxvd_books_ctx() &&
+              zxvd_books_account("n", "NGN", ZXV_ACCT_HOLDER, &aa) == ZXV_E_STATE &&
+              zxvd_books_post(0, 1, 1, "NGN", "r", &ee) == ZXV_E_STATE,
+          "X6-X7: nothing while the books are closed");
+    EXPECT(REQ("12", "x.books", ""), ERR("12", "-32050", "closed"));
+    CHECK(zxvd_rpc_books_file(NULL) == 0 && zxvd_rpc_books_open() == 0, "books open in memory");
+    CHECK(zxvd_books_cap() && zxvd_books_ctx(), "X6: the cap and context once open");
+    CHECK(has(REQ("12", "currency.enable", ",\"params\":{\"code\":\"NGN\"}"), "\"enabled\""),
+          "NGN on");
+    CHECK(has(REQ("12", "x.books", ""), "\"result\":[") &&
+              has(REQ("12", "x.books", ""), "\"code\":-32000"),
+          "X7: an account and a posting; the same reference again is refused: %s", OUT.p);
+    CHECK(has(REQ("12", "ledger.accounts", ""), "\"name\":\"x holder\"") &&
+              zxvd_books_account("x holder", "NGN", ZXV_ACCT_HOLDER, &bb) == ZXV_OK,
+          "X7: the accounts are the books' own");
+    zxvd_rpc_books_close();
+    zxvd_rpc_clear_methods();
+    CHECK(has(REQ("13", "rpc.discover", ""), "\"aipi.status\"]}") &&
+              has(REQ("13", "x.num", ""), "method not found") &&
+              has(REQ("13", "y.two", ""), "method not found"),
+          "X1: clear takes every table out");
+    CHECK(zxvd_rpc_add_methods(T3, 1) == 0 && zxvd_rpc_add_methods(T4, 1) == 0 &&
+              zxvd_rpc_add_methods(T5, 1) == 0 && zxvd_rpc_add_methods(TAB, 5) == 0,
+          "X1: four slots free again after clear");
+    zxvd_rpc_clear_methods();
 }
 
 /* ---------------- aipi.* ---------------- */

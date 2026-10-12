@@ -639,14 +639,18 @@ int zxvd_chat_open(const char *prefix)
         zxvd_chat_close();
         return -1;
     }
+    if (zxvd_rpc_add_methods(METHODS, sizeof METHODS / sizeof METHODS[0]) != 0) {
+        fprintf(stderr, "zxvd: no room for the chat methods\n");
+        zxvd_chat_close();
+        return -1;
+    }
     CH.open = true;
-    zxvd_rpc_add_methods(METHODS, sizeof METHODS / sizeof METHODS[0]);
     return 0;
 }
 
 void zxvd_chat_close(void)
 {
-    if (CH.open) zxvd_rpc_add_methods(NULL, 0);
+    if (CH.open) zxvd_rpc_remove_methods(METHODS);
     uint64_t (*now)(void) = CH.now_ms;
     memset(&CH, 0, sizeof CH);
     CH.now_ms = now;

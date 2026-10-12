@@ -861,14 +861,41 @@ static bool p_u32(call_t *c, const char *key, uint32_t *v)
     return true;
 }
 
-/* X1-X4: methods another module adds */
-static const zxvd_method_t *EXT;
-static uint32_t N_EXT;
+/* X1-X7: methods other modules add */
+static struct {
+    const zxvd_method_t *m;
+    uint32_t n;
+} EXT[ZXVD_RPC_MAX_TABLES];
+static uint32_t N_EXT; /* tables held, EXT[0..N_EXT) in the order added */
 
-void zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n)
+int zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n)
 {
-    EXT = n ? m : NULL;
-    N_EXT = m ? n : 0;
+    if (!m || !n) return -1;
+    for (uint32_t i = 0; i < N_EXT; i++)
+        if (EXT[i].m == m) {
+            EXT[i].n = n;
+            return 0;
+        }
+    if (N_EXT == ZXVD_RPC_MAX_TABLES) return -1;
+    EXT[N_EXT].m = m;
+    EXT[N_EXT].n = n;
+    N_EXT++;
+    return 0;
+}
+
+void zxvd_rpc_remove_methods(const zxvd_method_t *m)
+{
+    for (uint32_t i = 0; i < N_EXT; i++)
+        if (EXT[i].m == m) {
+            for (; i + 1 < N_EXT; i++) EXT[i] = EXT[i + 1];
+            N_EXT--;
+            return;
+        }
+}
+
+void zxvd_rpc_clear_methods(void)
+{
+    N_EXT = 0;
 }
 
 bool zxvd_param_str(call_t *c, const char *key, char *out, uint32_t cap, bool required)
@@ -891,6 +918,31 @@ bool zxvd_param_bool(call_t *c, const char *key, bool *v, bool required)
     return true;
 }
 
+bool zxvd_param_u32(call_t *c, const char *key, uint32_t *v, bool required)
+{
+    if (param(c, key) < 0 && !required) return true;
+    return p_u32(c, key, v);
+}
+
+static bool p_amount(call_t *c, const char *key, int64_t *v);
+
+bool zxvd_param_amount(call_t *c, const char *key, int64_t *v, bool required)
+{
+    if (param(c, key) < 0 && !required) return true;
+    return p_amount(c, key, v);
+}
+
+bool zxvd_param_json(call_t *c, const char *key, zxvd_json_t *v)
+{
+    int32_t i = key ? param(c, key) : c->params;
+    if (i < 0) return false;
+    v->js = c->js;
+    v->tok = c->t;
+    v->n = c->n;
+    v->at = i;
+    return true;
+}
+
 zxvd_buf_t *zxvd_result(call_t *c)
 {
     return c->res;
@@ -902,6 +954,32 @@ void zxvd_fail(call_t *c, int code, const char *fmt, ...)
     va_start(ap, fmt);
     vfail(c, code, fmt, ap);
     va_end(ap);
+}
+
+bool zxvd_libzxv_ok(call_t *c, int32_t st)
+{
+    return zok(c, st);
+}
+
+const zxv_cap *zxvd_books_cap(void)
+{
+    return CAP;
+}
+
+zxv_ctx *zxvd_books_ctx(void)
+{
+    return CTX;
+}
+
+int32_t zxvd_books_account(const char *name, const char *ccy, int32_t kind, uint32_t *id)
+{
+    return CAP ? bk_acct(name, ccy, kind, id) : ZXV_E_STATE;
+}
+
+int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
+                        const char *ref, uint64_t *entry)
+{
+    return CAP ? bk_post(from, to, amount, ccy, ref, entry) : ZXV_E_STATE;
 }
 
 /* M3: an amount is a JSON integer or a decimal string ("-12", no sign "+",
@@ -1469,10 +1547,11 @@ static void m_discover(call_t *c)
         if (i) zxvd_buf_raw(c->res, ",", 1);
         zxvd_buf_json_str(c->res, METHODS[i].name);
     }
-    for (uint32_t i = 0; i < N_EXT; i++) {
-        zxvd_buf_raw(c->res, ",", 1);
-        zxvd_buf_json_str(c->res, EXT[i].name);
-    }
+    for (uint32_t i = 0; i < N_EXT; i++)
+        for (uint32_t j = 0; j < EXT[i].n; j++) {
+            zxvd_buf_raw(c->res, ",", 1);
+            zxvd_buf_json_str(c->res, EXT[i].m[j].name);
+        }
     zxvd_buf_raw(c->res, "]}", 2);
 }
 
@@ -1553,8 +1632,9 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     for (size_t i = 0; i < N_METHODS; i++)
         if (w4_json_str_eq(line, &t[m], METHODS[i].name)) fn = &METHODS[i];
     void (*ext)(call_t *) = NULL;
-    for (uint32_t i = 0; !fn && i < N_EXT; i++)
-        if (w4_json_str_eq(line, &t[m], EXT[i].name)) ext = EXT[i].fn;
+    for (uint32_t i = 0; !fn && !ext && i < N_EXT; i++)
+        for (uint32_t j = 0; !ext && j < EXT[i].n; j++)
+            if (w4_json_str_eq(line, &t[m], EXT[i].m[j].name)) ext = EXT[i].m[j].fn;
     if (!fn && !ext) {
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
