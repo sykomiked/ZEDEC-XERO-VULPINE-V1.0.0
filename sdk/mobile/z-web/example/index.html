@@ -1,0 +1,115 @@
+<!doctype html>
+<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Z-Web example</title>
+  <style>
+    :root { color-scheme: light dark; --fg: #1b1b1f; --bg: #fafafa; --muted: #5f6368; --line: #d6d6db; --accent: #2d5bd7; }
+    @media (prefers-color-scheme: dark) { :root { --fg: #e8e8ec; --bg: #16161a; --muted: #9aa0a6; --line: #34343c; --accent: #8ab4f8; } }
+    body { margin: 0; padding: 16px; font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); max-width: 760px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p.note { color: var(--muted); margin: 0 0 16px; }
+    section { border-top: 1px solid var(--line); padding: 12px 0; }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 8px 0 0; font: 13px/1.45 ui-monospace, monospace; }
+    button { font: inherit; padding: 4px 12px; margin-right: 8px; }
+    code { font: 13px ui-monospace, monospace; }
+    .status { color: var(--muted); font-size: 13px; }
+  </style>
+  <!-- The page resolves @zedec/zxv/wasm through an import map; a bundler does this in an app. -->
+  <script type="importmap">
+    { "imports": { "@zedec/zxv/wasm": "../../../typescript/dist/src/browser.js" } }
+  </script>
+</head>
+<body>
+  <h1>Z-Web</h1>
+  <p class="note">libzxv in a Web Worker. Every file is checked against its SHA3-256 before use and cached offline by digest.
+    Exact numbers only: budgets are rationals, amounts are integers.</p>
+
+  <section>
+    <div class="status" id="status">starting...</div>
+  </section>
+
+  <section>
+    <button id="gen" disabled>Generate</button><button id="stop" disabled>Stop</button>
+    <span class="status" id="genstat"></span>
+    <pre id="out"></pre>
+  </section>
+
+  <section>
+    <button id="spend" disabled>Consume 5/2</button>
+    <span class="status">budget <code>gpu-seconds</code>, limit 10</span>
+    <pre id="budget"></pre>
+  </section>
+
+  <section>
+    <pre id="logic"></pre>
+  </section>
+
+  <script type="module">
+    import { createZxvWeb, AssetCache, Truth, Hexagram, HexBase, HexPolarity, HexPhase, HEX_ACTION_NAMES } from '../dist/src/index.js';
+
+    const $ = (id) => document.getElementById(id);
+    const status = (t) => { $('status').textContent = t; };
+
+    // Four-valued logic and the hexagram tag run on the page before the worker exists.
+    const h = Hexagram.of(HexBase.TRUE, HexPolarity.NEGENTROPIC, HexPhase.POTENTIAL);
+    $('logic').textContent = [
+      `TRUE AND BOTH = ${Truth.TRUE.and(Truth.BOTH).name}`,
+      `FALSE OR NEITHER = ${Truth.FALSE.or(Truth.NEITHER).name}`,
+      `hexagram ${h.name} (tag ${h.tag}) -> ${HEX_ACTION_NAMES[h.action]}; forbid() -> ${HEX_ACTION_NAMES[h.forbid().action]}`,
+    ].join('\n');
+
+    try {
+      const digests = await (await fetch('./digests.json')).json();   // from `npm run example:prepare`
+      const cache = new AssetCache();
+      const zxv = await createZxvWeb({ wasm: digests.wasm, cache, workerUrl: new URL('./worker.js', import.meta.url) });
+      const { root } = await zxv.createContext();
+      const model = await zxv.loadModel(root, await cache.get(digests.model), await cache.get(digests.tokenizer));
+      const session = await zxv.newSession(model, { nCtx: 128 });
+      const prompt = new TextDecoder().decode((await cache.get(digests.prompt)).bytes);
+      globalThis.zxvExample = { zxv, root, session, prompt };   // to try things from the devtools console
+      status(`libzxv ${zxv.version.major}.${zxv.version.minor}.${zxv.version.patch} on ${zxv.version.backend}; ` +
+        `cross-origin isolated: ${self.crossOriginIsolated ? 'yes (Stop interrupts the worker)' : 'no (Stop discards the rest)'}`);
+
+      let ac = null;
+      $('gen').disabled = false;
+      $('gen').onclick = async () => {
+        $('gen').disabled = true; $('stop').disabled = false; $('out').textContent = ''; $('genstat').textContent = '';
+        ac = new AbortController();
+        try {
+          await zxv.resetSession(session);
+          const r = await zxv.generate(session, prompt, {
+            maxTokens: 48, temperature: '7/10', topK: 40, seed: 42n, signal: ac.signal,
+            onToken: (t) => { $('out').textContent += t.text; },
+          });
+          $('genstat').textContent = `${r.generatedTokens} tokens, stop ${r.stop}`;
+        } catch (e) {
+          $('genstat').textContent = e.name === 'AbortError' ? 'stopped' : String(e);
+        } finally {
+          $('gen').disabled = false; $('stop').disabled = true;
+        }
+      };
+      $('stop').onclick = () => ac?.abort();
+
+      const budgets = await zxv.openBudgets(root);
+      const gpu = await zxv.createBudget(budgets, 'gpu-seconds', '10');
+      const show = async () => {
+        const s = await zxv.budgetStatus(gpu);
+        // toString() is exact; a float appears only for display, never on the wire
+        $('budget').textContent = `remaining ${s.remaining} (about ${(Number(s.remaining.num) / Number(s.remaining.den)).toFixed(3)}), used ${s.used}`;
+      };
+      await show();
+      $('spend').disabled = false;
+      $('spend').onclick = async () => {
+        try { await zxv.consume(gpu, '5/2'); await show(); }
+        catch (e) { $('budget').textContent += `\n${e.kind}: ${e.statusName}`; }
+      };
+    } catch (e) {
+      status(`failed: ${e}`);
+    }
+  </script>
+</body>
+</html>
