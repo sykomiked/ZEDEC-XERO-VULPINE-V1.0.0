@@ -106,9 +106,7 @@ posture    balanced (swarm tokens per cycle x 618/1000)
 
 ## Not done yet
 
-- **zxvd.** It does not yet register its agents or serve `power.*` RPC
-  methods; the Daemon wiring thread owns `zxvd_rpc.c`. The call to make is
-  `zph_note_agent` with each model call's thread CPU time.
+- **zxvd** is wired on PR #109, not in this PR. It adds `power.status`, `power.top` and `power.budget`, with agents noted around each model call and `pw_admit` run before it. See docs/ZXVD.md, "Power", for the flat `power.budget` params.
 - **Brazier app.** The UI (app 21, "Power, battery and heat") is not built.
 - **Bare metal.** The arch layer has no fault-safe `rdmsr` yet, so RAPL is not
   wired into the boot image. There is also no ACPI battery, no thermal zones,

@@ -748,7 +748,8 @@ int pw_render_json(const pw_ledger_t *l, char *out, size_t cap)
         else
             pw_putu(&o, c->parent);
         pw_putc(&o, ',');
-        pw_key(&o, "ext_id"), pw_putu(&o, c->ext_id), pw_putc(&o, ',');
+        /* 64-bit ids exceed 2^53: a decimal string, as zxvd does (zxvd_rpc.h M3) */
+        pw_key(&o, "ext_id"), pw_putc(&o, '"'), pw_putu(&o, c->ext_id), pw_puts(&o, "\",");
         pw_key(&o, "uj"), pw_putu(&o, c->last_uj), pw_putc(&o, ',');
         pw_key(&o, "mw"), pw_putu(&o, c->last_mw), pw_putc(&o, ',');
         pw_key(&o, "source"), pw_putstr(&o, pw_source_name(c->last_src)), pw_putc(&o, ',');

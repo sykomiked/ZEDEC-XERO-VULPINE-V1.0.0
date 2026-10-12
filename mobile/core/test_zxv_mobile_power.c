@@ -36,10 +36,10 @@ int main(void)
     CHECK(strstr(j, "\"total_uj\":2000000,\"total_mw\":2000,\"source\":\"metered\"") != NULL,
           "2 J measured");
     /* 8 cpus: app 2 s of 8 s = 500 mJ; agent half of it */
-    CHECK(strstr(j, "\"name\":\"zxv-companion\",\"parent\":null,\"ext_id\":1,\"uj\":250000") !=
+    CHECK(strstr(j, "\"name\":\"zxv-companion\",\"parent\":null,\"ext_id\":\"1\",\"uj\":250000") !=
               NULL,
           "companion keeps 250 mJ");
-    CHECK(strstr(j, "\"name\":\"phi\",\"parent\":1,\"ext_id\":9,\"uj\":250000") != NULL,
+    CHECK(strstr(j, "\"name\":\"phi\",\"parent\":1,\"ext_id\":\"9\",\"uj\":250000") != NULL,
           "agent 250 mJ");
     CHECK(strstr(j, "\"rate_mw\":2000") != NULL && strstr(j, "\"permille\":790") != NULL,
           "battery");

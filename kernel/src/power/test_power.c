@@ -598,15 +598,15 @@ static void t_json(void)
         "\"design_mwh\":50000,\"health_permille\":800,\"rate_mw\":3000,\"cycles\":321,"
         "\"minutes_to_empty\":120,\"minutes_to_full\":0,\"temp_dc\":-15},\"meters\":[{\"name\":"
         "\"pkg\",\"domain\":2,\"scope\":1,\"lifetime_uj\":2000,\"faults\":0}],\"consumers\":[{"
-        "\"id\":0,\"kind\":\"system\",\"name\":\"system\",\"parent\":null,\"ext_id\":0,"
+        "\"id\":0,\"kind\":\"system\",\"name\":\"system\",\"parent\":null,\"ext_id\":\"0\","
         "\"uj\":1000,\"mw\":1,\"source\":\"attributed\",\"lifetime_uj\":1000,\"cpu_ns\":0,"
         "\"gpu_ns\":0,\"lifetime_cpu_ns\":0,\"lifetime_gpu_ns\":0},{\"id\":1,\"kind\":\"app\","
         "\"name\":\"ed\\\"it\\\\or\\u000a\","
-        "\"parent\":null,\"ext_id\":12,\"uj\":500,\"mw\":0,\"source\":\"attributed\","
+        "\"parent\":null,\"ext_id\":\"12\",\"uj\":500,\"mw\":0,\"source\":\"attributed\","
         "\"lifetime_uj\":500,\"cpu_ns\":1000000000,\"gpu_ns\":0,\"lifetime_cpu_ns\":1000000000,"
         "\"lifetime_gpu_ns\":0,\"budget\":{\"window_ms\":60000,"
         "\"max_uj\":9000,\"used_uj\":500,\"strict\":true}},{\"id\":2,\"kind\":\"agent\","
-        "\"name\":\"qwen\",\"parent\":1,\"ext_id\":3,\"uj\":500,\"mw\":0,\"source\":"
+        "\"name\":\"qwen\",\"parent\":1,\"ext_id\":\"3\",\"uj\":500,\"mw\":0,\"source\":"
         "\"attributed\",\"lifetime_uj\":500,\"cpu_ns\":500000000,\"gpu_ns\":0,"
         "\"lifetime_cpu_ns\":500000000,\"lifetime_gpu_ns\":0}]}";
     CHECK(n == (int) strlen(want), "json length");
