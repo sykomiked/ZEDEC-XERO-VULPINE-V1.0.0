@@ -353,3 +353,54 @@ public struct Jurisdiction: Decodable, Sendable {
     /// False: the settings are recorded only (zxvd_rpc.h J5).
     public let inEffect: Bool
 }
+
+// MARK: chat.* (zxvd_chat.h C5)
+
+/// chat.me: the owner's chat identity.
+public struct ChatMe: Decodable, Sendable {
+    public let nodeId: String
+    /// False: in memory for this run only (zxvd --books -).
+    public let saved: Bool
+    public let records: Int
+    public let following: [String]
+}
+
+public struct ChatReaction: Decodable, Sendable, Hashable {
+    public let emoji: String
+    public let count: Int
+    public let mine: Bool
+}
+
+/// A signed post, reply or reaction with its replies and reactions.
+public struct ChatRecord: Decodable, Sendable, Identifiable, Hashable {
+    public let id: String
+    public let author: String
+    public let mine: Bool
+    public let kind: String
+    public let lamport: String
+    /// Milliseconds since 1970 as a decimal string, "0" when absent (a hint only).
+    public let wallMs: String
+    public let text: String
+    public let replyTo: String?
+    public let replies: Int
+    public let reactions: [ChatReaction]
+
+    public var date: Date? {
+        guard let ms = Double(wallMs), ms > 0 else { return nil }
+        return Date(timeIntervalSince1970: ms / 1000)
+    }
+}
+
+public struct ChatFeed: Decodable, Sendable {
+    public let posts: [ChatRecord]
+}
+
+public struct ChatThread: Decodable, Sendable {
+    public let root: ChatRecord
+    public let replies: [ChatRecord]
+}
+
+public struct ChatFollow: Decodable, Sendable {
+    public let nodeId: String
+    public let following: Bool
+}

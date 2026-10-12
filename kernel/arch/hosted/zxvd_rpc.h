@@ -208,6 +208,37 @@ typedef struct {
 } zxvd_view_ops_t;
 void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
 
+/* X1-X4: methods another module adds (zxvd_chat.h is the first).
+ *   X1 zxvd_rpc_add_methods registers a table that must outlive zxvd's use
+ *      of it; a later call replaces it, and NULL or 0 removes it. rpc.discover
+ *      lists its names after the built-in ones. A built-in name wins.
+ *   X2 a method reads its params with zxvd_param_str / zxvd_param_bool and
+ *      writes one JSON value into zxvd_result(c); zxvd_fail sets the error
+ *      and, as for the built-ins, the first error stands.
+ *   X3 a method that neither fails nor writes a result answers -32603.
+ *   X4 the codes a method may use are the JSON-RPC ones below or its own,
+ *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010). */
+#define ZXVD_E_METHOD   (-32601)
+#define ZXVD_E_PARAMS   (-32602)
+#define ZXVD_E_INTERNAL (-32603)
+typedef struct zxvd_call zxvd_call_t;
+typedef struct {
+    const char *name;
+    void (*fn)(zxvd_call_t *c);
+} zxvd_method_t;
+void zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n);
+/* A string parameter: true if read, or absent and not required (out = "").
+ * It must be a JSON string of at most cap - 1 bytes with no NUL. */
+bool zxvd_param_str(zxvd_call_t *c, const char *key, char *out, uint32_t cap, bool required);
+/* A boolean parameter: true if read, or absent and not required (*v kept). */
+bool zxvd_param_bool(zxvd_call_t *c, const char *key, bool *v, bool required);
+zxvd_buf_t *zxvd_result(zxvd_call_t *c);
+void zxvd_fail(zxvd_call_t *c, int code, const char *fmt, ...)
+#if defined(__GNUC__)
+    __attribute__((format(printf, 3, 4)))
+#endif
+    ;
+
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops);

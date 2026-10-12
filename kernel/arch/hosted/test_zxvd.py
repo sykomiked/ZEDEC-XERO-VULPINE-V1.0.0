@@ -234,7 +234,8 @@ def main(binary, gguf=None):
                 'currency.enable', 'ledger.open_account', 'ledger.post', 'ledger.balance',
                 'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings',
                 'mesh.books', 'books.file', 'net.peers', 'net.offers', 'player.card',
-                'jurisdiction.get', 'jurisdiction.set'}
+                'jurisdiction.get', 'jurisdiction.set', 'chat.me', 'chat.post', 'chat.react',
+                'chat.follow', 'chat.feed', 'chat.thread'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
               'rpc.discover lists every method')
         v = c.ok('zxvd.version')
@@ -317,6 +318,27 @@ def main(binary, gguf=None):
         j = c.ok('jurisdiction.get')
         check(j['market'] == 'closed' and j['standard'] == '' and j['in_effect'] is False and
               'AAOIFI' in j['standards'], 'jurisdiction.get: closed clearing by default')
+
+        # ---- the owner's chat (zxvd_chat.h C1-C8), in memory without --books ----
+        me = c.ok('chat.me')
+        check(me['saved'] is False and len(me['node_id']) == 64 and me['records'] == 0,
+              'chat.me: a fresh in-memory identity (%s)' % me)
+        post = c.ok('chat.post', {'text': 'hello from zxvd \u00e9'})
+        check(post['kind'] == 'post' and post['mine'] is True and
+              post['text'] == 'hello from zxvd \u00e9' and post['author'] == me['node_id'] and
+              int(post['wall_ms']) > 0, 'chat.post: a signed post (%s)' % post)
+        reply = c.ok('chat.post', {'text': 'a reply', 'reply_to': post['id']})
+        check(reply['reply_to'] == post['id'], 'chat.post: a reply')
+        c.ok('chat.react', {'to': post['id'], 'emoji': '\U0001F44D'})
+        th = c.ok('chat.thread', {'id': post['id']})
+        check(th['root']['replies'] == 1 and th['root']['reactions'] ==
+              [{'emoji': '\U0001F44D', 'count': 1, 'mine': True}] and
+              [r['id'] for r in th['replies']] == [reply['id']],
+              'chat.thread: the reply and the reaction (%s)' % th)
+        feed = c.ok('chat.feed')['posts']
+        check([p['id'] for p in feed] == [post['id']], 'chat.feed: posts only (%s)' % feed)
+        e = c.call('chat.post', {'text': '   '})
+        check(e.get('error', {}).get('code') == -32602, 'chat.post: blank text is refused')
 
         # ---- libzxv's books, through the capability ----
         check(c.ok('currency.enable', {'code': 'USD'})['enabled'] == 'USD', 'currency.enable USD')
@@ -466,6 +488,12 @@ def main(binary, gguf=None):
             bal = c4.ok('swarm.earnings')['balance_minor']
             js = c4.ok('jurisdiction.set', {'market': 'open', 'standard': 'IFRS', 'country': 'KE'})
             check(js['market'] == 'open' and js['country'] == 'KE', 'jurisdiction.set')
+            me4 = c4.ok('chat.me')
+            kept = c4.ok('chat.post', {'text': 'kept across a restart'})
+            check(me4['saved'] is True, 'chat.me: saved beside the books')
+            if not WINDOWS:
+                seed = os.path.join(os.path.dirname(books), 'social.seed')
+                check(stat.S_IMODE(os.stat(seed).st_mode) == 0o600, 'the chat key file is 0600')
             stop(p4, c4)
             p4, c4 = run_with_books()
             got = c4.ok('ledger.entries', {'account': fb})['entries']
@@ -484,6 +512,10 @@ def main(binary, gguf=None):
             j = c4.ok('jurisdiction.get')
             check((j['market'], j['standard'], j['country']) == ('open', 'IFRS', 'KE'),
                   'the jurisdiction settings come back (%s)' % j)
+            me5 = c4.ok('chat.me')
+            check(me5['node_id'] == me4['node_id'] and me5['records'] == 1 and
+                  c4.ok('chat.thread', {'id': kept['id']})['root']['text'] ==
+                  'kept across a restart', 'the chat identity and post come back (%s)' % me5)
             stop(p4, c4)
             with open(books, 'r+b') as f:  # an edit outside zxvd stops the next start
                 data = f.read()

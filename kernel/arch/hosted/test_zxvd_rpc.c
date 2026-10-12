@@ -1811,6 +1811,88 @@ static void test_peer_methods(void)
     zxvd_rpc_set_peer_ops(NULL);
 }
 
+/* ---------------- extension methods (zxvd_rpc.h X1-X4) ---------------- */
+
+static int ext_calls;
+static void x_echo(zxvd_call_t *c)
+{
+    char s[8] = "unset";
+    bool flag = false;
+    ext_calls++;
+    if (!zxvd_param_str(c, "s", s, sizeof s, false) || !zxvd_param_bool(c, "flag", &flag, false))
+        return;
+    zxvd_buf_printf(zxvd_result(c), "{\"s\":\"%s\",\"flag\":%s}", s,
+                    flag ? "true" : "false");
+}
+static void x_need(zxvd_call_t *c)
+{
+    bool flag = true;
+    if (!zxvd_param_bool(c, "flag", &flag, true)) return;
+    zxvd_buf_printf(zxvd_result(c), "%s", flag ? "1" : "0");
+}
+static void x_fail(zxvd_call_t *c)
+{
+    zxvd_fail(c, -32042, "first %d", 1);
+    zxvd_fail(c, -32043, "second");
+    zxvd_buf_raw(zxvd_result(c), "1", 1); /* dropped: the error stands */
+}
+static void x_quiet(zxvd_call_t *c)
+{
+    (void) c; /* X3: neither a result nor an error */
+}
+static void x_shadow(zxvd_call_t *c)
+{
+    ext_calls += 100;
+    zxvd_buf_raw(zxvd_result(c), "\"ext\"", 5);
+}
+
+static void test_ext(void)
+{
+    static const zxvd_method_t TAB[] = {{"x.echo", x_echo},   {"x.need", x_need},
+                                        {"x.fail", x_fail},   {"x.quiet", x_quiet},
+                                        {"zxvd.version", x_shadow}};
+    zxvd_rpc_set_ops(&OPS);
+    EXPECT(REQ("1", "x.echo", ""), ERR("1", "-32601", "method not found"));
+    zxvd_rpc_add_methods(TAB, 5);
+    CHECK(has(REQ("1", "rpc.discover", ""),
+              "\"jurisdiction.set\",\"x.echo\",\"x.need\",\"x.fail\",\"x.quiet\","
+              "\"zxvd.version\"]}"),
+          "X1: listed after the built-ins: %s", OUT.p);
+    EXPECT(REQ("2", "x.echo", ""), OK("2", "{\"s\":\"\",\"flag\":false}"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"s\":\"abc\",\"flag\":true}"),
+           OK("2", "{\"s\":\"abc\",\"flag\":true}"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"flag\":false}"),
+           OK("2", "{\"s\":\"\",\"flag\":false}"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"s\":\"1234567\"}"),
+           OK("2", "{\"s\":\"1234567\",\"flag\":false}"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"s\":\"12345678\"}"),
+           ERR("2", "-32602", "\\\"s\\\" must be a string of at most 7 bytes"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"flag\":1}"),
+           ERR("2", "-32602", "\\\"flag\\\" must be true or false"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"flag\":null}"),
+           ERR("2", "-32602", "\\\"flag\\\" must be true or false"));
+    EXPECT(REQ("3", "x.need", ""), ERR("3", "-32602", "missing boolean parameter \\\"flag\\\""));
+    EXPECT(REQ("3", "x.need", ",\"params\":{\"flag\":false}"), OK("3", "0"));
+    EXPECT(REQ("3", "x.need", ",\"params\":{\"flag\":true}"), OK("3", "1"));
+    EXPECT(REQ("4", "x.fail", ""), ERR("4", "-32042", "first 1"));
+    EXPECT(REQ("5", "x.quiet", ""), ERR("5", "-32603", "no result"));
+    int before = ext_calls;
+    CHECK(has(REQ("6", "zxvd.version", ""), "\"app\":\"9.8.7\"") && ext_calls == before,
+          "X1: a built-in name wins: %s", OUT.p);
+    zxvd_rpc_add_methods(TAB, 1);
+    CHECK(has(REQ("7", "rpc.discover", ""), "\"jurisdiction.set\",\"x.echo\"]}") &&
+              has(REQ("7", "x.need", ""), "method not found"),
+          "X1: a later table replaces it: %s", OUT.p);
+    zxvd_rpc_add_methods(TAB, 0);
+    CHECK(has(REQ("8", "rpc.discover", ""), "\"jurisdiction.set\"]}") &&
+              has(REQ("8", "x.echo", ""), "method not found"),
+          "X1: 0 removes it");
+    zxvd_rpc_add_methods(NULL, 3);
+    CHECK(has(REQ("9", "rpc.discover", ""), "\"jurisdiction.set\"]}") &&
+              has(REQ("9", "x.echo", ""), "method not found"),
+          "X1: NULL removes it");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -1826,6 +1908,7 @@ int main(void)
     test_views();
     test_jurisdiction();
     test_edges();
+    test_ext();
     test_socket();
     free(OUT.p);
     if (fails) {

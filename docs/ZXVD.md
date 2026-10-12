@@ -93,6 +93,12 @@ CI checks it matches what zxvd serves.
 | `books.file` | | `saved`, `path`, `records`, `head`, `writable` |
 | `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect` |
 | `jurisdiction.set` | `market`?, `standard`?, `country`? | as `jurisdiction.get` |
+| `chat.me` | | `node_id`, `saved`, `records`, `following` |
+| `chat.post` | `text`, `reply_to`? | a record: `id`, `author`, `mine`, `kind`, `lamport`, `wall_ms`, `text`, `reply_to`, `replies`, `reactions` |
+| `chat.react` | `to`, `emoji` | a record |
+| `chat.follow` | `node_id`, `follow`? | `node_id`, `following` |
+| `chat.feed` | | `posts` (records, best first, at most 50) |
+| `chat.thread` | `id` | `root`, `replies` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -206,11 +212,32 @@ change is one record, written before it applies, so it survives a restart.
 yet. When the adapters exist they will follow each standard; they do not
 replace an accountant or a Shariah board.
 
+## Commons: your posts in your own name
+
+The `chat.*` methods (`kernel/arch/hosted/zxvd_chat.h` C1-C8) let the owner
+post, reply, react and follow with records signed by their own ML-DSA-65
+key (`kernel/src/social/social_post.h`). The key's seed is `social.seed`
+(0600) and the records go to `social.log` in the books folder, each one
+saved before the method answers and checked again at every start; with
+`--books -` both live in memory for that run only. The feed
+(`chat.feed`) ranks posts by what each adds over the others
+(`social_feed.h`, the Interaction Surplus Framework) with a small freshness
+term; it never reads likes, reply counts or views. The Studio shows it on
+the Commons screen.
+
+These records stay on this device for now: the exchange with peers
+(`social_store.h` gossip over the mesh) and direct messages (which need
+session encryption) are the next steps. The chat key is separate from the
+mesh node's identity.
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
 stub host and the real libzxv (exact replies, every error, the socket); it is
-the mutation harness's test for `zxvd_rpc.c`. `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
+the mutation harness's test for `zxvd_rpc.c`. `kernel/arch/hosted/test_zxvd_chat.sh`
+runs the chat methods through the same RPC layer (text rules, the log's
+damage and torn-tail handling, the read-only state after a failed write).
+`kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
 with the tokenizer test model, and once with the real Qwen2.5-1.5B-Instruct
@@ -232,6 +259,8 @@ installed .deb.
   signature or encryption: anyone who can write it as you can rebuild a
   valid chain. Back it up like any other file of yours.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
+- Commons posts are not sent to peers yet, and there are no direct
+  messages; the feed keeps no record of what you have already seen.
 - There is no escrow in zxvd yet, so `ledger.holds` is not served and the
   Studio's Escrow panel stays a placeholder.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS

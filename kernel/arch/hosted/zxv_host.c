@@ -105,7 +105,8 @@ typedef int sock_t;
 #include "zx_notify.h"
 #include "zx_upcheck.h"
 #if defined(ZXVD)
-#    include "zxvd_rpc.h" /* zxvd: the JSON-RPC socket and the libzxv books */
+#    include "zxvd_rpc.h"  /* zxvd: the JSON-RPC socket and the libzxv books */
+#    include "zxvd_chat.h" /* zxvd: the owner's social chat (chat.*) */
 #    if defined(_WIN32)
 #        include <afunix.h>
 #    else
@@ -2040,6 +2041,23 @@ int main(int argc, char **argv)
         return 2;
     }
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;
+    /* zxvd_chat.h C1-C3: the chat keeps its key and log beside the books */
+    char chat_prefix[1100];
+    chat_prefix[0] = 0;
+    if (books_path) {
+        const char *slash = strrchr(books_path, '/');
+#    if defined(_WIN32)
+        const char *bs = strrchr(books_path, '\\');
+        if (bs && (!slash || bs > slash)) slash = bs;
+#    endif
+        int dl = slash ? (int) (slash - books_path + 1) : 0;
+        snprintf(chat_prefix, sizeof chat_prefix, "%.*ssocial", dl, books_path);
+    }
+    zxvd_chat_set_clock(zxv_net_wall_ms);
+    if (zxvd_chat_open(chat_prefix) != 0) {
+        zxvd_rpc_close();
+        return 1;
+    }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
     if (ls == BAD_SOCK) {
@@ -2181,6 +2199,7 @@ int main(int argc, char **argv)
     CLOSESOCK(ls);
 #if defined(ZXVD)
     if (link_path[0]) remove(link_path);
+    zxvd_chat_close();
     zxvd_rpc_close();
 #endif
     zxv_peer_free(S.peer);

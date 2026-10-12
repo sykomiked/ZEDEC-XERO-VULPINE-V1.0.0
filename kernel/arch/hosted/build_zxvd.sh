@@ -74,6 +74,11 @@ if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
 fi
 [ -n "$EXE" ] && set -- "$@" "$HERE/zxvd_rpc_win.c"
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
+# the owner's social chat (zxvd_chat.h): signed records, store, ISF feed
+set -- "$@" "$HERE/zxvd_chat.c" "$K/src/reputation/reputation.c"
+for f in social_post social_store social_feed social_bucket social_group social_sign_mldsa; do
+    set -- "$@" "$K/src/social/$f.c"
+done
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"
