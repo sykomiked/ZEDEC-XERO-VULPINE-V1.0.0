@@ -115,11 +115,75 @@ int main(void)
     CHECK(sa.conserved && sb.conserved && sa.trades == 0 && sa.receipts_refused == 0,
           "U6: both mesh books conserved, nothing traded or refused");
 
+    printf("[2b] U9 listings\n");
+    {
+        static zxv_net_peer_t pl[8];
+        static zxv_net_want_info_t wl[8];
+        static zxv_net_pend_info_t ql[16];
+        char hb[65], want_addr[22];
+        static const char hx[] = "0123456789abcdef";
+        for (int i = 0; i < 32; i++) hb[2 * i] = hx[idb[i] >> 4], hb[2 * i + 1] = hx[idb[i] & 15];
+        hb[64] = 0;
+        snprintf(want_addr, sizeof want_addr, "127.0.0.1:%u", (unsigned) sb.port);
+        uint32_t np = zxv_net_peers(a, pl, 8);
+        int at = -1;
+        for (uint32_t i = 0; i < np && i < 8; i++)
+            if (!strcmp(pl[i].id, hb)) at = (int) i;
+        CHECK(np >= 1 && np == zxv_net_peers(a, NULL, 0) && at >= 0,
+              "A lists %u peer(s), B among them; the count needs no buffer", np);
+        CHECK(at >= 0 && !strcmp(pl[at].addr, want_addr) && pl[at].last_seen_ms > 0 &&
+                  !pl[at].in_book && pl[at].pending == 0 && pl[at].held == 0,
+              "B's row: address %s, seen, not yet in the mesh book", at >= 0 ? pl[at].addr : "?");
+        CHECK(zxv_net_wants(b, wl, 8) == 0 && zxv_net_pending(a, ql, 16) == 0,
+              "nothing wanted or outstanding yet");
+        CHECK(zxv_net_share(a, 50, 0) == 0, "A shares 50 compute");
+        int32_t ws = zxv_net_want(b, VNA_RES_STORAGE, 7, 3);
+        int32_t wc = zxv_net_want(b, VNA_RES_COMPUTE, 10, 100);
+        CHECK(ws >= 0 && wc >= 0 && zxv_net_wants(b, wl, 1) == 2 && wl[0].slot == (uint32_t) ws &&
+                  wl[0].resource == VNA_RES_STORAGE && wl[0].units_left == 7 &&
+                  wl[0].max_price == 3,
+              "B's wants listed in slot order; the count is all of them, even past cap");
+        CHECK(zxv_net_wants(b, wl, 8) == 2 && wl[1].slot == (uint32_t) wc &&
+                  wl[1].resource == VNA_RES_COMPUTE && wl[1].units_left == 10 &&
+                  wl[1].max_price == 100,
+              "and the compute want");
+        CHECK(zxv_net_sell(a, idb, VNA_RES_COMPUTE, 4, 9, zxv_net_wall_ms()) == 0,
+              "A offers B 4 compute");
+        uint32_t nq = zxv_net_pending(a, ql, 16);
+        CHECK(nq == 1 && ql[0].selling && !strcmp(ql[0].peer, hb) && ql[0].units == 4 &&
+                  ql[0].want == -1 && ql[0].pair_seq >= 1,
+              "A's offer is outstanding until B answers (seq %llu)",
+              (unsigned long long) ql[0].pair_seq);
+        np = zxv_net_peers(a, pl, 8);
+        at = -1;
+        for (uint32_t i = 0; i < np && i < 8; i++)
+            if (!strcmp(pl[i].id, hb)) at = (int) i;
+        CHECK(at >= 0 && pl[at].in_book && !pl[at].member && pl[at].pending == 1,
+              "B is now in A's mesh book with one receipt pending");
+        for (int i = 0; i < 200 && (zxv_net_pending(a, NULL, 0) || zxv_net_pending(b, NULL, 0));
+             i++)
+            pump(a, b, 20);
+        CHECK(zxv_net_pending(a, NULL, 0) == 0 && zxv_net_pending(b, NULL, 0) == 0,
+              "after B accepts, nothing is outstanding on either side");
+        CHECK(zxv_net_wants(b, wl, 8) == 2 && wl[1].units_left == 6, "B still wants 6 compute");
+        np = zxv_net_peers(a, pl, 8);
+        at = -1;
+        for (uint32_t i = 0; i < np && i < 8; i++)
+            if (!strcmp(pl[i].id, hb)) at = (int) i;
+        CHECK(at >= 0 && pl[at].receivable > 0 && pl[at].pending == 0,
+              "A's row for B shows the credit delivered (%llu)",
+              at >= 0 ? (unsigned long long) pl[at].receivable : 0ull);
+        CHECK(zxv_net_share(a, 0, 0) == 0, "A stops sharing");
+    }
+
     printf("[3] modes\n");
     CHECK(zxv_net_start(a, ZXV_NET_OFF, NULL, 0, now) == 0 && zxv_net_fd(a) == -1,
           "switching A off closes its socket");
     zxv_net_status(a, &sa);
     CHECK(sa.peers == 0 && sa.node_id[0] == 0, "and forgets its session");
+    CHECK(zxv_net_peers(a, NULL, 0) == 0 && zxv_net_wants(a, NULL, 0) == 0 &&
+              zxv_net_pending(a, NULL, 0) == 0 && zxv_net_peers(NULL, NULL, 0) == 0,
+          "U9: off (or no host), every listing is empty");
     CHECK(zxv_net_econ_cycle(a, &sbud, 7000, now, &imp) == 0 && imp == 0 &&
               sbud.tokens_per_cycle == 5000,
           "U6: off, the economic cycle does nothing");

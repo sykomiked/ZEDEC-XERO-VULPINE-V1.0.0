@@ -216,10 +216,18 @@ static int32_t gen_job(void *ctx, uint32_t max_new)
 }
 #endif
 
+static uint64_t PROMPT_TOKENS;
+
+uint64_t zxv_model_prompt_tokens(void)
+{
+    return PROMPT_TOKENS;
+}
+
 int zxv_model_answer_ex(const char *prompt, zxv_gen_runner_fn run, void *rctx, char *out,
                         size_t cap)
 {
     out[0] = 0;
+    PROMPT_TOKENS = 0;
     if (!M.info.loaded) return 0;
     if (!M.info.tok_ok) {
         snprintf(out, cap, "Model %s is installed, but its tokenizer (%s) is not supported yet.",
@@ -239,6 +247,7 @@ int zxv_model_answer_ex(const char *prompt, zxv_gen_runner_fn run, void *rctx, c
         r = zt_tok_encode(&M.tok, (const uint8_t *) prompt, len, false, ids + off, cap_ids - off,
                           &n, work, wb);
         n += off;
+        PROMPT_TOKENS = n;
     }
     int answered = 0;
     if (r != ZT_GGUF_OK) {
