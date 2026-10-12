@@ -4305,6 +4305,152 @@
         }
       },
       "paramStructure": "by-name"
+    },
+    {
+      "name": "search.refresh",
+      "summary": "Bring the space's search index up to date (zxv_search.h; the Scent app): only files whose size or time changed are read again. Read only: no file is changed.",
+      "params": [
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to search (spaces.list): 'home' when absent; needs the view right (zxv_spaces.h S1). Each space has its own index.",
+            "maxLength": 48
+          }
+        }
+      ],
+      "result": {
+        "name": "stats",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "text_files": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "files whose words are indexed (UTF-8 with no NUL byte; the first 1 MiB)"
+            },
+            "added": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "changed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "removed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "left_out": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "files past 20000, or folders more than 32 deep"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "search.query",
+      "summary": "Find files by name and by the words in them (zxv_search.h S3-S5): every word of q must be in the file's name, its folders' names or its text; a word matches any word it starts (up to 24 bytes). Name matches rank first. Read only.",
+      "params": [
+        {
+          "name": "q",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "1 to 8 words; ASCII case is ignored"
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          }
+        },
+        {
+          "name": "refresh",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true,
+            "description": "bring the index up to date first (search.refresh); false searches the index as it is"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to search (spaces.list): 'home' when absent; needs the view right (zxv_spaces.h S1). Each space has its own index.",
+            "maxLength": 48
+          }
+        }
+      ],
+      "result": {
+        "name": "hits",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "hits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "mtime": {
+                    "type": "integer",
+                    "description": "seconds since 1970"
+                  },
+                  "in_name": {
+                    "type": "boolean",
+                    "description": "every word is in the file's own name"
+                  },
+                  "score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "1000 for each word in the name, 100 in a folder's name, plus how often it occurs in the text (at most 99 a word)"
+                  },
+                  "snippet": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "description": "the text around the first place a word starts, control characters as spaces; '' when no word is in the text"
+                  }
+                }
+              }
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "every hit, of which the best max are listed"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     }
   ]
 }

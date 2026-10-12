@@ -20,12 +20,21 @@ needed before release.
 | **Tidewatch** | Activity monitor: zxvd's CPU share and memory, the machine's memory and load, as a two-minute history to graph | Activity Monitor, `top`, GNOME System Monitor | `sys.info` sampled | `tidewatch_model.h` |
 | **Wake** | Event console: follows zxvd's events (refusals as warnings, changes as info), filters by level and text, says how many it missed, AI explains the warnings | Console, `journalctl -f`, Event Viewer | `log.tail` | `wake_model.h` |
 | **Sounding** | Network monitor: interfaces, addresses, live bytes a second, zxvd's request traffic | Network Utility, `nload`, `ip -s link` | `sys.net` | `sounding_model.h` |
+| **Scent** | Search: finds files in a space by name and by the words inside them as the owner types, best first with the text around each hit, opens each in the right app (Quillon, Glint or Burrow); AI can suggest a sharper search, run only when accepted | Spotlight, GNOME Search, `locate`, `grep -r` | `search.query`, `search.refresh` | `scent_model.h` |
 | **Spindle** | Developer console: any zxvd call by hand | Script Editor, `curl` | `rpc.discover` + any | `spindle_model.h` |
 
-None of these change anything. `sys.*` and `log.tail` are read only, local to
+None of these change anything. `sys.*`, `log.tail` and `search.*` are read only, local to
 the owner's control socket, and never sent to peers. The log keeps what
 happened (a method, an outcome, how long it took), never parameters or
 content.
+
+Scent's index (`kernel/arch/hosted/zxv_search.h`) walks a space through the
+same rules as Burrow, so it never sees hidden files, the Trash or links. It
+keeps each file's words and their prefixes (from 2 to 24 bytes, so "harv"
+finds "harvest"), reads again only the files whose size or time changed, and
+holds up to 20,000 files per space and the first 1 MiB of each text file.
+Each space has its own index, and four are kept at once. A file elsewhere on
+the disk is not searched: the ZXV folder is the one place apps see.
 
 ## Still to build
 

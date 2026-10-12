@@ -38,6 +38,7 @@
 #include "zxv_spaces.h"  /* spaces.*: who may see and change each place */
 #include "zxv_sysinfo.h" /* sys.*: the machine and zxvd, for the system utilities */
 #include "zxvd_log.h"    /* log.tail and the RPC traffic counts */
+#include "zxv_search.h"  /* search.*: Scent's index of the ZXV folder */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -1770,7 +1771,7 @@ static void m_sys_net(call_t *c)
     static zsi_if_t ifs[32];
     uint32_t n;
     zxvd_traffic_t t;
-    bool ok = zsi_interfaces(ifs, 32, &n) == 0;
+    bool ok = zsi_interfaces(ifs, sizeof ifs / sizeof *ifs, &n) == 0;
     zxvd_buf_printf(c->res, "{\"time_ms\":%llu,\"supported\":%s,\"interfaces\":[",
                     (unsigned long long) zxvd_now_ms(), ok ? "true" : "false");
     for (uint32_t i = 0; i < n; i++) {
@@ -1839,6 +1840,57 @@ static void m_log_tail(call_t *c)
     if (n < max) next = zxvd_log_last() > since ? zxvd_log_last() : since;
     zxvd_buf_printf(c->res, "],\"next\":%llu,\"dropped\":%llu}", (unsigned long long) next,
                     (unsigned long long) dropped);
+}
+
+static void stats_json(zxvd_buf_t *b, const zsr_stats_t *st)
+{
+    zxvd_buf_printf(b,
+                    "\"files\":%u,\"text_files\":%u,\"added\":%u,\"changed\":%u,\"removed\":%u,"
+                    "\"left_out\":%u",
+                    st->files, st->text_files, st->added, st->changed, st->removed, st->left_out);
+}
+
+static void m_search_refresh(call_t *c)
+{
+    zsr_stats_t st;
+    if (!use_space(c, ZXS_VIEW) || !files_done(c, zsr_refresh(&st))) return;
+    LIT(c->res, "{\"space\":");
+    zxvd_buf_json_str(c->res, zxf_space());
+    LIT(c->res, ",");
+    stats_json(c->res, &st);
+    LIT(c->res, "}");
+}
+
+static void m_search_query(call_t *c)
+{
+    static zsr_hit_t hits[ZSR_HITS_MAX];
+    char q[ZSR_QUERY_MAX + 1];
+    uint64_t max;
+    bool refresh;
+    uint32_t n, total;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "q", q, sizeof q, true) ||
+        !p_opt_u64(c, "max", 20, &max) || !p_bool(c, "refresh", true, &refresh))
+        return;
+    if (max < 1 || max > ZSR_HITS_MAX)
+        return fail(c, E_PARAMS, "\"max\" must be 1 to %u", ZSR_HITS_MAX);
+    if (refresh && !files_done(c, zsr_refresh(NULL))) return;
+    if (zsr_query(q, hits, (uint32_t) max, &n, &total) != 0)
+        return fail(c, E_PARAMS, "\"q\" needs 1 to %u words", ZSR_TERMS_MAX);
+    LIT(c->res, "{\"space\":");
+    zxvd_buf_json_str(c->res, zxf_space());
+    LIT(c->res, ",\"hits\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"path\":");
+        zxvd_buf_json_str(c->res, hits[i].path);
+        zxvd_buf_printf(c->res,
+                        ",\"size\":%llu,\"mtime\":%lld,\"in_name\":%s,\"score\":%u,\"snippet\":",
+                        (unsigned long long) hits[i].size, (long long) hits[i].mtime,
+                        hits[i].in_name ? "true" : "false", hits[i].score);
+        zxvd_buf_json_str(c->res, hits[i].snippet);
+        LIT(c->res, "}");
+    }
+    zxvd_buf_printf(c->res, "],\"total\":%u}", total);
 }
 
 static void m_update(call_t *c)
@@ -2161,6 +2213,8 @@ static const method_t METHODS[] = {
     {"sys.disk", m_sys_disk},
     {"sys.net", m_sys_net},
     {"log.tail", m_log_tail},
+    {"search.refresh", m_search_refresh},
+    {"search.query", m_search_query},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -2226,7 +2280,8 @@ static bool quiet(const char *m)
         "ledger.accounts", "ledger.entries",   "ledger.check", "swarm.earnings", "mesh.books",
         "books.file",      "jurisdiction.get", "aipi.get",     "aipi.status",    "files.root",
         "files.list",      "files.stat",       "files.read",   "spaces.list",    "spaces.get",
-        "sys.info",        "sys.disk",         "sys.net",      "log.tail",       "update.check"};
+        "sys.info",        "sys.disk",         "sys.net",      "log.tail",       "update.check",
+        "search.query",    "search.refresh"};
     for (size_t i = 0; i < sizeof Q / sizeof *Q; i++)
         if (!strcmp(m, Q[i])) return true;
     return false;

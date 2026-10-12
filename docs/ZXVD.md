@@ -17,6 +17,7 @@
 | Spaces: home, offices, teams, cloud top, parks, with rights per role, held crossings and member votes ([STAPLE_APPS.md](STAPLE_APPS.md#spaces)) | `zxv_spaces.c` | `spaces.*`, `files.cross`, the `space` parameter of `files.*` |
 | The machine and zxvd for the system utilities (Almanac, Tidewatch, Sounding; [SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md)), read only | `zxv_sysinfo.c` | `sys.info`, `sys.disk`, `sys.net` |
 | Recent events for the Wake console: refusals and changes, never parameters | `zxvd_log.c` | `log.tail` |
+| Search for the Scent app: an index per space of file names and the words in UTF-8 files, kept up to date incrementally, read only | `zxv_search.c` | `search.query`, `search.refresh` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
 
 It is `zxv_host.c` built with `-DZXVD`, plus `zxvd_rpc.c` and `zxvd_aipi.c`

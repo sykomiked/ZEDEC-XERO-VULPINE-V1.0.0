@@ -24,6 +24,7 @@
 #include "sounding_model.h"
 #include "tidewatch_model.h"
 #include "wake_model.h"
+#include "scent_model.h"
 #include "zxvd_log.h"
 
 /* remove a scratch tree without a shell (no links followed) */
@@ -1055,6 +1056,153 @@ static void test_utilities(void)
 #endif
 }
 
+static scent_t SC;
+
+static void test_scent(void)
+{
+    uint64_t size;
+    CHECK(zxf_mkdir("scent") == 0, "folder");
+    CHECK(zxf_write("scent/ledger notes.md", (const uint8_t *) "quincunx orchard\nrows", 21,
+                    ZXF_W_REPLACE, false, &size) == 0 &&
+              zxf_write("scent/quincunx.png", (const uint8_t *) "\x89PNG\0\0", 6, ZXF_W_REPLACE,
+                        false, &size) == 0,
+          "files");
+    scent_init(&SC, &LINK);
+    int before = sent;
+    CHECK(scent_search(&SC, "  \t") == ZXM_OK && SC.n == 0 && sent == before, "blank: not asked");
+    CHECK(scent_search(&SC, "quincunx") == ZXM_OK && SC.n == 2 && SC.total == 2 && SC.sel == -1,
+          "found: %u %s", SC.n, LINK.err);
+    const scent_hit_t *a = &SC.hit[0], *b = &SC.hit[1];
+    CHECK(!strcmp(a->path, "scent/quincunx.png") && a->in_name && a->score == 1000 &&
+              a->size == 6 && !a->snippet[0] && scent_opener(a) == SCENT_OPEN_GLINT,
+          "the picture first: %s %u", a->path, a->score);
+    CHECK(!strcmp(b->path, "scent/ledger notes.md") && !b->in_name && b->score == 1 &&
+              !strcmp(b->snippet, "quincunx orchard rows") && scent_opener(b) == SCENT_OPEN_QUILLON,
+          "then the note: %s [%s]", b->path, b->snippet);
+    char f[16];
+    scent_folder(b, f, sizeof f);
+    CHECK(!strcmp(f, "scent"), "its folder: %s", f);
+    scent_folder(b, f, 3);
+    CHECK(!strcmp(f, "sc"), "cut: %s", f);
+    scent_folder(b, f, 0);
+    scent_hit_t top = {.path = "x.bin"};
+    scent_folder(&top, f, sizeof f);
+    CHECK(!f[0] && scent_opener(&top) == SCENT_OPEN_BURROW, "the top; others in Burrow");
+    CHECK(scent_selected(&SC) == NULL && scent_select(&SC, 1) == ZXM_OK &&
+              scent_selected(&SC) == &SC.hit[1] && scent_select(&SC, 2) == ZXM_E_ARG &&
+              scent_select(&SC, -2) == ZXM_E_ARG && scent_select(&SC, -1) == ZXM_OK &&
+              scent_selected(&SC) == NULL,
+          "selection");
+    uint32_t files = 0;
+    CHECK(scent_reindex(&SC, &files) == ZXM_OK && files >= 2, "reindex: %u", files);
+    CHECK(scent_reindex(&SC, NULL) == ZXM_OK, "reindex, count not wanted");
+    CHECK(strstr(LINK.req, "\"method\":\"search.refresh\"") && !strstr(LINK.req, "space"), "home");
+    CHECK(scent_search(&SC, "quincunx orchard") == ZXM_OK && SC.n == 1 && SC.hit[0].score == 2,
+          "both words");
+    /* spaces */
+    CHECK(scent_set_space(&SC, "studio") == ZXM_OK && SC.n == 0 &&
+              scent_search(&SC, "quincunx") == ZXM_OK && SC.total == 0 &&
+              strstr(LINK.req, "\"space\":\"studio\""),
+          "another space: %s", LINK.req);
+    CHECK(scent_reindex(&SC, &files) == ZXM_OK && strstr(LINK.req, "\"space\":\"studio\""),
+          "reindex there");
+    CHECK(scent_set_space(&SC, "nowhere") == ZXM_OK &&
+              scent_search(&SC, "quincunx") == ZXM_E_REMOTE && LINK.err_code == -32013 &&
+              scent_reindex(&SC, &files) == ZXM_E_REMOTE,
+          "no such space");
+    static char longid[64];
+    memset(longid, 'a', 49);
+    CHECK(scent_set_space(&SC, longid) == ZXM_E_ARG && !strcmp(SC.space, "nowhere"), "id too long");
+    CHECK(scent_set_space(&SC, "home") == ZXM_OK && !SC.space[0] &&
+              scent_set_space(&SC, NULL) == ZXM_OK && !SC.space[0],
+          "home");
+    static char longq[SCENT_QUERY + 2];
+    memset(longq, 'q', SCENT_QUERY + 1);
+    CHECK(scent_search(&SC, longq) == ZXM_E_ARG && scent_search(&SC, NULL) == ZXM_E_ARG,
+          "too long");
+    CHECK(scent_search(&SC, "-- ;") == ZXM_E_REMOTE && LINK.err_code == -32602, "no words");
+
+    /* replies that do not add up keep the old hits */
+    CHECK(scent_search(&SC, "quincunx") == ZXM_OK && SC.n == 2, "again");
+    scent_t F;
+    scent_init(&F, &FAKE);
+    F = SC;
+    F.link = &FAKE;
+    const char *bad[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":{},\"total\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[1],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":3,\"snippet\":\"\"}],\"total\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[],\"total\":4294967296}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":3,\"snippet\":\"\"}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":4294967296,\"snippet\":\"\"}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":1,\"score\":3,\"snippet\":\"\"}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":3}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":-1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":3,\"snippet\":\"\"}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":\"x\",\"in_name\":true,\"score\":3,\"snippet\":\"\"}],\"total\":1}}",
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        CANNED = bad[i];
+        CHECK(scent_search(&F, "x") == ZXM_E_PROTOCOL && F.n == 2 && F.total == 2 &&
+                  !strcmp(F.hit[0].path, "scent/quincunx.png"),
+              "bad reply %zu kept the hits", i);
+    }
+    CANNED =
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a/b.txt\",\"size\":7,"
+        "\"mtime\":-5,\"in_name\":false,\"score\":12,\"snippet\":\"s\"}],\"total\":9}}";
+    F.sel = 0;
+    CHECK(scent_search(&F, "x") == ZXM_OK && F.n == 1 && F.total == 9 && F.sel == -1 &&
+              !strcmp(F.hit[0].path, "a/b.txt") && F.hit[0].size == 7 && F.hit[0].mtime == -5 &&
+              !F.hit[0].in_name && F.hit[0].score == 12 && !strcmp(F.hit[0].snippet, "s") &&
+              strstr(last_req, "\"q\":\"x\",\"max\":50"),
+          "a made-up reply: %s", last_req);
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"files\":4294967296}}";
+    CHECK(scent_reindex(&F, &files) == ZXM_E_PROTOCOL, "too many files");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"files\":4294967295}}";
+    CHECK(scent_reindex(&F, &files) == ZXM_OK && files == 4294967295u, "the most files");
+    CANNED = NULL;
+    CHECK(scent_search(&F, "x") == ZXM_E_TRANSPORT && F.n == 1, "no daemon");
+
+    /* AI: a sharper search, run only when accepted */
+    scent_t E;
+    scent_init(&E, &LINK);
+    CHECK(scent_ai(&E, SCENT_AI_SHARPEN) == ZXM_E_STATE, "nothing searched");
+    CHECK(scent_ai(&SC, -1) == ZXM_E_ARG && scent_ai(&SC, SCENT_AI_COUNT) == ZXM_E_ARG, "range");
+    CHECK(scent_ai_accept(&SC) == ZXM_E_STATE, "nothing held");
+    ANSWER = "quincunx orchard\nor try rows";
+    asked = 0;
+    CHECK(scent_ai(&SC, SCENT_AI_SHARPEN) == ZXM_OK && SC.held.state == ZXM_HELD_PENDING &&
+              asked == 1 && SC.n == 2 &&
+              strstr(last_prompt, "Search: quincunx\nFound 2. Names of the best:\n"
+                                  "scent/quincunx.png\nscent/ledger notes.md\n") &&
+              strstr(last_prompt, "one better search"),
+          "held: %s", last_prompt);
+    CHECK(scent_ai_accept(&SC) == ZXM_OK && SC.held.state == ZXM_HELD_ACCEPTED &&
+              !strcmp(SC.query, "quincunx orchard") && SC.n == 1,
+          "accepted: searched [%s] %u", SC.query, SC.n);
+    ANSWER = "nothing useful";
+    CHECK(scent_ai(&SC, SCENT_AI_SHARPEN) == ZXM_OK && scent_ai_reject(&SC) == ZXM_OK &&
+              SC.held.state == ZXM_HELD_REJECTED && !strcmp(SC.query, "quincunx orchard"),
+          "rejected: nothing searched");
+    /* a long answer: cut to a query on a whole character */
+    static char longans[400];
+    memset(longans, 'w', sizeof longans - 1);
+    longans[SCENT_QUERY - 1] = (char) 0xc3;
+    longans[SCENT_QUERY] = (char) 0xa9;
+    ANSWER = longans;
+    CHECK(scent_ai(&SC, SCENT_AI_SHARPEN) == ZXM_OK && scent_ai_accept(&SC) == ZXM_OK &&
+              strlen(SC.query) == SCENT_QUERY - 1,
+          "cut answer: %zu", strlen(SC.query));
+    ANSWER = "ok";
+}
+
 int main(void)
 {
     char root[256];
@@ -1072,6 +1220,7 @@ int main(void)
     test_spindle();
     test_spaces();
     test_utilities();
+    test_scent();
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {

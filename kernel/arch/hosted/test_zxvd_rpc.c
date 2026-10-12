@@ -35,6 +35,8 @@
 #include "zxv_spaces.h"
 #include "zxv_sysinfo.h"
 #include "zxvd_log.h"
+#include "zxv_search.h"
+#include "web4_web2.h"
 
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
@@ -465,7 +467,7 @@ static void test_host_methods(void)
            "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
            "\"spaces.propose\",\"spaces.vote\",\"sys.info\",\"sys.disk\",\"sys.net\","
-           "\"log.tail\"]}"));
+           "\"log.tail\",\"search.refresh\",\"search.query\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -3005,6 +3007,315 @@ static void test_sys_and_log(void)
     CHECK(rm_tree(root) == 0, "cleanup");
 }
 
+/* well-formed JSON, so a stray or missing comma is caught */
+static bool json_ok(const char *s)
+{
+    static w4_jtok_t t[4096];
+    return w4_json_parse(s, (uint32_t) strlen(s), t, 4096, 16) > 0;
+}
+
+static void test_sys_shapes(void)
+{
+    char want[512];
+    /* load: the same three numbers zsi_host reads, or null; retried while it moves */
+    bool load_ok = false;
+    for (int tries = 0; tries < 5 && !load_ok; tries++) {
+        zsi_host_t a, b;
+        zsi_host(&a);
+        const char *r = rpc(REQ("1", "sys.info", ""));
+        zsi_host(&b);
+        if (memcmp(a.load_x100, b.load_x100, sizeof a.load_x100)) continue;
+        if (a.load_x100[0] < 0)
+            snprintf(want, sizeof want, ",\"load\":null,");
+        else
+            snprintf(want, sizeof want, ",\"load\":[%d,%d,%d],", (int) a.load_x100[0],
+                     (int) a.load_x100[1], (int) a.load_x100[2]);
+        load_ok = strstr(r, want) && json_ok(r);
+    }
+    CHECK(load_ok, "sys.info load: %s", OUT.p);
+    CHECK(json_ok(rpc(REQ("1", "sys.disk", ""))) || strstr(OUT.p, "\"error\""), "sys.disk JSON");
+
+#if defined(__linux__) || defined(__APPLE__)
+    /* sys.net: every interface, in order, with every address */
+    static zsi_if_t ifs[32];
+    uint32_t n = 0;
+    CHECK(zsi_interfaces(ifs, 32, &n) == 0 && n >= 1, "interfaces: %u", n);
+    const char *r = rpc(REQ("2", "sys.net", ""));
+    CHECK(json_ok(r), "sys.net is JSON: %s", r);
+    const char *at = r;
+    uint32_t names = 0;
+    for (const char *q = r; (q = strstr(q, "{\"name\":")); q++) names++;
+    CHECK(names == n, "%u interfaces listed, %u known", names, n);
+    for (uint32_t i = 0; i < n; i++) {
+        int k =
+            snprintf(want, sizeof want,
+                     "%s{\"name\":\"%s\",\"up\":%s,\"loopback\":%s,\"addresses\":[", i ? "," : "[",
+                     ifs[i].name, ifs[i].up ? "true" : "false", ifs[i].loopback ? "true" : "false");
+        for (uint32_t a = 0; a < ifs[i].naddr; a++)
+            k += snprintf(want + k, sizeof want - (size_t) k, "%s\"%s\"", a ? "," : "",
+                          ifs[i].addr[a]);
+        snprintf(want + k, sizeof want - (size_t) k, "],\"rx_bytes\":%s",
+                 ifs[i].counters ? "" : "null");
+        const char *f = strstr(at, want);
+        CHECK(f != NULL, "interface %u in order: %s", i, want);
+        if (f) at = f + 1;
+    }
+#endif
+
+    /* traffic: a notification sends nothing back; busy time is a duration */
+    zxvd_traffic_t t0, t1;
+    zxvd_traffic_get(&t0);
+    rpc("{\"jsonrpc\":\"2.0\",\"method\":\"files.list\"}");
+    zxvd_traffic_get(&t1);
+    CHECK(t1.requests == t0.requests + 1 && t1.bytes_out == t0.bytes_out &&
+              t1.bytes_in > t0.bytes_in && t1.busy_us - t0.busy_us < 10000000u,
+          "a notification: %llu bytes out, %llu us",
+          (unsigned long long) (t1.bytes_out - t0.bytes_out),
+          (unsigned long long) (t1.busy_us - t0.busy_us));
+
+    /* "done in N ms" counts milliseconds */
+    zxvd_log_reset();
+    rpc(REQ("3", "spaces.create", ",\"params\":{\"kind\":\"park\",\"name\":\"Shapes\"}"));
+    static zxvd_log_entry_t e[2];
+    uint64_t dropped;
+    unsigned long ms = 99999;
+    CHECK(zxvd_log_tail(0, 2, ZXVD_LOG_INFO, e, &dropped) == 1 &&
+              sscanf(e[0].text, "spaces.create done in %lu ms", &ms) == 1 && ms < 1000,
+          "duration: %s", e[0].text);
+
+    /* log.tail: 100 by default, 256 at most */
+    zxvd_log_reset();
+    for (int i = 0; i < 300; i++) zxvd_log(ZXVD_LOG_INFO, "test", "event %d", i);
+    const char *l = rpc(REQ("4", "log.tail", ""));
+    CHECK(strstr(l, "{\"seq\":100,") && !strstr(l, "{\"seq\":101,") && strstr(l, "\"next\":100,") &&
+              json_ok(l),
+          "default 100: %.80s", l);
+    l = rpc(REQ("4", "log.tail", ",\"params\":{\"max\":256}"));
+    CHECK(strstr(l, "{\"seq\":256,") && !strstr(l, "{\"seq\":257,") && strstr(l, "\"next\":256,"),
+          "max 256: %.80s", l);
+    /* a filter that skips the rest: next is the last event held */
+    zxvd_log(ZXVD_LOG_WARN, "test", "the one warning");
+    zxvd_log(ZXVD_LOG_INFO, "test", "after it");
+    l = rpc(REQ("4", "log.tail", ",\"params\":{\"level\":\"warn\",\"max\":5}"));
+    CHECK(strstr(l, "{\"entries\":[{\"seq\":301,") && strstr(l, "],\"next\":302,"), "skip: %s", l);
+    l = rpc(REQ("4", "log.tail", ",\"params\":{\"since\":900}"));
+    CHECK(strstr(l, "{\"entries\":[],\"next\":900,"), "since ahead: %s", l);
+}
+
+static void put(const char *path, const char *text, size_t n)
+{
+    uint64_t size;
+    CHECK(zxf_write(path, (const uint8_t *) text, (uint32_t) n, ZXF_W_REPLACE, false, &size) == 0,
+          "write %s", path);
+}
+#define PUT(p, lit) put(p, lit, sizeof lit - 1)
+
+static void test_search(void)
+{
+    char root[200];
+    snprintf(root, sizeof root, "%s/zxvd-search-XXXXXX",
+             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0 && zxf_use_space("home") == 0, "root set");
+    zsr_reset();
+    CHECK(zxf_mkdir("notes") == 0 && zxf_mkdir("photos") == 0, "folders");
+    PUT("notes/harvest.md", "The Harvest moon rises\tover the vineyard.\nharvest, HARVEST!");
+    PUT("notes/recipe.txt", "Bread: flour, water, salt.");
+    PUT("photos/pic.png", "\x89PNG\r\n\x1a\n\0\0\0\rIHDR harvest");
+    PUT("Vineyard plan.txt", "rows of grapes, caf\xc3\xa9 by the gate");
+    PUT("old.txt", "harvest of last year");
+    char trashed[ZXF_PATH_MAX + 1];
+    CHECK(zxf_trash("old.txt", trashed, sizeof trashed) == 0, "into the Trash");
+
+    zsr_stats_t st;
+    CHECK(zsr_refresh(&st) == 0 && st.files == 4 && st.text_files == 3 && st.added == 4 &&
+              st.changed == 0 && st.removed == 0 && st.left_out == 0,
+          "first refresh: %u files, %u text, %u added", st.files, st.text_files, st.added);
+
+    static zsr_hit_t h[ZSR_HITS_MAX];
+    uint32_t n, total;
+    /* a prefix, in a name and the text; the Trash and binary text are not searched */
+    CHECK(
+        zsr_query("harv", h, 10, &n, &total) == 0 && n == 1 && total == 1 &&
+            !strcmp(h[0].path, "notes/harvest.md") && h[0].in_name && h[0].score == 1003 &&
+            !strcmp(h[0].snippet, "The Harvest moon rises over the vineyard. harvest, HARVEST!") &&
+            h[0].size == 59,
+        "harv: %u %u %s %u [%s]", n, total, n ? h[0].path : "", n ? h[0].score : 0,
+        n ? h[0].snippet : "");
+    /* a name ranks above the text */
+    CHECK(zsr_query("Vineyard", h, 10, &n, &total) == 0 && n == 2 && total == 2 &&
+              !strcmp(h[0].path, "Vineyard plan.txt") && h[0].in_name && h[0].score == 1000 &&
+              h[0].snippet[0] == 0 && !strcmp(h[1].path, "notes/harvest.md") && !h[1].in_name &&
+              h[1].score == 1 && strstr(h[1].snippet, "vineyard."),
+          "vineyard: %u %s %u", n, n ? h[0].path : "", n ? h[0].score : 0);
+    CHECK(zsr_query("vineyard", h, 1, &n, &total) == 0 && n == 1 && total == 2 &&
+              !strcmp(h[0].path, "Vineyard plan.txt"),
+          "the best one");
+    /* a folder's name */
+    CHECK(zsr_query("notes", h, 10, &n, &total) == 0 && n == 2 && h[0].score == 100 &&
+              !strcmp(h[0].path, "notes/harvest.md") && !strcmp(h[1].path, "notes/recipe.txt") &&
+              !h[0].in_name,
+          "notes: %u", n);
+    /* every term */
+    CHECK(zsr_query("flour SALT", h, 10, &n, &total) == 0 && n == 1 && h[0].score == 2 &&
+              !strcmp(h[0].snippet, "Bread: flour, water, salt."),
+          "flour salt: %u [%s]", n, n ? h[0].snippet : "");
+    CHECK(zsr_query("flour grapes", h, 10, &n, &total) == 0 && n == 0 && total == 0, "not both");
+    CHECK(zsr_query("pic", h, 10, &n, &total) == 0 && n == 1 &&
+              !strcmp(h[0].path, "photos/pic.png"),
+          "a picture by name");
+    CHECK(zsr_query("ihdr", h, 10, &n, &total) == 0 && n == 0, "binary not read");
+    CHECK(zsr_query("caf\xc3\xa9", h, 10, &n, &total) == 0 && n == 1 && h[0].score == 1 &&
+              !strcmp(h[0].path, "Vineyard plan.txt"),
+          "UTF-8 words: %u", n);
+    CHECK(zsr_query("m", h, 10, &n, &total) == 0 && n == 1 &&
+              !strcmp(h[0].path, "notes/harvest.md"),
+          "one letter: names only");
+    CHECK(zsr_query("", h, 10, &n, &total) == ZXF_E_PATH &&
+              zsr_query(" ,; ", h, 10, &n, &total) == ZXF_E_PATH,
+          "no words");
+    CHECK(zsr_query("a b c d e f g h", h, 10, &n, &total) == 0 &&
+              zsr_query("a b c d e f g h i", h, 10, &n, &total) == ZXF_E_PATH,
+          "eight words at most");
+    {
+        char big[ZSR_QUERY_MAX + 2];
+        memset(big, 'a', sizeof big);
+        big[ZSR_QUERY_MAX] = 0;
+        CHECK(zsr_query(big, h, 10, &n, &total) == 0, "256 bytes");
+        big[ZSR_QUERY_MAX] = 'a';
+        big[ZSR_QUERY_MAX + 1] = 0;
+        CHECK(zsr_query(big, h, 10, &n, &total) == ZXF_E_PATH, "257 bytes");
+    }
+
+    /* long words: prefixes to 24 bytes, and the whole word */
+    PUT("long.txt", "x abcdefghijklmnopqrstuvwxyz0123 y");
+    CHECK(zsr_refresh(&st) == 0 && st.added == 1 && st.files == 5 && st.changed == 0, "one added");
+    CHECK(zsr_query("abcdefghijklmnopqrstuvwx", h, 10, &n, &total) == 0 && n == 1 &&
+              zsr_query("abcdefghijklmnopqrstuvwxyz0123", h, 10, &n, &total) == 0 && n == 1 &&
+              zsr_query("abcdefghijklmnopqrstuvwxy", h, 10, &n, &total) == 0 && n == 0,
+          "long words");
+    /* changes: only what changed is read again */
+    PUT("notes/recipe.txt", "Rye bread: rye flour, water, salt, caraway.");
+    CHECK(zxf_trash("long.txt", trashed, sizeof trashed) == 0, "trash one");
+    CHECK(zsr_refresh(&st) == 0 && st.changed == 1 && st.removed == 1 && st.added == 0 &&
+              st.files == 4,
+          "changed %u removed %u added %u files %u", st.changed, st.removed, st.added, st.files);
+    CHECK(zsr_query("caraway", h, 10, &n, &total) == 0 && n == 1 &&
+              !strcmp(h[0].snippet, "Rye bread: rye flour, water, salt, caraway."),
+          "the new text");
+    CHECK(zsr_refresh(&st) == 0 && st.changed == 0 && st.removed == 0 && st.added == 0,
+          "nothing new");
+
+    /* the snippet: from up to 40 bytes before, on whole characters, 120 at most */
+    {
+        char t[400];
+        int k = snprintf(t, sizeof t, "%s", "\xc3\xa9");
+        for (int i = 0; i < 25; i++) k += snprintf(t + k, sizeof t - (size_t) k, "ab ");
+        k += snprintf(t + k, sizeof t - (size_t) k, "needle");
+        for (int i = 0; i < 60; i++) k += snprintf(t + k, sizeof t - (size_t) k, "\xc3\xa9");
+        put("snip.txt", t, (size_t) k);
+        CHECK(zsr_refresh(&st) == 0 && zsr_query("needle", h, 10, &n, &total) == 0 && n == 1,
+              "needle");
+        CHECK(!strncmp(h[0].snippet, " ab ab", 6) &&
+                  strstr(h[0].snippet, "needle") == h[0].snippet + 40 &&
+                  strlen(h[0].snippet) == 120,
+              "snippet [%s] %zu", h[0].snippet, strlen(h[0].snippet));
+        /* the first hit starts a word: "eedle" alone does not */
+        PUT("snip2.txt", "needles needle");
+        CHECK(zsr_refresh(&st) == 0 && zsr_query("needle", h, 10, &n, &total) == 0 && n == 2 &&
+                  !strcmp(h[0].path, "snip2.txt") && h[0].score == 2 &&
+                  !strcmp(h[0].snippet, "needles needle") && !strcmp(h[1].path, "snip.txt"),
+              "two: [%s]", n ? h[0].snippet : "");
+        CHECK(zsr_query("eedle", h, 10, &n, &total) == 0 && n == 0, "mid-word is not a word");
+    }
+    /* a hit far into a long file, across a read's cut */
+    {
+        static char big[ZXF_READ_MAX + 64];
+        memset(big, 'z', sizeof big);
+        for (size_t i = 7; i < sizeof big; i += 8) big[i] = ' ';
+        memcpy(big + ZXF_READ_MAX - 3, " far", 4);
+        put("big.txt", big, sizeof big);
+        CHECK(zsr_refresh(&st) == 0 && zsr_query("far", h, 10, &n, &total) == 0 && n == 1 &&
+                  strstr(h[0].snippet, "far"),
+              "far: %u [%.20s]", n, n ? h[0].snippet : "");
+    }
+
+    /* too deep: left out */
+    {
+        char d[200] = "";
+        for (int i = 0; i < 33; i++) {
+            strcat(d, i ? "/d" : "d");
+            CHECK(zxf_mkdir(d) == 0, "deep %d", i);
+        }
+        CHECK(zsr_refresh(&st) == 0 && st.left_out == 1, "left out: %u", st.left_out);
+    }
+
+    /* each space its own index; four kept, the least used goes */
+    uint32_t files_home = st.files;
+    const char *sp[] = {"s1", "s2", "s3", "s4"};
+    for (int i = 0; i < 4; i++) {
+        CHECK(zxf_use_space(sp[i]) == 0, "space");
+        zsr_refresh(&st);
+        CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 0, "not in %s", sp[i]);
+        if (i == 1) {
+            zxf_use_space("home"); /* home used again: s1 is now the least used */
+            CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 1, "home kept");
+        }
+    }
+    zxf_use_space("home");
+    CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 1, "home still kept");
+    zxf_use_space("s1");
+    CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 0, "s1 gone");
+    zxf_use_space("home");
+    CHECK(zsr_refresh(&st) == 0 && st.files == files_home && st.added == 0, "home: %u", st.added);
+
+    /* over zxvd */
+    zxvd_log_reset();
+    const char *r = rpc(REQ("1", "search.query", ",\"params\":{\"q\":\"harv\"}"));
+    CHECK(
+        strstr(r, "{\"space\":\"home\",\"hits\":[{\"path\":\"notes/"
+                  "harvest.md\",\"size\":59,\"mtime\":") &&
+            strstr(r,
+                   ",\"in_name\":true,\"score\":1003,\"snippet\":\"The Harvest moon rises over the "
+                   "vineyard. harvest, HARVEST!\"}],\"total\":1}") &&
+            json_ok(r),
+        "search.query: %s", r);
+    r = rpc(REQ("1", "search.query", ",\"params\":{\"q\":\"needle\",\"max\":1,\"refresh\":false}"));
+    CHECK(strstr(r, "\"hits\":[{\"path\":\"snip2.txt\",") && strstr(r, "}],\"total\":2}"),
+          "max 1: %s", r);
+    r = rpc(REQ("1", "search.query", ",\"params\":{\"q\":\"needle\",\"max\":100}"));
+    CHECK(strstr(r, "\"path\":\"snip2.txt\",") && strstr(r, "},{\"path\":\"snip.txt\","), "two: %s",
+          r);
+    r = rpc(REQ("1", "search.refresh", ""));
+    CHECK(strstr(r, "{\"space\":\"home\",\"files\":") &&
+              strstr(r, ",\"added\":0,\"changed\":0,\"removed\":0,\"left_out\":1}"),
+          "search.refresh: %s", r);
+    EXPECT(REQ("1", "search.query", ",\"params\":{\"q\":\"x\",\"max\":0}"),
+           ERR("1", "-32602", "\\\"max\\\" must be 1 to 100"));
+    EXPECT(REQ("1", "search.query", ",\"params\":{\"q\":\"x\",\"max\":101}"),
+           ERR("1", "-32602", "\\\"max\\\" must be 1 to 100"));
+    EXPECT(REQ("1", "search.query", ",\"params\":{\"q\":\"--\"}"),
+           ERR("1", "-32602", "\\\"q\\\" needs 1 to 8 words"));
+    EXPECT(REQ("1", "search.query", ",\"params\":{\"q\":\"x\",\"refresh\":1}"),
+           ERR("1", "-32602", "\\\"refresh\\\" must be true or false"));
+    CHECK(has(REQ("1", "search.query", ""), "-32602"), "q required: %s", OUT.p);
+    CHECK(has(REQ("1", "search.query", ",\"params\":{\"q\":\"x\",\"space\":\"nope\"}"),
+              "no such space"),
+          "space: %s", OUT.p);
+    CHECK(has(REQ("1", "search.refresh", ",\"params\":{\"space\":\"nope\"}"), "no such space"),
+          "space: %s", OUT.p);
+    zxvd_log_reset();
+    rpc(REQ("1", "search.query", ",\"params\":{\"q\":\"harv\"}"));
+    rpc(REQ("1", "search.refresh", ""));
+    rpc(REQ("1", "rpc.discover", ""));
+    CHECK(zxvd_log_last() == 0, "searches and discovery are not logged: %llu",
+          (unsigned long long) zxvd_log_last());
+
+    zsr_reset();
+    CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 0, "reset");
+    CHECK(rm_tree(root) == 0, "cleanup");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -3016,6 +3327,8 @@ int main(void)
     test_files_methods();
     test_spaces_methods();
     test_sys_and_log();
+    test_sys_shapes();
+    test_search();
     test_books_closed();
     test_books();
     test_earnings();
