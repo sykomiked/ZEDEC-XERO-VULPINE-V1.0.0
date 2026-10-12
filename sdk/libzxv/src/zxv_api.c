@@ -216,6 +216,15 @@ const char *zxv_status_name(int32_t status)
     case ZXV_E_BLOCKED: return "ZXV_E_BLOCKED";
     case ZXV_E_TARGET: return "ZXV_E_TARGET";
     case ZXV_E_POLICY: return "ZXV_E_POLICY";
+    case ZXV_E_DENOM: return "ZXV_E_DENOM";
+    case ZXV_E_TREATY: return "ZXV_E_TREATY";
+    case ZXV_E_CID: return "ZXV_E_CID";
+    case ZXV_E_CONSENT: return "ZXV_E_CONSENT";
+    case ZXV_E_ERASURE: return "ZXV_E_ERASURE";
+    case ZXV_E_PEG: return "ZXV_E_PEG";
+    case ZXV_E_LIMIT: return "ZXV_E_LIMIT";
+    case ZXV_E_PARADOX_STEP: return "ZXV_E_PARADOX_STEP";
+    case ZXV_E_PARADOX_OWNER: return "ZXV_E_PARADOX_OWNER";
     case ZXV_E_INTERNAL: return "ZXV_E_INTERNAL";
     default: return "ZXV_E_UNKNOWN";
     }
@@ -237,7 +246,9 @@ int32_t zxv_status_class(int32_t status)
     case ZXV_E_RMAG_INVALID:
     case ZXV_E_FORMAT:
     case ZXV_E_FLOAT:
-    case ZXV_E_TARGET: return ZXV_CLASS_USAGE;
+    case ZXV_E_TARGET:
+    case ZXV_E_DENOM:
+    case ZXV_E_TREATY: return ZXV_CLASS_USAGE;
     case ZXV_E_NOTIMPL:
     case ZXV_E_CAPACITY:
     case ZXV_E_FUNDS:
@@ -251,7 +262,14 @@ int32_t zxv_status_class(int32_t status)
     case ZXV_E_QUARANTINED:
     case ZXV_E_ROLLBACK:
     case ZXV_E_BLOCKED:
-    case ZXV_E_POLICY: return ZXV_CLASS_REFUSED;
+    case ZXV_E_POLICY:
+    case ZXV_E_CID:
+    case ZXV_E_CONSENT:
+    case ZXV_E_ERASURE:
+    case ZXV_E_PEG:
+    case ZXV_E_LIMIT:
+    case ZXV_E_PARADOX_STEP:
+    case ZXV_E_PARADOX_OWNER: return ZXV_CLASS_REFUSED;
     case ZXV_E_INVARIANT:
     case ZXV_E_POISONED: return ZXV_CLASS_FATAL;
     default: return ZXV_CLASS_SYSTEM;

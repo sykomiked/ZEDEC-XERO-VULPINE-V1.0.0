@@ -57,6 +57,18 @@ public enum CapabilityRights : ulong
 
     /// <summary>Every right as of ABI 1.4 (<c>ZXV_CAP_ALL_1_4</c>).</summary>
     AllAbi14 = (1UL << 12) - 1,
+
+    /// <summary>Create AIPI nodes, store blocks and publish function records (<c>ZXV_CAP_AIPI</c>, ABI 1.5).</summary>
+    Aipi = 1UL << 12,
+
+    /// <summary>Create token wallets and mint, spend, move or re-octane their tokens (<c>ZXV_CAP_MINT</c>, ABI 1.5).</summary>
+    Mint = 1UL << 13,
+
+    /// <summary>Create paradox books, policies, holds and graphs, and run the paradox operators (<c>ZXV_CAP_PARADOX</c>, ABI 1.5).</summary>
+    Paradox = 1UL << 14,
+
+    /// <summary>Every right as of ABI 1.5 (<c>ZXV_CAP_ALL_1_5</c>).</summary>
+    AllAbi15 = (1UL << 15) - 1,
 }
 
 /// <summary>A snapshot of a capability's state.</summary>

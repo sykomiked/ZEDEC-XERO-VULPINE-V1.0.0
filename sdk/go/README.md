@@ -4,7 +4,7 @@
 # ZXV Go SDK
 
 Package `zxv` is a cgo binding to `libzxv`, the stable C ABI of the ZXV
-platform (`sdk/libzxv/include/zxv_api.h`, ABI 1.4).
+platform (`sdk/libzxv/include/zxv_api.h`, ABI 1.5).
 
 ```
 import "github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/sdk/go/zxv"
@@ -220,11 +220,151 @@ boundary and reported as `ZXV_E_INTERNAL`; an error is reported as its
 status. A provider may call the matrix again for the functions it declared
 with `AddDependency`.
 
+## ABI 1.5: treaties, content ids, coins, fees, hub, freight, Web 4, paradox
+
+New capability bits: `CapAIPI` (store and publish AIPI blocks), `CapMint`
+(token wallets) and `CapParadox` (paradox books, policies, holds, graphs);
+`CapAll15` is every bit. `LiveFeatures2` reports which groups were built
+(`Feat2Treaty` ... `Feat2Paradox`). New sentinels, each with its class:
+`ErrDenom` and `ErrTreaty` (USAGE); `ErrCID`, `ErrConsent`, `ErrErasure`,
+`ErrPeg`, `ErrLimit`, `ErrParadoxStep`, `ErrParadoxOwner` (REFUSED).
+Fixed-size byte structures are Go value types you can compare with `==`
+(`CID`, `FreightHeader`, `W4ConsentToken`, `RepairProof`, `ParadoxDraft`,
+the 40-byte peg message). Handles tied to a context (`AipiNode`,
+`TokenWallet`, `VHub`, `W4Agent`, `ParadoxBook`, `ParadoxPolicy`,
+`ParadoxHold`, `ParadoxGraph`) keep the capability they were made with,
+use it on every gated call, fail closed when the context halts, and stop
+that capability from closing while they are open. Handles that libzxv does
+not make thread-safe (`Treaty`, `FreightJoin`, `FreightOpsWriter`,
+`W4Agent`, `W4Directory`, `W4Manifest`, `W4ConsentLog`, policy, hold and
+graph) serialize their own calls, so they may still be shared.
+
+### Treaty
+
+COBOL copybook treaties and canonical Sutra text: parse, emit, validate and
+run NET or SETL settlement with PIC S9(18) arithmetic. A refusal is a
+`*TreatyError` carrying the fault and its byte offset.
+
+```go
+tr, err := zxv.ParseTreatySutra("TREATY C USD SETL\nPARTY A 5000 4000 1/2\nPARTY B 3000 3000 1/2\nOWE A B 1200\nEND\n")
+var te *zxv.TreatyError
+if errors.As(err, &te) { fmt.Println(te.Fault, te.Offset) }
+rec, _ := tr.Record()      // the 2542-byte copybook record
+res, err := tr.Run()       // ErrInsufficientFunds when a party cannot pay
+```
+
+### CID and AIPI
+
+IPFS CIDs (`ComputeCID`, `UnixFSCID`, `ParseCID`, `Text`, `Info`, `ToV1`,
+`Verify`, `ProviderKey`) and AIPI function, call and claim records. An
+`AipiNode` is an offline in-memory block store (no network).
+
+```go
+c, _ := zxv.ComputeCID(zxv.CIDCodecRaw, []byte("abc"))
+fmt.Println(c) // bafkrei...
+root, _ := ctx.RootCapability(1, nil, zxv.CapAll15)
+node, _ := zxv.NewAipiNode(root, zxv.AipiStoreMin, 64, nil)
+defer node.Close()
+id, _ := node.Put([]byte("zxv module bytes"), false)
+data, _ := node.Get(id) // re-hashed before it is returned
+```
+
+### Coin and token octane
+
+Fibonacci coin faces and Zeckendorf splits (`CoinFace`, `CoinRung`,
+`CoinSplit`, `CoinSplitCount`), swarm token tiers (`TokenFace`,
+`TokenTier`; a dense token is worth exactly its face: density carries no
+premium, fee or extra allotment), `TokenHolding` (64 tier counts: `Value`, `Compress`, `Fuse`,
+`Split`, `CanonicalHolding`), the token prefix code
+(`EncodeTokenCodes` / `DecodeTokenCodes`) and a `TokenWallet` (needs
+`CapMint`).
+
+```go
+rungs, _ := zxv.CoinSplit(100)                       // [10 5 3]: 89 + 8 + 3
+h, _ := zxv.CanonicalHolding(100, zxv.OctaneMidgrade) // fewest pieces up to face 89
+w, _ := zxv.NewTokenWallet(root, 1, zxv.OctanePlain)
+defer w.Close()
+_ = w.Mint(100)
+```
+
+### Fee
+
+The 0.08889% assurance fee and its 50/25/15/10 split, exact and pure.
+
+```go
+fee, _ := zxv.AssuranceFee(1125)                 // 1
+fee, rem, _ := zxv.AssuranceFeeCarry(0, 100)     // 0, 888900: store rem per account
+parts, _ := zxv.SplitFee(10)                     // [6 2 1 1]
+```
+
+### V-Bill hub
+
+A demonstration hub with test currencies (ISO codes are refused), signed
+exact pegs, quotes and all-or-nothing swaps on its own in-memory ledger.
+Every currency needs a limit rule before it can swap (fail closed).
+
+```go
+hub, _ := zxv.NewVHub(root, nil)
+defer hub.Close()
+_ = hub.AddCurrency(0, "ZTA", 2, issuerPK, 500000, 10000)
+msg, _ := zxv.VHubPegMessage(0, 350, 1, 1)
+sig, _ := zxv.NewMLDSA87(root).SignDeterministic(issuerSK, msg[:], nil)
+_ = hub.SetPeg(0, 350, 1, 1, sig) // ErrPeg when stale, ErrVerificationFailed for a wrong key
+```
+
+### Freight
+
+168 erasure-coded 21-byte rows per freight: any k rows rebuild the payload.
+Sets split and join larger payloads; op streams expand under a limit you
+set. A CIDREF resolver is a Go function called during `FreightOpsExpand`;
+a panic in it is recovered and reported as "not resolved".
+
+```go
+h, _ := zxv.NewFreightHeader(42, 10, 0, 0, payload) // k = 10, up to 200 bytes
+packets, _ := zxv.FreightEncode(h, payload)          // 3528 bytes
+out, err := zxv.FreightDecode(h, packets[21*100:])   // rows 100..167 are enough
+if errors.Is(err, zxv.ErrErasure) { /* wait for more rows */ }
+```
+
+### Web 4
+
+Agents with ML-DSA-65 keys that never leave their `W4Agent` handle (Close
+wipes them), signed cards and tool manifests, a directory, human consent
+tokens and signed envelopes. Every call that needs the time takes `nowMs`.
+
+```go
+alice, _ := zxv.NewW4Agent(root, nil, "alice", nil, now)
+defer alice.Close()
+m, _ := zxv.NewW4Manifest(1, now, now+86400000)
+defer m.Close()
+_ = m.AddTool(zxv.W4Tool{Name: "pay", PriceVFV: 150, RatePerMin: 60, Burst: 10, Flags: zxv.W4ToolMoney})
+_ = m.Sign(alice)
+digest, _ := zxv.W4ActionDigest("pay", from, to, 7, []byte("amount=100"))
+tok, _ := zxv.IssueW4Consent(root, human, zxv.W4ConsentRequest{AgentID: aliceID, Action: digest,
+	Scope: zxv.W4ConsentMoney, MaxVFV: 1000, IssuedMs: now, ExpiresMs: now + 600000})
+```
+
+### Paradox
+
+Classify a `Hexagram` into a kind and run the fixed, logged operator for it.
+REFUSED and PROPOSAL_FOR_OWNER are outcomes, not errors; `GraphPass`
+returns `ErrParadoxStep` when a graph escalates to its owner.
+
+```go
+book, _ := zxv.NewParadoxBook(root, 64, 16)
+defer book.Close()
+tag, _ := zxv.NewHexagram(zxv.HexBaseBoth, zxv.HexNeutral, zxv.HexManifest)
+c, _ := book.Classify(tag, &zxv.ParadoxEvidence{Pos0: 3, Neg0: 1, Pos1: 5, Neg1: 1}, nil)
+pol, _ := zxv.NewParadoxPolicy(root, []int64{0}, []int64{100}, []int64{50}, 0)
+defer pol.Close()
+out, _ := book.Constructive(pol, c.ParadoxClass, []int64{60}, 5) // ParadoxApplied
+```
+
 ## API overview
 
 | Area | Types | Key calls |
 |---|---|---|
-| Library | `Version`, `LiveFeatures` | ABI version, feature bits |
+| Library | `Version`, `LiveFeatures`, `LiveFeatures2` | ABI version, feature bits |
 | Context | `Context`, `FatalPolicy` | `NewContext`, `RootCapability`, `Halt`, `EnableCurrencyCap`, `EnableCurrencyWithMinorCap`, `RegisterPrivateCurrencyCap` |
 | Capability | `Capability`, `Caps` | `Attenuate`, `Revoke`, `SetAttestation`, `Check`, `Info`, `NewMessage` |
 | Exact numbers | `Rational` | `NewRational`, `ParseRational`, `Add`/`Sub`/`Mul`/`Div`, `ToQ16`, `FromFloat64Exact` |
@@ -241,6 +381,14 @@ with `AddDependency`.
 | EVM | `StateChannel` | `EncodeState`, `LedgerState` |
 | Hexagram | `Hexagram`, `QuarantineLog` | `NewHexagram`, `Action`, `Step`, `Forbid`, `Append`, `Verify` |
 | Hardware | `HwProfile`, `HwMatrix`, `HwRelease`, `HwRegion` | `HwProbeHost`, `HwReference`, `Call`, `AddProvider`, `Attest`, `Build`, `Stage`, `Trial`, `Commit` |
+| Treaty | `Treaty`, `TreatyResult`, `TreatyError` | `ParseTreatySutra`, `ParseTreatyRecord`, `Validate`, `Run`, `PicAdd`/`PicSub`/`PicMul`/`PicDiv` |
+| CID / AIPI | `CID`, `AipiFunction`, `AipiClaim`, `AipiNode` | `ComputeCID`, `UnixFSCID`, `ParseCID`, `EncodeAipiCall`, `Put`, `Get`, `PublishFunction`, `Plan` |
+| Coin | `TokenHolding`, `TokenWallet`, `Octane` | `CoinSplit`, `CoinFace`, `TokenFace`, `CanonicalHolding`, `Fuse`, `Split`, `EncodeTokenCodes`, `Mint`, `Transfer` |
+| Fee | `FeeSplit`, `FeePolicy` | `AssuranceFee`, `AssuranceFeeCarry`, `SplitFee`, `FeePolicyDefault` |
+| V-Bill hub | `VHub`, `VHubQuote`, `VHubSwap` | `VHubPegMessage`, `AddCurrency`, `SetPeg`, `AddLimit`, `Quote`, `Swap`, `Check` |
+| Freight | `FreightHeader`, `FreightJoin`, `FreightOpsWriter` | `NewFreightHeader`, `FreightEncode`, `FreightDecode`, `FreightSplit`, `FreightOpsExpand`, `FreightGenRun` |
+| Web 4 | `W4Agent`, `W4Directory`, `W4Manifest`, `W4ConsentToken`, `W4ConsentLog` | `NewW4Agent`, `VerifyW4Card`, `Sign`, `W4ActionDigest`, `IssueW4Consent`, `Check`, `Seal`, `Reply`, `VerifyW4Envelope` |
+| Paradox | `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`, `RepairProof` | `Classify`, `Constructive`, `Destructive`, `Neutral`, `Special`, `Draft`, `Review`, `GraphPass`, `LogRecords` |
 
 ## Examples
 
@@ -265,6 +413,13 @@ shadow, memo, contracts, and a full stage / trial / commit / quarantine cycle
 with events, the audit log and fail-closed when it fills (three SLH-DSA
 signings, ~5 s).
 
+`abi15_test.go` checks the ABI 1.5 keys (`status_abi15`, `treaty`, `cid`,
+`aipi`, `coin`, `fee`, `vhub`, `freight`, `web4`, `paradox`) exactly,
+refusals included, and covers capability refusals (a cap without AIPI,
+MINT, PARADOX, CRYPTO_SIGN, ATTEST or LEDGER_POST), use after `Close`,
+buffer growth, a failing and a panicking freight resolver, and fail-closed
+handles after `Halt`.
+
 `hexagram_test.go` checks the `hex` key (ABI 1.3): every tag, the logic, step and
 set tables, the Truth mapping and the quarantine chain.
 
@@ -278,6 +433,14 @@ budget exhaustion and waiting, phase deferral with both drivers, streaming,
 cancellation, budget-bound generation, the ledger and ISO data.
 
 ## Honest limits
+
+- **ABI 1.5 groups.** No network transport anywhere: an `AipiNode` holds
+  only what you put in it, freight packets and Web 4 envelopes are bytes
+  you carry. The V-Bill hub is a demonstration with test currencies and an
+  in-memory ledger, connected to no settlement rail. Policies that touch
+  money or devices need the owner, and `ownerOK` is your assertion. Op
+  streams promise no compression. Envelopes are signed, not encrypted. No
+  treaty, fee or token result is legal, tax or compliance advice.
 
 - **Least privilege, not a sandbox.** Capabilities stop mistakes, not
   hostile code in the same process: anyone can call `RootCapability`.

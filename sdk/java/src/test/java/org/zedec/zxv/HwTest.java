@@ -414,7 +414,9 @@ class HwTest {
     void permissionsAndFeatureBits() {
         assertEquals(1L << 10, Permission.HW_MATRIX.bit());
         assertEquals(1L << 11, Permission.HW_RECONF.bit());
-        assertEquals((1L << 12) - 1, Permission.mask(Permission.all()));
+        // ZXV_CAP_ALL_1_4: the first twelve bits; all() grew to ZXV_CAP_ALL_1_5 in ABI 1.5.
+        assertEquals((1L << 12) - 1, Permission.mask(Permission.all()) & ((1L << 12) - 1));
+        assertEquals((1L << 15) - 1, Permission.mask(Permission.all()));
         assertEquals(0x10000000, Feature.HW.bit());
         assertSame(StatusClass.REFUSED, Zxv.statusClass(-31));
         assertSame(StatusClass.USAGE, Zxv.statusClass(-30));

@@ -67,6 +67,14 @@ export interface HwHandler {
   event(id: number, regionId: number, event: number, reason: number, version: number): void;
 }
 
+/**
+ * Receives the CIDREF lookups of a freight op-stream expansion (ABI 1.5),
+ * identified by the uint32 id the caller passed as `user`: the `len` bytes
+ * that `cid` names, or a number (any value) when it cannot resolve them.
+ * Called synchronously on the calling thread; it must not throw.
+ */
+export type FreightResolver = (id: number, cid: Uint8Array, len: number) => Uint8Array | number;
+
 export interface Backend {
   readonly kind: 'native' | 'wasm';
   /** Where the library came from (a file path, or "wasm"). */
@@ -75,6 +83,8 @@ export interface Backend {
   readonly NULL: Ptr;
   /** Call a zxv_* function returning int32 (or void, then 0). */
   call(fn: string, ...args: Arg[]): number;
+  /** Call a zxv_* function returning a static `const char *` (never NULL). */
+  callString(fn: string, ...args: Arg[]): string;
   statusName(code: number): string;
   lpName(value: number): string;
   /** zxv_last_error for the calling thread ("" if none). */
@@ -108,6 +118,11 @@ export interface Backend {
    * zxvjs_hw_region_events entry points.
    */
   setHwHandler(h: HwHandler): void;
+  /**
+   * Install the receiver of freight CIDREF lookups (one per backend), used
+   * by the zxvjs_freight_ops_expand entry point.
+   */
+  setFreightResolver(r: FreightResolver): void;
 }
 
 const enc = new TextEncoder();

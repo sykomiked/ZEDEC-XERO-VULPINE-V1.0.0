@@ -43,12 +43,26 @@ extension ZxvFailure {
 public struct ZxvUsageError: ZxvFailure, Equatable {
     public let status: Int32
     public let detail: String
+    /// For `ZXV_E_TREATY` (ABI 1.5): which rule the treaty broke and, for a
+    /// parse, the byte offset of the first fault. Nil for other statuses.
+    public let treatyFault: Treaty.FaultInfo?
     /// True for `ZXV_E_FLOAT`: a NaN or infinity reached the float boundary.
     public var isFloatRejected: Bool { status == ZXV_E_FLOAT }
+    /// True for `ZXV_E_DENOM` (ABI 1.5): not a coin or token denomination.
+    public var isDenomination: Bool { status == ZXV_E_DENOM }
+    /// True for `ZXV_E_TREATY` (ABI 1.5): a treaty broke a rule; see `treatyFault`.
+    public var isTreaty: Bool { status == ZXV_E_TREATY }
     /// Build from a status and detail text.
     public init(status: Int32, detail: String) {
         self.status = status
         self.detail = detail
+        self.treatyFault = nil
+    }
+    /// Build a `ZXV_E_TREATY` error carrying the treaty's fault.
+    public init(status: Int32, detail: String, treatyFault: Treaty.FaultInfo?) {
+        self.status = status
+        self.detail = detail
+        self.treatyFault = treatyFault
     }
 }
 
@@ -66,6 +80,23 @@ public struct ZxvRefusedError: ZxvFailure, Equatable {
         case verificationFailed
         /// The feature is not built into this library.
         case notImplemented
+        /// `ZXV_E_CID` (ABI 1.5): bytes do not match their content identifier,
+        /// or the CID itself is malformed or unsupported.
+        case cidMismatch
+        /// `ZXV_E_CONSENT` (ABI 1.5): no valid consent token covers the action.
+        case consentDenied
+        /// `ZXV_E_ERASURE` (ABI 1.5): too few distinct freight rows to rebuild.
+        case erasure
+        /// `ZXV_E_PEG` (ABI 1.5): a stale or replayed peg, or no peg yet.
+        case pegRefused
+        /// `ZXV_E_LIMIT` (ABI 1.5): a vhub limit rule refused the swap.
+        case limitRefused
+        /// `ZXV_E_PARADOX_STEP` (ABI 1.5): a paradox graph reached its step
+        /// limit and went to the owner.
+        case paradoxStepLimit
+        /// `ZXV_E_PARADOX_OWNER` (ABI 1.5): money or device work needs the
+        /// owner's approval.
+        case ownerApprovalRequired
         /// Another refusal (capacity, state, declined...).
         case other
     }
@@ -79,6 +110,13 @@ public struct ZxvRefusedError: ZxvFailure, Equatable {
         case ZXV_E_FUNDS: return .insufficientFunds
         case ZXV_E_VERIFY: return .verificationFailed
         case ZXV_E_NOTIMPL: return .notImplemented
+        case ZXV_E_CID: return .cidMismatch
+        case ZXV_E_CONSENT: return .consentDenied
+        case ZXV_E_ERASURE: return .erasure
+        case ZXV_E_PEG: return .pegRefused
+        case ZXV_E_LIMIT: return .limitRefused
+        case ZXV_E_PARADOX_STEP: return .paradoxStepLimit
+        case ZXV_E_PARADOX_OWNER: return .ownerApprovalRequired
         default: return .other
         }
     }
