@@ -1101,6 +1101,12 @@ verify-all: test
 		src/font/test_truetype.c src/font/truetype.c src/font/font.c src/font/script.c \
 		-o /tmp/test_truetype -lm && \
 		/tmp/test_truetype && echo "[PASS] test_truetype" || { echo "[FAIL] test_truetype"; exit 1; }; \
+	echo "=== zui: native renderer core (layout, shapes, text, depth effects) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zui -Isrc/font -Isrc/emu \
+		src/zui/test_zui.c src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_depth.c \
+		src/font/truetype.c src/emu/holo.c \
+		-o /tmp/test_zui && \
+		/tmp/test_zui && echo "[PASS] test_zui" || { echo "[FAIL] test_zui"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \
