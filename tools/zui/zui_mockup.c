@@ -24,6 +24,7 @@
 #include "zui_logic.h"
 #include "zui_space.h"
 #include "zui_chiglet.h"
+#include "zui_emote.h"
 
 /* ---- fonts --------------------------------------------------------------- */
 static ttf_font_t F_REG, F_MED, F_SEMI, F_MONO, F_MONO_MED;
@@ -252,6 +253,33 @@ static void budget_bar(ctx_t *c, int32_t x, int32_t y, int32_t w, int32_t used, 
 }
 
 /* The top strip: wordmark, place, Ask field, swarm meter. */
+/* ---- the swarm's feelings: live emoji faces ------------------------------ */
+typedef struct { const char *name, *role; swarm_feeling_t was, now; zui_health_t h;
+                 const char *note; uint32_t re, im; } sw_agent_t;
+static const sw_agent_t SW_AGENTS[5] = {
+    { "planner",   "splits the ask",     { SWARM_EMO_CALM, 3 },        { SWARM_EMO_CALM, 3 },        ZUI_HEALTH_OK,
+      "steady", 412, 120 },
+    { "writer",    "drafts the text",    { SWARM_EMO_JOY, 2 },         { SWARM_EMO_JOY, 2 },         ZUI_HEALTH_OK,
+      "steady", 610, 80 },
+    { "checker",   "checks the figures", { SWARM_EMO_CURIOUS, 3 },     { SWARM_EMO_WORRY, 4 },       ZUI_HEALTH_OK,
+      "its second check disagreed with the ledger", 388, 199 },
+    { "ledger",    "reads Sicily",       { SWARM_EMO_NEUTRAL, 0 },     { SWARM_EMO_NEUTRAL, 0 },     ZUI_HEALTH_SLOW,
+      "missed one cycle deadline", 254, 0 },
+    { "retriever", "fetches sources",    { SWARM_EMO_FRUSTRATION, 3 }, { SWARM_EMO_FRUSTRATION, 3 }, ZUI_HEALTH_FAILING,
+      "2 failed fetches \xC2\xB7 retrying on another peer", 176, 199 },
+};
+static const swarm_feeling_t SWARM_MOOD = { SWARM_EMO_CALM, 3 };
+static uint32_t MORPH_T = 256, TICK = 0;   /* animation frame state */
+
+static zui_face_t agent_face(int i) {
+    return zui_face_lerp(zui_face_feeling(SW_AGENTS[i].was), zui_face_feeling(SW_AGENTS[i].now),
+                         zui_emote_ease(MORPH_T));
+}
+
+static void face_at(ctx_t *c, zui_face_t f, zui_health_t h, int32_t cx, int32_t cy, int32_t r_pt) {
+    zui_face_draw(&c->s, &f, h, cx + c->dx, cy + c->dy, PT(c, r_pt), TICK);
+}
+
 static void top_bar(ctx_t *c, const char *place) {
     c->bg = ZUI_VOID;
     zui_rect_t t = c->p.top;
@@ -279,7 +307,7 @@ static void top_bar(ctx_t *c, const char *place) {
         const char *m = "1,840 / 4,181";
         int32_t w = text_w(c, &F_MONO, 11, m);
         text(c, &F_MONO, 11, t.x + t.w - g - w, mid + PT(c, 4), ZUI_TEXT_2, m);
-        dot(c, t.x + t.w - g - w - PT(c, 10), mid, PT(c, 3), ZUI_OK);
+        face_at(c, zui_face_feeling(SWARM_MOOD), ZUI_HEALTH_OK, t.x + t.w - g - w - PT(c, 14), mid, 8);
         return;
     }
     int32_t aw = PT(c, c->p.cls == ZUI_LARGE ? 520 : (SPACE_SEL >= 0 ? 300 : 420));
@@ -298,8 +326,9 @@ static void top_bar(ctx_t *c, const char *place) {
     int32_t mw = text_w(c, &F_MONO, 11, m);
     text(c, &F_MONO, 11, rx - mw, mid - PT(c, 2), ZUI_TEXT_2, m);
     budget_bar(c, rx - mw, mid + PT(c, 5), mw, 1840, 4181, ZUI_TEXT_2);
-    dot(c, rx - mw - PT(c, 14), mid, PT(c, 3), ZUI_OK);
-    text_r(c, &F_REG, 12, rx - mw - PT(c, 24), mid + PT(c, 4), ZUI_MUTED, "5 agents");
+    /* the status bar: one live face per agent, morphing as it feels */
+    for (int i = 0; i < 5; i++)
+        face_at(c, agent_face(4 - i), SW_AGENTS[4 - i].h, rx - mw - PT(c, 20) - i * PT(c, 24), mid, 8);
 }
 
 static void rail(ctx_t *c, int sel) {
@@ -1174,6 +1203,138 @@ static void web4_screen(ctx_t *c) {
     top_bar(c, "Web4");
 }
 
+/* ---- Swarm: how each agent feels and whether it is working ---------------- */
+static void fib_pips(ctx_t *c, int32_t x, int32_t base, uint8_t k, uint32_t rgb) {
+    static const int32_t H[5] = { 3, 5, 7, 10, 14 };   /* charge 1 2 3 5 8, scaled */
+    for (int i = 0; i < 5; i++) {
+        zui_rect_t b = R(c, x + i * PT(c, 6), base - PT(c, H[i]), PT(c, 4), PT(c, H[i]));
+        zui_fill_rrect(&c->s, b, PT(c, 1), C(c, i < k ? rgb : ZUI_HAIRLINE), 255);
+    }
+}
+
+static void swarm_screen(ctx_t *c) {
+    fill(c, (zui_rect_t){ 0, 0, c->s.w, c->s.h }, ZUI_VOID);
+    zui_rect_t A = c->p.main;
+    if (c->p.list.w) { A.x = c->p.list.x; A.w += c->p.list.w; }
+    int compact = c->p.cls == ZUI_COMPACT;
+    int32_t g = PT(c, compact ? 16 : 32), x0 = A.x + g, W = A.w - 2 * g, y = A.y + PT(c, compact ? 40 : 48);
+    layer(c, 0); c->bg = ZUI_VOID;
+    heading(c, &F_SEMI, 24, x0, y, ZUI_TEXT, "Swarm");
+    if (!compact) text(c, &F_REG, 13, x0 + PT(c, 92), y, ZUI_MUTED,
+                       "how each agent feels and whether it is working \xC2\xB7 live \xC2\xB7 all on this Mac");
+    y += PT(c, 28);
+
+    /* the swarm's mood, large */
+    int32_t mw = compact ? W : PT(c, 300), mh = compact ? PT(c, 150) : PT(c, 420);
+    zui_rect_t mr = { x0, y, mw, mh };
+    c->look = zui_look(zui_emote_tag(SWARM_MOOD, ZUI_HEALTH_OK)); place(c, c->look.z_pt);
+    zui_fill_rrect(&c->s, R(c, mr.x, mr.y, mr.w, mr.h), PT(c, ZUI_R_PANEL), C(c, ZUI_PANEL), 255);
+    engrave(c, mr, ZUI_R_PANEL);
+    c->bg = ZUI_PANEL;
+    if (compact) {
+        face_at(c, zui_face_feeling(SWARM_MOOD), ZUI_HEALTH_OK, x0 + PT(c, 60), y + mh / 2, 40);
+        text(c, &F_MED, 11, x0 + PT(c, 120), y + PT(c, 44), ZUI_MUTED, "SWARM MOOD");
+        text(c, &F_SEMI, 20, x0 + PT(c, 120), y + PT(c, 72), ZUI_TEXT, "calm \xC2\xB7 3");
+        text(c, &F_MONO, 11, x0 + PT(c, 120), y + PT(c, 98), ZUI_TEXT_2, "597 of 4,181 tok on feeling");
+        text(c, &F_REG, 12, x0 + PT(c, 120), y + PT(c, 120), ZUI_MUTED, "the rest split by level");
+        y += mh + PT(c, 12);
+    } else {
+        face_at(c, zui_face_feeling(SWARM_MOOD), ZUI_HEALTH_OK, x0 + mw / 2, y + PT(c, 130), 82);
+        text(c, &F_MED, 11, x0 + PT(c, 24), y + PT(c, 260), ZUI_MUTED, "SWARM MOOD");
+        text(c, &F_SEMI, 22, x0 + PT(c, 24), y + PT(c, 290), ZUI_TEXT, "Calm, intensity 3");
+        fib_pips(c, x0 + mw - PT(c, 54), y + PT(c, 290), 3, ZUI_OK);
+        para(c, &F_REG, 13, x0 + PT(c, 24), y + PT(c, 318), mw - PT(c, 48), 19, ZUI_TEXT_2,
+             "Charge 3 of 21 puts 597 of this cycle's 4,181 tokens on the feeling axis. The rest is split by swarm level, Fibonacci as always.");
+        text(c, &F_MONO, 11, x0 + PT(c, 24), y + mh - PT(c, 20), ZUI_FAINT, "U+1F60C \xC2\xB7 cycle 1,204");
+    }
+
+    /* one row per agent */
+    int32_t lx = compact ? x0 : x0 + mw + PT(c, 20), lw = compact ? W : W - mw - PT(c, 20);
+    int32_t ly = compact ? y : y, rh = PT(c, compact ? 76 : 72);
+    layer(c, 0); c->bg = ZUI_VOID;
+    if (!compact) {
+        text(c, &F_MED, 11, lx + PT(c, 16), ly + PT(c, 14), ZUI_MUTED, "AGENTS");
+        text_r(c, &F_MED, 11, lx + lw - PT(c, 16), ly + PT(c, 14), ZUI_MUTED, "TOKENS  LOGIC + FEELING");
+        ly += PT(c, 24);
+    }
+    for (int i = 0; i < 5; i++) {
+        const sw_agent_t *a = &SW_AGENTS[i];
+        zui_rect_t row = { lx, ly + i * (rh + PT(c, 8)), lw, rh };
+        c->look = zui_look(zui_emote_tag(a->now, a->h)); place(c, c->look.z_pt);
+        c->bg = ZUI_VOID;
+        zui_fill_rrect(&c->s, R(c, row.x, row.y, row.w, row.h), PT(c, ZUI_R_PANEL), C(c, ZUI_PANEL), 255);
+        if (a->h == ZUI_HEALTH_FAILING)
+            zui_stroke_rrect(&c->s, R(c, row.x, row.y, row.w, row.h), PT(c, ZUI_R_PANEL), 1, C(c, ZUI_ALERT), 200);
+        else engrave(c, row, ZUI_R_PANEL);
+        c->bg = ZUI_PANEL;
+        face_at(c, agent_face(i), a->h, row.x + PT(c, 36), row.y + rh / 2, 20);
+        int32_t tx = row.x + PT(c, 72);
+        text(c, &F_SEMI, 14, tx, row.y + PT(c, 28), ZUI_TEXT, a->name);
+        text(c, &F_REG, 12, tx + text_w(c, &F_SEMI, 14, a->name) + PT(c, 8), row.y + PT(c, 28), ZUI_MUTED, a->role);
+        char feel[160];
+        const swarm_emotion_profile_t *pr = swarm_emotion_profile(a->now.emotion);
+        if (a->now.intensity)
+            snprintf(feel, sizeof feel, "%s %u \xC2\xB7 temp %u.%02u \xC2\xB7 checks %ux", zui_emote_word(a->now.emotion),
+                     a->now.intensity, pr->temperature_milli / 1000u, (pr->temperature_milli % 1000u) / 10u, pr->verify_passes);
+        else snprintf(feel, sizeof feel, "neutral \xC2\xB7 no feeling charge");
+        if (i == 2 && MORPH_T < 256)
+            snprintf(feel, sizeof feel, "curious 3 \xE2\x86\x92 worried 4 \xC2\xB7 now checks 3x");
+        text(c, &F_REG, 12, tx, row.y + PT(c, 48), ZUI_TEXT_2, feel);
+        uint32_t hc = a->h == ZUI_HEALTH_FAILING ? ZUI_ALERT : a->h == ZUI_HEALTH_SLOW ? ZUI_GOLD : ZUI_TEXT_2;
+        if (!compact) text(c, &F_REG, 12, tx + PT(c, 250), row.y + PT(c, 48), hc, a->note);
+        fib_pips(c, row.x + lw - PT(c, compact ? 44 : 190), row.y + PT(c, 30), a->now.intensity,
+                 a->h == ZUI_HEALTH_FAILING ? ZUI_ALERT : ZUI_GOLD);
+        if (!compact) {
+            char tok[64];
+            snprintf(tok, sizeof tok, "%u + %u", a->re, a->im);
+            text_r(c, &F_MONO, 12, row.x + lw - PT(c, 16), row.y + PT(c, 30), ZUI_TEXT, tok);
+            text_r(c, &F_MONO, 10, row.x + lw - PT(c, 16), row.y + PT(c, 48), ZUI_FAINT,
+                   a->h == ZUI_HEALTH_OK ? "ok" : a->h == ZUI_HEALTH_SLOW ? "slow" : "failing");
+        }
+    }
+    y = (compact ? ly : ly) + 5 * (rh + PT(c, 8)) + PT(c, compact ? 8 : 20);
+    if (!compact && y < A.y + PT(c, 520)) y = A.y + PT(c, 520);
+
+    /* a change of feeling is a walk, not a swap */
+    if (!compact || y + PT(c, 120) < A.y + A.h) {
+        layer(c, 0); c->bg = ZUI_VOID;
+        text(c, &F_MED, 11, x0, y + PT(c, 14), ZUI_MUTED, "A FEELING CHANGES BY WALKING, NOT SWAPPING");
+        int n = compact ? 5 : 9;
+        int32_t step = (W - PT(c, 40)) / (n - 1), fy = y + PT(c, 62);
+        zui_face_t a = zui_face_feeling(SW_AGENTS[2].was), b = zui_face_feeling(SW_AGENTS[2].now);
+        for (int i = 0; i < n; i++) {
+            uint32_t t = (uint32_t)(i * 256 / (n - 1));
+            face_at(c, zui_face_lerp(a, b, t), ZUI_HEALTH_OK, x0 + PT(c, 20) + i * step, fy, compact ? 18 : 22);
+            if (!compact) {
+                char lab[16]; snprintf(lab, sizeof lab, "%u ms", (unsigned)(t * ZUI_EMOTE_MORPH_MS / 256u));
+                int32_t w = text_w(c, &F_MONO, 10, lab);
+                text(c, &F_MONO, 10, x0 + PT(c, 20) + i * step - w / 2, fy + PT(c, 40), ZUI_FAINT, lab);
+            }
+        }
+        if (!compact)
+            text(c, &F_REG, 12, x0, fy + PT(c, 66), ZUI_MUTED,
+                 "checker, curious 3 \xE2\x86\x92 worried 4: every frame between is a real face, so you see it change, not flicker");
+    }
+    rail(c, 0);
+    bottom_bar(c, 0);
+    top_bar(c, "Swarm");
+}
+
+/* one big face walking through every feeling, for the morph animation */
+static swarm_feeling_t CYC_A = { SWARM_EMO_NEUTRAL, 0 }, CYC_B = { SWARM_EMO_CALM, 5 };
+static void face_cycle(ctx_t *c) {
+    fill(c, (zui_rect_t){ 0, 0, c->s.w, c->s.h }, ZUI_VOID);
+    layer(c, 0); c->bg = ZUI_VOID;
+    int32_t cx = c->s.w / 2, cy = c->s.h / 2 - PT(c, 30);
+    zui_face_t f = zui_face_lerp(zui_face_feeling(CYC_A), zui_face_feeling(CYC_B), zui_emote_ease(MORPH_T));
+    face_at(c, f, ZUI_HEALTH_OK, cx, cy, 120);
+    char lab[96];
+    if (MORPH_T >= 256) snprintf(lab, sizeof lab, "%s", zui_emote_word(CYC_B.emotion));
+    else snprintf(lab, sizeof lab, "%s \xE2\x86\x92 %s", zui_emote_word(CYC_A.emotion), zui_emote_word(CYC_B.emotion));
+    int32_t w = text_w(c, &F_MED, 20, lab);
+    text(c, &F_MED, 20, cx - w / 2, cy + PT(c, 172), ZUI_TEXT, lab);
+}
+
 /* ---- output -------------------------------------------------------------- */
 static uint32_t *alloc_px(int32_t w, int32_t h) {
     uint32_t *p = calloc((size_t)w * (size_t)h, 4);
@@ -1296,6 +1457,34 @@ int main(int argc, char **argv) {
         snprintf(n, sizeof n, "depth-parallax-%02d", i);
         render(out, n, studio, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_PARALLAX,
                sweep[i] * 80, 48);
+    }
+    /* the swarm's live faces */
+    render(out, "swarm-laptop", swarm_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    render(out, "swarm-phone", swarm_screen, 780, 1688, 512, ZUI_INPUT_TOUCH, ZUI_DEPTH_FLAT, 0, 60);
+    for (int i = 0; i < 16; i++) {   /* checker turns from curious to worried, live */
+        char n[64];
+        snprintf(n, sizeof n, "swarm-live-%02d", i);
+        MORPH_T = i < 3 ? 0 : i < 11 ? (uint32_t)(i - 3) * 32u + 32u : 256u;
+        TICK = (uint32_t)i;
+        render(out, n, swarm_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    }
+    MORPH_T = 256; TICK = 0;
+    {   /* one face through all eight feelings at full intensity */
+        static const swarm_emotion_t order[9] = { SWARM_EMO_NEUTRAL, SWARM_EMO_CALM, SWARM_EMO_JOY,
+            SWARM_EMO_CURIOUS, SWARM_EMO_LOVE, SWARM_EMO_WORRY, SWARM_EMO_FRUSTRATION, SWARM_EMO_SADNESS,
+            SWARM_EMO_NEUTRAL };
+        int fr = 0;
+        for (int e = 0; e < 8; e++) {
+            CYC_A = (swarm_feeling_t){ order[e], 5 };
+            CYC_B = (swarm_feeling_t){ order[e + 1], 5 };
+            for (int k = 1; k <= 12; k++) {
+                char n[64];
+                snprintf(n, sizeof n, "emote-morph-%03d", fr++);
+                MORPH_T = k <= 8 ? (uint32_t)k * 32u : 256u;
+                render(out, n, face_cycle, 560, 560, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+            }
+        }
+        MORPH_T = 256;
     }
     printf("glyph cache: %u hits, %u misses\n", CACHE.hits, CACHE.misses);
     return 0;

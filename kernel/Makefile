@@ -1102,9 +1102,9 @@ verify-all: test
 		-o /tmp/test_truetype -lm && \
 		/tmp/test_truetype && echo "[PASS] test_truetype" || { echo "[FAIL] test_truetype"; exit 1; }; \
 	echo "=== zui: native renderer core (layout, shapes, text, depth effects) ==="; \
-	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/emu -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/emu -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/swarm \
 		src/zui/test_zui.c src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_depth.c \
-		src/zui/zui_logic.c src/zui/zui_space.c src/zui/zui_chiglet.c src/font/truetype.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c \
+		src/zui/zui_logic.c src/zui/zui_space.c src/zui/zui_chiglet.c src/zui/zui_emote.c src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/font/truetype.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c \
 		src/robin_debanks/sha256.c \
 		-o /tmp/test_zui && \
 		/tmp/test_zui && echo "[PASS] test_zui" || { echo "[FAIL] test_zui"; exit 1; }; \

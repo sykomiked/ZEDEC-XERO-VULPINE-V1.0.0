@@ -12,6 +12,7 @@
 #include "zui_logic.h"
 #include "zui_space.h"
 #include "zui_chiglet.h"
+#include "zui_emote.h"
 #include "../font/ttf_fixture.inc"   /* MINI_TTF[] */
 #include "zui_ttf_fixture.inc"       /* ZUI_TTF[]: metrics + a composite */
 
@@ -379,6 +380,111 @@ static void test_chiglet(void) {
     CHECK(zui_chiglet_accent(0) == ZUI_GOLD, "null companion falls back to gold");
 }
 
+static uint64_t draw_face(zui_face_t f, zui_health_t h, uint32_t tick) {
+    zui_surface_t s;
+    zui_surface_init(&s, buf, 64, 64, 64);
+    zui_fill(&s, (zui_rect_t){ 0, 0, 64, 64 }, ZUI_VOID);
+    zui_face_draw(&s, &f, h, 32, 32, 22, tick);
+    return fnv(buf, 64 * 64);
+}
+
+static int face_eq(zui_face_t a, zui_face_t b) {
+    return a.mouth_curve == b.mouth_curve && a.mouth_open == b.mouth_open && a.eye_open == b.eye_open &&
+           a.squint == b.squint && a.brow_tilt == b.brow_tilt && a.brow_raise == b.brow_raise &&
+           a.blush == b.blush && a.tear == b.tear && a.color == b.color;
+}
+
+static void test_emote(void) {
+    /* every emoji is its own face, and draws differently */
+    int distinct = 1;
+    uint64_t h[SWARM_EMO_COUNT];
+    for (int e = 0; e < SWARM_EMO_COUNT; e++) {
+        h[e] = draw_face(zui_face_of((swarm_emotion_t)e), ZUI_HEALTH_OK, 0);
+        for (int k = 0; k < e; k++) if (h[k] == h[e]) distinct = 0;
+    }
+    CHECK(distinct, "all eight emoji draw as different faces");
+    CHECK(draw_face(zui_face_of(SWARM_EMO_JOY), ZUI_HEALTH_OK, 0) == h[SWARM_EMO_JOY], "same face, same pixels");
+    CHECK(face_eq(zui_face_of((swarm_emotion_t)99), zui_face_of(SWARM_EMO_NEUTRAL)), "unknown emotion falls back to neutral");
+
+    /* intensity is the Fibonacci charge */
+    zui_face_t n = zui_face_of(SWARM_EMO_NEUTRAL);
+    int zero_is_neutral = 1;
+    for (int e = 0; e < SWARM_EMO_COUNT; e++)
+        if (!face_eq(zui_face_feeling((swarm_feeling_t){ (swarm_emotion_t)e, 0 }), n)) zero_is_neutral = 0;
+    CHECK(zero_is_neutral, "intensity 0 shows the neutral face for every emotion");
+    CHECK(face_eq(zui_face_feeling((swarm_feeling_t){ SWARM_EMO_SADNESS, 5 }), zui_face_of(SWARM_EMO_SADNESS)),
+          "intensity 5 (charge 8) is the full expression");
+    int mono = 1;
+    int16_t prev = 0;
+    for (uint8_t k = 0; k <= 5; k++) {
+        int16_t c = zui_face_feeling((swarm_feeling_t){ SWARM_EMO_JOY, k }).mouth_curve;
+        if (k && c <= prev) mono = 0;
+        prev = c;
+    }
+    CHECK(mono, "the smile grows with every intensity step");
+    CHECK(zui_face_feeling((swarm_feeling_t){ SWARM_EMO_JOY, 3 }).mouth_curve == 256 * 3 / 8,
+          "intensity 3 moves the face exactly charge 3 / 8 of the way");
+
+    /* morphing is a walk: exact ends, every frame in between real */
+    zui_face_t a = zui_face_of(SWARM_EMO_CURIOUS), b = zui_face_of(SWARM_EMO_WORRY);
+    CHECK(face_eq(zui_face_lerp(a, b, 0), a) && face_eq(zui_face_lerp(a, b, 256), b), "morph is exact at both ends");
+    uint64_t mid = draw_face(zui_face_lerp(a, b, 128), ZUI_HEALTH_OK, 0);
+    CHECK(mid != draw_face(a, ZUI_HEALTH_OK, 0) && mid != draw_face(b, ZUI_HEALTH_OK, 0), "the midpoint is a face of its own");
+    CHECK(zui_emote_ease(0) == 0 && zui_emote_ease(256) == 256 && zui_emote_ease(128) == 128, "ease is exact and symmetric");
+    int ease_mono = 1;
+    for (uint32_t t = 1; t <= 256; t++) if (zui_emote_ease(t) < zui_emote_ease(t - 1)) ease_mono = 0;
+    CHECK(ease_mono, "ease never goes backwards");
+
+    zui_emote_t m;
+    zui_emote_init(&m, (swarm_feeling_t){ SWARM_EMO_CALM, 3 }, 1000);
+    zui_emote_set(&m, (swarm_feeling_t){ SWARM_EMO_WORRY, 4 }, 1000);
+    zui_face_t w = zui_face_feeling((swarm_feeling_t){ SWARM_EMO_WORRY, 4 });
+    zui_face_t c3 = zui_face_feeling((swarm_feeling_t){ SWARM_EMO_CALM, 3 });
+    CHECK(face_eq(zui_emote_now(&m, 1000, 0), c3), "a morph starts from what was on screen");
+    CHECK(face_eq(zui_emote_now(&m, 1000 + ZUI_EMOTE_MORPH_MS, 0), w), "and arrives on time");
+    CHECK(face_eq(zui_emote_now(&m, 1000, 1), w), "reduce motion jumps straight to the new face");
+    zui_face_t half = zui_emote_now(&m, 1000 + ZUI_EMOTE_MORPH_MS / 2, 0);
+    zui_emote_set(&m, (swarm_feeling_t){ SWARM_EMO_JOY, 2 }, 1000 + ZUI_EMOTE_MORPH_MS / 2);
+    CHECK(face_eq(zui_emote_now(&m, 1000 + ZUI_EMOTE_MORPH_MS / 2, 0), half),
+          "a new feeling mid-morph turns from where the face is, no jump");
+    zui_emote_init(&m, (swarm_feeling_t){ SWARM_EMO_CALM, 3 }, 0xFFFFFF00u);
+    zui_emote_set(&m, (swarm_feeling_t){ SWARM_EMO_JOY, 5 }, 0xFFFFFF00u);
+    CHECK(face_eq(zui_emote_now(&m, 0xFFFFFF00u + ZUI_EMOTE_MORPH_MS, 0), zui_face_of(SWARM_EMO_JOY)),
+          "morph timing survives the millisecond clock wrapping");
+
+    /* health is not feeling */
+    uint64_t ok = draw_face(n, ZUI_HEALTH_OK, 0);
+    uint64_t slow = draw_face(n, ZUI_HEALTH_SLOW, 0), fail = draw_face(n, ZUI_HEALTH_FAILING, 0),
+             stop = draw_face(n, ZUI_HEALTH_STOPPED, 0);
+    CHECK(ok != slow && ok != fail && ok != stop && slow != fail && fail != stop && slow != stop,
+          "each health state looks different on the same face");
+    CHECK(draw_face(n, ZUI_HEALTH_SLOW, 3) != slow, "the slow ring turns");
+    CHECK(draw_face(n, ZUI_HEALTH_OK, 3) == ok, "a healthy face is still: no motion without meaning");
+
+    /* the logic tag it shows with */
+    lpx_t t = zui_emote_tag((swarm_feeling_t){ SWARM_EMO_JOY, 5 }, ZUI_HEALTH_OK);
+    CHECK(lpx_base(t) == LPX_B_TRUE && lpx_pol(t) == LPX_P_NEGENTROPIC && lpx_phase(t) == LPX_PH_MANIFEST,
+          "strong joy, healthy: TRUE, converging, manifest");
+    t = zui_emote_tag((swarm_feeling_t){ SWARM_EMO_FRUSTRATION, 2 }, ZUI_HEALTH_FAILING);
+    CHECK(lpx_base(t) == LPX_B_FALSE && lpx_pol(t) == LPX_P_ENTROPIC && lpx_phase(t) == LPX_PH_EMERGING,
+          "mild frustration, failing: FALSE, diverging, emerging");
+    t = zui_emote_tag((swarm_feeling_t){ SWARM_EMO_WORRY, 0 }, ZUI_HEALTH_STOPPED);
+    CHECK(lpx_base(t) == LPX_B_NEITHER && lpx_phase(t) == LPX_PH_DISSOLVING && !lpx_forbidden(t),
+          "no charge reads NEITHER; stopped dissolves; never forbidden");
+    CHECK(strcmp(zui_emote_word(SWARM_EMO_CURIOUS), "curious") == 0 && strcmp(zui_emote_word((swarm_emotion_t)42), "neutral") == 0,
+          "words for screen readers");
+
+    /* off-surface and tiny draws are safe */
+    zui_surface_t s;
+    zui_surface_init(&s, buf, 64, 64, 64);
+    zui_fill(&s, (zui_rect_t){ 0, 0, 64, 64 }, ZUI_VOID);
+    uint64_t empty = fnv(buf, 64 * 64);
+    zui_face_draw(&s, &n, ZUI_HEALTH_OK, 32, 32, 3, 0);
+    CHECK(fnv(buf, 64 * 64) == empty, "a face too small to read draws nothing");
+    zui_face_draw(&s, &n, ZUI_HEALTH_FAILING, -900, 5000, 40, 0);
+    CHECK(1, "drawing off-surface is clipped, not overrun");
+}
+
 int main(void) {
     printf("=== zui: layout, shapes, text plumbing, depth ===\n");
     test_layout();
@@ -388,6 +494,7 @@ int main(void) {
     test_logic();
     test_spaces();
     test_chiglet();
+    test_emote();
     printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }
