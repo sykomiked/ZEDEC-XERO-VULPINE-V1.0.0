@@ -73,6 +73,7 @@ static seat_status_t hash_pass(const seat_roster_t *r, const seat_env_t *env, se
     if (!new_salt) {
         kp.m_kib = s->kdf_m_kib;
         kp.t = s->kdf_t;
+        kp.p = s->kdf_p;
     }
     if (new_salt) env->rng(s->salt, SEAT_SALT_LEN, env->rng_ctx);
     uint8_t out[SEAT_HASH_LEN];
@@ -85,6 +86,7 @@ static seat_status_t hash_pass(const seat_roster_t *r, const seat_env_t *env, se
         for (uint32_t i = 0; i < SEAT_HASH_LEN; i++) s->hash[i] = out[i];
         s->kdf_m_kib = kp.m_kib;
         s->kdf_t = kp.t;
+        s->kdf_p = kp.p;
         wipe(out, sizeof out);
         return SEAT_OK;
     }
@@ -151,7 +153,9 @@ seat_status_t seat_set_lock(seat_roster_t *r, const seat_env_t *env, int32_t act
     if (actor != index && r->v[actor].role != SEAT_OWNER) return SEAT_ERR_DENIED;
     if (s->role == SEAT_GUEST && lock != SEAT_LOCK_NONE) return SEAT_ERR_DENIED;
     if (actor == index && s->lock == SEAT_LOCK_PASS) { /* your own: prove the old one */
+        if (!env || !env->mem) return SEAT_ERR_ARG;
         seat_status_t st = hash_pass(r, env, s, old_pass, old_len, false);
+        if (st == SEAT_ERR_ARG) st = SEAT_ERR_WRONG; /* missing or malformed old one */
         if (st != SEAT_OK) return st;
     }
     if (lock == SEAT_LOCK_PASS) {
@@ -172,6 +176,7 @@ seat_status_t seat_set_lock(seat_roster_t *r, const seat_env_t *env, int32_t act
     wipe(s->hash, SEAT_HASH_LEN);
     s->kdf_m_kib = 0;
     s->kdf_t = 0;
+    s->kdf_p = 0;
     s->lock = (uint8_t) lock;
     s->fails = 0;
     s->wait_until_ms = 0;
