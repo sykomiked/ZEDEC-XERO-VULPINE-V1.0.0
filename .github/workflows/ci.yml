@@ -78,8 +78,10 @@ jobs:
           build_system/ci_changes.sh "$B" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Check every file is on Apache-2.0
         run: python3 build_system/relicense_apache.py --check
-      - name: Install clang-format
-        run: pip install clang-format==18.1.8
+      - name: Install clang-format and PyYAML
+        run: pip install clang-format==18.1.8 pyyaml
+      - name: Every pull request workflow keeps drafts on the fast tier
+        run: python3 build_system/check_workflow_tiers.py
       - name: Check formatting of the C files this change touches
         # Style is in .clang-format. Older files predate it, so only the lines
         # a pull request or push changes are checked. Nightly and manual runs

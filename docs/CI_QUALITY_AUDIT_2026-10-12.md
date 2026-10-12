@@ -80,6 +80,9 @@ minutes and were then cancelled in bulk. Cancelled jobs show as red.
 **Fix:** those workflows now skip every job on a draft (zxvd's `e2e` job
 excepted) and start when the PR is marked ready. A kernel draft now starts
 the `ci.yml` fast tier, CodeQL and zxvd e2e.
+`build_system/check_workflow_tiers.py` runs in quick-checks and fails when a
+new workflow or job forgets the rule (#87 added three such jobs while this
+fix was being written).
 
 ### RC5: the local check did not match CI (medium)
 

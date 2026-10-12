@@ -52,6 +52,10 @@ merged, and every night on `main`.
    draft, start CI by hand from the Actions tab (Run workflow, pick the
    branch).
 
+   `build_system/check_workflow_tiers.py` (in quick-checks and the local
+   script) fails when a workflow or a new job runs on drafts without this
+   rule.
+
    Before this rule covered the other workflows, a draft that touched
    `kernel/src/` started about 150 jobs (every SDK, engine and framework
    workflow), not the 9 this page promised. Fifteen open drafts queued

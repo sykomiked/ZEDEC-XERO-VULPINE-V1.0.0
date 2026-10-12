@@ -231,6 +231,7 @@ fi
 # ---- the checks -------------------------------------------------------------
 step "Apache-2.0 headers (quick-checks)" license
 step "clang-format on changed lines (quick-checks)" lint
+step "workflow draft tiers (quick-checks)" python3 build_system/check_workflow_tiers.py
 
 if [ "$kernel" != true ]; then
     skip "host tests and everything below" "no code changed since $BASE; --force runs them"

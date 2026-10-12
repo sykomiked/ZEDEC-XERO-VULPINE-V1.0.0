@@ -93,6 +93,7 @@ jobs:
   # Docker, QEMU or cross compiler; the real disc build and UEFI boot stay in
   # ci.yml's uefi-disc job.
   baremetal:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: bare-metal board manifests and packaging plans
     runs-on: ubuntu-24.04
     timeout-minutes: 15
