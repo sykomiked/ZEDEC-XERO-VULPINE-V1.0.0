@@ -4,9 +4,13 @@
  *
  * The owner asked (2026-10-12) for every app to open with the boot screen
  * itself, played inside the window the person opened for the app: the big
- * top-centre logo becomes the app's icon instead of the OS fox, the app's load
- * parts sit where the boot has its five houses, and the vault opens inside the
+ * top-centre logo becomes the app's icon instead of the OS fox, the boot's
+ * same five logos stay on the tiles underneath, and the vault opens inside the
  * window onto the app. Each app keeps its own beginning, middle and end sound.
+ * It is an OS feature, not per-app work: an app maker picks a sound sequence
+ * (zxl_theme_pick) and gives an icon; everything else is the system's.
+ * System apps' icons are held to the palette (gold on #002911); an app a
+ * person makes may colour its icon however it likes (zxl_icon_ink).
  * This is the logic behind that screen. Drawing lives in zui
  * (zui_launch_draw, zui_vault_draw) inside the app's window; this file decides
  * WHAT happens and WHEN, from the app's real loading, so the screen can never
@@ -15,8 +19,9 @@
  * The sequence (same grammar as the boot):
  *   BEGIN    the window opens on the screen: the app's icon dim at the top,
  *            its load parts on carved tiles; the begin cue plays.
- *   TICK     a part lights when its own load is done AND the gathering bar's
- *            head has reached it. Each lit part plays one pitched tick, the
+ *   TICK     a tile lights when its part of the real load is done AND the
+ *            gathering bar's head has reached it (the five tiles are the
+ *            app's load in five parts; ZXL_TILES). Each lit part plays one pitched tick, the
  *            k-th part the k-th step up the app's scale, the centre the top
  *            step: the middle cue IS the progress, never a loop.
  *   LIGHT    every part is done: the icon lights and warms (silent); the bar
@@ -110,6 +115,11 @@ typedef struct {
  * returns NULL. */
 const zxl_theme_t *zxl_theme_for(const char *app, uint32_t group);
 
+/* The sound sequence an app maker picked, by name: a curated app's name
+ * ("Burrow", "Flint", ...; case-insensitive) or a group's, "group1".."group12".
+ * NULL for anything else; the caller then uses zxl_theme_for. */
+const zxl_theme_t *zxl_theme_pick(const char *id);
+
 /* The group default for 1..12, or NULL. */
 const zxl_theme_t *zxl_group_theme(uint32_t group);
 
@@ -121,6 +131,17 @@ const zxl_theme_t *zxl_curated(uint32_t i);
  * centre): a MIDI note number on the app's major pentatonic. */
 #define ZXL_TOP_STEP 6
 uint32_t zxl_tick_note(const zxl_theme_t *t, uint32_t step);
+
+/* ---- the icon at the top ------------------------------------------------- */
+typedef enum {
+    ZXL_ICON_PALETTE = 0, /* system app: recoloured to gold on the ZXV green  */
+    ZXL_ICON_OWN          /* an app a person made: drawn in its own colours   */
+} zxl_icon_ink_t;
+
+#define ZXL_GROUND_RGB 0x002911u /* the boot's ground  */
+#define ZXL_GOLD_RGB   0xF2C230u /* the boot's gold    */
+
+zxl_icon_ink_t zxl_icon_ink(int system_app);
 
 /* ---- preferences -------------------------------------------------------- */
 typedef struct {
@@ -141,6 +162,7 @@ zxl_prefs_t zxl_prefs_default(void);
 zxl_reveal_t zxl_effective_reveal(const zxl_theme_t *t, const zxl_prefs_t *p);
 
 /* ---- one launch --------------------------------------------------------- */
+#define ZXL_TILES     5 /* the boot's five logo tiles: every launch screen has them */
 #define ZXL_MAX_PARTS 7
 #define ZXL_FULL      256u
 #define ZXL_UNKNOWN   0xFFFFFFFFu

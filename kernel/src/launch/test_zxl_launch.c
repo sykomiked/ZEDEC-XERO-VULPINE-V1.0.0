@@ -395,6 +395,33 @@ static void test_sound_policy(void)
     CHECK(ev[0].gain_q8 == 48, "ducking scales with volume");
 }
 
+static void test_pick(void)
+{
+    CHECK(zxl_theme_pick("Burrow") == zxl_theme_for("Burrow", 1), "pick a curated sequence");
+    CHECK(zxl_theme_pick("burrow") == zxl_theme_for("Burrow", 1), "pick ignores case");
+    CHECK(zxl_theme_pick("MURMURATION")->key == ZXL_E, "the swarm's sequence is in E");
+    for (uint32_t i = 0; i < zxl_curated_count(); i++)
+        CHECK(zxl_theme_pick(zxl_curated(i)->app) == zxl_curated(i),
+              "every curated sequence pickable");
+    CHECK(zxl_theme_pick("group1") == zxl_group_theme(1), "group1");
+    CHECK(zxl_theme_pick("Group7") == zxl_group_theme(7), "Group7");
+    CHECK(zxl_theme_pick("group12") == zxl_group_theme(12), "group12");
+    CHECK(zxl_theme_pick("group0") == 0, "group0 is not a sequence");
+    CHECK(zxl_theme_pick("group13") == 0, "group13 is not a sequence");
+    CHECK(zxl_theme_pick("group") == 0, "bare group");
+    CHECK(zxl_theme_pick("group1x") == 0, "trailing junk");
+    CHECK(zxl_theme_pick("group123") == 0, "three digits");
+    CHECK(zxl_theme_pick("groupA") == 0, "letter for a number");
+    CHECK(zxl_theme_pick("Burro") == 0, "prefix of a name");
+    CHECK(zxl_theme_pick("Burrows") == 0, "name plus more");
+    CHECK(zxl_theme_pick("") == 0, "empty");
+    CHECK(zxl_theme_pick(0) == 0, "NULL");
+    CHECK(zxl_icon_ink(1) == ZXL_ICON_PALETTE, "system icons held to the palette");
+    CHECK(zxl_icon_ink(0) == ZXL_ICON_OWN, "a person's app keeps its own colours");
+    CHECK(ZXL_GOLD_RGB == 0xF2C230u && ZXL_GROUND_RGB == 0x002911u, "the boot's palette");
+    CHECK(ZXL_TILES == 5 && ZXL_TILES <= ZXL_MAX_PARTS, "five tiles, as the boot");
+}
+
 int main(void)
 {
     test_themes();
@@ -405,6 +432,7 @@ int main(void)
     test_shapes();
     test_warm();
     test_sound_policy();
+    test_pick();
     printf("test_zxl_launch: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

@@ -2,18 +2,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # ZXV app launch screens: the boot screen itself, played inside the app's own window.
 #
-# Owner (2026-10-12 09:25Z): every app launch is the same boot sequence screen, with the big top-centre
-# logo changed from the OS fox to the app's icon, and the vault opening inside the window the person has
-# open for that app. So, in the app's window:
-#   1. the app's icon sits dim at the top, the app's real load parts sit on carved tiles in a row
-#      (where the boot has the five houses)                                     -> the begin cue
-#   2. two mirrored bars run inward, lighting each part as its head passes      -> one tick per part
+# Owner (2026-10-12): every app launch is the boot sequence screen itself, played inside the window the
+# person opened for the app. 09:25Z: the big top-centre logo changes from the OS fox to the app's icon and
+# the vault opens inside the app's window. 10:53Z: keep the boot's same five logos on the tiles underneath
+# (36N9, ACOTO, the ASCW crest, SMIC, CIS) so it is streamlined and easy to replicate; only the icon at the
+# top changes. 10:54Z: each app keeps its own sound sequence, following the same begin/middle/end pattern.
+#   1. the app's icon sits dim at the top, the five logos dim on their tiles   -> the begin cue
+#   2. two mirrored bars run inward with the app's real load, lighting each tile -> one tick per tile
 #   3. everything loaded: the icon lights and warms, one sweep of light
 #   4. the bar under the icon grows centre-out with the rest of the real load while the vault's bolts
 #      lock across the seam one by one
 #   5. the bar fills: the bolts throw back and the window's face splits down the middle and slides
 #      to its edges onto the app                                                 -> the end cue
-# What stays the app's own: its icon, its parts, the faint motion behind them, and its three sounds.
+# What stays the app's own: its icon at the top and its three sounds (and a faint motion behind).
 import numpy as np, math, os, subprocess, sys, wave
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -208,6 +209,9 @@ BAR_Y = RY + TW + 30
 HERO = (W/2, 250, (380, 400))
 BOLTS = [95, 280, 465, 650, 835]; BL, BH = 86, 22
 ICONS = os.environ.get('ZXV_APP_ICONS', HERE + '/../../assets/app-icons')
+# the boot's five logos, gold (zxv-brand/gold/*-gold.png); ZXV_LOGOS points at that folder
+LOGOS = os.environ.get('ZXV_LOGOS', HERE + '/../../assets/brand/gold')
+LOGO_KEYS = ['36n9', 'acoto', 'ascw', 'smic', 'cis']
 ease = lambda t: (lambda u: u*u*(3-2*u))(max(0.0, min(1.0, t)))
 
 def gold_from_mask(m, rgb, alpha):
@@ -258,8 +262,22 @@ def hero_draw(c, th, lit, flash, sweep):
         pos = (xx + yy*0.5)/(m.width + m.height*0.5); band = np.clip(1 - abs(pos - (sweep*1.3 - 0.15))/0.06, 0, 1)
         put(c, gold_from_mask(Image.fromarray((a*band).astype(np.uint8)), (255, 255, 255), 0.55), hx, hy)
 
+# ---- the five logos, exactly as on the boot ------------------------------------------------------
+_LOGO = {}
+def logo(i, th):
+    """(mask L, colour RGBA) for tile i: the boot's logo, or the app's part glyph if the logos are absent"""
+    k = LOGO_KEYS[i]
+    if k not in _LOGO:
+        fn = f'{LOGOS}/{k}-gold.png'
+        if os.path.exists(fn):
+            im = Image.open(fn).convert('RGBA'); im = im.crop(im.getbbox()); box = TW - 30
+            sc = min(box/im.width, box/im.height); im = im.resize((int(im.width*sc), int(im.height*sc)), Image.LANCZOS)
+            _LOGO[k] = (im.getchannel('A'), im)
+        else:
+            _LOGO[k] = None
+    return _LOGO[k] or (mask(104, th['parts'][i][1]), None)
+
 # ---- the face: the boot screen with the app in it ------------------------------------------------
-PARTMASK = {}
 def face(th, t, p, hero=0.0, flash=0.0, sweep=-1.0, rule=0.0, txt=0.0):
     c = Image.new('RGBA', (W, H), GROUND+(255,)); ambient(c, th['ambient'], t)
     d = ImageDraw.Draw(c); xl, xr, xm = X0, X0 + N*TW + (N-1)*GAP, W/2
@@ -270,14 +288,13 @@ def face(th, t, p, hero=0.0, flash=0.0, sweep=-1.0, rule=0.0, txt=0.0):
         if p < 1:
             for hx in (hl, hr): d.ellipse((hx-4, BAR_Y-3, hx+4, BAR_Y+6), fill=GLOW)
     lits = []
-    for i, (name, gf) in enumerate(th['parts']):
+    for i in range(N):
         lit = ease((hl - CX[i])/60) if i < 2 else ease((CX[i] - hr)/60) if i > 2 else ease((p - 0.97)/0.03)
         lits.append(lit); x = X0 + i*(TW+GAP); tile(c, x, RY, TW, TW, lit)
-        k = (th['title'], i)
-        if k not in PARTMASK: PARTMASK[k] = mask(104, gf)
-        m = PARTMASK[k]; glow(c, m, CX[i], RY + TW/2 - 14, lit)
-        put(c, gold_from_mask(m, GOLD, 0.18 + 0.82*lit), CX[i], RY + TW/2 - 14)
-        text(c, name, CX[i], RY + TW - 26, 17, GOLD if lit > 0.5 else MUTED, 0.45 + 0.55*lit)
+        m, col = logo(i, th); cy = RY + TW/2; glow(c, m, CX[i], cy, lit)
+        if col is None: put(c, gold_from_mask(m, GOLD, 0.18 + 0.82*lit), CX[i], cy)
+        else:                                       # dim engraving, then the logo's own gold
+            a = np.asarray(col).copy(); a[..., 3] = (a[..., 3]*(0.18 + 0.82*lit)).astype(np.uint8); put(c, Image.fromarray(a, 'RGBA'), CX[i], cy)
     hero_draw(c, th, hero, flash, sweep)
     if rule > 0:                                    # the top bar, centre-out under the icon
         d = ImageDraw.Draw(c); half = 230; y = HERO[1] + HERO[2][1]/2 + 26

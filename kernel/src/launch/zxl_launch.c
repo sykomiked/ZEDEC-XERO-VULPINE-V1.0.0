@@ -44,6 +44,41 @@ static int streq(const char *a, const char *b)
     return *a == *b;
 }
 
+static char lower(char ch)
+{
+    return (ch >= 'A' && ch <= 'Z') ? (char) (ch - 'A' + 'a') : ch;
+}
+
+static int strieq(const char *a, const char *b)
+{
+    while (*a && lower(*a) == lower(*b)) {
+        a++;
+        b++;
+    }
+    return lower(*a) == lower(*b);
+}
+
+const zxl_theme_t *zxl_theme_pick(const char *id)
+{
+    if (!id) return 0;
+    for (uint32_t i = 0; i < N_CURATED; i++)
+        if (strieq(id, CURATED[i].app)) return &CURATED[i];
+    const char *g = "group";
+    while (*g && lower(*id) == *g) {
+        id++;
+        g++;
+    }
+    if (*g || *id < '1' || *id > '9') return 0;
+    uint32_t n = (uint32_t) (*id++ - '0');
+    if (*id >= '0' && *id <= '9') n = n * 10 + (uint32_t) (*id++ - '0');
+    return *id ? 0 : zxl_group_theme(n);
+}
+
+zxl_icon_ink_t zxl_icon_ink(int system_app)
+{
+    return system_app ? ZXL_ICON_PALETTE : ZXL_ICON_OWN;
+}
+
 const zxl_theme_t *zxl_group_theme(uint32_t group)
 {
     return (group >= 1 && group <= ZXL_GROUPS) ? &GROUPS[group - 1] : 0;
