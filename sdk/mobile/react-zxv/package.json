@@ -1,0 +1,47 @@
+{
+  "name": "@zedec/zxv-react",
+  "version": "0.1.0",
+  "description": "Offline-first React hooks for ZXV (ZxvProvider, useZxv, useGenerate, useBudget, useRational, useLedgerBalance) over an injected backend: z-web in the browser, the @zedec/zxv addon in Node, or the local zxvd JSON-RPC daemon from React Native. Exact numbers, calls queued while offline and replayed in order, ledger posts never duplicated.",
+  "license": "Apache-2.0",
+  "author": "Michael Laurence Curzi and 36N9 Genetics, LLC",
+  "type": "module",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/src",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.build.json --noEmit",
+    "test": "tsc -p tsconfig.json && node --test --test-concurrency=1 dist/test/rational.test.js dist/test/client.test.js dist/test/hooks.test.js dist/test/zxvd.test.js dist/test/sdk.test.js dist/test/zweb.test.js"
+  },
+  "peerDependencies": {
+    "react": ">=18.2"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/react": "16.1.0",
+    "@types/jsdom": "21.1.7",
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@zedec/zxv": "file:../../typescript",
+    "@zedec/zxv-web": "file:../z-web",
+    "jsdom": "25.0.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.7.2"
+  }
+}

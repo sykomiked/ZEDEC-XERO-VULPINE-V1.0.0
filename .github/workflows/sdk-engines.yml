@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Game-engine kits (sdk/engines): emu-state (C), the Godot GDExtension and
-# its C++ layer, and the Unity package's Runtime built as netstandard2.1.
+# its C++ layer, the Unreal plugin's C++ layer, the Unity package's Runtime
+# built as netstandard2.1, and the Z-VFX Python package (Maya/Houdini bridge,
+# tested with fake DCC modules).
 # Every job builds libzxv itself and tests against the real library.
 name: SDK engines
 
@@ -13,6 +15,7 @@ on:
       - 'sdk/engines/**'
       - 'sdk/libzxv/**'
       - 'sdk/conformance/**'
+      - 'sdk/cpp/include/**'
       - 'sdk/kits/z-wasm/tools/check_nofloat.py'
       - 'kernel/src/**'
       - 'kernel/third_party/**'
@@ -22,6 +25,7 @@ on:
       - 'sdk/engines/**'
       - 'sdk/libzxv/**'
       - 'sdk/conformance/**'
+      - 'sdk/cpp/include/**'
       - 'sdk/kits/z-wasm/tools/check_nofloat.py'
       - 'kernel/src/**'
       - 'kernel/third_party/**'
@@ -160,6 +164,44 @@ jobs:
           timeout 300 "$GODOT" --headless --path demo --quit-after 300 2>&1 | tee "$RUNNER_TEMP/godot-demo.log"
           if grep -E 'SCRIPT ERROR|ERROR:' "$RUNNER_TEMP/godot-demo.log"; then exit 1; fi
 
+  # The Unreal plugin's engine-neutral C++ layer, its tests and the
+  # structural check of the wrapper. No Unreal Engine here: the UCLASS /
+  # USTRUCT wrapper is not compiled (see sdk/engines/unreal-zxv/README.md).
+  unreal-core:
+    name: unreal-zxv core ${{ matrix.os }} ${{ matrix.cxx }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc, cxx: g++, sanitize: true }
+          - { os: macos-14, cc: clang, cxx: clang++, sanitize: false }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: make -C sdk/libzxv all
+      - name: Configure (the C++ layer and its tests; no Unreal)
+        run: cmake -S sdk/engines/unreal-zxv -B build-unreal-core
+      - run: cmake --build build-unreal-core -j 4
+      - name: Tests, cross-check against sdk/cpp, no-float and layout checks
+        run: ctest --test-dir build-unreal-core --output-on-failure
+      - name: The same under ASan + UBSan
+        if: matrix.sanitize
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          cmake -S sdk/engines/unreal-zxv -B build-unreal-san -DZXV_SANITIZE=ON
+          cmake --build build-unreal-san -j 4
+          ctest --test-dir build-unreal-san --output-on-failure
+      - name: Stage libzxv and emu-state for the Unreal module
+        run: |
+          sdk/engines/unreal-zxv/tools/stage_thirdparty.sh
+          test -f sdk/engines/unreal-zxv/Source/ThirdParty/Zxv/include/zxv_emu.h
+          ls sdk/engines/unreal-zxv/Source/ThirdParty/Zxv/lib/*/libzxv_emu.a
+
   unity-runtime:
     name: unity-zxv Runtime (netstandard2.1) ${{ matrix.os }}
     strategy:
@@ -181,3 +223,24 @@ jobs:
       - name: Test against the native libraries and the conformance vectors
         working-directory: sdk/engines/unity-zxv/dotnet
         run: dotnet test Zxv.Unity.sln -c Release --no-build
+
+  z-vfx:
+    name: z-vfx (Python 3.10, fake maya.cmds and hou)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+      - run: make -C sdk/libzxv all
+      - name: Install the Python SDK and Z-VFX
+        run: pip install -e sdk/python -e 'sdk/engines/z-vfx[test]' mypy
+      - name: Tests against the real libzxv (the DCCs are fakes)
+        working-directory: sdk/engines/z-vfx
+        env:
+          ZXV_LIBRARY_PATH: ${{ github.workspace }}/sdk/libzxv/build
+        run: python -m pytest -q
+      - name: mypy --strict
+        working-directory: sdk/engines/z-vfx
+        run: python -m mypy
