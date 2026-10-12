@@ -461,7 +461,8 @@ static void test_host_methods(void)
            "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"files.root\",\"files.list\","
            "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
            "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
-           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.propose\",\"spaces."
+           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces."
+           "propose\",\"spaces."
            "vote\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
@@ -507,7 +508,7 @@ static void test_host_methods(void)
 /* a space's governance with no proposals: vertical, 51%, this node as `self` */
 #define GOV_V(self)                                                                                \
     ",\"governance\":\"vertical\",\"quorum_pct\":51,\"self\":\"" self                              \
-    "\",\"proposals\":[],\"next_proposal\":0"
+    "\",\"proposals\":[],\"next_proposal\":0,\"cid\":\"\""
 /* owned spaces vote as "me"; joined ones here were given no member id */
 #define SP(id, kind, name, owner, role, view, write, pub, members)                                 \
     SPS(id, kind, name, owner, role, view, write, pub, members, "me")
@@ -739,7 +740,7 @@ static void test_spaces_methods(void)
                   ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"governance\":"
                   "\"horizontal\",\"quorum_pct\":60}"),
               "\"members\":[],\"governance\":\"horizontal\",\"quorum_pct\":60,\"self\":\"me\","
-              "\"proposals\":[],\"next_proposal\":0}"),
+              "\"proposals\":[],\"next_proposal\":0,\"cid\":\"\"}"),
           "horizontal space: %s", OUT.p);
     EXPECT(REQ("10", "spaces.set_members", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
            SERR("10", "this space decides its members by vote"));
@@ -753,7 +754,7 @@ static void test_spaces_methods(void)
     CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
               "\"members\":[{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
               "\"member\"},{\"who\":\"dan\",\"role\":\"guest\"}],\"governance\":\"horizontal\","
-              "\"quorum_pct\":60,\"self\":\"me\",\"proposals\":[],\"next_proposal\":1}"),
+              "\"quorum_pct\":60,\"self\":\"me\",\"proposals\":[],\"next_proposal\":1,"),
           "members applied: %s", OUT.p);
     /* now three vote: 1 of 3 is short of 60% */
     CHECK(has(REQ("10", "spaces.propose",
@@ -766,7 +767,7 @@ static void test_spaces_methods(void)
               "\"proposals\":[{\"id\":2,\"by\":\"me\",\"members\":[{\"who\":\"bob\",\"role\":"
               "\"member\"},{\"who\":\"carol\",\"role\":\"member\"},{\"who\":\"eve\",\"role\":"
               "\"member\"}],\"votes\":[{\"who\":\"me\",\"yes\":true}],\"yes\":1,\"no\":0,"
-              "\"voters\":3,\"state\":\"neither\"}],\"next_proposal\":2}"),
+              "\"voters\":3,\"state\":\"neither\"}],\"next_proposal\":2,"),
           "open proposal shown: %s", OUT.p);
     {
         static zxs_space_t v;
@@ -924,9 +925,51 @@ static void test_spaces_methods(void)
               "a manifest from before governance");
         CHECK(has(REQ("11", "spaces.get", ",\"params\":{\"space\":\"shop\"}"),
                   "\"governance\":\"vertical\",\"quorum_pct\":51,\"self\":\"dan\",\"proposals\":[],"
-                  "\"next_proposal\":0}"),
+                  "\"next_proposal\":0,\"cid\":\"\"}"),
               "defaults: %s", OUT.p);
     }
+
+    /* a published cloud top or park keeps its pspace CID */
+#define CID "baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    CHECK(strlen(CID) == ZXS_CID_LEN && zxs_cid_ok(CID) && zxs_cid_ok("") && !zxs_cid_ok("Qm") &&
+              !zxs_cid_ok(CID "a") && !zxs_cid_ok("b"),
+          "CID shape");
+    CHECK(
+        has(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\",\"cid\":\"" CID "\"}"),
+            "\"next_proposal\":0,\"cid\":\"" CID "\"}}"),
+        "published: %s", OUT.p);
+    CHECK(has(REQ("12", "spaces.get", ",\"params\":{\"space\":\"t-front\"}"),
+              ",\"cid\":\"" CID "\"}"),
+          "kept: %s", OUT.p);
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"studio-a\",\"cid\":\"" CID "\"}"),
+           SERR("12", "only the owner of a cloud top or park publishes it"));
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"bobs-front\",\"cid\":\"\"}"),
+           SERR("12", "only the owner of a cloud top or park publishes it"));
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\",\"cid\":\"Qm1\"}"),
+           ERR("12", "-32602", "\\\"cid\\\" must be a pspace CID or \\\"\\\""));
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\",\"cid\":\"" CID "a\"}"),
+           ERR("12", "-32602", "\\\"cid\\\" must be a pspace CID or \\\"\\\""));
+    EXPECT(REQ("12", "spaces.set_cid",
+               ",\"params\":{\"space\":\"t-front\",\"cid\":"
+               "\"baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1\"}"),
+           ERR("12", "-32602", "\\\"cid\\\" must be a pspace CID or \\\"\\\""));
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\"}"),
+           ERR("12", "-32602", "missing string parameter \\\"cid\\\""));
+    CHECK(has(REQ("12", "spaces.join",
+                  ",\"params\":{\"id\":\"anns-front\",\"kind\":\"cloudtop\",\"name\":\"Ann\","
+                  "\"owner\":\"ann\",\"role\":\"guest\",\"cid\":\"" CID "\"}"),
+              "\"id\":\"anns-front\"") &&
+              has(REQ("12", "spaces.get", ",\"params\":{\"space\":\"anns-front\"}"),
+                  ",\"cid\":\"" CID "\"}"),
+          "joined with its CID: %s", OUT.p);
+    EXPECT(REQ("12", "spaces.join",
+               ",\"params\":{\"id\":\"x-office\",\"kind\":\"office\",\"name\":\"X\","
+               "\"owner\":\"ann\",\"role\":\"guest\",\"cid\":\"" CID "\"}"),
+           ERR("12", "-32602", "\\\"cid\\\" must be a pspace CID, for a cloud top or park"));
+    CHECK(has(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\",\"cid\":\"\"}"),
+              "\"cid\":\"\"}"),
+          "unpublished: %s", OUT.p);
+#undef CID
 
     /* crossings (S3) */
     EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"diary.txt\",\"text\":\"secret\"}"),
@@ -1081,7 +1124,7 @@ static void test_spaces_methods(void)
     CHECK(strstr(l, "\"id\":\"studio-a\"") && strstr(l, "\"id\":\"commons\"") &&
               !strstr(l, "\"id\":\"park\"") && !strstr(l, "\"id\":\"crew\"") &&
               !strstr(l, "\"id\":\"lab\"") &&
-              strstr(l, "{\"spaces\":[" HOME_SP ",{\"id\":\"bobs-front\""),
+              strstr(l, "{\"spaces\":[" HOME_SP ",{\"id\":\"anns-front\""),
           "list: %s", l);
 
     CHECK(zxf_use_space("home") == 0, "home again");

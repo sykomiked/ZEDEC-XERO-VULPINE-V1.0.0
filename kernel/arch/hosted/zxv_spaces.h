@@ -54,6 +54,7 @@
 #define ZXS_ME            "me" /* this node, as owner */
 #define ZXS_PROPOSALS_MAX 4u   /* open proposals per space */
 #define ZXS_VOTERS_MAX    (ZXS_MEMBERS_MAX + 1u)
+#define ZXS_CID_LEN       59u /* "b" + base32 CIDv1 raw sha2-256 (pspace.create's) */
 
 /* zxv_spaces' own refusals (beside the ZXF_E_* codes) */
 enum {
@@ -105,6 +106,7 @@ typedef struct {
     zxs_proposal_t p[ZXS_PROPOSALS_MAX];
     uint32_t np;
     uint32_t next_proposal;
+    char cid[ZXS_CID_LEN + 1]; /* a published cloud top or park's pspace CID; "" = none */
 } zxs_space_t;
 
 /* S1 */
@@ -115,6 +117,8 @@ const char *zxs_role_name(zxs_role_t r);
 int zxs_kind_parse(const char *s); /* -1 when unknown */
 int zxs_role_parse(const char *s);
 bool zxs_who_ok(const char *who); /* 1..64 bytes, printable ASCII, no quote or backslash */
+/* "", or a pspace CID: 'b' then 58 of [a-z2-7]; only cloud tops and parks publish */
+bool zxs_cid_ok(const char *cid);
 
 /* S3: true when moving content from `from` into `to` shows it to someone
  * who could not see it before. */
@@ -147,9 +151,11 @@ int zxs_save(const zxs_space_t *s, bool exclusive);
 int zxs_create(zxs_kind_t kind, const char *name, zxs_gov_t gov, uint8_t quorum_pct,
                zxs_space_t *out);
 /* Record a space this node was invited into; self: this node's member id
- * there ("" = not given: it cannot propose or vote). */
+ * there ("" = not given: it cannot propose or vote); cid: its pspace CID
+ * when it is a published cloud top or park, else "". */
 int zxs_join(const char *id, zxs_kind_t kind, const char *name, const char *owner, zxs_role_t role,
-             const char *self, zxs_gov_t gov, uint8_t quorum_pct, zxs_space_t *out);
+             const char *self, zxs_gov_t gov, uint8_t quorum_pct, const char *cid,
+             zxs_space_t *out);
 /* fn for home and then each space, in id order. */
 typedef int (*zxs_each_fn)(void *ctx, const zxs_space_t *s);
 int zxs_each(zxs_each_fn fn, void *ctx);

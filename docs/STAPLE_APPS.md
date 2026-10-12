@@ -119,9 +119,11 @@ on each call, so a hidden button in the interface is never the only guard.
   no longer pass is dropped. zxvd counts the votes itself and never takes a
   tally from a client. `spaces.get` shows each open proposal with its votes
   and state, the same rule the native interface draws (`zui_space.c`).
+- **Published places.** A cloud top or park published on the network keeps
+  the CID it lives under (`spaces.set_cid`, or `cid` on `spaces.join`); the
+  network side is Vinea's `pspace.*`, the local side stays `spaces.*`.
 - **Not yet:** syncing spaces and other members' votes between nodes (votes
-  will arrive only after the mesh checks each member's signature), and
-  publishing a cloud top or park under a CID.
+  will arrive only after the mesh checks each member's signature).
 
 ## Names
 

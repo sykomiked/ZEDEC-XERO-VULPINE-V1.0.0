@@ -2557,6 +2557,11 @@
                   },
                   "next_proposal": {
                     "type": "integer"
+                  },
+                  "cid": {
+                    "type": "string",
+                    "maxLength": 59,
+                    "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
                   }
                 }
               }
@@ -2727,6 +2732,11 @@
             },
             "next_proposal": {
               "type": "integer"
+            },
+            "cid": {
+              "type": "string",
+              "maxLength": 59,
+              "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
             }
           }
         }
@@ -2930,6 +2940,11 @@
             },
             "next_proposal": {
               "type": "integer"
+            },
+            "cid": {
+              "type": "string",
+              "maxLength": 59,
+              "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
             }
           }
         }
@@ -3020,6 +3035,15 @@
             "minimum": 1,
             "maximum": 100,
             "default": 51
+          }
+        },
+        {
+          "name": "cid",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 59,
+            "description": "the space's pspace CID, for a published cloud top or park"
           }
         }
       ],
@@ -3170,6 +3194,11 @@
             },
             "next_proposal": {
               "type": "integer"
+            },
+            "cid": {
+              "type": "string",
+              "maxLength": 59,
+              "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
             }
           }
         }
@@ -3361,6 +3390,192 @@
             },
             "next_proposal": {
               "type": "integer"
+            },
+            "cid": {
+              "type": "string",
+              "maxLength": 59,
+              "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "spaces.set_cid",
+      "summary": "Record the pspace CID a cloud top or park this node owns was published under, or '' when it is no longer published.",
+      "params": [
+        {
+          "name": "space",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "a space id: [a-z0-9-], or 'home'"
+          }
+        },
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 59,
+            "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
+          }
+        }
+      ],
+      "result": {
+        "name": "space",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "home",
+                "office",
+                "team",
+                "cloudtop",
+                "park"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string",
+              "description": "'me' for spaces this node owns, else who invited it"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "member",
+                "guest"
+              ]
+            },
+            "view": {
+              "type": "boolean"
+            },
+            "write": {
+              "type": "boolean"
+            },
+            "public": {
+              "type": "boolean"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "who": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "member",
+                      "guest"
+                    ]
+                  }
+                }
+              }
+            },
+            "governance": {
+              "type": "string",
+              "enum": [
+                "vertical",
+                "horizontal"
+              ],
+              "description": "how the space decides its members (S4)"
+            },
+            "quorum_pct": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "self": {
+              "type": "string",
+              "description": "this node's member id in the space ('me' as owner, '' when not given: it cannot propose or vote)"
+            },
+            "proposals": {
+              "type": "array",
+              "maxItems": 4,
+              "description": "open member-list proposals, counted by zxvd",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "by": {
+                    "type": "string"
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "who": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "member",
+                            "guest"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "votes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "who": {
+                          "type": "string"
+                        },
+                        "yes": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  },
+                  "yes": {
+                    "type": "integer"
+                  },
+                  "no": {
+                    "type": "integer"
+                  },
+                  "voters": {
+                    "type": "integer",
+                    "description": "the owner and the members"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "neither",
+                      "both",
+                      "true",
+                      "false"
+                    ],
+                    "description": "neither: gathering votes; both: quorum reached with objections, a dispute never applied; true/false appear only in a propose or vote reply"
+                  }
+                }
+              }
+            },
+            "next_proposal": {
+              "type": "integer"
+            },
+            "cid": {
+              "type": "string",
+              "maxLength": 59,
+              "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
             }
           }
         }
@@ -3569,6 +3784,11 @@
                 },
                 "next_proposal": {
                   "type": "integer"
+                },
+                "cid": {
+                  "type": "string",
+                  "maxLength": 59,
+                  "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
                 }
               }
             }
@@ -3774,6 +3994,11 @@
                 },
                 "next_proposal": {
                   "type": "integer"
+                },
+                "cid": {
+                  "type": "string",
+                  "maxLength": 59,
+                  "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
                 }
               }
             }

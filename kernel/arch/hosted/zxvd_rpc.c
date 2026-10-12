@@ -1582,7 +1582,7 @@ static void m_spaces_join(call_t *c)
 {
     static zxs_space_t s;
     char id[ZXF_SPACE_ID_MAX + 1], name[ZXS_NAME_MAX + 1], owner[ZXS_WHO_MAX + 1], role[16];
-    char self[ZXS_WHO_MAX + 1];
+    char self[ZXS_WHO_MAX + 1], cid[ZXS_CID_LEN + 1];
     zxs_kind_t k;
     zxs_gov_t gov;
     uint8_t q;
@@ -1590,14 +1590,16 @@ static void m_spaces_join(call_t *c)
         !p_str(c, "name", name, sizeof name, true) ||
         !p_str(c, "owner", owner, sizeof owner, true) ||
         !p_str(c, "role", role, sizeof role, true) || !p_str(c, "self", self, sizeof self, false) ||
-        !p_gov(c, &gov, &q))
+        !p_str(c, "cid", cid, sizeof cid, false) || !p_gov(c, &gov, &q))
         return;
     int r = zxs_role_parse(role);
     if (r != ZXS_MEMBER && r != ZXS_GUEST)
         return fail(c, E_PARAMS, "\"role\" must be member or guest");
     if (self[0] && (!zxs_who_ok(self) || !strcmp(self, ZXS_ME) || !strcmp(self, owner)))
         return fail(c, E_PARAMS, "\"self\" must be a printable id other than the owner's");
-    if (!files_done(c, zxs_join(id, k, name, owner, (zxs_role_t) r, self, gov, q, &s))) return;
+    if (cid[0] && (!zxs_cid_ok(cid) || (k != ZXS_CLOUDTOP && k != ZXS_PARK)))
+        return fail(c, E_PARAMS, "\"cid\" must be a pspace CID, for a cloud top or park");
+    if (!files_done(c, zxs_join(id, k, name, owner, (zxs_role_t) r, self, gov, q, cid, &s))) return;
     space_json(c->res, &s);
 }
 
@@ -1652,6 +1654,22 @@ static void m_spaces_set_members(call_t *c)
         if (!strcmp(m[i].who, s.owner)) return fail(c, E_PARAMS, "member %u is the owner", i);
     memcpy(s.m, m, sizeof s.m);
     s.n = n;
+    if (!files_done(c, zxs_save(&s, false))) return;
+    space_json(c->res, &s);
+}
+
+/* The pspace CID a cloud top or park this node owns was published under
+ * (pspace.create's), or "" when it is no longer published. */
+static void m_spaces_set_cid(call_t *c)
+{
+    static zxs_space_t s;
+    char cid[ZXS_CID_LEN + 2];
+    if (param(c, "space") < 0) return fail(c, E_PARAMS, "missing string parameter \"space\"");
+    if (!p_space(c, "space", 0, &s) || !p_str(c, "cid", cid, sizeof cid, true)) return;
+    if (s.role != ZXS_OWNER || (s.kind != ZXS_CLOUDTOP && s.kind != ZXS_PARK))
+        return fail(c, ZXVD_E_SPACE, "only the owner of a cloud top or park publishes it");
+    if (!zxs_cid_ok(cid)) return fail(c, E_PARAMS, "\"cid\" must be a pspace CID or \"\"");
+    memcpy(s.cid, cid, sizeof s.cid);
     if (!files_done(c, zxs_save(&s, false))) return;
     space_json(c->res, &s);
 }
@@ -2012,6 +2030,7 @@ static const method_t METHODS[] = {
     {"spaces.create", m_spaces_create},
     {"spaces.join", m_spaces_join},
     {"spaces.set_members", m_spaces_set_members},
+    {"spaces.set_cid", m_spaces_set_cid},
     {"spaces.propose", m_spaces_propose},
     {"spaces.vote", m_spaces_vote},
 };

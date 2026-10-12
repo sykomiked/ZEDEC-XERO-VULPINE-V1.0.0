@@ -231,6 +231,8 @@ int32_t zxs_json(const zxs_space_t *s, char *out, uint32_t cap)
     snprintf(num, sizeof num, "%u", (unsigned) s->next_proposal);
     puts_(&o, "],\"next_proposal\":");
     puts_(&o, num);
+    puts_(&o, ",\"cid\":");
+    str(&o, s->cid);
     puts_(&o, "}");
     if (o.over) return -1;
     out[o.n] = 0;
@@ -285,6 +287,10 @@ static int parse_gov(const char *js, const w4_jtok_t *t, int32_t k, zxs_space_t 
         if (w4_json_u64(js, &t[i], &v) != W4_OK || v > UINT32_MAX) return ZXF_E_IO;
         s->next_proposal = (uint32_t) v;
     }
+    if ((i = w4_json_get(js, t, k, 0, "cid")) >= 0 &&
+        (w4_json_get_str(js, t, k, 0, "cid", s->cid, sizeof s->cid) < 0 || !zxs_cid_ok(s->cid) ||
+         (s->cid[0] && s->kind != ZXS_CLOUDTOP && s->kind != ZXS_PARK)))
+        return ZXF_E_IO;
     int32_t arr = w4_json_get(js, t, k, 0, "proposals");
     if (arr < 0) return ZXF_OK;
     if (t[arr].type != W4_J_ARR || t[arr].size > ZXS_PROPOSALS_MAX) return ZXF_E_IO;
@@ -341,6 +347,16 @@ int zxs_parse(const char *js, uint32_t n, zxs_space_t *s)
     s->role = (uint8_t) rr;
     if (!parse_members(js, t, k, w4_json_get(js, t, k, 0, "members"), s->m, &s->n)) return ZXF_E_IO;
     return parse_gov(js, t, k, s);
+}
+
+bool zxs_cid_ok(const char *cid)
+{
+    if (!cid[0]) return true;
+    if (cid[0] != 'b') return false;
+    size_t n = 1;
+    for (; cid[n]; n++)
+        if (!((cid[n] >= 'a' && cid[n] <= 'z') || (cid[n] >= '2' && cid[n] <= '7'))) return false;
+    return n == ZXS_CID_LEN;
 }
 
 /* ===================== S4 governance ===================== */
@@ -630,14 +646,15 @@ int zxs_create(zxs_kind_t kind, const char *name, zxs_gov_t gov, uint8_t quorum_
 }
 
 int zxs_join(const char *id, zxs_kind_t kind, const char *name, const char *owner, zxs_role_t role,
-             const char *self, zxs_gov_t gov, uint8_t quorum_pct, zxs_space_t *out)
+             const char *self, zxs_gov_t gov, uint8_t quorum_pct, const char *cid, zxs_space_t *out)
 {
     int rc = check_new(kind, name);
     if (rc) return rc;
     if (!zxf_space_id_ok(id) || !zxs_who_ok(owner) || !strcmp(owner, ZXS_ME) ||
         (role != ZXS_MEMBER && role != ZXS_GUEST) || gov > ZXS_GOV_HORIZONTAL || quorum_pct < 1 ||
         quorum_pct > 100 ||
-        (self[0] && (!zxs_who_ok(self) || !strcmp(self, ZXS_ME) || !strcmp(self, owner))))
+        (self[0] && (!zxs_who_ok(self) || !strcmp(self, ZXS_ME) || !strcmp(self, owner))) ||
+        !zxs_cid_ok(cid) || (cid[0] && kind != ZXS_CLOUDTOP && kind != ZXS_PARK))
         return ZXF_E_PATH;
     memset(out, 0, sizeof *out);
     snprintf(out->id, sizeof out->id, "%s", id);
@@ -648,6 +665,7 @@ int zxs_join(const char *id, zxs_kind_t kind, const char *name, const char *owne
     snprintf(out->self, sizeof out->self, "%s", self);
     out->gov = (uint8_t) gov;
     out->quorum_pct = quorum_pct;
+    snprintf(out->cid, sizeof out->cid, "%s", cid);
     return zxs_save(out, true);
 }
 
