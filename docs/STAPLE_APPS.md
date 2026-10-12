@@ -23,6 +23,39 @@ origin and fetch-metadata checks).
 | Everyone | **Murmuration** (the swarm) | The live swarm: agents, budget, cycles, ledger, network, updates, notifications and the companion chat (the earlier single-page window). | `swarm.*`, `net.*`, … |
 | Developers | **Spindle** (console) | Pick any zxvd method, give parameters as JSON, see the reply. | every method (`rpc.discover`) |
 
+The views above are interim. The native views come from ZXV's own toolkit
+(`kernel/src/zui`); each app's logic already lives apart from any view, as a
+model the toolkit draws.
+
+## App models
+
+Each app is a toolkit-neutral C model in `kernel/src/apps/`: a state struct
+plus action functions that call zxvd, with no drawing and no allocation. A
+view (`kernel/src/zui/views/<app>.c`, or any other front end) reads the state
+and calls the actions. The shared rules are in `zxm.h` (M1-M5):
+
+- **One link to zxvd** (`zxm_link_t`): any transport that sends one JSON-RPC
+  line and returns one, so the same model runs over the control socket, the
+  window's `/api/rpc`, or zxvd's dispatcher in the same process.
+- **AI is held.** Swarm output enters the model as pending text
+  (`zxm_held_t`); nothing changes until the owner accepts it, and rejecting
+  it drops it. An edit made while an answer is pending drops the answer.
+- **AI is costed.** Every AI action records the agent that ran it and its
+  token count. zxvd's `swarm.ask` does not report a count yet, so the count is
+  an estimate and says so (`exact = false`).
+- **A palette table per app** (`BURROW_AI`, `QUILLON_AI`, `GLINT_AI`,
+  `SPINDLE_AI`): name, agent and estimated tokens, for the command palette.
+
+| Model | State | Actions | AI |
+|---|---|---|---|
+| `burrow_model.h` | folder, entries, selection | open, up, enter, mkdir, new text, rename, trash, put back, empty Trash, import | describe the folder; suggest folders (names only, never moves files) |
+| `quillon_model.h` | one UTF-8 document, path, unsaved flag, counts | new, open, save, save as, replace, set text | summarize, rewrite, continue, proofread |
+| `glint_model.h` | the media in a Burrow folder, the one viewed | view, next, prev, load bytes into the view's buffer | name the album (file names only) |
+| `spindle_model.h` | method list, the last 16 calls | discover, call with JSON params | explain a reply |
+
+`kernel/src/apps/test_apps.sh` runs the models against zxvd's real dispatcher
+on a scratch ZXV folder.
+
 ## The ZXV folder
 
 Every app works inside one folder, never outside it (`kernel/arch/hosted/zxv_files.h`):

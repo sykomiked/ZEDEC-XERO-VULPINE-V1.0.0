@@ -58,6 +58,11 @@ jobs:
             -Ikernel/arch/hosted kernel/arch/hosted/test_zxv_files.c kernel/arch/hosted/zxv_files.c \
             -o "$RUNNER_TEMP/test_zxv_files"
           "$RUNNER_TEMP/test_zxv_files"
+      - name: App models (Burrow, Quillon, Glint, Spindle) on the real dispatcher
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/apps/test_apps.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}
