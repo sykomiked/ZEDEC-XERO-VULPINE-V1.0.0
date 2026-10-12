@@ -1,0 +1,38 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zxv-vfx"
+version = "0.1.0"
+description = "Z-VFX: exact rational frame times and transforms, SHA3 procedural seeds and rmag render-farm budgets for VFX pipelines, with lazy Maya and Houdini adapters (on the ZXV Python SDK)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "Michael Laurence Curzi and 36N9 Genetics, LLC" }]
+dependencies = ["zxv-sdk>=1.4"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Multimedia :: Graphics :: 3D Rendering",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["zxv_vfx"]
+
+[tool.setuptools.package-data]
+zxv_vfx = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+strict = true
+files = ["src/zxv_vfx"]
