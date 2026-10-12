@@ -128,6 +128,8 @@ records, and a BOTH hold that waits for a person to decide. See
 | Aero-Orbital | [`aero-orbital`](industry/aero-orbital/) | Ground-side aid: integer WGS-84 geodetic/ECEF with measured error bounds, telemetry over UBH-168, disagreeing or CRC-failed copies held for an analyst. Not flight software | 3,676 checks + fuzzing |
 | Tri-Modem | [`tri-modem`](industry/tri-modem/) | Mesh fallback planner for home routers: signed neighbour adverts, contradictions held for the owner, exact fair shares on rmag budgets; no amateur-radio relays | 2,904 checks + fuzzing |
 | V-Band | [`v-band`](industry/v-band/) | MCU-subset sensor log with four-valued readings, LoRaWAN-sized batches over UBH-168, in-order gateway refusing duplicates and gaps | 6,018 checks + fuzzing |
+| Sutra-Clear | [`sutra-clear`](industry/sutra-clear/) | Multilateral clearing from pacs.008 and Sutra/COBOL treaties: exact netting, the assurance fee via `zxv_fee_*`, all-or-nothing hub settlement, ISO 20022 out, conflicts held for a signing operator, signed cycle records. Designed to support PAPSS and SWIFT ISO 20022 formats; not connected to either | 2,901 checks + fuzzing |
+| Tri-Witness | [`tri-witness`](industry/tri-witness/) | Offline, read-only replay of Sutra-Clear exports and journals for auditors; every discrepancy a Forbidden finding with its exact bytes in a signed report | 6,242 checks + fuzzing |
 
 Advisory only: kits recommend, and people or certified systems act. They
 are not connected to any authority, and they make no certification or
