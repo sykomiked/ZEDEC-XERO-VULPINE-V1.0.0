@@ -84,8 +84,11 @@ which accounting framework applies, whether the open market may run.
   (`juris_limit_plugin`), and a host can stand in as a vhub rule
   (`juris_vhub_rule`).
 
-zxvd reports `in_effect: false` until it hands its settings to this host; that
-wiring follows once PR #69 is merged.
+zxvd hands its settings to this host at start and at every change and
+reports `in_effect: true`, the number of loaded plug-ins and the standard
+reports follow (`report_standard`). It configures no gateway key yet, so no
+plug-in loads and the host's answers fail closed. The V-Bill hub bridge lives
+in `juris_vhub.c`, so a host can embed `juris.c` without the hub.
 
 ## AI intent layer (`kernel/src/intent`)
 
@@ -126,9 +129,8 @@ library, and this layer will wrap one rather than write its own.
 
 ## Not done here
 
-- **zxvd wiring.** The `jurisdiction.*` methods arrive with PR #69; handing
-  their settings to the jurisdiction host, and RPC methods for the balance
-  sheet and the tax schedule, follow once it merges.
+- **More zxvd wiring.** A gateway key for plug-ins, asking the host on the
+  payment path, and RPC methods for the balance sheet and the tax schedule.
 - **libzxv ABI.** These modules are not in libzxv yet. The SDK thread owns the
   ABI (1.5 already carries a `treaty` group for COBOL copybook treaties and
   Sutra); the accounting, jurisdiction, intent and privacy groups are listed

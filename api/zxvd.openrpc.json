@@ -1372,8 +1372,18 @@
             },
             "in_effect": {
               "type": "boolean",
-              "const": false,
-              "description": "J5: recorded only; no report adapter or open market is wired to the settings yet"
+              "const": true,
+              "description": "J5: the jurisdiction host (kernel/src/juris) holds these settings"
+            },
+            "plugins": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "J5: jurisdiction plug-ins loaded (0 until a gateway key is configured)"
+            },
+            "report_standard": {
+              "type": "string",
+              "enum": ["", "IFRS", "US_GAAP", "AAOIFI"],
+              "description": "J5: the framework reports follow: the chosen standard when an adapter is built for it and a country is set, else \"\""
             }
           }
         }
@@ -1465,8 +1475,18 @@
             },
             "in_effect": {
               "type": "boolean",
-              "const": false,
-              "description": "J5: recorded only; no report adapter or open market is wired to the settings yet"
+              "const": true,
+              "description": "J5: the jurisdiction host (kernel/src/juris) holds these settings"
+            },
+            "plugins": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "J5: jurisdiction plug-ins loaded (0 until a gateway key is configured)"
+            },
+            "report_standard": {
+              "type": "string",
+              "enum": ["", "IFRS", "US_GAAP", "AAOIFI"],
+              "description": "J5: the framework reports follow: the chosen standard when an adapter is built for it and a country is set, else \"\""
             }
           }
         }

@@ -129,9 +129,14 @@
  *   J4  set takes any of the three; the rest keep their values. A change is
  *       one "juris" record in the books file, written before it applies, so
  *       it survives a restart; an unchanged setting writes nothing.
- *   J5  in_effect is false: the settings are recorded only. No report
- *       adapter and no open market is wired to them yet, and an adapter
- *       will not replace an accountant or a Shariah board.
+ *   J5  in_effect is true: the jurisdiction host (kernel/src/juris) gets
+ *       the settings at start and at every change. plugins counts the
+ *       plug-ins it has loaded: none until the deployment configures a
+ *       jurisdiction gateway key, so until then its answers fail closed
+ *       (wait). report_standard is the framework reports follow: the chosen
+ *       standard when an adapter is built for it (IFRS, US_GAAP, AAOIFI)
+ *       and a country is set, else "". No payment path asks the host yet,
+ *       and an adapter does not replace an accountant or a Shariah board.
  */
 #ifndef ZXVD_RPC_H
 #define ZXVD_RPC_H

@@ -91,7 +91,7 @@ CI checks it matches what zxvd serves.
 | `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles`, `resumed` |
 | `mesh.books` | | `currency`, `wallet_account`, `counterparty_account`, `fee_account`, `wallet_minor`, `fees_minor`, `sold`, `bought` |
 | `books.file` | | `saved`, `path`, `records`, `head`, `writable` |
-| `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect` |
+| `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect`, `plugins`, `report_standard` |
 | `jurisdiction.set` | `market`?, `standard`?, `country`? | as `jurisdiction.get` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
@@ -202,9 +202,15 @@ These feed ZXV Studio's P2P Mesh, Storefront and Ledger pages.
 accounting standard reports will follow (IFRS, US_GAAP, IPSAS, AAOIFI,
 OHADA, CAS, SAP_INSURER, or none yet) and an ISO 3166-1 country code. Each
 change is one record, written before it applies, so it survives a restart.
-`in_effect` is false: no report adapter or open market reads these settings
-yet. When the adapters exist they will follow each standard; they do not
-replace an accountant or a Shariah board.
+The jurisdiction host (`kernel/src/juris`, see [ADAPTERS.md](ADAPTERS.md))
+gets these settings at start and at every change, so `in_effect` is true.
+`plugins` counts the jurisdiction plug-ins it has loaded: none until the
+deployment configures a gateway key, so its answers fail closed until then.
+`report_standard` is the framework reports follow: the chosen standard when
+an adapter is built for it (IFRS, US_GAAP or AAOIFI) and a country is set,
+otherwise empty. No payment path asks the host yet. The adapters are designed
+to follow each standard; they do not replace an accountant or a Shariah
+board.
 
 ## Tests
 

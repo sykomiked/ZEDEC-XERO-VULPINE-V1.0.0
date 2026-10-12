@@ -137,7 +137,7 @@ final class DaemonTests: XCTestCase {
         XCTAssertEqual(card.inputs["bond"]?.value, "0")
         let j = try c.call("jurisdiction.get", as: Jurisdiction.self)
         XCTAssertEqual(j.market, "closed")
-        XCTAssertFalse(j.inEffect)
+        XCTAssertTrue(j.inEffect)
         XCTAssertTrue(j.standards.contains("OHADA"))
         let s = try c.call("jurisdiction.set", ["standard": "IFRS", "country": "GH"], as: Jurisdiction.self)
         XCTAssertEqual(s.standard, "IFRS")
