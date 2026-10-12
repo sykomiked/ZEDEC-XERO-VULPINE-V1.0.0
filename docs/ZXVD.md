@@ -254,6 +254,14 @@ CI checks it matches what zxvd serves.
 | `web4.feed` (read-only) | `before`?, `limit`?, `status`? | `open`, `agent_id`, `envelopes`, `next`, `total`, `held` |
 | `web4.envelope` (read-only) | `id` | `id`, `kind`, `bytes`, `envelope` |
 | `web4.verify` (read-only) | `id` or `envelope`, `pk`? | `valid`, `reason` or the envelope's fields |
+| `seats.list` | | `seats` (`id`, `name`, `role`, `lock`, `color`, `wait_ms`), `auto_enter` |
+| `seats.add` | `name`, `role`?, `lock`?, `pass`?, `color`?, `session`? | the seat |
+| `seats.remove` | `id`, `session` | `removed` |
+| `seats.set_lock` | `id`, `lock`, `old_pass`?, `pass`?, `session` | the seat |
+| `seats.unlock` | `id`, `pass`?, `passkey_ok`? | `ok`, `wait_ms`, then `session`, `id` or `status` |
+| `seats.lock` | `session` | `ended` |
+| `seats.auto` | | `seat` (an id or null) |
+| `seats.set_auto` | `auto_enter`, `session` | `auto_enter` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -270,6 +278,8 @@ refused (the message says why), -32050 an economy engine refused (the message is
 "Bonds, derivatives, grants and estates" below),
 -32090 a Web4 feed operation refused (the message says why, see "The Web4
 envelope feed" below),
+-32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
+below),
 -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
@@ -698,6 +708,78 @@ Honest limits:
   hex; amounts above 2^63-1 are refused; one request line holds about 20
   `grants.distribute` recipients.
 
+## Seats: the people on this device and the login after boot
+
+After the boot vault opens, the native UI shows a login screen: as many
+people as the owner wants on one device, each with their own lock. The
+`seats.*` methods serve the roster from `kernel/src/seats`
+(`kernel/arch/hosted/zxvd_seats.c`). They sit in a group with the feature
+`seats`, but every method is marked to answer while the switch is off: the
+login has to work at boot, before anyone could turn a switch on. Seats move
+no money and are not marked regulated.
+
+- A seat is an `owner`, a `person` or a `guest`, with the lock `none`,
+  `pass` (a passphrase of 4 to 256 bytes) or `passkey`. A passphrase is
+  stored only as its Argon2id hash (RFC 9106, 64 MiB, 3 passes, 1 lane) with
+  a salt of its own; zxvd takes the 64 MiB for each call that hashes and
+  wipes it before answering, so a login takes a moment. `seats.list` never
+  shows a hash, a salt or the parameters.
+- The first `seats.add` on an empty device needs no session; that seat
+  becomes the owner whatever role was asked for. A guest never has a lock.
+- `seats.unlock` logs in. On success it answers
+  `{"ok":true,"wait_ms":0,"session":"<64 hex>","id":...}`: 32 random bytes
+  bound to that seat, kept in memory only (a restart ends every session; at
+  most 64 at once, a new one replaces the oldest). `seats.lock` ends a
+  session.
+- A wrong entry is a result, not an error:
+  `{"ok":false,"status":"SEAT_ERR_WRONG","wait_ms":N}`. Four wrong tries
+  cost nothing; the fifth starts a 30 s wait and each one after doubles it,
+  up to an hour. A try while waiting answers `"status":"SEAT_ERR_WAIT"` with
+  the milliseconds left. `seats.list` shows the same `wait_ms` per seat. A
+  correct entry clears the count.
+- `seats.add` (after the first), `seats.remove`, `seats.set_lock` and
+  `seats.set_auto` act as the seat of their `session`. Only an owner adds or
+  removes seats or turns `auto_enter` off and on; a person may change their
+  own lock (with `old_pass` when they had a passphrase) and an owner may
+  reset anyone's. The last owner cannot be removed. Removing a seat ends its
+  sessions.
+- `seats.auto` names the seat to enter without a login screen: the only
+  seat, when it has no lock and `auto_enter` is on; else `null`. Enter it
+  with `seats.unlock {"id": ...}`, which needs nothing for a seat with no
+  lock.
+- Refusals are -32080 with the status name first, e.g.
+  `SEAT_ERR_DENIED: this session may not do that`, `SEAT_ERR_NAME`,
+  `SEAT_ERR_LAST_OWNER`, `SEAT_ERR_NOTFOUND`. An unknown or ended session is
+  `SEAT_ERR_DENIED`.
+
+With a books file the roster is saved as `seats` in the same folder: one
+text file, mode 0600, rewritten whole to `seats.tmp`, flushed and renamed
+over the old one, so a crash leaves either roster. Failed tries and waits
+are saved too, so a restart does not reset the back-off. A change that
+cannot be saved is undone and answers -32603. At start the file is checked
+field by field; a damaged one stops zxvd from starting (move it aside to
+start with no seats). Without a books file the roster lasts for this run.
+
+Honest limits:
+
+- A passkey seat takes the host's word: `passkey_ok: true` from any client
+  on the socket opens it. zxvd does not tie the seat to a `passkeys.*`
+  credential yet, and the module has no call that records one.
+- The socket's peer check is the only thing between a same-user process and
+  these methods, as for every other method; a session token proves an
+  unlock to zxvd, not who is at the screen.
+- The seats file holds Argon2id hashes, not plaintext, but it is not
+  encrypted or signed: anyone who can read it as you can try passphrases
+  offline at Argon2id's cost, and anyone who can write it can replace the
+  roster. A short PIN is allowed (the person's choice) and is weak against
+  that.
+- A guest's space is not wiped when it signs out: zxvd keeps no per-seat
+  space yet. Seats do not separate the books, the chat or the swarm.
+- Sessions do not expire on their own.
+- The folder is not flushed after the rename, so a power cut right after a
+  change can bring back the roster from before it (never a torn one).
+- The Windows path (`_open`, `MoveFileExA`) is compiled only by the Windows
+  build; the unit test and the mutation score cover the POSIX path.
 
 ## The companion: DNA, generation and mood
 
@@ -834,6 +916,10 @@ intensity, the companion's step V7); it is the harness's test for
 web4_agent code; it keeps a mirror of the owner's companion and compares
 every envelope, consent token and CONSENT answer byte for byte. It is the
 harness's test for `zxvd_web4.c`.
+`test_zxvd_seats.sh` runs `seats.*` behind the RPC layer on the real seats
+module and Argon2id (exact replies, every refusal, the back-off, sessions,
+the seats file and its damage checks, the default 64 MiB parameters); it is
+the harness's test for `zxvd_seats.c`.
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and

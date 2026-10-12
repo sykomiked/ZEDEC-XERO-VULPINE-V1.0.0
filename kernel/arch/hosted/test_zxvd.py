@@ -482,6 +482,51 @@ def web4_checks(c):
     c.ok('features.set', {'feature': 'web4', 'enabled': False})
 
 
+def seats_checks(c):
+    """zxvd_seats.c L1-L7 over the socket, in memory (no --books here)."""
+    fs = {f['name']: f for f in c.ok('features.get')['features']}
+    check(fs['seats']['enabled'] is False and fs['seats']['regulated'] is False,
+          'seats: a feature that is not regulated')
+    check(c.ok('seats.list') == {'seats': [], 'auto_enter': True} and
+          c.ok('seats.auto') == {'seat': None}, 'seats.list answers with its switch off: no seats')
+    o = c.ok('seats.add', {'name': 'Owner \u00e9', 'role': 'person', 'lock': 'pass',
+                           'pass': 'correct horse'})
+    check(o['role'] == 'owner' and o['lock'] == 'pass' and len(o['id']) == 32,
+          'seats.add: the first seat needs no session and becomes the owner (%s)' % o)
+    e = c.call('seats.add', {'name': 'Kid', 'session': '00' * 32})
+    check(e.get('error', {}).get('code') == -32080 and
+          e['error']['message'].startswith('SEAT_ERR_DENIED'),
+          'seats.add: an unknown session is refused (%s)' % e.get('error'))
+    w = c.ok('seats.unlock', {'id': o['id'], 'pass': 'wrong horse'})
+    check(w == {'ok': False, 'status': 'SEAT_ERR_WRONG', 'wait_ms': 0},
+          'seats.unlock: a wrong passphrase is a result (%s)' % w)
+    u = c.ok('seats.unlock', {'id': o['id'], 'pass': 'correct horse'})
+    check(u['ok'] is True and len(u['session']) == 64 and u['id'] == o['id'],
+          'seats.unlock: Argon2id at 64 MiB opens the seat with a session')
+    k = c.ok('seats.add', {'name': 'Kid', 'session': u['session'], 'color': 255})
+    ku = c.ok('seats.unlock', {'id': k['id']})
+    e = c.call('seats.remove', {'id': o['id'], 'session': ku['session']})
+    check(e.get('error', {}).get('message', '').startswith('SEAT_ERR_DENIED'),
+          'seats.remove: a person may not remove (%s)' % e.get('error'))
+    e = c.call('seats.remove', {'id': o['id'], 'session': u['session']})
+    check(e.get('error', {}).get('message', '').startswith('SEAT_ERR_LAST_OWNER'),
+          'seats.remove: the last owner stays')
+    lst = c.ok('seats.list')
+    check([(s['name'], s['role'], s['color']) for s in lst['seats']] ==
+          [('Owner \u00e9', 'owner', 0), ('Kid', 'person', 255)] and
+          not any(k_ in json.dumps(lst) for k_ in ('hash', 'salt', 'kdf')),
+          'seats.list: both seats, no hash or salt (%s)' % lst)
+    check(c.ok('seats.remove', {'id': k['id'], 'session': u['session']}) ==
+          {'removed': k['id']}, 'seats.remove: an owner removes a person')
+    check(c.ok('seats.lock', {'session': ku['session']}) == {'ended': False},
+          'removing a seat ended its session')
+    check(c.ok('seats.set_lock', {'id': o['id'], 'lock': 'none', 'old_pass': 'correct horse',
+                                  'session': u['session']})['lock'] == 'none' and
+          c.ok('seats.auto') == {'seat': o['id']},
+          'seats.auto: one seat with no lock enters directly')
+    check(c.ok('seats.lock', {'session': u['session']}) == {'ended': True}, 'seats.lock')
+
+
 def main(binary, gguf=None):
     out = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=10)
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
@@ -550,7 +595,9 @@ def main(binary, gguf=None):
                 'netting.open', 'netting.add', 'netting.submit', 'netting.close',
                 'netting.positions', 'netting.list', 'netting.drop', 'passkey.register',
                 'passkey.verify', 'ledger.hold', 'ledger.release', 'ledger.refund',
-                'ledger.holds', 'companion.dna', 'companion.generation', 'companion.mood'}
+                'ledger.holds', 'companion.dna', 'companion.generation', 'companion.mood',
+                'seats.list', 'seats.add', 'seats.remove', 'seats.set_lock',
+                'seats.unlock', 'seats.lock', 'seats.auto', 'seats.set_auto'}
         if not WINDOWS:
             want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
@@ -665,6 +712,8 @@ def main(binary, gguf=None):
         check([p['id'] for p in feed] == [post['id']], 'chat.feed: posts only (%s)' % feed)
         e = c.call('chat.post', {'text': '   '})
         check(e.get('error', {}).get('code') == -32602, 'chat.post: blank text is refused')
+
+        seats_checks(c)
 
         # ---- libzxv's books, through the capability ----
         check(c.ok('currency.enable', {'code': 'USD'})['enabled'] == 'USD', 'currency.enable USD')
@@ -818,6 +867,11 @@ def main(binary, gguf=None):
             check(js['market'] == 'open' and js['country'] == 'KE', 'jurisdiction.set')
             c4.ok('features.set', {'feature': 'escrow'})  # saved in the books file (X7)
             kh = c4.ok('ledger.hold', {'from': fa, 'to': fb, 'amount_minor': 700})
+            seat = c4.ok('seats.add', {'name': 'Saved', 'lock': 'pass', 'pass': 'saved pass'})
+            seats_file = os.path.join(os.path.dirname(books), 'seats')
+            if not WINDOWS:
+                check(stat.S_IMODE(os.stat(seats_file).st_mode) == 0o600,
+                      'the seats file is 0600, beside the books')
             me4 = c4.ok('chat.me')
             kept = c4.ok('chat.post', {'text': 'kept across a restart'})
             check(me4['saved'] is True, 'chat.me: saved beside the books')
@@ -853,11 +907,26 @@ def main(binary, gguf=None):
             j = c4.ok('jurisdiction.get')
             check((j['market'], j['standard'], j['country']) == ('open', 'IFRS', 'KE'),
                   'the jurisdiction settings come back (%s)' % j)
+            sl = c4.ok('seats.list')['seats']
+            check([(s_['id'], s_['name'], s_['lock']) for s_ in sl] ==
+                  [(seat['id'], 'Saved', 'pass')] and
+                  c4.ok('seats.unlock', {'id': seat['id'], 'pass': 'saved pass'})['ok'] is True,
+                  'a restart brings the seat back and its passphrase still opens it (%s)' % sl)
             me5 = c4.ok('chat.me')
             check(me5['node_id'] == me4['node_id'] and me5['records'] == 1 and
                   c4.ok('chat.thread', {'id': kept['id']})['root']['text'] ==
                   'kept across a restart', 'the chat identity and post come back (%s)' % me5)
             stop(p4, c4)
+            with open(seats_file, 'rb') as f:
+                kept_seats = f.read()
+            with open(seats_file, 'wb') as f:
+                f.write(kept_seats.replace(b'\nend\n', b'\n'))
+            p6 = subprocess.run([binary, '--rpc', sock, '--models-dir', models, '--books', books],
+                                capture_output=True, text=True, timeout=20, env=env)
+            check(p6.returncode != 0 and 'seats file' in p6.stderr and not os.path.exists(sock),
+                  'a damaged seats file stops zxvd from starting (%s)' % p6.stderr.strip()[-200:])
+            with open(seats_file, 'wb') as f:
+                f.write(kept_seats)
             with open(books, 'r+b') as f:  # an edit outside zxvd stops the next start
                 data = f.read()
                 f.seek(data.index(b'4200'))

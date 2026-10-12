@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c).",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c).",
     "license": {
       "name": "Apache-2.0"
     }
@@ -15527,6 +15527,481 @@
                   "description": "signed length (0 while held or denied)"
                 }
               }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "seats.list",
+      "summary": "The people who use this device, in the order added, and whether the login is skipped for a single seat with no lock. Never a hash, a salt or KDF parameters. Always on (no feature switch).",
+      "params": [],
+      "result": {
+        "name": "roster",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "seats": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{2}){16}$",
+                    "description": "16 bytes as hex"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 47
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "person",
+                      "guest"
+                    ]
+                  },
+                  "lock": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "pass",
+                      "passkey"
+                    ]
+                  },
+                  "color": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "description": "the person's accent (0 = gold)"
+                  },
+                  "wait_ms": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "milliseconds before a login try is heard again (0: now)"
+                  }
+                }
+              }
+            },
+            "auto_enter": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "seats.add",
+      "summary": "Add a seat. The first seat on an empty device needs no session and becomes the owner; after that only an owner's session may add. A guest never has a lock. Refusals: -32080 SEAT_ERR_DENIED, SEAT_ERR_NAME, SEAT_ERR_ARG, SEAT_ERR_FULL, SEAT_ERR_KDF.",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "description": "unique on this device",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 47
+          }
+        },
+        {
+          "name": "role",
+          "required": false,
+          "description": "default person",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "person",
+              "guest"
+            ]
+          }
+        },
+        {
+          "name": "lock",
+          "required": false,
+          "description": "default none",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pass",
+              "passkey"
+            ]
+          }
+        },
+        {
+          "name": "pass",
+          "required": false,
+          "description": "required when lock is pass",
+          "schema": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 256,
+            "description": "4 to 256 bytes of UTF-8; stored only as its Argon2id hash"
+          }
+        },
+        {
+          "name": "color",
+          "required": false,
+          "description": "default 0",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "session",
+          "required": false,
+          "description": "an owner's session; required unless the device has no seats yet",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "seat",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "16 bytes as hex"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 47
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "person",
+                "guest"
+              ]
+            },
+            "lock": {
+              "type": "string",
+              "enum": [
+                "none",
+                "pass",
+                "passkey"
+              ]
+            },
+            "color": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295,
+              "description": "the person's accent (0 = gold)"
+            },
+            "wait_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "milliseconds before a login try is heard again (0: now)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "seats.remove",
+      "summary": "Remove a seat (an owner's session). The last owner stays (SEAT_ERR_LAST_OWNER); the removed seat's sessions end.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){16}$",
+            "description": "16 bytes as hex"
+          }
+        },
+        {
+          "name": "session",
+          "required": true,
+          "description": "an unlocked session (seats.unlock) of the acting seat",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "removed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "removed": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "16 bytes as hex"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "seats.set_lock",
+      "summary": "Change a seat's lock: a person their own (giving old_pass when they had a passphrase), an owner anyone's. Guests stay unlocked. A wrong old_pass is -32080 SEAT_ERR_WRONG.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){16}$",
+            "description": "16 bytes as hex"
+          }
+        },
+        {
+          "name": "lock",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pass",
+              "passkey"
+            ]
+          }
+        },
+        {
+          "name": "old_pass",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "pass",
+          "required": false,
+          "description": "required when lock is pass",
+          "schema": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 256,
+            "description": "4 to 256 bytes of UTF-8; stored only as its Argon2id hash"
+          }
+        },
+        {
+          "name": "session",
+          "required": true,
+          "description": "an unlocked session (seats.unlock) of the acting seat",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "seat",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "16 bytes as hex"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 47
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "person",
+                "guest"
+              ]
+            },
+            "lock": {
+              "type": "string",
+              "enum": [
+                "none",
+                "pass",
+                "passkey"
+              ]
+            },
+            "color": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295,
+              "description": "the person's accent (0 = gold)"
+            },
+            "wait_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "milliseconds before a login try is heard again (0: now)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "seats.unlock",
+      "summary": "Log in to a seat. ok true: a new session token (in memory; a restart ends it). ok false: status SEAT_ERR_WRONG (wrong entry; wait_ms is the back-off it started, 0 while tries are free) or SEAT_ERR_WAIT (backing off; wait_ms left). A seat with no lock opens with nothing; a passkey seat takes the host's verdict in passkey_ok.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){16}$",
+            "description": "16 bytes as hex"
+          }
+        },
+        {
+          "name": "pass",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "passkey_ok",
+          "required": false,
+          "description": "default false: the host verified the seat's passkey",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "login",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "SEAT_ERR_WRONG",
+                "SEAT_ERR_WAIT"
+              ],
+              "description": "only when ok is false"
+            },
+            "wait_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "session": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "only when ok is true"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "only when ok is true: the seat"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "seats.lock",
+      "summary": "End a session (sign out). ended false: it was unknown or already ended.",
+      "params": [
+        {
+          "name": "session",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "ended",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ended": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "seats.auto",
+      "summary": "The seat to enter without a login screen: the only seat when it has no lock and auto_enter is on, else null.",
+      "params": [],
+      "result": {
+        "name": "auto",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "seat": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^([0-9a-fA-F]{2}){16}$",
+                  "description": "16 bytes as hex"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "seats.set_auto",
+      "summary": "Turn skipping the login for a single seat with no lock on or off (an owner's session).",
+      "params": [
+        {
+          "name": "auto_enter",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "session",
+          "required": true,
+          "description": "an unlocked session (seats.unlock) of the acting seat",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "auto_enter",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "auto_enter": {
+              "type": "boolean"
             }
           }
         }

@@ -17,6 +17,7 @@ int zxvd_groups_register(void)
         zxvd_estate_group,      /* zxvd_estate.c */
         zxvd_companion_group,   /* zxvd_companion.c */
         zxvd_web4_group,        /* zxvd_web4.c */
+        zxvd_seats_group,       /* zxvd_seats.c */
     };
     for (size_t i = 0; i < sizeof ALL / sizeof ALL[0]; i++)
         if (ALL[i] && zxvd_rpc_add_group(ALL[i]()) != 0) return -1;

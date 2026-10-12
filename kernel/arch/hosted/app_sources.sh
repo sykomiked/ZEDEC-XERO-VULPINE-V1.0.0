@@ -108,12 +108,16 @@ case "${1:-srcs}" in
         echo arch/hosted/zxvd_web4.c
         echo src/web4/web4_agent.c
         for f in freight freight_ops; do echo "src/freight/$f.c"; done
+        # seats.*: the people on this device and the login after boot; its
+        # Argon2id (id_argon2.c) is added with ident in build_zxvd.sh
+        echo arch/hosted/zxvd_seats.c
+        echo src/seats/seats.c
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
-        for d in src/vbond src/vderiv src/grants src/estate src/web4; do echo "$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats; do echo "$d"; done
         ;;
     *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs]" >&2; exit 2 ;;
 esac

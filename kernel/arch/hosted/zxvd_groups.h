@@ -39,5 +39,16 @@ const zxvd_group_t *zxvd_companion_group(void);
  * feature "web4" */
 const zxvd_group_t *zxvd_web4_group(void);
 void zxvd_web4_set_random(int (*fn)(uint8_t *p, size_t n)); /* unit tests only */
+/* seats.* (zxvd_seats.c, kernel/src/seats): feature "seats", every method
+ * always on (the login after boot). zxvd_seats_open loads the roster from
+ * path ("" or NULL: in memory only); 0, or -1 with the reason on stderr
+ * (a damaged file). The group's close forgets it. */
+const zxvd_group_t *zxvd_seats_group(void);
+int zxvd_seats_open(const char *path);
+/* Unit tests only: random bytes (NULL = the OS), the wall clock in ms (NULL
+ * = time()), and smaller Argon2id parameters (0 = the module default). */
+void zxvd_seats_set_random(int (*fn)(uint8_t *p, size_t n));
+void zxvd_seats_set_clock(uint64_t (*fn)(void));
+void zxvd_seats_set_kdf(uint32_t m_kib, uint32_t t);
 
 #endif

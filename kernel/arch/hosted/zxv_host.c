@@ -2151,6 +2151,19 @@ int main(int argc, char **argv)
         zxvd_rpc_groups_reset();
         return 1;
     }
+    /* seats.* (zxvd_seats.c L8): the roster in "seats" beside the books */
+    char seats_path[1100];
+    seats_path[0] = 0;
+    if (chat_prefix[0])
+        snprintf(seats_path, sizeof seats_path, "%.*sseats", (int) (strlen(chat_prefix) - 6),
+                 chat_prefix);
+    if (zxvd_seats_open(seats_path) != 0) {
+        zxvd_pay_close();
+        zxvd_chat_close();
+        zxvd_rpc_close();
+        zxvd_rpc_groups_reset();
+        return 1;
+    }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
     if (ls == BAD_SOCK) {

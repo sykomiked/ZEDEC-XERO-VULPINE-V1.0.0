@@ -68,6 +68,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_ident.sh
+      - name: Seats unit test (real seats module, Argon2id, the seats file)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_seats.sh
       - name: Economy modules unit test (svault, vswap, vauction, zenny, zstats)
         env:
           CC: ${{ matrix.cc }}
@@ -171,7 +175,7 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4 --ci --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats --ci --jobs 4 --out mutation-results
 
   real-model:
     # Qwen2.5-1.5B-Instruct Q4_K_M (Apache-2.0), pinned by SHA-256, never in git.
