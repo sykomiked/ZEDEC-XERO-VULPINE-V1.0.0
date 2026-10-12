@@ -66,7 +66,7 @@ PQ5 := $(S)/mlkem/keccak.c $(S)/pqsec/pq_mlkem1024.c $(S)/pqsec/pq_mldsa87.c \
 # ---- parsers ---------------------------------------------------------------
 PARSERS := fuzz_cobol_copybook fuzz_ubh_frame fuzz_gguf_loader fuzz_fat32_mount fuzz_vinea \
            fuzz_pay_xml fuzz_tls_record fuzz_tls_handshake fuzz_freight fuzz_upcheck \
-           fuzz_bootlegger fuzz_ipfs_cid fuzz_ipfs_dag fuzz_x509
+           fuzz_bootlegger fuzz_ipfs_cid fuzz_ipfs_dag fuzz_x509 fuzz_time
 
 DIR_fuzz_cobol_copybook := parsers
 INC_fuzz_cobol_copybook := -I$(S)/legacy
@@ -124,6 +124,11 @@ DIR_fuzz_x509 := parsers
 INC_fuzz_x509 := -I$(S)/tls
 SRC_fuzz_x509 := $(TLS_VERIFY) $(S)/robin_debanks/sha256.c
 DEF_fuzz_x509 := -DTEST_HOST
+
+DIR_fuzz_time := parsers
+INC_fuzz_time := -I$(S)/timesvc
+SRC_fuzz_time := $(S)/timesvc/tz.c $(S)/timesvc/sntp.c
+DEF_fuzz_time := -DTEST_HOST
 
 DIR_fuzz_freight := parsers
 INC_fuzz_freight := -I$(S)/freight -I$(S)/robin_debanks

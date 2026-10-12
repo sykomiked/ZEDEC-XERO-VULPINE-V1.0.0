@@ -360,6 +360,9 @@ SRCS := \
     kernel/src/tls/rsa.c \
     kernel/src/tls/x509.c \
     kernel/src/tls/trust.c \
+    kernel/src/timesvc/sntp.c \
+    kernel/src/timesvc/timesvc.c \
+    kernel/src/timesvc/tz.c \
     kernel/src/bringup/arch_globals.c \
     kernel/src/swarm/swarm_boot.c \
     kernel/src/swarm/swarm_budget.c \

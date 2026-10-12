@@ -252,6 +252,18 @@ test-tls-verify:
 	gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls src/tls/test_trust.c $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_trust_asan && $(ZXV_TMP)/test_trust_asan > $(ZXV_TMP)/test_trust_asan.log 2>&1 && echo "[PASS] test_trust ASan/UBSan" || { tail -40 $(ZXV_TMP)/test_trust_asan.log; echo "[FAIL] test_trust ASan/UBSan"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-unknown-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; [ $$t = armv7a-none-eabi ] && fl=-mfloat-abi=soft; [ $$t = riscv32-unknown-elf ] && fl=-march=rv32imac; for f in $(TLS_VERIFY_SRCS) src/tls/handshake.c; do clang --target=$$t -ffreestanding -fno-builtin $$fl -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/modbind -Isrc/tls -c $$f -o $(ZXV_TMP)/tls_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/tls_free.o | grep -E " (mem(cmp|move|chr)|str[a-z]+|malloc|calloc|realloc|free|printf|puts|abort|__[a-z0-9_]+)\$$" | grep -q .; then nm -u $(ZXV_TMP)/tls_free.o; echo "[FAIL] $$f pulls in libc or a compiler helper ($$t)"; exit 1; fi; done; done; echo "[PASS] TLS verifier builds freestanding (aarch64, i386, armv7a, rv32): no libc, no compiler helpers"
 
+# Wall-clock time: SNTP, combining servers, and time zones (see
+# src/timesvc/timesvc.h). TLS needs the time to check certificate expiry.
+TIMESVC_SRCS := src/timesvc/sntp.c src/timesvc/timesvc.c src/timesvc/tz.c
+
+.PHONY: test-timesvc
+test-timesvc:
+	@echo "=== Time: SNTP replies, multi-server agreement, build floor; 497 time zones vs Python zoneinfo ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/timesvc src/timesvc/test_timesvc.c $(TIMESVC_SRCS) -o $(ZXV_TMP)/test_timesvc && $(ZXV_TMP)/test_timesvc > $(ZXV_TMP)/test_timesvc.log 2>&1 && echo "[PASS] test_timesvc ($$(tail -1 $(ZXV_TMP)/test_timesvc.log))" || { grep -v "^\[PASS\]" $(ZXV_TMP)/test_timesvc.log | tail -40; echo "[FAIL] test_timesvc"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/timesvc src/timesvc/test_tz.c $(TIMESVC_SRCS) -o $(ZXV_TMP)/test_tz && $(ZXV_TMP)/test_tz > $(ZXV_TMP)/test_tz.log 2>&1 && echo "[PASS] test_tz ($$(tail -1 $(ZXV_TMP)/test_tz.log))" || { tail -40 $(ZXV_TMP)/test_tz.log; echo "[FAIL] test_tz"; exit 1; }
+	gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -Isrc/timesvc src/timesvc/test_tz.c $(TIMESVC_SRCS) -o $(ZXV_TMP)/test_tz_asan && $(ZXV_TMP)/test_tz_asan > $(ZXV_TMP)/test_tz_asan.log 2>&1 && gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -Isrc/timesvc src/timesvc/test_timesvc.c $(TIMESVC_SRCS) -o $(ZXV_TMP)/test_timesvc_asan && $(ZXV_TMP)/test_timesvc_asan > $(ZXV_TMP)/test_timesvc_asan.log 2>&1 && echo "[PASS] test_tz + test_timesvc ASan/UBSan" || { tail -20 $(ZXV_TMP)/test_tz_asan.log $(ZXV_TMP)/test_timesvc_asan.log; echo "[FAIL] timesvc ASan/UBSan"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-unknown-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; [ $$t = armv7a-none-eabi ] && fl=-mfloat-abi=soft; [ $$t = riscv32-unknown-elf ] && fl=-march=rv32imac; for f in $(TIMESVC_SRCS); do clang --target=$$t -ffreestanding -fno-builtin $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/timesvc -c $$f -o $(ZXV_TMP)/timesvc_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/timesvc_free.o | grep -E " (mem(cpy|set|cmp|move|chr)|str[a-z]+|malloc|calloc|realloc|free|printf|puts|abort|__[a-z0-9_]+)\$$" | grep -q .; then nm -u $(ZXV_TMP)/timesvc_free.o; echo "[FAIL] $$f pulls in libc or a compiler helper ($$t)"; exit 1; fi; done; done; echo "[PASS] timesvc builds freestanding (aarch64, i386, armv7a, rv32): no libc, no compiler helpers"
+
 verify-all: test
 	@echo "=== The One Policy: Symbiotic Maxim (void-by-definition) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/onepolicy -Isrc/surplus src/onepolicy/test_onepolicy.c src/onepolicy/onepolicy.c -o /tmp/test_onepolicy -lm && /tmp/test_onepolicy && echo "[PASS] test_onepolicy" || { echo "[FAIL] test_onepolicy"; exit 1; }
@@ -460,6 +472,7 @@ verify-all: test
 	@echo "=== TLS 1.3 client handshake: state machine, chain + CertificateVerify vs an in-test server ==="
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls -Isrc/robin_debanks src/tls/test_handshake.c src/tls/handshake.c src/tls/record.c src/tls/aead.c src/tls/hkdf.c src/tls/x25519.c $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o /tmp/test_handshake && /tmp/test_handshake && echo "[PASS] test_handshake" || { echo "[FAIL] test_handshake"; exit 1; }
 	@$(MAKE) --no-print-directory test-tls-verify
+	@$(MAKE) --no-print-directory test-timesvc
 	@echo "=== xedit: gap buffer text/lines/hash with the gap mid-text, bounded copies ==="
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/xedit src/xedit/test_xedit.c src/xedit/xedit.c -o /tmp/test_xedit && /tmp/test_xedit && echo "[PASS] test_xedit" || { echo "[FAIL] test_xedit"; exit 1; }
 	@echo "=== OS layers: lattice, neon, gridchain, security, physics, hccs, audiogenomics, governance, integration, drivers ==="; \

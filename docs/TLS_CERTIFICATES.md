@@ -18,7 +18,7 @@ tls_trust_add_builtin(&trust);       /* the compiled-in web roots */
 tls_trust_add_der(&trust, my_root, my_root_len);  /* optional: a private CA */
 
 tls_client_init(&c, "example.org", random32, priv32, TLS_VERIFY_REQUIRED);
-tls_client_set_trust(&c, &trust, now_unix);       /* now from RTC + SNTP */
+tls_client_set_trust(&c, &trust, timesvc_now_s(&clock, local_us)); /* see TIME.md */
 /* ... tls_client_hello / tls_client_feed as before ... */
 if (tls_client_is_authenticated(&c)) { /* the server is who it says */ }
 ```
@@ -54,7 +54,7 @@ trust store or time was given.
 - An empty trust store trusts nothing.
 - An unknown time (`now <= 0`) verifies nothing, because expiry cannot be
   checked without it. A device must learn the time (RTC, then SNTP) before
-  it can make authenticated connections.
+  it can make authenticated connections; [TIME.md](TIME.md) covers how.
 - Anything not understood is a failure, not a skip.
 
 ## The root store

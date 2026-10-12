@@ -197,3 +197,5 @@ kernel/src/tls/trust_roots.h
 kernel/src/tls/test_tls_sig_vectors.h
 kernel/src/tls/test_trust_chains.h
 kernel/src/tls/test_trust_real.h
+kernel/src/timesvc/tz_zones.h
+kernel/src/timesvc/test_tz_vectors.h

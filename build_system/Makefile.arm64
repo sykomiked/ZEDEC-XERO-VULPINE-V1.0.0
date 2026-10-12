@@ -292,6 +292,9 @@ KERNEL_SRCS = \
     kernel/src/tls/rsa.c \
     kernel/src/tls/x509.c \
     kernel/src/tls/trust.c \
+    kernel/src/timesvc/sntp.c \
+    kernel/src/timesvc/timesvc.c \
+    kernel/src/timesvc/tz.c \
     kernel/src/crit168/crit_168_word.c \
     kernel/src/mm/mm.c \
     kernel/src/sched/sched.c \

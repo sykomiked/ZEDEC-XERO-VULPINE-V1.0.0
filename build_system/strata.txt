@@ -84,6 +84,7 @@ smap                             kernel
 syscall                          kernel
 telemetry                        kernel
 timer                            kernel
+timesvc                          kernel     # wall-clock time (RTC, SNTP) and time zones
 tripartite_fs                    kernel
 trispace                         kernel
 vbe                              kernel
