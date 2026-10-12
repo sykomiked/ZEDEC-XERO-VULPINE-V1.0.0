@@ -88,54 +88,69 @@ int main(void)
     const fwa_device_t *d;
 
     d = dev(1);
-    CHECK(d->decision == FWA_DEC_SPECIFIC && !strcmp(d->driver->name, "virtio-blk"), "agreeing IDs bind");
+    CHECK(d->decision == FWA_DEC_SPECIFIC && !strcmp(d->driver->name, "virtio-blk"),
+          "agreeing IDs bind");
     CHECK(lpx_base(d->tag) == LPX_B_TRUE && lpx_pol(d->tag) == LPX_P_NEGENTROPIC, "corroborated");
     CHECK(lpx_action(d->tag) == LPX_ACT_PROCEED, "proceed");
 
     d = dev(2);
-    CHECK(d->decision == FWA_DEC_UNAVAILABLE && !strcmp(d->driver->name, "nvme"), "nvme known, not built");
+    CHECK(d->decision == FWA_DEC_UNAVAILABLE && !strcmp(d->driver->name, "nvme"),
+          "nvme known, not built");
 
     d = dev(3);
-    CHECK(d->identity == LPRES_STATE_BOTH && d->klass == LPRES_STATE_TRUE, "id conflict, class agrees");
-    CHECK(d->decision == FWA_DEC_SAFE_GENERIC && d->flagged && !strcmp(d->driver->name, "vga-framebuffer"),
+    CHECK(d->identity == LPRES_STATE_BOTH && d->klass == LPRES_STATE_TRUE,
+          "id conflict, class agrees");
+    CHECK(d->decision == FWA_DEC_SAFE_GENERIC && d->flagged &&
+              !strcmp(d->driver->name, "vga-framebuffer"),
           "safe generic + flagged");
     CHECK(lpx_base(d->tag) == LPX_B_BOTH, "tag both");
 
     d = dev(4);
-    CHECK(d->decision == FWA_DEC_NONE && !d->driver && lpx_base(d->tag) == LPX_B_NEITHER, "unknown: nothing touches it");
+    CHECK(d->decision == FWA_DEC_NONE && !d->driver && lpx_base(d->tag) == LPX_B_NEITHER,
+          "unknown: nothing touches it");
     CHECK(lpx_action(d->tag) == LPX_ACT_WAIT, "neither waits");
 
     d = dev(5);
-    CHECK(d->decision == FWA_DEC_QUARANTINE && lpx_forbidden(d->tag) && !d->driver, "fault quarantines");
+    CHECK(d->decision == FWA_DEC_QUARANTINE && lpx_forbidden(d->tag) && !d->driver,
+          "fault quarantines");
     CHECK(lpx_action(d->tag) == LPX_ACT_ROLLBACK, "rollback action");
 
     d = dev(6);
-    CHECK(d->presence == LPRES_STATE_BOTH && d->decision == FWA_DEC_DISABLED && d->flagged, "presence conflict");
+    CHECK(d->presence == LPRES_STATE_BOTH && d->decision == FWA_DEC_DISABLED && d->flagged,
+          "presence conflict");
 
     d = dev(7);
-    CHECK(d->presence == LPRES_STATE_FALSE && d->decision == FWA_DEC_NONE && lpx_base(d->tag) == LPX_B_FALSE, "empty slot");
+    CHECK(d->presence == LPRES_STATE_FALSE && d->decision == FWA_DEC_NONE &&
+              lpx_base(d->tag) == LPX_B_FALSE,
+          "empty slot");
 
     d = dev(8);
-    CHECK(d->decision == FWA_DEC_DEFER && lpx_pol(d->tag) == LPX_P_ENTROPIC && !d->driver, "stale defers");
+    CHECK(d->decision == FWA_DEC_DEFER && lpx_pol(d->tag) == LPX_P_ENTROPIC && !d->driver,
+          "stale defers");
 
     d = dev(9);
-    CHECK(d->decision == FWA_DEC_SPECIFIC && !strcmp(d->driver->name, "rtl8139") && lpx_pol(d->tag) == LPX_P_NEUTRAL,
+    CHECK(d->decision == FWA_DEC_SPECIFIC && !strcmp(d->driver->name, "rtl8139") &&
+              lpx_pol(d->tag) == LPX_P_NEUTRAL,
           "single fresh source");
 
     d = dev(10);
-    CHECK(d->decision == FWA_DEC_CLASS_GENERIC && !strcmp(d->driver->name, "ide-legacy"), "class generic IDE");
+    CHECK(d->decision == FWA_DEC_CLASS_GENERIC && !strcmp(d->driver->name, "ide-legacy"),
+          "class generic IDE");
 
     d = dev(11);
-    CHECK(d->klass == LPRES_STATE_BOTH && d->decision == FWA_DEC_DISABLED && d->flagged, "class conflict disables");
+    CHECK(d->klass == LPRES_STATE_BOTH && d->decision == FWA_DEC_DISABLED && d->flagged,
+          "class conflict disables");
 
     d = dev(12);
-    CHECK(d->decision == FWA_DEC_UNAVAILABLE && !strcmp(d->driver->name, "usb-hid-boot-keyboard"), "usb hid known");
+    CHECK(d->decision == FWA_DEC_UNAVAILABLE && !strcmp(d->driver->name, "usb-hid-boot-keyboard"),
+          "usb hid known");
 
     d = dev(13);
     CHECK(d->decision == FWA_DEC_NONE && !d->driver, "non-standard class: none");
 
     d = dev(14);
-    CHECK(d->decision == FWA_DEC_UNAVAILABLE && !strcmp(d->driver->name, "virtio-pci"), "virtio-pci not built");
+    CHECK(d->decision == FWA_DEC_UNAVAILABLE && !strcmp(d->driver->name, "virtio-pci"),
+          "virtio-pci not built");
 
     CHECK(fwa_count(&A, FWA_DEC_SPECIFIC) == 2, "count specific");
     CHECK(fwa_count(&A, FWA_DEC_QUARANTINE) == 1, "count quarantine");
@@ -169,13 +184,16 @@ int main(void)
     CHECK(hwp_node_add(&p, 1, 0xFFFF, HWP_CLASS_MACHINE, &root) == HWP_OK, "root");
     CHECK(fwa_to_hwp(&A, &p, 1, 10) == FWA_OK, "to hwp");
     CHECK(p.n == 3, "empty slot left out");
-    CHECK(p.node[1].cls == HWP_CLASS_NETWORK && p.node[1].ext_len == 20 && !memcmp(p.node[1].ext, "FWA1", 4),
+    CHECK(p.node[1].cls == HWP_CLASS_NETWORK && p.node[1].ext_len == 20 &&
+              !memcmp(p.node[1].ext, "FWA1", 4),
           "virtio-net node");
-    CHECK(p.node[2].ext[6] == FWA_DEC_DISABLED && p.node[2].ext[7] == 1, "conflict recorded in ext");
+    CHECK(p.node[2].ext[6] == FWA_DEC_DISABLED && p.node[2].ext[7] == 1,
+          "conflict recorded in ext");
     static uint8_t buf[65536];
     uint32_t len;
     hwp_profile_t back;
-    CHECK(hwp_encode(&p, buf, sizeof buf, &len) == HWP_OK && hwp_decode(buf, len, &back) == HWP_OK && back.n == 3,
+    CHECK(hwp_encode(&p, buf, sizeof buf, &len) == HWP_OK &&
+              hwp_decode(buf, len, &back) == HWP_OK && back.n == 3,
           "profile round-trips canonically");
 
     /* arguments */
@@ -184,8 +202,10 @@ int main(void)
     CHECK(fwa_claim(&A, 0, 1, &(fwa_claim_t){0, 0, 0, 0, 0}) == FWA_E_ARG, "bad bus");
     fwa_init(&A, tab, nt, 0);
     for (unsigned i = 0; i < FWA_MAX_CLAIMS; i++) names(FWA_BUS_PCI, 1, FWA_SRC_PCI, 1, 1, 0);
-    CHECK(fwa_claim(&A, FWA_BUS_PCI, 1, &(fwa_claim_t){0, 0, 1, 1, 0}) == FWA_E_FULL, "claims full");
-    CHECK(!strcmp(fwa_decision_name(FWA_DEC_SAFE_GENERIC), "safe-generic") && !strcmp(fwa_src_name(FWA_SRC_DT), "devicetree"),
+    CHECK(fwa_claim(&A, FWA_BUS_PCI, 1, &(fwa_claim_t){0, 0, 1, 1, 0}) == FWA_E_FULL,
+          "claims full");
+    CHECK(!strcmp(fwa_decision_name(FWA_DEC_SAFE_GENERIC), "safe-generic") &&
+              !strcmp(fwa_src_name(FWA_SRC_DT), "devicetree"),
           "names");
 
     printf("%d passed, %d failed\n", pass, fail);

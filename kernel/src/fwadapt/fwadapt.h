@@ -60,7 +60,7 @@
 #include "../hwemu/hwp.h"
 
 #define FWA_MAX_DEVICES 64u
-#define FWA_MAX_CLAIMS 8u /* per device */
+#define FWA_MAX_CLAIMS  8u /* per device */
 
 typedef enum {
     FWA_SRC_ACPI = 0,
@@ -83,12 +83,12 @@ typedef enum { FWA_BUS_PCI = 1, FWA_BUS_USB = 2, FWA_BUS_PLATFORM = 3 } fwa_bus_
 #define FWA_ID_NONE 0xFFFFFFFFu /* "this source does not say" */
 
 typedef struct {
-    uint8_t src;      /* fwa_src_t */
-    uint8_t kind;     /* fwa_claim_kind_t */
-    uint32_t id;      /* vendor << 16 | device, or FWA_ID_NONE */
-    uint32_t cls;     /* bus class code (PCI: class<<16|sub<<8|progif;
-                         USB: interface class<<16|sub<<8|proto), or FWA_ID_NONE */
-    uint64_t age;     /* how old the claim is, in the caller's ticks */
+    uint8_t src;  /* fwa_src_t */
+    uint8_t kind; /* fwa_claim_kind_t */
+    uint32_t id;  /* vendor << 16 | device, or FWA_ID_NONE */
+    uint32_t cls; /* bus class code (PCI: class<<16|sub<<8|progif;
+                     USB: interface class<<16|sub<<8|proto), or FWA_ID_NONE */
+    uint64_t age; /* how old the claim is, in the caller's ticks */
 } fwa_claim_t;
 
 typedef enum {
@@ -107,23 +107,23 @@ typedef enum {
  * standard (its register interface is a public standard). */
 typedef struct {
     const char *name;
-    uint8_t bus;      /* fwa_bus_t */
-    bool by_class;    /* false: match id; true: match cls */
+    uint8_t bus;   /* fwa_bus_t */
+    bool by_class; /* false: match id; true: match cls */
     uint32_t id, id_mask;
     uint32_t cls, cls_mask;
     uint32_t hwp_class; /* hwp_class_t for the profile */
-    bool standard;    /* class driver for a standard interface */
-    bool built;       /* present in this image */
+    bool standard;      /* class driver for a standard interface */
+    bool built;         /* present in this image */
 } fwa_driver_t;
 
 typedef struct {
     uint8_t bus;
-    uint32_t loc;               /* bus address (PCI bdf, USB port path, ...) */
+    uint32_t loc; /* bus address (PCI bdf, USB port path, ...) */
     fwa_claim_t claim[FWA_MAX_CLAIMS];
     uint8_t nclaim;
     /* results (fwa_decide) */
     lpres_state_t presence, identity, klass;
-    uint32_t id, cls;           /* the agreed values (FWA_ID_NONE if none) */
+    uint32_t id, cls; /* the agreed values (FWA_ID_NONE if none) */
     lpx_t tag;
     uint8_t decision;           /* fwa_decision_t */
     bool flagged;               /* needs a person (A4 BOTH) */

@@ -9,11 +9,16 @@
 
 static const fwa_driver_t BUILTIN[] = {
     /* exact IDs: drivers in this tree */
-    {"virtio-net", FWA_BUS_PLATFORM, false, VIRTIO(1), 0xFFFFFFFFu, 0, 0, HWP_CLASS_NETWORK, false, true},
-    {"virtio-blk", FWA_BUS_PLATFORM, false, VIRTIO(2), 0xFFFFFFFFu, 0, 0, HWP_CLASS_STORAGE, false, true},
-    {"virtio-gpu", FWA_BUS_PLATFORM, false, VIRTIO(16), 0xFFFFFFFFu, 0, 0, HWP_CLASS_GPU, false, true},
-    {"virtio-input", FWA_BUS_PLATFORM, false, VIRTIO(18), 0xFFFFFFFFu, 0, 0, HWP_CLASS_IO, false, true},
-    {"virtio-snd", FWA_BUS_PLATFORM, false, VIRTIO(25), 0xFFFFFFFFu, 0, 0, HWP_CLASS_AUDIO, false, true},
+    {"virtio-net", FWA_BUS_PLATFORM, false, VIRTIO(1), 0xFFFFFFFFu, 0, 0, HWP_CLASS_NETWORK, false,
+     true},
+    {"virtio-blk", FWA_BUS_PLATFORM, false, VIRTIO(2), 0xFFFFFFFFu, 0, 0, HWP_CLASS_STORAGE, false,
+     true},
+    {"virtio-gpu", FWA_BUS_PLATFORM, false, VIRTIO(16), 0xFFFFFFFFu, 0, 0, HWP_CLASS_GPU, false,
+     true},
+    {"virtio-input", FWA_BUS_PLATFORM, false, VIRTIO(18), 0xFFFFFFFFu, 0, 0, HWP_CLASS_IO, false,
+     true},
+    {"virtio-snd", FWA_BUS_PLATFORM, false, VIRTIO(25), 0xFFFFFFFFu, 0, 0, HWP_CLASS_AUDIO, false,
+     true},
     {"rtl8139", FWA_BUS_PCI, false, 0x10EC8139u, 0xFFFFFFFFu, 0, 0, HWP_CLASS_NETWORK, false, true},
     /* exact IDs: known, transport not in this tree */
     {"virtio-pci", FWA_BUS_PCI, false, 0x1AF40000u, 0xFFFF0000u, 0, 0, HWP_CLASS_IO, false, false},
@@ -21,13 +26,17 @@ static const fwa_driver_t BUILTIN[] = {
     {"ide-legacy", FWA_BUS_PCI, true, 0, 0, 0x010100u, 0xFFFF00u, HWP_CLASS_STORAGE, true, true},
     {"ahci", FWA_BUS_PCI, true, 0, 0, 0x010601u, 0xFFFFFFu, HWP_CLASS_STORAGE, true, false},
     {"nvme", FWA_BUS_PCI, true, 0, 0, 0x010802u, 0xFFFFFFu, HWP_CLASS_STORAGE, true, false},
-    {"vga-framebuffer", FWA_BUS_PCI, true, 0, 0, 0x030000u, 0xFFFFFFu, HWP_CLASS_DISPLAY, true, true},
+    {"vga-framebuffer", FWA_BUS_PCI, true, 0, 0, 0x030000u, 0xFFFFFFu, HWP_CLASS_DISPLAY, true,
+     true},
     {"hda", FWA_BUS_PCI, true, 0, 0, 0x040300u, 0xFFFF00u, HWP_CLASS_AUDIO, true, false},
     {"xhci", FWA_BUS_PCI, true, 0, 0, 0x0C0330u, 0xFFFFFFu, HWP_CLASS_IO, true, false},
     /* USB interface classes (class<<16 | subclass<<8 | protocol) */
-    {"usb-hid-boot-keyboard", FWA_BUS_USB, true, 0, 0, 0x030101u, 0xFFFFFFu, HWP_CLASS_IO, true, false},
-    {"usb-hid-boot-mouse", FWA_BUS_USB, true, 0, 0, 0x030102u, 0xFFFFFFu, HWP_CLASS_IO, true, false},
-    {"usb-mass-storage", FWA_BUS_USB, true, 0, 0, 0x080650u, 0xFFFFFFu, HWP_CLASS_STORAGE, true, false},
+    {"usb-hid-boot-keyboard", FWA_BUS_USB, true, 0, 0, 0x030101u, 0xFFFFFFu, HWP_CLASS_IO, true,
+     false},
+    {"usb-hid-boot-mouse", FWA_BUS_USB, true, 0, 0, 0x030102u, 0xFFFFFFu, HWP_CLASS_IO, true,
+     false},
+    {"usb-mass-storage", FWA_BUS_USB, true, 0, 0, 0x080650u, 0xFFFFFFu, HWP_CLASS_STORAGE, true,
+     false},
     {"usb-cdc-ecm", FWA_BUS_USB, true, 0, 0, 0x020600u, 0xFFFF00u, HWP_CLASS_NETWORK, true, false},
 };
 
@@ -115,8 +124,10 @@ static void decide_one(const fwa_t *a, fwa_device_t *d)
     unsigned pres = 0;
     for (uint8_t i = 0; i < d->nclaim; i++) {
         const fwa_claim_t *c = &d->claim[i];
-        if (c->kind == FWA_CLAIM_FAULT) fault = true;
-        else pres |= c->kind == FWA_CLAIM_NAMES ? 1u : 2u;
+        if (c->kind == FWA_CLAIM_FAULT)
+            fault = true;
+        else
+            pres |= c->kind == FWA_CLAIM_NAMES ? 1u : 2u;
         if (a->fresh_limit && c->age > a->fresh_limit) stale = true;
     }
     uint8_t agree_id, agree_cls;
@@ -128,7 +139,8 @@ static void decide_one(const fwa_t *a, fwa_device_t *d)
 
     /* the verdict base */
     uint8_t base;
-    if (d->presence == LPRES_STATE_BOTH || d->identity == LPRES_STATE_BOTH || d->klass == LPRES_STATE_BOTH)
+    if (d->presence == LPRES_STATE_BOTH || d->identity == LPRES_STATE_BOTH ||
+        d->klass == LPRES_STATE_BOTH)
         base = LPX_B_BOTH;
     else if (d->presence == LPRES_STATE_FALSE)
         base = LPX_B_FALSE;
