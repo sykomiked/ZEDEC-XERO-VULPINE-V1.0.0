@@ -22,10 +22,13 @@ needed before release.
 | **Sounding** | Network monitor: interfaces, addresses, live bytes a second, zxvd's request traffic | Network Utility, `nload`, `ip -s link` | `sys.net` | `sounding_model.h` |
 | **Scent** | Search: finds files in a space by name and by the words inside them as the owner types, best first with the text around each hit, opens each in the right app (Quillon, Glint or Burrow); AI can suggest a sharper search, run only when accepted | Spotlight, GNOME Search, `locate`, `grep -r` | `search.query`, `search.refresh` | `scent_model.h` |
 | **Platen** | Printers and scanners on the local network: adds a printer by its address and shows its state, what it takes and why it stopped; prints a file of the space and follows or cancels the job; scans pages from the glass or the feeder into a folder; AI explains a printer's trouble in plain words | Printers & Scanners, CUPS, SANE | `print.status`, `print.submit`, `print.job`, `print.cancel`, `scan.status`, `scan.start` | `platen_model.h` |
+| **Keepsake** | Backups with versions: backs a space up to a folder on another disk, lists the backups, shows every version a file has had, checks that a backup reads back whole, brings a file or folder back as a new item (never over what is there), lets old backups go; AI explains a failed check | Time Machine, Déjà Dup, `restic` | `backup.run`, `backup.list`, `backup.versions`, `backup.verify`, `backup.restore`, `backup.prune` | `keepsake_model.h` |
 | **Spindle** | Developer console: any zxvd call by hand | Script Editor, `curl` | `rpc.discover` + any | `spindle_model.h` |
 
-Only Platen changes anything: it sends a document to a printer and saves
-scanned pages as new files. `sys.*`, `log.tail` and `search.*` are read only.
+Only Platen and Keepsake change anything. Platen sends a document to a
+printer and saves scanned pages as new files. Keepsake writes backups to the
+destination the owner picks, restores as new items, and removes old backups
+only when the owner asks. `sys.*`, `log.tail` and `search.*` are read only.
 All of them are local to the owner's control socket and never sent to peers. The log keeps what
 happened (a method, an outcome, how long it took), never parameters or
 content.
@@ -50,6 +53,20 @@ before a failure are kept. Encrypted printers (`ipps://`) wait for a TLS
 client in the hosted layer, and finding printers by themselves (DNS-SD)
 comes later; for now the owner types the address.
 
+Keepsake (`kernel/arch/hosted/zxv_keepsake.h`) keeps each file's bytes once,
+named by their SHA-256, under "ZXV Keepsake" in the folder the owner picks,
+so a file that did not change costs nothing in the next backup and many
+versions fit in little space. Each backup is a snapshot: a list of every
+file with its hash, ending in a line that carries the hash of the list, so a
+damaged snapshot is never trusted. New copies are read back before the
+snapshot that names them is written, and a check reads every copy a
+snapshot names: a backup counts as tested only when that passes. A full
+backup reads every file again and repairs any copy that no longer matches.
+Restoring never overwrites: the item comes back where it was if that is
+free, or beside it as "name (restored).ext". Removing old backups is refused
+while any snapshot is damaged, so nothing it might need is lost. Backups are
+not encrypted yet; that waits for Lockbox's keys.
+
 ## Still to build
 
 In build order, highest first. "Built on" names what exists today.
@@ -60,7 +77,7 @@ In build order, highest first. "Built on" names what exists today.
 | **Tidewatch, part 2** | Every process on the machine and the swarm's agents, with quit and priority | Activity Monitor's process list, `htop` | `swarm.state`; host process listing (`/proc`, libproc, Toolhelp) |
 | **Sounding, part 2** | Peers and mesh links, PQ sessions, per-peer traffic, firewall view | Little Snitch view, `nethogs`, `ss` | `net.peers`, `mesh.books`, `mesh_net` |
 | **Cellar** | Disk utility: volumes, space by folder and space, Trash size, check and repair the ZXV folder, disc images | Disk Utility, GNOME Disks, `ncdu` | `sys.disk`, `files.*`, `zxvfs`, `blockdev` |
-| **Keepsake** | Backup and restore with versions, to a disk, a peer or IPFS, encrypted | Time Machine, Déjà Dup | `files.*`, `ipfs_node`, `svault` |
+| **Keepsake, part 2** | Encrypted backups (with Lockbox's keys), to a peer or IPFS, on a schedule (with Treadle) | Time Machine to a network disk | `ipfs_node`, `svault`, `event_sched` |
 | **Witness** | Audit log: signed record of what changed, who approved it, held crossings, AI actions accepted | Console's audit view, `auditd` | `chronicle`, `provenance`, `peer_audit` |
 | **Gatehouse** | Permissions and privacy: which app may use files, camera, microphone, network, which capabilities each holds | Privacy & Security, Flatpak permissions | `zxv_cap` capabilities, `onepolicy` |
 | **Lockbox** | Keys and passwords: ML-DSA identity keys, sealed hardware keys, saved passwords | Keychain Access, Seahorse | `pqsec`, `identity`, retail hardware keys |

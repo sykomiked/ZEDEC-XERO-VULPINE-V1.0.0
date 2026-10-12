@@ -19,6 +19,7 @@
 | Recent events for the Wake console: refusals and changes, never parameters | `zxvd_log.c` | `log.tail` |
 | Search for the Scent app: an index per space of file names and the words in UTF-8 files, kept up to date incrementally, read only | `zxv_search.c` | `search.query`, `search.refresh` |
 | Printing and scanning for the Platen app: IPP Everywhere and eSCL to devices on the local network only | `zxv_print_host.c`, `kernel/src/print` | `print.*`, `scan.*` |
+| Backups with versions for the Keepsake app: content-addressed copies and checked snapshots in a folder the owner picks | `zxv_keepsake.c` | `backup.*` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
 
 It is `zxv_host.c` built with `-DZXVD`, plus `zxvd_rpc.c` and `zxvd_aipi.c`

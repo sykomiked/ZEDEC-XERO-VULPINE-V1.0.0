@@ -246,6 +246,10 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
 /* print.* and scan.* (zxv_print_host.h): the printer or scanner could not
  * be reached, refused, or does not take the file; the message says which. */
 #define ZXVD_E_DEVICE (-32014)
+/* backup.* (zxv_keepsake.h): the destination is not usable, a snapshot or a
+ * kept copy is missing or damaged, or there was no room; the message says
+ * which. A refusal by the ZXV folder itself is ZXVD_E_FILES. */
+#define ZXVD_E_BACKUP (-32015)
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */

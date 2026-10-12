@@ -40,6 +40,7 @@
 #include "zxvd_log.h"       /* log.tail and the RPC traffic counts */
 #include "zxv_search.h"     /* search.*: Scent's index of the ZXV folder */
 #include "zxv_print_host.h" /* print.*, scan.*: Platen's printers and scanners */
+#include "zxv_keepsake.h"   /* backup.*: Keepsake's backups and versions */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -2077,6 +2078,151 @@ static void m_scan_start(call_t *c)
     LIT(c->res, "]}");
 }
 
+/* ----- backup.* (zxv_keepsake.h): Keepsake ----- */
+
+static bool backup_done(call_t *c, int rc, int zxf, const char *why)
+{
+    if (rc == ZKS_OK) return true;
+    if (rc == ZKS_E_FILE)
+        fail(c, ZXVD_E_FILES, "%s", zxf_strerror(zxf));
+    else
+        fail(c, ZXVD_E_BACKUP, "%s", why);
+    return false;
+}
+
+static void space_head(call_t *c)
+{
+    LIT(c->res, "{\"space\":");
+    zxvd_buf_json_str(c->res, zxf_space());
+}
+
+static void m_backup_run(call_t *c)
+{
+    char dest[ZKS_DEST_MAX + 1], why[ZKS_ERR];
+    zks_run_t r;
+    int zxf;
+    bool full;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_bool(c, "full", false, &full))
+        return;
+    int rc = zks_run(dest, full, &r, &zxf, why, sizeof why);
+    if (!backup_done(c, rc, zxf, why)) return;
+    space_head(c);
+    zxvd_buf_printf(c->res,
+                    ",\"snapshot\":%u,\"time\":%lld,\"files\":%u,\"bytes\":%llu,\"new_files\":%u,"
+                    "\"new_bytes\":%llu,\"skipped\":%u}",
+                    r.snapshot, (long long) r.time, r.files, (unsigned long long) r.bytes,
+                    r.new_files, (unsigned long long) r.new_bytes, r.skipped);
+}
+
+static void m_backup_list(call_t *c)
+{
+    static zks_snap_t v[100];
+    char dest[ZKS_DEST_MAX + 1], why[ZKS_ERR];
+    uint64_t max;
+    uint32_t n, total;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_opt_u64(c, "max", 50, &max))
+        return;
+    if (max < 1 || max > 100) return fail(c, E_PARAMS, "\"max\" must be 1 to 100");
+    if (!backup_done(c, zks_list(dest, v, (uint32_t) max, &n, &total, why, sizeof why), 0, why))
+        return;
+    space_head(c);
+    zxvd_buf_printf(c->res, ",\"total\":%u,\"snapshots\":[", total);
+    for (uint32_t i = 0; i < n; i++)
+        zxvd_buf_printf(
+            c->res, "%s{\"snapshot\":%u,\"time\":%lld,\"files\":%u,\"bytes\":%llu,\"damaged\":%s}",
+            i ? "," : "", v[i].id, (long long) v[i].time, v[i].files,
+            (unsigned long long) v[i].bytes, v[i].damaged ? "true" : "false");
+    LIT(c->res, "]}");
+}
+
+static void m_backup_versions(call_t *c)
+{
+    static zks_version_t v[100];
+    char dest[ZKS_DEST_MAX + 1], path[ZXF_PATH_MAX + 1], why[ZKS_ERR];
+    uint32_t n;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_path(c, "path", path, true) ||
+        !backup_done(c, zks_versions(dest, path, v, 100, &n, why, sizeof why), 0, why))
+        return;
+    space_head(c);
+    LIT(c->res, ",\"versions\":[");
+    for (uint32_t i = 0; i < n; i++)
+        zxvd_buf_printf(
+            c->res,
+            "%s{\"snapshot\":%u,\"time\":%lld,\"size\":%llu,\"mtime\":%lld,\"hash\":\"%s\"}",
+            i ? "," : "", v[i].snapshot, (long long) v[i].time, (unsigned long long) v[i].size,
+            (long long) v[i].mtime, v[i].hash);
+    LIT(c->res, "]}");
+}
+
+/* "snapshot": absent or 0 = the newest */
+static bool p_snapshot(call_t *c, uint32_t *id)
+{
+    uint64_t v;
+    if (!p_opt_u64(c, "snapshot", 0, &v)) return false;
+    if (v > ZKS_SNAPS_MAX) {
+        fail(c, E_PARAMS, "\"snapshot\" must be 1 to %u (0 or absent: the newest)", ZKS_SNAPS_MAX);
+        return false;
+    }
+    *id = (uint32_t) v;
+    return true;
+}
+
+static void m_backup_verify(call_t *c)
+{
+    static zks_verify_t v;
+    char dest[ZKS_DEST_MAX + 1], why[ZKS_ERR];
+    uint32_t id;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_snapshot(c, &id) || !backup_done(c, zks_verify(dest, id, &v, why, sizeof why), 0, why))
+        return;
+    space_head(c);
+    zxvd_buf_printf(c->res,
+                    ",\"snapshot\":%u,\"files\":%u,\"bytes\":%llu,\"bad\":%u,\"missing\":%u,"
+                    "\"ok\":%s,\"first_bad\":",
+                    v.snapshot, v.files, (unsigned long long) v.bytes, v.bad, v.missing,
+                    v.bad || v.missing ? "false" : "true");
+    zxvd_buf_json_str(c->res, v.first_bad);
+    LIT(c->res, "}");
+}
+
+static void m_backup_restore(call_t *c)
+{
+    char dest[ZKS_DEST_MAX + 1], path[ZXF_PATH_MAX + 1], to[ZXF_PATH_MAX + 1];
+    char landed[ZXF_PATH_MAX + 1], why[ZKS_ERR];
+    uint32_t id, files;
+    int zxf;
+    if (!use_space(c, ZXS_WRITE) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_snapshot(c, &id) || !p_path(c, "path", path, false) || !p_path(c, "to", to, false))
+        return;
+    int rc = zks_restore(dest, id, path, to, landed, &files, &zxf, why, sizeof why);
+    if (!backup_done(c, rc, zxf, why)) return;
+    space_head(c);
+    LIT(c->res, ",\"to\":");
+    zxvd_buf_json_str(c->res, landed);
+    zxvd_buf_printf(c->res, ",\"files\":%u}", files);
+}
+
+static void m_backup_prune(call_t *c)
+{
+    char dest[ZKS_DEST_MAX + 1], why[ZKS_ERR];
+    uint64_t keep, freed;
+    uint32_t snaps, objects;
+    if (!use_space(c, ZXS_WRITE) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_opt_u64(c, "keep", 0, &keep))
+        return;
+    if (keep < 1 || keep > ZKS_SNAPS_MAX)
+        return fail(c, E_PARAMS, "\"keep\" must be 1 to %u", ZKS_SNAPS_MAX);
+    if (!backup_done(c, zks_prune(dest, (uint32_t) keep, &snaps, &objects, &freed, why, sizeof why),
+                     0, why))
+        return;
+    space_head(c);
+    zxvd_buf_printf(c->res, ",\"snapshots_removed\":%u,\"objects_removed\":%u,\"freed\":%llu}",
+                    snaps, objects, (unsigned long long) freed);
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2405,6 +2551,12 @@ static const method_t METHODS[] = {
     {"print.cancel", m_print_cancel},
     {"scan.status", m_scan_status},
     {"scan.start", m_scan_start},
+    {"backup.run", m_backup_run},
+    {"backup.list", m_backup_list},
+    {"backup.versions", m_backup_versions},
+    {"backup.verify", m_backup_verify},
+    {"backup.restore", m_backup_restore},
+    {"backup.prune", m_backup_prune},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -2471,7 +2623,8 @@ static bool quiet(const char *m)
         "books.file",      "jurisdiction.get", "aipi.get",     "aipi.status",    "files.root",
         "files.list",      "files.stat",       "files.read",   "spaces.list",    "spaces.get",
         "sys.info",        "sys.disk",         "sys.net",      "log.tail",       "update.check",
-        "search.query",    "search.refresh",   "print.status", "print.job",      "scan.status"};
+        "search.query",    "search.refresh",   "print.status", "print.job",      "scan.status",
+        "backup.list",     "backup.versions",  "backup.verify"};
     for (size_t i = 0; i < sizeof Q / sizeof *Q; i++)
         if (!strcmp(m, Q[i])) return true;
     return false;

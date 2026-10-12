@@ -37,6 +37,7 @@
 #include "zxvd_log.h"
 #include "zxv_search.h"
 #include "zxv_print_host.h"
+#include "zxv_keepsake.h"
 #include "test_fake_device.h"
 #include "web4_web2.h"
 
@@ -470,7 +471,9 @@ static void test_host_methods(void)
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
            "\"spaces.propose\",\"spaces.vote\",\"sys.info\",\"sys.disk\",\"sys.net\","
            "\"log.tail\",\"search.refresh\",\"search.query\",\"print.status\",\"print.submit\","
-           "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\"]}"));
+           "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\",\"backup.run\","
+           "\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","
+           "\"backup.prune\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -3692,6 +3695,673 @@ static void test_print(void)
     CHECK(rm_tree(root) == 0, "cleanup");
 }
 
+/* ---------------- backup.* (zxv_keepsake.h) ---------------- */
+
+static char BK_DEST[200];
+
+static void bk_hex(const void *d, size_t n, char out[65])
+{
+    uint8_t h[32];
+    sha256(d, n, h);
+    for (int i = 0; i < 32; i++) snprintf(out + 2 * i, 3, "%02x", h[i]);
+}
+
+static bool bk_put(const char *rel, const void *d, size_t n)
+{
+    uint64_t size;
+    return zxf_write(rel, d, (uint32_t) n, ZXF_W_REPLACE, false, &size) == 0;
+}
+
+/* a store file's absolute path */
+static const char *bk_abs(const char *fmt, const char *a)
+{
+    static char p[700];
+    char tail[400];
+    snprintf(tail, sizeof tail, fmt, a);
+    snprintf(p, sizeof p, "%s/" ZKS_DIR "/%s", BK_DEST, tail);
+    return p;
+}
+
+static bool bk_exists(const char *p)
+{
+    struct stat st;
+    return lstat(p, &st) == 0;
+}
+
+static long bk_read(const char *p, char *buf, size_t cap)
+{
+    FILE *f = fopen(p, "rb");
+    if (!f) return -1;
+    long n = (long) fread(buf, 1, cap, f);
+    fclose(f);
+    return n;
+}
+
+static bool bk_write(const char *p, const char *d, size_t n)
+{
+    FILE *f = fopen(p, "wb");
+    if (!f) return false;
+    bool ok = fwrite(d, 1, n, f) == n;
+    return fclose(f) == 0 && ok;
+}
+
+/* a snapshot file from lines, with a good end line unless told otherwise */
+static bool bk_snap(const char *space, uint32_t id, const char *body, uint32_t files,
+                    uint64_t bytes, bool good)
+{
+    static char text[8192];
+    char hex[65], dir[600], name[700];
+    int n = snprintf(text, sizeof text, "%s", body);
+    bk_hex(text, (size_t) n, hex);
+    if (!good) hex[0] = hex[0] == '0' ? '1' : '0';
+    n += snprintf(text + n, sizeof text - (size_t) n, "end %u %llu %s\n", files,
+                  (unsigned long long) bytes, hex);
+    snprintf(dir, sizeof dir, "%s/" ZKS_DIR "/spaces/%s", BK_DEST, space);
+    mkdir(dir, 0700);
+    snprintf(name, sizeof name, "%s/%u.snap", dir, id);
+    return bk_write(name, text, (size_t) n);
+}
+
+static uint64_t bk_file_size(const char *rel)
+{
+    zxf_entry_t e;
+    return zxf_stat(rel, &e) == 0 ? e.size : UINT64_MAX;
+}
+
+static void test_backup(void)
+{
+    char root[200], err[ZKS_ERR], landed[ZXF_PATH_MAX + 1], req[1200], p[700];
+    const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+    snprintf(root, sizeof root, "%s/zxvd-keep-XXXXXX", tmp);
+    snprintf(BK_DEST, sizeof BK_DEST, "%s/zxvd-dest-XXXXXX", tmp);
+    CHECK(mkdtemp(root) && mkdtemp(BK_DEST), "scratch folders");
+    CHECK(zxf_set_root(root) == 0 && zxf_use_space("home") == 0, "root set");
+    static uint8_t big[100000];
+    for (size_t i = 0; i < sizeof big; i++) big[i] = (uint8_t) (i * 7 + i / 300);
+    CHECK(zxf_mkdir("Notes") == 0 && zxf_mkdir("Notes/deep") == 0 &&
+              bk_put("Notes/a.txt", "hello", 5) && bk_put("Notes/deep/b.bin", big, sizeof big) &&
+              bk_put("top.md", "# top\n", 6) && bk_put("empty.txt", "", 0) &&
+              bk_put("README", "read me", 7),
+          "files");
+    zks_run_t r;
+    int zxf = 7;
+
+    /* K1: the destination */
+    const char *bad[] = {NULL, "", "rel/dir", "/no/such/zxv/folder"};
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+        CHECK(zks_run(bad[i], false, &r, &zxf, err, sizeof err) == ZKS_E_DEST && zxf == 0 &&
+                  r.snapshot == 0,
+              "bad destination %zu: %s", i, err);
+    static char longdest[ZKS_DEST_MAX + 2];
+    memset(longdest, 'd', ZKS_DEST_MAX + 1);
+    longdest[0] = '/';
+    CHECK(zks_run(longdest, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST, "too long");
+    snprintf(p, sizeof p, "%s/plain", BK_DEST);
+    CHECK(bk_write(p, "x", 1) && zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST &&
+              !strcmp(err, "no folder at the destination"),
+          "a file: %s", err);
+    unlink(p);
+    snprintf(p, sizeof p, "%s/link", BK_DEST);
+    CHECK(symlink(BK_DEST, p) == 0 && zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST &&
+              !strcmp(err, "the destination is a link"),
+          "a link: %s", err);
+    unlink(p);
+    snprintf(p, sizeof p, "%s/Notes", root);
+    CHECK(zks_run(root, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST &&
+              !strcmp(err, "the destination is inside the ZXV folder") &&
+              zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST,
+          "inside the ZXV folder: %s", err);
+    snprintf(p, sizeof p, "%s-sibling", root); /* shares a prefix, but is not inside */
+    CHECK(mkdir(p, 0700) == 0 && zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_OK &&
+              r.files == 5,
+          "a sibling: %s", err);
+    char sib[700];
+    snprintf(sib, sizeof sib, "%s", p);
+    snprintf(p, sizeof p, "%s/blocked", BK_DEST);
+    char blocked[800];
+    snprintf(blocked, sizeof blocked, "%s/" ZKS_DIR, p);
+    CHECK(mkdir(p, 0700) == 0 && bk_write(blocked, "x", 1) &&
+              zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST,
+          "\"" ZKS_DIR "\" is a file: %s", err);
+    uint32_t n, total;
+    zks_snap_t snaps[8];
+    CHECK(zks_list(p, snaps, 8, &n, &total, err, sizeof err) == ZKS_E_DEST, "list there too");
+
+    /* nothing yet */
+    zks_version_t ver[8];
+    zks_verify_t v;
+    uint32_t files, so, oo;
+    uint64_t freed;
+    CHECK(zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK && n == 0 &&
+              total == 0,
+          "no list yet");
+    CHECK(zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 0,
+          "no versions yet");
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_E_NOTFOUND &&
+              !strcmp(err, "no backups there yet"),
+          "nothing to check: %s", err);
+    CHECK(zks_prune(BK_DEST, 1, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 0 && oo == 0,
+          "nothing to prune");
+    CHECK(zks_restore(BK_DEST, 0, "top.md", NULL, landed, &files, &zxf, err, sizeof err) ==
+              ZKS_E_NOTFOUND,
+          "nothing to restore");
+
+    /* the first backup keeps everything */
+    char ha[65], hb[65], ht[65], he[65], hr[65], hc[65];
+    bk_hex("hello", 5, ha);
+    bk_hex(big, sizeof big, hb);
+    bk_hex("# top\n", 6, ht);
+    bk_hex("", 0, he);
+    bk_hex("read me", 7, hr);
+    bk_hex("changed!", 8, hc);
+    uint64_t all = 5 + sizeof big + 6 + 0 + 7;
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 1 &&
+              r.files == 5 && r.new_files == 5 && r.bytes == all && r.new_bytes == all &&
+              r.skipped == 0 && r.time > 1600000000 && zxf == 0,
+          "first: %u %u %u %s", r.snapshot, r.files, r.new_files, err);
+    static char text[300000];
+    long tn = bk_read(bk_abs("objects/%.2s/", hb), text, sizeof text);
+    snprintf(p, sizeof p, "%s%s", bk_abs("objects/%.2s/", hb), hb);
+    tn = bk_read(p, text, sizeof text);
+    CHECK(tn == (long) sizeof big && !memcmp(text, big, sizeof big), "the big file kept: %ld", tn);
+    tn = bk_read(bk_abs("spaces/%s/1.snap", "home"), text, sizeof text);
+    text[tn > 0 ? tn : 0] = 0;
+    char want[600];
+    snprintf(want, sizeof want, "f %s 5 ", ha);
+    CHECK(tn > 0 && !strncmp(text, "zxv-keepsake 1\nspace home\ntime ", 31) && strstr(text, want) &&
+              strstr(text, " Notes/a.txt\n") && strstr(text, " Notes/deep/b.bin\n") &&
+              strstr(text, "\nend 5 "),
+          "the snapshot: %.200s", text);
+    CHECK(!bk_exists(bk_abs("spaces/%s/1.tmp", "home")) &&
+              !bk_exists(bk_abs("objects/%s", "incoming.tmp")),
+          "no temporary files left");
+
+    /* nothing changed: nothing new */
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 2 &&
+              r.files == 5 && r.new_files == 0 && r.new_bytes == 0 && r.bytes == all,
+          "second: %u new", r.new_files);
+    /* a change */
+    CHECK(bk_put("Notes/a.txt", "changed!", 8) &&
+              zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 3 &&
+              r.new_files == 1 && r.new_bytes == 8 && r.bytes == all + 3,
+          "third: %u new", r.new_files);
+    /* back as it was: read again, but its copy is already kept */
+    CHECK(bk_put("Notes/a.txt", "hello", 5) &&
+              zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 4 &&
+              r.new_files == 0 && r.bytes == all,
+          "fourth: %u new", r.new_files);
+
+    /* list */
+    CHECK(zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK && n == 4 &&
+              total == 4 && snaps[0].id == 4 && snaps[3].id == 1 && snaps[0].files == 5 &&
+              snaps[0].bytes == all && snaps[1].bytes == all + 3 && !snaps[0].damaged &&
+              snaps[0].time > 1600000000,
+          "list: %u %u", n, total);
+    CHECK(zks_list(BK_DEST, snaps, 2, &n, &total, err, sizeof err) == ZKS_OK && n == 2 &&
+              total == 4 && snaps[1].id == 3,
+          "list, two");
+
+    /* versions */
+    CHECK(zks_versions(BK_DEST, "Notes/a.txt", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 2 &&
+              ver[0].snapshot == 4 && !strcmp(ver[0].hash, ha) && ver[0].size == 5 &&
+              ver[1].snapshot == 3 && !strcmp(ver[1].hash, hc) && ver[1].size == 8 &&
+              ver[0].time >= ver[1].time,
+          "versions: %u", n);
+    CHECK(zks_versions(BK_DEST, "Notes/a.txt", ver, 1, &n, err, sizeof err) == ZKS_OK && n == 1 &&
+              ver[0].snapshot == 4,
+          "one version");
+    CHECK(zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 1 &&
+              ver[0].snapshot == 4 && ver[0].size == 6,
+          "unchanged: one");
+    CHECK(zks_versions(BK_DEST, "nope.txt", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 0,
+          "never");
+    CHECK(zks_versions(BK_DEST, "", ver, 8, &n, err, sizeof err) == ZKS_E_NOTFOUND &&
+              zks_versions(BK_DEST, NULL, ver, 8, &n, err, sizeof err) == ZKS_E_NOTFOUND &&
+              zks_versions(BK_DEST, "../x", ver, 8, &n, err, sizeof err) == ZKS_E_NOTFOUND,
+          "not a path");
+    CHECK(zks_versions(p, "a", ver, 8, &n, err, sizeof err) == ZKS_E_DEST, "bad destination");
+
+    /* verify, then break things */
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.snapshot == 4 &&
+              v.files == 5 && v.bytes == all && v.bad == 0 && v.missing == 0 && !v.first_bad[0],
+          "verified: %u %u %u", v.files, v.bad, v.missing);
+    CHECK(zks_verify(BK_DEST, 3, &v, err, sizeof err) == ZKS_OK && v.snapshot == 3 &&
+              v.bytes == all + 3,
+          "verified 3");
+    CHECK(zks_verify(BK_DEST, 9, &v, err, sizeof err) == ZKS_E_NOTFOUND &&
+              !strcmp(err, "no such snapshot"),
+          "no such snapshot");
+    char ob[700], ot[700];
+    snprintf(ob, sizeof ob, "%s%s", bk_abs("objects/%.2s/", hb), hb);
+    snprintf(ot, sizeof ot, "%s%s", bk_abs("objects/%.2s/", ht), ht);
+    tn = bk_read(ob, text, sizeof text);
+    text[500] ^= 1; /* one bit, same size */
+    CHECK(bk_write(ob, text, (size_t) tn) && unlink(ot) == 0, "damage two copies");
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.bad == 1 && v.missing == 1 &&
+              !strcmp(v.first_bad, "Notes/deep/b.bin"),
+          "found: %u bad, %u missing, first %s", v.bad, v.missing, v.first_bad);
+    CHECK(zks_restore(BK_DEST, 0, "Notes", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_DAMAGED &&
+              !strcmp(err, "a kept copy of \"Notes/deep/b.bin\" is missing or damaged") &&
+              files == 0 && bk_file_size("Notes (restored)") == UINT64_MAX,
+          "a damaged copy stops the restore before anything is written: %s", err);
+    CHECK(zks_restore(BK_DEST, 0, "", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_DAMAGED &&
+              !strcmp(err, "a kept copy of \"Notes/deep/b.bin\" is missing or damaged"),
+          "and the whole: %s", err);
+    /* a plain backup reuses what looks unchanged; the missing copy comes back */
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.new_files == 1 &&
+              r.new_bytes == 6 && bk_exists(ot),
+          "the missing copy is kept again: %u", r.new_files);
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.snapshot == 5 && v.bad == 1 &&
+              v.missing == 0,
+          "still one bad");
+    /* full re-reads everything and repairs it */
+    CHECK(zks_run(BK_DEST, true, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 6 &&
+              r.new_files == 1 && r.new_bytes == sizeof big && r.files == 5,
+          "full: %u repaired", r.new_files);
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.bad == 0 && v.missing == 0 &&
+              zks_verify(BK_DEST, 1, &v, err, sizeof err) == ZKS_OK && v.bad == 0,
+          "all good again");
+
+    /* restore */
+    CHECK(zks_restore(BK_DEST, 3, "Notes/a.txt", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              !strcmp(landed, "Notes/a (restored).txt") && files == 1,
+          "beside it: %s %s", landed, err);
+    char got[64];
+    uint32_t gn;
+    uint64_t gs;
+    CHECK(zxf_read("Notes/a (restored).txt", 0, (uint8_t *) got, sizeof got, false, &gn, &gs) ==
+                  0 &&
+              gn == 8 && !memcmp(got, "changed!", 8),
+          "the old words");
+    CHECK(zks_restore(BK_DEST, 3, "Notes/a.txt", "", landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              !strcmp(landed, "Notes/a (restored 2).txt"),
+          "and again: %s", landed);
+    CHECK(zks_restore(BK_DEST, 1, "README", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              !strcmp(landed, "README (restored)"),
+          "no extension: %s", landed);
+    CHECK(zks_restore(BK_DEST, 0, "Notes/a.txt", "Back/old/a.txt", landed, &files, &zxf, err,
+                      sizeof err) == ZKS_OK &&
+              !strcmp(landed, "Back/old/a.txt") && bk_file_size("Back/old/a.txt") == 5,
+          "somewhere new, its folders made: %s", err);
+    CHECK(zks_restore(BK_DEST, 0, "Notes/a.txt", "Back/old/a.txt", landed, &files, &zxf, err,
+                      sizeof err) == ZKS_E_FILE &&
+              zxf == ZXF_E_EXISTS && files == 0,
+          "never over a file: %d", zxf);
+    CHECK(zks_restore(BK_DEST, 0, "Notes/a.txt", "Back", landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_FILE &&
+              zxf == ZXF_E_EXISTS,
+          "never over a folder");
+    CHECK(zks_restore(BK_DEST, 0, "Notes", NULL, landed, &files, &zxf, err, sizeof err) == ZKS_OK &&
+              !strcmp(landed, "Notes (restored)") && files == 2 &&
+              bk_file_size("Notes (restored)/deep/b.bin") == sizeof big &&
+              bk_file_size("Notes (restored)/a.txt") == 5,
+          "a folder: %s %u %s", landed, files, err);
+    static uint8_t back[100000];
+    uint64_t off = 0;
+    while (off < sizeof back &&
+           zxf_read("Notes (restored)/deep/b.bin", off, back + off, ZXF_READ_MAX, false, &gn,
+                    &gs) == 0 &&
+           gn)
+        off += gn;
+    CHECK(off == sizeof big && !memcmp(back, big, sizeof big), "every byte: %llu",
+          (unsigned long long) off);
+    char trashed[ZXF_PATH_MAX + 1];
+    CHECK(zxf_trash("top.md", trashed, sizeof trashed) == 0 &&
+              zks_restore(BK_DEST, 0, "top.md", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              !strcmp(landed, "top.md") && bk_file_size("top.md") == 6,
+          "back where it was: %s", landed);
+    CHECK(zks_restore(BK_DEST, 0, "empty.txt", "e2.txt", landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              bk_file_size("e2.txt") == 0,
+          "an empty file");
+    CHECK(zks_restore(BK_DEST, 2, NULL, NULL, landed, &files, &zxf, err, sizeof err) == ZKS_OK &&
+              !strcmp(landed, "Keepsake 2") && files == 5 &&
+              bk_file_size("Keepsake 2/Notes/deep/b.bin") == sizeof big,
+          "everything: %s %u", landed, files);
+    CHECK(zks_restore(BK_DEST, 2, "", NULL, landed, &files, &zxf, err, sizeof err) == ZKS_OK &&
+              !strcmp(landed, "Keepsake 2 (restored)"),
+          "everything again: %s", landed);
+    CHECK(zks_restore(BK_DEST, 0, "Note", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND &&
+              strstr(err, "\"Note\" is not in snapshot 6") &&
+              zks_restore(BK_DEST, 0, "Notes/a", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND,
+          "only whole names: %s", err);
+    CHECK(zks_restore(BK_DEST, 0, "../x", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND &&
+              zks_restore(BK_DEST, 0, "top.md", "a/../b", landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND &&
+              zks_restore(BK_DEST, 77, "top.md", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND,
+          "bad paths, no such snapshot");
+    CHECK(zks_restore(p, 0, "top.md", NULL, landed, &files, &zxf, err, sizeof err) == ZKS_E_DEST,
+          "a bad destination");
+
+    /* deep folders are left out and counted */
+    char deep[200] = "z";
+    CHECK(zxf_mkdir("z") == 0, "deep top");
+    for (int i = 1; i < 64; i++) {
+        strcat(deep, "/z");
+        if (zxf_mkdir(deep) != 0) break;
+    }
+    strcat(deep, "/f.txt");
+    CHECK(bk_put(deep, "deep", 4), "a deep file");
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.skipped == 1,
+          "too deep: %u skipped", r.skipped);
+
+    /* damaged snapshots: never trusted */
+    char head[200], line[200], body[2000];
+    snprintf(head, sizeof head, "zxv-keepsake 1\nspace home\ntime 1700000000\n");
+    snprintf(line, sizeof line, "f %s 6 5 top.md\n", ht);
+    snprintf(body, sizeof body, "%s%s", head, line);
+    CHECK(bk_snap("home", 90, body, 1, 6, true) &&
+              zks_verify(BK_DEST, 90, &v, err, sizeof err) == ZKS_OK && v.files == 1 && v.bad == 0,
+          "a made snapshot reads: %s", err);
+    struct {
+        const char *body;
+        uint32_t files;
+        uint64_t bytes;
+        bool good;
+    } dmg[] = {
+        {"zxv-keepsake 2\nspace home\ntime 1\n", 0, 0, true},
+        {"zxv-keepsake 1\nspace other\ntime 1\n", 0, 0, true},
+        {"zxv-keepsake 1\nspace home\ntime x\n", 0, 0, true},
+        {"zxv-keepsake 1\nspace home\ntime 1 \n", 0, 0, true},
+        {"zxv-keepsake 1\nspace home\nwhen 1\n", 0, 0, true},
+        {"zxv-keepsake 1\nspace home\n", 0, 0, true},
+        {body, 1, 6, false},
+        {body, 2, 6, true},
+        {body, 1, 7, true},
+        {"zxv-keepsake 1\nspace home\ntime 1\nf zz 6 5 top.md\n", 1, 6, true},
+        {"zxv-keepsake 1\nspace home\ntime 1\nx\n", 1, 6, true},
+    };
+    for (size_t i = 0; i < sizeof dmg / sizeof *dmg; i++) {
+        CHECK(bk_snap("home", 91, dmg[i].body, dmg[i].files, dmg[i].bytes, dmg[i].good) &&
+                  zks_verify(BK_DEST, 91, &v, err, sizeof err) == ZKS_E_DAMAGED &&
+                  !strcmp(err, "snapshot 91 is damaged") &&
+                  zks_restore(BK_DEST, 91, "top.md", NULL, landed, &files, &zxf, err, sizeof err) ==
+                      ZKS_E_DAMAGED,
+              "damaged %zu", i);
+    }
+    /* entry lines that do not add up */
+    const char *lines[] = {
+        "f %s 6 5 \n",
+        "f %s 6 5 ../top.md\n",
+        "f %s x 5 top.md\n",
+        "f %s 6 x top.md\n",
+        "f %s 06 5 top.md\n",
+        "f %s 6  top.md\n",
+        "f %s 6 5top.md\n",
+        "f %sX 6 5 top.md\n",
+        "f %s 18446744073709551616 5 top.md\n",
+        "f %s 6 9223372036854775808 top.md\n",
+    };
+    for (size_t i = 0; i < sizeof lines / sizeof *lines; i++) {
+        char l[300], b[600];
+        snprintf(l, sizeof l, lines[i], ht);
+        snprintf(b, sizeof b, "%s%s", head, l);
+        CHECK(bk_snap("home", 91, b, 1, 6, true) &&
+                  zks_verify(BK_DEST, 91, &v, err, sizeof err) == ZKS_E_DAMAGED,
+              "bad line %zu", i);
+    }
+    snprintf(body, sizeof body, "%sf %s 6 -5 top.md\n", head, ht);
+    CHECK(bk_snap("home", 91, body, 1, 6, true) &&
+              zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK &&
+              ver[0].snapshot == 91 && ver[0].mtime == -5 && ver[0].time == 1700000000,
+          "a time before 1970: %lld", (long long) ver[0].mtime);
+    /* a tail that does not parse shows as damaged in the list */
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/91.snap", "home"));
+    CHECK(bk_write(p, "zxv-keepsake 1\nspace home\ntime 3\nend x\n", 38) &&
+              zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK &&
+              snaps[0].id == 91 && snaps[0].damaged && snaps[0].time == 3 && snaps[1].id == 90 &&
+              !snaps[1].damaged && snaps[1].files == 1 && snaps[1].bytes == 6,
+          "listed as damaged");
+    CHECK(bk_write(p, "zxv-keepsake 1\nspace home\ntime 3\nend 1 2 x", 41) &&
+              zks_list(BK_DEST, snaps, 1, &n, &total, err, sizeof err) == ZKS_OK &&
+              snaps[0].damaged,
+          "no final newline");
+    CHECK(bk_write(p, "nope\n", 5) &&
+              zks_list(BK_DEST, snaps, 1, &n, &total, err, sizeof err) == 0 && snaps[0].damaged &&
+              snaps[0].time == 0,
+          "no header");
+    /* versions skip it; a backup builds on the newest good one */
+    CHECK(zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK &&
+              ver[0].snapshot == 90,
+          "skipped: %u", ver[0].snapshot);
+    /* prune refuses while one is damaged, and removes nothing */
+    CHECK(zks_prune(BK_DEST, 1, &so, &oo, &freed, err, sizeof err) == ZKS_E_DAMAGED && so == 0 &&
+              bk_exists(bk_abs("spaces/%s/1.snap", "home")),
+          "prune waits: %s", err);
+    unlink(p);
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/90.snap", "home"));
+    unlink(p);
+    /* names that are not snapshots are left alone */
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/0.snap", "home"));
+    CHECK(bk_write(p, "x", 1), "0.snap");
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/1234567.snap", "home"));
+    CHECK(bk_write(p, "x", 1), "1234567.snap");
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/12.snapx", "home"));
+    CHECK(bk_write(p, "x", 1), "12.snapx");
+    CHECK(zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK && total == 7 &&
+              snaps[0].id == 7,
+          "ignored: %u, newest %u", total, snaps[0].id);
+
+    /* another space's snapshot keeps its copies through a prune */
+    char hx[65];
+    bk_hex("other", 5, hx);
+    snprintf(p, sizeof p, "%s%s", bk_abs("objects/%.2s/", hx), hx);
+    char od[700];
+    snprintf(od, sizeof od, "%s", bk_abs("objects/%.2s", hx));
+    mkdir(od, 0700);
+    snprintf(body, sizeof body, "zxv-keepsake 1\nspace team-x\ntime 5\nf %s 5 5 o.txt\n", hx);
+    CHECK(bk_write(p, "other", 5) && bk_snap("team-x", 1, body, 1, 5, true), "another space");
+    snprintf(od, sizeof od, "%s", bk_abs("objects/%s", "incoming.tmp"));
+    CHECK(bk_write(od, "junk", 4), "a stray");
+    snprintf(od, sizeof od, "%s", bk_abs("objects/%s", "README"));
+    CHECK(bk_write(od, "not ours", 8), "not an object");
+    /* prune: keep the newest two of home's seven */
+    char oc[700];
+    snprintf(oc, sizeof oc, "%s%s", bk_abs("objects/%.2s/", hc), hc);
+    CHECK(bk_exists(oc), "the changed copy");
+    CHECK(zks_prune(BK_DEST, 2, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 5 &&
+              oo == 0 && freed == 0,
+          "pruned: %u snapshots, %u objects, %llu bytes: %s", so, oo, (unsigned long long) freed,
+          err);
+    CHECK(bk_exists(oc) && bk_exists(p) && bk_exists(ob) &&
+              !bk_exists(bk_abs("objects/%s", "incoming.tmp")) && bk_exists(od) &&
+              !bk_exists(bk_abs("spaces/%s/5.snap", "home")) &&
+              bk_exists(bk_abs("spaces/%s/6.snap", "home")) &&
+              bk_exists(bk_abs("spaces/%s/7.snap", "home")),
+          "what is left");
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.bad == 0 && v.missing == 0,
+          "the kept still check");
+    CHECK(zks_prune(BK_DEST, 0, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 1,
+          "keep 0 is keep 1: %u", so);
+    CHECK(zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK && total == 1 &&
+              snaps[0].id == 7,
+          "one left");
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 8 &&
+              r.new_files == 0,
+          "numbers go on: %u", r.snapshot);
+    /* a file kept only by a snapshot that goes is swept with it */
+    char hg[65], og[700];
+    bk_hex("gone soon", 9, hg);
+    snprintf(og, sizeof og, "%s%s", bk_abs("objects/%.2s/", hg), hg);
+    CHECK(bk_put("gone.txt", "gone soon", 9) &&
+              zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.new_files == 1 &&
+              bk_exists(og) && zxf_trash("gone.txt", trashed, sizeof trashed) == 0 &&
+              zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 10,
+          "kept, then deleted");
+    CHECK(zks_prune(BK_DEST, 1, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 3 &&
+              oo == 1 && freed == 9 && !bk_exists(og) && bk_exists(oc),
+          "swept: %u %u %llu", so, oo, (unsigned long long) freed);
+    CHECK(zks_prune(p, 1, &so, &oo, &freed, err, sizeof err) == ZKS_E_DEST, "bad destination");
+    CHECK(zks_prune(sib, 5, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 0 && oo == 0,
+          "nothing to prune there");
+    /* each space has its own snapshots (K6) */
+    CHECK(zxf_use_space("other-space") == 0 && bk_put("o.txt", "other", 5), "another space");
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 1 &&
+              r.files == 1 && r.new_files == 0 &&
+              bk_exists(bk_abs("spaces/%s/1.snap", "other-space")),
+          "its own numbers; the copy was already kept: %u %u", r.snapshot, r.new_files);
+    CHECK(zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 0 &&
+              zks_versions(BK_DEST, "o.txt", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 1,
+          "its own versions");
+    CHECK(zxf_use_space("home") == 0, "home again");
+
+    /* over JSON-RPC */
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.run\",\"params\":{\"dest\":\"%s\"}}",
+        BK_DEST);
+    const char *o = rpc(req);
+    CHECK(strstr(o, "\"result\":{\"space\":\"home\",\"snapshot\":11,\"time\":") &&
+              strstr(o, ",\"new_files\":0,\"new_bytes\":0,\"skipped\":1}"),
+          "backup.run: %s", o);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.run\",\"params\":{\"dest\":\"%s\","
+             "\"full\":true}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"snapshot\":12,"), "backup.run full: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":2}}",
+             BK_DEST);
+    o = rpc(req);
+    CHECK(
+        strstr(o, "\"result\":{\"space\":\"home\",\"total\":3,\"snapshots\":[{\"snapshot\":12,") &&
+            strstr(o, "},{\"snapshot\":11,") && strstr(o, ",\"damaged\":false}]}"),
+        "backup.list: %s", o);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.versions\",\"params\":{\"dest\":"
+             "\"%s\",\"path\":\"top.md\"}}",
+             BK_DEST);
+    snprintf(want, sizeof want, "\"size\":6,\"mtime\":");
+    o = rpc(req);
+    CHECK(strstr(o, "{\"space\":\"home\",\"versions\":[{\"snapshot\":12,\"time\":") &&
+              strstr(o, want) && strstr(o, ht),
+          "backup.versions: %s", o);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
+             "\"%s\"}}",
+             BK_DEST);
+    o = rpc(req);
+    CHECK(strstr(o, "{\"space\":\"home\",\"snapshot\":12,\"files\":") &&
+              strstr(o, ",\"bad\":0,\"missing\":0,\"ok\":true,\"first_bad\":\"\"}"),
+          "backup.verify: %s", o);
+    snprintf(ot, sizeof ot, "%s%s", bk_abs("objects/%.2s/", ha), ha);
+    CHECK(unlink(ot) == 0 &&
+              strstr(rpc(req),
+                     ",\"bad\":0,\"missing\":5,\"ok\":false,\"first_bad\":\"Back/old/a.txt\"}"),
+          "backup.verify, one missing: %s", OUT.p);
+    CHECK(bk_write(ot, "hello", 5), "put back");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
+             "\"%s\",\"snapshot\":100001}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"code\":-32602"), "snapshot too big");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
+             "\"%s\",\"snapshot\":3}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "{\"code\":-32015,\"message\":\"no such snapshot\"}"),
+          "backup.verify 3: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.restore\",\"params\":{\"dest\":"
+             "\"%s\",\"snapshot\":11,\"path\":\"README\",\"to\":\"Old/README\"}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\",\"to\":\"Old/README\",\"files\":1}"),
+          "backup.restore: %s", OUT.p);
+    CHECK(strstr(rpc(req),
+                 "{\"code\":-32012,\"message\":\"something with that name already exists\"}"),
+          "backup.restore, taken: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.restore\",\"params\":{\"dest\":"
+             "\"%s\",\"path\":\"README\"}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"to\":\"README (restored 2)\""), "backup.restore beside: %s", OUT.p);
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.prune\",\"params\":{\"dest\":\"%s\","
+        "\"keep\":1}}",
+        BK_DEST);
+    CHECK(strstr(rpc(req), "{\"space\":\"home\",\"snapshots_removed\":2,\"objects_removed\":0,"
+                           "\"freed\":0}"),
+          "backup.prune: %s", OUT.p);
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.prune\",\"params\":{\"dest\":\"%s\","
+        "\"keep\":0}}",
+        BK_DEST);
+    CHECK(strstr(rpc(req), "\"keep\\\" must be 1 to 100000"), "keep 0: %s", OUT.p);
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.prune\",\"params\":{\"dest\":\"%s\","
+        "\"keep\":100001}}",
+        BK_DEST);
+    CHECK(strstr(rpc(req), "\"code\":-32602"), "keep too many");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":0}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"max\\\" must be 1 to 100"), "max 0: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":101}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"code\":-32602"), "max 101");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":100}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"total\":1,\"snapshots\":[{\"snapshot\":12,"), "max 100: %s", OUT.p);
+    EXPECT(REQ("1", "backup.run", ",\"params\":{}"),
+           ERR("1", "-32602", "missing string parameter \\\"dest\\\""));
+    EXPECT(REQ("1", "backup.run", ",\"params\":{\"dest\":\"rel\"}"),
+           ERR("1", "-32015", "the destination must be a folder's absolute path"));
+    EXPECT(REQ("1", "backup.list", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
+           ERR("1", "-32015", "no folder at the destination"));
+    EXPECT(REQ("1", "backup.versions", ",\"params\":{\"dest\":\"/no/such/zxv\",\"path\":\"a\"}"),
+           ERR("1", "-32015", "no folder at the destination"));
+    EXPECT(REQ("1", "backup.versions", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
+           ERR("1", "-32602", "missing string parameter \\\"path\\\""));
+    EXPECT(REQ("1", "backup.run", ",\"params\":{\"dest\":\"/x\",\"full\":1}"),
+           ERR("1", "-32602", "\\\"full\\\" must be true or false"));
+    EXPECT(REQ("1", "backup.restore", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
+           ERR("1", "-32015", "no folder at the destination"));
+    EXPECT(REQ("1", "backup.prune", ",\"params\":{\"dest\":\"/no/such/zxv\",\"keep\":1}"),
+           ERR("1", "-32015", "no folder at the destination"));
+    const char *ms[] = {"backup.run",    "backup.list",    "backup.versions",
+                        "backup.verify", "backup.restore", "backup.prune"};
+    for (size_t i = 0; i < sizeof ms / sizeof *ms; i++) {
+        snprintf(req, sizeof req,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\",\"params\":{\"dest\":\"%s\","
+                 "\"space\":\"nope\",\"path\":\"a\",\"keep\":1}}",
+                 ms[i], BK_DEST);
+        CHECK(strstr(rpc(req), "\"code\":-32013"), "%s: no such space: %s", ms[i], OUT.p);
+    }
+    unsigned long long before = zxvd_log_last();
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\"}}",
+        BK_DEST);
+    rpc(req);
+    CHECK(zxvd_log_last() == before, "backup.list is quiet");
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.run\",\"params\":{\"dest\":\"%s\"}}",
+        BK_DEST);
+    rpc(req);
+    CHECK(zxvd_log_last() == before + 1, "backup.run is logged");
+    CHECK(rm_tree(root) == 0 && rm_tree(BK_DEST) == 0 && rm_tree(sib) == 0, "cleanup");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -3706,6 +4376,7 @@ int main(void)
     test_sys_shapes();
     test_search();
     test_print();
+    test_backup();
     test_books_closed();
     test_books();
     test_earnings();

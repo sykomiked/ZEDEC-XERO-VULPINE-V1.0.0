@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). -32014 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). -32014 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32015 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -4938,6 +4938,431 @@
               "items": {
                 "type": "string"
               }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.run",
+      "summary": "Back up the space in use to dest as a new snapshot (Keepsake). Files whose size and time match the last snapshot are not read again; new copies are read back and checked before the snapshot is written (K2-K4). Needs the view right. Logged.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        },
+        {
+          "name": "full",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "description": "read every file again and replace any kept copy that no longer matches"
+          }
+        }
+      ],
+      "result": {
+        "name": "run",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "snapshot": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "time": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "new_files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "new_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "files gone or too deep to back up"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.list",
+      "summary": "The space's snapshots at dest, newest first. Read only.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          }
+        }
+      ],
+      "result": {
+        "name": "snapshots",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "snapshots": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "snapshot": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "time": {
+                    "type": "integer"
+                  },
+                  "files": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "damaged": {
+                    "type": "boolean",
+                    "description": "its last line does not read; run backup.verify"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.versions",
+      "summary": "The distinct contents a file has had across the space's snapshots, newest first, each with the newest snapshot holding it (at most 100). Read only.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        }
+      ],
+      "result": {
+        "name": "versions",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "versions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "snapshot": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "time": {
+                    "type": "integer"
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "mtime": {
+                    "type": "integer"
+                  },
+                  "hash": {
+                    "type": "string",
+                    "description": "SHA-256, hex"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.verify",
+      "summary": "Read back every copy a snapshot names and check its hash and size (K4): a backup is tested when ok is true. Read only.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "snapshot",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000,
+            "default": 0,
+            "description": "0 or absent: the newest"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "snapshot": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bad": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "missing": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "first_bad": {
+              "type": "string",
+              "description": "the first file with a bad or missing copy, '' when ok"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.restore",
+      "summary": "Bring a file or folder back from a snapshot as a new item: at 'to', else at its old path when free, else beside it as 'name (restored).ext' (K5). Every copy is checked before anything is written. Needs the write right on the space. Logged.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "snapshot",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000,
+            "default": 0,
+            "description": "0 or absent: the newest"
+          }
+        },
+        {
+          "name": "path",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "a file or folder; '' or absent: everything, into 'Keepsake N'"
+          }
+        },
+        {
+          "name": "to",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "where it lands; must not exist"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        }
+      ],
+      "result": {
+        "name": "restored",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.prune",
+      "summary": "Keep the newest 'keep' snapshots of the space and remove the rest, then the copies no snapshot of any space names (K7). Refused, removing nothing, while any snapshot is damaged. Needs the write right on the space. Logged.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "keep",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        }
+      ],
+      "result": {
+        "name": "pruned",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "snapshots_removed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "objects_removed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "freed": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "bytes"
             }
           }
         }

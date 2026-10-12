@@ -26,9 +26,11 @@
 #include "wake_model.h"
 #include "scent_model.h"
 #include "platen_model.h"
+#include "keepsake_model.h"
 #include "zxv_print_host.h"
 #include "test_fake_device.h"
 #include "zxvd_log.h"
+#include "sha256.h"
 
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
@@ -1603,6 +1605,365 @@ static void test_platen(void)
     fake_stop();
 }
 
+/* ---------------- Keepsake ---------------- */
+
+static keepsake_t KS;
+
+static void test_keepsake(void)
+{
+    char dest[256];
+    snprintf(dest, sizeof dest, "%s/zxv-keep-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(dest) != NULL, "a destination");
+    uint64_t size;
+    CHECK(zxf_mkdir("keep") == 0 && zxf_write("keep/plan.txt", (const uint8_t *) "first", 5,
+                                              ZXF_W_REPLACE, false, &size) == 0,
+          "files");
+    keepsake_init(&KS, &LINK);
+    int before = sent;
+    CHECK(keepsake_backup(&KS, false) == ZXM_E_STATE && keepsake_refresh(&KS) == ZXM_E_STATE &&
+              keepsake_versions(&KS, "a") == ZXM_E_STATE && keepsake_check(&KS, 0) == ZXM_E_STATE &&
+              keepsake_restore(&KS, 0, "a", NULL) == ZXM_E_STATE &&
+              keepsake_prune(&KS, 1) == ZXM_E_STATE && sent == before,
+          "no destination yet: nothing asked");
+    static char longd[KEEPSAKE_DEST + 2];
+    memset(longd, 'd', KEEPSAKE_DEST + 1);
+    CHECK(keepsake_set_dest(&KS, NULL) == ZXM_E_ARG && keepsake_set_dest(&KS, "") == ZXM_E_ARG &&
+              keepsake_set_dest(&KS, longd) == ZXM_E_ARG && !KS.dest[0],
+          "bad destinations");
+    CHECK(keepsake_set_dest(&KS, "relative") == ZXM_OK &&
+              keepsake_backup(&KS, false) == ZXM_E_REMOTE && LINK.err_code == -32015,
+          "zxvd refuses a relative one");
+    CHECK(keepsake_set_dest(&KS, dest) == ZXM_OK, "set");
+    CHECK(keepsake_refresh(&KS) == ZXM_OK && KS.nsnaps == 0 && KS.total == 0, "none yet");
+    CHECK(!keepsake_tested(&KS), "not tested");
+
+    /* back up, change, back up */
+    CHECK(keepsake_backup(&KS, false) == ZXM_OK && KS.last.snapshot == 1 && KS.last.files >= 2 &&
+              KS.last.new_files >= 1 && KS.last.new_files <= KS.last.files && KS.nsnaps == 1 &&
+              KS.total == 1 && KS.snap[0].id == 1 && !KS.snap[0].damaged &&
+              KS.snap[0].time == KS.last.time,
+          "first: %u files %s", KS.last.files, LINK.err);
+    uint32_t files = KS.last.files;
+    CHECK(!keepsake_tested(&KS), "not checked yet");
+    CHECK(keepsake_check(&KS, 0) == ZXM_OK && KS.check.done && KS.check.snapshot == 1 &&
+              KS.check.files == files && KS.check.bad == 0 && KS.check.missing == 0 &&
+              !KS.check.first_bad[0] && keepsake_tested(&KS),
+          "checked");
+    CHECK(keepsake_ai(&KS, KEEPSAKE_AI_EXPLAIN) == ZXM_E_STATE, "nothing to explain");
+    CHECK(zxf_write("keep/plan.txt", (const uint8_t *) "second!", 7, ZXF_W_REPLACE, false, &size) ==
+                  0 &&
+              keepsake_backup(&KS, false) == ZXM_OK && KS.last.snapshot == 2 &&
+              KS.last.new_files == 1 && KS.nsnaps == 2 && KS.snap[0].id == 2 &&
+              KS.snap[1].id == 1 && !KS.check.done && !keepsake_tested(&KS),
+          "second: %u new", KS.last.new_files);
+    /* a damaged copy: a plain backup trusts it, a full one repairs it */
+    char hex[65], obj[600];
+    uint8_t h[32];
+    sha256((const uint8_t *) "second!", 7, h);
+    for (int i = 0; i < 32; i++) snprintf(hex + 2 * i, 3, "%02x", h[i]);
+    snprintf(obj, sizeof obj, "%s/ZXV Keepsake/objects/%.2s/%s", dest, hex, hex);
+    FILE *of = fopen(obj, "wb");
+    CHECK(of && fwrite("SECOND!", 1, 7, of) == 7 && fclose(of) == 0, "damage a copy");
+    CHECK(keepsake_backup(&KS, false) == ZXM_OK && KS.last.new_files == 0 &&
+              strstr(LINK.req, "\"max\":50"),
+          "third, then listed: %s", LINK.req);
+    CHECK(keepsake_check(&KS, 0) == ZXM_OK && KS.check.bad == 1 &&
+              !strcmp(KS.check.first_bad, "keep/plan.txt") && !keepsake_tested(&KS),
+          "the check finds it: %s", KS.check.first_bad);
+    CHECK(keepsake_backup(&KS, true) == ZXM_OK && KS.last.snapshot == 4 && KS.last.new_files == 1,
+          "full repairs it: %u", KS.last.new_files);
+    CHECK(keepsake_check(&KS, 1) == ZXM_OK && KS.check.snapshot == 1 && !keepsake_tested(&KS) &&
+              strstr(LINK.req, "\"snapshot\":1"),
+          "an older one checked is not the newest");
+    CHECK(keepsake_check(&KS, 0) == ZXM_OK && !strstr(LINK.req, "snapshot") && keepsake_tested(&KS),
+          "the newest");
+
+    /* versions */
+    CHECK(keepsake_versions(&KS, NULL) == ZXM_E_ARG && keepsake_versions(&KS, "") == ZXM_E_ARG,
+          "no path");
+    CHECK(keepsake_versions(&KS, "keep/plan.txt") == ZXM_OK && KS.nvers == 2 &&
+              KS.ver[0].snapshot == 4 && KS.ver[0].size == 7 && KS.ver[1].snapshot == 1 &&
+              KS.ver[1].size == 5 && strlen(KS.ver[0].hash) == 64 &&
+              !strcmp(KS.vpath, "keep/plan.txt"),
+          "two versions: %u", KS.nvers);
+
+    /* restore the first words beside the file */
+    CHECK(keepsake_restore(&KS, 1, "keep/plan.txt", NULL) == ZXM_OK &&
+              !strcmp(KS.landed, "keep/plan (restored).txt") && KS.restored == 1 &&
+              strstr(LINK.req, "\"snapshot\":1") && !strstr(LINK.req, "\"to\""),
+          "restored: %s", KS.landed);
+    char got[16];
+    uint32_t gn;
+    CHECK(zxf_read("keep/plan (restored).txt", 0, (uint8_t *) got, sizeof got, false, &gn, &size) ==
+                  0 &&
+              gn == 5 && !memcmp(got, "first", 5),
+          "the first words");
+    CHECK(keepsake_restore(&KS, 0, "keep", "keep2") == ZXM_OK && !strcmp(KS.landed, "keep2") &&
+              strstr(LINK.req, "\"to\":\"keep2\"") && !strstr(LINK.req, "snapshot"),
+          "a folder somewhere new: %s", KS.landed);
+    CHECK(keepsake_restore(&KS, 0, "keep", "keep2") == ZXM_E_REMOTE && LINK.err_code == -32012 &&
+              !strcmp(KS.landed, "keep2"),
+          "never over it");
+    CHECK(keepsake_restore(&KS, 0, "nope.txt", NULL) == ZXM_E_REMOTE && LINK.err_code == -32015,
+          "not backed up");
+    static char longp[KEEPSAKE_PATH + 2];
+    memset(longp, 'p', KEEPSAKE_PATH + 1);
+    CHECK(keepsake_restore(&KS, 0, longp, NULL) == ZXM_E_ARG &&
+              keepsake_restore(&KS, 0, "a", longp) == ZXM_E_ARG &&
+              keepsake_versions(&KS, longp) == ZXM_E_ARG,
+          "too long");
+    CHECK(keepsake_restore(&KS, 0, NULL, NULL) == ZXM_OK && !strcmp(KS.landed, "Keepsake 4") &&
+              KS.restored >= files && !strstr(LINK.req, "path"),
+          "everything: %s %u", KS.landed, KS.restored);
+
+    /* prune */
+    CHECK(keepsake_prune(&KS, 0) == ZXM_E_ARG, "keep none");
+    CHECK(keepsake_prune(&KS, 1) == ZXM_OK && KS.pruned_snaps == 3 && KS.nsnaps == 1 &&
+              KS.snap[0].id == 4 && KS.total == 1,
+          "pruned: %u, %u objects", KS.pruned_snaps, KS.pruned_objects);
+
+    /* spaces and destinations forget what was listed */
+    CHECK(keepsake_set_space(&KS, "studio") == ZXM_OK && KS.nsnaps == 0 && !KS.check.done &&
+              !KS.vpath[0] && keepsake_refresh(&KS) == ZXM_OK && KS.total == 0 &&
+              keepsake_set_space(&KS, "nowhere") == ZXM_OK &&
+              keepsake_refresh(&KS) == ZXM_E_REMOTE && LINK.err_code == -32013,
+          "another space: %d", LINK.err_code);
+    static char longid[64];
+    memset(longid, 'a', 49);
+    CHECK(keepsake_set_space(&KS, longid) == ZXM_E_ARG && !strcmp(KS.space, "nowhere"),
+          "id too long");
+    CHECK(keepsake_set_space(&KS, "home") == ZXM_OK && !KS.space[0] &&
+              keepsake_set_space(&KS, NULL) == ZXM_OK && keepsake_refresh(&KS) == ZXM_OK &&
+              KS.nsnaps == 1,
+          "home");
+
+    /* made-up replies */
+    keepsake_t F;
+    keepsake_init(&F, &FAKE);
+    keepsake_set_dest(&F, "/d");
+    const char *badlist[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":0,\"snapshots\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":4294967296,\"snapshots\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":0,\"snapshots\":[{\"snapshot\":1,"
+        "\"time\":1,\"files\":1,\"bytes\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[1]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"time\":1,"
+        "\"files\":1,\"bytes\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":1,"
+        "\"files\":1,\"bytes\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":1,"
+        "\"time\":1,\"bytes\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":1,"
+        "\"time\":1,\"files\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":1,"
+        "\"time\":1,\"files\":1,\"bytes\":1}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":"
+        "4294967296,"
+        "\"time\":1,\"files\":1,\"bytes\":1,\"damaged\":false}]}}",
+    };
+    F.nsnaps = 1;
+    F.snap[0].id = 9;
+    for (size_t i = 0; i < sizeof badlist / sizeof *badlist; i++) {
+        CANNED = badlist[i];
+        CHECK(keepsake_refresh(&F) == ZXM_E_PROTOCOL && F.nsnaps == 1 && F.snap[0].id == 9,
+              "bad list %zu", i);
+    }
+    static char many[KEEPSAKE_SNAPS * 80 + 200];
+    int m = snprintf(many, sizeof many,
+                     "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"total\":99,\"snapshots\":[");
+    for (uint32_t i = 0; i <= KEEPSAKE_SNAPS; i++)
+        m += snprintf(many + m, sizeof many - (size_t) m,
+                      "%s{\"snapshot\":%u,\"time\":1,\"files\":1,\"bytes\":1,\"damaged\":false}",
+                      i ? "," : "", i + 1);
+    snprintf(many + m, sizeof many - (size_t) m, "]}}");
+    CANNED = many;
+    CHECK(keepsake_refresh(&F) == ZXM_E_PROTOCOL && F.nsnaps == 1, "too many");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":7,\"snapshots\":[{\"snapshot\":"
+             "4294967295,\"time\":-2,\"files\":4294967295,\"bytes\":18446744073709551615,"
+             "\"damaged\":true}]}}";
+    CHECK(keepsake_refresh(&F) == ZXM_OK && F.nsnaps == 1 && F.total == 7 &&
+              F.snap[0].id == 4294967295u && F.snap[0].time == -2 && F.snap[0].damaged &&
+              F.snap[0].bytes == 18446744073709551615ull,
+          "the largest");
+    const char *badrun[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time\":1,\"files\":1,\"new_files\":0,"
+        "\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":0,\"time\":1,\"files\":1,"
+        "\"new_files\":0,\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":1,\"new_files\":0,"
+        "\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"new_files\":0,"
+        "\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":0,\"skipped\":0,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":0,\"skipped\":0,\"bytes\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":2,\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":1,\"skipped\":0,\"bytes\":1,\"new_bytes\":2}}",
+    };
+    F.last.snapshot = 5;
+    for (size_t i = 0; i < sizeof badrun / sizeof *badrun; i++) {
+        CANNED = badrun[i];
+        CHECK(keepsake_backup(&F, false) == ZXM_E_PROTOCOL && F.last.snapshot == 5, "bad run %zu",
+              i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":6,\"time\":1,\"files\":2,"
+             "\"new_files\":2,\"skipped\":3,\"bytes\":9,\"new_bytes\":9}}";
+    F.check.done = true;
+    CHECK(keepsake_backup(&F, false) == ZXM_E_PROTOCOL && F.last.snapshot == 6 &&
+              F.last.skipped == 3 && F.last.new_bytes == 9 && !F.check.done,
+          "made, but the list after it does not parse");
+    const char *badver[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[1]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"snapshot\":1,\"time\":1,"
+        "\"size\":1,\"mtime\":1,\"hash\":\"ab\"}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"time\":1,\"size\":1,"
+        "\"mtime\":1,\"hash\":\"ab\"}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"snapshot\":1,\"size\":1,"
+        "\"mtime\":1,\"hash\":\"ab\"}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"snapshot\":1,\"time\":1,"
+        "\"mtime\":1,\"hash\":\"ab\"}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"snapshot\":1,\"time\":1,"
+        "\"size\":1,\"hash\":\"ab\"}]}}",
+    };
+    F.nvers = 0;
+    for (size_t i = 0; i < sizeof badver / sizeof *badver; i++) {
+        CANNED = badver[i];
+        CHECK(keepsake_versions(&F, "a") == ZXM_E_PROTOCOL && F.nvers == 0 && !F.vpath[0],
+              "bad versions %zu", i);
+    }
+    static char vmany[KEEPSAKE_VERS * 160 + 200];
+    m = snprintf(vmany, sizeof vmany, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"versions\":[");
+    for (uint32_t i = 0; i < KEEPSAKE_VERS + 3; i++)
+        m += snprintf(vmany + m, sizeof vmany - (size_t) m,
+                      "%s{\"snapshot\":%u,\"time\":1,\"size\":2,\"mtime\":-3,\"hash\":\"%064u\"}",
+                      i ? "," : "", i + 1, i);
+    snprintf(vmany + m, sizeof vmany - (size_t) m, "]}}");
+    CANNED = vmany;
+    CHECK(keepsake_versions(&F, "a") == ZXM_OK && F.nvers == KEEPSAKE_VERS &&
+              F.ver[KEEPSAKE_VERS - 1].snapshot == KEEPSAKE_VERS && F.ver[0].mtime == -3 &&
+              !strcmp(F.vpath, "a"),
+          "the first fifty kept: %u", F.nvers);
+    const char *badcheck[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"ok\":false,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":1,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":3,"
+        "\"missing\":0,\"bytes\":1,\"ok\":false,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":1,"
+        "\"missing\":2,\"bytes\":1,\"ok\":false,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true}}",
+    };
+    F.check.done = false;
+    for (size_t i = 0; i < sizeof badcheck / sizeof *badcheck; i++) {
+        CANNED = badcheck[i];
+        CHECK(keepsake_check(&F, 0) == ZXM_E_PROTOCOL && !F.check.done, "bad check %zu", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":4,\"files\":3,\"bad\":1,"
+             "\"missing\":2,\"bytes\":10,\"ok\":false,\"first_bad\":\"Notes/a.txt\"}}";
+    F.nsnaps = 1;
+    F.snap[0].id = 4;
+    CHECK(keepsake_check(&F, 4) == ZXM_OK && F.check.done && F.check.bad == 1 &&
+              F.check.missing == 2 && F.check.bytes == 10 &&
+              !strcmp(F.check.first_bad, "Notes/a.txt") && !keepsake_tested(&F),
+          "a failed check");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":4,\"files\":3,\"bad\":0,"
+             "\"missing\":0,\"bytes\":10,\"ok\":true,\"first_bad\":\"\"}}";
+    keepsake_check_t keepc = F.check;
+    CHECK(keepsake_check(&F, 4) == ZXM_OK && keepsake_tested(&F), "a good one");
+    F.nsnaps = 0;
+    CHECK(!keepsake_tested(&F), "nothing listed: not tested");
+    F.nsnaps = 1;
+    F.check = keepc;
+    const char *badrestore[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"files\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"to\":\"\",\"files\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"to\":\"x\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"to\":\"x\",\"files\":0}}",
+    };
+    F.landed[0] = 0;
+    for (size_t i = 0; i < sizeof badrestore / sizeof *badrestore; i++) {
+        CANNED = badrestore[i];
+        CHECK(keepsake_restore(&F, 0, "a", NULL) == ZXM_E_PROTOCOL && !F.landed[0],
+              "bad restore %zu", i);
+    }
+    const char *badprune[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"objects_removed\":0,\"freed\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":0,\"freed\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":0,\"objects_removed\":0}"
+        "}",
+    };
+    F.pruned_snaps = 77;
+    for (size_t i = 0; i < sizeof badprune / sizeof *badprune; i++) {
+        CANNED = badprune[i];
+        CHECK(keepsake_prune(&F, 1) == ZXM_E_PROTOCOL && F.pruned_snaps == 77, "bad prune %zu", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":2,"
+             "\"objects_removed\":3,\"freed\":18446744073709551615}}";
+    CHECK(keepsake_prune(&F, 1) == ZXM_E_PROTOCOL && F.pruned_snaps == 2 && F.pruned_objects == 3 &&
+              F.freed == 18446744073709551615ull,
+          "pruned, the list after it does not parse");
+    CANNED = NULL;
+    CHECK(keepsake_refresh(&F) == ZXM_E_TRANSPORT &&
+              keepsake_backup(&F, false) == ZXM_E_TRANSPORT &&
+              keepsake_versions(&F, "a") == ZXM_E_TRANSPORT &&
+              keepsake_check(&F, 0) == ZXM_E_TRANSPORT &&
+              keepsake_restore(&F, 0, "a", NULL) == ZXM_E_TRANSPORT &&
+              keepsake_prune(&F, 1) == ZXM_E_TRANSPORT,
+          "no daemon");
+
+    /* AI explains a failed check */
+    F.link = &LINK;
+    CHECK(keepsake_ai(&F, -1) == ZXM_E_ARG && keepsake_ai(&F, KEEPSAKE_AI_COUNT) == ZXM_E_ARG,
+          "range");
+    ANSWER = "Two copies are gone; run a full backup.";
+    asked = 0;
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_OK && asked == 1 &&
+              F.held.state == ZXM_HELD_PENDING &&
+              strstr(last_prompt, "Backup 4 was checked: 3 files, 1 read back wrong, 2 missing.\n"
+                                  "First problem: Notes/a.txt\n") &&
+              strstr(last_prompt, "full backup"),
+          "held: %s", last_prompt);
+    CHECK(keepsake_ai_accept(&F) == ZXM_OK && F.held.state == ZXM_HELD_ACCEPTED, "read");
+    F.check.bad = 0;
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_OK && keepsake_ai_reject(&F) == ZXM_OK &&
+              F.held.state == ZXM_HELD_REJECTED,
+          "only missing: still explained, then dismissed");
+    F.check.missing = 0;
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_E_STATE, "nothing wrong");
+    F.check.missing = 1;
+    F.check.done = false;
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_E_STATE, "no check yet");
+    F.check.done = true;
+    memset(F.check.first_bad, 'f', sizeof F.check.first_bad - 1);
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_OK, "a long path fits");
+    ANSWER = "ok";
+    CHECK(rm_tree(dest) == 0, "cleanup");
+}
+
 int main(void)
 {
     char root[256];
@@ -1622,6 +1983,7 @@ int main(void)
     test_utilities();
     test_scent();
     test_platen();
+    test_keepsake();
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {
