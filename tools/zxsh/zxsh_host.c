@@ -614,7 +614,7 @@ int main(int argc, char **argv)
     zxsh_init(&sh, &ops, NULL, inter);
     if (home) zxsh_set(&sh, "HOME", home);
     for (int i = argi, k = 1; i < argc && k < 10; i++, k++) {
-        char nm[8];
+        char nm[16];
         snprintf(nm, sizeof nm, "arg%d", k);
         zxsh_set(&sh, nm, argv[i]);
     }

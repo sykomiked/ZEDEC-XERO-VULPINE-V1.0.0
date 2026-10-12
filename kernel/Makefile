@@ -322,6 +322,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-settle
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
+	$(MAKE) --no-print-directory test-fwadapt
+	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
@@ -1417,6 +1419,17 @@ test-settle:
 .PHONY: test-lpres-hex
 test-lpres-hex:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/lpres/test_lpres_hex.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_lpres_hex && $(ZXV_TMP)/test_lpres_hex > $(ZXV_TMP)/test_lpres_hex.log 2>&1 && echo "[PASS] test_lpres_hex ($$(tail -1 $(ZXV_TMP)/test_lpres_hex.log))" || { cat $(ZXV_TMP)/test_lpres_hex.log; echo "[FAIL] test_lpres_hex"; exit 1; }
+
+# The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
+# ACPI / device tree / PCI / USB / probe evidence joined with lpres.
+.PHONY: test-fwadapt
+test-fwadapt:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/fwadapt/test_fwadapt.c src/fwadapt/fwadapt.c src/hwemu/hwp.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_fwadapt && $(ZXV_TMP)/test_fwadapt > $(ZXV_TMP)/test_fwadapt.log 2>&1 && echo "[PASS] test_fwadapt ($$(tail -1 $(ZXV_TMP)/test_fwadapt.log))" || { cat $(ZXV_TMP)/test_fwadapt.log; echo "[FAIL] test_fwadapt"; exit 1; }
+
+# zxsh, the paraconsistent shell (tools/zxsh): core tests + end-to-end host tests.
+.PHONY: test-zxsh
+test-zxsh:
+	@$(MAKE) --no-print-directory -C ../tools/zxsh test OUT=$(ZXV_TMP)/zxsh-build > $(ZXV_TMP)/test_zxsh.log 2>&1 && echo "[PASS] test_zxsh ($$(grep passed $(ZXV_TMP)/test_zxsh.log | tr '\n' ' '))" || { cat $(ZXV_TMP)/test_zxsh.log; echo "[FAIL] test_zxsh"; exit 1; }
 
 # The paradox engine (src/paradox/paradox.h, roadmap 6.6b P0.1-P0.4): ASan/UBSan
 # tests, then a freestanding build (aarch64 -mgeneral-regs-only and i386, no
