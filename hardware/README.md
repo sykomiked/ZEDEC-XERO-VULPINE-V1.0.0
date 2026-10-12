@@ -5,7 +5,7 @@ Chip, board, chassis and reconfigurable-hardware designs for ZXV.
 ## Licence in plain words
 
 These designs are **source-available** under the
-[ZXV Hardware License 1.0](LICENSE). They are not open source and are not
+[ZXV Hardware License 1.1](LICENSE). They are not open source and are not
 under the Apache License that covers the ZXV software.
 
 - **Free for noncommercial use.** Study, build, modify and share them for
@@ -15,6 +15,13 @@ under the Apache License that covers the ZXV software.
 - **Commercial manufacture or sale** needs the Commercial Licence Agreement
   and a royalty of 18% of gross revenue, paid directly to ILLUMAHEART
   FOUNDATION. Contact deal@zedec.ai.
+- **No royalty for public infrastructure.** Water, power, health, emergency
+  services, transport, communications, education and similar public-good
+  projects are exempt once registered (Section 4A).
+- **Military operations are not licensed**, except rescue and life-saving
+  missions, and defence of a nation against external armed attack or armed
+  insurgency, within the laws of war (Sections 4A.6 to 4A.10). Armed forces
+  may use the hardware freely for non-military purposes.
 - **Credit is required** everywhere the designs or products are used. See
   [NOTICE](NOTICE) for the exact wording.
 - **No patents.** The designs are published as prior art so nobody can
@@ -34,6 +41,6 @@ The full licence text governs; this summary does not replace it.
 | `config/` | Configuration Files: bitstreams, microcode, emulation profiles |
 | `docs/` | Design documentation |
 
-Every file here carries `SPDX-License-Identifier: LicenseRef-ZXV-Hardware-1.0`
+Every file here carries `SPDX-License-Identifier: LicenseRef-ZXV-Hardware-1.1`
 (or is covered by [`REUSE.toml`](../REUSE.toml)). Firmware that runs on ZXV
 hardware lives in `kernel/` and `sdk/` under Apache-2.0.

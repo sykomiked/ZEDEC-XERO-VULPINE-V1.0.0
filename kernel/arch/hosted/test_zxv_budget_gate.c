@@ -97,6 +97,48 @@ static void test_counting(void)
     CHECK(r == ZXV_GATE_EXHAUSTED, "an unknown agent has no budget");
 }
 
+/* B5: the prompt's tokens are charged too, first */
+static void test_prompt(void)
+{
+    printf("[1b] prompt tokens are charged (B5)\n");
+    swarm_budget_t b;
+    fake_t f = {0, 0, 1000};
+    zxv_gate_t g;
+    one_level(&b, 100);
+    int32_t r = zxv_budget_gate_ex(&b, 1, 30, 256, fake_gen, &f, &g);
+    CHECK(r == 70 && f.calls == 1 && f.last_max == 70 && g.max_new == 70,
+          "budget 100, prompt 30: the model may write 70 (wrote %d, allowed %u)", (int) r,
+          (unsigned) f.last_max);
+    CHECK(g.prompt == 30 && g.generated == 70 && g.charged == 100 && g.remaining_after == 0,
+          "charged prompt + written = %llu, %llu left", (unsigned long long) g.charged,
+          (unsigned long long) g.remaining_after);
+
+    one_level(&b, 100);
+    f.natural = 5;
+    r = zxv_budget_gate_ex(&b, 1, 30, 256, fake_gen, &f, &g);
+    CHECK(r == 5 && g.charged == 35 && swarm_budget_remaining(&b, 1) == 65,
+          "a short answer: 30 + 5 = %llu charged, 65 left", (unsigned long long) g.charged);
+    r = zxv_budget_gate_ex(&b, 1, 65, 256, fake_gen, &f, &g);
+    CHECK(r == ZXV_GATE_EXHAUSTED && g.exhausted && f.calls == 2 && g.charged == 0 &&
+              swarm_budget_remaining(&b, 1) == 65,
+          "a prompt that uses everything left is refused without running or charging");
+    r = zxv_budget_gate_ex(&b, 1, 64, 256, fake_gen, &f, &g);
+    CHECK(r == 1 && f.last_max == 1 && g.charged == 65 && swarm_budget_remaining(&b, 1) == 0,
+          "one token over the prompt: one token may be written");
+
+    one_level(&b, 100);
+    r = zxv_budget_gate_ex(&b, 1, 10, 256, bad_gen, NULL, &g);
+    CHECK(r == -7 && g.charged == 0 && swarm_budget_remaining(&b, 1) == 100,
+          "a failed generation charges nothing, not even the prompt");
+    r = zxv_budget_gate_ex(&b, 1, 10, 0, fake_gen, &f, &g);
+    CHECK(r == 0 && !g.exhausted && f.calls == 3 && swarm_budget_remaining(&b, 1) == 100,
+          "requesting 0 tokens runs nothing and charges nothing");
+    r = zxv_budget_gate_ex(&b, 1, 0, 20, fake_gen, &f, &g);
+    CHECK(r == 5 && g.charged == 5 && g.prompt == 0, "a prompt of 0 is the old gate");
+    r = zxv_budget_gate_ex(NULL, 1, 1, 20, fake_gen, &f, &g);
+    CHECK(r == -1 && g.prompt == 1 && g.requested == 20, "no budget: -1, the request recorded");
+}
+
 #if defined(ZXV_HAVE_ZT_GLUE)
 #    include "zxv_model_host.h"
 #    include "zt_model.h"
@@ -177,6 +219,7 @@ static void test_engine(void)
 int main(void)
 {
     test_counting();
+    test_prompt();
 #if defined(ZXV_HAVE_ZT_GLUE)
     test_engine();
 #else
