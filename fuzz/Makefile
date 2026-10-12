@@ -66,7 +66,9 @@ PQ5 := $(S)/mlkem/keccak.c $(S)/pqsec/pq_mlkem1024.c $(S)/pqsec/pq_mldsa87.c \
 # ---- parsers ---------------------------------------------------------------
 PARSERS := fuzz_cobol_copybook fuzz_ubh_frame fuzz_gguf_loader fuzz_fat32_mount fuzz_vinea \
            fuzz_pay_xml fuzz_tls_record fuzz_tls_handshake fuzz_freight fuzz_upcheck \
-           fuzz_bootlegger fuzz_ipfs_cid fuzz_ipfs_dag
+           fuzz_bootlegger fuzz_ipfs_cid fuzz_ipfs_dag \
+           fuzz_treaty fuzz_aipi fuzz_tok fuzz_call fuzz_cardnet fuzz_devmesh \
+           fuzz_zxvd_rpc fuzz_hwemu fuzz_paradox
 
 DIR_fuzz_cobol_copybook := parsers
 INC_fuzz_cobol_copybook := -I$(S)/legacy
@@ -148,6 +150,84 @@ DIR_fuzz_ipfs_dag := parsers
 INC_fuzz_ipfs_dag := -I$(S)/ipfs_node
 SRC_fuzz_ipfs_dag := $(S)/ipfs_node/ipfsn_dir.c $(IPFSN)
 
+# ---- adversarial self-audit harnesses (docs/ADVERSARIAL_AUDIT_2026-10-12.md) ----
+DIR_fuzz_treaty := parsers
+INC_fuzz_treaty := -I$(K)/include -I$(S)/treaty -I$(S)/engine -I$(S)/pay -I$(S)/abacus \
+                   -I$(S)/rational -I$(S)/swarm -I$(S)/tensor -I$(S)/mlkem -I$(S)/zcapital
+SRC_fuzz_treaty := $(S)/treaty/zxt.c $(S)/treaty/zxt_exec.c $(S)/treaty/zxt_cobol.c \
+                   $(S)/engine/zxv_engine.c $(S)/abacus/abacus.c $(S)/rational/rational.c \
+                   $(S)/pay/pay_ledger.c $(S)/pay/pay_util.c $(S)/pay/pay_assure.c \
+                   $(S)/swarm/swarm_market.c $(S)/swarm/swarm_budget.c $(S)/swarm/swarm_emotion.c \
+                   $(S)/tensor/zt.c $(S)/mlkem/keccak.c
+DEF_fuzz_treaty := -DTEST_HOST
+
+DIR_fuzz_aipi := parsers
+INC_fuzz_aipi := -I$(K)/include -I$(S)/aipi -I$(S)/ipfs_node -I$(S)/lpres
+SRC_fuzz_aipi := $(S)/aipi/aipi.c $(IPFSN) $(S)/lpres/lpres_hex.c $(S)/lpres/lpres.c
+DEF_fuzz_aipi := -DTEST_HOST
+
+DIR_fuzz_tok := parsers
+INC_fuzz_tok := -I$(S)/tensor
+SRC_fuzz_tok := $(S)/tensor/zt_tok.c $(S)/tensor/zt_gguf.c $(S)/tensor/zt.c
+DEF_fuzz_tok := -DTEST_HOST
+
+DIR_fuzz_call := parsers
+INC_fuzz_call := -I$(S)/call
+SRC_fuzz_call := $(S)/call/call_rtp.c $(S)/call/call_cc.c $(S)/call/call_fec.c $(S)/call/call_mesh.c \
+                 $(S)/call/call_ice.c $(S)/call/call_session.c $(S)/call/call_jitter.c
+DEF_fuzz_call := -DTEST_HOST
+
+DIR_fuzz_cardnet := parsers
+INC_fuzz_cardnet := -I$(K)/include -I$(S)/cardnet -I$(S)/pqsec -I$(S)/mlkem -I$(S)/lpres -I$(S)/surplus \
+                    -I$(S)/edp_risk -I$(S)/event_space -I$(S)/modbind -I$(S)/trispace -I$(S)/finance \
+                    -I$(S)/zcapital -I$(S)/vino_stores -I$(S)/vino
+SRC_fuzz_cardnet := $(S)/cardnet/cardnet.c $(S)/cardnet/cn_check.c $(S)/cardnet/cn_iso8583.c \
+                    $(S)/cardnet/cn_emv.c $(S)/cardnet/cn_mobile.c $(S)/mlkem/keccak.c $(MLDSA)
+DEF_fuzz_cardnet := -DTEST_HOST
+
+DIR_fuzz_devmesh := parsers
+INC_fuzz_devmesh := -I$(K)/include -I$(S)/devmesh -I$(S)/pqsec -I$(S)/mlkem -I$(S)/pay -I$(S)/swarm \
+                    -I$(S)/tensor -I$(S)/lpres -I$(S)/surplus -I$(S)/edp_risk -I$(S)/event_space \
+                    -I$(S)/modbind -I$(S)/trispace
+SRC_fuzz_devmesh := $(S)/devmesh/devmesh.c $(S)/devmesh/dm_sync.c $(S)/devmesh/dm_remote.c \
+                    $(S)/devmesh/dm_capmkt.c $(S)/capmkt/capmkt.c $(S)/pay/pay_util.c $(S)/pay/pay_assure.c \
+                    $(S)/swarm/swarm_market.c $(S)/swarm/swarm_budget.c $(S)/swarm/swarm_emotion.c \
+                    $(S)/tensor/zt.c $(S)/pqsec/pq_matrix.c $(S)/pqsec/pq_mlkem1024.c $(S)/pqsec/pq_mldsa87.c \
+                    $(S)/pqsec/pq_hqc5.c $(S)/pqsec/pq_slh256s.c $(S)/pqsec/pq_mldsa65.c $(S)/pqsec/pq_slhdsa.c \
+                    $(sort $(wildcard $(S)/pqsec/mldsa/*.c)) $(sort $(wildcard $(S)/pqsec/slhdsa/*.c)) \
+                    $(MLKEM) $(S)/tls/x25519.c $(S)/tls/aead.c
+DEF_fuzz_devmesh := -DTEST_HOST
+
+# zxvd_rpc.c defines _DEFAULT_SOURCE itself, hence the -U. libzxv is built
+# with the sanitizers into this OUT (gcc objects only; a clang libFuzzer build
+# needs its own archive built with CC=clang).
+DIR_fuzz_zxvd_rpc := parsers
+LIBZXV_SAN := $(abspath $(OUT))/libzxv-san/libzxv.a
+INC_fuzz_zxvd_rpc := -I$(K)/arch/hosted -I$(S)/web4 -I$(K)/../sdk/libzxv/include
+SRC_fuzz_zxvd_rpc := $(K)/arch/hosted/zxvd_rpc.c $(S)/web4/web4_json.c $(S)/web4/web4_util.c $(LIBZXV_SAN)
+DEF_fuzz_zxvd_rpc := -U_DEFAULT_SOURCE -DTEST_HOST
+# The libFuzzer build links its own copy compiled by $(CC_FUZZ): gcc and clang
+# ASan objects do not mix.
+LIBZXV_FUZZ := $(abspath $(OUT))/libzxv-fuzz/libzxv.a
+SRC_FUZZ_fuzz_zxvd_rpc := $(filter-out $(LIBZXV_SAN),$(SRC_fuzz_zxvd_rpc)) $(LIBZXV_FUZZ)
+$(LIBZXV_SAN):
+	$(MAKE) -C $(K)/../sdk/libzxv OUT=$(@D) SANITIZE=1 ZXV_NO_TENSOR=1 $@
+$(LIBZXV_FUZZ):
+	$(MAKE) -C $(K)/../sdk/libzxv CC=$(CC_FUZZ) OUT=$(@D) SANITIZE=1 ZXV_NO_TENSOR=1 $@
+
+DIR_fuzz_hwemu := parsers
+INC_fuzz_hwemu := -I$(S)/hwemu -I$(S)/lpres -I$(S)/pqsec -I$(S)/robin_debanks
+SRC_fuzz_hwemu := $(addprefix $(S)/hwemu/,hwp.c hwr.c hwa.c hwr_pq.c hwm.c) $(S)/lpres/lpres_hex.c \
+                  $(S)/lpres/lpres.c $(S)/robin_debanks/sha256.c $(S)/pqsec/pq_mldsa87.c \
+                  $(S)/pqsec/mldsa/fips202.c $(S)/pqsec/pq_slh256s.c $(sort $(wildcard $(S)/pqsec/slhdsa/*.c))
+DEF_fuzz_hwemu := -DTEST_HOST
+
+DIR_fuzz_paradox := parsers
+INC_fuzz_paradox := -I$(S)/paradox -I$(S)/lpres -I$(S)/robin_debanks
+SRC_fuzz_paradox := $(S)/paradox/paradox.c $(S)/paradox/paradox_graph.c $(S)/lpres/lpres_hex.c \
+                    $(S)/lpres/lpres.c $(S)/robin_debanks/sha256.c
+DEF_fuzz_paradox := -DTEST_HOST
+
 # ---- economic invariants ---------------------------------------------------
 ECON := fuzz_econ_vino fuzz_econ_pay fuzz_econ_count_house fuzz_econ_triple
 
@@ -176,6 +256,52 @@ DIR_fuzz_econ_triple := econ
 INC_fuzz_econ_triple := -I$(S)/finance -I$(S)/vino -I$(S)/surplus -I$(S)/edp_risk
 SRC_fuzz_econ_triple := $(S)/finance/triple_ledger.c
 
+# Finance modules (adversarial self-audit 2026-10-12): conservation, refused
+# operations change nothing, key/owner binding, exact models of each module.
+ECON += fuzz_econ_vbond fuzz_econ_vderiv fuzz_econ_zenny fuzz_econ_grants fuzz_econ_estate \
+        fuzz_econ_svault fuzz_econ_vswap fuzz_econ_vauction
+
+DIR_fuzz_econ_svault := econ
+INC_fuzz_econ_svault := $(INC_fuzz_pay_xml) -I$(S)/svault
+SRC_fuzz_econ_svault := $(S)/svault/svault.c $(SRC_fuzz_pay_xml)
+DEF_fuzz_econ_svault := -DTEST_HOST
+
+DIR_fuzz_econ_vswap := econ
+INC_fuzz_econ_vswap := $(INC_fuzz_pay_xml) -I$(S)/vswap
+SRC_fuzz_econ_vswap := $(S)/vswap/vswap.c $(SRC_fuzz_pay_xml)
+DEF_fuzz_econ_vswap := -DTEST_HOST
+
+DIR_fuzz_econ_vauction := econ
+INC_fuzz_econ_vauction := $(INC_fuzz_pay_xml) -I$(S)/vauction
+SRC_fuzz_econ_vauction := $(S)/vauction/vauction.c $(SRC_fuzz_pay_xml)
+DEF_fuzz_econ_vauction := -DTEST_HOST
+
+DIR_fuzz_econ_vbond := econ
+INC_fuzz_econ_vbond := $(INC_fuzz_pay_xml) -I$(S)/vbond
+SRC_fuzz_econ_vbond := $(S)/vbond/vbond.c $(SRC_fuzz_pay_xml)
+DEF_fuzz_econ_vbond := -DTEST_HOST
+
+DIR_fuzz_econ_vderiv := econ
+INC_fuzz_econ_vderiv := $(INC_fuzz_pay_xml) -I$(S)/vderiv
+SRC_fuzz_econ_vderiv := $(S)/vderiv/vderiv.c $(SRC_fuzz_pay_xml)
+DEF_fuzz_econ_vderiv := -DTEST_HOST
+
+DIR_fuzz_econ_zenny := econ
+INC_fuzz_econ_zenny := $(INC_fuzz_pay_xml) -I$(S)/zenny
+SRC_fuzz_econ_zenny := $(S)/zenny/zenny.c $(SRC_fuzz_pay_xml)
+DEF_fuzz_econ_zenny := -DTEST_HOST
+
+DIR_fuzz_econ_grants := econ
+INC_fuzz_econ_grants := $(INC_fuzz_pay_xml) -I$(S)/grants
+SRC_fuzz_econ_grants := $(S)/grants/grants.c $(SRC_fuzz_pay_xml)
+DEF_fuzz_econ_grants := -DTEST_HOST
+
+DIR_fuzz_econ_estate := econ
+INC_fuzz_econ_estate := $(INC_fuzz_pay_xml) -I$(S)/estate
+SRC_fuzz_econ_estate := $(S)/estate/estate.c $(S)/estate/faraid.c $(S)/pay/pay_util.c \
+                        $(S)/robin_debanks/sha256.c $(S)/tensor/zt.c $(S)/mlkem/keccak.c
+DEF_fuzz_econ_estate := -DTEST_HOST
+
 ALL := $(PARSERS) $(ECON)
 
 .PHONY: all replay prop fuzzers run run-one smoke clean list seeds coverage
@@ -199,10 +325,10 @@ $(OUT)/replay/$(1): $(DIR_$(1))/$(1).c $(SRC_$(1)) common/fuzz_main.c common/fuz
 	@mkdir -p $$(@D)
 	$(CC_REPLAY) $(REPLAY_CFLAGS) $(XSAN_$(1)) $(DEF_$(1)) -Icommon $(INC_$(1)) $(DIR_$(1))/$(1).c \
 		common/fuzz_main.c $(SRC_$(1)) -o $$@ -lm
-$(OUT)/fuzz/$(1): $(DIR_$(1))/$(1).c $(SRC_$(1)) common/fuzz_in.h sanitizer-ignorelist.txt
+$(OUT)/fuzz/$(1): $(DIR_$(1))/$(1).c $(or $(SRC_FUZZ_$(1)),$(SRC_$(1))) common/fuzz_in.h sanitizer-ignorelist.txt
 	@mkdir -p $$(@D)
 	$(CC_FUZZ) $(FUZZ_CFLAGS) $(DEF_$(1)) -Icommon $(INC_$(1)) $(DIR_$(1))/$(1).c \
-		$(SRC_$(1)) -o $$@ -lm
+		$(or $(SRC_FUZZ_$(1)),$(SRC_$(1))) -o $$@ -lm
 endef
 $(foreach t,$(ALL),$(eval $(call TARGET,$(t))))
 

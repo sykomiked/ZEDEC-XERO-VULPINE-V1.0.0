@@ -765,7 +765,7 @@ int aipi_execute(aipi_ctx_t *c, const ipfsn_cid_t *fn_cid, const uint8_t *in, ui
     if (route == AIPI_ROUTE_UNAVAILABLE) return AIPI_ERR_OFFLINE;
     j->route = (uint8_t) route;
     j->status = AIPI_JOB_PENDING;
-    j->deadline = now + ttl;
+    j->deadline = ttl > UINT64_MAX - now ? UINT64_MAX : now + ttl; /* no wrap to the past */
     *job = idx;
 
     if (route == AIPI_ROUTE_CACHE) {

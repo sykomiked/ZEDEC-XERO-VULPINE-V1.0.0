@@ -81,7 +81,10 @@
  *   V6 SIGNATURES. Terms carry a nonce that must equal the instance's next
  *      nonce (vderiv_t.nonce); a successful open consumes it, so a signed
  *      terms message opens at most one position. Both parties' keys must
- *      differ and both must sign the same terms message.
+ *      differ and both must sign the same terms message. Each key id must be
+ *      the ledger owner id of the account it names (writer_key owns writer,
+ *      and so on; VDERIV_ERR_SIG otherwise), so nobody can commit another
+ *      owner's Vino with keys of its own.
  *
  * Bounds: every lock, premium and balance is at most VDERIV_LINE_MAX (2^59,
  * pay_ledger's per-line cap), and each escrow account's total stays at most

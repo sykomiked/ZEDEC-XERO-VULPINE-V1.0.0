@@ -262,10 +262,17 @@ typedef struct {
 #define Q_SPEED_OF_LIGHT  (2.99792458e8)      /* c (m/s) */
 #define Q_PI_SQUARED      (9.869604401089358) /* π² */
 #else
-/* In fixed-point, we store scaled values */
-#define Q_PLANCK_REDUCED  SR_FROM_FLOAT(1.054571817e-34)
-#define Q_SPEED_OF_LIGHT  SR_FROM_FLOAT(2.99792458e8)
-#define Q_PI_SQUARED      SR_FROM_FLOAT(9.869604401089358)
+/* Q32.32 cannot hold SI values: its smallest step is 2^-32 (2.3e-10), so
+ * hbar = 1.05e-34 J*s rounded to 0 and every Casimir force and zero-point
+ * energy came out 0. The fixed-point build therefore works in
+ * nanometres, femtoseconds and electronvolts:
+ *   hbar = 0.6582119569 eV*fs, c = 299.792458 nm/fs, hbar*c = 197.327 eV*nm.
+ * Plate separations are in nm, areas in nm^2, angular frequencies in rad/fs;
+ * forces per area come out in eV/nm^4 (1 eV/nm^4 = 1.602e17 Pa) and
+ * energies in eV. a^4 must stay below 2^31, so separations up to ~215 nm. */
+#    define Q_PLANCK_REDUCED SR_FROM_FLOAT(0.6582119569) /* eV*fs */
+#    define Q_SPEED_OF_LIGHT SR_FROM_FLOAT(299.792458)   /* nm/fs */
+#    define Q_PI_SQUARED     SR_FROM_FLOAT(9.869604401089358)
 #endif
 
 /* ===== API ===== */
