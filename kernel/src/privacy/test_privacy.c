@@ -283,6 +283,285 @@ static void test_sd(void)
     CHECK(priv_sd_digest(&z, dx) == PRIV_E_ARG, "an empty name");
 }
 
+/* A scripted source: the listed words in order, then `rest`. */
+typedef struct {
+    const uint64_t *v;
+    unsigned n, i;
+    uint64_t rest;
+    unsigned calls;
+} script_t;
+static uint64_t scr(void *ctx)
+{
+    script_t *s = ctx;
+    s->calls++;
+    return s->i < s->n ? s->v[s->i++] : s->rest;
+}
+
+/* For CKS20 Algorithm 1 with gamma = 1: the k-th Bernoulli(1/k) draw
+ * (k = 2, 3, ...) is true while k < stop_k and false at stop_k. */
+static unsigned run_k, run_stop;
+static uint64_t run(void *ctx)
+{
+    (void) ctx;
+    uint64_t k = ++run_k + 1;
+    uint64_t m = k * ((1ull << 63) / k + 1); /* above 2^64 mod k, a multiple of k */
+    return k < run_stop ? m : m + 1;
+}
+
+static void test_edges(void)
+{
+    bool b;
+    /* P1: Bernoulli(1/1) needs no draw */
+    script_t c0 = {NULL, 0, 0, 0, 0};
+    priv_rng_t C = {scr, &c0};
+    CHECK(priv_bern(&C, 1, 1, &b) == PRIV_OK && b && c0.calls == 0, "den 1: no draw");
+    /* rejection sampling: 2^64 mod 3 = 1, so the word 0 is rejected, 1 is not */
+    priv_rng_t S = {stuck, NULL};
+    stuck_v = 0;
+    CHECK(priv_bern(&S, 1, 3, &b) == PRIV_E_RNG, "the word below 2^64 mod 3 is rejected");
+    stuck_v = 1;
+    CHECK(priv_bern(&S, 2, 3, &b) == PRIV_OK && b, "the word 2^64 mod 3 is kept (u = 1)");
+    stuck_v = 2;
+    CHECK(priv_bern(&S, 2, 3, &b) == PRIV_OK && !b, "u = 2 is not below 2");
+    /* exactly UNIFORM_TRIES (64) attempts */
+    script_t c63 = {NULL, 0, 0, 1, 0};
+    uint64_t zeros[64] = {0};
+    c63.v = zeros;
+    c63.n = 63;
+    C.ctx = &c63;
+    CHECK(priv_bern(&C, 2, 3, &b) == PRIV_OK && b && c63.calls == 64, "accepted on try 64");
+    script_t c64 = {zeros, 64, 0, 1, 0};
+    C.ctx = &c64;
+    CHECK(priv_bern(&C, 2, 3, &b) == PRIV_E_RNG && c64.calls == 64, "64 rejections: fail");
+
+    /* Algorithm 1 runs to k = 64 and no further */
+    priv_rng_t K = {run, NULL};
+    run_k = 0;
+    run_stop = 64;
+    CHECK(priv_bern_exp(&K, 1, 1, &b) == PRIV_OK && !b && run_k == 63, "k = 64 is allowed");
+    run_k = 0;
+    run_stop = 1000;
+    CHECK(priv_bern_exp(&K, 1, 1, &b) == PRIV_E_RNG && run_k == 63, "k = 65 is refused");
+    run_k = 0;
+    run_stop = 3;
+    CHECK(priv_bern_exp(&K, 1, 1, &b) == PRIV_OK && b && run_k == 2, "stops at k = 3: odd");
+    /* a failed draw inside exp(-1)^floor(g) is passed up */
+    stuck_v = 0;
+    CHECK(priv_bern_exp(&S, 3, 1, &b) == PRIV_E_RNG, "integer part: draw fails");
+    priv_rng_t none = {NULL, NULL};
+    CHECK(priv_bern_exp(&none, 1, 2, &b) == PRIV_E_ARG, "fraction part: no source");
+
+    /* Algorithm 2 */
+    int64_t z = 77;
+    stuck_v = 0;
+    CHECK(priv_dlap(&S, 1, 3, &z) == PRIV_E_RNG && z == 0, "dlap: failed draw leaves 0");
+    const uint64_t T = UINT64_MAX;
+    /* u = 2^63 - 1; Bernoulli(exp(-u/t)) true; v = 0; sign negative */
+    const uint64_t w1[] = {(1ull << 63) - 1, T - 1, 1, 0};
+    script_t s1 = {w1, 4, 0, 0, 0};
+    C.ctx = &s1;
+    CHECK(priv_dlap(&C, 1, T, &z) == PRIV_OK && z == -INT64_MAX, "y = INT64_MAX fits: %lld",
+          (long long) z);
+    const uint64_t w2[] = {(1ull << 63) + 5, T - 1, 1, 0};
+    script_t s2 = {w2, 4, 0, 0, 0};
+    C.ctx = &s2;
+    CHECK(priv_dlap(&C, 1, T, &z) == PRIV_E_OVERFLOW, "y above INT64_MAX");
+
+    /* P2 bounds */
+    priv_budget_t bb;
+    const uint64_t F = 1ull << 32;
+    CHECK(priv_budget_init(NULL, 1, 1) == PRIV_E_ARG, "NULL budget");
+    CHECK(priv_budget_init(&bb, 0, 1) == PRIV_E_ARG && bb.total_num == 0 && bb.total_den == 1 &&
+              bb.spent_num == 0 && bb.spent_den == 1 && bb.releases == 0,
+          "a refused budget is empty");
+    CHECK(priv_budget_init(&bb, F, 1) == PRIV_OK && priv_budget_init(&bb, 1, F) == PRIV_OK &&
+              priv_budget_init(&bb, 1, F + 1) == PRIV_E_ARG,
+          "2^32 is the largest term");
+    priv_budget_init(&bb, 2, 1);
+    CHECK(priv_budget_spend(&bb, 1, 1) == PRIV_OK && priv_budget_spend(&bb, F, F) == PRIV_OK &&
+              bb.spent_num == 2 && bb.spent_den == 1,
+          "1 + 2^32/2^32 = 2");
+    CHECK(priv_budget_spend(&bb, F + 1, 1) == PRIV_E_ARG && priv_budget_spend(&bb, 1, F + 1) ==
+              PRIV_E_ARG && priv_budget_spend(&bb, 1, 0) == PRIV_E_ARG,
+          "spend terms out of range");
+    priv_budget_init(&bb, 1, 3);
+    CHECK(priv_budget_spend(&bb, 1, 2) == PRIV_E_BUDGET, "1/2 > 1/3");
+    bb.total_den = 0;
+    CHECK(priv_budget_spend(&bb, 1, 9) == PRIV_E_ARG, "a broken budget");
+    /* the reduced fraction must fit; a 2^64 denominator fails closed */
+    priv_budget_init(&bb, 2, 1);
+    CHECK(priv_budget_spend(&bb, 1, F) == PRIV_OK && bb.spent_den == F, "1/2^32 fits");
+    CHECK(priv_budget_spend(&bb, 1, F) == PRIV_E_OVERFLOW && bb.spent_den == F && bb.releases == 1,
+          "denominator 2^64");
+    CHECK(priv_budget_spend(&bb, 1, F >> 1) == PRIV_OK && bb.spent_num == 3 && bb.spent_den == F,
+          "1/2^32 + 1/2^31 = 3/2^32 (denominator 2^63 before reducing)");
+    priv_budget_init(&bb, 2, 1);
+    priv_budget_spend(&bb, 1, F);
+    CHECK(priv_budget_spend(&bb, 1, F - 1) == PRIV_E_OVERFLOW && bb.releases == 1,
+          "1/2^32 + 1/(2^32-1) does not reduce to fit");
+    priv_budget_init(&bb, F, 1);
+    CHECK(priv_budget_spend(&bb, F >> 1, 1) == PRIV_OK && priv_budget_spend(&bb, F, F) == PRIV_OK &&
+              bb.spent_num == (F >> 1) + 1 && bb.spent_den == 1,
+          "numerator 2^63 + 2^32 before reducing");
+    priv_budget_init(&bb, F, 1);
+    CHECK(priv_budget_spend(&bb, F, 1) == PRIV_OK && bb.spent_num == F, "spent reaches 2^32");
+    priv_budget_init(&bb, F, 1);
+    priv_budget_spend(&bb, F - 1, 1);
+    CHECK(priv_budget_spend(&bb, F, F) == PRIV_E_OVERFLOW && bb.spent_num == F - 1 &&
+              bb.releases == 1,
+          "numerator 2^64 before reducing fails closed");
+    priv_budget_init(&bb, 2, 1);
+    bb.releases = UINT32_MAX;
+    CHECK(priv_budget_spend(&bb, 1, 2) == PRIV_E_OVERFLOW && bb.spent_num == 0, "release count");
+
+    /* P3 arguments */
+    priv_budget_init(&bb, 1, 1);
+    CHECK(priv_release_count(&bb, &R, 1, 1, 2, 1, NULL) == PRIV_E_ARG, "no output");
+    CHECK(priv_release_count(&bb, NULL, 1, 1, 2, 1, &z) == PRIV_E_ARG && bb.spent_num == 0 &&
+              z == 0,
+          "no source: nothing spent");
+    CHECK(priv_release_count(&bb, &R, 1, 1, 2, 0, &z) == PRIV_E_ARG && bb.spent_num == 0,
+          "sensitivity 0: nothing spent");
+    priv_budget_init(&bb, F, 1);
+    priv_status_t st = PRIV_OK;
+    for (int i = 0; i < 200 && st == PRIV_OK; i++)
+        st = priv_release_count(&bb, &R, INT64_MAX, 1, 1, 1, &z);
+    CHECK(st == PRIV_E_OVERFLOW && z == 0, "count + noise overflows: output 0");
+}
+
+static void test_access_edges(void)
+{
+    priv_rule_t rules[1] = {{1, PRIV_ANY, 3, PRIV_ALLOW}};
+    priv_consent_t cons[2] = {{9, 3, 10, 0, true, false}, {7, 3, 100, 0, true, false}};
+    priv_policy_t p;
+    memset(&p, 0, sizeof p);
+    p.rules = rules;
+    p.n_rules = 1;
+    priv_request_t q = {1, 4, 3, 7, 100, 50};
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_TRUE, "an ordinary category needs no consent");
+    q.category = PRIV_MAX_CATEGORIES;
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_FALSE, "category 32 is out of range");
+    q.category = 4;
+    p.special_mask = 1u << 4;
+    p.consents = cons;
+    p.n_consents = 2;
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_TRUE, "the second consent matches, granted now");
+    cons[1].expires = 1;
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_FALSE, "expired at 1");
+    cons[1].expires = 101;
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_TRUE, "expires after now");
+    cons[1].expires = 100;
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_FALSE, "expires now");
+    cons[1].expires = 0;
+    p.retention[4] = 50;
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_TRUE, "exactly at the retention limit");
+    q.record_time = 100;
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_TRUE, "a record from now");
+    q.record_time = 49;
+    CHECK(lpx_base(priv_access(&p, &q)) == LPX_B_FALSE, "one past retention");
+}
+
+static void sign(const uint8_t (*d)[32], uint32_t n, uint8_t sig[32])
+{
+    uint8_t m[32];
+    priv_sd_list_msg(d, n, m);
+    sha256_ctx_t c;
+    sha256_init(&c);
+    sha256_update(&c, (const uint8_t *) "issuer", 6);
+    sha256_update(&c, m, 32);
+    sha256_final(&c, sig);
+}
+
+static void test_sd_edges(void)
+{
+    /* digest layout: "zxv/sd/v1" || salt[16] || len || name || len || value */
+    priv_claim_t c = {{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, "age_over_18", "true"};
+    uint8_t got[32], want[32];
+    uint8_t l;
+    sha256_ctx_t h;
+    sha256_init(&h);
+    sha256_update(&h, (const uint8_t *) "zxv/sd/v1", 9);
+    sha256_update(&h, c.salt, 16);
+    l = 11;
+    sha256_update(&h, &l, 1);
+    sha256_update(&h, (const uint8_t *) "age_over_18", 11);
+    l = 4;
+    sha256_update(&h, &l, 1);
+    sha256_update(&h, (const uint8_t *) "true", 4);
+    sha256_final(&h, want);
+    CHECK(priv_sd_digest(&c, got) == PRIV_OK && memcmp(got, want, 32) == 0, "digest layout");
+    priv_claim_t bad = c;
+    CHECK(priv_sd_digest(NULL, got) == PRIV_E_ARG && priv_sd_digest(&c, NULL) == PRIV_E_ARG,
+          "NULL claim or output");
+    bad.name = NULL;
+    CHECK(priv_sd_digest(&bad, got) == PRIV_E_ARG, "NULL name");
+    bad = c;
+    bad.value = NULL;
+    CHECK(priv_sd_digest(&bad, got) == PRIV_E_ARG, "NULL value");
+    char s255[256], s256[257];
+    memset(s255, 'a', 255);
+    s255[255] = 0;
+    memset(s256, 'a', 256);
+    s256[256] = 0;
+    bad = c;
+    bad.name = s255;
+    bad.value = s255;
+    CHECK(priv_sd_digest(&bad, got) == PRIV_OK, "255-byte name and value");
+    bad.value = s256;
+    CHECK(priv_sd_digest(&bad, got) == PRIV_E_ARG, "256-byte value");
+
+    /* list layout: "zxv/sd-list/v1" || n (32-bit LE) || digests */
+    static uint8_t dl[300][32];
+    for (unsigned i = 0; i < 300; i++)
+        for (unsigned j = 0; j < 32; j++) dl[i][j] = (uint8_t) (i * 31 + j);
+    const uint8_t (*D)[32] = (const uint8_t (*)[32]) dl;
+    const uint8_t le[4] = {300 & 0xFF, 300 >> 8, 0, 0};
+    sha256_init(&h);
+    sha256_update(&h, (const uint8_t *) "zxv/sd-list/v1", 14);
+    sha256_update(&h, le, 4);
+    for (unsigned i = 0; i < 300; i++) sha256_update(&h, dl[i], 32);
+    sha256_final(&h, want);
+    CHECK(priv_sd_list_msg(D, 300, got) == PRIV_OK && memcmp(got, want, 32) == 0, "list layout");
+    static uint8_t big[1025][32];
+    const uint8_t (*B)[32] = (const uint8_t (*)[32]) big;
+    CHECK(priv_sd_list_msg(B, 1024, got) == PRIV_OK && priv_sd_list_msg(B, 1025, got) == PRIV_E_ARG,
+          "at most 1024 digests");
+    CHECK(priv_sd_list_msg(NULL, 1, got) == PRIV_E_ARG && priv_sd_list_msg(D, 1, NULL) == PRIV_E_ARG &&
+              priv_sd_list_msg(NULL, 0, got) == PRIV_OK,
+          "list arguments");
+
+    /* checking */
+    uint8_t dg[3][32], sig[32];
+    priv_claim_t cl[3] = {{{1}, "a", "1"}, {{2}, "b", "2"}, {{3}, "c", "3"}};
+    for (int i = 0; i < 3; i++) priv_sd_digest(&cl[i], dg[i]);
+    const uint8_t (*G)[32] = (const uint8_t (*)[32]) dg;
+    sign(G, 3, sig);
+    CHECK(priv_sd_check(G, 3, sig, 32, iss_ok, NULL, &cl[0], 1) == PRIV_OK, "the first digest");
+    CHECK(priv_sd_check(G, 3, sig, 32, iss_ok, NULL, cl, 3) == PRIV_OK, "all three");
+    CHECK(priv_sd_check(G, 3, sig, 32, NULL, NULL, cl, 1) == PRIV_E_ARG &&
+              priv_sd_check(G, 3, NULL, 32, iss_ok, NULL, cl, 1) == PRIV_E_ARG &&
+              priv_sd_check(G, 3, sig, 32, iss_ok, NULL, NULL, 1) == PRIV_E_ARG,
+          "check arguments");
+    CHECK(priv_sd_check(B, 1025, sig, 32, iss_ok, NULL, cl, 1) == PRIV_E_ARG, "list too long");
+    priv_claim_t two[2] = {cl[0], {{9}, "z", "9"}};
+    CHECK(priv_sd_check(G, 3, sig, 32, iss_ok, NULL, two, 2) == PRIV_E_CLAIM,
+          "the second claim shown is not listed");
+    two[1] = cl[2];
+    two[1].name = NULL;
+    CHECK(priv_sd_check(G, 3, sig, 32, iss_ok, NULL, two, 2) == PRIV_E_ARG, "a malformed claim");
+    /* a listed digest one byte away from the shown claim's does not match */
+    const unsigned at[] = {0, 5, 31};
+    for (unsigned k = 0; k < 3; k++) {
+        uint8_t one[1][32];
+        memcpy(one[0], dg[1], 32);
+        one[0][at[k]] ^= 0x40;
+        const uint8_t (*O)[32] = (const uint8_t (*)[32]) one;
+        sign(O, 1, sig);
+        CHECK(priv_sd_check(O, 1, sig, 32, iss_ok, NULL, &cl[1], 1) == PRIV_E_CLAIM,
+              "differs in byte %u", at[k]);
+    }
+}
+
 int main(void)
 {
     test_bernoulli();
@@ -290,6 +569,9 @@ int main(void)
     test_budget();
     test_access();
     test_sd();
+    test_edges();
+    test_access_edges();
+    test_sd_edges();
     printf("PASS %d FAIL %d\n", pass, fail);
     return fail ? 1 : 0;
 }
