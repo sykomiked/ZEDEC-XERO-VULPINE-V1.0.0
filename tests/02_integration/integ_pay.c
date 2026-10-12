@@ -79,10 +79,10 @@ static void chart(pay_ledger_t *l)
 
 static bool conserved(const pay_ledger_t *l)
 {
-    for (uint16_t as = 0; as < l->n_assets; as++) {
+    for (uint32_t as = 0; as < l->n_assets; as++) {
         uint64_t d = 0, c = 0;
         int64_t e = 0;
-        pay_ledger_totals(l, as, PAY_CAP_FINANCIAL, &d, &c, &e);
+        pay_ledger_totals(l, (uint16_t)as, PAY_CAP_FINANCIAL, &d, &c, &e);
         if (d != c || e != 0) return false;
     }
     return true;
