@@ -9,6 +9,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../store.dart';
 import 'theme.dart';
+import 'zxv_bar.dart';
 
 class PairView extends StatefulWidget {
   const PairView({super.key, required this.store, this.allowScan = true});
@@ -100,6 +101,7 @@ class _PairViewState extends State<PairView> {
               onPressed: _busy ? null : () => _pair(_link.text),
               child: Text(_busy ? 'Connecting' : 'Pair'),
             ),
+            if (_busy) const Padding(padding: EdgeInsets.only(top: 12), child: ZxvBar()),
             if (_error != null)
               Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: const TextStyle(color: Zc.warn))),
             const SizedBox(height: 24),

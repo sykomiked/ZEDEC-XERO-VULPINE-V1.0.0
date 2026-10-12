@@ -14,6 +14,7 @@ import 'src/ui/settings.dart';
 import 'src/ui/storefront.dart';
 import 'src/ui/studio.dart';
 import 'src/ui/theme.dart';
+import 'src/ui/zxv_bar.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -155,6 +156,7 @@ class _NotConnected extends StatelessWidget {
               style: const TextStyle(color: Zc.muted),
             ),
             const SizedBox(height: 16),
+            if (store.link == LinkState.connecting) const SizedBox(width: 220, child: ZxvBar()),
             if (store.link == LinkState.down)
               FilledButton(onPressed: store.connect, child: const Text('Try again')),
           ]),
