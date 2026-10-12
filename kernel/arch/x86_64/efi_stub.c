@@ -46,7 +46,7 @@ typedef struct {
   void*CErrH; void*StdErr; void*RuntimeSvc; BOOTSVC *BootSvc;
 } SYSTAB;
 
-#include "../efi_models.h"   /* golden disc: verify \ZXV\MODELS\*.gguf */
+#include "../efi_models.h" /* golden disc: verify \ZXV\MODELS\*.gguf */
 
 /* UEFI function-pointer types (all EFIAPI / ms_abi) */
 typedef EFI_STATUS (EFIAPI *FN_GMM)(u64*, void*, u64*, u64*, u32*);
@@ -144,8 +144,8 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
 
     /* A golden disc carries AI models: check each one's SHA-256 while the
      * firmware's file system is still there. Nothing happens on a plain disc. */
-    efi_check_models(image, st->BootSvc->HandleProtocol,
-                     st->BootSvc->AllocatePool, st->BootSvc->FreePool);
+    efi_check_models(image, st->BootSvc->HandleProtocol, st->BootSvc->AllocatePool,
+                     st->BootSvc->FreePool);
 
     /* ---- GetMemoryMap + ExitBootServices (UEFI spec 7.4) ---- */
     u64 msz=0, mkey=0, dsz=0; u32 dver=0; void *mmap=0;
