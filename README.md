@@ -67,6 +67,10 @@ listed as working unless the code does it.
   emulation in CI. It has not yet booted on a physical board.
 - Floating point banned in kernel images at compile time; capability-checked
   syscalls; zxvfs with journal and extents; AI self-check at boot.
+- Legacy console engines (6502, Z80, 68000 and others) used as a stress-test
+  bench: fixed ROM programs exercise the kernel during development, and no
+  commercial ROMs ship in the repository
+  ([docs/WHY_GAME_ROM_ENGINES.md](docs/WHY_GAME_ROM_ENGINES.md)).
 
 **Desktop app and daemon**
 - ZXV Swarm desktop app: a universal Mac app (Apple Silicon and Intel), with
