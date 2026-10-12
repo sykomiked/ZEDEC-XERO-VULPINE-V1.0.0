@@ -47,8 +47,11 @@ merged, and every night on `main`.
    every other workflow (`desktop`, `macos-studio`, `sdk*`, the rest of
    `zxvd`) skips its jobs on a draft and starts when the pull request is
    marked ready. The slow tier runs when a pull request is opened ready or
-   marked ready for review, on every push after that, on every push to
-   `main`, nightly at 03:23 UTC and on manual runs. To run the full set on a
+   marked ready for review, on every push after that, nightly at 03:23 UTC
+   and on manual runs. Pushes to `main` run the fast tier only: every merge
+   already passed the slow tier as a ready pull request, and a full rerun
+   on `main` after each merge held the 20-job limit away from open pull
+   requests. To run the full set on a
    draft, start CI by hand from the Actions tab (Run workflow, pick the
    branch).
 
@@ -127,7 +130,8 @@ Settings > Rules > Rulesets > New branch ruleset, target `main`, enable
 "Require status checks to pass", add `ci-gate` (source: GitHub Actions),
 and enable "Block force pushes". Leave "Require branches to be up to date"
 off: with a 20-job limit it would re-run every open pull request after each
-merge. The slow-tier run on every push to `main` covers what it would catch.
+merge. The fast tier on every push to `main` and the nightly slow tier
+cover what it would catch.
 
 Not covered by `ci-gate`: the path-filtered workflows (`desktop`,
 `macos-studio`, `sdk*`, `zxvd`). They only run when their paths change, so

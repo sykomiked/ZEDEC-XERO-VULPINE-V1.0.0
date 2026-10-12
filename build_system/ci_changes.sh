@@ -15,9 +15,8 @@
 # Environment (all optional):
 #   EVENT  GitHub event name: push, pull_request, schedule, workflow_dispatch
 #   DRAFT  "true" when the pull request is a draft
-#   REF    the pushed ref (github.ref); a push to refs/heads/main runs the
-#          slow tier so a regression on main is caught at merge, not by the
-#          next unrelated pull request
+#   REF    the pushed ref (github.ref); unused since pushes to main went
+#          back to the fast tier (the nightly run covers main's slow tier)
 #   WORKTREE  "1" to diff the working tree (uncommitted and untracked files
 #          included) instead of HEAD; scripts/verify-local.sh sets it
 #
@@ -27,9 +26,11 @@
 #   sdk     kernel, sdk/ or a bindings/<language>/ directory changed
 #   mac     kernel, macos/ or docs/MAC_APP.md (bundled into the app) changed
 #   proofs  proofs/ changed
-#   heavy   run the slow tier: nightly, manual runs, pushes to main, and pull
-#           requests that are ready for review (not drafts). Draft pushes and
-#           pushes to other branches run the fast tier only. Merging needs the
+#   heavy   run the slow tier: nightly, manual runs, and pull requests that
+#           are ready for review (not drafts). Draft pushes and every branch
+#           push, main included, run the fast tier only: a merge to main has
+#           already passed the slow tier as a ready pull request, and with a
+#           20-job limit a full rerun on main held every open pull request. Merging needs the
 #           ci-gate check, which only a ready pull request's run reports and
 #           only after the slow tier passed (docs/CI.md, "Merge gate").
 #
@@ -91,7 +92,6 @@ heavy=false
 case "$EVENT" in
     schedule|workflow_dispatch) heavy=true ;;
     pull_request) [ "$DRAFT" = true ] || heavy=true ;;
-    push) [ "$REF" = refs/heads/main ] && heavy=true ;;
 esac
 
 out="kernel=$kernel
