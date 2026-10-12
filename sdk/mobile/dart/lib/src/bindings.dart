@@ -482,8 +482,8 @@ ZxvLib _load() {
   try {
     final rc = z.version(v, v + 1, v + 2);
     if (rc != 0) throw StateError('zxv_version failed with status $rc');
-    if (v[0] != 1 || v[1] < 3) {
-      throw UnsupportedError('need libzxv ABI 1.3 or a later 1.x, found ${v[0]}.${v[1]}.${v[2]} at $where');
+    if (v[0] != 1 || v[1] < 5) {
+      throw UnsupportedError('need libzxv ABI 1.5 or a later 1.x, found ${v[0]}.${v[1]}.${v[2]} at $where');
     }
   } finally {
     calloc.free(v);
