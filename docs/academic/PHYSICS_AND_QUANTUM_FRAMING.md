@@ -306,10 +306,12 @@ not the computer the code runs on.
 | UBH-168 | `kernel/src/ubh/ubh.h` | A 168-bit (21-octet) framed envelope viewed as octets, septets or sextets | Data framing; "harmonization" has no physical meaning |
 | Casimir, ZPE, wormhole | `kernel/src/quantum/` | §4.2 | Numeric model; no physical effect |
 | Qubit buffer | `kernel/src/epu/` | §4.3 | Product-state simulator, host only |
+| Non-local karma events | `kernel/src/dharma/karma.h` (`NON_LOCAL`) | Two events coupled by a fixed correlation rule, looked up anywhere in the set | Metaphor for Bell/EPR correlation; a classical table lookup. The comment said "genuine quantum non-locality" until 2026-10-12 |
 
-The comment in `kernel/src/emu/holo.h` says chromostereopsis gives
-"genuine holographic depth on a 2D display, no glasses". We read this as
-overstated. Chromostereopsis is a real depth illusion from chromatic
+The comment in `kernel/src/emu/holo.h` used to say chromostereopsis gives
+"genuine holographic depth on a 2D display, no glasses". That was
+overstated, and on 2026-10-12 the comment was corrected to "a perceived
+depth cue" with a note that "holographic" is a name, not a claim. Chromostereopsis is a real depth illusion from chromatic
 aberration of the eye, but its strength and even its sign vary between
 observers and viewing conditions (Thompson, May and Stone 1993). It gives
 a depth cue, not holographic depth. The function `holo_selfcheck`, called at
@@ -333,7 +335,7 @@ does not test perception.
 | ML-KEM, ML-DSA, SLH-DSA, HQC match official KATs | Tested (CI) | `kernel/src/pqsec/test_pq_kat.c`, `test_pq_matrix.c`; `kernel/src/mlkem/test_mlkem_kat.c`; `docs/PQ_MATRIX.md` |
 | PQ handshake costs about 13 ms at MATRIX level (one core, `-O2`) | Measured | `docs/PQ_MATRIX.md` §3 |
 | Chromostereopsis shading produces near-warm / far-cool colour shifts | Tested (boot self-check, arm64) | `kernel/src/emu/holo.c`; `kernel/arch/arm64/kernel_main_arm64.c` |
-| Chromostereopsis gives "genuine holographic depth" | Design intent (not evaluated; overstated, §7) | `kernel/src/emu/holo.h` |
+| Chromostereopsis gives a perceived depth cue (the source once said "genuine holographic depth"; corrected 2026-10-12) | Not evaluated: no perception test exists (§7) | `kernel/src/emu/holo.h` |
 | An exact float-free, labelled classical circuit simulator | Design intent | `docs/ARCHITECTURE.md` §9 |
 
 ## 9 Limitations and threats to validity

@@ -13,6 +13,7 @@ ledger on a microcontroller or a small gateway. It contains:
 | [`zxe/`](zxe) | **zxe_ledger**, a fixed-memory ledger with libzxv's rules and status codes, and **zxe_clock**, which drives the phase clock from a hardware tick. |
 | [`freertos-zxv/`](freertos-zxv) | A FreeRTOS owner task (ledger posting plus budget tick), run on the FreeRTOS POSIX simulator. See its [README](freertos-zxv/README.md). |
 | [`zephyr-zxv/`](zephyr-zxv) | A Zephyr module (Kconfig, CMake) and the sample `ledger_budget`. See its [README](zephyr-zxv/README.md). |
+| [`baremetal/`](baremetal) | **ZXV-BareMetal**: board manifests and boot packaging of the whole ZXV kernel for x86_64/arm64 UEFI machines, on top of the PR #25 disc build. See its [README](baremetal/README.md). (Not the `PORT=baremetal` MCU port.) |
 | [`test/`](test) | Host tests, a differential test against libzxv, and a QEMU Cortex-M3/M4 target test. |
 | [`tools/`](tools) | Size report, binary no-float check, and the source-list consistency check. |
 | [`PROPOSED_LIBZXV_CHANGES.md`](PROPOSED_LIBZXV_CHANGES.md) | Changes to libzxv that would make this cleaner. **Not applied.** |

@@ -916,6 +916,10 @@ verify-all: test
 		src/rational/test_rational_regress.c src/rational/rational.c \
 		-o /tmp/test_rational_regress -lm && \
 		/tmp/test_rational_regress && echo "[PASS] test_rational_regress" || { echo "[FAIL] test_rational_regress"; exit 1; }; \
+	gcc -std=c11 -Wall -Werror -Wextra -DRAT_NO_WIDE -Isrc/rational \
+		src/rational/test_rational_narrow.c src/rational/rational.c \
+		-o /tmp/test_rational_narrow -lm && \
+		/tmp/test_rational_narrow > /tmp/test_rational_narrow.log 2>&1 && echo "[PASS] test_rational_narrow (no-__int128 path)" || { tail -20 /tmp/test_rational_narrow.log; echo "[FAIL] test_rational_narrow"; exit 1; }; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/abacus -Isrc/rational \
 		src/abacus/test_abacus_regress.c src/abacus/abacus.c src/rational/rational.c \
 		-o /tmp/test_abacus_regress -lm && \

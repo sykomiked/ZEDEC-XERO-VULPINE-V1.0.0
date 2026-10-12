@@ -19,6 +19,7 @@ no floats.
 | AIPI | [`aipi`](aipi/) | Content-addressed functions. Runs functions named by CID (module, contract and checking rule hashed together) in Z-Wasm inside their z-contract, checks other nodes' answers with the function's own inverse or certificate, and makes certificates. The core ([`kernel/src/aipi`](../../kernel/src/aipi/aipi.h)) adds GET by hash, quorum, escrow and privacy. Compiles that kernel core in, an exception to the public-ABI rule until AIPI is in libzxv. Design: [docs/AIPI.md](../../docs/AIPI.md). | kit API 0.1 (preview) | 60 end-to-end checks on real Wasm (gcc, clang, ASan + UBSan); the core's 617 checks run in kernel `verify-all` |
 | z-audit | [`z-audit`](z-audit/) | A static checker run in CI before a plugin is published: the Z-Wasm validator, every float/SIMD use, imports against the allow-list, a z-contract declaration with well-formed bounds for every export, and bounded interval checks on straight-line export bodies. JSON and text reports; non-zero exit on failure. Bounded checks, not a proof. | kit API 0.1 (preview) | 109 checks, CLI exit-code and report tests, module fuzzing under ASan + UBSan |
 | Tri-Isolate | [`tri-isolate`](tri-isolate/) | Runs each Z-Wasm plugin in its own worker process (fork + exec, POSIX) over a length-prefixed socket protocol. The host validates, pays the fuel, keeps the proposal queue and decides with its own capability; it kills the worker on fuel exhaustion, a trap, a timeout or a protocol error. Optional Linux seccomp filter. A process boundary, not a VM; Windows not supported. | kit API 0.1 (preview) | 351 checks with hostile workers, frame fuzzing under ASan + UBSan |
+| ZAB-Logic | [`zab-logic`](zab-logic/) | Token budgets and a decision gate for a swarm of agents. Per-cycle allotments from the libzxv swarm economy (Fibonacci levels, the emotional axis from mood and feelings, read back exactly as the library computes them), the 64-state hexagram action table as the gate (forbidden work quarantined in `zxv_hexlog`, BOTH held for review, only manifest work that fits the allotment admitted), and a cycle report. The no-monopoly caps are the library's; the kit tests them. Budgets and gates; does not run agents. | kit API 0.1 (preview) | 5,177 checks, an independent model of the documented rules, deterministic fuzzing under ASan + UBSan; CI in its own workflow |
 
 ## Rules every kit follows
 
@@ -36,4 +37,8 @@ no floats.
   compatible with Apache-2.0.
 - **CI.** Each kit has jobs in
   [`.github/workflows/sdk.yml`](../../.github/workflows/sdk.yml) on Linux and
-  macOS, plus a sanitizer run.
+  macOS, plus a sanitizer run. ZAB-Logic has its own workflow,
+  [`.github/workflows/sdk-agents.yml`](../../.github/workflows/sdk-agents.yml),
+  rather than a row in sdk.yml's kit matrix. (A change under `sdk/kits/`
+  still starts sdk.yml's existing kit jobs, through
+  `.github/scripts/sdk-changes.sh`.)
