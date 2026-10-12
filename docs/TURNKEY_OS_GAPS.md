@@ -10,6 +10,11 @@ freestanding C with host tests, but the only verified boot is QEMU
 `BOARD_QEMU_VIRT` is verified). Until ZXV boots on physical machines, nothing
 below that touches hardware counts as "exists".
 
+**See also `OS_FEATURE_AUDIT_2026-10-12.md`.** It corrects some rows below
+(notably row 5: `kernel/src/hwdrv` is not in any pushed ref as of
+2026-10-12 10:40Z) and covers about 50 more areas (thermal, sleep, TLS
+certificate checks, disk encryption, search, printing and others).
+
 | # | Area | macOS / Windows / Linux have | ZXV today | Evidence | Next step |
 |---|---|---|---|---|---|
 | 1 | Boot | firmware boot on real machines, secure boot | partial | arm64 + x86_64 EFI stubs (`kernel/arch/*/efi_stub.c`), `kernel/grub.cfg`; QEMU only | boot one physical machine (bare-metal thread, PR #25 line) |
@@ -18,12 +23,12 @@ below that touches hardware counts as "exists".
 | 4 | Filesystem | journaled FS, permissions, ACLs | partial | `zxvfs/zxvfs.c` (journaled, tests + fuzz), `fat32/`, `vfs/`; no permissions | owner/mode/ACL in zxvfs, fsck |
 | 5 | Drivers | USB, GPU, storage, Wi-Fi, BT, audio for real chips | partial (QEMU) | virtio blk/net/input/snd/gpu; standard class drivers in `kernel/src/hwdrv` (NVMe, AHCI, xHCI + USB keyboard and mass storage, e1000/e1000e, igb, r8169, HD Audio), all passing in QEMU, none yet on real hardware; Wi-Fi/BT are protocol logic only | USB CDC/audio/UVC, BT HCI, igc, interrupts, IOMMU, then the Linux driver VM |
 | 6 | Networking | TCP/IP, DHCP, DNS, TLS, Wi-Fi | partial (strongest area) | `net/tcp.c`, `dhcp.c`, `dns.c`, `src/tls/` all tested; virtio-net | IPv6, NTP, real NIC drivers |
-| 7 | Packages and updates | package manager, signed OTA, A/B rollback | partial | `update/` (signed content-addressed updates, ML-DSA), `zxpkg/`; hwemu `hwr` has A/B slots for hardware images | A/B system slots + apply-on-device |
+| 7 | Packages and updates | package manager, signed OTA, A/B rollback | partial | `update/` (signed content-addressed updates, ML-DSA), `zxpkg/`; app-level A/B with probation and auto-rollback in `loader/abupdate.c` (tested); hwemu `hwr` has A/B slots for hardware images | system-image A/B slots + apply-on-device |
 | 8 | Security and sandboxing | app sandbox, MAC, secure boot chain, disk encryption | partial | `ZSC_CAP_*` syscall caps, EL0 per-process page tables + W^X (`el0_userspace.c`), x86 `ring3.c`; no secure boot, no disk encryption | measured boot, encrypted zxvfs volumes |
-| 9 | Accessibility | screen reader, zoom, contrast, keyboard navigation | **missing** | only a UI-scale knob (`zxv_shell_set_ui_scale`) | screen reader over `speech/`, high contrast theme, full keyboard nav |
+| 9 | Accessibility | screen reader, zoom, contrast, keyboard navigation | partial (branches) | widget roles/names, `zui_a11y_text`, Tab focus (`sfklol`); reduce-motion and WCAG contrast check (`98r3n6`); captions/read-aloud in `speech/`; no screen reader, zoom or colour filters | screen reader walking the zui tree with `speech/`, magnifier, high contrast theme |
 | 10 | Languages (i18n) | Unicode, fonts, input methods | partial (strong data) | `i18n/` CLDR 48.2 tables + tests, `font/` TrueType + shaping | input methods (IME) |
 | 11 | Backups and snapshots | Time Machine / File History / snapshots | partial | `fs/fs.c` snapshots (untested), `tripartite_fs/` | user-facing backup + restore, tested |
-| 12 | Power | sleep, battery, CPU frequency | stub | `acpi/acpi.c` parses tables only | ACPI sleep states, battery, cpufreq |
+| 12 | Power | power use per app, battery, sleep, CPU frequency | partial | **power tracking built 2026-10-12** (`kernel/src/power`, `docs/POWER.md`): energy per app and per agent, battery health and time left, budgets, on Linux/macOS/Windows hosts, Android/iOS and x86 RAPL; `acpi/acpi.c` still parses tables only | zxvd agent wiring + Brazier app; ACPI AML for battery, sleep states, thermal zones, cpufreq |
 | 13 | Printing | print to local and network printers | **missing** | nothing | IPP Everywhere client (driverless printing) |
 | 14 | Display server and windows | compositor, window manager, multi-app | partial | `desktop/zxv_shell.c` framebuffer compositor + dock (untested); hosted app uses a browser window | window protocol between apps and the compositor |
 | 15 | Shell and terminal | Terminal + bash/zsh/PowerShell | partial, three unconnected shells | `kernel_shell_exec` (arm64), `pterm/`, `desktop/zxv_shell.c` | **zxsh (this PR)**: bash-familiar syntax, line editing, sub-terminals (`split`, `tab`, `together`); later make pterm call zxsh's core |
@@ -37,7 +42,7 @@ below that touches hardware counts as "exists".
 | 23 | Virtualization and containers | Hypervisor/WSL/Docker | **missing** as an OS feature | `emu/` is retro-CPU emulation for ROM analysis | run Linux containers in a small VM next to ZXV (decided direction) |
 | 24 | Crash reporting and recovery mode | crash reports, safe mode, recovery partition | **missing** | only fail-closed logs and update rollback | panic dump to disk, recovery boot entry |
 | 25 | File manager | Finder / Explorer | stub | `LS` in the desktop shell | owned by the Built-in apps thread (Files) |
-| 26 | Notifications | notification center | partial | `social/zx_notify.h`, `zx_notify_host.c` | notification center UI |
+| 26 | Notifications | notification center | partial | `social/zx_notify.h` (do-not-disturb with breakthrough priority, tested), `zx_notify_host.c` | notification center UI |
 | 27 | Search | Spotlight / Windows Search | **missing** | nothing | local indexer over zxvfs |
 | 28 | Multi-device sync | iCloud / OneDrive | partial (adjacent) | `devmesh/`, `ipfs_node/`, `decent/` | file + settings sync on devmesh |
 
