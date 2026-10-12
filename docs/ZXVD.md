@@ -248,6 +248,12 @@ CI checks it matches what zxvd serves.
 | `companion.dna` | | `agent_id`, `seed`, `genes` (8 by name), `traits` (`home`, `*_permille`, `specialty`, `specialty_name`), `parent_a`, `parent_b`, `founder`, `generation` |
 | `companion.generation` | | `agent_id`, `generation`, `seed`, `steps`, `growths`, `last_step` |
 | `companion.mood` | | `agent_id`, `feeling`, `home`, `at_home`, `swarm_mood` (each feeling: `emotion`, `emoji`, `codepoint`, `intensity`, `charge`, `valence`) |
+| `web4.open` | `name`?, `seed`?, `now`? | `open`, `new`, `agent_id`, `name`, `pk`, `envelopes`, `held`, `max_envelopes`, `max_held`, `in_memory` |
+| `web4.post` | `kind`, `to`, `tool`?, `payload`?, `req_id`?, `chunk`?, `final`?, `pii`?, `amount_minor`?, `now`? | the entry (`id`, `kind`, `status`, `from`, `to`, `tool`, `req_id`, `chunk`, `final`, `payload`, `pii`, `amount_minor`, `seq`, `ts`, `consent`, `answers`, `grant`, `bytes`) |
+| `web4.consent` | `id`, `grant`, `expires_in`?, `now`? | `envelope`, `consent` (both entries) |
+| `web4.feed` (read-only) | `before`?, `limit`?, `status`? | `open`, `agent_id`, `envelopes`, `next`, `total`, `held` |
+| `web4.envelope` (read-only) | `id` | `id`, `kind`, `bytes`, `envelope` |
+| `web4.verify` (read-only) | `id` or `envelope`, `pk`? | `valid`, `reason` or the envelope's fields |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -261,6 +267,9 @@ refused (the message says why), -32050 an economy engine refused (the message is
 -32060 an economy engine refused (the message is `<STATUS>: why`, see
 "Bonds, derivatives, grants and estates" below), -32070 no companion yet
 (`companion.*` before the swarm has an agent),
+"Bonds, derivatives, grants and estates" below),
+-32090 a Web4 feed operation refused (the message says why, see "The Web4
+envelope feed" below),
 -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
@@ -736,6 +745,65 @@ the companion does not step, and a run can go many growths without one. The
 step can change the home feeling and specialty with a gene. The companion's
 DNA is not saved: each start grows a new one from that run's instance seed
 (taken from the clock), at generation 0.
+## The Web4 envelope feed
+
+Web4 is Chiglet companions talking to each other. The `web4` group
+(`kernel/arch/hosted/zxvd_web4.c`) gives the owner's companion an ML-DSA-65
+key and a feed of the envelopes it signs, using the envelope, consent and
+signature code of `kernel/src/web4/web4_agent.h`. The feature starts off
+(`zxvd --enable web4`, or `features.set`). It is not marked regulated:
+envelopes that would move money only wait for the owner's consent here, and
+nothing is paid.
+
+```sh
+# {"open":true,"new":true,"agent_id":"<64 hex>","name":"chiglet","pk":"<3904 hex>",...}
+web4.open {}
+# a plain REQUEST is signed at once: {"id":1,"kind":"REQUEST","status":"signed","seq":"1",...}
+web4.post {"kind":"REQUEST","to":"<their agent_id>","payload":"hello"}
+# personal data or money is held, unsigned: {"id":2,...,"status":"held","seq":null,"bytes":0}
+web4.post {"kind":"REQUEST","to":"<their agent_id>","tool":"share","payload":"my address","pii":true}
+# the owner answers: a signed CONSENT entry (id 3), then envelope 2 is signed
+web4.consent {"id":2,"grant":true}
+```
+
+- Kinds: `web4.post` takes REQUEST, RESPONSE and STREAM (`req_id` is
+  required for the last two; `chunk` and `final` mark stream chunks). A
+  CONSENT entry is made only by `web4.consent`.
+- Consent: an envelope with `pii: true` or `amount_minor` above 0 is
+  **held**. It has no signature and no bytes; `web4.envelope` and
+  `web4.verify` refuse it with -32090. `web4.consent` with `grant: true`
+  issues a consent token signed by the owner's key, bound to the envelope's
+  exact action (tool, parties, request id, payload), its scope (personal
+  data, money) and ceiling (`amount_minor`), valid `expires_in` seconds
+  (default 600) and single-use; then the token is attached and the envelope
+  signed. `grant: false` wipes the payload and the envelope is never
+  signed. Either way the answer is a CONSENT entry, signed too, that names
+  the envelope it answers (`answers`; the envelope's `consent` points
+  back). At most 32 envelopes wait at once and 64 unexpired grants exist at
+  once (both refused with -32090 beyond that).
+- Reads: `web4.feed` (newest first; pass `next` as `before` for the next
+  page; `status` filters), `web4.envelope` (a signed entry's bytes as hex,
+  what a carrier would deliver) and `web4.verify` (an entry by `id`, or
+  bytes from another companion with its `pk`) only read, and answer while
+  the feature is off. `web4.verify` returns `valid: false` with a reason
+  (`malformed`, `signature`, `the key is not the sender's`, `consent`).
+
+Honest limits:
+
+- No delivery: nothing is sent to or received from another node yet.
+  `web4.envelope` hands the signed bytes to whatever carries them; there is
+  no inbox, so incoming envelopes are not held or acted on here.
+- Whether an envelope carries personal data or money is what the caller
+  declares (`pii`, `amount_minor`); zxvd does not inspect the payload.
+- The consent token is signed by the same owner key that zxvd holds, so it
+  records the owner's answer on this socket, not a confirmation on a
+  separate device. `web4.verify` checks a token's signature and binding but
+  not its time window or single use, which are the receiver's to enforce.
+- In memory only: 64 entries (the oldest entry that is not held makes room),
+  and a restart forgets the feed and makes a new key unless `seed` is given
+  again. Payloads are text, at most 2048 bytes; envelopes are signed, not
+  encrypted. A `web4.verify` request line holds about 6000 envelope bytes
+  with a `pk`, so a large envelope with a consent token is checked by `id`.
 
 ## Tests
 
@@ -762,6 +830,10 @@ harness's tests for `zxvd_instruments.c`, `zxvd_estate.c` and `zxvd_sandbox.c`.
 swarm DNA, emotion and evolution code (exact replies, every emotion and
 intensity, the companion's step V7); it is the harness's test for
 `zxvd_companion.c`.
+`test_zxvd_web4.sh` runs the Web4 feed behind the RPC layer on the real
+web4_agent code; it keeps a mirror of the owner's companion and compares
+every envelope, consent token and CONSENT answer byte for byte. It is the
+harness's test for `zxvd_web4.c`.
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
@@ -800,6 +872,8 @@ installed .deb.
   it as `unmatched` and the account as not `consistent`.
 - The bonds, derivatives, grants and estate groups keep everything in
   memory on sandbox ledgers, not in the owner's books; see their section.
+- The Web4 envelope feed signs and holds envelopes but delivers none, and
+  lives in memory; see its section.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS
   has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The

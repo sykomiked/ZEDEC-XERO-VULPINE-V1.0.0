@@ -428,6 +428,60 @@ def companion_checks(c):
               'no agent was fitter than the companion: its DNA and generation stay (%s)' % g1)
 
 
+def web4_checks(c):
+    """web4.* over the socket: the owner's Web4 envelope feed (zxvd_web4.c)."""
+    fs = {f['name']: f for f in c.ok('features.get')['features']}
+    if 'web4' not in fs:
+        check(True, 'web4: not in this build')
+        return
+    check(not fs['web4']['regulated'] and not fs['web4']['enabled'],
+          'web4: not regulated, starts off')
+    f = c.ok('web4.feed')
+    check(f['open'] is False and f['envelopes'] == [], 'web4.feed answers while off: not open')
+    r = c.call('web4.open')
+    check(r.get('error', {}).get('code') == -32012, 'web4.open while off answers -32012')
+    c.ok('features.set', {'feature': 'web4'})
+    me = c.ok('web4.open', {'name': 'chiglet'})
+    check(me['new'] and len(me['agent_id']) == 64 and len(me['pk']) == 2 * 1952,
+          'web4.open: an ML-DSA-65 companion key')
+    check(c.ok('web4.open')['new'] is False, 'web4.open again: the same feed')
+    to = 'ab' * 32
+    e1 = c.ok('web4.post', {'kind': 'REQUEST', 'to': to, 'payload': 'hello, fox'})
+    check(e1['status'] == 'signed' and e1['seq'] == '1' and e1['req_id'] == str(e1['id']),
+          'web4.post: a plain REQUEST is signed at once')
+    env = c.ok('web4.envelope', {'id': e1['id']})
+    check(env['bytes'] == e1['bytes'] and len(env['envelope']) == 2 * env['bytes'],
+          'web4.envelope: the signed bytes')
+    v = c.ok('web4.verify', {'envelope': env['envelope'], 'pk': me['pk']})
+    check(v['valid'] and v['kind'] == 'REQUEST' and v['from'] == me['agent_id'] and v['to'] == to,
+          'web4.verify: the envelope checks against the companion key')
+    e2 = c.ok('web4.post', {'kind': 'REQUEST', 'to': to, 'tool': 'share', 'payload': 'my email',
+                            'pii': True})
+    check(e2['status'] == 'held' and e2['seq'] is None and e2['bytes'] == 0,
+          'web4.post: personal data is held, unsigned')
+    r = c.call('web4.envelope', {'id': e2['id']})
+    check(r.get('error', {}).get('code') == -32090, 'a held envelope never leaves (-32090)')
+    g = c.ok('web4.consent', {'id': e2['id'], 'grant': True})
+    check(g['envelope']['status'] == 'signed' and g['consent']['kind'] == 'CONSENT' and
+          g['consent']['answers'] == e2['id'] and g['envelope']['consent'] == g['consent']['id'],
+          'web4.consent grant: a signed CONSENT answer, then the envelope is sealed')
+    v = c.ok('web4.verify', {'id': e2['id']})
+    check(v['valid'] and v['consent'] and v['consent_scope'] == {'pii': True, 'money': False},
+          'web4.verify: the consent token is attached and checks')
+    e3 = c.ok('web4.post', {'kind': 'REQUEST', 'to': to, 'tool': 'pay', 'payload': 'invoice',
+                            'amount_minor': '1500'})
+    check(e3['status'] == 'held' and e3['amount_minor'] == '1500', 'web4.post: money is held')
+    d = c.ok('web4.consent', {'id': e3['id'], 'grant': False})
+    check(d['envelope']['status'] == 'denied' and d['envelope']['payload'] == '' and
+          d['consent']['grant'] is False, 'web4.consent deny: dropped, never signed')
+    f = c.ok('web4.feed', {'limit': 2})
+    check([x['id'] for x in f['envelopes']] == [d['consent']['id'], e3['id']],
+          'web4.feed: newest first')
+    check(f['next'] == e3['id'] and f['total'] == 5 and f['held'] == 0,
+          'web4.feed: paged by next')
+    c.ok('features.set', {'feature': 'web4', 'enabled': False})
+
+
 def main(binary, gguf=None):
     out = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=10)
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
@@ -547,6 +601,7 @@ def main(binary, gguf=None):
             aipi_checks(c, home)
         econ_checks(c)
         companion_checks(c)
+        web4_checks(c)
         mi = c.ok('model.info')
         if gguf:
             check(mi['loaded'] and mi['arch'] == 'qwen2' and mi['n_vocab'] > 1000,

@@ -103,12 +103,17 @@ case "${1:-srcs}" in
         for f in estate faraid recovery; do echo "src/estate/$f.c"; done
         # companion.*: the swarm's own DNA and emotion code is already in srcs
         echo arch/hosted/zxvd_companion.c
+        # web4.*: the Web4 envelope feed on web4_agent (its ML-DSA-65, keccak,
+        # sha256 and web4_json/web4_util are already linked) and freight
+        echo arch/hosted/zxvd_web4.c
+        echo src/web4/web4_agent.c
+        for f in freight freight_ops; do echo "src/freight/$f.c"; done
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
-        for d in src/vbond src/vderiv src/grants src/estate; do echo "$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4; do echo "$d"; done
         ;;
     *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs]" >&2; exit 2 ;;
 esac

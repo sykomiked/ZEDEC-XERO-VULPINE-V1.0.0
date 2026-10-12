@@ -35,5 +35,9 @@ const zxvd_group_t *zxvd_estate_group(void);
 /* companion.* (zxvd_companion.c, zxvd_companion.h): feature "companion",
  * not regulated, every method answers with the switch off */
 const zxvd_group_t *zxvd_companion_group(void);
+/* web4.* (zxvd_web4.c, kernel/src/web4): the owner's Web4 envelope feed,
+ * feature "web4" */
+const zxvd_group_t *zxvd_web4_group(void);
+void zxvd_web4_set_random(int (*fn)(uint8_t *p, size_t n)); /* unit tests only */
 
 #endif

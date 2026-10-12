@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c).",
     "license": {
       "name": "Apache-2.0"
     }
@@ -14464,6 +14464,1067 @@
                     0,
                     1
                   ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.feed",
+      "summary": "The owner's Web4 envelope feed, newest first, paged: pass the reply's 'next' as 'before' for the next page. Before web4.open: open false and no envelopes. Read-only; answers while the feature is off.",
+      "params": [
+        {
+          "name": "before",
+          "required": false,
+          "description": "only entries with a smaller id",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "limit",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20
+          }
+        },
+        {
+          "name": "status",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "signed",
+              "held",
+              "denied"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "feed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "open": {
+              "type": "boolean"
+            },
+            "agent_id": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^([0-9a-fA-F]{2}){32}$",
+                  "description": "32 bytes as hex"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "envelopes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "one feed entry",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4294967295
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "REQUEST",
+                      "RESPONSE",
+                      "STREAM",
+                      "CONSENT"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "signed",
+                      "held",
+                      "denied"
+                    ],
+                    "description": "held: waits for web4.consent, unsigned; denied: dropped, never signed"
+                  },
+                  "from": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{2}){32}$",
+                    "description": "32 bytes as hex"
+                  },
+                  "to": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{2}){32}$",
+                    "description": "32 bytes as hex"
+                  },
+                  "tool": {
+                    "type": "string"
+                  },
+                  "req_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,20}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "chunk": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "final": {
+                    "type": "boolean"
+                  },
+                  "payload": {
+                    "type": "string",
+                    "description": "the text; empty once denied"
+                  },
+                  "pii": {
+                    "type": "boolean"
+                  },
+                  "amount_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "seq": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9]{1,20}$",
+                        "description": "64-bit integer as a decimal string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ts": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "unix seconds"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "consent": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 4294967295,
+                        "description": "the CONSENT entry that answered this envelope"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "answers": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 4294967295,
+                        "description": "CONSENT: the envelope it answers"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "grant": {
+                    "oneOf": [
+                      {
+                        "type": "boolean",
+                        "description": "CONSENT: the answer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "signed length (0 while held or denied)"
+                  }
+                }
+              }
+            },
+            "next": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4294967295
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "held": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.envelope",
+      "summary": "A signed entry's bytes, as a carrier would deliver them. A held envelope is refused (-32090: nothing leaves before consent), as is a denied one. Read-only; answers while the feature is off.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "envelope",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "REQUEST",
+                "RESPONSE",
+                "STREAM",
+                "CONSENT"
+              ]
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "envelope": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2})+$",
+              "description": "the envelope (W4EV) or CONSENT answer (W4CA) as hex"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.verify",
+      "summary": "Check the ML-DSA-65 signature of a feed entry (id) or of envelope bytes from another companion (envelope, with its pk; default the owner's key). An attached consent token is checked for its signature and its binding to the action, never spent. Read-only; answers while the feature is off.",
+      "params": [
+        {
+          "name": "id",
+          "required": false,
+          "description": "a signed feed entry; give id or envelope",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "envelope",
+          "required": false,
+          "description": "envelope or CONSENT answer bytes",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "description": "bytes as hex"
+          }
+        },
+        {
+          "name": "pk",
+          "required": false,
+          "description": "the sender's ML-DSA-65 public key (default: the owner's)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){1952}$",
+            "description": "1952 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "verdict",
+        "schema": {
+          "type": "object",
+          "description": "valid false comes with reason (malformed, signature, the key is not the sender's, consent) and nothing else",
+          "properties": {
+            "valid": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "REQUEST",
+                "RESPONSE",
+                "STREAM",
+                "CANCEL",
+                "ERROR",
+                "CONSENT"
+              ]
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "seq": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "ts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "req_id": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "chunk": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool": {
+              "type": "string"
+            },
+            "final": {
+              "type": "boolean"
+            },
+            "payload_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "consent": {
+              "type": "boolean",
+              "description": "a consent token is attached (checked: its signature and its binding to this action)"
+            },
+            "consent_scope": {
+              "type": "object",
+              "properties": {
+                "pii": {
+                  "type": "boolean"
+                },
+                "money": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "max_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "answers": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            "grant": {
+              "type": "boolean"
+            },
+            "action": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.open",
+      "summary": "Open the owner's feed: a self-bound ML-DSA-65 companion key from the OS (or 'seed', for tests). An open feed is returned unchanged (new false). In memory: a restart makes a new key. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "name",
+          "required": false,
+          "description": "default chiglet",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9._-]{1,31}$"
+          }
+        },
+        {
+          "name": "seed",
+          "required": false,
+          "description": "for tests: the key seed instead of OS randomness",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 253402300799,
+            "description": "unix seconds"
+          }
+        }
+      ],
+      "result": {
+        "name": "feed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "open": {
+              "type": "boolean",
+              "const": true
+            },
+            "new": {
+              "type": "boolean"
+            },
+            "agent_id": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pk": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){1952}$",
+              "description": "ML-DSA-65 public key, 1952 bytes as hex"
+            },
+            "envelopes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "held": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_envelopes": {
+              "type": "integer",
+              "const": 64
+            },
+            "max_held": {
+              "type": "integer",
+              "const": 32
+            },
+            "in_memory": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.post",
+      "summary": "Add an envelope to another companion. With pii true or amount_minor above 0 it is held, unsigned, until web4.consent answers it; otherwise it is signed at once (ML-DSA-65). Nothing is sent: zxvd has no Web4 delivery yet. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "REQUEST",
+              "RESPONSE",
+              "STREAM"
+            ]
+          }
+        },
+        {
+          "name": "to",
+          "required": true,
+          "description": "the other companion's agent_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        },
+        {
+          "name": "tool",
+          "required": false,
+          "description": "default chat",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9._-]{1,31}$"
+          }
+        },
+        {
+          "name": "payload",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "text, at most 2048 bytes"
+          }
+        },
+        {
+          "name": "req_id",
+          "required": false,
+          "description": "required for RESPONSE and STREAM; a REQUEST defaults to its own id",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "chunk",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "default": 0
+          }
+        },
+        {
+          "name": "final",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "pii",
+          "required": false,
+          "description": "the payload carries personal data: held for consent",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": false,
+          "description": "money the envelope moves, VFV minor units: above 0 it is held for consent",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 253402300799,
+            "description": "unix seconds"
+          }
+        }
+      ],
+      "result": {
+        "name": "entry",
+        "schema": {
+          "type": "object",
+          "description": "one feed entry",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "REQUEST",
+                "RESPONSE",
+                "STREAM",
+                "CONSENT"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "signed",
+                "held",
+                "denied"
+              ],
+              "description": "held: waits for web4.consent, unsigned; denied: dropped, never signed"
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "to": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "tool": {
+              "type": "string"
+            },
+            "req_id": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "chunk": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "final": {
+              "type": "boolean"
+            },
+            "payload": {
+              "type": "string",
+              "description": "the text; empty once denied"
+            },
+            "pii": {
+              "type": "boolean"
+            },
+            "amount_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "seq": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,20}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ts": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "unix seconds"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "consent": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4294967295,
+                  "description": "the CONSENT entry that answered this envelope"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "answers": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4294967295,
+                  "description": "CONSENT: the envelope it answers"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "grant": {
+              "oneOf": [
+                {
+                  "type": "boolean",
+                  "description": "CONSENT: the answer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "signed length (0 while held or denied)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.consent",
+      "summary": "Answer a held envelope with a signed CONSENT entry. grant: a single-use consent token (scope pii/money, ceiling amount_minor, valid expires_in seconds) is attached and the envelope signed; deny: its payload is wiped and it is never signed. At most 64 unexpired grants at once (-32090 after that). Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "description": "the held envelope",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "grant",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "expires_in",
+          "required": false,
+          "description": "seconds the token stays valid",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400,
+            "default": 600
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 253402300799,
+            "description": "unix seconds"
+          }
+        }
+      ],
+      "result": {
+        "name": "answer",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "envelope": {
+              "type": "object",
+              "description": "one feed entry",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4294967295
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "REQUEST",
+                    "RESPONSE",
+                    "STREAM",
+                    "CONSENT"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "signed",
+                    "held",
+                    "denied"
+                  ],
+                  "description": "held: waits for web4.consent, unsigned; denied: dropped, never signed"
+                },
+                "from": {
+                  "type": "string",
+                  "pattern": "^([0-9a-fA-F]{2}){32}$",
+                  "description": "32 bytes as hex"
+                },
+                "to": {
+                  "type": "string",
+                  "pattern": "^([0-9a-fA-F]{2}){32}$",
+                  "description": "32 bytes as hex"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "req_id": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,20}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                "chunk": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "final": {
+                  "type": "boolean"
+                },
+                "payload": {
+                  "type": "string",
+                  "description": "the text; empty once denied"
+                },
+                "pii": {
+                  "type": "boolean"
+                },
+                "amount_minor": {
+                  "type": "string",
+                  "pattern": "^-?[0-9]{1,19}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                "seq": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,20}$",
+                      "description": "64-bit integer as a decimal string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ts": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "unix seconds"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "consent": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4294967295,
+                      "description": "the CONSENT entry that answered this envelope"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "answers": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4294967295,
+                      "description": "CONSENT: the envelope it answers"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "grant": {
+                  "oneOf": [
+                    {
+                      "type": "boolean",
+                      "description": "CONSENT: the answer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "signed length (0 while held or denied)"
+                }
+              }
+            },
+            "consent": {
+              "type": "object",
+              "description": "one feed entry",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4294967295
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "REQUEST",
+                    "RESPONSE",
+                    "STREAM",
+                    "CONSENT"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "signed",
+                    "held",
+                    "denied"
+                  ],
+                  "description": "held: waits for web4.consent, unsigned; denied: dropped, never signed"
+                },
+                "from": {
+                  "type": "string",
+                  "pattern": "^([0-9a-fA-F]{2}){32}$",
+                  "description": "32 bytes as hex"
+                },
+                "to": {
+                  "type": "string",
+                  "pattern": "^([0-9a-fA-F]{2}){32}$",
+                  "description": "32 bytes as hex"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "req_id": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,20}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                "chunk": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "final": {
+                  "type": "boolean"
+                },
+                "payload": {
+                  "type": "string",
+                  "description": "the text; empty once denied"
+                },
+                "pii": {
+                  "type": "boolean"
+                },
+                "amount_minor": {
+                  "type": "string",
+                  "pattern": "^-?[0-9]{1,19}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                "seq": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,20}$",
+                      "description": "64-bit integer as a decimal string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ts": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "unix seconds"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "consent": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4294967295,
+                      "description": "the CONSENT entry that answered this envelope"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "answers": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4294967295,
+                      "description": "CONSENT: the envelope it answers"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "grant": {
+                  "oneOf": [
+                    {
+                      "type": "boolean",
+                      "description": "CONSENT: the answer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "signed length (0 while held or denied)"
                 }
               }
             }
