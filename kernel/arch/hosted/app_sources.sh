@@ -93,10 +93,15 @@ case "${1:-srcs}" in
         # passkeys.*: ident's passkeys (id_core, id_passkey and the
         # post-quantum code they link are built for zxvd_pay in build_zxvd.sh)
         echo arch/hosted/zxvd_ident.c
+        # the economy modules (zxvd_econ.c); zstats also reads grants and
+        # vbond, which link but are not served. pay, sha256 and keccak are in srcs.
+        echo arch/hosted/zxvd_econ.c
+        for f in svault vswap vauction zenny zstats grants vbond; do echo "src/$f/$f.c"; done
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
+        for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
         ;;
     *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs]" >&2; exit 2 ;;
 esac

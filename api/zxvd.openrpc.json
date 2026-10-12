@@ -5676,6 +5676,2733 @@
         }
       },
       "paramStructure": "by-name"
+    },
+    {
+      "name": "vault.deposit",
+      "summary": "Record an assurance fee collected outside these books (E3): it is issued into the four buckets by the exact split of pay_assure.h B1 (reserve floor, V-Bill dividend pool, bounties, regenerative), then the vault sweeps a third of the reserve share (svault.h S1): moved to its cash, or kept in the reserve when the vault is at its cap (S2). Feature 'vault' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "fee_minor",
+          "required": true,
+          "description": "the fee in Vino minor units, at least 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "deposit",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "fee_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "reserve_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "dividend_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "bounty_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "regen_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "swept_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "kept_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "carry": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "vault.buy",
+      "summary": "The vault buys V-Bills from a holder with its swept cash (svault.h S3): qty = min(max_qty, room under the 1/3 cap, cash / price) in one posting; 0 buys nothing. Feature 'vault' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "seller",
+          "required": true,
+          "description": "the selling holder",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "price_minor",
+          "required": true,
+          "description": "Vino minor units per V-Bill, at least 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "max_qty",
+          "required": false,
+          "description": "at most this many (default unlimited)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "buy",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "bought": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "cost_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "price_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "seller": {
+              "type": "object",
+              "properties": {
+                "holder": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "vino_minor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "vbills": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "vault.first_loss",
+      "summary": "The vault's V-Bills absorb a loss first (svault.h S5): min(loss, held) are redeemed at par; the rest is reported uncovered. Feature 'vault' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "loss_vbills",
+          "required": true,
+          "description": "the loss in V-Bills",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "loss",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "burned": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "uncovered": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "vault.status",
+      "summary": "The vault and the fee buckets: reserve, cash, V-Bills outstanding and held, cap and room, the redemption floor reserve / (N - h) (null with no outside holder), and the lifetime counters (S6). Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "vault",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "reserve_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "cash_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "outstanding": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "held": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "cap": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "room": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "floor": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "num": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "den": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fees_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "share_total_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "swept_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "kept_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "spent_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "bought": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "burned": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "carry": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "dividend_pool_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "bounty_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "regen_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "vault.check",
+      "summary": "The vault's audit (svault.h S6), the ledger's invariants, and the solvency test reserve * floor_den >= floor_num * (N - h) * backing (S4). Answers while the feature is off.",
+      "params": [
+        {
+          "name": "floor_num",
+          "required": false,
+          "description": "default 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "floor_den",
+          "required": false,
+          "description": "default 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "backing",
+          "required": false,
+          "description": "Vino minor units per V-Bill (default 100)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "vault_ok": {
+              "type": "boolean"
+            },
+            "ledger_ok": {
+              "type": "boolean"
+            },
+            "solvent": {
+              "type": "boolean"
+            },
+            "floor_num": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "floor_den": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "backing": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.deposit",
+      "summary": "Vino of a holder enters these books (E3): issued to the holder's Vino account, opened with its V-Bill account on first use (at most 32 holders). Feature 'swap' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "a holder number the owner chose; swap.deposit opens it",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "at least 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "holder",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "holder": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "vino_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.withdraw",
+      "summary": "Vino of a holder leaves these books (redeemed to the issuer). Feature 'swap' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "a holder number the owner chose; swap.deposit opens it",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "at least 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "holder",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "holder": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "vino_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.enable",
+      "summary": "The swap's own jurisdiction switch (vswap.h W1), signed by zxvd as the gateway (E4): swapping in, locks and dividends need it on; leaving never does.",
+      "params": [
+        {
+          "name": "enabled",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      ],
+      "result": {
+        "name": "switch",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.quote",
+      "summary": "What a swap would do now (vswap.h W6): in = Vino minor units offered, out = V-Bills returned. Answers while the feature is off. An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "direction",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out"
+            ]
+          }
+        },
+        {
+          "name": "amount",
+          "required": true,
+          "description": "Vino minor units (in) or V-Bills (out)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "quote",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "type": "string"
+            },
+            "rate": {
+              "type": "object",
+              "properties": {
+                "num": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "den": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
+            "par": {
+              "type": "boolean"
+            },
+            "vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "vino_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.in",
+      "summary": "Swap Vino for V-Bills at par or at reserve / (N - h), exactly (vswap.h W3). Feature 'swap' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "a holder number the owner chose; swap.deposit opens it",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "Vino offered; the part that buys no whole V-Bill stays",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "swap",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "type": "string"
+            },
+            "holder": {
+              "type": "object",
+              "properties": {
+                "holder": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "vino_minor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "vbills": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
+            "rate": {
+              "type": "object",
+              "properties": {
+                "num": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "den": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
+            "par": {
+              "type": "boolean"
+            },
+            "vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "vino_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.out",
+      "summary": "Swap V-Bills back for Vino at reserve / (N - h), never at par (vswap.h W4); it can pay less than was paid in. Works while the swap's own switch is off. Feature 'swap' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "a holder number the owner chose; swap.deposit opens it",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "vbills",
+          "required": true,
+          "description": "V-Bills returned",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "swap",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "type": "string"
+            },
+            "holder": {
+              "type": "object",
+              "properties": {
+                "holder": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "vino_minor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "vbills": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
+            "rate": {
+              "type": "object",
+              "properties": {
+                "num": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "den": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
+            "par": {
+              "type": "boolean"
+            },
+            "vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "vino_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.lock",
+      "summary": "Lock V-Bills in tier medium or deep for a larger dividend weight (vswap.h T1/T2); a lock ends only by notice (T3). Feature 'swap' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "a holder number the owner chose; swap.deposit opens it",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "tier",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "medium",
+              "deep"
+            ]
+          }
+        },
+        {
+          "name": "vbills",
+          "required": true,
+          "description": "at least 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reinvest",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "position",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "position": {
+              "type": "integer"
+            },
+            "tier": {
+              "type": "string"
+            },
+            "vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "notice_period": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "reinvest": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.notice",
+      "summary": "File the exit notice of a position (vswap.h T3). Feature 'swap' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "a holder number the owner chose; swap.deposit opens it",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "position",
+          "required": true,
+          "description": "the position number",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "notice",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "position": {
+              "type": "integer"
+            },
+            "unlock_at": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.unlock",
+      "summary": "Return a position's V-Bills once its notice period has run (vswap.h T3). Feature 'swap' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "a holder number the owner chose; swap.deposit opens it",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "position",
+          "required": true,
+          "description": "the position number",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "unlock",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "position": {
+              "type": "integer"
+            },
+            "vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "holder": {
+              "type": "object",
+              "properties": {
+                "holder": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "vino_minor": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "vbills": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.dividend",
+      "summary": "Pay the whole dividend pool (the fee's 25% share, filled by vault.deposit) to every holder and lock position by weight, exactly (vswap.h W5); the vault is not listed. A share of realised fees, not a rate. Feature 'swap' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "dividend",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "pool_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "units": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "paid_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "reinvest_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "postings": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.status",
+      "summary": "The switch, the rate (null when vswap refuses one), the reserve, V-Bills outstanding, the pool, the notice periods and weights, every holder and every position. Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "swap",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "switch_epoch": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "rate": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "num": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "den": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "par": {
+              "type": "boolean"
+            },
+            "reserve_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "outstanding": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "vault_vbills": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "dividend_pool_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "notice_medium": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "notice_deep": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "weights": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "holders": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "holder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "vino_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "vbills": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  }
+                }
+              }
+            },
+            "positions": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "swap.check",
+      "summary": "The epoch check (vswap.h T4): every tier's positions sum to its lock account, and the ledger's invariants hold. Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "auction.configure",
+      "summary": "Set the issuance rules between epochs (vauction.h A3-A6): floor_num / floor_den, backing (Vino minor units per V-Bill), the per-epoch cap and the price ladder p_start, p_step, p_min. Missing keys keep their values. Feature 'auctions' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "floor_num",
+          "required": false,
+          "description": "",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "floor_den",
+          "required": false,
+          "description": "",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "backing",
+          "required": false,
+          "description": "",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cap",
+          "required": false,
+          "description": "",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "p_start",
+          "required": false,
+          "description": "",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "p_step",
+          "required": false,
+          "description": "",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "p_min",
+          "required": false,
+          "description": "",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "config",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "floor_num": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "floor_den": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "backing": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "cap": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "p_start": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "p_step": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "p_min": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "auction.open",
+      "summary": "Open the next epoch for bids (vauction.h A7). Feature 'auctions' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [],
+      "result": {
+        "name": "epoch",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "state": {
+              "type": "string",
+              "const": "open"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "auction.bid",
+      "summary": "Bid for qty V-Bills at most limit_minor each; qty * limit is locked in escrow (vauction.h A5). No tier field: ties break by order only. Feature 'auctions' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "a holder number the owner chose; swap.deposit opens it",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "qty",
+          "required": true,
+          "description": "V-Bills, at least 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "limit_minor",
+          "required": true,
+          "description": "at least p_min",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "bid",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "bid": {
+              "type": "integer"
+            },
+            "locked_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "auction.run",
+      "summary": "Run the epoch: clear at one uniform price, issuing only what keeps the reserve at or above its floor (A4, A6), then settle: fiat to the reserve, refunds to bidders (A7). A settlement the ledger stopped resumes here. Feature 'auctions' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "record",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "price_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "qty": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "winners": {
+              "type": "integer"
+            },
+            "cancelled": {
+              "type": "boolean"
+            },
+            "reserve_before_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "reserve_after_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "outstanding_before": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "outstanding_after": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "floor_ok": {
+              "type": "boolean"
+            }
+          },
+          "description": "an epoch's audit record (vauction.h A8)"
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "auction.cancel",
+      "summary": "Cancel an open (or cleared, unsettled) epoch and refund every lock (vauction.h A7). Feature 'auctions' (regulated, off by default); in-memory economy (zxvd_econ.c E1-E6). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "record",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "price_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "qty": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "winners": {
+              "type": "integer"
+            },
+            "cancelled": {
+              "type": "boolean"
+            },
+            "reserve_before_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "reserve_after_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "outstanding_before": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "outstanding_after": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "floor_ok": {
+              "type": "boolean"
+            }
+          },
+          "description": "an epoch's audit record (vauction.h A8)"
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "auction.quote",
+      "summary": "Supply S(p) and demand D(p) at a price with the reserve now (vauction.h A4). R is the reserve account alone: no warehouse receipts or oracle quotes reach zxvd (E4). Answers while the feature is off.",
+      "params": [
+        {
+          "name": "price_minor",
+          "required": true,
+          "description": "the price",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "quote",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "price_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "reserve_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "outstanding": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "supply": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "demand": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "floor_ok": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "auction.status",
+      "summary": "The state (idle, open, cleared, settled), the epoch, the rules, R, N, the floor, this epoch's bids and the history ring (A8), newest first. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "auction",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "open",
+                "cleared",
+                "settled"
+              ]
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "config": {
+              "type": "object",
+              "properties": {
+                "floor_num": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "floor_den": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "backing": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "cap": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "p_start": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "p_step": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "p_min": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
+            "reserve_minor": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "outstanding": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "floor_ok": {
+              "type": "boolean"
+            },
+            "bids": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "history": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "epoch": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "price_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "qty": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "winners": {
+                    "type": "integer"
+                  },
+                  "cancelled": {
+                    "type": "boolean"
+                  },
+                  "reserve_before_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "reserve_after_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "outstanding_before": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "outstanding_after": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "floor_ok": {
+                    "type": "boolean"
+                  }
+                },
+                "description": "an epoch's audit record (vauction.h A8)"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "auction.check",
+      "summary": "The reserve floor (A3) and the ledger's invariants. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "floor_ok": {
+              "type": "boolean"
+            },
+            "ledger_ok": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "zenny.mint",
+      "summary": "Mint a Zenny chip (zenny.h Z1/Z2): legs valued exactly at their prices, a V-Bill leg with weight > 0 mandatory, chips = value / kappa exactly. zxvd signs as the minter (E4); a co-minter's signature and a custodian's attestation never verify here, so BILATERAL chips and commodity legs are refused, as are margin and credit. Posting the legs is the caller's (Z6). Feature 'zenny' (regulated, off by default); in memory; 'Zenny' has no trademark clearance. An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "minter",
+          "required": true,
+          "description": "the minter's id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "co_minter",
+          "required": false,
+          "description": "BILATERAL only",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "kappa",
+          "required": true,
+          "description": "reference units per chip, at least 1",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "description": "zenny.h Z1 bits: 1 allow rebalance, 2 bilateral, 4 margin, 8 credit, 16 allow top-up",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "nonce",
+          "required": false,
+          "description": "default: the next of zxvd's own counter",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "legs",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "vbill",
+                    "fiat",
+                    "commodity",
+                    "compute"
+                  ]
+                },
+                "asset": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                },
+                "qty": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                },
+                "weight": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                },
+                "price_num": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                },
+                "price_den": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                },
+                "custodian": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "chip",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "chip": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "slot": {
+              "type": "integer"
+            },
+            "nonce": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "chips": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "zenny.quote",
+      "summary": "The largest c <= want that zenny.decompress would accept, with or without batch prices (zenny.h Z5). Answers while the feature is off. An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "chip",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        {
+          "name": "want",
+          "required": true,
+          "description": "chips wanted",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "prices",
+          "required": false,
+          "description": "one {num, den} per leg",
+          "schema": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "num": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                },
+                "den": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "quote",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "chips": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "zenny.decompress",
+      "summary": "Tap to pay: decompress c chips into their legs exactly, valued at the batch prices, with the 0.08889% fee recorded in a disposal receipt (zenny.h Z5). Paying out the legs is the caller's (Z6). Feature 'zenny' (regulated, off by default); in memory; 'Zenny' has no trademark clearance. An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "chip",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        {
+          "name": "chips",
+          "required": true,
+          "description": "c",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "prices",
+          "required": true,
+          "description": "one {num, den} per leg",
+          "schema": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "num": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                },
+                "den": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9223372036854775807
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "receipt",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "chip": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "chips": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "out": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              }
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              }
+            },
+            "total": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "fee": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "tick": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          },
+          "description": "a disposal receipt (zenny.h Z5)"
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "zenny.receipts",
+      "summary": "The undrained disposal receipts; ack drains every receipt with seq < ack first (zenny.h Z5). Feature 'zenny' (regulated, off by default); in memory; 'Zenny' has no trademark clearance. An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "ack",
+          "required": false,
+          "description": "drain up to this seq",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "receipts",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "receipts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "seq": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "chip": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "version": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "chips": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "out": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    }
+                  },
+                  "value": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    }
+                  },
+                  "total": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "fee": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "tick": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  }
+                },
+                "description": "a disposal receipt (zenny.h Z5)"
+              }
+            },
+            "next": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "acked": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "zenny.status",
+      "summary": "Every chip: id, minter, rules, kappa, versions, chips outstanding and its legs at the stored prices. Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "zenny",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "chips": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "receipts_pending": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "zenny.check",
+      "summary": "Each chip's hash chain (Z3) and exact claim (Z2). Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "chips": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "chip": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "chain_ok": {
+                    "type": "boolean"
+                  },
+                  "claim_ok": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "ok": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "stats.snapshot",
+      "summary": "Collect one aggregate snapshot of the in-memory economy (zstats.h S1-S3: reserve, vault, compression, auction, Zenny; bonds, raffle and barrels are absent), with the k-anonymity floor min_cohort, hash-chained to the last one (S4/S5). Not signed: zxvd holds no publisher key. Feature 'stats' (not regulated, off by default). An engine refusal is -32020 with the engine's status name.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: the current time)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "req_num",
+          "required": false,
+          "description": "required reserve floor numerator (default 1)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "req_den",
+          "required": false,
+          "description": "denominator (default 1)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "min_cohort",
+          "required": false,
+          "description": "1 to 4294967295 (default 5)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "snapshot",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "signed": {
+              "type": "boolean",
+              "const": false
+            },
+            "encoded": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$",
+              "description": "zstats.h S4; digest = SHA-256 of these bytes"
+            },
+            "snapshot": {
+              "type": "object",
+              "description": "zstats.h S6: integers as decimal strings"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "stats.status",
+      "summary": "How many snapshots this run published and the chain head. Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "stats",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "published": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "head": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "signed": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     }
   ]
 }

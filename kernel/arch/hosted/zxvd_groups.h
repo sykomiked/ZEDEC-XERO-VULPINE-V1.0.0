@@ -19,5 +19,12 @@ const zxvd_group_t *zxvd_passkeys_group(void);
  * zxv_os_random). fn returns 0 on success. */
 void zxvd_cards_set_random(int (*fn)(uint8_t *p, size_t n));
 void zxvd_passkeys_set_random(int (*fn)(uint8_t *p, size_t n));
+/* the economy modules (zxvd_econ.c): one in-memory economy shared by five
+ * groups, each behind its own switch */
+const zxvd_group_t *zxvd_vault_group(void);    /* vault.*   feature "vault"    */
+const zxvd_group_t *zxvd_swap_group(void);     /* swap.*    feature "swap"     */
+const zxvd_group_t *zxvd_auctions_group(void); /* auction.* feature "auctions" */
+const zxvd_group_t *zxvd_zenny_group(void);    /* zenny.*   feature "zenny"    */
+const zxvd_group_t *zxvd_stats_group(void);    /* stats.*   feature "stats"    */
 
 #endif

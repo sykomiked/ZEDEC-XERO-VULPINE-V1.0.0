@@ -10,6 +10,7 @@ int zxvd_groups_register(void)
     static const zxvd_group_t *(*const ALL[])(void) = {
         zxvd_cards_group,
         zxvd_passkeys_group,
+        zxvd_vault_group, zxvd_swap_group, zxvd_auctions_group, zxvd_zenny_group, zxvd_stats_group,
     };
     for (size_t i = 0; i < sizeof ALL / sizeof ALL[0]; i++)
         if (ALL[i] && zxvd_rpc_add_group(ALL[i]()) != 0) return -1;

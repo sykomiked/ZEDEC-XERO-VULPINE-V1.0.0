@@ -149,6 +149,32 @@ CI checks it matches what zxvd serves.
 | `passkeys.auth_finish` | `challenge`, `cred_id`, `auth`, `sig`, `now`? | `verified`, `uv`, `credential` |
 | `passkeys.list` | `user`? | `credentials` |
 | `passkeys.revoke` | `cred_id` | the credential |
+| `vault.deposit` | `fee_minor`, `now`? | `fee_minor`, `reserve_minor`, `dividend_minor`, `bounty_minor`, `regen_minor`, `swept_minor`, `kept_minor`, `carry` |
+| `vault.buy` | `seller`, `price_minor`, `max_qty`?, `now`? | `bought`, `cost_minor`, `price_minor`, `seller` |
+| `vault.first_loss` | `loss_vbills`, `now`? | `burned`, `uncovered` |
+| `vault.status` | | `reserve_minor`, `cash_minor`, `outstanding`, `held`, `cap`, `room`, `floor`, counters, fee buckets |
+| `vault.check` | `floor_num`?, `floor_den`?, `backing`? | `ok`, `vault_ok`, `ledger_ok`, `solvent` |
+| `swap.deposit` / `swap.withdraw` | `holder`, `amount_minor`, `now`? | `holder`, `vino_minor`, `vbills` |
+| `swap.enable` | `enabled`? (default true) | `enabled`, `epoch` |
+| `swap.quote` | `direction` (`in`/`out`), `amount` | `direction`, `rate`, `par`, `vbills`, `vino_minor` |
+| `swap.in` / `swap.out` | `holder`, `amount_minor` / `vbills`, `now`? | as `swap.quote`, `holder` |
+| `swap.lock` | `holder`, `tier` (`medium`/`deep`), `vbills`, `reinvest`?, `now`? | `position`, `tier`, `vbills`, `notice_period`, `reinvest` |
+| `swap.notice` / `swap.unlock` | `holder`, `position`, `now`? | `position`, `unlock_at` / `vbills`, `holder` |
+| `swap.dividend` | `now`? | `pool_minor`, `units`, `paid_minor`, `reinvest_minor`, `vbills`, `postings` |
+| `swap.status` / `swap.check` | | switch, rate, reserve, holders, positions / `ok`, `status` |
+| `auction.configure` | `floor_num`?, `floor_den`?, `backing`?, `cap`?, `p_start`?, `p_step`?, `p_min`? | the rules |
+| `auction.open` | | `epoch`, `state` |
+| `auction.bid` | `holder`, `qty`, `limit_minor`, `now`? | `epoch`, `bid`, `locked_minor` |
+| `auction.run` / `auction.cancel` | `now`? | the epoch's record (`price_minor`, `qty`, `winners`, reserve and outstanding before and after, `floor_ok`) |
+| `auction.quote` | `price_minor`, `now`? | `reserve_minor`, `outstanding`, `supply`, `demand`, `floor_ok` |
+| `auction.status` / `auction.check` | `now`? | state, rules, bids, history / `ok`, `floor_ok`, `ledger_ok` |
+| `zenny.mint` | `minter`, `kappa`, `legs`, `rules`?, `co_minter`?, `nonce`?, `now`? | `chip`, `slot`, `nonce`, `version`, `chips` |
+| `zenny.quote` | `chip`, `want`, `prices`? | `chips` |
+| `zenny.decompress` | `chip`, `chips`, `prices`, `now`? | the receipt (`out`, `value`, `total`, `fee`, ...) |
+| `zenny.receipts` | `ack`? | `receipts`, `next`, `acked` |
+| `zenny.status` / `zenny.check` | | `chips`, `receipts_pending` / per chip `chain_ok`, `claim_ok`, `ok` |
+| `stats.snapshot` | `now`?, `req_num`?, `req_den`?, `min_cohort`? | `epoch`, `prev`, `digest`, `signed`, `encoded`, `snapshot` |
+| `stats.status` | | `published`, `head`, `signed` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -157,7 +183,9 @@ an AIPI call refused or failed (the `AIPI_ERR_*` name and what it means),
 -32012 the method's feature is off (see "Feature switches" below),
 -32020 a payment step refused (netting, passkey or escrow; the message says
 why), -32040 a card operation the issuer refused, -32041 a passkey ceremony
-refused (the message says why), -32000 a
+refused (the message says why), -32050 an economy engine refused (the message is its status name, e.g.
+`VSWAP_ERR_DISABLED`, or `VAUC_ERR_LEDGER (PAY_ERR_FUNDS)`),
+-32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
@@ -334,6 +362,73 @@ Honest limits:
 - ident's root identity, recovery (Argon2id, BCH fuzzy extractor, Shamir
   guardians) and optional KYC are not on the socket yet. They have no wire
   format here, and KYC needs a licensed verifier's adapter.
+## Economy modules
+
+Five method groups serve the economy engines merged in #66, each behind its
+own switch (`kernel/arch/hosted/zxvd_econ.c`): `vault` (the protocol
+solvency vault, `kernel/src/svault`), `swap` (Vino to V-Bills and back, lock
+tiers and the dividend, `vswap`), `auctions` (V-Bill issuance by
+uniform-price descending auction, `vauction`), `zenny` (Zenny chips,
+`zenny`) and `stats` (the aggregate statistics feed, `zstats`). The first
+four are regulated; `stats` is read-only. All start off.
+
+```sh
+zxvd --enable vault,swap,auctions,zenny,stats
+call '{"jsonrpc":"2.0","id":1,"method":"swap.deposit","params":{"holder":7,"amount_minor":20000}}'
+call '{"jsonrpc":"2.0","id":2,"method":"swap.enable"}'
+call '{"jsonrpc":"2.0","id":3,"method":"swap.in","params":{"holder":7,"amount_minor":1000}}'
+# 10 V-Bills at par (100 Vino minor units each)
+call '{"jsonrpc":"2.0","id":4,"method":"vault.deposit","params":{"fee_minor":10000}}'
+# reserve 5000, dividend pool 2500, bounties 1500, regenerative 1000; the vault sweeps 1666
+```
+
+- **One economy, one reserve.** The groups share one in-memory pay_ledger:
+  Vino (2 minor units), V-Bills, and the system accounts. The reserve-floor
+  bucket of the assurance fee is the vault's, the swap's and the auction's
+  reserve, as the engine headers intend: fees, swap-ins and auction fiat land
+  there; the vault sweeps a third of the fee's reserve share out of it;
+  swap-outs are paid from it. One V-Bill issuer serves all three.
+- **What zxvd does not have comes in as parameters.** zxvd sees no fee flow:
+  `vault.deposit` records a fee collected elsewhere (split exactly into the
+  four buckets, then swept). Holders are numbers you choose;
+  `swap.deposit` / `swap.withdraw` move a holder's Vino into and out of these
+  books. Engines that keep time take `now` (unix seconds, default the clock).
+- **Signatures are stand-ins.** zxvd holds no jurisdiction-gateway, minter,
+  oracle, custodian or publisher key. `swap.enable` and `zenny.mint` are
+  signed by zxvd itself, which proves only that its own method made the
+  call. A co-minter's signature and a custodian's attestation never verify,
+  so bilateral chips and commodity legs are refused. The auction accepts no
+  warehouse receipt or price quote, so its reserve is the reserve account
+  alone. Statistics snapshots are hash-chained but not signed.
+- **Auctions are backed only.** `auction.run` clears at one uniform price
+  and issues only what keeps reserve * floor_den >= floor_num * backing *
+  outstanding; the fiat goes to the reserve and the rest of every lock is
+  refunded.
+
+Honest limits:
+
+- In memory only: nothing here is saved, it is not your books (`ledger.*`),
+  and a restart starts empty. Nothing is connected to a bank, custodian,
+  oracle or central bank.
+- V-Bills, locked positions with a dividend share, and Zenny chips are likely
+  securities (or deposits, e-money or collective investment schemes) in many
+  jurisdictions. No exemption is claimed; turning these features on is for a
+  test or a licensed deployment. The swap's own switch is not a legal
+  opinion.
+- "Zenny" is a currency name in Capcom games and has had no trademark
+  clearance.
+- zxvd's only caller check is the owner-only socket (T1/T2): whoever can use
+  the socket acts for every holder. zxvd always passes one holder's own
+  pair of accounts, but the engines themselves do not check who owns them.
+- Open findings from the 2026-10-12 adversarial audit (section 4), waiting on
+  the owner and not designed around here: `vswap`, `vauction` and `svault`
+  take two accounts per party and authenticate no caller; `vswap` and
+  `vauction` posting ids (`VSWAP-<seq>`, `VAUC-<seq>`) are predictable, so
+  any other poster on the same ledger could squat one (only zxvd posts to
+  this one); anyone who can post to the ledger can deposit into vault cash
+  and break its audit (S6); `svault_sweep` moves reserve funds without
+  checking the solvency floor; and a custodian attestation can be replayed
+  after a Zenny rebalance (zxvd serves no rebalance and no commodity leg).
 
 ## The jurisdiction bridge
 
@@ -455,6 +550,9 @@ handling, the read-only state after a failed write).
 on the real libzxv and ident (exact replies and refusals for every method,
 real ML-DSA-65 passkeys, holds replayed from a books file, and escrow entries
 that are no hold's step).
+`zxvd_aipi.c`. `kernel/arch/hosted/test_zxvd_econ.sh` runs `zxvd_econ.c` behind the RPC
+layer on the real engines and pay_ledger (the switches, exact replies, every
+refusal, and full flows); it is the harness's test for `zxvd_econ.c`.
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
