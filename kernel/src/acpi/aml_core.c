@@ -1646,7 +1646,17 @@ static int parse_package(aml_ctx_t *c, st_t *s, aml_val_t *out, int var)
             r = parse_nstr(s, &n);
             if (r) break;
             aml_node_t *nd = resolve_n(c, s->scope, &n, 0);
-            if (nd) {
+            aml_node_t *tn = nd ? aml_ns_resolve(c, nd) : 0;
+            uint32_t ty = tn ? tn->v.type : 0;
+            /* As ACPICA does: a name of a data object becomes its value; a
+             * field is read too, except while a table loads (no hardware
+             * access from a definition block); anything else (a device, a
+             * method) stays a reference. */
+            if (tn && (ty == AML_T_INT || ty == AML_T_STR || ty == AML_T_BUF ||
+                       ty == AML_T_PKG ||
+                       (!c->loading && (ty == AML_T_FIELD || ty == AML_T_BUFFIELD)))) {
+                r = read_node(c, tn, &e);
+            } else if (nd) {
                 r = mkref(c, &e);
                 if (!r) loc_node(&e.u.ref->base, nd);
             } else {
@@ -2434,7 +2444,7 @@ static int eval_term(aml_ctx_t *c, st_t *s, aml_val_t *out)
         c->nest--;
         return fail(c, AML_ELIMIT, "nesting");
     }
-    if (++c->ops > AML_MAX_OPS) {
+    if (++c->ops > (c->op_limit ? c->op_limit : AML_MAX_OPS)) {
         c->nest--;
         return fail(c, AML_ELIMIT, "op budget");
     }
@@ -3018,10 +3028,18 @@ static int exec_termlist(aml_ctx_t *c, st_t *s, uint32_t end)
             /* table level: report, step over the term, keep loading */
             st_t k = *s;
             c->stats.errors++;
+            if (!c->load_err) c->load_err = r;
             aml_logf(c, "load error, term skipped at offset", aml_strerror(r), start, 1);
             k.pc = start;
             if (!skip_term(c, &k) && k.pc > start) {
                 s->pc = k.pc;
+                continue;
+            }
+            /* not even skippable (an opcode that does not exist): step over
+             * the opcode byte(s) and resynchronise, as ACPICA does; bounded
+             * because every step moves forward and errors are capped */
+            if (++c->load_skips <= AML_MAX_LOAD_SKIPS) {
+                s->pc = start + (s->a[start] == 0x5B && start + 1 < end ? 2u : 1u);
                 continue;
             }
         }
@@ -3154,6 +3172,10 @@ int aml_load_table(aml_ctx_t *c, const void *table, uint32_t len)
     s.end = tl;
     s.scope = c->root;
     c->loading = 1;
+    uint32_t save_skips = c->load_skips;
+    int save_err = c->load_err;
+    c->load_skips = 0;
+    c->load_err = 0;
     decl_pass(c, &s, tl, 0);
     s.pc = 36;
     s.scope = c->root;
@@ -3166,11 +3188,16 @@ int aml_load_table(aml_ctx_t *c, const void *table, uint32_t len)
     }
     frame_pop(c);
     c->loading = save_loading;
+    c->load_skips = save_skips;
+    int skipped = c->load_err;
+    c->load_err = save_err;
     c->top--;
     if (r) {
         c->stats.errors++;
         return fail(c, r, "table");
     }
+    /* terms were skipped (each counted): the rest loaded, but report it */
+    if (skipped) return fail(c, skipped, "table");
     return AML_OK;
 }
 

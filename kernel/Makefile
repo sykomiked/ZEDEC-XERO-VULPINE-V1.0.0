@@ -324,6 +324,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
+	$(MAKE) --no-print-directory test-aml
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1538,6 +1539,19 @@ test-hwdrv:
 		b=$$(basename $$t .c); \
 		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
+	done
+# ACPI: the AML interpreter (src/acpi/aml_*.c) and power management
+# (acpi_pm.c, acpi.c) against fake firmware tables and fake chipset registers.
+# The ASL fixtures are compiled once into src/acpi/test/aml_fixtures.h
+# (gen_fixtures.sh needs iasl; CI does not). QEMU coverage of the same code is
+# build_system/acpi_check.sh.
+.PHONY: test-aml
+AML_SRCS = src/acpi/aml_core.c src/acpi/aml_region.c src/acpi/aml_dev.c src/acpi/acpi_pm.c src/acpi/acpi.c
+test-aml:
+	@for t in $(sort $(wildcard src/acpi/test/test_*.c)); do \
+		b=$$(basename $$t .c); \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc -Isrc/acpi -Isrc/modbind $$t src/acpi/test/amlfake.c $(AML_SRCS) -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { tail -60 $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 test-blockdev:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude src/blockdev/test_blockdev.c src/blockdev/blockdev.c -o $(ZXV_TMP)/test_blockdev && $(ZXV_TMP)/test_blockdev > $(ZXV_TMP)/test_blockdev.log 2>&1 && echo "[PASS] test_blockdev" || { tail -40 $(ZXV_TMP)/test_blockdev.log; echo "[FAIL] test_blockdev"; exit 1; }

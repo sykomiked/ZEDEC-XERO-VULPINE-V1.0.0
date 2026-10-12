@@ -209,7 +209,14 @@ int aml_region_access(aml_ctx_t *c, aml_node_t *rg, uint64_t off, uint32_t w, in
             if (!rg->x.r.map) return AML_EIO;
         }
         volatile uint8_t *m = rg->x.r.map + off;
-        if (write) {
+        if ((uintptr_t) m & (w - 1)) {
+            /* a misaligned unit (odd region base): byte by byte, never a
+             * misaligned wide access */
+            for (uint32_t i = 0; i < w; i++) {
+                if (write) m[i] = (uint8_t) (v >> (8 * i));
+                else v |= (uint64_t) m[i] << (8 * i);
+            }
+        } else if (write) {
             if (w == 1) *m = (uint8_t) v;
             if (w == 2) *(volatile uint16_t *) m = (uint16_t) v;
             if (w == 4) *(volatile uint32_t *) m = (uint32_t) v;

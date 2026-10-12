@@ -116,6 +116,7 @@ typedef struct aml_plat {
 #define AML_MAX_SLEEP_US   3000000 /* Sleep + Stall per top-level evaluation */
 #define AML_MAX_OBJ        0x40000 /* bytes in one string or buffer */
 #define AML_MAX_PKG        4096    /* elements in one package */
+#define AML_MAX_LOAD_SKIPS 64      /* unknown opcodes stepped over per table */
 #define AML_MAX_TABLES     32
 #define AML_MAX_NOTIFY     32
 #define AML_MAX_EXTERNAL   64
@@ -176,6 +177,8 @@ typedef struct aml_ctx {
     uint8_t int64; /* 1 = 64-bit integers (DSDT revision >= 2) */
     uint8_t dsdt_rev;
     uint8_t loading; /* 1 while a table's top level runs */
+    uint32_t load_skips; /* unknown opcodes stepped over in this table */
+    int load_err;        /* first error of a term skipped in this table */
     uint8_t pass1;
     /* execution */
     aml_frame_t frames[AML_MAX_CALL_DEPTH];
@@ -183,6 +186,7 @@ typedef struct aml_ctx {
     uint32_t nest;    /* evaluator recursion */
     uint32_t serial;  /* frame serial counter */
     uint32_t ops;     /* ops spent in this top-level evaluation */
+    uint32_t op_limit; /* 0 = AML_MAX_OPS; a caller may set a smaller budget */
     uint32_t sleep_us;
     uint32_t top;     /* top-level evaluation nesting (budgets reset at 0) */
     uint64_t fake_time;

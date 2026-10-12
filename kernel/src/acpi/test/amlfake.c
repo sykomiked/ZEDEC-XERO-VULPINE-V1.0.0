@@ -59,7 +59,7 @@ static void raw_wr(amlfake_t *f, uint32_t port, uint32_t width, uint32_t v)
 static int is_w1c(uint32_t port)
 {
     return (port >= FK_PM1A_EVT && port < FK_PM1A_EVT + 2) ||
-           (port >= FK_PM1B_EVT && port < FK_PM1B_EVT + 2) || (port >= FK_GPE0 && port < FK_GPE0 + 4);
+           (port >= FK_PM1B_EVT && port < FK_PM1B_EVT + 2) || (port >= FK_GPE0 && port < FK_GPE0 + 4) || port == 0xB031;
 }
 
 static uint32_t fk_ior(void *ctx, uint32_t port, uint32_t width)
