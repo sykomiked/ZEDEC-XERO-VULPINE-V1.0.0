@@ -31,21 +31,43 @@ static int fails, checks;
 static zxvd_buf_t OUT;
 static char LINE[ZXVD_RPC_MAX_LINE + 64];
 
+/* append to LINE at *n, never past its end: a request that does not fit is a
+ * broken test, so it stops the run instead of being cut short */
+static void vput(int *n, const char *fmt, va_list ap)
+{
+    int w = vsnprintf(LINE + *n, sizeof LINE - (size_t) *n, fmt, ap);
+    if (w < 0 || (size_t) w >= sizeof LINE - (size_t) *n) {
+        fprintf(stderr, "test request does not fit LINE\n");
+        exit(2);
+    }
+    *n += w;
+}
+
+static void put(int *n, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+static void put(int *n, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vput(n, fmt, ap);
+    va_end(ap);
+}
+
 /* one request built from a method and a params object body -> its reply */
 static const char *call(const char *method, const char *params_fmt, ...)
     __attribute__((format(printf, 2, 3)));
 static const char *call(const char *method, const char *params_fmt, ...)
 {
-    int n = snprintf(LINE, sizeof LINE, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\"", method);
+    int n = 0;
+    put(&n, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\"", method);
     if (params_fmt) {
         va_list ap;
         va_start(ap, params_fmt);
-        n += snprintf(LINE + n, sizeof LINE - (size_t) n, ",\"params\":{");
-        n += vsnprintf(LINE + n, sizeof LINE - (size_t) n, params_fmt, ap);
-        n += snprintf(LINE + n, sizeof LINE - (size_t) n, "}");
+        put(&n, ",\"params\":{");
+        vput(&n, params_fmt, ap);
+        put(&n, "}");
         va_end(ap);
     }
-    snprintf(LINE + n, sizeof LINE - (size_t) n, "}");
+    put(&n, "}");
     if (!zxvd_rpc_handle_line(LINE, strlen(LINE), &OUT)) return "<none>";
     return OUT.p ? OUT.p : "";
 }
@@ -316,8 +338,13 @@ static void test_stream(void)
             -32602, "units adding up past 4 GiB");
     char units[2000];
     int n = 0;
-    for (int i = 0; i < 121; i++)
-        n += snprintf(units + n, sizeof units - (size_t) n, "%s[1,%d,true]", i ? "," : "", i);
+    for (int i = 0; i < 121; i++) {
+        int w = snprintf(units + n, sizeof units - (size_t) n, "%s[1,%d,true]", i ? "," : "", i);
+        if (w < 0 || (size_t) w >= sizeof units - (size_t) n) break; /* never past the buffer */
+        n += w;
+    }
+    CHECK(n > 0 && units[n - 1] == ']' && strstr(units, "[1,120,true]") != NULL,
+          "the 121-unit list fits its buffer");
     REFUSED(call("stream.plan", "\"units\":[%s],\"target_us\":1,\"max_us\":1", units), -32602,
             "121 units");
     CHECK(strstr(OUT.p, "at most 120 units") != NULL, "names the limit: %s", OUT.p);
