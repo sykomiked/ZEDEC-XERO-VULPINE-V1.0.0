@@ -14,6 +14,7 @@ on:
     paths: ['mobile/companion/**', 'kernel/arch/hosted/zxvd_phone.*', 'kernel/arch/hosted/zxvd_rpc.*',
             '.github/workflows/companion.yml']
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths: ['mobile/companion/**', 'kernel/arch/hosted/zxvd_phone.*', 'kernel/arch/hosted/zxvd_rpc.*',
             '.github/workflows/companion.yml']
   workflow_dispatch:
@@ -33,6 +34,7 @@ concurrency:
 jobs:
   android:
     name: companion test + android apk
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     defaults:
@@ -72,6 +74,7 @@ jobs:
 
   ios:
     name: companion ios (unsigned ipa)
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     runs-on: macos-15
     timeout-minutes: 45
     defaults:
