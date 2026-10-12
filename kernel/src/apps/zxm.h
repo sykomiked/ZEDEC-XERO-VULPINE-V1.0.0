@@ -54,9 +54,17 @@ enum {
  * resp; return its length, or a negative number on failure. */
 typedef int32_t (*zxm_send_fn)(void *ctx, const char *req, uint32_t len, char *resp, uint32_t cap);
 
+/* How far a long action (an import, a load) has got, after each part:
+ * done of total bytes; total 0 = not known yet. Views draw it with the one
+ * ZXV progress bar (zui's mirrored gold bar: halves meeting at the centre,
+ * heads pulsing there while the total is unknown), never a percentage. */
+typedef void (*zxm_progress_fn)(void *ctx, uint64_t done, uint64_t total);
+
 typedef struct {
     zxm_send_fn send;
     void *ctx;
+    zxm_progress_fn progress; /* optional (zxm_link_progress) */
+    void *progress_ctx;
     uint32_t seq;
     char req[ZXM_REQ_MAX + 1];
     uint32_t req_len;
@@ -72,6 +80,8 @@ typedef struct {
 } zxm_link_t;
 
 void zxm_link_init(zxm_link_t *l, zxm_send_fn send, void *ctx);
+void zxm_link_progress(zxm_link_t *l, zxm_progress_fn fn, void *ctx); /* NULL: none */
+void zxm_progress(zxm_link_t *l, uint64_t done, uint64_t total);      /* report, if set */
 
 /* Building one request: begin, add parameters, call. A parameter that does
  * not fit makes zxm_call return ZXM_E_TOOBIG without sending anything. */

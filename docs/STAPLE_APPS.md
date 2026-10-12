@@ -43,6 +43,10 @@ and calls the actions. The shared rules are in `zxm.h` (M1-M5):
 - **AI is costed.** Every AI action records the agent that ran it and its
   token count. zxvd's `swarm.ask` does not report a count yet, so the count is
   an estimate and says so (`exact = false`).
+- **One progress bar.** Long actions (an import, loading a large file)
+  report how far they have got through the link (`zxm_link_progress`); every
+  view draws that with ZXV's one progress bar, the mirrored gold bar from the
+  boot sequence, never a percentage.
 - **A palette table per app** (`BURROW_AI`, `QUILLON_AI`, `GLINT_AI`,
   `SPINDLE_AI`): name, agent and estimated tokens, for the command palette.
 

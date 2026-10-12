@@ -87,6 +87,23 @@ static int32_t canned(void *ctx, const char *req, uint32_t len, char *resp, uint
 
 static zxm_link_t LINK, FAKE;
 
+/* what a view's progress bar would be told */
+typedef struct {
+    uint32_t calls;
+    uint64_t done, total;
+    bool rising; /* done never went back */
+} prog_t;
+static prog_t PROG = {.rising = true};
+
+static void on_progress(void *ctx, uint64_t done, uint64_t total)
+{
+    prog_t *p = ctx;
+    if (p->calls && done < p->done) p->rising = false;
+    p->calls++;
+    p->done = done;
+    p->total = total;
+}
+
 /* ---------------- zxm ---------------- */
 
 static void test_zxm(void)
@@ -303,9 +320,15 @@ static void test_burrow(const char *root)
 
     static uint8_t png[20000];
     for (uint32_t i = 0; i < sizeof png; i++) png[i] = (uint8_t) (i * 7u + (i >> 8));
+    zxm_link_progress(&LINK, on_progress, &PROG);
     CHECK(burrow_import(&B, "one.png", png, sizeof png) == ZXM_OK && B.n == 1 &&
               B.e[0].size == sizeof png && B.e[0].kind == BURROW_K_IMAGE,
           "import in three parts: %s", LINK.err);
+    CHECK(PROG.calls == 3 && PROG.rising && PROG.done == sizeof png && PROG.total == sizeof png,
+          "progress after each part: %u calls, %llu of %llu", PROG.calls,
+          (unsigned long long) PROG.done, (unsigned long long) PROG.total);
+    zxm_link_progress(&LINK, NULL, NULL);
+    PROG = (prog_t){.rising = true};
     CHECK(burrow_import(&B, "two.jpg", png, 1) == ZXM_OK, "one byte");
     CHECK(burrow_import(&B, "three.mp3", png, 2) == ZXM_OK, "two bytes");
     CHECK(burrow_import(&B, "four.gif", png, 0) == ZXM_OK, "no bytes");
@@ -332,9 +355,14 @@ static void test_burrow(const char *root)
     CHECK(glint_view(&G, one) == ZXM_OK, "view");
     CHECK(glint_view(&G, (int32_t) G.n) == ZXM_E_ARG && glint_view(&G, -2) == ZXM_E_ARG,
           "view bounds");
+    zxm_link_progress(&LINK, on_progress, &PROG);
     CHECK(glint_load(&G, buf, sizeof buf, &got) == ZXM_OK && got == sizeof png &&
               !memcmp(buf, png, sizeof png),
           "load: %s", LINK.err);
+    CHECK(PROG.calls >= 1 && PROG.rising && PROG.done == sizeof png && PROG.total == sizeof png,
+          "load progress: %u calls, %llu of %llu", PROG.calls, (unsigned long long) PROG.done,
+          (unsigned long long) PROG.total);
+    zxm_link_progress(&LINK, NULL, NULL);
     CHECK(glint_load(&G, buf, sizeof png - 1, &got) == ZXM_E_TOOBIG && got == 0, "too small");
     for (uint32_t i = 0; i < G.n; i++) {
         CHECK(glint_view(&G, (int32_t) i) == ZXM_OK, "view %u", i);

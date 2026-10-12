@@ -73,7 +73,8 @@ int burrow_empty_trash(burrow_t *b, uint32_t *removed);
  * 0 when it was copied at once. */
 int burrow_cross(burrow_t *b, uint32_t i, const char *to_space, const char *to, uint32_t *ticket);
 int burrow_cross_confirm(burrow_t *b, uint32_t ticket);
-/* Bring bytes in (an import), split into as many requests as they need. */
+/* Bring bytes in (an import), split into as many requests as they need;
+ * the link's progress hears each part. */
 int burrow_import(burrow_t *b, const char *name, const uint8_t *data, uint32_t len);
 
 /* AI: ask about this folder's names; the answer is held (M3). Accepting a

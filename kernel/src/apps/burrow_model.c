@@ -319,6 +319,7 @@ int burrow_import(burrow_t *b, const char *name, const uint8_t *data, uint32_t l
         if (parts > 1)
             zxm_p_str(b->link, "mode", k == 0 ? "begin" : k == parts - 1 ? "end" : "add");
         if ((rc = zxm_call(b->link)) != 0) return rc;
+        zxm_progress(b->link, off + n, len);
     }
     return burrow_refresh(b);
 }

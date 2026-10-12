@@ -39,7 +39,8 @@ int glint_view(glint_t *g, int32_t i); /* -1 closes the viewer */
 int glint_next(glint_t *g);
 int glint_prev(glint_t *g);
 /* The current item's bytes into buf (cap bytes). *len = the bytes written;
- * ZXM_E_TOOBIG when the file is larger than cap (nothing partial is kept). */
+ * ZXM_E_TOOBIG when the file is larger than cap (nothing partial is kept).
+ * The link's progress hears each part. */
 int glint_load(glint_t *g, uint8_t *buf, uint32_t cap, uint32_t *len);
 
 /* AI from the file names only: the swarm does not see the pictures. */

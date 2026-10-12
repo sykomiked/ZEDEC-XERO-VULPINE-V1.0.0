@@ -138,6 +138,7 @@ int glint_load(glint_t *g, uint8_t *buf, uint32_t cap, uint32_t *len)
             unb64(l->resp + l->tok[t].start, l->tok[t].end - l->tok[t].start, buf + off, cap - off);
         if (n < 0 || off + (uint64_t) n != next) return ZXM_E_PROTOCOL;
         off = next;
+        zxm_progress(l, off, size);
         if (eof) break;
     }
     *len = (uint32_t) off;

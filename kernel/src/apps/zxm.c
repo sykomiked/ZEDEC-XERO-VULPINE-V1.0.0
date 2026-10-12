@@ -13,6 +13,17 @@ void zxm_link_init(zxm_link_t *l, zxm_send_fn send, void *ctx)
     l->result = -1;
 }
 
+void zxm_link_progress(zxm_link_t *l, zxm_progress_fn fn, void *ctx)
+{
+    l->progress = fn;
+    l->progress_ctx = ctx;
+}
+
+void zxm_progress(zxm_link_t *l, uint64_t done, uint64_t total)
+{
+    if (l->progress) l->progress(l->progress_ctx, done, total);
+}
+
 /* ===================== writing a request ===================== */
 
 static void put(zxm_link_t *l, const char *s, uint32_t n)
