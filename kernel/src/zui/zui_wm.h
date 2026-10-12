@@ -18,9 +18,13 @@
  *       gathers and lights the parts, the mark lights, the upper bar
  *       releases. At 256 the screen opens like the boot vault's doors,
  *       from the centre out, onto the app. Nothing is faked: a window that
- *       gets no progress keeps gathering. Launches are silent; sound is for
- *       the OS boot only. A theme can draw the screen instead
- *       (zui_wm_t.launch_draw), the same state passed in.
+ *       gets no progress keeps gathering. A theme can draw the screen
+ *       instead (zui_wm_t.launch_draw), the same state passed in.
+ *       Each launch has three sound cues, told to zui_wm_t.cue once each,
+ *       on real events only: BEGIN when the window opens, MIDDLE when the
+ *       parts are all in (progress reaches 128, the mark lights), END when
+ *       the load is done and the doors open. The launch theme plays them
+ *       (per app, switchable off in settings); the manager makes no sound.
  *   WM3 MOVE AND RESIZE. Drag the title bar to move, an edge or corner to
  *       resize (never below ZUI_WM_MIN_W x ZUI_WM_MIN_H, and the title bar
  *       never leaves the screen). Double-clicking the title, or its
@@ -89,11 +93,13 @@ typedef struct {
     uint32_t progress;  /* 0..256 (WM2) */
     uint32_t opened_ms; /* time spent opening, 0..ZUI_WM_OPEN_MS */
     uint32_t order;     /* when it was opened, for the strip */
+    uint8_t cued;       /* the cues already told (1 << ZUI_CUE_*) */
     zui_launch_t launch;
     zui_wm_client_t client;
 } zui_wm_window_t;
 
 typedef struct zui_wm zui_wm_t;
+enum { ZUI_CUE_BEGIN = 0, ZUI_CUE_MIDDLE, ZUI_CUE_END }; /* WM2: a launch's sounds */
 /* WM2: a theme's launch screen, drawn in place of zui_launch_draw. */
 typedef void (*zui_wm_launch_fn)(zui_surface_t *s, zui_rect_t area, const zui_wm_window_t *w,
                                  zui_launch_state_t st, uint32_t tick, void *ctx);
@@ -121,6 +127,9 @@ struct zui_wm {
     /* told when a window opens or closes (the launch theme, the shell) */
     void (*on_window)(zui_wm_t *wm, uint32_t id, bool open, void *ctx);
     void *on_window_ctx;
+    /* WM2: a launch reached a sound cue (ZUI_CUE_*); NULL plays nothing */
+    void (*cue)(zui_wm_t *wm, uint32_t id, int cue, void *ctx);
+    void *cue_ctx;
 };
 
 void zui_wm_init(zui_wm_t *wm, int32_t w, int32_t h, bool touch);

@@ -152,6 +152,13 @@ uint32_t zui_wm_front(const zui_wm_t *wm)
     return 0;
 }
 
+static void cue(zui_wm_t *wm, zui_wm_window_t *w, int which)
+{
+    if (w->cued & (1u << which)) return;
+    w->cued |= (uint8_t) (1u << which);
+    if (wm->cue) wm->cue(wm, w->id, which, wm->cue_ctx);
+}
+
 uint32_t zui_wm_open(zui_wm_t *wm, const char *app, const char *title, const zui_launch_t *launch,
                      const zui_wm_client_t *client)
 {
@@ -178,6 +185,7 @@ uint32_t zui_wm_open(zui_wm_t *wm, const char *app, const char *title, const zui
     wm->z[wm->nz++] = s;
     mru_front(wm, w->id);
     if (wm->on_window) wm->on_window(wm, w->id, true, wm->on_window_ctx);
+    cue(wm, w, ZUI_CUE_BEGIN);
     return w->id;
 }
 
@@ -186,7 +194,11 @@ void zui_wm_progress(zui_wm_t *wm, uint32_t id, uint32_t done256)
     zui_wm_window_t *w = zui_wm_get(wm, id);
     if (!w || w->phase != ZUI_WIN_LAUNCHING) return;
     w->progress = done256 > 256u ? 256u : done256;
-    if (w->progress == 256u) w->phase = ZUI_WIN_OPENING; /* WM2: the doors */
+    if (w->progress >= 128u) cue(wm, w, ZUI_CUE_MIDDLE); /* the parts are in */
+    if (w->progress == 256u) {
+        cue(wm, w, ZUI_CUE_END);
+        w->phase = ZUI_WIN_OPENING; /* WM2: the doors */
+    }
 }
 
 bool zui_wm_close(zui_wm_t *wm, uint32_t id)

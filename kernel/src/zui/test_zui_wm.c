@@ -77,6 +77,14 @@ static void on_window(zui_wm_t *wm, uint32_t id, bool open, void *ctx)
     }
 }
 
+static int cues[3], cue_order[8], ncue;
+static void on_cue(zui_wm_t *wm, uint32_t id, int c, void *ctx)
+{
+    (void) wm, (void) id, (void) ctx;
+    cues[c]++;
+    if (ncue < 8) cue_order[ncue++] = c;
+}
+
 static int themed;
 static void theme(zui_surface_t *s, zui_rect_t area, const zui_wm_window_t *w,
                   zui_launch_state_t st, uint32_t tick, void *ctx)
@@ -148,6 +156,7 @@ static void test_launch(void)
 {
     zui_wm_init(&WM, W, H, false);
     WM.on_window = on_window;
+    WM.cue = on_cue;
     zui_rect_t a = zui_wm_work(&WM);
     CHECK(a.w == W && a.h == H - ZUI_WM_STRIP && !WM.compact, "the work area is above the strip");
     zui_launch_t l = launch_with_mark();
@@ -168,11 +177,19 @@ static void test_launch(void)
     up(c.x + 10, c.y + 10);
     CHECK(A1.events == 0, "WM7: a launching window gets no events");
     zui_wm_progress(&WM, id, 100);
+    CHECK(cues[ZUI_CUE_BEGIN] == 1 && ncue == 1, "WM2: the beginning cue as it opens");
     CHECK(w->phase == ZUI_WIN_LAUNCHING && w->progress == 100, "real progress, still loading");
+    CHECK(ncue == 1, "no middle cue before the parts are in");
+    zui_wm_progress(&WM, id, 128);
+    zui_wm_progress(&WM, id, 200);
+    CHECK(cues[ZUI_CUE_MIDDLE] == 1 && ncue == 2, "the middle cue once, at 128");
     zui_wm_tick(&WM, 10000);
     CHECK(w->phase == ZUI_WIN_LAUNCHING, "time alone never finishes a launch");
     zui_wm_progress(&WM, id, 300);
     CHECK(w->phase == ZUI_WIN_OPENING && w->progress == 256, "loaded: the doors");
+    CHECK(cues[ZUI_CUE_END] == 1 && ncue == 3 && cue_order[0] == ZUI_CUE_BEGIN &&
+              cue_order[2] == ZUI_CUE_END,
+          "the end cue as the doors open, in order");
     zui_wm_tick(&WM, ZUI_WM_OPEN_MS / 2);
     zui_wm_draw(&WM, &S, 1);
     CHECK(A1.paints == 1 && at(c.x + c.w / 2, c.y + c.h / 2) == C1, "the app shows between them");
@@ -183,6 +200,7 @@ static void test_launch(void)
     CHECK(w->phase == ZUI_WIN_OPEN && at(c.x + 2, c.y + c.h / 2) == C1, "open: all the app");
     zui_wm_progress(&WM, id, 0);
     CHECK(w->phase == ZUI_WIN_OPEN, "progress after opening changes nothing");
+    CHECK(ncue == 3, "each cue once");
     memcpy(PX2, PX, sizeof PX);
     zui_wm_draw(&WM, &S, 2);
     CHECK(!memcmp(PX, PX2, sizeof PX), "WM8: the same state draws the same pixels");
