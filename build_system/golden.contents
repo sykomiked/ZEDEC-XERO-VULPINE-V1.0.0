@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# golden.contents — what mk_golden_disc.sh copies onto the golden disc
+# besides the models. One "<repo path> <path on the disc>" per line. A repo
+# path that does not exist yet (its pull request has not merged) is reported
+# and skipped, so this list can name assets ahead of time.
+
+LICENSE                 ZXV/LICENSES/LICENSE
+NOTICE                  ZXV/LICENSES/NOTICE
+COMMERCIAL_USE.md       ZXV/LICENSES/COMMERCIAL_USE.md
+LICENSES                ZXV/LICENSES/SPDX
+assets/music            ZXV/MUSIC
+assets/fonts            ZXV/FONTS
+assets/boot             ZXV/BOOT
+assets/brand            ZXV/BRAND
+assets/app-icons        ZXV/APPS/ICONS
+assets/apps             ZXV/APPS

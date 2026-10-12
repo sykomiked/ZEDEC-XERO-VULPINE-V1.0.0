@@ -291,6 +291,10 @@ jobs:
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
       - name: Boot ${{ matrix.arch }} disc under UEFI firmware
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+      # Golden disc model check with a 3 MiB test file as the model: verified
+      # when intact, caught when one byte changes (docs/BAREMETAL.md).
+      - name: Golden disc model check (${{ matrix.arch }})
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

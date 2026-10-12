@@ -1,0 +1,61 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Golden disc: the bare-metal UEFI disc with the AI models and assets on it
+# (build_system/mk_golden_disc.sh, docs/BAREMETAL.md). Builds both arches,
+# boots each under UEFI firmware until both models verify and [AI_OK] prints,
+# and keeps the gzipped discs as workflow artifacts for seven days.
+#
+#   - Manual only (workflow_dispatch). No push, pull request, tag or schedule.
+#   - It never publishes and never creates a release. Attaching the golden
+#     disc to a release is the owner's call (release.yml refuses weights).
+#   - Models come only from the pinned URLs in build_system/golden.models and
+#     are refused unless size and SHA-256 match.
+name: Golden disc
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: golden-disc
+  cancel-in-progress: true
+
+jobs:
+  golden:
+    name: golden disc ${{ matrix.arch }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x86_64]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Build toolchain image
+        run: docker build -f build_system/Dockerfile.baremetal -t zxv-baremetal .
+      - name: Build the kernel and the golden disc (downloads the pinned models)
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash -c 'bash build_system/baremetal_images.sh ${{ matrix.arch }} && bash build_system/mk_golden_disc.sh ${{ matrix.arch }}'
+      - name: Boot it under UEFI firmware (both models verified, [AI_OK])
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img 300 "[AI_OK]" "[MODELS_OK] 2 verified"
+      - name: Compress and report the size
+        run: |
+          set -eu
+          sudo chown -R "$(id -u)" dist
+          gzip -9 -n -c dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img > dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img.gz
+          ( cd dist/discs && sha256sum zxv-${{ matrix.arch }}-uefi-golden.img.gz > zxv-${{ matrix.arch }}-uefi-golden.img.gz.sha256 )
+          { echo '```'; cat dist/discs/zxv-${{ matrix.arch }}-uefi-golden.sizes; ls -l dist/discs/*.gz; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: golden-disc-${{ matrix.arch }}
+          retention-days: 7
+          compression-level: 0
+          path: |
+            dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img.gz
+            dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img.gz.sha256
+            dist/discs/zxv-${{ matrix.arch }}-uefi-golden.sizes
+          if-no-files-found: error
