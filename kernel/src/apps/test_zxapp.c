@@ -1,13 +1,18 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* test_zxapp.c — app manifests (zxapp.h) and the KRON runtime over the
- * apl-kron pillar. Run by test_zxapp.sh. */
+/* test_zxapp.c — app manifests (zxapp.h) and the language runtimes over the
+ * pillars: KRON, Eve, Sutra, Trebago, MYRA and WebAssembly. Run by
+ * test_zxapp.sh, which passes kernel/src for apps/fee_check.zxapp. */
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "zxapp.h"
 #include "zxapp_eve.h"
 #include "zxapp_kron.h"
+#include "zxapp_myra.h"
+#include "zxapp_sutra.h"
+#include "zxapp_trebago.h"
 #include "zxapp_wasm.h"
 #include "wasm_build.h" /* sdk/kits/z-wasm/test: modules without a toolchain */
 
@@ -1146,8 +1151,479 @@ static void test_intents(void)
     CHECK(zxapp_registry_handlers(0, "share", "text/plain", h, 8) == 0, "NULL registry");
 }
 
-int main(void)
+/* ---- the real Sutra runtime (cobol-sutra pillar + a small procedure) -------- */
+
+static void test_sutra(void)
 {
+    zxapp_host_init(&H);
+    CHECK(zxapp_sutra_register(&H) == ZXAPP_OK && zxapp_host_has(&H, ZXAPP_LANG_SUTRA),
+          "sutra registers");
+    CHECK(parse("zxapp 1\nid s\n"
+                "logic sutra fee <<\n"
+                "record fee-calc\n  amount: 9(9)\n  rate: 9(4)\n  fee: 9(7)\n"
+                "procedure\n"
+                "  compute fee = amount * rate / 10000\n"
+                "  if fee < 50\n    compute fee = 50\n  end-if\n"
+                "  answer fee\n.\n"
+                "logic sutra price <<\n"
+                "record p\n  base: s9(7)v99\n  qty: 9(3)\n  total: s9(9)v99\n"
+                "procedure\n"
+                "  COMPUTE TOTAL = BASE * QTY - 0.5.   # COBOL case and period\n"
+                "  answer total\n.\n"
+                "logic sutra band <<\n"
+                "record b\n  x: s9(5)\n  y: s9(5)\n"
+                "procedure\n"
+                "  if x < 0\n    answer -1\n  else\n"
+                "    if x > 100 then\n      compute y = 2\n    else\n      compute y = 1\n"
+                "    end-if\n  end-if\n"
+                "  answer y\n.\n"
+                "logic sutra ok <<\n"
+                "record c\n  a: s9(5)\n  b: s9(5)\n"
+                "procedure\n  answer a > 0 and not b = 0 or a = -7\n.\n"
+                "logic sutra half <<\nrecord h\n  a: s9(5)\nprocedure\n  answer a / 2\n.\n"
+                "logic sutra none <<\nrecord n\n  a: s9(5)\nprocedure\n"
+                "  if a > 0\n    answer a\n  end-if\n.\n"
+                "logic sutra small <<\nrecord m\n  a: s9(9)\n  r: 9(3)\nprocedure\n"
+                "  compute r = a * 2\n  answer r\n.\n"
+                "logic sutra wide <<\nrecord w\n  a: s9(18)\nprocedure\n"
+                "  answer a * a * a\n.\n"
+                "logic sutra divz <<\nrecord z\n  a: s9(5)\n  b: s9(5)\nprocedure\n"
+                "  answer a / b\n.\n") == ZXAPP_OK &&
+              A.n == 9,
+          "a sutra manifest: %s", A.err);
+    CHECK(zxapp_load(&A, &H) == 9, "nine Sutra entries load: %s", A.err);
+    int64_t amt[4] = {10000, 123456, 0, 99999999}, rate[1] = {30};
+    zxapp_arg_t args[2] = {{"amount", amt, 4}, {"rate", rate, 1}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    CHECK(zxapp_call(&A, &H, "fee", args, 2, out, 8, &n) == ZXAPP_OK && n == 4 &&
+              out[0].num == 50 && out[1].num == 370 && out[2].num == 50 && out[3].num == 299999 &&
+              out[1].den == 1,
+          "SU3: COMPUTE truncates, IF applies the minimum, a shared rate");
+    CHECK(zxapp_call(&A, &H, "fee", args, 2, out, 3, &n) == ZXAPP_E_BUFFER && n == 4,
+          "a short buffer");
+    int64_t base[2] = {1250, -199}, qty[2] = {3, 2};
+    zxapp_arg_t pa[2] = {{"base", base, 2}, {"qty", qty, 2}};
+    CHECK(zxapp_call(&A, &H, "price", pa, 2, out, 8, &n) == ZXAPP_OK && n == 2 &&
+              out[0].num == 3700 && out[1].num == -448,
+          "SU1/SU4: v99 fields take and answer hundredths (12.50 * 3 - 0.50 = 37.00)");
+    int64_t xs[4] = {-5, 50, 101, 100};
+    zxapp_arg_t xa = {"x", xs, 4};
+    CHECK(zxapp_call(&A, &H, "band", &xa, 1, out, 8, &n) == ZXAPP_OK && n == 4 &&
+              out[0].num == -1 && out[1].num == 1 && out[2].num == 2 && out[3].num == 1,
+          "nested if/else, an early answer");
+    int64_t av[4] = {1, 1, -7, 0}, bv[4] = {1, 0, 0, 5};
+    zxapp_arg_t ca[2] = {{"a", av, 4}, {"b", bv, 4}};
+    CHECK(zxapp_call(&A, &H, "ok", ca, 2, out, 8, &n) == ZXAPP_OK && n == 4 &&
+              out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_FALSE && out[2].num == ZXAPP_TRUE &&
+              out[3].num == ZXAPP_FALSE && out[0].den == 0,
+          "a condition answers a truth (not, and, or)");
+    int64_t even[2] = {8, -4}, odd[1] = {7};
+    zxapp_arg_t ha = {"a", even, 2};
+    CHECK(zxapp_call(&A, &H, "half", &ha, 1, out, 8, &n) == ZXAPP_OK && out[0].num == 4 &&
+              out[1].num == -2,
+          "a whole answer");
+    ha.v = odd;
+    ha.n = 1;
+    CHECK(zxapp_call(&A, &H, "half", &ha, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "whole number"),
+          "SU4: 7/2 is not answered as a number: %s", A.err);
+    int64_t neg[1] = {-1};
+    zxapp_arg_t na = {"a", neg, 1};
+    CHECK(zxapp_call(&A, &H, "none", &na, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "without an answer"),
+          "a row that never answers is refused");
+    int64_t five[1] = {499}, six[1] = {500};
+    zxapp_arg_t sa = {"a", five, 1};
+    CHECK(zxapp_call(&A, &H, "small", &sa, 1, out, 8, &n) == ZXAPP_OK && out[0].num == 998,
+          "998 fits 9(3)");
+    sa.v = six;
+    CHECK(zxapp_call(&A, &H, "small", &sa, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "size error"),
+          "SU3: 1000 in 9(3) is a size error, never stored short: %s", A.err);
+    sa.v = neg;
+    CHECK(zxapp_call(&A, &H, "small", &sa, 1, out, 8, &n) == ZXAPP_E_RUNTIME,
+          "a negative value in an unsigned picture is refused");
+    int64_t big[1] = {INT64_C(999999999999)};
+    zxapp_arg_t wa = {"a", big, 1};
+    CHECK(zxapp_call(&A, &H, "wide", &wa, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "never rounded"),
+          "an int64 overflow in an expression is refused: %s", A.err);
+    int64_t huge[1] = {INT64_C(10000000000)};
+    zxapp_arg_t ga = {"amount", huge, 1};
+    zxapp_arg_t gargs[2] = {ga, {"rate", rate, 1}};
+    CHECK(zxapp_call(&A, &H, "fee", gargs, 2, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "cannot hold"),
+          "SU1: an argument wider than its picture is the pillar's refusal: %s", A.err);
+    int64_t zero[1] = {0};
+    zxapp_arg_t za[2] = {{"a", odd, 1}, {"b", zero, 1}};
+    CHECK(zxapp_call(&A, &H, "divz", za, 2, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "division by zero"),
+          "division by zero is refused");
+    zxapp_arg_t wrong = {"tip", odd, 1};
+    CHECK(zxapp_call(&A, &H, "half", &wrong, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "not a numeric field"),
+          "SU5: a name the record does not have");
+    int64_t two[2] = {1, 2}, three[3] = {1, 2, 3};
+    zxapp_arg_t mism[2] = {{"a", two, 2}, {"b", three, 3}};
+    CHECK(zxapp_call(&A, &H, "ok", mism, 2, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "two lengths"),
+          "vectors of two lengths");
+    zxapp_unload(&A, &H);
+
+    static const struct {
+        const char *src, *why;
+    } bad[] = {
+        {"record r\n  a: 9(3)\n", "procedure"},
+        {"record r\n  a: 9(3)v99 comp-1\nprocedure\n  answer a\n", "comp-1"},
+        {"record r\n  a: 9(3)\nprocedure\n  answer b\n", "b is not a field"},
+        {"record r\n  a: 9(3)\n  t: x(4)\nprocedure\n  answer t\n", "not a numeric"},
+        {"record r\n  a: 9(3)\nprocedure\n  move a to a\n", "a statement is"},
+        {"record r\n  a: 9(3)\nprocedure\n  if a > 1\n  answer a\n", "no end-if"},
+        {"record r\n  a: 9(3)\nprocedure\n  end-if\n", "no open if"},
+        {"record r\n  a: 9(3)\nprocedure\n  if a\n  end-if\n", "compares"},
+        {"record r\n  a: 9(3)\nprocedure\n  answer a and a > 1\n", "and joins"},
+        {"record r\n  a: 9(3)\nprocedure\n  answer (a + 1\n", "')'"},
+        {"record r\n  a: 9(3)\nprocedure\n  compute a = 1 2\n", "unexpected"},
+        {"record r\n  a: 9(3)\nprocedure\n  answer 1234567890123456789\n", "18 digits"},
+        {"record r\n  a: 9(3)\nprocedure\n", "empty"},
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        static char text[512];
+        int k = snprintf(text, sizeof text, "zxapp 1\nid b\nlogic sutra e <<\n%s.\n", bad[i].src);
+        CHECK(k > 0 && (size_t) k < sizeof text && parse(text) == ZXAPP_OK &&
+                  zxapp_load(&A, &H) == ZXAPP_E_RUNTIME && strstr(A.err, "e: ") &&
+                  strstr(A.err, bad[i].why),
+              "bad Sutra %zu refused at load (%s): %s", i, bad[i].why, A.err);
+        zxapp_unload(&A, &H);
+    }
+    CHECK(parse("zxapp 1\nid b\nlogic sutra e <<\nrecord r\n  a: 9(3)\nprocedure\n\n"
+                "  answer zz\n.\n") == ZXAPP_OK &&
+              zxapp_load(&A, &H) == ZXAPP_E_RUNTIME && strstr(A.err, "line 5: zz"),
+          "a procedure refusal names the line in the source: %s", A.err);
+    zxapp_unload(&A, &H);
+}
+
+/* ---- the real Trebago runtime (fortran-trebago pillar) ---------------------- */
+
+static void test_trebago(void)
+{
+    zxapp_host_init(&H);
+    CHECK(zxapp_trebago_register(&H) == ZXAPP_OK && zxapp_host_has(&H, ZXAPP_LANG_TREBAGO),
+          "trebago registers");
+    CHECK(parse("zxapp 1\nid t\n"
+                "logic trebago total <<\ntrebago total\n  in amount(n), fee(n)\n  out total\n"
+                "  total = sum(i, amount(i) + fee(i))\nend\n.\n"
+                "logic trebago axpy <<\ntrebago axpy\n  in x(n), alpha\n  out y(n)\n"
+                "  y(i) = alpha * x(i) / 3\nend\n.\n"
+                "logic trebago acc <<\ntrebago acc\n  in x(n)\n  inout z(n)\n"
+                "  z(i) = z(i) + x(i)\nend\n.\n"
+                "logic trebago fixed <<\ntrebago fixed\n  in x(n)\n  out f(2)\n"
+                "  f(i) = sum(j, x(j)) * i\nend\n.\n"
+                "logic trebago inv <<\ntrebago inv\n  in x(n)\n  out y(n)\n  y(i) = 1 / x(i)\nend\n"
+                ".\n") == ZXAPP_OK &&
+              zxapp_load(&A, &H) == 5,
+          "five Trebago programs load: %s", A.err);
+    int64_t amt[3] = {10000, 250, -50}, fee[3] = {50, 50, 0};
+    zxapp_arg_t args[2] = {{"amount", amt, 3}, {"fee", fee, 3}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    CHECK(zxapp_call(&A, &H, "total", args, 2, out, 8, &n) == ZXAPP_OK && n == 1 &&
+              out[0].num == 10300 && out[0].den == 1,
+          "TB2: a scalar out is one answer");
+    int64_t alpha[1] = {2};
+    zxapp_arg_t xa[2] = {{"x", amt, 3}, {"alpha", alpha, 1}};
+    CHECK(zxapp_call(&A, &H, "axpy", xa, 2, out, 8, &n) == ZXAPP_OK && n == 3 &&
+              out[0].num == 20000 && out[0].den == 3 && out[1].num == 500 && out[1].den == 3 &&
+              out[2].num == -100 && out[2].den == 3,
+          "TB2: a vector out takes its input's extent; exact rationals");
+    CHECK(zxapp_call(&A, &H, "axpy", xa, 2, out, 2, &n) == ZXAPP_E_BUFFER && n == 3,
+          "a short buffer");
+    zxapp_arg_t za[2] = {{"x", amt, 3}, {"z", fee, 3}};
+    CHECK(zxapp_call(&A, &H, "acc", za, 2, out, 8, &n) == ZXAPP_OK && n == 3 &&
+              out[0].num == 10050 && out[2].num == -50 && fee[0] == 50,
+          "TB2: an inout answers when there is no out (the caller's values untouched)");
+    CHECK(zxapp_call(&A, &H, "fixed", args, 1, out, 8, &n) == ZXAPP_E_RUNTIME, "x not given");
+    zxapp_arg_t fx = {"x", fee, 3};
+    CHECK(zxapp_call(&A, &H, "fixed", &fx, 1, out, 8, &n) == ZXAPP_OK && n == 2 &&
+              out[0].num == 100 && out[1].num == 200,
+          "a fixed extent");
+    CHECK(zxapp_call(&A, &H, "total", args, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "missing argument: fee"),
+          "TB1: every input must be bound: %s", A.err);
+    zxapp_arg_t extra[3] = {args[0], args[1], {"tip", fee, 3}};
+    CHECK(zxapp_call(&A, &H, "total", extra, 3, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "does not take: tip"),
+          "TB1: an argument the program does not take");
+    zxapp_arg_t vec_alpha[2] = {{"x", amt, 3}, {"alpha", fee, 3}};
+    CHECK(zxapp_call(&A, &H, "axpy", vec_alpha, 2, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "scalar"),
+          "a scalar takes one value");
+    int64_t short_fee[2] = {1, 2};
+    zxapp_arg_t mism[2] = {{"amount", amt, 3}, {"fee", short_fee, 2}};
+    CHECK(zxapp_call(&A, &H, "total", mism, 2, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "TB_E_SHAPE"),
+          "extents that disagree are the pillar's refusal: %s", A.err);
+    int64_t big[2] = {INT64_MAX, INT64_MAX}, zero[2] = {0, 0};
+    zxapp_arg_t bg[2] = {{"amount", big, 2}, {"fee", zero, 2}};
+    CHECK(zxapp_call(&A, &H, "total", bg, 2, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "ZXV_E_RANGE"),
+          "TB4: an overflow is refused, never rounded: %s", A.err);
+    int64_t withz[2] = {4, 0};
+    zxapp_arg_t ia = {"x", withz, 2};
+    CHECK(zxapp_call(&A, &H, "inv", &ia, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "TB_E_DIVZERO"),
+          "TB4: division by zero: %s", A.err);
+    zxapp_unload(&A, &H);
+
+    static const struct {
+        const char *src, *why;
+    } bad[] = {
+        {"trebago b\n  in x(n)\n  out s\n  s = sum(i, x(i) * 1.0e-3)\nend\n", "line"},
+        {"trebago b\n  in a(m, n)\n  out s\n  s = sum(i, a(i, 1))\nend\n", "matrix"},
+        {"trebago b\n  in x(n)\n  var t(n)\n  out y(n)\n  y(i) = x(i)\nend\n", ""},
+        {"trebago b\n  in x(n)\n  inout q\n  out y(m)\n  y(i) = q\nend\n", "y"},
+        {"trebago b\n  in x(n)\nend\n", ""},
+        {"trebago b\n  in x(n)\n  out s\n  s = sum(i, x(i)\nend\n", "line"},
+    };
+    int expect_ok[] = {0, 0, 1, 0, 0, 0};
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        static char text[512];
+        int k = snprintf(text, sizeof text, "zxapp 1\nid b\nlogic trebago e <<\n%s.\n", bad[i].src);
+        int rc =
+            k > 0 && (size_t) k < sizeof text && parse(text) == ZXAPP_OK ? zxapp_load(&A, &H) : -99;
+        if (expect_ok[i])
+            CHECK(rc == 1, "Trebago %zu loads: %s", i, A.err);
+        else
+            CHECK(rc == ZXAPP_E_RUNTIME && strstr(A.err, "e: ") && strstr(A.err, bad[i].why),
+                  "bad Trebago %zu refused at load: %s", i, A.err);
+        zxapp_unload(&A, &H);
+    }
+}
+
+/* ---- the real MYRA runtime (mumps-myra pillar) ------------------------------ */
+
+static void test_myra(void)
+{
+    zxapp_host_init(&H);
+    CHECK(zxapp_myra_register(&H) == ZXAPP_OK && zxapp_host_has(&H, ZXAPP_LANG_MYRA),
+          "myra registers");
+    CHECK(parse("zxapp 1\nid m\n"
+                "logic myra pay <<\n"
+                "^ZXFEE(batch:i9, seq:i9) = amount:n15.2! ^ fee:n9.2! ^ day:d ^ memo:t20\n.\n"
+                "logic myra gmap <<\nGLOBAL ^ZXQ\nNODE ^ZXQ(ID)\n  KEY ID INTEGER(3)\n"
+                "  PIECE 1 QTY INTEGER(2) REQUIRED\n.\n") == ZXAPP_OK &&
+              zxapp_load(&A, &H) == 2,
+          "a MYRA schema and a global map load: %s", A.err);
+    int64_t batch[1] = {7}, seq[4] = {1, 2, 3, 1000000000};
+    int64_t amt[4] = {1250, INT64_C(999999999999999), INT64_C(1000000000000000), 5};
+    int64_t fee[4] = {50, 50, 50, 50};
+    zxapp_arg_t args[4] = {
+        {"batch", batch, 1}, {"seq", seq, 4}, {"amount", amt, 4}, {"FEE", fee, 4}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    CHECK(zxapp_call(&A, &H, "pay", args, 4, out, 8, &n) == ZXAPP_OK && n == 4 &&
+              out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_TRUE && out[2].num == ZXAPP_FALSE &&
+              out[3].num == ZXAPP_FALSE && out[0].den == 0,
+          "MY3: 15 digits fit n15.2, 16 do not; a 10-digit key does not fit i9");
+    int64_t days[3] = {67854, 2980013, 2980014};
+    zxapp_arg_t da = {"day", days, 3};
+    CHECK(zxapp_call(&A, &H, "pay", &da, 1, out, 8, &n) == ZXAPP_OK && n == 3 &&
+              out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_TRUE && out[2].num == ZXAPP_FALSE,
+          "MY2: a DATE is a $H day, inside 0..2980013");
+    int64_t big[1] = {INT64_MAX};
+    zxapp_arg_t ba = {"fee", big, 1};
+    CHECK(zxapp_call(&A, &H, "pay", &ba, 1, out, 8, &n) == ZXAPP_OK && out[0].num == ZXAPP_FALSE,
+          "an overflowing value does not fit: FALSE, never rounded");
+    int64_t q[3] = {99, 100, -99};
+    zxapp_arg_t qa = {"qty", q, 3};
+    CHECK(zxapp_call(&A, &H, "gmap", &qa, 1, out, 8, &n) == ZXAPP_OK && n == 3 &&
+              out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_FALSE && out[2].num == ZXAPP_TRUE,
+          "the global map's INTEGER(2)");
+    zxapp_arg_t memo = {"memo", fee, 1};
+    CHECK(zxapp_call(&A, &H, "pay", &memo, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "TEXT"),
+          "MY4: a TEXT field takes no number");
+    zxapp_arg_t nope = {"tip", fee, 1};
+    CHECK(zxapp_call(&A, &H, "pay", &nope, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "does not have: tip"),
+          "MY4: a name the node does not have");
+    int64_t two[2] = {1, 2};
+    zxapp_arg_t mism[2] = {{"seq", seq, 4}, {"fee", two, 2}};
+    CHECK(zxapp_call(&A, &H, "pay", mism, 2, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "two lengths"),
+          "vectors of two lengths");
+    CHECK(zxapp_call(&A, &H, "pay", args, 4, out, 3, &n) == ZXAPP_E_BUFFER && n == 4,
+          "a short buffer");
+    zxapp_unload(&A, &H);
+    CHECK(parse("zxapp 1\nid b\nlogic myra e <<\n^ZXBAD(id:i9,seq:i9)=amount:n9.2\n"
+                "^ZXBAD(id:i9,day:d)=note:t20\n.\n") == ZXAPP_OK &&
+              zxapp_load(&A, &H) == ZXAPP_E_RUNTIME && strstr(A.err, "e: "),
+          "an ambiguous schema is the pillar's refusal at load: %s", A.err);
+    zxapp_unload(&A, &H);
+    CHECK(parse("zxapp 1\nid b\nlogic myra e <<\n^ZXBAD(id:q9)=amount:n9.2\n.\n") == ZXAPP_OK &&
+              zxapp_load(&A, &H) == ZXAPP_E_RUNTIME && strstr(A.err, "line 1"),
+          "a type MYRA does not have is refused at load: %s", A.err);
+    zxapp_unload(&A, &H);
+}
+
+/* ---- A5 across languages: Sutra, KRON, Eve, Trebago and MYRA witness -------- */
+
+static const char LIMITS_EVE[] = "eve f\ncents = 0 .. 100000000\n"
+                                 "fee_limits {\n  amount: cents 1 .. 1000000\n"
+                                 "  fee: cents 0 .. 2500\n}\n";
+
+static void test_witness_mixed(void)
+{
+    zxapp_host_init(&H);
+    CHECK(zxapp_sutra_register(&H) == ZXAPP_OK && zxapp_kron_register(&H) == ZXAPP_OK &&
+              zxapp_eve_register(&H) == ZXAPP_OK && zxapp_trebago_register(&H) == ZXAPP_OK &&
+              zxapp_myra_register(&H) == ZXAPP_OK && H.n == 5,
+          "five runtimes side by side");
+    static char text[2048];
+    int k = snprintf(text, sizeof text,
+                     "zxapp 1\nid mix\n"
+                     "logic sutra ok <<\nrecord r\n  amount: s9(18)\n  fee: s9(18)\nprocedure\n"
+                     "  answer amount >= 1 and amount <= 1000000 and fee >= 0 and fee <= 2500\n.\n"
+                     "logic kron  ok <<\n(amount>0)&(amount<1000001)&(fee>-1)&fee<2501\n.\n"
+                     "logic eve   ok <<\n%s.\n"
+                     "logic sutra off <<\nrecord r\n  amount: s9(18)\n  fee: s9(18)\nprocedure\n"
+                     "  answer amount >= 1 and amount <= 1000000 and fee >= 0 and fee < 2500\n.\n"
+                     "logic kron  off <<\n(amount>0)&(amount<1000001)&(fee>-1)&fee<2501\n.\n"
+                     "logic eve   off <<\n%s.\n"
+                     "logic sutra solo <<\nrecord r\n  amount: s9(18)\n  fee: s9(18)\nprocedure\n"
+                     "  answer fee <= 2500\n.\n"
+                     "logic python solo apps/mix/solo.py\n"
+                     "logic trebago sum <<\ntrebago s\n  in amount(n), fee(n)\n  out s\n"
+                     "  s = sum(i, amount(i) + fee(i))\nend\n.\n"
+                     "logic kron  sum <<\n+/amount+fee\n.\n"
+                     "logic myra  fits <<\n^ZXF(n:i9)=amount:i7!^fee:i4!\n.\n"
+                     "logic eve   fits <<\neve g\nn = 0 .. 9999999\nr {\n  amount: n\n  fee: n 0 "
+                     ".. 9999\n}\n.\n",
+                     LIMITS_EVE, LIMITS_EVE);
+    CHECK(k > 0 && (size_t) k < sizeof text && parse(text) == ZXAPP_OK && A.n == 12,
+          "one manifest, five languages, witnessed entries: %s", A.err);
+    CHECK(zxapp_load(&A, &H) == 11 && !A.logic[7].loaded,
+          "eleven entries load; python waits for its runtime: %s", A.err);
+    int64_t amt[4] = {10000, 0, 1000000, 500}, fee[4] = {30, 30, 2500, 2501};
+    zxapp_arg_t args[2] = {{"amount", amt, 4}, {"fee", fee, 4}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    int32_t lp = -1;
+    CHECK(zxapp_call_witnessed(&A, &H, "ok", args, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && n == 4 && out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_FALSE &&
+              out[2].num == ZXAPP_TRUE && out[3].num == ZXAPP_FALSE,
+          "Sutra, KRON and Eve agree: TRUE");
+    CHECK(zxapp_call_witnessed(&A, &H, "off", args, 2, out, 8, &n, &lp) == ZXAPP_E_CONFLICT &&
+              lp == ZXAPP_BOTH && n == 4 && out[2].num == ZXAPP_FALSE,
+          "an off-by-one Sutra rule disagrees at the limit: BOTH, held (Sutra's answer kept)");
+    int64_t inside[1] = {100}, small[1] = {30};
+    zxapp_arg_t in1[2] = {{"amount", inside, 1}, {"fee", small, 1}};
+    CHECK(zxapp_call_witnessed(&A, &H, "off", in1, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE,
+          "away from the limit the same three agree");
+    CHECK(zxapp_call_witnessed(&A, &H, "solo", args, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_NEITHER && n == 4 && out[3].num == ZXAPP_FALSE,
+          "the other witness is missing (no python runtime): NEITHER");
+    CHECK(zxapp_call_witnessed(&A, &H, "sum", args, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && n == 1 && out[0].num == 1015561,
+          "Trebago and KRON add up the same");
+    int64_t big[2] = {INT64_MAX, 1}, zero[2] = {0, 0};
+    zxapp_arg_t ov[2] = {{"amount", big, 2}, {"fee", zero, 2}};
+    CHECK(zxapp_call_witnessed(&A, &H, "sum", ov, 2, out, 8, &n, &lp) == ZXAPP_E_RUNTIME,
+          "both refuse the overflow: a refusal, not a conflict");
+    CHECK(zxapp_call_witnessed(&A, &H, "fits", args, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && out[3].num == ZXAPP_TRUE,
+          "MYRA's i7/i4 and Eve's ranges agree");
+    int64_t wide[1] = {10000};
+    zxapp_arg_t wf[2] = {{"amount", inside, 1}, {"fee", wide, 1}};
+    CHECK(zxapp_call_witnessed(&A, &H, "fits", wf, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && out[0].num == ZXAPP_FALSE,
+          "and agree on what does not fit");
+    zxapp_unload(&A, &H);
+}
+
+/* ---- apps/fee_check.zxapp: one app, five languages, read from disk ---------- */
+
+static const char *SRC_ROOT;
+
+static int32_t read_src(void *ctx, const char *path, char *buf, uint32_t cap)
+{
+    (void) ctx;
+    char full[512];
+    int k = snprintf(full, sizeof full, "%s/%s", SRC_ROOT, path);
+    if (k < 0 || (size_t) k >= sizeof full) return -1;
+    FILE *f = fopen(full, "rb");
+    if (!f) return -1;
+    size_t n = fread(buf, 1, cap, f);
+    int more = fgetc(f) != EOF;
+    fclose(f);
+    return more ? -1 : (int32_t) n;
+}
+
+static void test_fee_check(void)
+{
+    static char manifest[8192];
+    static zxapp_t FEE;
+    zxapp_host_init(&H);
+    H.read_file = read_src;
+    zxapp_sutra_register(&H);
+    zxapp_kron_register(&H);
+    zxapp_eve_register(&H);
+    zxapp_trebago_register(&H);
+    zxapp_myra_register(&H);
+    int32_t len = SRC_ROOT ? read_src(0, "apps/fee_check.zxapp", manifest, sizeof manifest) : -1;
+    CHECK(len > 0 && zxapp_parse(&FEE, manifest, (uint32_t) len) == ZXAPP_OK && FEE.n == 7,
+          "apps/fee_check.zxapp parses: %s", FEE.err);
+    if (len <= 0) return;
+    CHECK(zxapp_load(&FEE, &H) == 7, "all seven entries load: %s", FEE.err);
+    bool lang[ZXAPP_LANG_COUNT] = {false};
+    uint32_t langs = 0;
+    for (uint32_t i = 0; i < FEE.n; i++)
+        if (FEE.logic[i].loaded && !lang[FEE.logic[i].lang]) {
+            lang[FEE.logic[i].lang] = true;
+            langs++;
+        }
+    CHECK(langs == 5 && lang[ZXAPP_LANG_SUTRA] && lang[ZXAPP_LANG_KRON] && lang[ZXAPP_LANG_EVE] &&
+              lang[ZXAPP_LANG_TREBAGO] && lang[ZXAPP_LANG_MYRA],
+          "one app runs five languages natively");
+    int64_t amt[4] = {10000, 123456, 1000000, 99999999}, rate[4] = {30, 30, 25, 30};
+    zxapp_arg_t fa[2] = {{"amount", amt, 4}, {"rate", rate, 4}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    int32_t lp = -1;
+    CHECK(zxapp_call_witnessed(&FEE, &H, "fee", fa, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && n == 4 && out[0].num == 50 && out[1].num == 370 &&
+              out[2].num == 2500 && out[3].num == 299999,
+          "fee: Sutra and KRON agree (TRUE): 50 minimum, 370, 2500, 299999");
+    int64_t fee[4] = {50, 370, 2500, 299999};
+    zxapp_arg_t oa[2] = {{"amount", amt, 4}, {"fee", fee, 4}};
+    CHECK(zxapp_call_witnessed(&FEE, &H, "fee_ok", oa, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && n == 4 && out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_TRUE &&
+              out[2].num == ZXAPP_TRUE && out[3].num == ZXAPP_FALSE,
+          "fee_ok: Sutra, KRON and Eve agree (TRUE); the last payment is over the limits");
+    int64_t wide[1] = {INT64_C(100000000000)}, r1[1] = {30};
+    zxapp_arg_t wa[2] = {{"amount", wide, 1}, {"rate", r1, 1}};
+    CHECK(zxapp_call_witnessed(&FEE, &H, "fee", wa, 2, out, 8, &n, &lp) == ZXAPP_E_CONFLICT &&
+              lp == ZXAPP_BOTH,
+          "an amount too wide for Sutra's 9(9): Sutra refuses, KRON answers: BOTH, held");
+    CHECK(zxapp_call(&FEE, &H, "total", oa, 2, out, 8, &n) == ZXAPP_OK && n == 1 &&
+              out[0].num == 101436374 && out[0].den == 1,
+          "total: Trebago's exact batch sum");
+    int64_t batch[1] = {7}, seq[4] = {1, 2, 3, 4};
+    zxapp_arg_t ra[4] = {{"batch", batch, 1}, {"seq", seq, 4}, {"amount", amt, 4}, {"fee", fee, 4}};
+    CHECK(zxapp_call(&FEE, &H, "record_ok", ra, 4, out, 8, &n) == ZXAPP_OK && n == 4 &&
+              out[0].num == ZXAPP_TRUE && out[3].num == ZXAPP_TRUE,
+          "record_ok: MYRA files them in ^ZXFEE");
+    zxapp_arg_t bad_order[2] = {{"rate", rate, 4}, {"amount", amt, 4}};
+    CHECK(zxapp_call_witnessed(&FEE, &H, "fee", bad_order, 2, out, 8, &n, &lp) == ZXAPP_E_CONTRACT,
+          "B3: the contract is checked before any of the languages runs");
+    zxapp_unload(&FEE, &H);
+}
+
+int main(int argc, char **argv)
+{
+    SRC_ROOT = argc > 1 ? argv[1] : 0;
     test_names();
     test_parse();
     test_host();
@@ -1161,6 +1637,11 @@ int main(void)
     test_launch();
     test_apps_as_blocks();
     test_intents();
+    test_sutra();
+    test_trebago();
+    test_myra();
+    test_witness_mixed();
+    test_fee_check();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

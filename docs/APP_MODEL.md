@@ -40,9 +40,30 @@ logic  eve  within_limits apps/blocks/swarm_shares/limits.eve
 
 A language whose runtime is not in this build leaves its entry unloaded,
 and the app's C model computes that feature instead, so every build runs.
-Runtimes in the tree today: KRON (`zxapp_kron.c`), Eve (`zxapp_eve.c`) and
-WebAssembly (`zxapp_wasm.c`). Sutra, Trebago, MYRA and the SDK languages
-register the same way (`zxapp_host_register`) as they are hooked in.
+Runtimes register with `zxapp_host_register`; the SDK languages will
+register the same way as they are hooked in.
+
+### Languages that run natively in apps
+
+Six languages run inside an app today, each through its own pillar, with
+integers in and exact values out (never a float):
+
+| Language | Runtime | What an entry is | Answers |
+|---|---|---|---|
+| KRON | `zxapp_kron.c` | One APL, K or canonical KRON program; its free names are the arguments. | Exact rationals or truths |
+| Eve | `zxapp_eve.c` | An Eve package; each row is checked against its first record type. | TRUE or FALSE per row |
+| Sutra | `zxapp_sutra.c` | A Sutra record (the pillar's layout and picture arithmetic), then `procedure` with `compute`, `if`/`else`/`end-if` and `answer`. The procedure interpreter is new in the runtime; every value is stored and read through the pillar, so a value too wide for its picture is refused (a size error), never cut short. | Integers in the field's own units, or TRUE/FALSE |
+| Trebago | `zxapp_trebago.c` | One Trebago program, parsed and run by the pillar. Arguments bind its `in` parameters; the answer is its first `out`. | Exact rationals |
+| MYRA | `zxapp_myra.c` | A MYRA schema or global map; each row's values are stored in a record of its first node by M's rules. | TRUE (fits) or FALSE per row |
+| WebAssembly | `zxapp_wasm.c` | A module exporting `run`, fuel-metered and integer-only. | Integers |
+
+Every refusal is the pillar's own (overflow, a division by zero, a value
+that does not fit) and reaches the app as `ZXAPP_E_RUNTIME` with the
+pillar's words. `apps/fee_check.zxapp` uses five of them in one app: the
+fee in Sutra and KRON, the limits in Sutra, KRON and Eve (both witnessed,
+below), the batch total in Trebago and the record check in MYRA, with
+its sources in `apps/blocks/fee_check/`. `kernel/src/apps/test_zxapp.sh`
+loads it with all five runtimes.
 
 ## The paraconsistent join
 
