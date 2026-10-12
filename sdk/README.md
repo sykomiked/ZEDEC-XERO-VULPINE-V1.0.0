@@ -125,6 +125,9 @@ records, and a BOTH hold that waits for a person to decide. See
 | Z-Genome | [`z-genome`](industry/z-genome/) | Exact, reproducible global/local alignment scores (affine gaps, int64, overflow refused) with signed result records; research use only | 5,556 checks + fuzzing |
 | Vinea-Triage | [`vinea-triage`](industry/vinea-triage/) | Store-and-forward triage records in signed, hash-chained bundles; conflicts held for a reviewer, never merged; not a medical device, not encrypted | 816 checks + fuzzing |
 | Mesh-Command | [`mesh-command`](industry/mesh-command/) | Field reports merged into an incident picture; contradictions held until a commander's signed decision; advisory assignments approved by signature | 1,667 checks + fuzzing |
+| Aero-Orbital | [`aero-orbital`](industry/aero-orbital/) | Ground-side aid: integer WGS-84 geodetic/ECEF with measured error bounds, telemetry over UBH-168, disagreeing or CRC-failed copies held for an analyst. Not flight software | 3,676 checks + fuzzing |
+| Tri-Modem | [`tri-modem`](industry/tri-modem/) | Mesh fallback planner for home routers: signed neighbour adverts, contradictions held for the owner, exact fair shares on rmag budgets; no amateur-radio relays | 2,904 checks + fuzzing |
+| V-Band | [`v-band`](industry/v-band/) | MCU-subset sensor log with four-valued readings, LoRaWAN-sized batches over UBH-168, in-order gateway refusing duplicates and gaps | 6,018 checks + fuzzing |
 
 Advisory only: kits recommend, and people or certified systems act. They
 are not connected to any authority, and they make no certification or

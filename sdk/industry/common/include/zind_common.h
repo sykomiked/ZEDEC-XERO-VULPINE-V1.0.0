@@ -4,7 +4,7 @@
  * (sdk/industry). Every industry kit links it; it calls only the public
  * libzxv ABI (zxv_api.h) and nothing under kernel/.
  *
- *   status codes   a kit-local range (-3000..-3999), one block per kit
+ *   status codes   a kit-local range (-3000..-4999), one block per kit
  *   errors         a thread-local last-error text
  *   quantities     exact rationals over zxv_rat_*: parse, format, checked
  *                  arithmetic, and conversion to integer minor units with an
@@ -36,7 +36,9 @@ extern "C" {
 /* ===== Status codes =====
  * Every function returns ZXV_OK, a libzxv ZXV_E_* code, or a code from the
  * industry range. Blocks: common -3000..-3099, logix-clear -3100..-3199,
- * tri-deliver -3200..-3299, v-shelf -3300..-3399, tri-trace -3400..-3499;
+ * tri-deliver -3200..-3299, v-shelf -3300..-3399, tri-trace -3400..-3499,
+ * z-genome -3500..-3599, vinea-triage -3600..-3699, mesh-command -3700..-3799,
+ * aero-orbital -3800..-3899, tri-modem -3900..-3999, v-band -4000..-4099;
  * later kits take the next free hundred (see sdk/industry/README.md). */
 #define ZIND_E_HELD     (-3001) /* held as Both: frozen until a human resolves it */
 #define ZIND_E_REPLAY   (-3002) /* already seen: a replay, a duplicate or double use */

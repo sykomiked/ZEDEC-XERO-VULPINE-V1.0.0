@@ -5,7 +5,8 @@
 
 An industry kit is a small C11 library for one trade (customs, courier
 escrow, store inventory, chain of custody, sequence alignment, field
-triage, incident command). Each kit is built only on the
+triage, incident command, ground stations, home networking, field
+sensors). Each kit is built only on the
 public libzxv ABI (`sdk/libzxv/include/zxv_api.h`). It uses exact
 rationals, four-valued logic, 64-state hexagram tags, capabilities, the
 ledger, the quarantine hexlog and ML-DSA-87 / SHA3-256. A kit includes
@@ -58,11 +59,14 @@ Every kit has the same layout:
 | Z-Genome | [`z-genome`](z-genome/) | Exact Needleman-Wunsch / Smith-Waterman alignment with affine gaps in checked int64 (overflow refused, documented tie-break), BLOSUM62 and DNA matrices, strict bounded FASTA, signed result records carrying the input digests, parameters and score; research use only | -3500s | 5,556 checks + fuzz |
 | Vinea-Triage | [`vinea-triage`](vinea-triage/) | Store-and-forward START/SALT triage records with integer vitals, ML-DSA-87 signed bundles hash-chained per responder, dedupe and reordering at the station, forks caught, disagreeing records held as BOTH for a reviewer; signed, not encrypted (the transport must encrypt); not a medical device | -3600s | 816 checks + fuzz |
 | Mesh-Command | [`mesh-command`](mesh-command/) | Incident command: signed field reports merged with `zxv_lp_from_evidence`, contradictions held as BOTH until a commander's signed decision (logged to the hexlog with who and why), advisory assignments a commander approves by signature, offline journal replay | -3700s | 1,667 checks + fuzz |
+| Aero-Orbital | [`aero-orbital`](aero-orbital/) | Ground-side aid for SmallSat operators: integer WGS-84 geodetic/ECEF conversion with measured error bounds (correctly rounded to mm and nano-degree on the reference vectors), telemetry over UBH-168, redundant copies that disagree or fail their CRC held as BOTH for an analyst, never corrected silently. Not flight software | -3800s | 3,676 checks + fuzz |
+| Tri-Modem | [`tri-modem`](tri-modem/) | Neighbourhood mesh fallback planner: signed (Ed25519 / ML-DSA-87) neighbour adverts, replays and expired adverts refused, contradictory reachability held as BOTH for the owner, exact max-min fair shares charged to rmag budgets; amateur-radio relays never selected. Configures no router | -3900s | 2,904 checks + fuzz |
+| V-Band | [`v-band`](v-band/) | Low-power sensor log in the MCU subset (no heap, fixed buffers): exact readings with four-valued states, batches sized to the LoRaWAN data rate, carried over UBH-168, accepted in order by the gateway with duplicates and gaps refused; Cortex-M4 core 3.2 KB flash. Not a LoRaWAN stack | -4000s | 6,018 checks + fuzz |
 
 Status codes: libzxv uses small negative codes, and ranges -1000 to -2499
-are taken by other SDK layers. The industry kits use -3000 to -3999. The
-shared layer has -3001 to -3099, and each kit gets the next block of one
-hundred. A later kit takes the next free hundred.
+are taken by other SDK layers. The industry kits use -3000 to -4999. The
+shared layer has -3001 to -3099, and each kit gets a block of one hundred  A
+later kit takes the next free hundred.
 
 ## Build and test
 
