@@ -71,6 +71,67 @@
  *   E4  swarm.earnings reports the currency, rate, both accounts, the
  *       balance and the counts; ledger.balance and ledger.entries show the
  *       postings like any others.
+ *   E5  RESUMED. When the books file (F1) brings both accounts back, the
+ *       owner keeps that balance: this run's first sync takes the SWC held
+ *       then as its base, and later syncs follow the change from it
+ *       (balance = carried + (held - base) * rate, never below zero). The
+ *       swarm itself starts fresh each run; the books do not.
+ *
+ * THE BOOKS FILE (--books PATH; zxvd --desktop saves by default)
+ *   F1  Without a path the books live in memory, as before. With one, every
+ *       change to them (a currency, a private unit, an account, a posting)
+ *       is one record in an append-only text file, mode 0600 and ours.
+ *   F2  A record is "<64 hex> <JSON>\n": the hex is SHA-256(previous hash ||
+ *       JSON), from 32 zero bytes, so an edited, dropped or reordered record
+ *       breaks the chain. The first record is {"op":"books","v":1}.
+ *   F3  A record is written and fsync'd before the call that made it
+ *       answers. ref, name and code travel as JSON strings, amounts and
+ *       entry ids as decimal strings, as on the socket.
+ *   F4  At start the file is replayed into fresh books through the same
+ *       libzxv calls. Each account and entry must get back the number it
+ *       had; any mismatch, a broken chain or an unknown record stops zxvd
+ *       from starting (move the file aside to start empty). Nothing is
+ *       repaired silently.
+ *   F5  If a write fails, the change stays in memory for this run only, the
+ *       call answers ZXV_E_IO, and every later change is refused with
+ *       ZXV_E_IO until zxvd restarts (which replays what was saved).
+ *   F6  A last record cut short by a crash (no newline) was never answered;
+ *       it is dropped and the file truncated to the last whole record.
+ *   F7  One zxvd at a time: the file is locked (flock, exclusive) while the
+ *       books are open; a second zxvd on the same file refuses to start.
+ *       Not on Windows yet.
+ *   books.file reports the path, the record count, the chain head and
+ *   whether the books are still writable.
+ *
+ * MESH SALES IN THE BOOKS (zxv_peer_host.h P6)
+ *   S1  The first settled peer request opens three VFV accounts: "mesh
+ *       counterparties" (issuer), "owner: mesh wallet" and "mesh: assurance
+ *       fees paid" (holders).
+ *   S2  A sale posts its price counterparties -> wallet ("mesh sale T"); a
+ *       purchase posts the price wallet -> counterparties ("mesh buy T") and
+ *       the 0.08889% fee wallet -> fees ("mesh fee T"). T is the first 16
+ *       hex digits of the signed invoice hash.
+ *   S3  T makes each posting's reference unique, so a request already in
+ *       the books is never posted twice.
+ *   S4  The peer book's wallet starts from a demo float that the owner's
+ *       books never saw; when a purchase needs more than the wallet account
+ *       holds, the shortfall is posted first as "mesh float T". A payment
+ *       the seller refused (zxv_peer_host.h) is not a settled request and
+ *       is not posted. mesh.books reports the three accounts and counts.
+ *
+ * THE JURISDICTION BRIDGE (jurisdiction.get / jurisdiction.set)
+ *   J1  country: an ISO 3166-1 alpha-2 code (two capital letters) or "".
+ *   J2  market: "closed" (closed clearing, the default) or "open" (the open
+ *       batch-auction market, a per-deployment switch).
+ *   J3  standard: the accounting standard reports will follow: "" (not
+ *       chosen, the default), IFRS, US_GAAP, IPSAS, AAOIFI, OHADA, CAS or
+ *       SAP_INSURER (statutory accounting for insurers).
+ *   J4  set takes any of the three; the rest keep their values. A change is
+ *       one "juris" record in the books file, written before it applies, so
+ *       it survives a restart; an unchanged setting writes nothing.
+ *   J5  in_effect is false: the settings are recorded only. No report
+ *       adapter and no open market is wired to them yet, and an adapter
+ *       will not replace an accountant or a Shariah board.
  */
 #ifndef ZXVD_RPC_H
 #define ZXVD_RPC_H
@@ -126,6 +187,27 @@ typedef struct {
 } zxvd_peer_ops_t;
 void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops);
 
+/* V1-V3: read-only views the host builds (zxv_net_host.h U9, sicily.h S2).
+ * Each writes one JSON object into `out`; unset members answer -32601.
+ *   V1 net.peers   {"peers":[{"id","addr","bucket","ubh","last_seen_ms",
+ *                  "in_book","member","held","receivable","social","pending"}],
+ *                  "count"}: the routing table's verified contacts, each
+ *                  joined with its mesh-book account; empty when off.
+ *   V2 net.offers  {"share":{"compute","storage"},"wants":[{"slot",
+ *                  "resource","units_left","max_price"}],"outstanding":[{"role",
+ *                  "peer","units","seq","tries","want"}]}: open wants and the
+ *                  receipts waiting on the other side (a sell offer the buyer
+ *                  has not accepted, or a buy the seller has not committed).
+ *   V3 player.card the owner's earned tier (sicily.h S2) from the inputs this
+ *                  node can measure, each with its source, the next tier's
+ *                  thresholds and what is missing, and the perks. */
+typedef struct {
+    void (*peers)(zxvd_buf_t *out);
+    void (*offers)(zxvd_buf_t *out);
+    void (*card)(zxvd_buf_t *out);
+} zxvd_view_ops_t;
+void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
+
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops);
@@ -154,6 +236,13 @@ int zxvd_rpc_earnings_set(const char *ccy, uint64_t rate);
  * open), or -1 when the amount is out of range or libzxv refused the posting
  * (the balance is then unchanged). */
 int zxvd_rpc_earnings_sync(uint64_t held_swc);
+/* F1: the books file, set before the books open; NULL or "" keeps them in
+ * memory. 0, or -1 (books already open, path too long). */
+int zxvd_rpc_books_file(const char *path);
+/* S1-S4: post one settled peer request; sold = this node was the seller.
+ * 0 (also when the books are not open or gross is 0), or -1 when the
+ * amounts are out of range or the books refused a posting. */
+int zxvd_rpc_mesh_post(bool sold, uint64_t gross, uint64_t fee, const uint8_t invoice[32]);
 void zxvd_rpc_set_ops(const zxvd_host_ops_t *ops);
 
 #endif
