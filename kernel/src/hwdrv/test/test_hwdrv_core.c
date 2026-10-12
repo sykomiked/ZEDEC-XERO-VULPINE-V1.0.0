@@ -596,7 +596,7 @@ static void test_selftest_audio(void)
     hw_reg_audio(&r, &stuck.a);
     CHECK(hw_selftest_all(&fp.plat, &r) == 1);
     CHECK(ok.frames == 4800 && ok.first == 1200 && ok.period_neg == -1200);
-    CHECK(ok.calls >= 5 && ok.calls <= 6);
+    CHECK(ok.calls == 300); /* 512 never reaches the full 19200 bytes */
     CHECK(stuck.calls == 300);
     CHECK(fake_log_has(&fp, "[SELFTEST OK] hda0 output stream DMA position 512 bytes"));
     CHECK(fake_log_has(&fp, "[SELFTEST FAILED] hda1 output stream DMA position 0 bytes"));

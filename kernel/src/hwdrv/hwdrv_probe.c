@@ -285,9 +285,14 @@ static uint32_t selftest_audio(const hw_plat_t *p, hw_audio_t *a)
         return 0;
     }
     uint32_t pos = 0;
-    for (uint32_t t = 0; t < 300 && pos == 0; t++) {
+    /* Wait for the stream to start, then keep polling until the whole tone
+     * has played: position() is where a driver notices the end and stops the
+     * stream, so stopping early would leave real hardware looping the tone. */
+    uint32_t total = 4800u * 4u;
+    for (uint32_t t = 0; t < 300 && pos < total; t++) {
         p->delay_us(p->ctx, 1000);
-        pos = a->position(a);
+        uint32_t now = a->position(a);
+        if (now > pos) pos = now;
     }
     hw_line_u(&x, pos);
     hw_line_s(&x, " bytes");
