@@ -65,7 +65,8 @@ Every kit has the same layout:
 
 Status codes: libzxv uses small negative codes, and ranges -1000 to -2499
 are taken by other SDK layers. The industry kits use -3000 to -4999. The
-shared layer has -3001 to -3099, and each kit gets a block of one hundred  A
+shared layer has -3001 to -3099, and each kit gets a block of one hundred
+(listed in the table above). A
 later kit takes the next free hundred.
 
 ## Build and test
