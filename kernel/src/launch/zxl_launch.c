@@ -8,31 +8,28 @@
 /* One default per group of the app list. Keys avoid E: that is the boot's. */
 /* clang-format off */
 static const zxl_theme_t GROUPS[ZXL_GROUPS] = {
-    /* app   grp key     oct timbre               reveal               ambient        */
-    { 0,  1, ZXL_D,  4, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT,     ZXL_AMB_ARCHES }, /* System core            */
-    { 0,  2, ZXL_A,  4, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS }, /* Terminal and monitors  */
-    { 0,  3, ZXL_FS, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT,   ZXL_AMB_RINGS  }, /* Network, mesh, Web4    */
-    { 0,  4, ZXL_BB, 5, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT,   ZXL_AMB_DUST   }, /* Writing and office     */
-    { 0,  5, ZXL_C,  5, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT,     ZXL_AMB_WATER  }, /* Media and creative     */
-    { 0,  6, ZXL_B,  5, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT,  ZXL_AMB_FLOCK  }, /* AI and the swarm       */
-    { 0,  7, ZXL_G,  5, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT,      ZXL_AMB_DUST   }, /* Money and the economy  */
-    { 0,  8, ZXL_F,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT,     ZXL_AMB_RINGS  }, /* Places, spaces, life   */
-    { 0,  9, ZXL_EB, 4, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT,   ZXL_AMB_SPARKS }, /* Learning, play, family */
-    { 0, 10, ZXL_AB, 5, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST   }, /* Desk utilities         */
-    { 0, 11, ZXL_DB, 4, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS }, /* Developer tools        */
-    { 0, 12, ZXL_F,  5, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT,     ZXL_AMB_RINGS  }, /* Access, language, safety */
+    /* app grp key     oct timbre              reveal            ambient         motif */
+    { 0,  1, ZXL_D,  4, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES, 0 }, /* System core */
+    { 0,  2, ZXL_A,  4, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 0 }, /* Terminal and monitors */
+    { 0,  3, ZXL_FS, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  0 }, /* Network, mesh, Web4 */
+    { 0,  4, ZXL_BB, 5, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   0 }, /* Writing and office */
+    { 0,  5, ZXL_C,  5, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,  0 }, /* Media and creative */
+    { 0,  6, ZXL_B,  5, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,  0 }, /* AI and the swarm */
+    { 0,  7, ZXL_G,  5, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   0 }, /* Money and the economy */
+    { 0,  8, ZXL_F,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  0 }, /* Places, spaces, life */
+    { 0,  9, ZXL_EB, 4, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 0 }, /* Learning, play, family */
+    { 0, 10, ZXL_AB, 5, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   0 }, /* Desk utilities */
+    { 0, 11, ZXL_DB, 4, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 0 }, /* Developer tools */
+    { 0, 12, ZXL_F,  5, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  0 }, /* Access, language, safety */
 };
 
-/* Apps with their own theme (the six mocked up for the owner's approval). */
+/* Every app on the list, its own theme: key, octave, timbre and motif never
+ * all the same for two apps (generated: tools/launch/launch_catalogue.py). */
 static const zxl_theme_t CURATED[] = {
-    { "Burrow",      1, ZXL_D, 4, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT,     ZXL_AMB_ARCHES },
-    { "Flint",       2, ZXL_A, 4, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS },
-    { "Commons",     3, ZXL_F, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT,   ZXL_AMB_RINGS  },
-    { "Cutwater",    5, ZXL_C, 5, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT,     ZXL_AMB_WATER  },
-    { "Murmuration", 6, ZXL_E, 5, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT,  ZXL_AMB_FLOCK  },
-    { "Coffer",      7, ZXL_G, 5, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT,      ZXL_AMB_DUST   },
+#include "zxl_apps.inc"
 };
 /* clang-format on */
+
 #define N_CURATED (sizeof CURATED / sizeof CURATED[0])
 
 static int streq(const char *a, const char *b)

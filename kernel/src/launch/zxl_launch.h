@@ -108,22 +108,29 @@ typedef struct {
     uint8_t timbre;  /* zxl_timbre_t                                     */
     uint8_t reveal;  /* zxl_reveal_t                                     */
     uint8_t ambient; /* zxl_ambient_t                                    */
+    uint8_t motif;   /* 0..ZXL_MOTIFS-1: the shape of its begin and end   */
 } zxl_theme_t;
 
-/* The theme for an app: its own entry when it has one (case-sensitive name),
- * otherwise its group's default. A group outside 1..12 gets group 1's. Never
- * returns NULL. */
+#define ZXL_MOTIFS 12  /* begin/end phrase shapes (tools/launch/launch_sounds.py) */
+#define ZXL_APPS   144 /* every app on the list has its own entry       */
+
+/* The theme for an app: its own entry (every app on the 144-app list has one,
+ * each with its own sound sequence; case-sensitive name), otherwise its
+ * group's default (an app a person made that picked none). A group outside 1..12 gets group 1's.
+ * Never returns NULL. */
 const zxl_theme_t *zxl_theme_for(const char *app, uint32_t group);
 
 /* The sound sequence an app maker picked, by name: a curated app's name
- * ("Burrow", "Flint", ...; case-insensitive) or a group's, "group1".."group12".
+ * any app on the list ("Burrow", "Flint", ...; case-insensitive) or a group's,
+ * "group1".."group12".
  * NULL for anything else; the caller then uses zxl_theme_for. */
 const zxl_theme_t *zxl_theme_pick(const char *id);
 
 /* The group default for 1..12, or NULL. */
 const zxl_theme_t *zxl_group_theme(uint32_t group);
 
-/* Number of apps with their own entry, and the i-th of them (NULL past the end). */
+/* Number of apps with their own entry (ZXL_APPS), and the i-th of them in
+ * list order (NULL past the end). */
 uint32_t zxl_curated_count(void);
 const zxl_theme_t *zxl_curated(uint32_t i);
 

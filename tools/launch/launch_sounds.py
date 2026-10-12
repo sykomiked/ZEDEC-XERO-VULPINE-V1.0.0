@@ -217,6 +217,52 @@ def commons():          # Chat: a call and an answer. F, kalimba.
         return finish(pan(s, 0), 0.85, (0.15, 0.22), 0.5)
     return begin, tick, end
 
+# ---- every other app: one recipe, its own phrase ---------------------------------------------------
+# The same begin / middle / end pattern as the six, built from the app's key, octave, timbre and motif
+# (launch_catalogue.py makes sure no two apps share all four). begin: the motif's short call over a low
+# root; middle: one tick per tile up the major pentatonic (the centre takes the top step, as zxl does);
+# end: the motif's answer, an arpeggio up the chord, a held root and fifth, one bright note on top.
+PENTA = [0, 2, 4, 7, 9, 12, 14]
+#        begin call (semitones, onset s)                          end answer: chord tones, spacing s, top
+MOTIF = [([(0, 0), (7, .14), (12, .30)],                           [0, 4, 7, 12, 16], .045, 19),
+         ([(12, 0), (7, .14), (0, .30)],                           [0, 7, 12, 16, 19], .05, 24),
+         ([(0, 0), (4, .10), (7, .20), (12, .34)],                 [0, 4, 7, 11, 14], .04, 16),
+         ([(7, 0), (12, .18), (9, .30)],                           [0, 7, 9, 12, 16], .055, 21),
+         ([(0, 0), (12, .16), (7, .26), (14, .40)],                [0, 2, 7, 12, 14], .04, 19),
+         ([(4, 0), (2, .12), (0, .24), (7, .40)],                  [0, 4, 9, 12, 16], .05, 24),
+         ([(0, 0), (0, .10), (7, .26)],                            [0, 7, 12, 19, 24], .06, 28),
+         ([(9, 0), (7, .12), (4, .24), (2, .36), (0, .48)],        [0, 4, 7, 9, 12], .035, 16),
+         ([(0, 0), (2, .09), (4, .18), (7, .27)],                  [-12, 0, 7, 12, 16], .05, 19),
+         ([(12, 0), (14, .14), (12, .26), (7, .40)],               [0, 5, 7, 12, 17], .045, 19),
+         ([(0, 0), (9, .18)],                                      [0, 9, 12, 16, 21], .06, 24),
+         ([(7, 0), (4, .10), (9, .22), (12, .36)],                 [0, 4, 7, 12, 19], .04, 24)]
+
+def _voice(timbre):
+    return dict(glass=lambda f, t, st, d: glass(f, t, st, d), marimba=lambda f, t, st, d: marimba(f, t, st, d * 0.6),
+                chip=lambda f, t, st, d: chip(f, t, st, d * 0.4), flute=lambda f, t, st, d: flute(f, t, st, d),
+                bell=lambda f, t, st, d: bell(f, t, st, d * 1.4), coin=lambda f, t, st, d: coin(f, t, st),
+                pluck=lambda f, t, st, d: pluck(f, t, st, d * 0.7), strings=lambda f, t, st, d: strings(f, t, st, d * 1.4))[timbre]
+
+def generic(key, octave, timbre, motif):
+    """key: pitch class (C = 0); octave: the tick scale's first octave; timbre: a name above; motif 0..11"""
+    v = _voice(timbre); call, chord, gap, top = MOTIF[motif % len(MOTIF)]
+    hz = lambda semis: 440.0 * 2 ** ((12 * (octave + 1) + key + semis - 69) / 12)
+    side = -0.35 if motif % 2 else 0.35                                   # the call leans one way, the answer the other
+    def begin():
+        t = _t(1.4); s = 0.5 * glass(hz(-12), t, 0, 1.2)                  # a low root, struck softly
+        for k, (iv, at) in enumerate(call): s = s + (0.9 - 0.08 * k) * v(hz(iv), t, 0.03 + at, 0.6)
+        return finish(pan(s, side), 0.7, (0.13, 0.22))
+    def tick(i, n):
+        t = _t(0.45); f = hz(PENTA[min(i, len(PENTA) - 1)])
+        return finish(pan(v(f, t, 0, 0.3), -0.6 + 1.2 * i / max(n - 1, 1)), 0.45, None, 0.05)
+    def end():
+        t = _t(1.9); s = 0
+        for k, iv in enumerate(chord): s = s + 0.55 * v(hz(iv - 12), t, 0.04 + gap * k, 1.0)
+        s = s + 0.45 * strings(hz(-12), t, 0.02, 1.7) + 0.3 * strings(hz(-5), t, 0.06, 1.6)
+        s = s + 0.35 * glass(hz(top), t, 0.06 + gap * len(chord), 0.8)
+        return finish(pan(s, -side * 0.5), 0.85, (0.15, 0.22), 0.45)
+    return begin, tick, end
+
 RECIPES = dict(burrow=burrow, flint=flint, murmuration=murmuration, coffer=coffer, cutwater=cutwater, commons=commons)
 
 if __name__ == '__main__':

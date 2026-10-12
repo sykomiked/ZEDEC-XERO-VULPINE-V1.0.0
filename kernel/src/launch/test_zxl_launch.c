@@ -46,20 +46,49 @@ static void test_themes(void)
     CHECK(zxl_theme_for("Nobody", 99) == zxl_group_theme(1),
           "bad group falls back to group 1 (high)");
     CHECK(zxl_theme_for(0, 5) == zxl_group_theme(5), "NULL app uses its group");
-    CHECK(zxl_theme_for("Warble", 5) == zxl_group_theme(5), "uncurated app uses its group");
-    CHECK(zxl_theme_for("Gesso", 5)->ambient == ZXL_AMB_WATER, "media group has water behind it");
+    CHECK(zxl_theme_for("Warble", 5) != zxl_group_theme(5), "Warble has its own sequence");
+    CHECK(zxl_theme_for("NotAnApp", 5) == zxl_group_theme(5), "an app off the list uses its group");
+    CHECK(zxl_theme_for("NotAnApp", 5)->ambient == ZXL_AMB_WATER,
+          "media group has water behind it");
 
-    /* the six curated apps */
-    CHECK(zxl_curated_count() == 6, "six curated apps");
-    CHECK(zxl_curated(6) == 0, "curated past the end is NULL");
-    static const char *names[] = {"Burrow",   "Flint",       "Commons",
-                                  "Cutwater", "Murmuration", "Coffer"};
+    /* every app on the list has its own entry, in list order */
+    CHECK(zxl_curated_count() == ZXL_APPS, "all 144 apps have their own entry");
+    CHECK(zxl_curated(ZXL_APPS) == 0, "past the end is NULL");
+    static const struct {
+        uint32_t at;
+        const char *name;
+    } hand[] = {{0, "Burrow"},    {12, "Flint"},       {26, "Commons"},
+                {55, "Cutwater"}, {60, "Murmuration"}, {72, "Coffer"}};
     for (uint32_t i = 0; i < 6; i++) {
-        const zxl_theme_t *t = zxl_curated(i);
-        CHECK(t && strcmp(t->app, names[i]) == 0, "curated order");
-        CHECK(zxl_theme_for(names[i], 1) == t, "curated found by name whatever the group");
-        CHECK(t && zxl_group_theme(t->group) != 0, "curated app is in a real group");
+        const zxl_theme_t *t = zxl_curated(hand[i].at);
+        CHECK(t && strcmp(t->app, hand[i].name) == 0, "list order");
+        CHECK(zxl_theme_for(hand[i].name, 1) == t, "found by name whatever the group");
     }
+    CHECK(strcmp(zxl_curated(143)->app, "Stillwater") == 0, "the list ends on Stillwater");
+    uint32_t in_e = 0;
+    for (uint32_t i = 0; i < ZXL_APPS; i++) {
+        const zxl_theme_t *a = zxl_curated(i), *g = zxl_group_theme(a->group);
+        CHECK(g != 0, "each app is in a real group");
+        CHECK(a->group == 1 + i / 12, "twelve apps a group, in order");
+        CHECK(g && a->timbre == g->timbre && a->ambient == g->ambient,
+              "an app sounds and moves like its group");
+        CHECK(a->reveal == ZXL_REVEAL_VAULT, "every app opens with the boot's vault");
+        CHECK(a->motif < ZXL_MOTIFS && a->key <= ZXL_B, "motif and key in range");
+        CHECK(a->octave >= 3 && a->octave <= 6, "octave sane");
+        CHECK(zxl_theme_for(a->app, 0) == a, "every app found by its name");
+        CHECK(zxl_theme_pick(a->app) == a, "every app's sequence can be picked");
+        in_e += a->key == ZXL_BOOT_KEY;
+        for (uint32_t j = i + 1; j < ZXL_APPS; j++) {
+            const zxl_theme_t *b = zxl_curated(j);
+            if (a->key == b->key && a->octave == b->octave && a->timbre == b->timbre &&
+                a->motif == b->motif)
+                CHECK(0, "no two apps share a sound sequence");
+            if (a->group == b->group && a->key == b->key && a->octave == b->octave)
+                CHECK(0, "no two apps in a group share a scale");
+            if (strcmp(a->app, b->app) == 0) CHECK(0, "names are unique");
+        }
+    }
+    CHECK(in_e == 1, "only the swarm is in the boot's key");
     CHECK(zxl_theme_for("burrow", 1) == zxl_group_theme(1), "names are case-sensitive");
     CHECK(zxl_theme_for("Burrowx", 6) == zxl_group_theme(6), "no prefix match");
     CHECK(zxl_theme_for("Burro", 6) == zxl_group_theme(6), "no short match");
@@ -87,10 +116,8 @@ static void test_themes(void)
     CHECK(zxl_theme_for("Coffer", 7)->timbre == ZXL_TIMBRE_COIN, "Coffer rings coins");
     for (uint32_t i = 0; i < 6; i++)
         for (uint32_t j = i + 1; j < 6; j++) {
-            const zxl_theme_t *a = zxl_curated(i), *b = zxl_curated(j);
-            CHECK(a->ambient != b->ambient, "each curated app has its own motion behind it");
-            CHECK(a->key != b->key || a->timbre != b->timbre,
-                  "each curated app sounds like itself");
+            const zxl_theme_t *a = zxl_curated(hand[i].at), *b = zxl_curated(hand[j].at);
+            CHECK(a->ambient != b->ambient, "each hand-made app has its own motion behind it");
         }
 }
 

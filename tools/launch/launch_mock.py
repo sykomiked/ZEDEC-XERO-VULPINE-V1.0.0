@@ -147,6 +147,20 @@ THEMES = {
                      status='joining 6 rooms  ·  end-to-end keys'),
 }
 
+# every other app (launch_catalogue.py): its real icon when imported, else its initial engraved in a seal
+def M_initial(letter):
+    def draw(d, S):
+        d.rounded_rectangle((S*.12, S*.12, S*.88, S*.88), radius=int(S*.16), outline=255, width=int(S*.035))
+        d.rounded_rectangle((S*.18, S*.18, S*.82, S*.82), radius=int(S*.12), outline=255, width=int(S*.012))
+        d.text((S*.5, S*.53), letter, font=font(int(S*.5)), fill=255, anchor='mm')
+    return draw
+
+def generic_theme(row, ambient):
+    what, _, detail = row['does'].partition(':')
+    return dict(num=int(row['number']), title=row['app'], role=what.strip(), mark=M_initial(row['app'][0]), ambient=ambient,
+                parts=[(w, g_dot) for w in ('Home', 'Recent', 'Shared', 'Saved', 'Settings')],
+                status=(detail.strip() or what.strip())[:70])
+
 # ---- ambient motion behind the screen: each app's own weather, kept faint ----------------------
 def ambient(c, kind, t):
     ov = Image.new('RGBA', (W, H), (0,0,0,0)); d = ImageDraw.Draw(ov); A = 34
