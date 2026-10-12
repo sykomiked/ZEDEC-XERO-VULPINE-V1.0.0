@@ -35,10 +35,11 @@
 #include "web4_util.h" /* hex */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
 #include "zxv_files.h" /* files.*: the ZXV folder */
-#include "zxv_spaces.h"  /* spaces.*: who may see and change each place */
-#include "zxv_sysinfo.h" /* sys.*: the machine and zxvd, for the system utilities */
-#include "zxvd_log.h"    /* log.tail and the RPC traffic counts */
-#include "zxv_search.h"  /* search.*: Scent's index of the ZXV folder */
+#include "zxv_spaces.h"     /* spaces.*: who may see and change each place */
+#include "zxv_sysinfo.h"    /* sys.*: the machine and zxvd, for the system utilities */
+#include "zxvd_log.h"       /* log.tail and the RPC traffic counts */
+#include "zxv_search.h"     /* search.*: Scent's index of the ZXV folder */
+#include "zxv_print_host.h" /* print.*, scan.*: Platen's printers and scanners */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -1893,6 +1894,189 @@ static void m_search_query(call_t *c)
     zxvd_buf_printf(c->res, "],\"total\":%u}", total);
 }
 
+static bool device_done(call_t *c, int rc, const char *why)
+{
+    if (rc == ZPH_OK) return true;
+    fail(c, ZXVD_E_DEVICE, "%s", why);
+    return false;
+}
+
+static void words_json(zxvd_buf_t *b, const char *key, char (*w)[IPP_WORD], uint32_t n)
+{
+    zxvd_buf_printf(b, ",\"%s\":[", key);
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(b, ",");
+        zxvd_buf_json_str(b, w[i]);
+    }
+    LIT(b, "]");
+}
+
+static void m_print_status(call_t *c)
+{
+    static ipp_printer_t p;
+    char uri[ZPH_URI_MAX], why[ZPH_ERR];
+    if (!p_str(c, "uri", uri, sizeof uri, true) ||
+        !device_done(c, zph_printer(uri, &p, why, sizeof why), why))
+        return;
+    LIT(c->res, "{\"name\":");
+    zxvd_buf_json_str(c->res, p.name);
+    LIT(c->res, ",\"info\":");
+    zxvd_buf_json_str(c->res, p.info);
+    LIT(c->res, ",\"make\":");
+    zxvd_buf_json_str(c->res, p.make);
+    LIT(c->res, ",\"location\":");
+    zxvd_buf_json_str(c->res, p.where);
+    zxvd_buf_printf(c->res, ",\"state\":\"%s\",\"reasons\":", ipp_printer_state_name(p.state));
+    zxvd_buf_json_str(c->res, p.reasons);
+    zxvd_buf_printf(c->res, ",\"accepting\":%s,\"color\":%s,\"queued\":%d,\"copies_max\":%d",
+                    p.accepting ? "true" : "false", p.color ? "true" : "false", (int) p.queued,
+                    (int) p.copies_max);
+    words_json(c->res, "formats", p.formats, p.nformats);
+    words_json(c->res, "media", p.media, p.nmedia);
+    LIT(c->res, ",\"media_default\":");
+    zxvd_buf_json_str(c->res, p.media_default);
+    words_json(c->res, "sides", p.sides, p.nsides);
+    LIT(c->res, "}");
+}
+
+static void job_json(zxvd_buf_t *b, const ipp_job_t *j)
+{
+    zxvd_buf_printf(b, "{\"job_id\":%d,\"state\":\"%s\",\"reasons\":", (int) j->id,
+                    ipp_job_state_name(j->state));
+    zxvd_buf_json_str(b, j->reasons);
+    LIT(b, ",\"message\":");
+    zxvd_buf_json_str(b, j->message);
+    zxvd_buf_printf(b, ",\"pages\":%d}", (int) j->pages);
+}
+
+static void m_print_submit(call_t *c)
+{
+    char uri[ZPH_URI_MAX], path[ZXF_PATH_MAX + 1], why[ZPH_ERR];
+    char name[128], sides[32], color[16], media[64];
+    uint64_t copies;
+    ipp_job_t j;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "uri", uri, sizeof uri, true) ||
+        !p_path(c, "path", path, true) || !p_opt_u64(c, "copies", 0, &copies) ||
+        !p_str(c, "job_name", name, sizeof name, false) ||
+        !p_str(c, "sides", sides, sizeof sides, false) ||
+        !p_str(c, "color", color, sizeof color, false) ||
+        !p_str(c, "media", media, sizeof media, false))
+        return;
+    if (copies > 999) return fail(c, E_PARAMS, "\"copies\" must be 1 to 999");
+    if (color[0] && strcmp(color, "color") && strcmp(color, "monochrome"))
+        return fail(c, E_PARAMS, "\"color\" must be color or monochrome");
+    if (sides[0] && strcmp(sides, "one-sided") && strcmp(sides, "two-sided-long-edge") &&
+        strcmp(sides, "two-sided-short-edge"))
+        return fail(c, E_PARAMS,
+                    "\"sides\" must be one-sided, two-sided-long-edge or two-sided-short-edge");
+    ipp_job_opts_t o = {name,
+                        NULL,
+                        (int32_t) copies,
+                        sides[0] ? sides : NULL,
+                        color[0] ? color : NULL,
+                        media[0] ? media : NULL};
+    if (!device_done(c, zph_print(uri, path, &o, &j, why, sizeof why), why)) return;
+    job_json(c->res, &j);
+}
+
+static void job_call(call_t *c, bool cancel)
+{
+    char uri[ZPH_URI_MAX], why[ZPH_ERR];
+    uint64_t id;
+    ipp_job_t j;
+    if (!p_str(c, "uri", uri, sizeof uri, true) || !p_opt_u64(c, "job_id", 0, &id)) return;
+    if (id < 1 || id > INT32_MAX) return fail(c, E_PARAMS, "\"job_id\" must be 1 to 2147483647");
+    if (!device_done(c, zph_job(uri, (int32_t) id, cancel, &j, why, sizeof why), why)) return;
+    job_json(c->res, &j);
+}
+
+static void m_print_job(call_t *c)
+{
+    job_call(c, false);
+}
+
+static void m_print_cancel(call_t *c)
+{
+    job_call(c, true);
+}
+
+static void escl_words(zxvd_buf_t *b, const char *key, char (*w)[ESCL_WORD], uint32_t n)
+{
+    zxvd_buf_printf(b, ",\"%s\":[", key);
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(b, ",");
+        zxvd_buf_json_str(b, w[i]);
+    }
+    LIT(b, "]");
+}
+
+static void m_scan_status(call_t *c)
+{
+    static escl_caps_t k;
+    escl_status_t s;
+    char url[ZPH_URI_MAX], why[ZPH_ERR];
+    if (!p_str(c, "url", url, sizeof url, true) ||
+        !device_done(c, zph_scanner(url, &k, &s, why, sizeof why), why))
+        return;
+    LIT(c->res, "{\"make\":");
+    zxvd_buf_json_str(c->res, k.make);
+    zxvd_buf_printf(c->res, ",\"platen\":%s,\"feeder\":%s,\"resolutions\":[",
+                    k.platen ? "true" : "false", k.feeder ? "true" : "false");
+    for (uint32_t i = 0; i < k.ndpi; i++) zxvd_buf_printf(c->res, "%s%u", i ? "," : "", k.dpi[i]);
+    LIT(c->res, "]");
+    escl_words(c->res, "color_modes", k.colors, k.ncolors);
+    escl_words(c->res, "formats", k.formats, k.nformats);
+    zxvd_buf_printf(c->res, ",\"max_width\":%u,\"max_height\":%u,\"state\":", k.max_width,
+                    k.max_height);
+    zxvd_buf_json_str(c->res, s.state);
+    LIT(c->res, ",\"adf_state\":");
+    zxvd_buf_json_str(c->res, s.adf_state);
+    zxvd_buf_printf(c->res, ",\"jobs\":%u}", s.jobs);
+}
+
+static void m_scan_start(call_t *c)
+{
+    static char saved[ZPH_PAGES_MAX][ZXF_PATH_MAX + 1];
+    char url[ZPH_URI_MAX], folder[ZXF_PATH_MAX + 1], why[ZPH_ERR];
+    char src[16], color[16], format[32];
+    uint64_t dpi;
+    uint32_t pages;
+    if (!use_space(c, ZXS_WRITE) || !p_str(c, "url", url, sizeof url, true) ||
+        !p_path(c, "folder", folder, false) || !p_str(c, "source", src, sizeof src, false) ||
+        !p_str(c, "color", color, sizeof color, false) || !p_opt_u64(c, "dpi", 300, &dpi) ||
+        !p_str(c, "format", format, sizeof format, false))
+        return;
+    escl_settings_t s = {
+        ESCL_SRC_PLATEN, ESCL_COLOR_RGB, (uint32_t) dpi, 0, 0, format[0] ? format : "image/jpeg"};
+    if (!strcmp(src, "feeder"))
+        s.source = ESCL_SRC_FEEDER;
+    else if (src[0] && strcmp(src, "platen"))
+        return fail(c, E_PARAMS, "\"source\" must be platen or feeder");
+    if (!strcmp(color, "gray"))
+        s.color = ESCL_COLOR_GRAY;
+    else if (!strcmp(color, "bw"))
+        s.color = ESCL_COLOR_BW;
+    else if (color[0] && strcmp(color, "color"))
+        return fail(c, E_PARAMS, "\"color\" must be color, gray or bw");
+    if (dpi < 75 || dpi > 1200) return fail(c, E_PARAMS, "\"dpi\" must be 75 to 1200");
+    if (strcmp(s.format, "image/jpeg") && strcmp(s.format, "application/pdf") &&
+        strcmp(s.format, "image/png"))
+        return fail(c, E_PARAMS, "\"format\" must be image/jpeg, application/pdf or image/png");
+    int rc = zph_scan(url, &s, folder, saved, ZPH_PAGES_MAX, &pages, why, sizeof why);
+    if (rc != ZPH_OK) {
+        if (pages) /* say what was kept */
+            return fail(c, ZXVD_E_DEVICE, "%s (%u page%s saved)", why, pages,
+                        pages == 1 ? "" : "s");
+        return fail(c, ZXVD_E_DEVICE, "%s", why);
+    }
+    zxvd_buf_printf(c->res, "{\"pages\":%u,\"saved\":[", pages);
+    for (uint32_t i = 0; i < pages; i++) {
+        if (i) LIT(c->res, ",");
+        zxvd_buf_json_str(c->res, saved[i]);
+    }
+    LIT(c->res, "]}");
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2215,6 +2399,12 @@ static const method_t METHODS[] = {
     {"log.tail", m_log_tail},
     {"search.refresh", m_search_refresh},
     {"search.query", m_search_query},
+    {"print.status", m_print_status},
+    {"print.submit", m_print_submit},
+    {"print.job", m_print_job},
+    {"print.cancel", m_print_cancel},
+    {"scan.status", m_scan_status},
+    {"scan.start", m_scan_start},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -2281,7 +2471,7 @@ static bool quiet(const char *m)
         "books.file",      "jurisdiction.get", "aipi.get",     "aipi.status",    "files.root",
         "files.list",      "files.stat",       "files.read",   "spaces.list",    "spaces.get",
         "sys.info",        "sys.disk",         "sys.net",      "log.tail",       "update.check",
-        "search.query",    "search.refresh"};
+        "search.query",    "search.refresh",   "print.status", "print.job",      "scan.status"};
     for (size_t i = 0; i < sizeof Q / sizeof *Q; i++)
         if (!strcmp(m, Q[i])) return true;
     return false;

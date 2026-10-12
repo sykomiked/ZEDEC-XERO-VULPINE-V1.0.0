@@ -65,7 +65,7 @@ trap 'rm -rf "$T"' EXIT INT TERM
 python3 "$HERE/gen_ui.py" "$HERE/zxv_ui.html" "$T/zxv_ui.c"
 set --
 for d in $(sh "$HERE/app_sources.sh" incs); do set -- "$@" "-I$K/$d"; done
-set -- "$@" "-I$K/src/web4" "-I$R/sdk/libzxv/include"
+set -- "$@" "-I$K/src/web4" "-I$K/src/print" "-I$R/sdk/libzxv/include"
 for f in $(sh "$HERE/app_sources.sh" srcs); do set -- "$@" "$K/$f"; done
 DEFS="-DZXVD $OSDEFS"
 if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
@@ -87,7 +87,7 @@ if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
     set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$K/src/aipi/aipi.c" "$HERE/zxvd_aipi.c"
     DEFS="$DEFS -DZXV_HAVE_AIPI"
 fi
-set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxv_sysinfo.c" "$HERE/zxvd_log.c" "$HERE/zxv_search.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
+set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxv_sysinfo.c" "$HERE/zxvd_log.c" "$HERE/zxv_search.c" "$HERE/zxv_print_host.c" "$K/src/print/ipp.c" "$K/src/print/escl.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"

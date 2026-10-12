@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4).",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). -32014 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -4446,6 +4446,498 @@
               "type": "integer",
               "minimum": 0,
               "description": "every hit, of which the best max are listed"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "print.status",
+      "summary": "A printer's state and what it takes (IPP Get-Printer-Attributes; the Platen app). Read only.",
+      "params": [
+        {
+          "name": "uri",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
+          }
+        }
+      ],
+      "result": {
+        "name": "printer",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "info": {
+              "type": "string"
+            },
+            "make": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "printing",
+                "stopped",
+                "unknown"
+              ]
+            },
+            "reasons": {
+              "type": "string",
+              "description": "printer-state-reasons, comma separated"
+            },
+            "accepting": {
+              "type": "boolean"
+            },
+            "color": {
+              "type": "boolean"
+            },
+            "queued": {
+              "type": "integer",
+              "description": "-1 when not given"
+            },
+            "copies_max": {
+              "type": "integer",
+              "description": "0 when not given"
+            },
+            "formats": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "media": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "media_default": {
+              "type": "string"
+            },
+            "sides": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "print.submit",
+      "summary": "Print a file from the ZXV folder (IPP Print-Job). Its format comes from its extension and must be one the printer takes; ZXV does not convert documents yet (zxv_print_host.h N5). Logged.",
+      "params": [
+        {
+          "name": "uri",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space the file or folder is in: 'home' when absent (zxv_spaces.h S1)"
+          }
+        },
+        {
+          "name": "copies",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999,
+            "description": "0 or absent: the printer's default"
+          }
+        },
+        {
+          "name": "sides",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "one-sided",
+              "two-sided-long-edge",
+              "two-sided-short-edge"
+            ]
+          }
+        },
+        {
+          "name": "color",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "color",
+              "monochrome"
+            ]
+          }
+        },
+        {
+          "name": "media",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 63,
+            "description": "a media keyword, e.g. iso_a4_210x297mm"
+          }
+        },
+        {
+          "name": "job_name",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 127,
+            "description": "the file's name when absent"
+          }
+        }
+      ],
+      "result": {
+        "name": "job",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job_id": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "held",
+                "printing",
+                "stopped",
+                "canceled",
+                "aborted",
+                "completed",
+                "unknown"
+              ]
+            },
+            "reasons": {
+              "type": "string",
+              "description": "job-state-reasons, comma separated"
+            },
+            "message": {
+              "type": "string"
+            },
+            "pages": {
+              "type": "integer",
+              "description": "pages printed; -1 when the printer does not say"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "print.job",
+      "summary": "A print job's state (IPP Get-Job-Attributes). Read only.",
+      "params": [
+        {
+          "name": "uri",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
+          }
+        },
+        {
+          "name": "job_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        }
+      ],
+      "result": {
+        "name": "job",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job_id": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "held",
+                "printing",
+                "stopped",
+                "canceled",
+                "aborted",
+                "completed",
+                "unknown"
+              ]
+            },
+            "reasons": {
+              "type": "string",
+              "description": "job-state-reasons, comma separated"
+            },
+            "message": {
+              "type": "string"
+            },
+            "pages": {
+              "type": "integer",
+              "description": "pages printed; -1 when the printer does not say"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "print.cancel",
+      "summary": "Cancel a print job (IPP Cancel-Job). Logged.",
+      "params": [
+        {
+          "name": "uri",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
+          }
+        },
+        {
+          "name": "job_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        }
+      ],
+      "result": {
+        "name": "job",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job_id": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "held",
+                "printing",
+                "stopped",
+                "canceled",
+                "aborted",
+                "completed",
+                "unknown"
+              ]
+            },
+            "reasons": {
+              "type": "string",
+              "description": "job-state-reasons, comma separated"
+            },
+            "message": {
+              "type": "string"
+            },
+            "pages": {
+              "type": "integer",
+              "description": "pages printed; -1 when the printer does not say"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "scan.status",
+      "summary": "A scanner's capabilities and state (eSCL ScannerCapabilities and ScannerStatus). Read only.",
+      "params": [
+        {
+          "name": "url",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the scanner's eSCL root: http://host[:port]/eSCL on the local network"
+          }
+        }
+      ],
+      "result": {
+        "name": "scanner",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "make": {
+              "type": "string"
+            },
+            "platen": {
+              "type": "boolean"
+            },
+            "feeder": {
+              "type": "boolean"
+            },
+            "resolutions": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "color_modes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "formats": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "max_width": {
+              "type": "integer",
+              "description": "1/300 inch; 0 when not given"
+            },
+            "max_height": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "description": "Idle, Processing, Testing, Stopped or Down"
+            },
+            "adf_state": {
+              "type": "string"
+            },
+            "jobs": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "scan.start",
+      "summary": "Scan and save each page in a folder of the ZXV folder as 'Scan N.<ext>' (the first free N; eSCL ScanJobs and NextDocument). Needs the write right on the space. Pages saved before a failure are kept, and the error says how many. Logged.",
+      "params": [
+        {
+          "name": "url",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the scanner's eSCL root: http://host[:port]/eSCL on the local network"
+          }
+        },
+        {
+          "name": "folder",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "'' (the top) when absent"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space the file or folder is in: 'home' when absent (zxv_spaces.h S1)"
+          }
+        },
+        {
+          "name": "source",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "platen",
+              "feeder"
+            ],
+            "default": "platen"
+          }
+        },
+        {
+          "name": "color",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "color",
+              "gray",
+              "bw"
+            ],
+            "default": "color"
+          }
+        },
+        {
+          "name": "dpi",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 75,
+            "maximum": 1200,
+            "default": 300
+          }
+        },
+        {
+          "name": "format",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "application/pdf",
+              "image/png"
+            ],
+            "default": "image/jpeg"
+          }
+        }
+      ],
+      "result": {
+        "name": "scan",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "pages": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "saved": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         }

@@ -36,6 +36,8 @@
 #include "zxv_sysinfo.h"
 #include "zxvd_log.h"
 #include "zxv_search.h"
+#include "zxv_print_host.h"
+#include "test_fake_device.h"
 #include "web4_web2.h"
 
 /* remove a scratch tree without a shell (no links followed) */
@@ -467,7 +469,8 @@ static void test_host_methods(void)
            "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
            "\"spaces.propose\",\"spaces.vote\",\"sys.info\",\"sys.disk\",\"sys.net\","
-           "\"log.tail\",\"search.refresh\",\"search.query\"]}"));
+           "\"log.tail\",\"search.refresh\",\"search.query\",\"print.status\",\"print.submit\","
+           "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -3316,6 +3319,379 @@ static void test_search(void)
     CHECK(rm_tree(root) == 0, "cleanup");
 }
 
+static void test_print(void)
+{
+    char root[200], err[ZPH_ERR], uri[128];
+    snprintf(root, sizeof root, "%s/zxvd-print-XXXXXX",
+             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0 && zxf_use_space("home") == 0, "root set");
+    CHECK(fake_start(), "the fake printer and scanner");
+    zph_set_timeout_ms(3000);
+
+    /* formats by extension */
+    CHECK(!strcmp(zph_format_of("a.PDF"), "application/pdf") &&
+              !strcmp(zph_format_of("x/b.jpeg"), "image/jpeg") &&
+              !strcmp(zph_format_of("c.Jpg"), "image/jpeg") &&
+              !strcmp(zph_format_of("d.png"), "image/png") &&
+              !strcmp(zph_format_of("e.pwg"), "image/pwg-raster") &&
+              !strcmp(zph_format_of("f.urf"), "image/urf") &&
+              !strcmp(zph_format_of("g.txt"), "text/plain") && !zph_format_of("h") &&
+              !zph_format_of("i.pd") && !zph_format_of("j.pdfx") && !zph_format_of("k.d/l") &&
+              !zph_format_of("m."),
+          "formats");
+
+    /* the printer */
+    ipp_printer_t p;
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/print", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_OK && !strcmp(p.name, "Fake") &&
+              p.state == IPP_PRINTER_IDLE && p.nformats == 2 && p.accepting && p.color,
+          "printer: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/ipp/chunked", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_OK && !strcmp(p.make, "Fake Printer 1"),
+          "chunked answer: %s", err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/continue", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_OK && !strcmp(p.name, "Fake"),
+          "after 100 Continue: %s", err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/refuse", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_E_HTTP && strstr(err, "IPP status 0x0400"),
+          "refused: %s", err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/garbage", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_E_PROTO && strstr(err, "not IPP"),
+          "garbage: %s", err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/500", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_E_HTTP && strstr(err, "HTTP 500"), "500: %s",
+          err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/close", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_E_PROTO && strstr(err, "not HTTP"),
+          "closed: %s", err);
+
+    /* addresses (N1, N2) */
+    static const struct {
+        const char *uri;
+        int rc;
+        const char *says;
+    } A[] = {
+        {"ipps://127.0.0.1/ipp", ZPH_E_URI, "secure"},
+        {"https://127.0.0.1/ipp", ZPH_E_URI, "secure"},
+        {"ftp://127.0.0.1/ipp", ZPH_E_URI, "ipp://"},
+        {"ipp://", ZPH_E_URI, "no host"},
+        {"ipp://:631/x", ZPH_E_URI, "no host"},
+        {"ipp://user@127.0.0.1/x", ZPH_E_URI, "plain name"},
+        {"ipp://127.0.0.1:0/x", ZPH_E_URI, "port"},
+        {"ipp://127.0.0.1:65536/x", ZPH_E_URI, "port"},
+        {"ipp://127.0.0.1:/x", ZPH_E_URI, "port"},
+        {"ipp://127.0.0.1:12a/x", ZPH_E_URI, "port"},
+        {"ipp://127.0.0.1:1234567/x", ZPH_E_URI, "port"},
+        {"ipp://[::1/x", ZPH_E_URI, "closing ]"},
+        {"ipp://[::1]x/x", ZPH_E_URI, "host[:port]"},
+        {"ipp://127.0.0.1/a b", ZPH_E_URI, "space"},
+        {"ipp://8.8.8.8/ipp/print", ZPH_E_LOCAL, "local network"},
+        {"ipp://[2001:4860:4860::8888]/ipp", ZPH_E_LOCAL, "local network"},
+        {"ipp://[::ffff:8.8.8.8]/ipp", ZPH_E_LOCAL, "local network"},
+        {"ipp://no-such-host.invalid/ipp", ZPH_E_NET, "could not be found"},
+    };
+    for (size_t i = 0; i < sizeof A / sizeof *A; i++)
+        CHECK(zph_printer(A[i].uri, &p, err, sizeof err) == A[i].rc && strstr(err, A[i].says),
+              "%s: %s", A[i].uri, err);
+    {
+        char longu[ZPH_URI_MAX + 8];
+        memset(longu, 'a', sizeof longu - 1);
+        longu[sizeof longu - 1] = 0;
+        memcpy(longu, "ipp://", 6);
+        CHECK(zph_printer(longu, &p, err, sizeof err) == ZPH_E_URI && strstr(err, "too long"),
+              "long");
+    }
+    /* private ranges pass N2 and fail to connect quickly (a closed port) */
+    zph_set_timeout_ms(300);
+    CHECK(zph_printer("ipp://127.0.0.1:1/ipp", &p, err, sizeof err) == ZPH_E_NET &&
+              strstr(err, "did not answer"),
+          "closed port: %s", err);
+    zph_set_timeout_ms(3000);
+    CHECK(zph_printer("http://127.0.0.1:1/ipp", &p, err, 0) == ZPH_E_NET, "no room for why");
+
+    /* printing a file from the ZXV folder */
+    uint64_t size;
+    CHECK(zxf_write("Plan.pdf", (const uint8_t *) "%PDF-1.4 fake", 13, ZXF_W_REPLACE, false,
+                    &size) == 0 &&
+              zxf_write("notes.txt", (const uint8_t *) "hi", 2, ZXF_W_REPLACE, false, &size) == 0 &&
+              zxf_mkdir("Folder") == 0,
+          "files");
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/print", FAKE_PORT);
+    ipp_job_opts_t o = {NULL, NULL, 2, "one-sided", NULL, NULL};
+    ipp_job_t j;
+    CHECK(zph_print(uri, "Plan.pdf", &o, &j, err, sizeof err) == ZPH_OK && j.id == 77 &&
+              j.state == IPP_JOB_PENDING,
+          "printed: %s", err);
+    CHECK(
+        !strcmp(fake_get("/fake/last"),
+                "print fmt=application/pdf name=Plan.pdf copies=2 sides=one-sided doc=13:%PDF-1.4"),
+        "the printer got: %s", fake_get("/fake/last"));
+    CHECK(
+        zph_print(uri, "notes.txt", &o, &j, err, sizeof err) == ZPH_E_FORMAT &&
+            !strcmp(
+                err,
+                "the printer does not take text/plain files; it takes application/pdf, image/jpeg"),
+        "format: %s", err);
+    CHECK(zxf_write("noext", (const uint8_t *) "x", 1, ZXF_W_REPLACE, false, &size) == 0 &&
+              zph_print(uri, "noext", &o, &j, err, sizeof err) == ZPH_E_FORMAT &&
+              strstr(err, "does not take these files"),
+          "no extension: %s", err);
+    CHECK(zph_print(uri, "missing.pdf", &o, &j, err, sizeof err) == ZPH_E_FILE &&
+              strstr(err, "the file: "),
+          "missing: %s", err);
+    CHECK(zph_print(uri, "Folder", &o, &j, err, sizeof err) == ZPH_E_FILE && strstr(err, "folder"),
+          "a folder: %s", err);
+    CHECK(zph_print("ftp://x", "Plan.pdf", &o, &j, err, sizeof err) == ZPH_E_URI, "bad uri");
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/refuse", FAKE_PORT);
+    CHECK(zph_print(uri, "Plan.pdf", &o, &j, err, sizeof err) == ZPH_E_HTTP, "refused printer");
+    /* jobs */
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/print", FAKE_PORT);
+    CHECK(zph_job(uri, 77, false, &j, err, sizeof err) == ZPH_OK && j.state == IPP_JOB_COMPLETED &&
+              j.pages == 2,
+          "job: %s", err);
+    CHECK(zph_job(uri, 77, true, &j, err, sizeof err) == ZPH_OK && j.state == IPP_JOB_CANCELED,
+          "cancel: %s", err);
+    CHECK(zph_job(uri, 5, false, &j, err, sizeof err) == ZPH_E_HTTP &&
+              !strcmp(err, "the printer refused (IPP status 0x0406): no such job"),
+          "no such job: %s", err);
+    CHECK(zph_job("ipps://h/x", 5, false, &j, err, sizeof err) == ZPH_E_URI, "bad uri");
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/garbage", FAKE_PORT);
+    CHECK(zph_job(uri, 77, false, &j, err, sizeof err) == ZPH_E_PROTO, "garbage job");
+
+    /* scanning */
+    escl_caps_t k;
+    escl_status_t st;
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/eSCL", FAKE_PORT);
+    CHECK(zph_scanner(uri, &k, &st, err, sizeof err) == ZPH_OK && !strcmp(k.make, "Fake Scanner") &&
+              k.ndpi == 2 && !strcmp(st.state, "Idle"),
+          "scanner: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/eSCL/", FAKE_PORT);
+    CHECK(zph_scanner(uri, &k, &st, err, sizeof err) == ZPH_OK, "a trailing slash");
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/nowhere", FAKE_PORT);
+    CHECK(zph_scanner(uri, &k, &st, err, sizeof err) == ZPH_E_HTTP && strstr(err, "404"), "404: %s",
+          err);
+    CHECK(zph_scanner("ipp://127.0.0.1/eSCL", &k, &st, err, sizeof err) == ZPH_E_URI &&
+              strstr(err, "starts http://"),
+          "a scanner is http: %s", err);
+    static char saved[ZPH_PAGES_MAX][ZXF_PATH_MAX + 1];
+    uint32_t pages = 9;
+    escl_settings_t s = {ESCL_SRC_FEEDER, ESCL_COLOR_RGB, 600, 0, 0, "image/jpeg"};
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/eSCL", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "Folder", saved, ZPH_PAGES_MAX, &pages, err, sizeof err) == ZPH_OK &&
+              pages == 2 && !strcmp(saved[0], "Folder/Scan 1.jpg") &&
+              !strcmp(saved[1], "Folder/Scan 2.jpg"),
+          "scanned %u: %s", pages, err);
+    zxf_entry_t e;
+    CHECK(zxf_stat("Folder/Scan 1.jpg", &e) == 0 && e.size == 3000 &&
+              zxf_stat("Folder/Scan 2.jpg", &e) == 0 && e.size == 10,
+          "pages saved whole");
+    CHECK(!strcmp(fake_get("/fake/last"), "scan dpi=600< src=Feeder"), "settings sent: %s",
+          fake_get("/fake/last"));
+    s.format = "application/pdf";
+    s.source = ESCL_SRC_PLATEN;
+    CHECK(zph_scan(uri, &s, "", saved, 1, &pages, err, sizeof err) == ZPH_OK && pages == 1 &&
+              !strcmp(saved[0], "Scan 1.pdf"),
+          "one page wanted, at the top: %u %s", pages, pages ? saved[0] : "");
+    CHECK(zph_scan(uri, &s, "Folder", saved, 0, &pages, err, sizeof err) == ZPH_OK && pages == 0,
+          "no room for pages");
+    s.format = "image/png";
+    CHECK(zph_scan(uri, &s, "Folder", saved, ZPH_PAGES_MAX, &pages, err, sizeof err) == ZPH_OK &&
+              pages == 2 && !strcmp(saved[1], "Folder/Scan 2.png"),
+          "png");
+    s.dpi = 5;
+    CHECK(zph_scan(uri, &s, "Folder", saved, 4, &pages, err, sizeof err) == ZPH_E_URI &&
+              strstr(err, "out of range"),
+          "bad settings");
+    s.dpi = 300;
+    CHECK(zph_scan(uri, &s, "Plan.pdf", saved, 4, &pages, err, sizeof err) == ZPH_E_FILE &&
+              strstr(err, "it is a file"),
+          "not a folder: %s", err);
+    CHECK(zph_scan(uri, &s, "Nope", saved, 4, &pages, err, sizeof err) == ZPH_E_FILE, "no folder");
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/busy", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP &&
+              strstr(err, "busy"),
+          "busy: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/nopaper", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP &&
+              strstr(err, "paper"),
+          "no paper: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/noloc", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_PROTO &&
+              strstr(err, "where"),
+          "no location: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/nowhere", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP, "404 job");
+    CHECK(zph_scan("ftp://x", &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_URI, "bad url");
+
+    /* over zxvd */
+    char req[512];
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.status\",\"params\":{\"uri\":"
+             "\"ipp://127.0.0.1:%d/ipp/print\"}}",
+             FAKE_PORT);
+    const char *r = rpc(req);
+    CHECK(strstr(r,
+                 "{\"name\":\"Fake\",\"info\":\"\",\"make\":\"Fake Printer 1\",\"location\":\"\","
+                 "\"state\":\"idle\",\"reasons\":\"none\",\"accepting\":true,\"color\":true,"
+                 "\"queued\":0,\"copies_max\":0,\"formats\":[\"application/pdf\",\"image/jpeg\"],"
+                 "\"media\":[\"iso_a4_210x297mm\"],\"media_default\":\"iso_a4_210x297mm\","
+                 "\"sides\":[\"one-sided\"]}"),
+          "print.status: %s", r);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.submit\",\"params\":{\"uri\":"
+             "\"ipp://127.0.0.1:%d/ipp/print\",\"path\":\"Plan.pdf\",\"copies\":3,\"color\":"
+             "\"monochrome\",\"sides\":\"two-sided-short-edge\",\"media\":\"na_letter_8.5x11in\","
+             "\"job_name\":\"The plan\"}}",
+             FAKE_PORT);
+    r = rpc(req);
+    CHECK(strstr(r, "{\"job_id\":77,\"state\":\"pending\",\"reasons\":\"none\",\"message\":\"\","
+                    "\"pages\":-1}"),
+          "print.submit: %s", r);
+    CHECK(!strcmp(fake_get("/fake/last"), "print fmt=application/pdf name=The plan copies=3 "
+                                          "sides=two-sided-short-edge doc=13:%PDF-1.4"),
+          "the printer got: %s", fake_get("/fake/last"));
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.job\",\"params\":{\"uri\":"
+             "\"ipp://127.0.0.1:%d/ipp/print\",\"job_id\":77}}",
+             FAKE_PORT);
+    r = rpc(req);
+    CHECK(strstr(r, "{\"job_id\":77,\"state\":\"completed\",\"reasons\":\"\",\"message\":\"\","
+                    "\"pages\":2}"),
+          "print.job: %s", r);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.cancel\",\"params\":{\"uri\":"
+             "\"ipp://127.0.0.1:%d/ipp/print\",\"job_id\":77}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req), "\"state\":\"canceled\""), "print.cancel: %s", OUT.p);
+    EXPECT(REQ("1", "print.status", ",\"params\":{\"uri\":\"ipp://8.8.8.8/p\"}"),
+           ERR("1", "-32014", "the device is not on the local network"));
+    EXPECT(REQ("1", "print.job", ",\"params\":{\"uri\":\"ipp://h/p\",\"job_id\":0}"),
+           ERR("1", "-32602", "\\\"job_id\\\" must be 1 to 2147483647"));
+    EXPECT(REQ("1", "print.job", ",\"params\":{\"uri\":\"ipp://h/p\",\"job_id\":2147483648}"),
+           ERR("1", "-32602", "\\\"job_id\\\" must be 1 to 2147483647"));
+    CHECK(has(REQ("1", "print.job", ",\"params\":{\"uri\":\"ftp://h/p\",\"job_id\":2147483647}"),
+              "-32014"),
+          "the biggest id reaches the device check");
+    EXPECT(REQ("1", "print.submit",
+               ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"copies\":1000}"),
+           ERR("1", "-32602", "\\\"copies\\\" must be 1 to 999"));
+    EXPECT(REQ("1", "print.submit",
+               ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"color\":\"red\"}"),
+           ERR("1", "-32602", "\\\"color\\\" must be color or monochrome"));
+    EXPECT(REQ("1", "print.submit",
+               ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"sides\":\"both\"}"),
+           ERR("1", "-32602",
+               "\\\"sides\\\" must be one-sided, two-sided-long-edge or two-sided-short-edge"));
+    CHECK(has(REQ("1", "print.submit",
+                  ",\"params\":{\"uri\":\"ftp://h/p\",\"path\":\"a.pdf\",\"copies\":999,"
+                  "\"color\":\"color\",\"sides\":\"one-sided\"}"),
+              "-32014"),
+          "the edges pass: %s", OUT.p);
+    CHECK(has(REQ("1", "print.submit",
+                  ",\"params\":{\"uri\":\"ftp://h/"
+                  "p\",\"path\":\"a.pdf\",\"sides\":\"two-sided-long-edge\"}"),
+              "-32014"),
+          "long edge");
+    CHECK(has(REQ("1", "print.submit", ",\"params\":{\"uri\":\"ipp://h/p\"}"), "-32602"),
+          "path required");
+    CHECK(has(REQ("1", "print.submit",
+                  ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"space\":\"nope\"}"),
+              "no such space"),
+          "space");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.status\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/eSCL\"}}",
+             FAKE_PORT);
+    r = rpc(req);
+    CHECK(
+        strstr(
+            r,
+            "{\"make\":\"Fake Scanner\",\"platen\":true,\"feeder\":false,\"resolutions\":[300,600],"
+            "\"color_modes\":[\"RGB24\",\"Grayscale8\"],\"formats\":[\"image/jpeg\"],"
+            "\"max_width\":2550,\"max_height\":3508,\"state\":\"Idle\",\"adf_state\":\"\",\"jobs\":"
+            "0}"),
+        "scan.status: %s", r);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/eSCL\",\"folder\":\"Folder\",\"color\":\"gray\",\"dpi\":75}}",
+             FAKE_PORT);
+    r = rpc(req);
+    CHECK(strstr(r, "{\"pages\":2,\"saved\":[\"Folder/Scan 3.jpg\",\"Folder/Scan 4.jpg\"]}"),
+          "scan.start: %s", r);
+    CHECK(!strcmp(fake_get("/fake/last"), "scan dpi=75</ src=Platen"), "%s",
+          fake_get("/fake/last"));
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/eSCL\",\"source\":\"feeder\",\"color\":\"bw\",\"dpi\":1200,"
+             "\"format\":\"application/pdf\"}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req), "{\"pages\":2,\"saved\":[\"Scan 2.pdf\",\"Scan 3.pdf\"]}"), "feeder: %s",
+          OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/eSCL\",\"source\":\"platen\",\"color\":\"color\","
+             "\"format\":\"image/png\"}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req), "\"saved\":[\"Scan 1.png\","), "the named defaults: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/busy\"}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req), "\"code\":-32014,\"message\":\"the scanner is busy\""), "busy: %s",
+          OUT.p);
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"source\":\"tray\"}"),
+           ERR("1", "-32602", "\\\"source\\\" must be platen or feeder"));
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"color\":\"sepia\"}"),
+           ERR("1", "-32602", "\\\"color\\\" must be color, gray or bw"));
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"dpi\":74}"),
+           ERR("1", "-32602", "\\\"dpi\\\" must be 75 to 1200"));
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"dpi\":1201}"),
+           ERR("1", "-32602", "\\\"dpi\\\" must be 75 to 1200"));
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"format\":\"image/tiff\"}"),
+           ERR("1", "-32602", "\\\"format\\\" must be image/jpeg, application/pdf or image/png"));
+    EXPECT(REQ("1", "scan.status", ",\"params\":{\"url\":\"http://8.8.8.8/eSCL\"}"),
+           ERR("1", "-32014", "the device is not on the local network"));
+    CHECK(has(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"space\":\"nope\"}"),
+              "no such space"),
+          "space");
+    /* a scan that fails after saving pages says so, and keeps them */
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/half\"}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req),
+                 "\"code\":-32014,\"message\":\"the device answered HTTP 500 (1 page saved)\""),
+          "half: %s", OUT.p);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/half", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP && pages == 1 &&
+              zxf_stat(saved[0], &e) == 0 && e.size == 4,
+          "kept: %u", pages);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/stuck", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP && pages == 0 &&
+              strstr(err, "HTTP 503"),
+          "busy for ever: %s", err);
+    /* what is logged */
+    {
+        zxvd_log_reset();
+        snprintf(req, sizeof req,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.status\",\"params\":{\"uri\":"
+                 "\"ipp://127.0.0.1:%d/ipp/print\"}}",
+                 FAKE_PORT);
+        rpc(req);
+        CHECK(zxvd_log_last() == 0, "print.status is not logged");
+        snprintf(req, sizeof req,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.submit\",\"params\":{\"uri\":"
+                 "\"ipp://127.0.0.1:%d/ipp/print\",\"path\":\"Plan.pdf\"}}",
+                 FAKE_PORT);
+        rpc(req);
+        CHECK(zxvd_log_last() == 1, "print.submit is: %llu", (unsigned long long) zxvd_log_last());
+    }
+    fake_stop();
+    zph_set_timeout_ms(0);
+    CHECK(rm_tree(root) == 0, "cleanup");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -3329,6 +3705,7 @@ int main(void)
     test_sys_and_log();
     test_sys_shapes();
     test_search();
+    test_print();
     test_books_closed();
     test_books();
     test_earnings();

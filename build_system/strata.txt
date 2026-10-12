@@ -213,6 +213,7 @@ net/smart_adapter_integration    adapters   # integrates net's adapters with orb
 orbital_compat                   adapters
 orbital_elevator                 adapters
 orbital_fabric                   adapters
+print                            adapters   # IPP (RFC 8010) and eSCL codecs for printers and scanners (Platen)
 rur                              adapters
 sdk_bridge                       adapters
 sovereign_node                   adapters

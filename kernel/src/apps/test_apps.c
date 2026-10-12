@@ -25,6 +25,9 @@
 #include "tidewatch_model.h"
 #include "wake_model.h"
 #include "scent_model.h"
+#include "platen_model.h"
+#include "zxv_print_host.h"
+#include "test_fake_device.h"
 #include "zxvd_log.h"
 
 /* remove a scratch tree without a shell (no links followed) */
@@ -1203,6 +1206,403 @@ static void test_scent(void)
     ANSWER = "ok";
 }
 
+/* ---------------- Platen ---------------- */
+
+static platen_t PL;
+
+static void test_platen(void)
+{
+    uint64_t size;
+    char uri[96], bad[96], scanner[96], half[96];
+    CHECK(fake_start(), "the fake printer and scanner");
+    zph_set_timeout_ms(3000);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/print", FAKE_PORT);
+    snprintf(bad, sizeof bad, "ipp://127.0.0.1:%d/ipp/garbage", FAKE_PORT);
+    snprintf(scanner, sizeof scanner, "http://127.0.0.1:%d/eSCL", FAKE_PORT);
+    snprintf(half, sizeof half, "http://127.0.0.1:%d/half", FAKE_PORT);
+    CHECK(zxf_mkdir("platen") == 0 && zxf_mkdir("platen/scans") == 0 &&
+              zxf_write("platen/letter.pdf", (const uint8_t *) "%PDF-1.4 x", 10, ZXF_W_REPLACE,
+                        false, &size) == 0 &&
+              zxf_write("platen/photo.png", (const uint8_t *) "\x89PNG", 4, ZXF_W_REPLACE, false,
+                        &size) == 0,
+          "files");
+    platen_init(&PL, &LINK);
+
+    /* formats */
+    CHECK(!strcmp(platen_format_of("a.PDF"), "application/pdf") &&
+              !strcmp(platen_format_of("b.jpeg"), "image/jpeg") &&
+              !strcmp(platen_format_of("c.txt"), "text/plain") && !platen_format_of("d") &&
+              !platen_format_of("e.pdfx") && !platen_format_of("f.pd") &&
+              !platen_format_of("g.pdf/h") && !strcmp(platen_format_of("x.y.urf"), "image/urf"),
+          "formats");
+
+    /* printers */
+    CHECK(platen_add_printer(&PL, NULL) == ZXM_E_ARG && platen_add_printer(&PL, "") == ZXM_E_ARG,
+          "no address");
+    static char longuri[PLATEN_URI + 2];
+    memset(longuri, 'u', PLATEN_URI + 1);
+    CHECK(platen_add_printer(&PL, longuri) == ZXM_E_ARG, "address too long");
+    CHECK(platen_add_printer(&PL, bad) == ZXM_E_REMOTE && LINK.err_code == -32014 &&
+              PL.nprinters == 0,
+          "a printer that does not answer is not added: %d", LINK.err_code);
+    CHECK(platen_add_printer(&PL, "ipp://8.8.8.8/ipp/print") == ZXM_E_REMOTE && PL.nprinters == 0,
+          "not local");
+    CHECK(platen_add_printer(&PL, uri) == ZXM_OK && PL.nprinters == 1, "added: %s", LINK.err);
+    const platen_printer_t *pr = &PL.printer[0];
+    CHECK(pr->known && !strcmp(pr->name, "Fake") && !strcmp(pr->make, "Fake Printer 1") &&
+              !strcmp(pr->state, "idle") && !strcmp(pr->reasons, "none") && pr->accepting &&
+              pr->color && pr->nformats == 2 && !strcmp(pr->formats[0], "application/pdf") &&
+              !strcmp(pr->formats[1], "image/jpeg") && pr->nsides == 1 &&
+              !strcmp(pr->sides[0], "one-sided"),
+          "what it is: %s %s %s %u", pr->name, pr->state, pr->reasons, pr->nformats);
+    CHECK(platen_add_printer(&PL, uri) == ZXM_E_STATE && PL.nprinters == 1, "already there");
+    CHECK(platen_takes(&PL, 0, "platen/letter.pdf") && platen_takes(&PL, 0, "x.JPG") &&
+              !platen_takes(&PL, 0, "platen/photo.png") && !platen_takes(&PL, 0, "noext") &&
+              !platen_takes(&PL, 1, "a.pdf"),
+          "what it takes");
+    CHECK(platen_refresh_printer(&PL, 0) == ZXM_OK && pr->known &&
+              platen_refresh_printer(&PL, 1) == ZXM_E_ARG,
+          "refresh");
+
+    /* printing */
+    int before = sent;
+    CHECK(platen_print(&PL, 1, "platen/letter.pdf", NULL) == ZXM_E_ARG &&
+              platen_print(&PL, 0, NULL, NULL) == ZXM_E_ARG &&
+              platen_print(&PL, 0, "", NULL) == ZXM_E_ARG && sent == before,
+          "nothing to print: not asked");
+    CHECK(platen_print(&PL, 0, "platen/photo.png", NULL) == ZXM_E_REMOTE &&
+              LINK.err_code == -32014 && PL.njobs == 0,
+          "a format it does not take");
+    CHECK(platen_print(&PL, 0, "platen/none.pdf", NULL) == ZXM_E_REMOTE && PL.njobs == 0,
+          "no such file");
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", NULL) == ZXM_OK && PL.njobs == 1, "printed: %s",
+          LINK.err);
+    const platen_job_t *j = &PL.job[0];
+    CHECK(j->id == 77 && j->printer == 0 && !strcmp(j->state, "pending") && j->pages == -1 &&
+              !strcmp(j->path, "platen/letter.pdf") && !platen_job_done(j),
+          "the job: %d %s %d", j->id, j->state, j->pages);
+    CHECK(strstr(fake_get("/fake/last"), "fmt=application/pdf") &&
+              strstr(fake_get("/fake/last"), "doc=10:%PDF-1.4"),
+          "what the printer got: %s", fake_get("/fake/last"));
+    platen_opts_t o = {.copies = 2, .sides = "one-sided", .mono = true};
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", &o) == ZXM_OK && PL.njobs == 2 &&
+              strstr(LINK.req, "\"copies\":2") && strstr(LINK.req, "\"sides\":\"one-sided\"") &&
+              strstr(LINK.req, "\"color\":\"monochrome\""),
+          "options: %s", LINK.req);
+    CHECK(strstr(fake_get("/fake/last"), "copies=2 sides=one-sided"), "options reached it: %s",
+          fake_get("/fake/last"));
+    platen_opts_t none = {0};
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", &none) == ZXM_OK && PL.njobs == 3 &&
+              !strstr(LINK.req, "copies") && !strstr(LINK.req, "sides") &&
+              !strstr(LINK.req, "color"),
+          "defaults: %s", LINK.req);
+    o.sides = "both";
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", &o) == ZXM_E_REMOTE &&
+              LINK.err_code == -32602 && PL.njobs == 3,
+          "bad sides");
+    /* cancel one, then follow the rest */
+    CHECK(platen_cancel(&PL, 3) == ZXM_E_ARG, "no such job");
+    CHECK(platen_cancel(&PL, 1) == ZXM_OK && !strcmp(PL.job[1].state, "canceled") &&
+              platen_job_done(&PL.job[1]) && platen_cancel(&PL, 1) == ZXM_E_STATE,
+          "canceled: %s", PL.job[1].state);
+    before = sent;
+    CHECK(platen_follow(&PL) == ZXM_OK && sent == before + 2 &&
+              !strcmp(PL.job[0].state, "completed") && PL.job[0].pages == 2 &&
+              !strcmp(PL.job[2].state, "completed") && !strcmp(PL.job[1].state, "canceled"),
+          "followed: %s %d, %d asked", PL.job[0].state, PL.job[0].pages, sent - before);
+    before = sent;
+    CHECK(platen_follow(&PL) == ZXM_OK && sent == before, "nothing left to follow");
+    platen_job_t aborted = {.state = "aborted"}, held = {.state = "held"};
+    CHECK(platen_job_done(&aborted) && !platen_job_done(&held), "done states");
+    /* a job the printer does not know: follow reports it but goes on */
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", NULL) == ZXM_OK &&
+              platen_print(&PL, 0, "platen/letter.pdf", NULL) == ZXM_OK && PL.njobs == 5,
+          "two more");
+    PL.job[3].id = 5;
+    CHECK(platen_follow(&PL) == ZXM_E_REMOTE && !strcmp(PL.job[3].state, "pending") &&
+              !strcmp(PL.job[4].state, "completed"),
+          "one unknown, the other followed: %s", PL.job[4].state);
+    /* a long path is cut on a whole character */
+    static char longpath[400];
+    memset(longpath, 'p', 300);
+    memcpy(longpath + 300, ".pdf", 5);
+    longpath[254] = (char) 0xc3;
+    longpath[255] = (char) 0xa9;
+    PL.njobs = 0;
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":9,\"state\":\"pending\","
+             "\"reasons\":\"none\",\"message\":\"\",\"pages\":-1}}";
+    PL.link = &FAKE;
+    CHECK(platen_print(&PL, 0, longpath, NULL) == ZXM_OK && strlen(PL.job[0].path) == 254 &&
+              PL.job[0].pages == -1,
+          "cut path: %zu", strlen(PL.job[0].path));
+    /* the list keeps the newest */
+    for (int i = 0; i < (int) PLATEN_JOBS + 2; i++) {
+        CANNED = i % 2 ? "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":11,\"state\":"
+                         "\"pending\",\"reasons\":\"\",\"message\":\"\",\"pages\":0}}"
+                       : "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":10,\"state\":"
+                         "\"pending\",\"reasons\":\"\",\"message\":\"\",\"pages\":0}}";
+        platen_print(&PL, 0, "a.pdf", NULL);
+    }
+    CHECK(PL.njobs == PLATEN_JOBS && PL.job[PLATEN_JOBS - 1].id == 11 && PL.job[0].id == 10 &&
+              PL.job[1].id == 11,
+          "full: %u, last %d", PL.njobs, PL.job[PLATEN_JOBS - 1].id);
+    /* replies that do not add up change nothing */
+    const char *badjob[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"state\":\"pending\",\"message\":\"\","
+        "\"pages\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":2147483648,\"state\":\"pending\","
+        "\"message\":\"\",\"pages\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"message\":\"\",\"pages\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"state\":\"pending\",\"pages\":0}"
+        "}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"state\":\"pending\",\"message\":"
+        "\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"state\":\"pending\",\"message\":"
+        "\"\","
+        "\"pages\":-2}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"state\":\"pending\",\"message\":"
+        "\"\","
+        "\"pages\":2147483648}}",
+    };
+    for (size_t i = 0; i < sizeof badjob / sizeof *badjob; i++) {
+        CANNED = badjob[i];
+        CHECK(platen_print(&PL, 0, "a.pdf", NULL) == ZXM_E_PROTOCOL && PL.njobs == PLATEN_JOBS &&
+                  PL.job[PLATEN_JOBS - 1].id == 11,
+              "bad job reply %zu", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":2147483647,\"state\":"
+             "\"processing\",\"reasons\":\"\",\"message\":\"m\",\"pages\":2147483647}}";
+    CHECK(platen_cancel(&PL, 0) == ZXM_OK && PL.job[0].id == INT32_MAX &&
+              PL.job[0].pages == INT32_MAX && !strcmp(PL.job[0].message, "m"),
+          "the largest job");
+    CANNED = NULL;
+    CHECK(platen_cancel(&PL, 1) == ZXM_E_TRANSPORT && PL.job[1].id == 11, "no daemon");
+    const char *badstatus[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"idle\",\"reasons\":"
+        "\"\","
+        "\"accepting\":true,\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"state\":\"idle\",\"reasons\":"
+        "\"\","
+        "\"accepting\":true,\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"reasons\":\"\","
+        "\"accepting\":true,\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"accepting\":true,\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"formats\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"formats\":[1],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"formats\":{},\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"formats\":[\""
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"sides\":[]}}",
+    };
+    for (size_t i = 0; i < sizeof badstatus / sizeof *badstatus; i++) {
+        CANNED = badstatus[i];
+        PL.printer[0].known = true;
+        CHECK(platen_refresh_printer(&PL, 0) == ZXM_E_PROTOCOL && !PL.printer[0].known &&
+                  !strcmp(PL.printer[0].name, "Fake") && PL.printer[0].nformats == 2,
+              "bad status %zu kept what was known", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"N\",\"make\":\"M\",\"state\":"
+             "\"stopped\",\"reasons\":\"media-empty-error\",\"accepting\":false,\"color\":false,"
+             "\"formats\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"application/octet-stream\","
+             "\"i\"],\"sides\":[]}}";
+    CHECK(platen_refresh_printer(&PL, 0) == ZXM_OK && pr->known && !pr->accepting && !pr->color &&
+              pr->nformats == PLATEN_WORDS && pr->nsides == 0 && !strcmp(pr->state, "stopped") &&
+              platen_takes(&PL, 0, "any.txt") && !platen_takes(&PL, 0, "noext"),
+          "eight formats kept; anything goes: %u", pr->nformats);
+    CANNED = NULL;
+    CHECK(platen_refresh_printer(&PL, 0) == ZXM_E_TRANSPORT && !pr->known, "gone quiet");
+    CHECK(platen_add_printer(&PL, "ipp://x/y") == ZXM_E_TRANSPORT && PL.nprinters == 1,
+          "not added when quiet");
+    PL.link = &LINK;
+
+    /* AI explains a printer's trouble */
+    CHECK(platen_ai(&PL, -1, 0) == ZXM_E_ARG && platen_ai(&PL, PLATEN_AI_COUNT, 0) == ZXM_E_ARG &&
+              platen_ai(&PL, PLATEN_AI_EXPLAIN, 1) == ZXM_E_ARG,
+          "range");
+    ANSWER = "The paper tray is empty. Add paper.";
+    asked = 0;
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_OK && asked == 1 &&
+              PL.held.state == ZXM_HELD_PENDING &&
+              strstr(last_prompt, "Printer: N (M)\nState: stopped\nReasons: media-empty-error\n") &&
+              strstr(last_prompt, "plain words"),
+          "held: %s", last_prompt);
+    CHECK(platen_ai_accept(&PL) == ZXM_OK && PL.held.state == ZXM_HELD_ACCEPTED, "read");
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_OK && platen_ai_reject(&PL) == ZXM_OK &&
+              PL.held.state == ZXM_HELD_REJECTED,
+          "dismissed");
+    ANSWER = "ok";
+    PL.printer[0].reasons[0] = 0;
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_E_STATE, "nothing wrong (empty)");
+    memcpy(PL.printer[0].reasons, "none", 5);
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_E_STATE, "nothing wrong (none)");
+    memset(PL.printer[0].name, 'n', sizeof PL.printer[0].name - 1);
+    memset(PL.printer[0].make, 'm', sizeof PL.printer[0].make - 1);
+    memset(PL.printer[0].reasons, 'r', sizeof PL.printer[0].reasons - 1);
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_OK, "long fields fit: %s", LINK.err);
+
+    /* removing a printer leaves its jobs, pointing nowhere */
+    CHECK(platen_add_printer(&PL, uri) == ZXM_E_STATE, "still there");
+    PL.njobs = 3;
+    PL.job[0].printer = 0;
+    PL.job[1].printer = 1;
+    PL.job[2].printer = PLATEN_DEVICES;
+    memcpy(PL.job[0].state, "pending", 8);
+    PL.nprinters = 2;
+    memcpy(PL.printer[1].uri, "ipp://y", 8);
+    CHECK(platen_remove_printer(&PL, 2) == ZXM_E_ARG && platen_remove_printer(&PL, 0) == ZXM_OK &&
+              PL.nprinters == 1 && !strcmp(PL.printer[0].uri, "ipp://y") &&
+              PL.job[0].printer == PLATEN_DEVICES && PL.job[1].printer == 0 &&
+              PL.job[2].printer == PLATEN_DEVICES,
+          "removed: %u %u %u", PL.job[0].printer, PL.job[1].printer, PL.job[2].printer);
+    CHECK(platen_cancel(&PL, 0) == ZXM_E_STATE, "its printer is gone");
+    before = sent;
+    PL.njobs = 1;
+    CHECK(platen_follow(&PL) == ZXM_OK && sent == before, "not followed");
+    /* a full list */
+    PL.nprinters = PLATEN_DEVICES;
+    for (uint32_t i = 0; i < PLATEN_DEVICES; i++) snprintf(PL.printer[i].uri, 16, "ipp://p%u", i);
+    CHECK(platen_add_printer(&PL, uri) == ZXM_E_STATE && PL.nprinters == PLATEN_DEVICES, "full");
+    CHECK(platen_remove_printer(&PL, PLATEN_DEVICES - 1) == ZXM_OK &&
+              PL.nprinters == PLATEN_DEVICES - 1,
+          "the last removed");
+
+    /* scanners */
+    CHECK(platen_add_scanner(&PL, NULL) == ZXM_E_ARG && platen_add_scanner(&PL, "") == ZXM_E_ARG &&
+              platen_add_scanner(&PL, longuri) == ZXM_E_ARG,
+          "no scanner address");
+    CHECK(platen_add_scanner(&PL, scanner) == ZXM_OK && PL.nscanners == 1, "scanner: %s", LINK.err);
+    const platen_scanner_t *sc = &PL.scanner[0];
+    CHECK(sc->known && !strcmp(sc->make, "Fake Scanner") && !strcmp(sc->state, "Idle") &&
+              sc->platen && !sc->feeder && sc->ndpi == 2 && sc->dpi[0] == 300 &&
+              sc->dpi[1] == 600 && !strcmp(sc->url, scanner),
+          "what it is: %s %s %u", sc->make, sc->state, sc->ndpi);
+    CHECK(platen_add_scanner(&PL, scanner) == ZXM_E_STATE, "already there");
+    CHECK(platen_scan(&PL, 1, "platen/scans", NULL) == ZXM_E_ARG, "no such scanner");
+    CHECK(platen_set_space(&PL, "nowhere") == ZXM_OK &&
+              platen_scan(&PL, 0, "platen/scans", NULL) == ZXM_E_REMOTE && LINK.err_code == -32013,
+          "no such space");
+    CHECK(platen_set_space(&PL, "home") == ZXM_OK && !PL.space[0], "home");
+    platen_scan_t ss = {.dpi = 600};
+    CHECK(platen_scan(&PL, 0, "platen/scans", &ss) == ZXM_OK && PL.nsaved == 2 &&
+              !strcmp(PL.saved[0], "platen/scans/Scan 1.jpg") &&
+              !strcmp(PL.saved[1], "platen/scans/Scan 2.jpg"),
+          "scanned: %u %s", PL.nsaved, PL.saved[0]);
+    CHECK(strstr(fake_get("/fake/last"), "dpi=600< src=Platen"), "what the scanner got: %s",
+          fake_get("/fake/last"));
+    zxf_entry_t fe;
+    CHECK(zxf_stat("platen/scans/Scan 2.jpg", &fe) == 0 && fe.size == 10, "saved");
+    ss = (platen_scan_t){.feeder = true, .color = "gray", .format = "image/jpeg"};
+    CHECK(platen_scan(&PL, 0, NULL, &ss) == ZXM_OK && PL.nsaved == 2 &&
+              !strcmp(PL.saved[0], "Scan 1.jpg") && strstr(LINK.req, "\"source\":\"feeder\"") &&
+              strstr(LINK.req, "\"color\":\"gray\"") && !strstr(LINK.req, "folder"),
+          "feeder, at the top: %s", PL.saved[0]);
+    CHECK(strstr(fake_get("/fake/last"), "dpi=300< src=Feeder"), "defaults: %s",
+          fake_get("/fake/last"));
+    CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_OK && !strstr(LINK.req, "folder") &&
+              !strstr(LINK.req, "source") && !strcmp(PL.saved[0], "Scan 3.jpg"),
+          "no settings: %s", PL.saved[0]);
+    ss = (platen_scan_t){.dpi = 50};
+    CHECK(platen_scan(&PL, 0, "", &ss) == ZXM_E_REMOTE && LINK.err_code == -32602 &&
+              !strcmp(PL.saved[0], "Scan 3.jpg"),
+          "bad dpi");
+    PL.nscanners = 2;
+    memcpy(PL.scanner[1].url, half, strlen(half) + 1);
+    CHECK(platen_scan(&PL, 1, "platen/scans", NULL) == ZXM_E_REMOTE && LINK.err_code == -32014 &&
+              strstr(LINK.err, "(1 page saved)") && !strcmp(PL.saved[0], "Scan 3.jpg"),
+          "half a scan: %s", LINK.err);
+    CHECK(platen_remove_scanner(&PL, 2) == ZXM_E_ARG && platen_remove_scanner(&PL, 0) == ZXM_OK &&
+              PL.nscanners == 1 && !strcmp(PL.scanner[0].url, half),
+          "removed");
+    PL.nscanners = PLATEN_DEVICES;
+    for (uint32_t i = 0; i < PLATEN_DEVICES; i++) snprintf(PL.scanner[i].url, 16, "http://s%u", i);
+    CHECK(platen_add_scanner(&PL, scanner) == ZXM_E_STATE, "full");
+    PL.nscanners = 0;
+    CHECK(platen_add_scanner(&PL, half) == ZXM_E_REMOTE && PL.nscanners == 0, "not a scanner");
+
+    /* made-up scanner replies */
+    PL.link = &FAKE;
+    const char *badscan[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"state\":\"Idle\",\"platen\":true,"
+        "\"feeder\":false,\"resolutions\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"platen\":true,"
+        "\"feeder\":false,\"resolutions\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\","
+        "\"feeder\":false,\"resolutions\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"resolutions\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false,\"resolutions\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false,\"resolutions\":[0]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false,\"resolutions\":[100001]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false,\"resolutions\":[\"x\"]}}",
+    };
+    for (size_t i = 0; i < sizeof badscan / sizeof *badscan; i++) {
+        CANNED = badscan[i];
+        CHECK(platen_add_scanner(&PL, "http://s/eSCL") == ZXM_E_PROTOCOL && PL.nscanners == 0,
+              "bad scanner %zu", i);
+    }
+    CANNED =
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "false,\"feeder\":true,\"resolutions\":[1,2,3,4,5,6,7,8,100000]}}";
+    CHECK(platen_add_scanner(&PL, "http://s/eSCL") == ZXM_OK && PL.nscanners == 1 &&
+              PL.scanner[0].ndpi == 8 && PL.scanner[0].dpi[7] == 8 && PL.scanner[0].feeder,
+          "eight resolutions kept");
+    const char *badsaved[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"pages\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"saved\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"saved\":[\"a\",2]}}",
+    };
+    for (size_t i = 0; i < sizeof badsaved / sizeof *badsaved; i++) {
+        CANNED = badsaved[i];
+        CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_E_PROTOCOL && !strcmp(PL.saved[0], "Scan 3.jpg"),
+              "bad saved %zu", i);
+    }
+    static char many[PLATEN_PAGES * 6 + 200];
+    int k = snprintf(many, sizeof many, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"saved\":[");
+    for (uint32_t i = 0; i <= PLATEN_PAGES; i++)
+        k += snprintf(many + k, sizeof many - (size_t) k, "%s\"p\"", i ? "," : "");
+    snprintf(many + k, sizeof many - (size_t) k, "]}}");
+    CANNED = many;
+    CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_E_PROTOCOL && PL.nsaved == 2, "too many pages");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"pages\":0,\"saved\":[]}}";
+    CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_OK && PL.nsaved == 0, "nothing scanned");
+    CANNED = NULL;
+    CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_E_TRANSPORT &&
+              platen_add_scanner(&PL, "http://t") == ZXM_E_TRANSPORT && PL.nscanners == 1,
+          "no daemon");
+    PL.link = &LINK;
+
+    /* spaces */
+    static char longid[64];
+    memset(longid, 'a', 49);
+    CHECK(platen_set_space(&PL, longid) == ZXM_E_ARG && platen_set_space(&PL, "studio") == ZXM_OK &&
+              !strcmp(PL.space, "studio") && platen_set_space(&PL, NULL) == ZXM_OK && !PL.space[0],
+          "space");
+    zph_set_timeout_ms(0);
+    fake_stop();
+}
+
 int main(void)
 {
     char root[256];
@@ -1221,6 +1621,7 @@ int main(void)
     test_spaces();
     test_utilities();
     test_scent();
+    test_platen();
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {

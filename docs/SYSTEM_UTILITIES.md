@@ -21,10 +21,12 @@ needed before release.
 | **Wake** | Event console: follows zxvd's events (refusals as warnings, changes as info), filters by level and text, says how many it missed, AI explains the warnings | Console, `journalctl -f`, Event Viewer | `log.tail` | `wake_model.h` |
 | **Sounding** | Network monitor: interfaces, addresses, live bytes a second, zxvd's request traffic | Network Utility, `nload`, `ip -s link` | `sys.net` | `sounding_model.h` |
 | **Scent** | Search: finds files in a space by name and by the words inside them as the owner types, best first with the text around each hit, opens each in the right app (Quillon, Glint or Burrow); AI can suggest a sharper search, run only when accepted | Spotlight, GNOME Search, `locate`, `grep -r` | `search.query`, `search.refresh` | `scent_model.h` |
+| **Platen** | Printers and scanners on the local network: adds a printer by its address and shows its state, what it takes and why it stopped; prints a file of the space and follows or cancels the job; scans pages from the glass or the feeder into a folder; AI explains a printer's trouble in plain words | Printers & Scanners, CUPS, SANE | `print.status`, `print.submit`, `print.job`, `print.cancel`, `scan.status`, `scan.start` | `platen_model.h` |
 | **Spindle** | Developer console: any zxvd call by hand | Script Editor, `curl` | `rpc.discover` + any | `spindle_model.h` |
 
-None of these change anything. `sys.*`, `log.tail` and `search.*` are read only, local to
-the owner's control socket, and never sent to peers. The log keeps what
+Only Platen changes anything: it sends a document to a printer and saves
+scanned pages as new files. `sys.*`, `log.tail` and `search.*` are read only.
+All of them are local to the owner's control socket and never sent to peers. The log keeps what
 happened (a method, an outcome, how long it took), never parameters or
 content.
 
@@ -35,6 +37,18 @@ finds "harvest"), reads again only the files whose size or time changed, and
 holds up to 20,000 files per space and the first 1 MiB of each text file.
 Each space has its own index, and four are kept at once. A file elsewhere on
 the disk is not searched: the ZXV folder is the one place apps see.
+
+Platen speaks IPP Everywhere to printers and eSCL to scanners
+(`kernel/src/print`, `kernel/arch/hosted/zxv_print_host.h`), the driverless
+protocols almost every network printer and scanner made since 2015 answers.
+It only reaches addresses on the local network (loopback, private, link-local,
+IPv6 unique-local), so zxvd never becomes a way to send documents to the
+internet. A document goes only in a format the printer says it takes (PDF,
+JPEG, PNG, PWG or Apple raster, plain text); ZXV does not convert documents
+yet. Scanned pages are saved as "Scan N" in the chosen folder, and pages saved
+before a failure are kept. Encrypted printers (`ipps://`) wait for a TLS
+client in the hosted layer, and finding printers by themselves (DNS-SD)
+comes later; for now the owner types the address.
 
 ## Still to build
 
@@ -61,7 +75,6 @@ In build order, highest first. "Built on" names what exists today.
 | **Typecase** | Fonts: preview, install, check scripts covered | Font Book | `font` registry |
 | **Runebook** | Character viewer: every character, emoji and symbol, by script | Character Viewer, GNOME Characters | `font`, `i18n` |
 | **Sundial** | Clock, alarms, timers, world time | Clock | `clock`, `timer` |
-| **Platen** | Printers and scanners | Printers & Scanners, CUPS | new driver work |
 | **Treadle** | Automation: run a task on a schedule or an event, with the owner's limits | Shortcuts, Automator, `cron` | `event_sched`, swarm budgets |
 
 The terminal (**zxsh**) is owned by the "Paraconsistent terminal and OS gaps"

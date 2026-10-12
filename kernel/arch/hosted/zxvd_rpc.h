@@ -243,6 +243,9 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
 /* spaces.* and the "space" parameter of files.* (zxv_spaces.h): a missing
  * space, or a role that may not do what was asked. */
 #define ZXVD_E_SPACE (-32013)
+/* print.* and scan.* (zxv_print_host.h): the printer or scanner could not
+ * be reached, refused, or does not take the file; the message says which. */
+#define ZXVD_E_DEVICE (-32014)
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
