@@ -171,6 +171,79 @@ public sealed class ZxvQuarantineLogHandle : ZxvDependentHandle
     private protected override void Destroy(IntPtr native) => NativeMethods.HexlogDestroy(native);
 }
 
+/// <summary>Owns a native <c>zxv_hw_profile*</c> (a ZHP-1 machine profile, ABI 1.4). Profiles depend on nothing.</summary>
+public sealed class ZxvHwProfileHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.HwProfileDestroy(native);
+}
+
+/// <summary>
+/// Base of the ABI 1.4 handles whose native object calls back into managed
+/// code: it owns the <see cref="GCHandle"/>s passed as callback <c>user</c>
+/// pointers and frees them only after the native object is destroyed, so no
+/// callback can reach a freed handle.
+/// </summary>
+public abstract class ZxvCallbackHandle : ZxvDependentHandle
+{
+    private readonly object _pinGate = new();
+    private GCHandle[] _pins = Array.Empty<GCHandle>();
+
+    /// <summary>Allocates a <see cref="GCHandle"/> to <paramref name="target"/> that lives as long as this handle.</summary>
+    /// <param name="target">The managed callback state.</param>
+    /// <returns>The value to pass as the callback's <c>user</c> pointer.</returns>
+    /// <param name="type">Normal (the handle keeps the target alive) or Weak.</param>
+    internal IntPtr Pin(object target, GCHandleType type = GCHandleType.Normal)
+    {
+        GCHandle h = GCHandle.Alloc(target, type);
+        Adopt(h);
+        return GCHandle.ToIntPtr(h);
+    }
+
+    /// <summary>Takes ownership of <paramref name="handle"/>: it is freed after the native object is destroyed.</summary>
+    /// <param name="handle">A handle already passed to native code as a <c>user</c> pointer.</param>
+    internal void Adopt(GCHandle handle)
+    {
+        lock (_pinGate)
+        {
+            var next = new GCHandle[_pins.Length + 1];
+            _pins.CopyTo(next, 0);
+            next[^1] = handle;
+            _pins = next;
+        }
+    }
+
+    /// <summary>Destroys the native object with <paramref name="destroy"/>, then frees every pinned callback state.</summary>
+    /// <param name="native">The native pointer.</param>
+    /// <param name="destroy">The native destroy function.</param>
+    private protected void DestroyThenUnpin(IntPtr native, Action<IntPtr> destroy)
+    {
+        destroy(native);
+        GCHandle[] pins;
+        lock (_pinGate)
+        {
+            pins = _pins;
+            _pins = Array.Empty<GCHandle>();
+        }
+
+        foreach (GCHandle h in pins)
+        {
+            h.Free();
+        }
+    }
+}
+
+/// <summary>Owns a native <c>zxv_hw_matrix*</c> (an emulation matrix, ABI 1.4) and its implementation callbacks.</summary>
+public sealed class ZxvHwMatrixHandle : ZxvCallbackHandle
+{
+    private protected override void Destroy(IntPtr native) => DestroyThenUnpin(native, NativeMethods.HwMatrixDestroy);
+}
+
+/// <summary>Owns a native <c>zxv_hw_region*</c> (a reconfigurable region, ABI 1.4) and its device and event callbacks.</summary>
+public sealed class ZxvHwRegionHandle : ZxvCallbackHandle
+{
+    private protected override void Destroy(IntPtr native) => DestroyThenUnpin(native, NativeMethods.HwRegionDestroy);
+}
+
 /// <summary>Owns a native <c>zxv_rmag*</c> (a set of rational resource budgets).</summary>
 public sealed class ZxvBudgetsHandle : ZxvDependentHandle
 {

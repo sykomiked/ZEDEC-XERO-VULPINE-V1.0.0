@@ -14,7 +14,8 @@ import org.zedec.zxv.internal.Native;
 
 /**
  * Secret key material (an Ed25519 seed, an ML-DSA-87 secret key, an
- * ML-KEM-1024 decapsulation key, or a 32-byte shared secret) held outside the
+ * ML-KEM-1024 decapsulation key, a 32-byte shared secret, or an
+ * SLH-DSA-SHAKE-256s secret key) held outside the
  * Java heap, in memory from a shared {@link Arena}. The garbage collector
  * never sees or copies it.
  *
@@ -39,7 +40,9 @@ public final class SecretKey implements AutoCloseable {
         /** FIPS 203 ML-KEM-1024 decapsulation key, 3168 bytes. */
         MLKEM1024(3168),
         /** An ML-KEM shared secret, 32 bytes. */
-        SHARED_SECRET(32);
+        SHARED_SECRET(32),
+        /** FIPS 205 SLH-DSA-SHAKE-256s secret key, 128 bytes (hardware release keys, ABI 1.4). */
+        SLHDSA_SHAKE256S(128);
 
         private final int length;
 

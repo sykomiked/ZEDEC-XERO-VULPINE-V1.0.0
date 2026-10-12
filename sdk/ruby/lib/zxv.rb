@@ -22,6 +22,7 @@ require_relative "zxv/crypto"
 require_relative "zxv/engine"
 require_relative "zxv/state_channel"
 require_relative "zxv/hexagram"
+require_relative "zxv/hw"
 
 # Ruby SDK for ZXV: a thin, idiomatic wrapper of libzxv (zxv_api.h).
 #
@@ -40,7 +41,8 @@ module Zxv
     mx_pacs009: 0x40, mx_camt056: 0x80, mx_camt029: 0x100, netting: 0x200, cards: 0x400, card_check: 0x800,
     vss: 0x1000, rational: 0x2000, lpres: 0x4000, caps: 0x8000, rmag: 0x10000, phase: 0x20000, wire: 0x40000,
     swarm: 0x80000, hash: 0x100000, mlkem1024: 0x200000, mldsa87: 0x400000, ed25519: 0x800000,
-    tensor: 0x1000000, lora: 0x2000000, evm: 0x4000000, hex: 0x8000000
+    tensor: 0x1000000, lora: 0x2000000, evm: 0x4000000, hex: 0x8000000,
+    hw: 0x10000000
   }.freeze
 
   @fatal_policy = :raise

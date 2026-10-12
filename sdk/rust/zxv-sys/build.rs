@@ -70,6 +70,28 @@ fn regenerate(manifest: &std::path::Path) {
 #[derive(Debug)]
 struct MacroTypes;
 
+/// ABI 1.4: classes, capability keys, function ids, flags and image kinds
+/// meet `uint32_t` / `uint64_t` parameters; kinds, states, events and the
+/// pairing result meet `int32_t` ones.
+#[cfg(feature = "regenerate")]
+fn is_hw_unsigned(name: &str) -> bool {
+    [
+        "ZXV_HW_CLASS_",
+        "ZXV_HW_CAP_",
+        "ZXV_HW_ISA_",
+        "ZXV_HW_FN_",
+        "ZXV_HW_POLICY_",
+        "ZXV_HW_PF_",
+        "ZXV_HW_POWER_",
+        "ZXV_HW_IMG_",
+    ]
+    .iter()
+    .any(|p| name.starts_with(p))
+        || name == "ZXV_HW_ROOT"
+        || name == "ZXV_HW_EXT_MAX"
+        || name == "ZXV_HW_RES_HOST"
+}
+
 #[cfg(feature = "regenerate")]
 impl bindgen::callbacks::ParseCallbacks for MacroTypes {
     fn int_macro(&self, name: &str, _value: i64) -> Option<bindgen::callbacks::IntKind> {
@@ -83,7 +105,8 @@ impl bindgen::callbacks::ParseCallbacks for MacroTypes {
             || name == "ZXV_PHASE_CYCLE"
             || name == "ZXV_MINOR_NA"
             || name == "ZXV_HEX_STATES"
-            || name == "ZXV_HEXLOG_MAX_RECORDS";
+            || name == "ZXV_HEXLOG_MAX_RECORDS"
+            || is_hw_unsigned(name);
         Some(if unsigned { IntKind::U32 } else { IntKind::I32 })
     }
 }

@@ -4,7 +4,7 @@
 # zxv: the Ruby SDK for ZXV
 
 A small, idiomatic Ruby wrapper of `libzxv`, the one C library every ZXV SDK
-shares (`sdk/libzxv/include/zxv_api.h`, ABI 1.3). It follows the cross-SDK
+shares (`sdk/libzxv/include/zxv_api.h`, ABI 1.4). It follows the cross-SDK
 rules in `sdk/docs/SDK_DESIGN.md`, so the nouns are the same as in every
 other ZXV SDK.
 
@@ -22,8 +22,9 @@ gem build zxv.gemspec && gem install zxv-1.1.0.gem
 The library is found, in order: the path passed to `Zxv.load_library(path)`,
 `ZXV_LIBRARY_PATH`, a copy placed in `lib/zxv/native/` before building the
 gem, the in-repository build `sdk/libzxv/build/`, then the system loader
-path. A library whose ABI is not 1.x (x >= 3) is refused (the SDK calls the
-`zxv_hex_*` functions added in ABI 1.3 and the `_cap` functions added in 1.2).
+path. A library whose ABI is not 1.x (x >= 4) is refused (the SDK calls the
+`zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*` functions added in
+1.3 and the `_cap` functions added in 1.2).
 
 Run the tests (Minitest, against the real library and
 `sdk/conformance/vectors.json`):
@@ -179,6 +180,60 @@ Fields are Symbols; tags are frozen and interned. `!h` raises
 TruthConversionError, but Ruby still treats every object as truthy in an
 `if`, so never write `if h`.
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+Three parts, documented in [HW_EMULATION.md](../docs/HW_EMULATION.md):
+
+* `Zxv::HwProfile`: ZHP-1 machine profiles (plain data, no capability).
+  `probe_host` describes this machine, `reference` is the public reference
+  machine R1 (16 nodes), `present(host, target)` marks each node HARD or
+  SOFT, `match` / `pair` say what runs natively and what is emulated;
+  `encode`, `decode`, `digest`, `cap`, `set_cap`, `ext`, `set_ext`.
+* `Zxv::HwMatrix` (needs `:hw_matrix`): functions served by interchangeable
+  implementations that serve only after reproducing the golden vectors.
+  Every matrix starts with the standard engines (`Hw::FN_SHA256`,
+  `FN_KECCAK`, `FN_MAC`, `FN_GCD`, `FN_LOGIC64`, `FN_TENSOR`), so `call`
+  works on any device. `providers` lists every implementation (kind, proof,
+  contract, flags, power class, calls); `set_policy` states placement
+  (`:key_bearing`, `:local_only`, latency, power), never an implementation.
+  `add_provider { |op, input| ... }` registers a Ruby implementation.
+  Contract packages (`trust_key`, `apply_contract`) need `:hw_reconf`.
+* `Zxv::HwRegion` (needs `:hw_reconf`): hardware updates as images signed
+  with ML-DSA-87 AND SLH-DSA-SHAKE-256s (`Hw.keygen`, `Hw.build_image`,
+  both need `:crypto_sign`; signing takes seconds), staged, tested,
+  committed or rolled back on a device object you supply (`load`,
+  `readback`, `activate`). Every step is an `on_event` callback and a record
+  in a hash-chained audit log (`log`, `log_entry`).
+
+`:all` stays the ABI 1.1 bits (`ZXV_CAP_ALL` never changes); ask for
+`root_capability(:all_1_4)` or add `:hw_matrix` / `:hw_reconf`.
+
+```ruby
+cap = ctx.root_capability(:all_1_4)
+mx = Zxv::HwMatrix.new(cap)
+mx.call(Zxv::Hw::FN_SHA256, "abc")                     # 32 bytes, any machine
+mx.providers.map { |p| [p.fn_id, p.kind, p.proof] }    # discovery
+
+key = Zxv::Hw.keygen(cap)                              # secrets off the Ruby heap
+img = Zxv::Hw.build_image(cap, kind: :partial, target_class: 0xD0, fn_id: 0x200,
+                          version: 1, svn: 1, payload: bitstream, key: key)
+rg = Zxv::HwRegion.new(cap, region_id: 1, target_class: 0xD0, device: my_device,
+                       matrix: mx, provider: fabric_index)
+rg.trust_key(key.public_key)
+rg.on_event { |event, reason, version| audit(event, reason, version) }
+rg.stage(img).trial(5).commit
+key.close                                              # wipes both secret keys
+```
+
+Ruby callbacks (implementations, devices, events) run on the calling thread
+inside libzxv. An exception never crosses into C: an error with a status
+returns that status, any other exception becomes `ZXV_E_IO`. The callbacks
+stay referenced for the life of the context. Errors: `ZXV_E_NOPROVIDER`,
+`E_DISPUTE`, `E_QUARANTINED`, `E_ROLLBACK`, `E_BLOCKED`, `E_POLICY` are
+refusals (`ZxvRefusedError`), `E_TARGET` is a usage error; a full audit log
+poisons the context (`ZxvFatal`), since a change that cannot be recorded is
+not made.
+
 ## API overview
 
 | Ruby | Wraps | Main methods |
@@ -200,6 +255,9 @@ TruthConversionError, but Ruby still treats every object as truthy in an
 | `Zxv::Ed25519`, `Zxv::MlDsa87`, `Zxv::MlKem1024` | signatures, KEM | `generate`, `sign`, `verify`, `verify!`; `encapsulate`, `decapsulate` |
 | `Zxv::SecretKey` | off-heap secret | `close`, `bytesize`, `export_bytes_unsafe`, `from_bytes_unsafe` |
 | `Zxv::Model` / `Zxv::Session` | engine | `open`, `tokenize`, `detokenize`, `info`, `new_session`; `generate`, `generate_async`, `reset`, `bind_budget` |
+| `Zxv::HwProfile` | `zxv_hw_profile_*` | `probe_host`, `reference`, `present`, `decode`, `encode`, `digest`, `add_node`, `set_cap`, `cap`, `set_ext`, `ext`, `nodes`, `match`, `pair` |
+| `Zxv::HwMatrix` | `zxv_hw_*` matrix | `call`, `shadow`, `providers`, `provider_info`, `function_info`, `bound`, `set_policy`, `add_provider`, `set_traits`, `attest`, `memo`, `trust_key`, `apply_contract`, `log`, `log_entry` |
+| `Zxv::HwRegion`, `Zxv::Hw` | `zxv_hw_region_*`, packages | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `on_event`, `log`; `Hw.keygen`, `Hw.build_image`, `Hw.vector_list` |
 | `Zxv::StateChannel` | `zxv_evm_*` | `encode_state`, `ledger_state` (for `sdk/solidity/ZxvStateChannel.sol`) |
 | `Zxv::Future` | host threads | `value`, `wait`, `done?`, `cancel` |
 

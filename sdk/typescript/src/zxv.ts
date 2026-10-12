@@ -49,6 +49,8 @@ export const Feature = Object.freeze({
   EVM: 0x04000000,
   /** The 64-state hexagram tag and quarantine log (ABI 1.3). */
   HEX: 0x08000000,
+  /** Hardware emulation matrix, ZHP-1 profiles and hardware updates (ABI 1.4). */
+  HW: 0x10000000,
 } as const);
 /** A Feature name. */
 export type FeatureName = keyof typeof Feature;
@@ -310,7 +312,7 @@ export class Iso4217 {
 export class Zxv {
   /** @internal */
   readonly _core: Core;
-  /** ABI version of the library (major 1, minor >= 2). */
+  /** ABI version of the library (major 1, minor >= 4). */
   readonly version: Version;
   /** SHA3-256, SHAKE256, Keccak-256. */
   readonly hashes: Hashes;
@@ -332,8 +334,8 @@ export class Zxv {
     const pat = new Uint32Array(1);
     core.call(core, 'zxv_version', maj, min, pat);
     this.version = Object.freeze({ major: maj[0] ?? 0, minor: min[0] ?? 0, patch: pat[0] ?? 0 });
-    if (this.version.major !== 1 || this.version.minor < 3) {
-      throw usage(`libzxv ABI ${this.version.major}.${this.version.minor} is not supported (need 1.3+): ${backend.origin}`);
+    if (this.version.major !== 1 || this.version.minor < 4) {
+      throw usage(`libzxv ABI ${this.version.major}.${this.version.minor} is not supported (need 1.4+): ${backend.origin}`);
     }
     const f = new Uint32Array(1);
     core.call(core, 'zxv_features', f);
@@ -351,7 +353,7 @@ export class Zxv {
    * falling back to WebAssembly if the addon or libzxv cannot be loaded;
    * in a browser it is WebAssembly. The native library is found in the
    * order: `libraryPath`, `ZXV_LIBRARY_PATH`, the bundled copy, the system
-   * loader. A library whose ABI major differs, or minor is below 2, is
+   * loader. A library whose ABI major differs, or minor is below 4, is
    * refused.
    */
   static async load(options: LoadOptions = {}): Promise<Zxv> {

@@ -60,6 +60,20 @@ pub enum RefusedKind {
     Capacity,
     /// `ZXV_E_STATE`: not valid in the current state.
     State,
+    /// `ZXV_E_NOPROVIDER`: no proven hardware implementation may serve
+    /// the call (ABI 1.4).
+    NoProvider,
+    /// `ZXV_E_DISPUTE`: a shadow check found two implementations disagree.
+    Dispute,
+    /// `ZXV_E_QUARANTINED`: a hardware image failed; rolled back and logged.
+    Quarantined,
+    /// `ZXV_E_ROLLBACK`: an image or contract is not newer, or is below
+    /// the floor.
+    Rollback,
+    /// `ZXV_E_BLOCKED`: the image was quarantined before; never reloaded.
+    Blocked,
+    /// `ZXV_E_POLICY`: refused by the function's placement policy.
+    Policy,
     /// Another REFUSED status (added by a newer library).
     Other,
 }
@@ -75,6 +89,12 @@ impl RefusedKind {
             sys::ZXV_E_DECLINED => RefusedKind::Declined,
             sys::ZXV_E_CAPACITY => RefusedKind::Capacity,
             sys::ZXV_E_STATE => RefusedKind::State,
+            sys::ZXV_E_NOPROVIDER => RefusedKind::NoProvider,
+            sys::ZXV_E_DISPUTE => RefusedKind::Dispute,
+            sys::ZXV_E_QUARANTINED => RefusedKind::Quarantined,
+            sys::ZXV_E_ROLLBACK => RefusedKind::Rollback,
+            sys::ZXV_E_BLOCKED => RefusedKind::Blocked,
+            sys::ZXV_E_POLICY => RefusedKind::Policy,
             _ => RefusedKind::Other,
         }
     }

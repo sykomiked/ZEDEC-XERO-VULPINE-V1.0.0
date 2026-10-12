@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { Arg, Backend, GenerateCall, GenerateJob, GenerateReturn, Ptr } from './backend.js';
+import type { Arg, Backend, GenerateCall, GenerateJob, GenerateReturn, HwHandler, Ptr } from './backend.js';
 
 interface Addon {
   load(path: string): AddonLib;
@@ -32,6 +32,10 @@ interface AddonLib {
     onToken: (id: number, piece: Uint8Array) => boolean,
     onDone: (status: number, nPrompt: number, nGenerated: number, stop: number, detail: string) => void,
   ): () => void;
+  zxvjs_hw_handler(
+    dispatch: (kind: number, id: number, a: number, b: number, c: number, d: number, data: Uint8Array | null, outCap: number) =>
+      number | Uint8Array,
+  ): void;
   path: string;
 }
 
@@ -157,6 +161,20 @@ class NativeBackend implements Backend {
 
   isNull(ptr: Ptr): boolean {
     return BigInt(ptr) === 0n;
+  }
+
+  setHwHandler(h: HwHandler): void {
+    // Kinds as in native/zxv_addon.cc: 0 call, 1 load, 2 readback, 3 activate, 4 event.
+    this.#lib.zxvjs_hw_handler((kind, id, a, b, c, d, data, outCap) => {
+      switch (kind) {
+        case 0: return h.call(id, a, data ?? new Uint8Array(0), outCap);
+        case 1: return h.load(id, a, data ?? new Uint8Array(0));
+        case 2: return h.readback(id, a);
+        case 3: return h.activate(id, a);
+        case 4: h.event(id, a, b | 0, c, d); return 0;
+        default: return -9;
+      }
+    });
   }
 
   generate(c: GenerateCall, onToken: (id: number, piece: Uint8Array) => boolean): GenerateJob {

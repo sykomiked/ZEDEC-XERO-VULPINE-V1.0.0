@@ -40,8 +40,9 @@ target_link_libraries(my_app PRIVATE zxv::zxv)
 ```
 
 At run time the SDK calls `zxv_version` once. It refuses a library whose
-major version is not 1 or whose minor version is below 3 (ABI 1.3 added the
-hexagram tag, 1.2 the capability-gated `*_cap` forms the SDK calls).
+major version is not 1 or whose minor version is below 4 (ABI 1.4 added
+hardware emulation and hardware updates, 1.3 the hexagram tag, 1.2 the
+capability-gated `*_cap` forms the SDK calls).
 
 ## Quickstart
 
@@ -106,6 +107,57 @@ log.verify();
 `Hexagram` is a trivially copyable value with `&`, `|`, `~` and `==`, and
 no conversion to `bool` or `Truth`.
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+Everything lives in `zxv::hw`. Profiles are plain data; `hw::Matrix` needs
+`caps::hw_matrix`; `hw::Region` and contract packages need
+`caps::hw_reconf`; `hw::Release` (keys and packages) needs
+`caps::crypto_sign`. `caps::all` keeps its 1.1 value, so use
+`caps::all_1_4` for every bit. New exceptions: `NoProvider`, `Disputed`,
+`Quarantined`, `RollbackRefused`, `ImageBlocked`, `PolicyDenied` (all
+`RefusedError`) and `TargetMismatch` (`UsageError`). Everything is
+integers. See [HW_EMULATION.md](../docs/HW_EMULATION.md).
+
+```cpp
+namespace hw = zxv::hw;
+auto r1 = hw::Profile::reference();                          // R1: 16 nodes
+auto m = hw::Profile::match(hw::Profile::probe_host(), r1);  // m.native, m.emulated
+zxv::Context ctx;
+auto cap = ctx.root_capability(zxv::caps::all_1_4);
+hw::Matrix mx(cap);                                          // standard engines, proven SOFT
+auto digest = mx.call(hw::fn_sha256, 0, bytes);              // ba7816bf... for "abc"
+auto p = mx.add_provider(0x100, hw::res_host, hw::Kind::soft, 10,
+                         [](std::uint32_t op, auto in, auto out) { /* ... */ return in.size(); });
+mx.attest(p);                                                // serves only once proven
+
+hw::Release rel(cap);
+auto key = rel.keygen();                                     // secret halves are zxv::SecretKey
+auto image = rel.build({hw::ImageKind::partial, 0xD0, {}, 0x100, 1, 1}, payload, key);
+hw::Region rg(cap, &mx, fabric_provider, 1, 0xD0, std::nullopt,
+              hw::Device{load, readback, activate}, 64);
+rg.on_event([](const hw::Event& e) { /* staged, tested, activated, ... */ });
+rg.trust_key(key.public_key);
+rg.stage(image); rg.trial(5); rg.commit();
+```
+
+`hw::Profile`: `probe_host`, `reference`, `present`, `encode`/`decode`,
+`clone`, `digest`, `add_node`, `set_cap`/`cap`/`find_cap`, `set_ext`/`ext`,
+`nodes`, `match`, `pair`. `hw::Matrix`: `add_function`, `add_vector`,
+`set_contract`, `set_policy` (`policy::key_bearing` is sticky and keeps work
+local), `function_info`, `add_resource`, `set_resource`, `add_provider`,
+`set_traits`, `add_dependency`, `enable`, `attest`, `providers` /
+`provider_info` / `find_provider`, `bound`, `call`, `call_into`, `shadow`,
+`memo`, `trust_key`, `apply_contract`, `log` / `log_entry`. `hw::Region`:
+`trust_key`, `stage`, `trial`, `commit`, `rollback`, `tick`, `info`,
+`on_event`, `log` / `log_entry` (records carry a `Hexagram` tag). A region
+keeps its matrix alive.
+
+Callbacks are `std::function`s behind `noexcept` trampolines: no exception
+crosses C. A `zxv::Exception` thrown by a provider or device operation is
+reported as its status, anything else as `ZXV_E_INTERNAL`; event handler
+exceptions are swallowed. A provider may call the matrix again for the
+functions it declared with `add_dependency`.
+
 ## API overview
 
 | Type | Main members | Needs |
@@ -128,6 +180,11 @@ no conversion to `bool` or `Truth`.
 | `Ed25519` | `keygen`, `public_key`, `sign`, `verify` | `crypto_sign` |
 | `Model` / `Session` / `TokenStream` | `open`, `open_memory`, `info`, `tokenize`, `detokenize`, `new_session`, `load_lora`; `generate`, `stream`, `reset`, `position`, `bind_budget` | `ai_inference` |
 | `StateChannel` | `encode_state`, `ledger_state` | `evm` (+ `ledger_read`) |
+| `Hexagram` / `QuarantineLog` | `action`, `advance`, `step`, `forbid`; `append`, `record`, `verify` | `attest` for the log |
+| `hw::Profile` | `probe_host`, `reference`, `present`, `encode`, `decode`, `digest`, `match`, `pair` | - |
+| `hw::Matrix` | `call`, `shadow`, `add_provider`, `attest`, `providers`, `set_policy`, `memo`, `apply_contract`, `log` | `hw_matrix` (+ `hw_reconf` for contracts) |
+| `hw::Release` | `keygen`, `build` | `crypto_sign` |
+| `hw::Region` | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `on_event`, `log` | `hw_reconf` |
 
 ## Examples
 
@@ -231,6 +288,7 @@ Every target compiles with `-Wall -Wextra -Werror -Wshadow -Wconversion -Wsign-c
 - rational operations, parsing, IEEE-754 boundaries and Q16, plus 20,000 random cases where the constexpr host arithmetic is compared with C
 - the lpres tables
 - the `hex` key: all 64 hexagram tags, actions, `and`/`or`/`not`, `step`/`with_state` refusals, the Truth mapping, and the quarantine chain and its `ZXV_E_CAPACITY`, `ZXV_E_CAP` and fail-closed refusals
+- ABI 1.4, mirroring `test_zxv_abi14.c`: R1 and host profiles, round trip, extensions and pairing; the standard engines (SHA-256 of "abc", HMAC RFC 4231, gcd), placement (MAC never goes REMOTE), proof, dependencies, failover, shadow disputes, memo, contracts; and a full stage / trial / commit / quarantine cycle with events, the audit log and fail-closed when it fills (three SLH-DSA signings, about 5 s)
 - UBH-168 frames byte for byte (host and C) and idle frames
 - SHA3, SHAKE and Keccak
 - Ed25519, and the ML-DSA-87 and ML-KEM-1024 digests

@@ -4,7 +4,7 @@
 # ZXV Rust SDK
 
 Safe Rust bindings to `libzxv`, the stable C ABI of the ZXV platform
-(`sdk/libzxv/include/zxv_api.h`, ABI 1.3). Two crates:
+(`sdk/libzxv/include/zxv_api.h`, ABI 1.4). Two crates:
 
 | Crate | What it is |
 |---|---|
@@ -171,6 +171,52 @@ log.verify()?;
 `Hexagram` is `Copy` with `&`, `|` and `!`; there is no `From<Hexagram>`
 for `Truth` or `bool` (a compile-fail doc test checks it).
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+Module `zxv::hw` (types re-exported at the crate root). Profiles are plain
+data; the matrix needs `Caps::HW_MATRIX`; regions and contract packages
+need `Caps::HW_RECONF`; release keys and packages need `Caps::CRYPTO_SIGN`.
+`Caps::ALL` keeps its 1.1 value, so use `Caps::ALL_1_4` for every bit.
+New refusals map to `RefusedKind::{NoProvider, Dispute, Quarantined,
+Rollback, Blocked, Policy}`; `ZXV_E_TARGET` is a usage error. Everything is
+integers. See [HW_EMULATION.md](../docs/HW_EMULATION.md).
+
+* `HwProfile` (ZHP-1): `probe_host`, `reference` (R1, 16 nodes),
+  `present`, `encode`/`decode`, `digest`, `add_node`, `set_cap`/`cap`,
+  `set_ext`/`ext` (opaque, at most `hw::EXT_MAX` bytes), `match_host`,
+  `pair`.
+* `HwMatrix`: starts with the standard engines (`hw::FN_SHA256`,
+  `FN_KECCAK`, `FN_MAC`, `FN_GCD`, `FN_LOGIC64`, `FN_TENSOR`), each served
+  by a proven SOFT implementation. Discover with `providers()` /
+  `provider_info` / `find_provider` / `function_info`; constrain with
+  `set_policy` (`HwPolicy::KEY_BEARING` is sticky and keeps work local);
+  add your own implementations as closures with `add_provider`, prove them
+  with `attest`, `call`, `shadow`, `memo`, `trust_key` + `apply_contract`,
+  `log` / `log_entry`.
+* `HwRelease`: `keygen` (an `HwReleaseKey` whose two secret halves are
+  `SecretKey`s, wiped on drop) and `build` (header || payload ||
+  ML-DSA-87 and SLH-DSA signatures; SLH-DSA takes seconds).
+* `HwRegion`: a device you implement (`HwDevice`: load, readback,
+  activate), `trust_key`, `stage`, `trial`, `commit`, `rollback`, `tick`,
+  `info`, `on_event`, `log` / `log_entry` (records carry a `Hexagram` tag).
+
+```rust
+use zxv::{hw, Caps, Context, HwMatrix, HwProfile};
+
+let r1 = HwProfile::reference()?;
+let m = HwProfile::match_host(&HwProfile::probe_host()?, &r1)?;
+let ctx = Context::new()?;
+let cap = ctx.root_capability(1, None, Caps::ALL_1_4)?;
+let mx = HwMatrix::new(&cap)?;
+let digest = mx.call(hw::FN_SHA256, 0, b"abc")?;  // ba7816bf...
+```
+
+Callbacks (provider closures, `HwDevice` methods, event handlers) run on
+the thread of the call that needs them. A panic is caught at the C
+boundary and reported to the library as `ZXV_E_INTERNAL`; an `Err(e)`
+becomes `e`'s status. Provider closures are `'static`; a device may borrow
+(for example another matrix used as a SHA-256 oracle).
+
 ## API overview
 
 | Area | Types | Key calls |
@@ -190,6 +236,8 @@ for `Truth` or `bool` (a compile-fail doc test checks it).
 | Crypto | `Hashes`, `Ed25519`, `MlDsa87`, `MlKem1024`, `SecretKey` | keygen, sign/verify, encapsulate/decapsulate |
 | Engine | `Model`, `Session`, `GenerateOptions` | `open`, `tokenize`, `new_session`, `generate`, `stream`, `bind_budget` |
 | EVM | `StateChannel` | `encode_state`, `ledger_state` |
+| Hexagram | `Hexagram`, `QuarantineLog` | `new`, `action`, `step`, `forbid`, `append`, `verify` |
+| Hardware | `HwProfile`, `HwMatrix`, `HwRelease`, `HwRegion` | `probe_host`, `reference`, `call`, `add_provider`, `attest`, `build`, `stage`, `trial`, `commit` |
 | Escape hatch | `zxv::sys`, `as_raw()` | raw calls for anything not wrapped |
 
 ## Examples
@@ -209,6 +257,11 @@ cd sdk/rust
 cargo test            # conformance vectors + behaviour + doc tests
 cargo doc --no-deps
 ```
+
+`tests/hw.rs` mirrors `test_zxv_abi14.c` (ABI 1.4): R1, profiles, the standard
+engines, placement (MAC never goes REMOTE), proof, failover, shadow, memo,
+contracts, and a full stage / trial / commit / quarantine cycle with events,
+the audit log and fail-closed when it fills (three SLH-DSA signings, ~5 s).
 
 `tests/hexagram.rs` checks the `hex` key (ABI 1.3): every tag, the logic, step and
 set tables, the Truth mapping and the quarantine chain.

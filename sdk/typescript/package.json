@@ -44,7 +44,7 @@
     "build:ts": "tsc -p tsconfig.json",
     "build": "npm run build:native && npm run build:wasm && npm run build:ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build:ts && node --test --test-concurrency=1 dist/test/vectors.test.js dist/test/engine.test.js dist/test/platform.test.js dist/test/hexagram.test.js dist/test/browser.test.js",
+    "test": "npm run build:ts && node --test --test-concurrency=1 dist/test/vectors.test.js dist/test/engine.test.js dist/test/platform.test.js dist/test/hexagram.test.js dist/test/hardware.test.js dist/test/browser.test.js",
     "example": "node dist/examples/quickstart.js",
     "prepack": "npm run build:ts && node scripts/prepack.mjs"
   },

@@ -27,7 +27,11 @@ public enum Permission {
     /** Drive the swarm token economy. */
     SWARM,
     /** EVM state-channel encoding. */
-    EVM;
+    EVM,
+    /** Build and call the hardware emulation matrix (ABI 1.4). */
+    HW_MATRIX,
+    /** Load hardware images into regions and apply contract packages (ABI 1.4). */
+    HW_RECONF;
 
     /** The {@code ZXV_CAP_*} bit. */
     public long bit() {

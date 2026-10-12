@@ -19,15 +19,15 @@ namespace Zxv;
 /// the <c>ZXV_LIBRARY_PATH</c> environment variable (or <c>ZXV_NATIVE_LIBRARY</c>),
 /// the copy bundled with the package, then the system loader path. The first
 /// SDK call that needs it checks <c>zxv_version</c> and refuses a library whose
-/// major version is not 1 or whose minor version is below 3.
+/// major version is not 1 or whose minor version is below 4.
 /// </remarks>
 public static class ZxvLibrary
 {
     /// <summary>The major ABI version this SDK binds.</summary>
     public const int SupportedAbiMajor = 1;
 
-    /// <summary>The lowest minor ABI version this SDK accepts (1.1 adds capabilities, rationals, crypto and the engine; 1.2 the <c>_cap</c> forms this SDK calls; 1.3 the hexagram tag).</summary>
-    public const int MinimumAbiMinor = 3;
+    /// <summary>The lowest minor ABI version this SDK accepts (1.1 adds capabilities, rationals, crypto and the engine; 1.2 the <c>_cap</c> forms this SDK calls; 1.3 the hexagram tag; 1.4 hardware emulation).</summary>
+    public const int MinimumAbiMinor = 4;
 
     private static readonly Lazy<(Version Version, ZxvFeatures Features)> Loaded = new(Load, LazyThreadSafetyMode.ExecutionAndPublication);
     private static int _fatalPolicy;

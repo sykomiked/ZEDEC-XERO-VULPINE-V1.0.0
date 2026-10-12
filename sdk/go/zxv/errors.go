@@ -84,6 +84,13 @@ const (
 	StatusFormat      int32 = -22
 	StatusIO          int32 = -23
 	StatusFloat       int32 = -24
+	StatusNoProvider  int32 = -25 // ABI 1.4: no proven implementation may serve the call
+	StatusDispute     int32 = -26 // ABI 1.4: a shadow check found two implementations disagree
+	StatusQuarantined int32 = -27 // ABI 1.4: image failed in hardware; rolled back, logged
+	StatusRollback    int32 = -28 // ABI 1.4: image or contract not newer / below the floor
+	StatusBlocked     int32 = -29 // ABI 1.4: image already quarantined; never reloaded
+	StatusTarget      int32 = -30 // ABI 1.4: image is for other hardware (USAGE)
+	StatusPolicy      int32 = -31 // ABI 1.4: refused by the function's placement policy
 	StatusInternal    int32 = -99
 )
 
@@ -195,6 +202,25 @@ var (
 	ErrNotFound error = &sentinel{name: "not found", status: StatusNotFound}
 	// ErrPoisoned: the context halted earlier (ZXV_E_POISONED, FATAL).
 	ErrPoisoned error = &sentinel{name: "context poisoned", status: StatusPoisoned}
+	// ErrNoProvider: no proven hardware implementation may serve the call
+	// (ZXV_E_NOPROVIDER).
+	ErrNoProvider error = &sentinel{name: "no provider", status: StatusNoProvider}
+	// ErrDispute: a shadow check found two implementations disagree
+	// (ZXV_E_DISPUTE).
+	ErrDispute error = &sentinel{name: "implementations disagree", status: StatusDispute}
+	// ErrQuarantined: a hardware image failed; rolled back and logged
+	// (ZXV_E_QUARANTINED).
+	ErrQuarantined error = &sentinel{name: "image quarantined", status: StatusQuarantined}
+	// ErrRollback: an image or contract is not newer or is below the floor
+	// (ZXV_E_ROLLBACK).
+	ErrRollback error = &sentinel{name: "rollback refused", status: StatusRollback}
+	// ErrBlocked: the image was quarantined before and is never reloaded
+	// (ZXV_E_BLOCKED).
+	ErrBlocked error = &sentinel{name: "image blocked", status: StatusBlocked}
+	// ErrTarget: the image is for other hardware (ZXV_E_TARGET, USAGE).
+	ErrTarget error = &sentinel{name: "wrong target hardware", status: StatusTarget}
+	// ErrPolicy: refused by the function's placement policy (ZXV_E_POLICY).
+	ErrPolicy error = &sentinel{name: "placement policy", status: StatusPolicy}
 	// ErrClosed: the handle was closed (a USAGE error of this SDK).
 	ErrClosed error = &sentinel{name: "handle closed", class: ClassUsage}
 )

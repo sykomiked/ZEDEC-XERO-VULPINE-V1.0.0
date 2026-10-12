@@ -15,4 +15,5 @@ module org.zedec.zxv {
     exports org.zedec.zxv.crypto;
     exports org.zedec.zxv.engine;
     exports org.zedec.zxv.evm;
+    exports org.zedec.zxv.hw;
 }
