@@ -2,28 +2,34 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zxl_launch.h — app launch screens: one sequence, a theme per app.
  *
- * The owner asked (2026-10-12) for every app to open with a launch screen made
- * with the boot screen's finesse, themed to the app, with its own beginning,
- * middle and end sound. This is the logic behind that screen. Drawing lives in
- * zui (zui_launch_draw); this file decides WHAT happens and WHEN, from the
- * app's real loading, so the screen can never run ahead of the work.
+ * The owner asked (2026-10-12) for every app to open with the boot screen
+ * itself, played inside the window the person opened for the app: the big
+ * top-centre logo becomes the app's icon instead of the OS fox, the app's load
+ * parts sit where the boot has its five houses, and the vault opens inside the
+ * window onto the app. Each app keeps its own beginning, middle and end sound.
+ * This is the logic behind that screen. Drawing lives in zui
+ * (zui_launch_draw, zui_vault_draw) inside the app's window; this file decides
+ * WHAT happens and WHEN, from the app's real loading, so the screen can never
+ * run ahead of the work.
  *
  * The sequence (same grammar as the boot):
- *   BEGIN    the screen appears: the app's mark dim at the top, its load parts
- *            on carved tiles; the begin cue plays.
+ *   BEGIN    the window opens on the screen: the app's icon dim at the top,
+ *            its load parts on carved tiles; the begin cue plays.
  *   TICK     a part lights when its own load is done AND the gathering bar's
  *            head has reached it. Each lit part plays one pitched tick, the
  *            k-th part the k-th step up the app's scale, the centre the top
  *            step: the middle cue IS the progress, never a loop.
- *   LIGHT    every part is done: the mark lights and warms (silent).
- *   END      the rest of the load (the release bar) is done: the end cue
- *            plays and the reveal opens onto the app. Never before.
+ *   LIGHT    every part is done: the icon lights and warms (silent); the bar
+ *            under it grows with the rest of the load while the vault's bolts
+ *            lock across the seam.
+ *   END      the rest of the load is done: the end cue plays, the bolts throw
+ *            back and the window's face splits onto the app. Never before.
  *
  * Unknown remaining time never fakes a number: the bar breathes and no END
  * fires until the app says it is ready.
  *
- * What a theme carries: the app's key, a timbre family, a reveal (how the
- * screen opens onto the app) and an ambient motion behind the tiles. Twelve
+ * What a theme carries: the app's key, a timbre family and a faint ambient
+ * motion behind the tiles (the screen and the vault are the boot's). Twelve
  * group defaults cover all 144 apps; a few apps have their own entry. The OS
  * boot keeps E and the gong; group defaults never use E, so the boot stays
  * the biggest moment (Murmuration, the swarm itself, is the one app in E).
@@ -32,7 +38,7 @@
  * (Keystone > Sound > "App launch sounds"). They also stay silent when the
  * system is muted or a focus mode is on. With a screen reader running the
  * ticks are dropped and begin/end are ducked so they never talk over speech.
- * Reduce motion swaps every reveal for a short cross-fade.
+ * Reduce motion swaps the vault for a short cross-fade.
  *
  * Integer only, freestanding (no libc), deterministic.
  */
@@ -43,13 +49,7 @@
 
 /* ---- themes ------------------------------------------------------------- */
 typedef enum {
-    ZXL_REVEAL_VAULT = 0, /* bolts throw back, the screen splits down the middle (the boot's) */
-    ZXL_REVEAL_IRIS,      /* a round opening grows from the centre: a tunnel        */
-    ZXL_REVEAL_SCANLINE,  /* folds to one bright line, the line opens into the app  */
-    ZXL_REVEAL_SCATTER,   /* the gold lifts off as a flock of fragments             */
-    ZXL_REVEAL_LID,       /* the top half lifts, the bottom sinks: a strongbox      */
-    ZXL_REVEAL_WAKE,      /* parts along a diagonal like water off a bow            */
-    ZXL_REVEAL_PETALS,    /* four quarters slide to the corners                     */
+    ZXL_REVEAL_VAULT = 0, /* the boot's: bolts throw back, the window's face splits */
     ZXL_REVEAL_FADE,      /* reduce motion: a short cross-fade                      */
     ZXL_REVEAL_COUNT
 } zxl_reveal_t;

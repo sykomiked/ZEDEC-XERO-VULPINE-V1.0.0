@@ -1,14 +1,19 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
-# ZXV app launch screens: the boot sequence made per-app. One sequence, many themes.
+# ZXV app launch screens: the boot screen itself, played inside the app's own window.
 #
-# Every app launch has the boot's grammar (owner's rules):
-#   1. the app's mark sits dim at the top, its real load parts sit on carved tiles in a row;
-#   2. two mirrored bars run inward, lighting each part as its head passes  -> one tick sound per part
-#   3. the centre is loaded: the mark lights and warms, one sweep of light
-#   4. the bar under the mark releases centre-out with the rest of the load (real progress, never faked)
-#   5. the reveal: the screen opens onto the app in the app's own way        -> the end sound
-# What changes per app: the mark, the parts, the ambient motion behind them, the reveal, the sounds.
+# Owner (2026-10-12 09:25Z): every app launch is the same boot sequence screen, with the big top-centre
+# logo changed from the OS fox to the app's icon, and the vault opening inside the window the person has
+# open for that app. So, in the app's window:
+#   1. the app's icon sits dim at the top, the app's real load parts sit on carved tiles in a row
+#      (where the boot has the five houses)                                     -> the begin cue
+#   2. two mirrored bars run inward, lighting each part as its head passes      -> one tick per part
+#   3. everything loaded: the icon lights and warms, one sweep of light
+#   4. the bar under the icon grows centre-out with the rest of the real load while the vault's bolts
+#      lock across the seam one by one
+#   5. the bar fills: the bolts throw back and the window's face splits down the middle and slides
+#      to its edges onto the app                                                 -> the end cue
+# What stays the app's own: its icon, its parts, the faint motion behind them, and its three sounds.
 import numpy as np, math, os, subprocess, sys, wave
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -19,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # the system font (ASCW Golden, Latin II); ZXV_FONT overrides, DejaVu if neither is there
 FONT = next((f for f in (os.environ.get('ZXV_FONT', ''), HERE + '/../../assets/fonts/ascw-golden/ASCW-Golden-Latin2.ttf',
              '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf') if f and os.path.exists(f)), None)
-W, H = 1280, 800
+W, H = 1440, 900
 FPS = 30
 GROUND = (0x00,0x29,0x11); PANEL = (0x04,0x33,0x1A); HAIR = (0x15,0x50,0x2F); DEEP = (0x00,0x14,0x08)
 GOLD = (0xF2,0xC2,0x30); GLOW = (0xFF,0xE3,0x8A); MUTED = (0x84,0xB7,0x95); TXT = (0xD8,0xF5,0xE1)
@@ -121,67 +126,25 @@ def g_dot(d,S): d.ellipse((S*.3,S*.3,S*.7,S*.7),outline=255,width=int(S*.06)); d
 
 # ---- the six themes ----------------------------------------------------------------------------
 THEMES = {
- 'burrow':      dict(title='Burrow', role='Files', mark=M_burrow, reveal='iris', ambient='arches',
+ 'burrow':      dict(num=1, title='Burrow', role='Files', mark=M_burrow, ambient='arches',
                      parts=[('Index',g_grid),('Spaces',g_layers),('Places',g_pin),('Trash',g_trash),('Sync',g_sync)],
                      status='indexing Documents  ·  1,204 files'),
- 'flint':       dict(title='Flint', role='Terminal', mark=M_flint, reveal='scanline', ambient='sparks',
+ 'flint':       dict(num=13, title='Flint', role='Terminal', mark=M_flint, ambient='sparks',
                      parts=[('Shell',g_prompt),('History',g_lines),('Keys',g_key),('Paths',g_path),('Mesh',g_mesh)],
                      status='zxsh  ·  loading history and keys'),
- 'murmuration': dict(title='Murmuration', role='The live swarm', mark=M_murmuration, reveal='scatter', ambient='flock',
+ 'murmuration': dict(num=61, title='Murmuration', role='The live swarm', mark=M_murmuration, ambient='flock',
                      parts=[('Planner',g_agent),('Coder',g_agent),('Qwen 1.5B',g_chip),('Critic',g_agent),('Ledger',g_receipt)],
                      status='waking 4 agents  ·  budget 12,000 tokens a cycle'),
- 'coffer':      dict(title='Coffer', role='Wallet and books', mark=M_coffer, reveal='lid', ambient='dust',
+ 'coffer':      dict(num=73, title='Coffer', role='Wallet and books', mark=M_coffer, ambient='dust',
                      parts=[('Keys',g_key),('Ledger',g_receipt),('Cards',g_card),('V-Bills',g_coin),('Receipts',g_lines)],
                      status='verifying signatures  ·  opening the books'),
- 'cutwater':    dict(title='Cutwater', role='Video editing', mark=M_cutwater, reveal='wake', ambient='water',
+ 'cutwater':    dict(num=56, title='Cutwater', role='Video editing', mark=M_cutwater, ambient='water',
                      parts=[('Codecs',g_reel),('Media',g_grid),('Timeline',g_timeline),('GPU',g_chip),('Audio',g_wave)],
                      status='opening project  ·  37 clips, 4K'),
- 'commons':     dict(title='Commons', role='Chat', mark=M_commons, reveal='petals', ambient='rings',
+ 'commons':     dict(num=27, title='Commons', role='Chat', mark=M_commons, ambient='rings',
                      parts=[('Rooms',g_layers),('People',g_people),('Keys',g_lock),('History',g_clock),('Presence',g_dot)],
                      status='joining 6 rooms  ·  end-to-end keys'),
 }
-
-# ---- layout -------------------------------------------------------------------------------------
-TW, GAP = 150, 22; N = 5
-X0 = (W - (N*TW + (N-1)*GAP)) / 2; RY = 430
-CX = [X0 + i*(TW+GAP) + TW/2 for i in range(N)]
-BAR_Y = RY + TW + 34; MARK = (W/2, 215, 250)
-
-def gold_from_mask(m, rgb, alpha):
-    a = np.zeros((m.height, m.width, 4), np.uint8); a[..., :3] = rgb; a[..., 3] = (np.asarray(m) * alpha).astype(np.uint8)
-    return Image.fromarray(a, 'RGBA')
-
-def put(c, im, cx, cy): c.alpha_composite(im, (int(cx - im.width/2), int(cy - im.height/2)))
-
-def glow(c, m, cx, cy, s):
-    if s <= 0: return
-    pad = 40; g = Image.new('L', (m.width + 2*pad, m.height + 2*pad), 0); g.paste(m, (pad, pad))
-    g = g.filter(ImageFilter.GaussianBlur(14)); put(c, gold_from_mask(g, GLOW, 0.55*min(s, 1.6)), cx, cy)
-
-def engraved(c, m, cx, cy, lit, dim=0.16, flash=0.0):
-    glow(c, m, cx, cy, lit*(1 + 0.8*flash))
-    put(c, gold_from_mask(m, GOLD, dim + (1-dim)*lit), cx, cy)
-    if flash > 0: put(c, gold_from_mask(m, GLOW, flash), cx, cy)
-
-def tile(c, x, y, w, h, lit):
-    d = ImageDraw.Draw(c)
-    d.rounded_rectangle((x, y, x+w, y+h), radius=14, fill=PANEL+(255,), outline=DEEP+(255,), width=2)
-    if lit > 0: d.rounded_rectangle((x, y, x+w, y+h), radius=14, outline=GOLD+(int(150*lit),), width=1)
-
-def text(c, s, x, y, size, rgb, alpha=1.0, anchor='mm'):
-    ov = Image.new('RGBA', c.size, (0,0,0,0)); ImageDraw.Draw(ov).text((x, y), s, font=font(size), fill=rgb+(int(255*alpha),), anchor=anchor)
-    c.alpha_composite(ov)
-
-def bar(c, x0, x1, y, p, mode):
-    d = ImageDraw.Draw(c); xm = (x0 + x1)/2
-    d.rounded_rectangle((x0, y, x1, y+3), radius=1, fill=HAIR)
-    if mode == 'gather': hl, hr = x0 + (xm-x0)*p, x1 - (x1-xm)*p; segs = [(x0, hl), (hr, x1)]; heads = (hl, hr)
-    else: h = (xm-x0)*p; segs = [(xm-h, xm+h)]; heads = (xm-h, xm+h)
-    if p > 0:
-        for a, b in segs: d.rounded_rectangle((a, y, b, y+3), radius=1, fill=GOLD)
-        if p < 1:
-            for hx in heads: d.ellipse((hx-4, y-3, hx+4, y+6), fill=GLOW)
-    return heads
 
 # ---- ambient motion behind the screen: each app's own weather, kept faint ----------------------
 def ambient(c, kind, t):
@@ -237,159 +200,216 @@ def destination(th):
             d.line((x+20, y+170, x+200, y+170), fill=HAIR, width=6); d.line((x+20, y+190, x+140, y+190), fill=HAIR, width=6)
     return c
 
-# ---- reveals: the face (launch screen) opening onto the destination, o in 0..1 -----------------
-def lip(d, xy, w=3): d.line(xy, fill=GOLD+(255,), width=w)
+# ---- the boot's geometry (boot_mock.py), in the face's own 1440 x 900 space ----------------------
+N = 5; TW, GAP, RY = 210, 24, 500
+X0 = (W - (N*TW + (N-1)*GAP)) / 2
+CX = [X0 + i*(TW+GAP) + TW/2 for i in range(N)]
+BAR_Y = RY + TW + 30
+HERO = (W/2, 250, (380, 400))
+BOLTS = [95, 280, 465, 650, 835]; BL, BH = 86, 22
+ICONS = os.environ.get('ZXV_APP_ICONS', HERE + '/../../assets/app-icons')
+ease = lambda t: (lambda u: u*u*(3-2*u))(max(0.0, min(1.0, t)))
 
-def reveal(kind, face, dest, o):
-    c = Image.new('RGBA', (W, H), DEEP+(255,))
-    sc = 0.965 + 0.035*o
-    dd = dest.resize((int(W*sc), int(H*sc)), Image.LANCZOS); c.alpha_composite(dd, ((W-dd.width)//2, (H-dd.height)//2))
-    c.alpha_composite(Image.new('RGBA', (W, H), DEEP+(int(150*(1-o)**1.5),)))
-    if kind == 'iris':          # the tunnel opens: a round hole grows from the centre, ringed in gold
-        R = smoother(o) * math.hypot(W, H)/2 * 1.05; cx, cy = W/2, H/2
-        m = Image.new('L', (W, H), 255); ImageDraw.Draw(m).ellipse((cx-R, cy-R, cx+R, cy+R), fill=0)
-        sh = Image.new('L', (W, H), 0); ImageDraw.Draw(sh).ellipse((cx-R, cy-R, cx+R, cy+R), outline=180, width=40)
-        c.paste(Image.new('RGBA', (W, H), (0,0,0,255)), (0, 0), sh.filter(ImageFilter.GaussianBlur(18)).point(lambda v: v*0.7))
-        c.paste(face, (0, 0), m)
-        if R > 1: d = ImageDraw.Draw(c); d.ellipse((cx-R, cy-R, cx+R, cy+R), outline=GOLD, width=3); d.ellipse((cx-R-9, cy-R-9, cx+R+9, cy+R+9), outline=HAIR, width=2)
-    elif kind == 'scanline':    # CRT: the face folds to one bright line, the line opens into the app
-        if o < 0.45:
-            u = smoother(o/0.45); h = max(2, int(H*(1-u)))
-            f = face.resize((W, h), Image.LANCZOS); c = Image.new('RGBA', (W, H), (0, 0x0A, 0x04, 255)); c.alpha_composite(f, (0, (H-h)//2))
-            ov = Image.new('RGBA', (W, H), (0,0,0,0)); ImageDraw.Draw(ov).rectangle((0, H/2-3, W, H/2+3), fill=GLOW+(int(255*u),)); c.alpha_composite(ov.filter(ImageFilter.GaussianBlur(3*u+0.1)))
-        else:
-            u = smoother((o-0.45)/0.55); h = max(2, int(H*u)); c = Image.new('RGBA', (W, H), (0, 0x0A, 0x04, 255))
-            c.alpha_composite(dest.crop((0, (H-h)//2, W, (H-h)//2+h)), (0, (H-h)//2))
-            ov = Image.new('RGBA', (W, H), (0,0,0,0)); od = ImageDraw.Draw(ov)
-            for y in ((H-h)//2, (H+h)//2): od.rectangle((0, y-2, W, y+2), fill=GLOW+(int(255*(1-u)),))
-            c.alpha_composite(ov.filter(ImageFilter.GaussianBlur(2)))
-    elif kind == 'scatter':     # the gold lifts off as a flock of fragments wheeling away; the ground melts from the centre
-        T = 16; a = np.asarray(face).copy()
-        diff = np.abs(a[..., :3].astype(int) - np.array(GROUND)).sum(2)
-        a[..., 3] = np.clip((diff - 18)*4, 0, 255)                     # only what is drawn flies, not the ground
-        u0 = smoother(o); yy, xx = np.mgrid[0:H, 0:W]
-        dist = np.hypot(xx - W/2, (yy - H/2)*1.4)/(W*0.62)
-        gm = np.clip((dist - u0*1.25)/0.12 + 1, 0, 1)                  # the ground: a soft hole opening outward
-        g = Image.new('RGBA', (W, H), GROUND+(255,)); g.putalpha(Image.fromarray((gm*255).astype(np.uint8)))
-        c.alpha_composite(g)
-        for y in range(0, H, T):
-            for x in range(0, W, T):
-                blk = a[y:y+T, x:x+T]
-                if blk[..., 3].max() < 8: continue
-                cx, cy = x+T/2-W/2, y+T/2-H/2; dist = math.hypot(cx, cy)/math.hypot(W/2, H/2)
-                u = max(0.0, min(1.0, (o - dist*0.4)/0.6)); u = u*u
-                if u >= 1: continue
-                ang = math.atan2(cy, cx) + 1.6*u; R = math.hypot(cx, cy) + u*600
-                nx = W/2 + R*math.cos(ang) - T/2; ny = H/2 + R*math.sin(ang)*0.8 - T/2 - u*160
-                s = max(2, int(T*(1-0.7*u)))
-                t_ = Image.fromarray(blk).resize((s, s), Image.BILINEAR)
-                if u > 0: t_.putalpha(t_.getchannel('A').point(lambda v: int(v*(1-u))))
-                c.alpha_composite(t_, (int(nx + (T-s)/2), int(ny + (T-s)/2)))
-    elif kind == 'lid':         # the strongbox: the top half lifts away, the bottom sinks, gold lips
-        u = smoother(o); gap = int((H/2 + 40)*u)
-        top = face.crop((0, 0, W, H//2)); bot = face.crop((0, H//2, W, H))
-        ts = 1 - 0.06*u; top = top.resize((int(W*ts), int(H/2*ts)), Image.LANCZOS)
-        c.alpha_composite(top, ((W-top.width)//2, -gap)); c.alpha_composite(bot, (0, H//2 + gap))
-        d = ImageDraw.Draw(c); lip(d, ((W-top.width)//2, top.height-gap, (W+top.width)//2, top.height-gap)); lip(d, (0, H//2+gap, W, H//2+gap))
-    elif kind == 'wake':        # the bow cuts: the screen parts along a diagonal and the halves slide apart
-        u = smoother(o); off = u*(W*0.75)
-        m = Image.new('L', (W, H), 0); ImageDraw.Draw(m).polygon([(0, 0), (W*0.62, 0), (W*0.38, H), (0, H)], fill=255)
-        L = Image.new('RGBA', (W, H), (0,0,0,0)); L.paste(face, (0, 0), m)
-        R = Image.new('RGBA', (W, H), (0,0,0,0)); R.paste(face, (0, 0), m.point(lambda v: 255-v))
-        dx, dy = off*0.92, off*0.38
-        c.alpha_composite(L, (int(-dx), int(-dy))); c.alpha_composite(R, (int(dx), int(dy)))
-        d = ImageDraw.Draw(c)
-        lip(d, (W*0.62-dx, -dy, W*0.38-dx, H-dy)); lip(d, (W*0.62+dx, dy, W*0.38+dx, H+dy))
-        foam = Image.new('RGBA', (W, H), (0,0,0,0)); fd = ImageDraw.Draw(foam)
-        for k in range(10):
-            s = k/10; fd.line((W*0.62-dx*s, -dy*s, W*0.38-dx*s, H-dy*s), fill=GLOW+(int(50*(1-s)*(1-u)),), width=2)
-            fd.line((W*0.62+dx*s, dy*s, W*0.38+dx*s, H+dy*s), fill=GLOW+(int(50*(1-s)*(1-u)),), width=2)
-        c.alpha_composite(foam.filter(ImageFilter.GaussianBlur(2)))
-    elif kind == 'petals':      # four rooms open: the quarters slide out to the corners on rounded edges
-        u = smoother(o); gx, gy = int((W/2+30)*u), int((H/2+30)*u)
-        for (x0, y0, sx, sy) in ((0, 0, -1, -1), (W//2, 0, 1, -1), (0, H//2, -1, 1), (W//2, H//2, 1, 1)):
-            q = face.crop((x0, y0, x0+W//2, y0+H//2)); mm = Image.new('L', q.size, 0)
-            ImageDraw.Draw(mm).rounded_rectangle((0, 0, q.width-1, q.height-1), radius=int(60*u), fill=255)
-            px, py = x0 + sx*gx, y0 + sy*gy; c.paste(q, (px, py), mm)
-            ImageDraw.Draw(c).rounded_rectangle((px, py, px+q.width-1, py+q.height-1), radius=int(60*u), outline=GOLD, width=2)
-    return c
+def gold_from_mask(m, rgb, alpha):
+    a = np.zeros((m.height, m.width, 4), np.uint8); a[..., :3] = rgb; a[..., 3] = (np.asarray(m) * alpha).astype(np.uint8)
+    return Image.fromarray(a, 'RGBA')
 
-# ---- one launch ---------------------------------------------------------------------------------
-MARKS = {}
-def face(th, t, p_gather, hero, flash, sweep, p_rel, txt):
-    c = Image.new('RGBA', (W, H), GROUND+(255,)); ambient(c, th['ambient'], t)
-    xl, xr = X0, X0 + N*TW + (N-1)*GAP
-    hl, hr = bar(c, xl, xr, BAR_Y, p_gather, 'gather')
-    lits = []
-    for i, (name, gf) in enumerate(th['parts']):
-        if i < N//2: lit = ease((hl - CX[i])/50)
-        elif i > N//2: lit = ease((CX[i] - hr)/50)
-        else: lit = ease((p_gather - 0.97)/0.03)
-        lits.append(lit); x = X0 + i*(TW+GAP)
-        tile(c, x, RY, TW, TW, lit)
-        key = (th['title'], i)
-        if key not in MARKS: MARKS[key] = mask(76, gf)
-        engraved(c, MARKS[key], CX[i], RY + TW/2 - 12, lit, 0.18)
-        text(c, name, CX[i], RY + TW - 22, 15, GOLD if lit > 0.5 else MUTED, 0.45 + 0.55*lit)
-    if th['title'] not in MARKS: MARKS[th['title']] = mask(MARK[2], th['mark'])
-    m = MARKS[th['title']]; engraved(c, m, MARK[0], MARK[1], hero, 0.14, flash)
-    if 0 <= sweep <= 1:
+def put(c, im, cx, cy): c.alpha_composite(im, (int(cx - im.width/2), int(cy - im.height/2)))
+
+def glow(c, m, cx, cy, s):
+    if s <= 0: return
+    pad = 40; g = Image.new('L', (m.width + 2*pad, m.height + 2*pad), 0); g.paste(m, (pad, pad))
+    g = g.filter(ImageFilter.GaussianBlur(14)); put(c, gold_from_mask(g, GLOW, 0.55*min(s, 1.6)), cx, cy)
+
+def text(c, s, x, y, size, rgb, alpha=1.0, anchor='mm'):
+    ov = Image.new('RGBA', c.size, (0,0,0,0)); ImageDraw.Draw(ov).text((x, y), s, font=font(size), fill=rgb+(int(255*alpha),), anchor=anchor)
+    c.alpha_composite(ov)
+
+def tile(c, x, y, w, h, lit):
+    d = ImageDraw.Draw(c)
+    d.rounded_rectangle((x, y, x+w, y+h), radius=14, fill=PANEL+(255,), outline=DEEP+(255,), width=2)
+    if lit > 0: d.rounded_rectangle((x, y, x+w, y+h), radius=14, outline=GOLD+(int(150*lit),), width=1)
+
+# ---- the app's icon: the owner's drawing when it is there, a stand-in mark until then ------------
+def icon_layers(th):
+    """(mask L, colour RGBA or None) fitted to the hero box"""
+    box = HERO[2]
+    fn = f"{ICONS}/{th['num']:03d}-{th['title'].lower()}.png"
+    if os.path.exists(fn):
+        im = Image.open(fn).convert('RGB'); a = np.asarray(im).astype(int)
+        dist = np.abs(a - np.array(GROUND)).sum(2)                 # drawn on the ZXV green: key it out
+        al = np.clip((dist - 30) * 3, 0, 255).astype(np.uint8)
+        rgba = Image.fromarray(np.dstack([a.astype(np.uint8), al]), 'RGBA'); rgba = rgba.crop(rgba.getbbox())
+        s = min(box[0]/rgba.width, box[1]/rgba.height); rgba = rgba.resize((int(rgba.width*s), int(rgba.height*s)), Image.LANCZOS)
+        return rgba.getchannel('A'), rgba
+    return mask(min(box), th['mark']), None
+
+def hero_draw(c, th, lit, flash, sweep):
+    m, col = th['_icon']; hx, hy = HERO[0], HERO[1]
+    glow(c, m, hx, hy, lit*(0.6 + 0.8*flash))
+    put(c, gold_from_mask(m, GOLD, 0.14*(1-lit)), hx, hy)                  # the dim engraving
+    if col is not None:
+        if lit > 0:
+            a = np.asarray(col).copy(); a[..., 3] = (a[..., 3]*lit).astype(np.uint8); put(c, Image.fromarray(a, 'RGBA'), hx, hy)
+    else: put(c, gold_from_mask(m, GOLD, lit), hx, hy)
+    if flash > 0: put(c, gold_from_mask(m, GLOW, flash), hx, hy)
+    if 0 <= sweep <= 1:                                                   # one diagonal band of light
         a = np.asarray(m).astype(float); yy, xx = np.mgrid[0:m.height, 0:m.width]
         pos = (xx + yy*0.5)/(m.width + m.height*0.5); band = np.clip(1 - abs(pos - (sweep*1.3 - 0.15))/0.06, 0, 1)
-        put(c, gold_from_mask(Image.fromarray((a*band).astype(np.uint8)), (255, 255, 255), 0.55), MARK[0], MARK[1])
-    ty = MARK[1] + MARK[2]/2 + 30
-    text(c, th['title'], W/2, ty, 30, TXT, 0.35 + 0.65*hero)
-    if p_rel > 0 or hero >= 1: bar(c, W/2-210, W/2+210, ty + 32, p_rel, 'release')
-    if txt > 0: text(c, th['status'], W/2, BAR_Y + 30, 14, MUTED, txt)
+        put(c, gold_from_mask(Image.fromarray((a*band).astype(np.uint8)), (255, 255, 255), 0.55), hx, hy)
+
+# ---- the face: the boot screen with the app in it ------------------------------------------------
+PARTMASK = {}
+def face(th, t, p, hero=0.0, flash=0.0, sweep=-1.0, rule=0.0, txt=0.0):
+    c = Image.new('RGBA', (W, H), GROUND+(255,)); ambient(c, th['ambient'], t)
+    d = ImageDraw.Draw(c); xl, xr, xm = X0, X0 + N*TW + (N-1)*GAP, W/2
+    d.rounded_rectangle((xl, BAR_Y, xr, BAR_Y+3), radius=1, fill=HAIR)
+    hl, hr = xl + (xm-xl)*p, xr - (xr-xm)*p
+    if p > 0:
+        d.rounded_rectangle((xl, BAR_Y, hl, BAR_Y+3), radius=1, fill=GOLD); d.rounded_rectangle((hr, BAR_Y, xr, BAR_Y+3), radius=1, fill=GOLD)
+        if p < 1:
+            for hx in (hl, hr): d.ellipse((hx-4, BAR_Y-3, hx+4, BAR_Y+6), fill=GLOW)
+    lits = []
+    for i, (name, gf) in enumerate(th['parts']):
+        lit = ease((hl - CX[i])/60) if i < 2 else ease((CX[i] - hr)/60) if i > 2 else ease((p - 0.97)/0.03)
+        lits.append(lit); x = X0 + i*(TW+GAP); tile(c, x, RY, TW, TW, lit)
+        k = (th['title'], i)
+        if k not in PARTMASK: PARTMASK[k] = mask(104, gf)
+        m = PARTMASK[k]; glow(c, m, CX[i], RY + TW/2 - 14, lit)
+        put(c, gold_from_mask(m, GOLD, 0.18 + 0.82*lit), CX[i], RY + TW/2 - 14)
+        text(c, name, CX[i], RY + TW - 26, 17, GOLD if lit > 0.5 else MUTED, 0.45 + 0.55*lit)
+    hero_draw(c, th, hero, flash, sweep)
+    if rule > 0:                                    # the top bar, centre-out under the icon
+        d = ImageDraw.Draw(c); half = 230; y = HERO[1] + HERO[2][1]/2 + 26
+        d.rounded_rectangle((xm-half, y, xm+half, y+3), radius=1, fill=HAIR); h = half*rule
+        d.rounded_rectangle((xm-h, y, xm+h, y+3), radius=1, fill=GOLD)
+        if rule < 1:
+            for hx in (xm-h, xm+h): d.ellipse((hx-4, y-3, hx+4, y+6), fill=GLOW)
+    if txt > 0: text(c, th['status'], W/2, BAR_Y + 34, 15, MUTED, txt)
     return c, lits
 
-# a load that behaves like a real one: uneven, with a stall where the heads wait
+def bolt_pair(c, y, show, throw):
+    """the boot's bolts: a keeper on the seam, two gold bars sliding in to lock, then thrown back"""
+    if show <= 0: return
+    ov = Image.new('RGBA', (W, H), (0,0,0,0)); d = ImageDraw.Draw(ov)
+    al = int(255*min(1, show*1.6)); s = ease(show); t = ease(throw)
+    kx, kw, kh = W/2, 58, BH+18
+    d.rounded_rectangle((kx-kw/2-4, y-kh/2-4, kx+kw/2+4, y+kh/2+4), radius=10, fill=(0,0x14,0x08,int(al*0.75)))
+    d.rounded_rectangle((kx-kw/2, y-kh/2, kx+kw/2, y+kh/2), radius=8, fill=PANEL+(al,), outline=GOLD+(al,), width=2)
+    for side in (-1, 1):
+        tip = kx + side*(2 + (1-s)*BL*0.9 + t*BL*0.95); tail = tip + side*BL; x0, x1 = min(tip, tail), max(tip, tail)
+        d.rounded_rectangle((x0, y-BH/2, x1, y+BH/2), radius=BH//2, fill=GOLD+(al,))
+        d.rounded_rectangle((x0+4, y-BH/2+3, x1-4, y-BH/2+8), radius=3, fill=GLOW+(int(al*0.9),))
+        d.line((x0+BH/2, y+BH/2-2, x1-BH/2, y+BH/2-2), fill=(0x9A,0x6E,0x10,al), width=2)
+        for k in (0.33, 0.66):
+            gx = x0 + (x1-x0)*k; d.line((gx, y-BH/2+2, gx, y+BH/2-2), fill=(0xB8,0x8A,0x1C,al), width=2)
+        d.ellipse((tail-15, y-15, tail+15, y+15), fill=(0xB8,0x8A,0x1C,al), outline=GOLD+(al,), width=2)
+        d.ellipse((tail-6, y-6, tail+6, y+6), fill=GLOW+(al,))
+    c.alpha_composite(ov)
+
+def door_face(th, t, rule, locks, throw, seam):
+    c = face(th, t, 1, hero=1, rule=rule, txt=1)[0]
+    if seam > 0:
+        d = ImageDraw.Draw(c); h = H/2*ease(seam); d.line((W/2, H/2-h, W/2, H/2+h), fill=GOLD+(int(255*seam),), width=2)
+    for i, y in enumerate(BOLTS): bolt_pair(c, y, locks[i], throw)
+    return c
+
+def split(face_im, dest, o):
+    """the face parts at the centre; each half slides to its edge onto the app"""
+    gapx = int((W/2 + 30)*o); c = Image.new('RGBA', (W, H), DEEP+(255,))
+    sc = 0.97 + 0.03*o; dd = dest.resize((int(W*sc), int(H*sc)), Image.LANCZOS); c.alpha_composite(dd, ((W-dd.width)//2, (H-dd.height)//2))
+    c.alpha_composite(Image.new('RGBA', (W, H), DEEP+(int(150*(1-o)**1.5),)))
+    sp = Image.new('RGBA', (W, H), (0,0,0,0)); ImageDraw.Draw(sp).rectangle((W//2-gapx, 0, W//2+gapx, H), fill=GLOW+(int(60*(1-o)),))
+    c.alpha_composite(sp.filter(ImageFilter.GaussianBlur(30)))
+    L = face_im.crop((0, 0, W//2, H)); R = face_im.crop((W//2, 0, W, H))
+    for img, x, edge, side in ((L, -gapx, W//2-gapx, -1), (R, W//2+gapx, W//2+gapx, 1)):
+        sh = Image.new('RGBA', (W, H), (0,0,0,0)); lo, hi = sorted((edge, edge - side*46))
+        ImageDraw.Draw(sh).rectangle((lo, 0, hi, H), fill=(0,0,0,110)); c.alpha_composite(sh.filter(ImageFilter.GaussianBlur(16)))
+        c.alpha_composite(img, (x, 0)); dd2 = ImageDraw.Draw(c); t0 = edge-10 if side < 0 else edge
+        dd2.rectangle((t0, 0, t0+10, H), fill=(0x0B,0x40,0x26,255)); dd2.line((edge, 0, edge, H), fill=GOLD+(255,), width=3)
+    return c
+
+# ---- the window: the launch plays inside the window the person opened ---------------------------
+DESK_FILE = os.environ.get('ZXV_DESKTOP', '')
+WX, WY, WW, WH = 136, 78, 1168, 760          # window outer rect on the 1440 x 900 desktop
+TB = 34                                      # title bar
+CW, CH = WW - 16, WH - TB - 8                # content: the face is drawn at 1440 x 900 and fitted here
+def desktop():
+    if DESK_FILE and os.path.exists(DESK_FILE): dk = Image.open(DESK_FILE).convert('RGBA').resize((W, H))
+    else:
+        dk = Image.new('RGBA', (W, H), GROUND+(255,)); d = ImageDraw.Draw(dk)
+        d.rectangle((0, 0, W, 44), fill=PANEL); d.rectangle((0, 44, 72, H), fill=(0x02, 0x2E, 0x15))
+    return Image.alpha_composite(dk, Image.new('RGBA', (W, H), (0, 0x14, 0x08, 120)))
+
+def window(desk, th, content, appear=1.0):
+    c = desk.copy(); u = ease(appear); s = 0.94 + 0.06*u
+    win = Image.new('RGBA', (WW, WH), (0,0,0,0)); d = ImageDraw.Draw(win)
+    d.rounded_rectangle((0, 0, WW-1, WH-1), radius=14, fill=PANEL+(255,), outline=HAIR+(255,), width=1)
+    d.line((14, TB-1, WW-14, TB-1), fill=GOLD+(160,), width=1)
+    for k in range(3): d.ellipse((16+k*20, 11, 28+k*20, 23), outline=GOLD+(150,), width=1)      # close, shrink, fill: engraved, ZXV's own
+    m, colr = th['_icon']; ic = (colr if colr is not None else gold_from_mask(m, GOLD, 1)).copy(); ic.thumbnail((20, 20), Image.LANCZOS)
+    tw = font(15).getlength(th['title']); x0 = WW/2 - (tw + 26)/2
+    win.alpha_composite(ic, (int(x0), int(TB/2 - ic.height/2))); ImageDraw.Draw(win).text((x0 + 26, TB/2), th['title'], font=font(15), fill=TXT+(255,), anchor='lm')
+    cm = Image.new('L', (CW, CH), 0); ImageDraw.Draw(cm).rounded_rectangle((0, 0, CW-1, CH-1), radius=10, fill=255)
+    win.paste(content.resize((CW, CH), Image.LANCZOS), (8, TB), cm)
+    sh = Image.new('RGBA', (W, H), (0,0,0,0)); ImageDraw.Draw(sh).rounded_rectangle((WX+10, WY+18, WX+WW+10, WY+WH+18), radius=18, fill=(0,0,0,int(120*u)))
+    c.alpha_composite(sh.filter(ImageFilter.GaussianBlur(18)))
+    if s < 1: win = win.resize((int(WW*s), int(WH*s)), Image.LANCZOS)
+    if u < 1: win.putalpha(win.getchannel('A').point(lambda v: int(v*u)))
+    c.alpha_composite(win, (int(WX + (WW - win.width)/2), int(WY + (WH - win.height)/2)))
+    return c
+
+# ---- one launch -------------------------------------------------------------------------------------
 GATHER = [(0, 0.0), (180, 0.10), (420, 0.26), (560, 0.30), (820, 0.55), (1050, 0.80), (1250, 1.0)]
-RELEASE = [(0, 0.0), (200, 0.22), (380, 0.35), (620, 0.38), (820, 0.70), (1000, 1.0)]
+RELEASE = [(0, 0.02), (200, 0.12), (460, 0.30), (700, 0.36), (960, 0.62), (1200, 0.85), (1400, 1.0)]
+LOCK_AT = [0.10, 0.28, 0.46, 0.64, 0.82]
 def keyed(K, t):
     for (t0, p0), (t1, p1) in zip(K, K[1:]):
         if t <= t1: return p0 + (p1 - p0)*ease((t - t0)/(t1 - t0))
     return 1.0
 
 def run(app, out):
-    th = THEMES[app]; dest = destination(th); b, tick, e = LS.RECIPES[app]()
-    frames = []; events = [(0, b())]; prev = [0]*N; nlit = 0
-    T_G, T_L, T_R, T_V = 1250, 520, 1000, 700        # gather, light, release, reveal (ms)
-    t = 0; dt = 1000/FPS; t0 = 180                     # a breath of the dim screen first
-    while t < t0: frames.append(face(th, t/1000, 0, 0, 0, -1, 0, 0)[0]); t += dt
-    while t < t0 + T_G:
-        f, lits = face(th, t/1000, keyed(GATHER, t - t0), 0, 0, -1, 0, ease((t - t0)/300))
+    th = THEMES[app]; th['_icon'] = icon_layers(th); dest = destination(th); desk = desktop()
+    b, tick, e = LS.RECIPES[app](); dt = 1000/FPS
+    frames = []; events = [(0, b())]; t = 0.0
+    def emit(content, appear=1.0): frames.append(window(desk, th, content, appear))
+    while t < 300: emit(face(th, t/1000, 0)[0], t/300); t += dt                 # the window opens on the dim screen
+    g0 = t; prev = [0]*N; nlit = 0
+    while t < g0 + 1250:                                                         # the bars gather, lighting each part
+        f, lits = face(th, t/1000, keyed(GATHER, t - g0), txt=ease((t - g0)/300))
         new = [i for i in range(N) if prev[i] < 0.5 <= lits[i]]
-        for j, i in enumerate(new):     # the k-th part to light plays the k-th step up the scale; the centre the top
-            step = 6 if i == N//2 else nlit; nlit += 1
+        for j, i in enumerate(new):
+            step = 6 if i == N//2 else nlit; nlit += i != N//2
             events.append((t + 70*j, tick(step, N)))
-        prev = lits; frames.append(f); t += dt
-    s0 = t
-    while t < s0 + T_L:
-        u = (t - s0)/T_L
-        frames.append(face(th, t/1000, 1, ease(u/0.4), ease(u/0.3) if u < 0.3 else 1 - ease((u - 0.3)/0.35), (u - 0.45)/0.5 if u > 0.45 else -1, 0, 1)[0]); t += dt
-    s1 = t
-    while t < s1 + T_R:
-        frames.append(face(th, t/1000, 1, 1, 0, -1, keyed(RELEASE, t - s1), 1)[0]); t += dt
-    F = face(th, t/1000, 1, 1, 0, -1, 1, 1)[0]; events.append((t, e())); s2 = t
-    while t < s2 + T_V:
-        frames.append(reveal(th['reveal'], F, dest, (t - s2)/T_V)); t += dt
-    while t < s2 + T_V + 1300: frames.append(dest); t += dt
-    # audio: each cue placed at the frame where its event happened
+        prev = lits; emit(f); t += dt
+    for k in range(1, 7): emit(face(th, t/1000, 1, hero=ease(k/6), flash=ease(k/6), txt=1)[0]); t += dt        # the icon lights
+    for k in range(1, 7): emit(face(th, t/1000, 1, hero=1, flash=1 - ease(k/6), txt=1)[0]); t += dt
+    for k in range(0, 9): emit(face(th, t/1000, 1, hero=1, sweep=k/8, txt=1)[0]); t += dt                     # one sweep
+    r0 = t; lockt = [None]*5                                                     # the top bar, the bolts locking
+    while t < r0 + RELEASE[-1][0]:
+        p = keyed(RELEASE, t - r0); locks = []
+        for i, th_ in enumerate(LOCK_AT):
+            if p >= th_ and lockt[i] is None: lockt[i] = t
+            locks.append(0 if lockt[i] is None else min(1, (t - lockt[i])/240))
+        emit(door_face(th, t/1000, p, locks, 0, 0)); t += dt
+    events.append((t, e()))                                                      # bar full: the end cue, bolts throw
+    for k in range(1, 7): emit(door_face(th, t/1000, 1, [1]*5, k/6, k/6)); t += dt
+    F = door_face(th, t/1000, 1, [1]*5, 1, 1); n = 27
+    for k in range(1, n+1): u = k/n; emit(split(F, dest, u*u*u*(u*(u*6 - 15) + 10))); t += dt
+    still = window(desk, th, dest)
+    for _ in range(int(1300/dt)): frames.append(still); t += dt
     total = int(SR*(t/1000 + 2.2)); mix = np.zeros((total, 2))
-    for ms, x in events:
-        i = int(ms/1000*SR); mix[i:i+len(x)] += x[:total - i]
-    mix = LS.finish(mix, 0.9, None, 0.2); LS.write(f'{out}/{app}.wav', mix)
+    for ms, x in events: i = int(ms/1000*SR); mix[i:i+len(x)] += x[:total - i]
+    LS.write(f'{out}/{app}.wav', LS.finish(mix, 0.9, None, 0.2))
     p = subprocess.Popen(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-',
                           '-i', f'{out}/{app}.wav', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-preset', 'medium',
                           '-c:a', 'aac', '-b:a', '160k', '-shortest', f'{out}/{app}-launch.mp4'], stdin=subprocess.PIPE)
     for f in frames: p.stdin.write(f.convert('RGB').tobytes())
     p.stdin.close(); p.wait(); os.remove(f'{out}/{app}.wav')
-    # stills for the contact sheet: loading, lit, opening
-    n_g = int((t0 + T_G*0.6)/dt); n_l = int((s0 + T_L*0.35 - 0)/dt); n_v = int((s2 + T_V*0.45)/dt)
-    for tag, k in (('a-loading', n_g), ('b-lit', n_l), ('c-opening', n_v)):
+    nf = len(frames)
+    for tag, k in (('a-loading', int((300 + 750)/dt)), ('b-bolts', int((r0 + 1100)/dt)), ('c-opening', nf - int(1300/dt) - 14)):
         frames[k].convert('RGB').save(f'{out}/stills/{app}-{tag}.png')
-    print(app, len(frames), 'frames', [int(ms) for ms, _ in events])
+    print(app, nf, 'frames', [int(ms) for ms, _ in events])
 
 if __name__ == '__main__':
     out = sys.argv[1]; os.makedirs(out + '/stills', exist_ok=True)

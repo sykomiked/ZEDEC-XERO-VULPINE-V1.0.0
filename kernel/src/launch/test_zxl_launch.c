@@ -36,8 +36,7 @@ static void test_themes(void)
         CHECK(t && t->key != ZXL_BOOT_KEY, "group default avoids the boot key");
         CHECK(t && t->key <= ZXL_B, "key is a pitch class");
         CHECK(t && t->timbre < ZXL_TIMBRE_COUNT, "timbre in range");
-        CHECK(t && t->reveal < ZXL_REVEAL_FADE, "group reveal is a themed one, not the fade");
-        CHECK(t && t->reveal != ZXL_REVEAL_VAULT, "the vault stays the boot's");
+        CHECK(t && t->reveal == ZXL_REVEAL_VAULT, "every app opens with the boot's vault");
         CHECK(t && t->ambient < ZXL_AMB_COUNT && t->ambient != ZXL_AMB_NONE, "ambient set");
         CHECK(t && t->octave >= 3 && t->octave <= 5, "octave sane");
     }
@@ -48,7 +47,7 @@ static void test_themes(void)
           "bad group falls back to group 1 (high)");
     CHECK(zxl_theme_for(0, 5) == zxl_group_theme(5), "NULL app uses its group");
     CHECK(zxl_theme_for("Warble", 5) == zxl_group_theme(5), "uncurated app uses its group");
-    CHECK(zxl_theme_for("Gesso", 5)->reveal == ZXL_REVEAL_WAKE, "media group opens like water");
+    CHECK(zxl_theme_for("Gesso", 5)->ambient == ZXL_AMB_WATER, "media group has water behind it");
 
     /* the six curated apps */
     CHECK(zxl_curated_count() == 6, "six curated apps");
@@ -67,19 +66,29 @@ static void test_themes(void)
     CHECK(zxl_theme_for("", 4) == zxl_group_theme(4), "empty name uses its group");
     const zxl_theme_t *m = zxl_theme_for("Murmuration", 6);
     CHECK(m->key == ZXL_E, "the swarm shares the OS key");
-    CHECK(m->reveal == ZXL_REVEAL_SCATTER && m->ambient == ZXL_AMB_FLOCK,
-          "the swarm scatters like a flock");
-    CHECK(zxl_theme_for("Burrow", 1)->reveal == ZXL_REVEAL_IRIS, "Burrow opens like a tunnel");
-    CHECK(zxl_theme_for("Flint", 2)->reveal == ZXL_REVEAL_SCANLINE, "Flint opens like a CRT");
-    CHECK(zxl_theme_for("Coffer", 7)->reveal == ZXL_REVEAL_LID, "Coffer lifts its lid");
-    CHECK(zxl_theme_for("Cutwater", 5)->reveal == ZXL_REVEAL_WAKE, "Cutwater parts the water");
-    CHECK(zxl_theme_for("Commons", 3)->reveal == ZXL_REVEAL_PETALS, "Commons opens four rooms");
+    CHECK(m->reveal == ZXL_REVEAL_VAULT && m->ambient == ZXL_AMB_FLOCK,
+          "the swarm: the vault, a flock behind");
+    CHECK(zxl_theme_for("Burrow", 1)->reveal == ZXL_REVEAL_VAULT &&
+              zxl_theme_for("Burrow", 1)->ambient == ZXL_AMB_ARCHES,
+          "vault, own ambient");
+    CHECK(zxl_theme_for("Flint", 2)->reveal == ZXL_REVEAL_VAULT &&
+              zxl_theme_for("Flint", 2)->ambient == ZXL_AMB_SPARKS,
+          "vault, own ambient");
+    CHECK(zxl_theme_for("Coffer", 7)->reveal == ZXL_REVEAL_VAULT &&
+              zxl_theme_for("Coffer", 7)->ambient == ZXL_AMB_DUST,
+          "vault, own ambient");
+    CHECK(zxl_theme_for("Cutwater", 5)->reveal == ZXL_REVEAL_VAULT &&
+              zxl_theme_for("Cutwater", 5)->ambient == ZXL_AMB_WATER,
+          "vault, own ambient");
+    CHECK(zxl_theme_for("Commons", 3)->reveal == ZXL_REVEAL_VAULT &&
+              zxl_theme_for("Commons", 3)->ambient == ZXL_AMB_RINGS,
+          "vault, own ambient");
     CHECK(zxl_theme_for("Commons", 3)->key == ZXL_F, "Commons in F");
     CHECK(zxl_theme_for("Coffer", 7)->timbre == ZXL_TIMBRE_COIN, "Coffer rings coins");
     for (uint32_t i = 0; i < 6; i++)
         for (uint32_t j = i + 1; j < 6; j++) {
             const zxl_theme_t *a = zxl_curated(i), *b = zxl_curated(j);
-            CHECK(a->reveal != b->reveal, "each curated app opens its own way");
+            CHECK(a->ambient != b->ambient, "each curated app has its own motion behind it");
             CHECK(a->key != b->key || a->timbre != b->timbre,
                   "each curated app sounds like itself");
         }
@@ -115,8 +124,8 @@ static void test_prefs(void)
           "flags off by default");
     CHECK(strcmp(ZXL_SETTING_KEY, "sound.app_launch") == 0, "setting key");
     const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
-    CHECK(zxl_effective_reveal(t, &p) == ZXL_REVEAL_IRIS, "theme reveal");
-    CHECK(zxl_effective_reveal(t, 0) == ZXL_REVEAL_IRIS, "NULL prefs keep the theme reveal");
+    CHECK(zxl_effective_reveal(t, &p) == ZXL_REVEAL_VAULT, "theme reveal: the vault");
+    CHECK(zxl_effective_reveal(t, 0) == ZXL_REVEAL_VAULT, "NULL prefs keep the theme reveal");
     p.reduce_motion = 1;
     CHECK(zxl_effective_reveal(t, &p) == ZXL_REVEAL_FADE, "reduce motion fades");
     CHECK(zxl_effective_reveal(0, &p) == ZXL_REVEAL_FADE, "reduce motion fades without a theme");
