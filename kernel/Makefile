@@ -1114,6 +1114,12 @@ verify-all: test
 		src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_widget && \
 		/tmp/test_zui_widget && echo "[PASS] test_zui_widget" || { echo "[FAIL] test_zui_widget"; exit 1; }; \
+	echo "=== zui: windows, the strip of open apps, the switcher ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
+		src/zui/test_zui_wm.c src/zui/zui_wm.c src/zui/zui_layout.c src/zui/zui_canvas.c \
+		src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_wm && \
+		/tmp/test_zui_wm && echo "[PASS] test_zui_wm" || { echo "[FAIL] test_zui_wm"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \
