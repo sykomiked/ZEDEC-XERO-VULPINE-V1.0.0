@@ -52,6 +52,17 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_aipi.sh
+      - name: The ZXV folder behind the built-in apps (zxv_files.c)
+        run: |
+          ${{ matrix.cc }} -std=c11 -O1 -Wall -Wextra -Werror ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }} \
+            -Ikernel/arch/hosted kernel/arch/hosted/test_zxv_files.c kernel/arch/hosted/zxv_files.c \
+            -o "$RUNNER_TEMP/test_zxv_files"
+          "$RUNNER_TEMP/test_zxv_files"
+      - name: App models (Burrow, Quillon, Glint, Spindle) on the real dispatcher
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/apps/test_apps.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}
@@ -61,6 +72,8 @@ jobs:
         run: python3 kernel/arch/hosted/check_zxvd_spec.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: End to end, no model
         run: python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: Built-in apps through the window's /api/rpc
+        run: python3 kernel/arch/hosted/test_staple_apps.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: End to end, with the tokenizer test model
         run: |
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor \
