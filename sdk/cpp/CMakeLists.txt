@@ -11,7 +11,7 @@
 #   3. the in-repo build, ../libzxv/build (the "bundled" copy)
 #   4. the system linker path (find_library(zxv))
 cmake_minimum_required(VERSION 3.20)
-project(zxv_cpp VERSION 1.5.0 LANGUAGES CXX)
+project(zxv_cpp VERSION 1.6.0 LANGUAGES CXX)
 
 option(ZXV_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
 option(ZXV_BUILD_EXAMPLES "Build the examples" ${PROJECT_IS_TOP_LEVEL})

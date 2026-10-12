@@ -10,7 +10,7 @@ for the ABI 1.5 groups, [`jni/zxv_jni15.c`](jni/zxv_jni15.c): one
 mechanical C function per libzxv call, with all policy (capabilities, errors,
 lifetimes) in Kotlin where it is tested.
 
-Package `org.zedec.zxv.mobile`, version 1.5.0, ABI 1.5 or a later 1.x (checked at
+Package `org.zedec.zxv.mobile`, version 1.6.0, ABI 1.5 or a later 1.x (checked at
 load, together with the shim's own ABI).
 
 | Module | What | Built with |

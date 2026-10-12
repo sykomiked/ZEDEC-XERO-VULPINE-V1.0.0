@@ -3,7 +3,7 @@
 
 # ZXV for Dart and Flutter
 
-Package `zxv`, version 1.5.0: [libzxv](../../libzxv/) from Dart with
+Package `zxv`, version 1.6.0: [libzxv](../../libzxv/) from Dart with
 `dart:ffi`. The 1.3 bindings are hand-written; the ABI 1.5 ones
 (`lib/src/bindings15.dart`) were generated once from `zxv_api.h` and are
 kept as source. Both are checked against `zxv_api.h` by a test. ABI 1.5 or

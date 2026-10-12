@@ -73,7 +73,7 @@ from .swarm import Allotment, EmotionProfile, Grant, Swarm
 from .truth import Truth, UncertainTruthError
 from .wire import FRAME_BYTES, Ubh168Frame, WireTruth, tag_of
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 """Version of this Python SDK (tracks the C ABI it wraps)."""
 
 

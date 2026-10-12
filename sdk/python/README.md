@@ -37,7 +37,7 @@ export ZXV_LIBRARY_PATH=$PWD/../libzxv/build     # a file or a directory
 
 # 2b. Or build a wheel that bundles the library under zxv/_lib/
 python scripts/bundle_lib.py                       # copies libzxv.so/.dylib/zxv.dll
-pip install build && python -m build --wheel       # -> dist/zxv_sdk-1.5.0-py3-none-<platform>.whl
+pip install build && python -m build --wheel       # -> dist/zxv_sdk-1.6.0-py3-none-<platform>.whl
 ```
 
 The library is found in this order: a path passed to `zxv.load_library()`,
