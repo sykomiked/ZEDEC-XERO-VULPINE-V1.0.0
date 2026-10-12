@@ -51,11 +51,14 @@ fixed priority order over nodes sorted by input hash, so the result does not
 depend on arrival order. This places it closer to belief revision and
 contradiction-tolerant bookkeeping than to a paraconsistent proof system.
 
-**A deviation worth knowing.** In Belnap's FOUR, B AND N = F and B OR N = T.
+**A deliberate deviation.** In Belnap's FOUR, B AND N = F and B OR N = T.
 `lpres_conjoin` returns N and `lpres_disjoin` returns B for that pair
 (`kernel/src/lpres/lpres.c`). One consequence: De Morgan's law fails for that
-pair (NOT(B AND N) = N, but NOT B OR NOT N = B). The code does not say whether
-this is intended. Anyone relying on the lattice laws should check it.
+pair (NOT(B AND N) = N, but NOT B OR NOT N = B). This is intended (owner
+decision, 2026-10-12): with these tables no mix of contradictory and missing
+evidence can ever produce TRUE, the only value that authorises an action.
+Under Belnap's tables, B OR N = T would let a contradiction plus a gap grant
+authority.
 
 ## What actually exists
 
