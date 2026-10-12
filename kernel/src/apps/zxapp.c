@@ -225,10 +225,11 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             zxapp_logic_t *L = &a->logic[a->n];
             L->lang = zxapp_lang_of(lang);
             word_copy(L->entry, sizeof L->entry, w[2], wl[2]);
-            if (zxapp_find(a, L->entry)) {
-                put_err(a, r.line, "a second entry named ", L->entry);
-                return ZXAPP_E_SYNTAX;
-            }
+            for (uint32_t i = 0; i < a->n; i++) /* A5: one per language */
+                if (seq(a->logic[i].entry, L->entry) && a->logic[i].lang == L->lang) {
+                    put_err(a, r.line, "a second entry in the same language named ", L->entry);
+                    return ZXAPP_E_SYNTAX;
+                }
             L->line = r.line;
             if (word_is(w[3], wl[3], "<<")) {
                 uint32_t start = r.at, end = r.at;
@@ -363,20 +364,15 @@ void zxapp_unload(zxapp_t *a, zxapp_host_t *h)
     }
 }
 
-int zxapp_call(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t *args,
-               uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out)
+static int run_one(zxapp_t *a, zxapp_host_t *h, const zxapp_logic_t *L, const zxapp_arg_t *args,
+                   uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out)
 {
-    if (n_out) *n_out = 0;
-    if (!entry || (!out && cap) || (!args && nargs)) return ZXAPP_E_ARG;
-    const zxapp_logic_t *L = zxapp_find(a, entry);
-    if (!L) return ZXAPP_E_NAME;
     const zxapp_runtime_t *rt = rt_for(h, L->lang);
-    if (!L->loaded || !rt) return ZXAPP_E_NORUNTIME;
     uint32_t got = 0;
     char err[ZXAPP_ERR_MAX];
     err[0] = 0;
     int rc = rt->call(rt->ctx, L->compiled, args, nargs, out, cap, &got, err, sizeof err);
-    if (n_out) *n_out = got;
+    *n_out = got;
     if (rc == ZXAPP_E_BUFFER) return rc;
     if (rc != ZXAPP_OK) {
         put_err(a, L->line, L->entry, ": ");
@@ -387,4 +383,70 @@ int zxapp_call(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t
         return ZXAPP_E_RUNTIME;
     }
     return ZXAPP_OK;
+}
+
+static bool runnable(const zxapp_logic_t *L, const zxapp_host_t *h, const char *entry)
+{
+    return seq(L->entry, entry) && L->loaded && rt_for(h, L->lang);
+}
+
+int zxapp_call(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t *args,
+               uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out)
+{
+    uint32_t got = 0;
+    if (n_out) *n_out = 0;
+    if (!entry || (!out && cap) || (!args && nargs)) return ZXAPP_E_ARG;
+    if (!zxapp_find(a, entry)) return ZXAPP_E_NAME;
+    for (uint32_t i = 0; i < a->n; i++) /* the first that can run (A5) */
+        if (runnable(&a->logic[i], h, entry)) {
+            int rc = run_one(a, h, &a->logic[i], args, nargs, out, cap, &got);
+            if (n_out) *n_out = got;
+            return rc;
+        }
+    return ZXAPP_E_NORUNTIME;
+}
+
+int32_t zxapp_witness(const zxapp_num_t *x, uint32_t nx, const zxapp_num_t *y, uint32_t ny)
+{
+    if (nx != ny) return ZXAPP_BOTH;
+    for (uint32_t i = 0; i < nx; i++)
+        if (x[i].num != y[i].num || x[i].den != y[i].den) return ZXAPP_BOTH;
+    return ZXAPP_TRUE;
+}
+
+int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t *args,
+                         uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out,
+                         int32_t *lp)
+{
+    zxapp_num_t other[ZXAPP_WITNESS_MAX];
+    uint32_t n = 0, got = 0, tried = 0, answered = 0;
+    bool differ = false;
+    if (n_out) *n_out = 0;
+    if (lp) *lp = ZXAPP_NEITHER;
+    if (!entry || (!out && cap) || (!args && nargs) || !lp) return ZXAPP_E_ARG;
+    if (!zxapp_find(a, entry)) return ZXAPP_E_NAME;
+    for (uint32_t i = 0; i < a->n; i++) {
+        if (!runnable(&a->logic[i], h, entry)) continue;
+        tried++;
+        if (!answered) { /* the first answer speaks for the entry */
+            int rc = run_one(a, h, &a->logic[i], args, nargs, out, cap, &n);
+            if (rc == ZXAPP_E_BUFFER) {
+                if (n_out) *n_out = n;
+                return rc;
+            }
+            if (rc == ZXAPP_OK) {
+                answered++;
+                differ |= tried > 1u; /* an earlier one refused what this answers */
+            }
+            continue;
+        }
+        int rc = run_one(a, h, &a->logic[i], args, nargs, other, ZXAPP_WITNESS_MAX, &got);
+        if (rc == ZXAPP_OK) answered++;
+        differ |= rc != ZXAPP_OK || zxapp_witness(out, n, other, got) != ZXAPP_TRUE;
+    }
+    if (!tried) return ZXAPP_E_NORUNTIME;
+    if (!answered) return ZXAPP_E_RUNTIME; /* every witness refused */
+    if (n_out) *n_out = n;
+    *lp = differ ? ZXAPP_BOTH : tried == 1u ? ZXAPP_NEITHER : ZXAPP_TRUE;
+    return differ ? ZXAPP_E_CONFLICT : ZXAPP_OK;
 }

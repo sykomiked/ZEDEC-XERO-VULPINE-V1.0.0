@@ -45,11 +45,15 @@ static void row(const zui_ui_t *ui, zui_id_t list, int32_t i, zui_row_t *out, vo
     zv_cat(out->text, sizeof out->text, a->name, 0);
     /* over the limits, that is what the row says instead of the feeling */
     zv_cat(out->detail, sizeof out->detail,
-           v->over[i] ? "over limit"
-                      : zui_emote_word(feeling_of(a->codepoint, a->intensity).emotion),
+           v->limits_lp == ZXAPP_BOTH ? "held"
+           : v->over[i]               ? "over limit"
+                        : zui_emote_word(feeling_of(a->codepoint, a->intensity).emotion),
            "  \xC2\xB7  ");
     char pm[16];
-    permille(pm, sizeof pm, v->share[i]);
+    if (v->shares_lp == ZXAPP_BOTH)
+        zv_cat(pm, sizeof pm, "held", 0);
+    else
+        permille(pm, sizeof pm, v->share[i]);
     zv_cat(out->detail, sizeof out->detail, out->detail, pm);
     out->lead_rgb = a->witness == MURM_WIT_TRUE   ? ZUI_OK
                     : a->witness == MURM_WIT_GLUT ? ZUI_INFO
@@ -84,7 +88,7 @@ void murm_view_build(murm_view_t *v, zui_ui_t *ui, murmuration_t *m)
     v->app = 0;
     v->host = 0;
     v->ntop = 0;
-    v->kron = v->eve = false;
+    v->kron = v->eve = v->said_held = false;
     for (uint32_t i = 0; i < MURM_AGENTS; i++) {
         v->share[i] = 0;
         v->over[i] = false;
@@ -129,38 +133,46 @@ void murm_view_logic(murm_view_t *v, zxapp_t *app, zxapp_host_t *host)
     murm_view_sync(v);
 }
 
-/* U1: the KRON entries over the kept agents; false sends the caller to C. */
-static bool kron_numbers(murm_view_t *v)
+/* Was an entry's call run at all? 0 when the language is not here (the
+ * view uses C alone), -1 when it ran and refused (a witness against C). */
+static int ran(int rc)
+{
+    return rc == ZXAPP_OK ? 1 : rc == ZXAPP_E_NORUNTIME || rc == ZXAPP_E_NAME ? 0 : -1;
+}
+
+/* U1: the KRON entries over the kept agents: 1 answered, 0 not run,
+ * -1 refused or answered something that cannot be a share. */
+static int kron_numbers(murm_view_t *v)
 {
     const murm_swarm_t *sw = &v->m->sw;
-    if (!v->app || !v->host || sw->truncated || !sw->n) return false;
+    if (!v->app || !v->host || sw->truncated || !sw->n) return 0;
     int64_t t[MURM_AGENTS];
     for (uint32_t i = 0; i < sw->n; i++) {
         uint64_t x = total(&sw->agent[i]);
-        if (x > (uint64_t) INT64_MAX / 1000u) return false; /* KRON's integers are 64-bit */
+        if (x > (uint64_t) INT64_MAX / 1000u) return 0; /* KRON's integers are 64-bit */
         t[i] = (int64_t) x;
     }
     zxapp_arg_t arg = {"t", t, sw->n};
     zxapp_num_t out[MURM_AGENTS];
     uint32_t n = 0;
-    if (zxapp_call(v->app, v->host, "cycle_share", &arg, 1, out, MURM_AGENTS, &n) != ZXAPP_OK ||
-        n != sw->n)
-        return false;
+    int r = ran(zxapp_call(v->app, v->host, "cycle_share", &arg, 1, out, MURM_AGENTS, &n));
+    if (r <= 0) return r;
+    if (n != sw->n) return -1;
     uint32_t share[MURM_AGENTS];
     for (uint32_t i = 0; i < n; i++) {
-        if (out[i].den != 1 || out[i].num < 0 || out[i].num > 1000) return false;
+        if (out[i].den != 1 || out[i].num < 0 || out[i].num > 1000) return -1;
         share[i] = (uint32_t) out[i].num;
     }
     zxapp_num_t top[MURM_VIEW_BUSIEST];
     uint32_t k = 0;
-    if (zxapp_call(v->app, v->host, "busiest", &arg, 1, top, MURM_VIEW_BUSIEST, &k) != ZXAPP_OK)
-        return false;
+    r = ran(zxapp_call(v->app, v->host, "busiest", &arg, 1, top, MURM_VIEW_BUSIEST, &k));
+    if (r <= 0) return r;
     for (uint32_t i = 0; i < k; i++)
-        if (top[i].den != 1 || top[i].num < 0 || top[i].num >= (int64_t) sw->n) return false;
+        if (top[i].den != 1 || top[i].num < 0 || top[i].num >= (int64_t) sw->n) return -1;
     for (uint32_t i = 0; i < n; i++) v->share[i] = share[i];
     for (uint32_t i = 0; i < k; i++) v->top[i] = (int32_t) top[i].num;
     v->ntop = k;
-    return true;
+    return 1;
 }
 
 /* The same numbers in C: the model's share, and the three largest totals,
@@ -182,11 +194,12 @@ static void c_numbers(murm_view_t *v)
     }
 }
 
-/* U4: Eve's within_limits over each agent's share and intensity. */
-static bool eve_limits(murm_view_t *v)
+/* U4: Eve's within_limits over each agent's share and intensity: 1, 0 or
+ * -1 as kron_numbers. */
+static int eve_limits(murm_view_t *v)
 {
     const murm_swarm_t *sw = &v->m->sw;
-    if (!v->app || !v->host || !sw->n) return false;
+    if (!v->app || !v->host || !sw->n) return 0;
     int64_t share[MURM_AGENTS], inten[MURM_AGENTS];
     for (uint32_t i = 0; i < sw->n; i++) {
         share[i] = v->share[i];
@@ -195,14 +208,13 @@ static bool eve_limits(murm_view_t *v)
     zxapp_arg_t args[2] = {{"share", share, sw->n}, {"intensity", inten, sw->n}};
     zxapp_num_t out[MURM_AGENTS];
     uint32_t n = 0;
-    if (zxapp_call(v->app, v->host, "within_limits", args, 2, out, MURM_AGENTS, &n) != ZXAPP_OK ||
-        n != sw->n)
-        return false;
+    int r = ran(zxapp_call(v->app, v->host, "within_limits", args, 2, out, MURM_AGENTS, &n));
+    if (r <= 0) return r;
+    if (n != sw->n) return -1;
     for (uint32_t i = 0; i < n; i++)
-        if (out[i].den != 0 || (out[i].num != ZXAPP_TRUE && out[i].num != ZXAPP_FALSE))
-            return false;
+        if (out[i].den != 0 || (out[i].num != ZXAPP_TRUE && out[i].num != ZXAPP_FALSE)) return -1;
     for (uint32_t i = 0; i < n; i++) v->over[i] = out[i].num == ZXAPP_FALSE;
-    return true;
+    return 1;
 }
 
 static void c_limits(murm_view_t *v)
@@ -255,7 +267,10 @@ static void sync_detail(murm_view_t *v)
         put_u(t, sizeof t, "", a->mk, " market + ");
         put_u(t, sizeof t, "", a->im, "i  = ");
         char pm[16];
-        permille(pm, sizeof pm, v->share[m->sel]);
+        if (v->shares_lp == ZXAPP_BOTH)
+            zv_cat(pm, sizeof pm, "held", 0);
+        else
+            permille(pm, sizeof pm, v->share[m->sel]);
         zv_cat(t, sizeof t, t, pm);
     } else if (m->refreshes) {
         put_u(t, sizeof t, "Cycle ", sw->cycle, "  \xC2\xB7  ");
@@ -294,16 +309,33 @@ void murm_view_sync(murm_view_t *v)
     zui_ui_t *ui = v->sh.ui;
     murmuration_t *m = v->m;
     const murm_swarm_t *sw = &m->sw;
-    v->kron = kron_numbers(v);
-    if (!v->kron) c_numbers(v);
-    v->eve = eve_limits(v);
-    if (!v->eve) c_limits(v);
+    /* U5: C always answers; KRON and Eve, when they run, are witnessed by it */
+    static uint32_t c_share[MURM_AGENTS];
+    static bool c_over[MURM_AGENTS];
+    int32_t c_top[MURM_VIEW_BUSIEST];
+    c_numbers(v);
+    uint32_t c_ntop = v->ntop;
+    for (uint32_t i = 0; i < MURM_AGENTS; i++) c_share[i] = v->share[i];
+    for (uint32_t i = 0; i < c_ntop; i++) c_top[i] = v->top[i];
+    int kr = kron_numbers(v);
+    v->kron = kr > 0;
+    bool same = kr >= 0 && (!v->kron || v->ntop == c_ntop);
+    for (uint32_t i = 0; v->kron && i < sw->n; i++) same &= v->share[i] == c_share[i];
+    for (uint32_t i = 0; v->kron && same && i < c_ntop; i++) same &= v->top[i] == c_top[i];
+    v->shares_lp = !same ? ZXAPP_BOTH : v->kron ? ZXAPP_TRUE : ZXAPP_NEITHER;
+    c_limits(v);
+    for (uint32_t i = 0; i < MURM_AGENTS; i++) c_over[i] = v->over[i];
+    int ev = eve_limits(v);
+    v->eve = ev > 0;
+    same = ev >= 0;
+    for (uint32_t i = 0; v->eve && i < sw->n; i++) same &= v->over[i] == c_over[i];
+    v->limits_lp = !same ? ZXAPP_BOTH : v->eve ? ZXAPP_TRUE : ZXAPP_NEITHER;
     zui_list_set_rows(ui, v->agents, (int32_t) sw->n);
     zui_list_select(ui, v->agents, m->sel);
     sync_detail(v);
     char t[ZUI_LABEL_MAX];
     t[0] = 0;
-    for (uint32_t i = 0; i < v->ntop; i++) {
+    for (uint32_t i = 0; i < v->ntop && v->shares_lp != ZXAPP_BOTH; i++) {
         zv_cat(t, sizeof t, t, i ? ", " : "Busiest: ");
         zv_cat(t, sizeof t, t, sw->agent[v->top[i]].name);
     }
@@ -335,11 +367,30 @@ void murm_view_sync(murm_view_t *v)
     t[0] = 0;
     if (m->refreshes) {
         put_u(t, sizeof t, "", sw->n_total, sw->n_total == 1 ? " agent" : " agents");
-        zv_cat(t, sizeof t, t, v->kron ? "  \xC2\xB7  shares in KRON" : "  \xC2\xB7  shares in C");
-        zv_cat(t, sizeof t, t, v->eve ? ", limits in Eve" : ", limits in C");
+        zv_cat(t, sizeof t, t,
+               v->shares_lp == ZXAPP_TRUE   ? "  \xC2\xB7  shares: KRON = C"
+               : v->shares_lp == ZXAPP_BOTH ? "  \xC2\xB7  shares: held"
+                                            : "  \xC2\xB7  shares: C");
+        zv_cat(t, sizeof t, t,
+               v->limits_lp == ZXAPP_TRUE   ? ", limits: Eve = C"
+               : v->limits_lp == ZXAPP_BOTH ? ", limits: held"
+                                            : ", limits: C");
     }
     zv_shell_status(&v->sh, t);
     zv_shell_held(&v->sh, &m->held);
+    /* U5: a contradiction is said in words, and the numbers are held */
+    if (v->shares_lp == ZXAPP_BOTH || v->limits_lp == ZXAPP_BOTH) {
+        zv_cat(v->sh.error_text, sizeof v->sh.error_text,
+               v->shares_lp == ZXAPP_BOTH ? "Held: KRON and C give different shares"
+                                          : "Held: Eve and C disagree on the limits",
+               ". Nothing is shown until they agree.");
+        zui_set_text(ui, v->sh.error, v->sh.error_text);
+        zui_set_hidden(ui, v->sh.error, false);
+        v->said_held = true;
+    } else if (v->said_held) { /* our own line, now settled */
+        zv_shell_result(&v->sh, ZXM_OK, 0);
+        v->said_held = false;
+    }
     zui_invalidate(ui, v->face);
 }
 

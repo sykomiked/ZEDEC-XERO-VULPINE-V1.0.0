@@ -11,11 +11,15 @@
  *      busiest (apps/murmuration.zxapp). When the app has no KRON runtime,
  *      or the snapshot is truncated (the entries only see the kept agents),
  *      the view uses the model's C (murm_cycle_share) instead; both give
- *      the same exact numbers, and the status line says which ran.
+ *      the same exact numbers, and the status line says which ran (U5).
  *   U4 EVE LIMITS. within_limits (apps/murmuration/limits.eve) checks each
  *      agent's share and intensity; an agent outside them is marked, never
  *      changed. Without an Eve runtime the view checks the same limits in
  *      C (MURM_VIEW_SHARE_CAP).
+ *   U5 WITNESSED. The C model always computes the same numbers, so it is a
+ *      second witness to KRON and Eve (zxapp.h A5): agreeing is TRUE and
+ *      the status says so; disagreeing is BOTH, and the view holds the
+ *      numbers ("held") and says why instead of picking one.
  *   U2 THE FACE is the agent's feeling, or the swarm's mood with nothing
  *      selected. A FALSE witness or a halted ledger shows as the FAILING
  *      ring, never as a sad face: feeling and health stay apart.
@@ -44,6 +48,9 @@ typedef struct {
     bool over[MURM_AGENTS]; /* outside the limits (U4) */
     bool kron;              /* the last sync's numbers came from KRON */
     bool eve;               /* and its limits from Eve */
+    int32_t shares_lp;      /* U5: ZXAPP_TRUE (KRON = C), BOTH (held), NEITHER (C only) */
+    int32_t limits_lp;      /* U5: the same for Eve's limits */
+    bool said_held;         /* the error line is our "Held:" */
 } murm_view_t;
 
 void murm_view_build(murm_view_t *v, zui_ui_t *ui, murmuration_t *m);

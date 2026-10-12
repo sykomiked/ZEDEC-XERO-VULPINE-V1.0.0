@@ -532,7 +532,7 @@ static uint64_t next(void)
 /* U1: KRON and C give the same numbers on any swarm the model can hold. */
 static void cross_check(void)
 {
-    int bad_share = 0, bad_top = 0, kron = 0, eve = 0, bad_over = 0, some_over = 0;
+    int bad_share = 0, bad_top = 0, kron = 0, agreed = 0, eve = 0, bad_over = 0, some_over = 0;
     for (int round = 0; round < 300; round++) {
         murm_swarm_t *sw = &M.sw;
         sw->n = sw->n_total = 1u + (uint32_t) (next() % MURM_AGENTS);
@@ -551,6 +551,7 @@ static void cross_check(void)
         M.sel = -1;
         murm_view_sync(&MV);
         kron += MV.kron;
+        agreed += MV.shares_lp == ZXAPP_TRUE && MV.limits_lp == ZXAPP_TRUE;
         eve += MV.eve;
         for (uint32_t i = 0; i < sw->n; i++) {
             bool want = murm_cycle_share(&M, i) > MURM_VIEW_SHARE_CAP;
@@ -574,7 +575,8 @@ static void cross_check(void)
             bad_top += above != k;
         }
     }
-    CHECK(kron == 300, "KRON ran every round (%d)", kron);
+    CHECK(kron == 300 && agreed == 300, "KRON ran and C witnessed it every round (%d, %d)", kron,
+          agreed);
     CHECK(bad_share == 0, "KRON's shares equal the C model's (%d differ)", bad_share);
     CHECK(bad_top == 0, "KRON's busiest are the largest totals, stable (%d differ)", bad_top);
     CHECK(eve == 300 && bad_over == 0 && some_over > 0,
@@ -597,8 +599,9 @@ static void test_murmuration(const char *src)
           MV.share[0], MV.share[1], MV.share[2]);
     CHECK(MV.ntop == 3 && MV.top[0] == 0 && MV.top[1] == 1 && MV.top[2] == 2, "busiest, in C");
     CHECK(has(text_of(MV.busiest), "Companion, Coder-2, Critic-3"), "%s", text_of(MV.busiest));
-    CHECK(has(text_of(MV.sh.status), "3 agents") && has(text_of(MV.sh.status), "in C"), "%s",
-          text_of(MV.sh.status));
+    CHECK(has(text_of(MV.sh.status), "3 agents") && has(text_of(MV.sh.status), "shares: C") &&
+              MV.shares_lp == ZXAPP_NEITHER,
+          "%s", text_of(MV.sh.status));
     CHECK(has(text_of(MV.model), "tiny.gguf"), "model: %s", text_of(MV.model));
     CHECK(has(text_of(MV.feeling), "Mood") && has(text_of(MV.witness), "Ledger running"),
           "the swarm's line with nothing selected");
@@ -644,7 +647,9 @@ static void test_murmuration(const char *src)
     CHECK(zxapp_kron_register(&HOST) == ZXAPP_OK && zxapp_load(&APP, &HOST) == 2,
           "both KRON entries load, Eve waits for its runtime: %s", APP.err);
     murm_view_sync(&MV);
-    CHECK(MV.kron && !MV.eve && has(text_of(MV.sh.status), "limits in C"), "KRON, limits in C");
+    CHECK(MV.kron && !MV.eve && has(text_of(MV.sh.status), "limits: C") &&
+              MV.shares_lp == ZXAPP_TRUE && MV.limits_lp == ZXAPP_NEITHER,
+          "KRON witnessed by C; limits in C alone");
     CHECK(zxapp_eve_register(&HOST) == ZXAPP_OK && zxapp_load(&APP, &HOST) == 3,
           "three entries in two languages: %s", APP.err);
     murm_view_sync(&MV);
@@ -652,8 +657,9 @@ static void test_murmuration(const char *src)
     CHECK(MV.kron && MV.share[0] == 450 && MV.share[1] == 300 && MV.share[2] == 250 &&
               MV.ntop == 3 && MV.top[0] == 0,
           "U1: KRON gives the same numbers");
-    CHECK(has(text_of(MV.sh.status), "in KRON") && has(text_of(MV.sh.status), "limits in Eve"),
-          "%s", text_of(MV.sh.status));
+    CHECK(has(text_of(MV.sh.status), "shares: KRON = C") &&
+              has(text_of(MV.sh.status), "limits: Eve = C") && MV.limits_lp == ZXAPP_TRUE,
+          "U5: both witnessed: %s", text_of(MV.sh.status));
     /* one agent over half a cycle is marked, in the row and the detail */
     murm_swarm_t keep = M.sw;
     M.sw.agent[0].re = 700;
@@ -673,6 +679,29 @@ static void test_murmuration(const char *src)
     murm_view_sync(&MV);
     CHECK(!MV.kron, "a truncated snapshot uses C");
     M.sw.truncated = false;
+
+    /* U5: a KRON that disagrees with C is held, never shown as the answer */
+    static zxapp_t BAD;
+    static const char BAD_SRC[] = "zxapp 1\nid murmuration\n"
+                                  "logic kron cycle_share <<\n_999*t%1|+/t\n.\n"
+                                  "logic kron busiest <<\n(3&#t)#>t\n.\n"
+                                  "logic kron within_limits <<\n1\n.\n";
+    CHECK(zxapp_parse(&BAD, BAD_SRC, (uint32_t) strlen(BAD_SRC)) == ZXAPP_OK &&
+              zxapp_load(&BAD, &HOST) == 3,
+          "a wrong KRON loads");
+    murm_view_logic(&MV, &BAD, &HOST);
+    CHECK(MV.shares_lp == ZXAPP_BOTH && has(text_of(MV.sh.error), "Held: KRON and C") &&
+              shown(MV.sh.error),
+          "U5: BOTH, said in words: %s", text_of(MV.sh.error));
+    memset(&r, 0, sizeof r);
+    zui_w(&UI, MV.agents)->u.list.row(&UI, MV.agents, 0, &r, &MV);
+    CHECK(has(r.detail, "held") && !has(r.detail, "%"), "rows hold the numbers: %s", r.detail);
+    CHECK(!has(text_of(MV.busiest), "Companion"), "no busiest while held");
+    CHECK(MV.limits_lp == ZXAPP_BOTH, "a KRON answer where Eve's truths belong is a contradiction");
+    zxapp_unload(&BAD, &HOST);
+    murm_view_logic(&MV, &APP, &HOST);
+    CHECK(MV.shares_lp == ZXAPP_TRUE && !has(text_of(MV.sh.error), "Held"),
+          "the right logic clears the hold");
 
     /* AI: why is this agent unhappy, held until read */
     int before = asked;

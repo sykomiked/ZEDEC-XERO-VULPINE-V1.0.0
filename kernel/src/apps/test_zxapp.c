@@ -130,9 +130,12 @@ static void test_parse(void)
           "unknown language");
     CHECK(parse("zxapp 1\nid x\nlogic kron a\n") == ZXAPP_E_SYNTAX, "logic needs a source");
     CHECK(parse("zxapp 1\nid x\nlogic kron 1a p\n") == ZXAPP_E_SYNTAX, "entry identifier");
-    CHECK(parse("zxapp 1\nid x\nlogic kron a p\nlogic eve a q\n") == ZXAPP_E_SYNTAX &&
+    CHECK(parse("zxapp 1\nid x\nlogic kron a p\nlogic kron a q\n") == ZXAPP_E_SYNTAX &&
               A.err_line == 4,
-          "duplicate entry");
+          "a second entry in the same language");
+    CHECK(parse("zxapp 1\nid x\nlogic kron a p\nlogic eve a q\nlogic wasm a r\n") == ZXAPP_OK &&
+              A.n == 3,
+          "A5: one entry, three languages");
     char big[4096];
     int n = sprintf(big, "zxapp 1\nid x\n");
     for (unsigned i = 0; i < ZXAPP_LOGIC_MAX; i++) n += sprintf(big + n, "logic kron e%u p\n", i);
@@ -498,6 +501,73 @@ static void test_wasm(void)
     zxapp_wasm_close(&W);
 }
 
+/* ---- A5: one feature in two languages, joined by the paraconsistent logic -- */
+
+static void test_witness(void)
+{
+    zxapp_num_t x[2] = {{1, 2}, {3, 1}}, y[2] = {{1, 2}, {3, 1}}, z[2] = {{1, 2}, {4, 1}};
+    CHECK(zxapp_witness(x, 2, y, 2) == ZXAPP_TRUE, "same answers agree");
+    CHECK(zxapp_witness(x, 2, z, 2) == ZXAPP_BOTH, "a different value is BOTH");
+    CHECK(zxapp_witness(x, 2, y, 1) == ZXAPP_BOTH, "a different length is BOTH");
+    zxapp_num_t t = {ZXAPP_TRUE, 0}, one = {1, 1};
+    CHECK(zxapp_witness(&t, 1, &one, 1) == ZXAPP_BOTH, "a truth is not the number 1");
+
+    /* run(a, b) = a * b + 1 in Wasm, the same in KRON, and a wrong one */
+    static const uint8_t mul1[] = {0x20, 0x00, 0x20, 0x01, 0x7E, 0x42, 0x01, 0x7C};
+    static const uint8_t mul2[] = {0x20, 0x00, 0x20, 0x01, 0x7E, 0x42, 0x02, 0x7C};
+    uint32_t n0, n1;
+    module(0, "II:I", mul1, sizeof mul1, &n0);
+    module(1, "II:I", mul2, sizeof mul2, &n1);
+    static zxapp_wasm_t W;
+    zxapp_host_init(&H);
+    H.read_file = read_mod;
+    CHECK(zxapp_wasm_register(&H, &W, 0) == ZXAPP_OK && zxapp_kron_register(&H) == ZXAPP_OK,
+          "runtimes");
+    CHECK(parse("zxapp 1\nid w\n"
+                "logic wasm  fee 0\n"
+                "logic kron  fee <<\n1+a*b\n.\n"
+                "logic wasm  bad 1\n"
+                "logic kron  bad <<\n1+a*b\n.\n"
+                "logic kron  solo <<\n1+a*b\n.\n"
+                "logic python solo apps/w/solo.py\n"
+                "logic kron  half <<\na%0\n.\n"
+                "logic wasm  half 0\n") == ZXAPP_OK &&
+              zxapp_load(&A, &H) == 7,
+          "a witnessed manifest loads: %s", A.err);
+    int64_t a[3] = {2, 3, -4}, b[3] = {10, 10, 10}; /* KRON does not stretch a 1-vector */
+    zxapp_arg_t args[2] = {{"a", a, 3}, {"b", b, 3}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    int32_t lp = -1;
+    CHECK(zxapp_call(&A, &H, "fee", args, 2, out, 8, &n) == ZXAPP_OK && n == 3 && out[0].num == 21,
+          "zxapp_call runs the first (Wasm)");
+    CHECK(zxapp_call_witnessed(&A, &H, "fee", args, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && n == 3 && out[2].num == -39,
+          "Wasm and KRON agree: TRUE");
+    CHECK(zxapp_call_witnessed(&A, &H, "bad", args, 2, out, 8, &n, &lp) == ZXAPP_E_CONFLICT &&
+              lp == ZXAPP_BOTH && n == 3 && out[0].num == 22,
+          "they differ: BOTH, held, never picked silently");
+    CHECK(zxapp_call_witnessed(&A, &H, "solo", args, 2, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_NEITHER && out[0].num == 21,
+          "one language could run: NEITHER, unwitnessed");
+    CHECK(zxapp_call_witnessed(&A, &H, "half", args, 2, out, 8, &n, &lp) == ZXAPP_E_CONFLICT &&
+              lp == ZXAPP_BOTH && out[0].num == 21,
+          "one refuses (KRON divides by zero), one answers: BOTH");
+    CHECK(zxapp_call_witnessed(&A, &H, "nope", args, 2, out, 8, &n, &lp) == ZXAPP_E_NAME,
+          "no such entry");
+    CHECK(zxapp_call_witnessed(&A, &H, "fee", args, 2, out, 8, &n, 0) == ZXAPP_E_ARG,
+          "the join must be read");
+    CHECK(zxapp_call_witnessed(&A, &H, "fee", args, 2, out, 2, &n, &lp) == ZXAPP_E_BUFFER && n == 3,
+          "a short buffer");
+    zxapp_unload(&A, &H);
+    CHECK(parse("zxapp 1\nid r\nlogic kron z <<\na%0\n.\nlogic kron y <<\n1\n.\n") == ZXAPP_OK &&
+              zxapp_load(&A, &H) == 2 &&
+              zxapp_call_witnessed(&A, &H, "z", args, 1, out, 8, &n, &lp) == ZXAPP_E_RUNTIME,
+          "every witness refused: a refusal, not a conflict");
+    zxapp_unload(&A, &H);
+    zxapp_wasm_close(&W);
+}
+
 int main(void)
 {
     test_names();
@@ -506,6 +576,7 @@ int main(void)
     test_kron();
     test_eve();
     test_wasm();
+    test_witness();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

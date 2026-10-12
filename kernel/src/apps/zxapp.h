@@ -58,6 +58,21 @@
  *   A4 NO ALLOCATION here. Parsed text stays in the caller's buffer (inline
  *      sources point into it, so it must outlive the app); a runtime may
  *      allocate inside its own load and free it in unload.
+ *   A5 A BASKET, NOT ONE LANGUAGE. Every language has strengths and
+ *      weaknesses, so each feature is bound to the one that suits it, and
+ *      a feature that matters (money, safety) can be written twice, in two
+ *      languages, under one entry name:
+ *
+ *        logic  sutra fee apps/wallet/fee.sutra
+ *        logic  kron  fee apps/wallet/fee.kron
+ *
+ *      zxapp_call runs the first that can run. zxapp_call_witnessed runs
+ *      them all and joins the answers with the paraconsistent logic: all
+ *      agree TRUE, any differ (or one answers and one refuses) BOTH, only
+ *      one could run NEITHER (unwitnessed). BOTH is ZXAPP_E_CONFLICT: the
+ *      caller holds the result and says so, it never picks one silently.
+ *      A view can witness a language with its C model the same way
+ *      (zxapp_witness).
  */
 #ifndef ZXAPP_H
 #define ZXAPP_H
@@ -65,11 +80,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define ZXAPP_LOGIC_MAX 16u
-#define ZXAPP_ID_MAX    32u
-#define ZXAPP_PATH_MAX  128u
-#define ZXAPP_ERR_MAX   160u
-#define ZXAPP_RUNTIMES  ((uint32_t) ZXAPP_LANG_COUNT)
+#define ZXAPP_LOGIC_MAX   16u
+#define ZXAPP_ID_MAX      32u
+#define ZXAPP_PATH_MAX    128u
+#define ZXAPP_ERR_MAX     160u
+#define ZXAPP_WITNESS_MAX 256u /* elements a second witness's answer may have */
+#define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
 
 typedef enum {
     ZXAPP_LANG_C = 0,
@@ -103,7 +119,8 @@ enum {
     ZXAPP_E_NORUNTIME = -4, /* the entry's language has no runtime loaded   */
     ZXAPP_E_RUNTIME = -5,   /* the runtime refused (its message is in err)     */
     ZXAPP_E_ARG = -6,
-    ZXAPP_E_BUFFER = -7 /* the result has more elements than fit           */
+    ZXAPP_E_BUFFER = -7,  /* the result has more elements than fit           */
+    ZXAPP_E_CONFLICT = -8 /* A5: the witnesses disagree; hold, do not act */
 };
 
 /* A number (den > 0), or a truth: den = 0 and num is one of these
@@ -187,5 +204,16 @@ void zxapp_unload(zxapp_t *a, zxapp_host_t *h);
  * then computes the same thing in C (A2). */
 int zxapp_call(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t *args,
                uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out);
+
+/* A5: run every implementation of `entry` that can run; out holds the
+ * first's answer and *lp the join (ZXAPP_TRUE, ZXAPP_BOTH, ZXAPP_NEITHER).
+ * ZXAPP_E_CONFLICT when *lp is BOTH; ZXAPP_E_RUNTIME when every one refused. */
+int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t *args,
+                         uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out,
+                         int32_t *lp);
+/* A5: two answers to the same question: ZXAPP_TRUE when they are the same
+ * values (numbers in lowest terms, as every runtime returns them), else
+ * ZXAPP_BOTH. */
+int32_t zxapp_witness(const zxapp_num_t *x, uint32_t nx, const zxapp_num_t *y, uint32_t ny);
 
 #endif /* ZXAPP_H */
