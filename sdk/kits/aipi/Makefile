@@ -79,10 +79,10 @@ $(ZXV_LIB):
 	$(MAKE) -C $(ZXV) all
 
 $(ZW_LIB): $(wildcard $(ZW)/src/*.c $(ZW)/src/*.h $(ZW)/include/*.h)
-	$(MAKE) -C $(ZW) CC=$(CC) SANITIZE=$(SANITIZE) OUT=$(ZW_OUT) $(ZW_LIB)
+	$(MAKE) -C $(ZW) CC="$(CC)" SANITIZE=$(SANITIZE) OUT=$(ZW_OUT) $(ZW_LIB)
 
 $(ZC_LIB) $(ZCW_LIB): $(wildcard $(ZC)/src/*.c $(ZC)/src/*.h $(ZC)/include/*.h)
-	$(MAKE) -C $(ZC) CC=$(CC) SANITIZE=$(SANITIZE) OUT=$(ZC_OUT) $(ZC_LIB) $(ZCW_LIB)
+	$(MAKE) -C $(ZC) CC="$(CC)" SANITIZE=$(SANITIZE) OUT=$(ZC_OUT) $(ZC_LIB) $(ZCW_LIB)
 
 $(OUT)/kobj/%.o: $(K)/src/%.c
 	@mkdir -p $(dir $@)

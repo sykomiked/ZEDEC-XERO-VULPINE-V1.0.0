@@ -64,7 +64,7 @@ class FakeRpc implements Rpc {
       case 'swarm.ask':
         return {'answer': 'Hello from the swarm.'};
       case 'ledger.post':
-        throw RpcError(-32011, 'this phone was paired without allow_post');
+        throw RpcError(-32012, 'this phone was paired without allow_post');
     }
     throw RpcError(-32601, 'method not found');
   }

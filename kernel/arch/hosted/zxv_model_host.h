@@ -71,6 +71,10 @@ typedef int32_t (*zxv_gen_runner_fn)(void *rctx, zxv_gen_fn gen, void *gctx);
 #define ZXV_MODEL_MAX_NEW          256u
 int zxv_model_answer_ex(const char *prompt, zxv_gen_runner_fn run, void *rctx, char *out,
                         size_t cap);
+/* The prompt's length in tokens (BOS included) for the answer in progress:
+ * set before run is called, so the budget gate can charge it
+ * (zxv_budget_gate.h B5); 0 before any prompt was tokenized. */
+uint64_t zxv_model_prompt_tokens(void);
 
 /* Forward-pass glue (zxv_zt_glue.c, M3). Generate a reply to the prompt's
  * token ids into out (UTF-8, NUL-terminated). Returns the number of tokens

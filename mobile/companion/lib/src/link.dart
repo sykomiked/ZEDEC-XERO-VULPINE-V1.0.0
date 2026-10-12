@@ -20,7 +20,7 @@ class RpcError implements Exception {
   final String message;
 
   /// zxvd_phone.h A2/A3: the method is not allowed from this phone.
-  bool get notAllowed => code == -32011;
+  bool get notAllowed => code == -32012;
 
   @override
   String toString() => notAllowed

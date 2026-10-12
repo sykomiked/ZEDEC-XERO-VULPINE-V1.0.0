@@ -138,8 +138,36 @@ final class DaemonTests: XCTestCase {
         XCTAssertFalse(s.net.bound)
     }
 
+    func testTheStudioPanelsViewsDecode() throws {
+        let c = client
+        let d = try c.call("rpc.discover", as: Discovery.self)
+        for m in ["net.peers", "net.offers", "player.card", "jurisdiction.get", "jurisdiction.set"] {
+            XCTAssertTrue(d.methods.contains(m), m)
+        }
+        let p = try c.call("net.peers", as: Peers.self)
+        XCTAssertEqual(p.count, 0)
+        XCTAssertTrue(p.peers.isEmpty)
+        let o = try c.call("net.offers", as: Offers.self)
+        XCTAssertTrue(o.wants.isEmpty && o.outstanding.isEmpty)
+        let card = try c.call("player.card", as: PlayerCard.self)
+        XCTAssertEqual(card.metal, "Copper")
+        XCTAssertEqual(card.next?.metal, "Bronze")
+        XCTAssertEqual(card.inputs["bond"]?.value, "0")
+        let j = try c.call("jurisdiction.get", as: Jurisdiction.self)
+        XCTAssertEqual(j.market, "closed")
+        XCTAssertFalse(j.inEffect)
+        XCTAssertTrue(j.standards.contains("OHADA"))
+        let s = try c.call("jurisdiction.set", ["standard": "IFRS", "country": "GH"], as: Jurisdiction.self)
+        XCTAssertEqual(s.standard, "IFRS")
+        XCTAssertEqual(s.country, "GH")
+        XCTAssertThrowsError(try c.call("jurisdiction.set", ["country": "ghana"], as: Jurisdiction.self)) { e in
+            guard case ZXVDError.rpc(let r) = e else { return XCTFail("\(e)") }
+            XCTAssertEqual(r.code, -32602)
+        }
+    }
+
     func testUnknownMethodIsTheJsonRpcError() {
-        XCTAssertThrowsError(try client.call("player.card")) { e in
+        XCTAssertThrowsError(try client.call("ledger.holds")) { e in
             guard case ZXVDError.rpc(let r) = e else { return XCTFail("\(e)") }
             XCTAssertEqual(r.code, -32601)
         }

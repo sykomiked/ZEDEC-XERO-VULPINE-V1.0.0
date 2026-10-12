@@ -341,10 +341,10 @@ def main(binary):
             r = ph.call(m)
             check('result' in r, '%s answers over the link' % m)
         for m in ('zxvd.shutdown', 'phone.list', 'peer.serve'):
-            check(err_code(ph.call(m)) == -32011, '%s is refused from a phone' % m)
+            check(err_code(ph.call(m)) == -32012, '%s is refused from a phone' % m)
         r = ph.call('ledger.post', {'from': '1', 'to': '2', 'amount_minor': 1, 'reference': 'x'})
-        check(err_code(r) == -32011, 'ledger.post is refused without allow_post')
-        check(err_code(ph.call('net.command', {'command': 'off'})) == -32011,
+        check(err_code(r) == -32012, 'ledger.post is refused without allow_post')
+        check(err_code(ph.call('net.command', {'command': 'off'})) == -32012,
               'net.command is refused without allow_post')
         ph.send_frame(b'{"jsonrpc":"2.0","method":"zxvd.shutdown"}')
         r = ph.recv_frame()
@@ -374,9 +374,9 @@ def main(binary):
         L2 = parse_link(r2['link'])
         p2 = Phone('127.0.0.1', port, L2['id'], L2['key'])
         r = p2.call('currency.enable', {'code': 'USD'})
-        check(err_code(r) != -32011, 'a pairing with allow_post may call money methods (%s)' %
+        check(err_code(r) != -32012, 'a pairing with allow_post may call money methods (%s)' %
               json.dumps(r)[:120])
-        check(err_code(p2.call('zxvd.shutdown')) == -32011,
+        check(err_code(p2.call('zxvd.shutdown')) == -32012,
               'allow_post still never allows shutdown')
 
         ph = Phone('127.0.0.1', port, L['id'], L['key'])
