@@ -1,0 +1,44 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# sdk/silicon: Z-Fabric, libzxv's four-valued logic and hexagram tables as
+# Verilog-2005 and VHDL-2008 generated from the C library. One job: the
+# freshness check (regenerate from libzxv and diff), the exhaustive
+# testbenches under Icarus Verilog and GHDL, the Python netlist simulator,
+# Yosys and GHDL synthesis with post-synthesis simulation, the mutation
+# check and the generator unit tests. Combinational reference logic only:
+# nothing here is timing-closed or claims anything about silicon.
+name: SDK silicon
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['sdk/silicon/**', 'sdk/libzxv/**', '.github/workflows/sdk-silicon.yml']
+  pull_request:
+    paths: ['sdk/silicon/**', 'sdk/libzxv/**', '.github/workflows/sdk-silicon.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-silicon-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  z-fabric:
+    name: Z-Fabric (iverilog, GHDL, Yosys)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Icarus Verilog, GHDL and Yosys
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends iverilog ghdl yosys
+          iverilog -V 2>&1 | head -1; ghdl --version | head -1; yosys -V
+      - name: Build libzxv
+        run: make -C sdk/libzxv -j"$(nproc)"
+      - name: Freshness, simulation, synthesis, mutation, unit tests
+        run: make -C sdk/silicon/z-fabric check

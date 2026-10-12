@@ -1,0 +1,23 @@
+{
+  "format": "zxv-board-manifest",
+  "version": 1,
+  "board": {
+    "id": "qemu-x86-64-ovmf",
+    "vendor": "QEMU",
+    "model": "q35 with OVMF",
+    "revision": "CI"
+  },
+  "arch": "x86_64",
+  "firmware": {"type": "uefi", "secure_boot": "off"},
+  "console": {
+    "serial": {"uart": "16550", "base": "0x3f8", "baud": 38400},
+    "framebuffer": "uefi-gop"
+  },
+  "memory": {"ram_mib": 512},
+  "hw_profile": {
+    "digest": "34ec0e8229a5af72d77be2fcc1d354e90f698b239a68131583fc4425333290d4",
+    "file": "../profiles/r1.zhp",
+    "name": "VULPINE-class reference machine R1"
+  },
+  "image": {"esp_mib": 48}
+}
