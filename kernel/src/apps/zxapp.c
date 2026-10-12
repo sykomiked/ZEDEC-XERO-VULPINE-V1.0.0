@@ -299,7 +299,8 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             continue;
         }
         if (word_is(w[0], wl[0], "id") || word_is(w[0], wl[0], "name") ||
-            word_is(w[0], wl[0], "view") || word_is(w[0], wl[0], "model")) {
+            word_is(w[0], wl[0], "view") || word_is(w[0], wl[0], "model") ||
+            word_is(w[0], wl[0], "launch")) {
             if (k < 2) {
                 put_err(a, r.line, "a value is missing", 0);
                 return ZXAPP_E_SYNTAX;
@@ -312,6 +313,8 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
                 ok = k == 2 && ident(v, vl) && word_copy(a->id, sizeof a->id, v, vl);
             else if (word_is(w[0], wl[0], "name"))
                 ok = word_copy(a->name, sizeof a->name, v, vl);
+            else if (word_is(w[0], wl[0], "launch"))
+                ok = k == 2 && ident(v, vl) && word_copy(a->launch, sizeof a->launch, v, vl);
             else if (word_is(w[0], wl[0], "view"))
                 ok = k == 2 && word_copy(a->view, sizeof a->view, v, vl);
             else
@@ -393,8 +396,10 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
-        put_err(a, r.line,
-                "an unknown directive (id, name, view, model, logic, version, provides, use)", 0);
+        put_err(
+            a, r.line,
+            "an unknown directive (id, name, view, model, launch, logic, version, provides, use)",
+            0);
         return ZXAPP_E_SYNTAX;
     }
     if (!header) {
@@ -422,6 +427,13 @@ void zxapp_host_init(zxapp_host_t *h)
     h->n = 0;
     h->read_file = 0;
     h->read_ctx = 0;
+    h->progress = 0;
+    h->progress_ctx = 0;
+}
+
+static void report(zxapp_host_t *h, uint32_t done, uint32_t total)
+{
+    if (h->progress) h->progress(h->progress_ctx, total ? done * 256u / total : 256u);
 }
 
 static const zxapp_runtime_t *rt_for(const zxapp_host_t *h, zxapp_lang_t lang)
@@ -453,8 +465,10 @@ int zxapp_host_register(zxapp_host_t *h, const zxapp_runtime_t *rt)
 int zxapp_load(zxapp_t *a, zxapp_host_t *h)
 {
     int loaded = 0;
+    report(h, 0, a->n);
     for (uint32_t i = 0; i < a->n; i++) {
         zxapp_logic_t *L = &a->logic[i];
+        if (i) report(h, i, a->n);
         if (L->loaded) {
             loaded++;
             continue;
@@ -489,6 +503,7 @@ int zxapp_load(zxapp_t *a, zxapp_host_t *h)
         L->loaded = true;
         loaded++;
     }
+    report(h, a->n, a->n);
     return loaded;
 }
 

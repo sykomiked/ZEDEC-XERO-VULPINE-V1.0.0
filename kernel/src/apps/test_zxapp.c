@@ -830,6 +830,40 @@ static void test_compose(void)
     zxapp_unload(&LA, &H);
 }
 
+static uint32_t prog[ZXAPP_LOGIC_MAX + 2], nprog;
+static void on_progress(void *ctx, uint32_t d)
+{
+    (void) ctx;
+    if (nprog < ZXAPP_LOGIC_MAX + 2) prog[nprog++] = d;
+}
+
+static void test_launch(void)
+{
+    CHECK(parse("zxapp 1\nid x\nlaunch murmur_flock\n") == ZXAPP_OK &&
+              strcmp(A.launch, "murmur_flock") == 0,
+          "launch theme");
+    CHECK(parse("zxapp 1\nid x\n") == ZXAPP_OK && A.launch[0] == 0, "no theme: default");
+    CHECK(parse("zxapp 1\nid x\nlaunch two words\n") == ZXAPP_E_SYNTAX, "one theme id");
+    CHECK(parse("zxapp 1\nid x\nlaunch 9a\n") == ZXAPP_E_SYNTAX, "an identifier");
+    zxapp_host_init(&H);
+    CHECK(H.progress == 0, "no progress hook by default");
+    H.progress = on_progress;
+    CHECK(zxapp_kron_register(&H) == ZXAPP_OK, "kron");
+    CHECK(parse("zxapp 1\nid x\nlogic kron a <<\n1\n.\nlogic eve b <<\n.\n"
+                "logic kron c <<\n2\n.\nlogic kron d <<\n3\n.\n") == ZXAPP_OK,
+          "four entries");
+    nprog = 0;
+    CHECK(zxapp_load(&A, &H) == 3, "three load");
+    CHECK(nprog == 5 && prog[0] == 0 && prog[1] == 64 && prog[2] == 128 && prog[3] == 192 &&
+              prog[4] == 256,
+          "progress 0, 64, 128, 192, 256 (%u reports)", nprog);
+    zxapp_unload(&A, &H);
+    CHECK(parse("zxapp 1\nid x\n") == ZXAPP_OK, "no entries");
+    nprog = 0;
+    CHECK(zxapp_load(&A, &H) == 0 && nprog == 2 && prog[0] == 256 && prog[1] == 256,
+          "nothing to load is done");
+}
+
 int main(void)
 {
     test_names();
@@ -842,6 +876,7 @@ int main(void)
     test_block_parse();
     test_registry();
     test_compose();
+    test_launch();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

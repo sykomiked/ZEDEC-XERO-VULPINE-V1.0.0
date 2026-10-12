@@ -43,6 +43,7 @@
  *        .
  *        logic  eve  within_limits apps/blocks/swarm_shares/limits.eve
  *
+ *      "launch <theme>" names the app's launch screen theme (optional).
  *      "logic <language> <entry> <path>" names a source file; "<<" instead
  *      of a path takes the source inline, up to a line holding only ".",
  *      for targets with no file system (bare metal boots its apps from the
@@ -203,6 +204,7 @@ typedef struct {
     char name[48];
     char view[ZXAPP_PATH_MAX];
     char model[ZXAPP_PATH_MAX];
+    char launch[ZXAPP_ID_MAX]; /* "launch <theme>": the launch screen's theme id ("" = default) */
     zxapp_logic_t logic[ZXAPP_LOGIC_MAX];
     uint32_t n;
     bool block;      /* B1: "zxblock 1", a component, not an app */
@@ -235,6 +237,10 @@ typedef struct {
     /* Reads a path into buf; returns its length or < 0. */
     int32_t (*read_file)(void *ctx, const char *path, char *buf, uint32_t cap);
     void *read_ctx;
+    /* Called by zxapp_load as each entry is handled: real progress,
+     * 0..256 (zxm_link_progress's scale), for the launch screen. */
+    void (*progress)(void *ctx, uint32_t done256);
+    void *progress_ctx;
     char file_buf[64u * 1024u]; /* one source at a time, for load() */
 } zxapp_host_t;
 
