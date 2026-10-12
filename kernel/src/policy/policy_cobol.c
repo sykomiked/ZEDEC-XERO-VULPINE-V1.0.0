@@ -66,8 +66,10 @@ int32_t policy_parse_txn_record(const uint8_t *rec, uint32_t len, policy_txn_t *
         !text(rec + 44, 6u, t->to_jur, sizeof t->to_jur))
         return POLICY_E_TXN;
     for (uint32_t i = 0; i < ZXP_MAX_PARTIES; i++) {
-        if (rec[50 + i] == 'Y') t->signers |= (uint16_t) (1u << i);
-        else if (rec[50 + i] != 'N') return POLICY_E_TXN;
+        if (rec[50 + i] == 'Y')
+            t->signers |= (uint16_t) (1u << i);
+        else if (rec[50 + i] != 'N')
+            return POLICY_E_TXN;
     }
     for (uint32_t i = 0; i < 32u; i++) {
         int h = hexv(rec[65 + 2 * i]), l = hexv(rec[66 + 2 * i]);
@@ -77,7 +79,8 @@ int32_t policy_parse_txn_record(const uint8_t *rec, uint32_t len, policy_txn_t *
     return 0;
 }
 
-void policy_emit_result_record(const policy_result_t *r, uint32_t where, uint8_t rec[POLICY_RES_REC_LEN])
+void policy_emit_result_record(const policy_result_t *r, uint32_t where,
+                               uint8_t rec[POLICY_RES_REC_LEN])
 {
     static const char *const dec[] = {"ALLOW", "DENY ", "FAULT"};
     static const char val[] = {'N', 'T', 'F', 'B'};

@@ -10,7 +10,6 @@
 /* zxp_draft.c — drafting plug-ins (see zxp_draft.h). Freestanding. */
 #include "zxp_draft.h"
 
-
 /* Copy a NUL-terminated string into a zeroed field of `size`; false if it
  * does not fit. */
 static bool put_field(char *dst, uint32_t size, const char *src)
@@ -76,7 +75,8 @@ static int64_t schedule(zxp_contract_t *c, const zxp_draft_params_t *p, char pre
         cl->payer = payer;
         cl->payee = payee;
         for (uint32_t i = 0; i < 3u; i++) cl->asset[i] = p->asset[i];
-        cl->amount = k + 1u == p->installments ? total - part * (int64_t) (p->installments - 1u) : part;
+        cl->amount =
+            k + 1u == p->installments ? total - part * (int64_t) (p->installments - 1u) : part;
         cl->date = zxp_date_add(p->first_due, (int32_t) (k * p->interval_days));
         cl->penalty = p->penalty;
         cl->after = after;
@@ -100,8 +100,8 @@ static zxp_status_t draft(zxp_template_t tpl, const zxp_draft_params_t *p, zxp_c
         !put_field(out->party[1].id, ZXP_ID_MAX + 1u, p->b_id))
         return ZXP_E_NAME;
     if (!put_field(out->party[0].jur, ZXP_JUR_MAX + 1u, p->a_jur) ||
-        !put_field(out->party[1].jur, ZXP_JUR_MAX + 1u, p->b_jur) || !zxp_jur_ok(out->party[0].jur) ||
-        !zxp_jur_ok(out->party[1].jur))
+        !put_field(out->party[1].jur, ZXP_JUR_MAX + 1u, p->b_jur) ||
+        !zxp_jur_ok(out->party[0].jur) || !zxp_jur_ok(out->party[1].jur))
         return ZXP_E_JUR;
     out->n_party = 2;
     out->sign = 2;
@@ -113,12 +113,14 @@ static zxp_status_t draft(zxp_template_t tpl, const zxp_draft_params_t *p, zxp_c
     bool pays = tpl != ZXP_TPL_MOU && !(tpl == ZXP_TPL_BILATERAL && p->amount == 0);
     if (pays) {
         int64_t big, adv = 0;
-        if (!p->asset || p->asset[0] == 0 || p->asset[1] == 0 || p->asset[2] == 0 || p->asset[3] != 0)
+        if (!p->asset || p->asset[0] == 0 || p->asset[1] == 0 || p->asset[2] == 0 ||
+            p->asset[3] != 0)
             return ZXP_E_ASSET;
         if (p->installments < 1 || p->installments > 12 || p->interval_days < 1 ||
             p->interval_days > 366)
             return ZXP_E_COUNT;
-        if (p->amount <= 0 || p->amount > ZXP_PIC18_MAX || p->penalty < 0 || p->penalty > ZXP_PIC18_MAX)
+        if (p->amount <= 0 || p->amount > ZXP_PIC18_MAX || p->penalty < 0 ||
+            p->penalty > ZXP_PIC18_MAX)
             return ZXP_E_NUMBER;
         if (tpl == ZXP_TPL_LOAN) {
             zxp_clause_t *cl = &out->clause[0];
@@ -147,7 +149,8 @@ static zxp_status_t draft(zxp_template_t tpl, const zxp_draft_params_t *p, zxp_c
             out->limit[1].party = 1;
             out->limit[0].amount = p->amount;
             out->limit[1].amount = p->repay;
-            for (uint32_t i = 0; i < 3u; i++) out->limit[0].asset[i] = out->limit[1].asset[i] = p->asset[i];
+            for (uint32_t i = 0; i < 3u; i++)
+                out->limit[0].asset[i] = out->limit[1].asset[i] = p->asset[i];
             out->n_limit = 2;
         } else {
             out->limit[0].party = 0;
@@ -240,8 +243,10 @@ static int32_t fam_find(const char *tag)
     while (lo <= hi) {
         int32_t mid = (lo + hi) / 2, d = str_cmp(FAM[mid].tag, tag);
         if (d == 0) return mid;
-        if (d < 0) lo = mid + 1;
-        else hi = mid - 1;
+        if (d < 0)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
     }
     return -1;
 }
@@ -318,11 +323,15 @@ uint32_t zxp_family_text(uint8_t fam, char *out, uint32_t cap)
     return b.n;
 }
 
-static const char *const TITLE[] = {"", "Services Agreement", "Sale Agreement", "Loan Agreement",
-                                    "Memorandum of Understanding", "Bilateral Accord"};
+static const char *const TITLE[] = {"",
+                                    "Services Agreement",
+                                    "Sale Agreement",
+                                    "Loan Agreement",
+                                    "Memorandum of Understanding",
+                                    "Bilateral Accord"};
 static const char *const ROLE_A[] = {"", "Client", "Buyer", "Lender", "Participant", "State Party"};
-static const char *const ROLE_B[] = {"", "Provider", "Seller", "Borrower", "Participant",
-                                     "State Party"};
+static const char *const ROLE_B[] = {"",         "Provider",    "Seller",
+                                     "Borrower", "Participant", "State Party"};
 
 #define COUNSEL "[TO BE COMPLETED BY COUNSEL]"
 
@@ -356,11 +365,28 @@ uint32_t zxp_draft_prose(zxp_template_t tpl, const zxp_contract_t *c, char *out,
     }
     s_(&b, "\n## 2. Purpose\n\n");
     switch (tpl) {
-    case ZXP_TPL_SERVICES: s_(&b, "The Provider performs the services described in Schedule A; the Client pays for them as set out in section 4.\n"); break;
-    case ZXP_TPL_SALE: s_(&b, "The Seller sells and delivers the goods described in Schedule A; the Buyer pays the price as set out in section 4.\n"); break;
-    case ZXP_TPL_LOAN: s_(&b, "The Lender advances a sum to the Borrower, who repays it as set out in section 4.\n"); break;
-    case ZXP_TPL_MOU: s_(&b, "The Participants record their shared intentions. Except for confidentiality and costs, nothing in this memorandum is intended to create legally binding obligations.\n"); break;
-    case ZXP_TPL_BILATERAL: s_(&b, "The State Parties record the cooperation described in Schedule A. Its status under international law, and any ratification each State Party needs, are matters for each State Party.\n"); break;
+    case ZXP_TPL_SERVICES:
+        s_(&b, "The Provider performs the services described in Schedule A; the Client pays for "
+               "them as set out in section 4.\n");
+        break;
+    case ZXP_TPL_SALE:
+        s_(&b, "The Seller sells and delivers the goods described in Schedule A; the Buyer pays "
+               "the price as set out in section 4.\n");
+        break;
+    case ZXP_TPL_LOAN:
+        s_(&b,
+           "The Lender advances a sum to the Borrower, who repays it as set out in section 4.\n");
+        break;
+    case ZXP_TPL_MOU:
+        s_(&b,
+           "The Participants record their shared intentions. Except for confidentiality and costs, "
+           "nothing in this memorandum is intended to create legally binding obligations.\n");
+        break;
+    case ZXP_TPL_BILATERAL:
+        s_(&b, "The State Parties record the cooperation described in Schedule A. Its status under "
+               "international law, and any ratification each State Party needs, are matters for "
+               "each State Party.\n");
+        break;
     }
     s_(&b, "\nSchedule A: " COUNSEL "\n\n## 3. Governing law and disputes\n\n");
     s_(&b, "Governing law named in the rule layer: ");

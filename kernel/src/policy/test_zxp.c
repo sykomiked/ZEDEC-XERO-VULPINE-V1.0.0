@@ -58,8 +58,8 @@ static void reject(const char *s, zxp_status_t want, uint32_t off, int line)
     uint32_t o = 12345;
     memset(&c, 0xA5, sizeof c);
     zxp_status_t st = zxp_parse_sutra(s, (uint32_t) strlen(s), &c, &o);
-    CHECK(st == want && o == off && all_zero(&c, sizeof c), "line %d: got %d@%u want %d@%u", line, st,
-          o, want, off);
+    CHECK(st == want && o == off && all_zero(&c, sizeof c), "line %d: got %d@%u want %d@%u", line,
+          st, o, want, off);
 }
 #define REJECT(s, st, off) reject((s), (st), (off), __LINE__)
 
@@ -72,7 +72,8 @@ static void accept_rt(const char *s, int line)
     zxp_status_t st = zxp_parse_sutra(s, (uint32_t) strlen(s), &c, &off);
     CHECK(st == ZXP_OK && off == 0, "line %d: parse %d@%u", line, st, off);
     CHECK(zxp_validate(&c) == ZXP_OK, "line %d: validate", line);
-    CHECK(zxp_emit_sutra(&c, out, sizeof out, &n) == ZXP_OK && n == strlen(s) && memcmp(out, s, n) == 0,
+    CHECK(zxp_emit_sutra(&c, out, sizeof out, &n) == ZXP_OK && n == strlen(s) &&
+              memcmp(out, s, n) == 0,
           "line %d: re-emit", line);
     CHECK(zxp_emit_record(&c, rec, sizeof rec) == ZXP_OK, "line %d: emit record", line);
     CHECK(zxp_parse_record(rec, sizeof rec, &d, &off) == ZXP_OK && zxp_equal(&c, &d),
@@ -139,9 +140,12 @@ static void test_grammar(void)
     REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY ESCROW KE\n"), ZXP_E_PARTY, at(FULL, "PARTY BETA"));
     REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY BETA K\n"), ZXP_E_JUR, at(FULL, "PARTY BETA"));
     REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY BETA KE-\n"), ZXP_E_JUR, at(FULL, "PARTY BETA"));
-    REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY BETA KE-ABCD\n"), ZXP_E_JUR, at(FULL, "PARTY BETA"));
-    REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY BETA90123 KE\n"), ZXP_E_NAME, at(FULL, "PARTY BETA"));
-    REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY BETA KE X\n"), ZXP_E_SYNTAX, at(FULL, "PARTY BETA"));
+    REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY BETA KE-ABCD\n"), ZXP_E_JUR,
+           at(FULL, "PARTY BETA"));
+    REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY BETA90123 KE\n"), ZXP_E_NAME,
+           at(FULL, "PARTY BETA"));
+    REJECT(edit(FULL, "PARTY BETA KE\n", "PARTY BETA KE X\n"), ZXP_E_SYNTAX,
+           at(FULL, "PARTY BETA"));
     REJECT(edit(MIN, "PARTY ACME US-DE\nPARTY BETA KE\n", ""), ZXP_E_COUNT, at(MIN, "PARTY"));
     /* SIGN and WINDOW */
     REJECT(edit(FULL, "SIGN 2", "SIGN 3"), ZXP_E_SIGN, at(FULL, "SIGN"));
@@ -150,17 +154,20 @@ static void test_grammar(void)
     REJECT(edit(FULL, "SIGN 2\n", ""), ZXP_E_SYNTAX, at(FULL, "SIGN"));
     REJECT(edit(FULL, "WINDOW 20261015 20271231", "WINDOW 20271231 20261015"), ZXP_E_DATE,
            at(FULL, "WINDOW"));
-    REJECT(edit(FULL, "WINDOW 20261015 20271231", "WINDOW 20261015"), ZXP_E_DATE, at(FULL, "WINDOW"));
+    REJECT(edit(FULL, "WINDOW 20261015 20271231", "WINDOW 20261015"), ZXP_E_DATE,
+           at(FULL, "WINDOW"));
     /* LOCK */
     REJECT(edit(FULL, "LOCK 20261231 20270101", "LOCK 20261226 20270101"), ZXP_E_ORDER,
            at(FULL, "LOCK 20261231"));
     REJECT(edit(FULL, "LOCK 20261224 20261226", "LOCK 20261227 20261226"), ZXP_E_DATE,
            at(FULL, "LOCK"));
     /* CAP */
-    REJECT(edit(FULL, "CAP EUR 500", "CAP XYZ 500\nCAP EUR 500"), ZXP_E_ORDER, at(FULL, "CAP EUR") + 12);
+    REJECT(edit(FULL, "CAP EUR 500", "CAP XYZ 500\nCAP EUR 500"), ZXP_E_ORDER,
+           at(FULL, "CAP EUR") + 12);
     REJECT(edit(FULL, "CAP EUR 500", "CAP EUR 0"), ZXP_E_NUMBER, at(FULL, "CAP EUR"));
     REJECT(edit(FULL, "CAP EUR 500", "CAP EUR 0500"), ZXP_E_NUMBER, at(FULL, "CAP EUR"));
-    REJECT(edit(FULL, "CAP EUR 500", "CAP EUR 1000000000000000000"), ZXP_E_NUMBER, at(FULL, "CAP EUR"));
+    REJECT(edit(FULL, "CAP EUR 500", "CAP EUR 1000000000000000000"), ZXP_E_NUMBER,
+           at(FULL, "CAP EUR"));
     ACCEPT(edit(FULL, "CAP EUR 500", "CAP EUR 999999999999999999"));
     REJECT(edit(FULL, "CAP EUR 500", "CAP EU 500"), ZXP_E_ASSET, at(FULL, "CAP EUR"));
     REJECT(edit(FULL, "CAP EUR 500", "CAP Eur 500"), ZXP_E_ASSET, at(FULL, "CAP EUR"));
@@ -181,7 +188,8 @@ static void test_grammar(void)
     REJECT(edit(FULL, "DUE T1 ACME BETA", "DUE T1 ACME ACME"), ZXP_E_CLAUSE, at(FULL, "DUE T1"));
     REJECT(edit(FULL, "DUE T1 ACME BETA", "DUE T1 ACME ZETA"), ZXP_E_PARTY, at(FULL, "DUE T1"));
     REJECT(edit(FULL, "USD 1200000 20261231", "USD 0 20261231"), ZXP_E_NUMBER, at(FULL, "DUE T1"));
-    REJECT(edit(FULL, "USD 1200000 20261231", "USD 1200000 20261014"), ZXP_E_DATE, at(FULL, "DUE T1"));
+    REJECT(edit(FULL, "USD 1200000 20261231", "USD 1200000 20261014"), ZXP_E_DATE,
+           at(FULL, "DUE T1"));
     REJECT(edit(FULL, "PENALTY 12000", "PENALTY 0"), ZXP_E_NUMBER, at(FULL, "DUE T1"));
     REJECT(edit(FULL, "AFTER T1", "AFTER T2"), ZXP_E_REF, at(FULL, "DUE T2"));
     REJECT(edit(FULL, "AFTER T1", "AFTER T9"), ZXP_E_REF, at(FULL, "DUE T2"));
@@ -316,10 +324,12 @@ static void test_draft(void)
     static zxp_contract_t c;
     static char text[ZXP_SUTRA_MAX], prose[16384];
     uint32_t n;
-    zxp_draft_params_t p = {"LOAN-1", 20261015, "GB-ENG", "BANK", "GB-ENG", "FARM", "KE", "KES",
-                            1000000, 1100000, 4, 20261115, 30, 500, 20271231};
+    zxp_draft_params_t p = {"LOAN-1", 20261015, "GB-ENG", "BANK",  "GB-ENG",
+                            "FARM",   "KE",     "KES",    1000000, 1100000,
+                            4,        20261115, 30,       500,     20271231};
     CHECK(zxp_draft(ZXP_TPL_LOAN, &p, &c) == ZXP_OK, "loan");
-    CHECK(c.n_clause == 5 && c.clause[0].amount == 1000000 && c.clause[4].after == 1, "loan clauses");
+    CHECK(c.n_clause == 5 && c.clause[0].amount == 1000000 && c.clause[4].after == 1,
+          "loan clauses");
     int64_t sum = 0;
     for (uint32_t i = 1; i < 5; i++) sum += c.clause[i].amount;
     CHECK(sum == 1100000, "repayments add up %lld", (long long) sum);
@@ -328,37 +338,43 @@ static void test_draft(void)
           "loan limits and allow list");
     CHECK(zxp_emit_sutra(&c, text, sizeof text, &n) == ZXP_OK, "emit");
     n = zxp_draft_prose(ZXP_TPL_LOAN, &c, prose, sizeof prose);
-    CHECK(n > 0 && strstr(prose, "not legal advice") && strstr(prose, "[TO BE COMPLETED BY COUNSEL]") &&
-              strstr(prose, "common law") && strstr(prose, "R4: FARM pays BANK 275000 KES"),
+    CHECK(n > 0 && strstr(prose, "not legal advice") &&
+              strstr(prose, "[TO BE COMPLETED BY COUNSEL]") && strstr(prose, "common law") &&
+              strstr(prose, "R4: FARM pays BANK 275000 KES"),
           "loan prose");
     CHECK(zxp_draft_prose(ZXP_TPL_LOAN, &c, prose, 100) == 0 && prose[0] == 0, "short buffer");
 
-    zxp_draft_params_t s = {"FIT-OUT", 20261015, "KE", "ACME", "US-DE", "BETA", "KE", "USD",
-                            1000001, 0, 3, 20261101, 31, 0, 20270630};
+    zxp_draft_params_t s = {"FIT-OUT", 20261015, "KE", "ACME",   "US-DE", "BETA", "KE",    "USD",
+                            1000001,   0,        3,    20261101, 31,      0,      20270630};
     CHECK(zxp_draft(ZXP_TPL_SERVICES, &s, &c) == ZXP_OK, "services");
     CHECK(c.n_clause == 3 && c.clause[0].amount == 333333 && c.clause[2].amount == 333335 &&
               c.cap[0].amount == 333335 && c.clause[1].date == 20261202,
           "services split %lld", (long long) c.clause[2].amount);
     n = zxp_draft_prose(ZXP_TPL_SERVICES, &c, prose, sizeof prose);
-    CHECK(n > 0 && strstr(prose, "Muslim law") && strstr(prose, "customary law"), "KE family label");
+    CHECK(n > 0 && strstr(prose, "Muslim law") && strstr(prose, "customary law"),
+          "KE family label");
     CHECK(zxp_draft(ZXP_TPL_SALE, &s, &c) == ZXP_OK, "sale");
 
-    zxp_draft_params_t m = {"JOINT-STUDY", 20261015, "FR", "UNI", "FR", "LAB", "SN", "", 0, 0, 0, 0,
-                            0, 0, 20271015};
+    zxp_draft_params_t m = {
+        "JOINT-STUDY", 20261015, "FR", "UNI", "FR", "LAB", "SN", "", 0, 0, 0, 0, 0, 0, 20271015};
     CHECK(zxp_draft(ZXP_TPL_MOU, &m, &c) == ZXP_OK && c.n_clause == 0 && c.n_cap == 0, "mou");
     n = zxp_draft_prose(ZXP_TPL_MOU, &c, prose, sizeof prose);
-    CHECK(n > 0 && strstr(prose, "No payment terms") && strstr(prose, "nothing in this memorandum is intended"), "mou prose");
+    CHECK(n > 0 && strstr(prose, "No payment terms") &&
+              strstr(prose, "nothing in this memorandum is intended"),
+          "mou prose");
     CHECK(zxp_draft(ZXP_TPL_BILATERAL, &m, &c) == ZXP_OK, "bilateral without payments");
     m.amount = 5000;
     m.asset = "XOF";
     m.installments = 2;
     m.first_due = 20261201;
     m.interval_days = 180;
-    CHECK(zxp_draft(ZXP_TPL_BILATERAL, &m, &c) == ZXP_OK && c.n_clause == 2, "bilateral contributions");
+    CHECK(zxp_draft(ZXP_TPL_BILATERAL, &m, &c) == ZXP_OK && c.n_clause == 2,
+          "bilateral contributions");
 
     /* refusals */
     s.installments = 13;
-    CHECK(zxp_draft(ZXP_TPL_SERVICES, &s, &c) == ZXP_E_COUNT && all_zero(&c, sizeof c), "13 installments");
+    CHECK(zxp_draft(ZXP_TPL_SERVICES, &s, &c) == ZXP_E_COUNT && all_zero(&c, sizeof c),
+          "13 installments");
     s.installments = 3;
     s.first_due = 20261001;
     CHECK(zxp_draft(ZXP_TPL_SERVICES, &s, &c) == ZXP_E_DATE, "due before contract");

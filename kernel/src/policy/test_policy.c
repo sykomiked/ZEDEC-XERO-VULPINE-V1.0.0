@@ -73,15 +73,16 @@ static void test_belnap_ops(void)
 {
     const lpres_state_t v[4] = {N_, T_, F_, B_};
     /* knowledge join and meet on lpres's encoding */
-    CHECK(policy_k_join(N_, T_) == T_ && policy_k_join(T_, F_) == B_ && policy_k_join(F_, N_) == F_ &&
-              policy_k_join(B_, N_) == B_,
+    CHECK(policy_k_join(N_, T_) == T_ && policy_k_join(T_, F_) == B_ &&
+              policy_k_join(F_, N_) == F_ && policy_k_join(B_, N_) == B_,
           "k-join");
     CHECK(policy_k_meet(T_, F_) == N_ && policy_k_meet(B_, T_) == T_ && policy_k_meet(B_, B_) == B_,
           "k-meet");
     for (int a = 0; a < 4; a++)
         for (int b = 0; b < 4; b++) {
             lpres_state_t j = policy_k_join(v[a], v[b]), m = policy_k_meet(v[a], v[b]);
-            if (j != policy_k_join(v[b], v[a]) || policy_k_join(j, v[a]) != j || policy_k_meet(m, v[a]) != m)
+            if (j != policy_k_join(v[b], v[a]) || policy_k_join(j, v[a]) != j ||
+                policy_k_meet(m, v[a]) != m)
                 CHECK(0, "k lattice laws at %d,%d", a, b);
         }
     /* truth ops are the kernel's own: B ^ N = N, B v N = B (not textbook F/T) */
@@ -93,11 +94,13 @@ static void test_transfers(void)
     policy_result_t r;
     policy_txn_t t = txn(0, 1, 1000000, 20261101);
     r = policy_check(&C, NULL, NULL, &t);
-    CHECK(r.decision == POLICY_ALLOW && r.value == T_ && !r.escalate && r.deny_mask == 0, "clean allow");
+    CHECK(r.decision == POLICY_ALLOW && r.value == T_ && !r.escalate && r.deny_mask == 0,
+          "clean allow");
 
     t = txn(0, 1, 1000000, 20261014);
     r = policy_check(&C, NULL, NULL, &t);
-    CHECK(r.decision == POLICY_DENY && r.deny_mask == POLICY_R_WINDOW && r.value == F_, "before window");
+    CHECK(r.decision == POLICY_DENY && r.deny_mask == POLICY_R_WINDOW && r.value == F_,
+          "before window");
     t = txn(0, 1, 1000000, 20261225);
     r = policy_check(&C, NULL, NULL, &t);
     CHECK(r.decision == POLICY_DENY && r.deny_mask == POLICY_R_LOCK, "lockout");
@@ -126,9 +129,11 @@ static void test_transfers(void)
     policy_state_t s;
     policy_state_init(&s);
     t = txn(0, 1, 1000000, 20261101);
-    CHECK(policy_commit(&C, NULL, &s, &t).decision == POLICY_ALLOW && s.spent[0] == 1000000, "commit 1");
+    CHECK(policy_commit(&C, NULL, &s, &t).decision == POLICY_ALLOW && s.spent[0] == 1000000,
+          "commit 1");
     t.amount = 500000;
-    CHECK(policy_commit(&C, NULL, &s, &t).decision == POLICY_ALLOW && s.spent[0] == 1500000, "commit 2");
+    CHECK(policy_commit(&C, NULL, &s, &t).decision == POLICY_ALLOW && s.spent[0] == 1500000,
+          "commit 2");
     t.amount = 1;
     r = policy_commit(&C, NULL, &s, &t);
     CHECK(r.decision == POLICY_DENY && r.deny_mask == POLICY_R_LIMIT && s.spent[0] == 1500000,
@@ -140,11 +145,13 @@ static void test_transfers(void)
     t = txn(0, 1, 10, 20261101);
     strcpy(t.from_jur, "US-NY");
     r = policy_check(&C, NULL, NULL, &t);
-    CHECK(r.decision == POLICY_DENY && r.escalate && (r.both_mask & POLICY_R_JUR_FROM) && r.value == B_,
+    CHECK(r.decision == POLICY_DENY && r.escalate && (r.both_mask & POLICY_R_JUR_FROM) &&
+              r.value == B_,
           "US allowed and US-NY denied: BOTH, escalated (value %d)", r.value);
     strcpy(t.from_jur, "FR");
     r = policy_check(&C, NULL, NULL, &t);
-    CHECK(r.decision == POLICY_DENY && r.deny_mask == POLICY_R_JUR_FROM && !r.escalate, "FR not allowed");
+    CHECK(r.decision == POLICY_DENY && r.deny_mask == POLICY_R_JUR_FROM && !r.escalate,
+          "FR not allowed");
 
     /* faults */
     t = txn(0, 1, 10, 20261101);
@@ -193,12 +200,15 @@ static void test_packs(void)
     policy_pack_t ke, gb, us, other;
     policy_host_init(&h);
     CHECK(policy_pack_init(&ke, "KE", "mixed", 0) && policy_pack_init(&gb, "GB", "common", 0) &&
-              policy_pack_init(&us, "US", "common", 0) && policy_pack_init(&other, "JP", "civil", 0),
+              policy_pack_init(&us, "US", "common", 0) &&
+              policy_pack_init(&other, "JP", "civil", 0),
           "pack init");
-    CHECK(!policy_pack_init(&other, "J", "civil", 0) && !policy_pack_init(&other, "JP", "civil", 0x80),
+    CHECK(!policy_pack_init(&other, "J", "civil", 0) &&
+              !policy_pack_init(&other, "JP", "civil", 0x80),
           "pack init refusals");
     policy_pack_init(&other, "JP", "civil", 0);
-    CHECK(policy_pack_applies(&ke, &C) && policy_pack_applies(&us, &C) && !policy_pack_applies(&other, &C),
+    CHECK(policy_pack_applies(&ke, &C) && policy_pack_applies(&us, &C) &&
+              !policy_pack_applies(&other, &C),
           "applies by LAW or party tag");
 
     /* The contract ALLOWs GB; the KE pack denies GB: BOTH -> escalated deny. */
@@ -207,7 +217,8 @@ static void test_packs(void)
     CHECK(policy_host_register(&h, &ke) && policy_host_register(&h, &other), "register");
     policy_txn_t t = txn(1, 2, 10, 20261101);
     policy_result_t r = policy_check(&C, &h, NULL, &t);
-    CHECK(r.decision == POLICY_DENY && r.escalate && r.both_mask == POLICY_R_JUR_TO && r.value == B_,
+    CHECK(r.decision == POLICY_DENY && r.escalate && r.both_mask == POLICY_R_JUR_TO &&
+              r.value == B_,
           "contract allow + pack deny = BOTH (value %d)", r.value);
     /* a pack that does not apply has no say */
     other.n_deny = 1;
@@ -235,7 +246,8 @@ static void test_packs(void)
     unsorted.n_allow = 2;
     strcpy(unsorted.allow[0], "US");
     strcpy(unsorted.allow[1], "GB");
-    CHECK(!policy_host_register(&h2, &unsorted) && !policy_host_register(&h2, NULL), "bad packs refused");
+    CHECK(!policy_host_register(&h2, &unsorted) && !policy_host_register(&h2, NULL),
+          "bad packs refused");
     for (int i = 0; i < 20; i++) policy_host_register(&h2, &other);
     CHECK(h2.n == POLICY_MAX_PACKS, "host full at %u", h2.n);
 
@@ -250,7 +262,8 @@ static void test_packs(void)
     policy_host_register(&h3, &df);
     policy_host_register(&h3, &hk);
     policy_term_t tm[ZXP_MAX_CLAUSES];
-    CHECK(policy_terms(&C, &h3, NULL, 0, 20261101, tm) == 0 && tm[0].compliance == N_, "defer + bad hook: N");
+    CHECK(policy_terms(&C, &h3, NULL, 0, 20261101, tm) == 0 && tm[0].compliance == N_,
+          "defer + bad hook: N");
     policy_host_register(&h3, &np);
     policy_terms(&C, &h3, NULL, 0, 20261101, tm);
     CHECK(tm[0].compliance == F_ && tm[1].compliance == T_, "penalty term refused by config");
@@ -262,15 +275,16 @@ static void test_terms(void)
     /* nothing attested, before any date */
     CHECK(policy_terms(&C, NULL, NULL, 0, 20261101, tm) == 0, "terms");
     CHECK(tm[0].status == POLICY_T_OPEN && tm[0].value == N_ && tm[1].status == POLICY_T_WAITING &&
-              tm[3].status == POLICY_T_GATE && tm[3].value == N_ && tm[5].status == POLICY_T_WAITING,
+              tm[3].status == POLICY_T_GATE && tm[3].value == N_ &&
+              tm[5].status == POLICY_T_WAITING,
           "initial: open / waiting");
     /* on the date, still nothing attested */
     policy_terms(&C, NULL, NULL, 0, 20261231, tm);
     CHECK(tm[0].status == POLICY_T_DUE && tm[0].value == N_, "due today");
     /* lapse without evidence is a breach */
     policy_terms(&C, NULL, NULL, 0, 20270101, tm);
-    CHECK(tm[0].status == POLICY_T_BREACHED && tm[0].value == F_ && tm[1].status == POLICY_T_EXCUSED &&
-              tm[1].value == T_,
+    CHECK(tm[0].status == POLICY_T_BREACHED && tm[0].value == F_ &&
+              tm[1].status == POLICY_T_EXCUSED && tm[1].value == T_,
           "lapsed: breach; dependent excused");
 
     policy_att_t a[4] = {
@@ -280,16 +294,17 @@ static void test_terms(void)
         {2, T_, 20270105, 9}, /* dated after `now` below: ignored */
     };
     policy_terms(&C, NULL, a, 2, 20261231, tm);
-    CHECK(tm[0].status == POLICY_T_PERFORMED && tm[0].value == T_ && tm[0].performed_on == 20261220 &&
-              tm[1].status == POLICY_T_OPEN && tm[3].value == T_ && tm[4].value == T_ &&
-              tm[5].status == POLICY_T_OPEN,
+    CHECK(tm[0].status == POLICY_T_PERFORMED && tm[0].value == T_ &&
+              tm[0].performed_on == 20261220 && tm[1].status == POLICY_T_OPEN &&
+              tm[3].value == T_ && tm[4].value == T_ && tm[5].status == POLICY_T_OPEN,
           "performed; AFTER T1 now open; G1 and G2 true; T4 open");
     /* a second observer contradicts: N v T = T, T v F = B, nothing else stops */
     policy_terms(&C, NULL, a, 4, 20261231, tm);
     CHECK(tm[0].evidence == B_ && tm[0].status == POLICY_T_CONTESTED && tm[0].value == B_ &&
               tm[0].att_true == 1 && tm[0].att_false == 4,
           "contested evidence");
-    CHECK(tm[2].status == POLICY_T_PERFORMED && tm[2].att_true == 2, "T3 unaffected, future att ignored");
+    CHECK(tm[2].status == POLICY_T_PERFORMED && tm[2].att_true == 2,
+          "T3 unaffected, future att ignored");
     CHECK(tm[1].status == POLICY_T_CONTESTED && tm[1].condition == B_, "AFTER a contested term");
     CHECK(tm[3].value == B_ && tm[4].value == T_, "ALL(B,T)=B, ANY(B,T)=T");
     CHECK(tm[5].status == POLICY_T_CONTESTED, "AFTER G1 contested");
@@ -305,12 +320,15 @@ static void test_terms(void)
     /* refusals */
     policy_att_t badv[1] = {{0, B_, 20261220, 7}};
     CHECK(policy_terms(&C, NULL, badv, 1, 20261231, tm) == POLICY_E_TXN, "verdict must be T or F");
-    CHECK(policy_terms(&C, NULL, a, POLICY_MAX_ATTS + 1u, 20261231, tm) == POLICY_E_TXN, "too many");
+    CHECK(policy_terms(&C, NULL, a, POLICY_MAX_ATTS + 1u, 20261231, tm) == POLICY_E_TXN,
+          "too many");
     CHECK(policy_terms(&C, NULL, a, 1, 20261232, tm) == POLICY_E_TXN, "bad now");
     char text[200];
     uint32_t n = policy_att_text(&C, &a[0], text, sizeof text);
-    CHECK(n > 0 && strcmp(text, "ATT SUPPLY-2027 T1 T 20261220 7 "
-                                "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n") == 0,
+    CHECK(n > 0 &&
+              strcmp(text,
+                     "ATT SUPPLY-2027 T1 T 20261220 7 "
+                     "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n") == 0,
           "attestation text '%s'", text);
     policy_att_t gate_att = {3, T_, 20261220, 1};
     CHECK(policy_att_text(&C, &gate_att, text, sizeof text) == 0, "no attestation on a gate");
@@ -378,8 +396,8 @@ static void test_lower(void)
     policy_host_init(&h);
     policy_pack_init(&np, "KE", "config", POLICY_PACK_NO_PENALTY);
     policy_host_register(&h, &np);
-    CHECK(policy_lower(&C, &h, NULL, 0, 20261231, asset, &t, &rep) == ZXT_OK && rep.n_blocked == 1 &&
-              rep.blocked[0] == 0 && t.n_owe == 1 && t.owe[0].amount == 50000,
+    CHECK(policy_lower(&C, &h, NULL, 0, 20261231, asset, &t, &rep) == ZXT_OK &&
+              rep.n_blocked == 1 && rep.blocked[0] == 0 && t.n_owe == 1 && t.owe[0].amount == 50000,
           "blocked by pack, rest settles");
     /* other asset: nothing */
     char eur[4] = "EUR";
@@ -415,7 +433,8 @@ static void test_compliance_escrow(void)
               t.n_owe == 2,
           "compliance conflict escrowed, T3 settles");
     /* before its date it defers */
-    CHECK(policy_lower(&C, &h, NULL, 0, 20261101, "USD", &t, &rep) == ZXT_OK && rep.n_escrow == 0, "defers");
+    CHECK(policy_lower(&C, &h, NULL, 0, 20261101, "USD", &t, &rep) == ZXT_OK && rep.n_escrow == 0,
+          "defers");
 }
 
 static void test_cobol_records(void)
@@ -424,9 +443,10 @@ static void test_cobol_records(void)
     uint8_t q[POLICY_TXN_REC_LEN + 1], res[POLICY_RES_REC_LEN];
     policy_txn_t t;
     CHECK(zxp_emit_record(&C, crec, sizeof crec) == ZXP_OK, "contract record");
-    memcpy(q, "ZXQ10102USD+000000000001000000"
-              "20261101US-DE KE    YYNNNNNNNNNNNNN"
-              "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    memcpy(q,
+           "ZXQ10102USD+000000000001000000"
+           "20261101US-DE KE    YYNNNNNNNNNNNNN"
+           "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
            POLICY_TXN_REC_LEN);
     CHECK(policy_parse_txn_record(q, POLICY_TXN_REC_LEN, &t) == 0 && t.from == 0 && t.to == 1 &&
               t.amount == 1000000 && t.signers == 3 && strcmp(t.to_jur, "KE") == 0,

@@ -14,13 +14,15 @@
 
 #include "policy.h"
 
-#define POLICY_TXN_MAGIC   "ZXQ1"
-#define POLICY_TXN_REC_LEN 129u /* MAGIC 4 FROM 2 TO 2 ASSET 3 AMOUNT 19 DATE 8
-                                   FJUR 6 TJUR 6 SIGNED 15 DOC 64 */
-#define POLICY_RES_MAGIC   "ZXP1"
-#define POLICY_RES_RULES   10u
-#define POLICY_RES_REC_LEN 41u /* MAGIC 4 DECISION 5 ESCALATE 1 VALUE 1
-                                  DENY 10 BOTH 10 FAULT 5 WHERE 5 */
+#define POLICY_TXN_MAGIC "ZXQ1"
+#define POLICY_TXN_REC_LEN                                                                         \
+    129u /* MAGIC 4 FROM 2 TO 2 ASSET 3 AMOUNT 19 DATE 8                                           \
+            FJUR 6 TJUR 6 SIGNED 15 DOC 64 */
+#define POLICY_RES_MAGIC "ZXP1"
+#define POLICY_RES_RULES 10u
+#define POLICY_RES_REC_LEN                                                                         \
+    41u /* MAGIC 4 DECISION 5 ESCALATE 1 VALUE 1                                                   \
+           DENY 10 BOTH 10 FAULT 5 WHERE 5 */
 
 /* 0, or POLICY_E_TXN for any field outside the copybook's rules. */
 int32_t policy_parse_txn_record(const uint8_t *rec, uint32_t len, policy_txn_t *t);

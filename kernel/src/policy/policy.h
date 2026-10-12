@@ -74,16 +74,16 @@
 typedef enum { POLICY_ALLOW = 0, POLICY_DENY = 1, POLICY_FAULT = 2 } policy_decision_t;
 
 /* Rule bits in policy_result_t masks. */
-#define POLICY_R_WINDOW   (1u << 0)  /* date outside WINDOW               */
-#define POLICY_R_LOCK     (1u << 1)  /* date inside a LOCK                */
-#define POLICY_R_SIGN     (1u << 2)  /* fewer than SIGN parties signed    */
-#define POLICY_R_PAYER    (1u << 3)  /* the paying party did not sign     */
-#define POLICY_R_ASSET    (1u << 4)  /* CAPs exist and none names it      */
-#define POLICY_R_CAP      (1u << 5)  /* amount above the asset's CAP      */
-#define POLICY_R_LIMIT    (1u << 6)  /* cumulative LIMIT would be passed  */
-#define POLICY_R_JUR_FROM (1u << 7)  /* payer's jurisdiction tag          */
-#define POLICY_R_JUR_TO   (1u << 8)  /* payee's jurisdiction tag          */
-#define POLICY_R_PACK     (1u << 9)  /* a pack's own transfer hook        */
+#define POLICY_R_WINDOW   (1u << 0) /* date outside WINDOW               */
+#define POLICY_R_LOCK     (1u << 1) /* date inside a LOCK                */
+#define POLICY_R_SIGN     (1u << 2) /* fewer than SIGN parties signed    */
+#define POLICY_R_PAYER    (1u << 3) /* the paying party did not sign     */
+#define POLICY_R_ASSET    (1u << 4) /* CAPs exist and none names it      */
+#define POLICY_R_CAP      (1u << 5) /* amount above the asset's CAP      */
+#define POLICY_R_LIMIT    (1u << 6) /* cumulative LIMIT would be passed  */
+#define POLICY_R_JUR_FROM (1u << 7) /* payer's jurisdiction tag          */
+#define POLICY_R_JUR_TO   (1u << 8) /* payee's jurisdiction tag          */
+#define POLICY_R_PACK     (1u << 9) /* a pack's own transfer hook        */
 
 /* FAULT codes (policy_result_t.fault); contract faults are zxp_status_t. */
 #define POLICY_E_TXN   (-40) /* transfer malformed: party, asset, amount, date, tag */
@@ -102,11 +102,11 @@ typedef struct {
 
 typedef struct {
     policy_decision_t decision;
-    bool escalate;        /* a BOTH somewhere: hold for a person */
-    lpres_state_t value;  /* the truth meet behind the decision  */
-    uint32_t deny_mask;   /* rules that came out FALSE           */
-    uint32_t both_mask;   /* rules that came out BOTH            */
-    int32_t fault;        /* 0, a zxp_status_t or POLICY_E_*     */
+    bool escalate;       /* a BOTH somewhere: hold for a person */
+    lpres_state_t value; /* the truth meet behind the decision  */
+    uint32_t deny_mask;  /* rules that came out FALSE           */
+    uint32_t both_mask;  /* rules that came out BOTH            */
+    int32_t fault;       /* 0, a zxp_status_t or POLICY_E_*     */
 } policy_result_t;
 
 /* Running totals for LIMIT lines, one per limit index. */
@@ -120,11 +120,12 @@ typedef struct {
  * covers one of the contract's LAW tags or a party's tag. The family label
  * is informational. A pack never states what the law is; it states what
  * this deployment has been configured to allow. */
-#define POLICY_MAX_PACKS        16u
-#define POLICY_PACK_NO_PENALTY  0x01u /* a DUE term with a PENALTY is FALSE   */
-#define POLICY_PACK_DEFER       0x02u /* every term is NEITHER: defers to a
-                                         process outside the engine          */
-#define POLICY_FAMILY_MAX       15u
+#define POLICY_MAX_PACKS       16u
+#define POLICY_PACK_NO_PENALTY 0x01u /* a DUE term with a PENALTY is FALSE   */
+#define POLICY_PACK_DEFER                                                                          \
+    0x02u /* every term is NEITHER: defers to a                                                    \
+             process outside the engine          */
+#define POLICY_FAMILY_MAX 15u
 
 typedef struct policy_pack {
     char scope[ZXP_JUR_MAX + 1u];
@@ -202,12 +203,12 @@ typedef enum {
 } policy_term_status_t;
 
 typedef struct {
-    uint8_t status;           /* policy_term_status_t */
-    lpres_state_t value;      /* the term's own four-valued state */
-    lpres_state_t evidence;   /* knowledge join of its attestations */
-    lpres_state_t condition;  /* AFTER clause's value; TRUE when none */
-    lpres_state_t compliance; /* knowledge join over applicable packs */
-    uint32_t performed_on;    /* earliest TRUE attestation date, or 0 */
+    uint8_t status;               /* policy_term_status_t */
+    lpres_state_t value;          /* the term's own four-valued state */
+    lpres_state_t evidence;       /* knowledge join of its attestations */
+    lpres_state_t condition;      /* AFTER clause's value; TRUE when none */
+    lpres_state_t compliance;     /* knowledge join over applicable packs */
+    uint32_t performed_on;        /* earliest TRUE attestation date, or 0 */
     uint64_t att_true, att_false; /* which attestations said what */
 } policy_term_t;
 
@@ -224,15 +225,15 @@ uint32_t policy_att_text(const zxp_contract_t *c, const policy_att_t *a, char *o
 
 /* ---- settlement ---- */
 typedef enum {
-    POLICY_ESC_EVIDENCE = 1,   /* attestations disagree        */
-    POLICY_ESC_CONDITION = 2,  /* its AFTER condition is BOTH  */
-    POLICY_ESC_COMPLIANCE = 3  /* packs disagree               */
+    POLICY_ESC_EVIDENCE = 1,  /* attestations disagree        */
+    POLICY_ESC_CONDITION = 2, /* its AFTER condition is BOTH  */
+    POLICY_ESC_COMPLIANCE = 3 /* packs disagree               */
 } policy_escrow_reason_t;
 
 typedef struct {
     uint8_t clause;
-    uint8_t reason;     /* policy_escrow_reason_t */
-    int32_t offset;     /* clause line's byte offset in the canonical Sutra */
+    uint8_t reason; /* policy_escrow_reason_t */
+    int32_t offset; /* clause line's byte offset in the canonical Sutra */
     int64_t amount;
     uint64_t att_true, att_false;
 } policy_escrow_t;

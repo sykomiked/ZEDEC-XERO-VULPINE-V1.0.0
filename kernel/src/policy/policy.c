@@ -105,7 +105,8 @@ bool policy_pack_applies(const policy_pack_t *p, const zxp_contract_t *c)
 
 /* What one allow/deny list pair says about `tag`, as evidence bits. */
 static lpres_state_t list_view(const char (*allow)[ZXP_JUR_MAX + 1u], uint32_t n_allow,
-                               const char (*deny)[ZXP_JUR_MAX + 1u], uint32_t n_deny, const char *tag)
+                               const char (*deny)[ZXP_JUR_MAX + 1u], uint32_t n_deny,
+                               const char *tag)
 {
     lpres_state_t v = N_;
     bool hit = false;
@@ -113,15 +114,17 @@ static lpres_state_t list_view(const char (*allow)[ZXP_JUR_MAX + 1u], uint32_t n
         if (zxp_jur_covers(deny[i], tag)) v = policy_k_join(v, F_);
     for (uint32_t i = 0; i < n_allow; i++)
         if (zxp_jur_covers(allow[i], tag)) hit = true;
-    if (hit) v = policy_k_join(v, T_);
-    else if (n_allow > 0) v = policy_k_join(v, F_);
+    if (hit)
+        v = policy_k_join(v, T_);
+    else if (n_allow > 0)
+        v = policy_k_join(v, F_);
     return v;
 }
 
 static lpres_state_t jur_view(const zxp_contract_t *c, const policy_host_t *h, const char *tag)
 {
-    lpres_state_t v = list_view((const char (*)[ZXP_JUR_MAX + 1u]) c->allow, c->n_allow,
-                                (const char (*)[ZXP_JUR_MAX + 1u]) c->deny, c->n_deny, tag);
+    lpres_state_t v = list_view((const char(*)[ZXP_JUR_MAX + 1u]) c->allow, c->n_allow,
+                                (const char(*)[ZXP_JUR_MAX + 1u]) c->deny, c->n_deny, tag);
     for (uint32_t k = 0; h && k < h->n; k++) {
         const policy_pack_t *p = h->pack[k];
         if (!policy_pack_applies(p, c)) continue;
@@ -229,7 +232,8 @@ policy_result_t policy_check(const zxp_contract_t *c, const policy_host_t *h,
         lpres_state_t v = N_;
         for (uint32_t k = 0; h && k < h->n; k++) {
             const policy_pack_t *p = h->pack[k];
-            if (p->txn_fn && policy_pack_applies(p, c)) v = policy_k_join(v, clamp(p->txn_fn(p->ctx, c, t)));
+            if (p->txn_fn && policy_pack_applies(p, c))
+                v = policy_k_join(v, clamp(p->txn_fn(p->ctx, c, t)));
         }
         fold(&r, POLICY_R_PACK, v == N_ ? T_ : v);
     }
@@ -259,7 +263,8 @@ static lpres_state_t term_compliance(const zxp_contract_t *c, const policy_host_
         const policy_pack_t *p = h->pack[k];
         if (!policy_pack_applies(p, c)) continue;
         if (p->flags & POLICY_PACK_DEFER) continue; /* NEITHER adds nothing */
-        if (p->flags & POLICY_PACK_NO_PENALTY) v = policy_k_join(v, c->clause[i].penalty > 0 ? F_ : T_);
+        if (p->flags & POLICY_PACK_NO_PENALTY)
+            v = policy_k_join(v, c->clause[i].penalty > 0 ? F_ : T_);
         if (p->term_fn) v = policy_k_join(v, clamp(p->term_fn(p->ctx, c, i)));
     }
     return v;
@@ -298,7 +303,8 @@ int32_t policy_terms(const zxp_contract_t *c, const policy_host_t *h, const poli
             o->evidence = policy_k_join(o->evidence, att[a].verdict);
             if (att[a].verdict == T_) {
                 o->att_true |= (uint64_t) 1 << a;
-                if (o->performed_on == 0 || att[a].date < o->performed_on) o->performed_on = att[a].date;
+                if (o->performed_on == 0 || att[a].date < o->performed_on)
+                    o->performed_on = att[a].date;
             } else {
                 o->att_false |= (uint64_t) 1 << a;
             }
@@ -441,9 +447,12 @@ int32_t policy_lower(const zxp_contract_t *c, const policy_host_t *h, const poli
             rep->blocked[rep->n_blocked++] = (uint8_t) i;
             continue;
         }
-        if (o->compliance == B_) reason = POLICY_ESC_COMPLIANCE;
-        else if (o->condition == B_) reason = POLICY_ESC_CONDITION;
-        else if (o->evidence == B_) reason = POLICY_ESC_EVIDENCE;
+        if (o->compliance == B_)
+            reason = POLICY_ESC_COMPLIANCE;
+        else if (o->condition == B_)
+            reason = POLICY_ESC_CONDITION;
+        else if (o->evidence == B_)
+            reason = POLICY_ESC_EVIDENCE;
         if (reason != 0) {
             /* Only an obligation that is or would be payable is escrowed:
              * a contested term not yet at its date still defers. */
@@ -521,8 +530,8 @@ uint32_t policy_bundle_text(const zxp_contract_t *c, const policy_escrow_t *e,
     t_s(&b, " AT ");
     t_u(&b, (uint64_t) (e->offset < 0 ? 0 : e->offset));
     t_s(&b, e->reason == POLICY_ESC_EVIDENCE    ? " EVIDENCE\nDOC "
-             : e->reason == POLICY_ESC_CONDITION ? " CONDITION\nDOC "
-                                                  : " COMPLIANCE\nDOC ");
+            : e->reason == POLICY_ESC_CONDITION ? " CONDITION\nDOC "
+                                                : " COMPLIANCE\nDOC ");
     t_hex(&b, c->doc, 32u);
     t_s(&b, "\nAMOUNT ");
     t_s(&b, k->asset);
@@ -547,16 +556,19 @@ uint32_t policy_bundle_text(const zxp_contract_t *c, const policy_escrow_t *e,
 const char *policy_decision_name(policy_decision_t d)
 {
     switch (d) {
-    case POLICY_ALLOW: return "POLICY_ALLOW";
-    case POLICY_DENY: return "POLICY_DENY";
-    case POLICY_FAULT: return "POLICY_FAULT";
+    case POLICY_ALLOW:
+        return "POLICY_ALLOW";
+    case POLICY_DENY:
+        return "POLICY_DENY";
+    case POLICY_FAULT:
+        return "POLICY_FAULT";
     }
     return "POLICY_FAULT";
 }
 
 const char *policy_term_status_name(uint8_t s)
 {
-    static const char *const n[] = {"waiting", "open", "due", "performed", "late",
+    static const char *const n[] = {"waiting",  "open",      "due",     "performed", "late",
                                     "breached", "contested", "excused", "gate"};
     return s < sizeof n / sizeof n[0] ? n[s] : "unknown";
 }

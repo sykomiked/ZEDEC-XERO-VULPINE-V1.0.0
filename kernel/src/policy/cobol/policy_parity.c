@@ -74,8 +74,9 @@ int main(int argc, char **argv)
             } else {
                 size_t i = 0;
                 while (i < ZXP_REC_LEN && i + 1 < n && (uint8_t) line[1 + i] == crec[i]) i++;
-                printf("contract record differs at byte %zu (length %zu):\n COBOL %.40s\n C     %.40s\n", i,
-                       n - 1, line + 1 + i, crec + i);
+                printf("contract record differs at byte %zu (length %zu):\n COBOL %.40s\n C     "
+                       "%.40s\n",
+                       i, n - 1, line + 1 + i, crec + i);
             }
         } else if (line[0] == 'Q') {
             nq++;

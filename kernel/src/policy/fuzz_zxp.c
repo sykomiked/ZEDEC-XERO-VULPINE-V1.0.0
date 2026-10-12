@@ -34,7 +34,8 @@ static uint64_t below(uint64_t n)
 
 static int64_t amount(void)
 {
-    static const int64_t edge[] = {1, 9, 10, 999999999, 1000000000, ZXP_PIC18_MAX - 1, ZXP_PIC18_MAX};
+    static const int64_t edge[] = {
+        1, 9, 10, 999999999, 1000000000, ZXP_PIC18_MAX - 1, ZXP_PIC18_MAX};
     if (below(4) == 0) return edge[below(sizeof edge / sizeof edge[0])];
     return 1 + (int64_t) below((uint64_t) ZXP_PIC18_MAX >> below(60));
 }
@@ -104,7 +105,8 @@ static void gen(zxp_contract_t *c)
             memset(c->party[i].id, 0, sizeof c->party[i].id);
             name(c->party[i].id, ZXP_ID_MAX);
             bool dup = strcmp(c->party[i].id, ZXP_ESCROW_ID) == 0;
-            for (uint32_t k = 0; k < i; k++) dup = dup || strcmp(c->party[k].id, c->party[i].id) == 0;
+            for (uint32_t k = 0; k < i; k++)
+                dup = dup || strcmp(c->party[k].id, c->party[i].id) == 0;
             if (!dup) break;
         } while (1);
         jur(c->party[i].jur);
@@ -131,7 +133,8 @@ static void gen(zxp_contract_t *c)
             c->cap[k - 1] = x;
         }
     for (uint32_t i = 0; i < nc; i++)
-        if (c->n_cap == 0 || strcmp(c->cap[c->n_cap - 1].asset, c->cap[i].asset) != 0) c->cap[c->n_cap++] = c->cap[i];
+        if (c->n_cap == 0 || strcmp(c->cap[c->n_cap - 1].asset, c->cap[i].asset) != 0)
+            c->cap[c->n_cap++] = c->cap[i];
     for (uint32_t i = c->n_cap; i < ZXP_MAX_CAPS; i++) memset(&c->cap[i], 0, sizeof c->cap[i]);
     uint32_t nm = (uint32_t) below(ZXP_MAX_LIMITS + 1u);
     for (uint32_t i = 0; i < nm; i++) {
@@ -145,8 +148,9 @@ static void gen(zxp_contract_t *c)
         for (uint32_t j = 0; j < c->n_limit; j++)
             dup = dup || (c->limit[j].party == l.party && strcmp(c->limit[j].asset, l.asset) == 0);
         if (dup) continue;
-        while (k > 0 && (c->limit[k - 1].party > l.party ||
-                         (c->limit[k - 1].party == l.party && strcmp(c->limit[k - 1].asset, l.asset) > 0))) {
+        while (k > 0 &&
+               (c->limit[k - 1].party > l.party ||
+                (c->limit[k - 1].party == l.party && strcmp(c->limit[k - 1].asset, l.asset) > 0))) {
             c->limit[k] = c->limit[k - 1];
             k--;
         }
@@ -253,8 +257,12 @@ static uint32_t mutate(char *s, uint32_t n, uint32_t cap)
     for (uint32_t e = 0; e < edits && n > 0; e++) {
         uint32_t at = (uint32_t) below(n);
         switch (below(6)) {
-        case 0: s[at] = ALPHA[below(sizeof ALPHA - 1)]; break;
-        case 1: s[at] = (char) (s[at] + (below(2) ? 1 : -1)); break;
+        case 0:
+            s[at] = ALPHA[below(sizeof ALPHA - 1)];
+            break;
+        case 1:
+            s[at] = (char) (s[at] + (below(2) ? 1 : -1));
+            break;
         case 2: /* delete */
             memmove(s + at, s + at + 1, n - at - 1);
             n--;
@@ -296,7 +304,8 @@ int main(int argc, char **argv)
                 bad("generated contract does not validate", i);
                 continue;
             }
-            if (zxp_emit_sutra(&A, TEXT, sizeof TEXT, &n) != ZXP_OK || zxp_emit_record(&A, REC, sizeof REC) != ZXP_OK) {
+            if (zxp_emit_sutra(&A, TEXT, sizeof TEXT, &n) != ZXP_OK ||
+                zxp_emit_record(&A, REC, sizeof REC) != ZXP_OK) {
                 bad("generated contract does not emit", i);
                 continue;
             }
@@ -310,7 +319,8 @@ int main(int argc, char **argv)
                 bad("record round trip", i);
             for (uint32_t k = 0; k < A.n_clause; k++) {
                 int32_t o = zxp_clause_offset(&A, k);
-                if (o < 0 || memcmp(TEXT + o, A.clause[k].kind == ZXP_CL_DUE ? "DUE " : "GATE ", 4) != 0) {
+                if (o < 0 ||
+                    memcmp(TEXT + o, A.clause[k].kind == ZXP_CL_DUE ? "DUE " : "GATE ", 4) != 0) {
                     bad("clause offset", i);
                     break;
                 }
@@ -336,8 +346,9 @@ int main(int argc, char **argv)
             oracle_rec(REC, i);
         }
     }
-    printf("%s: %llu cases (%llu generated round trips, %llu mutated texts accepted), %llu failures\n",
-           g_fail ? "FAIL" : "PASS", (unsigned long long) cases, (unsigned long long) gen_n,
-           (unsigned long long) acc, (unsigned long long) g_fail);
+    printf(
+        "%s: %llu cases (%llu generated round trips, %llu mutated texts accepted), %llu failures\n",
+        g_fail ? "FAIL" : "PASS", (unsigned long long) cases, (unsigned long long) gen_n,
+        (unsigned long long) acc, (unsigned long long) g_fail);
     return g_fail ? 1 : 0;
 }

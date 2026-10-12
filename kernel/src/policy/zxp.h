@@ -82,21 +82,23 @@
 #define ZXP_ESCROW_ID   "ESCROW" /* reserved: no party may use it */
 
 /* RECORD layout (copybooks/ZXVCNTR.cpy). */
-#define ZXP_REC_MAGIC  "ZXC1"
-#define ZXP_REC_HEAD   137u /* MAGIC 4 NAME 30 DATE 8 DOC 64 SIGN 2 WFROM 8 WTO 8
-                               NLAW 1 NPARTY 2 NLOCK 1 NCAP 1 NLIMIT 2
-                               NALLOW 2 NDENY 2 NCLAUSE 2; the LAW table follows */
-#define ZXP_REC_LAWS   (ZXP_MAX_LAWS * ZXP_JUR_MAX)
-#define ZXP_REC_PARTY  14u /* ID 8, JUR 6                         */
-#define ZXP_REC_LOCK   16u /* FROM 8, TO 8                        */
-#define ZXP_REC_CAP    22u /* ASSET 3, AMOUNT 19                  */
-#define ZXP_REC_LIMIT  24u /* PARTY 2, ASSET 3, AMOUNT 19         */
-#define ZXP_REC_TAG    6u
-#define ZXP_REC_CLAUSE 87u /* KIND 4 ID 8 PAYER 2 PAYEE 2 ASSET 3 AMOUNT 19
-                              DATE 8 PENALTY 19 AFTER 2 GOP 3 NREF 1 REF 8x2 */
+#define ZXP_REC_MAGIC "ZXC1"
+#define ZXP_REC_HEAD                                                                               \
+    137u /* MAGIC 4 NAME 30 DATE 8 DOC 64 SIGN 2 WFROM 8 WTO 8                                     \
+            NLAW 1 NPARTY 2 NLOCK 1 NCAP 1 NLIMIT 2                                                \
+            NALLOW 2 NDENY 2 NCLAUSE 2; the LAW table follows */
+#define ZXP_REC_LAWS  (ZXP_MAX_LAWS * ZXP_JUR_MAX)
+#define ZXP_REC_PARTY 14u /* ID 8, JUR 6                         */
+#define ZXP_REC_LOCK  16u /* FROM 8, TO 8                        */
+#define ZXP_REC_CAP   22u /* ASSET 3, AMOUNT 19                  */
+#define ZXP_REC_LIMIT 24u /* PARTY 2, ASSET 3, AMOUNT 19         */
+#define ZXP_REC_TAG   6u
+#define ZXP_REC_CLAUSE                                                                             \
+    87u /* KIND 4 ID 8 PAYER 2 PAYEE 2 ASSET 3 AMOUNT 19                                           \
+           DATE 8 PENALTY 19 AFTER 2 GOP 3 NREF 1 REF 8x2 */
 #define ZXP_REC_LEN                                                                                \
-    (ZXP_REC_HEAD + ZXP_REC_LAWS + ZXP_MAX_PARTIES * ZXP_REC_PARTY + ZXP_MAX_LOCKS * ZXP_REC_LOCK + \
-     ZXP_MAX_CAPS * ZXP_REC_CAP + ZXP_MAX_LIMITS * ZXP_REC_LIMIT +                                  \
+    (ZXP_REC_HEAD + ZXP_REC_LAWS + ZXP_MAX_PARTIES * ZXP_REC_PARTY +                               \
+     ZXP_MAX_LOCKS * ZXP_REC_LOCK + ZXP_MAX_CAPS * ZXP_REC_CAP + ZXP_MAX_LIMITS * ZXP_REC_LIMIT +  \
      2u * ZXP_MAX_TAGS * ZXP_REC_TAG + ZXP_MAX_CLAUSES * ZXP_REC_CLAUSE)
 
 typedef enum {
@@ -179,11 +181,11 @@ typedef struct {
 /* Longest canonical Sutra text (bounds an emit buffer). */
 #define ZXP_SUTRA_MAX                                                                              \
     (9u + ZXP_NAME_MAX + 10u + 69u + ZXP_MAX_LAWS * 11u +                                          \
-     ZXP_MAX_PARTIES * (7u + ZXP_ID_MAX + ZXP_JUR_MAX + 1u) + 8u + 25u + ZXP_MAX_LOCKS * 23u +      \
+     ZXP_MAX_PARTIES * (7u + ZXP_ID_MAX + ZXP_JUR_MAX + 1u) + 8u + 25u + ZXP_MAX_LOCKS * 23u +     \
      ZXP_MAX_CAPS * 28u + ZXP_MAX_LIMITS * (12u + ZXP_ID_MAX + 18u) +                              \
-     2u * ZXP_MAX_TAGS * (7u + ZXP_JUR_MAX) +                                                       \
+     2u * ZXP_MAX_TAGS * (7u + ZXP_JUR_MAX) +                                                      \
      ZXP_MAX_CLAUSES * (4u + 3u * (ZXP_ID_MAX + 1u) + 4u + 19u + 9u + 27u + 7u + ZXP_ID_MAX +      \
-                        ZXP_MAX_REFS * (ZXP_ID_MAX + 1u)) +                                         \
+                        ZXP_MAX_REFS * (ZXP_ID_MAX + 1u)) +                                        \
      4u)
 
 void zxp_clear(zxp_contract_t *c);

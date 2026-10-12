@@ -134,7 +134,8 @@ bool zxp_date_ok(uint32_t d)
 /* Howard Hinnant's days_from_civil, integer only. */
 int32_t zxp_days(uint32_t d)
 {
-    int32_t y = (int32_t) (d / 10000u), m = (int32_t) ((d / 100u) % 100u), dd = (int32_t) (d % 100u);
+    int32_t y = (int32_t) (d / 10000u), m = (int32_t) ((d / 100u) % 100u),
+            dd = (int32_t) (d % 100u);
     y -= m <= 2;
     int32_t era = y / 400; /* y >= 1899 here, never negative */
     int32_t yoe = y - era * 400;
@@ -264,8 +265,8 @@ static zxp_status_t chk_clause(const zxp_contract_t *c, uint32_t i)
     }
     if (k->kind != ZXP_CL_GATE) return ZXP_E_CLAUSE;
     if (k->payer != 0 || k->payee != 0 || k->asset[0] != 0 || k->asset[1] != 0 ||
-        k->asset[2] != 0 || k->asset[3] != 0 || k->amount != 0 || k->date != 0 ||
-        k->penalty != 0 || k->after != 0)
+        k->asset[2] != 0 || k->asset[3] != 0 || k->amount != 0 || k->date != 0 || k->penalty != 0 ||
+        k->after != 0)
         return ZXP_E_CLAUSE;
     if (k->op != ZXP_GATE_ALL && k->op != ZXP_GATE_ANY) return ZXP_E_CLAUSE;
     if (k->n_ref < 2 || k->n_ref > ZXP_MAX_REFS) return ZXP_E_CLAUSE;
@@ -338,14 +339,14 @@ zxp_status_t zxp_validate(const zxp_contract_t *c)
     for (uint32_t i = 0; i < ZXP_MAX_TAGS; i++) {
         if (i >= c->n_allow) {
             if (!mem_zero(c->allow[i], ZXP_JUR_MAX + 1u)) return ZXP_E_PAD;
-        } else if ((st = chk_tag((char (*)[ZXP_JUR_MAX + 1u]) c->allow, i)) != ZXP_OK) {
+        } else if ((st = chk_tag((char(*)[ZXP_JUR_MAX + 1u]) c->allow, i)) != ZXP_OK) {
             return st;
         }
     }
     for (uint32_t i = 0; i < ZXP_MAX_TAGS; i++) {
         if (i >= c->n_deny) {
             if (!mem_zero(c->deny[i], ZXP_JUR_MAX + 1u)) return ZXP_E_PAD;
-        } else if ((st = chk_tag((char (*)[ZXP_JUR_MAX + 1u]) c->deny, i)) != ZXP_OK) {
+        } else if ((st = chk_tag((char(*)[ZXP_JUR_MAX + 1u]) c->deny, i)) != ZXP_OK) {
             return st;
         }
     }
@@ -432,8 +433,10 @@ static void put_c(sbuf_t *b, char c)
         b->ok = false;
         return;
     }
-    if (b->p) b->p[b->n] = c;
-    else if (b->cmp && b->diff == 0xFFFFFFFFu && b->cmp[b->n] != c) b->diff = b->n;
+    if (b->p)
+        b->p[b->n] = c;
+    else if (b->cmp && b->diff == 0xFFFFFFFFu && b->cmp[b->n] != c)
+        b->diff = b->n;
     b->n++;
 }
 
@@ -620,8 +623,10 @@ static bool tok(lex_t *l, const char **a, uint32_t *n)
     *a = l->s + b;
     *n = e - b;
     l->tok = e + 1u; /* past the space, or past lend when e == lend */
-    if (e == l->lend) l->tok = l->lend + 1u;
-    else if (e + 1u == l->lend) return false; /* trailing space */
+    if (e == l->lend)
+        l->tok = l->lend + 1u;
+    else if (e + 1u == l->lend)
+        return false; /* trailing space */
     return true;
 }
 
@@ -890,9 +895,12 @@ zxp_status_t zxp_parse_sutra(const char *src, uint32_t len, zxp_contract_t *out,
         } else {
             k->kind = ZXP_CL_GATE;
             if (!tok(&l, &a, &n)) FAIL(ZXP_E_SYNTAX);
-            if (tok_is(a, n, "ALL")) k->op = ZXP_GATE_ALL;
-            else if (tok_is(a, n, "ANY")) k->op = ZXP_GATE_ANY;
-            else FAIL(ZXP_E_CLAUSE);
+            if (tok_is(a, n, "ALL"))
+                k->op = ZXP_GATE_ALL;
+            else if (tok_is(a, n, "ANY"))
+                k->op = ZXP_GATE_ANY;
+            else
+                FAIL(ZXP_E_CLAUSE);
             while (!at_eol(&l)) {
                 if (k->n_ref >= ZXP_MAX_REFS) FAIL(ZXP_E_CLAUSE);
                 if (!tok(&l, &a, &n) || (x = clause_index(out, i, a, n)) < 0) FAIL(ZXP_E_REF);
@@ -950,7 +958,8 @@ zxp_status_t zxp_parse_sutra(const char *src, uint32_t len, zxp_contract_t *out,
 #define R_DENIES  (R_ALLOWS + ZXP_MAX_TAGS * ZXP_REC_TAG)
 #define R_CLAUSES (R_DENIES + ZXP_MAX_TAGS * ZXP_REC_TAG)
 
-typedef char zxp_rec_len_check[(R_CLAUSES + ZXP_MAX_CLAUSES * ZXP_REC_CLAUSE == ZXP_REC_LEN) ? 1 : -1];
+typedef char
+    zxp_rec_len_check[(R_CLAUSES + ZXP_MAX_CLAUSES * ZXP_REC_CLAUSE == ZXP_REC_LEN) ? 1 : -1];
 
 static bool r_udig(const uint8_t *s, uint32_t n, uint64_t *v)
 {
@@ -1035,7 +1044,8 @@ zxp_status_t zxp_parse_record(const uint8_t *rec, uint32_t len, zxp_contract_t *
     }
     if (!r_udig(rec + R_NLAW, 1u, &u) || u < 1 || u > ZXP_MAX_LAWS) RFAIL(ZXP_E_COUNT, R_NLAW);
     out->n_law = (uint8_t) u;
-    if (!r_udig(rec + R_NPARTY, 2u, &u) || u < 1 || u > ZXP_MAX_PARTIES) RFAIL(ZXP_E_COUNT, R_NPARTY);
+    if (!r_udig(rec + R_NPARTY, 2u, &u) || u < 1 || u > ZXP_MAX_PARTIES)
+        RFAIL(ZXP_E_COUNT, R_NPARTY);
     out->n_party = (uint8_t) u;
     if (!r_udig(rec + R_NLOCK, 1u, &u) || u > ZXP_MAX_LOCKS) RFAIL(ZXP_E_COUNT, R_NLOCK);
     out->n_lock = (uint8_t) u;
@@ -1163,9 +1173,12 @@ zxp_status_t zxp_parse_record(const uint8_t *rec, uint32_t len, zxp_contract_t *
         } else if (r_is(s, "GATE", 4u)) {
             k->kind = ZXP_CL_GATE;
             if (!due_blank) RFAIL(ZXP_E_CLAUSE, off);
-            if (r_is(s + 67, "ALL", 3u)) k->op = ZXP_GATE_ALL;
-            else if (r_is(s + 67, "ANY", 3u)) k->op = ZXP_GATE_ANY;
-            else RFAIL(ZXP_E_CLAUSE, off);
+            if (r_is(s + 67, "ALL", 3u))
+                k->op = ZXP_GATE_ALL;
+            else if (r_is(s + 67, "ANY", 3u))
+                k->op = ZXP_GATE_ANY;
+            else
+                RFAIL(ZXP_E_CLAUSE, off);
             if (!r_udig(s + 70, 1u, &u) || u < 2 || u > ZXP_MAX_REFS) RFAIL(ZXP_E_CLAUSE, off);
             k->n_ref = (uint8_t) u;
             for (uint32_t r = 0; r < ZXP_MAX_REFS; r++) {
@@ -1232,7 +1245,8 @@ zxp_status_t zxp_emit_record(const zxp_contract_t *c, uint8_t *rec, uint32_t cap
     w_udig(rec + R_NALLOW, 2u, c->n_allow);
     w_udig(rec + R_NDENY, 2u, c->n_deny);
     w_udig(rec + R_NCLAUSE, 2u, c->n_clause);
-    for (uint32_t i = 0; i < ZXP_MAX_LAWS; i++) w_text(rec + R_LAWS + i * ZXP_JUR_MAX, ZXP_JUR_MAX, c->law[i]);
+    for (uint32_t i = 0; i < ZXP_MAX_LAWS; i++)
+        w_text(rec + R_LAWS + i * ZXP_JUR_MAX, ZXP_JUR_MAX, c->law[i]);
     for (uint32_t i = 0; i < ZXP_MAX_PARTIES; i++) {
         uint8_t *d = rec + R_PARTIES + i * ZXP_REC_PARTY;
         w_text(d, ZXP_ID_MAX, c->party[i].id);

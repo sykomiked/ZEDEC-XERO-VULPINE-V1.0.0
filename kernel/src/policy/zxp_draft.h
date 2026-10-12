@@ -29,11 +29,11 @@
 #include "zxp.h"
 
 typedef enum {
-    ZXP_TPL_SERVICES = 1,  /* A (client) pays B (provider) in installments  */
-    ZXP_TPL_SALE = 2,      /* A (buyer) pays B (seller) in installments     */
-    ZXP_TPL_LOAN = 3,      /* A (lender) advances, B repays in installments */
-    ZXP_TPL_MOU = 4,       /* no payment terms; non-binding by its text     */
-    ZXP_TPL_BILATERAL = 5  /* two states; optional contributions A -> B     */
+    ZXP_TPL_SERVICES = 1, /* A (client) pays B (provider) in installments  */
+    ZXP_TPL_SALE = 2,     /* A (buyer) pays B (seller) in installments     */
+    ZXP_TPL_LOAN = 3,     /* A (lender) advances, B repays in installments */
+    ZXP_TPL_MOU = 4,      /* no payment terms; non-binding by its text     */
+    ZXP_TPL_BILATERAL = 5 /* two states; optional contributions A -> B     */
 } zxp_template_t;
 
 typedef struct {
@@ -41,14 +41,14 @@ typedef struct {
     uint32_t date;    /* YYYYMMDD */
     const char *law;  /* governing jurisdiction tag */
     const char *a_id, *a_jur, *b_id, *b_jur;
-    const char *asset;       /* three capital letters; ignored for MOU     */
-    int64_t amount;          /* total to be paid (LOAN: amount advanced)  */
-    int64_t repay;           /* LOAN only: total to be repaid, >= amount  */
-    uint8_t installments;    /* 1..12; 0 with amount 0 for BILATERAL/MOU  */
-    uint32_t first_due;      /* YYYYMMDD of the first installment          */
-    uint16_t interval_days;  /* between installments, 1..366               */
-    int64_t penalty;         /* fixed sum per installment on breach; 0     */
-    uint32_t window_to;      /* last date transfers are allowed            */
+    const char *asset;      /* three capital letters; ignored for MOU     */
+    int64_t amount;         /* total to be paid (LOAN: amount advanced)  */
+    int64_t repay;          /* LOAN only: total to be repaid, >= amount  */
+    uint8_t installments;   /* 1..12; 0 with amount 0 for BILATERAL/MOU  */
+    uint32_t first_due;     /* YYYYMMDD of the first installment          */
+    uint16_t interval_days; /* between installments, 1..366               */
+    int64_t penalty;        /* fixed sum per installment on breach; 0     */
+    uint32_t window_to;     /* last date transfers are allowed            */
 } zxp_draft_params_t;
 
 /* Build the rule layer. DOC is all zero until the host hashes the prose. */
