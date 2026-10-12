@@ -70,6 +70,13 @@ jobs:
             sudo ifconfig lo0 alias 127.0.0.3 up
           fi
           python3 tools/zxv_two_node_demo.py --zxvd "$RUNNER_TEMP/zxvd/zxvd" local --check
+      - name: Account key sealed by the Secure Enclave (or the fallback), offline outbox
+        if: runner.os == 'macOS'
+        run: |
+          sh kernel/arch/hosted/hwkey/build_test.sh "$RUNNER_TEMP/test_hwkey_host"
+          mkdir -p "$RUNNER_TEMP/hwkey"
+          "$RUNNER_TEMP/test_hwkey_host" "$RUNNER_TEMP/hwkey"
+          "$RUNNER_TEMP/test_hwkey_host" "$RUNNER_TEMP/hwkey"
       - name: The native shell's socket client against zxvd
         run: |
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c \

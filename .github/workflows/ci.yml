@@ -100,10 +100,11 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm
       - name: Run host tests
         env:
           ZXV_REQUIRE_COBOL: "1"
+          ZXV_REQUIRE_SWTPM: "1"
         run: |
           cd kernel
           make verify-all
