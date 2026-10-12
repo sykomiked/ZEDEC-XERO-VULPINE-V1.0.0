@@ -58,6 +58,11 @@ def words(text):
     # word, "$x.yz" as x point y z dollars is left to the number rule
     t = re.sub(r"(\d)([A-Za-z])", r"\1 \2", text)
     t = re.sub(r"\b([apAP])\.\s?[mM]\.?", lambda m: m.group(1).lower() + "m", t)
+    # applied to the input text and the transcript alike: "$5.50" is "5.50 dollars", and
+    # h:mm / h.mm with two digits after the mark is read as two numbers ("10:30", "10.30"
+    # and "5.50" become "ten thirty", "five fifty"), so whisper's formatting is not scored
+    t = re.sub(r"\$(\d+(\.\d+)?)", r"\1 dollars", t)
+    t = re.sub(r"\b(\d{1,2})[.:](\d{2})\b", r"\1 \2", t)
     t = re.sub(r"\d+(\.\d+)?", num_words, t).lower()
     t = re.sub(r"[-_/,.\\]", " ", t)
     t = re.sub(r"[^a-z\s]", "", t)
@@ -112,7 +117,23 @@ def snr(got, ref, skip=6000):
                 max_abs=float(np.abs(e).max()), rms=float(np.sqrt((e * e).mean())))
 
 
+def rescore(path):
+    """Recompute the word error rates of a saved --json result with the current rules."""
+    d = json.load(open(path))
+    for r in d["rows"]:
+        ref = words(r["text"]); r["ref_words"] = " ".join(ref)
+        for k in ("zxv", "llama"):
+            if k in r: r[k]["wer"] = wer(ref, words(r[k]["transcript"]))
+    d["summary"] = {"zxv_mean_wer": float(np.mean([r["zxv"]["wer"] for r in d["rows"]]))}
+    if "llama" in d["rows"][0]:
+        d["summary"]["llama_mean_wer"] = float(np.mean([r["llama"]["wer"] for r in d["rows"]]))
+    json.dump(d, open(path, "w"), indent=1)
+    print(json.dumps(d["summary"]))
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--rescore":
+        return rescore(sys.argv[2])
     ap = argparse.ArgumentParser()
     for k in ("zt-tts", "tts", "dec", "whisper-cli", "whisper-model"): ap.add_argument("--" + k, required=True)
     ap.add_argument("--llama-tts"); ap.add_argument("--threads", type=int, default=2)

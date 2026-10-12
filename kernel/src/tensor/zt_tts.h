@@ -56,25 +56,34 @@
  *       Every step is integer and deterministic: the codes and the PCM are
  *       the same bits on every machine and kernel set (bench/tensor/zt_tts
  *       checks c, SIMD, threads and aarch64 under qemu).
- *       HONEST LIMITS.  Measured on one checkpoint pair, OuteTTS-0.3-500M
- *       Q8_0 and WavTokenizer-Large-75 F16, on five short English sentences
- *       (bench/results/2026-10-12-outetts/REPORT.md): accuracy against a
- *       float64 numpy decoder fed the same codes, and intelligibility by a
- *       whisper.cpp round trip next to llama.cpp's own output. The F16
- *       decoder weights are re-quantised to 8 bits (zt_nn), the largest
- *       error source. English only: no romanisation of other scripts (as
- *       llama.cpp), no speaker files (only the built-in en_male_1), no
- *       guide tokens. Number words follow llama.cpp, not English grammar
- *       ("1,000" is "one zero zero zero": the comma splits it first).
- *       Sampling uses zt_sample's integer draw: the same settings as
- *       llama.cpp (top-k 4, temperature 1) but different random numbers, so
- *       the same seed gives a different, equally likely, utterance. The
- *       inverse DFT is a direct O(n^2) sum (about 0.8 M multiply-adds per
- *       frame, 62 M per second of audio), not an FFT. The PosNet attention
- *       runs over every frame at once, so the work grows with the square of
- *       the utterance length. The decoder keeps a few 64 KB of work per frame
- *       (zt_tts_work_bytes). Values saturate at +-32768 in Q16 (counted in
- *       n_sat); none were seen on the test sentences.
+ *       MEASURED (bench/results/2026-10-12-outetts/REPORT.md, OuteTTS-0.3-500M
+ *       Q8_0 + WavTokenizer-Large-75 F16, five short English sentences):
+ *       against a float64 numpy decoder fed the same codes, PCM SNR 60 to 70
+ *       dB (spectrogram log-magnitude error at most 0.008, RMS 3e-4); the
+ *       iSTFT alone is within one int16 step (SNR 85 to 88 dB). On llama.cpp's
+ *       own codes ZXV is closer to float64 (65 to 73 dB) than llama.cpp's
+ *       decoder is (49 to 66 dB). A whisper.cpp round trip transcribes ZXV's
+ *       speech as well as llama.cpp's. ZT_TTS_LOAD_LEAN (no residual weight
+ *       block) halves the decoder's arena and matrix work but drops the SNR
+ *       to about 28 dB (phase errors up to 1.4 rad): it is not the default.
+ *       HONEST LIMITS.  One checkpoint pair and five sentences. The F16
+ *       decoder weights are held as two 8-bit blocks (zt_nn's float
+ *       residual), the largest error source; the codebook rows are Q16.
+ *       English only: no romanisation of other scripts (as llama.cpp), no
+ *       speaker files (only the built-in en_male_1), no guide tokens. Number
+ *       words follow llama.cpp, not English grammar ("1,000" is "one zero":
+ *       the comma splits it first; "10:30" is "ten thirty" only because the
+ *       colon is dropped). Sampling uses zt_sample's integer draw: the same
+ *       settings as llama.cpp (top-k 4, temperature 1) but different random
+ *       numbers, so the same seed gives a different, equally likely,
+ *       utterance. The inverse DFT is a direct O(n^2) sum (about 0.8 M
+ *       multiply-adds per frame, 62 M per second of audio), not an FFT. The
+ *       PosNet attention runs over every frame at once, so its work grows
+ *       with the square of the utterance length. The decoder needs about
+ *       37 KB of work per frame (zt_tts_work_bytes) and 150 MB of arena for
+ *       the real file (75 MB lean). Values saturate at +-32768 in Q16
+ *       (counted in n_sat; the depthwise convolution and the norms clip
+ *       without counting); none were counted on the test sentences.
  * Freestanding: no libc, no malloc, no floating point; 64-bit divisions only
  * through zt_udiv64. */
 #ifndef ZT_TTS_H
