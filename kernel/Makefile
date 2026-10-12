@@ -1690,6 +1690,11 @@ test-mint:
 test-qnote:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/qnote/test_qnote.c src/qnote/qnote.c src/svault/svault.c src/mint/mint.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_qnote -lm && $(ZXV_TMP)/test_qnote > $(ZXV_TMP)/test_qnote.log 2>&1 && echo "[PASS] test_qnote" || { tail -40 $(ZXV_TMP)/test_qnote.log; echo "[FAIL] test_qnote"; exit 1; }
 
+# FX uniform-price batch epochs (src/fxepoch): fully funded orders, cooling bands instead of liquidation, DvP settlement, multilateral netting report; off per jurisdiction, no leverage.
+.PHONY: test-fxepoch
+test-fxepoch:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/fxepoch/test_fxepoch.c src/fxepoch/fxepoch.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_fxepoch -lm && $(ZXV_TMP)/test_fxepoch > $(ZXV_TMP)/test_fxepoch.log 2>&1 && echo "[PASS] test_fxepoch" || { tail -40 $(ZXV_TMP)/test_fxepoch.log; echo "[FAIL] test_fxepoch"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1708,4 +1713,5 @@ test-econ:
 	$(MAKE) --no-print-directory test-royalty
 	$(MAKE) --no-print-directory test-mint
 	$(MAKE) --no-print-directory test-qnote
+	$(MAKE) --no-print-directory test-fxepoch
 # ==== end economy modules ====
