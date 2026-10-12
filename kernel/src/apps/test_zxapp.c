@@ -8,14 +8,18 @@
 #include "zxapp.h"
 #include "zxapp_eve.h"
 #include "zxapp_kron.h"
+#include "zxapp_wasm.h"
+#include "wasm_build.h" /* sdk/kits/z-wasm/test: modules without a toolchain */
 
 static int fails, checks;
-#define CHECK(c, m)                                                                                \
+#define CHECK(c, ...)                                                                              \
     do {                                                                                           \
         checks++;                                                                                  \
         if (!(c)) {                                                                                \
             fails++;                                                                               \
-            printf("  FAIL %s (%s:%d)\n", m, __FILE__, __LINE__);                                  \
+            printf("  FAIL (%s:%d) ", __FILE__, __LINE__);                                         \
+            printf(__VA_ARGS__);                                                                   \
+            printf("\n");                                                                          \
         }                                                                                          \
     } while (0)
 
@@ -37,7 +41,35 @@ static void test_names(void)
     CHECK(strcmp(zxapp_lang_name(ZXAPP_LANG_UNKNOWN), "?") == 0, "unknown");
     for (int i = 0; i < ZXAPP_LANG_COUNT; i++)
         CHECK(zxapp_lang_of(zxapp_lang_name((zxapp_lang_t) i)) == (zxapp_lang_t) i, "round trip");
-    CHECK(zxapp_lang_of("KRON") == ZXAPP_LANG_UNKNOWN, "names are lower case");
+    CHECK(zxapp_lang_of("KRON") == ZXAPP_LANG_KRON, "names ignore case");
+    static const struct {
+        const char *n;
+        zxapp_lang_t l;
+    } alias[] = {{"c++", ZXAPP_LANG_CPP},
+                 {"C#", ZXAPP_LANG_DOTNET},
+                 {"fsharp", ZXAPP_LANG_DOTNET},
+                 {"js", ZXAPP_LANG_TYPESCRIPT},
+                 {"JavaScript", ZXAPP_LANG_TYPESCRIPT},
+                 {"golang", ZXAPP_LANG_GO},
+                 {"py", ZXAPP_LANG_PYTHON},
+                 {"kt", ZXAPP_LANG_KOTLIN},
+                 {"WebAssembly", ZXAPP_LANG_WASM},
+                 {"apl", ZXAPP_LANG_KRON},
+                 {"cobol", ZXAPP_LANG_SUTRA},
+                 {"ada", ZXAPP_LANG_EVE},
+                 {"fortran", ZXAPP_LANG_TREBAGO},
+                 {"mumps", ZXAPP_LANG_MYRA},
+                 {"rust", ZXAPP_LANG_RUST},
+                 {"swift", ZXAPP_LANG_SWIFT},
+                 {"java", ZXAPP_LANG_JAVA},
+                 {"dart", ZXAPP_LANG_DART},
+                 {"ruby", ZXAPP_LANG_RUBY},
+                 {"php", ZXAPP_LANG_PHP}};
+    for (unsigned i = 0; i < sizeof alias / sizeof alias[0]; i++)
+        CHECK(zxapp_lang_of(alias[i].n) == alias[i].l, "alias %s", alias[i].n);
+    CHECK(zxapp_lang_of("cobolx") == ZXAPP_LANG_UNKNOWN && zxapp_lang_of("") == ZXAPP_LANG_UNKNOWN,
+          "near misses are unknown");
+    CHECK(ZXAPP_RUNTIMES >= (uint32_t) ZXAPP_LANG_COUNT, "a runtime for every language fits");
     CHECK(zxapp_lang_of("kro") == ZXAPP_LANG_UNKNOWN, "no prefix match");
     CHECK(zxapp_lang_of("") == ZXAPP_LANG_UNKNOWN, "empty");
 }
@@ -93,7 +125,7 @@ static void test_parse(void)
     CHECK(parse("zxapp 1\nid x\nview\n") == ZXAPP_E_SYNTAX && A.err_line == 3, "missing value");
     CHECK(parse("zxapp 1\nid x\ncolour gold\n") == ZXAPP_E_SYNTAX && A.err_line == 3,
           "unknown directive");
-    CHECK(parse("zxapp 1\nid x\nlogic cobol a b\n") == ZXAPP_E_SYNTAX &&
+    CHECK(parse("zxapp 1\nid x\nlogic brainfork a b\n") == ZXAPP_E_SYNTAX &&
               strstr(A.err, "unknown language"),
           "unknown language");
     CHECK(parse("zxapp 1\nid x\nlogic kron a\n") == ZXAPP_E_SYNTAX, "logic needs a source");
@@ -370,6 +402,102 @@ static void test_eve(void)
     zxapp_unload(&A, &H);
 }
 
+/* ---- WebAssembly: logic in any language that compiles to it ---------------- */
+
+static wb MOD[4];
+
+static const uint8_t *module(int k, const char *sig, const uint8_t *code, size_t len, uint32_t *n)
+{
+    wt t;
+    wt_one(&t, code, len);
+    t.types[0] = sig;
+    t.exports[0] = "run";
+    t.nexports = 1;
+    wb_reset(&MOD[k]);
+    wt_build(&MOD[k], &t);
+    *n = (uint32_t) MOD[k].n;
+    return MOD[k].b;
+}
+
+static int32_t read_mod(void *ctx, const char *path, char *buf, uint32_t cap)
+{
+    (void) ctx;
+    int k = path[0] - '0';
+    if (k < 0 || k > 3 || MOD[k].n > cap) return -1;
+    memcpy(buf, MOD[k].b, MOD[k].n);
+    return (int32_t) MOD[k].n;
+}
+
+static void test_wasm(void)
+{
+    /* run(a, b) = a * b + 1, as rustc, tinygo or clang would emit it */
+    static const uint8_t mul1[] = {0x20, 0x00, 0x20, 0x01, 0x7E, 0x42, 0x01, 0x7C};
+    static const uint8_t trap[] = {0x20, 0x00, 0x50, 0x04, 0x40, 0x00, 0x0B, 0x20, 0x00};
+    static const uint8_t fl[] = {0x20, 0x00, 0xB9, 0xB0}; /* via f64: refused */
+    static const uint8_t spin[] = {0x03, 0x40, 0x0C, 0x00, 0x0B, 0x42, 0x00};
+    uint32_t n0, n1, n2, n3;
+    module(0, "II:I", mul1, sizeof mul1, &n0);
+    module(1, "I:I", trap, sizeof trap, &n1); /* traps on 0 (eqz, if, unreachable) */
+    module(2, "I:I", fl, sizeof fl, &n2);
+    module(3, ":I", spin, sizeof spin, &n3);
+    static zxapp_wasm_t W;
+    zxapp_host_init(&H);
+    H.read_file = read_mod;
+    CHECK(zxapp_wasm_register(&H, &W, 200000) == ZXAPP_OK && zxapp_host_has(&H, ZXAPP_LANG_WASM),
+          "wasm registers");
+    CHECK(zxapp_kron_register(&H) == ZXAPP_OK && zxapp_eve_register(&H) == ZXAPP_OK && H.n == 3,
+          "beside kron and eve");
+    CHECK(parse("zxapp 1\nid every\n"
+                "logic wasm  price 0\n" /* from Rust, say */
+                "logic wasm  guard 1\n" /* from Go */
+                "logic kron  sum <<\n+/a\n.\n"
+                "logic python report apps/every/report.py\n"
+                "logic c#    ledger apps/every/Ledger.cs\n"
+                "logic typescript chart apps/every/chart.ts\n"
+                "logic rust  native apps/every/lib.rs\n") == ZXAPP_OK &&
+              A.n == 7 && A.logic[4].lang == ZXAPP_LANG_DOTNET,
+          "one manifest, seven entries, five languages: %s", A.err);
+    CHECK(zxapp_load(&A, &H) == 3 && A.logic[0].loaded && A.logic[1].loaded && A.logic[2].loaded &&
+              !A.logic[3].loaded && !A.logic[6].loaded,
+          "wasm and kron load; languages with no runtime in this host wait for theirs");
+    int64_t a[3] = {2, 3, -4}, b[1] = {10};
+    zxapp_arg_t args[2] = {{"a", a, 3}, {"b", b, 1}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    CHECK(zxapp_call(&A, &H, "price", args, 2, out, 8, &n) == ZXAPP_OK && n == 3 &&
+              out[0].num == 21 && out[1].num == 31 && out[2].num == -39 && out[2].den == 1,
+          "W2: run per row, a shared b");
+    CHECK(zxapp_call(&A, &H, "sum", args, 1, out, 8, &n) == ZXAPP_OK && out[0].num == 1,
+          "the same values through KRON");
+    CHECK(zxapp_call(&A, &H, "guard", args, 1, out, 8, &n) == ZXAPP_OK && n == 3, "guard runs");
+    int64_t z[2] = {0, 5};
+    zxapp_arg_t za = {"a", z, 2};
+    CHECK(zxapp_call(&A, &H, "guard", &za, 1, out, 8, &n) == ZXAPP_E_RUNTIME && A.err[0],
+          "W3: a trap is a refusal: %s", A.err);
+    za.n = 1;
+    za.v = z + 1;
+    CHECK(zxapp_call(&A, &H, "guard", &za, 1, out, 8, &n) == ZXAPP_OK && out[0].num == 5,
+          "W3: and the next call reloads it");
+    CHECK(zxapp_call(&A, &H, "report", args, 1, out, 8, &n) == ZXAPP_E_NORUNTIME,
+          "python without its runtime asks for the C model");
+    int64_t c[2] = {1, 2};
+    zxapp_arg_t mism[2] = {{"a", a, 3}, {"b", c, 2}};
+    CHECK(zxapp_call(&A, &H, "price", mism, 2, out, 8, &n) == ZXAPP_E_RUNTIME, "two lengths");
+    CHECK(zxapp_call(&A, &H, "price", args, 2, out, 2, &n) == ZXAPP_E_BUFFER && n == 3,
+          "a short buffer");
+    zxapp_unload(&A, &H);
+
+    CHECK(parse("zxapp 1\nid f\nlogic wasm f 2\n") == ZXAPP_OK &&
+              zxapp_load(&A, &H) == ZXAPP_E_RUNTIME && strstr(A.err, "f: "),
+          "R11: floating point is refused at load: %s", A.err);
+    CHECK(parse("zxapp 1\nid s\nlogic wasm s 3\n") == ZXAPP_OK && zxapp_load(&A, &H) == 1,
+          "a spinning module loads");
+    CHECK(zxapp_call(&A, &H, "s", 0, 0, out, 8, &n) == ZXAPP_E_RUNTIME,
+          "and runs out of fuel instead of hanging: %s", A.err);
+    zxapp_unload(&A, &H);
+    zxapp_wasm_close(&W);
+}
+
 int main(void)
 {
     test_names();
@@ -377,6 +505,7 @@ int main(void)
     test_host();
     test_kron();
     test_eve();
+    test_wasm();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

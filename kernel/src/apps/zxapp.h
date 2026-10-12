@@ -18,6 +18,17 @@
  *   myra      records, indexes and search           sdk/pillars/mumps-myra
  *   c         the view and the model                 kernel/src/zui/views, kernel/src/apps
  *
+ * Modern languages are first class too, each through its libzxv SDK (the
+ * same ABI, so the same exact values): cpp, rust, go, swift, kotlin, java,
+ * dotnet (C#, F#, VB), python, typescript (and JavaScript), dart, ruby and
+ * php. Whatever else there is compiles to WebAssembly and runs as "wasm"
+ * in the Z-Wasm sandbox (sdk/kits/z-wasm, zxapp_wasm.c): fuel-metered,
+ * integer-only, nothing imported but what the host grants. Rust, Go, C++,
+ * Swift, Kotlin, Dart, Zig and AssemblyScript all target it, so an app can
+ * ship logic in any of them as a .wasm even where no native runtime for
+ * that language is installed. Names are case-insensitive and take the
+ * usual aliases (c++, csharp, c#, js, ts, golang, ...).
+ *
  *   A1 ONE FILE. A manifest is plain text, one directive per line, '#'
  *      starts a comment:
  *
@@ -58,7 +69,7 @@
 #define ZXAPP_ID_MAX    32u
 #define ZXAPP_PATH_MAX  128u
 #define ZXAPP_ERR_MAX   160u
-#define ZXAPP_RUNTIMES  8u
+#define ZXAPP_RUNTIMES  ((uint32_t) ZXAPP_LANG_COUNT)
 
 typedef enum {
     ZXAPP_LANG_C = 0,
@@ -67,6 +78,19 @@ typedef enum {
     ZXAPP_LANG_KRON,
     ZXAPP_LANG_TREBAGO,
     ZXAPP_LANG_MYRA,
+    ZXAPP_LANG_CPP, /* the modern languages, through their libzxv SDKs */
+    ZXAPP_LANG_RUST,
+    ZXAPP_LANG_GO,
+    ZXAPP_LANG_SWIFT,
+    ZXAPP_LANG_KOTLIN,
+    ZXAPP_LANG_JAVA,
+    ZXAPP_LANG_DOTNET,
+    ZXAPP_LANG_PYTHON,
+    ZXAPP_LANG_TYPESCRIPT,
+    ZXAPP_LANG_DART,
+    ZXAPP_LANG_RUBY,
+    ZXAPP_LANG_PHP,
+    ZXAPP_LANG_WASM, /* anything that compiles to WebAssembly (Z-Wasm) */
     ZXAPP_LANG_COUNT,
     ZXAPP_LANG_UNKNOWN = -1
 } zxapp_lang_t;
@@ -140,8 +164,9 @@ typedef struct {
     char file_buf[64u * 1024u]; /* one source at a time, for load() */
 } zxapp_host_t;
 
-const char *zxapp_lang_name(zxapp_lang_t l);  /* "kron"; "?" when unknown */
-zxapp_lang_t zxapp_lang_of(const char *name); /* ZXAPP_LANG_UNKNOWN when unknown */
+const char *zxapp_lang_name(zxapp_lang_t l); /* "kron"; "?" when unknown */
+/* A language by name or alias, any case; ZXAPP_LANG_UNKNOWN when unknown. */
+zxapp_lang_t zxapp_lang_of(const char *name);
 
 /* A1: parse `len` bytes of manifest text. On ZXAPP_E_SYNTAX a->err and
  * a->err_line say where. The text must outlive `a` (inline sources). */

@@ -3,7 +3,28 @@
 /* zxapp.c — app manifests and the language-runtime registry (zxapp.h). */
 #include "zxapp.h"
 
-static const char *const LANG[ZXAPP_LANG_COUNT] = {"c", "sutra", "eve", "kron", "trebago", "myra"};
+static const char *const LANG[ZXAPP_LANG_COUNT] = {
+    "c",      "sutra", "eve",    "kron",   "trebago",    "myra", "cpp",  "rust", "go",  "swift",
+    "kotlin", "java",  "dotnet", "python", "typescript", "dart", "ruby", "php",  "wasm"};
+
+/* Other names people write for the same languages. */
+static const struct {
+    const char *name;
+    zxapp_lang_t lang;
+} ALIAS[] = {
+    {"cobol", ZXAPP_LANG_SUTRA},      {"ada", ZXAPP_LANG_EVE},
+    {"apl", ZXAPP_LANG_KRON},         {"k", ZXAPP_LANG_KRON},
+    {"fortran", ZXAPP_LANG_TREBAGO},  {"mumps", ZXAPP_LANG_MYRA},
+    {"m", ZXAPP_LANG_MYRA},           {"c++", ZXAPP_LANG_CPP},
+    {"cxx", ZXAPP_LANG_CPP},          {"golang", ZXAPP_LANG_GO},
+    {"kt", ZXAPP_LANG_KOTLIN},        {"csharp", ZXAPP_LANG_DOTNET},
+    {"c#", ZXAPP_LANG_DOTNET},        {"cs", ZXAPP_LANG_DOTNET},
+    {"fsharp", ZXAPP_LANG_DOTNET},    {"f#", ZXAPP_LANG_DOTNET},
+    {"vb", ZXAPP_LANG_DOTNET},        {"py", ZXAPP_LANG_PYTHON},
+    {"ts", ZXAPP_LANG_TYPESCRIPT},    {"javascript", ZXAPP_LANG_TYPESCRIPT},
+    {"js", ZXAPP_LANG_TYPESCRIPT},    {"rb", ZXAPP_LANG_RUBY},
+    {"webassembly", ZXAPP_LANG_WASM},
+};
 
 static bool seq(const char *a, const char *b)
 {
@@ -11,6 +32,19 @@ static bool seq(const char *a, const char *b)
     for (; a[i] && a[i] == b[i]; i++) {
     }
     return a[i] == b[i];
+}
+
+/* Equal, ignoring ASCII case (language names). */
+static bool seq_ci(const char *a, const char *b)
+{
+    uint32_t i = 0;
+    for (;; i++) {
+        char x = a[i], y = b[i];
+        if (x >= 'A' && x <= 'Z') x = (char) (x - 'A' + 'a');
+        if (y >= 'A' && y <= 'Z') y = (char) (y - 'A' + 'a');
+        if (x != y) return false;
+        if (!x) return true;
+    }
 }
 
 static void put_err(zxapp_t *a, uint32_t line, const char *m1, const char *m2)
@@ -30,7 +64,9 @@ const char *zxapp_lang_name(zxapp_lang_t l)
 zxapp_lang_t zxapp_lang_of(const char *name)
 {
     for (int i = 0; i < ZXAPP_LANG_COUNT; i++)
-        if (seq(name, LANG[i])) return (zxapp_lang_t) i;
+        if (seq_ci(name, LANG[i])) return (zxapp_lang_t) i;
+    for (uint32_t i = 0; i < sizeof ALIAS / sizeof ALIAS[0]; i++)
+        if (seq_ci(name, ALIAS[i].name)) return ALIAS[i].lang;
     return ZXAPP_LANG_UNKNOWN;
 }
 
@@ -174,7 +210,8 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             char lang[16];
             if (!word_copy(lang, sizeof lang, w[1], wl[1]) ||
                 zxapp_lang_of(lang) == ZXAPP_LANG_UNKNOWN) {
-                put_err(a, r.line, "an unknown language (sutra, eve, kron, trebago, myra, c)", 0);
+                put_err(a, r.line,
+                        "an unknown language (a pillar, c, a libzxv SDK language or wasm)", 0);
                 return ZXAPP_E_SYNTAX;
             }
             if (!ident(w[2], wl[2]) || wl[2] + 1u > ZXAPP_ID_MAX) {
