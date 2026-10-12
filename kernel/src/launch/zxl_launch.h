@@ -43,41 +43,66 @@
 
 /* ---- themes ------------------------------------------------------------- */
 typedef enum {
-    ZXL_REVEAL_VAULT = 0,  /* bolts throw back, the screen splits down the middle (the boot's) */
-    ZXL_REVEAL_IRIS,       /* a round opening grows from the centre: a tunnel        */
-    ZXL_REVEAL_SCANLINE,   /* folds to one bright line, the line opens into the app  */
-    ZXL_REVEAL_SCATTER,    /* the gold lifts off as a flock of fragments             */
-    ZXL_REVEAL_LID,        /* the top half lifts, the bottom sinks: a strongbox      */
-    ZXL_REVEAL_WAKE,       /* parts along a diagonal like water off a bow            */
-    ZXL_REVEAL_PETALS,     /* four quarters slide to the corners                     */
-    ZXL_REVEAL_FADE,       /* reduce motion: a short cross-fade                      */
+    ZXL_REVEAL_VAULT = 0, /* bolts throw back, the screen splits down the middle (the boot's) */
+    ZXL_REVEAL_IRIS,      /* a round opening grows from the centre: a tunnel        */
+    ZXL_REVEAL_SCANLINE,  /* folds to one bright line, the line opens into the app  */
+    ZXL_REVEAL_SCATTER,   /* the gold lifts off as a flock of fragments             */
+    ZXL_REVEAL_LID,       /* the top half lifts, the bottom sinks: a strongbox      */
+    ZXL_REVEAL_WAKE,      /* parts along a diagonal like water off a bow            */
+    ZXL_REVEAL_PETALS,    /* four quarters slide to the corners                     */
+    ZXL_REVEAL_FADE,      /* reduce motion: a short cross-fade                      */
     ZXL_REVEAL_COUNT
 } zxl_reveal_t;
 
 typedef enum {
-    ZXL_AMB_NONE = 0, ZXL_AMB_ARCHES, ZXL_AMB_SPARKS, ZXL_AMB_FLOCK,
-    ZXL_AMB_DUST, ZXL_AMB_WATER, ZXL_AMB_RINGS, ZXL_AMB_COUNT
+    ZXL_AMB_NONE = 0,
+    ZXL_AMB_ARCHES,
+    ZXL_AMB_SPARKS,
+    ZXL_AMB_FLOCK,
+    ZXL_AMB_DUST,
+    ZXL_AMB_WATER,
+    ZXL_AMB_RINGS,
+    ZXL_AMB_COUNT
 } zxl_ambient_t;
 
 typedef enum {
-    ZXL_TIMBRE_GLASS = 0, ZXL_TIMBRE_MARIMBA, ZXL_TIMBRE_CHIP, ZXL_TIMBRE_FLUTE,
-    ZXL_TIMBRE_BELL, ZXL_TIMBRE_COIN, ZXL_TIMBRE_PLUCK, ZXL_TIMBRE_STRINGS,
+    ZXL_TIMBRE_GLASS = 0,
+    ZXL_TIMBRE_MARIMBA,
+    ZXL_TIMBRE_CHIP,
+    ZXL_TIMBRE_FLUTE,
+    ZXL_TIMBRE_BELL,
+    ZXL_TIMBRE_COIN,
+    ZXL_TIMBRE_PLUCK,
+    ZXL_TIMBRE_STRINGS,
     ZXL_TIMBRE_COUNT
 } zxl_timbre_t;
 
 /* Pitch classes, C = 0. */
-enum { ZXL_C = 0, ZXL_DB, ZXL_D, ZXL_EB, ZXL_E, ZXL_F, ZXL_FS, ZXL_G, ZXL_AB, ZXL_A, ZXL_BB, ZXL_B };
-#define ZXL_BOOT_KEY  ZXL_E          /* the OS boot's key: chime, coins, gong */
-#define ZXL_GROUPS    12             /* the app list's twelve groups, 1..12   */
+enum {
+    ZXL_C = 0,
+    ZXL_DB,
+    ZXL_D,
+    ZXL_EB,
+    ZXL_E,
+    ZXL_F,
+    ZXL_FS,
+    ZXL_G,
+    ZXL_AB,
+    ZXL_A,
+    ZXL_BB,
+    ZXL_B
+};
+#define ZXL_BOOT_KEY ZXL_E /* the OS boot's key: chime, coins, gong */
+#define ZXL_GROUPS   12    /* the app list's twelve groups, 1..12   */
 
 typedef struct {
-    const char *app;      /* NULL for a group default                         */
-    uint8_t     group;    /* 1..12                                            */
-    uint8_t     key;      /* pitch class                                      */
-    uint8_t     octave;   /* octave of the tick scale's first step            */
-    uint8_t     timbre;   /* zxl_timbre_t                                     */
-    uint8_t     reveal;   /* zxl_reveal_t                                     */
-    uint8_t     ambient;  /* zxl_ambient_t                                    */
+    const char *app; /* NULL for a group default                         */
+    uint8_t group;   /* 1..12                                            */
+    uint8_t key;     /* pitch class                                      */
+    uint8_t octave;  /* octave of the tick scale's first step            */
+    uint8_t timbre;  /* zxl_timbre_t                                     */
+    uint8_t reveal;  /* zxl_reveal_t                                     */
+    uint8_t ambient; /* zxl_ambient_t                                    */
 } zxl_theme_t;
 
 /* The theme for an app: its own entry when it has one (case-sensitive name),
@@ -89,7 +114,7 @@ const zxl_theme_t *zxl_theme_for(const char *app, uint32_t group);
 const zxl_theme_t *zxl_group_theme(uint32_t group);
 
 /* Number of apps with their own entry, and the i-th of them (NULL past the end). */
-uint32_t           zxl_curated_count(void);
+uint32_t zxl_curated_count(void);
 const zxl_theme_t *zxl_curated(uint32_t i);
 
 /* The tick for scale step `step` (0 = first part lit, ZXL_TOP_STEP = the
@@ -99,16 +124,16 @@ uint32_t zxl_tick_note(const zxl_theme_t *t, uint32_t step);
 
 /* ---- preferences -------------------------------------------------------- */
 typedef struct {
-    uint8_t  sounds;          /* the setting: 1 = app launch sounds on (default) */
-    uint8_t  system_muted;    /* output muted                                    */
-    uint8_t  focus_quiet;     /* a focus / do-not-disturb mode is on             */
-    uint8_t  screen_reader;   /* a screen reader is speaking                     */
-    uint8_t  reduce_motion;   /* reduce motion                                   */
-    uint16_t volume_q8;       /* launch sound volume, 0..256 (256 = full)        */
+    uint8_t sounds;        /* the setting: 1 = app launch sounds on (default) */
+    uint8_t system_muted;  /* output muted                                    */
+    uint8_t focus_quiet;   /* a focus / do-not-disturb mode is on             */
+    uint8_t screen_reader; /* a screen reader is speaking                     */
+    uint8_t reduce_motion; /* reduce motion                                   */
+    uint16_t volume_q8;    /* launch sound volume, 0..256 (256 = full)        */
 } zxl_prefs_t;
 
-#define ZXL_SETTING_KEY "sound.app_launch"   /* Keystone's key for the setting */
-#define ZXL_DUCK_Q8     96                    /* begin/end gain under a screen reader */
+#define ZXL_SETTING_KEY "sound.app_launch" /* Keystone's key for the setting */
+#define ZXL_DUCK_Q8     96                 /* begin/end gain under a screen reader */
 
 zxl_prefs_t zxl_prefs_default(void);
 
@@ -123,12 +148,12 @@ zxl_reveal_t zxl_effective_reveal(const zxl_theme_t *t, const zxl_prefs_t *p);
 typedef enum { ZXL_EV_BEGIN = 1, ZXL_EV_TICK, ZXL_EV_LIGHT, ZXL_EV_END } zxl_event_kind_t;
 
 typedef struct {
-    uint8_t  kind;      /* zxl_event_kind_t                                    */
-    uint8_t  part;      /* TICK: which part lit                                */
-    uint8_t  step;      /* TICK: scale step (0.., ZXL_TOP_STEP for the centre) */
-    uint8_t  audible;   /* 1 when the cue should sound                         */
-    uint16_t gain_q8;   /* cue gain 0..256 when audible                        */
-    uint16_t note;      /* TICK: MIDI note                                     */
+    uint8_t kind;     /* zxl_event_kind_t                                    */
+    uint8_t part;     /* TICK: which part lit                                */
+    uint8_t step;     /* TICK: scale step (0.., ZXL_TOP_STEP for the centre) */
+    uint8_t audible;  /* 1 when the cue should sound                         */
+    uint16_t gain_q8; /* cue gain 0..256 when audible                        */
+    uint16_t note;    /* TICK: MIDI note                                     */
 } zxl_event_t;
 
 #define ZXL_QUEUE 16
@@ -138,13 +163,13 @@ typedef enum { ZXL_PH_GATHER = 0, ZXL_PH_RELEASE, ZXL_PH_OPEN } zxl_phase_t;
 typedef struct {
     const zxl_theme_t *theme;
     zxl_prefs_t prefs;
-    uint32_t n;                       /* parts, 1..ZXL_MAX_PARTS                */
-    uint32_t part_p[ZXL_MAX_PARTS];   /* each part's real progress 0..256       */
-    uint32_t lit;                     /* bit i: part i lit                      */
+    uint32_t n;                     /* parts, 1..ZXL_MAX_PARTS                */
+    uint32_t part_p[ZXL_MAX_PARTS]; /* each part's real progress 0..256       */
+    uint32_t lit;                   /* bit i: part i lit                      */
     uint32_t nlit;
-    uint32_t rest;                    /* release progress 0..256 or ZXL_UNKNOWN */
-    uint8_t  phase;                   /* zxl_phase_t                            */
-    uint8_t  warm;                    /* opened already loaded: END only        */
+    uint32_t rest; /* release progress 0..256 or ZXL_UNKNOWN */
+    uint8_t phase; /* zxl_phase_t                            */
+    uint8_t warm;  /* opened already loaded: END only        */
     zxl_event_t q[ZXL_QUEUE];
     uint32_t qh, qn;
 } zxl_launch_t;
@@ -152,8 +177,8 @@ typedef struct {
 /* Start a launch with n parts (clamped to 1..ZXL_MAX_PARTS). A warm launch
  * (the app is already loaded) skips the gathering: no BEGIN, no ticks, END at
  * once. Returns 0, or -1 on NULL arguments. */
-int zxl_launch_init(zxl_launch_t *l, const zxl_theme_t *t, uint32_t n,
-                    const zxl_prefs_t *prefs, int warm);
+int zxl_launch_init(zxl_launch_t *l, const zxl_theme_t *t, uint32_t n, const zxl_prefs_t *prefs,
+                    int warm);
 
 /* Report a part's real progress (0..256, larger values clamp). Progress never
  * goes backwards: a lower value than already reported is ignored. Returns 0,

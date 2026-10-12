@@ -6,6 +6,7 @@
 
 /* ---- themes ------------------------------------------------------------- */
 /* One default per group of the app list. Keys avoid E: that is the boot's. */
+/* clang-format off */
 static const zxl_theme_t GROUPS[ZXL_GROUPS] = {
     /* app   grp key     oct timbre               reveal               ambient        */
     { 0,  1, ZXL_D,  4, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_IRIS,     ZXL_AMB_ARCHES }, /* System core            */
@@ -31,11 +32,15 @@ static const zxl_theme_t CURATED[] = {
     { "Murmuration", 6, ZXL_E, 5, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_SCATTER,  ZXL_AMB_FLOCK  },
     { "Coffer",      7, ZXL_G, 5, ZXL_TIMBRE_COIN,    ZXL_REVEAL_LID,      ZXL_AMB_DUST   },
 };
+/* clang-format on */
 #define N_CURATED (sizeof CURATED / sizeof CURATED[0])
 
 static int streq(const char *a, const char *b)
 {
-    while (*a && *a == *b) { a++; b++; }
+    while (*a && *a == *b) {
+        a++;
+        b++;
+    }
     return *a == *b;
 }
 
@@ -53,25 +58,31 @@ const zxl_theme_t *zxl_theme_for(const char *app, uint32_t group)
     return g ? g : &GROUPS[0];
 }
 
-uint32_t zxl_curated_count(void) { return (uint32_t)N_CURATED; }
+uint32_t zxl_curated_count(void)
+{
+    return (uint32_t) N_CURATED;
+}
 
-const zxl_theme_t *zxl_curated(uint32_t i) { return i < N_CURATED ? &CURATED[i] : 0; }
+const zxl_theme_t *zxl_curated(uint32_t i)
+{
+    return i < N_CURATED ? &CURATED[i] : 0;
+}
 
 /* Major pentatonic, two octaves' worth: 0 2 4 7 9 12 14. */
-static const uint8_t PENTA[ZXL_TOP_STEP + 1] = { 0, 2, 4, 7, 9, 12, 14 };
+static const uint8_t PENTA[ZXL_TOP_STEP + 1] = {0, 2, 4, 7, 9, 12, 14};
 
 uint32_t zxl_tick_note(const zxl_theme_t *t, uint32_t step)
 {
     if (!t) return 0;
     if (step > ZXL_TOP_STEP) step = ZXL_TOP_STEP;
     /* MIDI: C4 = 60, so octave o starts at 12 * (o + 1). */
-    return 12u * ((uint32_t)t->octave + 1u) + t->key + PENTA[step];
+    return 12u * ((uint32_t) t->octave + 1u) + t->key + PENTA[step];
 }
 
 /* ---- preferences -------------------------------------------------------- */
 zxl_prefs_t zxl_prefs_default(void)
 {
-    zxl_prefs_t p = { 1, 0, 0, 0, 0, 256 };
+    zxl_prefs_t p = {1, 0, 0, 0, 0, 256};
     return p;
 }
 
@@ -79,23 +90,25 @@ zxl_reveal_t zxl_effective_reveal(const zxl_theme_t *t, const zxl_prefs_t *p)
 {
     if (p && p->reduce_motion) return ZXL_REVEAL_FADE;
     if (!t || t->reveal >= ZXL_REVEAL_COUNT) return ZXL_REVEAL_VAULT;
-    return (zxl_reveal_t)t->reveal;
+    return (zxl_reveal_t) t->reveal;
 }
 
 /* ---- one launch --------------------------------------------------------- */
 static void push(zxl_launch_t *l, zxl_event_kind_t k, uint32_t part, uint32_t step)
 {
-    if (l->qn >= ZXL_QUEUE) return;          /* cannot happen: a launch makes <= 10 */
+    if (l->qn >= ZXL_QUEUE) return; /* cannot happen: a launch makes <= 10 */
     zxl_event_t *e = &l->q[(l->qh + l->qn) % ZXL_QUEUE];
     const zxl_prefs_t *p = &l->prefs;
     uint32_t on = p->sounds && !p->system_muted && !p->focus_quiet && p->volume_q8 > 0;
     uint32_t vol = p->volume_q8 > 256 ? 256 : p->volume_q8;
-    e->kind = (uint8_t)k; e->part = (uint8_t)part; e->step = (uint8_t)step;
-    e->note = (uint16_t)(k == ZXL_EV_TICK ? zxl_tick_note(l->theme, step) : 0);
-    if (k == ZXL_EV_LIGHT) on = 0;                       /* the mark lights silently */
-    if (k == ZXL_EV_TICK && p->screen_reader) on = 0;    /* never chatter over speech */
-    e->audible = (uint8_t)(on ? 1 : 0);
-    e->gain_q8 = (uint16_t)(on ? (p->screen_reader ? vol * ZXL_DUCK_Q8 / 256 : vol) : 0);
+    e->kind = (uint8_t) k;
+    e->part = (uint8_t) part;
+    e->step = (uint8_t) step;
+    e->note = (uint16_t) (k == ZXL_EV_TICK ? zxl_tick_note(l->theme, step) : 0);
+    if (k == ZXL_EV_LIGHT) on = 0;                    /* the mark lights silently */
+    if (k == ZXL_EV_TICK && p->screen_reader) on = 0; /* never chatter over speech */
+    e->audible = (uint8_t) (on ? 1 : 0);
+    e->gain_q8 = (uint16_t) (on ? (p->screen_reader ? vol * ZXL_DUCK_Q8 / 256 : vol) : 0);
     l->qn++;
 }
 
@@ -130,27 +143,33 @@ static void advance(zxl_launch_t *l)
             push(l, ZXL_EV_TICK, i, r == inner ? ZXL_TOP_STEP : l->nlit);
             if (r != inner) l->nlit++;
         }
-        if (l->lit == (1u << l->n) - 1u) { push(l, ZXL_EV_LIGHT, 0, 0); l->phase = ZXL_PH_RELEASE; }
+        if (l->lit == (1u << l->n) - 1u) {
+            push(l, ZXL_EV_LIGHT, 0, 0);
+            l->phase = ZXL_PH_RELEASE;
+        }
     }
     if (l->phase == ZXL_PH_RELEASE && l->rest == ZXL_FULL) {
-        push(l, ZXL_EV_END, 0, 0); l->phase = ZXL_PH_OPEN;
+        push(l, ZXL_EV_END, 0, 0);
+        l->phase = ZXL_PH_OPEN;
     }
 }
 
-int zxl_launch_init(zxl_launch_t *l, const zxl_theme_t *t, uint32_t n,
-                    const zxl_prefs_t *prefs, int warm)
+int zxl_launch_init(zxl_launch_t *l, const zxl_theme_t *t, uint32_t n, const zxl_prefs_t *prefs,
+                    int warm)
 {
     if (!l || !t) return -1;
-    uint8_t *b = (uint8_t *)l;
+    uint8_t *b = (uint8_t *) l;
     for (uint32_t i = 0; i < sizeof *l; i++) b[i] = 0;
     l->theme = t;
     l->prefs = prefs ? *prefs : zxl_prefs_default();
     l->n = n < 1 ? 1 : n > ZXL_MAX_PARTS ? ZXL_MAX_PARTS : n;
-    l->warm = (uint8_t)(warm ? 1 : 0);
+    l->warm = (uint8_t) (warm ? 1 : 0);
     if (warm) {
         for (uint32_t i = 0; i < l->n; i++) l->part_p[i] = ZXL_FULL;
-        l->lit = (1u << l->n) - 1u; l->rest = ZXL_FULL;
-        push(l, ZXL_EV_END, 0, 0); l->phase = ZXL_PH_OPEN;
+        l->lit = (1u << l->n) - 1u;
+        l->rest = ZXL_FULL;
+        push(l, ZXL_EV_END, 0, 0);
+        l->phase = ZXL_PH_OPEN;
         return 0;
     }
     push(l, ZXL_EV_BEGIN, 0, 0);
@@ -178,6 +197,7 @@ int zxl_launch_next(zxl_launch_t *l, zxl_event_t *ev)
 {
     if (!l || !ev || !l->qn) return 0;
     *ev = l->q[l->qh];
-    l->qh = (l->qh + 1) % ZXL_QUEUE; l->qn--;
+    l->qh = (l->qh + 1) % ZXL_QUEUE;
+    l->qn--;
     return 1;
 }
