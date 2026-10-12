@@ -74,6 +74,9 @@ CI checks it matches what zxvd serves.
 | `model.info` | | `loaded`, `can_generate`, `name`, `arch`, `n_layers`, `n_vocab`, `status` |
 | `notes.list` / `notes.mark_read` | | notes / `marked` |
 | `net.command` | `command` | `result` |
+| `net.peers` | | `peers` (`id`, `addr`, `bucket`, `ubh`, `last_seen_ms`, `in_book`, `member`, `held`, `receivable`, `social`, `pending`), `count` |
+| `net.offers` | | `share` (`compute`, `storage`), `wants`, `outstanding` |
+| `player.card` | | `tier`, `metal`, `stone`, `inputs`, `next`, `perks` |
 | `peer.ask` | `peer` (IP or IP:PORT), `prompt`, `max_price_minor` | `answer`, `settlement`, `security` |
 | `peer.serve` | `price_minor`? (absent stops) | the `peer.status` object |
 | `peer.status` | | `serving`, `port`, `price_minor`, `wallet_minor`, `fees_paid_minor`, `buckets`, `sold`, `bought`, `refused`, `sessions`, `book_ok`, `history` |
@@ -85,7 +88,11 @@ CI checks it matches what zxvd serves.
 | `ledger.accounts` | | `accounts` |
 | `ledger.entries` | `account` | `entries` |
 | `ledger.check` | | `ok` |
-| `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles` |
+| `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles`, `resumed` |
+| `mesh.books` | | `currency`, `wallet_account`, `counterparty_account`, `fee_account`, `wallet_minor`, `fees_minor`, `sold`, `bought` |
+| `books.file` | | `saved`, `path`, `records`, `head`, `writable` |
+| `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect` |
+| `jurisdiction.set` | `market`?, `standard`?, `country`? | as `jurisdiction.get` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -117,6 +124,88 @@ owner's libzxv books, so they show up in a currency next to everything else.
 - `swarm.earnings` reports it; `ledger.balance` and `ledger.entries` on the
   owner account show the postings like any others.
 
+## The books file
+
+`--books PATH` saves the owner's books and reloads them at every start.
+`zxvd --desktop` uses it by default, and the Mac app passes it:
+
+| System | Default books file |
+|---|---|
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/zxv/books.zxvb` |
+| macOS | `~/Library/Application Support/ZXV/books.zxvb` |
+| Windows | `%LOCALAPPDATA%\ZXV\books.zxvb` |
+
+`--books -` keeps the books in memory, as plain `zxvd --rpc` does.
+
+- Every change (a currency, a private unit, an account, a posting) is one
+  line in an append-only file, mode 0600. Each line is a SHA-256 hash and a
+  small JSON record. The hash covers the previous line's hash, so an edited,
+  missing or reordered line breaks the chain.
+- A line is written and synced to disk before the call that made the change
+  answers.
+- At start the file is replayed through the same libzxv calls, and every
+  account and entry must get back its old number. A broken chain, an unknown
+  record or a number that differs stops zxvd from starting; nothing is
+  repaired silently. Move the file aside to start with empty books.
+- A line cut short by a crash was never answered, so it is dropped.
+- If a write fails, that change stays in memory for this run only, the call
+  answers `ZXV_E_IO`, and every later change is refused until zxvd restarts.
+- `books.file` shows the path, the number of records, the chain head and
+  whether the books still take changes.
+
+The earnings accounts come back with their balance (`resumed: true`). The
+swarm itself starts fresh each run, so the first settled cycle of a run is
+the base, and later cycles post only the change from it. The balance never
+goes below zero.
+
+## Mesh sales in your books
+
+Each peer request the node settles (`peer.ask`, or a sale while
+`peer.serve` is on) is posted to the owner's books in VFV:
+
+- The first one opens **mesh counterparties** (issuer), **owner: mesh
+  wallet** and **mesh: assurance fees paid** (holders).
+- A sale posts its price from the counterparties to the wallet. A purchase
+  posts the price to the counterparties and the 0.08889% fee to the fees
+  account.
+- References are `mesh sale T`, `mesh buy T`, `mesh fee T`, where T is the
+  first 16 hex digits of the signed invoice hash, so a request is never
+  posted twice.
+- The peer book starts from a demo float the owner's books never saw. When
+  a purchase needs more than the wallet account holds, the shortfall is
+  posted first as `mesh float T`.
+- `mesh.books` reports the three accounts, the wallet and fee balances, and
+  this run's counts.
+
+## Peers, offers and the Player Card
+
+These feed ZXV Studio's P2P Mesh, Storefront and Ledger pages.
+
+- `net.peers` lists the routing table's contacts. Each one answered a signed
+  message, so its NodeID is verified. A row also shows what the mesh book
+  holds for that peer and how many receipts are still outstanding with it.
+  The list is empty while networking is off.
+- `net.offers` shows what you share, your open wants, and the receipts
+  still waiting on the other side: a sell offer the buyer has not accepted,
+  or a purchase the seller has not committed.
+- `player.card` evaluates your tier with `sic_tier_eval` (`kernel/src/sicily`).
+  Credibility is your verified contributions from mesh trades. Bond, uptime
+  and giving have no source on the node yet; they are reported as 0 with
+  that reason, so the card shows Copper / Obsidian until they exist. The
+  next tier's thresholds and the missing inputs are listed. Tiers give no
+  priority, fee discount or credit.
+
+## The jurisdiction bridge
+
+`jurisdiction.set` records three settings in the books file: the market
+(`closed` clearing, the default, or the `open` batch-auction market), the
+accounting standard reports will follow (IFRS, US_GAAP, IPSAS, AAOIFI,
+OHADA, CAS, SAP_INSURER, or none yet) and an ISO 3166-1 country code. Each
+change is one record, written before it applies, so it survives a restart.
+`in_effect` is false: no report adapter or open market reads these settings
+yet. When the adapters exist they will follow each standard; they do not
+replace an accountant or a Shariah board.
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
@@ -134,10 +223,17 @@ installed .deb.
 - The swarm's books (the settlement spine, unit "SWC", never leaves the
   node) and the owner's libzxv books are separate ledgers in one process.
   Only the owner's total holdings cross over, once per cycle, at a fixed
-  rate. Mesh sales to peers are not posted yet, and the owner's earnings
-  account starts again at each start, because the books are not saved to
-  disk yet.
+  rate. Settled mesh requests are posted one by one. A payment the seller
+  refused is not a settled request and is not posted; the signed refusal is
+  the evidence for a dispute. The peer book itself (zxv_peer_host.h) still
+  lives in memory and starts again at each start; only its postings in the
+  owner's books are saved.
+- The books file is protected by its hash chain and its 0600 mode, not by a
+  signature or encryption: anyone who can write it as you can rebuild a
+  valid chain. Back it up like any other file of yours.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
+- There is no escrow in zxvd yet, so `ledger.holds` is not served and the
+  Studio's Escrow panel stays a placeholder.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS
   has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The

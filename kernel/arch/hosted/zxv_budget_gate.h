@@ -14,9 +14,15 @@
  *      called and ZXV_GATE_EXHAUSTED is returned; the caller says so in the
  *      reply. The next market cycle refills the allotment (swarm_budget.h R6:
  *      unspent tokens are not carried over).
+ *   B5 PROMPT. zxv_budget_gate_ex also charges the prompt's tokens (the
+ *      prefill), one budget token each, like a written token. They are paid
+ *      first: with no more left than the prompt costs, the generator is not
+ *      called (B4); otherwise max_new = min(requested, remaining - prompt),
+ *      and prompt + generated is charged after it returns. A failed
+ *      generation (negative) charges nothing, the prompt included.
  *
- * Prompt tokens (the prefill) are not charged: the budget counts tokens the
- * model writes. Single-threaded, like the rest of the host.
+ * zxv_budget_gate is zxv_budget_gate_ex with a prompt of 0 tokens.
+ * Single-threaded, like the rest of the host.
  */
 #ifndef ZXV_BUDGET_GATE_H
 #define ZXV_BUDGET_GATE_H
@@ -37,10 +43,11 @@ typedef int32_t (*zxv_gen_fn)(void *ctx, uint32_t max_new);
 
 typedef struct {
     uint64_t remaining_before; /* B1 */
+    uint64_t prompt;           /* B5: prompt tokens to charge */
     uint32_t requested;
     uint32_t max_new;   /* B2: what the generator was allowed */
     uint32_t generated; /* what it wrote */
-    uint64_t charged;   /* B3: what the budget took (== generated) */
+    uint64_t charged;   /* B3/B5: what the budget took (prompt + generated) */
     uint64_t remaining_after;
     bool exhausted; /* B4 */
 } zxv_gate_t;
@@ -50,5 +57,8 @@ typedef struct {
  * out may be NULL. */
 int32_t zxv_budget_gate(swarm_budget_t *b, uint32_t model_id, uint32_t requested, zxv_gen_fn fn,
                         void *ctx, zxv_gate_t *out);
+/* B5: the same, also charging prompt_tokens. */
+int32_t zxv_budget_gate_ex(swarm_budget_t *b, uint32_t model_id, uint64_t prompt_tokens,
+                           uint32_t requested, zxv_gen_fn fn, void *ctx, zxv_gate_t *out);
 
 #endif /* ZXV_BUDGET_GATE_H */

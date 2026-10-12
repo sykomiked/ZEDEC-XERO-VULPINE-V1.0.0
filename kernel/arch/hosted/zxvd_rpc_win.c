@@ -271,8 +271,10 @@ int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops)
         DeleteFileA(path); /* stale */
     }
     if (zxvd_rpc_books_open() != 0) {
-        fprintf(stderr, "zxvd: the books could not be opened (libzxv older than ABI 1.3, "
-                        "or the earnings currency was refused)\n");
+        fprintf(
+            stderr,
+            "zxvd: the books could not be opened (a books file problem above, libzxv older than "
+            "ABI 1.3, or the earnings currency was refused)\n");
         forget_me();
         return -1;
     }
