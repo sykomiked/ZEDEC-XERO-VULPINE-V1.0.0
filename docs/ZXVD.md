@@ -12,10 +12,14 @@
 | Remote inference between nodes over TCP, PQ session, fee settlement (off by default) | `zxv_peer_host.c`, `vna_session`, `pay` | `peer.*` |
 | Signed update checks, notifications | `zxv_update_host.c`, `zx_notify` | `update.check`, `notes.*` |
 | Owner's books: currencies, accounts, exact postings, invariants | **libzxv** through its frozen C ABI | `currency.*`, `ledger.*` |
+| AIPI: functions by CID, run in the Z-Wasm sandbox under their contract (offline node) | `kernel/src/aipi`, `sdk/kits/aipi`, `zxvd_aipi.c` | `aipi.*` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
 
-It is `zxv_host.c` built with `-DZXVD`, plus `zxvd_rpc.c`, linked against
-`libzxv.so` / `libzxv.dylib`. The desktop app (`zxv-host`) is unchanged.
+It is `zxv_host.c` built with `-DZXVD`, plus `zxvd_rpc.c` and `zxvd_aipi.c`
+(with the Z-Wasm and Z-Contract libraries from `sdk/kits/aipi`), linked
+against `libzxv.so` / `libzxv.dylib`. The Windows build leaves AIPI out for
+now, and `ZXVD_AIPI=0` leaves it out anywhere; its `aipi.*` methods then
+answer -32601. The desktop app (`zxv-host`) is unchanged.
 
 ## Build and run
 
@@ -93,10 +97,17 @@ CI checks it matches what zxvd serves.
 | `books.file` | | `saved`, `path`, `records`, `head`, `writable` |
 | `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect`, `plugins`, `report_standard` |
 | `jurisdiction.set` | `market`?, `standard`?, `country`? | as `jurisdiction.get` |
+| `aipi.put` | `hex` or `path`, `private`? | `cid`, `bytes`, `private` |
+| `aipi.get` | `cid` | `cid`, `bytes`, `hex`, `tag` |
+| `aipi.publish` | `module`, `contract`?, `entry`, `checker`?, `certifier`?, `verify`, `fuel_max`, `local_only`?, `deterministic`? | `function`, `local_only` |
+| `aipi.execute` | `function`, `args` (up to 8 integers), `private`? | `function`, `call`, `route`, `result`, `output_hex`, `tag` |
+| `aipi.status` | | `online`, `blocks`, `store_bytes`, `store_cap`, counts, `sandbox` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
-(the message says why: price, funds, handshake, signature, connect), -32000 a
+(the message says why: price, funds, handshake, signature, connect), -32011
+an AIPI call refused or failed (the `AIPI_ERR_*` name and what it means),
+-32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
@@ -212,11 +223,45 @@ otherwise empty. No payment path asks the host yet. The adapters are designed
 to follow each standard; they do not replace an accountant or a Shariah
 board.
 
+## Functions by CID (AIPI)
+
+zxvd holds one AIPI node ([AIPI.md](AIPI.md)): a blockstore of content-addressed
+blocks and the Z-Wasm sandbox that runs functions out of it.
+
+```sh
+call() { printf '%s\n' "$1" | nc -U "$HOME/.zxv/run/zxvd.sock"; }
+call '{"jsonrpc":"2.0","id":1,"method":"aipi.put","params":{"path":"half.wasm"}}'
+call '{"jsonrpc":"2.0","id":2,"method":"aipi.publish","params":{"module":"zb2rh...","entry":"half","checker":"half_ok","verify":"checker","fuel_max":100000}}'
+call '{"jsonrpc":"2.0","id":3,"method":"aipi.execute","params":{"function":"zb2rh...","args":[2026]}}'
+# {"route":"local","result":"1013",...}; the same call again answers with "route":"cache"
+```
+
+- The node is offline (rule A3): a call runs here from the blockstore, or
+  fails with `AIPI_ERR_OFFLINE`. Nothing is broadcast and no bounty is
+  reserved, so `verify` only matters once the mesh is bound.
+- Arguments and result follow the Z-Wasm call ABI: up to 8 signed 64-bit
+  integers in, one out (`result`, a decimal string; `output_hex` is the raw
+  bytes).
+- Every module goes through the Z-Wasm validator (no floats, no SIMD,
+  bounded memory) and every run gets the function's `fuel_max`, under one
+  compute budget for the process: a loop fails with `AIPI_ERR_EXEC`, it never
+  stalls the swarm. A contract, when the descriptor names one, is enforced on
+  every argument and result.
+- `private: true` on `aipi.put` seals the block at rest with a key zxvd draws
+  at start; on `aipi.execute` it keeps the input out of the memo.
+  `local_only: true` on `aipi.publish` makes the function itself private.
+- The blockstore is 32 MiB in memory and is lost when zxvd stops.
+  `aipi.get` returns blocks up to 64 KiB; `aipi.put` takes 8000 bytes as hex
+  in one request line, or a file up to 1 MiB by `path`.
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
 stub host and the real libzxv (exact replies, every error, the socket); it is
-the mutation harness's test for `zxvd_rpc.c`. `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
+the mutation harness's test for `zxvd_rpc.c`. `kernel/arch/hosted/test_zxvd_aipi.sh`
+runs `zxvd_aipi.c` behind the RPC layer on the real AIPI core and the Z-Wasm
+sandbox (exact replies, every refusal); it is the harness's test for
+`zxvd_aipi.c`. `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
 with the tokenizer test model, and once with the real Qwen2.5-1.5B-Instruct
@@ -237,6 +282,9 @@ installed .deb.
 - The books file is protected by its hash chain and its 0600 mode, not by a
   signature or encryption: anyone who can write it as you can rebuild a
   valid chain. Back it up like any other file of yours.
+- AIPI runs on this node only: calls by CID over Vinea, bounties and claims
+  (docs/AIPI.md next steps 1-2) are not wired yet, the blockstore is not
+  saved to disk, and the Windows build has no `aipi.*` yet.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
 - There is no escrow in zxvd yet, so `ledger.holds` is not served and the
   Studio's Escrow panel stays a placeholder.

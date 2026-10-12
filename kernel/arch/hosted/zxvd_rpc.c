@@ -32,6 +32,7 @@
 #include "zxvd_rpc.h"
 #include "sha256.h"    /* the books file's hash chain */
 #include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
+#include "web4_util.h" /* hex */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
 #include "juris.h"     /* J5: the jurisdiction host (kernel/src/juris) */
 
@@ -1018,6 +1019,120 @@ static void m_peer_status(call_t *c)
     PEER->status(c->res);
 }
 
+/* ----- aipi.* (zxvd_aipi.c) ----- */
+
+static const zxvd_aipi_ops_t *AIPI;
+
+void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops)
+{
+    AIPI = ops;
+}
+
+/* an optional boolean; absent = def */
+static bool p_bool(call_t *c, const char *key, bool def, bool *v)
+{
+    int32_t i = param(c, key);
+    *v = def;
+    if (i < 0) return true;
+    if (w4_json_bool(&c->t[i], v) != W4_OK) {
+        fail(c, E_PARAMS, "\"%s\" must be true or false", key);
+        return false;
+    }
+    return true;
+}
+
+static bool aipi_done(call_t *c, const char *why)
+{
+    if (!why) return true;
+    c->res->len = 0;
+    fail(c, ZXVD_E_AIPI, "%s", why);
+    return false;
+}
+
+static void m_aipi_put(call_t *c)
+{
+    static char hex[2u * ZXVD_AIPI_HEX_MAX + 1u];
+    static uint8_t data[ZXVD_AIPI_HEX_MAX];
+    char path[1024];
+    bool priv;
+    if (!AIPI || !AIPI->put) return fail(c, E_METHOD, "not available");
+    bool has_hex = param(c, "hex") >= 0, has_path = param(c, "path") >= 0;
+    if (has_hex == has_path) return fail(c, E_PARAMS, "give exactly one of \"hex\" and \"path\"");
+    if (!p_bool(c, "private", false, &priv)) return;
+    if (has_path) {
+        if (!p_str(c, "path", path, sizeof path, true)) return;
+        if (!path[0]) return fail(c, E_PARAMS, "\"path\" must not be empty");
+        (void) aipi_done(c, AIPI->put(NULL, 0, path, priv, c->res));
+        return;
+    }
+    if (!p_str(c, "hex", hex, sizeof hex, true)) return;
+    int32_t n = w4_hex_decode(hex, (uint32_t) strlen(hex), data, sizeof data);
+    if (n < 0) return fail(c, E_PARAMS, "\"hex\" must be an even number of hex digits");
+    (void) aipi_done(c, AIPI->put(data, (uint32_t) n, NULL, priv, c->res));
+}
+
+static void m_aipi_get(call_t *c)
+{
+    char cid[128];
+    if (!AIPI || !AIPI->get) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "cid", cid, sizeof cid, true)) return;
+    (void) aipi_done(c, AIPI->get(cid, c->res));
+}
+
+static void m_aipi_publish(call_t *c)
+{
+    static const char *const VERIFY[] = {"checker", "cert", "quorum", "local"};
+    zxvd_aipi_fn_t fn;
+    char verify[16];
+    uint32_t i;
+    memset(&fn, 0, sizeof fn);
+    if (!AIPI || !AIPI->publish) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "module", fn.module, sizeof fn.module, true) ||
+        !p_str(c, "contract", fn.contract, sizeof fn.contract, false) ||
+        !p_str(c, "entry", fn.entry, sizeof fn.entry, true) ||
+        !p_str(c, "checker", fn.checker, sizeof fn.checker, false) ||
+        !p_str(c, "certifier", fn.certifier, sizeof fn.certifier, false) ||
+        !p_str(c, "verify", verify, sizeof verify, true) ||
+        !p_bool(c, "local_only", false, &fn.local_only) ||
+        !p_bool(c, "deterministic", true, &fn.deterministic))
+        return;
+    for (i = 0; i < 4u && strcmp(verify, VERIFY[i]) != 0; i++) {
+    }
+    if (i == 4u)
+        return fail(c, E_PARAMS,
+                    "\"verify\" must be \"checker\", \"cert\", \"quorum\" or \"local\"");
+    fn.verify = (uint8_t) (i + 1u); /* AIPI_VERIFY_CHECKER .. AIPI_VERIFY_LOCAL */
+    if (!p_price(c, "fuel_max", &fn.fuel_max)) return;
+    (void) aipi_done(c, AIPI->publish(&fn, c->res));
+}
+
+static void m_aipi_execute(call_t *c)
+{
+    char fnc[128];
+    int64_t args[ZXVD_AIPI_ARGS_MAX];
+    bool priv;
+    if (!AIPI || !AIPI->execute) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "function", fnc, sizeof fnc, true) || !p_bool(c, "private", false, &priv)) return;
+    int32_t a = param(c, "args");
+    if (a < 0 || c->t[a].type != W4_J_ARR || c->t[a].size > ZXVD_AIPI_ARGS_MAX)
+        return fail(c, E_PARAMS, "\"args\" must be an array of at most %u integers",
+                    ZXVD_AIPI_ARGS_MAX);
+    uint32_t n = c->t[a].size;
+    for (uint32_t k = 0; k < n; k++) {
+        int32_t e = w4_json_at(c->t, c->n, a, k);
+        if (e < 0 || c->t[e].type != W4_J_NUM || w4_json_i64(c->js, &c->t[e], &args[k]) != W4_OK)
+            return fail(c, E_PARAMS,
+                        "\"args\" must hold 64-bit integers (no fraction or exponent)");
+    }
+    (void) aipi_done(c, AIPI->execute(fnc, args, n, priv, c->res));
+}
+
+static void m_aipi_status(call_t *c)
+{
+    if (!AIPI || !AIPI->status) return fail(c, E_METHOD, "not available");
+    AIPI->status(c->res);
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -1312,6 +1427,11 @@ static const method_t METHODS[] = {
     {"books.file", m_books},
     {"jurisdiction.get", m_juris_get},
     {"jurisdiction.set", m_juris_set},
+    {"aipi.put", m_aipi_put},
+    {"aipi.get", m_aipi_get},
+    {"aipi.publish", m_aipi_publish},
+    {"aipi.execute", m_aipi_execute},
+    {"aipi.status", m_aipi_status},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 

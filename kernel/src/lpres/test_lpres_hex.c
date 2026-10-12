@@ -244,8 +244,9 @@ static void test_combine(void)
             comm &= n == lpx_and(y, x) && o == lpx_or(y, x);
             /* De Morgan on the base. lpres's tables break it for the pair
              * {Both, Neither} (Both AND Neither = Neither, Both OR Neither =
-             * Both); the owner decides whether lpres moves to Belnap's tables
-             * (False / True there). Every other pair must satisfy it. */
+             * Both). This is deliberate (owner decision 2026-10-12): with
+             * Belnap's tables (False / True there) a contradiction plus a gap
+             * could authorise. Every other pair must satisfy it. */
             bool bn = (lpx_base(x) == LPX_B_BOTH && lpx_base(y) == LPX_B_NEITHER) ||
                       (lpx_base(x) == LPX_B_NEITHER && lpx_base(y) == LPX_B_BOTH);
             if (!bn) dm &= lpx_base(lpx_not(n)) == lpx_base(lpx_or(lpx_not(x), lpx_not(y)));

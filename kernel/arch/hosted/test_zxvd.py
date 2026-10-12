@@ -171,6 +171,74 @@ def wait_line(proc, prefix, secs=20):
     return None
 
 
+# sdk/kits/aipi/test/aipi_mods.h, assembled: half(n) = n / 2, its inverse
+# half_ok(n, r), and spin(n), a loop that only fuel stops; and "floaty",
+# half(n) through an f64 that the Z-Wasm validator refuses.
+HALVES = ('0061736d01000000010c0260017e017e60027e7e017f0304030001000719030468616c66000007'
+          '68616c665f6f6b0001047370696e00020a2a030700200042027f0b1600200142027e2000512001'
+          '42027e42017c200051720b090003400c000b42000b')
+FLOATY = '0061736d0100000001060160017e017e030201000708010468616c6600000a080106002000b9b00b'
+HALVES_ZC = 'fn half(n: int[0..1000000]) -> int[0..500000];\n'
+
+
+def aipi_checks(c, home):
+    def err(method, params):
+        r = c.call(method, params)
+        return r.get('error', {})
+
+    st0 = c.ok('aipi.status')
+    check(st0['online'] is False and st0['blocks'] == 0 and st0['store_cap'] == 32 << 20,
+          'aipi.status: offline node, empty in-memory blockstore')
+    mod = c.ok('aipi.put', {'hex': HALVES})
+    check(mod['bytes'] == len(HALVES) // 2 and mod['cid'].startswith('z') and
+          mod['private'] is False, 'aipi.put stores the Wasm module by CID (%s)' % mod['cid'])
+    path = os.path.join(home, 'halves.zc')
+    with open(path, 'w') as f:
+        f.write(HALVES_ZC)
+    con = c.ok('aipi.put', {'path': path})
+    check(con['bytes'] == len(HALVES_ZC), 'aipi.put reads the contract from a file')
+    g = c.ok('aipi.get', {'cid': mod['cid']})
+    check(g['hex'] == HALVES and g['tag']['base'] == 'true',
+          'aipi.get returns the verified bytes and a TRUE tag')
+    check(err('aipi.put', {'hex': 'abc'}).get('code') == -32602 and
+          err('aipi.put', {'hex': HALVES, 'path': path}).get('code') == -32602 and
+          err('aipi.put', {'path': os.path.join(home, 'missing')}).get('code') == -32011,
+          'aipi.put refuses odd hex, both sources at once and a missing file')
+    fn = c.ok('aipi.publish', {'module': mod['cid'], 'contract': con['cid'], 'entry': 'half',
+                               'checker': 'half_ok', 'verify': 'checker', 'fuel_max': 100000})
+    check(fn['function'].startswith('z') and fn['local_only'] is False,
+          'aipi.publish returns the function CID')
+    x = c.ok('aipi.execute', {'function': fn['function'], 'args': [2026]})
+    check(x['result'] == '1013' and x['route'] == 'local' and x['tag']['phase'] == 'manifest',
+          'aipi.execute: half(2026) = 1013, run here and verified (%s)' % x['tag'])
+    y = c.ok('aipi.execute', {'function': fn['function'], 'args': [2026]})
+    check(y['result'] == '1013' and y['route'] == 'cache' and y['call'] == x['call'],
+          'the same call is answered from the memo of verified results')
+    e = err('aipi.execute', {'function': fn['function'], 'args': [2000001]})
+    check(e.get('code') == -32011, 'the contract refuses an argument outside its range (%s)' % e)
+    e = err('aipi.execute', {'function': fn['function'], 'args': [1.5]})
+    check(e.get('code') == -32602, 'a fractional argument is refused, never rounded')
+    spin = c.ok('aipi.publish', {'module': mod['cid'], 'entry': 'spin', 'verify': 'local',
+                                 'fuel_max': 5000, 'local_only': True})
+    e = err('aipi.execute', {'function': spin['function'], 'args': [1]})
+    check(e.get('code') == -32011 and spin['local_only'] is True,
+          'a loop runs out of fuel and fails, the swarm loop keeps going (%s)' % e.get('message'))
+    fl = c.ok('aipi.put', {'hex': FLOATY})
+    ff = c.ok('aipi.publish', {'module': fl['cid'], 'entry': 'half', 'verify': 'local',
+                               'fuel_max': 1000})
+    e = err('aipi.execute', {'function': ff['function'], 'args': [4]})
+    check(e.get('code') == -32011, 'a module with floats is refused by the validator')
+    check(err('aipi.publish', {'module': mod['cid'], 'entry': 'half', 'verify': 'checker',
+                               'fuel_max': 10}).get('code') == -32011 and
+          err('aipi.get', {'cid': 'not-a-cid'}).get('code') == -32011,
+          'a checker mode without a checker, and a bad CID, are refused')
+    st = c.ok('aipi.status')
+    check(st['calls'] == 5 and st['failed'] == 3 and st['blocks'] >= 5 and
+          st['sandbox']['trapped'] >= 1 and st['sandbox']['refused_module'] >= 1 and
+          int(st['sandbox']['fuel_used']) > 0,
+          'aipi.status counts the calls, failures and sandbox refusals (%s)' % st)
+
+
 def main(binary, gguf=None):
     out = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=10)
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
@@ -235,6 +303,8 @@ def main(binary, gguf=None):
                 'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings',
                 'mesh.books', 'books.file', 'net.peers', 'net.offers', 'player.card',
                 'jurisdiction.get', 'jurisdiction.set'}
+        if not WINDOWS:
+            want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
               'rpc.discover lists every method')
         v = c.ok('zxvd.version')
@@ -275,6 +345,12 @@ def main(binary, gguf=None):
               all(e['counterparty'] == ea['source_account'] for e in oj) and
               [e['reference'] for e in oj][:2] == ['swarm earnings 1', 'swarm earnings 2'][:len(oj)],
               'the owner\'s VFV journal is the market\'s postings (%d entries)' % len(oj))
+        # ---- AIPI on Z-Wasm (zxvd_aipi.h Z1-Z4); not in the Windows build yet ----
+        if WINDOWS:
+            r = c.call('aipi.status')
+            check(r.get('error', {}).get('code') == -32601, 'aipi.*: not available on Windows')
+        else:
+            aipi_checks(c, home)
         mi = c.ok('model.info')
         if gguf:
             check(mi['loaded'] and mi['arch'] == 'qwen2' and mi['n_vocab'] > 1000,

@@ -135,6 +135,64 @@ static void p_status(zxvd_buf_t *o)
 static const zxvd_peer_ops_t PEER_STUB = {p_ask, p_serve, p_status};
 static const zxvd_peer_ops_t PEER_NONE = {0};
 
+/* aipi.* stubs (zxvd_aipi_ops_t) */
+static uint8_t put_data[ZXVD_AIPI_HEX_MAX + 1];
+static uint32_t put_len;
+static char put_path[1100], get_cid[200], exec_fn[200];
+static bool put_priv, put_had_data, exec_priv;
+static zxvd_aipi_fn_t pub_fn;
+static int64_t exec_args[ZXVD_AIPI_ARGS_MAX + 1];
+static uint32_t exec_n;
+static int aipi_calls;
+static const char *a_put(const uint8_t *data, uint32_t len, const char *path, bool priv,
+                         zxvd_buf_t *o)
+{
+    aipi_calls++;
+    put_had_data = data != NULL;
+    put_len = len;
+    if (data) memcpy(put_data, data, len);
+    snprintf(put_path, sizeof put_path, "%s", path ? path : "<null>");
+    put_priv = priv;
+    if (path && !strcmp(path, "/fail")) {
+        zxvd_buf_raw(o, "{\"partial\":", 11); /* must be discarded */
+        return "the file could not be opened";
+    }
+    zxvd_buf_printf(o, "{\"bytes\":%u}", (unsigned) len);
+    return NULL;
+}
+static const char *a_get(const char *cid, zxvd_buf_t *o)
+{
+    aipi_calls++;
+    snprintf(get_cid, sizeof get_cid, "%s", cid);
+    zxvd_buf_raw(o, "{\"hex\":\"\"}", 10);
+    return NULL;
+}
+static const char *a_publish(const zxvd_aipi_fn_t *fn, zxvd_buf_t *o)
+{
+    aipi_calls++;
+    pub_fn = *fn;
+    zxvd_buf_raw(o, "{\"function\":\"zF\"}", 17);
+    return NULL;
+}
+static const char *a_execute(const char *fn, const int64_t *args, uint32_t n, bool priv,
+                             zxvd_buf_t *o)
+{
+    aipi_calls++;
+    snprintf(exec_fn, sizeof exec_fn, "%s", fn);
+    memcpy(exec_args, args, n * sizeof *args);
+    exec_n = n;
+    exec_priv = priv;
+    if (n == 1 && args[0] == 13) return "AIPI_ERR_EXEC: the sandbox refused or stopped the run";
+    zxvd_buf_raw(o, "{\"result\":\"1\"}", 14);
+    return NULL;
+}
+static void a_status(zxvd_buf_t *o)
+{
+    zxvd_buf_raw(o, "{\"online\":false}", 16);
+}
+static const zxvd_aipi_ops_t AIPI_STUB = {a_put, a_get, a_publish, a_execute, a_status};
+static const zxvd_aipi_ops_t AIPI_NONE = {0};
+
 /* ---------------- helpers ---------------- */
 
 static zxvd_buf_t OUT;
@@ -384,7 +442,8 @@ static void test_host_methods(void)
               "\"update.check\",\"currency.enable\","
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
               "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
-              "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\"]}"));
+              "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
+              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -1849,6 +1908,191 @@ static void test_peer_methods(void)
     zxvd_rpc_set_peer_ops(NULL);
 }
 
+/* ---------------- aipi.* ---------------- */
+
+static void test_aipi_methods(void)
+{
+    static const char *const M[] = {"aipi.put", "aipi.get", "aipi.publish", "aipi.execute",
+                                    "aipi.status"};
+    char req[256], want[256];
+    for (int pass = 0; pass < 2; pass++) {
+        zxvd_rpc_set_aipi_ops(pass ? &AIPI_NONE : NULL);
+        for (unsigned i = 0; i < 5; i++) {
+            snprintf(req, sizeof req, REQ("1", "%s", ""), M[i]);
+            EXPECT(req, ERR("1", "-32601", "not available"));
+        }
+    }
+    zxvd_rpc_set_aipi_ops(&AIPI_STUB);
+    EXPECT(REQ("2", "aipi.status", ""), OK("2", "{\"online\":false}"));
+
+    /* aipi.put */
+    EXPECT(REQ("3", "aipi.put", ",\"params\":{\"hex\":\"00Ff7a\"}"), OK("3", "{\"bytes\":3}"));
+    CHECK(put_had_data && put_len == 3 && put_data[0] == 0 && put_data[1] == 0xFF &&
+              put_data[2] == 0x7A && !put_priv && !strcmp(put_path, "<null>"),
+          "aipi.put decodes hex and passes it with no path, public by default");
+    EXPECT(REQ("3", "aipi.put", ",\"params\":{\"hex\":\"\",\"private\":true}"),
+           OK("3", "{\"bytes\":0}"));
+    CHECK(put_had_data && put_len == 0 && put_priv, "an empty block, private");
+    EXPECT(REQ("3", "aipi.put", ",\"params\":{\"path\":\"/tmp/m.wasm\",\"private\":false}"),
+           OK("3", "{\"bytes\":0}"));
+    CHECK(!put_had_data && !strcmp(put_path, "/tmp/m.wasm") && !put_priv,
+          "aipi.put passes a path and no data");
+    EXPECT(REQ("3", "aipi.put", ",\"params\":{\"path\":\"/fail\"}"),
+           ERR("3", "-32011", "the file could not be opened"));
+    int n = aipi_calls;
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{}"),
+           ERR("4", "-32602", "give exactly one of \\\"hex\\\" and \\\"path\\\""));
+    EXPECT(REQ("4", "aipi.put", ""),
+           ERR("4", "-32602", "give exactly one of \\\"hex\\\" and \\\"path\\\""));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"hex\":\"00\",\"path\":\"/x\"}"),
+           ERR("4", "-32602", "give exactly one of \\\"hex\\\" and \\\"path\\\""));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"hex\":\"0\"}"),
+           ERR("4", "-32602", "\\\"hex\\\" must be an even number of hex digits"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"hex\":\"0g\"}"),
+           ERR("4", "-32602", "\\\"hex\\\" must be an even number of hex digits"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"path\":\"\"}"),
+           ERR("4", "-32602", "\\\"path\\\" must not be empty"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"path\":7}"),
+           ERR("4", "-32602", "\\\"path\\\" must be a string of at most 1023 bytes"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"hex\":\"00\",\"private\":1}"),
+           ERR("4", "-32602", "\\\"private\\\" must be true or false"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"path\":\"/x\",\"private\":\"yes\"}"),
+           ERR("4", "-32602", "\\\"private\\\" must be true or false"));
+    CHECK(aipi_calls == n, "bad aipi.put params never reach the host");
+    /* ZXVD_AIPI_HEX_MAX bytes fit in one request line, one more does not */
+    static char big[2 * ZXVD_AIPI_HEX_MAX + 200];
+    int k =
+        snprintf(big, sizeof big,
+                 "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"aipi.put\",\"params\":{\"hex\":\"");
+    memset(big + k, 'a', 2 * ZXVD_AIPI_HEX_MAX);
+    strcpy(big + k + 2 * ZXVD_AIPI_HEX_MAX, "\"}}");
+    CHECK(has(big, "\"result\"") && put_len == ZXVD_AIPI_HEX_MAX && put_data[0] == 0xAA &&
+              put_data[ZXVD_AIPI_HEX_MAX - 1] == 0xAA,
+          "aipi.put takes %u bytes of hex", ZXVD_AIPI_HEX_MAX);
+    memset(big + k, 'a', 2 * ZXVD_AIPI_HEX_MAX + 2);
+    strcpy(big + k + 2 * ZXVD_AIPI_HEX_MAX + 2, "\"}}");
+    CHECK(has(big, "\\\"hex\\\" must be a string of at most 16000 bytes"),
+          "one byte more is refused");
+
+    /* aipi.get */
+    EXPECT(REQ("6", "aipi.get", ",\"params\":{\"cid\":\"zb2rh\"}"), OK("6", "{\"hex\":\"\"}"));
+    CHECK(!strcmp(get_cid, "zb2rh"), "aipi.get passes the CID");
+    EXPECT(REQ("6", "aipi.get", ",\"params\":{}"),
+           ERR("6", "-32602", "missing string parameter \\\"cid\\\""));
+
+    /* aipi.publish */
+    EXPECT(REQ("7", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"contract\":\"zC\",\"entry\":\"half\","
+               "\"checker\":\"half_ok\",\"certifier\":\"cf\",\"verify\":\"cert\",\"fuel_max\":"
+               "\"18446744073709551615\",\"local_only\":true,\"deterministic\":false}"),
+           ERR("7", "-32602",
+               "\\\"fuel_max\\\" must be an integer or a decimal string (no fraction or "
+               "exponent)"));
+    EXPECT(REQ("7", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"contract\":\"zC\",\"entry\":\"half\","
+               "\"checker\":\"half_ok\",\"certifier\":\"cf\",\"verify\":\"cert\",\"fuel_max\":"
+               "\"9223372036854775807\",\"local_only\":true,\"deterministic\":false}"),
+           OK("7", "{\"function\":\"zF\"}"));
+    CHECK(!strcmp(pub_fn.module, "zM") && !strcmp(pub_fn.contract, "zC") &&
+              !strcmp(pub_fn.entry, "half") && !strcmp(pub_fn.checker, "half_ok") &&
+              !strcmp(pub_fn.certifier, "cf") && pub_fn.verify == 2 && pub_fn.local_only &&
+              !pub_fn.deterministic && pub_fn.fuel_max == 9223372036854775807ull,
+          "aipi.publish passes every field");
+    static const char *const V[] = {"checker", "cert", "quorum", "local"};
+    for (unsigned i = 0; i < 4; i++) {
+        snprintf(req, sizeof req,
+                 REQ("8", "aipi.publish",
+                     ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"%s\","
+                     "\"fuel_max\":5}"),
+                 V[i]);
+        EXPECT(req, OK("8", "{\"function\":\"zF\"}"));
+        CHECK(pub_fn.verify == i + 1 && pub_fn.fuel_max == 5 && !pub_fn.local_only &&
+                  pub_fn.deterministic && !pub_fn.contract[0] && !pub_fn.checker[0] &&
+                  !pub_fn.certifier[0],
+              "verify \"%s\" is mode %u, with the defaults", V[i], i + 1);
+    }
+    n = aipi_calls;
+    snprintf(want, sizeof want, "%s",
+             ERR("9", "-32602",
+                 "\\\"verify\\\" must be \\\"checker\\\", \\\"cert\\\", \\\"quorum\\\" or "
+                 "\\\"local\\\""));
+    EXPECT(
+        REQ("9", "aipi.publish",
+            ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"none\",\"fuel_max\":5}"),
+        want);
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"\",\"fuel_max\":5}"),
+           want);
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\","
+               "\"fuel_max\":-1}"),
+           ERR("9", "-32602", "\\\"fuel_max\\\" must not be negative"));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\"}"),
+           ERR("9", "-32602", "missing integer parameter \\\"fuel_max\\\""));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1}"),
+           ERR("9", "-32602", "missing string parameter \\\"module\\\""));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"verify\":\"local\",\"fuel_max\":1}"),
+           ERR("9", "-32602", "missing string parameter \\\"entry\\\""));
+    EXPECT(
+        REQ("9", "aipi.publish", ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"fuel_max\":1}"),
+        ERR("9", "-32602", "missing string parameter \\\"verify\\\""));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1,"
+               "\"deterministic\":0}"),
+           ERR("9", "-32602", "\\\"deterministic\\\" must be true or false"));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1,"
+               "\"local_only\":null}"),
+           ERR("9", "-32602", "\\\"local_only\\\" must be true or false"));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1,"
+               "\"checker\":5}"),
+           ERR("9", "-32602", "\\\"checker\\\" must be a string of at most 63 bytes"));
+    CHECK(aipi_calls == n, "bad aipi.publish params never reach the host");
+
+    /* aipi.execute */
+    EXPECT(REQ("10", "aipi.execute",
+               ",\"params\":{\"function\":\"zF\",\"args\":[1,-2,9223372036854775807,"
+               "-9223372036854775808,5,6,7,8]}"),
+           OK("10", "{\"result\":\"1\"}"));
+    CHECK(!strcmp(exec_fn, "zF") && exec_n == 8 && exec_args[0] == 1 && exec_args[1] == -2 &&
+              exec_args[2] == INT64_MAX && exec_args[3] == INT64_MIN && exec_args[7] == 8 &&
+              !exec_priv,
+          "aipi.execute passes up to 8 integers, public by default");
+    EXPECT(
+        REQ("10", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[],\"private\":true}"),
+        OK("10", "{\"result\":\"1\"}"));
+    CHECK(exec_n == 0 && exec_priv, "no arguments, private input");
+    EXPECT(REQ("10", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[13]}"),
+           ERR("10", "-32011", "AIPI_ERR_EXEC: the sandbox refused or stopped the run"));
+    n = aipi_calls;
+    snprintf(want, sizeof want, "%s",
+             ERR("11", "-32602", "\\\"args\\\" must be an array of at most 8 integers"));
+    EXPECT(
+        REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[1,2,3,4,5,6,7,8,9]}"),
+        want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\"}"), want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":5}"), want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":{\"a\":1}}"), want);
+    snprintf(
+        want, sizeof want, "%s",
+        ERR("11", "-32602", "\\\"args\\\" must hold 64-bit integers (no fraction or exponent)"));
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[1,1.5]}"), want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[\"1\"]}"), want);
+    EXPECT(REQ("11", "aipi.execute",
+               ",\"params\":{\"function\":\"zF\",\"args\":[9223372036854775808]}"),
+           want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"args\":[]}"),
+           ERR("11", "-32602", "missing string parameter \\\"function\\\""));
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[],\"private\":2}"),
+           ERR("11", "-32602", "\\\"private\\\" must be true or false"));
+    CHECK(aipi_calls == n, "bad aipi.execute params never reach the host");
+    zxvd_rpc_set_aipi_ops(NULL);
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -1856,6 +2100,7 @@ int main(void)
     test_protocol();
     test_host_methods();
     test_peer_methods();
+    test_aipi_methods();
     test_books_closed();
     test_books();
     test_earnings();
