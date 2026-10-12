@@ -8,10 +8,9 @@ static void cpy(uint8_t *d, const uint8_t *s, uint32_t n) {
 static void zero(uint8_t *d, uint32_t n) { for (uint32_t i = 0; i < n; i++) d[i] = 0; }
 static uint32_t slen(const char *s) { uint32_t n = 0; while (s[n]) n++; return n; }
 
-/* We only have a one-shot SHA-256, so HMAC concatenates into a scratch
- * buffer. The message TLS ever feeds HMAC here is a transcript hash or a
- * short label expansion, never bulk data, so a bounded buffer is honest
- * rather than limiting — but it IS a bound, so it is checked. */
+/* HKDF-Expand still builds T(i) in a bounded scratch block (info is a
+ * short label, checked below). HMAC itself streams, so any message length
+ * gives the real MAC (an earlier version returned all zeros past 512 bytes). */
 #define HMAC_SCRATCH 512u
 
 void hmac_sha256(const uint8_t *key, uint32_t key_len,
@@ -32,17 +31,21 @@ void hmac_sha256(const uint8_t *key, uint32_t key_len,
         opad[i] = (uint8_t)(k[i] ^ 0x5C);
     }
 
-    uint8_t buf[HMAC_BLOCK_LEN + HMAC_SCRATCH];
-    if (msg_len > HMAC_SCRATCH) { zero(out, HASH_LEN); return; }
-    cpy(buf, ipad, HMAC_BLOCK_LEN);
-    if (msg && msg_len) cpy(buf + HMAC_BLOCK_LEN, msg, msg_len);
+    sha256_ctx_t c;
     uint8_t inner[HASH_LEN];
-    sha256(buf, HMAC_BLOCK_LEN + msg_len, inner);
+    sha256_init(&c);
+    sha256_update(&c, ipad, HMAC_BLOCK_LEN);
+    if (msg && msg_len) sha256_update(&c, msg, msg_len);
+    sha256_final(&c, inner);
 
-    uint8_t buf2[HMAC_BLOCK_LEN + HASH_LEN];
-    cpy(buf2, opad, HMAC_BLOCK_LEN);
-    cpy(buf2 + HMAC_BLOCK_LEN, inner, HASH_LEN);
-    sha256(buf2, HMAC_BLOCK_LEN + HASH_LEN, out);
+    sha256_init(&c);
+    sha256_update(&c, opad, HMAC_BLOCK_LEN);
+    sha256_update(&c, inner, HASH_LEN);
+    sha256_final(&c, out);
+    zero(k, HMAC_BLOCK_LEN);
+    zero(ipad, HMAC_BLOCK_LEN);
+    zero(opad, HMAC_BLOCK_LEN);
+    zero(inner, HASH_LEN);
 }
 
 void hkdf_extract(const uint8_t *salt, uint32_t salt_len,
