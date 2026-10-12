@@ -1108,6 +1108,12 @@ verify-all: test
 		src/robin_debanks/sha256.c \
 		-o /tmp/test_zui && \
 		/tmp/test_zui && echo "[PASS] test_zui" || { echo "[FAIL] test_zui"; exit 1; }; \
+	echo "=== zui: widgets, input, menus, Ask palette, framebuffer present ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
+		src/zui/test_zui_widget.c src/zui/zui_widget.c src/zui/zui_input.c src/zui/zui_present_fb.c \
+		src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_widget && \
+		/tmp/test_zui_widget && echo "[PASS] test_zui_widget" || { echo "[FAIL] test_zui_widget"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \

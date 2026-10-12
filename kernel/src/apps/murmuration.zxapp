@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Murmuration, the swarm dashboard. The screen and the zxvd link are C; the
+# numbers it shows about the cycle are KRON (exact, never rounded up).
+zxapp 1
+id     murmuration
+name   Murmuration
+view   zui/views/murmuration.c
+model  apps/murmuration_model.c
+# Each agent's share of this cycle's tokens, per mille. t is each agent's
+# allotment, re + mk + im (murmuration_model.h A1).
+logic  kron cycle_share apps/murmuration/cycle_share.kron
+# The (up to) three agents with the most tokens this cycle, as indexes.
+logic  kron busiest apps/murmuration/busiest.kron
