@@ -32,6 +32,7 @@ merged, and every night on `main`.
    | anything else (kernel, tests, fuzz, bench, build_system, packages, `bindings/*.c`) | every job |
    | `.github/workflows/ci.yml` or `ci_changes.sh` itself | every job |
    | other workflows (`sdk*.yml`, `zxvd.yml`, `codeql.yml`) | quick-checks only |
+   | `release.yml` (manual only; builds the draft release, see `docs/release/README.md`) | quick-checks only |
 
    Nightly and manual runs (`workflow_dispatch`) always run every job.
 3. **The slow tier waits until a pull request is ready for review.** Draft

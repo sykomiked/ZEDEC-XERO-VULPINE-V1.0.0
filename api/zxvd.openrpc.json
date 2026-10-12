@@ -206,6 +206,263 @@
       "paramStructure": "by-name"
     },
     {
+      "name": "net.peers",
+      "summary": "The routing table's contacts (zxv_net_host.h U9, zxvd_rpc.h V1). Every contact answered a signed message, so its NodeID is verified. Each row is joined with the peer's mesh-book account when there is one. Empty while networking is off.",
+      "params": [],
+      "result": {
+        "name": "peers",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "peers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "NodeID"
+                  },
+                  "addr": {
+                    "type": "string",
+                    "description": "a.b.c.d:port, or \"\" for a non-IPv4 address"
+                  },
+                  "bucket": {
+                    "type": "integer",
+                    "description": "Kademlia bucket"
+                  },
+                  "ubh": {
+                    "type": "boolean",
+                    "description": "The peer advertised UBH-168"
+                  },
+                  "last_seen_ms": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Wall-clock milliseconds of the last message"
+                  },
+                  "in_book": {
+                    "type": "boolean",
+                    "description": "The mesh book has an account for it"
+                  },
+                  "member": {
+                    "type": "boolean",
+                    "description": "Admitted to the commons by the owner"
+                  },
+                  "held": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Units the peer issued that this node holds"
+                  },
+                  "receivable": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Units delivered to the peer on credit"
+                  },
+                  "social": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Crown: earned, never moved"
+                  },
+                  "pending": {
+                    "type": "integer",
+                    "description": "Receipts outstanding with this peer"
+                  }
+                }
+              }
+            },
+            "count": {
+              "type": "integer",
+              "description": "Contacts in the table (the list holds at most 256)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "net.offers",
+      "summary": "What the owner shares, the open wants, and the receipts still waiting on the other side (zxvd_rpc.h V2): a sell offer the buyer has not accepted, or a buy the seller has not committed.",
+      "params": [],
+      "result": {
+        "name": "offers",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "object",
+              "properties": {
+                "compute": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$",
+                  "description": "Compute tokens shared per cycle"
+                },
+                "storage": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$",
+                  "description": "Storage bytes shared"
+                }
+              }
+            },
+            "wants": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slot": {
+                    "type": "integer"
+                  },
+                  "resource": {
+                    "type": "string",
+                    "enum": [
+                      "compute",
+                      "storage",
+                      "other"
+                    ]
+                  },
+                  "units_left": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Still wanted"
+                  },
+                  "max_price": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "The most this node pays for one receipt"
+                  }
+                }
+              }
+            },
+            "outstanding": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "sell",
+                      "buy"
+                    ]
+                  },
+                  "peer": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "NodeID"
+                  },
+                  "units": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Units in the receipt"
+                  },
+                  "seq": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Pair sequence number"
+                  },
+                  "tries": {
+                    "type": "integer",
+                    "description": "Sends so far"
+                  },
+                  "want": {
+                    "type": "integer",
+                    "description": "buy: the want slot it reserves from; -1 for sell"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "player.card",
+      "summary": "The owner's Player Card (sicily.h S2/S3, zxvd_rpc.h V3): the tier the measured inputs earn, each input with its source, the next tier's thresholds and which are missing, and the perks. Bond, uptime and giving have no source on this node yet and are reported as 0 with the reason. Tiers give no priority, discount or credit.",
+      "params": [],
+      "result": {
+        "name": "card",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tier": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "metal": {
+              "type": "string"
+            },
+            "stone": {
+              "type": "string"
+            },
+            "inputs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "next": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "tier": {
+                  "type": "integer"
+                },
+                "metal": {
+                  "type": "string"
+                },
+                "stone": {
+                  "type": "string"
+                },
+                "credibility": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "bond": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "uptime_bps": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "credibility",
+                      "bond",
+                      "uptime_bps"
+                    ]
+                  }
+                }
+              }
+            },
+            "perks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
       "name": "peer.ask",
       "summary": "Ask another node (found over UDP, then a TCP session: X25519 + ML-KEM-1024 key exchange, ML-DSA-87 on both sides) and pay its price plus the 0.08889% assurance fee from the peer wallet (kernel/arch/hosted/zxv_peer_host.h). Needs networking on. The daemon's loop waits while the request runs.",
       "params": [
@@ -918,7 +1175,7 @@
     },
     {
       "name": "swarm.earnings",
-      "summary": "The swarm's earnings in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E4). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle.",
+      "summary": "The swarm's earnings in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E5). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle. With a books file (--books), accounts brought back at start keep their balance: the run's first cycle is the base and later cycles post only the change (E5).",
       "params": [],
       "result": {
         "name": "earnings",
@@ -962,6 +1219,254 @@
               "type": "string",
               "pattern": "^-?[0-9]+$",
               "description": "Settled cycles mirrored"
+            },
+            "resumed": {
+              "type": "boolean",
+              "description": "The accounts came back from the books file (E5)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "mesh.books",
+      "summary": "Settled peer requests in the owner's books (zxvd_rpc.h S1-S4): sales, purchases and the 0.08889% fee the node paid, in VFV, with the demo float posted as 'mesh float' when a purchase needs more than the wallet account holds. The accounts are null until the first settled request.",
+      "params": [],
+      "result": {
+        "name": "mesh",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "currency": {
+              "type": "string",
+              "description": "VFV, the peer book's unit"
+            },
+            "wallet_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "owner: mesh wallet (holder)"
+            },
+            "counterparty_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "mesh counterparties (issuer)"
+            },
+            "fee_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "mesh: assurance fees paid (holder)"
+            },
+            "wallet_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "The wallet account's balance"
+            },
+            "fees_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Fees paid"
+            },
+            "sold": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Sales posted this run"
+            },
+            "bought": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Purchases posted this run"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "books.file",
+      "summary": "Where the owner's books are saved (zxvd_rpc.h F1-F6): an append-only file of SHA-256-chained records, replayed at start. saved is false when the books live in memory only (no --books).",
+      "params": [],
+      "result": {
+        "name": "file",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "saved": {
+              "type": "boolean",
+              "description": "A books file is in use"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Its path"
+            },
+            "records": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Records in the file"
+            },
+            "head": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA-256 chain head after the last record"
+            },
+            "writable": {
+              "type": "boolean",
+              "description": "False after a failed write: the books are read-only until zxvd restarts (F5)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "jurisdiction.get",
+      "summary": "The jurisdiction bridge's settings (zxvd_rpc.h J1-J5), kept in the books file.",
+      "params": [],
+      "result": {
+        "name": "jurisdiction",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "market": {
+              "type": "string",
+              "enum": [
+                "closed",
+                "open"
+              ],
+              "description": "J2: closed clearing (default) or the open batch-auction market"
+            },
+            "standard": {
+              "type": "string",
+              "enum": [
+                "",
+                "IFRS",
+                "US_GAAP",
+                "IPSAS",
+                "AAOIFI",
+                "OHADA",
+                "CAS",
+                "SAP_INSURER"
+              ],
+              "description": "J3: the accounting standard reports will follow; \"\" = not chosen"
+            },
+            "country": {
+              "type": "string",
+              "pattern": "^([A-Z]{2})?$",
+              "description": "J1: ISO 3166-1 alpha-2, or \"\""
+            },
+            "standards": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The standards set accepts"
+            },
+            "in_effect": {
+              "type": "boolean",
+              "const": false,
+              "description": "J5: recorded only; no report adapter or open market is wired to the settings yet"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "jurisdiction.set",
+      "summary": "Change any of market, standard and country (J4); the others keep their values. The change is saved in the books file before it applies; an unchanged setting writes nothing.",
+      "params": [
+        {
+          "name": "market",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "closed",
+              "open"
+            ],
+            "description": "J2: closed clearing (default) or the open batch-auction market"
+          }
+        },
+        {
+          "name": "standard",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "",
+              "IFRS",
+              "US_GAAP",
+              "IPSAS",
+              "AAOIFI",
+              "OHADA",
+              "CAS",
+              "SAP_INSURER"
+            ],
+            "description": "J3: the accounting standard reports will follow; \"\" = not chosen"
+          }
+        },
+        {
+          "name": "country",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^([A-Z]{2})?$",
+            "description": "J1: ISO 3166-1 alpha-2, or \"\""
+          }
+        }
+      ],
+      "result": {
+        "name": "jurisdiction",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "market": {
+              "type": "string",
+              "enum": [
+                "closed",
+                "open"
+              ],
+              "description": "J2: closed clearing (default) or the open batch-auction market"
+            },
+            "standard": {
+              "type": "string",
+              "enum": [
+                "",
+                "IFRS",
+                "US_GAAP",
+                "IPSAS",
+                "AAOIFI",
+                "OHADA",
+                "CAS",
+                "SAP_INSURER"
+              ],
+              "description": "J3: the accounting standard reports will follow; \"\" = not chosen"
+            },
+            "country": {
+              "type": "string",
+              "pattern": "^([A-Z]{2})?$",
+              "description": "J1: ISO 3166-1 alpha-2, or \"\""
+            },
+            "standards": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The standards set accepts"
+            },
+            "in_effect": {
+              "type": "boolean",
+              "const": false,
+              "description": "J5: recorded only; no report adapter or open market is wired to the settings yet"
             }
           }
         }
