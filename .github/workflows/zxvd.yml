@@ -73,6 +73,11 @@ jobs:
           CC: ${{ matrix.cc }}
           CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
         run: sh kernel/src/zui/views/test_views.sh
+      - name: zui system pieces (accessibility, input, notices, privacy, clipboard, share, capture, lock, display)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/zui/test_zui_toolkit.sh
       - name: zui present layers (X11 and Vulkan under Xvfb, Direct3D 11 cross-built)
         if: matrix.os == 'ubuntu-24.04' && matrix.cc == 'gcc' && !matrix.san
         run: |

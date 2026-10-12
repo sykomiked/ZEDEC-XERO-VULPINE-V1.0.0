@@ -1120,6 +1120,8 @@ verify-all: test
 		src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_wm && \
 		/tmp/test_zui_wm && echo "[PASS] test_zui_wm" || { echo "[FAIL] test_zui_wm"; exit 1; }; \
+	echo "=== zui: accessibility, input, notices, privacy, clipboard, share, capture, lock, display ==="; \
+	CC=gcc sh src/zui/test_zui_toolkit.sh || { echo "[FAIL] test_zui_toolkit"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \
