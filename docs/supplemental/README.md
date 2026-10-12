@@ -39,5 +39,7 @@ Each page has two parts:
 - Every claim points to code, a test or a report in this repository.
 - Numbers are copied from measured results; nothing is estimated here.
 - Anything not yet built or measured is labelled as design intent.
+- Rigorous papers for each academic field are in
+  [`docs/academic/`](../academic/README.md).
 - The project's broader values are in
   [`DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md).
