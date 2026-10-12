@@ -16,4 +16,13 @@ module org.zedec.zxv {
     exports org.zedec.zxv.engine;
     exports org.zedec.zxv.evm;
     exports org.zedec.zxv.hw;
+    exports org.zedec.zxv.treaty;
+    exports org.zedec.zxv.cid;
+    exports org.zedec.zxv.aipi;
+    exports org.zedec.zxv.coin;
+    exports org.zedec.zxv.fee;
+    exports org.zedec.zxv.vhub;
+    exports org.zedec.zxv.freight;
+    exports org.zedec.zxv.web4;
+    exports org.zedec.zxv.paradox;
 }

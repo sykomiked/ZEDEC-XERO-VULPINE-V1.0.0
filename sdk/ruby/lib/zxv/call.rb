@@ -16,7 +16,9 @@ module Zxv
       Status::E_BUDGET => BudgetExhaustedError,
       Status::E_FUNDS => InsufficientFundsError,
       Status::E_VERIFY => VerificationFailedError,
-      Status::E_NOTIMPL => NotImplementedError
+      Status::E_NOTIMPL => NotImplementedError,
+      Status::E_CONSENT => ConsentRequiredError,
+      Status::E_PARADOX_OWNER => OwnerApprovalRequiredError
     }.freeze
 
     module_function
@@ -34,7 +36,11 @@ module Zxv
       detail = last_error
       case Status.class_of(status)
       when Status::CLASS_USAGE
-        status == Status::E_FLOAT ? FloatRejectedError.new(detail) : ZxvUsageError.new(status, detail)
+        case status
+        when Status::E_FLOAT then FloatRejectedError.new(detail)
+        when Status::E_TREATY then TreatyError.new(status, detail)
+        else ZxvUsageError.new(status, detail)
+        end
       when Status::CLASS_REFUSED then (REFUSED_TYPES[status] || ZxvRefusedError).new(status, detail)
       when Status::CLASS_FATAL then ZxvFatal.new(status, detail)
       else ZxvSystemError.new(status, detail)
@@ -70,6 +76,37 @@ module Zxv
       end
     end
 
+    # Call +fn+ with (buf, cap, out_len) appended, following "R4 for
+    # bytes": the result has no NUL, and a call that needs more room
+    # returns ZXV_E_BUFFER with *out_len set, so allocate that and call
+    # again. +hint+ is the first buffer size (enough for most results, so
+    # most calls make one trip). Raises on any other status.
+    # @return [String] binary
+    def bytes_out(context = nil, *args, hint: 256, &fn)
+      len = FFI::MemoryPointer.new(:size_t)
+      cap = [hint, 1].max
+      3.times do
+        buf = FFI::MemoryPointer.new(:uint8, cap)
+        rc = fn.call(*args, buf, cap, len)
+        need = len.read(:size_t)
+        if rc == Status::E_BUFFER && need > cap
+          cap = need
+          next
+        end
+        check(rc, context)
+        return buf.read_bytes(need)
+      end
+      check(Status::E_BUFFER, context)
+    end
+
+    # Like #text, but raises on any status other than OK.
+    # @return [String] UTF-8
+    def text_out(*args, context: nil, &fn)
+      rc, s = text(*args, &fn)
+      check(rc, context)
+      s
+    end
+
     # --- argument guards -------------------------------------------------
 
     # Reject floats loudly; require an Integer in [min, max].
@@ -87,6 +124,33 @@ module Zxv
 
     def uint32!(value, name) = int!(value, name, min: 0, max: UINT32_MAX)
     def uint64!(value, name) = int!(value, name, min: 0, max: UINT64_MAX)
+    def uint8!(value, name) = int!(value, name, min: 0, max: 255)
+    def uint16!(value, name) = int!(value, name, min: 0, max: 0xFFFF)
+    def int32!(value, name) = int!(value, name, min: -(2**31), max: 2**31 - 1)
+
+    # A text argument passed to C as a NUL-terminated string: UTF-8, with
+    # no NUL inside (C would silently stop reading there).
+    def cstr!(value, name)
+      s = text!(value, name)
+      raise ZxvUsageError.new(Status::E_ARG, "#{name} must not contain a NUL byte") if s.include?("\0")
+
+      s
+    end
+
+    # true/false (and only those) as the C int 1/0.
+    def bool!(value, name)
+      return 1 if value == true
+      return 0 if value == false
+
+      raise ZxvUsageError.new(Status::E_ARG, "#{name} must be true or false, got #{value.inspect}")
+    end
+
+    # Bytes in native memory, or nil when empty: for (pointer, length) pairs
+    # whose pointer may be NULL when the length is 0.
+    def mem0(bytes) = mem(bytes, allow_null: true)
+
+    # A fresh zero-filled native byte buffer.
+    def buf(n) = FFI::MemoryPointer.new(:uint8, [n, 1].max)
 
     # A String (any encoding) as bytes, or raise.
     def bytes!(value, name, size: nil)

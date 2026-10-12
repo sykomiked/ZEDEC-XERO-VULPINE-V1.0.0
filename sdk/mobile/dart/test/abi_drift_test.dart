@@ -1,7 +1,8 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-// The hand-written declarations in lib/src/bindings.dart must match
+// The declarations in lib/src/bindings.dart (hand-written) and
+// lib/src/bindings15.dart (ABI 1.5, generated then checked here) must match
 // zxv_api.h exactly (guides/writing-a-binding.md, "ABI drift"): a wrong
 // width or a missing pointer would corrupt memory instead of failing.
 import 'dart:io';
@@ -25,10 +26,13 @@ String ffiType(String c) {
     'int64_t': 'Int64',
     'uint64_t': 'Uint64',
     'uint8_t': 'Uint8',
+    'uint16_t': 'Uint16',
     'size_t': 'Size',
     'void': 'Void',
     'char': 'Utf8',
   };
+  // The one function-pointer type of the ABI (a CIDREF resolver).
+  if (t == 'zxv_freight_resolve_fn' && stars == 0) return 'Pointer<NativeFunction<FreightResolveC>>';
   var base = scalars[t] ?? 'Void'; // opaque handles (zxv_ctx, ...) are Pointer<Void>
   if (stars == 0) return base;
   if (scalars[t] == null) {
@@ -62,45 +66,75 @@ List<String> splitTop(String s) {
   return out;
 }
 
+String _params(String list) => list.trim() == 'void'
+    ? ''
+    : splitTop(list.replaceAll('\n', ' '))
+          .map((p) {
+            final arr = p.contains('[');
+            var q = p.replaceAll(RegExp(r'\[[^\]]*\]'), '').trim();
+            q = q.replaceFirst(RegExp(r'\w+$'), '').trim(); // drop the parameter name
+            return ffiType(arr ? '$q *' : q);
+          })
+          .join(', ');
+
+/// Checks every lookupFunction<...>('zxv_name') in `file` against `protos`; returns the names.
+Set<String> _check(String file, Map<String, String> protos) {
+  final src = File(file).readAsStringSync().replaceAll(RegExp(r'\s+'), ' ');
+  final names = <String>{};
+  // Scan each lookupFunction<...>('zxv_name') by bracket depth (formatting-proof).
+  for (var at = src.indexOf('lookupFunction<'); at >= 0; at = src.indexOf('lookupFunction<', at + 1)) {
+    var i = at + 'lookupFunction<'.length, depth = 1;
+    final start = i;
+    while (depth > 0) {
+      final c = src[i++];
+      if (c == '<') depth++;
+      if (c == '>') depth--;
+    }
+    final typeArgs = src.substring(start, i - 1);
+    final name = RegExp(r"^\(\s*'(zxv_\w+)'").firstMatch(src.substring(i))![1]!;
+    var sig = splitTop(typeArgs).first.replaceAll('_I32', 'Int32');
+    sig = _typedefs[sig] ?? sig;
+    expect(protos, contains(name), reason: '$name is not in zxv_api.h');
+    expect(sig.replaceAll(' ', '').replaceAll(',)', ')'), protos[name]!.replaceAll(' ', ''), reason: name);
+    expect(names.add(name), isTrue, reason: '$name is declared twice in $file');
+  }
+  // Every lookup in the file was parsed and checked (none skipped by the pattern).
+  expect(names.length, 'lookupFunction<'.allMatches(src).length);
+  return names;
+}
+
 void main() {
-  test('every bindings.dart declaration matches zxv_api.h', () {
-    final header = File('../../libzxv/include/zxv_api.h').readAsStringSync();
+  final header = File('../../libzxv/include/zxv_api.h').readAsStringSync();
+
+  test('every bindings.dart and bindings15.dart declaration matches zxv_api.h', () {
     final protos = <String, String>{};
     for (final m in RegExp(r'ZXV_API\s+([^;(]+?)\s*\b(zxv_\w+)\s*\(([^)]*)\)\s*;').allMatches(header)) {
-      final ret = ffiType(m[1]!);
-      final params = m[3]!.trim() == 'void'
-          ? <String>[]
-          : splitTop(m[3]!.replaceAll('\n', ' ')).map((p) {
-              final arr = p.contains('[');
-              var q = p.replaceAll(RegExp(r'\[[^\]]*\]'), '').trim();
-              q = q.replaceFirst(RegExp(r'\w+$'), '').trim(); // drop the parameter name
-              return ffiType(arr ? '$q *' : q);
-            }).toList();
-      protos[m[2]!] = '$ret Function(${params.join(', ')})';
+      protos[m[2]!] = '${ffiType(m[1]!)} Function(${_params(m[3]!)})';
     }
-    expect(protos.length, greaterThan(150));
+    expect(protos.length, greaterThan(350));
 
-    final src = File('lib/src/bindings.dart').readAsStringSync().replaceAll(RegExp(r'\s+'), ' ');
-    var checked = 0;
-    // Scan each lookupFunction<...>('zxv_name') by bracket depth (formatting-proof).
-    for (var at = src.indexOf('lookupFunction<'); at >= 0; at = src.indexOf('lookupFunction<', at + 1)) {
-      var i = at + 'lookupFunction<'.length, depth = 1;
-      final start = i;
-      while (depth > 0) {
-        final c = src[i++];
-        if (c == '<') depth++;
-        if (c == '>') depth--;
-      }
-      final typeArgs = src.substring(start, i - 1);
-      final name = RegExp(r"^\(\s*'(zxv_\w+)'").firstMatch(src.substring(i))![1]!;
-      var sig = splitTop(typeArgs).first.replaceAll('_I32', 'Int32');
-      sig = _typedefs[sig] ?? sig;
-      expect(protos, contains(name), reason: '$name is not in zxv_api.h');
-      expect(sig.replaceAll(' ', '').replaceAll(',)', ')'), protos[name]!.replaceAll(' ', ''), reason: name);
-      checked++;
+    final base = _check('lib/src/bindings.dart', protos);
+    final v15 = _check('lib/src/bindings15.dart', protos);
+    expect(base.length, greaterThan(70));
+    expect(base.intersection(v15), isEmpty, reason: 'a function is bound once');
+    // Every ABI 1.5 function (zxv_features2 onward) and ML-DSA-87 is bound.
+    final from = header.indexOf('ZXV_API int32_t zxv_features2(');
+    final abi15 = {
+      for (final m in RegExp(r'ZXV_API\s+[^;(]+?\s*\b(zxv_\w+)\s*\(').allMatches(header.substring(from))) m[1]!,
+    };
+    expect(abi15.length, greaterThan(190));
+    expect(abi15.difference(v15), isEmpty, reason: 'unbound ABI 1.5 functions');
+    for (final f in ['keygen', 'keygen_seed', 'sign', 'sign_deterministic', 'verify']) {
+      expect(v15, contains('zxv_mldsa87_$f'));
     }
-    // Every lookup in the file was parsed and checked (none skipped by the pattern).
-    expect(checked, 'lookupFunction<'.allMatches(src).length);
-    expect(checked, greaterThan(70));
+    expect(v15.length, abi15.length + 5);
+  });
+
+  test('FreightResolveC matches zxv_freight_resolve_fn', () {
+    final m = RegExp(r'typedef\s+(\w+)\s*\(\s*\*\s*zxv_freight_resolve_fn\s*\)\s*\(([^)]*)\)\s*;').firstMatch(header)!;
+    final want = '${ffiType(m[1]!)} Function(${_params(m[2]!)})';
+    final src = File('lib/src/bindings15.dart').readAsStringSync().replaceAll(RegExp(r'\s+'), ' ');
+    final got = RegExp(r'typedef FreightResolveC = ([^;]+);').firstMatch(src)![1]!;
+    expect(got.replaceAll(' ', ''), want.replaceAll(' ', ''));
   });
 }

@@ -45,9 +45,9 @@ class Rail(enum.IntEnum):
     """Vino rails (platform-internal; never ISO 20022 currencies)."""
 
     DEBIT = 0
-    """555 NCR: asset / backing (sum received)."""
+    """555 NRE: asset / backing (sum received)."""
     CREDIT = 1
-    """777 NRE: claim / liability (sum sent)."""
+    """777 NCR: claim / liability (sum sent)."""
     EQUITY = 2
     """888 PNS: debit - credit (the spendable position)."""
 

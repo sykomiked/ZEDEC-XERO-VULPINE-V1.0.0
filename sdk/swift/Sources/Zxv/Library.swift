@@ -49,6 +49,31 @@ public struct Features: OptionSet, Sendable {
     public static let hw = Features(rawValue: ZXV_FEAT_HW)
 }
 
+/// Feature groups of the second mask (`ZXV_FEAT2_*`, ABI 1.5), read with
+/// `ZxvLibrary.features2`.
+public struct Features2: OptionSet, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+    /// Treaties: copybook records and Sutra text.
+    public static let treaty = Features2(rawValue: ZXV_FEAT2_TREATY)
+    /// Content identifiers and AIPI function records.
+    public static let aipi = Features2(rawValue: ZXV_FEAT2_AIPI)
+    /// Fibonacci coins and token octane.
+    public static let coin = Features2(rawValue: ZXV_FEAT2_COIN)
+    /// The assurance fee and its split.
+    public static let fee = Features2(rawValue: ZXV_FEAT2_FEE)
+    /// The V-Bill hub: pegs, quotes and swaps.
+    public static let vhub = Features2(rawValue: ZXV_FEAT2_VHUB)
+    /// Erasure-coded freight packets and op streams.
+    public static let freight = Features2(rawValue: ZXV_FEAT2_FREIGHT)
+    /// Web 4 agents: manifests, directory, consent, envelopes.
+    public static let web4 = Features2(rawValue: ZXV_FEAT2_WEB4)
+    /// The paradox engine.
+    public static let paradox = Features2(rawValue: ZXV_FEAT2_PARADOX)
+    /// Every ABI 1.5 group.
+    public static let all1_5: Features2 = [.treaty, .aipi, .coin, .fee, .vhub, .freight, .web4, .paradox]
+}
+
 /// The library entry point: version, features and process-wide policy.
 /// (Named `ZxvLibrary`, not `Zxv`, because a type with the module's name
 /// would break module-qualified names such as `Zxv.Model`.)
@@ -67,6 +92,13 @@ public enum ZxvLibrary {
         return Features(rawValue: m)
     }
 
+    /// Feature groups of the second mask live in the linked libzxv (ABI 1.5).
+    public static var features2: Features2 {
+        var m: UInt32 = 0
+        _ = zxv_features2(&m)
+        return Features2(rawValue: m)
+    }
+
     private static let policy = Locked(FatalPolicy.throwError)
     /// What the SDK does on a FATAL status (process-wide). `.abort` is the
     /// only uncatchable form of fail-closed.
@@ -77,16 +109,18 @@ public enum ZxvLibrary {
 
     private static let compatibility: Result<Void, ZxvError> = {
         let v = version
-        if v.major != UInt32(ZXV_ABI_VERSION_MAJOR) || v.minor < 4 {
+        if v.major != UInt32(ZXV_ABI_VERSION_MAJOR) || v.minor < 5 {
             return .failure(.system(ZxvSystemError(
                 status: ZXV_E_INTERNAL,
-                detail: "libzxv ABI \(v) is not compatible with this SDK (needs 1.4 or later 1.x)")))
+                detail: "libzxv ABI \(v) is not compatible with this SDK (needs 1.5 or later 1.x)")))
         }
         return .success(())
     }()
 
     /// Refuse a library whose major version differs or whose minor is below
-    /// 4 (SDK_DESIGN.md section 1; ABI 1.4 added the hardware group, 1.3 the hexagram tag, 1.2 the `*_cap` forms). Called once by `ZxvContext.init`.
+    /// 5 (SDK_DESIGN.md section 1; ABI 1.5 added treaty, cid/aipi, coin, fee,
+    /// vhub, freight, web4 and paradox, 1.4 the hardware group, 1.3 the
+    /// hexagram tag, 1.2 the `*_cap` forms). Called once by `ZxvContext.init`.
     public static func ensureCompatible() throws(ZxvError) {
         if case .failure(let e) = compatibility { throw e }
     }

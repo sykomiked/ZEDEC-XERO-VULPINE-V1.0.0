@@ -52,11 +52,19 @@ impl Caps {
     /// Load hardware images and contract packages (ABI 1.4).
     pub const HW_RECONF: Caps = Caps(sys::ZXV_CAP_HW_RECONF);
     /// Every bit of ABI 1.1 (`ZXV_CAP_ALL`, which keeps this value
-    /// forever). It does not include the 1.4 bits; use
-    /// [`ALL_1_4`](Self::ALL_1_4) for those.
+    /// forever). It does not include the 1.4 and 1.5 bits; use
+    /// [`ALL_1_4`](Self::ALL_1_4) or [`ALL_1_5`](Self::ALL_1_5) for those.
     pub const ALL: Caps = Caps(sys::ZXV_CAP_ALL);
     /// Every bit as of ABI 1.4 (`ZXV_CAP_ALL_1_4`).
     pub const ALL_1_4: Caps = Caps(sys::ZXV_CAP_ALL_1_4);
+    /// Store and publish AIPI blocks and functions (ABI 1.5).
+    pub const AIPI: Caps = Caps(sys::ZXV_CAP_AIPI);
+    /// Mint, spend and move token-wallet tokens (ABI 1.5).
+    pub const MINT: Caps = Caps(sys::ZXV_CAP_MINT);
+    /// Paradox books, operators, policies, holds and graphs (ABI 1.5).
+    pub const PARADOX: Caps = Caps(sys::ZXV_CAP_PARADOX);
+    /// Every bit as of ABI 1.5 (`ZXV_CAP_ALL_1_5`).
+    pub const ALL_1_5: Caps = Caps(sys::ZXV_CAP_ALL_1_5);
 
     /// The raw bit mask.
     pub const fn bits(self) -> u64 {
@@ -90,7 +98,7 @@ impl BitAnd for Caps {
 
 impl fmt::Debug for Caps {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        const NAMES: [&str; 12] = [
+        const NAMES: [&str; 15] = [
             "LEDGER_READ",
             "LEDGER_POST",
             "CRYPTO_SIGN",
@@ -103,6 +111,9 @@ impl fmt::Debug for Caps {
             "EVM",
             "HW_MATRIX",
             "HW_RECONF",
+            "AIPI",
+            "MINT",
+            "PARADOX",
         ];
         let names: Vec<&str> = NAMES
             .iter()

@@ -13,7 +13,10 @@
 //! * [`Truth`] is four-valued and never silently becomes a `bool`;
 //! * secrets live in [`SecretKey`], wiped with `zxv_secure_zero` on drop;
 //! * budgets and deferred phase events are plain [`std::future::Future`]s
-//!   that work on any executor.
+//!   that work on any executor;
+//! * ABI 1.5 adds eight groups, each its own module: [`treaty`], [`aipi`]
+//!   (CIDs and AIPI records), [`coin`], [`fee`], [`vhub`], [`freight`],
+//!   [`web4`] and [`paradox`]. [`features2`] reports which are built.
 //!
 //! ```no_run
 //! use zxv::{AccountKind, Caps, Context, Ledger};
@@ -62,24 +65,32 @@
 #![warn(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
+pub mod aipi;
 mod attest;
 mod budget;
 mod capability;
+pub mod coin;
 mod context;
 mod crypto;
 mod engine;
 mod error;
 mod evm;
+pub mod fee;
 mod ffi;
+pub mod freight;
 mod hexagram;
 pub mod hw;
 pub mod iso20022;
 pub mod iso4217;
 mod ledger;
+pub mod paradox;
 mod phase;
 mod rational;
 mod swarm;
+pub mod treaty;
 mod truth;
+pub mod vhub;
+pub mod web4;
 mod wire;
 
 use std::sync::OnceLock;
@@ -115,6 +126,18 @@ pub use rational::Rational;
 pub use swarm::{Allotment, EmotionProfile, Feeling, Grant, Swarm};
 pub use truth::Truth;
 pub use wire::{Ubh168Frame, WireTruth, FRAME_BYTES};
+
+pub use aipi::{AipiNode, Cid};
+pub use coin::{Octane, TokenHolding, TokenWallet};
+pub use fee::FeeSplit;
+pub use freight::{FreightHeader, FreightJoin, FreightOpsWriter};
+pub use paradox::{
+    ParadoxBook, ParadoxClass, ParadoxGraph, ParadoxHold, ParadoxKind, ParadoxOutcome,
+    ParadoxPolicy, RepairProof,
+};
+pub use treaty::{Treaty, TreatyResult};
+pub use vhub::VHub;
+pub use web4::{ConsentLog, ConsentToken, W4Agent, W4Directory, W4Manifest};
 
 /// The raw bindings, for anything this crate does not wrap.
 pub use zxv_sys as sys;
@@ -199,17 +222,59 @@ pub fn features() -> Features {
     Features(m)
 }
 
-/// Checks once that the loaded library speaks ABI 1.x with x >= 4.
+/// ABI 1.5 feature groups live in the loaded library (`zxv_features2`). A
+/// group that is not built returns `ZXV_E_NOTIMPL` from every call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Features2(u32);
+
+impl Features2 {
+    /// Treaties: copybook records and Sutra text ([`treaty`]).
+    pub const TREATY: Features2 = Features2(sys::ZXV_FEAT2_TREATY);
+    /// Content-addressed functions and CIDs ([`aipi`]).
+    pub const AIPI: Features2 = Features2(sys::ZXV_FEAT2_AIPI);
+    /// Fibonacci coins and token octane ([`coin`]).
+    pub const COIN: Features2 = Features2(sys::ZXV_FEAT2_COIN);
+    /// The assurance fee and its split ([`fee`]).
+    pub const FEE: Features2 = Features2(sys::ZXV_FEAT2_FEE);
+    /// V-Bill hub pegs, quotes and swaps ([`vhub`]).
+    pub const VHUB: Features2 = Features2(sys::ZXV_FEAT2_VHUB);
+    /// Erasure-coded freight packets ([`freight`]).
+    pub const FREIGHT: Features2 = Features2(sys::ZXV_FEAT2_FREIGHT);
+    /// Agent manifests, directory and consent ([`web4`]).
+    pub const WEB4: Features2 = Features2(sys::ZXV_FEAT2_WEB4);
+    /// The paradox engine ([`paradox`]).
+    pub const PARADOX: Features2 = Features2(sys::ZXV_FEAT2_PARADOX);
+
+    /// The raw mask.
+    pub fn bits(self) -> u32 {
+        self.0
+    }
+
+    /// True if every bit of `f` is live.
+    pub fn contains(self, f: Features2) -> bool {
+        self.0 & f.0 == f.0
+    }
+}
+
+/// The ABI 1.5 feature groups live in the loaded library.
+pub fn features2() -> Features2 {
+    let mut m = 0u32;
+    // SAFETY: out pointer valid.
+    unsafe { sys::zxv_features2(&mut m) };
+    Features2(m)
+}
+
+/// Checks once that the loaded library speaks ABI 1.x with x >= 5.
 pub(crate) fn ensure_compatible() -> Result<()> {
     static CHECK: OnceLock<Result<()>> = OnceLock::new();
     CHECK
         .get_or_init(|| {
             let (major, minor, _) = version();
-            if major != sys::ZXV_ABI_VERSION_MAJOR || minor < 4 {
+            if major != sys::ZXV_ABI_VERSION_MAJOR || minor < 5 {
                 return Err(Error::with_detail(
                     sys::ZXV_E_INTERNAL,
                     format!(
-                        "libzxv ABI {major}.{minor} is not compatible with this SDK (needs 1.4+)"
+                        "libzxv ABI {major}.{minor} is not compatible with this SDK (needs 1.5+)"
                     ),
                 ));
             }
