@@ -10,6 +10,7 @@
 #define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
 #include <ftw.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,18 @@
 #include "quillon_model.h"
 #include "spindle_model.h"
 #include "swarm_emotion.h"
+
+/* Appends to b at *o, never past cap - 1: *o stops at the end when the
+ * text does not fit. */
+static void appendf(char *b, size_t cap, uint32_t *o, const char *fmt, ...)
+{
+    if (*o + 1u >= cap) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int k = vsnprintf(b + *o, cap - *o, fmt, ap);
+    va_end(ap);
+    if (k > 0) *o = (uint32_t) ((size_t) k < cap - *o ? *o + (uint32_t) k : cap - 1u);
+}
 
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
@@ -953,30 +966,29 @@ static void test_murmuration_parse(void)
     static char st[1024];
     for (uint32_t bad = 0; bad < 2; bad++)
         for (uint32_t k = 0; k < 5; k++) {
-            uint32_t o = (uint32_t) snprintf(st, sizeof st, "{");
+            uint32_t o = 0;
+            appendf(st, sizeof st, &o, "{");
             for (uint32_t j = 0; j < 5; j++) {
                 if (j == k && !bad) continue;
-                o += (uint32_t) snprintf(st + o, sizeof st - o, "%s%s", o > 1 ? "," : "",
-                                         j == k ? TKBAD[j] : TK[j]);
+                appendf(st, sizeof st, &o, "%s%s", o > 1 ? "," : "", j == k ? TKBAD[j] : TK[j]);
             }
-            snprintf(st + o, sizeof st - o, "}");
+            appendf(st, sizeof st, &o, "}");
             STATE = st;
             CHECK(refresh_kept(&M, ZXM_E_PROTOCOL), "state %s: %s", bad ? "bad" : "without", TK[k]);
         }
     for (uint32_t bad = 0; bad < 2; bad++)
         for (uint32_t k = 0; k < 9; k++) {
-            uint32_t o =
-                (uint32_t) snprintf(st, sizeof st,
-                                    "{\"levels\":1,\"tokens_per_cycle\":10,\"tick\":1,\"cycle\":1,"
-                                    "\"agents\":[{");
+            uint32_t o = 0;
+            appendf(st, sizeof st, &o,
+                    "{\"levels\":1,\"tokens_per_cycle\":10,\"tick\":1,\"cycle\":1,"
+                    "\"agents\":[{");
             bool first = true;
             for (uint32_t j = 0; j < 9; j++) {
                 if (j == k && !bad) continue;
-                o += (uint32_t) snprintf(st + o, sizeof st - o, "%s%s", first ? "" : ",",
-                                         j == k ? AKBAD[j] : AK[j]);
+                appendf(st, sizeof st, &o, "%s%s", first ? "" : ",", j == k ? AKBAD[j] : AK[j]);
                 first = false;
             }
-            snprintf(st + o, sizeof st - o, "}]}");
+            appendf(st, sizeof st, &o, "}]}");
             STATE = st;
             CHECK(refresh_kept(&M, ZXM_E_PROTOCOL), "agent %s: %s", bad ? "bad" : "without", AK[k]);
         }
@@ -1287,15 +1299,16 @@ static void test_murmuration(void)
 
     /* more agents than MURM_AGENTS: the first are kept, every one counts */
     static char big[32768];
-    uint32_t o = (uint32_t) snprintf(big, sizeof big,
-                                     "{\"levels\":2,\"tokens_per_cycle\":700,\"tick\":9,\"cycle\":"
-                                     "8,\"agents\":[");
+    uint32_t o = 0;
+    appendf(big, sizeof big, &o,
+            "{\"levels\":2,\"tokens_per_cycle\":700,\"tick\":9,\"cycle\":"
+            "8,\"agents\":[");
     for (uint32_t i = 0; i < MURM_AGENTS + 6u; i++)
-        o += (uint32_t) snprintf(big + o, sizeof big - o,
-                                 "%s{\"id\":%u,\"name\":\"A%u\",\"level\":1,\"emoji\":\"" E_NEUTRAL
-                                 "\",\"intensity\":0,\"re\":%u,\"mk\":0,\"im\":0,\"witness\":1}",
-                                 i ? "," : "", i + 100u, i, i < MURM_AGENTS ? 10u : 30u);
-    snprintf(big + o, sizeof big - o, "]}");
+        appendf(big, sizeof big, &o,
+                "%s{\"id\":%u,\"name\":\"A%u\",\"level\":1,\"emoji\":\"" E_NEUTRAL
+                "\",\"intensity\":0,\"re\":%u,\"mk\":0,\"im\":0,\"witness\":1}",
+                i ? "," : "", i + 100u, i, i < MURM_AGENTS ? 10u : 30u);
+    appendf(big, sizeof big, &o, "]}");
     STATE = big;
     CHECK(murm_select(&M, 0) == ZXM_OK, "select before");
     CHECK(murm_refresh(&M) == ZXM_OK && M.sw.n == MURM_AGENTS && M.sw.n_total == MURM_AGENTS + 6u &&
@@ -1316,15 +1329,16 @@ static void test_murmuration(void)
               strstr(last_prompt, "\nA30 (level 1)") && M.held.cut &&
               strlen(last_prompt) <= ZXM_ASK_MAX,
           "every agent counted, as many listed as fit");
-    o = (uint32_t) snprintf(big, sizeof big,
-                            "{\"levels\":2,\"tokens_per_cycle\":640,\"tick\":9,\"cycle\":8,"
-                            "\"agents\":[");
+    o = 0;
+    appendf(big, sizeof big, &o,
+            "{\"levels\":2,\"tokens_per_cycle\":640,\"tick\":9,\"cycle\":8,"
+            "\"agents\":[");
     for (uint32_t i = 0; i < MURM_AGENTS; i++)
-        o += (uint32_t) snprintf(big + o, sizeof big - o,
-                                 "%s{\"id\":%u,\"name\":\"A%u\",\"level\":1,\"emoji\":\"x\","
-                                 "\"intensity\":0,\"re\":10,\"mk\":0,\"im\":0,\"witness\":1}",
-                                 i ? "," : "", i + 100u, i);
-    snprintf(big + o, sizeof big - o, "]}");
+        appendf(big, sizeof big, &o,
+                "%s{\"id\":%u,\"name\":\"A%u\",\"level\":1,\"emoji\":\"x\","
+                "\"intensity\":0,\"re\":10,\"mk\":0,\"im\":0,\"witness\":1}",
+                i ? "," : "", i + 100u, i);
+    appendf(big, sizeof big, &o, "]}");
     CHECK(murm_refresh(&M) == ZXM_OK && M.sw.n == MURM_AGENTS && M.sw.n_total == MURM_AGENTS &&
               !M.sw.truncated && M.sel == (int32_t) (MURM_AGENTS - 1),
           "exactly MURM_AGENTS");
