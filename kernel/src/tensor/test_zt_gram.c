@@ -601,6 +601,132 @@ static void test_mask(void)
     free(tar);
 }
 
+/* ---- edges: escapes, bounds, arguments (no digest input) ---- */
+static int32_t compile_code(const char *src)
+{
+    zt_gram_err_t err;
+    uint32_t len = (uint32_t) strlen(src);
+    uint64_t need = zt_gram_arena_bytes((const uint8_t *) src, len, 0, &err);
+    if (!need) return err.code;
+    void *a = malloc(need);
+    zt_gram_t g;
+    int32_t r = zt_gram_compile(&g, (const uint8_t *) src, len, 0, a, need, &err);
+    free(a);
+    return r;
+}
+
+static void test_edges(void)
+{
+    zt_gram_err_t err;
+    gm_t m;
+    /* hex escapes in both cases, other escapes, a class range by escapes */
+    int32_t r =
+        gm_open(&m, "root ::= \"\\x4A\\x4b\\xFf\\n\\t\\r\\\\\\\"\" [\\x41-\\x43]", 0, 8, 8, &err);
+    CHECK(r == 0 && run(&m, "JK\xff\n\t\r\\\"B", 9) == 1 && run(&m, "JK\xff\n\t\r\\\"D", 9) == -1 &&
+              run(&m, "jk", 2) == -1,
+          "\\xHH in upper and lower case, \\n \\t \\r \\\\ \\\" and an escaped range");
+    gm_close(&m);
+    CHECK(compile_code("root ::= \"\\x4g\"") == ZT_GRAM_ESYNTAX, "\\x with a bad digit");
+    CHECK(compile_code("root ::= \"\\x") == ZT_GRAM_ESYNTAX, "\\x at the end of the text");
+    CHECK(compile_code("root ::= \"\\") == ZT_GRAM_ESYNTAX, "a backslash at the end of the text");
+    CHECK(compile_code("root ::= [\\") == ZT_GRAM_ESYNTAX, "a class ending in a backslash");
+    CHECK(compile_code("root ::= [a-") == ZT_GRAM_ESYNTAX, "a class ending mid-range");
+    CHECK(compile_code("root ::= \"a\"{") == ZT_GRAM_ESYNTAX, "an open brace at the end");
+    CHECK(compile_code("root ::= \"a\"{x}") == ZT_GRAM_ESYNTAX, "a brace without a number");
+    CHECK(compile_code("root ::= \"a\"{1,x}") == ZT_GRAM_ESYNTAX, "a bad upper bound");
+    CHECK(compile_code("root ::= \"a\"{1,999}") == ZT_GRAM_ELIMIT, "an upper bound over 255");
+    CHECK(compile_code("root ::= \"a\"{255}") == 0, "a bound of exactly 255");
+    CHECK(compile_code("root ::= \"a\" ::= \"b\"") == ZT_GRAM_ESYNTAX, "a second ::= on a line");
+    CHECK(compile_code("root ::= \"a\"\n::= \"b\"") == ZT_GRAM_ESYNTAX, "::= without a name");
+    CHECK(compile_code("root ::= \"a\" @") == ZT_GRAM_ESYNTAX, "a stray character");
+
+    /* {m,} is unbounded, {m} exact, {0,n} up to n, single-byte and negated classes */
+    r = gm_open(&m, "root ::= \"a\"{2,} \"b\"{0,2} [c] [^d]", 0, 16, 16, &err);
+    char s[300];
+    memset(s, 'a', sizeof s);
+    s[200] = 'b';
+    s[201] = 'c';
+    s[202] = 'e';
+    CHECK(r == 0 && run(&m, "aace", 4) == 1 && run(&m, "ace", 3) == -1 &&
+              run(&m, "aabbce", 6) == 1 && run(&m, "aabbbce", 7) == -1 &&
+              run(&m, "aacd", 4) == -1 && run(&m, s, 203) == 1 && run(&m, "aa", 2) == 0,
+          "{2,} takes 200 a's, {0,2} at most two, [c] one byte, [^d] anything else");
+    gm_close(&m);
+
+    /* nesting: exactly the limit compiles, one more does not */
+    char deep[200];
+    uint32_t k = 0;
+    k += (uint32_t) sprintf(deep + k, "root ::= ");
+    for (uint32_t i = 0; i < ZT_GRAM_MAX_NEST; i++) deep[k++] = '(';
+    k += (uint32_t) sprintf(deep + k, "\"a\"");
+    for (uint32_t i = 0; i < ZT_GRAM_MAX_NEST; i++) deep[k++] = ')';
+    deep[k] = 0;
+    int32_t at = compile_code(deep);
+    memmove(deep + 10, deep + 9, k - 9 + 1);
+    deep[9] = '(';
+    deep[k + 1] = ')';
+    deep[k + 2] = 0;
+    int32_t over = compile_code(deep);
+    CHECK(at == 0 && over == ZT_GRAM_ELIMIT, "nesting of %u compiles (%d), %u does not (%d)",
+          ZT_GRAM_MAX_NEST, at, ZT_GRAM_MAX_NEST + 1, over);
+
+    /* state sizes and arguments */
+    CHECK(zt_gram_state_bytes(0, 8) == 0 && zt_gram_state_bytes(8, 0) == 0 &&
+              zt_gram_state_bytes(8, ZT_GRAM_MAX_DEPTH + 1) == 0 &&
+              zt_gram_state_bytes((1u << 20) + 1, 8) == 0 && zt_gram_state_bytes(1u << 20, 1) > 0 &&
+              zt_gram_state_bytes(8, ZT_GRAM_MAX_DEPTH) > zt_gram_state_bytes(8, 1) &&
+              zt_gram_state_bytes(9, 8) > zt_gram_state_bytes(8, 8),
+          "state sizes: zero and over-limit sizes refused, sizes grow");
+    r = gm_open(&m, "root ::= \"ab\"", 0, 4, 4, &err);
+    uint64_t sb = zt_gram_state_bytes(4, 4);
+    uint8_t *mem = malloc(sb + 8);
+    zt_gram_state_t st;
+    CHECK(r == 0 && zt_gram_state_init(&st, &m.g, 4, 4, mem + 1, sb - 8) == ZT_GRAM_ESPACE &&
+              zt_gram_state_init(&st, &m.g, 4, 4, 0, sb) != 0 &&
+              zt_gram_state_init(0, &m.g, 4, 4, mem, sb) == ZT_GRAM_EARG &&
+              zt_gram_state_init(&st, 0, 4, 4, mem, sb) == ZT_GRAM_EARG &&
+              zt_gram_state_init(&st, &m.g, 0, 4, mem, sb) == ZT_GRAM_EARG &&
+              zt_gram_state_init(&st, &m.g, 4, 4, mem + 1, sb) == 0,
+          "state_init refuses short or missing memory and bad arguments, accepts misaligned");
+    CHECK(zt_gram_accept(0, (const uint8_t *) "a", 1) == ZT_GRAM_EARG &&
+              zt_gram_accept(&st, 0, 1) == ZT_GRAM_EARG && zt_gram_accept(&st, 0, 0) == 0 &&
+              zt_gram_reset(0) == ZT_GRAM_EARG && !zt_gram_complete(0) && !zt_gram_finished(0) &&
+              zt_gram_test(0, (const uint8_t *) "a", 1) == ZT_GRAM_EARG,
+          "null arguments to the matcher");
+    CHECK(zt_gram_accept(&st, (const uint8_t *) "a", 1) == 0 && !zt_gram_complete(&st) &&
+              zt_gram_accept(&st, (const uint8_t *) "x", 1) == ZT_GRAM_EREJECT &&
+              zt_gram_accept(&st, (const uint8_t *) "b", 1) == 0 && zt_gram_finished(&st),
+          "a rejected byte leaves the state where it was");
+    free(mem);
+    gm_close(&m);
+
+    /* ambiguity: every byte reaches the same seven stacks again; merged, the set never grows */
+    r = gm_open(&m, "root ::= (\"a\" | \"a\" | \"a\" | \"a\" | [a] | [a-a])*", 0, 7, 4, &err);
+    char as[64];
+    memset(as, 'a', sizeof as);
+    CHECK(r == 0 && run(&m, as, 64) == 1 && m.st.cur.n == 7,
+          "six ambiguous alternatives, 64 bytes, still seven stacks (%u)", m.st.cur.n);
+    gm_close(&m);
+    /* a set that is really too small is a capacity error, state unchanged */
+    r = gm_open(&m, "root ::= \"a\" \"b\" | \"a\" \"c\" | \"a\" \"d\"", 0, 2, 4, &err);
+    int32_t ra = r ? r : zt_gram_reset(&m.st);
+    CHECK(r == ZT_GRAM_ECAP ||
+              (r == 0 && (ra == ZT_GRAM_ECAP ||
+                          zt_gram_accept(&m.st, (const uint8_t *) "a", 1) == ZT_GRAM_ECAP)),
+          "three live paths in a two-stack set: ECAP (%d)", ra);
+    gm_close(&m);
+
+    /* vocabulary arguments */
+    zt_gram_vocab_t v;
+    uint8_t al[4];
+    CHECK(zt_gram_vocab_bytes(0) == 0 && zt_gram_vocab_init(0, 0, 0, 0) == ZT_GRAM_EARG &&
+              zt_gram_vocab_init(&v, 0, al, sizeof al) == ZT_GRAM_EARG &&
+              zt_gram_vocab_add_end(0, 1) == ZT_GRAM_EARG &&
+              zt_gram_mask(0, 0, al, 8) == ZT_GRAM_EARG &&
+              zt_gram_accept_token(0, 0, 0) == ZT_GRAM_EARG,
+          "null arguments to the vocabulary and mask");
+}
+
 int main(void)
 {
     test_compile();
@@ -608,6 +734,7 @@ int main(void)
     test_sutra();
     test_json();
     test_mask();
+    test_edges();
     printf("digest %016llx\n", (unsigned long long) digest);
     CHECK(digest == 0xda53b33d55e8c3e6ull,
           "every mask and emitted treaty == the golden digest every CPU gives");
