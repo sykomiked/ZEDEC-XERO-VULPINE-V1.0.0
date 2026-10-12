@@ -474,7 +474,8 @@ static void test_host_methods(void)
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
               "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
               "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\"]}"));
+              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"phone.link\",\"phone.pair\","
+              "\"phone.list\",\"phone.revoke\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -1934,14 +1935,16 @@ static void test_phone_methods(void)
     EXPECT(REQ("1", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"),
            ERR("1", "-32601", "not available"));
     EXPECT(REQ("1", "phone.list", ""), ERR("1", "-32601", "not available"));
-    EXPECT(REQ("1", "phone.link", ",\"params\":{\"on\":true}"), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "phone.link", ",\"params\":{\"on\":true}"),
+           ERR("1", "-32601", "not available"));
     zxvd_rpc_set_phone_ops(&PHONE_STUB);
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true}"), OK("2", "{\"on\":true}"));
     CHECK(last_link_port == -1 && !strcmp(last_link_bind, "(all)"),
           "phone.link defaults: port -1, every interface (%d %s)", last_link_port, last_link_bind);
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":0,\"bind\":\"10.0.0.5\"}"),
            OK("2", "{\"on\":true}"));
-    CHECK(last_link_port == 0 && !strcmp(last_link_bind, "10.0.0.5"), "phone.link passes port and bind");
+    CHECK(last_link_port == 0 && !strcmp(last_link_bind, "10.0.0.5"),
+          "phone.link passes port and bind");
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":false}"), OK("2", "{\"on\":false}"));
     EXPECT(REQ("2", "phone.link", ""), ERR("2", "-32602", "\\\"on\\\" must be true or false"));
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":\"yes\"}"),
@@ -1952,7 +1955,8 @@ static void test_phone_methods(void)
            ERR("2", "-32602", "\\\"port\\\" is out of range"));
     EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":1}"),
            ERR("2", "-32602", "cannot listen on TCP 1: Permission denied"));
-    EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"), OK("2", "{\"paired\":true}"));
+    EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"),
+           OK("2", "{\"paired\":true}"));
     CHECK(!strcmp(last_phone_name, "Pixel") && !last_phone_post, "phone.pair passes the name");
     EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"iPad\",\"allow_post\":true}"),
            OK("2", "{\"paired\":true}"));
@@ -1965,18 +1969,21 @@ static void test_phone_methods(void)
     EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"full\"}"),
            ERR("3", "-32602", "too many phones paired; revoke one first"));
     EXPECT(REQ("4", "phone.list", ""), OK("4", "{\"phones\":[]}"));
-    EXPECT(REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"00112233445566778899aabbccddeeff\"}"),
-           OK("5", "{\"revoked\":true}"));
+    EXPECT(
+        REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"00112233445566778899aabbccddeeff\"}"),
+        OK("5", "{\"revoked\":true}"));
     EXPECT(REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"ff\"}"),
            ERR("5", "-32602", "no such phone"));
 
     /* A1-A3: what a paired phone may call */
     const char *nopost = "this phone was paired without allow_post";
-    PHONE_EXPECT(REQ("6", "zxvd.shutdown", ""), true, ERR("6", "-32012", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "zxvd.shutdown", ""), true,
+                 ERR("6", "-32012", "not allowed from a phone"));
     PHONE_EXPECT(REQ("6", "phone.pair", ",\"params\":{\"name\":\"x\"}"), true,
                  ERR("6", "-32012", "not allowed from a phone"));
     PHONE_EXPECT(REQ("6", "phone.list", ""), false, ERR("6", "-32012", "not allowed from a phone"));
-    PHONE_EXPECT(REQ("6", "phone.revoke", ""), true, ERR("6", "-32012", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.revoke", ""), true,
+                 ERR("6", "-32012", "not allowed from a phone"));
     PHONE_EXPECT(REQ("6", "phone.link", ",\"params\":{\"on\":false}"), true,
                  ERR("6", "-32012", "not allowed from a phone"));
     PHONE_EXPECT(REQ("6", "peer.serve", ""), true, ERR("6", "-32012", "not allowed from a phone"));

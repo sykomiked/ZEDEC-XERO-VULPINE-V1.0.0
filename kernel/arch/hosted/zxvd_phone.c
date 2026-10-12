@@ -83,9 +83,9 @@ typedef struct {
 } pairing_t;
 
 typedef struct {
-    int fd;      /* -1 when free */
-    bool open;   /* handshake done */
-    int phone;   /* index into PH */
+    int fd;    /* -1 when free */
+    bool open; /* handshake done */
+    int phone; /* index into PH */
     uint64_t start_ms, last_ms;
     uint8_t k_in[32], k_out[32];
     uint64_t seq_in, seq_out;
@@ -151,8 +151,8 @@ static void nonce(uint64_t seq, uint8_t out[12])
 static bool ip_private(uint32_t a) /* host order */
 {
     uint8_t b0 = (uint8_t) (a >> 24), b1 = (uint8_t) (a >> 16);
-    return b0 == 10 || b0 == 127 || (b0 == 172 && (b1 & 0xF0) == 16) ||
-           (b0 == 192 && b1 == 168) || (b0 == 169 && b1 == 254);
+    return b0 == 10 || b0 == 127 || (b0 == 172 && (b1 & 0xF0) == 16) || (b0 == 192 && b1 == 168) ||
+           (b0 == 169 && b1 == 254);
 }
 
 /* a name is shown on both ends and stored on one line: printable ASCII only */
@@ -520,7 +520,8 @@ static const char *ph_link(bool on, int32_t port, const char *bind_ip, zxvd_buf_
     if (!on) {
         zxvd_phone_unlisten();
     } else {
-        const char *why = zxvd_phone_listen(bind_ip, (uint16_t) (port < 0 ? ZXVD_PHONE_PORT : port));
+        const char *why =
+            zxvd_phone_listen(bind_ip, (uint16_t) (port < 0 ? ZXVD_PHONE_PORT : port));
         if (why) return why;
     }
     zxvd_buf_printf(out, "{\"on\":%s,\"port\":%u}", LS >= 0 ? "true" : "false",

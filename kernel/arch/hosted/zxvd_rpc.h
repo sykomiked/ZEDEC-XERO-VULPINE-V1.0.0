@@ -243,7 +243,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  * -1 for the default and bind_ip NULL for every interface. */
 #define ZXVD_E_PHONE (-32012)
 typedef struct {
-    const char *(*link)(bool on, int32_t port, const char *bind_ip, zxvd_buf_t *out); /* phone.link */
+    const char *(*link)(bool on, int32_t port, const char *bind_ip,
+                        zxvd_buf_t *out);                                    /* phone.link */
     const char *(*pair)(const char *name, bool allow_post, zxvd_buf_t *out); /* phone.pair   */
     void (*list)(zxvd_buf_t *out);                                           /* phone.list   */
     const char *(*revoke)(const char *phone_id, zxvd_buf_t *out);            /* phone.revoke */
