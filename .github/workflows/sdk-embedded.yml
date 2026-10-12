@@ -16,6 +16,7 @@ on:
     paths: ['sdk/embedded/**', 'sdk/libzxv/**', 'sdk/conformance/**', 'kernel/src/**',
             'kernel/include/**', 'kernel/third_party/**', '.github/workflows/sdk-embedded.yml']
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths: ['sdk/embedded/**', 'sdk/libzxv/**', 'sdk/conformance/**', 'kernel/src/**',
             'kernel/include/**', 'kernel/third_party/**', '.github/workflows/sdk-embedded.yml']
   workflow_dispatch:
@@ -31,6 +32,7 @@ concurrency:
 
 jobs:
   host:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: host ${{ matrix.cc }}${{ matrix.san && ' ASan+UBSan' || '' }}
     strategy:
       fail-fast: false
@@ -49,6 +51,7 @@ jobs:
         run: make -C sdk/embedded test ZXE_PROFILE=q32 CC=${{ matrix.cc }} SANITIZE=${{ matrix.san }} OUT=build/q32-${{ matrix.cc }}${{ matrix.san }}
 
   cross:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: cross sizes, no-float, QEMU
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -90,6 +93,7 @@ jobs:
   # Docker, QEMU or cross compiler; the real disc build and UEFI boot stay in
   # ci.yml's uefi-disc job.
   baremetal:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: bare-metal board manifests and packaging plans
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -101,6 +105,7 @@ jobs:
         run: make -C sdk/embedded/baremetal test
 
   freertos:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: FreeRTOS POSIX simulator
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -114,6 +119,7 @@ jobs:
           make -C sdk/embedded/freertos-zxv SANITIZE=1 test
 
   zephyr:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: Zephyr v4.2.2 (qemu_cortex_m3, native_sim)
     runs-on: ubuntu-24.04
     timeout-minutes: 45

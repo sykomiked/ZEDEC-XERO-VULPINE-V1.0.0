@@ -12,11 +12,15 @@
 name: desktop
 
 on:
+  # Branch pushes are tested through their pull request; without this filter
+  # every push to a pull request's branch ran this workflow twice.
   push:
+    branches: [main, develop]
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'kernel/include/**', 'sdk/libzxv/**',
             'build_system/package_desktop.sh', 'build_system/zip_tree.py',
             'macos/zxv-model-fetch.sh', 'macos/models.manifest', '.github/workflows/desktop.yml']
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'kernel/include/**', 'sdk/libzxv/**',
             'build_system/package_desktop.sh', 'build_system/zip_tree.py',
             'macos/zxv-model-fetch.sh', 'macos/models.manifest', '.github/workflows/desktop.yml']
@@ -31,6 +35,7 @@ permissions:
 
 jobs:
   linux:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     # Built on Ubuntu 22.04, so the packages run on glibc 2.35 and later.
     name: Linux ${{ matrix.arch }} (.deb, AppImage, .tar.gz)
     strategy:
@@ -105,6 +110,7 @@ jobs:
           if-no-files-found: error
 
   windows-build:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     # Cross-built with MinGW-w64 on Linux: zxvd.exe, libzxv.dll, ZXV.exe, and
     # libzxv's C tests as .exe files for the Windows job to run.
     name: Windows x64 build (MinGW-w64)

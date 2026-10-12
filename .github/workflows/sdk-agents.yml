@@ -17,6 +17,7 @@ on:
       - 'sdk/kits/z-wasm/tools/check_nofloat.py'
       - '.github/workflows/sdk-agents.yml'
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/kits/zab-logic/**'
       - 'sdk/libzxv/**'
@@ -35,6 +36,7 @@ concurrency:
 
 jobs:
   zab-logic-linux:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: zab-logic ubuntu-24.04 gcc + ASan/UBSan
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -61,6 +63,7 @@ jobs:
           done
 
   zab-logic-macos:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: zab-logic macos-14 clang
     runs-on: macos-14
     timeout-minutes: 30

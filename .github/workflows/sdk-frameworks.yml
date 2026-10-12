@@ -22,6 +22,7 @@ on:
       - 'kernel/third_party/**'
       - '.github/workflows/sdk-frameworks.yml'
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/frameworks/**'
       - 'sdk/java/**'
@@ -45,6 +46,7 @@ concurrency:
 
 jobs:
   spring:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: spring ${{ matrix.os }} jdk${{ matrix.jdk }}
     strategy:
       fail-fast: false
@@ -70,6 +72,7 @@ jobs:
         run: mvn -B clean verify
 
   aspnetcore:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: aspnetcore ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -91,6 +94,7 @@ jobs:
       - run: dotnet test Zxv.AspNetCore.sln -c Release --no-build
 
   nest:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: nest ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -121,6 +125,7 @@ jobs:
       - run: npm test
 
   django:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: django ${{ matrix.os }} py${{ matrix.py }}
     strategy:
       fail-fast: false

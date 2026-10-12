@@ -15,6 +15,7 @@ on:
     branches: [main, develop]
     paths: ['sdk/silicon/**', 'sdk/libzxv/**', '.github/workflows/sdk-silicon.yml']
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths: ['sdk/silicon/**', 'sdk/libzxv/**', '.github/workflows/sdk-silicon.yml']
   workflow_dispatch:
 
@@ -28,6 +29,7 @@ concurrency:
 
 jobs:
   z-fabric:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: Z-Fabric (iverilog, GHDL, Yosys)
     runs-on: ubuntu-24.04
     timeout-minutes: 20

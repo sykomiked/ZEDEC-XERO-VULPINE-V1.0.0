@@ -19,6 +19,7 @@ on:
       - 'kernel/third_party/**'
       - '.github/workflows/sdk-mobile.yml'
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/mobile/**'
       - 'sdk/libzxv/**'
@@ -43,6 +44,7 @@ concurrency:
 
 jobs:
   kotlin-host:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: kotlin ${{ matrix.os }} JDK ${{ matrix.jdk }}
     strategy:
       fail-fast: false
@@ -79,6 +81,7 @@ jobs:
           path: sdk/mobile/kotlin/zxv/build/reports/tests/
 
   android-aar:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: android aar (arm64-v8a, x86_64)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -119,6 +122,7 @@ jobs:
           path: sdk/mobile/kotlin/android/build/outputs/aar/zxv-android-release.aar
 
   dart:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: dart ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -147,6 +151,7 @@ jobs:
         run: ZXV_LIBRARY_PATH="$PWD/../../libzxv/build" dart run example/main.dart
 
   ios-xcframework:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: ios xcframework (Flutter)
     runs-on: macos-14
     timeout-minutes: 45
@@ -167,6 +172,7 @@ jobs:
           path: sdk/mobile/dart/build/Zxv.xcframework
 
   web-kits:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: web kits (z-web, react-zxv)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
