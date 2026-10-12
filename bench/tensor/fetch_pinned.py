@@ -24,6 +24,26 @@ SETS = {
         ("ggml-org/SmolVLM-256M-Instruct-GGUF", "mmproj-SmolVLM-256M-Instruct-f16.gguf",
          "0802360aca1748f112ea510b8ff277c65b1361c8ef30ed89b83c9c7a60d08e96", 190031616),
     ]),
+    # T25 speech in: bench/tensor/convert_whisper.py turns these into the GGUF zt_whisper reads
+    "whisper-base": ("Apache-2.0 on Hugging Face (openai/whisper-base; MIT upstream)", [
+        ("openai/whisper-base", "model.safetensors",
+         "07cadb9f25677c8d50df603e66a98fbd842cce45047139baeb16e6219a1e807b", 290403936),
+        ("openai/whisper-base", "config.json",
+         "a153c53883a6799b6f056b4a8d1a515c9926d03994682ba88a7616618d7da0c1", 1983),
+        ("openai/whisper-base", "generation_config.json",
+         "444b3f636d2fff89dd9ecf549e2a085b61f7ff0fa0246d4628bac6a3b8cc9ba4", 3807),
+        ("openai/whisper-base", "vocab.json",
+         "8f680bba319e01a653d2e8a5dbc17a9157179e0576e6ce74ce0c06356c6e24f9", 835550),
+        ("openai/whisper-base", "added_tokens.json",
+         "9715fd2243b6f06a5858b5e32950d2853f73dd5bc201aafcf76f5082a2d8acd1", 34604),
+        ("openai/whisper-base", "tokenizer.json",
+         "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566", 2480466),
+    ]),
+    # whisper.cpp's F16 conversion, for the transcript comparison only
+    "whisper-cpp-base": ("MIT (ggerganov/whisper.cpp)", [
+        ("ggerganov/whisper.cpp", "ggml-base.bin",
+         "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe", 147951465),
+    ]),
 }
 
 

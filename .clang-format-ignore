@@ -193,3 +193,5 @@ kernel/src/xlate/test_langid_fixture.h
 # kernel/experimental/README.md). Not reformatted: a move shows as all-new lines.
 kernel/experimental/*/*
 kernel/src/hwemu/hwe_vectors.h
+kernel/src/tensor/zt_whisper_tables.h
+kernel/src/tensor/test_whisper_fixture.h
