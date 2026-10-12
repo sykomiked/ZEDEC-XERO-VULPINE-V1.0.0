@@ -218,6 +218,7 @@ sdk_bridge                       adapters
 sovereign_node                   adapters
 sutra                            adapters
 hwemu                            adapters   # hardware-state emulation standard; dual-signed updates include pqsec (S3)
+fwadapt                          adapters   # smart firmware adapter; writes its decisions into hwemu ZHP-1 nodes
 treaty                           adapters   # COBOL/Sutra treaty pillar; runs on engine (S6)
 
 # ---- S8 above the strata: products, apps and people features
