@@ -326,6 +326,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
+	$(MAKE) --no-print-directory test-adapters
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
@@ -1664,3 +1665,35 @@ test-econ:
 	$(MAKE) --no-print-directory test-zstats
 	$(MAKE) --no-print-directory test-vderiv
 # ==== end economy modules ====
+
+# ==== adapters: accounting, jurisdiction plug-ins, AI intent, privacy ====
+ADAPT_LPRES = src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c
+ADAPT_JURIS = src/juris/juris.c src/vhub/vhub.c src/acct/acct.c src/lpres/lpres_hex.c src/lpres/lpres.c $(ECON_LEDGER)
+
+# Accounting adapters (src/acct): IFRS, US GAAP, AAOIFI; journal, balance sheet, tax and zakah schedule; published worked examples.
+.PHONY: test-acct
+test-acct:
+	gcc $(ECON_FLAGS) src/acct/test_acct.c src/acct/acct.c -o $(ZXV_TMP)/test_acct && $(ZXV_TMP)/test_acct > $(ZXV_TMP)/test_acct.log 2>&1 && echo "[PASS] test_acct ($$(tail -1 $(ZXV_TMP)/test_acct.log))" || { tail -40 $(ZXV_TMP)/test_acct.log; echo "[FAIL] test_acct"; exit 1; }
+
+# Jurisdiction plug-in ABI (src/juris): zxvd jurisdiction.get settings, signed manifests, fail-closed host, vhub limit rule as a plug-in.
+.PHONY: test-juris
+test-juris:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/juris/test_juris.c $(ADAPT_JURIS) -o $(ZXV_TMP)/test_juris -lm && $(ZXV_TMP)/test_juris > $(ZXV_TMP)/test_juris.log 2>&1 && echo "[PASS] test_juris ($$(tail -1 $(ZXV_TMP)/test_juris.log))" || { tail -40 $(ZXV_TMP)/test_juris.log; echo "[FAIL] test_juris"; exit 1; }
+
+# AI intent layer (src/intent): strict grammar, guard, owner approval bound to the draft digest; never writes balances.
+.PHONY: test-intent
+test-intent:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/intent/test_intent.c src/intent/intent.c $(ADAPT_JURIS) -o $(ZXV_TMP)/test_intent -lm && $(ZXV_TMP)/test_intent > $(ZXV_TMP)/test_intent.log 2>&1 && echo "[PASS] test_intent ($$(tail -1 $(ZXV_TMP)/test_intent.log))" || { tail -40 $(ZXV_TMP)/test_intent.log; echo "[FAIL] test_intent"; exit 1; }
+
+# Privacy layer (src/privacy): exact discrete Laplace, epsilon budget, four-valued access control, selective disclosure.
+.PHONY: test-privacy
+test-privacy:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/privacy/test_privacy.c src/privacy/privacy.c $(ADAPT_LPRES) -o $(ZXV_TMP)/test_privacy -lm && $(ZXV_TMP)/test_privacy > $(ZXV_TMP)/test_privacy.log 2>&1 && echo "[PASS] test_privacy ($$(tail -1 $(ZXV_TMP)/test_privacy.log))" || { tail -40 $(ZXV_TMP)/test_privacy.log; echo "[FAIL] test_privacy"; exit 1; }
+
+.PHONY: test-adapters
+test-adapters:
+	$(MAKE) --no-print-directory test-acct
+	$(MAKE) --no-print-directory test-juris
+	$(MAKE) --no-print-directory test-intent
+	$(MAKE) --no-print-directory test-privacy
+# ==== end adapters ====
