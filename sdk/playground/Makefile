@@ -63,10 +63,13 @@ LINK := $(LIB) $(PILLAR_LIBS) $(ECON_LIB) -L$(ZXV)/build -lzxv -Wl,-rpath,$(ZXV)
 
 all: $(LIB) $(OUT)/zxv
 
+# OUT=build: a command-line OUT for the Playground would otherwise pass down
+# to these builds and move their libraries away from where LINK finds them.
 deps:
-	$(MAKE) -C $(ZXV) all
-	for p in cobol-sutra fortran-trebago ada-eve apl-kron mumps-myra; do $(MAKE) -C $(PIL)/$$p all || exit 1; done
-	$(MAKE) -C $(ROOT)/packages econ
+	$(MAKE) -C $(ZXV) OUT=build all
+	for p in cobol-sutra fortran-trebago ada-eve apl-kron mumps-myra; do \
+	    $(MAKE) -C $(PIL)/$$p OUT=build all || exit 1; done
+	$(MAKE) -C $(ROOT)/packages OUT=build econ
 
 $(ZXV_LIB) $(PILLAR_LIBS) $(ECON_LIB):
 	$(MAKE) deps
