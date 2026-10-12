@@ -44,5 +44,8 @@ run test_zui_switch "" $Z/test_zui_switch.c $Z/zui_switch.c $M
 run test_zui_voicectl "" $Z/test_zui_voicectl.c $Z/zui_voicectl.c $M
 run test_zui_caption "" $Z/test_zui_caption.c $Z/zui_caption.c $Z/zui_motion.c $Z/zui_palette.c $Z/zui_canvas.c $Z/zui_layout.c $Z/zui_input.c src/font/truetype.c
 run test_zui_motion "" $Z/test_zui_motion.c $Z/zui_motion.c
+run test_zui_bidi "" $Z/test_zui_bidi.c $Z/zui_bidi.c
+run test_zui_shape "" $Z/test_zui_shape.c $Z/zui_shape.c $Z/zui_bidi.c
+run test_zui_locale "" $Z/test_zui_locale.c $Z/zui_locale.c $Z/zui_bidi.c $Z/zui_reader.c $UI
 sh $Z/views/test_display_view.sh >"$O/display.out" 2>&1 || { cat "$O/display.out"; echo "[FAIL] test_display_view"; exit 1; }
 tail -1 "$O/display.out"
