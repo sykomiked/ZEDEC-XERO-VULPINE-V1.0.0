@@ -79,7 +79,6 @@ smap                             kernel
 syscall                          kernel
 telemetry                        kernel
 timer                            kernel
-tripartite_fs                    kernel
 trispace                         kernel
 vbe                              kernel
 vfs                              kernel
@@ -140,6 +139,8 @@ peer_audit                       logic
 predictive                       logic
 situation                        logic
 paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
+recover                          logic      # refuse / roll back / isolate with signed RepairProofs over paradox (gap B5)
+tripartite_fs                    logic      # its CID-checked self-heal runs through recover (S4); no module includes it
 
 # ---- S5 AI runtime and swarm
 ai_layer                         ai
