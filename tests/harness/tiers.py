@@ -75,6 +75,18 @@ CC_SRC = ["src/community_chest/community_chest.c", "src/vino/vino.c",
           "src/edp_risk/edp_risk.c", "src/surplus/surplus.c", "src/porter_house/porter_house.c",
           "src/lpres/lpres.c", "src/lpres/lpres_core.c", "src/rmag/rmag_core.c", "src/rmag/rmag.c",
           "src/oseq/oseq_core.c", "src/event_space/event_envelope.c"]
+# the end-to-end harness (gap A6): tensor + market + pay + Vinea v3 sessions
+E2E_INC = ["src/market", "src/pay", "src/tensor", "src/vinea", "src/mlkem", "src/swarm",
+           "src/zcapital", "src/pqsec", "src/tls", "src/surplus", "src/lpres", "src/edp_risk"]
+E2E_SRC = ["src/market/market.c", "src/market/mk_order.c", "src/market/mk_extra.c",
+           "src/market/mk_pay.c", "src/pay/pay_ledger.c", "src/pay/pay_util.c",
+           "src/pay/pay_assure.c", "src/robin_debanks/sha256.c", "src/tensor/zt.c",
+           "src/tensor/zt_coil.c", "src/tensor/zt_holo.c", "src/vinea/vna_session.c",
+           "src/vinea/vna_id.c", "src/vinea/vna_common.c", "src/vinea/vna_schema.c",
+           "src/pqsec/pq_mldsa87.c", "src/pqsec/pq_mlkem1024.c", "src/pqsec/mldsa/fips202.c",
+           "src/mlkem/keccak.c", "src/tls/x25519.c", "src/tls/aead.c", "src/tls/hkdf.c",
+           "src/swarm/swarm_market.c", "src/swarm/swarm_budget.c", "src/swarm/swarm_emotion.c",
+           "src/swarm/swarm_hk.c"]
 ALLOC_INC = ["src/mm", "src/rmag", "src/audio", "src/surplus", "src/edp_risk"]
 ALLOC_SRC = ["src/mm/mm.c", "src/rmag/rmag_core.c", "src/audio/audio.c", "src/edp_risk/edp_risk.c",
              "src/surplus/surplus.c"]
@@ -103,6 +115,7 @@ SUITES = {
     "t2_escrow": [prog("integ_escrow", T2 + "/integ_escrow.c", CC_INC + [T1],
                        CC_SRC + ["src/finance/triple_ledger.c"])],
     "t2_pay": [prog("integ_pay", T2 + "/integ_pay.c", PAY_INC + [T1], PAY_SRC, modes=NOQ32)],
+    "t2_e2e": [prog("integ_e2e", T2 + "/integ_e2e.c", E2E_INC + [T1, T2], E2E_SRC)],
     "t2_count_house": [prog("integ_count_house", T2 + "/integ_count_house.c", CC_INC + [T1],
                             CC_SRC)],
     # ---- Tier 3: metamorphic ----
@@ -150,7 +163,8 @@ SUITES = {
     "legacy_porter": [prog("test_porter_house", "src/porter_house/test_porter_house.c",
                            ["src/event_space", "src/porter_house", "src/surplus", "src/edp_risk"],
                            ["src/porter_house/porter_house.c",
-                            "src/event_space/event_envelope.c"], modes=NOQ32)],
+                            "src/event_space/event_envelope.c",
+                            "src/robin_debanks/sha256.c"], modes=NOQ32)],
     "legacy_audio": [prog("test_audio", "src/audio/test_audio.c",
                           ["src/audio", "src/edp_risk", "src/surplus", "src/crit168"],
                           ["src/audio/audio.c", "src/edp_risk/edp_risk.c",
@@ -158,7 +172,7 @@ SUITES = {
 }
 GROUPS = {
     "tier1": ["t1_rational", "t1_pay", "t1_triple", "t1_chest", "t1_alloc"],
-    "tier2": ["t2_escrow", "t2_pay", "t2_count_house"],
+    "tier2": ["t2_escrow", "t2_pay", "t2_count_house", "t2_e2e"],
     "tier3": ["t3_rational", "t3_ledger", "t3_chest"],
 }
 GROUPS["tiers"] = GROUPS["tier1"] + GROUPS["tier2"] + GROUPS["tier3"]

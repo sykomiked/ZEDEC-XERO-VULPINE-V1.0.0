@@ -10,6 +10,7 @@
  */
 
 #include "rmag.h"
+#include "../../include/zxv_fixed.h"
 
 /* ===== Helpers ===== */
 
@@ -18,17 +19,6 @@ static void copy_str(char *dst, const char *src, uint32_t max) {
     for (i = 0; i + 1 < max && src && src[i]; i++)
         dst[i] = src[i];
     dst[i] = '\0';
-}
-
-/* ===== Greatest Common Divisor (Euclidean) ===== */
-
-static uint64_t gcd(uint64_t a, uint64_t b) {
-    while (b != 0) {
-        uint64_t t = b;
-        b = a % b;
-        a = t;
-    }
-    return a;
 }
 
 /* ===== Rational Arithmetic ===== */
@@ -113,7 +103,7 @@ rmag_rational_t rmag_rational_add(rmag_rational_t a, rmag_rational_t b) {
     if (a.denominator == 0) a.denominator = 1;
     if (b.denominator == 0) b.denominator = 1;
     /* Over the lcm of the denominators, every step overflow-checked. */
-    uint64_t g = gcd(a.denominator, b.denominator);
+    uint64_t g = zx_gcd_u64(a.denominator, b.denominator);
     uint64_t common_den, a_term, b_term;
     bool big = __builtin_mul_overflow(a.denominator / g, b.denominator, &common_den);
     big |= __builtin_mul_overflow(a.numerator, b.denominator / g, &a_term);
@@ -159,7 +149,8 @@ rmag_rational_t rmag_rational_multiply(rmag_rational_t a, rmag_rational_t b) {
     result.negative = a.negative != b.negative;
     if (a.numerator == 0 || b.numerator == 0) return rmag_rational_from_uint(0);
     /* cross-reduce first so only a genuinely huge result saturates */
-    uint64_t g1 = gcd(a.numerator, b.denominator), g2 = gcd(b.numerator, a.denominator);
+    uint64_t g1 = zx_gcd_u64(a.numerator, b.denominator),
+             g2 = zx_gcd_u64(b.numerator, a.denominator);
     bool big = __builtin_mul_overflow(a.numerator / g1, b.numerator / g2, &result.numerator);
     big |= __builtin_mul_overflow(a.denominator / g2, b.denominator / g1, &result.denominator);
     if (big) return saturated(result.negative);
@@ -185,7 +176,7 @@ rmag_rational_t rmag_rational_reduce(rmag_rational_t r) {
         r.negative = false;
         return r;
     }
-    uint64_t g = gcd(r.numerator, r.denominator);
+    uint64_t g = zx_gcd_u64(r.numerator, r.denominator);
     if (g > 1) {
         r.numerator /= g;
         r.denominator /= g;

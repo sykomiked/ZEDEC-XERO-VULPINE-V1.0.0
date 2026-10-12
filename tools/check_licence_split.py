@@ -7,10 +7,11 @@ import pathlib, subprocess, sys
 
 HW_EXT = {".v", ".sv", ".svh", ".vh", ".vhd", ".vhdl", ".gds", ".oas",
           ".kicad_sch", ".kicad_pcb", ".sch", ".brd", ".gbr", ".step", ".stp"}
-HW_ID = "LicenseRef-ZXV-Hardware-1.0"
+HW_IDS = ("LicenseRef-ZXV-Hardware-1.0", "LicenseRef-ZXV-Hardware-1.1")
 # Published before the split; placement decided separately.
 ALLOW_OUTSIDE = {"kernel/src/plnp/plnp_frame_parser.sv"}
-LICENCE_COPIES = {"LICENSES/LicenseRef-ZXV-Hardware-1.0.txt", "hardware/LICENSE",
+LICENCE_COPIES = {"LICENSES/LicenseRef-ZXV-Hardware-1.0.txt",
+                  "LICENSES/LicenseRef-ZXV-Hardware-1.1.txt", "hardware/LICENSE",
                   "LICENSE-HARDWARE.md", "REUSE.toml", "tools/check_licence_split.py"}
 
 files = subprocess.run(["git", "ls-files"], capture_output=True, text=True,
@@ -27,7 +28,7 @@ for f in filter(None, files):
         continue
     if inside and "SPDX-License-Identifier: Apache-2.0" in head:
         bad.append(f"{f}: Apache-2.0 header inside hardware/")
-    if not inside and f not in LICENCE_COPIES and f"SPDX-License-Identifier: {HW_ID}" in head:
+    if not inside and f not in LICENCE_COPIES and any(f"SPDX-License-Identifier: {i}" in head for i in HW_IDS):
         bad.append(f"{f}: hardware licence header outside hardware/")
 if bad:
     print("\n".join(bad)); sys.exit(1)

@@ -124,7 +124,10 @@ locally with `scripts/verify-local.sh --all` (or `--docker --all`).
 - In the triple ledger, "trial balance always zero" is false; the model
   requires the counterexample (`docs/FORMAL_INVARIANTS.md` §2).
 - V-Bill issuance, the solvency vault, custodian receipts and estate
-  succession are design intent (`docs/GAP_AUDIT.md` C2 to C6).
+  succession are now implemented and host-tested in CI (`kernel/src/vauction`,
+  `kernel/src/svault`, `kernel/src/estate`; `make -C kernel test-econ`), but
+  the app does not call them yet. `docs/GAP_AUDIT.md` C2 to C6 predate this
+  code and still call them design intent.
 - `docs/GAP_AUDIT.md` found the economy modules were "not in the app" on the
   audited commit; its Progress table records which links have since been made.
 
