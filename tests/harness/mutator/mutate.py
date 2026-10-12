@@ -302,6 +302,14 @@ def run_target(name, target, cmd, lines, ops, jobs, workers, build_code, out_dir
               % (name, rc, cmd))
         return None
     rc2, dt2 = run_cmd(cmd, workers[0], None, env)  # warm the object cache
+    # warm every other worker's build too (copy_tree skips *.o), with no
+    # timeout: a cold libzxv rebuild killed by the mutant timeout leaves
+    # truncated objects that make every later build in that worker fail
+    with ThreadPoolExecutor(max_workers=jobs) as ex:
+        warm = list(ex.map(lambda w: run_cmd(cmd, w, None, env)[0], workers[1:]))
+    if any(r != 0 for r in warm):
+        print("[ERROR] %s: the test command fails while warming a worker tree: %s" % (name, cmd))
+        return None
     timeout = max(20.0, timeout_factor * min(dt, dt2) + 10.0)
     print("[%s/%s] %d mutants, baseline %.1fs, timeout %.0fs, %d jobs"
           % (name, phase, len(muts), min(dt, dt2), timeout, jobs), flush=True)
