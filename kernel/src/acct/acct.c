@@ -592,10 +592,7 @@ typedef struct {
     uint8_t cap;
 } bs_slot_t;
 
-#define SL(s, c)                                                                                   \
-    {                                                                                              \
-        ACCT_S_##s, ACCT_C_##c                                                                     \
-    }
+#define SL(s, c) {ACCT_S_##s, ACCT_C_##c}
 static const bs_slot_t BS_IFRS[] = {
     SL(NONCURRENT_ASSETS, PPE),
     SL(NONCURRENT_ASSETS, GOODWILL),
