@@ -13,7 +13,7 @@
 #define V ZXS_VIEW
 #define W ZXS_WRITE
 static const unsigned char RIGHTS[ZXS_KINDS][ZXS_ROLES] = {
-    /*            owner  member guest  anyone */
+    /*            owner  member guest  public */
     [ZXS_HOME] = {V | W, 0, 0, 0},
     [ZXS_OFFICE] = {V | W, V | W, V, 0},
     [ZXS_TEAM] = {V | W, V | W, V, 0},
@@ -35,7 +35,7 @@ bool zxs_can(const zxs_space_t *s, unsigned want)
 }
 
 static const char *const KIND[ZXS_KINDS] = {"home", "office", "team", "cloudtop", "park"};
-static const char *const ROLE[ZXS_ROLES] = {"owner", "member", "guest", "anyone"};
+static const char *const ROLE[ZXS_ROLES] = {"owner", "member", "guest", "public"};
 
 const char *zxs_kind_name(zxs_kind_t k)
 {
@@ -120,7 +120,9 @@ static bool sees(const zxs_space_t *s, const char *who)
 
 bool zxs_widens(const zxs_space_t *from, const zxs_space_t *to)
 {
-    if (to->kind == ZXS_HOME || is_public(from)) return false;
+    if (to->kind == ZXS_HOME) return false;
+    if (to->kind > from->kind) return true; /* kinds run from private to open */
+    if (is_public(from)) return false;
     if (is_public(to)) return true;
     if (!sees(from, to->owner)) return true;
     for (uint32_t i = 0; i < to->n; i++)
@@ -208,7 +210,7 @@ int zxs_parse(const char *js, uint32_t n, zxs_space_t *s)
         w4_json_get_str(js, t, k, 0, "role", role, sizeof role) < 0)
         return ZXF_E_IO;
     int kk = zxs_kind_parse(kind), rr = zxs_role_parse(role);
-    if (kk <= ZXS_HOME || rr < 0 || rr == ZXS_ANYONE || !zxf_space_id_ok(s->id) ||
+    if (kk <= ZXS_HOME || rr < 0 || rr == ZXS_PUBLIC || !zxf_space_id_ok(s->id) ||
         !name_ok(s->name) || !zxs_who_ok(s->owner) ||
         (rr == ZXS_OWNER) != !strcmp(s->owner, ZXS_ME))
         return ZXF_E_IO;
@@ -296,11 +298,17 @@ int zxs_create(zxs_kind_t kind, const char *name, zxs_space_t *out)
     snprintf(out->name, sizeof out->name, "%s", name);
     snprintf(out->owner, sizeof out->owner, ZXS_ME);
     out->role = ZXS_OWNER;
-    for (int i = 1; i <= 999; i++) {
-        if (i == 1)
-            snprintf(out->id, sizeof out->id, "%s", slug);
-        else
-            snprintf(out->id, sizeof out->id, "%.*s-%d", (int) (ZXF_SPACE_ID_MAX - 4), slug, i);
+    for (unsigned i = 1; i <= 999; i++) {
+        /* slug is at most ZXF_SPACE_ID_MAX - 4 bytes: room for "-999" */
+        size_t k = strlen(slug);
+        memcpy(out->id, slug, k);
+        if (i > 1) {
+            out->id[k++] = '-';
+            if (i >= 100) out->id[k++] = (char) ('0' + i / 100);
+            if (i >= 10) out->id[k++] = (char) ('0' + i / 10 % 10);
+            out->id[k++] = (char) ('0' + i % 10);
+        }
+        out->id[k] = 0;
         rc = zxs_save(out, true);
         if (rc != ZXF_E_EXISTS) return rc;
     }

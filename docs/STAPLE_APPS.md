@@ -88,7 +88,7 @@ naming its kind, owner and members (`kernel/arch/hosted/zxv_spaces.h`). Every
 `files.*` call takes an optional `space`, and zxvd checks the caller's rights
 on each call, so a hidden button in the interface is never the only guard.
 
-| Kind | Owner | Member | Guest | Anyone else |
+| Kind | Owner | Member | Guest | Public |
 |---|---|---|---|---|
 | Home | view, change | | | |
 | Office | view, change | view, change | view | |
@@ -97,9 +97,10 @@ on each call, so a hidden button in the interface is never the only guard.
 | Park | view, change | view, change | view, change | view, change |
 
 - **Crossings are held.** `files.cross` copies a file into another space.
-  When that would show it to anyone who cannot see it now (a public space, or
-  a member who is not in the source), zxvd holds it and returns a ticket; the
-  copy happens only when the owner confirms with that ticket.
+  When the destination is a more open kind (home, office, team, cloud top,
+  park, in that order) or would show it to anyone who cannot see it now,
+  zxvd holds it and returns a ticket; the copy happens only when the owner
+  confirms with that ticket.
 - **Joined spaces.** `spaces.join` records a space another node invited this
   one into, with the role it was given. Until the mesh syncs spaces, the check
   guards this node's copy, and the owner's node checks again when changes

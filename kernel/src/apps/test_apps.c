@@ -5,10 +5,13 @@
  * ZXV folder and swarm.ask is a stub that returns a set answer. A second
  * transport hands zxm made-up replies to cover its error paths. */
 #define _DEFAULT_SOURCE
+#define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
+#include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "zxvd_rpc.h"
@@ -17,6 +20,17 @@
 #include "glint_model.h"
 #include "quillon_model.h"
 #include "spindle_model.h"
+
+/* remove a scratch tree without a shell (no links followed) */
+static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
+{
+    (void) st, (void) flag, (void) f;
+    return remove(p);
+}
+static int rm_tree(const char *p)
+{
+    return nftw(p, rm_one, 16, FTW_DEPTH | FTW_PHYS);
+}
 
 static int fails, checks;
 
@@ -806,9 +820,7 @@ int main(void)
     test_spindle();
     test_spaces();
     free(OUT.p);
-    char cmd[300];
-    snprintf(cmd, sizeof cmd, "rm -rf '%s'", root);
-    if (system(cmd) != 0) printf("  (could not remove %s)\n", root);
+    if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {
         printf("[FAIL] test_apps: %d of %d checks failed\n", fails, checks);
         return 1;

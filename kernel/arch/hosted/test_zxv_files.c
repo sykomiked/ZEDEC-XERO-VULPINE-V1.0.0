@@ -3,6 +3,9 @@
 /* test_zxv_files.c — zxv_files.h F1-F6 on a scratch root (POSIX).
  *   cc -std=c11 -I. test_zxv_files.c zxv_files.c && ./a.out */
 #define _DEFAULT_SOURCE
+#define _XOPEN_SOURCE 700 /* nftw */
+#define _DARWIN_C_SOURCE
+#include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +13,17 @@
 #include <unistd.h>
 
 #include "zxv_files.h"
+
+/* remove a scratch tree without a shell (no links followed) */
+static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
+{
+    (void) st, (void) flag, (void) f;
+    return remove(p);
+}
+static int rm_tree(const char *p)
+{
+    return nftw(p, rm_one, 16, FTW_DEPTH | FTW_PHYS);
+}
 
 static int fails, checks;
 #define CHECK(c)                                                                                   \
@@ -281,9 +295,7 @@ int main(void)
     links();
     trash();
     roots();
-    char cmd[700];
-    snprintf(cmd, sizeof cmd, "rm -rf '%s'", ROOTDIR);
-    if (system(cmd)) fprintf(stderr, "cleanup failed\n");
+    if (rm_tree(ROOTDIR)) fprintf(stderr, "cleanup failed\n");
     printf("%s test_zxv_files: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,
            checks);
     return fails ? 1 : 0;

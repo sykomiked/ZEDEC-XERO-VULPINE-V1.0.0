@@ -2329,7 +2329,7 @@
     },
     {
       "name": "files.cross",
-      "summary": "Copy a file into another space (zxv_spaces.h S3). When the destination would show it to anyone who cannot see the source (a public space, or a member not in the source), the copy is held and a ticket returned; calling again with confirm: ticket does it. The 8 latest held crossings are kept.",
+      "summary": "Copy a file into another space (zxv_spaces.h S3). A copy into a more open kind (home < office < team < cloudtop < park), or one that would show it to anyone who cannot see the source, is held and a ticket returned; calling again with confirm: ticket does it. The 8 latest held crossings are kept.",
       "params": [
         {
           "name": "from_space",

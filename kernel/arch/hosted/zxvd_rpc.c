@@ -1473,9 +1473,11 @@ static void m_files_cross(call_t *c)
         snprintf(HELD[k].path, sizeof HELD[k].path, "%s", path);
         snprintf(HELD[k].dest, sizeof HELD[k].dest, "%s", dest);
         zxvd_buf_printf(c->res, "{\"held\":true,\"ticket\":%u,\"reason\":", (unsigned) TICKETS);
-        zxvd_buf_json_str(c->res, to.kind == ZXS_CLOUDTOP || to.kind == ZXS_PARK
-                                      ? "the destination is public"
-                                      : "the destination shows it to people who cannot see it now");
+        zxvd_buf_json_str(
+            c->res, to.kind == ZXS_CLOUDTOP || to.kind == ZXS_PARK ? "the destination is public"
+                    : to.kind > from.kind ? "the destination is a more open kind of space"
+                                          : "the destination shows it to people who cannot "
+                                            "see it now");
         zxvd_buf_raw(c->res, "}", 1);
         return;
     }

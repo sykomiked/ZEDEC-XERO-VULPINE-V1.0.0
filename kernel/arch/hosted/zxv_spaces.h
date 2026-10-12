@@ -10,7 +10,7 @@
  * and its members.
  *
  *   S1 RIGHTS. What a role may do follows from the space's kind alone:
- *        kind       owner        member       guest   anyone else
+ *        kind       owner        member       guest   public
  *        home       view, write  -            -       -
  *        office     view, write  view, write  view    -
  *        team       view, write  view, write  view    -
@@ -22,9 +22,10 @@
  *      was invited into are recorded with the role it was given. Until the
  *      mesh syncs spaces, the check guards this node's copy; the owner's
  *      node checks again when changes reach it.
- *   S3 CROSSINGS ARE HELD. Copying a file into a space whose audience is
- *      wider than the source's (anyone there who could not see the source)
- *      is held until the owner confirms it. Into home, or between spaces
+ *   S3 CROSSINGS ARE HELD. Copying a file into a more open kind of space
+ *      (home < office < team < cloudtop < park), or into one whose audience
+ *      is wider than the source's (anyone there who could not see the
+ *      source), is held until the owner confirms it. Into home, or between spaces
  *      with the same audience or a narrower one, it goes at once.
  *   S4 MEMBERS. Only the owner changes the member list. Group decisions
  *      (flat or hierarchical governance, quorum) are the UI model's
@@ -43,7 +44,7 @@
 #define ZXS_ME          "me" /* this node, as owner */
 
 typedef enum { ZXS_HOME, ZXS_OFFICE, ZXS_TEAM, ZXS_CLOUDTOP, ZXS_PARK, ZXS_KINDS } zxs_kind_t;
-typedef enum { ZXS_OWNER, ZXS_MEMBER, ZXS_GUEST, ZXS_ANYONE, ZXS_ROLES } zxs_role_t;
+typedef enum { ZXS_OWNER, ZXS_MEMBER, ZXS_GUEST, ZXS_PUBLIC, ZXS_ROLES } zxs_role_t;
 enum { ZXS_VIEW = 1, ZXS_WRITE = 2 };
 
 typedef struct {

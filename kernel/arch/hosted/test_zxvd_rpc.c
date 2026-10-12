@@ -7,6 +7,7 @@
  * (tests/harness/mutator/targets.json "zxvd_rpc"); test_zxvd.py covers the
  * real daemon end to end. */
 #define _DEFAULT_SOURCE
+#define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -17,6 +18,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +33,17 @@
 #include "sha256.h"
 #include "zxv_files.h"
 #include "zxv_spaces.h"
+
+/* remove a scratch tree without a shell (no links followed) */
+static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
+{
+    (void) st, (void) flag, (void) f;
+    return remove(p);
+}
+static int rm_tree(const char *p)
+{
+    return nftw(p, rm_one, 16, FTW_DEPTH | FTW_PHYS);
+}
 
 static int fails, checks;
 
@@ -503,19 +516,19 @@ static void test_spaces_methods(void)
 
     /* S1 table */
     CHECK(zxs_rights(ZXS_HOME, ZXS_OWNER) == (ZXS_VIEW | ZXS_WRITE) &&
-              zxs_rights(ZXS_HOME, ZXS_MEMBER) == 0 && zxs_rights(ZXS_HOME, ZXS_ANYONE) == 0,
+              zxs_rights(ZXS_HOME, ZXS_MEMBER) == 0 && zxs_rights(ZXS_HOME, ZXS_PUBLIC) == 0,
           "home is the owner's");
     CHECK(zxs_rights(ZXS_OFFICE, ZXS_MEMBER) == (ZXS_VIEW | ZXS_WRITE) &&
               zxs_rights(ZXS_TEAM, ZXS_MEMBER) == (ZXS_VIEW | ZXS_WRITE) &&
               zxs_rights(ZXS_OFFICE, ZXS_GUEST) == ZXS_VIEW &&
               zxs_rights(ZXS_TEAM, ZXS_GUEST) == ZXS_VIEW &&
-              zxs_rights(ZXS_OFFICE, ZXS_ANYONE) == 0 && zxs_rights(ZXS_TEAM, ZXS_ANYONE) == 0,
+              zxs_rights(ZXS_OFFICE, ZXS_PUBLIC) == 0 && zxs_rights(ZXS_TEAM, ZXS_PUBLIC) == 0,
           "offices and teams: members write, guests view");
     CHECK(zxs_rights(ZXS_CLOUDTOP, ZXS_OWNER) == (ZXS_VIEW | ZXS_WRITE) &&
               zxs_rights(ZXS_CLOUDTOP, ZXS_MEMBER) == ZXS_VIEW &&
-              zxs_rights(ZXS_CLOUDTOP, ZXS_ANYONE) == ZXS_VIEW,
+              zxs_rights(ZXS_CLOUDTOP, ZXS_PUBLIC) == ZXS_VIEW,
           "cloud top: anyone views, the owner writes");
-    CHECK(zxs_rights(ZXS_PARK, ZXS_ANYONE) == (ZXS_VIEW | ZXS_WRITE) &&
+    CHECK(zxs_rights(ZXS_PARK, ZXS_PUBLIC) == (ZXS_VIEW | ZXS_WRITE) &&
               zxs_rights(ZXS_PARK, ZXS_GUEST) == (ZXS_VIEW | ZXS_WRITE),
           "a park is public");
     CHECK(zxs_rights(ZXS_KINDS, ZXS_OWNER) == 0 && zxs_rights(ZXS_HOME, ZXS_ROLES) == 0,
@@ -689,8 +702,8 @@ static void test_spaces_methods(void)
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"home\",\"path\":\"diary.txt\",\"to_space\":"
                "\"studio-a\",\"to\":\"diary.txt\"}"),
-           OK("6", "{\"held\":true,\"ticket\":1,\"reason\":\"the destination shows it to people "
-                   "who cannot see it now\"}"));
+           OK("6", "{\"held\":true,\"ticket\":1,\"reason\":\"the destination is a more open kind "
+                   "of space\"}"));
     EXPECT(REQ("6", "files.read", ",\"params\":{\"space\":\"studio-a\",\"path\":\"diary.txt\"}"),
            FERR("6", "no such file or folder"));
     EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":1}"),
@@ -719,15 +732,21 @@ static void test_spaces_methods(void)
                ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
                "\"lab\",\"to\":\"plan.txt\"}"),
            OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}")); /* bob saw it */
+    CHECK(has(REQ("6", "files.cross",
+                  ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
+                  "\"team\",\"to\":\"plan.txt\"}"),
+              "{\"held\":true,\"ticket\":3,\"reason\":\"the destination is a more open kind "
+              "of space\"}"),
+          "office to team is more open, though no one new sees it: %s", OUT.p);
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
                "\"lab\",\"to\":\"plan3.txt\"}"),
-           OK("6", "{\"held\":true,\"ticket\":3,\"reason\":\"the destination shows it to people "
-                   "who cannot see it now\"}"));
+           OK("6", "{\"held\":true,\"ticket\":4,\"reason\":\"the destination is a more open kind "
+                   "of space\"}"));
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
                "\"t-front\",\"to\":\"plan.txt\"}"),
-           OK("6", "{\"held\":true,\"ticket\":4,\"reason\":\"the destination is public\"}"));
+           OK("6", "{\"held\":true,\"ticket\":5,\"reason\":\"the destination is public\"}"));
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"commons\",\"path\":\"hello.txt\",\"to_space\":"
                "\"t-front\",\"to\":\"hello.txt\"}"),
@@ -764,20 +783,20 @@ static void test_spaces_methods(void)
     char mf[300];
     snprintf(mf, sizeof mf, "%s/.spaces/lab.space", root);
     CHECK(remove(mf) == 0, "lab leaves");
-    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":3}"),
-           SERR("6", "the spaces changed since the crossing was held"));
     EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":4}"),
+           SERR("6", "the spaces changed since the crossing was held"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":5}"),
            OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}"));
     /* only the latest 8 held crossings are kept */
     for (int i = 0; i < 9; i++)
         rpc(REQ("7", "files.cross",
                 ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
                 "\"park\",\"to\":\"p.txt\"}"));
-    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":5}"),
-           ERR("7", "-32602", "no held crossing with that ticket"));
     EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":6}"),
+           ERR("7", "-32602", "no held crossing with that ticket"));
+    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":7}"),
            OK("7", "{\"held\":false,\"path\":\"p.txt\",\"size\":2}"));
-    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":13}"),
+    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":14}"),
            FERR("7", "something with that name already exists"));
 
     /* a long file crosses whole */
@@ -797,8 +816,8 @@ static void test_spaces_methods(void)
     EXPECT(REQ("8", "files.cross",
                ",\"params\":{\"from_space\":\"home\",\"path\":\"big.txt\","
                "\"to_space\":\"park\",\"to\":\"big.txt\"}"),
-           OK("8", "{\"held\":true,\"ticket\":14,\"reason\":\"the destination is public\"}"));
-    EXPECT(REQ("8", "files.cross", ",\"params\":{\"confirm\":14}"), want);
+           OK("8", "{\"held\":true,\"ticket\":15,\"reason\":\"the destination is public\"}"));
+    EXPECT(REQ("8", "files.cross", ",\"params\":{\"confirm\":15}"), want);
 
     /* damaged manifests are refused and left out of the list */
     snprintf(mf, sizeof mf, "%s/.spaces/park.space", root);
@@ -834,9 +853,7 @@ static void test_spaces_methods(void)
           "list: %s", l);
 
     CHECK(zxf_use_space("home") == 0, "home again");
-    char cmd[300];
-    snprintf(cmd, sizeof cmd, "rm -rf '%s'", root);
-    CHECK(system(cmd) == 0, "cleanup");
+    CHECK(rm_tree(root) == 0, "cleanup");
 }
 
 static void test_books_closed(void)
@@ -2586,9 +2603,7 @@ static void test_files_methods(void)
     EXPECT(REQ("14", "files.empty_trash", ""),
            FERR("14", "the ZXV folder cannot be found or made"));
     CHECK(zxf_set_root(root) == 0, "root back");
-    char cmd[300];
-    snprintf(cmd, sizeof cmd, "rm -rf '%s'", root);
-    CHECK(system(cmd) == 0, "cleanup");
+    CHECK(rm_tree(root) == 0, "cleanup");
 }
 
 int main(void)
