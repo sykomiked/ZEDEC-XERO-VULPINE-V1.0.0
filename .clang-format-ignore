@@ -195,3 +195,5 @@ kernel/experimental/*/*
 kernel/src/hwemu/hwe_vectors.h
 kernel/src/tensor/zt_whisper_tables.h
 kernel/src/tensor/test_whisper_fixture.h
+kernel/src/tensor/zt_tts_tables.h
+kernel/src/tensor/test_tts_fixture.h

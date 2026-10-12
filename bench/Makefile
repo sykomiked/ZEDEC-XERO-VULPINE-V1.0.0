@@ -16,6 +16,9 @@
 #                                   also cross-builds $(OUT)/zt_asr_arm64 (static, qemu-aarch64)
 #   make -C bench zt_dump zt_golden logit dump and golden-ratio experiment tools (see
 #                                   bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md)
+#   make -C bench zt_tts            text-to-speech driver (OuteTTS + WavTokenizer, T26;
+#                                   bench/results/2026-10-12-outetts/REPORT.md)
+#   make -C bench zt_tts_arm64      the same, cross-built for aarch64 (run under qemu-aarch64)
 CC ?= gcc
 OUT ?= /tmp/zxv_bench
 K := ../kernel
@@ -33,7 +36,7 @@ NN_SRCS := $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_vision.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench zt_asr zt_dump zt_golden zt_vlm smoke tensor qwen
+.PHONY: all legacy legacy-bench zt_bench zt_asr zt_dump zt_golden zt_vlm zt_tts zt_tts_arm64 smoke tensor qwen
 all: smoke
 
 $(OUT):
@@ -75,6 +78,15 @@ $(OUT)/zt_asr_arm64: tensor/zt_asr.c $(ASR_SRCS) $(wildcard $(K)/src/tensor/*.h)
 zt_asr: $(OUT)/zt_asr $(if $(filter 1,$(ARM64)),$(OUT)/zt_asr_arm64)
 
 zt_dump: $(OUT)/zt_dump
+
+TTS_SRCS := $(TENSOR_SRCS) $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_tts.c
+$(OUT)/zt_tts: tensor/zt_tts.c $(TTS_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_tts.c $(TTS_SRCS) -lm -lpthread -o $@
+$(OUT)/zt_tts_arm64: tensor/zt_tts.c $(TTS_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor tensor/zt_tts.c $(TTS_SRCS) \
+		-lm -lpthread -o $@
+zt_tts: $(OUT)/zt_tts
+zt_tts_arm64: $(OUT)/zt_tts_arm64
 zt_golden: $(OUT)/zt_golden
 
 # Offline: the legacy golden check, and zt_bench on the tokenizer-only test GGUF
