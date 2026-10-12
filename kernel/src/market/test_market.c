@@ -805,8 +805,10 @@ static void test_transitions(void)
     CHECK(mk_order_pay(&M, o, &B) == MK_ERR_SETTLE);
     CHECK(!memcmp(&snap, mk_order(&M, o), sizeof snap));
     CHECK(mk_order_pay(&M, o, &B) == MK_OK);
+    memcpy(&snap, mk_order(&M, o), sizeof snap);
     LG.fail_next = true;
     CHECK(mk_order_confirm(&M, o, &B) == MK_ERR_SETTLE && st(o) == MK_ORD_PAID);
+    CHECK(!memcmp(&snap, mk_order(&M, o), sizeof snap)); /* fulfilled_at untouched too */
     CHECK(all_ok());
 
     /* self-dealing refused */

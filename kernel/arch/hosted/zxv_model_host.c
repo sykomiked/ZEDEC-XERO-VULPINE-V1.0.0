@@ -245,12 +245,21 @@ static int32_t gen_job(void *ctx, uint32_t max_new)
 }
 #endif
 
-/* Tokenize the prompt with tok and generate on g (agent null) or the agent. */
+static uint64_t PROMPT_TOKENS;
+
+uint64_t zxv_model_prompt_tokens(void)
+{
+    return PROMPT_TOKENS;
+}
+
+/* Tokenize the prompt with tok and generate on g (agent null) or the agent.
+ * Sets PROMPT_TOKENS before run is called. */
 static int answer_with(const zxv_model_info_t *I, const zt_gguf_t *g, const zt_tok_t *tok,
                        void *agent, const char *prompt, zxv_gen_runner_fn run, void *rctx,
                        char *out, size_t cap)
 {
     out[0] = 0;
+    PROMPT_TOKENS = 0;
     if (!I->loaded) return 0;
     if (!I->tok_ok) {
         snprintf(out, cap, "Model %s is installed, but its tokenizer (%s) is not supported yet.",
@@ -270,6 +279,7 @@ static int answer_with(const zxv_model_info_t *I, const zt_gguf_t *g, const zt_t
         r = zt_tok_encode(tok, (const uint8_t *) prompt, len, false, ids + off, cap_ids - off, &n,
                           work, wb);
         n += off;
+        PROMPT_TOKENS = n;
     }
     int answered = 0;
     if (r != ZT_GGUF_OK) {

@@ -31,9 +31,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || (github.ref == 'refs/heads/main' && github.sha) || github.ref }}
   # Only pull request runs are cancelled by a newer push; every commit on
-  # main/develop keeps its result.
+  # main/develop keeps its result. Each main commit gets its own group, since
+  # a group holds one pending run and quick merges would otherwise cancel the
+  # queued one, leaving main's newest finished run (and the badge) cancelled.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -101,6 +103,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 gcc-aarch64-linux-gnu qemu-user
+      - name: Seven-strata layer check
+        run: |
+          build_system/verify_layers.sh
+          python3 tests/harness/test_verify_strata.py
       - name: Run host tests
         env:
           ZXV_REQUIRE_COBOL: "1"
