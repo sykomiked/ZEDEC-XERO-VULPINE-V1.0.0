@@ -907,12 +907,34 @@ int32_t zt_model_state_init(zt_model_state_t *s, const zt_model_t *m, uint32_t n
     s->pos = 0;
     s->n_sat = 0;
     s->mmb_cols = 0;
+    s->hid = 0;
+    s->tap = 0;
+    s->tap_layer = -1;
     return ZT_GGUF_OK;
 }
 
 void zt_model_state_seek(zt_model_state_t *s, uint32_t pos)
 {
     if (pos < s->pos) s->pos = pos;
+}
+
+const zt_fx *zt_model_hidden(const zt_model_state_t *s)
+{
+    return s ? s->hid : 0;
+}
+
+int32_t zt_model_set_tap(zt_model_state_t *s, const zt_model_t *m, int32_t layer, zt_fx *buf)
+{
+    if (!s || !m) return ZT_MODEL_EARG;
+    if (layer < 0 || !buf) {
+        s->tap = 0;
+        s->tap_layer = -1;
+        return ZT_GGUF_OK;
+    }
+    if ((uint32_t) layer >= m->cfg.n_layer) return ZT_MODEL_EARG;
+    s->tap = buf;
+    s->tap_layer = layer;
+    return ZT_GGUF_OK;
 }
 
 /* ---- attention ---- */
@@ -1191,12 +1213,15 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
         matmul(m, &L->wd, s, B, s->xn, ne, 0);
         j.stage = TS_RESID;
         per_token(m, &j, B, wn);
+        if (s->tap && s->tap_layer == (int32_t) l)
+            for (uint32_t i = 0; i < ne; i++) s->tap[i] = s->x[(uint64_t) (B - 1) * ne + i];
     }
     s->pos = p0 + B;
     if (!logits) return ZT_GGUF_OK;
     uint32_t first = all ? 0 : B - 1;
     for (uint32_t b = first; b < B; b++)
         rmsnorm(s->x + b * ne, ne, &m->out_norm, m->eps_q48, s->xn + b * ne);
+    s->hid = s->xn + (uint64_t) (B - 1) * ne;
     act_batch(m, s, s->xn + (uint64_t) first * ne, ne, ne, B - first);
     matmul(m, &m->out, s, B - first, logits, c->n_vocab, 0);
     return ZT_GGUF_OK;
@@ -1292,15 +1317,31 @@ uint64_t zt_sample_work_bytes(uint32_t n_vocab)
 
 int32_t zt_argmax(const zt_fx *logits, uint32_t n)
 {
+    return zt_argmax_masked(logits, n, 0);
+}
+
+static bool allowed(const uint8_t *allow, uint32_t i)
+{
+    return !allow || ((allow[i >> 3] >> (i & 7)) & 1u);
+}
+
+int32_t zt_argmax_masked(const zt_fx *logits, uint32_t n, const uint8_t *allow)
+{
     if (!logits || !n) return ZT_MODEL_EARG;
-    uint32_t best = 0;
-    for (uint32_t i = 1; i < n; i++)
-        if (logits[i] > logits[best]) best = i;
-    return (int32_t) best;
+    int64_t best = -1;
+    for (uint32_t i = 0; i < n; i++)
+        if (allowed(allow, i) && (best < 0 || logits[i] > logits[best])) best = i;
+    return best < 0 ? ZT_MODEL_EARG : (int32_t) best;
 }
 
 int32_t zt_sample(zt_sampler_t *sp, const zt_fx *logits, uint32_t V, const int32_t *hist,
                   uint32_t n_hist, void *work, uint64_t work_bytes)
+{
+    return zt_sample_masked(sp, logits, V, hist, n_hist, 0, work, work_bytes);
+}
+
+int32_t zt_sample_masked(zt_sampler_t *sp, const zt_fx *logits, uint32_t V, const int32_t *hist,
+                         uint32_t n_hist, const uint8_t *allow, void *work, uint64_t work_bytes)
 {
     if (!sp || !logits || !V || V > 0x7FFFFFFFu) return ZT_MODEL_EARG;
     if (!work || work_bytes < zt_sample_work_bytes(V)) return ZT_MODEL_ESPACE;
@@ -1323,6 +1364,14 @@ int32_t zt_sample(zt_sampler_t *sp, const zt_fx *logits, uint32_t V, const int32
             c[id].l = l <= 0 ? sat32((l * p->repeat_penalty) >> 16)
                              : sat32((l * (int64_t) inv + 32768) >> 16);
         }
+    }
+    if (allow) {
+        /* drop the tokens the filter refuses; the rest keep their order */
+        uint32_t w = 0;
+        for (uint32_t i = 0; i < V; i++)
+            if (allowed(allow, i)) c[w++] = c[i];
+        if (!w) return ZT_MODEL_EARG;
+        V = w;
     }
     if (p->temperature <= 0) {
         uint32_t best = 0;
@@ -1396,6 +1445,7 @@ typedef struct {
     uint8_t *piece;
     uint32_t piece_cap;
     uint8_t *tail;
+    uint8_t *allow;
 } gen_lay_t;
 
 static uint64_t gen_layout(const zt_model_t *m, const zt_tok_t *t, uint64_t plen, uint32_t max_tok,
@@ -1412,6 +1462,7 @@ static uint64_t gen_layout(const zt_model_t *m, const zt_tok_t *t, uint64_t plen
     g->piece_cap = max_piece(t) + 8;
     g->piece = lay(&L, g->piece_cap);
     g->tail = lay(&L, 64);
+    g->allow = lay(&L, ((uint64_t) m->cfg.n_vocab + 7) / 8);
     return L.used + 8;
 }
 
@@ -1456,15 +1507,35 @@ int32_t zt_model_generate(const zt_model_t *m, zt_model_state_t *s, const zt_tok
             res->stop = ZT_GEN_MAX;
             break;
         }
-        int32_t tok = gp->sampler ? zt_sample(gp->sampler, g.logits, m->cfg.n_vocab, g.ids,
-                                              (uint32_t) n, g.samp, g.samp_bytes)
-                                  : zt_argmax(g.logits, m->cfg.n_vocab);
+        const uint8_t *allow = 0;
+        if (gp->filter.mask) {
+            uint32_t nb = (m->cfg.n_vocab + 7) / 8;
+            for (uint32_t i = 0; i < nb; i++) g.allow[i] = 0;
+            int32_t na = gp->filter.mask(gp->filter.ctx, g.allow, m->cfg.n_vocab);
+            if (na < 0) return na;
+            if (na == 0) {
+                res->stop = ZT_GEN_FILTER;
+                break;
+            }
+            allow = g.allow;
+        }
+        int32_t tok = gp->sampler ? zt_sample_masked(gp->sampler, g.logits, m->cfg.n_vocab, g.ids,
+                                                     (uint32_t) n, allow, g.samp, g.samp_bytes)
+                                  : zt_argmax_masked(g.logits, m->cfg.n_vocab, allow);
         if (tok < 0) return tok;
         bool end = tok == t->eos;
         for (uint32_t i = 0; i < gp->n_stop_ids; i++) end = end || tok == gp->stop_ids[i];
         if (end) {
             res->stop = ZT_GEN_EOS;
             break;
+        }
+        if (gp->filter.mask && gp->filter.accept) {
+            r = gp->filter.accept(gp->filter.ctx, tok);
+            if (r < 0) return r;
+        }
+        if (gp->on_hidden) {
+            const zt_fx *h = s->tap ? s->tap : s->hid;
+            if (h) gp->on_hidden(gp->hctx, tok, h, m->cfg.n_embd, s->n_sat);
         }
         g.ids[n++] = tok;
         res->n_gen++;

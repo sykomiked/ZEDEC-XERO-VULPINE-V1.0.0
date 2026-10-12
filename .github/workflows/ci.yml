@@ -480,7 +480,8 @@ jobs:
 
   # Post-quantum KATs on other CPUs: the NIST ACVP/KAT tests cross-compiled for
   # aarch64, riscv64, armhf (32-bit), i686 (32-bit) and s390x (big-endian) and
-  # run under qemu-user. Then the valgrind secret-branch check (ctgrind) of
+  # run under qemu-user, and the grammar-mask and evidence-head digests
+  # (build_system/ai_cross.sh) compared with the host's. Then the valgrind secret-branch check (ctgrind) of
   # ML-KEM-768 decaps/encaps (gated) and ML-DSA-65 sign (reported only), and
   # the legacy-transcoder golden traces. No model is downloaded.
   kat-cross:
@@ -499,6 +500,8 @@ jobs:
             libc6-dev-s390x-cross valgrind
       - name: KATs on aarch64, riscv64, armhf, i686, s390x (qemu-user)
         run: KAT_CROSS_STRICT=1 make -C kernel kat-cross
+      - name: Grammar masks and evidence-head fits, same bits on the same five CPUs
+        run: KAT_CROSS_STRICT=1 bash build_system/ai_cross.sh
       - name: Secret-dependent branch check under valgrind (ctgrind)
         run: make -C kernel ct-valgrind
       - name: Legacy transcoder golden traces

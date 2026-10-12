@@ -6,11 +6,15 @@
  * (interleaved RoPE, rope_freqs, F16 matrices converted into the arena).
  * Also: batch prefill == one-at-a-time decode, determinism, arena sizing,
  * rejection of bad files, sampling statistics, the generate loop with the
- * tokenizer fixture, a header fuzzer, and a speed figure.
+ * tokenizer fixture, constrained generation (zt_gram: the masked sampler,
+ * grammars that admit everything change nothing, every output admitted)
+ * and the hidden-state hook and tap (zt_evh), a header fuzzer, and a speed
+ * figure.
  *
  *   gcc -std=c11 -O2 -Wall -Wextra -Werror -Isrc/tensor src/tensor/test_zt_model.c \
  *       src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c \
- *       src/tensor/zt.c -o /tmp/test_zt_model && /tmp/test_zt_model
+ *       src/tensor/zt.c src/tensor/zt_gram.c src/tensor/zt_gram_lib.c src/tensor/zt_evh.c -lm \
+ *       -o /tmp/test_zt_model && /tmp/test_zt_model
  * Add -fsanitize=address,undefined and pass "fuzz" for the long fuzz run.
  */
 #define _POSIX_C_SOURCE 199309L
@@ -19,6 +23,8 @@
 #include <string.h>
 #include <time.h>
 #include "zt_model.h"
+#include "zt_gram.h"
+#include "zt_evh.h"
 #include "test_model_fixture.h"
 #include "test_tok_fixture.h"
 
@@ -413,6 +419,284 @@ static bool on_tok(void *ctx, int32_t id, const uint8_t *piece, uint32_t len)
     if (c->len + len <= sizeof c->text) memcpy(c->text + c->len, piece, len);
     c->len += len;
     return !c->stop_after || c->n < c->stop_after;
+}
+
+/* ---- constrained generation (zt_gram) and the hidden-state hook (zt_evh) ---- */
+
+typedef struct {
+    zt_gram_t g;
+    void *arena;
+    zt_gram_state_t st;
+    void *mem;
+} gram_t;
+
+static int32_t gram_open(gram_t *G, const char *src)
+{
+    zt_gram_err_t err;
+    uint32_t len = (uint32_t) strlen(src);
+    uint64_t need = zt_gram_arena_bytes((const uint8_t *) src, len, 0, &err);
+    G->arena = malloc(need ? need : 1);
+    G->mem = malloc(zt_gram_state_bytes(256, 128));
+    int32_t r = zt_gram_compile(&G->g, (const uint8_t *) src, len, 0, G->arena, need, &err);
+    if (!r) r = zt_gram_state_init(&G->st, &G->g, 256, 128, G->mem, zt_gram_state_bytes(256, 128));
+    return r;
+}
+
+static void gram_close(gram_t *G)
+{
+    free(G->arena);
+    free(G->mem);
+}
+
+/* the whole output, from a fresh state: 1 complete, 0 a viable prefix, -1 refused */
+static int gram_check(gram_t *G, const uint8_t *text, uint32_t len)
+{
+    zt_gram_reset(&G->st);
+    if (zt_gram_accept(&G->st, text, len)) return -1;
+    return zt_gram_complete(&G->st) ? 1 : 0;
+}
+
+static uint64_t fnv3(const uint8_t *b, uint64_t n, uint64_t h)
+{
+    for (uint64_t i = 0; i < n; i++) h = (h ^ b[i]) * 0x100000001b3ull;
+    return h;
+}
+
+typedef struct {
+    uint32_t n;
+    uint64_t h;
+    const zt_fx *last;
+} hid_t;
+
+static void on_hid(void *ctx, int32_t id, const zt_fx *h, uint32_t n, uint32_t n_sat)
+{
+    hid_t *k = ctx;
+    (void) n_sat;
+    k->h = fnv3((const uint8_t *) &id, 4, k->h ^ fnv3((const uint8_t *) h, (uint64_t) n * 4, 0));
+    k->last = h;
+    k->n++;
+}
+
+static void constrained(const zt_model_t *m, const zt_tok_t *tok, const mf_variant_t *v,
+                        const uint8_t *prompt, uint32_t plen)
+{
+    uint32_t V = m->cfg.n_vocab;
+    uint64_t wb = zt_model_gen_work_bytes(m, tok, plen, 32);
+    uint8_t *work = malloc(wb);
+    state_t S;
+    mkstate(&S, m, 128, 8, ZT_KV_Q16);
+    uint64_t vb = zt_gram_vocab_bytes(tok);
+    uint8_t *vm = malloc(vb);
+    zt_gram_vocab_t voc;
+    zt_gram_vocab_init(&voc, tok, vm, vb);
+    zt_gen_result_t res;
+    cb_t cb;
+
+    /* the sampler: every bit set == unmasked, draw for draw; a mask is obeyed */
+    {
+        zt_fx *lg = malloc((uint64_t) V * 4);
+        uint8_t *all = malloc((V + 7) / 8), *some = malloc((V + 7) / 8);
+        memset(all, 0xFF, (V + 7) / 8);
+        uint64_t sw = zt_sample_work_bytes(V);
+        void *wk = malloc(sw);
+        uint32_t same = 0, obey = 0, inside = 0;
+        for (uint32_t it = 0; it < 600; it++) {
+            for (uint32_t i = 0; i < V; i++)
+                lg[i] = (zt_fx) (mix(it, i) % (12 * 65536)) - 6 * 65536;
+            for (uint32_t i = 0; i < (V + 7) / 8; i++) some[i] = (uint8_t) mix(it + 7777, i);
+            zt_sampler_params_t p = {(zt_fx) (it % 3 ? 16384 + it * 97 : 0),
+                                     it % 5 ? 0u : 40u,
+                                     it % 7 ? 0 : 58982,
+                                     it % 4 ? 0 : 72090,
+                                     16,
+                                     it};
+            zt_sampler_t a, b, c;
+            zt_sampler_init(&a, &p);
+            zt_sampler_init(&b, &p);
+            zt_sampler_init(&c, &p);
+            int32_t hist[8] = {1, 2, 3, 5, 8, 13, 21, 34};
+            int32_t x = zt_sample(&a, lg, V, hist, 8, wk, sw);
+            int32_t y = zt_sample_masked(&b, lg, V, hist, 8, all, wk, sw);
+            same += x == y && a.rng == b.rng;
+            int32_t z = zt_sample_masked(&c, lg, V, hist, 8, some, wk, sw);
+            obey += z >= 0 && ((some[z >> 3] >> (z & 7)) & 1u);
+            int32_t g = zt_argmax_masked(lg, V, some);
+            bool best = g >= 0 && ((some[g >> 3] >> (g & 7)) & 1u);
+            for (uint32_t i = 0; i < V && best; i++)
+                if (((some[i >> 3] >> (i & 7)) & 1u) && lg[i] > lg[g]) best = false;
+            inside += best;
+        }
+        CHECK(same == 600, "zt_sample_masked with every bit set == zt_sample (%u/600)", same);
+        CHECK(obey == 600 && inside == 600,
+              "masked draws and argmax only ever pick allowed tokens (%u, %u)", obey, inside);
+        memset(some, 0, (V + 7) / 8);
+        zt_sampler_t a;
+        zt_sampler_params_t p = {65536, 0, 0, 0, 0, 1};
+        zt_sampler_init(&a, &p);
+        CHECK(zt_sample_masked(&a, lg, V, 0, 0, some, wk, sw) == ZT_MODEL_EARG &&
+                  zt_argmax_masked(lg, V, some) == ZT_MODEL_EARG,
+              "nothing allowed: EARG");
+        free(wk);
+        free(lg);
+        free(all);
+        free(some);
+    }
+
+    /* a grammar that admits every byte string changes nothing */
+    {
+        gram_t G;
+        gram_open(&G, "root ::= .*");
+        zt_gram_hook_t hk = {&G.st, &voc};
+        zt_gen_params_t gp = {0};
+        gp.max_tokens = v->n_greedy;
+        gp.parse_special = true;
+        gp.on_token = on_tok;
+        gp.ctx = &cb;
+        gp.filter.mask = zt_gram_hook_mask;
+        gp.filter.accept = zt_gram_hook_accept;
+        gp.filter.ctx = &hk;
+        memset(&cb, 0, sizeof cb);
+        int32_t r = zt_model_generate(m, &S.s, tok, prompt, plen, &gp, work, wb, &res);
+        bool same = r == 0 && cb.n == v->n_greedy;
+        for (uint32_t i = 0; same && i < v->n_greedy; i++) same = cb.ids[i] == v->greedy[i];
+        CHECK(same, "generate under \"root ::= .*\" == the unconstrained reference chain (%u)",
+              cb.n);
+        gram_close(&G);
+    }
+
+    /* grammars force the form: every output is admitted, greedy and sampled */
+    {
+        uint32_t jl;
+        const char *srcs[3] = {"root ::= [0-9]{1,4} \" \" [a-z]{1,3}", zt_gram_lib("lpx-tag", &jl),
+                               zt_gram_lib("json", &jl)};
+        const char *names[3] = {"digits", "lpx-tag", "json"};
+        uint64_t dg = 0xcbf29ce484222325ull;
+        for (uint32_t gi = 0; gi < 3; gi++) {
+            gram_t G, C;
+            gram_open(&G, srcs[gi]);
+            gram_open(&C, srcs[gi]);
+            uint32_t runs = 0, admitted = 0, complete = 0, eos = 0;
+            for (uint32_t seed = 0; seed < 6; seed++) {
+                zt_gram_reset(&G.st);
+                zt_gram_hook_t hk = {&G.st, &voc};
+                zt_sampler_params_t sp = {seed ? 65536 + 8192 * seed : 0, 0, 0, 0, 0, seed};
+                zt_sampler_t smp;
+                zt_sampler_init(&smp, &sp);
+                zt_gen_params_t gp = {0};
+                gp.sampler = seed ? &smp : 0;
+                gp.max_tokens = 32;
+                gp.parse_special = true;
+                gp.on_token = on_tok;
+                gp.ctx = &cb;
+                gp.filter.mask = zt_gram_hook_mask;
+                gp.filter.accept = zt_gram_hook_accept;
+                gp.filter.ctx = &hk;
+                memset(&cb, 0, sizeof cb);
+                zt_model_state_seek(&S.s, 0);
+                int32_t r = zt_model_generate(m, &S.s, tok, prompt, plen, &gp, work, wb, &res);
+                int g = gram_check(&C, cb.text, cb.len);
+                runs++;
+                admitted += r == 0 && g >= 0;
+                complete += g == 1;
+                eos += res.stop == ZT_GEN_EOS || res.stop == ZT_GEN_FILTER;
+                if ((res.stop == ZT_GEN_EOS || res.stop == ZT_GEN_FILTER) && g != 1)
+                    CHECK(0, "%s: stopped (%u) on an incomplete text", names[gi], res.stop);
+                dg = fnv3(cb.text, cb.len, dg);
+            }
+            CHECK(admitted == runs, "%s: every greedy and sampled output is admitted (%u/%u)",
+                  names[gi], admitted, runs);
+            if (gi < 2)
+                CHECK(complete == runs && eos == runs,
+                      "%s: every run ends complete, by the end token or the finished grammar "
+                      "(%u, %u of %u)",
+                      names[gi], complete, eos, runs);
+            gram_close(&G);
+            gram_close(&C);
+        }
+        printf("constrained output digest %016llx\n", (unsigned long long) dg);
+    }
+
+    /* the hidden-state hook: the final hidden state of each chosen token */
+    {
+        hid_t k1 = {0, 0xcbf29ce484222325ull, 0}, k2 = k1;
+        zt_gen_params_t gp = {0};
+        gp.max_tokens = 8;
+        gp.parse_special = true;
+        gp.on_hidden = on_hid;
+        gp.hctx = &k1;
+        zt_model_state_seek(&S.s, 0);
+        int32_t r = zt_model_generate(m, &S.s, tok, prompt, plen, &gp, work, wb, &res);
+        /* replay by hand: prefill, then hidden state before each decode */
+        int32_t ids[256];
+        uint64_t ni = 0, ne = 0;
+        if (tok->add_bos && tok->bos >= 0) ids[ni++] = tok->bos;
+        uint64_t eb = zt_tok_work_bytes(plen);
+        void *ew = malloc(eb);
+        zt_tok_encode(tok, prompt, plen, true, ids + ni, 256 - ni, &ne, ew, eb);
+        free(ew);
+        ni += ne;
+        zt_fx *lg = malloc((uint64_t) V * 4);
+        zt_model_state_seek(&S.s, 0);
+        zt_model_eval(m, &S.s, ids, (uint32_t) ni, lg, 0);
+        bool ptr_ok = true;
+        for (uint32_t t = 0; t < res.n_gen; t++) {
+            int32_t id = zt_argmax(lg, V);
+            on_hid(&k2, id, zt_model_hidden(&S.s), m->cfg.n_embd, 0);
+            ptr_ok = ptr_ok && zt_model_hidden(&S.s) != 0;
+            zt_model_decode(m, &S.s, id, lg);
+        }
+        CHECK(r == 0 && k1.n == res.n_gen && k1.n == 8 && k1.h == k2.h && ptr_ok,
+              "on_hidden: one call per generated token, the final hidden state that chose it "
+              "(%u calls)",
+              k1.n);
+        /* the tap: layer 0's residual stream; logits unchanged */
+        zt_fx *tap = malloc((uint64_t) m->cfg.n_embd * 4);
+        CHECK(zt_model_set_tap(&S.s, m, (int32_t) m->cfg.n_layer, tap) == ZT_MODEL_EARG,
+              "tap: a layer past the last refused");
+        zt_model_set_tap(&S.s, m, 0, tap);
+        hid_t k3 = {0, 0xcbf29ce484222325ull, 0};
+        gp.hctx = &k3;
+        memset(&cb, 0, sizeof cb);
+        gp.on_token = on_tok;
+        gp.ctx = &cb;
+        gp.max_tokens = v->n_greedy;
+        zt_model_state_seek(&S.s, 0);
+        r = zt_model_generate(m, &S.s, tok, prompt, plen, &gp, work, wb, &res);
+        bool same = r == 0 && cb.n == v->n_greedy;
+        for (uint32_t i = 0; same && i < v->n_greedy; i++) same = cb.ids[i] == v->greedy[i];
+        CHECK(same && k3.last == tap && k3.n == cb.n,
+              "tap at layer 0: the hook reads the tap, and the output is unchanged");
+        zt_model_set_tap(&S.s, m, -1, 0);
+        /* an evidence head on the hook, per answer */
+        uint32_t ne2 = m->cfg.n_embd;
+        int16_t *wm = malloc(ne2 * 2), *wl = malloc(ne2 * 2);
+        for (uint32_t i = 0; i < ne2; i++) {
+            wm[i] = (int16_t) (mix(1, i) % 2001) - 1000;
+            wl[i] = (int16_t) (mix(2, i) % 2001) - 1000;
+        }
+        zt_evh_t e = {ne2, wm, wl, 12, 12, 0, 0};
+        zt_evh_acc_t acc;
+        zt_evh_acc_reset(&acc);
+        zt_evh_hook_t eh = {&e, &acc, 0};
+        gp.on_hidden = zt_evh_hook;
+        gp.hctx = &eh;
+        gp.max_tokens = 8;
+        zt_model_state_seek(&S.s, 0);
+        r = zt_model_generate(m, &S.s, tok, prompt, plen, &gp, work, wb, &res);
+        zt_evh_sum_t sum;
+        zt_evh_summary(&acc, &sum);
+        CHECK(r == 0 && sum.n == res.n_gen && eh.skipped == 0 &&
+                  sum.cnt[0] + sum.cnt[1] + sum.cnt[2] + sum.cnt[3] == sum.n,
+              "evidence head on generate: %u tokens, mean (mu %d, lambda %d) -> base %u", sum.n,
+              sum.mu, sum.la, sum.base);
+        free(wm);
+        free(wl);
+        free(tap);
+        free(lg);
+    }
+    free(vm);
+    free(S.mem);
+    free(work);
 }
 
 /* ---- fuzz ---- */
@@ -949,6 +1233,7 @@ int main(int argc, char **argv)
         free(T.mem);
         free(S.mem);
         free(work);
+        constrained(&L[0].m, &tok, v, prompt, plen);
         free(tar);
     }
 

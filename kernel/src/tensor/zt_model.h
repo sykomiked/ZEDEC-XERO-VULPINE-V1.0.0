@@ -70,6 +70,14 @@
  *       1.5b/REPORT.md): logits about 60 times closer (by KL) to a float64 forward
  *       pass than the converted path, load in well under a second instead of
  *       about 36, and faster decoding. ZT_LOAD_CONVERT keeps the old path.
+ *   T23 FILTERS AND PROBES.  zt_gen_params_t.filter constrains every choice:
+ *       before each token a mask callback marks the tokens that may come
+ *       next (zt_gram.h's grammar hook is one), and zt_sample_masked /
+ *       zt_argmax_masked choose among those only, draw for draw the same as
+ *       the unmasked sampler when every token is allowed. on_hidden gets
+ *       each generated token's probe input: the final hidden state
+ *       (zt_model_hidden) or a layer's residual stream (zt_model_set_tap),
+ *       for zt_evh.h's evidence head. Neither changes a logit.
  *       HONEST LIMITS.  Tested only on tiny random models (2 layers, 64
  *       wide) against a float64 numpy forward pass of llama.cpp's semantics;
  *       since then one real checkpoint, Qwen2.5-1.5B Q4_K_M, has been run
@@ -237,6 +245,14 @@ typedef struct {
      * matrix-product outputs and residual-stream additions. Same count on
      * every kernel and thread count. 0 means nothing clipped. */
     uint32_t n_sat;
+    /* The last token's hidden state after the final RMS norm (the input of
+     * the output matrix), n_embd values, from the latest eval that asked for
+     * logits; valid until the next eval (zt_model_hidden). */
+    const zt_fx *hid;
+    /* Optional probe tap (zt_model_set_tap): after layer tap_layer, the
+     * residual stream of each eval's last token is copied to tap. */
+    zt_fx *tap;
+    int32_t tap_layer;
 } zt_model_state_t;
 
 uint64_t zt_model_state_bytes(const zt_model_t *m, uint32_t n_ctx, uint32_t n_batch,
@@ -245,6 +261,13 @@ int32_t zt_model_state_init(zt_model_state_t *s, const zt_model_t *m, uint32_t n
                             uint32_t n_batch, uint32_t kv_type, void *mem, uint64_t bytes);
 /* Forget everything after the first pos tokens (0 empties the cache). */
 void zt_model_state_seek(zt_model_state_t *s, uint32_t pos);
+/* The last token's final hidden state (n_embd Q16 values, after the output
+ * norm), or null before any eval with logits. */
+const zt_fx *zt_model_hidden(const zt_model_state_t *s);
+/* Copy the residual stream after layer `layer` (0-based) of each eval's
+ * last token into buf (n_embd values); layer < 0 or buf null turns it off.
+ * EARG for a layer the model does not have. The output bits do not change. */
+int32_t zt_model_set_tap(zt_model_state_t *s, const zt_model_t *m, int32_t layer, zt_fx *buf);
 
 #define ZT_EVAL_ALL_LOGITS 1u
 /* Run n tokens at positions s->pos.. and append them to the cache. logits
@@ -278,6 +301,16 @@ int32_t zt_sample(zt_sampler_t *sp, const zt_fx *logits, uint32_t n_vocab, const
                   uint32_t n_history, void *work, uint64_t work_bytes);
 /* Highest logit, lowest id on ties. */
 int32_t zt_argmax(const zt_fx *logits, uint32_t n);
+/* The same choices among the tokens whose bit is set in allow ((n + 7) / 8
+ * bytes, bit i = token i; null = every token): the others are removed
+ * before top-k, top-p and the draw, so the allowed tokens keep their
+ * probability ratios. With every bit set the result is zt_sample's (and
+ * zt_argmax's), draw for draw. EARG when no token is allowed. The
+ * repetition penalty still reads the whole history. */
+int32_t zt_sample_masked(zt_sampler_t *sp, const zt_fx *logits, uint32_t n_vocab,
+                         const int32_t *history, uint32_t n_history, const uint8_t *allow,
+                         void *work, uint64_t work_bytes);
+int32_t zt_argmax_masked(const zt_fx *logits, uint32_t n, const uint8_t *allow);
 
 /* ---- generate ---- */
 enum {
@@ -285,8 +318,21 @@ enum {
     ZT_GEN_MAX = 2,      /* max_tokens reached */
     ZT_GEN_STOP_STR = 3, /* the output ends with a stop string */
     ZT_GEN_CALLBACK = 4, /* on_token returned false */
-    ZT_GEN_CTX = 5       /* the KV cache is full */
+    ZT_GEN_CTX = 5,      /* the KV cache is full */
+    ZT_GEN_FILTER = 6    /* the filter allowed no token (a finished grammar with no end token) */
 };
+
+/* A token filter, such as a grammar (zt_gram.h: zt_gram_hook_mask and
+ * zt_gram_hook_accept with a zt_gram_hook_t). Before each choice, mask
+ * gets a cleared bitmap of (n_vocab + 7) / 8 bytes, sets the bits of the
+ * tokens that may come next and returns how many (< 0: an error, which
+ * generate returns). After a token other than an end token is chosen,
+ * accept is told (< 0: an error). */
+typedef struct {
+    int32_t (*mask)(void *ctx, uint8_t *allow, uint32_t n_vocab);
+    int32_t (*accept)(void *ctx, int32_t id);
+    void *ctx;
+} zt_gen_filter_t;
 
 typedef struct {
     const uint8_t *s;
@@ -304,6 +350,15 @@ typedef struct {
     /* Called with each generated token and its bytes; return false to stop. */
     bool (*on_token)(void *ctx, int32_t id, const uint8_t *piece, uint32_t len);
     void *ctx;
+    /* Optional: constrain every choice (mask null = off). */
+    zt_gen_filter_t filter;
+    /* Optional: called for each generated token (not an end token), before
+     * on_token, with the probe input that chose it: the tap if one is set
+     * (zt_model_set_tap), else the final hidden state; n = n_embd; n_sat =
+     * the state's saturation count so far. For an evidence head (zt_evh.h:
+     * zt_evh_hook with a zt_evh_hook_t). */
+    void (*on_hidden)(void *hctx, int32_t id, const zt_fx *h, uint32_t n, uint32_t n_sat);
+    void *hctx;
 } zt_gen_params_t;
 
 typedef struct {
