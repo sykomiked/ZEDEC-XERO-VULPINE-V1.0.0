@@ -1,0 +1,55 @@
+{
+  "name": "@zedec/zxv-web",
+  "version": "0.1.0",
+  "description": "ZXV in the browser: the WebAssembly build of @zedec/zxv in a Web Worker, a typed exact message protocol (\"num/den\" rationals, decimal-string integers, no floats), explicit capability handles, AbortSignal cancellation, and a SHA3-256-keyed offline cache for the wasm and model files.",
+  "license": "Apache-2.0",
+  "author": "Michael Laurence Curzi and 36N9 Genetics, LLC",
+  "type": "module",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./worker": {
+      "types": "./dist/src/worker.d.ts",
+      "default": "./dist/src/worker.js"
+    },
+    "./worker-core": {
+      "types": "./dist/src/worker-core.d.ts",
+      "default": "./dist/src/worker-core.js"
+    },
+    "./node": {
+      "types": "./dist/src/node.d.ts",
+      "node": "./dist/src/node.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/src",
+    "example",
+    "scripts",
+    "README.md"
+  ],
+  "sideEffects": [
+    "./dist/src/worker.js",
+    "./dist/src/node-worker.js"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test --test-concurrency=1 dist/test/sha3.test.js dist/test/wire.test.js dist/test/cache.test.js dist/test/worker.test.js",
+    "example:prepare": "npm run build && node scripts/example-digests.mjs"
+  },
+  "dependencies": {
+    "@zedec/zxv": "file:../../typescript"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "5.7.2"
+  }
+}

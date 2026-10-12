@@ -109,6 +109,30 @@ see [`pillars/`](pillars/).
 | APL / K → KRON | [`apl-kron`](pillars/apl-kron/) | KRON, an exact array language (rank ≤ 2, int64 rationals, four-valued truth) read from APL glyphs or K ASCII into one canonical program, with ngn/k and GNU APL bindings | 135,621 checks, 5,866 golden cases from Python fractions, bindings checked against ngn/k and GNU APL |
 | MUMPS → MYRA | [`mumps-myra`](pillars/mumps-myra/) | M globals with typed subscripts and ^-piece values, M canonical numbers and collation, `$H` dates, a capability-gated ledger bridge and a GT.M binding; MYRA writes one line per node | 628,012 checks, golden files written by GT.M, 0 differences in a GT.M cross-check |
 
+## Industry kits
+
+Industry kits are small C11 libraries for one trade, built only on the
+public libzxv ABI. They use exact quantities, signed and hash-chained
+records, and a BOTH hold that waits for a person to decide. See
+[`industry/`](industry/).
+
+| Kit | Folder | What it gives you | Tests |
+|---|---|---|---|
+| Logix-Clear | [`logix-clear`](industry/logix-clear/) | Container lifecycle on the hexagram phase, rule-table release across jurisdictions, conflicts held for a human broker, exact duties posted to the ledger | 1,401 checks + fuzzing |
+| Tri-Deliver | [`tri-deliver`](industry/tri-deliver/) | Courier escrow released by the recipient's offline Ed25519 or ML-DSA-87 handoff signature; disputes frozen for an arbiter | 729 checks + fuzzing |
+| V-Shelf | [`v-shelf`](industry/v-shelf/) | Exact inventory in whole units or exact weights; negative stock refused; count variances held for an approver | 831 checks + fuzzing |
+| Tri-Trace | [`tri-trace`](industry/tri-trace/) | Per-item signed custody chains; duplicate scans frozen for a reviewer; whole chains verified offline | 627 checks + fuzzing |
+| Z-Genome | [`z-genome`](industry/z-genome/) | Exact, reproducible global/local alignment scores (affine gaps, int64, overflow refused) with signed result records; research use only | 5,556 checks + fuzzing |
+| Vinea-Triage | [`vinea-triage`](industry/vinea-triage/) | Store-and-forward triage records in signed, hash-chained bundles; conflicts held for a reviewer, never merged; not a medical device, not encrypted | 816 checks + fuzzing |
+| Mesh-Command | [`mesh-command`](industry/mesh-command/) | Field reports merged into an incident picture; contradictions held until a commander's signed decision; advisory assignments approved by signature | 1,667 checks + fuzzing |
+| Aero-Orbital | [`aero-orbital`](industry/aero-orbital/) | Ground-side aid: integer WGS-84 geodetic/ECEF with measured error bounds, telemetry over UBH-168, disagreeing or CRC-failed copies held for an analyst. Not flight software | 3,676 checks + fuzzing |
+| Tri-Modem | [`tri-modem`](industry/tri-modem/) | Mesh fallback planner for home routers: signed neighbour adverts, contradictions held for the owner, exact fair shares on rmag budgets; no amateur-radio relays | 2,904 checks + fuzzing |
+| V-Band | [`v-band`](industry/v-band/) | MCU-subset sensor log with four-valued readings, LoRaWAN-sized batches over UBH-168, in-order gateway refusing duplicates and gaps | 6,018 checks + fuzzing |
+
+Advisory only: kits recommend, and people or certified systems act. They
+are not connected to any authority, and they make no certification or
+regulatory-compliance claims.
+
 ## What every SDK gives you
 
 | Feature | Type names | Guide |
