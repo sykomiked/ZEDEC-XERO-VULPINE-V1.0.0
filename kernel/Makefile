@@ -838,6 +838,11 @@ verify-all: test
 		src/appkit/test_doc.c src/appkit/doc.c \
 		-o /tmp/test_doc -lm && \
 		/tmp/test_doc && echo "[PASS] test_doc" || { echo "[FAIL] test_doc"; exit 1; }; \
+	echo "=== App launch screens (themes, real-progress ticks, launch sound setting) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -Isrc/launch \
+		src/launch/test_zxl_launch.c src/launch/zxl_launch.c \
+		-o /tmp/test_zxl_launch && \
+		/tmp/test_zxl_launch && echo "[PASS] test_zxl_launch" || { echo "[FAIL] test_zxl_launch"; exit 1; }; \
 	echo "=== Desktop shimmer field (event-driven, deterministic) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/shimmer \
 		src/shimmer/test_shimmer.c src/shimmer/shimmer.c \
