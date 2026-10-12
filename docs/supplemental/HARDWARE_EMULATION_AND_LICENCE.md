@@ -87,8 +87,8 @@ freestanding C11 with no floating point.
 ## Why a separate hardware licence
 
 Software in this repository is Apache-2.0 ([`LICENSE`](../../LICENSE)).
-Files under `hardware/` are under the **ZXV Hardware License 1.0**
-(`LicenseRef-ZXV-Hardware-1.0`, mapped in [`REUSE.toml`](../../REUSE.toml)).
+Files under `hardware/` are under the **ZXV Hardware License 1.1**
+(`LicenseRef-ZXV-Hardware-1.1`, mapped in [`REUSE.toml`](../../REUSE.toml)).
 It is source-available, not open source. In plain terms
 ([`hardware/README.md`](../../hardware/README.md)):
 
