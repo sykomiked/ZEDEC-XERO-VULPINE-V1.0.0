@@ -1905,6 +1905,31 @@
             },
             "file_max": {
               "type": "integer"
+      "name": "chat.me",
+      "summary": "The owner's chat identity (zxvd_chat.h C1, C3, C7): the NodeID (SHA-256 of the ML-DSA-65 key), whether records are saved beside the books, how many are held, and who the owner follows.",
+      "params": [],
+      "result": {
+        "name": "me",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "node_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "saved": {
+              "type": "boolean"
+            },
+            "records": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "following": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
             }
           }
         }
@@ -1931,6 +1956,24 @@
             "type": "string",
             "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
             "maxLength": 48
+      "name": "chat.post",
+      "summary": "Sign and save a public post, or a reply when reply_to names a held record (C5, C6). Text is 1..1024 bytes of UTF-8 with something besides spaces. Records stay on this device: there is no exchange with peers yet.",
+      "params": [
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "1..1024 bytes of UTF-8"
+          }
+        },
+        {
+          "name": "reply_to",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-Fa-f]{64}$",
+            "description": "the id of a held record to reply to"
           }
         }
       ],
@@ -1943,6 +1986,52 @@
               "type": "string"
             },
             "entries": {
+        "name": "record",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "author": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "mine": {
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "post",
+                "reply",
+                "reaction"
+              ]
+            },
+            "lamport": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "wall_ms": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "text": {
+              "type": "string"
+            },
+            "reply_to": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "replies": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reactions": {
               "type": "array",
               "items": {
                 "type": "object",
@@ -1960,6 +2049,15 @@
                   "mtime": {
                     "type": "integer",
                     "description": "seconds since 1970"
+                  "emoji": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "mine": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -2064,6 +2162,24 @@
             "type": "string",
             "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
             "maxLength": 48
+      "name": "chat.react",
+      "summary": "Sign and save a reaction (an emoji or a word, 1..32 bytes of UTF-8) to a held record (C5, C6).",
+      "params": [
+        {
+          "name": "to",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-Fa-f]{64}$",
+            "description": "the id of a held record"
+          }
+        },
+        {
+          "name": "emoji",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "1..32 bytes of UTF-8"
           }
         }
       ],
@@ -2086,6 +2202,36 @@
             },
             "eof": {
               "type": "boolean"
+        "name": "record",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "author": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "mine": {
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "post",
+                "reply",
+                "reaction"
+              ]
+            },
+            "lamport": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "wall_ms": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
             },
             "text": {
               "type": "string"
@@ -2170,6 +2316,34 @@
             },
             "done": {
               "type": "boolean"
+            "reply_to": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "replies": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reactions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "emoji": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "mine": {
+                    "type": "boolean"
+                  }
+                }
+              }
             }
           }
         }
@@ -2196,6 +2370,24 @@
             "type": "string",
             "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
             "maxLength": 48
+      "name": "chat.follow",
+      "summary": "Follow or unfollow a NodeID (C7). The newest FOLLOW record decides; a repeat of the current state writes nothing.",
+      "params": [
+        {
+          "name": "node_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-Fa-f]{64}$",
+            "description": "the NodeID to follow"
+          }
+        },
+        {
+          "name": "follow",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
           }
         }
       ],
@@ -2206,6 +2398,16 @@
           "properties": {
             "path": {
               "type": "string"
+        "name": "follow",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "node_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "following": {
+              "type": "boolean"
             }
           }
         }
@@ -2251,6 +2453,80 @@
           "properties": {
             "path": {
               "type": "string"
+      "name": "chat.feed",
+      "summary": "The held posts, best first, at most 50, ranked by what each adds over the others (social_feed.h F2-F5, the Interaction Surplus Framework) with a small freshness term. No likes, reply counts or views are read by the ranker.",
+      "params": [],
+      "result": {
+        "name": "feed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "posts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "author": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "mine": {
+                    "type": "boolean"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "reply",
+                      "reaction"
+                    ]
+                  },
+                  "lamport": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "wall_ms": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "reply_to": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "replies": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "reactions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "emoji": {
+                          "type": "string"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "mine": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -2277,6 +2553,16 @@
             "type": "string",
             "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
             "maxLength": 48
+      "name": "chat.thread",
+      "summary": "A held record and its replies in (Lamport, id) order (C5).",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-Fa-f]{64}$",
+            "description": "the id of a held record"
           }
         }
       ],
@@ -3644,6 +3930,23 @@
               "properties": {
                 "id": {
                   "type": "string"
+        "name": "thread",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "root": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "author": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "mine": {
+                  "type": "boolean"
                 },
                 "kind": {
                   "type": "string",
@@ -3999,6 +4302,117 @@
                   "type": "string",
                   "maxLength": 59,
                   "description": "the pspace CID a published cloud top or park lives under (pspace.create's: 'b' + base32 CIDv1 raw sha2-256, 59 chars); '' = not published"
+                    "post",
+                    "reply",
+                    "reaction"
+                  ]
+                },
+                "lamport": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "wall_ms": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "reply_to": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replies": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "reactions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "emoji": {
+                        "type": "string"
+                      },
+                      "count": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "mine": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "replies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "author": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "mine": {
+                    "type": "boolean"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "reply",
+                      "reaction"
+                    ]
+                  },
+                  "lamport": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "wall_ms": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "reply_to": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "replies": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "reactions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "emoji": {
+                          "type": "string"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "mine": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

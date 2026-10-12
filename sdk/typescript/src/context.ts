@@ -40,6 +40,14 @@ export const Cap = Object.freeze({
   HW_RECONF: 1n << 11n,
   /** Every capability as of ABI 1.4 (ZXV_CAP_ALL_1_4). */
   ALL_1_4: (1n << 12n) - 1n,
+  /** Store blocks and publish functions on an AIPI node (ABI 1.5). */
+  AIPI: 1n << 12n,
+  /** Create, mint, spend, move and re-octane token-wallet tokens (ABI 1.5). */
+  MINT: 1n << 13n,
+  /** Write paradox logs and the registry, apply policies, create paradox handles (ABI 1.5). */
+  PARADOX: 1n << 14n,
+  /** Every capability as of ABI 1.5 (ZXV_CAP_ALL_1_5). */
+  ALL_1_5: (1n << 15n) - 1n,
 } as const);
 
 /** Octets in a capability identity (168 bits). */

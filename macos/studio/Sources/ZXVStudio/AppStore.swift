@@ -93,6 +93,8 @@ final class AppStore: ObservableObject {
     @Published var booksCheckedAt: Date?
     @Published var chat: [ChatLine] = []
     @Published var asking = false
+    @Published var chatMe: ChatMe?
+    @Published var chatFeed: [ChatRecord] = []
     @Published var netLog: [LogLine] = []
     @Published var currenciesEnabled: [String] = []
     @Published var peers: Peers?
@@ -179,6 +181,7 @@ final class AppStore: ObservableObject {
         if has("net.peers"), let v = try? await client.request("net.peers", as: Peers.self) { peers = v }
         if has("net.offers"), let v = try? await client.request("net.offers", as: Offers.self) { offers = v }
         if has("player.card"), let v = try? await client.request("player.card", as: PlayerCard.self) { card = v }
+        await refreshChat()
         if has("jurisdiction.get"), let v = try? await client.request("jurisdiction.get", as: Jurisdiction.self) {
             jurisdiction = v
         }
@@ -198,6 +201,56 @@ final class AppStore: ObservableObject {
         } catch {
             return (false, "Refused: \(error)")
         }
+    }
+
+    // MARK: Commons (chat.*)
+
+    func refreshChat() async {
+        guard has("chat.feed") else { return }
+        if let v = try? await client.request("chat.me", as: ChatMe.self) { chatMe = v }
+        if let v = try? await client.request("chat.feed", as: ChatFeed.self) { chatFeed = v.posts }
+    }
+
+    /// Posts, or replies when replyTo is set. Returns nil, or why it was refused.
+    func chatPost(_ text: String, replyTo: String? = nil) async -> String? {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return "Write something first." }
+        guard t.utf8.count <= 1024 else { return "At most 1024 bytes (\(t.utf8.count) now)." }
+        var p: [String: JSON] = ["text": .string(t)]
+        if let r = replyTo { p["reply_to"] = .string(r) }
+        do {
+            _ = try await client.request("chat.post", p, as: ChatRecord.self)
+            await refreshChat()
+            return nil
+        } catch {
+            return "Not posted: \(error)"
+        }
+    }
+
+    func chatReact(_ to: String, _ emoji: String) async {
+        _ = try? await client.request("chat.react", ["to": .string(to), "emoji": .string(emoji)],
+                                      as: ChatRecord.self)
+        await refreshChat()
+    }
+
+    /// Returns nil, or why it was refused.
+    func chatFollow(_ nodeId: String, _ on: Bool) async -> String? {
+        let id = nodeId.trimmingCharacters(in: .whitespaces).lowercased()
+        guard id.count == 64, id.allSatisfy({ $0.isHexDigit }) else {
+            return "A NodeID is 64 hex digits."
+        }
+        do {
+            _ = try await client.request("chat.follow", ["node_id": .string(id), "follow": .bool(on)],
+                                         as: ChatFollow.self)
+            await refreshChat()
+            return nil
+        } catch {
+            return "Refused: \(error)"
+        }
+    }
+
+    func chatThread(_ id: String) async -> ChatThread? {
+        try? await client.request("chat.thread", ["id": .string(id)], as: ChatThread.self)
     }
 
     func stopDaemonIfOurs() {

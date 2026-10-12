@@ -310,8 +310,8 @@ int32_t zxv_cap_create(zxv_ctx *ctx, uint32_t process_id, const uint8_t *identit
                        zxv_cap **out_cap)
 {
     if (!ctx || !out_cap) return zxvi_fail(ZXV_E_ARG, "ctx or out_cap is NULL");
-    if (caps & ~ZXV_CAP_ALL_1_4) return zxvi_fail(ZXV_E_ARG, "unknown capability bits 0x%llx",
-                                                  (unsigned long long) (caps & ~ZXV_CAP_ALL_1_4));
+    if (caps & ~ZXV_CAP_ALL_1_5) return zxvi_fail(ZXV_E_ARG, "unknown capability bits 0x%llx",
+                                                  (unsigned long long) (caps & ~ZXV_CAP_ALL_1_5));
     int32_t rc = zxvi_ctx_enter(ctx);
     if (rc) return rc;
     zxvi_ctx_leave(ctx);

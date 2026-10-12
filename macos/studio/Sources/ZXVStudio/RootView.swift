@@ -4,12 +4,13 @@ import SwiftUI
 import ZXVRPC
 
 enum Screen: String, CaseIterable, Identifiable, Hashable {
-    case studio, ledger, mesh, storefront, settings
+    case studio, commons, ledger, mesh, storefront, settings
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .studio: return "Local AI Studio"
+        case .commons: return "Commons"
         case .ledger: return "Sicily Ledger"
         case .mesh: return "P2P Mesh"
         case .storefront: return "Storefront & Escrow"
@@ -20,6 +21,7 @@ enum Screen: String, CaseIterable, Identifiable, Hashable {
     var icon: String {
         switch self {
         case .studio: return "bubble.left"
+        case .commons: return "text.bubble"
         case .ledger: return "building.columns"
         case .mesh: return "point.3.connected.trianglepath.dotted"
         case .storefront: return "storefront"
@@ -76,6 +78,7 @@ struct RootView: View {
     @ViewBuilder private var content: some View {
         switch screen ?? .studio {
         case .studio: StudioView()
+        case .commons: CommonsView()
         case .ledger: LedgerView()
         case .mesh: MeshView()
         case .storefront: StorefrontView()

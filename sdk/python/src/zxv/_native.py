@@ -13,9 +13,10 @@ the native library. Search order (SDK_DESIGN.md section 1):
 4. the system loader path (``LD_LIBRARY_PATH``, ``DYLD_LIBRARY_PATH``,
    ``PATH``, the ld cache).
 
-The loaded library must report ABI major 1 and minor >= 4 (the ``_cap``
-forms added in 1.2, the hexagram tag added in 1.3 and the hardware
-emulation matrix added in 1.4).
+The loaded library must report ABI major 1 and minor >= 5 (the ``_cap``
+forms added in 1.2, the hexagram tag added in 1.3, the hardware
+emulation matrix added in 1.4, and the treaty, CID/AIPI, coin, fee, V-Bill
+hub, freight, Web 4 and paradox groups added in 1.5).
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ ffi = cffi.FFI()
 ffi.cdef(CDEF)
 
 ABI_MAJOR = 1
-ABI_MIN_MINOR = 4
+ABI_MIN_MINOR = 5
 
 _lib: Any = None
 _lib_path: Optional[str] = None
@@ -90,7 +91,7 @@ def load_library(path: Optional[str] = None) -> Any:
 
     Raises:
         ZxvLibraryError: no library was found, or its ABI version is not 1.x
-            with x >= 4, or a different library is already loaded.
+            with x >= 5, or a different library is already loaded.
     """
     global _lib, _lib_path
     with _load_lock:
@@ -250,6 +251,49 @@ def read_text(call: Callable[..., int], owner: Any = None) -> str:
             return str(ffi.unpack(buf, n[0]).decode("utf-8"))
         if rc != -2:
             check(rc, owner)
+
+
+def read_bytes(call: Callable[..., int], owner: Any = None, first_cap: int = 0) -> bytes:
+    """Run an "R4 for bytes" two-call function ``call(buf, cap, out_len)``.
+
+    The C side always writes the needed length to ``*out_len`` and returns
+    ``ZXV_E_BUFFER`` (writing nothing) when ``cap`` is too small, so this
+    tries ``first_cap`` bytes (or a sizing call with a NULL buffer when it is
+    0), then grows the buffer to exactly the reported length and retries.
+    A result that keeps growing between calls is retried until it fits.
+    """
+    n = ffi.new("size_t *")
+    if first_cap > 0:
+        buf = ffi.new("uint8_t[]", first_cap)
+        rc = call(buf, first_cap, n)
+        if rc == 0:
+            return bytes(ffi.buffer(buf, n[0]))
+    else:
+        rc = call(ffi.NULL, 0, n)
+        if rc == 0:
+            return b""
+    while True:
+        if rc != -2:
+            check(rc, owner)
+            raise errors.ZxvSystemError(rc, status_name(rc), "unexpected positive status")
+        size = max(int(n[0]), 1)
+        buf = ffi.new("uint8_t[]", size)
+        rc = call(buf, size, n)
+        if rc == 0:
+            return bytes(ffi.buffer(buf, n[0]))
+
+
+def fixed_bytes(b: Any, n: int, what: str) -> bytes:
+    """Bytes-like input of exactly ``n`` bytes (else ``ZxvUsageError`` ZXV_E_ARG)."""
+    data = to_bytes(b, what)
+    if len(data) != n:
+        raise errors.ZxvUsageError(-1, "ZXV_E_ARG", f"{what} must be exactly {n} bytes, got {len(data)}")
+    return data
+
+
+def cbuf(data: bytes) -> Any:
+    """A read-only C view of ``data`` (NULL for empty input)."""
+    return ffi.from_buffer("uint8_t[]", data) if data else ffi.NULL
 
 
 def to_cstr(s: str, what: str = "text") -> bytes:

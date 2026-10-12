@@ -13,9 +13,9 @@ public enum AccountKind: Int32, Sendable {
 
 /// Rail balances in exact minor units.
 public struct Balance: Sendable, Equatable {
-    /// 555 NCR: sum received.
+    /// 555 NRE: sum received.
     public let debit: Int64
-    /// 777 NRE: sum sent.
+    /// 777 NCR: sum sent.
     public let credit: Int64
     /// 888 PNS: debit - credit, the spendable position.
     public let equity: Int64

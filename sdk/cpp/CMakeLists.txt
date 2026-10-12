@@ -11,7 +11,7 @@
 #   3. the in-repo build, ../libzxv/build (the "bundled" copy)
 #   4. the system linker path (find_library(zxv))
 cmake_minimum_required(VERSION 3.20)
-project(zxv_cpp VERSION 1.3.0 LANGUAGES CXX)
+project(zxv_cpp VERSION 1.5.0 LANGUAGES CXX)
 
 option(ZXV_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
 option(ZXV_BUILD_EXAMPLES "Build the examples" ${PROJECT_IS_TOP_LEVEL})
@@ -92,6 +92,11 @@ if(ZXV_BUILD_TESTS)
   target_compile_definitions(test_zxv_stop_fallback PRIVATE ZXV_FORCE_STOP_TOKEN_FALLBACK)
   zxv_strict(test_zxv_stop_fallback)
   add_test(NAME test_zxv_stop_fallback COMMAND test_zxv_stop_fallback "${CMAKE_CURRENT_SOURCE_DIR}/../conformance")
+  # ABI 1.5 groups (treaty, cid, aipi, coin/token, fee, vhub, freight, web4, paradox).
+  add_executable(test_zxv_abi15 tests/test_zxv_abi15.cpp)
+  target_link_libraries(test_zxv_abi15 PRIVATE zxv::zxv)
+  zxv_strict(test_zxv_abi15)
+  add_test(NAME test_zxv_abi15 COMMAND test_zxv_abi15 "${CMAKE_CURRENT_SOURCE_DIR}/../conformance")
 endif()
 
 if(ZXV_BUILD_EXAMPLES)

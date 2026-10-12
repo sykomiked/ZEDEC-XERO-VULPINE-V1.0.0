@@ -1,0 +1,79 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Agent kits (sdk/kits/zab-logic): per-cycle token budgets and a hexagram
+# decision gate for a swarm of agents, on the public libzxv ABI. Kept out of
+# sdk.yml so that a change here does not start every SDK job, and a change
+# there does not start this one. Each job builds libzxv itself and tests
+# against the real library. Two check runs.
+name: SDK agents
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sdk/kits/zab-logic/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - '.github/workflows/sdk-agents.yml'
+  pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
+    paths:
+      - 'sdk/kits/zab-logic/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - '.github/workflows/sdk-agents.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-agents-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  zab-logic-linux:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    name: zab-logic ubuntu-24.04 gcc + ASan/UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/kits/zab-logic
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C ../../libzxv all
+      - name: Tests, fuzz smoke run, demo and R11 no-float check
+        run: make CC=gcc PYTHON=python3 test
+      - name: Demo
+        run: make CC=gcc PYTHON=python3 demo
+      - name: Tests under ASan + UBSan
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=gcc SANITIZE=1 OUT=build/san PYTHON=python3 test
+      - name: Fuzz under ASan + UBSan, 4 x 5k swarms
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            ZAB_FUZZ_SEED=$seed make CC=gcc SANITIZE=1 OUT=build/san PYTHON=python3 fuzz FUZZ_ITERS=5000
+          done
+
+  zab-logic-macos:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    name: zab-logic macos-14 clang
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/kits/zab-logic
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C ../../libzxv all
+      - name: Tests, fuzz smoke run, demo and R11 no-float check
+        run: make CC=clang PYTHON=python3 test
+      - name: Fuzz, 2k swarms
+        run: make CC=clang PYTHON=python3 fuzz FUZZ_ITERS=2000

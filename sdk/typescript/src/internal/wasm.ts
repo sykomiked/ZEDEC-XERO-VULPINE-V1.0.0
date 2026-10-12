@@ -9,7 +9,7 @@
 // nondeterministic import is random_get (crypto.getRandomValues), used only
 // by key generation and hedged signing.
 
-import type { Arg, Backend, GenerateCall, GenerateJob, GenerateReturn, HwHandler, Ptr } from './backend.js';
+import type { Arg, Backend, FreightResolver, GenerateCall, GenerateJob, GenerateReturn, HwHandler, Ptr } from './backend.js';
 
 /** What the wasm module can be loaded from. */
 export type WasmSource = BufferSource | WebAssembly.Module;
@@ -45,6 +45,7 @@ class WasmBackend implements Backend {
   #onToken: ((id: number, piece: number, len: number) => number) | null = null;
   #lines: Record<number, string> = { 1: '', 2: '' };
   #hw: HwHandler | null = null;
+  #freight: FreightResolver | null = null;
 
   /** The imports object (WASI shim + the token callback). */
   imports(): WebAssembly.Imports {
@@ -127,10 +128,20 @@ class WasmBackend implements Backend {
         this.#hw?.event(id >>> 0, region >>> 0, event | 0, reason >>> 0, version >>> 0);
       },
     };
+    // The freight CIDREF resolver (ABI 1.5): `len` is a uint64 (a BigInt here).
+    const freight_resolve = (id: number, cid: number, cidLen: number, out: number, len: bigint): number => {
+      if (!this.#freight) return E_STATE;
+      const n = Number(len);
+      const r = this.#freight(id >>> 0, copyIn(cid, cidLen), n);
+      if (typeof r === 'number' || r.length !== n) return -4; // ZXV_E_NOT_FOUND: not resolved
+      bytes().set(r, out >>> 0);
+      return 0;
+    };
     const zxv = {
       on_token: (_user: number, token: number, piece: number, len: number): number =>
         this.#onToken ? this.#onToken(token, piece, len) : 0,
       ...hw,
+      freight_resolve,
     };
     return { wasi_snapshot_preview1: wasi, zxv };
   }
@@ -185,6 +196,10 @@ class WasmBackend implements Backend {
     let e = p;
     while (b[e] !== 0) e++;
     return new TextDecoder().decode(b.subarray(p, e));
+  }
+
+  callString(fn: string, ...args: Arg[]): string {
+    return this.#cString(this.call(fn, ...args) >>> 0);
   }
 
   statusName(code: number): string {
@@ -249,6 +264,10 @@ class WasmBackend implements Backend {
 
   setHwHandler(h: HwHandler): void {
     this.#hw = h;
+  }
+
+  setFreightResolver(r: FreightResolver): void {
+    this.#freight = r;
   }
 
   generate(c: GenerateCall, onToken: (id: number, piece: Uint8Array) => boolean): GenerateJob {
