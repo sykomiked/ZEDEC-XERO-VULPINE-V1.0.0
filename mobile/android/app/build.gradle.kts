@@ -20,6 +20,18 @@ val buildZxvCore by tasks.registering(Exec::class) {
     outputs.dir(zxvCoreDir)
 }
 
+// ASCW Golden, the UI font: copied from assets/fonts/ascw-golden into the
+// APK's assets under fonts/ (with its OFL licence), stored uncompressed.
+val ascwFontsDir = layout.buildDirectory.dir("generated/ascw-assets")
+val ascwGoldenFonts by tasks.registering(Copy::class) {
+    group = "build"
+    description = "Copy the ASCW Golden fonts into the APK assets"
+    from(rootProject.file("../../assets/fonts/ascw-golden")) {
+        include("*.ttf", "*.otf", "OFL.txt", "FONTLOG.md")
+    }
+    into(ascwFontsDir.map { it.dir("fonts") })
+}
+
 android {
     namespace = "org.zedec.zxv"
     compileSdk = 35
@@ -56,7 +68,11 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
     packaging { jniLibs { useLegacyPackaging = false } }
+    sourceSets["main"].assets.srcDir(ascwFontsDir)
+    androidResources { noCompress += listOf("ttf", "otf") }
 }
+
+tasks.named("preBuild") { dependsOn(ascwGoldenFonts) }
 
 tasks.configureEach {
     if (name.startsWith("configureCMake") || name.startsWith("buildCMake")) dependsOn(buildZxvCore)

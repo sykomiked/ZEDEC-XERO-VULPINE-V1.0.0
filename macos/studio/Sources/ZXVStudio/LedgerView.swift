@@ -57,18 +57,18 @@ struct LedgerView: View {
         Panel(title: "Open account") {
             HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading) {
-                    Text("Name").font(.caption).foregroundStyle(Theme.muted)
+                    Text("Name").font(Theme.caption).foregroundStyle(Theme.muted)
                     TextField("Travel fund", text: $newName).textFieldStyle(.roundedBorder)
                 }
                 VStack(alignment: .leading) {
-                    Text("Currency").font(.caption).foregroundStyle(Theme.muted)
+                    Text("Currency").font(Theme.caption).foregroundStyle(Theme.muted)
                     Picker("Currency", selection: $newCurrency) {
                         ForEach(currencies, id: \.self) { Text($0).tag($0) }
                     }
                     .labelsHidden().frame(width: 110)
                 }
                 VStack(alignment: .leading) {
-                    Text("Kind").font(.caption).foregroundStyle(Theme.muted)
+                    Text("Kind").font(Theme.caption).foregroundStyle(Theme.muted)
                     Picker("Kind", selection: $newKind) {
                         Text("holder").tag("holder")
                         Text("issuer").tag("issuer")
@@ -86,7 +86,7 @@ struct LedgerView: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
-            if let l = openLine { Text(l.1).font(.callout).foregroundStyle(l.0 ? Theme.muted : Theme.warn) }
+            if let l = openLine { Text(l.1).font(Theme.callout).foregroundStyle(l.0 ? Theme.muted : Theme.warn) }
         }
     }
 
@@ -106,7 +106,7 @@ struct LedgerView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(a.name)
-                                Text("\(a.kind) · \(a.currency)").font(.caption).foregroundStyle(Theme.muted)
+                                Text("\(a.kind) · \(a.currency)").font(Theme.caption).foregroundStyle(Theme.muted)
                             }
                             Spacer()
                         }
@@ -143,7 +143,7 @@ struct LedgerView: View {
                         Text("Entry"); Text("Reference"); Text("Counterparty")
                         Text("Amount").gridColumnAlignment(.trailing)
                     }
-                    .font(.caption).foregroundStyle(Theme.muted)
+                    .font(Theme.caption).foregroundStyle(Theme.muted)
                     ForEach(store.entries.reversed()) { e in
                         GridRow {
                             Text(e.entryId).font(.system(.callout, design: .monospaced)).foregroundStyle(Theme.muted)
@@ -153,7 +153,7 @@ struct LedgerView: View {
                                 .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle((e.signed ?? 0) < 0 ? Theme.warn : Theme.good)
                         }
-                        .font(.callout)
+                        .font(Theme.callout)
                     }
                 }
             }
@@ -166,22 +166,22 @@ struct LedgerView: View {
         return Panel(title: "New transfer") {
             HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading) {
-                    Text("From").font(.caption).foregroundStyle(Theme.muted)
+                    Text("From").font(Theme.caption).foregroundStyle(Theme.muted)
                     Text(from?.name ?? "").padding(.vertical, 4)
                 }
                 VStack(alignment: .leading) {
-                    Text("To").font(.caption).foregroundStyle(Theme.muted)
+                    Text("To").font(Theme.caption).foregroundStyle(Theme.muted)
                     Picker("To", selection: Binding(get: { to ?? targets.first?.account }, set: { to = $0 })) {
                         ForEach(targets) { Text($0.name).tag(Optional($0.account)) }
                     }
                     .labelsHidden().frame(minWidth: 150)
                 }
                 VStack(alignment: .leading) {
-                    Text("Amount (\(from?.currency ?? ""))").font(.caption).foregroundStyle(Theme.muted)
+                    Text("Amount (\(from?.currency ?? ""))").font(Theme.caption).foregroundStyle(Theme.muted)
                     TextField("125.00", text: $amount).textFieldStyle(.roundedBorder).frame(width: 140)
                 }
                 VStack(alignment: .leading) {
-                    Text("Reference").font(.caption).foregroundStyle(Theme.muted)
+                    Text("Reference").font(Theme.caption).foregroundStyle(Theme.muted)
                     TextField("Invoice 0042", text: $reference).textFieldStyle(.roundedBorder)
                 }
                 Button("Post transfer") {
@@ -203,7 +203,7 @@ struct LedgerView: View {
                 .disabled(posting || from == nil)
             }
             Text(postLine?.1 ?? "Amounts go to zxvd as whole minor units.")
-                .font(.callout)
+                .font(Theme.callout)
                 .foregroundStyle(postLine?.0 == false ? Theme.warn : Theme.muted)
         }
     }
@@ -233,26 +233,26 @@ extension LedgerView {
         let c = store.card
         return Panel(title: "Player Card", trailing: c.map { "Tier \($0.tier)" }) {
             Text(c.map { "\($0.metal) / \($0.stone)" } ?? "\u{2014}")
-                .font(.title2.weight(.semibold)).foregroundStyle(Theme.gold)
+                .font(Theme.ui(17)).foregroundStyle(Theme.gold)
             ForEach(["credibility", "bond", "uptime_bps", "giving"], id: \.self) { k in
                 if let i = c?.inputs[k] {
                     VStack(alignment: .leading, spacing: 0) {
                         KV(key: k == "uptime_bps" ? "Uptime (bps)" : k.capitalized, value: i.value)
-                        Text(i.source).font(.caption2).foregroundStyle(Theme.muted)
+                        Text(i.source).font(Theme.caption2).foregroundStyle(Theme.muted)
                     }
                 }
             }
             if let n = c?.next {
                 Text("Next: \(n.metal) / \(n.stone) needs credibility \(n.credibility), bond \(n.bond), uptime \(n.uptimeBps) bps")
-                    .font(.caption)
+                    .font(Theme.caption)
                 if !n.missing.isEmpty {
-                    Text("Missing: " + n.missing.joined(separator: ", ")).font(.caption).foregroundStyle(Theme.warn)
+                    Text("Missing: " + n.missing.joined(separator: ", ")).font(Theme.caption).foregroundStyle(Theme.warn)
                 }
             }
             Text(c?.perks.isEmpty == false ? "Perks: " + c!.perks.joined(separator: ", ") : "No perks at this tier.")
-                .font(.caption).foregroundStyle(Theme.muted)
+                .font(Theme.caption).foregroundStyle(Theme.muted)
             Text("Earned, never bought. Tiers give no priority, discount or credit.")
-                .font(.caption2).foregroundStyle(Theme.muted)
+                .font(Theme.caption2).foregroundStyle(Theme.muted)
         }
     }
 }
@@ -267,7 +267,7 @@ struct RailTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.caption).foregroundStyle(Theme.muted)
+            Text(title).font(Theme.caption).foregroundStyle(Theme.muted)
             Text(minor.map { Money.format($0, currency: currency) } ?? "\u{2014}")
                 .font(.system(size: 22, design: .monospaced))
                 .lineLimit(1).minimumScaleFactor(0.6)
@@ -295,7 +295,7 @@ struct SkillCard: View {
             HStack {
                 Text(skill.skill.capitalized).fontWeight(.medium)
                 Spacer()
-                Text("Level \(skill.level)").font(.caption).foregroundStyle(Theme.gold)
+                Text("Level \(skill.level)").font(Theme.caption).foregroundStyle(Theme.gold)
             }
             ProgressView(value: min(max(frac, 0), 1)).tint(Theme.gold)
             Text(top == floor ? "\(skill.points) pts · top level" : "\(skill.points) pts · \(top - skill.points) to level \(lv + 1)")

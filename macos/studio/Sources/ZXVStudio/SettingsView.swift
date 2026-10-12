@@ -68,7 +68,7 @@ struct SettingsView: View {
                 .buttonStyle(.borderedProminent)
             }
             Text(bridgeLine?.1 ?? "Saved in your books file. No report adapter or open market uses these settings yet. Adapters are designed to follow each standard; they are not a substitute for an accountant or a Shariah board.")
-                .font(.callout)
+                .font(Theme.callout)
                 .foregroundStyle(bridgeLine?.0 == false ? Theme.warn : Theme.muted)
         }
         .onAppear { loadBridge() }
@@ -92,14 +92,14 @@ struct SettingsView: View {
             KV(key: "Automatic checks", value: u?.auto == true ? "on while online" : "off")
             KV(key: "Checks run", value: grouped(u?.checks ?? 0))
             Text(updateLine ?? (u?.status.isEmpty == false ? u!.status : "No check has run yet."))
-                .font(.callout)
+                .font(Theme.callout)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.inset, in: RoundedRectangle(cornerRadius: 8))
-            if let e = u?.error, !e.isEmpty { Text(e).font(.caption).foregroundStyle(Theme.warn) }
+            if let e = u?.error, !e.isEmpty { Text(e).font(Theme.caption).foregroundStyle(Theme.warn) }
             HStack {
                 Text("Updates are signed. While the network is off, only Check now contacts the gateway.")
-                    .font(.caption).foregroundStyle(Theme.muted)
+                    .font(Theme.caption).foregroundStyle(Theme.muted)
                 Spacer()
                 Button(checking ? "Checking" : "Check now") {
                     checking = true
@@ -128,8 +128,8 @@ struct SettingsView: View {
                     Circle().fill(n.read ? Theme.border : Theme.gold).frame(width: 8, height: 8).padding(.top, 6)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(n.count > 1 ? "\(n.title) (\(n.count))" : n.title).fontWeight(.medium)
-                        if !n.body.isEmpty { Text(n.body).font(.callout) }
-                        Text("\(n.kind) · from \(n.source)").font(.caption).foregroundStyle(Theme.muted)
+                        if !n.body.isEmpty { Text(n.body).font(Theme.callout) }
+                        Text("\(n.kind) · from \(n.source)").font(Theme.caption).foregroundStyle(Theme.muted)
                     }
                     Spacer()
                 }
@@ -163,7 +163,7 @@ struct SettingsView: View {
                 .buttonStyle(.borderedProminent)
             }
             Text(codeLine?.1 ?? "Enabled currencies can hold accounts in the Sicily Ledger. This list shows the ones in use; zxvd has no currency list method yet.")
-                .font(.callout)
+                .font(Theme.callout)
                 .foregroundStyle(codeLine?.0 == false ? Theme.warn : Theme.muted)
         }
     }
@@ -178,7 +178,7 @@ struct SettingsView: View {
             Divider()
             HStack {
                 Text(confirmStop ? "Stop the daemon? The swarm and the network stop with it." : "The swarm runs in the zxvd daemon.")
-                    .font(.callout)
+                    .font(Theme.callout)
                 Spacer()
                 if confirmStop {
                     Button("Cancel") { confirmStop = false }
