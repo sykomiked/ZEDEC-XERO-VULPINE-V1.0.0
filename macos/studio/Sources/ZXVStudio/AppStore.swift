@@ -90,6 +90,14 @@ final class AppStore: ObservableObject {
     @Published var asking = false
     @Published var netLog: [LogLine] = []
     @Published var currenciesEnabled: [String] = []
+    /// phone.list, when this zxvd has a phone link (kernel/arch/hosted/zxvd_phone.h)
+    @Published var phones: PhoneList?
+
+    /// The owner let phones in: turn zxvd's phone link back on whenever it restarts.
+    var phonesAllowed: Bool {
+        get { UserDefaults.standard.bool(forKey: "ZXVPhonesAllowed") }
+        set { UserDefaults.standard.set(newValue, forKey: "ZXVPhonesAllowed") }
+    }
 
     let socketPath: String
     private var client: ZXVDClient
@@ -140,6 +148,7 @@ final class AppStore: ObservableObject {
             model = try? await client.request("model.info", as: ModelInfo.self)
             link = .connected
             await refreshLedger()
+            await refreshPhones(restore: true)
         } catch {
             link = .down(String(describing: error))
         }
@@ -155,6 +164,7 @@ final class AppStore: ObservableObject {
             let n = try await client.request("notes.list", as: Notes.self)
             notes = n.notes
             unread = n.unread
+            if has("phone.list") { phones = try? await client.request("phone.list", as: PhoneList.self) }
             NSApp?.dockTile.badgeLabel = n.unread > 0 ? String(n.unread) : nil
             postSystemNotifications(n.notes)
         } catch ZXVDError.noDaemon(let p) {
@@ -333,6 +343,51 @@ final class AppStore: ObservableObject {
         daemon = nil
         stoppedByOwner = true
         link = .down("zxvd stopped")
+    }
+
+    // MARK: Phones (ZXV Companion)
+
+    func refreshPhones(restore: Bool = false) async {
+        guard has("phone.list") else {
+            phones = nil
+            return
+        }
+        var l = try? await client.request("phone.list", as: PhoneList.self)
+        if restore, phonesAllowed, l?.on == false {
+            _ = try? await client.request("phone.link", ["on": true], as: PhoneLink.self)
+            l = try? await client.request("phone.list", as: PhoneList.self)
+        }
+        phones = l
+    }
+
+    /// Turns the phone link on or off; the line to show when it fails.
+    func setPhones(allowed: Bool) async -> String? {
+        defer { Task { await refreshPhones() } }
+        do {
+            _ = try await client.request("phone.link", ["on": .bool(allowed)], as: PhoneLink.self)
+            phonesAllowed = allowed
+            return nil
+        } catch {
+            return "zxvd refused: \(error)"
+        }
+    }
+
+    func pairPhone(name: String, allowPost: Bool) async -> Result<PhonePairing, Error> {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        do {
+            let p = try await client.request("phone.pair", ["name": .string(String(n.prefix(32))),
+                                                            "allow_post": .bool(allowPost)],
+                                             as: PhonePairing.self)
+            await refreshPhones()
+            return .success(p)
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    func revokePhone(_ id: String) async {
+        _ = try? await client.request("phone.revoke", ["phone_id": .string(id)], as: Revoked.self)
+        await refreshPhones()
     }
 
     // MARK: macOS notifications

@@ -73,7 +73,7 @@ if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
     DEFS="$DEFS -DZXV_HAVE_ZT_GLUE"
 fi
 [ -n "$EXE" ] && set -- "$@" "$HERE/zxvd_rpc_win.c"
-set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
+set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxvd_phone.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"

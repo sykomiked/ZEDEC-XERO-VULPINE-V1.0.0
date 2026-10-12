@@ -1,0 +1,103 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# ZXV Companion (mobile/companion): the Flutter phone app for the owner's
+# zxvd node. Analyzes and tests the app (including a live run against a real
+# zxvd over the phone link), then builds the sideload builds: a debug-signed
+# Android APK and an unsigned iOS IPA. There is no Apple Developer ID, so the
+# IPA has to be re-signed with the owner's own Apple ID to install.
+name: Companion app
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['mobile/companion/**', 'kernel/arch/hosted/zxvd_phone.*', 'kernel/arch/hosted/zxvd_rpc.*',
+            '.github/workflows/companion.yml']
+  pull_request:
+    paths: ['mobile/companion/**', 'kernel/arch/hosted/zxvd_phone.*', 'kernel/arch/hosted/zxvd_rpc.*',
+            '.github/workflows/companion.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.47.5'
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: companion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  android:
+    name: companion test + android apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile/companion
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Flutter (pinned archive, checked against its sha256)
+        working-directory: ${{ runner.temp }}
+        run: |
+          f=flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
+          curl -fsSLO "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/$f"
+          echo "2132e990f236f8d22e7c6314b29a191a95b10d7cbcfec9b4e2e303d996652cbb  $f" | sha256sum -c -
+          tar -xJf "$f"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter --disable-analytics && flutter --version
+      - name: Build zxvd for the live test
+        working-directory: .
+        run: sh kernel/arch/hosted/build_zxvd.sh "$RUNNER_TEMP/zxvd"
+      - run: flutter pub get
+      - run: flutter analyze --fatal-infos
+      - name: Tests (unit, widget, and live against zxvd over the phone link)
+        run: ZXVD_BIN="$RUNNER_TEMP/zxvd/zxvd" flutter test --reporter expanded
+      - name: Debug APK (debug-key signed, for sideloading)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          flutter build apk --debug
+          cp build/app/outputs/flutter-apk/app-debug.apk "$RUNNER_TEMP/zxv-companion-debug.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zxv-companion-android-debug
+          path: ${{ runner.temp }}/zxv-companion-debug.apk
+
+  ios:
+    name: companion ios (unsigned ipa)
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile/companion
+    steps:
+      - uses: actions/checkout@v5
+      - name: Flutter (pinned archive, checked against its sha256)
+        working-directory: ${{ runner.temp }}
+        run: |
+          f=flutter_macos_arm64_${FLUTTER_VERSION}-stable.zip
+          curl -fsSLO "https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/$f"
+          echo "d4dd908b5f8f65515831b6d68ae33307a813f2b68947dded7a1994ee5ea7cead  $f" | shasum -a 256 -c -
+          unzip -q "$f"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter --disable-analytics && flutter --version && xcodebuild -version
+      - run: flutter pub get
+      - name: iOS build without code signing
+        run: flutter build ios --release --no-codesign
+      - name: Wrap Runner.app as an unsigned IPA
+        run: |
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R build/ios/iphoneos/Runner.app "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$RUNNER_TEMP/zxv-companion-unsigned.ipa" Payload)
+          ls -l "$RUNNER_TEMP/zxv-companion-unsigned.ipa"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zxv-companion-ios-unsigned
+          path: ${{ runner.temp }}/zxv-companion-unsigned.ipa

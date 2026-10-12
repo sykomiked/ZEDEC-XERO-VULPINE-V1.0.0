@@ -126,6 +126,26 @@ typedef struct {
 } zxvd_peer_ops_t;
 void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops);
 
+/* phone.* (zxvd_phone.h): the phone link and pairing the owner's phones,
+ * set by zxvd_phone_init. Unset, the methods answer -32601. link, pair and
+ * revoke return NULL on success (result in out) or why they failed (error
+ * -32602). Control socket only: a phone gets ZXVD_E_PHONE. link's port is
+ * -1 for the default and bind_ip NULL for every interface. */
+#define ZXVD_E_PHONE (-32011)
+typedef struct {
+    const char *(*link)(bool on, int32_t port, const char *bind_ip, zxvd_buf_t *out); /* phone.link */
+    const char *(*pair)(const char *name, bool allow_post, zxvd_buf_t *out); /* phone.pair   */
+    void (*list)(zxvd_buf_t *out);                                           /* phone.list   */
+    const char *(*revoke)(const char *phone_id, zxvd_buf_t *out);            /* phone.revoke */
+} zxvd_phone_ops_t;
+void zxvd_rpc_set_phone_ops(const zxvd_phone_ops_t *ops);
+
+/* One request from a paired phone (zxvd_phone.h A1-A3): like
+ * zxvd_rpc_handle_line, but a method the phone may not call answers
+ * ZXVD_E_PHONE, and a notification is refused (-32600) rather than run.
+ * allow_post: the pairing may move money and change the network. */
+bool zxvd_rpc_handle_phone_line(const char *line, size_t len, zxvd_buf_t *out, bool allow_post);
+
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops);

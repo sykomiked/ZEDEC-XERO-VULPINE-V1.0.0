@@ -130,6 +130,39 @@ static void p_status(zxvd_buf_t *o)
 static const zxvd_peer_ops_t PEER_STUB = {p_ask, p_serve, p_status};
 static const zxvd_peer_ops_t PEER_NONE = {0};
 
+/* phone.* stubs (zxvd_phone.h) */
+static char last_phone_name[40];
+static bool last_phone_post;
+static const char *ph_pair(const char *name, bool post, zxvd_buf_t *o)
+{
+    snprintf(last_phone_name, sizeof last_phone_name, "%s", name);
+    last_phone_post = post;
+    if (!strcmp(name, "full")) return "too many phones paired; revoke one first";
+    zxvd_buf_raw(o, "{\"paired\":true}", 15);
+    return NULL;
+}
+static void ph_list(zxvd_buf_t *o)
+{
+    zxvd_buf_raw(o, "{\"phones\":[]}", 13);
+}
+static const char *ph_revoke(const char *id, zxvd_buf_t *o)
+{
+    if (strcmp(id, "00112233445566778899aabbccddeeff")) return "no such phone";
+    zxvd_buf_raw(o, "{\"revoked\":true}", 16);
+    return NULL;
+}
+static int last_link_port;
+static char last_link_bind[48];
+static const char *ph_link(bool on, int32_t port, const char *bind, zxvd_buf_t *o)
+{
+    last_link_port = port;
+    snprintf(last_link_bind, sizeof last_link_bind, "%s", bind ? bind : "(all)");
+    if (port == 1) return "cannot listen on TCP 1: Permission denied";
+    zxvd_buf_printf(o, "{\"on\":%s}", on ? "true" : "false");
+    return NULL;
+}
+static const zxvd_phone_ops_t PHONE_STUB = {ph_link, ph_pair, ph_list, ph_revoke};
+
 /* ---------------- helpers ---------------- */
 
 static zxvd_buf_t OUT;
@@ -377,7 +410,8 @@ static void test_host_methods(void)
               "\"notes.mark_read\",\"net.command\",\"peer.ask\",\"peer.serve\",\"peer.status\","
               "\"update.check\",\"currency.enable\","
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\"]}"));
+              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -1123,6 +1157,104 @@ static void test_peer_methods(void)
     zxvd_rpc_set_peer_ops(NULL);
 }
 
+/* one request from a paired phone -> its reply */
+static const char *phone_rpc(const char *line, bool post)
+{
+    bool r = zxvd_rpc_handle_phone_line(line, strlen(line), &OUT, post);
+    checks++;
+    if (!r) {
+        fails++;
+        printf("  FAIL a phone request got no reply: %s\n", line);
+        return "<none>";
+    }
+    return OUT.p ? OUT.p : "";
+}
+
+static void phone_expect(const char *req, bool post, const char *want, int line)
+{
+    const char *got = phone_rpc(req, post);
+    checks++;
+    if (strcmp(got, want)) {
+        fails++;
+        printf("  FAIL line %d (phone)\n    req  %s\n    want %s\n    got  %s\n", line, req, want,
+               got);
+    }
+}
+#define PHONE_EXPECT(req, post, want) phone_expect(req, post, want, __LINE__)
+
+static void test_phone_methods(void)
+{
+    zxvd_rpc_set_ops(&OPS);
+    zxvd_rpc_set_phone_ops(NULL);
+    EXPECT(REQ("1", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"),
+           ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "phone.list", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "phone.link", ",\"params\":{\"on\":true}"), ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_phone_ops(&PHONE_STUB);
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true}"), OK("2", "{\"on\":true}"));
+    CHECK(last_link_port == -1 && !strcmp(last_link_bind, "(all)"),
+          "phone.link defaults: port -1, every interface (%d %s)", last_link_port, last_link_bind);
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":0,\"bind\":\"10.0.0.5\"}"),
+           OK("2", "{\"on\":true}"));
+    CHECK(last_link_port == 0 && !strcmp(last_link_bind, "10.0.0.5"), "phone.link passes port and bind");
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":false}"), OK("2", "{\"on\":false}"));
+    EXPECT(REQ("2", "phone.link", ""), ERR("2", "-32602", "\\\"on\\\" must be true or false"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":\"yes\"}"),
+           ERR("2", "-32602", "\\\"on\\\" must be true or false"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":65536}"),
+           ERR("2", "-32602", "\\\"port\\\" must be 0..65535"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":-1}"),
+           ERR("2", "-32602", "\\\"port\\\" is out of range"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":1}"),
+           ERR("2", "-32602", "cannot listen on TCP 1: Permission denied"));
+    EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"), OK("2", "{\"paired\":true}"));
+    CHECK(!strcmp(last_phone_name, "Pixel") && !last_phone_post, "phone.pair passes the name");
+    EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"iPad\",\"allow_post\":true}"),
+           OK("2", "{\"paired\":true}"));
+    CHECK(last_phone_post, "phone.pair passes allow_post");
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"x\",\"allow_post\":1}"),
+           ERR("3", "-32602", "\\\"allow_post\\\" must be true or false"));
+    EXPECT(REQ("3", "phone.pair", ""), ERR("3", "-32602", "missing string parameter \\\"name\\\""));
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"012345678901234567890123456789012\"}"),
+           ERR("3", "-32602", "\\\"name\\\" must be a string of at most 32 bytes"));
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"full\"}"),
+           ERR("3", "-32602", "too many phones paired; revoke one first"));
+    EXPECT(REQ("4", "phone.list", ""), OK("4", "{\"phones\":[]}"));
+    EXPECT(REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"00112233445566778899aabbccddeeff\"}"),
+           OK("5", "{\"revoked\":true}"));
+    EXPECT(REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"ff\"}"),
+           ERR("5", "-32602", "no such phone"));
+
+    /* A1-A3: what a paired phone may call */
+    const char *nopost = "this phone was paired without allow_post";
+    PHONE_EXPECT(REQ("6", "zxvd.shutdown", ""), true, ERR("6", "-32011", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.pair", ",\"params\":{\"name\":\"x\"}"), true,
+                 ERR("6", "-32011", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.list", ""), false, ERR("6", "-32011", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.revoke", ""), true, ERR("6", "-32011", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.link", ",\"params\":{\"on\":false}"), true,
+                 ERR("6", "-32011", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "peer.serve", ""), true, ERR("6", "-32011", "not allowed from a phone"));
+    static const char *const POST[] = {"net.command", "peer.ask", "currency.enable",
+                                       "ledger.open_account", "ledger.post"};
+    for (size_t i = 0; i < sizeof POST / sizeof POST[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"%s\"}", POST[i]);
+        CHECK(strstr(phone_rpc(req, false), nopost) != NULL, "%s needs allow_post", POST[i]);
+        CHECK(strstr(phone_rpc(req, true), "-32011") == NULL, "%s is allowed with allow_post",
+              POST[i]);
+    }
+    stopped = 0;
+    PHONE_EXPECT(REQ("8", "swarm.state", ""), false, OK("8", "{\"tick\":7}"));
+    PHONE_EXPECT("{\"jsonrpc\":\"2.0\",\"method\":\"zxvd.shutdown\"}", true,
+                 ERR("null", "-32600", "a phone must send an id"));
+    CHECK(stopped == 0, "a phone's notification is never run");
+    PHONE_EXPECT(REQ("9", "no.such", ""), false, ERR("9", "-32601", "method not found"));
+    /* the control socket is unaffected after phone requests */
+    EXPECT(REQ("10", "phone.list", ""), OK("10", "{\"phones\":[]}"));
+    zxvd_rpc_set_phone_ops(NULL);
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -1130,6 +1262,7 @@ int main(void)
     test_protocol();
     test_host_methods();
     test_peer_methods();
+    test_phone_methods();
     test_books_closed();
     test_books();
     test_earnings();

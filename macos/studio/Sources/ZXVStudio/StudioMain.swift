@@ -39,6 +39,10 @@ enum Smoke {
             let a = try c.call("ledger.accounts", as: Accounts.self)
             let ok = try c.call("ledger.check", as: Checked.self).ok
             print("ledger: \(a.accounts.count) accounts, books \(ok ? "balanced" : "NOT balanced")")
+            if d.methods.contains("phone.list") {
+                let p = try c.call("phone.list", as: PhoneList.self)
+                print("phones: link \(p.on ? "on" : "off"), \(p.phones.count) paired")
+            }
             return ok ? 0 : 1
         } catch {
             FileHandle.standardError.write(Data("smoke failed: \(error)\n".utf8))

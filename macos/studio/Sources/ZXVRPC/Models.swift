@@ -264,3 +264,41 @@ public struct NotesSummary: Decodable, Sendable {
     public let unread: Int
     public let os: String
 }
+
+// MARK: phone.* (kernel/arch/hosted/zxvd_phone.h)
+
+/// phone.link: whether paired phones may connect, and on which TCP port.
+public struct PhoneLink: Decodable, Sendable {
+    public let on: Bool
+    public let port: Int
+}
+
+/// phone.pair: the link to show once, as a QR code, on the phone's screen.
+public struct PhonePairing: Decodable, Sendable {
+    public let phoneId: String
+    public let name: String
+    public let allowPost: Bool
+    public let host: String
+    public let port: Int
+    /// zxv-phone:1?h=...&k=... holds the phone's secret key: show it, never log it.
+    public let link: String
+}
+
+public struct PairedPhone: Decodable, Sendable, Identifiable {
+    public let phoneId: String
+    public let name: String
+    public let allowPost: Bool
+    public let connected: Int
+    public var id: String { phoneId }
+}
+
+public struct PhoneList: Decodable, Sendable {
+    public let on: Bool
+    public let port: Int
+    public let phones: [PairedPhone]
+}
+
+public struct Revoked: Decodable, Sendable {
+    public let revoked: Bool
+    public let closed: Int
+}

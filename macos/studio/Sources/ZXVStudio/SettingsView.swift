@@ -3,7 +3,11 @@
 //
 // Settings & Jurisdiction Bridge: zxvd.version, update.check and
 // swarm.state.update, notes.list / notes.mark_read, currency.enable,
-// swarm.state's machine budget, zxvd.shutdown.
+// swarm.state's machine budget, zxvd.shutdown, and phone.* for pairing the
+// ZXV Companion phone app (mobile/companion).
+import AppKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 import ZXVRPC
 
@@ -15,6 +19,10 @@ struct SettingsView: View {
     @State private var code = ""
     @State private var codeLine: (Bool, String)?
     @State private var confirmStop = false
+    @State private var phoneName = ""
+    @State private var phoneAllowPost = false
+    @State private var pairing: PhonePairing?
+    @State private var phoneLine: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -28,6 +36,7 @@ struct SettingsView: View {
                 currencies
                 machine
             }
+            if store.has("phone.link") { phonesPanel }
             if !store.has("jurisdiction.get") {
                 NotServed(what: "Jurisdiction Bridge", method: "jurisdiction.get",
                           detail: "Closed clearing is the default; an open batch-auction market is a per-deployment switch. The accounting standard for reports (IFRS, US GAAP, AAOIFI, OHADA, CAS, insurer SAP) will be chosen here. Adapters are designed to follow each standard; they are not a substitute for an accountant or a Shariah board.")
@@ -120,6 +129,66 @@ struct SettingsView: View {
         }
     }
 
+    private var phonesPanel: some View {
+        let p = store.phones
+        return Panel(title: "Phones", trailing: p?.on == true ? "Listening on TCP \(p!.port)" : "Off") {
+            Toggle("Let paired phones in on this network", isOn: Binding(
+                get: { p?.on == true },
+                set: { v in Task { phoneLine = await store.setPhones(allowed: v) } }
+            ))
+            Text("ZXV Companion on iOS and Android shows these views on your phone. Only phones you pair here get in, and everything between them and this Mac is encrypted.")
+                .font(.caption).foregroundStyle(Theme.muted)
+            ForEach(p?.phones ?? []) { ph in
+                HStack(spacing: 10) {
+                    Circle().fill(ph.connected > 0 ? Theme.good : Theme.border).frame(width: 8, height: 8)
+                    Text(ph.name)
+                    Text(ph.allowPost ? "can move money" : "read and ask").font(.caption).foregroundStyle(Theme.muted)
+                    Spacer()
+                    Button("Revoke") { Task { await store.revokePhone(ph.phoneId) } }
+                }
+            }
+            Divider()
+            if let pr = pairing {
+                HStack(alignment: .top, spacing: 18) {
+                    QRCodeView(text: pr.link).frame(width: 200, height: 200)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Scan this with ZXV Companion on \(pr.name).").fontWeight(.medium)
+                        Text("The code holds that phone's key. Show it only to that phone; it is not shown again.")
+                            .font(.caption).foregroundStyle(Theme.muted)
+                        Text("Or paste the link on the phone:").font(.caption).foregroundStyle(Theme.muted)
+                        Text(pr.link).font(.system(size: 10, design: .monospaced)).textSelection(.enabled).lineLimit(5)
+                        Button("Done") { pairing = nil }.buttonStyle(.borderedProminent)
+                    }
+                }
+            } else {
+                HStack(spacing: 12) {
+                    TextField("Phone name, like Pixel 9", text: $phoneName).textFieldStyle(.roundedBorder).frame(width: 220)
+                    Toggle("Allow money and network changes", isOn: $phoneAllowPost)
+                    Spacer()
+                    Button("Pair a phone") {
+                        Task {
+                            switch await store.pairPhone(name: phoneName, allowPost: phoneAllowPost) {
+                            case .success(let pr):
+                                pairing = pr
+                                phoneName = ""
+                                phoneAllowPost = false
+                                phoneLine = nil
+                            case .failure(let e):
+                                phoneLine = "zxvd refused: \(e)"
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(p?.on != true || phoneName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                if p?.on != true {
+                    Text("Turn on the switch above to pair a phone.").font(.caption).foregroundStyle(Theme.muted)
+                }
+            }
+            if let l = phoneLine { Text(l).font(.callout).foregroundStyle(Theme.warn) }
+        }
+    }
+
     private var machine: some View {
         let s = store.state
         return Panel(title: "This Mac's budget") {
@@ -143,5 +212,35 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+}
+
+/// A QR code drawn with Core Image, black on white with a quiet zone.
+@MainActor
+struct QRCodeView: View {
+    let text: String
+
+    var body: some View {
+        if let img = Self.image(text) {
+            Image(nsImage: img)
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+                .padding(12)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 10))
+        } else {
+            Text("QR code unavailable; paste the link instead.").foregroundStyle(Theme.muted)
+        }
+    }
+
+    static func image(_ s: String) -> NSImage? {
+        let f = CIFilter.qrCodeGenerator()
+        f.message = Data(s.utf8)
+        f.correctionLevel = "M"
+        guard let out = f.outputImage else { return nil }
+        let rep = NSCIImageRep(ciImage: out.transformed(by: CGAffineTransform(scaleX: 8, y: 8)))
+        let img = NSImage(size: rep.size)
+        img.addRepresentation(rep)
+        return img
     }
 }

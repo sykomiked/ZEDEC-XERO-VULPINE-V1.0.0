@@ -37,6 +37,14 @@ needs right-click, then Open.
 `ZXVStudio --smoke [SOCKET]` connects the same way, reads every view's calls
 once, prints a summary and exits; CI runs it on the built app.
 
+## Phones
+
+Settings has a **Phones** panel when zxvd serves `phone.link`: a switch that
+lets paired phones in on this network, the paired phones with **Revoke**,
+and **Pair a phone**, which shows the pairing as a QR code for
+[ZXV Companion](../../mobile/companion). The switch is remembered and turned
+back on when the app reconnects.
+
 ## Panels waiting on zxvd
 
 Each panel below shows a dashed "not served yet" box until zxvd lists the

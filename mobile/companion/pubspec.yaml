@@ -1,0 +1,30 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+name: zxv_companion
+description: >-
+  ZXV Companion: the owner's zxvd node on a phone (iOS and Android). Talks to
+  zxvd over its encrypted phone link (kernel/arch/hosted/zxvd_phone.h).
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.0
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # X25519, ChaCha20-Poly1305, HKDF and HMAC in pure Dart (zxv-phone/1)
+  cryptography: 2.9.0
+  # the pairing key lives in the iOS Keychain / Android Keystore
+  flutter_secure_storage: 11.2.0
+  # scanning the pairing QR code
+  mobile_scanner: 7.4.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+
+flutter:
+  uses-material-design: true

@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, phone.* and peer.serve are refused there with -32011, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -967,6 +967,172 @@
         }
       },
       "paramStructure": "by-name"
+    },
+    {
+      "name": "phone.link",
+      "summary": "Turn the phone link on or off (control socket only). On listens on TCP (default 47410) for paired phones on private IPv4 addresses; off closes every phone's connection. Off by default unless zxvd started with --phone-link.",
+      "params": [
+        {
+          "name": "on",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "port",
+          "required": false,
+          "description": "TCP port, 0 for any free one (default 47410); ignored when already on",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          }
+        },
+        {
+          "name": "bind",
+          "required": false,
+          "description": "a private IPv4 address to listen on (default every interface)",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "link",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean"
+            },
+            "port": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "phone.pair",
+      "summary": "Pair a phone (control socket only; the link must be on). Returns the pairing link with the phone's secret key, to show once as a QR code; zxvd never sends it over the network.",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "description": "what to call the phone: 1..32 printable ASCII characters",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        {
+          "name": "allow_post",
+          "required": false,
+          "description": "let this phone move money and change the network (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "pairing",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "phone_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            "name": {
+              "type": "string"
+            },
+            "allow_post": {
+              "type": "boolean"
+            },
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "link": {
+              "type": "string",
+              "pattern": "^zxv-phone:1\\?h=[^&]+&p=[0-9]+&id=[0-9a-f]{32}&k=[0-9a-f]{64}&n=.+$"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "phone.list",
+      "summary": "The paired phones, never their keys (control socket only).",
+      "params": [],
+      "result": {
+        "name": "phones",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "phones": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "phone_id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{32}$"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "allow_post": {
+                    "type": "boolean"
+                  },
+                  "connected": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "phone.revoke",
+      "summary": "End a pairing and close the phone's connections (control socket only).",
+      "params": [
+        {
+          "name": "phone_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "revoked",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "revoked": {
+              "type": "boolean",
+              "const": true
+            },
+            "closed": {
+              "type": "integer"
+            }
+          }
+        }
+      }
     }
   ]
 }

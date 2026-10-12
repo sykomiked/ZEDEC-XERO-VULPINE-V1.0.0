@@ -102,6 +102,7 @@ typedef int sock_t;
 #include "zx_upcheck.h"
 #if defined(ZXVD)
 #    include "zxvd_rpc.h" /* zxvd: the JSON-RPC socket and the libzxv books */
+#    include "zxvd_phone.h" /* zxvd: the owner's paired phones (--phone-link) */
 #    if defined(_WIN32)
 #        include <afunix.h>
 #    else
@@ -1591,7 +1592,9 @@ int main(int argc, char **argv)
     const char *rpc_path = NULL;
     const char *earn_ccy = "VFV";
     uint64_t earn_rate = 1;
-    bool desktop = false;
+    bool desktop = false, phone_link = false;
+    int phone_port = ZXVD_PHONE_PORT;
+    const char *phone_bind = NULL;
     char rpc_buf[512], link_path[560];
     link_path[0] = 0;
     open_window = false; /* a daemon: the UI and SDKs come in over --rpc */
@@ -1661,6 +1664,16 @@ int main(int argc, char **argv)
             earn_rate = strtoull(argv[++i], NULL, 10);
         else if (!strcmp(argv[i], "--desktop"))
             desktop = true;
+        else if (!strcmp(argv[i], "--phone-link"))
+            phone_link = true;
+        else if (!strcmp(argv[i], "--phone-port") && i + 1 < argc) {
+            phone_port = atoi(argv[++i]);
+            if (phone_port < 0 || phone_port > 65535) {
+                fprintf(stderr, "zxvd: --phone-port takes 0..65535\n");
+                return 2;
+            }
+        } else if (!strcmp(argv[i], "--phone-bind") && i + 1 < argc)
+            phone_bind = argv[++i];
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
@@ -1676,6 +1689,11 @@ int main(int argc, char **argv)
                    "                      folder (unless --rpc), and the window opened in\n"
                    "                      the default browser; a second launch opens the\n"
                    "                      running one's window\n"
+                   "  --phone-link        let paired phones in on the local network from\n"
+                   "                      the start (else phone.link over --rpc turns it\n"
+                   "                      on; phone.pair makes a pairing link)\n"
+                   "  --phone-port N      its TCP port (default 47410; 0 = any free port)\n"
+                   "  --phone-bind IP     its private IPv4 address (default all)\n"
 #endif
                    "  --server            run headless; open the window remotely "
                    "over SSH\n"
@@ -1829,6 +1847,29 @@ int main(int argc, char **argv)
         return 2;
     }
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;
+    {
+        /* the pairings live beside the socket, in the folder zxvd_rpc_open checked */
+        char pdir[sizeof rpc_buf];
+        snprintf(pdir, sizeof pdir, "%s", rpc_path);
+        char *sl = strrchr(pdir, '/');
+#    if defined(_WIN32)
+        char *bs = strrchr(pdir, '\\');
+        if (bs && (!sl || bs > sl)) sl = bs;
+#    endif
+        if (sl == pdir)
+            sl[1] = 0;
+        else if (sl)
+            *sl = 0;
+        else
+            snprintf(pdir, sizeof pdir, ".");
+        const char *why = NULL;
+        if (zxvd_phone_init(pdir) != 0 ||
+            (phone_link && (why = zxvd_phone_listen(phone_bind, (uint16_t) phone_port)))) {
+            if (why) fprintf(stderr, "zxvd: phone link: %s\n", why);
+            zxvd_rpc_close();
+            return 1;
+        }
+    }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
     if (ls == BAD_SOCK) {
@@ -1894,6 +1935,8 @@ int main(int argc, char **argv)
                port, port);
     printf("ZXV-URL: %s\n", url_tok);
 #if defined(ZXVD)
+    if (zxvd_phone_port())
+        printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());
     printf("ZXVD-RPC: %s\n", rpc_path);
     if (link_path[0]) pal_write_link(link_path, url_tok);
 #endif
@@ -1924,6 +1967,8 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
         int rfd = zxvd_rpc_fds(&rd);
         if (rfd > maxfd) maxfd = rfd;
+        int phfd = zxvd_phone_fds(&rd);
+        if (phfd > maxfd) maxfd = phfd;
 #endif
         struct timeval tv = {0, STEP_MS * 1000};
         int r = select(maxfd + 1, &rd, NULL, NULL, &tv);
@@ -1956,6 +2001,7 @@ int main(int argc, char **argv)
             zxv_peer_on_readable(S.peer, zxv_net_wall_ms());
 #if defined(ZXVD)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
+        if (r >= 0) zxvd_phone_service(&rd, pal_now_ms());
 #endif
         zxv_net_tick(S.net, zxv_net_wall_ms());
         zxv_update_tick((uint64_t) time(NULL),
@@ -1969,6 +2015,7 @@ int main(int argc, char **argv)
     CLOSESOCK(ls);
 #if defined(ZXVD)
     if (link_path[0]) remove(link_path);
+    zxvd_phone_close();
     zxvd_rpc_close();
 #endif
     zxv_peer_free(S.peer);
