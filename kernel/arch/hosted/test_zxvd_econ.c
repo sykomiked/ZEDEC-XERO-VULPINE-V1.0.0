@@ -159,7 +159,7 @@ static void groups(void)
 static void test_switches(void)
 {
     groups();
-    CHECK(zxvd_rpc_add_group(zxvd_vault_group()) == -1, "a group registers once");
+    CHECK(zxvd_rpc_add_group(zxvd_vault_group()) == 0, "re-adding a group held is a no-op");
     EXPECT(
         req0("features.get"),
         ok("{\"features\":[{\"name\":\"vault\",\"enabled\":false,\"regulated\":true,\"groups\":[{"

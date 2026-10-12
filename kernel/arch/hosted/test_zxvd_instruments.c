@@ -539,7 +539,7 @@ int main(void)
     zxvd_rpc_groups_reset();
     CHECK(zxvd_rpc_add_group(zxvd_bonds_group()) == 0, "add bonds");
     CHECK(zxvd_rpc_add_group(zxvd_derivatives_group()) == 0, "add derivatives");
-    CHECK(zxvd_rpc_add_group(zxvd_bonds_group()) == -1, "a group is added once");
+    CHECK(zxvd_rpc_add_group(zxvd_bonds_group()) == 0, "re-adding a group held is a no-op");
     test_switches();
     test_params();
     test_keys();
