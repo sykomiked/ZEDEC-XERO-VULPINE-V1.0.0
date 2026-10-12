@@ -32,21 +32,17 @@
 #include <stdbool.h>
 #include "lpres_hex.h"
 
-typedef enum {
-    ZSP_HOME = 0, ZSP_OFFICE, ZSP_TEAM, ZSP_CLOUDTOP, ZSP_PARK, ZSP_HALL
-} zsp_kind_t;
+typedef enum { ZSP_HOME = 0, ZSP_OFFICE, ZSP_TEAM, ZSP_CLOUDTOP, ZSP_PARK, ZSP_HALL } zsp_kind_t;
 
-typedef enum {
-    ZSP_OWNER = 0, ZSP_MEMBER, ZSP_GUEST, ZSP_PUBLIC
-} zsp_role_t;
+typedef enum { ZSP_OWNER = 0, ZSP_MEMBER, ZSP_GUEST, ZSP_PUBLIC } zsp_role_t;
 
 typedef struct {
     zsp_kind_t kind;
-    zsp_role_t role;     /* the viewer's role in this space */
+    zsp_role_t role; /* the viewer's role in this space */
 } zsp_place_t;
 
 const char *zsp_kind_name(zsp_kind_t k);
-int  zsp_openness(zsp_kind_t k);            /* 0 = most private; HALL = -1 */
+int zsp_openness(zsp_kind_t k); /* 0 = most private; HALL = -1 */
 bool zsp_can_view(zsp_kind_t k, zsp_role_t r);
 bool zsp_can_write(zsp_kind_t k, zsp_role_t r);
 
@@ -77,11 +73,11 @@ typedef enum { ZSP_GOV_VERTICAL = 0, ZSP_GOV_HORIZONTAL } zsp_gov_t;
 
 typedef struct {
     zsp_gov_t gov;
-    uint8_t   quorum_pct;   /* HORIZONTAL: share of members needed, 1..100;
-                               0 means a simple majority (51) */
+    uint8_t quorum_pct; /* HORIZONTAL: share of members needed, 1..100;
+                           0 means a simple majority (51) */
 } zsp_rules_t;
 
-lpx_t zsp_decide(const zsp_rules_t *rules, zsp_role_t proposer,
-                 uint32_t members, uint32_t yes, uint32_t no);
+lpx_t zsp_decide(const zsp_rules_t *rules, zsp_role_t proposer, uint32_t members, uint32_t yes,
+                 uint32_t no);
 
 #endif /* ZXV_ZUI_SPACE_H */
