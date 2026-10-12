@@ -252,11 +252,12 @@ int32_t zt_vision_encode(const zt_vision_t *v, const uint8_t *rgb, zt_fx *out, v
     /* patches: column ch * ps * ps + y * ps + x (GGUF [ps, ps, 3, n_embd]) */
     for (uint32_t py = 0; py < side; py++)
         for (uint32_t px = 0; px < side; px++) {
-            zt_fx *row = w.patches + (uint64_t) (py * side + px) * pc;
+            zt_fx *row = w.patches + ((uint64_t) py * side + px) * pc;
             for (uint32_t ch = 0; ch < 3; ch++)
                 for (uint32_t y = 0; y < ps; y++)
                     for (uint32_t x = 0; x < ps; x++) {
-                        uint32_t p = rgb[((uint64_t) (py * ps + y) * S + px * ps + x) * 3 + ch];
+                        uint32_t p =
+                            rgb[(((uint64_t) py * ps + y) * S + (uint64_t) px * ps + x) * 3 + ch];
                         /* p / 255 in Q16, rounded, then (that - mean) / std */
                         int64_t u = (int64_t) ((p * 65536u + 127u) / 255u) - c->mean[ch];
                         int64_t q = u * c->inv_std[ch];
@@ -291,7 +292,8 @@ int32_t zt_vision_encode(const zt_vision_t *v, const uint8_t *rgb, zt_fx *out, v
             for (uint32_t hi = 0; hi < s; hi++)
                 for (uint32_t wi = 0; wi < s; wi++) {
                     const zt_fx *src = w.xn + (uint64_t) ((hb * s + hi) * side + wb * s + wi) * ne;
-                    zt_fx *dst = sh + (uint64_t) (hb * ob + wb) * pin + (hi * s + wi) * ne;
+                    zt_fx *dst =
+                        sh + ((uint64_t) hb * ob + wb) * pin + ((uint64_t) hi * s + wi) * ne;
                     for (uint32_t i = 0; i < ne; i++) dst[i] = src[i];
                 }
     zt_nn_linear(&nn, &v->proj, 0, sh, pin, pin, c->n_out, out, c->proj_dim);
