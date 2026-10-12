@@ -25,7 +25,7 @@ EXPECTED_TYPES = {
 
 
 def test_version_and_features2() -> None:
-    assert zxv.abi_version()[:2] == (1, 5)
+    assert zxv.abi_version()[:2] == (1, 6)  # the in-tree library is ABI 1.6
     assert zxv.__version__ == "1.6.0"
     f2 = zxv.features2()
     assert isinstance(f2, zxv.Feature2)
