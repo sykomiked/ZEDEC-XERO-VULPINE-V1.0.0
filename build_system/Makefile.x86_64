@@ -125,6 +125,14 @@ SRCS := \
     kernel/arch/x86_64/boot_evidence.c \
     kernel/arch/x86_64/ring3.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
+    kernel/arch/x86_64/hwplat_x86.c \
+    kernel/src/hwdrv/hwdrv_core.c \
+    kernel/src/hwdrv/hwdrv_probe.c \
+    kernel/src/hwdrv/nvme.c \
+    kernel/src/hwdrv/ahci.c \
+    kernel/src/hwdrv/xhci.c \
+    kernel/src/hwdrv/e1000.c \
+    kernel/src/hwdrv/hda.c \
     kernel/src/abacus/abacus.c \
     kernel/src/ai_layer/ai_layer.c \
     kernel/src/alloc/alloc.c \
