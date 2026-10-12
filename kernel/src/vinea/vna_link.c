@@ -180,9 +180,9 @@ static vna_status_t on_offer(vna_link_t *l, const vna_receipt_t *r, const vna_id
     for (int pass = 0; pass < 2 && w < 0; pass++) /* wants bound to this seller first */
         for (uint32_t i = 0; i < VNA_LINK_WANTS && w < 0; i++) {
             const vna_link_want_t *x = &l->want[i];
-            if (x->used && x->bound == (pass == 0) &&
-                (!x->bound || vna_id_eq(&x->peer, peer)) && x->resource == r->resource &&
-                x->form == r->form && x->units_left >= r->units && x->max_price >= r->price)
+            if (x->used && x->bound == (pass == 0) && (!x->bound || vna_id_eq(&x->peer, peer)) &&
+                x->resource == r->resource && x->form == r->form && x->units_left >= r->units &&
+                x->max_price >= r->price)
                 w = (int32_t) i;
         }
     if (w < 0) return VNA_ERR_DENIED; /* not asked for, or over the ceiling */

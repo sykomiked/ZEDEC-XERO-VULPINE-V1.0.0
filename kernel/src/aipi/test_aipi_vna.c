@@ -252,8 +252,7 @@ static void peer_up(uint32_t i, bool with_econ)
     ipfsn_bs_set_key(&p->bs, key);
     if (ipfsn_node_init(&p->in, &p->bs, p->pins, 16, p->net, IPFSN_BLOCK_MAX + 256) != IPFSN_OK)
         abort();
-    if (aipi_init(&p->a, &p->in, p->jobs, 4, p->memo, 4, p->modbuf, p->conbuf) != AIPI_OK)
-        abort();
+    if (aipi_init(&p->a, &p->in, p->jobs, 4, p->memo, 4, p->modbuf, p->conbuf) != AIPI_OK) abort();
     p->a.online = true;
     p->a.exec.ctx = &p->fx;
     p->a.exec.run = fx_run;
@@ -467,8 +466,7 @@ int main(void)
         ipfsn_cid_t f4;
         hold(4, &fn, &f4);
         CHECK(aipi_vna_add_executor(v, &P[2].idn.id) == AIPI_OK);
-        CHECK(ex(4, v, &f4, u64in(50), false, 5, 5000, &job) ==
-              AIPI_ERR_FUNDS);
+        CHECK(ex(4, v, &f4, u64in(50), false, 5, 5000, &job) == AIPI_ERR_FUNDS);
         aipi_vna_serve(&P[2].v, true, 0);
         CHECK(ex(4, v, &f4, u64in(50), false, 0, 5000, &job) == AIPI_OK);
         run();

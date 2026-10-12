@@ -718,8 +718,8 @@ static void handle_punch(vna_node_t *n, const vna_msg_t *m, const uint8_t *addr,
 {
     vna_b_punch_t b;
     if (vna_schema_unpack(&vna_b_punch_schema, m->body, m->body_len, &b, 0) < 0 ||
-        vna_id_is_zero(&b.peer) || vna_id_eq(&b.peer, &n->idn->id) ||
-        vna_id_eq(&b.peer, &m->src) || !punch_rate_ok(n, now)) {
+        vna_id_is_zero(&b.peer) || vna_id_eq(&b.peer, &n->idn->id) || vna_id_eq(&b.peer, &m->src) ||
+        !punch_rate_ok(n, now)) {
         n->punch_refused++;
         return;
     }

@@ -304,7 +304,6 @@ int main(void)
               zxv_net_add_peer_str(b, "localhost:80", now) == -1,
           "bad peer strings refused");
 
-
     printf("[4] U10: two hosts find each other by LAN multicast alone\n");
     uint16_t lport = (uint16_t) (20000 + getpid() % 20000); /* runs never cross */
     zxv_net_t *c = zxv_net_new(), *d = zxv_net_new();
@@ -364,13 +363,15 @@ int main(void)
     CHECK(sc.persisted && !strcmp(sc.node_id_full, id1), "with the same NodeID %.16s", id1);
     CHECK(sc.cached_peers == 1, "and pings the cached peer");
     pr.px = sc.port;
-    CHECK(wait_for(c, d, knows_both, &pr, 3000), "which answers: they meet again with no address typed");
+    CHECK(wait_for(c, d, knows_both, &pr, 3000),
+          "which answers: they meet again with no address typed");
     {
         zxv_net_t *e = zxv_net_new();
         zxv_net_status_t se;
         zxv_net_set_lan_discovery(e, false, 0);
         zxv_net_set_state_dir(e, dir);
-        CHECK(zxv_net_start(e, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0, "a second process on the same folder starts");
+        CHECK(zxv_net_start(e, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0,
+              "a second process on the same folder starts");
         zxv_net_status(e, &se);
         CHECK(se.state_busy && !se.persisted && strcmp(se.node_id_full, id1) != 0,
               "with a fresh NodeID: the folder is locked to C");
@@ -385,7 +386,8 @@ int main(void)
     }
     zxv_net_stop(c);
     chmod(idp, 0644);
-    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1, "an identity file others can read is refused");
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1,
+          "an identity file others can read is refused");
     zxv_net_status(c, &sc);
     CHECK(strstr(sc.error, "readable by others") != NULL, "and says why: %s", sc.error);
     chmod(idp, 0600);
@@ -397,7 +399,8 @@ int main(void)
         fputc(ch ^ 1, f);
         fclose(f);
     }
-    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1, "a damaged identity file is refused, not replaced");
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1,
+          "a damaged identity file is refused, not replaced");
     zxv_net_status(c, &sc);
     CHECK(strstr(sc.error, "NodeID") != NULL, "and says why: %s", sc.error);
     {
@@ -409,7 +412,8 @@ int main(void)
         fclose(f);
     }
     chmod(dir, 0777);
-    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1, "a folder others can write is refused");
+    CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == -1,
+          "a folder others can write is refused");
     chmod(dir, 0700);
     CHECK(zxv_net_start(c, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0, "repaired, C starts again");
     zxv_net_status(c, &sc);
@@ -421,11 +425,13 @@ int main(void)
     CHECK(wait_for(c, d, knows_both, &pr, 3000), "C and D are contacts");
     uint8_t ghost[32];
     memset(ghost, 0x5C, 32);
-    CHECK(zxv_net_punch(c, ghost, zxv_net_wall_ms()) == 1, "C asks its one contact for an introduction");
+    CHECK(zxv_net_punch(c, ghost, zxv_net_wall_ms()) == 1,
+          "C asks its one contact for an introduction");
     for (int i = 0; i < 20; i++) pump(c, d, 20);
     zxv_net_status(c, &sc);
     zxv_net_status(d, &sd);
-    CHECK(sc.punch_asked == 1 && sd.punch_relayed == 0, "D does not know the target, so relays nothing");
+    CHECK(sc.punch_asked == 1 && sd.punch_relayed == 0,
+          "D does not know the target, so relays nothing");
     CHECK(sc.public_votes >= 1 && sc.public_addr[0] == 0,
           "one peer's report is counted but not shown as the public address");
 
@@ -446,8 +452,8 @@ int main(void)
               aipi_put_blob(&xb->a, MOD, sizeof MOD, IPFSN_VIS_PUBLIC, &mod) == AIPI_OK,
           "both hold the module");
     fn.module = mod;
-    CHECK(aipi_publish_fn(&xa->a, &fn, &f1) == AIPI_OK && aipi_publish_fn(&xb->a, &fn, &f2) == AIPI_OK &&
-              ipfsn_cid_equal(&f1, &f2),
+    CHECK(aipi_publish_fn(&xa->a, &fn, &f1) == AIPI_OK &&
+              aipi_publish_fn(&xb->a, &fn, &f2) == AIPI_OK && ipfsn_cid_equal(&f1, &f2),
           "and the same function CID");
     CHECK(zxv_net_aipi(c) == NULL, "nothing attached yet");
     CHECK(zxv_net_attach_aipi(c, &xa->a) == 0 && zxv_net_attach_aipi(d, &xb->a) == 0 &&
@@ -471,7 +477,8 @@ int main(void)
           "with a budget, the call goes to the mesh");
     zxv_net_status(c, &sc);
     CHECK(sc.aipi && sc.aipi_escrow == 25 && sc.aipi_calls_out == 1, "25 in escrow, one call out");
-    for (int i = 0; i < 150 && aipi_job(&xa->a, job)->status == AIPI_JOB_PENDING; i++) pump(c, d, 20);
+    for (int i = 0; i < 150 && aipi_job(&xa->a, job)->status == AIPI_JOB_PENDING; i++)
+        pump(c, d, 20);
     zxv_net_status(c, &sc);
     zxv_net_status(d, &sd);
     CHECK(aipi_result(&xa->a, job, out, 8, &len) == AIPI_OK && rd64(out) == 1000,

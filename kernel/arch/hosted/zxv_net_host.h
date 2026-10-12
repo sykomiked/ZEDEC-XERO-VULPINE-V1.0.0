@@ -131,15 +131,15 @@ typedef struct {
     uint64_t share_compute, share_storage;
     uint32_t wants; /* open wants */
     /* U9 */
-    bool persisted;          /* the identity came from (or went to) the state folder */
-    bool state_busy;         /* another process holds the state folder: fresh identity */
-    uint32_t cached_peers;   /* peers loaded from the cache at start */
+    bool persisted;        /* the identity came from (or went to) the state folder */
+    bool state_busy;       /* another process holds the state folder: fresh identity */
+    uint32_t cached_peers; /* peers loaded from the cache at start */
     /* U10 */
-    bool lan_discovery;      /* the multicast socket is open */
-    uint32_t lan_peers;      /* peers heard on the LAN, not expired */
+    bool lan_discovery;                                /* the multicast socket is open */
+    uint32_t lan_peers;                                /* peers heard on the LAN, not expired */
     uint32_t lan_announces, lan_accepted, lan_refused; /* refused: malformed or forged */
     /* U11 */
-    char public_addr[22];    /* "a.b.c.d:port" two or more peers agree on, or "" */
+    char public_addr[22]; /* "a.b.c.d:port" two or more peers agree on, or "" */
     uint32_t public_votes;
     uint32_t punch_asked, punch_relayed, punch_ok;
     /* U12 */

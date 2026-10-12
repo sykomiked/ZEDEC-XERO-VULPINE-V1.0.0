@@ -37,8 +37,8 @@ static bool ask(aipi_vna_t *v, aipi_vna_call_t *c, const vna_id_t *id, const uin
     if (c->nasked >= c->want || c->nasked >= AIPI_CLAIMS_MAX || asked(c, id) ||
         vna_id_eq(id, &v->node->idn->id))
         return false;
-    if (vna_node_send_aipi_at(v->node, id, addr, alen, VNA_AIPI_CALL, c->bounty, c->rec,
-                              c->rec_len, v->now, v->ob) != VNA_OK)
+    if (vna_node_send_aipi_at(v->node, id, addr, alen, VNA_AIPI_CALL, c->bounty, c->rec, c->rec_len,
+                              v->now, v->ob) != VNA_OK)
         return false;
     c->asked[c->nasked++] = *id;
     v->calls_out++;
@@ -260,8 +260,7 @@ int32_t aipi_vna_announce(aipi_vna_t *v, const ipfsn_cid_t *fn_cid, const uint8_
 }
 
 int aipi_vna_execute(aipi_vna_t *v, const ipfsn_cid_t *fn_cid, const uint8_t *in, uint32_t in_len,
-                     bool input_private, uint64_t bounty, uint64_t now, uint64_t ttl,
-                     uint32_t *job)
+                     bool input_private, uint64_t bounty, uint64_t now, uint64_t ttl, uint32_t *job)
 {
     if (!v) return AIPI_ERR_ARG;
     v->now = now;

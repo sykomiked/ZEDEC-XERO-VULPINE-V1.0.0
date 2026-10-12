@@ -57,15 +57,15 @@ typedef socklen_t nlen_t;
 #define USAGE_CAP   32u
 #define LEASE_CAP   8u
 #define QUOTA_MS    3600000u /* per-peer quota period of the owner's agreement */
-#define LAN_PORT    8724u    /* U10 */
-#define LAN_PEERS   64u
-#define CACHE_MAX   64u     /* U9: peers kept in the cache file */
-#define CACHE_PING  16u     /* U9: cached peers pinged at start */
-#define SAVE_MS     300000u /* U9: peer cache saved this often */
-#define KEEPALIVE_MS 25000u /* U11: NAT mappings commonly last 30 s or more */
-#define ID_MAGIC    "ZXVNID01"
-#define PC_MAGIC    "ZXVNPC01"
-#define ID_FILE_LEN (8u + 32u + 32u + 8u)
+#define LAN_PORT     8724u    /* U10 */
+#define LAN_PEERS    64u
+#define CACHE_MAX    64u     /* U9: peers kept in the cache file */
+#define CACHE_PING   16u     /* U9: cached peers pinged at start */
+#define SAVE_MS      300000u /* U9: peer cache saved this often */
+#define KEEPALIVE_MS 25000u  /* U11: NAT mappings commonly last 30 s or more */
+#define ID_MAGIC     "ZXVNID01"
+#define PC_MAGIC     "ZXVNPC01"
+#define ID_FILE_LEN  (8u + 32u + 32u + 8u)
 static const uint8_t LAN_GROUP[4] = {239, 255, 90, 86};
 
 struct zxv_net {
@@ -480,7 +480,7 @@ static int save_identity(zxv_net_t *n)
     memcpy(f + 40, n->idn.id.b, 32);
     put64(f + 72, seq);
     int r = state_path(n, "vinea_identity", path, sizeof path) == 0 ? write_file(path, f, sizeof f)
-                                                                      : -1;
+                                                                    : -1;
     memset(f, 0, sizeof f);
     if (r == 0) n->saved_lan_seq = seq;
     return r;
@@ -495,8 +495,7 @@ static int lock_dir(zxv_net_t *n)
 #if defined(_WIN32)
     HANDLE h = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_ALWAYS,
                            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, NULL);
-    if (h == INVALID_HANDLE_VALUE)
-        return GetLastError() == ERROR_SHARING_VIOLATION ? 1 : -1;
+    if (h == INVALID_HANDLE_VALUE) return GetLastError() == ERROR_SHARING_VIOLATION ? 1 : -1;
     n->lockh = h;
 #else
     int fd = open(path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
@@ -544,13 +543,15 @@ static const char *load_identity(zxv_net_t *n)
     char path[560];
     uint8_t f[ID_FILE_LEN + 1];
     size_t len;
-    if (state_path(n, "vinea_identity", path, sizeof path) != 0) return "state folder path too long";
+    if (state_path(n, "vinea_identity", path, sizeof path) != 0)
+        return "state folder path too long";
     int r = read_file(path, f, sizeof f, &len, true);
     if (r == -2) return "identity file is readable by others (chmod 600 it)";
     if (r < 0) return "identity file unreadable";
     if (r == 1) { /* first start: make one and keep it */
         if (zxv_os_random(n->seed, sizeof n->seed) != 0) return "no secure random source";
-        if (vna_identity_create(&n->idn, n->seed, 0, 1) != VNA_OK) return "identity creation failed";
+        if (vna_identity_create(&n->idn, n->seed, 0, 1) != VNA_OK)
+            return "identity creation failed";
         n->persisted = true;
         if (save_identity(n) != 0) {
             n->persisted = false;
@@ -614,8 +615,8 @@ static void load_peers(zxv_net_t *n, uint64_t now_ms)
     if (!n->persisted || state_path(n, "vinea_peers", path, sizeof path) != 0 ||
         read_file(path, f, sizeof f, &len, false) != 0 || len < 12 || memcmp(f, PC_MAGIC, 8) != 0)
         return;
-    uint32_t m = (uint32_t) f[8] | (uint32_t) f[9] << 8 | (uint32_t) f[10] << 16 |
-                 (uint32_t) f[11] << 24;
+    uint32_t m =
+        (uint32_t) f[8] | (uint32_t) f[9] << 8 | (uint32_t) f[10] << 16 | (uint32_t) f[11] << 24;
     if (m > CACHE_MAX || len != 12 + (size_t) m * (32 + ADDR_LEN)) return;
     for (uint32_t i = 0; i < m && n->cached_peers < CACHE_PING; i++) {
         const uint8_t *a = f + 12 + i * (32 + ADDR_LEN) + 32;
@@ -830,7 +831,8 @@ int zxv_net_aipi_execute(zxv_net_t *n, const ipfsn_cid_t *fn_cid, const uint8_t 
     if (!n || !n->ai) return AIPI_ERR_ARG;
     if (!n->av_on) /* off: the context has no mesh, so this runs locally or not at all */
         return aipi_execute(n->ai, fn_cid, in, in_len, input_private, bounty, now_ms, ttl_ms, job);
-    int r = aipi_vna_execute(&n->av, fn_cid, in, in_len, input_private, bounty, now_ms, ttl_ms, job);
+    int r =
+        aipi_vna_execute(&n->av, fn_cid, in, in_len, input_private, bounty, now_ms, ttl_ms, job);
     drain_link(n, now_ms);
     flush(n);
     return r;
@@ -928,8 +930,8 @@ int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16
     n->last_tick = n->last_refresh = n->last_save = n->last_keepalive = now_ms;
     n->running = true;
     if (n->lan_want) lan_open(n, now_ms); /* U10: best effort; the node runs without it */
-    load_peers(n, now_ms);                 /* U9 */
-    bind_aipi(n);                          /* U12 */
+    load_peers(n, now_ms);                /* U9 */
+    bind_aipi(n);                         /* U12 */
     return 0;
 }
 
@@ -1207,7 +1209,8 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
         st->lan_peers = vna_lan_peer_count(&n->lan, zxv_net_wall_ms());
         st->lan_announces = n->lan.sent_announce;
         st->lan_accepted = n->lan.accepted;
-        st->lan_refused = n->lan.rej_parse + n->lan.rej_record + n->lan.rej_xform; /* not re-announcements */
+        st->lan_refused =
+            n->lan.rej_parse + n->lan.rej_record + n->lan.rej_xform; /* not re-announcements */
     }
     uint8_t ra[VNA_ADDR_MAX], rl = 0;
     st->public_votes = vna_node_reflexive(&n->node, ra, &rl);

@@ -1812,7 +1812,8 @@ static void test_link(void)
                         g_now) == VNA_OK,
           "the seller offers what the bound want describes");
     pump(false, false);
-    CHECK(lkB.refused == refb + 1 && lkB.confirmed == cfb, "a want bound to another peer refuses it");
+    CHECK(lkB.refused == refb + 1 && lkB.confirmed == cfb,
+          "a want bound to another peer refuses it");
     for (int k = 0; k < 4; k++) { /* let the refused offer be abandoned */
         g_now += 100;
         vna_link_tick(&lkS, g_now);
@@ -2855,7 +2856,6 @@ static void test_islands(void)
     NN = saveNN;
 }
 
-
 /* ===================================================================== */
 /* 8. NAT traversal (N1-N4) and the AIPI message                          */
 /* ===================================================================== */
@@ -2897,7 +2897,8 @@ static void nat_flush(uint32_t from)
         int to = nat_owner(e->addr, e->addr_len);
         if (nat_on[from] && to >= 0) { /* outbound opens the mapping for that address */
             bool have = false;
-            for (uint32_t k = 0; k < nat_np[from]; k++) have |= !memcmp(nat_perm[from][k], e->addr, 4);
+            for (uint32_t k = 0; k < nat_np[from]; k++)
+                have |= !memcmp(nat_perm[from][k], e->addr, 4);
             if (!have && nat_np[from] < 8) memcpy(nat_perm[from][nat_np[from]++], e->addr, 4);
         }
         if (to < 0 || nq_n >= 256 || e->len > sizeof nq[0].data) continue;
@@ -2960,8 +2961,8 @@ static void test_nat_aipi(void)
     vna_node_cfg_default(&cfg);
     for (uint32_t i = 0; i < NX; i++) {
         make_identity(&NT[i].id, 9000 + i, 0);
-        vna_node_mem_t mem = {NT[i].pool, POOL, NT[i].kc, KC, NT[i].rp, RPW, NT[i].dd, DD,
-                              NT[i].store, ST};
+        vna_node_mem_t mem = {NT[i].pool, POOL,     NT[i].kc, KC,          NT[i].rp,
+                              RPW,        NT[i].dd, DD,       NT[i].store, ST};
         uint8_t seed[32];
         vna_drbg_gen(&g_rng, seed, 32);
         CHECK(vna_node_init(&NT[i].node, &NT[i].id, &cfg, &mem, seed) == VNA_OK, "nat node init");
@@ -2995,7 +2996,8 @@ static void test_nat_aipi(void)
 
     /* a direct PING from A to B dies at B's NAT */
     uint32_t d0 = nat_dropped;
-    CHECK(vna_node_bootstrap(&NT[1].node, NPUB[2], 4, g_now, &g_ob) == VNA_OK, "A pings B directly");
+    CHECK(vna_node_bootstrap(&NT[1].node, NPUB[2], 4, g_now, &g_ob) == VNA_OK,
+          "A pings B directly");
     nat_flush(1);
     nat_run();
     CHECK(nat_dropped > d0 && !nat_knows(2, 1), "B's NAT drops the unsolicited PING");
@@ -3142,8 +3144,8 @@ static void test_nat_aipi(void)
 
     /* a persisted identity restarting: its message seq must not go back */
     {
-        vna_node_mem_t mem = {NT[1].pool, POOL, NT[1].kc, KC, NT[1].rp, RPW, NT[1].dd, DD,
-                              NT[1].store, ST};
+        vna_node_mem_t mem = {NT[1].pool, POOL,     NT[1].kc, KC,          NT[1].rp,
+                              RPW,        NT[1].dd, DD,       NT[1].store, ST};
         uint8_t sd[32] = {9};
         vna_node_cfg_t c2;
         vna_node_cfg_default(&c2);
