@@ -2,6 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zui_wm.c — windows in the app space (zui_wm.h). */
 #include "zui_wm.h"
+#include "zui_motion.h"
 #include "zui_tokens.h"
 
 #define DOUBLE_MS 400u /* two presses on a title this close: maximise */
@@ -520,7 +521,7 @@ void zui_wm_tick(zui_wm_t *wm, uint32_t ms)
     for (uint32_t i = 0; i < ZUI_WM_MAX; i++) {
         zui_wm_window_t *w = &wm->win[i];
         if (!w->id || w->phase != ZUI_WIN_OPENING) continue;
-        w->opened_ms += ms;
+        w->opened_ms += zui_motion_step(ms, ZUI_WM_OPEN_MS); /* MO: reduced motion */
         if (w->opened_ms >= ZUI_WM_OPEN_MS) {
             w->opened_ms = ZUI_WM_OPEN_MS;
             w->phase = ZUI_WIN_OPEN;
@@ -600,7 +601,7 @@ static void frame(zui_wm_t *wm, zui_surface_t *s, const zui_wm_window_t *w, bool
     }
     if (w->phase == ZUI_WIN_OPENING) { /* the doors part from the centre */
         int32_t half = c.w / 2;
-        int32_t d = (int32_t) ((int64_t) half * w->opened_ms / ZUI_WM_OPEN_MS);
+        int32_t d = zui_motion_travel(half, w->opened_ms, ZUI_WM_OPEN_MS);
         zui_rect_t left = {c.x, c.y, half - d, c.h};
         zui_rect_t right = {c.x + half + d, c.y, c.w - half - d, c.h};
         launch_screen(wm, s, (zui_rect_t){c.x - d, c.y, c.w, c.h}, left, w, tick);

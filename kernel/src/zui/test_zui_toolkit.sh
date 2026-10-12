@@ -35,9 +35,14 @@ run test_zui_notice "" $Z/test_zui_notice.c $Z/zui_notice.c $DRAW
 run test_zui_privacy "" $Z/test_zui_privacy.c $Z/zui_privacy.c $DRAW
 run test_zui_cliphist "" $Z/test_zui_cliphist.c $Z/zui_cliphist.c $UI
 run test_zui_share "-Isrc/apps -Isrc/modbind" $Z/test_zui_share.c $Z/zui_share.c src/apps/zxapp.c src/robin_debanks/sha256.c
-run test_zui_capture "" $Z/test_zui_capture.c $Z/zui_capture.c $Z/zui_wm.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c
+run test_zui_capture "" $Z/test_zui_capture.c $Z/zui_capture.c $Z/zui_wm.c $Z/zui_motion.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c
 run test_zui_lock "" $Z/test_zui_lock.c $Z/zui_lock.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c
 run test_zui_settings "" $Z/test_zui_settings.c $Z/zui_settings.c $Z/zui_palette.c
-run test_zui_workspace "" $Z/test_zui_workspace.c $Z/zui_workspace.c $Z/zui_settings.c $Z/zui_palette.c $Z/zui_wm.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c
+run test_zui_workspace "" $Z/test_zui_workspace.c $Z/zui_workspace.c $Z/zui_settings.c $Z/zui_palette.c $Z/zui_wm.c $Z/zui_motion.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c
+M="$Z/zui_widget.c $Z/zui_input.c $Z/zui_present_fb.c $Z/zui_wm.c $Z/zui_motion.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c"
+run test_zui_switch "" $Z/test_zui_switch.c $Z/zui_switch.c $M
+run test_zui_voicectl "" $Z/test_zui_voicectl.c $Z/zui_voicectl.c $M
+run test_zui_caption "" $Z/test_zui_caption.c $Z/zui_caption.c $Z/zui_motion.c $Z/zui_palette.c $Z/zui_canvas.c $Z/zui_layout.c $Z/zui_input.c src/font/truetype.c
+run test_zui_motion "" $Z/test_zui_motion.c $Z/zui_motion.c
 sh $Z/views/test_display_view.sh >"$O/display.out" 2>&1 || { cat "$O/display.out"; echo "[FAIL] test_display_view"; exit 1; }
 tail -1 "$O/display.out"
