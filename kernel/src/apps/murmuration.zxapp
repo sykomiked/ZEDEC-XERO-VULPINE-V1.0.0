@@ -1,8 +1,9 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# Murmuration, the swarm dashboard. The screen and the zxvd link are C; the
-# numbers it shows about the cycle are KRON (exact, never rounded up).
+# Murmuration, the swarm dashboard. One app, three languages: the screen and
+# the zxvd link are C, the numbers it shows about the cycle are KRON (exact,
+# never rounded up), and the limits it checks them against are Eve.
 zxapp 1
 id     murmuration
 name   Murmuration
@@ -13,3 +14,5 @@ model  apps/murmuration_model.c
 logic  kron cycle_share apps/murmuration/cycle_share.kron
 # The (up to) three agents with the most tokens this cycle, as indexes.
 logic  kron busiest apps/murmuration/busiest.kron
+# Which agents are inside the swarm's limits (no agent over half a cycle).
+logic  eve  within_limits apps/murmuration/limits.eve

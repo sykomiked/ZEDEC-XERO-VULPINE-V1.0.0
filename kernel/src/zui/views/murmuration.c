@@ -43,8 +43,11 @@ static void row(const zui_ui_t *ui, zui_id_t list, int32_t i, zui_row_t *out, vo
     /* the feeling as a word: the face is in the detail pane, and a text
      * face may have no colour-emoji glyphs */
     zv_cat(out->text, sizeof out->text, a->name, 0);
+    /* over the limits, that is what the row says instead of the feeling */
     zv_cat(out->detail, sizeof out->detail,
-           zui_emote_word(feeling_of(a->codepoint, a->intensity).emotion), "  \xC2\xB7  ");
+           v->over[i] ? "over limit"
+                      : zui_emote_word(feeling_of(a->codepoint, a->intensity).emotion),
+           "  \xC2\xB7  ");
     char pm[16];
     permille(pm, sizeof pm, v->share[i]);
     zv_cat(out->detail, sizeof out->detail, out->detail, pm);
@@ -81,8 +84,11 @@ void murm_view_build(murm_view_t *v, zui_ui_t *ui, murmuration_t *m)
     v->app = 0;
     v->host = 0;
     v->ntop = 0;
-    v->kron = false;
-    for (uint32_t i = 0; i < MURM_AGENTS; i++) v->share[i] = 0;
+    v->kron = v->eve = false;
+    for (uint32_t i = 0; i < MURM_AGENTS; i++) {
+        v->share[i] = 0;
+        v->over[i] = false;
+    }
     zv_shell_t *s = &v->sh;
     zv_shell_build(s, ui, "Murmuration");
     zv_shell_palette(s, MURM_AI, MURM_AI_COUNT);
@@ -107,6 +113,7 @@ void murm_view_build(murm_view_t *v, zui_ui_t *ui, murmuration_t *m)
     v->allot = zui_label(ui, v->detail, "");
     zui_set_font(ui, v->allot, ZUI_TEXT_MONO, ZUI_TEXT_2);
     v->witness = zui_label(ui, v->detail, "");
+    v->limits = zui_label(ui, v->detail, "");
     zui_separator(ui, v->detail);
     v->busiest = zui_label(ui, v->detail, "");
     v->model = zui_label(ui, v->detail, "");
@@ -175,6 +182,37 @@ static void c_numbers(murm_view_t *v)
     }
 }
 
+/* U4: Eve's within_limits over each agent's share and intensity. */
+static bool eve_limits(murm_view_t *v)
+{
+    const murm_swarm_t *sw = &v->m->sw;
+    if (!v->app || !v->host || !sw->n) return false;
+    int64_t share[MURM_AGENTS], inten[MURM_AGENTS];
+    for (uint32_t i = 0; i < sw->n; i++) {
+        share[i] = v->share[i];
+        inten[i] = sw->agent[i].intensity;
+    }
+    zxapp_arg_t args[2] = {{"share", share, sw->n}, {"intensity", inten, sw->n}};
+    zxapp_num_t out[MURM_AGENTS];
+    uint32_t n = 0;
+    if (zxapp_call(v->app, v->host, "within_limits", args, 2, out, MURM_AGENTS, &n) != ZXAPP_OK ||
+        n != sw->n)
+        return false;
+    for (uint32_t i = 0; i < n; i++)
+        if (out[i].den != 0 || (out[i].num != ZXAPP_TRUE && out[i].num != ZXAPP_FALSE))
+            return false;
+    for (uint32_t i = 0; i < n; i++) v->over[i] = out[i].num == ZXAPP_FALSE;
+    return true;
+}
+
+static void c_limits(murm_view_t *v)
+{
+    const murm_swarm_t *sw = &v->m->sw;
+    for (uint32_t i = 0; i < MURM_AGENTS; i++)
+        v->over[i] = i < sw->n && (v->share[i] > MURM_VIEW_SHARE_CAP ||
+                                   sw->agent[i].intensity > SWARM_EMO_MAX_INTENSITY);
+}
+
 static void put_u(char *out, uint32_t cap, const char *a, uint64_t x, const char *b)
 {
     char d[24];
@@ -237,6 +275,18 @@ static void sync_detail(murm_view_t *v)
         zv_cat(t, sizeof t, t, sw->audit);
     }
     zui_set_text(ui, v->witness, t);
+    t[0] = 0;
+    if (a && v->over[m->sel])
+        zv_cat(t, sizeof t, "Over the swarm's limits: more than half a cycle", 0);
+    else if (!a && m->refreshes) {
+        uint32_t over = 0;
+        for (uint32_t i = 0; i < sw->n; i++) over += v->over[i];
+        if (over)
+            put_u(t, sizeof t, "", over,
+                  over == 1 ? " agent over the limits" : " agents over the limits");
+    }
+    zui_set_text(ui, v->limits, t);
+    zui_set_font(ui, v->limits, ZUI_TEXT_LABEL, ZUI_ALERT);
 }
 
 void murm_view_sync(murm_view_t *v)
@@ -246,6 +296,8 @@ void murm_view_sync(murm_view_t *v)
     const murm_swarm_t *sw = &m->sw;
     v->kron = kron_numbers(v);
     if (!v->kron) c_numbers(v);
+    v->eve = eve_limits(v);
+    if (!v->eve) c_limits(v);
     zui_list_set_rows(ui, v->agents, (int32_t) sw->n);
     zui_list_select(ui, v->agents, m->sel);
     sync_detail(v);
@@ -284,6 +336,7 @@ void murm_view_sync(murm_view_t *v)
     if (m->refreshes) {
         put_u(t, sizeof t, "", sw->n_total, sw->n_total == 1 ? " agent" : " agents");
         zv_cat(t, sizeof t, t, v->kron ? "  \xC2\xB7  shares in KRON" : "  \xC2\xB7  shares in C");
+        zv_cat(t, sizeof t, t, v->eve ? ", limits in Eve" : ", limits in C");
     }
     zv_shell_status(&v->sh, t);
     zv_shell_held(&v->sh, &m->held);

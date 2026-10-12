@@ -5,8 +5,8 @@
  * files.* on a scratch ZXV folder, swarm.state and swarm.ask stubbed.
  * Clicks and keys go through zui's event path, so the wiring from a pixel
  * to a model call is what is tested. Murmuration also runs its KRON logic
- * (apps/murmuration.zxapp) and is checked against its C model on random
- * swarms. Run by test_views.sh. */
+ * and Eve logic (apps/murmuration.zxapp) and is checked against its C
+ * model on random swarms. Run by test_views.sh. */
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
@@ -23,6 +23,7 @@
 #include "quillon.h"
 #include "spindle.h"
 #include "zui_tokens.h"
+#include "zxapp_eve.h"
 #include "zxapp_kron.h"
 #include "zxv_files.h"
 #include "zxvd_rpc.h"
@@ -531,7 +532,7 @@ static uint64_t next(void)
 /* U1: KRON and C give the same numbers on any swarm the model can hold. */
 static void cross_check(void)
 {
-    int bad_share = 0, bad_top = 0, kron = 0;
+    int bad_share = 0, bad_top = 0, kron = 0, eve = 0, bad_over = 0, some_over = 0;
     for (int round = 0; round < 300; round++) {
         murm_swarm_t *sw = &M.sw;
         sw->n = sw->n_total = 1u + (uint32_t) (next() % MURM_AGENTS);
@@ -542,6 +543,7 @@ static void cross_check(void)
             a->re = next() % scale;
             a->mk = round % 5 ? next() % scale : 0;
             a->im = next() % (scale / 2 + 1);
+            a->intensity = (uint8_t) (next() % 6u);
             if (round % 7 == 0) a->re = a->mk = a->im = 0; /* nothing allotted */
             sum += a->re + a->mk + a->im;
         }
@@ -549,6 +551,12 @@ static void cross_check(void)
         M.sel = -1;
         murm_view_sync(&MV);
         kron += MV.kron;
+        eve += MV.eve;
+        for (uint32_t i = 0; i < sw->n; i++) {
+            bool want = murm_cycle_share(&M, i) > MURM_VIEW_SHARE_CAP;
+            bad_over += MV.over[i] != want;
+            some_over += want;
+        }
         for (uint32_t i = 0; i < sw->n; i++) bad_share += MV.share[i] != murm_cycle_share(&M, i);
         /* the busiest: largest totals, the earlier agent first on a tie */
         uint32_t want = sw->n < MURM_VIEW_BUSIEST ? sw->n : MURM_VIEW_BUSIEST;
@@ -569,6 +577,9 @@ static void cross_check(void)
     CHECK(kron == 300, "KRON ran every round (%d)", kron);
     CHECK(bad_share == 0, "KRON's shares equal the C model's (%d differ)", bad_share);
     CHECK(bad_top == 0, "KRON's busiest are the largest totals, stable (%d differ)", bad_top);
+    CHECK(eve == 300 && bad_over == 0 && some_over > 0,
+          "Eve's limits agree with the C cap (%d rounds, %d differ, %d over)", eve, bad_over,
+          some_over);
 }
 
 static void test_murmuration(const char *src)
@@ -631,12 +642,33 @@ static void test_murmuration(const char *src)
     murm_view_logic(&MV, &APP, &HOST);
     CHECK(!MV.kron, "no runtime yet: C");
     CHECK(zxapp_kron_register(&HOST) == ZXAPP_OK && zxapp_load(&APP, &HOST) == 2,
-          "both KRON entries load: %s", APP.err);
+          "both KRON entries load, Eve waits for its runtime: %s", APP.err);
     murm_view_sync(&MV);
+    CHECK(MV.kron && !MV.eve && has(text_of(MV.sh.status), "limits in C"), "KRON, limits in C");
+    CHECK(zxapp_eve_register(&HOST) == ZXAPP_OK && zxapp_load(&APP, &HOST) == 3,
+          "three entries in two languages: %s", APP.err);
+    murm_view_sync(&MV);
+    CHECK(MV.eve && !MV.over[0] && !MV.over[1] && !MV.over[2], "U4: everyone inside the limits");
     CHECK(MV.kron && MV.share[0] == 450 && MV.share[1] == 300 && MV.share[2] == 250 &&
               MV.ntop == 3 && MV.top[0] == 0,
           "U1: KRON gives the same numbers");
-    CHECK(has(text_of(MV.sh.status), "in KRON"), "%s", text_of(MV.sh.status));
+    CHECK(has(text_of(MV.sh.status), "in KRON") && has(text_of(MV.sh.status), "limits in Eve"),
+          "%s", text_of(MV.sh.status));
+    /* one agent over half a cycle is marked, in the row and the detail */
+    murm_swarm_t keep = M.sw;
+    M.sw.agent[0].re = 700;
+    M.sw.allotted = 700 + 50 + 300 + 250;
+    murm_view_sync(&MV);
+    CHECK(MV.eve && MV.over[0] && !MV.over[1] && MV.share[0] == 576, "U4: Eve marks 57.6%%");
+    zui_row_t lr;
+    memset(&lr, 0, sizeof lr);
+    zui_w(&UI, MV.agents)->u.list.row(&UI, MV.agents, 0, &lr, &MV);
+    CHECK(has(lr.detail, "over limit"), "the row says so: %s", lr.detail);
+    murm_view_action(&MV, MV.agents, ZUI_ACT_SELECT, 0);
+    CHECK(has(text_of(MV.limits), "Over the swarm's limits"), "%s", text_of(MV.limits));
+    murm_view_action(&MV, MV.agents, ZUI_ACT_SELECT, -1);
+    CHECK(has(text_of(MV.limits), "1 agent over"), "%s", text_of(MV.limits));
+    M.sw = keep;
     M.sw.truncated = true;
     murm_view_sync(&MV);
     CHECK(!MV.kron, "a truncated snapshot uses C");

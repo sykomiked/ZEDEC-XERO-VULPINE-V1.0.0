@@ -5,8 +5,10 @@
  *
  * The toolkit (zui), the renderer and the input layers are C, the kernel's
  * native language, because the same code runs on bare metal. An app's own
- * logic does not have to be: each rule or calculation can be written in the
- * pillar language that fits it and bound here by name.
+ * logic does not have to be, and no app is one language: each rule or
+ * calculation is written in the pillar language that fits it and bound here
+ * by name, so one app mixes as many as it needs (a wallet keeps its books in
+ * Sutra, its limits in Eve and its charts in KRON, behind one C screen).
  *
  *   Language  For                                   Pillar
  *   sutra     money, ledgers, settlement rules      kernel/src/sutra, sdk/pillars/cobol-sutra
@@ -28,6 +30,7 @@
  *        logic  kron top_three <<
  *        3#re@>re
  *        .
+ *        logic  eve  within_limits apps/murmuration/limits.eve
  *
  *      "logic <language> <entry> <path>" names a source file; "<<" instead
  *      of a path takes the source inline, up to a line holding only ".",
@@ -79,9 +82,12 @@ enum {
     ZXAPP_E_BUFFER = -7 /* the result has more elements than fit           */
 };
 
+/* A number (den > 0), or a truth: den = 0 and num is one of these
+ * (libzxv's ZXV_LP_* codes, which KRON and Eve return). */
 typedef struct {
-    int64_t num, den; /* den > 0 */
+    int64_t num, den;
 } zxapp_num_t;
+enum { ZXAPP_NEITHER = 0, ZXAPP_TRUE = 1, ZXAPP_FALSE = 2, ZXAPP_BOTH = 3 };
 
 /* One named input: an integer vector (a scalar is n = 1). */
 typedef struct {

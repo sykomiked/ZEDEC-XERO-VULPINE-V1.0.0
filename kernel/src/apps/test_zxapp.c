@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "zxapp.h"
+#include "zxapp_eve.h"
 #include "zxapp_kron.h"
 
 static int fails, checks;
@@ -312,12 +313,70 @@ static void test_kron(void)
     zxapp_unload(&A, &H);
 }
 
+/* ---- the real Eve runtime, and one app in three languages ------------------- */
+
+static void test_eve(void)
+{
+    zxapp_host_init(&H);
+    CHECK(zxapp_eve_register(&H) == ZXAPP_OK && zxapp_kron_register(&H) == ZXAPP_OK && H.n == 2,
+          "eve and kron register side by side");
+    CHECK(parse("zxapp 1\nid wallet\nname Wallet\nview zui/views/wallet.c\n"
+                "logic eve  fits <<\n"
+                "eve wallet\nmoney = -1000 .. 1000\npay { amount: money 1 .. 500\n fee: money 0 .. "
+                "9 }\n.\n"
+                "logic kron total <<\n+/amount\n.\n"
+                "logic sutra post apps/wallet/post.sutra\n"
+                "logic eve  bad <<\neve x\nn = 0 .. 9\n.\n") == ZXAPP_OK &&
+              A.n == 4,
+          "a manifest mixing eve, kron and sutra");
+    CHECK(zxapp_load(&A, &H) == ZXAPP_E_RUNTIME && strstr(A.err, "bad: ") &&
+              strstr(A.err, "record"),
+          "an Eve entry with no record to check is refused by name");
+    A.n--;
+    CHECK(zxapp_load(&A, &H) == 2 && A.logic[0].loaded && A.logic[1].loaded && !A.logic[2].loaded,
+          "eve and kron load; sutra, with no runtime here, stays for the C model");
+    int64_t amt[4] = {1, 500, 501, 0}, fee[1] = {9};
+    zxapp_arg_t args[2] = {{"amount", amt, 4}, {"fee", fee, 1}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    CHECK(zxapp_call(&A, &H, "fits", args, 2, out, 8, &n) == ZXAPP_OK && n == 4,
+          "fits: one per row");
+    CHECK(out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_TRUE && out[2].num == ZXAPP_FALSE &&
+              out[3].num == ZXAPP_FALSE && out[0].den == 0,
+          "EV2: inside the record's limits TRUE, outside FALSE (both ends)");
+    int64_t fee2[1] = {10};
+    args[1].v = fee2;
+    CHECK(zxapp_call(&A, &H, "fits", args, 2, out, 8, &n) == ZXAPP_OK &&
+              out[0].num == ZXAPP_FALSE && out[1].num == ZXAPP_FALSE,
+          "a shared value outside its limits fails every row");
+    args[1].v = fee;
+    CHECK(zxapp_call(&A, &H, "fits", args, 1, out, 8, &n) == ZXAPP_OK && out[1].num == ZXAPP_TRUE,
+          "EV3: a component no argument names keeps its initial value");
+    CHECK(zxapp_call(&A, &H, "total", args, 1, out, 8, &n) == ZXAPP_OK && n == 1 &&
+              out[0].num == 1002,
+          "the same values through KRON");
+    int64_t two[2] = {1, 2};
+    zxapp_arg_t mism[2] = {{"amount", amt, 4}, {"fee", two, 2}};
+    CHECK(zxapp_call(&A, &H, "fits", mism, 2, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "two lengths"),
+          "vectors of two lengths are refused");
+    zxapp_arg_t nope = {"tip", fee, 1};
+    CHECK(zxapp_call(&A, &H, "fits", &nope, 1, out, 8, &n) == ZXAPP_E_RUNTIME,
+          "a name the record does not have is refused");
+    CHECK(zxapp_call(&A, &H, "fits", args, 2, out, 3, &n) == ZXAPP_E_BUFFER && n == 4,
+          "a short buffer");
+    CHECK(zxapp_call(&A, &H, "post", args, 2, out, 8, &n) == ZXAPP_E_NORUNTIME,
+          "the sutra entry asks for the C model");
+    zxapp_unload(&A, &H);
+}
+
 int main(void)
 {
     test_names();
     test_parse();
     test_host();
     test_kron();
+    test_eve();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }
