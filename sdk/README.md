@@ -122,6 +122,9 @@ records, and a BOTH hold that waits for a person to decide. See
 | Tri-Deliver | [`tri-deliver`](industry/tri-deliver/) | Courier escrow released by the recipient's offline Ed25519 or ML-DSA-87 handoff signature; disputes frozen for an arbiter | 729 checks + fuzzing |
 | V-Shelf | [`v-shelf`](industry/v-shelf/) | Exact inventory in whole units or exact weights; negative stock refused; count variances held for an approver | 831 checks + fuzzing |
 | Tri-Trace | [`tri-trace`](industry/tri-trace/) | Per-item signed custody chains; duplicate scans frozen for a reviewer; whole chains verified offline | 627 checks + fuzzing |
+| Z-Genome | [`z-genome`](industry/z-genome/) | Exact, reproducible global/local alignment scores (affine gaps, int64, overflow refused) with signed result records; research use only | 5,556 checks + fuzzing |
+| Vinea-Triage | [`vinea-triage`](industry/vinea-triage/) | Store-and-forward triage records in signed, hash-chained bundles; conflicts held for a reviewer, never merged; not a medical device, not encrypted | 816 checks + fuzzing |
+| Mesh-Command | [`mesh-command`](industry/mesh-command/) | Field reports merged into an incident picture; contradictions held until a commander's signed decision; advisory assignments approved by signature | 1,667 checks + fuzzing |
 
 Advisory only: kits recommend, and people or certified systems act. They
 are not connected to any authority, and they make no certification or

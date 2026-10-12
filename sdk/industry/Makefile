@@ -12,7 +12,7 @@
 # libzxv must be built first: make -C sdk/libzxv all. A new kit is added to
 # KITS and needs nothing else here or in CI.
 
-KITS := common logix-clear tri-deliver v-shelf tri-trace
+KITS := common logix-clear tri-deliver v-shelf tri-trace z-genome vinea-triage mesh-command
 
 # forwarded to every kit when given
 FWD := $(if $(filter command line environment,$(origin CC)),CC=$(CC)) \

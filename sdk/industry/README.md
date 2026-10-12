@@ -4,7 +4,8 @@
 # Industry kits
 
 An industry kit is a small C11 library for one trade (customs, courier
-escrow, store inventory, chain of custody). Each kit is built only on the
+escrow, store inventory, chain of custody, sequence alignment, field
+triage, incident command). Each kit is built only on the
 public libzxv ABI (`sdk/libzxv/include/zxv_api.h`). It uses exact
 rationals, four-valued logic, 64-state hexagram tags, capabilities, the
 ledger, the quarantine hexlog and ML-DSA-87 / SHA3-256. A kit includes
@@ -54,6 +55,9 @@ Every kit has the same layout:
 | Tri-Deliver | [`tri-deliver`](tri-deliver/) | Courier escrow: funds held (Potential) until the recipient's offline Ed25519 or ML-DSA-87 handoff signature releases them (Manifest); disputes frozen as BOTH for an arbiter; replays and double handoffs refused | -3200s | 729 checks + fuzz |
 | V-Shelf | [`v-shelf`](v-shelf/) | Exact inventory ledger: receive, sell, transfer, shrink in whole units or exact weights; negative stock refused; count mismatches logged and held for an approver; full journal replay | -3300s | 831 checks + fuzz |
 | Tri-Trace | [`tri-trace`](tri-trace/) | Per-item hash-chained, party-signed custody (commission, ship, receive, dispense); a duplicate scan freezes the item as BOTH for a reviewer; a whole chain verifies offline | -3400s | 627 checks + fuzz |
+| Z-Genome | [`z-genome`](z-genome/) | Exact Needleman-Wunsch / Smith-Waterman alignment with affine gaps in checked int64 (overflow refused, documented tie-break), BLOSUM62 and DNA matrices, strict bounded FASTA, signed result records carrying the input digests, parameters and score; research use only | -3500s | 5,556 checks + fuzz |
+| Vinea-Triage | [`vinea-triage`](vinea-triage/) | Store-and-forward START/SALT triage records with integer vitals, ML-DSA-87 signed bundles hash-chained per responder, dedupe and reordering at the station, forks caught, disagreeing records held as BOTH for a reviewer; signed, not encrypted (the transport must encrypt); not a medical device | -3600s | 816 checks + fuzz |
+| Mesh-Command | [`mesh-command`](mesh-command/) | Incident command: signed field reports merged with `zxv_lp_from_evidence`, contradictions held as BOTH until a commander's signed decision (logged to the hexlog with who and why), advisory assignments a commander approves by signature, offline journal replay | -3700s | 1,667 checks + fuzz |
 
 Status codes: libzxv uses small negative codes, and ranges -1000 to -2499
 are taken by other SDK layers. The industry kits use -3000 to -3999. The
