@@ -45,16 +45,40 @@ form button{background:var(--accent);color:#000;border:0;border-radius:6px;paddi
 .small{font-size:12px;color:var(--muted);margin-top:6px}
 #notes div{padding:4px 0;border-bottom:1px solid var(--line);font-size:12px}
 #notes div.unread{border-left:3px solid var(--accent);padding-left:6px}
+nav{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px 0}
+nav button{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:4px 12px;cursor:pointer}
+nav button.on{background:var(--accent);color:#000;border-color:var(--accent)}
+main.one{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:860px){main.one{grid-template-columns:minmax(0,1fr)}}
+[hidden]{display:none!important}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.stack{display:flex;flex-direction:column;gap:8px}
+select,textarea{min-width:0;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+textarea{width:100%;resize:vertical;min-height:72px}
+.go{background:var(--accent);color:#000;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+.item{padding:8px 0;border-bottom:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
+.item .who{font-size:11px;color:var(--muted);display:block;margin-bottom:2px}
+.item .acts{display:flex;gap:6px;margin-top:4px}
+.item .acts button{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 8px;cursor:pointer;font-size:12px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;word-break:break-all}
+.big{font-size:28px;letter-spacing:.12em;font-variant-numeric:tabular-nums}
+.err{color:var(--bad)}
+.tap{font-size:16px;padding:14px 18px}
+body.simple .adv{display:none!important}
 </style>
 </head>
 <body>
 <header>
   <h1>ZXV SWARM</h1>
   <span class="sub" id="mode">connecting…</span>
+  <label class="sub" id="simplebox" hidden title="Simple mode shows fewer details. It changes no check, key or limit."><input type="checkbox" id="simple" style="flex:none;vertical-align:-2px"> Simple mode</label>
   <button id="quit" title="Stop the ZXV swarm">Quit</button>
 </header>
+<nav id="tabs" hidden>
+  <button data-tab="swarm" class="on adv">Swarm</button><button data-tab="home">Ask and Pay</button><button data-tab="feed">Feed</button><button data-tab="calls">Calls</button><button data-tab="xlate">Translate</button><button data-tab="devices">Devices</button>
+</nav>
 <div class="note">Preview build: the swarm engine (Fibonacci budget, market, emotions, witness, ledger, DNA, harmonic cycles) is running for real. The agents are stand-ins until the AI model packs are installed, so they don't write real answers yet.</div>
-<main>
+<main id="v-swarm">
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
     <section>
       <h2>Swarm, this cycle</h2>
@@ -62,7 +86,7 @@ form button{background:var(--accent);color:#000;border:0;border-radius:6px;paddi
         <thead><tr><th>Lvl</th><th>Agent</th><th>Feeling</th><th>Tokens</th><th>Split</th><th>Money</th><th>Social</th><th>Gen</th><th>Witness</th></tr></thead>
         <tbody id="agents"></tbody>
       </table></div>
-      <div class="legend"><span><b style="background:var(--re)"></b>Fibonacci floor</span><span><b style="background:var(--mk)"></b>market</span><span><b style="background:var(--im)"></b>emotional (imaginary)</span></div>
+      <div class="legend adv"><span><b style="background:var(--re)"></b>Fibonacci floor</span><span><b style="background:var(--mk)"></b>market</span><span><b style="background:var(--im)"></b>emotional (imaginary)</span></div>
     </section>
     <section>
       <h2>Talk to the companion</h2>
@@ -82,6 +106,50 @@ form button{background:var(--accent);color:#000;border:0;border-radius:6px;paddi
       <div class="small">Checks only when you ask, or daily while Online. Unsigned listings are never installable.</div></section>
     <section><h2>Notifications</h2><div id="notes"></div><div class="btns"><button id="noteread">Mark all read</button></div></section>
   </div>
+</main>
+<main class="one" id="v-home" hidden>
+  <section><h2>Ask</h2>
+    <div class="stack"><textarea id="sq" placeholder="Ask the companion anything"></textarea><button class="go tap" id="sask">Ask</button><div class="msg" id="sans" hidden></div></div></section>
+  <section><h2>Pay</h2>
+    <div class="stack">
+      <label class="small">From <select id="pfrom" style="width:100%"></select></label>
+      <label class="small">To <select id="pto" style="width:100%"></select></label>
+      <input id="pamt" inputmode="decimal" autocomplete="off" placeholder="Amount, e.g. 12.50">
+      <input id="pref" autocomplete="off" maxlength="35" placeholder="Reference (optional; each payment needs its own)">
+      <button class="go tap" id="pay">Pay</button><div class="small" id="pout"></div>
+      <div class="small">Pay moves money between accounts in this computer's books. You confirm every payment. Accounts are opened from the command line (ledger.open_account).</div></div></section>
+</main>
+<main class="one" id="v-feed" hidden>
+  <div class="col"><section><h2>Post</h2>
+    <div class="stack"><textarea id="ptext" maxlength="1024" placeholder="Write a post"></textarea>
+      <label class="small adv">Group <select id="pgroup"><option value="">Public</option></select></label>
+      <button class="go" id="post">Post</button><div class="small" id="postout"></div></div></section>
+    <section><h2>Groups</h2><div id="groups"></div>
+      <form id="gnew"><input id="gname" maxlength="64" autocomplete="off" placeholder="New group name"><button>Create</button></form></section></div>
+  <section><h2>Feed</h2><div class="small adv" id="feedinfo"></div><div id="feed"></div></section>
+</main>
+<main class="one" id="v-calls" hidden>
+  <section><h2>Place a call</h2>
+    <form id="cnew"><input id="cpeer" autocomplete="off" placeholder="Member number, or loopback"><button>Call</button></form>
+    <div class="small">Signalling only: this build carries no sound or video yet. "loopback" rings a test line inside this computer.</div>
+    <div class="kv adv" id="cinfo" style="margin-top:8px"></div></section>
+  <section><h2>Lines</h2><div id="lines"></div></section>
+</main>
+<main class="one" id="v-xlate" hidden>
+  <section><h2>Translate</h2>
+    <div class="stack"><textarea id="xtext" maxlength="4000" placeholder="Text to translate"></textarea>
+      <label class="small">Into <select id="xto"></select></label>
+      <button class="go" id="xgo">Translate</button><div class="small" id="xdet"></div></div></section>
+  <section><h2>Result</h2><div class="msg" id="xout">Nothing yet.</div><div class="small" id="xnote"></div></section>
+</main>
+<main class="one" id="v-devices" hidden>
+  <div class="col"><section><h2>This device</h2><div class="kv" id="dstat"></div><div id="dsas"></div></section>
+    <section><h2>Add a device</h2>
+      <div class="btns"><button id="dinv">Invite a device</button></div><div id="dcode"></div>
+      <form id="djoin" style="margin-top:8px"><input id="djcode" autocomplete="off" placeholder="Code from your other device (XXXXX-XXXXX)"><button>Join</button></form>
+      <div class="small" id="dout"></div>
+      <div class="small">Pairing between two machines also needs a carrier (the phone link); this build has none wired to the window.</div></section></div>
+  <section><h2>Devices</h2><div id="devs"></div></section>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -117,6 +185,102 @@ $('ask').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q
 $('quit').onclick=async()=>{try{await fetch('/api/quit',{method:'POST'})}catch(e){}document.body.innerHTML='<p style="padding:24px">The ZXV swarm has stopped. You can close this window.</p>'};
 say('Companion','Hello. I am the companion at the top of the swarm. The engine is live; my specialists are stand-ins until their models are installed.');
 poll();setInterval(poll,500);
+/* The people screens and simple mode, through POST /api/rpc (zxvd only: a
+ * build without it answers 404 and the tabs stay hidden). Simple mode only
+ * hides details (keys, hashes, weights, the swarm tables): every check,
+ * limit and confirmation stays the same. */
+async function rpc(method,params){const r=await fetch('/api/rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params:params||{}})});
+  if(!r.ok)throw new Error(r.status===404?'not served by this build':await r.text());const j=await r.json();if(j.error)throw new Error(j.error.message);return j.result}
+let tab='swarm',simple=false,people=false,me='';
+function show(t){tab=t;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  for(const v of ['swarm','home','feed','calls','xlate','devices'])$('v-'+v).hidden=v!==t;refresh()}
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab));
+function setSimple(on){simple=!!on;document.body.classList.toggle('simple',simple);$('simple').checked=simple;if(simple&&tab==='swarm')show('home')}
+$('simple').onchange=async()=>{const want=$('simple').checked;try{setSimple((await rpc('ui.set',{simple_mode:want})).simple_mode)}catch(e){setSimple(!want)}};
+function short(h){return h?h.slice(0,12)+'…':''}
+function out(el,text,bad){el.textContent=text;el.classList.toggle('err',!!bad)}
+async function refresh(){if(!people)return;try{
+  if(tab==='feed')await feed();else if(tab==='calls')await calls();else if(tab==='devices')await devices();else if(tab==='home')await accounts()}catch(e){}}
+/* Ask and Pay */
+$('sask').onclick=async()=>{const q=$('sq').value.trim();if(!q)return;$('sans').hidden=false;$('sans').textContent='…';
+  try{$('sans').textContent=await (await fetch('/api/ask',{method:'POST',body:q})).text()}catch(e){$('sans').textContent='(no connection to the swarm)'}};
+let accts=[];
+async function accounts(){const r=await rpc('ledger.accounts');if(JSON.stringify(r.accounts)===JSON.stringify(accts))return;accts=r.accounts||[];
+  for(const id of ['pfrom','pto']){const el=$(id),keep=el.value;el.innerHTML=accts.map(a=>`<option value="${a.account}">${esc(a.name)} (${esc(a.currency)})</option>`).join('');if(keep)el.value=keep}
+  if(!accts.length)out($('pout'),'No accounts yet.')}
+const DEC={BHD:3,IQD:3,JOD:3,KWD:3,LYD:3,OMR:3,TND:3,BIF:0,CLP:0,DJF:0,GNF:0,ISK:0,JPY:0,KMF:0,KRW:0,PYG:0,RWF:0,UGX:0,UYI:0,VND:0,VUV:0,XAF:0,XOF:0,XPF:0,CLF:4,UYW:4};/* the Studio's Money.exponents table */
+function minor(txt,ccy){const d=ccy in DEC?DEC[ccy]:2,m=/^(\d{1,15})(?:\.(\d+))?$/.exec(txt.trim());if(!m)return null;const f=m[2]||'';if(f.length>d)return null;
+  const v=(m[1]+f.padEnd(d,'0')).replace(/^0+(?=\d)/,'');return v.length>16?null:v}
+$('pay').onclick=async()=>{const from=+$('pfrom').value,to=+$('pto').value,a=accts.find(x=>x.account===from),b=accts.find(x=>x.account===to);
+  if(!a||!b)return out($('pout'),'Pick two accounts.',1);if(from===to)return out($('pout'),'Pick two different accounts.',1);
+  if(a.currency!==b.currency)return out($('pout'),'Both accounts must hold the same currency.',1);
+  const amt=minor($('pamt').value,a.currency);if(!amt||amt==='0')return out($('pout'),'Enter an amount like 12.50.',1);
+  const ref=$('pref').value.trim()||'win-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+  if(!confirm(`Pay ${$('pamt').value.trim()} ${a.currency} from ${a.name} to ${b.name}?`))return;
+  try{const r=await rpc('ledger.post',{from,to,amount_minor:amt,currency:a.currency,reference:ref});out($('pout'),simple?'Paid.':'Paid. Entry '+r.entry_id);$('pamt').value='';$('pref').value=''}catch(e){out($('pout'),e.message,1)}};
+/* Feed */
+let groupsSeen='';
+async function feed(){const [f,g]=await Promise.all([rpc('social.feed',{limit:50}),rpc('social.groups')]);me=f.me;
+  $('feedinfo').textContent=`Me ${short(f.me)} · ${f.held} records held · ${f.candidates} candidates · diversity ${f.diversity}/65536`;
+  const el=$('feed');el.innerHTML='';
+  for(const x of f.items){const d=document.createElement('div');d.className='item';
+    const who=x.mine?'You':(simple?'Someone':short(x.author));const grp=x.group?(g.groups.find(y=>y.id===x.group)||{}).name||'a group':'';
+    d.innerHTML=`<span class="who">${esc(who)}${x.kind==='reply'?' · reply':''}${grp?' · '+esc(grp):''}${simple?'':' · score '+x.score}</span>`;
+    d.appendChild(document.createTextNode(x.text));const acts=document.createElement('div');acts.className='acts';
+    for(const re of ['👍','❤️','😂']){const c=(x.reactions||[]).find(y=>y.reaction===re),b=document.createElement('button');b.textContent=re+(c?' '+c.count:'');
+      b.onclick=async()=>{try{await rpc('social.react',{post:x.id,reaction:re})}catch(e){out($('postout'),e.message,1)}feed()};acts.appendChild(b)}
+    const rb=document.createElement('button');rb.textContent='Reply'+(x.replies?' ('+x.replies+')':'');rb.onclick=()=>{replyTo=x.id;$('ptext').placeholder='Write a reply';$('ptext').focus()};acts.appendChild(rb);
+    d.appendChild(acts);el.appendChild(d)}
+  if(!f.items.length)el.textContent='Nothing here yet.';
+  const gk=JSON.stringify(g.groups);if(gk!==groupsSeen){groupsSeen=gk;const keep=$('pgroup').value;
+    $('pgroup').innerHTML='<option value="">Public</option>'+g.groups.filter(y=>['member','admin','owner'].includes(y.my_role)).map(y=>`<option value="${y.id}">${esc(y.name)}</option>`).join('');$('pgroup').value=keep;
+    $('groups').innerHTML='';for(const y of g.groups){const d=document.createElement('div');d.className='item';
+      d.innerHTML=`<span class="who">${y.members} members${y.open?'':' · invite only'}${simple?'':' · '+esc(y.my_role)}</span>`;d.appendChild(document.createTextNode(y.name));
+      const inn=['member','admin','owner'].includes(y.my_role);if(y.my_role!=='owner'){const b=document.createElement('button');b.className='go';b.style.marginLeft='8px';b.textContent=inn?'Leave':'Join';
+        b.onclick=async()=>{try{await rpc(inn?'social.leave':'social.join',{group:y.id})}catch(e){out($('postout'),e.message,1)}feed()};d.appendChild(b)}
+      $('groups').appendChild(d)}if(!g.groups.length)$('groups').textContent='No groups yet.'}}
+let replyTo='';
+$('post').onclick=async()=>{const text=$('ptext').value.trim();if(!text)return;const q={text};if(replyTo)q.reply_to=replyTo;else if($('pgroup').value)q.group=$('pgroup').value;
+  try{await rpc('social.post',q);$('ptext').value='';replyTo='';$('ptext').placeholder='Write a post';out($('postout'),'Posted.')}catch(e){out($('postout'),e.message,1)}feed()};
+$('gnew').onsubmit=async e=>{e.preventDefault();const name=$('gname').value.trim();if(!name)return;try{await rpc('social.group_create',{name,open:true});$('gname').value=''}catch(err){out($('postout'),err.message,1)}feed()};
+/* Calls */
+async function calls(){const s=await rpc('call.status');
+  kv($('cinfo'),[['My member number',s.self_id],['Loopback number',s.loopback_id],['Media',s.media],['Waiting to send',s.outbox]]);
+  const el=$('lines');el.innerHTML='';
+  for(const l of s.lines){if(l.state==='idle'&&!l.missed)continue;const d=document.createElement('div');d.className='item';
+    d.innerHTML=`<span class="who">${l.loopback?'loopback line':'line '+l.line}${l.outgoing?' · outgoing':' · incoming'}${simple?'':' · call '+esc(l.call_id||'')}${l.missed?' · '+l.missed+' missed':''}</span>`;
+    d.appendChild(document.createTextNode(`${l.peer?'Member '+l.peer:''} · ${l.state.replace('_',' ')}${l.state==='ended'?' ('+l.end_reason.replace('_',' ')+')':''}`));
+    const acts=document.createElement('div');acts.className='acts';
+    if(l.state==='incoming'){const b=document.createElement('button');b.textContent='Answer';b.onclick=async()=>{try{await rpc('call.accept',{line:l.line})}catch(e){}calls()};acts.appendChild(b)}
+    if(!['idle','ended'].includes(l.state)){const b=document.createElement('button');b.textContent='Hang up';b.onclick=async()=>{try{await rpc('call.hangup',{line:l.line})}catch(e){}calls()};acts.appendChild(b)}
+    d.appendChild(acts);el.appendChild(d)}
+  if(!el.children.length)el.textContent='No calls.'}
+$('cnew').onsubmit=async e=>{e.preventDefault();const v=$('cpeer').value.trim();if(!v)return;const peer=v==='loopback'?'loopback':(/^\d{1,10}$/.test(v)?Number(v):v);
+  try{await rpc('call.start',{peer})}catch(err){$('lines').textContent=err.message}calls()};
+/* Translate */
+async function langs(){try{const r=await rpc('xlate.languages');$('xto').innerHTML=r.languages.map(l=>`<option value="${esc(l.tag)}">${esc(l.name)}</option>`).join('');$('xto').value='en'}catch(e){}}
+$('xgo').onclick=async()=>{const text=$('xtext').value;if(!text.trim())return;out($('xout'),'…');$('xnote').textContent='';
+  try{const d=await rpc('xlate.detect',{text});$('xdet').textContent=d.language==='und'?'Language not recognised.':'Looks like '+d.name+(simple?'':` (${d.confidence}%)`)}catch(e){}
+  try{const r=await rpc('xlate.translate',{text,to:$('xto').value});out($('xout'),r.text);$('xnote').textContent=r.translated?'Machine translation: it may be wrong.':'Already in that language: not translated.'}
+  catch(e){out($('xout'),e.message,1)}};
+/* Devices */
+async function devices(){const [s,d]=await Promise.all([rpc('devmesh.status'),rpc('devmesh.devices')]);
+  kv($('dstat'),[['Name',s.name],['Role',s.role],['In a mesh',s.joined?'yes':'no']].concat(simple?[]:[['Device id',s.self],['Security level',s.level],['Roster version',s.roster_version],['Frames waiting',s.frames_waiting]]).concat(s.save_error?[['Save error',s.save_error]]:[]));
+  const sas=$('dsas');sas.innerHTML='';
+  if(s.pairing){sas.innerHTML=`<div class="small">Check that your other device shows the same number:</div><div class="big">${esc(s.pairing.sas)}</div>`;
+    const b=document.createElement('div');b.className='btns';for(const [t,m] of [['They match',true],['They differ',false]]){const x=document.createElement('button');x.textContent=t;
+      x.onclick=async()=>{try{const r=await rpc('devmesh.confirm_sas',{device:s.pairing.device,match:m});out($('dout'),r.confirmed?'Device added.':'Pairing stopped.')}catch(e){out($('dout'),e.message,1)}devices()};b.appendChild(x)}sas.appendChild(b)}
+  const el=$('devs');el.innerHTML='';
+  for(const x of d.devices||[]){const r=document.createElement('div');r.className='item';
+    r.innerHTML=`<span class="who">${esc(x.role)}${x.admin?' · admin':''} · ${esc(x.status)}${x.self?' · this device':''}${simple?'':' · '+esc(x.id)}</span>`;r.appendChild(document.createTextNode(x.name));
+    if(!x.self&&x.status==='active'){const b=document.createElement('button');b.className='go';b.style.marginLeft='8px';b.textContent='Remove';
+      b.onclick=async()=>{if(!confirm('Remove '+x.name+' from your devices? It loses access at once.'))return;try{await rpc('devmesh.revoke',{device:x.id})}catch(e){out($('dout'),e.message,1)}devices()};r.appendChild(b)}
+    el.appendChild(r)}
+  if(!el.children.length)el.textContent='Only this device.'}
+$('dinv').onclick=async()=>{try{const r=await rpc('devmesh.invite');$('dcode').innerHTML=`<div class="small">On the other device, enter this code (valid ${Math.round(r.expires_in_ms/60000)} minutes):</div><div class="big">${esc(r.code)}</div><div class="small adv">QR payload</div><div class="mono adv">${esc(r.qr)}</div>`}catch(e){out($('dout'),e.message,1)}devices()};
+$('djoin').onsubmit=async e=>{e.preventDefault();const code=$('djcode').value.trim().toUpperCase();if(!code)return;
+  try{const r=await rpc('devmesh.join',code.length>11?{qr:code}:{code});out($('dout'),r.next||'Joining…')}catch(err){out($('dout'),err.message,1)}devices()};
+(async()=>{try{const u=await rpc('ui.get');people=true;$('tabs').hidden=false;$('simplebox').hidden=false;setSimple(u.simple_mode);langs();setInterval(refresh,2000)}catch(e){}})();
 </script>
 </body>
 </html>

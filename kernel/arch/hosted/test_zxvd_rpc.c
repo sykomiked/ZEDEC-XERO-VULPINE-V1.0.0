@@ -442,7 +442,13 @@ static void test_host_methods(void)
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
               "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
               "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\"]}"));
+              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"social.post\","
+              "\"social.feed\",\"social.groups\",\"social.group_create\",\"social.join\","
+              "\"social.leave\",\"social.react\",\"social.export\",\"social.import\","
+              "\"call.start\",\"call.accept\",\"call.hangup\",\"call.status\",\"call.signal\","
+              "\"xlate.detect\",\"xlate.translate\",\"xlate.languages\",\"devmesh.status\","
+              "\"devmesh.invite\",\"devmesh.join\",\"devmesh.confirm_sas\",\"devmesh.revoke\","
+              "\"devmesh.devices\",\"ui.get\",\"ui.set\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -1870,6 +1876,75 @@ static void test_peer_methods(void)
     zxvd_rpc_set_peer_ops(NULL);
 }
 
+/* ---------------- people (zxvd_people.c), through m_people ---------------- */
+
+static char people_method[64], people_params[512];
+static int people_calls;
+
+static int people_stub(const char *method, const char *params, size_t len, zxvd_buf_t *out,
+                       char *msg, size_t msg_cap)
+{
+    people_calls++;
+    snprintf(people_method, sizeof people_method, "%s", method);
+    snprintf(people_params, sizeof people_params, "%.*s", (int) len, params);
+    if (!strcmp(method, "ui.set")) {
+        snprintf(msg, msg_cap, "refused \"why\"");
+        zxvd_buf_raw(out, "{\"partial\":", 11); /* a failing call's output is dropped */
+        return ZXVD_E_PEOPLE;
+    }
+    if (!strcmp(method, "xlate.translate")) {
+        snprintf(msg, msg_cap, "no model");
+        return ZXVD_E_NO_MODEL;
+    }
+    if (!strcmp(method, "call.status")) return -32602; /* an empty reason */
+    zxvd_buf_raw(out, "{\"ok\":1}", 8);
+    return 0;
+}
+
+static const zxvd_people_ops_t PEOPLE_NONE = {NULL};
+static const zxvd_people_ops_t PEOPLE_STUB = {people_stub};
+
+static void test_people_methods(void)
+{
+    zxvd_rpc_set_people_ops(NULL);
+    EXPECT(REQ("1", "social.feed", ""), ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_people_ops(&PEOPLE_NONE);
+    EXPECT(REQ("1", "ui.get", ""), ERR("1", "-32601", "not available"));
+    CHECK(people_calls == 0, "nothing reaches unset people ops");
+    zxvd_rpc_set_people_ops(&PEOPLE_STUB);
+    EXPECT(REQ("2", "social.feed", ""), OK("2", "{\"ok\":1}"));
+    CHECK(!strcmp(people_method, "social.feed") && !strcmp(people_params, "{}"),
+          "the method name, and {} for absent params (%s %s)", people_method, people_params);
+    EXPECT(REQ("3", "devmesh.join", ",\"params\":{\"code\":\"AB-CD\", \"x\":[1,2]}"),
+           OK("3", "{\"ok\":1}"));
+    CHECK(!strcmp(people_method, "devmesh.join") &&
+              !strcmp(people_params, "{\"code\":\"AB-CD\", \"x\":[1,2]}"),
+          "the params object's text, verbatim (%s)", people_params);
+    EXPECT(REQ("4", "ui.set", ",\"params\":{}"), ERR("4", "-32030", "refused \\\"why\\\""));
+    EXPECT(REQ("5", "xlate.translate", ",\"params\":{}"), ERR("5", "-32031", "no model"));
+    EXPECT(REQ("6", "call.status", ""), ERR("6", "-32602", "failed"));
+    EXPECT(REQ("7", "ui.get", ",\"params\":[1]"), ERR("7", "-32602", "params must be an object"));
+    int n = people_calls;
+    EXPECT("{\"jsonrpc\":\"2.0\",\"method\":\"ui.get\"}", "<none>");
+    CHECK(people_calls == n + 1, "a notification is executed and gets no reply");
+    static const char *const ALL[] = {
+        "social.post",   "social.feed",    "social.groups",   "social.group_create",
+        "social.join",   "social.leave",   "social.react",    "social.export",
+        "social.import", "call.start",     "call.accept",     "call.hangup",
+        "call.status",   "call.signal",    "xlate.detect",    "xlate.translate",
+        "xlate.languages", "devmesh.status", "devmesh.invite", "devmesh.join",
+        "devmesh.confirm_sas", "devmesh.revoke", "devmesh.devices", "ui.get", "ui.set"};
+    unsigned routed = 0;
+    for (unsigned i = 0; i < sizeof ALL / sizeof ALL[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, REQ("8", "%s", ""), ALL[i]);
+        (void) rpc(req);
+        routed += !strcmp(people_method, ALL[i]);
+    }
+    CHECK(routed == 25, "all 25 people methods reach the ops under their own name (%u)", routed);
+    zxvd_rpc_set_people_ops(NULL);
+}
+
 /* ---------------- aipi.* ---------------- */
 
 static void test_aipi_methods(void)
@@ -2063,6 +2138,7 @@ int main(void)
     test_host_methods();
     test_peer_methods();
     test_aipi_methods();
+    test_people_methods();
     test_books_closed();
     test_books();
     test_earnings();

@@ -2,7 +2,7 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# app_sources.sh [srcs|incs|vinea|update] — the hosted app's C sources, one
+# app_sources.sh [srcs|incs|vinea|update|people|people_deps|people_incs] — the hosted app's C sources, one
 # path per line, relative to kernel/. build_system/build_desktop.sh and
 # kernel/arch/hosted/test_hosted.sh both read this list, so the shipped app
 # and the tested app are built from the same files.
@@ -12,6 +12,10 @@
 #   incs    include directories (relative to kernel/), one per line
 #   vinea   the Vinea node and what it needs (also used by the net test)
 #   update  the update checker and what it needs
+#   people  zxvd's people features (zxvd_people.c: social, calls, translation,
+#           device mesh) and what they need beyond srcs; zxvd only
+#   people_deps  what they use from srcs (tests that build without srcs)
+#   people_incs  their include directories
 set -eu
 K="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$K"
@@ -42,6 +46,39 @@ update() {
     echo src/robin_debanks/ed25519_verify.c
     for f in src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c \
              src/event_space/event_envelope.c src/pqsec/pq_mldsa65.c src/pqsec/mldsa/[a-z]*.c; do
+        echo "$f"
+    done
+}
+
+people() {
+    echo arch/hosted/zxvd_people.c
+    for f in social_post social_feed social_store social_bucket social_group social_sign_mldsa; do
+        echo "src/social/$f.c"
+    done
+    echo src/reputation/reputation.c
+    for f in call_rtp call_jitter call_cc call_fec call_mesh call_ice call_session; do
+        echo "src/call/$f.c"
+    done
+    for f in xlate xlate_langid xlate_prompts; do echo "src/xlate/$f.c"; done
+    for f in devmesh dm_sync dm_remote dm_capmkt; do echo "src/devmesh/$f.c"; done
+    echo src/capmkt/capmkt.c
+    # pq_matrix (devmesh identities): its hybrid layers and the SLH-DSA code
+    for f in pq_matrix pq_mlkem1024 pq_mldsa87 pq_hqc5 pq_slh256s pq_slhdsa; do
+        echo "src/pqsec/$f.c"
+    done
+    for f in src/pqsec/slhdsa/*.c; do echo "$f"; done
+    # ML-KEM-768 (pq_matrix's STANDARD level)
+    for f in mlkem768 mlkem_encode mlkem_sample mlkem_ntt mlkem_kpe; do echo "src/mlkem/$f.c"; done
+}
+
+# what the people features use from srcs (for a test built without srcs)
+people_deps() {
+    for f in src/robin_debanks/sha256.c src/mlkem/keccak.c src/pqsec/pq_mldsa65.c \
+             src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c \
+             src/pqsec/mldsa/[a-z]*.c src/tls/x25519.c src/tls/aead.c src/tensor/zt.c \
+             src/tensor/zt_isf.c src/pay/pay_util.c src/pay/pay_assure.c src/web4/web4_json.c \
+             src/web4/web4_util.c src/swarm/swarm_market.c src/swarm/swarm_budget.c \
+             src/swarm/swarm_emotion.c; do
         echo "$f"
     done
 }
@@ -80,7 +117,20 @@ case "${1:-srcs}" in
             echo "$d"
         done
         ;;
+    people)
+        # only what srcs does not already list, so no file is compiled twice
+        have="$(sh "$K/arch/hosted/app_sources.sh" srcs)"
+        people | awk '!seen[$0]++' | while read -r f; do
+            printf '%s\n' "$have" | grep -qxF "$f" || echo "$f"
+        done
+        ;;
+    people_deps) people_deps ;;
+    people_incs)
+        for d in src/call src/xlate src/devmesh src/capmkt src/reputation src/tls src/web4; do
+            echo "$d"
+        done
+        ;;
     vinea) vinea ;;
     update) update ;;
-    *) echo "usage: $0 [srcs|incs|vinea|update]" >&2; exit 2 ;;
+    *) echo "usage: $0 [srcs|incs|vinea|update|people|people_deps|people_incs]" >&2; exit 2 ;;
 esac

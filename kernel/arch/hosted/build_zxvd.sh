@@ -87,6 +87,14 @@ if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
     set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$K/src/aipi/aipi.c" "$HERE/zxvd_aipi.c"
     DEFS="$DEFS -DZXV_HAVE_AIPI"
 fi
+# 4. The people features (zxvd_people.c: social, calls, translation, the
+# device mesh, simple mode): kernel libraries compiled here. Not in the
+# Windows build yet (ZXVD_PEOPLE=0 leaves them out anywhere).
+if [ -z "$EXE" ] && [ "${ZXVD_PEOPLE:-1}" != 0 ]; then
+    for d in $(sh "$HERE/app_sources.sh" people_incs); do set -- "$@" "-I$K/$d"; done
+    for f in $(sh "$HERE/app_sources.sh" people); do set -- "$@" "$K/$f"; done
+    DEFS="$DEFS -DZXV_HAVE_PEOPLE"
+fi
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \

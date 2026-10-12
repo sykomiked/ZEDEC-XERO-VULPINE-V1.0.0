@@ -1112,6 +1112,37 @@ static void m_aipi_status(call_t *c)
     AIPI->status(c->res);
 }
 
+/* ----- social.* call.* xlate.* devmesh.* ui.* (zxvd_people.c) ----- */
+
+static const zxvd_people_ops_t *PEOPLE;
+
+void zxvd_rpc_set_people_ops(const zxvd_people_ops_t *ops)
+{
+    PEOPLE = ops;
+}
+
+/* one handler for every people method: the name is read back from the request */
+static void m_people(call_t *c)
+{
+    char method[64];
+    if (!PEOPLE || !PEOPLE->call) return fail(c, E_METHOD, "not available");
+    int32_t m = w4_json_get(c->js, c->t, c->n, 0, "method");
+    if (m < 0 || w4_json_str(c->js, &c->t[m], method, sizeof method) < 0)
+        return fail(c, E_REQUEST, "invalid request");
+    const char *ps = "{}";
+    size_t pl = 2;
+    if (c->params >= 0) {
+        ps = c->js + c->t[c->params].start;
+        pl = (size_t) (c->t[c->params].end - c->t[c->params].start);
+    }
+    char msg[240] = "";
+    int code = PEOPLE->call(method, ps, pl, c->res, msg, sizeof msg);
+    if (code) {
+        c->res->len = 0;
+        fail(c, code, "%s", msg[0] ? msg : "failed");
+    }
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -1410,6 +1441,32 @@ static const method_t METHODS[] = {
     {"aipi.publish", m_aipi_publish},
     {"aipi.execute", m_aipi_execute},
     {"aipi.status", m_aipi_status},
+    /* people (zxvd_people.c) */
+    {"social.post", m_people},
+    {"social.feed", m_people},
+    {"social.groups", m_people},
+    {"social.group_create", m_people},
+    {"social.join", m_people},
+    {"social.leave", m_people},
+    {"social.react", m_people},
+    {"social.export", m_people},
+    {"social.import", m_people},
+    {"call.start", m_people},
+    {"call.accept", m_people},
+    {"call.hangup", m_people},
+    {"call.status", m_people},
+    {"call.signal", m_people},
+    {"xlate.detect", m_people},
+    {"xlate.translate", m_people},
+    {"xlate.languages", m_people},
+    {"devmesh.status", m_people},
+    {"devmesh.invite", m_people},
+    {"devmesh.join", m_people},
+    {"devmesh.confirm_sas", m_people},
+    {"devmesh.revoke", m_people},
+    {"devmesh.devices", m_people},
+    {"ui.get", m_people},
+    {"ui.set", m_people},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 

@@ -14,8 +14,12 @@ T="$(mktemp -d "${ZXV_TMP:-${TMPDIR:-/tmp}}/zxvd-rpc.XXXXXX")"
 trap 'rm -rf "$T"' EXIT INT TERM
 make -s -C "$R/sdk/libzxv" CC="$CC" >"$T/lib.log" 2>&1 || { tail -20 "$T/lib.log"; exit 3; }
 RP="-Wl,-rpath,$R/sdk/libzxv/build"
-"$CC" -std=c11 -O1 -Wall -Wextra -Werror -I"$HERE" -I"$K/src/web4" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" -I"$K/src/surplus" -I"$R/sdk/libzxv/include" \
-    "$HERE/test_zxvd_rpc.c" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
-    "$K/src/mlkem/keccak.c" "$K/src/robin_debanks/sha256.c" \
+cc_() {
+    "$CC" -std=c11 -Wall -Wextra -Werror -I"$HERE" -I"$K/src/web4" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" -I"$K/src/surplus" -I"$R/sdk/libzxv/include" "$@"
+}
+# keccak.c at -O2: gcc 11 reports a false maybe-uninitialized in keccak_sponge at -O1
+cc_ -O2 -c "$K/src/mlkem/keccak.c" -o "$T/keccak.o" || exit 3
+cc_ -O1 "$HERE/test_zxvd_rpc.c" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
+    "$T/keccak.o" "$K/src/robin_debanks/sha256.c" \
     -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_rpc" || exit 3
 "$T/test_zxvd_rpc"

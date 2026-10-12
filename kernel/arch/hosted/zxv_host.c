@@ -109,6 +109,9 @@ typedef int sock_t;
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+#        include "zxvd_people.h" /* social.* call.* xlate.* devmesh.* ui.* */
+#    endif
 #    if defined(_WIN32)
 #        include <afunix.h>
 #    else
@@ -841,9 +844,12 @@ static void note_task(bool ok, const char *summary)
                       "chat");
 }
 
+static bool ANSWER_REAL; /* the last answer() came from the model (zxvd_people's translation) */
+
 static void answer(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
+    ANSWER_REAL = false;
     char reading[512];
     char model_note[400];
     S.asks++;
@@ -881,6 +887,7 @@ static void answer(const char *q, char *out, size_t cap)
     }
 #endif
     if (m == 1) { /* a real model answered, within the budget */
+        ANSWER_REAL = true;
         char sum[96];
         snprintf(sum, sizeof sum, "%u tokens of the %llu left this cycle",
                  (unsigned) S.last_gate.generated,
@@ -1410,6 +1417,17 @@ static void handle(sock_t c)
         zxv_update_status_t us;
         zxv_update_status(&us);
         reply(c, "200 OK", "text/plain", us.status, strlen(us.status));
+#if defined(ZXVD) && defined(ZXV_HAVE_PEOPLE)
+    } else if (PATH_IS("/api/rpc") && !is_get) {
+        /* the window's bridge to the people methods and one-tap Ask and Pay
+         * (zxvd_people_http's allow-list); the guard above has checked the token */
+        zxvd_buf_t o = {0};
+        if (zxvd_people_http(body, (size_t) want, &o))
+            reply(c, "200 OK", "application/json", o.p ? o.p : "", o.len);
+        else
+            reply(c, "403 Forbidden", "text/plain", "method not allowed here", 23);
+        free(o.p);
+#endif
     } else if (PATH_IS("/api/net") && !is_get) {
         const char *r = net_command(body);
         if (r)
@@ -1493,6 +1511,25 @@ static void rpc_shutdown(void)
 static const zxvd_host_ops_t RPC_OPS = {rpc_state,  rpc_ask,        rpc_model,
                                         rpc_notes,  rpc_notes_read, net_command,
                                         rpc_update, rpc_shutdown,   ZXV_VERSION};
+
+#    if defined(ZXV_HAVE_PEOPLE)
+/* zxvd_people.h H6: one prompt through the same path as swarm.ask (budget
+ * gate, answer tag, quarantine); only a real model answer counts */
+static int people_generate(void *ctx, const char *prompt, char *out, size_t cap)
+{
+    (void) ctx;
+    const zxv_model_info_t *mi = zxv_model_info();
+    if (!mi->loaded || !mi->can_generate) {
+        snprintf(out, cap, "%s", mi->loaded ? "the installed model cannot generate in this build"
+                                            : "no model is installed");
+        return ZXVD_GEN_NO_MODEL;
+    }
+    answer(prompt, out, cap);
+    return ANSWER_REAL ? 0 : -2;
+}
+
+static const zxvd_people_host_t PEOPLE_HOST = {people_generate, NULL};
+#    endif
 
 /* ----- peer.* (zxv_peer_host.h) ----- */
 
@@ -2046,6 +2083,10 @@ int main(int argc, char **argv)
     /* without it zxvd still runs; aipi.* then answer "not available" */
     zxvd_rpc_set_aipi_ops(zxvd_aipi_open());
 #    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+    /* without it zxvd still runs; the people methods then answer "not available" */
+    zxvd_rpc_set_people_ops(zxvd_people_open(books_path, &PEOPLE_HOST));
+#    endif
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
@@ -2174,6 +2215,9 @@ int main(int argc, char **argv)
             zxv_peer_on_readable(S.peer, zxv_net_wall_ms());
 #if defined(ZXVD)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
+#    if defined(ZXV_HAVE_PEOPLE)
+        zxvd_people_poll(pal_now_ms());
+#    endif
         mesh_books_sync();
 #endif
         zxv_net_tick(S.net, zxv_net_wall_ms());
@@ -2192,6 +2236,10 @@ int main(int argc, char **argv)
 #    if defined(ZXV_HAVE_AIPI)
     zxvd_rpc_set_aipi_ops(NULL);
     zxvd_aipi_close();
+#    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+    zxvd_rpc_set_people_ops(NULL);
+    zxvd_people_close();
 #    endif
 #endif
     zxv_peer_free(S.peer);

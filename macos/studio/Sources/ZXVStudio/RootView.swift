@@ -4,25 +4,55 @@ import SwiftUI
 import ZXVRPC
 
 enum Screen: String, CaseIterable, Identifiable, Hashable {
-    case studio, ledger, mesh, storefront, settings
+    case simple, studio, ledger, mesh, storefront, feed, calls, translate, devices, settings
     var id: String { rawValue }
+
+    /// The zxvd method a screen needs (nil: always shown).
+    var needs: String? {
+        switch self {
+        case .simple: return "ui.get"
+        case .feed: return "social.feed"
+        case .calls: return "call.status"
+        case .translate: return "xlate.translate"
+        case .devices: return "devmesh.status"
+        default: return nil
+        }
+    }
+
+    /// Simple mode (R3.1) keeps one-tap Ask and Pay, the people screens and Settings.
+    var inSimpleMode: Bool {
+        switch self {
+        case .simple, .feed, .calls, .translate, .devices, .settings: return true
+        default: return false
+        }
+    }
 
     var title: String {
         switch self {
+        case .simple: return "Ask and Pay"
         case .studio: return "Local AI Studio"
         case .ledger: return "Sicily Ledger"
         case .mesh: return "P2P Mesh"
         case .storefront: return "Storefront & Escrow"
+        case .feed: return "Feed"
+        case .calls: return "Calls"
+        case .translate: return "Translate"
+        case .devices: return "Devices"
         case .settings: return "Settings"
         }
     }
 
     var icon: String {
         switch self {
+        case .simple: return "hand.tap"
         case .studio: return "bubble.left"
         case .ledger: return "building.columns"
         case .mesh: return "point.3.connected.trianglepath.dotted"
         case .storefront: return "storefront"
+        case .feed: return "text.bubble"
+        case .calls: return "phone"
+        case .translate: return "character.bubble"
+        case .devices: return "laptopcomputer.and.iphone"
         case .settings: return "slider.horizontal.3"
         }
     }
@@ -43,7 +73,7 @@ struct RootView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 16)
-                List(Screen.allCases, selection: $screen) { s in
+                List(screens, selection: $screen) { s in
                     Label(s.title, systemImage: s.icon).tag(s)
                 }
                 .scrollContentBackground(.hidden)
@@ -71,6 +101,17 @@ struct RootView: View {
             .background(Theme.ground)
             .foregroundStyle(Theme.text)
         }
+        .onChange(of: store.simpleMode) { on in
+            if let s = screen, !screens.contains(s) { screen = on ? .simple : .studio }
+        }
+    }
+
+    /// The sidebar: screens zxvd serves; in simple mode only the simple set,
+    /// and Ask and Pay only in simple mode (the full screens have both).
+    private var screens: [Screen] {
+        Screen.allCases.filter { s in
+            (s.needs.map { store.has($0) } ?? true) && (store.simpleMode ? s.inSimpleMode : s != .simple)
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -79,6 +120,11 @@ struct RootView: View {
         case .ledger: LedgerView()
         case .mesh: MeshView()
         case .storefront: StorefrontView()
+        case .simple: SimpleView()
+        case .feed: FeedView()
+        case .calls: CallsView()
+        case .translate: TranslateView()
+        case .devices: DevicesView()
         case .settings: SettingsView()
         }
     }

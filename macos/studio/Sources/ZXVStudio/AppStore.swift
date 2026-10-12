@@ -99,6 +99,8 @@ final class AppStore: ObservableObject {
     @Published var offers: Offers?
     @Published var card: PlayerCard?
     @Published var jurisdiction: Jurisdiction?
+    /// R3.1 simple mode (ui.get / ui.set): what the windows show, never what zxvd checks.
+    @Published var simpleMode = false
 
     let socketPath: String
     private var client: ZXVDClient
@@ -147,6 +149,7 @@ final class AppStore: ObservableObject {
             methods = Set(disc.methods)
             version = try? await client.request("zxvd.version", as: Version.self)
             model = try? await client.request("model.info", as: ModelInfo.self)
+            if has("ui.get"), let u = try? await client.request("ui.get") { simpleMode = u["simple_mode"]?.bool ?? false }
             link = .connected
             await refreshLedger()
         } catch {
@@ -369,6 +372,24 @@ final class AppStore: ObservableObject {
         daemon = nil
         stoppedByOwner = true
         link = .down("zxvd stopped")
+    }
+
+    // MARK: People features and simple mode (social.*, call.*, xlate.*, devmesh.*, ui.*)
+
+    /// The people screens read zxvd's untyped results (keys as sent, snake_case).
+    func rpc(_ method: String, _ params: [String: JSON]? = nil, timeoutMs: Int? = nil) async throws -> JSON {
+        try await client.request(method, params, timeoutMs: timeoutMs)
+    }
+
+    /// nil when saved; otherwise the line shown under the switch.
+    func setSimpleMode(_ on: Bool) async -> String? {
+        do {
+            let u = try await client.request("ui.set", ["simple_mode": .bool(on)])
+            simpleMode = u["simple_mode"]?.bool ?? on
+            return nil
+        } catch {
+            return "Refused: \(error)"
+        }
     }
 
     // MARK: macOS notifications

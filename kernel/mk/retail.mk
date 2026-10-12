@@ -5,6 +5,7 @@ include mk/rot.mk
 include mk/compliance.mk
 include mk/edge.mk
 include mk/bearer.mk
+include mk/people.mk
 
 .PHONY: test-retail
 test-retail:
@@ -16,3 +17,5 @@ test-retail:
 	@$(MAKE) --no-print-directory test-edge
 	@echo "=== retail: BLE, Wi-Fi Direct, LoRa, serial, modem, cellular and ham bearers (R2.2-R2.6) ==="
 	@$(MAKE) --no-print-directory test-bearer
+	@echo "=== people: feed, calls, translation, devices and simple mode in zxvd (4.11, R3.1) ==="
+	@$(MAKE) --no-print-directory test-people

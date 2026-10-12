@@ -236,6 +236,19 @@ typedef struct {
 } zxvd_aipi_ops_t;
 void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
 
+/* social.*, call.*, xlate.*, devmesh.*, ui.* (zxvd_people.c): the people
+ * features. Set separately; unset methods answer -32601. call() gets the
+ * method's full name and the params object's JSON text ("{}" when absent)
+ * and returns 0 with the result written into `out`, or a JSON-RPC error code
+ * (-32602, ZXVD_E_PEOPLE, ZXVD_E_NO_MODEL) with the reason in msg. */
+#define ZXVD_E_PEOPLE   (-32030)
+#define ZXVD_E_NO_MODEL (-32031) /* xlate.translate: no local model can generate */
+typedef struct {
+    int (*call)(const char *method, const char *params, size_t len, zxvd_buf_t *out, char *msg,
+                size_t msg_cap);
+} zxvd_people_ops_t;
+void zxvd_rpc_set_people_ops(const zxvd_people_ops_t *ops);
+
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops);
