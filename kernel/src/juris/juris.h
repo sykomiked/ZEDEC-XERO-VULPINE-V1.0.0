@@ -38,9 +38,10 @@
  *      agree: two plug-ins giving different rates is BOTH (escalate to a
  *      person). A forbidden tag goes to the quarantine log; a full log halts
  *      the host.
- *   J6 V-BILL HUB. juris_vhub_rule lets a host stand as one vhub rule, and
- *      juris_limit_plugin wraps vhub's ready-made limit rule as a plug-in:
- *      the first plug-in written to this ABI.
+ *   J6 V-BILL HUB. juris_vhub.h: juris_vhub_rule lets a host stand as one
+ *      vhub rule, and juris_limit_plugin wraps vhub's ready-made limit rule
+ *      as a plug-in, the first plug-in written to this ABI. It is a separate
+ *      file so that a host (zxvd) can embed juris.c without the hub.
  *   J7 ACCOUNTING. juris_host_standard gives the framework reports follow:
  *      the settings' standard when acct.h builds it and no loaded plug-in
  *      refuses it.
@@ -62,7 +63,6 @@
 #include <stdint.h>
 #include "../acct/acct.h"
 #include "../lpres/lpres_hex.h"
-#include "../vhub/vhub.h"
 
 /* ---- J1 ---- */
 typedef enum { JURIS_MARKET_CLOSED = 0, JURIS_MARKET_OPEN = 1 } juris_market_t;
@@ -188,12 +188,5 @@ juris_status_t juris_host_tax_rate(juris_host_t *h, juris_tax_kind_t k, uint64_t
                                    uint64_t *den);
 /* J7: ACCT_STD_NONE when none applies (not chosen, not built or refused). */
 acct_std_t juris_host_standard(juris_host_t *h);
-
-/* ---- J6 ---- */
-/* vhub_add_rule(hub, c, juris_vhub_rule, juris_vhub_commit, host) */
-lpx_t juris_vhub_rule(void *host, const vhub_swap_t *sw, uint8_t side);
-void juris_vhub_commit(void *host, const vhub_swap_t *sw, uint8_t side);
-/* Fill p as a transfer plug-in for `country` around vhub's limit rule. */
-void juris_limit_plugin(juris_plugin_t *p, const char *id, const char *country, vhub_limit_t *l);
 
 #endif /* ZXV_JURIS_H */

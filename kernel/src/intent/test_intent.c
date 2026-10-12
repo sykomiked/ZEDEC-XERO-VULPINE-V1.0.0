@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "intent.h"
+#include "../juris/juris_vhub.h"
 #include "../robin_debanks/sha256.h"
 
 static int pass, fail;

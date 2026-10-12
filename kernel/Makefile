@@ -1668,7 +1668,7 @@ test-econ:
 
 # ==== adapters: accounting, jurisdiction plug-ins, AI intent, privacy ====
 ADAPT_LPRES = src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c
-ADAPT_JURIS = src/juris/juris.c src/vhub/vhub.c src/acct/acct.c src/lpres/lpres_hex.c src/lpres/lpres.c $(ECON_LEDGER)
+ADAPT_JURIS = src/juris/juris.c src/juris/juris_vhub.c src/vhub/vhub.c src/acct/acct.c src/lpres/lpres_hex.c src/lpres/lpres.c $(ECON_LEDGER)
 
 # Accounting adapters (src/acct): IFRS, US GAAP, AAOIFI; journal, balance sheet, tax and zakah schedule; published worked examples.
 .PHONY: test-acct

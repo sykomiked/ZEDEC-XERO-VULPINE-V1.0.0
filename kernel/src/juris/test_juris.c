@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "juris.h"
+#include "juris_vhub.h"
 #include "../robin_debanks/sha256.h"
 
 static int pass, fail;
