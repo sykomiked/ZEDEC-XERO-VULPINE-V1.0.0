@@ -258,6 +258,7 @@ social_spaces                    above
 subterm                          above
 superpos                         above
 synthesis                        above
+terms                            above      # first-boot agreement gate for the login screen; uses sha256
 theme                            above
 tolvovina                        above
 wyrmgate                         above

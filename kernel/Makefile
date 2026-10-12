@@ -331,6 +331,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-treaty-cobol
 	$(MAKE) --no-print-directory test-policy
 	$(MAKE) --no-print-directory test-policy-cobol
+	$(MAKE) --no-print-directory test-terms
 	$(MAKE) --no-print-directory test-b2-small
 	$(MAKE) --no-print-directory test-b2
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
@@ -1643,6 +1644,20 @@ test-policy-cobol:
 	( cd $$d && ./PLCYDEMO > demo.txt; ./policy_parity demo.txt > parity.log ) && \
 	echo "[PASS] CALL 'ZXV_POLICY' from GnuCOBOL ($$(tail -1 $$d/parity.log))" || { cat $$d/cobc.log $$d/build.log $$d/demo.txt $$d/parity.log 2>/dev/null; echo "[FAIL] COBOL policy parity"; exit 1; }; \
 	rm -rf $$d
+
+# First-boot end-user agreement gate (src/terms): wraps the agreement for the
+# login screen, enables "I agree" only once the end was shown (any route:
+# scroll, keyboard, section list, screen reader), records each person's
+# acceptance with SHA-256 of the exact text in a hash-chained on-device log.
+# Not legal advice. The test also checks terms_text.c matches agreement/en.txt.
+TERMS_INC := -Iinclude -Isrc/modbind -Isrc/terms -Isrc/robin_debanks
+.PHONY: test-terms
+test-terms:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(TERMS_INC) src/terms/test_terms.c src/terms/terms.c src/terms/terms_text.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_terms 2>$(ZXV_TMP)/test_terms.build && $(ZXV_TMP)/test_terms src/terms/agreement/en.txt > $(ZXV_TMP)/test_terms.log 2>&1 && echo "[PASS] test_terms ($$(tail -1 $(ZXV_TMP)/test_terms.log))" || { cat $(ZXV_TMP)/test_terms.build $(ZXV_TMP)/test_terms.log; echo "[FAIL] test_terms"; exit 1; }
+	@for f in terms terms_text; do \
+	  gcc -ffreestanding -fno-stack-protector -U_FORTIFY_SOURCE -std=c11 -O2 -Wall -Werror -Wextra $(TERMS_INC) -c src/terms/$$f.c -o $(ZXV_TMP)/$${f}_x64.o || { echo "[FAIL] $$f.c freestanding build"; exit 1; }; \
+	  if nm -u $(ZXV_TMP)/$${f}_x64.o | grep -vE ' U (mem(set|cpy|cmp)|str(len|cmp)|sha256)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_x64.o; echo "[FAIL] $$f.c needs more than mem*/str*/sha256"; exit 1; fi; \
+	done; echo "[PASS] terms freestanding (x86_64: only mem*/str*/sha256)"
 
 # ==== economy modules (generated block) ====
 ECON_FLAGS = -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST
