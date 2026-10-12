@@ -14,7 +14,7 @@ import 'truth.dart';
 
 export 'native.dart' show FatalPolicy;
 
-/// A capability permission bit (`ZXV_CAP_*`, ABI R10).
+/// A capability permission bit (`ZXV_CAP_*`, ABI R10): bit = 1 << index.
 enum Permission {
   LEDGER_READ,
   LEDGER_POST,
@@ -25,7 +25,22 @@ enum Permission {
   PHASE,
   ATTEST,
   SWARM,
-  EVM;
+  EVM,
+
+  /// Build and call the hardware emulation matrix (ABI 1.4; bit 10).
+  HW_MATRIX,
+
+  /// Load hardware images and contracts (ABI 1.4; bit 11).
+  HW_RECONF,
+
+  /// Publish and execute AIPI functions (ABI 1.5; bit 12).
+  AIPI,
+
+  /// Mint coins, change token octane (ABI 1.5; bit 13).
+  MINT,
+
+  /// Paradox operators and policies (ABI 1.5; bit 14).
+  PARADOX;
 
   int get bit => 1 << index;
 

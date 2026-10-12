@@ -108,6 +108,33 @@ public enum ZxvStatus
     /// <summary>Refused by the function's placement policy (<c>ZXV_E_POLICY</c>, ABI 1.4).</summary>
     PolicyRefused = -31,
 
+    /// <summary>Not a Fibonacci ladder face: a coin face or token denomination that does not exist (<c>ZXV_E_DENOM</c>, ABI 1.5). Class USAGE.</summary>
+    Denomination = -32,
+
+    /// <summary>A treaty fails validation; the fault and its byte offset say where (<c>ZXV_E_TREATY</c>, ABI 1.5). Class USAGE.</summary>
+    TreatyInvalid = -33,
+
+    /// <summary>Bytes do not match their content id, or the CID itself is malformed (<c>ZXV_E_CID</c>, ABI 1.5). Class REFUSED.</summary>
+    CidMismatch = -34,
+
+    /// <summary>No valid human consent for this agent action: missing, mismatched, expired, used or revoked (<c>ZXV_E_CONSENT</c>, ABI 1.5). Class REFUSED.</summary>
+    ConsentRequired = -35,
+
+    /// <summary>Too few distinct freight rows arrived to rebuild the payload (<c>ZXV_E_ERASURE</c>, ABI 1.5). Class REFUSED: retry when more rows arrive.</summary>
+    ErasureTooFewRows = -36,
+
+    /// <summary>No valid signed peg for this currency pair: unset, stale or replayed (<c>ZXV_E_PEG</c>, ABI 1.5). Class REFUSED.</summary>
+    PegInvalid = -37,
+
+    /// <summary>A V-Bill hub limit rule refused the swap; not a fault (<c>ZXV_E_LIMIT</c>, ABI 1.5). Class REFUSED.</summary>
+    LimitExceeded = -38,
+
+    /// <summary>A paradox graph reached its step limit unresolved and goes to the owner (<c>ZXV_E_PARADOX_STEP</c>, ABI 1.5). Class REFUSED.</summary>
+    ParadoxStepLimit = -39,
+
+    /// <summary>The change touches money or devices and needs the owner's approval (<c>ZXV_E_PARADOX_OWNER</c>, ABI 1.5). Class REFUSED.</summary>
+    ParadoxOwnerApproval = -40,
+
     /// <summary>Unexpected kernel status (<c>ZXV_E_INTERNAL</c>).</summary>
     Internal = -99,
 }

@@ -3,6 +3,10 @@
 """ZXV for Python: exact money, four-valued logic, budgets, post-quantum
 crypto and a deterministic integer inference engine, over ``libzxv``.
 
+ABI 1.5 groups live in their own modules: :mod:`zxv.treaty`, :mod:`zxv.cid`,
+:mod:`zxv.aipi`, :mod:`zxv.coin`, :mod:`zxv.fee`, :mod:`zxv.vhub`,
+:mod:`zxv.freight`, :mod:`zxv.web4` and :mod:`zxv.paradox`.
+
 Quick start::
 
     import zxv
@@ -25,6 +29,17 @@ import enum
 from typing import Optional, Tuple
 
 from . import _native
+from . import aipi, cid, coin, fee, freight, paradox, treaty, vhub, web4
+from .aipi import AipiCall, AipiClaim, AipiFunction, AipiNode, AipiRoute
+from .cid import Cid, CidBase, CidCodec
+from .coin import Octane, TokenHolding, TokenWallet
+from .fee import FeeAccount, FeeBucket
+from .freight import FreightHeader, FreightJoin, OpsWriter
+from .paradox import (Classification, ParadoxBook, ParadoxGraph, ParadoxHold, ParadoxKind, ParadoxOutcome,
+                      ParadoxPolicy, RepairProof)
+from .treaty import Treaty, TreatyFault, TreatyOp, TreatyResult
+from .vhub import VHub
+from .web4 import W4Agent, W4ConsentLog, W4Directory, W4Manifest
 from ._native import load_library, library_path, set_default_fatal_policy, default_fatal_policy
 from .attest import Attestation, Attestations, Subject
 from .budget import Budget, BudgetEvent, Budgets, BudgetStatus, Resource
@@ -33,10 +48,11 @@ from .crypto import (Ed25519, Encapsulation, Hashes, KeyPair, MlDsa87, MlKem1024
                      random_bytes)
 from .engine import (AsyncTokenStream, GenerateOptions, GenerationResult, KvType, Model, ModelArch,
                      Session, StopReason, Token, TokenStream)
-from .errors import (BudgetExhaustedError, CapabilityDeniedError, FatalPolicy, FloatRejectedError,
-                     InsufficientFundsError, StatusClass, VerificationFailedError, ZxvError, ZxvFatal,
-                     ZxvLibraryError, ZxvNotImplementedError, ZxvRefusedError, ZxvSystemError,
-                     ZxvUsageError)
+from .errors import (BudgetExhaustedError, CapabilityDeniedError, CidMismatchError, ConsentRequiredError,
+                     DenominationError, ErasureError, FatalPolicy, FloatRejectedError, InsufficientFundsError,
+                     LimitRefusedError, OwnerApprovalRequiredError, ParadoxStepLimitError, PegError,
+                     StatusClass, TreatyError, VerificationFailedError, ZxvError, ZxvFatal, ZxvLibraryError,
+                     ZxvNotImplementedError, ZxvRefusedError, ZxvSystemError, ZxvUsageError)
 from .evm import EvmState, StateChannel
 from .hardware import (HW_CLASS_PRIVATE, HW_EXT_MAX, HW_HEADER_BYTES, HW_MLDSA_SK_BYTES, HW_PK_BYTES,
                        HW_RES_HOST, HW_ROOT, HW_SIG_BYTES, HW_SLHDSA_SK_BYTES, FunctionInfo, HwCapKey,
@@ -57,7 +73,7 @@ from .swarm import Allotment, EmotionProfile, Grant, Swarm
 from .truth import Truth, UncertainTruthError
 from .wire import FRAME_BYTES, Ubh168Frame, WireTruth, tag_of
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 """Version of this Python SDK (tracks the C ABI it wraps)."""
 
 
@@ -99,6 +115,42 @@ class Feature(enum.IntFlag):
     """Hardware emulation matrix, ZHP-1 profiles and hardware updates (ABI 1.4)."""
 
 
+class Feature2(enum.IntFlag):
+    """ABI 1.5 groups a ``libzxv`` build may provide (``ZXV_FEAT2_*``, from
+    :func:`features2`). A group that is not built raises
+    :class:`ZxvNotImplementedError` from every call (rule R9)."""
+
+    NONE = 0
+    TREATY = 0x00000001
+    """Treaties: copybook records and Sutra text (:mod:`zxv.treaty`)."""
+    AIPI = 0x00000002
+    """Content-addressed functions and CIDs (:mod:`zxv.cid`, :mod:`zxv.aipi`)."""
+    COIN = 0x00000004
+    """Fibonacci coins and token octane (:mod:`zxv.coin`)."""
+    FEE = 0x00000008
+    """The assurance fee and its split (:mod:`zxv.fee`)."""
+    VHUB = 0x00000010
+    """V-Bill hub pegs, quotes and swaps (:mod:`zxv.vhub`)."""
+    FREIGHT = 0x00000020
+    """Erasure-coded freight packets (:mod:`zxv.freight`)."""
+    WEB4 = 0x00000040
+    """Agent manifests, directory, consent (:mod:`zxv.web4`)."""
+    PARADOX = 0x00000080
+    """The paradox engine (:mod:`zxv.paradox`)."""
+
+
+def features2() -> Feature2:
+    """The :class:`Feature2` (ABI 1.5) groups live in the loaded library."""
+    out = _native.ffi.new("uint32_t *")
+    _native.check(_native.lib().zxv_features2(out))
+    return Feature2(out[0])
+
+
+def has_feature2(feature: Feature2) -> bool:
+    """True if every bit of ``feature`` is live in this build."""
+    return (features2() & feature) == feature
+
+
 def abi_version() -> Tuple[int, int, int]:
     """(major, minor, patch) ABI version of the loaded library."""
     v = _native.ffi.new("uint32_t[3]")
@@ -136,11 +188,21 @@ def last_error() -> Optional[str]:
 __all__ = [
     # library
     "__version__", "load_library", "library_path", "abi_version", "features", "has_feature", "Feature",
+    "features2", "has_feature2", "Feature2",
     "status_name", "status_class", "last_error", "set_default_fatal_policy", "default_fatal_policy",
     # errors
     "StatusClass", "FatalPolicy", "ZxvError", "ZxvUsageError", "FloatRejectedError", "ZxvRefusedError",
     "CapabilityDeniedError", "BudgetExhaustedError", "InsufficientFundsError", "VerificationFailedError",
-    "ZxvNotImplementedError", "ZxvSystemError", "ZxvLibraryError", "ZxvFatal",
+    "ZxvNotImplementedError", "ZxvSystemError", "ZxvLibraryError", "ZxvFatal", "DenominationError",
+    "TreatyError", "CidMismatchError", "ConsentRequiredError", "ErasureError", "PegError", "LimitRefusedError",
+    "ParadoxStepLimitError", "OwnerApprovalRequiredError",
+    # ABI 1.5 group modules and their main types
+    "treaty", "cid", "aipi", "coin", "fee", "vhub", "freight", "web4", "paradox",
+    "Treaty", "TreatyResult", "TreatyOp", "TreatyFault", "Cid", "CidBase", "CidCodec", "AipiNode",
+    "AipiFunction", "AipiCall", "AipiClaim", "AipiRoute", "TokenHolding", "TokenWallet", "Octane",
+    "FeeAccount", "FeeBucket", "VHub", "FreightHeader", "FreightJoin", "OpsWriter", "W4Agent", "W4Directory",
+    "W4Manifest", "W4ConsentLog", "ParadoxBook", "ParadoxPolicy", "ParadoxHold", "ParadoxGraph",
+    "Classification", "ParadoxKind", "ParadoxOutcome", "RepairProof",
     # values
     "Rational", "RationalLike", "Truth", "UncertainTruthError",
     # hexagram tags

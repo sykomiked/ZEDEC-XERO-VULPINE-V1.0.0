@@ -53,6 +53,15 @@ class Cap(enum.IntFlag):
     """Load hardware images and contract packages (ABI 1.4)."""
     ALL_1_4 = (1 << 12) - 1
     """Every capability as of ABI 1.4 (``ZXV_CAP_ALL_1_4``)."""
+    AIPI = 1 << 12
+    """Store and publish on an AIPI node (ABI 1.5)."""
+    MINT = 1 << 13
+    """Create tokens and change a token wallet's octane (ABI 1.5)."""
+    PARADOX = 1 << 14
+    """Write paradox logs and the registry, apply policy updates, create
+    paradox handles (ABI 1.5)."""
+    ALL_1_5 = (1 << 15) - 1
+    """Every capability as of ABI 1.5 (``ZXV_CAP_ALL_1_5``)."""
 
 
 @dataclass(frozen=True)

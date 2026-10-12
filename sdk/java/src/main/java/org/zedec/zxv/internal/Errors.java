@@ -17,6 +17,15 @@ import org.zedec.zxv.ZxvFatalError;
 import org.zedec.zxv.ZxvRefusedException;
 import org.zedec.zxv.ZxvSystemException;
 import org.zedec.zxv.ZxvUsageException;
+import org.zedec.zxv.cid.CidException;
+import org.zedec.zxv.coin.NotADenominationException;
+import org.zedec.zxv.freight.ErasureException;
+import org.zedec.zxv.paradox.OwnerApprovalRequiredException;
+import org.zedec.zxv.paradox.StepLimitException;
+import org.zedec.zxv.treaty.TreatyException;
+import org.zedec.zxv.vhub.LimitException;
+import org.zedec.zxv.vhub.PegException;
+import org.zedec.zxv.web4.ConsentException;
 
 /** Maps status codes to the SDK's exception family (SDK_DESIGN section 5). Internal. */
 public final class Errors {
@@ -49,13 +58,26 @@ public final class Errors {
             throw fatal(status, name, detail, ctx);
         }
         return switch (cls) {
-            case USAGE -> status == -24 ? new FloatRejectedException(detail) : new ZxvUsageException(status, name, detail);
+            case USAGE -> switch (status) {
+                case -24 -> new FloatRejectedException(detail);
+                case -32 -> new NotADenominationException(status, name, detail);
+                case -33 -> new TreatyException(status, name, detail);
+                default -> new ZxvUsageException(status, name, detail);
+            };
             case REFUSED -> switch (status) {
                 case -17 -> new CapabilityDeniedException(status, name, detail);
                 case -19 -> new BudgetExhaustedException(status, name, detail);
                 case -6 -> new InsufficientFundsException(status, name, detail);
                 case -21 -> new VerificationFailedException(status, name, detail);
                 case -3 -> new NotImplementedException(status, name, detail);
+                // ABI 1.5
+                case -34 -> new CidException(status, name, detail);
+                case -35 -> new ConsentException(status, name, detail);
+                case -36 -> new ErasureException(status, name, detail);
+                case -37 -> new PegException(status, name, detail);
+                case -38 -> new LimitException(status, name, detail);
+                case -39 -> new StepLimitException(status, name, detail);
+                case -40 -> new OwnerApprovalRequiredException(status, name, detail);
                 default -> new ZxvRefusedException(status, name, detail);
             };
             default -> new ZxvSystemException(status, name, detail);

@@ -34,16 +34,25 @@ final class Capability extends NativeHandle
     public const HW_MATRIX = 1 << 10;
     /** ABI 1.4: load hardware images and contracts. */
     public const HW_RECONF = 1 << 11;
+    /** ABI 1.5: run an AIPI node (store, publish, plan). */
+    public const AIPI = 1 << 12;
+    /** ABI 1.5: change a token wallet (mint, spend, transfer, octane). */
+    public const MINT = 1 << 13;
+    /** ABI 1.5: keep a paradox book and its policies, holds and graphs. */
+    public const PARADOX = 1 << 14;
     /** ZXV_CAP_ALL: the ABI 1.1 bits, a released value that never changes. */
     public const ALL = (1 << 10) - 1;
     /** ZXV_CAP_ALL_1_4: every bit as of ABI 1.4. */
     public const ALL_1_4 = (1 << 12) - 1;
+    /** ZXV_CAP_ALL_1_5: every bit as of ABI 1.5 (adds AIPI, MINT, PARADOX). */
+    public const ALL_1_5 = (1 << 15) - 1;
 
     public const NAMES = [
         "ledger_read" => self::LEDGER_READ, "ledger_post" => self::LEDGER_POST, "crypto_sign" => self::CRYPTO_SIGN,
         "crypto_kem" => self::CRYPTO_KEM, "ai_inference" => self::AI_INFERENCE, "budget" => self::BUDGET,
         "phase" => self::PHASE, "attest" => self::ATTEST, "swarm" => self::SWARM, "evm" => self::EVM,
         "hw_matrix" => self::HW_MATRIX, "hw_reconf" => self::HW_RECONF,
+        "aipi" => self::AIPI, "mint" => self::MINT, "paradox" => self::PARADOX,
     ];
 
     /** @internal use Context::rootCapability() */

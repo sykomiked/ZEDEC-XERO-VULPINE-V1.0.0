@@ -234,11 +234,214 @@ refusals (`ZxvRefusedError`), `E_TARGET` is a usage error; a full audit log
 poisons the context (`ZxvFatal`), since a change that cannot be recorded is
 not made.
 
+## ABI 1.5: treaties, content ids, coins, fees, the V-Hub, freight, Web4 agents, paradoxes
+
+ABI 1.5 adds eight feature groups. `Zxv.features2` lists the live ones
+(`:treaty`, `:aipi`, `:coin`, `:fee`, `:vhub`, `:freight`, `:web4`,
+`:paradox`); `Zxv.feature?(:web4)` checks one. Three capability bits are
+new: `:aipi`, `:mint` and `:paradox`. `:all` and `:all_1_4` do not grow, so
+ask for `root_capability(:all_1_5)` or add the bits by name. A capability
+without them gets `CapabilityDeniedError` (`ZXV_E_CAP`).
+
+New statuses: `ZXV_E_DENOM` and `ZXV_E_TREATY` are usage errors
+(`ZxvUsageError`; a treaty error is a `TreatyError` with `fault` and
+`offset`). `ZXV_E_CID`, `E_ERASURE`, `E_PEG`, `E_LIMIT` and
+`E_PARADOX_STEP` are refusals (`ZxvRefusedError`), `E_CONSENT` is a
+`ConsentRequiredError` and `E_PARADOX_OWNER` an `OwnerApprovalRequiredError`
+(both refusals). Every 64-bit amount is an `Integer`; floats are refused.
+Every handle has `close` and is also freed by the GC (pure handles) or with
+its `Context` (handles made from a capability); a closed handle raises
+`ZxvUsageError` (`ZXV_E_STATE`).
+
+The examples below assume:
+
+```ruby
+require "zxv"
+ctx = Zxv::Context.new
+cap = ctx.root_capability(:all_1_5)
+```
+
+### Treaties (`Zxv::Treaty`)
+
+A treaty is a small multilateral settlement written in Sutra text (or its
+fixed-width COBOL copybook record). `run` nets the obligations, posts the
+legs with the assurance fee for `SETL` and reports each party's balance and
+dividend; it runs in a private engine and needs no capability.
+`Treaty::Pic` is PIC S9(18) arithmetic with COBOL's size-error rules.
+
+```ruby
+t = Zxv::Treaty.parse(<<~SUTRA)
+  TREATY CORRIDOR-7 USD SETL
+  PARTY ACME 5000000 4000 1/3
+  PARTY BETA 3000000 3000 1/7
+  PARTY GAMMA 900000 0 11/21
+  OWE ACME BETA 1200000
+  OWE BETA GAMMA 700000
+  OWE GAMMA ACME 100000
+  END
+SUTRA
+r = t.run
+r.legs.map(&:to_h)   # => [{from: 0, to: 2, amount: 600000}, {from: 0, to: 1, amount: 500000}]
+r.fees               # => 977
+t.to_record          # the 2542-byte copybook record
+begin
+  Zxv::Treaty.parse("TREATY n USD NET\nPARTY A 1 1 1/1\nEND\n")
+rescue Zxv::TreatyError => e
+  [e.fault, e.offset] # => [:name, 7]
+end
+```
+
+### Content ids and AIPI (`Zxv::Cid`, `Zxv::Aipi`)
+
+`Cid` is an IPFS-compatible content id (CIDv1 sha2-256; CIDv0 parses).
+`Cid.compute` hashes bytes as one block, `Cid.unixfs` gives the id
+`ipfs add` would. AIPI names a function by the CID of its record (module,
+entry, how a remote result is accepted) and a call by the CID of
+(function, input). `Aipi::Node` (needs `:aipi`) is a local block store that
+verifies every block it returns.
+
+```ruby
+cid = Zxv::Cid.compute("hello world")
+cid.to_s              # => "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e"
+cid.verify("hello world")  # => true
+
+node = Zxv::Aipi::Node.new(cap)
+mod = node.put("zxv module bytes")
+fn = Zxv::Aipi::FunctionRecord.encode(intent: :fn, verify: :checker, determinism: :deterministic,
+                                      fuel_max: 1_000_000, module_cid: mod, entry: "main", checker: "check")
+fn_cid = node.publish(fn)
+Zxv::Aipi.call_cid(fn_cid, "hello").to_s(:base58btc)
+node.plan(fn_cid, "hello")   # => :local (this library is offline)
+```
+
+### Coins and tokens (`Zxv::Coin`, `Zxv::Token`, `Zxv::TokenWallet`)
+
+Coin faces are Fibonacci rungs; `Coin.split` gives the unique fewest-coin
+split. Token holdings are 64 counts, one per tier; `Token.canonical` puts a
+value in its one canonical form at an octane. Density earns nothing: a dense
+token is worth exactly its face. `TokenWallet` (needs `:mint`) keeps a
+holding canonical at its octane.
+
+```ruby
+Zxv::Coin.split(1_000_000)                     # => [29, 25, 23, 11, 9] (5 coins)
+Zxv::Token.value(Zxv::Token.canonical(1_000_000, :racing))   # => [1000000, 17]
+w = Zxv::TokenWallet.new(cap, octane: :racing)
+w.mint(1_000_000)
+w.pieces                                       # => 17
+```
+
+`Coin.split` refuses (`ZXV_E_RANGE`) a split above `max_coins:` (16,777,216
+by default) instead of allocating gigabytes; count large splits with
+`Coin.split_count`.
+
+### The assurance fee (`Zxv::Fee`)
+
+`fee(g) = floor(g * 8889 / 10^7)`, exact for every 64-bit gross, charged
+once per transaction. Keep the carry per account so many small charges pay
+what one charge of their sum pays.
+
+```ruby
+Zxv::Fee.assure(1_000_000)                       # => 888
+fee, carry = Zxv::Fee.assure_with_carry(100, carry: 0)   # => [0, 888900]
+Zxv::Fee.split(100)  # => {reserve_floor: 50, vbill_dividend: 25, infra_bounty: 15, regen_capital: 10}
+```
+
+### The V-Hub (`Zxv::VHub`)
+
+A hub of test currencies swapped through V-Bills on a triple-entry ledger.
+Each currency's issuer sets its peg with an ML-DSA-87 signature over
+`VHub.peg_message`; swaps fail closed until each currency has a limit rule,
+and must be exact under both pegs. Needs `:ledger_post` (and `:ledger_read`).
+
+```ruby
+dsa = Zxv::MlDsa87.new(cap)
+issuer = dsa.generate
+hub = Zxv::VHub.new(cap)
+%w[ZTA ZTB].each_with_index do |code, slot|
+  hub.add_currency(slot, code: code, minor_units: 2, issuer_public_key: issuer.public_key,
+                         pool_funding: 500_000, vbill_backing: 10_000)
+end
+[[0, 350], [1, 120]].each do |slot, num|
+  msg = Zxv::VHub.peg_message(slot, num: num, den: 1, epoch: 1)
+  hub.set_peg(slot, num: num, den: 1, epoch: 1, signature: dsa.sign(issuer.secret_key, msg))
+  hub.add_limit(slot, 2**64 - 1)
+end
+alice = hub.open_account(0, owner: 50)
+bob = hub.open_account(1, owner: 51)
+hub.issue(alice, 100_000)
+hub.swap(from: 0, to: 1, sender: alice, receiver: bob, amount: 35_000, tick: 1).to_h
+# => {vbills: 100, received: 12000}
+hub.check!                                     # postings so far; raises if the ledger broke
+issuer.close
+```
+
+### Freight (`Zxv::Freight`)
+
+A freight is 168 rows of 21 bytes; any `k` distinct rows rebuild a payload
+of up to `k * 20` bytes (Reed-Solomon erasure coding with a SHA-256 check).
+`Freight.split` / `Freight::Join` carry larger payloads as a set.
+`Freight::Ops` encodes an op stream (literal, copy, CID reference, seeded
+generator) that the receiver expands up to a limit it chooses; a CID
+reference is resolved by your block, and an exception in it never crosses
+into C (the call fails cleanly).
+
+```ruby
+payload = "ZXV freight: any 10 of 168 rows rebuild this."
+hdr = Zxv::Freight::Header.for_payload(payload, freight_id: 42, k: 10)
+rows = Zxv::Freight.rows(Zxv::Freight.encode(hdr, payload))
+Zxv::Freight.decode(hdr, rows.sample(10)) == payload   # => true
+
+ops = Zxv::Freight::Ops.encode("abc" * 100, with_sha: true)   # 55 bytes
+Zxv::Freight::Ops.expand(ops, limit: 4096).bytesize          # => 300
+```
+
+### Web4 agents (`Zxv::Web4`)
+
+An agent is an ML-DSA-65 identity with a signed card; agents exchange
+signed envelopes, publish signed tool manifests, and act on a human's
+behalf only with a consent token the human signed, checked once against a
+`ConsentLog`. Agent keys stay inside the `Agent` handle and are wiped when
+it is closed or its context closes; they are never returned. Creating and
+signing needs `:crypto_sign` (consent tokens: `:attest`).
+
+```ruby
+alice = Zxv::Web4::Agent.new(cap, name: "alice", now_ms: 1_700_000_000_000)
+bob = Zxv::Web4::Agent.new(cap, name: "bob", now_ms: 1_700_000_000_000)
+Zxv::Web4.verify_card(bob.card).name           # => "bob"
+req = alice.seal(to: bob.agent_id, kind: :request, tool: "pay", req_id: 7,
+                 payload: "amount=100", now_ms: 1_700_000_000_500)
+Zxv::Web4::Envelope.new(req).verify(alice.public_key)   # => true
+rsp = bob.reply(req, kind: :response, payload: "ok", final: true, now_ms: 1_700_000_000_900)
+Zxv::Web4::Envelope.new(rsp).payload           # => "ok"
+```
+
+### Paradoxes (`Zxv::Paradox`)
+
+Classifies a contradiction by its hexagram tag (and evidence trend) as
+constructive, destructive, neutral or special, and handles each the one way
+its kind allows, writing every step to hash-chained logs: a constructive
+policy update is applied, kept, rolled back or proposed to the owner; a
+destructive one is contained (state restored from a checkpoint, a repair
+proof made); a neutral one holds every branch until evidence decides; a
+special one is recorded for review. Needs `:paradox`. A policy flagged
+`:money` or `:device` is never changed automatically.
+
+```ruby
+book = Zxv::Paradox::Book.new(cap)
+policy = Zxv::Paradox::Policy.new(cap, lo: [0, 0], hi: [100, 50], initial: [50, 25])
+book.constructive(policy, kind: :constructive, tag: 0x2F, synth: [60, 20], tension: 5)  # => :applied
+policy.values                                  # => [60, 20]
+r = book.destructive(kind: :destructive, tag: 0x23, state: "X" * 16, checkpoint: "A" * 16,
+                     trace: [1, 2, 3, 2], pattern: "loop:A->B->A", submitter: 7)
+[r.outcome, r.state, r.proof.valid?]           # => [:contained, "AAAAAAAAAAAAAAAA", true]
+book.verify_log(:ops)
+```
+
 ## API overview
 
 | Ruby | Wraps | Main methods |
 |---|---|---|
-| `Zxv` | version, features | `abi_version`, `features`, `feature?`, `load_library`, `random_bytes`, `fatal_policy=` |
+| `Zxv` | version, features | `abi_version`, `features`, `features2`, `feature?`, `load_library`, `random_bytes`, `fatal_policy=` |
 | `Zxv::Context` | `zxv_ctx` | `open { }`, `root_capability`, `enable_currency(alpha, cap:)`, `register_private_currency(code, mu, cap:)`, `currencies`, `halt`, `poisoned?`, `close` |
 | `Zxv::Capability` | `zxv_cap` | `attenuate`, `revoke`, `check`, `allows?`, `attestation=`, `info` |
 | `Zxv::Rational` | `zxv_rat_*` | `of`, `parse`, `from`, `from_double_exact`, `+ - * /`, `<=>`, `to_s`, `to_r`, `to_q16` |
@@ -258,6 +461,15 @@ not made.
 | `Zxv::HwProfile` | `zxv_hw_profile_*` | `probe_host`, `reference`, `present`, `decode`, `encode`, `digest`, `add_node`, `set_cap`, `cap`, `set_ext`, `ext`, `nodes`, `match`, `pair` |
 | `Zxv::HwMatrix` | `zxv_hw_*` matrix | `call`, `shadow`, `providers`, `provider_info`, `function_info`, `bound`, `set_policy`, `add_provider`, `set_traits`, `attest`, `memo`, `trust_key`, `apply_contract`, `log`, `log_entry` |
 | `Zxv::HwRegion`, `Zxv::Hw` | `zxv_hw_region_*`, packages | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `on_event`, `log`; `Hw.keygen`, `Hw.build_image`, `Hw.vector_list` |
+| `Zxv::Treaty`, `Treaty::Result`, `Treaty::Pic` | `zxv_treaty_*` | `parse`, `from_record`, `to_sutra`, `to_record`, `validate`, `parties`, `obligations`, `run`; `legs`, `parties`, `fees`; `add`, `sub`, `mul`, `divide` |
+| `Zxv::Cid` | `zxv_cid_*` | `compute`, `unixfs`, `parse`, `to_s`, `to_v1`, `verify`, `provider_key`, `digest` |
+| `Zxv::Aipi` | `zxv_aipi_*` | `FunctionRecord.encode`, `CallRecord`, `ClaimRecord`, `call_cid`; `Node#put`, `get`, `publish`, `load_function`, `plan` |
+| `Zxv::Coin`, `Zxv::Token`, `Zxv::TokenWallet` | `zxv_coin_*`, `zxv_token_*` | `face`, `rung`, `split`, `split_count`; `canonical`, `value`, `compress`, `fuse`, `split`, `encode_codes`; `mint`, `spend`, `transfer`, `octane=` |
+| `Zxv::Fee` | `zxv_fee_*` | `assure`, `assure_with_carry`, `split`, `default_policy` |
+| `Zxv::VHub` | `zxv_vhub_*` | `peg_message`, `add_currency`, `set_peg`, `open_account`, `issue`, `add_limit`, `quote`, `swap`, `check!`, `balances` |
+| `Zxv::Freight` | `zxv_freight_*` | `Header.for_payload`, `encode`, `decode`, `split`, `Join`, `Ops.encode`, `Ops.expand`, `Ops::Writer`, `Ops.generate` |
+| `Zxv::Web4` | `zxv_w4_*` | `Agent#card`, `seal`, `reply`, `issue_consent`; `verify_card`, `action_digest`, `Directory`, `Manifest`, `ConsentLog#check!`, `Envelope` |
+| `Zxv::Paradox` | `zxv_paradox_*` | `classify`, `action`; `Book#classify`, `registry_add`, `constructive`, `destructive`, `neutral`, `special`, `draft`, `review`, `pass`, `log_records`, `verify_log`; `Policy`, `Hold`, `Graph` |
 | `Zxv::StateChannel` | `zxv_evm_*` | `encode_state`, `ledger_state` (for `sdk/solidity/ZxvStateChannel.sol`) |
 | `Zxv::Future` | host threads | `value`, `wait`, `done?`, `cancel` |
 
@@ -317,6 +529,23 @@ fatal path).
 - **Async is thread-based.** `Future` uses one Ruby thread per waiter and
   wakes on replenish/advance events with a 250 ms poll as a backstop; there
   is no Fiber scheduler integration.
+- **ABI 1.5 groups are tools, not institutions.** Treaties, the V-Hub,
+  coins, tokens and the fee are exact arithmetic and bookkeeping on test
+  currencies; they are not a bank, a payment licence or legal, tax or
+  securities advice, and nothing here is certified or compliant with any
+  regime. The V-Hub's pegs are whatever an issuer signs. AIPI's node is
+  offline: `plan` only reports `:local` or `:unavailable`. Freight erasure
+  coding recovers lost rows, not tampered ones (a bad row fails the hash);
+  op streams create no information. Web4 consent tokens prove a human's key
+  signed, not that the human understood; showing the action is your app's
+  job. The paradox engine classifies by the tag and evidence you give it and
+  writes logs; it decides nothing for the owner, and money or device
+  policies are only ever proposed.
+- **Web4 agent keys** live in libzxv memory inside the `Agent` handle and
+  are wiped when it is closed (or its context closes); the SDK never returns
+  or logs them. A `seed:` passed as a String is copied to a native buffer
+  that is zeroed after use, but the Ruby String itself is not wiped; pass a
+  `SecretKey` to keep the seed off the Ruby heap.
 - **Not certified.** The cryptography is not FIPS 140-3 validated; libzxv
   serializes ISO 20022 but has no network transport. LoRA and the
   pacs.002/004/009, camt.056/029 builders are not built in this libzxv (they
