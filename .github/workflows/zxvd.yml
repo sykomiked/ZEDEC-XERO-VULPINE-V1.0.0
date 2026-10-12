@@ -53,6 +53,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_aipi.sh
+      - name: Power reader and zxpower (fixture test, then this runner live)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxpower.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}
