@@ -264,3 +264,92 @@ public struct NotesSummary: Decodable, Sendable {
     public let unread: Int
     public let os: String
 }
+
+// MARK: views for the Studio panels (zxvd_rpc.h V1-V3, J1-J5)
+
+/// One verified contact from net.peers, joined with its mesh-book account.
+public struct Peer: Decodable, Sendable, Identifiable {
+    public let id: String
+    public let addr: String
+    public let bucket: Int
+    public let ubh: Bool
+    public let lastSeenMs: String
+    public let inBook: Bool
+    public let member: Bool
+    public let held: String
+    public let receivable: String
+    public let social: String
+    public let pending: Int
+    public var lastSeen: Date? {
+        Int64(lastSeenMs).map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) }
+    }
+}
+
+public struct Peers: Decodable, Sendable {
+    public let peers: [Peer]
+    public let count: Int
+}
+
+public struct Share: Decodable, Sendable {
+    public let compute: String
+    public let storage: String
+}
+
+public struct Want: Decodable, Sendable, Identifiable {
+    public let slot: Int
+    public let resource: String
+    public let unitsLeft: String
+    public let maxPrice: String
+    public var id: Int { slot }
+}
+
+/// A receipt waiting on the other side: a sell offer not yet accepted, or a buy not yet committed.
+public struct Outstanding: Decodable, Sendable, Identifiable {
+    public let role: String
+    public let peer: String
+    public let units: String
+    public let seq: String
+    public let tries: Int
+    public let want: Int
+    public var id: String { role + peer + seq }
+}
+
+public struct Offers: Decodable, Sendable {
+    public let share: Share
+    public let wants: [Want]
+    public let outstanding: [Outstanding]
+}
+
+public struct CardInput: Decodable, Sendable {
+    public let value: String
+    public let source: String
+}
+
+public struct NextTier: Decodable, Sendable {
+    public let tier: Int
+    public let metal: String
+    public let stone: String
+    public let credibility: String
+    public let bond: String
+    public let uptimeBps: String
+    public let missing: [String]
+}
+
+/// player.card: the tier the measured inputs earn (sicily.h S2). No priority, discount or credit.
+public struct PlayerCard: Decodable, Sendable {
+    public let tier: Int
+    public let metal: String
+    public let stone: String
+    public let inputs: [String: CardInput]
+    public let next: NextTier?
+    public let perks: [String]
+}
+
+public struct Jurisdiction: Decodable, Sendable {
+    public let market: String
+    public let standard: String
+    public let country: String
+    public let standards: [String]
+    /// False: the settings are recorded only (zxvd_rpc.h J5).
+    public let inEffect: Bool
+}
