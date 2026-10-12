@@ -119,6 +119,27 @@
  *      content: a different manifest under the same id is refused. A pin
  *      covers code only when it is all in the manifest, so a pinned block
  *      must carry its own logic inline ("<<") and pin its own uses too.
+ *
+ * Apps hand work to each other by what they can do, not by name.
+ *
+ *   I1 AN INTENT says an app can do something with a kind of content:
+ *      "intent <verb> <type> <entry>". The verb is a short word (share,
+ *      open, view, edit, pick, or any other the apps agree on); the type
+ *      is a MIME type ("text/plain") or a pattern, written here with <star>
+ *      for the asterisk ("image/<star>", or "<star>/<star>" for anything);
+ *      the entry is the logic that does it, the app's own or a composed one
+ *      ("notes.append"). Verbs and types ignore case. Up to
+ *      ZXAPP_INTENTS per app, one per verb and type. A block has no window
+ *      to open, so intents belong to apps.
+ *   I2 WHO CAN. zxapp_handlers lists the apps that handle a verb for a
+ *      type, most specific first: an exact type, then "major/<star>", then
+ *      anything; apps in the order given within each. Each app is listed
+ *      once, through its most specific intent. Asking for a pattern finds
+ *      only handlers that take all of it ("image/<star>" is not handled by
+ *      an app that takes only "image/png").
+ *   I3 NOTHING RUNS here. The query only names entries; the share sheet
+ *      (zui_share.h) shows them to the person, and the one they pick is
+ *      run through zxapp_call, under its contract (B3).
  */
 #ifndef ZXAPP_H
 #define ZXAPP_H
@@ -137,6 +158,9 @@
 #define ZXAPP_CID_MAX     72u /* "sha256:" + 64 hex digits + NUL (C3) */
 #define ZXAPP_AUTHOR_MAX  48u
 #define ZXAPP_WITNESS_MAX 256u /* elements a second witness's answer may have */
+#define ZXAPP_INTENTS     16u
+#define ZXAPP_VERB_MAX    16u
+#define ZXAPP_MIME_MAX    64u
 #define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
 
 typedef enum {
@@ -211,6 +235,14 @@ typedef struct {
     uint32_t line;
 } zxapp_use_t;
 
+/* I1: "intent <verb> <type> <entry>", stored in lower case. */
+typedef struct {
+    char verb[ZXAPP_VERB_MAX];
+    char type[ZXAPP_MIME_MAX]; /* "text/plain", "image/<star>", "<star>/<star>" */
+    char entry[ZXAPP_ENTRY_MAX];
+    uint32_t line;
+} zxapp_intent_t;
+
 typedef struct {
     zxapp_lang_t lang;
     char entry[ZXAPP_ENTRY_MAX];
@@ -240,6 +272,8 @@ typedef struct zxapp {
     uint32_t nprov;
     zxapp_use_t use[ZXAPP_USES];
     uint32_t nuse;
+    zxapp_intent_t intent[ZXAPP_INTENTS]; /* I1 */
+    uint32_t nintent;
     uint32_t composed;       /* logic[composed..n) came from blocks (B4) */
     bool resolved;           /* zxapp_compose succeeded (C1) */
     char err[ZXAPP_ERR_MAX]; /* the last refusal, for the view to show */
@@ -351,5 +385,29 @@ int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const z
  * values (numbers in lowest terms, as every runtime returns them), else
  * ZXAPP_BOTH. */
 int32_t zxapp_witness(const zxapp_num_t *x, uint32_t nx, const zxapp_num_t *y, uint32_t ny);
+
+/* ---- I: intents ------------------------------------------------------------- */
+
+/* I1: how well a handler's type pattern covers a content type: 2 the same
+ * type, 1 "major/<star>" over that major, 0 "<star>/<star>"; -1 when it does not
+ * cover it, or either is not a MIME type or pattern. */
+int zxapp_mime_rank(const char *pattern, const char *type);
+
+/* I2: one app that handles a verb for a type. */
+typedef struct {
+    uint32_t app; /* its index in the list asked */
+    const zxapp_t *a;
+    const zxapp_intent_t *in;
+    int32_t rank; /* zxapp_mime_rank of its intent */
+} zxapp_handler_t;
+
+/* I2: the apps among apps[0..n) that handle `verb` for `type`, most
+ * specific first, each once. Writes up to cap and returns how many there
+ * are (more than cap: only the first cap are written). */
+uint32_t zxapp_handlers(const zxapp_t *const *apps, uint32_t n, const char *verb, const char *type,
+                        zxapp_handler_t *out, uint32_t cap);
+/* I2 over a registry's apps (those that export entries, C1). */
+uint32_t zxapp_registry_handlers(const zxapp_registry_t *r, const char *verb, const char *type,
+                                 zxapp_handler_t *out, uint32_t cap);
 
 #endif /* ZXAPP_H */

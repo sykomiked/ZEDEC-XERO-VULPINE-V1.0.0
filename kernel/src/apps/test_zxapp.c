@@ -992,6 +992,158 @@ static void test_apps_as_blocks(void)
           "the dashboard's own use is not pinned");
 }
 
+/* ---- I: intents ------------------------------------------------------------- */
+
+static zxapp_t NOTES, PAINT, VIEWER, MAILER, ANY, EXP;
+
+static void test_intents(void)
+{
+    /* I1: parsing */
+    CHECK(parse("zxapp 1\nid notes\nlogic kron add <<\n1\n.\n"
+                "intent share text/plain add\nintent Open TEXT/Markdown add  # a comment\n"
+                "intent edit text/* add\n") == ZXAPP_OK,
+          "three intents parse: %s", A.err);
+    CHECK(A.nintent == 3, "three intents");
+    CHECK(strcmp(A.intent[0].verb, "share") == 0 && strcmp(A.intent[0].type, "text/plain") == 0 &&
+              strcmp(A.intent[0].entry, "add") == 0 && A.intent[0].line == 6,
+          "the first, with its line (%u)", A.intent[0].line);
+    CHECK(strcmp(A.intent[1].verb, "open") == 0 && strcmp(A.intent[1].type, "text/markdown") == 0,
+          "verbs and types are kept in lower case");
+    CHECK(strcmp(A.intent[2].type, "text/*") == 0, "a pattern");
+    CHECK(parse("zxapp 1\nid x\nintent pick */* notes.pick\n") == ZXAPP_OK &&
+              strcmp(A.intent[0].entry, "notes.pick") == 0,
+          "anything, through a composed entry");
+    CHECK(parse("zxapp 1\nid x\nintent share application/vnd.zxv+json-1.x f\n") == ZXAPP_OK,
+          "a type with + . - in it");
+    CHECK(parse("zxapp 1\nid x\n") == ZXAPP_OK && A.nintent == 0, "no intents");
+
+    static const struct {
+        const char *m, *why;
+        int rc;
+    } bad[] = {
+        {"zxapp 1\nid x\nintent share text/plain\n", "intent needs", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share\n", "intent needs", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share text/plain f g\n", "an entry name", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent 9share text/plain f\n", "a verb", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share-it text/plain f\n", "a verb", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent shareshareshareshare text/plain f\n", "a verb", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share text f\n", "a type", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share text/ f\n", "a type", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share /plain f\n", "a type", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share */plain f\n", "a type", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share text/pl*in f\n", "a type", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share text/plain;charset=utf-8 f\n", "a type", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share te xt/plain f\n", "a type", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share text/plain 1f\n", "an entry name", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share text/plain a..b\n", "an entry name", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nintent share text/plain f\nintent SHARE Text/Plain g\n", "a second intent",
+         ZXAPP_E_SYNTAX},
+        {"zxblock 1\nid b\nversion 1\nintent share text/plain f\n", "a block has no window",
+         ZXAPP_E_SYNTAX},
+    };
+    for (uint32_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        int rc = parse(bad[i].m);
+        CHECK(rc == bad[i].rc && strstr(A.err, bad[i].why) && A.err_line >= 3,
+              "bad intent %u refused (%d, line %u): %s", i, rc, A.err_line, A.err);
+    }
+    {
+        char m[2048];
+        uint32_t n = (uint32_t) snprintf(m, sizeof m, "zxapp 1\nid x\n");
+        for (uint32_t i = 0; i <= ZXAPP_INTENTS; i++)
+            n += (uint32_t) snprintf(m + n, sizeof m - n, "intent v%u text/plain f\n", i);
+        CHECK(parse(m) == ZXAPP_E_FULL && A.err_line == 3u + ZXAPP_INTENTS &&
+                  strstr(A.err, "too many intent"),
+              "past ZXAPP_INTENTS: %s (line %u)", A.err, A.err_line);
+    }
+    CHECK(parse("zxapp 1\nid x\nfrobnicate a\n") == ZXAPP_E_SYNTAX && strstr(A.err, "intent"),
+          "the unknown-directive message lists intent: %s", A.err);
+
+    /* I1: ranks */
+    CHECK(zxapp_mime_rank("text/plain", "text/plain") == 2, "exact");
+    CHECK(zxapp_mime_rank("TEXT/Plain", "text/PLAIN") == 2, "exact, any case");
+    CHECK(zxapp_mime_rank("text/*", "text/plain") == 1, "major");
+    CHECK(zxapp_mime_rank("*/*", "text/plain") == 0, "anything");
+    CHECK(zxapp_mime_rank("text/plain", "text/html") == -1, "another minor");
+    CHECK(zxapp_mime_rank("text/plain", "text/plainer") == -1, "not a prefix match");
+    CHECK(zxapp_mime_rank("text/plai", "text/plain") == -1, "nor the other way");
+    CHECK(zxapp_mime_rank("image/*", "text/plain") == -1, "another major");
+    CHECK(zxapp_mime_rank("image/*", "imagex/png") == -1, "major is whole");
+    CHECK(zxapp_mime_rank("image/png", "image/*") == -1, "one image type does not take them all");
+    CHECK(zxapp_mime_rank("image/*", "image/*") == 1, "a pattern over the same pattern");
+    CHECK(zxapp_mime_rank("*/*", "*/*") == 0 && zxapp_mime_rank("image/*", "*/*") == -1,
+          "anything is taken only by anything");
+    CHECK(zxapp_mime_rank("text/plain", "text") == -1 &&
+              zxapp_mime_rank("bogus", "text/plain") == -1,
+          "not MIME types");
+    CHECK(zxapp_mime_rank(0, "text/plain") == -1 && zxapp_mime_rank("text/plain", 0) == -1, "NULL");
+
+    /* I2: who can */
+    CHECK(parse_into(&NOTES, "zxapp 1\nid notes\nintent share text/plain append\n"
+                             "intent share text/* append_any\nintent open text/markdown open\n") ==
+              ZXAPP_OK,
+          "notes");
+    CHECK(parse_into(&PAINT, "zxapp 1\nid paint\nintent share image/* add_layer\n"
+                             "intent edit image/png edit\n") == ZXAPP_OK,
+          "paint");
+    CHECK(parse_into(&VIEWER, "zxapp 1\nid viewer\nintent view */* show\n"
+                              "intent share */* keep\n") == ZXAPP_OK,
+          "viewer");
+    CHECK(parse_into(&MAILER, "zxapp 1\nid mailer\nintent share text/* compose\n"
+                              "intent share image/png attach\n") == ZXAPP_OK,
+          "mailer");
+    CHECK(parse_into(&ANY, "zxapp 1\nid other\nintent pick text/plain choose\n") == ZXAPP_OK,
+          "other");
+    const zxapp_t *apps[] = {&VIEWER, &MAILER, &NOTES, &PAINT, 0, &ANY};
+    zxapp_handler_t h[8];
+    uint32_t n = zxapp_handlers(apps, 6, "share", "text/plain", h, 8);
+    CHECK(n == 3, "three apps share plain text (%u)", n);
+    CHECK(n == 3 && h[0].a == &NOTES && h[0].rank == 2 && strcmp(h[0].in->entry, "append") == 0 &&
+              h[0].app == 2,
+          "notes first: exact, through its most specific intent");
+    CHECK(n == 3 && h[1].a == &MAILER && h[1].rank == 1 && strcmp(h[1].in->entry, "compose") == 0,
+          "then text/*");
+    CHECK(n == 3 && h[2].a == &VIEWER && h[2].rank == 0 && h[2].app == 0, "then anything");
+    n = zxapp_handlers(apps, 6, "SHARE", "Image/PNG", h, 8);
+    CHECK(n == 3 && h[0].a == &MAILER && h[0].rank == 2 && h[1].a == &PAINT && h[1].rank == 1 &&
+              h[2].a == &VIEWER,
+          "images: mailer exact, paint image/*, viewer anything; verbs ignore case");
+    n = zxapp_handlers(apps, 6, "share", "image/*", h, 8);
+    CHECK(n == 2 && h[0].a == &PAINT && h[1].a == &VIEWER,
+          "any image: mailer takes only png, so it is not listed");
+    n = zxapp_handlers(apps, 6, "share", "text/markdown", h, 8);
+    CHECK(n == 3 && h[0].a == &MAILER && h[0].rank == 1 && h[1].a == &NOTES &&
+              strcmp(h[1].in->entry, "append_any") == 0 && h[2].a == &VIEWER,
+          "ties keep the order given: mailer before notes");
+    n = zxapp_handlers(apps, 6, "share", "text/plain", h, 1);
+    CHECK(n == 3 && h[0].a == &NOTES, "cap: the count, the best first");
+    CHECK(zxapp_handlers(apps, 6, "share", "text/plain", 0, 0) == 3, "count only");
+    CHECK(zxapp_handlers(apps, 6, "delete", "text/plain", h, 8) == 0, "no one deletes");
+    CHECK(zxapp_handlers(apps, 6, "share", "text", h, 8) == 0, "a bad type finds no one");
+    CHECK(zxapp_handlers(apps, 6, "shar", "text/plain", h, 8) == 0, "verbs are whole words");
+    CHECK(zxapp_handlers(apps, 6, "view", "application/pdf", h, 8) == 1 && h[0].a == &VIEWER,
+          "a viewer for anything");
+    CHECK(zxapp_handlers(apps, 6, "pick", "text/plain", h, 8) == 1 && h[0].a == &ANY &&
+              h[0].app == 5,
+          "a NULL app is skipped, indexes stay the list's");
+    CHECK(zxapp_handlers(0, 6, "share", "text/plain", h, 8) == 0 &&
+              zxapp_handlers(apps, 6, 0, "text/plain", h, 8) == 0 &&
+              zxapp_handlers(apps, 6, "share", 0, h, 8) == 0 &&
+              zxapp_handlers(apps, 6, "share", "text/plain", 0, 8) == 0,
+          "bad arguments");
+
+    /* I2 over a registry: only apps that export (C1) are there */
+    static zxapp_registry_t RI;
+    zxapp_registry_init(&RI);
+    CHECK(parse_into(&EXP,
+                     "zxapp 1\nid exporter\nversion 1.0.0\nprovides keep num x\n"
+                     "logic kron keep <<\nx\n.\nintent share text/plain keep\n") == ZXAPP_OK &&
+              zxapp_registry_add(&RI, &EXP) == ZXAPP_OK,
+          "an exporting app with an intent registers: %s", RI.err);
+    n = zxapp_registry_handlers(&RI, "share", "text/plain", h, 8);
+    CHECK(n == 1 && h[0].a == &EXP && strcmp(h[0].in->entry, "keep") == 0, "found in the registry");
+    CHECK(zxapp_registry_handlers(0, "share", "text/plain", h, 8) == 0, "NULL registry");
+}
+
 int main(void)
 {
     test_names();
@@ -1006,6 +1158,7 @@ int main(void)
     test_compose();
     test_launch();
     test_apps_as_blocks();
+    test_intents();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

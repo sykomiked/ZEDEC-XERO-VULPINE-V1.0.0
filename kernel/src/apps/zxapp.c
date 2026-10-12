@@ -297,6 +297,85 @@ static int parse_use(zxapp_t *a, uint32_t line, const char *const w[4], const ui
     return ZXAPP_OK;
 }
 
+static char lower(char c)
+{
+    return (c >= 'A' && c <= 'Z') ? (char) (c - 'A' + 'a') : c;
+}
+
+/* A MIME token: letters, digits and ! # $ & ^ _ . + - (RFC 6838's set). */
+static bool mime_token(const char *w, uint32_t n)
+{
+    if (!n || n > 63u) return false;
+    for (uint32_t i = 0; i < n; i++) {
+        char c = w[i];
+        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                  c == '!' || c == '#' || c == '$' || c == '&' || c == '^' || c == '_' ||
+                  c == '.' || c == '+' || c == '-';
+        if (!ok) return false;
+    }
+    return true;
+}
+
+/* I1: "major/minor", "major/<star>" or "<star>/<star>". *slash gets the '/'. */
+static bool mime_ok(const char *w, uint32_t n, uint32_t *slash)
+{
+    uint32_t s = 0;
+    while (s < n && w[s] != '/') s++;
+    if (s == n || s == 0 || s + 1u == n) return false;
+    *slash = s;
+    const char *mj = w, *mn = w + s + 1u;
+    uint32_t nj = s, nn = n - s - 1u;
+    bool star_j = nj == 1u && mj[0] == '*', star_n = nn == 1u && mn[0] == '*';
+    if (star_j) return star_n;
+    return mime_token(mj, nj) && (star_n || mime_token(mn, nn));
+}
+
+/* I1: intent <verb> <type> <entry> */
+static int parse_intent(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                        uint32_t k)
+{
+    uint32_t slash;
+    if (k != 4) {
+        put_err(a, line, "intent needs: intent <verb> <type> <entry>", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (a->block) {
+        put_err(a, line, "a block has no window to open; intents belong to apps", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (!ident(w[1], wl[1]) || wl[1] + 1u > ZXAPP_VERB_MAX) {
+        put_err(a, line, "a verb is one short word (share, open, view, edit, pick)", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (wl[2] + 1u > ZXAPP_MIME_MAX || !mime_ok(w[2], wl[2], &slash)) {
+        put_err(a, line, "a type is a MIME type or pattern: text/plain, image/*, */*", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (!dotted(w[3], wl[3]) || wl[3] + 1u > ZXAPP_ENTRY_MAX) {
+        put_err(a, line,
+                "an entry name must be a short identifier (block.entry for a composed one)", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (a->nintent >= ZXAPP_INTENTS) {
+        put_err(a, line, "too many intent lines", 0);
+        return ZXAPP_E_FULL;
+    }
+    zxapp_intent_t *I = &a->intent[a->nintent];
+    for (uint32_t i = 0; i < wl[1]; i++) I->verb[i] = lower(w[1][i]);
+    I->verb[wl[1]] = 0;
+    for (uint32_t i = 0; i < wl[2]; i++) I->type[i] = lower(w[2][i]);
+    I->type[wl[2]] = 0;
+    word_copy(I->entry, sizeof I->entry, w[3], wl[3]);
+    for (uint32_t i = 0; i < a->nintent; i++)
+        if (seq(a->intent[i].verb, I->verb) && seq(a->intent[i].type, I->type)) {
+            put_err(a, line, "a second intent for the same verb and type: ", I->verb);
+            return ZXAPP_E_SYNTAX;
+        }
+    I->line = line;
+    a->nintent++;
+    return ZXAPP_OK;
+}
+
 int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
 {
     uint8_t *z = (uint8_t *) a;
@@ -425,9 +504,14 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
+        if (word_is(w[0], wl[0], "intent")) {
+            int rc = parse_intent(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
         put_err(a, r.line,
                 "an unknown directive (id, name, author, view, model, launch, logic, version, "
-                "provides, use)",
+                "provides, use, intent)",
                 0);
         return ZXAPP_E_SYNTAX;
     }
@@ -964,4 +1048,71 @@ uint32_t zxapp_provenance(const zxapp_t *a, zxapp_origin_t *out, uint32_t cap)
         x->permille = a->n ? cnt[j] * 1000u / a->n : 0u;
     }
     return m;
+}
+
+/* ---- I: intents ---------------------------------------------------------------- */
+
+static uint32_t slen(const char *p)
+{
+    uint32_t n = 0;
+    while (p[n]) n++;
+    return n;
+}
+
+/* Equal for n bytes, ignoring ASCII case. */
+static bool neq_ci(const char *x, const char *y, uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++)
+        if (lower(x[i]) != lower(y[i])) return false;
+    return true;
+}
+
+int zxapp_mime_rank(const char *pattern, const char *type)
+{
+    uint32_t ps, ts;
+    if (!pattern || !type) return -1;
+    uint32_t pn = slen(pattern), tn = slen(type);
+    if (!mime_ok(pattern, pn, &ps) || !mime_ok(type, tn, &ts)) return -1;
+    if (pattern[0] == '*') return 0; /* takes anything */
+    if (type[0] == '*') return -1;   /* anything is more than this pattern takes */
+    if (ps != ts || !neq_ci(pattern, type, ps)) return -1;
+    bool p_star = pattern[ps + 1u] == '*', t_star = type[ts + 1u] == '*';
+    if (p_star) return 1;
+    if (t_star) return -1;
+    return (pn == tn && neq_ci(pattern, type, pn)) ? 2 : -1;
+}
+
+uint32_t zxapp_handlers(const zxapp_t *const *apps, uint32_t n, const char *verb, const char *type,
+                        zxapp_handler_t *out, uint32_t cap)
+{
+    uint32_t total = 0;
+    if (!apps || !verb || !type || (!out && cap)) return 0;
+    uint32_t vn = slen(verb);
+    for (int32_t want = 2; want >= 0; want--) /* most specific first (I2) */
+        for (uint32_t i = 0; i < n; i++) {
+            const zxapp_t *a = apps[i];
+            if (!a) continue;
+            const zxapp_intent_t *best = 0;
+            int32_t rank = -1;
+            for (uint32_t j = 0; j < a->nintent; j++) {
+                const zxapp_intent_t *I = &a->intent[j];
+                if (slen(I->verb) != vn || !neq_ci(I->verb, verb, vn)) continue;
+                int32_t r = zxapp_mime_rank(I->type, type);
+                if (r > rank) {
+                    rank = r;
+                    best = I;
+                }
+            }
+            if (!best || rank != want) continue;
+            if (total < cap) out[total] = (zxapp_handler_t){i, a, best, rank};
+            total++;
+        }
+    return total;
+}
+
+uint32_t zxapp_registry_handlers(const zxapp_registry_t *r, const char *verb, const char *type,
+                                 zxapp_handler_t *out, uint32_t cap)
+{
+    if (!r) return 0;
+    return zxapp_handlers(r->b, r->n, verb, type, out, cap);
 }
