@@ -1,0 +1,28 @@
+{
+  "title": "ZEDEC XERO VULPINE (ZXV): a post-quantum operating system and local multi-agent AI swarm",
+  "upload_type": "software",
+  "description": "<p>ZXV is a freestanding, from-scratch C kernel with post-quantum security that also runs as a desktop app on macOS, Linux and Windows. It runs a swarm of small language models on an integer-only tensor engine that gives the same output bits on every CPU, under a tokens-per-cycle budget and a cooperative swarm economy. The same kernel builds as bare-metal UEFI discs for arm64 and x86_64.</p><p>This archive is the source code of the GitHub release. No model weights are included.</p>",
+  "creators": [
+    {
+      "name": "Curzi, Michael Laurence",
+      "affiliation": "36N9 Genetics, LLC"
+    }
+  ],
+  "license": "Apache-2.0",
+  "access_right": "open",
+  "keywords": [
+    "operating system",
+    "post-quantum cryptography",
+    "multi-agent AI",
+    "language model inference",
+    "integer tensor engine",
+    "UEFI"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0",
+      "relation": "isSupplementTo",
+      "resource_type": "software"
+    }
+  ]
+}

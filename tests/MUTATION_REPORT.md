@@ -79,6 +79,11 @@ tests. That is not a 0% score.
 Which run produced each *after* number:
 
 - **rational:** a re-run made after the last `axioms_rational.c` change.
+  Re-measured 2026-10-12 after `rational.c` gained its checked path for
+  targets without `__int128` (708 mutants, the tier 1 and tier 3 suites
+  now also run on that path): **85.8%** (579 killed, 96 survived, 23 CE).
+  The new survivors are equivalent: guards that `reduce` repeats, and sign
+  tests on values already known to be nonzero.
 - **pay_ledger:** a re-run made after the last `axioms_pay.c` change.
 - **All other targets:** one batch run with the final test set. Later commits
   changed only rational and pay tests, and clang-format layout.
