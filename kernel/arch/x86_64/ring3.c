@@ -99,6 +99,18 @@ static void idt_init(void) {
     __asm__ __volatile__("lidt %0" : : "m"(ip));
 }
 
+/* 1 when the IDTR currently points at THIS kernel's IDT, i.e. #GP goes to
+ * x86_exc_13 -> x86_exc_common, which consults the exception-fixup table
+ * (msr_safe.h). Read back off the CPU (SIDT) rather than trusted from a flag,
+ * so firmware's IDT before x86_ring3_init() is never mistaken for ours. */
+int x86_idt_ready(void)
+{
+    struct desc_ptr cur = {0, 0};
+    __asm__ __volatile__("sidt %0" : "=m"(cur));
+    return cur.base == (uint64_t) g_idt && cur.limit == sizeof g_idt - 1 &&
+           (g_idt[13].type_attr & 0x80) != 0;
+}
+
 /* ================= User-page U/S mapping ================= */
 /* The boot identity map (first 2 MB, 4 KB pages) is all supervisor. To reach a
  * page from ring 3, U/S (bit 2) must be set at every level. We set it on the
