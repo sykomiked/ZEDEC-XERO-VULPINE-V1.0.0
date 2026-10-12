@@ -1972,9 +1972,9 @@ static void test_ext(void)
     zxvd_rpc_set_ops(&OPS);
     EXPECT(REQ("1", "x.echo", ""), ERR("1", "-32601", "method not found"));
     zxvd_rpc_add_methods(TAB, 5);
-    CHECK(has(REQ("1", "rpc.discover", ""),
-              "\"aipi.status\",\"x.echo\",\"x.need\",\"x.fail\",\"x.quiet\","
-              "\"zxvd.version\"]}"),
+    CHECK(has(REQ("1", "rpc.discover", ""), "\"aipi.status\",\"features.get\",\"features.set\",\"x."
+                                            "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
+                                            "\"zxvd.version\"]}"),
           "X1: listed after the built-ins: %s", OUT.p);
     EXPECT(REQ("2", "x.echo", ""), OK("2", "{\"s\":\"\",\"flag\":false}"));
     EXPECT(REQ("2", "x.echo", ",\"params\":{\"s\":\"abc\",\"flag\":true}"),
@@ -1998,12 +1998,14 @@ static void test_ext(void)
     CHECK(has(REQ("6", "zxvd.version", ""), "\"app\":\"9.8.7\"") && ext_calls == before,
           "X1: a built-in name wins: %s", OUT.p);
     CHECK(zxvd_rpc_add_methods(TAB, 1) == 0, "X1: re-adding a table held updates its count");
-    CHECK(has(REQ("7", "rpc.discover", ""), "\"aipi.status\",\"x.echo\"]}") &&
+    CHECK(has(REQ("7", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\",\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
           "X1: the count is the new one: %s", OUT.p);
     CHECK(zxvd_rpc_add_methods(TAB, 0) == -1 && zxvd_rpc_add_methods(NULL, 3) == -1,
           "X1: 0 or NULL adds nothing");
-    CHECK(has(REQ("8", "rpc.discover", ""), "\"aipi.status\",\"x.echo\"]}"),
+    CHECK(has(REQ("8", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\",\"x.echo\"]}"),
           "X1: a refused add leaves the tables as they were: %s", OUT.p);
 
     /* several tables: each add appends; the first added wins a shared name */
@@ -2020,7 +2022,8 @@ static void test_ext(void)
           "X1: four tables");
     CHECK(zxvd_rpc_add_methods(T5, 1) == -1, "X1: a fifth is refused");
     CHECK(has(REQ("9", "rpc.discover", ""),
-              "\"aipi.status\",\"x.echo\",\"x.num\",\"x.json\",\"x.echo\",\"x.zok\",\"x.books\","
+              "\"aipi.status\",\"features.get\",\"features.set\",\"x.echo\",\"x.num\",\"x.json\","
+              "\"x.echo\",\"x.zok\",\"x.books\","
               "\"y.one\",\"y.two\"]}"),
           "X1: every table's names, in the order added: %s", OUT.p);
     EXPECT(REQ("9", "x.echo", ""), OK("9", "{\"s\":\"\",\"flag\":false}"));
@@ -2029,7 +2032,8 @@ static void test_ext(void)
     zxvd_rpc_remove_methods(TAB);
     EXPECT(REQ("9", "x.echo", ""), OK("9", "\"second\""));
     CHECK(has(REQ("9", "rpc.discover", ""),
-              "\"aipi.status\",\"x.num\",\"x.json\",\"x.echo\",\"x.zok\",\"x.books\",\"y.one\","
+              "\"aipi.status\",\"features.get\",\"features.set\",\"x.num\",\"x.json\",\"x.echo\","
+              "\"x.zok\",\"x.books\",\"y.one\","
               "\"y.two\"]}"),
           "X1: removing one keeps the others in order: %s", OUT.p);
     zxvd_rpc_remove_methods(TAB); /* not held: ignored */
@@ -2094,7 +2098,7 @@ static void test_ext(void)
           "X7: the accounts are the books' own");
     zxvd_rpc_books_close();
     zxvd_rpc_clear_methods();
-    CHECK(has(REQ("13", "rpc.discover", ""), "\"aipi.status\"]}") &&
+    CHECK(has(REQ("13", "rpc.discover", ""), "\"features.set\"]}") &&
               has(REQ("13", "x.num", ""), "method not found") &&
               has(REQ("13", "y.two", ""), "method not found"),
           "X1: clear takes every table out");
@@ -2369,7 +2373,8 @@ static const zxvd_group_method_t G_A[] = {
 static const zxvd_group_method_t G_B[] = {{"gb.status", g_status, false}};
 static const zxvd_group_method_t G_DUP_CORE[] = {{"ledger.post", g_status, false}};
 static const zxvd_group_method_t G_DUP_GRP[] = {{"ga.echo", g_status, false}};
-static const zxvd_group_method_t G_DUP_SELF[] = {{"gc.x", g_status, false}, {"gc.x", g_status, false}};
+static const zxvd_group_method_t G_DUP_SELF[] = {{"gc.x", g_status, false},
+                                                 {"gc.x", g_status, false}};
 static const zxvd_group_method_t G_NULLFN[] = {{"gc.y", NULL, false}};
 static const zxvd_group_method_t G_EMPTY[] = {{"", g_status, false}};
 static const zxvd_group_method_t G_ONE[] = {{"gd.one", g_status, false}};
@@ -2538,6 +2543,94 @@ static void test_groups(void)
     zxvd_rpc_groups_reset();
 }
 
+/* X7: a switch is a record in the books file, replayed at start */
+static void restart_groups(const zxvd_group_t *a, const zxvd_group_t *b, const char *cli)
+{
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    CHECK(zxvd_rpc_add_group(a) == 0 && zxvd_rpc_add_group(b) == 0, "groups again");
+    if (cli) CHECK(zxvd_rpc_enable(cli) == 0, "--enable %s", cli);
+    CHECK(zxvd_rpc_books_open() == 0, "the books reopen with the switches");
+}
+
+static void test_feature_save(void)
+{
+    char tmpl[] = "/tmp/zxvdfeat.XXXXXX", path[200];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    const zxvd_group_t A = {"alpha", true, "a", G_A, 5, NULL};
+    const zxvd_group_t B = {"abcdefghijklmnopqrstuvw", false, "b", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&A) == 0 && zxvd_rpc_add_group(&B) == 0, "two groups");
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books on a file");
+    CHECK(has(REQ("1", "features.get", ""), "],\"saved\":true}"), "get says switches are saved");
+    CHECK(has(REQ("1", "books.file", ""), "\"records\":\"2\""), "nothing written yet");
+    EXPECT(REQ("2", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+           OK("2", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":true}"));
+    CHECK(has(REQ("2", "books.file", ""), "\"records\":\"2\""),
+          "an unchanged switch writes nothing");
+    EXPECT(REQ("3", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("3", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":true}"));
+    EXPECT(REQ("4", "features.set", ",\"params\":{\"feature\":\"abcdefghijklmnopqrstuvw\"}"),
+           OK("4", "{\"feature\":\"abcdefghijklmnopqrstuvw\",\"enabled\":true,\"regulated\":false,"
+                   "\"saved\":true}"));
+    CHECK(has(REQ("4", "books.file", ""), "\"records\":\"4\""), "two changes, two records");
+    long n;
+    char *f = slurp(path, &n);
+    CHECK(f && strstr(f, " {\"op\":\"feat\",\"name\":\"alpha\",\"on\":true}\n") &&
+              strstr(f, " {\"op\":\"feat\",\"name\":\"abcdefghijklmnopqrstuvw\",\"on\":true}\n"),
+          "the records are in the file");
+    free(f);
+    restart_groups(&A, &B, NULL);
+    CHECK(zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"),
+          "a restart keeps both on");
+    EXPECT(REQ("5", "ga.echo", ""), OK("5", "{\"s\":\"\",\"b\":0,\"i\":0,\"u\":0,\"a\":0}"));
+    EXPECT(REQ("6", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+           OK("6", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":true}"));
+    restart_groups(&A, &B, NULL);
+    CHECK(!zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"),
+          "the last record wins");
+    restart_groups(&A, &B, "alpha");
+    CHECK(zxvd_rpc_enabled("alpha"), "--enable wins over a saved off");
+    restart_groups(&A, &B, NULL);
+    CHECK(!zxvd_rpc_enabled("alpha"), "and was not saved");
+    /* a build without the feature skips its record */
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    CHECK(zxvd_rpc_add_group(&A) == 0 && zxvd_rpc_books_open() == 0,
+          "a record for a missing feature does not stop the start");
+    CHECK(!zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "and turns nothing on");
+    /* a damaged record stops the start */
+    const char *bad[] = {
+        "{\"op\":\"feat\",\"name\":\"alpha\"}",
+        "{\"op\":\"feat\",\"on\":true}",
+        "{\"op\":\"feat\",\"name\":\"alpha\",\"on\":1}",
+        "{\"op\":\"feat\",\"name\":7,\"on\":true}",
+        "{\"op\":\"feat\",\"name\":"
+        "\"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstu\",\"on\":"
+        "true}",
+    };
+    zxvd_rpc_books_close();
+    long keep;
+    char *orig = slurp(path, &keep);
+    for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
+        spit(path, orig, keep);
+        append_chained(path, bad[i]);
+        CHECK(zxvd_rpc_books_open() == -1, "bad feature record %u stops the start", i);
+        zxvd_rpc_books_close();
+    }
+    spit(path, orig, keep);
+    free(orig);
+    /* without a file: this run only */
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "no file");
+    EXPECT(REQ("7", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("7", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":false}"));
+    CHECK(has(REQ("7", "features.get", ""), "],\"saved\":false}"), "get says not saved");
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -2554,6 +2647,7 @@ int main(void)
     test_views();
     test_jurisdiction();
     test_groups();
+    test_feature_save();
     test_edges();
     test_ext();
     test_socket();

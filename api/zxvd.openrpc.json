@@ -3526,7 +3526,7 @@
     },
     {
       "name": "features.get",
-      "summary": "Every feature switch (zxvd_ext.h X3-X6): its name, whether it is on, whether it is regulated, and its method groups. All start off; a switch lasts for this run only.",
+      "summary": "Every feature switch (zxvd_ext.h X3-X7): its name, whether it is on, whether it is regulated, and its method groups. All start off; with a books file, features.set changes are saved and replayed at start.",
       "params": [],
       "result": {
         "name": "features",
@@ -3569,8 +3569,7 @@
             },
             "saved": {
               "type": "boolean",
-              "const": false,
-              "description": "X3: switches are not saved; --enable sets them at start"
+              "description": "X7: true when switch changes are saved in the books file"
             }
           }
         }
@@ -3579,7 +3578,7 @@
     },
     {
       "name": "features.set",
-      "summary": "Turn one feature on or off for this run (X3, X6: its engine keeps its state). Methods of an off feature answer -32012.",
+      "summary": "Turn one feature on or off (X3, X6: its engine keeps its state); saved in the books file when there is one (X7). Methods of an off feature answer -32012.",
       "params": [
         {
           "name": "feature",
@@ -3614,7 +3613,7 @@
             },
             "saved": {
               "type": "boolean",
-              "const": false
+              "description": "X7: true when the change was saved in the books file"
             }
           }
         }

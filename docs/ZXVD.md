@@ -238,8 +238,10 @@ into zxvd as method groups (`kernel/arch/hosted/zxvd_ext.h`), each behind a
 named feature switch. Every feature starts **off**. `zxvd --enable
 netting,cards` (or `--enable all`) turns features on at start;
 `features.set {"feature":"netting","enabled":true}` turns one on or off while
-zxvd runs. Switches are not saved: a restart is off again unless `--enable`
-says otherwise. While a feature is off its methods answer -32012 and do
+zxvd runs. With a books file, each `features.set` change is saved there as
+one record and replayed at start, so a restart keeps the owner's choice
+(`"saved": true`); without one it lasts for this run. `--enable` is never
+saved, and a saved "off" does not override it. While a feature is off its methods answer -32012 and do
 nothing, except status and description methods that move no money.
 `rpc.discover` lists every group's methods whether on or off, so the method
 list never depends on the switches.

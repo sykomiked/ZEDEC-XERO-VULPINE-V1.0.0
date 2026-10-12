@@ -23,8 +23,13 @@
  * FEATURE SWITCHES (features.get / features.set; zxvd --enable LIST)
  *   X3  Every feature starts OFF. zxvd --enable netting,cards (or "all")
  *       turns features on at start; features.set turns one on or off while
- *       zxvd runs. A switch lasts for this run only: it is not saved in the
- *       books file, so a restart is off again unless --enable says so.
+ *       zxvd runs. X7: with a books file (zxvd_rpc.h F1), each change made
+ *       by features.set is one "feat" record, written before it applies and
+ *       replayed at start, so a restart keeps the owner's choice; without a
+ *       file it lasts for this run only. --enable is never saved, and a
+ *       saved "off" never turns off a feature --enable named. A record for
+ *       a feature this build lacks is skipped; a malformed one stops zxvd
+ *       from starting, like any damaged record.
  *   X4  A method of a feature that is off answers ZXVD_E_OFF and does
  *       nothing, unless its table entry is marked `always` (status and
  *       read-only descriptions that move no money).

@@ -373,6 +373,30 @@ static int32_t bk_juris(bool open, uint32_t idx, const char *cc)
     return ZXV_OK;
 }
 
+/* X7: a feature switch, saved so a restart keeps the owner's choice */
+static const zxvd_group_t *GROUPS[ZXVD_EXT_MAX_GROUPS];
+static uint32_t N_GROUPS;
+static struct {
+    const char *name;
+    bool on, regulated;
+    bool cli; /* X3: --enable named it; a saved "off" does not override it */
+} FEAT[ZXVD_EXT_MAX_FEATURES];
+static uint32_t N_FEAT;
+static int32_t feat_index(const char *f, size_t n);
+
+static int32_t bk_feat(uint32_t f, bool on)
+{
+    int32_t st;
+    if (!writable(&st)) return st;
+    if (FEAT[f].on == on) return ZXV_OK;
+    zxvd_buf_t r = {0};
+    zxvd_buf_printf(&r, "{\"op\":\"feat\",\"name\":\"%s\",\"on\":%s}", FEAT[f].name,
+                    on ? "true" : "false");
+    if ((st = saved(&r)) != ZXV_OK) return st;
+    FEAT[f].on = on;
+    return ZXV_OK;
+}
+
 /* F4: apply one replayed record; NULL, or why it does not fit the books */
 static const char *bf_apply(const char *js, size_t n)
 {
@@ -439,6 +463,16 @@ static const char *bf_apply(const char *js, size_t n)
         JU_OPEN = !strcmp(m, "open");
         JU_IDX = (uint32_t) ix;
         memcpy(JU_CC, c2, strlen(c2) + 1);
+        return NULL;
+    }
+    if (w4_json_str_eq(js, &t[op], "feat")) {
+        int32_t on = w4_json_get(js, t, k, 0, "on");
+        bool v;
+        if (w4_json_get_str(js, t, k, 0, "name", a, sizeof a) < 0 || on < 0 ||
+            w4_json_bool(&t[on], &v) != W4_OK)
+            return "bad feature record";
+        int32_t f = feat_index(a, strlen(a)); /* a feature this build lacks is skipped */
+        if (f >= 0 && !FEAT[f].cli) FEAT[f].on = v;
         return NULL;
     }
     return "unknown op";
@@ -1500,14 +1534,6 @@ static void m_discover(call_t *c);
 static void m_features_get(call_t *c);
 static void m_features_set(call_t *c);
 
-static const zxvd_group_t *GROUPS[ZXVD_EXT_MAX_GROUPS];
-static uint32_t N_GROUPS;
-static struct {
-    const char *name;
-    bool on, regulated;
-} FEAT[ZXVD_EXT_MAX_FEATURES];
-static uint32_t N_FEAT;
-
 typedef struct {
     const char *name;
     void (*fn)(call_t *);
@@ -1624,7 +1650,7 @@ int zxvd_rpc_add_group(const zxvd_group_t *g)
         if (N_FEAT >= ZXVD_EXT_MAX_FEATURES) return -1;
         f = (int32_t) N_FEAT++;
         FEAT[f].name = g->feature;
-        FEAT[f].on = false; /* X3 */
+        FEAT[f].on = FEAT[f].cli = false; /* X3 */
     }
     FEAT[f].regulated = FEAT[f].regulated || g->regulated;
     GROUPS[N_GROUPS++] = g;
@@ -1639,13 +1665,13 @@ int zxvd_rpc_enable(const char *list)
         const char *e = strchr(p, ',');
         size_t n = e ? (size_t) (e - p) : strlen(p);
         if (n == 3 && !memcmp(p, "all", 3)) {
-            for (uint32_t i = 0; i < N_FEAT; i++) FEAT[i].on = true;
+            for (uint32_t i = 0; i < N_FEAT; i++) FEAT[i].on = FEAT[i].cli = true;
         } else if (n) {
             int32_t f = feat_index(p, n);
             if (f < 0)
                 rc = -1;
             else
-                FEAT[f].on = true;
+                FEAT[f].on = FEAT[f].cli = true;
         }
         p += n + (e ? 1 : 0);
     }
@@ -1685,7 +1711,7 @@ static void m_features_get(call_t *c)
             }
         zxvd_buf_raw(c->res, "]}", 2);
     }
-    zxvd_buf_raw(c->res, "],\"saved\":false}", 16); /* X3: this run only */
+    zxvd_buf_printf(c->res, "],\"saved\":%s}", CAP && BF_PATH[0] ? "true" : "false"); /* X7 */
 }
 
 static void m_features_set(call_t *c)
@@ -1695,11 +1721,15 @@ static void m_features_set(call_t *c)
     if (!p_str(c, "feature", name, sizeof name, true) || !p_bool(c, "enabled", true, &on)) return;
     int32_t f = feat_index(name, strlen(name));
     if (f < 0) return fail(c, E_PARAMS, "unknown feature \"%s\"", name);
-    FEAT[f].on = on; /* X6: the engine keeps its state */
+    if (CAP) { /* X7: a record in the books file (a no-op without one) */
+        if (!zok(c, bk_feat((uint32_t) f, on))) return;
+    } else {
+        FEAT[f].on = on; /* X6: the engine keeps its state */
+    }
     zxvd_buf_raw(c->res, "{\"feature\":", 11);
     zxvd_buf_json_str(c->res, FEAT[f].name);
-    zxvd_buf_printf(c->res, ",\"enabled\":%s,\"regulated\":%s,\"saved\":false}",
-                    on ? "true" : "false", FEAT[f].regulated ? "true" : "false");
+    zxvd_buf_printf(c->res, ",\"enabled\":%s,\"regulated\":%s,\"saved\":%s}", on ? "true" : "false",
+                    FEAT[f].regulated ? "true" : "false", CAP && BF_PATH[0] ? "true" : "false");
 }
 
 /* ----- the extension API (zxvd_ext.h P1-P3) ----- */
