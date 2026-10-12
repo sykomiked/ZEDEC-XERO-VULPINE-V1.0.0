@@ -304,7 +304,8 @@ int gematria_sentence_to_fock(gematria_t *g, const gem_sentence_t *sentence,
     /* Apply state collapse if period present */
     if (sentence->has_collapse) {
         /* Measurement: the vector is already determined, just mark it */
-        /* In real quantum: this would project onto an eigenstate */
+        /* Naming only: this is a classical vector, so there is no
+         * projection onto an eigenstate to perform. */
     }
 
     return 0;

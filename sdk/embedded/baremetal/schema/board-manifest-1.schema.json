@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/sdk/embedded/baremetal/schema/board-manifest-1.schema.json",
+  "title": "ZXV board manifest, version 1",
+  "description": "Describes one board to package the ZXV kernel for. Structure only: tools/zxv_board.py adds the cross-field rules (which arch boots with which firmware and console). Integers only; no floating-point numbers anywhere. License: Apache-2.0, Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC.",
+  "type": "object",
+  "required": ["format", "version", "board", "arch", "firmware", "console", "memory", "hw_profile"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "zxv-board-manifest"},
+    "version": {"const": 1},
+    "board": {
+      "type": "object",
+      "required": ["id", "vendor", "model"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"},
+        "vendor": {"$ref": "#/$defs/text"},
+        "model": {"$ref": "#/$defs/text"},
+        "revision": {"$ref": "#/$defs/text"}
+      }
+    },
+    "arch": {"enum": ["x86_64", "arm64", "riscv64"]},
+    "firmware": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["uefi", "devicetree"]},
+        "secure_boot": {"enum": ["off", "owner-signs"]},
+        "machine": {"enum": ["qemu-virt"]}
+      }
+    },
+    "console": {
+      "type": "object",
+      "required": ["framebuffer"],
+      "additionalProperties": false,
+      "properties": {
+        "serial": {
+          "type": "object",
+          "required": ["uart", "base", "baud"],
+          "additionalProperties": false,
+          "properties": {
+            "uart": {"enum": ["16550", "pl011", "ns16550a"]},
+            "base": {"$ref": "#/$defs/address"},
+            "baud": {"type": "integer", "minimum": 1200, "maximum": 4000000}
+          }
+        },
+        "framebuffer": {"enum": ["uefi-gop", "none"]}
+      }
+    },
+    "memory": {
+      "type": "object",
+      "required": ["ram_mib"],
+      "additionalProperties": false,
+      "properties": {
+        "ram_mib": {"type": "integer", "minimum": 1, "maximum": 16777216}
+      }
+    },
+    "hw_profile": {
+      "type": "object",
+      "required": ["digest"],
+      "additionalProperties": false,
+      "properties": {
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "file": {"type": "string", "minLength": 1, "maxLength": 255, "pattern": "^[A-Za-z0-9._/-]+\\.zhp$"},
+        "name": {"$ref": "#/$defs/text"}
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "esp_mib": {"type": "integer", "minimum": 33, "maximum": 4096}
+      }
+    },
+    "notes": {"type": "string", "maxLength": 2000}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001f\\u007f]+$"},
+    "address": {"type": "string", "pattern": "^0x[0-9a-f]{1,16}$"}
+  }
+}

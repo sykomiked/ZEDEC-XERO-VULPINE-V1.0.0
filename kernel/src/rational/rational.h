@@ -21,6 +21,9 @@
  * Overflow is DETECTED, never silent: every operation checks a 128-bit
  * intermediate and marks the result invalid rather than wrapping. A
  * spreadsheet that silently wraps is worse than one that says "too big".
+ * On targets without __int128 (32-bit arm and riscv) the same 128-bit
+ * steps are built from two 64-bit limbs, so results, and refusals, are
+ * identical on every target (test_rational_narrow.c checks this).
  *
  * Freestanding: integer only, no libc, no allocation.
  *
