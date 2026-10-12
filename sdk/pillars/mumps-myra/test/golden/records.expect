@@ -1,0 +1,43 @@
+# records.expect -- golden nodes: each line is decoded with examples/<schema>.gmap AND
+# examples/<schema>.myra, and must give the same status, canonical value and fields.
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# schema|reference|value|status|canonical value (ZXV_OK only)|field=display;... (ZXV_OK only)
+# All data is synthetic.
+payment|^ZXPAY(7,1)|FUND-ALICE^1000^NGN^0^1^67854^N|ZXV_OK|FUND-ALICE^1000^NGN^0^1^67854^N|batch=7;seq=1;ref=FUND-ALICE;amount=1000.00;ccy=NGN;from=0;to=1;value-date=2026-10-11;status=N;memo=
+payment|^ZXPAY(7,2)|PAY-0001^250.25^NGN^1^2^67854^N^^synthetic memo|ZXV_OK|PAY-0001^250.25^NGN^1^2^67854^N^^synthetic memo|amount=250.25;memo=synthetic memo
+payment|^ZXPAY(7,3)|PAY-0002^-.5^NGN^1^2|ZXV_OK|PAY-0002^-.5^NGN^1^2|amount=-0.50;value-date=;status=
+payment|^ZXPAY(7,4)|PAY-0003^.01^NGN^1^2^0^^^|ZXV_OK|PAY-0003^.01^NGN^1^2^0|amount=0.01;value-date=1840-12-31
+payment|^ZXPAY(7,5)|PAY-0004^9999999999999.99^NGN^9999999999^0^2980013|ZXV_OK|PAY-0004^9999999999999.99^NGN^9999999999^0^2980013|amount=9999999999999.99;from=9999999999;value-date=9999-12-31
+payment|^ZXPAY(7,6)|PAY-0005^-9999999999999.99^JPY^1^2^58133|ZXV_OK|PAY-0005^-9999999999999.99^JPY^1^2^58133|amount=-9999999999999.99;value-date=2000-02-29
+payment|^ZXPAY(999999999,999999999)|R^1^NGN^1^2|ZXV_OK|R^1^NGN^1^2|batch=999999999;seq=999999999;amount=1.00
+payment|^ZXPAY(-7,0)|R^1^NGN^1^2|ZXV_OK|R^1^NGN^1^2|batch=-7;seq=0
+payment|^ZXPAY(7)|67854^2^1250.25^TEST BATCH SEVEN|ZXV_OK|67854^2^1250.25^TEST BATCH SEVEN|batch=7;opened=2026-10-11;count=2;total=1250.25;name=TEST BATCH SEVEN
+payment|^ZXPAY(7)|67854^^^|ZXV_OK|67854|opened=2026-10-11;count=;total=;name=
+payment|^ZXPAY("B","PAY-0001",7,2)||ZXV_OK||ref=PAY-0001;batch=7;seq=2
+payment|^ZXPAY("B","1E3",7,2)||ZXV_OK||ref=1E3
+payment|^ZXPAY("B","say ""hi""",7,2)||ZXV_OK||ref=say "hi"
+payment|^ZXPAY(7,1)|PAY^12.50^NGN^1^2|ZM_E_DATA
+payment|^ZXPAY(7,1)|PAY^0.5^NGN^1^2|ZM_E_DATA
+payment|^ZXPAY(7,1)|PAY^1^NGN^1^2^67854.0|ZM_E_DATA
+payment|^ZXPAY(7,1)|PAY^1^NGN^1|ZM_E_DATA
+payment|^ZXPAY(7,1)|PAY^1^NGN^1^2^^^unused piece|ZM_E_DATA
+payment|^ZXPAY(7,1)|PAY^1.001^NGN^1^2|ZM_E_FIT
+payment|^ZXPAY(7,1)|PAY^1^NGN^1^2^2980014|ZM_E_FIT
+payment|^ZXPAY(7,1)|PAY-0000000000001^1^NGN^1^2|ZM_E_FIT
+payment|^ZXPAY(7,1)|PAY^1^NGN^1^2^^^^this memo is longer than forty bytes in total|ZM_E_FIT
+payment|^ZXPAY("B",1,7,2)||ZM_E_KEY
+payment|^ZXPAY(7,"1")|R^1^NGN^1^2|ZXV_OK|R^1^NGN^1^2|seq=1
+payment|^ZXPAY(7,1.0)|R^1^NGN^1^2|ZM_E_KEY
+payment|^ZXPAY(7,1,1)|R^1^NGN^1^2|ZM_E_KEY
+stock|^ZXSTK("NORTH",42)|SYNTHETIC WIDGET^120^3.0625^67854|ZXV_OK|SYNTHETIC WIDGET^120^3.0625^67854|site=NORTH;item=42;desc=SYNTHETIC WIDGET;qty=120;unit-cost=3.0625;received=2026-10-11
+stock|^ZXSTK("NORTH",42)|SYNTHETIC WIDGET^-3^.0001|ZXV_OK|SYNTHETIC WIDGET^-3^.0001|qty=-3;unit-cost=0.0001;received=
+stock|^ZXSTK("NORTH",42)|SYNTHETIC WIDGET^1^1.00005|ZM_E_FIT
+stock|^ZXSTK("NORTH",42,"LOT","L-01")|7^68000|ZXV_OK|7^68000|lot=L-01;qty=7;expires=2027-03-06
+stock|^ZXSTK("NORTH",42,"PRICE",67854)|12.5^^USD|ZXV_OK|12.5^^USD|effective=2026-10-11;price=12.50;ccy=USD
+stock|^ZXSTK("NORTH",42,"PRICE",67854)|12.5^x^USD|ZM_E_DATA
+stock|^ZXSTK("NORTH",42,"PRICE","2026-10-11")|12.5^^USD|ZM_E_KEY
+stock|^ZXSTK("NORTH",42,"COST",1)|1|ZM_E_KEY
+stock|^ZXSTK(1,42)|W^1|ZM_E_KEY
+stock|^ZXSTK("NORTHWEST1",42)|W^1|ZM_E_KEY

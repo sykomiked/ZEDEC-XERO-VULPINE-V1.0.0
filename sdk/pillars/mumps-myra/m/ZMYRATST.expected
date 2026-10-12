@@ -1,0 +1,47 @@
+# ZMYRATST.expected -- the output of m/ZMYRATST.m (make m compares it; "#" lines are dropped).
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+load payment.myra: handle 0
+load payment.gmap: handle 1
+load broken.myra: ZM_E_SYNTAX
+ledger: ZXV_OK
+accounts: bank 0, alice 1, bob 2
+^ZXPAY(7) node 2 ZXV_OK
+^ZXPAY(7,1) node 1 ZXV_OK
+  post entry 1
+^ZXPAY(7,2) node 1 ZXV_OK
+  post entry 2
+^ZXPAY(7,3) node 1 ZXV_OK
+  post ZXV_E_FUNDS
+^ZXPAY(7,4) node 1 ZXV_OK
+  post ZXV_E_DUPLICATE
+^ZXPAY(7,5) node 1 ZM_E_DATA: piece 2 (amount): "12.50" is not a number in M canonical form
+^ZXPAY(7,6) node 1 ZM_E_FIT: piece 2 (amount): 1.005 has more than 2 decimals (never rounded)
+^ZXPAY(7,7) node 1 ZXV_OK
+  post ZXV_E_CURRENCY
+^ZXPAY(7,"X") node - ZM_E_KEY: ^ZXPAY(7,"X") matches no node of ^ZXPAY: subscript 2: subscript "X" is a string; key seq is a number
+^ZXPAY("B","FUND-ALICE",7,1) node 3 ZXV_OK
+^ZXPAY("B","PAY-0001",7,2) node 3 ZXV_OK
+^ZXPAY("B","PAY-0001",7,4) node 3 ZXV_OK
+^ZXPAY("B","PAY-0002",7,3) node 3 ZXV_OK
+^ZXPAY("B","PAY-0003",7,5) node 3 ZXV_OK
+^ZXPAY("B","PAY-0004",7,6) node 3 ZXV_OK
+^ZXPAY("B","PAY-0005",7,7) node 3 ZXV_OK
+amount of ^ZXPAY(7,2): 250.25
+value-date: 2026-10-11 (M says 2026-10-11)
+index key ref: PAY-0001
+put status P: ZXV_OK -> FUND-ALICE^1000^NGN^0^1^67854^P
+put amount 0250.250: ZXV_OK -> PAY-0001^250.25^NGN^1^2^67854^N^^synthetic memo
+put amount 1/3: ZM_E_FIT (amount: 1/3 has no exact decimal with 2 places (never rounded))
+put memo a^b: ZM_E_DATA
+put on the refused ^ZXPAY(7,5): ZM_E_DATA
+after +$piece: PAY-0003^12.5^NGN^1^2^67854^N ZXV_OK
+  post entry 3
+post ^ZXPAY(8,1) by its reference: entry 4
+collate 10 vs 9: 1, "10" vs "9A": -1, -1 vs "": 1
+canonic .5 1, 0.5 0, 1E3 0
+equity (kobo): bank -100000, alice 73425, bob 26575
+ledger check: ZXV_OK
+revoke the poster cap: ZXV_OK
+post after revoke: ZXV_E_CAP
+done

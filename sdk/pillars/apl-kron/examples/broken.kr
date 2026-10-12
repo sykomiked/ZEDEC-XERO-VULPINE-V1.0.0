@@ -1,0 +1,7 @@
+kron
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+; broken.kr — canonical KRON with an unknown head: `zkron check` refuses it
+; with a line and column. The test suite requires this file to fail.
+(let x (vec 1 2 3))
+(frobnicate x)

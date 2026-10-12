@@ -1,0 +1,39 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# decimals.golden - decimal extremes, exactly.
+layout decimals.ads
+same decimals.eve
+type mix
+# 1 + 8 + 8 + 2 + 8
+size 27
+put u -9
+put a 0.999999999999999999
+put b -999999999999999999
+put r -1
+put c 9999999999999999.99
+get u -9
+get a 0.999999999999999999
+get b -999999999999999999
+get r -1.0000
+get c 9999999999999999.99
+rat a 999999999999999999/1000000000000000000
+rat r -1/1
+bytes f70de0b6b3a763fffff21f494c589c0001d8f00de0b6b3a763ffff
+put-fail u 10 ZE_E_FIT
+put-fail u 0.5 ZE_E_FIT
+put-fail a 1 ZE_E_FIT
+put-fail a 0.0000000000000000001 ZE_E_FIT
+put-fail b 1000000000000000000 ZE_E_FIT
+put-fail r 1.00001 ZE_E_FIT
+put-fail r 1/3 ZE_E_FIT
+put-fail c 10000000000000000 ZE_E_FIT
+put a 1/1000000000000000000
+get a 0.000000000000000001
+put r 0.0001
+put r -1/8
+get r -0.1250
+put c 0.10
+put c 1/20
+get c 0.05
+check

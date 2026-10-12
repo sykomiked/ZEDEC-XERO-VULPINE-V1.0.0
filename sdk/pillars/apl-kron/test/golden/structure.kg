@@ -1,0 +1,290 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# Structure: iota, shape, reshape, ravel, reverse, rotate, transpose,
+# take, drop, catenate, index, find, grade and sort. ⎕IO is 0.
+
+=== iota
+apl: ⍳5
+k: !5
+py: iota(5)
+
+=== iota-zero
+apl: ⍳0
+k: !0
+py: vec()
+
+=== iota-negative
+apl: ⍳¯1
+k: !-1
+refuse: KR_E_DOMAIN
+
+=== iota-fraction
+apl: ⍳1r2
+refuse: KR_E_DOMAIN
+
+=== iota-vector
+apl: ⍳2 3
+k: !2 3
+refuse: KR_E_RANK
+
+=== shape
+apl: ⍴2 3⍴⍳6
+canon: (shape (reshape (vec 2 3) (iota 6)))
+py: vec(2, 3)
+
+=== shape-scalar
+apl: ⍴5
+py: vec()
+
+=== tally
+apl: ≢3 4⍴0
+k: #3 4#0
+py: F(3)
+
+=== tally-scalar
+apl: ≢5
+k: #5
+py: F(1)
+
+=== reshape-cycle
+apl: 2 3⍴1 2
+k: 2 3#1 2
+py: mat([[1, 2, 1], [2, 1, 2]])
+
+=== reshape-vector
+apl: 5⍴1 2
+k: 5#1 2
+py: vec(1, 2, 1, 2, 1)
+
+=== reshape-fill
+apl: 3⍴⍬
+k: 3#()
+py: vec(0, 0, 0)
+
+=== reshape-scalar
+apl: (0⍴0)⍴7 8
+py: F(7)
+
+=== reshape-negative
+apl: ¯2⍴1 2 3
+k: -2#1 2 3
+refuse: KR_E_DOMAIN
+
+=== reshape-rank3
+apl: 2 2 2⍴1
+refuse: KR_E_RANK
+
+=== ravel
+apl: ,2 2⍴1 2 3 4
+k: ravel 2 2#1 2 3 4
+py: vec(1, 2, 3, 4)
+
+=== reverse
+apl: ⌽1 2 3
+k: |1 2 3
+py: vec(3, 2, 1)
+
+=== reverse-rows-apl
+apl: ⌽2 3⍴⍳6
+py: mat([[2, 1, 0], [5, 4, 3]])
+
+=== reverse-first-axis
+apl: ⊖2 3⍴⍳6
+k: |2 3#!6
+py: mat([[3, 4, 5], [0, 1, 2]])
+
+=== rotate
+apl: 2⌽⍳5
+k: 2 rotate !5
+py: vec(2, 3, 4, 0, 1)
+
+=== rotate-negative
+apl: ¯1⌽⍳5
+py: vec(4, 0, 1, 2, 3)
+
+=== rotate-rows
+apl: 1⌽2 3⍴⍳6
+py: mat([[1, 2, 0], [4, 5, 3]])
+
+=== transpose
+apl: ⍉2 3⍴⍳6
+k: +2 3#!6
+py: mat([[0, 3], [1, 4], [2, 5]])
+
+=== transpose-vector
+apl: ⍉1 2 3
+k: +1 2 3
+py: vec(1, 2, 3)
+
+=== take
+apl: 3↑⍳5
+k: 3 take !5
+py: vec(0, 1, 2)
+
+=== take-over
+apl: 5↑1 2
+py: vec(1, 2, 0, 0, 0)
+
+=== take-negative
+apl: ¯2↑⍳5
+py: vec(3, 4)
+
+=== take-negative-over
+apl: ¯4↑1 2
+py: vec(0, 0, 1, 2)
+
+=== take-matrix
+apl: 2 2↑3 3⍴⍳9
+py: mat([[0, 1], [3, 4]])
+
+=== take-rows
+apl: 1↑3 3⍴⍳9
+py: mat([[0, 1, 2]])
+
+=== take-truth-over
+apl: 3↑true false
+refuse: KR_E_DOMAIN
+
+=== drop
+apl: 2↓⍳5
+k: 2_!5
+py: vec(2, 3, 4)
+
+=== drop-negative
+apl: ¯2↓⍳5
+k: (-2)_!5
+py: vec(0, 1, 2)
+
+=== drop-all
+apl: 9↓⍳5
+k: 9_!5
+py: vec()
+
+=== drop-rows
+apl: 1↓3 2⍴⍳6
+k: 1_3 2#!6
+py: mat([[2, 3], [4, 5]])
+
+=== catenate
+apl: 1 2,3 4 5
+k: 1 2,3 4 5
+py: vec(1, 2, 3, 4, 5)
+
+=== catenate-scalars
+apl: 1,2
+k: 1,2
+py: vec(1, 2)
+
+=== catenate-columns
+apl: (2 2⍴⍳4),9
+py: mat([[0, 1, 9], [2, 3, 9]])
+
+=== catenate-rows
+apl: (2 2⍴⍳4)⍪7 8
+k: (2 2#!4),7 8
+py: mat([[0, 1], [2, 3], [7, 8]])
+
+=== catenate-matrices
+apl: (2 2⍴⍳4),2 1⍴5 6
+py: mat([[0, 1, 5], [2, 3, 6]])
+
+=== catenate-length
+apl: (2 2⍴⍳4),1 2 3
+refuse: KR_E_LENGTH
+
+=== catenate-kinds
+apl: 1 2,true
+refuse: KR_E_DOMAIN
+
+=== index
+apl: 10 20 30 40[2 0]
+k: 10 20 30 40@2 0
+py: vec(30, 10)
+
+=== index-bracket-k
+k: 10 20 30 40[2 0]
+py: vec(30, 10)
+
+=== index-scalar
+apl: 10 20 30[1]
+k: 10 20 30@1
+py: F(20)
+
+=== index-matrix-rows
+apl: (3 2⍴⍳6)[2 0]
+k: (3 2#!6)@2 0
+py: mat([[4, 5], [0, 1]])
+
+=== index-out-of-range
+apl: 1 2 3[3]
+k: 1 2 3@3
+refuse: KR_E_INDEX
+
+=== index-fraction
+apl: 1 2 3[1r2]
+refuse: KR_E_DOMAIN
+
+=== index2
+apl: (3 3⍴⍳9)[1;2]
+py: F(5)
+
+=== index2-column
+apl: (3 3⍴⍳9)[;1]
+py: vec(1, 4, 7)
+
+=== index2-row
+apl: (3 3⍴⍳9)[2;]
+py: vec(6, 7, 8)
+
+=== index2-block
+apl: (3 3⍴⍳9)[0 2;1 2]
+py: mat([[1, 2], [7, 8]])
+
+=== index2-vector
+apl: 1 2 3[0;0]
+refuse: KR_E_RANK
+
+=== find
+apl: 5 3 9 3⍳3 7 9
+k: 5 3 9 3?3 7 9
+py: vec(1, 4, 2)
+
+=== find-rational
+apl: 1r2 1r3⍳0.5
+py: F(0)
+
+=== grade-up
+apl: ⍋3 1 4 1 5
+k: <3 1 4 1 5
+py: vec(1, 3, 0, 2, 4)
+
+=== grade-down
+apl: ⍒3 1 4 1 5
+k: >3 1 4 1 5
+py: vec(4, 2, 0, 1, 3)
+
+=== grade-rationals
+apl: ⍋1r2 1r3 2r3 ¯1r7
+py: vec(3, 1, 0, 2)
+
+=== grade-rows
+apl: ⍋3 2⍴2 1 1 9 1 2
+py: vec(2, 1, 0)
+
+=== grade-truth
+apl: ⍋true false
+refuse: KR_E_DOMAIN
+
+=== sort-apl
+apl: x[⍋x←5 2 8 2r3]
+k: x@<x:5 2 8 2r3
+py: vec(F(2, 3), 2, 5, 8)
+
+=== sort-k
+k: sort 5 2 8 2r3
+canon: (sort (vec 5 2 8 2r3))
+py: vec(F(2, 3), 2, 5, 8)
+
+=== sort-big
+apl: x[⍋x←9223372036854775807 ¯9223372036854775807 1r9223372036854775807]
+py: vec(-I64, F(1, I64), I64)

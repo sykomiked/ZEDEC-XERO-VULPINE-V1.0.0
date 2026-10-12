@@ -1,0 +1,122 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# GitHub Actions jobs for sdk/pillars/apl-kron, to paste under `jobs:` in
+# .github/workflows/sdk-pillars.yml (same shape as the fortran-trebago jobs):
+#   apl-kron            C library, zkron tool and tests, golden programs
+#                       (expected values from Python fractions), APL/K
+#                       equivalence, fuzz smoke run, R11 check, demo
+#                       (ubuntu-24.04 gcc and clang, macos-14 clang)
+#   apl-kron-sanitize   ASan + UBSan (gcc and clang), the fuzzer at
+#                       4 x 250k inputs, libFuzzer for 60 s (clang)
+#   apl-kron-bindings   the ngn/k and GNU APL bindings on ubuntu-24.04:
+#                       ngn/k built from a pinned commit (with -Wl,-E for
+#                       2: extensions), GNU APL 2.0 from ftp.gnu.org
+#                       (checksum pinned); each test also runs programs
+#                       through the interpreter itself and compares
+
+  apl-kron:
+    name: apl-kron ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/pillars/apl-kron
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: Unit, golden, equivalence and posting tests, fuzz smoke run, R11 check
+        run: make CC=${{ matrix.cc }} PYTHON=python test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} PYTHON=python demo
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  apl-kron-sanitize:
+    name: apl-kron ASan + UBSan ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/pillars/apl-kron
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (library, tool and tests)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k inputs, 4 spellings, parse + canonical + eval)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            KR_FUZZ_SEED=$seed make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        if: matrix.cc == 'clang'
+        run: make PYTHON=python fuzz-libfuzzer
+
+  apl-kron-bindings:
+    name: apl-kron ngn/k + GNU APL bindings
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: sdk/pillars/apl-kron
+    env:
+      NGNK_COMMIT: b9eeb91e0343ef6029f59d55dd98f82667b9bd59
+      GNUAPL_SHA256: 24bbb744fce47e62837234a053bdeecee51b9ea61c82c79f7cc191bc6a54c0a1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: Build ngn/k (pinned commit, exported symbols for 2:)
+        run: |
+          git init -q "$RUNNER_TEMP/ngnk"
+          git -C "$RUNNER_TEMP/ngnk" fetch -q --depth 1 https://codeberg.org/ngn/k "$NGNK_COMMIT"
+          git -C "$RUNNER_TEMP/ngnk" checkout -q FETCH_HEAD
+          make -C "$RUNNER_TEMP/ngnk" a N=k R=k O='-O2' L='-lm -ldl -Wl,-E' CC=clang
+          printf '`0:$1+1\n' > "$RUNNER_TEMP/one.k"
+          "$RUNNER_TEMP/ngnk/k" "$RUNNER_TEMP/one.k"
+      - name: Build GNU APL 2.0 (checksum pinned)
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o apl-2.0.tar.gz https://ftp.gnu.org/gnu/apl/apl-2.0.tar.gz
+          echo "$GNUAPL_SHA256  apl-2.0.tar.gz" | sha256sum -c -
+          tar xzf apl-2.0.tar.gz
+          cd apl-2.0
+          ./configure --prefix="$RUNNER_TEMP/gnuapl" > configure.log
+          make -j"$(nproc)" > make.log
+          make install > install.log
+      - name: ngn/k binding (values, refusals, 31 programs compared with ngn/k itself)
+        run: make PYTHON=python NGNK="$RUNNER_TEMP/ngnk/k" NGNK_SRC="$RUNNER_TEMP/ngnk" bindings-k
+      - name: GNU APL binding (values, errors, 42 programs compared with GNU APL itself)
+        run: make PYTHON=python GNUAPL="$RUNNER_TEMP/gnuapl/bin/apl" GNUAPL_SRC="$RUNNER_TEMP/apl-2.0" bindings-apl
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"

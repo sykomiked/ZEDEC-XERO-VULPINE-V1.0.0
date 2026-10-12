@@ -1,0 +1,6 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# must be refused: names are case-insensitive, as in Ada.
+eve refuse_dup
+total = 0 .. 9
+TOTAL = 0 .. 99

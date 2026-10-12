@@ -54,7 +54,41 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Which pillars this run tests: on a pull request only the pillars it
+  # changed, or all of them when libzxv, the kernel, the shared no-float
+  # check or this workflow changed. Skipped jobs use no runner.
+  changes:
+    name: changed pillars
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      ada_eve: ${{ steps.p.outputs.ada_eve }}
+      apl_kron: ${{ steps.p.outputs.apl_kron }}
+      cobol_sutra: ${{ steps.p.outputs.cobol_sutra }}
+      fortran_trebago: ${{ steps.p.outputs.fortran_trebago }}
+      mumps_myra: ${{ steps.p.outputs.mumps_myra }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: p
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          all=true; changed=""
+          if [ -n "$BASE" ]; then
+            changed="$(git diff --name-only "$BASE" HEAD)"
+            printf '%s\n' "$changed" | grep -qE '^(sdk/libzxv/|kernel/src/|kernel/third_party/|sdk/kits/z-wasm/tools/check_nofloat\.py$|\.github/workflows/sdk-pillars\.yml$)' || all=false
+          fi
+          for p in ada-eve apl-kron cobol-sutra fortran-trebago mumps-myra; do
+            run=false
+            if [ -d "sdk/pillars/$p" ] && { [ "$all" = true ] || printf '%s\n' "$changed" | grep -q "^sdk/pillars/$p/"; }; then run=true; fi
+            echo "${p//-/_}=$run" | tee -a "$GITHUB_OUTPUT"
+          done
+
   pillars:
+    needs: changes
+    if: needs.changes.outputs.cobol_sutra == 'true'
     name: ${{ matrix.pillar }} ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -86,6 +120,8 @@ jobs:
           test -z "$(git status --porcelain)"
 
   pillars-sanitize:
+    needs: changes
+    if: needs.changes.outputs.cobol_sutra == 'true'
     name: ${{ matrix.pillar }} ASan + UBSan ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -119,6 +155,8 @@ jobs:
         run: make PYTHON=python fuzz-libfuzzer
 
   pillars-gnucobol:
+    needs: changes
+    if: needs.changes.outputs.cobol_sutra == 'true'
     name: cobol-sutra GnuCOBOL interop
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -144,6 +182,8 @@ jobs:
         run: make PYTHON=python build/test_golden && build/test_golden
 
   fortran-trebago:
+    needs: changes
+    if: needs.changes.outputs.fortran_trebago == 'true'
     name: fortran-trebago ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -195,6 +235,8 @@ jobs:
           test -z "$(git status --porcelain)"
 
   fortran-trebago-sanitize:
+    needs: changes
+    if: needs.changes.outputs.fortran_trebago == 'true'
     name: fortran-trebago ASan + UBSan ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -233,3 +275,315 @@ jobs:
       - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
         if: matrix.cc == 'clang'
         run: make PYTHON=python fuzz-libfuzzer
+
+  # ada-eve (sdk/pillars/ada-eve/ci-jobs.yml)
+  ada-eve:
+    needs: changes
+    if: needs.changes.outputs.ada_eve == 'true'
+    name: ada-eve ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc, ada: '1' }
+          - { os: ubuntu-24.04, cc: clang, ada: '1' }
+          - { os: macos-14, cc: clang, ada: '0' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/pillars/ada-eve
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install GNAT (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnat
+          gnatmake --version | head -n 1
+      - run: make -C ../../libzxv all
+      - name: C and Ada tests, golden scripts, GNAT comparison, fuzz smoke run, R11 checks
+        run: make CC=${{ matrix.cc }} ADA=${{ matrix.ada }} PYTHON=python test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} ADA=${{ matrix.ada }} PYTHON=python demo
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  ada-eve-sanitize:
+    needs: changes
+    if: needs.changes.outputs.ada_eve == 'true'
+    name: ada-eve ASan + UBSan ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # GNAT and gcc share one libasan, so the Ada half runs sanitized
+          # with gcc; with clang only the C half is sanitized
+          - { cc: gcc, ada: '1' }
+          - { cc: clang, ada: '0' }
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/pillars/ada-eve
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install GNAT
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnat
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (library, tests and, with gcc, the Ada binding)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} ADA=${{ matrix.ada }} SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k inputs, both front ends, printers, codecs)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            ZE_FUZZ_SEED=$seed make CC=${{ matrix.cc }} ADA=0 SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        if: matrix.cc == 'clang'
+        run: make PYTHON=python fuzz-libfuzzer
+
+  ada-eve-prove:
+    needs: changes
+    if: needs.changes.outputs.ada_eve == 'true'
+    name: ada-eve SPARK proof (Zxv.Fixed)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/pillars/ada-eve
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install GNAT
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnat
+      - name: gnatprove 14.1.1 through Alire 2.0.2
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o alr.zip https://github.com/alire-project/alire/releases/download/v2.0.2/alr-2.0.2-bin-x86_64-linux.zip
+          unzip -q alr.zip -d alire
+          ./alire/bin/alr -n get gnatprove=14.1.1
+          echo "$PWD/$(ls -d gnatprove_14.1.1_*)/bin" >> "$GITHUB_PATH"
+      - run: gnatprove --version
+      - name: Prove Zxv.Fixed (level 2, every check must be proved)
+        run: make prove
+
+  # apl-kron (sdk/pillars/apl-kron/ci-jobs.yml)
+  apl-kron:
+    needs: changes
+    if: needs.changes.outputs.apl_kron == 'true'
+    name: apl-kron ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/pillars/apl-kron
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: Unit, golden, equivalence and posting tests, fuzz smoke run, R11 check
+        run: make CC=${{ matrix.cc }} PYTHON=python test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} PYTHON=python demo
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  apl-kron-sanitize:
+    needs: changes
+    if: needs.changes.outputs.apl_kron == 'true'
+    name: apl-kron ASan + UBSan ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/pillars/apl-kron
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (library, tool and tests)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k inputs, 4 spellings, parse + canonical + eval)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            KR_FUZZ_SEED=$seed make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        if: matrix.cc == 'clang'
+        run: make PYTHON=python fuzz-libfuzzer
+
+  apl-kron-bindings:
+    needs: changes
+    if: needs.changes.outputs.apl_kron == 'true'
+    name: apl-kron ngn/k + GNU APL bindings
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: sdk/pillars/apl-kron
+    env:
+      NGNK_COMMIT: b9eeb91e0343ef6029f59d55dd98f82667b9bd59
+      GNUAPL_SHA256: 24bbb744fce47e62837234a053bdeecee51b9ea61c82c79f7cc191bc6a54c0a1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: Build ngn/k (pinned commit, exported symbols for 2:)
+        run: |
+          git init -q "$RUNNER_TEMP/ngnk"
+          git -C "$RUNNER_TEMP/ngnk" fetch -q --depth 1 https://codeberg.org/ngn/k "$NGNK_COMMIT"
+          git -C "$RUNNER_TEMP/ngnk" checkout -q FETCH_HEAD
+          make -C "$RUNNER_TEMP/ngnk" a N=k R=k O='-O2' L='-lm -ldl -Wl,-E' CC=clang
+          printf '`0:$1+1\n' > "$RUNNER_TEMP/one.k"
+          "$RUNNER_TEMP/ngnk/k" "$RUNNER_TEMP/one.k"
+      - name: Build GNU APL 2.0 (checksum pinned)
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o apl-2.0.tar.gz https://ftp.gnu.org/gnu/apl/apl-2.0.tar.gz
+          echo "$GNUAPL_SHA256  apl-2.0.tar.gz" | sha256sum -c -
+          tar xzf apl-2.0.tar.gz
+          cd apl-2.0
+          ./configure --prefix="$RUNNER_TEMP/gnuapl" > configure.log
+          make -j"$(nproc)" > make.log
+          make install > install.log
+      - name: ngn/k binding (values, refusals, 31 programs compared with ngn/k itself)
+        run: make PYTHON=python NGNK="$RUNNER_TEMP/ngnk/k" NGNK_SRC="$RUNNER_TEMP/ngnk" bindings-k
+      - name: GNU APL binding (values, errors, 42 programs compared with GNU APL itself)
+        run: make PYTHON=python GNUAPL="$RUNNER_TEMP/gnuapl/bin/apl" GNUAPL_SRC="$RUNNER_TEMP/apl-2.0" bindings-apl
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  # mumps-myra (sdk/pillars/mumps-myra/ci-jobs.yml)
+  mumps-myra:
+    needs: changes
+    if: needs.changes.outputs.mumps_myra == 'true'
+    name: mumps-myra ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/pillars/mumps-myra
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: Unit, golden, collation and posting tests, fuzz smoke run, R11 check
+        run: make CC=${{ matrix.cc }} PYTHON=python test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} PYTHON=python demo
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  mumps-myra-sanitize:
+    needs: changes
+    if: needs.changes.outputs.mumps_myra == 'true'
+    name: mumps-myra ASan + UBSan ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/pillars/mumps-myra
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (library, tool and tests)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k inputs, 3 parsers + codec each)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            ZM_FUZZ_SEED=$seed make CC=${{ matrix.cc }} SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        if: matrix.cc == 'clang'
+        run: make PYTHON=python fuzz-libfuzzer
+
+  mumps-myra-gtm:
+    needs: changes
+    if: needs.changes.outputs.mumps_myra == 'true'
+    name: mumps-myra GT.M interop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/pillars/mumps-myra
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install GT.M (Ubuntu's fis-gtm package)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fis-gtm
+          ls -d /usr/lib/x86_64-linux-gnu/fis-gtm/V*_x86_64
+      - run: make -C ../../libzxv all
+      - name: M routine posts a real global through libzmyra; GT.M cross-checks collation, numbers and dates
+        run: make PYTHON=python m
+      - name: Golden-file tests (the files GT.M just matched)
+        run: make PYTHON=python build/test_golden && build/test_golden

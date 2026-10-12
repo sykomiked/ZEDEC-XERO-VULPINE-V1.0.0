@@ -1,0 +1,72 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# Outer and inner products: APL ∘.f and f.g; K's each-left x f\: y.
+
+=== times-table
+apl: (1+⍳3)∘.×1+⍳4
+k: (1+!3)*\:1+!4
+py: mat([[i * j for j in range(1, 5)] for i in range(1, 4)])
+
+=== outer-compare
+apl: 1 2 3∘.<1 2 3
+k: 1 2 3<\:1 2 3
+py: mat([[T if i < j else Fa for j in (1, 2, 3)] for i in (1, 2, 3)])
+
+=== outer-scalar
+apl: 2∘.+1 2
+py: vec(3, 4)
+
+=== outer-rank3
+apl: (2 2⍴1)∘.+1 2
+k: (2 2#1)+\:1 2
+refuse: KR_E_RANK
+
+=== hilbert-4
+apl: ÷1+(⍳4)∘.+⍳4
+k: recip 1+(!4)+\:!4
+py: mat([[F(1, i + j + 1) for j in range(4)] for i in range(4)])
+
+=== hilbert-row-sums-8
+apl: +/÷1+(⍳8)∘.+⍳8
+py: vec(*[foldr("add", [F(1, i + j + 1) for j in range(8)]) for i in range(8)])
+
+=== matrix-product
+apl: (2 2⍴1 2 3 4)+.×2 2⍴5 6 7 8
+canon: (inner add mul (reshape (vec 2 2) (vec 1 2 3 4)) (reshape (vec 2 2) (vec 5 6 7 8)))
+py: mat([[19, 22], [43, 50]])
+
+=== matrix-vector
+apl: (2 3⍴⍳6)+.×1 1 1
+py: vec(3, 12)
+
+=== vector-matrix
+apl: 1 1+.×2 3⍴⍳6
+py: vec(3, 5, 7)
+
+=== vector-dot
+apl: 1r2 1r3+.×2 3
+py: F(2)
+
+=== inner-max-min
+apl: (2 2⍴1 5 3 2)⌈.⌊2 2⍴4 1 2 6
+py: m_inner("max", "min", mat([[1, 5], [3, 2]]), mat([[4, 1], [2, 6]]))
+
+=== inner-and-eq
+apl: (2 2⍴1 2 3 4)∧.=2 2⍴1 3 2 4
+py: m_inner("and", "eq", mat([[1, 2], [3, 4]]), mat([[1, 3], [2, 4]]))
+
+=== inner-length
+apl: (2 3⍴⍳6)+.×1 2
+refuse: KR_E_LENGTH
+
+=== inner-scalar
+apl: 2+.×1 2
+refuse: KR_E_RANK
+
+=== hilbert-inverse-check
+apl: h←÷1+(⍳3)∘.+⍳3 ⋄ hi←3 3⍴9 ¯36 30 ¯36 192 ¯180 30 ¯180 180 ⋄ h+.×hi
+py: mat([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+
+=== matrix-power-overflow
+apl: m←2 2⍴3037000500 0 0 1 ⋄ m+.×m
+refuse: ZXV_E_RANGE

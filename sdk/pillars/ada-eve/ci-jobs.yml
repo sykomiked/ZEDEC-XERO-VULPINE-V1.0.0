@@ -1,0 +1,119 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# GitHub Actions jobs for sdk/pillars/ada-eve, to paste under `jobs:` in
+# .github/workflows/sdk-pillars.yml (same shape as the fortran-trebago jobs):
+#   ada-eve             C library, zeve tool and tests, golden scripts, fuzz
+#                       smoke run, R11 checks (C and Ada), and with GNAT the
+#                       Ada conformance tests (vectors.json), the layout
+#                       tests, the fail-closed exit-70 test, the
+#                       compile-fail tests and the GNAT golden comparison;
+#                       demo (ubuntu-24.04 gcc and clang with GNAT from apt;
+#                       macos-14 clang runs the C half only: there is no
+#                       GNAT in Homebrew's core formulae)
+#   ada-eve-sanitize    ASan + UBSan (gcc: the C half and the Ada programs,
+#                       which GNAT links against the same libasan; clang:
+#                       the C half), the fuzzer at 4 x 250k inputs, and
+#                       libFuzzer for 60 s (clang)
+#   ada-eve-prove       gnatprove 14.1.1 (from Alire 2.0.2) on Zxv.Fixed,
+#                       the SPARK part of the binding
+
+  ada-eve:
+    name: ada-eve ${{ matrix.os }} ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc, ada: '1' }
+          - { os: ubuntu-24.04, cc: clang, ada: '1' }
+          - { os: macos-14, cc: clang, ada: '0' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/pillars/ada-eve
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install GNAT (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnat
+          gnatmake --version | head -n 1
+      - run: make -C ../../libzxv all
+      - name: C and Ada tests, golden scripts, GNAT comparison, fuzz smoke run, R11 checks
+        run: make CC=${{ matrix.cc }} ADA=${{ matrix.ada }} PYTHON=python test
+      - name: Demo
+        run: make CC=${{ matrix.cc }} ADA=${{ matrix.ada }} PYTHON=python demo
+      - name: Build output stays out of git
+        working-directory: .
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  ada-eve-sanitize:
+    name: ada-eve ASan + UBSan ${{ matrix.cc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # GNAT and gcc share one libasan, so the Ada half runs sanitized
+          # with gcc; with clang only the C half is sanitized
+          - { cc: gcc, ada: '1' }
+          - { cc: clang, ada: '0' }
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: sdk/pillars/ada-eve
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install GNAT
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnat
+      - run: make -C ../../libzxv all
+      - name: ASan + UBSan (library, tests and, with gcc, the Ada binding)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} ADA=${{ matrix.ada }} SANITIZE=1 OUT=build/san PYTHON=python test
+      - name: Mutation fuzzer under ASan + UBSan (4 x 250k inputs, both front ends, printers, codecs)
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          for seed in 1 2 3 4; do
+            ZE_FUZZ_SEED=$seed make CC=${{ matrix.cc }} ADA=0 SANITIZE=1 OUT=build/san PYTHON=python fuzz FUZZ_ITERS=250000
+          done
+      - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
+        if: matrix.cc == 'clang'
+        run: make PYTHON=python fuzz-libfuzzer
+
+  ada-eve-prove:
+    name: ada-eve SPARK proof (Zxv.Fixed)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/pillars/ada-eve
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install GNAT
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnat
+      - name: gnatprove 14.1.1 through Alire 2.0.2
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o alr.zip https://github.com/alire-project/alire/releases/download/v2.0.2/alr-2.0.2-bin-x86_64-linux.zip
+          unzip -q alr.zip -d alire
+          ./alire/bin/alr -n get gnatprove=14.1.1
+          echo "$PWD/$(ls -d gnatprove_14.1.1_*)/bin" >> "$GITHUB_PATH"
+      - run: gnatprove --version
+      - name: Prove Zxv.Fixed (level 2, every check must be proved)
+        run: make prove

@@ -1,0 +1,16 @@
+--  Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+--  SPDX-License-Identifier: Apache-2.0
+--
+--  gnatprove project for the SPARK part of the binding (Zxv.Fixed).
+--  `make prove` runs: gnatprove -P ada/prove.gpr -u zxv-fixed.adb
+project Prove is
+   for Source_Dirs use (".");
+   for Source_Files use ("zxv.ads", "zxv-fixed.ads", "zxv-fixed.adb");
+   for Object_Dir use "../build/prove";
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2012");
+   end Compiler;
+   package Prove is
+      for Proof_Switches ("Ada") use ("--level=2", "--checks-as-errors=on", "--report=statistics");
+   end Prove;
+end Prove;
