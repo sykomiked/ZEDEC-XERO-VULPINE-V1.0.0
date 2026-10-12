@@ -40,12 +40,13 @@ typedef socklen_t nlen_t;
 #include "vna_node.h"
 #include "vna_link.h"
 #include "vna_lan.h"
+#include "vna_space.h"
 
 #define POOL_CAP    256u
 #define KC_CAP      48u
 #define RP_CAP      64u
 #define DD_CAP      64u
-#define STORE_CAP   16u
+#define STORE_CAP   64u
 #define ADDR_LEN    6u
 #define READ_BURST  64u
 #define TICK_MS     100u
@@ -58,6 +59,7 @@ typedef socklen_t nlen_t;
 #define LEASE_CAP   8u
 #define QUOTA_MS    3600000u /* per-peer quota period of the owner's agreement */
 #define LAN_PORT     8724u    /* U10 */
+#define SPACE_STORE_BASE 32u  /* U14: space records held for others (of STORE_CAP) */
 #define LAN_PEERS    64u
 #define CACHE_MAX    64u     /* U9: peers kept in the cache file */
 #define CACHE_PING   16u     /* U9: cached peers pinged at start */
@@ -130,6 +132,11 @@ struct zxv_net {
     bool av_on;
     bool aipi_serve;
     uint64_t aipi_min_bounty, aipi_budget, aipi_escrow;
+    /* U14 */
+    vna_spaces_t *sp; /* only while running (a few MB) */
+    uint32_t space_base;
+    uint8_t lan_self[4];
+    bool lan_self_ok;
 };
 
 uint64_t zxv_net_wall_ms(void)
@@ -174,6 +181,7 @@ zxv_net_t *zxv_net_new(void)
     n->mode = ZXV_NET_OFF;
     n->lan_want = true;
     n->lan_port = LAN_PORT;
+    n->space_base = SPACE_STORE_BASE;
 #if defined(_WIN32)
     n->lockh = INVALID_HANDLE_VALUE;
 #else
@@ -202,6 +210,9 @@ void zxv_net_stop(zxv_net_t *n)
     if (n->ai) memset(&n->ai->mesh, 0, sizeof n->ai->mesh); /* U12: local only while off */
     n->av_on = false;
     n->aipi_escrow = 0;
+    free(n->sp); /* U14: spaces live only while the node runs */
+    n->sp = NULL;
+    n->lan_self_ok = false;
     if (n->ls != NBAD_SOCK) NCLOSE(n->ls);
     n->ls = NBAD_SOCK;
     n->lan_on = false;
@@ -650,6 +661,8 @@ static void lan_open(zxv_net_t *n, uint64_t now_ms)
         memcpy(self, &me.sin_addr.s_addr, 4);
     }
     if ((self[0] | self[1] | self[2] | self[3]) == 0) return;
+    memcpy(n->lan_self, self, 4); /* U14: where space visitors reach this node */
+    n->lan_self_ok = true;
 
     nsock_t s = socket(AF_INET, SOCK_DGRAM, 0);
     if (s == NBAD_SOCK) return;
@@ -852,6 +865,109 @@ int zxv_net_punch(zxv_net_t *n, const uint8_t target[32], uint64_t now_ms)
     return (int) asked;
 }
 
+/* ---- U14: public spaces and the watch hall ---- */
+/* The address host records carry: the public one two peers agree on
+ * (ONLINE), else the LAN address, else a specific bind address. */
+static void spaces_addr(zxv_net_t *n)
+{
+    uint8_t a[VNA_ADDR_MAX], al = 0;
+    struct in_addr ip;
+    if (n->mode == ZXV_NET_ONLINE && vna_node_reflexive(&n->node, a, &al) >= 2 && al == ADDR_LEN) {
+        vna_spaces_set_addr(n->sp, a, ADDR_LEN);
+        return;
+    }
+    if (n->lan_self_ok)
+        memcpy(a, n->lan_self, 4);
+    else if (strcmp(n->bind_ip, "0.0.0.0") != 0 && inet_pton(AF_INET, n->bind_ip, &ip) == 1)
+        memcpy(a, &ip.s_addr, 4);
+    else {
+        vna_spaces_set_addr(n->sp, a, 0); /* peers use the address they heard from */
+        return;
+    }
+    a[4] = (uint8_t) (n->port >> 8);
+    a[5] = (uint8_t) n->port;
+    vna_spaces_set_addr(n->sp, a, ADDR_LEN);
+}
+
+static int spaces_open(zxv_net_t *n)
+{
+    uint8_t seed[32];
+    if (!(n->sp = (vna_spaces_t *) calloc(1, sizeof *n->sp))) return fail(n, "out of memory");
+    if (zxv_os_random(seed, sizeof seed) != 0) return fail(n, "no secure random source");
+    vna_status_t st = (vna_status_t) vna_spaces_init(n->sp, &n->node, &n->ob, seed);
+    memset(seed, 0, sizeof seed);
+    if (st != VNA_OK) return fail(n, "spaces init failed");
+    vna_spaces_store_base(n->sp, n->space_base);
+    spaces_addr(n);
+    return 0;
+}
+
+int zxv_net_space_store(zxv_net_t *n, uint32_t cap)
+{
+    if (!n || cap > STORE_CAP) return -1;
+    n->space_base = cap;
+    if (n->sp) vna_spaces_store_base(n->sp, cap);
+    return 0;
+}
+
+const vna_spaces_t *zxv_net_spaces(const zxv_net_t *n)
+{
+    return n ? n->sp : NULL;
+}
+
+int zxv_net_space_create(zxv_net_t *n, uint8_t kind, uint8_t gov, uint8_t quorum_pct,
+                         const char *name, const char *topic, uint64_t now_ms,
+                         uint8_t cid[VNA_CID_RAW_LEN])
+{
+    if (!n || !n->sp) return VNA_ERR_ARG;
+    int r = vna_space_create(n->sp, kind, gov, quorum_pct, name, topic ? topic : "", now_ms, cid);
+    flush(n);
+    return r;
+}
+
+int zxv_net_space_join(zxv_net_t *n, const uint8_t cid[VNA_CID_RAW_LEN], uint64_t now_ms)
+{
+    if (!n || !n->sp) return VNA_ERR_ARG;
+    int r = vna_space_join(n->sp, cid, now_ms);
+    flush(n);
+    return r;
+}
+
+int zxv_net_space_leave(zxv_net_t *n, const uint8_t cid[VNA_CID_RAW_LEN], uint64_t now_ms)
+{
+    if (!n || !n->sp) return VNA_ERR_ARG;
+    int r = vna_space_leave(n->sp, cid, now_ms);
+    flush(n);
+    return r;
+}
+
+int zxv_net_space_post(zxv_net_t *n, const uint8_t cid[VNA_CID_RAW_LEN], const uint8_t *text,
+                       uint32_t len, uint64_t now_ms)
+{
+    if (!n || !n->sp) return VNA_ERR_ARG;
+    int r = vna_space_post(n->sp, cid, text, len, now_ms);
+    flush(n);
+    return r;
+}
+
+int zxv_net_hall_set(zxv_net_t *n, const uint8_t cid[VNA_CID_RAW_LEN], uint8_t state,
+                     const uint8_t *media, uint32_t media_len, uint64_t pos_ms, uint32_t rate_q16,
+                     uint64_t now_ms)
+{
+    if (!n || !n->sp) return VNA_ERR_ARG;
+    int r = vna_space_hall_set(n->sp, cid, state, media, media_len, pos_ms, rate_q16, now_ms);
+    flush(n);
+    return r;
+}
+
+int zxv_net_space_find(zxv_net_t *n, const char *topic, uint64_t now_ms)
+{
+    if (!n || !n->sp) return VNA_ERR_ARG;
+    int r = vna_space_find(n->sp, topic, now_ms);
+    flush(n);
+    return r;
+}
+
 int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16_t port,
                   uint64_t now_ms)
 {
@@ -932,7 +1048,7 @@ int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16
     if (n->lan_want) lan_open(n, now_ms); /* U10: best effort; the node runs without it */
     load_peers(n, now_ms);                /* U9 */
     bind_aipi(n);                         /* U12 */
-    return 0;
+    return spaces_open(n);                /* U14 */
 }
 
 void zxv_net_on_readable(zxv_net_t *n, uint64_t now_ms)
@@ -981,6 +1097,10 @@ void zxv_net_tick(zxv_net_t *n, uint64_t now_ms)
     vna_node_tick(&n->node, now_ms, &n->ob);
     if (n->lan_on) vna_lan_tick(&n->lan, now_ms, &n->ob);
     if (n->av_on) aipi_vna_tick(&n->av, now_ms);
+    if (n->sp) {
+        spaces_addr(n);
+        vna_spaces_tick(n->sp, now_ms);
+    }
     vna_link_tick(&n->link, now_ms);
     drain_link(n, now_ms);
     if (n->mode == ZXV_NET_ONLINE && now_ms >= n->last_keepalive + KEEPALIVE_MS) {
@@ -1229,6 +1349,25 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
         st->aipi_claims_in = n->av.claims_in;
         st->aipi_claims_refused = n->av.claims_refused;
     }
+    /* U14 */
+    st->space_store = n->node.space_store_cap;
+    if (n->sp) {
+        for (uint32_t i = 0; i < VNA_SPACE_MAX; i++) {
+            const vna_space_t *sp = &n->sp->s[i];
+            if (!sp->used) continue;
+            if (sp->phase == VNA_SPACE_IN)
+                st->spaces++;
+            else if (sp->phase != VNA_SPACE_NOT_FOUND)
+                st->spaces_joining++;
+        }
+        st->space_events_in = n->sp->events_in;
+        st->space_events_out = n->sp->events_out;
+        st->space_events_refused = n->sp->events_refused;
+    }
+    uint64_t now = zxv_net_wall_ms();
+    for (uint32_t i = 0; i < STORE_CAP; i++)
+        st->space_records += n->store[i].used && n->store[i].rtype == VNA_REC_SPACE &&
+                             n->store[i].expires > now;
 }
 
 /* ----- U13: listings ----- */

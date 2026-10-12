@@ -457,7 +457,8 @@ static void become_member(vna_spaces_t *sp, vna_space_t *s)
 {
     s->phase = VNA_SPACE_IN;
     s->next_presence = sp->now; /* say hello to whoever the welcome named */
-    vna_node_space_store(sp->node, VNA_SPACE_MAX * (VNA_SPACE_HOST_SLOTS + 2u) * 4u);
+    vna_node_space_store(sp->node, sp->store_base > VNA_SPACE_MEMBER_STORE ? sp->store_base
+                                                                       : VNA_SPACE_MEMBER_STORE);
     publish(sp, s);
 }
 
@@ -622,6 +623,13 @@ void vna_spaces_set_addr(vna_spaces_t *sp, const uint8_t *addr, uint32_t len)
     sp->addr_len = (uint8_t) len;
 }
 
+void vna_spaces_store_base(vna_spaces_t *sp, uint32_t cap)
+{
+    if (!sp) return;
+    sp->store_base = cap;
+    if (!any_in(sp)) vna_node_space_store(sp->node, cap);
+}
+
 void vna_spaces_on_event(vna_spaces_t *sp, vna_space_event_fn fn, void *ctx)
 {
     if (!sp) return;
@@ -719,7 +727,7 @@ int vna_space_leave(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], uint64
     if (s->phase == VNA_SPACE_IN)
         for (uint32_t i = 0; i < s->nm; i++) (void) send_to(sp, s, &s->m[i], VNA_SPACE_M_LEAVE, 0, 0);
     space_free(sp, s);
-    if (!any_in(sp)) vna_node_space_store(sp->node, 0);
+    if (!any_in(sp)) vna_node_space_store(sp->node, sp->store_base);
     return VNA_OK;
 }
 

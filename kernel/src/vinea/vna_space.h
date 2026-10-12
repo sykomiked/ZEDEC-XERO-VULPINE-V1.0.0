@@ -83,6 +83,7 @@
 #define VNA_SPACE_CATCHUP     8u /* recent posts a host sends a newcomer */
 #define VNA_SPACE_FOUND_MAX   VNA_SPACE_DIR_SLOTS
 #define VNA_SPACE_Q16         65536u
+#define VNA_SPACE_MEMBER_STORE (VNA_SPACE_MAX * (VNA_SPACE_HOST_SLOTS + 2u) * 4u)
 
 typedef enum { VNA_SPACE_ROOM = 1, VNA_SPACE_HALL = 2 } vna_space_kind_t;
 typedef enum { VNA_GOV_OWNER = 1, VNA_GOV_QUORUM = 2 } vna_space_gov_t;
@@ -224,6 +225,7 @@ typedef struct {
     vna_space_event_fn on_event;
     void *on_event_ctx;
     int32_t pubs[2u * VNA_SPACE_MAX]; /* publish lookups, released when done */
+    uint32_t store_base; /* SPACE records held for others while in no space */
     /* statistics */
     uint32_t created, joins_in, welcomes_in, presence_in, leaves_in;
     uint32_t events_in, events_out, events_refused, forwards, published, publish_failed;
@@ -237,6 +239,11 @@ int vna_spaces_init(vna_spaces_t *sp, vna_node_t *node, vna_outbox_t *ob, const 
 /* Where peers reach this node, as published in host records (may be empty:
  * peers then use the address the record's lookup came from). */
 void vna_spaces_set_addr(vna_spaces_t *sp, const uint8_t *addr, uint32_t len);
+
+/* How many SPACE records this node holds for others while it is in no
+ * space (0, the default: none; a ROUTE-degree node then stores nothing).
+ * While in a space it holds up to VNA_SPACE_MEMBER_STORE. */
+void vna_spaces_store_base(vna_spaces_t *sp, uint32_t cap);
 
 /* Hear every applied event (NULL clears). */
 void vna_spaces_on_event(vna_spaces_t *sp, vna_space_event_fn fn, void *ctx);

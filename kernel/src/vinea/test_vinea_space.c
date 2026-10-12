@@ -440,6 +440,13 @@ int main(void)
     run();
     CHECK(!vna_space_get(&P[0].sp, film) && P[1].sp.leaves_in >= 1);
     CHECK(P[0].node.space_store_cap == 0); /* in no space: keeps no space records */
+    vna_spaces_store_base(&P[0].sp, 12); /* unless its owner offers to hold some */
+    CHECK(P[0].node.space_store_cap == 12);
+    vna_spaces_store_base(&P[0].sp, 0);
+    CHECK(P[0].node.space_store_cap == 0);
+    vna_spaces_store_base(&P[1].sp, 5000); /* a member keeps its own allowance */
+    CHECK(P[1].node.space_store_cap == VNA_SPACE_MEMBER_STORE);
+    vna_spaces_store_base(&P[1].sp, 0);
     tick(500);
     CHECK(b1->nm == 1 && c2->nm == 1); /* A said goodbye */
     CHECK(vna_space_join(&P[5].sp, film, g_now) == VNA_OK);
