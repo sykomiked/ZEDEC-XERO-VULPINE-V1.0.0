@@ -1,0 +1,346 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# ZXV release packaging. Builds every download from one commit and attaches
+# them to a DRAFT GitHub release:
+#
+#   macOS    ZXV-<v>-macos.dmg and ZXV-<v>-macos.app.zip (universal, ad-hoc
+#            signed; build_system/build_desktop.sh on Apple's toolchain)
+#   Linux    ZXV-<v>-linux-<arch>.deb / .tar.gz / .AppImage, x86_64 and aarch64
+#            (build_system/package_desktop.sh)
+#   Windows  ZXV-<v>-windows-x86_64.zip (MinGW-w64, package_desktop.sh)
+#   UEFI     ZXV-<v>-uefi-<arch>.img.gz, arm64 and x86_64 bare-metal discs
+#            (build_system/baremetal_images.sh in Dockerfile.baremetal)
+#   SHA256SUMS over every asset
+#
+# Every package is started once before it is attached: the .deb and
+# zxvd.exe answer the control-socket tests, the Mac bundle passes lipo and
+# codesign checks, and each disc boots under real UEFI firmware to [AI_OK].
+#
+#   - Manual only (workflow_dispatch). No push, tag or schedule starts it.
+#   - It never publishes. The release stays a draft until the owner reviews it
+#     and presses "Publish release" by hand; the tag v<version> is created at
+#     this commit only then.
+#   - It never uploads to a registry, Hugging Face, IPFS or any other host.
+#   - Model weights are never attached: the release job refuses any model file
+#     (.gguf, .safetensors, ...) and preflight refuses a commit that tracks one.
+#     The apps download the default model on first run (macos/models.manifest).
+#   - Only the final job can write (contents: write, to create the draft).
+name: Release (draft)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 0.1.0-preview. Must equal ZXV_VERSION in kernel/arch/hosted/zxv_host.c. Leave empty to use it.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preflight:
+    name: preflight (version, tag, no weights)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Resolve the version
+        id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          src="$(sed -n 's/^#define ZXV_VERSION *"\(.*\)"/\1/p' kernel/arch/hosted/zxv_host.c)"
+          test -n "$src" || { echo "::error::ZXV_VERSION not found in kernel/arch/hosted/zxv_host.c"; exit 1; }
+          v="${INPUT_VERSION:-$src}"
+          if [ "$v" != "$src" ]; then
+            echo "::error::input version '$v' differs from ZXV_VERSION '$src'; the packages are named from ZXV_VERSION, so bump it in a pull request first"
+            exit 1
+          fi
+          re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          [[ "$v" =~ $re ]] || { echo "::error::'$v' is not X.Y.Z or X.Y.Z-pre"; exit 1; }
+          prerelease=false
+          if [ "${BASH_REMATCH[1]}" = 0 ] || [ -n "${BASH_REMATCH[4]}" ]; then prerelease=true; fi
+          { echo "version=$v"; echo "tag=v$v"; echo "prerelease=$prerelease"; } >> "$GITHUB_OUTPUT"
+          echo "Release $v (tag v$v, prerelease $prerelease) from $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Refuse to replace an existing release or tag
+        env:
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::a release (draft or published) named $TAG already exists; delete the old draft first"
+            exit 1
+          fi
+          if gh api "repos/$GH_REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::tag $TAG already exists; bump ZXV_VERSION"
+            exit 1
+          fi
+      - name: No model weights in the tree
+        run: |
+          set -euo pipefail
+          w="$(git ls-files | grep -iE '\.(gguf|ggml|safetensors|pt|pth|ckpt|onnx|mlmodel|npz)$' || true)"
+          if [ -n "$w" ]; then echo "::error::model files are tracked in git: $w"; exit 1; fi
+
+  macos:
+    name: macOS (.dmg, .app.zip)
+    needs: preflight
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Tools
+        run: python -m pip install pillow==10.4.0 pycdlib==1.21.0
+      - name: Build, test and package ZXV.app
+        run: build_system/build_desktop.sh --mac-only --out "$RUNNER_TEMP/dist"
+      - name: Check the bundle
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/x"
+          ditto -x -k "$RUNNER_TEMP"/dist/ZXV-*-macos.app.zip "$RUNNER_TEMP/x"
+          APP="$RUNNER_TEMP/x/ZXV.app"
+          plutil -lint "$APP/Contents/Info.plist"
+          for b in ZXV zxv-engine; do
+            archs="$(lipo -archs "$APP/Contents/MacOS/$b")"
+            echo "$b: $archs"
+            case "$archs" in *arm64*) ;; *) exit 1 ;; esac
+            case "$archs" in *x86_64*) ;; *) exit 1 ;; esac
+          done
+          codesign --verify --strict --deep --verbose=2 "$APP"
+          "$APP/Contents/MacOS/zxv-engine" --version | grep -E '^(zxvd|zxv-host) '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: |
+            ${{ runner.temp }}/dist/ZXV-*-macos.dmg
+            ${{ runner.temp }}/dist/ZXV-*-macos.app.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux ${{ matrix.arch }} (.deb, .tar.gz, AppImage)
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, arch: x86_64 }
+          - { os: ubuntu-22.04-arm, arch: aarch64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools
+      - name: AppImage runtime (used only if its hash is one the script pins)
+        run: |
+          set -eu
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/runtime" \
+            "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${{ matrix.arch }}"
+          got="$(sha256sum "$RUNNER_TEMP/runtime" | cut -d' ' -f1)"
+          if grep -q "^$got ${{ matrix.arch }}\$" build_system/package_desktop.sh; then
+            echo "ZXV_APPIMAGE_RUNTIME=$RUNNER_TEMP/runtime" >> "$GITHUB_ENV"
+          else
+            echo "::warning::the upstream AppImage runtime changed ($got); check it and pin its hash in build_system/package_desktop.sh. This release has no AppImage for ${{ matrix.arch }}."
+          fi
+      - name: Package
+        run: build_system/package_desktop.sh linux "$RUNNER_TEMP/dist"
+      - name: The installed .deb answers on its socket
+        run: |
+          set -eu
+          sudo apt-get install -y "$RUNNER_TEMP"/dist/ZXV-*-linux-${{ matrix.arch }}.deb
+          python3 kernel/arch/hosted/test_zxvd.py /usr/lib/zxv/zxvd
+          python3 kernel/arch/hosted/check_zxvd_spec.py /usr/lib/zxv/zxvd
+          sudo apt-get remove -y zxv
+      - name: The AppImage starts
+        if: env.ZXV_APPIMAGE_RUNTIME != ''
+        run: |
+          APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP"/dist/ZXV-*-linux-${{ matrix.arch }}.AppImage --version |
+            grep '^zxvd '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/dist/ZXV-*.deb
+            ${{ runner.temp }}/dist/ZXV-*.AppImage
+            ${{ runner.temp }}/dist/ZXV-*.tar.gz
+          if-no-files-found: error
+
+  windows-build:
+    name: Windows x64 (MinGW-w64)
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 python3-pil
+      - name: Package
+        run: build_system/package_desktop.sh windows "$RUNNER_TEMP/dist"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-x86_64
+          path: ${{ runner.temp }}/dist/ZXV-*-windows-x86_64.zip
+          if-no-files-found: error
+
+  windows-test:
+    # Wine has no AF_UNIX sockets, so the engine is checked on real Windows.
+    name: Windows x64 package answers on its socket
+    needs: windows-build
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-windows-x86_64
+          path: ${{ runner.temp }}/pkg
+      - name: zxvd.exe end to end
+        run: |
+          set -eu
+          cd "$RUNNER_TEMP/pkg" && unzip -q ZXV-*-windows-x86_64.zip && cd "$GITHUB_WORKSPACE"
+          Z="$RUNNER_TEMP/pkg/ZXV/zxvd.exe"
+          python kernel/arch/hosted/test_zxvd.py "$Z"
+          python kernel/arch/hosted/check_zxvd_spec.py "$Z"
+
+  uefi-disc:
+    name: UEFI disc ${{ matrix.arch }}
+    needs: preflight
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, screen: "[AI_OK]" }
+          - { arch: x86_64, screen: "UEFI GOP text console" }
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Build toolchain image
+        run: docker build -f build_system/Dockerfile.baremetal -t zxv-baremetal .
+      - name: Build the ${{ matrix.arch }} kernel and disc
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
+      - name: Boot the disc under UEFI firmware (fails closed)
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+      - name: Compress
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/dist"
+          gzip -9 -n -c "dist/discs/zxv-${{ matrix.arch }}-uefi.img" > "$RUNNER_TEMP/dist/ZXV-$V-uefi-${{ matrix.arch }}.img.gz"
+          ls -l "$RUNNER_TEMP/dist"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-uefi-${{ matrix.arch }}
+          path: ${{ runner.temp }}/dist/ZXV-*-uefi-${{ matrix.arch }}.img.gz
+          if-no-files-found: error
+
+  # The only job that can write: it creates the DRAFT release. Publishing it,
+  # and any mirror (Hugging Face, Zenodo, IPFS, ...), are separate owner steps.
+  release:
+    name: draft GitHub release
+    needs: [preflight, macos, linux, windows-build, windows-test, uefi-disc]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      V: ${{ needs.preflight.outputs.version }}
+      TAG: ${{ needs.preflight.outputs.tag }}
+      PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: parts
+      - name: Gather the assets (no duplicates, no model weights, under 2 GiB each)
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          dupes=$(find parts -type f -printf '%f\n' | sort | uniq -d)
+          if [ -n "$dupes" ]; then echo "::error::duplicate asset names: $dupes"; exit 1; fi
+          w=$(find parts -type f | grep -iE '\.(gguf|ggml|safetensors|pt|pth|ckpt|onnx|mlmodel|npz)$' || true)
+          if [ -n "$w" ]; then echo "::error::model weights must never be release assets: $w"; exit 1; fi
+          big=$(find parts -type f -size +2000M)
+          if [ -n "$big" ]; then echo "::error::over GitHub's 2 GiB asset limit: $big"; exit 1; fi
+          find parts -type f -exec cp {} dist/ \;
+          (cd dist && sha256sum -- * > ../SHA256SUMS) && mv SHA256SUMS dist/
+          ls -l dist
+          cat dist/SHA256SUMS
+      - name: Release notes
+        run: |
+          set -euo pipefail
+          {
+            echo "ZXV $V, built by the release workflow from commit $GITHUB_SHA."
+            echo
+            echo "| Download | For |"
+            echo "|---|---|"
+            for f in dist/*; do
+              n=$(basename "$f")
+              case "$n" in
+                *-macos.dmg) d="macOS 10.15 or later, Apple Silicon and Intel (not notarised: see docs/MAC_APP.md to open it)" ;;
+                *-macos.app.zip) d="the same Mac app as a zip" ;;
+                *.deb) d="Debian and Ubuntu" ;;
+                *.AppImage) d="any recent Linux, no install" ;;
+                *-linux-*.tar.gz) d="Linux, unpack and run" ;;
+                *-windows-*.zip) d="Windows 10 1803 or later, 64-bit (not code-signed)" ;;
+                *-uefi-*.img.gz) d="bare-metal UEFI disc: gunzip, then boot in QEMU (docs/BAREMETAL.md). Opt-in; writing it to a real disk erases that disk" ;;
+                SHA256SUMS) d="SHA-256 of every file here" ;;
+                *) d="" ;;
+              esac
+              echo "| \`$n\` | $d |"
+            done
+            echo
+            echo "No model weights are attached. On first run the app offers to download the default model named in \`macos/models.manifest\`, checked against its SHA-256."
+            echo
+            echo "Software licence: Apache-2.0. No warranty."
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Create the DRAFT release (not published)
+        run: |
+          set -euo pipefail
+          args=(--draft --title "ZXV $V" --notes-file "$RUNNER_TEMP/notes.md" --target "$GITHUB_SHA")
+          if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+          gh release create "$TAG" "${args[@]}" dist/*
+          echo "Draft release $TAG created. Review the assets, then publish it by hand." >> "$GITHUB_STEP_SUMMARY"
