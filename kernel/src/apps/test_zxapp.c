@@ -821,7 +821,7 @@ static void test_compose(void)
     zxapp_registry_init(&R3);
     CHECK(parse_into(&LB, lb) == ZXAPP_OK && zxapp_registry_add(&R3, &LB) == ZXAPP_OK &&
               parse_into(&LA, la) == ZXAPP_OK && zxapp_compose(&LA, &R3) == ZXAPP_OK &&
-              strlen(LA.logic[0].entry) == ZXAPP_ENTRY_MAX - 1u,
+              strlen(LA.logic[0].entry) == 2u * (ZXAPP_ID_MAX - 1u) + 1u,
           "a 63-byte composed name: %s", LA.err);
     CHECK(zxapp_load(&LA, &H) == 1 &&
               zxapp_call(&LA, &H, LA.logic[0].entry, 0, 0, out, 4, &n) == ZXAPP_OK &&
@@ -864,6 +864,134 @@ static void test_launch(void)
           "nothing to load is done");
 }
 
+/* ---- C: apps as blocks, provenance, content ids ----------------------------- */
+
+static void test_apps_as_blocks(void)
+{
+    char cid[ZXAPP_CID_MAX];
+    zxapp_cid("abc", 3, cid);
+    CHECK(strcmp(cid, "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") ==
+              0,
+          "C3: the content id is SHA-256: %s", cid);
+    zxapp_cid(SHARES_100, (uint32_t) strlen(SHARES_100), cid);
+    CHECK(strcmp(B1.cid, cid) == 0 && strcmp(B1.cid, B2.cid) != 0, "parse records it");
+    CHECK(parse("zxapp 1\nid x\nauthor Ana Lima  # a comment\n") == ZXAPP_OK &&
+              strcmp(A.author, "Ana Lima") == 0,
+          "author keeps its spaces: '%s'", A.author);
+    CHECK(parse("zxapp 1\nid x\nprovides a.b.c num t\n") == ZXAPP_OK &&
+              strcmp(A.prov[0].entry, "a.b.c") == 0,
+          "a re-export names a composed entry");
+    CHECK(parse("zxapp 1\nid x\nprovides a..b num\n") == ZXAPP_E_SYNTAX &&
+              parse("zxapp 1\nid x\nprovides .a num\n") == ZXAPP_E_SYNTAX &&
+              parse("zxapp 1\nid x\nprovides a. num\n") == ZXAPP_E_SYNTAX,
+          "dots join identifiers");
+    char m[256];
+    snprintf(m, sizeof m, "zxapp 1\nid x\nuse shares 1 %.71s\n", B1.cid);
+    CHECK(parse(m) == ZXAPP_OK && strcmp(A.use[0].cid, B1.cid) == 0, "use pins a content id");
+    CHECK(parse("zxapp 1\nid x\nuse shares 1 sha256:abc\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "64 lowercase hex"),
+          "a short content id");
+    snprintf(m, sizeof m, "zxapp 1\nid x\nuse shares 1 %.71s\n", B1.cid + 1);
+    CHECK(parse(m) == ZXAPP_E_SYNTAX, "no sha256: prefix");
+
+    /* C1: an app made of a block, then an app made of that app */
+    static zxapp_t DASH, STUDIO, WRONG, PRIV;
+    static const char DASH_SRC[] = "zxapp 1\nid dashboard\nauthor Ana\nversion 1.0.0\n"
+                                   "use shares 1\n"
+                                   "logic kron total <<\n+/re\n.\n"
+                                   "logic kron secret <<\n0\n.\n"
+                                   "provides total num re\n"
+                                   "provides shares.share num re\n";
+    zxapp_host_init(&H);
+    CHECK(zxapp_kron_register(&H) == ZXAPP_OK, "kron");
+    CHECK(parse_into(&DASH, DASH_SRC) == ZXAPP_OK && !DASH.block, "an app that exports");
+    CHECK(zxapp_registry_add(&R, &DASH) == ZXAPP_E_CONTRACT && strstr(R.err, "compose it"),
+          "not before it is composed: %s", R.err);
+    CHECK(zxapp_compose(&DASH, &R) == ZXAPP_OK && DASH.resolved && DASH.n == 4, "composed: %s",
+          DASH.err);
+    CHECK(zxapp_registry_add(&R, &DASH) == ZXAPP_OK, "then it registers like a block: %s", R.err);
+    CHECK(zxapp_registry_add(&R, &DASH) == ZXAPP_E_NAME, "once");
+    CHECK(parse_into(&STUDIO, "zxapp 1\nid studio\nauthor Ben\nuse dashboard 1\n") == ZXAPP_OK &&
+              zxapp_compose(&STUDIO, &R) == ZXAPP_OK && STUDIO.n == 2,
+          "an app made of an app: %s", STUDIO.err);
+    CHECK(zxapp_find(&STUDIO, "dashboard.total") && zxapp_find(&STUDIO, "dashboard.shares.share") &&
+              !zxapp_find(&STUDIO, "dashboard.secret") &&
+              !zxapp_find(&STUDIO, "dashboard.shares.pos"),
+          "only what it exports, nested by name");
+    CHECK(zxapp_load(&STUDIO, &H) == 2, "both load: %s", STUDIO.err);
+    int64_t re[4] = {1, 1, 1, 1};
+    zxapp_arg_t a = {"re", re, 4}, wrong = {"t", re, 4};
+    zxapp_num_t out[4];
+    uint32_t n = 0;
+    CHECK(zxapp_call(&STUDIO, &H, "dashboard.shares.share", &a, 1, out, 4, &n) == ZXAPP_OK &&
+              n == 4 && out[0].num == 250,
+          "a block's entry, two apps deep, runs");
+    CHECK(zxapp_call(&STUDIO, &H, "dashboard.total", &a, 1, out, 4, &n) == ZXAPP_OK &&
+              out[0].num == 4,
+          "the middle app's own entry runs");
+    CHECK(zxapp_call(&STUDIO, &H, "dashboard.total", &wrong, 1, out, 4, &n) == ZXAPP_E_CONTRACT,
+          "its contract is checked");
+
+    /* C2: who made which part */
+    zxapp_origin_t o[4];
+    uint32_t k = zxapp_provenance(&STUDIO, o, 4);
+    CHECK(k == 3 && !o[0].from && strcmp(o[0].id, "studio") == 0 && o[0].entries == 0 &&
+              strcmp(o[0].author, "Ben") == 0,
+          "the app's own part first, empty here (%u)", k);
+    CHECK(o[1].from == &DASH && strcmp(o[1].author, "Ana") == 0 && o[1].entries == 1 &&
+              o[1].permille == 500 && strcmp(o[1].cid, DASH.cid) == 0,
+          "the dashboard wrote one of two entries");
+    CHECK(o[2].from == &B2 && o[2].entries == 1 && o[2].permille == 500 && o[2].ver[1] == 2,
+          "the shares block, through the dashboard, wrote the other");
+    CHECK(zxapp_provenance(&STUDIO, o, 1) == 3 && !o[0].from, "cap limits what is filled");
+    CHECK(zxapp_provenance(&DASH, o, 4) == 2 && o[0].entries == 2 && o[0].permille == 500 &&
+              o[1].from == &B2 && o[1].entries == 2,
+          "the dashboard: two of its own, two from shares");
+    CHECK(zxapp_provenance(0, o, 4) == 0, "NULL");
+    zxapp_unload(&STUDIO, &H);
+
+    /* a re-export keeps the contract it was given */
+    CHECK(parse_into(&WRONG, "zxapp 1\nid w\nversion 1\nuse shares 1\n"
+                             "provides shares.share truth re\n") == ZXAPP_OK &&
+              zxapp_compose(&WRONG, &R) == ZXAPP_OK &&
+              zxapp_registry_add(&R, &WRONG) == ZXAPP_E_CONTRACT && strstr(R.err, "different"),
+          "a re-export cannot change the promise: %s", R.err);
+    CHECK(parse_into(&PRIV, "zxapp 1\nid p\nversion 1\nlogic kron a <<\n1\n.\n") == ZXAPP_OK &&
+              zxapp_registry_add(&R, &PRIV) == ZXAPP_E_CONTRACT && strstr(R.err, "exports nothing"),
+          "an app with nothing to export is not a block");
+
+    /* C3: a pin picks that exact content */
+    static zxapp_t PIN, FILEB;
+    snprintf(m, sizeof m, "zxapp 1\nid pin\nuse shares 1 %.71s\n", B1.cid);
+    CHECK(parse_into(&PIN, m) == ZXAPP_OK && zxapp_compose(&PIN, &R) == ZXAPP_OK &&
+              PIN.logic[0].contract == &B1.prov[0],
+          "the pinned 1.0.0, not the newer 1.2.0: %s", PIN.err);
+    snprintf(m, sizeof m, "zxapp 1\nid pin\nuse shares 1 %.71s\n", B3.cid);
+    CHECK(parse_into(&PIN, m) == ZXAPP_OK && zxapp_compose(&PIN, &R) == ZXAPP_E_NAME &&
+              strstr(PIN.err, "with that content id"),
+          "content that is not 1.x is refused: %s", PIN.err);
+    snprintf(m, sizeof m, "zxapp 1\nid pin\nuse shares 2 %.71s\n", B3.cid);
+    CHECK(parse_into(&PIN, m) == ZXAPP_OK && zxapp_compose(&PIN, &R) == ZXAPP_OK,
+          "the same content at its own version");
+    static const char FILE_SRC[] = "zxblock 1\nid onfile\nversion 1\nprovides f num\n"
+                                   "logic kron f apps/f.kron\n";
+    static zxapp_registry_t R4;
+    zxapp_registry_init(&R4);
+    CHECK(parse_into(&FILEB, FILE_SRC) == ZXAPP_OK && zxapp_registry_add(&R4, &FILEB) == ZXAPP_OK,
+          "a block with its code in a file");
+    snprintf(m, sizeof m, "zxapp 1\nid pin\nuse onfile 1 %.71s\n", FILEB.cid);
+    CHECK(parse_into(&PIN, m) == ZXAPP_OK && zxapp_compose(&PIN, &R4) == ZXAPP_E_CONTRACT &&
+              strstr(PIN.err, "not all in its manifest"),
+          "cannot be pinned: the id would not cover the code: %s", PIN.err);
+    snprintf(m, sizeof m, "zxapp 1\nid pin\nuse onfile 1\n");
+    CHECK(parse_into(&PIN, m) == ZXAPP_OK && zxapp_compose(&PIN, &R4) == ZXAPP_OK,
+          "but can be used unpinned");
+    /* an app that uses something unpinned cannot be pinned either */
+    snprintf(m, sizeof m, "zxapp 1\nid pin\nuse dashboard 1 %.71s\n", DASH.cid);
+    CHECK(parse_into(&PIN, m) == ZXAPP_OK && zxapp_compose(&PIN, &R) == ZXAPP_E_CONTRACT,
+          "the dashboard's own use is not pinned");
+}
+
 int main(void)
 {
     test_names();
@@ -877,6 +1005,7 @@ int main(void)
     test_registry();
     test_compose();
     test_launch();
+    test_apps_as_blocks();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

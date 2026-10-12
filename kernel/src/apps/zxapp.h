@@ -98,6 +98,27 @@
  *      contract), after the app's own entries; zxapp_load then loads them
  *      like any other. Compose again after zxapp_unload to pick up a newer
  *      block.
+ *
+ * Apps are blocks too, so people build apps out of apps without writing C.
+ *
+ *   C1 AN APP EXPORTS what it provides. An app with a version and
+ *      provides lines can be registered and used like a block; only the
+ *      entries it provides are exported (its other entries stay private),
+ *      and it may export entries it composed from its own blocks
+ *      ("provides swarm_shares.cycle_share num t"), which then nest as
+ *      "<app>.swarm_shares.cycle_share". An app that uses blocks is
+ *      composed before it is registered, so every use points at something
+ *      already whole: there are no cycles to find.
+ *   C2 PROVENANCE. Every composed entry remembers the manifest that wrote
+ *      it ("author <name>", its id, version and content id), through any
+ *      depth of nesting. zxapp_provenance says who made which part of an
+ *      app and what share of its entries each part is, the basis for
+ *      crediting authors later.
+ *   C3 SHARED BY CONTENT. A manifest's content id is "sha256:" and the
+ *      SHA-256 of its text. "use <block> <version> <cid>" pins that exact
+ *      content: a different manifest under the same id is refused. A pin
+ *      covers code only when it is all in the manifest, so a pinned block
+ *      must carry its own logic inline ("<<") and pin its own uses too.
  */
 #ifndef ZXAPP_H
 #define ZXAPP_H
@@ -109,10 +130,12 @@
 #define ZXAPP_ID_MAX      32u
 #define ZXAPP_PATH_MAX    128u
 #define ZXAPP_ERR_MAX     160u
-#define ZXAPP_ENTRY_MAX   64u /* "block.entry" once composed (B4) */
+#define ZXAPP_ENTRY_MAX   128u /* "block.entry", deeper for nested apps (B4, C1) */
 #define ZXAPP_USES        8u
 #define ZXAPP_INPUTS      8u
 #define ZXAPP_BLOCKS      64u
+#define ZXAPP_CID_MAX     72u /* "sha256:" + 64 hex digits + NUL (C3) */
+#define ZXAPP_AUTHOR_MAX  48u
 #define ZXAPP_WITNESS_MAX 256u /* elements a second witness's answer may have */
 #define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
 
@@ -170,8 +193,8 @@ typedef struct {
 /* B2: what an entry promises: its inputs, in order, and what it answers. */
 enum { ZXAPP_KIND_NUM = 1, ZXAPP_KIND_TRUTH = 2 };
 typedef struct {
-    char entry[ZXAPP_ID_MAX];
-    uint8_t kind; /* ZXAPP_KIND_* */
+    char entry[ZXAPP_ENTRY_MAX]; /* an app may export a composed entry (C1) */
+    uint8_t kind;                /* ZXAPP_KIND_* */
     char input[ZXAPP_INPUTS][ZXAPP_ID_MAX];
     uint32_t ninputs;
     uint32_t line;
@@ -184,6 +207,7 @@ typedef struct {
     char id[ZXAPP_ID_MAX];
     uint16_t ver[3];
     bool exact;
+    char cid[ZXAPP_CID_MAX]; /* C3: pinned to this exact content; "" = any */
     uint32_t line;
 } zxapp_use_t;
 
@@ -197,11 +221,14 @@ typedef struct {
     void *compiled; /* the runtime's handle after zxapp_load */
     bool loaded;
     const zxapp_provide_t *contract; /* B3: checked on every call; NULL = none */
+    const struct zxapp *origin;      /* C2: the manifest that wrote it; NULL = this one */
 } zxapp_logic_t;
 
-typedef struct {
+typedef struct zxapp {
     char id[ZXAPP_ID_MAX];
     char name[48];
+    char author[ZXAPP_AUTHOR_MAX]; /* C2: "author <name>", for provenance */
+    char cid[ZXAPP_CID_MAX];       /* C3: the manifest text's content id */
     char view[ZXAPP_PATH_MAX];
     char model[ZXAPP_PATH_MAX];
     char launch[ZXAPP_ID_MAX]; /* "launch <theme>": the launch screen's theme id ("" = default) */
@@ -214,6 +241,7 @@ typedef struct {
     zxapp_use_t use[ZXAPP_USES];
     uint32_t nuse;
     uint32_t composed;       /* logic[composed..n) came from blocks (B4) */
+    bool resolved;           /* zxapp_compose succeeded (C1) */
     char err[ZXAPP_ERR_MAX]; /* the last refusal, for the view to show */
     uint32_t err_line;       /* the manifest line it came from (0 = none) */
 } zxapp_t;
@@ -280,10 +308,10 @@ typedef struct {
 } zxapp_registry_t;
 
 void zxapp_registry_init(zxapp_registry_t *r);
-/* B1/B2: add a parsed block. Refused (ZXAPP_E_CONTRACT, r->err says why)
- * when it is not a block, has no version, provides an entry no logic
- * implements or has logic it does not provide; ZXAPP_E_NAME when that id
- * and version is already there; ZXAPP_E_FULL past ZXAPP_BLOCKS. */
+/* B1/B2/C1: add a parsed block, or an app that exports entries. Refused (ZXAPP_E_CONTRACT, r->err
+ * says why) when it is not a block, has no version, provides an entry no logic implements or has
+ * logic it does not provide; ZXAPP_E_NAME when that id and version is already there; ZXAPP_E_FULL
+ * past ZXAPP_BLOCKS. */
 int zxapp_registry_add(zxapp_registry_t *r, const zxapp_t *block);
 /* B1: the newest block `id` compatible with ver (see zxapp_use_t). */
 const zxapp_t *zxapp_registry_find(const zxapp_registry_t *r, const char *id, const uint16_t ver[3],
@@ -292,6 +320,26 @@ const zxapp_t *zxapp_registry_find(const zxapp_registry_t *r, const char *id, co
  * the app as "<block>.<entry>", with its contract. ZXAPP_E_NAME when a
  * block is missing (a->err names it and the version asked for). */
 int zxapp_compose(zxapp_t *a, const zxapp_registry_t *r);
+
+/* B2: the contract `entry` is called under (its block's, or the app's own
+ * provides line); NULL when it has none. */
+const zxapp_provide_t *zxapp_contract(const zxapp_t *a, const char *entry);
+
+/* C3: "sha256:" and 64 lowercase hex digits for `len` bytes of text. */
+void zxapp_cid(const char *text, uint32_t len, char out[ZXAPP_CID_MAX]);
+
+/* C2: who made which part of an app. from is NULL for the app's own
+ * entries. permille is that part's share of the app's entries, rounded
+ * down (so the parts can sum to a little under 1000). */
+typedef struct {
+    const zxapp_t *from;
+    const char *id, *author, *cid;
+    uint16_t ver[3];
+    uint32_t entries;
+    uint32_t permille;
+} zxapp_origin_t;
+/* Fills up to cap parts, the app's own first; returns how many there are. */
+uint32_t zxapp_provenance(const zxapp_t *a, zxapp_origin_t *out, uint32_t cap);
 
 /* A5: run every implementation of `entry` that can run; out holds the
  * first's answer and *lp the join (ZXAPP_TRUE, ZXAPP_BOTH, ZXAPP_NEITHER).

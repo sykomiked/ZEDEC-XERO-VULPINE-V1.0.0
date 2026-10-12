@@ -142,8 +142,9 @@ The rules:
   was promised) is refused, and when the entry is written in two languages
   that refusal counts against it in the paraconsistent join, so it is held
   as BOTH, never used.
-- **Blocks do not use blocks.** The app is the only place blocks are put
-  together, so there is never a hidden chain of versions to untangle.
+- **Blocks do not use blocks.** A block is a leaf. Apps put blocks
+  together, and apps can use other apps (below), so every chain of
+  versions is visible in the apps' own manifests.
 - **The basket still applies inside a block.** A block's entries can be in
   different languages, and a critical one can be written twice.
 
@@ -152,4 +153,63 @@ its tests, and every app on the platform can use it. Registering a block
 (`zxapp_registry_add`) and composing an app from the registry
 (`zxapp_compose`) are two calls.
 
-See `kernel/src/apps/zxapp.h` (A1 to A5, B1 to B4) for the exact contract.
+## Apps made of apps, with no C
+
+A person building on ZXV never has to write C or join languages by hand:
+the toolkit, the screens and the language bridges are already done. They
+write a manifest, pick blocks, and add logic in whichever language they
+like (a pillar, any libzxv SDK language, or WebAssembly).
+
+**Any app can be a block.** An app that has a version and `provides`
+lines exports those entries, and another app can `use` it exactly like a
+block. Only what it provides is exported; its other entries stay private.
+It can also pass on entries from the blocks it uses:
+
+```
+zxapp 1
+id       dashboard
+author   Ana
+version  1.0.0
+use      swarm_shares 1
+logic    kron total <<
++/re
+.
+provides total num re
+provides swarm_shares.cycle_share num t
+```
+
+An app that uses `dashboard 1` gets `dashboard.total` and
+`dashboard.swarm_shares.cycle_share`. Apps nest as deep as names fit. An
+app is composed before it is registered, so a use always points at
+something already complete, and a loop cannot form.
+
+**No screen to write.** `view auto` in the manifest gives the app a
+screen made from its contracts: a list of its entries, one field per
+input named as the contract names it, a Run button, and the answer in
+numbers or truth words. Inputs are whole numbers. When an entry is
+written in two languages and they disagree, the screen holds the answer
+and says why, as every built-in app does.
+
+**Shared by content.** Every manifest has a content id: `sha256:` and the
+SHA-256 of its text. Adding it to a use pins that exact content:
+
+```
+use swarm_shares 1 sha256:4f1c...e09a
+```
+
+A different manifest under the same name is refused. A pin only covers
+code that is inside the manifest, so a block shared this way keeps its
+logic inline (`<<`) and pins its own uses too. The content id is what a
+block is shared and looked up by; publishing and fetching blocks by it
+is the next step.
+
+**Who made what.** Every entry remembers which manifest wrote it, through
+any depth of nesting, with that manifest's `author`, id, version and
+content id. `zxapp_provenance` lists the parts of an app and each part's
+share of its entries, for example: the app's own 2 entries (50%), and
+2 from `swarm_shares` by its author (50%). This is the record that
+crediting authors can build on later; nothing is paid or charged by it
+today.
+
+See `kernel/src/apps/zxapp.h` (A1 to A5, B1 to B4, C1 to C3) and
+`kernel/src/zui/views/autoview.h` for the exact contract.

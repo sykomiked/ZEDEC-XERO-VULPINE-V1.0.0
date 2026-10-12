@@ -19,6 +19,7 @@
 
 #include "burrow.h"
 #include "glint.h"
+#include "autoview.h"
 #include "murmuration.h"
 #include "quillon.h"
 #include "spindle.h"
@@ -759,6 +760,94 @@ static void test_murmuration(const char *src)
     zxapp_unload(&APP, &HOST);
 }
 
+/* ---------------- An app with no C: the screen from its contracts ---------------- */
+
+static av_view_t AV;
+static zxapp_t TALLY;
+static bool av_act(void *v, zui_id_t w, zui_action_t a, int32_t arg)
+{
+    return av_view_action(v, w, a, arg);
+}
+
+/* replace what a field holds, as a person would */
+static void fill(zui_id_t f, const char *s)
+{
+    click(f);
+    zui_widget_t *w = zui_w(&UI, f);
+    zui_field_select(&UI, f, 0, w->u.field.len);
+    if (w->u.field.len) key(ZUI_KEY_BACKSPACE, 0);
+    type(s);
+}
+
+static void test_autoview(void)
+{
+    int64_t v[8];
+    CHECK(av_parse_ints("1 2, 3", v, 8) == 3 && v[2] == 3, "AV2: spaces and commas");
+    CHECK(av_parse_ints("-7", v, 8) == 1 && v[0] == -7, "negative");
+    CHECK(av_parse_ints("", v, 8) == 0 && av_parse_ints("  ", v, 8) == 0, "empty");
+    CHECK(av_parse_ints("1.5", v, 8) == -1 && av_parse_ints("x", v, 8) == -1 &&
+              av_parse_ints("1x", v, 8) == -1 && av_parse_ints("-", v, 8) == -1,
+          "whole numbers only");
+    CHECK(av_parse_ints("1 2 3", v, 2) == -1, "no more than fit");
+    CHECK(av_parse_ints("9223372036854775807", v, 1) == 1 && v[0] == INT64_MAX &&
+              av_parse_ints("9223372036854775808", v, 1) == -1,
+          "64-bit");
+
+    static const char SRC[] = "zxapp 1\nid tally\nname Tally\nauthor Test\nview auto\n"
+                              "use swarm_shares 1\n"
+                              "logic kron double <<\n2*x\n.\nprovides double num x\n"
+                              "logic kron hidden <<\n1\n.\n";
+    CHECK(zxapp_parse(&TALLY, SRC, (uint32_t) strlen(SRC)) == ZXAPP_OK &&
+              !strcmp(TALLY.view, "auto") && zxapp_compose(&TALLY, &REG) == ZXAPP_OK &&
+              zxapp_load(&TALLY, &HOST) == 5,
+          "an app with no C: blocks and KRON: %s", TALLY.err);
+    screen(&LAPTOP, av_act, &AV);
+    av_view_build(&AV, &UI, &TALLY, &HOST);
+    check_ground("autoview");
+    CHECK(AV.n == 4 && !strcmp(AV.entry[0], "double") &&
+              !strcmp(AV.entry[1], "swarm_shares.cycle_share") &&
+              !strcmp(AV.entry[3], "swarm_shares.within_limits"),
+          "AV1: every entry with a contract, none without (%u)", AV.n);
+    CHECK(!shown(AV.run) && has(text_of(AV.name), "Choose"), "nothing chosen: no Run");
+    zui_row_t r;
+    memset(&r, 0, sizeof r);
+    zui_w(&UI, AV.entries)->u.list.row(&UI, AV.entries, 3, &r, &AV);
+    CHECK(has(r.detail, "truth"), "a row says what it answers: %s", r.detail);
+    av_view_action(&AV, AV.entries, ZUI_ACT_SELECT, 0);
+    CHECK(shown(AV.run) && shown(AV.field[0]) && !shown(AV.field[1]) &&
+              !strcmp(text_of(AV.label[0]), "x"),
+          "one field, named as the contract names it");
+    fill(AV.field[0], "1 2 3");
+    CHECK(click(AV.run) && !strcmp(AV.answer_text, "2 4 6"), "Run: %s", AV.answer_text);
+    CHECK(has(text_of(AV.sh.status), "One language"), "status: %s", text_of(AV.sh.status));
+    fill(AV.field[0], "1.5");
+    CHECK(click(AV.run) && !AV.answer_text[0] && shown(AV.sh.error) &&
+              has(text_of(AV.sh.error), "whole numbers"),
+          "AV2 in words: %s", text_of(AV.sh.error));
+    fill(AV.field[0], "7");
+    key(ZUI_KEY_ENTER, 0);
+    CHECK(!strcmp(AV.answer_text, "14") && !shown(AV.sh.error), "Enter runs too, error cleared");
+
+    av_view_action(&AV, AV.entries, ZUI_ACT_SELECT, 3);
+    CHECK(shown(AV.field[1]) && !strcmp(text_of(AV.label[0]), "share") &&
+              !strcmp(text_of(AV.label[1]), "intensity") && !AV.answer_text[0],
+          "a block's entry, two inputs");
+    fill(AV.field[0], "100 600");
+    fill(AV.field[1], "1 2");
+    CHECK(click(AV.run) && !strcmp(AV.answer_text, "TRUE FALSE"), "Eve answers in words: %s",
+          AV.answer_text);
+    av_view_action(&AV, AV.entries, ZUI_ACT_SELECT, 1);
+    fill(AV.field[0], "1 1 1");
+    CHECK(click(AV.run) && !strcmp(AV.answer_text, "333 333 333"), "KRON shares: %s",
+          AV.answer_text);
+    shot("autoview");
+    fill(AV.field[0], "");
+    CHECK(click(AV.run) && has(text_of(AV.sh.error), "t:"), "an empty input: %s",
+          text_of(AV.sh.error));
+    CHECK(unhandled == 0, "every action reached the view (%d not)", unhandled);
+    zxapp_unload(&TALLY, &HOST);
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -785,6 +874,7 @@ int main(int argc, char **argv)
     test_glint(root);
     test_spindle();
     test_murmuration(argv[1]);
+    test_autoview();
     free(OUT.p);
     nftw(root, rm_one, 16, FTW_DEPTH | FTW_PHYS);
     printf("%s test_views: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);

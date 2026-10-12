@@ -25,7 +25,7 @@ RP="-Wl,-rpath,$R/sdk/libzxv/build"
     -I"$S/web4" -I"$S/robin_debanks" -I"$S/mlkem" -I"$S/modbind" -I"$S/e8" -I"$S/event_space" -I"$S/surplus" \
     -I"$S/swarm" -I"$S/lpres" -I"$R/sdk/pillars/apl-kron/include" -I"$R/sdk/pillars/ada-eve/include" -I"$R/sdk/libzxv/include" \
     "$HERE/test_views.c" "$HERE/zv.c" "$HERE/burrow.c" "$HERE/quillon.c" "$HERE/glint.c" "$HERE/spindle.c" \
-    "$HERE/murmuration.c" "$Z/zui_widget.c" "$Z/zui_input.c" "$Z/zui_present_fb.c" "$Z/zui_layout.c" \
+    "$HERE/murmuration.c" "$HERE/autoview.c" "$Z/zui_widget.c" "$Z/zui_input.c" "$Z/zui_present_fb.c" "$Z/zui_layout.c" \
     "$Z/zui_canvas.c" "$Z/zui_progress.c" "$Z/zui_emote.c" "$S/font/truetype.c" \
     "$S/lpres/lpres_hex.c" "$S/lpres/lpres.c" \
     "$A/zxm.c" "$A/burrow_model.c" "$A/quillon_model.c" "$A/glint_model.c" "$A/spindle_model.c" \
