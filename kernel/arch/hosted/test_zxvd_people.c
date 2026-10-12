@@ -11,6 +11,7 @@
  * the cleaning and the error mapping can be checked without a model; zxvd
  * itself binds the real model slot (zxv_host.c). Built by mk/people.mk. */
 #define _DEFAULT_SOURCE
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +21,21 @@
 #include "zxvd_people.h"
 #include "web4_web2.h"
 #include "devmesh.h"
+
+/* Append to buf at *k; a message that would not fit stops the test (never
+ * a silent truncation, never an index past the buffer). */
+static void put(char *buf, size_t cap, size_t *k, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int n = *k < cap ? vsnprintf(buf + *k, cap - *k, fmt, ap) : -1;
+    va_end(ap);
+    if (n < 0 || (size_t) n >= cap - *k) {
+        fprintf(stderr, "[FAIL] relay buffer too small\n");
+        exit(1);
+    }
+    *k += (size_t) n;
+}
 
 static int PASS, FAILN;
 #define CHECK(c, ...)                                                                              \
@@ -170,14 +186,15 @@ static int signal_pump(zxvd_people_t *a, zxvd_people_t *b)
         rpc(to, "call.signal", carry);
         int32_t out = get(0, "out");
         /* what `to` had waiting goes back to `from` next round */
-        size_t k = (size_t) snprintf(carry, sizeof carry, "{\"in\":[");
+        size_t k = 0;
+        put(carry, sizeof carry, &k, "{\"in\":[");
         for (uint32_t i = 0; i < len_of(out); i++) {
             char h[2048];
             str(at(out, i), h, sizeof h);
-            k += (size_t) snprintf(carry + k, sizeof carry - k, "%s\"%s\"", i ? "," : "", h);
+            put(carry, sizeof carry, &k, "%s\"%s\"", i ? "," : "", h);
             moved++;
         }
-        snprintf(carry + k, sizeof carry - k, "]}");
+        put(carry, sizeof carry, &k, "]}");
         bool quiet = len_of(out) == 0 && num(get(0, "delivered")) == 0;
         zxvd_people_t *t = from;
         from = to;
@@ -185,14 +202,15 @@ static int signal_pump(zxvd_people_t *a, zxvd_people_t *b)
         if (quiet && round > 0) {
             rpc(to, "call.signal", "{}"); /* anything left on the other side */
             if (len_of(get(0, "out")) == 0) break;
-            size_t k2 = (size_t) snprintf(carry, sizeof carry, "{\"in\":[");
+            size_t k2 = 0;
+            put(carry, sizeof carry, &k2, "{\"in\":[");
             int32_t o2 = get(0, "out");
             for (uint32_t i = 0; i < len_of(o2); i++) {
                 char h[2048];
                 str(at(o2, i), h, sizeof h);
-                k2 += (size_t) snprintf(carry + k2, sizeof carry - k2, "%s\"%s\"", i ? "," : "", h);
+                put(carry, sizeof carry, &k2, "%s\"%s\"", i ? "," : "", h);
             }
-            snprintf(carry + k2, sizeof carry - k2, "]}");
+            put(carry, sizeof carry, &k2, "]}");
             zxvd_people_t *t2 = from;
             from = to;
             to = t2;
