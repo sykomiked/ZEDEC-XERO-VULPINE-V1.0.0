@@ -105,6 +105,22 @@ struct StorefrontView: View {
             if let r = holdLine {
                 Text(r.1).font(.caption).foregroundStyle(r.0 ? Theme.good : Theme.warn)
             }
+            if store.escrowOff {
+                HStack {
+                    Text("Escrow is a regulated feature, so it starts off.").font(.caption)
+                        .foregroundStyle(Theme.muted)
+                    Spacer()
+                    Button("Turn on escrow") {
+                        Task {
+                            if let e = await store.enableEscrow() {
+                                holdLine = (false, "Refused: \(e)")
+                            } else {
+                                holdLine = (true, "Escrow is on. Hold the amount again.")
+                            }
+                        }
+                    }
+                }
+            }
             if rows.isEmpty {
                 Text("No holds yet.").font(.callout).foregroundStyle(Theme.muted)
             }

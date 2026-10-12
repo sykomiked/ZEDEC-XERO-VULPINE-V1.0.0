@@ -102,6 +102,8 @@ final class AppStore: ObservableObject {
     @Published var card: PlayerCard?
     @Published var jurisdiction: Jurisdiction?
     @Published var holds: Holds?
+    /// ledger.hold answered that the escrow feature is switched off (-32012).
+    @Published var escrowOff = false
 
     let socketPath: String
     private var client: ZXVDClient
@@ -233,9 +235,28 @@ final class AppStore: ObservableObject {
             ], as: Hold.self)
             await refreshHolds()
             await refreshLedger()
+            escrowOff = false
             return (true, "Hold \(h.hold): \(Money.format(minor, currency: h.currency)) is in escrow until you release or refund it.")
+        } catch ZXVDError.rpc(let e) where e.code == Self.featureOff {
+            escrowOff = true
+            return (false, "Escrow is switched off. Turn it on below to hold funds.")
         } catch {
             return (false, "Refused: \(error)")
+        }
+    }
+
+    /// zxvd's answer for a method whose feature is switched off.
+    static let featureOff = -32012
+
+    /// Switches escrow on (features.set; saved in the books). Returns why it was refused, or nil.
+    func enableEscrow() async -> String? {
+        do {
+            _ = try await client.request("features.set", ["feature": .string("escrow"), "enabled": .bool(true)])
+            escrowOff = false
+            await refreshHolds()
+            return nil
+        } catch {
+            return "\(error)"
         }
     }
 
