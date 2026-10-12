@@ -262,7 +262,11 @@ typedef struct {
 #define Q_SPEED_OF_LIGHT  (2.99792458e8)      /* c (m/s) */
 #define Q_PI_SQUARED      (9.869604401089358) /* π² */
 #else
-/* In fixed-point, we store scaled values */
+/* In fixed-point, we store scaled values. Q32.32 cannot hold hbar: its
+ * smallest step is 2^-32 (about 2.3e-10), so Q_PLANCK_REDUCED rounds to 0
+ * and every hbar-scaled register (Casimir force, zero-point energy) is 0 in
+ * kernel builds. Only the TEST_HOST (double) build gives them nonzero
+ * values. docs/academic/PHYSICS_AND_QUANTUM_FRAMING.md states this. */
 #define Q_PLANCK_REDUCED  SR_FROM_FLOAT(1.054571817e-34)
 #define Q_SPEED_OF_LIGHT  SR_FROM_FLOAT(2.99792458e8)
 #define Q_PI_SQUARED      SR_FROM_FLOAT(9.869604401089358)
