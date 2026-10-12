@@ -232,7 +232,9 @@ def main(binary, gguf=None):
         want = {'zxvd.version', 'zxvd.shutdown', 'swarm.state', 'swarm.ask', 'model.info',
                 'notes.list', 'notes.mark_read', 'net.command', 'update.check',
                 'currency.enable', 'ledger.open_account', 'ledger.post', 'ledger.balance',
-                'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings'}
+                'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings',
+                'mesh.books', 'books.file', 'net.peers', 'net.offers', 'player.card',
+                'jurisdiction.get', 'jurisdiction.set'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
               'rpc.discover lists every method')
         v = c.ok('zxvd.version')
@@ -299,6 +301,22 @@ def main(binary, gguf=None):
         n = c.ok('notes.list')
         check('notes' in n and 'unread' in n, 'notes.list')
         check(c.ok('notes.mark_read')['marked'] >= 0, 'notes.mark_read')
+
+        # ---- the Studio panels' views (zxvd_rpc.h V1-V3) ----
+        check(c.ok('net.peers') == {'peers': [], 'count': 0}, 'net.peers: none while off')
+        check(c.ok('net.command', {'command': 'share 5 0'})['result'] != 'refused', 'share 5 compute')
+        o = c.ok('net.offers')
+        check(o == {'share': {'compute': '5', 'storage': '0'}, 'wants': [], 'outstanding': []},
+              'net.offers: the share, no wants or receipts (%s)' % o)
+        c.ok('net.command', {'command': 'share 0 0'})
+        pc = c.ok('player.card')
+        check(pc['tier'] == 0 and pc['metal'] == 'Copper' and pc['stone'] == 'Obsidian' and
+              pc['perks'] == [] and pc['next']['metal'] == 'Bronze' and
+              'bond' in pc['next']['missing'] and pc['inputs']['bond']['value'] == '0',
+              'player.card: Copper, Bronze next, bond missing (%s)' % pc)
+        j = c.ok('jurisdiction.get')
+        check(j['market'] == 'closed' and j['standard'] == '' and j['in_effect'] is False and
+              'AAOIFI' in j['standards'], 'jurisdiction.get: closed clearing by default')
 
         # ---- libzxv's books, through the capability ----
         check(c.ok('currency.enable', {'code': 'USD'})['enabled'] == 'USD', 'currency.enable USD')
@@ -411,6 +429,74 @@ def main(binary, gguf=None):
                 if p3.poll() is None:
                     p3.kill()
                     p3.wait()
+
+        # ---- the books file (zxvd_rpc.h F1-F6): the books outlive a restart ----
+        books = os.path.join(home, 'data', 'books.zxvb')
+        os.makedirs(os.path.dirname(books), exist_ok=True)
+
+        def run_with_books():
+            p = subprocess.Popen([binary, '--rpc', sock, '--models-dir', models, '--books', books],
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                 env=env)
+            check(wait_line(p, 'ZXVD-RPC: ') == sock, 'zxvd starts with --books')
+            return p, Client(sock)
+
+        def stop(p, cl):
+            cl.ok('zxvd.shutdown')
+            cl.close()
+            p.wait(timeout=10)
+            check(p.returncode == 0, 'zxvd with --books exits cleanly')
+
+        p4, c4 = run_with_books()
+        try:
+            bf = c4.ok('books.file')
+            check(bf['saved'] is True and bf['writable'] is True and int(bf['records']) >= 2,
+                  'books.file: saved, writable (%s)' % bf)
+            if not WINDOWS:
+                check(stat.S_IMODE(os.stat(books).st_mode) == 0o600, 'the books file is 0600')
+            c4.ok('currency.enable', {'code': 'EUR'})
+            fa = c4.ok('ledger.open_account', {'name': 'saved bank', 'currency': 'EUR',
+                                               'kind': 'issuer'})['account']
+            fb = c4.ok('ledger.open_account', {'name': 'saved cash', 'currency': 'EUR'})['account']
+            fe = c4.ok('ledger.post', {'from': fa, 'to': fb, 'amount_minor': '4200',
+                                       'currency': 'EUR', 'reference': 'E2E-SAVED-1'})['entry_id']
+            t0 = time.time()
+            while c4.ok('swarm.earnings')['owner_account'] is None and time.time() - t0 < 30:
+                time.sleep(0.2)
+            bal = c4.ok('swarm.earnings')['balance_minor']
+            js = c4.ok('jurisdiction.set', {'market': 'open', 'standard': 'IFRS', 'country': 'KE'})
+            check(js['market'] == 'open' and js['country'] == 'KE', 'jurisdiction.set')
+            stop(p4, c4)
+            p4, c4 = run_with_books()
+            got = c4.ok('ledger.entries', {'account': fb})['entries']
+            check([(e['entry_id'], e['signed_minor'], e['reference']) for e in got] ==
+                  [(fe, '4200', 'E2E-SAVED-1')], 'a restart brings the posting back (%s)' % got)
+            check(c4.ok('ledger.balance', {'account': fb})['equity_minor'] == '4200',
+                  'and the balance')
+            ea = c4.ok('swarm.earnings')
+            check(ea['resumed'] is True and int(ea['balance_minor']) >= 0 and
+                  ea['owner_account'] is not None,
+                  'the earnings account comes back (%s; was %s)' % (ea, bal))
+            mb = c4.ok('mesh.books')
+            check(mb['currency'] == 'VFV' and mb['wallet_account'] is None,
+                  'mesh.books: no peer sales yet (%s)' % mb)
+            check(c4.ok('ledger.check')['ok'] is True, 'the replayed books balance')
+            j = c4.ok('jurisdiction.get')
+            check((j['market'], j['standard'], j['country']) == ('open', 'IFRS', 'KE'),
+                  'the jurisdiction settings come back (%s)' % j)
+            stop(p4, c4)
+            with open(books, 'r+b') as f:  # an edit outside zxvd stops the next start
+                data = f.read()
+                f.seek(data.index(b'4200'))
+                f.write(b'4300')
+            p5 = subprocess.run([binary, '--rpc', sock, '--models-dir', models, '--books', books],
+                                capture_output=True, text=True, timeout=20, env=env)
+            check(p5.returncode != 0 and 'hash chain' in p5.stderr and not os.path.exists(sock),
+                  'damaged books stop zxvd from starting (%s)' % p5.stderr.strip()[-200:])
+        finally:
+            if p4.poll() is None:
+                p4.kill()
+                p4.wait()
     finally:
         if proc.poll() is None:
             proc.kill()
