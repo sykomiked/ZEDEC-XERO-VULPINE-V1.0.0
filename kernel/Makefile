@@ -356,6 +356,8 @@ verify-all: test
 	gcc -std=c11 -Wall -Wextra -Werror -O2 -Isrc/call src/call/test_call.c src/call/call_rtp.c src/call/call_jitter.c src/call/call_cc.c src/call/call_fec.c src/call/call_mesh.c src/call/call_ice.c src/call/call_session.c -o /tmp/test_call && /tmp/test_call > /tmp/test_call.log 2>&1 && echo "[PASS] test_call" || { tail -40 /tmp/test_call.log; echo "[FAIL] test_call"; exit 1; }
 	@echo "=== vinea: P2P overlay (PQ identity, Kademlia, LAN discovery, offline spool, sessions, agreements, economy) ===";
 	$(MAKE) --no-print-directory test-vinea
+	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
+	$(MAKE) --no-print-directory test-aipi
 	@echo "=== evolve: capabilities, forks, lineage DAG, conformance, profiles ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -O2 -DTEST_HOST -Iinclude -Isrc/evolve -Isrc/mlkem -Isrc/tensor -Isrc/update -Isrc/ipfs_node -Isrc/robin_debanks -Isrc/pqsec -Isrc/pay -Isrc/swarm -Isrc/zcapital -Isrc/surplus -Isrc/modbind -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/trispace \
 		src/evolve/test_evolve.c src/evolve/evo_cap.c src/evolve/evo_msg.c src/evolve/evo_lineage.c src/evolve/evo_trust.c src/evolve/evo_upd.c src/evolve/evo_zxu.c src/evolve/evo_conform.c src/evolve/evo_profile.c \
@@ -1538,6 +1540,14 @@ endif
 .PHONY: test-vinea
 test-vinea:
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk src/vinea/test_vinea.c src/vinea/vna_agree.c src/vinea/vna_cid.c src/vinea/vna_cmd.c src/vinea/vna_common.c src/vinea/vna_econ.c src/vinea/vna_file.c src/vinea/vna_frame.c src/vinea/vna_id.c src/vinea/vna_kad.c src/vinea/vna_lan.c src/vinea/vna_link.c src/vinea/vna_node.c src/vinea/vna_schema.c src/vinea/vna_session.c src/vinea/vna_wire.c src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/ubh/ubh.c src/event_space/event_envelope.c src/zcapital/zcapital.c -o /tmp/test_vinea -lm && /tmp/test_vinea 64 > /tmp/test_vinea.log 2>&1 && echo "[PASS] test_vinea" || { tail -40 /tmp/test_vinea.log; echo "[FAIL] test_vinea"; exit 1; }
+
+# AIPI (src/aipi/aipi.h): content-addressed functions over the IPFS node and Vinea.
+AIPI_DEPS := src/aipi/aipi.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/ipfs_node/ipfsn_fidx.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/lpres/lpres_hex.c src/lpres/lpres.c
+AIPI_INC  := -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus
+.PHONY: test-aipi
+test-aipi:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wshadow -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) src/aipi/test_aipi.c $(AIPI_DEPS) -o $(ZXV_TMP)/test_aipi && $(ZXV_TMP)/test_aipi > $(ZXV_TMP)/test_aipi.log 2>&1 && echo "[PASS] test_aipi ($$(tail -1 $(ZXV_TMP)/test_aipi.log))" || { cat $(ZXV_TMP)/test_aipi.log; echo "[FAIL] test_aipi"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(AIPI_INC) -c src/aipi/aipi.c -o $(ZXV_TMP)/aipi_free.o || { echo "[FAIL] aipi freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/aipi_free.o | grep -vE ' (ipfsn_[a-z0-9_]+|lpx_[a-z_]+|sha256_(init|update|final))$$' | grep -q .; then nm -u $(ZXV_TMP)/aipi_free.o; echo "[FAIL] aipi freestanding: libc or 64-bit division helper ($$t)"; exit 1; fi; done; echo "[PASS] aipi freestanding (aarch64 and i386: no libc, no 64-bit division helpers)"
 
 .PHONY: test-engine
 test-engine:
