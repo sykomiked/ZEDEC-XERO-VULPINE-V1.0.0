@@ -225,6 +225,11 @@ const char *zxv_status_name(int32_t status)
     case ZXV_E_LIMIT: return "ZXV_E_LIMIT";
     case ZXV_E_PARADOX_STEP: return "ZXV_E_PARADOX_STEP";
     case ZXV_E_PARADOX_OWNER: return "ZXV_E_PARADOX_OWNER";
+    case ZXV_E_RAIL: return "ZXV_E_RAIL";
+    case ZXV_E_COVERAGE: return "ZXV_E_COVERAGE";
+    case ZXV_E_LANE: return "ZXV_E_LANE";
+    case ZXV_E_EXPIRED: return "ZXV_E_EXPIRED";
+    case ZXV_E_CHANCE: return "ZXV_E_CHANCE";
     case ZXV_E_INTERNAL: return "ZXV_E_INTERNAL";
     default: return "ZXV_E_UNKNOWN";
     }
@@ -248,7 +253,8 @@ int32_t zxv_status_class(int32_t status)
     case ZXV_E_FLOAT:
     case ZXV_E_TARGET:
     case ZXV_E_DENOM:
-    case ZXV_E_TREATY: return ZXV_CLASS_USAGE;
+    case ZXV_E_TREATY:
+    case ZXV_E_LANE: return ZXV_CLASS_USAGE;
     case ZXV_E_NOTIMPL:
     case ZXV_E_CAPACITY:
     case ZXV_E_FUNDS:
@@ -269,7 +275,11 @@ int32_t zxv_status_class(int32_t status)
     case ZXV_E_PEG:
     case ZXV_E_LIMIT:
     case ZXV_E_PARADOX_STEP:
-    case ZXV_E_PARADOX_OWNER: return ZXV_CLASS_REFUSED;
+    case ZXV_E_PARADOX_OWNER:
+    case ZXV_E_RAIL:
+    case ZXV_E_COVERAGE:
+    case ZXV_E_EXPIRED:
+    case ZXV_E_CHANCE: return ZXV_CLASS_REFUSED;
     case ZXV_E_INVARIANT:
     case ZXV_E_POISONED: return ZXV_CLASS_FATAL;
     default: return ZXV_CLASS_SYSTEM;

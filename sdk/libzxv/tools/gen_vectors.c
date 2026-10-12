@@ -2572,13 +2572,356 @@ static void abi15(zxv_cap *cap)
     paradox(cap);
 }
 
+/* ===================================================================== */
+/* ABI 1.6: vino. The same conventions as the 1.5 sections.              */
+/* ===================================================================== */
+
+static void status16(void)
+{
+    printf(",\"status_abi16\":[");
+    for (int32_t c = -46; c >= -50; c--)
+        printf("%s{\"code\":%d,\"name\":\"%s\",\"class\":%d}", c == -46 ? "" : ",", c,
+               zxv_status_name(c), zxv_status_class(c));
+    printf("]");
+}
+
+static void vreq_fields(const zxv_vino_request *r)
+{
+    printf("\"lane\":%d,\"flags\":%u,\"merchant\":", r->lane, r->flags);
+    phex(r->merchant, 32);
+    printf(",\"nonce\":");
+    phex(r->nonce, 16);
+    printf(",\"amount\":");
+    pu(r->amount);
+    printf(",\"created_at\":");
+    pu(r->created_at);
+    printf(",\"expires_at\":");
+    pu(r->expires_at);
+    printf(",\"memo\":");
+    pjs(r->memo ? r->memo : "");
+}
+
+static zxv_vino_request vreq_base(void)
+{
+    zxv_vino_request r;
+    memset(&r, 0, sizeof r);
+    r.lane = ZXV_VINO_LANE_LIVE;
+    for (int i = 0; i < 32; i++) r.merchant[i] = (uint8_t) (i + 1);
+    for (int i = 0; i < 16; i++) r.nonce[i] = (uint8_t) (0xa0 + i);
+    r.amount = 1234567;
+    r.created_at = 1700000000;
+    r.expires_at = 1700000600;
+    r.memo = "Sword of Dawn";
+    return r;
+}
+
+/* One play-lane step: print it with its status and outputs. */
+static int vfirst;
+static void vstep(const char *op, int32_t rc, const char *args)
+{
+    printf("%s{\"op\":\"%s\",%s,\"status\":", vfirst ? "" : ",", op, args);
+    vfirst = 0;
+    pst(rc);
+}
+
+static void vino(zxv_cap *cap)
+{
+    char a[256];
+    printf(",\"vino\":{\"requests\":[");
+    /* encode cases: each changes one field of the base request */
+    for (int i = 0; i < 16; i++) {
+        zxv_vino_request r = vreq_base();
+        switch (i) {
+        case 1:
+            r.lane = ZXV_VINO_LANE_PLAY, r.flags = ZXV_VINO_REQ_CHANCE, r.memo = NULL;
+            break;
+        case 2:
+            r.amount = ZXV_VINO_AMOUNT_MAX, r.expires_at = r.created_at + 1;
+            break;
+        case 3:
+            r.memo = "0123456789012345678901234567890123456789012345678901234567890123";
+            break;
+        case 4:
+            r.memo = " ~\"\\";
+            break;
+        case 5:
+            r.lane = 0;
+            break;
+        case 6:
+            r.lane = 3;
+            break;
+        case 7:
+            r.flags = 2;
+            break;
+        case 8:
+            r.flags = ZXV_VINO_REQ_CHANCE;
+            break;
+        case 9:
+            r.amount = 0;
+            break;
+        case 10:
+            r.amount = ZXV_VINO_AMOUNT_MAX + 1;
+            break;
+        case 11:
+            r.expires_at = r.created_at;
+            break;
+        case 12:
+            r.memo = "tab\there";
+            break;
+        case 13:
+            r.memo = "0123456789012345678901234567890123456789012345678901234567890123x";
+            break;
+        case 14:
+            r.lane = ZXV_VINO_LANE_PLAY, r.amount = 1, r.created_at = 0, r.expires_at = UINT64_MAX;
+            break;
+        case 15:
+            r.flags = 0x100;
+            break;
+        default:
+            break;
+        }
+        uint8_t b[160], id[32];
+        int32_t rc = zxv_vino_request_encode(&r, b, id);
+        printf("%s{", i ? "," : "");
+        vreq_fields(&r);
+        printf(",\"status\":");
+        pst(rc);
+        if (rc == ZXV_OK) {
+            printf(",\"bytes\":");
+            phex(b, 160);
+            printf(",\"id\":");
+            phex(id, 32);
+        }
+        printf("}");
+    }
+    /* decode refusals: the base bytes with one byte changed */
+    zxv_vino_request base = vreq_base();
+    uint8_t good[160];
+    zxv_vino_request_encode(&base, good, NULL);
+    static const struct {
+        uint8_t off, val;
+    } db[] = {{0, 'Y'}, {4, 2},   {5, 0},   {5, 3},     {6, 1},    {6, 2},   {7, 1},  {63, 8},
+              {75, 0},  {80, 65}, {80, 14}, {81, 0x7f}, {94, 'x'}, {145, 1}, {159, 1}};
+    printf("],\"decode\":[");
+    for (size_t i = 0; i < sizeof db / sizeof db[0]; i++) {
+        uint8_t t[160];
+        memcpy(t, good, 160);
+        t[db[i].off] = db[i].val;
+        zxv_vino_request d;
+        char memo[65];
+        int32_t rc = zxv_vino_request_decode(t, &d, memo, sizeof memo, NULL);
+        printf("%s{\"offset\":%u,\"value\":%u,\"status\":", i ? "," : "", db[i].off, db[i].val);
+        pst(rc);
+        printf("}");
+    }
+    printf("]");
+
+    /* receipts: a fixed wallet key and a deterministic signature over the
+     * documented message (zxv_vino_receipt_sign itself is hedged) */
+    uint32_t f2 = 0;
+    zxv_features2(&f2);
+    if (f2 & ZXV_FEAT2_VHUB) {
+        static uint8_t pk[2592], sk[4896], sig[4627];
+        uint8_t seed[32], id[32], msg[88], hs[32];
+        memset(seed, 0x31, sizeof seed);
+        zxv_mldsa87_keygen_seed(cap, seed, pk, sk);
+        zxv_sha3_256(pk, sizeof pk, hs);
+        zxv_vino_request d;
+        char memo[65];
+        zxv_vino_request_decode(good, &d, memo, sizeof memo, id);
+        const uint64_t at = 1700000100;
+        zxv_vino_receipt_msg(id, pk, at, msg);
+        zxv_mldsa87_sign_deterministic(cap, sk, msg, sizeof msg, NULL, 0, sig);
+        printf(",\"receipt\":{\"note\":\"wallet key: zxv_mldsa87_keygen_seed with seed = 32 bytes "
+               "of 0x31; sig: zxv_mldsa87_sign_deterministic over msg, empty context. request is "
+               "requests[0].bytes. Each check flips sig byte flip_sig (when not -1).\",\"seed\":");
+        phex(seed, 32);
+        printf(",\"pk_sha3_256\":");
+        phex(hs, 32);
+        printf(",\"approved_at\":");
+        pu(at);
+        printf(",\"msg\":");
+        phex(msg, 88);
+        printf(",\"sig\":");
+        phex(sig, sizeof sig);
+        static const struct {
+            uint64_t at, now;
+            int flip;
+        } vc[] = {{1700000100, 1700000200, -1}, {1700000100, 1700000600, -1},
+                  {1700000100, 1700000601, -1}, {1700000101, 1700000200, -1},
+                  {1699999999, 1700000200, -1}, {1700000601, 1700000200, -1},
+                  {1700000100, 1700000200, 0},  {1700000100, 1700000200, 4626}};
+        printf(",\"checks\":[");
+        for (size_t i = 0; i < sizeof vc / sizeof vc[0]; i++) {
+            if (vc[i].flip >= 0) sig[vc[i].flip] ^= 1;
+            int32_t rc = zxv_vino_receipt_verify(good, pk, vc[i].at, sig, vc[i].now);
+            if (vc[i].flip >= 0) sig[vc[i].flip] ^= 1;
+            printf("%s{\"approved_at\":", i ? "," : "");
+            pu(vc[i].at);
+            printf(",\"now\":");
+            pu(vc[i].now);
+            printf(",\"flip_sig\":%d,\"status\":", vc[i].flip);
+            pst(rc);
+            printf("}");
+        }
+        printf("]}");
+    }
+
+    /* the play lane: steps run in order on one sandbox */
+    zxv_vino_play *p = NULL;
+    zxv_vino_play_create(cap, &p);
+    printf(",\"play\":{\"note\":\"Steps run in order on one sandbox. open: owner, is_issuer -> "
+           "account. issue: issuer, holder, face, rail -> id. Every step lists its status; "
+           "outputs only on ZXV_OK.\",\"steps\":[");
+    vfirst = 1;
+    uint32_t acct;
+    static const struct {
+        uint32_t owner;
+        int32_t is_issuer;
+    } op[] = {{700, 1}, {801, 0}, {802, 0}, {703, 1}, {9, 2}};
+    for (size_t i = 0; i < sizeof op / sizeof op[0]; i++) {
+        int32_t rc = zxv_vino_play_open(cap, p, op[i].owner, op[i].is_issuer, &acct);
+        snprintf(a, sizeof a, "\"owner\":%u,\"is_issuer\":%d", op[i].owner, op[i].is_issuer);
+        vstep("open", rc, a);
+        if (rc == ZXV_OK) printf(",\"account\":%u", acct);
+        printf("}");
+    }
+    static const struct {
+        char kind; /* b back, u unback, i issue, t transfer, r set_rail, d redeem */
+        uint32_t x, y;
+        uint64_t n;
+        int32_t rail;
+    } st[] = {
+        {'b', 0, 0, 9, 0},   {'i', 0, 1, 8, 0},  {'i', 0, 1, 5, 0},   {'i', 0, 2, 1, 1},
+        {'u', 0, 0, 1, 0},   {'b', 0, 0, 2, 0},  {'i', 0, 2, 1, 1},   {'u', 0, 0, 1, 0},
+        {'i', 0, 1, 4, 0},   {'i', 1, 2, 1, 0},  {'i', 0, 0, 1, 0},   {'b', 1, 0, 5, 0},
+        {'t', 1, 1, 2, 1},   {'t', 1, 1, 2, 0},  {'t', 1, 2, 1, 0},   {'r', 1, 1, 1, 0},
+        {'r', 1, 2, 1, 0},   {'t', 1, 2, 1, 1},  {'d', 1, 1, 0, 0},   {'d', 1, 2, 0, 0},
+        {'d', 1, 2, 0, 0},   {'t', 1, 2, 1, 1},  {'u', 0, 0, 9, 0},   {'u', 0, 0, 1, 0},
+        {'b', 3, 0, 100, 0}, {'i', 3, 1, 89, 0}, {'u', 3, 0, 100, 0}, {'u', 0, 0, 100, 0},
+        {'d', 9, 1, 0, 0},   {'t', 2, 1, 4, 1},
+    };
+    for (size_t i = 0; i < sizeof st / sizeof st[0]; i++) {
+        int32_t rc;
+        uint64_t id = 0;
+        switch (st[i].kind) {
+        case 'b':
+            rc = zxv_vino_play_back(cap, p, st[i].x, st[i].n);
+            snprintf(a, sizeof a, "\"issuer\":%u,\"amount\":\"%" PRIu64 "\"", st[i].x, st[i].n);
+            vstep("back", rc, a);
+            break;
+        case 'u':
+            rc = zxv_vino_play_unback(cap, p, st[i].x, st[i].n);
+            snprintf(a, sizeof a, "\"issuer\":%u,\"amount\":\"%" PRIu64 "\"", st[i].x, st[i].n);
+            vstep("unback", rc, a);
+            break;
+        case 'i':
+            rc = zxv_vino_issue(cap, p, st[i].x, st[i].y, st[i].n, st[i].rail, &id);
+            snprintf(a, sizeof a,
+                     "\"issuer\":%u,\"holder\":%u,\"face\":\"%" PRIu64 "\",\"rail\":%d", st[i].x,
+                     st[i].y, st[i].n, st[i].rail);
+            vstep("issue", rc, a);
+            if (rc == ZXV_OK) printf(",\"id\":\"%" PRIu64 "\"", id);
+            break;
+        case 't':
+            /* x = voucher, y = from, n = to */
+            rc = zxv_vino_transfer(cap, p, st[i].x, st[i].y, (uint32_t) st[i].n, st[i].rail);
+            snprintf(a, sizeof a, "\"voucher\":\"%u\",\"from\":%u,\"to\":%u,\"rail\":%d", st[i].x,
+                     st[i].y, (unsigned) st[i].n, st[i].rail);
+            vstep("transfer", rc, a);
+            break;
+        case 'r':
+            /* x = voucher, y = holder, n = rail */
+            rc = zxv_vino_set_rail(cap, p, st[i].x, st[i].y, (int32_t) st[i].n);
+            snprintf(a, sizeof a, "\"voucher\":\"%u\",\"holder\":%u,\"rail\":%d", st[i].x, st[i].y,
+                     (int) st[i].n);
+            vstep("set_rail", rc, a);
+            break;
+        default:
+            rc = zxv_vino_redeem(cap, p, st[i].x, st[i].y);
+            snprintf(a, sizeof a, "\"voucher\":\"%u\",\"holder\":%u", st[i].x, st[i].y);
+            vstep("redeem", rc, a);
+            break;
+        }
+        printf("}");
+    }
+    printf("],\"accounts\":[");
+    for (uint32_t i = 0; i < 4; i++) {
+        uint32_t owner = 0, count = 0;
+        int32_t kind = 0;
+        uint64_t back = 0, faces = 0, ids[16];
+        size_t n = 0;
+        zxv_vino_account_info(cap, p, i, &owner, &kind, &back, &faces, &count);
+        zxv_vino_vouchers(cap, p, i, ids, 16, &n);
+        printf("%s{\"account\":%u,\"owner\":%u,\"is_issuer\":%d,\"backing\":", i ? "," : "", i,
+               owner, kind);
+        pu(back);
+        printf(",\"faces\":");
+        pu(faces);
+        printf(",\"count\":%u,\"vouchers\":[", count);
+        for (size_t k = 0; k < n; k++) {
+            printf("%s", k ? "," : "");
+            pu(ids[k]);
+        }
+        printf("]}");
+    }
+    printf("],\"vouchers\":[");
+    for (uint64_t v = 1;; v++) {
+        uint64_t face = 0;
+        uint32_t is = 0, ho = 0;
+        int32_t rail = 0, state = 0;
+        if (zxv_vino_voucher_info(cap, p, v, &face, &is, &ho, &rail, &state) != ZXV_OK) break;
+        printf("%s{\"id\":", v > 1 ? "," : "");
+        pu(v);
+        printf(",\"face\":");
+        pu(face);
+        printf(",\"issuer\":%u,\"holder\":%u,\"rail\":%d,\"state\":%d}", is, ho, rail, state);
+    }
+    printf("]}");
+    zxv_vino_play_destroy(p);
+
+    /* the daily meter */
+    zxv_vino_meter *m = NULL;
+    zxv_vino_meter_create(cap, 100, &m);
+    static const struct {
+        uint64_t day, amount;
+    } ms[] = {{5, 60},  {5, 41}, {5, 40},  {5, 1}, {4, 1}, {5, 0},
+              {6, 101}, {5, 1},  {7, 100}, {6, 1}, {8, 1}};
+    printf(",\"meter\":{\"daily_cap\":\"100\",\"steps\":[");
+    for (size_t i = 0; i < sizeof ms / sizeof ms[0]; i++) {
+        uint64_t left = UINT64_MAX;
+        int32_t rc = zxv_vino_meter_admit(cap, m, ms[i].day, ms[i].amount, &left);
+        printf("%s{\"day\":", i ? "," : "");
+        pu(ms[i].day);
+        printf(",\"amount\":");
+        pu(ms[i].amount);
+        printf(",\"status\":");
+        pst(rc);
+        if (rc == ZXV_OK || rc == ZXV_E_LIMIT) {
+            printf(",\"left\":");
+            pu(left);
+        }
+        printf("}");
+    }
+    printf("]}}");
+    zxv_vino_meter_destroy(m);
+}
+
+static void abi16(zxv_cap *cap)
+{
+    uint32_t f2 = 0;
+    zxv_features2(&f2);
+    status16();
+    if (f2 & ZXV_FEAT2_VINO) vino(cap);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "../conformance/fixtures";
     zxv_ctx *ctx;
     zxv_cap *cap;
     zxv_ctx_create(&ctx);
-    zxv_cap_create(ctx, 1, NULL, ZXV_CAP_ALL_1_5, &cap);
+    zxv_cap_create(ctx, 1, NULL, ZXV_CAP_ALL_1_6, &cap);
     uint32_t maj, min, pat;
     zxv_version(&maj, &min, &pat);
     printf("{\"abi\":[%u,%u,%u],\"generated_by\":\"sdk/libzxv/tools/gen_vectors.c\",", maj, min, pat);
@@ -2593,6 +2936,7 @@ int main(int argc, char **argv)
     evm(cap);
     hex(cap);
     abi15(cap);
+    abi16(cap);
     printf(",\"phase_cycle\":%u}\n", ZXV_PHASE_CYCLE);
     zxv_cap_destroy(cap);
     zxv_ctx_destroy(ctx);

@@ -100,7 +100,8 @@ KSRC := $(K)/src/iso20022/iso20022.c $(K)/src/finance/triple_ledger.c \
         $(K)/src/hwemu/hwa.c $(K)/src/hwemu/hwe.c
 SRC  := src/zxv_api.c src/zxv_core.c src/zxv_econ.c src/zxv_crypto.c src/zxv_tensor.c \
         src/zxv_evm.c src/zxv_hex.c src/zxv_hw.c src/zxv_abi15.c \
-        src/zxv_treaty.c src/zxv_aipi.c src/zxv_coin.c src/zxv_fee.c src/zxv_vhub.c src/zxv_freight.c src/zxv_web4.c src/zxv_paradox.c
+        src/zxv_treaty.c src/zxv_aipi.c src/zxv_coin.c src/zxv_fee.c src/zxv_vhub.c src/zxv_freight.c src/zxv_web4.c src/zxv_paradox.c \
+        src/zxv_vino.c
 DEFS :=
 
 ifeq ($(ZXV_NO_PQC),)
@@ -208,6 +209,8 @@ $(OUT)/test_zxv_abi14$(EXE): test/test_zxv_abi14.c include/zxv_api.h $(LIB)
 	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
 $(OUT)/test_zxv_abi15_%$(EXE): test/test_zxv_abi15_%.c include/zxv_api.h $(LIB)
 	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
+$(OUT)/test_zxv_abi16_%$(EXE): test/test_zxv_abi16_%.c include/zxv_api.h $(LIB)
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
 # The portable (no __int128) Q16 rounding, forced with -DZXV_NO_INT128 and
 # checked against the 128-bit path and the library.
 $(OUT)/test_q16$(EXE): test/test_q16.c src/zxv_q16.h include/zxv_api.h $(LIB)
@@ -221,7 +224,8 @@ $(OUT)/mkfixture: tools/mkfixture.c
 
 test: $(OUT)/test_zxv_api$(EXE) $(OUT)/test_zxv_abi11$(EXE) $(OUT)/test_zxv_abi12$(EXE) $(OUT)/test_zxv_abi13$(EXE) \
       $(OUT)/test_zxv_abi14$(EXE) $(OUT)/test_q16$(EXE) fixtures \
-      $(OUT)/test_zxv_abi15_treaty$(EXE) $(OUT)/test_zxv_abi15_aipi$(EXE) $(OUT)/test_zxv_abi15_coin$(EXE) $(OUT)/test_zxv_abi15_fee$(EXE) $(OUT)/test_zxv_abi15_vhub$(EXE) $(OUT)/test_zxv_abi15_freight$(EXE) $(OUT)/test_zxv_abi15_web4$(EXE) $(OUT)/test_zxv_abi15_paradox$(EXE)
+      $(OUT)/test_zxv_abi15_treaty$(EXE) $(OUT)/test_zxv_abi15_aipi$(EXE) $(OUT)/test_zxv_abi15_coin$(EXE) $(OUT)/test_zxv_abi15_fee$(EXE) $(OUT)/test_zxv_abi15_vhub$(EXE) $(OUT)/test_zxv_abi15_freight$(EXE) $(OUT)/test_zxv_abi15_web4$(EXE) $(OUT)/test_zxv_abi15_paradox$(EXE) \
+      $(OUT)/test_zxv_abi16_vino$(EXE)
 	$(RUN) ./$(OUT)/test_zxv_api$(EXE)
 	$(RUN) ./$(OUT)/test_zxv_abi11$(EXE) ../conformance/fixtures
 	$(RUN) ./$(OUT)/test_zxv_abi12$(EXE) ../conformance/fixtures
@@ -236,6 +240,7 @@ test: $(OUT)/test_zxv_api$(EXE) $(OUT)/test_zxv_abi11$(EXE) $(OUT)/test_zxv_abi1
 	$(RUN) ./$(OUT)/test_zxv_abi15_freight$(EXE)
 	$(RUN) ./$(OUT)/test_zxv_abi15_web4$(EXE)
 	$(RUN) ./$(OUT)/test_zxv_abi15_paradox$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi16_vino$(EXE)
 
 fixtures: $(OUT)/mkfixture
 	@mkdir -p ../conformance/fixtures
