@@ -23,7 +23,13 @@
  *      Trash is removed for good.
  *   F6 SIZES. A read returns at most ZXF_READ_MAX bytes; text reads stop on
  *      a UTF-8 character boundary and refuse invalid UTF-8 (ZXF_E_BINARY).
- *      A file is at most ZXF_FILE_MAX bytes. */
+ *      A file is at most ZXF_FILE_MAX bytes.
+ *   F7 SPACES. Besides home (the root itself), each space (zxv_spaces.h) is
+ *      a folder <root>/.spaces/<id> that F1-F6 apply to on their own: paths
+ *      are relative to the space in use (zxf_use_space), and it has its own
+ *      Trash and staging. Home paths cannot reach .spaces (F2 refuses a
+ *      leading '.'). A space's manifest is <root>/.spaces/<id>.space, out of
+ *      reach of every path, read and written only through zxf_meta_*. */
 #ifndef ZXV_FILES_H
 #define ZXV_FILES_H
 
@@ -31,12 +37,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define ZXF_PATH_MAX 1024u         /* bytes in a relative path */
-#define ZXF_NAME_MAX 255u          /* bytes in one segment */
-#define ZXF_READ_MAX (48u * 1024u) /* bytes in one read */
-#define ZXF_FILE_MAX (256u * 1024u * 1024u)
-#define ZXF_LIST_MAX 10000u /* entries in one listing */
-#define ZXF_TRASH    ".Trash"
+#define ZXF_PATH_MAX     1024u         /* bytes in a relative path */
+#define ZXF_NAME_MAX     255u          /* bytes in one segment */
+#define ZXF_READ_MAX     (48u * 1024u) /* bytes in one read */
+#define ZXF_FILE_MAX     (256u * 1024u * 1024u)
+#define ZXF_LIST_MAX     10000u /* entries in one listing */
+#define ZXF_TRASH        ".Trash"
+#define ZXF_SPACES       ".spaces"
+#define ZXF_SPACE_ID_MAX 48u /* [a-z0-9-], not "home" */
 
 enum {
     ZXF_OK = 0,
@@ -92,6 +100,18 @@ int zxf_rename(const char *from, const char *to);
 int zxf_trash(const char *rel, char *trashed, size_t cap);
 /* Remove everything in the Trash. *removed: top-level items removed. */
 int zxf_empty_trash(uint32_t *removed);
+
+/* F7: the space later calls work in; NULL, "" or "home" = home. A bad id
+ * is refused (ZXF_E_PATH) and the space in use stays. */
+int zxf_use_space(const char *id);
+const char *zxf_space(void); /* "home" or the id */
+bool zxf_space_id_ok(const char *id);
+/* Manifests: read (NUL-terminated, < cap bytes), write whole (exclusive:
+ * refuse when it exists), and call fn for each space id that has one. */
+int zxf_meta_read(const char *id, char *buf, uint32_t cap, uint32_t *n);
+int zxf_meta_write(const char *id, const char *buf, uint32_t n, bool exclusive);
+typedef int (*zxf_meta_fn)(void *ctx, const char *id);
+int zxf_meta_each(zxf_meta_fn fn, void *ctx);
 
 const char *zxf_strerror(int code);
 

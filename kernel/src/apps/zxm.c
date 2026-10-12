@@ -150,6 +150,11 @@ void zxm_p_raw(zxm_link_t *l, const char *obj, uint32_t n)
     l->req_first = n == 2;
 }
 
+void zxm_p_space(zxm_link_t *l, const char *space)
+{
+    if (space && space[0] && strcmp(space, "home")) zxm_p_str(l, "space", space);
+}
+
 /* ===================== one call ===================== */
 
 static int local(zxm_link_t *l, int code, const char *why)

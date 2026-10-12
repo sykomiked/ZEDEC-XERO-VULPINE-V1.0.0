@@ -31,6 +31,7 @@ typedef struct {
 
 typedef struct {
     zxm_link_t *link;
+    char space[ZXM_SPACE_MAX + 1]; /* the space this folder is in; "" = home */
     char root[1024];               /* where the ZXV folder is on this machine */
     char dir[BURROW_PATH_MAX + 1]; /* "" = the ZXV folder, ".Trash..." = the Trash */
     burrow_entry_t e[BURROW_MAX];
@@ -47,8 +48,11 @@ extern const zxm_ai_action_t BURROW_AI[BURROW_AI_COUNT];
 /* The kind of a file from its name (folders are BURROW_K_DIR). */
 uint8_t burrow_kind(const char *name);
 
-int burrow_init(burrow_t *b, zxm_link_t *link); /* reads the root, opens "" */
-int burrow_open(burrow_t *b, const char *dir);  /* a folder, or ".Trash" */
+int burrow_init(burrow_t *b, zxm_link_t *link); /* reads the root, opens home's "" */
+/* Go to another space's top folder (spaces.list names them; "" = home).
+ * On failure the model stays where it was. */
+int burrow_set_space(burrow_t *b, const char *space);
+int burrow_open(burrow_t *b, const char *dir); /* a folder, or ".Trash" */
 int burrow_refresh(burrow_t *b);
 int burrow_up(burrow_t *b);                /* the enclosing folder */
 int burrow_enter(burrow_t *b, uint32_t i); /* a folder entry */
@@ -63,6 +67,12 @@ int burrow_rename(burrow_t *b, uint32_t i, const char *name);
 int burrow_trash(burrow_t *b, uint32_t i);                    /* in the Trash: removes for good */
 int burrow_put_back(burrow_t *b, uint32_t i, const char *to); /* from the Trash */
 int burrow_empty_trash(burrow_t *b, uint32_t *removed);
+/* Copy entry i into another space's folder path `to` (files.cross). When
+ * that would show it to more people, zxvd holds it: *ticket is then its
+ * number for burrow_cross_confirm, which only the owner's yes should call;
+ * 0 when it was copied at once. */
+int burrow_cross(burrow_t *b, uint32_t i, const char *to_space, const char *to, uint32_t *ticket);
+int burrow_cross_confirm(burrow_t *b, uint32_t ticket);
 /* Bring bytes in (an import), split into as many requests as they need. */
 int burrow_import(burrow_t *b, const char *name, const uint8_t *data, uint32_t len);
 

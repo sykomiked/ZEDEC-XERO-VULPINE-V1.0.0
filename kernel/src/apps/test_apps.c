@@ -448,11 +448,11 @@ static void test_quillon(void)
               quillon_set_text(&Q, "\xc0\x80", 2) == ZXM_E_ARG,
           "surrogates, overlong, past U+10FFFF");
     CHECK(Q.len == 19, "a refused edit changes nothing");
-    CHECK(quillon_save_as(&Q, "Pics/doc.md") == ZXM_OK && !quillon_dirty(&Q) &&
+    CHECK(quillon_save_as(&Q, "", "Pics/doc.md") == ZXM_OK && !quillon_dirty(&Q) &&
               !strcmp(Q.path, "Pics/doc.md"),
           "save as: %s", LINK.err);
-    CHECK(quillon_save_as(&Q, "") == ZXM_E_ARG, "save as nowhere");
-    CHECK(quillon_save_as(&Q, "nope/x.md") == ZXM_E_REMOTE && !strcmp(Q.path, "Pics/doc.md"),
+    CHECK(quillon_save_as(&Q, "", "") == ZXM_E_ARG, "save as nowhere");
+    CHECK(quillon_save_as(&Q, "", "nope/x.md") == ZXM_E_REMOTE && !strcmp(Q.path, "Pics/doc.md"),
           "a failed save keeps the path");
 
     /* replace on character boundaries only */
@@ -467,13 +467,13 @@ static void test_quillon(void)
     CHECK(quillon_replace(&Q, 18, 19, "", 0) == ZXM_OK && Q.len == 18, "delete");
     CHECK(quillon_save(&Q) == ZXM_OK && !quillon_dirty(&Q), "save");
     quillon_new(&Q2, &LINK);
-    CHECK(quillon_open(&Q2, "Pics/doc.md") == ZXM_OK && Q2.len == 18 &&
+    CHECK(quillon_open(&Q2, "", "Pics/doc.md") == ZXM_OK && Q2.len == 18 &&
               !strcmp(Q2.text, "Hello  wide\nworld\n") && !quillon_dirty(&Q2),
           "open: %s", LINK.err);
-    CHECK(quillon_open(&Q2, "Pics/one.png") == ZXM_E_REMOTE && LINK.err_code == ZXVD_E_FILES &&
+    CHECK(quillon_open(&Q2, "", "Pics/one.png") == ZXM_E_REMOTE && LINK.err_code == ZXVD_E_FILES &&
               !strcmp(Q2.path, "Pics/doc.md") && Q2.len == 18,
           "a picture is not text, and the document stays");
-    CHECK(quillon_open(&Q2, "missing.md") == ZXM_E_REMOTE && Q2.len == 18, "missing");
+    CHECK(quillon_open(&Q2, "", "missing.md") == ZXM_E_REMOTE && Q2.len == 18, "missing");
 
     /* a large document with everything that needs escaping, in many parts */
     static char big[300000];
@@ -495,9 +495,9 @@ static void test_quillon(void)
     }
     CHECK(quillon_set_text(&Q, big, n) == ZXM_OK, "big text");
     sent = 0;
-    CHECK(quillon_save_as(&Q, "big.txt") == ZXM_OK && sent > 30, "big save: %s (%d parts)",
+    CHECK(quillon_save_as(&Q, "", "big.txt") == ZXM_OK && sent > 30, "big save: %s (%d parts)",
           LINK.err, sent);
-    CHECK(quillon_open(&Q2, "big.txt") == ZXM_OK && Q2.len == n && !memcmp(Q2.text, big, n) &&
+    CHECK(quillon_open(&Q2, "", "big.txt") == ZXM_OK && Q2.len == n && !memcmp(Q2.text, big, n) &&
               !quillon_dirty(&Q2) && !strcmp(Q2.path, "big.txt"),
           "big round trip: %u of %u", Q2.len, n);
     CHECK(Q2.counts.chars == Q.counts.chars && Q2.counts.words == Q.counts.words, "counts match");
@@ -505,8 +505,9 @@ static void test_quillon(void)
     /* every byte a control character: the largest escaped read */
     static char ctl[QUILLON_TEXT_MAX + 1];
     memset(ctl, 1, 100000);
-    CHECK(quillon_set_text(&Q, ctl, 100000) == ZXM_OK && quillon_save_as(&Q, "ctl.txt") == ZXM_OK &&
-              quillon_open(&Q2, "ctl.txt") == ZXM_OK && Q2.len == 100000 &&
+    CHECK(quillon_set_text(&Q, ctl, 100000) == ZXM_OK &&
+              quillon_save_as(&Q, "", "ctl.txt") == ZXM_OK &&
+              quillon_open(&Q2, "", "ctl.txt") == ZXM_OK && Q2.len == 100000 &&
               !memcmp(Q2.text, ctl, 100000),
           "escaped round trip: %s", LINK.err);
     memset(ctl, 'a', sizeof ctl);
@@ -675,6 +676,119 @@ static void test_spindle(void)
           "reject");
 }
 
+/* ---------------- spaces ---------------- */
+
+static int raw_call(const char *method, const char *params)
+{
+    zxm_begin(&LINK, method);
+    zxm_p_raw(&LINK, params, (uint32_t) strlen(params));
+    return zxm_call(&LINK);
+}
+
+static void test_spaces(void)
+{
+    static burrow_t SB;
+    static glint_t SG;
+    CHECK(raw_call("spaces.create", "{\"kind\":\"office\",\"name\":\"Studio\"}") == ZXM_OK,
+          "office: %s", LINK.err);
+    CHECK(raw_call("spaces.join", "{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\","
+                                  "\"owner\":\"alice\",\"role\":\"guest\"}") == ZXM_OK,
+          "joined as a guest: %s", LINK.err);
+    CHECK(raw_call("spaces.create", "{\"kind\":\"cloudtop\",\"name\":\"Front\"}") == ZXM_OK,
+          "cloud top");
+    CHECK(burrow_init(&SB, &LINK) == ZXM_OK && !SB.space[0], "home");
+    uint32_t home_n = SB.n;
+    CHECK(burrow_set_space(&SB, "studio") == ZXM_OK && !strcmp(SB.space, "studio") && SB.n == 0 &&
+              !SB.dir[0],
+          "into the office");
+    CHECK(burrow_set_space(&SB, "nowhere") == ZXM_E_REMOTE && LINK.err_code == -32013 &&
+              !strcmp(SB.space, "studio"),
+          "a missing space leaves the model where it was");
+    static char longid[ZXM_SPACE_MAX + 2];
+    memset(longid, 'a', ZXM_SPACE_MAX + 1);
+    CHECK(burrow_set_space(&SB, longid) == ZXM_E_ARG, "id too long");
+    CHECK(burrow_new_text(&SB, "plan.md") == ZXM_OK && SB.n == 1, "a file in the office");
+    CHECK(burrow_mkdir(&SB, "Shots") == ZXM_OK && burrow_enter(&SB, 0) == ZXM_OK, "a folder");
+    static const uint8_t png[] = {0x89, 'P', 'N', 'G', 0, 1, 2, 3};
+    CHECK(burrow_import(&SB, "a.png", png, sizeof png) == ZXM_OK && SB.n == 1, "import");
+    glint_scan(&SG, &SB);
+    uint8_t buf[16];
+    uint32_t got;
+    CHECK(SG.n == 1 && glint_view(&SG, 0) == ZXM_OK &&
+              glint_load(&SG, buf, sizeof buf, &got) == ZXM_OK && got == sizeof png &&
+              !memcmp(buf, png, sizeof png),
+          "Glint reads from the space: %s", LINK.err);
+    CHECK(burrow_rename(&SB, 0, "b.png") == ZXM_OK && burrow_trash(&SB, 0) == ZXM_OK && SB.n == 0,
+          "rename and trash in the space");
+    CHECK(burrow_open(&SB, ".Trash") == ZXM_OK && SB.n == 1 && burrow_in_trash(&SB),
+          "the space's own Trash");
+    uint32_t removed;
+    CHECK(burrow_empty_trash(&SB, &removed) == ZXM_OK && removed == 1, "empty it");
+    CHECK(burrow_set_space(&SB, "home") == ZXM_OK && !SB.space[0] && SB.n == home_n,
+          "home is untouched");
+
+    /* Quillon remembers the space it saved to */
+    quillon_new(&Q, &LINK);
+    CHECK(quillon_set_text(&Q, "notes", 5) == ZXM_OK &&
+              quillon_save_as(&Q, "studio", "plan.md") == ZXM_OK && !strcmp(Q.space, "studio"),
+          "save in the office");
+    CHECK(quillon_replace(&Q, 5, 5, "!", 1) == ZXM_OK && quillon_save(&Q) == ZXM_OK, "save again");
+    quillon_new(&Q2, &LINK);
+    CHECK(quillon_open(&Q2, "studio", "plan.md") == ZXM_OK && !strcmp(Q2.text, "notes!") &&
+              !strcmp(Q2.space, "studio"),
+          "open from the office");
+    CHECK(quillon_open(&Q2, "", "plan.md") == ZXM_E_REMOTE && !strcmp(Q2.space, "studio"),
+          "not at home");
+    CHECK(quillon_open(&Q2, longid, "plan.md") == ZXM_E_ARG, "space id too long");
+    CHECK(quillon_save_as(&Q2, "crew", "x.md") == ZXM_E_REMOTE && LINK.err_code == -32013 &&
+              strstr(LINK.err, "guest"),
+          "a guest may not write: %s", LINK.err);
+    CHECK(quillon_save_as(&Q2, "home", "from-office.md") == ZXM_OK && !Q2.space[0],
+          "\"home\" is home");
+
+    /* crossings: into a public space is held, home is not */
+    CHECK(burrow_set_space(&SB, "studio") == ZXM_OK, "office");
+    uint32_t ticket = 9;
+    int i = -1;
+    for (uint32_t k = 0; k < SB.n; k++)
+        if (!strcmp(SB.e[k].name, "plan.md")) i = (int) k;
+    CHECK(i >= 0 && burrow_cross(&SB, (uint32_t) i, "front", "plan.md", &ticket) == ZXM_OK &&
+              ticket > 0,
+          "held: %u", ticket);
+    CHECK(burrow_cross_confirm(&SB, 0) == ZXM_E_ARG, "no ticket");
+    CHECK(burrow_cross_confirm(&SB, ticket) == ZXM_OK, "confirmed: %s", LINK.err);
+    CHECK(burrow_cross_confirm(&SB, ticket) == ZXM_E_REMOTE, "only once");
+    CHECK(burrow_cross(&SB, (uint32_t) i, "", "copied.md", &ticket) == ZXM_OK && ticket == 0,
+          "home at once");
+    CHECK(burrow_cross(&SB, (uint32_t) i, "crew", "x.md", &ticket) == ZXM_E_REMOTE && ticket == 0,
+          "never into a space it may not change");
+    CHECK(burrow_cross(&SB, 99, "", "x.md", &ticket) == ZXM_E_ARG, "bounds");
+    CHECK(burrow_mkdir(&SB, "Dir") == ZXM_OK, "a folder");
+    for (uint32_t k = 0; k < SB.n; k++)
+        if (SB.e[k].dir) CHECK(burrow_cross(&SB, k, "", "Dir", &ticket) == ZXM_E_ARG, "files only");
+    CHECK(burrow_set_space(&SB, "front") == ZXM_OK && SB.n == 1 && !strcmp(SB.e[0].name, "plan.md"),
+          "it reached the cloud top");
+    CHECK(burrow_set_space(&SB, "") == ZXM_OK, "home");
+    bool found = false;
+    for (uint32_t k = 0; k < SB.n; k++) found |= !strcmp(SB.e[k].name, "copied.md");
+    CHECK(found, "and home");
+
+    /* a made-up reply to files.cross */
+    burrow_t *fb = &SB;
+    uint32_t f = (uint32_t) find(fb, "copied.md");
+    zxm_link_t *real = fb->link;
+    fb->link = &FAKE;
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"held\":true}}";
+    CHECK(burrow_cross(fb, f, "x", "y", &ticket) == ZXM_E_PROTOCOL, "held with no ticket");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"held\":true,\"ticket\":0}}";
+    CHECK(burrow_cross(fb, f, "x", "y", &ticket) == ZXM_E_PROTOCOL, "ticket 0");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{}}";
+    CHECK(burrow_cross(fb, f, "x", "y", &ticket) == ZXM_E_PROTOCOL, "no held");
+    CHECK(strstr(last_req, "\"from_space\":\"home\"") && strstr(last_req, "\"to_space\":\"x\""),
+          "home by name: %s", last_req);
+    fb->link = real;
+}
+
 int main(void)
 {
     char root[256];
@@ -690,6 +804,7 @@ int main(void)
     test_burrow(root);
     test_quillon();
     test_spindle();
+    test_spaces();
     free(OUT.p);
     char cmd[300];
     snprintf(cmd, sizeof cmd, "rm -rf '%s'", root);

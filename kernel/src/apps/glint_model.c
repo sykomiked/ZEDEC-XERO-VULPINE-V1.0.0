@@ -121,6 +121,7 @@ int glint_load(glint_t *g, uint8_t *buf, uint32_t cap, uint32_t *len)
     uint64_t off = 0;
     for (;;) {
         zxm_begin(l, "files.read");
+        zxm_p_space(l, g->folder->space);
         zxm_p_str(l, "path", path);
         zxm_p_u64(l, "offset", off);
         zxm_p_str(l, "encoding", "base64");

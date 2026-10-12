@@ -76,6 +76,7 @@ static int load(burrow_t *b, const char *dir)
 {
     zxm_link_t *l = b->link;
     zxm_begin(l, "files.list");
+    zxm_p_space(l, b->space);
     zxm_p_str(l, "path", dir);
     int rc = zxm_call(l);
     if (rc) return rc;
@@ -113,6 +114,19 @@ int burrow_init(burrow_t *b, zxm_link_t *link)
     if (zxm_get_str(link, link->result, "root", b->root, sizeof b->root) != ZXM_OK)
         return ZXM_E_PROTOCOL;
     return load(b, "");
+}
+
+int burrow_set_space(burrow_t *b, const char *space)
+{
+    char was[sizeof b->space];
+    size_t n = strlen(space);
+    if (n > ZXM_SPACE_MAX) return ZXM_E_ARG;
+    memcpy(was, b->space, sizeof was);
+    memcpy(b->space, space, n + 1);
+    if (!strcmp(b->space, "home")) b->space[0] = 0;
+    int rc = load(b, "");
+    if (rc) memcpy(b->space, was, sizeof was);
+    return rc;
 }
 
 int burrow_open(burrow_t *b, const char *dir)
@@ -165,6 +179,7 @@ int burrow_select(burrow_t *b, int32_t i)
 static int one_path(burrow_t *b, const char *method, const char *path)
 {
     zxm_begin(b->link, method);
+    zxm_p_space(b->link, b->space);
     zxm_p_str(b->link, "path", path);
     int rc = zxm_call(b->link);
     return rc ? rc : burrow_refresh(b);
@@ -185,6 +200,7 @@ int burrow_new_text(burrow_t *b, const char *name)
     int rc = join(b->dir, name, p, sizeof p);
     if (rc) return rc;
     zxm_begin(b->link, "files.write");
+    zxm_p_space(b->link, b->space);
     zxm_p_str(b->link, "path", p);
     zxm_p_str(b->link, "text", "");
     zxm_p_bool(b->link, "exclusive", true);
@@ -198,6 +214,7 @@ static int move(burrow_t *b, uint32_t i, const char *to)
     int rc = burrow_path(b, i, from, sizeof from);
     if (rc) return rc;
     zxm_begin(b->link, "files.rename");
+    zxm_p_space(b->link, b->space);
     zxm_p_str(b->link, "from", from);
     zxm_p_str(b->link, "to", to);
     rc = zxm_call(b->link);
@@ -232,11 +249,43 @@ int burrow_empty_trash(burrow_t *b, uint32_t *removed)
     uint64_t n = 0;
     *removed = 0;
     zxm_begin(b->link, "files.empty_trash");
+    zxm_p_space(b->link, b->space);
     int rc = zxm_call(b->link);
     if (rc) return rc;
     if (zxm_get_u64(b->link, b->link->result, "removed", &n) != ZXM_OK) return ZXM_E_PROTOCOL;
     *removed = (uint32_t) n;
     return burrow_in_trash(b) ? burrow_open(b, TRASH) : ZXM_OK;
+}
+
+int burrow_cross(burrow_t *b, uint32_t i, const char *to_space, const char *to, uint32_t *ticket)
+{
+    char from[BURROW_PATH_MAX + 1];
+    uint64_t t = 0;
+    bool held = false;
+    *ticket = 0;
+    if (i >= b->n || b->e[i].dir) return ZXM_E_ARG;
+    int rc = burrow_path(b, i, from, sizeof from);
+    if (rc) return rc;
+    zxm_link_t *l = b->link;
+    zxm_begin(l, "files.cross");
+    zxm_p_str(l, "from_space", b->space[0] ? b->space : "home");
+    zxm_p_str(l, "path", from);
+    zxm_p_str(l, "to_space", to_space[0] ? to_space : "home");
+    zxm_p_str(l, "to", to);
+    if ((rc = zxm_call(l)) != 0) return rc;
+    if (zxm_get_bool(l, l->result, "held", &held)) return ZXM_E_PROTOCOL;
+    if (held && (zxm_get_u64(l, l->result, "ticket", &t) || !t || t > UINT32_MAX))
+        return ZXM_E_PROTOCOL;
+    *ticket = (uint32_t) t;
+    return ZXM_OK;
+}
+
+int burrow_cross_confirm(burrow_t *b, uint32_t ticket)
+{
+    if (!ticket) return ZXM_E_ARG;
+    zxm_begin(b->link, "files.cross");
+    zxm_p_u64(b->link, "confirm", ticket);
+    return zxm_call(b->link);
 }
 
 /* 9000 bytes = 12000 base64 characters per request, well inside a line */
@@ -263,6 +312,7 @@ int burrow_import(burrow_t *b, const char *name, const uint8_t *data, uint32_t l
             enc[o++] = i + 2 < n ? B64[v & 63] : '=';
         }
         zxm_begin(b->link, "files.write");
+        zxm_p_space(b->link, b->space);
         zxm_p_str(b->link, "path", p);
         zxm_p_strn(b->link, "base64", enc, o);
         zxm_p_bool(b->link, "exclusive", true);

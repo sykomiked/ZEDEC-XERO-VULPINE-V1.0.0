@@ -14,6 +14,7 @@
 | Owner's books: currencies, accounts, exact postings, invariants | **libzxv** through its frozen C ABI | `currency.*`, `ledger.*` |
 | AIPI: functions by CID, run in the Z-Wasm sandbox under their contract (offline node) | `kernel/src/aipi`, `sdk/kits/aipi`, `zxvd_aipi.c` | `aipi.*` |
 | The ZXV folder behind the built-in apps (Burrow, Quillon, Glint; [STAPLE_APPS.md](STAPLE_APPS.md)) | `zxv_files.c` | `files.*`, and the window's `POST /api/rpc` |
+| Spaces: home, offices, teams, cloud top, parks, with rights per role and held crossings ([STAPLE_APPS.md](STAPLE_APPS.md#spaces)) | `zxv_spaces.c` | `spaces.*`, `files.cross`, the `space` parameter of `files.*` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
 
 It is `zxv_host.c` built with `-DZXVD`, plus `zxvd_rpc.c` and `zxvd_aipi.c`

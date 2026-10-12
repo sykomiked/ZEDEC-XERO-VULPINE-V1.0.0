@@ -237,8 +237,12 @@ typedef struct {
 void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
 
 /* files.* (zxv_files.h F1-F6): the ZXV folder behind the Burrow, Quillon
- * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text. */
+ * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text.
+ */
 #define ZXVD_E_FILES (-32012)
+/* spaces.* and the "space" parameter of files.* (zxv_spaces.h): a missing
+ * space, or a role that may not do what was asked. */
+#define ZXVD_E_SPACE (-32013)
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */

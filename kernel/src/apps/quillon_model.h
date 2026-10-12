@@ -18,6 +18,7 @@ typedef struct {
 
 typedef struct {
     zxm_link_t *link;
+    char space[ZXM_SPACE_MAX + 1];   /* where path is; "" = home */
     char path[QUILLON_PATH_MAX + 1]; /* "" = not saved yet */
     char text[QUILLON_TEXT_MAX + 1];
     uint32_t len;
@@ -38,9 +39,10 @@ enum {
 extern const zxm_ai_action_t QUILLON_AI[QUILLON_AI_COUNT];
 
 void quillon_new(quillon_t *q, zxm_link_t *link);
-int quillon_open(quillon_t *q, const char *path); /* refuses a file that is not UTF-8 text */
-int quillon_save(quillon_t *q);                   /* to q->path; ZXM_E_STATE when there is none */
-int quillon_save_as(quillon_t *q, const char *path);
+/* space: a space id from spaces.list, "" for home (burrow_t.space). */
+int quillon_open(quillon_t *q, const char *space, const char *path); /* UTF-8 text only */
+int quillon_save(quillon_t *q); /* to q->path; ZXM_E_STATE when there is none */
+int quillon_save_as(quillon_t *q, const char *space, const char *path);
 bool quillon_dirty(const quillon_t *q);
 
 /* Edits from the view. Byte offsets, on character boundaries; the text

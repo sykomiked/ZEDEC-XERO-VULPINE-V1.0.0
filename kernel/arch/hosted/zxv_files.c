@@ -24,6 +24,8 @@
 #define ABS_MAX 4096u
 
 static char ROOT[ABS_MAX];
+static char SPACE[ZXF_SPACE_ID_MAX + 1]; /* F7: "" = home */
+static char BASE[ABS_MAX];               /* ROOT, or the space's folder */
 
 /* ===================== the operating system ===================== */
 
@@ -310,6 +312,133 @@ static int make_root(void)
     return rc == 0 || rc == ZXF_E_EXISTS ? 0 : ZXF_E_ROOT;
 }
 
+/* A folder under the root that only this module names: made when missing,
+ * refused when it is a link or not a folder (F3). */
+static int own_dir(char *abs, size_t cap, const char *a, const char *b)
+{
+    if ((size_t) snprintf(abs, cap, "%s" SEP "%s%s%s", ROOT, a, b ? SEP : "", b ? b : "") >= cap)
+        return ZXF_E_PATH;
+    kind_t k = os_kind(abs);
+    if (k.link || (k.exists && !k.dir)) return ZXF_E_PATH;
+    if (!k.exists && os_mkdir(abs) != 0) return ZXF_E_IO;
+    return 0;
+}
+
+/* F7: BASE = the folder the paths are relative to now. */
+static int make_base(void)
+{
+    int rc = make_root();
+    if (rc) return rc;
+    if (!SPACE[0]) {
+        snprintf(BASE, sizeof BASE, "%s", ROOT);
+        return 0;
+    }
+    char sp[ABS_MAX];
+    if ((rc = own_dir(sp, sizeof sp, ZXF_SPACES, NULL)) != 0) return rc;
+    return own_dir(BASE, sizeof BASE, ZXF_SPACES, SPACE);
+}
+
+bool zxf_space_id_ok(const char *id)
+{
+    size_t n = strlen(id);
+    if (n == 0 || n > ZXF_SPACE_ID_MAX || id[0] == '-' || id[n - 1] == '-') return false;
+    for (size_t i = 0; i < n; i++)
+        if (!((id[i] >= 'a' && id[i] <= 'z') || (id[i] >= '0' && id[i] <= '9') || id[i] == '-'))
+            return false;
+    return strcmp(id, "home") != 0;
+}
+
+int zxf_use_space(const char *id)
+{
+    if (!id || !id[0] || !strcmp(id, "home")) {
+        SPACE[0] = 0;
+        return 0;
+    }
+    if (!zxf_space_id_ok(id)) return ZXF_E_PATH;
+    snprintf(SPACE, sizeof SPACE, "%s", id);
+    return 0;
+}
+
+const char *zxf_space(void)
+{
+    return SPACE[0] ? SPACE : "home";
+}
+
+/* ----- F7 manifests: <root>/.spaces/<id>.space, written whole ----- */
+
+static int meta_path(const char *id, const char *ext, char *abs, size_t cap)
+{
+    char sp[ABS_MAX];
+    if (!zxf_space_id_ok(id)) return ZXF_E_PATH;
+    int rc = make_root();
+    if (rc || (rc = own_dir(sp, sizeof sp, ZXF_SPACES, NULL)) != 0) return rc;
+    if ((size_t) snprintf(abs, cap, "%s" SEP "%s%s", sp, id, ext) >= cap) return ZXF_E_PATH;
+    kind_t k = os_kind(abs);
+    return k.link || k.dir ? ZXF_E_PATH : 0;
+}
+
+int zxf_meta_read(const char *id, char *buf, uint32_t cap, uint32_t *n)
+{
+    char abs[ABS_MAX];
+    *n = 0;
+    int rc = meta_path(id, ".space", abs, sizeof abs);
+    if (rc) return rc;
+    kind_t k = os_kind(abs);
+    if (!k.exists) return ZXF_E_NOTFOUND;
+    if (k.size >= cap) return ZXF_E_TOOBIG;
+    FILE *f = os_fopen(abs, "rb");
+    if (!f) return ZXF_E_IO;
+    size_t r = fread(buf, 1, cap - 1, f);
+    bool err = ferror(f) != 0;
+    fclose(f);
+    if (err) return ZXF_E_IO;
+    buf[r] = 0;
+    *n = (uint32_t) r;
+    return 0;
+}
+
+int zxf_meta_write(const char *id, const char *buf, uint32_t n, bool exclusive)
+{
+    char abs[ABS_MAX], tmp[ABS_MAX];
+    int rc = meta_path(id, ".space", abs, sizeof abs);
+    if (rc || (rc = meta_path(id, ".space.tmp", tmp, sizeof tmp)) != 0) return rc;
+    if (exclusive && os_kind(abs).exists) return ZXF_E_EXISTS;
+    FILE *f = os_fopen(tmp, "wb");
+    if (!f) return ZXF_E_IO;
+    bool ok = (n == 0 || fwrite(buf, 1, n, f) == n) && os_sync(f) == 0;
+    ok = (fclose(f) == 0) && ok;
+    if (!ok || (rc = os_rename(tmp, abs, true)) != 0) {
+        os_unlink(tmp);
+        return ok ? rc : ZXF_E_IO;
+    }
+    return 0;
+}
+
+typedef struct {
+    zxf_meta_fn fn;
+    void *ctx;
+} meta_each_t;
+
+static int meta_one(void *ctx, const char *name)
+{
+    meta_each_t *m = ctx;
+    size_t n = strlen(name), e = sizeof ".space" - 1;
+    char id[ZXF_SPACE_ID_MAX + 1];
+    if (n <= e || n - e > ZXF_SPACE_ID_MAX || strcmp(name + n - e, ".space")) return 0;
+    memcpy(id, name, n - e);
+    id[n - e] = 0;
+    return zxf_space_id_ok(id) ? m->fn(m->ctx, id) : 0;
+}
+
+int zxf_meta_each(zxf_meta_fn fn, void *ctx)
+{
+    char sp[ABS_MAX];
+    int rc = make_root();
+    if (rc || (rc = own_dir(sp, sizeof sp, ZXF_SPACES, NULL)) != 0) return rc;
+    meta_each_t m = {fn, ctx};
+    return os_each(sp, meta_one, &m);
+}
+
 int zxf_set_root(const char *abs)
 {
     if (!abs || !abs[0] || strlen(abs) >= sizeof ROOT) return ZXF_E_ROOT;
@@ -330,10 +459,10 @@ int zxf_root(char *out, size_t cap)
  * folder. *k: what is at the full path. */
 static int resolve(const char *rel, char *abs, size_t cap, kind_t *k)
 {
-    int rc = make_root();
+    int rc = make_base();
     if (rc) return rc;
     if (!zxf_valid(rel)) return ZXF_E_PATH;
-    size_t at = (size_t) snprintf(abs, cap, "%s", ROOT);
+    size_t at = (size_t) snprintf(abs, cap, "%s", BASE);
     if (at >= cap || at + 1 + strlen(rel) >= cap) return ZXF_E_PATH;
     kind_t kk = os_kind(abs);
     for (const char *s = rel; *s;) {
@@ -380,9 +509,9 @@ static int parent_ok(const char *rel)
 
 static int special_dir(const char *name, char *abs, size_t cap)
 {
-    int rc = make_root();
+    int rc = make_base();
     if (rc) return rc;
-    if ((size_t) snprintf(abs, cap, "%s" SEP "%s", ROOT, name) >= cap) return ZXF_E_PATH;
+    if ((size_t) snprintf(abs, cap, "%s" SEP "%s", BASE, name) >= cap) return ZXF_E_PATH;
     kind_t k = os_kind(abs);
     if (k.link || (k.exists && !k.dir)) return ZXF_E_PATH;
     if (!k.exists && os_mkdir(abs) != 0) return ZXF_E_IO;

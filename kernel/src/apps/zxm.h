@@ -38,6 +38,7 @@
 #define ZXM_ASK_MAX    4000u /* bytes of prompt swarm.ask takes */
 #define ZXM_ANSWER_MAX 8192u
 #define ZXM_AGENT_MAX  32u
+#define ZXM_SPACE_MAX  48u /* a space id (zxvd's spaces.*); "" = home */
 
 enum {
     ZXM_OK = 0,
@@ -81,6 +82,8 @@ void zxm_p_u64(zxm_link_t *l, const char *key, uint64_t v);
 void zxm_p_bool(zxm_link_t *l, const char *key, bool v);
 /* params given as a ready JSON object (Spindle), instead of zxm_p_* */
 void zxm_p_raw(zxm_link_t *l, const char *json_obj, uint32_t n);
+/* "space": id, left out for home ("" or "home") */
+void zxm_p_space(zxm_link_t *l, const char *space);
 int zxm_call(zxm_link_t *l);
 
 /* Reading the result (or any object/array token in it). */

@@ -87,6 +87,7 @@ static void drop_held(quillon_t *q)
 void quillon_new(quillon_t *q, zxm_link_t *link)
 {
     q->link = link;
+    q->space[0] = 0;
     q->path[0] = 0;
     q->len = 0;
     q->text[0] = 0;
@@ -101,15 +102,20 @@ bool quillon_dirty(const quillon_t *q)
     return q->len != q->saved_len || fnv(q->text, q->len) != q->saved_hash;
 }
 
-static int set_path(quillon_t *q, const char *path)
+static bool where_ok(const char *space, const char *path)
 {
     size_t n = strlen(path);
-    if (!n || n > QUILLON_PATH_MAX) return ZXM_E_ARG;
-    memcpy(q->path, path, n + 1);
-    return ZXM_OK;
+    return n && n <= QUILLON_PATH_MAX && strlen(space) <= ZXM_SPACE_MAX;
 }
 
-int quillon_open(quillon_t *q, const char *path)
+static void set_where(quillon_t *q, const char *space, const char *path)
+{
+    memcpy(q->space, space, strlen(space) + 1);
+    if (!strcmp(q->space, "home")) q->space[0] = 0;
+    memcpy(q->path, path, strlen(path) + 1);
+}
+
+int quillon_open(quillon_t *q, const char *space, const char *path)
 {
     static char chunk[64 * 1024];
     zxm_link_t *l = q->link;
@@ -117,8 +123,10 @@ int quillon_open(quillon_t *q, const char *path)
     uint64_t off = 0;
     /* gathered apart, so a failed open leaves the document as it was */
     static char into[QUILLON_TEXT_MAX + 1];
+    if (!where_ok(space, path)) return ZXM_E_ARG;
     for (;;) {
         zxm_begin(l, "files.read");
+        zxm_p_space(l, space);
         zxm_p_str(l, "path", path);
         zxm_p_u64(l, "offset", off);
         int rc = zxm_call(l);
@@ -138,8 +146,7 @@ int quillon_open(quillon_t *q, const char *path)
         if (next <= off) return ZXM_E_PROTOCOL;
         off = next;
     }
-    int rc = set_path(q, path);
-    if (rc) return rc;
+    set_where(q, space, path);
     memcpy(q->text, into, len);
     q->text[len] = 0;
     q->len = len;
@@ -153,7 +160,7 @@ int quillon_open(quillon_t *q, const char *path)
 /* One request's text: whole characters whose escaped form fits the line. */
 #define PIECE 9000u
 
-static int write_all(quillon_t *q, const char *path)
+static int write_all(quillon_t *q, const char *space, const char *path)
 {
     static char esc[ZXM_REQ_MAX];
     zxm_link_t *l = q->link;
@@ -167,6 +174,7 @@ static int write_all(quillon_t *q, const char *path)
         if (!n && at < q->len) return ZXM_E_TOOBIG;
         bool last = at + n >= q->len;
         zxm_begin(l, "files.write");
+        zxm_p_space(l, space);
         zxm_p_str(l, "path", path);
         zxm_p_strn(l, "text", q->text + at, n);
         if (!(first && last)) zxm_p_str(l, "mode", first ? "begin" : last ? "end" : "add");
@@ -181,18 +189,17 @@ static int write_all(quillon_t *q, const char *path)
 int quillon_save(quillon_t *q)
 {
     if (!q->path[0]) return ZXM_E_STATE;
-    int rc = write_all(q, q->path);
+    int rc = write_all(q, q->space, q->path);
     if (!rc) mark_saved(q);
     return rc;
 }
 
-int quillon_save_as(quillon_t *q, const char *path)
+int quillon_save_as(quillon_t *q, const char *space, const char *path)
 {
-    size_t n = strlen(path);
-    if (!n || n > QUILLON_PATH_MAX) return ZXM_E_ARG;
-    int rc = write_all(q, path);
+    if (!where_ok(space, path)) return ZXM_E_ARG;
+    int rc = write_all(q, space, path);
     if (rc) return rc;
-    set_path(q, path);
+    set_where(q, space, path);
     mark_saved(q);
     return ZXM_OK;
 }

@@ -30,6 +30,7 @@
 #include "zxv_api.h"
 #include "sha256.h"
 #include "zxv_files.h"
+#include "zxv_spaces.h"
 
 static int fails, checks;
 
@@ -433,19 +434,21 @@ static void test_host_methods(void)
              ma, mi, pa, ft);
     EXPECT(REQ("10", "zxvd.version", ""), want);
     CHECK(ma == 1 && mi >= 2, "libzxv ABI 1.2 or later (%u.%u)", ma, mi);
-    EXPECT(REQ("11", "rpc.discover", ""),
-           OK("11",
-              "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
-              "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
-              "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
-              "\"peer.ask\",\"peer.serve\",\"peer.status\","
-              "\"update.check\",\"currency.enable\","
-              "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
-              "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"files.root\",\"files.list\","
-              "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
-              "\"files.trash\",\"files.empty_trash\"]}"));
+    EXPECT(
+        REQ("11", "rpc.discover", ""),
+        OK("11",
+           "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
+           "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
+           "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
+           "\"peer.ask\",\"peer.serve\",\"peer.status\","
+           "\"update.check\",\"currency.enable\","
+           "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
+           "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
+           "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
+           "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"files.root\",\"files.list\","
+           "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
+           "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
+           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -478,6 +481,363 @@ static void test_host_methods(void)
 }
 
 /* ---------------- the books (libzxv) ---------------- */
+
+/* ---------------- spaces.* and files.* in a space (zxv_spaces.h) ---------------- */
+
+#define FERR(id, msg) ERR(id, "-32012", msg)
+#define SERR(id, msg) ERR(id, "-32013", msg)
+#define SP(id, kind, name, owner, role, view, write, pub, members)                                 \
+    "{\"id\":\"" id "\",\"kind\":\"" kind "\",\"name\":\"" name "\",\"owner\":\"" owner            \
+    "\",\"role\":\"" role "\",\"view\":" view ",\"write\":" write ",\"public\":" pub               \
+    ",\"members\":[" members "]}"
+#define HOME_SP      SP("home", "home", "Home", "me", "owner", "true", "true", "false", "")
+#define STUDIO_SP(m) SP("studio-a", "office", "Studio A", "me", "owner", "true", "true", "false", m)
+
+static void test_spaces_methods(void)
+{
+    char root[200];
+    snprintf(root, sizeof root, "%s/zxvd-spaces-XXXXXX",
+             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0, "root set");
+
+    /* S1 table */
+    CHECK(zxs_rights(ZXS_HOME, ZXS_OWNER) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_HOME, ZXS_MEMBER) == 0 && zxs_rights(ZXS_HOME, ZXS_ANYONE) == 0,
+          "home is the owner's");
+    CHECK(zxs_rights(ZXS_OFFICE, ZXS_MEMBER) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_TEAM, ZXS_MEMBER) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_OFFICE, ZXS_GUEST) == ZXS_VIEW &&
+              zxs_rights(ZXS_TEAM, ZXS_GUEST) == ZXS_VIEW &&
+              zxs_rights(ZXS_OFFICE, ZXS_ANYONE) == 0 && zxs_rights(ZXS_TEAM, ZXS_ANYONE) == 0,
+          "offices and teams: members write, guests view");
+    CHECK(zxs_rights(ZXS_CLOUDTOP, ZXS_OWNER) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_CLOUDTOP, ZXS_MEMBER) == ZXS_VIEW &&
+              zxs_rights(ZXS_CLOUDTOP, ZXS_ANYONE) == ZXS_VIEW,
+          "cloud top: anyone views, the owner writes");
+    CHECK(zxs_rights(ZXS_PARK, ZXS_ANYONE) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_PARK, ZXS_GUEST) == (ZXS_VIEW | ZXS_WRITE),
+          "a park is public");
+    CHECK(zxs_rights(ZXS_KINDS, ZXS_OWNER) == 0 && zxs_rights(ZXS_HOME, ZXS_ROLES) == 0,
+          "out of range");
+    CHECK(zxs_kind_parse("park") == ZXS_PARK && zxs_kind_parse("Park") == -1 &&
+              zxs_role_parse("guest") == ZXS_GUEST && zxs_role_parse("") == -1,
+          "parse");
+    CHECK(zxs_who_ok("peer-1") && !zxs_who_ok("") && !zxs_who_ok("a b") && !zxs_who_ok("a\"") &&
+              !zxs_who_ok("a\\b"),
+          "member ids");
+
+    EXPECT(REQ("1", "spaces.list", ""), OK("1", "{\"spaces\":[" HOME_SP "]}"));
+    EXPECT(REQ("1", "spaces.get", ",\"params\":{\"space\":\"home\"}"), OK("1", HOME_SP));
+    EXPECT(REQ("1", "spaces.get", ""),
+           ERR("1", "-32602", "missing string parameter \\\"space\\\""));
+    EXPECT(REQ("1", "spaces.get", ",\"params\":{\"space\":\"nope\"}"), SERR("1", "no such space"));
+    EXPECT(REQ("1", "spaces.get", ",\"params\":{\"space\":\"..\"}"),
+           ERR("1", "-32602", "\\\"space\\\" is not a space id"));
+    EXPECT(REQ("1", "files.list", ",\"params\":{\"space\":\"Nope\"}"),
+           ERR("1", "-32602", "\\\"space\\\" is not a space id"));
+    EXPECT(REQ("1", "files.list", ",\"params\":{\"space\":\"nope\"}"), SERR("1", "no such space"));
+
+    /* create */
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"office\",\"name\":\"Studio A\"}"),
+           OK("2", STUDIO_SP("")));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"office\",\"name\":\"Studio A\"}"),
+           OK("2",
+              SP("studio-a-2", "office", "Studio A", "me", "owner", "true", "true", "false", "")));
+    EXPECT(REQ("2", "spaces.create",
+               ",\"params\":{\"kind\":\"cloudtop\",\"name\":\"\\u00c9t\\u00e9 \\\"front\\\"\"}"),
+           OK("2", SP("t-front", "cloudtop", "\xc3\x89t\xc3\xa9 \\\"front\\\"", "me", "owner",
+                      "true", "true", "true", "")));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"park\",\"name\":\"!!\"}"),
+           OK("2", SP("park", "park", "!!", "me", "owner", "true", "true", "true", "")));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"Home\"}"),
+           OK("2", SP("team", "team", "Home", "me", "owner", "true", "true", "false", "")));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"home\",\"name\":\"x\"}"),
+           ERR("2", "-32602", "\\\"kind\\\" must be office, team, cloudtop or park"));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"attic\",\"name\":\"x\"}"),
+           ERR("2", "-32602", "\\\"kind\\\" must be office, team, cloudtop or park"));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"a\\nb\"}"),
+           FERR("2", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"\"}"),
+           FERR("2", "not a valid name or path in the ZXV folder"));
+
+    /* files in a space stay in it */
+    EXPECT(REQ("3", "files.write",
+               ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\",\"text\":\"hi\"}"),
+           OK("3", "{\"path\":\"plan.txt\",\"size\":2,\"done\":true}"));
+    EXPECT(REQ("3", "files.list", ",\"params\":{\"space\":\"home\"}"),
+           OK("3", "{\"path\":\"\",\"entries\":[]}"));
+    CHECK(has(REQ("3", "files.list", ",\"params\":{\"space\":\"studio-a\"}"),
+              "{\"name\":\"plan.txt\",\"dir\":false,\"size\":2"),
+          "listed in its space: %s", OUT.p);
+    EXPECT(REQ("3", "files.read", ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\"}"),
+           OK("3", "{\"path\":\"plan.txt\",\"size\":2,\"offset\":0,\"next\":2,\"eof\":true,"
+                   "\"text\":\"hi\"}"));
+    EXPECT(REQ("3", "files.read", ",\"params\":{\"path\":\"plan.txt\"}"),
+           FERR("3", "no such file or folder"));
+    EXPECT(REQ("3", "files.write", ",\"params\":{\"path\":\".spaces/studio-a/x\",\"text\":\"\"}"),
+           FERR("3", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("3", "files.trash", ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\"}"),
+           OK("3", "{\"trashed\":\".Trash/plan.txt\",\"removed\":false}"));
+    EXPECT(REQ("3", "files.list", ",\"params\":{\"path\":\".Trash\"}"),
+           OK("3", "{\"path\":\".Trash\",\"entries\":[]}"));
+    EXPECT(REQ("3", "files.rename",
+               ",\"params\":{\"space\":\"studio-a\",\"from\":\".Trash/"
+               "plan.txt\",\"to\":\"plan.txt\"}"),
+           OK("3", "{\"path\":\"plan.txt\"}"));
+
+    /* joined spaces: rights by role (S1, S2) */
+    EXPECT(
+        REQ("4", "spaces.join",
+            ",\"params\":{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\",\"owner\":\"alice\","
+            "\"role\":\"guest\"}"),
+        OK("4", SP("crew", "team", "Crew", "alice", "guest", "true", "false", "false", "")));
+    EXPECT(
+        REQ("4", "spaces.join",
+            ",\"params\":{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\",\"owner\":\"alice\","
+            "\"role\":\"guest\"}"),
+        FERR("4", "something with that name already exists"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"me\","
+               "\"role\":\"member\"}"),
+           FERR("4", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
+               "\"role\":\"owner\"}"),
+           ERR("4", "-32602", "\\\"role\\\" must be member or guest"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"home\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
+               "\"role\":\"member\"}"),
+           FERR("4", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("4", "files.list", ",\"params\":{\"space\":\"crew\"}"),
+           OK("4", "{\"path\":\"\",\"entries\":[]}"));
+    EXPECT(REQ("4", "files.write", ",\"params\":{\"space\":\"crew\",\"path\":\"a\",\"text\":\"\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "files.mkdir", ",\"params\":{\"space\":\"crew\",\"path\":\"a\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "files.rename", ",\"params\":{\"space\":\"crew\",\"from\":\"a\",\"to\":\"b\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "files.trash", ",\"params\":{\"space\":\"crew\",\"path\":\"a\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "files.empty_trash", ",\"params\":{\"space\":\"crew\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"lab\",\"kind\":\"office\",\"name\":\"Lab\",\"owner\":\"bob\","
+               "\"role\":\"member\"}"),
+           OK("4", SP("lab", "office", "Lab", "bob", "member", "true", "true", "false", "")));
+    EXPECT(REQ("4", "files.mkdir", ",\"params\":{\"space\":\"lab\",\"path\":\"bench\"}"),
+           OK("4", "{\"path\":\"bench\"}"));
+    EXPECT(
+        REQ("4", "spaces.join",
+            ",\"params\":{\"id\":\"bobs-front\",\"kind\":\"cloudtop\",\"name\":\"Bob\","
+            "\"owner\":\"bob\",\"role\":\"member\"}"),
+        OK("4", SP("bobs-front", "cloudtop", "Bob", "bob", "member", "true", "false", "true", "")));
+    EXPECT(REQ("4", "files.stat", ",\"params\":{\"space\":\"bobs-front\",\"path\":\"x\"}"),
+           FERR("4", "no such file or folder"));
+    EXPECT(REQ("4", "files.write",
+               ",\"params\":{\"space\":\"bobs-front\",\"path\":\"x\",\"text\":\"\"}"),
+           SERR("4", "your role in this space (member) may not change it"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"commons\",\"kind\":\"park\",\"name\":\"Commons\","
+               "\"owner\":\"town\",\"role\":\"guest\"}"),
+           OK("4", SP("commons", "park", "Commons", "town", "guest", "true", "true", "true", "")));
+    EXPECT(REQ("4", "files.write",
+               ",\"params\":{\"space\":\"commons\",\"path\":\"hello.txt\",\"text\":\"hi\"}"),
+           OK("4", "{\"path\":\"hello.txt\",\"size\":2,\"done\":true}"));
+
+    /* members (S4) */
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a\",\"members\":[{\"who\":\"bob\",\"role\":"
+               "\"member\"},{\"who\":\"carol\",\"role\":\"guest\"}]}"),
+           OK("5", STUDIO_SP("{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
+                             "\"guest\"}")));
+    EXPECT(REQ("5", "spaces.get", ",\"params\":{\"space\":\"studio-a\"}"),
+           OK("5", STUDIO_SP("{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
+                             "\"guest\"}")));
+    EXPECT(REQ("5", "spaces.set_members", ",\"params\":{\"space\":\"crew\",\"members\":[]}"),
+           SERR("5", "only the owner of an office, team, cloud top or park changes its members"));
+    EXPECT(REQ("5", "spaces.set_members", ",\"params\":{\"space\":\"home\",\"members\":[]}"),
+           SERR("5", "only the owner of an office, team, cloud top or park changes its members"));
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a\",\"members\":[{\"who\":\"bob\",\"role\":"
+               "\"member\"},{\"who\":\"bob\",\"role\":\"guest\"}]}"),
+           ERR("5", "-32602", "member 1 is listed twice"));
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a\",\"members\":[{\"who\":\"me\",\"role\":"
+               "\"member\"}]}"),
+           ERR("5", "-32602", "member 0 needs a printable id and the role member or guest"));
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a\",\"members\":[{\"who\":\"x\",\"role\":"
+               "\"owner\"}]}"),
+           ERR("5", "-32602", "member 0 needs a printable id and the role member or guest"));
+    EXPECT(REQ("5", "spaces.set_members", ",\"params\":{\"space\":\"studio-a\",\"members\":[7]}"),
+           ERR("5", "-32602", "member 0 must be {\\\"who\\\", \\\"role\\\"}"));
+    EXPECT(REQ("5", "spaces.set_members", ",\"params\":{\"space\":\"studio-a\"}"),
+           ERR("5", "-32602", "\\\"members\\\" must be an array of at most 64 members"));
+    EXPECT(REQ("5", "spaces.get", ",\"params\":{\"space\":\"studio-a\"}"),
+           OK("5", STUDIO_SP("{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
+                             "\"guest\"}")));
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a-2\",\"members\":[{\"who\":\"bob\",\"role\":"
+               "\"guest\"}]}"),
+           OK("5", SP("studio-a-2", "office", "Studio A", "me", "owner", "true", "true", "false",
+                      "{\"who\":\"bob\",\"role\":\"guest\"}")));
+
+    /* crossings (S3) */
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"diary.txt\",\"text\":\"secret\"}"),
+           OK("6", "{\"path\":\"diary.txt\",\"size\":6,\"done\":true}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"diary.txt\",\"to_space\":"
+               "\"studio-a\",\"to\":\"diary.txt\"}"),
+           OK("6", "{\"held\":true,\"ticket\":1,\"reason\":\"the destination shows it to people "
+                   "who cannot see it now\"}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"space\":\"studio-a\",\"path\":\"diary.txt\"}"),
+           FERR("6", "no such file or folder"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":1}"),
+           OK("6", "{\"held\":false,\"path\":\"diary.txt\",\"size\":6}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"space\":\"studio-a\",\"path\":\"diary.txt\"}"),
+           OK("6", "{\"path\":\"diary.txt\",\"size\":6,\"offset\":0,\"next\":6,\"eof\":true,"
+                   "\"text\":\"secret\"}"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":1}"),
+           ERR("6", "-32602", "no held crossing with that ticket"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"home\",\"to\":\"plan.txt\"}"),
+           OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"studio-a-2\",\"to\":\"plan.txt\"}"),
+           OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a-2\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"studio-a\",\"to\":\"plan2.txt\"}"),
+           OK("6", "{\"held\":true,\"ticket\":2,\"reason\":\"the destination shows it to people "
+                   "who cannot see it now\"}")); /* carol was not in studio-a-2 */
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":2}"),
+           OK("6", "{\"held\":false,\"path\":\"plan2.txt\",\"size\":2}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"lab\",\"to\":\"plan.txt\"}"),
+           OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}")); /* bob saw it */
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"lab\",\"to\":\"plan3.txt\"}"),
+           OK("6", "{\"held\":true,\"ticket\":3,\"reason\":\"the destination shows it to people "
+                   "who cannot see it now\"}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"t-front\",\"to\":\"plan.txt\"}"),
+           OK("6", "{\"held\":true,\"ticket\":4,\"reason\":\"the destination is public\"}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"commons\",\"path\":\"hello.txt\",\"to_space\":"
+               "\"t-front\",\"to\":\"hello.txt\"}"),
+           OK("6", "{\"held\":false,\"path\":\"hello.txt\",\"size\":2}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"crew\",\"to\":\"plan.txt\"}"),
+           SERR("6", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"home\",\"to\":\"p.txt\"}"),
+           ERR("6", "-32602", "within one space, use files.rename"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a-2\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"home\",\"to\":\"plan.txt\"}"),
+           FERR("6", "something with that name already exists"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"lab\",\"path\":\"bench\",\"to_space\":"
+               "\"home\",\"to\":\"bench\"}"),
+           FERR("6", "is a folder"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"lab\",\"path\":\"../x\",\"to_space\":"
+               "\"home\",\"to\":\"x\"}"),
+           FERR("6", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"lab\",\"path\":\"nope\",\"to_space\":"
+               "\"home\",\"to\":\"x\"}"),
+           FERR("6", "no such file or folder"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"from_space\":\"lab\",\"to_space\":\"home\"}"),
+           ERR("6", "-32602", "missing string parameter \\\"path\\\""));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":-1}"),
+           ERR("6", "-32602", "\\\"confirm\\\" must not be negative"));
+    /* a held crossing whose destination left in the meantime */
+    char mf[300];
+    snprintf(mf, sizeof mf, "%s/.spaces/lab.space", root);
+    CHECK(remove(mf) == 0, "lab leaves");
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":3}"),
+           SERR("6", "the spaces changed since the crossing was held"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":4}"),
+           OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}"));
+    /* only the latest 8 held crossings are kept */
+    for (int i = 0; i < 9; i++)
+        rpc(REQ("7", "files.cross",
+                ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+                "\"park\",\"to\":\"p.txt\"}"));
+    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":5}"),
+           ERR("7", "-32602", "no held crossing with that ticket"));
+    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":6}"),
+           OK("7", "{\"held\":false,\"path\":\"p.txt\",\"size\":2}"));
+    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":13}"),
+           FERR("7", "something with that name already exists"));
+
+    /* a long file crosses whole */
+    static char big[ZXF_READ_MAX * 2 + 100];
+    memset(big, 'z', sizeof big);
+    uint64_t sz;
+    CHECK(zxf_use_space("home") == 0 && zxf_write("big.txt", (const uint8_t *) big, sizeof big,
+                                                  ZXF_W_REPLACE, false, &sz) == 0,
+          "big file");
+    char want[200];
+    snprintf(want, sizeof want, OK("8", "{\"held\":false,\"path\":\"big.txt\",\"size\":%u}"),
+             (unsigned) sizeof big);
+    EXPECT(REQ("8", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"diary.txt\",\"to_space\":"
+               "\"home\",\"to\":\"d2.txt\"}"),
+           OK("8", "{\"held\":false,\"path\":\"d2.txt\",\"size\":6}"));
+    EXPECT(REQ("8", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"big.txt\","
+               "\"to_space\":\"park\",\"to\":\"big.txt\"}"),
+           OK("8", "{\"held\":true,\"ticket\":14,\"reason\":\"the destination is public\"}"));
+    EXPECT(REQ("8", "files.cross", ",\"params\":{\"confirm\":14}"), want);
+
+    /* damaged manifests are refused and left out of the list */
+    snprintf(mf, sizeof mf, "%s/.spaces/park.space", root);
+    FILE *f = fopen(mf, "wb");
+    CHECK(f && fputs("{\"id\":\"park\",\"kind\":\"home\"}", f) >= 0 && fclose(f) == 0, "damage");
+    EXPECT(REQ("9", "spaces.get", ",\"params\":{\"space\":\"park\"}"),
+           FERR("9", "the file system refused"));
+    snprintf(mf, sizeof mf, "%s/.spaces/team.space", root);
+    f = fopen(mf, "wb");
+    CHECK(f &&
+              fputs("{\"id\":\"other\",\"kind\":\"team\",\"name\":\"T\",\"owner\":\"me\","
+                    "\"role\":\"owner\",\"members\":[]}",
+                    f) >= 0 &&
+              fclose(f) == 0,
+          "a manifest under another id");
+    EXPECT(REQ("9", "files.list", ",\"params\":{\"space\":\"team\"}"),
+           FERR("9", "the file system refused"));
+    snprintf(mf, sizeof mf, "%s/.spaces/crew.space", root);
+    f = fopen(mf, "wb");
+    CHECK(f &&
+              fputs("{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\",\"owner\":\"alice\","
+                    "\"role\":\"owner\",\"members\":[]}",
+                    f) >= 0 &&
+              fclose(f) == 0,
+          "a joined space cannot claim to be owned");
+    EXPECT(REQ("9", "spaces.get", ",\"params\":{\"space\":\"crew\"}"),
+           FERR("9", "the file system refused"));
+    const char *l = rpc(REQ("9", "spaces.list", ""));
+    CHECK(strstr(l, "\"id\":\"studio-a\"") && strstr(l, "\"id\":\"commons\"") &&
+              !strstr(l, "\"id\":\"park\"") && !strstr(l, "\"id\":\"crew\"") &&
+              !strstr(l, "\"id\":\"lab\"") &&
+              strstr(l, "{\"spaces\":[" HOME_SP ",{\"id\":\"bobs-front\""),
+          "list: %s", l);
+
+    CHECK(zxf_use_space("home") == 0, "home again");
+    char cmd[300];
+    snprintf(cmd, sizeof cmd, "rm -rf '%s'", root);
+    CHECK(system(cmd) == 0, "cleanup");
+}
 
 static void test_books_closed(void)
 {
@@ -2240,6 +2600,7 @@ int main(void)
     test_peer_methods();
     test_aipi_methods();
     test_files_methods();
+    test_spaces_methods();
     test_books_closed();
     test_books();
     test_earnings();

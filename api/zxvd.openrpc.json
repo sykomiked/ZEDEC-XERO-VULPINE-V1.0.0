@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h).",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, or this node's role in it may not do that (kernel/arch/hosted/zxv_spaces.h S1).",
     "license": {
       "name": "Apache-2.0"
     }
@@ -1923,6 +1923,15 @@
             "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
+            "maxLength": 48
+          }
         }
       ],
       "result": {
@@ -1971,6 +1980,15 @@
             "type": "string",
             "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
+            "maxLength": 48
           }
         }
       ],
@@ -2037,6 +2055,15 @@
               "utf8",
               "base64"
             ]
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
+            "maxLength": 48
           }
         }
       ],
@@ -2118,6 +2145,15 @@
             "type": "boolean",
             "description": "refuse when the target exists (a new file)"
           }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
+            "maxLength": 48
+          }
         }
       ],
       "result": {
@@ -2151,6 +2187,15 @@
             "type": "string",
             "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
+            "maxLength": 48
           }
         }
       ],
@@ -2188,6 +2233,15 @@
             "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
+            "maxLength": 48
+          }
         }
       ],
       "result": {
@@ -2215,6 +2269,15 @@
             "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
+            "maxLength": 48
+          }
         }
       ],
       "result": {
@@ -2239,7 +2302,17 @@
     {
       "name": "files.empty_trash",
       "summary": "Remove everything in the Trash for good.",
-      "params": [],
+      "params": [
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to work in (spaces.list): 'home' when absent; viewing needs the view right, changing needs write (zxv_spaces.h S1)",
+            "maxLength": 48
+          }
+        }
+      ],
       "result": {
         "name": "emptied",
         "schema": {
@@ -2248,6 +2321,551 @@
             "removed": {
               "type": "integer",
               "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.cross",
+      "summary": "Copy a file into another space (zxv_spaces.h S3). When the destination would show it to anyone who cannot see the source (a public space, or a member not in the source), the copy is held and a ticket returned; calling again with confirm: ticket does it. The 8 latest held crossings are kept.",
+      "params": [
+        {
+          "name": "from_space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "a space id: [a-z0-9-], or 'home'"
+          }
+        },
+        {
+          "name": "path",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "to_space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "a space id: [a-z0-9-], or 'home'"
+          }
+        },
+        {
+          "name": "to",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "confirm",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "a held crossing's ticket; the other parameters are then ignored"
+          }
+        }
+      ],
+      "result": {
+        "name": "crossing",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "held": {
+              "type": "boolean"
+            },
+            "ticket": {
+              "type": "integer"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "spaces.list",
+      "summary": "Home, then every space this node owns or joined, by id (zxv_spaces.h).",
+      "params": [],
+      "result": {
+        "name": "spaces",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "spaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "home",
+                      "office",
+                      "team",
+                      "cloudtop",
+                      "park"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "owner": {
+                    "type": "string",
+                    "description": "'me' for spaces this node owns, else who invited it"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "member",
+                      "guest"
+                    ]
+                  },
+                  "view": {
+                    "type": "boolean"
+                  },
+                  "write": {
+                    "type": "boolean"
+                  },
+                  "public": {
+                    "type": "boolean"
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "who": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "member",
+                            "guest"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "spaces.get",
+      "summary": "One space's manifest and this node's rights in it.",
+      "params": [
+        {
+          "name": "space",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "a space id: [a-z0-9-], or 'home'"
+          }
+        }
+      ],
+      "result": {
+        "name": "space",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "home",
+                "office",
+                "team",
+                "cloudtop",
+                "park"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string",
+              "description": "'me' for spaces this node owns, else who invited it"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "member",
+                "guest"
+              ]
+            },
+            "view": {
+              "type": "boolean"
+            },
+            "write": {
+              "type": "boolean"
+            },
+            "public": {
+              "type": "boolean"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "who": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "member",
+                      "guest"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "spaces.create",
+      "summary": "A new space this node owns; its id is made from the name (unique).",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "office",
+              "team",
+              "cloudtop",
+              "park"
+            ]
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "UTF-8, no control characters"
+          }
+        }
+      ],
+      "result": {
+        "name": "space",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "home",
+                "office",
+                "team",
+                "cloudtop",
+                "park"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string",
+              "description": "'me' for spaces this node owns, else who invited it"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "member",
+                "guest"
+              ]
+            },
+            "view": {
+              "type": "boolean"
+            },
+            "write": {
+              "type": "boolean"
+            },
+            "public": {
+              "type": "boolean"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "who": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "member",
+                      "guest"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "spaces.join",
+      "summary": "Record a space another node invited this one into, with the role it was given (S2). Until the mesh syncs spaces, rights guard this node's copy.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "a space id: [a-z0-9-], or 'home'"
+          }
+        },
+        {
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "office",
+              "team",
+              "cloudtop",
+              "park"
+            ]
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        {
+          "name": "owner",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "who invited this node; printable ASCII, not 'me'"
+          }
+        },
+        {
+          "name": "role",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "member",
+              "guest"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "space",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "home",
+                "office",
+                "team",
+                "cloudtop",
+                "park"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string",
+              "description": "'me' for spaces this node owns, else who invited it"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "member",
+                "guest"
+              ]
+            },
+            "view": {
+              "type": "boolean"
+            },
+            "write": {
+              "type": "boolean"
+            },
+            "public": {
+              "type": "boolean"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "who": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "member",
+                      "guest"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "spaces.set_members",
+      "summary": "Replace the member list of a space this node owns (S4); not home.",
+      "params": [
+        {
+          "name": "space",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "a space id: [a-z0-9-], or 'home'"
+          }
+        },
+        {
+          "name": "members",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "properties": {
+                "who": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "member",
+                    "guest"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "space",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "home",
+                "office",
+                "team",
+                "cloudtop",
+                "park"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string",
+              "description": "'me' for spaces this node owns, else who invited it"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "member",
+                "guest"
+              ]
+            },
+            "view": {
+              "type": "boolean"
+            },
+            "write": {
+              "type": "boolean"
+            },
+            "public": {
+              "type": "boolean"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "who": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "member",
+                      "guest"
+                    ]
+                  }
+                }
+              }
             }
           }
         }

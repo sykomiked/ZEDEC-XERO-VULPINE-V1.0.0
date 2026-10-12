@@ -35,6 +35,7 @@
 #include "web4_util.h" /* hex */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
 #include "zxv_files.h" /* files.*: the ZXV folder */
+#include "zxv_spaces.h" /* spaces.*: who may see and change each place */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -1142,6 +1143,39 @@ static bool p_path(call_t *c, const char *key, char *out, bool required)
     return p_str(c, key, out, ZXF_PATH_MAX + 1, required);
 }
 
+/* The space named by `key` ("home" when absent), loaded into *s, with the
+ * rights `want` checked (zxv_spaces.h S1). */
+static bool p_space(call_t *c, const char *key, unsigned want, zxs_space_t *s)
+{
+    char id[ZXF_SPACE_ID_MAX + 1];
+    if (!p_str(c, key, id, sizeof id, false)) return false;
+    if (!id[0]) snprintf(id, sizeof id, "home");
+    if (strcmp(id, "home") && !zxf_space_id_ok(id)) {
+        fail(c, E_PARAMS, "\"%s\" is not a space id", key);
+        return false;
+    }
+    int rc = zxs_load(id, s);
+    if (rc == ZXF_E_NOTFOUND) {
+        fail(c, ZXVD_E_SPACE, "no such space");
+        return false;
+    }
+    if (!files_done(c, rc)) return false;
+    if (want && !zxs_can(s, want)) {
+        fail(c, ZXVD_E_SPACE, "your role in this space (%s) may not %s it",
+             zxs_role_name((zxs_role_t) s->role), want & ZXS_WRITE ? "change" : "see");
+        return false;
+    }
+    return true;
+}
+
+/* the space for a files.* call: checked, then made the one in use */
+static bool use_space(call_t *c, unsigned want)
+{
+    static zxs_space_t s;
+    if (!p_space(c, "space", want, &s)) return false;
+    return files_done(c, zxf_use_space(s.id));
+}
+
 static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static void b64_put(zxvd_buf_t *b, const uint8_t *d, size_t n)
@@ -1210,7 +1244,9 @@ static void m_files_list(call_t *c)
     char path[ZXF_PATH_MAX + 1];
     zxf_entry_t *v;
     uint32_t n;
-    if (!p_path(c, "path", path, false) || !files_done(c, zxf_list(path, &v, &n))) return;
+    if (!use_space(c, ZXS_VIEW) || !p_path(c, "path", path, false) ||
+        !files_done(c, zxf_list(path, &v, &n)))
+        return;
     zxvd_buf_raw(c->res, "{\"path\":", 8);
     zxvd_buf_json_str(c->res, path);
     zxvd_buf_raw(c->res, ",\"entries\":[", 12);
@@ -1226,7 +1262,9 @@ static void m_files_stat(call_t *c)
 {
     char path[ZXF_PATH_MAX + 1];
     zxf_entry_t e;
-    if (!p_path(c, "path", path, true) || !files_done(c, zxf_stat(path, &e))) return;
+    if (!use_space(c, ZXS_VIEW) || !p_path(c, "path", path, true) ||
+        !files_done(c, zxf_stat(path, &e)))
+        return;
     entry_json(c->res, &e);
 }
 
@@ -1236,8 +1274,9 @@ static void m_files_read(call_t *c)
     char path[ZXF_PATH_MAX + 1], enc[16];
     uint64_t off, max, size;
     uint32_t got;
-    if (!p_path(c, "path", path, true) || !p_opt_u64(c, "offset", 0, &off) ||
-        !p_opt_u64(c, "max", ZXF_READ_MAX, &max) || !p_str(c, "encoding", enc, sizeof enc, false))
+    if (!use_space(c, ZXS_VIEW) || !p_path(c, "path", path, true) ||
+        !p_opt_u64(c, "offset", 0, &off) || !p_opt_u64(c, "max", ZXF_READ_MAX, &max) ||
+        !p_str(c, "encoding", enc, sizeof enc, false))
         return;
     bool text = !enc[0] || !strcmp(enc, "utf8");
     if (!text && strcmp(enc, "base64"))
@@ -1271,8 +1310,8 @@ static void m_files_write(call_t *c)
     static uint8_t raw[ZXVD_RPC_MAX_LINE];
     char path[ZXF_PATH_MAX + 1], mode_s[16];
     bool excl;
-    if (!p_path(c, "path", path, true) || !p_str(c, "mode", mode_s, sizeof mode_s, false) ||
-        !p_bool(c, "exclusive", false, &excl))
+    if (!use_space(c, ZXS_WRITE) || !p_path(c, "path", path, true) ||
+        !p_str(c, "mode", mode_s, sizeof mode_s, false) || !p_bool(c, "exclusive", false, &excl))
         return;
     static const char *const MODES[] = {"replace", "begin", "add", "end"};
     int mode = -1;
@@ -1305,7 +1344,9 @@ static void m_files_write(call_t *c)
 static void m_files_mkdir(call_t *c)
 {
     char path[ZXF_PATH_MAX + 1];
-    if (!p_path(c, "path", path, true) || !files_done(c, zxf_mkdir(path))) return;
+    if (!use_space(c, ZXS_WRITE) || !p_path(c, "path", path, true) ||
+        !files_done(c, zxf_mkdir(path)))
+        return;
     zxvd_buf_raw(c->res, "{\"path\":", 8);
     zxvd_buf_json_str(c->res, path);
     zxvd_buf_raw(c->res, "}", 1);
@@ -1314,7 +1355,7 @@ static void m_files_mkdir(call_t *c)
 static void m_files_rename(call_t *c)
 {
     char from[ZXF_PATH_MAX + 1], to[ZXF_PATH_MAX + 1];
-    if (!p_path(c, "from", from, true) || !p_path(c, "to", to, true) ||
+    if (!use_space(c, ZXS_WRITE) || !p_path(c, "from", from, true) || !p_path(c, "to", to, true) ||
         !files_done(c, zxf_rename(from, to)))
         return;
     zxvd_buf_raw(c->res, "{\"path\":", 8);
@@ -1325,7 +1366,9 @@ static void m_files_rename(call_t *c)
 static void m_files_trash(call_t *c)
 {
     char path[ZXF_PATH_MAX + 1], to[ZXF_PATH_MAX + 1];
-    if (!p_path(c, "path", path, true) || !files_done(c, zxf_trash(path, to, sizeof to))) return;
+    if (!use_space(c, ZXS_WRITE) || !p_path(c, "path", path, true) ||
+        !files_done(c, zxf_trash(path, to, sizeof to)))
+        return;
     zxvd_buf_raw(c->res, "{\"trashed\":", 11);
     if (to[0])
         zxvd_buf_json_str(c->res, to);
@@ -1337,8 +1380,216 @@ static void m_files_trash(call_t *c)
 static void m_files_empty_trash(call_t *c)
 {
     uint32_t n;
-    if (!files_done(c, zxf_empty_trash(&n))) return;
+    if (!use_space(c, ZXS_WRITE) || !files_done(c, zxf_empty_trash(&n))) return;
     zxvd_buf_printf(c->res, "{\"removed\":%u}", (unsigned) n);
+}
+
+/* ----- files.cross: a file into another space (zxv_spaces.h S3) ----- */
+
+#define CROSS_HELD 8
+static struct {
+    uint32_t ticket; /* 0 = free */
+    char from[ZXF_SPACE_ID_MAX + 1], to[ZXF_SPACE_ID_MAX + 1];
+    char path[ZXF_PATH_MAX + 1], dest[ZXF_PATH_MAX + 1];
+} HELD[CROSS_HELD];
+static uint32_t TICKETS;
+
+/* copy one file between spaces, whole (F4); the target must not exist */
+static int cross_copy(const char *from, const char *path, const char *to, const char *dest,
+                      uint64_t *size)
+{
+    static uint8_t buf[ZXF_READ_MAX];
+    uint64_t off = 0, total = 0, put;
+    zxf_entry_t e;
+    int rc;
+    *size = 0;
+    if ((rc = zxf_use_space(from)) != 0 || (rc = zxf_stat(path, &e)) != 0) return rc;
+    if (e.dir) return ZXF_E_ISDIR;
+    if ((rc = zxf_use_space(to)) != 0) return rc;
+    if (zxf_stat(dest, &e) == ZXF_OK) return ZXF_E_EXISTS;
+    for (bool first = true;; first = false) {
+        uint32_t got;
+        if ((rc = zxf_use_space(from)) != 0 ||
+            (rc = zxf_read(path, off, buf, sizeof buf, false, &got, &total)) != 0)
+            return rc;
+        bool last = off + got >= total;
+        int mode = first && last ? ZXF_W_REPLACE
+                   : first       ? ZXF_W_BEGIN
+                   : last        ? ZXF_W_END
+                                 : ZXF_W_ADD;
+        if ((rc = zxf_use_space(to)) != 0 ||
+            (rc = zxf_write(dest, buf, got, mode, true, &put)) != 0)
+            return rc;
+        off += got;
+        if (last) break;
+        if (!got) return ZXF_E_IO; /* the file shrank under us */
+    }
+    *size = off;
+    return 0;
+}
+
+static void cross_reply(call_t *c, const char *dest, uint64_t size)
+{
+    static const char HEAD[] = "{\"held\":false,\"path\":";
+    zxvd_buf_raw(c->res, HEAD, sizeof HEAD - 1);
+    zxvd_buf_json_str(c->res, dest);
+    zxvd_buf_printf(c->res, ",\"size\":%llu}", (unsigned long long) size);
+}
+
+static void m_files_cross(call_t *c)
+{
+    static zxs_space_t from, to;
+    char path[ZXF_PATH_MAX + 1], dest[ZXF_PATH_MAX + 1];
+    uint64_t ticket, size;
+    if (!p_opt_u64(c, "confirm", 0, &ticket)) return;
+    if (ticket) { /* the owner confirms a held crossing */
+        int k = -1;
+        for (int i = 0; i < CROSS_HELD; i++)
+            if (HELD[i].ticket && HELD[i].ticket == ticket) k = i;
+        if (k < 0) return fail(c, E_PARAMS, "no held crossing with that ticket");
+        HELD[k].ticket = 0;
+        if (zxs_load(HELD[k].from, &from) || zxs_load(HELD[k].to, &to) ||
+            !zxs_can(&from, ZXS_VIEW) || !zxs_can(&to, ZXS_WRITE))
+            return fail(c, ZXVD_E_SPACE, "the spaces changed since the crossing was held");
+        if (!files_done(c, cross_copy(from.id, HELD[k].path, to.id, HELD[k].dest, &size))) return;
+        return cross_reply(c, HELD[k].dest, size);
+    }
+    if (!p_space(c, "from_space", ZXS_VIEW, &from) || !p_space(c, "to_space", ZXS_WRITE, &to) ||
+        !p_path(c, "path", path, true) || !p_path(c, "to", dest, true))
+        return;
+    if (!strcmp(from.id, to.id)) return fail(c, E_PARAMS, "within one space, use files.rename");
+    if (!path[0] || !dest[0] || !zxf_valid(path) || !zxf_valid(dest)) {
+        files_done(c, ZXF_E_PATH);
+        return;
+    }
+    if (zxs_widens(&from, &to)) {
+        /* S3: held until confirmed; the oldest held crossing makes room */
+        int k = 0;
+        for (int i = 1; i < CROSS_HELD; i++)
+            if (HELD[i].ticket < HELD[k].ticket) k = i;
+        HELD[k].ticket = ++TICKETS;
+        snprintf(HELD[k].from, sizeof HELD[k].from, "%s", from.id);
+        snprintf(HELD[k].to, sizeof HELD[k].to, "%s", to.id);
+        snprintf(HELD[k].path, sizeof HELD[k].path, "%s", path);
+        snprintf(HELD[k].dest, sizeof HELD[k].dest, "%s", dest);
+        zxvd_buf_printf(c->res, "{\"held\":true,\"ticket\":%u,\"reason\":", (unsigned) TICKETS);
+        zxvd_buf_json_str(c->res, to.kind == ZXS_CLOUDTOP || to.kind == ZXS_PARK
+                                      ? "the destination is public"
+                                      : "the destination shows it to people who cannot see it now");
+        zxvd_buf_raw(c->res, "}", 1);
+        return;
+    }
+    if (!files_done(c, cross_copy(from.id, path, to.id, dest, &size))) return;
+    cross_reply(c, dest, size);
+}
+
+/* ----- spaces.* (zxv_spaces.h) ----- */
+
+static void space_json(zxvd_buf_t *b, const zxs_space_t *s)
+{
+    static char js[16384];
+    int32_t n = zxs_json(s, js, sizeof js);
+    if (n < 0)
+        zxvd_buf_raw(b, "null", 4);
+    else
+        zxvd_buf_raw(b, js, (size_t) n);
+}
+
+static int list_one_space(void *ctx, const zxs_space_t *s)
+{
+    call_t *c = ctx;
+    if (strcmp(s->id, "home")) zxvd_buf_raw(c->res, ",", 1);
+    space_json(c->res, s);
+    return 0;
+}
+
+static void m_spaces_list(call_t *c)
+{
+    zxvd_buf_raw(c->res, "{\"spaces\":[", 11);
+    if (!files_done(c, zxs_each(list_one_space, c))) return;
+    zxvd_buf_raw(c->res, "]}", 2);
+}
+
+static void m_spaces_get(call_t *c)
+{
+    static zxs_space_t s;
+    if (param(c, "space") < 0) return fail(c, E_PARAMS, "missing string parameter \"space\"");
+    if (!p_space(c, "space", 0, &s)) return;
+    space_json(c->res, &s);
+}
+
+static bool p_kind(call_t *c, zxs_kind_t *k)
+{
+    char s[16];
+    if (!p_str(c, "kind", s, sizeof s, true)) return false;
+    int v = zxs_kind_parse(s);
+    if (v <= ZXS_HOME) {
+        fail(c, E_PARAMS, "\"kind\" must be office, team, cloudtop or park");
+        return false;
+    }
+    *k = (zxs_kind_t) v;
+    return true;
+}
+
+static void m_spaces_create(call_t *c)
+{
+    static zxs_space_t s;
+    char name[ZXS_NAME_MAX + 1];
+    zxs_kind_t k;
+    if (!p_kind(c, &k) || !p_str(c, "name", name, sizeof name, true)) return;
+    if (!files_done(c, zxs_create(k, name, &s))) return;
+    space_json(c->res, &s);
+}
+
+static void m_spaces_join(call_t *c)
+{
+    static zxs_space_t s;
+    char id[ZXF_SPACE_ID_MAX + 1], name[ZXS_NAME_MAX + 1], owner[ZXS_WHO_MAX + 1], role[16];
+    zxs_kind_t k;
+    if (!p_str(c, "id", id, sizeof id, true) || !p_kind(c, &k) ||
+        !p_str(c, "name", name, sizeof name, true) ||
+        !p_str(c, "owner", owner, sizeof owner, true) || !p_str(c, "role", role, sizeof role, true))
+        return;
+    int r = zxs_role_parse(role);
+    if (r != ZXS_MEMBER && r != ZXS_GUEST)
+        return fail(c, E_PARAMS, "\"role\" must be member or guest");
+    if (!files_done(c, zxs_join(id, k, name, owner, (zxs_role_t) r, &s))) return;
+    space_json(c->res, &s);
+}
+
+static void m_spaces_set_members(call_t *c)
+{
+    static zxs_space_t s;
+    if (param(c, "space") < 0) return fail(c, E_PARAMS, "missing string parameter \"space\"");
+    if (!p_space(c, "space", 0, &s)) return;
+    if (s.role != ZXS_OWNER || s.kind == ZXS_HOME)
+        return fail(c, ZXVD_E_SPACE,
+                    "only the owner of an office, team, cloud top or park changes its members");
+    int32_t a = param(c, "members");
+    if (a < 0 || c->t[a].type != W4_J_ARR || c->t[a].size > ZXS_MEMBERS_MAX)
+        return fail(c, E_PARAMS, "\"members\" must be an array of at most %u members",
+                    ZXS_MEMBERS_MAX);
+    s.n = 0;
+    for (uint32_t i = 0; i < c->t[a].size; i++) {
+        int32_t m = w4_json_at(c->t, c->n, a, i);
+        zxs_member_t *e = &s.m[s.n];
+        char role[16];
+        if (m < 0 || c->t[m].type != W4_J_OBJ ||
+            w4_json_get_str(c->js, c->t, c->n, m, "who", e->who, sizeof e->who) < 0 ||
+            w4_json_get_str(c->js, c->t, c->n, m, "role", role, sizeof role) < 0)
+            return fail(c, E_PARAMS, "member %u must be {\"who\", \"role\"}", i);
+        int r = zxs_role_parse(role);
+        if (!zxs_who_ok(e->who) || !strcmp(e->who, ZXS_ME) || (r != ZXS_MEMBER && r != ZXS_GUEST))
+            return fail(c, E_PARAMS, "member %u needs a printable id and the role member or guest",
+                        i);
+        for (uint32_t j = 0; j < s.n; j++)
+            if (!strcmp(s.m[j].who, e->who))
+                return fail(c, E_PARAMS, "member %u is listed twice", i);
+        e->role = (uint8_t) r;
+        s.n++;
+    }
+    if (!files_done(c, zxs_save(&s, false))) return;
+    space_json(c->res, &s);
 }
 
 static void m_update(call_t *c)
@@ -1648,6 +1899,12 @@ static const method_t METHODS[] = {
     {"files.rename", m_files_rename},
     {"files.trash", m_files_trash},
     {"files.empty_trash", m_files_empty_trash},
+    {"files.cross", m_files_cross},
+    {"spaces.list", m_spaces_list},
+    {"spaces.get", m_spaces_get},
+    {"spaces.create", m_spaces_create},
+    {"spaces.join", m_spaces_join},
+    {"spaces.set_members", m_spaces_set_members},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 

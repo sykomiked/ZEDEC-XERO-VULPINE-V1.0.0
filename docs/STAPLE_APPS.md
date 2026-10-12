@@ -53,6 +53,11 @@ and calls the actions. The shared rules are in `zxm.h` (M1-M5):
 | `glint_model.h` | the media in a Burrow folder, the one viewed | view, next, prev, load bytes into the view's buffer | name the album (file names only) |
 | `spindle_model.h` | method list, the last 16 calls | discover, call with JSON params | explain a reply |
 
+Burrow and Quillon carry the space they work in (`burrow_set_space`, and the
+`space` argument of `quillon_open` and `quillon_save_as`); Glint follows its
+Burrow folder. `burrow_cross` copies an entry into another space and reports
+a held crossing's ticket for `burrow_cross_confirm`.
+
 `kernel/src/apps/test_apps.sh` runs the models against zxvd's real dispatcher
 on a scratch ZXV folder.
 
@@ -73,6 +78,35 @@ Every app works inside one folder, never outside it (`kernel/arch/hosted/zxv_fil
   last part arrives.
 - **Trash, not delete:** deleting moves an item into `.Trash` in the folder;
   only "Delete now" in the Trash or "Empty Trash" removes it for good.
+
+## Spaces
+
+ZXV is laid out like the real world: your home, offices, team rooms, your
+cloud top (your public front, which does not have to be online) and parks
+(commons). Each space has its own folder with its own Trash, and a manifest
+naming its kind, owner and members (`kernel/arch/hosted/zxv_spaces.h`). Every
+`files.*` call takes an optional `space`, and zxvd checks the caller's rights
+on each call, so a hidden button in the interface is never the only guard.
+
+| Kind | Owner | Member | Guest | Anyone else |
+|---|---|---|---|---|
+| Home | view, change | | | |
+| Office | view, change | view, change | view | |
+| Team | view, change | view, change | view | |
+| Cloud top | view, change | view | view | view |
+| Park | view, change | view, change | view, change | view, change |
+
+- **Crossings are held.** `files.cross` copies a file into another space.
+  When that would show it to anyone who cannot see it now (a public space, or
+  a member who is not in the source), zxvd holds it and returns a ticket; the
+  copy happens only when the owner confirms with that ticket.
+- **Joined spaces.** `spaces.join` records a space another node invited this
+  one into, with the role it was given. Until the mesh syncs spaces, the check
+  guards this node's copy, and the owner's node checks again when changes
+  reach it.
+- **Not yet:** syncing spaces between nodes, publishing a cloud top or park
+  under a CID, and group decisions on members (the native interface's
+  governance model, `zui_space.c`, decides; zxvd records the result).
 
 ## Names
 
