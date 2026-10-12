@@ -1049,8 +1049,10 @@ static void test_intents(void)
     {
         char m[2048];
         uint32_t n = (uint32_t) snprintf(m, sizeof m, "zxapp 1\nid x\n");
-        for (uint32_t i = 0; i <= ZXAPP_INTENTS; i++)
-            n += (uint32_t) snprintf(m + n, sizeof m - n, "intent v%u text/plain f\n", i);
+        for (uint32_t i = 0; i <= ZXAPP_INTENTS && n < sizeof m; i++) {
+            int k = snprintf(m + n, sizeof m - n, "intent v%u text/plain f\n", i);
+            n = k < 0 || (uint32_t) k >= sizeof m - n ? (uint32_t) sizeof m - 1 : n + (uint32_t) k;
+        }
         CHECK(parse(m) == ZXAPP_E_FULL && A.err_line == 3u + ZXAPP_INTENTS &&
                   strstr(A.err, "too many intent"),
               "past ZXAPP_INTENTS: %s (line %u)", A.err, A.err_line);
