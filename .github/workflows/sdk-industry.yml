@@ -1,0 +1,77 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Industry kits (sdk/industry): the shared layer and every kit, built on the
+# public libzxv ABI. sdk/industry/Makefile loops over the kits, so this
+# workflow always has exactly three checks however many kits are added:
+#   industry ubuntu-24.04   gcc:   tests, fuzz smoke runs, examples, R11
+#   industry macos-14       clang: the same
+#   industry sanitize       gcc, ASan + UBSan: the tests and longer fuzz runs
+# Every job builds libzxv itself and tests against the real library.
+name: SDK industry
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sdk/industry/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - 'kernel/src/**'
+      - 'kernel/third_party/**'
+      - '.github/workflows/sdk-industry.yml'
+  pull_request:
+    paths:
+      - 'sdk/industry/**'
+      - 'sdk/libzxv/**'
+      - 'sdk/kits/z-wasm/tools/check_nofloat.py'
+      - 'kernel/src/**'
+      - 'kernel/third_party/**'
+      - '.github/workflows/sdk-industry.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pushes run only on main and develop; pull requests run on every update and
+# a newer push to the same pull request cancels the older run.
+concurrency:
+  group: sdk-industry-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  industry:
+    name: industry ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - run: make -C sdk/libzxv all
+      - name: Every kit — unit tests, fuzz smoke runs, examples, R11 no-float check
+        run: make -C sdk/industry CC=${{ matrix.cc }} PYTHON=python3 test
+      - name: Demos
+        run: make -C sdk/industry CC=${{ matrix.cc }} PYTHON=python3 demo
+
+  sanitize:
+    name: industry sanitize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ASAN_OPTIONS: detect_leaks=1
+      UBSAN_OPTIONS: print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v5
+      - run: make -C sdk/libzxv all
+      - name: Every kit under ASan + UBSan
+        run: make -C sdk/industry CC=gcc SANITIZE=1 OUT=build/san PYTHON=python3 test
+      - name: Fuzz under ASan + UBSan, 2 seeds x 5k operations per target
+        run: |
+          for seed in 1 2; do
+            ZIND_FUZZ_SEED=$seed make -C sdk/industry CC=gcc SANITIZE=1 OUT=build/san PYTHON=python3 fuzz FUZZ_ITERS=5000
+          done
