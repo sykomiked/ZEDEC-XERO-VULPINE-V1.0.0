@@ -25,6 +25,7 @@
 #include "zui_space.h"
 #include "zui_chiglet.h"
 #include "zui_emote.h"
+#include "zui_progress.h"
 
 /* ---- fonts --------------------------------------------------------------- */
 static ttf_font_t F_REG, F_MED, F_SEMI, F_MONO, F_MONO_MED;
@@ -1335,6 +1336,55 @@ static void face_cycle(ctx_t *c) {
     text(c, &F_MED, 20, cx - w / 2, cy + PT(c, 172), ZUI_TEXT, lab);
 }
 
+/* ---- App launch: the boot screen's loading dynamic, reused for every app -- */
+static ctx_t *LC;                     /* the context part painters draw through */
+typedef struct { pict_t k; const char *label; int chg; } launch_part_t;
+static uint32_t lit_col(uint32_t lit) { return zui_mix(zui_mix(ZUI_VOID, ZUI_GOLD, 46u), ZUI_GOLD, lit > 255u ? 255u : lit); }
+
+static void paint_part(zui_surface_t *s, zui_rect_t b, uint32_t lit, void *v) {
+    (void)s;
+    const launch_part_t *p = v;
+    uint32_t col = lit_col(lit);
+    if (p->chg) {   /* the user's Chiglet joins the launch */
+        zui_chiglet_t k = MY_CHG; k.mood = ZUI_CHG_DECIDED;
+        zui_chiglet_draw(&LC->s, &k, b.x + b.w / 2, b.y + b.h * 40 / 100, b.w / 5, 0);
+        if (lit < 200) zui_fill_a(&LC->s, b, ZUI_PANEL, (200u - lit) * 255u / 256u);
+    } else {
+        pict(LC, p->k, b.x + b.w / 2, b.y + b.h * 40 / 100, 64, col);
+    }
+    int32_t w = text_w(LC, &F_MED, 12, p->label);
+    text(LC, &F_MED, 12, b.x + (b.w - w) / 2, b.y + b.h - PT(LC, 8), col, p->label);
+}
+
+static void paint_mark(zui_surface_t *s, zui_rect_t b, uint32_t lit, void *v) {
+    (void)s; (void)v;
+    uint32_t col = lit_col(lit);
+    LC->bg = ZUI_VOID;
+    pict(LC, PG_FILE, b.x + b.w / 2, b.y + b.h * 40 / 100, 200, col);
+    LC->bg = ZUI_PANEL;
+    const char *nm = "Quillon";
+    int32_t w = text_w(LC, &F_SEMI, 34, nm);
+    text(LC, &F_SEMI, 34, b.x + (b.w - w) / 2, b.y + b.h - PT(LC, 22), col, nm);
+}
+
+static uint32_t LAUNCH_G = 256, LAUNCH_L = 256, LAUNCH_R = 150;
+static void launch_screen(ctx_t *c) {
+    static const launch_part_t P[5] = {
+        { PG_FILE, "budget-v3.pdf", 0 }, { PG_FOLDER, "Grants", 0 }, { PG_FILE, "Tala", 1 },
+        { PG_TEAM, "writer + checker", 0 }, { PG_LOCK, "qwen2.5 1.5b", 0 } };
+    LC = c;
+    layer(c, 0); c->bg = ZUI_PANEL;
+    zui_launch_t l = { paint_mark, { paint_part, paint_part, paint_part, paint_part, paint_part },
+                       { 0, (void *)&P[0], (void *)&P[1], (void *)&P[2], (void *)&P[3], (void *)&P[4] }, 5 };
+    zui_rect_t a = c->p.main;
+    if (c->p.list.w) { a.x = c->p.list.x; a.w += c->p.list.w; }
+    zui_launch_draw(&c->s, a, (int32_t)c->scr.scale_q8, &l,
+                    (zui_launch_state_t){ LAUNCH_G, LAUNCH_L, LAUNCH_R }, TICK);
+    rail(c, 4);
+    bottom_bar(c, 3);
+    top_bar(c, "Quillon");
+}
+
 /* ---- output -------------------------------------------------------------- */
 static uint32_t *alloc_px(int32_t w, int32_t h) {
     uint32_t *p = calloc((size_t)w * (size_t)h, 4);
@@ -1485,6 +1535,24 @@ int main(int argc, char **argv) {
             }
         }
         MORPH_T = 256;
+    }
+    /* an app launching with the same loading dynamic as the boot */
+    LAUNCH_G = 160; LAUNCH_L = 0; LAUNCH_R = 0;
+    render(out, "launch-gathering-laptop", launch_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    LAUNCH_G = 256; LAUNCH_L = 256; LAUNCH_R = 150;
+    render(out, "launch-laptop", launch_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    render(out, "launch-phone", launch_screen, 780, 1688, 512, ZUI_INPUT_TOUCH, ZUI_DEPTH_FLAT, 0, 60);
+    {
+        int fr = 0;
+        for (int k = 0; k <= 16; k++) { char n[64]; snprintf(n, sizeof n, "launch-anim-%03d", fr++);
+            LAUNCH_G = (uint32_t)k * 16u; LAUNCH_L = 0; LAUNCH_R = 0;
+            render(out, n, launch_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48); }
+        for (int k = 1; k <= 6; k++) { char n[64]; snprintf(n, sizeof n, "launch-anim-%03d", fr++);
+            LAUNCH_G = 256; LAUNCH_L = (uint32_t)k * 256u / 6u; LAUNCH_R = 0;
+            render(out, n, launch_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48); }
+        for (int k = 1; k <= 8; k++) { char n[64]; snprintf(n, sizeof n, "launch-anim-%03d", fr++);
+            LAUNCH_G = 256; LAUNCH_L = 256; LAUNCH_R = (uint32_t)k * 32u;
+            render(out, n, launch_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48); }
     }
     printf("glyph cache: %u hits, %u misses\n", CACHE.hits, CACHE.misses);
     return 0;

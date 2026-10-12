@@ -4,6 +4,7 @@
  * text plumbing, and the depth effects' contracts (flat stays flat, held sits
  * at the glass, S+ and S- mirror, anaglyph of agreeing eyes is the picture). */
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "zui_layout.h"
@@ -13,6 +14,7 @@
 #include "zui_space.h"
 #include "zui_chiglet.h"
 #include "zui_emote.h"
+#include "zui_progress.h"
 #include "../font/ttf_fixture.inc"   /* MINI_TTF[] */
 #include "zui_ttf_fixture.inc"       /* ZUI_TTF[]: metrics + a composite */
 
@@ -485,6 +487,76 @@ static void test_emote(void) {
     CHECK(1, "drawing off-surface is clipped, not overrun");
 }
 
+static uint32_t seen_lit[8];
+static int seen_calls;
+static void rec_part(zui_surface_t *s, zui_rect_t b, uint32_t lit, void *ctx) {
+    (void)s; (void)b; seen_lit[(intptr_t)ctx] = lit; seen_calls++;
+}
+
+static void test_progress(void) {
+    zui_surface_t s;
+    zui_surface_init(&s, buf, 64, 64, 64);
+    zui_fill(&s, (zui_rect_t){ 0, 0, 64, 64 }, ZUI_VOID);
+    zui_rect_t tr = { 4, 30, 56, 3 };
+    int32_t hl, hr, mid = 4 + 28;
+    zui_bar_draw(&s, tr, ZUI_BAR_GATHER, 0, 0, &hl, &hr);
+    CHECK(hl == 4 && hr == 60, "gathering starts with both heads at the ends");
+    zui_bar_draw(&s, tr, ZUI_BAR_GATHER, 256, 0, &hl, &hr);
+    CHECK(hl == mid && hr == mid, "and finishes with the heads met at the centre");
+    zui_bar_draw(&s, tr, ZUI_BAR_GATHER, 128, 0, &hl, &hr);
+    CHECK(hl - 4 == 60 - hr, "the two halves stay mirrored");
+    zui_bar_draw(&s, tr, ZUI_BAR_RELEASE, 0, 0, &hl, &hr);
+    CHECK(hl == mid && hr == mid, "releasing starts at the centre");
+    zui_bar_draw(&s, tr, ZUI_BAR_RELEASE, 256, 0, &hl, &hr);
+    CHECK(hl == 4 && hr == 60, "and reaches both edges");
+    zui_bar_draw(&s, tr, ZUI_BAR_GATHER, 999, 0, &hl, &hr);
+    CHECK(hl == mid && hr == mid, "progress past full is full, not past the centre");
+
+    /* unknown progress breathes and never claims a position */
+    zui_fill(&s, (zui_rect_t){ 0, 0, 64, 64 }, ZUI_VOID);
+    zui_bar_draw(&s, tr, ZUI_BAR_GATHER, ZUI_BAR_UNKNOWN, 0, &hl, &hr);
+    uint64_t a = fnv(buf, 64 * 64);
+    int32_t w0 = hr - hl;
+    zui_fill(&s, (zui_rect_t){ 0, 0, 64, 64 }, ZUI_VOID);
+    zui_bar_draw(&s, tr, ZUI_BAR_GATHER, ZUI_BAR_UNKNOWN, 16, &hl, &hr);
+    CHECK(fnv(buf, 64 * 64) != a && hr - hl > w0, "unknown progress breathes with the tick");
+    CHECK(hl + hr == 2 * mid, "and stays centred");
+
+    /* lighting: outer items first, the centre only when the heads meet */
+    CHECK(zui_bar_lit(10, mid, 4, 60, 8) == 0, "a left item is dark before its head arrives");
+    CHECK(zui_bar_lit(10, mid, 20, 44, 8) == 256, "and fully lit once it has passed");
+    CHECK(zui_bar_lit(54, mid, 20, 44, 8) == 256, "the right side mirrors it");
+    CHECK(zui_bar_lit(mid, mid, 20, 44, 8) == 0, "the centre waits while the halves are apart");
+    CHECK(zui_bar_lit(mid, mid, mid, mid, 8) == 256, "and lights when they meet");
+    uint32_t ramp = zui_bar_lit(10, mid, 10, 54, 8);
+    CHECK(ramp > 0 && ramp < 256, "switching on is a short ramp, not a jump");
+
+    /* the launch screen calls each part with its lit level */
+    static uint32_t big[320 * 200];
+    zui_surface_t L;
+    zui_surface_init(&L, big, 320, 200, 320);
+    zui_launch_t l = { rec_part, { rec_part, rec_part, rec_part, rec_part, rec_part },
+                       { (void *)7, (void *)0, (void *)1, (void *)2, (void *)3, (void *)4 }, 5 };
+    seen_calls = 0;
+    zui_launch_draw(&L, (zui_rect_t){ 0, 0, 320, 200 }, 256, &l, (zui_launch_state_t){ 0, 0, 0 }, 0);
+    CHECK(seen_calls == 6 && seen_lit[0] == 0 && seen_lit[2] == 0 && seen_lit[7] == 0,
+          "at the start every part and the mark are dim");
+    zui_launch_draw(&L, (zui_rect_t){ 0, 0, 320, 200 }, 256, &l, (zui_launch_state_t){ 150, 0, 0 }, 0);
+    CHECK(seen_lit[0] == 256 && seen_lit[4] == 256 && seen_lit[2] == 0, "outer parts light first, mirrored");
+    zui_launch_draw(&L, (zui_rect_t){ 0, 0, 320, 200 }, 256, &l, (zui_launch_state_t){ 256, 0, 0 }, 0);
+    CHECK(seen_lit[2] == 256 && seen_lit[7] == 0, "the centre part lights last; the mark waits");
+    zui_launch_draw(&L, (zui_rect_t){ 0, 0, 320, 200 }, 256, &l, (zui_launch_state_t){ 256, 256, 128 }, 0);
+    CHECK(seen_lit[7] == 256, "then the mark lights");
+    uint64_t h1 = fnv(big, 320 * 200);
+    zui_launch_draw(&L, (zui_rect_t){ 0, 0, 320, 200 }, 256, &l, (zui_launch_state_t){ 256, 256, 128 }, 0);
+    CHECK(fnv(big, 320 * 200) == h1, "same state, same pixels");
+    zui_launch_draw(&L, (zui_rect_t){ 0, 0, 320, 200 }, 256, &l, (zui_launch_state_t){ 256, 256, 200 }, 0);
+    CHECK(fnv(big, 320 * 200) != h1, "the top bar moves with the rest of the load");
+    zui_launch_t none = { 0, { 0 }, { 0 }, 0 };
+    zui_launch_draw(&L, (zui_rect_t){ 0, 0, 320, 200 }, 256, &none, (zui_launch_state_t){ 256, 256, 256 }, 0);
+    CHECK(1, "a launch with no parts or painters still draws its bars");
+}
+
 int main(void) {
     printf("=== zui: layout, shapes, text plumbing, depth ===\n");
     test_layout();
@@ -495,6 +567,7 @@ int main(void) {
     test_spaces();
     test_chiglet();
     test_emote();
+    test_progress();
     printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }
