@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -962,6 +962,417 @@
               "type": "string",
               "pattern": "^-?[0-9]+$",
               "description": "Settled cycles mirrored"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.put",
+      "summary": "Store bytes (a Z-Wasm module, Z-Contract text, data) in this node's in-memory blockstore as a raw block, pinned; returns its CID. Give exactly one of hex and path (a file zxvd reads, at most 1 MiB). Offline node: nothing is announced (kernel/arch/hosted/zxvd_aipi.h Z1-Z2).",
+      "params": [
+        {
+          "name": "hex",
+          "required": false,
+          "description": "the bytes as hex, at most 8000 bytes",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 16000
+          }
+        },
+        {
+          "name": "path",
+          "required": false,
+          "description": "a file to read instead of hex",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1023
+          }
+        },
+        {
+          "name": "private",
+          "required": false,
+          "description": "seal the block at rest with this node's key (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "block",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "private": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.get",
+      "summary": "AIPI_GET: the bytes a CID names, from the local blockstore, re-hashed before they are returned. At most 65536 bytes; a larger block is refused, not cut (Z4).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+            "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+            "maxLength": 127
+          }
+        }
+      ],
+      "result": {
+        "name": "block",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "hex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$"
+            },
+            "tag": {
+              "type": "object",
+              "description": "the job's 64-state hexagram tag (A4, kernel/src/lpres/lpres_hex.h)",
+              "properties": {
+                "base": {
+                  "type": "string"
+                },
+                "polarity": {
+                  "type": "string"
+                },
+                "phase": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.publish",
+      "summary": "Publish a function descriptor (intent fn) and return its function CID. The rules of docs/AIPI.md section 3 apply: checker and cert need a checker export, cert a certifier, quorum is for the mesh only.",
+      "params": [
+        {
+          "name": "module",
+          "required": true,
+          "description": "CID of the Z-Wasm module",
+          "schema": {
+            "type": "string",
+            "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+            "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+            "maxLength": 127
+          }
+        },
+        {
+          "name": "contract",
+          "required": false,
+          "description": "CID of the Z-Contract text the calls must keep",
+          "schema": {
+            "type": "string",
+            "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+            "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+            "maxLength": 127
+          }
+        },
+        {
+          "name": "entry",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,63}$"
+          }
+        },
+        {
+          "name": "checker",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,63}$"
+          }
+        },
+        {
+          "name": "certifier",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,63}$"
+          }
+        },
+        {
+          "name": "verify",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "checker",
+              "cert",
+              "quorum",
+              "local"
+            ]
+          }
+        },
+        {
+          "name": "fuel_max",
+          "required": true,
+          "description": "most fuel one run may use (> 0)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "local_only",
+          "required": false,
+          "description": "privacy LOCAL: the descriptor is stored sealed and the function never leaves this node (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "deterministic",
+          "required": false,
+          "description": "the same input always gives the same output (default true); only deterministic public calls are memoised",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "function",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "function": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "local_only": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.execute",
+      "summary": "AIPI_EXECUTE on this node: run a published function in the Z-Wasm sandbox under its contract and fuel_max, or answer from the memo of earlier results (route cache). Offline (A3): code that is not in the local blockstore fails with AIPI_ERR_OFFLINE.",
+      "params": [
+        {
+          "name": "function",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+            "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+            "maxLength": 127
+          }
+        },
+        {
+          "name": "args",
+          "required": true,
+          "description": "the Z-Wasm call ABI: up to 8 signed 64-bit integers",
+          "schema": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            }
+          }
+        },
+        {
+          "name": "private",
+          "required": false,
+          "description": "the input is private: never memoised (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "call",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "function": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "call": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "route": {
+              "type": "string",
+              "enum": [
+                "cache",
+                "local",
+                "fetch_local"
+              ]
+            },
+            "result": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "output_hex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$"
+            },
+            "tag": {
+              "type": "object",
+              "description": "the job's 64-state hexagram tag (A4, kernel/src/lpres/lpres_hex.h)",
+              "properties": {
+                "base": {
+                  "type": "string"
+                },
+                "polarity": {
+                  "type": "string"
+                },
+                "phase": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.status",
+      "summary": "The AIPI node: offline, blockstore use, call counts and the sandbox's counters.",
+      "params": [],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "online": {
+              "type": "boolean"
+            },
+            "blocks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "store_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "store_cap": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "puts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "gets": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "publishes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "forbidden": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sandbox": {
+              "type": "object",
+              "properties": {
+                "runs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "checks": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "trapped": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "refused_module": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "refused_contract": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "fuel_used": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
             }
           }
         }
