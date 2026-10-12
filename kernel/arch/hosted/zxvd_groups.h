@@ -32,5 +32,8 @@ const zxvd_group_t *zxvd_derivatives_group(void);
 /* zxvd_estate.c: barrel grants (regulated); estate, recovery, faraid */
 const zxvd_group_t *zxvd_grants_group(void);
 const zxvd_group_t *zxvd_estate_group(void);
+/* companion.* (zxvd_companion.c, zxvd_companion.h): feature "companion",
+ * not regulated, every method answers with the switch off */
+const zxvd_group_t *zxvd_companion_group(void);
 
 #endif

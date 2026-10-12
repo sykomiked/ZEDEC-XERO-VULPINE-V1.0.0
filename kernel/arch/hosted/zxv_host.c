@@ -88,6 +88,7 @@ typedef int sock_t;
 #include "swarm_hk.h"
 #include "swarm_governor.h"
 #include "swarm_dna.h"
+#include "swarm_evolve.h"
 #include "settle.h"
 #include "pa_runtime.h"
 #include "quest.h"
@@ -109,6 +110,7 @@ typedef int sock_t;
 #    include "zxvd_chat.h"   /* zxvd: the owner's social chat (chat.*) */
 #    include "zxvd_pay.h"    /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
 #    include "zxvd_groups.h" /* netting, cards, ...: method groups behind switches */
+#    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -477,6 +479,8 @@ static struct {
     uint32_t due_mask;
     uint64_t rng;
     uint64_t instance_seed;
+    /* the companion's own steps (swarm_evolve.h V7) */
+    uint64_t companion_steps, companion_last_step;
     bool quit;
     /* the companion's model answers under the budget (zxv_budget_gate.h) */
     zxv_gate_t last_gate;
@@ -651,6 +655,10 @@ static void build_swarm(void)
     /* audited from the first transfer (settle_join's endowments are issues,
      * which peer_audit does not replay) */
     if (S.audit_on) settle_set_audit(&S.spine, audit_posting, NULL);
+    /* the companion keeps its DNA when the swarm is rebuilt (its seat is
+     * not contested, swarm_evolve.h V4) */
+    bool keep = S.num_agents > 0;
+    swarm_dna_t kept = keep ? S.agent[0].dna : swarm_dna_from_seed(0);
     S.num_agents = 0;
     uint32_t id = 1;
     for (uint32_t d = 0; d < levels; d++) {
@@ -658,6 +666,7 @@ static void build_swarm(void)
             agent_t *a = &S.agent[S.num_agents++];
             a->id = id;
             a->dna = swarm_dna_from_seed(S.instance_seed ^ ((uint64_t) id * 0x9E3779B97F4A7C15ull));
+            if (id == 1 && keep) a->dna = kept;
             a->gated_value = 0;
             name_agent(a, d);
             swarm_budget_register(&S.b, id, d);
@@ -774,8 +783,38 @@ static void market_cycle(void)
     open_cycle();
 }
 
+static uint64_t agent_fitness(uint32_t i)
+{
+    const swarm_trader_t *tr = swarm_market_trader(&S.m, S.agent[i].id);
+    return swarm_dna_fitness(S.agent[i].gated_value, tr ? tr->cap[SWARM_CAP_SOCIAL] : 0);
+}
+
+/* swarm_evolve.h V7: the companion (agent 0) takes one ratchet step toward
+ * the fittest other agent, before the levels breed. */
+static void evolve_companion(void)
+{
+    if (S.num_agents < 2) return;
+    uint32_t best = 1;
+    uint64_t best_fit = agent_fitness(1);
+    for (uint32_t i = 2; i < S.num_agents; i++) {
+        uint64_t f = agent_fitness(i);
+        if (f > best_fit) {
+            best = i;
+            best_fit = f;
+        }
+    }
+    agent_t *c = &S.agent[0];
+    if (!swarm_evo_companion(&c->dna, agent_fitness(0), &S.agent[best].dna, best_fit,
+                             S.fundamentals))
+        return;
+    S.companion_steps++;
+    S.companion_last_step = S.fundamentals;
+    swarm_emotion_set_feeling(&S.e, c->id, swarm_dna_express(&c->dna, NUM_SPECIALTIES).home);
+}
+
 static void evolve(void)
 {
+    evolve_companion();
     /* Digital DNA: within each level of 3 or more, the fittest pair breeds
      * and the child takes the least fit agent's place. */
     for (uint32_t d = 1; d < S.b.num_levels; d++) {
@@ -783,8 +822,7 @@ static void evolve(void)
         uint64_t fit[SWARM_MAX_MODELS];
         for (uint32_t i = 0; i < S.num_agents; i++) {
             if (S.b.slots[i].level != d) continue;
-            const swarm_trader_t *tr = swarm_market_trader(&S.m, S.agent[i].id);
-            fit[n] = swarm_dna_fitness(S.agent[i].gated_value, tr ? tr->cap[SWARM_CAP_SOCIAL] : 0);
+            fit[n] = agent_fitness(i);
             idx[n++] = i;
         }
         uint32_t pa, pb, w;
@@ -1745,6 +1783,25 @@ static void rpc_player_card(zxvd_buf_t *o)
 
 static const zxvd_view_ops_t VIEW_OPS = {rpc_net_peers, rpc_net_offers, rpc_player_card};
 
+/* zxvd_companion.h H2: the companion (agent 0) as the swarm holds it now */
+static bool rpc_companion(zxvd_companion_t *k)
+{
+    if (!S.num_agents) return false;
+    const agent_t *a = &S.agent[0];
+    k->agent_id = a->id;
+    k->dna = a->dna;
+    k->feeling = swarm_dna_express(&a->dna, NUM_SPECIALTIES).home;
+    for (uint32_t i = 0; i < S.e.num; i++)
+        if (S.e.model_id[i] == a->id) k->feeling = S.e.feeling[i];
+    k->mood = S.e.mood;
+    k->specialty = SPECIALTY;
+    k->num_specialties = NUM_SPECIALTIES;
+    k->steps = S.companion_steps;
+    k->growths = S.fundamentals;
+    k->last_step = S.companion_last_step;
+    return true;
+}
+
 /* zxvd_rpc.h S1-S4: every request the peer book settled goes into the
  * owner's books once. The book's history keeps the last ZXV_PEER_HISTORY;
  * more than that between two looks are counted as missed, not guessed. */
@@ -1986,6 +2043,7 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
     zxvd_rpc_set_peer_ops(&PEER_OPS);
     zxvd_rpc_set_view_ops(&VIEW_OPS);
+    zxvd_companion_set_source(rpc_companion);
 #endif
 
     /* the model slot: an explicit file, else the first *.gguf in the

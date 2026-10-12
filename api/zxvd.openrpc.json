@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -14065,6 +14065,407 @@
             "notices_delivered": {
               "type": "boolean",
               "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "companion.dna",
+      "summary": "The Chiglet companion's digital DNA (swarm_dna.h D1-D5, kernel/arch/hosted/zxvd_companion.h H3): its seed, the 8 genes by name, the traits they express, the parents' seeds and the generation. Feature \"companion\", not regulated; answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "dna",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "agent_id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "seed": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "genes": {
+              "type": "object",
+              "properties": {
+                "emotion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                },
+                "temperament": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                },
+                "curiosity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                },
+                "caution": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                },
+                "warmth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                },
+                "pace": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                },
+                "verbosity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                },
+                "specialty": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                }
+              }
+            },
+            "traits": {
+              "type": "object",
+              "properties": {
+                "home": {
+                  "type": "object",
+                  "description": "a feeling in the emotional economy (kernel/src/swarm/swarm_emotion.h)",
+                  "properties": {
+                    "emotion": {
+                      "type": "string",
+                      "enum": [
+                        "neutral",
+                        "calm",
+                        "joy",
+                        "curious",
+                        "love",
+                        "worry",
+                        "frustration",
+                        "sadness"
+                      ]
+                    },
+                    "emoji": {
+                      "type": "string",
+                      "description": "the emotion's emoji (UTF-8)"
+                    },
+                    "codepoint": {
+                      "type": "integer",
+                      "description": "the emoji's Unicode code point"
+                    },
+                    "intensity": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "description": "0..5 in the economy; charge 0 outside it"
+                    },
+                    "charge": {
+                      "type": "integer",
+                      "enum": [
+                        0,
+                        1,
+                        2,
+                        3,
+                        5,
+                        8
+                      ],
+                      "description": "F(k+1) for intensity k >= 1, 0 for k = 0 and for neutral"
+                    },
+                    "valence": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        0,
+                        1
+                      ]
+                    }
+                  }
+                },
+                "curiosity_permille": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "caution_permille": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "warmth_permille": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "pace_permille": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "verbosity_permille": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "specialty": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "specialty_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "parent_a": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "parent_b": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "founder": {
+              "type": "boolean",
+              "description": "both parents are 0"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "companion.generation",
+      "summary": "The companion's generation (swarm_dna.h D5) and its steps in this run (swarm_evolve.h V7: on each GROWTH harmonic it combines with the fittest other agent when that agent is strictly fitter; the generation then becomes the larger parent's + 1). Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "generation",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "agent_id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "seed": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "steps": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "V7 steps this run"
+            },
+            "growths": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "GROWTH harmonics (fundamentals) this run"
+            },
+            "last_step": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "the fundamental of the last step, 0 = none yet"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "companion.mood",
+      "summary": "The companion's current feeling in the emotional economy (swarm_emotion.h: emoji, intensity, Fibonacci charge, valence), its home feeling from DNA (D2), whether it is at home (same emotion) and the swarm's cycle mood (E1). Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "mood",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "agent_id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "feeling": {
+              "type": "object",
+              "description": "a feeling in the emotional economy (kernel/src/swarm/swarm_emotion.h)",
+              "properties": {
+                "emotion": {
+                  "type": "string",
+                  "enum": [
+                    "neutral",
+                    "calm",
+                    "joy",
+                    "curious",
+                    "love",
+                    "worry",
+                    "frustration",
+                    "sadness"
+                  ]
+                },
+                "emoji": {
+                  "type": "string",
+                  "description": "the emotion's emoji (UTF-8)"
+                },
+                "codepoint": {
+                  "type": "integer",
+                  "description": "the emoji's Unicode code point"
+                },
+                "intensity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "description": "0..5 in the economy; charge 0 outside it"
+                },
+                "charge": {
+                  "type": "integer",
+                  "enum": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    5,
+                    8
+                  ],
+                  "description": "F(k+1) for intensity k >= 1, 0 for k = 0 and for neutral"
+                },
+                "valence": {
+                  "type": "integer",
+                  "enum": [
+                    -1,
+                    0,
+                    1
+                  ]
+                }
+              }
+            },
+            "home": {
+              "type": "object",
+              "description": "a feeling in the emotional economy (kernel/src/swarm/swarm_emotion.h)",
+              "properties": {
+                "emotion": {
+                  "type": "string",
+                  "enum": [
+                    "neutral",
+                    "calm",
+                    "joy",
+                    "curious",
+                    "love",
+                    "worry",
+                    "frustration",
+                    "sadness"
+                  ]
+                },
+                "emoji": {
+                  "type": "string",
+                  "description": "the emotion's emoji (UTF-8)"
+                },
+                "codepoint": {
+                  "type": "integer",
+                  "description": "the emoji's Unicode code point"
+                },
+                "intensity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "description": "0..5 in the economy; charge 0 outside it"
+                },
+                "charge": {
+                  "type": "integer",
+                  "enum": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    5,
+                    8
+                  ],
+                  "description": "F(k+1) for intensity k >= 1, 0 for k = 0 and for neutral"
+                },
+                "valence": {
+                  "type": "integer",
+                  "enum": [
+                    -1,
+                    0,
+                    1
+                  ]
+                }
+              }
+            },
+            "at_home": {
+              "type": "boolean"
+            },
+            "swarm_mood": {
+              "type": "object",
+              "description": "a feeling in the emotional economy (kernel/src/swarm/swarm_emotion.h)",
+              "properties": {
+                "emotion": {
+                  "type": "string",
+                  "enum": [
+                    "neutral",
+                    "calm",
+                    "joy",
+                    "curious",
+                    "love",
+                    "worry",
+                    "frustration",
+                    "sadness"
+                  ]
+                },
+                "emoji": {
+                  "type": "string",
+                  "description": "the emotion's emoji (UTF-8)"
+                },
+                "codepoint": {
+                  "type": "integer",
+                  "description": "the emoji's Unicode code point"
+                },
+                "intensity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "description": "0..5 in the economy; charge 0 outside it"
+                },
+                "charge": {
+                  "type": "integer",
+                  "enum": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    5,
+                    8
+                  ],
+                  "description": "F(k+1) for intensity k >= 1, 0 for k = 0 and for neutral"
+                },
+                "valence": {
+                  "type": "integer",
+                  "enum": [
+                    -1,
+                    0,
+                    1
+                  ]
+                }
+              }
             }
           }
         }

@@ -245,6 +245,9 @@ CI checks it matches what zxvd serves.
 | `recovery.gateway` | `sig` | `gateway_verified` |
 | `recovery.message` | `kind`, `key`? | `message`, `bytes`, `scheme` |
 | `recovery.status` | `now`?, `vbill_minor`?, `liquid_minor`? | `set_up`, `state`, `claim`, `approvals`, `needed`, `vetoed`, ... |
+| `companion.dna` | | `agent_id`, `seed`, `genes` (8 by name), `traits` (`home`, `*_permille`, `specialty`, `specialty_name`), `parent_a`, `parent_b`, `founder`, `generation` |
+| `companion.generation` | | `agent_id`, `generation`, `seed`, `steps`, `growths`, `last_step` |
+| `companion.mood` | | `agent_id`, `feeling`, `home`, `at_home`, `swarm_mood` (each feeling: `emotion`, `emoji`, `codepoint`, `intensity`, `charge`, `valence`) |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -256,7 +259,8 @@ why), -32040 a card operation the issuer refused, -32041 a passkey ceremony
 refused (the message says why), -32050 an economy engine refused (the message is its status name, e.g.
 `VSWAP_ERR_DISABLED`, or `VAUC_ERR_LEDGER (PAY_ERR_FUNDS)`),
 -32060 an economy engine refused (the message is `<STATUS>: why`, see
-"Bonds, derivatives, grants and estates" below),
+"Bonds, derivatives, grants and estates" below), -32070 no companion yet
+(`companion.*` before the swarm has an agent),
 -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
@@ -686,6 +690,53 @@ Honest limits:
   `grants.distribute` recipients.
 
 
+## The companion: DNA, generation and mood
+
+The person's Chiglet companion is the swarm's agent 0, the one seat on
+level 0 (`kernel/src/swarm/swarm_evolve.h` V4). `companion.*`
+(`kernel/arch/hosted/zxvd_companion.c`, rules H1-H6 in `zxvd_companion.h`)
+reads it from the live swarm: a fresh snapshot per call, nothing cached.
+The group sits behind the feature `companion`, which is not regulated, and
+every method answers with the switch off: they read and move no money.
+
+- `companion.dna`: the 64-bit seed (decimal string, D1), the 8 genes by
+  name in `swarm_gene_t` order (emotion, temperament, curiosity, caution,
+  warmth, pace, verbosity, specialty), the traits they express (D2: the home
+  feeling, five traits in permille, the specialty index and its name), the
+  parents' seeds and the generation (D5). `founder` is true while both
+  parents are 0.
+- `companion.mood`: the companion's current feeling in the emotional
+  economy (`swarm_emotion.h`): `emotion`, its `emoji` and `codepoint`, the
+  `intensity` (0..5), the Fibonacci `charge` (0, 1, 2, 3, 5, 8; always 0 for
+  neutral) and the `valence` (+1, 0, -1). Beside it, the `home` feeling its
+  DNA gives it (feelings drift back toward home), `at_home` (same emotion),
+  and the swarm's cycle mood (E1).
+- `companion.generation`: the generation, and how it got there in this run:
+  `steps` (times it evolved), `growths` (GROWTH harmonics seen) and
+  `last_step` (the fundamental of the last step, 0 for none).
+
+**How the companion evolves (new wiring).** Before this, the GROWTH harmonic
+bred levels 1 and up only and the companion's DNA never changed. Now, on
+each GROWTH harmonic (about every 11 s) and before the levels breed, the
+companion takes one ratchet step (`swarm_evolve.h` V7,
+`swarm_evo_companion`): the candidate is its DNA combined (`swarm_dna_combine`,
+D3) with the fittest other agent's, nonce = the fundamental, judged by
+`swarm_evo_judge` (V1) with the companion's own fitness (D4: gated value plus
+Social capital) against the donor's. Costs are equal, so it steps only when
+the donor is strictly fitter. A step gives it the child's DNA: a new seed,
+both parents recorded and the generation max(parents') + 1, so a step can
+raise the generation by more than one. Its feeling resets to the new home.
+The companion keeps its DNA when the swarm is rebuilt for a new number of
+levels. All integers.
+
+Limits: the donor's measured fitness stands in for the child's, which has
+not run yet, so this is a proxy and not a measurement of the child. When
+every agent's fitness ties (the stand-in market can leave them all equal),
+the companion does not step, and a run can go many growths without one. The
+step can change the home feeling and specialty with a gene. The companion's
+DNA is not saved: each start grows a new one from that run's instance seed
+(taken from the clock), at generation 0.
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
@@ -707,6 +758,10 @@ refusal, and full flows); it is the harness's test for `zxvd_econ.c`.
 `test_zxvd_estate.sh` (grants, estate, recovery) run those groups behind the
 RPC layer on the real engines, signing with real Ed25519 keys; they are the
 harness's tests for `zxvd_instruments.c`, `zxvd_estate.c` and `zxvd_sandbox.c`.
+`test_zxvd_companion.sh` runs `companion.*` behind the RPC layer on the real
+swarm DNA, emotion and evolution code (exact replies, every emotion and
+intensity, the companion's step V7); it is the harness's test for
+`zxvd_companion.c`.
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and

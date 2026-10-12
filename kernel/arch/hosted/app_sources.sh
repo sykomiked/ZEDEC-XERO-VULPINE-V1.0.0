@@ -101,6 +101,8 @@ case "${1:-srcs}" in
         for f in zxvd_sandbox zxvd_instruments zxvd_estate; do echo "arch/hosted/$f.c"; done
         echo src/vderiv/vderiv.c
         for f in estate faraid recovery; do echo "src/estate/$f.c"; done
+        # companion.*: the swarm's own DNA and emotion code is already in srcs
+        echo arch/hosted/zxvd_companion.c
         ;;
     groupincs)
         echo src/cardnet

@@ -375,6 +375,59 @@ def econ_checks(c):
     c.ok('features.set', {'feature': 'estate', 'enabled': False})
 
 
+def companion_checks(c):
+    """companion.dna, companion.generation, companion.mood (zxvd_companion.h H1-H6)."""
+    fs = {f['name']: f for f in c.ok('features.get')['features']}
+    check('companion' in fs and not fs['companion']['regulated'] and
+          not fs['companion']['enabled'], 'companion: a feature that is not regulated, off')
+    genes = ['emotion', 'temperament', 'curiosity', 'caution', 'warmth', 'pace', 'verbosity',
+             'specialty']
+    d0 = c.ok('companion.dna')
+    t = d0['traits']
+    check(d0['agent_id'] == 1 and list(d0['genes']) == genes and
+          all(0 <= v <= 255 for v in d0['genes'].values()) and d0['seed'].isdigit() and
+          d0['founder'] == (d0['parent_a'] == '0' and d0['parent_b'] == '0') and
+          t['home']['emotion'] == ['neutral', 'calm', 'joy', 'curious', 'love', 'worry',
+                                   'frustration', 'sadness'][d0['genes']['emotion'] % 8] and
+          t['home']['intensity'] == d0['genes']['temperament'] % 6 and
+          isinstance(t['specialty_name'], str),
+          'companion.dna answers with the feature off: 8 genes, expressed traits (%s)' % d0)
+    m = c.ok('companion.mood')
+    check(m['home'] == t['home'] and m['feeling']['intensity'] <= 5 and
+          m['feeling']['charge'] in (0, 1, 2, 3, 5, 8) and len(m['feeling']['emoji']) == 1 and
+          ord(m['feeling']['emoji']) == m['feeling']['codepoint'] and
+          m['at_home'] == (m['feeling']['emotion'] == m['home']['emotion']) and
+          'emotion' in m['swarm_mood'],
+          'companion.mood: the emoji feeling, its charge, home from DNA (%s)' % m)
+    # swarm_evolve.h V7: on a GROWTH harmonic (~11 s apart) the companion steps
+    # when another agent is strictly fitter; with the stand-in market all
+    # fitnesses can tie, so a run may see no step (the unit test covers V7)
+    g0 = c.ok('companion.generation')
+    check(g0['generation'] == d0['generation'] and g0['seed'] == d0['seed'],
+          'companion.generation agrees with companion.dna')
+    t0 = time.time()
+    g1 = g0
+    while (g1['steps'] == g0['steps'] and g1['growths'] < g0['growths'] + 2 and
+           time.time() - t0 < 45):
+        time.sleep(0.25)
+        g1 = c.ok('companion.generation')
+    d1 = c.ok('companion.dna')
+    agents = c.ok('swarm.state')['agents']
+    check(g1['growths'] > g0['growths'] and d1['generation'] == agents[0]['gen'] and
+          g1['generation'] == d1['generation'] and g1['growths'] >= g1['last_step'],
+          'companion.generation follows the GROWTH harmonic (%s -> %s)' % (g0, g1))
+    if g1['steps'] > g0['steps']:
+        check(g1['generation'] > g0['generation'] and g1['last_step'] > g0['growths'] and
+              g1['seed'] != g0['seed'] and not d1['founder'] and
+              (g1['steps'] != g0['steps'] + 1 or d1['parent_a'] == g0['seed']),
+              'the companion evolved: generation %d -> %d, parent %s' %
+              (g0['generation'], g1['generation'], d1['parent_a']))
+    else:
+        check(g1['generation'] == g0['generation'] and g1['seed'] == g0['seed'] and
+              g1['last_step'] == g0['last_step'],
+              'no agent was fitter than the companion: its DNA and generation stay (%s)' % g1)
+
+
 def main(binary, gguf=None):
     out = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=10)
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
@@ -443,7 +496,7 @@ def main(binary, gguf=None):
                 'netting.open', 'netting.add', 'netting.submit', 'netting.close',
                 'netting.positions', 'netting.list', 'netting.drop', 'passkey.register',
                 'passkey.verify', 'ledger.hold', 'ledger.release', 'ledger.refund',
-                'ledger.holds'}
+                'ledger.holds', 'companion.dna', 'companion.generation', 'companion.mood'}
         if not WINDOWS:
             want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
@@ -493,6 +546,7 @@ def main(binary, gguf=None):
         else:
             aipi_checks(c, home)
         econ_checks(c)
+        companion_checks(c)
         mi = c.ok('model.info')
         if gguf:
             check(mi['loaded'] and mi['arch'] == 'qwen2' and mi['n_vocab'] > 1000,
