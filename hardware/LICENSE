@@ -1,4 +1,4 @@
-# ZXV Hardware License — Version 1.0
+# ZXV Hardware License — Version 1.1
 
 Copyright (c) 2026 Michael Laurence Curzi & 36N9 GENETICS LLC
 PO Box 6, Calpine, CA 96124-0006, United States — deal@zedec.ai
@@ -6,7 +6,7 @@ PO Box 6, Calpine, CA 96124-0006, United States — deal@zedec.ai
 This is a source-available licence. It is not an open source licence and is
 not the Apache License.
 
-SPDX-License-Identifier: LicenseRef-ZXV-Hardware-1.0
+SPDX-License-Identifier: LicenseRef-ZXV-Hardware-1.1
 
 ---
 
@@ -108,6 +108,25 @@ Licensor or the Foundation operates.
 **1.15 "You"** means the individual or legal entity exercising rights under
 this Licence, and, for the Commercial Licence Agreement, its Affiliates.
 
+**1.16 "Public Infrastructure Use"** means use of a Product by, or supplied
+to and used by, a Public Body or a regulated public utility, solely to build,
+operate or maintain critical or public infrastructure that serves the public
+good, including water and sanitation, energy generation and distribution,
+public health and hospitals, emergency and disaster-response services,
+public transport, public communications networks, public education, and
+environmental monitoring.
+
+**1.17 "Military Use"** means use of a Product, by anyone, in or for
+military operations: combat or combat-support operations, weapons,
+munitions, weapon targeting, and military intelligence or surveillance
+operations. Use by armed forces, defence ministries or their contractors for
+non-military purposes, such as administration, logistics, training, health,
+engineering, communications or disaster relief outside combat operations,
+is not Military Use.
+
+**1.18 "Public Body"** means a national, state, regional or local
+government, a government agency, or an intergovernmental organisation, and a nonprofit acting under contract to one of them for that purpose.
+
 ---
 
 ## 2. Defensive Publication
@@ -205,6 +224,90 @@ update terms of the Official Services.
 
 **4.9 Separate agreements.** The Licensor may agree different terms with any
 person in a separate signed agreement.
+
+---
+
+## 4A. Public Infrastructure Exemption
+
+**4A.1 Exemption.** No royalty under Section 4.3 is payable on Products, or
+on the part of Gross Revenue from Products, that are used solely for Public
+Infrastructure Use or for rescue uses under Section 4A.7(a), and never for
+any other Military Use. All other terms of this
+Licence, including acceptance (4.1), reports (4.4), attribution (Section 6)
+and export control (Section 10), still apply.
+
+**4A.2 Conditions.** To rely on the exemption You shall:
+
+(a) register each exempt project with the Licensor before first delivery,
+    naming the Public Body or utility, the infrastructure, and the
+    approximate number of Products;
+(b) report exempt units separately in each quarterly report, with zero
+    royalty;
+(c) obtain from the Public Body or utility a written statement that the
+    Products will be used only for Public Infrastructure Use or rescue
+    uses under Section 4A.7(a), and not for any other Military Use, and keep it with Your records under Section 4.5; and
+(d) not resell, divert or transfer exempt Products for any other use.
+
+**4A.3 Contractors.** A private company that supplies Products to a Public
+Body or utility for Public Infrastructure Use may claim the exemption for
+the revenue from that supply only. Its other revenue remains royalty-bearing.
+
+**4A.4 Loss of exemption.** If an exempt Product is used for anything other
+than Public Infrastructure Use or rescue uses under Section 4A.7(a), the exemption is lost
+for that Product from the start, and the full royalty, with interest under
+Section 4.4, becomes due from the party that received the exemption.
+
+**4A.5 Voluntary contributions.** Public Bodies and utilities may still
+contribute to the Foundation voluntarily. Such contributions are not
+royalties and create no obligation.
+
+**4A.6 Armed forces may use Products for non-military purposes.** Armed
+forces and defence ministries may use Products for non-military purposes at
+any time, under the same terms as any other user. Such use is not eligible
+for the exemption in Section 4A.1 unless it is also Public Infrastructure
+Use or a rescue use under Section 4A.7(a).
+
+**4A.7 Military Use is prohibited except in these cases.** No licence is
+granted under this Licence, in either tier, for any Military Use except:
+
+(a) **Rescue and life-saving.** Search and rescue, medical evacuation,
+    disaster relief, and other missions whose sole purpose is to save human
+    life, by any party. These uses qualify for the royalty exemption in
+    Section 4A.1 on the same conditions.
+(b) **Defence of national sovereignty.** Use by or for a nation, or its
+    people, while it is under (i) an actual armed attack by an external
+    state or force, or (ii) an armed insurgency within its territory, solely
+    to defend itself against that attack or insurgency and only for as long
+    as it continues. Use under (b) may include weapons, munitions and weapon
+    targeting. These uses are royalty-exempt
+    under Section 4A.1.
+
+**4A.8 Limits on defensive use.** Use under Section 4A.7(b):
+
+(a) must comply with international humanitarian law and international human
+    rights law;
+(b) must not be directed against civilians, peaceful protest, political
+    opposition, journalists, or any person not taking direct part in
+    hostilities;
+(c) does not cover offensive operations beyond what is needed to repel the
+    attack or end the insurgency, or the occupation of another state's
+    territory; and
+(d) ends when the attack or insurgency ends.
+
+An "armed insurgency" means organised armed groups engaged in protracted
+armed violence against the state, at the level of a non-international armed
+conflict under international humanitarian law. Riots, protests, isolated
+violence and political dissent are not an armed insurgency.
+
+**4A.9 Showing a permitted use.** A party relying on Section 4A.7(b) shall,
+on request, give the Licensor reasonable evidence of the attack or
+insurgency, such as a United Nations Security Council record, a notification
+under Article 51 of the United Nations Charter, a recognised declaration of
+armed conflict, or an equivalent public record.
+
+**4A.10 Prohibited use terminates.** Any Military Use outside Section 4A.7,
+or in breach of Section 4A.8, is unlicensed and terminates all licences of
+the party engaged in it, without a cure period.
 
 ---
 
@@ -322,6 +425,9 @@ access to the Official Services for units sold after termination; and
 (d) unpaid royalties, interest and the Licensor's reasonable collection costs
 remain due as a contract debt. The Licensor and the Foundation may pursue
 all remedies available at law or in equity.
+
+**9.3A Exemption breach.** A breach of Section 4A.2 is a breach under
+Section 9.2, and Section 4A.4 also applies.
 
 **9.4 Reinstatement.** The Licensor may reinstate a terminated licence in
 writing once all amounts owed, interest and reasonable enforcement costs are
