@@ -77,6 +77,10 @@ if [ "$SKIP_TESTS" = 0 ]; then
     make -C "$ROOT/kernel" test-swarm
     step "Hosted app tests (API guard, budget gate, net host, end-to-end API, peers, updates)"
     sh "$HOSTED/test_hosted.sh"
+    if [ "$(uname -s)" = Darwin ]; then
+        step "Metal GPU matrix products == the C reference (SKIP without a GPU)"
+        make -C "$ROOT/kernel" test-metal
+    fi
 fi
 
 # ---- 2. the sources: one list for every platform

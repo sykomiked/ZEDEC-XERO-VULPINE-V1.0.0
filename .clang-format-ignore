@@ -191,3 +191,5 @@ kernel/src/xlate/test_langid_fixture.h
 # kernel/experimental/README.md). Not reformatted: a move shows as all-new lines.
 kernel/experimental/*/*
 kernel/src/hwemu/hwe_vectors.h
+# shader source stringified into zt_metal.m: kept in plain function layout
+kernel/src/tensor/zt_metal_math.h

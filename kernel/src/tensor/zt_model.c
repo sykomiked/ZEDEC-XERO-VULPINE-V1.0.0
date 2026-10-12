@@ -765,6 +765,54 @@ static void matmul(const zt_model_t *m, const zt_mat_t *w, zt_model_state_t *s, 
         mm_rows(&j, 0, w->rows);
 }
 
+/* Bias and range count after the accelerator wrote a product's dot products
+ * (the second half of mmb_rows). */
+static int done_rows(const zt_mmb_t *b, uint32_t r0, uint32_t r1)
+{
+    (void) b, (void) r0, (void) r1;
+    return 0;
+}
+
+/* Up to three products of the same input (q, k, v; gate, up): the model's
+ * accelerator (zt_kern_t.mm_full) runs them together when it can, then bias
+ * and count as everywhere else; otherwise each goes through matmul. */
+typedef struct {
+    const zt_mat_t *w;
+    zt_fx *y;
+    uint32_t ystride;
+    const zt_fx *bias;
+} mm_out_t;
+
+static void matmul_n(const zt_model_t *m, zt_model_state_t *s, uint32_t B, const mm_out_t *o,
+                     uint32_t n)
+{
+    const zt_kern_t *k = m->kern;
+    if (k && k->mm_full && n <= 3) {
+        zt_mmf_t f[3];
+        for (uint32_t i = 0; i < 3; i++) { /* all three set, so none is read uninitialised */
+            const mm_out_t *oi = &o[i < n ? i : 0];
+            const zt_mat_t *w = oi->w;
+            zt_mmf_t fi = {w->raw, w->q8,   w->qtype,    w->rows, w->cols, s->a16,
+                           s->ash, s->asum, s->a_stride, B,       oi->y,   oi->ystride};
+            f[i] = fi;
+        }
+        if (!k->mm_full(k->fctx, f, n)) {
+            for (uint32_t i = 0; i < n; i++) {
+                mm_job_t j = {o[i].w, 0,         0, 0, 0, B, o[i].ystride,
+                              o[i].y, o[i].bias, 0, 0, 0, 0, &s->n_sat};
+                mmb_job_t jb = {j, {0, 0, 0, 0, 0, 0, 0, 0, B, o[i].y, o[i].ystride}, done_rows};
+                uint64_t work = (uint64_t) o[i].w->rows * B;
+                if (k->par_rows)
+                    k->par_rows(k->pctx, mmb_rows, &jb, o[i].w->rows, work);
+                else
+                    mmb_rows(&jb, 0, o[i].w->rows);
+            }
+            return;
+        }
+    }
+    for (uint32_t i = 0; i < n; i++) matmul(m, o[i].w, s, B, o[i].y, o[i].ystride, o[i].bias);
+}
+
 /* y = x / sqrt(mean(x^2) + eps) * gain, n <= 65536. In place is allowed. */
 static void rmsnorm(const zt_fx *x, uint32_t n, const zt_gain_t *gn, uint64_t eps_q48, zt_fx *y)
 {
@@ -1172,23 +1220,25 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
         tok_job_t j = {m, s, L, TS_ATTN_NORM, l, p0, B, 0, 0, 0};
         per_token(m, &j, B, wn);
         act_batch(m, s, s->xn, ne, ne, B);
-        matmul(m, &L->wq, s, B, s->q, qd, L->bq);
-        matmul(m, &L->wk, s, B, s->k, kvd, L->bk);
-        matmul(m, &L->wv, s, B, s->v, kvd, L->bv);
+        mm_out_t qkv[3] = {
+            {&L->wq, s->q, qd, L->bq}, {&L->wk, s->k, kvd, L->bk}, {&L->wv, s->v, kvd, L->bv}};
+        matmul_n(m, s, B, qkv, 3);
         j.stage = TS_QK;
         per_token(m, &j, B, (uint64_t) B * (qd + kvd) * 16);
         attention(m, s, l, p0, B);
         act_batch(m, s, s->att, qd, qd, B);
-        matmul(m, &L->wo, s, B, s->xn, ne, 0);
+        mm_out_t o1 = {&L->wo, s->xn, ne, 0};
+        matmul_n(m, s, B, &o1, 1);
         j.stage = TS_RESID_NORM;
         per_token(m, &j, B, wn);
         act_batch(m, s, s->xn, ne, ne, B);
-        matmul(m, &L->wg, s, B, s->gt, nf, 0);
-        matmul(m, &L->wu, s, B, s->up, nf, 0);
+        mm_out_t gu[2] = {{&L->wg, s->gt, nf, 0}, {&L->wu, s->up, nf, 0}};
+        matmul_n(m, s, B, gu, 2);
         j.stage = TS_SILU;
         per_token(m, &j, B, wf);
         act_batch(m, s, s->gt, nf, nf, B);
-        matmul(m, &L->wd, s, B, s->xn, ne, 0);
+        mm_out_t o2 = {&L->wd, s->xn, ne, 0};
+        matmul_n(m, s, B, &o2, 1);
         j.stage = TS_RESID;
         per_token(m, &j, B, wn);
     }
@@ -1198,7 +1248,8 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
     for (uint32_t b = first; b < B; b++)
         rmsnorm(s->x + b * ne, ne, &m->out_norm, m->eps_q48, s->xn + b * ne);
     act_batch(m, s, s->xn + (uint64_t) first * ne, ne, ne, B - first);
-    matmul(m, &m->out, s, B - first, logits, c->n_vocab, 0);
+    mm_out_t lo = {&m->out, logits, c->n_vocab, 0};
+    matmul_n(m, s, B - first, &lo, 1);
     return ZT_GGUF_OK;
 }
 
