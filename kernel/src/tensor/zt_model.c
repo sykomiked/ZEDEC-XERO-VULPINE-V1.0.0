@@ -615,6 +615,7 @@ int32_t zt_model_load_ex(zt_model_t *m, const zt_gguf_t *g, void *arena, uint64_
         }
     }
     m->kern = 0;
+    m->dist = 0;
     m->eps_q48 = (uint64_t) f32_fixed(c->rms_eps_f32, 48);
     uint32_t rt = zt_isqrt64((uint64_t) c->head_dim << 40); /* sqrt(hd) * 2^20 */
     m->inv_sqrt_q30 = (uint32_t) zt_udiv64(1ull << 50, rt, 0);
@@ -729,10 +730,60 @@ static void mmb_rows(void *ctx, uint32_t r0, uint32_t r1)
     if (nsat) __atomic_fetch_add(j->nsat, nsat, __ATOMIC_RELAXED);
 }
 
-static void matmul(const zt_model_t *m, const zt_mat_t *w, zt_model_state_t *s, uint32_t B,
-                   zt_fx *y, uint32_t ystride, const zt_fx *bias)
+/* Rows [lo, hi) of a row job: through par_rows (which covers [0, n)) with
+ * the rows shifted by lo, or on this thread. */
+typedef struct {
+    zt_rows_fn fn;
+    void *ctx;
+    uint32_t lo;
+} range_job_t;
+
+static void range_rows(void *ctx, uint32_t r0, uint32_t r1)
+{
+    const range_job_t *j = ctx;
+    j->fn(j->ctx, j->lo + r0, j->lo + r1);
+}
+
+static void run_range(const zt_kern_t *k, zt_rows_fn fn, void *ctx, uint32_t lo, uint32_t hi,
+                      uint64_t work)
+{
+    if (hi <= lo) return;
+    if (k && k->par_rows) {
+        range_job_t rj = {fn, ctx, lo};
+        k->par_rows(k->pctx, range_rows, &rj, hi - lo, work);
+    } else {
+        fn(ctx, lo, hi);
+    }
+}
+
+/* T23: this rank's units of n (all of them when running alone). */
+static void dist_rows(const zt_model_t *m, uint32_t n, uint32_t *lo, uint32_t *hi)
+{
+    *lo = 0;
+    *hi = n;
+    if (m->dist && m->dist->size > 1) zt_dist_part(n, m->dist->size, m->dist->rank, lo, hi);
+}
+
+/* T23: after this rank computed its part, give every rank all of it. The
+ * saturation count the part added to s->n_sat (since n_sat0) is replaced by
+ * the sum over ranks. */
+static int32_t dist_gather(const zt_model_t *m, zt_model_state_t *s, zt_fx *y, uint32_t ystride,
+                           uint32_t B, uint32_t n, uint32_t unit, uint32_t n_sat0)
+{
+    if (!m->dist || m->dist->size < 2) return ZT_GGUF_OK;
+    uint32_t cnt = s->n_sat - n_sat0;
+    if (m->dist->allgather(m->dist->ctx, y, ystride, B, n, unit, &cnt)) return ZT_MODEL_EDIST;
+    s->n_sat = n_sat0 + cnt;
+    return ZT_GGUF_OK;
+}
+
+static int32_t matmul(const zt_model_t *m, const zt_mat_t *w, zt_model_state_t *s, uint32_t B,
+                      zt_fx *y, uint32_t ystride, const zt_fx *bias)
 {
     const zt_kern_t *k = m->kern;
+    uint32_t lo, hi, n_sat0 = s->n_sat;
+    dist_rows(m, w->rows, &lo, &hi);
+    s->dist_macs += (uint64_t) (hi - lo) * w->cols * B;
     mm_job_t j = {w,
                   s->a16,
                   s->ash,
@@ -747,22 +798,17 @@ static void matmul(const zt_model_t *m, const zt_mat_t *w, zt_model_state_t *s, 
                   k ? k->dot_q4k : 0,
                   k ? k->dot_q6k : 0,
                   &s->n_sat};
-    uint64_t work = (uint64_t) w->rows * w->cols * B;
+    uint64_t work = (uint64_t) (hi - lo) * w->cols * B;
     if (k && k->mm_batch && s->mmb_cols == w->cols && B >= ZT_MMB_MIN) {
         mmb_job_t jb = {
             j,
             {w->raw, w->q8, w->qtype, w->cols, s->aT, s->ashT, s->asumT, s->ashx, B, y, ystride},
             k->mm_batch};
-        if (k->par_rows)
-            k->par_rows(k->pctx, mmb_rows, &jb, w->rows, work);
-        else
-            mmb_rows(&jb, 0, w->rows);
-        return;
+        run_range(k, mmb_rows, &jb, lo, hi, work);
+    } else {
+        run_range(k, mm_rows, &j, lo, hi, work);
     }
-    if (k && k->par_rows)
-        k->par_rows(k->pctx, mm_rows, &j, w->rows, work);
-    else
-        mm_rows(&j, 0, w->rows);
+    return dist_gather(m, s, y, ystride, B, w->rows, 1, n_sat0);
 }
 
 /* y = x / sqrt(mean(x^2) + eps) * gain, n <= 65536. In place is allowed. */
@@ -906,6 +952,7 @@ int32_t zt_model_state_init(zt_model_state_t *s, const zt_model_t *m, uint32_t n
     s->n_batch = n_batch;
     s->pos = 0;
     s->n_sat = 0;
+    s->dist_macs = 0;
     s->mmb_cols = 0;
     return ZT_GGUF_OK;
 }
@@ -1038,18 +1085,16 @@ static void att_items(void *ctx, uint32_t i0, uint32_t i1)
     }
 }
 
-static void attention(const zt_model_t *m, zt_model_state_t *s, uint32_t l, uint32_t p0, uint32_t B)
+static int32_t attention(const zt_model_t *m, zt_model_state_t *s, uint32_t l, uint32_t p0,
+                         uint32_t B)
 {
     att_job_t j = {m, s, l, p0, B};
-    uint32_t n = m->cfg.n_head * s->att_tiles;
-    const zt_kern_t *k = m->kern;
-    if (k && k->par_rows) {
-        /* about (p0 + B) * head_dim multiply-adds twice per token and head */
-        uint64_t work = (uint64_t) B * m->cfg.n_head * (p0 + B) * m->cfg.head_dim * 2;
-        k->par_rows(k->pctx, att_items, &j, n, work);
-    } else {
-        att_items(&j, 0, n);
-    }
+    uint32_t h0, h1, nt = s->att_tiles, n_sat0 = s->n_sat;
+    dist_rows(m, m->cfg.n_head, &h0, &h1); /* T23: this rank's query heads */
+    /* about (p0 + B) * head_dim multiply-adds twice per token and head */
+    uint64_t work = (uint64_t) B * (h1 - h0) * (p0 + B) * m->cfg.head_dim * 2;
+    run_range(m->kern, att_items, &j, h0 * nt, h1 * nt, work);
+    return dist_gather(m, s, s->att, m->q_dim, B, m->q_dim, m->cfg.head_dim, n_sat0);
 }
 
 /* ---- the forward pass ---- */
@@ -1161,8 +1206,9 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
     const zt_model_cfg_t *c = &m->cfg;
     uint32_t ne = c->n_embd, nf = c->n_ff, qd = m->q_dim, kvd = m->kv_dim;
     uint32_t p0 = s->pos;
+    int32_t r;
     for (uint32_t b = 0; b < B; b++) {
-        int32_t r = zt_gguf_dequant(&m->embd, (uint64_t) tok[b] * ne, ne, s->x + b * ne);
+        r = zt_gguf_dequant(&m->embd, (uint64_t) tok[b] * ne, ne, s->x + b * ne);
         if (r) return r;
     }
     /* work estimates for the thread pool's threshold (values touched) */
@@ -1172,23 +1218,23 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
         tok_job_t j = {m, s, L, TS_ATTN_NORM, l, p0, B, 0, 0, 0};
         per_token(m, &j, B, wn);
         act_batch(m, s, s->xn, ne, ne, B);
-        matmul(m, &L->wq, s, B, s->q, qd, L->bq);
-        matmul(m, &L->wk, s, B, s->k, kvd, L->bk);
-        matmul(m, &L->wv, s, B, s->v, kvd, L->bv);
+        if ((r = matmul(m, &L->wq, s, B, s->q, qd, L->bq))) return r;
+        if ((r = matmul(m, &L->wk, s, B, s->k, kvd, L->bk))) return r;
+        if ((r = matmul(m, &L->wv, s, B, s->v, kvd, L->bv))) return r;
         j.stage = TS_QK;
         per_token(m, &j, B, (uint64_t) B * (qd + kvd) * 16);
-        attention(m, s, l, p0, B);
+        if ((r = attention(m, s, l, p0, B))) return r;
         act_batch(m, s, s->att, qd, qd, B);
-        matmul(m, &L->wo, s, B, s->xn, ne, 0);
+        if ((r = matmul(m, &L->wo, s, B, s->xn, ne, 0))) return r;
         j.stage = TS_RESID_NORM;
         per_token(m, &j, B, wn);
         act_batch(m, s, s->xn, ne, ne, B);
-        matmul(m, &L->wg, s, B, s->gt, nf, 0);
-        matmul(m, &L->wu, s, B, s->up, nf, 0);
+        if ((r = matmul(m, &L->wg, s, B, s->gt, nf, 0))) return r;
+        if ((r = matmul(m, &L->wu, s, B, s->up, nf, 0))) return r;
         j.stage = TS_SILU;
         per_token(m, &j, B, wf);
         act_batch(m, s, s->gt, nf, nf, B);
-        matmul(m, &L->wd, s, B, s->xn, ne, 0);
+        if ((r = matmul(m, &L->wd, s, B, s->xn, ne, 0))) return r;
         j.stage = TS_RESID;
         per_token(m, &j, B, wn);
     }
@@ -1198,8 +1244,7 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
     for (uint32_t b = first; b < B; b++)
         rmsnorm(s->x + b * ne, ne, &m->out_norm, m->eps_q48, s->xn + b * ne);
     act_batch(m, s, s->xn + (uint64_t) first * ne, ne, ne, B - first);
-    matmul(m, &m->out, s, B - first, logits, c->n_vocab, 0);
-    return ZT_GGUF_OK;
+    return matmul(m, &m->out, s, B - first, logits, c->n_vocab, 0);
 }
 
 int32_t zt_model_eval(const zt_model_t *m, zt_model_state_t *s, const int32_t *tokens, uint32_t n,

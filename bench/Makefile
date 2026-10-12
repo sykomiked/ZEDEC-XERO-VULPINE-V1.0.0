@@ -23,7 +23,7 @@ BATCH ?=
 
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
 	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
-	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c
+	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c $(K)/src/tensor/dist/zt_dist.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
@@ -44,16 +44,16 @@ legacy-bench: $(OUT)/legacy_bench
 	$(OUT)/legacy_bench legacy/golden_legacy.tsv --iters 200000
 
 $(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
 
 zt_bench: $(OUT)/zt_bench
 
 $(OUT)/zt_dump: tensor/zt_dump.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_dump.c $(TENSOR_SRCS) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_dump.c $(TENSOR_SRCS) -lm -lpthread -o $@
 
 GOLDEN_SRCS := $(K)/src/tensor/zt_lattice.c $(K)/src/tensor/zt_coil.c $(K)/src/tensor/zt_holo.c
 $(OUT)/zt_golden: tensor/zt_golden.c $(TENSOR_SRCS) $(GOLDEN_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/e8 tensor/zt_golden.c $(TENSOR_SRCS) \
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist -I$(K)/src/e8 tensor/zt_golden.c $(TENSOR_SRCS) \
 		$(GOLDEN_SRCS) -lm -lpthread -o $@
 
 zt_dump: $(OUT)/zt_dump
@@ -79,7 +79,7 @@ tensor: $(OUT)/zt_bench
 # Real-model test (bench/tensor/real_model_test.py). ARM64=1 also cross-builds
 # zt_bench for aarch64 and runs it under qemu-aarch64 to check the bits match.
 $(OUT)/zt_bench_arm64: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
+	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
 
 QWEN_BENCH := --bench $(OUT)/zt_bench
 ifeq ($(ARM64),1)
