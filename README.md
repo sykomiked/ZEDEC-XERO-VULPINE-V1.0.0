@@ -196,4 +196,6 @@ Credit: **Michael Laurence Curzi & 36N9 GENETICS LLC**, PO Box 6, Calpine, CA 96
 
 Under section 4(d) of the Apache License, anyone who redistributes this software or a work derived from it must keep the attribution in [`NOTICE`](NOTICE). Vendored third-party code keeps its own licence (see each vendored directory's LICENSE and README.zxv). The software is provided as is, with no warranty of any kind.
 
-**Hardware designs** under [`hardware/`](hardware/) are not covered by the Apache License. They are source-available under the [ZXV Hardware License 1.0](hardware/LICENSE): free for noncommercial use, with an 18% gross royalty to ILLUMAHEART FOUNDATION for commercial manufacture, and required attribution. See [`LICENSE-HARDWARE.md`](LICENSE-HARDWARE.md) and [`hardware/README.md`](hardware/README.md).
+**Hardware designs** under [`hardware/`](hardware/) are not covered by the Apache License. They are source-available under the [ZXV Hardware License 1.1](hardware/LICENSE): free for noncommercial use, with an 18% gross royalty to ILLUMAHEART FOUNDATION for commercial manufacture, and required attribution. See [`LICENSE-HARDWARE.md`](LICENSE-HARDWARE.md) and [`hardware/README.md`](hardware/README.md).
+
+**Commercial use of the software** is free under Apache-2.0. We ask, but never require, for-profit users to contribute 18% of gross revenue from ZXV to ILLUMAHEART FOUNDATION; see [`COMMERCIAL_USE.md`](COMMERCIAL_USE.md). Contributors sign the [`CLA.md`](CLA.md).
