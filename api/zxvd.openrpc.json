@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h).",
     "license": {
       "name": "Apache-2.0"
     }
@@ -1878,6 +1878,376 @@
                   "pattern": "^[0-9]+$"
                 }
               }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.root",
+      "summary": "The ZXV folder behind the Files, TextEdit and Photos apps (F1): ZXV_FILES_ROOT, else ~/Documents/ZXV (%USERPROFILE%\\Documents\\ZXV on Windows), made 0700 when missing.",
+      "params": [],
+      "result": {
+        "name": "root",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "root": {
+              "type": "string"
+            },
+            "trash": {
+              "type": "string",
+              "const": ".Trash"
+            },
+            "read_max": {
+              "type": "integer"
+            },
+            "file_max": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.list",
+      "summary": "One folder's entries, folders first then by name; hidden names and links are left out (F3). path '.Trash' lists the Trash.",
+      "params": [
+        {
+          "name": "path",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "maxLength": 1024
+          }
+        }
+      ],
+      "result": {
+        "name": "listing",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "dir": {
+                    "type": "boolean"
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "mtime": {
+                    "type": "integer",
+                    "description": "seconds since 1970"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.stat",
+      "summary": "One file or folder.",
+      "params": [
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "maxLength": 1024
+          }
+        }
+      ],
+      "result": {
+        "name": "entry",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "dir": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mtime": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.read",
+      "summary": "Up to max bytes (at most read_max, 49152) from offset. utf8 (default) stops on a character boundary and refuses bytes that are not UTF-8 (-32012); base64 returns the bytes as they are. Read on from next until eof.",
+      "params": [
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "offset",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0 or absent: read_max"
+          }
+        },
+        {
+          "name": "encoding",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "utf8",
+              "base64"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "chunk",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer"
+            },
+            "offset": {
+              "type": "integer"
+            },
+            "next": {
+              "type": "integer"
+            },
+            "eof": {
+              "type": "boolean"
+            },
+            "text": {
+              "type": "string"
+            },
+            "base64": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.write",
+      "summary": "Write a file whole (F4): replace writes a staging file and renames it over the target. A file too long for one request line goes begin, add..., end; nothing appears until end. Exactly one of text or base64 (RFC 4648, padded).",
+      "params": [
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "text",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "base64",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "mode",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "replace",
+              "begin",
+              "add",
+              "end"
+            ]
+          }
+        },
+        {
+          "name": "exclusive",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "description": "refuse when the target exists (a new file)"
+          }
+        }
+      ],
+      "result": {
+        "name": "written",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer",
+              "description": "the file's size, or the staged size so far before end"
+            },
+            "done": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.mkdir",
+      "summary": "Make a folder; its parent must exist.",
+      "params": [
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "maxLength": 1024
+          }
+        }
+      ],
+      "result": {
+        "name": "made",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.rename",
+      "summary": "Rename or move; refuses when to exists. Out of the Trash is how an item is put back; into it is files.trash.",
+      "params": [
+        {
+          "name": "from",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "to",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "maxLength": 1024
+          }
+        }
+      ],
+      "result": {
+        "name": "moved",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.trash",
+      "summary": "Move an item into the Trash (F5, a unique name on a clash), or remove an item already in the Trash for good.",
+      "params": [
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "maxLength": 1024
+          }
+        }
+      ],
+      "result": {
+        "name": "trashed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "trashed": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "removed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "files.empty_trash",
+      "summary": "Remove everything in the Trash for good.",
+      "params": [],
+      "result": {
+        "name": "emptied",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "removed": {
+              "type": "integer",
+              "minimum": 0
             }
           }
         }

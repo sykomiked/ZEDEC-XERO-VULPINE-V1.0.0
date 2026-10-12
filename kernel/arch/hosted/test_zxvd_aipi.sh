@@ -24,7 +24,7 @@ RP="-Wl,-rpath,$R/sdk/libzxv/build"
     -I"$K/src/event_space" -I"$K/src/modbind" -I"$K/src/surplus" \
     -I"$R/sdk/libzxv/include" -I"$R/sdk/kits/aipi/include" -I"$R/sdk/kits/aipi/test" \
     -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" \
-    "$HERE/test_zxvd_aipi.c" "$HERE/zxvd_aipi.c" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" \
+    "$HERE/test_zxvd_aipi.c" "$HERE/zxvd_aipi.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$K/src/web4/web4_json.c" \
     "$K/src/web4/web4_util.c" "$K/src/mlkem/keccak.c" \
     "$A/libaipi_zwasm.a" "$A/libaipi_core.a" "$A/zcontract/libzcontract_wasm.a" \
     "$A/zcontract/libzcontract.a" "$A/zwasm/libzwasm.a" \

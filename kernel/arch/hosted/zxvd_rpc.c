@@ -34,6 +34,7 @@
 #include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
 #include "web4_util.h" /* hex */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
+#include "zxv_files.h" /* files.*: the ZXV folder */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -1112,6 +1113,234 @@ static void m_aipi_status(call_t *c)
     AIPI->status(c->res);
 }
 
+/* ----- files.* (zxv_files.h): the ZXV folder behind the staple apps ----- */
+
+static bool files_done(call_t *c, int rc)
+{
+    if (rc == ZXF_OK) return true;
+    fail(c, ZXVD_E_FILES, "%s", zxf_strerror(rc));
+    return false;
+}
+
+/* an optional non-negative integer; absent = def */
+static bool p_opt_u64(call_t *c, const char *key, uint64_t def, uint64_t *v)
+{
+    int64_t x;
+    *v = def;
+    if (param(c, key) < 0) return true;
+    if (!p_i64(c, key, &x)) return false;
+    if (x < 0) {
+        fail(c, E_PARAMS, "\"%s\" must not be negative", key);
+        return false;
+    }
+    *v = (uint64_t) x;
+    return true;
+}
+
+static bool p_path(call_t *c, const char *key, char *out, bool required)
+{
+    return p_str(c, key, out, ZXF_PATH_MAX + 1, required);
+}
+
+static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static void b64_put(zxvd_buf_t *b, const uint8_t *d, size_t n)
+{
+    char q[4];
+    zxvd_buf_raw(b, "\"", 1);
+    for (size_t i = 0; i < n; i += 3) {
+        uint32_t v = (uint32_t) d[i] << 16 | (i + 1 < n ? (uint32_t) d[i + 1] << 8 : 0) |
+                     (i + 2 < n ? d[i + 2] : 0);
+        q[0] = B64[v >> 18 & 63];
+        q[1] = B64[v >> 12 & 63];
+        q[2] = i + 1 < n ? B64[v >> 6 & 63] : '=';
+        q[3] = i + 2 < n ? B64[v & 63] : '=';
+        zxvd_buf_raw(b, q, 4);
+    }
+    zxvd_buf_raw(b, "\"", 1);
+}
+
+/* strict RFC 4648 (padding required); -1 on anything else */
+static int64_t b64_get(const char *s, size_t n, uint8_t *out, size_t cap)
+{
+    if (n % 4) return -1;
+    size_t o = 0;
+    for (size_t i = 0; i < n; i += 4) {
+        uint32_t v = 0;
+        int pad = 0;
+        for (int j = 0; j < 4; j++) {
+            const char *p = s[i + j] ? strchr(B64, s[i + j]) : NULL;
+            if (s[i + j] == '=' && i + 4 == n && j >= 2 && (j == 3 || s[i + 3] == '=')) {
+                pad++;
+                v <<= 6;
+            } else if (p && !pad) {
+                v = v << 6 | (uint32_t) (p - B64);
+            } else {
+                return -1;
+            }
+        }
+        if (o + 3 - (size_t) pad > cap) return -1;
+        out[o++] = (uint8_t) (v >> 16);
+        if (pad < 2) out[o++] = (uint8_t) (v >> 8);
+        if (pad < 1) out[o++] = (uint8_t) v;
+    }
+    return (int64_t) o;
+}
+
+static void entry_json(zxvd_buf_t *b, const zxf_entry_t *e)
+{
+    zxvd_buf_raw(b, "{\"name\":", 8);
+    zxvd_buf_json_str(b, e->name);
+    zxvd_buf_printf(b, ",\"dir\":%s,\"size\":%llu,\"mtime\":%lld}", e->dir ? "true" : "false",
+                    (unsigned long long) e->size, (long long) e->mtime);
+}
+
+static void m_files_root(call_t *c)
+{
+    char root[4096];
+    if (!files_done(c, zxf_root(root, sizeof root))) return;
+    zxvd_buf_raw(c->res, "{\"root\":", 8);
+    zxvd_buf_json_str(c->res, root);
+    zxvd_buf_printf(c->res, ",\"trash\":\"%s\",\"read_max\":%u,\"file_max\":%u}", ZXF_TRASH,
+                    ZXF_READ_MAX, ZXF_FILE_MAX);
+}
+
+static void m_files_list(call_t *c)
+{
+    char path[ZXF_PATH_MAX + 1];
+    zxf_entry_t *v;
+    uint32_t n;
+    if (!p_path(c, "path", path, false) || !files_done(c, zxf_list(path, &v, &n))) return;
+    zxvd_buf_raw(c->res, "{\"path\":", 8);
+    zxvd_buf_json_str(c->res, path);
+    zxvd_buf_raw(c->res, ",\"entries\":[", 12);
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) zxvd_buf_raw(c->res, ",", 1);
+        entry_json(c->res, &v[i]);
+    }
+    zxvd_buf_raw(c->res, "]}", 2);
+    free(v);
+}
+
+static void m_files_stat(call_t *c)
+{
+    char path[ZXF_PATH_MAX + 1];
+    zxf_entry_t e;
+    if (!p_path(c, "path", path, true) || !files_done(c, zxf_stat(path, &e))) return;
+    entry_json(c->res, &e);
+}
+
+static void m_files_read(call_t *c)
+{
+    static uint8_t data[ZXF_READ_MAX];
+    char path[ZXF_PATH_MAX + 1], enc[16];
+    uint64_t off, max, size;
+    uint32_t got;
+    if (!p_path(c, "path", path, true) || !p_opt_u64(c, "offset", 0, &off) ||
+        !p_opt_u64(c, "max", ZXF_READ_MAX, &max) || !p_str(c, "encoding", enc, sizeof enc, false))
+        return;
+    bool text = !enc[0] || !strcmp(enc, "utf8");
+    if (!text && strcmp(enc, "base64"))
+        return fail(c, E_PARAMS, "\"encoding\" must be \"utf8\" or \"base64\"");
+    if (max == 0 || max > ZXF_READ_MAX) max = ZXF_READ_MAX;
+    if (!files_done(c, zxf_read(path, off, data, (uint32_t) max, text, &got, &size))) return;
+    zxvd_buf_raw(c->res, "{\"path\":", 8);
+    zxvd_buf_json_str(c->res, path);
+    zxvd_buf_printf(c->res, ",\"size\":%llu,\"offset\":%llu,\"next\":%llu,\"eof\":%s,",
+                    (unsigned long long) size, (unsigned long long) off,
+                    (unsigned long long) (off + got), off + got >= size ? "true" : "false");
+    if (text) {
+        /* zxvd_buf_json_str stops at a NUL; zxf_read refuses NULs in text */
+        char *t = malloc((size_t) got + 1);
+        if (!t) return fail(c, E_INTERNAL, "out of memory");
+        memcpy(t, data, got);
+        t[got] = 0;
+        zxvd_buf_raw(c->res, "\"text\":", 7);
+        zxvd_buf_json_str(c->res, t);
+        free(t);
+    } else {
+        zxvd_buf_raw(c->res, "\"base64\":", 9);
+        b64_put(c->res, data, got);
+    }
+    zxvd_buf_raw(c->res, "}", 1);
+}
+
+static void m_files_write(call_t *c)
+{
+    static char in[ZXVD_RPC_MAX_LINE + 1];
+    static uint8_t raw[ZXVD_RPC_MAX_LINE];
+    char path[ZXF_PATH_MAX + 1], mode_s[16];
+    bool excl;
+    if (!p_path(c, "path", path, true) || !p_str(c, "mode", mode_s, sizeof mode_s, false) ||
+        !p_bool(c, "exclusive", false, &excl))
+        return;
+    static const char *const MODES[] = {"replace", "begin", "add", "end"};
+    int mode = -1;
+    for (int i = 0; i < 4; i++)
+        if (!strcmp(mode_s[0] ? mode_s : "replace", MODES[i])) mode = i;
+    if (mode < 0) return fail(c, E_PARAMS, "\"mode\" must be replace, begin, add or end");
+    bool has_t = param(c, "text") >= 0, has_b = param(c, "base64") >= 0;
+    if (has_t == has_b) return fail(c, E_PARAMS, "give exactly one of \"text\" or \"base64\"");
+    const uint8_t *d;
+    size_t n;
+    if (has_t) {
+        if (!p_str(c, "text", in, sizeof in, true)) return;
+        d = (const uint8_t *) in;
+        n = strlen(in);
+    } else {
+        if (!p_str(c, "base64", in, sizeof in, true)) return;
+        int64_t k = b64_get(in, strlen(in), raw, sizeof raw);
+        if (k < 0) return fail(c, E_PARAMS, "\"base64\" is not valid base64");
+        d = raw;
+        n = (size_t) k;
+    }
+    uint64_t size;
+    if (!files_done(c, zxf_write(path, d, (uint32_t) n, mode, excl, &size))) return;
+    zxvd_buf_raw(c->res, "{\"path\":", 8);
+    zxvd_buf_json_str(c->res, path);
+    zxvd_buf_printf(c->res, ",\"size\":%llu,\"done\":%s}", (unsigned long long) size,
+                    mode == ZXF_W_REPLACE || mode == ZXF_W_END ? "true" : "false");
+}
+
+static void m_files_mkdir(call_t *c)
+{
+    char path[ZXF_PATH_MAX + 1];
+    if (!p_path(c, "path", path, true) || !files_done(c, zxf_mkdir(path))) return;
+    zxvd_buf_raw(c->res, "{\"path\":", 8);
+    zxvd_buf_json_str(c->res, path);
+    zxvd_buf_raw(c->res, "}", 1);
+}
+
+static void m_files_rename(call_t *c)
+{
+    char from[ZXF_PATH_MAX + 1], to[ZXF_PATH_MAX + 1];
+    if (!p_path(c, "from", from, true) || !p_path(c, "to", to, true) ||
+        !files_done(c, zxf_rename(from, to)))
+        return;
+    zxvd_buf_raw(c->res, "{\"path\":", 8);
+    zxvd_buf_json_str(c->res, to);
+    zxvd_buf_raw(c->res, "}", 1);
+}
+
+static void m_files_trash(call_t *c)
+{
+    char path[ZXF_PATH_MAX + 1], to[ZXF_PATH_MAX + 1];
+    if (!p_path(c, "path", path, true) || !files_done(c, zxf_trash(path, to, sizeof to))) return;
+    zxvd_buf_raw(c->res, "{\"trashed\":", 11);
+    if (to[0])
+        zxvd_buf_json_str(c->res, to);
+    else
+        zxvd_buf_raw(c->res, "null", 4);
+    zxvd_buf_printf(c->res, ",\"removed\":%s}", to[0] ? "false" : "true");
+}
+
+static void m_files_empty_trash(call_t *c)
+{
+    uint32_t n;
+    if (!files_done(c, zxf_empty_trash(&n))) return;
+    zxvd_buf_printf(c->res, "{\"removed\":%u}", (unsigned) n);
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -1410,6 +1639,15 @@ static const method_t METHODS[] = {
     {"aipi.publish", m_aipi_publish},
     {"aipi.execute", m_aipi_execute},
     {"aipi.status", m_aipi_status},
+    {"files.root", m_files_root},
+    {"files.list", m_files_list},
+    {"files.stat", m_files_stat},
+    {"files.read", m_files_read},
+    {"files.write", m_files_write},
+    {"files.mkdir", m_files_mkdir},
+    {"files.rename", m_files_rename},
+    {"files.trash", m_files_trash},
+    {"files.empty_trash", m_files_empty_trash},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 

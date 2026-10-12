@@ -29,6 +29,7 @@
 #include "zxvd_rpc.h"
 #include "zxv_api.h"
 #include "sha256.h"
+#include "zxv_files.h"
 
 static int fails, checks;
 
@@ -442,7 +443,9 @@ static void test_host_methods(void)
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
               "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
               "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\"]}"));
+              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"files.root\",\"files.list\","
+              "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
+              "\"files.trash\",\"files.empty_trash\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -2055,6 +2058,179 @@ static void test_aipi_methods(void)
     zxvd_rpc_set_aipi_ops(NULL);
 }
 
+/* ---------------- files.* (zxv_files.h; the module itself: test_zxv_files.c) ---------------- */
+
+#define FERR(id, msg) ERR(id, "-32012", msg)
+
+static void test_files_methods(void)
+{
+    char root[200], want[600];
+    snprintf(root, sizeof root, "%s/zxvd-files-XXXXXX",
+             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0, "root set");
+    snprintf(
+        want, sizeof want,
+        OK("1", "{\"root\":\"%s\",\"trash\":\".Trash\",\"read_max\":49152,\"file_max\":268435456}"),
+        root);
+    EXPECT(REQ("1", "files.root", ""), want);
+    EXPECT(REQ("2", "files.list", ""), OK("2", "{\"path\":\"\",\"entries\":[]}"));
+    EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":\"..\"}"),
+           FERR("2", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":7}"),
+           ERR("2", "-32602", "\\\"path\\\" must be a string of at most 1024 bytes"));
+    /* write, read back, stat */
+    EXPECT(REQ("3", "files.write", ",\"params\":{\"path\":\"a.txt\",\"text\":\"h\\u00e9\\n\"}"),
+           OK("3", "{\"path\":\"a.txt\",\"size\":4,\"done\":true}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\"}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":0,\"next\":4,\"eof\":true,"
+                   "\"text\":\"h\xc3\xa9\\u000a\"}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"offset\":1,\"max\":2}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":1,\"next\":3,\"eof\":false,"
+                   "\"text\":\"\xc3\xa9\"}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"offset\":1,\"max\":1}"),
+           FERR("4", "not text (not UTF-8)"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"encoding\":\"base64\"}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":0,\"next\":4,\"eof\":true,"
+                   "\"base64\":\"aMOpCg==\"}"));
+    EXPECT(REQ("4", "files.read",
+               ",\"params\":{\"path\":\"a.txt\",\"offset\":0,\"max\":0,"
+               "\"encoding\":\"base64\"}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":0,\"next\":4,\"eof\":true,"
+                   "\"base64\":\"aMOpCg==\"}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"offset\":9}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":9,\"next\":9,\"eof\":true,"
+                   "\"text\":\"\"}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"encoding\":\"hex\"}"),
+           ERR("4", "-32602", "\\\"encoding\\\" must be \\\"utf8\\\" or \\\"base64\\\""));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"offset\":-1}"),
+           ERR("4", "-32602", "\\\"offset\\\" must not be negative"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"max\":1.5}"),
+           ERR("4", "-32602", "\\\"max\\\" must be an integer (no fraction or exponent)"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"no.txt\"}"),
+           FERR("4", "no such file or folder"));
+    EXPECT(REQ("4", "files.read", ""), ERR("4", "-32602", "missing string parameter \\\"path\\\""));
+    CHECK(has(REQ("5", "files.stat", ",\"params\":{\"path\":\"a.txt\"}"),
+              "{\"name\":\"a.txt\",\"dir\":false,\"size\":4,\"mtime\":"),
+          "stat: %s", OUT.p);
+    /* base64 and the chunked modes */
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"b.bin\",\"base64\":\"AAEC\"}"),
+           OK("6", "{\"path\":\"b.bin\",\"size\":3,\"done\":true}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"b.bin\"}"),
+           FERR("6", "not text (not UTF-8)"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"b.bin\",\"encoding\":\"base64\"}"),
+           OK("6", "{\"path\":\"b.bin\",\"size\":3,\"offset\":0,\"next\":3,\"eof\":true,"
+                   "\"base64\":\"AAEC\"}"));
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"c.bin\",\"base64\":\"/w==\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":1,\"done\":true}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"c.bin\",\"encoding\":\"base64\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":1,\"offset\":0,\"next\":1,\"eof\":true,"
+                   "\"base64\":\"/w==\"}"));
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"c.bin\",\"base64\":\"+/8=\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":2,\"done\":true}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"c.bin\",\"encoding\":\"base64\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":2,\"offset\":0,\"next\":2,\"eof\":true,"
+                   "\"base64\":\"+/8=\"}"));
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"c.bin\",\"base64\":\"ABA=\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":2,\"done\":true}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"c.bin\",\"encoding\":\"base64\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":2,\"offset\":0,\"next\":2,\"eof\":true,"
+                   "\"base64\":\"ABA=\"}"));
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"e.bin\",\"base64\":\"\"}"),
+           OK("6", "{\"path\":\"e.bin\",\"size\":0,\"done\":true}"));
+    EXPECT(REQ("6", "files.trash", ",\"params\":{\"path\":\"e.bin\"}"),
+           OK("6", "{\"trashed\":\".Trash/e.bin\",\"removed\":false}"));
+    static const char *const BAD64[] = {
+        "AAE", "A=AA", "AA=A", "====", "AAE*", "AA==AAAA", "A===", "AAAAA\\u0000AA"};
+    for (size_t i = 0; i < sizeof BAD64 / sizeof *BAD64; i++) {
+        char req[200];
+        snprintf(req, sizeof req,
+                 REQ("7", "files.write", ",\"params\":{\"path\":\"x\",\"base64\":\"%s\"}"),
+                 BAD64[i]);
+        const char *r = rpc(req);
+        CHECK(strstr(r, "-32602") != NULL, "bad base64 %s refused: %s", BAD64[i], r);
+    }
+    EXPECT(REQ("7", "files.write", ",\"params\":{\"path\":\"x\"}"),
+           ERR("7", "-32602", "give exactly one of \\\"text\\\" or \\\"base64\\\""));
+    EXPECT(REQ("7", "files.write", ",\"params\":{\"path\":\"x\",\"text\":\"\",\"base64\":\"\"}"),
+           ERR("7", "-32602", "give exactly one of \\\"text\\\" or \\\"base64\\\""));
+    EXPECT(
+        REQ("7", "files.write", ",\"params\":{\"path\":\"x\",\"text\":\"\",\"mode\":\"append\"}"),
+        ERR("7", "-32602", "\\\"mode\\\" must be replace, begin, add or end"));
+    EXPECT(REQ("7", "files.write", ",\"params\":{\"path\":\"x\",\"text\":\"\",\"exclusive\":1}"),
+           ERR("7", "-32602", "\\\"exclusive\\\" must be true or false"));
+    EXPECT(REQ("8", "files.write",
+               ",\"params\":{\"path\":\"a.txt\",\"text\":\"\",\"exclusive\":true}"),
+           FERR("8", "something with that name already exists"));
+    EXPECT(
+        REQ("8", "files.write", ",\"params\":{\"path\":\"big\",\"text\":\"ab\",\"mode\":\"add\"}"),
+        FERR("8", "no \\\"begin\\\" for this file"));
+    EXPECT(REQ("8", "files.write",
+               ",\"params\":{\"path\":\"big\",\"text\":\"ab\",\"mode\":\"begin\"}"),
+           OK("8", "{\"path\":\"big\",\"size\":2,\"done\":false}"));
+    EXPECT(REQ("8", "files.write",
+               ",\"params\":{\"path\":\"big\",\"base64\":\"Yw==\",\"mode\":\"add\"}"),
+           OK("8", "{\"path\":\"big\",\"size\":3,\"done\":false}"));
+    EXPECT(
+        REQ("8", "files.write", ",\"params\":{\"path\":\"big\",\"text\":\"d\",\"mode\":\"end\"}"),
+        OK("8", "{\"path\":\"big\",\"size\":4,\"done\":true}"));
+    EXPECT(REQ("8", "files.read", ",\"params\":{\"path\":\"big\"}"),
+           OK("8", "{\"path\":\"big\",\"size\":4,\"offset\":0,\"next\":4,\"eof\":true,"
+                   "\"text\":\"abcd\"}"));
+    EXPECT(REQ("8", "files.write",
+               ",\"params\":{\"path\":\"big\",\"text\":\"e\",\"mode\":\"replace\"}"),
+           OK("8", "{\"path\":\"big\",\"size\":1,\"done\":true}"));
+    /* folders, rename, list order */
+    EXPECT(REQ("9", "files.mkdir", ",\"params\":{\"path\":\"Docs\"}"),
+           OK("9", "{\"path\":\"Docs\"}"));
+    EXPECT(REQ("9", "files.mkdir", ",\"params\":{\"path\":\"Docs\"}"),
+           FERR("9", "something with that name already exists"));
+    EXPECT(REQ("9", "files.mkdir", ""),
+           ERR("9", "-32602", "missing string parameter \\\"path\\\""));
+    EXPECT(REQ("10", "files.rename", ",\"params\":{\"from\":\"big\",\"to\":\"Docs/big\"}"),
+           OK("10", "{\"path\":\"Docs/big\"}"));
+    EXPECT(REQ("10", "files.rename", ",\"params\":{\"from\":\"big\",\"to\":\"Docs/big\"}"),
+           FERR("10", "no such file or folder"));
+    EXPECT(REQ("10", "files.rename", ",\"params\":{\"from\":\"a.txt\"}"),
+           ERR("10", "-32602", "missing string parameter \\\"to\\\""));
+    const char *l = rpc(REQ("11", "files.list", ""));
+    const char *d = strstr(l, "\"name\":\"Docs\",\"dir\":true,\"size\":0");
+    const char *a = strstr(l, "\"name\":\"a.txt\",\"dir\":false,\"size\":4");
+    const char *b = strstr(l, "\"name\":\"b.bin\"");
+    static const char HEAD[] =
+        "{\"jsonrpc\":\"2.0\",\"id\":11,\"result\":{\"path\":\"\",\"entries\":[{";
+    CHECK(!strncmp(l, HEAD, sizeof HEAD - 1) && d && a && b && d < a && a < b && strstr(l, "}]}}"),
+          "list: %s", l);
+    CHECK(has(REQ("11", "files.list", ",\"params\":{\"path\":\"Docs\"}"),
+              "{\"path\":\"Docs\",\"entries\":[{\"name\":\"big\",\"dir\":false,\"size\":1,"
+              "\"mtime\":"),
+          "list Docs: %s", OUT.p);
+    /* trash */
+    EXPECT(REQ("12", "files.trash", ",\"params\":{\"path\":\"a.txt\"}"),
+           OK("12", "{\"trashed\":\".Trash/a.txt\",\"removed\":false}"));
+    EXPECT(REQ("12", "files.trash", ",\"params\":{\"path\":\".Trash/a.txt\"}"),
+           OK("12", "{\"trashed\":null,\"removed\":true}"));
+    EXPECT(REQ("12", "files.trash", ",\"params\":{\"path\":\"a.txt\"}"),
+           FERR("12", "no such file or folder"));
+    EXPECT(REQ("12", "files.trash", ",\"params\":{\"path\":\"Docs\"}"),
+           OK("12", "{\"trashed\":\".Trash/Docs\",\"removed\":false}"));
+    EXPECT(REQ("13", "files.empty_trash", ""), OK("13", "{\"removed\":2}"));
+    EXPECT(REQ("13", "files.empty_trash", ""), OK("13", "{\"removed\":0}"));
+    EXPECT(REQ("13", "files.list", ",\"params\":{\"path\":\".Trash\"}"),
+           OK("13", "{\"path\":\".Trash\",\"entries\":[]}"));
+    /* a root that cannot be made */
+    char bad[260];
+    snprintf(bad, sizeof bad, "%s/b.bin", root);
+    CHECK(zxf_set_root(bad) == ZXF_E_ROOT, "a file is no root");
+    EXPECT(REQ("14", "files.root", ""), FERR("14", "the ZXV folder cannot be found or made"));
+    EXPECT(REQ("14", "files.empty_trash", ""),
+           FERR("14", "the ZXV folder cannot be found or made"));
+    CHECK(zxf_set_root(root) == 0, "root back");
+    char cmd[300];
+    snprintf(cmd, sizeof cmd, "rm -rf '%s'", root);
+    CHECK(system(cmd) == 0, "cleanup");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -2063,6 +2239,7 @@ int main(void)
     test_host_methods();
     test_peer_methods();
     test_aipi_methods();
+    test_files_methods();
     test_books_closed();
     test_books();
     test_earnings();

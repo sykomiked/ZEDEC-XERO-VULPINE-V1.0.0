@@ -13,6 +13,7 @@
 | Signed update checks, notifications | `zxv_update_host.c`, `zx_notify` | `update.check`, `notes.*` |
 | Owner's books: currencies, accounts, exact postings, invariants | **libzxv** through its frozen C ABI | `currency.*`, `ledger.*` |
 | AIPI: functions by CID, run in the Z-Wasm sandbox under their contract (offline node) | `kernel/src/aipi`, `sdk/kits/aipi`, `zxvd_aipi.c` | `aipi.*` |
+| The ZXV folder behind the built-in apps (Files, TextEdit, Photos; [STAPLE_APPS.md](STAPLE_APPS.md)) | `zxv_files.c` | `files.*`, and the window's `POST /api/rpc` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
 
 It is `zxv_host.c` built with `-DZXVD`, plus `zxvd_rpc.c` and `zxvd_aipi.c`

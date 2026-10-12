@@ -1292,7 +1292,7 @@ static const char TOKEN_SCRIPT[] =
 
 static const char PAGE_CSP[] =
     "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; "
-    "style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+    "style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src blob:; connect-src 'self'; "
     "frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n";
 
 static void send_page(sock_t c)
@@ -1314,9 +1314,17 @@ static void send_page(sock_t c)
 
 static zxv_guard_t G;
 
+/* A request: the headers and a body as long as one zxvd RPC line (the
+ * window's /api/rpc, used by the staple apps), with room for the headers. */
+#if defined(ZXVD)
+#    define REQ_MAX (ZXVD_RPC_MAX_LINE + 8192)
+#else
+#    define REQ_MAX 8192
+#endif
+
 static void handle(sock_t c)
 {
-    char req[8192];
+    static char req[REQ_MAX];
     int n = 0, k;
     char *hdr_end = NULL;
     long want = 0;
@@ -1417,6 +1425,20 @@ static void handle(sock_t c)
         else
             reply(c, "400 Bad Request", "text/plain", "off, lan, online, peer, share, want or sell",
                   43);
+#if defined(ZXVD)
+    } else if (PATH_IS("/api/rpc") && !is_get) {
+        /* the window's way to zxvd's methods (the staple apps): one JSON-RPC
+         * request in, its response out, the same as a line on the socket */
+        zxvd_buf_t o = {0};
+        if (!zxvd_rpc_handle_line(body, (size_t) want, &o)) zxvd_buf_raw(&o, "{}", 2);
+        if (o.oom || !o.p)
+            reply(c, "500 Internal Server Error", "text/plain", "out of memory", 13);
+        else
+            reply(c, "200 OK", "application/json", o.p, o.len);
+        free(o.p);
+    } else if (PATH_IS("/api/rpc")) {
+        reply(c, "405 Method Not Allowed", "text/plain", "wrong method", 12);
+#endif
     } else if (PATH_IS("/api/state") || PATH_IS("/api/ask") || PATH_IS("/api/quit") ||
                PATH_IS("/api/notes") || PATH_IS("/api/notes/read") || PATH_IS("/api/update") ||
                PATH_IS("/api/net")) {
