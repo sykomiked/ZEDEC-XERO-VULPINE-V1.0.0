@@ -89,7 +89,7 @@ static void test_closed(void)
 
 static void test_switches(void)
 {
-#define REG " (regulated: test or licensed use only)"
+#define REG       " (regulated: test or licensed use only)"
 #define OFFMSG(f) f " is off: start zxvd with --enable " f ", or call features.set"
     static const char *const M[][2] = {
         {"netting.open", OFFMSG("netting") REG},  {"netting.list", OFFMSG("netting") REG},
@@ -100,8 +100,7 @@ static void test_switches(void)
     for (unsigned i = 0; i < sizeof M / sizeof M[0]; i++)
         CHECK(err_is(M[i][0], "{}", ZXVD_E_OFF, M[i][1]), "%s off: %s", M[i][0], OUT.p);
     /* compute-only methods and the holds read answer while everything is off */
-    CHECK(has("card.check", "{\"network\":\"dragon\",\"pan\":\"79927398713\"}",
-              "\"valid\":true"),
+    CHECK(has("card.check", "{\"network\":\"dragon\",\"pan\":\"79927398713\"}", "\"valid\":true"),
           "card.check needs no switch: %s", OUT.p);
     CHECK(err_is("ledger.holds", NULL, -32603, "the books are not open"),
           "ledger.holds is always served: %s", OUT.p);

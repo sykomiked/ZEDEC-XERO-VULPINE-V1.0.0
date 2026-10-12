@@ -83,7 +83,8 @@ static void m_grant_setup(zxvd_call_t *c)
         !zxvd_sandbox_u32(c, "min_uptime_bps", false, GRANT_DEF_UPTIME_BPS, &bps) ||
         !zxvd_sandbox_u64(c, "min_volume", false, GRANT_DEF_MIN_VOLUME, &vol) ||
         !zxvd_sandbox_u64(c, "min_stake", false, GRANT_DEF_MIN_STAKE, &stake) ||
-        !zxvd_sandbox_u64(c, "cap_num", false, 1, &cn) || !zxvd_sandbox_u64(c, "cap_den", false, 1, &cd))
+        !zxvd_sandbox_u64(c, "cap_num", false, 1, &cn) ||
+        !zxvd_sandbox_u64(c, "cap_den", false, 1, &cd))
         return;
     int32_t nu = zxvd_p_len(c, "underwriters");
     if (nu < -1) return;
@@ -170,8 +171,8 @@ static void m_grant_lot_open(zxvd_call_t *c)
     if (!grant_ready(c) || !zxvd_sandbox_need_u32(c, "lot", &lot)) return;
     grant_status_t st = grant_lot_open(&GS, lot);
     if (st != GRANT_OK) return gr_refuse(c, st);
-    zxvd_buf_printf(zxvd_result(c), "{\"lot\":%u,\"label\":\"%s\",\"status\":\"%s\"}", (unsigned) lot,
-                    GRANT_LABEL_UNBACKED, GRANT_STATUS_UNBACKED);
+    zxvd_buf_printf(zxvd_result(c), "{\"lot\":%u,\"label\":\"%s\",\"status\":\"%s\"}",
+                    (unsigned) lot, GRANT_LABEL_UNBACKED, GRANT_STATUS_UNBACKED);
 }
 
 /* the standing metrics of one subject (G2), from the current object */
@@ -184,7 +185,8 @@ static bool metrics(zxvd_call_t *c, grant_metrics_t *m)
            zxvd_sandbox_u32(c, "routing_reports", false, 0, &m->routing_reports) &&
            zxvd_sandbox_u32(c, "failed_challenges", false, 0, &m->failed_challenges) &&
            zxvd_sandbox_u32(c, "fraud_findings", false, 0, &m->fraud_findings) &&
-           zxvd_sandbox_need_u64(c, "volume", &m->volume) && zxvd_sandbox_need_u64(c, "stake", &m->stake);
+           zxvd_sandbox_need_u64(c, "volume", &m->volume) &&
+           zxvd_sandbox_need_u64(c, "stake", &m->stake);
 }
 
 static void put_reasons(zxvd_buf_t *o, uint32_t r)
@@ -284,7 +286,8 @@ static void m_grant_attest(zxvd_call_t *c)
     uint64_t count, expiry, now;
     uint8_t sig[64];
     if (!grant_ready(c) || !zxvd_sandbox_need_u32(c, "lot", &lot) ||
-        !zxvd_sandbox_need_u64(c, "count", &count) || !zxvd_sandbox_need_u32(c, "underwriter", &uw) ||
+        !zxvd_sandbox_need_u64(c, "count", &count) ||
+        !zxvd_sandbox_need_u32(c, "underwriter", &uw) ||
         !zxvd_sandbox_need_u64(c, "expiry", &expiry) || !zxvd_sandbox_sig(c, "sig", sig) ||
         !zxvd_sandbox_now(c, &now))
         return;
@@ -292,7 +295,8 @@ static void m_grant_attest(zxvd_call_t *c)
     if (st != GRANT_OK) return gr_refuse(c, st);
     const char *status;
     const char *label = grant_label(&GS, lot, now, &status);
-    zxvd_buf_printf(zxvd_result(c), "{\"lot\":%u,\"backed\":true,\"label\":\"%s\",\"status\":\"%s\"}",
+    zxvd_buf_printf(zxvd_result(c),
+                    "{\"lot\":%u,\"backed\":true,\"label\":\"%s\",\"status\":\"%s\"}",
                     (unsigned) lot, label, status);
 }
 
@@ -300,11 +304,13 @@ static void m_grant_dispute(zxvd_call_t *c)
 {
     uint32_t lot;
     uint8_t sig[64];
-    if (!grant_ready(c) || !zxvd_sandbox_need_u32(c, "lot", &lot) || !zxvd_sandbox_sig(c, "sig", sig))
+    if (!grant_ready(c) || !zxvd_sandbox_need_u32(c, "lot", &lot) ||
+        !zxvd_sandbox_sig(c, "sig", sig))
         return;
     grant_status_t st = grant_dispute(&GS, lot, sig, 64);
     if (st != GRANT_OK) return gr_refuse(c, st);
-    zxvd_buf_printf(zxvd_result(c), "{\"lot\":%u,\"backed\":false,\"disputed\":true}", (unsigned) lot);
+    zxvd_buf_printf(zxvd_result(c), "{\"lot\":%u,\"backed\":false,\"disputed\":true}",
+                    (unsigned) lot);
 }
 
 static void m_grant_redeem(zxvd_call_t *c)
@@ -345,7 +351,8 @@ static void m_grant_message(zxvd_call_t *c)
         uint64_t count, expiry;
         uint8_t m[GRANT_ATTEST_MSG];
         if (!zxvd_sandbox_need_u32(c, "lot", &lot) || !zxvd_sandbox_need_u64(c, "count", &count) ||
-            !zxvd_sandbox_need_u32(c, "underwriter", &uw) || !zxvd_sandbox_need_u64(c, "expiry", &expiry))
+            !zxvd_sandbox_need_u32(c, "underwriter", &uw) ||
+            !zxvd_sandbox_need_u64(c, "expiry", &expiry))
             return;
         grant_attest_msg(lot, count, uw, expiry, m);
         return zxvd_sandbox_put_msg(c, m, sizeof m);
@@ -471,7 +478,8 @@ static void es_refuse(zxvd_call_t *c, est_status_t st)
         {"EST_ERR_FULL", "too many heirs"},
         {"EST_ERR_UNKNOWN", "no forced-heirship row for that jurisdiction"},
     };
-    if (st == EST_DUP) return zxvd_sandbox_refuse(c, "EST_DUP", "already recorded: nothing changed");
+    if (st == EST_DUP)
+        return zxvd_sandbox_refuse(c, "EST_DUP", "already recorded: nothing changed");
     uint32_t i = (uint32_t) -st;
     if (i >= sizeof N / sizeof N[0]) i = 1;
     zxvd_sandbox_refuse(c, N[i][0], N[i][1]);
@@ -509,7 +517,8 @@ static void m_est_setup(zxvd_call_t *c)
         !key_list(c, "guardians", cfg.guardian, EST_MAX_GUARDIANS, &cfg.n_guardians) ||
         !zxvd_sandbox_need_u32(c, "k", &cfg.k) ||
         !key_list(c, "attestors", cfg.attestor, EST_MAX_ATTESTORS, &cfg.n_attestors) ||
-        !zxvd_sandbox_key32(c, "court", cfg.court) || !zxvd_sandbox_key32(c, "gateway", cfg.gateway) ||
+        !zxvd_sandbox_key32(c, "court", cfg.court) ||
+        !zxvd_sandbox_key32(c, "gateway", cfg.gateway) ||
         !zxvd_sandbox_u64(c, "wait", false, 0, &cfg.wait_ticks) ||
         !zxvd_sandbox_u64(c, "release", false, 0, &cfg.release_ticks))
         return;
@@ -630,8 +639,8 @@ static void m_est_manifest(zxvd_call_t *c)
         for (uint32_t i = 0; i < ng; i++) {
             int32_t saved;
             if (!zxvd_p_enter(c, "gifts", i, &saved)) return;
-            bool ok =
-                zxvd_sandbox_need_u32(c, "id", &gid[i]) && zxvd_sandbox_need_u64(c, "num", &gnum[i]);
+            bool ok = zxvd_sandbox_need_u32(c, "id", &gid[i]) &&
+                      zxvd_sandbox_need_u64(c, "num", &gnum[i]);
             zxvd_p_leave(c, saved);
             if (!ok) return;
         }
@@ -728,13 +737,15 @@ static void m_est_approve(zxvd_call_t *c)
 {
     uint32_t g;
     uint8_t sig[64];
-    if (!est_ready(c) || !zxvd_sandbox_need_u32(c, "guardian", &g) || !zxvd_sandbox_sig(c, "sig", sig))
+    if (!est_ready(c) || !zxvd_sandbox_need_u32(c, "guardian", &g) ||
+        !zxvd_sandbox_sig(c, "sig", sig))
         return;
     est_status_t st = est_approve(&ES, g, sig, 64);
     if (st != EST_OK) return es_refuse(c, st);
     uint32_t n = 0;
     for (uint32_t x = ES.approved; x; x &= x - 1) n++;
-    zxvd_buf_printf(zxvd_result(c), "{\"approvals\":%u,\"k\":%u}", (unsigned) n, (unsigned) ES.cfg.k);
+    zxvd_buf_printf(zxvd_result(c), "{\"approvals\":%u,\"k\":%u}", (unsigned) n,
+                    (unsigned) ES.cfg.k);
 }
 
 static void m_est_confirm(zxvd_call_t *c)
@@ -809,7 +820,8 @@ static void m_est_resolve(zxvd_call_t *c)
     uint32_t heir;
     uint8_t sig[64];
     uint64_t rel = 0;
-    if (!est_ready(c) || !zxvd_sandbox_need_u32(c, "heir", &heir) || !zxvd_sandbox_sig(c, "sig", sig))
+    if (!est_ready(c) || !zxvd_sandbox_need_u32(c, "heir", &heir) ||
+        !zxvd_sandbox_sig(c, "sig", sig))
         return;
     est_status_t st = est_resolve(&ES, heir, sig, 64, &rel);
     if (st != EST_OK) return es_refuse(c, st);
@@ -946,7 +958,8 @@ static void rc_refuse(zxvd_call_t *c, rec_status_t st)
         {"REC_ERR_FULL", "the device table is full"},
         {"REC_ERR_DEVICE", "not an active device key"},
     };
-    if (st == REC_DUP) return zxvd_sandbox_refuse(c, "REC_DUP", "already recorded: nothing changed");
+    if (st == REC_DUP)
+        return zxvd_sandbox_refuse(c, "REC_DUP", "already recorded: nothing changed");
     uint32_t i = (uint32_t) -st;
     if (i >= sizeof N / sizeof N[0]) i = 1;
     zxvd_sandbox_refuse(c, N[i][0], N[i][1]);
@@ -968,7 +981,8 @@ static void m_rec_setup(zxvd_call_t *c)
     uint32_t ng;
     if (!zxvd_sandbox_key32(c, "root", cfg.root) ||
         !key_list(c, "guardians", cfg.guardian, REC_GUARDIANS, &ng) ||
-        !zxvd_sandbox_key32(c, "gateway", cfg.gateway) || !zxvd_sandbox_key32(c, "first_device", first) ||
+        !zxvd_sandbox_key32(c, "gateway", cfg.gateway) ||
+        !zxvd_sandbox_key32(c, "first_device", first) ||
         !zxvd_sandbox_u64(c, "timelock", false, cfg.timelock_ticks, &cfg.timelock_ticks))
         return;
     if (ng != REC_GUARDIANS)
@@ -998,7 +1012,8 @@ static void m_rec_claim(zxvd_call_t *c)
 {
     uint8_t key[REC_KEY];
     uint64_t now;
-    if (!rec_ready(c) || !zxvd_sandbox_key32(c, "new_key", key) || !zxvd_sandbox_now(c, &now)) return;
+    if (!rec_ready(c) || !zxvd_sandbox_key32(c, "new_key", key) || !zxvd_sandbox_now(c, &now))
+        return;
     rec_status_t st = rec_claim_open(&RA, key, now);
     if (st != REC_OK) return rc_refuse(c, st);
     put_rec(c);
@@ -1008,7 +1023,8 @@ static void m_rec_approve(zxvd_call_t *c)
 {
     uint32_t g;
     uint8_t sig[64];
-    if (!rec_ready(c) || !zxvd_sandbox_need_u32(c, "guardian", &g) || !zxvd_sandbox_sig(c, "sig", sig))
+    if (!rec_ready(c) || !zxvd_sandbox_need_u32(c, "guardian", &g) ||
+        !zxvd_sandbox_sig(c, "sig", sig))
         return;
     rec_status_t st = rec_approve(&RA, g, sig, 64);
     if (st != REC_OK) return rc_refuse(c, st);
@@ -1046,7 +1062,8 @@ static void m_rec_device(zxvd_call_t *c, bool add)
     rec_status_t st =
         add ? rec_device_add(&RA, key, sig, 64) : rec_device_revoke(&RA, key, sig, 64);
     if (st != REC_OK) return rc_refuse(c, st);
-    zxvd_buf_printf(zxvd_result(c), "{\"active\":%s}", rec_device_active(&RA, key) ? "true" : "false");
+    zxvd_buf_printf(zxvd_result(c), "{\"active\":%s}",
+                    rec_device_active(&RA, key) ? "true" : "false");
 }
 
 static void m_rec_device_add(zxvd_call_t *c)

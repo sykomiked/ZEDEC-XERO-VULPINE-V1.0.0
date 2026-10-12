@@ -30,7 +30,7 @@
 #endif
 
 #include "zxvd_rpc.h"
-#include "zxvd_ext.h"  /* method groups and feature switches */
+#include "zxvd_ext.h" /* method groups and feature switches */
 #include "sha256.h"    /* the books file's hash chain */
 #include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
 #include "web4_util.h" /* hex */

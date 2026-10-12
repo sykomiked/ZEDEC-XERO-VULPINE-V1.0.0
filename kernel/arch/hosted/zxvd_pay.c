@@ -822,8 +822,8 @@ static const zxvd_method_t METHODS[] = {
 
 /* P6: behind switches (zxvd_ext.h X1-X7) */
 static const zxvd_group_method_t NETTING[] = {
-    {"netting.open", m_net_open, false},          {"netting.add", m_net_add, false},
-    {"netting.submit", m_net_submit, false},      {"netting.close", m_net_close, false},
+    {"netting.open", m_net_open, false},           {"netting.add", m_net_add, false},
+    {"netting.submit", m_net_submit, false},       {"netting.close", m_net_close, false},
     {"netting.positions", m_net_positions, false}, {"netting.list", m_net_list, false},
     {"netting.drop", m_net_drop, false},
 };

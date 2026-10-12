@@ -106,10 +106,10 @@ typedef int sock_t;
 #include "zx_notify.h"
 #include "zx_upcheck.h"
 #if defined(ZXVD)
-#    include "zxvd_rpc.h"    /* zxvd: the JSON-RPC socket and the libzxv books */
-#    include "zxvd_chat.h"   /* zxvd: the owner's social chat (chat.*) */
-#    include "zxvd_pay.h"    /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
-#    include "zxvd_groups.h" /* netting, cards, ...: method groups behind switches */
+#    include "zxvd_rpc.h"       /* zxvd: the JSON-RPC socket and the libzxv books */
+#    include "zxvd_chat.h"      /* zxvd: the owner's social chat (chat.*) */
+#    include "zxvd_pay.h"       /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
+#    include "zxvd_groups.h"    /* netting, cards, ...: method groups behind switches */
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */

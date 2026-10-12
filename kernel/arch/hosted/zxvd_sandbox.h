@@ -29,7 +29,7 @@
 #include "zxvd_ext.h"
 #include "../../src/pay/pay_ledger.h"
 
-#define ZXVD_E_ENGINE       (-32060)    /* C4 */
+#define ZXVD_E_ENGINE          (-32060)    /* C4 */
 #define ZXVD_SANDBOX_OWNER_MAX 0xFFFFFF00u /* owner ids at or above are zxvd's own */
 #define ZXVD_SANDBOX_MODULE    0xFFFFFFF0u /* owner of an engine's own accounts */
 #define ZXVD_SANDBOX_ISSUER    0xFFFFFFF1u /* owner of the sandbox issuers (C1) */
@@ -68,10 +68,10 @@ const zxvd_sandbox_asset_t *zxvd_sandbox_asset(const zxvd_sandbox_book_t *b, con
 const char *zxvd_sandbox_asset_name(const zxvd_sandbox_book_t *b, uint32_t acct);
 
 /* C2 */
-bool zxvd_sandbox_verify(const zxvd_sandbox_keys_t *k, uint32_t id, const uint8_t *msg, uint32_t len,
-                      const uint8_t *sig, uint32_t sig_len);
-bool zxvd_sandbox_verify_pk(const uint8_t pk[32], const uint8_t *msg, uint32_t len, const uint8_t *sig,
-                         uint32_t sig_len);
+bool zxvd_sandbox_verify(const zxvd_sandbox_keys_t *k, uint32_t id, const uint8_t *msg,
+                         uint32_t len, const uint8_t *sig, uint32_t sig_len);
+bool zxvd_sandbox_verify_pk(const uint8_t pk[32], const uint8_t *msg, uint32_t len,
+                            const uint8_t *sig, uint32_t sig_len);
 
 /* C3 readers; each fails the call and returns false on a bad value */
 bool zxvd_sandbox_u64(zxvd_call_t *c, const char *key, bool required, uint64_t def, uint64_t *v);

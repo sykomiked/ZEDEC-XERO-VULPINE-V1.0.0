@@ -2533,9 +2533,8 @@ static void test_groups(void)
               zxvd_rpc_enable("shared") == 0,
           "a group added twice");
     EXPECT(REQ("47", "features.get", ""),
-           OK("47",
-              "{\"features\":[{\"name\":\"shared\",\"enabled\":true,\"regulated\":true,"
-              "\"groups\":[{\"note\":\"one\",\"methods\":1}]}],\"saved\":false}"));
+           OK("47", "{\"features\":[{\"name\":\"shared\",\"enabled\":true,\"regulated\":true,"
+                    "\"groups\":[{\"note\":\"one\",\"methods\":1}]}],\"saved\":false}"));
     zxvd_rpc_remove_group(&S2); /* not held: nothing changes */
     CHECK(has(REQ("48", "gb.status", ""), "\"result\""), "S1 still served");
     zxvd_rpc_remove_group(&S1);

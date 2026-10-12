@@ -28,9 +28,10 @@
 
 /* ===================== bonds.* ===================== */
 
-static zxvd_sandbox_book_t BB = {.a = {{.name = "vino", .code = "VINO", .minor = 2, .fundable = true},
-                                    {.name = "vbill", .code = "VBILL", .fundable = true}},
-                              .n_assets = 2};
+static zxvd_sandbox_book_t BB = {
+    .a = {{.name = "vino", .code = "VINO", .minor = 2, .fundable = true},
+          {.name = "vbill", .code = "VBILL", .fundable = true}},
+    .n_assets = 2};
 static zxvd_sandbox_keys_t BK;
 static vbond_t BS;
 
@@ -121,8 +122,8 @@ static void m_bond_setup(zxvd_call_t *c)
         return zxvd_sandbox_refuse(c, "PAY_ERR", "the sandbox ledger refused its assets");
     cfg.vino = BB.a[0].asset;
     cfg.vbill = BB.a[1].asset;
-    vbond_status_t st = pay_ledger_open(&BB.L, ZXVD_SANDBOX_MODULE, BB.a[1].asset, PAY_CAP_FINANCIAL,
-                                        0, &cfg.lock) == PAY_OK
+    vbond_status_t st = pay_ledger_open(&BB.L, ZXVD_SANDBOX_MODULE, BB.a[1].asset,
+                                        PAY_CAP_FINANCIAL, 0, &cfg.lock) == PAY_OK
                             ? vbond_init(&BS, &BB.L, &cfg)
                             : VBOND_ERR_LEDGER;
     if (st != VBOND_OK) {
@@ -183,7 +184,8 @@ static void m_bond_message(zxvd_call_t *c)
         bool on;
         uint64_t epoch;
         uint8_t m[VBOND_SWITCH_MSG];
-        if (!zxvd_p_bool(c, "enable", true, &on) || !zxvd_sandbox_need_u64(c, "epoch", &epoch)) return;
+        if (!zxvd_p_bool(c, "enable", true, &on) || !zxvd_sandbox_need_u64(c, "epoch", &epoch))
+            return;
         vbond_switch_msg(BS.cfg.juris, on, epoch, m);
         return zxvd_sandbox_put_msg(c, m, sizeof m);
     }
@@ -281,7 +283,8 @@ static void m_bond_distribute(zxvd_call_t *c)
     uint32_t pool;
     uint64_t now;
     vbond_dist_t d;
-    if (!bond_ready(c) || !zxvd_sandbox_need_u32(c, "pool", &pool) || !zxvd_sandbox_now(c, &now)) return;
+    if (!bond_ready(c) || !zxvd_sandbox_need_u32(c, "pool", &pool) || !zxvd_sandbox_now(c, &now))
+        return;
     vbond_status_t st = vbond_distribute(&BS, pool, now, &d);
     if (st != VBOND_OK) return vb_refuse(c, st);
     zxvd_buf_t *o = zxvd_result(c);
@@ -364,8 +367,8 @@ const zxvd_group_t *zxvd_bonds_group(void)
 
 /* ===================== derivatives.* ===================== */
 
-static zxvd_sandbox_book_t DB = {.a = {{.name = "vino", .code = "VINO", .minor = 2, .fundable = true}},
-                              .n_assets = 1};
+static zxvd_sandbox_book_t DB = {
+    .a = {{.name = "vino", .code = "VINO", .minor = 2, .fundable = true}}, .n_assets = 1};
 static zxvd_sandbox_keys_t DK;
 static vderiv_t DS;
 
@@ -405,7 +408,8 @@ static bool deriv_ready(zxvd_call_t *c)
 
 static void m_deriv_setup(zxvd_call_t *c)
 {
-    if (DB.open) return zxvd_sandbox_refuse(c, "SET_UP", "derivatives are set up already (this run)");
+    if (DB.open)
+        return zxvd_sandbox_refuse(c, "SET_UP", "derivatives are set up already (this run)");
     vderiv_cfg_t cfg;
     vderiv_cfg_default(&cfg);
     if (!zxvd_sandbox_need_u32(c, "juris", &cfg.juris) ||
@@ -478,8 +482,9 @@ static bool call_terms(zxvd_call_t *c, vderiv_call_terms_t *t)
            zxvd_sandbox_need_u32(c, "writer", &t->writer) &&
            zxvd_sandbox_need_u32(c, "buyer_key", &t->buyer_key) &&
            zxvd_sandbox_need_u32(c, "buyer", &t->buyer) &&
-           zxvd_sandbox_need_u64(c, "strike", &t->strike) && zxvd_sandbox_need_u64(c, "cap", &t->cap) &&
-           zxvd_sandbox_need_u64(c, "size", &t->size) && zxvd_sandbox_need_u64(c, "expiry", &t->expiry) &&
+           zxvd_sandbox_need_u64(c, "strike", &t->strike) &&
+           zxvd_sandbox_need_u64(c, "cap", &t->cap) && zxvd_sandbox_need_u64(c, "size", &t->size) &&
+           zxvd_sandbox_need_u64(c, "expiry", &t->expiry) &&
            zxvd_sandbox_need_u64(c, "premium", &t->premium);
 }
 
@@ -490,7 +495,8 @@ static bool perp_terms(zxvd_call_t *c, vderiv_perp_terms_t *t)
            zxvd_sandbox_need_u32(c, "long_account", &t->long_acct) &&
            zxvd_sandbox_need_u32(c, "short_key", &t->short_key) &&
            zxvd_sandbox_need_u32(c, "short_account", &t->short_acct) &&
-           zxvd_sandbox_need_u64(c, "size", &t->size) && zxvd_sandbox_need_u64(c, "band", &t->band) &&
+           zxvd_sandbox_need_u64(c, "size", &t->size) &&
+           zxvd_sandbox_need_u64(c, "band", &t->band) &&
            zxvd_sandbox_need_u64(c, "lock_long", &t->lock_long) &&
            zxvd_sandbox_need_u64(c, "lock_short", &t->lock_short);
 }
@@ -523,7 +529,8 @@ static void m_deriv_message(zxvd_call_t *c)
         bool on;
         uint64_t epoch;
         uint8_t m[VDERIV_SWITCH_MSG];
-        if (!zxvd_p_bool(c, "enable", true, &on) || !zxvd_sandbox_need_u64(c, "epoch", &epoch)) return;
+        if (!zxvd_p_bool(c, "enable", true, &on) || !zxvd_sandbox_need_u64(c, "epoch", &epoch))
+            return;
         vderiv_switch_msg(DS.cfg.juris, on, epoch, m);
         return zxvd_sandbox_put_msg(c, m, sizeof m);
     }
@@ -596,7 +603,8 @@ static void m_deriv_call_settle(zxvd_call_t *c)
     uint32_t id;
     uint64_t now;
     vderiv_settle_t s;
-    if (!deriv_ready(c) || !zxvd_sandbox_need_u32(c, "id", &id) || !zxvd_sandbox_now(c, &now)) return;
+    if (!deriv_ready(c) || !zxvd_sandbox_need_u32(c, "id", &id) || !zxvd_sandbox_now(c, &now))
+        return;
     uint64_t fixing = id < VDERIV_MAX_CALLS ? DS.call[id].fixing : 0;
     vderiv_status_t st = vderiv_call_settle(&DS, id, now, &s);
     if (st != VDERIV_OK) return vd_refuse(c, st);

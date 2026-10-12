@@ -45,14 +45,14 @@ const char *zxvd_sandbox_asset_name(const zxvd_sandbox_book_t *b, uint32_t acct)
 
 /* ---- C2 ---- */
 
-bool zxvd_sandbox_verify_pk(const uint8_t pk[32], const uint8_t *msg, uint32_t len, const uint8_t *sig,
-                         uint32_t sig_len)
+bool zxvd_sandbox_verify_pk(const uint8_t pk[32], const uint8_t *msg, uint32_t len,
+                            const uint8_t *sig, uint32_t sig_len)
 {
     return sig_len == ED25519_SIGNATURE_LEN && ed25519_verify(msg, len, sig, pk);
 }
 
-bool zxvd_sandbox_verify(const zxvd_sandbox_keys_t *k, uint32_t id, const uint8_t *msg, uint32_t len,
-                      const uint8_t *sig, uint32_t sig_len)
+bool zxvd_sandbox_verify(const zxvd_sandbox_keys_t *k, uint32_t id, const uint8_t *msg,
+                         uint32_t len, const uint8_t *sig, uint32_t sig_len)
 {
     for (uint32_t i = 0; i < k->n; i++)
         if (k->id[i] == id) return zxvd_sandbox_verify_pk(k->pk[i], msg, len, sig, sig_len);
@@ -203,15 +203,16 @@ void zxvd_sandbox_m_account_open(zxvd_call_t *c, zxvd_sandbox_book_t *b)
     if (!a) return zxvd_fail(c, ZXVD_E_PARAMS, "unknown asset \"%s\"", name);
     if (pay_ledger_open(&b->L, owner, a->asset, PAY_CAP_FINANCIAL, 0, &acct) != PAY_OK)
         return zxvd_sandbox_refuse(c, "PAY_ERR_FULL", "the sandbox ledger has no room");
-    zxvd_buf_printf(zxvd_result(c), "{\"account\":%u,\"owner\":%u,\"asset\":\"%s\"}", (unsigned) acct,
-                    (unsigned) owner, a->name);
+    zxvd_buf_printf(zxvd_result(c), "{\"account\":%u,\"owner\":%u,\"asset\":\"%s\"}",
+                    (unsigned) acct, (unsigned) owner, a->name);
 }
 
 void zxvd_sandbox_m_fund(zxvd_call_t *c, zxvd_sandbox_book_t *b)
 {
     uint32_t acct;
     uint64_t amt;
-    if (!zxvd_sandbox_need_u32(c, "account", &acct) || !zxvd_sandbox_need_u64(c, "amount_minor", &amt))
+    if (!zxvd_sandbox_need_u32(c, "account", &acct) ||
+        !zxvd_sandbox_need_u64(c, "amount_minor", &amt))
         return;
     const pay_account_t *x = pay_ledger_account(&b->L, acct);
     const zxvd_sandbox_asset_t *a = NULL;
