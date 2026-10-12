@@ -39,7 +39,7 @@
 #include "../devmesh/devmesh.h"
 
 typedef struct {
-    dm_host_t inner;  /* the host's own callbacks */
+    dm_host_t inner; /* the host's own callbacks */
     br_table_t *tab;
     uint8_t next_cls; /* 0 = default */
     uint16_t last_link;

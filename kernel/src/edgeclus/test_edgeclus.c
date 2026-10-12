@@ -80,7 +80,8 @@ static void test_codec(void)
     a.price = 0x0102030405060708ull;
     a.flags = EC_F_DRAINING;
     int32_t n = seal(&a, 0, buf);
-    CHECK(n == (int32_t) (84 + 2 * 45 + 2592 + 4627), "advert length = 84 + 45 x models + pk + sig");
+    CHECK(n == (int32_t) (84 + 2 * 45 + 2592 + 4627),
+          "advert length = 84 + 45 x models + pk + sig");
     CHECK(ec_advert_body_len(2) == 174 && ec_advert_body_len(0) == 0 && ec_advert_body_len(9) == 0,
           "body length rule and its bounds");
     CHECK(buf[0] == 'X' && buf[1] == 'Z' && buf[2] == 'E' && buf[3] == 'C' && buf[4] == 1 &&
@@ -110,26 +111,59 @@ static void test_seal_rules(void)
 {
     ec_advert_t a;
     int bad = 0;
-    basic(&a, 1, 0, 1000); a.ttl_ms = 0; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.ttl_ms = EC_MAX_TTL_MS + 1; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.n_models = 0; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.n_models = 9; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.flags = 0x02; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.models[0].quant = EC_Q_ANY; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.models[0].quant = 9; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.models[0].prefill_mtps = 0; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.models[0].decode_mtps = 0; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); memset(a.models[0].name, 0, EC_NAME_LEN); bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.models[0].name[3] = ' '; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.models[0].name[2] = 0x7F; bad += seal(&a, 0, buf) == -1;
-    basic(&a, 1, 0, 1000); a.models[0].name[20] = 'x'; bad += seal(&a, 0, buf) == -1; /* after NUL */
-    basic(&a, 1, 0, 1000); a.n_models = 2; a.models[1] = a.models[0]; bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.ttl_ms = 0;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.ttl_ms = EC_MAX_TTL_MS + 1;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.n_models = 0;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.n_models = 9;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.flags = 0x02;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.models[0].quant = EC_Q_ANY;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.models[0].quant = 9;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.models[0].prefill_mtps = 0;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.models[0].decode_mtps = 0;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    memset(a.models[0].name, 0, EC_NAME_LEN);
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.models[0].name[3] = ' ';
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.models[0].name[2] = 0x7F;
+    bad += seal(&a, 0, buf) == -1;
+    basic(&a, 1, 0, 1000);
+    a.models[0].name[20] = 'x';
+    bad += seal(&a, 0, buf) == -1; /* after NUL */
+    basic(&a, 1, 0, 1000);
+    a.n_models = 2;
+    a.models[1] = a.models[0];
+    bad += seal(&a, 0, buf) == -1;
     CHECK(bad == 14, "seal refuses all 14 field-rule violations (A1)");
-    basic(&a, 1, 0, 1000); a.ttl_ms = EC_MAX_TTL_MS; a.n_models = 2; a.models[1] = a.models[0];
+    basic(&a, 1, 0, 1000);
+    a.ttl_ms = EC_MAX_TTL_MS;
+    a.n_models = 2;
+    a.models[1] = a.models[0];
     a.models[1].quant = EC_Q8_0;
     memset(a.models[0].name, 'n', EC_NAME_LEN); /* full 32 bytes, no NUL */
     a.models[1].name[0] = '~';
-    CHECK(seal(&a, 0, buf) > 0, "boundaries accepted: ttl at max, 32-byte name, same name other quant");
+    CHECK(seal(&a, 0, buf) > 0,
+          "boundaries accepted: ttl at max, 32-byte name, same name other quant");
     CHECK(ec_advert_seal(NULL, &ids[0], NULL, buf, sizeof buf) == -1 &&
               ec_advert_seal(&a, NULL, NULL, buf, sizeof buf) == -1 &&
               ec_advert_seal(&a, &ids[0], NULL, NULL, sizeof buf) == -1,
@@ -184,7 +218,8 @@ static void test_tamper(void)
     CHECK(ec_advert_open(t, (uint32_t) n, 0, &b, NULL) == EC_ERR_PARSE, "unknown flag refused");
     memcpy(t, buf, (size_t) n);
     t[84 + 32] = 0;
-    CHECK(ec_advert_open(t, (uint32_t) n, 0, &b, NULL) == EC_ERR_PARSE, "quant 0 on the wire refused");
+    CHECK(ec_advert_open(t, (uint32_t) n, 0, &b, NULL) == EC_ERR_PARSE,
+          "quant 0 on the wire refused");
     memcpy(t, buf, (size_t) n);
     t[6] = 2;
     CHECK(ec_advert_open(t, (uint32_t) n, 0, &b, NULL) == EC_ERR_PARSE,
@@ -194,7 +229,8 @@ static void test_tamper(void)
           "truncated advert refused");
     memcpy(t, buf, (size_t) n);
     t[n] = 0;
-    CHECK(ec_advert_open(t, (uint32_t) n + 1, 0, &b, NULL) == EC_ERR_PARSE, "trailing byte refused");
+    CHECK(ec_advert_open(t, (uint32_t) n + 1, 0, &b, NULL) == EC_ERR_PARSE,
+          "trailing byte refused");
     /* a signature made under another context does not transfer */
     memcpy(t, buf, (size_t) n);
     vna_sign(ids[1].sk, VNA_CTX_MSG, t, bl, NULL, t + bl + 2592);
@@ -219,7 +255,8 @@ static void test_tamper(void)
     vna_identity_create(p, seed, 8, 1u << 20);
     basic(&a, 1, 0, 1000);
     n = seal(&a, NID - 1, buf);
-    CHECK(ec_advert_open(buf, (uint32_t) n, 8, &b, NULL) == EC_OK && vna_pow_ok(&p->id, p->pow_nonce, 8),
+    CHECK(ec_advert_open(buf, (uint32_t) n, 8, &b, NULL) == EC_OK &&
+              vna_pow_ok(&p->id, p->pow_nonce, 8),
           "advert meeting an 8-bit proof of work accepted at 8 bits");
 }
 
@@ -237,12 +274,14 @@ static void test_freshness(void)
     ec_advert_t a;
     ec_cluster_init(&cl, 0, 2000, 1000);
     basic(&a, 1, 12001, 1000);
-    CHECK(put(&cl, &a, 0, 10000) == EC_ERR_FUTURE, "issued 2001 ms ahead with 2000 ms skew refused");
+    CHECK(put(&cl, &a, 0, 10000) == EC_ERR_FUTURE,
+          "issued 2001 ms ahead with 2000 ms skew refused");
     basic(&a, 1, 12000, 1000);
     CHECK(put(&cl, &a, 0, 10000) == EC_OK, "issued exactly skew ahead accepted");
     basic(&a, 1, 1000, 1000);
     a.ttl_ms = 9000;
-    CHECK(put(&cl, &a, 1, 10000) == EC_ERR_EXPIRED, "advert at issued + ttl (exclusive end) refused");
+    CHECK(put(&cl, &a, 1, 10000) == EC_ERR_EXPIRED,
+          "advert at issued + ttl (exclusive end) refused");
     a.ttl_ms = 9001;
     CHECK(put(&cl, &a, 1, 10000) == EC_OK, "advert one ms before its end accepted");
     CHECK(cl.n == 2, "two live adverts held");
@@ -254,8 +293,10 @@ static void test_freshness(void)
     CHECK(cy.alloc[0] == 0 && cy.unassigned == 1000,
           "an advert dead at cycle time gets no budget even before expire runs");
     CHECK(ec_cluster_expire(&cl, 72000) == 1 && cl.n == 0, "and expire then drops it");
-    CHECK(ec_cluster_init(&cl, 33, 0, 500) == EC_ERR_ARG && ec_cluster_init(&cl, 0, 0, 0) == EC_ERR_ARG &&
-              ec_cluster_init(&cl, 0, 0, 1001) == EC_ERR_ARG && ec_cluster_init(NULL, 0, 0, 1) == EC_ERR_ARG,
+    CHECK(ec_cluster_init(&cl, 33, 0, 500) == EC_ERR_ARG &&
+              ec_cluster_init(&cl, 0, 0, 0) == EC_ERR_ARG &&
+              ec_cluster_init(&cl, 0, 0, 1001) == EC_ERR_ARG &&
+              ec_cluster_init(NULL, 0, 0, 1) == EC_ERR_ARG,
           "init refuses pow > 32 and a cap outside 1..1000");
 }
 
@@ -266,7 +307,8 @@ static void test_seq_and_equivocation(void)
     basic(&a, 5, 100, 1000);
     CHECK(put(&cl, &a, 0, 1000) == EC_OK, "first advert accepted");
     uint64_t g = cl.gen;
-    CHECK(put(&cl, &a, 0, 1000) == EC_OK && cl.gen == g, "identical bytes again: accepted, no change");
+    CHECK(put(&cl, &a, 0, 1000) == EC_OK && cl.gen == g,
+          "identical bytes again: accepted, no change");
     basic(&a, 4, 200, 1000);
     CHECK(put(&cl, &a, 0, 1000) == EC_ERR_STALE && cl.nodes[0].ad.seq == 5, "older seq refused");
     basic(&a, 6, 200, 7777);
@@ -316,7 +358,7 @@ static void build_blobs(void)
 {
     ec_advert_t a;
     uint32_t k = 0;
-    for (uint32_t i = 0; i < 7; i++) { /* seven nodes, seq 1 */
+    for (uint32_t i = 0; i < 7; i++) {             /* seven nodes, seq 1 */
         basic(&a, 1, 1000, 3000 + 1000 * (i % 4)); /* repeated speeds: ties by id */
         a.queue_depth = i % 3;
         a.price = 20 - i;
@@ -377,7 +419,8 @@ static void test_permutation(void)
         ec_cluster_t *c = round == 0 ? &cl : &cl2;
         ec_cycle_t *y = round == 0 ? &cy : &cy2;
         ec_cluster_init(c, 0, 1000, 450);
-        for (uint32_t i = 0; i < NBLOB; i++) ec_cluster_ingest(c, blobs[perm[i]], (uint32_t) blen[perm[i]], 2000);
+        for (uint32_t i = 0; i < NBLOB; i++)
+            ec_cluster_ingest(c, blobs[perm[i]], (uint32_t) blen[perm[i]], 2000);
         ec_cycle_begin(c, 2000, 100000, y);
         ec_assign_t *out = round == 0 ? ref : got;
         if (round == 0) {
@@ -402,13 +445,17 @@ static void test_permutation(void)
             tab = memcmp(&cl.nodes[i].ad, &cl2.nodes[i].ad, sizeof cl.nodes[i].ad) == 0 &&
                   memcmp(cl.nodes[i].body_hash, cl2.nodes[i].body_hash, 32) == 0;
         same_tab += tab;
-        same_cycle += memcmp(cy.alloc, cy2.alloc, sizeof cy.alloc) == 0 && cy.unassigned == cy2.unassigned &&
+        same_cycle += memcmp(cy.alloc, cy2.alloc, sizeof cy.alloc) == 0 &&
+                      cy.unassigned == cy2.unassigned &&
                       memcmp(cy.level, cy2.level, sizeof cy.level) == 0;
-        same_sched += memcmp(ref, got, sizeof ref) == 0 && memcmp(cy.used, cy2.used, sizeof cy.used) == 0;
+        same_sched +=
+            memcmp(ref, got, sizeof ref) == 0 && memcmp(cy.used, cy2.used, sizeof cy.used) == 0;
     }
-    CHECK(rounds == 119 && same_tab == 119, "table identical under 119 permutations of advert arrival");
+    CHECK(rounds == 119 && same_tab == 119,
+          "table identical under 119 permutations of advert arrival");
     CHECK(same_cycle == 119, "allotments and levels identical under every permutation");
-    CHECK(same_sched == 119, "assignments identical under permuted adverts and permuted request lists");
+    CHECK(same_sched == 119,
+          "assignments identical under permuted adverts and permuted request lists");
     CHECK(cl.n == 7 && cl.nodes[ec_cluster_find(&cl, &ids[0].id)].ad.seq == 2 &&
               cl.nodes[ec_cluster_find(&cl, &ids[2].id)].ad.seq == 3,
           "highest seq per node kept");
@@ -443,12 +490,14 @@ static void test_table_full(void)
         put(&cl2, &a, i, 10);
     }
     bool sorted = true;
-    for (uint32_t i = 1; i < cl.n; i++) sorted &= memcmp(cl.nodes[i - 1].ad.node.b, cl.nodes[i].ad.node.b, 32) < 0;
+    for (uint32_t i = 1; i < cl.n; i++)
+        sorted &= memcmp(cl.nodes[i - 1].ad.node.b, cl.nodes[i].ad.node.b, 32) < 0;
     CHECK(cl.n == 32 && cl2.n == 32 && sorted, "table holds 32 entries, sorted by node id");
     CHECK(ec_cluster_find(&cl, &ids[hi].id) < 0 && ec_cluster_find(&cl2, &ids[hi].id) < 0,
           "the highest id is the one left out, in either order");
     bool same = true;
-    for (uint32_t i = 0; i < 32; i++) same &= memcmp(&cl.nodes[i].ad, &cl2.nodes[i].ad, sizeof cl.nodes[i].ad) == 0;
+    for (uint32_t i = 0; i < 32; i++)
+        same &= memcmp(&cl.nodes[i].ad, &cl2.nodes[i].ad, sizeof cl.nodes[i].ad) == 0;
     CHECK(same, "both orders give the same table");
     CHECK(full_seen == (hi == 32 ? 1 : 0), "EC_ERR_FULL only when the newcomer is the highest id");
     basic(&a, 1, 0, 1);
@@ -464,14 +513,16 @@ static void test_table_full(void)
     CHECK(per_level[0] == 1 && per_level[1] == 2 && per_level[2] == 3 && per_level[3] == 5 &&
               per_level[4] == 8 && per_level[5] == 13,
           "32 nodes fill levels 1, 2, 3, 5, 8, 13");
-    CHECK(sum + cy.unassigned == 87000 && cy.unassigned == 0, "full table: allotments sum to the budget");
+    CHECK(sum + cy.unassigned == 87000 && cy.unassigned == 0,
+          "full table: allotments sum to the budget");
     /* L = 6: weights F(7..2) = 13, 8, 5, 3, 2, 1; sum 32; the fastest gets 13/32 */
     int32_t top = -1;
     for (uint32_t i = 0; i < 32; i++)
         if (cy.level[i] == 0) top = (int32_t) i;
     /* level shares 35343.75, 21750, 13593.75, 8156.25, 5437.5, 2718.75: floors leave 3 tokens,
        which go to the three .75 remainders, lowest level first: level 0 -> 35344 */
-    CHECK(top >= 0 && cy.alloc[top] == 35344, "level 0 gets 13/32 of the budget (largest remainder: 35344)");
+    CHECK(top >= 0 && cy.alloc[top] == 35344,
+          "level 0 gets 13/32 of the budget (largest remainder: 35344)");
 }
 
 /* ---------------- budget ---------------- */
@@ -500,7 +551,8 @@ static void test_budget(void)
     ec_cycle_begin(&cl, 1, 1200, &cy);
     CHECK(alloc_of(10) == 800 && alloc_of(11) == 200 && alloc_of(12) == 200 && cy.unassigned == 0,
           "1200 tokens over 3 nodes: 800 / 200 / 200 (weights 2 : 1, equal inside level)");
-    CHECK(cy.level[ec_cluster_find(&cl, &ids[10].id)] == 0 && cy.level[ec_cluster_find(&cl, &ids[11].id)] == 1,
+    CHECK(cy.level[ec_cluster_find(&cl, &ids[10].id)] == 0 &&
+              cy.level[ec_cluster_find(&cl, &ids[11].id)] == 1,
           "fastest node ranked to level 0");
     three_nodes(400, 9000, 5000, 4000);
     ec_cycle_begin(&cl, 1, 1200, &cy);
@@ -513,7 +565,8 @@ static void test_budget(void)
        Clip 801 -> 480, cut 321 over (200, 200): 160.5 each -> 161 to the lower index, 160. */
     uint64_t b = alloc_of(11), c = alloc_of(12);
     int32_t ib = ec_cluster_find(&cl, &ids[11].id), ic = ec_cluster_find(&cl, &ids[12].id);
-    CHECK(alloc_of(10) == 480 && b + c == 721 && (ib < ic ? (b == 361 && c == 360) : (b == 360 && c == 361)),
+    CHECK(alloc_of(10) == 480 && b + c == 721 &&
+              (ib < ic ? (b == 361 && c == 360) : (b == 360 && c == 361)),
           "odd budget: the leftover token goes to the lower table index");
     /* ties on speed rank by node id */
     three_nodes(1000, 5000, 5000, 5000);
@@ -531,8 +584,9 @@ static void test_budget(void)
             put(&cl, &s6, 25 + i, 1);
         }
         ec_cycle_begin(&cl, 1, 18000, &cy);
-        CHECK(alloc_of(25) == 7200 && alloc_of(26) == 3600 && alloc_of(27) == 3600 && alloc_of(28) == 1200 &&
-                  alloc_of(29) == 1200 && alloc_of(30) == 1200 && cy.unassigned == 0,
+        CHECK(alloc_of(25) == 7200 && alloc_of(26) == 3600 && alloc_of(27) == 3600 &&
+                  alloc_of(28) == 1200 && alloc_of(29) == 1200 && alloc_of(30) == 1200 &&
+                  cy.unassigned == 0,
               "cap cut shared in proportion to holdings: 7200 / 3600 3600 / 1200 1200 1200");
     }
     /* two nodes, cap below half: what cannot be placed is reported, not handed out */
@@ -579,7 +633,8 @@ static void test_budget(void)
     }
     CHECK(cons == total, "conservation: sum(alloc) + unassigned == budget in all 360 sweeps");
     CHECK(capok == total, "no node over the cap in any sweep (no monopoly)");
-    CHECK(full == total, "unassigned is 0 when nodes x cap covers the budget, else exactly the shortfall");
+    CHECK(full == total,
+          "unassigned is 0 when nodes x cap covers the budget, else exactly the shortfall");
 }
 
 /* ---------------- scheduling ---------------- */
@@ -607,8 +662,8 @@ static void sched_cluster(void)
     put(&cl, &a, 22, 1);
 }
 
-static ec_req_t mkreq(uint32_t id, const char *model, uint8_t q, uint32_t p, uint32_t g, uint32_t kv,
-                      uint32_t lat)
+static ec_req_t mkreq(uint32_t id, const char *model, uint8_t q, uint32_t p, uint32_t g,
+                      uint32_t kv, uint32_t lat)
 {
     ec_req_t r;
     memset(&r, 0, sizeof r);
@@ -643,12 +698,14 @@ static void test_schedule(void)
     ec_schedule(&cl, &cy, r, 1, o);
     CHECK(o[0].node == n21 && o[0].est_ms == 60000 && o[0].model_idx == 0,
           "equal estimates: the cheaper node wins; its faster-decoding quant picked");
-    /* Q8 requested: only node 21's Q8 model; 1000/40 = 25000 + 200/4 = 50000 -> 75000, queue 1 -> x2 */
+    /* Q8 requested: only node 21's Q8 model; 1000/40 = 25000 + 200/4 = 50000 -> 75000, queue 1 ->
+     * x2 */
     r[0] = mkreq(3, "llama-3.2-3b", EC_Q8_0, 1000, 200, 100, 0);
     ec_schedule(&cl, &cy, r, 1, o);
     CHECK(o[0].node == n21 && o[0].model_idx == 1 && o[0].est_ms == 150000,
           "requested quantisation honoured, queue counted (75000 x 2)");
-    /* ceil: 1 prompt token at 3 tok/s = 333.3 -> 334 ms; 1 at 7 tok/s = 142.9 -> 143; queue 2 -> x3 */
+    /* ceil: 1 prompt token at 3 tok/s = 333.3 -> 334 ms; 1 at 7 tok/s = 142.9 -> 143; queue 2 -> x3
+     */
     ec_cluster_init(&cl2, 0, 1000, 1000);
     ec_advert_t a;
     basic(&a, 1, 0, 7000);
@@ -658,16 +715,19 @@ static void test_schedule(void)
     ec_cycle_begin(&cl2, 1, 100, &cy2);
     r[0] = mkreq(4, "llama-3.2-3b", EC_Q_ANY, 1, 1, 0, 0);
     ec_schedule(&cl2, &cy2, r, 1, o);
-    CHECK(o[0].node == 0 && o[0].est_ms == (334 + 143) * 3, "estimates round each part up, then x (1 + queue)");
+    CHECK(o[0].node == 0 && o[0].est_ms == (334 + 143) * 3,
+          "estimates round each part up, then x (1 + queue)");
     r[0] = mkreq(5, "llama-3.2-3b", EC_Q_ANY, 1, 1, 0, (334 + 143) * 4 - 1);
     ec_schedule(&cl2, &cy2, r, 1, o);
-    CHECK(o[0].node == -1 && o[0].why == EC_WHY_LATENCY, "one ms under the estimate misses the latency target");
+    CHECK(o[0].node == -1 && o[0].why == EC_WHY_LATENCY,
+          "one ms under the estimate misses the latency target");
     r[0] = mkreq(6, "llama-3.2-3b", EC_Q_ANY, 1, 1, 0, (334 + 143) * 4);
     ec_schedule(&cl2, &cy2, r, 1, o);
     CHECK(o[0].node == 0 && o[0].est_ms == (334 + 143) * 4, "exactly the target fits");
     r[0] = mkreq(7, "llama-3.2-3b", EC_Q_ANY, 50, 47, 0, 0);
     ec_schedule(&cl2, &cy2, r, 1, o);
-    CHECK(o[0].node == -1 && o[0].why == EC_WHY_NO_BUDGET, "97 tokens with 96 left in the allotment: no budget");
+    CHECK(o[0].node == -1 && o[0].why == EC_WHY_NO_BUDGET,
+          "97 tokens with 96 left in the allotment: no budget");
     r[0] = mkreq(8, "llama-3.2-3b", EC_Q_ANY, 50, 46, 0, 0);
     ec_schedule(&cl2, &cy2, r, 1, o);
     CHECK(o[0].node == 0 && cy2.used[0] == 100, "96 tokens exactly use up the allotment");
@@ -681,7 +741,8 @@ static void test_schedule(void)
     ec_cycle_begin(&cl2, 1, 1000, &cy2);
     r[0] = mkreq(9, "llama-3.2-3b", EC_Q_ANY, 10, 10, 0, 0);
     ec_schedule(&cl2, &cy2, r, 1, o);
-    CHECK(o[0].node == 0 && o[0].model_idx == 1, "EC_Q_ANY picks the faster-decoding quant (listed second)");
+    CHECK(o[0].node == 0 && o[0].model_idx == 1,
+          "EC_Q_ANY picks the faster-decoding quant (listed second)");
     /* reasons */
     ec_cycle_begin(&cl, 1, 1000000, &cy);
     r[0] = mkreq(10, "mistral-7b", EC_Q_ANY, 10, 10, 0, 0);
@@ -691,19 +752,23 @@ static void test_schedule(void)
     r[4] = mkreq(14, "llama-3.1-8b", EC_Q_ANY, 10, 10, 1, 0);
     ec_schedule(&cl, &cy, r, 5, o);
     CHECK(o[0].node == -1 && o[0].why == EC_WHY_NO_MODEL, "unknown model: EC_WHY_NO_MODEL");
-    CHECK(o[1].node == -1 && o[1].why == EC_WHY_NO_MODEL, "model present but not in that quant: no model");
-    CHECK(o[2].node == -1 && o[2].why == EC_WHY_NO_MEMORY, "4097 MB working memory on a 4096 MB node: no memory");
+    CHECK(o[1].node == -1 && o[1].why == EC_WHY_NO_MODEL,
+          "model present but not in that quant: no model");
+    CHECK(o[2].node == -1 && o[2].why == EC_WHY_NO_MEMORY,
+          "4097 MB working memory on a 4096 MB node: no memory");
     CHECK(o[3].node == n22 && o[4].node == -1 && o[4].why == EC_WHY_NO_MEMORY,
           "memory is charged within the cycle: the next 1 MB no longer fits");
     /* argument checks */
     r[0] = mkreq(1, "x", EC_Q_ANY, 1, 1, 0, 0);
     r[1] = mkreq(1, "x", EC_Q_ANY, 1, 1, 0, 0);
     CHECK(ec_schedule(&cl, &cy, r, 2, o) == EC_ERR_ARG, "duplicate req_id refused");
-    CHECK(ec_schedule(&cl, &cy, r, EC_MAX_REQS + 1, o) == EC_ERR_ARG, "more than EC_MAX_REQS refused");
+    CHECK(ec_schedule(&cl, &cy, r, EC_MAX_REQS + 1, o) == EC_ERR_ARG,
+          "more than EC_MAX_REQS refused");
     ec_advert_t b2;
     basic(&b2, 1, 0, 100);
     put(&cl, &b2, 24, 1);
-    CHECK(ec_schedule(&cl, &cy, r, 1, o) == EC_ERR_CYCLE, "table changed since the cycle began: EC_ERR_CYCLE");
+    CHECK(ec_schedule(&cl, &cy, r, 1, o) == EC_ERR_CYCLE,
+          "table changed since the cycle began: EC_ERR_CYCLE");
 }
 
 /* ---------------- failover ---------------- */
@@ -738,7 +803,8 @@ static void test_failover(void)
     CHECK(rehomed, "moved requests land on the other node that has the model");
     uint64_t sum = 0;
     for (uint32_t i = 0; i < cl.n; i++) sum += cy.alloc[i];
-    CHECK(cy.alloc[n20] == 0 && sum + cy.unassigned == 90000, "failed node's allotment returned; budget conserved");
+    CHECK(cy.alloc[n20] == 0 && sum + cy.unassigned == 90000,
+          "failed node's allotment returned; budget conserved");
     uint64_t cap = 90000u * 600u / 1000u;
     CHECK(cy.alloc[n21] <= cap && cy.alloc[n22] <= cap, "returned tokens respect the cap");
     CHECK(cy.used[n21] == 750 && cy.queued[n21] == 5,
@@ -749,9 +815,11 @@ static void test_failover(void)
     CHECK(cy.alloc[n20] == 0 && cy.level[n20] == 0xFF, "a failed node gets nothing next cycle");
     ec_advert_t a;
     basic(&a, 2, 100, 10000); /* issued at the failure time, not after */
-    CHECK(put(&cl, &a, 20, 200) == EC_OK && cl.nodes[n20].failed, "newer advert issued at the failure time: still failed");
+    CHECK(put(&cl, &a, 20, 200) == EC_OK && cl.nodes[n20].failed,
+          "newer advert issued at the failure time: still failed");
     basic(&a, 3, 101, 10000);
-    CHECK(put(&cl, &a, 20, 200) == EC_OK && !cl.nodes[n20].failed, "newer advert issued after the failure revives it");
+    CHECK(put(&cl, &a, 20, 200) == EC_OK && !cl.nodes[n20].failed,
+          "newer advert issued after the failure revives it");
     ec_cycle_begin(&cl, 200, 90000, &cy);
     CHECK(cy.alloc[n20] > 0, "revived node gets budget again");
     /* failing the only node with the model leaves the work unassigned with a reason */

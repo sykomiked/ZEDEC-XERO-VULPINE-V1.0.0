@@ -50,17 +50,17 @@ static void test_raw(void)
     CHECK("pty pair opened; slave opened raw at 115200", open_pair());
     struct termios t;
     tcgetattr(g_slave, &t);
-    CHECK("raw: no ICANON, ECHO, ISIG, IEXTEN",
-          !(t.c_lflag & (ICANON | ECHO | ISIG | IEXTEN)));
-    CHECK("raw: no ICRNL, IXON, ISTRIP; no OPOST", !(t.c_iflag & (ICRNL | IXON | ISTRIP)) &&
-                                                       !(t.c_oflag & OPOST));
+    CHECK("raw: no ICANON, ECHO, ISIG, IEXTEN", !(t.c_lflag & (ICANON | ECHO | ISIG | IEXTEN)));
+    CHECK("raw: no ICRNL, IXON, ISTRIP; no OPOST",
+          !(t.c_iflag & (ICRNL | IXON | ISTRIP)) && !(t.c_oflag & OPOST));
     CHECK("raw: CS8, CREAD, CLOCAL, no parity", (t.c_cflag & CSIZE) == CS8 && (t.c_cflag & CREAD) &&
                                                     (t.c_cflag & CLOCAL) && !(t.c_cflag & PARENB));
     CHECK("raw: VMIN 0 VTIME 0", t.c_cc[VMIN] == 0 && t.c_cc[VTIME] == 0);
     CHECK("raw: speed 115200", cfgetospeed(&t) == B115200 && cfgetispeed(&t) == B115200);
     uint8_t all[256], back[256];
     for (int i = 0; i < 256; i++) all[i] = (uint8_t) i;
-    CHECK("master -> slave: write 256 byte values", bh_tty_write_all(g_master, all, 256, 1000) == 0);
+    CHECK("master -> slave: write 256 byte values",
+          bh_tty_write_all(g_master, all, 256, 1000) == 0);
     CHECK("slave reads all 256 values unchanged (^C, ^S, CR, NUL, 0xFF...)",
           read_n(g_slave, back, 256, 500) == 256 && !memcmp(back, all, 256));
     uint8_t e[8];
@@ -86,7 +86,8 @@ static void test_frames(void)
     static uint8_t msg[3000];
     for (int i = 0; i < 3000; i++) msg[i] = (uint8_t) (i * 7 % 256);
     int fd = g_slave;
-    CHECK("serial link send (COBS + CRC-32) over the pty", bh_serial_link_send(&fd, NULL, msg, 3000) == BR_OK);
+    CHECK("serial link send (COBS + CRC-32) over the pty",
+          bh_serial_link_send(&fd, NULL, msg, 3000) == BR_OK);
     uint8_t buf[512];
     int got = 0;
     uint32_t ol = 0;
@@ -96,7 +97,8 @@ static void test_frames(void)
         for (ssize_t i = 0; i < n; i++)
             if (br_serial_rx_byte(&rx, buf[i], out, sizeof out, &ol) == 1) got = 1;
     }
-    CHECK("master decodes the 3000-byte frame exactly", got && ol == 3000 && !memcmp(out, msg, 3000));
+    CHECK("master decodes the 3000-byte frame exactly",
+          got && ol == 3000 && !memcmp(out, msg, 3000));
     CHECK("serial link send refuses empty", bh_serial_link_send(&fd, NULL, msg, 0) == BR_ERR_ARG);
     /* garbage then a frame, master -> slave */
     uint8_t s[64];
@@ -108,7 +110,8 @@ static void test_frames(void)
     ssize_t n = bh_tty_read(g_slave, buf, sizeof buf, 300);
     for (ssize_t i = 0; i < n; i++)
         if (br_serial_rx_byte(&rx, buf[i], out, sizeof out, &ol) == 1) got = 1;
-    CHECK("slave resyncs after garbage and decodes the frame", got && ol == 6 && !memcmp(out, "pty ok", 6));
+    CHECK("slave resyncs after garbage and decodes the frame",
+          got && ol == 6 && !memcmp(out, "pty ok", 6));
 }
 
 /* scripted modem on the master side */
@@ -157,13 +160,14 @@ static void test_modem(void)
     CHECK("pty modem: then ATE0V1Q0X4\\r", expect_cmd("ATE0V1Q0X4\r"));
     bh_tty_write_all(g_master, (const uint8_t *) "\r\nOK\r\n", 6, 500);
     feed(&m, now);
-    CHECK("pty modem: READY", m.state == BR_MDM_READY && g_nev == 1 && g_events[0] == BR_MDM_EV_READY);
+    CHECK("pty modem: READY",
+          m.state == BR_MDM_READY && g_nev == 1 && g_events[0] == BR_MDM_EV_READY);
     br_modem_dial(&m, "5551234", now);
     CHECK("pty modem: ATD5551234\\r", expect_cmd("ATD5551234\r"));
     bh_tty_write_all(g_master, (const uint8_t *) "\r\nCONNECT 9600\r\nremote", 22, 500);
     feed(&m, now);
-    CHECK("pty modem: CONNECT and the first data", m.state == BR_MDM_ONLINE && g_dn == 6 &&
-                                                       !memcmp(g_data, "remote", 6));
+    CHECK("pty modem: CONNECT and the first data",
+          m.state == BR_MDM_ONLINE && g_dn == 6 && !memcmp(g_data, "remote", 6));
     br_modem_send(&m, (const uint8_t *) "local", 5, now);
     CHECK("pty modem: data to the remote end", expect_cmd("local"));
     br_modem_hangup(&m, now);
@@ -178,8 +182,8 @@ static void test_modem(void)
     CHECK("pty modem: ATH0\\r", expect_cmd("ATH0\r"));
     bh_tty_write_all(g_master, (const uint8_t *) "\r\nOK\r\n", 6, 500);
     feed(&m, now);
-    CHECK("pty modem: hung up, READY", m.state == BR_MDM_READY &&
-                                           g_events[g_nev - 1] == BR_MDM_EV_DISCONNECTED);
+    CHECK("pty modem: hung up, READY",
+          m.state == BR_MDM_READY && g_events[g_nev - 1] == BR_MDM_EV_DISCONNECTED);
 }
 
 int main(void)

@@ -13,9 +13,15 @@ uint32_t br_crc32_update(uint32_t crc, const uint8_t *p, uint32_t n)
     return ~crc;
 }
 
-uint32_t br_crc32(const uint8_t *p, uint32_t n) { return br_crc32_update(0, p, n); }
+uint32_t br_crc32(const uint8_t *p, uint32_t n)
+{
+    return br_crc32_update(0, p, n);
+}
 
-uint32_t br_cobs_max(uint32_t n) { return n + n / 254u + 1u; }
+uint32_t br_cobs_max(uint32_t n)
+{
+    return n + n / 254u + 1u;
+}
 
 int32_t br_cobs_encode(const uint8_t *in, uint32_t n, uint8_t *out, uint32_t cap)
 {

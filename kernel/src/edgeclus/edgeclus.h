@@ -132,14 +132,15 @@
 #define EC_MAX_MODELS     8u  /* models one node advertises */
 #define EC_NAME_LEN       32u /* model name, zero-padded */
 #define EC_MAX_REQS       256u
-#define EC_MAX_TTL_MS     600000u /* ten minutes */
+#define EC_MAX_TTL_MS     600000u     /* ten minutes */
 #define EC_ADVERT_MAGIC   0x43455A58u /* "XZEC" little-endian */
 #define EC_ADVERT_VERSION 1u
 #define EC_CTX_ADVERT     "zxv-edgeclus/v1/advert"
 
-#define EC_BODY_FIXED  84u
-#define EC_MODEL_WIRE  45u
-#define EC_ADVERT_WIRE_MAX (EC_BODY_FIXED + EC_MAX_MODELS * EC_MODEL_WIRE + VNA_PK_LEN + VNA_SIG_LEN)
+#define EC_BODY_FIXED 84u
+#define EC_MODEL_WIRE 45u
+#define EC_ADVERT_WIRE_MAX                                                                         \
+    (EC_BODY_FIXED + EC_MAX_MODELS * EC_MODEL_WIRE + VNA_PK_LEN + VNA_SIG_LEN)
 
 #define EC_F_DRAINING 0x01u
 #define EC_F_KNOWN    0x01u
@@ -160,18 +161,18 @@ typedef enum {
 
 typedef enum {
     EC_OK = 0,
-    EC_ERR_ARG = -1,      /* NULL, out of range, or a field breaking A1 */
-    EC_ERR_PARSE = -2,    /* malformed advert bytes */
-    EC_ERR_SIG = -3,      /* ML-DSA-87 signature does not verify */
-    EC_ERR_BINDING = -4,  /* node id != SHA3-256(public key) */
-    EC_ERR_POW = -5,      /* proof of work below the cluster difficulty */
-    EC_ERR_STALE = -6,    /* seq not newer than the one held */
-    EC_ERR_FUTURE = -7,   /* issued more than skew_ms ahead of now */
-    EC_ERR_EXPIRED = -8,  /* already past issued_ms + ttl_ms */
-    EC_ERR_FULL = -9,     /* table full and the id is not below the highest held */
-    EC_ERR_UNKNOWN = -10, /* node id not in the table */
+    EC_ERR_ARG = -1,           /* NULL, out of range, or a field breaking A1 */
+    EC_ERR_PARSE = -2,         /* malformed advert bytes */
+    EC_ERR_SIG = -3,           /* ML-DSA-87 signature does not verify */
+    EC_ERR_BINDING = -4,       /* node id != SHA3-256(public key) */
+    EC_ERR_POW = -5,           /* proof of work below the cluster difficulty */
+    EC_ERR_STALE = -6,         /* seq not newer than the one held */
+    EC_ERR_FUTURE = -7,        /* issued more than skew_ms ahead of now */
+    EC_ERR_EXPIRED = -8,       /* already past issued_ms + ttl_ms */
+    EC_ERR_FULL = -9,          /* table full and the id is not below the highest held */
+    EC_ERR_UNKNOWN = -10,      /* node id not in the table */
     EC_ERR_EQUIVOCATION = -11, /* same seq, different body, and this one lost (A3) */
-    EC_ERR_CYCLE = -12    /* the table changed since ec_cycle_begin */
+    EC_ERR_CYCLE = -12         /* the table changed since ec_cycle_begin */
 } ec_status_t;
 
 /* Why a request was left unassigned (A7), furthest check first reached. */
@@ -228,7 +229,7 @@ typedef struct {
 typedef struct {
     uint32_t pow_bits;
     uint64_t skew_ms;
-    uint32_t cap_permille; /* A5, 1..1000 */
+    uint32_t cap_permille;         /* A5, 1..1000 */
     ec_node_t nodes[EC_MAX_NODES]; /* [0, n) used, sorted by node id */
     uint32_t n;
     uint64_t gen; /* bumps on every table change */
@@ -253,31 +254,31 @@ typedef struct {
     uint64_t now_ms;
     uint64_t gen;
     uint64_t total;
-    uint64_t unassigned;            /* A5, A6 */
-    uint64_t alloc[EC_MAX_NODES];   /* by table index */
+    uint64_t unassigned;          /* A5, A6 */
+    uint64_t alloc[EC_MAX_NODES]; /* by table index */
     uint64_t used[EC_MAX_NODES];
     uint32_t mem_used[EC_MAX_NODES];
     uint32_t queued[EC_MAX_NODES];
-    uint8_t level[EC_MAX_NODES];    /* A4 level, 0xFF if not eligible */
+    uint8_t level[EC_MAX_NODES]; /* A4 level, 0xFF if not eligible */
 } ec_cycle_t;
 
 typedef struct {
     uint32_t req_id;
     char model[EC_NAME_LEN];
-    uint8_t quant;           /* ec_quant_t; EC_Q_ANY accepts any */
+    uint8_t quant; /* ec_quant_t; EC_Q_ANY accepts any */
     uint32_t prompt_tokens;
     uint32_t max_new_tokens;
-    uint32_t kv_mem_mb;      /* working memory on top of the loaded model */
-    uint32_t latency_ms;     /* target; 0 = none */
+    uint32_t kv_mem_mb;  /* working memory on top of the loaded model */
+    uint32_t latency_ms; /* target; 0 = none */
 } ec_req_t;
 
 typedef struct {
     uint32_t req_id;
-    int32_t node;        /* table index, or -1 */
-    vna_id_t node_id;    /* zero when unassigned */
-    uint8_t model_idx;   /* index into that node's models */
-    uint8_t why;         /* ec_why_t */
-    uint32_t est_ms;     /* A7 estimate, saturating */
+    int32_t node;      /* table index, or -1 */
+    vna_id_t node_id;  /* zero when unassigned */
+    uint8_t model_idx; /* index into that node's models */
+    uint8_t why;       /* ec_why_t */
+    uint32_t est_ms;   /* A7 estimate, saturating */
 } ec_assign_t;
 
 /* A4-A6: allot `total` (<= SWARM_MAX_TOKENS_PER_CYCLE) tokens for the cycle

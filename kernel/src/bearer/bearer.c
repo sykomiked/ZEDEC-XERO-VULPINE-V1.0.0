@@ -4,8 +4,8 @@
  * selection and failover. See bearer.h for the rules (B1..B6). */
 #include "bearer.h"
 
-#define ALL_CLASSES                                                                            \
-    (BR_CLS(BR_CLASS_AI) | BR_CLS(BR_CLASS_SETTLEMENT) | BR_CLS(BR_CLASS_CHAT) |               \
+#define ALL_CLASSES                                                                                \
+    (BR_CLS(BR_CLASS_AI) | BR_CLS(BR_CLASS_SETTLEMENT) | BR_CLS(BR_CLASS_CHAT) |                   \
      BR_CLS(BR_CLASS_EMERGENCY) | BR_CLS(BR_CLASS_RECORD))
 
 /* kind, mtu, mtu_max, bps, metered, enc, settle, auth, text, classes, max_msg, cost, rtt */
@@ -28,21 +28,21 @@ static const br_caps_t g_caps[BR_KIND_COUNT] = {
 };
 
 static const char *const g_names[BR_KIND_COUNT] = {
-    [BR_LAN] = "lan",       [BR_BLE] = "ble",         [BR_WIFI_DIRECT] = "wifi-direct",
-    [BR_LORA] = "lora",     [BR_SERIAL] = "serial",   [BR_MODEM] = "modem",
+    [BR_LAN] = "lan",           [BR_BLE] = "ble",         [BR_WIFI_DIRECT] = "wifi-direct",
+    [BR_LORA] = "lora",         [BR_SERIAL] = "serial",   [BR_MODEM] = "modem",
     [BR_CELLULAR] = "cellular", [BR_HAM_SDR] = "ham-sdr",
 };
 
 /* B4 tie-break order (lower first). */
 static const uint8_t g_rank[BR_KIND_COUNT] = {
-    [BR_LAN] = 0, [BR_WIFI_DIRECT] = 1, [BR_SERIAL] = 2, [BR_BLE] = 3,
-    [BR_CELLULAR] = 4, [BR_MODEM] = 5, [BR_LORA] = 6, [BR_HAM_SDR] = 7,
+    [BR_LAN] = 0,      [BR_WIFI_DIRECT] = 1, [BR_SERIAL] = 2, [BR_BLE] = 3,
+    [BR_CELLULAR] = 4, [BR_MODEM] = 5,       [BR_LORA] = 6,   [BR_HAM_SDR] = 7,
 };
 
 /* B4 weights per class: time, loss, cost. */
 static const uint8_t g_w[BR_CLASS_COUNT][3] = {
-    [BR_CLASS_AI] = {1, 0, 100},       [BR_CLASS_SETTLEMENT] = {1, 4, 1},
-    [BR_CLASS_CHAT] = {2, 1, 10},      [BR_CLASS_EMERGENCY] = {1, 8, 0},
+    [BR_CLASS_AI] = {1, 0, 100},    [BR_CLASS_SETTLEMENT] = {1, 4, 1},
+    [BR_CLASS_CHAT] = {2, 1, 10},   [BR_CLASS_EMERGENCY] = {1, 8, 0},
     [BR_CLASS_RECORD] = {1, 2, 10},
 };
 
@@ -220,8 +220,8 @@ uint32_t br_link_loss_ppm(const br_link_t *l)
 uint64_t br_score(const br_link_t *l, uint8_t cls, uint32_t len)
 {
     if (!l || cls == 0 || cls >= BR_CLASS_COUNT || l->caps.bitrate_bps == 0) return UINT64_MAX;
-    uint64_t t = (uint64_t) br_link_rtt_us(l) +
-                 br_udiv64((uint64_t) len * 8000000u, l->caps.bitrate_bps);
+    uint64_t t =
+        (uint64_t) br_link_rtt_us(l) + br_udiv64((uint64_t) len * 8000000u, l->caps.bitrate_bps);
     uint32_t loss = br_link_loss_ppm(l);
     if (loss > 999999u) loss = 999999u;
     uint64_t tp = br_udiv64(t * 1000000u, 1000000u - loss);

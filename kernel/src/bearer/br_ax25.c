@@ -15,7 +15,10 @@ uint16_t br_crc16_x25(const uint8_t *p, uint32_t n)
     return (uint16_t) ~crc;
 }
 
-static bool call_char(char c) { return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'); }
+static bool call_char(char c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+}
 
 br_status_t br_ax25_addr_parse(const char *s, br_ax25_addr_t *a)
 {
@@ -49,8 +52,10 @@ bool br_ax25_is_station(const br_ax25_addr_t *a)
     bool letter = false, digit = false;
     for (uint32_t i = 0; i < 6u && a->call[i]; i++) {
         if (!call_char(a->call[i])) return false;
-        if (a->call[i] >= 'A') letter = true;
-        else digit = true;
+        if (a->call[i] >= 'A')
+            letter = true;
+        else
+            digit = true;
     }
     return letter && digit;
 }
@@ -184,7 +189,10 @@ static bool put_bit(uint8_t *bits, uint32_t cap_bytes, uint32_t *nb, uint32_t b)
     return true;
 }
 
-static uint32_t get_bit(const uint8_t *bits, uint32_t i) { return (bits[i >> 3] >> (i & 7u)) & 1u; }
+static uint32_t get_bit(const uint8_t *bits, uint32_t i)
+{
+    return (bits[i >> 3] >> (i & 7u)) & 1u;
+}
 
 int32_t br_hdlc_stuff(const uint8_t *frame, uint32_t n, uint8_t *bits, uint32_t cap_bytes,
                       uint32_t *nbits)

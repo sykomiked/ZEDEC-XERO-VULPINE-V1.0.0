@@ -81,9 +81,15 @@ static bool printable(const uint8_t *p, unsigned n)
 const char *ztp_strerror(ztp_err_t e)
 {
     static const char *const names[ZTP_E_COUNT_] = {
-        "ok", "arg", "state", "format", "device", "already-claimed", "epoch", "mac", "sig",
-        "same-owner", "disabled", "signer", "space", "profile-format", "profile-key",
-        "profile-sig", "qr-format", "qr-mismatch",
+        "ok",          "arg",
+        "state",       "format",
+        "device",      "already-claimed",
+        "epoch",       "mac",
+        "sig",         "same-owner",
+        "disabled",    "signer",
+        "space",       "profile-format",
+        "profile-key", "profile-sig",
+        "qr-format",   "qr-mismatch",
     };
     if ((unsigned) e >= (unsigned) ZTP_E_COUNT_) return "unknown";
     return names[e];
@@ -125,7 +131,11 @@ ztp_err_t ztp_qr_text(const ztp_device_t *d, char out[ZTP_QR_TEXT_LEN + 1])
     uint8_t raw[ZTP_ID_LEN + ZTP_SECRET_LEN];
     z_cpy(raw, d->device_key_hash, ZTP_ID_LEN);
     z_cpy(raw + ZTP_ID_LEN, d->claim_secret, ZTP_SECRET_LEN);
-    out[0] = 'Z'; out[1] = 'T'; out[2] = 'P'; out[3] = '1'; out[4] = ':';
+    out[0] = 'Z';
+    out[1] = 'T';
+    out[2] = 'P';
+    out[3] = '1';
+    out[4] = ':';
     size_t n = ba_base32(raw, sizeof raw, out + 5, ZTP_QR_TEXT_LEN - 4u);
     z_zero(raw, sizeof raw);
     return n == ZTP_QR_TEXT_LEN - 5u ? ZTP_OK : ZTP_E_ARG;
@@ -221,8 +231,7 @@ ztp_err_t ztp_reset_physical(ztp_device_t *d, const uint8_t new_secret[ZTP_SECRE
 
 /* ===== maker ========================================================== */
 
-void ztp_commit(const uint8_t id[ZTP_ID_LEN], const uint8_t secret[ZTP_SECRET_LEN],
-                uint8_t out[32])
+void ztp_commit(const uint8_t id[ZTP_ID_LEN], const uint8_t secret[ZTP_SECRET_LEN], uint8_t out[32])
 {
     static const uint8_t tag[] = "ZXV-ZTP1-COMMIT";
     uint8_t buf[sizeof tag - 1u + ZTP_ID_LEN + ZTP_SECRET_LEN];
@@ -242,17 +251,31 @@ ztp_err_t ztp_profile_build(const ztp_profile_t *p, ba_sign_fn sign, void *user,
         return ZTP_E_ARG;
     size_t body = ZTP_PROFILE_HDR + p->model_len + p->serial_len;
     if (cap < body + BA_SIG_LEN) return ZTP_E_SPACE;
-    out[0] = 'Z'; out[1] = 'P'; out[2] = 'R'; out[3] = '1';
-    out[4] = 1; out[5] = p->model_len; out[6] = p->serial_len; out[7] = 0;
+    out[0] = 'Z';
+    out[1] = 'P';
+    out[2] = 'R';
+    out[3] = '1';
+    out[4] = 1;
+    out[5] = p->model_len;
+    out[6] = p->serial_len;
+    out[7] = 0;
     size_t o = 8;
-    z_cpy(out + o, p->device_key_hash, 32); o += 32;
-    z_cpy(out + o, p->maker_key_hash, 32); o += 32;
-    z_cpy(out + o, p->manifest_id, BA_ID_LEN); o += BA_ID_LEN;
-    z_cpy(out + o, p->claim_commit, 32); o += 32;
-    z_cpy(out + o, p->hw_profile_digest, 32); o += 32;
-    wr64(out + o, p->issued_at); o += 8;
-    z_cpy(out + o, p->model, p->model_len); o += p->model_len;
-    z_cpy(out + o, p->serial, p->serial_len); o += p->serial_len;
+    z_cpy(out + o, p->device_key_hash, 32);
+    o += 32;
+    z_cpy(out + o, p->maker_key_hash, 32);
+    o += 32;
+    z_cpy(out + o, p->manifest_id, BA_ID_LEN);
+    o += BA_ID_LEN;
+    z_cpy(out + o, p->claim_commit, 32);
+    o += 32;
+    z_cpy(out + o, p->hw_profile_digest, 32);
+    o += 32;
+    wr64(out + o, p->issued_at);
+    o += 8;
+    z_cpy(out + o, p->model, p->model_len);
+    o += p->model_len;
+    z_cpy(out + o, p->serial, p->serial_len);
+    o += p->serial_len;
     if (!sign(user, out, o, CTX_PROFILE, CTX_PROFILE_LEN, out + o)) {
         z_zero(out, o + BA_SIG_LEN);
         return ZTP_E_SIGNER;
@@ -266,7 +289,8 @@ ztp_err_t ztp_profile_verify(const uint8_t *rec, size_t len, const uint8_t maker
 {
     if (!rec || !maker_pk || !p) return ZTP_E_ARG;
     z_zero(p, sizeof *p);
-    if (len < ZTP_PROFILE_HDR + 2u + BA_SIG_LEN || len > ZTP_PROFILE_MAX) return ZTP_E_PROFILE_FORMAT;
+    if (len < ZTP_PROFILE_HDR + 2u + BA_SIG_LEN || len > ZTP_PROFILE_MAX)
+        return ZTP_E_PROFILE_FORMAT;
     if (rec[0] != 'Z' || rec[1] != 'P' || rec[2] != 'R' || rec[3] != '1' || rec[4] != 1 ||
         rec[7] != 0)
         return ZTP_E_PROFILE_FORMAT;
@@ -276,15 +300,22 @@ ztp_err_t ztp_profile_verify(const uint8_t *rec, size_t len, const uint8_t maker
     if (!printable(rec + ZTP_PROFILE_HDR, ml) || !printable(rec + ZTP_PROFILE_HDR + ml, sl))
         return ZTP_E_PROFILE_FORMAT;
     size_t o = 8;
-    z_cpy(p->device_key_hash, rec + o, 32); o += 32;
-    z_cpy(p->maker_key_hash, rec + o, 32); o += 32;
-    z_cpy(p->manifest_id, rec + o, BA_ID_LEN); o += BA_ID_LEN;
-    z_cpy(p->claim_commit, rec + o, 32); o += 32;
-    z_cpy(p->hw_profile_digest, rec + o, 32); o += 32;
-    p->issued_at = rd64(rec + o); o += 8;
+    z_cpy(p->device_key_hash, rec + o, 32);
+    o += 32;
+    z_cpy(p->maker_key_hash, rec + o, 32);
+    o += 32;
+    z_cpy(p->manifest_id, rec + o, BA_ID_LEN);
+    o += BA_ID_LEN;
+    z_cpy(p->claim_commit, rec + o, 32);
+    o += 32;
+    z_cpy(p->hw_profile_digest, rec + o, 32);
+    o += 32;
+    p->issued_at = rd64(rec + o);
+    o += 8;
     p->model_len = (uint8_t) ml;
     p->serial_len = (uint8_t) sl;
-    z_cpy(p->model, rec + o, ml); o += ml;
+    z_cpy(p->model, rec + o, ml);
+    o += ml;
     z_cpy(p->serial, rec + o, sl);
     uint8_t kh[BA_KEYHASH_LEN];
     ba_key_hash(maker_pk, kh);
@@ -347,12 +378,17 @@ ztp_err_t ztp_msg_build(ztp_kind_t kind, const uint8_t id[ZTP_ID_LEN], uint32_t 
                         ba_sign_fn sign, void *user, uint8_t out[ZTP_MSG_LEN])
 {
     if (!id || !sign || !out) return ZTP_E_ARG;
-    if (kind != ZTP_MSG_CLAIM && kind != ZTP_MSG_TRANSFER && kind != ZTP_MSG_RESET) return ZTP_E_ARG;
+    if (kind != ZTP_MSG_CLAIM && kind != ZTP_MSG_TRANSFER && kind != ZTP_MSG_RESET)
+        return ZTP_E_ARG;
     if ((kind == ZTP_MSG_RESET) != (new_owner_pk == NULL)) return ZTP_E_ARG;
     if ((kind == ZTP_MSG_CLAIM) != (secret != NULL)) return ZTP_E_ARG;
     z_zero(out, ZTP_MSG_LEN);
-    out[0] = 'Z'; out[1] = 'T'; out[2] = 'M'; out[3] = '1';
-    out[4] = 1; out[5] = (uint8_t) kind;
+    out[0] = 'Z';
+    out[1] = 'T';
+    out[2] = 'M';
+    out[3] = '1';
+    out[4] = 1;
+    out[5] = (uint8_t) kind;
     z_cpy(out + 8, id, ZTP_ID_LEN);
     wr32(out + 24, epoch);
     wr64(out + 32, issued_at);

@@ -15,11 +15,19 @@
 #include <string.h>
 
 static int checks, fails;
-#define CHECK(c, ...)                                                         \
-    do {                                                                      \
-        checks++;                                                             \
-        if (c) { printf("[PASS] "); printf(__VA_ARGS__); printf("\n"); }      \
-        else { printf("[FAIL] "); printf(__VA_ARGS__); printf(" (line %d)\n", __LINE__); fails++; } \
+#define CHECK(c, ...)                                                                              \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (c) {                                                                                   \
+            printf("[PASS] ");                                                                     \
+            printf(__VA_ARGS__);                                                                   \
+            printf("\n");                                                                          \
+        } else {                                                                                   \
+            printf("[FAIL] ");                                                                     \
+            printf(__VA_ARGS__);                                                                   \
+            printf(" (line %d)\n", __LINE__);                                                      \
+            fails++;                                                                               \
+        }                                                                                          \
     } while (0)
 
 static unsigned hexval(char c)
@@ -30,7 +38,8 @@ static unsigned hexval(char c)
 static size_t unhex(const char *h, uint8_t *out)
 {
     size_t n = strlen(h) / 2;
-    for (size_t i = 0; i < n; i++) out[i] = (uint8_t) (hexval(h[2 * i]) << 4 | hexval(h[2 * i + 1]));
+    for (size_t i = 0; i < n; i++)
+        out[i] = (uint8_t) (hexval(h[2 * i]) << 4 | hexval(h[2 * i + 1]));
     return n;
 }
 
@@ -89,7 +98,8 @@ int main(void)
         qr_err_t e = qr_encode_bytes(&q, data, n, f->version_req, f->mask_req);
         CHECK(e == QR_OK && n == f->len && q.version == f->version && q.mask == f->mask &&
                   matrix_matches(&q, f->rows_hex),
-              "fixture %2d: %3u bytes, version %2d, mask %d%s matches the reference symbol module for module",
+              "fixture %2d: %3u bytes, version %2d, mask %d%s matches the reference symbol module "
+              "for module",
               i, f->len, f->version, f->mask, f->mask_req < 0 ? " (auto)" : "");
     }
 
@@ -117,14 +127,16 @@ int main(void)
 
     /* ---- format and version information (Annex C and D) ---- */
     {
-        static const unsigned fmt[8] = {0x5412, 0x5125, 0x5E7C, 0x5B4B, 0x45F9, 0x40CE, 0x4F97, 0x4AA0};
+        static const unsigned fmt[8] = {0x5412, 0x5125, 0x5E7C, 0x5B4B,
+                                        0x45F9, 0x40CE, 0x4F97, 0x4AA0};
         int ok = 1;
         for (int m = 0; m < 8; m++) {
             qr_encode_bytes(&q, (const uint8_t *) "x", 1, 0, m);
             ok &= read_format(&q) == fmt[m] && read_format2(&q) == fmt[m] &&
                   qr_module(&q, 8, q.size - 8) == 1;
         }
-        CHECK(ok, "both copies of the format word equal Table C.1 for level M, masks 0-7; dark module set");
+        CHECK(ok, "both copies of the format word equal Table C.1 for level M, masks 0-7; dark "
+                  "module set");
         static const unsigned ver[4] = {0x07C94, 0x085BC, 0x09A99, 0x0A4D3};
         ok = 1;
         for (int v = 7; v <= 10; v++) {
@@ -172,15 +184,18 @@ int main(void)
             for (const char *r = p + 1; *r >= '0' && *r <= '9'; r++) v = v * 10 + (*r - '0');
             sum += v;
         }
-        static const char head[] =
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"232\" height=\"232\" viewBox=\"0 0 29 29\"";
+        static const char head[] = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"232\" "
+                                   "height=\"232\" viewBox=\"0 0 29 29\"";
         CHECK(sl == strlen(buf) && strncmp(buf, head, sizeof head - 1) == 0 &&
                   strstr(buf, "</svg>\n") == buf + sl - 7,
               "svg: 232 px for 29 modules at scale 8, well-formed ending");
-        CHECK(sum == dark && dark > 0, "svg: dark runs in the path cover exactly the %d dark modules", dark);
-        CHECK(qr_render_svg(&q, 4, 0, buf, sizeof buf) == 0 && qr_render_svg(NULL, 4, 1, buf, 10) == 0,
+        CHECK(sum == dark && dark > 0,
+              "svg: dark runs in the path cover exactly the %d dark modules", dark);
+        CHECK(qr_render_svg(&q, 4, 0, buf, sizeof buf) == 0 &&
+                  qr_render_svg(NULL, 4, 1, buf, 10) == 0,
               "svg: scale 0 or NULL code refused");
-        CHECK(qr_module(&q, -1, 0) == 0 && qr_module(&q, 0, q.size) == 0 && qr_module(&q, 0, 0) == 1,
+        CHECK(qr_module(&q, -1, 0) == 0 && qr_module(&q, 0, q.size) == 0 &&
+                  qr_module(&q, 0, 0) == 1,
               "qr_module: outside is light, the finder corner is dark");
     }
 

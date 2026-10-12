@@ -30,11 +30,11 @@
 
 #include "bearer.h"
 
-#define BR_FRAG_FIRST    0x80u
-#define BR_FRAG_HDR1     5u
-#define BR_FRAG_HDRN     2u
-#define BR_FRAG_MIN_MTU  6u
-#define BR_FRAG_MAX_MSG  0xFFFFFFu
+#define BR_FRAG_FIRST   0x80u
+#define BR_FRAG_HDR1    5u
+#define BR_FRAG_HDRN    2u
+#define BR_FRAG_MIN_MTU 6u
+#define BR_FRAG_MAX_MSG 0xFFFFFFu
 
 /* Number of fragments for msg_len at mtu, or 0 if the arguments are bad. */
 uint32_t br_frag_count(uint32_t msg_len, uint32_t mtu);

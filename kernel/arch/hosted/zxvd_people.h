@@ -88,9 +88,9 @@
 
 #include "zxvd_rpc.h"
 
-#define ZXVD_PEOPLE_RECORDS 256u /* H4 */
-#define ZXVD_PEOPLE_LINES   4u   /* H5 */
-#define ZXVD_PEOPLE_FEED    50u  /* most posts one social.feed returns */
+#define ZXVD_PEOPLE_RECORDS 256u  /* H4 */
+#define ZXVD_PEOPLE_LINES   4u    /* H5 */
+#define ZXVD_PEOPLE_FEED    50u   /* most posts one social.feed returns */
 #define ZXVD_PEOPLE_TEXT    4000u /* xlate text, bytes */
 
 /* generate: 0 with the model's answer in out, ZXVD_GEN_NO_MODEL when no

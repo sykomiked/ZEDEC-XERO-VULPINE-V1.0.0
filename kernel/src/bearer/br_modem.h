@@ -80,7 +80,7 @@ typedef enum {
     BR_MDM_EV_DIAL_FAILED = 3,  /* arg = br_modem_result_t */
     BR_MDM_EV_DISCONNECTED = 4, /* arg = br_modem_result_t */
     BR_MDM_EV_RING = 5,
-    BR_MDM_EV_FAILED = 6,       /* arg = state that timed out or errored */
+    BR_MDM_EV_FAILED = 6, /* arg = state that timed out or errored */
 } br_modem_event_t;
 
 typedef struct {

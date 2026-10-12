@@ -131,7 +131,8 @@ static void test_airtime(void)
     CHECK("RP002 US915 DR0 (SF10): max payload within 400 ms = 24 (M 19 + 5)",
           br_lora_max_payload(&m, BR_LORA_US_DWELL_US) == 24);
     m = mod(9, 125);
-    CHECK("RP002 US915 DR1 (SF9): 66 (M 61 + 5)", br_lora_max_payload(&m, BR_LORA_US_DWELL_US) == 66);
+    CHECK("RP002 US915 DR1 (SF9): 66 (M 61 + 5)",
+          br_lora_max_payload(&m, BR_LORA_US_DWELL_US) == 66);
     m = mod(8, 125);
     CHECK("RP002 US915 DR2 (SF8): 138 (M 133 + 5)",
           br_lora_max_payload(&m, BR_LORA_US_DWELL_US) == 138);
@@ -149,19 +150,25 @@ static void test_eu(void)
     CHECK("unconfigured duty state fails closed",
           br_lora_duty_check(&d, 868100000u, 1000, 0) == BR_ERR_DISABLED);
     CHECK("init EU868", br_lora_duty_init(&d, BR_LORA_REGION_EU868) == BR_OK);
-    CHECK("868.1 MHz in sub-band 2 (1%)", br_lora_eu_band(868100000u) == 2 && br_lora_eu_den(2) == 100);
-    CHECK("869.525 MHz in sub-band 4 (10%)", br_lora_eu_band(869525000u) == 4 && br_lora_eu_den(4) == 10);
-    CHECK("863.5 MHz in sub-band 0 (0.1%)", br_lora_eu_band(863500000u) == 0 && br_lora_eu_den(0) == 1000);
+    CHECK("868.1 MHz in sub-band 2 (1%)",
+          br_lora_eu_band(868100000u) == 2 && br_lora_eu_den(2) == 100);
+    CHECK("869.525 MHz in sub-band 4 (10%)",
+          br_lora_eu_band(869525000u) == 4 && br_lora_eu_den(4) == 10);
+    CHECK("863.5 MHz in sub-band 0 (0.1%)",
+          br_lora_eu_band(863500000u) == 0 && br_lora_eu_den(0) == 1000);
     CHECK("866.0 MHz in sub-band 1 (1%)", br_lora_eu_band(866000000u) == 1);
-    CHECK("868.9 MHz in sub-band 3 (0.1%)", br_lora_eu_band(868900000u) == 3 && br_lora_eu_den(3) == 1000);
-    CHECK("869.8 MHz in sub-band 5 (1%)", br_lora_eu_band(869800000u) == 5 && br_lora_eu_den(5) == 100);
-    CHECK("band edges: 868.0 is band 2, 868.6 is outside", br_lora_eu_band(868000000u) == 2 &&
-                                                               br_lora_eu_band(868600000u) == -1);
+    CHECK("868.9 MHz in sub-band 3 (0.1%)",
+          br_lora_eu_band(868900000u) == 3 && br_lora_eu_den(3) == 1000);
+    CHECK("869.8 MHz in sub-band 5 (1%)",
+          br_lora_eu_band(869800000u) == 5 && br_lora_eu_den(5) == 100);
+    CHECK("band edges: 868.0 is band 2, 868.6 is outside",
+          br_lora_eu_band(868000000u) == 2 && br_lora_eu_band(868600000u) == -1);
     CHECK("870.0 MHz outside", br_lora_eu_band(870000000u) == -1);
     CHECK("bad band index den 0", br_lora_eu_den(6) == 0 && br_lora_eu_den(-1) == 0);
     CHECK("gap 868.65 MHz refused",
           br_lora_duty_check(&d, 868650000u, 41216, 0) == BR_ERR_POLICY_BAND);
-    CHECK("915 MHz refused in EU", br_lora_duty_check(&d, 915000000u, 41216, 0) == BR_ERR_POLICY_BAND);
+    CHECK("915 MHz refused in EU",
+          br_lora_duty_check(&d, 915000000u, 41216, 0) == BR_ERR_POLICY_BAND);
     CHECK("zero airtime refused", br_lora_duty_check(&d, 868100000u, 0, 0) == BR_ERR_ARG);
     CHECK("commit 41.216 ms at t=1000", br_lora_duty_commit(&d, 868100000u, 41216, 1000) == BR_OK);
     CHECK("band closed until 1000 + 42 * 100 = 5200", d.band_free_ms[2] == 5200);
@@ -173,8 +180,9 @@ static void test_eu(void)
           br_lora_duty_commit(&d, 869525000u, 41216, 2000) == BR_OK && d.band_free_ms[4] == 2420);
     CHECK("0.1% sub-band: 42 ms closes it for 42 s",
           br_lora_duty_commit(&d, 868900000u, 41216, 0) == BR_OK && d.band_free_ms[3] == 42000);
-    CHECK("busy commit does not record", br_lora_duty_commit(&d, 868900000u, 41216, 41999) ==
-                                              BR_ERR_BUSY && d.band_free_ms[3] == 42000);
+    CHECK("busy commit does not record",
+          br_lora_duty_commit(&d, 868900000u, 41216, 41999) == BR_ERR_BUSY &&
+              d.band_free_ms[3] == 42000);
     /* one hour, transmitting whenever allowed: <= 36 s of air on a 1% band */
     br_lora_duty_init(&d, BR_LORA_REGION_EU868);
     uint64_t t = 0, total = 0, last = 0, mingap = UINT64_MAX;
@@ -206,18 +214,20 @@ static void test_us(void)
     CHECK("400.001 ms refused (dwell)",
           br_lora_duty_check(&d, 902300000u, 400001, 0) == BR_ERR_POLICY_DWELL);
     CHECK("400.000 ms allowed", br_lora_duty_check(&d, 902300000u, 400000, 0) == BR_OK);
-    CHECK("SF10 24 B (370.688 ms) allowed", br_lora_duty_commit(&d, 902300000u, air(10, 125, 24), 0) == BR_OK);
+    CHECK("SF10 24 B (370.688 ms) allowed",
+          br_lora_duty_commit(&d, 902300000u, air(10, 125, 24), 0) == BR_OK);
     CHECK("same channel again inside 20 s: 370+370 > 400 ms busy",
           br_lora_duty_check(&d, 902300000u, air(10, 125, 24), 1000) == BR_ERR_BUSY);
     CHECK("29.312 ms more fits exactly (370.688 + 29.312 = 400)",
           br_lora_duty_check(&d, 902300000u, 29312, 1000) == BR_OK);
-    CHECK("29.313 ms more does not", br_lora_duty_check(&d, 902300000u, 29313, 1000) == BR_ERR_BUSY);
+    CHECK("29.313 ms more does not",
+          br_lora_duty_check(&d, 902300000u, 29313, 1000) == BR_ERR_BUSY);
     CHECK("another channel is independent",
           br_lora_duty_check(&d, 902500000u, air(10, 125, 24), 1000) == BR_OK);
     CHECK("window passed at t=20000: allowed again",
           br_lora_duty_check(&d, 902300000u, air(10, 125, 24), 20000) == BR_OK);
-    CHECK("still busy at t=19999", br_lora_duty_check(&d, 902300000u, air(10, 125, 24), 19999) ==
-                                       BR_ERR_BUSY);
+    CHECK("still busy at t=19999",
+          br_lora_duty_check(&d, 902300000u, air(10, 125, 24), 19999) == BR_ERR_BUSY);
     br_lora_duty_init(&d, BR_LORA_REGION_US915);
     int ok = 1;
     for (uint32_t i = 0; i < BR_LORA_HIST; i++)
@@ -264,15 +274,17 @@ static void test_link(void)
     CHECK("link: channel outside EU sub-bands refused",
           br_lora_link_init(&g_lk, BR_LORA_REGION_EU868, &m, badch, 1, radio_tx, &g_radio) ==
               BR_ERR_POLICY_BAND);
-    CHECK("link: EU init", br_lora_link_init(&g_lk, BR_LORA_REGION_EU868, &m, eu, 3, radio_tx,
-                                             &g_radio) == BR_OK &&
-                               g_lk.mtu == 255);
+    CHECK("link: EU init",
+          br_lora_link_init(&g_lk, BR_LORA_REGION_EU868, &m, eu, 3, radio_tx, &g_radio) == BR_OK &&
+              g_lk.mtu == 255);
     CHECK("link: nothing queued, poll does nothing", br_lora_link_poll(&g_lk, 0) == 0);
     CHECK("link: queue 600 bytes", br_lora_link_send(&g_lk, NULL, msg, 600) == BR_OK);
-    CHECK("link: second message while busy -> BUSY", br_lora_link_send(&g_lk, NULL, msg, 10) == BR_ERR_BUSY);
+    CHECK("link: second message while busy -> BUSY",
+          br_lora_link_send(&g_lk, NULL, msg, 10) == BR_ERR_BUSY);
     CHECK("link: 6145 bytes refused", br_lora_link_send(&g_lk, NULL, back, 6145) == BR_ERR_SIZE);
     CHECK("link: first fragment out at t=0", br_lora_link_poll(&g_lk, 0) == 1 && g_radio.n == 1);
-    CHECK("link: first fragment is 255 bytes on 868.1", g_radio.len[0] == 255 && g_radio.freq[0] == 868100000u);
+    CHECK("link: first fragment is 255 bytes on 868.1",
+          g_radio.len[0] == 255 && g_radio.freq[0] == 868100000u);
     uint32_t a = air(7, 125, 255);
     uint64_t reopen = (uint64_t) ((a + 999) / 1000) * 100u;
     CHECK("link: all three channels share sub-band 2, so it waits",
@@ -285,29 +297,32 @@ static void test_link(void)
         t += 100;
         br_lora_link_poll(&g_lk, t);
     }
-    CHECK("link: 3 fragments for 600 bytes", g_radio.n == 3 && g_lk.frags_sent == 3 &&
-                                                 g_lk.msgs_sent == 1);
+    CHECK("link: 3 fragments for 600 bytes",
+          g_radio.n == 3 && g_lk.frags_sent == 3 && g_lk.msgs_sent == 1);
     CHECK("link: channels rotate", g_radio.freq[2] == 868500000u);
     br_frag_rx_t rx;
     br_frag_rx_init(&rx, back, sizeof back);
     uint32_t got = 0;
     int r = 0;
-    for (int i = 0; i < g_radio.n; i++) r = br_frag_rx_push(&rx, g_radio.frag[i], g_radio.len[i], &got);
-    CHECK("link: receiver reassembles the exact message", r == 1 && got == 600 && !memcmp(back, msg, 600));
+    for (int i = 0; i < g_radio.n; i++)
+        r = br_frag_rx_push(&rx, g_radio.frag[i], g_radio.len[i], &got);
+    CHECK("link: receiver reassembles the exact message",
+          r == 1 && got == 600 && !memcmp(back, msg, 600));
     CHECK("link: total air time obeys 1% (wall time >= 100x air time of first two)",
           t >= 2u * reopen);
     /* radio failure */
     CHECK("link: next message accepted", br_lora_link_send(&g_lk, NULL, msg, 300) == BR_OK);
     g_radio.fail = 1;
     CHECK("link: radio failure drops the message",
-          br_lora_link_poll(&g_lk, t + 1000000) == BR_ERR_SEND && !g_lk.busy && g_lk.radio_errors == 1);
+          br_lora_link_poll(&g_lk, t + 1000000) == BR_ERR_SEND && !g_lk.busy &&
+              g_lk.radio_errors == 1);
     g_radio.fail = 0;
     /* US link: fragment size cut to fit dwell */
     static const uint32_t us[2] = {902300000u, 902500000u};
     m = mod(10, 125);
-    CHECK("link: US SF10 init, fragment size 24", br_lora_link_init(&g_lk, BR_LORA_REGION_US915, &m, us,
-                                                                    2, radio_tx, &g_radio) == BR_OK &&
-                                                      g_lk.mtu == 24);
+    CHECK("link: US SF10 init, fragment size 24",
+          br_lora_link_init(&g_lk, BR_LORA_REGION_US915, &m, us, 2, radio_tx, &g_radio) == BR_OK &&
+              g_lk.mtu == 24);
     memset(&g_radio, 0, sizeof g_radio);
     br_lora_link_send(&g_lk, NULL, msg, 100);
     t = 0;
@@ -322,9 +337,11 @@ static void test_link(void)
         br_lora_airtime_us(&m, g_radio.len[i], &aa);
         if (aa > 400000u || g_radio.len[i] > 24) ok = 0;
     }
-    CHECK("link: US every fragment within 400 ms dwell", ok && g_radio.n == (int) br_frag_count(100, 24));
+    CHECK("link: US every fragment within 400 ms dwell",
+          ok && g_radio.n == (int) br_frag_count(100, 24));
     br_frag_rx_init(&rx, back, sizeof back);
-    for (int i = 0; i < g_radio.n; i++) r = br_frag_rx_push(&rx, g_radio.frag[i], g_radio.len[i], &got);
+    for (int i = 0; i < g_radio.n; i++)
+        r = br_frag_rx_push(&rx, g_radio.frag[i], g_radio.len[i], &got);
     CHECK("link: US message reassembles", r == 1 && got == 100 && !memcmp(back, msg, 100));
     m = mod(12, 125);
     CHECK("link: US SF12/125 refused (nothing fits the dwell time)",

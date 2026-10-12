@@ -41,7 +41,8 @@ static void test_caps(void)
     CHECK("caps: HAM no encryption, no settlement, text only, emergency only",
           !c->encrypt_ok && !c->settle_ok && c->text_only && c->needs_auth &&
               c->classes == BR_CLS(BR_CLASS_EMERGENCY));
-    CHECK("caps: HAM 1200 bit/s, 256-byte AX.25 info field", c->bitrate_bps == 1200 && c->mtu == 256);
+    CHECK("caps: HAM 1200 bit/s, 256-byte AX.25 info field",
+          c->bitrate_bps == 1200 && c->mtu == 256);
     c = br_caps(BR_LORA);
     CHECK("caps: LoRa never AI, never chat",
           !(c->classes & BR_CLS(BR_CLASS_AI)) && !(c->classes & BR_CLS(BR_CLASS_CHAT)));
@@ -143,7 +144,8 @@ static void test_policy(void)
     CHECK("policy: kind 9 refused", br_policy_check(9, BR_CLASS_AI, 0, g_text, 10) == BR_ERR_ARG);
     CHECK("policy: empty message refused",
           br_policy_check(BR_LAN, BR_CLASS_AI, 0, g_text, 0) == BR_ERR_ARG);
-    CHECK("policy: NULL data refused", br_policy_check(BR_LAN, BR_CLASS_AI, 0, NULL, 5) == BR_ERR_ARG);
+    CHECK("policy: NULL data refused",
+          br_policy_check(BR_LAN, BR_CLASS_AI, 0, NULL, 5) == BR_ERR_ARG);
     CHECK("policy: LAN 1 MiB accepted, 1 MiB + 1 refused",
           br_policy_check(BR_LAN, BR_CLASS_AI, 0, g_text, 1u << 20) == BR_OK &&
               br_policy_check(BR_LAN, BR_CLASS_AI, 0, g_text, (1u << 20) + 1) == BR_ERR_SIZE);
@@ -194,7 +196,8 @@ static void test_ewma(void)
     br_link_measure(&t, 1, 0, false);
     CHECK("RTT EWMA toward 0: 984", br_link_rtt_us(l) == 984);
     for (int i = 0; i < 400; i++) br_link_measure(&t, 1, 5000, false);
-    CHECK("RTT converges to 5000 (within 8)", br_link_rtt_us(l) >= 4992 && br_link_rtt_us(l) <= 5000);
+    CHECK("RTT converges to 5000 (within 8)",
+          br_link_rtt_us(l) >= 4992 && br_link_rtt_us(l) <= 5000);
     CHECK("loss converges to near 0 (< 16 ppm)", br_link_loss_ppm(l) < 16);
     CHECK("measure unknown link refused", br_link_measure(&t, 99, 1, false) == BR_ERR_ARG);
     CHECK("sample counters", l->rtt_n == 403 && l->loss_n == 404);
@@ -211,10 +214,14 @@ static void test_select(void)
     br_link_add(&t, BR_CELLULAR, 2, &o2);
     br_link_add(&t, BR_LORA, 3, &o3);
     br_link_add(&t, BR_HAM_SDR, 4, &o4);
-    CHECK("score LAN AI 1000 B = 2 (2080 us, no cost)", br_score(br_link_get(&t, 1), BR_CLASS_AI, 1000) == 2);
-    CHECK("score cellular AI 1000 B = 60 + 100*100", br_score(br_link_get(&t, 2), BR_CLASS_AI, 1000) == 10060);
-    CHECK("score cellular settlement 200 B = 60 + 100", br_score(br_link_get(&t, 2), BR_CLASS_SETTLEMENT, 200) == 160);
-    CHECK("score LoRa settlement 200 B = 2292 + 50", br_score(br_link_get(&t, 3), BR_CLASS_SETTLEMENT, 200) == 2342);
+    CHECK("score LAN AI 1000 B = 2 (2080 us, no cost)",
+          br_score(br_link_get(&t, 1), BR_CLASS_AI, 1000) == 2);
+    CHECK("score cellular AI 1000 B = 60 + 100*100",
+          br_score(br_link_get(&t, 2), BR_CLASS_AI, 1000) == 10060);
+    CHECK("score cellular settlement 200 B = 60 + 100",
+          br_score(br_link_get(&t, 2), BR_CLASS_SETTLEMENT, 200) == 160);
+    CHECK("score LoRa settlement 200 B = 2292 + 50",
+          br_score(br_link_get(&t, 3), BR_CLASS_SETTLEMENT, 200) == 2342);
     CHECK("score bad class is UINT64_MAX", br_score(br_link_get(&t, 1), 0, 10) == UINT64_MAX);
     uint16_t id = 0;
     memset(g_text, 'x', 2000);
@@ -268,7 +275,7 @@ static void test_select(void)
     for (int i = 0; i < 200; i++) br_link_measure(&t, 1, 1000, (i & 1) != 0);
     br_link_measure(&t, 2, 1500, false);
     CHECK("lossy link has ~50% loss", br_link_loss_ppm(br_link_get(&t, 1)) > 400000 &&
-                                           br_link_loss_ppm(br_link_get(&t, 1)) < 600000);
+                                          br_link_loss_ppm(br_link_get(&t, 1)) < 600000);
     CHECK("settlement prefers the clean, slower link",
           br_select(&t, BR_CLASS_SETTLEMENT, 0, g_text, 200, &id) == BR_OK && id == 2);
 
@@ -296,8 +303,8 @@ static void test_select(void)
           br_select(&t, BR_CLASS_CHAT, 0, g_text, 100, &id) == BR_OK && id == 2);
 
     /* tune and table limits */
-    CHECK("tune BLE mtu to 244 ok", br_link_tune(&t, 1, 244, 0, 0) == BR_OK &&
-                                         br_link_get(&t, 1)->caps.mtu == 244);
+    CHECK("tune BLE mtu to 244 ok",
+          br_link_tune(&t, 1, 244, 0, 0) == BR_OK && br_link_get(&t, 1)->caps.mtu == 244);
     CHECK("tune BLE mtu 515 refused", br_link_tune(&t, 1, 515, 0, 0) == BR_ERR_SIZE);
     CHECK("tune unknown link refused", br_link_tune(&t, 9, 10, 0, 0) == BR_ERR_ARG);
     CHECK("duplicate id refused", br_link_add(&t, BR_LAN, 2, &o1) == BR_ERR_ARG);
@@ -332,7 +339,8 @@ static void test_failover(void)
     CHECK("send fails on LAN, fails over to cellular",
           br_send(&t, NULL, BR_CLASS_SETTLEMENT, BR_F_SIGNED, g_text, 300, &used) == BR_OK &&
               used == 2);
-    CHECK("LAN marked down after its error", !br_link_get(&t, 1)->up && br_link_get(&t, 1)->fails == 1);
+    CHECK("LAN marked down after its error",
+          !br_link_get(&t, 1)->up && br_link_get(&t, 1)->fails == 1);
     CHECK("one failover counted", t.failovers == 1);
     CHECK("each link tried once", lan.calls == 1 && cell.calls == 1 && lora.calls == 0);
     CHECK("next send goes straight to cellular",
@@ -348,7 +356,8 @@ static void test_failover(void)
           br_send(&t, NULL, BR_CLASS_SETTLEMENT, BR_F_SIGNED, g_text, 300, &used) == BR_OK &&
               used == 3);
     CHECK("AI with only LoRa up: no link, LoRa never called",
-          br_send(&t, NULL, BR_CLASS_AI, 0, g_text, 300, &used) == BR_ERR_NOLINK && lora.calls == 2);
+          br_send(&t, NULL, BR_CLASS_AI, 0, g_text, 300, &used) == BR_ERR_NOLINK &&
+              lora.calls == 2);
     lora.rc = BR_ERR_FORMAT;
     CHECK("all links failed: NOLINK",
           br_send(&t, NULL, BR_CLASS_RECORD, BR_F_SIGNED, g_text, 30, &used) == BR_ERR_NOLINK);

@@ -48,13 +48,13 @@
 
 #include "bearer.h"
 
-#define BR_AX25_INFO_MAX 256u
-#define BR_AX25_MAX_DIGI 2u
-#define BR_AX25_ADDR_LEN 7u
-#define BR_AX25_CTRL_UI  0x03u
-#define BR_AX25_PID_NONE 0xF0u
+#define BR_AX25_INFO_MAX  256u
+#define BR_AX25_MAX_DIGI  2u
+#define BR_AX25_ADDR_LEN  7u
+#define BR_AX25_CTRL_UI   0x03u
+#define BR_AX25_PID_NONE  0xF0u
 #define BR_AX25_FRAME_MAX (BR_AX25_ADDR_LEN * (2u + BR_AX25_MAX_DIGI) + 2u + BR_AX25_INFO_MAX + 2u)
-#define BR_AX25_FLAG     0x7Eu
+#define BR_AX25_FLAG      0x7Eu
 
 typedef struct {
     char call[7]; /* NUL-terminated, no padding */

@@ -91,17 +91,17 @@
 
 #include "../bootattest/ba.h"
 
-#define ZTP_ID_LEN       16u
-#define ZTP_SECRET_LEN   32u
-#define ZTP_TEXT_MAX     32u
-#define ZTP_QR_TEXT_LEN  82u                /* "ZTP1:" + 77 base32 chars */
-#define ZTP_PROFILE_HDR  (8u + 32u + 32u + BA_ID_LEN + 32u + 32u + 8u)
-#define ZTP_PROFILE_MAX  (ZTP_PROFILE_HDR + 2u * ZTP_TEXT_MAX + BA_SIG_LEN)
-#define ZTP_MSG_MAC_OFF  (8u + ZTP_ID_LEN + 8u + 8u + BA_PK_LEN)
-#define ZTP_MSG_LEN      (ZTP_MSG_MAC_OFF + 32u + BA_SIG_LEN)
+#define ZTP_ID_LEN      16u
+#define ZTP_SECRET_LEN  32u
+#define ZTP_TEXT_MAX    32u
+#define ZTP_QR_TEXT_LEN 82u /* "ZTP1:" + 77 base32 chars */
+#define ZTP_PROFILE_HDR (8u + 32u + 32u + BA_ID_LEN + 32u + 32u + 8u)
+#define ZTP_PROFILE_MAX (ZTP_PROFILE_HDR + 2u * ZTP_TEXT_MAX + BA_SIG_LEN)
+#define ZTP_MSG_MAC_OFF (8u + ZTP_ID_LEN + 8u + 8u + BA_PK_LEN)
+#define ZTP_MSG_LEN     (ZTP_MSG_MAC_OFF + 32u + BA_SIG_LEN)
 
 #ifndef ZTP_PHYSICAL_RESET
-#define ZTP_PHYSICAL_RESET 0
+#    define ZTP_PHYSICAL_RESET 0
 #endif
 
 typedef enum {
@@ -133,12 +133,12 @@ typedef enum { ZTP_MSG_CLAIM = 1, ZTP_MSG_TRANSFER = 2, ZTP_MSG_RESET = 3 } ztp_
 
 /* Everything the device keeps. The platform persists it (see limits). */
 typedef struct {
-    uint8_t  state;                          /* ztp_state_t */
+    uint8_t state; /* ztp_state_t */
     uint32_t epoch;
-    uint8_t  device_key_hash[BA_KEYHASH_LEN];
-    uint8_t  claim_secret[ZTP_SECRET_LEN];   /* zero while OWNED */
-    uint8_t  owner_pk[BA_PK_LEN];            /* zero unless OWNED */
-    uint8_t  owner_key_hash[BA_KEYHASH_LEN];
+    uint8_t device_key_hash[BA_KEYHASH_LEN];
+    uint8_t claim_secret[ZTP_SECRET_LEN]; /* zero while OWNED */
+    uint8_t owner_pk[BA_PK_LEN];          /* zero unless OWNED */
+    uint8_t owner_key_hash[BA_KEYHASH_LEN];
 } ztp_device_t;
 
 /* ---- device side ----------------------------------------------------- */
@@ -163,15 +163,15 @@ ztp_err_t ztp_reset_physical(ztp_device_t *d, const uint8_t new_secret[ZTP_SECRE
 /* ---- maker side ------------------------------------------------------ */
 
 typedef struct {
-    uint8_t  device_key_hash[BA_KEYHASH_LEN];
-    uint8_t  maker_key_hash[BA_KEYHASH_LEN];
-    uint8_t  manifest_id[BA_ID_LEN];
-    uint8_t  claim_commit[32];
-    uint8_t  hw_profile_digest[32];
+    uint8_t device_key_hash[BA_KEYHASH_LEN];
+    uint8_t maker_key_hash[BA_KEYHASH_LEN];
+    uint8_t manifest_id[BA_ID_LEN];
+    uint8_t claim_commit[32];
+    uint8_t hw_profile_digest[32];
     uint64_t issued_at;
-    uint8_t  model_len, serial_len;
-    char     model[ZTP_TEXT_MAX + 1];
-    char     serial[ZTP_TEXT_MAX + 1];
+    uint8_t model_len, serial_len;
+    char model[ZTP_TEXT_MAX + 1];
+    char serial[ZTP_TEXT_MAX + 1];
 } ztp_profile_t;
 
 void ztp_commit(const uint8_t id[ZTP_ID_LEN], const uint8_t secret[ZTP_SECRET_LEN],

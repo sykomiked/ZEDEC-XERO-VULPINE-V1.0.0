@@ -11,15 +11,15 @@
 
 static int g_checks, g_failed;
 
-#define CHECK(name, cond)                                                                      \
-    do {                                                                                       \
-        g_checks++;                                                                            \
-        if (cond) {                                                                            \
-            printf("[PASS] %s\n", (name));                                                     \
-        } else {                                                                               \
-            g_failed++;                                                                        \
-            printf("[FAIL] %s (%s:%d)\n", (name), __FILE__, __LINE__);                         \
-        }                                                                                      \
+#define CHECK(name, cond)                                                                          \
+    do {                                                                                           \
+        g_checks++;                                                                                \
+        if (cond) {                                                                                \
+            printf("[PASS] %s\n", (name));                                                         \
+        } else {                                                                                   \
+            g_failed++;                                                                            \
+            printf("[FAIL] %s (%s:%d)\n", (name), __FILE__, __LINE__);                             \
+        }                                                                                          \
     } while (0)
 
 static int check_summary(void)

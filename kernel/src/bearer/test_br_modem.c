@@ -148,8 +148,14 @@ static void pump(void)
     }
 }
 
-static int last_ev(void) { return g_nev ? g_ev[g_nev - 1] : 0; }
-static int last_arg(void) { return g_nev ? g_arg[g_nev - 1] : -1; }
+static int last_ev(void)
+{
+    return g_nev ? g_ev[g_nev - 1] : 0;
+}
+static int last_arg(void)
+{
+    return g_nev ? g_arg[g_nev - 1] : -1;
+}
 
 static void reset(const char *dial_result)
 {
@@ -175,15 +181,20 @@ static void test_parse(void)
 {
     uint32_t r = 7;
     CHECK("parse OK", br_modem_parse_result("OK", 2, &r) == BR_MDM_R_OK);
-    CHECK("parse CONNECT without rate", br_modem_parse_result("CONNECT", 7, &r) == BR_MDM_R_CONNECT && r == 0);
-    CHECK("parse CONNECT 33600", br_modem_parse_result("CONNECT 33600", 13, &r) == BR_MDM_R_CONNECT && r == 33600);
-    CHECK("parse CONNECT 115200/ARQ", br_modem_parse_result("CONNECT 115200/ARQ", 18, &r) == BR_MDM_R_CONNECT &&
-                                         r == 115200);
+    CHECK("parse CONNECT without rate",
+          br_modem_parse_result("CONNECT", 7, &r) == BR_MDM_R_CONNECT && r == 0);
+    CHECK("parse CONNECT 33600",
+          br_modem_parse_result("CONNECT 33600", 13, &r) == BR_MDM_R_CONNECT && r == 33600);
+    CHECK("parse CONNECT 115200/ARQ",
+          br_modem_parse_result("CONNECT 115200/ARQ", 18, &r) == BR_MDM_R_CONNECT && r == 115200);
     CHECK("CONNECTED is not a result", br_modem_parse_result("CONNECTED", 9, &r) == BR_MDM_R_NONE);
     CHECK("CONNECT x is not a result", br_modem_parse_result("CONNECT x", 9, &r) == BR_MDM_R_NONE);
-    CHECK("CONNECT 96k is not a result", br_modem_parse_result("CONNECT 96k", 11, &r) == BR_MDM_R_NONE);
-    CHECK("'OK ' (trailing space) is not a result", br_modem_parse_result("OK ", 3, &r) == BR_MDM_R_NONE);
-    CHECK("parse NO DIAL TONE spelling", br_modem_parse_result("NO DIAL TONE", 12, &r) == BR_MDM_R_NO_DIALTONE);
+    CHECK("CONNECT 96k is not a result",
+          br_modem_parse_result("CONNECT 96k", 11, &r) == BR_MDM_R_NONE);
+    CHECK("'OK ' (trailing space) is not a result",
+          br_modem_parse_result("OK ", 3, &r) == BR_MDM_R_NONE);
+    CHECK("parse NO DIAL TONE spelling",
+          br_modem_parse_result("NO DIAL TONE", 12, &r) == BR_MDM_R_NO_DIALTONE);
     CHECK("parse BUSY / NO ANSWER / ERROR / RING / NO CARRIER",
           br_modem_parse_result("BUSY", 4, &r) == BR_MDM_R_BUSY &&
               br_modem_parse_result("NO ANSWER", 9, &r) == BR_MDM_R_NO_ANSWER &&
@@ -193,19 +204,21 @@ static void test_parse(void)
     CHECK("dial string 555-1234 refused ('-')", !br_modem_dial_ok("555-1234"));
     CHECK("dial string T5551234,,*70# ok", br_modem_dial_ok("T5551234,,*70#"));
     CHECK("dial string with ';' refused (no command smuggling)", !br_modem_dial_ok("5551234;H"));
-    CHECK("dial string ending in ';' (stay in command mode) refused", !br_modem_dial_ok("5551234;"));
+    CHECK("dial string ending in ';' (stay in command mode) refused",
+          !br_modem_dial_ok("5551234;"));
     CHECK("dial string with CR refused", !br_modem_dial_ok("555\rATH"));
     CHECK("empty dial string refused", !br_modem_dial_ok(""));
     CHECK("40-digit dial string ok", br_modem_dial_ok("1234567890123456789012345678901234567890"));
-    CHECK("41-digit dial string refused", !br_modem_dial_ok("12345678901234567890123456789012345678901"));
+    CHECK("41-digit dial string refused",
+          !br_modem_dial_ok("12345678901234567890123456789012345678901"));
     CHECK("lower-case 't' refused", !br_modem_dial_ok("t555"));
 }
 
 static void test_session(void)
 {
     CHECK("init: ATZ then ATE0V1Q0X4, READY", start_ready("CONNECT 33600") && F.ncmds == 2 &&
-                                                   !strcmp(F.cmds[0], "ATZ") &&
-                                                   !strcmp(F.cmds[1], "ATE0V1Q0X4"));
+                                                  !strcmp(F.cmds[0], "ATZ") &&
+                                                  !strcmp(F.cmds[1], "ATE0V1Q0X4"));
     CHECK("echo of ATZ was ignored (no ERROR, no extra event)", g_nev == 1);
     CHECK("dial with bad characters refused before anything is sent",
           br_modem_dial(&M, "555;ATH", g_now) == BR_ERR_ARG && F.ncmds == 2);
@@ -217,7 +230,8 @@ static void test_session(void)
     CHECK("CONNECT 33600: ONLINE, event with the rate",
           M.state == BR_MDM_ONLINE && last_ev() == BR_MDM_EV_CONNECTED && last_arg() == 33600 &&
               M.connect_rate == 33600);
-    CHECK("data after CONNECT\\r\\n delivered exactly (LF skipped)", g_rxn == 5 && !memcmp(g_rx, "hello", 5));
+    CHECK("data after CONNECT\\r\\n delivered exactly (LF skipped)",
+          g_rxn == 5 && !memcmp(g_rx, "hello", 5));
     CHECK("dial while online refused", br_modem_dial(&M, "1", g_now) == BR_ERR_STATE);
     /* a COBS frame across the call */
     uint8_t fr[64];
@@ -235,7 +249,8 @@ static void test_session(void)
     g_now += 10;
     br_modem_send(&M, (const uint8_t *) "x", 1, g_now);
     uint64_t t0 = g_now;
-    CHECK("hangup starts the escape", br_modem_hangup(&M, g_now) == BR_OK && M.state == BR_MDM_ESC_PRE);
+    CHECK("hangup starts the escape",
+          br_modem_hangup(&M, g_now) == BR_OK && M.state == BR_MDM_ESC_PRE);
     CHECK("send refused during the escape (guard silence)",
           br_modem_send(&M, (const uint8_t *) "y", 1, g_now) == BR_ERR_STATE);
     g_now = t0 + 999;
@@ -285,7 +300,8 @@ static void test_dial_failures(void)
     g_now = t0 + 60000;
     pump();
     CHECK("dial timeout at 60 s: abort, DIAL_FAILED(TIMEOUT)",
-          M.state == BR_MDM_READY && last_ev() == BR_MDM_EV_DIAL_FAILED && last_arg() == BR_MDM_R_TIMEOUT);
+          M.state == BR_MDM_READY && last_ev() == BR_MDM_EV_DIAL_FAILED &&
+              last_arg() == BR_MDM_R_TIMEOUT);
 }
 
 static void test_carrier(void)
@@ -298,12 +314,13 @@ static void test_carrier(void)
     CHECK("partial NO CARRIER does not hang up", M.state == BR_MDM_ONLINE);
     fq("Y\r\ndef");
     pump();
-    CHECK("all bytes still delivered as data", g_rxn == 3 + 9 + 6 && !memcmp(g_rx + 12, "Y\r\ndef", 6));
+    CHECK("all bytes still delivered as data",
+          g_rxn == 3 + 9 + 6 && !memcmp(g_rx + 12, "Y\r\ndef", 6));
     fq("\r\nNO CARRIER\r\nzzz");
     pump();
-    CHECK("NO CARRIER in the stream ends the call",
-          M.state == BR_MDM_READY && last_ev() == BR_MDM_EV_DISCONNECTED &&
-              last_arg() == BR_MDM_R_NO_CARRIER);
+    CHECK("NO CARRIER in the stream ends the call", M.state == BR_MDM_READY &&
+                                                        last_ev() == BR_MDM_EV_DISCONNECTED &&
+                                                        last_arg() == BR_MDM_R_NO_CARRIER);
     start_ready("CONNECT");
     br_modem_dial(&M, "1", g_now);
     pump();
@@ -315,10 +332,9 @@ static void test_carrier(void)
     fq("\r\nRING\r\n");
     pump();
     CHECK("RING reported", last_ev() == BR_MDM_EV_RING);
-    CHECK("answer sends ATA and connects", br_modem_answer(&M, g_now) == BR_OK &&
-                                               (pump(), M.state == BR_MDM_ONLINE) &&
-                                               !strcmp(F.cmds[F.ncmds - 1], "ATA") &&
-                                               M.connect_rate == 2400);
+    CHECK("answer sends ATA and connects",
+          br_modem_answer(&M, g_now) == BR_OK && (pump(), M.state == BR_MDM_ONLINE) &&
+              !strcmp(F.cmds[F.ncmds - 1], "ATA") && M.connect_rate == 2400);
     CHECK("answer when not READY refused", br_modem_answer(&M, g_now) == BR_ERR_STATE);
 }
 
@@ -333,8 +349,8 @@ static void test_timeouts(void)
     CHECK("silent modem: still INIT at 4.999 s", M.state == BR_MDM_INIT);
     g_now = t0 + 5000;
     pump();
-    CHECK("silent modem: FAILED at 5 s", M.state == BR_MDM_FAILED && last_ev() == BR_MDM_EV_FAILED &&
-                                             last_arg() == BR_MDM_INIT);
+    CHECK("silent modem: FAILED at 5 s",
+          M.state == BR_MDM_FAILED && last_ev() == BR_MDM_EV_FAILED && last_arg() == BR_MDM_INIT);
     CHECK("dial in FAILED refused", br_modem_dial(&M, "1", g_now) == BR_ERR_STATE);
     /* modem that ignores the escape */
     start_ready("CONNECT 1200");
@@ -350,8 +366,8 @@ static void test_timeouts(void)
     CHECK("escape not answered: still waiting at guard + 5 s - 1 ms", M.state == BR_MDM_ESC_POST);
     g_now += 1;
     pump();
-    CHECK("escape not answered: FAILED (host drops DTR)", M.state == BR_MDM_FAILED &&
-                                                              last_arg() == BR_MDM_ESC_POST);
+    CHECK("escape not answered: FAILED (host drops DTR)",
+          M.state == BR_MDM_FAILED && last_arg() == BR_MDM_ESC_POST);
     /* init answered with ERROR */
     reset(NULL);
     br_modem_start(&M, g_now);
@@ -373,8 +389,8 @@ static void test_timeouts(void)
     fq("\r\nOK\r\n");
     pump();
     CHECK("next proper OK advances init", M.init_step == 1);
-    CHECK("init refuses NULL write", br_modem_init(&M, &(br_modem_ops_t){NULL, NULL, NULL, NULL}) ==
-                                         BR_ERR_ARG);
+    CHECK("init refuses NULL write",
+          br_modem_init(&M, &(br_modem_ops_t){NULL, NULL, NULL, NULL}) == BR_ERR_ARG);
 }
 
 int main(void)

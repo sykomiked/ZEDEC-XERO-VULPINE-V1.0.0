@@ -7,15 +7,16 @@
 #include "qr.h"
 
 /* Level M, index = version. ISO/IEC 18004 Table 9. */
-static const uint8_t ECC_PER_BLOCK[QR_VERSION_MAX + 1] = {0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26};
+static const uint8_t ECC_PER_BLOCK[QR_VERSION_MAX + 1] = {0,  10, 16, 26, 18, 24,
+                                                          16, 18, 22, 22, 26};
 static const uint8_t NUM_BLOCKS[QR_VERSION_MAX + 1] = {0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5};
 /* Alignment pattern centres (Annex E), second coordinate onward. */
 static const uint8_t ALIGN[QR_VERSION_MAX + 1][3] = {
-    {0, 0, 0}, {0, 0, 0}, {18, 0, 0}, {22, 0, 0}, {26, 0, 0}, {30, 0, 0},
+    {0, 0, 0},  {0, 0, 0},   {18, 0, 0},  {22, 0, 0},  {26, 0, 0},  {30, 0, 0},
     {34, 0, 0}, {22, 38, 0}, {24, 42, 0}, {26, 46, 0}, {28, 50, 0},
 };
 
-#define MAX_CW    346u  /* raw codewords at version 10 */
+#define MAX_CW    346u /* raw codewords at version 10 */
 #define MAX_BLOCK 128u
 
 /* ===== sizes ========================================================== */
@@ -213,14 +214,22 @@ static void place_codewords(qr_code_t *qr, const uint8_t *cw, unsigned n)
 static int mask_bit(unsigned m, unsigned x, unsigned y)
 {
     switch (m) {
-    case 0: return (x + y) % 2u == 0;
-    case 1: return y % 2u == 0;
-    case 2: return x % 3u == 0;
-    case 3: return (x + y) % 3u == 0;
-    case 4: return (x / 3u + y / 2u) % 2u == 0;
-    case 5: return x * y % 2u + x * y % 3u == 0;
-    case 6: return (x * y % 2u + x * y % 3u) % 2u == 0;
-    default: return ((x + y) % 2u + x * y % 3u) % 2u == 0;
+    case 0:
+        return (x + y) % 2u == 0;
+    case 1:
+        return y % 2u == 0;
+    case 2:
+        return x % 3u == 0;
+    case 3:
+        return (x + y) % 3u == 0;
+    case 4:
+        return (x / 3u + y / 2u) % 2u == 0;
+    case 5:
+        return x * y % 2u + x * y % 3u == 0;
+    case 6:
+        return (x * y % 2u + x * y % 3u) % 2u == 0;
+    default:
+        return ((x + y) % 2u + x * y % 3u) % 2u == 0;
     }
 }
 
@@ -247,7 +256,8 @@ static int hist_count(const int h[7])
 {
     int n = h[1];
     int core = n > 0 && h[2] == n && h[3] == n * 3 && h[4] == n && h[5] == n;
-    return (core && h[0] >= n * 4 && h[6] >= n ? 1 : 0) + (core && h[6] >= n * 4 && h[0] >= n ? 1 : 0);
+    return (core && h[0] >= n * 4 && h[6] >= n ? 1 : 0) +
+           (core && h[6] >= n * 4 && h[0] >= n ? 1 : 0);
 }
 
 static int hist_end(int color, int run, int h[7], int size)
@@ -272,8 +282,10 @@ static long penalty(const qr_code_t *qr)
                 int m = pass == 0 ? qr->mod[a * s + b] : qr->mod[b * s + a];
                 if (m == color) {
                     run++;
-                    if (run == 5) score += 3;
-                    else if (run > 5) score++;
+                    if (run == 5)
+                        score += 3;
+                    else if (run > 5)
+                        score++;
                 } else {
                     hist_add(run, h, s);
                     if (!color) score += hist_count(h) * 40;
@@ -301,8 +313,7 @@ static long penalty(const qr_code_t *qr)
 
 /* ===== encode ========================================================= */
 
-qr_err_t qr_encode_bytes(qr_code_t *qr, const uint8_t *data, size_t len, int min_version,
-                         int mask)
+qr_err_t qr_encode_bytes(qr_code_t *qr, const uint8_t *data, size_t len, int min_version, int mask)
 {
     if (!qr || (!data && len)) return QR_E_ARG;
     if (min_version == 0) min_version = 1;

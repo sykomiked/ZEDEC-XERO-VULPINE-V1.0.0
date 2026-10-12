@@ -1927,13 +1927,31 @@ static void test_people_methods(void)
     int n = people_calls;
     EXPECT("{\"jsonrpc\":\"2.0\",\"method\":\"ui.get\"}", "<none>");
     CHECK(people_calls == n + 1, "a notification is executed and gets no reply");
-    static const char *const ALL[] = {
-        "social.post",   "social.feed",    "social.groups",   "social.group_create",
-        "social.join",   "social.leave",   "social.react",    "social.export",
-        "social.import", "call.start",     "call.accept",     "call.hangup",
-        "call.status",   "call.signal",    "xlate.detect",    "xlate.translate",
-        "xlate.languages", "devmesh.status", "devmesh.invite", "devmesh.join",
-        "devmesh.confirm_sas", "devmesh.revoke", "devmesh.devices", "ui.get", "ui.set"};
+    static const char *const ALL[] = {"social.post",
+                                      "social.feed",
+                                      "social.groups",
+                                      "social.group_create",
+                                      "social.join",
+                                      "social.leave",
+                                      "social.react",
+                                      "social.export",
+                                      "social.import",
+                                      "call.start",
+                                      "call.accept",
+                                      "call.hangup",
+                                      "call.status",
+                                      "call.signal",
+                                      "xlate.detect",
+                                      "xlate.translate",
+                                      "xlate.languages",
+                                      "devmesh.status",
+                                      "devmesh.invite",
+                                      "devmesh.join",
+                                      "devmesh.confirm_sas",
+                                      "devmesh.revoke",
+                                      "devmesh.devices",
+                                      "ui.get",
+                                      "ui.set"};
     unsigned routed = 0;
     for (unsigned i = 0; i < sizeof ALL / sizeof ALL[0]; i++) {
         char req[160];

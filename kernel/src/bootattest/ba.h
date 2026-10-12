@@ -92,17 +92,17 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define BA_DIGEST_LEN   32u
-#define BA_NAME_MAX     31u
-#define BA_MAX_EVENTS   16u
-#define BA_NONCE_LEN    32u
-#define BA_KEYHASH_LEN  32u
-#define BA_ID_LEN       36u                 /* CIDv1 raw sha2-256, binary */
-#define BA_ID_TEXT_LEN  59u                 /* "b" + 58 base32 chars      */
-#define BA_PK_LEN       2592u               /* ML-DSA-87 public key       */
-#define BA_SK_LEN       4896u               /* ML-DSA-87 secret key       */
-#define BA_SIG_LEN      4627u               /* ML-DSA-87 signature        */
-#define BA_NONCE_SLOTS  16u
+#define BA_DIGEST_LEN  32u
+#define BA_NAME_MAX    31u
+#define BA_MAX_EVENTS  16u
+#define BA_NONCE_LEN   32u
+#define BA_KEYHASH_LEN 32u
+#define BA_ID_LEN      36u   /* CIDv1 raw sha2-256, binary */
+#define BA_ID_TEXT_LEN 59u   /* "b" + 58 base32 chars      */
+#define BA_PK_LEN      2592u /* ML-DSA-87 public key       */
+#define BA_SK_LEN      4896u /* ML-DSA-87 secret key       */
+#define BA_SIG_LEN     4627u /* ML-DSA-87 signature        */
+#define BA_NONCE_SLOTS 16u
 
 #define BA_QUOTE_HDR    (8u + BA_NONCE_LEN + BA_ID_LEN + BA_KEYHASH_LEN + BA_DIGEST_LEN)
 #define BA_EVENT_MAX    (1u + BA_NAME_MAX + BA_DIGEST_LEN)
@@ -144,18 +144,18 @@ const char *ba_strerror(ba_err_t e);
  * device (or release) key and write a BA_SIG_LEN signature. Return true on
  * success. A hardware key store implements this; ba_soft_signer is the
  * software fallback. */
-typedef bool (*ba_sign_fn)(void *user, const uint8_t *msg, size_t msg_len,
-                           const uint8_t *ctx, size_t ctx_len, uint8_t sig[BA_SIG_LEN]);
+typedef bool (*ba_sign_fn)(void *user, const uint8_t *msg, size_t msg_len, const uint8_t *ctx,
+                           size_t ctx_len, uint8_t sig[BA_SIG_LEN]);
 
 typedef struct {
-    const uint8_t *sk;          /* BA_SK_LEN bytes, held in ordinary memory */
-    const uint8_t *rnd;         /* 32 fresh bytes (hedged) or NULL (deterministic) */
-    bool hardware_backed;       /* always false for this signer */
+    const uint8_t *sk;    /* BA_SK_LEN bytes, held in ordinary memory */
+    const uint8_t *rnd;   /* 32 fresh bytes (hedged) or NULL (deterministic) */
+    bool hardware_backed; /* always false for this signer */
 } ba_soft_key_t;
 
 /* user must point at a ba_soft_key_t. */
-bool ba_soft_signer(void *user, const uint8_t *msg, size_t msg_len,
-                    const uint8_t *ctx, size_t ctx_len, uint8_t sig[BA_SIG_LEN]);
+bool ba_soft_signer(void *user, const uint8_t *msg, size_t msg_len, const uint8_t *ctx,
+                    size_t ctx_len, uint8_t sig[BA_SIG_LEN]);
 
 /* Software key generation from a 32-byte seed (FIPS 204 KeyGen_internal). */
 void ba_soft_keygen(const uint8_t seed[32], uint8_t pk[BA_PK_LEN], uint8_t sk[BA_SK_LEN]);
@@ -177,14 +177,14 @@ void ba_id_text(const uint8_t id[BA_ID_LEN], char out[BA_ID_TEXT_LEN + 1]);
 
 typedef struct {
     uint8_t name_len;
-    char    name[BA_NAME_MAX + 1];      /* NUL-terminated copy */
+    char name[BA_NAME_MAX + 1]; /* NUL-terminated copy */
     uint8_t digest[BA_DIGEST_LEN];
 } ba_event_t;
 
 typedef struct {
-    uint8_t    n;
+    uint8_t n;
     ba_event_t ev[BA_MAX_EVENTS];
-    uint8_t    chain[BA_DIGEST_LEN];
+    uint8_t chain[BA_DIGEST_LEN];
 } ba_log_t;
 
 void ba_log_init(ba_log_t *log);
@@ -198,23 +198,22 @@ void ba_replay(const ba_event_t *ev, unsigned n, uint8_t chain[BA_DIGEST_LEN]);
 /* Build and sign a quote. Writes *out_len bytes (at most BA_QUOTE_MAX). */
 ba_err_t ba_quote(const ba_log_t *log, const uint8_t nonce[BA_NONCE_LEN],
                   const uint8_t manifest_id[BA_ID_LEN],
-                  const uint8_t device_key_hash[BA_KEYHASH_LEN],
-                  ba_sign_fn sign, void *sign_user,
+                  const uint8_t device_key_hash[BA_KEYHASH_LEN], ba_sign_fn sign, void *sign_user,
                   uint8_t *out, size_t cap, size_t *out_len);
 
 /* ---- golden manifest (release side) ---------------------------------- */
 
 typedef struct {
-    uint32_t   image_version;
-    uint64_t   issued_at;
-    uint8_t    release_key_hash[BA_KEYHASH_LEN];
-    uint8_t    n;
+    uint32_t image_version;
+    uint64_t issued_at;
+    uint8_t release_key_hash[BA_KEYHASH_LEN];
+    uint8_t n;
     ba_event_t stage[BA_MAX_EVENTS];
 } ba_manifest_t;
 
 /* Encode and sign. The stage names follow rule B2. */
-ba_err_t ba_manifest_build(const ba_manifest_t *m, ba_sign_fn sign, void *sign_user,
-                           uint8_t *out, size_t cap, size_t *out_len);
+ba_err_t ba_manifest_build(const ba_manifest_t *m, ba_sign_fn sign, void *sign_user, uint8_t *out,
+                           size_t cap, size_t *out_len);
 /* Parse only (no signature check): BA_OK or BA_E_MANIFEST_FORMAT. */
 ba_err_t ba_manifest_parse(const uint8_t *rec, size_t len, ba_manifest_t *m);
 /* Parse, check the signer's hash and the signature. */
@@ -224,10 +223,10 @@ ba_err_t ba_manifest_verify(const uint8_t *rec, size_t len, const uint8_t releas
 /* ---- verifying (peer side) ------------------------------------------- */
 
 typedef struct {
-    uint8_t  issued[BA_NONCE_SLOTS][BA_NONCE_LEN];
-    uint8_t  issued_live[BA_NONCE_SLOTS];
-    uint8_t  used[BA_NONCE_SLOTS][BA_NONCE_LEN];
-    uint8_t  used_live[BA_NONCE_SLOTS];
+    uint8_t issued[BA_NONCE_SLOTS][BA_NONCE_LEN];
+    uint8_t issued_live[BA_NONCE_SLOTS];
+    uint8_t used[BA_NONCE_SLOTS][BA_NONCE_LEN];
+    uint8_t used_live[BA_NONCE_SLOTS];
     unsigned issued_next, used_next;
     uint32_t min_image_version;
 } ba_verifier_t;
@@ -239,15 +238,15 @@ void ba_verifier_issue(ba_verifier_t *v, const uint8_t nonce[BA_NONCE_LEN]);
 
 typedef struct {
     ba_manifest_t manifest;
-    uint8_t       n_events;
-    ba_event_t    ev[BA_MAX_EVENTS];
-    uint8_t       chain[BA_DIGEST_LEN];
-    unsigned      bad_index;   /* event index for the BA_E_STAGE_* errors */
+    uint8_t n_events;
+    ba_event_t ev[BA_MAX_EVENTS];
+    uint8_t chain[BA_DIGEST_LEN];
+    unsigned bad_index; /* event index for the BA_E_STAGE_* errors */
 } ba_result_t;
 
 ba_err_t ba_verify_quote(ba_verifier_t *v, const uint8_t *quote, size_t quote_len,
-                         const uint8_t device_pk[BA_PK_LEN],
-                         const uint8_t *manifest, size_t manifest_len,
-                         const uint8_t release_pk[BA_PK_LEN], ba_result_t *res);
+                         const uint8_t device_pk[BA_PK_LEN], const uint8_t *manifest,
+                         size_t manifest_len, const uint8_t release_pk[BA_PK_LEN],
+                         ba_result_t *res);
 
 #endif /* ZXV_BOOTATTEST_BA_H */

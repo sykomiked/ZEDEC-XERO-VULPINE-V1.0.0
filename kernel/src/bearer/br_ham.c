@@ -221,7 +221,8 @@ int br_ham_rx_push(br_ham_rx_t *rx, const uint8_t *frame, uint32_t n, const uint
     br_ax25_ui_t ui;
     br_status_t rc = br_ax25_ui_decode(frame, n, &ui);
     if (rc != BR_OK) return refuse(rx, rc);
-    if (ui.pid != BR_AX25_PID_NONE || !br_ax25_is_station(&ui.src)) return refuse(rx, BR_ERR_FORMAT);
+    if (ui.pid != BR_AX25_PID_NONE || !br_ax25_is_station(&ui.src))
+        return refuse(rx, BR_ERR_FORMAT);
     const uint8_t *p = ui.info;
     uint32_t il = ui.info_len;
     if (il < 13u || !br_meq(p, "ZXV1 ", 5) || p[9] != ' ') return refuse(rx, BR_ERR_FORMAT);

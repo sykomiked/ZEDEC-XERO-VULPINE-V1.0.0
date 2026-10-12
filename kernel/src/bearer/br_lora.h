@@ -61,15 +61,15 @@
 
 #include "br_frag.h"
 
-#define BR_LORA_PL_MAX     255u
-#define BR_LORA_LDRO_OFF   0u
-#define BR_LORA_LDRO_ON    1u
-#define BR_LORA_LDRO_AUTO  2u
-#define BR_LORA_US_DWELL_US 400000u
+#define BR_LORA_PL_MAX       255u
+#define BR_LORA_LDRO_OFF     0u
+#define BR_LORA_LDRO_ON      1u
+#define BR_LORA_LDRO_AUTO    2u
+#define BR_LORA_US_DWELL_US  400000u
 #define BR_LORA_US_WINDOW_MS 20000u
-#define BR_LORA_HIST       64u
-#define BR_LORA_EU_BANDS   6u
-#define BR_LORA_MAX_CHANS  8u
+#define BR_LORA_HIST         64u
+#define BR_LORA_EU_BANDS     6u
+#define BR_LORA_MAX_CHANS    8u
 
 typedef enum {
     BR_LORA_REGION_NONE = 0,

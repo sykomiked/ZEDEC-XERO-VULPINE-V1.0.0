@@ -161,7 +161,8 @@ static uint64_t water_fill(uint64_t *alloc, const bool *elig, uint32_t n, uint64
         if (room == 0) return excess; /* every eligible node is at the cap */
         if (sumw == 0 || excess >= room) {
             /* by room: never overshoots when excess <= room */
-            for (uint32_t i = 0; i < n; i++) w[i] = (elig[i] && alloc[i] < cap) ? cap - alloc[i] : 0;
+            for (uint32_t i = 0; i < n; i++)
+                w[i] = (elig[i] && alloc[i] < cap) ? cap - alloc[i] : 0;
             uint64_t give = excess < room ? excess : room;
             swarm_split_lr(give, w, n, add);
             for (uint32_t i = 0; i < n; i++) alloc[i] += add[i];
@@ -252,7 +253,8 @@ static bool pick(const ec_cluster_t *c, const ec_cycle_t *cy, const ec_req_t *r,
         }
         if (m < 0) continue;
         if (why < EC_WHY_NO_MEMORY) why = EC_WHY_NO_MEMORY;
-        if (cy->mem_used[i] > e->ad.free_mem_mb || e->ad.free_mem_mb - cy->mem_used[i] < r->kv_mem_mb)
+        if (cy->mem_used[i] > e->ad.free_mem_mb ||
+            e->ad.free_mem_mb - cy->mem_used[i] < r->kv_mem_mb)
             continue;
         if (why < EC_WHY_NO_BUDGET) why = EC_WHY_NO_BUDGET;
         if (cy->alloc[i] - cy->used[i] < need) continue;

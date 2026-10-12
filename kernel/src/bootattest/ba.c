@@ -88,10 +88,27 @@ static bool name_bytes_ok(const uint8_t *p, unsigned n)
 const char *ba_strerror(ba_err_t e)
 {
     static const char *const names[BA_E_COUNT_] = {
-        "ok", "arg", "name", "full", "space", "signer", "format", "manifest-format",
-        "manifest-key", "manifest-sig", "rollback", "manifest-id", "wrong-key", "sig",
-        "nonce-replay", "nonce-unknown", "chain", "stage-unknown", "stage-order",
-        "stage-digest", "stage-missing",
+        "ok",
+        "arg",
+        "name",
+        "full",
+        "space",
+        "signer",
+        "format",
+        "manifest-format",
+        "manifest-key",
+        "manifest-sig",
+        "rollback",
+        "manifest-id",
+        "wrong-key",
+        "sig",
+        "nonce-replay",
+        "nonce-unknown",
+        "chain",
+        "stage-unknown",
+        "stage-order",
+        "stage-digest",
+        "stage-missing",
     };
     if ((unsigned) e >= (unsigned) BA_E_COUNT_) return "unknown";
     return names[e];
@@ -258,8 +275,8 @@ static size_t events_read(const uint8_t *p, size_t len, ba_event_t *ev, unsigned
 
 ba_err_t ba_quote(const ba_log_t *log, const uint8_t nonce[BA_NONCE_LEN],
                   const uint8_t manifest_id[BA_ID_LEN],
-                  const uint8_t device_key_hash[BA_KEYHASH_LEN], ba_sign_fn sign,
-                  void *sign_user, uint8_t *out, size_t cap, size_t *out_len)
+                  const uint8_t device_key_hash[BA_KEYHASH_LEN], ba_sign_fn sign, void *sign_user,
+                  uint8_t *out, size_t cap, size_t *out_len)
 {
     if (!log || !nonce || !manifest_id || !device_key_hash || !sign || !out || !out_len)
         return BA_E_ARG;
@@ -267,13 +284,23 @@ ba_err_t ba_quote(const ba_log_t *log, const uint8_t nonce[BA_NONCE_LEN],
     size_t body = BA_QUOTE_HDR + events_size(log->ev, log->n);
     if (cap < body + BA_SIG_LEN) return BA_E_SPACE;
     uint8_t *p = out;
-    p[0] = 'Z'; p[1] = 'B'; p[2] = 'Q'; p[3] = '1';
-    p[4] = 1; p[5] = log->n; p[6] = 0; p[7] = 0;
+    p[0] = 'Z';
+    p[1] = 'B';
+    p[2] = 'Q';
+    p[3] = '1';
+    p[4] = 1;
+    p[5] = log->n;
+    p[6] = 0;
+    p[7] = 0;
     size_t o = 8;
-    b_cpy(p + o, nonce, BA_NONCE_LEN); o += BA_NONCE_LEN;
-    b_cpy(p + o, manifest_id, BA_ID_LEN); o += BA_ID_LEN;
-    b_cpy(p + o, device_key_hash, BA_KEYHASH_LEN); o += BA_KEYHASH_LEN;
-    b_cpy(p + o, log->chain, BA_DIGEST_LEN); o += BA_DIGEST_LEN;
+    b_cpy(p + o, nonce, BA_NONCE_LEN);
+    o += BA_NONCE_LEN;
+    b_cpy(p + o, manifest_id, BA_ID_LEN);
+    o += BA_ID_LEN;
+    b_cpy(p + o, device_key_hash, BA_KEYHASH_LEN);
+    o += BA_KEYHASH_LEN;
+    b_cpy(p + o, log->chain, BA_DIGEST_LEN);
+    o += BA_DIGEST_LEN;
     o += events_write(p + o, log->ev, log->n);
     if (!sign(sign_user, out, o, CTX_QUOTE, CTX_QUOTE_LEN, out + o)) {
         b_zero(out, o + BA_SIG_LEN);
@@ -285,20 +312,26 @@ ba_err_t ba_quote(const ba_log_t *log, const uint8_t nonce[BA_NONCE_LEN],
 
 /* ===== manifest ======================================================= */
 
-ba_err_t ba_manifest_build(const ba_manifest_t *m, ba_sign_fn sign, void *sign_user,
-                           uint8_t *out, size_t cap, size_t *out_len)
+ba_err_t ba_manifest_build(const ba_manifest_t *m, ba_sign_fn sign, void *sign_user, uint8_t *out,
+                           size_t cap, size_t *out_len)
 {
     if (!m || !sign || !out || !out_len) return BA_E_ARG;
     if (m->n == 0 || !events_valid(m->stage, m->n)) return BA_E_NAME;
-    for (unsigned i = 0; i < m->n; i++)          /* names must be unique */
+    for (unsigned i = 0; i < m->n; i++) /* names must be unique */
         for (unsigned j = 0; j < i; j++)
             if (m->stage[i].name_len == m->stage[j].name_len &&
                 b_eq(m->stage[i].name, m->stage[j].name, m->stage[i].name_len))
                 return BA_E_NAME;
     size_t body = BA_MANIFEST_HDR + events_size(m->stage, m->n);
     if (cap < body + BA_SIG_LEN) return BA_E_SPACE;
-    out[0] = 'Z'; out[1] = 'B'; out[2] = 'M'; out[3] = '1';
-    out[4] = 1; out[5] = m->n; out[6] = 0; out[7] = 0;
+    out[0] = 'Z';
+    out[1] = 'B';
+    out[2] = 'M';
+    out[3] = '1';
+    out[4] = 1;
+    out[5] = m->n;
+    out[6] = 0;
+    out[7] = 0;
     wr32(out + 8, m->image_version);
     wr32(out + 12, 0);
     wr64(out + 16, m->issued_at);
@@ -389,16 +422,15 @@ static bool event_name_eq(const ba_event_t *a, const ba_event_t *b)
 
 ba_err_t ba_verify_quote(ba_verifier_t *v, const uint8_t *quote, size_t quote_len,
                          const uint8_t device_pk[BA_PK_LEN], const uint8_t *manifest,
-                         size_t manifest_len, const uint8_t release_pk[BA_PK_LEN],
-                         ba_result_t *res)
+                         size_t manifest_len, const uint8_t release_pk[BA_PK_LEN], ba_result_t *res)
 {
     if (!v || !quote || !device_pk || !manifest || !release_pk || !res) return BA_E_ARG;
     b_zero(res, sizeof *res);
 
     /* 1. quote format */
     if (quote_len < BA_QUOTE_HDR + BA_SIG_LEN || quote_len > BA_QUOTE_MAX) return BA_E_FORMAT;
-    if (quote[0] != 'Z' || quote[1] != 'B' || quote[2] != 'Q' || quote[3] != '1' ||
-        quote[4] != 1 || quote[6] != 0 || quote[7] != 0)
+    if (quote[0] != 'Z' || quote[1] != 'B' || quote[2] != 'Q' || quote[3] != '1' || quote[4] != 1 ||
+        quote[6] != 0 || quote[7] != 0)
         return BA_E_FORMAT;
     unsigned n = quote[5];
     if (n > BA_MAX_EVENTS) return BA_E_FORMAT;
@@ -444,7 +476,10 @@ ba_err_t ba_verify_quote(ba_verifier_t *v, const uint8_t *quote, size_t quote_le
         res->bad_index = i;
         int at = -1;
         for (unsigned j = 0; j < m->n; j++)
-            if (event_name_eq(&res->ev[i], &m->stage[j])) { at = (int) j; break; }
+            if (event_name_eq(&res->ev[i], &m->stage[j])) {
+                at = (int) j;
+                break;
+            }
         if (at < 0) return BA_E_STAGE_UNKNOWN;
         if ((unsigned) at != i) return BA_E_STAGE_ORDER;
         if (!b_eq(res->ev[i].digest, m->stage[i].digest, BA_DIGEST_LEN)) return BA_E_STAGE_DIGEST;

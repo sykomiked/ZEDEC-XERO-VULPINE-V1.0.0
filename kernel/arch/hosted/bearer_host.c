@@ -20,16 +20,35 @@
 static int speed_of(uint32_t baud, speed_t *s)
 {
     switch (baud) {
-    case 1200: *s = B1200; return 0;
-    case 2400: *s = B2400; return 0;
-    case 4800: *s = B4800; return 0;
-    case 9600: *s = B9600; return 0;
-    case 19200: *s = B19200; return 0;
-    case 38400: *s = B38400; return 0;
-    case 57600: *s = B57600; return 0;
-    case 115200: *s = B115200; return 0;
-    case 230400: *s = B230400; return 0;
-    default: return -EINVAL;
+    case 1200:
+        *s = B1200;
+        return 0;
+    case 2400:
+        *s = B2400;
+        return 0;
+    case 4800:
+        *s = B4800;
+        return 0;
+    case 9600:
+        *s = B9600;
+        return 0;
+    case 19200:
+        *s = B19200;
+        return 0;
+    case 38400:
+        *s = B38400;
+        return 0;
+    case 57600:
+        *s = B57600;
+        return 0;
+    case 115200:
+        *s = B115200;
+        return 0;
+    case 230400:
+        *s = B230400;
+        return 0;
+    default:
+        return -EINVAL;
     }
 }
 

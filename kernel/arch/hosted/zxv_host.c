@@ -1520,8 +1520,9 @@ static int people_generate(void *ctx, const char *prompt, char *out, size_t cap)
     (void) ctx;
     const zxv_model_info_t *mi = zxv_model_info();
     if (!mi->loaded || !mi->can_generate) {
-        snprintf(out, cap, "%s", mi->loaded ? "the installed model cannot generate in this build"
-                                            : "no model is installed");
+        snprintf(out, cap, "%s",
+                 mi->loaded ? "the installed model cannot generate in this build"
+                            : "no model is installed");
         return ZXVD_GEN_NO_MODEL;
     }
     answer(prompt, out, cap);

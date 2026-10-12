@@ -19,7 +19,8 @@ br_status_t br_dm_classify(const uint8_t *frame, uint32_t len, uint8_t hint, uin
     if (t != BR_DM_T_REC) return BR_ERR_FORMAT;
     uint8_t c = (hint == 0 || hint >= BR_CLASS_COUNT) ? (uint8_t) BR_CLASS_AI : hint;
     *cls = c;
-    *flags = (uint8_t) (BR_F_AEAD | BR_F_ENCRYPTED | (c == BR_CLASS_SETTLEMENT ? BR_F_PAYMENT : 0u));
+    *flags =
+        (uint8_t) (BR_F_AEAD | BR_F_ENCRYPTED | (c == BR_CLASS_SETTLEMENT ? BR_F_PAYMENT : 0u));
     return BR_OK;
 }
 

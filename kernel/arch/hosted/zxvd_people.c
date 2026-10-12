@@ -35,20 +35,20 @@
 #define E_PEOPLE  ZXVD_E_PEOPLE
 #define E_NOMODEL ZXVD_E_NO_MODEL
 
-#define IDX_CAP     (4u * ZXVD_PEOPLE_RECORDS)
-#define NLINES      (ZXVD_PEOPLE_LINES + 1u) /* the last one is the loopback line */
-#define LOOP        ZXVD_PEOPLE_LINES
-#define CALL_OUT    32u /* call messages waiting for call.signal */
-#define LOOPQ       32u
-#define MESH_OUT    16u /* mesh frames waiting for the carrier */
-#define EVENTS      16u
-#define GROUPS_MAX  64u /* sg_member_t entries per derived group */
-#define SIGNAL_MAX  16u /* messages in one call.signal */
-#define LOG_LINE    32768u
-#define LOG_MAX     (256u << 20)
-#define SEED_BYTES  96u
-#define MESH_MAGIC  "ZXVDMESH1"
-#define TOKS        256
+#define IDX_CAP    (4u * ZXVD_PEOPLE_RECORDS)
+#define NLINES     (ZXVD_PEOPLE_LINES + 1u) /* the last one is the loopback line */
+#define LOOP       ZXVD_PEOPLE_LINES
+#define CALL_OUT   32u /* call messages waiting for call.signal */
+#define LOOPQ      32u
+#define MESH_OUT   16u /* mesh frames waiting for the carrier */
+#define EVENTS     16u
+#define GROUPS_MAX 64u /* sg_member_t entries per derived group */
+#define SIGNAL_MAX 16u /* messages in one call.signal */
+#define LOG_LINE   32768u
+#define LOG_MAX    (256u << 20)
+#define SEED_BYTES 96u
+#define MESH_MAGIC "ZXVDMESH1"
+#define TOKS       256
 
 /* ===================== state ===================== */
 
@@ -533,7 +533,8 @@ static void m_post(rq_t *r)
     uint8_t parent[SP_ID_LEN], gid[SP_ID_LEN];
     uint32_t len;
     if (!p_str(r, "text", text, sizeof text, true, &len) ||
-        !p_hex(r, "reply_to", parent, SP_ID_LEN, false) || !p_hex(r, "group", gid, SP_ID_LEN, false))
+        !p_hex(r, "reply_to", parent, SP_ID_LEN, false) ||
+        !p_hex(r, "group", gid, SP_ID_LEN, false))
         return;
     if (!len) return fail(r, E_PARAMS, "\"text\" must not be empty");
     if (!utf8_ok((const uint8_t *) text, len)) return fail(r, E_PARAMS, "\"text\" is not UTF-8");
@@ -680,7 +681,8 @@ static void m_feed(rq_t *r)
             zxvd_buf_raw(r->out, "null", 4);
         zxvd_buf_raw(r->out, ",\"text\":", 8);
         put_text(r->out, rec->body, rec->body_len);
-        zxvd_buf_printf(r->out, ",\"lamport\":\"%llu\",\"wall_ms\":", (unsigned long long) rec->lamport);
+        zxvd_buf_printf(r->out,
+                        ",\"lamport\":\"%llu\",\"wall_ms\":", (unsigned long long) rec->lamport);
         if (rec->has_wall)
             zxvd_buf_printf(r->out, "\"%llu\"", (unsigned long long) rec->wall_ms);
         else
@@ -922,7 +924,8 @@ static const char *media_name(uint8_t m)
 static const char *lower(const char *s, char *buf, size_t cap)
 {
     size_t i = 0;
-    for (; s[i] && i + 1 < cap; i++) buf[i] = (char) (s[i] >= 'A' && s[i] <= 'Z' ? s[i] + 32 : s[i]);
+    for (; s[i] && i + 1 < cap; i++)
+        buf[i] = (char) (s[i] >= 'A' && s[i] <= 'Z' ? s[i] + 32 : s[i]);
     buf[i] = 0;
     return buf;
 }
@@ -932,15 +935,16 @@ static void put_line(zxvd_people_t *p, zxvd_buf_t *o, uint32_t i)
     const call_session_t *s = &p->line[i].s;
     char cid[17], st[24], er[24];
     hex_of(s->call_id, 8, cid);
-    zxvd_buf_printf(o,
-                    "{\"line\":%u,\"loopback\":%s,\"state\":\"%s\",\"peer\":%u,\"outgoing\":%s,"
-                    "\"call_id\":\"%s\",\"media\":\"%s\",\"audio_pt\":%u,\"video_pt\":%u,"
-                    "\"end_reason\":\"%s\",\"missed\":%u}",
-                    (unsigned) i, i == LOOP ? "true" : "false", lower(call_state_name(s->state), st, sizeof st),
-                    (unsigned) s->peer, s->outgoing ? "true" : "false", cid,
-                    media_name(s->media ? s->media : s->media_wanted), (unsigned) s->audio_pt,
-                    (unsigned) s->video_pt, lower(call_end_reason_name(s->end_reason), er, sizeof er),
-                    (unsigned) p->line[i].missed);
+    zxvd_buf_printf(
+        o,
+        "{\"line\":%u,\"loopback\":%s,\"state\":\"%s\",\"peer\":%u,\"outgoing\":%s,"
+        "\"call_id\":\"%s\",\"media\":\"%s\",\"audio_pt\":%u,\"video_pt\":%u,"
+        "\"end_reason\":\"%s\",\"missed\":%u}",
+        (unsigned) i, i == LOOP ? "true" : "false", lower(call_state_name(s->state), st, sizeof st),
+        (unsigned) s->peer, s->outgoing ? "true" : "false", cid,
+        media_name(s->media ? s->media : s->media_wanted), (unsigned) s->audio_pt,
+        (unsigned) s->video_pt, lower(call_end_reason_name(s->end_reason), er, sizeof er),
+        (unsigned) p->line[i].missed);
 }
 
 static bool line_param(rq_t *r, uint32_t *line)
@@ -971,7 +975,8 @@ static void m_call_start(rq_t *r)
         mm |= CALL_MEDIA_VIDEO;
     else if (media[0] && strcmp(media, "audio"))
         return fail(r, E_PARAMS, "\"media\" must be \"audio\" or \"video\"");
-    if (peer == p->self_id) return fail(r, E_PARAMS, "that is this node's own id; use \"loopback\"");
+    if (peer == p->self_id)
+        return fail(r, E_PARAMS, "that is this node's own id; use \"loopback\"");
     if (peer == p->loop_id && p->line[LOOP].s.state != CALL_ST_IDLE &&
         p->line[LOOP].s.state != CALL_ST_ENDED)
         return fail(r, E_PEOPLE, "the loopback line is busy");
@@ -1010,7 +1015,8 @@ static void m_call_hangup(rq_t *r)
     if (s->state == CALL_ST_IDLE || s->state == CALL_ST_ENDED)
         return fail(r, E_PEOPLE, "line %u has no call", (unsigned) k);
     uint32_t now = (uint32_t) now_ms(p);
-    int rc = s->state == CALL_ST_INCOMING ? call_session_reject(s, now) : call_session_hangup(s, now);
+    int rc =
+        s->state == CALL_ST_INCOMING ? call_session_reject(s, now) : call_session_hangup(s, now);
     if (rc < 0) return fail(r, E_PEOPLE, "the call could not be ended (%d)", rc);
     loop_pump(p);
     put_line(p, r->out, k);
@@ -1036,7 +1042,8 @@ static void m_call_status(rq_t *r)
 static bool call_in(zxvd_people_t *p, const uint8_t *m, uint32_t len)
 {
     call_sig_t sg;
-    if (call_sig_parse(m, len, &sg) < 0 || sg.to != p->self_id || sg.from == p->loop_id) return false;
+    if (call_sig_parse(m, len, &sg) < 0 || sg.to != p->self_id || sg.from == p->loop_id)
+        return false;
     uint32_t now = (uint32_t) now_ms(p);
     int pick = -1;
     for (uint32_t i = 0; i < ZXVD_PEOPLE_LINES && pick < 0; i++)
@@ -1046,7 +1053,8 @@ static bool call_in(zxvd_people_t *p, const uint8_t *m, uint32_t len)
     if (pick < 0 && sg.type == CALL_MSG_OFFER) {
         for (uint32_t i = 0; i < ZXVD_PEOPLE_LINES && pick < 0; i++) /* glare */
             if (p->line[i].s.peer == sg.from && p->line[i].s.outgoing &&
-                (p->line[i].s.state == CALL_ST_OUTGOING || p->line[i].s.state == CALL_ST_RINGING_OUT))
+                (p->line[i].s.state == CALL_ST_OUTGOING ||
+                 p->line[i].s.state == CALL_ST_RINGING_OUT))
                 pick = (int) i;
         for (uint32_t i = 0; i < ZXVD_PEOPLE_LINES && pick < 0; i++)
             if (p->line[i].s.state == CALL_ST_IDLE || p->line[i].s.state == CALL_ST_ENDED)
@@ -1080,11 +1088,10 @@ static void m_call_signal(rq_t *r)
     for (uint32_t k = 0; k < n; k++) { /* all parsed before any is used */
         char hx[2 * CALL_SIG_MAX + 2];
         int32_t e = w4_json_at(r->t, r->n, a, k);
-        int32_t got = e >= 0 && r->t[e].type == W4_J_STR ? w4_json_str(r->js, &r->t[e], hx, sizeof hx)
-                                                          : -1;
-        int32_t d = got > 0 && got % 2 == 0
-                        ? w4_hex_decode(hx, (uint32_t) got, msgs[k], CALL_SIG_MAX)
-                        : -1;
+        int32_t got =
+            e >= 0 && r->t[e].type == W4_J_STR ? w4_json_str(r->js, &r->t[e], hx, sizeof hx) : -1;
+        int32_t d =
+            got > 0 && got % 2 == 0 ? w4_hex_decode(hx, (uint32_t) got, msgs[k], CALL_SIG_MAX) : -1;
         if (d <= 0)
             return fail(r, E_PARAMS, "\"in\" must hold call messages in hex (at most %u bytes)",
                         (unsigned) CALL_SIG_MAX);
@@ -1159,9 +1166,11 @@ static void m_detect(rq_t *r)
     zxvd_buf_raw(r->out, "{\"language\":", 12);
     zxvd_buf_json_str(r->out, li.tag ? li.tag : "und");
     zxvd_buf_raw(r->out, ",\"name\":", 8);
-    zxvd_buf_json_str(r->out, li.lang >= 0 ? xlate_langid_name((uint32_t) li.lang) : "undetermined");
+    zxvd_buf_json_str(r->out,
+                      li.lang >= 0 ? xlate_langid_name((uint32_t) li.lang) : "undetermined");
     zxvd_buf_printf(r->out, ",\"confidence\":%u,\"letters\":%u,\"reliable\":%s}",
-                    (unsigned) li.confidence, (unsigned) li.letters, li.reliable ? "true" : "false");
+                    (unsigned) li.confidence, (unsigned) li.letters,
+                    li.reliable ? "true" : "false");
 }
 
 static void m_languages(rq_t *r)
@@ -1186,7 +1195,8 @@ static void m_translate(rq_t *r)
     char to[XLATE_TAG_MAX], from[XLATE_TAG_MAX];
     uint32_t len;
     if (!p_str(r, "text", text, sizeof text, true, &len) ||
-        !p_str(r, "to", to, sizeof to, true, NULL) || !p_str(r, "from", from, sizeof from, false, NULL))
+        !p_str(r, "to", to, sizeof to, true, NULL) ||
+        !p_str(r, "from", from, sizeof from, false, NULL))
         return;
     if (!len) return fail(r, E_PARAMS, "\"text\" must not be empty");
     if (!tag_ok(to)) return fail(r, E_PARAMS, "\"to\" must be a language tag such as \"es\"");
@@ -1215,7 +1225,8 @@ static void m_translate(rq_t *r)
     if (machine) xlate_marker_label(&res, marker, sizeof marker);
     zxvd_buf_raw(r->out, "{\"text\":", 8);
     zxvd_buf_json_str(r->out, out);
-    zxvd_buf_printf(r->out, ",\"translated\":%s,\"machine\":%s,\"from\":", machine ? "true" : "false",
+    zxvd_buf_printf(r->out,
+                    ",\"translated\":%s,\"machine\":%s,\"from\":", machine ? "true" : "false",
                     machine ? "true" : "false");
     zxvd_buf_json_str(r->out, res.src);
     zxvd_buf_raw(r->out, ",\"to\":", 6);
@@ -1349,21 +1360,36 @@ static void mesh_after(zxvd_people_t *p)
 static const char *dm_why(int st)
 {
     switch (st) {
-    case DM_ERR_ARG: return "an argument is out of range";
-    case DM_ERR_SIZE: return "too large";
-    case DM_ERR_FORMAT: return "the code or QR payload is not well formed";
-    case DM_ERR_AUTH: return "a signature, MAC or key check failed";
-    case DM_ERR_UNKNOWN: return "that device is not in the roster";
-    case DM_ERR_REVOKED: return "that device is revoked";
-    case DM_ERR_STATE: return "not possible now (no pairing waiting, or already in a mesh)";
-    case DM_ERR_FULL: return "the mesh is full (8 devices)";
-    case DM_ERR_REPLAY: return "an old or repeated message";
-    case DM_ERR_PERM: return "not allowed (only an admin device may do this; the last admin stays)";
-    case DM_ERR_EXPIRED: return "the invitation has expired";
-    case DM_ERR_NOPEER: return "no session with that device";
-    case DM_ERR_CRYPTO: return "key generation or encapsulation failed";
-    case DM_ERR_TRANSPORT: return "the frame could not be queued";
-    default: return "failed";
+    case DM_ERR_ARG:
+        return "an argument is out of range";
+    case DM_ERR_SIZE:
+        return "too large";
+    case DM_ERR_FORMAT:
+        return "the code or QR payload is not well formed";
+    case DM_ERR_AUTH:
+        return "a signature, MAC or key check failed";
+    case DM_ERR_UNKNOWN:
+        return "that device is not in the roster";
+    case DM_ERR_REVOKED:
+        return "that device is revoked";
+    case DM_ERR_STATE:
+        return "not possible now (no pairing waiting, or already in a mesh)";
+    case DM_ERR_FULL:
+        return "the mesh is full (8 devices)";
+    case DM_ERR_REPLAY:
+        return "an old or repeated message";
+    case DM_ERR_PERM:
+        return "not allowed (only an admin device may do this; the last admin stays)";
+    case DM_ERR_EXPIRED:
+        return "the invitation has expired";
+    case DM_ERR_NOPEER:
+        return "no session with that device";
+    case DM_ERR_CRYPTO:
+        return "key generation or encapsulation failed";
+    case DM_ERR_TRANSPORT:
+        return "the frame could not be queued";
+    default:
+        return "failed";
     }
 }
 
@@ -1386,9 +1412,10 @@ static void m_dm_status(rq_t *r)
     zxvd_buf_printf(r->out,
                     ",\"role\":\"%s\",\"admin\":%s,\"level\":\"high\",\"roster_version\":\"%llu\","
                     "\"devices\":%u,\"inviting\":%s,\"joining\":%s,\"pairing\":",
-                    ROLE_DM[m->self_role <= 3 ? m->self_role : 0], dm_is_admin(m) ? "true" : "false",
-                    (unsigned long long) ro->version, (unsigned) ro->n,
-                    m->inv_active ? "true" : "false", m->join_active ? "true" : "false");
+                    ROLE_DM[m->self_role <= 3 ? m->self_role : 0],
+                    dm_is_admin(m) ? "true" : "false", (unsigned long long) ro->version,
+                    (unsigned) ro->n, m->inv_active ? "true" : "false",
+                    m->join_active ? "true" : "false");
     if (p->sas_on) {
         zxvd_buf_raw(r->out, "{\"device\":", 10);
         put_hex(r->out, p->sas_peer, DM_ID_BYTES);
@@ -1442,16 +1469,19 @@ static void m_dm_invite(rq_t *r)
     uint8_t qr[DM_QR_MAX];
     uint32_t qlen = 0;
     char code[DM_CODE_CHARS + 1];
-    int st = dm_invite(p->mesh, rl, (uint8_t) ((admin ? DM_FLAG_ADMIN : 0) | (held ? DM_FLAG_HELD : 0)),
-                       alen ? (const uint8_t *) addr : NULL, alen, now, qr, &qlen, code);
+    int st =
+        dm_invite(p->mesh, rl, (uint8_t) ((admin ? DM_FLAG_ADMIN : 0) | (held ? DM_FLAG_HELD : 0)),
+                  alen ? (const uint8_t *) addr : NULL, alen, now, qr, &qlen, code);
     mesh_after(p);
     if (st != DM_OK) return fail(r, E_PEOPLE, "no invitation: %s", dm_why(st));
     char b32[(DM_QR_MAX * 8u + 4u) / 5u + 2u];
-    if (dm_b32_encode(qr, qlen, b32, sizeof b32) < 0) return fail(r, E_PEOPLE, "QR encoding failed");
+    if (dm_b32_encode(qr, qlen, b32, sizeof b32) < 0)
+        return fail(r, E_PEOPLE, "QR encoding failed");
     zxvd_buf_raw(r->out, "{\"qr\":", 6);
     zxvd_buf_json_str(r->out, b32);
-    zxvd_buf_printf(r->out, ",\"qr_bytes\":%u,\"code\":\"%.5s-%.5s\",\"expires_in_ms\":%u,"
-                            "\"created_mesh\":%s,\"mesh_id\":",
+    zxvd_buf_printf(r->out,
+                    ",\"qr_bytes\":%u,\"code\":\"%.5s-%.5s\",\"expires_in_ms\":%u,"
+                    "\"created_mesh\":%s,\"mesh_id\":",
                     (unsigned) qlen, code, code + 5, (unsigned) DM_INVITE_TTL_MS,
                     created ? "true" : "false");
     put_hex(r->out, p->mesh->mesh_id, DM_ID_BYTES);
@@ -1463,7 +1493,8 @@ static void m_dm_join(rq_t *r)
     zxvd_people_t *p = r->p;
     char qr[2 * DM_QR_MAX], code[32];
     uint32_t ql;
-    if (!p_str(r, "qr", qr, sizeof qr, false, &ql) || !p_str(r, "code", code, sizeof code, false, NULL))
+    if (!p_str(r, "qr", qr, sizeof qr, false, &ql) ||
+        !p_str(r, "code", code, sizeof code, false, NULL))
         return;
     if (has(r, "qr") == has(r, "code"))
         return fail(r, E_PARAMS, "give exactly one of \"qr\" and \"code\"");
@@ -1479,8 +1510,9 @@ static void m_dm_join(rq_t *r)
     }
     mesh_after(p);
     if (st != DM_OK) return fail(r, E_PEOPLE, "could not start pairing: %s", dm_why(st));
-    zxvd_buf_printf(r->out, "{\"pairing\":true,\"frames_waiting\":%u,\"next\":\"compare the "
-                            "six-digit code on both screens, then devmesh.confirm_sas\"}",
+    zxvd_buf_printf(r->out,
+                    "{\"pairing\":true,\"frames_waiting\":%u,\"next\":\"compare the "
+                    "six-digit code on both screens, then devmesh.confirm_sas\"}",
                     (unsigned) p->mout_n);
 }
 
@@ -1522,7 +1554,8 @@ static void m_dm_devices(rq_t *r)
     zxvd_people_t *p = r->p;
     const dm_roster_t *ro = dm_roster(p->mesh);
     uint64_t now = now_ms(p);
-    zxvd_buf_printf(r->out, "{\"roster_version\":\"%llu\",\"devices\":[", (unsigned long long) ro->version);
+    zxvd_buf_printf(r->out, "{\"roster_version\":\"%llu\",\"devices\":[",
+                    (unsigned long long) ro->version);
     for (uint32_t i = 0; i < ro->n; i++) {
         const dm_dev_t *d = &ro->dev[i];
         bool self = !memcmp(d->id, dm_self_id(p->mesh), DM_ID_BYTES);
@@ -1563,7 +1596,8 @@ static void m_ui_set(rq_t *r)
 {
     zxvd_people_t *p = r->p;
     bool on;
-    if (!has(r, "simple_mode")) return fail(r, E_PARAMS, "missing boolean parameter \"simple_mode\"");
+    if (!has(r, "simple_mode"))
+        return fail(r, E_PARAMS, "missing boolean parameter \"simple_mode\"");
     if (!p_bool(r, "simple_mode", false, &on)) return;
     if (on != p->simple) {
         char js[48];
@@ -1632,8 +1666,8 @@ int zxvd_people_call(zxvd_people_t *p, const char *method, const char *params, s
     }
     r.n = w4_json_parse(params, (uint32_t) len, r.t, TOKS, 8);
     if (r.n <= 0 || r.t[0].type != W4_J_OBJ) {
-        snprintf(msg, msg_cap, "params must be an object (at most %d values, nested at most 8 deep)",
-                 TOKS);
+        snprintf(msg, msg_cap,
+                 "params must be an object (at most %d values, nested at most 8 deep)", TOKS);
         return E_PARAMS;
     }
     size_t before = out->len;
@@ -1708,7 +1742,8 @@ static const char *log_load(zxvd_people_t *p)
     struct stat st;
     if (fstat(p->fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_uid != getuid())
         return "the people file is not a regular file of ours";
-    if (st.st_mode & (S_IRWXG | S_IRWXO)) return "the people file is readable by others (want 0600)";
+    if (st.st_mode & (S_IRWXG | S_IRWXO))
+        return "the people file is readable by others (want 0600)";
     if (flock(p->fd, LOCK_EX | LOCK_NB) != 0) return "another zxvd has the people file open";
     if (st.st_size > (off_t) LOG_MAX) return "the people file is too large";
     size_t size = (size_t) st.st_size;
@@ -1758,7 +1793,8 @@ static const char *log_load(zxvd_people_t *p)
     p->replay = false;
     free(all);
     if (why) return why;
-    if (whole != size && ftruncate(p->fd, (off_t) whole) != 0) return "a torn record could not be cut";
+    if (whole != size && ftruncate(p->fd, (off_t) whole) != 0)
+        return "a torn record could not be cut";
     return NULL;
 }
 
@@ -1823,7 +1859,8 @@ zxvd_people_t *zxvd_people_new(const char *path, const zxvd_people_host_t *host,
         memset(js, 0, sizeof js);
     }
     if (!err) {
-        xlate_backend_t b = {xl_backend, p, "the local model", xlate_template_find("qwen2.5-instruct")};
+        xlate_backend_t b = {xl_backend, p, "the local model",
+                             xlate_template_find("qwen2.5-instruct")};
         xlate_init(p->xl);
         xlate_set_backend(p->xl, &b);
         dm_host_t h;
@@ -1855,7 +1892,7 @@ zxvd_people_t *zxvd_people_new(const char *path, const zxvd_people_host_t *host,
             else if (a != (ssize_t) sizeof hd || memcmp(hd.magic, MESH_MAGIC, sizeof MESH_MAGIC) ||
                      hd.size != sizeof *c || got != sizeof *c)
                 err = "the mesh snapshot is from another build or cut short";
-            else if (sha256(( const uint8_t *) c, sizeof *c, h), memcmp(h, hd.hash, 32))
+            else if (sha256((const uint8_t *) c, sizeof *c, h), memcmp(h, hd.hash, 32))
                 err = "the mesh snapshot is damaged";
             else if (memcmp(c->self_id, p->mesh->self_id, DM_ID_BYTES))
                 err = "the mesh snapshot belongs to another identity";
@@ -1907,7 +1944,8 @@ void zxvd_people_tick(zxvd_people_t *p, uint64_t now)
     if (p->now_fixed) now = p->now_fixed;
     for (uint32_t i = 0; i < NLINES; i++) {
         call_state_t st = p->line[i].s.state;
-        if (st != CALL_ST_IDLE && st != CALL_ST_ENDED) call_session_tick(&p->line[i].s, (uint32_t) now);
+        if (st != CALL_ST_IDLE && st != CALL_ST_ENDED)
+            call_session_tick(&p->line[i].s, (uint32_t) now);
     }
     loop_pump(p);
     dm_tick(p->mesh, now);
@@ -2000,7 +2038,8 @@ bool zxvd_people_http(const char *body, size_t len, zxvd_buf_t *out)
     int32_t m = w4_json_get(body, t, n, 0, "method");
     if (m < 0 || w4_json_str(body, &t[m], method, sizeof method) < 0) return false;
     bool ok = false;
-    for (size_t i = 0; i < sizeof ALLOW / sizeof ALLOW[0] && !ok; i++) ok = !strcmp(method, ALLOW[i]);
+    for (size_t i = 0; i < sizeof ALLOW / sizeof ALLOW[0] && !ok; i++)
+        ok = !strcmp(method, ALLOW[i]);
     for (size_t i = 0; i < sizeof PREFIX / sizeof PREFIX[0] && !ok; i++)
         ok = !strncmp(method, PREFIX[i], strlen(PREFIX[i]));
     if (!ok) return false;

@@ -27,7 +27,10 @@ static void in_random(void *ctx, uint8_t *out, uint32_t n)
 }
 static int in_send(void *ctx, const uint8_t to[DM_ID_BYTES], const uint8_t *f, uint32_t n)
 {
-    (void) ctx; (void) to; (void) f; (void) n;
+    (void) ctx;
+    (void) to;
+    (void) f;
+    (void) n;
     return 0;
 }
 static void in_event(void *ctx, const dm_event_t *ev)
@@ -38,7 +41,8 @@ static void in_event(void *ctx, const dm_event_t *ev)
 static void in_request(void *ctx, const uint8_t from[DM_ID_BYTES], uint32_t id, uint8_t kind,
                        const uint8_t *p, uint32_t n)
 {
-    (void) from; (void) p;
+    (void) from;
+    (void) p;
     g_seen_ctx = ctx;
     g_inner_req += (int) (id + kind + n);
 }
@@ -51,7 +55,8 @@ typedef struct {
 static int fl_send(void *ctx, const uint8_t to[BR_ID_BYTES], const uint8_t *d, uint32_t n)
 {
     fl_t *f = (fl_t *) ctx;
-    (void) to; (void) d;
+    (void) to;
+    (void) d;
     f->calls++;
     f->last_len = n;
     return f->rc;
@@ -68,18 +73,20 @@ static void test_classify(void)
     for (uint8_t t = 1; t <= 3; t++) {
         f[3] = t;
         CHECK("handshake M1..M3: RECORD, signed + encrypted",
-              br_dm_classify(f, 64, BR_CLASS_SETTLEMENT, &c, &fl) == BR_OK && c == BR_CLASS_RECORD &&
-                  fl == (BR_F_SIGNED | BR_F_ENCRYPTED));
+              br_dm_classify(f, 64, BR_CLASS_SETTLEMENT, &c, &fl) == BR_OK &&
+                  c == BR_CLASS_RECORD && fl == (BR_F_SIGNED | BR_F_ENCRYPTED));
     }
     f[3] = 4;
     CHECK("record with no hint: AI (most restricted)", br_dm_classify(f, 64, 0, &c, &fl) == BR_OK &&
                                                            c == BR_CLASS_AI &&
                                                            fl == (BR_F_AEAD | BR_F_ENCRYPTED));
-    CHECK("record with bad hint 9: AI", br_dm_classify(f, 64, 9, &c, &fl) == BR_OK && c == BR_CLASS_AI);
+    CHECK("record with bad hint 9: AI",
+          br_dm_classify(f, 64, 9, &c, &fl) == BR_OK && c == BR_CLASS_AI);
     CHECK("record hinted SETTLEMENT: + PAYMENT",
-          br_dm_classify(f, 64, BR_CLASS_SETTLEMENT, &c, &fl) == BR_OK && c == BR_CLASS_SETTLEMENT &&
-              fl == (BR_F_AEAD | BR_F_ENCRYPTED | BR_F_PAYMENT));
-    CHECK("record hinted CHAT", br_dm_classify(f, 64, BR_CLASS_CHAT, &c, &fl) == BR_OK && c == BR_CLASS_CHAT);
+          br_dm_classify(f, 64, BR_CLASS_SETTLEMENT, &c, &fl) == BR_OK &&
+              c == BR_CLASS_SETTLEMENT && fl == (BR_F_AEAD | BR_F_ENCRYPTED | BR_F_PAYMENT));
+    CHECK("record hinted CHAT",
+          br_dm_classify(f, 64, BR_CLASS_CHAT, &c, &fl) == BR_OK && c == BR_CLASS_CHAT);
     f[3] = 5;
     CHECK("unknown frame type refused", br_dm_classify(f, 64, 0, &c, &fl) == BR_ERR_FORMAT);
     f[3] = 4;
@@ -89,8 +96,8 @@ static void test_classify(void)
     f[1] = 'X';
     CHECK("wrong magic refused", br_dm_classify(f, 64, 0, &c, &fl) == BR_ERR_FORMAT);
     f[1] = 'M';
-    CHECK("shorter than the devmesh header refused", br_dm_classify(f, DM_HDR_BYTES - 1, 0, &c, &fl) ==
-                                                         BR_ERR_FORMAT);
+    CHECK("shorter than the devmesh header refused",
+          br_dm_classify(f, DM_HDR_BYTES - 1, 0, &c, &fl) == BR_ERR_FORMAT);
 
     /* trampolines */
     static br_table_t tab;
@@ -111,31 +118,34 @@ static void test_classify(void)
     dm_host_t out;
     CHECK("adapter init", br_dm_init(&ad, &in, &tab, &out) == BR_OK);
     CHECK("missing callbacks stay missing", out.on_reply == NULL && out.on_money == NULL &&
-                                                out.on_money_answer == NULL && out.on_event != NULL);
+                                                out.on_money_answer == NULL &&
+                                                out.on_event != NULL);
     uint8_t r[4];
     out.random(out.ctx, r, 4);
-    CHECK("random reaches the host with the host's ctx", g_inner_rand == 1 && g_seen_ctx == &inner_ctx &&
-                                                             r[0] == 0xA5);
+    CHECK("random reaches the host with the host's ctx",
+          g_inner_rand == 1 && g_seen_ctx == &inner_ctx && r[0] == 0xA5);
     dm_event_t ev = {DM_EV_CAPS, {0}, 0, 0, 0};
     out.on_event(out.ctx, &ev);
-    CHECK("events reach the host with the host's ctx", g_inner_ev == DM_EV_CAPS && g_seen_ctx == &inner_ctx);
+    CHECK("events reach the host with the host's ctx",
+          g_inner_ev == DM_EV_CAPS && g_seen_ctx == &inner_ctx);
     out.on_request(out.ctx, r, 5, 2, r, 3);
     CHECK("requests reach the host", g_inner_req == 10);
     uint8_t to[16] = {1};
-    CHECK("send of a devmesh record goes to LAN", out.send(out.ctx, to, f, 64) == 0 && lan.calls == 1 &&
-                                                      ad.last_link == 1 && ad.sent == 1);
+    CHECK("send of a devmesh record goes to LAN",
+          out.send(out.ctx, to, f, 64) == 0 && lan.calls == 1 && ad.last_link == 1 && ad.sent == 1);
     br_link_set_up(&tab, 1, false);
     CHECK("LAN down: unclassified record refused (LoRa never takes AI)",
           out.send(out.ctx, to, f, 64) == -1 && lora.calls == 0 && ad.refused == 1 &&
               ad.last_status == BR_ERR_NOLINK);
     br_dm_set_class(&ad, BR_CLASS_SETTLEMENT);
-    CHECK("hinted SETTLEMENT record goes to LoRa", out.send(out.ctx, to, f, 64) == 0 && lora.calls == 1 &&
-                                                       ad.last_link == 2);
+    CHECK("hinted SETTLEMENT record goes to LoRa",
+          out.send(out.ctx, to, f, 64) == 0 && lora.calls == 1 && ad.last_link == 2);
     CHECK("the hint lasts one send", out.send(out.ctx, to, f, 64) == -1 && lora.calls == 1);
     uint8_t junk[64] = {'X'};
-    CHECK("non-devmesh bytes refused", out.send(out.ctx, to, junk, 64) == -1 &&
-                                           ad.last_status == BR_ERR_FORMAT);
-    CHECK("init without random refused", (in.random = NULL, br_dm_init(&ad, &in, &tab, &out) == BR_ERR_ARG));
+    CHECK("non-devmesh bytes refused",
+          out.send(out.ctx, to, junk, 64) == -1 && ad.last_status == BR_ERR_FORMAT);
+    CHECK("init without random refused",
+          (in.random = NULL, br_dm_init(&ad, &in, &tab, &out) == BR_ERR_ARG));
 }
 
 /* ===== two real devices ===== */
@@ -177,8 +187,10 @@ static void enqueue(int to, int link, const uint8_t *p, uint32_t n)
     e->buf = (uint8_t *) malloc(n);
     memcpy(e->buf, p, n);
     e->next = NULL;
-    if (g_qt) g_qt->next = e;
-    else g_qh = e;
+    if (g_qt)
+        g_qt->next = e;
+    else
+        g_qh = e;
     g_qt = e;
     g_qn++;
 }
@@ -253,7 +265,8 @@ static void pump(void)
                 g_last_rx_status[to] = dm_receive(&g_mesh[to], g_fbuf[to], len, g_now);
         } else if (e->link == L_SERIAL) {
             for (uint32_t i = 0; i < e->len; i++)
-                if (br_serial_rx_byte(&g_srx[to], e->buf[i], g_sout[to], sizeof g_sout[to], &len) == 1)
+                if (br_serial_rx_byte(&g_srx[to], e->buf[i], g_sout[to], sizeof g_sout[to], &len) ==
+                    1)
                     g_last_rx_status[to] = dm_receive(&g_mesh[to], g_sout[to], len, g_now);
         } else {
             g_last_rx_status[to] = dm_receive(&g_mesh[to], e->buf, e->len, g_now);
@@ -270,8 +283,8 @@ static void setup(int i, const char *name, dm_role_t role, uint8_t flags)
         g_lctx[i][l].node = i;
         g_lctx[i][l].link = l;
         br_link_ops_t ops = {&g_lctx[i][l], link_send};
-        br_link_add(&g_tab[i], l == L_BLE ? BR_BLE : (l == L_SERIAL ? BR_SERIAL : BR_LORA), (uint16_t) l,
-                    &ops);
+        br_link_add(&g_tab[i], l == L_BLE ? BR_BLE : (l == L_SERIAL ? BR_SERIAL : BR_LORA),
+                    (uint16_t) l, &ops);
     }
     /* a 9600 bit/s serial radio modem: slower than BLE even for small frames */
     br_link_tune(&g_tab[i], L_SERIAL, 0, 9600, 0);
@@ -298,8 +311,8 @@ static void test_mesh(void)
     uint8_t qr[DM_QR_MAX];
     uint32_t qn;
     char code[DM_CODE_CHARS + 1];
-    CHECK("invite", dm_invite(&g_mesh[HOME], DM_ROLE_THIN, DM_FLAG_HELD, 0, 0, g_now, qr, &qn, code) ==
-                        DM_OK);
+    CHECK("invite", dm_invite(&g_mesh[HOME], DM_ROLE_THIN, DM_FLAG_HELD, 0, 0, g_now, qr, &qn,
+                              code) == DM_OK);
     /* only LoRa up: the handshake must not go out */
     br_link_set_up(&g_tab[PHONE], L_BLE, false);
     br_link_set_up(&g_tab[PHONE], L_SERIAL, false);
@@ -334,25 +347,28 @@ static void test_mesh(void)
     dm_tick(&g_mesh[HOME], g_now);
     pump();
     CHECK("BLE error: home's ping failed over to serial",
-          g_tab[HOME].failovers == 1 && !br_link_get(&g_tab[HOME], L_BLE)->up && g_serial_frames >= 1);
+          g_tab[HOME].failovers == 1 && !br_link_get(&g_tab[HOME], L_BLE)->up &&
+              g_serial_frames >= 1);
     CHECK("phone's pong also failed over to serial; home accepted it",
           g_tab[PHONE].failovers == 1 && g_serial_frames >= 2 && g_last_rx_status[HOME] == DM_OK);
-    CHECK("serial COBS decoder saw only good frames", g_srx[0].bad_crc == 0 && g_srx[1].bad_crc == 0 &&
-                                                         g_srx[0].frames >= 1 && g_srx[1].frames >= 1);
+    CHECK("serial COBS decoder saw only good frames",
+          g_srx[0].bad_crc == 0 && g_srx[1].bad_crc == 0 && g_srx[0].frames >= 1 &&
+              g_srx[1].frames >= 1);
     /* only LoRa left */
     br_link_set_up(&g_tab[HOME], L_SERIAL, false);
     br_link_set_up(&g_tab[PHONE], L_SERIAL, false);
     int before = g_lora_msgs;
     br_dm_set_class(&g_ad[HOME], BR_CLASS_SETTLEMENT);
     CHECK("settlement-class record goes out over LoRa",
-          dm_send_app(&g_mesh[HOME], dm_self_id(&g_mesh[PHONE]), DM_APP_PING, 0, 0, g_now) == DM_OK &&
+          dm_send_app(&g_mesh[HOME], dm_self_id(&g_mesh[PHONE]), DM_APP_PING, 0, 0, g_now) ==
+                  DM_OK &&
               g_lora_msgs == before + 1 && g_ad[HOME].last_link == L_LORA);
     pump();
     CHECK("the phone got it, but its unclassified reply is refused by LoRa (never AI)",
           g_last_rx_status[PHONE] == DM_ERR_TRANSPORT && g_ad[PHONE].last_status == BR_ERR_NOLINK &&
               g_lora_msgs == before + 1);
-    CHECK("devmesh code untouched: same session still up", dm_peer_up(&g_mesh[PHONE], dm_self_id(&g_mesh[HOME]),
-                                                                      g_now));
+    CHECK("devmesh code untouched: same session still up",
+          dm_peer_up(&g_mesh[PHONE], dm_self_id(&g_mesh[HOME]), g_now));
 }
 
 int main(void)

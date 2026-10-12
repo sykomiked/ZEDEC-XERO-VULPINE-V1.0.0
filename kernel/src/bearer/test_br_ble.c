@@ -54,8 +54,8 @@ static void test_frag(void)
     const uint8_t *m = (const uint8_t *) "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     CHECK("tx init", br_frag_tx_init(&tx, m, 26, 20, 0x85) == BR_OK);
     int32_t n = br_frag_tx_next(&tx, g_frag, sizeof g_frag);
-    static const uint8_t f1[] = {0x85, 0x00, 0x00, 0x00, 0x1A, 'A', 'B', 'C', 'D', 'E', 'F', 'G',
-                                 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'};
+    static const uint8_t f1[] = {0x85, 0x00, 0x00, 0x00, 0x1A, 'A', 'B', 'C', 'D', 'E',
+                                 'F',  'G',  'H',  'I',  'J',  'K', 'L', 'M', 'N', 'O'};
     CHECK("first fragment: 80|ctr(5, high bit masked), idx 0, len 26 (24-bit BE), 15 data",
           n == 20 && !memcmp(g_frag, f1, 20));
     n = br_frag_tx_next(&tx, g_frag, sizeof g_frag);
@@ -65,10 +65,12 @@ static void test_frag(void)
     CHECK("tx init refuses NULL message", br_frag_tx_init(&tx, NULL, 5, 20, 0) == BR_ERR_ARG);
     CHECK("tx init refuses mtu 5", br_frag_tx_init(&tx, m, 5, 5, 0) == BR_ERR_ARG);
     br_frag_tx_init(&tx, m, 26, 20, 1);
-    CHECK("tx next refuses a buffer too small for a header", br_frag_tx_next(&tx, g_frag, 5) == BR_ERR_SIZE);
+    CHECK("tx next refuses a buffer too small for a header",
+          br_frag_tx_next(&tx, g_frag, 5) == BR_ERR_SIZE);
     CHECK("round trip 1 byte at mtu 20", roundtrip(1, 20, 0));
     CHECK("round trip 15/16/33/34 bytes at mtu 20", roundtrip(15, 20, 1) && roundtrip(16, 20, 2) &&
-                                                       roundtrip(33, 20, 3) && roundtrip(34, 20, 4));
+                                                        roundtrip(33, 20, 3) &&
+                                                        roundtrip(34, 20, 4));
     CHECK("round trip 98304 bytes at ATT_MTU 23 (devmesh handshake size)", roundtrip(98304, 20, 9));
     CHECK("round trip 98304 bytes at ATT_MTU 247", roundtrip(98304, 244, 10));
     CHECK("round trip 131072 bytes at ATT_MTU 517", roundtrip(131072, 512, 11));
@@ -88,7 +90,8 @@ static void test_frag(void)
           br_frag_rx_push(&rx, b, (uint32_t) nb, &got) == BR_ERR_STATE && rx.drops == 1);
     br_frag_rx_push(&rx, a, (uint32_t) na, &got);
     CHECK("missing fragment (idx 1 skipped) drops the message",
-          br_frag_rx_push(&rx, c, (uint32_t) nc, &got) == BR_ERR_STATE && rx.drops == 2 && !rx.active);
+          br_frag_rx_push(&rx, c, (uint32_t) nc, &got) == BR_ERR_STATE && rx.drops == 2 &&
+              !rx.active);
     CHECK("the rest of a dropped message is refused too",
           br_frag_rx_push(&rx, d, (uint32_t) nd, &got) == BR_ERR_STATE);
     br_frag_rx_push(&rx, a, (uint32_t) na, &got);
@@ -104,7 +107,8 @@ static void test_frag(void)
     CHECK("and the restarted message completes",
           br_frag_rx_push(&rx, b, (uint32_t) nb, &got) == 0 &&
               br_frag_rx_push(&rx, c, (uint32_t) nc, &got) == 0 &&
-              br_frag_rx_push(&rx, d, (uint32_t) nd, &got) == 1 && got == 26 && !memcmp(g_back, m, 26));
+              br_frag_rx_push(&rx, d, (uint32_t) nd, &got) == 1 && got == 26 &&
+              !memcmp(g_back, m, 26));
     uint8_t over[12];
     memcpy(over, d, 7);
     over[7] = 'x';
@@ -122,14 +126,15 @@ static void test_frag(void)
     uint8_t z[6] = {0x80, 0x00, 0x00, 0x00, 0x00, 0x41};
     CHECK("zero announced length refused", br_frag_rx_push(&rx, z, 6, &got) == BR_ERR_FORMAT);
     uint8_t bi[6] = {0x80, 0x01, 0x00, 0x00, 0x01, 0x41};
-    CHECK("first fragment with idx != 0 refused", br_frag_rx_push(&rx, bi, 6, &got) == BR_ERR_FORMAT);
+    CHECK("first fragment with idx != 0 refused",
+          br_frag_rx_push(&rx, bi, 6, &got) == BR_ERR_FORMAT);
     uint8_t ov[8] = {0x80, 0x00, 0x00, 0x00, 0x01, 0x41, 0x42, 0x43};
     CHECK("first fragment carrying more than announced refused",
           br_frag_rx_push(&rx, ov, 8, &got) == BR_ERR_FORMAT);
     CHECK("1-byte fragment refused", br_frag_rx_push(&rx, ov, 1, &got) == BR_ERR_FORMAT);
     uint8_t one[6] = {0x80, 0x00, 0x00, 0x00, 0x01, 0x41};
-    CHECK("single-fragment 1-byte message", br_frag_rx_push(&rx, one, 6, &got) == 1 && got == 1 &&
-                                                g_back[0] == 0x41);
+    CHECK("single-fragment 1-byte message",
+          br_frag_rx_push(&rx, one, 6, &got) == 1 && got == 1 && g_back[0] == 0x41);
     uint8_t empty_later[2] = {0x03, 0x01};
     br_frag_rx_push(&rx, a, (uint32_t) na, &got);
     CHECK("later fragment with no data refused",
@@ -153,22 +158,24 @@ static void test_lps(void)
     memcpy(s + 13, "abc", 3);
     sn = 16;
     uint32_t used = 0, len = 0;
-    CHECK("two messages in one read: first", br_lps_rx_push(&rx, s, sn, &used, &len) == 1 && used == 9 &&
-                                                 len == 5 && !memcmp(buf, "hello", 5));
-    CHECK("then the second", br_lps_rx_push(&rx, s + used, sn - used, &used, &len) == 1 && len == 3 &&
-                                 !memcmp(buf, "abc", 3));
+    CHECK("two messages in one read: first", br_lps_rx_push(&rx, s, sn, &used, &len) == 1 &&
+                                                 used == 9 && len == 5 && !memcmp(buf, "hello", 5));
+    CHECK("then the second", br_lps_rx_push(&rx, s + used, sn - used, &used, &len) == 1 &&
+                                 len == 3 && !memcmp(buf, "abc", 3));
     int r = 0, got = 0;
     for (uint32_t i = 0; i < sn; i++) {
         r = br_lps_rx_push(&rx, s + i, 1, &used, &len);
         if (r == 1) got++;
     }
     CHECK("byte-at-a-time delivery gives the same two messages", got == 2 && len == 3);
-    CHECK("partial input consumed, no message", br_lps_rx_push(&rx, s, 6, &used, &len) == 0 && used == 6);
+    CHECK("partial input consumed, no message",
+          br_lps_rx_push(&rx, s, 6, &used, &len) == 0 && used == 6);
     br_lps_rx_reset(&rx);
     uint8_t big[4] = {0, 0, 0, 33};
     CHECK("length over the maximum kills the stream",
           br_lps_rx_push(&rx, big, 4, &used, &len) == BR_ERR_SIZE && rx.dead);
-    CHECK("dead stream refuses even good bytes", br_lps_rx_push(&rx, s, 9, &used, &len) == BR_ERR_SIZE);
+    CHECK("dead stream refuses even good bytes",
+          br_lps_rx_push(&rx, s, 9, &used, &len) == BR_ERR_SIZE);
     br_lps_rx_reset(&rx);
     CHECK("reset revives it", br_lps_rx_push(&rx, s, 9, &used, &len) == 1 && len == 5);
     uint8_t zero[4] = {0, 0, 0, 0};
@@ -177,7 +184,8 @@ static void test_lps(void)
     uint8_t exact[4 + 32];
     br_lps_encode_hdr(32, exact);
     memset(exact + 4, 'q', 32);
-    CHECK("exactly the maximum accepted", br_lps_rx_push(&rx, exact, 36, &used, &len) == 1 && len == 32);
+    CHECK("exactly the maximum accepted",
+          br_lps_rx_push(&rx, exact, 36, &used, &len) == 1 && len == 32);
     CHECK("NULL used refused", br_lps_rx_push(&rx, s, 1, NULL, &len) == BR_ERR_ARG);
 }
 

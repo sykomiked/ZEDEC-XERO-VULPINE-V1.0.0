@@ -44,9 +44,8 @@ uint32_t br_lora_max_payload(const br_lora_mod_t *m, uint32_t max_us)
 static const struct {
     uint32_t lo, hi, den;
 } g_eu[BR_LORA_EU_BANDS] = {
-    {863000000u, 865000000u, 1000u}, {865000000u, 868000000u, 100u},
-    {868000000u, 868600000u, 100u},  {868700000u, 869200000u, 1000u},
-    {869400000u, 869650000u, 10u},   {869700000u, 870000000u, 100u},
+    {863000000u, 865000000u, 1000u}, {865000000u, 868000000u, 100u}, {868000000u, 868600000u, 100u},
+    {868700000u, 869200000u, 1000u}, {869400000u, 869650000u, 10u},  {869700000u, 870000000u, 100u},
 };
 
 int br_lora_eu_band(uint32_t freq_hz)
@@ -71,7 +70,10 @@ br_status_t br_lora_duty_init(br_lora_duty_t *d, uint8_t region)
     return BR_OK;
 }
 
-static uint32_t ceil_ms(uint32_t us) { return (us + 999u) / 1000u; }
+static uint32_t ceil_ms(uint32_t us)
+{
+    return (us + 999u) / 1000u;
+}
 
 br_status_t br_lora_duty_check(const br_lora_duty_t *d, uint32_t freq_hz, uint32_t air_us,
                                uint64_t now_ms)
@@ -131,11 +133,10 @@ br_status_t br_lora_link_init(br_lora_link_t *lk, uint8_t region, const br_lora_
     if (br_lora_airtime_us(mod, 1, &t) != BR_OK) return BR_ERR_ARG;
     br_mcpy(&lk->mod, mod, sizeof *mod);
     for (uint32_t i = 0; i < nchan; i++) {
-        br_status_t rc = region == BR_LORA_REGION_EU868
-                             ? (br_lora_eu_band(chans[i]) < 0 ? BR_ERR_POLICY_BAND : BR_OK)
-                             : ((chans[i] < 902000000u || chans[i] > 928000000u)
-                                    ? BR_ERR_POLICY_BAND
-                                    : BR_OK);
+        br_status_t rc =
+            region == BR_LORA_REGION_EU868
+                ? (br_lora_eu_band(chans[i]) < 0 ? BR_ERR_POLICY_BAND : BR_OK)
+                : ((chans[i] < 902000000u || chans[i] > 928000000u) ? BR_ERR_POLICY_BAND : BR_OK);
         if (rc != BR_OK) return rc;
         lk->chans[i] = chans[i];
     }

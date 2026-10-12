@@ -13,11 +13,15 @@
 #include <string.h>
 
 static int checks, fails;
-#define CHECK(c, msg)                                                         \
-    do {                                                                      \
-        checks++;                                                             \
-        if (c) printf("[PASS] %s\n", msg);                                    \
-        else { printf("[FAIL] %s (line %d)\n", msg, __LINE__); fails++; }     \
+#define CHECK(c, msg)                                                                              \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (c)                                                                                     \
+            printf("[PASS] %s\n", msg);                                                            \
+        else {                                                                                     \
+            printf("[FAIL] %s (line %d)\n", msg, __LINE__);                                        \
+            fails++;                                                                               \
+        }                                                                                          \
     } while (0)
 
 static void hex(const char *h, uint8_t *out, size_t n)
@@ -74,8 +78,7 @@ static ba_err_t build_manifest(uint32_t ver, const uint8_t *sk, const uint8_t *p
     return ba_manifest_build(&m, ba_soft_signer, &k, out, BA_MANIFEST_MAX, len);
 }
 
-static size_t quote_of(const ba_log_t *log, const uint8_t nonce[32], const uint8_t *sk,
-                       uint8_t *q)
+static size_t quote_of(const ba_log_t *log, const uint8_t nonce[32], const uint8_t *sk, uint8_t *q)
 {
     ba_soft_key_t k = {sk, NULL, false};
     size_t len = 0;
@@ -98,7 +101,11 @@ static bool fake_hw_signer(void *user, const uint8_t *msg, size_t len, const uin
 static bool failing_signer(void *user, const uint8_t *msg, size_t len, const uint8_t *ctx,
                            size_t ctx_len, uint8_t sig[BA_SIG_LEN])
 {
-    (void) user; (void) msg; (void) len; (void) ctx; (void) ctx_len;
+    (void) user;
+    (void) msg;
+    (void) len;
+    (void) ctx;
+    (void) ctx_len;
     memset(sig, 0xAA, BA_SIG_LEN);
     return false;
 }
@@ -118,7 +125,8 @@ int main(void)
     /* ---- base32 (RFC 4648 section 10) ---- */
     {
         static const char *in[7] = {"", "f", "fo", "foo", "foob", "fooba", "foobar"};
-        static const char *out[7] = {"", "my", "mzxq", "mzxw6", "mzxw6yq", "mzxw6ytb", "mzxw6ytboi"};
+        static const char *out[7] = {"",        "my",       "mzxq",      "mzxw6",
+                                     "mzxw6yq", "mzxw6ytb", "mzxw6ytboi"};
         int ok = 1;
         for (int i = 0; i < 7; i++) {
             size_t n = ba_base32((const uint8_t *) in[i], strlen(in[i]), txt, sizeof txt);
@@ -176,13 +184,16 @@ int main(void)
         ba_log_t l3;
         ba_log_init(&l3);
         ba_extend(&l3, "kernel2", d);
-        CHECK(memcmp(l2.chain, l3.chain, 32) != 0, "same digest under another name gives another chain");
+        CHECK(memcmp(l2.chain, l3.chain, 32) != 0,
+              "same digest under another name gives another chain");
         stage_digest("efi-stub", e);
         ba_log_t a, b;
         ba_log_init(&a);
         ba_log_init(&b);
-        ba_extend(&a, "x", d); ba_extend(&a, "y", e);
-        ba_extend(&b, "y", e); ba_extend(&b, "x", d);
+        ba_extend(&a, "x", d);
+        ba_extend(&a, "y", e);
+        ba_extend(&b, "y", e);
+        ba_extend(&b, "x", d);
         CHECK(memcmp(a.chain, b.chain, 32) != 0, "same stages in another order give another chain");
     }
 
@@ -212,9 +223,12 @@ int main(void)
 
     /* ---- keys and manifest ---- */
     uint8_t seed[32];
-    memset(seed, 0x11, 32); ba_soft_keygen(seed, dev_pk, dev_sk);
-    memset(seed, 0x22, 32); ba_soft_keygen(seed, rel_pk, rel_sk);
-    memset(seed, 0x33, 32); ba_soft_keygen(seed, oth_pk, oth_sk);
+    memset(seed, 0x11, 32);
+    ba_soft_keygen(seed, dev_pk, dev_sk);
+    memset(seed, 0x22, 32);
+    ba_soft_keygen(seed, rel_pk, rel_sk);
+    memset(seed, 0x33, 32);
+    ba_soft_keygen(seed, oth_pk, oth_sk);
     ba_key_hash(dev_pk, dev_kh);
 
     CHECK(build_manifest(7, rel_sk, rel_pk, manifest, &manifest_len) == BA_OK &&
@@ -234,7 +248,8 @@ int main(void)
               "manifest verifies and parses back its fields");
         char t[BA_ID_TEXT_LEN + 1];
         ba_id_text(manifest_id, t);
-        CHECK(strncmp(t, "bafkrei", 7) == 0 && strlen(t) == 59, "manifest id has the bafkrei... form");
+        CHECK(strncmp(t, "bafkrei", 7) == 0 && strlen(t) == 59,
+              "manifest id has the bafkrei... form");
         CHECK(ba_manifest_verify(manifest, manifest_len, oth_pk, &m) == BA_E_MANIFEST_KEY,
               "manifest checked against another release key: BA_E_MANIFEST_KEY");
         memcpy(m2, manifest, manifest_len);
@@ -365,7 +380,8 @@ int main(void)
               "modified kernel: BA_E_STAGE_DIGEST at index 1");
 
         len = quote_of(&good, n3, dev_sk, q);
-        CHECK(verify(&v, q, len, &r) == BA_OK, "nonce stays usable after failed quotes, then is consumed");
+        CHECK(verify(&v, q, len, &r) == BA_OK,
+              "nonce stays usable after failed quotes, then is consumed");
     }
     {
         uint8_t n4[32];
@@ -401,7 +417,8 @@ int main(void)
         memcpy(q2, q, len);
         q2[6] = 1;
         CHECK(verify(&v, q2, len, &r) == BA_E_FORMAT, "quote reserved byte set: BA_E_FORMAT");
-        CHECK(verify(&v, q2, 10, &r) == BA_E_FORMAT && verify(&v, q, BA_QUOTE_MAX + 1, &r) == BA_E_FORMAT,
+        CHECK(verify(&v, q2, 10, &r) == BA_E_FORMAT &&
+                  verify(&v, q, BA_QUOTE_MAX + 1, &r) == BA_E_FORMAT,
               "quote far too short or too long: BA_E_FORMAT");
     }
     {
@@ -460,8 +477,8 @@ int main(void)
               "NULL signer or verifier: BA_E_ARG");
         uint8_t sig[BA_SIG_LEN];
         ba_soft_key_t nok = {NULL, NULL, false};
-        CHECK(!ba_soft_signer(&nok, q, 1, NULL, 0, sig) && !ba_soft_signer(NULL, q, 1, NULL, 0, sig) &&
-                  !k.hardware_backed,
+        CHECK(!ba_soft_signer(&nok, q, 1, NULL, 0, sig) &&
+                  !ba_soft_signer(NULL, q, 1, NULL, 0, sig) && !k.hardware_backed,
               "soft signer refuses a missing key and is flagged not hardware-backed");
     }
     {

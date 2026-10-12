@@ -85,8 +85,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define BR_ID_BYTES   16u
-#define BR_MAX_LINKS  16u
+#define BR_ID_BYTES     16u
+#define BR_MAX_LINKS    16u
 #define BR_LORA_MAX_MSG 6144u /* a record plus an ML-DSA-87 signature */
 #define BR_HAM_MAX_MSG  8192u
 
@@ -106,10 +106,10 @@ typedef enum {
     BR_ERR_STATE = -12,
     BR_ERR_FULL = -13,
     BR_ERR_SEND = -14,
-    BR_ERR_AUTH = -15,           /* signature did not verify */
-    BR_ERR_DISABLED = -16,       /* regulated feature not switched on */
-    BR_ERR_POLICY_BAND = -17,    /* frequency outside the configured region */
-    BR_ERR_POLICY_DWELL = -18,   /* single transmission longer than allowed */
+    BR_ERR_AUTH = -15,         /* signature did not verify */
+    BR_ERR_DISABLED = -16,     /* regulated feature not switched on */
+    BR_ERR_POLICY_BAND = -17,  /* frequency outside the configured region */
+    BR_ERR_POLICY_DWELL = -18, /* single transmission longer than allowed */
 } br_status_t;
 
 typedef enum {

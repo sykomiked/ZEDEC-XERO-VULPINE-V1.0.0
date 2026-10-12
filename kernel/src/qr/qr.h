@@ -47,7 +47,7 @@
 #include <stdint.h>
 
 #define QR_VERSION_MAX 10
-#define QR_SIZE_MAX    (17 + 4 * QR_VERSION_MAX)   /* 57 */
+#define QR_SIZE_MAX    (17 + 4 * QR_VERSION_MAX) /* 57 */
 #define QR_MASK_AUTO   (-1)
 #define QR_QUIET       4u
 
@@ -60,19 +60,18 @@ typedef enum {
 } qr_err_t;
 
 typedef struct {
-    uint8_t version;    /* 1..10 */
-    uint8_t size;       /* 17 + 4*version */
-    uint8_t mask;       /* 0..7 */
-    uint8_t mod[QR_SIZE_MAX * QR_SIZE_MAX];  /* 1 = dark, row-major */
-    uint8_t fn[QR_SIZE_MAX * QR_SIZE_MAX];   /* 1 = function pattern */
+    uint8_t version;                        /* 1..10 */
+    uint8_t size;                           /* 17 + 4*version */
+    uint8_t mask;                           /* 0..7 */
+    uint8_t mod[QR_SIZE_MAX * QR_SIZE_MAX]; /* 1 = dark, row-major */
+    uint8_t fn[QR_SIZE_MAX * QR_SIZE_MAX];  /* 1 = function pattern */
 } qr_code_t;
 
 /* Data capacity in bytes at level M for a version (0 for an invalid one). */
 unsigned qr_capacity(int version);
 
 /* Encode len bytes. min_version 0 means 1. mask is 0..7 or QR_MASK_AUTO. */
-qr_err_t qr_encode_bytes(qr_code_t *qr, const uint8_t *data, size_t len, int min_version,
-                         int mask);
+qr_err_t qr_encode_bytes(qr_code_t *qr, const uint8_t *data, size_t len, int min_version, int mask);
 
 /* 1 if the module at column x, row y is dark; 0 if light or outside. */
 int qr_module(const qr_code_t *qr, int x, int y);

@@ -46,7 +46,8 @@ int bh_tty_set_dtr(int fd, int on);
 int bh_tty_dcd(int fd);
 
 /* Callbacks with ctx = pointer to an int file descriptor. */
-int bh_modem_write(void *ctx, const uint8_t *p, uint32_t n);        /* br_modem_ops_t.write */
-int bh_serial_link_send(void *ctx, const uint8_t to[16], const uint8_t *d, uint32_t n); /* br_link_ops_t.send */
+int bh_modem_write(void *ctx, const uint8_t *p, uint32_t n); /* br_modem_ops_t.write */
+int bh_serial_link_send(void *ctx, const uint8_t to[16], const uint8_t *d,
+                        uint32_t n); /* br_link_ops_t.send */
 
 #endif /* ZXV_BEARER_HOST_H */

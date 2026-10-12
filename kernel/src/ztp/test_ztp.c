@@ -13,11 +13,15 @@
 #include <string.h>
 
 static int checks, fails;
-#define CHECK(c, msg)                                                         \
-    do {                                                                      \
-        checks++;                                                             \
-        if (c) printf("[PASS] %s\n", msg);                                    \
-        else { printf("[FAIL] %s (line %d)\n", msg, __LINE__); fails++; }     \
+#define CHECK(c, msg)                                                                              \
+    do {                                                                                           \
+        checks++;                                                                                  \
+        if (c)                                                                                     \
+            printf("[PASS] %s\n", msg);                                                            \
+        else {                                                                                     \
+            printf("[FAIL] %s (line %d)\n", msg, __LINE__);                                        \
+            fails++;                                                                               \
+        }                                                                                          \
     } while (0)
 
 static uint8_t dev_pk[BA_PK_LEN], dev_sk[BA_SK_LEN];
@@ -37,7 +41,11 @@ static ztp_err_t mk(ztp_kind_t kind, const uint8_t id[16], uint32_t epoch, const
 static bool fail_signer(void *u, const uint8_t *m, size_t l, const uint8_t *c, size_t cl,
                         uint8_t sig[BA_SIG_LEN])
 {
-    (void) u; (void) m; (void) l; (void) c; (void) cl;
+    (void) u;
+    (void) m;
+    (void) l;
+    (void) c;
+    (void) cl;
     sig[0] = 1;
     return false;
 }
@@ -52,10 +60,14 @@ int main(void)
     char qr[ZTP_QR_TEXT_LEN + 1];
     size_t rl = 0;
 
-    memset(seed, 0x41, 32); ba_soft_keygen(seed, mk_pk, mk_sk);
-    memset(seed, 0x42, 32); ba_soft_keygen(seed, a_pk, a_sk);
-    memset(seed, 0x43, 32); ba_soft_keygen(seed, b_pk, b_sk);
-    memset(seed, 0x44, 32); ba_soft_keygen(seed, c_pk, c_sk);
+    memset(seed, 0x41, 32);
+    ba_soft_keygen(seed, mk_pk, mk_sk);
+    memset(seed, 0x42, 32);
+    ba_soft_keygen(seed, a_pk, a_sk);
+    memset(seed, 0x43, 32);
+    ba_soft_keygen(seed, b_pk, b_sk);
+    memset(seed, 0x44, 32);
+    ba_soft_keygen(seed, c_pk, c_sk);
 
     /* ---- known answers ---- */
     {
@@ -88,7 +100,9 @@ int main(void)
         memcpy(d2.device_key_hash, kid, 16);
         memcpy(d2.claim_secret, ksec, 32);
         CHECK(ztp_qr_text(&d2, qr) == ZTP_OK &&
-                  strcmp(qr, "ZTP1:aaaqeayeaudaocajbifqydiob5sgkzthnbuwu23mnvxg64drojzxi5lwo54hs6t3pr6x474aqgbig") == 0,
+                  strcmp(qr, "ZTP1:"
+                             "aaaqeayeaudaocajbifqydiob5sgkzthnbuwu23mnvxg64drojzxi5lwo54hs6t3pr6x4"
+                             "74aqgbig") == 0,
               "QR text matches the Python base32 value");
         CHECK(ztp_qr_parse(qr, strlen(qr), id, sec) == ZTP_OK && memcmp(id, kid, 16) == 0 &&
                   memcmp(sec, ksec, 32) == 0,
@@ -102,7 +116,8 @@ int main(void)
         uint8_t zid[16] = {0}, s1[32];
         memset(s1, 1, 32);
         mk(ZTP_MSG_CLAIM, zid, 0, a_pk, s1, a_sk, msg);
-        CHECK(ztp_device_accept(&d, msg, ZTP_MSG_LEN, NULL) == ZTP_E_STATE && d.state == ZTP_FACTORY,
+        CHECK(ztp_device_accept(&d, msg, ZTP_MSG_LEN, NULL) == ZTP_E_STATE &&
+                  d.state == ZTP_FACTORY,
               "a factory-fresh device accepts no claim: ZTP_E_STATE");
     }
     CHECK(ztp_first_boot(&d, ent, dev_pk, dev_sk) == ZTP_OK && d.state == ZTP_UNCLAIMED &&
@@ -195,7 +210,8 @@ int main(void)
         memcpy(rec2, rec, rl);
         rec2[5] = 10; /* model length disagrees with the record length */
         bad &= ztp_profile_verify(rec2, rl, mk_pk, &got) == ZTP_E_PROFILE_FORMAT;
-        CHECK(bad, "control char in model, truncation, bad magic, wrong length: ZTP_E_PROFILE_FORMAT");
+        CHECK(bad,
+              "control char in model, truncation, bad magic, wrong length: ZTP_E_PROFILE_FORMAT");
         ztp_profile_t p2 = prof;
         p2.model_len = 0;
         int a = ztp_profile_build(&p2, ba_soft_signer, &k, rec2, sizeof rec2, &rl) == ZTP_E_ARG;
@@ -239,7 +255,8 @@ int main(void)
         bad[10] = 'A';
         f &= ztp_qr_parse(bad, ZTP_QR_TEXT_LEN, id2, s2) == ZTP_E_QR_FORMAT;
         memcpy(bad, qr, sizeof bad);
-        bad[ZTP_QR_TEXT_LEN - 1] = (char) (bad[ZTP_QR_TEXT_LEN - 1] == 'b' ? 'd' : 'b'); /* odd value */
+        bad[ZTP_QR_TEXT_LEN - 1] =
+            (char) (bad[ZTP_QR_TEXT_LEN - 1] == 'b' ? 'd' : 'b'); /* odd value */
         f &= ztp_qr_parse(bad, ZTP_QR_TEXT_LEN, id2, s2) == ZTP_E_QR_FORMAT;
         CHECK(f, "QR text: short, wrong prefix, upper case, non-zero spare bit: ZTP_E_QR_FORMAT");
     }
@@ -252,7 +269,8 @@ int main(void)
         memcpy(wrong, sec, 32);
         wrong[5] ^= 0x20;
         mk(ZTP_MSG_CLAIM, id, 0, c_pk, wrong, c_sk, msg);
-        CHECK(ztp_device_accept(&d, msg, ZTP_MSG_LEN, NULL) == ZTP_E_MAC && d.state == ZTP_UNCLAIMED,
+        CHECK(ztp_device_accept(&d, msg, ZTP_MSG_LEN, NULL) == ZTP_E_MAC &&
+                  d.state == ZTP_UNCLAIMED,
               "claim with a guessed secret: ZTP_E_MAC, still unclaimed");
         mk(ZTP_MSG_CLAIM, id, 0, a_pk, sec, c_sk, msg); /* carries A's key, signed by C */
         CHECK(ztp_device_accept(&d, msg, ZTP_MSG_LEN, NULL) == ZTP_E_SIG,
@@ -283,8 +301,8 @@ int main(void)
         memcpy(msg2, msg, ZTP_MSG_LEN);
         msg2[ZTP_MSG_LEN - 3] ^= 1;
         t &= ztp_device_accept(&d, msg2, ZTP_MSG_LEN, NULL) == ZTP_E_SIG;
-        CHECK(t && d.state == ZTP_UNCLAIMED,
-              "tampered owner key (first or last byte) or time: ZTP_E_MAC; tampered signature: ZTP_E_SIG");
+        CHECK(t && d.state == ZTP_UNCLAIMED, "tampered owner key (first or last byte) or time: "
+                                             "ZTP_E_MAC; tampered signature: ZTP_E_SIG");
         int f = ztp_device_accept(&d, msg, ZTP_MSG_LEN - 1, NULL) == ZTP_E_FORMAT;
         memcpy(msg2, msg, ZTP_MSG_LEN);
         msg2[5] = 4;
@@ -358,8 +376,8 @@ int main(void)
         CHECK(ztp_device_accept(&d, msg2, ZTP_MSG_LEN, sec2) == ZTP_E_FORMAT,
               "reset carrying an owner key: ZTP_E_FORMAT");
         CHECK(ztp_device_accept(&d, msg, ZTP_MSG_LEN, sec2) == ZTP_OK && d.state == ZTP_UNCLAIMED &&
-                  d.epoch == 3 && memcmp(d.claim_secret, sec2, 32) == 0 &&
-                  d.owner_pk[0] == 0 && d.owner_key_hash[0] == 0,
+                  d.epoch == 3 && memcmp(d.claim_secret, sec2, 32) == 0 && d.owner_pk[0] == 0 &&
+                  d.owner_key_hash[0] == 0,
               "reset by B: UNCLAIMED at epoch 3 with the new secret, owner wiped");
         CHECK(ztp_device_accept(&d, msg, ZTP_MSG_LEN, sec2) == ZTP_E_STATE,
               "reset on an unclaimed device: ZTP_E_STATE");
@@ -367,7 +385,8 @@ int main(void)
         CHECK(ztp_device_accept(&d, msg, ZTP_MSG_LEN, NULL) == ZTP_E_STATE,
               "transfer on an unclaimed device: ZTP_E_STATE");
         uint8_t i2[16], s3[32];
-        CHECK(ztp_qr_text(&d, qr) == ZTP_OK && ztp_qr_parse(qr, ZTP_QR_TEXT_LEN, i2, s3) == ZTP_OK &&
+        CHECK(ztp_qr_text(&d, qr) == ZTP_OK &&
+                  ztp_qr_parse(qr, ZTP_QR_TEXT_LEN, i2, s3) == ZTP_OK &&
                   ztp_qr_check(&got, i2, s3) == ZTP_E_QR_MISMATCH,
               "after reset the new QR no longer matches the maker's commitment");
         mk(ZTP_MSG_CLAIM, id, 3, c_pk, sec, c_sk, msg);
@@ -384,7 +403,8 @@ int main(void)
     CHECK(ztp_reset_physical(&d, sec2) == ZTP_OK && d.state == ZTP_UNCLAIMED && d.epoch == 5 &&
               d.owner_pk[0] == 0,
           "physical-presence reset (compiled in): UNCLAIMED at epoch 5");
-    CHECK(ztp_reset_physical(&d, sec2) == ZTP_E_STATE, "physical reset of an unclaimed device: ZTP_E_STATE");
+    CHECK(ztp_reset_physical(&d, sec2) == ZTP_E_STATE,
+          "physical reset of an unclaimed device: ZTP_E_STATE");
 #else
     CHECK(ztp_reset_physical(&d, sec2) == ZTP_E_DISABLED && d.state == ZTP_OWNED && d.epoch == 4,
           "physical-presence reset is off by default: ZTP_E_DISABLED, nothing changes");
@@ -393,12 +413,18 @@ int main(void)
     /* ---- builder arguments and errors ---- */
     {
         ba_soft_key_t k = {a_sk, NULL, false};
-        int a = ztp_msg_build(ZTP_MSG_CLAIM, id, 0, 0, a_pk, NULL, ba_soft_signer, &k, msg) == ZTP_E_ARG;
-        a &= ztp_msg_build(ZTP_MSG_TRANSFER, id, 0, 0, a_pk, sec, ba_soft_signer, &k, msg) == ZTP_E_ARG;
-        a &= ztp_msg_build(ZTP_MSG_RESET, id, 0, 0, a_pk, NULL, ba_soft_signer, &k, msg) == ZTP_E_ARG;
-        a &= ztp_msg_build(ZTP_MSG_TRANSFER, id, 0, 0, NULL, NULL, ba_soft_signer, &k, msg) == ZTP_E_ARG;
-        a &= ztp_msg_build((ztp_kind_t) 9, id, 0, 0, a_pk, NULL, ba_soft_signer, &k, msg) == ZTP_E_ARG;
-        CHECK(a, "builder: claim without secret, transfer with secret, reset with key, bad kind refused");
+        int a = ztp_msg_build(ZTP_MSG_CLAIM, id, 0, 0, a_pk, NULL, ba_soft_signer, &k, msg) ==
+                ZTP_E_ARG;
+        a &= ztp_msg_build(ZTP_MSG_TRANSFER, id, 0, 0, a_pk, sec, ba_soft_signer, &k, msg) ==
+             ZTP_E_ARG;
+        a &= ztp_msg_build(ZTP_MSG_RESET, id, 0, 0, a_pk, NULL, ba_soft_signer, &k, msg) ==
+             ZTP_E_ARG;
+        a &= ztp_msg_build(ZTP_MSG_TRANSFER, id, 0, 0, NULL, NULL, ba_soft_signer, &k, msg) ==
+             ZTP_E_ARG;
+        a &= ztp_msg_build((ztp_kind_t) 9, id, 0, 0, a_pk, NULL, ba_soft_signer, &k, msg) ==
+             ZTP_E_ARG;
+        CHECK(a, "builder: claim without secret, transfer with secret, reset with key, bad kind "
+                 "refused");
         memset(msg, 0x77, ZTP_MSG_LEN);
         CHECK(ztp_msg_build(ZTP_MSG_RESET, id, 0, 0, NULL, NULL, fail_signer, NULL, msg) ==
                       ZTP_E_SIGNER &&
@@ -408,7 +434,8 @@ int main(void)
         for (int i = 0; i < ZTP_E_COUNT_; i++)
             for (int j = 0; j < i; j++)
                 if (strcmp(ztp_strerror((ztp_err_t) i), ztp_strerror((ztp_err_t) j)) == 0) ok = 0;
-        CHECK(ok && strcmp(ztp_strerror(ZTP_E_COUNT_), "unknown") == 0, "every error has its own name");
+        CHECK(ok && strcmp(ztp_strerror(ZTP_E_COUNT_), "unknown") == 0,
+              "every error has its own name");
     }
 
     printf("%s: %d checks, %d failed\n", fails ? "FAIL" : "OK", checks, fails);

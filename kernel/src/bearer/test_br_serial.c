@@ -22,23 +22,36 @@ static int cobs_vec(const uint8_t *in, uint32_t n, const uint8_t *exp, uint32_t 
 static void test_cobs(void)
 {
     /* expected values are without the trailing 0x00 delimiter */
-    { uint8_t i[] = {0x00}, e[] = {0x01, 0x01};
-      CHECK("COBS example 1: 00 -> 01 01", cobs_vec(i, 1, e, 2)); }
-    { uint8_t i[] = {0x00, 0x00}, e[] = {0x01, 0x01, 0x01};
-      CHECK("COBS example 2: 00 00 -> 01 01 01", cobs_vec(i, 2, e, 3)); }
-    { uint8_t i[] = {0x00, 0x11, 0x00}, e[] = {0x01, 0x02, 0x11, 0x01};
-      CHECK("COBS example 3: 00 11 00 -> 01 02 11 01", cobs_vec(i, 3, e, 4)); }
-    { uint8_t i[] = {0x11, 0x22, 0x00, 0x33}, e[] = {0x03, 0x11, 0x22, 0x02, 0x33};
-      CHECK("COBS example 4: 11 22 00 33 -> 03 11 22 02 33", cobs_vec(i, 4, e, 5)); }
-    { uint8_t i[] = {0x11, 0x22, 0x33, 0x44}, e[] = {0x05, 0x11, 0x22, 0x33, 0x44};
-      CHECK("COBS example 5: 11 22 33 44 -> 05 11 22 33 44", cobs_vec(i, 4, e, 5)); }
-    { uint8_t i[] = {0x11, 0x00, 0x00, 0x00}, e[] = {0x02, 0x11, 0x01, 0x01, 0x01};
-      CHECK("COBS example 6: 11 00 00 00 -> 02 11 01 01 01", cobs_vec(i, 4, e, 5)); }
+    {
+        uint8_t i[] = {0x00}, e[] = {0x01, 0x01};
+        CHECK("COBS example 1: 00 -> 01 01", cobs_vec(i, 1, e, 2));
+    }
+    {
+        uint8_t i[] = {0x00, 0x00}, e[] = {0x01, 0x01, 0x01};
+        CHECK("COBS example 2: 00 00 -> 01 01 01", cobs_vec(i, 2, e, 3));
+    }
+    {
+        uint8_t i[] = {0x00, 0x11, 0x00}, e[] = {0x01, 0x02, 0x11, 0x01};
+        CHECK("COBS example 3: 00 11 00 -> 01 02 11 01", cobs_vec(i, 3, e, 4));
+    }
+    {
+        uint8_t i[] = {0x11, 0x22, 0x00, 0x33}, e[] = {0x03, 0x11, 0x22, 0x02, 0x33};
+        CHECK("COBS example 4: 11 22 00 33 -> 03 11 22 02 33", cobs_vec(i, 4, e, 5));
+    }
+    {
+        uint8_t i[] = {0x11, 0x22, 0x33, 0x44}, e[] = {0x05, 0x11, 0x22, 0x33, 0x44};
+        CHECK("COBS example 5: 11 22 33 44 -> 05 11 22 33 44", cobs_vec(i, 4, e, 5));
+    }
+    {
+        uint8_t i[] = {0x11, 0x00, 0x00, 0x00}, e[] = {0x02, 0x11, 0x01, 0x01, 0x01};
+        CHECK("COBS example 6: 11 00 00 00 -> 02 11 01 01 01", cobs_vec(i, 4, e, 5));
+    }
     /* 7: 01..FE (254 bytes) -> FF 01..FE */
     for (int k = 0; k < 254; k++) g_in[k] = (uint8_t) (k + 1);
     g_exp[0] = 0xFF;
     for (int k = 0; k < 254; k++) g_exp[1 + k] = (uint8_t) (k + 1);
-    CHECK("COBS example 7: 01..FE -> FF 01..FE (no trailing code)", cobs_vec(g_in, 254, g_exp, 255));
+    CHECK("COBS example 7: 01..FE -> FF 01..FE (no trailing code)",
+          cobs_vec(g_in, 254, g_exp, 255));
     /* 8: 00..FE (255 bytes) -> 01 FF 01..FE */
     for (int k = 0; k < 255; k++) g_in[k] = (uint8_t) k;
     g_exp[0] = 0x01;
@@ -69,18 +82,32 @@ static void test_cobs(void)
     g_exp[254] = 0x02;
     g_exp[255] = 0x01;
     CHECK("COBS example 11: 03..FF 00 01 -> FE 03..FF 02 01", cobs_vec(g_in, 255, g_exp, 256));
-    { uint8_t e[] = {0x01};
-      CHECK("COBS empty input -> 01", cobs_vec(g_in, 0, e, 1)); }
+    {
+        uint8_t e[] = {0x01};
+        CHECK("COBS empty input -> 01", cobs_vec(g_in, 0, e, 1));
+    }
     CHECK("COBS max bound n + n/254 + 1", br_cobs_max(254) == 256 && br_cobs_max(0) == 1);
-    CHECK("COBS encode refuses a short buffer", br_cobs_encode(g_in, 254, g_enc, 255) == BR_ERR_ARG);
-    { uint8_t bad[] = {0x03, 0x11, 0x00, 0x22};
-      CHECK("COBS decode refuses a zero inside", br_cobs_decode(bad, 4, g_dec, 10) == BR_ERR_FORMAT); }
-    { uint8_t bad[] = {0x05, 0x11, 0x22};
-      CHECK("COBS decode refuses a code past the end", br_cobs_decode(bad, 3, g_dec, 10) == BR_ERR_FORMAT); }
-    { uint8_t z[] = {0x00};
-      CHECK("COBS decode refuses code 0", br_cobs_decode(z, 1, g_dec, 10) == BR_ERR_FORMAT); }
-    { uint8_t e[] = {0x05, 0x11, 0x22, 0x33, 0x44};
-      CHECK("COBS decode refuses a small output buffer", br_cobs_decode(e, 5, g_dec, 3) == BR_ERR_SIZE); }
+    CHECK("COBS encode refuses a short buffer",
+          br_cobs_encode(g_in, 254, g_enc, 255) == BR_ERR_ARG);
+    {
+        uint8_t bad[] = {0x03, 0x11, 0x00, 0x22};
+        CHECK("COBS decode refuses a zero inside",
+              br_cobs_decode(bad, 4, g_dec, 10) == BR_ERR_FORMAT);
+    }
+    {
+        uint8_t bad[] = {0x05, 0x11, 0x22};
+        CHECK("COBS decode refuses a code past the end",
+              br_cobs_decode(bad, 3, g_dec, 10) == BR_ERR_FORMAT);
+    }
+    {
+        uint8_t z[] = {0x00};
+        CHECK("COBS decode refuses code 0", br_cobs_decode(z, 1, g_dec, 10) == BR_ERR_FORMAT);
+    }
+    {
+        uint8_t e[] = {0x05, 0x11, 0x22, 0x33, 0x44};
+        CHECK("COBS decode refuses a small output buffer",
+              br_cobs_decode(e, 5, g_dec, 3) == BR_ERR_SIZE);
+    }
     /* random round trips, zero-heavy and zero-free */
     uint32_t s = 99;
     int ok = 1;
@@ -105,14 +132,16 @@ static void test_crc(void)
           br_crc32((const uint8_t *) "123456789", 9) == 0xCBF43926u);
     CHECK("CRC-32 of empty = 0", br_crc32((const uint8_t *) "", 0) == 0);
     CHECK("CRC-32 of the quick brown fox = 414FA339",
-          br_crc32((const uint8_t *) "The quick brown fox jumps over the lazy dog", 43) == 0x414FA339u);
+          br_crc32((const uint8_t *) "The quick brown fox jumps over the lazy dog", 43) ==
+              0x414FA339u);
     uint32_t c = br_crc32_update(0, (const uint8_t *) "12345", 5);
-    CHECK("CRC-32 incremental update", br_crc32_update(c, (const uint8_t *) "6789", 4) == 0xCBF43926u);
+    CHECK("CRC-32 incremental update",
+          br_crc32_update(c, (const uint8_t *) "6789", 4) == 0xCBF43926u);
     CHECK("CRC-32 of \"hello\" = 3610A686", br_crc32((const uint8_t *) "hello", 5) == 0x3610A686u);
 }
 
-static int feed(br_serial_rx_t *rx, const uint8_t *p, uint32_t n, uint8_t out[][300], uint32_t *lens,
-                int max)
+static int feed(br_serial_rx_t *rx, const uint8_t *p, uint32_t n, uint8_t out[][300],
+                uint32_t *lens, int max)
 {
     int got = 0;
     uint8_t tmp[1200];
@@ -129,19 +158,25 @@ static int feed(br_serial_rx_t *rx, const uint8_t *p, uint32_t n, uint8_t out[][
 static void test_frames(void)
 {
     uint8_t f[64];
-    static const uint8_t exp[] = {0x00, 0x0A, 'h', 'e', 'l', 'l', 'o', 0x86, 0xA6, 0x10, 0x36, 0x00};
+    static const uint8_t exp[] = {0x00, 0x0A, 'h',  'e',  'l',  'l',
+                                  'o',  0x86, 0xA6, 0x10, 0x36, 0x00};
     int32_t n = br_serial_frame((const uint8_t *) "hello", 5, f, sizeof f);
     CHECK("frame of \"hello\" is 00 0A 68 65 6C 6C 6F 86 A6 10 36 00",
           n == (int32_t) sizeof exp && !memcmp(f, exp, sizeof exp));
-    CHECK("frame refuses empty payload", br_serial_frame((const uint8_t *) "x", 0, f, sizeof f) == BR_ERR_ARG);
-    CHECK("frame refuses short buffer", br_serial_frame((const uint8_t *) "hello", 5, f, 11) == BR_ERR_SIZE);
-    { uint8_t z4[4] = {0, 0, 0, 0}, g[32];
-      int32_t m = br_serial_frame(z4, 4, g, sizeof g);
-      uint8_t d[32];
-      int32_t dl = br_cobs_decode(g + 1, (uint32_t) m - 2u, d, sizeof d);
-      uint32_t crc = br_crc32(z4, 4);
-      CHECK("frame of zeros: COBS of payload || CRC little-endian",
-            dl == 8 && !memcmp(d, z4, 4) && d[4] == (uint8_t) crc && d[7] == (uint8_t) (crc >> 24)); }
+    CHECK("frame refuses empty payload",
+          br_serial_frame((const uint8_t *) "x", 0, f, sizeof f) == BR_ERR_ARG);
+    CHECK("frame refuses short buffer",
+          br_serial_frame((const uint8_t *) "hello", 5, f, 11) == BR_ERR_SIZE);
+    {
+        uint8_t z4[4] = {0, 0, 0, 0}, g[32];
+        int32_t m = br_serial_frame(z4, 4, g, sizeof g);
+        uint8_t d[32];
+        int32_t dl = br_cobs_decode(g + 1, (uint32_t) m - 2u, d, sizeof d);
+        uint32_t crc = br_crc32(z4, 4);
+        CHECK("frame of zeros: COBS of payload || CRC little-endian",
+              dl == 8 && !memcmp(d, z4, 4) && d[4] == (uint8_t) crc &&
+                  d[7] == (uint8_t) (crc >> 24));
+    }
 
     static uint8_t raw[BR_SERIAL_FRAME_MAX(256)];
     br_serial_rx_t rx;
@@ -166,7 +201,8 @@ static void test_frames(void)
           got == 2 && lens[0] == 5 && !memcmp(out[0], "first", 5) && lens[1] == 5 &&
               !memcmp(out[1], "third", 5));
     CHECK("corrupted frame counted as bad CRC", rx.bad_crc == 1);
-    CHECK("garbage counted once as bad COBS or CRC", rx.bad_cobs + rx.bad_crc == 2 && rx.frames == 2);
+    CHECK("garbage counted once as bad COBS or CRC",
+          rx.bad_cobs + rx.bad_crc == 2 && rx.frames == 2);
     /* joining mid-frame */
     br_serial_rx_init(&rx, raw, sizeof raw);
     sn = (uint32_t) br_serial_frame((const uint8_t *) "abcdefgh", 8, stream, 64);
@@ -186,9 +222,11 @@ static void test_frames(void)
           got == 1 && rx.too_long == 1 && lens[0] == 2 && !memcmp(out[0], "ok", 2));
     /* too short to hold a CRC */
     br_serial_rx_init(&rx, raw, sizeof raw);
-    { uint8_t s3[] = {0x00, 0x03, 0x11, 0x22, 0x00};
-      got = feed(&rx, s3, 5, out, lens, 8);
-      CHECK("frame shorter than payload + CRC refused", got == 0 && rx.bad_cobs == 1); }
+    {
+        uint8_t s3[] = {0x00, 0x03, 0x11, 0x22, 0x00};
+        got = feed(&rx, s3, 5, out, lens, 8);
+        CHECK("frame shorter than payload + CRC refused", got == 0 && rx.bad_cobs == 1);
+    }
     /* random garbage fuzz: never crashes, frames after it still arrive */
     uint32_t s = 7;
     int ok = 1;
@@ -203,7 +241,8 @@ static void test_frames(void)
         for (uint32_t k = 0; k < pl; k++) g_in[k] = (uint8_t) (k * 31u + (uint32_t) it);
         sn = gl + (uint32_t) br_serial_frame(g_in, pl, stream + gl, sizeof stream - gl);
         got = feed(&rx, stream, sn, out, lens, 8);
-        if (got < 1 || lens[got - 1] != pl || memcmp(out[got - 1], g_in, pl < 300 ? pl : 300)) ok = 0;
+        if (got < 1 || lens[got - 1] != pl || memcmp(out[got - 1], g_in, pl < 300 ? pl : 300))
+            ok = 0;
         if (got > 1) ok = 0; /* random garbage passing a CRC-32: astronomically unlikely */
     }
     CHECK("500 garbage prefixes: the real frame always arrives, nothing false", ok);
