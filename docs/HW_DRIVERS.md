@@ -38,11 +38,20 @@ checks the stream's DMA position moved.
 | Driver | Standard | Devices | Tested in QEMU | Host test |
 |---|---|---|---|---|
 | `nvme.c` | NVMe 1.4 | every NVMe SSD (class 01/08/02) | `-device nvme` | `test_nvme.c` |
+| `ahci.c` | AHCI 1.3 / ATA | every SATA controller in AHCI mode (class 01/06/01); ATAPI drives are left alone | q35 built-in AHCI + `ide-hd` | `test_ahci.c` |
+| `xhci.c` | xHCI 1.1 | every USB 3 host (class 0C/03/30), BIOS handoff, scratchpads, 32/64-byte contexts, one hub level, Intel EHCI port switching | `-device qemu-xhci` | `test_xhci.c` |
+| `usbkbd.c` | USB HID boot protocol | USB keyboards | `-device usb-kbd` | `test_xhci.c` |
+| `usbmsc.c` | USB mass storage, bulk-only + SCSI | USB sticks and disks | `-device usb-storage` | `test_xhci.c` |
+| `e1000.c` | Intel 8254x / 82574L / PCH (I217-I219) | Intel gigabit NICs | `-device e1000`, `-device e1000e` | `test_e1000.c` |
+| `igb.c` | Intel 82576 / I350 / I210 / I211 | Intel server and desktop gigabit NICs | `-device igb` (QEMU 8+) | `test_igb.c` |
+| `r8169.c` | Realtek RTL8111/8168/8169 | Realtek gigabit NICs | none (QEMU has no model) | `test_r8169.c` |
+| `hda.c` | Intel High Definition Audio | HDA controllers (class 04/03), codec graph walk to the first output pin | `-device intel-hda` + `hda-duplex` | `test_hda.c` |
 | `hw_storage.c` | UEFI GPT + FAT32 | any disk the drivers above expose | all three disks | `test_hw_storage.c` |
 | `hwdrv_core.c`, `hwdrv_probe.c` | PCI 3.0 config space | BAR sizing incl. 64-bit, capabilities | every boot | `test_hwdrv_core.c` |
 
-(Rows for AHCI, xHCI + USB, the Intel NIC family and HD Audio are added as
-those drivers land in this PR.)
+Device ids that QEMU does not model are marked in the source as not tested on
+hardware: the e1000 PCH parts (I217-I219), the igb I350/I210/I211 rows, and
+all of r8169.
 
 ## Testing
 
@@ -55,7 +64,7 @@ those drivers land in this PR.)
   `bash build_system/hw_drivers_check.sh`. It boots the UEFI disc under OVMF
   with one of every covered device, types `zxv` into the USB keyboard through
   the QEMU monitor, and fails unless every driver binds, every disk reads the
-  GPT and the file off its ESP, both NICs get a DHCP offer, the keys arrive,
+  GPT and the file off its ESP, every NIC gets a DHCP offer, the keys arrive,
   and the audio stream runs. CI runs it in the `uefi-disc` job.
 
 ## Platform contract (`hw_plat_t`)
@@ -73,6 +82,7 @@ hosted either way.
 
 ## Not done yet
 
+- USB CDC, USB audio, UVC, Bluetooth HCI and Intel igc.
 - Interrupts (MSI/MSI-X). Polling is fine for boot and a single-threaded
   kernel loop, not for throughput.
 - IOMMU. DMA is not fenced off from the rest of memory.

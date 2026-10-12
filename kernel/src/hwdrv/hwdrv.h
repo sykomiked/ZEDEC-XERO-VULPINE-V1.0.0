@@ -249,8 +249,7 @@ hw_verdict_t xhci_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t 
                        hw_line_t *note);
 hw_verdict_t e1000_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                         hw_line_t *note);
-hw_verdict_t hda_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
-                      hw_line_t *note);
+hw_verdict_t hda_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note);
 hw_verdict_t igb_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note);
 hw_verdict_t r8169_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                         hw_line_t *note);

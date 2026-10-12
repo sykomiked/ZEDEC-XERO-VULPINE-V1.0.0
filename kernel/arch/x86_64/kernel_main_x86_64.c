@@ -56,7 +56,11 @@ static void boot_msg(const char *msg) {
     uart_puts("\n");
 }
 
-static void hw_log_line(const char *line) { uart_puts(line); uart_puts("\n"); }
+static void hw_log_line(const char *line)
+{
+    uart_puts(line);
+    uart_puts("\n");
+}
 
 /* Helper to copy a short string into a fixed-size, zero-padded cell id. */
 static void cell_id_set(char *dst, const char *src) {
