@@ -3,7 +3,8 @@
 //
 // Settings & Jurisdiction Bridge: zxvd.version, update.check and
 // swarm.state.update, notes.list / notes.mark_read, currency.enable,
-// swarm.state's machine budget, zxvd.shutdown.
+// swarm.state's machine budget, jurisdiction.get / jurisdiction.set,
+// zxvd.shutdown.
 import SwiftUI
 import ZXVRPC
 
@@ -15,6 +16,11 @@ struct SettingsView: View {
     @State private var code = ""
     @State private var codeLine: (Bool, String)?
     @State private var confirmStop = false
+    @State private var market = "closed"
+    @State private var standard = ""
+    @State private var country = ""
+    @State private var bridgeLine: (Bool, String)?
+    @State private var bridgeLoaded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -28,11 +34,53 @@ struct SettingsView: View {
                 currencies
                 machine
             }
-            if !store.has("jurisdiction.get") {
+            if store.has("jurisdiction.get") {
+                bridge
+            } else {
                 NotServed(what: "Jurisdiction Bridge", method: "jurisdiction.get",
                           detail: "Closed clearing is the default; an open batch-auction market is a per-deployment switch. The accounting standard for reports (IFRS, US GAAP, AAOIFI, OHADA, CAS, insurer SAP) will be chosen here. Adapters are designed to follow each standard; they are not a substitute for an accountant or a Shariah board.")
             }
         }
+    }
+
+    private static let standardNames: [String: String] = [
+        "": "Not chosen", "IFRS": "IFRS", "US_GAAP": "US GAAP", "IPSAS": "IPSAS", "AAOIFI": "AAOIFI",
+        "OHADA": "OHADA", "CAS": "CAS (China)", "SAP_INSURER": "Insurer SAP",
+    ]
+
+    private var bridge: some View {
+        let j = store.jurisdiction
+        return Panel(title: "Jurisdiction Bridge", trailing: j?.inEffect == true ? "In effect" : "Recorded only") {
+            Picker("Market", selection: $market) {
+                Text("Closed clearing").tag("closed")
+                Text("Open batch auction").tag("open")
+            }
+            .pickerStyle(.segmented).frame(width: 340)
+            HStack {
+                Picker("Accounting standard", selection: $standard) {
+                    ForEach([""] + (j?.standards ?? []), id: \.self) { Text(Self.standardNames[$0] ?? $0).tag($0) }
+                }
+                .frame(width: 300)
+                TextField("Country (e.g. KE)", text: $country).textFieldStyle(.roundedBorder).frame(width: 140)
+                Button("Save") {
+                    Task { bridgeLine = await store.setJurisdiction(market: market, standard: standard, country: country) }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            Text(bridgeLine?.1 ?? "Saved in your books file. No report adapter or open market uses these settings yet. Adapters are designed to follow each standard; they are not a substitute for an accountant or a Shariah board.")
+                .font(.callout)
+                .foregroundStyle(bridgeLine?.0 == false ? Theme.warn : Theme.muted)
+        }
+        .onAppear { loadBridge() }
+        .onChange(of: store.jurisdiction?.market) { _ in loadBridge() }
+    }
+
+    private func loadBridge() {
+        guard !bridgeLoaded, let j = store.jurisdiction else { return }
+        market = j.market
+        standard = j.standard
+        country = j.country
+        bridgeLoaded = true
     }
 
     private var updates: some View {

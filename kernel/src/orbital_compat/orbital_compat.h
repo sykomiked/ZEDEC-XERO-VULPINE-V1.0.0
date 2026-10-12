@@ -48,6 +48,7 @@
 #include "../rational/rational.h"
 #include "../lpres/lpres.h"
 #include "../edp_risk/edp_risk.h"
+#include "../../include/zxv_fixed.h"
 
 /* ===== language registry ===== */
 typedef enum {
@@ -293,10 +294,7 @@ static inline rat_t oc_rat_from_sutra(int64_t num, int64_t den) {
     r.valid = 1;
     /* Normalize */
     if (r.num == 0) { r.den = 1; return r; }
-    int64_t a = r.num < 0 ? -r.num : r.num;
-    int64_t b = r.den < 0 ? -r.den : r.den;
-    while (b) { int64_t t = a % b; a = b; b = t; }
-    int64_t g = a;
+    int64_t g = zx_gcd_i64(r.num, r.den);
     r.num /= g; r.den /= g;
     if (r.den < 0) { r.num = -r.num; r.den = -r.den; }
     return r;
