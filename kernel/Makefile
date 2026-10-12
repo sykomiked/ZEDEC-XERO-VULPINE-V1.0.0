@@ -238,6 +238,20 @@ FUZZ_FS_ITERS ?= 3000
 # mutation runner gives each of its parallel workers its own directory.
 ZXV_TMP ?= /tmp
 
+# Server certificate verification under TLS: SHA-384/512, RSA, ECDSA, X.509
+# and the trust store (see src/tls/trust.h).
+TLS_VERIFY_SRCS := src/tls/sha512.c src/tls/digest.c src/tls/bn.c src/tls/ecdsa.c src/tls/rsa.c \
+	src/tls/x509.c src/tls/trust.c
+
+.PHONY: test-tls-verify
+test-tls-verify:
+	@echo "=== TLS signatures: FIPS 180-4 SHA-2, Wycheproof ECDSA P-256/P-384, RSA-PSS, PKCS #1 v1.5 ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls src/tls/test_tls_sig.c $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_tls_sig && $(ZXV_TMP)/test_tls_sig > $(ZXV_TMP)/test_tls_sig.log 2>&1 && echo "[PASS] test_tls_sig ($$(grep "checks," $(ZXV_TMP)/test_tls_sig.log))" || { tail -40 $(ZXV_TMP)/test_tls_sig.log; echo "[FAIL] test_tls_sig"; exit 1; }
+	@echo "=== X.509 chains: real web PKI chains + OpenSSL-made known-bad chains ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls src/tls/test_trust.c $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_trust && $(ZXV_TMP)/test_trust > $(ZXV_TMP)/test_trust.log 2>&1 && echo "[PASS] test_trust ($$(grep "checks," $(ZXV_TMP)/test_trust.log))" || { grep -v "^\[PASS\]" $(ZXV_TMP)/test_trust.log | tail -40; echo "[FAIL] test_trust"; exit 1; }
+	gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls src/tls/test_trust.c $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_trust_asan && $(ZXV_TMP)/test_trust_asan > $(ZXV_TMP)/test_trust_asan.log 2>&1 && echo "[PASS] test_trust ASan/UBSan" || { tail -40 $(ZXV_TMP)/test_trust_asan.log; echo "[FAIL] test_trust ASan/UBSan"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-unknown-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; [ $$t = armv7a-none-eabi ] && fl=-mfloat-abi=soft; [ $$t = riscv32-unknown-elf ] && fl=-march=rv32imac; for f in $(TLS_VERIFY_SRCS) src/tls/handshake.c; do clang --target=$$t -ffreestanding -fno-builtin $$fl -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/modbind -Isrc/tls -c $$f -o $(ZXV_TMP)/tls_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/tls_free.o | grep -E " (mem(cmp|move|chr)|str[a-z]+|malloc|calloc|realloc|free|printf|puts|abort|__[a-z0-9_]+)\$$" | grep -q .; then nm -u $(ZXV_TMP)/tls_free.o; echo "[FAIL] $$f pulls in libc or a compiler helper ($$t)"; exit 1; fi; done; done; echo "[PASS] TLS verifier builds freestanding (aarch64, i386, armv7a, rv32): no libc, no compiler helpers"
+
 verify-all: test
 	@echo "=== The One Policy: Symbiotic Maxim (void-by-definition) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/onepolicy -Isrc/surplus src/onepolicy/test_onepolicy.c src/onepolicy/onepolicy.c -o /tmp/test_onepolicy -lm && /tmp/test_onepolicy && echo "[PASS] test_onepolicy" || { echo "[FAIL] test_onepolicy"; exit 1; }
@@ -443,8 +457,9 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/pay -Isrc/zcapital -Isrc/surplus -Isrc/tensor -Isrc/mlkem -Isrc/robin_debanks -Isrc/swarm -Isrc/cbank -Isrc/iso20022 -Isrc/vino_stores -Isrc/finance -Isrc/vino -Isrc/onepolicy -Isrc/edp_risk -Isrc/cardnet -Isrc/devmesh -Isrc/evolve src/pay/test_rails_canon.c src/pay/pay_*.c src/tensor/zt.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/iso20022/iso20022.c src/cbank/cb_vss.c src/cbank/cb_ccy.c src/cbank/cb_ccy_tbl.c src/cbank/cb_util.c -o /tmp/p10econ_test_rails_canon -lm && /tmp/p10econ_test_rails_canon > /tmp/p10econ_test_rails_canon.log 2>&1 && echo "[PASS] test_rails_canon ($$(grep -c '\[PASS\]' /tmp/p10econ_test_rails_canon.log) checks)" || { cat /tmp/p10econ_test_rails_canon.log; echo "[FAIL] test_rails_canon"; exit 1; }
 	@echo "=== tolvovina: geometry/raster/stereo/ROM self-checks on the host (no TEST_HOST: integer Q32.32) ==="
 	gcc -std=c11 -Wall -Werror -Wextra -Wno-misleading-indentation -Isrc -Isrc/tolvovina -Isrc/emu -Isrc/fractal -Isrc/robin_debanks -Isrc/trispace -Isrc/theme -Isrc/shimmer src/tolvovina/test_tvl_host.c src/tolvovina/tvl_bringup.c src/tolvovina/tvl_geom.c src/tolvovina/tvl_raster.c src/tolvovina/tvl_rom.c src/tolvovina/tvl_stereo.c src/e8/e8.c src/e8/zphi.c src/emu/dimfold.c src/emu/holo.c src/emu/megarom.c src/fractal/zorder.c src/robin_debanks/sha256.c src/surplus/surplus.c src/theme/theme.c src/shimmer/shimmer.c -o /tmp/test_tvl_host && /tmp/test_tvl_host && echo "[PASS] test_tvl_host" || { echo "[FAIL] test_tvl_host"; exit 1; }
-	@echo "=== TLS 1.3 client handshake: state machine vs an in-test server (unauthenticated by design) ==="
-	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tls -Isrc/robin_debanks src/tls/test_handshake.c src/tls/handshake.c src/tls/record.c src/tls/aead.c src/tls/hkdf.c src/tls/x25519.c src/robin_debanks/sha256.c -o /tmp/test_handshake && /tmp/test_handshake && echo "[PASS] test_handshake" || { echo "[FAIL] test_handshake"; exit 1; }
+	@echo "=== TLS 1.3 client handshake: state machine, chain + CertificateVerify vs an in-test server ==="
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls -Isrc/robin_debanks src/tls/test_handshake.c src/tls/handshake.c src/tls/record.c src/tls/aead.c src/tls/hkdf.c src/tls/x25519.c $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o /tmp/test_handshake && /tmp/test_handshake && echo "[PASS] test_handshake" || { echo "[FAIL] test_handshake"; exit 1; }
+	@$(MAKE) --no-print-directory test-tls-verify
 	@echo "=== xedit: gap buffer text/lines/hash with the gap mid-text, bounded copies ==="
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/xedit src/xedit/test_xedit.c src/xedit/xedit.c -o /tmp/test_xedit && /tmp/test_xedit && echo "[PASS] test_xedit" || { echo "[FAIL] test_xedit"; exit 1; }
 	@echo "=== OS layers: lattice, neon, gridchain, security, physics, hccs, audiogenomics, governance, integration, drivers ==="; \

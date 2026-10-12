@@ -322,6 +322,13 @@ KERNEL_SRC = \
     kernel/src/tls/aead.c \
     kernel/src/tls/record.c \
     kernel/src/tls/handshake.c \
+    kernel/src/tls/sha512.c \
+    kernel/src/tls/digest.c \
+    kernel/src/tls/bn.c \
+    kernel/src/tls/ecdsa.c \
+    kernel/src/tls/rsa.c \
+    kernel/src/tls/x509.c \
+    kernel/src/tls/trust.c \
     kernel/src/bringup/arch_globals.c \
     kernel/freestanding.c \
     kernel/compat/compat_layer.c
