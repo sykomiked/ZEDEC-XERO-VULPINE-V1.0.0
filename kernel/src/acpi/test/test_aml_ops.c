@@ -194,9 +194,10 @@ static void test_ints(aml_ctx_t *c)
             uint32_t after = aml_stats(c).heap_used;
             if (e != t->err || (!e && v != t->want)) {
                 g_fails++;
-                printf("FAIL %s(%llu) round %d: err %d (%s) value 0x%llx, want err %d value 0x%llx\n",
-                       t->path, (unsigned long long) t->arg, round, e, aml_strerror(e),
-                       (unsigned long long) v, t->err, (unsigned long long) t->want);
+                printf(
+                    "FAIL %s(%llu) round %d: err %d (%s) value 0x%llx, want err %d value 0x%llx\n",
+                    t->path, (unsigned long long) t->arg, round, e, aml_strerror(e),
+                    (unsigned long long) v, t->err, (unsigned long long) t->want);
             }
             g_checks++;
             /* steady state: a second identical call must not grow the heap */

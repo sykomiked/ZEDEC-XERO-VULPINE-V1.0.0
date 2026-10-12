@@ -35,6 +35,7 @@
 #include "efifb_con.h"        /* UEFI GOP text console (real PCs have no COM1) */
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
+#include "acpi_x86.h"         /* ACPI tables, AML interpreter, power management */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
@@ -309,6 +310,12 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         uart_puts(" (TSC ");
         uart_put_dec(tsc_per_us);
         uart_puts(" ticks/us)\n");
+
+        /* ACPI: tables, the AML namespace (DSDT + SSDTs), sleep states, power
+         * button, batteries, lid, thermal zones, processors, backlight. Only
+         * reports; a failure is logged and the boot goes on. */
+        boot_msg("[BOOT] ACPI: tables and AML namespace...");
+        acpi_x86_boot(hp, tsc_per_us, hw_log_line);
     }
 
     /* AI self-check, same entry point and constants as arm64 (swarm_boot.h): a

@@ -7,16 +7,16 @@
 #include "../acpi_pm.h"
 #include "amltest.h"
 
-#define FW_PHYS  0x7FE00000ull
-#define FW_RSDP  0x0000
-#define FW_XSDT  0x0040
-#define FW_RSDT  0x0100
-#define FW_FACP  0x0200
-#define FW_SSDT  0x0400
-#define FW_ECDT  0x0500
-#define FW_BAD   0x0600
-#define FW_DSDT  0x1000
-#define FW_SIZE  0x4000
+#define FW_PHYS 0x7FE00000ull
+#define FW_RSDP 0x0000
+#define FW_XSDT 0x0040
+#define FW_RSDT 0x0100
+#define FW_FACP 0x0200
+#define FW_SSDT 0x0400
+#define FW_ECDT 0x0500
+#define FW_BAD  0x0600
+#define FW_DSDT 0x1000
+#define FW_SIZE 0x4000
 
 #define F_HWRED  0x01
 #define F_XDSDT  0x02
@@ -461,7 +461,7 @@ static void test_sleep(void)
     CHECK_EQ(acpi_enter_sleep(&pm, 5), AML_EIO);
     CHECK_EQ(f.io[0xB030], (7 << 2) | 0x20);
     CHECK_EQ(f.sleep_writes, 0);
-    f.io[0xB031] = 0x80; /* wake status already set: S3 "resumes" */
+    f.io[0xB031] = 0x80;                         /* wake status already set: S3 "resumes" */
     CHECK_EQ(acpi_enter_sleep(&pm, 3), AML_EIO); /* cleared before sleeping */
     CHECK_EQ(acpi_pm_enable(&pm), 0);
     CHECK_EQ(pm.acpi_mode, 0);

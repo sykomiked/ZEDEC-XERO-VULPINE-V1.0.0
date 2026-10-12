@@ -28,12 +28,12 @@
 #define AML_SPACE_TABLE 0xFE /* internal: DataRegion over a loaded table */
 
 /* field flags */
-#define AML_ACC_ANY   0
-#define AML_ACC_BYTE  1
-#define AML_ACC_WORD  2
-#define AML_ACC_DWORD 3
-#define AML_ACC_QWORD 4
-#define AML_ACC_BUF   5
+#define AML_ACC_ANY      0
+#define AML_ACC_BYTE     1
+#define AML_ACC_WORD     2
+#define AML_ACC_DWORD    3
+#define AML_ACC_QWORD    4
+#define AML_ACC_BUF      5
 #define AML_UPD_PRESERVE 0
 #define AML_UPD_ONES     1
 #define AML_UPD_ZEROS    2
@@ -73,8 +73,8 @@ struct aml_node {
             uint8_t pci_ok;
             uint64_t base, len;
             volatile uint8_t *map;
-            aml_node_t *dscope; /* scope of the deferred terms */
-            uint8_t busy;    /* preparing (catches a region used by its own _ADR) */
+            aml_node_t *dscope;   /* scope of the deferred terms */
+            uint8_t busy;         /* preparing (catches a region used by its own _ADR) */
             const uint8_t *defer; /* the two TermArgs, evaluated on first use */
             uint32_t defer_len;
             uint32_t seg, bus, dev, fn;

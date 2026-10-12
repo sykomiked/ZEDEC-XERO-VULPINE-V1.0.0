@@ -59,7 +59,8 @@ static void raw_wr(amlfake_t *f, uint32_t port, uint32_t width, uint32_t v)
 static int is_w1c(uint32_t port)
 {
     return (port >= FK_PM1A_EVT && port < FK_PM1A_EVT + 2) ||
-           (port >= FK_PM1B_EVT && port < FK_PM1B_EVT + 2) || (port >= FK_GPE0 && port < FK_GPE0 + 4) || port == 0xB031;
+           (port >= FK_PM1B_EVT && port < FK_PM1B_EVT + 2) ||
+           (port >= FK_GPE0 && port < FK_GPE0 + 4) || port == 0xB031;
 }
 
 static uint32_t fk_ior(void *ctx, uint32_t port, uint32_t width)
@@ -143,8 +144,10 @@ static void fk_iow(void *ctx, uint32_t port, uint32_t width, uint32_t v)
         raw_wr(f, port, width, v & ~0x2000u);
         if (v & 0x2000u) {
             f->sleep_writes++;
-            if (port == FK_PM1A_CNT) f->last_slp_typ_a = (v >> 10) & 7;
-            else f->last_slp_typ_b = (v >> 10) & 7;
+            if (port == FK_PM1A_CNT)
+                f->last_slp_typ_a = (v >> 10) & 7;
+            else
+                f->last_slp_typ_b = (v >> 10) & 7;
             if (f->wake_after_sleep) f->io[FK_PM1A_EVT + 1] |= 0x80; /* WAK_STS */
         }
     } else {

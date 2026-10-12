@@ -163,9 +163,12 @@ void acpi_gas_write(const aml_plat_t *p, const acpi_gas_t *g, uint32_t off, uint
     if (g->space == 0 && p->mmio_map) {
         volatile uint8_t *m = (volatile uint8_t *) p->mmio_map(p->ctx, g->addr, off + width / 8);
         if (!m) return;
-        if (width == 8) m[off] = (uint8_t) v;
-        else if (width == 16) *(volatile uint16_t *) (m + off) = (uint16_t) v;
-        else *(volatile uint32_t *) (m + off) = v;
+        if (width == 8)
+            m[off] = (uint8_t) v;
+        else if (width == 16)
+            *(volatile uint16_t *) (m + off) = (uint16_t) v;
+        else
+            *(volatile uint32_t *) (m + off) = v;
     }
 }
 
@@ -298,8 +301,7 @@ int acpi_pm_enable(acpi_pm_t *pm)
             if (acpi_gas_read(pm->plat, &pm->fadt.pm1a_cnt, 0, 16) & ACPI_PM1_SCI_EN) break;
             if (pm->plat->delay_us) pm->plat->delay_us(pm->plat->ctx, 1000);
         }
-        if (!(acpi_gas_read(pm->plat, &pm->fadt.pm1a_cnt, 0, 16) & ACPI_PM1_SCI_EN))
-            return AML_EIO;
+        if (!(acpi_gas_read(pm->plat, &pm->fadt.pm1a_cnt, 0, 16) & ACPI_PM1_SCI_EN)) return AML_EIO;
     }
     pm->acpi_mode = 1;
     arm_events(pm);
@@ -314,8 +316,10 @@ int acpi_enter_sleep(acpi_pm_t *pm, uint32_t state)
     if (!pm->sleep_ok[state]) return AML_ENOENT;
     a = aml_int(state);
     int r = aml_eval(pm->aml, 0, "\\_PTS", &a, 1, &ret);
-    if (!r) aml_val_free(pm->aml, &ret);
-    else if (r != AML_ENOENT) log2s(pm, "[ACPI] _PTS failed", "", r);
+    if (!r)
+        aml_val_free(pm->aml, &ret);
+    else if (r != AML_ENOENT)
+        log2s(pm, "[ACPI] _PTS failed", "", r);
     if (!aml_eval(pm->aml, 0, "\\_SI._SST", &a, 1, &ret)) aml_val_free(pm->aml, &ret);
     uint32_t ta = pm->typa[state], tb = pm->typb[state];
     if (pm->fadt.flags & ACPI_FADT_HW_REDUCED) {
@@ -415,8 +419,7 @@ uint32_t acpi_poll_events(acpi_pm_t *pm)
     aml_notify_t nt;
     while (aml_notify_pop(pm->aml, &nt)) {
         ev |= ACPI_EV_NOTIFY;
-        if (nt.value == 0x80 && aml_dev_match_id(pm->aml, nt.node, "PNP0C0C"))
-            ev |= ACPI_EV_PWRBTN;
+        if (nt.value == 0x80 && aml_dev_match_id(pm->aml, nt.node, "PNP0C0C")) ev |= ACPI_EV_PWRBTN;
         if (nt.value == 0x80 && aml_dev_match_id(pm->aml, nt.node, "PNP0C0D")) ev |= ACPI_EV_LID;
     }
     return ev;
@@ -497,8 +500,10 @@ uint32_t acpi_pm_report(acpi_pm_t *pm)
     lines += pl_emit(pm, &l);
 
     for (uint32_t s = 3; s <= 5; s += 2) {
-        if (s == 5) pl_init(&l, "[ACPI] \\_S5_ ");
-        else pl_init(&l, "[ACPI] S3 ");
+        if (s == 5)
+            pl_init(&l, "[ACPI] \\_S5_ ");
+        else
+            pl_init(&l, "[ACPI] S3 ");
         if (pm->sleep_ok[s]) {
             if (s == 3) pl_s(&l, "supported ");
             pl_s(&l, "SLP_TYPa=");
@@ -514,8 +519,10 @@ uint32_t acpi_pm_report(acpi_pm_t *pm)
     struct aml_node *dev[8];
     uint32_t npb = aml_find_devices(c, "PNP0C0C", dev, 8);
     pl_init(&l, "[ACPI] power button: ");
-    if (pm->fadt.flags & ACPI_FADT_HW_REDUCED) pl_s(&l, "hardware-reduced platform, ");
-    else if (!(pm->fadt.flags & ACPI_FADT_PWR_BUTTON)) pl_s(&l, "fixed feature (PM1 PWRBTN), ");
+    if (pm->fadt.flags & ACPI_FADT_HW_REDUCED)
+        pl_s(&l, "hardware-reduced platform, ");
+    else if (!(pm->fadt.flags & ACPI_FADT_PWR_BUTTON))
+        pl_s(&l, "fixed feature (PM1 PWRBTN), ");
     pl_s(&l, "control-method devices PNP0C0C: ");
     pl_u(&l, npb);
     pl_s(&l, ", GPE methods: ");

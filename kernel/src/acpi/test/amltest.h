@@ -15,24 +15,24 @@
 
 static int g_checks, g_fails;
 
-#define CHECK(cond)                                                                    \
-    do {                                                                               \
-        g_checks++;                                                                    \
-        if (!(cond)) {                                                                 \
-            g_fails++;                                                                 \
-            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                      \
-        }                                                                              \
+#define CHECK(cond)                                                                                \
+    do {                                                                                           \
+        g_checks++;                                                                                \
+        if (!(cond)) {                                                                             \
+            g_fails++;                                                                             \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                 \
+        }                                                                                          \
     } while (0)
 
-#define CHECK_EQ(a, b)                                                                 \
-    do {                                                                               \
-        unsigned long long a_ = (unsigned long long) (a), b_ = (unsigned long long) (b); \
-        g_checks++;                                                                    \
-        if (a_ != b_) {                                                                \
-            g_fails++;                                                                 \
-            printf("FAIL %s:%d: %s == %s (0x%llx != 0x%llx)\n", __FILE__, __LINE__, #a, #b, \
-                   a_, b_);                                                            \
-        }                                                                              \
+#define CHECK_EQ(a, b)                                                                             \
+    do {                                                                                           \
+        unsigned long long a_ = (unsigned long long) (a), b_ = (unsigned long long) (b);           \
+        g_checks++;                                                                                \
+        if (a_ != b_) {                                                                            \
+            g_fails++;                                                                             \
+            printf("FAIL %s:%d: %s == %s (0x%llx != 0x%llx)\n", __FILE__, __LINE__, #a, #b, a_,    \
+                   b_);                                                                            \
+        }                                                                                          \
     } while (0)
 
 #define ARENA_SIZE (4u << 20)

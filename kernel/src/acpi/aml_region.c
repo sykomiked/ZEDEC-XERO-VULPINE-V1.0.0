@@ -213,8 +213,10 @@ int aml_region_access(aml_ctx_t *c, aml_node_t *rg, uint64_t off, uint32_t w, in
             /* a misaligned unit (odd region base): byte by byte, never a
              * misaligned wide access */
             for (uint32_t i = 0; i < w; i++) {
-                if (write) m[i] = (uint8_t) (v >> (8 * i));
-                else v |= (uint64_t) m[i] << (8 * i);
+                if (write)
+                    m[i] = (uint8_t) (v >> (8 * i));
+                else
+                    v |= (uint64_t) m[i] << (8 * i);
             }
         } else if (write) {
             if (w == 1) *m = (uint8_t) v;
@@ -249,8 +251,8 @@ int aml_region_access(aml_ctx_t *c, aml_node_t *rg, uint64_t off, uint32_t w, in
             uint32_t part = w - done >= 4 ? 4 : w - done;
             uint32_t o = (uint32_t) addr + done;
             if (write)
-                p->pci_write(p->ctx, rg->x.r.seg, rg->x.r.bus, rg->x.r.dev, rg->x.r.fn, o,
-                             part * 8, (uint32_t) (v >> (8 * done)));
+                p->pci_write(p->ctx, rg->x.r.seg, rg->x.r.bus, rg->x.r.dev, rg->x.r.fn, o, part * 8,
+                             (uint32_t) (v >> (8 * done)));
             else
                 v |= (uint64_t) (p->pci_read(p->ctx, rg->x.r.seg, rg->x.r.bus, rg->x.r.dev,
                                              rg->x.r.fn, o, part * 8) &
@@ -314,12 +316,18 @@ static uint32_t acc_width(const aml_node_t *f, uint32_t space)
     uint32_t t = f->x.f.flags & 0x0F;
     if (space == AML_SPACE_EC || space == AML_SPACE_CMOS) return 1;
     switch (t) {
-    case AML_ACC_BYTE: return 1;
-    case AML_ACC_WORD: return 2;
-    case AML_ACC_DWORD: return 4;
-    case AML_ACC_QWORD: return 8;
-    case AML_ACC_BUF: return 1;
-    default: break;
+    case AML_ACC_BYTE:
+        return 1;
+    case AML_ACC_WORD:
+        return 2;
+    case AML_ACC_DWORD:
+        return 4;
+    case AML_ACC_QWORD:
+        return 8;
+    case AML_ACC_BUF:
+        return 1;
+    default:
+        break;
     }
     /* AnyAcc: narrowest aligned unit holding the whole field, else dwords */
     uint32_t first = f->x.f.bitoff, last = f->x.f.bitoff + f->x.f.bitlen - 1;

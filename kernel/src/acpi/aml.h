@@ -176,19 +176,19 @@ typedef struct aml_ctx {
     uint32_t node_gen;
     uint8_t int64; /* 1 = 64-bit integers (DSDT revision >= 2) */
     uint8_t dsdt_rev;
-    uint8_t loading; /* 1 while a table's top level runs */
+    uint8_t loading;     /* 1 while a table's top level runs */
     uint32_t load_skips; /* unknown opcodes stepped over in this table */
     int load_err;        /* first error of a term skipped in this table */
     uint8_t pass1;
     /* execution */
     aml_frame_t frames[AML_MAX_CALL_DEPTH];
-    uint32_t depth;   /* frames in use */
-    uint32_t nest;    /* evaluator recursion */
-    uint32_t serial;  /* frame serial counter */
-    uint32_t ops;     /* ops spent in this top-level evaluation */
+    uint32_t depth;    /* frames in use */
+    uint32_t nest;     /* evaluator recursion */
+    uint32_t serial;   /* frame serial counter */
+    uint32_t ops;      /* ops spent in this top-level evaluation */
     uint32_t op_limit; /* 0 = AML_MAX_OPS; a caller may set a smaller budget */
     uint32_t sleep_us;
-    uint32_t top;     /* top-level evaluation nesting (budgets reset at 0) */
+    uint32_t top; /* top-level evaluation nesting (budgets reset at 0) */
     uint64_t fake_time;
     uint32_t gl_count; /* global lock recursion */
     aml_val_t ret;     /* Return value in flight */
@@ -300,11 +300,11 @@ uint32_t aml_init_devices(aml_ctx_t *c);
 int aml_sleep_state(aml_ctx_t *c, uint32_t state, uint8_t *typa, uint8_t *typb);
 
 typedef struct aml_battery {
-    uint32_t present;   /* _STA bit 4 */
-    uint32_t state;     /* _BST[0]: bit0 discharging, bit1 charging, bit2 critical */
-    uint32_t rate;      /* _BST[1] (mW or mA; 0xFFFFFFFF unknown) */
-    uint32_t remaining; /* _BST[2] */
-    uint32_t voltage;   /* _BST[3] mV */
+    uint32_t present;    /* _STA bit 4 */
+    uint32_t state;      /* _BST[0]: bit0 discharging, bit1 charging, bit2 critical */
+    uint32_t rate;       /* _BST[1] (mW or mA; 0xFFFFFFFF unknown) */
+    uint32_t remaining;  /* _BST[2] */
+    uint32_t voltage;    /* _BST[3] mV */
     uint32_t power_unit; /* 0 = mWh, 1 = mAh */
     uint32_t design_capacity, full_capacity, design_voltage;
     uint32_t cycle_count; /* _BIX only; 0xFFFFFFFF unknown */
@@ -339,8 +339,8 @@ int aml_cpu_pct(aml_ctx_t *c, struct aml_node *cpu, uint64_t *ctl_addr, uint64_t
 
 /* _BCL: levels (the first two entries are the AC and battery defaults and are
  * returned separately). Returns the number of levels written. */
-int aml_bcl(aml_ctx_t *c, struct aml_node *out_dev, uint32_t *levels, uint32_t max,
-            uint32_t *ac, uint32_t *dc);
+int aml_bcl(aml_ctx_t *c, struct aml_node *out_dev, uint32_t *levels, uint32_t max, uint32_t *ac,
+            uint32_t *dc);
 int aml_bcm(aml_ctx_t *c, struct aml_node *out_dev, uint32_t level);
 int aml_bqc(aml_ctx_t *c, struct aml_node *out_dev, uint32_t *level);
 

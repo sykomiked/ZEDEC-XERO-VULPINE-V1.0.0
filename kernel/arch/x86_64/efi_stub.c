@@ -42,9 +42,42 @@ typedef struct {
   void *LocateHandleBuffer,*LocateProtocol;
 } BOOTSVC;
 typedef struct {
+    EFI_GUID guid;
+    void *table;
+} CFGTAB;
+typedef struct {
   char hdr[24]; void*FwVendor; u32 FwRev; void*CInH; void*ConIn; void*COutH; void*ConOut;
   void*CErrH; void*StdErr; void*RuntimeSvc; BOOTSVC *BootSvc;
+  u64 NumberOfTableEntries;
+  CFGTAB *ConfigurationTable;
 } SYSTAB;
+
+static int guid_eq(const EFI_GUID *a, const EFI_GUID *b)
+{
+    const u8 *x = (const u8 *) a, *y = (const u8 *) b;
+    for (int i = 0; i < 16; i++)
+        if (x[i] != y[i]) return 0;
+    return 1;
+}
+
+/* The ACPI RSDP from the configuration table: ACPI 2.0+ GUID first (XSDT),
+ * then the ACPI 1.0 GUID. 0 when the firmware publishes neither. */
+static u64 find_rsdp(SYSTAB *st)
+{
+    static const EFI_GUID acpi20 = {
+        0x8868e871, 0xe4f1, 0x11d3, {0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x81, 0x81}};
+    static const EFI_GUID acpi10 = {
+        0xeb9d2d30, 0x2d88, 0x11d3, {0x9a, 0x16, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d}};
+    u64 n = st->NumberOfTableEntries;
+    if (!st->ConfigurationTable || n > 4096) return 0;
+    for (u64 i = 0; i < n; i++)
+        if (guid_eq(&st->ConfigurationTable[i].guid, &acpi20))
+            return (u64) st->ConfigurationTable[i].table;
+    for (u64 i = 0; i < n; i++)
+        if (guid_eq(&st->ConfigurationTable[i].guid, &acpi10))
+            return (u64) st->ConfigurationTable[i].table;
+    return 0;
+}
 
 /* UEFI function-pointer types (all EFIAPI / ms_abi) */
 typedef EFI_STATUS (EFIAPI *FN_GMM)(u64*, void*, u64*, u64*, u32*);
@@ -70,6 +103,7 @@ typedef struct {
 /* Handoff record for the kernel's GOP text console (efifb_con.h). */
 #define BOOTINFO_ADDR  0x80000ULL
 #define BOOTINFO_MAGIC 0x5A585642464F4F49ULL
+#define BOOTINFO_RSDP_MAGIC 0x5A58565253445021ULL /* efifb_con.h ZXV_BOOTINFO_RSDP_MAGIC */
 
 /* The asm trampoline: drops to 32-bit protected mode and jumps to `entry`. */
 extern void x86_efi_handoff(u64 entry);
@@ -120,6 +154,11 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
         }
     }
 
+    u64 rsdp = find_rsdp(st);
+    uputs("ACPI RSDP=");
+    udec(rsdp);
+    uputs("\n");
+
     u64 ksize = (u64)(_kernel_blob_end - _kernel_blob_start);
     u64 kpages = (ksize + 0xFFF) / 0x1000;
 
@@ -132,11 +171,12 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
 
     /* Reserve the handoff page too, so no firmware or loader data sits there
      * when it is written. If the firmware already uses it, go serial-only. */
-    if (fb) {
+    if (fb || rsdp) {
         u64 bia = BOOTINFO_ADDR;
         if (AllocatePages(2 /*AllocateAddress*/, 2 /*EfiLoaderData*/, 1, &bia)) {
-            uputs("handoff page 0x80000 busy -- serial console only\n");
+            uputs("handoff page 0x80000 busy -- serial console only, no ACPI handoff\n");
             fb = 0;
+            rsdp = 0;
         }
     }
 
@@ -157,8 +197,15 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
      * record (only when this boot found a GOP and owns the page). */
     {
         volatile u64 *bi = (volatile u64 *) BOOTINFO_ADDR;
-        if (fb) {
+        if (fb || rsdp)
             for (int i = 0; i < 8; i++) bi[i] = 0;
+        if (rsdp) {
+            bi[6] = rsdp;
+            bi[7] = BOOTINFO_RSDP_MAGIC ^ rsdp;
+            bi[5] = BOOTINFO_RSDP_MAGIC;
+            uputs("ACPI RSDP handoff published @0x80000\n");
+        }
+        if (fb) {
             bi[1] = fb;
             ((volatile u32 *) bi)[4] = w;
             ((volatile u32 *) bi)[5] = h;

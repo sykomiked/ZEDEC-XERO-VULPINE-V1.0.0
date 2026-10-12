@@ -74,8 +74,8 @@ uint32_t aml_walk(aml_ctx_t *c, aml_node_t *start, aml_walk_fn cb, void *user)
 void aml_eisa_to_str(uint32_t eisa, char out[8])
 {
     static const char hx[] = "0123456789ABCDEF";
-    uint32_t b = ((eisa & 0xFF) << 24) | ((eisa & 0xFF00) << 8) | ((eisa >> 8) & 0xFF00) |
-                 (eisa >> 24);
+    uint32_t b =
+        ((eisa & 0xFF) << 24) | ((eisa & 0xFF00) << 8) | ((eisa >> 8) & 0xFF00) | (eisa >> 24);
     out[0] = (char) ('@' + ((b >> 26) & 0x1F));
     out[1] = (char) ('@' + ((b >> 21) & 0x1F));
     out[2] = (char) ('@' + ((b >> 16) & 0x1F));

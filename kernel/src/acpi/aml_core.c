@@ -721,8 +721,8 @@ static int ext_argc(aml_ctx_t *c, aml_node_t *scope, const nstr_t *n)
         s.end = 1024;
         if (parse_nstr(&s, &e) || !e.nseg) continue;
         if (seg_at(e.segs + 4 * (e.nseg - 1)) != last) continue;
-        aml_node_t *ep = e.nseg > 1 || e.root || e.up ? resolve_n(c, c->ext[i].scope, &e, 1)
-                                                      : c->ext[i].scope;
+        aml_node_t *ep =
+            e.nseg > 1 || e.root || e.up ? resolve_n(c, c->ext[i].scope, &e, 1) : c->ext[i].scope;
         if (n->nseg == 1 && !n->root && !n->up) {
             for (aml_node_t *sc = scope; sc; sc = sc->parent)
                 if (sc == ep) return c->ext[i].argc & 7;
@@ -740,52 +740,140 @@ static const char *op_shape(uint32_t op)
 {
     if (op >= 0x60 && op <= 0x6E) return "";
     switch (op) {
-    case 0x00: case 0x01: case 0xFF: case 0x9F: case 0xA3: case 0xA5: case 0xCC:
-    case 0x5B30: case 0x5B31: case 0x5B33:
+    case 0x00:
+    case 0x01:
+    case 0xFF:
+    case 0x9F:
+    case 0xA3:
+    case 0xA5:
+    case 0xCC:
+    case 0x5B30:
+    case 0x5B31:
+    case 0x5B33:
         return "";
-    case 0x06: return "NN";
-    case 0x08: return "NT";
-    case 0x0A: return "B";
-    case 0x0B: return "W";
-    case 0x0C: return "D";
-    case 0x0D: return "Z";
-    case 0x0E: return "Q";
-    case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0xA0: case 0xA1: case 0xA2:
-    case 0x5B81: case 0x5B82: case 0x5B83: case 0x5B84: case 0x5B85: case 0x5B86: case 0x5B87:
+    case 0x06:
+        return "NN";
+    case 0x08:
+        return "NT";
+    case 0x0A:
+        return "B";
+    case 0x0B:
+        return "W";
+    case 0x0C:
+        return "D";
+    case 0x0D:
+        return "Z";
+    case 0x0E:
+        return "Q";
+    case 0x10:
+    case 0x11:
+    case 0x12:
+    case 0x13:
+    case 0x14:
+    case 0xA0:
+    case 0xA1:
+    case 0xA2:
+    case 0x5B81:
+    case 0x5B82:
+    case 0x5B83:
+    case 0x5B84:
+    case 0x5B85:
+    case 0x5B86:
+    case 0x5B87:
         return "P";
-    case 0x15: return "NBB";
-    case 0x70: return "TS";
-    case 0x71: return "S";
-    case 0x72: case 0x73: case 0x74: case 0x77: case 0x79: case 0x7A: case 0x7B: case 0x7C:
-    case 0x7D: case 0x7E: case 0x7F: case 0x84: case 0x85: case 0x88:
+    case 0x15:
+        return "NBB";
+    case 0x70:
+        return "TS";
+    case 0x71:
+        return "S";
+    case 0x72:
+    case 0x73:
+    case 0x74:
+    case 0x77:
+    case 0x79:
+    case 0x7A:
+    case 0x7B:
+    case 0x7C:
+    case 0x7D:
+    case 0x7E:
+    case 0x7F:
+    case 0x84:
+    case 0x85:
+    case 0x88:
         return "TTS";
-    case 0x75: case 0x76: case 0x87: case 0x8E: case 0x5B24: case 0x5B26: case 0x5B27:
+    case 0x75:
+    case 0x76:
+    case 0x87:
+    case 0x8E:
+    case 0x5B24:
+    case 0x5B26:
+    case 0x5B27:
     case 0x5B2A:
         return "S";
-    case 0x78: return "TTSS";
-    case 0x80: case 0x81: case 0x82: case 0x96: case 0x97: case 0x98: case 0x99: case 0x9D:
-    case 0x5B28: case 0x5B29:
+    case 0x78:
+        return "TTSS";
+    case 0x80:
+    case 0x81:
+    case 0x82:
+    case 0x96:
+    case 0x97:
+    case 0x98:
+    case 0x99:
+    case 0x9D:
+    case 0x5B28:
+    case 0x5B29:
         return "TS";
-    case 0x83: case 0x92: case 0xA4: case 0x5B21: case 0x5B22:
+    case 0x83:
+    case 0x92:
+    case 0xA4:
+    case 0x5B21:
+    case 0x5B22:
         return "T";
-    case 0x86: return "ST";
-    case 0x89: return "TBTBTT";
-    case 0x8A: case 0x8B: case 0x8C: case 0x8D: case 0x8F: return "TTN";
-    case 0x90: case 0x91: case 0x93: case 0x94: case 0x95: return "TT";
-    case 0x9C: return "TTS";
-    case 0x9E: return "TTTS";
-    case 0x5B01: return "NB";
-    case 0x5B02: return "N";
-    case 0x5B12: return "SS";
-    case 0x5B13: return "TTTN";
-    case 0x5B1F: return "TTTTTT";
-    case 0x5B20: return "NS";
-    case 0x5B23: return "SW";
-    case 0x5B25: return "ST";
-    case 0x5B32: return "BDT";
-    case 0x5B80: return "NBTT";
-    case 0x5B88: return "NTTT";
-    default: return 0;
+    case 0x86:
+        return "ST";
+    case 0x89:
+        return "TBTBTT";
+    case 0x8A:
+    case 0x8B:
+    case 0x8C:
+    case 0x8D:
+    case 0x8F:
+        return "TTN";
+    case 0x90:
+    case 0x91:
+    case 0x93:
+    case 0x94:
+    case 0x95:
+        return "TT";
+    case 0x9C:
+        return "TTS";
+    case 0x9E:
+        return "TTTS";
+    case 0x5B01:
+        return "NB";
+    case 0x5B02:
+        return "N";
+    case 0x5B12:
+        return "SS";
+    case 0x5B13:
+        return "TTTN";
+    case 0x5B1F:
+        return "TTTTTT";
+    case 0x5B20:
+        return "NS";
+    case 0x5B23:
+        return "SW";
+    case 0x5B25:
+        return "ST";
+    case 0x5B32:
+        return "BDT";
+    case 0x5B80:
+        return "NBTT";
+    case 0x5B88:
+        return "NTTT";
+    default:
+        return 0;
     }
 }
 
@@ -859,13 +947,27 @@ static int skip_term(aml_ctx_t *c, st_t *s)
         uint32_t end;
         nstr_t n;
         switch (*sh) {
-        case 'T': r = skip_term(c, s); break;
-        case 'S': r = skip_target(c, s); break;
-        case 'N': r = parse_nstr(s, &n); break;
-        case 'B': r = rdle(s, 1, &v); break;
-        case 'W': r = rdle(s, 2, &v); break;
-        case 'D': r = rdle(s, 4, &v); break;
-        case 'Q': r = rdle(s, 8, &v); break;
+        case 'T':
+            r = skip_term(c, s);
+            break;
+        case 'S':
+            r = skip_target(c, s);
+            break;
+        case 'N':
+            r = parse_nstr(s, &n);
+            break;
+        case 'B':
+            r = rdle(s, 1, &v);
+            break;
+        case 'W':
+            r = rdle(s, 2, &v);
+            break;
+        case 'D':
+            r = rdle(s, 4, &v);
+            break;
+        case 'Q':
+            r = rdle(s, 8, &v);
+            break;
         case 'Z':
             while (s->pc < s->end && s->a[s->pc]) s->pc++;
             r = s->pc < s->end ? AML_OK : AML_EPARSE;
@@ -875,7 +977,9 @@ static int skip_term(aml_ctx_t *c, st_t *s)
             r = rd_pkglen(s, &end);
             if (!r) s->pc = end;
             break;
-        default: r = AML_EPARSE; break;
+        default:
+            r = AML_EPARSE;
+            break;
         }
     }
 out:
@@ -889,8 +993,8 @@ static int exec_termlist(aml_ctx_t *c, st_t *s, uint32_t end);
 static int read_node(aml_ctx_t *c, aml_node_t *n, aml_val_t *out);
 static int store_node(aml_ctx_t *c, aml_node_t *n, const aml_val_t *v, int copyobj);
 
-#define TGT_REF 6
-#define SUP_NULL_OK 1
+#define TGT_REF        6
+#define SUP_NULL_OK    1
 #define SUP_MISSING_OK 2
 
 typedef struct tgt {
@@ -1080,7 +1184,8 @@ int aml_to_buf(aml_ctx_t *c, const aml_val_t *v, aml_val_t *out)
     switch (v->type) {
     case AML_T_INT:
         r = aml_mkbuf(c, out, int_bytes(c));
-        for (uint32_t i = 0; !r && i < out->len; i++) out->u.bytes[i] = (uint8_t) (v->u.i >> (8 * i));
+        for (uint32_t i = 0; !r && i < out->len; i++)
+            out->u.bytes[i] = (uint8_t) (v->u.i >> (8 * i));
         return r;
     case AML_T_STR:
         r = aml_mkbuf(c, out, v->len + 1);
@@ -1186,8 +1291,8 @@ static uint64_t bits_get64(const uint8_t *p, uint32_t bitoff, uint32_t n)
 static int bf_container(aml_ctx_t *c, aml_node_t *f, aml_val_t **buf)
 {
     aml_node_t *n;
-    aml_val_t *b = f->x.bf.target.kind == AML_LOC_OWNED ? &f->x.bf.owned
-                                                         : loc_slot(c, &f->x.bf.target, &n);
+    aml_val_t *b =
+        f->x.bf.target.kind == AML_LOC_OWNED ? &f->x.bf.owned : loc_slot(c, &f->x.bf.target, &n);
     if (!b) return AML_ENOENT;
     if (b->type != AML_T_BUF) return AML_ETYPE;
     if ((uint64_t) f->x.bf.bitoff + f->x.bf.bitlen > (uint64_t) b->len * 8) return AML_EBOUNDS;
@@ -1314,11 +1419,16 @@ static int store_node(aml_ctx_t *c, aml_node_t *n, const aml_val_t *v, int copyo
 static void log_debug(aml_ctx_t *c, const aml_val_t *v)
 {
     c->debug_lines++;
-    if (v->type == AML_T_INT) aml_logf(c, "Debug:", 0, v->u.i, 1);
-    else if (v->type == AML_T_STR) aml_logf(c, "Debug:", (const char *) v->u.bytes, 0, -1);
-    else if (v->type == AML_T_BUF) aml_logf(c, "Debug: buffer, bytes", 0, v->len, 0);
-    else if (v->type == AML_T_PKG) aml_logf(c, "Debug: package, elements", 0, v->len, 0);
-    else aml_logf(c, "Debug: object of type", 0, v->type, 0);
+    if (v->type == AML_T_INT)
+        aml_logf(c, "Debug:", 0, v->u.i, 1);
+    else if (v->type == AML_T_STR)
+        aml_logf(c, "Debug:", (const char *) v->u.bytes, 0, -1);
+    else if (v->type == AML_T_BUF)
+        aml_logf(c, "Debug: buffer, bytes", 0, v->len, 0);
+    else if (v->type == AML_T_PKG)
+        aml_logf(c, "Debug: package, elements", 0, v->len, 0);
+    else
+        aml_logf(c, "Debug: object of type", 0, v->type, 0);
 }
 
 static int store_tgt(aml_ctx_t *c, tgt_t *t, const aml_val_t *v, int copyobj)
@@ -1408,7 +1518,8 @@ static int parse_super(aml_ctx_t *c, st_t *s, tgt_t *t, int flags)
             return AML_OK;
         }
         if (v.type == AML_T_STR) {
-            aml_node_t *nd = aml_ns_resolve(c, lookup_ascii(c, s->scope, (const char *) v.u.bytes, 1));
+            aml_node_t *nd =
+                aml_ns_resolve(c, lookup_ascii(c, s->scope, (const char *) v.u.bytes, 1));
             aml_val_free(c, &v);
             if (!nd) return AML_ENOENT;
             t->kind = AML_LOC_NODE;
@@ -1652,8 +1763,7 @@ static int parse_package(aml_ctx_t *c, st_t *s, aml_val_t *out, int var)
              * field is read too, except while a table loads (no hardware
              * access from a definition block); anything else (a device, a
              * method) stays a reference. */
-            if (tn && (ty == AML_T_INT || ty == AML_T_STR || ty == AML_T_BUF ||
-                       ty == AML_T_PKG ||
+            if (tn && (ty == AML_T_INT || ty == AML_T_STR || ty == AML_T_BUF || ty == AML_T_PKG ||
                        (!c->loading && (ty == AML_T_FIELD || ty == AML_T_BUFFIELD)))) {
                 r = read_node(c, tn, &e);
             } else if (nd) {
@@ -1728,21 +1838,42 @@ static int op_binary(aml_ctx_t *c, st_t *s, uint8_t op, aml_val_t *out)
     if (!e) e = eval_int(c, s, &b);
     if (e) return e;
     switch (op) {
-    case 0x72: r = a + b; break;
-    case 0x74: r = a - b; break;
-    case 0x77: r = a * b; break;
-    case 0x79: r = b >= 64 ? 0 : a << b; break;
-    case 0x7A: r = b >= 64 ? 0 : a >> b; break;
-    case 0x7B: r = a & b; break;
-    case 0x7C: r = ~(a & b); break;
-    case 0x7D: r = a | b; break;
-    case 0x7E: r = ~(a | b); break;
-    case 0x7F: r = a ^ b; break;
+    case 0x72:
+        r = a + b;
+        break;
+    case 0x74:
+        r = a - b;
+        break;
+    case 0x77:
+        r = a * b;
+        break;
+    case 0x79:
+        r = b >= 64 ? 0 : a << b;
+        break;
+    case 0x7A:
+        r = b >= 64 ? 0 : a >> b;
+        break;
+    case 0x7B:
+        r = a & b;
+        break;
+    case 0x7C:
+        r = ~(a & b);
+        break;
+    case 0x7D:
+        r = a | b;
+        break;
+    case 0x7E:
+        r = ~(a | b);
+        break;
+    case 0x7F:
+        r = a ^ b;
+        break;
     case 0x85:
         if (!b) return AML_EDIV0;
         r = a % b;
         break;
-    default: return AML_EPARSE;
+    default:
+        return AML_EPARSE;
     }
     return finish_int(c, s, r, out);
 }
@@ -1901,12 +2032,23 @@ static int match_one(aml_ctx_t *c, uint8_t op, const aml_val_t *e, const aml_val
     r = compare(c, e, v, &cmp);
     if (r) return r;
     switch (op) {
-    case 1: *ok = cmp == 0; break;
-    case 2: *ok = cmp <= 0; break;
-    case 3: *ok = cmp < 0; break;
-    case 4: *ok = cmp >= 0; break;
-    case 5: *ok = cmp > 0; break;
-    default: return AML_EPARSE;
+    case 1:
+        *ok = cmp == 0;
+        break;
+    case 2:
+        *ok = cmp <= 0;
+        break;
+    case 3:
+        *ok = cmp < 0;
+        break;
+    case 4:
+        *ok = cmp >= 0;
+        break;
+    case 5:
+        *ok = cmp > 0;
+        break;
+    default:
+        return AML_EPARSE;
     }
     return AML_OK;
 }
@@ -1915,7 +2057,7 @@ static int op_match(aml_ctx_t *c, st_t *s, aml_val_t *out)
 {
     aml_val_t pkg, v1, v2;
     uint8_t o1 = 0, o2 = 0;
-    uint64_t start;
+    uint64_t start = 0;
     int r;
     val_zero(&v1);
     val_zero(&v2);
@@ -2003,9 +2145,15 @@ static int op_convert(aml_ctx_t *c, st_t *s, uint8_t op, aml_val_t *out)
         src = aml_int(x);
     }
     switch (op) {
-    case 0x96: r = aml_to_buf(c, &src, &res); break;
-    case 0x97: r = to_str(c, &src, &res, 2); break;
-    case 0x98: r = to_str(c, &src, &res, 1); break;
+    case 0x96:
+        r = aml_to_buf(c, &src, &res);
+        break;
+    case 0x97:
+        r = to_str(c, &src, &res, 2);
+        break;
+    case 0x98:
+        r = to_str(c, &src, &res, 1);
+        break;
     case 0x99:
         if (src.type == AML_T_STR) { /* explicit: decimal, or 0x hex */
             uint64_t v = 0;
@@ -2026,7 +2174,9 @@ static int op_convert(aml_ctx_t *c, st_t *s, uint8_t op, aml_val_t *out)
             res = aml_int(v);
         }
         break;
-    default: r = AML_EPARSE; break;
+    default:
+        r = AML_EPARSE;
+        break;
     }
     aml_val_free(c, &src);
     if (r) {
@@ -2081,12 +2231,23 @@ static int op_objtype(aml_ctx_t *c, st_t *s, aml_val_t *out)
     uint32_t ty = AML_T_UNINIT;
     aml_frame_t *f = cur_frame(c);
     switch (t.kind) {
-    case AML_LOC_NODE: ty = aml_node_type(t.node); break;
-    case AML_LOC_DEBUG: ty = AML_T_DEBUG; break;
-    case AML_LOC_LOCAL: ty = val_objtype(c, &f->locals[t.slot]); break;
-    case AML_LOC_ARG: ty = val_objtype(c, &f->args[t.slot]); break;
-    case TGT_REF: ty = val_objtype(c, &t.ref); break;
-    default: break;
+    case AML_LOC_NODE:
+        ty = aml_node_type(t.node);
+        break;
+    case AML_LOC_DEBUG:
+        ty = AML_T_DEBUG;
+        break;
+    case AML_LOC_LOCAL:
+        ty = val_objtype(c, &f->locals[t.slot]);
+        break;
+    case AML_LOC_ARG:
+        ty = val_objtype(c, &f->args[t.slot]);
+        break;
+    case TGT_REF:
+        ty = val_objtype(c, &t.ref);
+        break;
+    default:
+        break;
     }
     aml_val_free(c, &t.ref);
     *out = aml_int(ty);
@@ -2274,19 +2435,24 @@ static int eval_ext(aml_ctx_t *c, st_t *s, uint8_t e, aml_val_t *out)
         *out = aml_int(aml_ones(c));
         return AML_OK;
     }
-    case 0x23: return op_mutex(c, s, 1, out);
-    case 0x25: return op_event(c, s, e, out);
+    case 0x23:
+        return op_mutex(c, s, 1, out);
+    case 0x25:
+        return op_event(c, s, e, out);
     case 0x28:
     case 0x29:
         r = eval_int(c, s, &v);
         if (r) return r;
         return finish_int(c, s, e == 0x28 ? from_bcd(v) : to_bcd(v), out);
-    case 0x30: *out = aml_int(AML_REVISION); return AML_OK;
+    case 0x30:
+        *out = aml_int(AML_REVISION);
+        return AML_OK;
     case 0x33:
         v = c->plat && c->plat->timer_100ns ? c->plat->timer_100ns(c->plat->ctx) : c->fake_time;
         *out = aml_int(imask(c, v));
         return AML_OK;
-    case 0x20: return op_load(c, s, out);
+    case 0x20:
+        return op_load(c, s, out);
     case 0x1F: { /* LoadTable: tables outside the RSDT/XSDT walk are not loaded */
         for (int i = 0; i < 6; i++) {
             aml_val_t t;
@@ -2326,9 +2492,15 @@ static int eval_inner(aml_ctx_t *c, st_t *s, aml_val_t *out)
     }
     s->pc++;
     switch (op) {
-    case 0x00: *out = aml_int(0); return AML_OK;
-    case 0x01: *out = aml_int(1); return AML_OK;
-    case 0xFF: *out = aml_int(aml_ones(c)); return AML_OK;
+    case 0x00:
+        *out = aml_int(0);
+        return AML_OK;
+    case 0x01:
+        *out = aml_int(1);
+        return AML_OK;
+    case 0xFF:
+        *out = aml_int(aml_ones(c));
+        return AML_OK;
     case 0x0A:
     case 0x0B:
     case 0x0C:
@@ -2336,14 +2508,31 @@ static int eval_inner(aml_ctx_t *c, st_t *s, aml_val_t *out)
         r = rdle(s, op == 0x0A ? 1 : op == 0x0B ? 2 : op == 0x0C ? 4 : 8, &v);
         if (!r) *out = aml_int(imask(c, v));
         return r;
-    case 0x0D: return parse_string(c, s, out);
-    case 0x11: return parse_buffer(c, s, out);
-    case 0x12: return parse_package(c, s, out, 0);
-    case 0x13: return parse_package(c, s, out, 1);
-    case 0x60: case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x66: case 0x67:
+    case 0x0D:
+        return parse_string(c, s, out);
+    case 0x11:
+        return parse_buffer(c, s, out);
+    case 0x12:
+        return parse_package(c, s, out, 0);
+    case 0x13:
+        return parse_package(c, s, out, 1);
+    case 0x60:
+    case 0x61:
+    case 0x62:
+    case 0x63:
+    case 0x64:
+    case 0x65:
+    case 0x66:
+    case 0x67:
         if (!cur_frame(c)) return AML_EPARSE;
         return aml_val_copy(c, out, &cur_frame(c)->locals[op - 0x60]);
-    case 0x68: case 0x69: case 0x6A: case 0x6B: case 0x6C: case 0x6D: case 0x6E:
+    case 0x68:
+    case 0x69:
+    case 0x6A:
+    case 0x6B:
+    case 0x6C:
+    case 0x6D:
+    case 0x6E:
         if (!cur_frame(c)) return AML_EPARSE;
         return aml_val_copy(c, out, &cur_frame(c)->args[op - 0x68]);
     case 0x70:
@@ -2369,13 +2558,26 @@ static int eval_inner(aml_ctx_t *c, st_t *s, aml_val_t *out)
         aml_val_free(c, &t.ref);
         return r;
     }
-    case 0x72: case 0x74: case 0x77: case 0x79: case 0x7A: case 0x7B: case 0x7C: case 0x7D:
-    case 0x7E: case 0x7F: case 0x85:
+    case 0x72:
+    case 0x74:
+    case 0x77:
+    case 0x79:
+    case 0x7A:
+    case 0x7B:
+    case 0x7C:
+    case 0x7D:
+    case 0x7E:
+    case 0x7F:
+    case 0x85:
         return op_binary(c, s, op, out);
-    case 0x73: return op_concat(c, s, out);
-    case 0x75: return op_incdec(c, s, 1, out);
-    case 0x76: return op_incdec(c, s, 0, out);
-    case 0x78: return op_divide(c, s, out);
+    case 0x73:
+        return op_concat(c, s, out);
+    case 0x75:
+        return op_incdec(c, s, 1, out);
+    case 0x76:
+        return op_incdec(c, s, 0, out);
+    case 0x78:
+        return op_divide(c, s, out);
     case 0x80:
         r = eval_int(c, s, &v);
         return r ? r : finish_int(c, s, ~v, out);
@@ -2391,12 +2593,18 @@ static int eval_inner(aml_ctx_t *c, st_t *s, aml_val_t *out)
             }
         return finish_int(c, s, pos, out);
     }
-    case 0x83: return op_derefof(c, s, out);
-    case 0x84: return op_concatres(c, s, out);
-    case 0x87: return op_sizeof(c, s, out);
-    case 0x88: return op_index(c, s, out);
-    case 0x89: return op_match(c, s, out);
-    case 0x8E: return op_objtype(c, s, out);
+    case 0x83:
+        return op_derefof(c, s, out);
+    case 0x84:
+        return op_concatres(c, s, out);
+    case 0x87:
+        return op_sizeof(c, s, out);
+    case 0x88:
+        return op_index(c, s, out);
+    case 0x89:
+        return op_match(c, s, out);
+    case 0x8E:
+        return op_objtype(c, s, out);
     case 0x90:
     case 0x91: {
         uint64_t a, b;
@@ -2423,10 +2631,15 @@ static int eval_inner(aml_ctx_t *c, st_t *s, aml_val_t *out)
         if (!r) *out = aml_int(bool_v(c, op == 0x93 ? cmp == 0 : op == 0x94 ? cmp > 0 : cmp < 0));
         return r;
     }
-    case 0x96: case 0x97: case 0x98: case 0x99:
+    case 0x96:
+    case 0x97:
+    case 0x98:
+    case 0x99:
         return op_convert(c, s, op, out);
-    case 0x9C: return op_tostring(c, s, out);
-    case 0x9E: return op_mid(c, s, out);
+    case 0x9C:
+        return op_tostring(c, s, out);
+    case 0x9E:
+        return op_mid(c, s, out);
     case 0x5B: {
         uint8_t e;
         if (rd8(s, &e)) return AML_EPARSE;
@@ -2744,9 +2957,9 @@ static int def_field(aml_ctx_t *c, st_t *s, uint8_t e)
         aml_node_t *b = e != 0x81 ? aml_ns_resolve(c, resolve_n(c, s->scope, &n2, 0)) : 0;
         if (!a || (e != 0x81 && !b)) {
             r = AML_ENOENT;
-        } else if (e == 0x86 ? (a->v.type != AML_T_FIELD || b->v.type != AML_T_FIELD)
-                             : (a->v.type != AML_T_REGION ||
-                                (e == 0x87 && b->v.type != AML_T_FIELD))) {
+        } else if (e == 0x86
+                       ? (a->v.type != AML_T_FIELD || b->v.type != AML_T_FIELD)
+                       : (a->v.type != AML_T_REGION || (e == 0x87 && b->v.type != AML_T_FIELD))) {
             r = AML_ETYPE;
         } else if ((flags & 0x0F) > AML_ACC_BUF) {
             r = AML_EPARSE;
@@ -2784,12 +2997,24 @@ static int def_create_field(aml_ctx_t *c, st_t *s, uint32_t op)
     }
     uint64_t bitoff, bitlen;
     switch (op) {
-    case 0x8D: bitoff = idx, bitlen = 1; break;
-    case 0x8C: bitoff = idx * 8, bitlen = 8; break;
-    case 0x8B: bitoff = idx * 8, bitlen = 16; break;
-    case 0x8A: bitoff = idx * 8, bitlen = 32; break;
-    case 0x8F: bitoff = idx * 8, bitlen = 64; break;
-    default: bitoff = idx, bitlen = nbits; break;
+    case 0x8D:
+        bitoff = idx, bitlen = 1;
+        break;
+    case 0x8C:
+        bitoff = idx * 8, bitlen = 8;
+        break;
+    case 0x8B:
+        bitoff = idx * 8, bitlen = 16;
+        break;
+    case 0x8A:
+        bitoff = idx * 8, bitlen = 32;
+        break;
+    case 0x8F:
+        bitoff = idx * 8, bitlen = 64;
+        break;
+    default:
+        bitoff = idx, bitlen = nbits;
+        break;
     }
     aml_node_t *bn;
     aml_val_t *b = loc.kind == AML_LOC_OWNED ? &owned : loc_slot(c, &loc, &bn);
@@ -2961,9 +3186,15 @@ static int exec_term(aml_ctx_t *c, st_t *s)
         if (!r) nd->x.alias.target = src;
         return r;
     }
-    case 0x08: s->pc++; return def_name(c, s);
-    case 0x10: s->pc++; return def_scoped(c, s, 0x10);
-    case 0x14: s->pc++; return def_method(c, s);
+    case 0x08:
+        s->pc++;
+        return def_name(c, s);
+    case 0x10:
+        s->pc++;
+        return def_scoped(c, s, 0x10);
+    case 0x14:
+        s->pc++;
+        return def_method(c, s);
     case 0x15: { /* External */
         nstr_t n;
         uint64_t ty, argc;
@@ -2975,11 +3206,19 @@ static int exec_term(aml_ctx_t *c, st_t *s)
         if (!r && ty == AML_T_METHOD) ext_add(c, s->scope, at, (uint8_t) argc);
         return r;
     }
-    case 0x86: s->pc++; return op_notify(c, s);
-    case 0x8A: case 0x8B: case 0x8C: case 0x8D: case 0x8F:
+    case 0x86:
+        s->pc++;
+        return op_notify(c, s);
+    case 0x8A:
+    case 0x8B:
+    case 0x8C:
+    case 0x8D:
+    case 0x8F:
         s->pc++;
         return def_create_field(c, s, op);
-    case 0xA0: s->pc++; return exec_if(c, s);
+    case 0xA0:
+        s->pc++;
+        return exec_if(c, s);
     case 0xA1: { /* a stray Else: skip it */
         uint32_t end;
         s->pc++;
@@ -2987,9 +3226,13 @@ static int exec_term(aml_ctx_t *c, st_t *s)
         if (!r) s->pc = end;
         return r;
     }
-    case 0xA2: s->pc++; return exec_while(c, s);
+    case 0xA2:
+        s->pc++;
+        return exec_while(c, s);
     case 0xA3:
-    case 0xCC: s->pc++; return AML_OK;
+    case 0xCC:
+        s->pc++;
+        return AML_OK;
     case 0xA4:
         s->pc++;
         r = eval_term(c, s, &v); /* not into c->ret: a call inside uses it */
@@ -3007,9 +3250,14 @@ static int exec_term(aml_ctx_t *c, st_t *s)
             c->ret = d;
         }
         return FLOW_RETURN;
-    case 0xA5: s->pc++; return FLOW_BREAK;
-    case 0x9F: s->pc++; return FLOW_CONTINUE;
-    default: break;
+    case 0xA5:
+        s->pc++;
+        return FLOW_BREAK;
+    case 0x9F:
+        s->pc++;
+        return FLOW_CONTINUE;
+    default:
+        break;
     }
     r = eval_term(c, s, &v);
     aml_val_free(c, &v);
@@ -3094,8 +3342,10 @@ static void decl_pass(aml_ctx_t *c, st_t *s, uint32_t end, uint32_t depth)
                     uint32_t extra = ext == 0x83 ? 6 : ext == 0x84 ? 3 : 0;
                     if (extra > e2 - s->pc) break;
                     s->pc += extra;
-                    if (!create_named(c, s->scope, &n, ty, &nd)) nd->temp = NODE_PLACEHOLDER;
-                    else nd = 0;
+                    if (!create_named(c, s->scope, &n, ty, &nd))
+                        nd->temp = NODE_PLACEHOLDER;
+                    else
+                        nd = 0;
                 }
                 if (nd) {
                     aml_node_t *old = s->scope;
@@ -3260,16 +3510,35 @@ static int op_load(aml_ctx_t *c, st_t *s, aml_val_t *out)
 
 /* ---- predefined objects ---------------------------------------------------------- */
 static const char *const osi_yes[] = {
-    "Windows 2000",      "Windows 2001",      "Windows 2001 SP1",
-    "Windows 2001.1",    "Windows 2001 SP2",  "Windows 2001.1 SP1",
-    "Windows 2006",      "Windows 2006.1",    "Windows 2006 SP1",
-    "Windows 2006 SP2",  "Windows 2009",      "Windows 2012",
-    "Windows 2013",      "Windows 2015",      "Windows 2016",
-    "Windows 2017",      "Windows 2017.2",    "Windows 2018",
-    "Windows 2018.2",    "Windows 2019",      "Windows 2020",
-    "Windows 2021",      "Windows 2022",      "Module Device",
-    "Processor Device",  "3.0 Thermal Model", "3.0 _SCP Extensions",
-    "Processor Aggregator Device", "Extended Address Space Descriptor",
+    "Windows 2000",
+    "Windows 2001",
+    "Windows 2001 SP1",
+    "Windows 2001.1",
+    "Windows 2001 SP2",
+    "Windows 2001.1 SP1",
+    "Windows 2006",
+    "Windows 2006.1",
+    "Windows 2006 SP1",
+    "Windows 2006 SP2",
+    "Windows 2009",
+    "Windows 2012",
+    "Windows 2013",
+    "Windows 2015",
+    "Windows 2016",
+    "Windows 2017",
+    "Windows 2017.2",
+    "Windows 2018",
+    "Windows 2018.2",
+    "Windows 2019",
+    "Windows 2020",
+    "Windows 2021",
+    "Windows 2022",
+    "Module Device",
+    "Processor Device",
+    "3.0 Thermal Model",
+    "3.0 _SCP Extensions",
+    "Processor Aggregator Device",
+    "Extended Address Space Descriptor",
 };
 
 static int native_osi(aml_ctx_t *c, aml_node_t *m, aml_val_t *args, uint32_t argc, aml_val_t *ret)
@@ -3323,8 +3592,7 @@ int aml_init(aml_ctx_t *c, const aml_plat_t *plat, void *arena, uint32_t arena_s
 }
 
 /* ---- public evaluation ------------------------------------------------------------- */
-int aml_eval_node(aml_ctx_t *c, aml_node_t *n, const aml_val_t *args, uint32_t argc,
-                  aml_val_t *ret)
+int aml_eval_node(aml_ctx_t *c, aml_node_t *n, const aml_val_t *args, uint32_t argc, aml_val_t *ret)
 {
     aml_val_t a[7];
     int r = AML_OK;
@@ -3406,20 +3674,35 @@ aml_stats_t aml_stats(aml_ctx_t *c)
 const char *aml_strerror(int err)
 {
     switch (err) {
-    case AML_OK: return "ok";
-    case AML_EPARSE: return "malformed AML";
-    case AML_ENOENT: return "name not found";
-    case AML_ETYPE: return "wrong operand type";
-    case AML_ENOMEM: return "out of memory";
-    case AML_ELIMIT: return "budget exceeded";
-    case AML_EBOUNDS: return "out of bounds";
-    case AML_EDIV0: return "divide by zero";
-    case AML_EFATAL: return "Fatal opcode";
-    case AML_EUNSUP: return "unsupported";
-    case AML_EEXIST: return "already exists";
-    case AML_EIO: return "region access failed";
-    case AML_EARG: return "bad argument";
-    case AML_EMUTEX: return "mutex not held";
-    default: return "error";
+    case AML_OK:
+        return "ok";
+    case AML_EPARSE:
+        return "malformed AML";
+    case AML_ENOENT:
+        return "name not found";
+    case AML_ETYPE:
+        return "wrong operand type";
+    case AML_ENOMEM:
+        return "out of memory";
+    case AML_ELIMIT:
+        return "budget exceeded";
+    case AML_EBOUNDS:
+        return "out of bounds";
+    case AML_EDIV0:
+        return "divide by zero";
+    case AML_EFATAL:
+        return "Fatal opcode";
+    case AML_EUNSUP:
+        return "unsupported";
+    case AML_EEXIST:
+        return "already exists";
+    case AML_EIO:
+        return "region access failed";
+    case AML_EARG:
+        return "bad argument";
+    case AML_EMUTEX:
+        return "mutex not held";
+    default:
+        return "error";
     }
 }

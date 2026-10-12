@@ -41,10 +41,10 @@ typedef struct acpi_fadt_info {
     uint64_t dsdt, facs;
 } acpi_fadt_info_t;
 
-#define ACPI_FADT_PWR_BUTTON  (1u << 4)  /* 1: control-method power button */
-#define ACPI_FADT_SLP_BUTTON  (1u << 5)
-#define ACPI_FADT_RESET_REG   (1u << 10)
-#define ACPI_FADT_HW_REDUCED  (1u << 20)
+#define ACPI_FADT_PWR_BUTTON (1u << 4) /* 1: control-method power button */
+#define ACPI_FADT_SLP_BUTTON (1u << 5)
+#define ACPI_FADT_RESET_REG  (1u << 10)
+#define ACPI_FADT_HW_REDUCED (1u << 20)
 
 #define ACPI_PM1_PWRBTN (1u << 8)
 #define ACPI_PM1_WAK    (1u << 15)
@@ -70,7 +70,7 @@ typedef struct acpi_pm {
     uint8_t typa[6], typb[6];
     uint32_t loaded, load_errors, inis;
     uint32_t gpe_methods;
-    uint8_t acpi_mode; /* SCI_EN set */
+    uint8_t acpi_mode;          /* SCI_EN set */
     void (*flush_caches)(void); /* optional, before SLP_EN (wbinvd) */
 } acpi_pm_t;
 

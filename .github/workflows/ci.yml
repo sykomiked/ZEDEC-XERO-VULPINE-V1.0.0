@@ -297,6 +297,14 @@ jobs:
       - name: Class drivers on emulated hardware
         if: ${{ matrix.arch == 'x86_64' }}
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/hw_drivers_check.sh "" 150
+      # ACPI (kernel/src/acpi) on QEMU's firmware tables: the AML namespace
+      # loads, \_S5_/S3/power button/processors are reported, the power
+      # button and a direct request both power the machine off through S5,
+      # and S3 entry suspends the guest. Batteries, lid, thermal, backlight
+      # and CPPC are host-tested only (QEMU's q35 tables have none).
+      - name: ACPI power management on emulated hardware
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/acpi_check.sh "" 150
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

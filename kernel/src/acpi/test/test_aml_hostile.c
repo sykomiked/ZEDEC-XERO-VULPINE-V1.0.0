@@ -58,15 +58,15 @@ static void test_limits(void)
     static uint8_t b[0x8000];
     uint32_t k = 0;
     uint64_t v;
-    static const uint8_t spin[] = {0xA2, 0x02, 0x01};                       /* While (One) {} */
-    static const uint8_t recu[] = {'R', 'E', 'C', 'U'};                   /* RECU () */
+    static const uint8_t spin[] = {0xA2, 0x02, 0x01};   /* While (One) {} */
+    static const uint8_t recu[] = {'R', 'E', 'C', 'U'}; /* RECU () */
     static const uint8_t hbuf[] = {0xA4, 0x11, 0x06, 0x0C, 0xFF, 0xFF, 0xFF, 0xFF};
     static const uint8_t hpkg[] = {0xA4, 0x13, 0x06, 0x0C, 0xFF, 0xFF, 0xFF, 0xFF};
     static const uint8_t slpx[] = {0xA2, 0x07, 0x01, 0x5B, 0x22, 0x0B, 0xE8, 0x03};
     static const uint8_t relm[] = {0x5B, 0x27, 'M', 'T', 'X', '0'};
     /* Local0 = "ab"; While (One) { Local0 = Concatenate (Local0, Local0) } */
-    static const uint8_t grow[] = {0x70, 0x0D, 'a', 'b', 0x00, 0x60, 0xA2, 0x07, 0x01,
-                                   0x73, 0x60, 0x60, 0x60, 0x00};
+    static const uint8_t grow[] = {0x70, 0x0D, 'a',  'b',  0x00, 0x60, 0xA2,
+                                   0x07, 0x01, 0x73, 0x60, 0x60, 0x60, 0x00};
     /* Return (Index (Package (1) {}, 0x1000)) */
     static const uint8_t oobi[] = {0xA4, 0x88, 0x12, 0x02, 0x01, 0x0B, 0x00, 0x10, 0x00};
     /* Return (DerefOf ("\\NOPE")) */
@@ -205,8 +205,8 @@ static void test_tables(void)
     /* a method used at the top level before its definition (decl pass):
      * Name (FWDV, 0)  Store (FWDM (), FWDV)  Method (FWDM) { Return (0x42) } */
     k = 0;
-    static const uint8_t pre[] = {0x08, 'F', 'W', 'D', 'V', 0x00, 0x70, 'F', 'W',
-                                  'D',  'M', 'F', 'W', 'D', 'V'};
+    static const uint8_t pre[] = {0x08, 'F', 'W', 'D', 'V', 0x00, 0x70, 'F',
+                                  'W',  'D', 'M', 'F', 'W', 'D',  'V'};
     memcpy(b, pre, sizeof pre);
     k = sizeof pre;
     static const uint8_t fm[] = {0xA4, 0x0A, 0x42};
@@ -217,8 +217,8 @@ static void test_tables(void)
 
     /* a method whose PkgLength runs past the table: the good name before it
      * stays, the load reports the error */
-    static const uint8_t trunc[] = {0x08, 'G', 'O', 'O', 'D', 0x0A, 0x07,
-                                    0x14, 0xCF, 0xFF, 0xFF, 0xFF, 'B', 'A', 'D', '_', 0x00};
+    static const uint8_t trunc[] = {0x08, 'G',  'O',  'O', 'D', 0x0A, 0x07, 0x14, 0xCF,
+                                    0xFF, 0xFF, 0xFF, 'B', 'A', 'D',  '_',  0x00};
     CHECK(load_body(trunc, sizeof trunc) != 0);
     CHECK_EQ(ev_int(&c, "GOOD", &v), 0);
     CHECK_EQ(v, 7);
@@ -243,8 +243,8 @@ static void test_tables(void)
     CHECK(aml_stats(&c).errors <= AML_MAX_LOAD_SKIPS + 2);
 
     /* the same name twice with different types */
-    static const uint8_t dup[] = {0x08, 'D', 'U', 'P', '0', 0x01, 0x5B, 0x82, 0x06,
-                                  'D',  'U', 'P', '0'};
+    static const uint8_t dup[] = {0x08, 'D',  'U', 'P', '0', 0x01, 0x5B,
+                                  0x82, 0x06, 'D', 'U', 'P', '0'};
     CHECK(load_body(dup, sizeof dup) != 0);
     CHECK_EQ(aml_node_type(aml_lookup(&c, 0, "DUP0")), AML_T_INT);
 
@@ -322,11 +322,21 @@ static void fuzz_one(const uint8_t *src, uint32_t len, uint32_t iters)
         for (uint32_t m = 0; m < muts; m++) {
             uint32_t at = 36 + rnd() % (n - 36);
             switch (rnd() % 6) {
-            case 0: buf[at] = (uint8_t) rnd(); break;
-            case 1: buf[at] ^= (uint8_t) (1u << (rnd() % 8)); break;
-            case 2: buf[at] = (uint8_t) (buf[at] + 1); break;
-            case 3: buf[at] = 0xFF; break;
-            case 4: buf[at] = 0x00; break;
+            case 0:
+                buf[at] = (uint8_t) rnd();
+                break;
+            case 1:
+                buf[at] ^= (uint8_t) (1u << (rnd() % 8));
+                break;
+            case 2:
+                buf[at] = (uint8_t) (buf[at] + 1);
+                break;
+            case 3:
+                buf[at] = 0xFF;
+                break;
+            case 4:
+                buf[at] = 0x00;
+                break;
             default: /* truncate */
                 n = at > 37 ? at : 37;
                 buf[4] = (uint8_t) n;
