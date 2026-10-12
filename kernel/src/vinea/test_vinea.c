@@ -2822,6 +2822,324 @@ static void test_islands(void)
     NN = saveNN;
 }
 
+
+/* ===================================================================== */
+/* 8. NAT traversal (N1-N4) and the AIPI message                          */
+/* ===================================================================== */
+/* Three nodes: R on a public address, A and B each behind its own
+ * port-restricted cone NAT (endpoint-independent mapping, so a node's public
+ * address is the same towards everyone; inbound is allowed only from an
+ * address the inside host has sent to). Addresses are 4 bytes. */
+#define NX 3
+static tnode_t NT[NX];
+static const uint8_t NPUB[NX][4] = {{0x0A, 0, 0, 1}, {0xC0, 0, 2, 7}, {0xC6, 51, 100, 9}};
+static bool nat_on[NX] = {false, true, true};
+static uint8_t nat_perm[NX][8][4]; /* addresses each inside host has sent to */
+static uint32_t nat_np[NX], nat_dropped;
+typedef struct npkt {
+    uint32_t from, to, len;
+    uint8_t data[16384];
+} npkt_t;
+static npkt_t nq[256];
+static uint32_t nq_n;
+static vna_agreement_t nat_ag;
+static vna_usage_t nat_us;
+static vna_usage_ent_t nat_ue[8];
+static vna_lease_t nat_le[4];
+static uint32_t aipi_seen;
+static vna_b_aipi_t aipi_last;
+static vna_id_t aipi_from;
+
+static int nat_owner(const uint8_t *a, uint32_t len)
+{
+    for (int i = 0; i < NX; i++)
+        if (len == 4 && memcmp(a, NPUB[i], 4) == 0) return i;
+    return -1;
+}
+
+static void nat_flush(uint32_t from)
+{
+    for (uint32_t i = 0; i < g_ob.n; i++) {
+        const vna_out_ent_t *e = &g_ob.e[i];
+        int to = nat_owner(e->addr, e->addr_len);
+        if (nat_on[from] && to >= 0) { /* outbound opens the mapping for that address */
+            bool have = false;
+            for (uint32_t k = 0; k < nat_np[from]; k++) have |= !memcmp(nat_perm[from][k], e->addr, 4);
+            if (!have && nat_np[from] < 8) memcpy(nat_perm[from][nat_np[from]++], e->addr, 4);
+        }
+        if (to < 0 || nq_n >= 256 || e->len > sizeof nq[0].data) continue;
+        nq[nq_n].from = from;
+        nq[nq_n].to = (uint32_t) to;
+        nq[nq_n].len = e->len;
+        memcpy(nq[nq_n].data, g_ob.buf + e->off, e->len);
+        nq_n++;
+    }
+    vna_outbox_clear(&g_ob);
+}
+
+static void nat_run(void)
+{
+    for (int guard = 0; nq_n && guard < 64; guard++) {
+        static npkt_t batch[256];
+        uint32_t k = nq_n;
+        memcpy(batch, nq, sizeof batch[0] * k);
+        nq_n = 0;
+        for (uint32_t i = 0; i < k; i++) {
+            npkt_t *p = &batch[i];
+            g_now++;
+            if (nat_on[p->to]) { /* inbound filter */
+                bool ok = false;
+                for (uint32_t j = 0; j < nat_np[p->to]; j++)
+                    ok |= !memcmp(nat_perm[p->to][j], NPUB[p->from], 4);
+                if (!ok) {
+                    nat_dropped++;
+                    continue;
+                }
+            }
+            (void) vna_node_handle(&NT[p->to].node, p->data, p->len, NPUB[p->from], 4, g_now,
+                                   &g_ob);
+            nat_flush(p->to);
+        }
+    }
+}
+
+static bool nat_knows(uint32_t at, uint32_t who)
+{
+    return vna_rt_find(&NT[at].node.rt, &NT[who].id.id) != 0;
+}
+
+static vna_status_t aipi_capture(void *ctx, const vna_id_t *from, const vna_b_aipi_t *b,
+                                 uint64_t now, vna_outbox_t *ob)
+{
+    (void) ctx;
+    (void) now;
+    (void) ob;
+    aipi_seen++;
+    aipi_last = *b;
+    aipi_from = *from;
+    return b->amount == 666 ? VNA_ERR_DENIED : VNA_OK;
+}
+
+static void test_nat_aipi(void)
+{
+    printf("[8] NAT traversal: reflexive address, hole punching, keepalive; AIPI messages\n");
+    vna_node_cfg_t cfg;
+    vna_node_cfg_default(&cfg);
+    for (uint32_t i = 0; i < NX; i++) {
+        make_identity(&NT[i].id, 9000 + i, 0);
+        vna_node_mem_t mem = {NT[i].pool, POOL, NT[i].kc, KC, NT[i].rp, RPW, NT[i].dd, DD,
+                              NT[i].store, ST};
+        uint8_t seed[32];
+        vna_drbg_gen(&g_rng, seed, 32);
+        CHECK(vna_node_init(&NT[i].node, &NT[i].id, &cfg, &mem, seed) == VNA_OK, "nat node init");
+    }
+    uint8_t ra[VNA_ADDR_MAX], rl = 0;
+    CHECK(vna_node_reflexive(&NT[1].node, ra, &rl) == 0 && rl == 0, "N1: no reports yet");
+
+    /* B, then A, join through R; R's PONG tells each its public address.
+     * (Joining at the same time, their lookups would query each other at
+     * once and open both cone NATs by themselves; one after the other, A's
+     * lookup query to B dies at B's NAT.) */
+    CHECK(vna_node_bootstrap(&NT[2].node, NPUB[0], 4, g_now, &g_ob) == VNA_OK, "B pings R");
+    nat_flush(2);
+    nat_run();
+    CHECK(vna_node_bootstrap(&NT[1].node, NPUB[0], 4, g_now, &g_ob) == VNA_OK, "A pings R");
+    nat_flush(1);
+    nat_run();
+    for (int r = 0; r < 4; r++) { /* A's lookup query to B times out */
+        g_now += 2500;
+        for (uint32_t i = 0; i < NX; i++) {
+            vna_node_tick(&NT[i].node, g_now, &g_ob);
+            nat_flush(i);
+        }
+        nat_run();
+    }
+    CHECK(nat_knows(0, 1) && nat_knows(0, 2) && nat_knows(1, 0) && nat_knows(2, 0),
+          "R, A and B know each other through R");
+    CHECK(vna_node_reflexive(&NT[1].node, ra, &rl) == 1 && rl == 4 && !memcmp(ra, NPUB[1], 4),
+          "N1: A learns its public address from R's signed PONG");
+    CHECK(!nat_knows(1, 2) && !nat_knows(2, 1), "A and B do not know each other yet");
+
+    /* a direct PING from A to B dies at B's NAT */
+    uint32_t d0 = nat_dropped;
+    CHECK(vna_node_bootstrap(&NT[1].node, NPUB[2], 4, g_now, &g_ob) == VNA_OK, "A pings B directly");
+    nat_flush(1);
+    nat_run();
+    CHECK(nat_dropped > d0 && !nat_knows(2, 1), "B's NAT drops the unsolicited PING");
+    g_now += 5000;
+    vna_node_tick(&NT[1].node, g_now, &g_ob); /* let the boot ping time out */
+    nat_flush(1);
+    nat_run();
+
+    /* N2: hole punching through R */
+    CHECK(vna_node_punch(&NT[1].node, &NT[2].id.id, &NT[1].id.id, g_now, &g_ob) == VNA_ERR_ARG,
+          "punch: target == self refused");
+    CHECK(vna_node_punch(&NT[1].node, &NT[2].id.id, &NT[2].id.id, g_now, &g_ob) == VNA_ERR_ARG,
+          "punch: target == via refused");
+    CHECK(vna_node_punch(&NT[1].node, &NT[2].id.id, &NT[0].id.id, g_now, &g_ob) == VNA_OK,
+          "A asks R for an introduction to B");
+    nat_flush(1);
+    nat_run();
+    CHECK(NT[0].node.punch_relayed == 1, "R relayed one introduction");
+    CHECK(NT[1].node.punch_intros == 1 && NT[2].node.punch_intros == 1,
+          "both sides acted on their introduction");
+    CHECK(nat_knows(1, 2) && nat_knows(2, 1), "A and B reach each other through both NATs");
+    CHECK(NT[1].node.punch_ok + NT[2].node.punch_ok >= 1,
+          "the introduced NodeID answered from the introduced address");
+    CHECK(vna_node_reflexive(&NT[1].node, ra, &rl) == 2 && !memcmp(ra, NPUB[1], 4),
+          "N1: two distinct peers now agree on A's public address");
+    /* now they talk directly */
+    CHECK(vna_node_ping(&NT[1].node, &NT[2].id.id, g_now, &g_ob) == VNA_OK, "A pings B directly");
+    nat_flush(1);
+    d0 = nat_dropped;
+    nat_run();
+    CHECK(nat_dropped == d0, "nothing dropped once the hole is open");
+
+    /* refusals */
+    uint32_t rf = NT[0].node.punch_refused;
+    vna_id_t ghost;
+    memset(ghost.b, 0x77, 32);
+    CHECK(vna_node_punch(&NT[1].node, &ghost, &NT[0].id.id, g_now, &g_ob) == VNA_OK,
+          "A asks about a peer R does not know");
+    nat_flush(1);
+    nat_run();
+    CHECK(NT[0].node.punch_refused == rf + 1, "R refuses to introduce an unknown peer");
+    /* N3: rate limit at the rendezvous */
+    g_now = (g_now / 1000u + 1u) * 1000u;
+    uint32_t rel = NT[0].node.punch_relayed;
+    for (int i = 0; i < 20; i++) {
+        (void) vna_node_punch(&NT[1].node, &NT[2].id.id, &NT[0].id.id, g_now, &g_ob);
+        nat_flush(1);
+    }
+    /* deliver all twenty within the same second */
+    uint64_t keep = g_now;
+    {
+        uint32_t k = nq_n;
+        static npkt_t b2[256];
+        memcpy(b2, nq, sizeof b2[0] * k);
+        nq_n = 0;
+        for (uint32_t i = 0; i < k; i++)
+            (void) vna_node_handle(&NT[b2[i].to].node, b2[i].data, b2[i].len, NPUB[b2[i].from], 4,
+                                   keep, &g_ob);
+        vna_outbox_clear(&g_ob);
+    }
+    CHECK(NT[0].node.punch_relayed - rel == VNA_PUNCH_RATE,
+          "N3: at most VNA_PUNCH_RATE introductions per second (%u)",
+          NT[0].node.punch_relayed - rel);
+    g_now = keep + 2000;
+
+    /* N4: keepalive pings idle contacts only */
+    CHECK(vna_node_keepalive(&NT[1].node, g_now, 3600000u, 8, &g_ob) == 0,
+          "N4: nobody idle for an hour yet");
+    vna_outbox_clear(&g_ob);
+    g_now += 30000;
+    uint32_t ka = vna_node_keepalive(&NT[1].node, g_now, 25000u, 8, &g_ob);
+    CHECK(ka == 2, "N4: A pings both idle contacts (%u)", ka);
+    CHECK(vna_node_keepalive(&NT[1].node, g_now, 25000u, 8, &g_ob) == 0,
+          "N4: one probe at a time per contact");
+    nat_flush(1);
+    nat_run();
+
+    /* AIPI messages */
+    CHECK(vna_node_send_aipi(&NT[1].node, &NT[2].id.id, 0, 0, 0, 0, g_now, &g_ob) == VNA_ERR_ARG,
+          "aipi: kind 0 refused");
+    CHECK(vna_node_send_aipi(&NT[1].node, &NT[2].id.id, VNA_AIPI_CLAIM, 0, (const uint8_t *) "x",
+                             VNA_AIPI_DATA_MAX + 1, g_now, &g_ob) == VNA_ERR_ARG,
+          "aipi: oversize data refused");
+    CHECK(vna_node_send_aipi(&NT[1].node, &ghost, VNA_AIPI_CLAIM, 0, 0, 0, g_now, &g_ob) ==
+              VNA_ERR_ARG,
+          "aipi: unknown destination refused");
+    uint32_t r0 = NT[2].node.aipi_refused;
+    CHECK(vna_node_send_aipi(&NT[1].node, &NT[2].id.id, VNA_AIPI_CLAIM, 5, (const uint8_t *) "ab",
+                             2, g_now, &g_ob) == VNA_OK,
+          "aipi: A sends B a claim");
+    nat_flush(1);
+    nat_run();
+    CHECK(NT[2].node.aipi_refused == r0 + 1 && aipi_seen == 0, "no handler: refused");
+    vna_node_set_aipi_handler(&NT[2].node, aipi_capture, 0);
+    static uint8_t big[VNA_AIPI_DATA_MAX];
+    for (uint32_t i = 0; i < sizeof big; i++) big[i] = (uint8_t) (i * 7u);
+    CHECK(vna_node_send_aipi(&NT[1].node, &NT[2].id.id, VNA_AIPI_CLAIM, 5, big, sizeof big, g_now,
+                             &g_ob) == VNA_OK,
+          "aipi: a full-size claim");
+    nat_flush(1);
+    nat_run();
+    CHECK(aipi_seen == 1 && aipi_last.kind == VNA_AIPI_CLAIM && aipi_last.amount == 5 &&
+              aipi_last.len == sizeof big && !memcmp(aipi_last.data, big, sizeof big) &&
+              vna_id_eq(&aipi_from, &NT[1].id.id),
+          "aipi: the handler gets the exact bytes and the authenticated sender");
+    CHECK(vna_node_send_aipi(&NT[1].node, &NT[2].id.id, VNA_AIPI_CALL, 9, big, 64, g_now, &g_ob) ==
+              VNA_OK,
+          "aipi: A sends B a call");
+    nat_flush(1);
+    nat_run();
+    CHECK(aipi_seen == 1, "aipi: a CALL with no agreement never reaches the handler");
+    vna_agree_default(&nat_ag, &NT[2].id.id);
+    nat_ag.degree = VNA_DEG_STORE;
+    nat_ag.audience = VNA_AUD_EVERYONE;
+    nat_ag.compute_per_cycle = 2;
+    nat_ag.q_compute = 2;
+    nat_ag.quota_period_ms = 3600000;
+    nat_ag.expires_ms = g_now + 3600000;
+    vna_usage_init(&nat_us, nat_ue, 8, nat_le, 4);
+    vna_node_set_agreement(&NT[2].node, &nat_ag, &nat_us, 0, 0);
+    CHECK(vna_node_send_aipi(&NT[1].node, &NT[2].id.id, VNA_AIPI_CALL, 9, big, 64, g_now, &g_ob) ==
+              VNA_OK,
+          "aipi: call under a STORE-only agreement");
+    nat_flush(1);
+    nat_run();
+    CHECK(aipi_seen == 1, "aipi: degree below COMPUTE refuses a CALL");
+    nat_ag.degree = VNA_DEG_COMPUTE;
+    for (int i = 0; i < 3; i++) {
+        (void) vna_node_send_aipi(&NT[1].node, &NT[2].id.id, VNA_AIPI_CALL, 9, big, 64, g_now,
+                                  &g_ob);
+        nat_flush(1);
+        nat_run();
+    }
+    CHECK(aipi_seen == 3, "aipi: compute quota 2 admits two calls, refuses the third (%u)",
+          aipi_seen);
+    uint32_t in0 = NT[2].node.aipi_in, rf0 = NT[2].node.aipi_refused;
+    (void) vna_node_send_aipi(&NT[1].node, &NT[2].id.id, VNA_AIPI_PAID, 666, 0, 0, g_now, &g_ob);
+    nat_flush(1);
+    nat_run();
+    CHECK(NT[2].node.aipi_in == in0 && NT[2].node.aipi_refused == rf0 + 1,
+          "aipi: a handler refusal is counted");
+    vna_node_set_aipi_handler(&NT[2].node, 0, 0);
+    vna_node_set_agreement(&NT[2].node, 0, 0, 0, 0);
+
+    /* a persisted identity restarting: its LAN record seq must not go back */
+    static vna_lan_t lr, ls;
+    static vna_lan_peer_t lrp[8], lsp[8];
+    vna_lan_cfg_t lc;
+    vna_lan_cfg_default(&lc);
+    vna_addr_el_t la;
+    la.len = 4;
+    memcpy(la.a, NPUB[1], 4);
+    uint8_t lseed[32] = {42};
+    CHECK(vna_lan_init(&lr, &NT[0].node, &lc, G_GROUP, 4, &la, 1, lrp, 8, lseed) == VNA_OK,
+          "lan: receiver up");
+    uint32_t got = 0;
+    uint64_t last = 0;
+    for (int round = 0; round < 3; round++) {
+        lseed[0] = (uint8_t) (round + 50);
+        CHECK(vna_lan_init(&ls, &NT[1].node, &lc, G_GROUP, 4, &la, 1, lsp, 8, lseed) == VNA_OK,
+              "lan: sender (re)started");
+        if (round == 2) vna_lan_resume_seq(&ls, last);
+        g_now += 10;
+        CHECK(vna_lan_start(&ls, g_now, &g_ob) == VNA_OK, "lan: sender announces");
+        last = vna_lan_seq(&ls);
+        for (uint32_t i = 0; i < g_ob.n; i++)
+            (void) vna_lan_handle(&lr, g_ob.buf + g_ob.e[i].off, g_ob.e[i].len, g_now, &g_ob);
+        vna_outbox_clear(&g_ob);
+        if (round == 0) got = lr.accepted;
+    }
+    CHECK(got == 1 && lr.rej_old >= 1, "lan: a restart that reuses seq 1 is refused as old");
+    CHECK(lr.accepted == 2 && last == 2, "lan: resuming the saved seq is accepted (seq %llu)",
+          (unsigned long long) last);
+    vna_lan_resume_seq(&ls, 1);
+    CHECK(vna_lan_seq(&ls) == 2 && vna_lan_seq(0) == 0, "lan: resume never lowers the seq");
+}
+
 int main(int argc, char **argv)
 {
     double t0 = now_s();
@@ -2846,6 +3164,7 @@ int main(int argc, char **argv)
     test_link_edges();
     test_files();
     test_islands();
+    test_nat_aipi();
     printf("\n%d passed, %d failed, %.2f s\n", g_pass, g_fail, now_s() - t0);
     free(T);
     free(g_obuf);

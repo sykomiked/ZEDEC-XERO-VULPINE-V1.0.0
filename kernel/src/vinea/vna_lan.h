@@ -142,6 +142,13 @@ vna_status_t vna_lan_init(vna_lan_t *l, vna_node_t *node, const vna_lan_cfg_t *c
                           uint32_t naddr, vna_lan_peer_t *peers, uint32_t peer_cap,
                           const uint8_t seed[32]);
 void vna_lan_set_xform(vna_lan_t *l, const vna_xform_t *x);
+/* A node whose identity outlives a restart must not reuse record sequence
+ * numbers: peers still hold its last record and refuse any seq that is not
+ * newer. Call before vna_lan_start with the last seq signed (the host
+ * persists it); the next record is signed with a larger one. vna_lan_seq
+ * reports the current value for the host to save. */
+void vna_lan_resume_seq(vna_lan_t *l, uint64_t last_seq);
+uint64_t vna_lan_seq(const vna_lan_t *l);
 
 vna_status_t vna_lan_start(vna_lan_t *l, uint64_t now, vna_outbox_t *ob);
 void vna_lan_tick(vna_lan_t *l, uint64_t now, vna_outbox_t *ob);
