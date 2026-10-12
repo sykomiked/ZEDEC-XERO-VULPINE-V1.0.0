@@ -328,6 +328,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-econ
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
+	$(MAKE) --no-print-directory test-retail
 	$(MAKE) --no-print-directory test-treaty-cobol
 	$(MAKE) --no-print-directory test-b2-small
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
@@ -1664,3 +1665,6 @@ test-econ:
 	$(MAKE) --no-print-directory test-zstats
 	$(MAKE) --no-print-directory test-vderiv
 # ==== end economy modules ====
+
+# Retail track and people features: targets live in kernel/mk/.
+include mk/retail.mk
