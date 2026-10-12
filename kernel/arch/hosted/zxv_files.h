@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* zxv_files.h — the ZXV home folder behind the Files, Text Editor and Photos
- * apps (zxvd's files.* methods, docs/STAPLE_APPS.md).
+/* zxv_files.h — the ZXV home folder behind the Burrow (files), Quillon (text)
+ * and Glint (photos) apps (zxvd's files.* methods, docs/STAPLE_APPS.md).
  *
  *   F1 ONE FOLDER. Every path is relative to one root folder; nothing outside
  *      it can be named. The root is ZXV_FILES_ROOT when set (absolute), else

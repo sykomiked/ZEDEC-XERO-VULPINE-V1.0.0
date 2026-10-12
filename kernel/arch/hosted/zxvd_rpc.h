@@ -236,8 +236,8 @@ typedef struct {
 } zxvd_aipi_ops_t;
 void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
 
-/* files.* (zxv_files.h F1-F6): the ZXV folder behind the Files, Text Editor
- * and Photos apps. A refusal is error ZXVD_E_FILES with zxf_strerror's text. */
+/* files.* (zxv_files.h F1-F6): the ZXV folder behind the Burrow, Quillon
+ * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text. */
 #define ZXVD_E_FILES (-32012)
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr

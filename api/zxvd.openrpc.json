@@ -1886,7 +1886,7 @@
     },
     {
       "name": "files.root",
-      "summary": "The ZXV folder behind the Files, TextEdit and Photos apps (F1): ZXV_FILES_ROOT, else ~/Documents/ZXV (%USERPROFILE%\\Documents\\ZXV on Windows), made 0700 when missing.",
+      "summary": "The ZXV folder behind the Burrow, Quillon and Glint apps (F1): ZXV_FILES_ROOT, else ~/Documents/ZXV (%USERPROFILE%\\Documents\\ZXV on Windows), made 0700 when missing.",
       "params": [],
       "result": {
         "name": "root",

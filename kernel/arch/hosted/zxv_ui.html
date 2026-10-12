@@ -124,12 +124,12 @@ select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-
 <div class="shell">
 <nav id="dock" aria-label="Apps">
   <div class="grp">Apps</div>
-  <button data-app="swarm"><i>◉</i>Swarm</button>
-  <button data-app="files"><i>🗂</i>Files</button>
-  <button data-app="text"><i>✎</i>TextEdit</button>
-  <button data-app="photos"><i>▣</i>Photos</button>
+  <button data-app="swarm"><i>◉</i>Murmuration</button>
+  <button data-app="files"><i>🗂</i>Burrow</button>
+  <button data-app="text"><i>✎</i>Quillon</button>
+  <button data-app="photos"><i>▣</i>Glint</button>
   <div class="grp">Toolbox</div>
-  <button data-app="console"><i>›_</i>Console</button>
+  <button data-app="console"><i>›_</i>Spindle</button>
 </nav>
 <div class="views">
 <div class="view" id="v-swarm">
@@ -199,7 +199,7 @@ select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-
 </div></div>
 <div class="view" id="v-console"><div class="pad">
   <section>
-    <h2>zxvd console</h2>
+    <h2>Spindle: call zxvd</h2>
     <div class="bar2"><select id="cmeth"></select><span class="sp"></span><button id="crun" class="primary">Run</button><button id="cclear">Clear</button></div>
     <textarea id="cparams" spellcheck="false" placeholder='Parameters as a JSON object, for example {"path":""}'></textarea>
     <div class="small">Every call goes to this machine's zxvd, the same methods the SDKs and ZXV Studio use (api/zxvd.openrpc.json).</div>
@@ -329,7 +329,7 @@ function show(app){
 }
 document.querySelectorAll('#dock button').forEach(b=>b.onclick=()=>show(b.dataset.app));
 
-/* ----- Files ----- */
+/* ----- Burrow (files) ----- */
 const F={dir:'',entries:[],
   crumbs(el,dir,go){el.innerHTML='';const parts=dir?dir.split('/'):[];const a=document.createElement('a');a.textContent=parts[0]==='.Trash'?'Trash':'ZXV';a.onclick=()=>go(parts[0]==='.Trash'?'.Trash':'');el.appendChild(a);
     let acc=parts[0]==='.Trash'?'.Trash':'';for(const p of parts[0]==='.Trash'?parts.slice(1):parts){acc=join(acc,p);const s=document.createElement('span');s.textContent='›';el.appendChild(s);const x=document.createElement('a');x.textContent=p;const to=acc;x.onclick=()=>go(to);el.appendChild(x)}},
@@ -373,7 +373,7 @@ $('fdrop').ondragover=e=>{if(F.dir.startsWith('.Trash'))return;e.preventDefault(
 $('fdrop').ondragleave=()=>$('fdrop').classList.remove('drop');
 $('fdrop').ondrop=e=>{e.preventDefault();$('fdrop').classList.remove('drop');if(F.dir.startsWith('.Trash'))return;importFiles(F.dir,[...e.dataTransfer.files],$('fstat'),()=>F.load())};
 
-/* ----- TextEdit ----- */
+/* ----- Quillon (text) ----- */
 const T={path:null,saved:'',preview:false,
   dirty(){return $('ed').value!==T.saved},
   mark(){$('tname').textContent=T.path?base(T.path):'Untitled';$('tname').title=T.path||'';$('tdirty').textContent=T.dirty()?' ● edited':'';
@@ -418,7 +418,7 @@ try{const d=JSON.parse(localStorage.getItem('zxv-draft')||'null');if(d&&typeof d
 T.mark();
 window.addEventListener('beforeunload',e=>{if(T.dirty()){e.preventDefault();e.returnValue=''}});
 
-/* ----- Photos and media ----- */
+/* ----- Glint (photos and media) ----- */
 const P={dir:'',items:[],urls:new Map(),idx:-1,
   async load(dir){if(dir!==undefined)P.dir=dir;F.crumbs($('pcrumbs'),P.dir,d=>P.load(d));
     try{const r=await rpc('files.list',{path:P.dir});const g=$('pgrid');g.innerHTML='';
@@ -426,7 +426,7 @@ const P={dir:'',items:[],urls:new Map(),idx:-1,
       for(const e of dirs){const t=P.tile('📁',e.name);t.onclick=()=>P.load(join(P.dir,e.name));g.appendChild(t)}
       P.items.forEach((e,i)=>{const k=kindOf(e.name);const t=P.tile(k==='image'?'🖼':k==='audio'?'♪':'▶',e.name);t.onclick=()=>P.view(i);g.appendChild(t);
         if(k==='image'&&e.size<=8*1048576)P.thumb(join(P.dir,e.name),t.firstChild)});
-      status($('pstat'),P.items.length?`${P.items.length} photo${P.items.length===1?'':'s'} and media files`:'No photos or media here. Import some, or drop them on the Files window.')}
+      status($('pstat'),P.items.length?`${P.items.length} photo${P.items.length===1?'':'s'} and media files`:'No photos or media here. Import some, or drop them on Burrow.')}
     catch(e){$('pgrid').innerHTML='';status($('pstat'),e.message,true)}},
   tile(ic,name){const t=document.createElement('div');t.className='tile';t.innerHTML=`<div class="th">${ic}</div><div class="cap"></div>`;t.lastChild.textContent=name;t.title=name;return t},
   async blobUrl(p){if(P.urls.has(p))return P.urls.get(p);const parts=await readAll(p,true);
@@ -446,7 +446,7 @@ document.addEventListener('keydown',e=>{if(!$('viewer').classList.contains('on')
 $('pimport').onclick=()=>$('ppick').click();
 $('ppick').onchange=()=>{const l=[...$('ppick').files];$('ppick').value='';importFiles(P.dir,l,$('pstat'),()=>P.load())};
 
-/* ----- Console (developer toolbox) ----- */
+/* ----- Spindle (developer console) ----- */
 const C={loaded:false,
   async load(){if(C.loaded)return;try{const r=await rpc('rpc.discover');const s=$('cmeth');s.innerHTML='';
     for(const m of r.methods){const o=document.createElement('option');o.value=o.textContent=m;s.appendChild(o)}C.loaded=true}
