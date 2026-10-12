@@ -1,0 +1,26 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "ZXV Unreal",
+	"Description": "Deterministic lockstep for Unreal Engine 5: exact rational game state, 64-state hexagram rule tags and the emu-state lockstep sim over libzxv. Apache-2.0.",
+	"Category": "Networking",
+	"CreatedBy": "Michael Laurence Curzi and 36N9 Genetics, LLC",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EngineVersion": "5.4.0",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "ZxvUnreal",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [ "Linux", "Mac" ]
+		}
+	]
+}

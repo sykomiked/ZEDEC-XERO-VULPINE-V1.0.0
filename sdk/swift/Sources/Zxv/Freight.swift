@@ -273,8 +273,11 @@ public enum Freight {
     /// A CIDREF resolver: return exactly `length` bytes of the content `cid`
     /// names, or nil if it cannot (a wrong length counts as nil). It must not
     /// expand op streams itself. An error it throws never crosses C: it ends
-    /// the expansion and `expand` rethrows it.
-    public typealias Resolver = (_ cid: [UInt8], _ length: Int) throws(ZxvError) -> [UInt8]?
+    /// the expansion and `expand` rethrows it (a `ZxvError` as is, any other
+    /// error as `.system` with `ZXV_E_INTERNAL`). The type uses untyped
+    /// `throws` because typed-throws function values need the macOS 15 /
+    /// iOS 18 runtime, and the package supports macOS 13 and iOS 16.
+    public typealias Resolver = (_ cid: [UInt8], _ length: Int) throws -> [UInt8]?
 
     /// Expand an op stream, accepting at most `limit` bytes (<= `opsMax`,
     /// else `.usage` `ZXV_E_RANGE`); a declared total above it is `.usage`
@@ -409,14 +412,17 @@ private final class ResolverBox {
                  _ len: UInt64) -> Int32 {
         guard len <= UInt64(Int.max) else { return ZXV_E_RANGE }
         let id = cid.map { Array(UnsafeBufferPointer(start: $0, count: cidLen)) } ?? []
-        do throws(ZxvError) {
+        do {
             guard let bytes = try fn(id, Int(len)), bytes.count == Int(len) else { return ZXV_E_NOT_FOUND }
             if let out, len > 0 {
                 bytes.withUnsafeBufferPointer { out.update(from: $0.baseAddress!, count: Int(len)) }
             }
             return ZXV_OK
+        } catch let e as ZxvError {
+            self.error = e
+            return ZXV_E_INTERNAL
         } catch {
-            self.error = error
+            self.error = .system(ZxvSystemError(status: ZXV_E_INTERNAL, detail: "freight resolver: \(error)"))
             return ZXV_E_INTERNAL
         }
     }

@@ -732,7 +732,7 @@ final class Abi15Tests: XCTestCase {
             XCTAssertEqual(st { _ = try Freight.expand(ops, limit: 1024) }, S(w["expand_without_resolver"]))
             nonisolated(unsafe) var calls = 0
             let want = ref!.bytes, content = utf8(resolves)
-            let got = try Freight.expand(ops, limit: 1024) { (cid, length) throws(ZxvError) -> [UInt8]? in
+            let got = try Freight.expand(ops, limit: 1024) { (cid, length) throws -> [UInt8]? in
                 calls += 1
                 return cid == want && length == content.count ? content : nil
             }
@@ -742,7 +742,7 @@ final class Abi15Tests: XCTestCase {
             XCTAssertEqual(st { _ = try Freight.expand(ops, limit: 1024) { _, _ in nil } }, "ZXV_E_NOT_FOUND")
             // A throwing resolver: the error never crosses C; expand rethrows it.
             let boom = ZxvError.system(ZxvSystemError(status: ZXV_E_IO, detail: "resolver boom"))
-            let e = zerr { _ = try Freight.expand(ops, limit: 1024) { (_, _) throws(ZxvError) -> [UInt8]? in throw boom } }
+            let e = zerr { _ = try Freight.expand(ops, limit: 1024) { (_, _) throws -> [UInt8]? in throw boom } }
             XCTAssertEqual(e, boom)
         }
         for e in objs(x["gen_run"]) {

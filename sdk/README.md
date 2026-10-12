@@ -81,9 +81,21 @@ layer (allocator, mutex, entropy, time); see [`embedded/`](embedded/).
 | Port + MCU subset | [`embedded`](embedded/) | Rationals, four-valued logic, hexagram tags, caps, quarantine log and budgets in about 35 KB flash on Cortex-M; a fixed-memory ledger (`zxe_ledger`); fails closed without an entropy source | 11,499 ledger checks, a 75,244-operation differential test against libzxv, libzxv's own suites through the port, QEMU Cortex-M3/M4 |
 | FreeRTOS | [`freertos-zxv`](embedded/freertos-zxv/) | Port and a sample task (ledger posting, budget tick) | POSIX simulator |
 | Zephyr | [`zephyr-zxv`](embedded/zephyr-zxv/) | Zephyr module (module.yml, Kconfig) and a sample | native_sim and qemu_cortex_m3 |
+| ZXV-BareMetal | [`baremetal`](embedded/baremetal/) | Boot packaging of the ZXV kernel for board makers: a versioned board manifest (schema + stdlib validator) with the ZHP-1 profile digest, and a driver over the PR #25 UEFI disc build (x86_64, arm64; RISC-V QEMU only). No Secure Boot signing, no vendor keys | 122 manifest cases, dry-run plans, packaging against a fake build; QEMU boot in `ci.yml` |
 
 Advisory only for any actuation; no safety-standard or real-time claims.
 Nothing has run on real hardware yet.
+
+## Silicon
+
+Generated hardware description for people who put ZXV's rules into logic;
+see [`silicon/`](silicon/).
+
+| Kit | Folder | What it gives you | Tests |
+|---|---|---|---|
+| Z-Fabric | [`z-fabric`](silicon/z-fabric/) | Four-valued NOT/AND/OR, the hexagram action table, phase cycle and tag combinators as gate-level Verilog-2005 and VHDL-2008, generated from libzxv's own answers; CI fails if the HDL drifts from C | 8,368 exhaustive vectors under Icarus Verilog and GHDL, a Python netlist simulator, post-synthesis simulation (Yosys, GHDL) |
+
+Combinational reference logic only: not timing-closed, no silicon.
 
 ## Game engines
 

@@ -52,6 +52,11 @@ where it stops.
   design choice.
 - **Disagreements.** Where two repository documents disagree, the paper says
   so rather than choosing silently.
+- **Formal models.** The Lean 4 and TLA+ files in `proofs/` are hand-written
+  specifications of parts of the C code. They are checked by machine, but no
+  refinement proof links them to the C source or the binary, as seL4's proofs
+  do. They are evidence about the design, not a verification of the kernel.
+  Wherever a paper says "Lean" or "TLC", read it with this limit.
 
 ## Citing
 
