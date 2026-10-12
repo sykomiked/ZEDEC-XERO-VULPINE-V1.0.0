@@ -337,8 +337,9 @@ CI jobs locally (`docs/CI.md`); `zxvd` builds with `kernel/arch/hosted/build_zxv
   process; the kernel image runs only self-checks for them.
 - **Capability strength.** Kernel capabilities are per-process bit masks; in-process `zxv_cap` is
   discipline, not isolation (§4.2). No information-flow or isolation proof exists, unlike seL4.
-- **Formal methods.** TLA+ and Lean models are hand-written from the C with no refinement proof to the
-  source or binary (`docs/FORMAL_INVARIANTS.md`).
+- **Formal methods.** TLA+ and Lean models are hand-written specifications of the C, with no refinement
+  proof to the source or binary (`docs/FORMAL_INVARIANTS.md`). This is unlike seL4, whose proofs reach the
+  C code and the binary. A change to the C can silently invalidate a model.
 - **Coverage.** 36 modules under `kernel/src` are linked by no test or fuzz harness (`docs/COVERAGE.md`);
   line coverage 87.0% and MC/DC 32.2% refer only to modules that tests link.
 - **Documents disagree.** Speed figures differ by machine and source (`docs/ARCHITECTURE.md` §10 "~11 vs

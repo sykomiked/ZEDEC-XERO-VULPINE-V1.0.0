@@ -23,8 +23,9 @@
  * LOCAL: a single point in event-space -- ordinary relativistic
  * causality, affecting exactly one task_id.
  *
- * NON_LOCAL: genuine quantum non-locality (Bell/EPR-style
- * correlation). Two karma events are coupled WITHOUT any causal
+ * NON_LOCAL: modelled on quantum non-locality (Bell/EPR-style
+ * correlation); it is a classical table lookup, not a physical
+ * entangled system. Two karma events are coupled WITHOUT any causal
  * ordinal chain between them -- no signal, no ordinal-precedence
  * requirement, only a fixed correlation rule evaluated at observation
  * time (dharma_advance looks up the partner ANYWHERE in the set,
