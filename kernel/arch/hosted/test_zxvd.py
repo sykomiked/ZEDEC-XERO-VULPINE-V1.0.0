@@ -114,7 +114,11 @@ def owner_only_acl(path):
 
 
 def check(cond, msg):
-    print('  %s %s' % ('ok  ' if cond else 'FAIL', msg))
+    line = '  %s %s' % ('ok  ' if cond else 'FAIL', msg)
+    try:
+        print(line)
+    except UnicodeEncodeError:  # a Windows console (cp1252) has no emoji
+        print(line.encode('ascii', 'backslashreplace').decode('ascii'))
     if not cond:
         FAILS.append(msg)
 
