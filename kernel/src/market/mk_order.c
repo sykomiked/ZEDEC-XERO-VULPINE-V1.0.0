@@ -388,9 +388,11 @@ mk_status_t mk_order_confirm(mk_market_t *m, uint16_t h, const mk_id_t *actor)
     if (!o) return MK_ERR_NOT_FOUND;
     if (!allowed(o, MK_EV_CONFIRM)) return MK_ERR_STATE;
     if (!is_buyer(o, actor)) return MK_ERR_AUTH;
-    if (o->state == MK_ORD_PAID && !o->fulfilled_at)
-        o->fulfilled_at = m->now; /* the buyer confirms receipt directly */
-    return complete(m, h, o);
+    bool direct = o->state == MK_ORD_PAID && !o->fulfilled_at;
+    if (direct) o->fulfilled_at = m->now; /* the buyer confirms receipt directly */
+    mk_status_t rc = complete(m, h, o);
+    if (rc != MK_OK && direct) o->fulfilled_at = 0; /* release refused: the order is unchanged */
+    return rc;
 }
 
 mk_status_t mk_order_refund_line(mk_market_t *m, uint16_t h, const mk_id_t *actor, uint8_t line,
