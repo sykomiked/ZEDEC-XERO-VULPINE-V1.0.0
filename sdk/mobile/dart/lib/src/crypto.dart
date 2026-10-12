@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
 import 'bindings.dart';
+import 'bindings15.dart';
 import 'context.dart';
 import 'errors.dart';
 import 'native.dart' as n;
@@ -78,6 +79,9 @@ final class SecretKey {
     }
     return k;
   }
+
+  /// A zeroed key of `size` bytes for native code to fill. Internal.
+  factory SecretKey.allocate(int size) => SecretKey._(size);
 
   Pointer<Uint8> get pointer {
     if (isClosed) throw StateError('this secret key is closed');
@@ -173,5 +177,122 @@ final class Ed25519 {
 
   void _size(SecretKey k) {
     if (k.size != 32) throw n.usage(n.eArg, 'an Ed25519 secret key is 32 bytes, got ${k.size}');
+  }
+}
+
+/// An ML-DSA-87 key pair; close the secret key when done.
+final class MlDsa87KeyPair {
+  MlDsa87KeyPair(this.publicKey, this.secretKey);
+
+  /// The 2592-byte public key.
+  final Uint8List publicKey;
+  final SecretKey secretKey;
+  void close() => secretKey.close();
+}
+
+/// FIPS 204 ML-DSA-87 through a capability that needs `CRYPTO_SIGN` (the
+/// V-Bill hub's peg signatures use it). The 4896-byte secret key stays in
+/// [SecretKey] memory; a seed for deterministic key generation is a 32-byte
+/// [SecretKey] too, so it never sits on the Dart heap.
+final class MlDsa87 {
+  MlDsa87(this.capability);
+  final Capability capability;
+
+  static const int publicKeyBytes = 2592;
+  static const int secretKeyBytes = 4896;
+  static const int signatureBytes = 4627;
+
+  /// The longest context string.
+  static const int contextMax = 255;
+
+  n.ContextState get _st => capability.context.state;
+
+  /// A fresh key pair from the OS random source, or the one a 32-byte `seed`
+  /// determines (FIPS 204 ML-DSA.KeyGen_internal).
+  MlDsa87KeyPair generate({SecretKey? seed}) {
+    if (seed != null && seed.size != 32) throw n.usage(n.eArg, 'an ML-DSA-87 seed is 32 bytes, got ${seed.size}');
+    final sk = SecretKey._(secretKeyBytes);
+    try {
+      return using((a) {
+        final pk = a<Uint8>(publicKeyBytes);
+        final c = capability.handle.ptr;
+        n.check(
+          seed == null
+              ? zxv15.mldsa87Keygen(c, pk, sk.pointer)
+              : zxv15.mldsa87KeygenSeed(c, seed.pointer, pk, sk.pointer),
+          _st,
+        );
+        return MlDsa87KeyPair(n.bytesOut(pk, publicKeyBytes), sk);
+      });
+    } catch (_) {
+      sk.close();
+      rethrow;
+    }
+  }
+
+  /// A hedged (randomized) signature of `message` under `context` (at most 255 bytes).
+  Uint8List sign(SecretKey secretKey, List<int> message, {List<int>? context}) =>
+      _sign(false, secretKey, message, context);
+
+  /// The deterministic signature of `message` under `context`.
+  Uint8List signDeterministic(SecretKey secretKey, List<int> message, {List<int>? context}) =>
+      _sign(true, secretKey, message, context);
+
+  Uint8List _sign(bool det, SecretKey sk, List<int> message, List<int>? context) {
+    _context(context);
+    if (sk.size != secretKeyBytes) {
+      throw n.usage(n.eArg, 'an ML-DSA-87 secret key is $secretKeyBytes bytes, got ${sk.size}');
+    }
+    return using((a) {
+      final sig = a<Uint8>(signatureBytes);
+      final c = capability.handle.ptr;
+      final m = n.bytesIn(a, message);
+      final x = n.optBytes(a, context);
+      final cl = context?.length ?? 0;
+      n.check(
+        det
+            ? zxv15.mldsa87SignDeterministic(c, sk.pointer, m, message.length, x, cl, sig)
+            : zxv15.mldsa87Sign(c, sk.pointer, m, message.length, x, cl, sig),
+        _st,
+      );
+      return n.bytesOut(sig, signatureBytes);
+    });
+  }
+
+  /// Returns normally if `signature` is valid; [VerificationFailedException] if not.
+  void verify(List<int> publicKey, List<int> message, List<int> signature, {List<int>? context}) {
+    n.requireLength(publicKey, publicKeyBytes, 'publicKey');
+    n.requireLength(signature, signatureBytes, 'signature');
+    _context(context);
+    using((a) {
+      n.check(
+        zxv15.mldsa87Verify(
+          capability.handle.ptr,
+          n.bytesIn(a, publicKey),
+          n.bytesIn(a, message),
+          message.length,
+          n.optBytes(a, context),
+          context?.length ?? 0,
+          n.bytesIn(a, signature),
+        ),
+        _st,
+      );
+    });
+  }
+
+  /// [verify] as a bool: false only for an invalid signature; other errors still throw.
+  bool isValid(List<int> publicKey, List<int> message, List<int> signature, {List<int>? context}) {
+    try {
+      verify(publicKey, message, signature, context: context);
+      return true;
+    } on VerificationFailedException {
+      return false;
+    }
+  }
+
+  void _context(List<int>? context) {
+    if (context != null && context.length > contextMax) {
+      throw n.usage(n.eArg, 'an ML-DSA context string is at most $contextMax bytes');
+    }
   }
 }

@@ -64,6 +64,8 @@ val buildJni by tasks.registering(Exec::class) {
     description = "Builds libzxvjni for the host JVM"
     dependsOn(configureJni)
     inputs.file(rootDir.resolve("jni/zxv_jni.c"))
+    inputs.file(rootDir.resolve("jni/zxv_jni15.c"))
+    inputs.file(rootDir.resolve("jni/zxvj_common.h"))
     inputs.file(sdkRoot.resolve("libzxv/include/zxv_api.h"))
     outputs.file(jniBuild.map { it.file("libzxvjni.$libExt") })
     commandLine("cmake", "--build", jniBuild.get().asFile.path)
@@ -81,6 +83,7 @@ tasks.test {
     systemProperty("zxv.jni.library", jniBuild.get().file("libzxvjni.$libExt").asFile.path)
     systemProperty("zxv.vectors", sdkRoot.resolve("conformance/vectors.json").path)
     systemProperty("zxv.jniSource", rootDir.resolve("jni/zxv_jni.c").path)
+    systemProperty("zxv.jni15Source", rootDir.resolve("jni/zxv_jni15.c").path)
     testLogging {
         events("failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
