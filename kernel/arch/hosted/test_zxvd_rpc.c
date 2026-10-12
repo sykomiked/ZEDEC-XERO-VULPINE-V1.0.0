@@ -799,6 +799,13 @@ static void test_earnings(void)
              src);
     CHECK(has(req, want), "earnings: posted as swarm earnings 6: %s", OUT.p);
     EXPECT(REQ("6", "ledger.check", ""), OK("6", "{\"ok\":true}"));
+    /* the smallest rise and fall: one minor unit each way */
+    CHECK(zxvd_rpc_earnings_sync(8) == 0, "earnings: up by one");
+    EARN("8", "6", "7");
+    BAL(own, "1009", "1000", "9");
+    CHECK(zxvd_rpc_earnings_sync(7) == 0, "earnings: down by one");
+    EARN("7", "7", "8");
+    BAL(own, "1009", "1001", "8");
 
     /* another currency and rate: an ISO code is enabled from the table */
     zxvd_rpc_books_close();
@@ -1269,8 +1276,9 @@ static void test_jurisdiction(void)
                ",\"params\":{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"}"),
            OK("9", "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"," JU_LIST));
     reopen();
-    CHECK(has(REQ("9", "jurisdiction.get", ""), "{\"market\":\"closed\",\"standard\":\"\""),
-          "J4: the last record wins");
+    CHECK(has(REQ("9", "jurisdiction.get", ""),
+              "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\""),
+          "J4: the last record wins, an empty country included");
     EXPECT(
         REQ("9", "jurisdiction.set",
             ",\"params\":{\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
@@ -1491,6 +1499,17 @@ static void test_edges(void)
     CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == -1, "F5: the mesh accounts cannot open");
     CHECK(has(REQ("8", "mesh.books", ""), "\"wallet_account\":null"), "and none did: %s", OUT.p);
     setrlimit(RLIMIT_FSIZE, &old);
+    /* S1: mesh accounts that are the file's first ones are found again at the restart */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0, "the new file reopens");
+    inv[0] = 0x90;
+    CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == 0, "a sale opens the mesh accounts first");
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0, "and reopens");
+    CHECK(has(REQ("8", "mesh.books", ""),
+              "\"wallet_account\":1,\"counterparty_account\":0,\"fee_account\":2,"
+              "\"wallet_minor\":\"5\""),
+          "S1: account 0 is found again: %s", OUT.p);
     zxvd_rpc_books_close();
     CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "back to memory");
     unlink(path);
