@@ -1083,8 +1083,8 @@ static void test_books_file(void)
         "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":3}",
         "{\"op\":\"acct\",\"name\":\"y\",\"ccy\":\"EUR\",\"kind\":1,\"id\":4}",
         "{\"op\":\"acct\",\"name\":\"z\",\"ccy\":\"EUR\",\"kind\":0,\"id\":5}",
-        "{\"op\":\"post\",\"from\":4,\"to\":5,\"amount\":\"7\",\"ccy\":\"EUR\",\"ref\":\"g\","
-        "\"id\":\"6\"}",
+        ("{\"op\":\"post\",\"from\":4,\"to\":5,\"amount\":\"7\",\"ccy\":\"EUR\",\"ref\":\"g\","
+         "\"id\":\"6\"}"),
     };
     spit(BOOKS, b, n);
     for (size_t i = 0; i < sizeof GOOD / sizeof GOOD[0]; i++) append_chained(BOOKS, GOOD[i]);
