@@ -5,12 +5,13 @@
  * POSIX host, with a test clock: the agent under zxvd's own app, the budget
  * that makes the next call wait, the battery posture's token scale, and the
  * parameters. Replies are compared exactly with literal JSON. */
-#define _POSIX_C_SOURCE  200809L
-#define _DARWIN_C_SOURCE /* mkdtemp and friends on macOS */
+#define _XOPEN_SOURCE    700 /* nftw */
+#define _DARWIN_C_SOURCE     /* mkdtemp and friends on macOS */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ftw.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -161,11 +162,18 @@ static void fixture(void)
     zxvd_cpu(0);
 }
 
+static int rm_one(const char *path, const struct stat *st, int flag, struct FTW *ftw)
+{
+    (void) st;
+    (void) flag;
+    (void) ftw;
+    return remove(path);
+}
+
+/* the fixture tree, deepest first, without a shell */
 static void cleanup(void)
 {
-    char cmd[600];
-    snprintf(cmd, sizeof cmd, "rm -rf '%s'", R);
-    if (system(cmd) != 0) printf("  (could not remove %s)\n", R);
+    if (nftw(R, rm_one, 16, FTW_DEPTH | FTW_PHYS) != 0) printf("  (could not remove %s)\n", R);
 }
 
 static void fresh(void)
