@@ -1680,6 +1680,16 @@ test-dispute:
 test-royalty:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/royalty/test_royalty.c src/royalty/royalty.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_royalty -lm && $(ZXV_TMP)/test_royalty > $(ZXV_TMP)/test_royalty.log 2>&1 && echo "[PASS] test_royalty" || { tail -40 $(ZXV_TMP)/test_royalty.log; echo "[FAIL] test_royalty"; exit 1; }
 
+# Mint (src/mint): Vino / V-Bills minted against signed capacity claims (e-WHR, compute, kWh), jurisdiction policy fail-closed, real ML-DSA-65 in the test.
+.PHONY: test-mint
+test-mint:
+	gcc $(ECON_FLAGS) $(ECON_INC) -Isrc/pqsec -Isrc/edp_risk -Isrc/vino_stores -Isrc/finance -Isrc/vino -Isrc/onepolicy src/mint/test_mint.c src/mint/mint.c $(ECON_LEDGER) src/pqsec/pq_mldsa65.c $(sort $(wildcard src/pqsec/mldsa/*.c)) src/vino_stores/vino_stores.c src/finance/triple_ledger.c src/onepolicy/onepolicy.c src/edp_risk/edp_risk.c -o $(ZXV_TMP)/test_mint -lm && $(ZXV_TMP)/test_mint > $(ZXV_TMP)/test_mint.log 2>&1 && echo "[PASS] test_mint" || { tail -40 $(ZXV_TMP)/test_mint.log; echo "[FAIL] test_mint"; exit 1; }
+
+# Q-Notes (src/qnote): toxic-claim lots sold by Dutch uniform-price auction (proceeds to reserve), vault first loss, pro-rata salvage recovery.
+.PHONY: test-qnote
+test-qnote:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/qnote/test_qnote.c src/qnote/qnote.c src/svault/svault.c src/mint/mint.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_qnote -lm && $(ZXV_TMP)/test_qnote > $(ZXV_TMP)/test_qnote.log 2>&1 && echo "[PASS] test_qnote" || { tail -40 $(ZXV_TMP)/test_qnote.log; echo "[FAIL] test_qnote"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1696,4 +1706,6 @@ test-econ:
 	$(MAKE) --no-print-directory test-cred
 	$(MAKE) --no-print-directory test-dispute
 	$(MAKE) --no-print-directory test-royalty
+	$(MAKE) --no-print-directory test-mint
+	$(MAKE) --no-print-directory test-qnote
 # ==== end economy modules ====
