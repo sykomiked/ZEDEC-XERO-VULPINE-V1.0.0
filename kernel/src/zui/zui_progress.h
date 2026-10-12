@@ -27,8 +27,10 @@
  *   - Progress is real. Every phase value comes from actual loading work
  *     (modules verified, models mapped, agents started); nothing is timed for
  *     show. When the remaining work is unknown, pass ZUI_BAR_UNKNOWN.
- *   - Sound (chime, coins, gong) belongs to the OS boot only. App launches
- *     reuse this screen silently; this module never makes sound.
+ *   - This module never makes sound. The OS boot has its own chime, coins
+ *     and gong; each app's launch gets its own themed begin / middle / end
+ *     cues from the launch-theme layer (a mute setting, sounds on by
+ *     default), with the middle cue tied to parts actually lighting.
  *
  * When the load is done the screen opens like a vault door (`open`): bolts
  * that locked across the centre seam while the top bar filled throw back, and
