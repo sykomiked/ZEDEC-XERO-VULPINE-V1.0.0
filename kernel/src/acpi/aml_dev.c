@@ -125,6 +125,29 @@ int aml_dev_match_id(aml_ctx_t *c, aml_node_t *n, const char *id)
     return hit;
 }
 
+int aml_dev_hid(aml_ctx_t *c, aml_node_t *n, char out[16])
+{
+    aml_val_t v;
+    int ok = 0;
+    if (!c || !n || !out) return 0;
+    out[0] = 0;
+    if (child_eval(c, n, "_HID", 0, 0, &v)) return 0;
+    if (v.type == AML_T_INT) {
+        aml_eisa_to_str((uint32_t) v.u.i, out);
+        ok = 1;
+    } else if (v.type == AML_T_STR && v.len) {
+        uint32_t i = 0;
+        for (; i < v.len && i < 15; i++) {
+            char ch = (char) v.u.bytes[i];
+            out[i] = (ch >= 0x20 && ch < 0x7F) ? ch : '?';
+        }
+        out[i] = 0;
+        ok = 1;
+    }
+    aml_val_free(c, &v);
+    return ok;
+}
+
 typedef struct find_ctx {
     const char *id;
     aml_node_t **out;

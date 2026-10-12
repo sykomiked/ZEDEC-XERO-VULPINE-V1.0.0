@@ -312,6 +312,15 @@ static void test_devices(void)
     CHECK_EQ(aml_find_devices(&c, "PNP0A03", dev, 8), 0);
     CHECK_EQ(aml_find_devices(&c, "PNP0C09", dev, 8), 1);
 
+    char hid[16];
+    CHECK_EQ(aml_dev_hid(&c, node("\\_SB.BAT0"), hid), 1);
+    CHECK(strcmp(hid, "PNP0C0A") == 0);
+    CHECK_EQ(aml_dev_hid(&c, node("\\_SB.CPU2"), hid), 1);
+    CHECK(strcmp(hid, "ACPI0007") == 0);
+    CHECK_EQ(aml_dev_hid(&c, node("\\_SB.PCI0.GFX0.LCD0"), hid), 0);
+    CHECK_EQ(hid[0], 0);
+    CHECK_EQ(aml_dev_hid(&c, 0, hid), 0);
+
     /* _STA verdicts */
     CHECK_EQ(aml_sta(&c, node("\\_SB.PCI0.ABS0")), 0);
     CHECK_EQ(aml_sta(&c, node("\\_SB.PCI0.FUN0")), 8);
@@ -530,11 +539,13 @@ static void test_report(void)
     f.sci_en_after_smi = 1;
     acpi_pm_enable(&pm);
     fk_log_clear(&f);
-    CHECK_EQ(acpi_pm_report(&pm), 10);
+    CHECK_EQ(acpi_pm_report(&pm), 11);
     CHECK(fk_log_has(&f, "[ACPI OK] namespace: "));
     CHECK(fk_log_has(&f, " methods, DSDT rev 2 (2 tables, 0 load errors, 3 _INI"));
     CHECK(fk_log_has(&f, "[ACPI] S3 supported SLP_TYPa=0x5 SLP_TYPb=0x5"));
     CHECK(fk_log_has(&f, "[ACPI] \\_S5_ SLP_TYPa=0x7 SLP_TYPb=0x6"));
+    CHECK(fk_log_has(&f, "[ACPI] devices with _HID: 9 (9 present): ACPI0007 x2, PNP0A08, "
+                         "PNP0C09, PNP0C0A x3, PNP0C0D, PNP0C0C"));
     CHECK(fk_log_has(&f, "[ACPI] power button: fixed feature (PM1 PWRBTN), control-method "
                          "devices PNP0C0C: 1, GPE methods: 3"));
     CHECK(fk_log_has(&f, "[ACPI] battery PNP0C0A: 3, present 7%, present 100%"));
@@ -577,7 +588,7 @@ static void test_report(void)
     CHECK(fk_log_has(&f, "DSDT load reported errors"));
     CHECK(aml_stats(&c).objects > 20);
     CHECK(pm.sleep_ok[5]);
-    CHECK_EQ(acpi_pm_report(&pm), 10);
+    CHECK_EQ(acpi_pm_report(&pm), 11);
     CHECK(fk_log_has(&f, "[ACPI OK] namespace: "));
 }
 

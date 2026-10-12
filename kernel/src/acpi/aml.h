@@ -247,6 +247,9 @@ uint32_t aml_walk(aml_ctx_t *c, struct aml_node *start, aml_walk_fn cb, void *us
 int aml_dev_match_id(aml_ctx_t *c, struct aml_node *n, const char *id);
 /* Up to max devices with that id, in namespace order; returns the count. */
 uint32_t aml_find_devices(aml_ctx_t *c, const char *id, struct aml_node **out, uint32_t max);
+/* The device's _HID as text into out[16] ("PNP0C0A", "ACPI0007", an EISA
+ * integer decoded); 1 = it has one. Longer string ids are cut to 15. */
+int aml_dev_hid(aml_ctx_t *c, struct aml_node *n, char out[16]);
 /* Decode a compressed EISA id into out[8] ("PNP0C0A"). */
 void aml_eisa_to_str(uint32_t eisa, char out[8]);
 

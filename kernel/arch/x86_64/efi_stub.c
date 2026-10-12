@@ -194,7 +194,8 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
     uputs("ExitBootServices status="); udec(es); uputs("\n");
 
     /* Boot services are gone, low memory is ours: publish the framebuffer
-     * record (only when this boot found a GOP and owns the page). */
+     * record (only when this boot found a GOP and owns the page) and the
+     * ACPI RSDP (when the configuration table had one). */
     {
         volatile u64 *bi = (volatile u64 *) BOOTINFO_ADDR;
         if (fb || rsdp)

@@ -435,17 +435,49 @@ static void arm_events(acpi_pm_t *pm)
 }
 
 /* ---- report --------------------------------------------------------------------------------- */
+#define SCAN_IDS 24
 typedef struct scan {
     uint32_t thermal, procs, proc_objs, pss_first, cpc_first, pss_any, cpc_any;
     uint32_t bcl_devs, bcl_levels;
     struct aml_node *tz[4];
+    uint32_t hid_devs, hid_present, nids;
+    char ids[SCAN_IDS][16];
+    uint32_t idn[SCAN_IDS];
 } scan_t;
+
+static int str_eq(const char *a, const char *b)
+{
+    while (*a && *a == *b) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+
+/* Tally the device's _HID (first SCAN_IDS distinct ids, namespace order). */
+static void scan_hid(aml_ctx_t *c, struct aml_node *n, scan_t *s)
+{
+    char id[16];
+    if (!aml_dev_hid(c, n, id)) return;
+    s->hid_devs++;
+    if (aml_sta(c, n) & 1) s->hid_present++;
+    for (uint32_t i = 0; i < s->nids; i++)
+        if (str_eq(s->ids[i], id)) {
+            s->idn[i]++;
+            return;
+        }
+    if (s->nids < SCAN_IDS) {
+        for (uint32_t k = 0; k < 16; k++) s->ids[s->nids][k] = id[k];
+        s->idn[s->nids++] = 1;
+    }
+}
 
 static int scan_cb(aml_ctx_t *c, struct aml_node *n, uint32_t depth, void *user)
 {
     scan_t *s = (scan_t *) user;
     (void) depth;
     uint32_t t = aml_node_type(n);
+    if (t == AML_T_DEVICE) scan_hid(c, n, s);
     if (t == AML_T_THERMAL) {
         if (s->thermal < 4) s->tz[s->thermal] = n;
         s->thermal++;
@@ -516,6 +548,28 @@ uint32_t acpi_pm_report(acpi_pm_t *pm)
         lines += pl_emit(pm, &l);
     }
 
+    scan_t sc;
+    for (uint32_t i = 0; i < (uint32_t) sizeof sc; i++) ((uint8_t *) &sc)[i] = 0;
+    aml_walk(c, 0, scan_cb, &sc);
+    pl_init(&l, "[ACPI] devices with _HID: ");
+    pl_u(&l, sc.hid_devs);
+    pl_s(&l, " (");
+    pl_u(&l, sc.hid_present);
+    pl_s(&l, " present)");
+    for (uint32_t i = 0; i < sc.nids; i++) {
+        if (l.n + 24 >= sizeof l.b) {
+            pl_s(&l, ", ...");
+            break;
+        }
+        pl_s(&l, i ? ", " : ": ");
+        pl_s(&l, sc.ids[i]);
+        if (sc.idn[i] > 1) {
+            pl_s(&l, " x");
+            pl_u(&l, sc.idn[i]);
+        }
+    }
+    lines += pl_emit(pm, &l);
+
     struct aml_node *dev[8];
     uint32_t npb = aml_find_devices(c, "PNP0C0C", dev, 8);
     pl_init(&l, "[ACPI] power button: ");
@@ -555,9 +609,6 @@ uint32_t acpi_pm_report(acpi_pm_t *pm)
     }
     lines += pl_emit(pm, &l);
 
-    scan_t sc;
-    for (uint32_t i = 0; i < (uint32_t) sizeof sc; i++) ((uint8_t *) &sc)[i] = 0;
-    aml_walk(c, 0, scan_cb, &sc);
     pl_init(&l, "[ACPI] thermal zones: ");
     pl_u(&l, sc.thermal);
     for (uint32_t i = 0; i < sc.thermal && i < 2; i++) {

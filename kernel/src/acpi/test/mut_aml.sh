@@ -20,11 +20,17 @@ trap 'rm -rf "$T"' EXIT
 FL=(-std=c11 -O1 -w -DTEST_HOST -fsanitize=address,undefined -fno-sanitize-recover=all
     -Iinclude -Isrc -Isrc/acpi -Isrc/modbind)
 obj(){ # <source> -> prints the object path
+  # the file under mutation: -O0 (half the compile time), never cached
+  if [ "kernel/$1" = "${ZXV_MUT_TARGET:-}" ]; then
+    gcc "${FL[@]}" -O0 -c "$1" -o "$T/mut.o" || return 3
+    echo "$T/mut.o"
+    return 0
+  fi
   local h; h=$(cat "$1" src/acpi/*.h src/acpi/test/*.h | sha1sum | cut -c1-20)
   local o="$C/$(basename "$1" .c).$h.o"
   if [ ! -f "$o" ]; then
-    gcc "${FL[@]}" -c "$1" -o "$T/tmp.o" || return 3
-    mv -f "$T/tmp.o" "$o"
+    gcc "${FL[@]}" -c "$1" -o "$T/tmp.$$.o" || return 3
+    mv -f "$T/tmp.$$.o" "$o"
   fi
   echo "$o"
 }
