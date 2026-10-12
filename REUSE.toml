@@ -5,4 +5,4 @@ version = 1
 path = "hardware/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
-SPDX-License-Identifier = "LicenseRef-ZXV-Hardware-1.0"
+SPDX-License-Identifier = "LicenseRef-ZXV-Hardware-1.1"

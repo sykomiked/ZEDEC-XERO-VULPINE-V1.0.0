@@ -12,11 +12,11 @@ on:
     branches: [main, develop]
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
-            '.github/workflows/zxvd.yml']
+            'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   pull_request:
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
-            '.github/workflows/zxvd.yml']
+            'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   workflow_dispatch:
 
 permissions:
@@ -48,6 +48,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_rpc.sh
+      - name: AIPI host unit test (real AIPI core, Z-Wasm sandbox)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_aipi.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}
@@ -132,14 +136,15 @@ jobs:
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
 
   mutation:
-    # zxvd_rpc.c against its unit test; fails below the baseline in
-    # tests/harness/mutator/targets.json (ci.yml's gate only runs on PRs to main)
-    name: zxvd_rpc mutation score
+    # zxvd_rpc.c and zxvd_aipi.c against their unit tests; fails below the
+    # baselines in tests/harness/mutator/targets.json (ci.yml's gate only runs
+    # on PRs to main)
+    name: zxvd mutation scores
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc --ci --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi --ci --jobs 4 --out mutation-results
 
   real-model:
     # Qwen2.5-1.5B-Instruct Q4_K_M (Apache-2.0), pinned by SHA-256, never in git.

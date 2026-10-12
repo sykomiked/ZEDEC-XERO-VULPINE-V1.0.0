@@ -38,6 +38,7 @@ applied here.
 | F-MM-ALIGN | kernel/src/mm/mm.c `kmalloc` size rounding | axioms_alloc.c | FIXED (2a10d1b) |
 | F-MM-SHIFT31 | kernel/src/mm/mm.c bitmap helpers | axioms_alloc.c (sanitizer build) | FIXED (2a10d1b) |
 | F-PAY-FEE0 | kernel/src/pay/pay_ledger.c `pay_ledger_pay_with_fee` | axioms_pay.c, integ_pay.c | open |
+| F-MK-CONFIRM-ROLLBACK | kernel/src/market/mk_order.c `mk_order_confirm` | integ_e2e.c, test_market.c | FIXED (this branch) |
 
 ## Exact rationals (rmag_core)
 
@@ -212,6 +213,18 @@ under ASan/UBSan, and both XFAILs turn into XPASS):
 +        !pay_add_ok(part[PAY_ASSURE_RESERVE_FLOOR], excess, &reserve) ||
 +        reserve > (uint64_t) LINE_MAX_DELTA) /* 0 is fine: a zero part posts no line */
 ```
+
+## Market rollback (mk_order)
+
+**F-MK-CONFIRM-ROLLBACK.** A buyer may confirm receipt of a PAID order
+directly; `mk_order_confirm` then set `fulfilled_at` before asking the ledger
+to release escrow. When the ledger refused the release (a frozen escrow
+account), the call returned `MK_ERR_SETTLE` but the order kept the new
+`fulfilled_at`, breaking the market's rule that a refused settlement changes
+nothing (and the return window counts from `fulfilled_at`). Found by
+integ_e2e.c (a compliance freeze on escrow during a confirm); test_market.c
+now compares the whole order after the refused confirm. Fixed by clearing
+`fulfilled_at` again when the release is refused.
 
 ## Contract changes absorbed on p10-integrate (not bugs)
 

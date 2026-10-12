@@ -35,6 +35,9 @@
  *             zxvd.shutdown first (closing stdin stays the fallback), and the
  *             Dock badge shows the unread count from notes.list. The window
  *             is unchanged and still served on 127.0.0.1 with the token.
+ *   BOOKS.    zxvd also gets --books ~/Library/Application Support/ZXV/
+ *             books.zxvb: the owner's books, saved as a hash-chained file
+ *             and reloaded at every start (docs/ZXVD.md, "The books file").
  *   LOGS.     ~/Library/Logs/ZXV/engine.log and fetch.log.
  *
  * Build (universal): macos/build_macos_shell.sh. Needs Xcode or the Command
@@ -295,6 +298,10 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
             [args addObjectsFromArray:@[ @"--rpc", sock ]];
             self.rpcPath = sock;
         }
+        /* the owner's books are saved and reloaded at every start (zxvd_rpc.h F1) */
+        [args addObjectsFromArray:@[
+            @"--books", [self.supportDir stringByAppendingPathComponent:@"books.zxvb"]
+        ]];
     }
     NSString *model = [self currentModel];
     if (model) {

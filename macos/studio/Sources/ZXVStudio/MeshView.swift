@@ -1,7 +1,8 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 //
-// P2P Mesh: net.command (off / lan / online / peer / share) and swarm.state.net.
+// P2P Mesh: net.command (off / lan / online / peer / share), swarm.state.net
+// and net.peers.
 import SwiftUI
 import ZXVRPC
 
@@ -45,7 +46,9 @@ struct MeshView: View {
                 peersAndSharing
                 log
             }
-            if !store.has("net.peers") {
+            if store.has("net.peers") {
+                peerList
+            } else {
                 NotServed(what: "Peers", method: "net.peers",
                           detail: "A row per peer with its NodeID, address, last contact and traffic. zxvd reports only the peer count today.")
             }
@@ -119,6 +122,39 @@ struct MeshView: View {
             }
             Text("Now sharing \(grouped(net?.shareCompute ?? 0)) compute and \(grouped(net?.shareStorage ?? 0)) storage units. 0 and 0 stops sharing.")
                 .font(.callout).foregroundStyle(Theme.muted)
+        }
+    }
+
+    private var peerList: some View {
+        let list = store.peers?.peers ?? []
+        return Panel(title: "Peers", trailing: "\(grouped(store.peers?.count ?? 0)) verified") {
+            if list.isEmpty {
+                Text(mode == .off ? "Turn on LAN or Online to see peers."
+                                  : "No peer has answered yet. Add one by address above.")
+                    .foregroundStyle(Theme.muted)
+            }
+            ForEach(list) { p in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(p.id).font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.gold)
+                            .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                        Spacer()
+                        Text(p.addr.isEmpty ? "\u{2014}" : p.addr).font(.system(size: 12, design: .monospaced))
+                    }
+                    HStack(spacing: 12) {
+                        Text("Seen " + (p.lastSeen.map { $0.formatted(date: .omitted, time: .standard) } ?? "\u{2014}"))
+                        Text(p.inBook ? (p.member ? "Commons member" : "In your mesh book") : "No trades yet")
+                        Text("Held \(p.held) · delivered on credit \(p.receivable)")
+                        if p.pending > 0 {
+                            Text("\(p.pending) receipt(s) pending").foregroundStyle(Theme.warn)
+                        }
+                        if p.ubh { Text("UBH-168") }
+                    }
+                    .font(.caption).foregroundStyle(Theme.muted)
+                }
+                .padding(8)
+                .background(Theme.inset, in: RoundedRectangle(cornerRadius: 8))
+            }
         }
     }
 
