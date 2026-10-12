@@ -16,6 +16,7 @@
 #include "zui_emote.h"
 #include "zui_progress.h"
 #include "zui_login.h"
+#include "zui_pxl.h"
 #include "../font/ttf_fixture.inc" /* MINI_TTF[] */
 #include "zui_ttf_fixture.inc"     /* ZUI_TTF[]: metrics + a composite */
 
@@ -877,6 +878,118 @@ static void test_login(void)
     CHECK(1, "a null surface is ignored");
 }
 
+static int lum_of(uint32_t c)
+{
+    return (int) ((((c >> 16) & 0xFF) * 77 + ((c >> 8) & 0xFF) * 150 + (c & 0xFF) * 29) >> 8);
+}
+
+static int sat_of(uint32_t c)
+{
+    int r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+    int mx = r > g ? (r > b ? r : b) : (g > b ? g : b),
+        mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    return mx - mn;
+}
+
+static void test_pxl(void)
+{
+    printf("--- pxl: colour/anti-colour x tint/shade per pixel ---\n");
+    const uint32_t c = 0x3C8A5Au;
+    CHECK(zui_pxl_px(c, 0, 0) == c, "a 0, b 0 is identity");
+    CHECK(lum_of(zui_pxl_px(c, 0, 120)) > lum_of(c), "b + tints (lighter)");
+    CHECK(lum_of(zui_pxl_px(c, 0, -120)) < lum_of(c), "b - shades (darker)");
+    CHECK(sat_of(zui_pxl_px(c, 120, 0)) > sat_of(c), "a + leans into its own colour");
+    uint32_t anti = zui_pxl_px(c, -200, 0);
+    CHECK(sat_of(anti) < sat_of(c) && ((anti >> 16) & 0xFF) > ((c >> 16) & 0xFF),
+          "a - leans toward the complement (green loses, red gains)");
+    CHECK(zui_pxl_px(0x808080u, 200, 0) == 0x808080u, "grey has no colour to lean into");
+
+    static zui_pxl_lut_t lut, flat;
+    zui_pxl_build(&lut, 256);
+    zui_pxl_build(&flat, 0);
+    lpx_t T = lpx_make(LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    lpx_t F = lpx_make(LPX_B_FALSE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    lpx_t N = lpx_make(LPX_B_NEITHER, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
+    lpx_t B = lpx_make(LPX_B_BOTH, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    lpx_t X = lpx_make(LPX_B_TRUE, LPX_P_FORBIDDEN, LPX_PH_MANIFEST);
+    int zn = ZUI_PXL_ZBINS - 4, zf = 3, z0 = ZUI_PXL_ZBINS / 2;
+    CHECK(lut.cell[T][zn].a > 0 && lut.cell[T][zn].b > 0, "TRUE near: colour and tint");
+    CHECK(lut.cell[F][zf].a < 0 && lut.cell[F][zf].b < 0, "FALSE far: anti-colour and shade");
+    CHECK(lut.cell[N][z0].a == 0 && lut.cell[N][z0].b == 0 && !lut.cell[N][z0].glut,
+          "NEITHER is held at the glass");
+    CHECK(lut.cell[B][z0].glut && lut.cell[B][z0].a > 0, "BOTH is a glut");
+    int xz = 1;
+    for (int z = 0; z < ZUI_PXL_ZBINS; z++)
+        xz &= lut.cell[X][z].a == 0 && lut.cell[X][z].b == 0 && !lut.cell[X][z].glut;
+    CHECK(xz, "FORBIDDEN stays flat at every depth");
+    int fz = 1;
+    for (int t = 0; t < 64; t++)
+        for (int z = 0; z < ZUI_PXL_ZBINS; z++)
+            fz &= flat.cell[t][z].a == 0 && flat.cell[t][z].b == 0;
+    CHECK(fz, "strength 0 builds the identity table");
+
+    enum { W = 64, H = 48 };
+    static uint32_t px[W * H], ref[W * H];
+    static uint8_t tag[W * H];
+    static int8_t zb[W * H];
+    for (int i = 0; i < W * H; i++) ref[i] = 0x2A6A47u;
+    zui_surface_t s;
+    zui_surface_init(&s, px, W, H, W);
+    zui_plane_t pl;
+    zui_plane_init(&pl, tag, zb, W, H, W);
+    zui_plane_clear(&pl);
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &lut, -181, -181, 0);
+    CHECK(memcmp(px, ref, sizeof px) == 0, "a cleared plane leaves the frame untouched");
+
+    zui_plane_mark(&pl, (zui_rect_t){16, 12, 32, 24}, 4, T, 96);
+    CHECK(tag[0] == N && zb[0] == 0 && tag[24 * W + 32] == T && zb[24 * W + 32] == 96,
+          "mark stamps inside only");
+    CHECK(tag[12 * W + 16] == N, "rounded corner left alone");
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &flat, 0, 0, 0);
+    CHECK(memcmp(px, ref, sizeof px) == 0, "strength 0 with straight-on light is identity");
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &lut, -181, -181, 0);
+    CHECK(px[2 * W + 2] == ref[0], "flat ground away from the card untouched");
+    CHECK(lum_of(px[24 * W + 32]) > lum_of(ref[0]), "the raised card comes forward (tinted)");
+    int lit = lum_of(px[12 * W + 32]), shadow = lum_of(px[35 * W + 32]);
+    CHECK(lit > lum_of(px[24 * W + 32]), "edge facing the light is lit");
+    CHECK(shadow < lit, "far edge is darker than the lit edge");
+    CHECK(lum_of(px[36 * W + 32]) < lum_of(ref[0]), "shadow falls on the ground beyond");
+
+    zui_plane_clear(&pl);
+    zui_plane_mark(&pl, (zui_rect_t){0, 0, W, H}, 0, B, 0);
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &lut, 0, 0, 0);
+    CHECK(px[10 * W + 10] != px[10 * W + 11] && px[10 * W + 10] == px[11 * W + 11],
+          "BOTH interleaves colour and anti-colour by pixel");
+    uint32_t a0 = px[10 * W + 10];
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &lut, 0, 0, 8);
+    CHECK(px[10 * W + 11] == a0, "the interleave swaps as the tick moves");
+    memcpy(ref, px, sizeof px);
+    for (int i = 0; i < W * H; i++) px[i] = 0x2A6A47u;
+    zui_pxl_apply(&s, &pl, &lut, 0, 0, 8);
+    CHECK(memcmp(px, ref, sizeof px) == 0, "deterministic");
+    zui_plane_mark(&pl, (zui_rect_t){8, 6, 30, 20}, 3, T, 80);
+    zui_plane_mark(&pl, (zui_rect_t){30, 20, 26, 22}, 0, F, -60);
+    static uint32_t band[W * H];
+    for (int i = 0; i < W * H; i++) px[i] = band[i] = 0x2A6A47u + (uint32_t) (i % 7) * 0x030201u;
+    zui_pxl_apply(&s, &pl, &lut, 181, -181, 16);
+    zui_surface_t sb;
+    zui_surface_init(&sb, band, W, H, W);
+    zui_pxl_apply_rows(&sb, &pl, &lut, 181, -181, 16, 30, H + 9);
+    zui_pxl_apply_rows(&sb, &pl, &lut, 181, -181, 16, -4, 13);
+    zui_pxl_apply_rows(&sb, &pl, &lut, 181, -181, 16, 13, 30);
+    zui_pxl_apply_rows(&sb, &pl, &lut, 181, -181, 16, 20, 20);
+    CHECK(memcmp(px, band, sizeof px) == 0, "bands in any order give exactly the full frame");
+    zui_pxl_apply(NULL, &pl, &lut, 0, 0, 0);
+    zui_pxl_apply(&s, NULL, &lut, 0, 0, 0);
+    zui_plane_mark(&pl, (zui_rect_t){-50, -50, 400, 400}, 0, T, 500);
+    CHECK(zb[0] == 127 && zb[W * H - 1] == 127, "out-of-range marks clip and clamp");
+}
+
 int main(void)
 {
     printf("=== zui: layout, shapes, text plumbing, depth ===\n");
@@ -891,6 +1004,7 @@ int main(void)
     test_progress();
     test_login();
     test_foil();
+    test_pxl();
     printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }

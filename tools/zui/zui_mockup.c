@@ -27,6 +27,7 @@
 #include "zui_emote.h"
 #include "zui_progress.h"
 #include "zui_login.h"
+#include "zui_pxl.h"
 
 /* ---- fonts --------------------------------------------------------------- */
 static ttf_font_t F_REG, F_MED, F_SEMI, F_MONO, F_MONO_MED;
@@ -67,6 +68,8 @@ typedef struct {
     int32_t strength; /* depth slider: multiplies every layer's z */
     zui_look_t look;  /* the logic engine's look for this layer   */
     uint32_t bg;      /* ground the current layer sits on         */
+    lpx_t lt;         /* the current layer's paraconsistent tag    */
+    zui_plane_t *pl;  /* the depth-filter plane, when one is on    */
 } ctx_t;
 
 static int32_t PT(ctx_t *c, int32_t pt)
@@ -83,15 +86,24 @@ static void place(ctx_t *c, int32_t z_pt)
 /* an untagged layer: plain, at depth z */
 static void layer(ctx_t *c, int32_t z_pt)
 {
-    c->look = zui_look(lpx_make(LPX_B_NEITHER, LPX_P_NEUTRAL, LPX_PH_MANIFEST));
+    c->lt = lpx_make(LPX_B_NEITHER, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
+    c->look = zui_look(c->lt);
     place(c, z_pt);
 }
 
 /* a tagged layer: the paraconsistent engine decides depth, tint and shade */
 static void tag(ctx_t *c, uint8_t base, uint8_t pol, uint8_t phase)
 {
-    c->look = zui_look(lpx_make(base, pol, phase));
+    c->lt = lpx_make(base, pol, phase);
+    c->look = zui_look(c->lt);
     place(c, c->look.z_pt);
+}
+
+/* Tell the depth filter what was drawn here: the layer's tag, and its depth
+ * (the logic's own travel plus any raise this surface has). */
+static void stamp(ctx_t *c, zui_rect_t r, int32_t rad, int32_t raise)
+{
+    if (c->pl) zui_plane_mark(c->pl, r, rad, c->lt, c->look.z_pt * 6 + raise);
 }
 
 static uint32_t C(ctx_t *c, uint32_t rgb)
@@ -1289,7 +1301,7 @@ static void home_screen(ctx_t *c)
     /* folders as carved tiles */
     static const char *fn[8] = {"Grants", "Field notes", "Photos",   "Ledger exports",
                                 "Music",  "Models",      "Hardware", "Inbox"};
-    static const char *fc[8] = {"14 files",  "38 files", "212 photos", "9 files",
+    static const char *fc[8] = {"14 files",  "38 files", "212 photos", "2 versions",
                                 "61 tracks", "3 packs",  "local only", "6 new"};
     int cols = W > PT(c, 900) ? 4 : 3;
     int32_t tw = (W - (cols - 1) * PT(c, 14)) / cols, th = PT(c, 96);
@@ -1297,10 +1309,15 @@ static void home_screen(ctx_t *c)
         int32_t tx = x0 + (i % cols) * (tw + PT(c, 14)), ty = y + (i / cols) * (th + PT(c, 14));
         if (i == 7)
             tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_EMERGING);
-        else
+        else if (i == 3) /* two versions disagree: both stay visible */
+            tag(c, LPX_B_BOTH, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
+        else if (i == 6) /* local only: held at the glass */
             layer(c, 0);
+        else
+            tag(c, LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
         c->bg = ZUI_PANEL;
         zui_fill_rrect(&c->s, R(c, tx, ty, tw, th), PT(c, ZUI_R_PANEL), C(c, ZUI_PANEL), 255);
+        stamp(c, R(c, tx, ty, tw, th), PT(c, ZUI_R_PANEL), 24);
         engrave(c, (zui_rect_t){tx, ty, tw, th}, ZUI_R_PANEL);
         pict(c, PG_FOLDER, tx + PT(c, 30), ty + PT(c, 34), 24, i == 7 ? ZUI_GOLD_GLOW : ZUI_TEXT_2);
         heading(c, &F_MED, 14, tx + PT(c, 18), ty + PT(c, 62), ZUI_TEXT, fn[i]);
@@ -1316,6 +1333,7 @@ static void home_screen(ctx_t *c)
     zui_rect_t cr = R(c, x0, y, W, ch);
     zui_fill_rrect(&c->s, cr, PT(c, ZUI_R_PANEL), C(c, ZUI_PANEL), 255);
     zui_dash_rrect(&c->s, cr, PT(c, ZUI_R_PANEL), 1, PT(c, 5), C(c, ZUI_GOLD));
+    stamp(c, cr, PT(c, ZUI_R_PANEL), 0); /* held: it waits at the glass */
     text(c, &F_MED, 11, x0 + PT(c, 16), y + PT(c, 26), ZUI_GOLD_GLOW,
          "SUGGESTED TIDY-UP \xC2\xB7 HELD");
     text(c, &F_REG, 14, x0 + PT(c, 16), y + PT(c, 52), ZUI_TEXT,
@@ -1328,6 +1346,9 @@ static void home_screen(ctx_t *c)
     rail(c, 0);
     bottom_bar(c, 0);
     top_bar(c, "Home");
+    tag(c, LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_POTENTIAL);
+    stamp(c, c->p.rail, 0, 14);
+    stamp(c, c->p.top, 0, 20);
 }
 
 /* ---- the Chiglet: companion pop-up and Web4 ------------------------------ */
@@ -1875,6 +1896,10 @@ static void write_ppm(const char *dir, const char *name, const zui_surface_t *s)
 
 typedef void (*screen_fn)(ctx_t *);
 
+/* The depth filter in the present step: 0 off, else strength 1..256. */
+static int32_t PXL = 0, PXL_LX = -181, PXL_LY = -181;
+static uint32_t PXL_TICK = 0;
+
 static void render(const char *dir, const char *name, screen_fn fn, uint32_t w, uint32_t h,
                    uint32_t scale_q8, zui_input_t in, zui_depth_mode_t mode, int32_t head_x,
                    uint32_t px_per_cm)
@@ -1908,6 +1933,20 @@ static void render(const char *dir, const char *name, screen_fn fn, uint32_t w, 
         c.s = O;
         free(lp);
         free(rp);
+    } else if (PXL) {
+        zui_plane_t pl;
+        uint8_t *tg = malloc((size_t) w * h);
+        int8_t *zz = malloc((size_t) w * h);
+        static zui_pxl_lut_t lut;
+        if (!tg || !zz) exit(1);
+        zui_plane_init(&pl, tg, zz, (int32_t) w, (int32_t) h, (int32_t) w);
+        zui_plane_clear(&pl);
+        c.pl = &pl;
+        fn(&c);
+        zui_pxl_build(&lut, PXL);
+        zui_pxl_apply(&c.s, &pl, &lut, PXL_LX, PXL_LY, PXL_TICK);
+        free(tg);
+        free(zz);
     } else {
         fn(&c);
     }
@@ -2098,6 +2137,22 @@ int main(int argc, char **argv)
         snprintf(n, sizeof n, "foil-login-tilt-%03d", k);
         render(out, n, login_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FOIL, hx, 48);
     }
+    /* the paraconsistent pixel filter: before / after, and the light moving */
+    render(out, "pxl-home-before", home_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT,
+           0, 48);
+    PXL = 256;
+    render(out, "pxl-home-after", home_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0,
+           48);
+    for (int k = 0; k < 16; k++) {
+        char n[64];
+        PXL_LX = (int32_t) (k < 8 ? k : 16 - k) * 64 - 256;
+        PXL_TICK = (uint32_t) k * 8u;
+        snprintf(n, sizeof n, "pxl-light-%03d", k);
+        render(out, n, home_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    }
+    PXL = 0;
+    PXL_LX = -181;
+    PXL_TICK = 0;
     render(out, "login-laptop", login_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0,
            48);
     render(out, "login-phone", login_screen, 780, 1688, 512, ZUI_INPUT_TOUCH, ZUI_DEPTH_FLAT, 0,
