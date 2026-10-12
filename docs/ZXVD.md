@@ -123,11 +123,14 @@ CI checks it matches what zxvd serves.
 | `aipi.publish` | `module`, `contract`?, `entry`, `checker`?, `certifier`?, `verify`, `fuel_max`, `local_only`?, `deterministic`? | `function`, `local_only` |
 | `aipi.execute` | `function`, `args` (up to 8 integers), `private`? | `function`, `call`, `route`, `result`, `output_hex`, `tag` |
 | `aipi.status` | | `online`, `blocks`, `store_bytes`, `store_cap`, counts, `sandbox` |
+| `features.get` | | `features` (`name`, `enabled`, `regulated`, `groups`), `saved` |
+| `features.set` | `feature`, `enabled`? (default true) | `feature`, `enabled`, `regulated`, `saved` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
 (the message says why: price, funds, handshake, signature, connect), -32011
 an AIPI call refused or failed (the `AIPI_ERR_*` name and what it means),
+-32012 the method's feature is off (see "Feature switches" below),
 -32020 a payment step refused (netting, passkey or escrow; the message says
 why), -32000 a
 libzxv status, with
@@ -227,6 +230,26 @@ These feed ZXV Studio's P2P Mesh, Storefront and Ledger pages.
   that reason, so the card shows Copper / Obsidian until they exist. The
   next tier's thresholds and the missing inputs are listed. Tiers give no
   priority, fee discount or credit.
+
+## Feature switches and method groups
+
+Engines that move or record money, credit, securities or identity data plug
+into zxvd as method groups (`kernel/arch/hosted/zxvd_ext.h`), each behind a
+named feature switch. Every feature starts **off**. `zxvd --enable
+netting,cards` (or `--enable all`) turns features on at start;
+`features.set {"feature":"netting","enabled":true}` turns one on or off while
+zxvd runs. Switches are not saved: a restart is off again unless `--enable`
+says otherwise. While a feature is off its methods answer -32012 and do
+nothing, except status and description methods that move no money.
+`rpc.discover` lists every group's methods whether on or off, so the method
+list never depends on the switches.
+
+`features.get` marks a feature `regulated` when what it does is regulated
+somewhere (payments, cards, credit, securities, identity checks). Turning one
+on is the owner's choice for a test or a licensed deployment; zxvd claims no
+licence, membership or compliance. The engines keep their state in memory
+for the life of the process; turning a feature off and on again in the same
+run keeps it.
 
 ## The jurisdiction bridge
 

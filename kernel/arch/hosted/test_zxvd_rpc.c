@@ -27,6 +27,7 @@
 #include <sys/file.h>
 
 #include "zxvd_rpc.h"
+#include "zxvd_ext.h"
 #include "zxv_api.h"
 #include "sha256.h"
 #include "web4_web2.h"
@@ -443,7 +444,8 @@ static void test_host_methods(void)
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
               "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
               "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\"]}"));
+              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"features.get\",\"features.set\"]"
+              "}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -2287,6 +2289,255 @@ static void test_aipi_methods(void)
     zxvd_rpc_set_aipi_ops(NULL);
 }
 
+/* ---------------- method groups and switches (zxvd_ext.h X1-X6, P1-P3) ---------------- */
+
+static int g_calls, g_closed, g_closed_b;
+static void g_echo(zxvd_call_t *c)
+{
+    char s[8];
+    int64_t i = 0, a = 0;
+    uint32_t u = 0;
+    bool b = false;
+    if (!zxvd_p_str(c, "s", s, sizeof s, false) || !zxvd_p_bool(c, "b", false, &b)) return;
+    if (zxvd_p_has(c, "i") && !zxvd_p_i64(c, "i", &i)) return;
+    if (zxvd_p_has(c, "u") && !zxvd_p_u32(c, "u", &u)) return;
+    if (zxvd_p_has(c, "a") && !zxvd_p_amount(c, "a", &a)) return;
+    g_calls++;
+    zxvd_buf_printf(zxvd_res(c), "{\"s\":\"%s\",\"b\":%d,\"i\":%lld,\"u\":%u,\"a\":%lld}", s, b,
+                    (long long) i, (unsigned) u, (long long) a);
+}
+static void g_hex(zxvd_call_t *c)
+{
+    uint8_t h[4];
+    uint32_t n = 9;
+    bool req = zxvd_p_has(c, "need");
+    if (!zxvd_p_hex(c, "h", h, sizeof h, &n, req)) return;
+    zxvd_buf_t *o = zxvd_res(c);
+    zxvd_buf_raw(o, "{\"n\":", 5);
+    zxvd_buf_printf(o, "%u,\"h\":", (unsigned) n);
+    zxvd_buf_hex(o, h, n);
+    zxvd_buf_raw(o, "}", 1);
+}
+static void g_list(zxvd_call_t *c)
+{
+    int32_t n = zxvd_p_len(c, "items");
+    if (zxvd_failed(c)) return;
+    int64_t sum = 0;
+    for (int32_t k = 0; k < n; k++) {
+        int32_t saved;
+        int64_t v;
+        if (!zxvd_p_enter(c, "items", (uint32_t) k, &saved)) return;
+        bool ok = zxvd_p_i64(c, "v", &v);
+        zxvd_p_leave(c, saved);
+        if (!ok) return;
+        sum += v;
+    }
+    int32_t m = zxvd_p_len(c, "nums");
+    if (zxvd_failed(c)) return;
+    for (int32_t k = 0; k < m; k++) {
+        int64_t v;
+        if (!zxvd_p_i64_at(c, "nums", (uint32_t) k, &v)) return;
+        sum += v;
+    }
+    int64_t after = 0;
+    if (zxvd_p_has(c, "after") && !zxvd_p_i64(c, "after", &after)) return; /* scope restored */
+    zxvd_buf_printf(zxvd_res(c), "{\"n\":%d,\"m\":%d,\"sum\":%lld}", (int) n, (int) m,
+                    (long long) (sum + after));
+}
+static void g_status(zxvd_call_t *c)
+{
+    zxvd_buf_raw(zxvd_res(c), "{\"ok\":true}", 11);
+}
+static void g_fails(zxvd_call_t *c)
+{
+    zxvd_fail(c, -32050, "nope %d", 7);
+    zxvd_fail(c, -32051, "second"); /* the first error stays */
+    CHECK(zxvd_failed(c), "zxvd_failed after zxvd_fail");
+}
+static void g_close(void)
+{
+    g_closed++;
+}
+static void g_close_b(void)
+{
+    g_closed_b = g_closed + 1; /* closed before the first group: reverse order */
+}
+static const zxvd_group_method_t G_A[] = {
+    {"ga.echo", g_echo, false},    {"ga.hex", g_hex, false},     {"ga.list", g_list, false},
+    {"ga.status", g_status, true}, {"ga.fails", g_fails, false},
+};
+static const zxvd_group_method_t G_B[] = {{"gb.status", g_status, false}};
+static const zxvd_group_method_t G_DUP_CORE[] = {{"ledger.post", g_status, false}};
+static const zxvd_group_method_t G_DUP_GRP[] = {{"ga.echo", g_status, false}};
+static const zxvd_group_method_t G_DUP_SELF[] = {{"gc.x", g_status, false}, {"gc.x", g_status, false}};
+static const zxvd_group_method_t G_NULLFN[] = {{"gc.y", NULL, false}};
+static const zxvd_group_method_t G_EMPTY[] = {{"", g_status, false}};
+static const zxvd_group_method_t G_ONE[] = {{"gd.one", g_status, false}};
+
+static void test_groups(void)
+{
+    zxvd_rpc_groups_reset();
+    const zxvd_group_t A = {"alpha", true, "first \"group\"", G_A, 5, g_close};
+    const zxvd_group_t B = {"beta_2", false, NULL, G_B, 1, g_close_b};
+    CHECK(zxvd_rpc_add_group(&A) == 0, "add a group");
+    CHECK(zxvd_rpc_add_group(&B) == 0, "add a second group");
+    const zxvd_group_t bad[] = {
+        {"alpha", false, "", G_DUP_CORE, 1, NULL},
+        {"alpha", false, "", G_DUP_GRP, 1, NULL},
+        {"alpha", false, "", G_DUP_SELF, 2, NULL},
+        {"alpha", false, "", G_NULLFN, 1, NULL},
+        {"alpha", false, "", G_EMPTY, 1, NULL},
+        {"Alpha", false, "", G_ONE, 1, NULL},
+        {"all", false, "", G_ONE, 1, NULL},
+        {"", false, "", G_ONE, 1, NULL},
+        {NULL, false, "", G_ONE, 1, NULL},
+        {"a-b", false, "", G_ONE, 1, NULL},
+        {"abcdefghijklmnopqrstuvwx", false, "", G_ONE, 1, NULL},
+        {"alpha", false, "", NULL, 1, NULL},
+        {"alpha", false, "", G_ONE, 0, NULL},
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+        CHECK(zxvd_rpc_add_group(&bad[i]) == -1, "bad group %zu refused", i);
+    CHECK(zxvd_rpc_add_group(NULL) == -1, "NULL group refused");
+    const zxvd_group_t ok23 = {"abcdefghijklmnopqrstuvw", false, "", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&ok23) == 0, "a 23-byte feature name is fine");
+    CHECK(has(REQ("1", "rpc.discover", ""),
+              "\"features.set\",\"ga.echo\",\"ga.hex\",\"ga.list\","
+              "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
+          "X2: discover lists group methods after the core, on or off");
+
+    /* X3/X4: off by default; always-methods answer; the reason names the switch */
+    EXPECT(REQ("2", "ga.echo", ""),
+           ERR("2", "-32012",
+               "alpha is off: start zxvd with --enable alpha, or call features.set (regulated: "
+               "test or licensed use only)"));
+    EXPECT(
+        REQ("3", "gb.status", ""),
+        ERR("3", "-32012", "beta_2 is off: start zxvd with --enable beta_2, or call features.set"));
+    EXPECT(REQ("4", "ga.status", ""), OK("4", "{\"ok\":true}"));
+    CHECK(g_calls == 0, "an off method does nothing");
+    EXPECT(REQ("5", "features.get", ""),
+           OK("5", "{\"features\":[{\"name\":\"alpha\",\"enabled\":false,\"regulated\":true,"
+                   "\"groups\":[{\"note\":\"first \\\"group\\\"\",\"methods\":5}]},"
+                   "{\"name\":\"beta_2\",\"enabled\":false,\"regulated\":false,\"groups\":[{"
+                   "\"note\":\"\",\"methods\":1}]},{\"name\":\"abcdefghijklmnopqrstuvw\","
+                   "\"enabled\":false,\"regulated\":false,\"groups\":[{\"note\":\"\","
+                   "\"methods\":1}]}],\"saved\":false}"));
+    CHECK(!zxvd_rpc_enabled("alpha") && !zxvd_rpc_enabled(NULL) && !zxvd_rpc_enabled("nope"),
+          "enabled() is false for off and unknown features");
+
+    /* features.set */
+    EXPECT(REQ("6", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("6", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":false}"));
+    CHECK(zxvd_rpc_enabled("alpha") && !zxvd_rpc_enabled("beta_2"), "set turns on one feature");
+    EXPECT(REQ("7", "features.set", ",\"params\":{\"feature\":\"zeta\"}"),
+           ERR("7", "-32602", "unknown feature \\\"zeta\\\""));
+    EXPECT(REQ("8", "features.set", ",\"params\":{}"),
+           ERR("8", "-32602", "missing string parameter \\\"feature\\\""));
+    EXPECT(REQ("9", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":1}"),
+           ERR("9", "-32602", "\\\"enabled\\\" must be true or false"));
+    CHECK(zxvd_rpc_enabled("alpha"), "a refused set changes nothing");
+
+    /* P1 */
+    EXPECT(
+        REQ("10", "ga.echo", ",\"params\":{\"s\":\"hi\",\"b\":true,\"i\":-5,\"u\":7,\"a\":\"12\"}"),
+        OK("10", "{\"s\":\"hi\",\"b\":1,\"i\":-5,\"u\":7,\"a\":12}"));
+    EXPECT(REQ("11", "ga.echo", ""), OK("11", "{\"s\":\"\",\"b\":0,\"i\":0,\"u\":0,\"a\":0}"));
+    EXPECT(REQ("12", "ga.echo", ",\"params\":{\"i\":1.5}"),
+           ERR("12", "-32602", "\\\"i\\\" must be an integer (no fraction or exponent)"));
+    EXPECT(REQ("13", "ga.echo", ",\"params\":{\"u\":-1}"),
+           ERR("13", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("14", "ga.echo", ",\"params\":{\"a\":\"1.0\"}"),
+           ERR("14", "-32602",
+               "\\\"a\\\" must be an integer or a decimal string (no fraction or exponent)"));
+    EXPECT(REQ("15", "ga.echo", ",\"params\":{\"s\":\"12345678\"}"),
+           ERR("15", "-32602", "\\\"s\\\" must be a string of at most 7 bytes"));
+    EXPECT(REQ("16", "ga.fails", ""), ERR("16", "-32050", "nope 7"));
+
+    /* P2 */
+    EXPECT(REQ("20", "ga.hex", ",\"params\":{\"h\":\"00aF7e\"}"),
+           OK("20", "{\"n\":3,\"h\":\"00af7e\"}"));
+    EXPECT(REQ("21", "ga.hex", ",\"params\":{\"h\":\"\"}"), OK("21", "{\"n\":0,\"h\":\"\"}"));
+    EXPECT(REQ("22", "ga.hex", ""), OK("22", "{\"n\":0,\"h\":\"\"}"));
+    EXPECT(REQ("23", "ga.hex", ",\"params\":{\"need\":1}"),
+           ERR("23", "-32602", "missing hex parameter \\\"h\\\""));
+    const char *bad_hex[] = {"\"abc\"", "\"0011223344\"", "\"0g\"", "\"g0\"", "12", "\"zz\""};
+    for (size_t i = 0; i < sizeof bad_hex / sizeof bad_hex[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, REQ("24", "ga.hex", ",\"params\":{\"h\":%s}"), bad_hex[i]);
+        CHECK(has(req, "must be a hex string of at most 4 bytes"), "bad hex %s", bad_hex[i]);
+    }
+    EXPECT(REQ("25", "ga.hex", ",\"params\":{\"h\":\"01020304\"}"),
+           OK("25", "{\"n\":4,\"h\":\"01020304\"}"));
+
+    /* P3 */
+    EXPECT(REQ("30", "ga.list",
+               ",\"params\":{\"items\":[{\"v\":1},{\"v\":20}],\"nums\":[300,4000],\"after\":5}"),
+           OK("30", "{\"n\":2,\"m\":2,\"sum\":4326}"));
+    EXPECT(REQ("31", "ga.list", ""), OK("31", "{\"n\":-1,\"m\":-1,\"sum\":0}"));
+    EXPECT(REQ("32", "ga.list", ",\"params\":{\"items\":[]}"),
+           OK("32", "{\"n\":0,\"m\":-1,\"sum\":0}"));
+    EXPECT(REQ("33", "ga.list", ",\"params\":{\"items\":{}}"),
+           ERR("33", "-32602", "\\\"items\\\" must be an array"));
+    EXPECT(REQ("34", "ga.list", ",\"params\":{\"items\":[1]}"),
+           ERR("34", "-32602", "\\\"items\\\"[0] must be an object"));
+    EXPECT(REQ("35", "ga.list", ",\"params\":{\"items\":[{\"v\":1},{\"w\":2}]}"),
+           ERR("35", "-32602", "missing integer parameter \\\"v\\\""));
+    EXPECT(REQ("36", "ga.list", ",\"params\":{\"nums\":[1,\"2\"]}"),
+           ERR("36", "-32602", "\\\"nums\\\"[1] must be an integer"));
+    EXPECT(REQ("37", "ga.list", ",\"params\":{\"nums\":3}"),
+           ERR("37", "-32602", "\\\"nums\\\" must be an array"));
+    EXPECT(REQ("38", "ga.list", ",\"params\":{\"items\":[{\"v\":1}],\"after\":\"x\"}"),
+           ERR("38", "-32602", "\\\"after\\\" must be an integer (no fraction or exponent)"));
+
+    /* X3: --enable lists, X6: off again keeps nothing broken */
+    EXPECT(
+        REQ("40", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+        OK("40", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":false}"));
+    CHECK(has(REQ("41", "ga.echo", ""), "-32012"), "off again");
+    CHECK(zxvd_rpc_enable("beta_2,,nope,alpha") == -1, "an unknown name is reported");
+    CHECK(zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("beta_2"), "the known names still turn on");
+    CHECK(!zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "unlisted stays off");
+    CHECK(zxvd_rpc_enable("all") == 0 && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "all");
+    CHECK(zxvd_rpc_enable(NULL) == 0 && zxvd_rpc_enable("") == 0, "empty lists");
+    CHECK(zxvd_rpc_enable("alph") == -1 && zxvd_rpc_enable("alphaa") == -1,
+          "prefixes do not match");
+    EXPECT(REQ("42", "gd.one", ""), OK("42", "{\"ok\":true}"));
+    CHECK(has(REQ("43", "features.get", ""), "\"name\":\"beta_2\",\"enabled\":true"),
+          "get shows on");
+
+    /* two groups may share a feature; a later regulated one makes it regulated */
+    zxvd_rpc_groups_reset();
+    CHECK(g_closed == 1 && g_closed_b == 1, "reset closes every group, last first");
+    CHECK(!zxvd_rpc_enabled("alpha"), "reset forgets the switches");
+    EXPECT(REQ("44", "ga.echo", ""), ERR("44", "-32601", "method not found"));
+    const zxvd_group_t S1 = {"shared", false, "one", G_B, 1, NULL};
+    const zxvd_group_t S2 = {"shared", true, "two", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&S1) == 0 && zxvd_rpc_add_group(&S2) == 0, "shared feature");
+    EXPECT(REQ("45", "features.get", ""),
+           OK("45",
+              "{\"features\":[{\"name\":\"shared\",\"enabled\":false,\"regulated\":true,"
+              "\"groups\":[{\"note\":\"one\",\"methods\":1},{\"note\":\"two\",\"methods\":1}]}],"
+              "\"saved\":false}"));
+    zxvd_rpc_groups_reset();
+    EXPECT(REQ("46", "features.get", ""), OK("46", "{\"features\":[],\"saved\":false}"));
+
+    /* the table limit */
+    static zxvd_group_method_t many[ZXVD_EXT_MAX_GROUPS + 1][1];
+    static char names[ZXVD_EXT_MAX_GROUPS + 1][16], feats[ZXVD_EXT_MAX_GROUPS + 1][8];
+    static zxvd_group_t gs[ZXVD_EXT_MAX_GROUPS + 1];
+    for (uint32_t i = 0; i <= ZXVD_EXT_MAX_GROUPS; i++) {
+        snprintf(names[i], sizeof names[i], "m%u.x", (unsigned) i);
+        snprintf(feats[i], sizeof feats[i], "f%u", (unsigned) i);
+        many[i][0] = (zxvd_group_method_t){names[i], g_status, false};
+        gs[i] = (zxvd_group_t){feats[i], false, "", many[i], 1, NULL};
+    }
+    for (uint32_t i = 0; i < ZXVD_EXT_MAX_GROUPS; i++)
+        CHECK(zxvd_rpc_add_group(&gs[i]) == 0, "group %u fits", (unsigned) i);
+    CHECK(zxvd_rpc_add_group(&gs[ZXVD_EXT_MAX_GROUPS]) == -1, "one more is refused");
+    zxvd_rpc_groups_reset();
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -2302,6 +2553,7 @@ int main(void)
     test_mesh();
     test_views();
     test_jurisdiction();
+    test_groups();
     test_edges();
     test_ext();
     test_socket();

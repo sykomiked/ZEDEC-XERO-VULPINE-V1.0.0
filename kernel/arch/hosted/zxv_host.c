@@ -108,6 +108,7 @@ typedef int sock_t;
 #    include "zxvd_rpc.h"  /* zxvd: the JSON-RPC socket and the libzxv books */
 #    include "zxvd_chat.h" /* zxvd: the owner's social chat (chat.*) */
 #    include "zxvd_pay.h"  /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
+#    include "zxvd_groups.h" /* netting, cards, ...: method groups behind switches */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -1788,6 +1789,7 @@ int main(int argc, char **argv)
     const char *books_path = NULL; /* zxvd_rpc.h F1; "-" keeps them in memory */
     char books_buf[512];
     const char *earn_ccy = "VFV";
+    const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
     bool desktop = false;
     char rpc_buf[512], link_path[560];
@@ -1861,6 +1863,8 @@ int main(int argc, char **argv)
             earn_rate = strtoull(argv[++i], NULL, 10);
         else if (!strcmp(argv[i], "--desktop"))
             desktop = true;
+        else if (!strcmp(argv[i], "--enable") && i + 1 < argc)
+            enable_list = argv[++i];
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
@@ -1875,6 +1879,8 @@ int main(int argc, char **argv)
                    "                      data folder; \"-\" keeps them in memory)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
+                   "  --enable LIST       turn on features, comma-separated or \"all\"\n"
+                   "                      (all are off by default; features.get lists them)\n"
                    "  --desktop           the desktop app: the socket in the per-user\n"
                    "                      folder (unless --rpc), and the window opened in\n"
                    "                      the default browser; a second launch opens the\n"
@@ -2042,6 +2048,15 @@ int main(int argc, char **argv)
     if (zxvd_rpc_earnings_set(earn_ccy, earn_rate) != 0) {
         fprintf(stderr, "zxvd: --earnings-ccy needs 3..8 characters and --earnings-rate "
                         "a whole number from 1\n");
+        return 2;
+    }
+    if (zxvd_groups_register() != 0) {
+        fprintf(stderr, "zxvd: a method group clashes with another (a build error)\n");
+        return 1;
+    }
+    if (zxvd_rpc_enable(enable_list) != 0) {
+        fprintf(stderr, "zxvd: --enable names an unknown feature (try features.get)\n");
+        zxvd_rpc_groups_reset();
         return 2;
     }
 #    if defined(ZXV_HAVE_AIPI)
@@ -2215,6 +2230,7 @@ int main(int argc, char **argv)
     zxvd_pay_close();
     zxvd_chat_close();
     zxvd_rpc_close();
+    zxvd_rpc_groups_reset();
 #    if defined(ZXV_HAVE_AIPI)
     zxvd_rpc_set_aipi_ops(NULL);
     zxvd_aipi_close();

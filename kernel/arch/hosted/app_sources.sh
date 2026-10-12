@@ -12,6 +12,8 @@
 #   incs    include directories (relative to kernel/), one per line
 #   vinea   the Vinea node and what it needs (also used by the net test)
 #   update  the update checker and what it needs
+#   groups  zxvd only: the method groups (zxvd_ext.h) and the engines they
+#           serve, after zxvd_groups.c; groupincs: their include directories
 set -eu
 K="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$K"
@@ -82,5 +84,10 @@ case "${1:-srcs}" in
         ;;
     vinea) vinea ;;
     update) update ;;
-    *) echo "usage: $0 [srcs|incs|vinea|update]" >&2; exit 2 ;;
+    groups)
+        echo arch/hosted/zxvd_groups.c
+        ;;
+    groupincs)
+        ;;
+    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs]" >&2; exit 2 ;;
 esac

@@ -52,6 +52,10 @@
  *       expect; "amount_minor" may be sent as a JSON integer or a decimal
  *       string. A fraction or exponent is -32602, never rounded.
  *   M4  A notification (no "id") is executed and gets no response.
+ *   M5  Method groups (zxvd_ext.h): engines such as netting and cards
+ *       register their own methods behind feature switches that start off;
+ *       features.get lists the switches and features.set flips one for this
+ *       run. A method whose feature is off answers ZXVD_E_OFF (-32012).
  *
  * SWARM EARNINGS (the owner's books mirror the swarm's money)
  *   E1  At start the books get one currency for earnings, VFV by default
@@ -250,7 +254,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *      built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000, -32010 and -32011).
+ *      in -32099..-32001 (zxvd_rpc keeps -32000, -32010, -32011 and -32012,
+ *      the code of a method whose feature switch is off, zxvd_ext.h X4).
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and

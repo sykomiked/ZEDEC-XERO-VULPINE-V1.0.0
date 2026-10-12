@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -3518,6 +3518,103 @@
               "type": "integer",
               "minimum": 0,
               "description": "escrow entries that are no hold's step"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "features.get",
+      "summary": "Every feature switch (zxvd_ext.h X3-X6): its name, whether it is on, whether it is regulated, and its method groups. All start off; a switch lasts for this run only.",
+      "params": [],
+      "result": {
+        "name": "features",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_]{1,23}$"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "regulated": {
+                    "type": "boolean",
+                    "description": "X5: moves or records money, credit, securities or identity data that law regulates somewhere; for tests or a licensed deployment"
+                  },
+                  "groups": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "note": {
+                          "type": "string"
+                        },
+                        "methods": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "saved": {
+              "type": "boolean",
+              "const": false,
+              "description": "X3: switches are not saved; --enable sets them at start"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "features.set",
+      "summary": "Turn one feature on or off for this run (X3, X6: its engine keeps its state). Methods of an off feature answer -32012.",
+      "params": [
+        {
+          "name": "feature",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,23}$"
+          }
+        },
+        {
+          "name": "enabled",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      ],
+      "result": {
+        "name": "feature",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "feature": {
+              "type": "string"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "regulated": {
+              "type": "boolean"
+            },
+            "saved": {
+              "type": "boolean",
+              "const": false
             }
           }
         }

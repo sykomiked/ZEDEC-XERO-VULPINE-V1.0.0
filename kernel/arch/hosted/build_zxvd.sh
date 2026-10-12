@@ -87,6 +87,9 @@ if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
     set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$K/src/aipi/aipi.c" "$HERE/zxvd_aipi.c"
     DEFS="$DEFS -DZXV_HAVE_AIPI"
 fi
+# 4. method groups behind feature switches (zxvd_ext.h): netting, cards, ...
+for d in $(sh "$HERE/app_sources.sh" groupincs); do set -- "$@" "-I$K/$d"; done
+for f in $(sh "$HERE/app_sources.sh" groups); do set -- "$@" "$K/$f"; done
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # the owner's social chat (zxvd_chat.h): signed records, store, ISF feed
 set -- "$@" "$HERE/zxvd_chat.c" "$K/src/reputation/reputation.c"
