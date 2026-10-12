@@ -30,6 +30,18 @@ public enum ZXVDLocation {
         return home + "/.zxv/models"
         #endif
     }
+
+    /// The owner's books file, the same default zxvd's --desktop mode uses
+    /// (zxvd_rpc.h F1). Without --books zxvd keeps the books in memory only.
+    public static var defaultBooksPath: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        #if os(macOS)
+        return home + "/Library/Application Support/ZXV/books.zxvb"
+        #else
+        let xdg = ProcessInfo.processInfo.environment["XDG_DATA_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+        return (xdg ?? home + "/.local/share") + "/zxv/books.zxvb"
+        #endif
+    }
 }
 
 /// A zxvd this process started. It stops when `stop()` is called or when this

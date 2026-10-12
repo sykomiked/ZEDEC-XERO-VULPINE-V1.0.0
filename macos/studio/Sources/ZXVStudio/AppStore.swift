@@ -39,8 +39,13 @@ enum Connector {
             try? fm.createDirectory(atPath: runParent, withIntermediateDirectories: true,
                                     attributes: [.posixPermissions: 0o700])
             try? fm.createDirectory(atPath: ZXVDLocation.defaultModelsDir, withIntermediateDirectories: true)
+            // the books outlive zxvd only with a books file (zxvd_rpc.h F1)
+            let books = ZXVDLocation.defaultBooksPath
+            try? fm.createDirectory(atPath: (books as NSString).deletingLastPathComponent,
+                                    withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let d = try DaemonProcess.start(binary: bin, socketPath: socket,
-                                            modelsDir: ZXVDLocation.defaultModelsDir, logURL: logURL)
+                                            modelsDir: ZXVDLocation.defaultModelsDir,
+                                            extraArguments: ["--books", books], logURL: logURL)
             return (client, d, try client.call("rpc.discover", as: Discovery.self))
         }
     }
@@ -90,6 +95,10 @@ final class AppStore: ObservableObject {
     @Published var asking = false
     @Published var netLog: [LogLine] = []
     @Published var currenciesEnabled: [String] = []
+    @Published var peers: Peers?
+    @Published var offers: Offers?
+    @Published var card: PlayerCard?
+    @Published var jurisdiction: Jurisdiction?
 
     let socketPath: String
     private var client: ZXVDClient
@@ -157,10 +166,37 @@ final class AppStore: ObservableObject {
             unread = n.unread
             NSApp?.dockTile.badgeLabel = n.unread > 0 ? String(n.unread) : nil
             postSystemNotifications(n.notes)
+            await refreshViews()
         } catch ZXVDError.noDaemon(let p) {
             link = .down(ZXVDError.noDaemon(p).description)
         } catch {
             // one missed poll is not a lost daemon; the next tick retries
+        }
+    }
+
+    /// The panels' views, each only when zxvd serves it (a miss keeps the last value).
+    func refreshViews() async {
+        if has("net.peers"), let v = try? await client.request("net.peers", as: Peers.self) { peers = v }
+        if has("net.offers"), let v = try? await client.request("net.offers", as: Offers.self) { offers = v }
+        if has("player.card"), let v = try? await client.request("player.card", as: PlayerCard.self) { card = v }
+        if has("jurisdiction.get"), let v = try? await client.request("jurisdiction.get", as: Jurisdiction.self) {
+            jurisdiction = v
+        }
+    }
+
+    /// Returns the line shown under the Jurisdiction Bridge form.
+    func setJurisdiction(market: String, standard: String, country: String) async -> (Bool, String) {
+        let cc = country.trimmingCharacters(in: .whitespaces).uppercased()
+        guard cc.isEmpty || (cc.count == 2 && cc.allSatisfy({ $0.isASCII && $0.isLetter })) else {
+            return (false, "Use a two-letter country code like KE, or leave it empty.")
+        }
+        do {
+            jurisdiction = try await client.request("jurisdiction.set", [
+                "market": .string(market), "standard": .string(standard), "country": .string(cc),
+            ], as: Jurisdiction.self)
+            return (true, "Saved in your books. Recorded only: nothing applies these settings yet.")
+        } catch {
+            return (false, "Refused: \(error)")
         }
     }
 
