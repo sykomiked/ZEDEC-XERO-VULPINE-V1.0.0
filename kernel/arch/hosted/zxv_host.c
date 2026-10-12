@@ -98,6 +98,9 @@ typedef int sock_t;
 #include "sha256.h"
 #include "zxv_net_host.h"
 #include "zxv_peer_host.h"
+#if defined(ZXVD)
+#    include "sicily.h"
+#endif
 #include "zxv_update_host.h"
 #include "zx_notify.h"
 #include "zx_upcheck.h"
@@ -1627,6 +1630,115 @@ static const char *rpc_peer_ask(const char *peer, const char *prompt, uint64_t m
 
 static const zxvd_peer_ops_t PEER_OPS = {rpc_peer_ask, rpc_peer_serve, rpc_peer_status};
 
+/* zxvd_rpc.h V1: the routing table's verified contacts */
+#    define LIT_RAW(b, s) zxvd_buf_raw((b), (s), sizeof(s) - 1)
+
+static void rpc_net_peers(zxvd_buf_t *o)
+{
+    static zxv_net_peer_t p[256];
+    uint32_t n = zxv_net_peers(S.net, p, 256), k = n < 256 ? n : 256;
+    LIT_RAW(o, "{\"peers\":[");
+    for (uint32_t i = 0; i < k; i++)
+        zxvd_buf_printf(o,
+                        "%s{\"id\":\"%s\",\"addr\":\"%s\",\"bucket\":%u,\"ubh\":%s,"
+                        "\"last_seen_ms\":\"%llu\",\"in_book\":%s,\"member\":%s,\"held\":\"%llu\","
+                        "\"receivable\":\"%llu\",\"social\":\"%llu\",\"pending\":%u}",
+                        i ? "," : "", p[i].id, p[i].addr, (unsigned) p[i].bucket,
+                        p[i].ubh ? "true" : "false", (unsigned long long) p[i].last_seen_ms,
+                        p[i].in_book ? "true" : "false", p[i].member ? "true" : "false",
+                        (unsigned long long) p[i].held, (unsigned long long) p[i].receivable,
+                        (unsigned long long) p[i].social, (unsigned) p[i].pending);
+    zxvd_buf_printf(o, "],\"count\":%u}", (unsigned) n);
+}
+
+static const char *resource_name(uint8_t r)
+{
+    return r == VNA_RES_COMPUTE ? "compute" : r == VNA_RES_STORAGE ? "storage" : "other";
+}
+
+/* zxvd_rpc.h V2: what the owner shares, wants and still waits on */
+static void rpc_net_offers(zxvd_buf_t *o)
+{
+    static zxv_net_status_t st;
+    static zxv_net_want_info_t w[16];
+    static zxv_net_pend_info_t q[32];
+    zxv_net_status(S.net, &st);
+    uint32_t nw = zxv_net_wants(S.net, w, 16), nq = zxv_net_pending(S.net, q, 32);
+    zxvd_buf_printf(o, "{\"share\":{\"compute\":\"%llu\",\"storage\":\"%llu\"},\"wants\":[",
+                    (unsigned long long) st.share_compute, (unsigned long long) st.share_storage);
+    for (uint32_t i = 0; i < nw && i < 16; i++)
+        zxvd_buf_printf(o,
+                        "%s{\"slot\":%u,\"resource\":\"%s\",\"units_left\":\"%llu\","
+                        "\"max_price\":\"%llu\"}",
+                        i ? "," : "", (unsigned) w[i].slot, resource_name(w[i].resource),
+                        (unsigned long long) w[i].units_left, (unsigned long long) w[i].max_price);
+    LIT_RAW(o, "],\"outstanding\":[");
+    for (uint32_t i = 0; i < nq && i < 32; i++)
+        zxvd_buf_printf(o,
+                        "%s{\"role\":\"%s\",\"peer\":\"%s\",\"units\":\"%llu\",\"seq\":\"%llu\","
+                        "\"tries\":%u,\"want\":%d}",
+                        i ? "," : "", q[i].selling ? "sell" : "buy", q[i].peer,
+                        (unsigned long long) q[i].units, (unsigned long long) q[i].pair_seq,
+                        (unsigned) q[i].tries, (int) q[i].want);
+    LIT_RAW(o, "]}");
+}
+
+/* zxvd_rpc.h V3: the owner's Player Card (sicily.h S2/S3). Only credibility
+ * has a source on this node today; the other inputs are reported as 0 with
+ * the reason, so the tier is what the measured inputs earn, never more. */
+static void rpc_player_card(zxvd_buf_t *o)
+{
+    static qst_view_t qv;
+    qst_view(&S.quest, QUEST_OWNER, (uint32_t) (zxv_net_wall_ms() / 86400000u), &qv);
+    uint64_t cred = qv.contributed_units, bond = 0, giving = 0;
+    uint32_t up = 0;
+    sic_tier_table_t tab;
+    sic_tier_table_default(&tab);
+    sic_tier_t t = sic_tier_eval(&tab, cred, bond, up, giving);
+    zxvd_buf_printf(o,
+                    "{\"tier\":%d,\"metal\":\"%s\",\"stone\":\"%s\",\"inputs\":{"
+                    "\"credibility\":{\"value\":\"%llu\",\"source\":\"verified contributions "
+                    "from mesh trades\"},"
+                    "\"bond\":{\"value\":\"0\",\"source\":\"not built yet: no bond can be "
+                    "posted\"},"
+                    "\"uptime_bps\":{\"value\":\"0\",\"source\":\"not measured yet\"},"
+                    "\"giving\":{\"value\":\"0\",\"source\":\"not tracked yet\"}},\"next\":",
+                    (int) t, sic_tier_name(t, 0), sic_tier_name(t, 1), (unsigned long long) cred);
+    if (t >= SIC_TIER_PLATINUM) {
+        LIT_RAW(o, "null");
+    } else {
+        const sic_threshold_t *h = &tab.t[t]; /* t[0] is Bronze, the tier after Copper */
+        uint64_t eff = sic_effective_cred(cred, giving);
+        zxvd_buf_printf(o,
+                        "{\"tier\":%d,\"metal\":\"%s\",\"stone\":\"%s\",\"credibility\":\"%llu\","
+                        "\"bond\":\"%llu\",\"uptime_bps\":\"%u\",\"missing\":[",
+                        (int) t + 1, sic_tier_name((sic_tier_t) (t + 1), 0),
+                        sic_tier_name((sic_tier_t) (t + 1), 1), (unsigned long long) h->cred,
+                        (unsigned long long) h->bond, (unsigned) h->uptime_bps);
+        const char *sep = "";
+        if (eff < h->cred) zxvd_buf_printf(o, "%s\"credibility\"", sep), sep = ",";
+        if (bond < h->bond) zxvd_buf_printf(o, "%s\"bond\"", sep), sep = ",";
+        if (up < h->uptime_bps) zxvd_buf_printf(o, "%s\"uptime_bps\"", sep);
+        LIT_RAW(o, "]}");
+    }
+    static const struct {
+        uint32_t bit;
+        const char *name;
+    } PERK[] = {{SIC_PERK_FREE_REGISTRATION, "free registration"},
+                {SIC_PERK_STOREFRONTS, "storefronts"},
+                {SIC_PERK_FORWARDS, "forwards"},
+                {SIC_PERK_IP_NOTES, "IP notes"},
+                {SIC_PERK_XB_LICENSING, "cross-border licensing eligibility"}};
+    uint32_t perks = sic_tier_perks(t);
+    LIT_RAW(o, ",\"perks\":[");
+    const char *sep = "";
+    for (size_t i = 0; i < sizeof PERK / sizeof PERK[0]; i++)
+        if (perks & PERK[i].bit) zxvd_buf_printf(o, "%s\"%s\"", sep, PERK[i].name), sep = ",";
+    LIT_RAW(o, "]}");
+}
+
+static const zxvd_view_ops_t VIEW_OPS = {rpc_net_peers, rpc_net_offers, rpc_player_card};
+
 /* zxvd_rpc.h S1-S4: every request the peer book settled goes into the
  * owner's books once. The book's history keeps the last ZXV_PEER_HISTORY;
  * more than that between two looks are counted as missed, not guessed. */
@@ -1862,6 +1974,7 @@ int main(int argc, char **argv)
     }
 #if defined(ZXVD)
     zxvd_rpc_set_peer_ops(&PEER_OPS);
+    zxvd_rpc_set_view_ops(&VIEW_OPS);
 #endif
 
     /* the model slot: an explicit file, else the first *.gguf in the

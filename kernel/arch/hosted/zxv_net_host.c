@@ -575,6 +575,8 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
     st->refused_in = n->refused;
     st->policy_drops = n->policy;
     st->send_errors = n->send_err;
+    st->share_compute = n->share_compute; /* U8: kept while off, too */
+    st->share_storage = n->share_storage;
     if (!st->bound) return;
     st->trades = n->link.committed + n->link.confirmed;
     st->receipts_refused = n->link.refused + n->node.rcpt_refused;
@@ -591,8 +593,6 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
         st->node_id_full[2 * i + 1] = hex[n->idn.id.b[i] & 15];
     }
     st->node_id_full[64] = 0;
-    st->share_compute = n->share_compute;
-    st->share_storage = n->share_storage;
     st->wants = 0;
     for (uint32_t i = 0; i < VNA_LINK_WANTS; i++) st->wants += n->link.want[i].used;
     static vna_contact_t c[POOL_CAP];

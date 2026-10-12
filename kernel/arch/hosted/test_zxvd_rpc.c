@@ -24,6 +24,7 @@
 #include <stdint.h>
 
 #include <sys/resource.h>
+#include <sys/file.h>
 
 #include "zxvd_rpc.h"
 #include "zxv_api.h"
@@ -377,11 +378,12 @@ static void test_host_methods(void)
            OK("11",
               "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
               "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
-              "\"notes.mark_read\",\"net.command\",\"peer.ask\",\"peer.serve\",\"peer.status\","
+              "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
+              "\"peer.ask\",\"peer.serve\",\"peer.status\","
               "\"update.check\",\"currency.enable\","
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
               "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
-              "\"books.file\"]}"));
+              "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -1143,6 +1145,19 @@ static void test_books_file(void)
     CHECK(!has(req, "\"name\":\"lost\""), "F5: and gone after a restart");
     CHECK(has(REQ("10", "books.file", ""), "\"writable\":true}"), "writable again");
 
+    /* F7: one zxvd per books file */
+    {
+        zxvd_rpc_books_close();
+        int lk = open(BOOKS, O_RDONLY);
+        CHECK(lk >= 0 && flock(lk, LOCK_EX | LOCK_NB) == 0, "another process holds the file");
+        CHECK(zxvd_rpc_books_open() == -1, "F7: a books file in use refuses the start");
+        close(lk);
+        CHECK(zxvd_rpc_books_open() == 0, "F7: free again, it opens");
+        lk = open(BOOKS, O_RDONLY);
+        CHECK(lk >= 0 && flock(lk, LOCK_EX | LOCK_NB) != 0, "F7: and zxvd holds the lock");
+        close(lk);
+    }
+
     /* the in-memory default */
     zxvd_rpc_books_close();
     CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "F1: no file");
@@ -1154,6 +1169,149 @@ static void test_books_file(void)
     unlink(lnk);
     rmdir(dir);
     unlink(BOOKS);
+    rmdir(tmpl);
+}
+
+/* ---------------- views (zxvd_rpc.h V1-V3) ---------------- */
+
+static void v_peers(zxvd_buf_t *o)
+{
+    zxvd_buf_printf(o, "{\"peers\":[],\"count\":0}");
+}
+static void v_offers(zxvd_buf_t *o)
+{
+    zxvd_buf_printf(o, "{\"wants\":[]}");
+}
+static void v_card(zxvd_buf_t *o)
+{
+    zxvd_buf_printf(o, "{\"tier\":0}");
+}
+
+static void test_views(void)
+{
+    static const zxvd_view_ops_t STUB = {v_peers, v_offers, v_card}, HALF = {v_peers, 0, 0};
+    zxvd_rpc_set_view_ops(NULL);
+    EXPECT(REQ("1", "net.peers", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "net.offers", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "player.card", ""), ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_view_ops(&HALF);
+    EXPECT(REQ("2", "net.peers", ""), OK("2", "{\"peers\":[],\"count\":0}"));
+    EXPECT(REQ("2", "net.offers", ""), ERR("2", "-32601", "not available"));
+    EXPECT(REQ("2", "player.card", ""), ERR("2", "-32601", "not available"));
+    zxvd_rpc_set_view_ops(&STUB);
+    EXPECT(REQ("3", "net.offers", ""), OK("3", "{\"wants\":[]}"));
+    EXPECT(REQ("3", "player.card", ""), OK("3", "{\"tier\":0}"));
+    zxvd_rpc_set_view_ops(NULL);
+}
+
+/* ---------------- the jurisdiction bridge (zxvd_rpc.h J1-J5) ---------------- */
+
+#define JU_LIST                                                                                    \
+    "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\",\"SAP_INSURER\"]," \
+    "\"in_effect\":false}"
+
+static void test_jurisdiction(void)
+{
+    char tmpl[] = "/tmp/zxvdjuris.XXXXXX", path[200];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    EXPECT(REQ("1", "jurisdiction.get", ""), ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "jurisdiction.set", ",\"params\":{\"market\":\"open\"}"),
+           ERR("1", "-32603", "the books are not open"));
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books open on a file");
+    EXPECT(REQ("2", "jurisdiction.get", ""),
+           OK("2", "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"," JU_LIST));
+    CHECK(has(REQ("2", "books.file", ""), "\"records\":\"2\""), "nothing saved for the defaults");
+    EXPECT(REQ("3", "jurisdiction.set", ",\"params\":{}"),
+           OK("3", "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"," JU_LIST));
+    CHECK(has(REQ("3", "books.file", ""), "\"records\":\"2\""),
+          "J4: an unchanged set writes nothing");
+    EXPECT(REQ("4", "jurisdiction.set", ",\"params\":{\"market\":\"open\",\"country\":\"NG\"}"),
+           OK("4", "{\"market\":\"open\",\"standard\":\"\",\"country\":\"NG\"," JU_LIST));
+    EXPECT(REQ("5", "jurisdiction.set", ",\"params\":{\"standard\":\"OHADA\"}"),
+           OK("5", "{\"market\":\"open\",\"standard\":\"OHADA\",\"country\":\"NG\"," JU_LIST));
+    CHECK(has(REQ("5", "books.file", ""), "\"records\":\"4\""), "J4: two changes, two records");
+    long n;
+    char *b = slurp(path, &n);
+    CHECK(b && strstr(b, " {\"op\":\"juris\",\"market\":\"open\",\"standard\":\"OHADA\","
+                         "\"country\":\"NG\"}\n"),
+          "J4: the record is in the file");
+    free(b);
+    /* bad values change nothing */
+    EXPECT(REQ("6", "jurisdiction.set", ",\"params\":{\"market\":\"Open\"}"),
+           ERR("6", "-32602", "\\\"market\\\" must be \\\"closed\\\" or \\\"open\\\""));
+    CHECK(has(REQ("6", "jurisdiction.set", ",\"params\":{\"standard\":\"GAAP\"}"), "-32602"),
+          "J3: an unknown standard is refused");
+    CHECK(has(REQ("6", "jurisdiction.set", ",\"params\":{\"standard\":\"ifrs\"}"), "-32602"),
+          "J3: names are exact");
+    const char *bad_cc[] = {"ng", "N", "NGA", "N1", "1G", "@G", "N["};
+    for (unsigned i = 0; i < sizeof bad_cc / sizeof *bad_cc; i++) {
+        char req[160];
+        snprintf(req, sizeof req, REQ("7", "jurisdiction.set", ",\"params\":{\"country\":\"%s\"}"),
+                 bad_cc[i]);
+        CHECK(has(req, "two capital letters"), "J1: country \"%s\" refused", bad_cc[i]);
+    }
+    CHECK(has(REQ("7", "jurisdiction.set", ",\"params\":{\"country\":7}"), "-32602"),
+          "J1: a number is not a country");
+    CHECK(
+        has(REQ("7", "jurisdiction.set", ",\"params\":{\"market\":\"closed\",\"standard\":\"x\"}"),
+            "-32602"),
+        "a set with one bad field changes nothing");
+    EXPECT(REQ("8", "jurisdiction.get", ""),
+           OK("8", "{\"market\":\"open\",\"standard\":\"OHADA\",\"country\":\"NG\"," JU_LIST));
+    CHECK(has(REQ("8", "books.file", ""), "\"records\":\"4\""), "and wrote nothing");
+    /* J4: kept across a restart */
+    reopen();
+    EXPECT(REQ("9", "jurisdiction.get", ""),
+           OK("9", "{\"market\":\"open\",\"standard\":\"OHADA\",\"country\":\"NG\"," JU_LIST));
+    EXPECT(REQ("9", "jurisdiction.set",
+               ",\"params\":{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"}"),
+           OK("9", "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"," JU_LIST));
+    reopen();
+    CHECK(has(REQ("9", "jurisdiction.get", ""), "{\"market\":\"closed\",\"standard\":\"\""),
+          "J4: the last record wins");
+    EXPECT(
+        REQ("9", "jurisdiction.set",
+            ",\"params\":{\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
+        OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
+    /* a damaged record stops the start */
+    const char *bad[] = {
+        "{\"op\":\"juris\",\"market\":\"shut\",\"standard\":\"\",\"country\":\"\"}",
+        "{\"op\":\"juris\",\"market\":\"open\",\"standard\":\"GAAP\",\"country\":\"\"}",
+        "{\"op\":\"juris\",\"market\":\"open\",\"standard\":\"\",\"country\":\"ng\"}",
+        "{\"op\":\"juris\",\"market\":\"open\",\"standard\":\"\"}",
+        "{\"op\":\"juris\",\"standard\":\"\",\"country\":\"\"}",
+        "{\"op\":\"juris\",\"market\":\"open\",\"country\":\"\"}",
+    };
+    zxvd_rpc_books_close();
+    long keep;
+    char *orig = slurp(path, &keep);
+    for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
+        spit(path, orig, keep);
+        append_chained(path, bad[i]);
+        CHECK(zxvd_rpc_books_open() == -1, "bad jurisdiction record %u stops the start", i);
+        zxvd_rpc_books_close();
+    }
+    spit(path, orig, keep);
+    free(orig);
+    CHECK(zxvd_rpc_books_open() == 0, "the good file opens again");
+    CHECK(has(REQ("10", "jurisdiction.get", ""), "\"standard\":\"SAP_INSURER\",\"country\":\"ZA\""),
+          "with its settings");
+    /* in memory: back to the defaults, and settable */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "no file");
+    CHECK(has(REQ("11", "jurisdiction.get", ""),
+              "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\""),
+          "a fresh start has the defaults");
+    CHECK(has(REQ("11", "jurisdiction.set", ",\"params\":{\"market\":\"open\"}"),
+              "\"market\":\"open\""),
+          "set works without a file");
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0 &&
+              has(REQ("11", "jurisdiction.get", ""), "{\"market\":\"closed\""),
+          "and is gone after a restart");
+    unlink(path);
     rmdir(tmpl);
 }
 
@@ -1216,6 +1374,127 @@ static void test_mesh(void)
     CHECK(zxvd_rpc_books_open() == 0, "books open");
     CHECK(has(REQ("2", "mesh.books", ""), "\"wallet_account\":null"),
           "in memory, a restart starts empty");
+}
+
+/* ---------------- edges of the books file, earnings and mesh posting ---------------- */
+
+static void test_edges(void)
+{
+    char tmpl[] = "/tmp/zxvdedge.XXXXXX", path[200], want[300];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    EXPECT(REQ("1", "mesh.books", ""), ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "books.file", ""), ERR("1", "-32603", "the books are not open"));
+    static char lp[1025];
+    memset(lp, 'a', 1024);
+    lp[1024] = 0;
+    CHECK(zxvd_rpc_books_file(lp) == -1, "F1: a 1024-byte path does not fit");
+    lp[1023] = 0;
+    CHECK(zxvd_rpc_books_file(lp) == 0, "F1: a 1023-byte path does");
+    CHECK(zxvd_rpc_books_file(NULL) == 0 && zxvd_rpc_books_open() == 0 &&
+              has(REQ("1", "books.file", ""), "\"saved\":false,\"path\":null"),
+          "F1: NULL means the books live in memory");
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books on a file");
+    snprintf(want, sizeof want, "\"saved\":true,\"path\":\"%s\"", path);
+    CHECK(has(REQ("2", "books.file", ""), want), "books.file names the file: %s", OUT.p);
+
+    /* E: a sync that changes nothing posts nothing */
+    CHECK(zxvd_rpc_earnings_sync(0) == 0, "E2: sync 0");
+    CHECK(has(REQ("3", "swarm.earnings", ""), "\"balance_minor\":\"0\",\"postings\":\"0\""),
+          "E2: nothing held, nothing posted: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(5) == 0 &&
+              has(REQ("3", "swarm.earnings", ""), "\"balance_minor\":\"5\",\"postings\":\"1\""),
+          "E2: 5 held, one posting: %s", OUT.p);
+
+    /* a new currency is a record; an enabled one is not written again */
+    EXPECT(REQ("4", "currency.enable", ",\"params\":{\"code\":\"GBP\"}"),
+           OK("4", "{\"enabled\":\"GBP\"}"));
+    long n;
+    char *b = slurp(path, &n);
+    CHECK(b && strstr(b, " {\"op\":\"ccy\",\"code\":\"GBP\"}\n"), "F3: the GBP record");
+    free(b);
+
+    /* S: boundaries of the amounts */
+    uint8_t inv[32];
+    for (int i = 0; i < 32; i++) inv[i] = (uint8_t) (0x10 + i);
+    CHECK(zxvd_rpc_mesh_post(true, 30, 0, inv) == 0, "S2: a sale of 30");
+    inv[0] = 0x20;
+    CHECK(zxvd_rpc_mesh_post(false, 30, 0, inv) == 0, "S4: a purchase of exactly the wallet");
+    CHECK(has(REQ("5", "mesh.books", ""), "\"wallet_minor\":\"0\",\"fees_minor\":\"0\""),
+          "S4: wallet empty: %s", OUT.p);
+    CHECK(!has(REQ("5", "ledger.entries", ",\"params\":{\"account\":3}"), "mesh float"),
+          "S4: no float when the wallet holds exactly enough: %s", OUT.p);
+    /* the largest amounts, on books of their own (a rail's total is capped too) */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "books in memory");
+    inv[0] = 0x30;
+    CHECK(zxvd_rpc_mesh_post(true, (uint64_t) ZXV_AMOUNT_MAX, 0, inv) == 0,
+          "S: a sale of exactly ZXV_AMOUNT_MAX");
+    inv[0] = 0x40;
+    CHECK(zxvd_rpc_mesh_post(false, 10, (uint64_t) ZXV_AMOUNT_MAX, inv) == -1,
+          "S: a fee that overflows with the price is refused");
+    snprintf(want, sizeof want, "\"wallet_minor\":\"%lld\"", (long long) ZXV_AMOUNT_MAX);
+    CHECK(has(REQ("5", "mesh.books", ""), want), "and posts nothing: %s", OUT.p);
+    inv[0] = 0x50;
+    CHECK(zxvd_rpc_mesh_post(false, 1, (uint64_t) ZXV_AMOUNT_MAX - 1u, inv) == 0,
+          "S: price + fee of exactly ZXV_AMOUNT_MAX is accepted");
+    CHECK(has(REQ("5", "mesh.books", ""), "\"wallet_minor\":\"0\""), "wallet empty again: %s",
+          OUT.p);
+
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "back to the file");
+
+    /* F5 with the mesh accounts open */
+    signal(SIGXFSZ, SIG_IGN);
+    struct rlimit old, lim;
+    getrlimit(RLIMIT_FSIZE, &old);
+    lim = old;
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size");
+    snprintf(want, sizeof want, "%s", "\"name\":\"ZXV_E_IO\"");
+    CHECK(has(REQ("6", "jurisdiction.set", ",\"params\":{\"market\":\"open\"}"), want) &&
+              strstr(OUT.p, "this change is not saved"),
+          "F5: a jurisdiction change that cannot be saved: %s", OUT.p);
+    CHECK(has(REQ("6", "jurisdiction.get", ""), "\"market\":\"closed\""),
+          "J4: and it did not apply");
+    CHECK(has(REQ("6", "currency.enable", ",\"params\":{\"code\":\"GBP\"}"), want),
+          "F5: even an enabled currency is refused while read-only");
+    CHECK(
+        has(REQ("6", "ledger.open_account", ",\"params\":{\"name\":\"late\",\"currency\":\"GBP\"}"),
+            want) &&
+            !has(REQ("6", "ledger.accounts", ""), "\"late\""),
+        "F5: an account is refused and not opened");
+    inv[0] = 0x60;
+    CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == -1, "F5: a sale cannot post");
+    CHECK(zxvd_rpc_mesh_post(false, 5, 0, inv) == -1, "F5: a purchase needing a float cannot");
+    CHECK(has(REQ("6", "mesh.books", ""), "\"sold\":\"0\",\"bought\":\"0\""),
+          "F5: nothing counted: %s", OUT.p);
+    setrlimit(RLIMIT_FSIZE, &old);
+    reopen();
+    inv[0] = 0x70;
+    CHECK(zxvd_rpc_mesh_post(true, 50, 0, inv) == 0, "a sale after the restart");
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size again");
+    CHECK(has(REQ("7", "books.file", ""), "\"writable\":true}"), "still writable");
+    inv[0] = 0x71;
+    CHECK(zxvd_rpc_mesh_post(false, 5, 0, inv) == -1, "F5: a covered purchase cannot post");
+    setrlimit(RLIMIT_FSIZE, &old);
+    /* F5 before the mesh accounts exist: they cannot open */
+    zxvd_rpc_books_close();
+    unlink(path);
+    CHECK(zxvd_rpc_books_open() == 0, "a new books file");
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit it at once");
+    inv[0] = 0x80;
+    CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == -1, "F5: the mesh accounts cannot open");
+    CHECK(has(REQ("8", "mesh.books", ""), "\"wallet_account\":null"), "and none did: %s", OUT.p);
+    setrlimit(RLIMIT_FSIZE, &old);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "back to memory");
+    unlink(path);
+    rmdir(tmpl);
 }
 
 static void test_socket(void)
@@ -1525,6 +1804,9 @@ int main(void)
     test_earnings();
     test_books_file();
     test_mesh();
+    test_views();
+    test_jurisdiction();
+    test_edges();
     test_socket();
     free(OUT.p);
     if (fails) {

@@ -74,6 +74,9 @@ CI checks it matches what zxvd serves.
 | `model.info` | | `loaded`, `can_generate`, `name`, `arch`, `n_layers`, `n_vocab`, `status` |
 | `notes.list` / `notes.mark_read` | | notes / `marked` |
 | `net.command` | `command` | `result` |
+| `net.peers` | | `peers` (`id`, `addr`, `bucket`, `ubh`, `last_seen_ms`, `in_book`, `member`, `held`, `receivable`, `social`, `pending`), `count` |
+| `net.offers` | | `share` (`compute`, `storage`), `wants`, `outstanding` |
+| `player.card` | | `tier`, `metal`, `stone`, `inputs`, `next`, `perks` |
 | `peer.ask` | `peer` (IP or IP:PORT), `prompt`, `max_price_minor` | `answer`, `settlement`, `security` |
 | `peer.serve` | `price_minor`? (absent stops) | the `peer.status` object |
 | `peer.status` | | `serving`, `port`, `price_minor`, `wallet_minor`, `fees_paid_minor`, `buckets`, `sold`, `bought`, `refused`, `sessions`, `book_ok`, `history` |
@@ -88,6 +91,8 @@ CI checks it matches what zxvd serves.
 | `swarm.earnings` | | `currency`, `rate_minor`, `source_account`, `owner_account`, `balance_minor`, `postings`, `cycles`, `resumed` |
 | `mesh.books` | | `currency`, `wallet_account`, `counterparty_account`, `fee_account`, `wallet_minor`, `fees_minor`, `sold`, `bought` |
 | `books.file` | | `saved`, `path`, `records`, `head`, `writable` |
+| `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect` |
+| `jurisdiction.set` | `market`?, `standard`?, `country`? | as `jurisdiction.get` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -172,6 +177,35 @@ Each peer request the node settles (`peer.ask`, or a sale while
 - `mesh.books` reports the three accounts, the wallet and fee balances, and
   this run's counts.
 
+## Peers, offers and the Player Card
+
+These feed ZXV Studio's P2P Mesh, Storefront and Ledger pages.
+
+- `net.peers` lists the routing table's contacts. Each one answered a signed
+  message, so its NodeID is verified. A row also shows what the mesh book
+  holds for that peer and how many receipts are still outstanding with it.
+  The list is empty while networking is off.
+- `net.offers` shows what you share, your open wants, and the receipts
+  still waiting on the other side: a sell offer the buyer has not accepted,
+  or a purchase the seller has not committed.
+- `player.card` evaluates your tier with `sic_tier_eval` (`kernel/src/sicily`).
+  Credibility is your verified contributions from mesh trades. Bond, uptime
+  and giving have no source on the node yet; they are reported as 0 with
+  that reason, so the card shows Copper / Obsidian until they exist. The
+  next tier's thresholds and the missing inputs are listed. Tiers give no
+  priority, fee discount or credit.
+
+## The jurisdiction bridge
+
+`jurisdiction.set` records three settings in the books file: the market
+(`closed` clearing, the default, or the `open` batch-auction market), the
+accounting standard reports will follow (IFRS, US_GAAP, IPSAS, AAOIFI,
+OHADA, CAS, SAP_INSURER, or none yet) and an ISO 3166-1 country code. Each
+change is one record, written before it applies, so it survives a restart.
+`in_effect` is false: no report adapter or open market reads these settings
+yet. When the adapters exist they will follow each standard; they do not
+replace an accountant or a Shariah board.
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
@@ -198,6 +232,8 @@ installed .deb.
   signature or encryption: anyone who can write it as you can rebuild a
   valid chain. Back it up like any other file of yours.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
+- There is no escrow in zxvd yet, so `ledger.holds` is not served and the
+  Studio's Escrow panel stays a placeholder.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS
   has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The

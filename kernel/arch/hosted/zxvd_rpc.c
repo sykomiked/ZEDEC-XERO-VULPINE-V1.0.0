@@ -11,6 +11,7 @@
 #    include <sys/socket.h>
 #    include <sys/select.h>
 #    include <sys/stat.h>
+#    include <sys/file.h>
 #    include <sys/un.h>
 #    include <unistd.h>
 #    include <fcntl.h>
@@ -333,6 +334,43 @@ static int32_t bk_post(uint32_t from, uint32_t to, int64_t amount, const char *c
     return saved(&r);
 }
 
+/* J1-J3: the jurisdiction bridge's settings, saved in the books file */
+static const char *const JU_STD[] = {"",       "IFRS",  "US_GAAP", "IPSAS",
+                                     "AAOIFI", "OHADA", "CAS",     "SAP_INSURER"};
+#define JU_NSTD (sizeof JU_STD / sizeof JU_STD[0])
+static bool JU_OPEN;    /* J2: false = closed clearing (the default) */
+static uint32_t JU_IDX; /* J3: index in JU_STD; 0 = not chosen */
+static char JU_CC[3];   /* J1: ISO 3166-1 alpha-2, or "" */
+
+static int ju_std(const char *s)
+{
+    for (uint32_t i = 0; i < JU_NSTD; i++)
+        if (!strcmp(s, JU_STD[i])) return (int) i;
+    return -1;
+}
+
+static bool ju_cc(const char *s)
+{
+    return !s[0] || (s[0] >= 'A' && s[0] <= 'Z' && s[1] >= 'A' && s[1] <= 'Z' && !s[2]);
+}
+
+/* J4: saved first, then applied; an unchanged setting writes nothing */
+static int32_t bk_juris(bool open, uint32_t idx, const char *cc)
+{
+    int32_t st;
+    if (!writable(&st)) return st;
+    if (open == JU_OPEN && idx == JU_IDX && !strcmp(cc, JU_CC)) return ZXV_OK;
+    zxvd_buf_t r = {0};
+    zxvd_buf_printf(&r,
+                    "{\"op\":\"juris\",\"market\":\"%s\",\"standard\":\"%s\",\"country\":\"%s\"}",
+                    open ? "open" : "closed", JU_STD[idx], cc);
+    if ((st = saved(&r)) != ZXV_OK) return st;
+    JU_OPEN = open;
+    JU_IDX = idx;
+    memcpy(JU_CC, cc, strlen(cc) + 1);
+    return ZXV_OK;
+}
+
 /* F4: apply one replayed record; NULL, or why it does not fit the books */
 static const char *bf_apply(const char *js, size_t n)
 {
@@ -388,6 +426,19 @@ static const char *bf_apply(const char *js, size_t n)
             return "posting refused";
         return entry == z ? NULL : "entry number differs";
     }
+    if (w4_json_str_eq(js, &t[op], "juris")) {
+        char m[8], c2[4];
+        int ix;
+        if (w4_json_get_str(js, t, k, 0, "market", m, sizeof m) < 0 ||
+            w4_json_get_str(js, t, k, 0, "standard", a, sizeof a) < 0 ||
+            w4_json_get_str(js, t, k, 0, "country", c2, sizeof c2) < 0 ||
+            (strcmp(m, "open") && strcmp(m, "closed")) || (ix = ju_std(a)) < 0 || !ju_cc(c2))
+            return "bad jurisdiction record";
+        JU_OPEN = !strcmp(m, "open");
+        JU_IDX = (uint32_t) ix;
+        memcpy(JU_CC, c2, strlen(c2) + 1);
+        return NULL;
+    }
     return "unknown op";
 }
 
@@ -401,6 +452,9 @@ static int bf_load(void)
 {
     BF_RECS = 0;
     BF_BROKEN = false;
+    JU_OPEN = false;
+    JU_IDX = 0;
+    JU_CC[0] = 0;
     memset(BF_HEAD, 0, sizeof BF_HEAD);
     if (!BF_PATH[0]) return 0;
     BF = BF_OPEN(BF_PATH);
@@ -416,6 +470,11 @@ static int bf_load(void)
                 "zxvd: the books file %s must be a regular file of ours that nobody else can "
                 "read or write (chmod 600)\n",
                 BF_PATH);
+        bf_close();
+        return -1;
+    }
+    if (flock(BF, LOCK_EX | LOCK_NB) != 0) { /* F7 */
+        fprintf(stderr, "zxvd: the books file %s is open in another zxvd\n", BF_PATH);
         bf_close();
         return -1;
     }
@@ -1124,6 +1183,71 @@ static void m_books(call_t *c)
                     (unsigned long long) BF_RECS, hx, BF_BROKEN ? "false" : "true");
 }
 
+/* ----- jurisdiction.* (J1-J5) ----- */
+static void ju_put(zxvd_buf_t *o)
+{
+    zxvd_buf_printf(o, "{\"market\":\"%s\",\"standard\":\"%s\",\"country\":\"%s\",\"standards\":[",
+                    JU_OPEN ? "open" : "closed", JU_STD[JU_IDX], JU_CC);
+    for (uint32_t i = 1; i < JU_NSTD; i++)
+        zxvd_buf_printf(o, "%s\"%s\"", i > 1 ? "," : "", JU_STD[i]);
+    LIT(o, "],\"in_effect\":false}");
+}
+
+static void m_juris_get(call_t *c)
+{
+    if (books(c)) ju_put(c->res);
+}
+
+static void m_juris_set(call_t *c)
+{
+    char m[16], sd[16], cc[8];
+    if (!books(c) || !p_str(c, "market", m, sizeof m, false) ||
+        !p_str(c, "standard", sd, sizeof sd, false) || !p_str(c, "country", cc, sizeof cc, false))
+        return;
+    bool open = JU_OPEN;
+    int ix = (int) JU_IDX;
+    if (param(c, "market") >= 0) {
+        if (strcmp(m, "open") && strcmp(m, "closed"))
+            return fail(c, E_PARAMS, "\"market\" must be \"closed\" or \"open\"");
+        open = !strcmp(m, "open");
+    }
+    if (param(c, "standard") >= 0 && (ix = ju_std(sd)) < 0)
+        return fail(c, E_PARAMS,
+                    "\"standard\" must be \"\" or one of IFRS, US_GAAP, IPSAS, "
+                    "AAOIFI, OHADA, CAS, SAP_INSURER");
+    if (param(c, "country") < 0)
+        memcpy(cc, JU_CC, sizeof JU_CC);
+    else if (!ju_cc(cc))
+        return fail(c, E_PARAMS, "\"country\" must be \"\" or two capital letters (ISO 3166-1)");
+    if (zok(c, bk_juris(open, (uint32_t) ix, cc))) ju_put(c->res);
+}
+
+/* ----- views from the host (V1-V3) ----- */
+static const zxvd_view_ops_t *VIEWS;
+
+void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops)
+{
+    VIEWS = ops;
+}
+
+static void m_net_peers(call_t *c)
+{
+    if (!VIEWS || !VIEWS->peers) return fail(c, E_METHOD, "not available");
+    VIEWS->peers(c->res);
+}
+
+static void m_net_offers(call_t *c)
+{
+    if (!VIEWS || !VIEWS->offers) return fail(c, E_METHOD, "not available");
+    VIEWS->offers(c->res);
+}
+
+static void m_player_card(call_t *c)
+{
+    if (!VIEWS || !VIEWS->card) return fail(c, E_METHOD, "not available");
+    VIEWS->card(c->res);
+}
+
 static void m_check(call_t *c)
 {
     if (!books(c) || !zok(c, zxv_ledger_check_cap(CAP))) return;
@@ -1147,6 +1271,9 @@ static const method_t METHODS[] = {
     {"notes.list", m_notes},
     {"notes.mark_read", m_notes_read},
     {"net.command", m_net},
+    {"net.peers", m_net_peers},
+    {"net.offers", m_net_offers},
+    {"player.card", m_player_card},
     {"peer.ask", m_peer_ask},
     {"peer.serve", m_peer_serve},
     {"peer.status", m_peer_status},
@@ -1161,6 +1288,8 @@ static const method_t METHODS[] = {
     {"swarm.earnings", m_earnings},
     {"mesh.books", m_mesh},
     {"books.file", m_books},
+    {"jurisdiction.get", m_juris_get},
+    {"jurisdiction.set", m_juris_set},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 

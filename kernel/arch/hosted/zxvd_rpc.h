@@ -97,6 +97,9 @@
  *       ZXV_E_IO until zxvd restarts (which replays what was saved).
  *   F6  A last record cut short by a crash (no newline) was never answered;
  *       it is dropped and the file truncated to the last whole record.
+ *   F7  One zxvd at a time: the file is locked (flock, exclusive) while the
+ *       books are open; a second zxvd on the same file refuses to start.
+ *       Not on Windows yet.
  *   books.file reports the path, the record count, the chain head and
  *   whether the books are still writable.
  *
@@ -115,6 +118,20 @@
  *       holds, the shortfall is posted first as "mesh float T". A payment
  *       the seller refused (zxv_peer_host.h) is not a settled request and
  *       is not posted. mesh.books reports the three accounts and counts.
+ *
+ * THE JURISDICTION BRIDGE (jurisdiction.get / jurisdiction.set)
+ *   J1  country: an ISO 3166-1 alpha-2 code (two capital letters) or "".
+ *   J2  market: "closed" (closed clearing, the default) or "open" (the open
+ *       batch-auction market, a per-deployment switch).
+ *   J3  standard: the accounting standard reports will follow: "" (not
+ *       chosen, the default), IFRS, US_GAAP, IPSAS, AAOIFI, OHADA, CAS or
+ *       SAP_INSURER (statutory accounting for insurers).
+ *   J4  set takes any of the three; the rest keep their values. A change is
+ *       one "juris" record in the books file, written before it applies, so
+ *       it survives a restart; an unchanged setting writes nothing.
+ *   J5  in_effect is false: the settings are recorded only. No report
+ *       adapter and no open market is wired to them yet, and an adapter
+ *       will not replace an accountant or a Shariah board.
  */
 #ifndef ZXVD_RPC_H
 #define ZXVD_RPC_H
@@ -169,6 +186,27 @@ typedef struct {
     void (*status)(zxvd_buf_t *out);                                      /* peer.status */
 } zxvd_peer_ops_t;
 void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops);
+
+/* V1-V3: read-only views the host builds (zxv_net_host.h U9, sicily.h S2).
+ * Each writes one JSON object into `out`; unset members answer -32601.
+ *   V1 net.peers   {"peers":[{"id","addr","bucket","ubh","last_seen_ms",
+ *                  "in_book","member","held","receivable","social","pending"}],
+ *                  "count"}: the routing table's verified contacts, each
+ *                  joined with its mesh-book account; empty when off.
+ *   V2 net.offers  {"share":{"compute","storage"},"wants":[{"slot",
+ *                  "resource","units_left","max_price"}],"outstanding":[{"role",
+ *                  "peer","units","seq","tries","want"}]}: open wants and the
+ *                  receipts waiting on the other side (a sell offer the buyer
+ *                  has not accepted, or a buy the seller has not committed).
+ *   V3 player.card the owner's earned tier (sicily.h S2) from the inputs this
+ *                  node can measure, each with its source, the next tier's
+ *                  thresholds and what is missing, and the perks. */
+typedef struct {
+    void (*peers)(zxvd_buf_t *out);
+    void (*offers)(zxvd_buf_t *out);
+    void (*card)(zxvd_buf_t *out);
+} zxvd_view_ops_t;
+void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
