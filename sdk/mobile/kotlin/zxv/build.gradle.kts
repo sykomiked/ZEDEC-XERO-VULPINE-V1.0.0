@@ -17,7 +17,7 @@ plugins {
 }
 
 group = "org.zedec"
-version = "1.3.0"
+version = "1.5.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
