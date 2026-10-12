@@ -144,6 +144,21 @@ void zui_dash_rrect(zui_surface_t *s, zui_rect_t r, int32_t rad, int32_t wd,
     }
 }
 
+void zui_engrave(zui_surface_t *s, zui_rect_t r, int32_t rad, uint32_t lo,
+                 uint32_t hi, uint32_t a_hi) {
+    zui_stroke_rrect(s, r, rad, 1, lo, 255u);
+    zui_rect_t lip = { r.x + 1, r.y + 1, r.w, r.h };
+    zui_rect_t keep = s->clip;
+    /* the lip shows only on the lower and right sides */
+    zui_rect_t full = { 0, 0, s->w, s->h };
+    zui_rect_t c1 = isect(isect(keep, full), (zui_rect_t){ r.x, r.y + r.h - rad - 2, r.w + 2, rad + 3 });
+    s->clip = c1;
+    zui_stroke_rrect(s, lip, rad, 1, hi, a_hi);
+    s->clip = isect(isect(keep, full), (zui_rect_t){ r.x + r.w - rad - 2, r.y, rad + 3, r.h + 2 });
+    zui_stroke_rrect(s, lip, rad, 1, hi, a_hi);
+    s->clip = keep;
+}
+
 void zui_hline(zui_surface_t *s, int32_t x, int32_t y, int32_t w, int32_t t,
                uint32_t rgb) {
     zui_rect_t r = { x, y, w, t };
@@ -249,7 +264,7 @@ static uint32_t lift(uint32_t c) {
 
 static int32_t text_run(zui_surface_t *s, const zui_text_t *t, int32_t x_q8,
                         int32_t base, uint32_t rgb, const char *str,
-                        int32_t stop_q8) {
+                        int32_t stop_q8, uint32_t alpha) {
     while (*str) {
         const char *save = str;
         uint32_t cp = utf8_next(&str);
@@ -269,7 +284,8 @@ static int32_t text_run(zui_surface_t *s, const zui_text_t *t, int32_t x_q8,
                     uint32_t cov = bm[yy * g->w + xx];
                     if (cov) zui_blend_px(s, px - g->ox + (int32_t)xx,
                                           base - g->oy + (int32_t)yy, rgb,
-                                          lift(cov));
+                                          alpha >= 255u ? lift(cov)
+                                                        : (lift(cov) * alpha) / 255u);
                 }
         }
         x_q8 += a;
@@ -280,7 +296,7 @@ static int32_t text_run(zui_surface_t *s, const zui_text_t *t, int32_t x_q8,
 int32_t zui_text(zui_surface_t *s, const zui_text_t *t, int32_t x, int32_t base,
                  uint32_t rgb, const char *str) {
     if (!s || !t || !t->font || !t->cache || !str) return x;
-    return (text_run(s, t, x * 256, base, rgb, str, -1) + 255) >> 8;
+    return (text_run(s, t, x * 256, base, rgb, str, -1, 255u) + 255) >> 8;
 }
 
 int32_t zui_text_fit(zui_surface_t *s, const zui_text_t *t, int32_t x,
@@ -291,6 +307,12 @@ int32_t zui_text_fit(zui_surface_t *s, const zui_text_t *t, int32_t x,
         return zui_text(s, t, x, base, rgb, str);
     const char *ell = ttf_glyph_index(t->font, 0x2026u) ? "\xE2\x80\xA6" : "...";
     int32_t ew = zui_text_width_q8(t, ell);
-    int32_t end = text_run(s, t, x * 256, base, rgb, str, x * 256 + max_w * 256 - ew);
-    return (text_run(s, t, end, base, rgb, ell, -1) + 255) >> 8;
+    int32_t end = text_run(s, t, x * 256, base, rgb, str, x * 256 + max_w * 256 - ew, 255u);
+    return (text_run(s, t, end, base, rgb, ell, -1, 255u) + 255) >> 8;
+}
+
+int32_t zui_text_a(zui_surface_t *s, const zui_text_t *t, int32_t x, int32_t base,
+                   uint32_t rgb, uint32_t a, const char *str) {
+    if (!s || !t || !t->font || !t->cache || !str) return x;
+    return (text_run(s, t, x * 256, base, rgb, str, -1, a > 255u ? 255u : a) + 255) >> 8;
 }

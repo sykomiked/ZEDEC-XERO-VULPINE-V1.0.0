@@ -9,6 +9,9 @@
 #include "zui_layout.h"
 #include "zui_canvas.h"
 #include "zui_depth.h"
+#include "zui_logic.h"
+#include "zui_space.h"
+#include "zui_chiglet.h"
 #include "../font/ttf_fixture.inc"   /* MINI_TTF[] */
 #include "zui_ttf_fixture.inc"       /* ZUI_TTF[]: metrics + a composite */
 
@@ -230,12 +233,161 @@ static void test_depth(void) {
     CHECK(!zui_anaglyph(&d, &small, &L, &R), "size mismatch refused");
 }
 
+static void test_logic(void) {
+    CHECK(zui_contrast_x100(0xFFFFFF, 0x000000) == 2100, "white on black is 21:1");
+    CHECK(zui_contrast_x100(0x777777, 0x777777) == 100, "same colour is 1:1");
+    int held_ok = 1, forb_ok = 1, text_ok = 1, mirror_ok = 1, split_ok = 1;
+    for (uint32_t t = 0; t < 64; t++) {
+        lpx_t tag = (lpx_t)t;
+        zui_look_t l = zui_look(tag);
+        if (lpx_forbidden(tag)) {
+            if (!l.forbidden || l.z_pt || l.shimmer || l.split ||
+                zui_look_color(&l, ZUI_GOLD, ZUI_VOID, 17) != ZUI_GOLD) forb_ok = 0;
+            continue;
+        }
+        if (lpx_base(tag) == LPX_B_NEITHER) {
+            for (uint32_t k = 0; k < 64; k++)
+                if (l.z_pt || zui_look_color(&l, ZUI_GOLD, ZUI_VOID, k) != ZUI_GOLD) held_ok = 0;
+        }
+        if ((lpx_base(tag) == LPX_B_BOTH) != l.split) split_ok = 0;
+        /* negation mirrors depth exactly (TRUE <-> FALSE, same polarity/phase) */
+        zui_look_t n = zui_look(lpx_not(tag));
+        if (n.z_pt != -l.z_pt) mirror_ok = 0;
+        static const uint32_t fg[] = { ZUI_TEXT, ZUI_TEXT_2, ZUI_MUTED, ZUI_GOLD };
+        static const uint32_t bgs[] = { ZUI_VOID, ZUI_PANEL, ZUI_RAISED };
+        for (int i = 0; i < 4; i++) for (int j = 0; j < 3; j++) {
+            uint32_t before = zui_contrast_x100(fg[i], bgs[j]);
+            uint32_t after = zui_contrast_x100(zui_look_text(&l, fg[i], bgs[j]), bgs[j]);
+            if (before >= 450 && after < 450) text_ok = 0;
+        }
+    }
+    CHECK(held_ok, "NEITHER: at the glass, colour untouched, every polarity and phase");
+    CHECK(forb_ok, "FORBIDDEN: flat, no shimmer, no split, colour untouched");
+    CHECK(split_ok, "BOTH and only BOTH draws the colour/anti-colour pair");
+    CHECK(mirror_ok, "negation mirrors depth");
+    CHECK(text_ok, "text keeps 4.5:1 whenever it had it, for all 64 tags");
+
+    zui_look_t tm = zui_look(lpx_make(LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST));
+    zui_look_t te = zui_look(lpx_make(LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_EMERGING));
+    zui_look_t tp = zui_look(lpx_make(LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_POTENTIAL));
+    zui_look_t td = zui_look(lpx_make(LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_DISSOLVING));
+    CHECK(tm.z_pt == 24 && tm.tone > 0, "TRUE manifest comes fully forward, tinted");
+    CHECK(tm.z_pt > te.z_pt && te.z_pt > tp.z_pt && tp.z_pt > 0, "phase ramps the travel");
+    CHECK(td.z_pt == te.z_pt, "dissolving retraces emerging");
+    zui_look_t tn = zui_look(lpx_make(LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_MANIFEST));
+    zui_look_t tx = zui_look(lpx_make(LPX_B_TRUE, LPX_P_ENTROPIC, LPX_PH_MANIFEST));
+    CHECK(tm.z_pt > tn.z_pt && tn.z_pt > tx.z_pt, "firmer evidence sits further forward");
+    CHECK(tm.contrast > tn.contrast && tn.contrast > tx.contrast, "firmer evidence has more contrast");
+    CHECK(tx.shimmer > 0 && tm.shimmer == 0, "only entropic shimmers");
+    uint32_t a = zui_look_color(&tx, ZUI_GOLD, ZUI_VOID, 0);
+    uint32_t b = zui_look_color(&tx, ZUI_GOLD, ZUI_VOID, 31);
+    CHECK(a != b, "entropic shimmer moves with the phase tick");
+    zui_look_t fm = zui_look(lpx_make(LPX_B_FALSE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST));
+    uint32_t sh = zui_look_color(&fm, ZUI_TEXT, ZUI_VOID, 0);
+    CHECK(zui_contrast_x100(sh, ZUI_VOID) < zui_contrast_x100(ZUI_TEXT, ZUI_VOID), "FALSE is shaded toward the void");
+    uint32_t ti = zui_look_color(&tm, ZUI_GOLD, ZUI_VOID, 0);
+    CHECK(zui_contrast_x100(ti, ZUI_VOID) > zui_contrast_x100(ZUI_GOLD, ZUI_VOID), "TRUE is tinted toward light");
+    CHECK(zui_anti(0xD9A92E) == 0x2656D1, "anti-colour of gold is its complement");
+}
+
+static void test_spaces(void) {
+    zsp_place_t home = { ZSP_HOME, ZSP_OWNER }, cloud = { ZSP_CLOUDTOP, ZSP_OWNER };
+    zsp_place_t team = { ZSP_TEAM, ZSP_MEMBER }, office_guest = { ZSP_OFFICE, ZSP_GUEST };
+    zsp_place_t park = { ZSP_PARK, ZSP_PUBLIC }, hall = { ZSP_HALL, ZSP_OWNER };
+    zsp_place_t cloud_visitor = { ZSP_CLOUDTOP, ZSP_PUBLIC }, home_other = { ZSP_HOME, ZSP_MEMBER };
+    lpx_t t = zsp_cross(home, cloud);
+    CHECK(lpx_base(t) == LPX_B_NEITHER, "home -> cloud top is held in the hall");
+    CHECK(lpx_base(zsp_confirm(t)) == LPX_B_TRUE, "confirming a held crossing lets it through");
+    CHECK(lpx_base(zsp_cross(cloud, home)) == LPX_B_TRUE, "toward more private proceeds");
+    CHECK(lpx_base(zsp_cross(team, team)) == LPX_B_TRUE, "within a space proceeds");
+    CHECK(lpx_base(zsp_cross(team, park)) == LPX_B_NEITHER, "team -> park is held");
+    CHECK(lpx_base(zsp_cross(home, office_guest)) == LPX_B_FALSE, "a guest cannot put things in an office");
+    CHECK(lpx_base(zsp_cross(cloud_visitor, home)) == LPX_B_TRUE, "a visitor may take a public thing home");
+    CHECK(lpx_base(zsp_cross(home_other, home)) == LPX_B_FALSE, "nobody else can see into your home");
+    CHECK(lpx_base(zsp_cross(home, hall)) == LPX_B_FALSE, "nothing is kept in the hall");
+    CHECK(lpx_base(zsp_confirm(zsp_cross(home, office_guest))) == LPX_B_FALSE, "a refusal stays refused");
+    CHECK(zsp_can_view(ZSP_PARK, ZSP_PUBLIC) && zsp_can_write(ZSP_PARK, ZSP_PUBLIC), "the park is open to all");
+    CHECK(zsp_can_view(ZSP_CLOUDTOP, ZSP_PUBLIC) && !zsp_can_write(ZSP_CLOUDTOP, ZSP_PUBLIC),
+          "anyone may look at a cloud top, only the owner arranges it");
+    CHECK(!zsp_can_view((zsp_kind_t)99, ZSP_OWNER) && !zsp_can_view(ZSP_HOME, (zsp_role_t)9),
+          "unknown kinds and roles have no rights");
+    int mono = 1;
+    for (int a = 0; a < 5; a++) for (int b = 0; b < 5; b++) {
+        lpx_t x = zsp_cross((zsp_place_t){ (zsp_kind_t)a, ZSP_OWNER }, (zsp_place_t){ (zsp_kind_t)b, ZSP_OWNER });
+        if ((b > a) != (lpx_base(x) == LPX_B_NEITHER)) mono = 0;
+    }
+    CHECK(mono, "for an owner, exactly the crossings toward more openness are held");
+
+    zsp_rules_t vert = { ZSP_GOV_VERTICAL, 0 }, flat = { ZSP_GOV_HORIZONTAL, 60 };
+    CHECK(lpx_base(zsp_decide(&vert, ZSP_OWNER, 5, 0, 0)) == LPX_B_TRUE, "vertical: the owner decides");
+    CHECK(lpx_base(zsp_decide(&vert, ZSP_MEMBER, 5, 5, 0)) == LPX_B_NEITHER, "vertical: a member's proposal waits for the owner");
+    CHECK(lpx_base(zsp_decide(&vert, ZSP_GUEST, 5, 0, 0)) == LPX_B_FALSE, "guests cannot propose");
+    CHECK(lpx_base(zsp_decide(&flat, ZSP_MEMBER, 5, 3, 0)) == LPX_B_TRUE, "flat: 3 of 5 meets 60% with no objection");
+    CHECK(lpx_base(zsp_decide(&flat, ZSP_MEMBER, 5, 2, 0)) == LPX_B_NEITHER, "flat: below quorum keeps gathering");
+    CHECK(lpx_base(zsp_decide(&flat, ZSP_MEMBER, 5, 3, 1)) == LPX_B_BOTH, "flat: quorum with an objection is a dispute");
+    CHECK(lpx_action(zsp_decide(&flat, ZSP_MEMBER, 5, 3, 1)) == LPX_ACT_ESCALATE, "a dispute goes to people");
+    CHECK(lpx_base(zsp_decide(&flat, ZSP_MEMBER, 5, 1, 3)) == LPX_B_FALSE, "flat: fails once quorum is out of reach");
+    CHECK(lpx_base(zsp_decide(&flat, ZSP_OWNER, 5, 0, 0)) == LPX_B_NEITHER, "flat: even the owner needs the members");
+    CHECK(lpx_base(zsp_decide(&flat, ZSP_MEMBER, 0, 0, 0)) == LPX_B_FALSE, "an empty space decides nothing");
+    zsp_rules_t maj = { ZSP_GOV_HORIZONTAL, 0 };
+    CHECK(lpx_base(zsp_decide(&maj, ZSP_MEMBER, 4, 2, 0)) == LPX_B_NEITHER &&
+          lpx_base(zsp_decide(&maj, ZSP_MEMBER, 4, 3, 0)) == LPX_B_TRUE, "default quorum is a simple majority");
+    CHECK(lpx_base(zsp_decide(&maj, ZSP_MEMBER, 3, 99, 99)) == LPX_B_TRUE, "votes are clamped to the member count");
+}
+
+static uint64_t fnv(const uint32_t *p, size_t n) {
+    uint64_t h = 1469598103934665603ull;
+    for (size_t i = 0; i < n; i++) { h ^= p[i]; h *= 1099511628211ull; }
+    return h;
+}
+
+static uint64_t draw_chg(const zui_chiglet_t *c, uint32_t tick) {
+    zui_surface_t s;
+    zui_surface_init(&s, buf, 64, 64, 64);
+    zui_fill(&s, (zui_rect_t){ 0, 0, 64, 64 }, ZUI_VOID);
+    zui_chiglet_draw(&s, c, 32, 34, 14, tick);
+    return fnv(buf, 64 * 64);
+}
+
+static void test_chiglet(void) {
+    zui_chiglet_t a = { { 1, 2, 3, 4, 5, 6, 7, 8 }, 1, ZUI_CHG_DECIDED };
+    zui_chiglet_t b = a;
+    CHECK(draw_chg(&a, 3) == draw_chg(&b, 3), "same genes, same companion");
+    uint64_t base = draw_chg(&a, 3);
+    int all_genes_show = 1;
+    for (int gi = 0; gi < 8; gi++) {
+        zui_chiglet_t m = a;
+        m.genes[gi] = (uint8_t)(m.genes[gi] + 1);
+        if (draw_chg(&m, 3) == base) all_genes_show = 0;
+    }
+    CHECK(all_genes_show, "every gene changes the drawn form");
+    b.generation = 3;
+    CHECK(draw_chg(&b, 3) != base, "evolving adds halo rings");
+    b = a; b.mood = ZUI_CHG_UNCERTAIN;
+    CHECK(draw_chg(&b, 3) != base, "uncertain shows on its face");
+    b = a; b.mood = ZUI_CHG_SPEAKING;
+    CHECK(draw_chg(&b, 3) != base, "speaking opens its mouth");
+    CHECK(draw_chg(&a, 4) != base, "motes move with the tick");
+    zui_surface_t s;
+    zui_surface_init(&s, buf, 64, 64, 64);
+    zui_fill(&s, (zui_rect_t){ 0, 0, 64, 64 }, ZUI_VOID);
+    uint64_t empty = fnv(buf, 64 * 64);
+    zui_chiglet_draw(&s, &a, 32, 32, 4, 0);
+    CHECK(fnv(buf, 64 * 64) == empty, "too small to draw draws nothing");
+    zui_chiglet_draw(&s, &a, -500, 9000, 30, 0);
+    CHECK(1, "drawing off-surface is clipped, not overrun");
+    CHECK(zui_chiglet_accent(0) == ZUI_GOLD, "null companion falls back to gold");
+}
+
 int main(void) {
     printf("=== zui: layout, shapes, text plumbing, depth ===\n");
     test_layout();
     test_shapes();
     test_text_plumbing();
     test_depth();
+    test_logic();
+    test_spaces();
+    test_chiglet();
     printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }

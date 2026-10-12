@@ -48,6 +48,11 @@ void zui_stroke_rrect(zui_surface_t *s, zui_rect_t r, int32_t radius,
                       int32_t width, uint32_t rgb, uint32_t a255);
 void zui_dash_rrect(zui_surface_t *s, zui_rect_t r, int32_t radius,
                     int32_t width, int32_t dash, uint32_t rgb);
+/* Engraved outline: the upper/left wall of the cut in `lo`, the lower/right
+ * lip catching light in `hi` at alpha a_hi. Reads as carved into the ground
+ * rather than floating above it. */
+void zui_engrave(zui_surface_t *s, zui_rect_t r, int32_t radius,
+                 uint32_t lo, uint32_t hi, uint32_t a_hi);
 void zui_hline(zui_surface_t *s, int32_t x, int32_t y, int32_t w,
                int32_t thick, uint32_t rgb);
 void zui_vline(zui_surface_t *s, int32_t x, int32_t y, int32_t h,
@@ -98,6 +103,10 @@ int32_t zui_text_descent(const zui_text_t *t);
 /* Draw at pen (x, baseline). Returns the pen x after the run, in px. */
 int32_t zui_text(zui_surface_t *s, const zui_text_t *t, int32_t x,
                  int32_t baseline, uint32_t rgb, const char *utf8);
+/* Same, at an overall alpha 0..255 (for engraving highlights). */
+int32_t zui_text_a(zui_surface_t *s, const zui_text_t *t, int32_t x,
+                   int32_t baseline, uint32_t rgb, uint32_t a255,
+                   const char *utf8);
 /* Draw truncated with an ellipsis to fit max_w. */
 int32_t zui_text_fit(zui_surface_t *s, const zui_text_t *t, int32_t x,
                      int32_t baseline, int32_t max_w, uint32_t rgb,

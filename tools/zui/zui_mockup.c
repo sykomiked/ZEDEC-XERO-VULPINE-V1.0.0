@@ -21,6 +21,9 @@
 #include "zui_layout.h"
 #include "zui_canvas.h"
 #include "zui_depth.h"
+#include "zui_logic.h"
+#include "zui_space.h"
+#include "zui_chiglet.h"
 
 /* ---- fonts --------------------------------------------------------------- */
 static ttf_font_t F_REG, F_MED, F_SEMI, F_MONO, F_MONO_MED;
@@ -49,16 +52,35 @@ typedef struct {
     int           eye;
     int32_t       dx, dy, z;
     int32_t       strength;     /* depth slider: multiplies every layer's z */
+    zui_look_t    look;         /* the logic engine's look for this layer   */
+    uint32_t      bg;           /* ground the current layer sits on         */
 } ctx_t;
 
 static int32_t PT(ctx_t *c, int32_t pt) { return zui_px(&c->scr, pt); }
 
-static void layer(ctx_t *c, int32_t z_pt) {
+static void place(ctx_t *c, int32_t z_pt) {
     c->z = PT(c, z_pt) * (c->strength ? c->strength : 1);
     zui_layer_offset(&c->d, c->z, c->eye, &c->dx, &c->dy);
 }
 
-static uint32_t C(ctx_t *c, uint32_t rgb) { return zui_chroma_px(&c->d, rgb, c->z); }
+/* an untagged layer: plain, at depth z */
+static void layer(ctx_t *c, int32_t z_pt) {
+    c->look = zui_look(lpx_make(LPX_B_NEITHER, LPX_P_NEUTRAL, LPX_PH_MANIFEST));
+    place(c, z_pt);
+}
+
+/* a tagged layer: the paraconsistent engine decides depth, tint and shade */
+static void tag(ctx_t *c, uint8_t base, uint8_t pol, uint8_t phase) {
+    c->look = zui_look(lpx_make(base, pol, phase));
+    place(c, c->look.z_pt);
+}
+
+static uint32_t C(ctx_t *c, uint32_t rgb) {
+    return zui_look_color(&c->look, zui_chroma_px(&c->d, rgb, c->z), c->bg ? c->bg : ZUI_VOID, 11);
+}
+static uint32_t T(ctx_t *c, uint32_t rgb) {
+    return zui_look_text(&c->look, zui_chroma_px(&c->d, rgb, c->z), c->bg ? c->bg : ZUI_VOID);
+}
 
 static zui_rect_t R(ctx_t *c, int32_t x, int32_t y, int32_t w, int32_t h) {
     zui_rect_t r = { x + c->dx, y + c->dy, w, h };
@@ -73,7 +95,7 @@ static zui_text_t font(ctx_t *c, const ttf_font_t *f, int32_t pt) {
 static int32_t text(ctx_t *c, const ttf_font_t *f, int32_t pt, int32_t x,
                     int32_t base, uint32_t rgb, const char *s) {
     zui_text_t t = font(c, f, pt);
-    return zui_text(&c->s, &t, x + c->dx, base + c->dy, C(c, rgb), s) - c->dx;
+    return zui_text(&c->s, &t, x + c->dx, base + c->dy, T(c, rgb), s) - c->dx;
 }
 
 static int32_t text_w(ctx_t *c, const ttf_font_t *f, int32_t pt, const char *s) {
@@ -89,7 +111,7 @@ static void text_r(ctx_t *c, const ttf_font_t *f, int32_t pt, int32_t right,
 static void text_fit(ctx_t *c, const ttf_font_t *f, int32_t pt, int32_t x,
                      int32_t base, int32_t w, uint32_t rgb, const char *s) {
     zui_text_t t = font(c, f, pt);
-    zui_text_fit(&c->s, &t, x + c->dx, base + c->dy, w, C(c, rgb), s);
+    zui_text_fit(&c->s, &t, x + c->dx, base + c->dy, w, T(c, rgb), s);
 }
 
 /* word-wrap a paragraph; returns the baseline after the last line */
@@ -173,6 +195,42 @@ static void icon(ctx_t *c, icon_t k, int32_t cx, int32_t cy, uint32_t rgb) {
 }
 
 static const char *NAV[6] = { "Studio", "Ledger", "Mesh", "Store", "Apps", "Settings" };
+static int SPACE_SEL = -1;   /* >= 0: top bar shows the space switcher */
+static const char *SPACES[5] = { "Home", "Office", "Team", "Cloud top", "Park" };
+
+/* BOTH: the two disagreeing values drawn as colour and anti-colour, side by
+ * side in one pill, so neither claim is hidden. */
+static int32_t split_chip(ctx_t *c, int32_t x, int32_t y, const char *a, const char *b) {
+    uint32_t col = ZUI_GOLD, anti = zui_anti(ZUI_GOLD);
+    uint32_t anti_txt = zui_mix(anti, 0xFFFFFF, 110);
+    int32_t pad = PT(c, 8), gap = PT(c, 6);
+    int32_t wa = text_w(c, &F_MONO, 11, a), wb = text_w(c, &F_MONO, 11, b);
+    int32_t w = pad + wa + gap * 2 + 1 + wb + pad, h = PT(c, 20);
+    int32_t mid = x + pad + wa + gap;
+    zui_rect_t r = R(c, x, y, w, h);
+    zui_fill_rrect(&c->s, r, h / 2, C(c, ZUI_RAISED), 255);
+    zui_rect_t keep = c->s.clip;
+    zui_clip(&c->s, R(c, x, y, mid - x, h));
+    zui_stroke_rrect(&c->s, r, h / 2, 1, C(c, col), 255);
+    c->s.clip = keep;
+    zui_clip(&c->s, R(c, mid, y, x + w - mid, h));
+    zui_stroke_rrect(&c->s, r, h / 2, 1, C(c, anti_txt), 255);
+    c->s.clip = keep;
+    zui_vline(&c->s, mid + c->dx, y + PT(c, 4) + c->dy, h - PT(c, 8), 1, C(c, ZUI_EDGE));
+    text(c, &F_MONO, 11, x + pad, y + PT(c, 14), ZUI_GOLD_GLOW, a);
+    text(c, &F_MONO, 11, mid + gap, y + PT(c, 14), anti_txt, b);
+    return w;
+}
+
+/* the deterministic receipt every AI result carries */
+static void receipt(ctx_t *c, int32_t x, int32_t base, int compact, const char *hash) {
+    char buf[160];
+    if (compact) snprintf(buf, sizeof buf, "deterministic \xC2\xB7 replay %s", hash);
+    else snprintf(buf, sizeof buf, "deterministic \xC2\xB7 replay %s \xC2\xB7 same bytes on every ZXV device", hash);
+    dot(c, x + PT(c, 3), base - PT(c, 4), PT(c, 2) > 1 ? PT(c, 2) : 1, ZUI_OK);
+    int32_t e = text(c, &F_MONO, 11, x + PT(c, 12), base, ZUI_MUTED, buf);
+    if (!compact) text(c, &F_MED, 11, e + PT(c, 12), base, ZUI_TEXT_2, "Verify");
+}
 
 /* ---- shared pieces ------------------------------------------------------- */
 static int32_t button(ctx_t *c, int32_t x, int32_t y, const char *s, int primary) {
@@ -195,6 +253,7 @@ static void budget_bar(ctx_t *c, int32_t x, int32_t y, int32_t w, int32_t used, 
 
 /* The top strip: wordmark, place, Ask field, swarm meter. */
 static void top_bar(ctx_t *c, const char *place) {
+    c->bg = ZUI_VOID;
     zui_rect_t t = c->p.top;
     layer(c, 0);
     fill(c, t, ZUI_VOID);
@@ -202,7 +261,18 @@ static void top_bar(ctx_t *c, const char *place) {
     int32_t g = c->p.gutter_px, mid = t.y + t.h / 2;
     int32_t x = text(c, &F_SEMI, 15, t.x + g, mid + PT(c, 5), ZUI_TEXT, "ZXV");
     dot(c, x + PT(c, 3), mid + PT(c, 3), PT(c, 2) > 1 ? PT(c, 2) : 1, ZUI_GOLD_GLOW);
-    if (c->p.cls != ZUI_COMPACT)
+    if (SPACE_SEL >= 0 && c->p.cls >= ZUI_EXPANDED) {
+        int32_t px = x + PT(c, 18);
+        for (int i = 0; i < 5; i++) {
+            int32_t w = text_w(c, &F_REG, 13, SPACES[i]) + PT(c, 20);
+            if (i == SPACE_SEL)
+                zui_fill_rrect(&c->s, R(c, px, mid - PT(c, 13), w, PT(c, 26)), PT(c, ZUI_R_CONTROL),
+                               C(c, ZUI_RAISED), 255);
+            text(c, i == SPACE_SEL ? &F_MED : &F_REG, 13, px + PT(c, 10), mid + PT(c, 5),
+                 i == SPACE_SEL ? ZUI_TEXT : ZUI_MUTED, SPACES[i]);
+            px += w + PT(c, 2);
+        }
+    } else if (c->p.cls != ZUI_COMPACT)
         text(c, &F_REG, 13, x + PT(c, 14), mid + PT(c, 5), ZUI_MUTED, place);
 
     if (c->p.cls == ZUI_COMPACT) {
@@ -212,8 +282,9 @@ static void top_bar(ctx_t *c, const char *place) {
         dot(c, t.x + t.w - g - w - PT(c, 10), mid, PT(c, 3), ZUI_OK);
         return;
     }
-    int32_t aw = PT(c, c->p.cls == ZUI_LARGE ? 520 : 420);
+    int32_t aw = PT(c, c->p.cls == ZUI_LARGE ? 520 : (SPACE_SEL >= 0 ? 300 : 420));
     int32_t ax = t.x + (t.w - aw) / 2;
+    if (SPACE_SEL >= 0 && c->p.cls == ZUI_EXPANDED) ax = t.x + PT(c, 600);
     if (c->p.cls == ZUI_MEDIUM) ax = t.x + PT(c, 150);
     zui_rect_t a = R(c, ax, mid - PT(c, 14), aw, PT(c, 28));
     zui_fill_rrect(&c->s, a, PT(c, ZUI_R_CONTROL), C(c, ZUI_PANEL), 255);
@@ -232,6 +303,7 @@ static void top_bar(ctx_t *c, const char *place) {
 }
 
 static void rail(ctx_t *c, int sel) {
+    c->bg = ZUI_VOID;
     zui_rect_t r = c->p.rail;
     if (r.w == 0) return;
     layer(c, 0);
@@ -268,6 +340,7 @@ static void rail(ctx_t *c, int sel) {
 }
 
 static void bottom_bar(ctx_t *c, int sel) {
+    c->bg = ZUI_VOID;
     zui_rect_t b = c->p.bottom;
     if (b.w == 0) return;
     layer(c, 0);
@@ -295,6 +368,7 @@ static const conv_t CONVS[] = {
 };
 
 static void conv_list(ctx_t *c) {
+    c->bg = ZUI_PANEL;
     zui_rect_t l = c->p.list;
     if (l.w == 0) return;
     layer(c, 0);
@@ -307,10 +381,12 @@ static void conv_list(ctx_t *c) {
     zui_clip(&c->s, l);
     for (size_t i = 0; i < sizeof CONVS / sizeof CONVS[0]; i++) {
         const conv_t *v = &CONVS[i];
-        layer(c, v->archived ? -40 : 0);        /* withdrawn: behind the glass */
+        c->bg = ZUI_PANEL;
+        if (v->archived) tag(c, LPX_B_FALSE, LPX_P_NEUTRAL, LPX_PH_DISSOLVING); /* withdrawn */
+        else if (i == 0) tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+        else layer(c, 0);
         int32_t h = PT(c, 64);
         if (i == 0) {
-            layer(c, 0);
             zui_fill_rrect(&c->s, R(c, l.x + PT(c, 8), y, l.w - PT(c, 16), h - PT(c, 4)),
                            PT(c, ZUI_R_CONTROL), C(c, ZUI_RAISED), 255);
         }
@@ -332,6 +408,7 @@ static const char *S1 = "Change the equipment total from 12,400 to 12,040 in sec
 
 /* returns bottom y of the suggestion card */
 static int32_t held_card(ctx_t *c, int32_t x, int32_t y, int32_t w) {
+    c->bg = ZUI_PANEL;
     layer(c, 0);                                   /* S0: held, at the glass */
     int32_t pad = PT(c, 16);
     int32_t inner = w - 2 * pad;
@@ -356,6 +433,7 @@ static int32_t held_card(ctx_t *c, int32_t x, int32_t y, int32_t w) {
 }
 
 static void conversation(ctx_t *c) {
+    c->bg = ZUI_VOID;
     zui_rect_t m = c->p.main;
     layer(c, 0);
     fill(c, m, ZUI_VOID);
@@ -379,19 +457,30 @@ static void conversation(ctx_t *c) {
     y = para(c, &F_REG, 14, x, y, w, 22, ZUI_TEXT, Q1);
     y += PT(c, compact ? 14 : 18);
 
-    /* the answer: S+ (active), drawn forward */
-    layer(c, 24);
+    /* the answer: attested by the checker (TRUE, converging, manifest) */
+    tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
     text(c, &F_MED, 12, x + PT(c, 12), y - PT(c, 4), ZUI_TEXT_2, "Swarm");
     text(c, &F_REG, 12, x + PT(c, 12) + text_w(c, &F_MED, 12, "Swarm ") , y - PT(c, 4), ZUI_MUTED,
          compact ? "\xC2\xB7 writer + checker" : "\xC2\xB7 planner \xE2\x86\x92 writer \xE2\x86\x92 checker");
     y += PT(c, 20);
     int32_t top = y - PT(c, 34);
     y = para(c, &F_REG, 14, x + PT(c, 12), y, w - PT(c, 12), 22, ZUI_TEXT, A1);
+    /* the disputed figure: both sources shown, colour and anti-colour */
+    layer(c, 0);
+    {
+        int32_t e = text(c, &F_REG, 12, x + PT(c, 12), y + PT(c, 2), ZUI_MUTED, "Equipment total");
+        int32_t cw = split_chip(c, e + PT(c, 8), y - PT(c, 12), "proposal 12,400", "ledger 12,040");
+        if (!compact) text(c, &F_REG, 12, e + PT(c, 16) + cw, y + PT(c, 2), ZUI_MUTED, "both stand until you choose");
+    }
+    y += PT(c, 26);
+    tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
     zui_fill(&c->s, R(c, x, top + PT(c, 2), PT(c, 2), y - top - PT(c, 6)), C(c, ZUI_EDGE));
     text(c, &F_MONO, 11, x + PT(c, 12), y + PT(c, 2), ZUI_FAINT,
          compact ? "qwen2.5-1.5b \xC2\xB7 412 tok \xC2\xB7 1.9 s" :
                    "qwen2.5-1.5b \xC2\xB7 writer 212 \xC2\xB7 checker 200 tok \xC2\xB7 1.9 s \xC2\xB7 ledger read 14 entries");
-    y += PT(c, 26);
+    y += PT(c, 20);
+    receipt(c, x + PT(c, 12), y, compact, "7c41e0\xE2\x80\xA6" "a92f");
+    y += PT(c, 22);
 
     held_card(c, x, y, w);
 
@@ -425,6 +514,7 @@ static const agent_t AGENTS[] = {
 };
 
 static void inspector(ctx_t *c) {
+    c->bg = ZUI_PANEL;
     zui_rect_t r = c->p.inspector;
     if (r.w == 0) return;
     layer(c, 0);
@@ -440,7 +530,11 @@ static void inspector(ctx_t *c) {
     y += PT(c, 30);
     for (size_t i = 0; i < sizeof AGENTS / sizeof AGENTS[0]; i++) {
         const agent_t *a = &AGENTS[i];
-        layer(c, a->active ? 16 : 0);
+        c->bg = ZUI_PANEL;
+        if (a->active) tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_EMERGING);
+        else if (i == 3) tag(c, LPX_B_TRUE, LPX_P_ENTROPIC, LPX_PH_MANIFEST);   /* stale index */
+        else if (i == 5) tag(c, LPX_B_FALSE, LPX_P_NEUTRAL, LPX_PH_MANIFEST);   /* unallocated */
+        else layer(c, 0);
         if (a->active) dot(c, x + PT(c, 3), y - PT(c, 4), PT(c, 3), ZUI_OK);
         text(c, &F_MED, 13, x + PT(c, 14), y, a->tok == 377 && i == 5 ? ZUI_MUTED : ZUI_TEXT, a->name);
         char v[32]; snprintf(v, sizeof v, "%d", a->tok);
@@ -452,6 +546,30 @@ static void inspector(ctx_t *c) {
     }
     layer(c, 0);
     y += PT(c, 4);
+    hair_h(c, x, y, w);
+    y += PT(c, 30);
+    text(c, &F_MED, 11, x, y, ZUI_MUTED, "CHECKS ON THIS ANSWER");
+    y += PT(c, 28);
+    tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    dot(c, x + PT(c, 3), y - PT(c, 4), PT(c, 3), ZUI_OK);
+    text(c, &F_REG, 13, x + PT(c, 14), y, ZUI_TEXT, "Budget lines");
+    text_r(c, &F_REG, 12, x + w, y, ZUI_TEXT_2, "attested");
+    y += PT(c, 28);
+    layer(c, 0);
+    text(c, &F_REG, 13, x + PT(c, 14), y, ZUI_TEXT, "Equipment");
+    split_chip(c, x + w - text_w(c, &F_MONO, 11, "12,40012,040") - PT(c, 29), y - PT(c, 14), "12,400", "12,040");
+    y += PT(c, 28);
+    layer(c, 0);
+    ring(c, x + PT(c, 3), y - PT(c, 4), PT(c, 3), 1, ZUI_MUTED);
+    text(c, &F_REG, 13, x + PT(c, 14), y, ZUI_TEXT, "Reviewer list");
+    text_r(c, &F_REG, 12, x + w, y, ZUI_MUTED, "unknown");
+    y += PT(c, 28);
+    tag(c, LPX_B_FALSE, LPX_P_FORBIDDEN, LPX_PH_MANIFEST);
+    zui_stroke_rrect(&c->s, R(c, x - PT(c, 6), y - PT(c, 18), w + PT(c, 12), PT(c, 26)), PT(c, 4), 1, ZUI_ALERT, 255);
+    text(c, &F_REG, 13, x + PT(c, 14), y, ZUI_TEXT, "Peer 7f3a signature");
+    text_r(c, &F_REG, 12, x + w, y, ZUI_ALERT, "quarantined");
+    layer(c, 0);
+    y += PT(c, 22);
     hair_h(c, x, y, w);
     y += PT(c, 30);
     text(c, &F_MED, 11, x, y, ZUI_MUTED, "ECONOMY");
@@ -490,6 +608,7 @@ static const char *DOC_SUGGEST =
     "dropouts most likely came from the generator, not the receiver. Confirm against the logger.";
 
 static void writer(ctx_t *c, int palette) {
+    c->bg = ZUI_VOID;
     fill(c, (zui_rect_t){ 0, 0, c->s.w, c->s.h }, ZUI_VOID);
     zui_rect_t l = c->p.list;
     if (l.w) {
@@ -521,7 +640,7 @@ static void writer(ctx_t *c, int palette) {
     y = para(c, &F_REG, 15, x, y, w, 26, ZUI_TEXT_2, DOC[0]);
     y += PT(c, 12);
     /* original paragraph, struck back (S-), and the held rewrite at the glass */
-    layer(c, -24);
+    tag(c, LPX_B_FALSE, LPX_P_NEGENTROPIC, LPX_PH_DISSOLVING);   /* being replaced */
     int32_t y0 = y;
     y = para(c, &F_REG, 15, x, y, w, 26, ZUI_FAINT, DOC[1]);
     layer(c, 0);
@@ -545,7 +664,8 @@ static void writer(ctx_t *c, int palette) {
     /* the Ask palette: app-declared AI actions over a dimmed screen (S+) */
     layer(c, 0);
     zui_fill_a(&c->s, (zui_rect_t){ 0, 0, c->s.w, c->s.h }, ZUI_VOID, 170);
-    layer(c, 40);
+    tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    c->bg = ZUI_PANEL;
     int32_t pw = PT(c, 600);
     if (pw > c->s.w - 2 * PT(c, 16)) pw = c->s.w - 2 * PT(c, 16);
     int32_t px = (c->s.w - pw) / 2, py = c->p.top.h + PT(c, compact ? 24 : 72);
@@ -592,6 +712,466 @@ static void writer_screen(ctx_t *c) {
     rail(c, 4);
     bottom_bar(c, 4);
     top_bar(c, "Apps \xE2\x80\xBA Writer");
+}
+
+
+/* ---- engraving and pictograms ------------------------------------------- */
+static void engrave(ctx_t *c, zui_rect_t r, int32_t rad_pt) {
+    zui_engrave(&c->s, r, PT(c, rad_pt), C(c, ZUI_ENGRAVE_LO), C(c, ZUI_ENGRAVE_HI), 46);
+}
+
+/* a heading cut into the ground: shade above, light lip below, then the face */
+static int32_t heading(ctx_t *c, const ttf_font_t *f, int32_t pt, int32_t x, int32_t base,
+                       uint32_t rgb, const char *s) {
+    zui_text_t t = font(c, f, pt);
+    int32_t o = PT(c, 1) > 0 ? PT(c, 1) : 1;
+    zui_text_a(&c->s, &t, x + c->dx, base + c->dy - o, C(c, ZUI_ENGRAVE_LO), 200, s);
+    zui_text_a(&c->s, &t, x + c->dx, base + c->dy + o, C(c, ZUI_ENGRAVE_HI), 40, s);
+    return text(c, f, pt, x, base, rgb, s);
+}
+
+/* filled triangle by scanlines: apex (ax, ay), base from (bx0..bx1, by) */
+static void tri(ctx_t *c, int32_t ax, int32_t ay, int32_t bx0, int32_t bx1, int32_t by, uint32_t rgb) {
+    int32_t h = by - ay; if (h <= 0) return;
+    for (int32_t y = 0; y <= h; y++) {
+        int32_t l = ax + (bx0 - ax) * y / h, r = ax + (bx1 - ax) * y / h;
+        zui_hline(&c->s, l + c->dx, ay + y + c->dy, r - l + 1, 1, C(c, rgb));
+    }
+}
+
+typedef enum { PG_HOME, PG_OFFICE, PG_TEAM, PG_CLOUD, PG_PARK, PG_WATCH, PG_HALL, PG_FILE, PG_FOLDER, PG_LOCK } pict_t;
+
+/* pictograms for places, drawn from primitives at size sz points */
+static void pict(ctx_t *c, pict_t k, int32_t cx, int32_t cy, int32_t sz, uint32_t rgb) {
+    int32_t u = PT(c, sz) / 16; if (u < 1) u = 1;
+    switch (k) {
+    case PG_HOME:
+        tri(c, cx, cy - 7 * u, cx - 8 * u, cx + 8 * u, cy - u, rgb);
+        zui_fill(&c->s, R(c, cx - 6 * u, cy - u, 12 * u, 8 * u), C(c, rgb));
+        zui_fill(&c->s, R(c, cx - 2 * u, cy + 2 * u, 4 * u, 5 * u), C(c, c->bg));
+        break;
+    case PG_OFFICE:
+        zui_stroke_rrect(&c->s, R(c, cx - 5 * u, cy - 8 * u, 10 * u, 16 * u), u, u + 1, C(c, rgb), 255);
+        dot(c, cx + 2 * u, cy, u + 1, rgb);
+        break;
+    case PG_TEAM:
+        ring(c, cx, cy, 4 * u, u + 1, rgb);
+        dot(c, cx, cy - 7 * u, 2 * u, rgb); dot(c, cx, cy + 7 * u, 2 * u, rgb);
+        dot(c, cx - 7 * u, cy, 2 * u, rgb); dot(c, cx + 7 * u, cy, 2 * u, rgb);
+        break;
+    case PG_CLOUD:
+        dot(c, cx - 4 * u, cy + u, 4 * u, rgb); dot(c, cx + 4 * u, cy + u, 4 * u, rgb);
+        dot(c, cx, cy - 2 * u, 5 * u, rgb);
+        zui_fill(&c->s, R(c, cx - 4 * u, cy + u, 8 * u, 4 * u), C(c, rgb));
+        break;
+    case PG_PARK:
+        zui_fill(&c->s, R(c, cx - u, cy, 2 * u, 8 * u), C(c, rgb));
+        dot(c, cx, cy - 3 * u, 6 * u, rgb);
+        dot(c, cx + 6 * u, cy + 3 * u, 3 * u, rgb);
+        break;
+    case PG_WATCH:
+        zui_stroke_rrect(&c->s, R(c, cx - 8 * u, cy - 6 * u, 16 * u, 12 * u), 2 * u, u + 1, C(c, rgb), 255);
+        tri(c, cx + 3 * u, cy, cx - 2 * u, cx - 2 * u, cy, rgb);
+        for (int32_t i = 0; i <= 3 * u; i++)
+            zui_vline(&c->s, cx - 2 * u + i + c->dx, cy - 3 * u + i + c->dy, 6 * u - 2 * i + 1, 1, C(c, rgb));
+        break;
+    case PG_HALL:
+        zui_hline(&c->s, cx - 8 * u + c->dx, cy + c->dy, 16 * u, u + 1, C(c, rgb));
+        for (int32_t i = 0; i <= 3 * u; i++) {
+            zui_vline(&c->s, cx - 8 * u + i + c->dx, cy - i + c->dy, 2 * i + 1, 1, C(c, rgb));
+            zui_vline(&c->s, cx + 8 * u - i + c->dx, cy - i + c->dy, 2 * i + 1, 1, C(c, rgb));
+        }
+        break;
+    case PG_FILE:
+        zui_stroke_rrect(&c->s, R(c, cx - 6 * u, cy - 8 * u, 12 * u, 16 * u), u, u + 1, C(c, rgb), 255);
+        for (int i = 0; i < 3; i++) zui_hline(&c->s, cx - 3 * u + c->dx, cy - 3 * u + i * 3 * u + c->dy, 6 * u, 1, C(c, rgb));
+        break;
+    case PG_FOLDER:
+        zui_fill_rrect(&c->s, R(c, cx - 8 * u, cy - 7 * u, 7 * u, 4 * u), u, C(c, rgb), 255);
+        zui_fill_rrect(&c->s, R(c, cx - 8 * u, cy - 5 * u, 16 * u, 12 * u), u, C(c, rgb), 255);
+        break;
+    case PG_LOCK:
+        ring(c, cx, cy - 3 * u, 3 * u, u + 1, rgb);
+        zui_fill_rrect(&c->s, R(c, cx - 5 * u, cy - u, 10 * u, 8 * u), u, C(c, rgb), 255);
+        break;
+    }
+}
+
+static void avatar(ctx_t *c, int32_t cx, int32_t cy, const char *ini, uint32_t rgb) {
+    int32_t r = PT(c, 11);
+    zui_fill_rrect(&c->s, R(c, cx - r, cy - r, 2 * r, 2 * r), r, C(c, ZUI_RAISED), 255);
+    zui_stroke_rrect(&c->s, R(c, cx - r, cy - r, 2 * r, 2 * r), r, 1, C(c, rgb), 255);
+    int32_t w = text_w(c, &F_MED, 10, ini);
+    text(c, &F_MED, 10, cx - w / 2, cy + PT(c, 4), rgb, ini);
+}
+
+/* ---- Spaces: the building plan ------------------------------------------- */
+typedef struct {
+    pict_t pg; const char *name, *who, *rule; uint8_t base, pol, ph; int locked;
+} room_t;
+
+static void room(ctx_t *c, zui_rect_t r, const room_t *m, int here) {
+    tag(c, m->base, m->pol, m->ph);
+    c->bg = ZUI_PANEL;
+    zui_rect_t rr = R(c, r.x, r.y, r.w, r.h);
+    zui_fill_rrect(&c->s, rr, PT(c, ZUI_R_PANEL), C(c, here ? ZUI_RAISED : ZUI_PANEL), 255);
+    engrave(c, r, ZUI_R_PANEL);
+    if (here) zui_stroke_rrect(&c->s, rr, PT(c, ZUI_R_PANEL), PT(c, 1) + 1, C(c, ZUI_TEXT_2), 255);
+    int32_t p = PT(c, 16);
+    pict(c, m->locked ? PG_LOCK : m->pg, r.x + p + PT(c, 10), r.y + p + PT(c, 10), 20, here ? ZUI_TEXT : ZUI_TEXT_2);
+    heading(c, &F_SEMI, 15, r.x + p + PT(c, 30), r.y + p + PT(c, 9), ZUI_TEXT, m->name);
+    text_fit(c, &F_REG, 12, r.x + p + PT(c, 30), r.y + p + PT(c, 27), r.w - 2 * p - PT(c, 30), ZUI_MUTED, m->who);
+    if (m->rule) text_fit(c, &F_MONO, 11, r.x + p, r.y + r.h - p, r.w - 2 * p, ZUI_FAINT, m->rule);
+    if (here) text_r(c, &F_MED, 11, r.x + r.w - p, r.y + p + PT(c, 9), ZUI_GOLD_GLOW, "YOU ARE HERE");
+}
+
+static void file_chip(ctx_t *c, int32_t x, int32_t y, int32_t w, pict_t pg, const char *name) {
+    zui_fill_rrect(&c->s, R(c, x, y, w, PT(c, 28)), PT(c, ZUI_R_CONTROL), C(c, ZUI_VOID), 255);
+    engrave(c, (zui_rect_t){ x, y, w, PT(c, 28) }, ZUI_R_CONTROL);
+    pict(c, pg, x + PT(c, 14), y + PT(c, 14), 13, ZUI_MUTED);
+    text_fit(c, &F_REG, 12, x + PT(c, 28), y + PT(c, 18), w - PT(c, 36), ZUI_TEXT_2, name);
+}
+
+static void spaces_plan(ctx_t *c, zui_rect_t A) {
+    int compact = c->p.cls == ZUI_COMPACT;
+    int32_t g = PT(c, compact ? 12 : 24), x0 = A.x + g, y0 = A.y + PT(c, compact ? 16 : 20);
+    int32_t W = A.w - 2 * g;
+    static const room_t HOME = { PG_HOME, "Home", "only you \xC2\xB7 your desktop and files", "private", LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST, 0 };
+    static const room_t OFF1 = { PG_OFFICE, "Office \xC2\xB7 Grant team", "4 members \xC2\xB7 2 here now", "hierarchical \xC2\xB7 owner decides", LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_MANIFEST, 0 };
+    static const room_t OFF2 = { PG_OFFICE, "Office \xC2\xB7 Legal review", "no access", 0, LPX_B_FALSE, LPX_P_NEUTRAL, LPX_PH_MANIFEST, 1 };
+    static const room_t TEAM = { PG_TEAM, "Team \xC2\xB7 Tonopah array", "9 members \xC2\xB7 flat", "horizontal \xC2\xB7 60% quorum", LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_EMERGING, 0 };
+    static const room_t CLOUD = { PG_CLOUD, "Cloud top", "your public space \xC2\xB7 served from this Mac over the mesh", "anyone may look \xC2\xB7 only you arrange", LPX_B_NEITHER, LPX_P_NEUTRAL, LPX_PH_MANIFEST, 0 };
+    static const room_t PARK = { PG_PARK, "Park", "the commons \xC2\xB7 38 people here", "anyone may look and leave something", LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_MANIFEST, 0 };
+
+    layer(c, 0); c->bg = ZUI_VOID;
+    heading(c, &F_SEMI, compact ? 20 : 24, x0, y0 + PT(c, 20), ZUI_TEXT, "Spaces");
+    if (!compact) text(c, &F_REG, 13, x0 + PT(c, 100), y0 + PT(c, 20), ZUI_MUTED,
+                       "a house, offices and a team room inside; your cloud top and the park outside");
+    int32_t y = y0 + PT(c, compact ? 36 : 44);
+
+    if (compact) {
+        const room_t *inside[4] = { &HOME, &OFF1, &TEAM, &OFF2 };
+        for (int i = 0; i < 4; i++) {
+            room(c, (zui_rect_t){ x0, y, W, PT(c, 86) }, inside[i], i == 0);
+            y += PT(c, 94);
+        }
+        layer(c, 0); c->bg = ZUI_VOID;
+        zui_fill_rrect(&c->s, R(c, x0, y, W, PT(c, 70)), PT(c, ZUI_R_PANEL), C(c, ZUI_VOID), 255);
+        zui_dash_rrect(&c->s, R(c, x0, y, W, PT(c, 70)), PT(c, ZUI_R_PANEL), 1, PT(c, 4), C(c, ZUI_GOLD));
+        pict(c, PG_HALL, x0 + PT(c, 24), y + PT(c, 22), 16, ZUI_GOLD_GLOW);
+        text(c, &F_MED, 11, x0 + PT(c, 44), y + PT(c, 26), ZUI_GOLD_GLOW, "IN THE HALL \xC2\xB7 HELD");
+        text(c, &F_REG, 13, x0 + PT(c, 16), y + PT(c, 52), ZUI_TEXT, "budget-v3.pdf  Home \xE2\x86\x92 Cloud top");
+        text_r(c, &F_MED, 13, x0 + W - PT(c, 16), y + PT(c, 52), ZUI_GOLD, "Confirm");
+        y += PT(c, 78);
+        room(c, (zui_rect_t){ x0, y, W, PT(c, 86) }, &CLOUD, 0); y += PT(c, 94);
+        room(c, (zui_rect_t){ x0, y, W, PT(c, 120) }, &PARK, 0);
+        tag(c, LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
+        pict(c, PG_WATCH, x0 + PT(c, 26), y + PT(c, 76), 14, ZUI_TEXT_2);
+        text(c, &F_REG, 12, x0 + PT(c, 44), y + PT(c, 80), ZUI_TEXT_2, "Watch hall \xC2\xB7 14 watching \xC2\xB7 14 serving");
+        return;
+    }
+
+    /* inside: four rooms in a row */
+    int32_t rh = PT(c, 210), gap = PT(c, 12);
+    int32_t w1 = W * 30 / 100, w2 = W * 22 / 100, w3 = W * 16 / 100, w4 = W - w1 - w2 - w3 - 3 * gap;
+    int32_t rx = x0;
+    room(c, (zui_rect_t){ rx, y, w1, rh }, &HOME, 1);
+    {   /* home: a few of your files */
+        static const char *f[4] = { "Grants", "Field notes", "budget-v3.pdf", "Photos" };
+        static const pict_t k[4] = { PG_FOLDER, PG_FOLDER, PG_FILE, PG_FOLDER };
+        for (int i = 0; i < 4; i++)
+            file_chip(c, rx + PT(c, 16) + (i % 2) * ((w1 - PT(c, 40)) / 2 + PT(c, 8)),
+                      y + PT(c, 70) + (i / 2) * PT(c, 36), (w1 - PT(c, 40)) / 2, k[i], f[i]);
+    }
+    rx += w1 + gap;
+    room(c, (zui_rect_t){ rx, y, w2, rh }, &OFF1, 0);
+    avatar(c, rx + PT(c, 30), y + PT(c, 92), "MC", ZUI_TEXT_2);
+    avatar(c, rx + PT(c, 58), y + PT(c, 92), "AR", ZUI_TEXT_2);
+    text(c, &F_REG, 12, rx + PT(c, 16), y + PT(c, 134), ZUI_MUTED, "Grant application draft");
+    rx += w2 + gap;
+    room(c, (zui_rect_t){ rx, y, w3, rh }, &OFF2, 0);
+    rx += w3 + gap;
+    room(c, (zui_rect_t){ rx, y, w4, rh }, &TEAM, 0);
+    layer(c, 0); c->bg = ZUI_PANEL;
+    text(c, &F_REG, 12, rx + PT(c, 16), y + PT(c, 84), ZUI_TEXT_2, "Proposal: open the team room to the Park");
+    split_chip(c, rx + PT(c, 16), y + PT(c, 96), "3 yes", "1 objection");
+    text(c, &F_REG, 12, rx + PT(c, 16), y + PT(c, 140), ZUI_MUTED, "quorum met with an objection:");
+    text(c, &F_REG, 12, rx + PT(c, 16), y + PT(c, 158), ZUI_MUTED, "the members settle it together");
+    y += rh + gap;
+
+    /* the hall: the space between spaces */
+    int32_t hh = PT(c, 72);
+    layer(c, 0); c->bg = ZUI_VOID;
+    zui_fill(&c->s, R(c, x0, y, W, hh), C(c, ZUI_ENGRAVE_LO));
+    engrave(c, (zui_rect_t){ x0, y, W, hh }, 4);
+    pict(c, PG_HALL, x0 + PT(c, 26), y + hh / 2, 18, ZUI_MUTED);
+    text(c, &F_MED, 11, x0 + PT(c, 48), y + PT(c, 30), ZUI_MUTED, "HALL");
+    text(c, &F_REG, 12, x0 + PT(c, 48), y + PT(c, 48), ZUI_FAINT, "the space between spaces");
+    {   /* a held crossing: toward a wider audience, so it waits for you */
+        int32_t cx = x0 + PT(c, 250), cw = PT(c, 470);
+        zui_rect_t cr = R(c, cx, y + PT(c, 12), cw, hh - PT(c, 24));
+        zui_fill_rrect(&c->s, cr, PT(c, ZUI_R_CONTROL), C(c, ZUI_PANEL), 255);
+        zui_dash_rrect(&c->s, cr, PT(c, ZUI_R_CONTROL), 1, PT(c, 4), C(c, ZUI_GOLD));
+        c->bg = ZUI_PANEL;
+        pict(c, PG_FILE, cx + PT(c, 20), y + hh / 2, 14, ZUI_TEXT_2);
+        text(c, &F_REG, 13, cx + PT(c, 36), y + hh / 2 + PT(c, 5), ZUI_TEXT, "budget-v3.pdf   Home \xE2\x86\x92 Cloud top");
+        text(c, &F_MONO, 11, cx + PT(c, 280), y + hh / 2 + PT(c, 4), ZUI_MUTED, "held");
+        int32_t bw = text_w(c, &F_MED, 13, "Confirm") + PT(c, 24);
+        zui_fill_rrect(&c->s, R(c, cx + cw - bw - PT(c, 10), y + PT(c, 20), bw, hh - PT(c, 40)),
+                       PT(c, ZUI_R_CONTROL), C(c, ZUI_GOLD), 255);
+        text(c, &F_MED, 13, cx + cw - bw + PT(c, 2), y + hh / 2 + PT(c, 5), ZUI_VOID, "Confirm");
+        c->bg = ZUI_VOID;
+    }
+    text_r(c, &F_REG, 12, x0 + W - PT(c, 16), y + hh / 2 + PT(c, 5), ZUI_FAINT,
+           "nothing reaches a wider audience without you");
+    y += hh + gap;
+
+    /* outside: your cloud top and the park */
+    int32_t oh = A.y + A.h - y - PT(c, 20);
+    if (oh > PT(c, 300)) oh = PT(c, 300);
+    int32_t wc = W * 34 / 100, wp = W - wc - gap;
+    room(c, (zui_rect_t){ x0, y, wc, oh }, &CLOUD, 0);
+    layer(c, 0); c->bg = ZUI_PANEL;
+    file_chip(c, x0 + PT(c, 16), y + PT(c, 70), wc - PT(c, 32), PG_FILE, "Tonopah array: public readings");
+    file_chip(c, x0 + PT(c, 16), y + PT(c, 106), wc - PT(c, 32), PG_FILE, "About me");
+    text(c, &F_MONO, 11, x0 + PT(c, 16), y + PT(c, 160), ZUI_FAINT, "12 visitors today \xC2\xB7 cid bafy\xE2\x80\xA6q4mz");
+    if (oh >= PT(c, 280)) {   /* make another public space: a CID anchors it, visitors help serve it */
+        int32_t bw = text_w(c, &F_MED, 13, "Make a public space") + PT(c, 28), by = y + PT(c, 182);
+        zui_rect_t br = R(c, x0 + PT(c, 16), by, bw, PT(c, 32));
+        zui_fill_rrect(&c->s, br, PT(c, ZUI_R_CONTROL), C(c, ZUI_PANEL), 255);
+        zui_stroke_rrect(&c->s, br, PT(c, ZUI_R_CONTROL), 1, C(c, ZUI_GOLD), 255);
+        text(c, &F_MED, 13, x0 + PT(c, 30), by + PT(c, 21), ZUI_GOLD, "Make a public space");
+        text(c, &F_REG, 11, x0 + PT(c, 16), by + PT(c, 52), ZUI_FAINT, "its CID is its address; everyone who visits helps host it");
+    }
+
+    int32_t px = x0 + wc + gap;
+    room(c, (zui_rect_t){ px, y, wp, oh }, &PARK, 0);
+    /* the watch hall: everyone watching also serves, so it gets faster */
+    tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_EMERGING);
+    c->bg = ZUI_PANEL;
+    int32_t wx = px + PT(c, 16), wy = y + PT(c, 64), ww = wp * 52 / 100;
+    zui_fill_rrect(&c->s, R(c, wx, wy, ww, oh - PT(c, 104)), PT(c, ZUI_R_PANEL), C(c, ZUI_VOID), 255);
+    engrave(c, (zui_rect_t){ wx, wy, ww, oh - PT(c, 104) }, ZUI_R_PANEL);
+    pict(c, PG_WATCH, wx + PT(c, 24), wy + PT(c, 24), 18, ZUI_TEXT);
+    c->bg = ZUI_VOID;
+    text(c, &F_SEMI, 14, wx + PT(c, 46), wy + PT(c, 29), ZUI_TEXT, "Watch hall");
+    text(c, &F_REG, 12, wx + PT(c, 16), wy + PT(c, 58), ZUI_TEXT_2, "Tonopah sky timelapse \xC2\xB7 together");
+    for (int i = 0; i < 6; i++) {
+        static const char *ini[6] = { "MC", "AR", "JT", "KO", "LS", "+9" };
+        avatar(c, wx + PT(c, 28) + i * PT(c, 26), wy + PT(c, 88), ini[i], i == 0 ? ZUI_GOLD_GLOW : ZUI_TEXT_2);
+    }
+    text(c, &F_MONO, 11, wx + PT(c, 16), wy + PT(c, 124), ZUI_MUTED, "14 watching \xC2\xB7 14 peers serving");
+    budget_bar(c, wx + PT(c, 16), wy + PT(c, 134), ww - PT(c, 32), 945, 1000, ZUI_OK);
+    text(c, &F_MONO, 11, wx + PT(c, 16), wy + PT(c, 152), ZUI_MUTED, "9.4\xC3\x97 the origin's capacity \xC2\xB7 ipfs");
+    /* open workspaces in the park */
+    layer(c, 0); c->bg = ZUI_PANEL;
+    int32_t sx = wx + ww + PT(c, 20), sw = px + wp - sx - PT(c, 16);
+    text(c, &F_MED, 11, sx, wy + PT(c, 14), ZUI_MUTED, "OPEN WORKSPACES");
+    static const char *ws[3][2] = { { "Seed library", "flat \xC2\xB7 60%" }, { "Mesh radio club", "hierarchical" },
+                                    { "Desert data commons", "flat \xC2\xB7 majority" } };
+    for (int i = 0; i < 3; i++) {
+        int32_t yy = wy + PT(c, 26) + i * PT(c, 34);
+        file_chip(c, sx, yy, sw, PG_TEAM, ws[i][0]);
+        text_r(c, &F_MONO, 10, sx + sw - PT(c, 10), yy + PT(c, 18), ZUI_FAINT, ws[i][1]);
+    }
+    int32_t bw = text_w(c, &F_MED, 13, "Start a workspace") + PT(c, 28);
+    int32_t by = wy + PT(c, 26) + 3 * PT(c, 34) + PT(c, 6);
+    zui_fill_rrect(&c->s, R(c, sx, by, bw, PT(c, 32)), PT(c, ZUI_R_CONTROL), C(c, ZUI_GOLD), 255);
+    text(c, &F_MED, 13, sx + PT(c, 14), by + PT(c, 21), ZUI_VOID, "Start a workspace");
+    text(c, &F_REG, 11, sx, by + PT(c, 50), ZUI_FAINT, "choose flat or hierarchical; change it later");
+}
+
+static void spaces_screen(ctx_t *c) {
+    fill(c, (zui_rect_t){ 0, 0, c->s.w, c->s.h }, ZUI_VOID);
+    zui_rect_t A = c->p.main;
+    if (c->p.list.w) { A.x = c->p.list.x; A.w += c->p.list.w; }
+    spaces_plan(c, A);
+    rail(c, 0);
+    bottom_bar(c, 0);
+    top_bar(c, "Spaces");
+}
+
+/* ---- Home: your desktop and files ---------------------------------------- */
+static void home_screen(ctx_t *c) {
+    fill(c, (zui_rect_t){ 0, 0, c->s.w, c->s.h }, ZUI_VOID);
+    zui_rect_t A = c->p.main;
+    if (c->p.list.w) { A.x = c->p.list.x; A.w += c->p.list.w; }
+    int32_t g = PT(c, 32), x0 = A.x + g, W = A.w - 2 * g, y = A.y + PT(c, 48);
+    layer(c, 0); c->bg = ZUI_VOID;
+    heading(c, &F_SEMI, 24, x0, y, ZUI_TEXT, "Home");
+    text(c, &F_REG, 13, x0 + PT(c, 84), y, ZUI_MUTED, "only you \xC2\xB7 ~/Documents/ZXV \xC2\xB7 412 files \xC2\xB7 2.1 GB");
+    y += PT(c, 32);
+    /* folders as carved tiles */
+    static const char *fn[8] = { "Grants", "Field notes", "Photos", "Ledger exports", "Music", "Models", "Hardware", "Inbox" };
+    static const char *fc[8] = { "14 files", "38 files", "212 photos", "9 files", "61 tracks", "3 packs", "local only", "6 new" };
+    int cols = W > PT(c, 900) ? 4 : 3;
+    int32_t tw = (W - (cols - 1) * PT(c, 14)) / cols, th = PT(c, 96);
+    for (int i = 0; i < 8; i++) {
+        int32_t tx = x0 + (i % cols) * (tw + PT(c, 14)), ty = y + (i / cols) * (th + PT(c, 14));
+        if (i == 7) tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_EMERGING); else layer(c, 0);
+        c->bg = ZUI_PANEL;
+        zui_fill_rrect(&c->s, R(c, tx, ty, tw, th), PT(c, ZUI_R_PANEL), C(c, ZUI_PANEL), 255);
+        engrave(c, (zui_rect_t){ tx, ty, tw, th }, ZUI_R_PANEL);
+        pict(c, PG_FOLDER, tx + PT(c, 30), ty + PT(c, 34), 24, i == 7 ? ZUI_GOLD_GLOW : ZUI_TEXT_2);
+        heading(c, &F_MED, 14, tx + PT(c, 18), ty + PT(c, 62), ZUI_TEXT, fn[i]);
+        text(c, &F_MONO, 11, tx + PT(c, 18), ty + PT(c, 79), ZUI_MUTED, fc[i]);
+    }
+    y += 2 * (th + PT(c, 14)) + (8 > 2 * cols ? th + PT(c, 14) : 0) + PT(c, 10);
+    /* a held AI tidy-up: deterministic, waits for you */
+    layer(c, 0); c->bg = ZUI_PANEL;
+    int32_t ch = PT(c, 112);
+    zui_rect_t cr = R(c, x0, y, W, ch);
+    zui_fill_rrect(&c->s, cr, PT(c, ZUI_R_PANEL), C(c, ZUI_PANEL), 255);
+    zui_dash_rrect(&c->s, cr, PT(c, ZUI_R_PANEL), 1, PT(c, 5), C(c, ZUI_GOLD));
+    text(c, &F_MED, 11, x0 + PT(c, 16), y + PT(c, 26), ZUI_GOLD_GLOW, "SUGGESTED TIDY-UP \xC2\xB7 HELD");
+    text(c, &F_REG, 14, x0 + PT(c, 16), y + PT(c, 52), ZUI_TEXT,
+         "File the 6 new Inbox items: 4 into Field notes, 2 receipts into Ledger exports.");
+    receipt(c, x0 + PT(c, 16), y + PT(c, 78), 0, "e19b72\xE2\x80\xA6" "044c");
+    int32_t bw = button(c, x0 + W - PT(c, 200), y + PT(c, 64), "Accept", 1);
+    button(c, x0 + W - PT(c, 200) + bw + PT(c, 8), y + PT(c, 64), "Reject", 0);
+    rail(c, 0);
+    bottom_bar(c, 0);
+    top_bar(c, "Home");
+}
+
+
+/* ---- the Chiglet: companion pop-up and Web4 ------------------------------ */
+static const zui_chiglet_t MY_CHG = { { 0, 5, 3, 1, 6, 2, 3, 1 }, 3, ZUI_CHG_SPEAKING };
+
+static void chiglet_at(ctx_t *c, const zui_chiglet_t *k, int32_t cx, int32_t cy, int32_t r_pt, uint32_t tick) {
+    zui_chiglet_draw(&c->s, k, cx + c->dx, cy + c->dy, PT(c, r_pt), tick);
+}
+
+/* the companion pops up beside what you are doing, with one short line */
+static void chiglet_popup(ctx_t *c, const char *line1, const char *line2) {
+    tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_EMERGING);
+    c->bg = ZUI_PANEL;
+    int compact = c->p.cls == ZUI_COMPACT;
+    int32_t bw = PT(c, compact ? 300 : 340), bh = PT(c, 74);
+    int32_t mx = c->p.main.x + c->p.main.w, my = c->p.main.y + c->p.main.h;
+    int32_t bx = mx - bw - PT(c, compact ? 100 : 130), by = my - bh - PT(c, compact ? 84 : 96);
+    if (bx < c->p.main.x + PT(c, 8)) bx = c->p.main.x + PT(c, 8);
+    zui_rect_t r = R(c, bx, by, bw, bh);
+    zui_fill_rrect(&c->s, r, PT(c, 12), C(c, ZUI_PANEL), 255);
+    zui_stroke_rrect(&c->s, r, PT(c, 12), 1, C(c, zui_chiglet_accent(&MY_CHG)), 255);
+    text(c, &F_MED, 11, bx + PT(c, 14), by + PT(c, 20), ZUI_GOLD_GLOW, "TALA \xC2\xB7 YOUR CHIGLET \xC2\xB7 GEN 3");
+    text_fit(c, &F_REG, 13, bx + PT(c, 14), by + PT(c, 42), bw - PT(c, 28), ZUI_TEXT, line1);
+    text_fit(c, &F_REG, 13, bx + PT(c, 14), by + PT(c, 62), bw - PT(c, 28), ZUI_TEXT_2, line2);
+    chiglet_at(c, &MY_CHG, bx + bw + PT(c, compact ? 40 : 60), by + bh / 2, compact ? 22 : 28, 5);
+}
+
+static void studio_with_chiglet(ctx_t *c) {
+    studio(c);
+    chiglet_popup(c, "The equipment total disagrees with the ledger.",
+                  "I held the fix for you. Accept it, or ask me why.");
+}
+
+/* Web4: your Chiglet meeting other people's Chiglets, peer to peer */
+typedef struct { const char *owner, *name; zui_chiglet_t k; } peer_chg_t;
+
+static void streaks(ctx_t *c, zui_rect_t A, uint32_t seed) {
+    /* the accelerated web: thin speed lines carved into the ground */
+    for (int i = 0; i < 40; i++) {
+        seed = seed * 1664525u + 1013904223u;
+        int32_t y = A.y + (int32_t)(seed % (uint32_t)A.h);
+        int32_t x = A.x + (int32_t)((seed >> 8) % (uint32_t)A.w);
+        int32_t w = PT(c, 40) + (int32_t)((seed >> 16) % (uint32_t)PT(c, 220));
+        uint32_t col = (seed >> 3) & 1u ? ZUI_HAIRLINE : ZUI_ENGRAVE_LO;
+        zui_hline(&c->s, x + c->dx, y + c->dy, w, 1, C(c, col));
+    }
+}
+
+static void envelope(ctx_t *c, int32_t x, int32_t y, int32_t w, const char *kind, const char *what,
+                     const char *meta, int held) {
+    int32_t h = PT(c, 54);
+    zui_rect_t r = R(c, x, y, w, h);
+    zui_fill_rrect(&c->s, r, PT(c, ZUI_R_CONTROL), C(c, ZUI_PANEL), 255);
+    if (held) zui_dash_rrect(&c->s, r, PT(c, ZUI_R_CONTROL), 1, PT(c, 4), C(c, ZUI_GOLD));
+    else engrave(c, (zui_rect_t){ x, y, w, h }, ZUI_R_CONTROL);
+    uint32_t bg = c->bg; c->bg = ZUI_PANEL;
+    text(c, &F_MONO_MED, 10, x + PT(c, 12), y + PT(c, 20), held ? ZUI_GOLD_GLOW : ZUI_OK, kind);
+    text_fit(c, &F_REG, 13, x + PT(c, 92), y + PT(c, 20), w - PT(c, 104), ZUI_TEXT, what);
+    text_fit(c, &F_MONO, 10, x + PT(c, 12), y + PT(c, 41), w - PT(c, 24), ZUI_MUTED, meta);
+    c->bg = bg;
+}
+
+static void web4_screen(ctx_t *c) {
+    fill(c, (zui_rect_t){ 0, 0, c->s.w, c->s.h }, ZUI_VOID);
+    zui_rect_t A = c->p.main;
+    if (c->p.list.w) { A.x = c->p.list.x; A.w += c->p.list.w; }
+    layer(c, -40); c->bg = ZUI_VOID;              /* the network, behind the glass */
+    streaks(c, A, 7);
+    layer(c, 0);
+    int32_t g = PT(c, 32), x0 = A.x + g, W = A.w - 2 * g, y = A.y + PT(c, 48);
+    heading(c, &F_SEMI, 24, x0, y, ZUI_TEXT, "Web4");
+    text(c, &F_REG, 13, x0 + PT(c, 82), y, ZUI_MUTED,
+         "companions meeting companions \xC2\xB7 signed, peer to peer, no server in the middle");
+    y += PT(c, 40);
+
+    /* your Chiglet on the left, forward: it is acting for you */
+    int32_t lx = x0 + PT(c, 110), ly = y + PT(c, 190);
+    tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    chiglet_at(c, &MY_CHG, lx, ly, 62, 9);
+    {   /* caption centred under her, kept inside her own column */
+        static const char *cap[4] = { "Tala", "your companion \xC2\xB7 gen 3", "grown with you", "dna 00 05 03 01 06 02 03 01" };
+        const ttf_font_t *cf[4] = { &F_SEMI, &F_REG, &F_REG, &F_MONO };
+        static const int cs[4] = { 16, 12, 12, 10 };
+        static const uint32_t cc[4] = { ZUI_TEXT, ZUI_MUTED, ZUI_MUTED, ZUI_FAINT };
+        static const int cy[4] = { 112, 132, 148, 168 };
+        for (int i = 0; i < 4; i++)
+            text(c, cf[i], cs[i], lx - text_w(c, cf[i], cs[i], cap[i]) / 2, ly + PT(c, cy[i]), cc[i], cap[i]);
+    }
+
+    /* peers' Chiglets on the right, each on its own person's device */
+    static const peer_chg_t P[3] = {
+        { "Seed library (park workspace)", "Moss", { { 1, 2, 2, 2, 3, 1, 1, 0 }, 2, ZUI_CHG_DECIDED } },
+        { "A. Ramos (Grant team)", "Pip", { { 2, 6, 1, 0, 2, 3, 4, 2 }, 1, ZUI_CHG_SPEAKING } },
+        { "Mesh radio club", "Static", { { 4, 1, 3, 2, 0, 3, 2, 3 }, 4, ZUI_CHG_UNCERTAIN } },
+    };
+    int32_t rx = x0 + W - PT(c, 90);
+    for (int i = 0; i < 3; i++) {
+        int32_t py = y + PT(c, 50) + i * PT(c, 150);
+        if (P[i].k.mood == ZUI_CHG_UNCERTAIN) tag(c, LPX_B_NEITHER, LPX_P_NEUTRAL, LPX_PH_EMERGING);
+        else tag(c, LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
+        chiglet_at(c, &P[i].k, rx, py + PT(c, 30), 30, 9 + (uint32_t)i);
+        text_r(c, &F_SEMI, 14, rx - PT(c, 56), py + PT(c, 26), ZUI_TEXT, P[i].name);
+        text_r(c, &F_REG, 11, rx - PT(c, 56), py + PT(c, 44), ZUI_MUTED, P[i].owner);
+    }
+
+    /* lanes: from Tala's edge to the near edge of each peer's label; drawn
+     * first so the envelopes ride on top of them */
+    tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_EMERGING);
+    for (int i = 0; i < 3; i++) {
+        int32_t py = y + PT(c, 50) + i * PT(c, 150) + PT(c, 30);
+        int32_t lw = text_w(c, &F_SEMI, 14, P[i].name), ow = text_w(c, &F_REG, 11, P[i].owner);
+        int32_t x1 = lx + PT(c, 80), x2 = rx - PT(c, 56) - (lw > ow ? lw : ow) - PT(c, 14);
+        int32_t steps = (x2 - x1) / PT(c, 7);
+        if (steps < 2) steps = 2;
+        for (int k = 0; k <= steps; k++)
+            dot(c, x1 + (x2 - x1) * k / steps, ly + (py - ly) * k / steps, PT(c, 1) + 1,
+                i == 2 ? ZUI_GOLD : ZUI_OK);
+    }
+
+    /* the conversation between them: signed envelopes on the lanes */
+    layer(c, 0); c->bg = ZUI_VOID;
+    int32_t ex = lx + PT(c, 130), ew = rx - PT(c, 240) - ex;
+    int32_t ey = y + PT(c, 34);
+    envelope(c, ex, ey, ew, "REQUEST", "Tala \xE2\x86\x92 Moss: drought-hardy seed list for Tonopah",
+             "ml-dsa-65 signed \xC2\xB7 seq 41 \xC2\xB7 tool seeds.search \xC2\xB7 free \xC2\xB7 via cid bafy\xE2\x80\xA6" "7k2q, 2 hops", 0);
+    envelope(c, ex, ey + PT(c, 64), ew, "RESPONSE", "Moss \xE2\x86\x92 Tala: 12 varieties, 3 held in the library",
+             "signature checked \xC2\xB7 0.4 s \xC2\xB7 deterministic replay 51ac\xE2\x80\xA6" "e0", 0);
+    envelope(c, ex, ey + PT(c, 150), ew, "STREAM", "Pip \xE2\x86\x94 Tala: drafting the budget note together",
+             "chunk 6 of ~9 \xC2\xB7 both people can see every line", 0);
+    envelope(c, ex, ey + PT(c, 236), ew, "CONSENT", "Static asks Tala to share your call sign",
+             "personal data: waits for you \xC2\xB7 your Chiglet never shares it on its own", 1);
+    {
+        int32_t by = ey + PT(c, 236) + PT(c, 62);
+        int32_t bw = button(c, ex, by, "Allow once", 1);
+        button(c, ex + bw + PT(c, 8), by, "Decline", 0);
+    }
+    rail(c, 2);
+    bottom_bar(c, 2);
+    top_bar(c, "Web4");
 }
 
 /* ---- output -------------------------------------------------------------- */
@@ -682,12 +1262,30 @@ int main(int argc, char **argv) {
     zui_glyph_cache_init(&CACHE);
 
     /* sizes: phone 390x844 pt @2x, laptop 1440x900 pt @1x, large 2560x1440 @1x */
+    render(out, "studio-chiglet-laptop", studio_with_chiglet, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    render(out, "studio-chiglet-phone", studio_with_chiglet, 780, 1688, 512, ZUI_INPUT_TOUCH, ZUI_DEPTH_FLAT, 0, 60);
+    render(out, "web4-laptop", web4_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    render(out, "web4-large", web4_screen, 2560, 1440, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 36);
     render(out, "studio-phone", studio, 780, 1688, 512, ZUI_INPUT_TOUCH, ZUI_DEPTH_FLAT, 0, 60);
     render(out, "studio-laptop", studio, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
     render(out, "studio-large", studio, 2560, 1440, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 36);
     render(out, "writer-laptop", writer_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
     render(out, "writer-doc-laptop", writer_doc, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
     render(out, "writer-phone", writer_screen, 780, 1688, 512, ZUI_INPUT_TOUCH, ZUI_DEPTH_FLAT, 0, 60);
+    SPACE_SEL = 0;
+    render(out, "home-laptop", home_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    render(out, "spaces-laptop", spaces_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 48);
+    render(out, "spaces-large", spaces_screen, 2560, 1440, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT, 0, 36);
+    render(out, "spaces-phone", spaces_screen, 780, 1688, 512, ZUI_INPUT_TOUCH, ZUI_DEPTH_FLAT, 0, 60);
+    render(out, "spaces-amber-blue", spaces_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_ANAGLYPH_AMBER_BLUE, 0, 48);
+    for (int i = 0; i < 16; i++) {
+        /* travelling across the plan: the viewpoint sweeps and layers part by depth */
+        char n[64];
+        snprintf(n, sizeof n, "spaces-travel-%02d", i);
+        render(out, n, spaces_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_PARALLAX,
+               (i - 8) * 110, 48);
+    }
+    SPACE_SEL = -1;
     render(out, "depth-amber-blue", studio, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_ANAGLYPH_AMBER_BLUE, 0, 48);
     render(out, "depth-red-cyan", studio, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_ANAGLYPH_RED_CYAN, 0, 48);
     render(out, "depth-chroma", studio, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_CHROMA, 0, 48);

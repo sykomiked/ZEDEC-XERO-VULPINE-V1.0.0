@@ -7,9 +7,9 @@
  * live here once and the other shells read them (see tools/zui/zui_mockup.c
  * --tokens, which prints them as JSON).
  *
- * The palette continues the approved dark + gold mockups (zxv-ui/mockups):
- * a near-black void, two panel steps, hairlines rather than shadows, one gold
- * accent per screen, and three status colours. Values are XRGB8888.
+ * The palette is the owner's green + gold scheme: a deep green ground, carved
+ * steps of the same hue, engraved hairlines, one gold accent per screen, and
+ * three status colours. Values are XRGB8888.
  *
  * Units are POINTS (density-independent). zui_px() turns points into device
  * pixels for the negotiated panel scale, so a 44 pt touch target is 44 pt on a
@@ -21,21 +21,27 @@
 #include <stdint.h>
 
 /* ---- colour ------------------------------------------------------------ */
-#define ZUI_VOID        0x0C0F14u   /* window background                  */
-#define ZUI_PANEL       0x141922u   /* first surface step                 */
-#define ZUI_RAISED      0x1B212Bu   /* inputs, selected rows              */
-#define ZUI_HAIRLINE    0x222A35u   /* dividers                           */
-#define ZUI_EDGE        0x2C3442u   /* control outlines                   */
-#define ZUI_TEXT        0xE7E9EEu   /* primary text                       */
-#define ZUI_TEXT_2      0xC3C9D4u   /* secondary text                     */
-#define ZUI_MUTED       0x9AA3B2u   /* labels, captions                   */
-#define ZUI_FAINT       0x5D6675u   /* disabled, placeholders             */
-#define ZUI_GOLD        0xD9A92Eu   /* the one accent                     */
-#define ZUI_GOLD_HI     0xE7B84Au   /* accent hover                       */
-#define ZUI_GOLD_GLOW   0xF3CF78u   /* accent highlight / glow            */
-#define ZUI_OK          0x5CC98Au
-#define ZUI_INFO        0x4C8DFFu
-#define ZUI_ALERT       0xE05FA8u
+/* Owner's scheme (2026-10-12): deep green #002911 ground, engraved with a
+ * very light tint of the same green, light green text, golden-yellow accent.
+ * Every surface is a step of the same hue, so depth reads as carving into one
+ * material rather than cards floating on black. */
+#define ZUI_VOID        0x002911u   /* the ground                          */
+#define ZUI_PANEL       0x04331Au   /* first carved step                   */
+#define ZUI_RAISED      0x0B4026u   /* inputs, selected rows               */
+#define ZUI_HAIRLINE    0x15502Fu   /* dividers (tint of the ground)       */
+#define ZUI_EDGE        0x2A6A47u   /* control outlines                    */
+#define ZUI_ENGRAVE_HI  0xCFE8D8u   /* the light tint: lower lip of a cut  */
+#define ZUI_ENGRAVE_LO  0x001A0Bu   /* the shade: upper wall of a cut      */
+#define ZUI_TEXT        0xD8F5E1u   /* light green text                    */
+#define ZUI_TEXT_2      0xB2E0C2u
+#define ZUI_MUTED       0x84B795u
+#define ZUI_FAINT       0x5E8F72u
+#define ZUI_GOLD        0xF2C230u   /* the one accent: golden yellow       */
+#define ZUI_GOLD_HI     0xFFD24Du
+#define ZUI_GOLD_GLOW   0xFFE38Au
+#define ZUI_OK          0x7BE8A6u
+#define ZUI_INFO        0x6FB8FFu
+#define ZUI_ALERT       0xFF7A93u
 
 /* ---- spacing (points, 4 pt grid) --------------------------------------- */
 #define ZUI_S1   4
