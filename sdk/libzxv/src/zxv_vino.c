@@ -496,13 +496,16 @@ static int32_t check_fields(int32_t lane, uint32_t flags, uint64_t amount, uint6
     return ZXV_OK;
 }
 
-int32_t zxv_vino_request_encode(const zxv_vino_request *req, uint8_t out[160], uint8_t out_id[32])
+int32_t zxv_vino_request_encode(int32_t lane, uint32_t flags, const uint8_t merchant[32],
+                                const uint8_t nonce[16], uint64_t amount, uint64_t created_at,
+                                uint64_t expires_at, const char *memo, uint8_t out[160],
+                                uint8_t out_id[32])
 {
-    if (!req || !out) return zxvi_fail(ZXV_E_ARG, "vino_request_encode: req or out is NULL");
-    int32_t rc = check_fields(req->lane, req->flags, req->amount, req->created_at, req->expires_at,
-                              "vino_request_encode");
+    if (!merchant || !nonce || !out)
+        return zxvi_fail(ZXV_E_ARG, "vino_request_encode: merchant, nonce or out is NULL");
+    int32_t rc = check_fields(lane, flags, amount, created_at, expires_at, "vino_request_encode");
     if (rc) return rc;
-    const char *memo = req->memo ? req->memo : "";
+    if (!memo) memo = "";
     size_t n = strnlen(memo, ZXV_VINO_MEMO_MAX + 1);
     if (n > ZXV_VINO_MEMO_MAX)
         return zxvi_fail(ZXV_E_TOO_LONG, "vino_request_encode: memo is over 64 bytes");
@@ -511,14 +514,14 @@ int32_t zxv_vino_request_encode(const zxv_vino_request *req, uint8_t out[160], u
     uint8_t b[ZXV_VINO_REQ_BYTES] = {0};
     memcpy(b, REQ_MAGIC, 4);
     b[4] = 1;
-    b[5] = (uint8_t) req->lane;
-    b[6] = (uint8_t) req->flags;
-    b[7] = (uint8_t) (req->flags >> 8);
-    memcpy(b + 8, req->merchant, 32);
-    memcpy(b + 40, req->nonce, 16);
-    put64(b + 56, req->amount);
-    put64(b + 64, req->created_at);
-    put64(b + 72, req->expires_at);
+    b[5] = (uint8_t) lane;
+    b[6] = (uint8_t) flags;
+    b[7] = (uint8_t) (flags >> 8);
+    memcpy(b + 8, merchant, 32);
+    memcpy(b + 40, nonce, 16);
+    put64(b + 56, amount);
+    put64(b + 64, created_at);
+    put64(b + 72, expires_at);
     b[80] = (uint8_t) n;
     memcpy(b + 81, memo, n);
     memcpy(out, b, sizeof b);
@@ -526,39 +529,47 @@ int32_t zxv_vino_request_encode(const zxv_vino_request *req, uint8_t out[160], u
     return zxvi_ok();
 }
 
-int32_t zxv_vino_request_decode(const uint8_t in[160], zxv_vino_request *req, char *memo_buf,
-                                size_t memo_buf_len, uint8_t out_id[32])
+/* Validate request bytes; on ZXV_OK the window is in *created / *expires. */
+static int32_t check_request(const uint8_t in[160], uint64_t *created, uint64_t *expires,
+                             const char *what)
 {
-    if (!in || !req || !memo_buf)
-        return zxvi_fail(ZXV_E_ARG, "vino_request_decode: in, req or memo_buf is NULL");
-    if (memo_buf_len < ZXV_VINO_MEMO_MAX + 1)
-        return zxvi_fail(ZXV_E_ARG, "vino_request_decode: memo_buf needs 65 bytes, has %zu",
-                         memo_buf_len);
     if (memcmp(in, REQ_MAGIC, 4) || in[4] != 1)
-        return zxvi_fail(ZXV_E_FORMAT, "vino_request_decode: not a version 1 request");
-    zxv_vino_request r;
-    memset(&r, 0, sizeof r);
-    r.lane = in[5];
-    r.flags = (uint32_t) in[6] | ((uint32_t) in[7] << 8);
-    memcpy(r.merchant, in + 8, 32);
-    memcpy(r.nonce, in + 40, 16);
-    r.amount = get64(in + 56);
-    r.created_at = get64(in + 64);
-    r.expires_at = get64(in + 72);
-    int32_t rc =
-        check_fields(r.lane, r.flags, r.amount, r.created_at, r.expires_at, "vino_request_decode");
+        return zxvi_fail(ZXV_E_FORMAT, "%s: not a version 1 request", what);
+    uint32_t flags = (uint32_t) in[6] | ((uint32_t) in[7] << 8);
+    *created = get64(in + 64);
+    *expires = get64(in + 72);
+    int32_t rc = check_fields(in[5], flags, get64(in + 56), *created, *expires, what);
     if (rc) return rc;
     size_t n = in[80];
     if (n > ZXV_VINO_MEMO_MAX)
-        return zxvi_fail(ZXV_E_TOO_LONG, "vino_request_decode: memo length %zu is over 64", n);
+        return zxvi_fail(ZXV_E_TOO_LONG, "%s: memo length %zu is over 64", what, n);
     if (!printable((const char *) in + 81, n))
-        return zxvi_fail(ZXV_E_FORMAT, "vino_request_decode: memo is not printable ASCII");
+        return zxvi_fail(ZXV_E_FORMAT, "%s: memo is not printable ASCII", what);
     for (size_t i = 81 + n; i < ZXV_VINO_REQ_BYTES; i++)
-        if (in[i]) return zxvi_fail(ZXV_E_FORMAT, "vino_request_decode: padding is not zero");
-    memcpy(memo_buf, in + 81, n);
-    memo_buf[n] = '\0';
-    r.memo = memo_buf;
-    *req = r;
+        if (in[i]) return zxvi_fail(ZXV_E_FORMAT, "%s: padding is not zero", what);
+    return ZXV_OK;
+}
+
+int32_t zxv_vino_request_decode(const uint8_t in[160], int32_t *out_lane, uint32_t *out_flags,
+                                uint8_t out_merchant[32], uint8_t out_nonce[16],
+                                uint64_t *out_amount, uint64_t *out_created_at,
+                                uint64_t *out_expires_at, char memo[65], uint8_t out_id[32])
+{
+    if (!in) return zxvi_fail(ZXV_E_ARG, "vino_request_decode: in is NULL");
+    uint64_t created = 0, expires = 0;
+    int32_t rc = check_request(in, &created, &expires, "vino_request_decode");
+    if (rc) return rc;
+    if (out_lane) *out_lane = in[5];
+    if (out_flags) *out_flags = (uint32_t) in[6] | ((uint32_t) in[7] << 8);
+    if (out_merchant) memcpy(out_merchant, in + 8, 32);
+    if (out_nonce) memcpy(out_nonce, in + 40, 16);
+    if (out_amount) *out_amount = get64(in + 56);
+    if (out_created_at) *out_created_at = created;
+    if (out_expires_at) *out_expires_at = expires;
+    if (memo) {
+        memcpy(memo, in + 81, in[80]);
+        memo[in[80]] = '\0';
+    }
     if (out_id) sha256(in, ZXV_VINO_REQ_BYTES, out_id);
     return zxvi_ok();
 }
@@ -581,18 +592,17 @@ int32_t zxv_vino_receipt_msg(const uint8_t request_id[32], const uint8_t wallet_
 /* Decode `request` and check approved_at against its window; on ZXV_OK
  * msg holds the bytes the wallet signs. */
 static int32_t approval(const uint8_t request[160], const uint8_t wallet_pk[2592],
-                        uint64_t approved_at, uint8_t msg[88], zxv_vino_request *r,
-                        const char *what)
+                        uint64_t approved_at, uint8_t msg[88], uint64_t *expires, const char *what)
 {
-    char memo[ZXV_VINO_MEMO_MAX + 1];
-    uint8_t id[32];
-    int32_t rc = zxv_vino_request_decode(request, r, memo, sizeof memo, id);
+    uint64_t created = 0;
+    int32_t rc = check_request(request, &created, expires, what);
     if (rc) return rc;
-    if (approved_at < r->created_at || approved_at > r->expires_at)
+    if (approved_at < created || approved_at > *expires)
         return zxvi_fail(ZXV_E_EXPIRED, "%s: approved_at %llu is outside [%llu, %llu]", what,
-                         (unsigned long long) approved_at, (unsigned long long) r->created_at,
-                         (unsigned long long) r->expires_at);
-    r->memo = NULL; /* memo[] goes out of scope */
+                         (unsigned long long) approved_at, (unsigned long long) created,
+                         (unsigned long long) *expires);
+    uint8_t id[32];
+    sha256(request, ZXV_VINO_REQ_BYTES, id);
     return zxv_vino_receipt_msg(id, wallet_pk, approved_at, msg);
 }
 
@@ -605,8 +615,8 @@ int32_t zxv_vino_receipt_sign(const zxv_cap *cap, const uint8_t request[160],
     if (!request || !wallet_sk || !wallet_pk || !sig)
         return zxvi_fail(ZXV_E_ARG, "vino_receipt_sign: NULL argument");
     uint8_t msg[ZXV_VINO_RCPT_MSG_BYTES];
-    zxv_vino_request r;
-    rc = approval(request, wallet_pk, approved_at, msg, &r, "vino_receipt_sign");
+    uint64_t expires = 0;
+    rc = approval(request, wallet_pk, approved_at, msg, &expires, "vino_receipt_sign");
     if (rc) return rc;
     return zxv_mldsa87_sign(cap, wallet_sk, msg, sizeof msg, NULL, 0, sig);
 }
@@ -617,12 +627,12 @@ int32_t zxv_vino_receipt_verify(const uint8_t request[160], const uint8_t wallet
     if (!request || !wallet_pk || !sig)
         return zxvi_fail(ZXV_E_ARG, "vino_receipt_verify: NULL argument");
     uint8_t msg[ZXV_VINO_RCPT_MSG_BYTES];
-    zxv_vino_request r;
-    int32_t rc = approval(request, wallet_pk, approved_at, msg, &r, "vino_receipt_verify");
+    uint64_t expires = 0;
+    int32_t rc = approval(request, wallet_pk, approved_at, msg, &expires, "vino_receipt_verify");
     if (rc) return rc;
-    if (now > r.expires_at)
+    if (now > expires)
         return zxvi_fail(ZXV_E_EXPIRED, "vino_receipt_verify: the request expired at %llu",
-                         (unsigned long long) r.expires_at);
+                         (unsigned long long) expires);
     /* The reference verify keeps no mutable state: no lock is needed. */
     if (!pqm_mldsa87_verify(wallet_pk, msg, sizeof msg, NULL, 0, sig))
         return zxvi_fail(ZXV_E_VERIFY, "vino_receipt_verify: not this wallet's approval");

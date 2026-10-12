@@ -3949,31 +3949,38 @@ ZXV_API int32_t zxv_vino_play_check(const zxv_cap *cap, zxv_vino_play *p);
  *   80  memo length (1)  81  memo, NUL padded to 64 bytes
  *   145 zero (15)
  * amount is in VFV minor units for LIVE and play units for PLAY. Times are
- * seconds of the caller's clock (Unix time is the convention). */
-typedef struct {
-    int32_t lane;         /* ZXV_VINO_LANE_*                          */
-    uint32_t flags;       /* ZXV_VINO_REQ_*                           */
-    uint8_t merchant[32]; /* the payee's id (e.g. SHA-256 of its key) */
-    uint8_t nonce[16];    /* unique per request                       */
-    uint64_t amount;      /* 1 .. ZXV_VINO_AMOUNT_MAX                 */
-    uint64_t created_at;
-    uint64_t expires_at; /* > created_at                             */
-    const char *memo;    /* NUL-terminated, may be NULL or ""        */
-} zxv_vino_request;
+ * seconds of the caller's clock (Unix time is the convention). The fields
+ * are passed one by one (rule R2: no struct crosses the ABI):
+ *   lane        ZXV_VINO_LANE_*
+ *   flags       ZXV_VINO_REQ_*
+ *   merchant    the payee's id (e.g. SHA-256 of its key)
+ *   nonce       unique per request
+ *   amount      1 .. ZXV_VINO_AMOUNT_MAX
+ *   expires_at  > created_at
+ *   memo        0..64 printable ASCII bytes (0x20..0x7e), NUL-terminated;
+ *               NULL means "" */
 
 /* Encode a request into out[ZXV_VINO_REQ_BYTES] and its id
- * (SHA-256 of those bytes) into out_id (may be NULL). ZXV_E_CHANCE (a LIVE
- * request with ZXV_VINO_REQ_CHANCE), ZXV_E_LANE (lane not 1 or 2),
- * ZXV_E_RANGE (amount 0 or too large, expires_at <= created_at),
- * ZXV_E_FORMAT (unknown flag, memo not printable ASCII), ZXV_E_TOO_LONG
- * (memo above 64 bytes), ZXV_E_ARG (NULL req or out). */
-ZXV_API int32_t zxv_vino_request_encode(const zxv_vino_request *req, uint8_t out[160],
-                                        uint8_t out_id[32]);
-/* Decode and validate request bytes (the same rules as encode, plus the
- * magic, version and zero padding: ZXV_E_FORMAT). req->memo points at
- * memo_buf (at least 65 bytes, written NUL-terminated). ZXV_E_ARG. */
-ZXV_API int32_t zxv_vino_request_decode(const uint8_t in[160], zxv_vino_request *req,
-                                        char *memo_buf, size_t memo_buf_len, uint8_t out_id[32]);
+ * (SHA-256 of those bytes) into out_id (may be NULL). ZXV_E_LANE (lane not
+ * 1 or 2), ZXV_E_FORMAT (unknown flag, memo not printable ASCII),
+ * ZXV_E_CHANCE (a LIVE request with ZXV_VINO_REQ_CHANCE), ZXV_E_RANGE
+ * (amount 0 or too large, expires_at <= created_at), ZXV_E_TOO_LONG (memo
+ * above 64 bytes), ZXV_E_ARG (NULL merchant, nonce or out). A refusal
+ * writes nothing. */
+ZXV_API int32_t zxv_vino_request_encode(int32_t lane, uint32_t flags, const uint8_t merchant[32],
+                                        const uint8_t nonce[16], uint64_t amount,
+                                        uint64_t created_at, uint64_t expires_at, const char *memo,
+                                        uint8_t out[160], uint8_t out_id[32]);
+/* Decode and validate request bytes: the same rules as encode, plus the
+ * magic, version and zero padding (ZXV_E_FORMAT). Every out may be NULL;
+ * memo (if not NULL) receives the memo NUL-terminated, so it has room for
+ * ZXV_VINO_MEMO_MAX + 1 bytes. A refusal writes nothing. ZXV_E_ARG (in
+ * NULL). */
+ZXV_API int32_t zxv_vino_request_decode(const uint8_t in[160], int32_t *out_lane,
+                                        uint32_t *out_flags, uint8_t out_merchant[32],
+                                        uint8_t out_nonce[16], uint64_t *out_amount,
+                                        uint64_t *out_created_at, uint64_t *out_expires_at,
+                                        char memo[65], uint8_t out_id[32]);
 
 /* The ZXV_VINO_RCPT_MSG_BYTES bytes a wallet signs to approve request
  * `request_id` with key `wallet_pk` at `approved_at`. ZXV_E_ARG. */

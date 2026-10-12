@@ -524,9 +524,33 @@ static void test_model(void)
 }
 
 /* ---- requests ---- */
-static zxv_vino_request base_req(void)
+/* The test's own record of a request's fields (the ABI passes them one by
+ * one), and thin wrappers over encode and decode. */
+typedef struct {
+    int32_t lane;
+    uint32_t flags;
+    uint8_t merchant[32];
+    uint8_t nonce[16];
+    uint64_t amount, created_at, expires_at;
+    const char *memo;
+} req_t;
+
+static int32_t enc(const req_t *r, uint8_t out[160], uint8_t id[32])
 {
-    zxv_vino_request r;
+    return zxv_vino_request_encode(r->lane, r->flags, r->merchant, r->nonce, r->amount,
+                                   r->created_at, r->expires_at, r->memo, out, id);
+}
+static int32_t dec(const uint8_t in[160], req_t *r, char memo[65], uint8_t id[32])
+{
+    int32_t rc = zxv_vino_request_decode(in, &r->lane, &r->flags, r->merchant, r->nonce, &r->amount,
+                                         &r->created_at, &r->expires_at, memo, id);
+    r->memo = memo;
+    return rc;
+}
+
+static req_t base_req(void)
+{
+    req_t r;
     memset(&r, 0, sizeof r);
     r.lane = ZXV_VINO_LANE_LIVE;
     for (int i = 0; i < 32; i++) r.merchant[i] = (uint8_t) (i + 1);
@@ -549,9 +573,9 @@ static void hex32(const char *h, uint8_t out[32])
 
 static void test_requests(void)
 {
-    zxv_vino_request r = base_req();
+    req_t r = base_req();
     uint8_t b[160], id[32], want_id[32];
-    OK(zxv_vino_request_encode(&r, b, id));
+    OK(enc(&r, b, id));
     uint8_t w[160] = {0};
     memcpy(w, "ZXVR", 4);
     w[4] = 1;
@@ -566,33 +590,50 @@ static void test_requests(void)
     CHECK(!memcmp(b, w, 160), "request bytes");
     hex32("1e7de163084ef123f7af1f9c547f8b950d6a3620b95c21e69aeceeaef4293f74", want_id);
     CHECK(!memcmp(id, want_id, 32), "request id");
-    OK(zxv_vino_request_encode(&r, b, NULL));
+    OK(enc(&r, b, NULL));
 
-    zxv_vino_request d;
+    req_t d;
     char memo[65];
     uint8_t id2[32];
-    OK(zxv_vino_request_decode(b, &d, memo, sizeof memo, id2));
+    OK(dec(b, &d, memo, id2));
     CHECK(d.lane == 2 && d.flags == 0 && d.amount == 1234567 && d.created_at == 1700000000 &&
               d.expires_at == 1700000600 && !memcmp(d.merchant, r.merchant, 32) &&
               !memcmp(d.nonce, r.nonce, 16) && d.memo == memo && !strcmp(memo, "Sword of Dawn") &&
               !memcmp(id2, want_id, 32),
           "round trip");
-    OK(zxv_vino_request_decode(b, &d, memo, sizeof memo, NULL));
-    IS(zxv_vino_request_decode(b, &d, memo, 64, NULL), ZXV_E_ARG);
-    IS(zxv_vino_request_decode(NULL, &d, memo, 65, NULL), ZXV_E_ARG);
-    IS(zxv_vino_request_decode(b, NULL, memo, 65, NULL), ZXV_E_ARG);
-    IS(zxv_vino_request_decode(b, &d, NULL, 65, NULL), ZXV_E_ARG);
-    IS(zxv_vino_request_encode(NULL, b, NULL), ZXV_E_ARG);
-    IS(zxv_vino_request_encode(&r, NULL, NULL), ZXV_E_ARG);
+    OK(dec(b, &d, memo, NULL));
+    OK(zxv_vino_request_decode(b, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL));
+    IS(zxv_vino_request_decode(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+       ZXV_E_ARG);
+    IS(zxv_vino_request_encode(2, 0, NULL, r.nonce, 1, 1, 2, "", b, NULL), ZXV_E_ARG);
+    IS(zxv_vino_request_encode(2, 0, r.merchant, NULL, 1, 1, 2, "", b, NULL), ZXV_E_ARG);
+    {
+        /* a refused decode writes nothing */
+        uint8_t t[160], m[32], nc[16];
+        int32_t lane = 7;
+        uint32_t fl = 7;
+        uint64_t am = 7, cr = 7, ex = 7;
+        char mm[65] = "keep";
+        memcpy(t, b, 160);
+        t[159] = 1;
+        memset(m, 7, sizeof m);
+        memset(nc, 7, sizeof nc);
+        memset(id2, 7, sizeof id2);
+        IS(zxv_vino_request_decode(t, &lane, &fl, m, nc, &am, &cr, &ex, mm, id2), ZXV_E_FORMAT);
+        CHECK(lane == 7 && fl == 7 && am == 7 && cr == 7 && ex == 7 && m[0] == 7 && m[31] == 7 &&
+                  nc[15] == 7 && id2[0] == 7 && !strcmp(mm, "keep"),
+              "refused decode wrote nothing");
+    }
+    IS(enc(&r, NULL, NULL), ZXV_E_ARG);
 
     /* encode refusals, each leaving out untouched */
 #define BAD(body, code)                                                                            \
     do {                                                                                           \
-        zxv_vino_request q = base_req();                                                           \
+        req_t q = base_req();                                                                      \
         body;                                                                                      \
         uint8_t o[160];                                                                            \
         memset(o, 0xEE, sizeof o);                                                                 \
-        IS(zxv_vino_request_encode(&q, o, NULL), code);                                            \
+        IS(enc(&q, o, NULL), code);                                                                \
         CHECK(o[0] == 0xEE && o[159] == 0xEE, "out untouched: %s", #body);                         \
     } while (0)
     BAD(q.lane = 0, ZXV_E_LANE);
@@ -610,35 +651,35 @@ static void test_requests(void)
         ZXV_E_TOO_LONG);
 
     /* the play lane may mark a chance outcome; edges that are allowed */
-    zxv_vino_request q = base_req();
+    req_t q = base_req();
     q.lane = ZXV_VINO_LANE_PLAY;
     q.flags = ZXV_VINO_REQ_CHANCE;
     q.memo = NULL;
     q.amount = ZXV_VINO_AMOUNT_MAX;
     q.expires_at = q.created_at + 1;
-    OK(zxv_vino_request_encode(&q, b, NULL));
+    OK(enc(&q, b, NULL));
     CHECK(b[5] == 1 && b[6] == 1 && b[80] == 0, "play chance bytes");
-    OK(zxv_vino_request_decode(b, &d, memo, sizeof memo, NULL));
+    OK(dec(b, &d, memo, NULL));
     CHECK(d.flags == 1 && d.lane == 1 && memo[0] == 0 && d.amount == ZXV_VINO_AMOUNT_MAX,
           "play chance decoded");
     q = base_req();
     q.memo = "0123456789012345678901234567890123456789012345678901234567890123";
-    OK(zxv_vino_request_encode(&q, b, NULL));
-    OK(zxv_vino_request_decode(b, &d, memo, sizeof memo, NULL));
+    OK(enc(&q, b, NULL));
+    OK(dec(b, &d, memo, NULL));
     CHECK(strlen(memo) == 64 && b[80] == 64, "64-byte memo");
     q.memo = " ~";
-    OK(zxv_vino_request_encode(&q, b, NULL));
+    OK(enc(&q, b, NULL));
 
     /* decode refusals on bytes that encode would never write */
     uint8_t good[160];
     r = base_req();
-    OK(zxv_vino_request_encode(&r, good, NULL));
+    OK(enc(&r, good, NULL));
 #define DBAD(off, val, code)                                                                       \
     do {                                                                                           \
         uint8_t t_[160];                                                                           \
         memcpy(t_, good, 160);                                                                     \
         t_[off] = (uint8_t) (val);                                                                 \
-        IS(zxv_vino_request_decode(t_, &d, memo, sizeof memo, NULL), code);                        \
+        IS(dec(t_, &d, memo, NULL), code);                                                         \
     } while (0)
     DBAD(0, 'Y', ZXV_E_FORMAT);
     DBAD(3, 'r', ZXV_E_FORMAT);
@@ -662,12 +703,12 @@ static void test_requests(void)
         uint8_t t[160];
         memcpy(t, good, 160);
         memset(t + 56, 0, 8);
-        IS(zxv_vino_request_decode(t, &d, memo, sizeof memo, NULL), ZXV_E_RANGE);
+        IS(dec(t, &d, memo, NULL), ZXV_E_RANGE);
         memcpy(t, good, 160);
         t[80] = 12; /* a shorter memo leaves a non-zero byte in the pad */
-        IS(zxv_vino_request_decode(t, &d, memo, sizeof memo, NULL), ZXV_E_FORMAT);
+        IS(dec(t, &d, memo, NULL), ZXV_E_FORMAT);
         t[93] = 0;
-        OK(zxv_vino_request_decode(t, &d, memo, sizeof memo, NULL));
+        OK(dec(t, &d, memo, NULL));
         CHECK(!strcmp(memo, "Sword of Daw"), "12-byte memo");
     }
 }
@@ -688,9 +729,9 @@ static void test_receipts(void)
     IS(zxv_vino_receipt_msg(id, NULL, 0, msg), ZXV_E_ARG);
     IS(zxv_vino_receipt_msg(id, pkx, 0, NULL), ZXV_E_ARG);
 
-    zxv_vino_request r = base_req();
+    req_t r = base_req();
     uint8_t req[160];
-    OK(zxv_vino_request_encode(&r, req, NULL));
+    OK(enc(&r, req, NULL));
     static uint8_t pk[2][2592], sk[2][4896], sig[4627];
     if (!(feat2 & ZXV_FEAT2_VHUB)) {
         /* a ZXV_NO_PQC build */
@@ -708,9 +749,9 @@ static void test_receipts(void)
     OK(zxv_vino_receipt_verify(req, pk[0], at, sig, now));
     /* the signature is ML-DSA-87 over the documented message */
     uint8_t rid[32];
-    zxv_vino_request d;
+    req_t d;
     char memo[65];
-    OK(zxv_vino_request_decode(req, &d, memo, sizeof memo, rid));
+    OK(dec(req, &d, memo, rid));
     OK(zxv_vino_receipt_msg(rid, pk[0], at, msg));
     OK(zxv_mldsa87_verify(root, pk[0], msg, sizeof msg, NULL, 0, sig));
     /* window edges */
@@ -843,9 +884,9 @@ static void test_context(void)
     CHECK(m2 == NULL, "no meter");
     IS(zxv_vino_meter_admit(vino, m, 1, 1, NULL), ZXV_E_POISONED);
     /* pure calls do not depend on a context */
-    zxv_vino_request r = base_req();
+    req_t r = base_req();
     uint8_t b[160];
-    OK(zxv_vino_request_encode(&r, b, NULL));
+    OK(enc(&r, b, NULL));
     zxv_vino_play_destroy(p);
     zxv_vino_meter_destroy(m);
 }

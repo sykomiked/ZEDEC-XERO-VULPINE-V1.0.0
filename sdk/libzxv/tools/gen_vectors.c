@@ -2585,7 +2585,31 @@ static void status16(void)
     printf("]");
 }
 
-static void vreq_fields(const zxv_vino_request *r)
+/* The test's own record of a request's fields (the ABI passes them one by
+ * one), and thin wrappers over encode and decode. */
+typedef struct {
+    int32_t lane;
+    uint32_t flags;
+    uint8_t merchant[32];
+    uint8_t nonce[16];
+    uint64_t amount, created_at, expires_at;
+    const char *memo;
+} req_t;
+
+static int32_t enc(const req_t *r, uint8_t out[160], uint8_t id[32])
+{
+    return zxv_vino_request_encode(r->lane, r->flags, r->merchant, r->nonce, r->amount,
+                                   r->created_at, r->expires_at, r->memo, out, id);
+}
+static int32_t dec(const uint8_t in[160], req_t *r, char memo[65], uint8_t id[32])
+{
+    int32_t rc = zxv_vino_request_decode(in, &r->lane, &r->flags, r->merchant, r->nonce, &r->amount,
+                                         &r->created_at, &r->expires_at, memo, id);
+    r->memo = memo;
+    return rc;
+}
+
+static void vreq_fields(const req_t *r)
 {
     printf("\"lane\":%d,\"flags\":%u,\"merchant\":", r->lane, r->flags);
     phex(r->merchant, 32);
@@ -2601,9 +2625,9 @@ static void vreq_fields(const zxv_vino_request *r)
     pjs(r->memo ? r->memo : "");
 }
 
-static zxv_vino_request vreq_base(void)
+static req_t vreq_base(void)
 {
-    zxv_vino_request r;
+    req_t r;
     memset(&r, 0, sizeof r);
     r.lane = ZXV_VINO_LANE_LIVE;
     for (int i = 0; i < 32; i++) r.merchant[i] = (uint8_t) (i + 1);
@@ -2630,7 +2654,7 @@ static void vino(zxv_cap *cap)
     printf(",\"vino\":{\"requests\":[");
     /* encode cases: each changes one field of the base request */
     for (int i = 0; i < 16; i++) {
-        zxv_vino_request r = vreq_base();
+        req_t r = vreq_base();
         switch (i) {
         case 1:
             r.lane = ZXV_VINO_LANE_PLAY, r.flags = ZXV_VINO_REQ_CHANCE, r.memo = NULL;
@@ -2681,7 +2705,7 @@ static void vino(zxv_cap *cap)
             break;
         }
         uint8_t b[160], id[32];
-        int32_t rc = zxv_vino_request_encode(&r, b, id);
+        int32_t rc = enc(&r, b, id);
         printf("%s{", i ? "," : "");
         vreq_fields(&r);
         printf(",\"status\":");
@@ -2695,9 +2719,9 @@ static void vino(zxv_cap *cap)
         printf("}");
     }
     /* decode refusals: the base bytes with one byte changed */
-    zxv_vino_request base = vreq_base();
+    req_t base = vreq_base();
     uint8_t good[160];
-    zxv_vino_request_encode(&base, good, NULL);
+    enc(&base, good, NULL);
     static const struct {
         uint8_t off, val;
     } db[] = {{0, 'Y'}, {4, 2},   {5, 0},   {5, 3},     {6, 1},    {6, 2},   {7, 1},  {63, 8},
@@ -2707,9 +2731,9 @@ static void vino(zxv_cap *cap)
         uint8_t t[160];
         memcpy(t, good, 160);
         t[db[i].off] = db[i].val;
-        zxv_vino_request d;
+        req_t d;
         char memo[65];
-        int32_t rc = zxv_vino_request_decode(t, &d, memo, sizeof memo, NULL);
+        int32_t rc = dec(t, &d, memo, NULL);
         printf("%s{\"offset\":%u,\"value\":%u,\"status\":", i ? "," : "", db[i].off, db[i].val);
         pst(rc);
         printf("}");
@@ -2726,9 +2750,9 @@ static void vino(zxv_cap *cap)
         memset(seed, 0x31, sizeof seed);
         zxv_mldsa87_keygen_seed(cap, seed, pk, sk);
         zxv_sha3_256(pk, sizeof pk, hs);
-        zxv_vino_request d;
+        req_t d;
         char memo[65];
-        zxv_vino_request_decode(good, &d, memo, sizeof memo, id);
+        dec(good, &d, memo, id);
         const uint64_t at = 1700000100;
         zxv_vino_receipt_msg(id, pk, at, msg);
         zxv_mldsa87_sign_deterministic(cap, sk, msg, sizeof msg, NULL, 0, sig);
