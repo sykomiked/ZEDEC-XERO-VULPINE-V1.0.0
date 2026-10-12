@@ -105,9 +105,19 @@ on each call, so a hidden button in the interface is never the only guard.
   one into, with the role it was given. Until the mesh syncs spaces, the check
   guards this node's copy, and the owner's node checks again when changes
   reach it.
-- **Not yet:** syncing spaces between nodes, publishing a cloud top or park
-  under a CID, and group decisions on members (the native interface's
-  governance model, `zui_space.c`, decides; zxvd records the result).
+- **Members are decided by the space's governance.** A vertical space's
+  owner decides: `spaces.set_members`, or a member's `spaces.propose` that
+  waits until the owner votes. In a horizontal space (`"governance":
+  "horizontal"` on `spaces.create`) the owner and members vote with
+  `spaces.propose` and `spaces.vote`: a list passes when the yes votes reach
+  `quorum_pct` (51 unless set) with no objection. Quorum with objections is a
+  dispute (`both`) for people to settle and is never applied; a list that can
+  no longer pass is dropped. zxvd counts the votes itself and never takes a
+  tally from a client. `spaces.get` shows each open proposal with its votes
+  and state, the same rule the native interface draws (`zui_space.c`).
+- **Not yet:** syncing spaces and other members' votes between nodes (votes
+  will arrive only after the mesh checks each member's signature), and
+  publishing a cloud top or park under a CID.
 
 ## Names
 

@@ -1489,7 +1489,7 @@ static void m_files_cross(call_t *c)
 
 static void space_json(zxvd_buf_t *b, const zxs_space_t *s)
 {
-    static char js[16384];
+    static char js[96u * 1024u];
     int32_t n = zxs_json(s, js, sizeof js);
     if (n < 0)
         zxvd_buf_raw(b, "null", 4);
@@ -1533,13 +1533,48 @@ static bool p_kind(call_t *c, zxs_kind_t *k)
     return true;
 }
 
+/* optional "governance" (vertical when absent) and "quorum_pct" (51) */
+static bool p_gov(call_t *c, zxs_gov_t *gov, uint8_t *quorum)
+{
+    char g[16];
+    uint64_t q;
+    if (!p_str(c, "governance", g, sizeof g, false) || !p_opt_u64(c, "quorum_pct", 51, &q))
+        return false;
+    if (!g[0] || !strcmp(g, "vertical"))
+        *gov = ZXS_GOV_VERTICAL;
+    else if (!strcmp(g, "horizontal"))
+        *gov = ZXS_GOV_HORIZONTAL;
+    else {
+        fail(c, E_PARAMS, "\"governance\" must be vertical or horizontal");
+        return false;
+    }
+    if (q < 1 || q > 100) {
+        fail(c, E_PARAMS, "\"quorum_pct\" must be 1 to 100");
+        return false;
+    }
+    *quorum = (uint8_t) q;
+    return true;
+}
+
+/* a zxv_spaces result: its own refusals are -32013, the folder's -32012 */
+static bool spaces_done(call_t *c, int rc)
+{
+    if (rc <= ZXS_E_ROLE && rc >= ZXS_E_GOV) {
+        fail(c, ZXVD_E_SPACE, "%s", zxs_strerror(rc));
+        return false;
+    }
+    return files_done(c, rc);
+}
+
 static void m_spaces_create(call_t *c)
 {
     static zxs_space_t s;
     char name[ZXS_NAME_MAX + 1];
     zxs_kind_t k;
-    if (!p_kind(c, &k) || !p_str(c, "name", name, sizeof name, true)) return;
-    if (!files_done(c, zxs_create(k, name, &s))) return;
+    zxs_gov_t gov;
+    uint8_t q;
+    if (!p_kind(c, &k) || !p_str(c, "name", name, sizeof name, true) || !p_gov(c, &gov, &q)) return;
+    if (!files_done(c, zxs_create(k, name, gov, q, &s))) return;
     space_json(c->res, &s);
 }
 
@@ -1547,51 +1582,121 @@ static void m_spaces_join(call_t *c)
 {
     static zxs_space_t s;
     char id[ZXF_SPACE_ID_MAX + 1], name[ZXS_NAME_MAX + 1], owner[ZXS_WHO_MAX + 1], role[16];
+    char self[ZXS_WHO_MAX + 1];
     zxs_kind_t k;
+    zxs_gov_t gov;
+    uint8_t q;
     if (!p_str(c, "id", id, sizeof id, true) || !p_kind(c, &k) ||
         !p_str(c, "name", name, sizeof name, true) ||
-        !p_str(c, "owner", owner, sizeof owner, true) || !p_str(c, "role", role, sizeof role, true))
+        !p_str(c, "owner", owner, sizeof owner, true) ||
+        !p_str(c, "role", role, sizeof role, true) || !p_str(c, "self", self, sizeof self, false) ||
+        !p_gov(c, &gov, &q))
         return;
     int r = zxs_role_parse(role);
     if (r != ZXS_MEMBER && r != ZXS_GUEST)
         return fail(c, E_PARAMS, "\"role\" must be member or guest");
-    if (!files_done(c, zxs_join(id, k, name, owner, (zxs_role_t) r, &s))) return;
+    if (self[0] && (!zxs_who_ok(self) || !strcmp(self, ZXS_ME) || !strcmp(self, owner)))
+        return fail(c, E_PARAMS, "\"self\" must be a printable id other than the owner's");
+    if (!files_done(c, zxs_join(id, k, name, owner, (zxs_role_t) r, self, gov, q, &s))) return;
     space_json(c->res, &s);
+}
+
+/* "members": [{"who", "role"}], member or guest, each once */
+static bool p_members(call_t *c, zxs_member_t *out, uint32_t *n)
+{
+    int32_t a = param(c, "members");
+    *n = 0;
+    if (a < 0 || c->t[a].type != W4_J_ARR || c->t[a].size > ZXS_MEMBERS_MAX) {
+        fail(c, E_PARAMS, "\"members\" must be an array of at most %u members", ZXS_MEMBERS_MAX);
+        return false;
+    }
+    for (uint32_t i = 0; i < c->t[a].size; i++) {
+        int32_t m = w4_json_at(c->t, c->n, a, i);
+        zxs_member_t *e = &out[i];
+        char role[16];
+        if (m < 0 || c->t[m].type != W4_J_OBJ ||
+            w4_json_get_str(c->js, c->t, c->n, m, "who", e->who, sizeof e->who) < 0 ||
+            w4_json_get_str(c->js, c->t, c->n, m, "role", role, sizeof role) < 0) {
+            fail(c, E_PARAMS, "member %u must be {\"who\", \"role\"}", i);
+            return false;
+        }
+        int r = zxs_role_parse(role);
+        if (!zxs_who_ok(e->who) || !strcmp(e->who, ZXS_ME) || (r != ZXS_MEMBER && r != ZXS_GUEST)) {
+            fail(c, E_PARAMS, "member %u needs a printable id and the role member or guest", i);
+            return false;
+        }
+        for (uint32_t j = 0; j < i; j++)
+            if (!strcmp(out[j].who, e->who)) {
+                fail(c, E_PARAMS, "member %u is listed twice", i);
+                return false;
+            }
+        e->role = (uint8_t) r;
+    }
+    *n = c->t[a].size;
+    return true;
 }
 
 static void m_spaces_set_members(call_t *c)
 {
     static zxs_space_t s;
+    static zxs_member_t m[ZXS_MEMBERS_MAX];
+    uint32_t n;
     if (param(c, "space") < 0) return fail(c, E_PARAMS, "missing string parameter \"space\"");
     if (!p_space(c, "space", 0, &s)) return;
     if (s.role != ZXS_OWNER || s.kind == ZXS_HOME)
         return fail(c, ZXVD_E_SPACE,
                     "only the owner of an office, team, cloud top or park changes its members");
-    int32_t a = param(c, "members");
-    if (a < 0 || c->t[a].type != W4_J_ARR || c->t[a].size > ZXS_MEMBERS_MAX)
-        return fail(c, E_PARAMS, "\"members\" must be an array of at most %u members",
-                    ZXS_MEMBERS_MAX);
-    s.n = 0;
-    for (uint32_t i = 0; i < c->t[a].size; i++) {
-        int32_t m = w4_json_at(c->t, c->n, a, i);
-        zxs_member_t *e = &s.m[s.n];
-        char role[16];
-        if (m < 0 || c->t[m].type != W4_J_OBJ ||
-            w4_json_get_str(c->js, c->t, c->n, m, "who", e->who, sizeof e->who) < 0 ||
-            w4_json_get_str(c->js, c->t, c->n, m, "role", role, sizeof role) < 0)
-            return fail(c, E_PARAMS, "member %u must be {\"who\", \"role\"}", i);
-        int r = zxs_role_parse(role);
-        if (!zxs_who_ok(e->who) || !strcmp(e->who, ZXS_ME) || (r != ZXS_MEMBER && r != ZXS_GUEST))
-            return fail(c, E_PARAMS, "member %u needs a printable id and the role member or guest",
-                        i);
-        for (uint32_t j = 0; j < s.n; j++)
-            if (!strcmp(s.m[j].who, e->who))
-                return fail(c, E_PARAMS, "member %u is listed twice", i);
-        e->role = (uint8_t) r;
-        s.n++;
-    }
+    if (s.gov == ZXS_GOV_HORIZONTAL) return fail(c, ZXVD_E_SPACE, "%s", zxs_strerror(ZXS_E_GOV));
+    if (!p_members(c, m, &n)) return;
+    for (uint32_t i = 0; i < n; i++)
+        if (!strcmp(m[i].who, s.owner)) return fail(c, E_PARAMS, "member %u is the owner", i);
+    memcpy(s.m, m, sizeof s.m);
+    s.n = n;
     if (!files_done(c, zxs_save(&s, false))) return;
     space_json(c->res, &s);
+}
+
+/* the reply of propose and vote: the outcome, then the space as it is now */
+static void decision_reply(call_t *c, uint32_t id, zxs_decision_t d, const zxs_space_t *s)
+{
+    zxvd_buf_printf(c->res, "{\"proposal\":%u,\"state\":\"%s\",\"space\":", (unsigned) id,
+                    zxs_decision_name(d));
+    space_json(c->res, s);
+    zxvd_buf_raw(c->res, "}", 1);
+}
+
+static void m_spaces_propose(call_t *c)
+{
+    static zxs_space_t s;
+    static zxs_member_t m[ZXS_MEMBERS_MAX];
+    uint32_t n, id;
+    zxs_decision_t d;
+    if (param(c, "space") < 0) return fail(c, E_PARAMS, "missing string parameter \"space\"");
+    if (!p_space(c, "space", 0, &s) || !p_members(c, m, &n)) return;
+    for (uint32_t i = 0; i < n; i++)
+        if (!strcmp(m[i].who, s.owner)) return fail(c, E_PARAMS, "member %u is the owner", i);
+    if (!spaces_done(c, zxs_propose(&s, m, n, &id, &d)) || !files_done(c, zxs_save(&s, false)))
+        return;
+    decision_reply(c, id, d, &s);
+}
+
+static void m_spaces_vote(call_t *c)
+{
+    static zxs_space_t s;
+    char vote[8];
+    uint64_t id;
+    zxs_decision_t d;
+    if (param(c, "space") < 0) return fail(c, E_PARAMS, "missing string parameter \"space\"");
+    if (!p_space(c, "space", 0, &s) || !p_opt_u64(c, "proposal", 0, &id) ||
+        !p_str(c, "vote", vote, sizeof vote, true))
+        return;
+    if (!id || id > UINT32_MAX) return fail(c, E_PARAMS, "\"proposal\" must be a proposal id");
+    if (strcmp(vote, "yes") && strcmp(vote, "no"))
+        return fail(c, E_PARAMS, "\"vote\" must be yes or no");
+    if (!spaces_done(c, zxs_vote(&s, (uint32_t) id, !strcmp(vote, "yes"), &d)) ||
+        !files_done(c, zxs_save(&s, false)))
+        return;
+    decision_reply(c, (uint32_t) id, d, &s);
 }
 
 static void m_update(call_t *c)
@@ -1907,6 +2012,8 @@ static const method_t METHODS[] = {
     {"spaces.create", m_spaces_create},
     {"spaces.join", m_spaces_join},
     {"spaces.set_members", m_spaces_set_members},
+    {"spaces.propose", m_spaces_propose},
+    {"spaces.vote", m_spaces_vote},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 

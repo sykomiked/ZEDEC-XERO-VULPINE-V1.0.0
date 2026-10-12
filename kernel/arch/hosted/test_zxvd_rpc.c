@@ -461,7 +461,8 @@ static void test_host_methods(void)
            "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"files.root\",\"files.list\","
            "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
            "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
-           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\"]}"));
+           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.propose\",\"spaces."
+           "vote\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -499,10 +500,19 @@ static void test_host_methods(void)
 
 #define FERR(id, msg) ERR(id, "-32012", msg)
 #define SERR(id, msg) ERR(id, "-32013", msg)
-#define SP(id, kind, name, owner, role, view, write, pub, members)                                 \
+#define SPS(id, kind, name, owner, role, view, write, pub, members, self)                          \
     "{\"id\":\"" id "\",\"kind\":\"" kind "\",\"name\":\"" name "\",\"owner\":\"" owner            \
     "\",\"role\":\"" role "\",\"view\":" view ",\"write\":" write ",\"public\":" pub               \
-    ",\"members\":[" members "]}"
+    ",\"members\":[" members "]" GOV_V(self) "}"
+/* a space's governance with no proposals: vertical, 51%, this node as `self` */
+#define GOV_V(self)                                                                                \
+    ",\"governance\":\"vertical\",\"quorum_pct\":51,\"self\":\"" self                              \
+    "\",\"proposals\":[],\"next_proposal\":0"
+/* owned spaces vote as "me"; joined ones here were given no member id */
+#define SP(id, kind, name, owner, role, view, write, pub, members)                                 \
+    SPS(id, kind, name, owner, role, view, write, pub, members, "me")
+#define SPJ(id, kind, name, owner, role, view, write, pub, members)                                \
+    SPS(id, kind, name, owner, role, view, write, pub, members, "")
 #define HOME_SP      SP("home", "home", "Home", "me", "owner", "true", "true", "false", "")
 #define STUDIO_SP(m) SP("studio-a", "office", "Studio A", "me", "owner", "true", "true", "false", m)
 
@@ -604,7 +614,7 @@ static void test_spaces_methods(void)
         REQ("4", "spaces.join",
             ",\"params\":{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\",\"owner\":\"alice\","
             "\"role\":\"guest\"}"),
-        OK("4", SP("crew", "team", "Crew", "alice", "guest", "true", "false", "false", "")));
+        OK("4", SPJ("crew", "team", "Crew", "alice", "guest", "true", "false", "false", "")));
     EXPECT(
         REQ("4", "spaces.join",
             ",\"params\":{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\",\"owner\":\"alice\","
@@ -637,14 +647,14 @@ static void test_spaces_methods(void)
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"lab\",\"kind\":\"office\",\"name\":\"Lab\",\"owner\":\"bob\","
                "\"role\":\"member\"}"),
-           OK("4", SP("lab", "office", "Lab", "bob", "member", "true", "true", "false", "")));
+           OK("4", SPJ("lab", "office", "Lab", "bob", "member", "true", "true", "false", "")));
     EXPECT(REQ("4", "files.mkdir", ",\"params\":{\"space\":\"lab\",\"path\":\"bench\"}"),
            OK("4", "{\"path\":\"bench\"}"));
-    EXPECT(
-        REQ("4", "spaces.join",
-            ",\"params\":{\"id\":\"bobs-front\",\"kind\":\"cloudtop\",\"name\":\"Bob\","
-            "\"owner\":\"bob\",\"role\":\"member\"}"),
-        OK("4", SP("bobs-front", "cloudtop", "Bob", "bob", "member", "true", "false", "true", "")));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"bobs-front\",\"kind\":\"cloudtop\",\"name\":\"Bob\","
+               "\"owner\":\"bob\",\"role\":\"member\"}"),
+           OK("4",
+              SPJ("bobs-front", "cloudtop", "Bob", "bob", "member", "true", "false", "true", "")));
     EXPECT(REQ("4", "files.stat", ",\"params\":{\"space\":\"bobs-front\",\"path\":\"x\"}"),
            FERR("4", "no such file or folder"));
     EXPECT(REQ("4", "files.write",
@@ -653,7 +663,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"commons\",\"kind\":\"park\",\"name\":\"Commons\","
                "\"owner\":\"town\",\"role\":\"guest\"}"),
-           OK("4", SP("commons", "park", "Commons", "town", "guest", "true", "true", "true", "")));
+           OK("4", SPJ("commons", "park", "Commons", "town", "guest", "true", "true", "true", "")));
     EXPECT(REQ("4", "files.write",
                ",\"params\":{\"space\":\"commons\",\"path\":\"hello.txt\",\"text\":\"hi\"}"),
            OK("4", "{\"path\":\"hello.txt\",\"size\":2,\"done\":true}"));
@@ -695,6 +705,228 @@ static void test_spaces_methods(void)
                "\"guest\"}]}"),
            OK("5", SP("studio-a-2", "office", "Studio A", "me", "owner", "true", "true", "false",
                       "{\"who\":\"bob\",\"role\":\"guest\"}")));
+
+    /* governance (S4): zxvd counts the votes */
+    CHECK(zxs_decide(ZXS_GOV_VERTICAL, 51, ZXS_OWNER, 3, 1, 0) == ZXS_D_TRUE &&
+              zxs_decide(ZXS_GOV_VERTICAL, 51, ZXS_MEMBER, 3, 3, 0) == ZXS_D_NEITHER &&
+              zxs_decide(ZXS_GOV_VERTICAL, 51, ZXS_GUEST, 3, 3, 0) == ZXS_D_FALSE,
+          "vertical: the owner decides");
+    CHECK(zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 3, 2, 0) == ZXS_D_TRUE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 3, 2, 1) == ZXS_D_BOTH &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 3, 1, 1) == ZXS_D_NEITHER &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 3, 1, 2) == ZXS_D_FALSE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 0, 0, 0) == ZXS_D_FALSE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 100, ZXS_OWNER, 4, 4, 0) == ZXS_D_TRUE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 100, ZXS_OWNER, 4, 3, 0) == ZXS_D_NEITHER &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 0, ZXS_OWNER, 2, 1, 0) == ZXS_D_NEITHER &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 0, ZXS_OWNER, 100, 51, 0) == ZXS_D_TRUE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 50, ZXS_OWNER, 2, 1, 0) == ZXS_D_TRUE,
+          "horizontal: quorum, objections, can no longer pass");
+    CHECK(!strcmp(zxs_decision_name(ZXS_D_BOTH), "both") &&
+              !strcmp(zxs_decision_name(ZXS_D_NEITHER), "neither") &&
+              !strcmp(zxs_decision_name((zxs_decision_t) 9), "?"),
+          "decision names");
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"governance\":\"diagonal\"}"),
+           ERR("10", "-32602", "\\\"governance\\\" must be vertical or horizontal"));
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"quorum_pct\":101}"),
+           ERR("10", "-32602", "\\\"quorum_pct\\\" must be 1 to 100"));
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"quorum_pct\":0}"),
+           ERR("10", "-32602", "\\\"quorum_pct\\\" must be 1 to 100"));
+    CHECK(has(REQ("10", "spaces.create",
+                  ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"governance\":"
+                  "\"horizontal\",\"quorum_pct\":60}"),
+              "\"members\":[],\"governance\":\"horizontal\",\"quorum_pct\":60,\"self\":\"me\","
+              "\"proposals\":[],\"next_proposal\":0}"),
+          "horizontal space: %s", OUT.p);
+    EXPECT(REQ("10", "spaces.set_members", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
+           SERR("10", "this space decides its members by vote"));
+    /* alone, the owner's own yes is the whole quorum */
+    CHECK(has(REQ("10", "spaces.propose",
+                  ",\"params\":{\"space\":\"votes\",\"members\":[{\"who\":\"bob\",\"role\":"
+                  "\"member\"},{\"who\":\"carol\",\"role\":\"member\"},{\"who\":\"dan\","
+                  "\"role\":\"guest\"}]}"),
+              "{\"proposal\":0,\"state\":\"true\",\"space\":{\"id\":\"votes\""),
+          "applied at once: %s", OUT.p);
+    CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
+              "\"members\":[{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
+              "\"member\"},{\"who\":\"dan\",\"role\":\"guest\"}],\"governance\":\"horizontal\","
+              "\"quorum_pct\":60,\"self\":\"me\",\"proposals\":[],\"next_proposal\":1}"),
+          "members applied: %s", OUT.p);
+    /* now three vote: 1 of 3 is short of 60% */
+    CHECK(has(REQ("10", "spaces.propose",
+                  ",\"params\":{\"space\":\"votes\",\"members\":[{\"who\":\"bob\",\"role\":"
+                  "\"member\"},{\"who\":\"carol\",\"role\":\"member\"},{\"who\":\"eve\","
+                  "\"role\":\"member\"}]}"),
+              "{\"proposal\":2,\"state\":\"neither\""),
+          "gathering: %s", OUT.p);
+    CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
+              "\"proposals\":[{\"id\":2,\"by\":\"me\",\"members\":[{\"who\":\"bob\",\"role\":"
+              "\"member\"},{\"who\":\"carol\",\"role\":\"member\"},{\"who\":\"eve\",\"role\":"
+              "\"member\"}],\"votes\":[{\"who\":\"me\",\"yes\":true}],\"yes\":1,\"no\":0,"
+              "\"voters\":3,\"state\":\"neither\"}],\"next_proposal\":2}"),
+          "open proposal shown: %s", OUT.p);
+    {
+        static zxs_space_t v;
+        zxs_decision_t d;
+        CHECK(zxs_load("votes", &v) == 0, "load votes");
+        CHECK(zxs_vote_from(&v, 2, "dan", true, &d) == ZXS_E_ROLE, "a guest does not vote");
+        CHECK(zxs_vote_from(&v, 2, "zed", true, &d) == ZXS_E_ROLE, "nor a stranger");
+        CHECK(zxs_vote_from(&v, 9, "bob", true, &d) == ZXS_E_NOPROP, "no such proposal");
+        CHECK(zxs_vote_from(&v, 2, "bob", false, &d) == 0 && d == ZXS_D_NEITHER, "1 yes 1 no");
+        CHECK(zxs_vote_from(&v, 2, "carol", true, &d) == 0 && d == ZXS_D_BOTH,
+              "quorum with an objection is a dispute");
+        CHECK(v.np == 1 && v.n == 3 && !strcmp(v.m[2].who, "dan"), "a dispute is never applied");
+        CHECK(zxs_save(&v, false) == 0, "save the dispute");
+    }
+    CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
+              "\"yes\":2,\"no\":1,\"voters\":3,\"state\":\"both\"}]"),
+          "the UI sees BOTH: %s", OUT.p);
+    {
+        static zxs_space_t v;
+        zxs_decision_t d;
+        CHECK(zxs_load("votes", &v) == 0 && zxs_vote_from(&v, 2, "bob", true, &d) == 0 &&
+                  d == ZXS_D_TRUE && v.np == 0 && v.n == 3 && !strcmp(v.m[2].who, "eve"),
+              "bob changes his vote: passed and applied");
+        CHECK(zxs_save(&v, false) == 0, "save");
+    }
+    /* one that can no longer pass is dropped */
+    CHECK(has(REQ("10", "spaces.propose", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
+              "{\"proposal\":3,\"state\":\"neither\""),
+          "proposal 3: %s", OUT.p);
+    {
+        static zxs_space_t v;
+        zxs_decision_t d;
+        CHECK(zxs_load("votes", &v) == 0 && zxs_vote_from(&v, 3, "bob", false, &d) == 0 &&
+                  d == ZXS_D_NEITHER && zxs_vote_from(&v, 3, "eve", false, &d) == 0 &&
+                  d == ZXS_D_FALSE && v.np == 0 && v.n == 3,
+              "two noes of four: failed and dropped");
+        CHECK(zxs_save(&v, false) == 0, "save");
+    }
+    EXPECT(REQ("10", "spaces.vote",
+               ",\"params\":{\"space\":\"votes\",\"proposal\":3,"
+               "\"vote\":\"yes\"}"),
+           SERR("10", "no open proposal with that id"));
+    EXPECT(REQ("10", "spaces.vote",
+               ",\"params\":{\"space\":\"votes\",\"proposal\":3,"
+               "\"vote\":\"maybe\"}"),
+           ERR("10", "-32602", "\\\"vote\\\" must be yes or no"));
+    EXPECT(REQ("10", "spaces.vote", ",\"params\":{\"space\":\"votes\",\"vote\":\"yes\"}"),
+           ERR("10", "-32602", "\\\"proposal\\\" must be a proposal id"));
+    EXPECT(REQ("10", "spaces.vote",
+               ",\"params\":{\"space\":\"votes\",\"proposal\":4294967296,"
+               "\"vote\":\"yes\"}"),
+           ERR("10", "-32602", "\\\"proposal\\\" must be a proposal id"));
+    EXPECT(REQ("10", "spaces.vote", ",\"params\":{\"proposal\":1,\"vote\":\"yes\"}"),
+           ERR("10", "-32602", "missing string parameter \\\"space\\\""));
+    EXPECT(REQ("10", "spaces.propose",
+               ",\"params\":{\"space\":\"votes\",\"members\":"
+               "[{\"who\":\"me\",\"role\":\"member\"}]}"),
+           ERR("10", "-32602", "member 0 needs a printable id and the role member or guest"));
+    EXPECT(REQ("10", "spaces.propose", ",\"params\":{\"members\":[]}"),
+           ERR("10", "-32602", "missing string parameter \\\"space\\\""));
+    /* at most four open; this node changes its own vote */
+    for (int i = 4; i <= 7; i++) {
+        char want[64];
+        snprintf(want, sizeof want, "{\"proposal\":%d,\"state\":\"neither\"", i);
+        CHECK(has(REQ("10", "spaces.propose", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
+                  want),
+              "open %d: %s", i, OUT.p);
+    }
+    EXPECT(REQ("10", "spaces.propose", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
+           SERR("10", "too many open proposals or votes"));
+    CHECK(has(REQ("10", "spaces.vote",
+                  ",\"params\":{\"space\":\"votes\",\"proposal\":4,\"vote\":\"no\"}"),
+              "{\"proposal\":4,\"state\":\"neither\""),
+          "own vote changed: %s", OUT.p);
+    CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
+              "\"votes\":[{\"who\":\"me\",\"yes\":false}],\"yes\":0,\"no\":1"),
+          "replaced, not added: %s", OUT.p);
+
+    /* a member of a vertical space proposes; the owner decides */
+    EXPECT(REQ("11", "spaces.join",
+               ",\"params\":{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\","
+               "\"owner\":\"bob\",\"role\":\"member\",\"self\":\"bob\"}"),
+           ERR("11", "-32602", "\\\"self\\\" must be a printable id other than the owner's"));
+    EXPECT(REQ("11", "spaces.join",
+               ",\"params\":{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\","
+               "\"owner\":\"bob\",\"role\":\"member\",\"self\":\"me\"}"),
+           ERR("11", "-32602", "\\\"self\\\" must be a printable id other than the owner's"));
+    EXPECT(REQ("11", "spaces.join",
+               ",\"params\":{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\","
+               "\"owner\":\"bob\",\"role\":\"member\",\"self\":\"dan\"}"),
+           OK("11",
+              SPS("shop", "office", "Shop", "bob", "member", "true", "true", "false", "", "dan")));
+    CHECK(has(REQ("11", "spaces.propose",
+                  ",\"params\":{\"space\":\"shop\",\"members\":[{\"who\":\"dan\",\"role\":"
+                  "\"member\"},{\"who\":\"eve\",\"role\":\"guest\"}]}"),
+              "{\"proposal\":1,\"state\":\"neither\""),
+          "waits for the owner: %s", OUT.p);
+    CHECK(has(REQ("11", "spaces.vote",
+                  ",\"params\":{\"space\":\"shop\",\"proposal\":1,\"vote\":\"yes\"}"),
+              "{\"proposal\":1,\"state\":\"neither\""),
+          "a member's yes is not enough: %s", OUT.p);
+    {
+        static zxs_space_t v;
+        zxs_decision_t d;
+        CHECK(zxs_load("shop", &v) == 0 && zxs_vote_from(&v, 1, "bob", true, &d) == 0 &&
+                  d == ZXS_D_TRUE && v.n == 2 && !strcmp(v.m[1].who, "eve"),
+              "the owner's yes applies it");
+    }
+    EXPECT(REQ("11", "spaces.propose", ",\"params\":{\"space\":\"lab\",\"members\":[]}"),
+           SERR("11", "this node has no member id in this space"));
+    EXPECT(REQ("11", "spaces.vote",
+               ",\"params\":{\"space\":\"lab\",\"proposal\":1,"
+               "\"vote\":\"yes\"}"),
+           SERR("11", "this node has no member id in this space"));
+    EXPECT(REQ("11", "spaces.propose", ",\"params\":{\"space\":\"crew\",\"members\":[]}"),
+           SERR("11", "your role in this space may not do that"));
+    EXPECT(REQ("11", "spaces.propose", ",\"params\":{\"space\":\"home\",\"members\":[]}"),
+           SERR("11", "your role in this space may not do that"));
+    EXPECT(REQ("11", "spaces.propose",
+               ",\"params\":{\"space\":\"shop\",\"members\":"
+               "[{\"who\":\"bob\",\"role\":\"member\"}]}"),
+           ERR("11", "-32602", "member 0 is the owner"));
+
+    /* a damaged tally on disk is refused, not counted */
+    {
+        char mf2[600];
+        snprintf(mf2, sizeof mf2, "%s/.spaces/shop.space", root);
+        FILE *g = fopen(mf2, "wb");
+        CHECK(g &&
+                  fputs("{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\",\"owner\":\"bob\","
+                        "\"role\":\"member\",\"members\":[],\"self\":\"dan\",\"next_proposal\":1,"
+                        "\"proposals\":[{\"id\":1,\"by\":\"dan\",\"members\":[],\"votes\":["
+                        "{\"who\":\"bob\",\"yes\":true},{\"who\":\"bob\",\"yes\":true}]}]}",
+                        g) >= 0 &&
+                  fclose(g) == 0,
+              "a doubled vote");
+        EXPECT(REQ("11", "spaces.get", ",\"params\":{\"space\":\"shop\"}"),
+               FERR("11", "the file system refused"));
+        g = fopen(mf2, "wb");
+        CHECK(g &&
+                  fputs("{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\",\"owner\":\"bob\","
+                        "\"role\":\"member\",\"members\":[],\"self\":\"dan\",\"next_proposal\":1,"
+                        "\"proposals\":[{\"id\":2,\"by\":\"dan\",\"members\":[],\"votes\":[]}]}",
+                        g) >= 0 &&
+                  fclose(g) == 0,
+              "a proposal id from the future");
+        EXPECT(REQ("11", "spaces.get", ",\"params\":{\"space\":\"shop\"}"),
+               FERR("11", "the file system refused"));
+        g = fopen(mf2, "wb");
+        CHECK(g &&
+                  fputs("{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\",\"owner\":\"bob\","
+                        "\"role\":\"member\",\"members\":[],\"self\":\"dan\"}",
+                        g) >= 0 &&
+                  fclose(g) == 0,
+              "a manifest from before governance");
+        CHECK(has(REQ("11", "spaces.get", ",\"params\":{\"space\":\"shop\"}"),
+                  "\"governance\":\"vertical\",\"quorum_pct\":51,\"self\":\"dan\",\"proposals\":[],"
+                  "\"next_proposal\":0}"),
+              "defaults: %s", OUT.p);
+    }
 
     /* crossings (S3) */
     EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"diary.txt\",\"text\":\"secret\"}"),
