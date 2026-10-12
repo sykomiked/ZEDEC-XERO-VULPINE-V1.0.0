@@ -55,9 +55,10 @@ enum {
 typedef int32_t (*zxm_send_fn)(void *ctx, const char *req, uint32_t len, char *resp, uint32_t cap);
 
 /* How far a long action (an import, a load) has got, after each part:
- * done of total bytes; total 0 = not known yet. Views draw it with the one
- * ZXV progress bar (zui's mirrored gold bar: halves meeting at the centre,
- * heads pulsing there while the total is unknown), never a percentage. */
+ * done of total bytes; total 0 = not known yet. Views draw it as an
+ * ordinary progress bar in ZXV's green and gold. The mirrored boot-style
+ * screen is only for the OS boot, launching an app and connecting to a
+ * remote space, and it follows the real progress of that work. */
 typedef void (*zxm_progress_fn)(void *ctx, uint64_t done, uint64_t total);
 
 typedef struct {
