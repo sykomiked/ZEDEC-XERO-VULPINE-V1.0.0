@@ -1155,13 +1155,18 @@ static void act_batch(const zt_model_t *m, zt_model_state_t *s, const zt_fx *x, 
 
 /* ---- the forward pass ---- */
 
-static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *tok, uint32_t B,
-                       zt_fx *logits, bool all)
+static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *tok,
+                       const zt_fx *embd, uint32_t B, zt_fx *logits, bool all)
 {
     const zt_model_cfg_t *c = &m->cfg;
     uint32_t ne = c->n_embd, nf = c->n_ff, qd = m->q_dim, kvd = m->kv_dim;
     uint32_t p0 = s->pos;
     for (uint32_t b = 0; b < B; b++) {
+        if (embd) { /* zt_model_eval_embd: the caller's vectors in place of token rows */
+            for (uint32_t i = 0; i < ne; i++)
+                s->x[(uint64_t) b * ne + i] = embd[(uint64_t) b * ne + i];
+            continue;
+        }
         int32_t r = zt_gguf_dequant(&m->embd, (uint64_t) tok[b] * ne, ne, s->x + b * ne);
         if (r) return r;
     }
@@ -1215,10 +1220,34 @@ int32_t zt_model_eval(const zt_model_t *m, zt_model_state_t *s, const int32_t *t
         zt_fx *lg = 0;
         if (logits && all) lg = logits + (uint64_t) off * m->cfg.n_vocab;
         if (logits && !all && off + B == n) lg = logits;
-        int32_t r = forward(m, s, tokens + off, B, lg, all);
+        int32_t r = forward(m, s, tokens + off, 0, B, lg, all);
         if (r) return r;
     }
     return ZT_GGUF_OK;
+}
+
+int32_t zt_model_eval_embd(const zt_model_t *m, zt_model_state_t *s, const zt_fx *embd, uint32_t n,
+                           zt_fx *logits, uint32_t flags)
+{
+    if (!m || !s || !embd || !n) return ZT_MODEL_EARG;
+    if (n > s->n_ctx - s->pos) return ZT_MODEL_ECTX;
+    bool all = flags & ZT_EVAL_ALL_LOGITS;
+    uint32_t ne = m->cfg.n_embd;
+    for (uint32_t off = 0; off < n; off += s->n_batch) {
+        uint32_t B = n - off < s->n_batch ? n - off : s->n_batch;
+        zt_fx *lg = 0;
+        if (logits && all) lg = logits + (uint64_t) off * m->cfg.n_vocab;
+        if (logits && !all && off + B == n) lg = logits;
+        int32_t r = forward(m, s, 0, embd + (uint64_t) off * ne, B, lg, all);
+        if (r) return r;
+    }
+    return ZT_GGUF_OK;
+}
+
+int32_t zt_model_embed(const zt_model_t *m, int32_t token, zt_fx *out)
+{
+    if (!m || !out || token < 0 || (uint32_t) token >= m->cfg.n_vocab) return ZT_MODEL_EARG;
+    return zt_gguf_dequant(&m->embd, (uint64_t) token * m->cfg.n_embd, m->cfg.n_embd, out);
 }
 
 int32_t zt_model_decode(const zt_model_t *m, zt_model_state_t *s, int32_t token, zt_fx *logits)

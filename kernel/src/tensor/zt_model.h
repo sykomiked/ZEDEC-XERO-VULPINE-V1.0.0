@@ -254,6 +254,14 @@ void zt_model_state_seek(zt_model_state_t *s, uint32_t pos);
 int32_t zt_model_eval(const zt_model_t *m, zt_model_state_t *s, const int32_t *tokens, uint32_t n,
                       zt_fx *logits, uint32_t flags);
 int32_t zt_model_decode(const zt_model_t *m, zt_model_state_t *s, int32_t token, zt_fx *logits);
+/* T23: the same with n_embd Q16 values per position in place of token ids,
+ * for an image or audio encoder's output (zt_vision.h); embd holds n rows.
+ * The rest of the pass is unchanged, so mixing token and embedding runs in
+ * one sequence gives what one combined run would. */
+int32_t zt_model_eval_embd(const zt_model_t *m, zt_model_state_t *s, const zt_fx *embd, uint32_t n,
+                           zt_fx *logits, uint32_t flags);
+/* A token's input embedding (n_embd Q16 values), as eval uses it. */
+int32_t zt_model_embed(const zt_model_t *m, int32_t token, zt_fx *out);
 
 /* ---- sampling ---- */
 typedef struct {

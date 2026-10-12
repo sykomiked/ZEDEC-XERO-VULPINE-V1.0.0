@@ -202,6 +202,59 @@ static uint64_t piece_end(const uint8_t *s, uint64_t n, uint64_t i, uint32_t max
     return last;
 }
 
+/* GPT-2's pattern (also SmolLM's, after its digits are split off one by one):
+ * 's|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+ */
+static uint64_t piece_end_gpt2(const uint8_t *s, uint64_t n, uint64_t i)
+{
+    uint32_t c0, c1 = 0;
+    uint64_t i1 = i + utf8_dec(s, n, i, &c0);
+    uint32_t k0 = char_class(c0), k1 = 0xFF;
+    if (i1 < n) {
+        utf8_dec(s, n, i1, &c1);
+        k1 = char_class(c1);
+    }
+    if (c0 == '\'' && i1 < n) { /* case-sensitive contractions */
+        uint8_t a = s[i1];
+        if (a == 's' || a == 't' || a == 'm' || a == 'd') return i1 + 1;
+        if (i1 + 1 < n) {
+            uint8_t b = s[i1 + 1];
+            if ((a == 'r' && b == 'e') || (a == 'v' && b == 'e') || (a == 'l' && b == 'l'))
+                return i1 + 2;
+        }
+    }
+    if (k0 == C_LETTER || k0 == C_NUMBER || k0 == C_OTHER) return run_of(s, n, i, k0);
+    if (c0 == ' ' && (k1 == C_LETTER || k1 == C_NUMBER || k1 == C_OTHER))
+        return run_of(s, n, i1, k1);
+    /* white space: \s+(?!\S) leaves the last one for the next piece, \s+ */
+    uint64_t j = i, last = i;
+    uint32_t count = 0;
+    while (j < n) {
+        uint32_t c, l = utf8_dec(s, n, j, &c);
+        if (char_class(c) != C_SPACE) break;
+        last = j;
+        j += l;
+        count++;
+    }
+    if (j == n || count < 2) return j;
+    return last;
+}
+
+/* SmolLM: every digit is a piece of its own; the text between runs through
+ * GPT-2's pattern. */
+static uint64_t piece_end_smollm(const uint8_t *s, uint64_t n, uint64_t i)
+{
+    uint32_t c;
+    uint64_t i1 = i + utf8_dec(s, n, i, &c);
+    if (char_class(c) == C_NUMBER) return i1;
+    uint64_t e = i1;
+    while (e < n) {
+        uint32_t l = utf8_dec(s, n, e, &c);
+        if (char_class(c) == C_NUMBER) break;
+        e += l;
+    }
+    return piece_end_gpt2(s, e, i);
+}
+
 /* ---- tables ---- */
 
 static int32_t find_tok(const zt_tok_t *t, const uint8_t *s, uint64_t len)
@@ -357,6 +410,11 @@ int32_t zt_tok_load(zt_tok_t *t, const zt_gguf_t *g, void *arena, uint64_t arena
             t->pre = ZT_TOK_PRE_QWEN2;
         else if (zt_gguf_str_eq(v.str, "llama-bpe") || zt_gguf_str_eq(v.str, "llama3"))
             t->pre = ZT_TOK_PRE_LLAMA3;
+        else if (zt_gguf_str_eq(v.str, "gpt-2") || zt_gguf_str_eq(v.str, "gpt2") ||
+                 zt_gguf_str_eq(v.str, "whisper"))
+            t->pre = ZT_TOK_PRE_GPT2;
+        else if (zt_gguf_str_eq(v.str, "smollm"))
+            t->pre = ZT_TOK_PRE_SMOLLM;
     }
     if (!t->pre) return ZT_GGUF_EUNSUPPORTED;
 
@@ -549,7 +607,9 @@ static void encode_plain(const zt_tok_t *t, const uint8_t *s, uint64_t n, uint8_
 {
     uint32_t digits = t->pre == ZT_TOK_PRE_LLAMA3 ? 3 : 1;
     for (uint64_t i = 0; i < n && !o->full;) {
-        uint64_t j = piece_end(s, n, i, digits);
+        uint64_t j = t->pre == ZT_TOK_PRE_GPT2     ? piece_end_gpt2(s, n, i)
+                     : t->pre == ZT_TOK_PRE_SMOLLM ? piece_end_smollm(s, n, i)
+                                                   : piece_end(s, n, i, digits);
         bpe_piece(t, s + i, (uint32_t) (j - i), work, o);
         i = j;
     }
