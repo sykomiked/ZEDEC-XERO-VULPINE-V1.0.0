@@ -473,7 +473,8 @@ static void m_reverse(zxvd_call_t *c)
         return zxvd_fail(c, ZXVD_E_CARDS, "reverse: auth %u is %s, not approved", (unsigned) ai,
                          STATE_AUTH[C.iss.auths[ai].state]);
     if (refused(c, "reverse", cn_reverse(&C.iss, ai, now))) return;
-    zxvd_buf_printf(zxvd_result(c), "{\"auth\":%u,\"state\":\"reversed\",\"released_minor\":\"%llu\"}",
+    zxvd_buf_printf(zxvd_result(c),
+                    "{\"auth\":%u,\"state\":\"reversed\",\"released_minor\":\"%llu\"}",
                     (unsigned) ai, (unsigned long long) C.iss.auths[ai].req.amount_minor);
 }
 

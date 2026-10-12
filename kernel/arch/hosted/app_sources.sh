@@ -90,15 +90,9 @@ case "${1:-srcs}" in
         # are already in srcs)
         echo arch/hosted/zxvd_cards.c
         for f in cardnet cn_check cn_iso8583 cn_emv; do echo "src/cardnet/$f.c"; done
-        # passkeys.*: ident's passkeys and the root-identity code id_passkey.c
-        # links against (pq_matrix: ML-DSA-87 + SLH-DSA, ML-KEM-768 + HQC);
-        # pq_mldsa87, pq_mlkem1024 and x25519 are already in srcs
+        # passkeys.*: ident's passkeys (id_core, id_passkey and the
+        # post-quantum code they link are built for zxvd_pay in build_zxvd.sh)
         echo arch/hosted/zxvd_ident.c
-        echo src/ident/id_core.c
-        echo src/ident/id_passkey.c
-        for f in pq_matrix pq_hqc5 pq_slh256s; do echo "src/pqsec/$f.c"; done
-        for f in sha3_api sha3_f1600 slh_dsa slh_shake; do echo "src/pqsec/slhdsa/$f.c"; done
-        for f in mlkem768 mlkem_encode mlkem_sample mlkem_ntt mlkem_kpe; do echo "src/mlkem/$f.c"; done
         ;;
     groupincs)
         echo src/cardnet
