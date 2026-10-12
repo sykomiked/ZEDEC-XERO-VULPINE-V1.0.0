@@ -229,6 +229,24 @@ public sealed class ZxvPlatform : IDisposable
     /// <returns>The log; dispose it when done.</returns>
     public QuarantineLog CreateQuarantineLog(Capability capability, int capacity) => new(RequireOwn(capability), capacity);
 
+    /// <summary>Creates a hardware emulation matrix with the standard engines (ABI 1.4, <c>zxv_hw_matrix</c>).</summary>
+    /// <param name="capability">A capability of this platform with <see cref="CapabilityRights.HwMatrix"/>; every matrix call goes through it.</param>
+    /// <returns>The matrix; dispose it when done.</returns>
+    public Hardware.HwMatrix CreateHwMatrix(Capability capability) => new(RequireOwn(capability));
+
+    /// <summary>Creates a reconfigurable region: hardware updates as signed images (ABI 1.4, <c>zxv_hw_region</c>).</summary>
+    /// <param name="capability">A capability of this platform with <see cref="CapabilityRights.HwReconf"/>; every region call goes through it.</param>
+    /// <param name="matrix">The matrix whose golden vectors test each new image, or <see langword="null"/> for no test.</param>
+    /// <param name="provider">The region's FABRIC or MICRO implementation in <paramref name="matrix"/>.</param>
+    /// <param name="regionId">The region's id in events and records.</param>
+    /// <param name="targetClass">The hardware class images must name.</param>
+    /// <param name="targetDigest">The exact-part digest images must name (32 bytes), or empty for zeros.</param>
+    /// <param name="device">The device: load, read back, activate.</param>
+    /// <param name="logCapacity">Audit log size; when it fills, the region halts and the platform is poisoned (fail closed).</param>
+    /// <returns>The region; dispose it when done.</returns>
+    public Hardware.HwRegion CreateHwRegion(Capability capability, Hardware.HwMatrix? matrix, uint provider, uint regionId, uint targetClass, ReadOnlySpan<byte> targetDigest, Hardware.IHwRegionDevice device, uint logCapacity) =>
+        new(RequireOwn(capability), matrix, provider, regionId, targetClass, targetDigest, device, logCapacity);
+
     /// <summary>Creates a set of exact rational resource budgets (<c>rmag</c>).</summary>
     /// <param name="capability">A capability of this platform; budget calls need <see cref="CapabilityRights.Budget"/>.</param>
     /// <returns>The budgets; dispose them when done.</returns>

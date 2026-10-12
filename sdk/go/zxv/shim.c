@@ -33,3 +33,55 @@ int32_t zxv_go_rmag_unlisten(zxv_rmag *rmag)
 {
     return zxv_rmag_listen(rmag, NULL, NULL);
 }
+
+/* ----- ABI 1.4 ----- */
+
+static int32_t hw_call_trampoline(void *user, uint32_t op, const uint8_t *in, size_t in_len,
+                                  uint8_t *out, size_t out_cap, size_t *out_len)
+{
+    return zxvGoHwCall((uintptr_t) user, op, (uint8_t *) in, in_len, out, out_cap, out_len);
+}
+
+int32_t zxv_go_hw_provider_add(const zxv_cap *cap, zxv_hw_matrix *mx, uint32_t fn_id,
+                               uint32_t res_id, int32_t kind, uint32_t cost, uintptr_t handle,
+                               uint32_t *out_provider)
+{
+    return zxv_hw_provider_add(cap, mx, fn_id, res_id, kind, cost, hw_call_trampoline,
+                               (void *) handle, out_provider);
+}
+
+static int32_t hw_load_trampoline(void *user, uint32_t slot, const uint8_t *payload, size_t len)
+{
+    return zxvGoHwLoad((uintptr_t) user, slot, (uint8_t *) payload, len);
+}
+
+static int32_t hw_readback_trampoline(void *user, uint32_t slot, uint8_t digest[32])
+{
+    return zxvGoHwReadback((uintptr_t) user, slot, digest);
+}
+
+static int32_t hw_activate_trampoline(void *user, uint32_t slot)
+{
+    return zxvGoHwActivate((uintptr_t) user, slot);
+}
+
+int32_t zxv_go_hw_region_create(const zxv_cap *cap, zxv_hw_matrix *mx, uint32_t provider,
+                                uint32_t region_id, uint32_t target_class,
+                                const uint8_t *target_digest, uintptr_t handle, uint32_t log_cap,
+                                zxv_hw_region **out)
+{
+    return zxv_hw_region_create_cap(cap, mx, provider, region_id, target_class, target_digest,
+                                    hw_load_trampoline, hw_readback_trampoline,
+                                    hw_activate_trampoline, (void *) handle, log_cap, out);
+}
+
+static void hw_event_trampoline(void *user, uint32_t region_id, int32_t event, uint32_t reason,
+                                uint32_t version)
+{
+    zxvGoHwEvent((uintptr_t) user, region_id, event, reason, version);
+}
+
+int32_t zxv_go_hw_region_events(const zxv_cap *cap, zxv_hw_region *rg, uintptr_t handle)
+{
+    return zxv_hw_region_events(cap, rg, hw_event_trampoline, (void *) handle);
+}

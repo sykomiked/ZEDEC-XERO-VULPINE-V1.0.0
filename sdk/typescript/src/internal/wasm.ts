@@ -9,7 +9,7 @@
 // nondeterministic import is random_get (crypto.getRandomValues), used only
 // by key generation and hedged signing.
 
-import type { Arg, Backend, GenerateCall, GenerateJob, GenerateReturn, Ptr } from './backend.js';
+import type { Arg, Backend, GenerateCall, GenerateJob, GenerateReturn, HwHandler, Ptr } from './backend.js';
 
 /** What the wasm module can be loaded from. */
 export type WasmSource = BufferSource | WebAssembly.Module;
@@ -44,6 +44,7 @@ class WasmBackend implements Backend {
   #fns = new Map<string, WasmFn>();
   #onToken: ((id: number, piece: number, len: number) => number) | null = null;
   #lines: Record<number, string> = { 1: '', 2: '' };
+  #hw: HwHandler | null = null;
 
   /** The imports object (WASI shim + the token callback). */
   imports(): WebAssembly.Imports {
@@ -95,9 +96,41 @@ class WasmBackend implements Backend {
       },
       clock_time_get: () => ERRNO_NOSYS, // deliberately absent: determinism
     };
+    // Hardware callbacks (ABI 1.4). Views are re-created after each JS
+    // call: the callback may have grown (and so detached) the memory.
+    const E_STATE = -9;
+    const E_BUFFER = -2;
+    const E_IO = -23;
+    const copyIn = (p: number, n: number) => new Uint8Array(this.#ex.memory.buffer, p >>> 0, n >>> 0).slice();
+    const hw = {
+      hw_call: (id: number, op: number, inp: number, inLen: number, out: number, outCap: number, outLen: number): number => {
+        if (!this.#hw) return E_STATE;
+        const r = this.#hw.call(id >>> 0, op >>> 0, copyIn(inp, inLen), outCap >>> 0);
+        if (typeof r === 'number') return r;
+        view().setUint32(outLen >>> 0, r.length, true);
+        if (r.length > outCap >>> 0) return E_BUFFER;
+        bytes().set(r, out >>> 0);
+        return 0;
+      },
+      hw_load: (id: number, slot: number, p: number, n: number): number =>
+        this.#hw ? this.#hw.load(id >>> 0, slot >>> 0, copyIn(p, n)) : E_STATE,
+      hw_readback: (id: number, slot: number, digest: number): number => {
+        if (!this.#hw) return E_STATE;
+        const r = this.#hw.readback(id >>> 0, slot >>> 0);
+        if (typeof r === 'number') return r;
+        if (r.length !== 32) return E_IO;
+        bytes().set(r, digest >>> 0);
+        return 0;
+      },
+      hw_activate: (id: number, slot: number): number => (this.#hw ? this.#hw.activate(id >>> 0, slot >>> 0) : E_STATE),
+      hw_event: (id: number, region: number, event: number, reason: number, version: number): void => {
+        this.#hw?.event(id >>> 0, region >>> 0, event | 0, reason >>> 0, version >>> 0);
+      },
+    };
     const zxv = {
       on_token: (_user: number, token: number, piece: number, len: number): number =>
         this.#onToken ? this.#onToken(token, piece, len) : 0,
+      ...hw,
     };
     return { wasi_snapshot_preview1: wasi, zxv };
   }
@@ -212,6 +245,10 @@ class WasmBackend implements Backend {
 
   isNull(ptr: Ptr): boolean {
     return Number(ptr) === 0;
+  }
+
+  setHwHandler(h: HwHandler): void {
+    this.#hw = h;
   }
 
   generate(c: GenerateCall, onToken: (id: number, piece: Uint8Array) => boolean): GenerateJob {

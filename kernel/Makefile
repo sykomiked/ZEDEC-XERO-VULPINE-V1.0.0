@@ -322,6 +322,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-settle
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
+	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1413,6 +1414,32 @@ test-lpres-hex:
 test-paradox:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/paradox/test_paradox.c src/paradox/paradox.c src/paradox/paradox_graph.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_paradox && $(ZXV_TMP)/test_paradox > $(ZXV_TMP)/test_paradox.log 2>&1 && echo "[PASS] test_paradox ($$(tail -1 $(ZXV_TMP)/test_paradox.log))" || { cat $(ZXV_TMP)/test_paradox.log; echo "[FAIL] test_paradox"; exit 1; }
 	@for f in src/paradox/paradox.c src/paradox/paradox_graph.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/paradox_free.o || { echo "[FAIL] paradox freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/paradox_free.o | grep -vE ' (lpx_|pdx_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/paradox_free.o; echo "[FAIL] paradox freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] paradox freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256_ external)"
+
+HWEMU_CC := gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/pqsec
+
+# Hardware emulation matrix, ZHP-1 hardware profiles and signed
+# reconfiguration images (src/hwemu). The first step builds the three
+# policy files freestanding with no FP/SIMD registers, so a float there
+# fails the build.
+.PHONY: test-hwemu
+test-hwemu:
+	@for f in hwm hwp hwr hwa hwe; do gcc -std=c11 -O2 -Wall -Werror -Wextra -ffreestanding -mgeneral-regs-only -DTEST_HOST -Iinclude -Isrc/tensor -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c src/hwemu/$$f.c -o $(ZXV_TMP)/hwemu_$$f.o || { echo "[FAIL] hwemu $$f.c freestanding/no-FP"; exit 1; }; done; echo "[PASS] hwemu freestanding, no FP registers"
+	$(HWEMU_CC) src/hwemu/test_hwm.c src/hwemu/hwm.c -o $(ZXV_TMP)/test_hwm && $(ZXV_TMP)/test_hwm > $(ZXV_TMP)/test_hwm.log 2>&1 && echo "[PASS] test_hwm ($$(tail -1 $(ZXV_TMP)/test_hwm.log))" || { cat $(ZXV_TMP)/test_hwm.log; echo "[FAIL] test_hwm"; exit 1; }
+	$(HWEMU_CC) -Isrc/tensor src/hwemu/test_hwe.c src/hwemu/hwe.c src/hwemu/hwm.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/lpres/lpres.c -o $(ZXV_TMP)/test_hwe && $(ZXV_TMP)/test_hwe > $(ZXV_TMP)/test_hwe.log 2>&1 && echo "[PASS] test_hwe ($$(tail -1 $(ZXV_TMP)/test_hwe.log))" || { cat $(ZXV_TMP)/test_hwe.log; echo "[FAIL] test_hwe"; exit 1; }
+	python3 tools/check_hwe_vectors.py
+	$(HWEMU_CC) src/hwemu/test_hwp.c src/hwemu/hwp.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_hwp && $(ZXV_TMP)/test_hwp > $(ZXV_TMP)/test_hwp.log 2>&1 && echo "[PASS] test_hwp ($$(tail -1 $(ZXV_TMP)/test_hwp.log))" || { cat $(ZXV_TMP)/test_hwp.log; echo "[FAIL] test_hwp"; exit 1; }
+	$(HWEMU_CC) src/hwemu/test_hwr.c src/hwemu/hwr.c src/hwemu/hwa.c src/hwemu/hwr_pq.c src/hwemu/hwm.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c src/pqsec/pq_slh256s.c $(sort $(wildcard src/pqsec/slhdsa/*.c)) -o $(ZXV_TMP)/test_hwr && $(ZXV_TMP)/test_hwr > $(ZXV_TMP)/test_hwr.log 2>&1 && echo "[PASS] test_hwr ($$(tail -1 $(ZXV_TMP)/test_hwr.log))" || { cat $(ZXV_TMP)/test_hwr.log; echo "[FAIL] test_hwr"; exit 1; }
+
+# Regenerate the standard-engine golden vectors from the open C reference.
+.PHONY: hwe-vectors
+hwe-vectors:
+	gcc -std=c11 -O1 -Wall -Wextra -Werror -DHWE_GEN -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/tensor src/hwemu/gen_hwe_vectors.c src/hwemu/hwe.c src/hwemu/hwm.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/lpres/lpres.c -o $(ZXV_TMP)/gen_hwe_vectors && $(ZXV_TMP)/gen_hwe_vectors > src/hwemu/hwe_vectors.h && python3 tools/check_hwe_vectors.py
+
+# Not part of verify-all (timings vary by machine): emulated paths against
+# native code and against the machine's peak. See src/hwemu/bench_hwm.c.
+.PHONY: bench-hwemu
+bench-hwemu:
+	gcc -std=c11 -O2 -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/hwemu/bench_hwm.c src/hwemu/hwm.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/bench_hwm && $(ZXV_TMP)/bench_hwm
 
 # The SDK capability bridge (src/sdk_bridge/sdk_bridge.h): one id per capability.
 .PHONY: test-sdk-bridge

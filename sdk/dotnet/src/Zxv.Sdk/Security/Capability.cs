@@ -46,8 +46,17 @@ public enum CapabilityRights : ulong
     /// <summary>Encode EVM state-channel states.</summary>
     Evm = 1UL << 9,
 
-    /// <summary>Every right defined by ABI 1.1.</summary>
+    /// <summary>Every right defined by ABI 1.1 (<c>ZXV_CAP_ALL</c>, which keeps this value forever).</summary>
     All = (1UL << 10) - 1,
+
+    /// <summary>Build and call the hardware emulation matrix (<c>ZXV_CAP_HW_MATRIX</c>, ABI 1.4).</summary>
+    HwMatrix = 1UL << 10,
+
+    /// <summary>Load hardware images into regions and apply contract packages (<c>ZXV_CAP_HW_RECONF</c>, ABI 1.4).</summary>
+    HwReconf = 1UL << 11,
+
+    /// <summary>Every right as of ABI 1.4 (<c>ZXV_CAP_ALL_1_4</c>).</summary>
+    AllAbi14 = (1UL << 12) - 1,
 }
 
 /// <summary>A snapshot of a capability's state.</summary>

@@ -25,6 +25,9 @@ public enum SecretKeyKind
 
     /// <summary>An ML-KEM shared secret (32 bytes).</summary>
     SharedSecret = 4,
+
+    /// <summary>An SLH-DSA-SHAKE-256s secret key (128 bytes; hardware release keys, ABI 1.4).</summary>
+    SlhDsaShake256s = 5,
 }
 
 /// <summary>

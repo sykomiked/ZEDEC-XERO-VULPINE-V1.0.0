@@ -31,6 +31,20 @@ export const Status = Object.freeze({
   E_FORMAT: -22,
   E_IO: -23,
   E_FLOAT: -24,
+  /** No proven implementation may serve the call (ABI 1.4). */
+  E_NOPROVIDER: -25,
+  /** A shadow check found two implementations disagree (ABI 1.4). */
+  E_DISPUTE: -26,
+  /** The image failed in hardware: rolled back and logged (ABI 1.4). */
+  E_QUARANTINED: -27,
+  /** Image or contract not newer, or below the floor (ABI 1.4). */
+  E_ROLLBACK: -28,
+  /** The image is quarantined and never reloaded (ABI 1.4). */
+  E_BLOCKED: -29,
+  /** The image is for other hardware (ABI 1.4). */
+  E_TARGET: -30,
+  /** Refused by the function's placement policy (ABI 1.4). */
+  E_POLICY: -31,
   E_INTERNAL: -99,
 } as const);
 

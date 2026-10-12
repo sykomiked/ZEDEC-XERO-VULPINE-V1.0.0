@@ -51,6 +51,9 @@ uint32_t zxvi_features_11(void)
                  ZXV_FEAT_PHASE | ZXV_FEAT_WIRE | ZXV_FEAT_SWARM | ZXV_FEAT_HASH |
                  ZXV_FEAT_EVM | ZXV_FEAT_HEX;
 #ifndef ZXV_NO_PQC
+    m |= ZXV_FEAT_HW; /* regions need ML-DSA; ZXV_NO_PQC builds return NOTIMPL */
+#endif
+#ifndef ZXV_NO_PQC
     m |= ZXV_FEAT_MLKEM1024 | ZXV_FEAT_MLDSA87 | ZXV_FEAT_ED25519;
 #endif
 #ifndef ZXV_NO_TENSOR
@@ -307,8 +310,8 @@ int32_t zxv_cap_create(zxv_ctx *ctx, uint32_t process_id, const uint8_t *identit
                        zxv_cap **out_cap)
 {
     if (!ctx || !out_cap) return zxvi_fail(ZXV_E_ARG, "ctx or out_cap is NULL");
-    if (caps & ~ZXV_CAP_ALL) return zxvi_fail(ZXV_E_ARG, "unknown capability bits 0x%llx",
-                                              (unsigned long long) (caps & ~ZXV_CAP_ALL));
+    if (caps & ~ZXV_CAP_ALL_1_4) return zxvi_fail(ZXV_E_ARG, "unknown capability bits 0x%llx",
+                                                  (unsigned long long) (caps & ~ZXV_CAP_ALL_1_4));
     int32_t rc = zxvi_ctx_enter(ctx);
     if (rc) return rc;
     zxvi_ctx_leave(ctx);

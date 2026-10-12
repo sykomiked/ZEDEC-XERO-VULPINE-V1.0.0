@@ -101,4 +101,7 @@ public enum ZxvFeatures : uint
 
     /// <summary>The 64-state hexagram tag and quarantine log (ABI 1.3).</summary>
     Hex = 0x0800_0000,
+
+    /// <summary>The hardware emulation matrix, ZHP-1 profiles and hardware updates (ABI 1.4).</summary>
+    Hw = 0x1000_0000,
 }

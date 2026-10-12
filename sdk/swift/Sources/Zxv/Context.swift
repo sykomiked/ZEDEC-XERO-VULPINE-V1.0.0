@@ -36,7 +36,8 @@ public final class ZxvContext: @unchecked Sendable {
         try check(body(), self)
     }
 
-    /// A root capability. `bits` defaults to everything; `identity` is the
+    /// A root capability. `bits` defaults to `.all` (the ABI 1.1 bits; pass
+    /// `.all1_4` for the hardware group); `identity` is the
     /// 21-octet (168-bit) identity, zeros if nil. Attestation starts TRUE.
     public func rootCapability(_ bits: CapabilitySet = .all, processId: UInt32 = 0,
                                identity: [UInt8]? = nil) throws(ZxvError) -> Capability {
@@ -146,8 +147,15 @@ public struct CapabilitySet: OptionSet, Sendable, Hashable {
     public static let swarm = CapabilitySet(rawValue: 1 << 8)
     /// EVM state-channel encoding.
     public static let evm = CapabilitySet(rawValue: 1 << 9)
-    /// Every bit above.
+    /// Build and call the emulation matrix (ABI 1.4).
+    public static let hwMatrix = CapabilitySet(rawValue: 1 << 10)
+    /// Load hardware images and contracts (ABI 1.4).
+    public static let hwReconf = CapabilitySet(rawValue: 1 << 11)
+    /// `ZXV_CAP_ALL`: the ten ABI 1.1 bits, a released value that never
+    /// changes (it does not include `.hwMatrix` or `.hwReconf`).
     public static let all = CapabilitySet(rawValue: (1 << 10) - 1)
+    /// `ZXV_CAP_ALL_1_4`: every bit as of ABI 1.4.
+    public static let all1_4 = CapabilitySet(rawValue: (1 << 12) - 1)
 }
 
 /// A snapshot of a capability (`zxv_cap_info`).

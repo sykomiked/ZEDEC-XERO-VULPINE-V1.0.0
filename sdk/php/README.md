@@ -4,7 +4,7 @@
 # zedec/zxv: the PHP SDK for ZXV
 
 A small PHP 8.1+ wrapper of `libzxv`, the one C library every ZXV SDK shares
-(`sdk/libzxv/include/zxv_api.h`, ABI 1.3), over PHP's FFI extension. It
+(`sdk/libzxv/include/zxv_api.h`, ABI 1.4), over PHP's FFI extension. It
 follows `sdk/docs/SDK_DESIGN.md`, so its nouns match every other ZXV SDK.
 Every file uses `declare(strict_types=1)`.
 
@@ -22,8 +22,9 @@ require "/path/to/sdk/php/autoload.php";
 The library is found, in order: `Zxv::loadLibrary($path)`,
 `ZXV_LIBRARY_PATH`, a copy in this package's `lib/` directory, the
 in-repository build `sdk/libzxv/build/`, then the system loader path. A
-library whose ABI is not 1.x (x >= 3) is refused (the SDK calls the
-`zxv_hex_*` functions added in ABI 1.3 and the `_cap` functions added in 1.2).
+library whose ABI is not 1.x (x >= 4) is refused (the SDK calls the
+`zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*` functions added in
+1.3 and the `_cap` functions added in 1.2).
 
 Tests run with plain PHP (no PHPUnit needed), against the real library and
 `sdk/conformance/vectors.json`:
@@ -179,6 +180,60 @@ $log->verify();
 The four field types are backed enums; tags are interned (compare with
 `===`). Every PHP object is truthy, so never write `if ($h)`.
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+Three parts, documented in [HW_EMULATION.md](../docs/HW_EMULATION.md):
+
+- `HwProfile`: ZHP-1 machine profiles (plain data, no capability).
+  `probeHost()` describes this machine, `reference()` is the public
+  reference machine R1 (16 nodes), `present($host, $target)` marks each node
+  HARD or SOFT, `match()` / `pair()` say what runs natively and what is
+  emulated; `encode`, `decode`, `digest`, `cap`, `setCap`, `ext`, `setExt`.
+- `HwMatrix` (needs `Capability::HW_MATRIX`): functions served by
+  interchangeable implementations that serve only after reproducing the
+  golden vectors. Every matrix starts with the standard engines
+  (`Hw::FN_SHA256`, `FN_KECCAK`, `FN_MAC`, `FN_GCD`, `FN_LOGIC64`,
+  `FN_TENSOR`), so `call()` works on any device. `providers()` lists every
+  implementation (`HwProviderInfo`: kind, proof, contract, flags, power
+  class, calls); `setPolicy()` states placement (`Hw::POLICY_KEY_BEARING`,
+  `POLICY_LOCAL_ONLY`, latency, power), never an implementation.
+  `addProvider(fn, res, kind, cost, fn (int $op, string $in) => ...)`
+  registers a PHP implementation. Contract packages (`trustKey`,
+  `applyContract`) need `HW_RECONF`.
+- `HwRegion` (needs `HW_RECONF`): hardware updates as images signed with
+  ML-DSA-87 AND SLH-DSA-SHAKE-256s (`Hw::keygen`, `Hw::buildImage`, both
+  need `CRYPTO_SIGN`; signing takes seconds), staged, tested, committed or
+  rolled back on a device you supply as three callables (load, readback,
+  activate). Every step is an `onEvent` callback and a record in a
+  hash-chained audit log (`log`, `logEntry`, `HwLogEntry`).
+
+`Capability::ALL` stays the ABI 1.1 bits (`ZXV_CAP_ALL` never changes); ask
+for `Capability::ALL_1_4` or add `HW_MATRIX` / `HW_RECONF`.
+
+```php
+$cap = $ctx->rootCapability(Capability::ALL_1_4);
+$mx = new HwMatrix($cap);
+$digest = $mx->call(Hw::FN_SHA256, "abc");           // any machine
+foreach ($mx->providers() as $p) { echo $p->fnId, " ", $p->kind, " ", $p->proof, "\n"; }
+
+$key = Hw::keygen($cap);                            // secrets in native memory
+$img = Hw::buildImage($cap, Hw::IMG_PARTIAL, 0xD0, 0x200, 1, 1, $bitstream, $key);
+$rg = new HwRegion($cap, $mx, $fabricIndex, 1, 0xD0, $load, $readback, $activate);
+$rg->trustKey($key->publicKey);
+$rg->onEvent(fn (int $ev, int $reason, int $version) => audit($ev, $reason, $version));
+$rg->stage($img)->trial(5)->commit();
+$key->close();                                      // wipes both secret keys
+```
+
+PHP callbacks (implementations, the device, events) run through FFI
+closures on the calling thread inside libzxv. An exception never crosses
+into C: a ZXV exception returns its status, anything else `ZXV_E_IO`. The
+closures stay referenced until the context closes. `ZXV_E_NOPROVIDER`,
+`E_DISPUTE`, `E_QUARANTINED`, `E_ROLLBACK`, `E_BLOCKED` and `E_POLICY` are
+refusals (`ZxvRefusedException`), `E_TARGET` is a usage error; a full audit
+log poisons the context (`ZxvFatalError`), since a change that cannot be
+recorded is not made.
+
 ## API overview
 
 | PHP (`Zedec\Zxv\...`) | Wraps | Main methods |
@@ -201,6 +256,9 @@ The four field types are backed enums; tags are interned (compare with
 | `Ed25519`, `MlDsa87`, `MlKem1024`, `KeyPair` | signatures, KEM | `generate`, `sign`, `verify`, `verifyOrThrow`; `encapsulate`, `decapsulate` |
 | `SecretKey` | native secret | `close`, `bytesize`, `exportBytesUnsafe`, `fromBytesUnsafe` |
 | `Model`, `Session`, `GenerateOptions`, `GenerateResult` | engine | `open`, `tokenize`, `detokenize`, `info`, `newSession`; `generate`, `reset`, `bindBudget` |
+| `HwProfile` | `zxv_hw_profile_*` | `probeHost`, `reference`, `present`, `decode`, `create`, `encode`, `digest`, `addNode`, `setCap`, `cap`, `setExt`, `ext`, `nodes`, `match`, `pair` |
+| `HwMatrix`, `HwProviderInfo` | `zxv_hw_*` matrix | `call`, `shadow`, `providers`, `providerInfo`, `functionInfo`, `bound`, `setPolicy`, `addProvider`, `setTraits`, `attest`, `memo`, `trustKey`, `applyContract`, `log`, `logEntry` |
+| `HwRegion`, `Hw`, `HwReleaseKey`, `HwLogEntry` | `zxv_hw_region_*`, packages | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `onEvent`, `log`; `Hw::keygen`, `Hw::buildImage`, `Hw::vectorList` |
 | `StateChannel`, `ChannelState` | `zxv_evm_*` | `encodeState`, `ledgerState` (for `sdk/solidity/ZxvStateChannel.sol`) |
 
 ## Examples

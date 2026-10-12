@@ -4,7 +4,7 @@
 # ZXV Go SDK
 
 Package `zxv` is a cgo binding to `libzxv`, the stable C ABI of the ZXV
-platform (`sdk/libzxv/include/zxv_api.h`, ABI 1.3).
+platform (`sdk/libzxv/include/zxv_api.h`, ABI 1.4).
 
 ```
 import "github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/sdk/go/zxv"
@@ -175,6 +175,51 @@ err = log.Verify()
 `Hexagram` is a comparable value; its zero value is tag 0
 (false/entropic/potential).
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+Profiles are plain data; the matrix needs `CapHWMatrix`; regions and
+contract packages need `CapHWReconf`; release keys and packages need
+`CapCryptoSign`. `CapAll` keeps its 1.1 value, so use `CapAll14` for every
+bit. New sentinels: `ErrNoProvider`, `ErrDispute`, `ErrQuarantined`,
+`ErrRollback`, `ErrBlocked`, `ErrTarget` (USAGE), `ErrPolicy`. Everything is
+integers. See [HW_EMULATION.md](../docs/HW_EMULATION.md).
+
+* `HwProfile` (ZHP-1): `HwProbeHost`, `HwReference` (R1, 16 nodes),
+  `HwPresent`, `Encode` / `DecodeHwProfile`, `Digest`, `AddNode`,
+  `SetCap` / `Cap`, `SetExt` / `Ext` (opaque, at most `HwExtMax` bytes),
+  `HwMatchProfiles`, `HwPairNode`.
+* `HwMatrix`: starts with the standard engines (`HwFnSHA256`, `HwFnKeccak`,
+  `HwFnMAC`, `HwFnGCD`, `HwFnLogic64`, `HwFnTensor`), each served by a
+  proven SOFT implementation. Discover with `Providers` / `ProviderInfo` /
+  `FindProvider` / `FunctionInfo`; constrain with `SetPolicy`
+  (`HwPolicyKeyBearing` is sticky and keeps work local); add your own
+  implementations (`HwProviderFunc`) with `AddProvider`, prove them with
+  `Attest`; `Call`, `CallInto`, `Shadow`, `Memo`, `TrustKey` +
+  `ApplyContract`, `Log` / `LogEntry`.
+* `HwRelease`: `KeyGen` (an `HwReleaseKey` whose two secret halves are
+  `SecretKey`s, wiped on `Close`) and `Build` (header || payload || ML-DSA-87
+  and SLH-DSA signatures; SLH-DSA takes seconds).
+* `HwRegion`: `NewHwRegion` with an `HwDevice` you implement (`Load`,
+  `Readback`, `Activate`), `TrustKey`, `Stage`, `Trial`, `Commit`,
+  `Rollback`, `Tick`, `Info`, `OnEvent`, `Log` / `LogEntry` (records carry a
+  `Hexagram` tag). A region keeps its matrix open.
+
+```go
+r1, _ := zxv.HwReference()
+host, _ := zxv.HwProbeHost()
+m, _ := zxv.HwMatchProfiles(host, r1) // m.Native, m.Emulated
+root, _ := ctx.RootCapability(1, nil, zxv.CapAll14)
+mx, _ := zxv.NewHwMatrix(root)
+defer mx.Close()
+digest, _ := mx.Call(zxv.HwFnSHA256, 0, []byte("abc")) // ba7816bf...
+```
+
+Callbacks reach Go through exported functions and `cgo.Handle`s, on the
+goroutine of the call that needs them. A panic is recovered at the C
+boundary and reported as `ZXV_E_INTERNAL`; an error is reported as its
+status. A provider may call the matrix again for the functions it declared
+with `AddDependency`.
+
 ## API overview
 
 | Area | Types | Key calls |
@@ -194,6 +239,8 @@ err = log.Verify()
 | Crypto | `Ed25519`, `MLDSA87`, `MLKEM1024`, `SecretKey` | key generation, sign/verify, encapsulate/decapsulate, `SHA3256`, `Keccak256` |
 | Engine | `Model`, `Session`, `GenerateOptions` | `OpenModel`, `Tokenize`, `NewSession`, `Generate`, `GenerateStream`, `BindBudget` |
 | EVM | `StateChannel` | `EncodeState`, `LedgerState` |
+| Hexagram | `Hexagram`, `QuarantineLog` | `NewHexagram`, `Action`, `Step`, `Forbid`, `Append`, `Verify` |
+| Hardware | `HwProfile`, `HwMatrix`, `HwRelease`, `HwRegion` | `HwProbeHost`, `HwReference`, `Call`, `AddProvider`, `Attest`, `Build`, `Stage`, `Trial`, `Commit` |
 
 ## Examples
 
@@ -211,6 +258,12 @@ cd sdk/go/zxv
 go vet ./...
 go test ./...          # add -race to check the concurrency claims
 ```
+
+`hw_test.go` mirrors `test_zxv_abi14.c` (ABI 1.4): R1, profiles, the standard
+engines, placement (MAC never goes REMOTE), proof, dependencies, failover,
+shadow, memo, contracts, and a full stage / trial / commit / quarantine cycle
+with events, the audit log and fail-closed when it fills (three SLH-DSA
+signings, ~5 s).
 
 `hexagram_test.go` checks the `hex` key (ABI 1.3): every tag, the logic, step and
 set tables, the Truth mapping and the quarantine chain.

@@ -34,7 +34,7 @@ func statusOf(err error) int32 {
 func TestABIVersion(t *testing.T) {
 	v := loadVectors(t)
 	major, minor, _ := zxv.Version()
-	if int(major) != v.ABI[0] || minor < 3 {
+	if int(major) != v.ABI[0] || minor < 4 {
 		t.Fatalf("ABI %d.%d", major, minor)
 	}
 }

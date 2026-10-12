@@ -19,6 +19,12 @@
 // wrong JS type is a TypeError before C runs. This object is internal: the
 // typed public API in src/ is the only supported way to call it.
 //
+// Hardware implementations and devices (ABI 1.4) are JS functions: the
+// zxvjs_hw_* entry points pass C trampolines to libzxv, and each
+// trampoline calls one JS dispatcher synchronously on the JS thread (the
+// only thread that makes zxv_hw_* calls). A call from any other thread
+// gets ZXV_E_STATE; nothing JS-side ever unwinds through C.
+//
 // Generation runs on a libuv worker thread (Napi::AsyncProgressQueueWorker)
 // and streams each token back to the event loop; the event loop is never
 // blocked by the engine. Secret keys live in memory allocated here (outside
@@ -36,6 +42,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -226,6 +233,127 @@ Napi::Value Write(const Napi::CallbackInfo &info)
     Napi::Uint8Array src = info[1].As<Napi::Uint8Array>();
     if (src.ByteLength()) std::memcpy(p, src.Data(), src.ByteLength());
     return info.Env().Undefined();
+}
+
+// ---- hardware implementations and devices (ABI 1.4) ----
+
+decltype(&zxv_hw_provider_add) g_hw_provider_add = nullptr;
+decltype(&zxv_hw_region_create_cap) g_hw_region_create = nullptr;
+decltype(&zxv_hw_region_events) g_hw_region_events = nullptr;
+Napi::FunctionReference g_hw_dispatch;
+napi_env g_hw_env = nullptr;
+std::thread::id g_hw_thread;
+
+enum HwKind { HW_CALL = 0, HW_LOAD = 1, HW_READBACK = 2, HW_ACTIVATE = 3, HW_EVENT = 4 };
+
+// dispatch(kind, id, a, b, c, d, data | null, outCap) -> number | Uint8Array
+int32_t hw_dispatch(int kind, uint32_t id, uint32_t a, uint32_t b, uint32_t c, uint32_t d,
+                    const uint8_t *data, size_t len, uint8_t *out, size_t out_cap, size_t *out_len)
+{
+    if (g_hw_dispatch.IsEmpty() || !g_hw_env || std::this_thread::get_id() != g_hw_thread)
+        return ZXV_E_STATE;
+    Napi::Env env(g_hw_env);
+    try {
+        Napi::HandleScope scope(env);
+        Napi::Value buf = env.Null();
+        if (data) {
+            Napi::Uint8Array u = Napi::Uint8Array::New(env, len);
+            if (len) std::memcpy(u.Data(), data, len);
+            buf = u;
+        }
+        Napi::Value r = g_hw_dispatch.Call(
+            {Napi::Number::New(env, kind), Napi::Number::New(env, id), Napi::Number::New(env, a),
+             Napi::Number::New(env, b), Napi::Number::New(env, c), Napi::Number::New(env, d), buf,
+             Napi::Number::New(env, static_cast<double>(out_cap))});
+        if (r.IsNumber()) return r.As<Napi::Number>().Int32Value();
+        if (r.IsTypedArray() && out_len) {
+            Napi::TypedArray t = r.As<Napi::TypedArray>();
+            size_t n = t.ByteLength();
+            *out_len = n;
+            if (n > out_cap) return ZXV_E_BUFFER;
+            if (n) std::memcpy(out, static_cast<uint8_t *>(t.ArrayBuffer().Data()) + t.ByteOffset(), n);
+            return ZXV_OK;
+        }
+        return ZXV_E_IO;
+    } catch (const Napi::Error &) { // the JS layer never throws; be safe anyway
+        return ZXV_E_IO;
+    }
+}
+
+uint32_t hw_id(void *user)
+{
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(user));
+}
+
+int32_t hw_call_tramp(void *user, uint32_t op, const uint8_t *in, size_t in_len, uint8_t *out,
+                      size_t out_cap, size_t *out_len)
+{
+    static const uint8_t empty = 0;
+    return hw_dispatch(HW_CALL, hw_id(user), op, 0, 0, 0, in_len ? in : &empty, in_len, out, out_cap, out_len);
+}
+
+int32_t hw_load_tramp(void *user, uint32_t slot, const uint8_t *payload, size_t len)
+{
+    static const uint8_t empty = 0;
+    return hw_dispatch(HW_LOAD, hw_id(user), slot, 0, 0, 0, len ? payload : &empty, len, nullptr, 0, nullptr);
+}
+
+int32_t hw_readback_tramp(void *user, uint32_t slot, uint8_t digest[32])
+{
+    size_t n = 0;
+    int32_t rc = hw_dispatch(HW_READBACK, hw_id(user), slot, 0, 0, 0, nullptr, 0, digest, 32, &n);
+    if (rc == ZXV_OK && n != 32) return ZXV_E_IO;
+    return rc;
+}
+
+int32_t hw_activate_tramp(void *user, uint32_t slot)
+{
+    return hw_dispatch(HW_ACTIVATE, hw_id(user), slot, 0, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+}
+
+void hw_event_tramp(void *user, uint32_t region_id, int32_t event, uint32_t reason, uint32_t version)
+{
+    hw_dispatch(HW_EVENT, hw_id(user), region_id, static_cast<uint32_t>(event), reason, version, nullptr, 0,
+                nullptr, 0, nullptr);
+}
+
+// The same entry points the wasm shim exports, with a uint32 id for `user`.
+int32_t js_hw_provider_add(const zxv_cap *cap, zxv_hw_matrix *mx, uint32_t fn_id, uint32_t res_id,
+                           int32_t kind, uint32_t cost, uint32_t user, uint32_t *out_provider)
+{
+    return g_hw_provider_add(cap, mx, fn_id, res_id, kind, cost, hw_call_tramp,
+                             reinterpret_cast<void *>(static_cast<uintptr_t>(user)), out_provider);
+}
+
+int32_t js_hw_region_create(const zxv_cap *cap, zxv_hw_matrix *mx, uint32_t provider, uint32_t region_id,
+                            uint32_t target_class, const uint8_t *target_digest, uint32_t user,
+                            uint32_t log_cap, zxv_hw_region **out)
+{
+    return g_hw_region_create(cap, mx, provider, region_id, target_class, target_digest, hw_load_tramp,
+                              hw_readback_tramp, hw_activate_tramp,
+                              reinterpret_cast<void *>(static_cast<uintptr_t>(user)), log_cap, out);
+}
+
+int32_t js_hw_region_events(const zxv_cap *cap, zxv_hw_region *rg, uint32_t user)
+{
+    return g_hw_region_events(cap, rg, hw_event_tramp, reinterpret_cast<void *>(static_cast<uintptr_t>(user)));
+}
+
+// hwHandler(dispatch): install the JS dispatcher (on the calling JS thread).
+Napi::Value HwHandler(const Napi::CallbackInfo &info)
+{
+    if (info.Length() != 1 || !info[0].IsFunction())
+        throw Napi::TypeError::New(info.Env(), "zxvjs_hw_handler: expected a function");
+    g_hw_dispatch = Napi::Persistent(info[0].As<Napi::Function>());
+    g_hw_env = info.Env();
+    g_hw_thread = std::this_thread::get_id();
+    return info.Env().Undefined();
+}
+
+template <typename F>
+void bind_local(Napi::Env env, Napi::Object &out, const char *name, F fn)
+{
+    out.Set(name, Napi::Function::New(env, &Wrap<F>::call, name, reinterpret_cast<void *>(fn)));
 }
 
 // ---- generation on a worker thread, streamed back as progress ----
@@ -424,10 +552,32 @@ Napi::Value Load(const Napi::CallbackInfo &info)
     FN(zxv_hex_name); FN(zxv_hex_action_name); FN(zxv_hexlog_create); FN(zxv_hexlog_destroy);
     FN(zxv_hexlog_append); FN(zxv_hexlog_count); FN(zxv_hexlog_head); FN(zxv_hexlog_at);
     FN(zxv_hexlog_verify);
+    // ABI 1.4: hardware emulation and hardware updates
+    FN(zxv_hw_profile_create); FN(zxv_hw_profile_destroy); FN(zxv_hw_profile_probe_host);
+    FN(zxv_hw_profile_reference); FN(zxv_hw_profile_present); FN(zxv_hw_profile_decode);
+    FN(zxv_hw_profile_encode); FN(zxv_hw_profile_digest); FN(zxv_hw_profile_node_add);
+    FN(zxv_hw_profile_cap_set); FN(zxv_hw_profile_cap_get); FN(zxv_hw_profile_ext_set);
+    FN(zxv_hw_profile_ext_get); FN(zxv_hw_profile_count); FN(zxv_hw_profile_node);
+    FN(zxv_hw_profile_match); FN(zxv_hw_profile_pair); FN(zxv_hw_matrix_create_cap);
+    FN(zxv_hw_matrix_destroy); FN(zxv_hw_function_add); FN(zxv_hw_vector_add);
+    FN(zxv_hw_function_contract); FN(zxv_hw_policy_set); FN(zxv_hw_function_info);
+    FN(zxv_hw_resource_add); FN(zxv_hw_resource_set); FN(zxv_hw_provider_add);
+    FN(zxv_hw_provider_traits); FN(zxv_hw_provider_dep); FN(zxv_hw_provider_enable); FN(zxv_hw_attest);
+    FN(zxv_hw_provider_count); FN(zxv_hw_provider_info); FN(zxv_hw_bound); FN(zxv_hw_call);
+    FN(zxv_hw_shadow); FN(zxv_hw_memo); FN(zxv_hw_keygen); FN(zxv_hw_image_build);
+    FN(zxv_hw_matrix_trust_key); FN(zxv_hw_contract_apply); FN(zxv_hw_region_create_cap);
+    FN(zxv_hw_region_destroy); FN(zxv_hw_region_events); FN(zxv_hw_region_trust_key);
+    FN(zxv_hw_region_stage); FN(zxv_hw_region_trial); FN(zxv_hw_region_commit);
+    FN(zxv_hw_region_rollback); FN(zxv_hw_region_tick); FN(zxv_hw_region_info); FN(zxv_hw_region_log);
+    FN(zxv_hw_region_log_entry); FN(zxv_hw_matrix_log); FN(zxv_hw_matrix_log_entry);
 
     g_generate = reinterpret_cast<decltype(g_generate)>(find_symbol(g_lib, "zxv_generate"));
     g_last_error = reinterpret_cast<decltype(g_last_error)>(find_symbol(g_lib, "zxv_last_error"));
     g_secure_zero = reinterpret_cast<decltype(g_secure_zero)>(find_symbol(g_lib, "zxv_secure_zero"));
+    g_hw_provider_add = reinterpret_cast<decltype(g_hw_provider_add)>(find_symbol(g_lib, "zxv_hw_provider_add"));
+    g_hw_region_create =
+        reinterpret_cast<decltype(g_hw_region_create)>(find_symbol(g_lib, "zxv_hw_region_create_cap"));
+    g_hw_region_events = reinterpret_cast<decltype(g_hw_region_events)>(find_symbol(g_lib, "zxv_hw_region_events"));
     if (!g_generate) missing.push_back("zxv_generate");
     if (!missing.empty()) {
         std::string m;
@@ -435,6 +585,10 @@ Napi::Value Load(const Napi::CallbackInfo &info)
         throw Napi::Error::New(env, path + " lacks symbols: " + m);
     }
     out.Set("zxvjs_generate", Napi::Function::New(env, Generate, "zxvjs_generate"));
+    bind_local(env, out, "zxvjs_hw_provider_add", &js_hw_provider_add);
+    bind_local(env, out, "zxvjs_hw_region_create", &js_hw_region_create);
+    bind_local(env, out, "zxvjs_hw_region_events", &js_hw_region_events);
+    out.Set("zxvjs_hw_handler", Napi::Function::New(env, HwHandler, "zxvjs_hw_handler"));
     out.Set("alloc", Napi::Function::New(env, Alloc, "alloc"));
     out.Set("free", Napi::Function::New(env, Free, "free"));
     out.Set("read", Napi::Function::New(env, Read, "read"));

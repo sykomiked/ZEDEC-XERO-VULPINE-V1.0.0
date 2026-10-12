@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zxv-sdk"
-version = "1.3.0"
-description = "Python SDK for the ZXV platform core (libzxv ABI 1.3): exact rationals, four-valued logic, 64-state hexagram tags, capabilities, budgets, phase clock, UBH-168 wire, swarm economy, post-quantum crypto and a deterministic integer inference engine."
+version = "1.4.0"
+description = "Python SDK for the ZXV platform core (libzxv ABI 1.4): exact rationals, four-valued logic, 64-state hexagram tags, hardware emulation and signed hardware updates, capabilities, budgets, phase clock, UBH-168 wire, swarm economy, post-quantum crypto and a deterministic integer inference engine."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

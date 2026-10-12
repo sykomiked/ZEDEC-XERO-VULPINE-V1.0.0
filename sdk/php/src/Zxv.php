@@ -25,6 +25,7 @@ final class Zxv
         "lpres" => 0x4000, "caps" => 0x8000, "rmag" => 0x10000, "phase" => 0x20000, "wire" => 0x40000,
         "swarm" => 0x80000, "hash" => 0x100000, "mlkem1024" => 0x200000, "mldsa87" => 0x400000,
         "ed25519" => 0x800000, "tensor" => 0x1000000, "lora" => 0x2000000, "evm" => 0x4000000, "hex" => 0x8000000,
+        "hw" => 0x10000000,
     ];
 
     private static FatalPolicy $fatalPolicy = FatalPolicy::Throw;

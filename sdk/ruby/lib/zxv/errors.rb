@@ -30,6 +30,14 @@ module Zxv
     E_FORMAT = -22
     E_IO = -23
     E_FLOAT = -24
+    # ABI 1.4: hardware emulation and hardware updates.
+    E_NOPROVIDER = -25  # no proven implementation may serve the call
+    E_DISPUTE = -26     # a shadow check found two implementations disagree
+    E_QUARANTINED = -27 # image failed in hardware: rolled back, logged
+    E_ROLLBACK = -28    # image or contract not newer / below the floor
+    E_BLOCKED = -29     # image already quarantined; never reloaded
+    E_TARGET = -30      # image is for other hardware
+    E_POLICY = -31      # refused by the function's placement policy
     E_INTERNAL = -99
 
     # Status classes (zxv_status_class).

@@ -35,6 +35,21 @@ final class Status
     public const E_FORMAT = -22;
     public const E_IO = -23;
     public const E_FLOAT = -24;
+    // ABI 1.4: hardware emulation and hardware updates.
+    /** No proven implementation may serve the call. */
+    public const E_NOPROVIDER = -25;
+    /** A shadow check found two implementations disagree. */
+    public const E_DISPUTE = -26;
+    /** The image failed in hardware: rolled back, logged. */
+    public const E_QUARANTINED = -27;
+    /** Image or contract not newer, or below the floor. */
+    public const E_ROLLBACK = -28;
+    /** The image is already quarantined; never reloaded. */
+    public const E_BLOCKED = -29;
+    /** The image is for other hardware. */
+    public const E_TARGET = -30;
+    /** Refused by the function's placement policy. */
+    public const E_POLICY = -31;
     public const E_INTERNAL = -99;
 
     public const CLASS_OK = 0;

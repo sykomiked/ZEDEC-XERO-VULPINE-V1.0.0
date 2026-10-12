@@ -22,6 +22,15 @@ export {
   Hexagram, HexBase, HexPolarity, HexPhase, HexAction, HEX_ACTION_NAMES, QuarantineLog, QUARANTINE_MAX_RECORDS,
 } from './hexagram.js';
 export type { QuarantineRecord } from './hexagram.js';
+export {
+  HwProfile, HwMatrix, HwRegion, HwReleaseKey, HwKind, HwClass, HwCapKey, HwIsa, HwPairing, HwResourceState, HwFn, HwPolicy,
+  HwProviderFlag, HwPower, HwImageKind, HwRegionState, HwEvent, encodeVectors, HW_RES_HOST, HW_ROOT, HW_EXT_MAX,
+  HW_CLASS_PRIVATE, HW_PK_BYTES, HW_MLDSA_SK_BYTES, HW_SLHDSA_SK_BYTES, HW_SIG_BYTES, HW_HEADER_BYTES,
+} from './hardware.js';
+export type {
+  Implementation, HwDevice, ProfileNode, ProfilePairing, FunctionInfo, ProviderInfo, HwLogEntry, PolicyOptions, RegionEvent,
+  RegionInfo, RegionOptions,
+} from './hardware.js';
 export type { AttestationState, AttestOptions } from './attestations.js';
 export { Budgets, Budget, BudgetResource } from './budgets.js';
 export type { Amount, BudgetStatus, ConsumeAsyncOptions, ExhaustedEvent, BudgetOptions } from './budgets.js';

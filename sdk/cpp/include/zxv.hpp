@@ -20,7 +20,8 @@
 //
 // Thread safety: Context and Capability may be used from any thread (the
 // C context is internally serialized). Budgets, PhaseClock, Attestations,
-// Swarm and Model are safe to share across threads. A Session is used by
+// Swarm, Model and the ABI 1.4 hw::Matrix and hw::Region are safe to share
+// across threads. A Session is used by
 // one thread at a time (the SDK refuses concurrent use).
 #ifndef ZXV_HPP
 #define ZXV_HPP
@@ -319,9 +320,9 @@ private:
 
 /// The ABI version this header was written against.
 inline constexpr std::uint32_t header_abi_major = ZXV_ABI_VERSION_MAJOR;
-/// Minimum ABI minor version this SDK needs (ABI 1.3: the hexagram tag;
-/// 1.2 added the *_cap forms).
-inline constexpr std::uint32_t header_abi_minor = 3;
+/// Minimum ABI minor version this SDK needs (ABI 1.4: hardware emulation
+/// and hardware updates; 1.3 added the hexagram tag, 1.2 the *_cap forms).
+inline constexpr std::uint32_t header_abi_minor = 4;
 
 /// One harmonic fundamental, in ticks (27,720 = lcm(1..11)).
 inline constexpr std::uint64_t phase_cycle = ZXV_PHASE_CYCLE;
@@ -357,6 +358,7 @@ inline constexpr std::uint32_t tensor = ZXV_FEAT_TENSOR;       ///< inference en
 inline constexpr std::uint32_t lora = ZXV_FEAT_LORA;           ///< LoRA (not built yet)
 inline constexpr std::uint32_t evm = ZXV_FEAT_EVM;             ///< EVM state channels
 inline constexpr std::uint32_t hex = ZXV_FEAT_HEX;             ///< hexagram tag, quarantine log (1.3)
+inline constexpr std::uint32_t hw = ZXV_FEAT_HW;               ///< emulation matrix, ZHP-1, hardware updates (1.4)
 } // namespace feature
 
 /// Capability bits (ZXV_CAP_*). Combine with `|`.
@@ -371,7 +373,10 @@ inline constexpr std::uint64_t phase = ZXV_CAP_PHASE;               ///< admit /
 inline constexpr std::uint64_t attest = ZXV_CAP_ATTEST;             ///< attestations
 inline constexpr std::uint64_t swarm = ZXV_CAP_SWARM;               ///< swarm economy
 inline constexpr std::uint64_t evm = ZXV_CAP_EVM;                   ///< state-channel encoding
-inline constexpr std::uint64_t all = ZXV_CAP_ALL;                   ///< every bit above
+inline constexpr std::uint64_t all = ZXV_CAP_ALL;                   ///< every ABI 1.1 bit (this value forever)
+inline constexpr std::uint64_t hw_matrix = ZXV_CAP_HW_MATRIX;       ///< build and call the emulation matrix (1.4)
+inline constexpr std::uint64_t hw_reconf = ZXV_CAP_HW_RECONF;       ///< load hardware images and contracts (1.4)
+inline constexpr std::uint64_t all_1_4 = ZXV_CAP_ALL_1_4;           ///< every bit as of ABI 1.4
 } // namespace caps
 
 // ===========================================================================
@@ -486,6 +491,49 @@ public:
     using RefusedError::RefusedError;
 };
 
+/// No proven hardware implementation may serve the call (ZXV_E_NOPROVIDER).
+class NoProvider : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// A shadow check found two implementations disagree (ZXV_E_DISPUTE).
+class Disputed : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// A hardware image failed in hardware: rolled back and logged
+/// (ZXV_E_QUARANTINED).
+class Quarantined : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// An image or contract is not newer, or is below the floor (ZXV_E_ROLLBACK).
+class RollbackRefused : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// The image was quarantined before; it is never reloaded (ZXV_E_BLOCKED).
+class ImageBlocked : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// Refused by the function's placement policy (ZXV_E_POLICY).
+class PolicyDenied : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// The image is for other hardware (ZXV_E_TARGET, USAGE class).
+class TargetMismatch : public UsageError {
+public:
+    using UsageError::UsageError;
+};
+
 /// SYSTEM class: out of memory, I/O, internal or unknown status.
 class SystemError : public Exception {
 public:
@@ -581,6 +629,7 @@ struct CtxCore {
         raise_fatal(status, std::move(detail));
     case StatusClass::usage:
         if (status == ZXV_E_FLOAT) throw FloatRejected(status, std::move(detail));
+        if (status == ZXV_E_TARGET) throw TargetMismatch(status, std::move(detail));
         throw UsageError(status, std::move(detail));
     case StatusClass::refused:
         switch (status) {
@@ -589,6 +638,12 @@ struct CtxCore {
         case ZXV_E_FUNDS: throw InsufficientFunds(status, std::move(detail));
         case ZXV_E_VERIFY: throw VerificationFailed(status, std::move(detail));
         case ZXV_E_NOTIMPL: throw NotImplemented(status, std::move(detail));
+        case ZXV_E_NOPROVIDER: throw NoProvider(status, std::move(detail));
+        case ZXV_E_DISPUTE: throw Disputed(status, std::move(detail));
+        case ZXV_E_QUARANTINED: throw Quarantined(status, std::move(detail));
+        case ZXV_E_ROLLBACK: throw RollbackRefused(status, std::move(detail));
+        case ZXV_E_BLOCKED: throw ImageBlocked(status, std::move(detail));
+        case ZXV_E_POLICY: throw PolicyDenied(status, std::move(detail));
         default: throw RefusedError(status, std::move(detail));
         }
     case StatusClass::ok: // a non-negative status never reaches here
@@ -658,7 +713,7 @@ inline std::uint32_t features()
 /// True if every bit of `mask` (zxv::feature::*) is live in this build.
 inline bool has_feature(std::uint32_t mask) { return (features() & mask) == mask; }
 
-/// Refuse a library whose major version differs or whose minor is below 3
+/// Refuse a library whose major version differs or whose minor is below 4
 /// (SDK_DESIGN.md section 1). Called once, automatically, by Context.
 inline void ensure_compatible()
 {
@@ -666,7 +721,7 @@ inline void ensure_compatible()
     if (v.major != header_abi_major || v.minor < header_abi_minor)
         throw SystemError(ZXV_E_INTERNAL, "libzxv ABI " + std::to_string(v.major) + "." +
                                               std::to_string(v.minor) + " is not compatible with " +
-                                              "this SDK (needs 1.3 or later 1.x)");
+                                              "this SDK (needs 1.4 or later 1.x)");
 }
 
 // ===========================================================================
@@ -3503,6 +3558,1066 @@ private:
     }
     std::shared_ptr<detail::CapCore> cap_;
 };
+
+// ===========================================================================
+// Hardware emulation and hardware updates (ABI 1.4)
+// ===========================================================================
+
+/// ABI 1.4: hardware emulation and hardware updates.
+///
+///   * hw::Profile: a ZHP-1 machine profile, the "hardware ROM" (plain
+///     data, no capability): probe this host, take the public reference
+///     machine R1, present R1 on a host, encode, digest and match.
+///   * hw::Matrix: functions (engine contracts) served by interchangeable,
+///     proven implementations. Every matrix starts with the standard
+///     engines (hw::fn_sha256 ... hw::fn_tensor), each served by a proven
+///     SOFT implementation. Needs caps::hw_matrix; contract packages need
+///     caps::hw_reconf.
+///   * hw::Release: release keys and signed packages (ML-DSA-87 AND
+///     SLH-DSA-SHAKE-256s). Needs caps::crypto_sign. SLH-DSA signing takes
+///     seconds: building is a release step.
+///   * hw::Region: a reconfigurable region updated with signed images:
+///     stage, trial, commit or roll back, every step an event and a record
+///     in a hash-chained audit log. Needs caps::hw_reconf.
+///
+/// Callbacks (providers, device operations, event handlers) are
+/// std::functions called through noexcept trampolines: no exception ever
+/// crosses C. A zxv::Exception (or FatalError) thrown by a provider or a
+/// device operation is reported to the library as its status; any other
+/// exception as ZXV_E_INTERNAL. Exceptions from event handlers are
+/// swallowed. Everything is integers.
+namespace hw {
+
+// ----- constants -----------------------------------------------------------
+
+inline constexpr std::uint32_t fn_sha256 = ZXV_HW_FN_SHA256;   ///< op 0: SHA-256
+inline constexpr std::uint32_t fn_keccak = ZXV_HW_FN_KECCAK;   ///< op 0/1 SHA3-256/512, op 2/3 SHAKE
+inline constexpr std::uint32_t fn_mac = ZXV_HW_FN_MAC;         ///< op 0: HMAC-SHA256 (key-bearing)
+inline constexpr std::uint32_t fn_gcd = ZXV_HW_FN_GCD;         ///< op 0: n pairs of u64 -> n gcds
+inline constexpr std::uint32_t fn_logic64 = ZXV_HW_FN_LOGIC64; ///< 64-lane four-valued AND / OR / NOT
+inline constexpr std::uint32_t fn_tensor = ZXV_HW_FN_TENSOR;   ///< op 0: one Q8_0 row dot
+
+inline constexpr std::uint32_t res_host = ZXV_HW_RES_HOST; ///< the resource every matrix starts with: this CPU
+inline constexpr std::uint32_t root = ZXV_HW_ROOT;         ///< parent id of a root profile node
+inline constexpr std::size_t ext_max = ZXV_HW_EXT_MAX;     ///< private extension bytes per node
+inline constexpr std::size_t pk_bytes = ZXV_HW_PK_BYTES;   ///< ML-DSA-87 key || SLH-DSA key
+inline constexpr std::size_t mldsa_sk_bytes = ZXV_HW_MLDSA_SK_BYTES;
+inline constexpr std::size_t slhdsa_sk_bytes = ZXV_HW_SLHDSA_SK_BYTES;
+inline constexpr std::size_t sig_bytes = ZXV_HW_SIG_BYTES;
+inline constexpr std::size_t header_bytes = ZXV_HW_HEADER_BYTES;
+/// Output capacity of Matrix::call (the largest golden-vector output).
+inline constexpr std::size_t call_out_default = 512;
+
+/// Component classes (ZXV_HW_CLASS_*). Classes from cls::private_ up are an
+/// implementer's own.
+namespace cls {
+inline constexpr std::uint32_t machine = ZXV_HW_CLASS_MACHINE;
+inline constexpr std::uint32_t cpu_cluster = ZXV_HW_CLASS_CPU_CLUSTER;
+inline constexpr std::uint32_t cpu_core = ZXV_HW_CLASS_CPU_CORE;
+inline constexpr std::uint32_t cache = ZXV_HW_CLASS_CACHE;
+inline constexpr std::uint32_t memory = ZXV_HW_CLASS_MEMORY;
+inline constexpr std::uint32_t interconnect = ZXV_HW_CLASS_INTERCONNECT;
+inline constexpr std::uint32_t matrix_unit = ZXV_HW_CLASS_MATRIX_UNIT;
+inline constexpr std::uint32_t vector_unit = ZXV_HW_CLASS_VECTOR_UNIT;
+inline constexpr std::uint32_t ternary_unit = ZXV_HW_CLASS_TERNARY_UNIT;
+inline constexpr std::uint32_t hash_unit = ZXV_HW_CLASS_HASH_UNIT;
+inline constexpr std::uint32_t crypto_unit = ZXV_HW_CLASS_CRYPTO_UNIT;
+inline constexpr std::uint32_t codec_unit = ZXV_HW_CLASS_CODEC_UNIT;
+inline constexpr std::uint32_t reconf_fabric = ZXV_HW_CLASS_RECONF_FABRIC;
+inline constexpr std::uint32_t storage = ZXV_HW_CLASS_STORAGE;
+inline constexpr std::uint32_t network = ZXV_HW_CLASS_NETWORK;
+inline constexpr std::uint32_t radio = ZXV_HW_CLASS_RADIO;
+inline constexpr std::uint32_t sensor = ZXV_HW_CLASS_SENSOR;
+inline constexpr std::uint32_t actuator = ZXV_HW_CLASS_ACTUATOR;
+inline constexpr std::uint32_t clock = ZXV_HW_CLASS_CLOCK;
+inline constexpr std::uint32_t power = ZXV_HW_CLASS_POWER;
+inline constexpr std::uint32_t secure_element = ZXV_HW_CLASS_SECURE_ELEMENT;
+inline constexpr std::uint32_t display = ZXV_HW_CLASS_DISPLAY;
+inline constexpr std::uint32_t audio = ZXV_HW_CLASS_AUDIO;
+inline constexpr std::uint32_t wire = ZXV_HW_CLASS_WIRE;
+inline constexpr std::uint32_t gpu = ZXV_HW_CLASS_GPU;
+inline constexpr std::uint32_t package = ZXV_HW_CLASS_PACKAGE;
+inline constexpr std::uint32_t lane = ZXV_HW_CLASS_LANE;
+inline constexpr std::uint32_t logic_unit = ZXV_HW_CLASS_LOGIC_UNIT;
+inline constexpr std::uint32_t ntt_unit = ZXV_HW_CLASS_NTT_UNIT;
+inline constexpr std::uint32_t frame_unit = ZXV_HW_CLASS_FRAME_UNIT;
+inline constexpr std::uint32_t gcd_unit = ZXV_HW_CLASS_GCD_UNIT;
+inline constexpr std::uint32_t mem_channel = ZXV_HW_CLASS_MEM_CHANNEL;
+inline constexpr std::uint32_t secure_island = ZXV_HW_CLASS_SECURE_ISLAND;
+inline constexpr std::uint32_t io = ZXV_HW_CLASS_IO;
+inline constexpr std::uint32_t private_ = ZXV_HW_CLASS_PRIVATE;
+} // namespace cls
+
+/// Capability keys of a profile node (ZXV_HW_CAP_*): bit 15 critical, bits
+/// 14-13 comparison (MIN, EXACT, MASK, INFO), bits 12-0 id.
+namespace cap {
+inline constexpr std::uint32_t word_bits = ZXV_HW_CAP_WORD_BITS;
+inline constexpr std::uint32_t count = ZXV_HW_CAP_COUNT;
+inline constexpr std::uint32_t freq_khz = ZXV_HW_CAP_FREQ_KHZ;
+inline constexpr std::uint32_t bytes = ZXV_HW_CAP_BYTES;
+inline constexpr std::uint32_t line_bytes = ZXV_HW_CAP_LINE_BYTES;
+inline constexpr std::uint32_t isa = ZXV_HW_CAP_ISA;
+inline constexpr std::uint32_t int_widths = ZXV_HW_CAP_INT_WIDTHS;
+inline constexpr std::uint32_t radix = ZXV_HW_CAP_RADIX;
+inline constexpr std::uint32_t macs_per_cycle = ZXV_HW_CAP_MACS_PER_CYCLE;
+inline constexpr std::uint32_t simd = ZXV_HW_CAP_SIMD;
+inline constexpr std::uint32_t tick_ns = ZXV_HW_CAP_TICK_NS;
+inline constexpr std::uint32_t regions = ZXV_HW_CAP_REGIONS;
+inline constexpr std::uint32_t bandwidth_mbps = ZXV_HW_CAP_BANDWIDTH_MBPS;
+inline constexpr std::uint32_t latency_ns = ZXV_HW_CAP_LATENCY_NS;
+inline constexpr std::uint32_t pq_algs = ZXV_HW_CAP_PQ_ALGS;
+inline constexpr std::uint32_t hash_algs = ZXV_HW_CAP_HASH_ALGS;
+inline constexpr std::uint32_t wire_bits = ZXV_HW_CAP_WIRE_BITS;
+inline constexpr std::uint32_t peak_ops_mhz = ZXV_HW_CAP_PEAK_OPS_MHZ;
+inline constexpr std::uint32_t contract_id = ZXV_HW_CAP_CONTRACT_ID;   ///< the engine contract (fn_*)
+inline constexpr std::uint32_t contract_ver = ZXV_HW_CAP_CONTRACT_VER; ///< its golden-vector version
+inline constexpr std::uint32_t kind = ZXV_HW_CAP_KIND;                 ///< the hw::Kind serving the node
+inline constexpr std::uint32_t capacity_class = ZXV_HW_CAP_CAPACITY_CLASS;
+inline constexpr std::uint32_t perf_bucket = ZXV_HW_CAP_PERF_BUCKET;
+inline constexpr std::uint32_t power_bucket = ZXV_HW_CAP_POWER_BUCKET; ///< hw::Power scale
+inline constexpr std::uint64_t isa_x86_64 = ZXV_HW_ISA_X86_64;
+inline constexpr std::uint64_t isa_arm64 = ZXV_HW_ISA_ARM64;
+inline constexpr std::uint64_t isa_riscv64 = ZXV_HW_ISA_RISCV64;
+inline constexpr std::uint64_t isa_wasm32 = ZXV_HW_ISA_WASM32;
+} // namespace cap
+
+/// How an implementation is built, in the order the matrix prefers them at
+/// equal cost.
+enum class Kind : std::int32_t {
+    hard = ZXV_HW_KIND_HARD,     ///< silicon built for the function
+    fabric = ZXV_HW_KIND_FABRIC, ///< a reconfigurable fabric region
+    micro = ZXV_HW_KIND_MICRO,   ///< a microcoded unit or soft core
+    peer = ZXV_HW_KIND_PEER,     ///< another local component standing in
+    soft = ZXV_HW_KIND_SOFT,     ///< a software emulator
+    remote = ZXV_HW_KIND_REMOTE, ///< another machine (never key-bearing work)
+};
+
+/// The state of a matrix resource.
+enum class ResourceState : std::int32_t {
+    ok = ZXV_HW_RES_OK,
+    faulted = ZXV_HW_RES_FAULTED,
+    reconfiguring = ZXV_HW_RES_RECONFIGURING,
+    offline = ZXV_HW_RES_OFFLINE,
+};
+
+/// Placement policy flags (combine with |).
+namespace policy {
+inline constexpr std::uint32_t key_bearing = ZXV_HW_POLICY_KEY_BEARING; ///< always local, never memoized; sticky
+inline constexpr std::uint32_t local_only = ZXV_HW_POLICY_LOCAL_ONLY;   ///< no REMOTE implementation
+} // namespace policy
+
+/// Implementation status flags.
+namespace pf {
+inline constexpr std::uint32_t fault = ZXV_HW_PF_FAULT;       ///< its resource is faulted or offline
+inline constexpr std::uint32_t disputed = ZXV_HW_PF_DISPUTED; ///< a shadow check found it disagreeing
+inline constexpr std::uint32_t failed = ZXV_HW_PF_FAILED;     ///< it failed the golden vectors
+inline constexpr std::uint32_t unproven = ZXV_HW_PF_UNPROVEN; ///< not proven against the current contract
+inline constexpr std::uint32_t disabled = ZXV_HW_PF_DISABLED;
+inline constexpr std::uint32_t policy = ZXV_HW_PF_POLICY;   ///< the function's policy excludes it
+inline constexpr std::uint32_t serving = ZXV_HW_PF_SERVING; ///< serving the function now
+} // namespace pf
+
+/// Coarse power classes.
+enum class Power : std::uint32_t {
+    unknown = ZXV_HW_POWER_UNKNOWN,
+    mw10 = ZXV_HW_POWER_10MW,
+    mw100 = ZXV_HW_POWER_100MW,
+    w1 = ZXV_HW_POWER_1W,
+    w10 = ZXV_HW_POWER_10W,
+    w100 = ZXV_HW_POWER_100W,
+    more = ZXV_HW_POWER_MORE,
+};
+
+/// Package kinds.
+enum class ImageKind : std::uint32_t {
+    bitstream = ZXV_HW_IMG_BITSTREAM,
+    partial = ZXV_HW_IMG_PARTIAL,
+    microcode = ZXV_HW_IMG_MICROCODE,
+    firmware = ZXV_HW_IMG_FIRMWARE,
+    vectors = ZXV_HW_IMG_VECTORS, ///< a new golden-vector contract for a function
+};
+
+/// Region states.
+enum class RegionState : std::int32_t {
+    empty = ZXV_HW_REGION_EMPTY,
+    active = ZXV_HW_REGION_ACTIVE,
+    staged = ZXV_HW_REGION_STAGED,
+    probation = ZXV_HW_REGION_PROBATION,
+    halted = ZXV_HW_REGION_HALTED,
+};
+
+/// Region events and audit record kinds.
+enum class EventKind : std::int32_t {
+    staged = ZXV_HW_EV_STAGED,           ///< verified and loaded into the inactive slot
+    tested = ZXV_HW_EV_TESTED,           ///< switched to and proven: probation begins
+    activated = ZXV_HW_EV_ACTIVATED,     ///< committed: permanent, floor raised
+    rolled_back = ZXV_HW_EV_ROLLED_BACK, ///< back to the previous image (or S0)
+    rejected = ZXV_HW_EV_REJECTED,       ///< refused before loading
+    quarantined = ZXV_HW_EV_QUARANTINED, ///< failed in hardware; payload blocked
+    contract = ZXV_HW_EV_CONTRACT,       ///< a function's golden vectors replaced
+};
+
+/// How one target component is served on a host.
+enum class Pairing : std::int32_t {
+    native = ZXV_HW_NATIVE,   ///< a host component satisfies it (host_id)
+    emulate = ZXV_HW_EMULATE, ///< nothing does: emulated (unmet_key, 0 if no such class)
+    group = ZXV_HW_GROUP,     ///< a device or package node: nothing to run
+};
+
+using Digest = std::array<std::uint8_t, 32>; ///< a SHA-256 digest
+
+namespace detail {
+/// The status a callback hands back to C for the exception in flight.
+inline std::int32_t current_status() noexcept
+{
+    try {
+        throw;
+    } catch (const zxv::Exception& e) {
+        return e.status() < 0 ? e.status() : ZXV_E_INTERNAL;
+    } catch (const zxv::FatalError& e) {
+        return e.status() < 0 ? e.status() : ZXV_E_INTERNAL;
+    } catch (...) {
+        return ZXV_E_INTERNAL;
+    }
+}
+} // namespace detail
+
+// ----- profiles ------------------------------------------------------------
+
+/// One node of a profile.
+struct Node {
+    std::uint32_t id = 0, parent = 0, cls = 0;
+    std::uint32_t caps = 0; ///< how many capabilities it carries
+};
+
+/// How many target components a host runs natively and how many it emulates.
+struct Match {
+    std::uint32_t native = 0, emulated = 0;
+};
+
+/// The pairing of one target node (Profile::pair).
+struct Pair {
+    std::uint32_t need_id = 0;
+    Pairing kind = Pairing::group;
+    std::uint32_t host_id = 0;   ///< for Pairing::native
+    std::uint32_t unmet_key = 0; ///< for Pairing::emulate
+};
+
+/// A ZHP-1 machine profile: a canonical tree of abstract components with
+/// integer capability descriptors and an opaque private extension per node.
+/// Plain data: no capability is needed. Move-only; clone() copies.
+class Profile {
+public:
+    /// An empty profile.
+    Profile()
+    {
+        zxv_hw_profile* r = nullptr;
+        zxv::detail::check(zxv_hw_profile_create(&r));
+        p_.reset(r);
+    }
+    Profile(Profile&&) noexcept = default;            ///< move
+    Profile& operator=(Profile&&) noexcept = default; ///< move-assign
+    Profile(const Profile&) = delete;
+    Profile& operator=(const Profile&) = delete;
+    ~Profile() = default;
+
+    /// Describes this machine: CPU cluster (ISA, cores, SIMD), memory, cache
+    /// line. Only what the OS reports reliably.
+    static Profile probe_host() { return make([](zxv_hw_profile** o) { return zxv_hw_profile_probe_host(o); }); }
+    /// A copy of the public VULPINE-class reference machine R1.
+    static Profile reference() { return make([](zxv_hw_profile** o) { return zxv_hw_profile_reference(o); }); }
+    /// `target` as served on `host`: every node that runs something carries
+    /// cap::kind (HARD where the host has it, SOFT where it is emulated).
+    static Profile present(const Profile& host, const Profile& target)
+    {
+        return make([&](zxv_hw_profile** o) { return zxv_hw_profile_present(host.get(), target.get(), o); });
+    }
+    /// Parse a canonical ZHP-1 encoding (anything else: UsageError, ZXV_E_FORMAT).
+    static Profile decode(std::span<const std::uint8_t> b)
+    {
+        return make([&](zxv_hw_profile** o) { return zxv_hw_profile_decode(b.data(), b.size(), o); });
+    }
+    /// A copy (through the canonical encoding).
+    [[nodiscard]] Profile clone() const { return decode(encode()); }
+
+    /// The canonical encoding.
+    [[nodiscard]] std::vector<std::uint8_t> encode() const
+    {
+        std::size_t n = 0;
+        const std::int32_t st = zxv_hw_profile_encode(get(), nullptr, 0, &n);
+        if (st != ZXV_E_BUFFER) {
+            zxv::detail::check(st);
+            return {};
+        }
+        std::vector<std::uint8_t> v(n);
+        zxv::detail::check(zxv_hw_profile_encode(get(), v.data(), v.size(), &n));
+        v.resize(n);
+        return v;
+    }
+    /// SHA-256 of the canonical encoding: the profile's identity.
+    [[nodiscard]] Digest digest() const
+    {
+        Digest d{};
+        zxv::detail::check(zxv_hw_profile_digest(get(), d.data()));
+        return d;
+    }
+    /// Add a node: ids strictly increase, parent first (or hw::root).
+    void add_node(std::uint32_t id, std::uint32_t parent, std::uint32_t cls)
+    {
+        zxv::detail::check(zxv_hw_profile_node_add(p_.get(), id, parent, cls));
+    }
+    /// Set a capability of a node.
+    void set_cap(std::uint32_t node, std::uint32_t key, std::uint64_t value)
+    {
+        zxv::detail::check(zxv_hw_profile_cap_set(p_.get(), node, key, value));
+    }
+    /// A capability of a node (UsageError ZXV_E_NOT_FOUND if it lacks it).
+    [[nodiscard]] std::uint64_t cap(std::uint32_t node, std::uint32_t key) const
+    {
+        std::uint64_t v = 0;
+        zxv::detail::check(zxv_hw_profile_cap_get(get(), node, key, &v));
+        return v;
+    }
+    /// A capability of a node, or nullopt if it lacks it.
+    [[nodiscard]] std::optional<std::uint64_t> find_cap(std::uint32_t node, std::uint32_t key) const
+    {
+        std::uint64_t v = 0;
+        const std::int32_t st = zxv_hw_profile_cap_get(get(), node, key, &v);
+        if (st == ZXV_E_NOT_FOUND) return std::nullopt;
+        zxv::detail::check(st);
+        return v;
+    }
+    /// Set a node's private extension: at most ext_max opaque bytes that
+    /// ZXV carries, encodes and digests but never interprets.
+    void set_ext(std::uint32_t node, std::span<const std::uint8_t> ext)
+    {
+        zxv::detail::check(zxv_hw_profile_ext_set(p_.get(), node, ext.data(), ext.size()));
+    }
+    /// A node's private extension.
+    [[nodiscard]] std::vector<std::uint8_t> ext(std::uint32_t node) const
+    {
+        std::vector<std::uint8_t> v(ext_max);
+        std::size_t n = 0;
+        zxv::detail::check(zxv_hw_profile_ext_get(get(), node, v.data(), v.size(), &n));
+        v.resize(n);
+        return v;
+    }
+    /// Number of nodes.
+    [[nodiscard]] std::uint32_t node_count() const
+    {
+        std::uint32_t n = 0;
+        zxv::detail::check(zxv_hw_profile_count(get(), &n));
+        return n;
+    }
+    /// Node `index` (0 .. node_count()-1).
+    [[nodiscard]] Node node(std::uint32_t index) const
+    {
+        Node n;
+        zxv::detail::check(zxv_hw_profile_node(get(), index, &n.id, &n.parent, &n.cls, &n.caps));
+        return n;
+    }
+    /// Every node, in order.
+    [[nodiscard]] std::vector<Node> nodes() const
+    {
+        std::vector<Node> v;
+        const std::uint32_t n = node_count();
+        v.reserve(n);
+        for (std::uint32_t i = 0; i < n; ++i) v.push_back(node(i));
+        return v;
+    }
+    /// Match a target against a host.
+    static Match match(const Profile& host, const Profile& target)
+    {
+        Match m;
+        zxv::detail::check(zxv_hw_profile_match(host.get(), target.get(), &m.native, &m.emulated));
+        return m;
+    }
+    /// The pairing of target node `index` (in target order) on `host`.
+    static Pair pair(const Profile& host, const Profile& target, std::uint32_t index)
+    {
+        Pair p;
+        std::int32_t k = 0;
+        std::uint32_t have = 0, unmet = 0;
+        zxv::detail::check(zxv_hw_profile_pair(host.get(), target.get(), index, &p.need_id, &k, &have, &unmet));
+        p.kind = static_cast<Pairing>(k);
+        if (p.kind == Pairing::native) p.host_id = have;
+        if (p.kind == Pairing::emulate) p.unmet_key = unmet;
+        return p;
+    }
+
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] const zxv_hw_profile* native_handle() const noexcept { return p_.get(); }
+
+private:
+    struct Del {
+        void operator()(zxv_hw_profile* p) const noexcept { zxv_hw_profile_destroy(p); }
+    };
+    struct Raw {};
+    explicit Profile(Raw) noexcept {}
+    template <class F>
+    static Profile make(F&& f)
+    {
+        zxv_hw_profile* r = nullptr;
+        zxv::detail::check(f(&r));
+        Profile p{Raw{}};
+        p.p_.reset(r);
+        return p;
+    }
+    [[nodiscard]] const zxv_hw_profile* get() const
+    {
+        if (!p_) throw UsageError(ZXV_E_ARG, "moved-from hw::Profile");
+        return p_.get();
+    }
+    std::unique_ptr<zxv_hw_profile, Del> p_;
+};
+
+// ----- the matrix ----------------------------------------------------------
+
+/// An implementation: write at most out.size() bytes of output for (op, in)
+/// and return how many. Throw zxv::Exception to report a status. `in` and
+/// `out` are valid only during the call. It runs on the calling thread with
+/// the matrix locked; it may call the matrix again for the functions it
+/// declared with Matrix::add_dependency.
+using ProviderFn =
+    std::function<std::size_t(std::uint32_t op, std::span<const std::uint8_t> in, std::span<std::uint8_t> out)>;
+
+/// What Matrix::function_info reports.
+struct FunctionInfo {
+    std::uint32_t contract = 0; ///< current contract version
+    std::uint32_t policy = 0;   ///< hw::policy flags
+    std::uint32_t vectors = 0;  ///< golden vectors of the current contract
+};
+
+/// What Matrix::provider_info reports.
+struct ProviderInfo {
+    std::uint32_t fn_id = 0;
+    Kind kind = Kind::soft;
+    Truth proof = Truth::neither; ///< TRUE serves, FALSE a vector failed, NEITHER no vectors
+    std::uint32_t contract = 0;   ///< the contract version it last proved
+    std::uint32_t flags = 0;      ///< hw::pf flags
+    std::uint32_t throughput_class = 0;
+    Power power = Power::unknown;
+    std::uint64_t calls = 0;
+    std::uint64_t cost_spent = 0;
+};
+
+/// The head of an audit log.
+struct Log {
+    Digest head{};
+    std::uint32_t count = 0;
+};
+
+/// One audit record (regions and matrices).
+struct LogEntry {
+    EventKind event = EventKind::staged;
+    std::uint32_t reason = 0;  ///< failure code, 0 for none
+    std::uint32_t id = 0;      ///< region id (function id for EventKind::contract)
+    std::uint32_t version = 0;
+    Hexagram tag;              ///< forbidden for rejections and quarantines
+    Digest subject{};          ///< SHA-256 of the package header
+    Digest hash{};             ///< the record's chain hash
+};
+
+namespace detail {
+struct ProviderSlot {
+    ProviderFn fn;
+    static std::int32_t trampoline(void* user, std::uint32_t op, const std::uint8_t* in, std::size_t in_len,
+                                   std::uint8_t* out, std::size_t out_cap, std::size_t* out_len) noexcept
+    {
+        try {
+            auto* self = static_cast<ProviderSlot*>(user);
+            const std::size_t n = self->fn(op, std::span<const std::uint8_t>(in, in ? in_len : 0),
+                                           std::span<std::uint8_t>(out, out ? out_cap : 0));
+            if (n > out_cap) return ZXV_E_BUFFER;
+            if (out_len) *out_len = n;
+            return ZXV_OK;
+        } catch (...) {
+            return current_status();
+        }
+    }
+};
+
+struct MatrixCore {
+    std::shared_ptr<zxv::detail::CapCore> cap;
+    zxv_hw_matrix* mx = nullptr;
+    std::mutex m;
+    std::vector<std::unique_ptr<ProviderSlot>> providers; // freed after the matrix
+    MatrixCore(std::shared_ptr<zxv::detail::CapCore> c, zxv_hw_matrix* x) noexcept : cap(std::move(c)), mx(x) {}
+    MatrixCore(const MatrixCore&) = delete;
+    MatrixCore& operator=(const MatrixCore&) = delete;
+    ~MatrixCore() { zxv_hw_matrix_destroy(mx); }
+    template <class F>
+    void call(F&& f) const
+    {
+        cap->call([&] { return f(cap->cap, mx); });
+    }
+};
+
+template <class F>
+LogEntry read_entry(F&& f)
+{
+    LogEntry e;
+    std::int32_t ev = 0;
+    std::uint32_t tag = 0;
+    f(&ev, &e.reason, &e.id, &e.version, &tag, e.subject.data(), e.hash.data());
+    if (tag > 63) throw SystemError(ZXV_E_INTERNAL, "audit tag out of range");
+    e.event = static_cast<EventKind>(ev);
+    e.tag = Hexagram::from_tag(static_cast<std::uint8_t>(tag));
+    return e;
+}
+} // namespace detail
+
+/// The emulation matrix: functions served by interchangeable, proven
+/// implementations (needs caps::hw_matrix). A new matrix holds the res_host
+/// resource and the standard engines. Thread-safe (the C matrix serializes
+/// calls). Move-only; a Region made on it keeps it alive.
+class Matrix {
+public:
+    /// A matrix with the standard engines (needs caps::hw_matrix).
+    explicit Matrix(const Capability& cap)
+    {
+        const auto& c = cap.core();
+        zxv_hw_matrix* m = nullptr;
+        c->call([&] { return zxv_hw_matrix_create_cap(c->cap, &m); });
+        core_ = std::make_shared<detail::MatrixCore>(c, m);
+    }
+    Matrix(Matrix&&) noexcept = default;            ///< move
+    Matrix& operator=(Matrix&&) noexcept = default; ///< move-assign
+    Matrix(const Matrix&) = delete;
+    Matrix& operator=(const Matrix&) = delete;
+    ~Matrix() = default;
+
+    /// Add a function (name: UTF-8, at most 23 bytes; empty for none).
+    void add_function(std::uint32_t fn_id, const std::string& name = {})
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_function_add(c, m, fn_id, name.empty() ? nullptr : name.c_str());
+        });
+    }
+    /// Add a golden vector of the function's current contract (output at most
+    /// 512 bytes). Every implementation of it becomes unproven.
+    void add_vector(std::uint32_t fn_id, std::uint32_t op, std::span<const std::uint8_t> in,
+                    std::span<const std::uint8_t> expect)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_vector_add(c, m, fn_id, op, in.data(), in.size(), expect.data(), expect.size());
+        });
+    }
+    /// Start contract `version` (strictly newer, else RollbackRefused): the
+    /// vectors are cleared and every implementation must prove itself again.
+    void set_contract(std::uint32_t fn_id, std::uint32_t version)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_function_contract(c, m, fn_id, version); });
+    }
+    /// Placement: hw::policy flags, a latency ceiling and a power budget (0:
+    /// none). Clearing policy::key_bearing once set: PolicyDenied.
+    void set_policy(std::uint32_t fn_id, std::uint32_t flags, std::uint32_t max_latency_ns = 0,
+                    std::uint32_t power_budget_mw = 0)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_policy_set(c, m, fn_id, flags, max_latency_ns, power_budget_mw);
+        });
+    }
+    /// Contract version, policy and vector count of a function.
+    [[nodiscard]] FunctionInfo function_info(std::uint32_t fn_id) const
+    {
+        FunctionInfo i;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_function_info(c, m, fn_id, &i.contract, &i.policy, &i.vectors);
+        });
+        return i;
+    }
+    /// Add a resource (a component implementations run on).
+    void add_resource(std::uint32_t res_id)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_resource_add(c, m, res_id); });
+    }
+    /// Set a resource's state.
+    void set_resource(std::uint32_t res_id, ResourceState state)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_resource_set(c, m, res_id, static_cast<std::int32_t>(state));
+        });
+    }
+    /// Add an implementation of `fn_id` on resource `res_id`; returns its
+    /// index. It serves only after attest() proves it.
+    std::uint32_t add_provider(std::uint32_t fn_id, std::uint32_t res_id, Kind kind, std::uint32_t cost, ProviderFn fn)
+    {
+        if (!fn) throw UsageError(ZXV_E_ARG, "provider function is empty");
+        auto slot = std::make_unique<detail::ProviderSlot>(detail::ProviderSlot{std::move(fn)});
+        std::uint32_t idx = 0;
+        std::lock_guard lk(core_->m);
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_provider_add(c, m, fn_id, res_id, static_cast<std::int32_t>(kind), cost,
+                                       &detail::ProviderSlot::trampoline, slot.get(), &idx);
+        });
+        core_->providers.push_back(std::move(slot));
+        return idx;
+    }
+    /// Declare an implementation's traits: typical latency per call, power
+    /// while serving, throughput class 0 (slowest) .. 15.
+    void set_traits(std::uint32_t provider, std::uint32_t latency_ns, std::uint32_t power_mw,
+                    std::uint32_t throughput_class)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_provider_traits(c, m, provider, latency_ns, power_mw, throughput_class);
+        });
+    }
+    /// Declare that an implementation calls `dep_fn_id`.
+    void add_dependency(std::uint32_t provider, std::uint32_t dep_fn_id)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_provider_dep(c, m, provider, dep_fn_id); });
+    }
+    /// Enable or disable an implementation.
+    void enable(std::uint32_t provider, bool on)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_provider_enable(c, m, provider, on ? 1 : 0); });
+    }
+    /// Run the golden vectors: TRUE (serves), FALSE (a vector failed) or
+    /// NEITHER (no vectors).
+    Truth attest(std::uint32_t provider)
+    {
+        std::int32_t lp = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_attest(c, m, provider, &lp); });
+        return truth_from_c(lp);
+    }
+    /// Number of implementations (indexed 0 .. n-1).
+    [[nodiscard]] std::uint32_t provider_count() const
+    {
+        std::uint32_t n = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_provider_count(c, m, &n); });
+        return n;
+    }
+    /// Everything about implementation `provider`.
+    [[nodiscard]] ProviderInfo provider_info(std::uint32_t provider) const
+    {
+        ProviderInfo i;
+        std::int32_t kind = 0, lp = 0;
+        std::uint32_t pwr = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_provider_info(c, m, provider, &i.fn_id, &kind, &lp, &i.contract, &i.flags,
+                                        &i.throughput_class, &pwr, &i.calls, &i.cost_spent);
+        });
+        i.kind = static_cast<Kind>(kind);
+        i.proof = truth_from_c(lp);
+        i.power = static_cast<Power>(pwr);
+        return i;
+    }
+    /// Every implementation, in index order.
+    [[nodiscard]] std::vector<ProviderInfo> providers() const
+    {
+        std::vector<ProviderInfo> v;
+        const std::uint32_t n = provider_count();
+        v.reserve(n);
+        for (std::uint32_t i = 0; i < n; ++i) v.push_back(provider_info(i));
+        return v;
+    }
+    /// The index of the first implementation of `fn_id`, if any.
+    [[nodiscard]] std::optional<std::uint32_t> find_provider(std::uint32_t fn_id) const
+    {
+        const std::uint32_t n = provider_count();
+        for (std::uint32_t i = 0; i < n; ++i)
+            if (provider_info(i).fn_id == fn_id) return i;
+        return std::nullopt;
+    }
+    /// The implementation serving `fn_id` now (NoProvider if none).
+    [[nodiscard]] std::uint32_t bound(std::uint32_t fn_id) const
+    {
+        std::uint32_t p = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_bound(c, m, fn_id, &p); });
+        return p;
+    }
+    /// Call `fn_id` with an output of at most call_out_default bytes.
+    std::vector<std::uint8_t> call(std::uint32_t fn_id, std::uint32_t op, std::span<const std::uint8_t> in)
+    {
+        std::vector<std::uint8_t> out(call_out_default);
+        out.resize(call_into(fn_id, op, in, out));
+        return out;
+    }
+    /// Call `fn_id`, writing into `out`; returns the output length.
+    std::size_t call_into(std::uint32_t fn_id, std::uint32_t op, std::span<const std::uint8_t> in,
+                          std::span<std::uint8_t> out)
+    {
+        std::size_t n = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_call(c, m, fn_id, op, in.data(), in.size(), out.data(), out.size(), &n);
+        });
+        return n;
+    }
+    /// call() that also runs the next-best implementation and compares;
+    /// `checked` reports whether a second one ran. On a mismatch both stop
+    /// serving: Disputed.
+    std::vector<std::uint8_t> shadow(std::uint32_t fn_id, std::uint32_t op, std::span<const std::uint8_t> in,
+                                     bool* checked = nullptr)
+    {
+        std::vector<std::uint8_t> out(call_out_default);
+        std::size_t n = 0;
+        std::int32_t ck = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_shadow(c, m, fn_id, op, in.data(), in.size(), out.data(), out.size(), &n, &ck);
+        });
+        out.resize(n);
+        if (checked) *checked = ck != 0;
+        return out;
+    }
+    /// Declare `fn_id` pure with a memo of `entries` (a power of two, at most
+    /// 65536; 0 removes it); returns {hits, misses}. Key-bearing functions:
+    /// PolicyDenied.
+    std::pair<std::uint64_t, std::uint64_t> memo(std::uint32_t fn_id, std::uint32_t entries)
+    {
+        std::uint64_t h = 0, mi = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_memo(c, m, fn_id, entries, &h, &mi); });
+        return {h, mi};
+    }
+    /// Trust a release key (pk_bytes; at most 4) for contract packages
+    /// (needs caps::hw_reconf).
+    void trust_key(std::span<const std::uint8_t> pk)
+    {
+        zxv::detail::need_size(pk, pk_bytes, "release public key");
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_matrix_trust_key(c, m, pk.data()); });
+    }
+    /// Apply a signed ImageKind::vectors package: verifies both signatures,
+    /// requires a newer version and svn >= the floor (RollbackRefused),
+    /// installs the vectors, proves every implementation again and records
+    /// it. Returns how many implementations prove the new contract (needs
+    /// caps::hw_reconf).
+    std::uint32_t apply_contract(std::span<const std::uint8_t> pkg)
+    {
+        std::uint32_t proven = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) {
+            return zxv_hw_contract_apply(c, m, pkg.data(), pkg.size(), &proven);
+        });
+        return proven;
+    }
+    /// The audit log's head and length (FatalError if the chain does not verify).
+    [[nodiscard]] Log log() const
+    {
+        Log l;
+        core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_matrix_log(c, m, l.head.data(), &l.count); });
+        return l;
+    }
+    /// Audit record `index` (0 = oldest).
+    [[nodiscard]] LogEntry log_entry(std::uint32_t index) const
+    {
+        return detail::read_entry([&](auto... out) {
+            core_->call([&](const zxv_cap* c, zxv_hw_matrix* m) { return zxv_hw_matrix_log_entry(c, m, index, out...); });
+        });
+    }
+    /// Every audit record, oldest first.
+    [[nodiscard]] std::vector<LogEntry> log_entries() const
+    {
+        std::vector<LogEntry> v;
+        const std::uint32_t n = log().count;
+        for (std::uint32_t i = 0; i < n; ++i) v.push_back(log_entry(i));
+        return v;
+    }
+
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_hw_matrix* native_handle() const noexcept { return core_->mx; }
+    /// Internal: the shared core (kept alive by regions).
+    [[nodiscard]] const std::shared_ptr<detail::MatrixCore>& core() const noexcept { return core_; }
+
+private:
+    std::shared_ptr<detail::MatrixCore> core_;
+};
+
+// ----- release keys and packages -------------------------------------------
+
+/// A release key pair: the public key (pk_bytes) and both secret halves,
+/// each a zxv::SecretKey (wiped with zxv_secure_zero when destroyed).
+struct ReleaseKey {
+    std::vector<std::uint8_t> public_key; ///< ML-DSA-87 public key || SLH-DSA public key
+    SecretKey mldsa{mldsa_sk_bytes};      ///< ML-DSA-87 secret half
+    SecretKey slhdsa{slhdsa_sk_bytes};    ///< SLH-DSA-SHAKE-256s secret half
+};
+
+/// The header fields of a package.
+struct ImageSpec {
+    ImageKind kind = ImageKind::partial;
+    std::uint32_t target_class = 0;      ///< hardware class the image is for (0 for a contract package)
+    std::optional<Digest> target_digest; ///< target profile digest (nullopt: zeros)
+    std::uint32_t fn_id = 0;   ///< function the region serves, or whose contract a vectors package replaces
+    std::uint32_t version = 0;
+    std::uint32_t svn = 0;     ///< anti-rollback floor
+};
+
+/// Release keys and signed packages (needs caps::crypto_sign). SLH-DSA
+/// signing takes seconds: building is a release step.
+class Release {
+public:
+    /// Packaging through `cap`.
+    explicit Release(const Capability& cap) : cap_(cap.core()) {}
+
+    /// The length of a package with a `payload_len`-byte payload.
+    static constexpr std::size_t package_len(std::size_t payload_len) noexcept
+    {
+        return header_bytes + payload_len + sig_bytes;
+    }
+    /// A fresh release key pair.
+    [[nodiscard]] ReleaseKey keygen() const
+    {
+        ReleaseKey k;
+        k.public_key.resize(pk_bytes);
+        cap_->call([&] { return zxv_hw_keygen(cap_->cap, k.public_key.data(), k.mldsa.data(), k.slhdsa.data()); });
+        return k;
+    }
+    /// Build and sign a package: header || payload || signatures.
+    [[nodiscard]] std::vector<std::uint8_t> build(const ImageSpec& spec, std::span<const std::uint8_t> payload,
+                                                  const ReleaseKey& key) const
+    {
+        zxv::detail::need_size(key.mldsa.bytes(), mldsa_sk_bytes, "ML-DSA secret key");
+        zxv::detail::need_size(key.slhdsa.bytes(), slhdsa_sk_bytes, "SLH-DSA secret key");
+        std::vector<std::uint8_t> buf(package_len(payload.size()));
+        std::size_t n = 0;
+        cap_->call([&] {
+            return zxv_hw_image_build(cap_->cap, static_cast<std::uint32_t>(spec.kind), spec.target_class,
+                                      spec.target_digest ? spec.target_digest->data() : nullptr, spec.fn_id,
+                                      spec.version, spec.svn, payload.data(), payload.size(),
+                                      key.mldsa.bytes().data(), key.slhdsa.bytes().data(), buf.data(), buf.size(),
+                                      &n);
+        });
+        buf.resize(n);
+        return buf;
+    }
+
+private:
+    std::shared_ptr<zxv::detail::CapCore> cap_;
+};
+
+// ----- regions -------------------------------------------------------------
+
+/// The device side of a region: a two-slot reconfigurable unit. Each
+/// operation runs on the thread of the region call that needs it, with the
+/// region (and its matrix) locked. Throw zxv::Exception to report a status.
+struct Device {
+    /// Load `payload` (valid only during the call) into `slot`.
+    std::function<void(std::uint32_t slot, std::span<const std::uint8_t> payload)> load;
+    /// The SHA-256 of what `slot` really holds.
+    std::function<Digest(std::uint32_t slot)> readback;
+    /// Switch the unit to `slot`.
+    std::function<void(std::uint32_t slot)> activate;
+};
+
+/// One region event.
+struct Event {
+    std::uint32_t region_id = 0;
+    EventKind kind = EventKind::staged;
+    std::uint32_t reason = 0; ///< failure code, 0 for none
+    std::uint32_t version = 0;
+};
+
+/// What Region::info reports.
+struct RegionInfo {
+    RegionState state = RegionState::empty;
+    std::uint32_t version = 0; ///< active image version
+    std::uint32_t floor = 0;   ///< anti-rollback floor
+    std::uint32_t quarantined = 0;
+};
+
+namespace detail {
+struct RegionCore {
+    std::shared_ptr<zxv::detail::CapCore> cap;
+    std::shared_ptr<MatrixCore> mx; // the C region references the matrix
+    zxv_hw_region* rg = nullptr;
+    Device dev;
+    std::mutex m;
+    std::vector<std::shared_ptr<std::function<void(const Event&)>>> handlers;
+
+    RegionCore(std::shared_ptr<zxv::detail::CapCore> c, std::shared_ptr<MatrixCore> x, Device d)
+        : cap(std::move(c)), mx(std::move(x)), dev(std::move(d))
+    {
+    }
+    RegionCore(const RegionCore&) = delete;
+    RegionCore& operator=(const RegionCore&) = delete;
+    ~RegionCore()
+    {
+        if (rg) zxv_hw_region_destroy(rg);
+    }
+    template <class F>
+    void call(F&& f) const
+    {
+        cap->call([&] { return f(cap->cap, rg); });
+    }
+
+    static std::int32_t load(void* user, std::uint32_t slot, const std::uint8_t* p, std::size_t len) noexcept
+    {
+        try {
+            static_cast<RegionCore*>(user)->dev.load(slot, std::span<const std::uint8_t>(p, p ? len : 0));
+            return ZXV_OK;
+        } catch (...) {
+            return current_status();
+        }
+    }
+    static std::int32_t readback(void* user, std::uint32_t slot, std::uint8_t digest[32]) noexcept
+    {
+        try {
+            const Digest d = static_cast<RegionCore*>(user)->dev.readback(slot);
+            std::copy(d.begin(), d.end(), digest);
+            return ZXV_OK;
+        } catch (...) {
+            return current_status();
+        }
+    }
+    static std::int32_t activate(void* user, std::uint32_t slot) noexcept
+    {
+        try {
+            static_cast<RegionCore*>(user)->dev.activate(slot);
+            return ZXV_OK;
+        } catch (...) {
+            return current_status();
+        }
+    }
+    static void event(void* user, std::uint32_t region_id, std::int32_t ev, std::uint32_t reason,
+                      std::uint32_t version) noexcept
+    {
+        try {
+            auto* self = static_cast<RegionCore*>(user);
+            std::vector<std::shared_ptr<std::function<void(const Event&)>>> hs;
+            {
+                std::lock_guard lk(self->m);
+                hs = self->handlers;
+            }
+            const Event e{region_id, static_cast<EventKind>(ev), reason, version};
+            for (auto& h : hs) {
+                try {
+                    (*h)(e);
+                } catch (...) { // never unwind through C
+                }
+            }
+        } catch (...) {
+        }
+    }
+};
+} // namespace detail
+
+/// A reconfigurable region updated with signed images (needs
+/// caps::hw_reconf). stage() verifies an image (ML-DSA-87 and SLH-DSA, both
+/// required) and loads it into the inactive slot, trial() switches to it and
+/// proves it against the golden vectors of the matrix implementation it
+/// serves, commit() makes it permanent. Every step is an Event and a record
+/// in a hash-chained audit log; a failing image is rolled back and
+/// quarantined forever. When the log fills, the region halts and the
+/// context is poisoned (fail closed). Thread-safe; move-only. It keeps its
+/// matrix alive.
+class Region {
+public:
+    /// Region `region_id` for hardware class `target_class`. `matrix` and
+    /// `provider` name the FABRIC or MICRO implementation whose golden
+    /// vectors test each new image (matrix nullptr: no test). `log_cap` is
+    /// the audit log size (1 .. 2^20).
+    Region(const Capability& cap, const Matrix* matrix, std::uint32_t provider, std::uint32_t region_id,
+           std::uint32_t target_class, std::optional<Digest> target_digest, Device device, std::uint32_t log_cap)
+    {
+        if (!device.load || !device.readback || !device.activate)
+            throw UsageError(ZXV_E_ARG, "hw::Device needs load, readback and activate");
+        auto core = std::make_shared<detail::RegionCore>(cap.core(), matrix ? matrix->core() : nullptr,
+                                                         std::move(device));
+        zxv_hw_region* r = nullptr;
+        core->cap->call([&] {
+            return zxv_hw_region_create_cap(core->cap->cap, core->mx ? core->mx->mx : nullptr, provider, region_id,
+                                            target_class, target_digest ? target_digest->data() : nullptr,
+                                            &detail::RegionCore::load, &detail::RegionCore::readback,
+                                            &detail::RegionCore::activate, core.get(), log_cap, &r);
+        });
+        core->rg = r;
+        core->call([&](const zxv_cap* c, zxv_hw_region* g) {
+            return zxv_hw_region_events(c, g, &detail::RegionCore::event, core.get());
+        });
+        core_ = std::move(core);
+    }
+    Region(Region&&) noexcept = default;            ///< move
+    Region& operator=(Region&&) noexcept = default; ///< move-assign
+    Region(const Region&) = delete;
+    Region& operator=(const Region&) = delete;
+    ~Region() = default;
+
+    /// Register a handler for every event, delivered after each recorded
+    /// step once the region call has released its locks, in order, on the
+    /// thread of that call. Exceptions from it are swallowed.
+    void on_event(std::function<void(const Event&)> f)
+    {
+        std::lock_guard lk(core_->m);
+        core_->handlers.push_back(std::make_shared<std::function<void(const Event&)>>(std::move(f)));
+    }
+    /// Trust a release key (pk_bytes; at most 4 per region).
+    void trust_key(std::span<const std::uint8_t> pk)
+    {
+        zxv::detail::need_size(pk, pk_bytes, "release public key");
+        core_->call([&](const zxv_cap* c, zxv_hw_region* g) { return zxv_hw_region_trust_key(c, g, pk.data()); });
+    }
+    /// Verify an image and load it into the inactive slot. Refusals
+    /// (VerificationFailed, RollbackRefused) are recorded; a read-back
+    /// mismatch is Quarantined and blocks the image.
+    void stage(std::span<const std::uint8_t> image)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_region* g) {
+            return zxv_hw_region_stage(c, g, image.data(), image.size());
+        });
+    }
+    /// Switch to the staged image and prove it; passing starts a probation
+    /// of `ticks`. A failure is Quarantined with the previous image (or S0)
+    /// back in place.
+    void trial(std::uint32_t ticks)
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_region* g) { return zxv_hw_region_trial(c, g, ticks); });
+    }
+    /// Make the tested image permanent and raise the floor.
+    void commit()
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_region* g) { return zxv_hw_region_commit(c, g); });
+    }
+    /// Return to the previous image (or S0).
+    void rollback()
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_region* g) { return zxv_hw_region_rollback(c, g); });
+    }
+    /// One health tick; an expiring probation rolls back (Quarantined).
+    void tick()
+    {
+        core_->call([&](const zxv_cap* c, zxv_hw_region* g) { return zxv_hw_region_tick(c, g); });
+    }
+    /// State, active version, floor and quarantine count.
+    [[nodiscard]] RegionInfo info() const
+    {
+        RegionInfo i;
+        std::int32_t st = 0;
+        core_->call([&](const zxv_cap* c, zxv_hw_region* g) {
+            return zxv_hw_region_info(c, g, &st, &i.version, &i.floor, &i.quarantined);
+        });
+        i.state = static_cast<RegionState>(st);
+        return i;
+    }
+    /// The audit log's head and length (FatalError if the chain does not verify).
+    [[nodiscard]] Log log() const
+    {
+        Log l;
+        core_->call([&](const zxv_cap* c, zxv_hw_region* g) { return zxv_hw_region_log(c, g, l.head.data(), &l.count); });
+        return l;
+    }
+    /// Audit record `index` (0 = oldest).
+    [[nodiscard]] LogEntry log_entry(std::uint32_t index) const
+    {
+        return detail::read_entry([&](auto... out) {
+            core_->call([&](const zxv_cap* c, zxv_hw_region* g) { return zxv_hw_region_log_entry(c, g, index, out...); });
+        });
+    }
+    /// Every audit record, oldest first.
+    [[nodiscard]] std::vector<LogEntry> log_entries() const
+    {
+        std::vector<LogEntry> v;
+        const std::uint32_t n = log().count;
+        for (std::uint32_t i = 0; i < n; ++i) v.push_back(log_entry(i));
+        return v;
+    }
+
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_hw_region* native_handle() const noexcept { return core_->rg; }
+
+private:
+    std::shared_ptr<detail::RegionCore> core_;
+};
+
+} // namespace hw
 
 // Out-of-line definitions that need complete types.
 inline std::shared_ptr<detail::CtxCore> Message::ctx_core(const Context& c) { return c.core_; }

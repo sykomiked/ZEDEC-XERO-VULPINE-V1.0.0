@@ -46,7 +46,13 @@ class Cap(enum.IntFlag):
     EVM = 1 << 9
     """EVM state-channel encoding."""
     ALL = (1 << 10) - 1
-    """Every capability."""
+    """Every capability of ABI 1.1 (``ZXV_CAP_ALL``; this value never changes)."""
+    HW_MATRIX = 1 << 10
+    """Build and call the hardware emulation matrix (ABI 1.4)."""
+    HW_RECONF = 1 << 11
+    """Load hardware images and contract packages (ABI 1.4)."""
+    ALL_1_4 = (1 << 12) - 1
+    """Every capability as of ABI 1.4 (``ZXV_CAP_ALL_1_4``)."""
 
 
 @dataclass(frozen=True)

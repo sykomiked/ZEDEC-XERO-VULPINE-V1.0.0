@@ -208,7 +208,67 @@ module Zxv
       [:zxv_hexlog_count, %i[pointer pointer], :int32],
       [:zxv_hexlog_head, %i[pointer pointer], :int32],
       [:zxv_hexlog_at, %i[pointer uint32 pointer pointer pointer pointer pointer pointer pointer], :int32],
-      [:zxv_hexlog_verify, %i[pointer], :int32]
+      [:zxv_hexlog_verify, %i[pointer], :int32],
+      # ABI 1.4: hardware emulation and hardware updates. Profiles (no capability)
+      [:zxv_hw_profile_create, %i[pointer], :int32],
+      [:zxv_hw_profile_destroy, %i[pointer], :void],
+      [:zxv_hw_profile_probe_host, %i[pointer], :int32],
+      [:zxv_hw_profile_reference, %i[pointer], :int32],
+      [:zxv_hw_profile_present, %i[pointer pointer pointer], :int32],
+      [:zxv_hw_profile_decode, %i[pointer size_t pointer], :int32],
+      [:zxv_hw_profile_encode, %i[pointer pointer size_t pointer], :int32],
+      [:zxv_hw_profile_digest, %i[pointer pointer], :int32],
+      [:zxv_hw_profile_node_add, %i[pointer uint32 uint32 uint32], :int32],
+      [:zxv_hw_profile_cap_set, %i[pointer uint32 uint32 uint64], :int32],
+      [:zxv_hw_profile_cap_get, %i[pointer uint32 uint32 pointer], :int32],
+      [:zxv_hw_profile_ext_set, %i[pointer uint32 pointer size_t], :int32],
+      [:zxv_hw_profile_ext_get, %i[pointer uint32 pointer size_t pointer], :int32],
+      [:zxv_hw_profile_count, %i[pointer pointer], :int32],
+      [:zxv_hw_profile_node, %i[pointer uint32 pointer pointer pointer pointer], :int32],
+      [:zxv_hw_profile_match, %i[pointer pointer pointer pointer], :int32],
+      [:zxv_hw_profile_pair, %i[pointer pointer uint32 pointer pointer pointer pointer], :int32],
+      # the emulation matrix
+      [:zxv_hw_matrix_create_cap, %i[pointer pointer], :int32],
+      [:zxv_hw_matrix_destroy, %i[pointer], :void],
+      [:zxv_hw_function_add, %i[pointer pointer uint32 string], :int32],
+      [:zxv_hw_vector_add, %i[pointer pointer uint32 uint32 pointer size_t pointer size_t], :int32],
+      [:zxv_hw_function_contract, %i[pointer pointer uint32 uint32], :int32],
+      [:zxv_hw_policy_set, %i[pointer pointer uint32 uint32 uint32 uint32], :int32],
+      [:zxv_hw_function_info, %i[pointer pointer uint32 pointer pointer pointer], :int32],
+      [:zxv_hw_resource_add, %i[pointer pointer uint32], :int32],
+      [:zxv_hw_resource_set, %i[pointer pointer uint32 int32], :int32],
+      [:zxv_hw_provider_traits, %i[pointer pointer uint32 uint32 uint32 uint32], :int32],
+      [:zxv_hw_provider_dep, %i[pointer pointer uint32 uint32], :int32],
+      [:zxv_hw_provider_enable, %i[pointer pointer uint32 int32], :int32],
+      [:zxv_hw_attest, %i[pointer pointer uint32 pointer], :int32],
+      [:zxv_hw_provider_count, %i[pointer pointer pointer], :int32],
+      [:zxv_hw_provider_info, %i[pointer pointer uint32 pointer pointer pointer pointer pointer pointer pointer pointer
+                                 pointer], :int32],
+      [:zxv_hw_bound, %i[pointer pointer uint32 pointer], :int32],
+      [:zxv_hw_call, %i[pointer pointer uint32 uint32 pointer size_t pointer size_t pointer], :int32],
+      [:zxv_hw_shadow, %i[pointer pointer uint32 uint32 pointer size_t pointer size_t pointer pointer], :int32],
+      [:zxv_hw_memo, %i[pointer pointer uint32 uint32 pointer pointer], :int32],
+      # signed packages (SLH-DSA signing takes seconds: release the GVL)
+      [:zxv_hw_keygen, %i[pointer pointer pointer pointer], :int32, { blocking: true }],
+      [:zxv_hw_image_build, %i[pointer uint32 uint32 pointer uint32 uint32 uint32 pointer size_t pointer pointer pointer
+                               size_t pointer], :int32, { blocking: true }],
+      [:zxv_hw_matrix_trust_key, %i[pointer pointer pointer], :int32],
+      [:zxv_hw_contract_apply, %i[pointer pointer pointer size_t pointer], :int32],
+      # reconfigurable regions
+      [:zxv_hw_region_destroy, %i[pointer], :void],
+      [:zxv_hw_region_trust_key, %i[pointer pointer pointer], :int32],
+      [:zxv_hw_region_stage, %i[pointer pointer pointer size_t], :int32],
+      [:zxv_hw_region_trial, %i[pointer pointer uint32], :int32],
+      [:zxv_hw_region_commit, %i[pointer pointer], :int32],
+      [:zxv_hw_region_rollback, %i[pointer pointer], :int32],
+      [:zxv_hw_region_tick, %i[pointer pointer], :int32],
+      [:zxv_hw_region_info, %i[pointer pointer pointer pointer pointer pointer], :int32],
+      [:zxv_hw_region_log, %i[pointer pointer pointer pointer], :int32],
+      [:zxv_hw_region_log_entry, %i[pointer pointer uint32 pointer pointer pointer pointer pointer pointer pointer],
+       :int32],
+      [:zxv_hw_matrix_log, %i[pointer pointer pointer pointer], :int32],
+      [:zxv_hw_matrix_log_entry, %i[pointer pointer uint32 pointer pointer pointer pointer pointer pointer pointer],
+       :int32]
     ].freeze
 
     @loaded = nil
@@ -266,6 +326,19 @@ module Zxv
           attach_function name, args, ret, **(opts || {})
         end
         attach_function :zxv_rmag_listen, %i[pointer zxv_rmag_listener pointer], :int32
+        # ABI 1.4 callbacks: an implementation, the device side of a region,
+        # and region events.
+        callback :zxv_hw_call_fn, %i[pointer uint32 pointer size_t pointer size_t pointer], :int32
+        callback :zxv_hw_load_fn, %i[pointer uint32 pointer size_t], :int32
+        callback :zxv_hw_readback_fn, %i[pointer uint32 pointer], :int32
+        callback :zxv_hw_activate_fn, %i[pointer uint32], :int32
+        callback :zxv_hw_event_fn, %i[pointer uint32 int32 uint32 uint32], :void
+        attach_function :zxv_hw_provider_add,
+                        %i[pointer pointer uint32 uint32 int32 uint32 zxv_hw_call_fn pointer pointer], :int32
+        attach_function :zxv_hw_region_create_cap,
+                        %i[pointer pointer uint32 uint32 uint32 pointer zxv_hw_load_fn zxv_hw_readback_fn
+                           zxv_hw_activate_fn pointer uint32 pointer], :int32
+        attach_function :zxv_hw_region_events, %i[pointer pointer zxv_hw_event_fn pointer], :int32
         attach_function :zxv_generate,
                         %i[pointer pointer pointer size_t uint32 int32 uint32 int32 int32 uint32 uint64
                            zxv_token_fn pointer pointer pointer pointer],
@@ -278,9 +351,9 @@ module Zxv
         zxv_version(maj, min, nil)
         major = maj.read_uint32
         minor = min.read_uint32
-        return if major == 1 && minor >= 3
+        return if major == 1 && minor >= 4
 
-        raise LoadError, "libzxv ABI #{major}.#{minor} is not compatible (need 1.x, x >= 3)"
+        raise LoadError, "libzxv ABI #{major}.#{minor} is not compatible (need 1.x, x >= 4)"
       end
     end
   end

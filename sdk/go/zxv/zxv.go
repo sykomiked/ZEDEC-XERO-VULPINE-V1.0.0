@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package zxv is the Go SDK of the ZXV platform: a cgo binding to libzxv
-// (sdk/libzxv/include/zxv_api.h, ABI 1.2).
+// (sdk/libzxv/include/zxv_api.h, ABI 1.4).
 //
 // The essentials:
 //
 //   - Handles (Context, Capability, Budgets, PhaseClock, Swarm,
-//     Attestations, Model, Session, Message, SecretKey) have Close(), with a
+//     Attestations, Model, Session, Message, SecretKey, QuarantineLog,
+//     HwProfile, HwMatrix, HwRegion) have Close(), with a
 //     runtime.SetFinalizer backstop. A parent refuses to close while a child
 //     made from it is open, so the C rule "destroy children first" holds.
 //   - Errors are values: errors.Is(err, zxv.ErrBudgetExhausted), the class
@@ -77,6 +78,7 @@ const (
 	FeatLoRA      Features = 0x02000000 // not built yet
 	FeatEVM       Features = 0x04000000
 	FeatHex       Features = 0x08000000 // ABI 1.3: Hexagram, QuarantineLog
+	FeatHW        Features = 0x10000000 // ABI 1.4: HwProfile, HwMatrix, HwRegion
 )
 
 // Has reports whether every bit of f is live.
@@ -95,12 +97,12 @@ var (
 )
 
 // checkVersion refuses a library whose major ABI differs or whose minor is
-// below 3.
+// below 4.
 func checkVersion() error {
 	versionOnce.Do(func() {
 		major, minor, _ := Version()
-		if major != C.ZXV_ABI_VERSION_MAJOR || minor < 3 {
-			versionErr = newError(StatusInternal, fmt.Sprintf("libzxv ABI %d.%d is not compatible with this SDK (needs 1.3+)", major, minor))
+		if major != C.ZXV_ABI_VERSION_MAJOR || minor < 4 {
+			versionErr = newError(StatusInternal, fmt.Sprintf("libzxv ABI %d.%d is not compatible with this SDK (needs 1.4+)", major, minor))
 		}
 	})
 	return versionErr

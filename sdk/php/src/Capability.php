@@ -30,12 +30,20 @@ final class Capability extends NativeHandle
     public const ATTEST = 1 << 7;
     public const SWARM = 1 << 8;
     public const EVM = 1 << 9;
+    /** ABI 1.4: build and call the emulation matrix. */
+    public const HW_MATRIX = 1 << 10;
+    /** ABI 1.4: load hardware images and contracts. */
+    public const HW_RECONF = 1 << 11;
+    /** ZXV_CAP_ALL: the ABI 1.1 bits, a released value that never changes. */
     public const ALL = (1 << 10) - 1;
+    /** ZXV_CAP_ALL_1_4: every bit as of ABI 1.4. */
+    public const ALL_1_4 = (1 << 12) - 1;
 
     public const NAMES = [
         "ledger_read" => self::LEDGER_READ, "ledger_post" => self::LEDGER_POST, "crypto_sign" => self::CRYPTO_SIGN,
         "crypto_kem" => self::CRYPTO_KEM, "ai_inference" => self::AI_INFERENCE, "budget" => self::BUDGET,
         "phase" => self::PHASE, "attest" => self::ATTEST, "swarm" => self::SWARM, "evm" => self::EVM,
+        "hw_matrix" => self::HW_MATRIX, "hw_reconf" => self::HW_RECONF,
     ];
 
     /** @internal use Context::rootCapability() */

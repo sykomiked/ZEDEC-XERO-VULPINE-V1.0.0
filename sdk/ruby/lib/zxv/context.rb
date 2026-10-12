@@ -99,11 +99,21 @@ module Zxv
       @ptr = out.read_pointer
       @registry = HandleRegistry.new
       @dead = false
+      @retained = []
       ObjectSpace.define_finalizer(self, self.class.send(:finalizer, @registry, @ptr))
     end
 
-    # A root capability holding +caps+ (default: all bits).
-    # @param caps [Symbol, Array<Symbol>, Integer] e.g. :all, [:ledger_read, :evm]
+    # Keep +obj+ (an FFI callback a native handle holds) referenced for as
+    # long as this context, so the GC never frees code libzxv may still call.
+    # @api private
+    def retain(obj)
+      @retained << obj
+      obj
+    end
+
+    # A root capability holding +caps+ (default: :all, the ABI 1.1 bits;
+    # pass :all_1_4 or add :hw_matrix / :hw_reconf for the hardware group).
+    # @param caps [Symbol, Array<Symbol>, Integer] e.g. :all, :all_1_4, [:ledger_read, :evm]
     # @param process_id [Integer] recorded in the cap
     # @param identity [String, nil] 21 bytes (168-bit identity), or nil for zeros
     # @return [Capability]
@@ -278,9 +288,15 @@ module Zxv
       phase: 1 << 6,
       attest: 1 << 7,
       swarm: 1 << 8,
-      evm: 1 << 9
+      evm: 1 << 9,
+      hw_matrix: 1 << 10, # ABI 1.4: build and call the emulation matrix
+      hw_reconf: 1 << 11  # ABI 1.4: load hardware images and contracts
     }.freeze
+    # ZXV_CAP_ALL: the ten bits of ABI 1.1, a released value that never
+    # changes (so +:all+ never silently grows).
     ALL = (1 << 10) - 1
+    # ZXV_CAP_ALL_1_4: every bit as of ABI 1.4 (+:all_1_4+).
+    ALL_1_4 = (1 << 12) - 1
 
     # Snapshot of a capability (zxv_cap_info).
     Info = Struct.new(:bits, :names, :process_id, :attestation, :revoked, keyword_init: true)
@@ -289,6 +305,7 @@ module Zxv
     def self.bits(spec)
       case spec
       when :all then ALL
+      when :all_1_4 then ALL_1_4
       when Symbol then BITS.fetch(spec) { raise ZxvUsageError.new(Status::E_ARG, "unknown capability #{spec.inspect}") }
       when Array then spec.reduce(0) { |m, s| m | bits(s) }
       else Call.uint64!(spec, "caps")

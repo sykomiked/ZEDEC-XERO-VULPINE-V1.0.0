@@ -190,3 +190,4 @@ kernel/src/xlate/test_langid_fixture.h
 # Unbuilt placeholders moved out of kernel/src (kept for the design record, see
 # kernel/experimental/README.md). Not reformatted: a move shows as all-new lines.
 kernel/experimental/*/*
+kernel/src/hwemu/hwe_vectors.h

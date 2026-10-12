@@ -32,8 +32,14 @@ export const Cap = Object.freeze({
   SWARM: 1n << 8n,
   /** EVM state-channel encoding. */
   EVM: 1n << 9n,
-  /** Every bit above. */
+  /** Every capability of ABI 1.1 (ZXV_CAP_ALL; this value never changes). */
   ALL: (1n << 10n) - 1n,
+  /** Build and call the hardware emulation matrix (ABI 1.4). */
+  HW_MATRIX: 1n << 10n,
+  /** Load hardware images and contract packages (ABI 1.4). */
+  HW_RECONF: 1n << 11n,
+  /** Every capability as of ABI 1.4 (ZXV_CAP_ALL_1_4). */
+  ALL_1_4: (1n << 12n) - 1n,
 } as const);
 
 /** Octets in a capability identity (168 bits). */
