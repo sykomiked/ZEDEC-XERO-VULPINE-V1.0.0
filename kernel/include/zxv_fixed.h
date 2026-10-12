@@ -92,8 +92,8 @@ static inline uint64_t zx_gcd_u64(uint64_t a, uint64_t b)
  * {0, INT64_MIN}) does not fit and comes back as INT64_MIN. */
 static inline int64_t zx_gcd_i64(int64_t a, int64_t b)
 {
-    uint64_t ua = a < 0 ? (uint64_t) 0 - (uint64_t) a : (uint64_t) a;
-    uint64_t ub = b < 0 ? (uint64_t) 0 - (uint64_t) b : (uint64_t) b;
+    uint64_t ua = a < 0 ? (uint64_t) (-(a + 1)) + 1u : (uint64_t) a; /* |a|, no wrap */
+    uint64_t ub = b < 0 ? (uint64_t) (-(b + 1)) + 1u : (uint64_t) b;
     return (int64_t) zx_gcd_u64(ua, ub);
 }
 

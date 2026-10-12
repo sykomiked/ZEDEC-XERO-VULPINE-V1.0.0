@@ -103,8 +103,11 @@ NOQ32 = ("plain", "san", "fast")  # suites whose code needs TEST_HOST (double) o
 
 SUITES = {
     # ---- Tier 1: root axioms ----
+    # each rational suite also runs on the no-__int128 (32-bit target) path
     "t1_rational": [prog("axioms_rational", T1 + "/axioms_rational.c", RAT["inc"] + [T1],
-                         RAT["src"], modes=NOQ32)],
+                         RAT["src"], modes=NOQ32),
+                    prog("axioms_rational_narrow", T1 + "/axioms_rational.c", RAT["inc"] + [T1],
+                         RAT["src"], modes=NOQ32, extra=["-DRAT_NO_WIDE"])],
     "t1_pay": [prog("axioms_pay", T1 + "/axioms_pay.c", PAY_INC + [T1], PAY_SRC, modes=NOQ32)],
     "t1_triple": [prog("axioms_triple", T1 + "/axioms_triple.c", TL_INC + [T1], TL_SRC)],
     "t1_chest": [prog("axioms_chest", T1 + "/axioms_chest.c", CC_INC + [T1], CC_SRC,
@@ -120,7 +123,9 @@ SUITES = {
                             CC_SRC)],
     # ---- Tier 3: metamorphic ----
     "t3_rational": [prog("meta_rational", T3 + "/meta_rational.c", RAT["inc"] + [T1], RAT["src"],
-                         modes=NOQ32)],
+                         modes=NOQ32),
+                    prog("meta_rational_narrow", T3 + "/meta_rational.c", RAT["inc"] + [T1],
+                         RAT["src"], modes=NOQ32, extra=["-DRAT_NO_WIDE"])],
     "t3_ledger": [prog("meta_ledger", T3 + "/meta_ledger.c", PAY_INC + [T1], PAY_SRC,
                        modes=NOQ32)],
     "t3_chest": [prog("meta_chest", T3 + "/meta_chest.c", CC_INC + [T1],
@@ -131,7 +136,10 @@ SUITES = {
         prog("test_rational", "src/rational/test_rational.c", ["src/rational"],
              ["src/rational/rational.c"], modes=NOQ32, base=False),
         prog("test_rational_regress", "src/rational/test_rational_regress.c", ["src/rational"],
-             ["src/rational/rational.c"], modes=NOQ32, base=False)],
+             ["src/rational/rational.c"], modes=NOQ32, base=False),
+        # the no-__int128 (32-bit target) path, forced on the host
+        prog("test_rational_narrow", "src/rational/test_rational_narrow.c", ["src/rational"],
+             ["src/rational/rational.c"], modes=NOQ32, extra=["-DRAT_NO_WIDE"], base=False)],
     "legacy_rmag": [prog("test_rmag_core", "src/rmag/test_rmag.c",
                          ["src/rmag", "src/surplus", "src/oseq", "src/lpres"],
                          ["src/rmag/rmag_core.c"], modes=NOQ32, extra=["-D_GNU_SOURCE"])],

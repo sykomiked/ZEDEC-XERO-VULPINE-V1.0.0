@@ -14,6 +14,7 @@ on:
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
@@ -79,8 +80,11 @@ jobs:
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c \
             -o "$RUNNER_TEMP/zxv-rpc-call"
           python3 macos/test_rpc_client.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/zxv-rpc-call"
+      - name: The model fetcher and the shipped model manifest
+        run: python3 macos/test_model_fetch.py
 
   mac-app:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     # W2: the Mac app's engine is zxvd with libzxv.dylib in the bundle, and the
     # shell talks to it over the socket. Build the app (ad-hoc signed), launch
     # it, ask the engine through the socket, quit, and check nothing is left.
@@ -129,6 +133,7 @@ jobs:
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
 
   mutation:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     # zxvd_rpc.c and zxvd_aipi.c against their unit tests; fails below the
     # baselines in tests/harness/mutator/targets.json (ci.yml's gate only runs
     # on PRs to main)
@@ -140,6 +145,7 @@ jobs:
       - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi --ci --jobs 4 --out mutation-results
 
   real-model:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     # Qwen2.5-1.5B-Instruct Q4_K_M (Apache-2.0), pinned by SHA-256, never in git.
     name: zxvd with Qwen2.5-1.5B
     runs-on: ubuntu-24.04

@@ -227,7 +227,7 @@ Check counts marked "on our run" come from running `make -C kernel test-econ tes
 2. **No integration.** The modules are tested in isolation against `pay_ledger`. Their reserve assets differ (Section 5), and nothing yet routes the fee's reserve share into a vault in the running application.
 3. **No mechanism analysis.** Section 15 notes that uniform-price multi-unit auctions admit demand reduction and low-price equilibria, and that the proportional-share mechanism has a known efficiency loss under strategic bidding. No equilibrium, revenue or welfare result has been derived for these variants, which have price-dependent supply, caps and pro-rata rationing.
 4. **Exogenous prices.** Vault buys use a caller-supplied price. Collateral values rest on oracles and custodians, and the code can only check signatures.
-5. **Model-to-code gap.** The TLA+ and Lean models are hand transcriptions over small bounds.
+5. **Model-to-code gap.** The TLA+ and Lean models are hand-written specifications, checked over small bounds (TLA+) or for all values of the model (Lean). No refinement proof links them to the C source or the binary, as seL4 has (Klein et al. 2009), so they are evidence about the design, not a verification of the ledger code. A change to the C can silently invalidate them.
 6. **Fixed capacities and no persistence.** Examples: 32 bids per epoch, 64 netting participants, 512 payments per engine lifetime.
 7. **The no-usury guard** classifies descriptions, not economic substance.
 
@@ -261,6 +261,7 @@ Check counts marked "on our run" come from running `make -C kernel test-econ tes
 - Kahn, C. M. and Roberds, W. (2009). Why pay? An introduction to payments economics. *Journal of Financial Intermediation*, 18(1).
 - Kelly, F. (1997). Charging and rate control for elastic traffic. *European Transactions on Telecommunications*, 8(1).
 - Keynes, J. M. (1936). *The General Theory of Employment, Interest and Money*. Macmillan.
+- Klein, G., et al. (2009). seL4: Formal verification of an OS kernel. *Proc. SOSP 2009*, ACM, 207–220.
 - Lamport, L. (2002). *Specifying Systems: The TLA+ Language and Tools for Hardware and Software Engineers*. Addison-Wesley.
 - LiCalzi, M. and Pavan, A. (2005). Tilting the supply schedule to enhance competition in uniform-price auctions. *European Economic Review*, 49(1).
 - Milgrom, P. (2004). *Putting Auction Theory to Work*. Cambridge University Press.

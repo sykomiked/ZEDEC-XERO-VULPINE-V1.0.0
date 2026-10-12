@@ -11,8 +11,13 @@
  *      This is the nonlinear tint/shade.
  *   2. CHROMOSTEREOPSIS — near pixels go WARM (+red / -blue), far pixels go COOL
  *      (-red / +blue). The eye focuses long (red) and short (blue) wavelengths
- *      at slightly different depths, so warm advances and cool recedes: genuine
- *      holographic depth on a 2D display, no glasses.
+ *      at slightly different depths, so for most viewers warm advances and
+ *      cool recedes: a perceived depth cue on a 2D display, no glasses. The
+ *      strength (and for some viewers the direction) of the effect varies.
+ *
+ * "Holographic" is a name, not a claim: nothing here records or rebuilds an
+ * interference pattern or a light field. Both cues are per-pixel colour
+ * shifts that the eye reads as depth.
  *
  * Integer-only, branch-light, inlinable (called per pixel in the hot path).
  * valence v in ~[-200,200]; depth_z >0 = near, <0 = far; the two _k are the
