@@ -393,7 +393,7 @@ static int32_t plan_mat(arena_t *a, const zt_gguf_t *g, const char *name, uint32
     zt_gguf_tensor_t t;
     int32_t r = get_tensor(g, name, cols, rows, &t, err);
     if (r) return r;
-    zt_mat_t m = {0, 0, rows, cols, 0};
+    zt_mat_t m = {0, 0, rows, cols, 0, 0};
     if (t.type == ZT_GGML_Q8_0) {
         m.raw = t.data;
         m.qtype = ZT_GGML_Q8_0;

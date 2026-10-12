@@ -485,7 +485,11 @@ int32_t zt_tok_load(zt_tok_t *t, const zt_gguf_t *g, void *arena, uint64_t arena
         t->byte_cp[b] = (uint16_t) cp;
         uint8_t u[4];
         t->byte_tok[b] = find_tok(t, u, utf8_enc(cp, u));
-        if (t->byte_tok[b] < 0) return ZT_GGUF_ETYPE; /* not a byte-level vocabulary */
+        /* every printable ASCII byte must be there, or this is not a byte-level
+         * vocabulary; some (SmolLM's) leave out bytes that never occur in
+         * UTF-8 (0xC0, 0xC1, 0xF5..) and a few control bytes: those are
+         * dropped from the input, as no token can spell them */
+        if (t->byte_tok[b] < 0 && b >= 0x20 && b < 0x7F) return ZT_GGUF_ETYPE;
     }
 
     t->bos = (int32_t) zt_gguf_get_int(g, "tokenizer.ggml.bos_token_id", -1);
@@ -572,9 +576,12 @@ static void bpe_piece(const zt_tok_t *t, const uint8_t *s, uint32_t n, uint8_t *
     }
     uint32_t *id = (uint32_t *) work, *nx = id + n, *pv = nx + n;
     hent_t *heap = (hent_t *) (pv + n);
-    uint32_t hn = 0;
+    uint32_t hn = 0, k = 0;
+    for (uint32_t i = 0; i < n; i++)
+        if (t->byte_tok[s[i]] >= 0) id[k++] = (uint32_t) t->byte_tok[s[i]];
+    n = k;
+    if (!n) return;
     for (uint32_t i = 0; i < n; i++) {
-        id[i] = (uint32_t) t->byte_tok[s[i]];
         nx[i] = i + 1 < n ? i + 1 : NONE;
         pv[i] = i ? i - 1 : NONE;
     }

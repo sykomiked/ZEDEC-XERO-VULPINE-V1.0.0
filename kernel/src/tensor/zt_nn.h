@@ -53,6 +53,11 @@ typedef struct {
     zt_fx *scratch; /* one dequantised row, cols_max values */
     uint32_t cols_max;
     zt_model_err_t *err;
+    /* F32, F16 and BF16 matrices: true (zt_nn_arena_begin's default) keeps a
+     * second 8-bit block of what the first leaves out (zt_mat_t.q8lo), so
+     * the weight is within about 2^-15 of each block's largest value instead
+     * of 2^-8, at twice the cost of those matrices; false keeps one. */
+    bool float_residual;
 } zt_nn_arena_t;
 
 /* Start a pass. Sizing: base = 0 (cap ignored). Filling: base/cap are the
@@ -70,7 +75,9 @@ int32_t zt_nn_tensor(const zt_gguf_t *g, const char *name, uint64_t cols, uint64
                      zt_gguf_tensor_t *t, zt_model_err_t *err);
 bool zt_nn_has(const zt_gguf_t *g, const char *name);
 /* A matrix of rows x cols. out->cols is cols rounded up to 32 (the padding
- * is zero). */
+ * is zero). Float matrices are read from their f32 bits with 30 significant
+ * bits per block (not through Q16), then quantised to 8-bit blocks, plus the
+ * residual blocks when a->float_residual is set. */
 int32_t zt_nn_load_mat(zt_nn_arena_t *a, const zt_gguf_t *g, const char *name, uint32_t cols,
                        uint32_t rows, zt_mat_t *out);
 /* A vector of n values as Q16 (biases, embeddings, position tables). */
