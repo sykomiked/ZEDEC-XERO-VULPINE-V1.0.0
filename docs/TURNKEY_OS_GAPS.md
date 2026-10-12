@@ -52,3 +52,42 @@ below that touches hardware counts as "exists".
 - **Updates, installer, backups:** each step is a unit of work with a
   hexagram tag. A contradiction (two mirrors disagree on a hash) is held for
   a person rather than retried until it happens to pass.
+
+## Drivers: the least code that covers the most hardware
+
+The approach is to write drivers against **standards, not chips**, in three
+layers.
+
+1. **Standard class drivers** (about 20, each written once):
+   - Boot and firmware: UEFI GOP framebuffer, ACPI.
+   - PCI and storage: PCI enumeration, NVMe, AHCI.
+   - USB: xHCI, plus the USB classes HID, mass storage, CDC (network and
+     serial), audio and video (UVC).
+   - Virtual hardware: virtio (already in the tree).
+   - Audio: Intel HD Audio.
+   - Bluetooth: Bluetooth HCI over USB.
+   - Wired network: three NIC families, Intel e1000e/igc and Realtek r8169.
+2. **The paraconsistent adapter** (`kernel/src/fwadapt`) picks among them and
+   fails safe on conflicts or unknown devices.
+3. **The long tail goes to a Linux driver VM.** Wi-Fi chips, GPU
+   acceleration, fingerprint readers and vendor-specific devices are handed to
+   a small Linux VM through the IOMMU (VT-d / AMD-Vi). ZXV sees each of them
+   as a virtio device, so its existing virtio drivers serve them. This is the
+   same VM as the earlier Docker-in-VM decision.
+
+**Coverage estimate (inferred from market structure, not measured).**
+- On x86 UEFI PCs from roughly the last ten years, layer 1 should give a
+  working machine on about 80-90% of models: framebuffer display, storage,
+  USB input and media, wired network and audio.
+- Wi-Fi and GPU acceleration need layer 3 on nearly all of them.
+- Layer 3 needs an IOMMU, which most recent PCs have.
+- Apple Silicon Macs have no ACPI or standard PCI firmware interface, so ZXV
+  stays hosted (zxvd + app) on them.
+
+**Build order.**
+1. xHCI + USB HID + mass storage (keyboard and install media).
+2. NVMe and AHCI.
+3. GOP framebuffer.
+4. HDA.
+5. e1000e and r8169.
+6. The driver VM.
