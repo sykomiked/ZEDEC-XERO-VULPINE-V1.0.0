@@ -23,12 +23,14 @@ needed before release.
 | **Scent** | Search: finds files in a space by name and by the words inside them as the owner types, best first with the text around each hit, opens each in the right app (Quillon, Glint or Burrow); AI can suggest a sharper search, run only when accepted | Spotlight, GNOME Search, `locate`, `grep -r` | `search.query`, `search.refresh` | `scent_model.h` |
 | **Platen** | Printers and scanners on the local network: adds a printer by its address and shows its state, what it takes and why it stopped; prints a file of the space and follows or cancels the job; scans pages from the glass or the feeder into a folder; AI explains a printer's trouble in plain words | Printers & Scanners, CUPS, SANE | `print.status`, `print.submit`, `print.job`, `print.cancel`, `scan.status`, `scan.start` | `platen_model.h` |
 | **Keepsake** | Backups with versions: backs a space up to a folder on another disk, lists the backups, shows every version a file has had, checks that a backup reads back whole, brings a file or folder back as a new item (never over what is there), lets old backups go; AI explains a failed check | Time Machine, Déjà Dup, `restic` | `backup.run`, `backup.list`, `backup.versions`, `backup.verify`, `backup.restore`, `backup.prune` | `keepsake_model.h` |
+| **Shepherd** | Family and screen time: minutes per app each day of the week, limits a guardian sets (minutes a day, the hours an app may be used, more time for today), locked with a passphrase; the desktop reports the app in front once a minute and says when time runs out; AI suggests a fair plan, changed only by the guardian | Screen Time, Family Safety, Digital Wellbeing | `screen.tick`, `screen.check`, `screen.status`, `screen.set_limit`, `screen.clear_limit`, `screen.grant`, `screen.lock` | `shepherd_model.h` |
 | **Spindle** | Developer console: any zxvd call by hand | Script Editor, `curl` | `rpc.discover` + any | `spindle_model.h` |
 
-Only Platen and Keepsake change anything. Platen sends a document to a
-printer and saves scanned pages as new files. Keepsake writes backups to the
-destination the owner picks, restores as new items, and removes old backups
-only when the owner asks. `sys.*`, `log.tail`, `journal.*` and `search.*` are read only.
+Only Platen, Keepsake and Shepherd change anything. Platen sends a document
+to a printer and saves scanned pages as new files. Keepsake writes backups to
+the destination the owner picks, restores as new items, and removes old
+backups only when the owner asks. Shepherd counts minutes and keeps the
+guardian's limits. `sys.*`, `log.tail`, `journal.*` and `search.*` are read only.
 All of them are local to the owner's control socket and never sent to peers. The log keeps what
 happened (a method, an outcome, how long it took), never parameters or
 content.
@@ -77,6 +79,18 @@ once all of them pass 16 MiB. A line cut short by a crash is left out and
 the chain carries on from the last whole one. `zxvd --desktop` and the Mac
 app keep it beside the books file; plain `zxvd` keeps one only with
 `--journal DIR`.
+
+Shepherd's screen time (`kernel/arch/hosted/zxv_screen.h`) counts a minute
+for the app in front each time the desktop reports it, once a minute while
+someone is using the machine, and keeps 31 days. A limit gives an app (or
+all apps together) minutes a day and the hours it may be used; the guardian
+can grant more time for today, and can lock the limits with a passphrase,
+kept only as a salted, iterated hash. Five wrong passphrases make the next
+try wait a minute. Time used past a limit is still counted, so the record
+stays true. On Linux, macOS and Windows the account that runs zxvd can delete
+the file or stop the reports, so limits there are an agreement, not a wall;
+seats on ZXV's own OS will enforce them. A damaged file is moved aside and
+Shepherd tells the guardian that screen time started over.
 
 ## Still to build
 

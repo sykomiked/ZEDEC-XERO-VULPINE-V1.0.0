@@ -43,12 +43,14 @@ enum Connector {
             let books = ZXVDLocation.defaultBooksPath
             try? fm.createDirectory(atPath: (books as NSString).deletingLastPathComponent,
                                     withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            // Wake's history across restarts (zxv_journal.h)
-            let journal = ((books as NSString).deletingLastPathComponent as NSString)
-                .appendingPathComponent("journal")
+            // Wake's history across restarts (zxv_journal.h), Shepherd's screen time (zxv_screen.h)
+            let support = (books as NSString).deletingLastPathComponent as NSString
+            let journal = support.appendingPathComponent("journal")
+            let screen = support.appendingPathComponent("screen.zxst")
             let d = try DaemonProcess.start(binary: bin, socketPath: socket,
                                             modelsDir: ZXVDLocation.defaultModelsDir,
-                                            extraArguments: ["--books", books, "--journal", journal],
+                                            extraArguments: ["--books", books, "--journal", journal,
+                                                             "--screen", screen],
                                             logURL: logURL)
             return (client, d, try client.call("rpc.discover", as: Discovery.self))
         }

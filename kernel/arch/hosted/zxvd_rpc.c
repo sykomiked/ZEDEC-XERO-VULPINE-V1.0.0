@@ -42,6 +42,7 @@
 #include "zxv_print_host.h" /* print.*, scan.*: Platen's printers and scanners */
 #include "zxv_keepsake.h"   /* backup.*: Keepsake's backups and versions */
 #include "zxv_journal.h"    /* journal.*: Wake's history across restarts */
+#include "zxv_screen.h"     /* screen.*: Shepherd's screen time */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -183,7 +184,7 @@ static void books_close(void)
 
 #define BF_MAGIC "{\"op\":\"books\",\"v\":1}"
 #define LIT(b, s)                                                                                  \
-    zxvd_buf_raw((b), (s), sizeof(s) - 1) /* a string literal, no count to get wrong */
+    zxvd_buf_raw((b), "" s, sizeof("" s) - 1) /* a string literal only: anything else fails */
 #define BF_MAX_LINE 1024u                 /* a record is far smaller; longer is damage */
 
 static char BF_PATH[1024];  /* "" = the books live in memory only (F1) */
@@ -2292,6 +2293,153 @@ static void m_backup_prune(call_t *c)
                     snaps, objects, (unsigned long long) freed);
 }
 
+/* ----- screen.* (zxv_screen.h): Shepherd ----- */
+
+static bool screen_done(call_t *c, int rc)
+{
+    if (rc == 0) return true;
+    fail(c, rc == ZSC_E_ARG ? E_PARAMS : ZXVD_E_SCREEN, "%s", zsc_strerror(rc));
+    return false;
+}
+
+static void answer_json(call_t *c, const char *app, const zsc_answer_t *a, bool tick)
+{
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    if (tick) zxvd_buf_printf(c->res, ",\"counted\":%s", a->counted ? "true" : "false");
+    zxvd_buf_printf(c->res, ",\"allowed\":%s,\"used\":%u,\"total\":%u,\"left\":%d,\"why\":",
+                    a->allowed ? "true" : "false", a->used, a->total, (int) a->left);
+    zxvd_buf_json_str(c->res, a->why);
+    LIT(c->res, "}");
+}
+
+static void m_screen_tick(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1];
+    zsc_answer_t a;
+    if (!p_str(c, "app", app, sizeof app, true) || !screen_done(c, zsc_tick(app, &a))) return;
+    answer_json(c, app, &a, true);
+}
+
+static void m_screen_check(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1];
+    zsc_answer_t a;
+    if (!p_str(c, "app", app, sizeof app, true) || !screen_done(c, zsc_check(app, &a))) return;
+    answer_json(c, app, &a, false);
+}
+
+static void m_screen_status(call_t *c)
+{
+    uint64_t days;
+    if (!p_opt_u64(c, "days", 7, &days)) return;
+    if (days < 1 || days > ZSC_DAYS) return fail(c, E_PARAMS, "\"days\" must be 1 to %u", ZSC_DAYS);
+    uint32_t today = zsc_today();
+    zxvd_buf_printf(c->res, "{\"locked\":%s,\"reset\":%s,\"wait_s\":%lld,\"today\":%u,\"limits\":[",
+                    zsc_locked() ? "true" : "false", zsc_was_reset() ? "true" : "false",
+                    (long long) zsc_wait(), today);
+    for (uint32_t i = 0; i < zsc_limit_count(); i++) {
+        const zsc_limit_t *l = zsc_limit(i);
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"app\":");
+        zxvd_buf_json_str(c->res, l->app);
+        if (l->minutes < 0)
+            LIT(c->res, ",\"minutes\":null");
+        else
+            zxvd_buf_printf(c->res, ",\"minutes\":%d", (int) l->minutes);
+        zxvd_buf_printf(c->res, ",\"from\":%u,\"to\":%u,\"extra\":%u}", (unsigned) l->from,
+                        (unsigned) l->to, l->extra_date == today ? l->extra : 0u);
+    }
+    LIT(c->res, "],\"days\":[");
+    for (uint32_t d = 0; d < zsc_day_count() && d < days; d++) {
+        const zsc_day_t *y = zsc_day(d);
+        zxvd_buf_printf(c->res, "%s{\"date\":%u,\"total\":%u,\"apps\":[", d ? "," : "", y->date,
+                        y->total);
+        for (uint32_t i = 0; i < y->n; i++) {
+            if (i) LIT(c->res, ",");
+            LIT(c->res, "{\"app\":");
+            zxvd_buf_json_str(c->res, y->a[i].app);
+            zxvd_buf_printf(c->res, ",\"minutes\":%u}", y->a[i].minutes);
+        }
+        LIT(c->res, "]}");
+    }
+    LIT(c->res, "]}");
+}
+
+static bool p_pass(call_t *c, const char *key, char *out)
+{
+    return p_str(c, key, out, ZSC_PASS_MAX + 1, false);
+}
+
+static bool p_minute(call_t *c, const char *key, uint16_t *v)
+{
+    uint64_t x;
+    if (!p_opt_u64(c, key, 0, &x)) return false;
+    if (x > 1439) {
+        fail(c, E_PARAMS, "\"%s\" must be 0 to 1439 (minutes after midnight)", key);
+        return false;
+    }
+    *v = (uint16_t) x;
+    return true;
+}
+
+static void m_screen_set_limit(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1], pass[ZSC_PASS_MAX + 1];
+    uint64_t minutes;
+    uint16_t from, to;
+    bool capped = param(c, "minutes") >= 0;
+    if (!p_str(c, "app", app, sizeof app, true) || !p_opt_u64(c, "minutes", 0, &minutes) ||
+        !p_minute(c, "from", &from) || !p_minute(c, "to", &to) || !p_pass(c, "passphrase", pass))
+        return;
+    if (minutes > 1440) return fail(c, E_PARAMS, "\"minutes\" must be 0 to 1440");
+    if (!screen_done(c, zsc_set_limit(pass, app, capped ? (int32_t) minutes : -1, from, to)))
+        return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    LIT(c->res, ",\"set\":true}");
+}
+
+static void m_screen_clear_limit(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1], pass[ZSC_PASS_MAX + 1];
+    if (!p_str(c, "app", app, sizeof app, true) || !p_pass(c, "passphrase", pass) ||
+        !screen_done(c, zsc_clear_limit(pass, app)))
+        return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    LIT(c->res, ",\"cleared\":true}");
+}
+
+static void m_screen_grant(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1], pass[ZSC_PASS_MAX + 1];
+    uint64_t minutes;
+    if (!p_str(c, "app", app, sizeof app, true) || !p_opt_u64(c, "minutes", 0, &minutes) ||
+        !p_pass(c, "passphrase", pass))
+        return;
+    if (minutes < 1 || minutes > 1440) return fail(c, E_PARAMS, "\"minutes\" must be 1 to 1440");
+    if (!screen_done(c, zsc_grant(pass, app, (uint32_t) minutes))) return;
+    zsc_answer_t a;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    if (strcmp(app, ZSC_ALL) && zsc_check(app, &a) == 0)
+        zxvd_buf_printf(c->res, ",\"left\":%d}", (int) a.left);
+    else
+        LIT(c->res, "}");
+}
+
+static void m_screen_lock(call_t *c)
+{
+    char pass[ZSC_PASS_MAX + 1], old[ZSC_PASS_MAX + 1];
+    if (!p_str(c, "passphrase", pass, sizeof pass, true) || !p_pass(c, "old", old)) return;
+    if (pass[0] && strlen(pass) < ZSC_PASS_MIN)
+        return fail(c, E_PARAMS, "\"passphrase\" must be at least %u bytes, or \"\" to unlock",
+                    ZSC_PASS_MIN);
+    if (!screen_done(c, zsc_lock(old, pass))) return;
+    zxvd_buf_printf(c->res, "{\"locked\":%s}", zsc_locked() ? "true" : "false");
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2614,6 +2762,13 @@ static const method_t METHODS[] = {
     {"log.tail", m_log_tail},
     {"journal.query", m_journal_query},
     {"journal.verify", m_journal_verify},
+    {"screen.tick", m_screen_tick},
+    {"screen.check", m_screen_check},
+    {"screen.status", m_screen_status},
+    {"screen.set_limit", m_screen_set_limit},
+    {"screen.clear_limit", m_screen_clear_limit},
+    {"screen.grant", m_screen_grant},
+    {"screen.lock", m_screen_lock},
     {"search.refresh", m_search_refresh},
     {"search.query", m_search_query},
     {"print.status", m_print_status},
@@ -2695,7 +2850,8 @@ static bool quiet(const char *m)
         "files.list",      "files.stat",       "files.read",    "spaces.list",    "spaces.get",
         "sys.info",        "sys.disk",         "sys.net",       "log.tail",       "update.check",
         "search.query",    "search.refresh",   "print.status",  "print.job",      "scan.status",
-        "backup.list",     "backup.versions",  "backup.verify", "journal.query",  "journal.verify"};
+        "backup.list",     "backup.versions",  "backup.verify", "journal.query",  "journal.verify",
+        "screen.tick",     "screen.check",     "screen.status"};
     for (size_t i = 0; i < sizeof Q / sizeof *Q; i++)
         if (!strcmp(m, Q[i])) return true;
     return false;

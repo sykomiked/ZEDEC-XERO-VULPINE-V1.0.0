@@ -306,6 +306,10 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
         [args addObjectsFromArray:@[
             @"--journal", [self.supportDir stringByAppendingPathComponent:@"journal"]
         ]];
+        /* Shepherd's screen time and limits (zxv_screen.h) */
+        [args addObjectsFromArray:@[
+            @"--screen", [self.supportDir stringByAppendingPathComponent:@"screen.zxst"]
+        ]];
     }
     NSString *model = [self currentModel];
     if (model) {

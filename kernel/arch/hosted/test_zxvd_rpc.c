@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <wchar.h>
 #include <stdint.h>
 
@@ -39,6 +40,7 @@
 #include "zxv_print_host.h"
 #include "zxv_keepsake.h"
 #include "zxv_journal.h"
+#include "zxv_screen.h"
 #include "test_fake_device.h"
 #include "web4_web2.h"
 
@@ -471,7 +473,9 @@ static void test_host_methods(void)
            "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
            "\"spaces.propose\",\"spaces.vote\",\"sys.info\",\"sys.disk\",\"sys.net\","
-           "\"log.tail\",\"journal.query\",\"journal.verify\",\"search.refresh\",\"search.query\","
+           "\"log.tail\",\"journal.query\",\"journal.verify\",\"screen.tick\",\"screen.check\","
+           "\"screen.status\",\"screen.set_limit\",\"screen.clear_limit\",\"screen.grant\","
+           "\"screen.lock\",\"search.refresh\",\"search.query\","
            "\"print.status\",\"print.submit\","
            "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\",\"backup.run\","
            "\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","
@@ -4642,6 +4646,390 @@ static void test_journal(void)
     CHECK(rmdir(sub) == 0, "cleanup 2");
 }
 
+/* ---------------- screen time (zxv_screen.h) ---------------- */
+
+static int64_t SNOW;
+static int64_t snow(void)
+{
+    return SNOW;
+}
+
+static void test_screen(void)
+{
+    char *oldtz = getenv("TZ") ? strdup(getenv("TZ")) : NULL;
+    setenv("TZ", "UTC", 1);
+    tzset();
+    zsc_set_clock(snow);
+    SNOW = 1791799200; /* 2026-10-12 10:00 UTC */
+    zsc_answer_t a;
+    CHECK(zsc_open(NULL) == 0 && zsc_today() == 20261012 && zsc_day_count() == 0, "in memory");
+
+    /* SC1: one minute a tick, not twice in the same minute */
+    CHECK(zsc_tick("quillon", &a) == 0 && a.counted && a.used == 1 && a.total == 1 && a.allowed &&
+              a.left == -1 && !a.why[0],
+          "a minute");
+    SNOW += 44;
+    CHECK(zsc_tick("glint", &a) == 0 && !a.counted && a.used == 0 && a.total == 1, "too soon");
+    SNOW += 1;
+    CHECK(zsc_tick("quillon", &a) == 0 && a.counted && a.used == 2 && a.total == 2, "45 s on");
+    CHECK(zsc_tick("*", &a) == ZSC_E_ARG && zsc_tick("a b", &a) == ZSC_E_ARG &&
+              zsc_tick("", &a) == ZSC_E_ARG && zsc_tick(NULL, &a) == ZSC_E_ARG &&
+              zsc_tick("abcdefghijklmnopqrstuvwxyz123456", &a) == ZSC_E_ARG &&
+              zsc_check("x*", &a) == ZSC_E_ARG && zsc_check("é", &a) == ZSC_E_ARG &&
+              zsc_tick("abcdefghijklmnopqrstuvwxyz12345", &a) == 0,
+          "app names");
+    CHECK(zsc_day_count() == 1 && zsc_day(0)->n == 1 && zsc_day(0)->total == 2 &&
+              zsc_day(0)->a[0].minutes == 2 && !zsc_day(1),
+          "today");
+
+    /* SC2, SC5: a daily cap */
+    CHECK(zsc_set_limit(NULL, "quillon", 3, 0, 0) == 0 && zsc_check("quillon", &a) == 0 &&
+              a.allowed && a.left == 1,
+          "one minute left: %d", a.left);
+    SNOW += 60;
+    CHECK(zsc_tick("quillon", &a) == 0 && a.counted && !a.allowed && a.left == 0 && a.used == 3 &&
+              !strcmp(a.why, "today's 3 minutes of quillon are used up"),
+          "used up: %s", a.why);
+    SNOW += 60;
+    CHECK(zsc_tick("quillon", &a) == 0 && a.used == 4 && !a.allowed && a.left == 0,
+          "still counted past the cap");
+    /* SC4: more time, for today only */
+    CHECK(zsc_grant(NULL, "quillon", 2) == 0 && zsc_check("quillon", &a) == 0 && a.allowed &&
+              a.left == 1,
+          "granted: %d", a.left);
+    CHECK(zsc_grant(NULL, "quillon", 1440) == 0 && zsc_limit(0)->extra == 1440, "at most a day");
+    CHECK(zsc_grant(NULL, "glint", 5) == ZSC_E_NOTFOUND &&
+              zsc_grant(NULL, "quillon", 0) == ZSC_E_ARG &&
+              zsc_grant(NULL, "quillon", 1441) == ZSC_E_ARG,
+          "grant refusals");
+    SNOW += 86400;
+    CHECK(zsc_check("quillon", &a) == 0 && a.used == 0 && a.left == 3 && a.allowed &&
+              zsc_today() == 20261013,
+          "the next day: the grant lapsed");
+    CHECK(zsc_grant(NULL, "quillon", 1) == 0 && zsc_check("quillon", &a) == 0 && a.left == 4,
+          "a grant on a new day starts over");
+    CHECK(zsc_set_limit(NULL, "quillon", 0, 0, 0) == 0 && zsc_check("quillon", &a) == 0 &&
+              a.allowed && a.left == 1,
+          "0 minutes plus the grant");
+    SNOW += 60;
+    CHECK(zsc_tick("quillon", &a) == 0 && !a.allowed && a.left == 0 &&
+              !strcmp(a.why, "today's 1 minute of quillon is used up"),
+          "the grant used: %s", a.why);
+    CHECK(zsc_set_limit(NULL, "quillon", -2, 0, 0) == ZSC_E_ARG &&
+              zsc_set_limit(NULL, "quillon", 1441, 0, 0) == ZSC_E_ARG &&
+              zsc_set_limit(NULL, "quillon", 1, 1440, 0) == ZSC_E_ARG &&
+              zsc_set_limit(NULL, "quillon", 1, 0, 1440) == ZSC_E_ARG &&
+              zsc_set_limit(NULL, "a b", 1, 0, 0) == ZSC_E_ARG,
+          "limit refusals");
+
+    /* hours */
+    CHECK(zsc_set_limit(NULL, "glint", -1, 8 * 60, 9 * 60) == 0 && zsc_check("glint", &a) == 0 &&
+              !a.allowed && a.left == 0 &&
+              !strcmp(a.why, "glint can be used only from 08:00 to 09:00"),
+          "outside the hours: %s", a.why);
+    /* it is 10:03 */
+    CHECK(zsc_set_limit(NULL, "glint", -1, 10 * 60 + 3, 10 * 60 + 4) == 0 &&
+              zsc_check("glint", &a) == 0 && a.allowed && a.left == -1,
+          "the first minute of the hours");
+    CHECK(zsc_set_limit(NULL, "glint", -1, 10 * 60 + 4, 10 * 60 + 9) == 0 &&
+              zsc_check("glint", &a) == 0 && !a.allowed,
+          "not yet");
+    CHECK(zsc_set_limit(NULL, "glint", -1, 9 * 60, 10 * 60 + 3) == 0 &&
+              zsc_check("glint", &a) == 0 && !a.allowed,
+          "the end is not in the hours");
+    CHECK(zsc_set_limit(NULL, "glint", -1, 22 * 60, 11 * 60) == 0 && zsc_check("glint", &a) == 0 &&
+              a.allowed,
+          "past midnight: in");
+    CHECK(zsc_set_limit(NULL, "glint", -1, 22 * 60, 10 * 60) == 0 && zsc_check("glint", &a) == 0 &&
+              !a.allowed,
+          "past midnight: out");
+    SNOW += 12 * 3600; /* 22:00 */
+    CHECK(zsc_check("glint", &a) == 0 && a.allowed, "22:00 is in");
+    SNOW -= 12 * 3600;
+    CHECK(zsc_set_limit(NULL, "glint", 30, 600, 600) == 0 && zsc_check("glint", &a) == 0 &&
+              a.allowed && a.left == 30 && zsc_limit_count() == 2,
+          "equal hours: any time");
+
+    /* "*": all apps together */
+    CHECK(zsc_set_limit(NULL, "*", 2, 0, 0) == 0 && zsc_tick("burrow", &a) == 0 && a.allowed &&
+              a.left == 1,
+          "one of two");
+    SNOW += 60;
+    CHECK(zsc_tick("burrow", &a) == 0 && !a.allowed && a.left == 0 &&
+              !strcmp(a.why, "today's 2 minutes are used up"),
+          "all used up: %s", a.why);
+    CHECK(zsc_check("glint", &a) == 0 && !a.allowed && a.left == 0, "for every app");
+    CHECK(zsc_set_limit(NULL, "*", -1, 23 * 60, 6 * 60) == 0 && zsc_check("burrow", &a) == 0 &&
+              !strcmp(a.why, "the machine can be used only from 23:00 to 06:00"),
+          "the machine's hours: %s", a.why);
+    CHECK(zsc_clear_limit(NULL, "*") == 0 && zsc_clear_limit(NULL, "*") == ZSC_E_NOTFOUND &&
+              zsc_clear_limit(NULL, "") == ZSC_E_ARG && zsc_check("burrow", &a) == 0 && a.allowed,
+          "cleared");
+
+    /* SC3: the guardian */
+    CHECK(!zsc_locked() && zsc_lock(NULL, "abc") == ZSC_E_ARG && !zsc_locked(), "too short");
+    static char longpass[ZSC_PASS_MAX + 2];
+    memset(longpass, 'p', ZSC_PASS_MAX + 1);
+    CHECK(zsc_lock(NULL, longpass) == ZSC_E_ARG, "too long");
+    longpass[ZSC_PASS_MAX] = 0;
+    CHECK(zsc_lock(NULL, longpass) == 0 && zsc_locked() && zsc_lock(longpass, "open sesame") == 0,
+          "locked, then changed");
+    CHECK(zsc_set_limit(NULL, "glint", 1, 0, 0) == ZSC_E_PASS &&
+              zsc_set_limit("open", "glint", 1, 0, 0) == ZSC_E_PASS &&
+              zsc_clear_limit(longpass, "glint") == ZSC_E_PASS && zsc_wait() == 0,
+          "three wrong");
+    CHECK(zsc_set_limit("open sesame", "glint", 5, 0, 0) == 0 && zsc_limit(1)->minutes == 5,
+          "right: the count starts over");
+    for (int i = 0; i < 4; i++) CHECK(zsc_grant("x", "glint", 1) == ZSC_E_PASS, "wrong %d", i);
+    CHECK(zsc_wait() == 0 && zsc_grant("y", "glint", 1) == ZSC_E_PASS && zsc_wait() == ZSC_WAIT_S,
+          "the fifth: wait %lld", (long long) zsc_wait());
+    CHECK(zsc_grant("open sesame", "glint", 1) == ZSC_E_WAIT &&
+              zsc_lock("open sesame", "") == ZSC_E_WAIT,
+          "even the right one waits");
+    SNOW += ZSC_WAIT_S - 1;
+    CHECK(zsc_wait() == 1 && zsc_grant("open sesame", "glint", 1) == ZSC_E_WAIT, "a second more");
+    SNOW += 1;
+    CHECK(zsc_grant("open sesame", "glint", 1) == 0 && zsc_tick("glint", &a) == 0,
+          "after the wait");
+    CHECK(zsc_lock("nope", "") == ZSC_E_PASS && zsc_lock("open sesame", "") == 0 && !zsc_locked() &&
+              zsc_set_limit(NULL, "glint", 5, 0, 0) == 0,
+          "unlocked");
+
+    /* SC6: the file */
+    char dir[256], path[300], aside[320];
+    snprintf(dir, sizeof dir, "%s/zxv-screen-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(dir) != NULL, "a folder");
+    snprintf(path, sizeof path, "%s/screen.zxst", dir);
+    snprintf(aside, sizeof aside, "%s.damaged", path);
+    CHECK(zsc_open(path) == 0 && zsc_day_count() == 0 && zsc_limit_count() == 0 && !zsc_locked() &&
+              bk_exists(path) && !zsc_was_reset(),
+          "a new file");
+    struct stat st;
+    CHECK(stat(path, &st) == 0 && (st.st_mode & 0777) == 0600, "0600: %o",
+          (unsigned) (st.st_mode & 0777));
+    SNOW += 3600;
+    CHECK(zsc_tick("quillon", &a) == 0 && zsc_set_limit(NULL, "quillon", 30, 480, 1260) == 0 &&
+              zsc_set_limit(NULL, "*", -1, 0, 0) == 0 && zsc_grant(NULL, "quillon", 5) == 0 &&
+              zsc_lock(NULL, "open sesame") == 0,
+          "changes");
+    SNOW -= 86400; /* a tick on the day before */
+    CHECK(zsc_tick("glint", &a) == 0 && zsc_day_count() == 2, "yesterday");
+    SNOW += 86400;
+    zsc_close();
+    CHECK(!zsc_locked() && zsc_limit_count() == 0 && zsc_day_count() == 0, "closed");
+    CHECK(zsc_open(path) == 0 && !zsc_was_reset() && zsc_locked() && zsc_limit_count() == 2 &&
+              zsc_limit(0)->minutes == 30 && zsc_limit(0)->from == 480 &&
+              zsc_limit(0)->to == 1260 && zsc_limit(0)->extra == 5 && zsc_limit(1)->minutes == -1 &&
+              zsc_day_count() == 2 && zsc_day(0)->date == 20261013 &&
+              zsc_day(1)->date == 20261012 && zsc_day(0)->a[0].minutes == 1 &&
+              !strcmp(zsc_day(1)->a[0].app, "glint"),
+          "reloaded: %u limits %u days", zsc_limit_count(), zsc_day_count());
+    CHECK(zsc_check("quillon", &a) == 0 && a.left == 34 &&
+              zsc_set_limit("x", "a", 1, 0, 0) == ZSC_E_PASS &&
+              zsc_set_limit("open sesame", "a", 1, 0, 0) == 0,
+          "the same passphrase");
+    zsc_close();
+    static char text[1 << 16];
+    CHECK(jread(path, text, sizeof text) > 0 && strstr(text, "\nlock ") &&
+              strstr(text, "\nlimit quillon 30 480 1260 20261013 5\n") &&
+              strstr(text, "\nday 20261012 glint 1\n") && !strstr(text, "open sesame"),
+          "the file: %s", text);
+    /* damage, in several ways */
+    const char *edits[][2] = {{"limit quillon 30", "limit quillon 99"},
+                              {"zxv-screen 1", "zxv-screen 2"},
+                              {"\nend ", "\nEnd "}};
+    for (size_t i = 0; i < sizeof edits / sizeof *edits; i++) {
+        CHECK(jread(path, text, sizeof text) > 0, "read");
+        char *at = strstr(text, edits[i][0]);
+        CHECK(at != NULL, "find %zu", i);
+        if (at) memcpy(at, edits[i][1], strlen(edits[i][1]));
+        remove(aside);
+        CHECK(jwrite(path, text) && zsc_open(path) == 0 && zsc_was_reset() && !zsc_locked() &&
+                  zsc_limit_count() == 0 && zsc_day_count() == 0 && bk_exists(aside),
+              "damaged %zu: moved aside", i);
+        CHECK(zsc_tick("quillon", &a) == 0 && zsc_set_limit(NULL, "quillon", 30, 480, 1260) == 0,
+              "starts again");
+        zsc_close();
+    }
+    /* well-formed files whose lines are wrong */
+    const char *bodies[] = {
+        "limit quillon 30 480 1260 0 0\nlimit quillon 30 480 1260 0 0\n",
+        "limit quillon 1441 0 0 0 0\n",
+        "limit quillon -2 0 0 0 0\n",
+        "limit quillon 1 1440 0 0 0\n",
+        "limit quillon 1 0 1440 0 0\n",
+        "limit quillon 1 0 0 0 100001\n",
+        "limit quillon 1 0 0 99991232 0\n",
+        "limit a*b 1 0 0 0 0\n",
+        "limit quillon 1 0 0 0 0 x\n",
+        "day 20261012 * 3\n",
+        "day 20261012 glint 1441\n",
+        "day 19691231 glint 1\n",
+        "day 20261012 glint 1\nday 20261012 glint 2\n",
+        "lock 00 00\n",
+        "lock 000000000000000000000000000000zz "
+        "0000000000000000000000000000000000000000000000000000000000000000\n",
+        "lock 00000000000000000000000000000000 "
+        "0000000000000000000000000000000000000000000000000000000000000000\n"
+        "lock 00000000000000000000000000000000 "
+        "0000000000000000000000000000000000000000000000000000000000000000\n",
+        "something else\n",
+    };
+    for (size_t i = 0; i < sizeof bodies / sizeof *bodies; i++) {
+        uint8_t h[32];
+        char body[1024], hex[65];
+        int n = snprintf(body, sizeof body, "zxv-screen 1\n%s", bodies[i]);
+        sha256((const uint8_t *) body, (size_t) n, h);
+        for (int k = 0; k < 32; k++) snprintf(hex + 2 * k, 3, "%02x", h[k]);
+        snprintf(body + n, sizeof body - (size_t) n, "end %s\n", hex);
+        remove(aside);
+        CHECK(jwrite(path, body) && zsc_open(path) == 0 && zsc_was_reset() && bk_exists(aside),
+              "a bad line %zu: %s", i, bodies[i]);
+        zsc_close();
+    }
+    {
+        /* a good file written by hand, with days older than kept */
+        char body[1 << 12], hex[65];
+        uint8_t h[32];
+        int n = snprintf(body, sizeof body, "zxv-screen 1\nlimit * 60 0 0 0 0\n");
+        for (int d = 1; d <= 9; d++)
+            for (int m = 1; m <= 4; m++)
+                n += snprintf(body + n, sizeof body - (size_t) n, "day 2026%02d%02d a%d %d\n", m,
+                              d * 3, d, d);
+        sha256((const uint8_t *) body, (size_t) n, h);
+        for (int k = 0; k < 32; k++) snprintf(hex + 2 * k, 3, "%02x", h[k]);
+        snprintf(body + n, sizeof body - (size_t) n, "end %s\n", hex);
+        CHECK(jwrite(path, body) && zsc_open(path) == 0 && !zsc_was_reset() &&
+                  zsc_day_count() == ZSC_DAYS && zsc_day(0)->date == 20260427 &&
+                  zsc_day(ZSC_DAYS - 1)->date == 20260118 && zsc_limit_count() == 1,
+              "the newest 31 days: %u, %u", zsc_day_count(),
+              zsc_day(ZSC_DAYS - 1) ? zsc_day(ZSC_DAYS - 1)->date : 0);
+        zsc_close();
+    }
+    CHECK(jwrite(path, "short\n") && zsc_open(path) == 0 && zsc_was_reset(), "too short");
+    zsc_close();
+    char nodir[320];
+    snprintf(nodir, sizeof nodir, "%s/no/such/screen.zxst", dir);
+    CHECK(zsc_open(nodir) == ZSC_E_IO && zsc_tick("a", &a) == 0, "no folder: memory only");
+    static char longpath[ZSC_PATH_MAX + 2];
+    memset(longpath, 'x', ZSC_PATH_MAX + 1);
+    CHECK(zsc_open(longpath) == ZSC_E_ARG, "too long a path");
+    for (int i = -1; i >= -7; i--) CHECK(zsc_strerror(i)[0], "strerror %d", i);
+    CHECK(strcmp(zsc_strerror(ZSC_E_PASS), zsc_strerror(-99)), "unknown");
+
+    /* SC1: the newest 31 days, a new day in front */
+    CHECK(zsc_open(path) == 0, "again");
+    remove(aside);
+    for (int d = 0; d < 40; d++) {
+        SNOW += 86400;
+        CHECK(zsc_tick("quillon", &a) == 0 && a.counted, "day %d", d);
+    }
+    CHECK(zsc_day_count() == ZSC_DAYS && zsc_day(0)->date > zsc_day(1)->date &&
+              zsc_day(0)->date == zsc_today(),
+          "31 days");
+    for (int i = 0; i < (int) ZSC_APPS; i++) {
+        char app[16];
+        snprintf(app, sizeof app, "app%d", i);
+        SNOW += 60;
+        zsc_tick(app, &a);
+    }
+    SNOW += 60;
+    CHECK(zsc_tick("one-more", &a) == ZSC_E_FULL, "64 apps a day");
+    for (int i = (int) zsc_limit_count(); i < (int) ZSC_APPS; i++) {
+        char app[16];
+        snprintf(app, sizeof app, "app%d", i);
+        CHECK(zsc_set_limit(NULL, app, 1, 0, 0) == 0, "limit %d", i);
+    }
+    CHECK(zsc_set_limit(NULL, "one-more", 1, 0, 0) == ZSC_E_FULL, "64 limits");
+    for (int i = 0; i < 3 * 1440; i++) {
+        SNOW += 60;
+        zsc_tick("app0", &a);
+    }
+    CHECK(zsc_day(0)->total <= 1440 && zsc_day(1)->total <= 1440, "no more than a day in a day");
+
+    /* over JSON-RPC */
+    zsc_close();
+    CHECK(zsc_open(NULL) == 0, "memory");
+    SNOW = 1791799200;
+    CHECK(has(REQ("1", "screen.tick", ",\"params\":{\"app\":\"quillon\"}"),
+              "\"result\":{\"app\":\"quillon\",\"counted\":true,\"allowed\":true,\"used\":1,"
+              "\"total\":1,\"left\":-1,\"why\":\"\"}"),
+          "screen.tick: %s", OUT.p);
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"quillon\",\"minutes\":1}"),
+           OK("1", "{\"app\":\"quillon\",\"set\":true}"));
+    CHECK(has(REQ("1", "screen.check", ",\"params\":{\"app\":\"quillon\"}"),
+              "{\"app\":\"quillon\",\"allowed\":false,\"used\":1,\"total\":1,\"left\":0,\"why\":"
+              "\"today's 1 minute of quillon is used up\"}"),
+          "screen.check: %s", OUT.p);
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"quillon\",\"minutes\":10}"),
+           OK("1", "{\"app\":\"quillon\",\"left\":10}"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"*\",\"from\":480,\"to\":1260}"),
+           OK("1", "{\"app\":\"*\",\"set\":true}"));
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"*\",\"minutes\":10}"),
+           OK("1", "{\"app\":\"*\"}"));
+    CHECK(has(REQ("1", "screen.status", ""),
+              "\"result\":{\"locked\":false,\"reset\":false,\"wait_s\":0,\"today\":20261012,"
+              "\"limits\":[{\"app\":\"quillon\",\"minutes\":1,\"from\":0,\"to\":0,\"extra\":10},"
+              "{\"app\":\"*\",\"minutes\":null,\"from\":480,\"to\":1260,\"extra\":10}],\"days\":["
+              "{\"date\":20261012,\"total\":1,\"apps\":[{\"app\":\"quillon\",\"minutes\":1}]}]}"),
+          "screen.status: %s", OUT.p);
+    SNOW += 86400 + 60;
+    rpc(REQ("1", "screen.tick", ",\"params\":{\"app\":\"glint\"}"));
+    rpc(REQ("1", "screen.tick", ",\"params\":{\"app\":\"burrow\"}"));
+    CHECK(has(REQ("1", "screen.status", ",\"params\":{\"days\":1}"),
+              "\"extra\":0}],\"days\":[{\"date\":20261013,\"total\":1,\"apps\":[{\"app\":\"glint\","
+              "\"minutes\":1}]}]}"),
+          "one day, yesterday's grants gone: %s", OUT.p);
+    EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"open sesame\"}"),
+           OK("1", "{\"locked\":true}"));
+    EXPECT(REQ("1", "screen.clear_limit", ",\"params\":{\"app\":\"*\"}"),
+           ERR("1", "-32016", "the guardian's passphrase is wrong"));
+    EXPECT(REQ("1", "screen.clear_limit",
+               ",\"params\":{\"app\":\"*\",\"passphrase\":\"open sesame\"}"),
+           OK("1", "{\"app\":\"*\",\"cleared\":true}"));
+    EXPECT(REQ("1", "screen.clear_limit",
+               ",\"params\":{\"app\":\"*\",\"passphrase\":\"open sesame\"}"),
+           ERR("1", "-32016", "no limit for that app"));
+    EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"\",\"old\":\"open sesame\"}"),
+           OK("1", "{\"locked\":false}"));
+    EXPECT(
+        REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"abc\"}"),
+        ERR("1", "-32602", "\\\"passphrase\\\" must be at least 4 bytes, or \\\"\\\" to unlock"));
+    EXPECT(REQ("1", "screen.lock", ""),
+           ERR("1", "-32602", "missing string parameter \\\"passphrase\\\""));
+    EXPECT(REQ("1", "screen.tick", ",\"params\":{\"app\":\"a b\"}"),
+           ERR("1", "-32602", "a bad app name, minutes or hours"));
+    EXPECT(REQ("1", "screen.tick", ""), ERR("1", "-32602", "missing string parameter \\\"app\\\""));
+    EXPECT(REQ("1", "screen.check", ",\"params\":{\"app\":\"*\"}"),
+           ERR("1", "-32602", "a bad app name, minutes or hours"));
+    EXPECT(REQ("1", "screen.status", ",\"params\":{\"days\":0}"),
+           ERR("1", "-32602", "\\\"days\\\" must be 1 to 31"));
+    EXPECT(REQ("1", "screen.status", ",\"params\":{\"days\":32}"),
+           ERR("1", "-32602", "\\\"days\\\" must be 1 to 31"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"a\",\"minutes\":1441}"),
+           ERR("1", "-32602", "\\\"minutes\\\" must be 0 to 1440"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"a\",\"from\":1440}"),
+           ERR("1", "-32602", "\\\"from\\\" must be 0 to 1439 (minutes after midnight)"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"a\",\"to\":-1}"),
+           ERR("1", "-32602", "\\\"to\\\" must not be negative"));
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"a\"}"),
+           ERR("1", "-32602", "\\\"minutes\\\" must be 1 to 1440"));
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"a\",\"minutes\":1441}"),
+           ERR("1", "-32602", "\\\"minutes\\\" must be 1 to 1440"));
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"nolimit\",\"minutes\":5}"),
+           ERR("1", "-32016", "no limit for that app"));
+    zsc_close();
+    zsc_set_clock(NULL);
+    CHECK(zsc_today() > 20260000, "the real clock");
+    if (oldtz)
+        setenv("TZ", oldtz, 1);
+    else
+        unsetenv("TZ");
+    free(oldtz);
+    tzset();
+    CHECK(rm_tree(dir) == 0, "cleanup");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -4658,6 +5046,7 @@ int main(void)
     test_print();
     test_backup();
     test_journal();
+    test_screen();
     test_books_closed();
     test_books();
     test_earnings();

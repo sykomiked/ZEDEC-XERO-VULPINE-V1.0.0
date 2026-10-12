@@ -132,6 +132,7 @@ select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-
   <button data-app="console"><i>›_</i>Spindle</button>
 </nav>
 <div class="views">
+<div class="note" id="shepherd" hidden></div>
 <div class="view" id="v-swarm">
 <div class="note">Preview build: the swarm engine (Fibonacci budget, market, emotions, witness, ledger, DNA, harmonic cycles) is running for real. The agents are stand-ins until the AI model packs are installed, so they don't write real answers yet.</div>
 <main>
@@ -458,6 +459,21 @@ $('crun').onclick=async()=>{const m=$('cmeth').value;if(!m)return;let p={};const
   if(m==='zxvd.shutdown'&&!await confirmBox('Stop the swarm?','zxvd.shutdown stops the engine; this window will disconnect.','Stop'))return;
   C.log('call',`${m} ${raw||'{}'}`);try{C.log('ok',JSON.stringify(await rpc(m,p),null,2))}catch(e){C.log('error',e.message)}};
 $('cclear').onclick=()=>$('cout').textContent='';
+
+/* ----- screen time for Shepherd (zxv_screen.h SC1): once a minute, the app
+   in front, while someone is using the window ----- */
+const APP_NAME={swarm:'murmuration',files:'burrow',text:'quillon',photos:'glint',console:'spindle'};
+let lastActive=Date.now();
+['mousemove','keydown','pointerdown','wheel'].forEach(e=>addEventListener(e,()=>{lastActive=Date.now()},{passive:true}));
+async function screenTick(){
+  if(document.hidden||Date.now()-lastActive>60000)return;
+  try{const a=await rpc('screen.tick',{app:APP_NAME[current]||current});
+    const n=$('shepherd');
+    n.hidden=a.allowed&&!(a.left>=0&&a.left<=5);
+    n.textContent=a.allowed?`${a.left} minute${a.left===1?'':'s'} left today for this app.`:`Shepherd: ${a.why}.`}
+  catch(e){}
+}
+setInterval(screenTick,60000);
 
 let startApp='swarm';try{startApp=sessionStorage.getItem('zxv-app')||'swarm'}catch(e){}
 show(document.getElementById('v-'+startApp)?startApp:'swarm');

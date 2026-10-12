@@ -27,10 +27,12 @@
 #include "scent_model.h"
 #include "platen_model.h"
 #include "keepsake_model.h"
+#include "shepherd_model.h"
 #include "zxv_print_host.h"
 #include "test_fake_device.h"
 #include "zxvd_log.h"
 #include "zxv_journal.h"
+#include "zxv_screen.h"
 #include "sha256.h"
 
 /* remove a scratch tree without a shell (no links followed) */
@@ -1701,6 +1703,173 @@ static void test_platen(void)
 
 /* ---------------- Keepsake ---------------- */
 
+static shepherd_t SH;
+
+static void test_shepherd(void)
+{
+    /* live, against zxvd's screen time in memory */
+    CHECK(zsc_open(NULL) == 0, "screen time in memory");
+    shepherd_init(&SH, &LINK);
+    CHECK(shepherd_refresh(&SH) == ZXM_OK && !SH.locked && !SH.reset && SH.nlim == 0 &&
+              SH.ndays == 0 && SH.today == zsc_today() && shepherd_today_total(&SH) == 0,
+          "empty: %s", LINK.err);
+    CHECK(shepherd_ai(&SH, SHEPHERD_AI_PLAN) == ZXM_E_STATE, "no week yet");
+    CHECK(raw_call("screen.tick", "{\"app\":\"quillon\"}") == ZXM_OK, "a minute");
+    CHECK(shepherd_set_limit(&SH, NULL, "quillon", 30, 8 * 60, 21 * 60) == ZXM_OK && SH.nlim == 1 &&
+              shepherd_limit(&SH, "quillon")->minutes == 30 &&
+              shepherd_limit(&SH, "quillon")->from == 480 &&
+              shepherd_limit(&SH, "quillon")->to == 1260 && SH.ndays == 1 &&
+              shepherd_week(&SH, "quillon") == 1 && shepherd_today_total(&SH) == 1 &&
+              !shepherd_limit(&SH, "glint") && shepherd_week(&SH, "glint") == 0,
+          "a limit: %s", LINK.err);
+    CHECK(shepherd_set_limit(&SH, NULL, SHEPHERD_ALL, -1, 0, 0) == ZXM_OK &&
+              shepherd_limit(&SH, "*")->minutes == -1 && SH.nlim == 2,
+          "all apps, no cap");
+    CHECK(shepherd_grant(&SH, NULL, "quillon", 15) == ZXM_OK &&
+              shepherd_limit(&SH, "quillon")->extra == 15,
+          "more time");
+    CHECK(shepherd_lock(&SH, NULL, "open sesame") == ZXM_OK && SH.locked, "locked");
+    CHECK(shepherd_grant(&SH, "wrong", "quillon", 5) == ZXM_E_REMOTE &&
+              LINK.err_code == ZXVD_E_SCREEN &&
+              !strcmp(LINK.err, "the guardian's passphrase is wrong") &&
+              shepherd_limit(&SH, "quillon")->extra == 15,
+          "a wrong passphrase: %s", LINK.err);
+    CHECK(shepherd_clear_limit(&SH, NULL, "*") == ZXM_E_REMOTE && SH.nlim == 2, "no passphrase");
+    CHECK(shepherd_clear_limit(&SH, "open sesame", "*") == ZXM_OK && SH.nlim == 1, "cleared");
+    CHECK(shepherd_lock(&SH, "open sesame", "") == ZXM_OK && !SH.locked, "unlocked");
+    CHECK(shepherd_set_limit(&SH, NULL, "", 1, 0, 0) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "abcdefghijklmnopqrstuvwxyz123456", 1, 0, 0) ==
+                  ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", -2, 0, 0) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1441, 0, 0) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1, 1440, 0) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1, 0, 1440) == ZXM_E_ARG &&
+              shepherd_clear_limit(&SH, NULL, NULL) == ZXM_E_ARG &&
+              shepherd_grant(&SH, NULL, "a", 0) == ZXM_E_ARG &&
+              shepherd_grant(&SH, NULL, "a", 1441) == ZXM_E_ARG,
+          "refused before sending");
+    static char longpass[SHEPHERD_PASS + 2];
+    memset(longpass, 'p', SHEPHERD_PASS + 1);
+    CHECK(shepherd_lock(&SH, NULL, longpass) == ZXM_E_ARG, "too long a passphrase");
+    asked = 0;
+    CHECK(shepherd_ai(&SH, SHEPHERD_AI_PLAN) == ZXM_OK && asked == 1 &&
+              strstr(last_prompt, ": 1 in all, quillon 1\n") &&
+              strstr(last_prompt, "Limit quillon: 30 minutes a day, hours 480-1260") &&
+              strstr(last_prompt, "change nothing"),
+          "a plan: %s", last_prompt);
+    CHECK(shepherd_ai_accept(&SH) == ZXM_OK && shepherd_ai_reject(&SH) == ZXM_E_STATE &&
+              shepherd_ai(&SH, SHEPHERD_AI_COUNT) == ZXM_E_ARG && shepherd_ai(&SH, -1) == ZXM_E_ARG,
+          "held, then read");
+    CHECK(shepherd_ai(&SH, SHEPHERD_AI_PLAN) == ZXM_OK && shepherd_ai_reject(&SH) == ZXM_OK,
+          "rejected");
+    zsc_close();
+
+    /* made up replies */
+    shepherd_init(&SH, &FAKE);
+#define SST(lim, days)                                                                             \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":true,\"wait_s\":12,"     \
+    "\"today\":20261012,\"limits\":[" lim "],\"days\":[" days "]}}"
+#define SLIM             "{\"app\":\"glint\",\"minutes\":null,\"from\":0,\"to\":5,\"extra\":0}"
+#define SDAY(d, t, apps) "{\"date\":" d ",\"total\":" t ",\"apps\":[" apps "]}"
+#define SAPP(a, m)       "{\"app\":\"" a "\",\"minutes\":" m "}"
+    CANNED = SST(SLIM, SDAY("20261012", "3", SAPP("glint", "2") "," SAPP("burrow", "1")) "," SDAY(
+                           "20261011", "4", SAPP("glint", "4")));
+    CHECK(shepherd_refresh(&SH) == ZXM_OK && SH.locked && SH.reset && SH.wait_s == 12 &&
+              SH.ndays == 2 && shepherd_week(&SH, "glint") == 6 &&
+              shepherd_limit(&SH, "glint")->minutes == -1 &&
+              shepherd_limit(&SH, "glint")->to == 5 && shepherd_today_total(&SH) == 3 &&
+              strstr(last_req, "\"method\":\"screen.status\",\"params\":{\"days\":7}}"),
+          "parsed: %s", last_req);
+    CANNED = SST("", SDAY("20261011", "4", SAPP("glint", "4")));
+    CHECK(shepherd_refresh(&SH) == ZXM_OK && shepherd_today_total(&SH) == 0, "nothing yet today");
+    const char *bad[] = {
+        SST(SLIM, SDAY("20261013", "1", SAPP("a", "1"))), /* after today */
+        SST(SLIM, SDAY("20261010", "1", SAPP("a", "1")) "," SDAY("20261011", "1", SAPP("a", "1"))),
+        SST(SLIM, SDAY("20261012", "2", SAPP("a", "1"))), /* total */
+        SST(SLIM, SDAY("20261012", "1", SAPP("", "1"))),
+        SST(SLIM, SDAY("20261012", "1441", SAPP("a", "1441"))),
+        SST("{\"app\":\"g\",\"minutes\":1441,\"from\":0,\"to\":0,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"minutes\":1,\"from\":1440,\"to\":0,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"minutes\":1,\"from\":0,\"to\":1440,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"minutes\":1,\"from\":0,\"to\":0,\"extra\":1441}", ""),
+        SST("{\"app\":\"\",\"minutes\":1,\"from\":0,\"to\":0,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"from\":0,\"to\":0,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"minutes\":\"x\",\"from\":0,\"to\":0,\"extra\":0}", ""),
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":false,\"wait_s\":0,"
+        "\"today\":1,\"limits\":{},\"days\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":false,\"wait_s\":0,"
+        "\"today\":1,\"limits\":[],\"days\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":false,\"wait_s\":"
+        "3601,"
+        "\"today\":1,\"limits\":[],\"days\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"wait_s\":0,"
+        "\"today\":1,\"limits\":[],\"days\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"reset\":true,\"locked\":1,\"wait_s\":0,"
+        "\"today\":1,\"limits\":[],\"days\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":false,\"wait_s\":0,"
+        "\"limits\":[],\"days\":[]}}",
+        SST(SLIM,
+            SDAY("20261012", "1", SAPP("a", "1")) "," SDAY("20261011", "1", SAPP("a", "1")) "," SDAY(
+                "20261010", "1",
+                SAPP(
+                    "a",
+                    "1")) "," SDAY("20261009", "1",
+                                   SAPP(
+                                       "a",
+                                       "1")) "," SDAY("20261008", "1",
+                                                      SAPP(
+                                                          "a",
+                                                          "1")) "," SDAY("20261007", "1",
+                                                                         SAPP(
+                                                                             "a",
+                                                                             "1")) "," SDAY("202610"
+                                                                                            "06",
+                                                                                            "1",
+                                                                                            SAPP(
+                                                                                                "a",
+                                                                                                "1")) "," SDAY("20261005",
+                                                                                                               "1",
+                                                                                                               SAPP(
+                                                                                                                   "a",
+                                                                                                                   "1"))),
+        SST(SLIM, "{\"date\":20261012,\"total\":0,\"apps\":{}}"),
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        CANNED = bad[i];
+        CHECK(shepherd_refresh(&SH) == ZXM_E_PROTOCOL && SH.ndays == 1 && SH.nlim == 0 &&
+                  SH.locked && SH.reset,
+              "bad reply %zu: the view stays", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"app\":\"a\",\"set\":true}}";
+    CHECK(shepherd_set_limit(&SH, "pw", "a", 10, 60, 120) == ZXM_E_PROTOCOL &&
+              strstr(last_req, "\"method\":\"screen.status\""),
+          "a change refreshes");
+    CANNED = NULL;
+    CHECK(shepherd_set_limit(&SH, "pw", "a", 10, 60, 120) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"app\":\"a\",\"minutes\":10,\"from\":60,\"to\":120,"
+                               "\"passphrase\":\"pw\"}"),
+          "set_limit: %s", last_req);
+    CHECK(shepherd_set_limit(&SH, "", "a", -1, 0, 0) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"app\":\"a\"}"),
+          "no cap, any time, no passphrase: %s", last_req);
+    CHECK(shepherd_clear_limit(&SH, "pw", "a") == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"method\":\"screen.clear_limit\",\"params\":{\"app\":\"a\","
+                               "\"passphrase\":\"pw\"}"),
+          "clear: %s", last_req);
+    CHECK(shepherd_grant(&SH, "pw", "a", 7) == ZXM_E_TRANSPORT &&
+              strstr(last_req,
+                     "\"method\":\"screen.grant\",\"params\":{\"app\":\"a\",\"minutes\":7,"
+                     "\"passphrase\":\"pw\"}"),
+          "grant: %s", last_req);
+    CHECK(shepherd_lock(&SH, "old", "new pass") == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"method\":\"screen.lock\",\"params\":{\"passphrase\":\"new pass\","
+                               "\"old\":\"old\"}"),
+          "lock: %s", last_req);
+    CHECK(shepherd_lock(&SH, NULL, NULL) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"passphrase\":\"\"}"),
+          "unlock: %s", last_req);
+}
+
 static keepsake_t KS;
 
 static void test_keepsake(void)
@@ -2078,6 +2247,7 @@ int main(void)
     test_scent();
     test_platen();
     test_keepsake();
+    test_shepherd();
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {
