@@ -661,6 +661,9 @@ static void test_parties(void)
           "nothing posted, the pools are untouched");
     s = sw(A, B, alice, bob, VHUB_LINE_MAX + 350);
     CHECK(vhub_swap(&H, &s, 1) == VHUB_ERR_ARG, "an amount above 2^59 is refused");
+    s = sw(A, B, alice, bob, VHUB_LINE_MAX);
+    CHECK(vhub_swap(&H, &s, 1) != VHUB_ERR_ARG && L.seq == seq,
+          "exactly 2^59 passes the argument check (and posts nothing without the balance)");
     s = sw(A, B, alice, bob, 35000);
     CHECK(vhub_swap(&H, &s, 1) == VHUB_OK && L.seq == seq + 1, "an ordinary swap still posts");
     peg(A, 1, 4, 2, issuer[A]); /* 1 A cent per 4 V-Bills: V-Bills outgrow the amount */
