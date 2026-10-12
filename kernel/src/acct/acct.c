@@ -35,15 +35,24 @@ bool acct_std_supported(acct_std_t s)
 const char *acct_status_name(acct_status_t s)
 {
     switch (s) {
-    case ACCT_OK: return "ok";
-    case ACCT_E_ARG: return "bad argument";
-    case ACCT_E_UNSUPPORTED: return "framework not supported";
-    case ACCT_E_NOT_PERMITTED: return "not permitted under this framework";
-    case ACCT_E_RIBA: return "interest (riba) refused under AAOIFI";
-    case ACCT_E_OVERFLOW: return "overflow";
-    case ACCT_E_UNBALANCED: return "unbalanced";
-    case ACCT_E_FULL: return "full";
-    case ACCT_E_KIND: return "unknown event kind";
+    case ACCT_OK:
+        return "ok";
+    case ACCT_E_ARG:
+        return "bad argument";
+    case ACCT_E_UNSUPPORTED:
+        return "framework not supported";
+    case ACCT_E_NOT_PERMITTED:
+        return "not permitted under this framework";
+    case ACCT_E_RIBA:
+        return "interest (riba) refused under AAOIFI";
+    case ACCT_E_OVERFLOW:
+        return "overflow";
+    case ACCT_E_UNBALANCED:
+        return "unbalanced";
+    case ACCT_E_FULL:
+        return "full";
+    case ACCT_E_KIND:
+        return "unknown event kind";
     }
     return "?";
 }
@@ -62,91 +71,170 @@ typedef struct {
 #define I ACCT_EL_INCOME
 #define X ACCT_EL_EXPENSE
 static const cap_info_t CAP[ACCT_C_COUNT] = {
-    [ACCT_C_CASH] = {"cash", A, true,
+    [ACCT_C_CASH] = {"cash",
+                     A,
+                     true,
                      {"Cash and cash equivalents", "Cash and cash equivalents",
                       "Cash and balances with banks"}},
-    [ACCT_C_RECEIVABLES] = {"receivables", A, true,
-                            {"Trade and other receivables", "Accounts receivable, net", "Receivables"}},
-    [ACCT_C_FINANCING] = {"financing_receivable", A, true,
-                          {"Financing receivables", "Financing receivables", "Murabaha receivables"}},
-    [ACCT_C_DEFERRED_PROFIT] = {"deferred_profit", A, true,
+    [ACCT_C_RECEIVABLES] = {"receivables",
+                            A,
+                            true,
+                            {"Trade and other receivables", "Accounts receivable, net",
+                             "Receivables"}},
+    [ACCT_C_FINANCING] = {"financing_receivable",
+                          A,
+                          true,
+                          {"Financing receivables", "Financing receivables",
+                           "Murabaha receivables"}},
+    [ACCT_C_DEFERRED_PROFIT] = {"deferred_profit",
+                                A,
+                                true,
                                 {"", "", "Less: deferred murabaha profits"}},
-    [ACCT_C_OTHER_CURRENT_ASSETS] = {"other_current_assets", A, true,
-                                     {"Other current assets", "Prepaid expenses and other current assets",
-                                      "Other assets"}},
+    [ACCT_C_OTHER_CURRENT_ASSETS] = {"other_current_assets",
+                                     A,
+                                     true,
+                                     {"Other current assets",
+                                      "Prepaid expenses and other current assets", "Other assets"}},
     [ACCT_C_INVENTORY] = {"inventory", A, true, {"Inventories", "Inventories", "Inventories"}},
-    [ACCT_C_PPE] = {"ppe", A, false,
+    [ACCT_C_PPE] = {"ppe",
+                    A,
+                    false,
                     {"Property, plant and equipment", "Property, plant and equipment, net",
                      "Property and equipment"}},
     [ACCT_C_GOODWILL] = {"goodwill", A, false, {"Goodwill", "Goodwill", "Goodwill"}},
-    [ACCT_C_INTANGIBLE] = {"intangible", A, false,
-                           {"Other intangible assets", "Intangible assets, net", "Intangible assets"}},
-    [ACCT_C_INVESTMENTS] = {"investments", A, false,
+    [ACCT_C_INTANGIBLE] = {"intangible",
+                           A,
+                           false,
+                           {"Other intangible assets", "Intangible assets, net",
+                            "Intangible assets"}},
+    [ACCT_C_INVESTMENTS] = {"investments",
+                            A,
+                            false,
                             {"Investments in associates and equity instruments", "Investments",
                              "Investments"}},
-    [ACCT_C_DEFERRED_TAX_ASSET] = {"deferred_tax_asset", A, false,
+    [ACCT_C_DEFERRED_TAX_ASSET] = {"deferred_tax_asset",
+                                   A,
+                                   false,
                                    {"Deferred tax assets", "Deferred tax assets",
                                     "Deferred tax assets"}},
-    [ACCT_C_PAYABLES] = {"payables", L, true,
+    [ACCT_C_PAYABLES] = {"payables",
+                         L,
+                         true,
                          {"Trade and other payables", "Accounts payable", "Payables"}},
-    [ACCT_C_SHORT_TERM_BORROWINGS] = {"short_term_borrowings", L, true,
+    [ACCT_C_SHORT_TERM_BORROWINGS] = {"short_term_borrowings",
+                                      L,
+                                      true,
                                       {"Short-term borrowings",
                                        "Short-term debt and current portion of long-term debt",
                                        "Short-term financing"}},
-    [ACCT_C_PROVISIONS] = {"provisions", L, true,
-                           {"Short-term provisions", "Accrued liabilities and provisions", "Provisions"}},
-    [ACCT_C_CONTRACT_LIABILITY] = {"contract_liability", L, true,
-                                   {"Contract liabilities", "Deferred revenue (contract liabilities)",
+    [ACCT_C_PROVISIONS] = {"provisions",
+                           L,
+                           true,
+                           {"Short-term provisions", "Accrued liabilities and provisions",
+                            "Provisions"}},
+    [ACCT_C_CONTRACT_LIABILITY] = {"contract_liability",
+                                   L,
+                                   true,
+                                   {"Contract liabilities",
+                                    "Deferred revenue (contract liabilities)",
                                     "Advances from customers (store credit)"}},
-    [ACCT_C_TAX_PAYABLE] = {"tax_payable", L, true,
-                            {"Current tax liabilities", "Income taxes payable", "Income tax payable"}},
-    [ACCT_C_ZAKAH_PAYABLE] = {"zakah_payable", L, true,
+    [ACCT_C_TAX_PAYABLE] = {"tax_payable",
+                            L,
+                            true,
+                            {"Current tax liabilities", "Income taxes payable",
+                             "Income tax payable"}},
+    [ACCT_C_ZAKAH_PAYABLE] = {"zakah_payable",
+                              L,
+                              true,
                               {"Zakah payable", "Zakah payable", "Zakah payable"}},
-    [ACCT_C_CHARITY_PAYABLE] = {"charity_payable", L, true,
+    [ACCT_C_CHARITY_PAYABLE] = {"charity_payable",
+                                L,
+                                true,
                                 {"", "", "Non-permissible income payable to charity"}},
-    [ACCT_C_BORROWINGS] = {"borrowings", L, false,
+    [ACCT_C_BORROWINGS] = {"borrowings",
+                           L,
+                           false,
                            {"Long-term borrowings", "Long-term debt", "Financing obtained"}},
-    [ACCT_C_REDEEMABLE_UNITS] = {"redeemable_units", L, false,
+    [ACCT_C_REDEEMABLE_UNITS] = {"redeemable_units",
+                                 L,
+                                 false,
                                  {"Redeemable units (financial liability)", "", ""}},
-    [ACCT_C_DEFERRED_TAX_LIABILITY] = {"deferred_tax_liability", L, false,
+    [ACCT_C_DEFERRED_TAX_LIABILITY] = {"deferred_tax_liability",
+                                       L,
+                                       false,
                                        {"Deferred tax liabilities", "Deferred tax liabilities",
                                         "Deferred tax liabilities"}},
-    [ACCT_C_PROVISIONS_NONCURRENT] = {"provisions_noncurrent", L, false,
+    [ACCT_C_PROVISIONS_NONCURRENT] = {"provisions_noncurrent",
+                                      L,
+                                      false,
                                       {"Long-term provisions", "Other long-term liabilities",
                                        "Provisions (non-current)"}},
-    [ACCT_C_TEMP_EQUITY] = {"temporary_equity", ACCT_EL_TEMP_EQUITY, false,
+    [ACCT_C_TEMP_EQUITY] = {"temporary_equity",
+                            ACCT_EL_TEMP_EQUITY,
+                            false,
                             {"", "Redeemable units (temporary equity)", ""}},
-    [ACCT_C_IAH] = {"iah", ACCT_EL_IAH, false,
+    [ACCT_C_IAH] = {"iah",
+                    ACCT_EL_IAH,
+                    false,
                     {"", "", "Equity of unrestricted investment account holders"}},
-    [ACCT_C_SHARE_CAPITAL] = {"share_capital", E, false,
+    [ACCT_C_SHARE_CAPITAL] = {"share_capital",
+                              E,
+                              false,
                               {"Share capital", "Common stock and additional paid-in capital",
                                "Paid-up capital"}},
-    [ACCT_C_RETAINED_EARNINGS] = {"retained_earnings", E, false,
+    [ACCT_C_RETAINED_EARNINGS] = {"retained_earnings",
+                                  E,
+                                  false,
                                   {"Retained earnings", "Retained earnings", "Retained earnings"}},
-    [ACCT_C_REVALUATION_SURPLUS] = {"revaluation_surplus", E, false,
+    [ACCT_C_REVALUATION_SURPLUS] = {"revaluation_surplus",
+                                    E,
+                                    false,
                                     {"Revaluation surplus", "", "Revaluation surplus"}},
-    [ACCT_C_OTHER_EQUITY] = {"other_equity", E, false,
-                             {"Other components of equity", "Accumulated other comprehensive income",
-                              "Other reserves"}},
-    [ACCT_C_NCI] = {"nci", E, false,
+    [ACCT_C_OTHER_EQUITY] = {"other_equity",
+                             E,
+                             false,
+                             {"Other components of equity",
+                              "Accumulated other comprehensive income", "Other reserves"}},
+    [ACCT_C_NCI] = {"nci",
+                    E,
+                    false,
                     {"Non-controlling interests", "Noncontrolling interests",
                      "Non-controlling interests"}},
     [ACCT_C_REVENUE] = {"revenue", I, false, {"Revenue", "Revenue", "Revenue"}},
-    [ACCT_C_FINANCE_INCOME] = {"finance_income", I, false,
+    [ACCT_C_FINANCE_INCOME] = {"finance_income",
+                               I,
+                               false,
                                {"Finance income", "Interest income", "Income from financing"}},
-    [ACCT_C_OTHER_INCOME] = {"other_income", I, false, {"Other income", "Other income", "Other income"}},
-    [ACCT_C_COST_OF_SALES] = {"cost_of_sales", X, false,
+    [ACCT_C_OTHER_INCOME] = {"other_income",
+                             I,
+                             false,
+                             {"Other income", "Other income", "Other income"}},
+    [ACCT_C_COST_OF_SALES] = {"cost_of_sales",
+                              X,
+                              false,
                               {"Cost of sales", "Cost of goods sold", "Cost of sales"}},
-    [ACCT_C_OPERATING_EXPENSE] = {"operating_expense", X, false,
-                                  {"Operating expenses", "Operating expenses", "Operating expenses"}},
-    [ACCT_C_DEVELOPMENT_EXPENSE] = {"development_expense", X, false,
+    [ACCT_C_OPERATING_EXPENSE] = {"operating_expense",
+                                  X,
+                                  false,
+                                  {"Operating expenses", "Operating expenses",
+                                   "Operating expenses"}},
+    [ACCT_C_DEVELOPMENT_EXPENSE] = {"development_expense",
+                                    X,
+                                    false,
                                     {"Research and development expense",
                                      "Research and development expense",
                                      "Research and development expense"}},
-    [ACCT_C_DEPRECIATION] = {"depreciation", X, false, {"Depreciation", "Depreciation", "Depreciation"}},
-    [ACCT_C_FINANCE_COST] = {"finance_cost", X, false,
+    [ACCT_C_DEPRECIATION] = {"depreciation",
+                             X,
+                             false,
+                             {"Depreciation", "Depreciation", "Depreciation"}},
+    [ACCT_C_FINANCE_COST] = {"finance_cost",
+                             X,
+                             false,
                              {"Finance costs", "Interest expense", "Financing costs"}},
-    [ACCT_C_TAX_EXPENSE] = {"tax_expense", X, false,
+    [ACCT_C_TAX_EXPENSE] = {"tax_expense",
+                            X,
+                            false,
                             {"Income tax expense", "Income tax expense", "Income tax expense"}},
     [ACCT_C_ZAKAH_EXPENSE] = {"zakah_expense", X, false, {"Zakah", "Zakah", "Zakah"}},
 };
@@ -159,10 +247,14 @@ static const cap_info_t CAP[ACCT_C_COUNT] = {
 static int std_ix(acct_std_t s)
 {
     switch (s) {
-    case ACCT_STD_IFRS: return 0;
-    case ACCT_STD_US_GAAP: return 1;
-    case ACCT_STD_AAOIFI: return 2;
-    default: return -1;
+    case ACCT_STD_IFRS:
+        return 0;
+    case ACCT_STD_US_GAAP:
+        return 1;
+    case ACCT_STD_AAOIFI:
+        return 2;
+    default:
+        return -1;
     }
 }
 
@@ -500,44 +592,90 @@ typedef struct {
     uint8_t cap;
 } bs_slot_t;
 
-#define SL(s, c) {ACCT_S_##s, ACCT_C_##c}
+#define SL(s, c)                                                                                   \
+    {                                                                                              \
+        ACCT_S_##s, ACCT_C_##c                                                                     \
+    }
 static const bs_slot_t BS_IFRS[] = {
-    SL(NONCURRENT_ASSETS, PPE), SL(NONCURRENT_ASSETS, GOODWILL), SL(NONCURRENT_ASSETS, INTANGIBLE),
-    SL(NONCURRENT_ASSETS, INVESTMENTS), SL(NONCURRENT_ASSETS, DEFERRED_TAX_ASSET),
-    SL(CURRENT_ASSETS, INVENTORY), SL(CURRENT_ASSETS, RECEIVABLES), SL(CURRENT_ASSETS, FINANCING),
-    SL(CURRENT_ASSETS, OTHER_CURRENT_ASSETS), SL(CURRENT_ASSETS, CASH),
-    SL(EQUITY, SHARE_CAPITAL), SL(EQUITY, RETAINED_EARNINGS), SL(EQUITY, OTHER_EQUITY),
-    SL(EQUITY, REVALUATION_SURPLUS), SL(EQUITY, NCI),
-    SL(NONCURRENT_LIABILITIES, BORROWINGS), SL(NONCURRENT_LIABILITIES, REDEEMABLE_UNITS),
+    SL(NONCURRENT_ASSETS, PPE),
+    SL(NONCURRENT_ASSETS, GOODWILL),
+    SL(NONCURRENT_ASSETS, INTANGIBLE),
+    SL(NONCURRENT_ASSETS, INVESTMENTS),
+    SL(NONCURRENT_ASSETS, DEFERRED_TAX_ASSET),
+    SL(CURRENT_ASSETS, INVENTORY),
+    SL(CURRENT_ASSETS, RECEIVABLES),
+    SL(CURRENT_ASSETS, FINANCING),
+    SL(CURRENT_ASSETS, OTHER_CURRENT_ASSETS),
+    SL(CURRENT_ASSETS, CASH),
+    SL(EQUITY, SHARE_CAPITAL),
+    SL(EQUITY, RETAINED_EARNINGS),
+    SL(EQUITY, OTHER_EQUITY),
+    SL(EQUITY, REVALUATION_SURPLUS),
+    SL(EQUITY, NCI),
+    SL(NONCURRENT_LIABILITIES, BORROWINGS),
+    SL(NONCURRENT_LIABILITIES, REDEEMABLE_UNITS),
     SL(NONCURRENT_LIABILITIES, DEFERRED_TAX_LIABILITY),
-    SL(NONCURRENT_LIABILITIES, PROVISIONS_NONCURRENT), SL(CURRENT_LIABILITIES, PAYABLES),
-    SL(CURRENT_LIABILITIES, SHORT_TERM_BORROWINGS), SL(CURRENT_LIABILITIES, CONTRACT_LIABILITY),
-    SL(CURRENT_LIABILITIES, TAX_PAYABLE), SL(CURRENT_LIABILITIES, PROVISIONS),
+    SL(NONCURRENT_LIABILITIES, PROVISIONS_NONCURRENT),
+    SL(CURRENT_LIABILITIES, PAYABLES),
+    SL(CURRENT_LIABILITIES, SHORT_TERM_BORROWINGS),
+    SL(CURRENT_LIABILITIES, CONTRACT_LIABILITY),
+    SL(CURRENT_LIABILITIES, TAX_PAYABLE),
+    SL(CURRENT_LIABILITIES, PROVISIONS),
     SL(CURRENT_LIABILITIES, ZAKAH_PAYABLE),
 };
 static const bs_slot_t BS_GAAP[] = {
-    SL(CURRENT_ASSETS, CASH), SL(CURRENT_ASSETS, RECEIVABLES), SL(CURRENT_ASSETS, FINANCING),
-    SL(CURRENT_ASSETS, INVENTORY), SL(CURRENT_ASSETS, OTHER_CURRENT_ASSETS),
-    SL(NONCURRENT_ASSETS, PPE), SL(NONCURRENT_ASSETS, GOODWILL), SL(NONCURRENT_ASSETS, INTANGIBLE),
-    SL(NONCURRENT_ASSETS, INVESTMENTS), SL(NONCURRENT_ASSETS, DEFERRED_TAX_ASSET),
-    SL(CURRENT_LIABILITIES, PAYABLES), SL(CURRENT_LIABILITIES, SHORT_TERM_BORROWINGS),
-    SL(CURRENT_LIABILITIES, CONTRACT_LIABILITY), SL(CURRENT_LIABILITIES, TAX_PAYABLE),
-    SL(CURRENT_LIABILITIES, ZAKAH_PAYABLE), SL(CURRENT_LIABILITIES, PROVISIONS),
-    SL(NONCURRENT_LIABILITIES, BORROWINGS), SL(NONCURRENT_LIABILITIES, DEFERRED_TAX_LIABILITY),
-    SL(NONCURRENT_LIABILITIES, PROVISIONS_NONCURRENT), SL(TEMP_EQUITY, TEMP_EQUITY),
-    SL(EQUITY, SHARE_CAPITAL), SL(EQUITY, RETAINED_EARNINGS), SL(EQUITY, OTHER_EQUITY),
+    SL(CURRENT_ASSETS, CASH),
+    SL(CURRENT_ASSETS, RECEIVABLES),
+    SL(CURRENT_ASSETS, FINANCING),
+    SL(CURRENT_ASSETS, INVENTORY),
+    SL(CURRENT_ASSETS, OTHER_CURRENT_ASSETS),
+    SL(NONCURRENT_ASSETS, PPE),
+    SL(NONCURRENT_ASSETS, GOODWILL),
+    SL(NONCURRENT_ASSETS, INTANGIBLE),
+    SL(NONCURRENT_ASSETS, INVESTMENTS),
+    SL(NONCURRENT_ASSETS, DEFERRED_TAX_ASSET),
+    SL(CURRENT_LIABILITIES, PAYABLES),
+    SL(CURRENT_LIABILITIES, SHORT_TERM_BORROWINGS),
+    SL(CURRENT_LIABILITIES, CONTRACT_LIABILITY),
+    SL(CURRENT_LIABILITIES, TAX_PAYABLE),
+    SL(CURRENT_LIABILITIES, ZAKAH_PAYABLE),
+    SL(CURRENT_LIABILITIES, PROVISIONS),
+    SL(NONCURRENT_LIABILITIES, BORROWINGS),
+    SL(NONCURRENT_LIABILITIES, DEFERRED_TAX_LIABILITY),
+    SL(NONCURRENT_LIABILITIES, PROVISIONS_NONCURRENT),
+    SL(TEMP_EQUITY, TEMP_EQUITY),
+    SL(EQUITY, SHARE_CAPITAL),
+    SL(EQUITY, RETAINED_EARNINGS),
+    SL(EQUITY, OTHER_EQUITY),
     SL(EQUITY, NCI),
 };
 static const bs_slot_t BS_AAOIFI[] = {
-    SL(ASSETS, CASH), SL(ASSETS, RECEIVABLES), SL(ASSETS, FINANCING), SL(ASSETS, DEFERRED_PROFIT),
-    SL(ASSETS, OTHER_CURRENT_ASSETS), SL(ASSETS, INVENTORY), SL(ASSETS, INVESTMENTS),
-    SL(ASSETS, INTANGIBLE), SL(ASSETS, GOODWILL), SL(ASSETS, PPE), SL(ASSETS, DEFERRED_TAX_ASSET),
-    SL(LIABILITIES, PAYABLES), SL(LIABILITIES, SHORT_TERM_BORROWINGS),
-    SL(LIABILITIES, CONTRACT_LIABILITY), SL(LIABILITIES, CHARITY_PAYABLE),
-    SL(LIABILITIES, ZAKAH_PAYABLE), SL(LIABILITIES, TAX_PAYABLE), SL(LIABILITIES, PROVISIONS),
-    SL(LIABILITIES, BORROWINGS), SL(LIABILITIES, DEFERRED_TAX_LIABILITY),
-    SL(LIABILITIES, PROVISIONS_NONCURRENT), SL(IAH, IAH), SL(EQUITY, SHARE_CAPITAL),
-    SL(EQUITY, RETAINED_EARNINGS), SL(EQUITY, REVALUATION_SURPLUS), SL(EQUITY, OTHER_EQUITY),
+    SL(ASSETS, CASH),
+    SL(ASSETS, RECEIVABLES),
+    SL(ASSETS, FINANCING),
+    SL(ASSETS, DEFERRED_PROFIT),
+    SL(ASSETS, OTHER_CURRENT_ASSETS),
+    SL(ASSETS, INVENTORY),
+    SL(ASSETS, INVESTMENTS),
+    SL(ASSETS, INTANGIBLE),
+    SL(ASSETS, GOODWILL),
+    SL(ASSETS, PPE),
+    SL(ASSETS, DEFERRED_TAX_ASSET),
+    SL(LIABILITIES, PAYABLES),
+    SL(LIABILITIES, SHORT_TERM_BORROWINGS),
+    SL(LIABILITIES, CONTRACT_LIABILITY),
+    SL(LIABILITIES, CHARITY_PAYABLE),
+    SL(LIABILITIES, ZAKAH_PAYABLE),
+    SL(LIABILITIES, TAX_PAYABLE),
+    SL(LIABILITIES, PROVISIONS),
+    SL(LIABILITIES, BORROWINGS),
+    SL(LIABILITIES, DEFERRED_TAX_LIABILITY),
+    SL(LIABILITIES, PROVISIONS_NONCURRENT),
+    SL(IAH, IAH),
+    SL(EQUITY, SHARE_CAPITAL),
+    SL(EQUITY, RETAINED_EARNINGS),
+    SL(EQUITY, REVALUATION_SURPLUS),
+    SL(EQUITY, OTHER_EQUITY),
     SL(EQUITY, NCI),
 };
 #undef SL
@@ -545,20 +683,32 @@ static const bs_slot_t BS_AAOIFI[] = {
 const char *acct_section_label(acct_std_t s, acct_section_t sec)
 {
     static const char *const ifrs[ACCT_S_COUNT] = {
-        "Non-current assets", "Current assets", "Assets", "Equity", "Non-current liabilities",
-        "Current liabilities", "Liabilities", "", ""};
+        "Non-current assets",  "Current assets", "Assets", "Equity", "Non-current liabilities",
+        "Current liabilities", "Liabilities",    "",       ""};
     static const char *const gaap[ACCT_S_COUNT] = {
-        "Non-current assets", "Current assets", "Assets", "Stockholders' equity",
-        "Non-current liabilities", "Current liabilities", "Liabilities", "Temporary equity", ""};
+        "Non-current assets",   "Current assets",          "Assets",
+        "Stockholders' equity", "Non-current liabilities", "Current liabilities",
+        "Liabilities",          "Temporary equity",        ""};
     static const char *const aaoifi[ACCT_S_COUNT] = {
-        "", "", "Assets", "Owners' equity", "", "", "Liabilities", "",
+        "",
+        "",
+        "Assets",
+        "Owners' equity",
+        "",
+        "",
+        "Liabilities",
+        "",
         "Equity of unrestricted investment account holders"};
     if ((unsigned) sec >= ACCT_S_COUNT) return "";
     switch (s) {
-    case ACCT_STD_IFRS: return ifrs[sec];
-    case ACCT_STD_US_GAAP: return gaap[sec];
-    case ACCT_STD_AAOIFI: return aaoifi[sec];
-    default: return "";
+    case ACCT_STD_IFRS:
+        return ifrs[sec];
+    case ACCT_STD_US_GAAP:
+        return gaap[sec];
+    case ACCT_STD_AAOIFI:
+        return aaoifi[sec];
+    default:
+        return "";
     }
 }
 
@@ -630,11 +780,21 @@ acct_status_t acct_generate_balance_sheet(acct_std_t std, const acct_book_t *b, 
         out->n++;
         int64_t *tot;
         switch (acct_cap_element(c)) {
-        case ACCT_EL_ASSET: tot = &ta; break;
-        case ACCT_EL_LIABILITY: tot = &tl; break;
-        case ACCT_EL_TEMP_EQUITY: tot = &tt; break;
-        case ACCT_EL_IAH: tot = &ti; break;
-        default: tot = &te; break;
+        case ACCT_EL_ASSET:
+            tot = &ta;
+            break;
+        case ACCT_EL_LIABILITY:
+            tot = &tl;
+            break;
+        case ACCT_EL_TEMP_EQUITY:
+            tot = &tt;
+            break;
+        case ACCT_EL_IAH:
+            tot = &ti;
+            break;
+        default:
+            tot = &te;
+            break;
         }
         if (__builtin_add_overflow(*tot, amt, tot)) return ACCT_E_OVERFLOW;
     }
@@ -678,8 +838,10 @@ typedef struct {
 
 static void jw_c(jw_t *w, char c)
 {
-    if (w->len + 1 < w->cap) w->p[w->len] = c;
-    else w->over = true;
+    if (w->len + 1 < w->cap)
+        w->p[w->len] = c;
+    else
+        w->over = true;
     w->len++;
 }
 
@@ -712,8 +874,8 @@ static void jw_i(jw_t *w, int64_t v)
 }
 
 static const char *const SECTION_KEY[ACCT_S_COUNT] = {
-    "noncurrent_assets", "current_assets", "assets", "equity", "noncurrent_liabilities",
-    "current_liabilities", "liabilities", "temporary_equity", "iah"};
+    "noncurrent_assets",   "current_assets", "assets",           "equity", "noncurrent_liabilities",
+    "current_liabilities", "liabilities",    "temporary_equity", "iah"};
 
 int acct_bs_json(const acct_bs_t *bs, char *out, size_t cap)
 {
@@ -807,8 +969,8 @@ acct_status_t acct_pattern_revenue(int64_t amount, int64_t exercised, int64_t ex
     return ACCT_OK;
 }
 
-acct_status_t acct_breakage(int64_t issued, int64_t breakage, int64_t redeemed,
-                            int64_t recognised, int64_t *now)
+acct_status_t acct_breakage(int64_t issued, int64_t breakage, int64_t redeemed, int64_t recognised,
+                            int64_t *now)
 {
     if (!now) return ACCT_E_ARG;
     *now = 0;
@@ -966,8 +1128,7 @@ acct_status_t acct_reconcile_tax_schedule(acct_std_t std, const acct_tax_input_t
     }
 
     if (std == ACCT_STD_AAOIFI && in->n_zakah_items) {
-        if (!in->zakah_items || in->zakah_rate_den == 0 ||
-            in->zakah_rate_num > in->zakah_rate_den)
+        if (!in->zakah_items || in->zakah_rate_den == 0 || in->zakah_rate_num > in->zakah_rate_den)
             return ACCT_E_ARG;
         int64_t base = 0;
         for (uint32_t i = 0; i < in->n_zakah_items; i++) {

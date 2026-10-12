@@ -58,11 +58,11 @@
 typedef enum {
     PRIV_OK = 0,
     PRIV_E_ARG = -1,
-    PRIV_E_BUDGET = -2,   /* P2 */
-    PRIV_E_RNG = -3,      /* P1: the random source looks broken */
+    PRIV_E_BUDGET = -2, /* P2 */
+    PRIV_E_RNG = -3,    /* P1: the random source looks broken */
     PRIV_E_OVERFLOW = -4,
-    PRIV_E_SIG = -5,      /* P5 */
-    PRIV_E_CLAIM = -6     /* P5: a disclosed claim is not in the list */
+    PRIV_E_SIG = -5,  /* P5 */
+    PRIV_E_CLAIM = -6 /* P5: a disclosed claim is not in the list */
 } priv_status_t;
 
 /* A uniform 64-bit word from a CSPRNG. */
@@ -91,8 +91,8 @@ priv_status_t priv_budget_init(priv_budget_t *b, uint64_t num, uint64_t den);
 priv_status_t priv_budget_spend(priv_budget_t *b, uint64_t en, uint64_t ed);
 
 /* ---- P3 ---- */
-priv_status_t priv_release_count(priv_budget_t *b, priv_rng_t *r, int64_t true_value,
-                                 uint64_t en, uint64_t ed, uint64_t sensitivity, int64_t *out);
+priv_status_t priv_release_count(priv_budget_t *b, priv_rng_t *r, int64_t true_value, uint64_t en,
+                                 uint64_t ed, uint64_t sensitivity, int64_t *out);
 
 /* ---- P4 ---- */
 #define PRIV_ANY 0xFFFFu
@@ -127,7 +127,7 @@ lpx_t priv_access(const priv_policy_t *p, const priv_request_t *q);
 
 /* ---- P5 ---- */
 #define PRIV_SD_SALT 16u
-#define PRIV_SD_MAX 255u
+#define PRIV_SD_MAX  255u
 typedef struct {
     uint8_t salt[PRIV_SD_SALT];
     const char *name;
@@ -136,7 +136,8 @@ typedef struct {
 priv_status_t priv_sd_digest(const priv_claim_t *c, uint8_t out[32]);
 /* the message the issuer signs: "zxv/sd-list/v1" || u32 n || digests */
 priv_status_t priv_sd_list_msg(const uint8_t (*digests)[32], uint32_t n, uint8_t out[32]);
-typedef bool (*priv_verify_fn)(void *ctx, const uint8_t msg[32], const uint8_t *sig, uint32_t sig_len);
+typedef bool (*priv_verify_fn)(void *ctx, const uint8_t msg[32], const uint8_t *sig,
+                               uint32_t sig_len);
 priv_status_t priv_sd_check(const uint8_t (*digests)[32], uint32_t n, const uint8_t *sig,
                             uint32_t sig_len, priv_verify_fn verify, void *vctx,
                             const priv_claim_t *shown, uint32_t n_shown);

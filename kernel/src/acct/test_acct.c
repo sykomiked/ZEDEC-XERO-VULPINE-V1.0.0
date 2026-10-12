@@ -66,11 +66,13 @@ static void test_names(void)
     CHECK(acct_std_from_name("US_GAAP") == ACCT_STD_US_GAAP, "US_GAAP");
     CHECK(acct_std_from_name("AAOIFI") == ACCT_STD_AAOIFI, "AAOIFI");
     CHECK(acct_std_from_name("") == ACCT_STD_NONE, "empty is not chosen");
-    CHECK(acct_std_from_name("ifrs") == ACCT_STD_COUNT && acct_std_from_name("GAAP") == ACCT_STD_COUNT &&
+    CHECK(acct_std_from_name("ifrs") == ACCT_STD_COUNT &&
+              acct_std_from_name("GAAP") == ACCT_STD_COUNT &&
               acct_std_from_name(NULL) == ACCT_STD_COUNT,
           "names are exact (zxvd's jurisdiction.set rejects the same ones)");
     for (unsigned s = 0; s < ACCT_STD_COUNT; s++)
-        CHECK(acct_std_from_name(acct_std_name((acct_std_t) s)) == (acct_std_t) s, "round trip %u", s);
+        CHECK(acct_std_from_name(acct_std_name((acct_std_t) s)) == (acct_std_t) s, "round trip %u",
+              s);
     CHECK(acct_std_supported(ACCT_STD_IFRS) && acct_std_supported(ACCT_STD_US_GAAP) &&
               acct_std_supported(ACCT_STD_AAOIFI) && !acct_std_supported(ACCT_STD_OHADA) &&
               !acct_std_supported(ACCT_STD_IPSAS) && !acct_std_supported(ACCT_STD_CAS) &&
@@ -119,7 +121,8 @@ static void test_ias12(void)
     CHECK(r.tax_at_rate == 3059 && r.expected_tax == 2054 && r.reconciled, "X6 tax expense 2,054");
     CHECK(acct_ratio(122, 8740, 1000, &pm) && pm == 14, "X6 donations 1.4%%");
     CHECK(acct_ratio(-1127, 8740, 1000, &pm) && pm == -129, "X6 rate change (12.9)%%");
-    CHECK(acct_ratio(r.eff_rate_num, r.eff_rate_den, 1000, &pm) && pm == 235, "X6 effective 23.5%%");
+    CHECK(acct_ratio(r.eff_rate_num, r.eff_rate_den, 1000, &pm) && pm == 235,
+          "X6 effective 23.5%%");
 
     /* a reported figure one unit off does not reconcile */
     in.reported_tax_expense = 2055;
@@ -261,13 +264,16 @@ static void test_ias1(void)
     acct_book_t b;
     acct_bs_t bs;
     acct_book_init(&b, ACCT_STD_IFRS);
-    CHECK(acct_generate_balance_sheet(ACCT_STD_US_GAAP, &b, &bs) == ACCT_E_ARG, "framework mismatch");
+    CHECK(acct_generate_balance_sheet(ACCT_STD_US_GAAP, &b, &bs) == ACCT_E_ARG,
+          "framework mismatch");
     acct_book_init(&b, ACCT_STD_CAS);
-    CHECK(acct_generate_balance_sheet(ACCT_STD_CAS, &b, &bs) == ACCT_E_UNSUPPORTED, "CAS not built");
+    CHECK(acct_generate_balance_sheet(ACCT_STD_CAS, &b, &bs) == ACCT_E_UNSUPPORTED,
+          "CAS not built");
     /* an unbalanced trial balance is refused */
     acct_book_init(&b, ACCT_STD_IFRS);
     b.bal[ACCT_C_CASH] = 5;
-    CHECK(acct_generate_balance_sheet(ACCT_STD_IFRS, &b, &bs) == ACCT_E_UNBALANCED, "A6 unbalanced");
+    CHECK(acct_generate_balance_sheet(ACCT_STD_IFRS, &b, &bs) == ACCT_E_UNBALANCED,
+          "A6 unbalanced");
     /* a caption the framework has no line for is refused, not dropped */
     acct_book_init(&b, ACCT_STD_IFRS);
     b.bal[ACCT_C_CASH] = 5;
@@ -287,7 +293,8 @@ static void test_murabaha(void)
     const int64_t pub[5] = {160056, 131890, 101920, 70032, 36102}; /* Table 5 */
     for (int i = 0; i < 5; i++)
         CHECK(prof[i] == pub[i], "year %d profit %lld", i + 1, (long long) prof[i]);
-    CHECK(prof[0] + prof[1] + prof[2] + prof[3] + prof[4] == 500000, "profit adds up to the markup");
+    CHECK(prof[0] + prof[1] + prof[2] + prof[3] + prof[4] == 500000,
+          "profit adds up to the markup");
 
     /* Table 10: deferred profit 3,399.44 / 2,080.54 / 1,061.34 / 361.02 / 0
      * (the paper prints 2,080.52 for year 2, a typo: 3,399.44 - 1,318.90 =
@@ -414,7 +421,8 @@ static void test_inventory(void)
     acct_txn_t t = tx(ACCT_K_COST_OF_SALES, 3290, 0, 0);
     t.cost_method = ACCT_COST_LIFO;
     acct_journal_t j;
-    CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_E_NOT_PERMITTED && j.n == 0,
+    CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_E_NOT_PERMITTED &&
+              j.n == 0,
           "LIFO cost of sales refused under IFRS");
     CHECK(acct_translate_transaction(ACCT_STD_US_GAAP, NULL, &t, &j) == ACCT_OK && j.n == 2,
           "and posted under US GAAP");
@@ -541,8 +549,8 @@ static void test_differences(void)
     acct_record(&b, NULL, &t);
     t = tx(ACCT_K_VBILL_ISSUE, 3000, 0, red);
     acct_record(&b, NULL, &t);
-    CHECK(acct_generate_balance_sheet(ACCT_STD_AAOIFI, &b, &bs) == ACCT_OK && bs.total_iah == 3000 &&
-              bs.total_equity == 5000 && bs.total_assets == 8000 &&
+    CHECK(acct_generate_balance_sheet(ACCT_STD_AAOIFI, &b, &bs) == ACCT_OK &&
+              bs.total_iah == 3000 && bs.total_equity == 5000 && bs.total_assets == 8000 &&
               acct_bs_section_total(&bs, ACCT_S_IAH) == 3000,
           "AAOIFI: IAH between liabilities and owners' equity");
     acct_book_init(&b, ACCT_STD_US_GAAP);
@@ -554,7 +562,8 @@ static void test_differences(void)
 
     /* frameworks not built */
     t = tx(ACCT_K_SALE, 10, 0, 0);
-    CHECK(acct_translate_transaction(ACCT_STD_OHADA, NULL, &t, &j) == ACCT_E_UNSUPPORTED && j.n == 0,
+    CHECK(acct_translate_transaction(ACCT_STD_OHADA, NULL, &t, &j) == ACCT_E_UNSUPPORTED &&
+              j.n == 0,
           "OHADA");
     CHECK(acct_translate_transaction(ACCT_STD_NONE, NULL, &t, &j) == ACCT_E_UNSUPPORTED, "none");
     CHECK(acct_translate_transaction(ACCT_STD_COUNT, NULL, &t, &j) == ACCT_E_ARG, "bad framework");
@@ -660,18 +669,22 @@ static void test_labels(void)
               acct_cap_element(ACCT_C_PAYABLES) == ACCT_EL_LIABILITY,
           "caption elements");
     CHECK(acct_cap_current(ACCT_C_CASH) && acct_cap_current(ACCT_C_PROVISIONS) &&
-              !acct_cap_current(ACCT_C_BORROWINGS) && !acct_cap_current(ACCT_C_DEFERRED_TAX_LIABILITY),
+              !acct_cap_current(ACCT_C_BORROWINGS) &&
+              !acct_cap_current(ACCT_C_DEFERRED_TAX_LIABILITY),
           "A6: current / non-current from the caption");
     CHECK(strcmp(acct_cap_key(ACCT_C_ZAKAH_EXPENSE), "zakah_expense") == 0 &&
               strcmp(acct_cap_key(ACCT_C_CONTRACT_LIABILITY), "contract_liability") == 0,
           "keys");
     /* each framework's own label */
-    CHECK(strcmp(acct_cap_label(ACCT_STD_IFRS, ACCT_C_CASH), "Cash and cash equivalents") == 0, "IFRS cash");
-    CHECK(strcmp(acct_cap_label(ACCT_STD_US_GAAP, ACCT_C_RECEIVABLES), "Accounts receivable, net") == 0,
+    CHECK(strcmp(acct_cap_label(ACCT_STD_IFRS, ACCT_C_CASH), "Cash and cash equivalents") == 0,
+          "IFRS cash");
+    CHECK(strcmp(acct_cap_label(ACCT_STD_US_GAAP, ACCT_C_RECEIVABLES),
+                 "Accounts receivable, net") == 0,
           "US GAAP receivables");
     CHECK(strcmp(acct_cap_label(ACCT_STD_AAOIFI, ACCT_C_CASH), "Cash and balances with banks") == 0,
           "AAOIFI cash");
-    CHECK(strcmp(acct_cap_label(ACCT_STD_AAOIFI, ACCT_C_ZAKAH_EXPENSE), "Zakah") == 0, "AAOIFI last caption");
+    CHECK(strcmp(acct_cap_label(ACCT_STD_AAOIFI, ACCT_C_ZAKAH_EXPENSE), "Zakah") == 0,
+          "AAOIFI last caption");
     CHECK(strcmp(acct_cap_label(ACCT_STD_IFRS, ACCT_C_IAH), "") == 0 &&
               strcmp(acct_cap_label(ACCT_STD_US_GAAP, ACCT_C_TEMP_EQUITY),
                      "Redeemable units (temporary equity)") == 0,
@@ -684,16 +697,21 @@ static void test_labels(void)
               strcmp(acct_cap_label(ACCT_STD_AAOIFI, (acct_cap_t) 200), "") == 0,
           "no label for an invalid caption");
     /* section labels (A6) */
-    CHECK(strcmp(acct_section_label(ACCT_STD_IFRS, ACCT_S_NONCURRENT_ASSETS), "Non-current assets") == 0 &&
+    CHECK(strcmp(acct_section_label(ACCT_STD_IFRS, ACCT_S_NONCURRENT_ASSETS),
+                 "Non-current assets") == 0 &&
               strcmp(acct_section_label(ACCT_STD_IFRS, ACCT_S_EQUITY), "Equity") == 0 &&
-              strcmp(acct_section_label(ACCT_STD_IFRS, ACCT_S_CURRENT_LIABILITIES), "Current liabilities") == 0 &&
+              strcmp(acct_section_label(ACCT_STD_IFRS, ACCT_S_CURRENT_LIABILITIES),
+                     "Current liabilities") == 0 &&
               strcmp(acct_section_label(ACCT_STD_IFRS, ACCT_S_TEMP_EQUITY), "") == 0 &&
               strcmp(acct_section_label(ACCT_STD_IFRS, ACCT_S_IAH), "") == 0,
           "IFRS sections");
-    CHECK(strcmp(acct_section_label(ACCT_STD_US_GAAP, ACCT_S_EQUITY), "Stockholders' equity") == 0 &&
-              strcmp(acct_section_label(ACCT_STD_US_GAAP, ACCT_S_TEMP_EQUITY), "Temporary equity") == 0 &&
-              strcmp(acct_section_label(ACCT_STD_US_GAAP, ACCT_S_CURRENT_ASSETS), "Current assets") == 0,
-          "US GAAP sections");
+    CHECK(
+        strcmp(acct_section_label(ACCT_STD_US_GAAP, ACCT_S_EQUITY), "Stockholders' equity") == 0 &&
+            strcmp(acct_section_label(ACCT_STD_US_GAAP, ACCT_S_TEMP_EQUITY), "Temporary equity") ==
+                0 &&
+            strcmp(acct_section_label(ACCT_STD_US_GAAP, ACCT_S_CURRENT_ASSETS), "Current assets") ==
+                0,
+        "US GAAP sections");
     CHECK(strcmp(acct_section_label(ACCT_STD_AAOIFI, ACCT_S_ASSETS), "Assets") == 0 &&
               strcmp(acct_section_label(ACCT_STD_AAOIFI, ACCT_S_LIABILITIES), "Liabilities") == 0 &&
               strcmp(acct_section_label(ACCT_STD_AAOIFI, ACCT_S_EQUITY), "Owners' equity") == 0 &&
@@ -724,7 +742,8 @@ static void test_translate_edges(void)
     }
     /* a successful entry leaves the unused lines zero */
     memset(&j, 0xA5, sizeof j);
-    CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_OK && j.n == 2, "sale, no cost");
+    CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_OK && j.n == 2,
+          "sale, no cost");
     {
         unsigned dirty = 0;
         for (unsigned i = 2; i < ACCT_MAX_LINES; i++)
@@ -743,7 +762,8 @@ static void test_translate_edges(void)
               j.line[3].cap == ACCT_C_INVENTORY && j.line[3].cr == 1,
           "sale of 1 at cost 1 on credit");
     t = tx(ACCT_K_SALE, 1, -1, 0);
-    CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_E_ARG, "negative amount2");
+    CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_E_ARG,
+          "negative amount2");
     t = tx(ACCT_K_SALE, -1, 0, 0);
     CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_E_ARG, "negative amount");
     /* AAOIFI murabaha without markup: no deferred profit line */
@@ -755,8 +775,8 @@ static void test_translate_edges(void)
     /* a translation whose sides overflow cannot balance */
     t = tx(ACCT_K_SALE, INT64_MAX, 1, 0);
     memset(&j, 0xA5, sizeof j);
-    CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_E_UNBALANCED && j.n == 0 &&
-              j.line[0].dr == 0 && j.ref[0] == '\0',
+    CHECK(acct_translate_transaction(ACCT_STD_IFRS, NULL, &t, &j) == ACCT_E_UNBALANCED &&
+              j.n == 0 && j.line[0].dr == 0 && j.ref[0] == '\0',
           "A2: a translation that cannot balance is refused");
     /* cost method out of range */
     t = tx(ACCT_K_COST_OF_SALES, 10, 0, 0);
@@ -820,7 +840,8 @@ static void test_post_edges(void)
     /* a journal of no lines, or more than ACCT_MAX_LINES */
     acct_book_t before = b;
     j.n = 0;
-    CHECK(acct_post(&b, &j) == ACCT_E_UNBALANCED && memcmp(&b, &before, sizeof b) == 0, "empty journal");
+    CHECK(acct_post(&b, &j) == ACCT_E_UNBALANCED && memcmp(&b, &before, sizeof b) == 0,
+          "empty journal");
     j.n = ACCT_MAX_LINES + 1;
     CHECK(acct_post(&b, &j) == ACCT_E_UNBALANCED && memcmp(&b, &before, sizeof b) == 0,
           "more lines than a journal holds");
@@ -874,16 +895,19 @@ static void test_post_edges(void)
     b.postings = UINT32_MAX;
     before = b;
     t = tx(ACCT_K_CAPITAL, 1, 0, 0);
-    CHECK(acct_record(&b, NULL, &t) == ACCT_E_FULL && memcmp(&b, &before, sizeof b) == 0, "book full");
+    CHECK(acct_record(&b, NULL, &t) == ACCT_E_FULL && memcmp(&b, &before, sizeof b) == 0,
+          "book full");
     b.postings = UINT32_MAX - 1;
-    CHECK(acct_record(&b, NULL, &t) == ACCT_OK && b.postings == UINT32_MAX, "the last posting fits");
+    CHECK(acct_record(&b, NULL, &t) == ACCT_OK && b.postings == UINT32_MAX,
+          "the last posting fits");
 
     /* non-deductible: a 1-unit expense counts, the credit side never does */
     acct_book_init(&b, ACCT_STD_IFRS);
     t = tx(ACCT_K_OPEX, 1, 0, ACCT_TF_NONDEDUCTIBLE);
     CHECK(acct_record(&b, NULL, &t) == ACCT_OK && b.nondeductible == 1, "non-deductible 1");
     t = tx(ACCT_K_PURCHASE_INVENTORY, 9, 0, ACCT_TF_NONDEDUCTIBLE);
-    CHECK(acct_record(&b, NULL, &t) == ACCT_OK && b.nondeductible == 1, "not an expense: not counted");
+    CHECK(acct_record(&b, NULL, &t) == ACCT_OK && b.nondeductible == 1,
+          "not an expense: not counted");
     t = tx(ACCT_K_TAX_DEFERRED, 4, 0, ACCT_TF_NONDEDUCTIBLE | ACCT_TF_DEFERRED_ASSET);
     CHECK(acct_record(&b, NULL, &t) == ACCT_OK && b.nondeductible == 1,
           "an expense credit is not a non-deductible debit");
@@ -920,7 +944,8 @@ static void test_bs_edges(void)
     acct_txn_t t = tx(ACCT_K_CAPITAL, 1000, 0, 0);
     CHECK(acct_record(&b, NULL, &t) == ACCT_OK, "capital 1,000");
     t = tx(ACCT_K_OPEX, 1500, 0, ACCT_TF_ON_CREDIT);
-    CHECK(acct_record(&b, NULL, &t) == ACCT_OK && b.bal[ACCT_C_PAYABLES] == -1500, "expense on credit");
+    CHECK(acct_record(&b, NULL, &t) == ACCT_OK && b.bal[ACCT_C_PAYABLES] == -1500,
+          "expense on credit");
     memset(&bs, 0x5A, sizeof bs);
     CHECK(acct_generate_balance_sheet(ACCT_STD_IFRS, &b, &bs) == ACCT_OK && bs.n == 4 &&
               bs.profit == -1500 && bs.total_equity == -500 && bs.total_assets == 1000 &&
@@ -936,7 +961,8 @@ static void test_bs_edges(void)
               bs.line[2].cap == ACCT_C_RETAINED_EARNINGS && bs.line[2].amount == -1500 &&
               bs.line[3].cap == ACCT_C_PAYABLES && bs.line[3].section == ACCT_S_CURRENT_LIABILITIES,
           "IFRS order");
-    CHECK(acct_bs_amount(&bs, ACCT_C_CASH) == 1000 && acct_bs_amount(&bs, ACCT_C_PAYABLES) == 1500 &&
+    CHECK(acct_bs_amount(&bs, ACCT_C_CASH) == 1000 &&
+              acct_bs_amount(&bs, ACCT_C_PAYABLES) == 1500 &&
               acct_bs_amount(&bs, ACCT_C_GOODWILL) == 0 && acct_bs_amount(NULL, ACCT_C_CASH) == 0,
           "caption amounts: first line, last line, absent, no statement");
     CHECK(acct_bs_section_total(&bs, ACCT_S_EQUITY) == -500 &&
@@ -948,12 +974,15 @@ static void test_bs_edges(void)
         "{\"standard\":\"IFRS\",\"lines\":["
         "{\"section\":\"current_assets\",\"key\":\"cash\",\"label\":\"Cash and cash equivalents\","
         "\"amount\":1000},"
-        "{\"section\":\"equity\",\"key\":\"share_capital\",\"label\":\"Share capital\",\"amount\":1000},"
+        "{\"section\":\"equity\",\"key\":\"share_capital\",\"label\":\"Share "
+        "capital\",\"amount\":1000},"
         "{\"section\":\"equity\",\"key\":\"retained_earnings\",\"label\":\"Retained earnings\","
         "\"amount\":-1500},"
-        "{\"section\":\"current_liabilities\",\"key\":\"payables\",\"label\":\"Trade and other payables\","
+        "{\"section\":\"current_liabilities\",\"key\":\"payables\",\"label\":\"Trade and other "
+        "payables\","
         "\"amount\":1500}],"
-        "\"total_assets\":1000,\"total_liabilities\":1500,\"total_temporary_equity\":0,\"total_iah\":0,"
+        "\"total_assets\":1000,\"total_liabilities\":1500,\"total_temporary_equity\":0,\"total_"
+        "iah\":0,"
         "\"total_equity\":-500,\"profit\":-1500}";
     const int L = (int) sizeof want - 1;
     char js[1024];
@@ -981,7 +1010,8 @@ static void test_bs_edges(void)
               bs.line[2].cap == ACCT_C_SHARE_CAPITAL && bs.line[3].cap == ACCT_C_RETAINED_EARNINGS,
           "US GAAP: assets, liabilities, equity");
     n = acct_bs_json(&bs, js, sizeof js);
-    CHECK(n > 0 && strstr(js, "{\"standard\":\"US_GAAP\",\"lines\":[{\"section\":\"current_assets\"") &&
+    CHECK(n > 0 &&
+              strstr(js, "{\"standard\":\"US_GAAP\",\"lines\":[{\"section\":\"current_assets\"") &&
               strstr(js, "\"label\":\"Accounts payable\",\"amount\":1500}"),
           "US GAAP JSON: %s", js);
     g.std = ACCT_STD_AAOIFI;
@@ -990,8 +1020,10 @@ static void test_bs_edges(void)
           "AAOIFI: by liquidity, no split");
     n = acct_bs_json(&bs, js, sizeof js);
     CHECK(n > 0 &&
-              strstr(js, "{\"section\":\"assets\",\"key\":\"cash\",\"label\":\"Cash and balances with banks\"") &&
-              strstr(js, "{\"section\":\"liabilities\",\"key\":\"payables\",\"label\":\"Payables\",\"amount\":1500}"),
+              strstr(js, "{\"section\":\"assets\",\"key\":\"cash\",\"label\":\"Cash and balances "
+                         "with banks\"") &&
+              strstr(js, "{\"section\":\"liabilities\",\"key\":\"payables\",\"label\":\"Payables\","
+                         "\"amount\":1500}"),
           "AAOIFI JSON: %s", js);
 
     /* a hand-made statement: the helpers read only its first n lines */
@@ -1005,13 +1037,16 @@ static void test_bs_edges(void)
     h.line[1].cap = ACCT_C_GOODWILL;
     h.line[1].section = ACCT_S_CURRENT_ASSETS;
     h.line[1].amount = 7;
-    CHECK(acct_bs_section_total(&h, ACCT_S_CURRENT_ASSETS) == 5 && acct_bs_amount(&h, ACCT_C_GOODWILL) == 0,
+    CHECK(acct_bs_section_total(&h, ACCT_S_CURRENT_ASSETS) == 5 &&
+              acct_bs_amount(&h, ACCT_C_GOODWILL) == 0,
           "only the first n lines count");
     n = acct_bs_json(&h, js, sizeof js);
-    CHECK(n > 0 && strcmp(js, "{\"standard\":\"IFRS\",\"lines\":[{\"section\":\"current_assets\",\"key\":"
-                              "\"cash\",\"label\":\"Cash and cash equivalents\",\"amount\":5}],"
-                              "\"total_assets\":0,\"total_liabilities\":0,\"total_temporary_equity\":0,"
-                              "\"total_iah\":0,\"total_equity\":0,\"profit\":0}") == 0,
+    CHECK(n > 0 &&
+              strcmp(js,
+                     "{\"standard\":\"IFRS\",\"lines\":[{\"section\":\"current_assets\",\"key\":"
+                     "\"cash\",\"label\":\"Cash and cash equivalents\",\"amount\":5}],"
+                     "\"total_assets\":0,\"total_liabilities\":0,\"total_temporary_equity\":0,"
+                     "\"total_iah\":0,\"total_equity\":0,\"profit\":0}") == 0,
           "one-line JSON: %s", js);
     /* n beyond ACCT_BS_MAX is capped at the array */
     h.n = 200;
@@ -1039,18 +1074,22 @@ static void test_bs_edges(void)
     h.line[0].amount = INT64_MIN;
     h.total_assets = INT64_MAX;
     n = acct_bs_json(&h, js, sizeof js);
-    CHECK(n > 0 && strcmp(js, "{\"standard\":\"?\",\"lines\":[{\"section\":\"?\",\"key\":\"?\",\"label\":\"\","
-                              "\"amount\":-9223372036854775808}],\"total_assets\":9223372036854775807,"
-                              "\"total_liabilities\":0,\"total_temporary_equity\":0,\"total_iah\":0,"
-                              "\"total_equity\":0,\"profit\":0}") == 0,
-          "invalid entries and the int64 extremes: %s", js);
+    CHECK(
+        n > 0 &&
+            strcmp(js,
+                   "{\"standard\":\"?\",\"lines\":[{\"section\":\"?\",\"key\":\"?\",\"label\":\"\","
+                   "\"amount\":-9223372036854775808}],\"total_assets\":9223372036854775807,"
+                   "\"total_liabilities\":0,\"total_temporary_equity\":0,\"total_iah\":0,"
+                   "\"total_equity\":0,\"profit\":0}") == 0,
+        "invalid entries and the int64 extremes: %s", js);
 }
 
 /* exact arithmetic at its limits */
 static void test_arith_edges(void)
 {
     int64_t r;
-    CHECK(acct_mul_rate(INT64_MAX, (uint64_t) INT64_MAX, (uint64_t) INT64_MAX, &r) && r == INT64_MAX,
+    CHECK(acct_mul_rate(INT64_MAX, (uint64_t) INT64_MAX, (uint64_t) INT64_MAX, &r) &&
+              r == INT64_MAX,
           "rate num and den at INT64_MAX");
     CHECK(!acct_mul_rate(1, (uint64_t) INT64_MAX + 1u, 1, &r), "num above INT64_MAX");
     CHECK(!acct_mul_rate(1, 1, (uint64_t) INT64_MAX + 1u, &r), "den above INT64_MAX");
@@ -1092,7 +1131,8 @@ static void test_pattern_edges(void)
           "recognised = amount: a reversal");
     CHECK(acct_pattern_revenue(100, 5, 2, 0, &now) == ACCT_OK && now == 100, "capped at amount");
     now = 77;
-    CHECK(acct_pattern_revenue(-1, 0, 1, 0, &now) == ACCT_E_ARG && now == 0, "negative amount, *now zeroed");
+    CHECK(acct_pattern_revenue(-1, 0, 1, 0, &now) == ACCT_E_ARG && now == 0,
+          "negative amount, *now zeroed");
     now = 77;
     CHECK(acct_pattern_revenue(1, -1, 1, 0, &now) == ACCT_E_ARG && now == 0, "negative exercised");
     CHECK(acct_pattern_revenue(1, 0, -1, 0, &now) == ACCT_E_ARG, "negative expected");
@@ -1118,7 +1158,9 @@ static void test_pattern_edges(void)
           "31 over sixteen: the first fifteen get the extra unit");
     CHECK(acct_allocate(1, ssp, 17, o) == ACCT_E_ARG, "more than sixteen");
     CHECK(acct_allocate(1, ssp, 0, o) == ACCT_E_ARG, "none");
-    CHECK(acct_allocate(1, NULL, 1, o) == ACCT_E_ARG && acct_allocate(1, ssp, 1, NULL) == ACCT_E_ARG, "NULLs");
+    CHECK(acct_allocate(1, NULL, 1, o) == ACCT_E_ARG &&
+              acct_allocate(1, ssp, 1, NULL) == ACCT_E_ARG,
+          "NULLs");
     CHECK(acct_allocate(-1, ssp, 1, o) == ACCT_E_ARG, "negative price");
     CHECK(acct_allocate(9, ssp, 1, o) == ACCT_OK && o[0] == 9, "one obligation takes it all");
     CHECK(acct_allocate(0, ssp, 2, o) == ACCT_OK && o[0] == 0 && o[1] == 0, "price 0");
@@ -1126,7 +1168,8 @@ static void test_pattern_edges(void)
     CHECK(acct_allocate(1, s3, 3, o) == ACCT_OK && o[0] == 0 && o[1] == 0 && o[2] == 1,
           "the largest remainder may be last");
     int64_t s4[4] = {1, 2, 1, 3};
-    CHECK(acct_allocate(10, s4, 4, o) == ACCT_OK && o[0] == 2 && o[1] == 3 && o[2] == 1 && o[3] == 4,
+    CHECK(acct_allocate(10, s4, 4, o) == ACCT_OK && o[0] == 2 && o[1] == 3 && o[2] == 1 &&
+              o[3] == 4,
           "10 over 1:2:1:3 = 1.43, 2.86, 1.43, 4.29 -> 2, 3, 1, 4 (tie 0.43 to the earlier)");
     int64_t sz[3] = {0, 3, 1};
     CHECK(acct_allocate(4, sz, 3, o) == ACCT_OK && o[0] == 0 && o[1] == 3 && o[2] == 1,
@@ -1148,14 +1191,17 @@ static void test_cost_flow_edges(void)
               cogs == 0 && end == 0,
           "no layers: outputs zeroed");
     CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 0, 0, ACCT_COST_FIFO, &cogs, &end) == ACCT_E_ARG, "n 0");
-    CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, -1, ACCT_COST_FIFO, &cogs, &end) == ACCT_E_ARG, "sold < 0");
-    CHECK(acct_cost_flow(ACCT_STD_US_GAAP, l, 2, 1, 3, &cogs, &end) == ACCT_E_ARG, "unknown method");
-    CHECK(acct_cost_flow(ACCT_STD_OHADA, l, 2, 1, ACCT_COST_FIFO, &cogs, &end) == ACCT_E_UNSUPPORTED,
+    CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, -1, ACCT_COST_FIFO, &cogs, &end) == ACCT_E_ARG,
+          "sold < 0");
+    CHECK(acct_cost_flow(ACCT_STD_US_GAAP, l, 2, 1, 3, &cogs, &end) == ACCT_E_ARG,
+          "unknown method");
+    CHECK(acct_cost_flow(ACCT_STD_OHADA, l, 2, 1, ACCT_COST_FIFO, &cogs, &end) ==
+              ACCT_E_UNSUPPORTED,
           "OHADA not built");
     CHECK(acct_cost_flow(ACCT_STD_NONE, l, 2, 1, ACCT_COST_WAVG, &cogs, &end) == ACCT_E_UNSUPPORTED,
           "no framework");
-    CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, 1, ACCT_COST_FIFO, &cogs, &end) == ACCT_OK && cogs == 10 &&
-              end == 100,
+    CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, 1, ACCT_COST_FIFO, &cogs, &end) == ACCT_OK &&
+              cogs == 10 && end == 100,
           "FIFO one unit: the oldest");
     CHECK(acct_cost_flow(ACCT_STD_US_GAAP, l, 2, 1, ACCT_COST_LIFO, &cogs, &end) == ACCT_OK &&
               cogs == 20 && end == 90,
@@ -1163,33 +1209,33 @@ static void test_cost_flow_edges(void)
     CHECK(acct_cost_flow(ACCT_STD_US_GAAP, l, 2, 6, ACCT_COST_LIFO, &cogs, &end) == ACCT_OK &&
               cogs == 110 && end == 0,
           "LIFO everything");
-    CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, 6, ACCT_COST_FIFO, &cogs, &end) == ACCT_OK && cogs == 110 &&
-              end == 0,
+    CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, 6, ACCT_COST_FIFO, &cogs, &end) == ACCT_OK &&
+              cogs == 110 && end == 0,
           "FIFO everything");
-    CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, 0, ACCT_COST_FIFO, &cogs, &end) == ACCT_OK && cogs == 0 &&
-              end == 110,
+    CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, 0, ACCT_COST_FIFO, &cogs, &end) == ACCT_OK &&
+              cogs == 0 && end == 110,
           "nothing sold");
     CHECK(acct_cost_flow(ACCT_STD_IFRS, l, 2, 7, ACCT_COST_WAVG, &cogs, &end) == ACCT_E_ARG,
           "more than held");
     const acct_layer_t one[1] = {{1, 7}};
-    CHECK(acct_cost_flow(ACCT_STD_AAOIFI, one, 1, 1, ACCT_COST_WAVG, &cogs, &end) == ACCT_OK && cogs == 7 &&
-              end == 0,
+    CHECK(acct_cost_flow(ACCT_STD_AAOIFI, one, 1, 1, ACCT_COST_WAVG, &cogs, &end) == ACCT_OK &&
+              cogs == 7 && end == 0,
           "one layer, one unit, weighted average");
     const acct_layer_t empty[2] = {{0, 5}, {0, 9}};
-    CHECK(acct_cost_flow(ACCT_STD_IFRS, empty, 2, 0, ACCT_COST_WAVG, &cogs, &end) == ACCT_OK && cogs == 0 &&
-              end == 0,
+    CHECK(acct_cost_flow(ACCT_STD_IFRS, empty, 2, 0, ACCT_COST_WAVG, &cogs, &end) == ACCT_OK &&
+              cogs == 0 && end == 0,
           "no units held: weighted average of nothing");
     const acct_layer_t w[2] = {{1, 1}, {1, 2}};
-    CHECK(acct_cost_flow(ACCT_STD_IFRS, w, 2, 1, ACCT_COST_WAVG, &cogs, &end) == ACCT_OK && cogs == 2 &&
-              end == 1,
+    CHECK(acct_cost_flow(ACCT_STD_IFRS, w, 2, 1, ACCT_COST_WAVG, &cogs, &end) == ACCT_OK &&
+              cogs == 2 && end == 1,
           "weighted average 1.5 rounds up");
     const acct_layer_t w3[2] = {{2, 1}, {1, 2}};
-    CHECK(acct_cost_flow(ACCT_STD_IFRS, w3, 2, 1, ACCT_COST_WAVG, &cogs, &end) == ACCT_OK && cogs == 1 &&
-              end == 3,
+    CHECK(acct_cost_flow(ACCT_STD_IFRS, w3, 2, 1, ACCT_COST_WAVG, &cogs, &end) == ACCT_OK &&
+              cogs == 1 && end == 3,
           "weighted average 1.33 rounds down");
     const acct_layer_t zc[2] = {{3, 0}, {2, 4}};
-    CHECK(acct_cost_flow(ACCT_STD_IFRS, zc, 2, 4, ACCT_COST_FIFO, &cogs, &end) == ACCT_OK && cogs == 4 &&
-              end == 4,
+    CHECK(acct_cost_flow(ACCT_STD_IFRS, zc, 2, 4, ACCT_COST_FIFO, &cogs, &end) == ACCT_OK &&
+              cogs == 4 && end == 4,
           "a free layer");
     const acct_layer_t nu[2] = {{-1, 5}, {2, 4}};
     CHECK(acct_cost_flow(ACCT_STD_IFRS, nu, 2, 0, ACCT_COST_FIFO, &cogs, &end) == ACCT_E_ARG,
@@ -1219,7 +1265,8 @@ static void test_murabaha_edges(void)
               acct_murabaha_profit(100, 3, 2, 3, &out) == ACCT_OK && out == 34,
           "floor differences: 33, 33, 34");
     out = 9;
-    CHECK(acct_murabaha_profit(-1, 10, 0, 10, &out) == ACCT_E_ARG && out == 0, "negative markup, zeroed");
+    CHECK(acct_murabaha_profit(-1, 10, 0, 10, &out) == ACCT_E_ARG && out == 0,
+          "negative markup, zeroed");
     CHECK(acct_murabaha_profit(100, 0, 0, 0, &out) == ACCT_E_ARG, "no days");
     CHECK(acct_murabaha_profit(100, 10, 0, 11, &out) == ACCT_E_ARG, "past the end");
 
@@ -1238,7 +1285,8 @@ static void test_murabaha_edges(void)
               acct_murabaha_schedule(100, p1, 1, 1, 0, prof) == ACCT_E_ARG,
           "schedule argument checks");
     const int64_t io[2] = {10, 110};
-    CHECK(acct_murabaha_schedule(100, io, 2, 1, 10, prof) == ACCT_OK && prof[0] == 10 && prof[1] == 10,
+    CHECK(acct_murabaha_schedule(100, io, 2, 1, 10, prof) == ACCT_OK && prof[0] == 10 &&
+              prof[1] == 10,
           "an instalment that is all profit");
     const int64_t neg_am[2] = {5, 200};
     CHECK(acct_murabaha_schedule(100, neg_am, 2, 1, 10, prof) == ACCT_E_ARG,
@@ -1247,18 +1295,20 @@ static void test_murabaha_edges(void)
     CHECK(acct_murabaha_schedule(100, z0, 2, 0, 1, prof) == ACCT_OK && prof[0] == 0 && prof[1] == 0,
           "a zero instalment at a zero rate");
     const int64_t early[2] = {100, 0};
-    CHECK(acct_murabaha_schedule(100, early, 2, 0, 1, prof) == ACCT_OK && prof[0] == 0 && prof[1] == 0,
+    CHECK(acct_murabaha_schedule(100, early, 2, 0, 1, prof) == ACCT_OK && prof[0] == 0 &&
+              prof[1] == 0,
           "paid off early, nothing left");
     const int64_t over[2] = {200, 0};
     CHECK(acct_murabaha_schedule(100, over, 2, 0, 1, prof) == ACCT_E_ARG, "an overpayment");
     const int64_t negp[2] = {-1, 101};
     CHECK(acct_murabaha_schedule(100, negp, 2, 0, 1, prof) == ACCT_E_ARG, "negative instalment");
     const int64_t negl[1] = {-1};
-    CHECK(acct_murabaha_schedule(100, negl, 1, 0, 1, prof) == ACCT_E_ARG, "negative last instalment");
+    CHECK(acct_murabaha_schedule(100, negl, 1, 0, 1, prof) == ACCT_E_ARG,
+          "negative last instalment");
     const int64_t r3[3] = {50, 50, 20};
     /* 100 at 1/10: 10 (open 60), 6 (open 16), last 20 - 16 = 4 */
-    CHECK(acct_murabaha_schedule(100, r3, 3, 1, 10, prof) == ACCT_OK && prof[0] == 10 && prof[1] == 6 &&
-              prof[2] == 4,
+    CHECK(acct_murabaha_schedule(100, r3, 3, 1, 10, prof) == ACCT_OK && prof[0] == 10 &&
+              prof[1] == 6 && prof[2] == 4,
           "three instalments");
     const int64_t h2[2] = {2, 17};
     CHECK(acct_murabaha_schedule(15, h2, 2, 1, 10, prof) == ACCT_OK && prof[0] == 2 && prof[1] == 2,
@@ -1279,9 +1329,10 @@ static void test_tax_edges(void)
     {
         unsigned dirty = 0;
         for (unsigned i = 0; i < ACCT_TAX_MAX_ITEMS; i++) dirty += r.effect[i] != 0;
-        CHECK(dirty == 0 && r.n == 0 && r.tax_at_rate == 0 && r.expected_tax == 0 && r.difference == 0 &&
-                  !r.reconciled && r.eff_rate_num == 0 && r.eff_rate_den == 0 && !r.has_zakah &&
-                  r.zakah_base == 0 && r.zakah == 0 && r.zakah_difference == 0 && !r.zakah_reconciled,
+        CHECK(dirty == 0 && r.n == 0 && r.tax_at_rate == 0 && r.expected_tax == 0 &&
+                  r.difference == 0 && !r.reconciled && r.eff_rate_num == 0 &&
+                  r.eff_rate_den == 0 && !r.has_zakah && r.zakah_base == 0 && r.zakah == 0 &&
+                  r.zakah_difference == 0 && !r.zakah_reconciled,
               "on error the result is zeroed (%u dirty effects)", dirty);
     }
     CHECK(acct_reconcile_tax_schedule(ACCT_STD_COUNT, &in, &r) == ACCT_E_ARG, "invalid framework");
@@ -1311,7 +1362,8 @@ static void test_tax_edges(void)
     CHECK(acct_reconcile_tax_schedule(ACCT_STD_US_GAAP, &in, &r) == ACCT_E_ARG, "items missing");
     in.n_items = 0;
     in.reported_tax_expense = 250;
-    CHECK(acct_reconcile_tax_schedule(ACCT_STD_US_GAAP, &in, &r) == ACCT_OK && r.reconciled && r.n == 0,
+    CHECK(acct_reconcile_tax_schedule(ACCT_STD_US_GAAP, &in, &r) == ACCT_OK && r.reconciled &&
+              r.n == 0,
           "no items, no pointer");
     in.items = items;
     in.n_items = 1;
@@ -1373,7 +1425,8 @@ static void test_tax_edges(void)
     in.zakah_rate_den = 1;
     in.reported_zakah = 100;
     CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_OK && r.has_zakah &&
-              r.zakah_base == 100 && r.zakah == 100 && r.zakah_reconciled && r.zakah_difference == 0,
+              r.zakah_base == 100 && r.zakah == 100 && r.zakah_reconciled &&
+              r.zakah_difference == 0,
           "zakah rate 1/1, zero items allowed");
     in.reported_zakah = 99;
     CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_OK && !r.zakah_reconciled &&
@@ -1384,17 +1437,21 @@ static void test_tax_edges(void)
           "zakah difference overflow");
     in.reported_zakah = 100;
     in.zakah_rate_num = 2;
-    CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_E_ARG, "zakah rate above 100%%");
+    CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_E_ARG,
+          "zakah rate above 100%%");
     in.zakah_rate_num = 1;
     in.zakah_items = NULL;
-    CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_E_ARG, "zakah items missing");
+    CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_E_ARG,
+          "zakah items missing");
     in.zakah_items = zi;
     zi[1].amount = -1;
-    CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_E_ARG, "negative zakah item");
+    CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_E_ARG,
+          "negative zakah item");
     zi[1].amount = 0;
     zi[0].amount = INT64_MAX;
     zi[1].amount = 1;
-    CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_E_OVERFLOW, "zakah base overflow");
+    CHECK(acct_reconcile_tax_schedule(ACCT_STD_AAOIFI, &in, &r) == ACCT_E_OVERFLOW,
+          "zakah base overflow");
 }
 
 int main(void)

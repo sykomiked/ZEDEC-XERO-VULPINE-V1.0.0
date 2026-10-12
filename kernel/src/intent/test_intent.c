@@ -77,8 +77,8 @@ static void test_grammar(void)
 {
     intent_cfg_t c = cfg();
     intent_req_t q;
-    CHECK(P(&c, "pay 12.50 VFV to 42", &q) == INTENT_OK && q.kind == INTENT_PAY && q.amount == 1250 &&
-              q.to == 42 && strcmp(q.ccy, "VFV") == 0 && q.memo[0] == 0,
+    CHECK(P(&c, "pay 12.50 VFV to 42", &q) == INTENT_OK && q.kind == INTENT_PAY &&
+              q.amount == 1250 && q.to == 42 && strcmp(q.ccy, "VFV") == 0 && q.memo[0] == 0,
           "pay");
     CHECK(P(&c, "pay 7 VFV to 42 memo \"rent, October\"", &q) == INTENT_OK && q.amount == 700 &&
               strcmp(q.memo, "rent, October") == 0,
@@ -96,10 +96,10 @@ static void test_grammar(void)
     CHECK(P(&c, "pay 5 VFV to 4294967295", &q) == INTENT_OK && q.to == 4294967295u, "max account");
 
     static const char *const bad[] = {
-        "pay 12.505 VFV to 42",         /* too many decimals */
-        "pay 1.5 JPY to 42",            /* JPY has none */
-        "pay 012 VFV to 42",            /* leading zero */
-        "pay 0 VFV to 42",              /* nothing */
+        "pay 12.505 VFV to 42", /* too many decimals */
+        "pay 1.5 JPY to 42",    /* JPY has none */
+        "pay 012 VFV to 42",    /* leading zero */
+        "pay 0 VFV to 42",      /* nothing */
         "pay 0.00 VFV to 42",
         "pay -5 VFV to 42",
         "pay 1e3 VFV to 42",
@@ -126,7 +126,8 @@ static void test_grammar(void)
         "pay 5 VFV to 42 memo \"back\\slash\"",
         "pay 5 VFV to 42 memo \"unterminated",
         "pay 5 VFV to 42 memo \"ok\" extra",
-        "pay 5 VFV to 42 memo \"0123456789012345678901234567890123456789012345678901234567890123456789\"",
+        "pay 5 VFV to 42 memo "
+        "\"0123456789012345678901234567890123456789012345678901234567890123456789\"",
         "route 5 VFV to 9 memo \"x\"",
         "invoice 5 VFV to 42",
         "report",
@@ -171,7 +172,8 @@ static void test_guard_and_release(void)
           "G1: proposed from the owner's account");
     CHECK(intent_release(&x, a, NULL, 0, &out) == INTENT_E_SIG, "I4: no signature");
     memset(sig, 7, sizeof sig);
-    CHECK(intent_release(&x, a, sig, 32, &out) == INTENT_E_SIG && out.state == 0, "I4: wrong signature");
+    CHECK(intent_release(&x, a, sig, 32, &out) == INTENT_E_SIG && out.state == 0,
+          "I4: wrong signature");
     approve(&x, a, sig);
     CHECK(intent_release(&x, a, sig, 32, &out) == INTENT_OK && out.state == INTENT_ST_RELEASED &&
               out.req.amount == 5000 && x.spent == 5000,
@@ -328,16 +330,14 @@ static void test_routes(void)
     lpx_t ok = lpx_make(LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_POTENTIAL);
     lpx_t no = lpx_make(LPX_B_FALSE, LPX_P_NEUTRAL, LPX_PH_POTENTIAL);
     intent_route_t r[5] = {
-        {990, 10, 2, ok},
-        {1000, 0, 3, no}, /* best numbers, but refused */
-        {990, 10, 1, ok},
-        {995, 5, 2, ok},
-        {990, 8, 4, ok},
+        {990, 10, 2, ok}, {1000, 0, 3, no}, /* best numbers, but refused */
+        {990, 10, 1, ok}, {995, 5, 2, ok},  {990, 8, 4, ok},
     };
     uint32_t ord[5];
     CHECK(intent_rank_routes(r, 5, ord) == 4, "four allowed");
     CHECK(ord[0] == 3 && ord[1] == 4 && ord[2] == 2 && ord[3] == 0 && ord[4] == 1,
-          "I6: allowed, received, fee, hops: %u %u %u %u %u", ord[0], ord[1], ord[2], ord[3], ord[4]);
+          "I6: allowed, received, fee, hops: %u %u %u %u %u", ord[0], ord[1], ord[2], ord[3],
+          ord[4]);
     CHECK(intent_rank_routes(NULL, 5, ord) == 0, "NULL");
 }
 
@@ -392,7 +392,8 @@ static void test_layouts(void)
     uint8_t w[32];
     want_digest(INTENT_PAY, 1234, "VFV", 100, 4000000001u, "hi", S0 + 1, E, w);
     const intent_draft_t *d = intent_get(&x, q);
-    CHECK(st == INTENT_OK && q == S0 + 1 && d && memcmp(d->digest, w, 32) == 0, "pay digest layout");
+    CHECK(st == INTENT_OK && q == S0 + 1 && d && memcmp(d->digest, w, 32) == 0,
+          "pay digest layout");
     uint8_t m[INTENT_APPROVE_MSG], mw[INTENT_APPROVE_MSG];
     memcpy(mw, "zxv/intent-approve/v1", 21);
     memcpy(mw + 21, w, 32);
@@ -434,16 +435,18 @@ static void test_grammar_edges(void)
     CHECK(P(&c, "pay 9 ZAZ to 1", &q) == INTENT_OK && q.amount == 9, "the digit 9; A and Z");
     CHECK(P(&c, "pay 1: VFV to 1", &q) == INTENT_E_PARSE, "':' is not a digit");
     CHECK(P(&c, "pay 1/ VFV to 1", &q) == INTENT_E_PARSE, "'/' is not a digit");
-    CHECK(P(&c, "pay 1 vFV to 1", &q) == INTENT_E_PARSE && P(&c, "pay 1 VFv to 1", &q) ==
-              INTENT_E_PARSE && P(&c, "pay 1 @FV to 1", &q) == INTENT_E_PARSE &&
+    CHECK(P(&c, "pay 1 vFV to 1", &q) == INTENT_E_PARSE &&
+              P(&c, "pay 1 VFv to 1", &q) == INTENT_E_PARSE &&
+              P(&c, "pay 1 @FV to 1", &q) == INTENT_E_PARSE &&
               P(&c, "pay 1 VF[ to 1", &q) == INTENT_E_PARSE,
           "currency letters A-Z only");
     CHECK(P(&c, "pay 1 ABC to 1", &q) == INTENT_E_CCY, "unconfigured currency");
     CHECK(P(&c, "pay 1 VFV to 4000000000", &q) == INTENT_OK && q.to == 4000000000u,
           "a 10-digit account");
     CHECK(P(&c, "pay 1 VFV to 4294967296", &q) == INTENT_E_PARSE, "account above 2^32 - 1");
-    CHECK(P(&c, "pay 1 VFV to 01", &q) == INTENT_E_PARSE && P(&c, "pay 1 VFV to 4a", &q) ==
-              INTENT_E_PARSE && P(&c, "pay 1 VFV to 4:", &q) == INTENT_E_PARSE,
+    CHECK(P(&c, "pay 1 VFV to 01", &q) == INTENT_E_PARSE &&
+              P(&c, "pay 1 VFV to 4a", &q) == INTENT_E_PARSE &&
+              P(&c, "pay 1 VFV to 4:", &q) == INTENT_E_PARSE,
           "account digits");
     CHECK(P(&c, "pay 1 VFV to 1 memo x\"", &q) == INTENT_E_PARSE, "memo needs a quote");
     CHECK(P(&c, "pay 1 VFV to 1  memo \"x\"", &q) == INTENT_E_PARSE, "two spaces");
@@ -457,8 +460,16 @@ static void test_grammar_edges(void)
              "01234567890123456789012345678901234567890123456789012345678901234");
     CHECK(P(&c, t, &q) == INTENT_E_PARSE, "a 65-byte memo");
     CHECK(P(&c, "pay 1 VFV to 1 memo \"a~b\"", &q) == INTENT_OK, "'~' is printable");
-    CHECK(P(&c, "pay 1 VFV to 1 memo \"a\x7f" "b\"", &q) == INTENT_E_PARSE, "DEL");
-    CHECK(P(&c, "pay 1 VFV to 1 memo \"a\x1f" "b\"", &q) == INTENT_E_PARSE, "a control byte");
+    CHECK(P(&c,
+            "pay 1 VFV to 1 memo \"a\x7f"
+            "b\"",
+            &q) == INTENT_E_PARSE,
+          "DEL");
+    CHECK(P(&c,
+            "pay 1 VFV to 1 memo \"a\x1f"
+            "b\"",
+            &q) == INTENT_E_PARSE,
+          "a control byte");
     /* only `len` bytes count */
     CHECK(intent_parse(&c, "pay 1 VFV to 4x", 14, &q) == INTENT_OK && q.to == 4, "length bound");
     CHECK(intent_parse(&c, "pay 1 VFV to 4", 0, &q) == INTENT_E_PARSE, "empty");
@@ -585,7 +596,8 @@ static void test_layer_edges(void)
         a = prop(&x, "pay 1 VFV to 42", &st);
         ((intent_draft_t *) intent_get(&x, a))->digest[at[k]] ^= 1;
         approve(&x, a, sig); /* signed over the altered digest */
-        CHECK(intent_release(&x, a, sig, 32, &out) == INTENT_E_SIG, "digest byte %u altered", at[k]);
+        CHECK(intent_release(&x, a, sig, 32, &out) == INTENT_E_SIG, "digest byte %u altered",
+              at[k]);
     }
 
     /* G6 sees the transfer as proposed */
@@ -615,7 +627,8 @@ static void test_layer_edges(void)
     uint8_t one = 1;
     m.sig = &one;
     m.sig_len = 1;
-    CHECK(juris_host_register(&h, &p, &m, (const uint8_t *) "img", 3) == JURIS_OK, "recorder loaded");
+    CHECK(juris_host_register(&h, &p, &m, (const uint8_t *) "img", 3) == JURIS_OK,
+          "recorder loaded");
     c = cfg();
     c.juris = &h;
     intent_init(&x, &c);

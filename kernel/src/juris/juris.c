@@ -83,14 +83,30 @@ static bool jstr(jr_t *r, char *out, size_t cap, bool *trunc)
             if (r->i >= r->n) return false;
             char e = r->p[r->i++];
             switch (e) {
-            case '"': c = '"'; break;
-            case '\\': c = '\\'; break;
-            case '/': c = '/'; break;
-            case 'b': c = '\b'; break;
-            case 'f': c = '\f'; break;
-            case 'n': c = '\n'; break;
-            case 'r': c = '\r'; break;
-            case 't': c = '\t'; break;
+            case '"':
+                c = '"';
+                break;
+            case '\\':
+                c = '\\';
+                break;
+            case '/':
+                c = '/';
+                break;
+            case 'b':
+                c = '\b';
+                break;
+            case 'f':
+                c = '\f';
+                break;
+            case 'n':
+                c = '\n';
+                break;
+            case 'r':
+                c = '\r';
+                break;
+            case 't':
+                c = '\t';
+                break;
             case 'u': {
                 int v = 0;
                 for (int k = 0; k < 4; k++) {
@@ -102,12 +118,15 @@ static bool jstr(jr_t *r, char *out, size_t cap, bool *trunc)
                 c = v < 0x80 ? (unsigned char) v : '?';
                 break;
             }
-            default: return false;
+            default:
+                return false;
             }
         }
         if (out) {
-            if (o + 1 < cap) out[o++] = (char) c;
-            else if (trunc) *trunc = true;
+            if (o + 1 < cap)
+                out[o++] = (char) c;
+            else if (trunc)
+                *trunc = true;
         }
     }
     if (out && cap) out[o] = '\0';
@@ -243,9 +262,12 @@ juris_status_t juris_settings_parse(const char *json, size_t len, juris_settings
         switch (bit) {
         case 1u:
             if (!jstr(&r, val, sizeof val, &trunc) || trunc) return JURIS_E_PARSE;
-            if (keyeq(val, "closed")) s.market = JURIS_MARKET_CLOSED;
-            else if (keyeq(val, "open")) s.market = JURIS_MARKET_OPEN;
-            else return JURIS_E_PARSE;
+            if (keyeq(val, "closed"))
+                s.market = JURIS_MARKET_CLOSED;
+            else if (keyeq(val, "open"))
+                s.market = JURIS_MARKET_OPEN;
+            else
+                return JURIS_E_PARSE;
             break;
         case 2u: {
             if (!jstr(&r, val, sizeof val, &trunc) || trunc) return JURIS_E_PARSE;
@@ -267,9 +289,12 @@ juris_status_t juris_settings_parse(const char *json, size_t len, juris_settings
             }
             break;
         case 8u:
-            if (lit(&r, "true")) s.in_effect = true;
-            else if (lit(&r, "false")) s.in_effect = false;
-            else return JURIS_E_PARSE;
+            if (lit(&r, "true"))
+                s.in_effect = true;
+            else if (lit(&r, "false"))
+                s.in_effect = false;
+            else
+                return JURIS_E_PARSE;
             break;
         case 16u:
             if (!str_array(&r)) return JURIS_E_PARSE;
@@ -407,8 +432,10 @@ juris_status_t juris_host_register(juris_host_t *h, const juris_plugin_t *p,
         for (unsigned i = 0; i < JURIS_ID_LEN; i++) h->ver_id[vi][i] = p->id[i];
     }
     h->ver[vi] = m->version;
-    if (slot < 0) h->plug[h->n++] = p;
-    else h->plug[slot] = p;
+    if (slot < 0)
+        h->plug[h->n++] = p;
+    else
+        h->plug[slot] = p;
     return JURIS_OK;
 }
 

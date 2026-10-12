@@ -72,7 +72,8 @@ static bool parse_amount(const char *w, size_t wl, uint8_t minor, uint64_t *out)
         }
         if (c < '0' || c > '9') return false;
         if (dot && ++frac > minor) return false;
-        if (__builtin_mul_overflow(v, 10u, &v) || __builtin_add_overflow(v, (uint64_t) (c - '0'), &v))
+        if (__builtin_mul_overflow(v, 10u, &v) ||
+            __builtin_add_overflow(v, (uint64_t) (c - '0'), &v))
             return false;
     }
     for (; frac < minor; frac++)
@@ -135,9 +136,12 @@ intent_status_t intent_parse(const intent_cfg_t *cfg, const char *text, size_t l
 
     if (is(w, wl, "report")) {
         if (!space(&r) || !word(&r, &w, &wl) || r.i != r.n) return INTENT_E_PARSE;
-        if (is(w, wl, "balance_sheet")) q.kind = INTENT_REPORT_BALANCE_SHEET;
-        else if (is(w, wl, "tax")) q.kind = INTENT_REPORT_TAX;
-        else return INTENT_E_PARSE;
+        if (is(w, wl, "balance_sheet"))
+            q.kind = INTENT_REPORT_BALANCE_SHEET;
+        else if (is(w, wl, "tax"))
+            q.kind = INTENT_REPORT_TAX;
+        else
+            return INTENT_E_PARSE;
         *out = q;
         return INTENT_OK;
     }
@@ -170,8 +174,10 @@ intent_status_t intent_parse(const intent_cfg_t *cfg, const char *text, size_t l
     if (!space(&r) || !word(&r, &w, &wl) || !is(w, wl, prep)) return INTENT_E_PARSE;
     uint32_t acct;
     if (!space(&r) || !word(&r, &w, &wl) || !parse_account(w, wl, &acct)) return INTENT_E_PARSE;
-    if (q.kind == INTENT_INVOICE) q.from = acct;
-    else q.to = acct;
+    if (q.kind == INTENT_INVOICE)
+        q.from = acct;
+    else
+        q.to = acct;
     if (q.kind == INTENT_ROUTE) {
         if (r.i != r.n) return INTENT_E_PARSE;
     } else if (!parse_memo(&r, q.memo)) {
@@ -254,15 +260,15 @@ static lpx_t guard(intent_t *x, intent_req_t *q)
     }
     if (q->kind != INTENT_PAY) return acc; /* routes and reports only read */
     if (c->n_own == 0) return tag(LPX_B_FALSE);
-    q->from = c->own[0]; /* G1 */
-    if (q->amount > c->cap) acc = lpx_and(acc, tag(LPX_B_FALSE));                      /* G2 */
+    q->from = c->own[0];                                          /* G1 */
+    if (q->amount > c->cap) acc = lpx_and(acc, tag(LPX_B_FALSE)); /* G2 */
     uint64_t s;
     if (__builtin_add_overflow(x->spent, q->amount, &s) || s > c->epoch_budget)
-        acc = lpx_and(acc, tag(LPX_B_FALSE));                                           /* G3 */
+        acc = lpx_and(acc, tag(LPX_B_FALSE)); /* G3 */
     if (q->to == q->from || listed(c->own, c->n_own, INTENT_MAX_OWN, q->to) ||
         listed(c->deny, c->n_deny, INTENT_MAX_DENY, q->to))
-        acc = lpx_and(acc, tag(LPX_B_FALSE));                                           /* G4 */
-    if (c->juris) {                                                                     /* G6 */
+        acc = lpx_and(acc, tag(LPX_B_FALSE)); /* G4 */
+    if (c->juris) {                           /* G6 */
         juris_transfer_t t;
         zero(&t, sizeof t);
         for (unsigned i = 0; i < 3; i++) t.ccy[i] = q->ccy[i];

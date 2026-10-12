@@ -76,13 +76,13 @@ typedef struct {
 typedef enum {
     JURIS_OK = 0,
     JURIS_E_ARG = -1,
-    JURIS_E_PARSE = -2,     /* J1 */
-    JURIS_E_ABI = -3,       /* J2 */
-    JURIS_E_SIG = -4,       /* J3 */
-    JURIS_E_HASH = -5,      /* J3 */
-    JURIS_E_HOOKS = -6,     /* J3 */
-    JURIS_E_VERSION = -7,   /* J3 */
-    JURIS_E_COUNTRY = -8,   /* J4 */
+    JURIS_E_PARSE = -2,   /* J1 */
+    JURIS_E_ABI = -3,     /* J2 */
+    JURIS_E_SIG = -4,     /* J3 */
+    JURIS_E_HASH = -5,    /* J3 */
+    JURIS_E_HOOKS = -6,   /* J3 */
+    JURIS_E_VERSION = -7, /* J3 */
+    JURIS_E_COUNTRY = -8, /* J4 */
     JURIS_E_FULL = -9,
     JURIS_E_NO_RULE = -10,  /* J5: nobody answers */
     JURIS_E_CONFLICT = -11, /* J5: plug-ins disagree */
@@ -95,8 +95,8 @@ juris_status_t juris_settings_parse(const char *json, size_t len, juris_settings
 /* ---- J2 ---- */
 #define JURIS_PLUGIN_ABI_MAJOR 1u
 #define JURIS_PLUGIN_ABI_MINOR 0u
-#define JURIS_PLUGIN_ABI ((JURIS_PLUGIN_ABI_MAJOR << 16) | JURIS_PLUGIN_ABI_MINOR)
-#define JURIS_ID_LEN 32u
+#define JURIS_PLUGIN_ABI       ((JURIS_PLUGIN_ABI_MAJOR << 16) | JURIS_PLUGIN_ABI_MINOR)
+#define JURIS_ID_LEN           32u
 
 #define JURIS_HOOK_TRANSFER 0x01u
 #define JURIS_HOOK_MARKET   0x02u
@@ -106,8 +106,8 @@ juris_status_t juris_settings_parse(const char *json, size_t len, juris_settings
 #define JURIS_HOOK_ALL      0x1Fu
 
 typedef enum {
-    JURIS_TAX_INCOME = 0,   /* corporate income tax */
-    JURIS_TAX_VAT = 1,      /* VAT / GST standard rate */
+    JURIS_TAX_INCOME = 0, /* corporate income tax */
+    JURIS_TAX_VAT = 1,    /* VAT / GST standard rate */
     JURIS_TAX_WITHHOLDING = 2,
     JURIS_TAX_COUNT = 3
 } juris_tax_kind_t;
@@ -121,8 +121,8 @@ typedef struct {
 } juris_transfer_t;
 
 typedef struct juris_plugin {
-    uint32_t abi;  /* JURIS_PLUGIN_ABI */
-    uint32_t size; /* sizeof(juris_plugin_t) */
+    uint32_t abi;          /* JURIS_PLUGIN_ABI */
+    uint32_t size;         /* sizeof(juris_plugin_t) */
     char id[JURIS_ID_LEN]; /* NUL-padded */
     char country[3];
     uint32_t hooks; /* JURIS_HOOK_* this plug-in provides */
@@ -154,7 +154,7 @@ typedef bool (*juris_verify_fn)(void *ctx, const uint8_t *msg, uint32_t len, con
 
 /* ---- the host ---- */
 #define JURIS_MAX_PLUGINS 8u
-#define JURIS_MAX_IDS 16u
+#define JURIS_MAX_IDS     16u
 typedef struct {
     juris_settings_t set;
     const juris_plugin_t *plug[JURIS_MAX_PLUGINS];

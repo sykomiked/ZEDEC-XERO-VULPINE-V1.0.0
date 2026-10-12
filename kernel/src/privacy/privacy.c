@@ -156,8 +156,8 @@ priv_status_t priv_budget_spend(priv_budget_t *b, uint64_t en, uint64_t ed)
 }
 
 /* ---- P3 ---- */
-priv_status_t priv_release_count(priv_budget_t *b, priv_rng_t *r, int64_t true_value,
-                                 uint64_t en, uint64_t ed, uint64_t sensitivity, int64_t *out)
+priv_status_t priv_release_count(priv_budget_t *b, priv_rng_t *r, int64_t true_value, uint64_t en,
+                                 uint64_t ed, uint64_t sensitivity, int64_t *out)
 {
     if (!out) return PRIV_E_ARG;
     *out = 0;
@@ -196,8 +196,10 @@ lpx_t priv_access(const priv_policy_t *p, const priv_request_t *q)
         if (!match(r->role, q->role) || !match(r->category, q->category) ||
             !match(r->purpose, q->purpose))
             continue;
-        if (r->verdict == PRIV_ALLOW) allow = true;
-        else deny = true; /* anything but ALLOW denies */
+        if (r->verdict == PRIV_ALLOW)
+            allow = true;
+        else
+            deny = true; /* anything but ALLOW denies */
     }
     if (allow && deny) return tag(LPX_B_BOTH);
     if (deny) return tag(LPX_B_FALSE);
@@ -253,7 +255,8 @@ priv_status_t priv_sd_digest(const priv_claim_t *c, uint8_t out[32])
 priv_status_t priv_sd_list_msg(const uint8_t (*digests)[32], uint32_t n, uint8_t out[32])
 {
     if (!out || (n && !digests) || n > SD_LIST_MAX) return PRIV_E_ARG;
-    static const uint8_t dom[14] = {'z', 'x', 'v', '/', 's', 'd', '-', 'l', 'i', 's', 't', '/', 'v', '1'};
+    static const uint8_t dom[14] = {'z', 'x', 'v', '/', 's', 'd', '-',
+                                    'l', 'i', 's', 't', '/', 'v', '1'};
     uint8_t le[4] = {(uint8_t) n, (uint8_t) (n >> 8), (uint8_t) (n >> 16), (uint8_t) (n >> 24)};
     sha256_ctx_t h;
     sha256_init(&h);

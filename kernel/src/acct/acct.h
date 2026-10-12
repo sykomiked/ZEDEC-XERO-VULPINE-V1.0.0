@@ -120,13 +120,13 @@ bool acct_std_supported(acct_std_t s);
 typedef enum {
     ACCT_OK = 0,
     ACCT_E_ARG = -1,
-    ACCT_E_UNSUPPORTED = -2,  /* A1: framework not built */
+    ACCT_E_UNSUPPORTED = -2,   /* A1: framework not built */
     ACCT_E_NOT_PERMITTED = -3, /* A3: the framework does not allow it */
-    ACCT_E_RIBA = -4,         /* A4: interest refused under AAOIFI */
+    ACCT_E_RIBA = -4,          /* A4: interest refused under AAOIFI */
     ACCT_E_OVERFLOW = -5,
-    ACCT_E_UNBALANCED = -6,   /* A2 / A6 */
+    ACCT_E_UNBALANCED = -6, /* A2 / A6 */
     ACCT_E_FULL = -7,
-    ACCT_E_KIND = -8          /* unknown event kind */
+    ACCT_E_KIND = -8 /* unknown event kind */
 } acct_status_t;
 const char *acct_status_name(acct_status_t s);
 
@@ -134,8 +134,8 @@ const char *acct_status_name(acct_status_t s);
 typedef enum {
     ACCT_EL_ASSET = 0,
     ACCT_EL_LIABILITY = 1,
-    ACCT_EL_TEMP_EQUITY = 2,  /* US GAAP mezzanine */
-    ACCT_EL_IAH = 3,          /* AAOIFI equity of investment account holders */
+    ACCT_EL_TEMP_EQUITY = 2, /* US GAAP mezzanine */
+    ACCT_EL_IAH = 3,         /* AAOIFI equity of investment account holders */
     ACCT_EL_EQUITY = 4,
     ACCT_EL_INCOME = 5,
     ACCT_EL_EXPENSE = 6
@@ -145,36 +145,36 @@ typedef enum {
     /* assets, most liquid first */
     ACCT_C_CASH = 0,
     ACCT_C_RECEIVABLES,
-    ACCT_C_FINANCING,        /* murabaha / financing receivable */
-    ACCT_C_DEFERRED_PROFIT,  /* AAOIFI contra-asset to ACCT_C_FINANCING */
+    ACCT_C_FINANCING,       /* murabaha / financing receivable */
+    ACCT_C_DEFERRED_PROFIT, /* AAOIFI contra-asset to ACCT_C_FINANCING */
     ACCT_C_OTHER_CURRENT_ASSETS,
     ACCT_C_INVENTORY,
     ACCT_C_PPE,
     ACCT_C_GOODWILL,
     ACCT_C_INTANGIBLE,
-    ACCT_C_INVESTMENTS,      /* associates, equity instruments */
+    ACCT_C_INVESTMENTS, /* associates, equity instruments */
     ACCT_C_DEFERRED_TAX_ASSET,
     /* liabilities */
     ACCT_C_PAYABLES,
     ACCT_C_SHORT_TERM_BORROWINGS, /* incl. the current part of long-term */
-    ACCT_C_PROVISIONS,       /* current */
-    ACCT_C_CONTRACT_LIABILITY, /* store credit (Vino), deferred revenue */
+    ACCT_C_PROVISIONS,            /* current */
+    ACCT_C_CONTRACT_LIABILITY,    /* store credit (Vino), deferred revenue */
     ACCT_C_TAX_PAYABLE,
     ACCT_C_ZAKAH_PAYABLE,
-    ACCT_C_CHARITY_PAYABLE,  /* A4: interest received, owed to charity */
+    ACCT_C_CHARITY_PAYABLE, /* A4: interest received, owed to charity */
     ACCT_C_BORROWINGS,
     ACCT_C_REDEEMABLE_UNITS, /* IFRS: holder-redeemable V-Bills */
     ACCT_C_DEFERRED_TAX_LIABILITY,
     ACCT_C_PROVISIONS_NONCURRENT,
     /* between liabilities and equity */
-    ACCT_C_TEMP_EQUITY,      /* US GAAP */
-    ACCT_C_IAH,              /* AAOIFI */
+    ACCT_C_TEMP_EQUITY, /* US GAAP */
+    ACCT_C_IAH,         /* AAOIFI */
     /* equity */
     ACCT_C_SHARE_CAPITAL,
     ACCT_C_RETAINED_EARNINGS,
     ACCT_C_REVALUATION_SURPLUS,
-    ACCT_C_OTHER_EQUITY,     /* other components of equity (OCI reserves) */
-    ACCT_C_NCI,              /* non-controlling interests */
+    ACCT_C_OTHER_EQUITY, /* other components of equity (OCI reserves) */
+    ACCT_C_NCI,          /* non-controlling interests */
     /* income and expense */
     ACCT_C_REVENUE,
     ACCT_C_FINANCE_INCOME,
@@ -199,34 +199,34 @@ const char *acct_cap_key(acct_cap_t c);
 
 /* ---- economic events ---- */
 typedef enum {
-    ACCT_K_SALE = 1,            /* amount = revenue; amount2 = cost (0: none) */
-    ACCT_K_PURCHASE_INVENTORY,  /* amount */
-    ACCT_K_COST_OF_SALES,       /* amount; cost_method */
-    ACCT_K_OPEX,                /* amount */
-    ACCT_K_DEVELOPMENT_COST,    /* amount; meets IAS 38.57 criteria */
-    ACCT_K_PPE_PURCHASE,        /* amount */
-    ACCT_K_DEPRECIATION,        /* amount */
-    ACCT_K_PPE_REVALUATION,     /* amount = upward revaluation */
-    ACCT_K_VOUCHER_ISSUE,       /* amount: Vino store credit sold for cash */
-    ACCT_K_VOUCHER_REDEEM,      /* amount */
-    ACCT_K_VOUCHER_BREAKAGE,    /* amount (from acct_breakage) */
-    ACCT_K_VBILL_ISSUE,         /* amount; ACCT_TF_HOLDER_REDEEMABLE ... */
-    ACCT_K_FEE_INCOME,          /* amount: assurance fee received */
-    ACCT_K_INTEREST_INCOME,     /* amount (riba under AAOIFI) */
-    ACCT_K_INTEREST_EXPENSE,    /* amount (riba under AAOIFI) */
-    ACCT_K_BORROW,              /* amount; ACCT_TF_RIBA if interest-bearing */
-    ACCT_K_REPAY,               /* amount */
-    ACCT_K_MURABAHA_SALE,       /* amount = cost, amount2 = markup */
-    ACCT_K_MURABAHA_PROFIT,     /* amount = profit earned this period */
-    ACCT_K_MURABAHA_COLLECT,    /* amount = cash instalment */
-    ACCT_K_TAX_CURRENT,         /* amount = current tax for the period */
-    ACCT_K_TAX_DEFERRED,        /* amount; ACCT_TF_DEFERRED_ASSET: DTA up,
-                                   else DTL up (both against tax expense) */
-    ACCT_K_ZAKAH,               /* amount */
-    ACCT_K_CAPITAL,             /* amount: owners pay in share capital */
-    ACCT_K_COLLECT_RECEIVABLE,  /* amount */
-    ACCT_K_PAY_PAYABLE,         /* amount */
-    ACCT_K_PAY_TAX,             /* amount */
+    ACCT_K_SALE = 1,           /* amount = revenue; amount2 = cost (0: none) */
+    ACCT_K_PURCHASE_INVENTORY, /* amount */
+    ACCT_K_COST_OF_SALES,      /* amount; cost_method */
+    ACCT_K_OPEX,               /* amount */
+    ACCT_K_DEVELOPMENT_COST,   /* amount; meets IAS 38.57 criteria */
+    ACCT_K_PPE_PURCHASE,       /* amount */
+    ACCT_K_DEPRECIATION,       /* amount */
+    ACCT_K_PPE_REVALUATION,    /* amount = upward revaluation */
+    ACCT_K_VOUCHER_ISSUE,      /* amount: Vino store credit sold for cash */
+    ACCT_K_VOUCHER_REDEEM,     /* amount */
+    ACCT_K_VOUCHER_BREAKAGE,   /* amount (from acct_breakage) */
+    ACCT_K_VBILL_ISSUE,        /* amount; ACCT_TF_HOLDER_REDEEMABLE ... */
+    ACCT_K_FEE_INCOME,         /* amount: assurance fee received */
+    ACCT_K_INTEREST_INCOME,    /* amount (riba under AAOIFI) */
+    ACCT_K_INTEREST_EXPENSE,   /* amount (riba under AAOIFI) */
+    ACCT_K_BORROW,             /* amount; ACCT_TF_RIBA if interest-bearing */
+    ACCT_K_REPAY,              /* amount */
+    ACCT_K_MURABAHA_SALE,      /* amount = cost, amount2 = markup */
+    ACCT_K_MURABAHA_PROFIT,    /* amount = profit earned this period */
+    ACCT_K_MURABAHA_COLLECT,   /* amount = cash instalment */
+    ACCT_K_TAX_CURRENT,        /* amount = current tax for the period */
+    ACCT_K_TAX_DEFERRED,       /* amount; ACCT_TF_DEFERRED_ASSET: DTA up,
+                                  else DTL up (both against tax expense) */
+    ACCT_K_ZAKAH,              /* amount */
+    ACCT_K_CAPITAL,            /* amount: owners pay in share capital */
+    ACCT_K_COLLECT_RECEIVABLE, /* amount */
+    ACCT_K_PAY_PAYABLE,        /* amount */
+    ACCT_K_PAY_TAX,            /* amount */
     ACCT_K_COUNT
 } acct_kind_t;
 
@@ -240,8 +240,8 @@ typedef enum {
 typedef enum { ACCT_COST_FIFO = 0, ACCT_COST_WAVG = 1, ACCT_COST_LIFO = 2 } acct_cost_method_t;
 
 typedef struct {
-    uint16_t kind;   /* acct_kind_t */
-    uint16_t flags;  /* ACCT_TF_* */
+    uint16_t kind;  /* acct_kind_t */
+    uint16_t flags; /* ACCT_TF_* */
     uint8_t cost_method;
     int64_t amount;  /* > 0, minor units */
     int64_t amount2; /* >= 0 */
@@ -252,8 +252,8 @@ typedef struct {
     uint8_t riba; /* acct_riba_policy_t; AAOIFI only */
 } acct_policy_t;
 
-#define ACCT_MAX_LINES 6u
-#define ACCT_JF_RIBA         0x01u /* A4: needs a Shariah board's attention */
+#define ACCT_MAX_LINES        6u
+#define ACCT_JF_RIBA          0x01u /* A4: needs a Shariah board's attention */
 #define ACCT_JF_NONDEDUCTIBLE 0x02u
 typedef struct {
     uint16_t cap; /* acct_cap_t */
@@ -276,8 +276,8 @@ typedef struct {
     acct_std_t std;
     int64_t bal[ACCT_C_COUNT]; /* debit positive, credit negative */
     uint32_t postings;
-    uint32_t riba_flags;       /* entries posted with ACCT_JF_RIBA */
-    int64_t nondeductible;     /* sum of ACCT_JF_NONDEDUCTIBLE debits */
+    uint32_t riba_flags;   /* entries posted with ACCT_JF_RIBA */
+    int64_t nondeductible; /* sum of ACCT_JF_NONDEDUCTIBLE debits */
 } acct_book_t;
 
 void acct_book_init(acct_book_t *b, acct_std_t std);
@@ -343,8 +343,8 @@ acct_status_t acct_pattern_revenue(int64_t amount, int64_t exercised, int64_t ex
  * credit sold, breakage = the part not expected to be redeemed, redeemed =
  * cumulative redemptions, recognised = breakage recognised so far. The same
  * as acct_pattern_revenue(breakage, redeemed, issued - breakage, ...). */
-acct_status_t acct_breakage(int64_t issued, int64_t breakage, int64_t redeemed,
-                            int64_t recognised, int64_t *now);
+acct_status_t acct_breakage(int64_t issued, int64_t breakage, int64_t redeemed, int64_t recognised,
+                            int64_t *now);
 /* Relative stand-alone selling price allocation (IFRS 15.76, ASC
  * 606-10-32-31): price split over n obligations in proportion to ssp[],
  * rounded by largest remainder so the parts add up to price exactly (ties
@@ -386,8 +386,8 @@ bool acct_ratio(int64_t num, int64_t den, int64_t scale, int64_t *out);
 /* ---- the tax schedule (A7, A8) ---- */
 #define ACCT_TAX_MAX_ITEMS 16u
 typedef enum {
-    ACCT_TAX_ITEM_BASE = 0,   /* a pre-tax amount, taxed at the rate */
-    ACCT_TAX_ITEM_EFFECT = 1  /* a tax effect given directly */
+    ACCT_TAX_ITEM_BASE = 0,  /* a pre-tax amount, taxed at the rate */
+    ACCT_TAX_ITEM_EFFECT = 1 /* a tax effect given directly */
 } acct_tax_item_kind_t;
 typedef struct {
     const char *label;

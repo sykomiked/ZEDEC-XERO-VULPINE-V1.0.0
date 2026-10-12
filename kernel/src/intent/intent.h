@@ -63,10 +63,10 @@
 
 #define INTENT_MAX_TEXT 256u
 #define INTENT_MEMO_MAX 64u
-#define INTENT_MAX_CCY 8u
-#define INTENT_MAX_OWN 8u
+#define INTENT_MAX_CCY  8u
+#define INTENT_MAX_OWN  8u
 #define INTENT_MAX_DENY 8u
-#define INTENT_SLOTS 16u
+#define INTENT_SLOTS    16u
 
 typedef enum {
     INTENT_PAY = 1,
@@ -79,14 +79,14 @@ typedef enum {
 typedef enum {
     INTENT_OK = 0,
     INTENT_E_ARG = -1,
-    INTENT_E_PARSE = -2,    /* I1 */
-    INTENT_E_CCY = -3,      /* I1: currency not configured */
-    INTENT_E_GUARD = -4,    /* I3: refused */
-    INTENT_E_WAIT = -5,     /* I3: not now */
-    INTENT_E_SIG = -6,      /* I4 */
-    INTENT_E_USED = -7,     /* I4: already released or refused */
-    INTENT_E_EXPIRED = -8,  /* I4 */
-    INTENT_E_UNKNOWN = -9,  /* no such proposal */
+    INTENT_E_PARSE = -2,   /* I1 */
+    INTENT_E_CCY = -3,     /* I1: currency not configured */
+    INTENT_E_GUARD = -4,   /* I3: refused */
+    INTENT_E_WAIT = -5,    /* I3: not now */
+    INTENT_E_SIG = -6,     /* I4 */
+    INTENT_E_USED = -7,    /* I4: already released or refused */
+    INTENT_E_EXPIRED = -8, /* I4 */
+    INTENT_E_UNKNOWN = -9, /* no such proposal */
     INTENT_E_FULL = -10
 } intent_status_t;
 
@@ -99,7 +99,7 @@ typedef enum {
 } intent_state_t;
 
 typedef struct {
-    uint8_t kind; /* intent_kind_t */
+    uint8_t kind;    /* intent_kind_t */
     uint64_t amount; /* minor units */
     char ccy[4];
     uint32_t from, to; /* accounts; for an invoice `from` is who is asked */
@@ -111,8 +111,8 @@ typedef struct {
     uint64_t seq;
     uint64_t epoch; /* when proposed */
     uint8_t digest[32];
-    lpx_t tag;      /* the guard's verdict */
-    uint8_t state;  /* intent_state_t */
+    lpx_t tag;     /* the guard's verdict */
+    uint8_t state; /* intent_state_t */
 } intent_draft_t;
 
 typedef struct {
@@ -137,7 +137,7 @@ typedef struct {
     uint64_t ttl;           /* I4, in epochs */
     intent_verify_fn verify;
     void *vctx;
-    juris_host_t *juris;    /* G6, optional */
+    juris_host_t *juris; /* G6, optional */
 } intent_cfg_t;
 
 typedef struct {
@@ -176,7 +176,7 @@ typedef struct {
     uint64_t received; /* minor units the recipient gets */
     uint64_t fee;
     uint32_t hops;
-    lpx_t tag;         /* e.g. the jurisdiction verdict for this route */
+    lpx_t tag; /* e.g. the jurisdiction verdict for this route */
 } intent_route_t;
 /* order[0..n) gets the option indexes best first; returns how many are
  * allowed (action PROCEED), which come first. */

@@ -357,8 +357,10 @@ static void ju_host_sync(bool reset)
     s.standard = (uint8_t) acct_std_from_name(JU_STD[JU_IDX]);
     if (JU_CC[0]) memcpy(s.country, JU_CC, sizeof JU_CC); /* "" may leave old bytes after it */
     s.in_effect = true;
-    if (reset) juris_host_init(&JU_HOST, &s, NULL, NULL, JU_QLOG, 64);
-    else (void) juris_host_apply_settings(&JU_HOST, &s);
+    if (reset)
+        juris_host_init(&JU_HOST, &s, NULL, NULL, JU_QLOG, 64);
+    else
+        (void) juris_host_apply_settings(&JU_HOST, &s);
 }
 
 static int ju_std(const char *s)

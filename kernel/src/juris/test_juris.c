@@ -44,14 +44,16 @@ static void test_parse(void)
               s.market == JURIS_MARKET_OPEN && s.standard == ACCT_STD_IFRS &&
               strcmp(s.country, "KE") == 0,
           "jurisdiction.set's KE / IFRS / open");
-    CHECK(parse("{\"standard\":\"SAP_INSURER\",\"country\":\"ZA\",\"in_effect\":true}", &s) == JURIS_OK &&
+    CHECK(parse("{\"standard\":\"SAP_INSURER\",\"country\":\"ZA\",\"in_effect\":true}", &s) ==
+                  JURIS_OK &&
               s.standard == ACCT_STD_SAP_INSURER && s.in_effect && s.market == JURIS_MARKET_CLOSED,
           "missing keys keep the defaults");
     CHECK(parse("{}", &s) == JURIS_OK && s.country[0] == 0, "empty object");
-    CHECK(parse("{\"country\":\"\\u004E\\u0047\",\"x\":{\"a\":[1,-2.5e3,null,true,{}]},\"y\":\"z\"}",
-                &s) == JURIS_OK &&
-              strcmp(s.country, "NG") == 0,
-          "escapes and unknown keys skipped");
+    CHECK(
+        parse("{\"country\":\"\\u004E\\u0047\",\"x\":{\"a\":[1,-2.5e3,null,true,{}]},\"y\":\"z\"}",
+              &s) == JURIS_OK &&
+            strcmp(s.country, "NG") == 0,
+        "escapes and unknown keys skipped");
 
     static const char *const bad[] = {
         "",
@@ -382,7 +384,8 @@ static void test_market_tax_standard(void)
               lpx_base(h.last_tag) == LPX_B_BOTH,
           "J5: rates that disagree escalate");
     same.num = 101;
-    CHECK(juris_host_tax_rate(&h, JURIS_TAX_INCOME, &n, &d) == JURIS_E_NO_RULE, "a rate above 100%%");
+    CHECK(juris_host_tax_rate(&h, JURIS_TAX_INCOME, &n, &d) == JURIS_E_NO_RULE,
+          "a rate above 100%%");
     same.num = 3;
     same.den = 10;
     same.answer = T(LPX_B_BOTH);
@@ -396,7 +399,6 @@ static void test_market_tax_standard(void)
     juris_host_apply_settings(&h, &s);
     CHECK(juris_host_standard(&h) == ACCT_STD_NONE, "J7: OHADA is not built");
 }
-
 
 /* every prefix of a valid document is refused, read from an exact-size
  * heap copy so ASan sees any read past the end */
@@ -412,7 +414,8 @@ static juris_status_t parse_exact(const char *s, size_t n, juris_settings_t *o)
 static void test_parse_more(void)
 {
     const char *full =
-        "{\"x\":{\"a\":[1,-2,3.5e+2,0.5E-3,\"s\\\"\\\\\\/\\b\\f\\n\\r\\t\\u0041\\u00e9 \",true,false,null,"
+        "{\"x\":{\"a\":[1,-2,3.5e+2,0.5E-3,\"s\\\"\\\\\\/\\b\\f\\n\\r\\t\\u0041\\u00e9 "
+        "\",true,false,null,"
         "{},[],{\"k\":[[]]}],\"b\":{}},\"market\":\"op\\u0065n\",\"standards\":[],"
         "\"a_key_much_longer_than_twenty_four_bytes\":\"v\",\"standard\":\"AAOIFI\","
         "\"country\":\"\\u004bE\",\"standards2\":[\"IFRS\",\"\"],\"in_effect\":true}";
@@ -435,7 +438,8 @@ static void test_parse_more(void)
 
     /* single-byte changes never crash, and an accepted result is well formed */
     unsigned weird = 0;
-    const char subs[] = "{}[]\":,\\ \x01" "0aZ-";
+    const char subs[] = "{}[]\":,\\ \x01"
+                        "0aZ-";
     n = strlen(full);
     char *b = malloc(n);
     for (size_t k = 0; k < n; k++)
@@ -555,7 +559,8 @@ static void test_host_more(void)
     juris_host_t h;
     juris_host_init(&h, NULL, gw_verify, NULL, QS, 2);
     CHECK(h.set.country[0] == 0 && h.set.market == JURIS_MARKET_CLOSED, "NULL settings: defaults");
-    CHECK(lpx_base(juris_check_market(&h, JURIS_MARKET_CLOSED)) == LPX_B_NEITHER, "no country: wait");
+    CHECK(lpx_base(juris_check_market(&h, JURIS_MARKET_CLOSED)) == LPX_B_NEITHER,
+          "no country: wait");
     juris_host_init(NULL, NULL, NULL, NULL, NULL, 0);
     juris_settings_t s;
     juris_settings_default(&s);
@@ -689,7 +694,8 @@ static void test_host_more(void)
         if (i == JURIS_MAX_IDS) CHECK(r == JURIS_E_FULL, "17th id: the version table is full");
     }
     CHECK(okc == JURIS_MAX_IDS, "16 ids remembered");
-    CHECK(reg(&hv, &ps[0], 1) == JURIS_E_VERSION, "an unloaded id cannot come back at its old version");
+    CHECK(reg(&hv, &ps[0], 1) == JURIS_E_VERSION,
+          "an unloaded id cannot come back at its old version");
     CHECK(reg(&hv, &ps[0], 2) == JURIS_OK, "a newer one can");
 
     /* the limit plug-in's fields */

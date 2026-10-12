@@ -61,7 +61,9 @@ static void test_bernoulli(void)
     }
     CHECK(errs == 0, "bern draws");
     CHECK(near((double) k / N, 1.0 / 3, N), "Bernoulli(1/3): %f", (double) k / N);
-    const struct { uint64_t n, d; } g[] = {{1, 1}, {3, 2}, {1, 10}, {7, 3}, {0, 5}};
+    const struct {
+        uint64_t n, d;
+    } g[] = {{1, 1}, {3, 2}, {1, 10}, {7, 3}, {0, 5}};
     for (unsigned j = 0; j < sizeof g / sizeof g[0]; j++) {
         k = 0;
         for (int i = 0; i < N; i++) {
@@ -80,7 +82,9 @@ static void test_bernoulli(void)
 static void test_dlap(void)
 {
     /* P(y) = (1 - q)/(1 + q) * q^|y|, q = exp(-s/t) */
-    const struct { uint64_t s, t; } p[] = {{1, 1}, {1, 10}, {3, 2}};
+    const struct {
+        uint64_t s, t;
+    } p[] = {{1, 1}, {1, 10}, {3, 2}};
     for (unsigned j = 0; j < sizeof p / sizeof p[0]; j++) {
         static int cnt[41];
         memset(cnt, 0, sizeof cnt);
@@ -243,14 +247,14 @@ static void test_sd(void)
     };
     uint8_t dg[4][32], m[32], sig[32];
     for (int i = 0; i < 4; i++) CHECK(priv_sd_digest(&cl[i], dg[i]) == PRIV_OK, "digest %d", i);
-    CHECK(priv_sd_list_msg((const uint8_t (*)[32]) dg, 4, m) == PRIV_OK, "list");
+    CHECK(priv_sd_list_msg((const uint8_t(*)[32]) dg, 4, m) == PRIV_OK, "list");
     sha256_ctx_t c;
     sha256_init(&c);
     sha256_update(&c, (const uint8_t *) "issuer", 6);
     sha256_update(&c, m, 32);
     sha256_final(&c, sig);
 
-    const uint8_t (*D)[32] = (const uint8_t (*)[32]) dg;
+    const uint8_t(*D)[32] = (const uint8_t(*)[32]) dg;
     CHECK(priv_sd_check(D, 4, sig, 32, iss_ok, NULL, &cl[2], 1) == PRIV_OK,
           "P5: over 18, without the birth date");
     CHECK(priv_sd_check(D, 4, sig, 32, iss_ok, NULL, NULL, 0) == PRIV_OK, "nothing shown");
@@ -381,8 +385,9 @@ static void test_edges(void)
     CHECK(priv_budget_spend(&bb, 1, 1) == PRIV_OK && priv_budget_spend(&bb, F, F) == PRIV_OK &&
               bb.spent_num == 2 && bb.spent_den == 1,
           "1 + 2^32/2^32 = 2");
-    CHECK(priv_budget_spend(&bb, F + 1, 1) == PRIV_E_ARG && priv_budget_spend(&bb, 1, F + 1) ==
-              PRIV_E_ARG && priv_budget_spend(&bb, 1, 0) == PRIV_E_ARG,
+    CHECK(priv_budget_spend(&bb, F + 1, 1) == PRIV_E_ARG &&
+              priv_budget_spend(&bb, 1, F + 1) == PRIV_E_ARG &&
+              priv_budget_spend(&bb, 1, 0) == PRIV_E_ARG,
           "spend terms out of range");
     priv_budget_init(&bb, 1, 3);
     CHECK(priv_budget_spend(&bb, 1, 2) == PRIV_E_BUDGET, "1/2 > 1/3");
@@ -475,7 +480,8 @@ static void sign(const uint8_t (*d)[32], uint32_t n, uint8_t sig[32])
 static void test_sd_edges(void)
 {
     /* digest layout: "zxv/sd/v1" || salt[16] || len || name || len || value */
-    priv_claim_t c = {{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, "age_over_18", "true"};
+    priv_claim_t c = {
+        {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, "age_over_18", "true"};
     uint8_t got[32], want[32];
     uint8_t l;
     sha256_ctx_t h;
@@ -514,7 +520,7 @@ static void test_sd_edges(void)
     static uint8_t dl[300][32];
     for (unsigned i = 0; i < 300; i++)
         for (unsigned j = 0; j < 32; j++) dl[i][j] = (uint8_t) (i * 31 + j);
-    const uint8_t (*D)[32] = (const uint8_t (*)[32]) dl;
+    const uint8_t(*D)[32] = (const uint8_t(*)[32]) dl;
     const uint8_t le[4] = {300 & 0xFF, 300 >> 8, 0, 0};
     sha256_init(&h);
     sha256_update(&h, (const uint8_t *) "zxv/sd-list/v1", 14);
@@ -523,10 +529,11 @@ static void test_sd_edges(void)
     sha256_final(&h, want);
     CHECK(priv_sd_list_msg(D, 300, got) == PRIV_OK && memcmp(got, want, 32) == 0, "list layout");
     static uint8_t big[1025][32];
-    const uint8_t (*B)[32] = (const uint8_t (*)[32]) big;
+    const uint8_t(*B)[32] = (const uint8_t(*)[32]) big;
     CHECK(priv_sd_list_msg(B, 1024, got) == PRIV_OK && priv_sd_list_msg(B, 1025, got) == PRIV_E_ARG,
           "at most 1024 digests");
-    CHECK(priv_sd_list_msg(NULL, 1, got) == PRIV_E_ARG && priv_sd_list_msg(D, 1, NULL) == PRIV_E_ARG &&
+    CHECK(priv_sd_list_msg(NULL, 1, got) == PRIV_E_ARG &&
+              priv_sd_list_msg(D, 1, NULL) == PRIV_E_ARG &&
               priv_sd_list_msg(NULL, 0, got) == PRIV_OK,
           "list arguments");
 
@@ -534,7 +541,7 @@ static void test_sd_edges(void)
     uint8_t dg[3][32], sig[32];
     priv_claim_t cl[3] = {{{1}, "a", "1"}, {{2}, "b", "2"}, {{3}, "c", "3"}};
     for (int i = 0; i < 3; i++) priv_sd_digest(&cl[i], dg[i]);
-    const uint8_t (*G)[32] = (const uint8_t (*)[32]) dg;
+    const uint8_t(*G)[32] = (const uint8_t(*)[32]) dg;
     sign(G, 3, sig);
     CHECK(priv_sd_check(G, 3, sig, 32, iss_ok, NULL, &cl[0], 1) == PRIV_OK, "the first digest");
     CHECK(priv_sd_check(G, 3, sig, 32, iss_ok, NULL, cl, 3) == PRIV_OK, "all three");
@@ -555,7 +562,7 @@ static void test_sd_edges(void)
         uint8_t one[1][32];
         memcpy(one[0], dg[1], 32);
         one[0][at[k]] ^= 0x40;
-        const uint8_t (*O)[32] = (const uint8_t (*)[32]) one;
+        const uint8_t(*O)[32] = (const uint8_t(*)[32]) one;
         sign(O, 1, sig);
         CHECK(priv_sd_check(O, 1, sig, 32, iss_ok, NULL, &cl[1], 1) == PRIV_E_CLAIM,
               "differs in byte %u", at[k]);

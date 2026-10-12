@@ -1355,9 +1355,10 @@ static void test_jurisdiction(void)
         OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
     /* J5: the jurisdiction host follows the settings, across a restart */
     EXPECT(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IFRS\",\"country\":\"KE\"}"),
-           OK("9", "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
-                   "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
-                   "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\"}"));
+           OK("9",
+              "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
+              "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
+              "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\"}"));
     reopen();
     CHECK(has(REQ("9", "jurisdiction.get", ""), "\"report_standard\":\"IFRS\"}"),
           "J5: the host has the replayed settings");
@@ -1365,9 +1366,10 @@ static void test_jurisdiction(void)
     CHECK(ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_CLOSED &&
               js.standard == ACCT_STD_IFRS && !strcmp(js.country, "KE") && js.in_effect,
           "J5: kernel/src/juris reads the result");
-    CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"AAOIFI\",\"country\":\"\"}"),
-              "\"report_standard\":\"\"}"),
-          "J5: no country, no report standard");
+    CHECK(
+        has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"AAOIFI\",\"country\":\"\"}"),
+            "\"report_standard\":\"\"}"),
+        "J5: no country, no report standard");
     CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"country\":\"MY\",\"market\":\"open\"}"),
               "\"report_standard\":\"AAOIFI\"}") &&
               ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_OPEN &&
