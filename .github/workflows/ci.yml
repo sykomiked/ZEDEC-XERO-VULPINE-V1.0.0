@@ -3,8 +3,9 @@ name: CI
 # Speed (docs/CI.md): superseded runs on a pull request are cancelled, each
 # job runs only when its inputs changed (build_system/ci_changes.sh), and the
 # slow tier (mutation, fuzzing, coverage, cross-CPU KATs, MSan, integer
-# sanitizer, riscv/arm32 boots, UEFI discs) runs nightly, on manual runs, on
-# every push to main, and on pull requests once they are ready for review.
+# sanitizer, riscv/arm32 boots, UEFI discs) runs nightly, on manual runs, and
+# on pull requests once they are ready for review (not on pushes to main: the
+# merged pull request already passed it).
 # The ci-gate job at the end is the one check a merge needs: it is reported
 # only by a ready pull request's run, and only passes when every job that the
 # change needs, slow tier included, passed (docs/CI.md, "Merge gate").
