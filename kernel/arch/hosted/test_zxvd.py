@@ -113,6 +113,12 @@ def owner_only_acl(path):
     return bool(aces) and all(a.lower().startswith(me.lower() + ':') for a in aces), aces
 
 
+# A Windows console's code page (cp1252) cannot print an emoji from a chat
+# record; escape it rather than fail the run on a log line.
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(errors='backslashreplace')
+
+
 def check(cond, msg):
     print('  %s %s' % ('ok  ' if cond else 'FAIL', msg))
     if not cond:
