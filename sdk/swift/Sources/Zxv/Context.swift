@@ -37,7 +37,7 @@ public final class ZxvContext: @unchecked Sendable {
     }
 
     /// A root capability. `bits` defaults to `.all` (the ABI 1.1 bits; pass
-    /// `.all1_4` for the hardware group); `identity` is the
+    /// `.all1_4` for the hardware group, `.all1_5` for every bit); `identity` is the
     /// 21-octet (168-bit) identity, zeros if nil. Attestation starts TRUE.
     public func rootCapability(_ bits: CapabilitySet = .all, processId: UInt32 = 0,
                                identity: [UInt8]? = nil) throws(ZxvError) -> Capability {
@@ -156,6 +156,14 @@ public struct CapabilitySet: OptionSet, Sendable, Hashable {
     public static let all = CapabilitySet(rawValue: (1 << 10) - 1)
     /// `ZXV_CAP_ALL_1_4`: every bit as of ABI 1.4.
     public static let all1_4 = CapabilitySet(rawValue: (1 << 12) - 1)
+    /// Publish and store AIPI functions and blocks (ABI 1.5).
+    public static let aipi = CapabilitySet(rawValue: 1 << 12)
+    /// Mint tokens and change a wallet's octane (ABI 1.5).
+    public static let mint = CapabilitySet(rawValue: 1 << 13)
+    /// Paradox operators, logs and policies (ABI 1.5).
+    public static let paradox = CapabilitySet(rawValue: 1 << 14)
+    /// `ZXV_CAP_ALL_1_5`: every bit as of ABI 1.5.
+    public static let all1_5 = CapabilitySet(rawValue: (1 << 15) - 1)
 }
 
 /// A snapshot of a capability (`zxv_cap_info`).

@@ -65,4 +65,15 @@ uint32_t zxvi_features_11(void);
 /* Volatile zeroing used by every file that touches secrets. */
 void zxvi_wipe(void *p, size_t n);
 
+
+/* ABI 1.5: each group reports its ZXV_FEAT2_* bit (0 while not built). */
+uint32_t zxvi_feat2_treaty(void);
+uint32_t zxvi_feat2_aipi(void);
+uint32_t zxvi_feat2_coin(void);
+uint32_t zxvi_feat2_fee(void);
+uint32_t zxvi_feat2_vhub(void);
+uint32_t zxvi_feat2_freight(void);
+uint32_t zxvi_feat2_web4(void);
+uint32_t zxvi_feat2_paradox(void);
+
 #endif /* ZXV_INTERNAL_H */

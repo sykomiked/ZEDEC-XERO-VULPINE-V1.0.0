@@ -8,6 +8,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import org.zedec.zxv.mobile.internal.Backstop
 import org.zedec.zxv.mobile.internal.E_ARG
 import org.zedec.zxv.mobile.internal.Jni
+import org.zedec.zxv.mobile.internal.Jni15
 import org.zedec.zxv.mobile.internal.Status
 import org.zedec.zxv.mobile.internal.requireLength
 
@@ -173,5 +174,125 @@ class Ed25519(
 
     private fun requireSize(k: SecretKey) {
         if (k.size != 32) throw Status.usage(E_ARG, "an Ed25519 secret key is 32 bytes, got ${k.size}")
+    }
+}
+
+/**
+ * FIPS 204 ML-DSA-87 through a capability that needs `CRYPTO_SIGN` (the
+ * V-Bill hub's peg signatures use it). The 4896-byte secret key stays in
+ * [SecretKey] memory; a seed for deterministic key generation is a 32-byte
+ * [SecretKey] too, so it never sits on the Java heap.
+ */
+class MlDsa87(
+    /** The capability every call passes. */
+    val capability: Capability,
+) {
+    companion object {
+        /** Public key size. */
+        const val PUBLIC_KEY_BYTES = 2592
+
+        /** Secret key size. */
+        const val SECRET_KEY_BYTES = 4896
+
+        /** Signature size. */
+        const val SIGNATURE_BYTES = 4627
+
+        /** Longest context string. */
+        const val CONTEXT_MAX = 255
+    }
+
+    /** A key pair. Close the secret key when done. */
+    class KeyPair(publicKey: ByteArray, val secretKey: SecretKey) : Closeable {
+        private val pk = publicKey.copyOf()
+
+        /** A copy of the 2592-byte public key. */
+        val publicKey: ByteArray get() = pk.copyOf()
+
+        override fun close() = secretKey.close()
+    }
+
+    private val st get() = capability.context.state
+
+    /** A fresh key pair from the OS random source. */
+    fun generate(): KeyPair = keygen(null)
+
+    /** The key pair a 32-byte seed determines (FIPS 204 ML-DSA.KeyGen_internal). */
+    fun generate(seed: SecretKey): KeyPair {
+        if (seed.size != 32) throw Status.usage(E_ARG, "an ML-DSA-87 seed is 32 bytes, got ${seed.size}")
+        return keygen(seed)
+    }
+
+    private fun keygen(seed: SecretKey?): KeyPair {
+        val sk = SecretKey.allocate(SECRET_KEY_BYTES)
+        try {
+            val pk = ByteArray(PUBLIC_KEY_BYTES)
+            capability.res.use { h ->
+                sk.withPointer { p ->
+                    if (seed == null) {
+                        Status.check(Jni15.mldsa87Keygen(h, pk, p), st)
+                    } else {
+                        seed.withPointer { s -> Status.check(Jni15.mldsa87KeygenSeed(h, s, pk, p), st) }
+                    }
+                }
+            }
+            return KeyPair(pk, sk)
+        } catch (t: Throwable) {
+            sk.close()
+            throw t
+        }
+    }
+
+    /** A hedged (randomized) signature of `message` under `context` (at most 255 bytes, or null). */
+    @JvmOverloads
+    fun sign(secretKey: SecretKey, message: ByteArray, context: ByteArray? = null): ByteArray =
+        signWith(false, secretKey, message, context)
+
+    /** The deterministic signature of `message` under `context`. */
+    @JvmOverloads
+    fun signDeterministic(secretKey: SecretKey, message: ByteArray, context: ByteArray? = null): ByteArray =
+        signWith(true, secretKey, message, context)
+
+    private fun signWith(det: Boolean, secretKey: SecretKey, message: ByteArray, context: ByteArray?): ByteArray {
+        checkContext(context)
+        if (secretKey.size != SECRET_KEY_BYTES) {
+            throw Status.usage(E_ARG, "an ML-DSA-87 secret key is $SECRET_KEY_BYTES bytes, got ${secretKey.size}")
+        }
+        val sig = ByteArray(SIGNATURE_BYTES)
+        capability.res.use { h ->
+            secretKey.withPointer { p ->
+                val rc = if (det) {
+                    Jni15.mldsa87SignDeterministic(h, p, message, context, sig)
+                } else {
+                    Jni15.mldsa87Sign(h, p, message, context, sig)
+                }
+                Status.check(rc, st)
+            }
+        }
+        return sig
+    }
+
+    /** Returns normally if `signature` is valid; [VerificationFailedException] if not. */
+    @JvmOverloads
+    fun verify(publicKey: ByteArray, message: ByteArray, signature: ByteArray, context: ByteArray? = null) {
+        requireLength(publicKey, PUBLIC_KEY_BYTES, "publicKey")
+        requireLength(signature, SIGNATURE_BYTES, "signature")
+        checkContext(context)
+        capability.res.use { h -> Status.check(Jni15.mldsa87Verify(h, publicKey, message, context, signature), st) }
+    }
+
+    /** [verify] as a boolean: false only for an invalid signature; other errors still throw. */
+    @JvmOverloads
+    fun isValid(publicKey: ByteArray, message: ByteArray, signature: ByteArray, context: ByteArray? = null): Boolean =
+        try {
+            verify(publicKey, message, signature, context)
+            true
+        } catch (_: VerificationFailedException) {
+            false
+        }
+
+    private fun checkContext(context: ByteArray?) {
+        if (context != null && context.size > CONTEXT_MAX) {
+            throw Status.usage(E_ARG, "an ML-DSA context string is at most $CONTEXT_MAX bytes")
+        }
     }
 }

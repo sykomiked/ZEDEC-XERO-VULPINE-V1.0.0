@@ -33,6 +33,10 @@ const (
 	CapHWMatrix    Caps = 1 << 10   // ABI 1.4: build and call the emulation matrix
 	CapHWReconf    Caps = 1 << 11   // ABI 1.4: load hardware images and contracts
 	CapAll14       Caps = 1<<12 - 1 // every bit as of ABI 1.4
+	CapAIPI        Caps = 1 << 12   // ABI 1.5: store and publish AIPI blocks and functions
+	CapMint        Caps = 1 << 13   // ABI 1.5: mint, spend and move token-wallet tokens
+	CapParadox     Caps = 1 << 14   // ABI 1.5: paradox operators, logs and policies
+	CapAll15       Caps = 1<<15 - 1 // every bit as of ABI 1.5
 )
 
 // Has reports whether every bit of other is in c.
@@ -41,7 +45,7 @@ func (c Caps) Has(other Caps) bool { return c&other == other }
 // String lists the bit names.
 func (c Caps) String() string {
 	names := []string{"LEDGER_READ", "LEDGER_POST", "CRYPTO_SIGN", "CRYPTO_KEM", "AI_INFERENCE",
-		"BUDGET", "PHASE", "ATTEST", "SWARM", "EVM", "HW_MATRIX", "HW_RECONF"}
+		"BUDGET", "PHASE", "ATTEST", "SWARM", "EVM", "HW_MATRIX", "HW_RECONF", "AIPI", "MINT", "PARADOX"}
 	var out []string
 	for i, n := range names {
 		if c&(1<<i) != 0 {

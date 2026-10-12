@@ -9,6 +9,7 @@ namespace Zedec\Zxv\Tests;
 
 use Zedec\Zxv\Capability;
 use Zedec\Zxv\Context;
+use Zedec\Zxv\Status;
 
 /** A dependency-free test base (assertions in the PHPUnit style). */
 abstract class TestCase
@@ -44,6 +45,59 @@ abstract class TestCase
         } finally {
             $ctx->close();
         }
+    }
+
+    /**
+     * ABI 1.5: a context with a root capability holding every 1.5 bit.
+     * @param callable(Context, Capability): void $fn
+     */
+    protected function withContext15(callable $fn): void
+    {
+        $ctx = new Context();
+        try {
+            $fn($ctx, $ctx->rootCapability(Capability::ALL_1_5));
+        } finally {
+            $ctx->close();
+        }
+    }
+
+    /**
+     * Run $fn. For "ZXV_OK" return its value; otherwise assert it throws a
+     * ZXV error whose status name is $name and return the error.
+     */
+    protected function expectStatus(string $name, callable $fn): mixed
+    {
+        if ($name === "ZXV_OK") {
+            return $fn();
+        }
+        $this->assertions++;
+        try {
+            $fn();
+        } catch (\Throwable $e) {
+            if (!method_exists($e, "getStatus")) {
+                throw new AssertionFailed("expected $name, got " . get_class($e) . ": " . $e->getMessage());
+            }
+            $this->assertSame($name, Status::name($e->getStatus()), $e->getMessage());
+            return $e;
+        }
+        throw new AssertionFailed("expected $name, nothing thrown");
+    }
+
+    /** A 64-bit vector number (a decimal string) as the SDK returns it. */
+    protected static function u64(string|int $text): int|string
+    {
+        $t = (string) $text;
+        return (string) (int) $t === $t ? (int) $t : $t;
+    }
+
+    protected static function hex(string $s): string
+    {
+        return (string) hex2bin($s);
+    }
+
+    protected static function unhex(string $b): string
+    {
+        return bin2hex($b);
     }
 
     protected function assertSame(mixed $expected, mixed $actual, string $msg = ""): void

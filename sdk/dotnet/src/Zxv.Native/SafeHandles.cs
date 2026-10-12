@@ -279,3 +279,93 @@ public sealed class ZxvLoraHandle : ZxvDependentHandle
 {
     private protected override void Destroy(IntPtr native) => NativeMethods.LoraDestroy(native);
 }
+
+/// <summary>Owns a native <c>zxv_treaty*</c> (a treaty, ABI 1.5; holds no context).</summary>
+public sealed class ZxvTreatyHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.TreatyDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_treaty_result*</c> (what running a treaty returned, ABI 1.5; holds no context).</summary>
+public sealed class ZxvTreatyResultHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.TreatyResultDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_aipi*</c> (an offline AIPI node, ABI 1.5; destroy wipes its node key).</summary>
+public sealed class ZxvAipiHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.AipiDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_token_wallet*</c> (a token wallet, ABI 1.5).</summary>
+public sealed class ZxvTokenWalletHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.TokenWalletDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_vhub*</c> (a V-Bill demo hub and its ledger, ABI 1.5).</summary>
+public sealed class ZxvVHubHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.VhubDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_freight_join*</c> (a freight set being reassembled, ABI 1.5; holds no context).</summary>
+public sealed class ZxvFreightJoinHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.FreightJoinDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_freight_ops_writer*</c> (an op stream being built, ABI 1.5; holds no context).</summary>
+public sealed class ZxvFreightOpsWriterHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.FreightOpsWriterDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_w4_agent*</c> (a Web 4 key handle, ABI 1.5; destroy wipes the private key).</summary>
+public sealed class ZxvW4AgentHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.W4AgentDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_w4_dir*</c> (a directory of verified agent cards, ABI 1.5; holds no context).</summary>
+public sealed class ZxvW4DirHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.W4DirDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_w4_manifest*</c> (a tool manifest, ABI 1.5; holds no context).</summary>
+public sealed class ZxvW4ManifestHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.W4ManifestDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_w4_consent_log*</c> (a single-use consent log, ABI 1.5; holds no context).</summary>
+public sealed class ZxvW4ConsentLogHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.W4ConsentLogDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_paradox*</c> (a paradox book: logs and registry, ABI 1.5).</summary>
+public sealed class ZxvParadoxHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.ParadoxDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_paradox_policy*</c> (a bounded constructive policy, ABI 1.5).</summary>
+public sealed class ZxvParadoxPolicyHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.ParadoxPolicyDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_paradox_hold*</c> (a neutral hold of candidate branches, ABI 1.5).</summary>
+public sealed class ZxvParadoxHoldHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.ParadoxHoldDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_paradox_graph*</c> (a complex-paradox dependency graph, ABI 1.5).</summary>
+public sealed class ZxvParadoxGraphHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.ParadoxGraphDestroy(native);
+}

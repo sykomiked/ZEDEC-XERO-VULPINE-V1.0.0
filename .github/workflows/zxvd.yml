@@ -49,6 +49,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_rpc.sh
+      - name: Chat unit test (zxvd_chat.h, through the RPC layer)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_chat.sh
       - name: AIPI host unit test (real AIPI core, Z-Wasm sandbox)
         env:
           CC: ${{ matrix.cc }}

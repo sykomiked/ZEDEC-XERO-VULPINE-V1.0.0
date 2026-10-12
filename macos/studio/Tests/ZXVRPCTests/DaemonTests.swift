@@ -148,6 +148,29 @@ final class DaemonTests: XCTestCase {
         }
     }
 
+    func testTheCommonsRoundTrip() throws {
+        let c = client
+        let me = try c.call("chat.me", as: ChatMe.self)
+        XCTAssertEqual(me.nodeId.count, 64)
+        let post = try c.call("chat.post", ["text": "from Swift \u{1F680}"], as: ChatRecord.self)
+        XCTAssertTrue(post.mine)
+        XCTAssertEqual(post.kind, "post")
+        XCTAssertEqual(post.text, "from Swift \u{1F680}")
+        XCTAssertNil(post.replyTo)
+        let reply = try c.call("chat.post", ["text": "a reply", "reply_to": .string(post.id)], as: ChatRecord.self)
+        XCTAssertEqual(reply.replyTo, post.id)
+        _ = try c.call("chat.react", ["to": .string(post.id), "emoji": "\u{1F44D}"], as: ChatRecord.self)
+        let t = try c.call("chat.thread", ["id": .string(post.id)], as: ChatThread.self)
+        XCTAssertEqual(t.root.replies, 1)
+        XCTAssertEqual(t.root.reactions.map { "\($0.emoji) \($0.count) \($0.mine)" }, ["\u{1F44D} 1 true"])
+        XCTAssertEqual(t.replies.map { $0.id }, [reply.id])
+        let f = try c.call("chat.feed", as: ChatFeed.self)
+        XCTAssertTrue(f.posts.contains { $0.id == post.id })
+        XCTAssertFalse(f.posts.contains { $0.id == reply.id })
+        let fol = try c.call("chat.follow", ["node_id": .string(String(repeating: "ab", count: 32))], as: ChatFollow.self)
+        XCTAssertTrue(fol.following)
+    }
+
     func testUnknownMethodIsTheJsonRpcError() {
         XCTAssertThrowsError(try client.call("ledger.holds")) { e in
             guard case ZXVDError.rpc(let r) = e else { return XCTFail("\(e)") }

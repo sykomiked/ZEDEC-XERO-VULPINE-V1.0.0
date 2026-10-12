@@ -11,7 +11,7 @@ from typing import Any, List, Optional
 from . import _native
 from .errors import ZxvUsageError
 
-__all__ = ["NativeHandle"]
+__all__ = ["NativeHandle", "SerializedHandle"]
 
 
 class NativeHandle:
@@ -91,3 +91,27 @@ class NativeHandle:
                 self.close()
         except Exception:  # pragma: no cover - interpreter shutdown
             pass
+
+
+class SerializedHandle(NativeHandle):
+    """A handle the C library says is NOT thread-safe (ABI 1.5 treaties, freight
+    joins and writers, Web 4 handles, paradox policies, holds and graphs).
+
+    cffi releases the GIL during every C call, so two Python threads could
+    otherwise be inside the same C object at once. Subclasses run each call
+    under :attr:`_lock` (an ``RLock``), and :meth:`close` takes it too, so a
+    handle is never freed while another thread is still using it.
+    """
+
+    def __init__(self, handle: Any, parent: Optional[NativeHandle], context: Any) -> None:
+        self._lock = threading.RLock()
+        super().__init__(handle, parent, context)
+
+    def close(self) -> None:
+        """Release the native handle once no other thread is using it. Idempotent."""
+        lock = getattr(self, "_lock", None)
+        if lock is None:  # __init__ failed before the lock existed
+            super().close()
+            return
+        with lock:
+            super().close()
