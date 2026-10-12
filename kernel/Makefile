@@ -322,6 +322,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-settle
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
+	$(MAKE) --no-print-directory test-recover
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
@@ -496,7 +497,7 @@ verify-all: test
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind src/plnp/test_plnp.c src/plnp/plnp.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/tls/hkdf.c -o /tmp/test_plnp && /tmp/test_plnp > /tmp/test_plnp.log 2>&1 && echo "[PASS] test_plnp" || { tail -20 /tmp/test_plnp.log; echo "[FAIL] test_plnp"; exit 1; }
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/mlkem -Isrc/pqsec -Isrc/lpres -Isrc/surplus -Isrc/edp_risk -Isrc/event_space -Isrc/trispace src/bootlegger/test_bootlegger.c src/bootlegger/bootlegger.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c -o /tmp/test_bootlegger && /tmp/test_bootlegger > /tmp/test_bootlegger.log 2>&1 && echo "[PASS] test_bootlegger" || { tail -20 /tmp/test_bootlegger.log; echo "[FAIL] test_bootlegger"; exit 1; }
 	@echo "=== tripartite_fs: CIDv1 sha2-256 content IDs, verification hashes the bytes ==="; \
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/modbind -Isrc/lpres -Isrc/surplus -Isrc/event_space src/tripartite_fs/test_tripartite_fs.c src/tripartite_fs/tripartite_fs.c src/holographic/holo.c src/phase_coord/phase_coordinator.c src/lpres/lpres.c src/robin_debanks/sha256.c -o /tmp/test_tripartite_fs && /tmp/test_tripartite_fs > /tmp/test_tripartite_fs.log 2>&1 && echo "[PASS] test_tripartite_fs" || { tail -20 /tmp/test_tripartite_fs.log; echo "[FAIL] test_tripartite_fs"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/modbind -Isrc/lpres -Isrc/surplus -Isrc/event_space src/tripartite_fs/test_tripartite_fs.c src/tripartite_fs/tripartite_fs.c src/recover/recover.c src/paradox/paradox.c src/lpres/lpres_hex.c src/holographic/holo.c src/phase_coord/phase_coordinator.c src/lpres/lpres.c src/robin_debanks/sha256.c -o /tmp/test_tripartite_fs && /tmp/test_tripartite_fs > /tmp/test_tripartite_fs.log 2>&1 && echo "[PASS] test_tripartite_fs" || { tail -20 /tmp/test_tripartite_fs.log; echo "[FAIL] test_tripartite_fs"; exit 1; }
 	@echo "=== financial_fabric: form -> rail table (555/777/888), inalienable forms refused (Q32.32) ==="; \
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc -Isrc/modbind -Isrc/bridge -Isrc/constellation -Isrc/count_house -Isrc/edp_risk -Isrc/event_space -Isrc/finance -Isrc/finance_markets -Isrc/hardware -Isrc/identity -Isrc/interspace -Isrc/ipfs -Isrc/lpres -Isrc/mesh_net -Isrc/mesh_token -Isrc/net -Isrc/onepolicy -Isrc/orbital_compat -Isrc/orbital_elevator -Isrc/orbital_fabric -Isrc/porter_house -Isrc/predictive -Isrc/rational -Isrc/sdk -Isrc/surplus -Isrc/update -Isrc/vena -Isrc/vino -Isrc/yantra -Isrc/zcapital src/financial_fabric/test_financial_fabric.c src/financial_fabric/financial_fabric.c src/lpres/lpres.c -o /tmp/test_financial_fabric && /tmp/test_financial_fabric > /tmp/test_financial_fabric.log 2>&1 && echo "[PASS] test_financial_fabric" || { tail -20 /tmp/test_financial_fabric.log; echo "[FAIL] test_financial_fabric"; exit 1; }
 	@echo "=== economy tests on the Q32.32 TARGET type (same tests, no TEST_HOST) ==="; \
@@ -1416,6 +1417,17 @@ test-lpres-hex:
 test-paradox:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/paradox/test_paradox.c src/paradox/paradox.c src/paradox/paradox_graph.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_paradox && $(ZXV_TMP)/test_paradox > $(ZXV_TMP)/test_paradox.log 2>&1 && echo "[PASS] test_paradox ($$(tail -1 $(ZXV_TMP)/test_paradox.log))" || { cat $(ZXV_TMP)/test_paradox.log; echo "[FAIL] test_paradox"; exit 1; }
 	@for f in src/paradox/paradox.c src/paradox/paradox_graph.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/paradox_free.o || { echo "[FAIL] paradox freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/paradox_free.o | grep -vE ' (lpx_|pdx_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/paradox_free.o; echo "[FAIL] paradox freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] paradox freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256_ external)"
+
+# The recovery framework (src/recover/recover.h, gap B5, roadmap P3.2): refuse /
+# roll back / isolate, each with a signed RecoveryProof around paradox's
+# RepairProof. ASan/UBSan tests (ML-DSA-87 included), then a freestanding
+# build of the crypto-free policy file (aarch64 -mgeneral-regs-only and
+# i386, no libc, -Wdouble-promotion) whose only external symbols are lpx_*,
+# pdx_* and sha256*.
+.PHONY: test-recover
+test-recover:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/recover/test_recover.c src/recover/recover.c src/recover/recover_pq.c src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c -o $(ZXV_TMP)/test_recover && $(ZXV_TMP)/test_recover > $(ZXV_TMP)/test_recover.log 2>&1 && echo "[PASS] test_recover ($$(tail -1 $(ZXV_TMP)/test_recover.log))" || { cat $(ZXV_TMP)/test_recover.log; echo "[FAIL] test_recover"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c src/recover/recover.c -o $(ZXV_TMP)/recover_free.o || { echo "[FAIL] recover freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/recover_free.o | grep -vE ' (lpx_|pdx_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/recover_free.o; echo "[FAIL] recover freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] recover freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256_ external)"
 
 HWEMU_CC := gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/pqsec
 
