@@ -55,7 +55,8 @@
  *      measured energy to judge by). Nothing buys past a budget: an ecological
  *      limit refuses, it does not price.
  *   P6 REPORT. pw_top ranks consumers by energy; pw_render_json writes the
- *      whole ledger as integer JSON (no floats) for zxvd and the Brazier app.
+ *      whole ledger as integer JSON (no floats) for zxvd and the Brazier app;
+ *      ext_id is a decimal string, since 64-bit ids exceed 2^53.
  */
 #ifndef POWER_LEDGER_H
 #define POWER_LEDGER_H
