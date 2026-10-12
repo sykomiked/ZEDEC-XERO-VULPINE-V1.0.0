@@ -5,7 +5,7 @@
  * ids and session tokens come from a counting random source, the clock is
  * the test's, and Argon2id runs with small parameters except in the test
  * that checks zxvd keeps the module default (64 MiB, 3 passes). */
-#define _POSIX_C_SOURCE 200809L
+#define _POSIX_C_SOURCE  200809L
 #define _DARWIN_C_SOURCE /* mkdtemp and friends on macOS */
 #include <stdarg.h>
 #include <stdio.h>
