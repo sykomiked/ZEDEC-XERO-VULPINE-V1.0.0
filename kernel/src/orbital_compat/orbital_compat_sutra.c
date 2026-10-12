@@ -32,15 +32,6 @@ typedef enum {
     SUTRA_LOGIC_NEITHER   = 3   /* LPRES: NEITHER (unknown) */
 } sutra_logic_t;
 
-/* ===== Helpers ===== */
-
-static int64_t gcd_i64(int64_t a, int64_t b) {
-    a = a < 0 ? -a : a;
-    b = b < 0 ? -b : b;
-    while (b) { int64_t t = a % b; a = b; b = t; }
-    return a;
-}
-
 /* ===== Sutra Lower: Sutra source -> Canonical IR ===== */
 
 int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out)

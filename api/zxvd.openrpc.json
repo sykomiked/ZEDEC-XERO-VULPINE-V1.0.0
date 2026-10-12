@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -199,6 +199,263 @@
           "properties": {
             "result": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "net.peers",
+      "summary": "The routing table's contacts (zxv_net_host.h U9, zxvd_rpc.h V1). Every contact answered a signed message, so its NodeID is verified. Each row is joined with the peer's mesh-book account when there is one. Empty while networking is off.",
+      "params": [],
+      "result": {
+        "name": "peers",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "peers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "NodeID"
+                  },
+                  "addr": {
+                    "type": "string",
+                    "description": "a.b.c.d:port, or \"\" for a non-IPv4 address"
+                  },
+                  "bucket": {
+                    "type": "integer",
+                    "description": "Kademlia bucket"
+                  },
+                  "ubh": {
+                    "type": "boolean",
+                    "description": "The peer advertised UBH-168"
+                  },
+                  "last_seen_ms": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Wall-clock milliseconds of the last message"
+                  },
+                  "in_book": {
+                    "type": "boolean",
+                    "description": "The mesh book has an account for it"
+                  },
+                  "member": {
+                    "type": "boolean",
+                    "description": "Admitted to the commons by the owner"
+                  },
+                  "held": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Units the peer issued that this node holds"
+                  },
+                  "receivable": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Units delivered to the peer on credit"
+                  },
+                  "social": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Crown: earned, never moved"
+                  },
+                  "pending": {
+                    "type": "integer",
+                    "description": "Receipts outstanding with this peer"
+                  }
+                }
+              }
+            },
+            "count": {
+              "type": "integer",
+              "description": "Contacts in the table (the list holds at most 256)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "net.offers",
+      "summary": "What the owner shares, the open wants, and the receipts still waiting on the other side (zxvd_rpc.h V2): a sell offer the buyer has not accepted, or a buy the seller has not committed.",
+      "params": [],
+      "result": {
+        "name": "offers",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "share": {
+              "type": "object",
+              "properties": {
+                "compute": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$",
+                  "description": "Compute tokens shared per cycle"
+                },
+                "storage": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$",
+                  "description": "Storage bytes shared"
+                }
+              }
+            },
+            "wants": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slot": {
+                    "type": "integer"
+                  },
+                  "resource": {
+                    "type": "string",
+                    "enum": [
+                      "compute",
+                      "storage",
+                      "other"
+                    ]
+                  },
+                  "units_left": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Still wanted"
+                  },
+                  "max_price": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "The most this node pays for one receipt"
+                  }
+                }
+              }
+            },
+            "outstanding": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "sell",
+                      "buy"
+                    ]
+                  },
+                  "peer": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "NodeID"
+                  },
+                  "units": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Units in the receipt"
+                  },
+                  "seq": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Pair sequence number"
+                  },
+                  "tries": {
+                    "type": "integer",
+                    "description": "Sends so far"
+                  },
+                  "want": {
+                    "type": "integer",
+                    "description": "buy: the want slot it reserves from; -1 for sell"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "player.card",
+      "summary": "The owner's Player Card (sicily.h S2/S3, zxvd_rpc.h V3): the tier the measured inputs earn, each input with its source, the next tier's thresholds and which are missing, and the perks. Bond, uptime and giving have no source on this node yet and are reported as 0 with the reason. Tiers give no priority, discount or credit.",
+      "params": [],
+      "result": {
+        "name": "card",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tier": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "metal": {
+              "type": "string"
+            },
+            "stone": {
+              "type": "string"
+            },
+            "inputs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "next": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "tier": {
+                  "type": "integer"
+                },
+                "metal": {
+                  "type": "string"
+                },
+                "stone": {
+                  "type": "string"
+                },
+                "credibility": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "bond": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "uptime_bps": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "credibility",
+                      "bond",
+                      "uptime_bps"
+                    ]
+                  }
+                }
+              }
+            },
+            "perks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         }
@@ -918,7 +1175,7 @@
     },
     {
       "name": "swarm.earnings",
-      "summary": "The swarm's earnings in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E4). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle.",
+      "summary": "The swarm's earnings in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E5). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle. With a books file (--books), accounts brought back at start keep their balance: the run's first cycle is the base and later cycles post only the change (E5).",
       "params": [],
       "result": {
         "name": "earnings",
@@ -962,6 +1219,665 @@
               "type": "string",
               "pattern": "^-?[0-9]+$",
               "description": "Settled cycles mirrored"
+            },
+            "resumed": {
+              "type": "boolean",
+              "description": "The accounts came back from the books file (E5)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "mesh.books",
+      "summary": "Settled peer requests in the owner's books (zxvd_rpc.h S1-S4): sales, purchases and the 0.08889% fee the node paid, in VFV, with the demo float posted as 'mesh float' when a purchase needs more than the wallet account holds. The accounts are null until the first settled request.",
+      "params": [],
+      "result": {
+        "name": "mesh",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "currency": {
+              "type": "string",
+              "description": "VFV, the peer book's unit"
+            },
+            "wallet_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "owner: mesh wallet (holder)"
+            },
+            "counterparty_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "mesh counterparties (issuer)"
+            },
+            "fee_account": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "mesh: assurance fees paid (holder)"
+            },
+            "wallet_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "The wallet account's balance"
+            },
+            "fees_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Fees paid"
+            },
+            "sold": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Sales posted this run"
+            },
+            "bought": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Purchases posted this run"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "books.file",
+      "summary": "Where the owner's books are saved (zxvd_rpc.h F1-F6): an append-only file of SHA-256-chained records, replayed at start. saved is false when the books live in memory only (no --books).",
+      "params": [],
+      "result": {
+        "name": "file",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "saved": {
+              "type": "boolean",
+              "description": "A books file is in use"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Its path"
+            },
+            "records": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "Records in the file"
+            },
+            "head": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA-256 chain head after the last record"
+            },
+            "writable": {
+              "type": "boolean",
+              "description": "False after a failed write: the books are read-only until zxvd restarts (F5)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "jurisdiction.get",
+      "summary": "The jurisdiction bridge's settings (zxvd_rpc.h J1-J5), kept in the books file.",
+      "params": [],
+      "result": {
+        "name": "jurisdiction",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "market": {
+              "type": "string",
+              "enum": [
+                "closed",
+                "open"
+              ],
+              "description": "J2: closed clearing (default) or the open batch-auction market"
+            },
+            "standard": {
+              "type": "string",
+              "enum": [
+                "",
+                "IFRS",
+                "US_GAAP",
+                "IPSAS",
+                "AAOIFI",
+                "OHADA",
+                "CAS",
+                "SAP_INSURER"
+              ],
+              "description": "J3: the accounting standard reports will follow; \"\" = not chosen"
+            },
+            "country": {
+              "type": "string",
+              "pattern": "^([A-Z]{2})?$",
+              "description": "J1: ISO 3166-1 alpha-2, or \"\""
+            },
+            "standards": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The standards set accepts"
+            },
+            "in_effect": {
+              "type": "boolean",
+              "const": false,
+              "description": "J5: recorded only; no report adapter or open market is wired to the settings yet"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "jurisdiction.set",
+      "summary": "Change any of market, standard and country (J4); the others keep their values. The change is saved in the books file before it applies; an unchanged setting writes nothing.",
+      "params": [
+        {
+          "name": "market",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "closed",
+              "open"
+            ],
+            "description": "J2: closed clearing (default) or the open batch-auction market"
+          }
+        },
+        {
+          "name": "standard",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "",
+              "IFRS",
+              "US_GAAP",
+              "IPSAS",
+              "AAOIFI",
+              "OHADA",
+              "CAS",
+              "SAP_INSURER"
+            ],
+            "description": "J3: the accounting standard reports will follow; \"\" = not chosen"
+          }
+        },
+        {
+          "name": "country",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^([A-Z]{2})?$",
+            "description": "J1: ISO 3166-1 alpha-2, or \"\""
+          }
+        }
+      ],
+      "result": {
+        "name": "jurisdiction",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "market": {
+              "type": "string",
+              "enum": [
+                "closed",
+                "open"
+              ],
+              "description": "J2: closed clearing (default) or the open batch-auction market"
+            },
+            "standard": {
+              "type": "string",
+              "enum": [
+                "",
+                "IFRS",
+                "US_GAAP",
+                "IPSAS",
+                "AAOIFI",
+                "OHADA",
+                "CAS",
+                "SAP_INSURER"
+              ],
+              "description": "J3: the accounting standard reports will follow; \"\" = not chosen"
+            },
+            "country": {
+              "type": "string",
+              "pattern": "^([A-Z]{2})?$",
+              "description": "J1: ISO 3166-1 alpha-2, or \"\""
+            },
+            "standards": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The standards set accepts"
+            },
+            "in_effect": {
+              "type": "boolean",
+              "const": false,
+              "description": "J5: recorded only; no report adapter or open market is wired to the settings yet"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.put",
+      "summary": "Store bytes (a Z-Wasm module, Z-Contract text, data) in this node's in-memory blockstore as a raw block, pinned; returns its CID. Give exactly one of hex and path (a file zxvd reads, at most 1 MiB). Offline node: nothing is announced (kernel/arch/hosted/zxvd_aipi.h Z1-Z2).",
+      "params": [
+        {
+          "name": "hex",
+          "required": false,
+          "description": "the bytes as hex, at most 8000 bytes",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 16000
+          }
+        },
+        {
+          "name": "path",
+          "required": false,
+          "description": "a file to read instead of hex",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1023
+          }
+        },
+        {
+          "name": "private",
+          "required": false,
+          "description": "seal the block at rest with this node's key (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "block",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "private": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.get",
+      "summary": "AIPI_GET: the bytes a CID names, from the local blockstore, re-hashed before they are returned. At most 65536 bytes; a larger block is refused, not cut (Z4).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+            "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+            "maxLength": 127
+          }
+        }
+      ],
+      "result": {
+        "name": "block",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "hex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$"
+            },
+            "tag": {
+              "type": "object",
+              "description": "the job's 64-state hexagram tag (A4, kernel/src/lpres/lpres_hex.h)",
+              "properties": {
+                "base": {
+                  "type": "string"
+                },
+                "polarity": {
+                  "type": "string"
+                },
+                "phase": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.publish",
+      "summary": "Publish a function descriptor (intent fn) and return its function CID. The rules of docs/AIPI.md section 3 apply: checker and cert need a checker export, cert a certifier, quorum is for the mesh only.",
+      "params": [
+        {
+          "name": "module",
+          "required": true,
+          "description": "CID of the Z-Wasm module",
+          "schema": {
+            "type": "string",
+            "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+            "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+            "maxLength": 127
+          }
+        },
+        {
+          "name": "contract",
+          "required": false,
+          "description": "CID of the Z-Contract text the calls must keep",
+          "schema": {
+            "type": "string",
+            "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+            "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+            "maxLength": 127
+          }
+        },
+        {
+          "name": "entry",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,63}$"
+          }
+        },
+        {
+          "name": "checker",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,63}$"
+          }
+        },
+        {
+          "name": "certifier",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,63}$"
+          }
+        },
+        {
+          "name": "verify",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "checker",
+              "cert",
+              "quorum",
+              "local"
+            ]
+          }
+        },
+        {
+          "name": "fuel_max",
+          "required": true,
+          "description": "most fuel one run may use (> 0)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "local_only",
+          "required": false,
+          "description": "privacy LOCAL: the descriptor is stored sealed and the function never leaves this node (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "deterministic",
+          "required": false,
+          "description": "the same input always gives the same output (default true); only deterministic public calls are memoised",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "function",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "function": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "local_only": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.execute",
+      "summary": "AIPI_EXECUTE on this node: run a published function in the Z-Wasm sandbox under its contract and fuel_max, or answer from the memo of earlier results (route cache). Offline (A3): code that is not in the local blockstore fails with AIPI_ERR_OFFLINE.",
+      "params": [
+        {
+          "name": "function",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+            "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+            "maxLength": 127
+          }
+        },
+        {
+          "name": "args",
+          "required": true,
+          "description": "the Z-Wasm call ABI: up to 8 signed 64-bit integers",
+          "schema": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            }
+          }
+        },
+        {
+          "name": "private",
+          "required": false,
+          "description": "the input is private: never memoised (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "call",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "function": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "call": {
+              "type": "string",
+              "description": "a CID as text: 'z' + base58btc (docs/AIPI.md)",
+              "pattern": "^z[1-9A-HJ-NP-Za-km-z]+$",
+              "maxLength": 127
+            },
+            "route": {
+              "type": "string",
+              "enum": [
+                "cache",
+                "local",
+                "fetch_local"
+              ]
+            },
+            "result": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "output_hex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$"
+            },
+            "tag": {
+              "type": "object",
+              "description": "the job's 64-state hexagram tag (A4, kernel/src/lpres/lpres_hex.h)",
+              "properties": {
+                "base": {
+                  "type": "string"
+                },
+                "polarity": {
+                  "type": "string"
+                },
+                "phase": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "aipi.status",
+      "summary": "The AIPI node: offline, blockstore use, call counts and the sandbox's counters.",
+      "params": [],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "online": {
+              "type": "boolean"
+            },
+            "blocks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "store_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "store_cap": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "puts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "gets": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "publishes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "forbidden": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sandbox": {
+              "type": "object",
+              "properties": {
+                "runs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "checks": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "trapped": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "refused_module": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "refused_contract": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "fuel_used": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
             }
           }
         }

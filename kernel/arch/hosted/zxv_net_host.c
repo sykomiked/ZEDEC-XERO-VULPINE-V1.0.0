@@ -575,6 +575,8 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
     st->refused_in = n->refused;
     st->policy_drops = n->policy;
     st->send_errors = n->send_err;
+    st->share_compute = n->share_compute; /* U8: kept while off, too */
+    st->share_storage = n->share_storage;
     if (!st->bound) return;
     st->trades = n->link.committed + n->link.confirmed;
     st->receipts_refused = n->link.refused + n->node.rcpt_refused;
@@ -591,10 +593,95 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
         st->node_id_full[2 * i + 1] = hex[n->idn.id.b[i] & 15];
     }
     st->node_id_full[64] = 0;
-    st->share_compute = n->share_compute;
-    st->share_storage = n->share_storage;
     st->wants = 0;
     for (uint32_t i = 0; i < VNA_LINK_WANTS; i++) st->wants += n->link.want[i].used;
     static vna_contact_t c[POOL_CAP];
     st->peers = vna_node_contacts(&n->node, c, POOL_CAP);
+}
+
+/* ----- U9: listings ----- */
+static void hex_id(const uint8_t b[32], char out[65])
+{
+    static const char hex[] = "0123456789abcdef";
+    for (int i = 0; i < 32; i++) {
+        out[2 * i] = hex[b[i] >> 4];
+        out[2 * i + 1] = hex[b[i] & 15];
+    }
+    out[64] = 0;
+}
+
+static uint32_t pending_with(const zxv_net_t *n, const vna_id_t *id)
+{
+    uint32_t k = 0;
+    for (uint32_t i = 0; i < VNA_LINK_PEND; i++)
+        k += n->link.pend[i].used && vna_id_eq(&n->link.pend[i].peer, id);
+    return k;
+}
+
+uint32_t zxv_net_peers(const zxv_net_t *n, zxv_net_peer_t *out, uint32_t cap)
+{
+    if (!n || n->s == NBAD_SOCK) return 0;
+    static vna_contact_t c[POOL_CAP];
+    uint32_t k = vna_node_contacts(&n->node, c, POOL_CAP);
+    for (uint32_t i = 0; i < k && i < cap && out; i++) {
+        zxv_net_peer_t *p = &out[i];
+        memset(p, 0, sizeof *p);
+        hex_id(c[i].id.b, p->id);
+        if (c[i].addr_len == ADDR_LEN)
+            snprintf(p->addr, sizeof p->addr, "%u.%u.%u.%u:%u", c[i].addr[0], c[i].addr[1],
+                     c[i].addr[2], c[i].addr[3], (unsigned) (c[i].addr[4] << 8 | c[i].addr[5]));
+        p->bucket = c[i].bucket;
+        p->ubh = (c[i].flags & VNA_CF_UBH) != 0;
+        p->last_seen_ms = c[i].last_seen_ms;
+        for (uint32_t a = 0; a < BOOK_CAP; a++) {
+            const vna_account_t *ac = &n->acct[a];
+            if (!ac->used || !vna_id_eq(&ac->id, &c[i].id)) continue;
+            p->in_book = true;
+            p->member = ac->member;
+            p->social = ac->social;
+            for (uint32_t f = 0; f < VNA_FORMS; f++) {
+                p->held += ac->held[f];
+                p->receivable += ac->receivable[f];
+            }
+            break;
+        }
+        p->pending = pending_with(n, &c[i].id);
+    }
+    return k;
+}
+
+uint32_t zxv_net_wants(const zxv_net_t *n, zxv_net_want_info_t *out, uint32_t cap)
+{
+    if (!n || n->s == NBAD_SOCK) return 0;
+    uint32_t k = 0;
+    for (uint32_t i = 0; i < VNA_LINK_WANTS; i++) {
+        const vna_link_want_t *w = &n->link.want[i];
+        if (!w->used) continue;
+        if (out && k < cap)
+            out[k] = (zxv_net_want_info_t){i, w->resource, w->units_left, w->max_price};
+        k++;
+    }
+    return k;
+}
+
+uint32_t zxv_net_pending(const zxv_net_t *n, zxv_net_pend_info_t *out, uint32_t cap)
+{
+    if (!n || n->s == NBAD_SOCK) return 0;
+    uint32_t k = 0;
+    for (uint32_t i = 0; i < VNA_LINK_PEND; i++) {
+        const vna_link_pend_t *p = &n->link.pend[i];
+        if (!p->used) continue;
+        if (out && k < cap) {
+            zxv_net_pend_info_t *o = &out[k];
+            memset(o, 0, sizeof *o);
+            o->selling = p->role == VNA_LINK_SELL;
+            hex_id(p->peer.b, o->peer);
+            o->units = p->units;
+            o->pair_seq = p->pair_seq;
+            o->tries = p->tries;
+            o->want = o->selling ? -1 : p->want;
+        }
+        k++;
+    }
+    return k;
 }
