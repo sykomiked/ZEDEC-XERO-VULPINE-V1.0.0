@@ -109,6 +109,24 @@ see [`pillars/`](pillars/).
 | APL / K → KRON | [`apl-kron`](pillars/apl-kron/) | KRON, an exact array language (rank ≤ 2, int64 rationals, four-valued truth) read from APL glyphs or K ASCII into one canonical program, with ngn/k and GNU APL bindings | 135,621 checks, 5,866 golden cases from Python fractions, bindings checked against ngn/k and GNU APL |
 | MUMPS → MYRA | [`mumps-myra`](pillars/mumps-myra/) | M globals with typed subscripts and ^-piece values, M canonical numbers and collation, `$H` dates, a capability-gated ledger bridge and a GT.M binding; MYRA writes one line per node | 628,012 checks, golden files written by GT.M, 0 differences in a GT.M cross-check |
 
+## Industry kits
+
+Industry kits are small C11 libraries for one trade, built only on the
+public libzxv ABI. They use exact quantities, signed and hash-chained
+records, and a BOTH hold that waits for a person to decide. See
+[`industry/`](industry/).
+
+| Kit | Folder | What it gives you | Tests |
+|---|---|---|---|
+| Logix-Clear | [`logix-clear`](industry/logix-clear/) | Container lifecycle on the hexagram phase, rule-table release across jurisdictions, conflicts held for a human broker, exact duties posted to the ledger | 1,401 checks + fuzzing |
+| Tri-Deliver | [`tri-deliver`](industry/tri-deliver/) | Courier escrow released by the recipient's offline Ed25519 or ML-DSA-87 handoff signature; disputes frozen for an arbiter | 729 checks + fuzzing |
+| V-Shelf | [`v-shelf`](industry/v-shelf/) | Exact inventory in whole units or exact weights; negative stock refused; count variances held for an approver | 831 checks + fuzzing |
+| Tri-Trace | [`tri-trace`](industry/tri-trace/) | Per-item signed custody chains; duplicate scans frozen for a reviewer; whole chains verified offline | 627 checks + fuzzing |
+
+Advisory only: kits recommend, and people or certified systems act. They
+are not connected to any authority, and they make no certification or
+regulatory-compliance claims.
+
 ## What every SDK gives you
 
 | Feature | Type names | Guide |
