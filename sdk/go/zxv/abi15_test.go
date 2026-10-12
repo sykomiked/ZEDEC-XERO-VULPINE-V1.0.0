@@ -186,8 +186,8 @@ func TestABI15StatusesCapsFeatures(t *testing.T) {
 	c := must[*zxv.Capability](t)(ctx.RootCapability(1, nil, zxv.CapAll15))
 	ok(t, c.Check(zxv.CapAIPI|zxv.CapMint|zxv.CapParadox))
 	ok(t, c.Close())
-	if _, err := ctx.RootCapability(1, nil, zxv.CapAll15+1); statusOf(err) != zxv.StatusArg {
-		t.Fatalf("unknown bit 15 accepted: %v", err)
+	if _, err := ctx.RootCapability(1, nil, zxv.CapAll16+1); statusOf(err) != zxv.StatusArg {
+		t.Fatalf("unknown bit 16 accepted: %v", err)
 	}
 }
 
