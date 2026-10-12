@@ -103,6 +103,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc make clang libxml2-utils gnucobol3
+      - name: Seven-strata layer check
+        run: |
+          build_system/verify_layers.sh
+          python3 tests/harness/test_verify_strata.py
       - name: Run host tests
         env:
           ZXV_REQUIRE_COBOL: "1"
