@@ -516,3 +516,34 @@ jobs:
           done
       - name: libFuzzer, 60 s (skipped if this clang has no libFuzzer runtime)
         run: make PYTHON=python fuzz-libfuzzer
+
+  # AIPI kit (sdk/kits/aipi): content-addressed functions on Z-Wasm +
+  # z-contract, with the kernel's AIPI core compiled in. Test modules are
+  # assembled in C, so no Wasm toolchain is needed.
+  kit-aipi:
+    needs: changes
+    if: needs.changes.outputs.kits == 'true'
+    name: aipi ${{ matrix.os }} ${{ matrix.cc }}${{ matrix.san && ' ASan + UBSan' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, cc: gcc }
+          - { os: ubuntu-24.04, cc: clang }
+          - { os: ubuntu-24.04, cc: gcc, san: '1' }
+          - { os: macos-14, cc: clang }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sdk/kits/aipi
+    steps:
+      - uses: actions/checkout@v7
+      - run: make -C ../../libzxv all
+      - name: Tests and the no-float check
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: make CC=${{ matrix.cc }} SANITIZE=${{ matrix.san }} OUT=build/ci test
+      - name: Demo
+        if: ${{ !matrix.san }}
+        run: make CC=${{ matrix.cc }} OUT=build/ci demo
