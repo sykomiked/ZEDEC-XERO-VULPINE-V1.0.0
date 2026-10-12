@@ -30,13 +30,13 @@ To uninstall, quit ZXV, then delete the app and the folders listed in [Where dat
 1. ZXV opens a window with a Dock icon and a menu bar.
 2. It starts its engine (`ZXV.app/Contents/MacOS/zxv-engine`) in the background. The engine scans the hardware, sizes the swarm and serves the window.
 3. If no model is installed, ZXV asks once what to do:
-   - **Fetch from IPFS.** Shown only when the app's model manifest lists a model. ZXV downloads it, checks it, installs it and restarts the swarm with it. You get a notification when it finishes.
+   - **Download Model.** Shown only when the app's model manifest lists a model (this release lists Qwen2.5-1.5B-Instruct, Q4_K_M, about 1.1 GB, Apache-2.0). ZXV downloads it from IPFS when the manifest gives a CID, otherwise from the HTTPS mirror the manifest pins (the model's Hugging Face file at a fixed commit), checks its size and SHA-256, installs it and restarts the swarm with it. You get a notification when it finishes.
    - **Choose GGUF File…** Pick a `.gguf` file you already have. ZXV reads it where it is and does not copy it.
    - **Later.** The swarm runs without a model. It cannot write answers until you install one.
 
 Nothing is downloaded unless you say so, and ZXV never asks for notification permission at launch. macOS asks the first time ZXV has something to tell you.
 
-The same choices stay available from the **Model** menu: **Choose Model File…**, **Fetch Model from IPFS…**, **Use No Model**, **Show Models Folder** and **Show Logs Folder**.
+The same choices stay available from the **Model** menu: **Choose Model File…**, **Download Model…**, **Use No Model**, **Show Models Folder** and **Show Logs Folder**.
 
 ### Which model the engine uses
 
@@ -74,7 +74,7 @@ ZXV writes nothing else: no login item, no launch agent, no files outside these 
 |---|---|
 | **Offline**, model installed | Everything the app does today. The engine, window, swarm and model slot need no network. |
 | **Offline**, no model | The swarm runs. **Choose GGUF File…** works with any file on disk or a USB drive. |
-| **LAN** | **Fetch Model from IPFS** tries a local IPFS node first (`http://127.0.0.1:8080`). To use a node elsewhere on your LAN, set `ZXV_IPFS_GATEWAYS`, for example `launchctl setenv ZXV_IPFS_GATEWAYS "http://nas.local:8080"`, then reopen ZXV. |
+| **LAN** | For a model with a CID, **Download Model** tries a local IPFS node first (`http://127.0.0.1:8080`). To use a node elsewhere on your LAN, set `ZXV_IPFS_GATEWAYS`, for example `launchctl setenv ZXV_IPFS_GATEWAYS "http://nas.local:8080"`, then reopen ZXV. |
 | **Online** | The fetch falls back to the public gateways `ipfs.io` and `dweb.link`. |
 
 Wherever a model comes from, the fetcher installs it only if its exact size and SHA-256 match `models.manifest`. The manifest sits inside the signed app, so a hostile gateway or LAN peer can waste your time but cannot install a file. The CID locates the file; the pinned hash verifies it.

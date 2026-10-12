@@ -3,13 +3,22 @@
 #include "../../include/zxv_fixed.h"
 
 /* 128-bit intermediates let every operation detect overflow before it
- * happens. Every 64-bit target this kernel builds for provides them. */
-#if defined(__SIZEOF_INT128__)
+ * happens. Every 64-bit target this kernel builds for provides them.
+ *
+ * 32-bit targets (arm32, riscv32) have no __int128. There the "narrow"
+ * path below builds the few 128-bit steps it needs from two 64-bit limbs
+ * and checks every other step for overflow. It returns exactly what the
+ * wide path returns, including refusing the same results, so a value is
+ * never wrapped silently on any target. (Before 2026-10-12 this fallback
+ * did plain 64-bit arithmetic with no checks at all.)
+ *
+ * Define RAT_NO_WIDE to force the narrow path on a 64-bit host, so it can
+ * be tested there (src/rational/test_rational_narrow.c, run by verify-all). */
+#if defined(__SIZEOF_INT128__) && !defined(RAT_NO_WIDE)
 typedef __int128 wide_t;
 #define HAVE_WIDE 1
 #else
-typedef int64_t wide_t;
-#define HAVE_WIDE 0
+#    define HAVE_WIDE 0
 #endif
 
 static const int64_t I64_MAX = 0x7FFFFFFFFFFFFFFFLL;
@@ -21,29 +30,142 @@ static int64_t igcd(int64_t a, int64_t b) {
     return g ? g : 1;
 }
 
+#if !HAVE_WIDE
+/* An unsigned 128-bit magnitude as two 64-bit limbs. No helper below wraps
+ * or shifts out a set bit, so all of it stays clean under -fsanitize=integer. */
+typedef struct {
+    uint64_t hi, lo;
+} u128n;
+
+static bool mul_ovf(int64_t a, int64_t b, int64_t *r)
+{
+    return __builtin_mul_overflow(a, b, r);
+}
+static bool add_ovf(int64_t a, int64_t b, int64_t *r)
+{
+    return __builtin_add_overflow(a, b, r);
+}
+
+/* |v| as unsigned; correct for INT64_MIN too (2^63) */
+static uint64_t umag(int64_t v)
+{
+    return v < 0 ? (uint64_t) (-(v + 1)) + 1u : (uint64_t) v;
+}
+
+/* Full 64x64 -> 128-bit unsigned product, built from 32-bit halves. */
+static u128n mulu_wide(uint64_t a, uint64_t b)
+{
+    uint64_t a0 = a & 0xFFFFFFFFu, a1 = a >> 32;
+    uint64_t b0 = b & 0xFFFFFFFFu, b1 = b >> 32;
+    uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+    uint64_t mid = (p00 >> 32) + (p01 & 0xFFFFFFFFu) + (p10 & 0xFFFFFFFFu);
+    u128n r;
+    r.lo = (p00 & 0xFFFFFFFFu) | ((mid & 0xFFFFFFFFu) << 32);
+    r.hi = p11 + (p01 >> 32) + (p10 >> 32) + (mid >> 32);
+    return r;
+}
+
+static int u128_cmp(u128n a, u128n b)
+{
+    if (a.hi != b.hi) return a.hi < b.hi ? -1 : 1;
+    return a.lo < b.lo ? -1 : a.lo > b.lo ? 1 : 0;
+}
+/* a + b; callers keep both below 2^127, so the sum cannot leave 128 bits */
+static u128n u128_add(u128n a, u128n b)
+{
+    u128n r;
+    if (a.lo > UINT64_MAX - b.lo) {
+        r.lo = a.lo - (UINT64_MAX - b.lo) - 1u;
+        r.hi = a.hi + b.hi + 1u;
+    } else {
+        r.lo = a.lo + b.lo;
+        r.hi = a.hi + b.hi;
+    }
+    return r;
+}
+/* a - b; requires a >= b */
+static u128n u128_sub(u128n a, u128n b)
+{
+    u128n r;
+    if (a.lo >= b.lo) {
+        r.lo = a.lo - b.lo;
+        r.hi = a.hi - b.hi;
+    } else {
+        r.lo = (UINT64_MAX - b.lo) + a.lo + 1u;
+        r.hi = a.hi - b.hi - 1u;
+    }
+    return r;
+}
+
+/* (hi:lo) / d by shift-and-subtract. Requires d <= 2^63-1 (every caller
+ * passes a positive int64) and hi < d, which keeps hi below 2^63 so the
+ * shift never drops a bit, and makes the quotient fit in 64 bits. */
+static uint64_t divu_wide(uint64_t hi, uint64_t lo, uint64_t d, uint64_t *rem)
+{
+    uint64_t q = 0;
+    for (int i = 0; i < 64; i++) {
+        hi = (hi << 1) | (lo >> 63);
+        lo = (lo & 0x7FFFFFFFFFFFFFFFULL) << 1;
+        q <<= 1; /* q < 2^63 here: at most i < 64 bits */
+        if (hi >= d) {
+            hi -= d;
+            q |= 1;
+        }
+    }
+    *rem = hi;
+    return q;
+}
+#endif
+
 /* Reduce to lowest terms with den > 0. Keeping values reduced after every
  * operation is what stops denominators exploding over a long column of
  * sums — the practical reason naive rational arithmetic gets a bad name. */
+#if HAVE_WIDE
 static rat_t reduce(wide_t num, wide_t den) {
     if (den == 0) return invalid();
     if (num == 0) { rat_t r; r.num = 0; r.den = 1; r.valid = true; return r; }
     if (den < 0) { num = -num; den = -den; }
 
-#if HAVE_WIDE
     /* reduce in 128-bit, then check the result fits in 64 */
     wide_t a = num < 0 ? -num : num, b = den;
     while (b) { wide_t t = a % b; a = b; b = t; }
     wide_t g = a ? a : 1;
     num /= g; den /= g;
     if (num > (wide_t)I64_MAX || num < -(wide_t)I64_MAX) return invalid();
-    if (den > (wide_t)I64_MAX) return invalid();
-#else
-    int64_t g = igcd((int64_t)num, (int64_t)den);
-    num /= g; den /= g;
-#endif
+    if (den > (wide_t) I64_MAX) return invalid();
     rat_t r; r.num = (int64_t)num; r.den = (int64_t)den; r.valid = true;
     return r;
 }
+#else
+static rat_t reduce(int64_t num, int64_t den)
+{
+    if (den == 0) return invalid();
+    if (num == 0) {
+        rat_t r;
+        r.num = 0;
+        r.den = 1;
+        r.valid = true;
+        return r;
+    }
+    /* reduce the magnitudes as unsigned, so INT64_MIN (2^63) reduces like
+     * any other value, then check the result fits, as the wide path does */
+    bool neg = (num < 0) != (den < 0);
+    uint64_t n = umag(num), d = umag(den), a = n, b = d;
+    while (b) {
+        uint64_t t = a % b;
+        a = b;
+        b = t;
+    }
+    n /= a;
+    d /= a;
+    if (n > (uint64_t) I64_MAX || d > (uint64_t) I64_MAX) return invalid();
+    rat_t r;
+    r.num = neg ? -(int64_t) n : (int64_t) n;
+    r.den = (int64_t) d;
+    r.valid = true;
+    return r;
+}
+#endif
 
 rat_t rat_zero(void) { return rat_from_int(0); }
 
@@ -59,7 +181,11 @@ rat_t rat_from_int(int64_t v) {
 
 rat_t rat_make(int64_t num, int64_t den) {
     if (den == 0) return invalid();
+#if HAVE_WIDE
     return reduce((wide_t)num, (wide_t)den);
+#else
+    return reduce(num, den);
+#endif
 }
 
 /* ---- arithmetic ----
@@ -69,10 +195,44 @@ rat_t rat_make(int64_t num, int64_t den) {
 rat_t rat_add(rat_t a, rat_t b) {
     if (!a.valid || !b.valid) return invalid();
     int64_t g = igcd(a.den, b.den);
+#if HAVE_WIDE
     wide_t lcm_den = (wide_t)(a.den / g) * (wide_t)b.den;
     wide_t num = (wide_t)a.num * (wide_t)(b.den / g)
                + (wide_t)b.num * (wide_t)(a.den / g);
     return reduce(num, lcm_den);
+#else
+    /* Knuth's method (TAOCP 4.5.1): t = a.num*(b.den/g) + b.num*(a.den/g)
+     * shares no factor with the denominators except possibly one of g, so
+     * dividing by g2 = gcd(t, g) leaves the sum fully reduced. t needs up
+     * to 128 bits; it is kept as sign + two-limb magnitude. */
+    u128n p = mulu_wide(umag(a.num), (uint64_t) (b.den / g));
+    u128n q = mulu_wide(umag(b.num), (uint64_t) (a.den / g));
+    u128n t;
+    bool tneg;
+    if ((a.num < 0) == (b.num < 0)) {
+        t = u128_add(p, q);
+        tneg = a.num < 0;
+    } else if (u128_cmp(p, q) >= 0) {
+        t = u128_sub(p, q);
+        tneg = a.num < 0;
+    } else {
+        t = u128_sub(q, p);
+        tneg = b.num < 0;
+    }
+    if (t.hi == 0 && t.lo == 0) return rat_zero();
+    uint64_t tmod, rem;
+    divu_wide(t.hi % (uint64_t) g, t.lo, (uint64_t) g, &tmod);
+    int64_t g2 = igcd((int64_t) tmod, g);
+    if (t.hi >= (uint64_t) g2) return invalid(); /* |t|/g2 >= 2^64 */
+    uint64_t n = divu_wide(t.hi, t.lo, (uint64_t) g2, &rem);
+    int64_t d;
+    if (n > (uint64_t) I64_MAX || mul_ovf(a.den / g, b.den / g2, &d)) return invalid();
+    rat_t r;
+    r.num = tneg ? -(int64_t) n : (int64_t) n;
+    r.den = d;
+    r.valid = true;
+    return r;
+#endif
 }
 
 rat_t rat_sub(rat_t a, rat_t b) { return rat_add(a, rat_neg(b)); }
@@ -82,9 +242,20 @@ rat_t rat_mul(rat_t a, rat_t b) {
     /* cross-reduce first */
     int64_t g1 = igcd(a.num, b.den);
     int64_t g2 = igcd(b.num, a.den);
+#if HAVE_WIDE
     wide_t n = (wide_t)(a.num / g1) * (wide_t)(b.num / g2);
     wide_t d = (wide_t)(a.den / g2) * (wide_t)(b.den / g1);
     return reduce(n, d);
+#else
+    /* Both inputs are reduced, so after cross-reduction the products share
+     * no factor: the result is already in lowest terms, and it fits in 64
+     * bits exactly when these checked products do (reduce() then refuses
+     * the one in-range product it cannot hold, INT64_MIN). */
+    int64_t n, d;
+    if (mul_ovf(a.num / g1, b.num / g2, &n) || mul_ovf(a.den / g2, b.den / g1, &d))
+        return invalid();
+    return reduce(n, d);
+#endif
 }
 
 rat_t rat_div(rat_t a, rat_t b) {
@@ -117,9 +288,19 @@ int rat_cmp(rat_t a, rat_t b) {
     if (!a.valid && !b.valid) return 0;
     if (!a.valid) return 1;
     if (!b.valid) return -1;
+#if HAVE_WIDE
     wide_t l = (wide_t)a.num * (wide_t)b.den;
     wide_t r = (wide_t)b.num * (wide_t)a.den;
     return (l < r) ? -1 : (l > r) ? 1 : 0;
+#else
+    /* exact: compare signs, then the full 128-bit magnitudes */
+    int sa = (a.num > 0) - (a.num < 0), sb = (b.num > 0) - (b.num < 0);
+    if (sa != sb) return (sa < sb) ? -1 : 1;
+    if (sa == 0) return 0;
+    int c = u128_cmp(mulu_wide(umag(a.num), (uint64_t) b.den),
+                     mulu_wide(umag(b.num), (uint64_t) a.den));
+    return sa < 0 ? -c : c;
+#endif
 }
 bool rat_is_zero(rat_t a) { return a.valid && a.num == 0; }
 bool rat_is_int(rat_t a)  { return a.valid && a.den == 1; }
@@ -181,8 +362,16 @@ rat_t rat_from_string(const char *s) {
         if (!any) return invalid();
         if (!at_end(s)) return invalid();      /* trailing garbage is an error */
         /* ip + frac/scale, exactly */
+#if HAVE_WIDE
         wide_t num = (wide_t)ip * (wide_t)scale + (wide_t)frac;
         return reduce(sign * num, (wide_t)scale);
+#else
+        /* reduce frac/scale first: then ip*s + f is already in lowest
+         * terms over s, so it overflows only when the answer cannot fit */
+        int64_t g = igcd(frac, scale), s2 = scale / g, num;
+        if (mul_ovf(ip, s2, &num) || add_ovf(num, frac / g, &num)) return invalid();
+        return reduce(sign * num, s2);
+#endif
     }
 
     if (!any) return invalid();
@@ -232,14 +421,12 @@ uint32_t rat_to_string(rat_t a, char *out, uint32_t max) {
         /* exact terminating decimal */
         uint64_t scale = 1;
         for (uint32_t i = 0; i < places; i++) scale *= 10;
-        /* The scaling multiply MUST be done wide. `n` reaches 2^63-1 and
-         * `scale/d` reaches 5^18, so a 64-bit product wraps mod 2^64 and
-         * prints a completely different number with valid == true — which
-         * is exactly what rational.h promises can never happen. The sibling
-         * rat_to_fixed already scales in wide_t; this path did not. */
-        wide_t wscaled = (wide_t)n * (wide_t)(scale / d);
-        uint64_t ip = (uint64_t)(wscaled / (wide_t)scale);
-        uint64_t fp = (uint64_t)(wscaled % (wide_t)scale);
+        /* Split off the integer part first. A plain n * (scale/d) wraps
+         * mod 2^64 (n reaches 2^63-1, scale/d reaches 5^18) and would print
+         * a different number with valid == true. Since d divides scale,
+         * (n % d) * (scale/d) < scale <= 10^18 always fits, on every target. */
+        uint64_t ip = n / d;
+        uint64_t fp = (n % d) * (scale / d);
         at = put_u64(out, max, at, ip);
         if (places > 0 && fp != 0) {
             at = put(out, max, at, '.');
@@ -279,17 +466,30 @@ uint32_t rat_to_fixed(rat_t a, uint32_t places, char *out, uint32_t max,
     for (uint32_t i = 0; i < places; i++) scale *= 10;
 
     bool neg = a.num < 0;
-    wide_t n = (wide_t)(neg ? -a.num : a.num) * (wide_t)scale;
-    wide_t q = n / a.den;
-    wide_t rem = n % a.den;
+    uint64_t n = (uint64_t) (neg ? -a.num : a.num);
+    uint64_t d = (uint64_t) a.den;
+    /* integer part, then the scaled remainder; r < d keeps the fractional
+     * quotient below `scale`, so only r * scale needs 128 bits */
+    uint64_t ip = n / d, r = n % d, fp, rem;
+#if HAVE_WIDE
+    wide_t f = (wide_t) r * (wide_t) scale;
+    fp = (uint64_t) (f / (wide_t) d);
+    rem = (uint64_t) (f % (wide_t) d);
+#else
+    u128n f = mulu_wide(r, scale);
+    fp = divu_wide(f.hi, f.lo, d, &rem);
+#endif
     if (exact) *exact = (rem == 0);
-    /* round half away from zero */
-    if (rem * 2 >= a.den) q += 1;
+    /* round half away from zero; rem < d < 2^63, so rem * 2 cannot wrap */
+    if (rem * 2 >= d) {
+        if (++fp == scale) {
+            fp = 0;
+            ip++;
+        }
+    }
 
     uint32_t at = 0;
-    if (neg && q != 0) at = put(out, max, at, '-');
-    uint64_t ip = (uint64_t)(q / (wide_t)scale);
-    uint64_t fp = (uint64_t)(q % (wide_t)scale);
+    if (neg && (ip != 0 || fp != 0)) at = put(out, max, at, '-');
     at = put_u64(out, max, at, ip);
     if (places > 0) {
         at = put(out, max, at, '.');
