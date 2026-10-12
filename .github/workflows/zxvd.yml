@@ -79,6 +79,8 @@ jobs:
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c \
             -o "$RUNNER_TEMP/zxv-rpc-call"
           python3 macos/test_rpc_client.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/zxv-rpc-call"
+      - name: The model fetcher and the shipped model manifest
+        run: python3 macos/test_model_fetch.py
 
   mac-app:
     # W2: the Mac app's engine is zxvd with libzxv.dylib in the bundle, and the
