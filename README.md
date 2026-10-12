@@ -137,6 +137,7 @@ above as each one merges.
 |---|---|
 | Read the design philosophy | [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md) |
 | Know why the unusual design choices were made, look up a term, or check the evidence behind a claim | [`docs/supplemental/`](docs/supplemental/README.md) |
+| Read rigorous papers for mathematicians, logicians, physicists, economists, central bankers and computer scientists | [`docs/academic/`](docs/academic/README.md) |
 | Understand the license | [`LICENSE`](LICENSE) |
 | Build the kernel | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Navigate the source | [`SOURCE_CODE_NAVIGATION_GUIDE.md`](SOURCE_CODE_NAVIGATION_GUIDE.md), [`SUBSYSTEM_INDEX.md`](SUBSYSTEM_INDEX.md) |
