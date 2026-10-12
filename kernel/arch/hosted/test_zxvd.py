@@ -343,6 +343,29 @@ def payment_checks(c, usd_account):
           hs['escrow_accounts'][0]['held_minor'] == '0' and hs['unmatched'] == 0,
           'ledger.holds (%s)' % hs)
     check(c.ok('ledger.check')['ok'] is True, 'the books balance after escrow')
+def econ_checks(c):
+    """bonds.*, derivatives.*, grants.*, estate.* over the socket (zxvd_sandbox.h)."""
+    fs = {f['name']: f for f in c.ok('features.get')['features']}
+    if 'estate' not in fs:
+        check(True, 'economy groups: not in this build')
+        return
+    check(all(fs[n]['regulated'] for n in ('bonds', 'derivatives', 'grants')) and
+          not fs['estate']['regulated'] and not any(fs[n]['enabled'] for n in
+                                                     ('bonds', 'derivatives', 'grants', 'estate')),
+          'economy groups: bonds, derivatives, grants regulated; all four start off')
+    r = c.call('bonds.setup', {'juris': 1, 'gateway': 900})
+    check(r.get('error', {}).get('code') == -32012 and 'regulated' in r['error']['message'],
+          'bonds.setup while off answers -32012 (%s)' % r.get('error'))
+    st = c.ok('derivatives.status')
+    check(st['leverage'] is False and st['set_up'] is False,
+          'derivatives.status answers while off, never with leverage')
+    c.ok('features.set', {'feature': 'estate'})
+    fa = c.ok('estate.faraid', {'husband': True, 'daughters': 1, 'amount_minor': 1200})
+    check(fa['ruling'] is False and fa['advisory'] is True and 'not a ruling' in fa['notice'],
+          'estate.faraid computes shares as advice, not a ruling')
+    r = c.call('estate.begin')
+    check(r.get('error', {}).get('code') == -32060, 'estate.begin before setup answers -32060')
+    c.ok('features.set', {'feature': 'estate', 'enabled': False})
 
 
 def main(binary, gguf=None):
@@ -462,6 +485,7 @@ def main(binary, gguf=None):
             check(r.get('error', {}).get('code') == -32601, 'aipi.*: not available on Windows')
         else:
             aipi_checks(c, home)
+        econ_checks(c)
         mi = c.ok('model.info')
         if gguf:
             check(mi['loaded'] and mi['arch'] == 'qwen2' and mi['n_vocab'] > 1000,

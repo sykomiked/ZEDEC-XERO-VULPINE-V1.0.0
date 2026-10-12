@@ -97,11 +97,16 @@ case "${1:-srcs}" in
         # vbond, which link but are not served. pay, sha256 and keccak are in srcs.
         echo arch/hosted/zxvd_econ.c
         for f in svault vswap vauction zenny zstats grants vbond; do echo "src/$f/$f.c"; done
+        # economy groups (zxvd_sandbox.h): bonds, derivatives, grants, estate
+        for f in zxvd_sandbox zxvd_instruments zxvd_estate; do echo "arch/hosted/$f.c"; done
+        echo src/vderiv/vderiv.c
+        for f in estate faraid recovery; do echo "src/estate/$f.c"; done
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate; do echo "$d"; done
         ;;
     *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs]" >&2; exit 2 ;;
 esac

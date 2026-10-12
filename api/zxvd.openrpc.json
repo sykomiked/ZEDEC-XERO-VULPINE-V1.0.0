@@ -8403,6 +8403,5673 @@
         }
       },
       "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.setup",
+      "summary": "Start the V-Bond engine (vbond.h) on its own sandbox ledger, once per run. Issuing stays off until the gateway signs a jurisdiction manifest (bonds.switch). A V-Bond has no rate: its only return is a share of realised revenue in its pool.",
+      "params": [
+        {
+          "name": "juris",
+          "required": true,
+          "description": "the jurisdiction code this instance serves",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "gateway",
+          "required": true,
+          "description": "key id of the jurisdiction gateway",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "terms",
+          "required": false,
+          "description": "allowed Fibonacci indices k, increasing (default [13,17,21]: 233, 1597, 10946 ticks)",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxItems": 8
+          }
+        },
+        {
+          "name": "weights",
+          "required": false,
+          "description": "a weight per term, not falling (default F(k))",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxItems": 8
+          }
+        },
+        {
+          "name": "share_num",
+          "required": false,
+          "description": "premium share numerator (default 1): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "share_den",
+          "required": false,
+          "description": "premium share denominator (default 2): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "setup",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "juris": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gateway": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lock_account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "terms": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "k": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "ticks": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "weight": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "share_num": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "share_den": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "issuing_enabled": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.key",
+      "summary": "Register an Ed25519 public key under the engine's numeric key id, once (a different key for a registered id is refused; zxvd_econ.h C2). Key ids equal the ledger owner ids they sign for.",
+      "params": [
+        {
+          "name": "key",
+          "required": true,
+          "description": "the engine's key id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "public_key",
+          "required": true,
+          "description": "the key (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "key",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "added": {
+              "type": "boolean"
+            },
+            "keys": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.account_open",
+      "summary": "Open an account on this group's sandbox ledger (Vino and V-Bills, in memory).",
+      "params": [
+        {
+          "name": "owner",
+          "required": true,
+          "description": "owner id, below 4294967040 (the rest are zxvd's own)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "asset",
+          "required": true,
+          "description": "the asset",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "vino",
+              "vbill"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "asset": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.fund",
+      "summary": "Issue sandbox units to an account from the sandbox issuer so a flow can be tried: not money, not in the owner's books, convertible to nothing (zxvd_econ.h C1).",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "description": "a fundable sandbox account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "> 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "funded",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "balance_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.account",
+      "summary": "One sandbox account: owner, asset and balances. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "description": "account id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "asset": {
+              "type": "string"
+            },
+            "balance_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "credit_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.switch",
+      "summary": "B0: the gateway-signed jurisdiction manifest that turns issuing and transfers on or off. Redemption and distribution always work.",
+      "params": [
+        {
+          "name": "enable",
+          "required": false,
+          "description": "turn the engine on (true) or off (false)",
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "manifest epoch, above the last: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "the gateway's Ed25519 signature over the switch message (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "switch",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "issuing_enabled": {
+              "type": "boolean"
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.message",
+      "summary": "The exact bytes to sign: kind switch (enable, epoch: for the gateway) or transfer (serial, to, payee: for the bond's owner, at its current nonce). Answers while the feature is off.",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "description": "what is signed",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "switch",
+              "transfer"
+            ]
+          }
+        },
+        {
+          "name": "enable",
+          "required": false,
+          "description": "switch: on or off",
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "epoch",
+          "required": false,
+          "description": "switch: manifest epoch: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "serial",
+          "required": false,
+          "description": "transfer: the bond: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "to",
+          "required": false,
+          "description": "transfer: the new owner",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "payee",
+          "required": false,
+          "description": "transfer: the new owner's Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "message",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$",
+              "description": "the exact bytes to sign"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "scheme": {
+              "type": "string",
+              "const": "ed25519"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.issue",
+      "summary": "B1: lock qty V-Bills for F(k) ticks in one posting; maturity = now + F(k). No early redemption; the principal can be worth less at maturity.",
+      "params": [
+        {
+          "name": "owner",
+          "required": true,
+          "description": "owner id (also its key id)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "vbill_account",
+          "required": true,
+          "description": "the owner's V-Bill account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "payee",
+          "required": true,
+          "description": "the owner's Vino account for the profit share",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "qty",
+          "required": true,
+          "description": "V-Bills, > 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "k",
+          "required": true,
+          "description": "an allowed Fibonacci index",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "bond",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "serial": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "payee": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "qty": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "k": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "start": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "maturity": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "nonce": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "last_paid_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.transfer",
+      "summary": "B2: hand a bond to another owner with the current owner's signature; the V-Bills stay locked. Any price is settled outside: there is no order book.",
+      "params": [
+        {
+          "name": "serial",
+          "required": true,
+          "description": "the bond: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "from",
+          "required": true,
+          "description": "its current owner",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "to",
+          "required": true,
+          "description": "the new owner",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "payee",
+          "required": true,
+          "description": "the new owner's Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "bond",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "serial": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "payee": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "qty": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "k": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "start": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "maturity": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "nonce": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "last_paid_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.redeem",
+      "summary": "B3: at or after maturity, the current owner gets the V-Bills back in one posting.",
+      "params": [
+        {
+          "name": "serial",
+          "required": true,
+          "description": "the bond: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "required": true,
+          "description": "its current owner",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "vbill_account",
+          "required": true,
+          "description": "the owner's V-Bill account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "redeemed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "serial": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "returned_qty": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "vbill_account": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.credit",
+      "summary": "B4: realised revenue into the bond pool: amount_minor as given, or (price, floor, qty) the premium share floor((price - floor) * qty * share_num / share_den), 0 below the floor.",
+      "params": [
+        {
+          "name": "src",
+          "required": true,
+          "description": "the Vino account paying",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "pool",
+          "required": true,
+          "description": "the pool Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": false,
+          "description": "revenue (when no price): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "required": false,
+          "description": "auction clearing price: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "floor",
+          "required": false,
+          "description": "auction floor (with price): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "qty",
+          "required": false,
+          "description": "V-Bills cleared (with price): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "credit",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "credited_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "pool_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "premium": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.distribute",
+      "summary": "B4: pay the whole pool to the live bonds by qty * term weight, largest remainder; the parts sum to the pool exactly. Nothing is promised: an empty pool pays nothing.",
+      "params": [
+        {
+          "name": "pool",
+          "required": true,
+          "description": "the pool Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "distribution",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "pool_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "units": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "paid_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "payees": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "postings": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "paid": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "serial": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "payee": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "bonds.status",
+      "summary": "The engine: switch, live bonds, locked V-Bills and the B5 invariant check. Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "set_up": {
+              "type": "boolean"
+            },
+            "keys": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "issuing_enabled": {
+              "type": "boolean"
+            },
+            "juris": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gateway": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "switch_epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "locked_qty": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "postings": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "bonds": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "serial": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "owner": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "payee": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "qty": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "k": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "start": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "maturity": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "last_paid_minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "check": {
+              "type": "boolean"
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.setup",
+      "summary": "Start the V-Call / V-Perp engine (vderiv.h) on its own sandbox ledger, once per run. Opening stays off until the gateway signs a jurisdiction manifest; every position is fully collateralised (no leverage, no margin, no funding rate).",
+      "params": [
+        {
+          "name": "juris",
+          "required": true,
+          "description": "the jurisdiction code this instance serves",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "gateway",
+          "required": true,
+          "description": "key id of the jurisdiction gateway",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "first_epoch",
+          "required": false,
+          "description": "the first index epoch (default 1): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "setup",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "juris": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gateway": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "call_escrow": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "long_escrow": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "short_escrow": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reserve": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "first_epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "opening_enabled": {
+              "type": "boolean",
+              "const": false
+            },
+            "leverage": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.key",
+      "summary": "Register an Ed25519 public key under the engine's numeric key id, once (a different key for a registered id is refused; zxvd_econ.h C2). Key ids equal the ledger owner ids they sign for.",
+      "params": [
+        {
+          "name": "key",
+          "required": true,
+          "description": "the engine's key id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "public_key",
+          "required": true,
+          "description": "the key (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "key",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "added": {
+              "type": "boolean"
+            },
+            "keys": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.account_open",
+      "summary": "Open an account on this group's sandbox ledger (Vino, in memory).",
+      "params": [
+        {
+          "name": "owner",
+          "required": true,
+          "description": "owner id, below 4294967040 (the rest are zxvd's own)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "asset",
+          "required": true,
+          "description": "the asset",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "vino"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "asset": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.fund",
+      "summary": "Issue sandbox units to an account from the sandbox issuer so a flow can be tried: not money, not in the owner's books, convertible to nothing (zxvd_econ.h C1).",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "description": "a fundable sandbox account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "> 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "funded",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "balance_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.account",
+      "summary": "One sandbox account: owner, asset and balances. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "description": "account id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "asset": {
+              "type": "string"
+            },
+            "balance_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "credit_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.switch",
+      "summary": "V5: the gateway-signed jurisdiction manifest that turns opening on or off. Settling, closing and pushing always work.",
+      "params": [
+        {
+          "name": "enable",
+          "required": false,
+          "description": "turn the engine on (true) or off (false)",
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "manifest epoch, above the last: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "the gateway's Ed25519 signature over the switch message (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "switch",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "opening_enabled": {
+              "type": "boolean"
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "leverage": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.message",
+      "summary": "The exact bytes to sign: kind switch (enable, epoch), call (the call terms), perp (the perp terms) or close (id, side). Answers while the feature is off.",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "description": "what is signed",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "switch",
+              "call",
+              "perp",
+              "close"
+            ]
+          }
+        },
+        {
+          "name": "...",
+          "required": false,
+          "description": "the parameters of derivatives.switch, call_open, perp_open or perp_close, without signatures",
+          "schema": {}
+        }
+      ],
+      "result": {
+        "name": "message",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$",
+              "description": "the exact bytes to sign"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "scheme": {
+              "type": "string",
+              "const": "ed25519"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.push",
+      "summary": "V0: the next auction epoch's clearing (index = qty). Fixes due calls and settles every open perp in one posting; a perp whose side falls below size * band stops.",
+      "params": [
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "exactly the last epoch + 1 (first: first_epoch): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "required": true,
+          "description": "the clearing price (kept for audit): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "qty",
+          "required": true,
+          "description": "V-Bills cleared: the index: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "push",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "index": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "moved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "stopped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fixed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fees_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.call_open",
+      "summary": "V1: open a capped call, both parties signing the terms: the buyer pays the premium (less the 0.08889% fee) and the writer locks n * (C - K).",
+      "params": [
+        {
+          "name": "nonce",
+          "required": false,
+          "description": "the engine's next terms nonce (default: it): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "writer_key",
+          "required": true,
+          "description": "the writer's key id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "writer",
+          "required": true,
+          "description": "the writer's Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "buyer_key",
+          "required": true,
+          "description": "the buyer's key id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "buyer",
+          "required": true,
+          "description": "the buyer's Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "strike",
+          "required": true,
+          "description": "K: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cap",
+          "required": true,
+          "description": "C > K: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "size",
+          "required": true,
+          "description": "n > 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "expiry",
+          "required": true,
+          "description": "the expiry epoch, not yet pushed: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "premium",
+          "required": true,
+          "description": "Vino minor units the buyer pays: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "writer_sig",
+          "required": true,
+          "description": "the writer's signature over the call message (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        },
+        {
+          "name": "buyer_sig",
+          "required": true,
+          "description": "the buyer's signature over the call message (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "call",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "nonce": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "lock_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "premium_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "fee_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "expiry": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.call_settle",
+      "summary": "V1: after its expiry is pushed, pay n * (min(I, C) - K) (less the fee) to the buyer and the rest of the lock to the writer, in one posting. Anyone may trigger it.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "description": "the call",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "settlement",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fixing": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "payoff_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "fee_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "to_buyer_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "to_writer_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.perp_open",
+      "summary": "V2: open a fully collateralised perp, both sides signing; the reference index is the last pushed one.",
+      "params": [
+        {
+          "name": "nonce",
+          "required": false,
+          "description": "the engine's next terms nonce (default: it): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "long_key",
+          "required": true,
+          "description": "the long side's key id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "long_account",
+          "required": true,
+          "description": "the long side's Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "short_key",
+          "required": true,
+          "description": "the short side's key id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "short_account",
+          "required": true,
+          "description": "the short side's Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "size",
+          "required": true,
+          "description": "n > 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "band",
+          "required": true,
+          "description": "largest index move settled per epoch, > 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lock_long",
+          "required": true,
+          "description": "the long side's collateral, at least size * band: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lock_short",
+          "required": true,
+          "description": "the short side's collateral, at least size * band: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "long_sig",
+          "required": true,
+          "description": "the long side's signature over the perp message (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        },
+        {
+          "name": "short_sig",
+          "required": true,
+          "description": "the short side's signature over the perp message (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "perp",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "nonce": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "ref_index": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "opened_epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.perp_close",
+      "summary": "V2: pay both sides their balances in one posting. An open perp needs that side's signature over the close message; a stopped one closes without.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "description": "the perp",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "side",
+          "required": true,
+          "description": "who asks",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "long",
+              "short"
+            ]
+          }
+        },
+        {
+          "name": "sig",
+          "required": false,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "closed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "to_long_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "to_short_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "derivatives.status",
+      "summary": "The engine: switch, nonce, index, open calls and perps, fees and the V4 invariant check. Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "set_up": {
+              "type": "boolean"
+            },
+            "keys": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "leverage": {
+              "type": "boolean",
+              "const": false
+            },
+            "opening_enabled": {
+              "type": "boolean"
+            },
+            "juris": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gateway": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "switch_epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "next_nonce": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "pushed": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "last_epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "fees_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "calls": {
+              "type": "array"
+            },
+            "perps": {
+              "type": "array"
+            },
+            "check": {
+              "type": "boolean"
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.setup",
+      "summary": "Start the barrel grant engine (grants.h) on its own sandbox ledger, once per run: a pool, a reserve and the BRL-V barrel issuer. Grants are paid only from the pool's balance, never minted.",
+      "params": [
+        {
+          "name": "funnel",
+          "required": true,
+          "description": "key id of the dispute funnel (appeals, disputes)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "underwriters",
+          "required": false,
+          "description": "listed underwriter key ids (at most 8)",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxItems": 8
+          }
+        },
+        {
+          "name": "min_uptime_bps",
+          "required": false,
+          "description": "default 9500",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "min_volume",
+          "required": false,
+          "description": "default 10000: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "min_stake",
+          "required": false,
+          "description": "default 100000: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cap_num",
+          "required": false,
+          "description": "budget cap numerator (default 1): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cap_den",
+          "required": false,
+          "description": "budget cap denominator (default 1): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "setup",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "funnel": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "pool": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reserve": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "issuer": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "underwriters": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "min_uptime_bps": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "min_volume": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "min_stake": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "cap_num": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "cap_den": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "minted": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.key",
+      "summary": "Register an Ed25519 public key under the engine's numeric key id, once (a different key for a registered id is refused; zxvd_econ.h C2). Key ids equal the ledger owner ids they sign for.",
+      "params": [
+        {
+          "name": "key",
+          "required": true,
+          "description": "the engine's key id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "public_key",
+          "required": true,
+          "description": "the key (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "key",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "added": {
+              "type": "boolean"
+            },
+            "keys": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.account_open",
+      "summary": "Open an account on this group's sandbox ledger (Vino, and barrel accounts for recipients; in memory).",
+      "params": [
+        {
+          "name": "owner",
+          "required": true,
+          "description": "owner id, below 4294967040 (the rest are zxvd's own)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "asset",
+          "required": true,
+          "description": "the asset",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "vino",
+              "barrel"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "asset": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.fund",
+      "summary": "Issue sandbox units to an account from the sandbox issuer so a flow can be tried: not money, not in the owner's books, convertible to nothing (zxvd_econ.h C1).",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "description": "a fundable sandbox account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "> 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "funded",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "balance_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.account",
+      "summary": "One sandbox account: owner, asset and balances. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "description": "account id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "owner": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "asset": {
+              "type": "string"
+            },
+            "balance_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "credit_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.epoch",
+      "summary": "Begin epoch e (above the current one): a fresh G4 record; stale appeals are freed.",
+      "params": [
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "the new epoch: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "epoch",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.pool_credit",
+      "summary": "Move Vino into the grant pool (the raffle slice) and count it as this epoch's inflow.",
+      "params": [
+        {
+          "name": "from",
+          "required": true,
+          "description": "the Vino account paying",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "> 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "pool",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "pool_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "inflow_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.lot_open",
+      "summary": "Open a barrel lot (unbacked until an underwriter attests).",
+      "params": [
+        {
+          "name": "lot",
+          "required": true,
+          "description": "lot id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "lot",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "lot": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "label": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.eval",
+      "summary": "G2: whether one subject is in good standing this epoch, and the reasons when not (an appeal clears its bits).",
+      "params": [
+        {
+          "name": "subject",
+          "required": true,
+          "description": "participant id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "uptime_bps",
+          "required": true,
+          "description": "0..10000",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "dropped_reports",
+          "required": false,
+          "description": "default 0",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "routing_reports",
+          "required": false,
+          "description": "default 0",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "failed_challenges",
+          "required": false,
+          "description": "default 0",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "fraud_findings",
+          "required": false,
+          "description": "default 0",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "volume",
+          "required": true,
+          "description": "Vino minor units over the window: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake",
+          "required": true,
+          "description": "baseline stake, Vino minor units: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "standing",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "eligible": {
+              "type": "boolean"
+            },
+            "mask": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "uptime",
+                  "dropped",
+                  "routing",
+                  "audit",
+                  "fraud",
+                  "volume",
+                  "stake",
+                  "invalid"
+                ]
+              }
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.appeal",
+      "summary": "G2: a dispute-funnel ruling that clears the masked reasons for one subject in one epoch.",
+      "params": [
+        {
+          "name": "subject",
+          "required": true,
+          "description": "participant id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "the epoch (not below the current): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mask",
+          "required": true,
+          "description": "reason bits 1..127 (uptime 1, dropped 2, routing 4, audit 8, fraud 16, volume 32, stake 64)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "appeal",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "mask": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.distribute",
+      "summary": "G3: one grant per epoch: B = floor(pool * cap / price) barrels split by weight (largest remainder), paid pool -> reserve; every recipient must be in good standing or nothing is granted. A pool that cannot pay one whole barrel is refused (GRANT_ERR_EMPTY): nothing is minted.",
+      "params": [
+        {
+          "name": "lot",
+          "required": true,
+          "description": "an open, unattested lot",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "price",
+          "required": true,
+          "description": "Vino per barrel, > 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipients",
+          "required": true,
+          "description": "1..32 recipients (about 20 fit one request line)",
+          "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "properties": {
+                "account": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "weight": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "subject": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "uptime_bps": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "dropped_reports": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "routing_reports": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "failed_challenges": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "fraud_findings": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "volume": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "stake": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "account",
+                "weight",
+                "subject",
+                "uptime_bps",
+                "volume",
+                "stake"
+              ]
+            }
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "grant",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "barrels": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "cost_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "postings": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "shares": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "barrels": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "pool_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.attest",
+      "summary": "G5: a listed underwriter's signature over (lot, count, underwriter, expiry) backs a lot until expiry. A signature proves who signed, not that any oil exists.",
+      "params": [
+        {
+          "name": "lot",
+          "required": true,
+          "description": "lot id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "count",
+          "required": true,
+          "description": "the lot's outstanding barrels: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "underwriter",
+          "required": true,
+          "description": "a listed underwriter key id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "expiry",
+          "required": true,
+          "description": "unix seconds, above now and the last expiry: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "attestation",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "lot": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "backed": {
+              "type": "boolean"
+            },
+            "label": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.dispute",
+      "summary": "G5: a dispute-funnel ruling voids the lot's attestation.",
+      "params": [
+        {
+          "name": "lot",
+          "required": true,
+          "description": "lot id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "dispute",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "lot": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "backed": {
+              "type": "boolean"
+            },
+            "disputed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.redeem",
+      "summary": "G5: for a backed lot only, the holder returns n barrels and receives n * price Vino from the reserve in one posting.",
+      "params": [
+        {
+          "name": "holder",
+          "required": true,
+          "description": "the holder's barrel account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "holder_vino",
+          "required": true,
+          "description": "the holder's Vino account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "lot",
+          "required": true,
+          "description": "lot id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "n",
+          "required": true,
+          "description": "barrels: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "required": true,
+          "description": "Vino per barrel: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "redemption",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "lot": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "barrels": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "paid_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "held": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.message",
+      "summary": "The exact bytes to sign: kind appeal (subject, epoch, mask), attest (lot, count, underwriter, expiry) or dispute (lot). Answers while the feature is off.",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "description": "what is signed",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "appeal",
+              "attest",
+              "dispute"
+            ]
+          }
+        },
+        {
+          "name": "...",
+          "required": false,
+          "description": "the parameters of grants.appeal, attest or dispute, without the signature",
+          "schema": {}
+        }
+      ],
+      "result": {
+        "name": "message",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$",
+              "description": "the exact bytes to sign"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "scheme": {
+              "type": "string",
+              "const": "ed25519"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "grants.status",
+      "summary": "G4 aggregates (no per-account data), the lots with their labels at now, and the G1 mirror check. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "set_up": {
+              "type": "boolean"
+            },
+            "keys": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "inflow_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "weight": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "rate_defined": {
+              "type": "boolean"
+            },
+            "rate_num": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "rate_den": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "granted_barrels": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "granted_cost_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "total_barrels_granted": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "pool_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "reserve_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "barrels_outstanding": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "barrels_backed": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "barrels_unbacked": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "lots": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "lot": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "count": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "backed": {
+                    "type": "boolean"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "check": {
+              "type": "boolean"
+            },
+            "minted": {
+              "type": "boolean",
+              "const": false
+            },
+            "sandbox": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.setup",
+      "summary": "Start the estate engine (estate.h), once per run: the owner's key (living veto), guardians and k, attestors, the court and the jurisdiction gateway. Bookkeeping only: nothing is moved.",
+      "params": [
+        {
+          "name": "owner",
+          "required": true,
+          "description": "the owner (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "guardians",
+          "required": true,
+          "description": "the guardians (1..5 Ed25519 public keys of 32 bytes, back to back, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{64}){1,5}$"
+          }
+        },
+        {
+          "name": "k",
+          "required": true,
+          "description": "approvals needed, 1..guardians",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "attestors",
+          "required": true,
+          "description": "the death attestors (1..4 Ed25519 public keys of 32 bytes, back to back, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{64}){1,4}$"
+          }
+        },
+        {
+          "name": "court",
+          "required": true,
+          "description": "the court (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "gateway",
+          "required": true,
+          "description": "the jurisdiction gateway (rulings) (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "wait",
+          "required": false,
+          "description": "seconds from report to confirmation (default 0): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "release",
+          "required": false,
+          "description": "seconds from confirmation to key release (default 0): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "setup",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "guardians": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "k": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "attestors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "wait": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "release": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "phase": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.manifest",
+      "summary": "E2/E4/E5: the inheritance manifest, exact fractions summing to 1. common: the will's heirs [{id, num, den}], only while alive. faraid: the heirs (faraid.h F1) and their ids. forced: jurisdiction (FR built in), children ids, gifts [{id, num}] over will_den. faraid and forced are ADVISORY and need a gateway ruling before distribution.",
+      "params": [
+        {
+          "name": "enclave",
+          "required": true,
+          "description": "the rule set",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "common",
+              "faraid",
+              "forced"
+            ]
+          }
+        },
+        {
+          "name": "heirs",
+          "required": false,
+          "description": "common: 1..16 heirs",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "num": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "den": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "husband",
+          "required": false,
+          "description": "a husband survives",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "wives",
+          "required": false,
+          "description": "wives (0..4)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "father",
+          "required": false,
+          "description": "the father survives",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "mother",
+          "required": false,
+          "description": "the mother survives",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "sons",
+          "required": false,
+          "description": "sons",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "daughters",
+          "required": false,
+          "description": "daughters",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "others",
+          "required": false,
+          "description": "any other relative survives (refused: not modelled)",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "ids",
+          "required": false,
+          "description": "faraid: one id per person: husband or each wife, father, mother, each son, each daughter",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxItems": 16
+          }
+        },
+        {
+          "name": "jurisdiction",
+          "required": false,
+          "description": "forced: two letters, e.g. FR",
+          "schema": {
+            "type": "string",
+            "maxLength": 3
+          }
+        },
+        {
+          "name": "children",
+          "required": false,
+          "description": "forced: the children's ids",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "maxItems": 16
+          }
+        },
+        {
+          "name": "gifts",
+          "required": false,
+          "description": "forced: the will's gifts to non-children",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "num": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "will_den",
+          "required": false,
+          "description": "forced: the gifts' common denominator: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "manifest",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "enclave": {
+              "type": "string"
+            },
+            "advisory": {
+              "type": "boolean"
+            },
+            "heirs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "num": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "den": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$",
+              "description": "SHA3-256 of the manifest"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.faraid",
+      "summary": "Faraid shares (faraid.h) for husband, wives, father, mother, sons and daughters as exact fractions, and with amount_minor each person's exact part (largest remainder; the parts sum to the amount). A COMPUTATION of one common majority treatment, NOT A RULING: a qualified scholar or court decides.",
+      "params": [
+        {
+          "name": "husband",
+          "required": false,
+          "description": "a husband survives",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "wives",
+          "required": false,
+          "description": "wives (0..4)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "father",
+          "required": false,
+          "description": "the father survives",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "mother",
+          "required": false,
+          "description": "the mother survives",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "sons",
+          "required": false,
+          "description": "sons",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "daughters",
+          "required": false,
+          "description": "daughters",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "others",
+          "required": false,
+          "description": "any other relative survives (refused: not modelled)",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": false,
+          "description": "an amount to split: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "faraid",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "class": {
+                    "type": "string"
+                  },
+                  "persons": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "each_minor": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,19}$",
+                      "description": "64-bit integer as a decimal string"
+                    }
+                  },
+                  "num": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "den": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "unallocated": {
+              "type": "object",
+              "properties": {
+                "num": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,19}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                "den": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,19}$",
+                  "description": "64-bit integer as a decimal string"
+                }
+              }
+            },
+            "awl": {
+              "type": "boolean"
+            },
+            "radd": {
+              "type": "boolean"
+            },
+            "amount_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "advisory": {
+              "type": "boolean",
+              "const": true
+            },
+            "ruling": {
+              "type": "boolean",
+              "const": false
+            },
+            "notice": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.report",
+      "summary": "E1: a death attestation signed by an attestor, with the executor bond (held, not moved).",
+      "params": [
+        {
+          "name": "attestor",
+          "required": true,
+          "description": "attestor index",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "bond_minor",
+          "required": true,
+          "description": "the executor bond, > 0: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "phase",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "alive",
+                "reported",
+                "confirmed",
+                "ruled",
+                "distributing",
+                "closed"
+              ]
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.approve",
+      "summary": "E1: a guardian approves the report.",
+      "params": [
+        {
+          "name": "guardian",
+          "required": true,
+          "description": "guardian index",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "approvals",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "approvals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "k": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.confirm",
+      "summary": "E1: k approvals and the waiting period over: CONFIRMED. Nothing happens on time or silence alone.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "phase",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "alive",
+                "reported",
+                "confirmed",
+                "ruled",
+                "distributing",
+                "closed"
+              ]
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.rule",
+      "summary": "E1/E6: the jurisdiction gateway's signed ruling on a faraid or forced-heirship manifest.",
+      "params": [
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "phase",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "alive",
+                "reported",
+                "confirmed",
+                "ruled",
+                "distributing",
+                "closed"
+              ]
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.begin",
+      "summary": "E1: start distributing (common law after confirmation; faraid and forced after the ruling).",
+      "params": [],
+      "result": {
+        "name": "phase",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "alive",
+                "reported",
+                "confirmed",
+                "ruled",
+                "distributing",
+                "closed"
+              ]
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.close",
+      "summary": "E1: close the estate; a bond still held is refunded.",
+      "params": [],
+      "result": {
+        "name": "phase",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "alive",
+                "reported",
+                "confirmed",
+                "ruled",
+                "distributing",
+                "closed"
+              ]
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.veto",
+      "summary": "E1: the living owner's signature cancels a report: back to alive, the epoch moves on, a held bond is refunded.",
+      "params": [
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "phase",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "alive",
+                "reported",
+                "confirmed",
+                "ruled",
+                "distributing",
+                "closed"
+              ]
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.fraud",
+      "summary": "E1: a guardian or the court finds fraud: the held bond is forfeited.",
+      "params": [
+        {
+          "name": "who",
+          "required": true,
+          "description": "guardian index, or 255 for the court",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "bond",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "bond": {
+              "type": "string",
+              "const": "forfeited"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.contest",
+      "summary": "E2a: a guardian or the court contests an heir: that heir's parts go to escrow (principal only, nothing grows).",
+      "params": [
+        {
+          "name": "heir",
+          "required": true,
+          "description": "heir index in the manifest",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "who",
+          "required": true,
+          "description": "guardian index, or 255 for the court",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "contest",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "heir": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "contested": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.resolve",
+      "summary": "E2a: the court releases a contested heir's escrowed principal.",
+      "params": [
+        {
+          "name": "heir",
+          "required": true,
+          "description": "heir index",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "resolution",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "heir": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "released_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.distribute",
+      "summary": "E2: split an amount by the manifest exactly (largest remainder); reports the parts, moves nothing.",
+      "params": [
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "the amount: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "parts",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "parts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "escrowed": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "to_escrow_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "held_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "moved": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.stream",
+      "summary": "E2: royalties: cumulative payouts equal floor(total * share) exactly; the held-back units carry over.",
+      "params": [
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "this payment: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "parts",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "parts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "minor": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "escrowed": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "to_escrow_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "held_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "moved": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.message",
+      "summary": "The exact bytes to sign (est_msg): kind report (bond_minor), approve, veto, ruling, fraud, contest or resolve (heir). Answers while the feature is off.",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "description": "what is signed",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "report",
+              "approve",
+              "veto",
+              "ruling",
+              "fraud",
+              "contest",
+              "resolve"
+            ]
+          }
+        },
+        {
+          "name": "bond_minor",
+          "required": false,
+          "description": "report: the bond: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "heir",
+          "required": false,
+          "description": "contest, resolve: the heir index",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "message",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$",
+              "description": "the exact bytes to sign"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "scheme": {
+              "type": "string",
+              "const": "ed25519"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "estate.status",
+      "summary": "The estate: phase, bond, approvals, manifest, escrow, stream and whether the key release is due at now. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "set_up": {
+              "type": "boolean"
+            },
+            "phase": {
+              "type": "string"
+            },
+            "epoch": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "bond_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "bond": {
+              "type": "string",
+              "enum": [
+                "none",
+                "held",
+                "refunded",
+                "forfeited"
+              ]
+            },
+            "approvals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "k": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "enclave": {
+              "type": "string",
+              "enum": [
+                "none",
+                "common",
+                "forced",
+                "faraid"
+              ]
+            },
+            "advisory": {
+              "type": "boolean"
+            },
+            "heirs": {
+              "type": "array"
+            },
+            "escrow_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "stream_total_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "stream_held_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "key_release": {
+              "type": "boolean"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$"
+            },
+            "moves_money": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.setup",
+      "summary": "Start account recovery control (recovery.h), once per run: the root anchor, five guardians, the gateway and the first device. Days are 86400 seconds.",
+      "params": [
+        {
+          "name": "root",
+          "required": true,
+          "description": "the account's root anchor (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "guardians",
+          "required": true,
+          "description": "exactly 5 guardians (1..5 Ed25519 public keys of 32 bytes, back to back, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{64}){1,5}$"
+          }
+        },
+        {
+          "name": "gateway",
+          "required": true,
+          "description": "the gateway (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "first_device",
+          "required": true,
+          "description": "the first device key (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "timelock",
+          "required": false,
+          "description": "seconds a claim waits without a veto (default 259200): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "setup",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "timelock": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "rate_window": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "rate_max": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "state": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.claim",
+      "summary": "R1: open a claim for a new device key; the account is view-only until it ends. Rate-limited; every guardian is notified (counted, not delivered).",
+      "params": [
+        {
+          "name": "new_key",
+          "required": true,
+          "description": "the new device (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "claim",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "pending",
+                "thawing"
+              ]
+            },
+            "claim": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "approvals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "vetoed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.approve",
+      "summary": "R2: a guardian approves the open claim.",
+      "params": [
+        {
+          "name": "guardian",
+          "required": true,
+          "description": "0..4",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "claim",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "pending",
+                "thawing"
+              ]
+            },
+            "claim": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "approvals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "vetoed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.veto",
+      "summary": "R3: an active (old) device vetoes: the claim then needs 4 approvals and 14 days.",
+      "params": [
+        {
+          "name": "device",
+          "required": true,
+          "description": "the vetoing device (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "claim",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "pending",
+                "thawing"
+              ]
+            },
+            "claim": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "approvals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "vetoed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.cancel",
+      "summary": "R3: an active device cancels the claim outright.",
+      "params": [
+        {
+          "name": "device",
+          "required": true,
+          "description": "the cancelling device (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "claim",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "pending",
+                "thawing"
+              ]
+            },
+            "claim": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "approvals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "vetoed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.device_add",
+      "summary": "Add a device key, signed by the root anchor.",
+      "params": [
+        {
+          "name": "key",
+          "required": true,
+          "description": "the device (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "device",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.device_revoke",
+      "summary": "Revoke a device key, signed by the root anchor.",
+      "params": [
+        {
+          "name": "key",
+          "required": true,
+          "description": "the device (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "device",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.finalize",
+      "summary": "R4: 3 approvals and the time lock (4 and 14 days after a veto): the old devices are revoked, the new one installed, the thaw starts.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "claim",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "pending",
+                "thawing"
+              ]
+            },
+            "claim": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "approvals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "vetoed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.gateway",
+      "summary": "R5: the gateway's attestation lifts the liquid limit at once (never the V-Bill lock).",
+      "params": [
+        {
+          "name": "sig",
+          "required": true,
+          "description": "Ed25519 signature over the bytes the matching *.message call returns (64 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{128}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "gateway",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "gateway_verified": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.message",
+      "summary": "The exact bytes to sign: kind approve, veto, cancel, gateway (the open or finalised claim) or device_add, device_revoke (key). Answers while the feature is off.",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "description": "what is signed",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "veto",
+              "cancel",
+              "gateway",
+              "device_add",
+              "device_revoke"
+            ]
+          }
+        },
+        {
+          "name": "key",
+          "required": false,
+          "description": "device_add, device_revoke: the device (Ed25519 public key, 32 bytes, hex)",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "message",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$",
+              "description": "the exact bytes to sign"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "scheme": {
+              "type": "string",
+              "const": "ed25519"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "recovery.status",
+      "summary": "R5 thaw limits at now: V-Bills spendable 7 days after finalising, liquid funds 5% a day for 72 hours (cumulative). Reports only: the ledger must enforce them. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "unix seconds, the engine's tick (default: zxvd's clock): a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vbill_minor",
+          "required": false,
+          "description": "a V-Bill balance to apply the limit to: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "liquid_minor",
+          "required": false,
+          "description": "the liquid balance at finalising: a JSON integer or a decimal string",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "set_up": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string"
+            },
+            "claim": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "approvals": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "needed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "vetoed": {
+              "type": "boolean"
+            },
+            "devices": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "can_view": {
+              "type": "boolean"
+            },
+            "can_spend": {
+              "type": "boolean"
+            },
+            "gateway_verified": {
+              "type": "boolean"
+            },
+            "opened": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "vbill_spendable_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "liquid_allowance_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "notices": {
+              "type": "string",
+              "pattern": "^[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "notices_delivered": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     }
   ]
 }

@@ -175,6 +175,76 @@ CI checks it matches what zxvd serves.
 | `zenny.status` / `zenny.check` | | `chips`, `receipts_pending` / per chip `chain_ok`, `claim_ok`, `ok` |
 | `stats.snapshot` | `now`?, `req_num`?, `req_den`?, `min_cohort`? | `epoch`, `prev`, `digest`, `signed`, `encoded`, `snapshot` |
 | `stats.status` | | `published`, `head`, `signed` |
+| `bonds.setup` | `juris`, `gateway`, `terms`?, `weights`?, `share_num`?, `share_den`? | `juris`, `gateway`, `lock_account`, `terms`, `share_num`, `share_den`, ... |
+| `bonds.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `bonds.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `bonds.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `bonds.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `bonds.switch` | `enable`?, `epoch`, `sig` | `issuing_enabled`, `epoch` |
+| `bonds.message` | `kind`, `enable`?, `epoch`?, `serial`?, `to`?, `payee`? | `message`, `bytes`, `scheme` |
+| `bonds.issue` | `owner`, `vbill_account`, `payee`, `qty`, `k`, `now`? | `serial`, `owner`, `payee`, `qty`, `k`, `start`, ... |
+| `bonds.transfer` | `serial`, `from`, `to`, `payee`, `sig` | `serial`, `owner`, `payee`, `qty`, `k`, `start`, ... |
+| `bonds.redeem` | `serial`, `owner`, `vbill_account`, `now`? | `serial`, `returned_qty`, `vbill_account` |
+| `bonds.credit` | `src`, `pool`, `amount_minor`?, `price`?, `floor`?, `qty`?, `now`? | `credited_minor`, `pool_minor`, `premium` |
+| `bonds.distribute` | `pool`, `now`? | `pool_minor`, `units`, `paid_minor`, `payees`, `postings`, `paid` |
+| `bonds.status` |  | `set_up`, `keys`, `issuing_enabled`, `juris`, `gateway`, `switch_epoch`, ... |
+| `derivatives.setup` | `juris`, `gateway`, `first_epoch`? | `juris`, `gateway`, `call_escrow`, `long_escrow`, `short_escrow`, `reserve`, ... |
+| `derivatives.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `derivatives.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `derivatives.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `derivatives.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `derivatives.switch` | `enable`?, `epoch`, `sig` | `opening_enabled`, `epoch`, `leverage` |
+| `derivatives.message` | `kind`, the fields the kind signs | `message`, `bytes`, `scheme` |
+| `derivatives.push` | `epoch`, `price`, `qty`, `now`? | `epoch`, `index`, `moved`, `stopped`, `fixed`, `fees_minor` |
+| `derivatives.call_open` | `nonce`?, `writer_key`, `writer`, `buyer_key`, `buyer`, `strike`, `cap`, `size`, `expiry`, `premium`, `writer_sig`, `buyer_sig`, `now`? | `id`, `nonce`, `lock_minor`, `premium_minor`, `fee_minor`, `expiry` |
+| `derivatives.call_settle` | `id`, `now`? | `id`, `fixing`, `payoff_minor`, `fee_minor`, `to_buyer_minor`, `to_writer_minor` |
+| `derivatives.perp_open` | `nonce`?, `long_key`, `long_account`, `short_key`, `short_account`, `size`, `band`, `lock_long`, `lock_short`, `long_sig`, `short_sig`, `now`? | `id`, `nonce`, `ref_index`, `opened_epoch` |
+| `derivatives.perp_close` | `id`, `side`, `sig`?, `now`? | `id`, `to_long_minor`, `to_short_minor` |
+| `derivatives.status` |  | `set_up`, `keys`, `leverage`, `opening_enabled`, `juris`, `gateway`, ... |
+| `grants.setup` | `funnel`, `underwriters`?, `min_uptime_bps`?, `min_volume`?, `min_stake`?, `cap_num`?, `cap_den`? | `funnel`, `pool`, `reserve`, `issuer`, `underwriters`, `min_uptime_bps`, ... |
+| `grants.key` | `key`, `public_key` | `key`, `added`, `keys` |
+| `grants.account_open` | `owner`, `asset` | `account`, `owner`, `asset` |
+| `grants.fund` | `account`, `amount_minor` | `account`, `balance_minor`, `sandbox` |
+| `grants.account` | `account` | `account`, `owner`, `asset`, `balance_minor`, `credit_minor`, `sandbox` |
+| `grants.epoch` | `epoch` | `epoch` |
+| `grants.pool_credit` | `from`, `amount_minor`, `now`? | `pool_minor`, `inflow_minor` |
+| `grants.lot_open` | `lot` | `lot`, `label`, `status` |
+| `grants.eval` | `subject`, `uptime_bps`, `dropped_reports`?, `routing_reports`?, `failed_challenges`?, `fraud_findings`?, `volume`, `stake` | `subject`, `eligible`, `mask`, `reasons`, `epoch` |
+| `grants.appeal` | `subject`, `epoch`, `mask`, `sig` | `subject`, `mask`, `epoch` |
+| `grants.distribute` | `lot`, `price`, `recipients`, `now`? | `barrels`, `cost_minor`, `postings`, `shares`, `pool_minor`, `label` |
+| `grants.attest` | `lot`, `count`, `underwriter`, `expiry`, `sig`, `now`? | `lot`, `backed`, `label`, `status` |
+| `grants.dispute` | `lot`, `sig` | `lot`, `backed`, `disputed` |
+| `grants.redeem` | `holder`, `holder_vino`, `lot`, `n`, `price`, `now`? | `lot`, `barrels`, `paid_minor`, `held` |
+| `grants.message` | `kind`, the fields the kind signs | `message`, `bytes`, `scheme` |
+| `grants.status` | `now`? | `set_up`, `keys`, `epoch`, `inflow_minor`, `weight`, `rate_defined`, ... |
+| `estate.setup` | `owner`, `guardians`, `k`, `attestors`, `court`, `gateway`, `wait`?, `release`? | `guardians`, `k`, `attestors`, `wait`, `release`, `phase` |
+| `estate.manifest` | `enclave`, `heirs`?, `husband`?, `wives`?, `father`?, `mother`?, `sons`?, `daughters`?, `others`?, `ids`?, `jurisdiction`?, `children`?, `gifts`?, `will_den`? | `enclave`, `advisory`, `heirs`, `digest` |
+| `estate.faraid` | `husband`?, `wives`?, `father`?, `mother`?, `sons`?, `daughters`?, `others`?, `amount_minor`? | `classes`, `unallocated`, `awl`, `radd`, `amount_minor`, `advisory`, ... |
+| `estate.report` | `attestor`, `bond_minor`, `sig`, `now`? | `phase`, `epoch` |
+| `estate.approve` | `guardian`, `sig` | `approvals`, `k` |
+| `estate.confirm` | `now`? | `phase`, `epoch` |
+| `estate.rule` | `sig` | `phase`, `epoch` |
+| `estate.begin` |  | `phase`, `epoch` |
+| `estate.close` |  | `phase`, `epoch` |
+| `estate.veto` | `sig` | `phase`, `epoch` |
+| `estate.fraud` | `who`, `sig` | `bond` |
+| `estate.contest` | `heir`, `who`, `sig` | `heir`, `contested` |
+| `estate.resolve` | `heir`, `sig` | `heir`, `released_minor` |
+| `estate.distribute` | `amount_minor` | `parts`, `to_escrow_minor`, `held_minor`, `moved` |
+| `estate.stream` | `amount_minor` | `parts`, `to_escrow_minor`, `held_minor`, `moved` |
+| `estate.message` | `kind`, `bond_minor`?, `heir`? | `message`, `bytes`, `scheme` |
+| `estate.status` | `now`? | `set_up`, `phase`, `epoch`, `bond_minor`, `bond`, `approvals`, ... |
+| `recovery.setup` | `root`, `guardians`, `gateway`, `first_device`, `timelock`? | `timelock`, `rate_window`, `rate_max`, `state` |
+| `recovery.claim` | `new_key`, `now`? | `state`, `claim`, `approvals`, `vetoed` |
+| `recovery.approve` | `guardian`, `sig` | `state`, `claim`, `approvals`, `vetoed` |
+| `recovery.veto` | `device`, `sig` | `state`, `claim`, `approvals`, `vetoed` |
+| `recovery.cancel` | `device`, `sig` | `state`, `claim`, `approvals`, `vetoed` |
+| `recovery.device_add` | `key`, `sig` | `active` |
+| `recovery.device_revoke` | `key`, `sig` | `active` |
+| `recovery.finalize` | `now`? | `state`, `claim`, `approvals`, `vetoed` |
+| `recovery.gateway` | `sig` | `gateway_verified` |
+| `recovery.message` | `kind`, `key`? | `message`, `bytes`, `scheme` |
+| `recovery.status` | `now`?, `vbill_minor`?, `liquid_minor`? | `set_up`, `state`, `claim`, `approvals`, `needed`, `vetoed`, ... |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -185,6 +255,8 @@ an AIPI call refused or failed (the `AIPI_ERR_*` name and what it means),
 why), -32040 a card operation the issuer refused, -32041 a passkey ceremony
 refused (the message says why), -32050 an economy engine refused (the message is its status name, e.g.
 `VSWAP_ERR_DISABLED`, or `VAUC_ERR_LEDGER (PAY_ERR_FUNDS)`),
+-32060 an economy engine refused (the message is `<STATUS>: why`, see
+"Bonds, derivatives, grants and estates" below),
 -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
@@ -536,6 +608,75 @@ call '{"jsonrpc":"2.0","id":3,"method":"aipi.execute","params":{"function":"zb2r
   `aipi.get` returns blocks up to 64 KiB; `aipi.put` takes 8000 bytes as hex
   in one request line, or a file up to 1 MiB by `path`.
 
+## Bonds, derivatives, grants and estates
+
+Four method groups put the economy engines behind the socket, each behind
+its own switch:
+
+| Feature | Regulated | Engine | Methods |
+|---|---|---|---|
+| `bonds` | yes | V-Bonds (`kernel/src/vbond`) | `bonds.*` |
+| `derivatives` | yes | V-Calls and V-Perps (`kernel/src/vderiv`) | `derivatives.*` |
+| `grants` | yes | barrel grants (`kernel/src/grants`) | `grants.*` |
+| `estate` | no | estate succession, account recovery, faraid (`kernel/src/estate`) | `estate.*`, `recovery.*` |
+
+How they work:
+
+- Each group starts empty. `<group>.setup` configures the engine; until then
+  its methods answer -32060 "`<group>` is not set up". Status methods
+  (`*.status`, `*.account`, `*.message`) answer while the switch is off.
+- Bonds, derivatives and grants move money on a **sandbox ledger** per group
+  (the kernel's `pay_ledger`),
+  with two assets, VINO (2 decimals) and VBILL (whole units), and accounts
+  opened with `*.account_open` and filled from a sandbox issuer with
+  `*.fund`. Nothing on these ledgers is posted to the owner's books, and
+  `*.fund` creates sandbox money from nothing: it is a test bench. The
+  estate group keeps no ledger.
+- Signers are Ed25519 keys registered with `*.key` (`key` = the key id; give
+  a party the same id as the ledger owner of its accounts, which the
+  derivatives engine is moving to require). `*.message`
+  returns the exact bytes the engine checks, as hex; the caller signs them
+  and passes the 64-byte signature as `sig` (hex). A list of keys
+  (`guardians`, `attestors`) is the 32-byte keys concatenated in one hex
+  string.
+- 64-bit results are decimal strings; `now` is optional unix seconds
+  (default: the clock).
+- A refusal answers -32060 with the engine's status name and why, for
+  example `VBOND_ERR_SIG: ...` or `GRANT_ERR_INELIGIBLE: ...`.
+
+Who may call: anyone who can open the owner's socket, as for every other
+method. The groups add no caller authentication of their own; the engine
+signatures authorise the parties to a contract, not the socket caller.
+
+Honest limits:
+
+- In memory only: every group's state and sandbox ledger is lost when zxvd
+  stops, and none of it reaches the owner's books or the books file.
+- The regulated features (`bonds`, `derivatives`, `grants`) start off, as
+  every feature does. On top of the zxvd switch each engine has its own
+  jurisdiction switch (`bonds.switch`, `derivatives.switch`), signed by a
+  gateway key the owner chooses at setup; it starts off too.
+- A V-Bond pays a share of realised revenue, a V-Call or V-Perp pays an
+  index difference: they are very likely securities and derivatives where
+  you are. zxvd claims no exemption, registration or licence; turning them
+  on is for a test or a licensed deployment.
+- No interest: a V-Bond has no rate and no coupon, grants are not loans, and
+  nothing in these groups charges or pays usury. V-Calls and V-Perps are
+  fully collateralised: no leverage (`"leverage":false` always), no margin
+  calls, no funding rate.
+- `estate.faraid` is a computation of one common majority treatment of the
+  Quranic shares, not a ruling: a qualified scholar or court decides. The
+  estate group moves no money (`"moves_money":false`); `estate.distribute`
+  and `estate.stream` only compute the split.
+- `recovery.*` counts the notices a claim would send to the owner's devices
+  but delivers none (`"notices_delivered":false`).
+- The signatures are Ed25519, not the ML-DSA the engines are meant to be fed
+  in production.
+- The framework has no string-array reader, so key lists are concatenated
+  hex; amounts above 2^63-1 are refused; one request line holds about 20
+  `grants.distribute` recipients.
+
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
@@ -553,6 +694,10 @@ that are no hold's step).
 `zxvd_aipi.c`. `kernel/arch/hosted/test_zxvd_econ.sh` runs `zxvd_econ.c` behind the RPC
 layer on the real engines and pay_ledger (the switches, exact replies, every
 refusal, and full flows); it is the harness's test for `zxvd_econ.c`.
+`zxvd_aipi.c`. `test_zxvd_instruments.sh` (bonds, derivatives) and
+`test_zxvd_estate.sh` (grants, estate, recovery) run those groups behind the
+RPC layer on the real engines, signing with real Ed25519 keys; they are the
+harness's tests for `zxvd_instruments.c`, `zxvd_estate.c` and `zxvd_sandbox.c`.
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
@@ -589,6 +734,8 @@ installed .deb.
   counterparty signature, no dispute and no quarantine yet. A plain
   `ledger.post` can still move an escrow account; `ledger.holds` then shows
   it as `unmatched` and the account as not `consistent`.
+- The bonds, derivatives, grants and estate groups keep everything in
+  memory on sandbox ledgers, not in the owner's books; see their section.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS
   has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The

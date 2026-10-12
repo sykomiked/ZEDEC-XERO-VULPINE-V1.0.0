@@ -11,6 +11,10 @@ int zxvd_groups_register(void)
         zxvd_cards_group,
         zxvd_passkeys_group,
         zxvd_vault_group, zxvd_swap_group, zxvd_auctions_group, zxvd_zenny_group, zxvd_stats_group,
+        zxvd_bonds_group,       /* zxvd_instruments.c */
+        zxvd_derivatives_group, /* zxvd_instruments.c */
+        zxvd_grants_group,      /* zxvd_estate.c */
+        zxvd_estate_group,      /* zxvd_estate.c */
     };
     for (size_t i = 0; i < sizeof ALL / sizeof ALL[0]; i++)
         if (ALL[i] && zxvd_rpc_add_group(ALL[i]()) != 0) return -1;

@@ -26,5 +26,11 @@ const zxvd_group_t *zxvd_swap_group(void);     /* swap.*    feature "swap"     *
 const zxvd_group_t *zxvd_auctions_group(void); /* auction.* feature "auctions" */
 const zxvd_group_t *zxvd_zenny_group(void);    /* zenny.*   feature "zenny"    */
 const zxvd_group_t *zxvd_stats_group(void);    /* stats.*   feature "stats"    */
+/* zxvd_instruments.c: V-Bonds and V-Calls / V-Perps (regulated) */
+const zxvd_group_t *zxvd_bonds_group(void);
+const zxvd_group_t *zxvd_derivatives_group(void);
+/* zxvd_estate.c: barrel grants (regulated); estate, recovery, faraid */
+const zxvd_group_t *zxvd_grants_group(void);
+const zxvd_group_t *zxvd_estate_group(void);
 
 #endif
