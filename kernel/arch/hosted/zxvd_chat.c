@@ -325,8 +325,9 @@ static int log_load(void)
     }
     if (at < len) {
         if (cut_file(CH.log, (long) at) != 0) {
-            fprintf(stderr, "zxvd: the chat log %s ends in a cut-off record that could not be "
-                            "removed\n",
+            fprintf(stderr,
+                    "zxvd: the chat log %s ends in a cut-off record that could not be "
+                    "removed\n",
                     CH.log);
             return -1;
         }
@@ -385,8 +386,9 @@ static bool sign_cb(void *ctx, const uint8_t id[SP_ID_LEN], uint8_t sig[SP_SIG_L
 static bool make(zxvd_call_t *c)
 {
     if (CH.broken) {
-        zxvd_fail(c, ZXVD_E_INTERNAL, "the chat log could not be written earlier: chat is "
-                                      "read-only until zxvd restarts");
+        zxvd_fail(c, ZXVD_E_INTERNAL,
+                  "the chat log could not be written earlier: chat is "
+                  "read-only until zxvd restarts");
         return false;
     }
     sp_attach_pk(&TMP, CH.pk);
@@ -399,8 +401,9 @@ static bool make(zxvd_call_t *c)
     }
     if (CH.saved && log_append(ENC, (uint32_t) n) != 0) {
         CH.broken = true;
-        zxvd_fail(c, ZXVD_E_INTERNAL, "the chat log could not be written: this record is not "
-                                      "kept and chat is read-only until zxvd restarts");
+        zxvd_fail(c, ZXVD_E_INTERNAL,
+                  "the chat log could not be written: this record is not "
+                  "kept and chat is read-only until zxvd restarts");
         return false;
     }
     hold(&TMP);
@@ -446,8 +449,7 @@ static void put_record(zxvd_buf_t *b, const sp_record_t *r)
         }
         if (k->kind != SP_KIND_REACTION) continue;
         uint32_t j = 0;
-        while (j < nr && !(re[j].len == k->body_len && sp_eq(re[j].e, k->body, k->body_len)))
-            j++;
+        while (j < nr && !(re[j].len == k->body_len && sp_eq(re[j].e, k->body, k->body_len))) j++;
         if (j == nr) {
             if (nr == REACT_KINDS) continue;
             re[nr].e = k->body;
@@ -476,8 +478,8 @@ static void m_me(zxvd_call_t *c)
     zxvd_buf_t *b = zxvd_result(c);
     zxvd_buf_raw(b, "{\"node_id\":", 11);
     put_hex(b, CH.me);
-    zxvd_buf_printf(b, ",\"saved\":%s,\"records\":%u,\"following\":[",
-                    CH.saved ? "true" : "false", (unsigned) ss_count(&STORE));
+    zxvd_buf_printf(b, ",\"saved\":%s,\"records\":%u,\"following\":[", CH.saved ? "true" : "false",
+                    (unsigned) ss_count(&STORE));
     const char *sep = "";
     for (uint32_t i = 0; i < CH.n_follow; i++) {
         if (!CH.follow[i].on) continue;
@@ -526,7 +528,8 @@ static void m_react(zxvd_call_t *c)
     if (!len || !utf8_ok((const uint8_t *) emoji, len))
         return zxvd_fail(c, ZXVD_E_PARAMS, "\"emoji\" must be 1 to %u bytes of UTF-8",
                          (unsigned) SP_REACT_MAX);
-    if (!ss_get(&STORE, to)) return zxvd_fail(c, ZXVD_E_PARAMS, "no record with that \"to\" id is held");
+    if (!ss_get(&STORE, to))
+        return zxvd_fail(c, ZXVD_E_PARAMS, "no record with that \"to\" id is held");
     sp_init(&TMP, SP_KIND_REACTION, SP_VIS_PUBLIC, CH.me, sp_clock_next(&CH.clock));
     sp_set_body(&TMP, (const uint8_t *) emoji, len);
     sp_set_parent(&TMP, to);

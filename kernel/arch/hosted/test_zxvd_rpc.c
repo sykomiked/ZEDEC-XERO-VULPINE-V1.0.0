@@ -1880,8 +1880,7 @@ static void x_echo(zxvd_call_t *c)
     ext_calls++;
     if (!zxvd_param_str(c, "s", s, sizeof s, false) || !zxvd_param_bool(c, "flag", &flag, false))
         return;
-    zxvd_buf_printf(zxvd_result(c), "{\"s\":\"%s\",\"flag\":%s}", s,
-                    flag ? "true" : "false");
+    zxvd_buf_printf(zxvd_result(c), "{\"s\":\"%s\",\"flag\":%s}", s, flag ? "true" : "false");
 }
 static void x_need(zxvd_call_t *c)
 {
@@ -1907,8 +1906,10 @@ static void x_shadow(zxvd_call_t *c)
 
 static void test_ext(void)
 {
-    static const zxvd_method_t TAB[] = {{"x.echo", x_echo},   {"x.need", x_need},
-                                        {"x.fail", x_fail},   {"x.quiet", x_quiet},
+    static const zxvd_method_t TAB[] = {{"x.echo", x_echo},
+                                        {"x.need", x_need},
+                                        {"x.fail", x_fail},
+                                        {"x.quiet", x_quiet},
                                         {"zxvd.version", x_shadow}};
     zxvd_rpc_set_ops(&OPS);
     EXPECT(REQ("1", "x.echo", ""), ERR("1", "-32601", "method not found"));

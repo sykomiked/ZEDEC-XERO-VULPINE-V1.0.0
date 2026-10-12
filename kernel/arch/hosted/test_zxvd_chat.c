@@ -81,8 +81,7 @@ static void test_memory(void)
 {
     CHECK(has("chat.me", NULL, "\"method not found\""), "no chat before it opens: %s", OUT.p);
     CHECK(zxvd_chat_open(NULL) == 0, "C3: in memory");
-    CHECK(has("chat.me", NULL, "\"saved\":false,\"records\":0,\"following\":[]"), "C3: %s",
-          OUT.p);
+    CHECK(has("chat.me", NULL, "\"saved\":false,\"records\":0,\"following\":[]"), "C3: %s", OUT.p);
     char me[65];
     CHECK(field("node_id", me, sizeof me) && strlen(me) == 64, "C1: a 64-hex NodeID");
     CHECK(has("rpc.discover", NULL,
@@ -273,7 +272,9 @@ static void test_saved(void)
     CHECK(zxvd_chat_open(prefix) == 0 && file_size(logp) == whole, "a torn length is cut");
     zxvd_chat_close();
     f = fopen(logp, "ab");
-    fwrite("\x00\x00\x00\x10" "abc", 1, 7, f);
+    fwrite("\x00\x00\x00\x10"
+           "abc",
+           1, 7, f);
     fclose(f);
     CHECK(zxvd_chat_open(prefix) == 0 && file_size(logp) == whole, "a torn record is cut");
     CHECK(has("chat.me", NULL, "\"records\":5"), "nothing lost: %s", OUT.p);
