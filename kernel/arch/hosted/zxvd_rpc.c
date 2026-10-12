@@ -24,6 +24,7 @@
 #include "zxvd_rpc.h"
 #include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
+#include "zxvd_rpc_modules.h" /* freight, harmonic, stream, ehop, web4 */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -629,6 +630,7 @@ static void m_discover(call_t *c)
         if (i) zxvd_buf_raw(c->res, ",", 1);
         zxvd_buf_json_str(c->res, METHODS[i].name);
     }
+    zxvd_mod_names(c->res);
     zxvd_buf_raw(c->res, "]}", 2);
 }
 
@@ -708,13 +710,17 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     const method_t *fn = NULL;
     for (size_t i = 0; i < N_METHODS; i++)
         if (w4_json_str_eq(line, &t[m], METHODS[i].name)) fn = &METHODS[i];
-    if (!fn) {
+    int mod = fn ? -1 : zxvd_mod_find(line, &t[m]); /* zxvd_rpc_modules.h */
+    if (!fn && mod < 0) {
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
     }
     zxvd_buf_t res = {0};
     call_t c = {line, t, n, p, &res, 0, "", 0};
-    fn->fn(&c);
+    if (fn)
+        fn->fn(&c);
+    else
+        zxvd_mod_call(mod, line, t, n, p, &res, &c.err, c.msg, sizeof c.msg);
     if (!c.err && res.oom) fail(&c, E_INTERNAL, "out of memory");
     if (!c.err && !res.len) fail(&c, E_INTERNAL, "no result");
     if (c.err) {

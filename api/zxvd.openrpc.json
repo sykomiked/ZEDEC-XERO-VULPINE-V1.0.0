@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why). -32011 a module method (freight.*, harmonic.*, stream.*, ehop.*, web4.*) refused well-formed input: too few rows, a hash or AEAD tag that does not verify (message says why; zxvd_rpc_modules.h). Bytes travel as hex strings (*_hex). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -962,6 +962,1126 @@
               "type": "string",
               "pattern": "^-?[0-9]+$",
               "description": "Settled cycles mirrored"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "freight.pack",
+      "summary": "Erasure-code bytes into one freight (kernel/src/freight): 168 UBH-168 smart packets of 21 bytes, rows 0..k-1 the data and the rest Cauchy Reed-Solomon parity over GF(2^8), so ANY k of the 168 packets rebuild it. The 64-byte header carries the payload SHA-256 and travels separately. Holographic recovery here means erasure coding, nothing more.",
+      "params": [
+        {
+          "name": "data_hex",
+          "required": true,
+          "description": "the payload, at most 3360 bytes (k = 168 x 20)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 6720
+          }
+        },
+        {
+          "name": "k",
+          "required": false,
+          "description": "data rows (default: the fewest that hold the payload, so the most parity)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168
+          }
+        },
+        {
+          "name": "freight_id",
+          "required": false,
+          "description": "64-bit id (default: the first 8 bytes, little-endian, of the payload SHA-256)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "freight",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "freight_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "k": {
+              "type": "integer"
+            },
+            "payload_len": {
+              "type": "integer"
+            },
+            "rows": {
+              "type": "integer",
+              "const": 168
+            },
+            "header_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{128}$"
+            },
+            "packets_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7056}$",
+              "description": "168 packets: byte 0 the row index, 1..20 payload"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "freight.unpack",
+      "summary": "Rebuild a freight from any k of its packets (any order; duplicates and unknown rows ignored) and check the payload SHA-256. Fewer than k distinct rows, a corrupted row or a malformed header is -32011.",
+      "params": [
+        {
+          "name": "header_hex",
+          "required": true,
+          "description": "the 64-byte freight header",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 128,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "packets_hex",
+          "required": true,
+          "description": "whole 21-byte packets, concatenated",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 16384
+          }
+        }
+      ],
+      "result": {
+        "name": "payload",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "freight_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "k": {
+              "type": "integer"
+            },
+            "flags": {
+              "type": "integer"
+            },
+            "payload_len": {
+              "type": "integer"
+            },
+            "packets_received": {
+              "type": "integer"
+            },
+            "data_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]*$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "harmonic.encode",
+      "summary": "Pack one UBH-168 harmonic wire frame (kernel/src/harmonic/zt_harmonic_wire.h W1-W3): a tag octet (100 x sync + 10 x shell + trunk) and five 32-bit words in fixed little/big/little/big/little byte order, S+ rail in W0, W2, W4 and S- rail in W1, W3. Line coding: the pattern is public and carries no secret.",
+      "params": [
+        {
+          "name": "trunk",
+          "required": true,
+          "description": "trunk 0..8 (111..999 Hz) or 9 (1111 Hz, expansion)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9
+          }
+        },
+        {
+          "name": "shell",
+          "required": false,
+          "description": "shell depth (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9
+          }
+        },
+        {
+          "name": "sync",
+          "required": false,
+          "description": "sync flag (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "s_plus",
+          "required": true,
+          "description": "the S+ (I) rail: three words, signed Q16.16 or raw 32-bit",
+          "schema": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "integer",
+              "minimum": -2147483648,
+              "maximum": 4294967295
+            }
+          }
+        },
+        {
+          "name": "s_minus",
+          "required": true,
+          "description": "the S- (Q) rail: two words",
+          "schema": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "integer",
+              "minimum": -2147483648,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "frame",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "integer"
+            },
+            "trunk": {
+              "type": "integer"
+            },
+            "trunk_hz": {
+              "type": "integer"
+            },
+            "frame_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{42}$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "harmonic.decode",
+      "summary": "Unpack a 21-octet frame and resolve it with the stateless correlation resolver (W5): UNKNOWN (all zero), NEUTRAL (idle pilot or a silent rail), TRUE, FALSE or GLUT. A stateless resolver never returns PARADOX (W7).",
+      "params": [
+        {
+          "name": "frame_hex",
+          "required": true,
+          "description": "the frame",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 42,
+            "maxLength": 42
+          }
+        },
+        {
+          "name": "threshold_q16",
+          "required": false,
+          "description": "correlation threshold, Q16.16 (default 4096, the endian mux's 1/16)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          }
+        }
+      ],
+      "result": {
+        "name": "rails",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "integer"
+            },
+            "trunk": {
+              "type": "integer"
+            },
+            "shell": {
+              "type": "integer"
+            },
+            "sync": {
+              "type": "boolean"
+            },
+            "axis_trunk": {
+              "type": "boolean"
+            },
+            "trunk_hz": {
+              "type": "integer"
+            },
+            "s_plus": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "s_minus": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "idle": {
+              "type": "boolean"
+            },
+            "correlation_q16": {
+              "type": "integer"
+            },
+            "truth": {
+              "type": "string",
+              "enum": [
+                "UNKNOWN",
+                "TRUE",
+                "FALSE",
+                "NEUTRAL",
+                "GLUT"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "stream.plan",
+      "summary": "Cut recorded media units into segments with the live cutter's rule (kernel/src/stream stream_vod_plan): a segment closes before the first keyframe at least target_us after its start, or before any unit once max_us have passed or max_bytes would be exceeded. Units are contiguous from offset 0.",
+      "params": [
+        {
+          "name": "units",
+          "required": true,
+          "description": "at most 120 units, each [len, pts_us, keyframe]; pts_us must not go backwards",
+          "schema": {
+            "type": "array",
+            "maxItems": 120,
+            "items": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "target_us",
+          "required": true,
+          "description": "target segment duration",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "max_us",
+          "required": true,
+          "description": "longest segment, >= target_us",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "max_bytes",
+          "required": false,
+          "description": "largest segment (default 215040, 64 freights at k = 168)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "tail_us",
+          "required": false,
+          "description": "duration of the last unit (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "plan",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "first_unit": {
+                    "type": "integer"
+                  },
+                  "nunits": {
+                    "type": "integer"
+                  },
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "len": {
+                    "type": "integer"
+                  },
+                  "t_start_us": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "dur_us": {
+                    "type": "integer"
+                  },
+                  "key_start": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "stream.segment",
+      "summary": "Describe one swarm-stream segment (kernel/src/stream stream_manifest_build): its IPFS CIDv1 (raw, sha2-256), the freight id derived from it and the SHA-256 of each freight that carries it. The signed manifest itself needs a signing key and is not produced here.",
+      "params": [
+        {
+          "name": "data_hex",
+          "required": true,
+          "description": "the segment bytes",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 16384
+          }
+        },
+        {
+          "name": "k",
+          "required": false,
+          "description": "data rows per freight (default 168)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168
+          }
+        },
+        {
+          "name": "stream_id",
+          "required": false,
+          "description": "stream id (default 0)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "seq",
+          "required": false,
+          "description": "segment number (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "segment",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string"
+            },
+            "stream_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "seq": {
+              "type": "integer"
+            },
+            "k": {
+              "type": "integer"
+            },
+            "data_len": {
+              "type": "integer"
+            },
+            "nfreights": {
+              "type": "integer"
+            },
+            "freight_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "freight_sha256": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ehop.bands",
+      "summary": "The Endian Hopping band plan (kernel/src/ehop/ehop.h): the FM, AM and PM ranges, priority, largest frame and target latency of each band.",
+      "params": [],
+      "result": {
+        "name": "bands",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "bands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "band": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "fm_min": {
+                    "type": "integer"
+                  },
+                  "fm_max": {
+                    "type": "integer"
+                  },
+                  "am_mask": {
+                    "type": "integer"
+                  },
+                  "pm_modes": {
+                    "type": "integer"
+                  },
+                  "priority": {
+                    "type": "integer"
+                  },
+                  "max_frame": {
+                    "type": "integer"
+                  },
+                  "latency_ms": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ehop.seal",
+      "summary": "Seal one frame on an Endian Hopping channel: the keyed byte-order schedule, then ChaCha20-Poly1305. Confidentiality and integrity come from the AEAD alone. zxvd keeps no channel state: the caller owns the nonce discipline and must never seal two plaintexts with the same key, channel, configuration, sender and seq.",
+      "params": [
+        {
+          "name": "key_hex",
+          "required": true,
+          "description": "the 32-byte channel secret (a pairwise ML-KEM shared secret, or a private network key)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "band",
+          "required": true,
+          "description": "the band (ehop.bands)",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "control",
+              "settle",
+              "media",
+              "chat",
+              "bulk"
+            ]
+          }
+        },
+        {
+          "name": "chan_id",
+          "required": true,
+          "description": "channel id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "key epoch",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "width",
+          "required": false,
+          "description": "word width in bytes (default 4)",
+          "schema": {
+            "type": "integer",
+            "enum": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        {
+          "name": "am_mask",
+          "required": false,
+          "description": "AM: allowed reordering depths, a subset of the band's (default: all the band allows)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          }
+        },
+        {
+          "name": "pm_mode",
+          "required": false,
+          "description": "PM: 0 static, 1 per epoch, 2 per frame (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          }
+        },
+        {
+          "name": "fm_rate",
+          "required": false,
+          "description": "FM: mean words per flip, inside the band (default the band's fm_min)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          }
+        },
+        {
+          "name": "fm_hop",
+          "required": false,
+          "description": "FM hop deviation, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "pm_phase",
+          "required": false,
+          "description": "PM base phase, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "pm_step",
+          "required": false,
+          "description": "PM step, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "sender",
+          "required": true,
+          "description": "this sealer's sender id, unique on the channel",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "seq",
+          "required": true,
+          "description": "sequence number, never reused; 2^64 - 1 is refused",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "plaintext_hex",
+          "required": true,
+          "description": "at most 2048 bytes, and within the band's largest frame",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 4096
+          }
+        }
+      ],
+      "result": {
+        "name": "frame",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "band": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "integer"
+            },
+            "sender": {
+              "type": "integer"
+            },
+            "seq": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "frame_len": {
+              "type": "integer"
+            },
+            "frame_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]*$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ehop.open",
+      "summary": "Open one frame: format, epoch, channel tag and AEAD are checked and the schedule is undone. A frame for another key, configuration or epoch, or a changed byte, is -32011. zxvd keeps no replay window: the caller tracks (sender, seq).",
+      "params": [
+        {
+          "name": "key_hex",
+          "required": true,
+          "description": "the 32-byte channel secret (a pairwise ML-KEM shared secret, or a private network key)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "band",
+          "required": true,
+          "description": "the band (ehop.bands)",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "control",
+              "settle",
+              "media",
+              "chat",
+              "bulk"
+            ]
+          }
+        },
+        {
+          "name": "chan_id",
+          "required": true,
+          "description": "channel id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "key epoch",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "width",
+          "required": false,
+          "description": "word width in bytes (default 4)",
+          "schema": {
+            "type": "integer",
+            "enum": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        {
+          "name": "am_mask",
+          "required": false,
+          "description": "AM: allowed reordering depths, a subset of the band's (default: all the band allows)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          }
+        },
+        {
+          "name": "pm_mode",
+          "required": false,
+          "description": "PM: 0 static, 1 per epoch, 2 per frame (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          }
+        },
+        {
+          "name": "fm_rate",
+          "required": false,
+          "description": "FM: mean words per flip, inside the band (default the band's fm_min)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          }
+        },
+        {
+          "name": "fm_hop",
+          "required": false,
+          "description": "FM hop deviation, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "pm_phase",
+          "required": false,
+          "description": "PM base phase, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "pm_step",
+          "required": false,
+          "description": "PM step, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "frame_hex",
+          "required": true,
+          "description": "the frame",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 4192
+          }
+        }
+      ],
+      "result": {
+        "name": "plaintext",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "band": {
+              "type": "string"
+            },
+            "sender": {
+              "type": "integer"
+            },
+            "seq": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "plaintext_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]*$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.cid",
+      "summary": "Content addressing (kernel/src/web4 on kernel/src/ipfs_node): the CIDv1 (raw, sha2-256) of bytes, or the forms of a given CID: its string, its ipfs:// URI and the 32-byte digest an EVM contract can store (null unless sha2-256). Give exactly one of data_hex and cid.",
+      "params": [
+        {
+          "name": "data_hex",
+          "required": false,
+          "description": "content to address",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 16384
+          }
+        },
+        {
+          "name": "cid",
+          "required": false,
+          "description": "a CID or an ipfs:// URI",
+          "schema": {
+            "type": "string",
+            "maxLength": 147
+          }
+        }
+      ],
+      "result": {
+        "name": "cid",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string"
+            },
+            "uri": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer"
+            },
+            "codec": {
+              "type": "integer"
+            },
+            "bytes32_hex": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.agent_card",
+      "summary": "Make a self-bound Web 4 agent card (kernel/src/web4/web4_agent.h A1-A3) from a 32-byte key seed: the ML-DSA-65 key pair, agent_id = SHA3-256(public key), and the binding signed deterministically. zxvd wipes the secret key before it answers and keeps nothing; the seed is the agent's secret.",
+      "params": [
+        {
+          "name": "seed_hex",
+          "required": true,
+          "description": "the agent's 32-byte key seed",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "description": "1 to 31 of a-z 0-9 - _ .",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9._-]{1,31}$"
+          }
+        },
+        {
+          "name": "bound_ms",
+          "required": false,
+          "description": "binding time in ms (default 0)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "card",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "bound_ms": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "self_bound": {
+              "type": "boolean"
+            },
+            "agent_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA3-256 of the ML-DSA-65 public key"
+            },
+            "peer_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "equal to agent_id: the card is self-bound"
+            },
+            "pk_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{3904}$",
+              "description": "ML-DSA-65 public key (1952 bytes)"
+            },
+            "bind_sig_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{6618}$",
+              "description": "ML-DSA-65 signature (3309 bytes) over the binding, context web4/v1/agent-bind"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.card_verify",
+      "summary": "Verify a self-bound agent card: agent_id is the key's SHA3-256 and the binding signature verifies. A card that does not verify is a result with valid false and the reason, not an error.",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "description": "the card's name",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9._-]{1,31}$"
+          }
+        },
+        {
+          "name": "bound_ms",
+          "required": true,
+          "description": "the card's binding time",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pk_hex",
+          "required": true,
+          "description": "ML-DSA-65 public key",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 3904,
+            "maxLength": 3904
+          }
+        },
+        {
+          "name": "bind_sig_hex",
+          "required": true,
+          "description": "the binding signature",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 6618,
+            "maxLength": 6618
+          }
+        },
+        {
+          "name": "agent_id",
+          "required": false,
+          "description": "an agent_id to check against the key",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        }
+      ],
+      "result": {
+        "name": "verdict",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "valid": {
+              "type": "boolean"
+            },
+            "agent_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "reason": {
+              "type": "string"
             }
           }
         }

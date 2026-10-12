@@ -5,7 +5,9 @@
 # build_zxvd.sh OUTDIR — build zxvd: the hosted swarm (the same sources as
 # zxv-host, from app_sources.sh) with -DZXVD, its JSON-RPC socket
 # (zxvd_rpc.c) and the web4 JSON tokenizer, linked against libzxv's shared
-# library through its frozen C ABI (sdk/libzxv/include/zxv_api.h).
+# library through its frozen C ABI (sdk/libzxv/include/zxv_api.h). The module
+# methods (zxvd_rpc_modules.c: freight, harmonic, stream, ehop, web4) add
+# their kernel sources below; Linux, macOS and Windows link the same list.
 #
 # libzxv is linked as a shared library on purpose: it is built from kernel
 # sources with its own flags (TEST_HOST number types, hidden visibility), so
@@ -66,6 +68,7 @@ python3 "$HERE/gen_ui.py" "$HERE/zxv_ui.html" "$T/zxv_ui.c"
 set --
 for d in $(sh "$HERE/app_sources.sh" incs); do set -- "$@" "-I$K/$d"; done
 set -- "$@" "-I$K/src/web4" "-I$R/sdk/libzxv/include"
+for d in freight harmonic stream ehop; do set -- "$@" "-I$K/src/$d"; done
 for f in $(sh "$HERE/app_sources.sh" srcs); do set -- "$@" "$K/$f"; done
 DEFS="-DZXVD $OSDEFS"
 if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
@@ -74,6 +77,13 @@ if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
 fi
 [ -n "$EXE" ] && set -- "$@" "$HERE/zxvd_rpc_win.c"
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
+# the module methods; everything else they need (sha256, keccak, aead,
+# ipfs_node, ML-DSA-65) is already in app_sources.sh
+set -- "$@" "$HERE/zxvd_rpc_modules.c"
+for f in freight/freight.c freight/freight_ops.c harmonic/zt_harmonic_wire.c stream/stream_seg.c \
+         ehop/ehop_sched.c ehop/ehop_frame.c web4/web4_cid.c web4/web4_agent.c; do
+    set -- "$@" "$K/src/$f"
+done
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"

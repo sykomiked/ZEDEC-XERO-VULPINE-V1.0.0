@@ -468,16 +468,16 @@ Gaps: none found in the paths reviewed.
 ### apps  —  built-in shell, editor, network config and other desktop apps
 Status: PARTIAL
 What it does: apps.c holds a working text shell, an editor, a network-config panel, sysmon and a
-few small tools; these are compiled into the kernel. The other app files are not built and do not
-compile: derivatives, treaty, assurance, notes, clock, dharma_monitor and telecom signalling.
-Some demo files in other languages are not built either. sysmon shows invented CPU and memory
-figures.
+few small tools; these are compiled into the kernel. The unbuilt app files (derivatives, treaty,
+assurance, wallet, notes with test_notes.c and vfs_stub.c, clock, dharma_monitor) moved to
+kernel/experimental/m5_apps/ (GAP_AUDIT B3); telecom signalling and some demo files in other
+languages are still here and not built. sysmon shows invented CPU and memory figures.
 Main entry points: shell_init, shell_execute, shell_handle_key, shell_render, editor_init,
 editor_load_file, netcfg_refresh.
-Tests: test_notes.c does not compile. ../tests/test_apps.c exists but is not in verify-all. None
-of these tests run in verify-all.
+Tests: ../tests/test_apps.c exists but is not in verify-all. None of these tests run in
+verify-all.
 Used by: boot/kernel_main.c and tests/test_apps.c. apps.c is in Makefile and Makefile.arm64, and
-vfs_stub.c and demo_cross_lang.c are in Makefile.arm64.
+demo_cross_lang.c is in Makefile.arm64.
 Gaps: netcfg_refresh overflowed detail_buf, and editor_load_file overflowed filename (both fixed).
 Gaps: apps.c calls derivatives_init, assurance_init and treaty_init, but nothing compiled defines
 them.
@@ -804,7 +804,8 @@ chg_state_name.
 Tests: src/chiglet/test_chiglet.c in verify-all. It is also linked by about 17 other tests.
 Used by: the arm64 kernel_main, cards, concord, desktop, emu, games, holodeck, pirate_fleet,
 social, voice and wyrmgate.
-Gaps: chiglet_triage.c uses an implicit strtok_r and is not built.
+Gaps: chiglet_triage.c (a host triage tool; implicit strtok_r, never built) moved to
+kernel/experimental/chiglet_triage/ (GAP_AUDIT B3).
 
 ### choice  —  deterministic tie-breaking selection among candidates (K5)
 Status: WORKING (tested in verify-all)
@@ -1164,7 +1165,8 @@ Main entry points: ehop_channel_init, ehop_schedule_init, ehop_apply, ehop_cfg_c
 ehop_frame_* / ehop_net_*.
 Tests: src/ehop/test_ehop.c (verify-all), pass. A local fuzz of frame parsing and the replay window
 found nothing.
-Used by: no #include outside; not in images (host-tested library).
+Used by: zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): ehop.bands, and ehop.seal / ehop.open on a channel given per call
+(stateless: the caller keeps seq and the replay window). The mobile core build. Not in images.
 Gaps: none found in the parser or AEAD use.
 
 ### el0_userspace — EL0 (ARM64 user mode) process scheduler
@@ -1340,7 +1342,7 @@ Main entry points: freight_gf_mul/inv/div, freight_header_init/check/serialize/p
 freight_encode, freight_decode.
 Tests: test_freight, test_stream, test_web4_agent (verify-all), pass. A local fuzz of header parse
 and decode found nothing.
-Used by: stream, web4. Not in images.
+Used by: stream, web4, and zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): freight.pack / freight.unpack. Not in images.
 Gaps: none found.
 
 ### fs — tri-space file system (S+, S-, S0 replicas, transactions, snapshots)
@@ -1436,7 +1438,9 @@ zt_geom_router_init, zt_mux_channel_mask, zt_trunk_bank_init/process_pcm, zt_ada
 Tests: 10 tests in verify-all (harmonic_wire 61, adapter_house 60, dial_router 47, trunk_bank 25,
 geom_router 19, endian_mux 14, residual_carrier 14, signal_data 11, residual_tap 8,
 metronome 6), all pass.
-Used by: no includers outside the directory; not in images.
+Used by: zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): harmonic.encode / harmonic.decode (zt_harmonic_wire: the frame,
+its tag and the stateless resolver). The routers, mux, trunk bank and adapters still have no caller
+outside the directory; not in images.
 Gaps: none found.
 
 ### hdcm — "hyperdimensional" cross-language construct matrix
@@ -1739,7 +1743,7 @@ Gaps: no host test in verify-all.
 Status: WORKING (tested in verify-all)
 What it does: Keccak/SHA-3/SHAKE, NTT, sampling, encoding, K-PKE and ML-KEM-768 keygen/encaps/decaps with implicit rejection (now a branch-free select). genomic_codon adds a domain-separation label only, not security.
 Main entry points: mlkem768_keygen, mlkem768_encaps, mlkem768_decaps, kpe_*, sha3_256, sha3_512, shake128_*, shake256.
-Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), test_mlkem_reject (tampered ciphertext gives K_bar = SHAKE256(z||c) for ML-KEM-768 and -1024, plus a valgrind ctgrind run with the secret key marked undefined: no secret-dependent branch in decapsulation on this host's gcc/clang at -O0..-O3), pq tests — pass. `make -C kernel kat-cross` also runs test_mlkem_kat on aarch64, riscv64, armhf, i686 and s390x (big-endian) under qemu-user; `make -C kernel ct-valgrind` runs decaps and encaps under valgrind with the secrets marked undefined and finds no secret-dependent branch or index (not a constant-time proof). SHA-3/SHAKE was wrong on big-endian CPUs (byte view of the lanes); fixed in keccak.c. encode/ntt/sample/kpe/genomic validators also pass but are not in verify-all (lines in group3_verify_lines.mk).
+Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), test_mlkem_reject (tampered ciphertext gives K_bar = SHAKE256(z||c) for ML-KEM-768 and -1024, plus a valgrind ctgrind run with the secret key marked undefined: no secret-dependent branch in decapsulation on this host's gcc/clang at -O0..-O3), pq tests — pass. `make -C kernel kat-cross` also runs test_mlkem_kat on aarch64, riscv64, armhf, i686 and s390x (big-endian) under qemu-user; `make -C kernel ct-valgrind` runs decaps and encaps under valgrind with the secrets marked undefined and finds no secret-dependent branch or index (not a constant-time proof). SHA-3/SHAKE was wrong on big-endian CPUs (byte view of the lanes); fixed in keccak.c. The encode/ntt/sample/kpe/genomic validators also run in verify-all.
 Used by: ~17 modules (pay, ident, plnp, cardnet, web4, ...). Kernel: yes. Packaged in packages/libzxv-pqc (static library built from these sources; smoke program in verify-all).
 Gaps: validator files lack SPDX; headers say "All Rights Reserved" beside Apache-2.0.
 
@@ -2057,7 +2061,8 @@ Gaps: Fixed: create_task silently overwrote slot 0 when full, the name copy was 
 Status: STUB
 What it does: m5_api.h declares an app API (m5_* drawing, input and capital calls) and selfaudit.h declares self-audit hooks. app_template.c and Makefile.app show how an app would be built.
 Main entry points: m5_api.h, selfaudit.h, app_template.c, Makefile.app.
-Tests: none. Makefile.app's `test` target is now an honest compile-only check.
+Tests: verify-all compiles app_template.c with Makefile.app's host `test` flags (compile only,
+not linked). Makefile.app's `test` target is an honest compile-only check.
 Used by: headers are included by apps, app_fabric, compute_fabric, financial_fabric, governance_fabric, identity_fabric and others. Not in arm64 list.
 Gaps: No m5_* function is implemented anywhere, so apps will not link; a status note was added to SDK_README.md. Fixed: the KERNEL_ROOT path in Makefile.app, and the -Werror failure in app_template.c.
 Gaps: m5_api.h and selfaudit.h now open with a STATUS: STUB banner (declarations only, no stable ABI).
@@ -2157,7 +2162,8 @@ Status: WORKING (tested in verify-all)
 What it does: Splits a stream into segments of erasure-coded freights (any k of 256 rows decode). It moves rows in pieces between viewers through advert/request/notice/piece messages, and includes a churn simulator.
 Main entry points: stream_seg.h (stream_manifest_parse), stream_swarm.h (ssw_* message parse/build, scheduler), stream_sim.h.
 Tests: test_stream.c (79 checks, verify-all). Its 5 wire decoders were fuzzed here for 20k iterations each with no crash.
-Used by: linked by viewing/tests. Not in arm64 list.
+Used by: linked by viewing/tests, and zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): stream.plan (stream_vod_plan) and
+stream.segment (a segment's CID and freight hashes). Not in arm64 list.
 Gaps: The stream/* files carry a copyright line but no SPDX line.
 
 ### subterm — root terminal with many sub-terminals
@@ -2389,7 +2395,8 @@ Status: WORKING (tested in verify-all)
 What it does: parsers and encoders for HTTP/1.1, JSON, RLP, JWT (alg pinned; "none" rejected), OAuth flows, secp256k1 ECDSA (RFC 6979, complete formulas), Ethereum and Bitcoin address and transaction encoding, CIDs, and ML-DSA-65 signed agent messaging (web4_agent).
 Main entry points: w4_http_parse_request/response, w4_json_get*, JWT/OAuth (web4_jwt.c, web4_oauth.c), secp256k1 sign/verify, w4_btc_p2wpkh, w4_abi_erc20_*, w4_cid_of, w4_agent_create/w4_sign/w4_verify.
 Tests: test_web4_web2, test_web4_web3 and test_web4_agent, all in verify-all, with vectors from gen_web4_vectors.py.
-Used by: host tests only.
+Used by: zxvd (web4_json parses every request) and zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): web4.cid and
+web4.agent_card / web4.card_verify (self-bound ML-DSA-65 cards).
 Gaps: no network transport. It only builds and parses bytes, and makes no claim of live chain connectivity.
 
 ### wifi — IEEE 802.11 station/AP subsystem (frames, WPA handshake, scan)

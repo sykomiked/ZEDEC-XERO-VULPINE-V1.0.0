@@ -596,10 +596,11 @@ KERNEL_SRCS = \
 #
 # The remaining orphans are the x86 port-I/O cluster (ata, keyboard, mouse, pci,
 # pic, timer, net/rtl8139) -- `impossible constraint in 'asm'` on aarch64, which
-# is not an arm64 question -- and kernel/src/apps/{clock_app,dharma_monitor,
-# notes_app,vfs_stub}.c. Those four are NOT a missing include path: the three
-# app files reference types (clock_app_t, notes_app_t, dharma_monitor_app_t,
-# oseq_state_t, tantra_engine_t) that apps.h does not declare, and vfs_stub.c
+# is not an arm64 question -- and kernel/experimental/m5_apps/{clock_app,
+# dharma_monitor,notes_app,vfs_stub}.c (was kernel/src/apps/). Those four are
+# NOT a missing include path: the three app files reference types
+# (clock_app_t, notes_app_t, dharma_monitor_app_t, oseq_state_t,
+# tantra_engine_t) that apps.h does not declare, and vfs_stub.c
 # is a host-test stub that would collide with kernel/src/vfs/vfs.c by its own
 # description. apps.c itself is in.
 # ---------------------------------------------------------------------------

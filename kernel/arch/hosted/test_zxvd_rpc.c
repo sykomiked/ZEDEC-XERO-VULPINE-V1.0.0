@@ -377,7 +377,11 @@ static void test_host_methods(void)
               "\"notes.mark_read\",\"net.command\",\"peer.ask\",\"peer.serve\",\"peer.status\","
               "\"update.check\",\"currency.enable\","
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\"]}"));
+              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\","
+              /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
+              "\"freight.pack\",\"freight.unpack\",\"harmonic.encode\",\"harmonic.decode\","
+              "\"stream.plan\",\"stream.segment\",\"ehop.bands\",\"ehop.seal\",\"ehop.open\","
+              "\"web4.cid\",\"web4.agent_card\",\"web4.card_verify\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");

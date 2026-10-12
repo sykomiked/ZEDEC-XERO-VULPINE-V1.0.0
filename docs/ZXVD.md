@@ -13,6 +13,7 @@
 | Signed update checks, notifications | `zxv_update_host.c`, `zx_notify` | `update.check`, `notes.*` |
 | Owner's books: currencies, accounts, exact postings, invariants | **libzxv** through its frozen C ABI | `currency.*`, `ledger.*` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
+| Freight packets, harmonic wire frames, stream segments, Endian Hopping frames, Web 4 CIDs and agent cards (pure codecs, no state) | `kernel/src/freight`, `harmonic`, `stream`, `ehop`, `web4` via `zxvd_rpc_modules.c` | `freight.*`, `harmonic.*`, `stream.*`, `ehop.*`, `web4.*` |
 
 It is `zxv_host.c` built with `-DZXVD`, plus `zxvd_rpc.c`, linked against
 `libzxv.so` / `libzxv.dylib`. The desktop app (`zxv-host`) is unchanged.
@@ -95,6 +96,35 @@ libzxv status, with
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
 never sent over the socket.
 
+### Module methods
+
+`zxvd_rpc_modules.c` serves five kernel modules beside the methods above
+(`zxvd_rpc_modules.h` X1-X4). They are pure codecs: no state between calls,
+and they never open the books, post to a ledger or touch the swarm. Bytes
+travel as hex (`*_hex`); 64-bit values as decimal strings. Input a module
+refuses (too few rows, a hash or an AEAD tag that does not verify) is error
+-32011 with the reason; a bad parameter is -32602.
+
+| Method | Params | Result |
+|---|---|---|
+| `freight.pack` | `data_hex` (at most 3360 bytes), `k`?, `freight_id`? | `freight_id`, `k`, `payload_len`, `rows`, `header_hex`, `packets_hex` (168 x 21 bytes; any k rebuild) |
+| `freight.unpack` | `header_hex`, `packets_hex` (any k distinct packets) | `freight_id`, `k`, `flags`, `payload_len`, `packets_received`, `data_hex` |
+| `harmonic.encode` | `trunk`, `shell`?, `sync`?, `s_plus` (3 words), `s_minus` (2 words) | `tag`, `trunk`, `trunk_hz`, `frame_hex` (21 octets) |
+| `harmonic.decode` | `frame_hex`, `threshold_q16`? | `tag`, `trunk`, `shell`, `sync`, `axis_trunk`, `trunk_hz`, `s_plus`, `s_minus`, `idle`, `correlation_q16`, `truth` |
+| `stream.plan` | `units` ([len, pts_us, keyframe], at most 120), `target_us`, `max_us`, `max_bytes`?, `tail_us`? | `segments` |
+| `stream.segment` | `data_hex`, `k`?, `stream_id`?, `seq`? | `cid`, `nfreights`, `freight_id`, `freight_sha256`, ... |
+| `ehop.bands` | | `bands` |
+| `ehop.seal` | `key_hex`, `band`, `chan_id`, `epoch`, channel fields?, `sender`, `seq`, `plaintext_hex` | `frame_hex`, `band`, `priority`, `sender`, `seq`, `frame_len` |
+| `ehop.open` | `key_hex`, `band`, `chan_id`, `epoch`, channel fields?, `frame_hex` | `plaintext_hex`, `band`, `sender`, `seq` |
+| `web4.cid` | `data_hex` or `cid` | `cid`, `uri`, `version`, `codec`, `bytes32_hex` |
+| `web4.agent_card` | `seed_hex`, `name`, `bound_ms`? | `agent_id`, `peer_id`, `name`, `bound_ms`, `self_bound`, `pk_hex`, `bind_sig_hex` |
+| `web4.card_verify` | `name`, `bound_ms`, `pk_hex`, `bind_sig_hex`, `agent_id`? | `valid`, `agent_id`, `reason`? |
+
+`ehop.*` keeps no channel: the caller owns the nonce rule (never seal two
+plaintexts under the same key, channel, configuration, sender and seq) and the
+replay window. `web4.agent_card` takes the agent's secret seed over the
+owner-only socket and wipes the derived secret key before answering.
+
 ## Swarm earnings in your books
 
 After every settled market cycle, zxvd posts the swarm's earnings into the
@@ -121,7 +151,9 @@ owner's libzxv books, so they show up in a currency next to everything else.
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
 stub host and the real libzxv (exact replies, every error, the socket); it is
-the mutation harness's test for `zxvd_rpc.c`. `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
+the mutation harness's test for `zxvd_rpc.c`; the same script then runs
+`test_zxvd_rpc_modules.c`, every module method's results and refusals, and
+checks that none of them changes the books. `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
 with the tokenizer test model, and once with the real Qwen2.5-1.5B-Instruct

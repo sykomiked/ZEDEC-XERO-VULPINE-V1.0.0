@@ -171,6 +171,67 @@ def wait_line(proc, prefix, secs=20):
     return None
 
 
+def check_modules(c, acct):
+    """The module methods (zxvd_rpc_modules.h) through the real daemon: one
+    round trip each, one refusal each, and the books untouched."""
+    accounts = c.ok('ledger.accounts')
+    journal = c.ok('ledger.entries', {'account': acct})
+    # ---- freight: lose most rows, rebuild from any k ----
+    data = bytes((i * 37 + 11) & 0xff for i in range(1000))
+    f = c.ok('freight.pack', {'data_hex': data.hex()})
+    pk = bytes.fromhex(f['packets_hex'])
+    rows = [pk[i * 21:(i + 1) * 21] for i in range(168)]
+    keep = rows[168 - f['k']:][::-1]  # parity rows only, in reverse
+    u = c.ok('freight.unpack', {'header_hex': f['header_hex'],
+                                'packets_hex': b''.join(keep).hex()})
+    check(f['k'] == 50 and len(pk) == 168 * 21 and bytes.fromhex(u['data_hex']) == data,
+          'freight: 1000 bytes rebuilt from 50 of 168 packets (118 lost)')
+    r = c.call('freight.unpack', {'header_hex': f['header_hex'],
+                                  'packets_hex': b''.join(keep[1:]).hex()})
+    check(r.get('error', {}).get('code') == -32011, 'freight: k - 1 packets are refused (-32011)')
+    # ---- harmonic: the wire frame ----
+    h = c.ok('harmonic.encode', {'trunk': 4, 'shell': 1, 's_plus': [65536, 65536, 7],
+                                 's_minus': [65536, 65536]})
+    d = c.ok('harmonic.decode', {'frame_hex': h['frame_hex']})
+    check(len(h['frame_hex']) == 42 and d['tag'] == 14 and d['trunk_hz'] == 555 and
+          d['s_plus'] == [65536, 65536, 7] and d['truth'] == 'TRUE',
+          'harmonic: a 21-octet frame round-trips and resolves TRUE')
+    r = c.call('harmonic.encode', {'trunk': 10, 's_plus': [0, 0, 0], 's_minus': [0, 0]})
+    check(r.get('error', {}).get('code') == -32602, 'harmonic: trunk 10 is -32602')
+    # ---- stream: the cut rule and a segment's CID ----
+    plan = c.ok('stream.plan', {'units': [[400, 0, True], [300, 40000, False],
+                                          [500, 1000000, True]],
+                                'target_us': 1000000, 'max_us': 4000000, 'tail_us': 40000})
+    check([(g['first_unit'], g['len'], g['dur_us']) for g in plan['segments']] ==
+          [(0, 700, 1000000), (2, 500, 40000)], 'stream.plan: cut at the next keyframe')
+    seg = c.ok('stream.segment', {'data_hex': data.hex(), 'k': 20})
+    cid = c.ok('web4.cid', {'data_hex': data.hex()})
+    check(seg['nfreights'] == 3 and len(seg['freight_sha256']) == 3 and
+          seg['cid'] == cid['cid'] and cid['uri'] == 'ipfs://' + cid['cid'],
+          'stream.segment: three freights, and the CID web4.cid gives the same bytes')
+    # ---- ehop: one AEAD frame on a keyed channel ----
+    ch = {'key_hex': '42' * 32, 'band': 'settle', 'chan_id': 3, 'epoch': 9}
+    bands = [b['name'] for b in c.ok('ehop.bands')['bands']]
+    fr = c.ok('ehop.seal', dict(ch, sender=1, seq=0, plaintext_hex=data[:100].hex()))
+    op = c.ok('ehop.open', dict(ch, frame_hex=fr['frame_hex']))
+    bad = c.call('ehop.open', dict(ch, epoch=10, frame_hex=fr['frame_hex']))
+    check(bands == ['control', 'settle', 'media', 'chat', 'bulk'] and
+          bytes.fromhex(op['plaintext_hex']) == data[:100] and op['seq'] == '0' and
+          bad.get('error', {}).get('code') == -32011,
+          'ehop: seal and open on a settle channel; another epoch is refused')
+    # ---- web4: an agent card that verifies, and one that does not ----
+    card = c.ok('web4.agent_card', {'seed_hex': '5a' * 32, 'name': 'e2e-agent'})
+    keys = ('bound_ms', 'pk_hex', 'bind_sig_hex')
+    v = c.ok('web4.card_verify', dict({k: card[k] for k in keys}, name=card['name']))
+    w = c.ok('web4.card_verify', dict({k: card[k] for k in keys}, name='e2e-other'))
+    check(v['valid'] is True and v['agent_id'] == card['agent_id'] and w['valid'] is False,
+          'web4: a self-bound ML-DSA-65 card verifies; renamed, it does not')
+    # zxvd_rpc.h M2: none of these reached the books
+    check(c.ok('ledger.accounts') == accounts and
+          c.ok('ledger.entries', {'account': acct}) == journal,
+          'the module methods opened no account and posted nothing')
+
+
 def main(binary, gguf=None):
     out = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=10)
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
@@ -351,6 +412,7 @@ def main(binary, gguf=None):
               [('swarm market', 'issuer'), ('owner: swarm earnings', 'holder')],
               'ledger.accounts')
         check(c.ok('ledger.check')['ok'] is True, 'ledger.check: the books balance')
+        check_modules(c, A)
 
         # ---- protocol ----
         c.send_raw('{not json\n')
