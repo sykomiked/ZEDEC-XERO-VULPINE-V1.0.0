@@ -30,11 +30,11 @@ static int bar_at(const fake_dev_t *d, uint32_t off, int *hi)
 {
     if (off < 0x10 || off >= 0x28) return -1;
     uint32_t i = (off - 0x10) / 4;
-    if (d->bar_mem[i]) {
+    if (d->bar_size[i]) {
         *hi = 0;
         return (int) i;
     }
-    if (i > 0 && d->bar_mem[i - 1]) {
+    if (i > 0 && d->bar_size[i - 1] && d->bar_kind[i - 1] == FAKE_BAR_MEM64) {
         *hi = 1;
         return (int) i - 1;
     }
@@ -56,9 +56,12 @@ static void cfg_write(void *ctx, uint32_t bdf, uint32_t off, uint32_t val)
     if (b >= 0) {
         uint64_t mask = ~(d->bar_size[b] - 1);
         if (hi) d->cfg[off / 4] = val & (uint32_t) (mask >> 32);
+        else if (d->bar_kind[b] == FAKE_BAR_IO) d->cfg[off / 4] = (val & (uint32_t) mask & ~3u) | 1;
+        else if (d->bar_kind[b] == FAKE_BAR_MEM32) d->cfg[off / 4] = val & (uint32_t) mask & ~0xFu;
         else d->cfg[off / 4] = (val & (uint32_t) mask & ~0xFu) | 0x4; /* 64-bit memory */
         return;
     }
+    if (off >= 0x10 && off < 0x28) return; /* unimplemented BAR: hardwired to 0 */
     if (off == 0x04) { /* command: low half writable, status read-only */
         d->cfg[1] = (d->cfg[1] & 0xFFFF0000u) | (val & 0xFFFF);
         return;
@@ -141,10 +144,26 @@ uint8_t *fake_dev_bar(fake_dev_t *d, uint32_t i, uint64_t size)
     memset(m, 0, sz);
     d->bar_mem[i] = m;
     d->bar_size[i] = size;
+    d->bar_kind[i] = FAKE_BAR_MEM64;
     uint64_t a = (uint64_t) (uintptr_t) m;
     d->cfg[4 + i] = ((uint32_t) a & ~0xFu) | 0x4;
     d->cfg[5 + i] = (uint32_t) (a >> 32);
     return m;
+}
+
+void fake_dev_bar_at(fake_dev_t *d, uint32_t i, uint64_t addr, uint64_t size, uint8_t kind)
+{
+    d->bar_mem[i] = 0;
+    d->bar_size[i] = size;
+    d->bar_kind[i] = kind;
+    if (kind == FAKE_BAR_IO) {
+        d->cfg[4 + i] = ((uint32_t) addr & ~3u) | 1;
+    } else if (kind == FAKE_BAR_MEM32) {
+        d->cfg[4 + i] = (uint32_t) addr & ~0xFu;
+    } else {
+        d->cfg[4 + i] = ((uint32_t) addr & ~0xFu) | 0x4;
+        d->cfg[5 + i] = (uint32_t) (addr >> 32);
+    }
 }
 
 void fake_plat_free(fake_plat_t *fp)

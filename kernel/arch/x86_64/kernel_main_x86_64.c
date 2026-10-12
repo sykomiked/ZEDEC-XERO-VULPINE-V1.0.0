@@ -35,6 +35,7 @@
 #include "efifb_con.h"        /* UEFI GOP text console (real PCs have no COM1) */
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
+#include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -295,6 +296,10 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         static hw_registry_t hreg;
         hw_probe_all(hp, &hreg);
         uint32_t ok = hw_selftest_all(hp, &hreg);
+        /* Every disk: find the EFI system partition, mount it as FAT32 and
+         * read the MegaROM the disc carries, so a driver is proven all the
+         * way to a file. */
+        hw_storage_selftest(hp, &hreg, "MEGAROM.TVL");
         uart_puts("  [OK] hardware self-tests passed: ");
         uart_put_dec(ok);
         uart_puts(" (TSC ");

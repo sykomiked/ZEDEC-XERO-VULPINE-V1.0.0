@@ -19,8 +19,9 @@
 typedef struct fake_dev {
     uint32_t bdf;
     uint32_t cfg[64];
-    uint8_t *bar_mem[6]; /* 0 = no BAR */
-    uint64_t bar_size[6];
+    uint8_t *bar_mem[6];  /* host memory behind the BAR, 0 for address-only BARs */
+    uint64_t bar_size[6]; /* 0 = no BAR */
+    uint8_t bar_kind[6];  /* FAKE_BAR_MEM64 / MEM32 / IO */
     void (*tick)(struct fake_dev *d, uint64_t now_us);
     void *state;
 } fake_dev_t;
@@ -45,6 +46,12 @@ fake_dev_t *fake_dev_new(fake_plat_t *fp, uint32_t bdf, uint16_t vendor, uint16_
 /* Give the device BAR i backed by `size` bytes of zeroed host memory (size a
  * power of two >= 16). Returns the register memory. */
 uint8_t *fake_dev_bar(fake_dev_t *d, uint32_t i, uint64_t size);
+/* An address-only BAR for scan tests: kind FAKE_BAR_MEM32 or FAKE_BAR_IO at a
+ * fixed address (no memory behind it), or FAKE_BAR_MEM64. */
+#define FAKE_BAR_MEM64 0
+#define FAKE_BAR_MEM32 1
+#define FAKE_BAR_IO    2
+void fake_dev_bar_at(fake_dev_t *d, uint32_t i, uint64_t addr, uint64_t size, uint8_t kind);
 /* Free everything fake_plat_init / fake_dev_new / dma_alloc made. */
 void fake_plat_free(fake_plat_t *fp);
 /* 1 if any logged line contains s. */

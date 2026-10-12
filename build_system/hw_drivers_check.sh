@@ -87,7 +87,7 @@ KPID=$!
 rc=0; wait "$QPID" || rc=$?
 kill "$KPID" 2>/dev/null; wait "$KPID" 2>/dev/null
 rm -f "$MON"
-grep -aE '\[DRIVER|\[SELFTEST|class drivers|hardware self-tests|\[BOOT_OK\]' "$LOG"
+grep -aE '\[DRIVER|\[SELFTEST|\[STORAGE|class drivers|hardware self-tests|\[BOOT_OK\]' "$LOG"
 echo "[hw-drivers] QEMU exited $rc after at most ${SECS}s"
 
 fail=0
@@ -105,10 +105,13 @@ n=$(grep -ac "read LBA 1: GPT header 'EFI PART'" "$LOG")
 # Both NICs got a DHCP offer from QEMU's user-mode network.
 n=$(grep -ac 'DHCP offer received' "$LOG")
 [ "$n" -ge 2 ] || { echo "::error::only $n of 2 NICs got a DHCP offer"; fail=1; }
+# ...and mounted the ESP as FAT32 and read the MegaROM file off it.
+n=$(grep -ac '\[STORAGE OK\].*read /MEGAROM.TVL' "$LOG")
+[ "$n" -ge 3 ] || { echo "::error::only $n of 3 disks mounted the ESP and read /MEGAROM.TVL"; fail=1; }
 need 'output stream DMA position'
 grep -aE '\[SELFTEST OK\].*key press\(es\): ".*z' "$LOG" >/dev/null || { echo "::error::USB keyboard did not deliver the typed keys"; fail=1; }
-if grep -aq '\[DRIVER FAILED\]\|\[SELFTEST FAILED\]' "$LOG"; then
-  echo "::error::a driver or self-test failed:"; grep -a '\[DRIVER FAILED\]\|\[SELFTEST FAILED\]' "$LOG"; fail=1
+if grep -aq '\[DRIVER FAILED\]\|\[SELFTEST FAILED\]\|\[STORAGE FAILED\]' "$LOG"; then
+  echo "::error::a driver or self-test failed:"; grep -a '\[DRIVER FAILED\]\|\[SELFTEST FAILED\]\|\[STORAGE FAILED\]' "$LOG"; fail=1
 fi
 if grep -aqE "$FAULT_RE" "$LOG"; then
   echo "::error::fault marker:"; grep -anE "$FAULT_RE" "$LOG" | head -5; fail=1
