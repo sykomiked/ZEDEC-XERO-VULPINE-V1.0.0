@@ -101,6 +101,7 @@ final class AppStore: ObservableObject {
     @Published var offers: Offers?
     @Published var card: PlayerCard?
     @Published var jurisdiction: Jurisdiction?
+    @Published var holds: Holds?
 
     let socketPath: String
     private var client: ZXVDClient
@@ -181,6 +182,7 @@ final class AppStore: ObservableObject {
         if has("net.peers"), let v = try? await client.request("net.peers", as: Peers.self) { peers = v }
         if has("net.offers"), let v = try? await client.request("net.offers", as: Offers.self) { offers = v }
         if has("player.card"), let v = try? await client.request("player.card", as: PlayerCard.self) { card = v }
+        await refreshHolds()
         await refreshChat()
         if has("jurisdiction.get"), let v = try? await client.request("jurisdiction.get", as: Jurisdiction.self) {
             jurisdiction = v
@@ -200,6 +202,53 @@ final class AppStore: ObservableObject {
             return (true, "Saved in your books. Recorded only: nothing applies these settings yet.")
         } catch {
             return (false, "Refused: \(error)")
+        }
+    }
+
+    // MARK: Escrow (ledger.hold, ledger.release, ledger.refund, ledger.holds)
+
+    func refreshHolds() async {
+        guard has("ledger.holds") else { return }
+        if let v = try? await client.request("ledger.holds", as: Holds.self) { holds = v }
+    }
+
+    /// Holds `amount` of the payer's currency for the payee. Returns the line shown under the form.
+    func hold(from: Int, to: Int, amount: String) async -> (Bool, String) {
+        guard let payer = accounts.first(where: { $0.account == from }) else {
+            return (false, "Pick the account that pays.")
+        }
+        guard from != to else { return (false, "The payer and the payee must differ.") }
+        let minor: Int64
+        switch Money.parse(amount, currency: payer.currency) {
+        case .success(let v): minor = v
+        case .failure(.fraction(let n)):
+            return (false, "Refused: \(payer.currency) has \(n) decimal places. zxvd never rounds.")
+        case .failure(.zero): return (false, "The amount must be at least one minor unit.")
+        case .failure(.tooLarge): return (false, "That amount is too large.")
+        case .failure: return (false, "Enter an amount like 125.00.")
+        }
+        do {
+            let h = try await client.request("ledger.hold", [
+                "from": .int(Int64(from)), "to": .int(Int64(to)), "amount_minor": Money.param(minor),
+            ], as: Hold.self)
+            await refreshHolds()
+            await refreshLedger()
+            return (true, "Hold \(h.hold): \(Money.format(minor, currency: h.currency)) is in escrow until you release or refund it.")
+        } catch {
+            return (false, "Refused: \(error)")
+        }
+    }
+
+    /// Releases a hold to its payee, or refunds it to its payer. Returns why it was refused, or nil.
+    func settle(_ hold: Int, release: Bool) async -> String? {
+        do {
+            _ = try await client.request(release ? "ledger.release" : "ledger.refund", ["hold": .int(Int64(hold))],
+                                         as: Hold.self)
+            await refreshHolds()
+            await refreshLedger()
+            return nil
+        } catch {
+            return "\(error)"
         }
     }
 

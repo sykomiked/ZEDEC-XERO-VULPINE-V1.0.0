@@ -46,7 +46,6 @@ final.
 | Panel | Method |
 |---|---|
 | Player Card tier | `player.card` |
-| Escrow holds | `ledger.holds` |
 | Open sell offers and wants | `net.offers` |
 | Per-peer list | `net.peers` |
 | Jurisdiction Bridge (clearing mode, accounting standard) | `jurisdiction.get` |
