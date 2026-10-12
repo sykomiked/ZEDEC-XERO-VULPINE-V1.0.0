@@ -10,11 +10,54 @@ runs next is always that tag's entry in the kernel's action table.
 
 ```
 make            # build/zxsh  (use CC=gcc-11 to match CI)
-make test       # core tests + end-to-end tests, ASan/UBSan
+make test       # core, sub-terminal and end-to-end tests, ASan/UBSan
 build/zxsh                  # interactive
 build/zxsh -c 'cmd'         # one command line
-build/zxsh script.zxs a b   # a script; $arg1 $arg2 ...
+build/zxsh script.zxs a b   # a script; $1 $2 ... ($arg1 $arg2 also work)
 ```
+
+## If you know sh or bash, you already know zxsh
+
+Commands, pipes and redirects are the ones you use every day, and every
+program on your PATH (git, make, cc, python, npm, cargo, docker, ...) runs
+unchanged. Type `help` for the full list, or `help NAME` for one command.
+
+- `;` `&&` `||` `|` `<` `>` `>>` `2>` `2>>` `2>&1` `>&2` `&>` `&>>`
+- `cmd &`, `jobs`, `wait [%N]`
+- `$VAR` `${VAR}` (the environment included), `$(...)`, backticks,
+  `$((1 + 2))`, `$1`..`$9`, `$#`, `$@`, `$?` (the numeric exit status)
+- `NAME=value cmd`, `export`, `unset`, `alias`, `unalias`, `source FILE`, `. FILE`, `type`
+- `if` / `for` / `while` / `until`, `break`, `continue`, `cd -`, `~`
+- Line editing: arrows, Home/End, Ctrl-A/E/K/U/W/Y, Up/Down history,
+  Ctrl-R search, Tab completes commands and files (Tab twice lists them).
+
+A line zxsh does not read itself (`case`, functions, `[[ ]]`, `( )` groups)
+goes to bash, and zxsh says so on stderr. Its exit status becomes the
+verdict. `ZXSH_COMPAT=0` turns this off.
+
+## Sub-terminals
+
+One terminal can hold several, all running at the same time:
+
+| You write | What happens |
+|---|---|
+| `split` / `split -v` | a new shell beside this one (or below it) |
+| `split make test` | a sub-terminal running that command |
+| `tab` | a new shell in a new tab |
+| `together 'make' 'make test' 'npm run lint'` | each command in its own sub-terminal at once; the verdict is true or false when they all agree, and **both** when they disagree |
+
+Each sub-terminal has a title bar with its own verdict letter (T, F, B, N,
+`!`), and each tab shows its combined letter. So `together 'make test'
+'make lint' && git push` holds the push when the checks disagree, until you
+look and `resolve` it.
+
+The keys are the familiar multiplexer ones: **Ctrl-B** then `%` split right,
+`"` split below, arrows or `o` move, `c` new tab, `n`/`p` next or previous
+tab, `1`-`9` jump to a tab, `x` close, `q` leave, `?` the key list. Without
+a terminal (CI, a pipe), `together` still runs its commands at the same time
+and labels each output line `[1]`, `[2]`, ...
+
+## What zxsh adds
 
 | You write | What happens |
 |---|---|
@@ -44,11 +87,16 @@ build/zxsh script.zxs a b   # a script; $arg1 $arg2 ...
 **Honest limits.**
 - Capabilities are checks inside the shell. A program it runs keeps the
   user's OS permissions.
-- Only a person at an interactive prompt can resolve a hold. Scripts run
-  without the resolve capability.
+- Only a person at an interactive prompt can resolve a hold. Scripts and
+  background jobs run without the resolve capability.
 - A hold resolved later sees the variables as they are at that moment, not
   as they were when it was held.
-- There is no job control and no `&`. Inside an `if`'s clauses, `both` and
-  `neither` are keywords, so write `verdict both` there.
+- Inside an `if`'s clauses, `both` and `neither` are keywords, so write
+  `verdict both` there.
+- Background jobs cannot be brought to the foreground (no `fg`, `bg` or
+  Ctrl-Z). Aliases apply to typed lines only, as in bash scripts.
+- A while/until whose condition is both or neither stops and reports it.
+- Sub-terminals treat every character as one column wide, so wide
+  characters (many emoji, CJK) can misalign.
 - The Windows host (CreateProcess) and the bare-metal console are next. The
   core (`zxsh_core.c`) has no allocation and no stdio, so pterm can embed it.

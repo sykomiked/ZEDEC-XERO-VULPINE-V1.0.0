@@ -26,7 +26,7 @@ below that touches hardware counts as "exists".
 | 12 | Power | sleep, battery, CPU frequency | stub | `acpi/acpi.c` parses tables only | ACPI sleep states, battery, cpufreq |
 | 13 | Printing | print to local and network printers | **missing** | nothing | IPP Everywhere client (driverless printing) |
 | 14 | Display server and windows | compositor, window manager, multi-app | partial | `desktop/zxv_shell.c` framebuffer compositor + dock (untested); hosted app uses a browser window | window protocol between apps and the compositor |
-| 15 | Shell and terminal | Terminal + bash/zsh/PowerShell | partial, three unconnected shells | `kernel_shell_exec` (arm64), `pterm/`, `desktop/zxv_shell.c` | **zxsh (this PR)**; later make pterm call zxsh's core |
+| 15 | Shell and terminal | Terminal + bash/zsh/PowerShell | partial, three unconnected shells | `kernel_shell_exec` (arm64), `pterm/`, `desktop/zxv_shell.c` | **zxsh (this PR)**: bash-familiar syntax, line editing, sub-terminals (`split`, `tab`, `together`); later make pterm call zxsh's core |
 | 16 | Processes | load programs from disk, scheduler | partial | `sched/`, EL0 preemptive scheduler; processes are built into the kernel (`user_procs.c`) | ELF loading from zxvfs, spawn/wait syscalls |
 | 17 | Time | RTC, NTP sync, time zones | partial | `clock/event_clock.c` (tested); no RTC driver or NTP | NTP client, RTC drivers |
 | 18 | System log | unified journal | partial | `chronicle/`, hash-chained logs in lpres_hex / paradox / hwa | one system journal service with a viewer |
@@ -43,7 +43,7 @@ below that touches hardware counts as "exists".
 
 ## Where paraconsistent logic changes the design
 
-- **Shell:** commands return true / false / both / neither (zxsh, `tools/zxsh/`).
+- **Shell:** commands return true / false / both / neither (zxsh, `tools/zxsh/`), with the commands programmers already know and sub-terminals whose verdicts combine.
 - **Drivers:** the smart firmware adapter takes evidence from several sources
   and joins it with lpres. It binds a matched driver on true, falls back to a
   safe generic mode on both, and uses class-generic drivers only on neither.
