@@ -125,6 +125,30 @@ CI checks it matches what zxvd serves.
 | `aipi.status` | | `online`, `blocks`, `store_bytes`, `store_cap`, counts, `sandbox` |
 | `features.get` | | `features` (`name`, `enabled`, `regulated`, `groups`), `saved` |
 | `features.set` | `feature`, `enabled`? (default true) | `feature`, `enabled`, `regulated`, `saved` |
+| `cards.status` | | `issuer`, `network`, `prefix`, `issuer_code`, `fee_minor`, counts, `ledger_balanced`, `receipts_ok`, `in_memory` |
+| `cards.check_pan` | `pan` | `digits`, `iin`, `luhn`, `damm`, `verhoeff`, `network` |
+| `cards.iso8583_parse` | `hex` | `mti`, `fields` |
+| `cards.issuer` | `network`, `issuer_code`?, `fee_minor`?, `seed`? | as `cards.status` |
+| `cards.open_account` | `now`? | the account |
+| `cards.account` | `account` | `account`, `state`, `held_minor`, `unbilled_minor`, `billed_minor`, `owed_minor`, `due` |
+| `cards.issue` | `account`, `form`, `holder_pk`, `entropy`?, `now`? | the card (`card`, `pan`, `network`, `state`, `exp_year`, `exp_month`, `atc`, `replaces`, ...) |
+| `cards.reissue` | `card`, `holder_pk`?, `entropy`?, `now`? | the new card |
+| `cards.freeze` | `card`, `frozen`? (default true) | the card |
+| `cards.card` | `card` or `pan` | the card |
+| `cards.challenge` | `pan`, `amount_minor`, `form`, `atc`, `un`, `stan`, `terminal_id`, `merchant_id`, `currency`?, `time`? | `challenge`, `context`, `time` |
+| `cards.authorize` | the challenge's fields with `time` and `sig`, or `emv` | `auth`, `approved`, `rc`, `decline`, `approval`, `cryptogram`, `amount_minor`, `iso8583` |
+| `cards.capture` | `auth` | `auth`, `state`, `txn`, `receipt`, `amount_minor`, `fee_minor`, `digest`, `account` |
+| `cards.reverse` | `auth`, `now`? | `auth`, `state`, `released_minor` |
+| `cards.refund` | `auth`, `now`? | as `cards.capture` |
+| `cards.pay` | `account`, `amount_minor`, `now`? | the account |
+| `cards.advance` | `now`? | `statements`, `new_statements`, `delinquent` |
+| `passkeys.status` | `now`? | `rp_id`, `alg`, `attestation`, `credentials`, `active`, `open_challenges`, `max_credentials`, `in_memory` |
+| `passkeys.register_begin` | `user`, `rp_id`?, `origin`?, `require_uv`?, `now`? | `type`, `challenge`, `rp_id`, `origin`, `alg`, `require_uv`, `expires`, `user` |
+| `passkeys.register_finish` | `challenge`, `auth`, `now`? | the credential (`cred_id`, `user`, `rp_id`, `sign_count`, `revoked`, `registered`, `last_used`) |
+| `passkeys.auth_begin` | `user`?, `rp_id`?, `origin`?, `require_uv`?, `now`? | as `register_begin`, with `allow` |
+| `passkeys.auth_finish` | `challenge`, `cred_id`, `auth`, `sig`, `now`? | `verified`, `uv`, `credential` |
+| `passkeys.list` | `user`? | `credentials` |
+| `passkeys.revoke` | `cred_id` | the credential |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -132,7 +156,8 @@ Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 an AIPI call refused or failed (the `AIPI_ERR_*` name and what it means),
 -32012 the method's feature is off (see "Feature switches" below),
 -32020 a payment step refused (netting, passkey or escrow; the message says
-why), -32000 a
+why), -32040 a card operation the issuer refused, -32041 a passkey ceremony
+refused (the message says why), -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
@@ -252,6 +277,63 @@ on is the owner's choice for a test or a licensed deployment; zxvd claims no
 licence, membership or compliance. The engines keep their state in memory
 for the life of the process; turning a feature off and on again in the same
 run keeps it.
+
+## Cards and passkeys
+
+Two method groups sit behind feature switches that start off (`zxvd
+--enable cards,passkeys`, or `features.set`).
+
+**cards** (regulated) runs the Dragon / Phoenix / Thunderbird charge-card
+issuer from `kernel/src/cardnet` inside zxvd:
+
+- `cards.issuer` picks the network once per run. Then `cards.open_account`
+  and `cards.issue` open accounts and issue cards. Each card is bound to the
+  holder's ML-DSA-65 public key.
+- To pay, the holder's device gets the bytes to sign from `cards.challenge`
+  and signs them. `cards.authorize` checks that signature, the counter, the
+  card's state and its limits, then approves (placing a hold) or declines.
+  A decline is a normal result with its ISO 8583 response code and the 0110
+  message. The request can also come as the EMV-shaped TLV container.
+- `cards.capture` settles an approval in full (DR 555 / CR 777 and one
+  hash-chained receipt). `cards.reverse` releases a hold, and `cards.refund`
+  reverses a captured charge. `cards.pay` and `cards.advance` run the
+  statement cycle. It is a charge card: the bill is due in full and nothing
+  in it can hold interest.
+- `cards.check_pan` (Luhn, Damm, Verhoeff, network) and
+  `cards.iso8583_parse` are plain tools and answer while the feature is off.
+- No secret leaves zxvd. The holder's private key never comes to it. The
+  issuer seed comes from the OS and is never returned. `seed` and `entropy`
+  exist so that tests can be repeated exactly.
+
+**passkeys** makes zxvd a WebAuthn-shaped relying party for ML-DSA-65
+passkeys (`kernel/src/ident`). It does authentication only, so it is not
+marked regulated.
+
+- `register_begin` and `auth_begin` hand out single-use challenges that
+  expire after 300 s.
+- `register_finish` stores the public key from authenticatorData. The
+  attestation format is "none", so zxvd learns nothing about the
+  authenticator model.
+- `auth_finish` rebuilds clientDataJSON from the challenge and origin and
+  verifies the signature. The signature counter must go up.
+- `list` shows the credentials and `revoke` stops one from logging in.
+- Private keys stay on the authenticator.
+
+Honest limits:
+
+- Both groups keep everything in memory. A restart forgets every issuer,
+  card, authorization and credential, and the tables are small (8 accounts,
+  16 cards, 32 authorizations, 32 credentials).
+- Dragon, Phoenix and Thunderbird are not members of, certified by or
+  affiliated with any card scheme or EMVCo. Their 880/882/884 numbers and
+  F0 AIDs are unregistered and valid inside one deployment only.
+- Nothing here is PCI DSS assessed or licensed. Turning `cards` on is the
+  owner's choice for a test or a licensed deployment.
+- Captures and refunds are for the full amount only.
+- Browsers and FIDO servers do not accept ML-DSA passkeys today.
+- ident's root identity, recovery (Argon2id, BCH fuzzy extractor, Shamir
+  guardians) and optional KYC are not on the socket yet. They have no wire
+  format here, and KYC needs a licensed verifier's adapter.
 
 ## The jurisdiction bridge
 

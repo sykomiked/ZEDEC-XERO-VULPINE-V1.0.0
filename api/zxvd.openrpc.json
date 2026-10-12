@@ -3619,6 +3619,2063 @@
         }
       },
       "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.status",
+      "summary": "The charge-card issuer (kernel/src/cardnet): network, counts, and whether the ledger balances (C1) and the receipt chain verifies (C2). Answers while the feature is off.",
+      "params": [],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "issuer": {
+              "type": "boolean"
+            },
+            "network": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": "string"
+            },
+            "issuer_code": {
+              "type": "string"
+            },
+            "fee_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "accounts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cards": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "approved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "declined": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "txns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "receipts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "statements": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ledger_balanced": {
+              "type": "boolean"
+            },
+            "receipts_ok": {
+              "type": "boolean"
+            },
+            "in_memory": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.check_pan",
+      "summary": "Check digits of a card number: Luhn, Damm and Verhoeff, and the Dragon/Phoenix/Thunderbird network it is valid for (C5), if any. A check digit is not authority. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "pan",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9]{2,19}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "digits": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 19
+            },
+            "iin": {
+              "type": "string",
+              "maxLength": 6
+            },
+            "luhn": {
+              "type": "boolean"
+            },
+            "damm": {
+              "type": "boolean"
+            },
+            "verhoeff": {
+              "type": "boolean"
+            },
+            "network": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Dragon",
+                    "Phoenix",
+                    "Thunderbird"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.iso8583_parse",
+      "summary": "Read an ISO 8583:1987 message (0100/0110/0200/0210/0400/0410, the fields cn_iso8583.h supports) into its MTI and fields. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "hex",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 8400
+          }
+        }
+      ],
+      "result": {
+        "name": "message",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "mti": {
+              "type": "string",
+              "pattern": "^[0-9]{4}$"
+            },
+            "fields": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.issuer",
+      "summary": "Set up this run's issuer once: the network, the 3-digit issuer code (default 001) and a flat merchant fee per settled charge (default 0). The PAN seed comes from the OS (or 'seed'); it is never returned. In memory only. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "network",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "dragon",
+              "phoenix",
+              "thunderbird"
+            ]
+          }
+        },
+        {
+          "name": "issuer_code",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9]{3}$"
+          }
+        },
+        {
+          "name": "fee_minor",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "seed",
+          "required": false,
+          "description": "for tests: the issuer seed instead of OS randomness",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "issuer": {
+              "type": "boolean"
+            },
+            "network": {
+              "type": "string"
+            },
+            "prefix": {
+              "type": "string"
+            },
+            "issuer_code": {
+              "type": "string"
+            },
+            "fee_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "accounts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cards": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "approved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "declined": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "txns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "receipts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "statements": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ledger_balanced": {
+              "type": "boolean"
+            },
+            "receipts_ok": {
+              "type": "boolean"
+            },
+            "in_memory": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.open_account",
+      "summary": "Open a holder account (at most 8). Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "active",
+                "delinquent",
+                "closed"
+              ]
+            },
+            "held_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "unbilled_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "billed_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "owed_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "due": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "unix seconds of the due day, while a statement is unpaid"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.account",
+      "summary": "A holder account: held, unbilled, billed and owed amounts (charge card: due in full, no interest). Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "active",
+                "delinquent",
+                "closed"
+              ]
+            },
+            "held_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "unbilled_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "billed_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "owed_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "due": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "unix seconds of the due day, while a statement is unpaid"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.issue",
+      "summary": "Issue a card for a priceable capital form bound to the holder's ML-DSA-65 public key (at most 16 cards). Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          }
+        },
+        {
+          "name": "form",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8
+          }
+        },
+        {
+          "name": "holder_pk",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){1952}$",
+            "description": "1952 bytes as hex"
+          }
+        },
+        {
+          "name": "entropy",
+          "required": false,
+          "description": "for tests: PAN entropy instead of OS randomness",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        }
+      ],
+      "result": {
+        "name": "card",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "card": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15
+            },
+            "pan": {
+              "type": "string",
+              "pattern": "^[0-9]{16}$"
+            },
+            "network": {
+              "type": "string",
+              "enum": [
+                "Dragon",
+                "Phoenix",
+                "Thunderbird"
+              ]
+            },
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "form": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "active",
+                "frozen",
+                "revoked"
+              ]
+            },
+            "exp_year": {
+              "type": "integer",
+              "minimum": 2000
+            },
+            "exp_month": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            },
+            "atc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "replaces": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 15
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.reissue",
+      "summary": "Replace a card: a new PAN for the same account and form, the old card revoked in the same step; optionally a new holder key. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "card",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 15
+          }
+        },
+        {
+          "name": "holder_pk",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){1952}$",
+            "description": "1952 bytes as hex"
+          }
+        },
+        {
+          "name": "entropy",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        }
+      ],
+      "result": {
+        "name": "card",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "card": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15
+            },
+            "pan": {
+              "type": "string",
+              "pattern": "^[0-9]{16}$"
+            },
+            "network": {
+              "type": "string",
+              "enum": [
+                "Dragon",
+                "Phoenix",
+                "Thunderbird"
+              ]
+            },
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "form": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "active",
+                "frozen",
+                "revoked"
+              ]
+            },
+            "exp_year": {
+              "type": "integer",
+              "minimum": 2000
+            },
+            "exp_month": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            },
+            "atc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "replaces": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 15
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.freeze",
+      "summary": "Freeze (default) or unfreeze a card. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "card",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 15
+          }
+        },
+        {
+          "name": "frozen",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      ],
+      "result": {
+        "name": "card",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "card": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15
+            },
+            "pan": {
+              "type": "string",
+              "pattern": "^[0-9]{16}$"
+            },
+            "network": {
+              "type": "string",
+              "enum": [
+                "Dragon",
+                "Phoenix",
+                "Thunderbird"
+              ]
+            },
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "form": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "active",
+                "frozen",
+                "revoked"
+              ]
+            },
+            "exp_year": {
+              "type": "integer",
+              "minimum": 2000
+            },
+            "exp_month": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            },
+            "atc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "replaces": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 15
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.card",
+      "summary": "A card by index or by PAN (no key material). Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "card",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 15
+          }
+        },
+        {
+          "name": "pan",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9]{16}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "card",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "card": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15
+            },
+            "pan": {
+              "type": "string",
+              "pattern": "^[0-9]{16}$"
+            },
+            "network": {
+              "type": "string",
+              "enum": [
+                "Dragon",
+                "Phoenix",
+                "Thunderbird"
+              ]
+            },
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "form": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "active",
+                "frozen",
+                "revoked"
+              ]
+            },
+            "exp_year": {
+              "type": "integer",
+              "minimum": 2000
+            },
+            "exp_month": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            },
+            "atc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "replaces": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 15
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.challenge",
+      "summary": "The canonical bytes the holder signs with ML-DSA-65 (context ZXV-CARDNET-ARQC-v1) for an authorization request. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "pan",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9]{1,16}$"
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "description": "1 to 999999999999 (ISO 8583 field 4)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999999999999
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "form",
+          "required": true,
+          "description": "capital form (cardnet.h cn_form_t)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8
+          }
+        },
+        {
+          "name": "atc",
+          "required": true,
+          "description": "application transaction counter: must increase per card (1..65535)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "un",
+          "required": true,
+          "description": "terminal unpredictable number (EMV 9F37)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){4}$",
+            "description": "4 bytes as hex"
+          }
+        },
+        {
+          "name": "stan",
+          "required": true,
+          "description": "0..999999 (ISO 8583 field 11)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "terminal_id",
+          "required": true,
+          "description": "exactly 8 printable characters, or declined as format",
+          "schema": {
+            "type": "string",
+            "maxLength": 8
+          }
+        },
+        {
+          "name": "merchant_id",
+          "required": true,
+          "description": "exactly 15 printable characters, or declined as format",
+          "schema": {
+            "type": "string",
+            "maxLength": 15
+          }
+        },
+        {
+          "name": "currency",
+          "required": false,
+          "description": "default 555 (rail 555); any other is declined",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "time",
+          "required": false,
+          "description": "request time, signed; default the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        }
+      ],
+      "result": {
+        "name": "challenge",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "challenge": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})+$"
+            },
+            "context": {
+              "type": "string",
+              "const": "ZXV-CARDNET-ARQC-v1"
+            },
+            "time": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.authorize",
+      "summary": "The funding decision: verify the holder signature and the card's state, limits and counter, and approve (placing a hold) or decline. A decline is a result with its ISO 8583 field 39 code, not an error. Send the fields with 'sig', or the EMV-shaped container 'emv' (cn_emv.h) that carries them. At most 32 authorizations per run. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "pan",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9]{1,16}$"
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": false,
+          "description": "1 to 999999999999 (ISO 8583 field 4)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999999999999
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "form",
+          "required": false,
+          "description": "capital form (cardnet.h cn_form_t)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8
+          }
+        },
+        {
+          "name": "atc",
+          "required": false,
+          "description": "application transaction counter: must increase per card (1..65535)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "un",
+          "required": false,
+          "description": "terminal unpredictable number (EMV 9F37)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){4}$",
+            "description": "4 bytes as hex"
+          }
+        },
+        {
+          "name": "stan",
+          "required": false,
+          "description": "0..999999 (ISO 8583 field 11)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "terminal_id",
+          "required": false,
+          "description": "exactly 8 printable characters, or declined as format",
+          "schema": {
+            "type": "string",
+            "maxLength": 8
+          }
+        },
+        {
+          "name": "merchant_id",
+          "required": false,
+          "description": "exactly 15 printable characters, or declined as format",
+          "schema": {
+            "type": "string",
+            "maxLength": 15
+          }
+        },
+        {
+          "name": "currency",
+          "required": false,
+          "description": "default 555 (rail 555); any other is declined",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "time",
+          "required": false,
+          "description": "request time as signed; required with the fields",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        },
+        {
+          "name": "sig",
+          "required": false,
+          "description": "ML-DSA-65 holder signature; required with the fields",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){3309}$",
+            "description": "3309 bytes as hex"
+          }
+        },
+        {
+          "name": "emv",
+          "required": false,
+          "description": "E1 container instead of the fields and sig",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 7000
+          }
+        }
+      ],
+      "result": {
+        "name": "authorization",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "auth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 31
+            },
+            "approved": {
+              "type": "boolean"
+            },
+            "rc": {
+              "type": "string",
+              "pattern": "^[0-9]{2}$"
+            },
+            "decline": {
+              "type": "string",
+              "enum": [
+                "none",
+                "bad_pan",
+                "unknown_card",
+                "revoked",
+                "frozen",
+                "expired",
+                "bad_sig",
+                "replay",
+                "form",
+                "currency",
+                "txn_limit",
+                "cycle_limit",
+                "ceiling",
+                "delinquent",
+                "format",
+                "system"
+              ]
+            },
+            "approval": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9A-Z]{6}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "cryptogram": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){8}$",
+              "description": "8 bytes as hex"
+            },
+            "amount_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "iso8583": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})*$",
+              "description": "the 0110 response"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.capture",
+      "summary": "Settle an approved authorization in full: DR 555 / CR 777 legs (and the flat fee leg) and one hash-chained receipt. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "auth",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 31
+          }
+        }
+      ],
+      "result": {
+        "name": "posted",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "auth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "settled",
+                "reversed"
+              ]
+            },
+            "txn": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "receipt": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "amount_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "fee_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.reverse",
+      "summary": "Release the hold of an approved, not yet captured authorization (ISO 8583 0400). Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "auth",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 31
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        }
+      ],
+      "result": {
+        "name": "reversal",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "auth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "state": {
+              "type": "string",
+              "const": "reversed"
+            },
+            "released_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.refund",
+      "summary": "Refund a captured authorization in full: the mirror legs and a refund receipt. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "auth",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 31
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        }
+      ],
+      "result": {
+        "name": "posted",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "auth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "settled",
+                "reversed"
+              ]
+            },
+            "txn": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "receipt": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "amount_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "fee_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.pay",
+      "summary": "A holder payment, applied to billed statements first; it clears delinquency once the bill is paid. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "account",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        }
+      ],
+      "result": {
+        "name": "account",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "active",
+                "delinquent",
+                "closed"
+              ]
+            },
+            "held_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "unbilled_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "billed_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "owed_minor": {
+              "type": "string",
+              "pattern": "^[0-9]{1,20}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "due": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "unix seconds of the due day, while a statement is unpaid"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "cards.advance",
+      "summary": "Advance the clock: close statement cycles and mark accounts past their due day delinquent. The amount owed never grows. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 946684800,
+            "maximum": 5241652095,
+            "description": "unix seconds (cardnet's range: 2000 to 2136)"
+          }
+        }
+      ],
+      "result": {
+        "name": "statements",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "statements": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "new_statements": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "delinquent": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkeys.status",
+      "summary": "The passkey relying party: credential counts and open challenges. Answers while the feature is off.",
+      "params": [
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "unix seconds"
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "rp_id": {
+              "type": "string"
+            },
+            "alg": {
+              "type": "integer",
+              "const": -49
+            },
+            "attestation": {
+              "type": "string",
+              "const": "none"
+            },
+            "credentials": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "active": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open_challenges": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_credentials": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "in_memory": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkeys.register_begin",
+      "summary": "Start a registration: a single-use 32-byte challenge valid for 300 s. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "user",
+          "required": true,
+          "description": "user handle",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){16}$",
+            "description": "16 bytes as hex"
+          }
+        },
+        {
+          "name": "rp_id",
+          "required": false,
+          "description": "default zxv.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "origin",
+          "required": false,
+          "description": "default https://<rp_id>",
+          "schema": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "require_uv",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "unix seconds"
+          }
+        }
+      ],
+      "result": {
+        "name": "challenge",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "webauthn.create",
+                "webauthn.get"
+              ]
+            },
+            "challenge": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "rp_id": {
+              "type": "string"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "alg": {
+              "type": "integer",
+              "const": -49
+            },
+            "require_uv": {
+              "type": "boolean"
+            },
+            "expires": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "user": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "16 bytes as hex"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkeys.register_finish",
+      "summary": "Finish a registration with the authenticator's authenticatorData (attested credential data, COSE alg -49 ML-DSA-65, attestation 'none'). Stores the public key only. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "challenge",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        },
+        {
+          "name": "auth",
+          "required": true,
+          "description": "authenticatorData, 2033 bytes as hex",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 4066
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "unix seconds"
+          }
+        }
+      ],
+      "result": {
+        "name": "credential",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cred_id": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "16 bytes as hex"
+            },
+            "user": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "16 bytes as hex"
+            },
+            "rp_id": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sign_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "revoked": {
+              "type": "boolean"
+            },
+            "registered": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_used": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkeys.auth_begin",
+      "summary": "Start a login: a single-use challenge; with 'user', the user's live credentials for the rp are listed in 'allow'. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "user",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){16}$",
+            "description": "16 bytes as hex"
+          }
+        },
+        {
+          "name": "rp_id",
+          "required": false,
+          "description": "default zxv.id",
+          "schema": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "origin",
+          "required": false,
+          "description": "default https://<rp_id>",
+          "schema": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "require_uv",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "unix seconds"
+          }
+        }
+      ],
+      "result": {
+        "name": "challenge",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "webauthn.create",
+                "webauthn.get"
+              ]
+            },
+            "challenge": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){32}$",
+              "description": "32 bytes as hex"
+            },
+            "rp_id": {
+              "type": "string"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "alg": {
+              "type": "integer",
+              "const": -49
+            },
+            "require_uv": {
+              "type": "boolean"
+            },
+            "expires": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^([0-9a-fA-F]{2}){16}$",
+                "description": "16 bytes as hex"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkeys.auth_finish",
+      "summary": "Finish a login: rebuild clientDataJSON from the challenge and origin, verify the ML-DSA-65 signature over authenticatorData || SHA-256(clientDataJSON), and require the signature counter to increase. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "challenge",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){32}$",
+            "description": "32 bytes as hex"
+          }
+        },
+        {
+          "name": "cred_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){16}$",
+            "description": "16 bytes as hex"
+          }
+        },
+        {
+          "name": "auth",
+          "required": true,
+          "description": "authenticatorData",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){37}$",
+            "description": "37 bytes as hex"
+          }
+        },
+        {
+          "name": "sig",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){3309}$",
+            "description": "3309 bytes as hex"
+          }
+        },
+        {
+          "name": "now",
+          "required": false,
+          "description": "default: the clock",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "unix seconds"
+          }
+        }
+      ],
+      "result": {
+        "name": "login",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "verified": {
+              "type": "boolean",
+              "const": true
+            },
+            "uv": {
+              "type": "boolean"
+            },
+            "credential": {
+              "type": "object",
+              "properties": {
+                "cred_id": {
+                  "type": "string",
+                  "pattern": "^([0-9a-fA-F]{2}){16}$",
+                  "description": "16 bytes as hex"
+                },
+                "user": {
+                  "type": "string",
+                  "pattern": "^([0-9a-fA-F]{2}){16}$",
+                  "description": "16 bytes as hex"
+                },
+                "rp_id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "sign_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "revoked": {
+                  "type": "boolean"
+                },
+                "registered": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "last_used": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkeys.list",
+      "summary": "Registered credentials (revoked ones included), optionally one user's. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "user",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){16}$",
+            "description": "16 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "credentials",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "credentials": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cred_id": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{2}){16}$",
+                    "description": "16 bytes as hex"
+                  },
+                  "user": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{2}){16}$",
+                    "description": "16 bytes as hex"
+                  },
+                  "rp_id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "sign_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "revoked": {
+                    "type": "boolean"
+                  },
+                  "registered": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "last_used": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkeys.revoke",
+      "summary": "Revoke a credential: it stays listed and never logs in again. Answers -32012 while the feature is off.",
+      "params": [
+        {
+          "name": "cred_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){16}$",
+            "description": "16 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "credential",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cred_id": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "16 bytes as hex"
+            },
+            "user": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2}){16}$",
+              "description": "16 bytes as hex"
+            },
+            "rp_id": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sign_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "revoked": {
+              "type": "boolean"
+            },
+            "registered": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_used": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     }
   ]
 }

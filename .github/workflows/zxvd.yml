@@ -60,6 +60,14 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_aipi.sh
+      - name: Cards unit test (real cardnet issuer, ML-DSA-65 holder signatures)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_cards.sh
+      - name: Passkeys unit test (real ident passkeys, ML-DSA-65 assertions)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_ident.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}
@@ -137,7 +145,7 @@ jobs:
           tail -n 20 "$HOME/Library/Logs/ZXV/engine.log" || true
 
   mutation:
-    # zxvd_rpc.c and zxvd_aipi.c against their unit tests; fails below the
+    # zxvd_rpc.c, zxvd_aipi.c, zxvd_cards.c and zxvd_ident.c against their unit tests; fails below the
     # baselines in tests/harness/mutator/targets.json (ci.yml's gate only runs
     # on PRs to main)
     name: zxvd mutation scores
@@ -145,7 +153,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi --ci --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident --ci --jobs 4 --out mutation-results
 
   real-model:
     # Qwen2.5-1.5B-Instruct Q4_K_M (Apache-2.0), pinned by SHA-256, never in git.

@@ -8,7 +8,8 @@
 int zxvd_groups_register(void)
 {
     static const zxvd_group_t *(*const ALL[])(void) = {
-        NULL, /* keeps the table non-empty while no group is built */
+        zxvd_cards_group,
+        zxvd_passkeys_group,
     };
     for (size_t i = 0; i < sizeof ALL / sizeof ALL[0]; i++)
         if (ALL[i] && zxvd_rpc_add_group(ALL[i]()) != 0) return -1;

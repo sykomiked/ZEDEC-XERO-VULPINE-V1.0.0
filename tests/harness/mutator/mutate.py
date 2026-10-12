@@ -302,6 +302,14 @@ def run_target(name, target, cmd, lines, ops, jobs, workers, build_code, out_dir
               % (name, rc, cmd))
         return None
     rc2, dt2 = run_cmd(cmd, workers[0], None, env)  # warm the object cache
+    # warm every worker as its mutants will run it (its own ZXV_TMP), with no
+    # timeout: a first build there (libzxv, an engine archive) cut short by the
+    # mutant timeout leaves half-built files that fail every later mutant
+    def warm(w):
+        os.makedirs(os.path.join(w, ".mut_tmp"), exist_ok=True)
+        return run_cmd(cmd, w, None, dict(env, ZXV_TMP=os.path.join(w, ".mut_tmp")))
+    with ThreadPoolExecutor(max_workers=max(1, jobs)) as ex:
+        list(ex.map(warm, workers))
     timeout = max(20.0, timeout_factor * min(dt, dt2) + 10.0)
     print("[%s/%s] %d mutants, baseline %.1fs, timeout %.0fs, %d jobs"
           % (name, phase, len(muts), min(dt, dt2), timeout, jobs), flush=True)

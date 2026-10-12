@@ -11,4 +11,13 @@
  * clashing method name: a build error, reported by zxvd at start). */
 int zxvd_groups_register(void);
 
+/* cards.* (zxvd_cards.c, kernel/src/cardnet): feature "cards", regulated */
+const zxvd_group_t *zxvd_cards_group(void);
+/* passkeys.* (zxvd_ident.c, kernel/src/ident): feature "passkeys" */
+const zxvd_group_t *zxvd_passkeys_group(void);
+/* Unit tests only: where the groups draw random bytes (NULL = the OS,
+ * zxv_os_random). fn returns 0 on success. */
+void zxvd_cards_set_random(int (*fn)(uint8_t *p, size_t n));
+void zxvd_passkeys_set_random(int (*fn)(uint8_t *p, size_t n));
+
 #endif
