@@ -1498,9 +1498,14 @@ fallback. It formats numbers and plurals, and it includes Enochian transliterati
 lines, mostly generated tables (gen_i18n_tables.py).
 Main entry points: i18n_msg, i18n_locale_find/resolve/default/parent, i18n_format_msg,
 i18n_fmt_int/decimal/currency/date, i18n_grapheme_next, i18n_enochian_render.
-Tests: test_i18n, test_i18n_cov, test_i18n_enochian (verify-all), pass.
-Used by: no #include outside; not in images.
-Gaps: none found.
+Tests: test_i18n, test_i18n_cov, test_i18n_enochian (verify-all), pass; test_i18n checks the
+desktop window's UI_ ids. check_ui_i18n.py (test_hosted.sh, verify-all) checks the window's table.
+Used by: the desktop window (kernel/arch/hosted/zxv_ui.html). At build time gen_ui.py compiles
+kernel/arch/hosted/gen_ui_strings.c with the i18n sources and embeds the string table, CLDR
+number formats and a locale map (checked against i18n_locale_resolve) in the page; the page
+chooses the locale from navigator.language. Not in kernel images.
+Gaps: the window's UI_ ids are English only, so other languages fall back to English (the window
+says so); the SwiftUI studio (macos/studio) does not use the table.
 
 ### icon  —  vector icons for every module
 Status: WORKING (tested in verify-all)

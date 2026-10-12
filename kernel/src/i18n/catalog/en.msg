@@ -164,3 +164,97 @@ ERR_PAYMENT_DECLINED|-|source|The payment was declined. Nothing was charged.
 ERR_PEER_UNVERIFIED|-|source|This peer is not verified. Check who you are paying.
 ERR_SIGNATURE|-|source|The signature could not be verified. Do not install this update.
 ERR_CALL_FAILED|-|source|The call could not be connected.
+
+# ---- the desktop window (kernel/arch/hosted/zxv_ui.html) ----
+# Every word that window shows comes from this catalog: gen_ui.py compiles
+# kernel/arch/hosted/gen_ui_strings.c against the i18n module, which writes
+# a table of the ids the page uses for every locale, and embeds it in the
+# page. Besides the UI_ ids below the window uses BTN_SEND, NET_TITLE,
+# NET_MODE_ONLINE, NAV_UPDATES and LANG_REVIEW_NOTICE. The UI_ ids are
+# English only until someone translates them: other languages show the
+# English text, marked lang="en", and the window says so (UI_LANG_FALLBACK).
+UI_WINDOW_TITLE|-|source|ZXV Swarm
+UI_HEADER_TITLE|-|source|ZXV SWARM
+UI_CONNECTING|-|source|connecting…
+UI_QUIT|-|source|Quit
+UI_QUIT_HINT|-|source|Stop the ZXV swarm
+UI_PREVIEW_NOTE|-|source|Preview build: the swarm engine (Fibonacci budget, market, emotions, witness, ledger, DNA, harmonic cycles) is running for real. The agents are stand-ins until the AI model packs are installed, so they don't write real answers yet.
+UI_LANG_FALLBACK|-|source|Parts of this window are not translated into {0} yet and are shown in English.
+UI_SWARM_TITLE|-|source|Swarm, this cycle
+UI_COL_LEVEL|-|source|Lvl
+UI_COL_AGENT|-|source|Agent
+UI_COL_FEELING|-|source|Feeling
+UI_COL_TOKENS|-|source|Tokens
+UI_COL_SPLIT|-|source|Split
+UI_COL_MONEY|-|source|Money
+UI_COL_SOCIAL|-|source|Social
+UI_COL_GEN|-|source|Gen
+UI_COL_WITNESS|-|source|Witness
+UI_LEGEND_FLOOR|-|source|Fibonacci floor
+UI_LEGEND_MARKET|-|source|market
+UI_LEGEND_EMOTIONAL|-|source|emotional (imaginary)
+UI_VERDICT_FALSE|-|source|✗ false
+UI_VERDICT_TRUE|-|source|✓ true
+UI_VERDICT_CONTESTED|-|source|⊥̸ contested
+UI_WITNESS_BY|-|source|by {0}
+UI_TALK_TITLE|-|source|Talk to the companion
+UI_ASK_PLACEHOLDER|-|source|Ask, or write Hackronomicon shorthand like fan_out(question) -> verify(answers)
+UI_WHO_YOU|-|source|You
+UI_WHO_COMPANION|-|source|Companion
+UI_GREETING|-|source|Hello. I am the companion at the top of the swarm. The engine is live; my specialists are stand-ins until their models are installed.
+UI_NO_CONNECTION|-|source|(no connection to the swarm)
+UI_STOPPED|-|source|The ZXV swarm has stopped. You can close this window.
+UI_INSTANCE_REMOTE|-|source|remote instance
+UI_INSTANCE_LOCAL|-|source|this device
+UI_INSTANCE_LINE|-|source|{0} · {1}
+UI_DISCONNECTED|-|source|disconnected
+UI_BUDGET_TITLE|-|source|Machine budget
+UI_KV_MODE|-|source|Mode
+UI_BUDGET_REMOTE|-|source|remote (up to 99%)
+UI_BUDGET_LOCAL|-|source|local guest (≤ 13/21 of free)
+UI_KV_CORES|-|source|Cores
+UI_CORES_VALUE|-|source|{0} total, {1} granted
+UI_KV_MEMORY|-|source|Memory
+UI_MEMORY_VALUE|-|source|{0} MB total, {1} MB granted
+UI_KV_LEVELS|-|source|Levels
+UI_KV_AGENTS|-|source|Agents
+UI_KV_TOKENS_CYCLE|-|source|Tokens / cycle
+UI_KV_COMPANION_LEFT|-|source|Companion left
+UI_COMPANION_EXHAUSTED|-|source|budget exhausted for this cycle
+UI_COMPANION_REMAINING|-|source|{0} of {1} tokens
+UI_HARMONIC_TITLE|-|source|Harmonic cycles
+UI_KV_TICK|-|source|Tick
+UI_KV_FUNDAMENTAL|-|source|Fundamental
+UI_FUNDAMENTAL_VALUE|-|source|{0} ({1} ticks each)
+UI_KV_MARKET_CYCLE|-|source|Market cycle
+UI_LEDGER_TITLE|-|source|Ledger and market
+UI_KV_SETTLED|-|source|Settled cycles
+UI_KV_HELD|-|source|Held cycles
+UI_KV_MONEY_SUPPLY|-|source|Money supply
+UI_KV_POT|-|source|Pot
+UI_KV_IMAG_POOL|-|source|Imaginary pool
+UI_KV_MOOD|-|source|Mood
+UI_KV_SAVED|-|source|Tokens saved by sharing
+UI_NET_OFF|-|source|Off
+UI_NET_LAN|-|source|LAN
+UI_NET_NOTE|-|source|Off: no socket, nothing leaves this machine. LAN: private addresses only.
+UI_KV_SOCKET|-|source|Socket
+UI_SOCKET_UDP|-|source|UDP {0}:{1}
+UI_SOCKET_NONE|-|source|none
+UI_KV_NODE|-|source|Node
+UI_KV_PEERS|-|source|Peers
+UI_KV_DATAGRAMS|-|source|Datagrams
+UI_DATAGRAMS_VALUE|-|source|{0} in, {1} out
+UI_KV_ERROR|-|source|Error
+UI_UPD_CHECK|-|source|Check for updates
+UI_UPD_NOTE|-|source|Checks only when you ask, or daily while Online. Unsigned listings are never installable.
+UI_KV_STATUS|-|source|Status
+UI_KV_CHECKS|-|source|Checks
+UI_CHECKS_VALUE|-|source|{0} ({1} requests)
+UI_KV_GATEWAY|-|source|Gateway
+UI_KV_DETAIL|-|source|Detail
+UI_NOTES_TITLE|-|source|Notifications
+UI_NOTES_READ|-|source|Mark all read
+UI_NOTES_NONE|-|source|None yet.
+UI_NOTE_COUNT|-|source|{0} ({1})
+UI_NOTE_BODY|-|source|{0} · {1}

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ZXV Swarm</title>
+<title data-i18n="UI_WINDOW_TITLE"></title>
 <style>
 :root{--bg:#0e1116;--panel:#161b22;--line:#2a313c;--text:#e6edf3;--muted:#8b949e;--accent:#d4a72c;--ok:#3fb950;--bad:#f85149;--glut:#a371f7;--re:#4c8dff;--mk:#d4a72c;--im:#db61a2}
 *{box-sizing:border-box}
@@ -48,74 +48,186 @@ form button{background:var(--accent);color:#000;border:0;border-radius:6px;paddi
 </style>
 </head>
 <body>
+<!-- Every word on this page is a message id of kernel/src/i18n/catalog/en.msg:
+     a data-i18n attribute (the element's text), data-i18n-title and
+     data-i18n-placeholder (those attributes), or T(id, args...) in the
+     script. gen_ui.py embeds the table the i18n module generates
+     (gen_ui_strings.c) into #zxv-i18n and fills in the English text;
+     check_ui_i18n.py fails on any word written here directly. -->
 <header>
-  <h1>ZXV SWARM</h1>
-  <span class="sub" id="mode">connecting…</span>
-  <button id="quit" title="Stop the ZXV swarm">Quit</button>
+  <h1 data-i18n="UI_HEADER_TITLE"></h1>
+  <span class="sub" id="mode" data-i18n="UI_CONNECTING"></span>
+  <button id="quit" data-i18n-title="UI_QUIT_HINT" data-i18n="UI_QUIT"></button>
 </header>
-<div class="note">Preview build: the swarm engine (Fibonacci budget, market, emotions, witness, ledger, DNA, harmonic cycles) is running for real. The agents are stand-ins until the AI model packs are installed, so they don't write real answers yet.</div>
+<div class="note" data-i18n="UI_PREVIEW_NOTE"></div>
+<div class="note" id="langnote" hidden></div>
 <main>
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
     <section>
-      <h2>Swarm, this cycle</h2>
+      <h2 data-i18n="UI_SWARM_TITLE"></h2>
       <div class="tablewrap"><table>
-        <thead><tr><th>Lvl</th><th>Agent</th><th>Feeling</th><th>Tokens</th><th>Split</th><th>Money</th><th>Social</th><th>Gen</th><th>Witness</th></tr></thead>
+        <thead><tr><th data-i18n="UI_COL_LEVEL"></th><th data-i18n="UI_COL_AGENT"></th><th data-i18n="UI_COL_FEELING"></th><th data-i18n="UI_COL_TOKENS"></th><th data-i18n="UI_COL_SPLIT"></th><th data-i18n="UI_COL_MONEY"></th><th data-i18n="UI_COL_SOCIAL"></th><th data-i18n="UI_COL_GEN"></th><th data-i18n="UI_COL_WITNESS"></th></tr></thead>
         <tbody id="agents"></tbody>
       </table></div>
-      <div class="legend"><span><b style="background:var(--re)"></b>Fibonacci floor</span><span><b style="background:var(--mk)"></b>market</span><span><b style="background:var(--im)"></b>emotional (imaginary)</span></div>
+      <div class="legend"><span><b style="background:var(--re)"></b><span data-i18n="UI_LEGEND_FLOOR"></span></span><span><b style="background:var(--mk)"></b><span data-i18n="UI_LEGEND_MARKET"></span></span><span><b style="background:var(--im)"></b><span data-i18n="UI_LEGEND_EMOTIONAL"></span></span></div>
     </section>
     <section>
-      <h2>Talk to the companion</h2>
+      <h2 data-i18n="UI_TALK_TITLE"></h2>
       <div id="chat"></div>
-      <form id="ask"><input id="q" autocomplete="off" placeholder="Ask, or write Hackronomicon shorthand like fan_out(question) -> verify(answers)"><button>Send</button></form>
+      <form id="ask"><input id="q" autocomplete="off" data-i18n-placeholder="UI_ASK_PLACEHOLDER"><button data-i18n="BTN_SEND"></button></form>
     </section>
   </div>
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
-    <section><h2>Machine budget</h2><div class="kv" id="budget"></div></section>
-    <section><h2>Harmonic cycles</h2><div class="harm" id="harm"></div><div class="kv" style="margin-top:8px" id="clock"></div></section>
-    <section><h2>Ledger and market</h2><div class="kv" id="ledger"></div></section>
-    <section><h2>Network</h2><div class="kv" id="net"></div>
-      <div class="btns"><button data-net="off">Off</button><button data-net="lan">LAN</button><button data-net="online">Online</button></div>
-      <div class="small">Off: no socket, nothing leaves this machine. LAN: private addresses only.</div></section>
-    <section><h2>Updates</h2><div class="kv" id="upd"></div>
-      <div class="btns"><button id="updcheck">Check for updates</button></div>
-      <div class="small">Checks only when you ask, or daily while Online. Unsigned listings are never installable.</div></section>
-    <section><h2>Notifications</h2><div id="notes"></div><div class="btns"><button id="noteread">Mark all read</button></div></section>
+    <section><h2 data-i18n="UI_BUDGET_TITLE"></h2><div class="kv" id="budget"></div></section>
+    <section><h2 data-i18n="UI_HARMONIC_TITLE"></h2><div class="harm" id="harm"></div><div class="kv" style="margin-top:8px" id="clock"></div></section>
+    <section><h2 data-i18n="UI_LEDGER_TITLE"></h2><div class="kv" id="ledger"></div></section>
+    <section><h2 data-i18n="NET_TITLE"></h2><div class="kv" id="net"></div>
+      <div class="btns"><button data-net="off" data-i18n="UI_NET_OFF"></button><button data-net="lan" data-i18n="UI_NET_LAN"></button><button data-net="online" data-i18n="NET_MODE_ONLINE"></button></div>
+      <div class="small" data-i18n="UI_NET_NOTE"></div></section>
+    <section><h2 data-i18n="NAV_UPDATES"></h2><div class="kv" id="upd"></div>
+      <div class="btns"><button id="updcheck" data-i18n="UI_UPD_CHECK"></button></div>
+      <div class="small" data-i18n="UI_UPD_NOTE"></div></section>
+    <section><h2 data-i18n="UI_NOTES_TITLE"></h2><div id="notes"></div><div class="btns"><button id="noteread" data-i18n="UI_NOTES_READ"></button></div></section>
   </div>
 </main>
+<script id="zxv-i18n" type="application/json">null</script>
+<script id="zxv-i18n-core">
+// The page's side of kernel/src/i18n: locale negotiation over the table's
+// map (built and checked against i18n_locale_resolve by gen_ui_strings.c),
+// i18n_format_msg's {0}..{9} substitution with FSI/PDI isolation, and
+// i18n_fmt_int/i18n_fmt_decimal over the CLDR decimal format. No DOM here:
+// check_ui_i18n.py runs this script under node against the C results.
+const ZXVI18N=(()=>{
+  const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+  function norm(tag){
+    let t=String(tag==null?'':tag).slice(0,47).replace(/_/g,'-').replace(/[A-Z]/g,c=>c.toLowerCase());
+    for(let i=0;i+2<t.length;i++)if(t[i]==='-'&&t[i+2]==='-'){t=t.slice(0,i);break}
+    if(t.length>=2&&t[t.length-2]==='-')t=t.slice(0,-2);
+    return t;
+  }
+  function negotiate(tb,tag){
+    let t=norm(tag);
+    for(;;){
+      if(t&&own(tb.map,t))return tb.map[t];
+      const k=t.lastIndexOf('-');
+      if(k<0)return tb.def;
+      t=t.slice(0,k);
+    }
+  }
+  function strongRtl(cp){
+    return (cp>=0x0590&&cp<=0x08FF)||(cp>=0xFB1D&&cp<=0xFDFF)||(cp>=0xFE70&&cp<=0xFEFF)||
+           (cp>=0x10800&&cp<=0x10FFF)||(cp>=0x1E800&&cp<=0x1EFFF);
+  }
+  function hasRtl(s){for(const ch of s)if(strongRtl(ch.codePointAt(0)))return true;return false}
+  function format(rtl,tmpl,args){
+    let o='';
+    for(let i=0;i<tmpl.length;i++){
+      const c=tmpl[i],d=tmpl[i+1];
+      if(c==='{'&&d>='0'&&d<='9'&&tmpl[i+2]==='}'){
+        const k=d.charCodeAt(0)-48,a=k<args.length&&args[k]!=null?String(args[k]):'';
+        const iso=rtl||hasRtl(a);
+        o+=(iso?'⁨':'')+a+(iso?'⁩':'');
+        i+=2;continue;
+      }
+      o+=c;
+    }
+    return o;
+  }
+  function body(nf,mag,frac){
+    let s=mag.toString();
+    if(frac>19)frac=19;
+    while(s.length<=frac)s='0'+s;
+    const ni=s.length-frac,grouping=nf.g1>0&&ni>=nf.g1+nf.min;
+    let o='';
+    for(let k=0;k<ni;k++){
+      o+=nf.d[s.charCodeAt(k)-48];
+      const left=ni-1-k;
+      if(grouping&&left>0&&(left===nf.g1||(left>nf.g1&&nf.g2>0&&(left-nf.g1)%nf.g2===0)))o+=nf.grp;
+    }
+    if(frac){o+=nf.dec;for(let k=ni;k<s.length;k++)o+=nf.d[s.charCodeAt(k)-48]}
+    return o;
+  }
+  function big(v){
+    if(typeof v==='bigint')return v;
+    if(typeof v==='string'&&/^-?[0-9]+$/.test(v))return BigInt(v);
+    const n=Number(v);
+    return Number.isFinite(n)?BigInt(Math.round(n)):null;
+  }
+  // value = scaled / 10^frac, every digit shown, no rounding (i18n.h)
+  function fmtNum(nf,v,frac){
+    const b=big(v);
+    if(b===null)return String(Number(v));
+    const neg=b<0n;
+    return (neg?nf.np:nf.pp)+body(nf,neg?-b:b,frac)+(neg?nf.ns:nf.ps);
+  }
+  function make(tb,tag){
+    const L=tb.locs[negotiate(tb,tag)],set=tb.sets[L[3]],nf=tb.nums[L[4]],rtl=!!L[2],idx={};
+    tb.keys.forEach((k,i)=>{idx[k]=i});
+    function entry(key){
+      const i=idx[key];
+      if(i===undefined)throw new Error(key);
+      const e=set[i];
+      return e?{s:e[0],review:e[1],fb:false}:{s:tb.en[i],review:0,fb:!!L[5]};
+    }
+    const all=tb.keys.map(entry);
+    // English fallback text in a right-to-left window keeps its own
+    // direction: isolated left to right (LRI .. PDI)
+    function T(key,...a){
+      const e=entry(key),s=a.length?format(rtl,e.s,a):e.s;
+      return rtl&&e.fb?'⁦'+s+'⁩':s;
+    }
+    return {tag:L[0],autonym:L[1],rtl,entry,T,
+      fallback:all.some(e=>e.fb),machine:all.some(e=>e.review===2),
+      n:v=>fmtNum(nf,v,0),d:(scaled,frac)=>fmtNum(nf,scaled,frac)};
+  }
+  return {norm,negotiate,format,fmtNum,make};
+})();
+</script>
 <script>
 const $=id=>document.getElementById(id);
-const verdict=["✗ false","✓ true","⊥̸ contested"];
-for(let n=1;n<=11;n++){const d=document.createElement('div');d.textContent=n;d.id='h'+n;$('harm').appendChild(d)}
+const I18N=ZXVI18N.make(JSON.parse($('zxv-i18n').textContent),navigator.language||'');
+const T=I18N.T,fmt=I18N.n;
+document.documentElement.lang=I18N.tag;
+if(I18N.rtl)document.documentElement.dir='rtl';
+document.querySelectorAll('[data-i18n]').forEach(e=>{const x=I18N.entry(e.dataset.i18n);e.textContent=x.s;if(x.fb){e.lang='en';if(I18N.rtl)e.dir='ltr'}});
+document.querySelectorAll('[data-i18n-title]').forEach(e=>{e.title=T(e.dataset.i18nTitle)});
+document.querySelectorAll('[data-i18n-placeholder]').forEach(e=>{e.placeholder=T(e.dataset.i18nPlaceholder)});
+if(I18N.fallback||I18N.machine){
+  $('langnote').textContent=[I18N.fallback?T('UI_LANG_FALLBACK',I18N.autonym):'',I18N.machine?T('LANG_REVIEW_NOTICE'):''].filter(Boolean).join(' ');
+  $('langnote').hidden=false;
+}
+const verdict=[T('UI_VERDICT_FALSE'),T('UI_VERDICT_TRUE'),T('UI_VERDICT_CONTESTED')];
+for(let n=1;n<=11;n++){const d=document.createElement('div');d.textContent=fmt(n);d.id='h'+n;$('harm').appendChild(d)}
 function esc(t){return String(t).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';')}
 function kv(el,rows){el.innerHTML=rows.map(([k,v])=>`<span>${esc(k)}</span><span>${esc(v)}</span>`).join('')}
-function fmt(n){return Number(n).toLocaleString()}
+// cores_milli / 1000 to two places, rounded as toFixed(2) rounds
+function cores(milli){return I18N.d(Math.round(Number((milli/1000).toFixed(2))*100),2)}
 async function poll(){
   try{
     const s=await (await fetch('/api/state')).json();
-    $('mode').textContent=(s.remote?'remote instance':'this device')+' · '+s.host;
+    $('mode').textContent=T('UI_INSTANCE_LINE',s.remote?T('UI_INSTANCE_REMOTE'):T('UI_INSTANCE_LOCAL'),s.host);
     const c=s.companion||{};
-    kv($('budget'),[['Mode',s.remote?'remote (up to 99%)':'local guest (≤ 13/21 of free)'],['Cores',`${s.cores} total, ${(s.cores_milli/1000).toFixed(2)} granted`],['Memory',`${fmt(s.mem_total_mb)} MB total, ${fmt(s.mem_mb)} MB granted`],['Levels',s.levels],['Agents',s.agents.length],['Tokens / cycle',fmt(s.tokens_per_cycle)],['Companion left',c.exhausted?'budget exhausted for this cycle':`${fmt(c.remaining)} of ${fmt(c.allotted)} tokens`]]);
-    const n=s.net||{};kv($('net'),[['Mode',n.mode],['Socket',n.bound?`UDP ${n.bind}:${n.port}`:'none'],['Node',n.node_id||'–'],['Peers',fmt(n.peers||0)],['Datagrams',`${fmt(n.in||0)} in, ${fmt(n.out||0)} out`]].concat(n.error?[['Error',n.error]]:[]));
+    kv($('budget'),[[T('UI_KV_MODE'),s.remote?T('UI_BUDGET_REMOTE'):T('UI_BUDGET_LOCAL')],[T('UI_KV_CORES'),T('UI_CORES_VALUE',fmt(s.cores),cores(s.cores_milli))],[T('UI_KV_MEMORY'),T('UI_MEMORY_VALUE',fmt(s.mem_total_mb),fmt(s.mem_mb))],[T('UI_KV_LEVELS'),fmt(s.levels)],[T('UI_KV_AGENTS'),fmt(s.agents.length)],[T('UI_KV_TOKENS_CYCLE'),fmt(s.tokens_per_cycle)],[T('UI_KV_COMPANION_LEFT'),c.exhausted?T('UI_COMPANION_EXHAUSTED'):T('UI_COMPANION_REMAINING',fmt(c.remaining),fmt(c.allotted))]]);
+    const n=s.net||{};kv($('net'),[[T('UI_KV_MODE'),n.mode],[T('UI_KV_SOCKET'),n.bound?T('UI_SOCKET_UDP',n.bind,n.port):T('UI_SOCKET_NONE')],[T('UI_KV_NODE'),n.node_id||'–'],[T('UI_KV_PEERS'),fmt(n.peers||0)],[T('UI_KV_DATAGRAMS'),T('UI_DATAGRAMS_VALUE',fmt(n.in||0),fmt(n.out||0))]].concat(n.error?[[T('UI_KV_ERROR'),n.error]]:[]));
     document.querySelectorAll('[data-net]').forEach(b=>b.classList.toggle('on',b.dataset.net===n.mode));
-    const u=s.update||{};kv($('upd'),[['Status',u.status],['Checks',`${fmt(u.checks||0)} (${fmt(u.requests||0)} requests)`],['Gateway',u.gateway]].concat(u.body?[['Detail',u.body]]:[]).concat(u.error?[['Error',u.error]]:[]));
+    const u=s.update||{};kv($('upd'),[[T('UI_KV_STATUS'),u.status],[T('UI_KV_CHECKS'),T('UI_CHECKS_VALUE',fmt(u.checks||0),fmt(u.requests||0))],[T('UI_KV_GATEWAY'),u.gateway]].concat(u.body?[[T('UI_KV_DETAIL'),u.body]]:[]).concat(u.error?[[T('UI_KV_ERROR'),u.error]]:[]));
     if(s.notes&&s.notes.unread!==lastUnread){lastUnread=s.notes.unread;notes()}
     for(let n=1;n<=11;n++)$('h'+n).classList.toggle('on',!!(s.due_mask>>(n-1)&1));
-    kv($('clock'),[['Tick',fmt(s.tick)],['Fundamental',`${fmt(s.fundamental)} (27,720 ticks each)`],['Market cycle',fmt(s.cycle)]]);
-    kv($('ledger'),[['Settled cycles',fmt(s.settled)],['Held cycles',fmt(s.held)],['Money supply',fmt(s.money_supply)],['Pot',fmt(s.pot)],['Imaginary pool',fmt(s.imag)],['Mood',s.mood],['Tokens saved by sharing',fmt(s.saved)]]);
-    $('agents').innerHTML=s.agents.map(a=>{const t=a.re+a.mk+a.im||1;return `<tr><td>${a.level}</td><td>${a.name}</td><td>${a.emoji} ${a.intensity}</td><td>${fmt(a.re+a.mk+a.im)}</td><td><div class="bar"><i style="width:${a.re/t*100}%;background:var(--re)"></i><i style="width:${a.mk/t*100}%;background:var(--mk)"></i><i style="width:${a.im/t*100}%;background:var(--im)"></i></div></td><td>${fmt(a.money)}</td><td>${fmt(a.social)}</td><td>${a.gen}</td><td class="v${a.witness}">${verdict[a.witness]||''} <span style="color:var(--muted)">by ${a.witness_by}</span></td></tr>`}).join('');
-  }catch(e){$('mode').textContent='disconnected'}
+    kv($('clock'),[[T('UI_KV_TICK'),fmt(s.tick)],[T('UI_KV_FUNDAMENTAL'),T('UI_FUNDAMENTAL_VALUE',fmt(s.fundamental),fmt(27720))],[T('UI_KV_MARKET_CYCLE'),fmt(s.cycle)]]);
+    kv($('ledger'),[[T('UI_KV_SETTLED'),fmt(s.settled)],[T('UI_KV_HELD'),fmt(s.held)],[T('UI_KV_MONEY_SUPPLY'),fmt(s.money_supply)],[T('UI_KV_POT'),fmt(s.pot)],[T('UI_KV_IMAG_POOL'),fmt(s.imag)],[T('UI_KV_MOOD'),s.mood],[T('UI_KV_SAVED'),fmt(s.saved)]]);
+    $('agents').innerHTML=s.agents.map(a=>{const t=a.re+a.mk+a.im||1;return `<tr><td>${fmt(a.level)}</td><td>${a.name}</td><td>${a.emoji} ${fmt(a.intensity)}</td><td>${fmt(a.re+a.mk+a.im)}</td><td><div class="bar"><i style="width:${a.re/t*100}%;background:var(--re)"></i><i style="width:${a.mk/t*100}%;background:var(--mk)"></i><i style="width:${a.im/t*100}%;background:var(--im)"></i></div></td><td>${fmt(a.money)}</td><td>${fmt(a.social)}</td><td>${fmt(a.gen)}</td><td class="v${a.witness}">${esc(verdict[a.witness]||'')} <span style="color:var(--muted)">${esc(T('UI_WITNESS_BY',a.witness_by))}</span></td></tr>`}).join('');
+  }catch(e){$('mode').textContent=T('UI_DISCONNECTED')}
 }
 let lastUnread=-1;
-async function notes(){try{const r=await (await fetch('/api/notes')).json();$('notes').innerHTML='';for(const x of r.notes){const d=document.createElement('div');if(!x.read)d.className='unread';d.textContent=`${x.title}${x.count>1?' ('+x.count+')':''}${x.body?' · '+x.body:''}`;$('notes').appendChild(d)}if(!r.notes.length)$('notes').textContent='None yet.'}catch(e){}}
+async function notes(){try{const r=await (await fetch('/api/notes')).json();$('notes').innerHTML='';for(const x of r.notes){const d=document.createElement('div');if(!x.read)d.className='unread';let t=x.title;if(x.count>1)t=T('UI_NOTE_COUNT',t,x.count);if(x.body)t=T('UI_NOTE_BODY',t,x.body);d.textContent=t;$('notes').appendChild(d)}if(!r.notes.length)$('notes').textContent=T('UI_NOTES_NONE')}catch(e){}}
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=async()=>{try{await fetch('/api/net',{method:'POST',body:b.dataset.net})}catch(e){}poll()});
 $('updcheck').onclick=async()=>{$('updcheck').disabled=true;try{await fetch('/api/update',{method:'POST'})}catch(e){}$('updcheck').disabled=false;poll();notes()};
 $('noteread').onclick=async()=>{try{await fetch('/api/notes/read',{method:'POST'})}catch(e){}notes()};
-function say(who,text,you){const m=document.createElement('div');m.className='msg'+(you?' you':'');m.innerHTML=`<span class="who">${who}</span>`;m.appendChild(document.createTextNode(text));$('chat').appendChild(m);$('chat').scrollTop=1e9}
-$('ask').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;$('q').value='';say('You',q,true);
-  try{const r=await (await fetch('/api/ask',{method:'POST',body:q})).text();say('Companion',r)}catch(err){say('Companion','(no connection to the swarm)')}};
-$('quit').onclick=async()=>{try{await fetch('/api/quit',{method:'POST'})}catch(e){}document.body.innerHTML='<p style="padding:24px">The ZXV swarm has stopped. You can close this window.</p>'};
-say('Companion','Hello. I am the companion at the top of the swarm. The engine is live; my specialists are stand-ins until their models are installed.');
+function say(who,text,you){const m=document.createElement('div');m.className='msg'+(you?' you':'');m.innerHTML=`<span class="who">${esc(who)}</span>`;m.appendChild(document.createTextNode(text));$('chat').appendChild(m);$('chat').scrollTop=1e9}
+$('ask').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;$('q').value='';say(T('UI_WHO_YOU'),q,true);
+  try{const r=await (await fetch('/api/ask',{method:'POST',body:q})).text();say(T('UI_WHO_COMPANION'),r)}catch(err){say(T('UI_WHO_COMPANION'),T('UI_NO_CONNECTION'))}};
+$('quit').onclick=async()=>{try{await fetch('/api/quit',{method:'POST'})}catch(e){}document.body.innerHTML='<p style="padding:24px">'+esc(T('UI_STOPPED'))+'</p>'};
+say(T('UI_WHO_COMPANION'),T('UI_GREETING'));
 poll();setInterval(poll,500);
 </script>
 </body>
