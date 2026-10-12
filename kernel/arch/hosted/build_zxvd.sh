@@ -87,8 +87,24 @@ if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
     set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$K/src/aipi/aipi.c" "$HERE/zxvd_aipi.c"
     DEFS="$DEFS -DZXV_HAVE_AIPI"
 fi
+# 4. The Playground (sdk/playground): the templates and the runner for ZXV's
+# languages, behind /api/play/* in the window and play.* on the socket. Not
+# in the Windows build yet (ZXVD_PLAY=0 leaves it out anywhere).
+PLAY_LIBS=""
+if [ -z "$EXE" ] && [ "${ZXVD_PLAY:-1}" != 0 ]; then
+    P="$OUT/play-build"
+    make -C "$R/sdk/playground" CC="$CC" OUT="$P" ${SANITIZE:+SANITIZE=1} deps "$P/libzxvplay.a" \
+        >"$OUT/play-build.log" 2>&1 ||
+        { tail -30 "$OUT/play-build.log"; echo "[FAIL] playground build"; exit 1; }
+    PL="$R/sdk/pillars"
+    PLAY_LIBS="$P/libzxvplay.a $PL/cobol-sutra/build/libzsutra.a $PL/fortran-trebago/build/libztrebago.a"
+    PLAY_LIBS="$PLAY_LIBS $PL/ada-eve/build/libzeve.a $PL/apl-kron/build/libzkron.a $PL/mumps-myra/build/libzmyra.a"
+    PLAY_LIBS="$PLAY_LIBS $R/packages/build/libzxv-econ/libzxv-econ.a"
+    set -- "$@" "-I$R/sdk/playground/include"
+    DEFS="$DEFS -DZXV_HAVE_PLAY"
+fi
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
-$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
+$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS $PLAY_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"
 echo "[PASS] built $OUT/zxvd$EXE against $OUT/$LIBF"

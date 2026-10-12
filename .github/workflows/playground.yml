@@ -1,0 +1,58 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Playground (sdk/playground): every template run against its golden
+# result, every test case, the zxv command end to end, and the no-float
+# check, with gcc-11 and with ASan + UBSan.
+name: Playground
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sdk/playground/**'
+      - 'sdk/pillars/**'
+      - 'sdk/libzxv/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/engine/**'
+      - 'packages/**'
+      - '.github/workflows/playground.yml'
+  pull_request:
+    paths:
+      - 'sdk/playground/**'
+      - 'sdk/pillars/**'
+      - 'sdk/libzxv/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/engine/**'
+      - 'packages/**'
+      - '.github/workflows/playground.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playground-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  playground:
+    name: playground (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: gcc-11
+            sanitize: ''
+          - name: gcc-11 ASan+UBSan
+            sanitize: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install gcc-11
+        run: sudo apt-get update -q && sudo apt-get install -y -q gcc-11
+      - name: Build libzxv, the pillars and libzxv-econ
+        run: make -C sdk/playground CC=gcc-11 deps
+      - name: Test
+        run: make -C sdk/playground CC=gcc-11 ${{ matrix.sanitize && 'SANITIZE=1' || '' }} test

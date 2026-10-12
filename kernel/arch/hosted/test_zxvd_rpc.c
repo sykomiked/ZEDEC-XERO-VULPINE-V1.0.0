@@ -442,7 +442,8 @@ static void test_host_methods(void)
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
               "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
               "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\"]}"));
+              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -467,6 +468,7 @@ static void test_host_methods(void)
     EXPECT(REQ("1", "zxvd.version", ""), want);
     zxvd_rpc_set_ops(NULL);
     EXPECT(REQ("1", "swarm.state", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "play.catalogue", ""), ERR("1", "-32601", "not available"));
     zxvd_rpc_set_ops(&SILENT);
     EXPECT(REQ("1", "swarm.ask", ",\"params\":{\"prompt\":\"x\"}"), OK("1", "{\"answer\":\"\"}"));
     zxvd_rpc_set_ops(&EMPTY);

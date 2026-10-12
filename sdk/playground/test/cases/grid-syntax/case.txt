@@ -1,0 +1,2 @@
+template grid-load-alerts
+expect FALSE

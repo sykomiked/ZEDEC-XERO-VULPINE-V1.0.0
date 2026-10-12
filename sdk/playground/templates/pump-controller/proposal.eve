@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# proposal.eve - what an advisory controller may PROPOSE for one pump.
+# Every range is a hard limit: a value outside it is refused, never
+# clipped. Nothing here switches a pump; an operator approves or not.
+eve pump
+pump_mode = (off, low, high)
+flow_rate = dec(6, 1) 0 .. 250      # setpoint, cubic metres per hour
+pressure = dec(6, 1) 0 .. 1000      # what a gauge can read, kPa
+
+proposal {
+  mode: pump_mode
+  flow: flow_rate
+  pressure_a, pressure_b: pressure  # two independent gauges, same pipe
+}

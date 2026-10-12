@@ -208,6 +208,33 @@ typedef struct {
 } zxvd_view_ops_t;
 void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
 
+/* play.* (sdk/playground, zxvplay.h): templates and examples in ZXV's
+ * languages, run in this process on scratch state; nothing touches the
+ * books. Set separately; unset methods answer -32601 (a build without the
+ * Playground). Each returns NULL on success (one JSON value written into
+ * `out`) or the reason it failed (error ZXVD_E_PLAY).
+ *   P1 play.catalogue  {}  -> [{"id","title","lang","audience","safety",
+ *                      "summary","steps","files","draft"?}]
+ *   P2 play.run        {"template", "files"?: {name: text}} -> the result
+ *                      object (verdict TRUE/FALSE/BOTH/NEITHER, steps, ...)
+ *   P3 play.draft      {"template", "files"?, "request"?} -> {"model": bool,
+ *                      "draft": text}: the local swarm's draft of the
+ *                      template's draft file. Untrusted text: it is not run. */
+#define ZXVD_E_PLAY (-32012)
+typedef struct {
+    const char *name;
+    const char *text;
+    size_t len;
+} zxvd_play_file_t;
+typedef struct {
+    const char *(*catalogue)(zxvd_buf_t *out);
+    const char *(*run)(const char *template_id, const zxvd_play_file_t *files, uint32_t n,
+                       zxvd_buf_t *out);
+    const char *(*draft)(const char *template_id, const zxvd_play_file_t *files, uint32_t n,
+                         const char *request, zxvd_buf_t *out);
+} zxvd_play_ops_t;
+void zxvd_rpc_set_play_ops(const zxvd_play_ops_t *ops);
+
 /* aipi.* (zxvd_aipi.c, AIPI on Z-Wasm, docs/AIPI.md): content-addressed
  * functions run on this node only (offline, rule A3). Set separately; unset
  * methods answer -32601 (a build without the Z-Wasm kit). Each returns NULL

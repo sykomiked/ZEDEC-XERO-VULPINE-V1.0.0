@@ -1,0 +1,2 @@
+template warehouse-stock
+expect BOTH

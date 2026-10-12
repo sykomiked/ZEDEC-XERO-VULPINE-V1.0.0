@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 Playground call refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -1878,6 +1878,223 @@
                   "pattern": "^[0-9]+$"
                 }
               }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "play.catalogue",
+      "summary": "The Playground's templates: runnable examples in ZXV's languages (treaty Sutra, KRON, Trebago, Eve, MYRA, COBOL/Sutra layouts), with their files.",
+      "params": [],
+      "result": {
+        "name": "templates",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "lang": {
+                "type": "string"
+              },
+              "audience": {
+                "type": "string"
+              },
+              "safety": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "advisory",
+                  "settlement"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "lang": {
+                      "type": "string"
+                    },
+                    "file": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "draft": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string"
+                  },
+                  "instruction": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "play.run",
+      "summary": "Run a template, with the caller's edits, on scratch state (never the books). The result's verdict is four-valued: TRUE passed, FALSE refused (with line and column), BOTH contradictory evidence held for a person, NEITHER undecided.",
+      "params": [
+        {
+          "name": "template",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "files",
+          "required": false,
+          "schema": {
+            "type": "object",
+            "description": "Edited or added template files, by name (no directories); at most 16.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "template": {
+              "type": "string"
+            },
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "TRUE",
+                "FALSE",
+                "BOTH",
+                "NEITHER"
+              ]
+            },
+            "headline": {
+              "type": "string"
+            },
+            "approval": {
+              "type": "string",
+              "enum": [
+                "required",
+                "not required"
+              ]
+            },
+            "safety": {
+              "type": "string"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "lang": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "TRUE",
+                      "FALSE",
+                      "BOTH",
+                      "NEITHER"
+                    ]
+                  },
+                  "ran": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "play.draft",
+      "summary": "Ask the local swarm to draft the template's draft file from a plain request. The draft is untrusted text: it is returned, not run, and is checked like anything a person types when it is run.",
+      "params": [
+        {
+          "name": "template",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "files",
+          "required": false,
+          "schema": {
+            "type": "object",
+            "description": "Edited or added template files, by name (no directories); at most 16.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "request",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1023
+          }
+        }
+      ],
+      "result": {
+        "name": "draft",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "boolean",
+              "description": "false when no model is installed and a stand-in answered"
+            },
+            "draft": {
+              "type": "string"
             }
           }
         }
