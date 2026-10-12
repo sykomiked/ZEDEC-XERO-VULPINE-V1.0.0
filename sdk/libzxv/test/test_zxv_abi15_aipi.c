@@ -1001,6 +1001,18 @@ static void test_handle(void)
     OK(zxv_cid_verify(pc, pcn, SECRET, sizeof SECRET));
     OK(zxv_aipi_get(pa, pc, pcn, buf, sizeof buf, &n));
     CHECK(n == sizeof SECRET && !memcmp(buf, SECRET, n), "owner reads a private block");
+    {
+        /* documented counters: a private block is two index entries, and a
+         * sizing GET is a verified GET */
+        uint32_t blocks = 0, g0 = 0, g1 = 0;
+        size_t need = 0;
+        OK(zxv_aipi_info(pa, &blocks, NULL, &g0, NULL));
+        CHECK(blocks == 2, "one private block = 2 index entries (got %u)", blocks);
+        IS(zxv_aipi_get(pa, pc, pcn, NULL, 0, &need), ZXV_E_BUFFER);
+        CHECK(need == sizeof SECRET, "sizing call reports the length");
+        OK(zxv_aipi_info(pa, NULL, NULL, &g1, NULL));
+        CHECK(g1 == g0 + 1, "a sizing GET counts as verified");
+    }
     OK(zxv_aipi_put(cap, pa, SECRET, sizeof SECRET, 1, pc, &pcn)); /* again: fine */
     uint64_t used_before = 0, used_after = 1;
     OK(zxv_aipi_info(pa, NULL, &used_before, NULL, NULL));

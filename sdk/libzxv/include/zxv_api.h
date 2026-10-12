@@ -1777,7 +1777,16 @@ ZXV_API int32_t zxv_treaty_clear(zxv_treaty *t);
  * ZXV_OK; ZXV_E_TREATY with *out_fault and *out_fault_off (the byte offset
  * of the first fault in `text`); ZXV_E_ARG (t or text NULL); ZXV_E_UTF8;
  * ZXV_E_TOO_LONG (more than ZXV_TREATY_SUTRA_MAX bytes). Valid UTF-8 that
- * is not ASCII is a ZXV_TREATY_FAULT_SYNTAX at its offset. */
+ * is not ASCII is never ZXV_E_UTF8: it is ZXV_E_TREATY, with the fault the
+ * grammar meets at that point, like any other byte outside it. Where a field
+ * is read whole (it starts there, or is fixed width) that is the field's own
+ * fault at the field's first byte: "PARTY \xc3\x89 ..." gives
+ * ZXV_TREATY_FAULT_PARTY at the party id, "TREATY N US\xc3\x89 ..." gives
+ * ZXV_TREATY_FAULT_ASSET at the asset, a non-ASCII byte that starts a
+ * treaty name gives ZXV_TREATY_FAULT_NAME and one that starts a number
+ * ZXV_TREATY_FAULT_NUMBER. Directly after a complete token ("TREATY
+ * N\xc3\x89 ...") or outside any field it is ZXV_TREATY_FAULT_SYNTAX at the
+ * non-ASCII byte itself. */
 ZXV_API int32_t zxv_treaty_parse_sutra(zxv_treaty *t, const char *text, uint32_t *out_fault_off,
                                        int32_t *out_fault);
 /* Parse a copybook record of exactly ZXV_TREATY_REC_LEN bytes into t. Unused
@@ -2152,15 +2161,22 @@ ZXV_API void zxv_aipi_destroy(zxv_aipi *a);
 /* Store and pin `data` (at most ZXV_AIPI_BLOCK_MAX bytes) as one raw block;
  * its CID out. is_private != 0 stores it sealed and never announceable.
  * Putting the same bytes again is a no-op; the same bytes public after
- * private (or the reverse) is ZXV_E_STATE: making something public is a
- * deliberate act, not a side effect. Needs ZXV_CAP_AIPI. ZXV_E_ARG,
+ * private (or the reverse) is ZXV_E_STATE and writes nothing: making
+ * something public is a deliberate act, not a side effect, so publishing a
+ * block this handle holds private (a public put of its bytes) is always
+ * ZXV_E_STATE; there is no call that unseals one. Needs ZXV_CAP_AIPI. ZXV_E_ARG,
  * ZXV_E_TOO_LONG, ZXV_E_STATE (private without a node key, or the
  * visibility conflict), ZXV_E_CAPACITY (store or table full). */
 ZXV_API int32_t zxv_aipi_put(const zxv_cap *cap, zxv_aipi *a, const uint8_t *data, size_t len,
                              int32_t is_private, uint8_t out_cid[ZXV_CID_MAX],
                              size_t *out_cid_len);
 /* AIPI_GET: the bytes `cid` names, re-hashed before they are returned (R4
- * bytes). ZXV_E_NOT_FOUND (not held here: there is no network),
+ * bytes). The block is fetched and verified BEFORE the caller's buffer is
+ * looked at, so a sizing call (buf NULL or cap too small, ZXV_E_BUFFER with
+ * *out_len set) is a full verified GET: it counts toward gets_verified in
+ * zxv_aipi_info (and a block whose bytes fail their hash is dropped and
+ * counted as forbidden on that call). A sizing call followed by the real
+ * call counts twice. ZXV_E_NOT_FOUND (not held here: there is no network),
  * ZXV_E_CID (bad CID, an identity CID, or stored bytes that no longer
  * match: those are dropped and counted as forbidden), ZXV_E_STATE (a
  * private block and no node key), ZXV_E_BUFFER, ZXV_E_ARG, ZXV_E_POISONED. */
@@ -2190,7 +2206,13 @@ ZXV_API int32_t zxv_aipi_plan(zxv_aipi *a, const uint8_t *fn_cid, size_t fn_cid_
                               const uint8_t *input, size_t in_len, int32_t input_private,
                               int32_t *out_route);
 /* Audit counters. Any out pointer may be NULL: blocks indexed, store bytes
- * used, verified GETs, and forbidden GETs (bytes that failed their hash). */
+ * used, verified GETs, and forbidden GETs (bytes that failed their hash).
+ * *out_blocks counts BLOCK-STORE INDEX ENTRIES, not distinct puts: a public
+ * block is one entry, a private block two (its plaintext CID and the CID of
+ * its sealed ciphertext). Three distinct puts of which one is private (or a
+ * private zxv_aipi_publish_fn) therefore report 4. A repeated put adds
+ * nothing. *out_gets_verified counts every verified GET, including the ones
+ * zxv_aipi_load_fn and zxv_aipi_plan make and zxv_aipi_get sizing calls. */
 ZXV_API int32_t zxv_aipi_info(zxv_aipi *a, uint32_t *out_blocks, uint64_t *out_store_used,
                               uint32_t *out_gets_verified, uint32_t *out_forbidden);
 
@@ -2976,7 +2998,7 @@ ZXV_API int32_t zxv_freight_ops_writer_finish(const zxv_freight_ops_writer *w, u
 #define ZXV_W4_ID_BYTES          32u   /* agent_id, peer_id, human_id     */
 #define ZXV_W4_NAME_MAX          31u   /* agent and tool names: 1..31 of  */
                                        /* [a-z0-9._-]                     */
-#define ZXV_W4_MAX_TOOLS         16u
+#define ZXV_W4_MAX_TOOLS         16u   /* tools in one manifest (hard)   */
 #define ZXV_W4_MSG_MAX_PAYLOAD   2048u
 #define ZXV_W4_CONSENT_BYTES     3453u /* an encoded consent token        */
 #define ZXV_W4_CARD_MAX          7259u /* a node-bound card; self-bound is 1952 shorter */
@@ -3065,7 +3087,8 @@ ZXV_API void zxv_w4_manifest_destroy(zxv_w4_manifest *m);
 /* Add a tool. name: 1..31 of [a-z0-9._-]; rate_per_min and burst >= 1;
  * flags: ZXV_W4_TOOL_*; max_input <= ZXV_W4_MSG_MAX_PAYLOAD. ZXV_E_ARG,
  * ZXV_E_TOO_LONG (name), ZXV_E_DUPLICATE (name already listed),
- * ZXV_E_CAPACITY (16 tools). */
+ * ZXV_E_CAPACITY: the manifest already lists ZXV_W4_MAX_TOOLS (16) tools;
+ * a manifest never holds more, and nothing is changed. */
 ZXV_API int32_t zxv_w4_manifest_add_tool(zxv_w4_manifest *m, const char *name, uint64_t price_vfv,
                                          uint32_t rate_per_min, uint32_t burst, uint32_t flags,
                                          uint32_t max_input);
@@ -3161,7 +3184,10 @@ ZXV_API int32_t zxv_w4_consent_check(zxv_w4_consent_log *log, const uint8_t *tok
 ZXV_API int32_t zxv_w4_consent_revoke(zxv_w4_consent_log *log, const uint8_t token[3453],
                                       uint64_t now_ms);
 /* Drop entries whose token expired at or before now_ms (they can no longer
- * be presented). *out_remaining (may be NULL) is what is left. */
+ * be presented). *out_remaining (may be NULL) receives the number of
+ * entries STILL HELD after the prune, not the number dropped (callers that
+ * want the dropped count compare with a prune before). ZXV_E_ARG (log NULL
+ * or not a consent log). */
 ZXV_API int32_t zxv_w4_consent_log_prune(zxv_w4_consent_log *log, uint64_t now_ms,
                                          uint32_t *out_remaining);
 

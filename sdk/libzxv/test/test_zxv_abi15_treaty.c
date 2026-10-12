@@ -379,9 +379,13 @@ static void test_sutra_accept(void)
     IS(zxv_treaty_parse_sutra(NULL, BASE, &off, &fault), ZXV_E_ARG);
     IS(zxv_treaty_parse_sutra(t, NULL, &off, &fault), ZXV_E_ARG);
     zxv_treaty_destroy(t);
-    /* valid UTF-8 outside ASCII is a grammar fault at its byte */
+    /* valid UTF-8 outside ASCII is ZXV_E_TREATY: SYNTAX right after a token... */
     REJECT("TREATY N\xc3\x89 USD NET\nPARTY A 1 1 1/1\nEND\n", SYNTAX, 8);
     REJECT("TREATY N USD NET\nPARTY A 1 1 1/1\nEND\n\xc3\x89", SYNTAX, 37);
+    /* ...but where a field is read whole, the field's own fault */
+    REJECT("TREATY N USD NET\nPARTY \xc3\x89 1 1 1/1\nEND\n", PARTY, 23);
+    REJECT("TREATY N US\xc3\x89 NET\nPARTY A 1 1 1/1\nEND\n", ASSET, 9);
+    REJECT("TREATY \xc3\x89 USD NET\nPARTY A 1 1 1/1\nEND\n", NAME, 7);
 
     /* the diagnostic names the fault and the byte */
     t = make(BASE);
