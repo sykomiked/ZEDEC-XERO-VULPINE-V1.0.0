@@ -48,6 +48,8 @@ uint64_t zxvd_mono_us(void)
 #endif
 }
 
+static void (*SINK)(const zxvd_log_entry_t *e);
+
 void zxvd_log(zxvd_log_level_t level, const char *source, const char *fmt, ...)
 {
     zxvd_log_entry_t *e = &RING[LAST % ZXVD_LOG_RING];
@@ -73,6 +75,12 @@ void zxvd_log(zxvd_log_level_t level, const char *source, const char *fmt, ...)
     e->level = (uint8_t) (level <= ZXVD_LOG_ERROR ? level : ZXVD_LOG_ERROR);
     e->unix_ms = zxvd_now_ms();
     e->seq = ++LAST;
+    if (SINK) SINK(e);
+}
+
+void zxvd_log_set_sink(void (*fn)(const zxvd_log_entry_t *e))
+{
+    SINK = fn;
 }
 
 uint32_t zxvd_log_tail(uint64_t since, uint32_t max, zxvd_log_level_t min_level,

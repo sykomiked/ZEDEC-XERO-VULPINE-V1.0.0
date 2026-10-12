@@ -42,6 +42,9 @@ void zxvd_log(zxvd_log_level_t level, const char *source, const char *fmt, ...)
  * count written. */
 uint32_t zxvd_log_tail(uint64_t since, uint32_t max, zxvd_log_level_t min_level,
                        zxvd_log_entry_t *out, uint64_t *dropped);
+/* Also hand each event, as it is recorded, to fn (the journal,
+ * zxv_journal.h); NULL stops. */
+void zxvd_log_set_sink(void (*fn)(const zxvd_log_entry_t *e));
 uint64_t zxvd_log_last(void);                        /* the newest sequence number, 0 = none yet */
 const char *zxvd_log_level_name(zxvd_log_level_t l); /* "info", "warn", "error" */
 

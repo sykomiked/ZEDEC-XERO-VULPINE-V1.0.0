@@ -302,6 +302,10 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
         [args addObjectsFromArray:@[
             @"--books", [self.supportDir stringByAppendingPathComponent:@"books.zxvb"]
         ]];
+        /* Wake's history across restarts (zxv_journal.h) */
+        [args addObjectsFromArray:@[
+            @"--journal", [self.supportDir stringByAppendingPathComponent:@"journal"]
+        ]];
     }
     NSString *model = [self currentModel];
     if (model) {

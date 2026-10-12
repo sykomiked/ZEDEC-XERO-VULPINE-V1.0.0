@@ -17,6 +17,7 @@
 | Spaces: home, offices, teams, cloud top, parks, with rights per role, held crossings and member votes ([STAPLE_APPS.md](STAPLE_APPS.md#spaces)) | `zxv_spaces.c` | `spaces.*`, `files.cross`, the `space` parameter of `files.*` |
 | The machine and zxvd for the system utilities (Almanac, Tidewatch, Sounding; [SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md)), read only | `zxv_sysinfo.c` | `sys.info`, `sys.disk`, `sys.net` |
 | Recent events for the Wake console: refusals and changes, never parameters | `zxvd_log.c` | `log.tail` |
+| The same events kept on disk across restarts, hash-chained so a change shows (`--journal DIR`) | `zxv_journal.c` | `journal.query`, `journal.verify` |
 | Search for the Scent app: an index per space of file names and the words in UTF-8 files, kept up to date incrementally, read only | `zxv_search.c` | `search.query`, `search.refresh` |
 | Printing and scanning for the Platen app: IPP Everywhere and eSCL to devices on the local network only | `zxv_print_host.c`, `kernel/src/print` | `print.*`, `scan.*` |
 | Backups with versions for the Keepsake app: content-addressed copies and checked snapshots in a folder the owner picks | `zxv_keepsake.c` | `backup.*` |
@@ -154,6 +155,12 @@ owner's libzxv books, so they show up in a currency next to everything else.
 | Windows | `%LOCALAPPDATA%\ZXV\books.zxvb` |
 
 `--books -` keeps the books in memory, as plain `zxvd --rpc` does.
+
+`--journal DIR` keeps zxvd's events on disk for Wake's history
+([SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md)). `zxvd --desktop` and the Mac
+app keep it in a `journal` folder beside the books file; `--journal -` turns
+it off. If the folder cannot be made or written, zxvd says so and runs
+without it.
 
 - Every change (a currency, a private unit, an account, a posting) is one
   line in an append-only file, mode 0600. Each line is a SHA-256 hash and a

@@ -106,6 +106,7 @@ typedef int sock_t;
 #include "zx_upcheck.h"
 #if defined(ZXVD)
 #    include "zxvd_rpc.h" /* zxvd: the JSON-RPC socket and the libzxv books */
+#    include "zxv_journal.h" /* zxvd: its events kept across restarts */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -1807,6 +1808,8 @@ int main(int argc, char **argv)
     const char *rpc_path = NULL;
     const char *books_path = NULL; /* zxvd_rpc.h F1; "-" keeps them in memory */
     char books_buf[512];
+    const char *journal_path = NULL; /* zxv_journal.h; "-" keeps none */
+    char journal_buf[520];
     const char *earn_ccy = "VFV";
     uint64_t earn_rate = 1;
     bool desktop = false;
@@ -1875,6 +1878,8 @@ int main(int argc, char **argv)
             rpc_path = argv[++i];
         else if (!strcmp(argv[i], "--books") && i + 1 < argc)
             books_path = argv[++i];
+        else if (!strcmp(argv[i], "--journal") && i + 1 < argc)
+            journal_path = argv[++i];
         else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
@@ -1893,6 +1898,9 @@ int main(int argc, char **argv)
                    "  --books PATH        save the owner's books in PATH and reload them\n"
                    "                      at start (default with --desktop: the per-user\n"
                    "                      data folder; \"-\" keeps them in memory)\n"
+                   "  --journal DIR       keep zxvd's events in DIR across restarts\n"
+                   "                      (default with --desktop: \"journal\" beside the\n"
+                   "                      books; \"-\" keeps none)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
                    "  --desktop           the desktop app: the socket in the per-user\n"
@@ -2054,6 +2062,20 @@ int main(int argc, char **argv)
         }
         books_path = books_buf;
     }
+    if (desktop && !journal_path && pal_books_path(journal_buf, sizeof journal_buf) == 0) {
+#    if defined(_WIN32)
+        char *slash = strrchr(journal_buf, '\\');
+#    else
+        char *slash = strrchr(journal_buf, '/');
+#    endif
+        if (slash) {
+            snprintf(slash + 1, sizeof journal_buf - (size_t) (slash + 1 - journal_buf), "journal");
+            journal_path = journal_buf;
+        }
+    }
+    if (journal_path && strcmp(journal_path, "-") && zjr_open(journal_path) != 0)
+        fprintf(stderr, "zxvd: cannot write the journal in %s; going on without it\n",
+                journal_path);
     if (books_path && !strcmp(books_path, "-")) books_path = NULL;
     if (zxvd_rpc_books_file(books_path) != 0) {
         fprintf(stderr, "zxvd: --books path too long\n");

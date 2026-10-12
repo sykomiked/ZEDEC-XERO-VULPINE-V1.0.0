@@ -38,6 +38,7 @@
 #include "zxv_search.h"
 #include "zxv_print_host.h"
 #include "zxv_keepsake.h"
+#include "zxv_journal.h"
 #include "test_fake_device.h"
 #include "web4_web2.h"
 
@@ -470,7 +471,8 @@ static void test_host_methods(void)
            "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
            "\"spaces.propose\",\"spaces.vote\",\"sys.info\",\"sys.disk\",\"sys.net\","
-           "\"log.tail\",\"search.refresh\",\"search.query\",\"print.status\",\"print.submit\","
+           "\"log.tail\",\"journal.query\",\"journal.verify\",\"search.refresh\",\"search.query\","
+           "\"print.status\",\"print.submit\","
            "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\",\"backup.run\","
            "\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","
            "\"backup.prune\"]}"));
@@ -4362,6 +4364,284 @@ static void test_backup(void)
     CHECK(rm_tree(root) == 0 && rm_tree(BK_DEST) == 0 && rm_tree(sib) == 0, "cleanup");
 }
 
+/* ---------------- journal.* (zxv_journal.h) ---------------- */
+
+static char JDIR[256];
+
+static const char *jseg(uint64_t n)
+{
+    static char p[300];
+    snprintf(p, sizeof p, "%s/%llu.jnl", JDIR, (unsigned long long) n);
+    return p;
+}
+
+static long jread(const char *p, char *buf, size_t cap)
+{
+    FILE *f = fopen(p, "rb");
+    if (!f) return -1;
+    long n = (long) fread(buf, 1, cap - 1, f);
+    fclose(f);
+    buf[n > 0 ? n : 0] = 0;
+    return n;
+}
+
+static bool jwrite(const char *p, const char *d)
+{
+    FILE *f = fopen(p, "wb");
+    if (!f) return false;
+    bool ok = fputs(d, f) >= 0;
+    return fclose(f) == 0 && ok;
+}
+
+static uint64_t jlast(void)
+{
+    zjr_verify_t v;
+    zjr_verify(&v);
+    return v.last_seq;
+}
+
+static void test_journal(void)
+{
+    static zjr_entry_t e[600];
+    uint32_t n;
+    bool more;
+    zjr_query_t q = {0};
+    zjr_verify_t v;
+    char req[600];
+    const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+    snprintf(JDIR, sizeof JDIR, "%s/zxvd-journal-XXXXXX", tmp);
+    CHECK(mkdtemp(JDIR) != NULL, "a folder");
+    zjr_close();
+    CHECK(!zjr_on() && zjr_query(&q, e, 10, &n, &more) == -1 && n == 0 && zjr_verify(&v) == -1 &&
+              !v.ok,
+          "off");
+    CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\"}"),
+                 "\"result\":{\"on\":false,\"entries\":[],\"more\":false}"),
+          "journal.query, off: %s", OUT.p);
+    CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.verify\"}"),
+                 "\"result\":{\"on\":false,\"ok\":false,\"segments\":0,\"entries\":0,"
+                 "\"first_seq\":0,\"last_seq\":0,\"broken_at\":0,\"why\":\"\"}"),
+          "journal.verify, off: %s", OUT.p);
+    CHECK(zjr_open(NULL) == 0 && zjr_open("") == 0 && !zjr_on(), "nothing to open");
+    static char longdir[ZJR_DIR_MAX + 2];
+    memset(longdir, 'j', ZJR_DIR_MAX + 1);
+    longdir[0] = '/';
+    char afile[300];
+    snprintf(afile, sizeof afile, "%s/a-file", JDIR);
+    CHECK(zjr_open(longdir) == -1 && jwrite(afile, "x") && zjr_open(afile) == -1 && !zjr_on(),
+          "cannot open");
+    char sub[300];
+    strcat(JDIR, "/j"); /* mkdtemp's name is short */
+    snprintf(sub, sizeof sub, "%s", JDIR);
+
+    /* open: a header, then "opened" as seq 1 */
+    CHECK(zjr_open(JDIR) == 0 && zjr_on(), "open");
+    static char text[1 << 16];
+    CHECK(jread(jseg(1), text, sizeof text) > 0 &&
+              !strncmp(text,
+                       "zxv-journal 1 1 "
+                       "0000000000000000000000000000000000000000000000000000000000000000\n1 ",
+                       82) &&
+              strstr(text, " info journal ") && strstr(text, " opened\n"),
+          "the first segment: %s", text);
+    CHECK(jread(strcat(strcpy(req, JDIR), "/head"), text, sizeof text) > 0 &&
+              !strcmp(text, "1 1\n"),
+          "head: %s", text);
+    zxvd_log(ZXVD_LOG_INFO, "rpc", "files.list done in 3 ms");
+    zxvd_log(ZXVD_LOG_WARN, "rpc", "files.write refused (-32012): Exists");
+    zxvd_log(ZXVD_LOG_ERROR, "net", "peer 10.0.0.2 gone");
+    zxvd_log(ZXVD_LOG_INFO, "my src", "spaces in the source");
+    zxvd_log(ZXVD_LOG_INFO, "", "no source");
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 6 && !more && e[0].seq == 6 &&
+              !strcmp(e[0].source, "-") && !strcmp(e[1].source, "my_src") &&
+              e[2].level == ZXVD_LOG_ERROR && !strcmp(e[2].text, "peer 10.0.0.2 gone") &&
+              e[5].seq == 1 && e[5].ms > 1600000000000ull,
+          "all, newest first: %u", n);
+    CHECK(zjr_query(&q, e, 2, &n, &more) == 0 && n == 2 && more && e[1].seq == 5, "a page");
+    q.before = 5;
+    CHECK(zjr_query(&q, e, 2, &n, &more) == 0 && n == 2 && more && e[0].seq == 4 && e[1].seq == 3,
+          "the next page");
+    q.before = 2;
+    CHECK(zjr_query(&q, e, 2, &n, &more) == 0 && n == 1 && !more && e[0].seq == 1, "the last page");
+    q.before = 0;
+    q.min_level = ZXVD_LOG_WARN;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 2 && e[0].seq == 4 && e[1].seq == 3,
+          "warn and up");
+    q.min_level = ZXVD_LOG_ERROR;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 1 && e[0].seq == 4, "errors");
+    q.min_level = 0;
+    q.source = "rpc";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 2, "a source");
+    q.source = "rp";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 0, "exactly");
+    q.source = "";
+    q.text = "REFUSED";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 1 && e[0].seq == 3, "text, case ignored");
+    q.text = "my_";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 1 && e[0].seq == 5, "text in the source");
+    q.text = "zzz";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 0, "no such text");
+    q.text = NULL;
+    q.since_ms = e[0].ms; /* nothing: n was 0 */
+    zjr_query_t all = {0};
+    zjr_query(&all, e, 10, &n, &more);
+    uint64_t t4 = e[2].ms;
+    q.since_ms = t4 + 100000000;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 0, "since the future");
+    q.since_ms = 0;
+    q.until_ms = 1;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 0, "until 1970");
+    q.until_ms = t4 + 100000000;
+    q.since_ms = t4 - 100000000;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 6, "a window");
+    q = all;
+    CHECK(zjr_verify(&v) == 0 && v.ok && v.segments == 1 && v.entries == 6 && v.first_seq == 1 &&
+              v.last_seq == 6 && v.broken_at == 0 && !v.why[0],
+          "verified: %llu", (unsigned long long) v.entries);
+
+    /* restart: the chain and the numbers go on in a new segment */
+    zjr_close();
+    zxvd_log(ZXVD_LOG_INFO, "rpc", "not kept: closed");
+    CHECK(zjr_open(JDIR) == 0 && zjr_query(&q, e, 10, &n, &more) == 0 && n == 7 && e[0].seq == 7 &&
+              !strcmp(e[0].text, "opened") && e[1].seq == 6,
+          "reopened: %u, %llu", n, (unsigned long long) e[0].seq);
+    CHECK(jread(jseg(2), text, sizeof text) > 0 && !strncmp(text, "zxv-journal 1 7 ", 16),
+          "segment 2: %.40s", text);
+    CHECK(zjr_verify(&v) == 0 && v.ok && v.segments == 2 && v.entries == 7, "the chain holds");
+
+    /* a crash mid-line: the torn line is ignored, the chain goes on */
+    zjr_close();
+    FILE *f = fopen(jseg(2), "ab");
+    CHECK(f && fputs("8 1 info rpc 00", f) >= 0 && fclose(f) == 0, "a torn line");
+    CHECK(zjr_open(JDIR) == 0 && jlast() == 8 && zjr_verify(&v) == 0 && v.ok && v.segments == 3,
+          "after the crash: %llu %s", (unsigned long long) jlast(), v.why);
+    /* the head fell behind: the newest is found anyway, nothing overwritten */
+    zjr_close();
+    CHECK(jwrite(strcat(strcpy(req, JDIR), "/head"), "1\n"), "an old head");
+    CHECK(zjr_open(JDIR) == 0 && jread(jseg(4), text, sizeof text) > 0 &&
+              !strncmp(text, "zxv-journal 1 9 ", 16) && zjr_verify(&v) == 0 && v.ok,
+          "segment 4 after 3: %.30s %s", text, v.why);
+    zjr_close();
+    CHECK(remove(req) == 0 && zjr_open(JDIR) == 0 && jseg(5) && jlast() == 10, "no head at all");
+    zjr_close();
+    CHECK(jwrite(req, "nonsense\n") && zjr_open(JDIR) == 0 && jlast() == 11, "a bad head");
+
+    /* tampering shows */
+    zjr_close();
+    CHECK(jread(jseg(1), text, sizeof text) > 0, "read 1");
+    char *gone = strstr(text, "peer 10.0.0.2 gone");
+    static char saved[1 << 16];
+    strcpy(saved, text);
+    CHECK(gone != NULL, "find the line");
+    if (gone) gone[0] = 'P';
+    CHECK(jwrite(jseg(1), text) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && !v.ok &&
+              v.broken_at == 4 && !strcmp(v.why, "line 4 was changed or is missing") &&
+              v.entries == 3,
+          "a changed line: %llu %s", (unsigned long long) v.broken_at, v.why);
+    CHECK(zjr_query(&q, e, 100, &n, &more) == 0 && n == 9 && e[n - 1].seq == 1 && e[n - 4].seq == 7,
+          "query skips the rest of the broken segment: %u", n);
+    zjr_close();
+    char *l4 = strstr(saved, "\n4 ");
+    char cut[1 << 16];
+    snprintf(cut, sizeof cut, "%.*s%s", (int) (l4 - saved + 1), saved, strstr(l4 + 1, "\n") + 1);
+    CHECK(jwrite(jseg(1), cut) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && !v.ok &&
+              v.broken_at == 4,
+          "a removed line");
+    zjr_close();
+    CHECK(jwrite(jseg(1), saved) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && v.ok,
+          "put back: %s", v.why);
+    zjr_close();
+    CHECK(jread(jseg(3), text, sizeof text) > 0, "read 3");
+    strcpy(saved, text);
+    text[20] = text[20] == 'a' ? 'b' : 'a'; /* in the prev hash */
+    CHECK(jwrite(jseg(3), text) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && !v.ok &&
+              !strcmp(v.why, "segment 3 does not follow the one before it") && v.broken_at == 8,
+          "a header that does not follow: %s %llu", v.why, (unsigned long long) v.broken_at);
+    zjr_close();
+    CHECK(jwrite(jseg(3), "zxv-journal 1 x\n") && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 &&
+              !v.ok && !strcmp(v.why, "segment 3 is missing or its header is damaged"),
+          "a bad header: %s", v.why);
+    zjr_close();
+    CHECK(remove(jseg(3)) == 0 && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && !v.ok &&
+              v.segments == 2 && v.first_seq == 1 && v.broken_at == 8 &&
+              !strcmp(v.why, "segment 3 is missing or its header is damaged"),
+          "a segment gone from the middle: %u %s", v.segments, v.why);
+    zjr_close();
+    CHECK(jwrite(jseg(3), saved) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && v.ok,
+          "whole again: %s", v.why);
+    zjr_close();
+    CHECK(zjr_open(JDIR) == 0 && jlast() > 0, "still whole");
+
+    /* size limits: rotate, then let the oldest go */
+    zjr_close();
+    zjr_set_limits(300, 2000);
+    CHECK(zjr_open(JDIR) == 0, "small limits");
+    for (int i = 0; i < 60; i++) zxvd_log(ZXVD_LOG_INFO, "rpc", "event number %d of sixty", i);
+    CHECK(!bk_exists(jseg(1)) && zjr_verify(&v) == 0 && v.ok && v.first_seq > 1 && v.segments > 3 &&
+              v.last_seq == jlast(),
+          "rotated and pruned: %u segments from %llu, %s", v.segments,
+          (unsigned long long) v.first_seq, v.why);
+    CHECK(zjr_query(&q, e, 600, &n, &more) == 0 && !more && n == v.entries &&
+              e[0].seq == v.last_seq && e[n - 1].seq == v.first_seq &&
+              !strcmp(e[0].text, "event number 59 of sixty"),
+          "the kept, all of them: %u", n);
+    zjr_close();
+    CHECK(zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && v.ok, "reopened after pruning");
+    zjr_set_limits(0, 0);
+
+    /* over JSON-RPC */
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":{\"max\":2,"
+             "\"level\":\"info\",\"text\":\"SIXTY\"}}");
+    const char *o = rpc(req);
+    CHECK(
+        strstr(o, "\"result\":{\"on\":true,\"entries\":[{\"seq\":") &&
+            strstr(
+                o,
+                ",\"level\":\"info\",\"source\":\"rpc\",\"text\":\"event number 59 of sixty\"},") &&
+            strstr(o, "],\"more\":true}"),
+        "journal.query: %s", o);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":{\"source\":"
+             "\"journal\",\"level\":\"warn\",\"since_ms\":1,\"until_ms\":99999999999999,"
+             "\"before\":99999}}");
+    CHECK(strstr(rpc(req), "{\"on\":true,\"entries\":[],\"more\":false}"), "nothing at warn: %s",
+          OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":{\"source\":"
+             "\"journal\",\"level\":\"error\"}}");
+    CHECK(strstr(rpc(req), "\"entries\":[]"), "level error: %s", OUT.p);
+    CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":"
+                     "{\"source\":\"journal\",\"max\":500}}"),
+                 "\"text\":\"opened\""),
+          "opened, at most 500: %s", OUT.p);
+    CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.verify\"}"),
+                 "\"result\":{\"on\":true,\"ok\":true,\"segments\":"),
+          "journal.verify: %s", OUT.p);
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"max\":0}"),
+           ERR("1", "-32602", "\\\"max\\\" must be 1 to 500"));
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"max\":501}"),
+           ERR("1", "-32602", "\\\"max\\\" must be 1 to 500"));
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"level\":\"loud\"}"),
+           ERR("1", "-32602", "\\\"level\\\" must be info, warn or error"));
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"source\":\"aaaaaaaaaaaaaaaaa\"}"),
+           ERR("1", "-32602", "\\\"source\\\" must be a string of at most 15 bytes"));
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"since_ms\":-1}"),
+           ERR("1", "-32602", "\\\"since_ms\\\" must not be negative"));
+    uint64_t before = jlast();
+    rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\"}");
+    CHECK(jlast() == before, "journal.query is quiet");
+    rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"files.root\",\"params\":{}}");
+    rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"zxvd.version\"}");
+    rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"files.mkdir\",\"params\":{\"path\":\"\"}}");
+    CHECK(jlast() == before + 1, "a refusal reaches the journal: %llu",
+          (unsigned long long) (jlast() - before));
+    zjr_close();
+    CHECK(rm_tree(sub) == 0 && remove(afile) == 0, "cleanup");
+    *strrchr(sub, '/') = 0;
+    CHECK(rmdir(sub) == 0, "cleanup 2");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -4377,6 +4657,7 @@ int main(void)
     test_search();
     test_print();
     test_backup();
+    test_journal();
     test_books_closed();
     test_books();
     test_earnings();

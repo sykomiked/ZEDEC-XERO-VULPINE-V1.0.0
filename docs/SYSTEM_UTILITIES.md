@@ -18,7 +18,7 @@ needed before release.
 |---|---|---|---|---|
 | **Almanac** | About this machine: system, CPUs, memory, uptime, the volume holding the ZXV folder, zxvd's own use; AI explains it in plain words | About This Mac, System Information, `neofetch` | `sys.info`, `sys.disk` | `almanac_model.h` |
 | **Tidewatch** | Activity monitor: zxvd's CPU share and memory, the machine's memory and load, as a two-minute history to graph | Activity Monitor, `top`, GNOME System Monitor | `sys.info` sampled | `tidewatch_model.h` |
-| **Wake** | Event console: follows zxvd's events (refusals as warnings, changes as info), filters by level and text, says how many it missed, AI explains the warnings | Console, `journalctl -f`, Event Viewer | `log.tail` | `wake_model.h` |
+| **Wake** | Event console: follows zxvd's events (refusals as warnings, changes as info), filters by level and text, says how many it missed; history reaches back across restarts a page at a time, and a check shows whether the journal was changed; AI explains the warnings | Console, `journalctl`, Event Viewer | `log.tail`, `journal.query`, `journal.verify` | `wake_model.h` |
 | **Sounding** | Network monitor: interfaces, addresses, live bytes a second, zxvd's request traffic | Network Utility, `nload`, `ip -s link` | `sys.net` | `sounding_model.h` |
 | **Scent** | Search: finds files in a space by name and by the words inside them as the owner types, best first with the text around each hit, opens each in the right app (Quillon, Glint or Burrow); AI can suggest a sharper search, run only when accepted | Spotlight, GNOME Search, `locate`, `grep -r` | `search.query`, `search.refresh` | `scent_model.h` |
 | **Platen** | Printers and scanners on the local network: adds a printer by its address and shows its state, what it takes and why it stopped; prints a file of the space and follows or cancels the job; scans pages from the glass or the feeder into a folder; AI explains a printer's trouble in plain words | Printers & Scanners, CUPS, SANE | `print.status`, `print.submit`, `print.job`, `print.cancel`, `scan.status`, `scan.start` | `platen_model.h` |
@@ -28,7 +28,7 @@ needed before release.
 Only Platen and Keepsake change anything. Platen sends a document to a
 printer and saves scanned pages as new files. Keepsake writes backups to the
 destination the owner picks, restores as new items, and removes old backups
-only when the owner asks. `sys.*`, `log.tail` and `search.*` are read only.
+only when the owner asks. `sys.*`, `log.tail`, `journal.*` and `search.*` are read only.
 All of them are local to the owner's control socket and never sent to peers. The log keeps what
 happened (a method, an outcome, how long it took), never parameters or
 content.
@@ -66,6 +66,17 @@ Restoring never overwrites: the item comes back where it was if that is
 free, or beside it as "name (restored).ext". Removing old backups is refused
 while any snapshot is damaged, so nothing it might need is lost. Backups are
 not encrypted yet; that waits for Lockbox's keys.
+
+Wake's history comes from the journal (`kernel/arch/hosted/zxv_journal.h`):
+every event zxvd logs, written to disk as it happens, so it outlives a
+restart. Each line carries a SHA-256 hash of the line before it and itself,
+so a line edited or removed afterwards shows when Wake checks the journal,
+which names the first line that no longer fits. The journal lives in a
+folder only the owner can read, in files of up to 1 MiB, and the oldest go
+once all of them pass 16 MiB. A line cut short by a crash is left out and
+the chain carries on from the last whole one. `zxvd --desktop` and the Mac
+app keep it beside the books file; plain `zxvd` keeps one only with
+`--journal DIR`.
 
 ## Still to build
 

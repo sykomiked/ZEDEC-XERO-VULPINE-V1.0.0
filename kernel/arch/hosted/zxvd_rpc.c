@@ -41,6 +41,7 @@
 #include "zxv_search.h"     /* search.*: Scent's index of the ZXV folder */
 #include "zxv_print_host.h" /* print.*, scan.*: Platen's printers and scanners */
 #include "zxv_keepsake.h"   /* backup.*: Keepsake's backups and versions */
+#include "zxv_journal.h"    /* journal.*: Wake's history across restarts */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -1844,6 +1845,74 @@ static void m_log_tail(call_t *c)
                     (unsigned long long) dropped);
 }
 
+/* ----- journal.* (zxv_journal.h): Wake's history ----- */
+
+#define JOURNAL_MAX 500u
+
+static bool p_level(call_t *c, uint8_t *min)
+{
+    char lv[8];
+    if (!p_str(c, "level", lv, sizeof lv, false)) return false;
+    *min = ZXVD_LOG_INFO;
+    if (!strcmp(lv, "warn"))
+        *min = ZXVD_LOG_WARN;
+    else if (!strcmp(lv, "error"))
+        *min = ZXVD_LOG_ERROR;
+    else if (lv[0] && strcmp(lv, "info")) {
+        fail(c, E_PARAMS, "\"level\" must be info, warn or error");
+        return false;
+    }
+    return true;
+}
+
+static void m_journal_query(call_t *c)
+{
+    static zjr_entry_t e[JOURNAL_MAX];
+    char source[16], text[ZJR_FIND_MAX + 1];
+    uint64_t since, until, before, max;
+    zjr_query_t q;
+    uint32_t n = 0;
+    bool more = false;
+    if (!p_opt_u64(c, "since_ms", 0, &since) || !p_opt_u64(c, "until_ms", 0, &until) ||
+        !p_opt_u64(c, "before", 0, &before) || !p_opt_u64(c, "max", 100, &max) ||
+        !p_level(c, &q.min_level) || !p_str(c, "source", source, sizeof source, false) ||
+        !p_str(c, "text", text, sizeof text, false))
+        return;
+    if (max < 1 || max > JOURNAL_MAX)
+        return fail(c, E_PARAMS, "\"max\" must be 1 to %u", JOURNAL_MAX);
+    q.since_ms = since;
+    q.until_ms = until;
+    q.before = before;
+    q.source = source;
+    q.text = text;
+    bool on = zjr_query(&q, e, (uint32_t) max, &n, &more) == 0;
+    zxvd_buf_printf(c->res, "{\"on\":%s,\"entries\":[", on ? "true" : "false");
+    for (uint32_t i = 0; i < n; i++) {
+        zxvd_buf_printf(c->res, "%s{\"seq\":%llu,\"time_ms\":%llu,\"level\":\"%s\",\"source\":",
+                        i ? "," : "", (unsigned long long) e[i].seq, (unsigned long long) e[i].ms,
+                        zxvd_log_level_name((zxvd_log_level_t) e[i].level));
+        zxvd_buf_json_str(c->res, e[i].source);
+        LIT(c->res, ",\"text\":");
+        zxvd_buf_json_str(c->res, e[i].text);
+        LIT(c->res, "}");
+    }
+    zxvd_buf_printf(c->res, "],\"more\":%s}", more ? "true" : "false");
+}
+
+static void m_journal_verify(call_t *c)
+{
+    zjr_verify_t v;
+    bool on = zjr_verify(&v) == 0;
+    zxvd_buf_printf(c->res,
+                    "{\"on\":%s,\"ok\":%s,\"segments\":%u,\"entries\":%llu,\"first_seq\":%llu,"
+                    "\"last_seq\":%llu,\"broken_at\":%llu,\"why\":",
+                    on ? "true" : "false", v.ok ? "true" : "false", v.segments,
+                    (unsigned long long) v.entries, (unsigned long long) v.first_seq,
+                    (unsigned long long) v.last_seq, (unsigned long long) v.broken_at);
+    zxvd_buf_json_str(c->res, v.why);
+    LIT(c->res, "}");
+}
+
 static void stats_json(zxvd_buf_t *b, const zsr_stats_t *st)
 {
     zxvd_buf_printf(b,
@@ -2543,6 +2612,8 @@ static const method_t METHODS[] = {
     {"sys.disk", m_sys_disk},
     {"sys.net", m_sys_net},
     {"log.tail", m_log_tail},
+    {"journal.query", m_journal_query},
+    {"journal.verify", m_journal_verify},
     {"search.refresh", m_search_refresh},
     {"search.query", m_search_query},
     {"print.status", m_print_status},
@@ -2617,14 +2688,14 @@ static bool handle_line(const char *line, size_t len, zxvd_buf_t *out);
 static bool quiet(const char *m)
 {
     static const char *const Q[] = {
-        "rpc.discover",    "zxvd.version",     "swarm.state",  "model.info",     "notes.list",
-        "net.peers",       "net.offers",       "player.card",  "peer.status",    "ledger.balance",
-        "ledger.accounts", "ledger.entries",   "ledger.check", "swarm.earnings", "mesh.books",
-        "books.file",      "jurisdiction.get", "aipi.get",     "aipi.status",    "files.root",
-        "files.list",      "files.stat",       "files.read",   "spaces.list",    "spaces.get",
-        "sys.info",        "sys.disk",         "sys.net",      "log.tail",       "update.check",
-        "search.query",    "search.refresh",   "print.status", "print.job",      "scan.status",
-        "backup.list",     "backup.versions",  "backup.verify"};
+        "rpc.discover",    "zxvd.version",     "swarm.state",   "model.info",     "notes.list",
+        "net.peers",       "net.offers",       "player.card",   "peer.status",    "ledger.balance",
+        "ledger.accounts", "ledger.entries",   "ledger.check",  "swarm.earnings", "mesh.books",
+        "books.file",      "jurisdiction.get", "aipi.get",      "aipi.status",    "files.root",
+        "files.list",      "files.stat",       "files.read",    "spaces.list",    "spaces.get",
+        "sys.info",        "sys.disk",         "sys.net",       "log.tail",       "update.check",
+        "search.query",    "search.refresh",   "print.status",  "print.job",      "scan.status",
+        "backup.list",     "backup.versions",  "backup.verify", "journal.query",  "journal.verify"};
     for (size_t i = 0; i < sizeof Q / sizeof *Q; i++)
         if (!strcmp(m, Q[i])) return true;
     return false;

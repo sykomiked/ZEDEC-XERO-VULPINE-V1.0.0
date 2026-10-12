@@ -34,6 +34,20 @@ static int level_of(const char *s)
                                 : -1;
 }
 
+/* one entry of log.tail or journal.query */
+static int read_event(zxm_link_t *l, int32_t o, wake_event_t *e)
+{
+    char lv[8];
+    memset(e, 0, sizeof *e);
+    if (o < 0 || zxm_get_u64(l, o, "seq", &e->seq) || zxm_get_u64(l, o, "time_ms", &e->time_ms) ||
+        zxm_get_str(l, o, "level", lv, sizeof lv) || level_of(lv) < 0 ||
+        zxm_get_str(l, o, "source", e->source, sizeof e->source) ||
+        zxm_get_str(l, o, "text", e->text, sizeof e->text))
+        return ZXM_E_PROTOCOL;
+    e->level = (uint8_t) level_of(lv);
+    return ZXM_OK;
+}
+
 int wake_follow(wake_t *w, uint32_t *added)
 {
     zxm_link_t *l = w->link;
@@ -53,17 +67,8 @@ int wake_follow(wake_t *w, uint32_t *added)
         uint32_t n = zxm_len(l, arr);
         for (uint32_t i = 0; i < n; i++) {
             static wake_event_t e;
-            char lv[8];
-            int32_t o = zxm_at(l, arr, i);
-            memset(&e, 0, sizeof e);
-            if (o < 0 || zxm_get_u64(l, o, "seq", &e.seq) ||
-                zxm_get_u64(l, o, "time_ms", &e.time_ms) ||
-                zxm_get_str(l, o, "level", lv, sizeof lv) || level_of(lv) < 0 ||
-                zxm_get_str(l, o, "source", e.source, sizeof e.source) ||
-                zxm_get_str(l, o, "text", e.text, sizeof e.text) || e.seq <= w->next ||
-                e.seq > next)
+            if (read_event(l, zxm_at(l, arr, i), &e) || e.seq <= w->next || e.seq > next)
                 return ZXM_E_PROTOCOL;
-            e.level = (uint8_t) level_of(lv);
             push(w, &e);
             (*added)++;
         }
@@ -72,6 +77,95 @@ int wake_follow(wake_t *w, uint32_t *added)
         w->next = next;
         if (!more) break;
     }
+    return ZXM_OK;
+}
+
+static const char *const LEVEL_NAME[] = {"info", "warn", "error"};
+
+static int history_page(wake_t *w, uint64_t before)
+{
+    zxm_link_t *l = w->link;
+    wake_history_t *h = &w->hist;
+    zxm_begin(l, "journal.query");
+    if (h->since_ms) zxm_p_u64(l, "since_ms", h->since_ms);
+    if (h->until_ms) zxm_p_u64(l, "until_ms", h->until_ms);
+    if (before) zxm_p_u64(l, "before", before);
+    zxm_p_u64(l, "max", WAKE_PAGE);
+    zxm_p_str(l, "level", LEVEL_NAME[w->min_level]);
+    if (w->find[0]) zxm_p_str(l, "text", w->find);
+    int rc = zxm_call(l);
+    if (rc) return rc;
+    bool on, more;
+    int32_t arr = zxm_get(l, l->result, "entries");
+    if (arr < 0 || l->tok[arr].type != W4_J_ARR || zxm_get_bool(l, l->result, "on", &on) ||
+        zxm_get_bool(l, l->result, "more", &more) || zxm_len(l, arr) > WAKE_PAGE)
+        return ZXM_E_PROTOCOL;
+    uint32_t n = zxm_len(l, arr);
+    for (uint32_t i = 0; i < n; i++) { /* newest first, all older than `before` */
+        static wake_event_t e;
+        if (read_event(l, zxm_at(l, arr, i), &e) || (before && e.seq >= before) ||
+            (i && e.seq >= h->ev[i - 1].seq) || e.level < w->min_level)
+            return ZXM_E_PROTOCOL;
+        h->ev[i] = e;
+    }
+    h->n = n;
+    h->on = on;
+    h->more = more && n > 0;
+    return ZXM_OK;
+}
+
+int wake_history(wake_t *w, uint64_t since_ms, uint64_t until_ms)
+{
+    if (until_ms && since_ms > until_ms) return ZXM_E_ARG;
+    memset(&w->hist, 0, sizeof w->hist);
+    w->hist.since_ms = since_ms;
+    w->hist.until_ms = until_ms;
+    int rc = history_page(w, 0);
+    if (rc) {
+        memset(&w->hist, 0, sizeof w->hist);
+        return rc;
+    }
+    w->hist.page = 1;
+    return ZXM_OK;
+}
+
+int wake_history_older(wake_t *w)
+{
+    wake_history_t *h = &w->hist;
+    if (!h->page || !h->more || !h->n) return ZXM_E_ARG;
+    static wake_history_t keep;
+    keep = *h;
+    int rc = history_page(w, h->ev[h->n - 1].seq);
+    if (rc) {
+        *h = keep; /* the page shown stays */
+        return rc;
+    }
+    h->page++;
+    return ZXM_OK;
+}
+
+int wake_check(wake_t *w)
+{
+    zxm_link_t *l = w->link;
+    memset(&w->check, 0, sizeof w->check);
+    zxm_begin(l, "journal.verify");
+    int rc = zxm_call(l);
+    if (rc) return rc;
+    wake_check_t c;
+    memset(&c, 0, sizeof c);
+    uint64_t segs;
+    if (zxm_get_bool(l, l->result, "on", &c.on) || zxm_get_bool(l, l->result, "ok", &c.ok) ||
+        zxm_get_u64(l, l->result, "segments", &segs) || segs > UINT32_MAX ||
+        zxm_get_u64(l, l->result, "entries", &c.entries) ||
+        zxm_get_u64(l, l->result, "first_seq", &c.first_seq) ||
+        zxm_get_u64(l, l->result, "last_seq", &c.last_seq) ||
+        zxm_get_u64(l, l->result, "broken_at", &c.broken_at) ||
+        zxm_get_str(l, l->result, "why", c.why, sizeof c.why) ||
+        (c.ok && (c.broken_at || c.why[0])) || (!c.ok && c.on && !c.why[0]))
+        return ZXM_E_PROTOCOL;
+    c.segments = (uint32_t) segs;
+    c.done = true;
+    w->check = c;
     return ZXM_OK;
 }
 

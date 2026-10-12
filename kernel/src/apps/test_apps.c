@@ -30,6 +30,7 @@
 #include "zxv_print_host.h"
 #include "test_fake_device.h"
 #include "zxvd_log.h"
+#include "zxv_journal.h"
 #include "sha256.h"
 
 /* remove a scratch tree without a shell (no links followed) */
@@ -1011,7 +1012,100 @@ static void test_utilities(void)
     CHECK(wake_follow(&WK, &added) == ZXM_E_PROTOCOL, "seq past next");
     CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"entries\":[],\"next\":0}}";
     CHECK(wake_follow(&WK, &added) == ZXM_E_PROTOCOL, "no dropped");
+    /* history from the journal, a page at a time */
+#define JQ(entries, more)                                                                          \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":true,\"entries\":[" entries                 \
+    "],\"more\":" more "}}"
+#define JE(seq, lv)                                                                                \
+    "{\"seq\":" seq ",\"time_ms\":7,\"level\":\"" lv "\",\"source\":\"rpc\",\"text\":\"t\"}"
+    CHECK(wake_history_older(&WK) == ZXM_E_ARG, "no page yet");
+    CHECK(wake_history(&WK, 5, 4) == ZXM_E_ARG, "since after until");
+    CANNED = JQ(JE("9", "info") "," JE("8", "warn"), "true");
+    CHECK(wake_filter(&WK, WAKE_INFO, "") == ZXM_OK && wake_history(&WK, 0, 0) == ZXM_OK &&
+              WK.hist.on && WK.hist.n == 2 && WK.hist.more && WK.hist.page == 1 &&
+              WK.hist.ev[1].level == WAKE_WARN &&
+              strstr(last_req, "\"method\":\"journal.query\","
+                               "\"params\":{\"max\":100,\"level\":\"info\"}}"),
+          "the newest page: %s", last_req);
+    CANNED = JQ(JE("3", "warn"), "false");
+    CHECK(wake_history_older(&WK) == ZXM_OK && WK.hist.n == 1 && !WK.hist.more &&
+              WK.hist.page == 2 && WK.hist.ev[0].seq == 3 && strstr(last_req, "\"before\":8,"),
+          "older: %s", last_req);
+    CHECK(wake_history_older(&WK) == ZXM_E_ARG, "nothing older");
+    CANNED = JQ(JE("2", "error"), "false");
+    CHECK(wake_filter(&WK, WAKE_ERROR, "Gone") == ZXM_OK && wake_history(&WK, 10, 20) == ZXM_OK &&
+              strstr(last_req, "\"params\":{\"since_ms\":10,\"until_ms\":20,\"max\":100,\"level\":"
+                               "\"error\",\"text\":\"Gone\"}"),
+          "the filter and window go along: %s", last_req);
+    CANNED = JQ(JE("2", "warn"), "false");
+    CHECK(wake_history(&WK, 0, 0) == ZXM_E_PROTOCOL && WK.hist.page == 0 && WK.hist.n == 0,
+          "below the filter");
+    CHECK(wake_filter(&WK, WAKE_INFO, "") == ZXM_OK, "all again");
+    CANNED = JQ(JE("4", "info") "," JE("4", "info"), "false");
+    CHECK(wake_history(&WK, 0, 0) == ZXM_E_PROTOCOL, "not newest first");
+    CANNED = JQ(JE("9", "info"), "true");
+    CHECK(wake_history(&WK, 0, 0) == ZXM_OK, "a page");
+    CANNED = JQ(JE("9", "info"), "false");
+    CHECK(wake_history_older(&WK) == ZXM_E_PROTOCOL && WK.hist.page == 1 && WK.hist.n == 1 &&
+              WK.hist.more,
+          "not older than the page: the page stays");
+    CANNED = JQ(JE("1", "loud"), "false");
+    CHECK(wake_history(&WK, 0, 0) == ZXM_E_PROTOCOL, "a bad level");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":true,\"entries\":[]}}";
+    CHECK(wake_history(&WK, 0, 0) == ZXM_E_PROTOCOL, "no more");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":false,\"entries\":[],"
+             "\"more\":true}}";
+    CHECK(wake_history(&WK, 0, 0) == ZXM_OK && !WK.hist.on && !WK.hist.more &&
+              wake_history_older(&WK) == ZXM_E_ARG,
+          "no journal");
+    /* the check */
+#define JV(on, ok, broken, why)                                                                    \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":" on ",\"ok\":" ok ",\"segments\":3,"       \
+    "\"entries\":40,\"first_seq\":1,\"last_seq\":40,\"broken_at\":" broken ",\"why\":\"" why       \
+    "\"}}"
+    CANNED = JV("true", "true", "0", "");
+    CHECK(wake_check(&WK) == ZXM_OK && WK.check.done && WK.check.ok && WK.check.segments == 3 &&
+              WK.check.last_seq == 40 && strstr(last_req, "\"method\":\"journal.verify\""),
+          "checked");
+    CANNED = JV("true", "false", "12", "line 12 was changed or is missing");
+    CHECK(wake_check(&WK) == ZXM_OK && !WK.check.ok && WK.check.broken_at == 12 &&
+              !strcmp(WK.check.why, "line 12 was changed or is missing"),
+          "a break");
+    CANNED = JV("false", "false", "0", "");
+    CHECK(wake_check(&WK) == ZXM_OK && WK.check.done && !WK.check.on, "no journal to check");
+    CANNED = JV("true", "true", "3", "");
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL && !WK.check.done, "ok with a break");
+    CANNED = JV("true", "true", "0", "x");
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL, "ok with a reason");
+    CANNED = JV("true", "false", "3", "");
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL, "a break without a reason");
+    CANNED =
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":true,\"ok\":true,\"segments\":"
+        "4294967296,\"entries\":0,\"first_seq\":0,\"last_seq\":0,\"broken_at\":0,\"why\":\"\"}}";
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL, "too many segments");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":true}}";
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL, "a short reply");
     CANNED = NULL;
+    /* live, against a journal on disk */
+    char jdir[256];
+    snprintf(jdir, sizeof jdir, "%s/zxv-wake-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(jdir) != NULL && zjr_open(jdir) == 0, "a journal");
+    wake_init(&WK, &LINK);
+    for (int i = 0; i < 150; i++)
+        zxvd_log(i % 50 ? ZXVD_LOG_INFO : ZXVD_LOG_WARN, "test", "j%d", i);
+    CHECK(wake_history(&WK, 0, 0) == ZXM_OK && WK.hist.on && WK.hist.n == WAKE_PAGE &&
+              WK.hist.more && !strcmp(WK.hist.ev[0].text, "j149"),
+          "live newest: %s", WK.link->err);
+    CHECK(wake_history_older(&WK) == ZXM_OK && WK.hist.n == 51 && !WK.hist.more &&
+              !strcmp(WK.hist.ev[50].text, "opened"),
+          "live older: %u", WK.hist.n);
+    CHECK(wake_filter(&WK, WAKE_WARN, "j1") == ZXM_OK && wake_history(&WK, 0, 0) == ZXM_OK &&
+              WK.hist.n == 1 && !strcmp(WK.hist.ev[0].text, "j100"),
+          "live filtered: %u", WK.hist.n);
+    CHECK(wake_check(&WK) == ZXM_OK && WK.check.on && WK.check.ok && WK.check.entries == 151,
+          "live check: %llu", (unsigned long long) WK.check.entries);
+    zjr_close();
+    CHECK(rm_tree(jdir) == 0, "journal cleanup");
 
     /* Sounding: canned counters give exact rates */
     sounding_init(&SD, &FAKE);
@@ -1913,8 +2007,8 @@ static void test_keepsake(void)
     const char *badprune[] = {
         "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"objects_removed\":0,\"freed\":0}}",
         "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":0,\"freed\":0}}",
-        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":0,\"objects_removed\":0}"
-        "}",
+        ("{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":0,"
+         "\"objects_removed\":0}}"),
     };
     F.pruned_snaps = 77;
     for (size_t i = 0; i < sizeof badprune / sizeof *badprune; i++) {

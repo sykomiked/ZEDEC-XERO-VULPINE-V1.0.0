@@ -4307,6 +4307,176 @@
       "paramStructure": "by-name"
     },
     {
+      "name": "journal.query",
+      "summary": "zxvd's events kept on disk across restarts (zxv_journal.h; Wake's history), newest first, filtered by time, level, source and text, a page at a time: pass the oldest seq shown as before to read on. With no journal (zxvd started without --journal), on is false and entries is empty. Read only.",
+      "params": [
+        {
+          "name": "since_ms",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "only events at or after this time (ms since 1970); 0 or absent: no bound"
+          }
+        },
+        {
+          "name": "until_ms",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "only events at or before this time; 0 or absent: no bound"
+          }
+        },
+        {
+          "name": "before",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "only events with a seq below this; 0 or absent: from the newest"
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          }
+        },
+        {
+          "name": "level",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "error"
+            ],
+            "default": "info",
+            "description": "the lowest level returned"
+          }
+        },
+        {
+          "name": "source",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 15,
+            "description": "exactly this source; '' or absent: any"
+          }
+        },
+        {
+          "name": "text",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 63,
+            "description": "in the source or the text, ASCII case ignored"
+          }
+        }
+      ],
+      "result": {
+        "name": "page",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean"
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "time_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "warn",
+                      "error"
+                    ]
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "more": {
+              "type": "boolean",
+              "description": "older events also match"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "journal.verify",
+      "summary": "Recompute the journal's hash chain from the oldest kept segment on (zxv_journal.h J7) and report the first break: a line changed or removed, or a segment missing or out of order. Read only.",
+      "params": [],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean",
+              "description": "false: zxvd keeps no journal"
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "segments": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "segments read before any break"
+            },
+            "entries": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "lines read before any break"
+            },
+            "first_seq": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_seq": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "0 unless ok"
+            },
+            "broken_at": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "the seq where the chain breaks; 0 when ok"
+            },
+            "why": {
+              "type": "string",
+              "description": "'' when ok"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
       "name": "search.refresh",
       "summary": "Bring the space's search index up to date (zxv_search.h; the Scent app): only files whose size or time changed are read again. Read only: no file is changed.",
       "params": [
