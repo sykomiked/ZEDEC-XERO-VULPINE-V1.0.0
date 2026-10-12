@@ -1,5 +1,6 @@
 /* rational.c — WyvernEye exact rational arithmetic. See rational.h. */
 #include "rational.h"
+#include "../../include/zxv_fixed.h"
 
 /* 128-bit intermediates let every operation detect overflow before it
  * happens. Every 64-bit target this kernel builds for provides them. */
@@ -16,10 +17,8 @@ static const int64_t I64_MAX = 0x7FFFFFFFFFFFFFFFLL;
 static rat_t invalid(void) { rat_t r; r.num = 0; r.den = 1; r.valid = false; return r; }
 
 static int64_t igcd(int64_t a, int64_t b) {
-    if (a < 0) a = -a;
-    if (b < 0) b = -b;
-    while (b) { int64_t t = a % b; a = b; b = t; }
-    return a ? a : 1;
+    int64_t g = zx_gcd_i64(a, b);
+    return g ? g : 1;
 }
 
 /* Reduce to lowest terms with den > 0. Keeping values reduced after every
