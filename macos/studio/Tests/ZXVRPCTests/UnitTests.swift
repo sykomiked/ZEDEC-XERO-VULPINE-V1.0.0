@@ -106,4 +106,20 @@ final class DecodeTests: XCTestCase {
             guard case ZXVDError.noDaemon = e else { return XCTFail("\(e)") }
         }
     }
+
+    func testPeerAndOfferRowsDecode() throws {
+        let line = Data(#"{"jsonrpc":"2.0","id":3,"result":{"peers":[{"id":"ab","addr":"127.0.0.1:8723","bucket":4,"ubh":false,"last_seen_ms":"1700000000000","in_book":true,"member":false,"held":"0","receivable":"9","social":"0","pending":1}],"count":1}}"#.utf8)
+        let p = try ZXVDClient.decodeReply(line, id: 3, as: Peers.self, decoder: ZXVDClient.typedDecoder)
+        XCTAssertEqual(p.peers.first?.inBook, true)
+        XCTAssertEqual(p.peers.first?.receivable, "9")
+        XCTAssertEqual(p.peers.first?.lastSeen, Date(timeIntervalSince1970: 1_700_000_000))
+        let o = Data(#"{"jsonrpc":"2.0","id":4,"result":{"share":{"compute":"5","storage":"0"},"wants":[{"slot":0,"resource":"compute","units_left":"6","max_price":"100"}],"outstanding":[{"role":"sell","peer":"cd","units":"4","seq":"1","tries":1,"want":-1}]}}"#.utf8)
+        let off = try ZXVDClient.decodeReply(o, id: 4, as: Offers.self, decoder: ZXVDClient.typedDecoder)
+        XCTAssertEqual(off.wants.first?.unitsLeft, "6")
+        XCTAssertEqual(off.outstanding.first?.want, -1)
+    }
+
+    func testBooksFileDefault() {
+        XCTAssertTrue(ZXVDLocation.defaultBooksPath.hasSuffix("books.zxvb"))
+    }
 }

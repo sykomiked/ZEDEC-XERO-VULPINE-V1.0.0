@@ -1,8 +1,8 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 //
-// Storefront & Escrow: net.command sell / want, swarm.state.net's market
-// counters and swarm.state's settlement spine.
+// Storefront & Escrow: net.command sell / want, net.offers, swarm.state.net's
+// market counters and swarm.state's settlement spine.
 import SwiftUI
 import ZXVRPC
 
@@ -31,7 +31,9 @@ struct StorefrontView: View {
                         NotServed(what: "Escrow", method: "ledger.holds",
                                   detail: "Each hold will show the amount held, the counterparty, what releases it, and whether it is held, released or in dispute. A dispute moves the hold to quarantine.")
                     }
-                    if !store.has("net.offers") {
+                    if store.has("net.offers") {
+                        openOffers
+                    } else {
                         NotServed(what: "Open offers", method: "net.offers",
                                   detail: "Your open sell offers and wants. zxvd reports only the number of wants today.")
                     }
@@ -106,6 +108,30 @@ struct StorefrontView: View {
             if !posted.isEmpty {
                 Text("Posted from this window").font(.caption).foregroundStyle(Theme.muted)
                 ForEach(posted.prefix(5), id: \.self) { Text($0).font(.system(size: 12, design: .monospaced)) }
+            }
+        }
+    }
+
+    private var openOffers: some View {
+        let o = store.offers
+        let wants = o?.wants ?? []
+        let out = o?.outstanding ?? []
+        return Panel(title: "Open offers") {
+            KV(key: "Sharing", value: "\(o?.share.compute ?? "0") compute · \(o?.share.storage ?? "0") storage")
+            if wants.isEmpty && out.isEmpty {
+                Text("No open wants and nothing waiting on a peer.").font(.callout).foregroundStyle(Theme.muted)
+            }
+            ForEach(wants) { w in
+                KV(key: "Want \(w.resource)", value: "\(w.unitsLeft) left, at most \(w.maxPrice) each")
+            }
+            ForEach(out) { r in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(r.role == "sell" ? "Offered \(r.units) units, waiting for the buyer"
+                                          : "Bought \(r.units) units, waiting for the seller")
+                        .font(.callout)
+                    Text("\(r.peer.prefix(16))… · sent \(r.tries) time(s)")
+                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.muted)
+                }
             }
         }
     }

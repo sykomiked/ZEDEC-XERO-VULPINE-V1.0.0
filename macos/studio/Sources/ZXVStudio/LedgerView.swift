@@ -214,8 +214,7 @@ struct LedgerView: View {
                      trailing: "Contributed \(grouped(q?.contributed ?? 0)) units · levels and points only, no ranks or streaks") {
             HStack(alignment: .top, spacing: 20) {
                 if store.has("player.card") {
-                    Panel(title: "Player Card") { Text("Served by zxvd; shown here once its shape is agreed.") }
-                        .frame(width: 280)
+                    playerCard.frame(width: 280)
                 } else {
                     NotServed(what: "Player Card", method: "player.card",
                               detail: "Tiers run Copper/Obsidian to Curzi/Admas and are earned from credibility, bond and uptime.")
@@ -225,6 +224,35 @@ struct LedgerView: View {
                     ForEach(q?.skills ?? []) { SkillCard(skill: $0) }
                 }
             }
+        }
+    }
+}
+
+extension LedgerView {
+    var playerCard: some View {
+        let c = store.card
+        return Panel(title: "Player Card", trailing: c.map { "Tier \($0.tier)" }) {
+            Text(c.map { "\($0.metal) / \($0.stone)" } ?? "\u{2014}")
+                .font(.title2.weight(.semibold)).foregroundStyle(Theme.gold)
+            ForEach(["credibility", "bond", "uptime_bps", "giving"], id: \.self) { k in
+                if let i = c?.inputs[k] {
+                    VStack(alignment: .leading, spacing: 0) {
+                        KV(key: k == "uptime_bps" ? "Uptime (bps)" : k.capitalized, value: i.value)
+                        Text(i.source).font(.caption2).foregroundStyle(Theme.muted)
+                    }
+                }
+            }
+            if let n = c?.next {
+                Text("Next: \(n.metal) / \(n.stone) needs credibility \(n.credibility), bond \(n.bond), uptime \(n.uptimeBps) bps")
+                    .font(.caption)
+                if !n.missing.isEmpty {
+                    Text("Missing: " + n.missing.joined(separator: ", ")).font(.caption).foregroundStyle(Theme.warn)
+                }
+            }
+            Text(c?.perks.isEmpty == false ? "Perks: " + c!.perks.joined(separator: ", ") : "No perks at this tier.")
+                .font(.caption).foregroundStyle(Theme.muted)
+            Text("Earned, never bought. Tiers give no priority, discount or credit.")
+                .font(.caption2).foregroundStyle(Theme.muted)
         }
     }
 }

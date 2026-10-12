@@ -77,7 +77,7 @@ DEF_fuzz_cobol_copybook := -DTEST_HOST
 
 DIR_fuzz_ubh_frame := parsers
 INC_fuzz_ubh_frame := -I$(S)/event_space -I$(S)/ubh
-SRC_fuzz_ubh_frame := $(S)/ubh/ubh.c $(S)/event_space/event_envelope.c
+SRC_fuzz_ubh_frame := $(S)/ubh/ubh.c $(S)/event_space/event_envelope.c $(S)/robin_debanks/sha256.c
 
 DIR_fuzz_gguf_loader := parsers
 INC_fuzz_gguf_loader := -I$(S)/tensor
