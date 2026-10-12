@@ -128,6 +128,7 @@ void zt_nn_arena_begin(zt_nn_arena_t *a, void *base, uint64_t cap, uint32_t cols
     a->err = err;
     a->cols_max = (cols_max + 31) & ~31u;
     a->scratch = zt_nn_take(a, (uint64_t) a->cols_max * 4);
+    a->float_residual = true;
 }
 
 uint64_t zt_nn_arena_used(const zt_nn_arena_t *a)
@@ -201,13 +202,57 @@ static void requant(const zt_fx *x, int8_t *q, int32_t *scale, uint8_t *shift)
     *shift = (uint8_t) sh;
 }
 
+static bool elem_f32(const zt_gguf_tensor_t *t, uint64_t i, uint32_t *bits);
+
+/* One 32-value block of a float tensor (elements i0.., n <= 32 of them, the
+ * rest zero) to 8-bit blocks hi (+ lo): the values are read as fixed point
+ * with F fraction bits so the largest is just below 2^30, quantised, and the
+ * blocks' shifts are raised by F - 16 so they read as Q16. */
+static void float_block(const zt_gguf_tensor_t *t, uint64_t i0, uint32_t n, zt_q8_t *hi,
+                        zt_q8_t *lo)
+{
+    uint32_t bits[32];
+    int32_t emax = -1000;
+    for (uint32_t i = 0; i < 32; i++) {
+        bits[i] = 0;
+        if (i < n) elem_f32(t, i0 + i, &bits[i]);
+        uint32_t ex = (bits[i] >> 23) & 0xFF;
+        if (ex == 0xFF) bits[i] = 0; /* inf/NaN read as zero */
+        if ((bits[i] & 0x7FFFFFFFu) && (int32_t) ex > emax) emax = (int32_t) ex;
+    }
+    hi->phi_k = 0;
+    if (lo) lo->phi_k = 0;
+    if (emax == -1000) {
+        requant((const zt_fx[32]){0}, hi->q, &hi->scale, &hi->shift);
+        if (lo) *lo = *hi;
+        return;
+    }
+    /* |v| < 2^(emax - 126): F = 29 - (emax - 127) puts it below 2^30 */
+    int32_t F = 29 - (emax - 127);
+    if (F > 60) F = 60; /* tiny values: keep the shifts in range */
+    if (F < 16) F = 16;
+    zt_fx v[32], r[32];
+    for (uint32_t i = 0; i < 32; i++) v[i] = sat32(zt_nn_f32_fixed(bits[i], F));
+    requant(v, hi->q, &hi->scale, &hi->shift);
+    for (uint32_t i = 0; i < 32; i++) {
+        int64_t d = (int64_t) hi->q[i] * hi->scale; /* value = d >> shift */
+        int64_t back = hi->shift ? (d + ((int64_t) 1 << (hi->shift - 1))) >> hi->shift : d;
+        r[i] = sat32((int64_t) v[i] - back);
+    }
+    if (lo) {
+        requant(r, lo->q, &lo->scale, &lo->shift);
+        lo->shift = (uint8_t) (lo->shift + (F - 16));
+    }
+    hi->shift = (uint8_t) (hi->shift + (F - 16));
+}
+
 int32_t zt_nn_load_mat(zt_nn_arena_t *a, const zt_gguf_t *g, const char *name, uint32_t cols,
                        uint32_t rows, zt_mat_t *out)
 {
     zt_gguf_tensor_t t;
     int32_t r = zt_nn_tensor(g, name, cols, rows, &t, a->err);
     if (r) return r;
-    zt_mat_t m = {0, 0, rows, (cols + 31) & ~31u, 0};
+    zt_mat_t m = {0, 0, rows, (cols + 31) & ~31u, 0, 0};
     if (t.type == ZT_GGML_Q8_0 && cols % 32 == 0) {
         m.raw = t.data;
         m.qtype = ZT_GGML_Q8_0;
@@ -221,12 +266,21 @@ int32_t zt_nn_load_mat(zt_nn_arena_t *a, const zt_gguf_t *g, const char *name, u
             return ZT_GGUF_EUNSUPPORTED;
         }
         uint32_t nb = m.cols / 32;
-        zt_q8_t *q = zt_nn_take(a, (uint64_t) rows * nb * sizeof(zt_q8_t));
-        if (zt_nn_filling(a)) {
-            if (!q) {
-                set_err(a->err, ZT_NN_ESPACE, "arena too small", name);
-                return ZT_NN_ESPACE;
-            }
+        bool flt = t.type == ZT_GGML_F32 || t.type == ZT_GGML_F16 || t.type == ZT_GGML_BF16;
+        zt_q8_t *q = zt_nn_take(a, (uint64_t) rows * nb * sizeof(zt_q8_t)), *ql = 0;
+        if (flt && a->float_residual) ql = zt_nn_take(a, (uint64_t) rows * nb * sizeof(zt_q8_t));
+        if (zt_nn_filling(a) && (!q || (flt && a->float_residual && !ql))) {
+            set_err(a->err, ZT_NN_ESPACE, "arena too small", name);
+            return ZT_NN_ESPACE;
+        }
+        if (zt_nn_filling(a) && flt) {
+            for (uint32_t row = 0; row < rows; row++)
+                for (uint32_t b = 0; b < nb; b++) {
+                    uint32_t n = cols - b * 32 < 32 ? cols - b * 32 : 32;
+                    float_block(&t, (uint64_t) row * cols + b * 32, n, q + (uint64_t) row * nb + b,
+                                ql ? ql + (uint64_t) row * nb + b : 0);
+                }
+        } else if (zt_nn_filling(a)) {
             for (uint32_t row = 0; row < rows; row++) {
                 for (uint32_t i = cols; i < m.cols; i++) a->scratch[i] = 0;
                 r = zt_gguf_dequant(&t, (uint64_t) row * cols, cols, a->scratch);
@@ -242,6 +296,7 @@ int32_t zt_nn_load_mat(zt_nn_arena_t *a, const zt_gguf_t *g, const char *name, u
             }
         }
         m.q8 = q;
+        m.q8lo = ql;
     }
     if (out) *out = m;
     return ZT_GGUF_OK;
@@ -487,6 +542,10 @@ static void lin_rows(void *ctx, uint32_t r0, uint32_t r1)
                 d = k && k->dot_q8 ? k->dot_q8(row, a, ash, nb) : zt_dot_q8_c(row, a, ash, nb);
             }
             int64_t v = (int64_t) d + bv;
+            if (w->q8lo) {
+                const zt_q8_t *row = w->q8lo + (uint64_t) r * nb;
+                v += k && k->dot_q8 ? k->dot_q8(row, a, ash, nb) : zt_dot_q8_c(row, a, ash, nb);
+            }
             nsat += v >= INT32_MAX || v <= INT32_MIN;
             j->y[(uint64_t) b * j->ystride + r] = sat32(v);
         }
@@ -530,7 +589,7 @@ void zt_nn_linear(zt_nn_t *nn, const zt_mat_t *w, const zt_fx *bias, const zt_fx
                        n_in, B, ystride, y + (uint64_t) t0 * ystride};
         par(nn, act_rows, &j, B, (uint64_t) B * w->cols * 4);
         uint64_t work = (uint64_t) w->rows * w->cols * B;
-        if (k && k->mm_batch && B >= ZT_MMB_MIN) {
+        if (k && k->mm_batch && B >= ZT_MMB_MIN && !w->q8lo) {
             par(nn, pack_rows, &j, (B + ZT_MMB_G - 1) / ZT_MMB_G, (uint64_t) B * w->cols * 4);
             linb_job_t jb = {j,
                              {w->raw, w->q8, w->qtype, w->cols, nn->aT, nn->ashT, nn->asumT,

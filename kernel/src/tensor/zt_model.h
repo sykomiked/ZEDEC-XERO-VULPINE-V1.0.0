@@ -159,6 +159,9 @@ typedef struct {
     const zt_q8_t *q8;
     uint32_t rows, cols;
     uint32_t qtype; /* raw's ZT_GGML_* type: Q8_0, Q4_K or Q6_K (0 when q8 is set) */
+    /* zt_nn.h (T23) only: the 8-bit blocks of what q8 leaves out of a float
+     * matrix (weight = q8 + q8lo), or null. zt_model never sets it. */
+    const zt_q8_t *q8lo;
 } zt_mat_t;
 
 typedef struct {

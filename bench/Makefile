@@ -9,6 +9,8 @@
 #   make -C bench smoke             build both and run the offline smoke checks
 #   make -C bench tensor MODEL=path/to/model.gguf [N=32] [PROMPT="..."]
 #   make -C bench qwen [ARM64=1]    Qwen2.5-1.5B-Instruct Q4_K_M: speed, cross-build bit check, quality
+#   make -C bench zt_vlm            image + text driver (SmolVLM-256M; see
+#                                   bench/results/2026-10-12-smolvlm/REPORT.md)
 #   make -C bench zt_dump zt_golden logit dump and golden-ratio experiment tools (see
 #                                   bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md)
 #   make -C bench zt_tts            text-to-speech driver (OuteTTS + WavTokenizer, T26;
@@ -27,10 +29,11 @@ BATCH ?=
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
 	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
 	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c
+NN_SRCS := $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_vision.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench zt_dump zt_golden zt_tts zt_tts_arm64 smoke tensor qwen
+.PHONY: all legacy legacy-bench zt_bench zt_dump zt_golden zt_vlm zt_tts zt_tts_arm64 smoke tensor qwen
 all: smoke
 
 $(OUT):
@@ -50,6 +53,10 @@ $(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h
 	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
 
 zt_bench: $(OUT)/zt_bench
+
+$(OUT)/zt_vlm: tensor/zt_vlm.c $(TENSOR_SRCS) $(NN_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_vlm.c $(TENSOR_SRCS) $(NN_SRCS) -lm -lpthread -o $@
+zt_vlm: $(OUT)/zt_vlm
 
 $(OUT)/zt_dump: tensor/zt_dump.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
 	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_dump.c $(TENSOR_SRCS) -lm -lpthread -o $@

@@ -16,6 +16,12 @@ uint64_t zt_udiv64(uint64_t n, uint64_t d, uint64_t *rem)
         if (rem) *rem = 0;
         return 0;
     }
+#if UINTPTR_MAX > 0xFFFFFFFFu
+    /* 64-bit targets divide in one instruction (no runtime helper); the
+     * quotient is exact either way, so every target gets the same bits */
+    if (rem) *rem = n % d;
+    return n / d;
+#endif
     for (int i = 63; i >= 0; i--) {
         r = (r << 1) | ((n >> i) & 1u);
         if (r >= d) {
