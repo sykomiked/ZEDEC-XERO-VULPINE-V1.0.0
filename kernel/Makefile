@@ -322,6 +322,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-settle
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
+	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
@@ -1664,3 +1665,45 @@ test-econ:
 	$(MAKE) --no-print-directory test-zstats
 	$(MAKE) --no-print-directory test-vderiv
 # ==== end economy modules ====
+
+# ==== research tracks (roadmap 6.6d: Q quantum, S spatial, F manufacturing) ====
+# Each module: ASan/UBSan host tests, then a freestanding build (aarch64
+# -mgeneral-regs-only and i386, no libc, no floats) whose only external symbols
+# carry the module's own prefix. Design notes: docs/QUANTUM_SIMULATOR.md,
+# docs/QUANTUM_NETTING.md, docs/SPATIAL_ENGINE.md, docs/MANUFACTURING.md.
+RESEARCH_FLAGS = -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude
+# $(call research_free,<sources>,<allowed symbol prefix>,<name>)
+research_free = for f in $(1); do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -c $$f -o $(ZXV_TMP)/$(3)_free.o || { echo "[FAIL] $(3) freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/$(3)_free.o | grep -vE ' $(2)' | grep -q .; then nm -u $(ZXV_TMP)/$(3)_free.o; echo "[FAIL] $(3) freestanding: foreign symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] $(3) freestanding (aarch64 -mgeneral-regs-only, i386; only $(2)* external)"
+
+# Q.1/Q.2 exact float-free circuit simulator (a classical simulator, no speedup).
+.PHONY: test-qsim
+test-qsim:
+	gcc $(RESEARCH_FLAGS) src/qsim/test_qsim.c src/qsim/qsim.c -o $(ZXV_TMP)/test_qsim -lm && $(ZXV_TMP)/test_qsim > $(ZXV_TMP)/test_qsim.log 2>&1 && echo "[PASS] test_qsim ($$(tail -1 $(ZXV_TMP)/test_qsim.log))" || { tail -40 $(ZXV_TMP)/test_qsim.log; echo "[FAIL] test_qsim"; exit 1; }
+	@$(call research_free,src/qsim/qsim.c,qs_,qsim)
+
+# Q.6 netting: greedy cycles, exact min-cost circulation, replica annealer; bench builds only.
+.PHONY: test-qnet
+test-qnet:
+	gcc $(RESEARCH_FLAGS) src/qnet/test_qnet.c src/qnet/qnet.c -o $(ZXV_TMP)/test_qnet -lm && $(ZXV_TMP)/test_qnet > $(ZXV_TMP)/test_qnet.log 2>&1 && echo "[PASS] test_qnet ($$(tail -1 $(ZXV_TMP)/test_qnet.log))" || { tail -40 $(ZXV_TMP)/test_qnet.log; echo "[FAIL] test_qnet"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/qnet/bench_qnet.c src/qnet/qnet.c -o $(ZXV_TMP)/bench_qnet && echo "[PASS] bench_qnet builds (run $(ZXV_TMP)/bench_qnet for the table)"
+	@$(call research_free,src/qnet/qnet.c,qn_,qnet)
+
+# S.1/S.2/S.4 spatial engine: exact geometry, four-valued fusion, advisory fleet plans.
+.PHONY: test-spatial
+test-spatial:
+	gcc $(RESEARCH_FLAGS) src/spatial/test_spatial.c src/spatial/sp_geom.c src/spatial/sp_fusion.c src/spatial/sp_fleet.c -o $(ZXV_TMP)/test_spatial -lm && $(ZXV_TMP)/test_spatial > $(ZXV_TMP)/test_spatial.log 2>&1 && echo "[PASS] test_spatial ($$(tail -1 $(ZXV_TMP)/test_spatial.log))" || { tail -40 $(ZXV_TMP)/test_spatial.log; echo "[FAIL] test_spatial"; exit 1; }
+	@$(call research_free,src/spatial/sp_geom.c src/spatial/sp_fusion.c src/spatial/sp_fleet.c,sp_,spatial)
+
+# F.2/F.4/F.10/F.6 manufacturing: G-code checker, four-valued QC, hard nature budgets.
+.PHONY: test-mfg
+test-mfg:
+	gcc $(RESEARCH_FLAGS) src/mfg/test_mfg.c src/mfg/mfg_gcode.c src/mfg/mfg_qc.c src/mfg/mfg_budget.c -o $(ZXV_TMP)/test_mfg -lm && $(ZXV_TMP)/test_mfg > $(ZXV_TMP)/test_mfg.log 2>&1 && echo "[PASS] test_mfg ($$(tail -1 $(ZXV_TMP)/test_mfg.log))" || { tail -40 $(ZXV_TMP)/test_mfg.log; echo "[FAIL] test_mfg"; exit 1; }
+	@$(call research_free,src/mfg/mfg_gcode.c src/mfg/mfg_qc.c src/mfg/mfg_budget.c,mfg_,mfg)
+
+.PHONY: test-research
+test-research:
+	$(MAKE) --no-print-directory test-qsim
+	$(MAKE) --no-print-directory test-qnet
+	$(MAKE) --no-print-directory test-spatial
+	$(MAKE) --no-print-directory test-mfg
+# ==== end research tracks ====
