@@ -1923,8 +1923,9 @@ static void test_aipi_methods(void)
     CHECK(aipi_calls == n, "bad aipi.put params never reach the host");
     /* ZXVD_AIPI_HEX_MAX bytes fit in one request line, one more does not */
     static char big[2 * ZXVD_AIPI_HEX_MAX + 200];
-    int k = snprintf(big, sizeof big,
-                     "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"aipi.put\",\"params\":{\"hex\":\"");
+    int k =
+        snprintf(big, sizeof big,
+                 "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"aipi.put\",\"params\":{\"hex\":\"");
     memset(big + k, 'a', 2 * ZXVD_AIPI_HEX_MAX);
     strcpy(big + k + 2 * ZXVD_AIPI_HEX_MAX, "\"}}");
     CHECK(has(big, "\"result\"") && put_len == ZXVD_AIPI_HEX_MAX && put_data[0] == 0xAA &&
@@ -1977,9 +1978,10 @@ static void test_aipi_methods(void)
              ERR("9", "-32602",
                  "\\\"verify\\\" must be \\\"checker\\\", \\\"cert\\\", \\\"quorum\\\" or "
                  "\\\"local\\\""));
-    EXPECT(REQ("9", "aipi.publish",
-               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"none\",\"fuel_max\":5}"),
-           want);
+    EXPECT(
+        REQ("9", "aipi.publish",
+            ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"none\",\"fuel_max\":5}"),
+        want);
     EXPECT(REQ("9", "aipi.publish",
                ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"\",\"fuel_max\":5}"),
            want);
@@ -1987,14 +1989,18 @@ static void test_aipi_methods(void)
                ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\","
                "\"fuel_max\":-1}"),
            ERR("9", "-32602", "\\\"fuel_max\\\" must not be negative"));
-    EXPECT(REQ("9", "aipi.publish", ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\"}"),
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\"}"),
            ERR("9", "-32602", "missing integer parameter \\\"fuel_max\\\""));
-    EXPECT(REQ("9", "aipi.publish", ",\"params\":{\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1}"),
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1}"),
            ERR("9", "-32602", "missing string parameter \\\"module\\\""));
-    EXPECT(REQ("9", "aipi.publish", ",\"params\":{\"module\":\"zM\",\"verify\":\"local\",\"fuel_max\":1}"),
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"verify\":\"local\",\"fuel_max\":1}"),
            ERR("9", "-32602", "missing string parameter \\\"entry\\\""));
-    EXPECT(REQ("9", "aipi.publish", ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"fuel_max\":1}"),
-           ERR("9", "-32602", "missing string parameter \\\"verify\\\""));
+    EXPECT(
+        REQ("9", "aipi.publish", ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"fuel_max\":1}"),
+        ERR("9", "-32602", "missing string parameter \\\"verify\\\""));
     EXPECT(REQ("9", "aipi.publish",
                ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1,"
                "\"deterministic\":0}"),
@@ -2018,21 +2024,24 @@ static void test_aipi_methods(void)
               exec_args[2] == INT64_MAX && exec_args[3] == INT64_MIN && exec_args[7] == 8 &&
               !exec_priv,
           "aipi.execute passes up to 8 integers, public by default");
-    EXPECT(REQ("10", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[],\"private\":true}"),
-           OK("10", "{\"result\":\"1\"}"));
+    EXPECT(
+        REQ("10", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[],\"private\":true}"),
+        OK("10", "{\"result\":\"1\"}"));
     CHECK(exec_n == 0 && exec_priv, "no arguments, private input");
     EXPECT(REQ("10", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[13]}"),
            ERR("10", "-32011", "AIPI_ERR_EXEC: the sandbox refused or stopped the run"));
     n = aipi_calls;
     snprintf(want, sizeof want, "%s",
              ERR("11", "-32602", "\\\"args\\\" must be an array of at most 8 integers"));
-    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[1,2,3,4,5,6,7,8,9]}"),
-           want);
+    EXPECT(
+        REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[1,2,3,4,5,6,7,8,9]}"),
+        want);
     EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\"}"), want);
     EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":5}"), want);
     EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":{\"a\":1}}"), want);
-    snprintf(want, sizeof want, "%s",
-             ERR("11", "-32602", "\\\"args\\\" must hold 64-bit integers (no fraction or exponent)"));
+    snprintf(
+        want, sizeof want, "%s",
+        ERR("11", "-32602", "\\\"args\\\" must hold 64-bit integers (no fraction or exponent)"));
     EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[1,1.5]}"), want);
     EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[\"1\"]}"), want);
     EXPECT(REQ("11", "aipi.execute",

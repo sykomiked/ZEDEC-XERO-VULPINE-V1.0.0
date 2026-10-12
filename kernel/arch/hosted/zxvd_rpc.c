@@ -1075,9 +1075,11 @@ static void m_aipi_publish(call_t *c)
         !p_bool(c, "local_only", false, &fn.local_only) ||
         !p_bool(c, "deterministic", true, &fn.deterministic))
         return;
-    for (i = 0; i < 4u && strcmp(verify, VERIFY[i]) != 0; i++) {}
+    for (i = 0; i < 4u && strcmp(verify, VERIFY[i]) != 0; i++) {
+    }
     if (i == 4u)
-        return fail(c, E_PARAMS, "\"verify\" must be \"checker\", \"cert\", \"quorum\" or \"local\"");
+        return fail(c, E_PARAMS,
+                    "\"verify\" must be \"checker\", \"cert\", \"quorum\" or \"local\"");
     fn.verify = (uint8_t) (i + 1u); /* AIPI_VERIFY_CHECKER .. AIPI_VERIFY_LOCAL */
     if (!p_price(c, "fuel_max", &fn.fuel_max)) return;
     (void) aipi_done(c, AIPI->publish(&fn, c->res));
@@ -1089,8 +1091,7 @@ static void m_aipi_execute(call_t *c)
     int64_t args[ZXVD_AIPI_ARGS_MAX];
     bool priv;
     if (!AIPI || !AIPI->execute) return fail(c, E_METHOD, "not available");
-    if (!p_str(c, "function", fnc, sizeof fnc, true) || !p_bool(c, "private", false, &priv))
-        return;
+    if (!p_str(c, "function", fnc, sizeof fnc, true) || !p_bool(c, "private", false, &priv)) return;
     int32_t a = param(c, "args");
     if (a < 0 || c->t[a].type != W4_J_ARR || c->t[a].size > ZXVD_AIPI_ARGS_MAX)
         return fail(c, E_PARAMS, "\"args\" must be an array of at most %u integers",
@@ -1099,7 +1100,8 @@ static void m_aipi_execute(call_t *c)
     for (uint32_t k = 0; k < n; k++) {
         int32_t e = w4_json_at(c->t, c->n, a, k);
         if (e < 0 || c->t[e].type != W4_J_NUM || w4_json_i64(c->js, &c->t[e], &args[k]) != W4_OK)
-            return fail(c, E_PARAMS, "\"args\" must hold 64-bit integers (no fraction or exponent)");
+            return fail(c, E_PARAMS,
+                        "\"args\" must hold 64-bit integers (no fraction or exponent)");
     }
     (void) aipi_done(c, AIPI->execute(fnc, args, n, priv, c->res));
 }

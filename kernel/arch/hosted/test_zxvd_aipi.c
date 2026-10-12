@@ -53,8 +53,8 @@ static const char *req(const char *method, const char *fmt, ...)
 static const char *req(const char *method, const char *fmt, ...)
 {
     va_list ap;
-    int k = snprintf(REQB, sizeof REQB, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\",\"params\":",
-                     method);
+    int k = snprintf(REQB, sizeof REQB,
+                     "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\",\"params\":", method);
     va_start(ap, fmt);
     k += vsnprintf(REQB + k, sizeof REQB - (size_t) k, fmt, ap);
     va_end(ap);
@@ -102,7 +102,9 @@ static void write_file(const char *path, const uint8_t *p, size_t n)
     if (f) fclose(f);
 }
 
-#define TAG_TRUE "\"tag\":{\"base\":\"true\",\"polarity\":\"negentropic\",\"phase\":\"manifest\",\"action\":\"proceed\"}"
+#define TAG_TRUE                                                                                   \
+    "\"tag\":{\"base\":\"true\",\"polarity\":\"negentropic\",\"phase\":\"manifest\",\"action\":"   \
+    "\"proceed\"}"
 
 static const char *status_json(unsigned blocks, unsigned long long bytes, unsigned puts,
                                unsigned gets, unsigned pubs, unsigned calls, unsigned failed)
@@ -195,11 +197,12 @@ static void test_blocks(void)
 
     {
         const char *s = rpc(req("aipi.status", "{}"));
-        CHECK(strstr(s, "\"blocks\":8,") && strstr(s, "\"puts\":6,") && strstr(s, "\"gets\":4,") &&
-                  strstr(s, "\"publishes\":0,") && strstr(s, "\"calls\":0,"),
-              "status counts the blocks (a private one is indexed twice), puts and successful gets: "
-          "%.300s",
-          s);
+        CHECK(
+            strstr(s, "\"blocks\":8,") && strstr(s, "\"puts\":6,") && strstr(s, "\"gets\":4,") &&
+                strstr(s, "\"publishes\":0,") && strstr(s, "\"calls\":0,"),
+            "status counts the blocks (a private one is indexed twice), puts and successful gets: "
+            "%.300s",
+            s);
         unsigned long long used = 0;
         const char *u = strstr(s, "\"store_bytes\":");
         CHECK(u && sscanf(u, "\"store_bytes\":%llu", &used) == 1 &&
@@ -291,11 +294,13 @@ static void test_functions(void)
            err("AIPI_ERR_EXEC: the sandbox refused or stopped the run (validator, contract, trap "
                "or fuel)"));
     /* jobs are released after failures: more failures than job slots, then a success */
-    for (int i = 0; i < 6; i++) rpc(req("aipi.execute", "{\"function\":\"%s\",\"args\":[-1]}", fcid));
+    for (int i = 0; i < 6; i++)
+        rpc(req("aipi.execute", "{\"function\":\"%s\",\"args\":[-1]}", fcid));
     CHECK(strstr(rpc(req("aipi.execute", "{\"function\":\"%s\",\"args\":[10]}", fcid)),
                  "\"result\":\"5\""),
           "failed jobs free their slots");
-    for (int i = 0; i < 6; i++) rpc(req("aipi.execute", "{\"function\":\"%s\",\"args\":[%d]}", fcid, 100 + i));
+    for (int i = 0; i < 6; i++)
+        rpc(req("aipi.execute", "{\"function\":\"%s\",\"args\":[%d]}", fcid, 100 + i));
     CHECK(strstr(rpc(req("aipi.execute", "{\"function\":\"%s\",\"args\":[12]}", fcid)),
                  "\"result\":\"6\""),
           "finished jobs free their slots");
@@ -321,7 +326,8 @@ static void test_functions(void)
     free(h);
     char ff[AIPI_TEXT_MAX];
     r = rpc(req("aipi.publish",
-                "{\"module\":\"%s\",\"entry\":\"half\",\"verify\":\"local\",\"fuel_max\":100}", fl));
+                "{\"module\":\"%s\",\"entry\":\"half\",\"verify\":\"local\",\"fuel_max\":100}",
+                fl));
     CHECK(sscanf(r, "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"function\":\"%[^\"]", ff) == 1,
           "publish floaty: %s", r);
     EXPECT(req("aipi.execute", "{\"function\":\"%s\",\"args\":[4]}", ff),
@@ -329,7 +335,8 @@ static void test_functions(void)
                "or fuel)"));
 
     /* publish refusals */
-    EXPECT(req("aipi.publish", "{\"module\":\"x\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1}"),
+    EXPECT(req("aipi.publish",
+               "{\"module\":\"x\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1}"),
            err("\\\"module\\\" is not a CID"));
     EXPECT(req("aipi.publish",
                "{\"module\":\"%s\",\"contract\":\"x\",\"entry\":\"e\",\"verify\":\"local\","
@@ -338,8 +345,8 @@ static void test_functions(void)
            err("\\\"contract\\\" is not a CID"));
     static const char *const BADFN =
         "the descriptor breaks the rules in docs/AIPI.md section 3 (AIPI_ERR_MALFORMED)";
-    EXPECT(req("aipi.publish", "{\"module\":\"%s\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":0}",
-               mod),
+    EXPECT(req("aipi.publish",
+               "{\"module\":\"%s\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":0}", mod),
            err(BADFN));
     EXPECT(req("aipi.publish",
                "{\"module\":\"%s\",\"entry\":\"e\",\"verify\":\"checker\",\"fuel_max\":1}", mod),
@@ -368,7 +375,8 @@ static void test_functions(void)
         static const uint8_t G[] = {9, 9};
         cid_text(G, sizeof G, IPFSN_MC_RAW, gone);
         r = rpc(req("aipi.publish",
-                    "{\"module\":\"%s\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":9}", gone));
+                    "{\"module\":\"%s\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":9}",
+                    gone));
         CHECK(sscanf(r, "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"function\":\"%[^\"]", ff) == 1,
               "publish without the module: %s", r);
         EXPECT(req("aipi.execute", "{\"function\":\"%s\",\"args\":[1]}", ff),
@@ -408,10 +416,11 @@ static void test_functions(void)
                     "\"forbidden\":0,\"sandbox\":{\"runs\":"),
           "status counts publishes, calls and failures: %s", s);
     unsigned long long runs, chk, trapped, refm, refc, fuel;
-    CHECK(sscanf(strstr(s, "\"sandbox\""),
-                 "\"sandbox\":{\"runs\":%llu,\"checks\":%llu,\"trapped\":%llu,\"refused_module\":%llu,"
-                 "\"refused_contract\":%llu,\"fuel_used\":\"%llu\"}}",
-                 &runs, &chk, &trapped, &refm, &refc, &fuel) == 6 &&
+    CHECK(sscanf(
+              strstr(s, "\"sandbox\""),
+              "\"sandbox\":{\"runs\":%llu,\"checks\":%llu,\"trapped\":%llu,\"refused_module\":%llu,"
+              "\"refused_contract\":%llu,\"fuel_used\":\"%llu\"}}",
+              &runs, &chk, &trapped, &refm, &refc, &fuel) == 6 &&
               trapped >= 1 && refm == 1 && refc >= 2 && fuel >= 5000 && runs >= 17,
           "the sandbox's own counters (%s)", s);
     zxvd_aipi_close();

@@ -213,13 +213,13 @@ void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
  * methods answer -32601 (a build without the Z-Wasm kit). Each returns NULL
  * on success (the result object written into `out`) or the reason it failed
  * (error ZXVD_E_AIPI). */
-#define ZXVD_E_AIPI (-32011)
-#define ZXVD_AIPI_ARGS_MAX 8u /* the Z-Wasm call ABI: up to 8 signed 64-bit integers */
+#define ZXVD_E_AIPI        (-32011)
+#define ZXVD_AIPI_ARGS_MAX 8u    /* the Z-Wasm call ABI: up to 8 signed 64-bit integers */
 #define ZXVD_AIPI_HEX_MAX  8000u /* aipi.put "hex": bytes in one request line */
 typedef struct {
     char module[128], contract[128]; /* CIDs as text; contract "" = none */
     char entry[64], checker[64], certifier[64];
-    uint8_t verify; /* AIPI_VERIFY_* */
+    uint8_t verify;  /* AIPI_VERIFY_* */
     bool local_only; /* privacy LOCAL: never leaves this node */
     bool deterministic;
     uint64_t fuel_max;
@@ -227,12 +227,12 @@ typedef struct {
 typedef struct {
     /* data/len, or path (data NULL): a file read by zxvd */
     const char *(*put)(const uint8_t *data, uint32_t len, const char *path, bool private_,
-                       zxvd_buf_t *out);                                            /* aipi.put */
-    const char *(*get)(const char *cid, zxvd_buf_t *out);                           /* aipi.get */
-    const char *(*publish)(const zxvd_aipi_fn_t *fn, zxvd_buf_t *out);              /* aipi.publish */
+                       zxvd_buf_t *out);                               /* aipi.put */
+    const char *(*get)(const char *cid, zxvd_buf_t *out);              /* aipi.get */
+    const char *(*publish)(const zxvd_aipi_fn_t *fn, zxvd_buf_t *out); /* aipi.publish */
     const char *(*execute)(const char *fn_cid, const int64_t *args, uint32_t n, bool private_,
-                           zxvd_buf_t *out);                                        /* aipi.execute */
-    void (*status)(zxvd_buf_t *out);                                                /* aipi.status */
+                           zxvd_buf_t *out); /* aipi.execute */
+    void (*status)(zxvd_buf_t *out);         /* aipi.status */
 } zxvd_aipi_ops_t;
 void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
 

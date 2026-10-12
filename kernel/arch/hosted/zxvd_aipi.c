@@ -225,19 +225,18 @@ static void z_status(zxvd_buf_t *out)
 {
     aipi_zw_stats_t st;
     aipi_zw_stats(Z.zw, &st);
-    zxvd_buf_printf(out,
-                    "{\"online\":false,\"blocks\":%u,\"store_bytes\":%llu,\"store_cap\":%llu,"
-                    "\"puts\":%llu,\"gets\":%llu,\"publishes\":%llu,\"calls\":%llu,\"failed\":%llu,"
-                    "\"forbidden\":%u,\"sandbox\":{\"runs\":%llu,\"checks\":%llu,\"trapped\":%llu,"
-                    "\"refused_module\":%llu,\"refused_contract\":%llu,\"fuel_used\":\"%llu\"}}",
-                    (unsigned) Z.bs.count, (unsigned long long) Z.ms.len,
-                    (unsigned long long) Z.ms.cap, (unsigned long long) Z.puts,
-                    (unsigned long long) Z.gets, (unsigned long long) Z.publishes,
-                    (unsigned long long) Z.calls, (unsigned long long) Z.failed,
-                    (unsigned) Z.a.forbidden, (unsigned long long) st.runs,
-                    (unsigned long long) st.checks, (unsigned long long) st.trapped,
-                    (unsigned long long) st.refused_module,
-                    (unsigned long long) st.refused_contract, (unsigned long long) st.fuel_used);
+    zxvd_buf_printf(
+        out,
+        "{\"online\":false,\"blocks\":%u,\"store_bytes\":%llu,\"store_cap\":%llu,"
+        "\"puts\":%llu,\"gets\":%llu,\"publishes\":%llu,\"calls\":%llu,\"failed\":%llu,"
+        "\"forbidden\":%u,\"sandbox\":{\"runs\":%llu,\"checks\":%llu,\"trapped\":%llu,"
+        "\"refused_module\":%llu,\"refused_contract\":%llu,\"fuel_used\":\"%llu\"}}",
+        (unsigned) Z.bs.count, (unsigned long long) Z.ms.len, (unsigned long long) Z.ms.cap,
+        (unsigned long long) Z.puts, (unsigned long long) Z.gets, (unsigned long long) Z.publishes,
+        (unsigned long long) Z.calls, (unsigned long long) Z.failed, (unsigned) Z.a.forbidden,
+        (unsigned long long) st.runs, (unsigned long long) st.checks,
+        (unsigned long long) st.trapped, (unsigned long long) st.refused_module,
+        (unsigned long long) st.refused_contract, (unsigned long long) st.fuel_used);
 }
 
 static const zxvd_aipi_ops_t OPS = {z_put, z_get, z_publish, z_execute, z_status};
