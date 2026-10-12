@@ -21,6 +21,7 @@ on:
       - 'kernel/third_party/**'
       - '.github/workflows/sdk-engines.yml'
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/engines/**'
       - 'sdk/libzxv/**'
@@ -46,6 +47,7 @@ concurrency:
 
 jobs:
   emu-state:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: emu-state ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -73,6 +75,7 @@ jobs:
           done
 
   emu-state-sanitize:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: emu-state ASan + UBSan ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -104,6 +107,7 @@ jobs:
         run: make PYTHON=python3 fuzz-libfuzzer
 
   godot-core:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: godot-zxv core ${{ matrix.os }} ${{ matrix.cxx }}${{ matrix.sanitize == 'ON' && ' sanitize' || '' }}
     strategy:
       fail-fast: false
@@ -127,6 +131,7 @@ jobs:
       - run: ctest --test-dir build-godot-core --output-on-failure
 
   godot-extension:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: godot-zxv GDExtension in Godot 4.3 (Linux)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -168,6 +173,7 @@ jobs:
   # structural check of the wrapper. No Unreal Engine here: the UCLASS /
   # USTRUCT wrapper is not compiled (see sdk/engines/unreal-zxv/README.md).
   unreal-core:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: unreal-zxv core ${{ matrix.os }} ${{ matrix.cxx }}
     strategy:
       fail-fast: false
@@ -203,6 +209,7 @@ jobs:
           ls sdk/engines/unreal-zxv/Source/ThirdParty/Zxv/lib/*/libzxv_emu.a
 
   unity-runtime:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: unity-zxv Runtime (netstandard2.1) ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -225,6 +232,7 @@ jobs:
         run: dotnet test Zxv.Unity.sln -c Release --no-build
 
   z-vfx:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: z-vfx (Python 3.10, fake maya.cmds and hou)
     runs-on: ubuntu-24.04
     timeout-minutes: 20

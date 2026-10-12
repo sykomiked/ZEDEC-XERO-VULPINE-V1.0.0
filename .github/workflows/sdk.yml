@@ -12,6 +12,7 @@ on:
     paths: ['sdk/**', 'kernel/src/**', 'kernel/third_party/**', '.github/workflows/sdk.yml',
             '.github/scripts/sdk-changes.sh']
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths: ['sdk/**', 'kernel/src/**', 'kernel/third_party/**', '.github/workflows/sdk.yml',
             '.github/scripts/sdk-changes.sh']
   workflow_dispatch:
@@ -30,6 +31,7 @@ jobs:
   # request only the SDKs it changed, or all of them when libzxv, the
   # conformance vectors or the kernel changed. Skipped jobs use no runner.
   changes:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: changed SDKs
     runs-on: ubuntu-24.04
     timeout-minutes: 5

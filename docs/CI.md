@@ -25,7 +25,7 @@ merged, and every night on `main`.
    |---|---|
    | `docs/**`, any `*.md` (except `docs/MAC_APP.md`), `LICENSE`, `NOTICE`, `FUNDING.yml`, `CITATION.cff`, issue templates, Dependabot or CodeQL config | quick-checks only; CodeQL is skipped |
    | `sdk/dotnet/**` | quick-checks, dotnet-sdk |
-   | other `sdk/**`, `bindings/<language>/**` | none here: the `sdk*.yml` workflows test them (and this workflow skips SDK-only pull requests) |
+   | other `sdk/**`, `bindings/<language>/**` | quick-checks and ci-gate here; the `sdk*.yml` workflows test the SDKs |
    | `sdk/libzxv/**`, `sdk/conformance/**` | every job (libzxv is linked into the engine and zxvd) |
    | `macos/**`, `docs/MAC_APP.md` | quick-checks, macos-app |
    | `proofs/**` | quick-checks, proofs |
@@ -35,12 +35,33 @@ merged, and every night on `main`.
    | `release.yml` (manual only; builds the draft release, see `docs/release/README.md`) | quick-checks only |
 
    Nightly and manual runs (`workflow_dispatch`) always run every job.
+
+   A pull request is compared with the first parent of GitHub's merge commit
+   (the target branch as it was when the merge was made), so the diff is
+   exactly the pull request's files. It used to be compared with the live
+   `origin/main`; when #77 was merged five seconds after it was marked ready,
+   its run saw main already containing the change, found nothing changed,
+   skipped every test and reported success.
 3. **The slow tier waits until a pull request is ready for review.** Draft
-   pushes run the fast tier. The slow tier runs when a pull request is opened
-   or marked ready for review, on every push after that, nightly at 03:23 UTC
-   and on manual runs. GitHub cannot merge a draft, so every merge has passed
-   the slow tier. To run the full set on a draft, start CI by hand from the
-   Actions tab (Run workflow, pick the branch).
+   pushes run the fast tier of `ci.yml`, plus CodeQL and zxvd's `e2e` job;
+   every other workflow (`desktop`, `macos-studio`, `sdk*`, the rest of
+   `zxvd`) skips its jobs on a draft and starts when the pull request is
+   marked ready. The slow tier runs when a pull request is opened ready or
+   marked ready for review, on every push after that, on every push to
+   `main`, nightly at 03:23 UTC and on manual runs. To run the full set on a
+   draft, start CI by hand from the Actions tab (Run workflow, pick the
+   branch).
+
+   `build_system/check_workflow_tiers.py` (in quick-checks and the local
+   script) fails when a workflow or a new job runs on drafts without this
+   rule.
+
+   Before this rule covered the other workflows, a draft that touched
+   `kernel/src/` started about 150 jobs (every SDK, engine and framework
+   workflow), not the 9 this page promised. Fifteen open drafts queued
+   thousands of jobs behind a 20-job limit; jobs sat for up to 80 minutes
+   and were then cancelled in bulk, which is most of the red seen on
+   2026-10-12.
 
    | Fast tier (every push) | Slow tier (ready PRs, nightly, manual) |
    |---|---|
@@ -73,7 +94,8 @@ merged, and every night on `main`.
 |---|---|---|
 | Draft PR, code change | 20 | 9 (6 CI + 3 CodeQL) |
 | Ready PR, code change | 20 | 18 (15 CI + 3 CodeQL), or 19 when `proofs/` changed |
-| Push to `main` or `develop`, code change | 20 | 9 |
+| Push to `main`, code change | 20 | 19 (slow tier included, so a regression is caught at merge) |
+| Push to `develop`, code change | 20 | 9 |
 | Docs only | 20 | 1 |
 | .NET SDK only | 20 | 5 (2 CI + 3 CodeQL) |
 | Mac app or proofs only | 20 | 5 |
@@ -85,13 +107,40 @@ about as many jobs as before, but the longest job should drop from the
 third of the mutants; the first ready run will give the measured time), and draft pushes, which are most pushes, use under half the
 allowance.
 
+## Merge gate
+
+`ci-gate` is the last job in `ci.yml` and the one check a merge should
+require. It passes only when:
+
+- quick-checks passed;
+- no job failed or was cancelled;
+- when the change touches code, every fast-tier job and, on a ready pull
+  request, every slow-tier job actually ran and passed (a skipped job
+  counts as passing for a required check, so this is checked here).
+
+On a draft the same job is named `ci-gate (draft: fast tier only)`. That is a
+different check, so a draft's green fast tier can never satisfy the rule,
+even in the seconds between "Ready for review" and the new run starting.
+
+Branch protection is a repository setting, so the owner turns it on once:
+Settings > Rules > Rulesets > New branch ruleset, target `main`, enable
+"Require status checks to pass", add `ci-gate` (source: GitHub Actions),
+and enable "Block force pushes". Leave "Require branches to be up to date"
+off: with a 20-job limit it would re-run every open pull request after each
+merge. The slow-tier run on every push to `main` covers what it would catch.
+
+Not covered by `ci-gate`: the path-filtered workflows (`desktop`,
+`macos-studio`, `sdk*`, `zxvd`). They only run when their paths change, so
+GitHub cannot require them. Their checks must still be green before a merge
+(the ready rule the project already follows).
+
 ## Run the checks before you push
 
 `scripts/verify-local.sh` runs the same commands on your machine.
 
 ```bash
 scripts/verify-local.sh                  # fast tier: licence, clang-format, host tests
-scripts/verify-local.sh --boot --san     # + arm64/x86_64 boots and ASan/UBSan
+scripts/verify-local.sh --boot --san     # + arm64/x86_64 boots, ASan/UBSan, integer sanitizer
 scripts/verify-local.sh --all            # every Linux check CI runs, both tiers
 scripts/verify-local.sh --docker --all   # the same inside CI's image
 scripts/verify-local.sh --install-hook   # fast tier on every git push
@@ -107,6 +156,10 @@ scripts/verify-local.sh --install-hook   # fast tier on every git push
 - When nothing but documentation changed since the merge base with
   `origin/main`, only the licence and format checks run; `--force` runs the
   rest anyway. Uncommitted and untracked files count as changes.
+- The script warns when the branch is behind `origin/main`: CI tests the
+  merge with the current main, so merge it first.
+- Before marking a pull request ready, run at least `--san`; `--all` runs
+  everything the slow tier runs.
 - Not covered locally: macos-app (needs macOS and Xcode), dotnet-sdk, proofs
   and CodeQL.
 
