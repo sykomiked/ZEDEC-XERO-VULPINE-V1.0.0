@@ -1,5 +1,6 @@
 /* sigil.c — the spell shape as a circuit diagram. See sigil.h. */
 #include "sigil.h"
+#include "../../include/zxv_fixed.h"
 
 void sig_init(sigil_t *s, uint32_t card_index) {
     if (!s) return;
@@ -41,8 +42,7 @@ bool sig_add_edge(sigil_t *s, uint8_t a, uint8_t b) {
 }
 
 uint32_t sig_gcd(uint32_t a, uint32_t b) {
-    while (b) { uint32_t t = a % b; a = b; b = t; }
-    return a;
+    return (uint32_t) zx_gcd_u64(a, b);
 }
 
 /* ------------------------------------------------------------ the fabric */

@@ -330,6 +330,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
 	$(MAKE) --no-print-directory test-b2-small
+	$(MAKE) --no-print-directory test-b2
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
 	@echo "=== i18n: CLDR locales, catalogs, formatting, UTF-8, Enochian core ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/i18n src/i18n/test_i18n.c src/i18n/i18n_text.c src/i18n/i18n_locale.c src/i18n/i18n_format.c src/i18n/i18n_tables.c src/i18n/i18n_catalog.c -o /tmp/test_i18n && /tmp/test_i18n > /tmp/test_i18n.log 2>&1 && echo "[PASS] test_i18n" || { tail -40 /tmp/test_i18n.log; echo "[FAIL] test_i18n"; exit 1; }
@@ -400,7 +401,7 @@ verify-all: test
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/tensor -Isrc/cotier src/cotier/test_ct_measure.c src/cotier/ct_gate.c src/tensor/zt_gguf.c src/tensor/zt.c src/tensor/zt_isf.c -lm -o /tmp/test_ct_measure && /tmp/test_ct_measure > /tmp/test_ct_measure.log 2>&1 && echo "[PASS] test_ct_measure ($$(tail -1 /tmp/test_ct_measure.log); table in /tmp/test_ct_measure.log)" || { cat /tmp/test_ct_measure.log; echo "[FAIL] test_ct_measure"; exit 1; }
 	for t in aarch64-none-elf i386-none-elf; do for f in src/cotier/ct_gate.c src/cotier/ct_reconcile.c src/cotier/ct_budget.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/tensor -Isrc/cotier -c $$f -o /tmp/ct_free.o || { echo "[FAIL] cotier freestanding $$t $$f"; exit 1; }; if nm -u /tmp/ct_free.o | grep -vE " zt_" | grep -q .; then nm -u /tmp/ct_free.o; echo "[FAIL] cotier freestanding: libc or 64-bit division helper in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] cotier freestanding (aarch64 and i386: only zt_ symbols undefined)"
 	@echo "=== audit 2026-10-09: tests added or re-enabled by the module audit ==="
-	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/crypto_wallet -Isrc/edp_risk src/crypto_wallet/test_crypto_wallet.c src/crypto_wallet/crypto_wallet.c src/edp_risk/edp_risk.c src/surplus/surplus.c -lm -o /tmp/test_crypto_wallet && /tmp/test_crypto_wallet > /tmp/test_crypto_wallet.log 2>&1 && echo "[PASS] test_crypto_wallet ($$(tail -1 /tmp/test_crypto_wallet.log))" || { cat /tmp/test_crypto_wallet.log; echo "[FAIL] test_crypto_wallet"; exit 1; }
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/crypto_wallet -Isrc/edp_risk src/crypto_wallet/test_crypto_wallet.c src/crypto_wallet/crypto_wallet.c src/robin_debanks/sha256.c src/edp_risk/edp_risk.c src/surplus/surplus.c -lm -o /tmp/test_crypto_wallet && /tmp/test_crypto_wallet > /tmp/test_crypto_wallet.log 2>&1 && echo "[PASS] test_crypto_wallet ($$(tail -1 /tmp/test_crypto_wallet.log))" || { cat /tmp/test_crypto_wallet.log; echo "[FAIL] test_crypto_wallet"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -O2 -Isrc/curzi -Isrc/pqsec -Isrc/lpres -Isrc/edp_risk -Isrc/mlkem -Isrc/trispace src/curzi/test_curzi_code.c src/curzi/curzi_code.c -o /tmp/test_curzi_code && /tmp/test_curzi_code > /tmp/test_curzi_code.log 2>&1 && echo "[PASS] test_curzi_code" || { tail -20 /tmp/test_curzi_code.log; echo "[FAIL] test_curzi_code"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/curzi -Isrc/pqsec -Isrc/lpres -Isrc/edp_risk -Isrc/mlkem -Isrc/trispace src/curzi/curzi_shamir.c src/curzi/test_curzi_shamir.c -o /tmp/test_curzi_shamir && /tmp/test_curzi_shamir > /tmp/test_curzi_shamir.log 2>&1 && echo "[PASS] test_curzi_shamir ($$(tail -1 /tmp/test_curzi_shamir.log))" || { tail -20 /tmp/test_curzi_shamir.log; echo "[FAIL] test_curzi_shamir"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -O2 -Isrc/curzi -Isrc/pqsec -Isrc/lpres -Isrc/edp_risk -Isrc/mlkem -Isrc/trispace src/curzi/test_curzi_tier.c src/curzi/curzi_tier.c src/mlkem/keccak.c -o /tmp/test_curzi_tier && /tmp/test_curzi_tier > /tmp/test_curzi_tier.log 2>&1 && echo "[PASS] test_curzi_tier" || { tail -20 /tmp/test_curzi_tier.log; echo "[FAIL] test_curzi_tier"; exit 1; }
@@ -623,7 +624,7 @@ verify-all: test
 	echo "=== Event-Space Infrastructure ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space \
 		../tests/host/test_event_space.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		src/event_space/event_sequencer.c \
 		src/event_space/self_audit.c \
 		src/event_space/self_healing.c \
@@ -632,7 +633,7 @@ verify-all: test
 	echo "=== Orbital Elevator + Constellation + Transport ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/orbital_elevator -Isrc/constellation -Isrc/event_transport \
 		../tests/host/test_orbital_constellation.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		src/event_space/event_sequencer.c \
 		src/event_space/self_audit.c \
 		src/event_space/self_healing.c \
@@ -644,7 +645,7 @@ verify-all: test
 	echo "=== Hypercube Scene Architecture ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/hypercube \
 		../tests/host/test_hypercube.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		src/event_space/event_sequencer.c \
 		src/event_space/self_audit.c \
 		src/event_space/self_healing.c \
@@ -654,7 +655,7 @@ verify-all: test
 	echo "=== Yantra Fabric ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/yantra \
 		../tests/host/test_yantra.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		src/event_space/event_sequencer.c \
 		src/event_space/self_audit.c \
 		src/event_space/self_healing.c \
@@ -664,7 +665,7 @@ verify-all: test
 	echo "=== Dual-Space Programming ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/dual_space \
 		../tests/host/test_dual_space.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		src/event_space/event_sequencer.c \
 		src/event_space/self_audit.c \
 		src/event_space/self_healing.c \
@@ -675,146 +676,146 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/rur \
 		../tests/host/test_rur.c \
 		src/rur/rur.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_rur -lm && \
 		/tmp/test_rur && echo "[PASS] test_rur" || { echo "[FAIL] test_rur"; exit 1; }; \
 	echo "=== RCE Units & Dimensions ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/rce \
 		../tests/host/test_rce_units.c \
 		src/rce/rce_units.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_rce_units -lm && \
 		/tmp/test_rce_units && echo "[PASS] test_rce_units" || { echo "[FAIL] test_rce_units"; exit 1; }; \
 	echo "=== UBH Matrix ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/ubh \
 		../tests/host/test_ubh.c \
 		src/ubh/ubh.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_ubh -lm && \
 		/tmp/test_ubh && echo "[PASS] test_ubh" || { echo "[FAIL] test_ubh"; exit 1; }; \
 	echo "=== RMAG (K2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/rmag \
 		../tests/host/test_rmag.c \
 		src/rmag/rmag.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_rmag -lm && \
 		/tmp/test_rmag && echo "[PASS] test_rmag" || { echo "[FAIL] test_rmag"; exit 1; }; \
 	echo "=== Phase Coordinator (K6) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/phase_coord \
 		../tests/host/test_phase_coord.c \
 		src/phase_coord/phase_coord.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_phase_coord -lm && \
 		/tmp/test_phase_coord && echo "[PASS] test_phase_coord" || { echo "[FAIL] test_phase_coord"; exit 1; }; \
 	echo "=== LPRES (K3) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/lpres \
 		../tests/host/test_lpres.c \
 		src/lpres/lpres.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_lpres -lm && \
 		/tmp/test_lpres && echo "[PASS] test_lpres" || { echo "[FAIL] test_lpres"; exit 1; }; \
 	echo "=== MacGyver (MCG0) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/macgyver \
 		../tests/host/test_macgyver.c \
 		src/macgyver/macgyver.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_macgyver -lm && \
 		/tmp/test_macgyver && echo "[PASS] test_macgyver" || { echo "[FAIL] test_macgyver"; exit 1; }; \
 	echo "=== OSEQ (K1) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/oseq \
 		../tests/host/test_oseq.c \
 		src/oseq/oseq.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_oseq -lm && \
 		/tmp/test_oseq && echo "[PASS] test_oseq" || { echo "[FAIL] test_oseq"; exit 1; }; \
 	echo "=== IPHASE (K4) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/iphase \
 		../tests/host/test_iphase.c \
 		src/iphase/iphase.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_iphase -lm && \
 		/tmp/test_iphase && echo "[PASS] test_iphase" || { echo "[FAIL] test_iphase"; exit 1; }; \
 	echo "=== CHOICE (K5) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/choice \
 		../tests/host/test_choice.c \
 		src/choice/choice.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_choice -lm && \
 		/tmp/test_choice && echo "[PASS] test_choice" || { echo "[FAIL] test_choice"; exit 1; }; \
 	echo "=== CRIT_168 OS (O1) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/crit168 \
 		../tests/host/test_crit168_os.c \
 		src/crit168/crit168_os.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_crit168_os -lm && \
 		/tmp/test_crit168_os && echo "[PASS] test_crit168_os" || { echo "[FAIL] test_crit168_os"; exit 1; }; \
 	echo "=== FS (O2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/event_space -Isrc/fs \
 		../tests/host/test_fs.c \
 		src/fs/fs.c \
-		src/event_space/event_envelope.c \
+		src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_fs -lm && \
 		/tmp/test_fs && echo "[PASS] test_fs" || { echo "[FAIL] test_fs"; exit 1; }; \
 	echo "=== Sutra Lexer (W2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/sutra -Isrc/vino -Isrc/rmag -Isrc/lpres \
-		src/sutra/test_sutra_lexer.c src/sutra/sutra_lexer.c src/event_space/event_envelope.c \
+		src/sutra/test_sutra_lexer.c src/sutra/sutra_lexer.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_sutra_lexer -lm && \
 		/tmp/test_sutra_lexer && echo "[PASS] test_sutra_lexer" || { echo "[FAIL] test_sutra_lexer"; exit 1; }; \
 	echo "=== Sutra Parser (W2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/sutra -Isrc/vino -Isrc/rmag -Isrc/lpres \
 		src/sutra/test_sutra_parser.c src/sutra/sutra_lexer.c src/sutra/sutra_parser.c src/sutra/sutra_runtime.c \
 		src/sutra/sutra_selfaudit.c src/sutra/sutra_chiglet.c src/sutra/sutra_capital.c src/sutra/sutra_rails.c \
-		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c \
+		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_sutra_parser -lm && \
 		/tmp/test_sutra_parser && echo "[PASS] test_sutra_parser" || { echo "[FAIL] test_sutra_parser"; exit 1; }; \
 	echo "=== Sutra E2E (W2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/sutra -Isrc/vino -Isrc/rmag -Isrc/lpres \
 		src/sutra/test_sutra_e2e.c src/sutra/sutra_lexer.c src/sutra/sutra_parser.c src/sutra/sutra_runtime.c \
 		src/sutra/sutra_selfaudit.c src/sutra/sutra_chiglet.c src/sutra/sutra_capital.c src/sutra/sutra_rails.c \
-		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c \
+		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_sutra_e2e -lm && \
 		/tmp/test_sutra_e2e && echo "[PASS] test_sutra_e2e" || { echo "[FAIL] test_sutra_e2e"; exit 1; }; \
 	echo "=== Sutra Capital (W2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/sutra -Isrc/vino -Isrc/rmag -Isrc/lpres \
 		src/sutra/test_sutra_capital.c src/sutra/sutra_lexer.c src/sutra/sutra_parser.c src/sutra/sutra_runtime.c \
 		src/sutra/sutra_selfaudit.c src/sutra/sutra_chiglet.c src/sutra/sutra_capital.c src/sutra/sutra_rails.c \
-		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c \
+		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_sutra_capital -lm && \
 		/tmp/test_sutra_capital && echo "[PASS] test_sutra_capital" || { echo "[FAIL] test_sutra_capital"; exit 1; }; \
 	echo "=== Sutra Chiglet (W2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/sutra -Isrc/vino -Isrc/rmag -Isrc/lpres \
 		src/sutra/test_sutra_chiglet.c src/sutra/sutra_lexer.c src/sutra/sutra_parser.c src/sutra/sutra_runtime.c \
 		src/sutra/sutra_selfaudit.c src/sutra/sutra_chiglet.c src/sutra/sutra_capital.c src/sutra/sutra_rails.c \
-		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c \
+		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_sutra_chiglet -lm && \
 		/tmp/test_sutra_chiglet && echo "[PASS] test_sutra_chiglet" || { echo "[FAIL] test_sutra_chiglet"; exit 1; }; \
 	echo "=== Sutra Rails (W2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/sutra -Isrc/vino -Isrc/rmag -Isrc/lpres \
 		src/sutra/test_sutra_rails.c src/sutra/sutra_lexer.c src/sutra/sutra_parser.c src/sutra/sutra_runtime.c \
 		src/sutra/sutra_selfaudit.c src/sutra/sutra_chiglet.c src/sutra/sutra_capital.c src/sutra/sutra_rails.c \
-		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c \
+		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_sutra_rails -lm && \
 		/tmp/test_sutra_rails && echo "[PASS] test_sutra_rails" || { echo "[FAIL] test_sutra_rails"; exit 1; }; \
 	echo "=== Sutra Self-Audit (W2) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/sutra -Isrc/vino -Isrc/rmag -Isrc/lpres \
 		src/sutra/test_sutra_selfaudit.c src/sutra/sutra_lexer.c src/sutra/sutra_parser.c src/sutra/sutra_runtime.c \
 		src/sutra/sutra_selfaudit.c src/sutra/sutra_chiglet.c src/sutra/sutra_capital.c src/sutra/sutra_rails.c \
-		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c \
+		src/vino/vino.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_sutra_selfaudit -lm && \
 		/tmp/test_sutra_selfaudit && echo "[PASS] test_sutra_selfaudit" || { echo "[FAIL] test_sutra_selfaudit"; exit 1; }; \
 	echo "=== Porter House (W5) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/porter_house -Isrc/surplus -Isrc/edp_risk \
-		src/porter_house/test_porter_house.c src/porter_house/porter_house.c src/event_space/event_envelope.c \
+		src/porter_house/test_porter_house.c src/porter_house/porter_house.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_porter_house -lm && \
 		/tmp/test_porter_house && echo "[PASS] test_porter_house" || { echo "[FAIL] test_porter_house"; exit 1; }; \
  echo "=== P-TERM (W6) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/pterm \
-		../tests/host/test_pterm.c src/pterm/pterm.c src/pterm/pterm_commands.c src/event_space/event_envelope.c \
+		../tests/host/test_pterm.c src/pterm/pterm.c src/pterm/pterm_commands.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_pterm -lm && \
 		/tmp/test_pterm && echo "[PASS] test_pterm" || { echo "[FAIL] test_pterm"; exit 1; }; \
 	echo "=== Desktop (W7) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/event_space -Isrc/desktop -Isrc/surplus -Isrc/edp_risk \
-		../tests/host/test_desktop.c src/desktop/desktop.c src/event_space/event_envelope.c \
+		../tests/host/test_desktop.c src/desktop/desktop.c src/event_space/event_envelope.c src/robin_debanks/sha256.c \
 		-o /tmp/test_desktop -lm && \
 		/tmp/test_desktop && echo "[PASS] test_desktop" || { echo "[FAIL] test_desktop"; exit 1; }; \
 	echo "=== Cellular Multikernel (CELL-001) ==="; \
@@ -932,6 +933,14 @@ verify-all: test
 		src/cards/test_sigil.c src/cards/sigil.c \
 		-o /tmp/test_sigil -lm && \
 		/tmp/test_sigil && echo "[PASS] test_sigil" || { echo "[FAIL] test_sigil"; exit 1; }; \
+	echo "=== One SHA-256, one GCD: every former copy agrees (NIST, RFC 4231, Euclid) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST \
+		-Iinclude -Isrc/modbind -Isrc/surplus -Isrc/edp_risk -Isrc/event_space -Isrc/crypto_wallet -Isrc/rmag \
+		../tests/host/test_primitive_dedupe.c src/robin_debanks/sha256.c src/crypto_wallet/crypto_wallet.c \
+		src/event_space/event_envelope.c src/rational/rational.c src/rmag/rmag.c src/cards/sigil.c \
+		src/edp_risk/edp_risk.c src/surplus/surplus.c \
+		-o $(ZXV_TMP)/test_primitive_dedupe -lm && \
+		$(ZXV_TMP)/test_primitive_dedupe && echo "[PASS] test_primitive_dedupe" || { echo "[FAIL] test_primitive_dedupe"; exit 1; }; \
 	echo "=== Card modules: breadth beats depth in a loadout ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/cards -Isrc/chiglet -Isrc/surplus \
 		src/cards/test_cards.c src/cards/cards.c src/cards/zca.c \
@@ -1442,6 +1451,12 @@ hwe-vectors:
 .PHONY: bench-hwemu
 bench-hwemu:
 	gcc -std=c11 -O2 -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/hwemu/bench_hwm.c src/hwemu/hwm.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/bench_hwm && $(ZXV_TMP)/bench_hwm
+
+# B2 unit tests for src/emu, src/desktop, src/sdk_bridge and src/panopticon
+# (mutation-killing; the table of tests lives in tests/host/b2/run.sh).
+.PHONY: test-b2
+test-b2:
+	@ZXV_TMP=$(ZXV_TMP) sh ../tests/host/b2/run.sh all
 
 # The SDK capability bridge (src/sdk_bridge/sdk_bridge.h): one id per capability.
 .PHONY: test-sdk-bridge
