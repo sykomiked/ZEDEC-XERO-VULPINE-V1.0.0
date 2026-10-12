@@ -9,6 +9,8 @@
 #   make -C bench smoke             build both and run the offline smoke checks
 #   make -C bench tensor MODEL=path/to/model.gguf [N=32] [PROMPT="..."]
 #   make -C bench qwen [ARM64=1]    Qwen2.5-1.5B-Instruct Q4_K_M: speed, cross-build bit check, quality
+#   make -C bench zt_asr [ARM64=1]  build the speech-to-text driver (Whisper, T25); ARM64=1 also
+#                                   cross-builds $(OUT)/zt_asr_arm64 (static, for qemu-aarch64)
 #   make -C bench zt_dump zt_golden logit dump and golden-ratio experiment tools (see
 #                                   bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md)
 CC ?= gcc
@@ -27,7 +29,7 @@ TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tens
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench zt_dump zt_golden smoke tensor qwen
+.PHONY: all legacy legacy-bench zt_bench zt_asr zt_dump zt_golden smoke tensor qwen
 all: smoke
 
 $(OUT):
@@ -55,6 +57,14 @@ GOLDEN_SRCS := $(K)/src/tensor/zt_lattice.c $(K)/src/tensor/zt_coil.c $(K)/src/t
 $(OUT)/zt_golden: tensor/zt_golden.c $(TENSOR_SRCS) $(GOLDEN_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
 	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/e8 tensor/zt_golden.c $(TENSOR_SRCS) \
 		$(GOLDEN_SRCS) -lm -lpthread -o $@
+
+ASR_SRCS := $(TENSOR_SRCS) $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_whisper.c
+$(OUT)/zt_asr: tensor/zt_asr.c $(ASR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_asr.c $(ASR_SRCS) -lm -lpthread -o $@
+$(OUT)/zt_asr_arm64: tensor/zt_asr.c $(ASR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor tensor/zt_asr.c $(ASR_SRCS) -lm -lpthread -o $@
+
+zt_asr: $(OUT)/zt_asr $(if $(filter 1,$(ARM64)),$(OUT)/zt_asr_arm64)
 
 zt_dump: $(OUT)/zt_dump
 zt_golden: $(OUT)/zt_golden
