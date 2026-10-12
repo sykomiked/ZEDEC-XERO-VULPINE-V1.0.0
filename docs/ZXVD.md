@@ -103,6 +103,21 @@ CI checks it matches what zxvd serves.
 | `chat.follow` | `node_id`, `follow`? | `node_id`, `following` |
 | `chat.feed` | | `posts` (records, best first, at most 50) |
 | `chat.thread` | `id` | `root`, `replies` |
+| `iso20022.render` | `kind` (`pacs008`, `camt053`), `fields`, `amounts`?, `entries`?, `tx_count`? | `kind`, `xml` |
+| `card.check` | `network` (`phoenix`, `dragon`, `thunderbird`), `pan` | `network`, `valid` |
+| `netting.open` | `cycle`, `currency` | a cycle: `cycle`, `currency`, `closed`, `participants` |
+| `netting.add` | `cycle`, `participant` | a cycle |
+| `netting.submit` | `cycle`, `payment_id`, `debtor`, `creditor`, `amount_minor` | `cycle`, `payment_id`, `accepted` |
+| `netting.close` | `cycle` | a cycle with `positions` and `sum_minor` |
+| `netting.positions` | `cycle` | as `netting.close` |
+| `netting.list` | | `cycles` |
+| `netting.drop` | `cycle` | `dropped` |
+| `passkey.register` | `rp_id`, `authenticator_data` (hex), `require_uv`? | `credential_id`, `sign_count`, `registered` |
+| `passkey.verify` | `rp_id`, `credential_id`, `authenticator_data`, `client_data_hash`, `signature` (hex), `require_uv`? | `credential_id`, `verified`, `sign_count` |
+| `ledger.hold` | `from`, `to`, `amount_minor` | a hold: `hold`, `state`, `from`, `to`, `amount_minor`, `currency`, `escrow_account`, `entry_id`, `closed_entry_id`, `releases_on` |
+| `ledger.release` | `hold` | a hold |
+| `ledger.refund` | `hold` | a hold |
+| `ledger.holds` | | `holds`, `escrow_accounts`, `unmatched` |
 | `aipi.put` | `hex` or `path`, `private`? | `cid`, `bytes`, `private` |
 | `aipi.get` | `cid` | `cid`, `bytes`, `hex`, `tag` |
 | `aipi.publish` | `module`, `contract`?, `entry`, `checker`?, `certifier`?, `verify`, `fuel_max`, `local_only`?, `deterministic`? | `function`, `local_only` |
@@ -113,7 +128,8 @@ Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
 (the message says why: price, funds, handshake, signature, connect), -32011
 an AIPI call refused or failed (the `AIPI_ERR_*` name and what it means),
--32000 a
+-32020 a payment step refused (netting, passkey or escrow; the message says
+why), -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
@@ -241,6 +257,52 @@ These records stay on this device for now: the exchange with peers
 session encryption) are the next steps. The chat key is separate from the
 mesh node's identity.
 
+## Payments: messages, cards, netting, passkeys and escrow
+
+`kernel/arch/hosted/zxvd_pay.h` (P1-P5) puts libzxv's payment pieces on the
+socket. Every call goes through libzxv's frozen C ABI, so a refusal is the
+same `ZXV_E_*` status the SDKs see (-32000); the module's own refusals are
+-32020 with a message that says why.
+
+- **ISO 20022** (`iso20022.render`): a pacs.008.001.09 credit transfer or a
+  camt.053.001.08 statement, built field by field by libzxv. Amounts are
+  minor units of `fields.ccy` (the ISO 4217 minor units decide the decimal
+  places); a statement must reconcile (opening + booked entries = closing).
+  The XML is returned, never sent.
+- **Cards** (`card.check`): the check digit of the platform's three networks
+  (phoenix: Damm, dragon: Luhn, thunderbird: Verhoeff). Nothing is issued or
+  authorized.
+- **Netting** (`netting.*`): multilateral netting cycles on the cbank
+  engine (`kernel/src/cbank/cb_net.h`) through libzxv. Open a cycle in one
+  currency, add participants, submit obligations (idempotent on
+  `payment_id`), close it, and read each participant's net position; the
+  positions always sum to zero (libzxv halts its context otherwise). The
+  cycles have a libzxv context of their own: they touch no account, need no
+  books, and at most 8 are held.
+- **Passkeys** (`passkey.*`): ident's relying-party check
+  (`kernel/src/ident/ident.h`) for device-bound ML-DSA-65 passkeys in
+  WebAuthn's shape: registration from the authenticator data, then each
+  assertion's signature, relying party, user presence, user verification
+  (required unless `require_uv` is false) and a signature counter that must
+  grow.
+- **Escrow** (`ledger.hold`, `ledger.release`, `ledger.refund`,
+  `ledger.holds`): a hold moves funds from the payer's account to the holder
+  account `escrow: <CCY>` (opened with the first hold in that currency);
+  release pays them to the payee, refund returns them to the payer. Each step
+  is one ordinary posting with the reference `escrow N to T`,
+  `escrow N release` or `escrow N refund`, so the books file saves it and a
+  restart replays it: `ledger.holds` reads every hold back from the escrow
+  accounts' entries, says whether each account holds exactly what its open
+  holds add up to, and counts escrow entries that are no hold's step
+  (`unmatched`). The Studio's Escrow panel lists the holds and releases or
+  refunds them.
+
+```sh
+call '{"jsonrpc":"2.0","id":1,"method":"ledger.hold","params":{"from":1,"to":2,"amount_minor":600}}'
+# {"hold":1,"state":"held",...,"escrow_account":4,"closed_entry_id":null,"releases_on":"owner"}
+call '{"jsonrpc":"2.0","id":2,"method":"ledger.release","params":{"hold":1}}'
+```
+
 ## Functions by CID (AIPI)
 
 zxvd holds one AIPI node ([AIPI.md](AIPI.md)): a blockstore of content-addressed
@@ -282,6 +344,10 @@ sandbox (exact replies, every refusal); it is the harness's test for
 `zxvd_aipi.c`. `kernel/arch/hosted/test_zxvd_chat.sh` runs the chat methods
 through the same RPC layer (text rules, the log's damage and torn-tail
 handling, the read-only state after a failed write).
+`kernel/arch/hosted/test_zxvd_pay.sh` runs the payment methods the same way
+on the real libzxv and ident (exact replies and refusals for every method,
+real ML-DSA-65 passkeys, holds replayed from a books file, and escrow entries
+that are no hold's step).
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
@@ -309,8 +375,15 @@ installed .deb.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
 - Commons posts are not sent to peers yet, and there are no direct
   messages; the feed keeps no record of what you have already seen.
-- There is no escrow in zxvd yet, so `ledger.holds` is not served and the
-  Studio's Escrow panel stays a placeholder.
+- Payment messages are rendered, never sent: there is no SWIFT, PAPSS or
+  RTGS link. Netting cycles and registered passkeys live in memory and are
+  lost when zxvd stops; netting has no liquidity limits or sanctions
+  screening.
+- Escrow is released or refunded only by the owner's own call
+  (`releases_on: "owner"`): there are no release conditions, no
+  counterparty signature, no dispute and no quarantine yet. A plain
+  `ledger.post` can still move an escrow account; `ledger.holds` then shows
+  it as `unmatched` and the account as not `consistent`.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS
   has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The

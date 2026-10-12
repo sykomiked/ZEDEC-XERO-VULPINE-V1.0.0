@@ -239,6 +239,112 @@ def aipi_checks(c, home):
           'aipi.status counts the calls, failures and sandbox refusals (%s)' % st)
 
 
+def payment_checks(c, usd_account):
+    """zxvd_pay.h P1-P5 over the socket, on the in-memory books."""
+    def err(method, params):
+        return c.call(method, params).get('error', {})
+
+    check(c.ok('card.check', {'network': 'dragon', 'pan': '79927398713'})['valid'] is True and
+          c.ok('card.check', {'network': 'dragon', 'pan': '79927398710'})['valid'] is False,
+          'card.check: a Luhn check digit')
+    e = err('card.check', {'network': 'visa', 'pan': '1'})
+    check(e.get('code') == -32602 and 'phoenix' in e.get('message', ''),
+          'card.check: only the platform\'s networks (%s)' % e)
+    e = err('card.check', {'network': 'dragon', 'pan': '12a4'})
+    check(e.get('data', {}).get('name') == 'ZXV_E_ARG', 'card.check: digits only (%s)' % e)
+
+    fields = {'msg_id': 'E2E-MSG-1', 'cre_dt_tm': '2026-10-09T12:00:00Z',
+              'debtor_name': 'Ada & Sons', 'debtor_acct': 'NG0001', 'creditor_name': 'Kwame',
+              'creditor_acct': 'GH0002', 'end_to_end_id': 'E2E-1', 'ccy': 'NGN'}
+    m = c.ok('iso20022.render', {'kind': 'pacs008', 'fields': fields,
+                                 'amounts': {'settlement': 250050}})
+    check(m['kind'] == 'pacs008' and 'pacs.008.001.09' in m['xml'] and '2500.50' in m['xml'] and
+          'Ada &amp; Sons' in m['xml'], 'iso20022.render: a pacs.008')
+    e = err('iso20022.render', {'kind': 'pacs008', 'fields': dict(fields, ccy='VFV'),
+                                'amounts': {'settlement': 1}})
+    check(e.get('data', {}).get('name') == 'ZXV_E_CURRENCY',
+          'iso20022.render: VFV never goes on the wire (%s)' % e)
+    e = err('iso20022.render', {'kind': 'pacs008', 'fields': {'iban': 'X'}})
+    check(e.get('code') == -32602 and e.get('message', '').startswith('unknown field "iban"'),
+          'iso20022.render: an unknown field (%s)' % e)
+
+    c.ok('netting.open', {'cycle': 'E2E-NET', 'currency': 'KES'})
+    for who in ('A', 'B', 'C'):
+        c.ok('netting.add', {'cycle': 'E2E-NET', 'participant': who})
+    for pid, a, b, amt in (('p1', 'A', 'B', 100), ('p2', 'B', 'C', 70), ('p3', 'C', 'A', '20')):
+        c.ok('netting.submit', {'cycle': 'E2E-NET', 'payment_id': pid, 'debtor': a, 'creditor': b,
+                                'amount_minor': amt})
+    again = c.ok('netting.submit', {'cycle': 'E2E-NET', 'payment_id': 'p1', 'debtor': 'A',
+                                     'creditor': 'B', 'amount_minor': 100})
+    e = err('netting.submit', {'cycle': 'E2E-NET', 'payment_id': 'p1', 'debtor': 'A',
+                               'creditor': 'B', 'amount_minor': 99})
+    check(again['accepted'] is True and e.get('data', {}).get('name') == 'ZXV_E_DUPLICATE',
+          'netting.submit: idempotent on payment_id, another amount is refused (%s)' % e)
+    e = err('netting.positions', {'cycle': 'E2E-NET'})
+    check(e.get('code') == -32020, 'netting.positions: not before the close (%s)' % e)
+    cy = c.ok('netting.close', {'cycle': 'E2E-NET'})
+    check(cy['closed'] is True and cy['sum_minor'] == '0' and
+          [(p['participant'], p['net_minor']) for p in cy['positions']] ==
+          [('A', '-80'), ('B', '30'), ('C', '50')], 'netting.close: positions net to zero (%s)' % cy)
+    check(c.ok('netting.drop', {'cycle': 'E2E-NET'}) == {'dropped': 'E2E-NET'} and
+          c.ok('netting.list') == {'cycles': []}, 'netting.drop')
+
+    e = err('passkey.register', {'rp_id': 'zxv.id', 'authenticator_data': '00' * 2033})
+    check(e.get('code') == -32020, 'passkey.register: not a passkey registration (%s)' % e)
+    e = err('passkey.verify', {'rp_id': 'zxv.id', 'credential_id': '00' * 16,
+                               'authenticator_data': '00' * 37, 'client_data_hash': '00' * 32,
+                               'signature': '00' * 3309})
+    check(e == {'code': -32020, 'message': 'no passkey with that "credential_id" is held'},
+          'passkey.verify: an unknown credential (%s)' % e)
+
+    c.ok('currency.enable', {'code': 'KES'})
+    iss = c.ok('ledger.open_account', {'name': 'kes bank', 'currency': 'KES',
+                                       'kind': 'issuer'})['account']
+    buyer = c.ok('ledger.open_account', {'name': 'buyer', 'currency': 'KES'})['account']
+    seller = c.ok('ledger.open_account', {'name': 'seller', 'currency': 'KES'})['account']
+    c.ok('ledger.post', {'from': iss, 'to': buyer, 'amount_minor': 1000, 'currency': 'KES',
+                         'reference': 'E2E-KES-1'})
+    h1 = c.ok('ledger.hold', {'from': buyer, 'to': seller, 'amount_minor': 600})
+    check(h1['state'] == 'held' and h1['amount_minor'] == '600' and h1['currency'] == 'KES' and
+          h1['closed_entry_id'] is None and h1['releases_on'] == 'owner',
+          'ledger.hold: held (%s)' % h1)
+    esc = h1['escrow_account']
+    check(c.ok('ledger.balance', {'account': buyer})['equity_minor'] == '400' and
+          c.ok('ledger.balance', {'account': esc})['equity_minor'] == '600',
+          'ledger.hold: the funds sit in the escrow account')
+    e = err('ledger.hold', {'from': buyer, 'to': seller, 'amount_minor': 401})
+    check(e.get('data', {}).get('name') == 'ZXV_E_FUNDS', 'ledger.hold: no overdraft (%s)' % e)
+    e = err('ledger.hold', {'from': buyer, 'to': usd_account, 'amount_minor': 1})
+    check(e.get('code') == -32602 and 'a hold is in one currency' in e.get('message', ''),
+          'ledger.hold: one currency (%s)' % e)
+    e = err('ledger.hold', {'from': esc, 'to': seller, 'amount_minor': 1})
+    check(e.get('code') == -32602 and 'moved only by ledger.release' in e.get('message', ''),
+          'ledger.hold: not out of an escrow account (%s)' % e)
+    check('result' in c.call('ledger.holds'), 'ledger.holds answers')
+    r = c.ok('ledger.release', {'hold': h1['hold']})
+    check(r['state'] == 'released' and r['closed_entry_id'] is not None and
+          c.ok('ledger.balance', {'account': seller})['equity_minor'] == '600',
+          'ledger.release: the payee is paid (%s)' % r)
+    e = err('ledger.release', {'hold': h1['hold']})
+    check(e == {'code': -32020, 'message': 'hold %d is already released' % h1['hold']},
+          'ledger.release: once (%s)' % e)
+    h2 = c.ok('ledger.hold', {'from': buyer, 'to': seller, 'amount_minor': '150'})
+    check(h2['hold'] == h1['hold'] + 1, 'hold numbers count up')
+    r = c.ok('ledger.refund', {'hold': h2['hold']})
+    check(r['state'] == 'refunded' and
+          c.ok('ledger.balance', {'account': buyer})['equity_minor'] == '400',
+          'ledger.refund: the payer gets it back (%s)' % r)
+    e = err('ledger.refund', {'hold': 999})
+    check(e == {'code': -32020, 'message': 'no hold 999'}, 'ledger.refund: no such hold (%s)' % e)
+    hs = c.ok('ledger.holds')
+    check([(h['hold'], h['state']) for h in hs['holds']] ==
+          [(h1['hold'], 'released'), (h2['hold'], 'refunded')] and
+          hs['escrow_accounts'][0]['consistent'] is True and
+          hs['escrow_accounts'][0]['held_minor'] == '0' and hs['unmatched'] == 0,
+          'ledger.holds (%s)' % hs)
+    check(c.ok('ledger.check')['ok'] is True, 'the books balance after escrow')
+
+
 def main(binary, gguf=None):
     out = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=10)
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
@@ -303,7 +409,11 @@ def main(binary, gguf=None):
                 'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings',
                 'mesh.books', 'books.file', 'net.peers', 'net.offers', 'player.card',
                 'jurisdiction.get', 'jurisdiction.set', 'chat.me', 'chat.post', 'chat.react',
-                'chat.follow', 'chat.feed', 'chat.thread'}
+                'chat.follow', 'chat.feed', 'chat.thread', 'iso20022.render', 'card.check',
+                'netting.open', 'netting.add', 'netting.submit', 'netting.close',
+                'netting.positions', 'netting.list', 'netting.drop', 'passkey.register',
+                'passkey.verify', 'ledger.hold', 'ledger.release', 'ledger.refund',
+                'ledger.holds'}
         if not WINDOWS:
             want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
@@ -468,6 +578,8 @@ def main(binary, gguf=None):
               'ledger.accounts')
         check(c.ok('ledger.check')['ok'] is True, 'ledger.check: the books balance')
 
+        payment_checks(c, A)
+
         # ---- protocol ----
         c.send_raw('{not json\n')
         check(c.read()['error']['code'] == -32700, 'parse error: -32700')
@@ -564,6 +676,7 @@ def main(binary, gguf=None):
             bal = c4.ok('swarm.earnings')['balance_minor']
             js = c4.ok('jurisdiction.set', {'market': 'open', 'standard': 'IFRS', 'country': 'KE'})
             check(js['market'] == 'open' and js['country'] == 'KE', 'jurisdiction.set')
+            kh = c4.ok('ledger.hold', {'from': fa, 'to': fb, 'amount_minor': 700})
             me4 = c4.ok('chat.me')
             kept = c4.ok('chat.post', {'text': 'kept across a restart'})
             check(me4['saved'] is True, 'chat.me: saved beside the books')
@@ -575,8 +688,16 @@ def main(binary, gguf=None):
             got = c4.ok('ledger.entries', {'account': fb})['entries']
             check([(e['entry_id'], e['signed_minor'], e['reference']) for e in got] ==
                   [(fe, '4200', 'E2E-SAVED-1')], 'a restart brings the posting back (%s)' % got)
+            hs = c4.ok('ledger.holds')
+            check([h for h in hs['holds'] if h['hold'] == kh['hold']] == [kh] and
+                  hs['unmatched'] == 0 and all(a['consistent'] for a in hs['escrow_accounts']),
+                  'a restart brings the escrow hold back from the books file (%s)' % hs)
             check(c4.ok('ledger.balance', {'account': fb})['equity_minor'] == '4200',
                   'and the balance')
+            rel = c4.ok('ledger.release', {'hold': kh['hold']})
+            check(rel['state'] == 'released' and
+                  c4.ok('ledger.balance', {'account': fb})['equity_minor'] == '4900',
+                  'and it is released after the restart (%s)' % rel)
             ea = c4.ok('swarm.earnings')
             check(ea['resumed'] is True and int(ea['balance_minor']) >= 0 and
                   ea['owner_account'] is not None,

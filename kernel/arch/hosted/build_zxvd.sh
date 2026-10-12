@@ -93,6 +93,12 @@ set -- "$@" "$HERE/zxvd_chat.c" "$K/src/reputation/reputation.c"
 for f in social_post social_store social_feed social_bucket social_group social_sign_mldsa; do
     set -- "$@" "$K/src/social/$f.c"
 done
+# payments (zxvd_pay.h): ident's passkey check and the post-quantum code it
+# links (app_sources.sh already has ML-DSA-65/87, ML-KEM-1024, X25519)
+set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/src/ident/id_core.c"
+for f in pq_matrix pq_hqc5 pq_slh256s; do set -- "$@" "$K/src/pqsec/$f.c"; done
+for f in "$K"/src/pqsec/slhdsa/[a-z]*.c; do set -- "$@" "$f"; done
+for f in mlkem768 mlkem_encode mlkem_sample mlkem_ntt mlkem_kpe; do set -- "$@" "$K/src/mlkem/$f.c"; done
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"

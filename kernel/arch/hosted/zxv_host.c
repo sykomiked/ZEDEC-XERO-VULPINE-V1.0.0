@@ -107,6 +107,7 @@ typedef int sock_t;
 #if defined(ZXVD)
 #    include "zxvd_rpc.h"  /* zxvd: the JSON-RPC socket and the libzxv books */
 #    include "zxvd_chat.h" /* zxvd: the owner's social chat (chat.*) */
+#    include "zxvd_pay.h"  /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -2065,6 +2066,11 @@ int main(int argc, char **argv)
         zxvd_rpc_close();
         return 1;
     }
+    if (zxvd_pay_open() != 0) {
+        zxvd_chat_close();
+        zxvd_rpc_close();
+        return 1;
+    }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
     if (ls == BAD_SOCK) {
@@ -2206,6 +2212,7 @@ int main(int argc, char **argv)
     CLOSESOCK(ls);
 #if defined(ZXVD)
     if (link_path[0]) remove(link_path);
+    zxvd_pay_close();
     zxvd_chat_close();
     zxvd_rpc_close();
 #    if defined(ZXV_HAVE_AIPI)

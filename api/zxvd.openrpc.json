@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -2367,6 +2367,1157 @@
                   }
                 }
               }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "iso20022.render",
+      "summary": "Render an ISO 20022 message with libzxv (zxvd_pay.h P1): pacs.008.001.09 or camt.053.001.08. Every value is checked by libzxv and a camt053 must reconcile (opening + booked entries = closing). Rendered only: nothing is sent. Needs the books open (-32603 otherwise).",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "pacs008",
+              "camt053"
+            ]
+          }
+        },
+        {
+          "name": "fields",
+          "required": true,
+          "description": "text fields; libzxv says which a kind takes",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "msg_id": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "cre_dt_tm": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "debtor_name": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "debtor_acct": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "creditor_name": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "creditor_acct": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "end_to_end_id": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "ccy": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "acct_id": {
+                "type": "string",
+                "maxLength": 255
+              }
+            }
+          }
+        },
+        {
+          "name": "amounts",
+          "required": false,
+          "description": "minor units of fields.ccy, which amounts and entries need",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "settlement": {
+                "oneOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$"
+                  }
+                ]
+              },
+              "opening": {
+                "oneOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$"
+                  }
+                ]
+              },
+              "closing": {
+                "oneOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "entries",
+          "required": false,
+          "description": "camt053 statement entries",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "amount_minor",
+                "direction"
+              ],
+              "properties": {
+                "amount_minor": {
+                  "oneOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,19}$"
+                    }
+                  ]
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "credit",
+                    "debit"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "booked",
+                    "pending",
+                    "info"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "tx_count",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "message",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "xml": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "card.check",
+      "summary": "Check a card number's check digit for one of the platform's networks (Damm for phoenix, Luhn for dragon, Verhoeff for thunderbird). A PAN is 2..19 decimal digits (else -32000 ZXV_E_ARG). Nothing is issued or authorized.",
+      "params": [
+        {
+          "name": "network",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "phoenix",
+              "dragon",
+              "thunderbird"
+            ]
+          }
+        },
+        {
+          "name": "pan",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 31
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "network": {
+              "type": "string"
+            },
+            "valid": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "netting.open",
+      "summary": "Open a multilateral netting cycle in one ISO 4217 currency (libzxv on the cbank cb_net engine; zxvd_pay.h P3). In memory: lost when zxvd stops. At most 8 cycles are held, open or closed.",
+      "params": [
+        {
+          "name": "cycle",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        },
+        {
+          "name": "currency",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "cycle",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cycle": {
+              "type": "string"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "closed": {
+              "type": "boolean"
+            },
+            "participants": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "positions": {
+              "type": "array",
+              "description": "once closed: in the order added, + receives, - pays",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "participant": {
+                    "type": "string"
+                  },
+                  "net_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "sum_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "always \"0\" once closed"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "netting.add",
+      "summary": "Add a participant to an open cycle (at most 64).",
+      "params": [
+        {
+          "name": "cycle",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        },
+        {
+          "name": "participant",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        }
+      ],
+      "result": {
+        "name": "cycle",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cycle": {
+              "type": "string"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "closed": {
+              "type": "boolean"
+            },
+            "participants": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "positions": {
+              "type": "array",
+              "description": "once closed: in the order added, + receives, - pays",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "participant": {
+                    "type": "string"
+                  },
+                  "net_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "sum_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "always \"0\" once closed"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "netting.submit",
+      "summary": "Submit a payment between two participants of an open cycle. Idempotent on payment_id: the same payment again is accepted and books nothing; the same id with other parties or another amount is -32000 ZXV_E_DUPLICATE.",
+      "params": [
+        {
+          "name": "cycle",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        },
+        {
+          "name": "payment_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        },
+        {
+          "name": "debtor",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        },
+        {
+          "name": "creditor",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "accepted",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cycle": {
+              "type": "string"
+            },
+            "payment_id": {
+              "type": "string"
+            },
+            "accepted": {
+              "type": "boolean",
+              "enum": [
+                true
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "netting.close",
+      "summary": "Close a cycle and compute each participant's net position; the positions sum to zero.",
+      "params": [
+        {
+          "name": "cycle",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        }
+      ],
+      "result": {
+        "name": "cycle",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cycle": {
+              "type": "string"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "closed": {
+              "type": "boolean"
+            },
+            "participants": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "positions": {
+              "type": "array",
+              "description": "once closed: in the order added, + receives, - pays",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "participant": {
+                    "type": "string"
+                  },
+                  "net_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "sum_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "always \"0\" once closed"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "netting.positions",
+      "summary": "The net positions of a closed cycle (-32020 while it is open).",
+      "params": [
+        {
+          "name": "cycle",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        }
+      ],
+      "result": {
+        "name": "cycle",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cycle": {
+              "type": "string"
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "closed": {
+              "type": "boolean"
+            },
+            "participants": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "positions": {
+              "type": "array",
+              "description": "once closed: in the order added, + receives, - pays",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "participant": {
+                    "type": "string"
+                  },
+                  "net_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  }
+                }
+              }
+            },
+            "sum_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "always \"0\" once closed"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "netting.list",
+      "summary": "The cycles held, without positions.",
+      "params": [],
+      "result": {
+        "name": "cycles",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cycles": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cycle": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  },
+                  "closed": {
+                    "type": "boolean"
+                  },
+                  "participants": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "positions": {
+                    "type": "array",
+                    "description": "once closed: in the order added, + receives, - pays",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "participant": {
+                          "type": "string"
+                        },
+                        "net_minor": {
+                          "type": "string",
+                          "pattern": "^-?[0-9]{1,19}$",
+                          "description": "64-bit integer as a decimal string"
+                        }
+                      }
+                    }
+                  },
+                  "sum_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "always \"0\" once closed"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "netting.drop",
+      "summary": "Destroy a held cycle, open or closed.",
+      "params": [
+        {
+          "name": "cycle",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35
+          }
+        }
+      ],
+      "result": {
+        "name": "dropped",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "dropped": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkey.register",
+      "summary": "Register a device-bound ML-DSA-65 passkey (COSE alg -49) from its WebAuthn-shaped authenticator data (ident.h id_rp_register; zxvd_pay.h P4). In memory, at most 32.",
+      "params": [
+        {
+          "name": "rp_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        {
+          "name": "authenticator_data",
+          "required": true,
+          "description": "with the attested credential",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9A-Fa-f]{2}){2033}$"
+          }
+        },
+        {
+          "name": "require_uv",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      ],
+      "result": {
+        "name": "registered",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "credential_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            "sign_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "registered": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "passkeys now held"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "passkey.verify",
+      "summary": "Verify an assertion for a registered passkey (ident.h id_rp_verify): the signature over the authenticator data and the client data hash, the relying party, user presence, user verification and an increasing signature counter. A refusal is -32020.",
+      "params": [
+        {
+          "name": "rp_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        {
+          "name": "credential_id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-Fa-f]{32}$"
+          }
+        },
+        {
+          "name": "authenticator_data",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9A-Fa-f]{2}){37,37}$"
+          }
+        },
+        {
+          "name": "client_data_hash",
+          "required": true,
+          "description": "SHA-256 of clientDataJSON",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-Fa-f]{64}$"
+          }
+        },
+        {
+          "name": "signature",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9A-Fa-f]{2}){3309}$",
+            "description": "ML-DSA-65"
+          }
+        },
+        {
+          "name": "require_uv",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      ],
+      "result": {
+        "name": "verified",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "credential_id": {
+              "type": "string"
+            },
+            "verified": {
+              "type": "boolean",
+              "enum": [
+                true
+              ]
+            },
+            "sign_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ledger.hold",
+      "summary": "Hold funds in escrow (zxvd_pay.h P5): one posting from the payer to the holder account \"escrow: <CCY>\" (opened with the first hold in that currency), reference \"escrow N to T\". Saved in the books file like any posting.",
+      "params": [
+        {
+          "name": "from",
+          "required": true,
+          "description": "the payer's account",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "to",
+          "required": true,
+          "description": "the payee's account, same currency",
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "amount_minor",
+          "required": true,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,19}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "hold",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "hold": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "held",
+                "released",
+                "refunded"
+              ]
+            },
+            "from": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "to": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "amount_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "currency": {
+              "type": "string"
+            },
+            "escrow_account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "entry_id": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "closed_entry_id": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]{1,19}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "releases_on": {
+              "type": "string",
+              "enum": [
+                "owner"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ledger.release",
+      "summary": "Pay a held hold to its payee (reference \"escrow N release\"). Only the owner's call releases: there are no release conditions or counterparty signatures.",
+      "params": [
+        {
+          "name": "hold",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "result": {
+        "name": "hold",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "hold": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "held",
+                "released",
+                "refunded"
+              ]
+            },
+            "from": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "to": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "amount_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "currency": {
+              "type": "string"
+            },
+            "escrow_account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "entry_id": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "closed_entry_id": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]{1,19}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "releases_on": {
+              "type": "string",
+              "enum": [
+                "owner"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ledger.refund",
+      "summary": "Return a held hold to its payer (reference \"escrow N refund\").",
+      "params": [
+        {
+          "name": "hold",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "result": {
+        "name": "hold",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "hold": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "held",
+                "released",
+                "refunded"
+              ]
+            },
+            "from": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "to": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "amount_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "currency": {
+              "type": "string"
+            },
+            "escrow_account": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "entry_id": {
+              "type": "string",
+              "pattern": "^-?[0-9]{1,19}$",
+              "description": "64-bit integer as a decimal string"
+            },
+            "closed_entry_id": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?[0-9]{1,19}$",
+                  "description": "64-bit integer as a decimal string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "releases_on": {
+              "type": "string",
+              "enum": [
+                "owner"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ledger.holds",
+      "summary": "Every hold, read back from the escrow accounts' entries, and each escrow account's balance against what its open holds add up to.",
+      "params": [],
+      "result": {
+        "name": "holds",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "holds": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "hold": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "held",
+                      "released",
+                      "refunded"
+                    ]
+                  },
+                  "from": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "to": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "amount_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "escrow_account": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "entry_id": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "closed_entry_id": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?[0-9]{1,19}$",
+                        "description": "64-bit integer as a decimal string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "releases_on": {
+                    "type": "string",
+                    "enum": [
+                      "owner"
+                    ]
+                  }
+                }
+              }
+            },
+            "escrow_accounts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "integer"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "balance_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "held_minor": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,19}$",
+                    "description": "64-bit integer as a decimal string"
+                  },
+                  "consistent": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "unmatched": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "escrow entries that are no hold's step"
             }
           }
         }
