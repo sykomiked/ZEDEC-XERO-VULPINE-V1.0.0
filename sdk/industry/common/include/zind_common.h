@@ -38,8 +38,9 @@ extern "C" {
  * industry range. Blocks: common -3000..-3099, logix-clear -3100..-3199,
  * tri-deliver -3200..-3299, v-shelf -3300..-3399, tri-trace -3400..-3499,
  * z-genome -3500..-3599, vinea-triage -3600..-3699, mesh-command -3700..-3799,
- * aero-orbital -3800..-3899, tri-modem -3900..-3999, v-band -4000..-4099;
- * later kits take the next free hundred (see sdk/industry/README.md). */
+ * aero-orbital -3800..-3899, tri-modem -3900..-3999, v-band -4000..-4099,
+ * sovereign-peg -4300..-4399, tri-market -4400..-4499,
+ * v-merchant -4500..-4599; later kits take the next free hundred (see sdk/industry/README.md). */
 #define ZIND_E_HELD     (-3001) /* held as Both: frozen until a human resolves it */
 #define ZIND_E_REPLAY   (-3002) /* already seen: a replay, a duplicate or double use */
 #define ZIND_E_CHAIN    (-3003) /* a hash link or a signature in a chain is broken */

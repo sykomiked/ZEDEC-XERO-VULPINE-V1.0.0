@@ -128,6 +128,9 @@ records, and a BOTH hold that waits for a person to decide. See
 | Aero-Orbital | [`aero-orbital`](industry/aero-orbital/) | Ground-side aid: integer WGS-84 geodetic/ECEF with measured error bounds, telemetry over UBH-168, disagreeing or CRC-failed copies held for an analyst. Not flight software | 3,676 checks + fuzzing |
 | Tri-Modem | [`tri-modem`](industry/tri-modem/) | Mesh fallback planner for home routers: signed neighbour adverts, contradictions held for the owner, exact fair shares on rmag budgets; no amateur-radio relays | 2,904 checks + fuzzing |
 | V-Band | [`v-band`](industry/v-band/) | MCU-subset sensor log with four-valued readings, LoRaWAN-sized batches over UBH-168, in-order gateway refusing duplicates and gaps | 6,018 checks + fuzzing |
+| Sovereign-Peg | [`sovereign-peg`](industry/sovereign-peg/) | Operator-only toolkit over the V-Bill hub: signed exact pegs, backed-only issuance, 64-state capital controls, held flows decided by an officer's signature. Not app-facing; test currencies only | 1,329 checks + fuzzing |
+| Tri-Market | [`tri-market`](industry/tri-market/) | Shop escrow released by the buyer's signed confirmation less the libzxv assurance fee; disputes split exactly by an arbiter's signature; timeouts refund; exact hub quotes | 1,593 checks + fuzzing |
+| V-Merchant | [`v-merchant`](industry/v-merchant/) | Merchant till: invoices, offline-verified payment proofs, batch settlement refusing duplicates, signed exact end-of-day reports; wallet UX is the Vino Embed kit's | 1,066 checks + fuzzing |
 
 Advisory only: kits recommend, and people or certified systems act. They
 are not connected to any authority, and they make no certification or
