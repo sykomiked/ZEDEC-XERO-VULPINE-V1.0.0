@@ -57,11 +57,11 @@ static void cfg_write(void *ctx, uint32_t bdf, uint32_t off, uint32_t val)
 }
 
 /* ---- MMIO mapping ----------------------------------------------------------- */
-#define PTE_P   0x001ULL
-#define PTE_RW  0x002ULL
-#define PTE_PWT 0x008ULL
-#define PTE_PCD 0x010ULL
-#define PTE_PS  0x080ULL
+#define PTE_P    0x001ULL
+#define PTE_RW   0x002ULL
+#define PTE_PWT  0x008ULL
+#define PTE_PCD  0x010ULL
+#define PTE_PS   0x080ULL
 #define PTE_ADDR 0x000FFFFFFFFFF000ULL
 
 #define N_L3 4

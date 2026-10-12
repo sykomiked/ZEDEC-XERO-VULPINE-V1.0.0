@@ -8,9 +8,9 @@
 #include "hwfake.h"
 #include "../hw_storage.h"
 
-#define NBLK 128u
+#define NBLK   128u
 #define PSTART 40u /* ESP: LBA 40..103 */
-#define PLAST 103u
+#define PLAST  103u
 
 typedef struct {
     hw_blk_t b;
@@ -23,8 +23,8 @@ static int mread(hw_blk_t *b, uint64_t lba, uint32_t n, void *buf)
 {
     mdisk_t *m = (mdisk_t *) b;
     m->reads++;
-    if (lba + n > NBLK || (m->fail_lba >= 0 && (uint64_t) m->fail_lba >= lba &&
-                           (uint64_t) m->fail_lba < lba + n))
+    if (lba + n > NBLK ||
+        (m->fail_lba >= 0 && (uint64_t) m->fail_lba >= lba && (uint64_t) m->fail_lba < lba + n))
         return -1;
     memcpy(buf, m->d + lba * 512, n * 512);
     return 0;
@@ -110,8 +110,8 @@ static void build(mdisk_t *m)
     uint8_t *fat = v + 512;
     p32(fat + 0, 0x0FFFFFF8u);
     p32(fat + 4, 0x0FFFFFFFu);
-    p32(fat + 8, 0x0FFFFFFFu);  /* root */
-    p32(fat + 12, 4);           /* file: cluster 3 -> 4 */
+    p32(fat + 8, 0x0FFFFFFFu); /* root */
+    p32(fat + 12, 4);          /* file: cluster 3 -> 4 */
     p32(fat + 16, 0x0FFFFFFFu);
     p32(fat + 20, 0x0FFFFFFFu); /* EFI dir */
     uint8_t *root = v + 2 * 512;

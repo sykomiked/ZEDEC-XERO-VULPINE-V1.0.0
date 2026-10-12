@@ -291,6 +291,12 @@ jobs:
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
       - name: Boot ${{ matrix.arch }} disc under UEFI firmware
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+      # Standard class drivers (kernel/src/hwdrv) on one of every emulated
+      # device they cover: NVMe, SATA, xHCI keyboard + storage, Intel NICs,
+      # HD Audio. Each must bind and pass its boot self-test.
+      - name: Class drivers on emulated hardware
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/hw_drivers_check.sh "" 150
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

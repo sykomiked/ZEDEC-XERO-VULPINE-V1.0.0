@@ -133,7 +133,7 @@ static void test_scan(void)
     fake_dev_bar_at(ep, 0, 0xE000, 0x100, FAKE_BAR_IO);
     fake_dev_bar_at(ep, 2, 0x380000000000ULL, 0x4000, FAKE_BAR_MEM64);
     fake_dev_bar_at(ep, 4, 0xFE000000, 0x100000, FAKE_BAR_MEM32);
-    ep->cfg[0x3C / 4] = 0x0000010B; /* IRQ 11 */
+    ep->cfg[0x3C / 4] = 0x0000010B;                 /* IRQ 11 */
     ep->cfg[2] = (ep->cfg[2] & 0xFFFFFF00u) | 0x15; /* revision */
     mf3->cfg[1] |= 0x0005; /* io + master already on: restored after sizing */
 
@@ -252,10 +252,8 @@ static void test_match(void)
     static const hw_id_t ids[] = {{0x8086, 0x100E}, {0x8086, 0x10D3}, {0, 0}};
     static const hw_id_t ids2[] = {{0x10ec, 0x8168}, {0, 0}};
     const hw_driver_t tab[] = {
-        {"classnet", 0x02, 0x00, 0xFF, 0, bind_dummy},
-        {"e1k", 0x02, 0x00, 0xFF, ids, bind_dummy},
-        {"rtl", 0x02, 0x00, 0xFF, ids2, bind_dummy},
-        {"nvme", 0x01, 0x08, 0x02, 0, bind_dummy},
+        {"classnet", 0x02, 0x00, 0xFF, 0, bind_dummy},   {"e1k", 0x02, 0x00, 0xFF, ids, bind_dummy},
+        {"rtl", 0x02, 0x00, 0xFF, ids2, bind_dummy},     {"nvme", 0x01, 0x08, 0x02, 0, bind_dummy},
         {"anystorage", 0x01, 0xFF, 0xFF, 0, bind_dummy},
     };
     hw_pci_dev_t d;
@@ -513,8 +511,8 @@ static void test_selftest_nic(void)
         CHECK(memcmp(b + 28, mac, 6) == 0);
         CHECK(b[236] == 99 && b[237] == 130 && b[238] == 83 && b[239] == 99);
         CHECK(b[240] == 53 && b[241] == 1 && b[242] == 1 && b[243] == 255);
-        uint32_t xid = ((uint32_t) b[4] << 24) | ((uint32_t) b[5] << 16) | ((uint32_t) b[6] << 8) |
-                       b[7];
+        uint32_t xid =
+            ((uint32_t) b[4] << 24) | ((uint32_t) b[5] << 16) | ((uint32_t) b[6] << 8) | b[7];
         CHECK(xid == (0x5A585600u ^ (0x58u << 8) ^ 0x01u));
         fake_plat_free(&fp);
     }

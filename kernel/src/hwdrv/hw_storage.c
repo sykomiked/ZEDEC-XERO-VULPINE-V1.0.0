@@ -106,17 +106,22 @@ int hw_bdev_init(hw_bdev_t *d, hw_blk_t *b, uint64_t base, uint64_t count)
     d->bd.driver_data = d;
     d->bd.read_sector = bdev_read;
     d->bd.write_sector = bdev_write;
-    for (uint32_t i = 0; i < sizeof b->name && b->name[i] && i < 40; i++) d->bd.model[i] = b->name[i];
+    for (uint32_t i = 0; i < sizeof b->name && b->name[i] && i < 40; i++)
+        d->bd.model[i] = b->name[i];
     return 0;
 }
 
 static const char *gpt_why(int rc)
 {
     switch (rc) {
-    case HW_GPT_NONE: return "no GPT";
-    case HW_GPT_IO: return "read error";
-    case HW_GPT_BAD: return "GPT failed its CRC or bounds check, left alone";
-    case HW_GPT_NO_ESP: return "GPT has no EFI system partition";
+    case HW_GPT_NONE:
+        return "no GPT";
+    case HW_GPT_IO:
+        return "read error";
+    case HW_GPT_BAD:
+        return "GPT failed its CRC or bounds check, left alone";
+    case HW_GPT_NO_ESP:
+        return "GPT has no EFI system partition";
     }
     return "?";
 }
@@ -136,7 +141,7 @@ uint32_t hw_storage_selftest(const hw_plat_t *p, hw_registry_t *r, const char *p
         int rc = hw_gpt_find_esp(b, &part, scratch);
         if (rc != HW_GPT_OK) {
             hw_line_s(&l, rc == HW_GPT_BAD || rc == HW_GPT_IO ? "  [STORAGE FAILED] "
-                                                             : "  [STORAGE NONE] ");
+                                                              : "  [STORAGE NONE] ");
             hw_line_s(&l, b->name);
             hw_line_c(&l, ' ');
             hw_line_s(&l, gpt_why(rc));
@@ -155,8 +160,7 @@ uint32_t hw_storage_selftest(const hw_plat_t *p, hw_registry_t *r, const char *p
         hw_line_init(&out);
         fat32_file_t *f = 0;
         int mounted = hw_bdev_init(&bdev, b, part.first, part.last - part.first + 1) == 0 &&
-                      fat32_mount(&fs, &bdev.bd) == 0 &&
-                      fat32_read_dir(&fs, fs.root_cluster) == 0;
+                      fat32_mount(&fs, &bdev.bd) == 0 && fat32_read_dir(&fs, fs.root_cluster) == 0;
         if (mounted) f = fat32_find_file(&fs, path);
         if (!mounted) {
             hw_line_s(&out, "  [STORAGE FAILED] ");

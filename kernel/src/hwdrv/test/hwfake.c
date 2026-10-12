@@ -55,14 +55,18 @@ static void cfg_write(void *ctx, uint32_t bdf, uint32_t off, uint32_t val)
     int hi, b = bar_at(d, off, &hi);
     if (b >= 0) {
         uint64_t mask = ~(d->bar_size[b] - 1);
-        if (hi) d->cfg[off / 4] = val & (uint32_t) (mask >> 32);
-        else if (d->bar_kind[b] == FAKE_BAR_IO) d->cfg[off / 4] = (val & (uint32_t) mask & ~3u) | 1;
-        else if (d->bar_kind[b] == FAKE_BAR_MEM32) d->cfg[off / 4] = val & (uint32_t) mask & ~0xFu;
-        else d->cfg[off / 4] = (val & (uint32_t) mask & ~0xFu) | 0x4; /* 64-bit memory */
+        if (hi)
+            d->cfg[off / 4] = val & (uint32_t) (mask >> 32);
+        else if (d->bar_kind[b] == FAKE_BAR_IO)
+            d->cfg[off / 4] = (val & (uint32_t) mask & ~3u) | 1;
+        else if (d->bar_kind[b] == FAKE_BAR_MEM32)
+            d->cfg[off / 4] = val & (uint32_t) mask & ~0xFu;
+        else
+            d->cfg[off / 4] = (val & (uint32_t) mask & ~0xFu) | 0x4; /* 64-bit memory */
         return;
     }
     if (off >= 0x10 && off < 0x28) return; /* unimplemented BAR: hardwired to 0 */
-    if (off == 0x04) { /* command: low half writable, status read-only */
+    if (off == 0x04) {                     /* command: low half writable, status read-only */
         d->cfg[1] = (d->cfg[1] & 0xFFFF0000u) | (val & 0xFFFF);
         return;
     }

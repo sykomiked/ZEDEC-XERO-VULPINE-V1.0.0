@@ -51,12 +51,15 @@ hw_probe_stats_t hw_probe_all(const hw_plat_t *p, hw_registry_t *r)
         hw_line_t note;
         hw_line_init(&note);
         hw_verdict_t v = drv->bind(p, d, r, &note);
-        const char *tag = v == HW_T ? "  [DRIVER ONLINE] "
+        const char *tag = v == HW_T   ? "  [DRIVER ONLINE] "
                           : v == HW_F ? "  [DRIVER FAILED] "
                                       : "  [DRIVER HELD] ";
-        if (v == HW_T) st.bound++;
-        else if (v == HW_F) st.failed++;
-        else st.held++;
+        if (v == HW_T)
+            st.bound++;
+        else if (v == HW_F)
+            st.failed++;
+        else
+            st.held++;
         dev_line(&l, tag, drv->name, d);
         if (v == HW_B) hw_line_s(&l, " contradiction:");
         if (note.n) {
@@ -245,7 +248,8 @@ static uint32_t selftest_input(const hw_plat_t *p, hw_input_t *in)
     for (uint32_t t = 0; t < 2000; t++) {
         hw_key_t ev;
         while (in->poll(in, &ev)) {
-            if (ev.pressed && ev.ascii >= 0x20 && ev.ascii < 0x7F && x.n < 40) hw_line_c(&x, (char) ev.ascii);
+            if (ev.pressed && ev.ascii >= 0x20 && ev.ascii < 0x7F && x.n < 40)
+                hw_line_c(&x, (char) ev.ascii);
             if (ev.pressed) keys++;
         }
         p->delay_us(p->ctx, 1000);

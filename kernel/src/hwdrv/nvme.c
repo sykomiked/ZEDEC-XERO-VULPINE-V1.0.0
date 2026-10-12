@@ -20,11 +20,11 @@
 #define REG_ASQ  0x28
 #define REG_ACQ  0x30
 
-#define CC_EN      1u
-#define CC_IOSQES  (6u << 16)
-#define CC_IOCQES  (4u << 20)
-#define CSTS_RDY   1u
-#define CSTS_CFS   2u
+#define CC_EN     1u
+#define CC_IOSQES (6u << 16)
+#define CC_IOCQES (4u << 20)
+#define CSTS_RDY  1u
+#define CSTS_CFS  2u
 
 #define QDEPTH 16
 #define PAGE   4096u
@@ -148,8 +148,7 @@ static void note_model(hw_line_t *note, const uint8_t *id)
         hw_line_c(note, (id[i] >= 0x20 && id[i] < 0x7F) ? (char) id[i] : '?');
 }
 
-hw_verdict_t nvme_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
-                       hw_line_t *note)
+hw_verdict_t nvme_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note)
 {
     volatile void *regs = hw_pci_map_bar(p, d, 0);
     if (!regs) {

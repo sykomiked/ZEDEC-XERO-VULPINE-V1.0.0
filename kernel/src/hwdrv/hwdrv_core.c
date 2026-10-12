@@ -93,18 +93,18 @@ void hw_line_bdf(hw_line_t *l, uint32_t bdf)
 }
 
 /* ---- PCI ------------------------------------------------------------------ */
-#define CFG_ID      0x00
-#define CFG_CMD     0x04
-#define CFG_CLASS   0x08
-#define CFG_HDR     0x0C
-#define CFG_BAR0    0x10
-#define CFG_CAP     0x34
-#define CFG_IRQ     0x3C
-#define CMD_IO      0x0001
-#define CMD_MEM     0x0002
-#define CMD_MASTER  0x0004
+#define CFG_ID       0x00
+#define CFG_CMD      0x04
+#define CFG_CLASS    0x08
+#define CFG_HDR      0x0C
+#define CFG_BAR0     0x10
+#define CFG_CAP      0x34
+#define CFG_IRQ      0x3C
+#define CMD_IO       0x0001
+#define CMD_MEM      0x0002
+#define CMD_MASTER   0x0004
 #define CMD_INTX_OFF 0x0400
-#define STATUS_CAPS 0x0010
+#define STATUS_CAPS  0x0010
 
 static void scan_bars(const hw_plat_t *p, hw_pci_dev_t *d)
 {

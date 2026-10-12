@@ -88,13 +88,13 @@ static inline void *fk_ptr(uint64_t phys)
 
 /* Tiny test harness: CHECK counts every check; failures print and count. */
 extern int fk_checks, fk_failures;
-#define CHECK(cond)                                                                    \
-    do {                                                                               \
-        fk_checks++;                                                                   \
-        if (!(cond)) {                                                                 \
-            fk_failures++;                                                             \
-            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                     \
-        }                                                                              \
+#define CHECK(cond)                                                                                \
+    do {                                                                                           \
+        fk_checks++;                                                                               \
+        if (!(cond)) {                                                                             \
+            fk_failures++;                                                                         \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                 \
+        }                                                                                          \
     } while (0)
 
 #endif

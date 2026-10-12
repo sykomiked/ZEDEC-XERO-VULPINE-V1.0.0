@@ -6,7 +6,7 @@
 const hw_id_t e1000_ids[] = {{0x8086, 0x100E}, {0, 0}};
 
 hw_verdict_t e1000_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
-                       hw_line_t *note)
+                        hw_line_t *note)
 {
     (void) p;
     (void) d;
