@@ -7,6 +7,7 @@
  * that checks zxvd keeps the module default (64 MiB, 3 passes). */
 #define _POSIX_C_SOURCE  200809L
 #define _DARWIN_C_SOURCE /* mkdtemp and friends on macOS */
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -703,8 +704,10 @@ static void test_file(void)
     while (k < 1099 - 8) k += snprintf(lp + k, sizeof lp - (size_t) k, "/d");
     while (k < 1099) lp[k++] = 'z';
     lp[k] = 0;
-    CHECK(strlen(lp) == 1099 && zxvd_seats_open(lp) == 0, "a 1099-byte path (%u)",
-          (unsigned) strlen(lp));
+    /* zxvd takes it; an OS whose PATH_MAX is shorter (macOS: 1024) refuses
+     * the open itself, which zxvd reports like any unreadable file */
+    CHECK(strlen(lp) == 1099 && zxvd_seats_open(lp) == (PATH_MAX > 1099 ? 0 : -1),
+          "a 1099-byte path (%u, PATH_MAX %d)", (unsigned) strlen(lp), (int) PATH_MAX);
     lp[1099] = 'z';
     lp[1100] = 0;
     CHECK(zxvd_seats_open(lp) == -1, "a 1100-byte path is too long");
