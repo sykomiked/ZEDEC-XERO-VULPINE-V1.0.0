@@ -70,7 +70,7 @@ listed as working unless the code does it.
 - Legacy console engines (6502, Z80, 68000 and others) used as a stress-test
   bench: fixed ROM programs exercise the kernel during development, and no
   commercial ROMs ship in the repository
-  ([docs/WHY_GAME_ROM_ENGINES.md](docs/WHY_GAME_ROM_ENGINES.md)).
+  ([docs/supplemental/WHY_GAME_ROM_ENGINES.md](docs/supplemental/WHY_GAME_ROM_ENGINES.md)).
 
 **Desktop app and daemon**
 - ZXV Swarm desktop app: a universal Mac app (Apple Silicon and Intel), with
@@ -136,6 +136,7 @@ above as each one merges.
 | I want to… | Read |
 |---|---|
 | Read the design philosophy | [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md) |
+| Know why the unusual design choices were made, look up a term, or check the evidence behind a claim | [`docs/supplemental/`](docs/supplemental/README.md) |
 | Understand the license | [`LICENSE`](LICENSE) |
 | Build the kernel | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Navigate the source | [`SOURCE_CODE_NAVIGATION_GUIDE.md`](SOURCE_CODE_NAVIGATION_GUIDE.md), [`SUBSYSTEM_INDEX.md`](SUBSYSTEM_INDEX.md) |

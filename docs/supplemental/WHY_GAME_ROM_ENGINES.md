@@ -47,7 +47,7 @@ without crashing" and "the program is really executing".
 ## Where it went next
 
 Once the engines worked as a test bench, they became the seed of later ideas,
-described in [`MEGAROM_PLAN.md`](../MEGAROM_PLAN.md): extracting game mechanics
+described in [`MEGAROM_PLAN.md`](../../MEGAROM_PLAN.md): extracting game mechanics
 as deterministic training data for the Chiglet model, a mod admission gate,
 and a game-style desktop. Those are follow-on uses. The original reason the
 engines are in the kernel is the one above: fixed, known-good ROM programs

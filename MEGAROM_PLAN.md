@@ -9,7 +9,7 @@
 > this is the map, not a stop.
 
 > **Why the engines exist at all:** see
-> [docs/WHY_GAME_ROM_ENGINES.md](docs/WHY_GAME_ROM_ENGINES.md). They started
+> [docs/supplemental/WHY_GAME_ROM_ENGINES.md](docs/supplemental/WHY_GAME_ROM_ENGINES.md). They started
 > as a ROM-based stress test for the kernel; the MegaROM is a later use.
 
 ## The vision (as stated)
