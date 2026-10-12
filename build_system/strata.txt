@@ -224,6 +224,7 @@ sovereign_node                   adapters
 sutra                            adapters
 hwemu                            adapters   # hardware-state emulation standard; dual-signed updates include pqsec (S3)
 treaty                           adapters   # COBOL/Sutra treaty pillar; runs on engine (S6)
+policy                           adapters   # policy engine + contract DSL; lowers into treaty, uses lpres
 
 # ---- S8 above the strata: products, apps and people features
 appkit                           above
