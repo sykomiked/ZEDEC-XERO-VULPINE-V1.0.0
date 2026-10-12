@@ -182,4 +182,8 @@ See `GOOD_FIRST_ISSUE.md` for tasks suitable for new contributors.
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the Apache-2.0 License.
+Software contributions are licensed under the Apache-2.0 License. Hardware contributions (anything under `hardware/`) are licensed under the ZXV Hardware License.
+
+Before your first contribution is merged, please sign the [Contributor Licence Agreement](CLA.md): email a signed copy to deal@zedec.ai, or, for organisations, have an authorised officer sign its Corporate Signature. You keep the copyright in your work and are credited in [NOTICE](NOTICE).
+
+Using ZXV commercially? See [COMMERCIAL_USE.md](COMMERCIAL_USE.md) for a voluntary request; it is not a licence condition.
