@@ -767,7 +767,7 @@ int zxvd_rpc_mesh_post(bool sold, uint64_t gross, uint64_t fee, const uint8_t in
 
 /* ===================== one request ===================== */
 
-typedef struct {
+typedef struct zxvd_call {
     const char *js;
     const w4_jtok_t *t;
     int32_t n;
@@ -778,13 +778,18 @@ typedef struct {
     int32_t zst; /* libzxv status for E_LIBZXV */
 } call_t;
 
-static void fail(call_t *c, int code, const char *fmt, ...)
+static void vfail(call_t *c, int code, const char *fmt, va_list ap)
 {
     if (c->err) return;
     c->err = code;
+    vsnprintf(c->msg, sizeof c->msg, fmt, ap);
+}
+
+static void fail(call_t *c, int code, const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(c->msg, sizeof c->msg, fmt, ap);
+    vfail(c, code, fmt, ap);
     va_end(ap);
 }
 
@@ -854,6 +859,49 @@ static bool p_u32(call_t *c, const char *key, uint32_t *v)
     }
     *v = (uint32_t) x;
     return true;
+}
+
+/* X1-X4: methods another module adds */
+static const zxvd_method_t *EXT;
+static uint32_t N_EXT;
+
+void zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n)
+{
+    EXT = n ? m : NULL;
+    N_EXT = m ? n : 0;
+}
+
+bool zxvd_param_str(call_t *c, const char *key, char *out, uint32_t cap, bool required)
+{
+    return p_str(c, key, out, cap, required);
+}
+
+bool zxvd_param_bool(call_t *c, const char *key, bool *v, bool required)
+{
+    int32_t i = param(c, key);
+    if (i < 0) {
+        if (required) fail(c, E_PARAMS, "missing boolean parameter \"%s\"", key);
+        return !required;
+    }
+    if (c->t[i].type != W4_J_TRUE && c->t[i].type != W4_J_FALSE) {
+        fail(c, E_PARAMS, "\"%s\" must be true or false", key);
+        return false;
+    }
+    *v = c->t[i].type == W4_J_TRUE;
+    return true;
+}
+
+zxvd_buf_t *zxvd_result(call_t *c)
+{
+    return c->res;
+}
+
+void zxvd_fail(call_t *c, int code, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vfail(c, code, fmt, ap);
+    va_end(ap);
 }
 
 /* M3: an amount is a JSON integer or a decimal string ("-12", no sign "+",
@@ -1421,6 +1469,10 @@ static void m_discover(call_t *c)
         if (i) zxvd_buf_raw(c->res, ",", 1);
         zxvd_buf_json_str(c->res, METHODS[i].name);
     }
+    for (uint32_t i = 0; i < N_EXT; i++) {
+        zxvd_buf_raw(c->res, ",", 1);
+        zxvd_buf_json_str(c->res, EXT[i].name);
+    }
     zxvd_buf_raw(c->res, "]}", 2);
 }
 
@@ -1500,13 +1552,19 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     const method_t *fn = NULL;
     for (size_t i = 0; i < N_METHODS; i++)
         if (w4_json_str_eq(line, &t[m], METHODS[i].name)) fn = &METHODS[i];
-    if (!fn) {
+    void (*ext)(call_t *) = NULL;
+    for (uint32_t i = 0; !fn && i < N_EXT; i++)
+        if (w4_json_str_eq(line, &t[m], EXT[i].name)) ext = EXT[i].fn;
+    if (!fn && !ext) {
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
     }
     zxvd_buf_t res = {0};
     call_t c = {line, t, n, p, &res, 0, "", 0};
-    fn->fn(&c);
+    if (fn)
+        fn->fn(&c);
+    else
+        ext(&c);
     if (!c.err && res.oom) fail(&c, E_INTERNAL, "out of memory");
     if (!c.err && !res.len) fail(&c, E_INTERNAL, "no result");
     if (c.err) {
