@@ -16,8 +16,8 @@ trap 'rm -rf "$T"' EXIT INT TERM
 make -s -C "$R/sdk/libzxv" CC="$CC" >"$T/lib.log" 2>&1 || { tail -20 "$T/lib.log"; exit 3; }
 RP="-Wl,-rpath,$R/sdk/libzxv/build"
 "$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -I"$HERE" -I"$H" -I"$K/src/web4" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" -I"$K/src/surplus" -I"$R/sdk/libzxv/include" \
-    "$HERE/test_apps.c" "$HERE/zxm.c" "$HERE/burrow_model.c" "$HERE/quillon_model.c" "$HERE/glint_model.c" "$HERE/spindle_model.c" \
-    "$H/zxvd_rpc.c" "$H/zxv_files.c" "$H/zxv_spaces.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
+    "$HERE/test_apps.c" "$HERE/zxm.c" "$HERE/burrow_model.c" "$HERE/quillon_model.c" "$HERE/glint_model.c" "$HERE/spindle_model.c" "$HERE/almanac_model.c" "$HERE/wake_model.c" "$HERE/tidewatch_model.c" "$HERE/sounding_model.c" \
+    "$H/zxvd_rpc.c" "$H/zxv_files.c" "$H/zxv_spaces.c" "$H/zxv_sysinfo.c" "$H/zxvd_log.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
     "$K/src/mlkem/keccak.c" "$K/src/robin_debanks/sha256.c" \
     -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_apps" || exit 3
 "$T/test_apps"

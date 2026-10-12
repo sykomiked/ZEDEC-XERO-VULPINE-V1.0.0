@@ -20,6 +20,11 @@
 #include "glint_model.h"
 #include "quillon_model.h"
 #include "spindle_model.h"
+#include "almanac_model.h"
+#include "sounding_model.h"
+#include "tidewatch_model.h"
+#include "wake_model.h"
+#include "zxvd_log.h"
 
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
@@ -831,6 +836,225 @@ static void test_spaces(void)
     fb->link = real;
 }
 
+/* ---------------- the system utilities ---------------- */
+
+static almanac_t AL;
+static wake_t WK;
+static tidewatch_t TW;
+static sounding_t SD;
+
+#define SYS_INFO(t, cpu)                                                                           \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time_ms\":" t ",\"os\":\"linux\","               \
+    "\"os_version\":\"6.1\",\"arch\":\"arm64\",\"host\":\"h\",\"cpus\":4,\"mem_total\":"           \
+    "8000000000,\"mem_avail\":2000000000,\"uptime_s\":90061,\"load\":[125,50,5],\"zxvd\":"         \
+    "{\"pid\":7,\"cpu_user_us\":" cpu ",\"cpu_sys_us\":0,\"rss_bytes\":1000,\"max_rss_bytes\":"    \
+    "2000}}}"
+
+static void test_utilities(void)
+{
+    char t[64];
+
+    /* Almanac over the real dispatcher */
+    almanac_init(&AL, &LINK);
+    CHECK(almanac_mem_used_x100(&AL) == -1 && almanac_disk_used_x100(&AL) == -1, "nothing yet");
+    CHECK(almanac_ai(&AL, ALMANAC_AI_EXPLAIN) == ZXM_E_STATE, "nothing to explain yet");
+    CHECK(almanac_refresh(&AL) == ZXM_OK && AL.have && AL.cpus > 0 && AL.os[0] &&
+              AL.pid == (uint64_t) getpid() && AL.disk_known && AL.disk_total > 0,
+          "almanac: %s", LINK.err);
+    CHECK(almanac_disk_used_x100(&AL) >= 0 && almanac_disk_used_x100(&AL) <= 10000, "disk share");
+    almanac_uptime_text(90061, t, sizeof t);
+    CHECK(!strcmp(t, "1 day, 1 hour"), "%s", t);
+    almanac_uptime_text(7260, t, sizeof t);
+    CHECK(!strcmp(t, "2 hours, 1 minute"), "%s", t);
+    almanac_uptime_text(59, t, sizeof t);
+    CHECK(!strcmp(t, "0 minutes"), "%s", t);
+    almanac_bytes_text(1, t, sizeof t);
+    CHECK(!strcmp(t, "1 byte"), "%s", t);
+    almanac_bytes_text(999, t, sizeof t);
+    CHECK(!strcmp(t, "999 bytes"), "%s", t);
+    almanac_bytes_text(1500000000, t, sizeof t);
+    CHECK(!strcmp(t, "1.5 GB"), "%s", t);
+    almanac_bytes_text(2000000000000, t, sizeof t);
+    CHECK(!strcmp(t, "2 TB"), "%s", t);
+    almanac_bytes_text(64000000000, t, sizeof t);
+    CHECK(!strcmp(t, "64 GB"), "%s", t);
+    almanac_bytes_text(UINT64_MAX, t, sizeof t);
+    CHECK(!strcmp(t, "18 EB"), "%s", t);
+    almanac_bytes_text(5, t, 0); /* no room: nothing written */
+    asked = 0;
+    CHECK(almanac_ai(&AL, ALMANAC_AI_EXPLAIN) == ZXM_OK && asked == 1 &&
+              AL.held.state == ZXM_HELD_PENDING && strstr(last_prompt, "Memory: ") &&
+              strstr(last_prompt, "free for ZXV"),
+          "explain: %s", last_prompt);
+    CHECK(almanac_ai_accept(&AL) == ZXM_OK && almanac_ai_reject(&AL) == ZXM_E_STATE, "accept");
+    CHECK(almanac_ai(&AL, 1) == ZXM_E_ARG && almanac_ai(&AL, -1) == ZXM_E_ARG, "actions");
+    /* canned: load known, a disk zxvd cannot read, a damaged reply keeps the old facts */
+    almanac_init(&AL, &FAKE);
+    CANNED = SYS_INFO("1", "0");
+    CHECK(almanac_refresh(&AL) == ZXM_E_PROTOCOL && !AL.have, "sys.disk reply is not a disk");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time_ms\":1,\"os\":\"linux\"}}";
+    CHECK(almanac_refresh(&AL) == ZXM_E_PROTOCOL && !AL.have, "short reply");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":-32012,\"message\":\"no\"}}";
+    CHECK(almanac_refresh(&AL) == ZXM_E_REMOTE && !AL.have, "refused");
+    CANNED = NULL;
+    almanac_init(&AL, &LINK);
+    CHECK(almanac_refresh(&AL) == ZXM_OK, "again");
+    almanac_t keep = AL;
+    AL.link = &FAKE;
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"load\":7}}";
+    CHECK(almanac_refresh(&AL) == ZXM_E_PROTOCOL && AL.pid == keep.pid && AL.have, "kept");
+    CANNED = NULL;
+
+    /* Tidewatch: canned samples give exact shares */
+    tidewatch_init(&TW, &FAKE);
+    CHECK(!tidewatch_latest(&TW) && !tidewatch_at(&TW, 0) && tidewatch_peak_cpu_x100(&TW) == 0,
+          "empty");
+    CANNED = SYS_INFO("1000", "0");
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_latest(&TW)->zxvd_cpu_x100 == -1 &&
+              tidewatch_latest(&TW)->mem_used_x100 == 7500 &&
+              tidewatch_latest(&TW)->load1_x100 == 125 && TW.cpus == 4,
+          "first sample: cpu %d mem %d", tidewatch_latest(&TW)->zxvd_cpu_x100,
+          tidewatch_latest(&TW)->mem_used_x100);
+    CANNED = SYS_INFO("2000", "250000"); /* 0.25 s of CPU in 1 s */
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_latest(&TW)->zxvd_cpu_x100 == 2500,
+          "25%%: %d", tidewatch_latest(&TW)->zxvd_cpu_x100);
+    CANNED = SYS_INFO("2000", "300000"); /* no time passed: no share */
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_latest(&TW)->zxvd_cpu_x100 == -1, "dt 0");
+    CANNED = SYS_INFO("2500", "1300000"); /* 1 s of CPU in 0.5 s: two CPUs' worth */
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_latest(&TW)->zxvd_cpu_x100 == 20000 &&
+              tidewatch_peak_cpu_x100(&TW) == 20000 && tidewatch_count(&TW) == 4,
+          "200%%: %d", tidewatch_latest(&TW)->zxvd_cpu_x100);
+    for (int i = 0; i < 130; i++) {
+        CANNED = SYS_INFO("3000", "0");
+        CHECK(tidewatch_sample(&TW) == ZXM_OK, "sample %d", i);
+    }
+    CHECK(tidewatch_count(&TW) == TIDEWATCH_SAMPLES && tidewatch_peak_cpu_x100(&TW) == 0 &&
+              tidewatch_at(&TW, TIDEWATCH_SAMPLES) == NULL,
+          "the ring keeps the newest");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{}}";
+    CHECK(tidewatch_sample(&TW) == ZXM_E_PROTOCOL && tidewatch_count(&TW) == TIDEWATCH_SAMPLES,
+          "a damaged reply adds nothing");
+    CANNED = NULL;
+    tidewatch_init(&TW, &LINK);
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_sample(&TW) == ZXM_OK &&
+              tidewatch_latest(&TW)->zxvd_rss > 0,
+          "live: %s", LINK.err);
+
+    /* Wake follows the daemon's own log */
+    zxvd_log_reset();
+    wake_init(&WK, &LINK);
+    uint32_t added;
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 0 && wake_count(&WK) == 0, "quiet");
+    CHECK(wake_ai(&WK, WAKE_AI_EXPLAIN) == ZXM_E_STATE, "nothing to explain");
+    CHECK(raw_call("spaces.get", "{\"space\":\"nowhere\"}") == ZXM_E_REMOTE, "a refusal");
+    CHECK(raw_call("spaces.create", "{\"kind\":\"office\",\"name\":\"Wake Test\"}") == ZXM_OK,
+          "a change");
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 2 && WK.next == 2, "two: %u", added);
+    /* Wake's own log.tail calls are quiet, so following does not feed itself */
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 0, "no echo");
+    CHECK(wake_event(&WK, 0)->level == WAKE_WARN &&
+              strstr(wake_event(&WK, 0)->text, "spaces.get refused") &&
+              wake_event(&WK, 1)->level == WAKE_INFO && !wake_event(&WK, 2),
+          "events");
+    CHECK(wake_filter(&WK, WAKE_WARN, "") == ZXM_OK && wake_count(&WK) == 1, "warnings only");
+    CHECK(wake_filter(&WK, WAKE_INFO, "CREATE") == ZXM_OK && wake_count(&WK) == 1 &&
+              strstr(wake_event(&WK, 0)->text, "spaces.create"),
+          "find, case ignored");
+    CHECK(wake_filter(&WK, WAKE_INFO, "RPC") == ZXM_OK && wake_count(&WK) == 2, "by source");
+    CHECK(wake_filter(&WK, WAKE_ERROR + 1, "") == ZXM_E_ARG &&
+              wake_filter(&WK, WAKE_INFO,
+                          "0123456789012345678901234567890123456789012345678901234567890123") ==
+                  ZXM_E_ARG,
+          "bad filter");
+    CHECK(wake_filter(&WK, WAKE_INFO, "") == ZXM_OK, "all");
+    asked = 0;
+    CHECK(wake_ai(&WK, WAKE_AI_EXPLAIN) == ZXM_OK && asked == 1 &&
+              strstr(last_prompt, "rpc: spaces.get refused") && !strstr(last_prompt, "create"),
+          "explain warnings: %s", last_prompt);
+    CHECK(wake_ai_reject(&WK) == ZXM_OK && wake_ai_accept(&WK) == ZXM_E_STATE, "reject");
+    CHECK(wake_ai(&WK, 3) == ZXM_E_ARG, "action");
+    wake_pause(&WK, true);
+    zxvd_log(ZXVD_LOG_ERROR, "net", "link down");
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 0, "paused");
+    wake_pause(&WK, false);
+    /* the AI question was logged too (swarm.ask is not a poll) */
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 2 &&
+              strstr(wake_event(&WK, 2)->text, "swarm.ask done") &&
+              wake_event(&WK, 3)->level == WAKE_ERROR && !strcmp(wake_event(&WK, 3)->source, "net"),
+          "resumed: %u", added);
+    wake_clear(&WK);
+    CHECK(wake_count(&WK) == 0 && WK.next == 4, "cleared, still following");
+    /* more than one read's worth, and more than the daemon keeps */
+    for (int i = 0; i < 700; i++) zxvd_log(ZXVD_LOG_INFO, "test", "e%d", i);
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 512 && WK.missed == 188 &&
+              WK.n == WAKE_KEEP && !strcmp(wake_event(&WK, 0)->text, "e188") &&
+              !strcmp(wake_event(&WK, 511)->text, "e699"),
+          "added %u missed %llu first %s", added, (unsigned long long) WK.missed,
+          wake_event(&WK, 0) ? wake_event(&WK, 0)->text : "-");
+    for (int i = 0; i < 10; i++) zxvd_log(ZXVD_LOG_INFO, "test", "f%d", i);
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 10 && WK.n == WAKE_KEEP &&
+              !strcmp(wake_event(&WK, 0)->text, "e198") &&
+              !strcmp(wake_event(&WK, 511)->text, "f9"),
+          "the model's ring");
+    wake_init(&WK, &FAKE);
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"entries\":[{\"seq\":1,\"time_ms\":1,"
+             "\"level\":\"loud\",\"source\":\"x\",\"text\":\"y\"}],\"next\":1,\"dropped\":0}}";
+    CHECK(wake_follow(&WK, &added) == ZXM_E_PROTOCOL, "bad level");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"entries\":[{\"seq\":5,\"time_ms\":1,"
+             "\"level\":\"info\",\"source\":\"x\",\"text\":\"y\"}],\"next\":4,\"dropped\":0}}";
+    CHECK(wake_follow(&WK, &added) == ZXM_E_PROTOCOL, "seq past next");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"entries\":[],\"next\":0}}";
+    CHECK(wake_follow(&WK, &added) == ZXM_E_PROTOCOL, "no dropped");
+    CANNED = NULL;
+
+    /* Sounding: canned counters give exact rates */
+    sounding_init(&SD, &FAKE);
+#define NET(t, rx, tx, req)                                                                        \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time_ms\":" t ",\"supported\":true,"             \
+    "\"interfaces\":[{\"name\":\"lo\",\"up\":true,\"loopback\":true,\"addresses\":[\"127.0.0.1\"]" \
+    ","                                                                                            \
+    "\"rx_bytes\":" rx ",\"tx_bytes\":" tx ",\"rx_packets\":1,\"tx_packets\":1},{\"name\":"        \
+    "\"en0\",\"up\":true,\"loopback\":false,\"addresses\":[\"10.0.0.2\",\"fe80::1\"],"             \
+    "\"rx_bytes\":" rx ",\"tx_bytes\":" tx ",\"rx_packets\":1,\"tx_packets\":1},{\"name\":"        \
+    "\"tun0\",\"up\":false,\"loopback\":false,\"addresses\":[],\"rx_bytes\":null,"                 \
+    "\"tx_bytes\":null,\"rx_packets\":null,\"tx_packets\":null}],\"rpc\":{\"requests\":" req       \
+    ",\"errors\":1,\"bytes_in\":10,\"bytes_out\":20,\"busy_us\":5}}}"
+    CANNED = NET("1000", "100", "50", "10");
+    CHECK(sounding_refresh(&SD) == ZXM_OK && SD.n == 3 && SD.supported &&
+              sounding_find(&SD, "en0")->naddr == 2 && sounding_find(&SD, "en0")->rx_rate == -1 &&
+              !sounding_find(&SD, "tun0")->counters && SD.rpc_rate == -1 &&
+              sounding_history(&SD, 0)->rx_rate == -1 && !sounding_find(&SD, "wlan9"),
+          "first read");
+    CANNED = NET("3000", "4100", "2050", "30");
+    CHECK(sounding_refresh(&SD) == ZXM_OK && sounding_find(&SD, "en0")->rx_rate == 2000 &&
+              sounding_find(&SD, "en0")->tx_rate == 1000 && SD.rpc_rate == 10 &&
+              sounding_history(&SD, 1)->rx_rate == 2000 &&
+              sounding_history(&SD, 1)->tx_rate == 1000 && sounding_history_len(&SD) == 2 &&
+              !sounding_history(&SD, 2),
+          "2000 B/s in, loopback left out of the total: %lld",
+          (long long) sounding_history(&SD, 1)->rx_rate);
+    CANNED = NET("4000", "10", "10", "31"); /* counters reset */
+    CHECK(sounding_refresh(&SD) == ZXM_OK && sounding_find(&SD, "en0")->rx_rate == -1 &&
+              sounding_history(&SD, 2)->rx_rate == -1 && SD.rpc_rate == 1,
+          "a reset gives no rate");
+    for (int i = 0; i < 130; i++) {
+        CANNED = NET("4000", "10", "10", "31");
+        CHECK(sounding_refresh(&SD) == ZXM_OK, "read %d", i);
+    }
+    CHECK(sounding_history_len(&SD) == SOUNDING_SAMPLES, "history ring");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time_ms\":1,\"supported\":true,"
+             "\"interfaces\":[{\"name\":\"x\"}],\"rpc\":{\"requests\":1,\"errors\":0,"
+             "\"bytes_in\":0,\"bytes_out\":0}}}";
+    CHECK(sounding_refresh(&SD) == ZXM_E_PROTOCOL && SD.n == 3, "damaged: kept");
+    CANNED = NULL;
+#undef NET
+    sounding_init(&SD, &LINK);
+    CHECK(sounding_refresh(&SD) == ZXM_OK && SD.rpc_requests > 0, "live: %s", LINK.err);
+#if defined(__linux__) || defined(__APPLE__)
+    CHECK(SD.supported && SD.n >= 1, "interfaces listed");
+#endif
+}
+
 int main(void)
 {
     char root[256];
@@ -847,6 +1071,7 @@ int main(void)
     test_quillon();
     test_spindle();
     test_spaces();
+    test_utilities();
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {

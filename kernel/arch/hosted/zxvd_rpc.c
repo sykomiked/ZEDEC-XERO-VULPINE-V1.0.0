@@ -35,7 +35,9 @@
 #include "web4_util.h" /* hex */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
 #include "zxv_files.h" /* files.*: the ZXV folder */
-#include "zxv_spaces.h" /* spaces.*: who may see and change each place */
+#include "zxv_spaces.h"  /* spaces.*: who may see and change each place */
+#include "zxv_sysinfo.h" /* sys.*: the machine and zxvd, for the system utilities */
+#include "zxvd_log.h"    /* log.tail and the RPC traffic counts */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -1717,6 +1719,128 @@ static void m_spaces_vote(call_t *c)
     decision_reply(c, (uint32_t) id, d, &s);
 }
 
+/* ----- sys.* and log.* (docs/SYSTEM_UTILITIES.md): read only ----- */
+
+static void m_sys_info(call_t *c)
+{
+    zsi_host_t h;
+    zsi_self_t me;
+    zsi_host(&h);
+    zsi_self(&me);
+    zxvd_buf_printf(c->res, "{\"time_ms\":%llu,\"os\":", (unsigned long long) zxvd_now_ms());
+    zxvd_buf_json_str(c->res, h.os);
+    LIT(c->res, ",\"os_version\":");
+    zxvd_buf_json_str(c->res, h.os_version);
+    LIT(c->res, ",\"arch\":");
+    zxvd_buf_json_str(c->res, h.arch);
+    LIT(c->res, ",\"host\":");
+    zxvd_buf_json_str(c->res, h.host);
+    zxvd_buf_printf(
+        c->res, ",\"cpus\":%u,\"mem_total\":%llu,\"mem_avail\":%llu,\"uptime_s\":%llu,\"load\":",
+        (unsigned) h.cpus, (unsigned long long) h.mem_total, (unsigned long long) h.mem_avail,
+        (unsigned long long) h.uptime_s);
+    if (h.load_x100[0] < 0)
+        LIT(c->res, "null");
+    else /* x100, so no floats: 1.25 is 125 */
+        zxvd_buf_printf(c->res, "[%d,%d,%d]", (int) h.load_x100[0], (int) h.load_x100[1],
+                        (int) h.load_x100[2]);
+    zxvd_buf_printf(c->res,
+                    ",\"zxvd\":{\"pid\":%llu,\"cpu_user_us\":%llu,\"cpu_sys_us\":%llu,"
+                    "\"rss_bytes\":%llu,\"max_rss_bytes\":%llu}}",
+                    (unsigned long long) me.pid, (unsigned long long) me.cpu_user_us,
+                    (unsigned long long) me.cpu_sys_us, (unsigned long long) me.rss_bytes,
+                    (unsigned long long) me.max_rss_bytes);
+}
+
+static void m_sys_disk(call_t *c)
+{
+    zsi_disk_t d;
+    char root[4096];
+    if (!files_done(c, zxf_root(root, sizeof root))) return;
+    if (zsi_disk(root, &d) != 0) return fail(c, ZXVD_E_FILES, "the volume could not be read");
+    LIT(c->res, "{\"path\":");
+    zxvd_buf_json_str(c->res, root);
+    zxvd_buf_printf(c->res, ",\"total\":%llu,\"free\":%llu,\"avail\":%llu}",
+                    (unsigned long long) d.total, (unsigned long long) d.free,
+                    (unsigned long long) d.avail);
+}
+
+static void m_sys_net(call_t *c)
+{
+    static zsi_if_t ifs[32];
+    uint32_t n;
+    zxvd_traffic_t t;
+    bool ok = zsi_interfaces(ifs, 32, &n) == 0;
+    zxvd_buf_printf(c->res, "{\"time_ms\":%llu,\"supported\":%s,\"interfaces\":[",
+                    (unsigned long long) zxvd_now_ms(), ok ? "true" : "false");
+    for (uint32_t i = 0; i < n; i++) {
+        const zsi_if_t *f = &ifs[i];
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"name\":");
+        zxvd_buf_json_str(c->res, f->name);
+        zxvd_buf_printf(c->res, ",\"up\":%s,\"loopback\":%s,\"addresses\":[",
+                        f->up ? "true" : "false", f->loopback ? "true" : "false");
+        for (uint32_t a = 0; a < f->naddr; a++) {
+            if (a) LIT(c->res, ",");
+            zxvd_buf_json_str(c->res, f->addr[a]);
+        }
+        if (f->counters)
+            zxvd_buf_printf(c->res,
+                            "],\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rx_packets\":%llu,"
+                            "\"tx_packets\":%llu}",
+                            (unsigned long long) f->rx_bytes, (unsigned long long) f->tx_bytes,
+                            (unsigned long long) f->rx_packets, (unsigned long long) f->tx_packets);
+        else
+            LIT(c->res, "],\"rx_bytes\":null,\"tx_bytes\":null,\"rx_packets\":null,"
+                        "\"tx_packets\":null}");
+    }
+    zxvd_traffic_get(&t);
+    zxvd_buf_printf(c->res,
+                    "],\"rpc\":{\"requests\":%llu,\"errors\":%llu,\"bytes_in\":%llu,"
+                    "\"bytes_out\":%llu,\"busy_us\":%llu}}",
+                    (unsigned long long) t.requests, (unsigned long long) t.errors,
+                    (unsigned long long) t.bytes_in, (unsigned long long) t.bytes_out,
+                    (unsigned long long) t.busy_us);
+}
+
+#define LOG_TAIL_MAX 256u
+static void m_log_tail(call_t *c)
+{
+    static zxvd_log_entry_t e[LOG_TAIL_MAX];
+    uint64_t since, max, dropped;
+    char lv[8];
+    if (!p_opt_u64(c, "since", 0, &since) || !p_opt_u64(c, "max", 100, &max) ||
+        !p_str(c, "level", lv, sizeof lv, false))
+        return;
+    if (max < 1 || max > LOG_TAIL_MAX)
+        return fail(c, E_PARAMS, "\"max\" must be 1 to %u", LOG_TAIL_MAX);
+    zxvd_log_level_t min = ZXVD_LOG_INFO;
+    if (!strcmp(lv, "warn"))
+        min = ZXVD_LOG_WARN;
+    else if (!strcmp(lv, "error"))
+        min = ZXVD_LOG_ERROR;
+    else if (lv[0] && strcmp(lv, "info"))
+        return fail(c, E_PARAMS, "\"level\" must be info, warn or error");
+    uint32_t n = zxvd_log_tail(since, (uint32_t) max, min, e, &dropped);
+    LIT(c->res, "{\"entries\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        zxvd_buf_printf(
+            c->res, "%s{\"seq\":%llu,\"time_ms\":%llu,\"level\":\"%s\",\"source\":", i ? "," : "",
+            (unsigned long long) e[i].seq, (unsigned long long) e[i].unix_ms,
+            zxvd_log_level_name((zxvd_log_level_t) e[i].level));
+        zxvd_buf_json_str(c->res, e[i].source);
+        LIT(c->res, ",\"text\":");
+        zxvd_buf_json_str(c->res, e[i].text);
+        LIT(c->res, "}");
+    }
+    /* "next": pass it back as since; the last event read, or last held when
+     * the level filter skipped the rest */
+    uint64_t next = n ? e[n - 1].seq : since;
+    if (n < max) next = zxvd_log_last() > since ? zxvd_log_last() : since;
+    zxvd_buf_printf(c->res, "],\"next\":%llu,\"dropped\":%llu}", (unsigned long long) next,
+                    (unsigned long long) dropped);
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2033,6 +2157,10 @@ static const method_t METHODS[] = {
     {"spaces.set_cid", m_spaces_set_cid},
     {"spaces.propose", m_spaces_propose},
     {"spaces.vote", m_spaces_vote},
+    {"sys.info", m_sys_info},
+    {"sys.disk", m_sys_disk},
+    {"sys.net", m_sys_net},
+    {"log.tail", m_log_tail},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -2061,9 +2189,17 @@ static void put_id(zxvd_buf_t *out, const char *js, const w4_jtok_t *t, int32_t 
     }
 }
 
+/* the outcome of the request being answered, for the log (zxvd_log.h L2:
+ * the method and the error, never the parameters) */
+static int LAST_ERR;
+static char LAST_MSG[96];
+static const char *LAST_METHOD;
+
 static void put_error(zxvd_buf_t *out, const char *js, const w4_jtok_t *t, int32_t id, int code,
                       const char *msg, int32_t zst)
 {
+    LAST_ERR = code;
+    snprintf(LAST_MSG, sizeof LAST_MSG, "%s", msg);
     zxvd_buf_raw(out, "{\"jsonrpc\":\"2.0\",\"id\":", 22);
     put_id(out, js, t, id);
     zxvd_buf_printf(out, ",\"error\":{\"code\":%d,\"message\":", code);
@@ -2078,7 +2214,41 @@ static void put_error(zxvd_buf_t *out, const char *js, const w4_jtok_t *t, int32
     zxvd_buf_raw(out, "}}", 2);
 }
 
+static bool handle_line(const char *line, size_t len, zxvd_buf_t *out);
+
+/* Polled read-only methods stay out of the log, or a window open on them
+ * would push every other event out of the ring. */
+static bool quiet(const char *m)
+{
+    static const char *const Q[] = {
+        "rpc.discover",    "zxvd.version",     "swarm.state",  "model.info",     "notes.list",
+        "net.peers",       "net.offers",       "player.card",  "peer.status",    "ledger.balance",
+        "ledger.accounts", "ledger.entries",   "ledger.check", "swarm.earnings", "mesh.books",
+        "books.file",      "jurisdiction.get", "aipi.get",     "aipi.status",    "files.root",
+        "files.list",      "files.stat",       "files.read",   "spaces.list",    "spaces.get",
+        "sys.info",        "sys.disk",         "sys.net",      "log.tail",       "update.check"};
+    for (size_t i = 0; i < sizeof Q / sizeof *Q; i++)
+        if (!strcmp(m, Q[i])) return true;
+    return false;
+}
+
 bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
+{
+    uint64_t t0 = zxvd_mono_us();
+    LAST_ERR = 0;
+    LAST_METHOD = NULL;
+    bool reply = handle_line(line, len, out);
+    uint64_t us = zxvd_mono_us() - t0;
+    zxvd_traffic_add(len, reply ? out->len : 0, LAST_ERR != 0, us);
+    const char *m = LAST_METHOD ? LAST_METHOD : "(no method)";
+    if (LAST_ERR)
+        zxvd_log(ZXVD_LOG_WARN, "rpc", "%s refused (%d): %s", m, LAST_ERR, LAST_MSG);
+    else if (LAST_METHOD && !quiet(m))
+        zxvd_log(ZXVD_LOG_INFO, "rpc", "%s done in %llu ms", m, (unsigned long long) (us / 1000u));
+    return reply;
+}
+
+static bool handle_line(const char *line, size_t len, zxvd_buf_t *out)
 {
     static w4_jtok_t t[MAX_TOK];
     out->len = 0;
@@ -2127,6 +2297,7 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
     }
+    LAST_METHOD = fn->name;
     zxvd_buf_t res = {0};
     call_t c = {line, t, n, p, &res, 0, "", 0};
     fn->fn(&c);

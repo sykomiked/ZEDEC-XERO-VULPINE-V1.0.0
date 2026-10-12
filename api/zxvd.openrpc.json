@@ -4006,6 +4006,305 @@
         }
       },
       "paramStructure": "by-name"
+    },
+    {
+      "name": "sys.info",
+      "summary": "The machine and zxvd itself, read only (zxv_sysinfo.h; Almanac and Tidewatch). Unknown facts are 0, '' or null, never guessed.",
+      "params": [],
+      "result": {
+        "name": "info",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "time_ms": {
+              "type": "integer",
+              "description": "zxvd's wall clock when read, ms since 1970, for rates between two reads"
+            },
+            "os": {
+              "type": "string",
+              "enum": [
+                "macos",
+                "linux",
+                "windows",
+                "other"
+              ]
+            },
+            "os_version": {
+              "type": "string"
+            },
+            "arch": {
+              "type": "string"
+            },
+            "host": {
+              "type": "string"
+            },
+            "cpus": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mem_total": {
+              "type": "integer",
+              "description": "bytes"
+            },
+            "mem_avail": {
+              "type": "integer",
+              "description": "bytes the system can give without swapping"
+            },
+            "uptime_s": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "load": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "integer"
+              },
+              "description": "1, 5 and 15 minute load averages x100 (no floats); null on Windows"
+            },
+            "zxvd": {
+              "type": "object",
+              "properties": {
+                "pid": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cpu_user_us": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cpu_sys_us": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "rss_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "max_rss_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "sys.disk",
+      "summary": "The volume holding the ZXV folder: total, free and what this user may still write, in bytes (Cellar).",
+      "params": [],
+      "result": {
+        "name": "disk",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "free": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "avail": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "sys.net",
+      "summary": "Network interfaces with their addresses and byte counts, and zxvd's own RPC traffic (Sounding). supported is false where the platform listing is not wired yet (Windows).",
+      "params": [],
+      "result": {
+        "name": "net",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "time_ms": {
+              "type": "integer",
+              "description": "zxvd's wall clock when read, ms since 1970, for rates between two reads"
+            },
+            "supported": {
+              "type": "boolean"
+            },
+            "interfaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "up": {
+                    "type": "boolean"
+                  },
+                  "loopback": {
+                    "type": "boolean"
+                  },
+                  "addresses": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "rx_bytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "tx_bytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "rx_packets": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "tx_packets": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "rpc": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "errors": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes_in": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes_out": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "busy_us": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "log.tail",
+      "summary": "zxvd's recent events, oldest first (zxvd_log.h; the Wake console): refusals as warnings, changes as info, never parameters or content. Pass next back as since to read on; dropped counts events the ring no longer holds.",
+      "params": [
+        {
+          "name": "since",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256,
+            "default": 100
+          }
+        },
+        {
+          "name": "level",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "error"
+            ],
+            "default": "info",
+            "description": "the lowest level returned"
+          }
+        }
+      ],
+      "result": {
+        "name": "tail",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "time_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "warn",
+                      "error"
+                    ]
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "next": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     }
   ]
 }

@@ -318,3 +318,19 @@ int zxm_ai_ask(zxm_link_t *l, const zxm_ai_action_t *act, int32_t idx, const cha
     }
     return ZXM_OK;
 }
+
+int zxm_held_accept(zxm_held_t *held)
+{
+    if (held->state != ZXM_HELD_PENDING) return ZXM_E_STATE;
+    held->state = ZXM_HELD_ACCEPTED;
+    return ZXM_OK;
+}
+
+int zxm_held_reject(zxm_held_t *held)
+{
+    if (held->state != ZXM_HELD_PENDING) return ZXM_E_STATE;
+    held->state = ZXM_HELD_REJECTED;
+    held->len = 0;
+    held->text[0] = 0;
+    return ZXM_OK;
+}

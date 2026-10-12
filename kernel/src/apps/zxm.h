@@ -141,5 +141,9 @@ typedef struct {
  * `input` as fits; the answer goes into `held` as PENDING with its cost. */
 int zxm_ai_ask(zxm_link_t *l, const zxm_ai_action_t *act, int32_t idx, const char *instruction,
                const char *input, uint32_t input_len, zxm_held_t *held);
+/* The owner's word on a pending answer: accept marks it read (it changes
+ * nothing by itself), reject drops it. ZXM_E_STATE when none is pending. */
+int zxm_held_accept(zxm_held_t *held);
+int zxm_held_reject(zxm_held_t *held);
 
 #endif

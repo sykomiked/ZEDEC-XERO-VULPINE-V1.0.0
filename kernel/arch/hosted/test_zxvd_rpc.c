@@ -33,6 +33,8 @@
 #include "sha256.h"
 #include "zxv_files.h"
 #include "zxv_spaces.h"
+#include "zxv_sysinfo.h"
+#include "zxvd_log.h"
 
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
@@ -461,9 +463,9 @@ static void test_host_methods(void)
            "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"files.root\",\"files.list\","
            "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
            "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
-           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces."
-           "propose\",\"spaces."
-           "vote\"]}"));
+           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
+           "\"spaces.propose\",\"spaces.vote\",\"sys.info\",\"sys.disk\",\"sys.net\","
+           "\"log.tail\"]}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -2881,6 +2883,128 @@ static void test_files_methods(void)
     CHECK(rm_tree(root) == 0, "cleanup");
 }
 
+/* ---------------- sys.* and log.* (zxv_sysinfo.h, zxvd_log.h) ---------------- */
+
+static void test_sys_and_log(void)
+{
+    char root[200], want[260];
+    snprintf(root, sizeof root, "%s/zxvd-sys-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0, "root set");
+
+    zsi_host_t h;
+    zsi_self_t me;
+    zsi_disk_t d;
+    CHECK(zsi_host(&h) == 0 && h.cpus > 0 && h.mem_total > 0 && h.arch[0] && h.os[0],
+          "host facts: %u cpus, %llu bytes", h.cpus, (unsigned long long) h.mem_total);
+#if defined(__linux__)
+    CHECK(!strcmp(h.os, "linux") && h.uptime_s > 0 && h.mem_avail > 0 &&
+              h.mem_avail <= h.mem_total && h.load_x100[0] >= 0,
+          "linux: uptime, available memory, load");
+#elif defined(__APPLE__)
+    CHECK(!strcmp(h.os, "macos") && h.uptime_s > 0 && h.mem_avail > 0, "macos facts");
+#endif
+    CHECK(zsi_self(&me) == 0 && me.pid == (uint64_t) getpid() && me.max_rss_bytes > 0,
+          "zxvd itself");
+    CHECK(zsi_disk(root, &d) == 0 && d.total > 0 && d.free <= d.total && d.avail <= d.total,
+          "the volume");
+    CHECK(zsi_disk("/no/such/place/zxv", &d) == -1 && d.total == 0, "no volume");
+
+    snprintf(want, sizeof want, "\"zxvd\":{\"pid\":%llu,", (unsigned long long) getpid());
+    CHECK(has(REQ("1", "sys.info", ""), want) && has(REQ("1", "sys.info", ""), "\"cpus\":") &&
+              !has(REQ("1", "sys.info", ""), "\"cpus\":0,"),
+          "sys.info: %s", OUT.p);
+    snprintf(want, sizeof want, "{\"path\":\"%s\",\"total\":", root);
+    CHECK(has(REQ("2", "sys.disk", ""), want), "sys.disk: %s", OUT.p);
+#if defined(__linux__) || defined(__APPLE__)
+    CHECK(has(REQ("3", "sys.net", ""), ",\"supported\":true,\"interfaces\":[") &&
+              has(REQ("3", "sys.net", ""), "\"loopback\":true,\"addresses\":[\"127.0.0.1\"") &&
+              has(REQ("3", "sys.net", ""), "],\"rpc\":{\"requests\":"),
+          "sys.net: %s", OUT.p);
+    {
+        static zsi_if_t ifs[2];
+        uint32_t n = 9;
+        CHECK(zsi_interfaces(ifs, 0, &n) == 0 && n == 0, "no room: none listed");
+        CHECK(zsi_interfaces(ifs, 2, &n) == 0 && n >= 1 && n <= 2, "listed: %u", n);
+    }
+#endif
+
+    /* the log: refusals and changes, not polls */
+    zxvd_log_reset();
+    EXPECT(REQ("4", "spaces.get", ",\"params\":{\"space\":\"nope\"}"),
+           ERR("4", "-32013", "no such space"));
+    CHECK(has(REQ("4", "files.list", ""), "\"entries\":[]"), "a poll");
+    CHECK(has(REQ("4", "spaces.create", ",\"params\":{\"kind\":\"park\",\"name\":\"Green\"}"),
+              "\"id\":\"green\""),
+          "a change");
+    rpc("{\"jsonrpc\":\"2.0\",\"method\":\"nope.nope\"}"); /* a notification: no reply */
+    rpc("not json");
+    zxvd_traffic_t tr;
+    zxvd_traffic_get(&tr);
+    CHECK(tr.requests == 5 && tr.errors == 3 && tr.bytes_in > 50 && tr.bytes_out > 50,
+          "traffic: %llu requests, %llu errors", (unsigned long long) tr.requests,
+          (unsigned long long) tr.errors);
+    CHECK(zxvd_log_last() == 4, "four events: %llu", (unsigned long long) zxvd_log_last());
+    const char *l = rpc(REQ("5", "log.tail", ""));
+    CHECK(
+        strstr(l, "{\"seq\":1,\"time_ms\":") &&
+            strstr(l, "\"level\":\"warn\",\"source\":\"rpc\",\"text\":\"spaces.get refused "
+                      "(-32013): no such space\"}") &&
+            strstr(l, "\"level\":\"info\",\"source\":\"rpc\",\"text\":\"spaces.create done in ") &&
+            strstr(l, "\"text\":\"(no method) refused (-32601): method not found\"") &&
+            strstr(l, "\"text\":\"(no method) refused (-32700): parse error\"") &&
+            !strstr(l, "files.list") && strstr(l, "],\"next\":4,\"dropped\":0}"),
+        "log.tail: %s", l);
+    l = rpc(REQ("5", "log.tail", ",\"params\":{\"level\":\"warn\",\"since\":1}"));
+    CHECK(strstr(l, "{\"entries\":[{\"seq\":3,") && !strstr(l, "spaces.create") &&
+              strstr(l, "\"next\":4,"),
+          "warnings after 1: %s", l);
+    l = rpc(REQ("5", "log.tail", ",\"params\":{\"max\":1}"));
+    CHECK(strstr(l, "{\"entries\":[{\"seq\":1,") && strstr(l, "],\"next\":1,"), "one: %s", l);
+    l = rpc(REQ("5", "log.tail", ",\"params\":{\"level\":\"error\"}"));
+    CHECK(strstr(l, "{\"entries\":[],\"next\":"), "no errors: %s", l);
+    EXPECT(REQ("5", "log.tail", ",\"params\":{\"max\":0}"),
+           ERR("5", "-32602", "\\\"max\\\" must be 1 to 256"));
+    EXPECT(REQ("5", "log.tail", ",\"params\":{\"max\":257}"),
+           ERR("5", "-32602", "\\\"max\\\" must be 1 to 256"));
+    EXPECT(REQ("5", "log.tail", ",\"params\":{\"level\":\"debug\"}"),
+           ERR("5", "-32602", "\\\"level\\\" must be info, warn or error"));
+    EXPECT(REQ("5", "log.tail", ",\"params\":{\"since\":-1}"),
+           ERR("5", "-32602", "\\\"since\\\" must not be negative"));
+
+    /* the ring: old events drop, the reader is told how many */
+    zxvd_log_reset();
+    for (int i = 0; i < 600; i++) zxvd_log(ZXVD_LOG_INFO, "test", "event %d", i);
+    static zxvd_log_entry_t e[4];
+    uint64_t dropped;
+    CHECK(zxvd_log_tail(0, 4, ZXVD_LOG_INFO, e, &dropped) == 4 && dropped == 88 && e[0].seq == 89 &&
+              !strcmp(e[0].text, "event 88") && e[3].seq == 92,
+          "dropped %llu, first %llu", (unsigned long long) dropped, (unsigned long long) e[0].seq);
+    CHECK(zxvd_log_tail(598, 4, ZXVD_LOG_INFO, e, &dropped) == 2 && dropped == 0 && e[1].seq == 600,
+          "the newest");
+    CHECK(zxvd_log_tail(600, 4, ZXVD_LOG_INFO, e, &dropped) == 0, "nothing newer");
+    /* text: control characters become spaces, long text is cut whole characters */
+    zxvd_log_reset();
+    zxvd_log(ZXVD_LOG_ERROR, "a-source-longer-than-fifteen", "a\nb\tc\x7f");
+    char big[400];
+    memset(big, 'x', sizeof big);
+    memcpy(big + 158, "\xc3\xa9\xc3\xa9", 4); /* é é across the 160-byte cut */
+    big[sizeof big - 1] = 0;
+    zxvd_log(ZXVD_LOG_WARN, NULL, "%s", big);
+    CHECK(zxvd_log_tail(0, 4, ZXVD_LOG_INFO, e, &dropped) == 2 && !strcmp(e[0].text, "a b c ") &&
+              !strcmp(e[0].source, "a-source-longer") && e[0].level == ZXVD_LOG_ERROR &&
+              strlen(e[1].text) == 160 && !strcmp(e[1].text + 158, "\xc3\xa9") &&
+              e[1].source[0] == 0,
+          "clean text: [%s] %zu", e[0].text, strlen(e[1].text));
+    CHECK(!strcmp(zxvd_log_level_name(ZXVD_LOG_WARN), "warn") &&
+              !strcmp(zxvd_log_level_name((zxvd_log_level_t) 7), "error"),
+          "level names");
+    uint64_t a = zxvd_mono_us(), b = zxvd_mono_us();
+    CHECK(b >= a && zxvd_now_ms() > 1700000000000ull, "clocks");
+
+    CHECK(rm_tree(root) == 0, "cleanup");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -2891,6 +3015,7 @@ int main(void)
     test_aipi_methods();
     test_files_methods();
     test_spaces_methods();
+    test_sys_and_log();
     test_books_closed();
     test_books();
     test_earnings();
