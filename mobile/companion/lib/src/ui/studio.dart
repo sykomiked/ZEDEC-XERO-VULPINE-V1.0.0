@@ -9,7 +9,6 @@ import '../json.dart';
 import '../money.dart';
 import '../store.dart';
 import 'theme.dart';
-import 'zxv_bar.dart';
 import 'widgets.dart';
 
 class StudioView extends StatefulWidget {
@@ -54,7 +53,7 @@ class _StudioViewState extends State<StudioView> {
                   : 'No model is installed on the Mac, so the companion reads shorthand back instead of answering.',
               style: const TextStyle(color: Zc.muted)),
         for (final l in s.chat) _Bubble(l),
-        if (s.asking) const Padding(padding: EdgeInsets.all(6), child: ZxvBar()),
+        if (s.asking) const Padding(padding: EdgeInsets.all(6), child: LinearProgressIndicator(color: Zc.barGold, backgroundColor: Zc.barGround)),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(
@@ -90,7 +89,8 @@ class _StudioViewState extends State<StudioView> {
         Flexible(child: Text('of ${grouped(allotted)} tokens left', style: const TextStyle(color: Zc.muted))),
       ]),
       const SizedBox(height: 6),
-      ZxvBar(value: allotted <= 0 ? 0 : remaining / allotted),
+      LinearProgressIndicator(
+          value: allotted <= 0 ? 0 : remaining / allotted, color: Zc.barGold, backgroundColor: Zc.barGround),
       const SizedBox(height: 8),
       KV('Used', grouped(c.integer('used'))),
       KV('Max per answer', grouped(c.integer('max_per_answer'))),

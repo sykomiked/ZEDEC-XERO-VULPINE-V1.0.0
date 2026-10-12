@@ -10,7 +10,6 @@ import '../json.dart';
 import '../money.dart';
 import '../store.dart';
 import 'theme.dart';
-import 'zxv_bar.dart';
 import 'widgets.dart';
 
 class LedgerView extends StatefulWidget {
@@ -310,7 +309,7 @@ class _SkillCard extends StatelessWidget {
           Text('Level ${k.integer('level')}', style: const TextStyle(fontSize: 12, color: Zc.gold)),
         ]),
         const SizedBox(height: 6),
-        ZxvBar(value: frac),
+        LinearProgressIndicator(value: frac, color: Zc.barGold, backgroundColor: Zc.barGround),
         const SizedBox(height: 4),
         Text(top == floor ? '$pts pts · top level' : '$pts pts · ${top - pts} to level ${lv + 1}',
             style: Zc.mono.copyWith(fontSize: 11, color: Zc.muted)),

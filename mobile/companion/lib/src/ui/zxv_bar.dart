@@ -1,9 +1,11 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 //
-// The ecosystem's one progress bar, in the ZXV boot style: gold on deep
-// green. With a value it fills from the centre out to both edges; without
-// one, two mirrored bars run in from the edges to meet in the middle.
+// The ZXV boot-style loading bar, gold on deep green, for launching an app or
+// connecting to a remote instance (here: reaching the Mac). With a value it
+// fills from the centre out to both edges; without one, two mirrored bars run
+// in from the edges to meet in the middle. Ordinary progress (budgets,
+// downloads) keeps a plain LinearProgressIndicator in the same colours.
 import 'package:flutter/material.dart';
 
 import 'theme.dart';

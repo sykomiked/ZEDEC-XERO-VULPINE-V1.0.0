@@ -18,7 +18,7 @@ class Zc {
   static const warn = Color(0xFFF0A35E);
   static const floor = Color(0xFF4C8DFF);
   static const emotional = Color(0xFFE05FA8);
-  // the ecosystem's progress bar (boot style): gold on deep green
+  // progress bars: gold on deep green (zxv_bar.dart for connecting)
   static const barGold = Color(0xFFF2C230);
   static const barGround = Color(0xFF002911);
 
