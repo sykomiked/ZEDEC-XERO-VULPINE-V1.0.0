@@ -77,9 +77,9 @@ Bold entries are those that differ from Belnap–Dunn FOUR, where $B \wedge N = 
 
 **Proposition 3.3.** $\neg$ is an involution but not an order anti-automorphism of the chain: $N < B$ yet $\neg N = N < B = \neg B$. Consequently $(\mathbf{V}, \wedge, \vee, \neg)$ is not a De Morgan algebra. Exactly the argument pairs $(B, N)$ and $(N, B)$ violate De Morgan's laws: $\neg(B \wedge N) = N \neq B = \neg B \vee \neg N$, and $\neg(B \vee N) = B \neq N = \neg B \wedge \neg N$.
 
-The restriction is tested: `test_combine` in `kernel/src/lpres/test_lpres_hex.c` checks De Morgan on the base of all 4,096 tag pairs, excluding exactly the $\{B, N\}$ pairs. A comment there records that whether lpres should move to Belnap's tables is an open owner decision. The code does not state the motive for the deviation; the comment in `lpres_conjoin` says only "NEITHER dominates BOTH in meet (bottom absorbs)", which reads $N$ as a bottom element, i.e. as the bottom of the *knowledge* order, used here inside a *truth*-order operation.
+The restriction is tested: `test_combine` in `kernel/src/lpres/test_lpres_hex.c` checks De Morgan on the base of all 4,096 tag pairs, excluding exactly the $\{B, N\}$ pairs. The deviation is deliberate: the owner confirmed on 2026-10-12 that the tables stay as they are, for the reason given in Observation 3.4, and the comments in `lpres_conjoin` and `test_combine` record this. Formally, the tables read $N$ as the bottom of the *knowledge* order, used inside a *truth*-order operation.
 
-**Observation 3.4 (our analysis, not stated in the repository).** The subset $\{B, N\}$ is closed under $\neg, \wedge, \vee$ in lpres, but not in FOUR, where $B \vee N = T$. Hence in lpres a formula all of whose atoms are $B$ or $N$ never evaluates to $T$. Since $T$ is the only value that authorises an action (Section 4), adopting FOUR's tables would let a disjunction of a contradiction and a gap authorise. Any change to the tables should weigh this.
+**Observation 3.4 (the design rationale).** The subset $\{B, N\}$ is closed under $\neg, \wedge, \vee$ in lpres, but not in FOUR, where $B \vee N = T$. Hence in lpres a formula all of whose atoms are $B$ or $N$ never evaluates to $T$. Since $T$ is the only value that authorises an action (Section 4), adopting FOUR's tables would let a disjunction of a contradiction and a gap authorise. This is why the tables were kept.
 
 ### 3.3 Comparison with FOUR, LP and K3
 
@@ -199,7 +199,7 @@ Conventional unit tests assert a Boolean outcome. Here the object under test is 
 ## 12 Limitations and threats to validity
 
 * No formal semantics, consequence relation or proof is given in the repository; all logical claims here are from code reading and finite tests.
-* The $\{B,N\}$ deviation from FOUR is undocumented as to intent and is an open decision; changing it would alter Observation 3.4.
+* The $\{B,N\}$ deviation from FOUR is deliberate (Observation 3.4), but it means standard results that depend on De Morgan's laws do not carry over to lpres.
 * State and evidence counters can diverge after `lpres_update_state`.
 * The gate is vacuously clear on an empty registry, and $F$ does not block it.
 * R5 is a convention; the type system does not prevent a $B$ value on a safety-critical subject, and one module (`zxv_answer_tag.c`) uses base $N$ for a broken invariant.

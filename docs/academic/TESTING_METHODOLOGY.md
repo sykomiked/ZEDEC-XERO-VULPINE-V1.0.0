@@ -110,9 +110,9 @@ covers every value of the domain, not just one expected bit.
 
 **Recording a known deviation instead of masking it.** The De Morgan check in
 `test_combine` exempts exactly the pair $\{b, n\}$. The comment says that lpres's tables
-break the law for that pair and that "the owner decides whether lpres moves to Belnap's
-tables". In effect the test states the specification's open question in executable form.
-If someone changes the tables, the exemption is the line that has to change.
+break the law for that pair, and that this is deliberate, because Belnap's tables would let a
+contradiction plus a gap authorise. In effect the test states a design decision in executable
+form. If someone changes the tables, the exemption is the line that has to change.
 
 **Separating BOTH from NEITHER at the gate.** `tests/host/test_lpres.c` checks that
 `lpres_implies_actuator_authority` is false for $b$, $f$ and $n$, that
