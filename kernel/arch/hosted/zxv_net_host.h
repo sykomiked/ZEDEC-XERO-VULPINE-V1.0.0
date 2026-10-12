@@ -86,6 +86,13 @@
  *      executor (vna_link_want_from), and when an executor is told it was
  *      paid, it offers that receipt (only if the owner shares compute). Both
  *      books then apply it through the trade loop (U6).
+ *   U13 LISTINGS. zxv_net_peers lists the routing table's contacts (every one
+ *      answered a signed message, so its NodeID is verified), each joined
+ *      with its mesh-book account when there is one. zxv_net_wants and
+ *      zxv_net_pending list the open wants and the receipts still waiting on
+ *      the other side (a SELL is an offer the buyer has not accepted yet; a
+ *      BUY is a countersigned copy the seller has not committed). Each
+ *      returns how many exist (not just how many fit) and 0 when off.
  * HONEST LIMITS: no IPv6; frames up to about 17.6 KB rely on IP
  * fragmentation off the loopback; TCP sessions (zxv_peer_host.h) are not
  * hole-punched. Single-threaded.
@@ -245,5 +252,37 @@ void zxv_net_aipi_serve(zxv_net_t *n, bool on, uint64_t min_bounty);
 int zxv_net_aipi_execute(zxv_net_t *n, const ipfsn_cid_t *fn_cid, const uint8_t *in,
                          uint32_t in_len, bool input_private, uint64_t bounty, uint64_t ttl_ms,
                          uint64_t now_ms, uint32_t *job);
+
+/* U13 */
+typedef struct {
+    char id[65];    /* NodeID, hex */
+    char addr[22];  /* "a.b.c.d:port"; "" for a non-IPv4 address */
+    uint8_t bucket; /* Kademlia bucket */
+    bool ubh;       /* the peer advertised UBH-168 */
+    uint64_t last_seen_ms;
+    bool in_book;        /* the mesh book has an account for it */
+    bool member;         /* admitted to the commons by the owner */
+    uint64_t held;       /* units issued by the peer, held by this node */
+    uint64_t receivable; /* delivered to the peer on credit */
+    uint64_t social;     /* Crown: earned, never moved */
+    uint32_t pending;    /* receipts outstanding with this peer */
+} zxv_net_peer_t;
+uint32_t zxv_net_peers(const zxv_net_t *n, zxv_net_peer_t *out, uint32_t cap);
+
+typedef struct {
+    uint32_t slot;
+    uint8_t resource; /* VNA_RES_COMPUTE or VNA_RES_STORAGE */
+    uint64_t units_left, max_price;
+} zxv_net_want_info_t;
+uint32_t zxv_net_wants(const zxv_net_t *n, zxv_net_want_info_t *out, uint32_t cap);
+
+typedef struct {
+    bool selling;  /* SELL: offered, buyer not yet accepted; else BUY */
+    char peer[65]; /* NodeID, hex */
+    uint64_t units, pair_seq;
+    uint32_t tries;
+    int32_t want; /* BUY: the want slot it reserves from; -1 for SELL */
+} zxv_net_pend_info_t;
+uint32_t zxv_net_pending(const zxv_net_t *n, zxv_net_pend_info_t *out, uint32_t cap);
 
 #endif /* ZXV_NET_HOST_H */

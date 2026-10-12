@@ -308,10 +308,11 @@ node calls another and the bounty settles in both books.
 
 ### Not yet wired
 
-1. **zxvd.** zxvd does not create an AIPI context yet. It should call
-   `zxv_net_attach_aipi` and expose `AIPI_GET` / `AIPI_EXECUTE`, the budget
-   and serving through the daemon socket and the swarm, so agents call
-   functions by CID. The zxvd owner has this.
+1. **zxvd.** Done for one node: `aipi.put` / `aipi.get` / `aipi.publish` /
+   `aipi.execute` / `aipi.status` on the daemon socket, offline
+   ([ZXVD.md](ZXVD.md)). Left: binding that context to the mesh with
+   `zxv_net_attach_aipi` (plus the budget and serving settings), and
+   letting the swarm's agents call functions by CID.
 2. **Multi-datagram calls.** A call or claim is one datagram of up to about
    10 KB, which relies on IP fragmentation off the loopback.
 3. **libzxv ABI.** Expose AIPI through the libzxv C ABI so every language

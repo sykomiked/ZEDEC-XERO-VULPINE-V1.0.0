@@ -73,8 +73,22 @@ if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
     DEFS="$DEFS -DZXV_HAVE_ZT_GLUE"
 fi
 [ -n "$EXE" ] && set -- "$@" "$HERE/zxvd_rpc_win.c"
+# 3. AIPI on Z-Wasm (zxvd_aipi.c): the sandbox libraries from the aipi kit;
+# the AIPI core and the blockstore are kernel sources already in the app's
+# source list (app_sources.sh vinea, for AIPI over Vinea). Not in the Windows build yet (ZXVD_AIPI=0 leaves it out anywhere).
+AIPI_LIBS=""
+if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
+    A="$OUT/aipi-build"
+    make -C "$R/sdk/kits/aipi" CC="$CC" OUT="$A" ${SANITIZE:+SANITIZE=1} \
+        "$A/libaipi_zwasm.a" "$A/zcontract/libzcontract_wasm.a" "$A/zcontract/libzcontract.a" \
+        "$A/zwasm/libzwasm.a" >"$OUT/aipi-build.log" 2>&1 ||
+        { tail -30 "$OUT/aipi-build.log"; echo "[FAIL] aipi kit build"; exit 1; }
+    AIPI_LIBS="$A/libaipi_zwasm.a $A/zcontract/libzcontract_wasm.a $A/zcontract/libzcontract.a $A/zwasm/libzwasm.a"
+    set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$HERE/zxvd_aipi.c"
+    DEFS="$DEFS -DZXV_HAVE_AIPI"
+fi
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
-$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
+$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"
 echo "[PASS] built $OUT/zxvd$EXE against $OUT/$LIBF"

@@ -74,13 +74,15 @@ case "${1:-srcs}" in
         # the owner's verified contributions from trades (quest)
         for f in quest quest_coop quest_guard; do echo "src/quest/$f.c"; done
         for f in pay_ledger pay_util pay_assure; do echo "src/pay/$f.c"; done
+        # the Player Card's tiers (zxvd's player.card)
+        echo src/sicily/sicily.c
         # one copy of each file: vinea and update share sha256, aead, hkdf, ubh,
         # event_envelope and the ML-DSA sources
         { vinea; update; } | awk '!seen[$0]++'
         ;;
     incs)
         # the last five are kernel/Makefile's CPATH
-        for d in arch/hosted src/swarm src/tensor src/settle src/peer_audit src/quest src/pay src/zcapital src/social src/vinea src/lpres src/robin_debanks \
+        for d in arch/hosted src/swarm src/tensor src/settle src/peer_audit src/quest src/pay src/sicily src/zcapital src/social src/vinea src/lpres src/robin_debanks \
                  src/edp_risk src/update src/ipfs_node src/pqsec src/mlkem include src/modbind \
                  src/e8 src/event_space src/surplus src/aipi; do
             echo "$d"

@@ -28,9 +28,10 @@
  *   zxv-host --update-gateway URL   trustless gateway for update checks
  *
  * The companion's model writes only what the swarm's tokens-per-cycle budget
- * allows (zxv_budget_gate.h): each answer is limited to the companion's
- * remaining allotment and charged for the tokens generated; with nothing
- * left the window is told the budget is exhausted until the next cycle.
+ * allows (zxv_budget_gate.h): reading the prompt and writing the answer
+ * are both charged to the companion's allotment, the answer is limited to
+ * what is left after the prompt, and when the prompt alone costs all of it
+ * the window is told so until the next cycle refills it.
  *
  * The window is served only on 127.0.0.1, never on the network. A remote
  * window is reached through `ssh -L`, so the SSH key is the only way in.
@@ -100,11 +101,17 @@ typedef int sock_t;
 #include "sha256.h"
 #include "zxv_net_host.h"
 #include "zxv_peer_host.h"
+#if defined(ZXVD)
+#    include "sicily.h"
+#endif
 #include "zxv_update_host.h"
 #include "zx_notify.h"
 #include "zx_upcheck.h"
 #if defined(ZXVD)
 #    include "zxvd_rpc.h" /* zxvd: the JSON-RPC socket and the libzxv books */
+#    if defined(ZXV_HAVE_AIPI)
+#        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
+#    endif
 #    if defined(_WIN32)
 #        include <afunix.h>
 #    else
@@ -372,6 +379,44 @@ static int pal_desktop_dir(char *out, size_t cap)
         return -1;
 #        endif
     /* mkdir -p of the parents, 0700 where we create them */
+    for (char *p = out + 1; *p; p++)
+        if (*p == '/') {
+            *p = 0;
+            (void) mkdir(out, S_IRWXU);
+            *p = '/';
+        }
+#    endif
+    return 0;
+}
+
+/* Where the desktop app saves the owner's books (zxvd_rpc.h F1), created as
+ * needed with 0700 folders. Unlike the socket, it must outlive a reboot:
+ *   Linux    ${XDG_DATA_HOME:-~/.local/share}/zxv/books.zxvb
+ *   macOS    ~/Library/Application Support/ZXV/books.zxvb
+ *   Windows  %LOCALAPPDATA%\ZXV\books.zxvb                                   */
+static int pal_books_path(char *out, size_t cap)
+{
+    out[0] = 0;
+#    if defined(_WIN32)
+    const char *la = getenv("LOCALAPPDATA");
+    if (!la || !la[0]) return -1;
+    snprintf(out, cap, "%s\\ZXV", la);
+    CreateDirectoryA(out, NULL);
+    snprintf(out, cap, "%s\\ZXV\\books.zxvb", la);
+#    else
+    const char *home = getenv("HOME");
+#        if defined(__APPLE__)
+    if (!home || home[0] != '/') return -1;
+    snprintf(out, cap, "%s/Library/Application Support/ZXV/books.zxvb", home);
+#        else
+    const char *xdg = getenv("XDG_DATA_HOME");
+    if (xdg && xdg[0] == '/')
+        snprintf(out, cap, "%s/zxv/books.zxvb", xdg);
+    else if (home && home[0] == '/')
+        snprintf(out, cap, "%s/.local/share/zxv/books.zxvb", home);
+    else
+        return -1;
+#        endif
     for (char *p = out + 1; *p; p++)
         if (*p == '/') {
             *p = 0;
@@ -819,7 +864,9 @@ static int32_t run_under_budget(void *rctx, zxv_gen_fn gen, void *gctx)
 {
     (void) rctx;
     uint32_t companion = S.num_agents ? S.agent[0].id : 0;
-    int32_t r = zxv_budget_gate(&S.b, companion, ZXV_MODEL_MAX_NEW, gen, gctx, &S.last_gate);
+    /* B5: the prompt's tokens are paid from the same allotment */
+    int32_t r = zxv_budget_gate_ex(&S.b, companion, zxv_model_prompt_tokens(), ZXV_MODEL_MAX_NEW,
+                                   gen, gctx, &S.last_gate);
     S.have_gate = true;
     return r;
 }
@@ -880,6 +927,17 @@ static void answer(const char *q, char *out, size_t cap)
     }
     if (m == ZXV_MODEL_BUDGET_EXHAUSTED) {
         S.exhausted_asks++;
+        if (S.last_gate.remaining_before > 0) { /* B5: tokens left, but not enough to read it */
+            snprintf(out, cap,
+                     "Budget too small for this message: reading it costs %llu tokens and the "
+                     "companion has %llu left in market cycle %llu, so the model did not run. "
+                     "The next cycle (about a second) refills it; ask again then, or send a "
+                     "shorter message.",
+                     (unsigned long long) S.last_gate.prompt,
+                     (unsigned long long) S.last_gate.remaining_before,
+                     (unsigned long long) S.b.cycle);
+            return;
+        }
         snprintf(out, cap,
                  "Budget exhausted for this cycle: the companion has spent all %llu of its tokens "
                  "in market cycle %llu, so the model did not run. The next cycle (about a second) "
@@ -1064,9 +1122,10 @@ static void state_json(buf_t *b)
          (unsigned long long) S.exhausted_asks);
     if (S.have_gate)
         bput(b,
-             ",\"last_answer\":{\"remaining_before\":%llu,\"allowed\":%u,\"generated\":%u,"
-             "\"charged\":%llu,\"exhausted\":%s}",
-             (unsigned long long) S.last_gate.remaining_before, (unsigned) S.last_gate.max_new,
+             ",\"last_answer\":{\"remaining_before\":%llu,\"prompt\":%llu,\"allowed\":%u,"
+             "\"generated\":%u,\"charged\":%llu,\"exhausted\":%s}",
+             (unsigned long long) S.last_gate.remaining_before,
+             (unsigned long long) S.last_gate.prompt, (unsigned) S.last_gate.max_new,
              (unsigned) S.last_gate.generated, (unsigned long long) S.last_gate.charged,
              S.last_gate.exhausted ? "true" : "false");
     if (S.have_tag)
@@ -1625,6 +1684,141 @@ static const char *rpc_peer_ask(const char *peer, const char *prompt, uint64_t m
 }
 
 static const zxvd_peer_ops_t PEER_OPS = {rpc_peer_ask, rpc_peer_serve, rpc_peer_status};
+
+/* zxvd_rpc.h V1: the routing table's verified contacts */
+#    define LIT_RAW(b, s) zxvd_buf_raw((b), (s), sizeof(s) - 1)
+
+static void rpc_net_peers(zxvd_buf_t *o)
+{
+    static zxv_net_peer_t p[256];
+    uint32_t n = zxv_net_peers(S.net, p, 256), k = n < 256 ? n : 256;
+    LIT_RAW(o, "{\"peers\":[");
+    for (uint32_t i = 0; i < k; i++)
+        zxvd_buf_printf(o,
+                        "%s{\"id\":\"%s\",\"addr\":\"%s\",\"bucket\":%u,\"ubh\":%s,"
+                        "\"last_seen_ms\":\"%llu\",\"in_book\":%s,\"member\":%s,\"held\":\"%llu\","
+                        "\"receivable\":\"%llu\",\"social\":\"%llu\",\"pending\":%u}",
+                        i ? "," : "", p[i].id, p[i].addr, (unsigned) p[i].bucket,
+                        p[i].ubh ? "true" : "false", (unsigned long long) p[i].last_seen_ms,
+                        p[i].in_book ? "true" : "false", p[i].member ? "true" : "false",
+                        (unsigned long long) p[i].held, (unsigned long long) p[i].receivable,
+                        (unsigned long long) p[i].social, (unsigned) p[i].pending);
+    zxvd_buf_printf(o, "],\"count\":%u}", (unsigned) n);
+}
+
+static const char *resource_name(uint8_t r)
+{
+    return r == VNA_RES_COMPUTE ? "compute" : r == VNA_RES_STORAGE ? "storage" : "other";
+}
+
+/* zxvd_rpc.h V2: what the owner shares, wants and still waits on */
+static void rpc_net_offers(zxvd_buf_t *o)
+{
+    static zxv_net_status_t st;
+    static zxv_net_want_info_t w[16];
+    static zxv_net_pend_info_t q[32];
+    zxv_net_status(S.net, &st);
+    uint32_t nw = zxv_net_wants(S.net, w, 16), nq = zxv_net_pending(S.net, q, 32);
+    zxvd_buf_printf(o, "{\"share\":{\"compute\":\"%llu\",\"storage\":\"%llu\"},\"wants\":[",
+                    (unsigned long long) st.share_compute, (unsigned long long) st.share_storage);
+    for (uint32_t i = 0; i < nw && i < 16; i++)
+        zxvd_buf_printf(o,
+                        "%s{\"slot\":%u,\"resource\":\"%s\",\"units_left\":\"%llu\","
+                        "\"max_price\":\"%llu\"}",
+                        i ? "," : "", (unsigned) w[i].slot, resource_name(w[i].resource),
+                        (unsigned long long) w[i].units_left, (unsigned long long) w[i].max_price);
+    LIT_RAW(o, "],\"outstanding\":[");
+    for (uint32_t i = 0; i < nq && i < 32; i++)
+        zxvd_buf_printf(o,
+                        "%s{\"role\":\"%s\",\"peer\":\"%s\",\"units\":\"%llu\",\"seq\":\"%llu\","
+                        "\"tries\":%u,\"want\":%d}",
+                        i ? "," : "", q[i].selling ? "sell" : "buy", q[i].peer,
+                        (unsigned long long) q[i].units, (unsigned long long) q[i].pair_seq,
+                        (unsigned) q[i].tries, (int) q[i].want);
+    LIT_RAW(o, "]}");
+}
+
+/* zxvd_rpc.h V3: the owner's Player Card (sicily.h S2/S3). Only credibility
+ * has a source on this node today; the other inputs are reported as 0 with
+ * the reason, so the tier is what the measured inputs earn, never more. */
+static void rpc_player_card(zxvd_buf_t *o)
+{
+    static qst_view_t qv;
+    qst_view(&S.quest, QUEST_OWNER, (uint32_t) (zxv_net_wall_ms() / 86400000u), &qv);
+    uint64_t cred = qv.contributed_units, bond = 0, giving = 0;
+    uint32_t up = 0;
+    sic_tier_table_t tab;
+    sic_tier_table_default(&tab);
+    sic_tier_t t = sic_tier_eval(&tab, cred, bond, up, giving);
+    zxvd_buf_printf(o,
+                    "{\"tier\":%d,\"metal\":\"%s\",\"stone\":\"%s\",\"inputs\":{"
+                    "\"credibility\":{\"value\":\"%llu\",\"source\":\"verified contributions "
+                    "from mesh trades\"},"
+                    "\"bond\":{\"value\":\"0\",\"source\":\"not built yet: no bond can be "
+                    "posted\"},"
+                    "\"uptime_bps\":{\"value\":\"0\",\"source\":\"not measured yet\"},"
+                    "\"giving\":{\"value\":\"0\",\"source\":\"not tracked yet\"}},\"next\":",
+                    (int) t, sic_tier_name(t, 0), sic_tier_name(t, 1), (unsigned long long) cred);
+    if (t >= SIC_TIER_PLATINUM) {
+        LIT_RAW(o, "null");
+    } else {
+        const sic_threshold_t *h = &tab.t[t]; /* t[0] is Bronze, the tier after Copper */
+        uint64_t eff = sic_effective_cred(cred, giving);
+        zxvd_buf_printf(o,
+                        "{\"tier\":%d,\"metal\":\"%s\",\"stone\":\"%s\",\"credibility\":\"%llu\","
+                        "\"bond\":\"%llu\",\"uptime_bps\":\"%u\",\"missing\":[",
+                        (int) t + 1, sic_tier_name((sic_tier_t) (t + 1), 0),
+                        sic_tier_name((sic_tier_t) (t + 1), 1), (unsigned long long) h->cred,
+                        (unsigned long long) h->bond, (unsigned) h->uptime_bps);
+        const char *sep = "";
+        if (eff < h->cred) zxvd_buf_printf(o, "%s\"credibility\"", sep), sep = ",";
+        if (bond < h->bond) zxvd_buf_printf(o, "%s\"bond\"", sep), sep = ",";
+        if (up < h->uptime_bps) zxvd_buf_printf(o, "%s\"uptime_bps\"", sep);
+        LIT_RAW(o, "]}");
+    }
+    static const struct {
+        uint32_t bit;
+        const char *name;
+    } PERK[] = {{SIC_PERK_FREE_REGISTRATION, "free registration"},
+                {SIC_PERK_STOREFRONTS, "storefronts"},
+                {SIC_PERK_FORWARDS, "forwards"},
+                {SIC_PERK_IP_NOTES, "IP notes"},
+                {SIC_PERK_XB_LICENSING, "cross-border licensing eligibility"}};
+    uint32_t perks = sic_tier_perks(t);
+    LIT_RAW(o, ",\"perks\":[");
+    const char *sep = "";
+    for (size_t i = 0; i < sizeof PERK / sizeof PERK[0]; i++)
+        if (perks & PERK[i].bit) zxvd_buf_printf(o, "%s\"%s\"", sep, PERK[i].name), sep = ",";
+    LIT_RAW(o, "]}");
+}
+
+static const zxvd_view_ops_t VIEW_OPS = {rpc_net_peers, rpc_net_offers, rpc_player_card};
+
+/* zxvd_rpc.h S1-S4: every request the peer book settled goes into the
+ * owner's books once. The book's history keeps the last ZXV_PEER_HISTORY;
+ * more than that between two looks are counted as missed, not guessed. */
+static void mesh_books_sync(void)
+{
+    static zxv_peer_status_t st;
+    static uint32_t seen;
+    if (!S.peer) return;
+    zxv_peer_status(S.peer, &st);
+    uint32_t total = st.sold + st.bought;
+    if (total == seen) return;
+    uint32_t fresh = total - seen;
+    if (fresh > st.n_history) {
+        fprintf(stderr, "zxvd: %u settled peer requests were not posted to the books\n",
+                (unsigned) (fresh - st.n_history));
+        fresh = st.n_history;
+    }
+    for (uint32_t i = st.n_history - fresh; i < st.n_history; i++) {
+        const zxv_peer_settlement_t *h = &st.history[i];
+        if (zxvd_rpc_mesh_post(h->role == ZXV_PEER_ROLE_SELLER, h->gross,
+                               h->role == ZXV_PEER_ROLE_SELLER ? 0 : h->fee, h->invoice) != 0)
+            fprintf(stderr, "zxvd: a peer settlement could not be posted to the books\n");
+    }
+    seen = total;
+}
 #    define PROG "zxvd"
 #else
 #    define PROG "zxv-host"
@@ -1642,6 +1836,8 @@ int main(int argc, char **argv)
     S.net_port = ZXV_NET_DEFAULT_PORT;
 #if defined(ZXVD)
     const char *rpc_path = NULL;
+    const char *books_path = NULL; /* zxvd_rpc.h F1; "-" keeps them in memory */
+    char books_buf[512];
     const char *earn_ccy = "VFV";
     uint64_t earn_rate = 1;
     bool desktop = false;
@@ -1712,6 +1908,8 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
         else if (!strcmp(argv[i], "--rpc") && i + 1 < argc)
             rpc_path = argv[++i];
+        else if (!strcmp(argv[i], "--books") && i + 1 < argc)
+            books_path = argv[++i];
         else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
@@ -1727,6 +1925,9 @@ int main(int argc, char **argv)
                    " %s\n"
 #if defined(ZXVD)
                    "  --rpc PATH          JSON-RPC 2.0 socket (required; docs/ZXVD.md)\n"
+                   "  --books PATH        save the owner's books in PATH and reload them\n"
+                   "                      at start (default with --desktop: the per-user\n"
+                   "                      data folder; \"-\" keeps them in memory)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
                    "  --desktop           the desktop app: the socket in the per-user\n"
@@ -1848,6 +2049,7 @@ int main(int argc, char **argv)
     }
 #if defined(ZXVD)
     zxvd_rpc_set_peer_ops(&PEER_OPS);
+    zxvd_rpc_set_view_ops(&VIEW_OPS);
 #endif
 
     /* the model slot: an explicit file, else the first *.gguf in the
@@ -1895,11 +2097,27 @@ int main(int argc, char **argv)
         fprintf(stderr, "zxvd: --rpc PATH is required (try --help)\n");
         return 2;
     }
+    if (desktop && !books_path) {
+        if (pal_books_path(books_buf, sizeof books_buf) != 0) {
+            fprintf(stderr, "zxvd: no per-user folder for the books; use --books\n");
+            return 2;
+        }
+        books_path = books_buf;
+    }
+    if (books_path && !strcmp(books_path, "-")) books_path = NULL;
+    if (zxvd_rpc_books_file(books_path) != 0) {
+        fprintf(stderr, "zxvd: --books path too long\n");
+        return 2;
+    }
     if (zxvd_rpc_earnings_set(earn_ccy, earn_rate) != 0) {
         fprintf(stderr, "zxvd: --earnings-ccy needs 3..8 characters and --earnings-rate "
                         "a whole number from 1\n");
         return 2;
     }
+#    if defined(ZXV_HAVE_AIPI)
+    /* without it zxvd still runs; aipi.* then answer "not available" */
+    zxvd_rpc_set_aipi_ops(zxvd_aipi_open());
+#    endif
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
@@ -2034,6 +2252,7 @@ int main(int argc, char **argv)
             zxv_peer_on_readable(S.peer, zxv_net_wall_ms());
 #if defined(ZXVD)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
+        mesh_books_sync();
 #endif
         zxv_net_tick(S.net, zxv_net_wall_ms());
         zxv_update_tick((uint64_t) time(NULL),
@@ -2048,6 +2267,10 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
     if (link_path[0]) remove(link_path);
     zxvd_rpc_close();
+#    if defined(ZXV_HAVE_AIPI)
+    zxvd_rpc_set_aipi_ops(NULL);
+    zxvd_aipi_close();
+#    endif
 #endif
     zxv_peer_free(S.peer);
     zxv_net_free(S.net);
