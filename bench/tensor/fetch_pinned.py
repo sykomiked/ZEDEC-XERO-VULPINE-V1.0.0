@@ -20,6 +20,23 @@ SETS = {
         ("ggml-org/SmolVLM-256M-Instruct-GGUF", "mmproj-SmolVLM-256M-Instruct-Q8_0.gguf",
          "7e943f7c53f0382a6fc41b6ee0c2def63ba4fded9ab8ed039cc9e2ab905e0edd", 103769856),
     ]),
+    # OuteTTS-0.3-500M is CC-BY-SA-4.0: commercial use allowed with attribution
+    # ("OuteTTS-0.3-500M by OuteAI, CC-BY-SA-4.0"); share-alike applies to the
+    # weights and adaptations of them only, our code stays Apache-2.0. NOT the
+    # 0.3-1B model, which is CC-BY-NC-SA-4.0 (non-commercial). ggml-org/WavTokenizer
+    # is a GGUF of novateur/WavTokenizer-large-speech-75token (MIT).
+    "outetts": ("CC-BY-SA-4.0 (OuteAI/OuteTTS-0.3-500M: attribution required, share-alike "
+                "on the weights only; not the NC-licensed 0.3-1B) + MIT (WavTokenizer decoder: "
+                "novateur/WavTokenizer-large-speech-75token, GGUF by ggml-org)", [
+        ("OuteAI/OuteTTS-0.3-500M-GGUF", "OuteTTS-0.3-500M-Q8_0.gguf",
+         "e6cb54453b2de1eaee85bd46b67de9c8cdd3c2dfe117cc3e3da794ddc64dad85", 536666880),
+        ("ggml-org/WavTokenizer", "WavTokenizer-Large-75-F16.gguf",
+         "2356baa8631cc2995ea3465196a017a2733600d849a91180c0f97fa7fb375bbe", 130186688),
+    ]),
+    "whisper-base": ("MIT (openai/whisper base, ggml by ggerganov; the speech-out WER check)", [
+        ("ggerganov/whisper.cpp", "ggml-base.bin",
+         "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe", 147951465),
+    ]),
     "smolvlm-f16": ("Apache-2.0", [
         ("ggml-org/SmolVLM-256M-Instruct-GGUF", "mmproj-SmolVLM-256M-Instruct-f16.gguf",
          "0802360aca1748f112ea510b8ff277c65b1361c8ef30ed89b83c9c7a60d08e96", 190031616),

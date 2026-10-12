@@ -20,13 +20,14 @@
  * Usage: zt_tts TTS.gguf DECODER.gguf "text" out.wav [--seed N] [--kern NAME]
  *               [--threads N] [--codes-out FILE] [--codes-in FILE]
  *               [--top-k K] [--temp T] [--max N] [--skip N] [--spec-out FILE]
- *               [--prompt-out FILE]
+ *               [--lean] [--prompt-out FILE]
  * --codes-in reads whitespace-separated code ids (0..4095) and skips the
  * language model (TTS.gguf and the text are then ignored; pass "-").
  * --codes-out writes the code ids the same way. --top-k 1 (or --temp 0) is
  * greedy. --max caps the generated tokens (default 4096, as llama.cpp).
  * --skip is how many leading samples are zeroed (default 6000 = 0.25 s, as
- * llama.cpp). --spec-out writes the decoder output (n_codes x 1282 Q16
+ * llama.cpp). --lean loads the decoder with ZT_TTS_LOAD_LEAN (one 8-bit block
+ * per 32 weights, no residual block). --spec-out writes the decoder output (n_codes x 1282 Q16
  * int32, little-endian) for bench/tensor/compare/ref_wavtokenizer.py.
  * Exit: 0 ok, 2 usage, 3 cannot read a file, 4 model not loadable, 5 run failed. */
 #define _POSIX_C_SOURCE 200809L
@@ -146,7 +147,7 @@ static void usage(const char *a0)
     fprintf(stderr,
             "usage: %s TTS.gguf DECODER.gguf \"text\" out.wav [--seed N] [--kern NAME] "
             "[--threads N] [--codes-out FILE] [--codes-in FILE] [--top-k K] [--temp T] "
-            "[--max N] [--skip N] [--spec-out FILE] [--prompt-out FILE]\n",
+            "[--max N] [--skip N] [--lean] [--spec-out FILE] [--prompt-out FILE]\n",
             a0);
 }
 
@@ -156,7 +157,7 @@ int main(int argc, char **argv)
     const char *kern_name = NULL, *codes_out = NULL, *codes_in = NULL, *spec_out = NULL;
     const char *prompt_out = NULL;
     uint64_t seed = 42;
-    uint32_t n_threads = 1, top_k = 4, max_gen = 4096, skip = ZT_TTS_SKIP, npos = 0;
+    uint32_t lflags = 0, n_threads = 1, top_k = 4, max_gen = 4096, skip = ZT_TTS_SKIP, npos = 0;
     double temp = 1.0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -181,6 +182,8 @@ int main(int argc, char **argv)
             temp = strtod(argv[++i], NULL);
         else if (!strcmp(a, "--max") && hv)
             max_gen = (uint32_t) strtoul(argv[++i], NULL, 10);
+        else if (!strcmp(a, "--lean"))
+            lflags = ZT_TTS_LOAD_LEAN;
         else if (!strcmp(a, "--skip") && hv)
             skip = (uint32_t) strtoul(argv[++i], NULL, 10);
         else if ((a[0] != '-' || !strcmp(a, "-")) && npos < 4)
@@ -329,7 +332,8 @@ int main(int argc, char **argv)
     if (codes_out) {
         FILE *f = fopen(codes_out, "w");
         if (!f) return 5;
-        for (uint32_t i = 0; i < n_codes; i++) fprintf(f, "%d%c", codes[i], i % 16 == 15 ? '\n' : ' ');
+        for (uint32_t i = 0; i < n_codes; i++)
+            fprintf(f, "%d%c", codes[i], i % 16 == 15 ? '\n' : ' ');
         fprintf(f, "\n");
         fclose(f);
     }
@@ -351,10 +355,10 @@ int main(int argc, char **argv)
         return 4;
     }
     double tl = now_s();
-    uint64_t abytes = zt_tts_arena_bytes(&dg);
+    uint64_t abytes = zt_tts_arena_bytes_ex(&dg, lflags);
     void *arena = abytes ? alloc64(abytes) : NULL;
     zt_tts_dec_t dec;
-    if (!arena || zt_tts_load(&dec, &dg, arena, abytes, &err) != 0) {
+    if (!arena || zt_tts_load_ex(&dec, &dg, arena, abytes, lflags, &err) != 0) {
         zt_tts_cfg_t c;
         zt_tts_config(&dg, &c, &err);
         fprintf(stderr, "zt_tts: decoder load failed: %s %s (code %d)\n", err.what ? err.what : "",
@@ -385,7 +389,8 @@ int main(int argc, char **argv)
         zt_fx *spec = malloc((size_t) n_codes * dec.cfg.n_out * 4);
         FILE *f = fopen(spec_out, "wb");
         if (!spec || !f || zt_tts_spec(&dec, codes, n_codes, spec, work, wbytes, NULL) != 0 ||
-            fwrite(spec, 4, (size_t) n_codes * dec.cfg.n_out, f) != (size_t) n_codes * dec.cfg.n_out) {
+            fwrite(spec, 4, (size_t) n_codes * dec.cfg.n_out, f) !=
+                (size_t) n_codes * dec.cfg.n_out) {
             fprintf(stderr, "zt_tts: could not write the spectrogram\n");
             return 5;
         }

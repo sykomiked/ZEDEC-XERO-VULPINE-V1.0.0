@@ -85,12 +85,12 @@
 #include "zt_nn.h"
 #include "zt_tok.h"
 
-#define ZT_TTS_RATE   24000u /* samples per second */
-#define ZT_TTS_HOP    320u   /* samples per code (frame) */
-#define ZT_TTS_NFFT   1280u
-#define ZT_TTS_NBIN   641u /* NFFT / 2 + 1 */
-#define ZT_TTS_SKIP   6000u /* llama.cpp zeroes the first 0.25 s */
-#define ZT_TTS_CODES  4096u
+#define ZT_TTS_RATE  24000u /* samples per second */
+#define ZT_TTS_HOP   320u   /* samples per code (frame) */
+#define ZT_TTS_NFFT  1280u
+#define ZT_TTS_NBIN  641u  /* NFFT / 2 + 1 */
+#define ZT_TTS_SKIP  6000u /* llama.cpp zeroes the first 0.25 s */
+#define ZT_TTS_CODES 4096u
 
 /* ---- text ---- */
 
@@ -159,6 +159,14 @@ uint64_t zt_tts_arena_bytes(const zt_gguf_t *g);
 /* The gguf buffer must outlive the decoder (the codebook is read from it). */
 int32_t zt_tts_load(zt_tts_dec_t *d, const zt_gguf_t *g, void *arena, uint64_t arena_bytes,
                     zt_model_err_t *err);
+/* The same with ZT_TTS_LOAD_* flags. ZT_TTS_LOAD_LEAN keeps one 8-bit block
+ * per 32 weights (zt_nn_arena_t.float_residual off): half the arena and the
+ * matrix work, at a measured cost in accuracy (REPORT.md). The default keeps
+ * the residual block. */
+#define ZT_TTS_LOAD_LEAN 1u
+uint64_t zt_tts_arena_bytes_ex(const zt_gguf_t *g, uint32_t flags);
+int32_t zt_tts_load_ex(zt_tts_dec_t *d, const zt_gguf_t *g, void *arena, uint64_t arena_bytes,
+                       uint32_t flags, zt_model_err_t *err);
 
 typedef struct {
     uint32_t n_sat;     /* decoder values that hit the Q16 limit */

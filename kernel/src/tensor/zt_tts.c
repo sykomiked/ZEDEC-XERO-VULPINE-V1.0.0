@@ -6,14 +6,14 @@
 #include "zt_kern.h"
 #include "zt_tts_tables.h"
 
-#define LN100_Q16  301804 /* round(ln 100 * 2^16) */
-#define MAG_MAX    6553600 /* 100 in Q16 */
-#define TWOPI_Q28  1686629713ull /* round(2 pi * 2^28) */
-#define CHUNK      64u /* rows per im2col + matrix product */
-#define NFFT       ZT_TTS_NFFT
-#define NBIN       ZT_TTS_NBIN
-#define HOP        ZT_TTS_HOP
-#define PAD        ((NFFT - HOP) / 2) /* 480 */
+#define LN100_Q16 301804        /* round(ln 100 * 2^16) */
+#define MAG_MAX   6553600       /* 100 in Q16 */
+#define TWOPI_Q28 1686629713ull /* round(2 pi * 2^28) */
+#define CHUNK     64u           /* rows per im2col + matrix product */
+#define NFFT      ZT_TTS_NFFT
+#define NBIN      ZT_TTS_NBIN
+#define HOP       ZT_TTS_HOP
+#define PAD       ((NFFT - HOP) / 2) /* 480 */
 
 static zt_fx sat32(int64_t v)
 {
@@ -251,8 +251,8 @@ int32_t zt_tts_config(const zt_gguf_t *g, zt_tts_cfg_t *c, zt_model_err_t *err)
 #undef K
     if (c->n_vocab == 0 || c->n_vocab > 65536 || !c->n_feat || c->n_feat > 4096 || !c->n_embd ||
         c->n_embd > 4096 || cnx != c->n_embd || c->n_posnet != 6 || !c->n_convnext ||
-        c->n_convnext > 64 || !c->n_ff || c->n_ff > 16384 || c->n_out != NFFT + 2 ||
-        !c->n_groups || c->n_embd % c->n_groups) {
+        c->n_convnext > 64 || !c->n_ff || c->n_ff > 16384 || c->n_out != NFFT + 2 || !c->n_groups ||
+        c->n_embd % c->n_groups) {
         set_err(err, ZT_NN_ECONFIG, "WavTokenizer metadata out of range", "wavtokenizer-dec");
         return ZT_NN_ECONFIG;
     }
@@ -288,13 +288,15 @@ static int32_t norm(zt_nn_arena_t *a, const zt_gguf_t *g, const char *pre, uint3
     if (pre)
         tname(w, sizeof w, pre, l, s);
     else
-        for (j = 0; (w[j] = s[j]); j++) {}
+        for (j = 0; (w[j] = s[j]); j++) {
+        }
     for (j = 0; bs[j]; j++) s[i + j] = bs[j];
     s[i + j] = 0;
     if (pre)
         tname(b, sizeof b, pre, l, s);
     else
-        for (j = 0; (b[j] = s[j]); j++) {}
+        for (j = 0; (b[j] = s[j]); j++) {
+        }
     int32_t r = zt_nn_load_gain(a, g, w, n, &out->g);
     return r ? r : zt_nn_load_q16(a, g, b, n, &out->b);
 }
@@ -311,7 +313,8 @@ static int32_t matb(zt_nn_arena_t *a, const zt_gguf_t *g, const char *pre, uint3
     if (pre)
         tname(w, sizeof w, pre, l, s);
     else
-        for (j = 0; (w[j] = s[j]); j++) {}
+        for (j = 0; (w[j] = s[j]); j++) {
+        }
     int32_t r = zt_nn_load_mat(a, g, w, cols, rows, m);
     if (r) return r;
     for (j = 0; bs[j]; j++) s[i + j] = bs[j];
@@ -319,7 +322,8 @@ static int32_t matb(zt_nn_arena_t *a, const zt_gguf_t *g, const char *pre, uint3
     if (pre)
         tname(w, sizeof w, pre, l, s);
     else
-        for (j = 0; (w[j] = s[j]); j++) {}
+        for (j = 0; (w[j] = s[j]); j++) {
+        }
     return zt_nn_load_q16(a, g, w, rows, b);
 }
 
@@ -379,18 +383,36 @@ static uint32_t cols_max(const zt_tts_cfg_t *c)
     return m;
 }
 
-uint64_t zt_tts_arena_bytes(const zt_gguf_t *g)
+static void begin(zt_nn_arena_t *a, void *base, uint64_t cap, const zt_tts_cfg_t *c, uint32_t flags,
+                  zt_model_err_t *err)
+{
+    zt_nn_arena_begin(a, base, cap, cols_max(c), err);
+    if (flags & ZT_TTS_LOAD_LEAN) a->float_residual = false;
+}
+
+uint64_t zt_tts_arena_bytes_ex(const zt_gguf_t *g, uint32_t flags)
 {
     zt_tts_cfg_t c;
     if (zt_tts_config(g, &c, 0)) return 0;
     zt_nn_arena_t a;
-    zt_nn_arena_begin(&a, 0, 0, cols_max(&c), 0);
+    begin(&a, 0, 0, &c, flags, 0);
     if (plan(g, &c, 0, &a)) return 0;
     return zt_nn_arena_used(&a);
 }
 
+uint64_t zt_tts_arena_bytes(const zt_gguf_t *g)
+{
+    return zt_tts_arena_bytes_ex(g, 0);
+}
+
 int32_t zt_tts_load(zt_tts_dec_t *d, const zt_gguf_t *g, void *arena, uint64_t arena_bytes,
                     zt_model_err_t *err)
+{
+    return zt_tts_load_ex(d, g, arena, arena_bytes, 0, err);
+}
+
+int32_t zt_tts_load_ex(zt_tts_dec_t *d, const zt_gguf_t *g, void *arena, uint64_t arena_bytes,
+                       uint32_t flags, zt_model_err_t *err)
 {
     if (!d || !g || !arena) {
         set_err(err, ZT_NN_EARG, "null argument", 0);
@@ -399,13 +421,13 @@ int32_t zt_tts_load(zt_tts_dec_t *d, const zt_gguf_t *g, void *arena, uint64_t a
     int32_t r = zt_tts_config(g, &d->cfg, err);
     if (r) return r;
     zt_nn_arena_t a;
-    zt_nn_arena_begin(&a, 0, 0, cols_max(&d->cfg), err);
+    begin(&a, 0, 0, &d->cfg, flags, err);
     if ((r = plan(g, &d->cfg, 0, &a))) return r;
     if (zt_nn_arena_used(&a) > arena_bytes) {
         set_err(err, ZT_NN_ESPACE, "arena too small", 0);
         return ZT_NN_ESPACE;
     }
-    zt_nn_arena_begin(&a, arena, arena_bytes, cols_max(&d->cfg), err);
+    begin(&a, arena, arena_bytes, &d->cfg, flags, err);
     if ((r = plan(g, &d->cfg, d, &a))) return r;
     d->kern = 0;
     set_err(err, ZT_GGUF_OK, "ok", 0);
