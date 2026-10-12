@@ -15,7 +15,7 @@
 #   NVMe         -device nvme            the disc image again, read-only copy
 #   AHCI         q35's built-in ICH9 AHCI with the disc as a SATA disk
 #   xHCI         qemu-xhci + usb-kbd + usb-storage (the disc again)
-#   e1000/e1000e two NICs on QEMU user networking, whose DHCP server answers
+#   e1000/e1000e/igb  three NICs on QEMU user networking, whose DHCP server answers
 #   HD Audio     intel-hda + hda-duplex on a null audio backend
 # Keys are typed into the USB keyboard through the QEMU monitor while the
 # input self-test polls, so the log has to show the typed text.
@@ -41,6 +41,13 @@ case "$FW" in
   *) FWARGS=(-bios "$FW") ;;
 esac
 
+# QEMU grew an igb (82576) model in 8.0; older QEMU (Ubuntu 22.04 has 6.2)
+# runs the check with the two e1000-family NICs only.
+IGB=(); NICS=2
+if qemu-system-x86_64 -device help 2>/dev/null | grep -q '"igb"'; then
+  IGB=(-netdev user,id=n2 -device igb,netdev=n2,mac=52:54:00:5a:58:03); NICS=3
+fi
+
 disk(){ echo "if=none,id=$1,format=raw,snapshot=on,file=$IMG"; }
 
 : > "$LOG"
@@ -53,6 +60,7 @@ timeout "$SECS" qemu-system-x86_64 -machine q35 -m 512M "${FWARGS[@]}" \
   -drive "$(disk usb)"  -device usb-storage,bus=xhci.0,drive=usb \
   -netdev user,id=n0 -device e1000,netdev=n0,mac=52:54:00:5a:58:01 \
   -netdev user,id=n1 -device e1000e,netdev=n1,mac=52:54:00:5a:58:02 \
+  "${IGB[@]}" \
   -audiodev none,id=snd0 -device intel-hda -device hda-duplex,audiodev=snd0 \
   -display none -serial stdio -monitor "unix:$MON,server,nowait" \
   < /dev/null > "$LOG" 2>&1 &
@@ -98,14 +106,15 @@ need '[DRIVER ONLINE] nvme'
 need '[DRIVER ONLINE] ahci'
 need '[DRIVER ONLINE] xhci'
 need '[DRIVER ONLINE] e1000'
+[ "$NICS" -eq 2 ] || need '[DRIVER ONLINE] igb'
 need '[DRIVER ONLINE] hda'
 # Three disks (NVMe, SATA, USB) each read the disc's GPT header.
 n=$(grep -ac "read LBA 1: GPT header 'EFI PART'" "$LOG")
 [ "$n" -ge 3 ] || { echo "::error::only $n of 3 disks read the GPT header"; fail=1; }
-# Both NICs got a DHCP offer from QEMU's user-mode network.
+# Every NIC got a DHCP offer from QEMU's user-mode network.
 n=$(grep -ac 'DHCP offer received' "$LOG")
-[ "$n" -ge 2 ] || { echo "::error::only $n of 2 NICs got a DHCP offer"; fail=1; }
-# ...and mounted the ESP as FAT32 and read the MegaROM file off it.
+[ "$n" -ge "$NICS" ] || { echo "::error::only $n of $NICS NICs got a DHCP offer"; fail=1; }
+# ...and every disk mounted the ESP as FAT32 and read the MegaROM file off it.
 n=$(grep -ac '\[STORAGE OK\].*read /MEGAROM.TVL' "$LOG")
 [ "$n" -ge 3 ] || { echo "::error::only $n of 3 disks mounted the ESP and read /MEGAROM.TVL"; fail=1; }
 need 'output stream DMA position'
