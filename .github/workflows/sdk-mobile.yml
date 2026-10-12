@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Mobile SDKs (sdk/mobile): the Kotlin SDK (JNI shim) on the host JVM, its
-# Android AAR built with the NDK, the Dart/Flutter SDK on the Dart VM, and
-# the iOS xcframework of libzxv for Flutter apps. Every job builds libzxv
-# itself and tests against sdk/conformance/vectors.json.
+# Android AAR built with the NDK, the Dart/Flutter SDK on the Dart VM, the
+# iOS xcframework of libzxv for Flutter apps, and the web kits (Z-Web and
+# React-ZXV, on the TypeScript SDK's wasm build and addon). Every job builds
+# libzxv itself and tests against sdk/conformance/vectors.json.
 name: SDK mobile
 
 on:
@@ -12,6 +13,11 @@ on:
     branches: [main, develop]
     paths:
       - 'sdk/mobile/**'
+      - 'sdk/typescript/src/**'
+      - 'sdk/typescript/wasm/**'
+      - 'sdk/typescript/native/**'
+      - 'sdk/typescript/scripts/**'
+      - 'sdk/typescript/package*.json'
       - 'sdk/libzxv/**'
       - 'sdk/conformance/**'
       - 'kernel/src/**'
@@ -20,6 +26,11 @@ on:
   pull_request:
     paths:
       - 'sdk/mobile/**'
+      - 'sdk/typescript/src/**'
+      - 'sdk/typescript/wasm/**'
+      - 'sdk/typescript/native/**'
+      - 'sdk/typescript/scripts/**'
+      - 'sdk/typescript/package*.json'
       - 'sdk/libzxv/**'
       - 'sdk/conformance/**'
       - 'kernel/src/**'
@@ -164,3 +175,37 @@ jobs:
         with:
           name: Zxv.xcframework
           path: sdk/mobile/dart/build/Zxv.xcframework
+
+  web-kits:
+    name: web kits (z-web, react-zxv)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Build libzxv and the test fixtures
+        run: make -C sdk/libzxv all fixtures
+      - name: '@zedec/zxv: addon, wasm (zig cc to wasm32-wasi), TypeScript'
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          python -m pip install ziglang
+          npm run build:wasm
+          npm run build:ts
+      - name: 'Z-Web: typecheck and tests (worker_threads + real wasm)'
+        working-directory: sdk/mobile/z-web
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm test
+      - name: 'React-ZXV: typecheck and tests (jsdom, addon, z-web)'
+        working-directory: sdk/mobile/react-zxv
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm test
