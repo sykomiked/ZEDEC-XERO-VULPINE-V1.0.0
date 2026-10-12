@@ -1,6 +1,9 @@
 /* acpi.c — ACPI table parser implementation
- * Scans EBDA and 0xE0000-0xFFFFF for RSDP, follows to RSDT.
+ * Scans EBDA and 0xE0000-0xFFFFF for RSDP, follows to RSDT; or, given the
+ * RSDP's address, follows the XSDT with a mapping hook (acpi_init_from_rsdp).
  * Author: H.M. Michael-Laurence: Curzi (c)
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: Apache-2.0
  */
 #include "acpi.h"
 
@@ -23,11 +26,11 @@ uint8_t acpi_checksum(const void *data, uint32_t length) {
 }
 
 static acpi_rsdp_t *find_rsdp(void) {
-    uint32_t ebda_ptr = *(uint16_t *)0x40E;
+    uint32_t ebda_ptr = *(volatile uint16_t *)(uintptr_t)0x40E;
     if (ebda_ptr) {
         uint32_t ebda = ebda_ptr << 4;
         for (uint32_t addr = ebda; addr < ebda + 1024; addr += 16) {
-            acpi_rsdp_t *rsdp = (acpi_rsdp_t *)addr;
+            acpi_rsdp_t *rsdp = (acpi_rsdp_t *)(uintptr_t)addr;
             char sig[9];
             for (int i = 0; i < 8; i++) sig[i] = rsdp->signature[i];
             sig[8] = 0;
@@ -40,7 +43,7 @@ static acpi_rsdp_t *find_rsdp(void) {
         }
     }
     for (uint32_t addr = 0xE0000; addr < 0x100000; addr += 16) {
-        acpi_rsdp_t *rsdp = (acpi_rsdp_t *)addr;
+        acpi_rsdp_t *rsdp = (acpi_rsdp_t *)(uintptr_t)addr;
         char sig[9];
         for (int i = 0; i < 8; i++) sig[i] = rsdp->signature[i];
         sig[8] = 0;
@@ -67,15 +70,15 @@ void acpi_init(acpi_state_t *state) {
         return;
     }
 
-    state->rsdp_address = (uint32_t)rsdp;
-    acpi_rsdt_t *rsdt = (acpi_rsdt_t *)rsdp->rsdt_address;
+    state->rsdp_address = (uint32_t)(uintptr_t)rsdp;
+    acpi_rsdt_t *rsdt = (acpi_rsdt_t *)(uintptr_t)rsdp->rsdt_address;
     if (!rsdt) return;
 
     uint32_t num_entries = (rsdt->header.length - sizeof(acpi_header_t)) / 4;
     if (num_entries > ACPI_MAX_TABLES) num_entries = ACPI_MAX_TABLES;
 
     for (uint32_t i = 0; i < num_entries; i++) {
-        acpi_header_t *tbl = (acpi_header_t *)rsdt->entries[i];
+        acpi_header_t *tbl = (acpi_header_t *)(uintptr_t)rsdt->entries[i];
         if (tbl && acpi_checksum(tbl, tbl->length) == 0) {
             state->tables[state->num_tables++] = tbl;
 
@@ -100,6 +103,87 @@ void acpi_init(acpi_state_t *state) {
             }
         }
     }
+}
+
+uint64_t acpi_find_rsdp_legacy(void) {
+    return (uint64_t)(uintptr_t)find_rsdp();
+}
+
+static uint32_t rd32(const uint8_t *p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[3] << 24);
+}
+
+static uint64_t rd64(const uint8_t *p) {
+    return (uint64_t)rd32(p) | ((uint64_t)rd32(p + 4) << 32);
+}
+
+/* Map a whole table: the header first (for its length), then all of it. */
+static const uint8_t *map_table(uint64_t phys, acpi_map_fn map, void *ctx,
+                                uint32_t *len) {
+    const uint8_t *h = (const uint8_t *)map(ctx, phys, 36);
+    if (!h) return 0;
+    uint32_t l = rd32(h + 4);
+    if (l < 36 || l > (16u << 20)) return 0;
+    const uint8_t *t = (const uint8_t *)map(ctx, phys, l);
+    if (!t || acpi_checksum(t, l) != 0) return 0;
+    *len = l;
+    return t;
+}
+
+int acpi_init_from_rsdp(acpi_state_t *st, uint64_t rsdp_phys, acpi_map_fn map,
+                        void *ctx) {
+    st->num_tables = 0;
+    st->local_apic_addr = 0;
+    st->has_madt = st->has_fadt = st->has_hpet = false;
+    st->rsdp_address = 0;
+    st->rsdp_phys = 0;
+    st->root_phys = 0;
+    st->rsdp_rev = 0;
+    st->bad_checksums = 0;
+    if (!map || !rsdp_phys) return -1;
+    const uint8_t *r = (const uint8_t *)map(ctx, rsdp_phys, 36);
+    if (!r) return -1;
+    static const char sig[8] = {'R', 'S', 'D', ' ', 'P', 'T', 'R', ' '};
+    for (int i = 0; i < 8; i++)
+        if (r[i] != (uint8_t)sig[i]) return -2;
+    if (acpi_checksum(r, 20) != 0) return -3;
+    st->rsdp_phys = rsdp_phys;
+    st->rsdp_rev = r[15];
+    st->rsdp_address = (uint32_t)rsdp_phys;
+    uint64_t root = rd32(r + 16);
+    uint32_t esz = 4;
+    if (r[15] >= 2) {
+        uint32_t rlen = rd32(r + 20);
+        if (rlen >= 36 && rlen <= 64 && acpi_checksum(r, rlen) == 0 && rd64(r + 24)) {
+            root = rd64(r + 24);
+            esz = 8;
+        }
+    }
+    uint32_t rl;
+    const uint8_t *rt = map_table(root, map, ctx, &rl);
+    if (!rt) return -4;
+    st->root_phys = root;
+    uint32_t n = (rl - 36) / esz;
+    for (uint32_t i = 0; i < n && st->num_tables < ACPI_MAX_TABLES; i++) {
+        uint64_t ph = esz == 8 ? rd64(rt + 36 + 8 * i) : rd32(rt + 36 + 4 * i);
+        uint32_t tl;
+        const uint8_t *t = ph ? map_table(ph, map, ctx, &tl) : 0;
+        if (!t) {
+            st->bad_checksums++;
+            continue;
+        }
+        acpi_header_t *h = (acpi_header_t *)(uintptr_t)t;
+        st->table_phys[st->num_tables] = ph;
+        st->tables[st->num_tables++] = h;
+        if (t[0] == 'A' && t[1] == 'P' && t[2] == 'I' && t[3] == 'C' && tl >= 44) {
+            st->local_apic_addr = rd32(t + 36);
+            st->has_madt = true;
+        }
+        if (t[0] == 'F' && t[1] == 'A' && t[2] == 'C' && t[3] == 'P') st->has_fadt = true;
+        if (t[0] == 'H' && t[1] == 'P' && t[2] == 'E' && t[3] == 'T') st->has_hpet = true;
+    }
+    return (int)st->num_tables;
 }
 
 acpi_header_t *acpi_find_table(acpi_state_t *state, const char *signature) {
