@@ -119,6 +119,7 @@ struct zt_metal {
     id<MTLBuffer> in, out;
     char name[128];
     zt_metal_stats_t st;
+    uint32_t min_tokens; /* fewer tokens than this: declined (the CPU decodes) */
 };
 
 static uint64_t now_ns(void)
@@ -264,6 +265,10 @@ int zt_metal_mm(void *fctx, const zt_mmf_t *jobs, uint32_t n)
     if (!mt || n == 0 || n > 8) return 1;
     uint64_t t_in = now_ns();
     mt->st.calls++;
+    if (jobs[0].B < mt->min_tokens) {
+        mt->st.declined++;
+        return 1;
+    }
     int ri[8];
     uint64_t woff[8], aoff[8], soff[8], hoff[8], yoff[8];
     uint64_t in_bytes = 0, out_bytes = 0;
@@ -358,6 +363,11 @@ void zt_kern_metal(zt_kern_t *out, const zt_kern_t *base, zt_metal_t *mt)
     *out = *base;
     out->mm_full = mt ? zt_metal_mm : 0;
     out->fctx = mt;
+}
+
+void zt_metal_set_min_tokens(zt_metal_t *mt, uint32_t n)
+{
+    if (mt) mt->min_tokens = n;
 }
 
 void zt_metal_stats(const zt_metal_t *mt, zt_metal_stats_t *out)

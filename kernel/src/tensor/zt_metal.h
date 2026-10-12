@@ -44,6 +44,12 @@ int zt_metal_mm(void *fctx, const zt_mmf_t *jobs, uint32_t n);
  * pass) with the matrix products on the GPU. */
 void zt_kern_metal(zt_kern_t *out, const zt_kern_t *base, zt_metal_t *mt);
 
+/* Decline products of fewer than n tokens (default 0: run every one). On an
+ * M3 Max a one-token product costs ~110 us of encode/commit/wait, more than
+ * the CPU's NEON kernels take, so callers decode on the CPU (n = 2) and use
+ * the GPU for prompt batches; the bits are the same either way. */
+void zt_metal_set_min_tokens(zt_metal_t *mt, uint32_t n);
+
 typedef struct {
     uint64_t calls;    /* zt_metal_mm calls */
     uint64_t products; /* products run on the GPU */

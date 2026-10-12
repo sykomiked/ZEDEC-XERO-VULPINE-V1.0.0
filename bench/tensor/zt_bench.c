@@ -19,7 +19,7 @@
  *
  * Usage: zt_bench MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B]
  *                 [--kv q16|q8] [--text FILE] [--kern NAME] [--threads T]
- *                 [--special] [--convert] [--gpu]
+ *                 [--special] [--convert] [--gpu] [--gpu-decode]
  * --special parses special-token text in the prompt (a chat template such as
  * "<|im_start|>user\n...<|im_end|>\n<|im_start|>assistant\n").
  * zt.logits_fnv lets two machines check they computed the same bits, not
@@ -33,8 +33,9 @@
  * --convert loads Q4_K/Q6_K matrices the older way, re-quantized to 8-bit
  * blocks (ZT_LOAD_CONVERT), instead of using them in place; it prints
  * zt.load=convert|native and the load time zt.load_s.
- * --gpu runs the matrix products on the GPU (zt_metal.h; macOS builds with
- * ZT_HAVE_METAL only) and the rest on --kern/--threads; the ids and
+ * --gpu runs the prompt's matrix products on the GPU (zt_metal.h; macOS builds
+ * with ZT_HAVE_METAL only), and decoding on --kern/--threads, which is faster
+ * for one token at a time; --gpu-decode puts every product on the GPU. The ids and
  * zt.logits_fnv do not change. It prints zt.gpu=<name> and the GPU's share
  * (zt.gpu_products, zt.gpu_declined, zt.gpu_s, zt.gpu_wall_s).
  * Exit: 0 ok, 2 usage, 3 cannot read file, 4 model or tokenizer not loadable,
@@ -109,7 +110,7 @@ int main(int argc, char **argv)
     const char *path = NULL, *prompt = "The capital of France is", *text_out = NULL;
     const char *kern_name = NULL;
     uint32_t n_gen = 32, n_ctx = 0, n_batch = 128, kv = ZT_KV_Q16, n_threads = 1, lflags = 0;
-    bool gpu = false;
+    bool gpu = false, gpu_decode = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         const char *v = i + 1 < argc ? argv[i + 1] : NULL;
@@ -135,6 +136,8 @@ int main(int argc, char **argv)
             lflags = ZT_LOAD_CONVERT;
         else if (!strcmp(a, "--gpu"))
             gpu = true;
+        else if (!strcmp(a, "--gpu-decode"))
+            gpu = gpu_decode = true;
         else if (a[0] != '-' && !path)
             path = a;
         else {
@@ -142,7 +145,7 @@ int main(int argc, char **argv)
                 stderr,
                 "usage: %s MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B] "
                 "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T] [--special] [--convert] "
-                "[--gpu]\n",
+                "[--gpu] [--gpu-decode]\n",
                 argv[0]);
             return 2;
         }
@@ -202,6 +205,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "zt_bench: --gpu: %s\n", mt ? "cannot map the model file" : gerr);
             return 2;
         }
+        if (!gpu_decode) zt_metal_set_min_tokens(mt, 2); /* decode stays on the CPU */
         zt_kern_metal(&gkern, &kern, mt);
         m.kern = &gkern;
         printf("zt.gpu=%s\n", zt_metal_name(mt));
