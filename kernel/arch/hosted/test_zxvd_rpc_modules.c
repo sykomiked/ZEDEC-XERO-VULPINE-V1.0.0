@@ -316,8 +316,14 @@ static void test_stream(void)
             -32602, "units adding up past 4 GiB");
     char units[2000];
     int n = 0;
-    for (int i = 0; i < 121; i++)
-        n += snprintf(units + n, sizeof units - (size_t) n, "%s[1,%d,true]", i ? "," : "", i);
+    for (int i = 0; i < 121; i++) {
+        int wrote = snprintf(units + n, sizeof units - (size_t) n, "%s[1,%d,true]", i ? "," : "", i);
+        if (wrote < 0 || (size_t) wrote >= sizeof units - (size_t) n) {
+            n = (int) sizeof units - 1;
+            break;
+        }
+        n += wrote;
+    }
     REFUSED(call("stream.plan", "\"units\":[%s],\"target_us\":1,\"max_us\":1", units), -32602,
             "121 units");
     CHECK(strstr(OUT.p, "at most 120 units") != NULL, "names the limit: %s", OUT.p);
