@@ -329,6 +329,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
+	$(MAKE) --no-print-directory test-policy
+	$(MAKE) --no-print-directory test-policy-cobol
 	$(MAKE) --no-print-directory test-b2-small
 	$(MAKE) --no-print-directory test-b2
 	sh arch/hosted/test_hosted.sh > /tmp/test_hosted_app.log 2>&1 && echo "[PASS] test_hosted" || { tail -40 /tmp/test_hosted_app.log; echo "[FAIL] test_hosted"; exit 1; }
@@ -1606,6 +1608,40 @@ test-treaty-cobol:
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST $(TREATY_INC) src/treaty/cobol/treaty_parity.c $$d/*.o -o $$d/treaty_parity 2>>$$d/build.log && \
 	( cd $$d && ./TRTYDEMO > demo.txt; ./treaty_parity demo.txt > parity.log ) && \
 	echo "[PASS] CALL 'ZXV_ENGINE' from GnuCOBOL ($$(tail -1 $$d/parity.log))" || { cat $$d/cobc.log $$d/build.log $$d/demo.txt $$d/parity.log 2>/dev/null; echo "[FAIL] COBOL treaty parity"; exit 1; }; \
+	rm -rf $$d
+
+# Policy engine (src/policy): a deterministic policy evaluation engine that
+# enforces machine-verifiable transactional constraints, bilateral treaty rules
+# and jurisdictional parameters prior to ledger commit. Not legal advice (see
+# src/policy/README.md). zxp.c is the contract DSL (Sutra text and the ZXVCNTR
+# record); policy.c the four-valued checks, terms and lowering to a zxt treaty.
+POLICY_INC := -Iinclude -Isrc/policy -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/treaty -Isrc/engine -Isrc/pay -Isrc/abacus -Isrc/rational -Isrc/swarm -Isrc/tensor -Isrc/mlkem -Isrc/zcapital
+POLICY_RUN := src/policy/policy.c src/policy/policy_cobol.c src/policy/zxp.c src/lpres/lpres.c src/treaty/zxt.c src/treaty/zxt_exec.c src/engine/zxv_engine.c src/abacus/abacus.c src/rational/rational.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/tensor/zt.c src/mlkem/keccak.c
+POLICY_FUZZ ?= 300000
+.PHONY: test-policy test-policy-cobol test-policy-mut
+test-policy-mut:
+	@sh src/policy/mut_check.sh
+test-policy:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/policy src/policy/test_zxp.c src/policy/zxp.c src/policy/zxp_draft.c -o $(ZXV_TMP)/test_zxp && $(ZXV_TMP)/test_zxp > $(ZXV_TMP)/test_zxp.log 2>&1 && echo "[PASS] test_zxp ($$(tail -1 $(ZXV_TMP)/test_zxp.log))" || { cat $(ZXV_TMP)/test_zxp.log; echo "[FAIL] test_zxp"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(POLICY_INC) src/policy/test_policy.c $(POLICY_RUN) -o $(ZXV_TMP)/test_policy 2>$(ZXV_TMP)/test_policy.build && $(ZXV_TMP)/test_policy > $(ZXV_TMP)/test_policy.log 2>&1 && echo "[PASS] test_policy ($$(tail -1 $(ZXV_TMP)/test_policy.log))" || { cat $(ZXV_TMP)/test_policy.build $(ZXV_TMP)/test_policy.log; echo "[FAIL] test_policy"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/policy src/policy/fuzz_zxp.c src/policy/zxp.c -o $(ZXV_TMP)/fuzz_zxp && $(ZXV_TMP)/fuzz_zxp $(POLICY_FUZZ) 1 > $(ZXV_TMP)/fuzz_zxp.log 2>&1 && echo "[PASS] fuzz_zxp ($$(tail -1 $(ZXV_TMP)/fuzz_zxp.log))" || { cat $(ZXV_TMP)/fuzz_zxp.log; echo "[FAIL] fuzz_zxp"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/policy src/policy/fuzz_zxp.c src/policy/zxp.c -o $(ZXV_TMP)/fuzz_zxp_san && $(ZXV_TMP)/fuzz_zxp_san 30000 2 > $(ZXV_TMP)/fuzz_zxp_san.log 2>&1 && echo "[PASS] fuzz_zxp under ASan/UBSan ($$(tail -1 $(ZXV_TMP)/fuzz_zxp_san.log))" || { cat $(ZXV_TMP)/fuzz_zxp_san.log; echo "[FAIL] fuzz_zxp_san"; exit 1; }
+	@for f in zxp zxp_draft policy policy_cobol; do \
+	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(POLICY_INC) -c src/policy/$$f.c -o $(ZXV_TMP)/$${f}_a64.o && gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra $(POLICY_INC) -c src/policy/$$f.c -o $(ZXV_TMP)/$${f}_x64.o || { echo "[FAIL] $$f.c freestanding build"; exit 1; }; \
+	  if nm -u $(ZXV_TMP)/$${f}_a64.o $(ZXV_TMP)/$${f}_x64.o | grep ' U ' | grep -vE ' U (lpres_(conjoin|disjoin)|zxp_[a-z_]+|zxt_[a-z_]+|policy_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_a64.o $(ZXV_TMP)/$${f}_x64.o; echo "[FAIL] $$f.c is not freestanding"; exit 1; fi; \
+	done; echo "[PASS] policy engine freestanding (aarch64-none-elf, x86_64: no libc symbols)"
+
+# COBOL parity for CALL 'ZXV_POLICY' (same skip/require rule as treaties).
+test-policy-cobol:
+	@if ! command -v cobc >/dev/null 2>&1; then \
+	  if [ "$(ZXV_REQUIRE_COBOL)" = 1 ]; then echo "[FAIL] test-policy-cobol: cobc not found"; exit 1; fi; \
+	  echo "[SKIP] test-policy-cobol: GnuCOBOL (cobc) not installed"; exit 0; fi; \
+	d=$$(mktemp -d $(ZXV_TMP)/zxp_cobol.XXXXXX) && \
+	for s in src/policy/policy.c src/policy/policy_cobol.c src/policy/zxp.c src/lpres/lpres.c src/treaty/zxt.c; do gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST $(POLICY_INC) -c $$s -o $$d/$$(basename $$s .c).o 2>>$$d/build.log || { cat $$d/build.log; echo "[FAIL] policy objects"; exit 1; }; done; \
+	cobc -x -I src/policy/copybooks -o $$d/PLCYDEMO src/policy/cobol/PLCYDEMO.cob $$d/*.o 2>$$d/cobc.log && \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST $(POLICY_INC) src/policy/cobol/policy_parity.c $$d/*.o -o $$d/policy_parity 2>>$$d/build.log && \
+	( cd $$d && ./PLCYDEMO > demo.txt; ./policy_parity demo.txt > parity.log ) && \
+	echo "[PASS] CALL 'ZXV_POLICY' from GnuCOBOL ($$(tail -1 $$d/parity.log))" || { cat $$d/cobc.log $$d/build.log $$d/demo.txt $$d/parity.log 2>/dev/null; echo "[FAIL] COBOL policy parity"; exit 1; }; \
 	rm -rf $$d
 
 # ==== economy modules (generated block) ====
