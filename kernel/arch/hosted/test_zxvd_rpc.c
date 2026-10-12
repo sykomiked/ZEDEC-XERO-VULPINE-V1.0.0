@@ -2527,6 +2527,24 @@ static void test_groups(void)
     zxvd_rpc_groups_reset();
     EXPECT(REQ("46", "features.get", ""), OK("46", "{\"features\":[],\"saved\":false}"));
 
+    /* X1: re-adding a group held does nothing; removing one forgets its
+     * methods and keeps its switch */
+    CHECK(zxvd_rpc_add_group(&S1) == 0 && zxvd_rpc_add_group(&S1) == 0 &&
+              zxvd_rpc_enable("shared") == 0,
+          "a group added twice");
+    EXPECT(REQ("47", "features.get", ""),
+           OK("47",
+              "{\"features\":[{\"name\":\"shared\",\"enabled\":true,\"regulated\":true,"
+              "\"groups\":[{\"note\":\"one\",\"methods\":1}]}],\"saved\":false}"));
+    zxvd_rpc_remove_group(&S2); /* not held: nothing changes */
+    CHECK(has(REQ("48", "gb.status", ""), "\"result\""), "S1 still served");
+    zxvd_rpc_remove_group(&S1);
+    EXPECT(REQ("49", "gb.status", ""), ERR("49", "-32601", "method not found"));
+    CHECK(zxvd_rpc_enabled("shared") && zxvd_rpc_add_group(&S1) == 0 &&
+              has(REQ("50", "gb.status", ""), "\"result\""),
+          "the switch outlives its group; re-added it serves again");
+    zxvd_rpc_groups_reset();
+
     /* the table limit */
     static zxvd_group_method_t many[ZXVD_EXT_MAX_GROUPS + 1][1];
     static char names[ZXVD_EXT_MAX_GROUPS + 1][16], feats[ZXVD_EXT_MAX_GROUPS + 1][8];

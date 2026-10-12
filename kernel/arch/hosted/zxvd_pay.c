@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "zxvd_pay.h"
+#include "zxvd_ext.h"
 #include "zxvd_rpc.h"
 #include "web4_web2.h" /* the request's tokens (zxvd_param_json) */
 #include "zxv_api.h"
@@ -813,23 +814,38 @@ static void m_holds(zxvd_call_t *c)
 
 /* ===================== open and close ===================== */
 
+/* compute only, nothing moves: always served (zxvd_rpc.h X1) */
 static const zxvd_method_t METHODS[] = {
     {"iso20022.render", m_render},
     {"card.check", m_card},
-    {"netting.open", m_net_open},
-    {"netting.add", m_net_add},
-    {"netting.submit", m_net_submit},
-    {"netting.close", m_net_close},
-    {"netting.positions", m_net_positions},
-    {"netting.list", m_net_list},
-    {"netting.drop", m_net_drop},
-    {"passkey.register", m_pk_register},
-    {"passkey.verify", m_pk_verify},
-    {"ledger.hold", m_hold},
-    {"ledger.release", m_release},
-    {"ledger.refund", m_refund},
-    {"ledger.holds", m_holds},
 };
+
+/* P6: behind switches (zxvd_ext.h X1-X7) */
+static const zxvd_group_method_t NETTING[] = {
+    {"netting.open", m_net_open, false},          {"netting.add", m_net_add, false},
+    {"netting.submit", m_net_submit, false},      {"netting.close", m_net_close, false},
+    {"netting.positions", m_net_positions, false}, {"netting.list", m_net_list, false},
+    {"netting.drop", m_net_drop, false},
+};
+static const zxvd_group_method_t PASSKEY[] = {
+    {"passkey.register", m_pk_register, false},
+    {"passkey.verify", m_pk_verify, false},
+};
+static const zxvd_group_method_t ESCROW[] = {
+    {"ledger.hold", m_hold, false},
+    {"ledger.release", m_release, false},
+    {"ledger.refund", m_refund, false},
+    {"ledger.holds", m_holds, true}, /* a read: it moves nothing */
+};
+static const zxvd_group_t GROUPS[] = {
+    {"netting", true, "multilateral netting cycles (test or licensed use only)", NETTING,
+     sizeof NETTING / sizeof NETTING[0], NULL},
+    {"passkeys", false, "passkey registration and checks", PASSKEY,
+     sizeof PASSKEY / sizeof PASSKEY[0], NULL},
+    {"escrow", true, "escrow holds on the owner's books (test or licensed use only)", ESCROW,
+     sizeof ESCROW / sizeof ESCROW[0], NULL},
+};
+#define N_PAY_GROUPS (sizeof GROUPS / sizeof GROUPS[0])
 
 int zxvd_pay_open(void)
 {
@@ -838,7 +854,9 @@ int zxvd_pay_open(void)
         fprintf(stderr, "zxvd: no context for the netting cycles\n");
         return -1;
     }
-    if (zxvd_rpc_add_methods(METHODS, sizeof METHODS / sizeof METHODS[0]) != 0) {
+    bool ok = zxvd_rpc_add_methods(METHODS, sizeof METHODS / sizeof METHODS[0]) == 0;
+    for (size_t i = 0; ok && i < N_PAY_GROUPS; i++) ok = zxvd_rpc_add_group(&GROUPS[i]) == 0;
+    if (!ok) {
         fprintf(stderr, "zxvd: no room for the payment methods\n");
         zxvd_pay_close();
         return -1;
@@ -849,6 +867,7 @@ int zxvd_pay_open(void)
 void zxvd_pay_close(void)
 {
     zxvd_rpc_remove_methods(METHODS);
+    for (size_t i = 0; i < N_PAY_GROUPS; i++) zxvd_rpc_remove_group(&GROUPS[i]);
     for (uint32_t i = 0; i < ZXVD_PAY_CYCLES; i++) cycle_free(&CY[i]);
     zxv_ctx_destroy(NCTX);
     NCTX = NULL;

@@ -174,6 +174,8 @@ final class DaemonTests: XCTestCase {
     func testEscrowAsTheStorefrontDrivesIt() throws {
         let c = client
         XCTAssertTrue(try c.call("rpc.discover", as: Discovery.self).methods.contains("ledger.holds"))
+        // escrow holds sit behind the "escrow" switch (zxvd_pay.h P6), off at start
+        _ = try c.call("features.set", ["feature": "escrow", "enabled": true])
         _ = try c.call("currency.enable", ["code": "GHS"], as: Enabled.self)
         let bank = try c.call("ledger.open_account", ["name": "GHS bank", "currency": "GHS", "kind": "issuer"], as: Opened.self).account
         let buyer = try c.call("ledger.open_account", ["name": "Buyer", "currency": "GHS"], as: Opened.self).account

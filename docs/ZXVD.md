@@ -538,6 +538,14 @@ socket. Every call goes through libzxv's frozen C ABI, so a refusal is the
 same `ZXV_E_*` status the SDKs see (-32000); the module's own refusals are
 -32020 with a message that says why.
 
+Switches (P6): `iso20022.render` and `card.check` only compute and are always
+served. `netting.*` sit behind the `netting` feature and `ledger.hold`,
+`ledger.release` and `ledger.refund` behind `escrow`; both are regulated and
+start off. `passkey.*` share the `passkeys` feature with `passkeys.*`.
+`ledger.holds` is a read and answers while escrow is off. Turn one on with
+`zxvd --enable escrow` or `features.set {"feature":"escrow"}` (saved in the
+books file).
+
 - **ISO 20022** (`iso20022.render`): a pacs.008.001.09 credit transfer or a
   camt.053.001.08 statement, built field by field by libzxv. Amounts are
   minor units of `fields.ccy` (the ISO 4217 minor units decide the decimal
@@ -572,6 +580,7 @@ same `ZXV_E_*` status the SDKs see (-32000); the module's own refusals are
   refunds them.
 
 ```sh
+call '{"jsonrpc":"2.0","id":0,"method":"features.set","params":{"feature":"escrow"}}'
 call '{"jsonrpc":"2.0","id":1,"method":"ledger.hold","params":{"from":1,"to":2,"amount_minor":600}}'
 # {"hold":1,"state":"held",...,"escrow_account":4,"closed_entry_id":null,"releases_on":"owner"}
 call '{"jsonrpc":"2.0","id":2,"method":"ledger.release","params":{"hold":1}}'

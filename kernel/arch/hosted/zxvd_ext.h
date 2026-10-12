@@ -14,6 +14,9 @@
  *       extension table (zxvd_rpc.h X1, for methods with no switch) or an
  *       earlier group already serves is refused, so a group can never
  *       shadow ledger.* or another group. At most ZXVD_EXT_MAX_GROUPS.
+ *       Groups may share a feature (one switch for both). Re-adding a group
+ *       already held does nothing; zxvd_rpc_remove_group takes one out (its
+ *       methods are then unknown; its feature switch stays).
  *       zxvd_rpc.h X2-X7 (zxvd_result, zxvd_fail, zxvd_param_*, the books)
  *       apply to group methods too.
  *   X2  rpc.discover lists every registered method, on or off, so the
@@ -52,8 +55,8 @@
 
 #include "zxvd_rpc.h"
 
-#define ZXVD_EXT_MAX_GROUPS   16u
-#define ZXVD_EXT_MAX_FEATURES 16u
+#define ZXVD_EXT_MAX_GROUPS   32u
+#define ZXVD_EXT_MAX_FEATURES 32u
 #define ZXVD_E_OFF            (-32012) /* X4: the method's feature is off */
 
 typedef struct {
@@ -74,6 +77,7 @@ typedef struct {
 /* X1: 0, or -1 (table full, bad feature name, a clashing method name). The
  * group and its methods must outlive zxvd (static tables). */
 int zxvd_rpc_add_group(const zxvd_group_t *g);
+void zxvd_rpc_remove_group(const zxvd_group_t *g);
 /* X3: turn on a comma-separated list of features ("all" = every one). 0, or
  * -1 when a name is unknown (the known ones in the list are still set). */
 int zxvd_rpc_enable(const char *list);

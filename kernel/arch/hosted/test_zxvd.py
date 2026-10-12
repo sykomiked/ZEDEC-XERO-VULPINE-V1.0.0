@@ -244,6 +244,13 @@ def payment_checks(c, usd_account):
     def err(method, params):
         return c.call(method, params).get('error', {})
 
+    # P6: netting, escrow and passkeys start off; card.check and ledger.holds need no switch
+    check(all(err(m, {}).get('code') == -32012 for m in
+              ('netting.list', 'ledger.hold', 'ledger.release', 'ledger.refund', 'passkey.verify')) and
+          'holds' in c.ok('ledger.holds'),
+          'payments: netting, escrow and passkeys are off until switched on')
+    for f in ('netting', 'escrow', 'passkeys'):
+        c.ok('features.set', {'feature': f})
     check(c.ok('card.check', {'network': 'dragon', 'pan': '79927398713'})['valid'] is True and
           c.ok('card.check', {'network': 'dragon', 'pan': '79927398710'})['valid'] is False,
           'card.check: a Luhn check digit')
@@ -700,6 +707,7 @@ def main(binary, gguf=None):
             bal = c4.ok('swarm.earnings')['balance_minor']
             js = c4.ok('jurisdiction.set', {'market': 'open', 'standard': 'IFRS', 'country': 'KE'})
             check(js['market'] == 'open' and js['country'] == 'KE', 'jurisdiction.set')
+            c4.ok('features.set', {'feature': 'escrow'})  # saved in the books file (X7)
             kh = c4.ok('ledger.hold', {'from': fa, 'to': fb, 'amount_minor': 700})
             me4 = c4.ok('chat.me')
             kept = c4.ok('chat.post', {'text': 'kept across a restart'})
@@ -712,6 +720,9 @@ def main(binary, gguf=None):
             got = c4.ok('ledger.entries', {'account': fb})['entries']
             check([(e['entry_id'], e['signed_minor'], e['reference']) for e in got] ==
                   [(fe, '4200', 'E2E-SAVED-1')], 'a restart brings the posting back (%s)' % got)
+            fs4 = {f['name']: f for f in c4.ok('features.get')['features']}
+            check(fs4['escrow']['enabled'] is True and fs4['netting']['enabled'] is False,
+                  'a restart keeps the escrow switch the owner turned on, and only it')
             hs = c4.ok('ledger.holds')
             check([h for h in hs['holds'] if h['hold'] == kh['hold']] == [kh] and
                   hs['unmatched'] == 0 and all(a['consistent'] for a in hs['escrow_accounts']),

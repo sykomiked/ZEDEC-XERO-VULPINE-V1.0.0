@@ -2,7 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0 */
 /* zxvd_pay.h — payments in zxvd: ISO 20022 messages, card check digits,
  * netting cycles, passkey checks and escrow holds on the owner's books. The
- * methods reach the app through zxvd's extension table (zxvd_rpc.h X1-X7).
+ * methods reach the app through zxvd's extension table (zxvd_rpc.h X1-X7)
+ * and its feature switches (zxvd_ext.h X1-X7, P6).
  * Every book and message call goes through libzxv's frozen C ABI and the
  * books' root capability (zxvd_rpc.h M2); nothing here is put on the wire
  * but the results.
@@ -78,6 +79,13 @@
  * iso20022.render (on the books' capability) and the ledger.* methods answer
  * -32603 "the books are not open" while the books are closed.
  *
+ *   P6 SWITCHES (zxvd_ext.h X3-X5). iso20022.render and card.check only
+ *      compute and are always served. netting.* sit behind the "netting"
+ *      feature and ledger.hold/release/refund behind "escrow" (both
+ *      regulated); passkey.* behind "passkeys" (shared with passkeys.*).
+ *      ledger.holds is a read and answers while escrow is off. While a
+ *      feature is off its methods answer -32012 and change nothing.
+ *
  * HONEST LIMITS: messages are rendered, never sent (no SWIFT, PAPSS or RTGS
  * link). Netting cycles and passkeys are lost when zxvd stops. Escrow is
  * released or refunded only by the owner's own call: there are no release
@@ -91,7 +99,9 @@
 #define ZXVD_PAY_PASSKEYS 32u
 #define ZXVD_PAY_HEX_MAX  8192u /* hex digits in one parameter */
 
-/* Register the methods with zxvd_rpc. 0, or -1 (no room in the table). */
+/* Register the methods and groups with zxvd_rpc, before the books open (a
+ * saved switch is replayed then) and before zxvd_rpc_enable. 0, or -1 (no
+ * room in the tables). */
 int zxvd_pay_open(void);
 /* Take the methods out, destroy every netting cycle and forget the
  * passkeys. Call it before the books close (zxvd_rpc_close). */

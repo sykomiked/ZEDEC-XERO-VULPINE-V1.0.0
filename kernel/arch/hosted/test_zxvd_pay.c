@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "zxvd_pay.h"
+#include "zxvd_ext.h"
 #include "zxvd_rpc.h"
 #include "ident.h"
 
@@ -82,6 +83,41 @@ static void test_closed(void)
     for (unsigned i = 0; i < sizeof M / sizeof M[0]; i++)
         CHECK(err_is(M[i], "{}", -32603, "the books are not open"), "%s with the books closed: %s",
               M[i], OUT.p);
+}
+
+/* ===================== P6 ===================== */
+
+static void test_switches(void)
+{
+#define REG " (regulated: test or licensed use only)"
+#define OFFMSG(f) f " is off: start zxvd with --enable " f ", or call features.set"
+    static const char *const M[][2] = {
+        {"netting.open", OFFMSG("netting") REG},  {"netting.list", OFFMSG("netting") REG},
+        {"netting.drop", OFFMSG("netting") REG},  {"passkey.register", OFFMSG("passkeys")},
+        {"passkey.verify", OFFMSG("passkeys")},   {"ledger.hold", OFFMSG("escrow") REG},
+        {"ledger.release", OFFMSG("escrow") REG}, {"ledger.refund", OFFMSG("escrow") REG},
+    };
+    for (unsigned i = 0; i < sizeof M / sizeof M[0]; i++)
+        CHECK(err_is(M[i][0], "{}", ZXVD_E_OFF, M[i][1]), "%s off: %s", M[i][0], OUT.p);
+    /* compute-only methods and the holds read answer while everything is off */
+    CHECK(has("card.check", "{\"network\":\"dragon\",\"pan\":\"79927398713\"}",
+              "\"valid\":true"),
+          "card.check needs no switch: %s", OUT.p);
+    CHECK(err_is("ledger.holds", NULL, -32603, "the books are not open"),
+          "ledger.holds is always served: %s", OUT.p);
+    CHECK(zxvd_rpc_enable("netting") == 0 && has("netting.list", NULL, "{\"cycles\":[]}") &&
+              err_is("ledger.hold", NULL, ZXVD_E_OFF, OFFMSG("escrow") REG),
+          "one switch turns on one feature: %s", OUT.p);
+    CHECK(zxvd_rpc_enable("escrow,passkeys") == 0 && zxvd_rpc_enabled("escrow") &&
+              zxvd_rpc_enabled("passkeys") && zxvd_rpc_enabled("netting"),
+          "every payment feature on");
+    zxvd_pay_close();
+    CHECK(err_is("netting.list", NULL, -32601, "method not found"), "closed: %s", OUT.p);
+    CHECK(zxvd_pay_open() == 0 && zxvd_rpc_enabled("escrow") &&
+              has("netting.list", NULL, "{\"cycles\":[]}"),
+          "a reopen keeps the switches: %s", OUT.p);
+#undef OFFMSG
+#undef REG
 }
 
 /* ===================== P1 ===================== */
@@ -752,6 +788,7 @@ int main(void)
     snprintf(books, sizeof books, "%s/books", dir);
 
     CHECK(zxvd_pay_open() == 0, "open");
+    test_switches();
     test_closed();
     test_card();
     test_netting(); /* the cycles need no books */

@@ -2054,8 +2054,14 @@ int main(int argc, char **argv)
         fprintf(stderr, "zxvd: a method group clashes with another (a build error)\n");
         return 1;
     }
+    /* zxvd_pay.h P6: its groups must be known before --enable and the books */
+    if (zxvd_pay_open() != 0) {
+        zxvd_rpc_groups_reset();
+        return 1;
+    }
     if (zxvd_rpc_enable(enable_list) != 0) {
         fprintf(stderr, "zxvd: --enable names an unknown feature (try features.get)\n");
+        zxvd_pay_close();
         zxvd_rpc_groups_reset();
         return 2;
     }
@@ -2063,7 +2069,11 @@ int main(int argc, char **argv)
     /* without it zxvd still runs; aipi.* then answer "not available" */
     zxvd_rpc_set_aipi_ops(zxvd_aipi_open());
 #    endif
-    if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;
+    if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) {
+        zxvd_pay_close();
+        zxvd_rpc_groups_reset();
+        return 1;
+    }
     /* zxvd_chat.h C1-C3: the chat keeps its key and log beside the books */
     char chat_prefix[1100];
     chat_prefix[0] = 0;
@@ -2078,12 +2088,9 @@ int main(int argc, char **argv)
     }
     zxvd_chat_set_clock(zxv_net_wall_ms);
     if (zxvd_chat_open(chat_prefix) != 0) {
+        zxvd_pay_close();
         zxvd_rpc_close();
-        return 1;
-    }
-    if (zxvd_pay_open() != 0) {
-        zxvd_chat_close();
-        zxvd_rpc_close();
+        zxvd_rpc_groups_reset();
         return 1;
     }
 #endif

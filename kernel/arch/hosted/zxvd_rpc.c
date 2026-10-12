@@ -1631,6 +1631,8 @@ static int32_t feat_index(const char *f, size_t n)
 
 int zxvd_rpc_add_group(const zxvd_group_t *g)
 {
+    for (uint32_t i = 0; g && i < N_GROUPS; i++)
+        if (GROUPS[i] == g) return 0; /* X1: re-adding a group held is a no-op */
     if (!g || N_GROUPS >= ZXVD_EXT_MAX_GROUPS || !feature_ok(g->feature) || !g->methods ||
         !g->n_methods)
         return -1;
@@ -1682,6 +1684,16 @@ bool zxvd_rpc_enabled(const char *feature)
 {
     int32_t f = feature ? feat_index(feature, strlen(feature)) : -1;
     return f >= 0 && FEAT[f].on;
+}
+
+void zxvd_rpc_remove_group(const zxvd_group_t *g)
+{
+    for (uint32_t i = 0; i < N_GROUPS; i++)
+        if (GROUPS[i] == g) {
+            for (; i + 1 < N_GROUPS; i++) GROUPS[i] = GROUPS[i + 1];
+            N_GROUPS--;
+            return;
+        }
 }
 
 void zxvd_rpc_groups_reset(void)
