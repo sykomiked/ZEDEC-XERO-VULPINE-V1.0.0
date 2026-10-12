@@ -527,6 +527,53 @@ def seats_checks(c):
     check(c.ok('seats.lock', {'session': u['session']}) == {'ended': True}, 'seats.lock')
 
 
+def power_checks(c, generates):
+    """power.* (zxvd_power.h W1-W8): the ledger, the companion as an agent
+    under zxvd's own app, and an energy budget that makes it wait."""
+    st = c.ok('power.status')
+    check(st['host'] in ('linux', 'macos', 'windows') and st['device'] in ('desktop', 'laptop') and
+          isinstance(st['consumers'], list) and st['consumers'][0]['kind'] == 'system' and
+          st['token_scale_permille'] in (0, 382, 618, 1000),
+          'power.status: the ledger as integer JSON (%s)' % {k: st[k] for k in ('host', 'device')})
+    apps = c.ok('power.top', {'kind': 'app', 'n': 64})
+    me = [a for a in apps if a['name'].lower().startswith('zxvd')]
+    check(len(me) == 1 and me[0]['parent'] is None, 'power.top: zxvd is an app (%s)' % me)
+    r = c.call('power.top', {'kind': 'apps'})
+    check(r.get('error', {}).get('code') == -32602, 'power.top: an unknown kind is refused')
+    r = c.call('power.budget', {'target': 'device', 'window_ms': 0, 'max_uj': 0})
+    check(r.get('error', {}).get('code') == -32012, 'power.budget: off until switched on')
+    c.ok('features.set', {'feature': 'power', 'on': True})
+    check(c.ok('power.budget', {'target': 'device', 'window_ms': 0, 'max_uj': 0}) == {'ok': True},
+          'power.budget: the device budget cleared')
+    r = c.call('power.budget', {'target': 'agent', 'agent': 99999, 'window_ms': 1, 'max_uj': 1})
+    check(r.get('error', {}).get('code') == -32100, 'power.budget: an unknown agent is refused')
+    if not generates or not me:
+        return
+    # the companion's model call was noted; it shows after the next settle
+    ag = []
+    for _ in range(40):
+        ag = [a for a in c.ok('power.top', {'kind': 'agent', 'lifetime': True})
+              if a['name'] == 'companion']
+        if ag and ag[0]['cpu_ns'] > 0:
+            break
+        time.sleep(0.1)
+    check(len(ag) == 1 and ag[0]['parent'] == me[0]['id'] and ag[0]['cpu_ns'] > 0,
+          'power.top: the companion is an agent under zxvd with its CPU time (%s)' % ag)
+    if not ag:
+        return
+    comp = c.ok('companion.dna')['agent_id']
+    if ag[0]['source'] == 'none':
+        # nothing measured on this host: a strict budget holds the agent
+        check(c.ok('power.budget', {'target': 'agent', 'agent': comp, 'window_ms': 600000,
+                                    'max_uj': 1, 'strict': True}) == {'ok': True},
+              'power.budget: a strict 1 uJ budget for the companion')
+        a = c.ok('swarm.ask', {'prompt': 'hello again'})['answer']
+        check(a.startswith('Energy budget reached'), 'swarm.ask waits on the budget: %r' % a[:80])
+        check(c.ok('power.budget', {'target': 'agent', 'agent': comp, 'window_ms': 0,
+                                    'max_uj': 0}) == {'ok': True},
+              'power.budget: cleared (the unit test shows it admits again)')
+
+
 def main(binary, gguf=None):
     out = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=10)
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
@@ -597,7 +644,8 @@ def main(binary, gguf=None):
                 'passkey.verify', 'ledger.hold', 'ledger.release', 'ledger.refund',
                 'ledger.holds', 'companion.dna', 'companion.generation', 'companion.mood',
                 'seats.list', 'seats.add', 'seats.remove', 'seats.set_lock',
-                'seats.unlock', 'seats.lock', 'seats.auto', 'seats.set_auto'}
+                'seats.unlock', 'seats.lock', 'seats.auto', 'seats.set_auto', 'power.status',
+                'power.top', 'power.budget'}
         if not WINDOWS:
             want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
@@ -664,10 +712,12 @@ def main(binary, gguf=None):
                       'the answer was generated under the budget gate and tagged: %s' % tag)
             else:
                 check('tokens' in a, 'without the forward pass the gate still reports tokens')
+            power_checks(c, mi['can_generate'])
         else:
             check(not mi['loaded'], 'model.info: no model is a normal state')
             a = c.ok('swarm.ask', {'prompt': 'plan(trip) -> verify(costs)'})['answer']
             check('(plan(trip) -> verify(costs))' in a, 'swarm.ask reads shorthand back')
+            power_checks(c, False)
         r = c.call('swarm.ask', {'prompt': 42})
         check(r.get('error', {}).get('code') == -32602, 'swarm.ask with a non-string prompt: -32602')
         r = c.call('net.command', {'command': 'everything'})

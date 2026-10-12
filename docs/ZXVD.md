@@ -828,6 +828,43 @@ the companion does not step, and a run can go many growths without one. The
 step can change the home feeling and specialty with a gene. The companion's
 DNA is not saved: each start grows a new one from that run's instance seed
 (taken from the clock), at generation 0.
+## Power: energy per app and agent, battery and budgets
+
+`power.*` (`kernel/arch/hosted/zxvd_power.c`, rules W1-W8 in
+`zxvd_power.h`) serves the power ledger (`kernel/src/power`), fed from this
+machine by `zxv_power_host.c`. What each OS can and cannot measure is in
+`docs/POWER.md`; nothing is invented, and a host with no meter reports
+energy as `"none"` with CPU time only. The group sits behind the feature
+`power`, which is not regulated (an energy cap is the owner's own
+ecological limit, not a payment).
+
+- `power.status` (always on): the whole ledger as integer JSON: device and
+  host, the last interval's total energy and power and its source, the
+  battery, the posture and its token scale, the meters and every consumer.
+- `power.top` (always on): `kind` (`app`, `agent` or `all`), `lifetime`
+  and `n` (1..64, default 10): consumers by energy, highest first, each with
+  `id`, `kind`, `name`, `parent`, `uj`, `mw`, `source`, `lifetime_uj` and
+  `cpu_ns`. Idle and shared energy stays with the `system` consumer.
+- `power.budget` (switch on): `target` `device`, `app` (with `app`, the
+  executable name) or `agent` (with `agent`, its id), `window_ms` (0
+  clears), `max_uj` and `strict`. Sets an energy budget per rolling window.
+
+zxvd samples the host and settles the ledger at most once a second. It is
+an app named after its own executable, and the companion is an agent under
+it: around each model call zxvd notes the process CPU time the call took
+(the engine's worker threads included). Before a model call zxvd asks the
+ledger to admit the companion: when its own, zxvd's or the device's budget
+window is spent, or a strict budget has nothing measured to judge by, the
+model does not run and the answer says "Energy budget reached". Nothing
+buys past a budget. The battery posture scales the swarm's tokens per
+cycle: x1 on mains or without a battery, x0.618 on battery, x0.382 at 20%
+or below, x0 at 5% or below. Error -32100 means power tracking is not
+running in this zxvd or the budget's target is unknown.
+
+Limits: the stand-in agents (levels 1 and up) run no model, so only the
+companion is noted. GPU time is not measured yet (`gpu_ns` is 0). Budgets
+and the ledger are in memory and start again at each start.
+
 ## The Web4 envelope feed
 
 Web4 is Chiglet companions talking to each other. The `web4` group
@@ -921,6 +958,10 @@ harness's test for `zxvd_web4.c`.
 module and Argon2id (exact replies, every refusal, the back-off, sessions,
 the seats file and its damage checks, the default 64 MiB parameters); it is
 the harness's test for `zxvd_seats.c`.
+`test_zxvd_power.sh` runs `power.*` behind the RPC layer on the real power
+ledger, read from a Linux-style `/sys` and `/proc` fixture with a test clock
+(exact replies, the agent under zxvd's app, budgets that make it wait, the
+battery posture's token scale); it is the harness's test for `zxvd_power.c`.
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and

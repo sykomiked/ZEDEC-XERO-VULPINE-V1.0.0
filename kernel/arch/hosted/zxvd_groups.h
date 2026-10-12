@@ -50,5 +50,8 @@ int zxvd_seats_open(const char *path);
 void zxvd_seats_set_random(int (*fn)(uint8_t *p, size_t n));
 void zxvd_seats_set_clock(uint64_t (*fn)(void));
 void zxvd_seats_set_kdf(uint32_t m_kib, uint32_t t);
+/* power.* (zxvd_power.c, kernel/src/power): feature "power", power.status
+ * and power.top always on, power.budget behind the switch (zxvd_power.h) */
+const zxvd_group_t *zxvd_power_group(void);
 
 #endif

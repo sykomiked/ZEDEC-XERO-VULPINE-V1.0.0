@@ -112,12 +112,16 @@ case "${1:-srcs}" in
         # Argon2id (id_argon2.c) is added with ident in build_zxvd.sh
         echo arch/hosted/zxvd_seats.c
         echo src/seats/seats.c
+        # power.*: the energy ledger and this machine's readers (docs/POWER.md)
+        echo arch/hosted/zxvd_power.c
+        echo arch/hosted/zxv_power_host.c
+        echo src/power/power_ledger.c
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
-        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats; do echo "$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power; do echo "$d"; done
         ;;
     *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs]" >&2; exit 2 ;;
 esac

@@ -111,6 +111,7 @@ typedef int sock_t;
 #    include "zxvd_pay.h"       /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
 #    include "zxvd_groups.h"    /* netting, cards, ...: method groups behind switches */
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
+#    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -485,6 +486,7 @@ static struct {
     /* the companion's model answers under the budget (zxv_budget_gate.h) */
     zxv_gate_t last_gate;
     bool have_gate;
+    bool power_wait; /* zxvd_power.h W4: the last ask waited on an energy budget */
     /* the 64-state tag on the last model answer (zxv_answer_tag.h) and the
      * quarantine log of forbidden answers (lpres_hex.h X6) */
     bool have_tag;
@@ -629,11 +631,22 @@ static void quest_trade(void *ctx, uint8_t role, const vna_id_t *peer, uint8_t r
     if (qst_record(&S.quest, &ev) < 0) S.quest_refused++;
 }
 
+/* The governor's tokens per cycle, scaled in zxvd by the battery posture
+ * (zxvd_power.h W5: x1 on mains, 0.618 on battery, 0.382 at 20%, 0 at 5%). */
+static uint64_t cycle_rate(void)
+{
+#if defined(ZXVD)
+    return S.gov.tokens_per_cycle * zxvd_power_token_scale() / 1000u;
+#else
+    return S.gov.tokens_per_cycle;
+#endif
+}
+
 /* Build (or rebuild) the swarm to the governor's size. */
 static void build_swarm(void)
 {
     uint32_t levels = S.gov.num_levels ? S.gov.num_levels : 1;
-    uint64_t T = S.gov.tokens_per_cycle;
+    uint64_t T = cycle_rate();
     swarm_budget_init(&S.b, levels, T);
     swarm_market_init(&S.m);
     swarm_emotion_init(&S.e);
@@ -722,8 +735,7 @@ static void close_cycle(void)
     swarm_budget_end_cycle(&S.b);
     /* The ouroboros loop (zxv_net_host.h U6): verified remote compute this
      * cycle raises the next cycle's budget rate; the mesh book settles. */
-    if (S.net &&
-        zxv_net_econ_cycle(S.net, &S.b, S.gov.tokens_per_cycle, zxv_net_wall_ms(), NULL) != 0)
+    if (S.net && zxv_net_econ_cycle(S.net, &S.b, cycle_rate(), zxv_net_wall_ms(), NULL) != 0)
         fprintf(stderr, "zxv: mesh economy cycle refused\n");
     /* The fee loop (settle.h F1-F3): last cycle's node bounties return to
      * the pot, then the assurance fee comes off it into the four buckets. */
@@ -855,7 +867,7 @@ static void step(void)
                 build_swarm(); /* grow or shrink by levels */
                 open_cycle();
             } else {
-                swarm_budget_set_rate(&S.b, S.gov.tokens_per_cycle);
+                swarm_budget_set_rate(&S.b, cycle_rate());
             }
         }
     }
@@ -868,10 +880,21 @@ static int32_t run_under_budget(void *rctx, zxv_gen_fn gen, void *gctx)
 {
     (void) rctx;
     uint32_t companion = S.num_agents ? S.agent[0].id : 0;
+#if defined(ZXVD)
+    /* zxvd_power.h W4: a spent energy budget makes the companion wait; the
+     * model does not run (gen is never called) */
+    S.power_wait = !zxvd_power_admit(companion);
+    if (S.power_wait) return -1;
+    uint64_t cpu0 = zxvd_power_cpu_ns();
+#endif
     /* B5: the prompt's tokens are paid from the same allotment */
     int32_t r = zxv_budget_gate_ex(&S.b, companion, zxv_model_prompt_tokens(), ZXV_MODEL_MAX_NEW,
                                    gen, gctx, &S.last_gate);
     S.have_gate = true;
+#if defined(ZXVD)
+    /* W3: the call's CPU time (the engine's worker threads included) */
+    zxvd_power_note_agent(companion, "companion", zxvd_power_cpu_ns() - cpu0, 0);
+#endif
     return r;
 }
 
@@ -888,6 +911,7 @@ static void answer(const char *q, char *out, size_t cap)
     char reading[512];
     char model_note[400];
     S.asks++;
+    S.power_wait = false;
     if (S.qlog.n >= S.qlog.cap) { /* X6: a full quarantine log halts answers */
         snprintf(out, cap,
                  "The model is stopped: its quarantine log is full (%u withheld answers). "
@@ -929,6 +953,17 @@ static void answer(const char *q, char *out, size_t cap)
         note_task(true, sum);
         return;
     }
+#if defined(ZXVD)
+    if (m == ZXV_MODEL_BUDGET_EXHAUSTED && S.power_wait) {
+        S.power_wait = false;
+        snprintf(out, cap,
+                 "Energy budget reached: an energy budget on the companion is spent for this "
+                 "window (or is strict and this machine measures no energy), so the model did "
+                 "not run. It can answer again when the window renews; power.budget sets or "
+                 "clears budgets.");
+        return;
+    }
+#endif
     if (m == ZXV_MODEL_BUDGET_EXHAUSTED) {
         S.exhausted_asks++;
         if (S.last_gate.remaining_before > 0) { /* B5: tokens left, but not enough to read it */
@@ -2164,6 +2199,9 @@ int main(int argc, char **argv)
         zxvd_rpc_groups_reset();
         return 1;
     }
+    /* power.* (zxvd_power.h W2): without it zxvd still runs; power.status
+     * and power.top then answer that tracking is not running */
+    if (zxvd_power_open(NULL) != 0) fprintf(stderr, "zxvd: power tracking is unavailable\n");
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
     if (ls == BAD_SOCK) {
@@ -2292,6 +2330,7 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
         mesh_books_sync();
+        zxvd_power_tick(false); /* zxvd_power.h W2: at most once a second */
 #endif
         zxv_net_tick(S.net, zxv_net_wall_ms());
         zxv_update_tick((uint64_t) time(NULL),

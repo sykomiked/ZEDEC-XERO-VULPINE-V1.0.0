@@ -70,6 +70,7 @@ mouse                            kernel
 oseq                             kernel
 pci                              kernel
 phase_coord                      kernel
+power                            kernel     # energy ledger per app and agent, battery, budgets; RAPL reader
 pic                              kernel
 quantum                          kernel
 recon                            kernel
