@@ -225,3 +225,72 @@ cross-reduction in mul). Measured with the CI subset command: 86 of 90
 mutants killed (95.6%; 9 do not compile). The 4 survivors are the
 `rmag_init` allocation-failure guards, which need allocator fault injection
 (see above). The CI baseline is raised to 0.9555.
+
+## mk_order settlement paths with the end-to-end harness (gap A6)
+
+Target `mk_order_settle`: `kernel/src/market/mk_order.c` lines 98-135,
+214-275, 385-398 and 708-727 (release, full refund, pay, confirm and the
+PAID/FULFILLED timers), measured with host gcc 13, 117 mutants, no compile
+errors.
+
+| phase | command | score |
+|---|---|---|
+| before | `make test-market` | 71.8% (84 killed, 33 survived) |
+| after | `make test-market` + `t2_e2e` | 80.3% (94 killed, 23 survived) |
+| e2e alone (before the tax, two-line and settle-amount checks were added) | `t2_e2e` | 50.9% (54 killed, 52 survived, 11 compile errors) |
+
+The 23 survivors are equivalent or unreachable on these paths:
+
+| lines | why it survives |
+|---|---|
+| 102-104 | `returned_base` is 0 whenever a whole order is released, and the overflow guard is unreachable by design (fee(a+b) - fee(a) <= b). |
+| 122 | `complete` sets `settled` itself right after. |
+| 216-218 | Loop variants that read a zeroed line past `n_lines` or a line not yet refunded: `k` is never 0 and `refunded_qty` is 0 here. |
+| 234 | The payment window: every caller that ticks the clock first sees the order EXPIRED before this guard. |
+| 243, 247, 256, 258 | Fulfilment deadline: ties between lines with the same window, the booking-slot formula (no bookings here), and a decrementing loop over identical lines. |
+| 710, 713 | The timer loop's bound reads a zeroed tail, and unused orders are FREE (no case). |
+
+The harness's two bogus order handles kill the NULL-order guards at 230 and 388
+(the clearing node would crash). The target is listed in `targets.json` but
+not in the CI subset.
+
+## B2: emu, desktop, sdk_bridge, panopticon (plan step 2.11)
+
+New unit tests in `tests/host/b2/` (runner `run.sh`, `make -C kernel test-b2`,
+part of `verify-all`). Each builds with ASan/UBSan and exits 3 on a build
+failure, so mutants that do not compile are excluded from the score. Scores
+are full runs of `mutate.py --target <file> --test "sh tests/host/b2/run.sh
+<name>" --build-code 3` (targets `b2_*` in targets.json; not in the CI gate).
+
+| target | before | after | killed | survived | why the survivors survive |
+|---|---|---|---|---|---|
+| emu/cpu6502.c | 10.4% | 99.4% | 657 | 4 | values masked later, variables assigned before use, `step()` never returns 1 |
+| emu/cpu_z80.c | 14.7% | 98.4% | 1423 | 23 | flag values only tested for nonzero, every path assigns, opcodes taken by an earlier block |
+| emu/emu_relate.c | 0% (old test does not build) | 78.2% | 129 | 36 | array sizes, ties, program bytes after the result store, setup redone by reset |
+| emu/game_runner.c | 0% | 68.1% | 203 | 95 | 43 in the iNES fallback that cannot reach the vectors; read sizes are capped multiples of 512; setup redone by reset |
+| desktop/desktop.c | not measured | 89.8% | 359 | 41 | `#ifndef TEST_HOST` helper, redundant NULL guards, bring-up guards that cannot fire |
+| desktop/render_boot.c | 0% | 92.9% | 79 | 6 | unequal constants, buffer size, fixed-length prefix |
+| sdk_bridge/sdk_bridge.c | not measured | 94.8% | 307 | 17 | `sb_create_context` is a stub returning NULL, empty `if` bodies, redundant bound |
+| sdk_bridge/sdk_bridge_lang.c | 0% | 58.2% | 298 | 214 | 145 in six ops whose argument lists exceed `OC_MAX_FIELDS` (8) and can never run, 28 per-op checks repeated by the dispatcher; 87.9% without these |
+| sdk_bridge/polyglot_matrix.c | 0% | 95.2% | 180 | 9 | duplicate guards, a compaction loop the delivery loop always empties |
+| panopticon/panopticon.c | 0% | 93.9% | 603 | 39 | clamp boundaries mapping to themselves, scores always multiples of 5, bring-up guards |
+| panopticon/panopticon_vpn.c | 0% | 94.2% | 584 | 36 | dead second capacity check, 2-char country codes, bring-up guards |
+
+"before" is the old test of that file run under the same harness; the old
+`cpu_z80`/`emu_relate` Makefile recipes lack `-Iinclude` and do not build on
+main. Not covered: `desktop/zxv_shell.c` (2,496 mutants, links 14 modules)
+and the other `emu` files (console machines, dimension/story modules).
+
+Bugs the tests found and deliberately do not encode (to be fixed separately):
+
+- cpu6502.c `ALU_READ`: every ORA/AND/EOR/ADC/SBC/CMP mode returns 4 cycles and drops the page-cross penalty.
+- cpu6502.c decimal ADC/SBC take N/Z from the BCD result (NMOS uses the binary one); `jammed` is never set, KIL runs as a NOP.
+- cpu_z80.c: CB (HL) ops return 8 T-states (should be 15, BIT 12), DDCB BIT 23 (should be 20); CP takes F5/F3 from the result, not the operand; DAA, RST n, ED 70/71, ED 4E/6E not decoded; R never increments.
+- panopticon.c:16: `clamp_friendliness` takes `int8_t`, so -150 wraps to +106 and a hostile watcher becomes +100 / THREAT_NONE.
+- panopticon.c:410: `sum / active` divides a negative int32 by a uint32; three watchers at -10 average +75.
+- panopticon_vpn.c:500: `fs_snprintf` has no `%-10s`, so `vpn_mesh_visualize` prints the format literally.
+- desktop.c:70: `coverage_r = 1.0` in a Q16.16 field stores 1/65536; should be `Q16_ONE`.
+- sdk_bridge_lang.c:514: `attestation < LPRES_STATE_TRUE` lets FALSE and BOTH through (same numeric-order bug fixed in `sb_grant_capability`).
+- sdk_bridge_lang.c: ops put the op code in `fields[0]`, where the header puts the result code.
+- sdk_bridge.c:435: `sb_create_context` always returns NULL, so `sb_lang_create_context` always fails.
+- polyglot_matrix.c:144: route ids >= 2^31 come back negative; 0xFFFFFFFF equals the -1 error.

@@ -23,8 +23,12 @@
 #include <wchar.h>
 #include <stdint.h>
 
+#include <sys/resource.h>
+#include <sys/file.h>
+
 #include "zxvd_rpc.h"
 #include "zxv_api.h"
+#include "sha256.h"
 
 static int fails, checks;
 
@@ -129,6 +133,64 @@ static void p_status(zxvd_buf_t *o)
 }
 static const zxvd_peer_ops_t PEER_STUB = {p_ask, p_serve, p_status};
 static const zxvd_peer_ops_t PEER_NONE = {0};
+
+/* aipi.* stubs (zxvd_aipi_ops_t) */
+static uint8_t put_data[ZXVD_AIPI_HEX_MAX + 1];
+static uint32_t put_len;
+static char put_path[1100], get_cid[200], exec_fn[200];
+static bool put_priv, put_had_data, exec_priv;
+static zxvd_aipi_fn_t pub_fn;
+static int64_t exec_args[ZXVD_AIPI_ARGS_MAX + 1];
+static uint32_t exec_n;
+static int aipi_calls;
+static const char *a_put(const uint8_t *data, uint32_t len, const char *path, bool priv,
+                         zxvd_buf_t *o)
+{
+    aipi_calls++;
+    put_had_data = data != NULL;
+    put_len = len;
+    if (data) memcpy(put_data, data, len);
+    snprintf(put_path, sizeof put_path, "%s", path ? path : "<null>");
+    put_priv = priv;
+    if (path && !strcmp(path, "/fail")) {
+        zxvd_buf_raw(o, "{\"partial\":", 11); /* must be discarded */
+        return "the file could not be opened";
+    }
+    zxvd_buf_printf(o, "{\"bytes\":%u}", (unsigned) len);
+    return NULL;
+}
+static const char *a_get(const char *cid, zxvd_buf_t *o)
+{
+    aipi_calls++;
+    snprintf(get_cid, sizeof get_cid, "%s", cid);
+    zxvd_buf_raw(o, "{\"hex\":\"\"}", 10);
+    return NULL;
+}
+static const char *a_publish(const zxvd_aipi_fn_t *fn, zxvd_buf_t *o)
+{
+    aipi_calls++;
+    pub_fn = *fn;
+    zxvd_buf_raw(o, "{\"function\":\"zF\"}", 17);
+    return NULL;
+}
+static const char *a_execute(const char *fn, const int64_t *args, uint32_t n, bool priv,
+                             zxvd_buf_t *o)
+{
+    aipi_calls++;
+    snprintf(exec_fn, sizeof exec_fn, "%s", fn);
+    memcpy(exec_args, args, n * sizeof *args);
+    exec_n = n;
+    exec_priv = priv;
+    if (n == 1 && args[0] == 13) return "AIPI_ERR_EXEC: the sandbox refused or stopped the run";
+    zxvd_buf_raw(o, "{\"result\":\"1\"}", 14);
+    return NULL;
+}
+static void a_status(zxvd_buf_t *o)
+{
+    zxvd_buf_raw(o, "{\"online\":false}", 16);
+}
+static const zxvd_aipi_ops_t AIPI_STUB = {a_put, a_get, a_publish, a_execute, a_status};
+static const zxvd_aipi_ops_t AIPI_NONE = {0};
 
 /* ---------------- helpers ---------------- */
 
@@ -374,10 +436,13 @@ static void test_host_methods(void)
            OK("11",
               "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
               "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
-              "\"notes.mark_read\",\"net.command\",\"peer.ask\",\"peer.serve\",\"peer.status\","
+              "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
+              "\"peer.ask\",\"peer.serve\",\"peer.status\","
               "\"update.check\",\"currency.enable\","
               "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\","
+              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
+              "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
+              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\","
               /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
               "\"freight.pack\",\"freight.unpack\",\"harmonic.encode\",\"harmonic.decode\","
               "\"stream.plan\",\"stream.segment\",\"ehop.bands\",\"ehop.seal\",\"ehop.open\","
@@ -733,7 +798,7 @@ static void test_earnings(void)
     EXPECT(REQ("1", "swarm.earnings", ""),
            OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":null,"
                    "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
-                   "\"cycles\":\"0\"}"));
+                   "\"cycles\":\"0\",\"resumed\":false}"));
     uint32_t src = (uint32_t) count(rpc(REQ("1", "ledger.accounts", "")), "\"account\":");
     uint32_t own = src + 1u;
     CHECK(zxvd_rpc_earnings_sync(1000) == 0, "earnings: the first cycle posts");
@@ -741,7 +806,7 @@ static void test_earnings(void)
     snprintf(want, sizeof want,                                                                    \
              OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":%u,"           \
                      "\"owner_account\":%u,\"balance_minor\":\"" bal "\",\"postings\":\"" posts    \
-                     "\",\"cycles\":\"" cycles "\"}"),                                             \
+                     "\",\"cycles\":\"" cycles "\",\"resumed\":false}"),                           \
              src, own);                                                                            \
     EXPECT(REQ("1", "swarm.earnings", ""), want)
     EARN("1000", "1", "1");
@@ -788,10 +853,22 @@ static void test_earnings(void)
                  "\"reference\":\"swarm earnings 5\"}"),
              src, own);
     CHECK(has(req, "\"result\""), "a manual posting takes the next reference: %s", OUT.p);
-    CHECK(zxvd_rpc_earnings_sync(7) == -1, "earnings: a refused posting is reported");
-    EARN("5", "4", "5");
-    BAL(own, "1006", "1000", "6");
+    CHECK(zxvd_rpc_earnings_sync(7) == 0, "earnings: a used reference is skipped");
+    EARN("7", "5", "6");
+    BAL(own, "1008", "1000", "8");
+    snprintf(req, sizeof req, REQ("4", "ledger.entries", ",\"params\":{\"account\":%u}"), own);
+    snprintf(want, sizeof want,
+             "\"signed_minor\":\"2\",\"counterparty\":%u,\"reference\":\"swarm earnings 6\"}]",
+             src);
+    CHECK(has(req, want), "earnings: posted as swarm earnings 6: %s", OUT.p);
     EXPECT(REQ("6", "ledger.check", ""), OK("6", "{\"ok\":true}"));
+    /* the smallest rise and fall: one minor unit each way */
+    CHECK(zxvd_rpc_earnings_sync(8) == 0, "earnings: up by one");
+    EARN("8", "6", "7");
+    BAL(own, "1009", "1000", "9");
+    CHECK(zxvd_rpc_earnings_sync(7) == 0, "earnings: down by one");
+    EARN("7", "7", "8");
+    BAL(own, "1009", "1001", "8");
 
     /* another currency and rate: an ISO code is enabled from the table */
     zxvd_rpc_books_close();
@@ -801,7 +878,7 @@ static void test_earnings(void)
     EXPECT(REQ("1", "swarm.earnings", ""),
            OK("1", "{\"currency\":\"USD\",\"rate_minor\":\"100\",\"source_account\":null,"
                    "\"owner_account\":null,\"balance_minor\":\"0\",\"postings\":\"0\","
-                   "\"cycles\":\"0\"}"));
+                   "\"cycles\":\"0\",\"resumed\":false}"));
     CHECK(zxvd_rpc_earnings_sync((uint64_t) ZXV_AMOUNT_MAX / 100u + 1u) == -1,
           "earnings: credits times the rate above ZXV_AMOUNT_MAX are refused");
     EXPECT(REQ("1", "ledger.accounts", ""), OK("1", "{\"accounts\":[]}"));
@@ -809,7 +886,7 @@ static void test_earnings(void)
     EXPECT(REQ("1", "swarm.earnings", ""),
            OK("1", "{\"currency\":\"USD\",\"rate_minor\":\"100\",\"source_account\":0,"
                    "\"owner_account\":1,\"balance_minor\":\"300\",\"postings\":\"1\","
-                   "\"cycles\":\"1\"}"));
+                   "\"cycles\":\"1\",\"resumed\":false}"));
     BAL(1u, "300", "0", "300");
     /* a code libzxv refuses keeps the books closed */
     zxvd_rpc_books_close();
@@ -827,9 +904,679 @@ static void test_earnings(void)
     EXPECT(REQ("1", "swarm.earnings", ""),
            OK("1", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":1,"
                    "\"owner_account\":2,\"balance_minor\":\"2\",\"postings\":\"1\","
-                   "\"cycles\":\"1\"}"));
+                   "\"cycles\":\"1\",\"resumed\":false}"));
 #undef EARN
 #undef BAL
+}
+
+/* ---------------- the books file (zxvd_rpc.h F1-F6, E5) ---------------- */
+
+static char BOOKS[200];
+
+static long file_size(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 ? (long) st.st_size : -1;
+}
+
+static char *slurp(const char *path, long *n)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    *n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *b = malloc((size_t) *n + 1);
+    if (b && fread(b, 1, (size_t) *n, f) != (size_t) *n) *n = -1;
+    if (b) b[*n > 0 ? *n : 0] = 0;
+    fclose(f);
+    return b;
+}
+
+static void spit(const char *path, const char *b, long n)
+{
+    FILE *f = fopen(path, "wb");
+    if (f) {
+        fwrite(b, 1, (size_t) n, f);
+        fclose(f);
+    }
+    chmod(path, 0600);
+}
+
+/* the chain head after the file's last record (F2), as hex */
+static void last_hash(const char *b, long n, char out[65])
+{
+    out[0] = 0;
+    long end = n - 1, st = end - 1;
+    while (st > 0 && b[st - 1] != '\n') st--;
+    if (end > st + 64) {
+        memcpy(out, b + st, 64);
+        out[64] = 0;
+    }
+}
+
+/* append a record correctly chained after the file's last one */
+static void append_chained(const char *path, const char *js)
+{
+    long n;
+    char *b = slurp(path, &n), hx[65];
+    last_hash(b, n, hx);
+    uint8_t prev[32], h[32];
+    for (int i = 0; i < 32; i++) {
+        unsigned v;
+        sscanf(hx + 2 * i, "%2x", &v);
+        prev[i] = (uint8_t) v;
+    }
+    sha256_ctx_t c;
+    sha256_init(&c);
+    sha256_update(&c, prev, 32);
+    sha256_update(&c, (const uint8_t *) js, strlen(js));
+    sha256_final(&c, h);
+    FILE *f = fopen(path, "ab");
+    for (int i = 0; i < 32; i++) fprintf(f, "%02x", h[i]);
+    fprintf(f, " %s\n", js);
+    fclose(f);
+    free(b);
+}
+
+static void reopen(void)
+{
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0, "the books reopen from the file");
+}
+
+static void test_books_file(void)
+{
+    char tmpl[] = "/tmp/zxvdbooks.XXXXXX", req[400], want[400];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(BOOKS, sizeof BOOKS, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file(BOOKS) == 0, "F1: a books file is set while the books are closed");
+    char longp[1100];
+    memset(longp, 'a', sizeof longp - 1);
+    longp[sizeof longp - 1] = 0;
+    CHECK(zxvd_rpc_books_file(longp) == -1, "F1: too long a path is refused");
+    CHECK(zxvd_rpc_books_open() == 0, "F1: a new books file is created");
+    CHECK(zxvd_rpc_books_file(NULL) == -1, "F1: no change while the books are open");
+    struct stat st;
+    CHECK(stat(BOOKS, &st) == 0 && (st.st_mode & 0777) == 0600, "F1: the file is 0600");
+    long n;
+    char *b = slurp(BOOKS, &n);
+    CHECK(b && n > 66 && !memcmp(b + 65, "{\"op\":\"books\",\"v\":1}\n", 21),
+          "F2: the first record is the books header: %s", b ? b : "(none)");
+    CHECK(b && strstr(b, " {\"op\":\"unit\",\"code\":\"VFV\",\"minor\":2}\n"),
+          "F3: the earnings unit is a record");
+    free(b);
+    CHECK(has(REQ("1", "books.file", ""), "\"saved\":true") && strstr(OUT.p, "\"records\":\"2\"") &&
+              strstr(OUT.p, "\"writable\":true}"),
+          "books.file: saved, 2 records: %s", OUT.p);
+
+    /* owner changes and earnings, all saved */
+    EXPECT(REQ("2", "currency.enable", ",\"params\":{\"code\":\"USD\"}"),
+           OK("2", "{\"enabled\":\"USD\"}"));
+    EXPECT(REQ("2", "currency.enable", ",\"params\":{\"code\":\"USD\"}"),
+           OK("2", "{\"enabled\":\"USD\"}"));
+    EXPECT(
+        REQ("3", "ledger.open_account",
+            ",\"params\":{\"name\":\"bank \\\"one\\\"\",\"currency\":\"USD\",\"kind\":\"issuer\"}"),
+        OK("3", "{\"account\":0}"));
+    EXPECT(REQ("3", "ledger.open_account", ",\"params\":{\"name\":\"cash\",\"currency\":\"USD\"}"),
+           OK("3", "{\"account\":1}"));
+    EXPECT(REQ("4", "ledger.post",
+               ",\"params\":{\"from\":0,\"to\":1,\"amount_minor\":\"9007199254740991\","
+               "\"currency\":\"USD\",\"reference\":\"e2e \\u00e9 1\"}"),
+           OK("4", "{\"entry_id\":\"1\"}"));
+    CHECK(has(REQ("4", "ledger.post",
+                  ",\"params\":{\"from\":1,\"to\":0,\"amount_minor\":-5,"
+                  "\"currency\":\"USD\",\"reference\":\"neg\"}"),
+              "\"name\":\"ZXV_E_RANGE\""),
+          "a refused posting is not saved: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(40) == 0, "earnings: 40 credits");
+    CHECK(zxvd_rpc_earnings_sync(25) == 0, "earnings: 25 credits");
+    b = slurp(BOOKS, &n);
+    size_t lines = 0;
+    for (long i = 0; b && i < n; i++) lines += b[i] == '\n';
+    CHECK(lines == 10, "F3: header, VFV, USD once, 2 + 2 accounts, 1 + 2 postings = 10 (%zu)",
+          lines);
+    free(b);
+
+    /* F4 + E5: everything comes back with the same numbers */
+    reopen();
+    EXPECT(REQ("5", "ledger.accounts", ""),
+           OK("5",
+              "{\"accounts\":[{\"account\":0,\"name\":\"bank \\\"one\\\"\",\"currency\":\"USD\","
+              "\"kind\":\"issuer\"},{\"account\":1,\"name\":\"cash\",\"currency\":\"USD\","
+              "\"kind\":\"holder\"},{\"account\":2,\"name\":\"swarm market\",\"currency\":"
+              "\"VFV\",\"kind\":\"issuer\"},{\"account\":3,\"name\":\"owner: swarm "
+              "earnings\",\"currency\":\"VFV\",\"kind\":\"holder\"}]}"));
+    EXPECT(REQ("6", "ledger.balance", ",\"params\":{\"account\":1}"),
+           OK("6", "{\"debit_minor\":\"9007199254740991\",\"credit_minor\":\"0\","
+                   "\"equity_minor\":\"9007199254740991\"}"));
+    EXPECT(REQ("6", "ledger.entries", ",\"params\":{\"account\":1}"),
+           OK("6", "{\"entries\":[{\"entry_id\":\"1\",\"signed_minor\":\"9007199254740991\","
+                   "\"counterparty\":0,\"reference\":\"e2e \xc3\xa9 1\"}]}"));
+    EXPECT(REQ("7", "swarm.earnings", ""),
+           OK("7", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":2,"
+                   "\"owner_account\":3,\"balance_minor\":\"25\",\"postings\":\"2\","
+                   "\"cycles\":\"0\",\"resumed\":true}"));
+    EXPECT(REQ("8", "ledger.check", ""), OK("8", "{\"ok\":true}"));
+    /* E5: the fresh swarm's holdings are the base; only the change posts */
+    CHECK(zxvd_rpc_earnings_sync(1000) == 0, "E5: first sync of the run sets the base");
+    EXPECT(REQ("7", "swarm.earnings", ""),
+           OK("7", "{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"source_account\":2,"
+                   "\"owner_account\":3,\"balance_minor\":\"25\",\"postings\":\"2\","
+                   "\"cycles\":\"1\",\"resumed\":true}"));
+    CHECK(zxvd_rpc_earnings_sync(1010) == 0, "E5: +10 credits");
+    CHECK(has(REQ("7", "swarm.earnings", ""), "\"balance_minor\":\"35\",\"postings\":\"3\""),
+          "E5: 25 carried + 10: %s", OUT.p);
+    CHECK(has(REQ("6", "ledger.entries", ",\"params\":{\"account\":3}"),
+              "\"signed_minor\":\"10\",\"counterparty\":2,\"reference\":\"swarm earnings 3\"}]"),
+          "E5: the next reference continues the numbering: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(900) == 0, "E5: a fall below the carried balance");
+    CHECK(has(REQ("7", "swarm.earnings", ""), "\"balance_minor\":\"0\",\"postings\":\"4\""),
+          "E5: never below zero: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(899) == 0 &&
+              has(REQ("7", "swarm.earnings", ""), "\"postings\":\"4\""),
+          "E5: still zero, no posting");
+    reopen();
+    CHECK(has(REQ("7", "swarm.earnings", ""), "\"balance_minor\":\"0\",\"postings\":\"4\""),
+          "E5: the zero balance came back: %s", OUT.p);
+
+    /* F6: a record cut short by a crash is dropped */
+    long good = file_size(BOOKS);
+    FILE *f = fopen(BOOKS, "ab");
+    fputs("0123456789abcdef {\"op\":\"po", f);
+    fclose(f);
+    reopen();
+    CHECK(file_size(BOOKS) == good, "F6: the file is truncated to its last whole record");
+    EXPECT(REQ("8", "ledger.check", ""), OK("8", "{\"ok\":true}"));
+
+    /* F4: damage stops the books from opening; nothing is repaired */
+    b = slurp(BOOKS, &n);
+    char *copy = malloc((size_t) n + 1);
+    memcpy(copy, b, (size_t) n + 1);
+    char *amt = strstr(copy, "9007199254740991");
+    *amt = '8';
+    spit(BOOKS, copy, n);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == -1, "F4: an edited amount breaks the chain");
+    CHECK(file_size(BOOKS) == n, "F4: the damaged file is left as it was");
+    memcpy(copy, b, (size_t) n + 1);
+    copy[3] = copy[3] == 'a' ? 'b' : 'a';
+    spit(BOOKS, copy, n);
+    CHECK(zxvd_rpc_books_open() == -1, "F4: an edited hash breaks the chain");
+    memcpy(copy, b, (size_t) n + 1);
+    copy[64] = 'x';
+    spit(BOOKS, copy, n);
+    CHECK(zxvd_rpc_books_open() == -1, "F4: a malformed record is refused");
+    memcpy(copy, b, (size_t) n + 1);
+    copy[10] = 'G';
+    spit(BOOKS, copy, n);
+    CHECK(zxvd_rpc_books_open() == -1, "F4: a non-hex hash is refused");
+    char *nl = strchr(copy, '\n');
+    spit(BOOKS, nl + 1, n - (long) (nl + 1 - copy));
+    CHECK(zxvd_rpc_books_open() == -1, "F4: a file without its header is refused");
+    spit(BOOKS, b, n);
+    static const char *const BAD[] = {
+        "{\"op\":\"nope\"}",
+        "[1]",
+        "{\"code\":\"USD\"}",
+        "{\"op\":\"ccy\",\"code\":\"ZZZ\"}",
+        "{\"op\":\"ccy\",\"code\":5}",
+        "{\"op\":\"unit\",\"code\":\"GBP\",\"minor\":2}",
+        "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":256}",
+        "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"USD\",\"kind\":0,\"id\":9}",
+        "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"USD\",\"kind\":2,\"id\":4}",
+        "{\"op\":\"acct\",\"name\":\"x\",\"ccy\":\"XXX\",\"kind\":0,\"id\":4}",
+        "{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":\"1\",\"ccy\":\"USD\",\"ref\":\"r\","
+        "\"id\":\"99\"}",
+        "{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":1,\"ccy\":\"USD\",\"ref\":\"r\","
+        "\"id\":\"5\"}",
+        "{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":\"x\",\"ccy\":\"USD\",\"ref\":\"r\","
+        "\"id\":\"5\"}",
+        "{\"op\":\"post\",\"from\":0,\"to\":1,\"amount\":\"1\",\"ccy\":\"USD\",\"ref\":\"neg\","
+        "\"id\":\"x\"}",
+        "{\"op\":\"post\",\"from\":4294967296,\"to\":1,\"amount\":\"1\",\"ccy\":\"USD\","
+        "\"ref\":\"r\",\"id\":\"5\"}",
+        "{\"op\":\"post\",\"from\":1,\"to\":0,\"amount\":\"1\",\"ccy\":\"USD\","
+        "\"ref\":\"e2e \\u00e9 1\",\"id\":\"5\"}",
+        "{\"op\":\"books\",\"v\":1}",
+    };
+    for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
+        spit(BOOKS, b, n);
+        append_chained(BOOKS, BAD[i]);
+        CHECK(zxvd_rpc_books_open() == -1, "F4: refused: %s", BAD[i]);
+    }
+    /* the same kinds of record, well formed, replay */
+    static const char *const GOOD[] = {
+        "{\"op\":\"ccy\",\"code\":\"EUR\"}",
+        "{\"op\":\"unit\",\"code\":\"QQQ\",\"minor\":3}",
+        "{\"op\":\"acct\",\"name\":\"y\",\"ccy\":\"EUR\",\"kind\":1,\"id\":4}",
+        "{\"op\":\"acct\",\"name\":\"z\",\"ccy\":\"EUR\",\"kind\":0,\"id\":5}",
+        ("{\"op\":\"post\",\"from\":4,\"to\":5,\"amount\":\"7\",\"ccy\":\"EUR\",\"ref\":\"g\","
+         "\"id\":\"6\"}"),
+    };
+    spit(BOOKS, b, n);
+    for (size_t i = 0; i < sizeof GOOD / sizeof GOOD[0]; i++) append_chained(BOOKS, GOOD[i]);
+    CHECK(zxvd_rpc_books_open() == 0, "F4: well-formed records of every kind replay");
+    EXPECT(REQ("9", "ledger.balance", ",\"params\":{\"account\":5}"),
+           OK("9", "{\"debit_minor\":\"7\",\"credit_minor\":\"0\",\"equity_minor\":\"7\"}"));
+    CHECK(has(REQ("1", "books.file", ""), "\"records\":\"17\""), "books.file: 17 records: %s",
+          OUT.p);
+    free(copy);
+    free(b);
+
+    /* the file must be ours alone */
+    zxvd_rpc_books_close();
+    chmod(BOOKS, 0640);
+    CHECK(zxvd_rpc_books_open() == -1, "a group-readable books file is refused");
+    chmod(BOOKS, 0600);
+    char lnk[220];
+    snprintf(lnk, sizeof lnk, "%s/link.zxvb", tmpl);
+    CHECK(symlink(BOOKS, lnk) == 0, "symlink");
+    CHECK(zxvd_rpc_books_file(lnk) == 0 && zxvd_rpc_books_open() == -1,
+          "a books file behind a symlink is refused");
+    char dir[220];
+    snprintf(dir, sizeof dir, "%s/adir", tmpl);
+    mkdir(dir, 0700);
+    CHECK(zxvd_rpc_books_file(dir) == 0 && zxvd_rpc_books_open() == -1,
+          "a folder is not a books file");
+    CHECK(zxvd_rpc_books_file(BOOKS) == 0 && zxvd_rpc_books_open() == 0, "back to the file");
+
+    /* F5: a write that fails leaves the books read-only for the run */
+    signal(SIGXFSZ, SIG_IGN);
+    struct rlimit old, lim;
+    getrlimit(RLIMIT_FSIZE, &old);
+    lim = old;
+    lim.rlim_cur = (rlim_t) file_size(BOOKS);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size");
+    snprintf(want, sizeof want, "%s", "\"name\":\"ZXV_E_IO\",\"class\":\"SYSTEM\"}}}");
+    CHECK(has(REQ("10", "ledger.open_account",
+                  ",\"params\":{\"name\":\"lost\",\"currency\":\"EUR\"}"),
+              want) &&
+              strstr(OUT.p, "this change is not saved"),
+          "F5: the change that could not be saved answers ZXV_E_IO: %s", OUT.p);
+    CHECK(has(REQ("10", "ledger.post",
+                  ",\"params\":{\"from\":4,\"to\":5,\"amount_minor\":1,\"currency\":\"EUR\","
+                  "\"reference\":\"after\"}"),
+              want) &&
+              strstr(OUT.p, "could not be written earlier"),
+          "F5: later changes are refused: %s", OUT.p);
+    CHECK(has(REQ("10", "currency.enable", ",\"params\":{\"code\":\"JPY\"}"), want),
+          "F5: a currency too");
+    CHECK(zxvd_rpc_earnings_sync(5000) == 0, "F5: the run's base needs no posting");
+    CHECK(zxvd_rpc_earnings_sync(6000) == -1, "F5: earnings cannot post either");
+    CHECK(has(REQ("10", "books.file", ""), "\"writable\":false}"), "books.file: read-only");
+    EXPECT(REQ("10", "ledger.check", ""), OK("10", "{\"ok\":true}"));
+    setrlimit(RLIMIT_FSIZE, &old);
+    snprintf(req, sizeof req, "%s", REQ("10", "ledger.accounts", ""));
+    CHECK(has(req, "\"name\":\"lost\""), "F5: the unsaved account is in memory this run");
+    reopen();
+    CHECK(!has(req, "\"name\":\"lost\""), "F5: and gone after a restart");
+    CHECK(has(REQ("10", "books.file", ""), "\"writable\":true}"), "writable again");
+
+    /* F7: one zxvd per books file */
+    {
+        zxvd_rpc_books_close();
+        int lk = open(BOOKS, O_RDONLY);
+        CHECK(lk >= 0 && flock(lk, LOCK_EX | LOCK_NB) == 0, "another process holds the file");
+        CHECK(zxvd_rpc_books_open() == -1, "F7: a books file in use refuses the start");
+        close(lk);
+        CHECK(zxvd_rpc_books_open() == 0, "F7: free again, it opens");
+        lk = open(BOOKS, O_RDONLY);
+        CHECK(lk >= 0 && flock(lk, LOCK_EX | LOCK_NB) != 0, "F7: and zxvd holds the lock");
+        close(lk);
+    }
+
+    /* the in-memory default */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "F1: no file");
+    EXPECT(REQ("11", "books.file", ""),
+           OK("11", "{\"saved\":false,\"path\":null,\"records\":\"0\",\"head\":"
+                    "\"0000000000000000000000000000000000000000000000000000000000000000\","
+                    "\"writable\":true}"));
+    EXPECT(REQ("11", "ledger.accounts", ""), OK("11", "{\"accounts\":[]}"));
+    unlink(lnk);
+    rmdir(dir);
+    unlink(BOOKS);
+    rmdir(tmpl);
+}
+
+/* ---------------- views (zxvd_rpc.h V1-V3) ---------------- */
+
+static void v_peers(zxvd_buf_t *o)
+{
+    zxvd_buf_printf(o, "{\"peers\":[],\"count\":0}");
+}
+static void v_offers(zxvd_buf_t *o)
+{
+    zxvd_buf_printf(o, "{\"wants\":[]}");
+}
+static void v_card(zxvd_buf_t *o)
+{
+    zxvd_buf_printf(o, "{\"tier\":0}");
+}
+
+static void test_views(void)
+{
+    static const zxvd_view_ops_t STUB = {v_peers, v_offers, v_card}, HALF = {v_peers, 0, 0};
+    zxvd_rpc_set_view_ops(NULL);
+    EXPECT(REQ("1", "net.peers", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "net.offers", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "player.card", ""), ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_view_ops(&HALF);
+    EXPECT(REQ("2", "net.peers", ""), OK("2", "{\"peers\":[],\"count\":0}"));
+    EXPECT(REQ("2", "net.offers", ""), ERR("2", "-32601", "not available"));
+    EXPECT(REQ("2", "player.card", ""), ERR("2", "-32601", "not available"));
+    zxvd_rpc_set_view_ops(&STUB);
+    EXPECT(REQ("3", "net.offers", ""), OK("3", "{\"wants\":[]}"));
+    EXPECT(REQ("3", "player.card", ""), OK("3", "{\"tier\":0}"));
+    zxvd_rpc_set_view_ops(NULL);
+}
+
+/* ---------------- the jurisdiction bridge (zxvd_rpc.h J1-J5) ---------------- */
+
+#define JU_LIST                                                                                    \
+    "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\",\"SAP_INSURER\"]," \
+    "\"in_effect\":false}"
+
+static void test_jurisdiction(void)
+{
+    char tmpl[] = "/tmp/zxvdjuris.XXXXXX", path[200];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    EXPECT(REQ("1", "jurisdiction.get", ""), ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "jurisdiction.set", ",\"params\":{\"market\":\"open\"}"),
+           ERR("1", "-32603", "the books are not open"));
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books open on a file");
+    EXPECT(REQ("2", "jurisdiction.get", ""),
+           OK("2", "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"," JU_LIST));
+    CHECK(has(REQ("2", "books.file", ""), "\"records\":\"2\""), "nothing saved for the defaults");
+    EXPECT(REQ("3", "jurisdiction.set", ",\"params\":{}"),
+           OK("3", "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"," JU_LIST));
+    CHECK(has(REQ("3", "books.file", ""), "\"records\":\"2\""),
+          "J4: an unchanged set writes nothing");
+    EXPECT(REQ("4", "jurisdiction.set", ",\"params\":{\"market\":\"open\",\"country\":\"NG\"}"),
+           OK("4", "{\"market\":\"open\",\"standard\":\"\",\"country\":\"NG\"," JU_LIST));
+    EXPECT(REQ("5", "jurisdiction.set", ",\"params\":{\"standard\":\"OHADA\"}"),
+           OK("5", "{\"market\":\"open\",\"standard\":\"OHADA\",\"country\":\"NG\"," JU_LIST));
+    CHECK(has(REQ("5", "books.file", ""), "\"records\":\"4\""), "J4: two changes, two records");
+    long n;
+    char *b = slurp(path, &n);
+    CHECK(b && strstr(b, " {\"op\":\"juris\",\"market\":\"open\",\"standard\":\"OHADA\","
+                         "\"country\":\"NG\"}\n"),
+          "J4: the record is in the file");
+    free(b);
+    /* bad values change nothing */
+    EXPECT(REQ("6", "jurisdiction.set", ",\"params\":{\"market\":\"Open\"}"),
+           ERR("6", "-32602", "\\\"market\\\" must be \\\"closed\\\" or \\\"open\\\""));
+    CHECK(has(REQ("6", "jurisdiction.set", ",\"params\":{\"standard\":\"GAAP\"}"), "-32602"),
+          "J3: an unknown standard is refused");
+    CHECK(has(REQ("6", "jurisdiction.set", ",\"params\":{\"standard\":\"ifrs\"}"), "-32602"),
+          "J3: names are exact");
+    const char *bad_cc[] = {"ng", "N", "NGA", "N1", "1G", "@G", "N["};
+    for (unsigned i = 0; i < sizeof bad_cc / sizeof *bad_cc; i++) {
+        char req[160];
+        snprintf(req, sizeof req, REQ("7", "jurisdiction.set", ",\"params\":{\"country\":\"%s\"}"),
+                 bad_cc[i]);
+        CHECK(has(req, "two capital letters"), "J1: country \"%s\" refused", bad_cc[i]);
+    }
+    CHECK(has(REQ("7", "jurisdiction.set", ",\"params\":{\"country\":7}"), "-32602"),
+          "J1: a number is not a country");
+    CHECK(
+        has(REQ("7", "jurisdiction.set", ",\"params\":{\"market\":\"closed\",\"standard\":\"x\"}"),
+            "-32602"),
+        "a set with one bad field changes nothing");
+    EXPECT(REQ("8", "jurisdiction.get", ""),
+           OK("8", "{\"market\":\"open\",\"standard\":\"OHADA\",\"country\":\"NG\"," JU_LIST));
+    CHECK(has(REQ("8", "books.file", ""), "\"records\":\"4\""), "and wrote nothing");
+    /* J4: kept across a restart */
+    reopen();
+    EXPECT(REQ("9", "jurisdiction.get", ""),
+           OK("9", "{\"market\":\"open\",\"standard\":\"OHADA\",\"country\":\"NG\"," JU_LIST));
+    EXPECT(REQ("9", "jurisdiction.set",
+               ",\"params\":{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"}"),
+           OK("9", "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\"," JU_LIST));
+    reopen();
+    CHECK(has(REQ("9", "jurisdiction.get", ""),
+              "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\""),
+          "J4: the last record wins, an empty country included");
+    EXPECT(
+        REQ("9", "jurisdiction.set",
+            ",\"params\":{\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
+        OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
+    /* a damaged record stops the start */
+    const char *bad[] = {
+        "{\"op\":\"juris\",\"market\":\"shut\",\"standard\":\"\",\"country\":\"\"}",
+        "{\"op\":\"juris\",\"market\":\"open\",\"standard\":\"GAAP\",\"country\":\"\"}",
+        "{\"op\":\"juris\",\"market\":\"open\",\"standard\":\"\",\"country\":\"ng\"}",
+        "{\"op\":\"juris\",\"market\":\"open\",\"standard\":\"\"}",
+        "{\"op\":\"juris\",\"standard\":\"\",\"country\":\"\"}",
+        "{\"op\":\"juris\",\"market\":\"open\",\"country\":\"\"}",
+    };
+    zxvd_rpc_books_close();
+    long keep;
+    char *orig = slurp(path, &keep);
+    for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
+        spit(path, orig, keep);
+        append_chained(path, bad[i]);
+        CHECK(zxvd_rpc_books_open() == -1, "bad jurisdiction record %u stops the start", i);
+        zxvd_rpc_books_close();
+    }
+    spit(path, orig, keep);
+    free(orig);
+    CHECK(zxvd_rpc_books_open() == 0, "the good file opens again");
+    CHECK(has(REQ("10", "jurisdiction.get", ""), "\"standard\":\"SAP_INSURER\",\"country\":\"ZA\""),
+          "with its settings");
+    /* in memory: back to the defaults, and settable */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "no file");
+    CHECK(has(REQ("11", "jurisdiction.get", ""),
+              "{\"market\":\"closed\",\"standard\":\"\",\"country\":\"\""),
+          "a fresh start has the defaults");
+    CHECK(has(REQ("11", "jurisdiction.set", ",\"params\":{\"market\":\"open\"}"),
+              "\"market\":\"open\""),
+          "set works without a file");
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0 &&
+              has(REQ("11", "jurisdiction.get", ""), "{\"market\":\"closed\""),
+          "and is gone after a restart");
+    unlink(path);
+    rmdir(tmpl);
+}
+
+/* ---------------- mesh sales in the books (zxvd_rpc.h S1-S4) ---------------- */
+
+static void test_mesh(void)
+{
+    uint8_t inv[32];
+    for (int i = 0; i < 32; i++) inv[i] = (uint8_t) (0xa0 + i);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == 0, "S: nothing to post while closed");
+    CHECK(zxvd_rpc_books_open() == 0, "books open");
+    EXPECT(REQ("1", "mesh.books", ""),
+           OK("1", "{\"currency\":\"VFV\",\"wallet_account\":null,\"counterparty_account\":null,"
+                   "\"fee_account\":null,\"wallet_minor\":\"0\",\"fees_minor\":\"0\","
+                   "\"sold\":\"0\",\"bought\":\"0\"}"));
+    CHECK(zxvd_rpc_mesh_post(true, 0, 0, inv) == 0 &&
+              has(REQ("1", "mesh.books", ""), "\"wallet_account\":null"),
+          "S: a free answer opens nothing");
+    CHECK(zxvd_rpc_mesh_post(true, 100, 7, NULL) == -1, "S: no invoice");
+    CHECK(zxvd_rpc_mesh_post(true, (uint64_t) ZXV_AMOUNT_MAX + 1u, 0, inv) == -1,
+          "S: a price above ZXV_AMOUNT_MAX");
+    CHECK(zxvd_rpc_mesh_post(false, (uint64_t) ZXV_AMOUNT_MAX, 1, inv) == -1,
+          "S: price + fee above ZXV_AMOUNT_MAX");
+    /* the earnings accounts are 0 and 1 (none yet: sync opens them) */
+    CHECK(zxvd_rpc_mesh_post(true, 100, 9, inv) == 0, "S2: a sale");
+    EXPECT(REQ("2", "mesh.books", ""),
+           OK("2", "{\"currency\":\"VFV\",\"wallet_account\":1,\"counterparty_account\":0,"
+                   "\"fee_account\":2,\"wallet_minor\":\"100\",\"fees_minor\":\"0\","
+                   "\"sold\":\"1\",\"bought\":\"0\"}"));
+    EXPECT(REQ("3", "ledger.entries", ",\"params\":{\"account\":1}"),
+           OK("3", "{\"entries\":[{\"entry_id\":\"1\",\"signed_minor\":\"100\","
+                   "\"counterparty\":0,\"reference\":\"mesh sale a0a1a2a3a4a5a6a7\"}]}"));
+    CHECK(zxvd_rpc_mesh_post(true, 100, 9, inv) == 0 &&
+              has(REQ("2", "mesh.books", ""), "\"wallet_minor\":\"100\""),
+          "S3: the same request is not posted twice");
+    inv[0] = 0x01;
+    CHECK(zxvd_rpc_mesh_post(false, 50, 1, inv) == 0, "S2: a purchase");
+    CHECK(has(REQ("2", "mesh.books", ""), "\"wallet_minor\":\"49\",\"fees_minor\":\"1\""),
+          "S2: 50 + fee 1 out of 100: %s", OUT.p);
+    inv[0] = 0x02;
+    CHECK(zxvd_rpc_mesh_post(false, 200, 2, inv) == 0, "S4: a purchase beyond the wallet");
+    CHECK(has(REQ("2", "mesh.books", ""), "\"wallet_minor\":\"0\",\"fees_minor\":\"3\""),
+          "S4: the float covers the 153 short: %s", OUT.p);
+    CHECK(has(REQ("3", "ledger.entries", ",\"params\":{\"account\":1}"),
+              "{\"entry_id\":\"4\",\"signed_minor\":\"153\",\"counterparty\":0,"
+              "\"reference\":\"mesh float 02a1a2a3a4a5a6a7\"},{\"entry_id\":\"5\","
+              "\"signed_minor\":\"-200\",\"counterparty\":0,\"reference\":\"mesh buy "
+              "02a1a2a3a4a5a6a7\"},{\"entry_id\":\"6\",\"signed_minor\":\"-2\",\"counterparty\":2,"
+              "\"reference\":\"mesh fee 02a1a2a3a4a5a6a7\"}"),
+          "S4: float, price and fee: %s", OUT.p);
+    inv[0] = 0x03;
+    CHECK(zxvd_rpc_mesh_post(false, 10, 0, inv) == 0, "S2: a purchase with no fee");
+    CHECK(has(REQ("2", "mesh.books", ""),
+              "\"wallet_minor\":\"0\",\"fees_minor\":\"3\",\"sold\":\"2\",\"bought\":\"3\""),
+          "S2: no fee posting: %s", OUT.p);
+    EXPECT(REQ("4", "ledger.check", ""), OK("4", "{\"ok\":true}"));
+    /* S1: the accounts are found again after a restart (in memory: a new book) */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0, "books open");
+    CHECK(has(REQ("2", "mesh.books", ""), "\"wallet_account\":null"),
+          "in memory, a restart starts empty");
+}
+
+/* ---------------- edges of the books file, earnings and mesh posting ---------------- */
+
+static void test_edges(void)
+{
+    char tmpl[] = "/tmp/zxvdedge.XXXXXX", path[200], want[300];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    EXPECT(REQ("1", "mesh.books", ""), ERR("1", "-32603", "the books are not open"));
+    EXPECT(REQ("1", "books.file", ""), ERR("1", "-32603", "the books are not open"));
+    static char lp[1025];
+    memset(lp, 'a', 1024);
+    lp[1024] = 0;
+    CHECK(zxvd_rpc_books_file(lp) == -1, "F1: a 1024-byte path does not fit");
+    lp[1023] = 0;
+    CHECK(zxvd_rpc_books_file(lp) == 0, "F1: a 1023-byte path does");
+    CHECK(zxvd_rpc_books_file(NULL) == 0 && zxvd_rpc_books_open() == 0 &&
+              has(REQ("1", "books.file", ""), "\"saved\":false,\"path\":null"),
+          "F1: NULL means the books live in memory");
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books on a file");
+    snprintf(want, sizeof want, "\"saved\":true,\"path\":\"%s\"", path);
+    CHECK(has(REQ("2", "books.file", ""), want), "books.file names the file: %s", OUT.p);
+
+    /* E: a sync that changes nothing posts nothing */
+    CHECK(zxvd_rpc_earnings_sync(0) == 0, "E2: sync 0");
+    CHECK(has(REQ("3", "swarm.earnings", ""), "\"balance_minor\":\"0\",\"postings\":\"0\""),
+          "E2: nothing held, nothing posted: %s", OUT.p);
+    CHECK(zxvd_rpc_earnings_sync(5) == 0 &&
+              has(REQ("3", "swarm.earnings", ""), "\"balance_minor\":\"5\",\"postings\":\"1\""),
+          "E2: 5 held, one posting: %s", OUT.p);
+
+    /* a new currency is a record; an enabled one is not written again */
+    EXPECT(REQ("4", "currency.enable", ",\"params\":{\"code\":\"GBP\"}"),
+           OK("4", "{\"enabled\":\"GBP\"}"));
+    long n;
+    char *b = slurp(path, &n);
+    CHECK(b && strstr(b, " {\"op\":\"ccy\",\"code\":\"GBP\"}\n"), "F3: the GBP record");
+    free(b);
+
+    /* S: boundaries of the amounts */
+    uint8_t inv[32];
+    for (int i = 0; i < 32; i++) inv[i] = (uint8_t) (0x10 + i);
+    CHECK(zxvd_rpc_mesh_post(true, 30, 0, inv) == 0, "S2: a sale of 30");
+    inv[0] = 0x20;
+    CHECK(zxvd_rpc_mesh_post(false, 30, 0, inv) == 0, "S4: a purchase of exactly the wallet");
+    CHECK(has(REQ("5", "mesh.books", ""), "\"wallet_minor\":\"0\",\"fees_minor\":\"0\""),
+          "S4: wallet empty: %s", OUT.p);
+    CHECK(!has(REQ("5", "ledger.entries", ",\"params\":{\"account\":3}"), "mesh float"),
+          "S4: no float when the wallet holds exactly enough: %s", OUT.p);
+    /* the largest amounts, on books of their own (a rail's total is capped too) */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "books in memory");
+    inv[0] = 0x30;
+    CHECK(zxvd_rpc_mesh_post(true, (uint64_t) ZXV_AMOUNT_MAX, 0, inv) == 0,
+          "S: a sale of exactly ZXV_AMOUNT_MAX");
+    inv[0] = 0x40;
+    CHECK(zxvd_rpc_mesh_post(false, 10, (uint64_t) ZXV_AMOUNT_MAX, inv) == -1,
+          "S: a fee that overflows with the price is refused");
+    snprintf(want, sizeof want, "\"wallet_minor\":\"%lld\"", (long long) ZXV_AMOUNT_MAX);
+    CHECK(has(REQ("5", "mesh.books", ""), want), "and posts nothing: %s", OUT.p);
+    inv[0] = 0x50;
+    CHECK(zxvd_rpc_mesh_post(false, 1, (uint64_t) ZXV_AMOUNT_MAX - 1u, inv) == 0,
+          "S: price + fee of exactly ZXV_AMOUNT_MAX is accepted");
+    CHECK(has(REQ("5", "mesh.books", ""), "\"wallet_minor\":\"0\""), "wallet empty again: %s",
+          OUT.p);
+
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "back to the file");
+
+    /* F5 with the mesh accounts open */
+    signal(SIGXFSZ, SIG_IGN);
+    struct rlimit old, lim;
+    getrlimit(RLIMIT_FSIZE, &old);
+    lim = old;
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size");
+    snprintf(want, sizeof want, "%s", "\"name\":\"ZXV_E_IO\"");
+    CHECK(has(REQ("6", "jurisdiction.set", ",\"params\":{\"market\":\"open\"}"), want) &&
+              strstr(OUT.p, "this change is not saved"),
+          "F5: a jurisdiction change that cannot be saved: %s", OUT.p);
+    CHECK(has(REQ("6", "jurisdiction.get", ""), "\"market\":\"closed\""),
+          "J4: and it did not apply");
+    CHECK(has(REQ("6", "currency.enable", ",\"params\":{\"code\":\"GBP\"}"), want),
+          "F5: even an enabled currency is refused while read-only");
+    CHECK(
+        has(REQ("6", "ledger.open_account", ",\"params\":{\"name\":\"late\",\"currency\":\"GBP\"}"),
+            want) &&
+            !has(REQ("6", "ledger.accounts", ""), "\"late\""),
+        "F5: an account is refused and not opened");
+    inv[0] = 0x60;
+    CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == -1, "F5: a sale cannot post");
+    CHECK(zxvd_rpc_mesh_post(false, 5, 0, inv) == -1, "F5: a purchase needing a float cannot");
+    CHECK(has(REQ("6", "mesh.books", ""), "\"sold\":\"0\",\"bought\":\"0\""),
+          "F5: nothing counted: %s", OUT.p);
+    setrlimit(RLIMIT_FSIZE, &old);
+    reopen();
+    inv[0] = 0x70;
+    CHECK(zxvd_rpc_mesh_post(true, 50, 0, inv) == 0, "a sale after the restart");
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit the file size again");
+    CHECK(has(REQ("7", "books.file", ""), "\"writable\":true}"), "still writable");
+    inv[0] = 0x71;
+    CHECK(zxvd_rpc_mesh_post(false, 5, 0, inv) == -1, "F5: a covered purchase cannot post");
+    setrlimit(RLIMIT_FSIZE, &old);
+    /* F5 before the mesh accounts exist: they cannot open */
+    zxvd_rpc_books_close();
+    unlink(path);
+    CHECK(zxvd_rpc_books_open() == 0, "a new books file");
+    lim.rlim_cur = (rlim_t) file_size(path);
+    CHECK(setrlimit(RLIMIT_FSIZE, &lim) == 0, "limit it at once");
+    inv[0] = 0x80;
+    CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == -1, "F5: the mesh accounts cannot open");
+    CHECK(has(REQ("8", "mesh.books", ""), "\"wallet_account\":null"), "and none did: %s", OUT.p);
+    setrlimit(RLIMIT_FSIZE, &old);
+    /* S1: mesh accounts that are the file's first ones are found again at the restart */
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0, "the new file reopens");
+    inv[0] = 0x90;
+    CHECK(zxvd_rpc_mesh_post(true, 5, 0, inv) == 0, "a sale opens the mesh accounts first");
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_open() == 0, "and reopens");
+    CHECK(has(REQ("8", "mesh.books", ""),
+              "\"wallet_account\":1,\"counterparty_account\":0,\"fee_account\":2,"
+              "\"wallet_minor\":\"5\""),
+          "S1: account 0 is found again: %s", OUT.p);
+    zxvd_rpc_books_close();
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "back to memory");
+    unlink(path);
+    rmdir(tmpl);
 }
 
 static void test_socket(void)
@@ -1127,6 +1874,191 @@ static void test_peer_methods(void)
     zxvd_rpc_set_peer_ops(NULL);
 }
 
+/* ---------------- aipi.* ---------------- */
+
+static void test_aipi_methods(void)
+{
+    static const char *const M[] = {"aipi.put", "aipi.get", "aipi.publish", "aipi.execute",
+                                    "aipi.status"};
+    char req[256], want[256];
+    for (int pass = 0; pass < 2; pass++) {
+        zxvd_rpc_set_aipi_ops(pass ? &AIPI_NONE : NULL);
+        for (unsigned i = 0; i < 5; i++) {
+            snprintf(req, sizeof req, REQ("1", "%s", ""), M[i]);
+            EXPECT(req, ERR("1", "-32601", "not available"));
+        }
+    }
+    zxvd_rpc_set_aipi_ops(&AIPI_STUB);
+    EXPECT(REQ("2", "aipi.status", ""), OK("2", "{\"online\":false}"));
+
+    /* aipi.put */
+    EXPECT(REQ("3", "aipi.put", ",\"params\":{\"hex\":\"00Ff7a\"}"), OK("3", "{\"bytes\":3}"));
+    CHECK(put_had_data && put_len == 3 && put_data[0] == 0 && put_data[1] == 0xFF &&
+              put_data[2] == 0x7A && !put_priv && !strcmp(put_path, "<null>"),
+          "aipi.put decodes hex and passes it with no path, public by default");
+    EXPECT(REQ("3", "aipi.put", ",\"params\":{\"hex\":\"\",\"private\":true}"),
+           OK("3", "{\"bytes\":0}"));
+    CHECK(put_had_data && put_len == 0 && put_priv, "an empty block, private");
+    EXPECT(REQ("3", "aipi.put", ",\"params\":{\"path\":\"/tmp/m.wasm\",\"private\":false}"),
+           OK("3", "{\"bytes\":0}"));
+    CHECK(!put_had_data && !strcmp(put_path, "/tmp/m.wasm") && !put_priv,
+          "aipi.put passes a path and no data");
+    EXPECT(REQ("3", "aipi.put", ",\"params\":{\"path\":\"/fail\"}"),
+           ERR("3", "-32011", "the file could not be opened"));
+    int n = aipi_calls;
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{}"),
+           ERR("4", "-32602", "give exactly one of \\\"hex\\\" and \\\"path\\\""));
+    EXPECT(REQ("4", "aipi.put", ""),
+           ERR("4", "-32602", "give exactly one of \\\"hex\\\" and \\\"path\\\""));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"hex\":\"00\",\"path\":\"/x\"}"),
+           ERR("4", "-32602", "give exactly one of \\\"hex\\\" and \\\"path\\\""));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"hex\":\"0\"}"),
+           ERR("4", "-32602", "\\\"hex\\\" must be an even number of hex digits"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"hex\":\"0g\"}"),
+           ERR("4", "-32602", "\\\"hex\\\" must be an even number of hex digits"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"path\":\"\"}"),
+           ERR("4", "-32602", "\\\"path\\\" must not be empty"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"path\":7}"),
+           ERR("4", "-32602", "\\\"path\\\" must be a string of at most 1023 bytes"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"hex\":\"00\",\"private\":1}"),
+           ERR("4", "-32602", "\\\"private\\\" must be true or false"));
+    EXPECT(REQ("4", "aipi.put", ",\"params\":{\"path\":\"/x\",\"private\":\"yes\"}"),
+           ERR("4", "-32602", "\\\"private\\\" must be true or false"));
+    CHECK(aipi_calls == n, "bad aipi.put params never reach the host");
+    /* ZXVD_AIPI_HEX_MAX bytes fit in one request line, one more does not */
+    static char big[2 * ZXVD_AIPI_HEX_MAX + 200];
+    int k =
+        snprintf(big, sizeof big,
+                 "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"aipi.put\",\"params\":{\"hex\":\"");
+    memset(big + k, 'a', 2 * ZXVD_AIPI_HEX_MAX);
+    strcpy(big + k + 2 * ZXVD_AIPI_HEX_MAX, "\"}}");
+    CHECK(has(big, "\"result\"") && put_len == ZXVD_AIPI_HEX_MAX && put_data[0] == 0xAA &&
+              put_data[ZXVD_AIPI_HEX_MAX - 1] == 0xAA,
+          "aipi.put takes %u bytes of hex", ZXVD_AIPI_HEX_MAX);
+    memset(big + k, 'a', 2 * ZXVD_AIPI_HEX_MAX + 2);
+    strcpy(big + k + 2 * ZXVD_AIPI_HEX_MAX + 2, "\"}}");
+    CHECK(has(big, "\\\"hex\\\" must be a string of at most 16000 bytes"),
+          "one byte more is refused");
+
+    /* aipi.get */
+    EXPECT(REQ("6", "aipi.get", ",\"params\":{\"cid\":\"zb2rh\"}"), OK("6", "{\"hex\":\"\"}"));
+    CHECK(!strcmp(get_cid, "zb2rh"), "aipi.get passes the CID");
+    EXPECT(REQ("6", "aipi.get", ",\"params\":{}"),
+           ERR("6", "-32602", "missing string parameter \\\"cid\\\""));
+
+    /* aipi.publish */
+    EXPECT(REQ("7", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"contract\":\"zC\",\"entry\":\"half\","
+               "\"checker\":\"half_ok\",\"certifier\":\"cf\",\"verify\":\"cert\",\"fuel_max\":"
+               "\"18446744073709551615\",\"local_only\":true,\"deterministic\":false}"),
+           ERR("7", "-32602",
+               "\\\"fuel_max\\\" must be an integer or a decimal string (no fraction or "
+               "exponent)"));
+    EXPECT(REQ("7", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"contract\":\"zC\",\"entry\":\"half\","
+               "\"checker\":\"half_ok\",\"certifier\":\"cf\",\"verify\":\"cert\",\"fuel_max\":"
+               "\"9223372036854775807\",\"local_only\":true,\"deterministic\":false}"),
+           OK("7", "{\"function\":\"zF\"}"));
+    CHECK(!strcmp(pub_fn.module, "zM") && !strcmp(pub_fn.contract, "zC") &&
+              !strcmp(pub_fn.entry, "half") && !strcmp(pub_fn.checker, "half_ok") &&
+              !strcmp(pub_fn.certifier, "cf") && pub_fn.verify == 2 && pub_fn.local_only &&
+              !pub_fn.deterministic && pub_fn.fuel_max == 9223372036854775807ull,
+          "aipi.publish passes every field");
+    static const char *const V[] = {"checker", "cert", "quorum", "local"};
+    for (unsigned i = 0; i < 4; i++) {
+        snprintf(req, sizeof req,
+                 REQ("8", "aipi.publish",
+                     ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"%s\","
+                     "\"fuel_max\":5}"),
+                 V[i]);
+        EXPECT(req, OK("8", "{\"function\":\"zF\"}"));
+        CHECK(pub_fn.verify == i + 1 && pub_fn.fuel_max == 5 && !pub_fn.local_only &&
+                  pub_fn.deterministic && !pub_fn.contract[0] && !pub_fn.checker[0] &&
+                  !pub_fn.certifier[0],
+              "verify \"%s\" is mode %u, with the defaults", V[i], i + 1);
+    }
+    n = aipi_calls;
+    snprintf(want, sizeof want, "%s",
+             ERR("9", "-32602",
+                 "\\\"verify\\\" must be \\\"checker\\\", \\\"cert\\\", \\\"quorum\\\" or "
+                 "\\\"local\\\""));
+    EXPECT(
+        REQ("9", "aipi.publish",
+            ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"none\",\"fuel_max\":5}"),
+        want);
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"\",\"fuel_max\":5}"),
+           want);
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\","
+               "\"fuel_max\":-1}"),
+           ERR("9", "-32602", "\\\"fuel_max\\\" must not be negative"));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\"}"),
+           ERR("9", "-32602", "missing integer parameter \\\"fuel_max\\\""));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1}"),
+           ERR("9", "-32602", "missing string parameter \\\"module\\\""));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"verify\":\"local\",\"fuel_max\":1}"),
+           ERR("9", "-32602", "missing string parameter \\\"entry\\\""));
+    EXPECT(
+        REQ("9", "aipi.publish", ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"fuel_max\":1}"),
+        ERR("9", "-32602", "missing string parameter \\\"verify\\\""));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1,"
+               "\"deterministic\":0}"),
+           ERR("9", "-32602", "\\\"deterministic\\\" must be true or false"));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1,"
+               "\"local_only\":null}"),
+           ERR("9", "-32602", "\\\"local_only\\\" must be true or false"));
+    EXPECT(REQ("9", "aipi.publish",
+               ",\"params\":{\"module\":\"zM\",\"entry\":\"e\",\"verify\":\"local\",\"fuel_max\":1,"
+               "\"checker\":5}"),
+           ERR("9", "-32602", "\\\"checker\\\" must be a string of at most 63 bytes"));
+    CHECK(aipi_calls == n, "bad aipi.publish params never reach the host");
+
+    /* aipi.execute */
+    EXPECT(REQ("10", "aipi.execute",
+               ",\"params\":{\"function\":\"zF\",\"args\":[1,-2,9223372036854775807,"
+               "-9223372036854775808,5,6,7,8]}"),
+           OK("10", "{\"result\":\"1\"}"));
+    CHECK(!strcmp(exec_fn, "zF") && exec_n == 8 && exec_args[0] == 1 && exec_args[1] == -2 &&
+              exec_args[2] == INT64_MAX && exec_args[3] == INT64_MIN && exec_args[7] == 8 &&
+              !exec_priv,
+          "aipi.execute passes up to 8 integers, public by default");
+    EXPECT(
+        REQ("10", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[],\"private\":true}"),
+        OK("10", "{\"result\":\"1\"}"));
+    CHECK(exec_n == 0 && exec_priv, "no arguments, private input");
+    EXPECT(REQ("10", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[13]}"),
+           ERR("10", "-32011", "AIPI_ERR_EXEC: the sandbox refused or stopped the run"));
+    n = aipi_calls;
+    snprintf(want, sizeof want, "%s",
+             ERR("11", "-32602", "\\\"args\\\" must be an array of at most 8 integers"));
+    EXPECT(
+        REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[1,2,3,4,5,6,7,8,9]}"),
+        want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\"}"), want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":5}"), want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":{\"a\":1}}"), want);
+    snprintf(
+        want, sizeof want, "%s",
+        ERR("11", "-32602", "\\\"args\\\" must hold 64-bit integers (no fraction or exponent)"));
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[1,1.5]}"), want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[\"1\"]}"), want);
+    EXPECT(REQ("11", "aipi.execute",
+               ",\"params\":{\"function\":\"zF\",\"args\":[9223372036854775808]}"),
+           want);
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"args\":[]}"),
+           ERR("11", "-32602", "missing string parameter \\\"function\\\""));
+    EXPECT(REQ("11", "aipi.execute", ",\"params\":{\"function\":\"zF\",\"args\":[],\"private\":2}"),
+           ERR("11", "-32602", "\\\"private\\\" must be true or false"));
+    CHECK(aipi_calls == n, "bad aipi.execute params never reach the host");
+    zxvd_rpc_set_aipi_ops(NULL);
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -1134,9 +2066,15 @@ int main(void)
     test_protocol();
     test_host_methods();
     test_peer_methods();
+    test_aipi_methods();
     test_books_closed();
     test_books();
     test_earnings();
+    test_books_file();
+    test_mesh();
+    test_views();
+    test_jurisdiction();
+    test_edges();
     test_socket();
     free(OUT.p);
     if (fails) {

@@ -3,6 +3,7 @@
 /* vhub.c — V-Bill hub clearing. See vhub.h H1-H6. */
 #include "vhub.h"
 #include "../robin_debanks/sha256.h"
+#include "../../include/zxv_fixed.h"
 
 void vhub_init(vhub_t *h, pay_ledger_t *L, uint16_t vbill_asset, vhub_verify_fn verify, void *vctx,
                const uint8_t seed[32], lpx_qrec_t *qstore, uint32_t qcap)
@@ -89,16 +90,6 @@ static bool pegged(const vhub_ccy_t *x)
     return x && x->num && x->den;
 }
 
-static uint64_t gcd64(uint64_t a, uint64_t b)
-{
-    while (b) {
-        uint64_t t = a % b;
-        a = b;
-        b = t;
-    }
-    return a;
-}
-
 uint64_t vhub_quote(const vhub_t *h, uint8_t a, uint8_t b, uint64_t want)
 {
     const vhub_ccy_t *A = slot((vhub_t *) h, a), *B = slot((vhub_t *) h, b);
@@ -107,10 +98,10 @@ uint64_t vhub_quote(const vhub_t *h, uint8_t a, uint8_t b, uint64_t want)
      * gcd(numA, denA); then v = k*u with k = a/s1, u = denA/g, and
      * v*numB/denB is exact iff k is a multiple of s2 = denB with every
      * factor shared with u and numB divided out. */
-    uint64_t g = gcd64(A->num, A->den), s1 = A->num / g, u = A->den / g;
+    uint64_t g = zx_gcd_u64(A->num, A->den), s1 = A->num / g, u = A->den / g;
     uint64_t s2 = B->den;
-    s2 /= gcd64(s2, u);
-    s2 /= gcd64(s2, B->num);
+    s2 /= zx_gcd_u64(s2, u);
+    s2 /= zx_gcd_u64(s2, B->num);
     uint64_t step, rem;
     if (!pay_muldiv(s1, s2, 1, &step, &rem) || step == 0) return 0;
     uint64_t q = want / step * step, v, out;

@@ -35,7 +35,7 @@
 #include "zxvd_rpc.h"
 #include "web4_web2.h" /* w4_jtok_t */
 
-#define ZXVD_E_MODULE (-32011)
+#define ZXVD_E_MODULE (-32012)
 
 /* Index of the module method named by string token `name`, or -1. */
 int zxvd_mod_find(const char *js, const w4_jtok_t *name);

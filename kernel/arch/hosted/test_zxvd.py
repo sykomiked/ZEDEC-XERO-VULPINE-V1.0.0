@@ -188,7 +188,7 @@ def check_modules(c, acct):
           'freight: 1000 bytes rebuilt from 50 of 168 packets (118 lost)')
     r = c.call('freight.unpack', {'header_hex': f['header_hex'],
                                   'packets_hex': b''.join(keep[1:]).hex()})
-    check(r.get('error', {}).get('code') == -32011, 'freight: k - 1 packets are refused (-32011)')
+    check(r.get('error', {}).get('code') == -32012, 'freight: k - 1 packets are refused (-32012)')
     # ---- harmonic: the wire frame ----
     h = c.ok('harmonic.encode', {'trunk': 4, 'shell': 1, 's_plus': [65536, 65536, 7],
                                  's_minus': [65536, 65536]})
@@ -217,7 +217,7 @@ def check_modules(c, acct):
     bad = c.call('ehop.open', dict(ch, epoch=10, frame_hex=fr['frame_hex']))
     check(bands == ['control', 'settle', 'media', 'chat', 'bulk'] and
           bytes.fromhex(op['plaintext_hex']) == data[:100] and op['seq'] == '0' and
-          bad.get('error', {}).get('code') == -32011,
+          bad.get('error', {}).get('code') == -32012,
           'ehop: seal and open on a settle channel; another epoch is refused')
     # ---- web4: an agent card that verifies, and one that does not ----
     card = c.ok('web4.agent_card', {'seed_hex': '5a' * 32, 'name': 'e2e-agent'})
@@ -230,6 +230,74 @@ def check_modules(c, acct):
     check(c.ok('ledger.accounts') == accounts and
           c.ok('ledger.entries', {'account': acct}) == journal,
           'the module methods opened no account and posted nothing')
+
+
+# sdk/kits/aipi/test/aipi_mods.h, assembled: half(n) = n / 2, its inverse
+# half_ok(n, r), and spin(n), a loop that only fuel stops; and "floaty",
+# half(n) through an f64 that the Z-Wasm validator refuses.
+HALVES = ('0061736d01000000010c0260017e017e60027e7e017f0304030001000719030468616c66000007'
+          '68616c665f6f6b0001047370696e00020a2a030700200042027f0b1600200142027e2000512001'
+          '42027e42017c200051720b090003400c000b42000b')
+FLOATY = '0061736d0100000001060160017e017e030201000708010468616c6600000a080106002000b9b00b'
+HALVES_ZC = 'fn half(n: int[0..1000000]) -> int[0..500000];\n'
+
+
+def aipi_checks(c, home):
+    def err(method, params):
+        r = c.call(method, params)
+        return r.get('error', {})
+
+    st0 = c.ok('aipi.status')
+    check(st0['online'] is False and st0['blocks'] == 0 and st0['store_cap'] == 32 << 20,
+          'aipi.status: offline node, empty in-memory blockstore')
+    mod = c.ok('aipi.put', {'hex': HALVES})
+    check(mod['bytes'] == len(HALVES) // 2 and mod['cid'].startswith('z') and
+          mod['private'] is False, 'aipi.put stores the Wasm module by CID (%s)' % mod['cid'])
+    path = os.path.join(home, 'halves.zc')
+    with open(path, 'w') as f:
+        f.write(HALVES_ZC)
+    con = c.ok('aipi.put', {'path': path})
+    check(con['bytes'] == len(HALVES_ZC), 'aipi.put reads the contract from a file')
+    g = c.ok('aipi.get', {'cid': mod['cid']})
+    check(g['hex'] == HALVES and g['tag']['base'] == 'true',
+          'aipi.get returns the verified bytes and a TRUE tag')
+    check(err('aipi.put', {'hex': 'abc'}).get('code') == -32602 and
+          err('aipi.put', {'hex': HALVES, 'path': path}).get('code') == -32602 and
+          err('aipi.put', {'path': os.path.join(home, 'missing')}).get('code') == -32011,
+          'aipi.put refuses odd hex, both sources at once and a missing file')
+    fn = c.ok('aipi.publish', {'module': mod['cid'], 'contract': con['cid'], 'entry': 'half',
+                               'checker': 'half_ok', 'verify': 'checker', 'fuel_max': 100000})
+    check(fn['function'].startswith('z') and fn['local_only'] is False,
+          'aipi.publish returns the function CID')
+    x = c.ok('aipi.execute', {'function': fn['function'], 'args': [2026]})
+    check(x['result'] == '1013' and x['route'] == 'local' and x['tag']['phase'] == 'manifest',
+          'aipi.execute: half(2026) = 1013, run here and verified (%s)' % x['tag'])
+    y = c.ok('aipi.execute', {'function': fn['function'], 'args': [2026]})
+    check(y['result'] == '1013' and y['route'] == 'cache' and y['call'] == x['call'],
+          'the same call is answered from the memo of verified results')
+    e = err('aipi.execute', {'function': fn['function'], 'args': [2000001]})
+    check(e.get('code') == -32011, 'the contract refuses an argument outside its range (%s)' % e)
+    e = err('aipi.execute', {'function': fn['function'], 'args': [1.5]})
+    check(e.get('code') == -32602, 'a fractional argument is refused, never rounded')
+    spin = c.ok('aipi.publish', {'module': mod['cid'], 'entry': 'spin', 'verify': 'local',
+                                 'fuel_max': 5000, 'local_only': True})
+    e = err('aipi.execute', {'function': spin['function'], 'args': [1]})
+    check(e.get('code') == -32011 and spin['local_only'] is True,
+          'a loop runs out of fuel and fails, the swarm loop keeps going (%s)' % e.get('message'))
+    fl = c.ok('aipi.put', {'hex': FLOATY})
+    ff = c.ok('aipi.publish', {'module': fl['cid'], 'entry': 'half', 'verify': 'local',
+                               'fuel_max': 1000})
+    e = err('aipi.execute', {'function': ff['function'], 'args': [4]})
+    check(e.get('code') == -32011, 'a module with floats is refused by the validator')
+    check(err('aipi.publish', {'module': mod['cid'], 'entry': 'half', 'verify': 'checker',
+                               'fuel_max': 10}).get('code') == -32011 and
+          err('aipi.get', {'cid': 'not-a-cid'}).get('code') == -32011,
+          'a checker mode without a checker, and a bad CID, are refused')
+    st = c.ok('aipi.status')
+    check(st['calls'] == 5 and st['failed'] == 3 and st['blocks'] >= 5 and
+          st['sandbox']['trapped'] >= 1 and st['sandbox']['refused_module'] >= 1 and
+          int(st['sandbox']['fuel_used']) > 0,
+          'aipi.status counts the calls, failures and sandbox refusals (%s)' % st)
 
 
 def main(binary, gguf=None):
@@ -293,7 +361,11 @@ def main(binary, gguf=None):
         want = {'zxvd.version', 'zxvd.shutdown', 'swarm.state', 'swarm.ask', 'model.info',
                 'notes.list', 'notes.mark_read', 'net.command', 'update.check',
                 'currency.enable', 'ledger.open_account', 'ledger.post', 'ledger.balance',
-                'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings'}
+                'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings',
+                'mesh.books', 'books.file', 'net.peers', 'net.offers', 'player.card',
+                'jurisdiction.get', 'jurisdiction.set'}
+        if not WINDOWS:
+            want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
               'rpc.discover lists every method')
         v = c.ok('zxvd.version')
@@ -334,6 +406,12 @@ def main(binary, gguf=None):
               all(e['counterparty'] == ea['source_account'] for e in oj) and
               [e['reference'] for e in oj][:2] == ['swarm earnings 1', 'swarm earnings 2'][:len(oj)],
               'the owner\'s VFV journal is the market\'s postings (%d entries)' % len(oj))
+        # ---- AIPI on Z-Wasm (zxvd_aipi.h Z1-Z4); not in the Windows build yet ----
+        if WINDOWS:
+            r = c.call('aipi.status')
+            check(r.get('error', {}).get('code') == -32601, 'aipi.*: not available on Windows')
+        else:
+            aipi_checks(c, home)
         mi = c.ok('model.info')
         if gguf:
             check(mi['loaded'] and mi['arch'] == 'qwen2' and mi['n_vocab'] > 1000,
@@ -360,6 +438,22 @@ def main(binary, gguf=None):
         n = c.ok('notes.list')
         check('notes' in n and 'unread' in n, 'notes.list')
         check(c.ok('notes.mark_read')['marked'] >= 0, 'notes.mark_read')
+
+        # ---- the Studio panels' views (zxvd_rpc.h V1-V3) ----
+        check(c.ok('net.peers') == {'peers': [], 'count': 0}, 'net.peers: none while off')
+        check(c.ok('net.command', {'command': 'share 5 0'})['result'] != 'refused', 'share 5 compute')
+        o = c.ok('net.offers')
+        check(o == {'share': {'compute': '5', 'storage': '0'}, 'wants': [], 'outstanding': []},
+              'net.offers: the share, no wants or receipts (%s)' % o)
+        c.ok('net.command', {'command': 'share 0 0'})
+        pc = c.ok('player.card')
+        check(pc['tier'] == 0 and pc['metal'] == 'Copper' and pc['stone'] == 'Obsidian' and
+              pc['perks'] == [] and pc['next']['metal'] == 'Bronze' and
+              'bond' in pc['next']['missing'] and pc['inputs']['bond']['value'] == '0',
+              'player.card: Copper, Bronze next, bond missing (%s)' % pc)
+        j = c.ok('jurisdiction.get')
+        check(j['market'] == 'closed' and j['standard'] == '' and j['in_effect'] is False and
+              'AAOIFI' in j['standards'], 'jurisdiction.get: closed clearing by default')
 
         # ---- libzxv's books, through the capability ----
         check(c.ok('currency.enable', {'code': 'USD'})['enabled'] == 'USD', 'currency.enable USD')
@@ -473,6 +567,74 @@ def main(binary, gguf=None):
                 if p3.poll() is None:
                     p3.kill()
                     p3.wait()
+
+        # ---- the books file (zxvd_rpc.h F1-F6): the books outlive a restart ----
+        books = os.path.join(home, 'data', 'books.zxvb')
+        os.makedirs(os.path.dirname(books), exist_ok=True)
+
+        def run_with_books():
+            p = subprocess.Popen([binary, '--rpc', sock, '--models-dir', models, '--books', books],
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                 env=env)
+            check(wait_line(p, 'ZXVD-RPC: ') == sock, 'zxvd starts with --books')
+            return p, Client(sock)
+
+        def stop(p, cl):
+            cl.ok('zxvd.shutdown')
+            cl.close()
+            p.wait(timeout=10)
+            check(p.returncode == 0, 'zxvd with --books exits cleanly')
+
+        p4, c4 = run_with_books()
+        try:
+            bf = c4.ok('books.file')
+            check(bf['saved'] is True and bf['writable'] is True and int(bf['records']) >= 2,
+                  'books.file: saved, writable (%s)' % bf)
+            if not WINDOWS:
+                check(stat.S_IMODE(os.stat(books).st_mode) == 0o600, 'the books file is 0600')
+            c4.ok('currency.enable', {'code': 'EUR'})
+            fa = c4.ok('ledger.open_account', {'name': 'saved bank', 'currency': 'EUR',
+                                               'kind': 'issuer'})['account']
+            fb = c4.ok('ledger.open_account', {'name': 'saved cash', 'currency': 'EUR'})['account']
+            fe = c4.ok('ledger.post', {'from': fa, 'to': fb, 'amount_minor': '4200',
+                                       'currency': 'EUR', 'reference': 'E2E-SAVED-1'})['entry_id']
+            t0 = time.time()
+            while c4.ok('swarm.earnings')['owner_account'] is None and time.time() - t0 < 30:
+                time.sleep(0.2)
+            bal = c4.ok('swarm.earnings')['balance_minor']
+            js = c4.ok('jurisdiction.set', {'market': 'open', 'standard': 'IFRS', 'country': 'KE'})
+            check(js['market'] == 'open' and js['country'] == 'KE', 'jurisdiction.set')
+            stop(p4, c4)
+            p4, c4 = run_with_books()
+            got = c4.ok('ledger.entries', {'account': fb})['entries']
+            check([(e['entry_id'], e['signed_minor'], e['reference']) for e in got] ==
+                  [(fe, '4200', 'E2E-SAVED-1')], 'a restart brings the posting back (%s)' % got)
+            check(c4.ok('ledger.balance', {'account': fb})['equity_minor'] == '4200',
+                  'and the balance')
+            ea = c4.ok('swarm.earnings')
+            check(ea['resumed'] is True and int(ea['balance_minor']) >= 0 and
+                  ea['owner_account'] is not None,
+                  'the earnings account comes back (%s; was %s)' % (ea, bal))
+            mb = c4.ok('mesh.books')
+            check(mb['currency'] == 'VFV' and mb['wallet_account'] is None,
+                  'mesh.books: no peer sales yet (%s)' % mb)
+            check(c4.ok('ledger.check')['ok'] is True, 'the replayed books balance')
+            j = c4.ok('jurisdiction.get')
+            check((j['market'], j['standard'], j['country']) == ('open', 'IFRS', 'KE'),
+                  'the jurisdiction settings come back (%s)' % j)
+            stop(p4, c4)
+            with open(books, 'r+b') as f:  # an edit outside zxvd stops the next start
+                data = f.read()
+                f.seek(data.index(b'4200'))
+                f.write(b'4300')
+            p5 = subprocess.run([binary, '--rpc', sock, '--models-dir', models, '--books', books],
+                                capture_output=True, text=True, timeout=20, env=env)
+            check(p5.returncode != 0 and 'hash chain' in p5.stderr and not os.path.exists(sock),
+                  'damaged books stop zxvd from starting (%s)' % p5.stderr.strip()[-200:])
+        finally:
+            if p4.poll() is None:
+                p4.kill()
+                p4.wait()
     finally:
         if proc.poll() is None:
             proc.kill()
