@@ -1650,6 +1650,21 @@ test-zstats:
 test-vderiv:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/vderiv/test_vderiv.c src/vderiv/vderiv.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vderiv -lm && $(ZXV_TMP)/test_vderiv > $(ZXV_TMP)/test_vderiv.log 2>&1 && echo "[PASS] test_vderiv" || { tail -40 $(ZXV_TMP)/test_vderiv.log; echo "[FAIL] test_vderiv"; exit 1; }
 
+# EigenTrust credibility (src/cred): fulfilment-only, log gain / exponential loss / decay, exact fixed-point trust, bounded unlocks (off by default), Player Card JSON.
+.PHONY: test-cred
+test-cred:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/cred/test_cred.c src/cred/cred.c src/sicily/sicily.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_cred -lm && $(ZXV_TMP)/test_cred > $(ZXV_TMP)/test_cred.log 2>&1 && echo "[PASS] test_cred" || { tail -40 $(ZXV_TMP)/test_cred.log; echo "[FAIL] test_cred"; exit 1; }
+
+# Three-level dispute funnel (src/dispute): deterministic proofs, VRF-drawn staked commit-reveal jury, 1x/4x/16x appeals, jurisdiction gateway; slashed bonds to the reserve floor.
+.PHONY: test-dispute
+test-dispute:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/dispute/test_dispute.c src/dispute/dispute.c src/cred/cred.c src/sicily/sicily.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_dispute -lm && $(ZXV_TMP)/test_dispute > $(ZXV_TMP)/test_dispute.log 2>&1 && echo "[PASS] test_dispute" || { tail -40 $(ZXV_TMP)/test_dispute.log; echo "[FAIL] test_dispute"; exit 1; }
+
+# IP royalties (src/royalty): signed work registry, realised-sale-only royalties, derivative upstream chain, largest-remainder owner split, opt-in giving/investing, quote digest shown before paying.
+.PHONY: test-royalty
+test-royalty:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/royalty/test_royalty.c src/royalty/royalty.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_royalty -lm && $(ZXV_TMP)/test_royalty > $(ZXV_TMP)/test_royalty.log 2>&1 && echo "[PASS] test_royalty" || { tail -40 $(ZXV_TMP)/test_royalty.log; echo "[FAIL] test_royalty"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1663,4 +1678,7 @@ test-econ:
 	$(MAKE) --no-print-directory test-vbond
 	$(MAKE) --no-print-directory test-zstats
 	$(MAKE) --no-print-directory test-vderiv
+	$(MAKE) --no-print-directory test-cred
+	$(MAKE) --no-print-directory test-dispute
+	$(MAKE) --no-print-directory test-royalty
 # ==== end economy modules ====
