@@ -2,7 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_quantum_fixed.c — the quantum device model in the kernel's Q32.32
  * build (no TEST_HOST), where the physical constants are in nm, fs and eV
- * (quantum_device.h). Before the unit change hbar was SR_FROM_FLOAT(1.05e-34),
+ * (quantum_device.h). Before the unit change hbar was 1.05e-34 J.s through SR_FROM_FLOAT,
  * which rounds to 0 in Q32.32, so every Casimir force and zero-point energy
  * the kernel computed was 0 (adversarial audit 2026-10-12). */
 #include <stdio.h>

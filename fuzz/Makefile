@@ -203,7 +203,7 @@ DEF_fuzz_devmesh := -DTEST_HOST
 # needs its own archive built with CC=clang).
 DIR_fuzz_zxvd_rpc := parsers
 LIBZXV_SAN := $(abspath $(OUT))/libzxv-san/libzxv.a
-INC_fuzz_zxvd_rpc := -I$(K)/arch/hosted -I$(S)/web4 -I$(K)/../sdk/libzxv/include
+INC_fuzz_zxvd_rpc := -I$(K)/arch/hosted -I$(S)/web4 -I$(S)/robin_debanks -I$(K)/../sdk/libzxv/include
 SRC_fuzz_zxvd_rpc := $(K)/arch/hosted/zxvd_rpc.c $(S)/web4/web4_json.c $(S)/web4/web4_util.c $(LIBZXV_SAN)
 DEF_fuzz_zxvd_rpc := -U_DEFAULT_SOURCE -DTEST_HOST
 # The libFuzzer build links its own copy compiled by $(CC_FUZZ): gcc and clang
