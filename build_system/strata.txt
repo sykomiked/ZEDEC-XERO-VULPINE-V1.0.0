@@ -229,7 +229,6 @@ audiogenomics_pro                above
 bootfeat                         above
 broker                           above
 browser                          above
-zui                              above      # the native UI renderer: draws swarm faces, logic looks, spaces, login
 cards                            above
 chronicle                        above
 community_chest                  above
