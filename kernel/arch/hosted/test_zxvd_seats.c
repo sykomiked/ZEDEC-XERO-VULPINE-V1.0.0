@@ -490,8 +490,9 @@ static void test_roles(void)
     EXPECT(req("seats.set_lock",
                "{\"id\":\"%s\",\"lock\":\"pass\",\"pass\":\"kid-1\",\"session\":\"%s\"}", kid, sk),
            ok("%s", seat_json(kid, "Kid", "person", "pass", 0, 0)));
+    /* changing your own passphrase lock without the old one is a wrong try */
     EXPECT(req("seats.set_lock", "{\"id\":\"%s\",\"lock\":\"none\",\"session\":\"%s\"}", kid, sk),
-           ERR("SEAT_ERR_ARG", "bad argument (a passphrase is 4 to 256 bytes)"));
+           ERR("SEAT_ERR_WRONG", "wrong passphrase or passkey"));
     EXPECT(req("seats.set_lock",
                "{\"id\":\"%s\",\"lock\":\"pass\",\"old_pass\":\"kid-0\","
                "\"pass\":\"kid-2\",\"session\":\"%s\"}",
@@ -625,12 +626,12 @@ static void test_file(void)
     snprintf(salt, sizeof salt, "101112131415161718191a1b1c1d1e1f");
     const char *line2 = strchr(f, '\n');
     CHECK(line2 && strlen(line2) > 120, "a seat line: %s", f);
-    memcpy(hash, line2 ? line2 + 1 + 33 + 22 + 33 : "", 64);
+    memcpy(hash, line2 ? line2 + 1 + 33 + 24 + 33 : "", 64);
     hash[64] = 0;
     snprintf(want, sizeof want,
              "zxv-seats 1 2 0\n"
-             "%s 0 1 16766720 64 2 1 0 %s %s %064d 4f2077\n"
-             "%s 2 0 0 0 0 0 0 %032d %064d %064d 4b\n"
+             "%s 0 1 16766720 64 2 1 1 0 %s %s %064d 4f2077\n"
+             "%s 2 0 0 0 0 0 0 0 %032d %064d %064d 4b\n"
              "end\n",
              owner, salt, hash, 0, kid, 0, 0, 0);
     CHECK(!strcmp(f, want), "L8: the file\n%s\nwant\n%s", f, want);
@@ -718,7 +719,7 @@ static void test_file(void)
 static void test_damaged(void)
 {
     static const char *const GOOD_SEAT =
-        "00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 00000000000000000000000000000000 "
+        "00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 0 00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f";
     static const char *const BAD[] = {
@@ -734,40 +735,40 @@ static void test_damaged(void)
         "zxv-seats 1 1 1\nend\n",
         "zxv-seats 1 0 1\nend\nmore\n",
         "zxv-seats 1 0 1\nended\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeFF 0 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 0\nend\n",
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeFF 0 0 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 3 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 3 0 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 3 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 3 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 0 "
         "0000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "000000000000000000000000000000000000000000000000000000000000000g "
         "0000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 \nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f00\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 0 0 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f 1\nend\n",
@@ -803,11 +804,11 @@ static void test_damaged(void)
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 1 0 5 0 0 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 1 0 5 0 0 0 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
-        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 2 1 5 8 1 0 0 "
+        "zxv-seats 1 1 1\n00112233445566778899aabbccddeeff 2 1 5 8 1 1 0 0 "
         "00000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 "
         "0000000000000000000000000000000000000000000000000000000000000000 4f\nend\n",
@@ -837,13 +838,13 @@ static void test_damaged(void)
     static const char *const ZERO64 =
         "0000000000000000000000000000000000000000000000000000000000000000";
     snprintf(text, sizeof text,
-             "zxv-seats 1 1 1\nffeeddccbbaa99887766554433221100 0 0 5 0 0 0 0 "
+             "zxv-seats 1 1 1\nffeeddccbbaa99887766554433221100 0 0 5 0 0 0 0 0 "
              "%s00 %s %s 4f\nend\n",
              ZERO32, ZERO64, ZERO64);
     spit(PATH, text);
     CHECK(zxvd_seats_open(PATH) == -1, "a 17-byte salt is refused");
     snprintf(text, sizeof text,
-             "zxv-seats 1 1 1\nffeeddccbbaa99887766554433221100 0 0 5 0 0 0 0 "
+             "zxv-seats 1 1 1\nffeeddccbbaa99887766554433221100 0 0 5 0 0 0 0 0 "
              "%s %s %s 4f0\nend\n",
              ZERO32, ZERO64, ZERO64);
     spit(PATH, text);
@@ -857,7 +858,7 @@ static void test_damaged(void)
     spit(PATH, "zxv-seats 1 00 1\nend\n");
     CHECK(zxvd_seats_open(PATH) == -1, "a count of \"00\" is refused");
     snprintf(text, sizeof text,
-             "zxv-seats 1 1 1\nffeeddccbbaa99887766554433221100 0 0 5 0 0 0 5: "
+             "zxv-seats 1 1 1\nffeeddccbbaa99887766554433221100 0 0 5 0 0 0 0 5: "
              "%s %s %s 4f\nend\n",
              ZERO32, ZERO64, ZERO64);
     spit(PATH, text);
@@ -865,29 +866,29 @@ static void test_damaged(void)
     spit(PATH, "zxv-seats 1 0 1\nendx");
     CHECK(zxvd_seats_open(PATH) == -1, "a trailer with no newline is refused");
     snprintf(text, sizeof text,
-             "zxv-seats 1 2 1\n%s\nffeeddccbbaa99887766554433221100 2 1 5 8 1 0 0 "
+             "zxv-seats 1 2 1\n%s\nffeeddccbbaa99887766554433221100 2 1 5 8 1 1 0 0 "
              "%s %s %s 47\nend\n",
              GOOD_SEAT, ZERO32, ZERO64, ZERO64);
     spit(PATH, text);
     CHECK(zxvd_seats_open(PATH) == -1, "a guest with a lock beside an owner is refused");
     /* three seats, the last two sharing an id (with different names), then a name */
     snprintf(text, sizeof text,
-             "zxv-seats 1 3 1\n%s\n10112233445566778899aabbccddeeff 1 0 0 0 0 0 0 %s %s %s 41\n"
-             "10112233445566778899aabbccddeeff 1 0 0 0 0 0 0 %s %s %s 42\nend\n",
+             "zxv-seats 1 3 1\n%s\n10112233445566778899aabbccddeeff 1 0 0 0 0 0 0 0 %s %s %s 41\n"
+             "10112233445566778899aabbccddeeff 1 0 0 0 0 0 0 0 %s %s %s 42\nend\n",
              GOOD_SEAT, ZERO32, ZERO64, ZERO64, ZERO32, ZERO64, ZERO64);
     spit(PATH, text);
     CHECK(zxvd_seats_open(PATH) == -1, "a repeated id among later seats is refused");
     snprintf(text, sizeof text,
-             "zxv-seats 1 3 1\n%s\n10112233445566778899aabbccddeeff 1 0 0 0 0 0 0 %s %s %s 41\n"
-             "20112233445566778899aabbccddeeff 1 0 0 0 0 0 0 %s %s %s 41\nend\n",
+             "zxv-seats 1 3 1\n%s\n10112233445566778899aabbccddeeff 1 0 0 0 0 0 0 0 %s %s %s 41\n"
+             "20112233445566778899aabbccddeeff 1 0 0 0 0 0 0 0 %s %s %s 41\nend\n",
              GOOD_SEAT, ZERO32, ZERO64, ZERO64, ZERO32, ZERO64, ZERO64);
     spit(PATH, text);
     CHECK(zxvd_seats_open(PATH) == -1, "a repeated name among later seats is refused");
     /* good: ids differing only in the last byte, the largest color, a nine,
      * a passphrase seat at Argon2id's smallest memory */
     snprintf(text, sizeof text,
-             "zxv-seats 1 3 1\n%s\n00112233445566778899aabbccddee00 1 0 4294967295 0 0 0 0 %s %s "
-             "%s 41\n00112233445566778899aabbccddee01 1 1 9 8 1 0 0 %s %s %s 42\nend\n",
+             "zxv-seats 1 3 1\n%s\n00112233445566778899aabbccddee00 1 0 4294967295 0 0 0 0 0 %s %s "
+             "%s 41\n00112233445566778899aabbccddee01 1 1 9 8 1 1 0 0 %s %s %s 42\nend\n",
              GOOD_SEAT, ZERO32, ZERO64, ZERO64, ZERO32, ZERO64, ZERO64);
     spit(PATH, text);
     CHECK(zxvd_seats_open(PATH) == 0, "good:\n%s", text);
@@ -963,7 +964,7 @@ static void test_default_kdf(void)
     CHECK(strlen(sid) == 32, "added with OS random bytes");
     const char *f = slurp(PATH);
     char want[80];
-    snprintf(want, sizeof want, "%s 0 1 0 65536 3 0 0 ", sid);
+    snprintf(want, sizeof want, "%s 0 1 0 65536 3 1 0 0 ", sid);
     CHECK(strstr(f, want) != NULL, "64 MiB, 3 passes: %s", f);
     rpc(req("seats.unlock", "{\"id\":\"%s\",\"pass\":\"real one\"}", sid));
     CHECK(strlen(field("session")) == 64, "unlocks with the default parameters");
@@ -973,7 +974,7 @@ static void test_default_kdf(void)
     for (int i = 0; i < 4; i++) rpc(req("seats.unlock", "{\"id\":\"%s\",\"pass\":\"wrong\"}", sid));
     unsigned long long until = 0, t0 = (unsigned long long) time(NULL) * 1000ull;
     f = slurp(PATH);
-    snprintf(want, sizeof want, "%s 0 1 0 65536 3 5 ", sid);
+    snprintf(want, sizeof want, "%s 0 1 0 65536 3 1 5 ", sid);
     const char *w = strstr(f, want);
     if (w) until = strtoull(w + strlen(want), NULL, 10);
     CHECK(until + 10000u >= t0 + 30000u && until <= t0 + 30000u,

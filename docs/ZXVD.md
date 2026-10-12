@@ -740,7 +740,8 @@ no money and are not marked regulated.
 - `seats.add` (after the first), `seats.remove`, `seats.set_lock` and
   `seats.set_auto` act as the seat of their `session`. Only an owner adds or
   removes seats or turns `auto_enter` off and on; a person may change their
-  own lock (with `old_pass` when they had a passphrase) and an owner may
+  own lock (with `old_pass` when they had a passphrase; leaving it out is a
+  wrong try) and an owner may
   reset anyone's. The last owner cannot be removed. Removing a seat ends its
   sessions.
 - `seats.auto` names the seat to enter without a login screen: the only

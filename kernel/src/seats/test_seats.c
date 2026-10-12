@@ -112,6 +112,13 @@ int main(void)
     CHECK(seat_set_lock(&r, &env, ana, ana, SEAT_LOCK_PASS, (const uint8_t *) "nope", 4, pw2, 4) ==
               SEAT_ERR_WRONG,
           "changing your own needs the old one");
+    CHECK(seat_set_lock(&r, &env, ana, ana, SEAT_LOCK_PASS, 0, 0, pw2, 4) == SEAT_ERR_WRONG,
+          "leaving out the old one is a wrong try, not a bad call");
+    r.kdf.p = 2;
+    r.kdf.m_kib = 64;
+    CHECK(seat_unlock(&r, &env, ana, pw, sizeof pw - 1, false, 250000, &w) == SEAT_OK,
+          "a later change to the roster's KDF does not break existing hashes");
+    r.kdf.p = 1;
     CHECK(seat_set_lock(&r, &env, ana, ana, SEAT_LOCK_PASS, pw, sizeof pw - 1, pw2, 4) == SEAT_OK,
           "with it, a short PIN is fine");
     CHECK(seat_unlock(&r, &env, ana, pw2, 4, false, 300000, &w) == SEAT_OK, "the new PIN works");

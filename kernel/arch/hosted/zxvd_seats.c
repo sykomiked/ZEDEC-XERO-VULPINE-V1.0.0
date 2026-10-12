@@ -363,9 +363,10 @@ static bool save(void)
     for (uint32_t i = 0; i < S.r.n; i++) {
         const seat_t *s = &S.r.v[i];
         o = put_hex(o, s->id, 16);
-        o += sprintf(o, "%u %u %u %u %u %u %llu ", (unsigned) s->role, (unsigned) s->lock,
+        o += sprintf(o, "%u %u %u %u %u %u %u %llu ", (unsigned) s->role, (unsigned) s->lock,
                      (unsigned) s->color, (unsigned) s->kdf_m_kib, (unsigned) s->kdf_t,
-                     (unsigned) s->fails, (unsigned long long) s->wait_until_ms);
+                     (unsigned) s->kdf_p, (unsigned) s->fails,
+                     (unsigned long long) s->wait_until_ms);
         o = put_hex(o, s->salt, SEAT_SALT_LEN);
         o = put_hex(o, s->hash, SEAT_HASH_LEN);
         o = put_hex(o, s->passkey_id, sizeof s->passkey_id);
@@ -383,32 +384,34 @@ static bool save(void)
 /* one seat line into s: NULL, or what is wrong with it */
 static const char *parse_seat(char *line, seat_t *s)
 {
-    char *f[12];
-    uint64_t v[7] = {0};
-    static const uint64_t MAX[7] = {SEAT_GUEST,      SEAT_LOCK_PASSKEY, UINT32_MAX, KDF_M_MAX,
-                                    ID_ARGON2_MAX_T, UINT32_MAX,        UINT64_MAX};
-    if (split(line, f, 12) != 12) return "a seat line does not have 12 fields";
+    char *f[13];
+    uint64_t v[8] = {0};
+    static const uint64_t MAX[8] = {SEAT_GUEST,      SEAT_LOCK_PASSKEY, UINT32_MAX, KDF_M_MAX,
+                                    ID_ARGON2_MAX_T, ID_ARGON2_MAX_P,   UINT32_MAX, UINT64_MAX};
+    if (split(line, f, 13) != 13) return "a seat line does not have 13 fields";
     memset(s, 0, sizeof *s);
     if (!get_hex(f[0], s->id, 16)) return "a seat id is not 32 hex digits";
-    for (uint32_t i = 0; i < 7; i++)
+    for (uint32_t i = 0; i < 8; i++)
         if (!get_num(f[1 + i], MAX[i], &v[i])) return "a number is malformed or out of range";
     s->role = (uint8_t) v[0];
     s->lock = (uint8_t) v[1];
     s->color = (uint32_t) v[2];
     s->kdf_m_kib = (uint32_t) v[3];
     s->kdf_t = (uint32_t) v[4];
-    s->fails = (uint32_t) v[5];
-    s->wait_until_ms = v[6];
-    if (!get_hex(f[8], s->salt, SEAT_SALT_LEN) || !get_hex(f[9], s->hash, SEAT_HASH_LEN) ||
-        !get_hex(f[10], s->passkey_id, sizeof s->passkey_id))
+    s->kdf_p = (uint32_t) v[5];
+    s->fails = (uint32_t) v[6];
+    s->wait_until_ms = v[7];
+    if (!get_hex(f[9], s->salt, SEAT_SALT_LEN) || !get_hex(f[10], s->hash, SEAT_HASH_LEN) ||
+        !get_hex(f[11], s->passkey_id, sizeof s->passkey_id))
         return "a salt, hash or passkey id is malformed";
-    size_t nl = strlen(f[11]) / 2u;
-    if (nl == 0 || nl >= SEAT_NAME_MAX || !get_hex(f[11], (uint8_t *) s->name, (uint32_t) nl) ||
+    size_t nl = strlen(f[12]) / 2u;
+    if (nl == 0 || nl >= SEAT_NAME_MAX || !get_hex(f[12], (uint8_t *) s->name, (uint32_t) nl) ||
         strlen(s->name) != nl)
         return "a name is empty, too long or malformed";
     if (s->role == SEAT_GUEST && s->lock != SEAT_LOCK_NONE) return "a guest seat has a lock";
     bool pass = s->lock == SEAT_LOCK_PASS;
-    if (pass ? s->kdf_m_kib < 8u || s->kdf_t == 0 : s->kdf_m_kib || s->kdf_t)
+    if (pass ? s->kdf_m_kib < 8u || s->kdf_t == 0 || s->kdf_p == 0
+             : s->kdf_m_kib || s->kdf_t || s->kdf_p)
         return "a seat's Argon2id parameters do not match its lock";
     return NULL;
 }

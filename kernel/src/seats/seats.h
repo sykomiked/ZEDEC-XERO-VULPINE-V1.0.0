@@ -66,8 +66,8 @@ typedef struct {
     uint8_t lock; /* seat_lock_t */
     uint8_t salt[SEAT_SALT_LEN];
     uint8_t hash[SEAT_HASH_LEN];
-    uint32_t kdf_m_kib, kdf_t; /* parameters the hash was made with */
-    uint8_t passkey_id[32];    /* ident credential id when lock == PASSKEY */
+    uint32_t kdf_m_kib, kdf_t, kdf_p; /* parameters the hash was made with */
+    uint8_t passkey_id[32];           /* ident credential id when lock == PASSKEY */
     uint32_t fails;
     uint64_t wait_until_ms;
     uint32_t color; /* the person's accent (0 = gold) */
