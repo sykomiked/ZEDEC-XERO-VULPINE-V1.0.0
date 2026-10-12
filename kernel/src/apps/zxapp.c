@@ -153,6 +153,124 @@ static bool ident(const char *w, uint32_t n)
     return true;
 }
 
+/* "1", "1.2" or "1.2.3" (missing parts are 0); "=" first when allowed
+ * marks an exact version. */
+static bool parse_ver(const char *w, uint32_t n, uint16_t ver[3], bool *exact, bool allow_eq)
+{
+    uint32_t i = 0, part = 0;
+    *exact = false;
+    ver[0] = ver[1] = ver[2] = 0;
+    if (allow_eq && n && w[0] == '=') {
+        *exact = true;
+        i++;
+    }
+    for (;;) {
+        uint32_t v = 0, b = i;
+        for (; i < n && w[i] >= '0' && w[i] <= '9'; i++) {
+            v = v * 10u + (uint32_t) (w[i] - '0');
+            if (v > 65535u) return false;
+        }
+        if (i == b) return false;
+        ver[part++] = (uint16_t) v;
+        if (i == n) return true;
+        if (w[i] != '.' || part == 3u) return false;
+        i++;
+    }
+}
+
+/* B2: provides <entry> <num | truth> [input ...] */
+static int parse_provides(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                          uint32_t k)
+{
+    if (k < 3) {
+        put_err(a, line, "provides needs: provides <entry> <num | truth> [input ...]", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (!ident(w[1], wl[1]) || wl[1] + 1u > ZXAPP_ID_MAX) {
+        put_err(a, line, "an entry name must be a short identifier", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (a->nprov >= ZXAPP_LOGIC_MAX) {
+        put_err(a, line, "too many provides lines", 0);
+        return ZXAPP_E_FULL;
+    }
+    zxapp_provide_t *P = &a->prov[a->nprov];
+    word_copy(P->entry, sizeof P->entry, w[1], wl[1]);
+    for (uint32_t i = 0; i < a->nprov; i++)
+        if (seq(a->prov[i].entry, P->entry)) {
+            put_err(a, line, "a second provides for ", P->entry);
+            return ZXAPP_E_SYNTAX;
+        }
+    if (word_is(w[2], wl[2], "num"))
+        P->kind = ZXAPP_KIND_NUM;
+    else if (word_is(w[2], wl[2], "truth"))
+        P->kind = ZXAPP_KIND_TRUTH;
+    else {
+        put_err(a, line, "an entry answers num or truth", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    P->ninputs = 0;
+    if (k == 4) { /* the rest of the line: the inputs, in order */
+        const char *p = w[3];
+        uint32_t n = wl[3], i = 0;
+        while (i < n) {
+            while (i < n && space(p[i])) i++;
+            uint32_t b = i;
+            while (i < n && !space(p[i])) i++;
+            if (i == b) break;
+            if (P->ninputs >= ZXAPP_INPUTS || !ident(p + b, i - b) ||
+                !word_copy(P->input[P->ninputs], ZXAPP_ID_MAX, p + b, i - b)) {
+                put_err(a, line, "inputs are up to 8 short identifiers", 0);
+                return ZXAPP_E_SYNTAX;
+            }
+            for (uint32_t j = 0; j < P->ninputs; j++)
+                if (seq(P->input[j], P->input[P->ninputs])) {
+                    put_err(a, line, "an input named twice: ", P->input[j]);
+                    return ZXAPP_E_SYNTAX;
+                }
+            P->ninputs++;
+        }
+    }
+    P->line = line;
+    a->nprov++;
+    return ZXAPP_OK;
+}
+
+/* B1: use <block> [=]<version> */
+static int parse_use(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                     uint32_t k)
+{
+    if (a->block) {
+        put_err(a, line, "a block cannot use other blocks; the app composes them", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (k != 3) {
+        put_err(a, line, "use needs: use <block> [=]<version>", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (a->nuse >= ZXAPP_USES) {
+        put_err(a, line, "too many use lines", 0);
+        return ZXAPP_E_FULL;
+    }
+    zxapp_use_t *U = &a->use[a->nuse];
+    if (!ident(w[1], wl[1]) || !word_copy(U->id, sizeof U->id, w[1], wl[1])) {
+        put_err(a, line, "a block id must be a short identifier", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (!parse_ver(w[2], wl[2], U->ver, &U->exact, true)) {
+        put_err(a, line, "a bad version (1, 1.2, 1.2.3, or =1.2.3 for exactly that)", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    for (uint32_t i = 0; i < a->nuse; i++)
+        if (seq(a->use[i].id, U->id)) {
+            put_err(a, line, "a block used twice: ", U->id);
+            return ZXAPP_E_SYNTAX;
+        }
+    U->line = line;
+    a->nuse++;
+    return ZXAPP_OK;
+}
+
 int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
 {
     uint8_t *z = (uint8_t *) a;
@@ -171,10 +289,12 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
         uint32_t k = words(p, n, w, wl);
         if (!k) continue;
         if (!header) {
-            if (k != 2 || !word_is(w[0], wl[0], "zxapp") || !word_is(w[1], wl[1], "1")) {
-                put_err(a, r.line, "the first line must be \"zxapp 1\"", 0);
+            bool app = word_is(w[0], wl[0], "zxapp"), blk = word_is(w[0], wl[0], "zxblock");
+            if (k != 2 || !(app || blk) || !word_is(w[1], wl[1], "1")) {
+                put_err(a, r.line, "the first line must be \"zxapp 1\" or \"zxblock 1\"", 0);
                 return ZXAPP_E_SYNTAX;
             }
+            a->block = blk;
             header = true;
             continue;
         }
@@ -254,7 +374,27 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             a->n++;
             continue;
         }
-        put_err(a, r.line, "an unknown directive (id, name, view, model, logic)", 0);
+        if (word_is(w[0], wl[0], "version")) {
+            bool exact;
+            if (k != 2 || !parse_ver(w[1], wl[1], a->ver, &exact, false) ||
+                !(a->ver[0] | a->ver[1] | a->ver[2])) {
+                put_err(a, r.line, "version needs: version <major.minor.patch>, not 0.0.0", 0);
+                return ZXAPP_E_SYNTAX;
+            }
+            continue;
+        }
+        if (word_is(w[0], wl[0], "provides")) {
+            int rc = parse_provides(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
+        if (word_is(w[0], wl[0], "use")) {
+            int rc = parse_use(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
+        put_err(a, r.line,
+                "an unknown directive (id, name, view, model, logic, version, provides, use)", 0);
         return ZXAPP_E_SYNTAX;
     }
     if (!header) {
@@ -364,6 +504,16 @@ void zxapp_unload(zxapp_t *a, zxapp_host_t *h)
     }
 }
 
+/* B3: an entry's contract: set by compose for a block's entries, else the
+ * app's own provides line of that name. */
+static const zxapp_provide_t *contract_of(const zxapp_t *a, const zxapp_logic_t *L)
+{
+    if (L->contract) return L->contract;
+    for (uint32_t i = 0; i < a->nprov; i++)
+        if (seq(a->prov[i].entry, L->entry)) return &a->prov[i];
+    return 0;
+}
+
 static int run_one(zxapp_t *a, zxapp_host_t *h, const zxapp_logic_t *L, const zxapp_arg_t *args,
                    uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out)
 {
@@ -382,6 +532,39 @@ static int run_one(zxapp_t *a, zxapp_host_t *h, const zxapp_logic_t *L, const zx
         a->err[k] = 0;
         return ZXAPP_E_RUNTIME;
     }
+    const zxapp_provide_t *P = contract_of(a, L);
+    if (P) /* B3: the answer is the kind it promised */
+        for (uint32_t i = 0; i < got && i < cap; i++) {
+            bool truth = out[i].den == 0 && out[i].num >= ZXAPP_NEITHER && out[i].num <= ZXAPP_BOTH;
+            if (P->kind == ZXAPP_KIND_NUM ? out[i].den <= 0 : !truth) {
+                put_err(a, L->line, L->entry,
+                        P->kind == ZXAPP_KIND_NUM ? ": answered a truth, it provides a number"
+                                                  : ": answered a number, it provides a truth");
+                return ZXAPP_E_CONTRACT;
+            }
+        }
+    return ZXAPP_OK;
+}
+
+/* B3: the arguments are the inputs the entry provides, in order. */
+static int check_args(zxapp_t *a, const char *entry, const zxapp_arg_t *args, uint32_t nargs)
+{
+    const zxapp_logic_t *L = zxapp_find(a, entry);
+    const zxapp_provide_t *P = L ? contract_of(a, L) : 0;
+    if (!P) return ZXAPP_OK;
+    if (nargs != P->ninputs) {
+        put_err(a, L->line, L->entry, ": the wrong number of inputs for its contract");
+        return ZXAPP_E_CONTRACT;
+    }
+    for (uint32_t i = 0; i < nargs; i++)
+        if (!args[i].name || !seq(args[i].name, P->input[i])) {
+            put_err(a, L->line, L->entry, ": an input out of order or misnamed, expected ");
+            uint32_t k = 0;
+            while (a->err[k]) k++;
+            for (const char *q = P->input[i]; *q && k + 1u < ZXAPP_ERR_MAX; q++) a->err[k++] = *q;
+            a->err[k] = 0;
+            return ZXAPP_E_CONTRACT;
+        }
     return ZXAPP_OK;
 }
 
@@ -397,6 +580,8 @@ int zxapp_call(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t
     if (n_out) *n_out = 0;
     if (!entry || (!out && cap) || (!args && nargs)) return ZXAPP_E_ARG;
     if (!zxapp_find(a, entry)) return ZXAPP_E_NAME;
+    int crc = check_args(a, entry, args, nargs);
+    if (crc != ZXAPP_OK) return crc;
     for (uint32_t i = 0; i < a->n; i++) /* the first that can run (A5) */
         if (runnable(&a->logic[i], h, entry)) {
             int rc = run_one(a, h, &a->logic[i], args, nargs, out, cap, &got);
@@ -425,6 +610,8 @@ int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const z
     if (lp) *lp = ZXAPP_NEITHER;
     if (!entry || (!out && cap) || (!args && nargs) || !lp) return ZXAPP_E_ARG;
     if (!zxapp_find(a, entry)) return ZXAPP_E_NAME;
+    int crc = check_args(a, entry, args, nargs);
+    if (crc != ZXAPP_OK) return crc;
     for (uint32_t i = 0; i < a->n; i++) {
         if (!runnable(&a->logic[i], h, entry)) continue;
         tried++;
@@ -449,4 +636,155 @@ int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const z
     if (n_out) *n_out = n;
     *lp = differ ? ZXAPP_BOTH : tried == 1u ? ZXAPP_NEITHER : ZXAPP_TRUE;
     return differ ? ZXAPP_E_CONFLICT : ZXAPP_OK;
+}
+
+/* ---- B: components (blocks) -------------------------------------------------- */
+
+static void reg_err(zxapp_registry_t *r, const char *m1, const char *m2)
+{
+    uint32_t n = 0;
+    for (const char *p = m1; p && *p && n + 1u < ZXAPP_ERR_MAX; p++) r->err[n++] = *p;
+    for (const char *p = m2; p && *p && n + 1u < ZXAPP_ERR_MAX; p++) r->err[n++] = *p;
+    r->err[n] = 0;
+}
+
+void zxapp_registry_init(zxapp_registry_t *r)
+{
+    r->n = 0;
+    r->err[0] = 0;
+}
+
+/* -1, 0 or 1 as x is older, the same or newer than y. */
+static int ver_cmp(const uint16_t x[3], const uint16_t y[3])
+{
+    for (uint32_t i = 0; i < 3u; i++)
+        if (x[i] != y[i]) return x[i] < y[i] ? -1 : 1;
+    return 0;
+}
+
+int zxapp_registry_add(zxapp_registry_t *r, const zxapp_t *b)
+{
+    if (!b || !b->block) {
+        reg_err(r, "not a block (\"zxblock 1\"): ", b ? b->id : 0);
+        return ZXAPP_E_CONTRACT;
+    }
+    if (!(b->ver[0] | b->ver[1] | b->ver[2])) {
+        reg_err(r, "a block needs a version: ", b->id);
+        return ZXAPP_E_CONTRACT;
+    }
+    for (uint32_t i = 0; i < b->nprov; i++) /* B2: every promise is kept */
+        if (!zxapp_find(b, b->prov[i].entry)) {
+            reg_err(r, "provides an entry no logic implements: ", b->prov[i].entry);
+            return ZXAPP_E_CONTRACT;
+        }
+    for (uint32_t i = 0; i < b->n; i++) { /* and nothing is offered unpromised */
+        bool found = false;
+        for (uint32_t j = 0; j < b->nprov && !found; j++)
+            found = seq(b->prov[j].entry, b->logic[i].entry);
+        if (!found) {
+            reg_err(r, "logic with no provides line: ", b->logic[i].entry);
+            return ZXAPP_E_CONTRACT;
+        }
+    }
+    for (uint32_t i = 0; i < r->n; i++)
+        if (seq(r->b[i]->id, b->id) && !ver_cmp(r->b[i]->ver, b->ver)) {
+            reg_err(r, "that version is already registered: ", b->id);
+            return ZXAPP_E_NAME;
+        }
+    if (r->n >= ZXAPP_BLOCKS) {
+        reg_err(r, "the registry is full", 0);
+        return ZXAPP_E_FULL;
+    }
+    r->b[r->n++] = b;
+    return ZXAPP_OK;
+}
+
+const zxapp_t *zxapp_registry_find(const zxapp_registry_t *r, const char *id, const uint16_t ver[3],
+                                   bool exact)
+{
+    const zxapp_t *best = 0;
+    if (!r || !id || !ver) return 0;
+    for (uint32_t i = 0; i < r->n; i++) {
+        const zxapp_t *b = r->b[i];
+        if (!seq(b->id, id)) continue;
+        int c = ver_cmp(b->ver, ver);
+        bool ok = exact ? c == 0 : (b->ver[0] == ver[0] && c >= 0);
+        if (ok && (!best || ver_cmp(b->ver, best->ver) > 0)) best = b;
+    }
+    return best;
+}
+
+static void ver_text(char *d, const zxapp_use_t *u)
+{
+    uint32_t n = 0;
+    if (u->exact) d[n++] = '=';
+    for (uint32_t i = 0; i < 3u; i++) {
+        char t[6];
+        uint32_t k = 0, v = u->ver[i];
+        do {
+            t[k++] = (char) ('0' + v % 10u);
+            v /= 10u;
+        } while (v);
+        while (k) d[n++] = t[--k];
+        if (i < 2u) d[n++] = '.';
+    }
+    d[n] = 0;
+}
+
+int zxapp_compose(zxapp_t *a, const zxapp_registry_t *r)
+{
+    if (!a || !r || a->block) return ZXAPP_E_ARG;
+    uint32_t own = a->n; /* B4: an app's own entries come first; composed ones have a '.' */
+    for (uint32_t i = 0; i < a->n; i++) {
+        bool dot = false;
+        for (const char *q = a->logic[i].entry; *q && !dot; q++) dot = *q == '.';
+        if (dot) {
+            own = i;
+            break;
+        }
+    }
+    for (uint32_t i = own; i < a->n; i++)
+        if (a->logic[i].loaded) {
+            put_err(a, a->logic[i].line, "unload before composing again: ", a->logic[i].entry);
+            return ZXAPP_E_ARG;
+        }
+    a->n = own;
+    a->composed = own;
+    for (uint32_t u = 0; u < a->nuse; u++) {
+        const zxapp_use_t *U = &a->use[u];
+        const zxapp_t *b = zxapp_registry_find(r, U->id, U->ver, U->exact);
+        if (!b) {
+            char v[24];
+            ver_text(v, U);
+            put_err(a, U->line, "no registered block ", U->id);
+            uint32_t k = 0;
+            while (a->err[k]) k++;
+            const char *at = " at version ";
+            for (const char *q = at; *q && k + 1u < ZXAPP_ERR_MAX; q++) a->err[k++] = *q;
+            for (const char *q = v; *q && k + 1u < ZXAPP_ERR_MAX; q++) a->err[k++] = *q;
+            a->err[k] = 0;
+            a->n = own;
+            return ZXAPP_E_NAME;
+        }
+        for (uint32_t i = 0; i < b->n; i++) {
+            if (a->n >= ZXAPP_LOGIC_MAX) {
+                put_err(a, U->line, "too many logic entries after using ", U->id);
+                a->n = own;
+                return ZXAPP_E_FULL;
+            }
+            const zxapp_logic_t *S = &b->logic[i];
+            zxapp_logic_t *L = &a->logic[a->n];
+            *L = *S;
+            uint32_t k = 0;
+            for (const char *q = b->id; *q; q++) L->entry[k++] = *q;
+            L->entry[k++] = '.';
+            for (const char *q = S->entry; *q; q++) L->entry[k++] = *q;
+            L->entry[k] = 0;
+            L->compiled = 0;
+            L->loaded = false;
+            L->contract = contract_of(b, S);
+            a->n++;
+        }
+    }
+    return ZXAPP_OK;
 }

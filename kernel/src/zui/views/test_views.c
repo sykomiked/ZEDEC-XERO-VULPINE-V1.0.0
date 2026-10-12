@@ -5,7 +5,7 @@
  * files.* on a scratch ZXV folder, swarm.state and swarm.ask stubbed.
  * Clicks and keys go through zui's event path, so the wiring from a pixel
  * to a model call is what is tested. Murmuration also runs its KRON logic
- * and Eve logic (apps/murmuration.zxapp) and is checked against its C
+ * and Eve logic (the swarm_shares block apps/murmuration.zxapp uses) and is checked against its C
  * model on random swarms. Run by test_views.sh. */
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700 /* nftw */
@@ -502,7 +502,9 @@ static murmuration_t M;
 static murm_view_t MV;
 static zxapp_t APP;
 static zxapp_host_t HOST;
-static char MANIFEST[4096];
+static zxapp_t BLOCK;
+static zxapp_registry_t REG;
+static char MANIFEST[4096], BLOCK_SRC[4096];
 static bool murm_act(void *v, zui_id_t w, zui_action_t a, int32_t arg)
 {
     return murm_view_action(v, w, a, arg);
@@ -633,12 +635,21 @@ static void test_murmuration(const char *src)
 
     /* the app's KRON logic, loaded from its manifest */
     char p[512];
-    snprintf(p, sizeof p, "%s/apps/murmuration.zxapp", src);
+    snprintf(p, sizeof p, "%s/apps/blocks/swarm_shares.zxblock", src);
     FILE *f = fopen(p, "rb");
-    size_t n = f ? fread(MANIFEST, 1, sizeof MANIFEST - 1, f) : 0;
+    size_t n = f ? fread(BLOCK_SRC, 1, sizeof BLOCK_SRC - 1, f) : 0;
     if (f) fclose(f);
-    CHECK(zxapp_parse(&APP, MANIFEST, (uint32_t) n) == ZXAPP_OK, "the manifest parses: %s",
-          APP.err);
+    zxapp_registry_init(&REG);
+    CHECK(zxapp_parse(&BLOCK, BLOCK_SRC, (uint32_t) n) == ZXAPP_OK && BLOCK.block &&
+              zxapp_registry_add(&REG, &BLOCK) == ZXAPP_OK,
+          "the swarm_shares block registers: %s %s", BLOCK.err, REG.err);
+    snprintf(p, sizeof p, "%s/apps/murmuration.zxapp", src);
+    f = fopen(p, "rb");
+    n = f ? fread(MANIFEST, 1, sizeof MANIFEST - 1, f) : 0;
+    if (f) fclose(f);
+    CHECK(zxapp_parse(&APP, MANIFEST, (uint32_t) n) == ZXAPP_OK &&
+              zxapp_compose(&APP, &REG) == ZXAPP_OK && APP.n == 3,
+          "the manifest parses and composes the block: %s", APP.err);
     zxapp_host_init(&HOST);
     HOST.read_file = read_src;
     HOST.read_ctx = (void *) src;
@@ -681,14 +692,22 @@ static void test_murmuration(const char *src)
     M.sw.truncated = false;
 
     /* U5: a KRON that disagrees with C is held, never shown as the answer */
-    static zxapp_t BAD;
-    static const char BAD_SRC[] = "zxapp 1\nid murmuration\n"
-                                  "logic kron cycle_share <<\n_999*t%1|+/t\n.\n"
-                                  "logic kron busiest <<\n(3&#t)#>t\n.\n"
-                                  "logic kron within_limits <<\n1\n.\n";
-    CHECK(zxapp_parse(&BAD, BAD_SRC, (uint32_t) strlen(BAD_SRC)) == ZXAPP_OK &&
-              zxapp_load(&BAD, &HOST) == 3,
-          "a wrong KRON loads");
+    static zxapp_t BAD, BAD_BLOCK;
+    static zxapp_registry_t BAD_REG;
+    static const char BAD_BLOCK_SRC[] = "zxblock 1\nid swarm_shares\nversion 1.0.1\n"
+                                        "provides cycle_share num t\n"
+                                        "logic kron cycle_share <<\n_999*t%1|+/t\n.\n"
+                                        "provides busiest num t\n"
+                                        "logic kron busiest <<\n(3&#t)#>t\n.\n"
+                                        "provides within_limits truth share intensity\n"
+                                        "logic kron within_limits <<\nshare+0*intensity\n.\n";
+    static const char BAD_SRC[] = "zxapp 1\nid murmuration\nuse swarm_shares 1\n";
+    zxapp_registry_init(&BAD_REG);
+    CHECK(zxapp_parse(&BAD_BLOCK, BAD_BLOCK_SRC, (uint32_t) strlen(BAD_BLOCK_SRC)) == ZXAPP_OK &&
+              zxapp_registry_add(&BAD_REG, &BAD_BLOCK) == ZXAPP_OK &&
+              zxapp_parse(&BAD, BAD_SRC, (uint32_t) strlen(BAD_SRC)) == ZXAPP_OK &&
+              zxapp_compose(&BAD, &BAD_REG) == ZXAPP_OK && zxapp_load(&BAD, &HOST) == 3,
+          "a wrong KRON block loads: %s %s", BAD.err, BAD_REG.err);
     murm_view_logic(&MV, &BAD, &HOST);
     CHECK(MV.shares_lp == ZXAPP_BOTH && has(text_of(MV.sh.error), "Held: KRON and C") &&
               shown(MV.sh.error),
@@ -697,7 +716,9 @@ static void test_murmuration(const char *src)
     zui_w(&UI, MV.agents)->u.list.row(&UI, MV.agents, 0, &r, &MV);
     CHECK(has(r.detail, "held") && !has(r.detail, "%"), "rows hold the numbers: %s", r.detail);
     CHECK(!has(text_of(MV.busiest), "Companion"), "no busiest while held");
-    CHECK(MV.limits_lp == ZXAPP_BOTH, "a KRON answer where Eve's truths belong is a contradiction");
+    CHECK(MV.limits_lp == ZXAPP_BOTH,
+          "a KRON answer where Eve's truths belong breaks the contract: %s", BAD.err);
+    CHECK(has(BAD.err, "provides a truth"), "the contract says why: %s", BAD.err);
     zxapp_unload(&BAD, &HOST);
     murm_view_logic(&MV, &APP, &HOST);
     CHECK(MV.shares_lp == ZXAPP_TRUE && !has(text_of(MV.sh.error), "Held"),

@@ -155,7 +155,8 @@ static int kron_numbers(murm_view_t *v)
     zxapp_arg_t arg = {"t", t, sw->n};
     zxapp_num_t out[MURM_AGENTS];
     uint32_t n = 0;
-    int r = ran(zxapp_call(v->app, v->host, "cycle_share", &arg, 1, out, MURM_AGENTS, &n));
+    int r =
+        ran(zxapp_call(v->app, v->host, "swarm_shares.cycle_share", &arg, 1, out, MURM_AGENTS, &n));
     if (r <= 0) return r;
     if (n != sw->n) return -1;
     uint32_t share[MURM_AGENTS];
@@ -165,7 +166,8 @@ static int kron_numbers(murm_view_t *v)
     }
     zxapp_num_t top[MURM_VIEW_BUSIEST];
     uint32_t k = 0;
-    r = ran(zxapp_call(v->app, v->host, "busiest", &arg, 1, top, MURM_VIEW_BUSIEST, &k));
+    r = ran(
+        zxapp_call(v->app, v->host, "swarm_shares.busiest", &arg, 1, top, MURM_VIEW_BUSIEST, &k));
     if (r <= 0) return r;
     for (uint32_t i = 0; i < k; i++)
         if (top[i].den != 1 || top[i].num < 0 || top[i].num >= (int64_t) sw->n) return -1;
@@ -208,7 +210,8 @@ static int eve_limits(murm_view_t *v)
     zxapp_arg_t args[2] = {{"share", share, sw->n}, {"intensity", inten, sw->n}};
     zxapp_num_t out[MURM_AGENTS];
     uint32_t n = 0;
-    int r = ran(zxapp_call(v->app, v->host, "within_limits", args, 2, out, MURM_AGENTS, &n));
+    int r = ran(
+        zxapp_call(v->app, v->host, "swarm_shares.within_limits", args, 2, out, MURM_AGENTS, &n));
     if (r <= 0) return r;
     if (n != sw->n) return -1;
     for (uint32_t i = 0; i < n; i++)

@@ -101,7 +101,7 @@ There are two layers:
 
 ### 1.5a Coding languages: a basket, not one
 
-An app is built from several coding languages, each feature in the one that suits it (Sutra for money, Eve for limits, KRON for numbers, any libzxv SDK language or WebAssembly for the rest), bound by the app's `.zxapp` manifest and joined by the paraconsistent logic. Critical features are written twice and must agree. See [APP_MODEL.md](APP_MODEL.md).
+An app is built from several coding languages, each feature in the one that suits it (Sutra for money, Eve for limits, KRON for numbers, any libzxv SDK language or WebAssembly for the rest), bound by the app's `.zxapp` manifest and joined by the paraconsistent logic. Critical features are written twice and must agree. Apps are composed from reusable, versioned components (blocks) with checked contracts, so most new apps are a new screen over blocks that already exist. See [APP_MODEL.md](APP_MODEL.md).
 
 ### 1.6 Test on the host, then cross-compile
 

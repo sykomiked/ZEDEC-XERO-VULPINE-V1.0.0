@@ -4,15 +4,16 @@
  * with their share of the cycle and who witnessed it, the selected agent's
  * face (zui_emote.h), the busiest agents, the model and the swarm's earnings.
  * One app in three languages: this screen is C, the cycle's numbers KRON,
- * the limits they are checked against Eve (apps/murmuration.zxapp).
+ * the limits they are checked against Eve, both from the swarm_shares
+ * block the app uses (apps/murmuration.zxapp, apps/blocks/swarm_shares.zxblock).
  *
  *   U1 KRON LOGIC. The numbers about the cycle (each agent's share in per
- *      mille, the busiest three) are the app's KRON entries cycle_share and
- *      busiest (apps/murmuration.zxapp). When the app has no KRON runtime,
+ *      mille, the busiest three) are the KRON entries swarm_shares.cycle_share
+ *      and swarm_shares.busiest. When the app has no KRON runtime,
  *      or the snapshot is truncated (the entries only see the kept agents),
  *      the view uses the model's C (murm_cycle_share) instead; both give
  *      the same exact numbers, and the status line says which ran (U5).
- *   U4 EVE LIMITS. within_limits (apps/murmuration/limits.eve) checks each
+ *   U4 EVE LIMITS. swarm_shares.within_limits (Eve, limits.eve) checks each
  *      agent's share and intensity; an agent outside them is marked, never
  *      changed. Without an Eve runtime the view checks the same limits in
  *      C (MURM_VIEW_SHARE_CAP).

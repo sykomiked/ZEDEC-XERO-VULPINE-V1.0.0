@@ -37,11 +37,11 @@
  *        name   Murmuration
  *        view   zui/views/murmuration.c
  *        model  apps/murmuration_model.c
- *        logic  kron cycle_share apps/murmuration/cycle_share.kron
+ *        logic  kron cycle_share apps/blocks/swarm_shares/cycle_share.kron
  *        logic  kron top_three <<
  *        3#re@>re
  *        .
- *        logic  eve  within_limits apps/murmuration/limits.eve
+ *        logic  eve  within_limits apps/blocks/swarm_shares/limits.eve
  *
  *      "logic <language> <entry> <path>" names a source file; "<<" instead
  *      of a path takes the source inline, up to a line holding only ".",
@@ -73,6 +73,30 @@
  *      caller holds the result and says so, it never picks one silently.
  *      A view can witness a language with its C model the same way
  *      (zxapp_witness).
+ *
+ * Apps are built from components ("blocks"), like a site from plugins: a
+ * block is a manifest of its own, a few entries in whatever languages suit
+ * them, made once and used by every app that needs it.
+ *
+ *   B1 A BLOCK starts "zxblock 1", has an id and a "version X.Y.Z", and
+ *      may not use other blocks (the app composes them, so there is no
+ *      tree to resolve). An app takes one with "use <block> <version>":
+ *      the newest registered block with that id and major version, at
+ *      least that minor.patch; "=X.Y.Z" asks for exactly that version.
+ *   B2 A CONTRACT for every entry: "provides <entry> <num | truth>
+ *      [input ...]" names its inputs, in order, and the kind of answer.
+ *      A block is registered only when every provides line has logic and
+ *      every logic line has a provides line. An app may promise its own
+ *      entries the same way.
+ *   B3 CHECKED ON EVERY CALL. Arguments that are not the promised inputs
+ *      are ZXAPP_E_CONTRACT before any language runs; an answer of the
+ *      wrong kind is ZXAPP_E_CONTRACT too, and a witnessed call counts it
+ *      as a refusal, so it joins as BOTH (A5), never as an answer.
+ *   B4 COMPOSING copies a used block's entries into the app as
+ *      "<block>.<entry>" (each still in its own language, with its
+ *      contract), after the app's own entries; zxapp_load then loads them
+ *      like any other. Compose again after zxapp_unload to pick up a newer
+ *      block.
  */
 #ifndef ZXAPP_H
 #define ZXAPP_H
@@ -80,10 +104,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define ZXAPP_LOGIC_MAX   16u
+#define ZXAPP_LOGIC_MAX   32u
 #define ZXAPP_ID_MAX      32u
 #define ZXAPP_PATH_MAX    128u
 #define ZXAPP_ERR_MAX     160u
+#define ZXAPP_ENTRY_MAX   64u /* "block.entry" once composed (B4) */
+#define ZXAPP_USES        8u
+#define ZXAPP_INPUTS      8u
+#define ZXAPP_BLOCKS      64u
 #define ZXAPP_WITNESS_MAX 256u /* elements a second witness's answer may have */
 #define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
 
@@ -119,8 +147,9 @@ enum {
     ZXAPP_E_NORUNTIME = -4, /* the entry's language has no runtime loaded   */
     ZXAPP_E_RUNTIME = -5,   /* the runtime refused (its message is in err)     */
     ZXAPP_E_ARG = -6,
-    ZXAPP_E_BUFFER = -7,  /* the result has more elements than fit           */
-    ZXAPP_E_CONFLICT = -8 /* A5: the witnesses disagree; hold, do not act */
+    ZXAPP_E_BUFFER = -7,   /* the result has more elements than fit           */
+    ZXAPP_E_CONFLICT = -8, /* A5: the witnesses disagree; hold, do not act */
+    ZXAPP_E_CONTRACT = -9  /* B3: arguments or answer break the entry's contract */
 };
 
 /* A number (den > 0), or a truth: den = 0 and num is one of these
@@ -137,15 +166,36 @@ typedef struct {
     uint32_t n;
 } zxapp_arg_t;
 
+/* B2: what an entry promises: its inputs, in order, and what it answers. */
+enum { ZXAPP_KIND_NUM = 1, ZXAPP_KIND_TRUTH = 2 };
+typedef struct {
+    char entry[ZXAPP_ID_MAX];
+    uint8_t kind; /* ZXAPP_KIND_* */
+    char input[ZXAPP_INPUTS][ZXAPP_ID_MAX];
+    uint32_t ninputs;
+    uint32_t line;
+} zxapp_provide_t;
+
+/* B1: "use <block> <version>": the newest registered block with that id
+ * and the same major version, at least this minor.patch ("=" first: that
+ * version exactly). */
+typedef struct {
+    char id[ZXAPP_ID_MAX];
+    uint16_t ver[3];
+    bool exact;
+    uint32_t line;
+} zxapp_use_t;
+
 typedef struct {
     zxapp_lang_t lang;
-    char entry[ZXAPP_ID_MAX];
+    char entry[ZXAPP_ENTRY_MAX];
     char path[ZXAPP_PATH_MAX]; /* "" when inline                 */
     const char *src;           /* inline source, or NULL          */
     uint32_t src_len;
     uint32_t line;  /* where it is declared in the manifest */
     void *compiled; /* the runtime's handle after zxapp_load */
     bool loaded;
+    const zxapp_provide_t *contract; /* B3: checked on every call; NULL = none */
 } zxapp_logic_t;
 
 typedef struct {
@@ -155,6 +205,13 @@ typedef struct {
     char model[ZXAPP_PATH_MAX];
     zxapp_logic_t logic[ZXAPP_LOGIC_MAX];
     uint32_t n;
+    bool block;      /* B1: "zxblock 1", a component, not an app */
+    uint16_t ver[3]; /* a block's version (major.minor.patch) */
+    zxapp_provide_t prov[ZXAPP_LOGIC_MAX];
+    uint32_t nprov;
+    zxapp_use_t use[ZXAPP_USES];
+    uint32_t nuse;
+    uint32_t composed;       /* logic[composed..n) came from blocks (B4) */
     char err[ZXAPP_ERR_MAX]; /* the last refusal, for the view to show */
     uint32_t err_line;       /* the manifest line it came from (0 = none) */
 } zxapp_t;
@@ -204,6 +261,31 @@ void zxapp_unload(zxapp_t *a, zxapp_host_t *h);
  * then computes the same thing in C (A2). */
 int zxapp_call(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t *args,
                uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out);
+
+/* ---- B: components (blocks) ------------------------------------------------ */
+
+/* The blocks an app can be composed from. Holds pointers: each block (and
+ * its manifest text) must outlive the registry and every app composed
+ * from it. */
+typedef struct {
+    const zxapp_t *b[ZXAPP_BLOCKS];
+    uint32_t n;
+    char err[ZXAPP_ERR_MAX];
+} zxapp_registry_t;
+
+void zxapp_registry_init(zxapp_registry_t *r);
+/* B1/B2: add a parsed block. Refused (ZXAPP_E_CONTRACT, r->err says why)
+ * when it is not a block, has no version, provides an entry no logic
+ * implements or has logic it does not provide; ZXAPP_E_NAME when that id
+ * and version is already there; ZXAPP_E_FULL past ZXAPP_BLOCKS. */
+int zxapp_registry_add(zxapp_registry_t *r, const zxapp_t *block);
+/* B1: the newest block `id` compatible with ver (see zxapp_use_t). */
+const zxapp_t *zxapp_registry_find(const zxapp_registry_t *r, const char *id, const uint16_t ver[3],
+                                   bool exact);
+/* B4: resolve every "use" of app `a`: each used block's logic is added to
+ * the app as "<block>.<entry>", with its contract. ZXAPP_E_NAME when a
+ * block is missing (a->err names it and the version asked for). */
+int zxapp_compose(zxapp_t *a, const zxapp_registry_t *r);
 
 /* A5: run every implementation of `entry` that can run; out holds the
  * first's answer and *lp the join (ZXAPP_TRUE, ZXAPP_BOTH, ZXAPP_NEITHER).
