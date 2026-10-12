@@ -257,8 +257,10 @@ def apply(src, m):
 def copy_tree(dst):
     ign = shutil.ignore_patterns("*.o", "*.elf", "*.bin", "*.iso", "__pycache__", ".git")
     os.makedirs(dst, exist_ok=True)
-    # sdk/libzxv: the zxvd_rpc target links libzxv, built from kernel/ in place
-    for d in ("kernel", "tests", os.path.join("sdk", "libzxv")):
+    # sdk/libzxv: the zxvd_rpc target links libzxv, built from kernel/ in place;
+    # the aipi kit and its Z-Wasm / Z-Contract libraries: the zxvd_aipi target
+    for d in ("kernel", "tests", os.path.join("sdk", "libzxv"), os.path.join("sdk", "kits", "aipi"),
+              os.path.join("sdk", "kits", "z-wasm"), os.path.join("sdk", "kits", "z-contract")):
         s = os.path.join(ROOT, d)
         if os.path.isdir(s) and not os.path.exists(os.path.join(dst, d)):
             shutil.copytree(s, os.path.join(dst, d), ignore=ign, symlinks=True)

@@ -208,6 +208,33 @@ typedef struct {
 } zxvd_view_ops_t;
 void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
 
+/* aipi.* (zxvd_aipi.c, AIPI on Z-Wasm, docs/AIPI.md): content-addressed
+ * functions run on this node only (offline, rule A3). Set separately; unset
+ * methods answer -32601 (a build without the Z-Wasm kit). Each returns NULL
+ * on success (the result object written into `out`) or the reason it failed
+ * (error ZXVD_E_AIPI). */
+#define ZXVD_E_AIPI        (-32011)
+#define ZXVD_AIPI_ARGS_MAX 8u    /* the Z-Wasm call ABI: up to 8 signed 64-bit integers */
+#define ZXVD_AIPI_HEX_MAX  8000u /* aipi.put "hex": bytes in one request line */
+typedef struct {
+    char module[128], contract[128]; /* CIDs as text; contract "" = none */
+    char entry[64], checker[64], certifier[64];
+    uint8_t verify;  /* AIPI_VERIFY_* */
+    bool local_only; /* privacy LOCAL: never leaves this node */
+    bool deterministic;
+    uint64_t fuel_max;
+} zxvd_aipi_fn_t;
+typedef struct {
+    /* data/len, or path (data NULL): a file read by zxvd */
+    const char *(*put)(const uint8_t *data, uint32_t len, const char *path, bool private_,
+                       zxvd_buf_t *out);                               /* aipi.put */
+    const char *(*get)(const char *cid, zxvd_buf_t *out);              /* aipi.get */
+    const char *(*publish)(const zxvd_aipi_fn_t *fn, zxvd_buf_t *out); /* aipi.publish */
+    const char *(*execute)(const char *fn_cid, const int64_t *args, uint32_t n, bool private_,
+                           zxvd_buf_t *out); /* aipi.execute */
+    void (*status)(zxvd_buf_t *out);         /* aipi.status */
+} zxvd_aipi_ops_t;
+void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
 /* X1-X4: methods another module adds (zxvd_chat.h is the first).
  *   X1 zxvd_rpc_add_methods registers a table that must outlive zxvd's use
  *      of it; a later call replaces it, and NULL or 0 removes it. rpc.discover
@@ -217,7 +244,7 @@ void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
  *      and, as for the built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010). */
+ *      in -32099..-32001 (zxvd_rpc keeps -32000, -32010 and -32011). */
 #define ZXVD_E_METHOD   (-32601)
 #define ZXVD_E_PARAMS   (-32602)
 #define ZXVD_E_INTERNAL (-32603)

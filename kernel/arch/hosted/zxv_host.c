@@ -107,6 +107,9 @@ typedef int sock_t;
 #if defined(ZXVD)
 #    include "zxvd_rpc.h"  /* zxvd: the JSON-RPC socket and the libzxv books */
 #    include "zxvd_chat.h" /* zxvd: the owner's social chat (chat.*) */
+#    if defined(ZXV_HAVE_AIPI)
+#        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
+#    endif
 #    if defined(_WIN32)
 #        include <afunix.h>
 #    else
@@ -2040,6 +2043,10 @@ int main(int argc, char **argv)
                         "a whole number from 1\n");
         return 2;
     }
+#    if defined(ZXV_HAVE_AIPI)
+    /* without it zxvd still runs; aipi.* then answer "not available" */
+    zxvd_rpc_set_aipi_ops(zxvd_aipi_open());
+#    endif
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;
     /* zxvd_chat.h C1-C3: the chat keeps its key and log beside the books */
     char chat_prefix[1100];
@@ -2201,6 +2208,10 @@ int main(int argc, char **argv)
     if (link_path[0]) remove(link_path);
     zxvd_chat_close();
     zxvd_rpc_close();
+#    if defined(ZXV_HAVE_AIPI)
+    zxvd_rpc_set_aipi_ops(NULL);
+    zxvd_aipi_close();
+#    endif
 #endif
     zxv_peer_free(S.peer);
     zxv_net_free(S.net);

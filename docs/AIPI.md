@@ -275,8 +275,10 @@ work):
    `vna_node_announce`.
 2. **Economy.** `reserve` / `pay` / `refund` onto `vna_econ` PAY receipts
    and the triple ledger.
-3. **zxvd.** Expose `AIPI_GET` / `AIPI_EXECUTE` through the daemon socket
-   and the swarm, so agents call functions by CID.
+3. **zxvd.** Done for one node: `aipi.put` / `aipi.get` / `aipi.publish` /
+   `aipi.execute` / `aipi.status` on the daemon socket, offline
+   ([ZXVD.md](ZXVD.md)). Left: letting the swarm's agents call functions by
+   CID, and the mesh route once steps 1 and 2 land.
 4. **libzxv ABI.** Expose AIPI through the libzxv C ABI so every language
    SDK gets it; the SDK track owns that change.
 5. **Real intents.** Descriptors for tensor inference (QUORUM, using the
