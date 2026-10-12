@@ -6,3 +6,9 @@ path = "hardware/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
 SPDX-License-Identifier = "LicenseRef-ZXV-Hardware-1.1"
+
+# JSON cannot carry a comment header.
+[[annotations]]
+path = ".zenodo.json"
+SPDX-FileCopyrightText = "2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
+SPDX-License-Identifier = "Apache-2.0"

@@ -80,6 +80,8 @@ jobs:
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror macos/zxv_rpc_client.c macos/zxv_rpc_call.c \
             -o "$RUNNER_TEMP/zxv-rpc-call"
           python3 macos/test_rpc_client.py "$RUNNER_TEMP/zxvd/zxvd" "$RUNNER_TEMP/zxv-rpc-call"
+      - name: The model fetcher and the shipped model manifest
+        run: python3 macos/test_model_fetch.py
 
   mac-app:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
