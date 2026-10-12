@@ -100,7 +100,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 gcc-aarch64-linux-gnu qemu-user
       - name: Run host tests
         env:
           ZXV_REQUIRE_COBOL: "1"

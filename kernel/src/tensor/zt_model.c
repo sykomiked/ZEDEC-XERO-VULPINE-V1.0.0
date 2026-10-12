@@ -881,6 +881,10 @@ static void state_layout(const zt_model_t *m, zt_model_state_t *s, uint32_t n_ct
     s->scores = lay(L, items * n_ctx * 4);
     s->acc = lay(L, items * c->head_dim * 8);
     s->qs = lay(L, items * c->head_dim * 4);
+    s->lt = lay(L, (uint64_t) B * ZT_LORA_MAX_RANK * 4);
+    s->la16 = lay(L, (uint64_t) B * ZT_LORA_MAX_RANK * 2);
+    s->lasum = lay(L, (uint64_t) B * (ZT_LORA_MAX_RANK / 32) * 4);
+    s->lash = lay(L, (uint64_t) B * (ZT_LORA_MAX_RANK / 32));
 }
 
 uint64_t zt_model_state_bytes(const zt_model_t *m, uint32_t n_ctx, uint32_t n_batch,
@@ -907,6 +911,7 @@ int32_t zt_model_state_init(zt_model_state_t *s, const zt_model_t *m, uint32_t n
     s->pos = 0;
     s->n_sat = 0;
     s->mmb_cols = 0;
+    s->lora = 0;
     return ZT_GGUF_OK;
 }
 
@@ -1052,6 +1057,398 @@ static void attention(const zt_model_t *m, zt_model_state_t *s, uint32_t l, uint
     }
 }
 
+/* ---- T23 LoRA adapters (zt_model.h) ---- */
+
+static const char *const lora_mat_name[ZT_LORA_MATS] = {
+    "attn_q.weight",   "attn_k.weight", "attn_v.weight",  "attn_output.weight",
+    "ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"};
+
+static const zt_mat_t *layer_mat(const zt_layer_t *L, uint32_t i)
+{
+    const zt_mat_t *t[ZT_LORA_MATS] = {&L->wq, &L->wk, &L->wv, &L->wo, &L->wg, &L->wu, &L->wd};
+    return t[i];
+}
+
+/* f16 bits to f32 bits, exactly */
+static uint32_t f16_f32(uint32_t h)
+{
+    uint32_t s = (h & 0x8000u) << 16, e = (h >> 10) & 31, m = h & 0x3FF;
+    if (e == 31) return s | 0x7F800000u | (m << 13);
+    if (e == 0) {
+        if (!m) return s;
+        e = 113; /* 127 - 15 + 1, then normalise */
+        while (!(m & 0x400)) {
+            m <<= 1;
+            e--;
+        }
+        return s | (e << 23) | ((m & 0x3FF) << 13);
+    }
+    return s | ((e + 112) << 23) | (m << 13);
+}
+
+#define LORA_FRAC 48
+#define LORA_LIM  ((int64_t) 1 << 55)
+
+/* Element i of an adapter tensor in Q48, exact for F32, F16, BF16 and Q8_0
+ * (clamped to +-2^55, far beyond any trained adapter). */
+static int64_t lora_val(const zt_gguf_tensor_t *t, uint64_t i)
+{
+    int64_t v;
+    switch (t->type) {
+    case ZT_GGML_F32:
+        v = f32_fixed(le32(t->data + 4 * i), LORA_FRAC);
+        break;
+    case ZT_GGML_F16:
+        v = f32_fixed(f16_f32((uint32_t) t->data[2 * i] | ((uint32_t) t->data[2 * i + 1] << 8)),
+                      LORA_FRAC);
+        break;
+    case ZT_GGML_BF16:
+        v = f32_fixed(((uint32_t) t->data[2 * i] | ((uint32_t) t->data[2 * i + 1] << 8)) << 16,
+                      LORA_FRAC);
+        break;
+    default: { /* Q8_0 */
+        const uint8_t *blk = t->data + (i / 32) * 34;
+        int64_t d = f32_fixed(f16_f32((uint32_t) blk[0] | ((uint32_t) blk[1] << 8)), LORA_FRAC);
+        if (d > LORA_LIM) d = LORA_LIM;
+        if (d < -LORA_LIM) d = -LORA_LIM;
+        return d * (int8_t) blk[2 + i % 32];
+    }
+    }
+    return v > LORA_LIM ? LORA_LIM : v < -LORA_LIM ? -LORA_LIM : v;
+}
+
+/* 32 Q48 values to one zt_q8_t block (value in Q16 = q * scale >> shift). */
+static void requant48(const int64_t *x, zt_q8_t *o)
+{
+    uint64_t amax = 0;
+    for (uint32_t i = 0; i < 32; i++) {
+        uint64_t a = x[i] < 0 ? (uint64_t) 0 - (uint64_t) x[i] : (uint64_t) x[i];
+        if (a > amax) amax = a;
+    }
+    uint32_t d = 0;
+    while ((amax >> d) >= (1ull << 30)) d++;
+    zt_fx v[32];
+    for (uint32_t i = 0; i < 32; i++) {
+        bool neg = x[i] < 0;
+        uint64_t a = neg ? (uint64_t) 0 - (uint64_t) x[i] : (uint64_t) x[i];
+        uint64_t r = d ? (a + (1ull << (d - 1))) >> d : a;
+        v[i] = neg ? -(zt_fx) r : (zt_fx) r;
+    }
+    int32_t sc;
+    uint8_t sh;
+    requant(v, 32, o->q, &sc, &sh);
+    o->phi_k = 0;
+    o->scale = sc;
+    o->shift = (uint8_t) (sc ? sh + (LORA_FRAC - 16) - d : 0);
+}
+
+/* Parse "blk.<l>.<matrix>.lora_a|b": 0 ok, -1 not of that form. */
+static int32_t lora_name(zt_gguf_str_t n, uint32_t *l, uint32_t *mi, uint32_t *ab)
+{
+    const uint8_t *p = n.p;
+    uint64_t len = n.len, i = 4;
+    if (len < 6 || p[0] != 'b' || p[1] != 'l' || p[2] != 'k' || p[3] != '.') return -1;
+    uint32_t v = 0;
+    if (p[i] < '0' || p[i] > '9') return -1;
+    while (i < len && p[i] >= '0' && p[i] <= '9') {
+        if (v > 100000) return -1;
+        v = v * 10 + (uint32_t) (p[i++] - '0');
+    }
+    if (i >= len || p[i++] != '.') return -1;
+    for (uint32_t k = 0; k < ZT_LORA_MATS; k++) {
+        const char *m = lora_mat_name[k];
+        uint64_t j = 0;
+        while (m[j] && i + j < len && p[i + j] == (uint8_t) m[j]) j++;
+        if (m[j]) continue;
+        if (len - i - j != 7) continue;
+        const uint8_t *s = p + i + j;
+        if (s[0] != '.' || s[1] != 'l' || s[2] != 'o' || s[3] != 'r' || s[4] != 'a' ||
+            s[5] != '_' || (s[6] != 'a' && s[6] != 'b'))
+            continue;
+        *l = v;
+        *mi = k;
+        *ab = s[6] == 'b';
+        return 0;
+    }
+    return -1;
+}
+
+static void str_name(char *dst, uint32_t cap, zt_gguf_str_t s)
+{
+    uint32_t i = 0;
+    for (; i < s.len && i < cap - 1; i++) dst[i] = (char) s.p[i];
+    dst[i] = 0;
+}
+
+static bool lora_type_ok(uint32_t t)
+{
+    return t == ZT_GGML_F32 || t == ZT_GGML_F16 || t == ZT_GGML_BF16 || t == ZT_GGML_Q8_0;
+}
+
+/* One walk sizes the arena (a->fill false), a second fills it. */
+static int32_t lora_plan(const zt_model_t *m, const zt_gguf_t *g, uint32_t scale_q16, arena_t *a,
+                         zt_lora_t *lo, zt_model_err_t *err)
+{
+    const zt_model_cfg_t *c = &m->cfg;
+    char nm[64];
+    zt_gguf_val_t v;
+    set_err(err, ZT_GGUF_OK, "ok", 0);
+    if (zt_gguf_find(g, "general.type", &v) == ZT_GGUF_OK &&
+        (v.type != ZT_GGUF_STRING || !zt_gguf_str_eq(v.str, "adapter"))) {
+        set_err(err, ZT_MODEL_ECONFIG, "not an adapter file", "general.type");
+        return ZT_MODEL_ECONFIG;
+    }
+    if (zt_gguf_find(g, "adapter.type", &v) == ZT_GGUF_OK &&
+        (v.type != ZT_GGUF_STRING || !zt_gguf_str_eq(v.str, "lora"))) {
+        set_err(err, ZT_MODEL_EARCH, "adapter type not supported (LoRA only)", "adapter.type");
+        return ZT_MODEL_EARCH;
+    }
+    static const char *const an[4] = {"", "qwen2", "qwen3", "llama"};
+    if (zt_gguf_find(g, "general.architecture", &v) == ZT_GGUF_OK &&
+        (v.type != ZT_GGUF_STRING || c->arch > 3 || !zt_gguf_str_eq(v.str, an[c->arch]))) {
+        set_err(err, ZT_MODEL_EARCH, "adapter is for another architecture", "general.architecture");
+        return ZT_MODEL_EARCH;
+    }
+    uint32_t alpha = 0;
+    int32_t r = zt_gguf_find(g, "adapter.lora.alpha", &v);
+    if (r == ZT_GGUF_OK) {
+        if (v.type != ZT_GGUF_F32 || !f32_finite_pos((uint32_t) v.u, true) ||
+            (uint32_t) v.u > 0x49800000u /* 2^20 */) {
+            set_err(err, ZT_MODEL_ECONFIG, "bad LoRA alpha", "adapter.lora.alpha");
+            return ZT_MODEL_ECONFIG;
+        }
+        alpha = (uint32_t) v.u;
+    } else if (r != ZT_GGUF_ENOTFOUND) {
+        set_err(err, r, "bad metadata", "adapter.lora.alpha");
+        return r;
+    }
+    if (!scale_q16 || scale_q16 > (1u << 24)) {
+        set_err(err, ZT_MODEL_EARG, "adapter scale out of range", 0);
+        return ZT_MODEL_EARG;
+    }
+    uint64_t n_slots = (uint64_t) c->n_layer * ZT_LORA_MATS;
+    zt_lora_mat_t *mats = take(a, n_slots * sizeof(zt_lora_mat_t));
+    uint32_t mx = 32;
+    for (uint32_t l = 0; l < c->n_layer; l++)
+        for (uint32_t k = 0; k < ZT_LORA_MATS; k++) {
+            const zt_mat_t *w = layer_mat(&m->layers[l], k);
+            if (w->cols > mx) mx = w->cols;
+        }
+    int64_t *row = take(a, (uint64_t) (mx > ZT_LORA_MAX_RANK ? mx : ZT_LORA_MAX_RANK) * 8);
+    /* pass 1: every tensor must be a lora_a / lora_b of a supported matrix */
+    for (uint64_t ti = 0; ti < g->n_tensors; ti++) {
+        zt_gguf_tensor_t t;
+        r = zt_gguf_tensor(g, ti, &t);
+        if (r && r != ZT_GGUF_EUNSUPPORTED) {
+            set_err(err, r, "bad tensor", 0);
+            return r;
+        }
+        str_name(nm, sizeof nm, t.name);
+        uint32_t l, k, ab;
+        if (lora_name(t.name, &l, &k, &ab) || l >= c->n_layer) {
+            set_err(err, ZT_GGUF_EUNSUPPORTED, "adapter tensor not supported", nm);
+            return ZT_GGUF_EUNSUPPORTED;
+        }
+        if (r || !lora_type_ok(t.type)) {
+            set_err(err, ZT_GGUF_EUNSUPPORTED, "unsupported tensor type", nm);
+            return ZT_GGUF_EUNSUPPORTED;
+        }
+    }
+    uint32_t n_mats = 0, max_rank = 0;
+    for (uint32_t l = 0; l < c->n_layer; l++) {
+        for (uint32_t k = 0; k < ZT_LORA_MATS; k++) {
+            const zt_mat_t *w = layer_mat(&m->layers[l], k);
+            zt_lora_mat_t lm = {0, 0, 0, 0, w->rows, w->cols};
+            zt_gguf_tensor_t ta, tb;
+            char na[64], nb[64];
+            blk_name(nm, sizeof nm, l, lora_mat_name[k]);
+            cat2(na, sizeof na, nm, ".lora_a");
+            cat2(nb, sizeof nb, nm, ".lora_b");
+            bool ha = has_tensor(g, na), hb = has_tensor(g, nb);
+            if (!ha && !hb) {
+                if (a->fill) mats[l * ZT_LORA_MATS + k] = lm;
+                continue;
+            }
+            if (!ha || !hb) {
+                set_err(err, ZT_MODEL_EMISSING, "LoRA pair incomplete", ha ? nb : na);
+                return ZT_MODEL_EMISSING;
+            }
+            zt_gguf_find_tensor(g, na, &ta);
+            uint32_t rank = ta.n_dims == 2 ? (uint32_t) ta.dims[1] : 0;
+            if (ta.n_dims != 2 || ta.dims[1] > ZT_LORA_MAX_RANK || !rank) {
+                set_err(err, ZT_MODEL_ESHAPE, "LoRA rank out of range", na);
+                return ZT_MODEL_ESHAPE;
+            }
+            if ((r = get_tensor(g, na, w->cols, rank, &ta, err))) return r;
+            if ((r = get_tensor(g, nb, rank, w->rows, &tb, err))) return r;
+            lm.rank = rank;
+            lm.rpad = (rank + 31) & ~31u;
+            uint32_t nba = w->cols / 32, nbb = lm.rpad / 32;
+            zt_q8_t *qa = take(a, (uint64_t) rank * nba * sizeof(zt_q8_t));
+            zt_q8_t *qb = take(a, (uint64_t) w->rows * nbb * sizeof(zt_q8_t));
+            n_mats++;
+            if (rank > max_rank) max_rank = rank;
+            if (!a->fill) continue;
+            for (uint32_t i = 0; i < rank; i++) {
+                for (uint32_t j = 0; j < w->cols; j++)
+                    row[j] = lora_val(&ta, (uint64_t) i * w->cols + j);
+                for (uint32_t bk = 0; bk < nba; bk++)
+                    requant48(row + bk * 32, &qa[(uint64_t) i * nba + bk]);
+            }
+            /* B * alpha / rank * scale, folded in at 48 fraction bits */
+            uint32_t am = 0, ash = 0;
+            if (alpha) {
+                uint32_t ex = (alpha >> 23) & 0xFF;
+                am = (alpha & 0x7FFFFFu) | (ex ? 0x800000u : 0);
+                ash = 150u - (ex ? ex : 1u); /* alpha = am / 2^ash; ex <= 147 so ash >= 3 */
+            }
+            for (uint32_t o = 0; o < w->rows; o++) {
+                for (uint32_t j = 0; j < lm.rpad; j++) {
+                    int64_t x = j < rank ? lora_val(&tb, (uint64_t) o * rank + j) : 0;
+                    if (x && scale_q16 != 65536u) x = mul_shr(x, scale_q16, 16);
+                    if (x && alpha) x = round_div(mul_shr(x, am, ash), rank);
+                    row[j] = x;
+                }
+                for (uint32_t bk = 0; bk < nbb; bk++)
+                    requant48(row + bk * 32, &qb[(uint64_t) o * nbb + bk]);
+            }
+            lm.a = qa;
+            lm.b = qb;
+            mats[l * ZT_LORA_MATS + k] = lm;
+        }
+    }
+    if (!n_mats) {
+        set_err(err, ZT_MODEL_EMISSING, "adapter has no LoRA tensors", 0);
+        return ZT_MODEL_EMISSING;
+    }
+    if (lo) {
+        lo->n_layer = c->n_layer;
+        lo->n_mats = n_mats;
+        lo->max_rank = max_rank;
+        lo->mats = mats;
+        lo->alpha_f32 = alpha;
+        lo->scale_q16 = scale_q16;
+    }
+    return ZT_GGUF_OK;
+}
+
+uint64_t zt_lora_arena_bytes(const zt_model_t *m, const zt_gguf_t *ad)
+{
+    if (!m || !ad || !m->layers) return 0;
+    arena_t a = {0, 0, false, 0, 0};
+    if (lora_plan(m, ad, 65536u, &a, 0, 0)) return 0;
+    return a.used + 64;
+}
+
+int32_t zt_lora_load(zt_lora_t *lo, const zt_model_t *m, const zt_gguf_t *ad, uint32_t scale_q16,
+                     void *arena, uint64_t arena_bytes, zt_model_err_t *err)
+{
+    if (!lo || !m || !ad || !m->layers) {
+        set_err(err, ZT_MODEL_EARG, "null argument", 0);
+        return ZT_MODEL_EARG;
+    }
+    arena_t a = {0, 0, false, 0, 0};
+    int32_t r = lora_plan(m, ad, scale_q16, &a, 0, err);
+    if (r) return r;
+    if (!arena || arena_bytes < a.used + 64) {
+        set_err(err, ZT_MODEL_ESPACE, "arena too small", 0);
+        return ZT_MODEL_ESPACE;
+    }
+    a.base = (uint8_t *) arena + ((64 - ((uintptr_t) arena & 63)) & 63);
+    a.used = 0;
+    a.fill = true;
+    return lora_plan(m, ad, scale_q16, &a, lo, err);
+}
+
+int32_t zt_model_state_set_lora(zt_model_state_t *s, const zt_model_t *m, const zt_lora_t *lo)
+{
+    if (!s || !m) return ZT_MODEL_EARG;
+    if (lo) {
+        if (lo->n_layer != m->cfg.n_layer || !lo->mats || lo->max_rank > ZT_LORA_MAX_RANK)
+            return ZT_MODEL_EARG;
+        for (uint32_t l = 0; l < lo->n_layer; l++)
+            for (uint32_t k = 0; k < ZT_LORA_MATS; k++) {
+                const zt_lora_mat_t *lm = &lo->mats[l * ZT_LORA_MATS + k];
+                const zt_mat_t *w = layer_mat(&m->layers[l], k);
+                if (lm->rank && (lm->rows != w->rows || lm->cols != w->cols)) return ZT_MODEL_EARG;
+            }
+    }
+    s->lora = lo;
+    return ZT_GGUF_OK;
+}
+
+/* y[b] += B (A a[b]) for the B tokens whose 16-bit blocks the base product
+ * just read (s->a16). Stage 1 splits over the rank's rows, stage 2 over the
+ * output rows; each value is computed once, so threads change nothing. */
+typedef struct {
+    const zt_lora_mat_t *lm;
+    zt_model_state_t *s;
+    uint32_t B, ystride;
+    zt_fx *y;
+    zt_dot_q8_fn dot;
+} lora_job_t;
+
+static void lora_t_rows(void *ctx, uint32_t r0, uint32_t r1)
+{
+    const lora_job_t *j = ctx;
+    const zt_model_state_t *s = j->s;
+    uint32_t nb = j->lm->cols / 32, as = s->a_stride;
+    for (uint32_t r = r0; r < r1; r++) {
+        const zt_q8_t *w = j->lm->a + (uint64_t) r * nb;
+        for (uint32_t b = 0; b < j->B; b++) {
+            const int16_t *a = s->a16 + (uint64_t) b * as;
+            const uint8_t *ash = s->ash + b * (as / 32);
+            s->lt[(uint64_t) b * ZT_LORA_MAX_RANK + r] =
+                j->dot ? j->dot(w, a, ash, nb) : zt_dot_q8_c(w, a, ash, nb);
+        }
+    }
+}
+
+static void lora_y_rows(void *ctx, uint32_t r0, uint32_t r1)
+{
+    const lora_job_t *j = ctx;
+    const zt_model_state_t *s = j->s;
+    uint32_t nb = j->lm->rpad / 32, nsat = 0;
+    for (uint32_t r = r0; r < r1; r++) {
+        const zt_q8_t *w = j->lm->b + (uint64_t) r * nb;
+        for (uint32_t b = 0; b < j->B; b++) {
+            const int16_t *a = s->la16 + (uint64_t) b * ZT_LORA_MAX_RANK;
+            const uint8_t *ash = s->lash + b * (ZT_LORA_MAX_RANK / 32);
+            zt_fx d = j->dot ? j->dot(w, a, ash, nb) : zt_dot_q8_c(w, a, ash, nb);
+            zt_fx *y = j->y + (uint64_t) b * j->ystride + r;
+            int64_t v = (int64_t) *y + d;
+            nsat += v > INT32_MAX || v < INT32_MIN;
+            *y = sat32(v);
+        }
+    }
+    if (nsat) __atomic_fetch_add(&j->s->n_sat, nsat, __ATOMIC_RELAXED);
+}
+
+static void lora_apply(const zt_model_t *m, zt_model_state_t *s, uint32_t l, uint32_t k, uint32_t B,
+                       zt_fx *y, uint32_t ystride)
+{
+    const zt_lora_t *lo = s->lora;
+    if (!lo || !s->lt) return;
+    const zt_lora_mat_t *lm = &lo->mats[l * ZT_LORA_MATS + k];
+    if (!lm->rank) return;
+    const zt_kern_t *kn = m->kern;
+    lora_job_t j = {lm, s, B, ystride, y, kn ? kn->dot_q8 : 0};
+    if (kn && kn->par_rows)
+        kn->par_rows(kn->pctx, lora_t_rows, &j, lm->rank, (uint64_t) lm->rank * lm->cols * B);
+    else
+        lora_t_rows(&j, 0, lm->rank);
+    for (uint32_t b = 0; b < B; b++) {
+        zt_fx *t = s->lt + (uint64_t) b * ZT_LORA_MAX_RANK;
+        for (uint32_t r = lm->rank; r < lm->rpad; r++) t[r] = 0;
+        act_quant(t, lm->rpad, s->la16 + (uint64_t) b * ZT_LORA_MAX_RANK,
+                  s->lash + b * (ZT_LORA_MAX_RANK / 32), s->lasum + b * (ZT_LORA_MAX_RANK / 32));
+    }
+    if (kn && kn->par_rows)
+        kn->par_rows(kn->pctx, lora_y_rows, &j, lm->rows, (uint64_t) lm->rows * lm->rpad * B);
+    else
+        lora_y_rows(&j, 0, lm->rows);
+}
+
 /* ---- the forward pass ---- */
 
 /* The per-token steps between the matrix products. Tokens are independent
@@ -1173,22 +1570,29 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
         per_token(m, &j, B, wn);
         act_batch(m, s, s->xn, ne, ne, B);
         matmul(m, &L->wq, s, B, s->q, qd, L->bq);
+        lora_apply(m, s, l, 0, B, s->q, qd);
         matmul(m, &L->wk, s, B, s->k, kvd, L->bk);
+        lora_apply(m, s, l, 1, B, s->k, kvd);
         matmul(m, &L->wv, s, B, s->v, kvd, L->bv);
+        lora_apply(m, s, l, 2, B, s->v, kvd);
         j.stage = TS_QK;
         per_token(m, &j, B, (uint64_t) B * (qd + kvd) * 16);
         attention(m, s, l, p0, B);
         act_batch(m, s, s->att, qd, qd, B);
         matmul(m, &L->wo, s, B, s->xn, ne, 0);
+        lora_apply(m, s, l, 3, B, s->xn, ne);
         j.stage = TS_RESID_NORM;
         per_token(m, &j, B, wn);
         act_batch(m, s, s->xn, ne, ne, B);
         matmul(m, &L->wg, s, B, s->gt, nf, 0);
+        lora_apply(m, s, l, 4, B, s->gt, nf);
         matmul(m, &L->wu, s, B, s->up, nf, 0);
+        lora_apply(m, s, l, 5, B, s->up, nf);
         j.stage = TS_SILU;
         per_token(m, &j, B, wf);
         act_batch(m, s, s->gt, nf, nf, B);
         matmul(m, &L->wd, s, B, s->xn, ne, 0);
+        lora_apply(m, s, l, 6, B, s->xn, ne);
         j.stage = TS_RESID;
         per_token(m, &j, B, wn);
     }
