@@ -53,7 +53,7 @@ typedef struct {
     bool     valid;
     /* Horizontal metrics (hhea + hmtx). Optional: a font without them still
      * parses, and ttf_advance() then returns 0. */
-    int32_t  ascender, descender, line_gap;   /* font units, from hhea     */
+    int32_t ascender, descender, line_gap; /* font units, from hhea     */
     uint32_t hmtx_off, hmtx_len;
     uint32_t num_hmetrics;
 } ttf_font_t;
@@ -81,9 +81,8 @@ uint32_t ttf_advance(const ttf_font_t *f, uint32_t glyph_id);
  * bitmap, so descenders and negative side bearings are drawn instead of being
  * cut off. origin_x_q8 is in 1/256 pixel so runs of glyphs keep their
  * fractional advances. ttf_render() is this with origin (0, h). */
-bool ttf_render_at(const ttf_font_t *f, uint32_t glyph_id, uint32_t size,
-                   uint8_t *bitmap, uint32_t w, uint32_t h,
-                   int32_t origin_x_q8, int32_t baseline_y);
+bool ttf_render_at(const ttf_font_t *f, uint32_t glyph_id, uint32_t size, uint8_t *bitmap,
+                   uint32_t w, uint32_t h, int32_t origin_x_q8, int32_t baseline_y);
 
 /* Convenience: codepoint straight to pixels (cmap + render). */
 bool ttf_render_cp(const ttf_font_t *f, uint32_t codepoint, uint32_t size,

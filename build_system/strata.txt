@@ -116,6 +116,7 @@ decent                           trust
 ehop                             trust      # ehop.h includes mlkem768.h: the hop session is keyed
 ident                            trust
 identity                         trust
+seats                            trust      # device accounts and login; hashes passphrases with ident Argon2id
 immigration                      trust
 ipfs                             trust      # ipfs.h includes update.h (signed update buckets)
 loader                           trust
@@ -228,6 +229,7 @@ audiogenomics_pro                above
 bootfeat                         above
 broker                           above
 browser                          above
+zui                              above      # the native UI renderer: draws swarm faces, logic looks, spaces, login
 cards                            above
 chronicle                        above
 community_chest                  above

@@ -43,24 +43,26 @@
 #include "lpres_hex.h"
 
 typedef struct {
-    int32_t  z_pt;       /* depth in points, + toward the viewer           */
-    int32_t  tone;       /* -256..256: + tint toward light, - shade to void */
-    int32_t  contrast;   /* 0..256 of full contrast against the background  */
-    int32_t  shimmer;    /* 0..: colour/anti-colour swing amplitude          */
-    bool     split;      /* BOTH: draw colour + anti-colour pair             */
-    bool     forbidden;  /* flat, alert outline, no motion                   */
+    int32_t z_pt;     /* depth in points, + toward the viewer           */
+    int32_t tone;     /* -256..256: + tint toward light, - shade to void */
+    int32_t contrast; /* 0..256 of full contrast against the background  */
+    int32_t shimmer;  /* 0..: colour/anti-colour swing amplitude          */
+    bool split;       /* BOTH: draw colour + anti-colour pair             */
+    bool forbidden;   /* flat, alert outline, no motion                   */
 } zui_look_t;
 
 /* The look for a tag. Pure; the same tag always gives the same look. */
 zui_look_t zui_look(lpx_t tag);
 
 /* The complement (anti-colour) of an RGB colour. */
-static inline uint32_t zui_anti(uint32_t rgb) { return (~rgb) & 0xFFFFFFu; }
+static inline uint32_t zui_anti(uint32_t rgb)
+{
+    return (~rgb) & 0xFFFFFFu;
+}
 
 /* Apply a look to a surface/edge colour over background bg. phase_tick drives
  * the shimmer (any counter; only its low bits matter). */
-uint32_t zui_look_color(const zui_look_t *l, uint32_t rgb, uint32_t bg,
-                        uint32_t phase_tick);
+uint32_t zui_look_color(const zui_look_t *l, uint32_t rgb, uint32_t bg, uint32_t phase_tick);
 
 /* Same for text: tone and contrast only, clamped so the result keeps at least
  * 4.5:1 contrast against bg whenever the unshaded colour had it. */

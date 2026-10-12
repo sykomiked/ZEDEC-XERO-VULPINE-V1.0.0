@@ -26,6 +26,19 @@
  *                          far better than red/cyan; red/cyan fits the glasses
  *                          most people already own.
  *
+ *   ZUI_DEPTH_FOIL         every glasses-free cue at once, the owner's "colour
+ *                          and anti-colour" look made native (2026-10-12):
+ *                          parallax from the head, the pointer or the device's
+ *                          tilt; chromostereopsis (near warm, far cool); an
+ *                          iridescent sheen that sweeps across raised things as
+ *                          the view tilts, swinging saturated colours toward
+ *                          their anti-colour (holo_shade) while the dark ground
+ *                          stays put; and a colour / anti-colour fringe on the
+ *                          edges of raised things, warm on one side and cool on
+ *                          the other, like light split by a prism. It reads as
+ *                          depth and as a foil-like shimmer; it is an optical
+ *                          illusion on a flat panel, which is what we call it.
+ *
  * Real light-field panels, stereo monitors and headsets are where depth is
  * genuine; the present layer hands them per-eye or per-view pictures drawn
  * with the same zui_eye_shift(). Wording in UI and docs: "depth effect",
@@ -52,13 +65,14 @@ typedef enum {
     ZUI_DEPTH_CHROMA,
     ZUI_DEPTH_PARALLAX,
     ZUI_DEPTH_ANAGLYPH_AMBER_BLUE,
-    ZUI_DEPTH_ANAGLYPH_RED_CYAN
+    ZUI_DEPTH_ANAGLYPH_RED_CYAN,
+    ZUI_DEPTH_FOIL
 } zui_depth_mode_t;
 
 typedef enum {
-    ZUI_ROLE_HELD = 0,      /* S0: at the glass                 */
-    ZUI_ROLE_FORWARD,       /* S+: toward the viewer            */
-    ZUI_ROLE_BACK           /* S-: behind the glass             */
+    ZUI_ROLE_HELD = 0, /* S0: at the glass                 */
+    ZUI_ROLE_FORWARD,  /* S+: toward the viewer            */
+    ZUI_ROLE_BACK      /* S-: behind the glass             */
 } zui_role_t;
 
 typedef struct {
@@ -67,7 +81,10 @@ typedef struct {
     int32_t ipd_px;         /* eye separation, in screen pixels           */
     int32_t head_x, head_y; /* tracked head offset from centre, pixels    */
     int32_t chroma_k;       /* chromostereopsis strength, 0 = off         */
-    bool    reverse_chroma; /* for viewers who see warm/cool backwards    */
+    bool reverse_chroma;    /* for viewers who see warm/cool backwards    */
+    int32_t foil_k;         /* FOIL sheen + fringe strength 0..256         */
+    int32_t sheen;          /* slow ambient drift of the sheen, any value;
+                               the host advances it while idle (0 = still) */
 } zui_depth_t;
 
 /* Sensible defaults for a panel of the given pixel density: 60 cm viewing
@@ -84,18 +101,27 @@ int32_t zui_eye_shift(const zui_depth_t *d, int32_t z, int32_t eye_x);
 
 /* Per-layer offset for the current mode and eye (eye: -1 left, +1 right,
  * 0 for a single mono view). Covers parallax (head offset) and stereo. */
-void zui_layer_offset(const zui_depth_t *d, int32_t z, int eye,
-                      int32_t *dx, int32_t *dy);
+void zui_layer_offset(const zui_depth_t *d, int32_t z, int eye, int32_t *dx, int32_t *dy);
 
 /* Chromostereopsis tint for a pixel at depth z (identity at z == 0 or when
  * the mode does not use it). */
 uint32_t zui_chroma_px(const zui_depth_t *d, uint32_t rgb, int32_t z);
 
+/* FOIL: give a raised thing (already drawn in r, rounded by radius) its sheen
+ * and its colour / anti-colour fringe. Strength grows with |z| up to 24 px;
+ * z == 0 (held, at the glass) is left untouched, as is every other mode. */
+void zui_foil_rect(zui_surface_t *s, const zui_depth_t *d, zui_rect_t r, int32_t radius, int32_t z);
+
+/* One pixel of the sheen: rgb at sheen phase t (0..255 around the cycle) and
+ * strength k (0..256). Saturated colours swing toward their anti-colour; a
+ * grey or near-black pixel barely moves. */
+uint32_t zui_foil_px(uint32_t rgb, uint32_t t, int32_t k);
+
 /* Combine left- and right-eye pictures into one anaglyph frame. All three
  * surfaces must be the same size; out may alias neither input. Returns false
  * if the mode is not an anaglyph mode or the sizes differ. */
-bool zui_anaglyph(const zui_depth_t *d, zui_surface_t *out,
-                  const zui_surface_t *left, const zui_surface_t *right);
+bool zui_anaglyph(const zui_depth_t *d, zui_surface_t *out, const zui_surface_t *left,
+                  const zui_surface_t *right);
 
 /* One pixel of the same transform, for tests and shaders. */
 uint32_t zui_anaglyph_px(zui_depth_mode_t mode, uint32_t l, uint32_t r);

@@ -1104,10 +1104,17 @@ verify-all: test
 	echo "=== zui: native renderer core (layout, shapes, text, depth effects) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/emu -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/swarm \
 		src/zui/test_zui.c src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_depth.c \
-		src/zui/zui_logic.c src/zui/zui_space.c src/zui/zui_chiglet.c src/zui/zui_emote.c src/zui/zui_progress.c src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/font/truetype.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c \
+		src/zui/zui_logic.c src/zui/zui_space.c src/zui/zui_chiglet.c src/zui/zui_emote.c src/zui/zui_progress.c src/zui/zui_login.c src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/font/truetype.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c \
 		src/robin_debanks/sha256.c \
 		-o /tmp/test_zui && \
 		/tmp/test_zui && echo "[PASS] test_zui" || { echo "[FAIL] test_zui"; exit 1; }; \
+	echo "=== seats: people on one device, login after boot ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/ident -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/surplus -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/trispace \
+		src/seats/test_seats.c src/seats/seats.c src/ident/id_argon2.c src/ident/id_core.c $(PQM_SRCS) $(PQSIG_SRCS) \
+		src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c \
+		src/tls/x25519.c src/tls/aead.c src/robin_debanks/sha256.c src/ipfs_node/ipfsn_multiformats.c src/tensor/zt.c \
+		-o /tmp/test_seats && \
+		/tmp/test_seats && echo "[PASS] test_seats" || { echo "[FAIL] test_seats"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \
