@@ -81,7 +81,7 @@ $(ZXV_LIB):
 
 # z-wasm, built into our tree with our CC and sanitizer flags
 $(ZW_LIB): $(wildcard $(ZW)/src/*.c $(ZW)/src/*.h $(ZW)/include/*.h)
-	$(MAKE) -C $(ZW) CC=$(CC) SANITIZE=$(SANITIZE) OUT=$(ZW_OUT) $(ZW_LIB)
+	$(MAKE) -C $(ZW) CC="$(CC)" SANITIZE=$(SANITIZE) OUT=$(ZW_OUT) $(ZW_LIB)
 
 $(EXAMPLE_WASM): $(ZW)/examples/plugins/rational_plugin.c
 	$(MAKE) -C $(ZW) PYTHON=$(PYTHON) OUT=$(ZW_OUT) $(EXAMPLE_WASM)
