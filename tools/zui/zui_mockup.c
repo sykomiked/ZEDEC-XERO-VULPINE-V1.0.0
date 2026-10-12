@@ -1301,7 +1301,7 @@ static void home_screen(ctx_t *c)
     /* folders as carved tiles */
     static const char *fn[8] = {"Grants", "Field notes", "Photos",   "Ledger exports",
                                 "Music",  "Models",      "Hardware", "Inbox"};
-    static const char *fc[8] = {"14 files",  "38 files", "212 photos", "2 versions",
+    static const char *fc[8] = {"14 files",  "38 files", "syncing",    "2 versions",
                                 "61 tracks", "3 packs",  "local only", "6 new"};
     int cols = W > PT(c, 900) ? 4 : 3;
     int32_t tw = (W - (cols - 1) * PT(c, 14)) / cols, th = PT(c, 96);
@@ -1311,19 +1311,22 @@ static void home_screen(ctx_t *c)
             tag(c, LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_EMERGING);
         else if (i == 3) /* two versions disagree: both stay visible */
             tag(c, LPX_B_BOTH, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
+        else if (i == 2) /* still syncing: unsettled, so angular and brief */
+            tag(c, LPX_B_TRUE, LPX_P_ENTROPIC, LPX_PH_EMERGING);
         else if (i == 6) /* local only: held at the glass */
             layer(c, 0);
         else
             tag(c, LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
         c->bg = ZUI_PANEL;
-        zui_fill_rrect(&c->s, R(c, tx, ty, tw, th), PT(c, ZUI_R_PANEL), C(c, ZUI_PANEL), 255);
-        stamp(c, R(c, tx, ty, tw, th), PT(c, ZUI_R_PANEL), 24);
-        engrave(c, (zui_rect_t){tx, ty, tw, th}, ZUI_R_PANEL);
+        /* shape is an axis too: the tag rounds or squares the corner */
+        int32_t rpt = c->pl ? zui_pxl_radius(c->lt, ZUI_R_PANEL) : ZUI_R_PANEL, rad = PT(c, rpt);
+        zui_fill_rrect(&c->s, R(c, tx, ty, tw, th), rad, C(c, ZUI_PANEL), 255);
+        stamp(c, R(c, tx, ty, tw, th), rad, 24);
+        engrave(c, (zui_rect_t){tx, ty, tw, th}, rpt);
         pict(c, PG_FOLDER, tx + PT(c, 30), ty + PT(c, 34), 24, i == 7 ? ZUI_GOLD_GLOW : ZUI_TEXT_2);
         heading(c, &F_MED, 14, tx + PT(c, 18), ty + PT(c, 62), ZUI_TEXT, fn[i]);
         text(c, &F_MONO, 11, tx + PT(c, 18), ty + PT(c, 79), ZUI_MUTED, fc[i]);
-        zui_foil_rect(&c->s, &c->d, R(c, tx, ty, tw, th), PT(c, ZUI_R_PANEL),
-                      c->z ? c->z : PT(c, 10));
+        zui_foil_rect(&c->s, &c->d, R(c, tx, ty, tw, th), rad, c->z ? c->z : PT(c, 10));
     }
     y += 2 * (th + PT(c, 14)) + (8 > 2 * cols ? th + PT(c, 14) : 0) + PT(c, 10);
     /* a held AI tidy-up: deterministic, waits for you */

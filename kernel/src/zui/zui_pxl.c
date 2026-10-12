@@ -53,6 +53,75 @@ void zui_plane_mark(zui_plane_t *p, zui_rect_t r, int32_t radius, lpx_t tag, int
         }
 }
 
+void zui_plane_mark_luma(zui_plane_t *p, const zui_surface_t *s, zui_rect_t r, lpx_t tag,
+                         int32_t z_k)
+{
+    if (!p || !p->tag || !p->z || !s || !s->px) return;
+    z_k = clampi(z_k, 0, 256);
+    int32_t x0 = r.x < 0 ? 0 : r.x, y0 = r.y < 0 ? 0 : r.y;
+    int32_t x1 = r.x + r.w, y1 = r.y + r.h;
+    if (x1 > p->w) x1 = p->w;
+    if (x1 > s->w) x1 = s->w;
+    if (y1 > p->h) y1 = p->h;
+    if (y1 > s->h) y1 = s->h;
+    for (int32_t y = y0; y < y1; y++) {
+        const uint32_t *row = s->px + (int64_t) y * s->stride;
+        for (int32_t x = x0; x < x1; x++) {
+            uint32_t c = row[x];
+            int32_t lum =
+                (int32_t) ((((c >> 16) & 0xFF) * 77 + ((c >> 8) & 0xFF) * 150 + (c & 0xFF) * 29) >>
+                           8);
+            p->tag[y * p->stride + x] = tag;
+            p->z[y * p->stride + x] = (int8_t) (((lum - 128) * z_k) >> 9); /* +-64 at z_k 256 */
+        }
+    }
+}
+
+zui_pxl_style_t zui_pxl_style(lpx_t tag)
+{
+    zui_pxl_style_t st;
+    static const int32_t pol_round[4] = {96, 192, 0,
+                                         256};       /* entropic, neutral, forbidden, negentropic */
+    static const int32_t ph_round[4] = {2, 3, 2, 4}; /* potential, emerging, dissolving, manifest */
+    static const int32_t ph_hold[4] = {300, 480, 180, 900}; /* ms */
+    uint8_t pol = lpx_pol(tag) & 3, ph = lpx_phase(tag) & 3;
+    st.round_q8 = pol_round[pol] * ph_round[ph] / 4;
+    st.edge_px = 1 + st.round_q8 * 2 / 256;
+    int32_t hold = ph_hold[ph];
+    if (pol == LPX_P_ENTROPIC) hold /= 2;
+    if (pol == LPX_P_NEGENTROPIC) hold += hold / 3;
+    if (pol == LPX_P_FORBIDDEN) hold = 0; /* flat and still */
+    st.hold_ms = hold;
+    st.brief = hold < 400;
+    return st;
+}
+
+int32_t zui_pxl_radius(lpx_t tag, int32_t base)
+{
+    if (base <= 0) return 0;
+    return base * (zui_pxl_style(tag).round_q8 + 64) / 320;
+}
+
+int32_t zui_pxl_ease(lpx_t tag, uint32_t elapsed_ms)
+{
+    zui_pxl_style_t st = zui_pxl_style(tag);
+    if (st.hold_ms <= 0 || elapsed_ms >= (uint32_t) st.hold_ms) return 256;
+    int64_t p = (int64_t) elapsed_ms * 256 / st.hold_ms; /* 0..255 */
+    if (st.brief) {                                      /* ease-out cubic: snaps, then rests */
+        int64_t q = 256 - p;
+        return (int32_t) (256 - q * q * q / 65536);
+    }
+    /* smootherstep: 6p^5 - 15p^4 + 10p^3, settles slowly at both ends */
+    int64_t p2 = p * p, p3 = p2 * p;
+    int64_t v = (p3 * (p * (6 * p - 15 * 256) + 10 * 65536)) >> 32;
+    return (int32_t) clampi((int32_t) v, 0, 256);
+}
+
+int32_t zui_pxl_decay(lpx_t tag, uint32_t elapsed_ms)
+{
+    return 256 - zui_pxl_ease(tag, elapsed_ms);
+}
+
 void zui_pxl_build(zui_pxl_lut_t *lut, int32_t strength)
 {
     if (!lut) return;
@@ -85,6 +154,9 @@ void zui_pxl_build(zui_pxl_lut_t *lut, int32_t strength)
             lut->cell[t][zb].a = (int16_t) clampi(a * strength / 256, -96, 96);
             lut->cell[t][zb].b = (int16_t) clampi(b * strength / 256, -48, 48);
             lut->cell[t][zb].glut = glut;
+            zui_pxl_style_t st = zui_pxl_style((lpx_t) t);
+            lut->cell[t][zb].edge = (uint8_t) st.edge_px;
+            lut->cell[t][zb].tsh = (uint8_t) (st.brief ? 2 : st.hold_ms >= 800 ? 5 : 3);
         }
     }
 }
@@ -139,34 +211,42 @@ void zui_pxl_apply_rows(zui_surface_t *s, const zui_plane_t *p, const zui_pxl_lu
             dy = light_y < -64  ? -1
                  : light_y > 64 ? 1
                                 : 0;
-    int32_t ek = lut->edge_k, ph = (int32_t) (tick >> 3);
+    int32_t ek = lut->edge_k;
     for (int32_t y = y0; y < y1; y++) {
         const uint8_t *tr = p->tag + y * p->stride;
         const int8_t *zr = p->z + y * p->stride;
         uint32_t *row = s->px + (int64_t) y * s->stride;
-        int32_t yt = clampi(y + dy, 0, h - 1), ya = clampi(y - dy, 0, h - 1);
-        const int8_t *zt = p->z + yt * p->stride, *za = p->z + ya * p->stride;
+        /* rows 1..3 steps toward (t) and away from (a) the light, for the bevel */
+        const int8_t *zt[4], *za[4];
+        for (int32_t e = 1; e <= 3; e++) {
+            zt[e] = p->z + clampi(y + dy * e, 0, h - 1) * p->stride;
+            za[e] = p->z + clampi(y - dy * e, 0, h - 1) * p->stride;
+        }
         /* UI pixels come in runs: same colour, same cell, same slope. Remember
          * the last answer and reuse it; that is most of the frame. Two slots,
          * by column parity, so the BOTH interleave keeps hitting too. */
         uint32_t last_in[2] = {0, 0}, last_out[2] = {0, 0};
         int32_t last_a[2] = {0x7FFF, 0x7FFF}, last_b[2] = {0x7FFF, 0x7FFF};
         for (int32_t x = 0; x < w; x++) {
-            int32_t xa = x - dx, xt = x + dx;
-            if (xa < 0)
-                xa = 0;
-            else if (xa >= w)
-                xa = w - 1;
-            if (xt < 0)
-                xt = 0;
-            else if (xt >= w)
-                xt = w - 1;
-            int32_t g = (int32_t) za[xa] - (int32_t) zt[xt];
             const zui_pxl_cell_t *cl = &lut->cell[tr[x] & 63][((int32_t) zr[x] + 128) >> 3];
+            /* the relief: slope summed over the bevel width, so an angular
+             * thing gets one crisp lip and a round one a ramp over 3 px */
+            int32_t E = cl->edge, g = 0, z0 = zr[x];
+            int32_t xaE = clampi(x - dx * E, 0, w - 1), xtE = clampi(x + dx * E, 0, w - 1);
+            /* inside a flat run both far samples match: no slope anywhere
+             * between (marks are convex), so skip the bevel sum */
+            if (za[E][xaE] != z0 || zt[E][xtE] != z0) {
+                for (int32_t e = 1; e <= E; e++) {
+                    int32_t xa = clampi(x - dx * e, 0, w - 1), xt = clampi(x + dx * e, 0, w - 1);
+                    g += (int32_t) za[e][xa] - (int32_t) zt[e][xt];
+                }
+                if (E > 1) g /= E;
+            }
             if (!cl->a && !cl->b && !g) continue; /* flat and held: untouched */
             int32_t a = cl->a, b = cl->b;
-            if (cl->glut && ((x + y + ph) & 1)) a = -a; /* colour and anti-colour interleaved */
-            if (g) { /* the relief edge: a lit lip and a shadow lip, one pixel each */
+            /* colour and anti-colour interleaved; brief things shimmer faster */
+            if (cl->glut && ((x + y + (int32_t) (tick >> cl->tsh)) & 1)) a = -a;
+            if (g) { /* a lit lip and a shadow lip */
                 int32_t gg = g < -48 ? -48 : g > 48 ? 48 : g;
                 b += gg * ek / 128;
                 a += gg * ek / 256;

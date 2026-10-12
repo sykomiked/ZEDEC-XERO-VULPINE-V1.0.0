@@ -966,11 +966,11 @@ static void test_pxl(void)
           "BOTH interleaves colour and anti-colour by pixel");
     uint32_t a0 = px[10 * W + 10];
     memcpy(px, ref, sizeof px);
-    zui_pxl_apply(&s, &pl, &lut, 0, 0, 8);
+    zui_pxl_apply(&s, &pl, &lut, 0, 0, 32);
     CHECK(px[10 * W + 11] == a0, "the interleave swaps as the tick moves");
     memcpy(ref, px, sizeof px);
     for (int i = 0; i < W * H; i++) px[i] = 0x2A6A47u;
-    zui_pxl_apply(&s, &pl, &lut, 0, 0, 8);
+    zui_pxl_apply(&s, &pl, &lut, 0, 0, 32);
     CHECK(memcmp(px, ref, sizeof px) == 0, "deterministic");
     zui_plane_mark(&pl, (zui_rect_t){8, 6, 30, 20}, 3, T, 80);
     zui_plane_mark(&pl, (zui_rect_t){30, 20, 26, 22}, 0, F, -60);
@@ -988,6 +988,70 @@ static void test_pxl(void)
     zui_pxl_apply(&s, NULL, &lut, 0, 0, 0);
     zui_plane_mark(&pl, (zui_rect_t){-50, -50, 400, 400}, 0, T, 500);
     CHECK(zb[0] == 127 && zb[W * H - 1] == 127, "out-of-range marks clip and clamp");
+
+    /* axis C: round <-> angular */
+    lpx_t RND = lpx_make(LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    lpx_t ANG = lpx_make(LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_POTENTIAL);
+    lpx_t ENT = lpx_make(LPX_B_TRUE, LPX_P_ENTROPIC, LPX_PH_MANIFEST);
+    zui_pxl_style_t sr = zui_pxl_style(RND), sa = zui_pxl_style(ANG), sx = zui_pxl_style(X);
+    CHECK(sr.round_q8 == 256 && sr.edge_px == 3, "settled, cooperative things are round");
+    CHECK(sa.round_q8 < sr.round_q8 && sa.edge_px == 1, "unformed things are angular");
+    CHECK(zui_pxl_style(ENT).edge_px == 1, "entropic things are angular");
+    CHECK(sx.round_q8 == 0 && sx.hold_ms == 0, "FORBIDDEN is square and still");
+    CHECK(zui_pxl_radius(RND, 16) == 16 && zui_pxl_radius(ANG, 16) < 16 &&
+              zui_pxl_radius(X, 16) < zui_pxl_radius(ANG, 16) && zui_pxl_radius(RND, 0) == 0,
+          "corner radius follows the tag");
+    /* the bevel: a round card ramps over 3 px, an angular one is a single lip */
+    int32_t ramp[2][5];
+    for (int k = 0; k < 2; k++) {
+        zui_plane_clear(&pl);
+        zui_plane_mark(&pl, (zui_rect_t){16, 12, 32, 24}, 0, k ? ANG : RND, 64);
+        for (int i = 0; i < W * H; i++) px[i] = 0x2A6A47u;
+        zui_pxl_apply(&s, &pl, &lut, 0, -181, 0);
+        uint32_t mid = px[24 * W + 32];
+        for (int d = 0; d < 5; d++) ramp[k][d] = lum_of(px[(12 + d) * W + 32]) - lum_of(mid);
+    }
+    CHECK(ramp[1][0] > 0 && ramp[1][1] == 0, "angular: one crisp lit lip");
+    CHECK(ramp[0][0] > ramp[0][1] && ramp[0][1] > ramp[0][2] && ramp[0][2] > 0 && ramp[0][3] == 0,
+          "round: the lit lip ramps over 3 px");
+    CHECK(ramp[0][0] == ramp[1][0], "both start from the same height");
+
+    /* axis D: duration <-> briefness */
+    lpx_t LAST = RND, BRIEF = lpx_make(LPX_B_TRUE, LPX_P_ENTROPIC, LPX_PH_DISSOLVING);
+    zui_pxl_style_t sl = zui_pxl_style(LAST), sbr = zui_pxl_style(BRIEF);
+    CHECK(!sl.brief && sbr.brief && sl.hold_ms > 4 * sbr.hold_ms,
+          "manifest lasts, dissolving is brief");
+    CHECK(zui_pxl_ease(LAST, 0) == 0 && zui_pxl_ease(BRIEF, 0) == 0, "every effect starts at 0");
+    CHECK(zui_pxl_ease(LAST, 5000) == 256 && zui_pxl_ease(BRIEF, 5000) == 256, "and ends at 256");
+    CHECK(zui_pxl_ease(X, 0) == 256 && zui_pxl_decay(X, 0) == 0, "FORBIDDEN never animates");
+    int mono = 1;
+    for (uint32_t t = 0, prev = 0; t <= 1300; t += 10) {
+        uint32_t v = (uint32_t) zui_pxl_ease(LAST, t);
+        mono &= v >= prev && v <= 256;
+        prev = v;
+    }
+    CHECK(mono, "easing never runs backwards");
+    uint32_t q = (uint32_t) sbr.hold_ms / 4, ql = (uint32_t) sl.hold_ms / 4;
+    CHECK(zui_pxl_ease(BRIEF, q) > 128, "brief snaps: past halfway in the first quarter");
+    CHECK(zui_pxl_ease(LAST, ql) < 64, "lasting settles in slowly");
+    CHECK(zui_pxl_ease(LAST, (uint32_t) sl.hold_ms / 2) >= 120 &&
+              zui_pxl_ease(LAST, (uint32_t) sl.hold_ms / 2) <= 136,
+          "and is halfway at half time");
+    CHECK(zui_pxl_decay(BRIEF, q) + zui_pxl_ease(BRIEF, q) == 256, "decay is what is left");
+    static zui_pxl_lut_t l2;
+    zui_pxl_build(&l2, 256);
+    CHECK(l2.cell[BRIEF][16].tsh < l2.cell[LAST][16].tsh, "brief lustre moves faster");
+
+    /* video: depth from the frame's own brightness */
+    for (int y = 0; y < H; y++)
+        for (int x = 0; x < W; x++) px[y * W + x] = x < W / 2 ? 0x101010u : 0xF0F0F0u;
+    zui_plane_clear(&pl);
+    zui_plane_mark_luma(&pl, &s, (zui_rect_t){8, 8, 48, 32}, LAST, 256);
+    CHECK(zb[20 * W + 50] > 40 && zb[20 * W + 12] < -40 && tag[20 * W + 50] == LAST,
+          "bright parts of a frame come forward, dark parts recede");
+    CHECK(zb[2 * W + 2] == 0 && tag[2 * W + 2] == N, "outside the clip untouched");
+    zui_plane_mark_luma(&pl, &s, (zui_rect_t){8, 8, 48, 32}, LAST, 0);
+    CHECK(zb[20 * W + 50] == 0, "z_k 0 leaves the clip flat");
 }
 
 int main(void)

@@ -58,11 +58,20 @@ void zui_plane_clear(zui_plane_t *p);
 /* Stamp a (rounded) rectangle with a tag and a depth (clamped to +-127). */
 void zui_plane_mark(zui_plane_t *p, zui_rect_t r, int32_t radius, lpx_t tag, int32_t z);
 
+/* Video, photos, anything drawn without its own depth: stamp the rect with
+ * the clip's tag and take z from each pixel's brightness (brighter reads
+ * nearer, an old painter's cue), scaled by z_k (0..256, 256 = +-64). Run it
+ * per frame after the frame is drawn into s; integer, one pass. */
+void zui_plane_mark_luma(zui_plane_t *p, const zui_surface_t *s, zui_rect_t r, lpx_t tag,
+                         int32_t z_k);
+
 /* One LUT entry: a = colour (+) / anti-colour (-), b = tint (+) / shade (-),
  * each -256..256; glut = BOTH, interleave the sign of a. */
 typedef struct {
     int16_t a, b;
     uint8_t glut;
+    uint8_t edge; /* bevel width 1..3 px: 1 angular, 3 round */
+    uint8_t tsh;  /* lustre speed: tick >> tsh (brief fast, lasting slow) */
 } zui_pxl_cell_t;
 
 #define ZUI_PXL_ZBINS 32 /* z quantised to 32 bins of 8 */
@@ -86,6 +95,39 @@ void zui_pxl_apply(zui_surface_t *s, const zui_plane_t *p, const zui_pxl_lut_t *
  * get exactly the full-frame result. */
 void zui_pxl_apply_rows(zui_surface_t *s, const zui_plane_t *p, const zui_pxl_lut_t *lut,
                         int32_t light_x, int32_t light_y, uint32_t tick, int32_t y0, int32_t y1);
+
+/* THE OTHER TWO AXES (owner, 2026-10-12 09:09Z). Colour/anti-colour and
+ * tint/shade are two of four. The other two are shape and time:
+ *
+ *   axis C  ROUND <-> ANGULAR       corner radius and how soft the relief
+ *                                   edge is: a rounded bevel ramps over
+ *                                   3 px, an angular one is a crisp 1 px lip
+ *   axis D  DURATION <-> BRIEFNESS  how long an effect holds and how it eases:
+ *                                   lasting things settle slowly (smootherstep),
+ *                                   brief ones snap (ease-out) and their
+ *                                   lustre moves faster
+ *
+ * The tag decides both. Polarity drives shape: negentropic (cooperative,
+ * settled) is round, entropic is angular, FORBIDDEN is square and still.
+ * Phase drives time: manifest lasts, dissolving is brief. Draw calls ask
+ * zui_pxl_radius for their corner radius and zui_pxl_ease / zui_pxl_decay
+ * for their motion, so the whole engine (widgets, text panels, video frames
+ * stamped on the plane) speaks the same four axes. */
+typedef struct {
+    int32_t round_q8; /* 0 angular .. 256 round                     */
+    int32_t edge_px;  /* relief bevel width, 1..3                   */
+    int32_t hold_ms;  /* how long an effect lasts; 0 = no motion    */
+    bool brief;       /* eases out fast rather than settling slowly */
+} zui_pxl_style_t;
+
+zui_pxl_style_t zui_pxl_style(lpx_t tag);
+/* Corner radius for a thing with this tag, from the design's base radius. */
+int32_t zui_pxl_radius(lpx_t tag, int32_t base);
+/* Progress 0..256 of an effect `elapsed_ms` after it began, on this tag's
+ * clock and curve. 256 once done (and at once when the tag has no motion). */
+int32_t zui_pxl_ease(lpx_t tag, uint32_t elapsed_ms);
+/* What is left of a cue 0..256 (256 - ease): scale a stamp's z by it. */
+int32_t zui_pxl_decay(lpx_t tag, uint32_t elapsed_ms);
 
 /* One pixel, for tests and shaders: rgb moved a along axis A and b along B. */
 uint32_t zui_pxl_px(uint32_t rgb, int32_t a, int32_t b);
