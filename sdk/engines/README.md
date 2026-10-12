@@ -22,9 +22,11 @@ each tick can have an exact work budget.
 | [godot-zxv](godot-zxv/) | A Godot 4.3 GDExtension: `ZxvRational`, `ZxvHexagram`, `ZxvLockstep`, and a demo project. | 1,010 checks of the C++ layer without Godot; the extension built against godot-cpp `godot-4.3-stable` and 542 checks run inside Godot 4.3 headless on Linux |
 | [unreal-zxv](unreal-zxv/) | An Unreal Engine 5 plugin, `ZxvUnreal`: a `UGameInstanceSubsystem` owning named sims, `UZxvLockstep`, Blueprint types `FZxvRational` (int64 `Num`/`Den`) and `FZxvHexagram`, and the engine-neutral C++ layer they call. Other plugins (e.g. a checkout plugin) layer on it; it has no payment features. | 3,653 checks of the C++ layer and 3,385 cross-checks against the header-only C++ SDK, gcc and clang, also under ASan + UBSan; the Unreal wrapper is only checked structurally, **not yet compiled inside Unreal** |
 | [unity-zxv](unity-zxv/) | A Unity package, `com.zedec.zxv`: a `ZxvLockstep` core (no MonoBehaviour), a serializable exact `Rational` that stores `num` and `den`, a `Hexagram`, and inspector drawers. | 27 xunit tests of the Runtime code built as netstandard2.1 with .NET 8; not run inside Unity |
+| [z-vfx](z-vfx/) | A Python package for VFX pipelines (Maya and Houdini): frame rates, frame times and SMPTE timecode as exact rationals, rational 4x4 transforms, SHA3-256 procedural seeds that re-run identically anywhere, and a render-farm budget on libzxv `rmag`. Lazy `zxv_vfx.maya` / `zxv_vfx.houdini` adapters convert to floats only when writing to the DCC (marked lossy, never read back). | 99 pytest tests against libzxv and the Python SDK, with fake `maya.cmds` and `hou`; an AST check that the core has no float; not run inside Maya or Houdini |
 
 Start with [emu-state](emu-state/) to see the model, then open the kit for
-your engine.
+your engine. [z-vfx](z-vfx/) is the odd one out: not lockstep, but the same
+idea (exact values, floats only at the edge) for film and TV pipelines.
 
 ## The rules every kit follows
 
