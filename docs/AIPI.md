@@ -263,23 +263,60 @@ Built and tested now:
   allocation, no 64-bit division; it builds for aarch64 and i386 with no
   libc symbols;
 - the Z-Wasm executor kit (`sdk/kits/aipi`);
-- GET over the real IPFS node blockstore, peer hook and gateway hook.
+- GET over the real IPFS node blockstore, peer hook and gateway hook;
+- **the Vinea transport** (`kernel/src/aipi/aipi_vna.h`, below);
+- **the hosted app's glue** (`kernel/arch/hosted/zxv_net_host.h` U12):
+  `zxv_net_attach_aipi`, an escrow budget, serving, and bounties settled as
+  compute receipts in both nodes' books.
 
-Not yet wired (host glue, coordinated with the "Connect built modules"
-work):
+### AIPI over Vinea (`aipi_vna.h`)
 
-1. **Vinea transport.** `broadcast` should look up providers under
-   `aipi_provider_key(function CID)` with `vna_node_lookup` and send the call
-   record over Vinea sessions; claims come back the same way, with ML-DSA
-   signatures checked before `aipi_submit`. Providers announce with
-   `vna_node_announce`.
-2. **Economy.** `reserve` / `pay` / `refund` onto `vna_econ` PAY receipts
-   and the triple ledger.
-3. **zxvd.** Expose `AIPI_GET` / `AIPI_EXECUTE` through the daemon socket
-   and the swarm, so agents call functions by CID.
-4. **libzxv ABI.** Expose AIPI through the libzxv C ABI so every language
+Calls, claims, BUSY answers and PAID notices are signed Vinea messages
+(`VNA_MSG_AIPI`). The adapter is a pure state machine like both modules.
+
+- **V1 Whom to ask.** `aipi_execute`'s mesh route sends the call to the
+  executors the owner chose (`aipi_vna_add_executor`) that are contacts,
+  then to the provider the DHT holds under `aipi_provider_key(function
+  CID)`. The provider record is verified (ML-DSA-87) before use. Nobody
+  else is asked.
+- **V2 Which claims count.** A claim counts only if its message verified,
+  its executor field equals the message's sender, and that sender was asked
+  for this call. Anything else is refused before `aipi_submit` sees it, so
+  a stranger cannot stuff a quorum. `aipi_submit` then checks the result
+  itself (checker, certificate or quorum).
+- **V3 Escrow.** reserve and refund go to the host's economy hooks, and fail
+  closed: with no reserve hook, only a zero bounty can be escrowed. After
+  verification (rule A2) the pay hook arranges payment, and the adapter
+  sends the executor a signed PAID notice naming the call and the amount.
+- **V4 Serving.** A CALL reaches the adapter only under an agreement that
+  shares compute with the caller (one unit of the compute quota per call).
+  The adapter also needs `aipi_vna_serve(true)`, a bounty at or above the
+  minimum, and `aipi_serve` to succeed. Otherwise it answers BUSY.
+- **V5 PAID.** A PAID notice goes to the host's paid hook.
+
+In the hosted app the escrow budget defaults to 0, so only free calls go
+out until the owner sets one. An accepted claim's bounty becomes a want for
+one compute receipt on credit, bound to that executor
+(`vna_link_want_from`). When the executor hears PAID, it offers the receipt,
+but only if its owner shares compute. Both books then apply it through the
+trade loop.
+
+Tests: `make -C kernel test-aipi-vna` (102 checks under ASan + UBSan: V1 to
+V5, strangers, forged and unasked claims, BUSY, expiry and refunds), and
+section [7] of `kernel/arch/hosted/test_zxv_net_host.c`, where one real UDP
+node calls another and the bounty settles in both books.
+
+### Not yet wired
+
+1. **zxvd.** zxvd does not create an AIPI context yet. It should call
+   `zxv_net_attach_aipi` and expose `AIPI_GET` / `AIPI_EXECUTE`, the budget
+   and serving through the daemon socket and the swarm, so agents call
+   functions by CID. The zxvd owner has this.
+2. **Multi-datagram calls.** A call or claim is one datagram of up to about
+   10 KB, which relies on IP fragmentation off the loopback.
+3. **libzxv ABI.** Expose AIPI through the libzxv C ABI so every language
    SDK gets it; the SDK track owns that change.
-5. **Real intents.** Descriptors for tensor inference (QUORUM, using the
+4. **Real intents.** Descriptors for tensor inference (QUORUM, using the
    engine's cross-platform bit-identical output), ledger settlement
    (CHECKER: balances must close) and swarm routing.
 
@@ -318,6 +355,8 @@ work):
   were reviewed and are equivalent: dead initialisers, sign variants of
   error paths that cannot be reached, and checks that the IPFS node or the
   canonical re-encode repeat, so no test can tell them apart.
+- `make -C kernel test-aipi-vna`: 102 checks on the Vinea adapter
+  (section 12), under ASan + UBSan.
 - `make -C sdk/kits/aipi test`: 60 end-to-end checks on real Wasm modules
   (see the kit README).
 - The core is in the kernel's `verify-all`; the kit has its own CI job in

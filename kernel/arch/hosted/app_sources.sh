@@ -30,6 +30,15 @@ vinea() {
     echo src/ubh/ubh.c
     echo src/event_space/event_envelope.c
     echo src/zcapital/zcapital.c
+    # AIPI over Vinea (zxv_net_host.h U12): the core, its adapter, the IPFS
+    # node it fetches blocks through and the 64-state job tag
+    echo src/aipi/aipi.c
+    echo src/aipi/aipi_vna.c
+    for f in ipfsn_multiformats ipfsn_unixfs ipfsn_store ipfsn_net ipfsn_ubh ipfsn_fidx; do
+        echo "src/ipfs_node/$f.c"
+    done
+    echo src/lpres/lpres.c
+    echo src/lpres/lpres_hex.c
 }
 
 update() {
@@ -57,9 +66,8 @@ case "${1:-srcs}" in
         for f in src/tensor/zt*.c; do echo "$f"; done
         # the settlement spine: swarm money on the ledger of record
         echo src/settle/settle.c
-        # the 64-state tag on each answer and its quarantine log
-        echo src/lpres/lpres.c
-        echo src/lpres/lpres_hex.c
+        # the 64-state tag on each answer and its quarantine log: src/lpres,
+        # listed with the Vinea sources below (AIPI uses it too)
         # the node's self-audit of every posting (peer_audit layer 1)
         echo src/peer_audit/peer_audit.c
         echo src/peer_audit/pa_runtime.c
@@ -74,7 +82,7 @@ case "${1:-srcs}" in
         # the last five are kernel/Makefile's CPATH
         for d in arch/hosted src/swarm src/tensor src/settle src/peer_audit src/quest src/pay src/zcapital src/social src/vinea src/lpres src/robin_debanks \
                  src/edp_risk src/update src/ipfs_node src/pqsec src/mlkem include src/modbind \
-                 src/e8 src/event_space src/surplus; do
+                 src/e8 src/event_space src/surplus src/aipi; do
             echo "$d"
         done
         ;;

@@ -6,8 +6,8 @@
  * from) and the current time; it hands back the bytes to send, each tagged
  * with a destination address, in a caller-provided outbox. It never opens a
  * socket, reads a clock or draws entropy on its own (its DRBG is seeded by the
- * host). NAT traversal, hole punching and the UDP/stream glue are the host
- * layer's job (arch/hosted), not this module's.
+ * host). It has the NAT traversal messages (below); the sockets, port
+ * mapping and the UDP/stream glue are the host layer's job (arch/hosted).
  *
  * What it does:
  *   - verifies every message (vna_msg_open) before anything else;
@@ -290,6 +290,14 @@ typedef struct {
 
 vna_status_t vna_node_init(vna_node_t *n, const vna_identity_t *idn, const vna_node_cfg_t *cfg,
                            const vna_node_mem_t *mem, const uint8_t seed[32]);
+
+/* A node whose identity outlives a restart must not reuse message sequence
+ * numbers: peers keep a replay window per NodeID and refuse any seq at or
+ * below what they saw. Call right after vna_node_init with a floor above
+ * every seq the identity used before (the host derives it from the wall
+ * clock: ms x 1024, so more than 1024 messages per ms would be needed to
+ * overtake it). It only ever raises the counter. */
+void vna_node_resume_seq(vna_node_t *n, uint64_t floor);
 
 /* Attach the owner's agreement (may be NULL: then everything beyond routing
  * is refused), usage table and trust function. */

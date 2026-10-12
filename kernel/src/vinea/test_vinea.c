@@ -1797,6 +1797,39 @@ static void test_link(void)
     pump(false, false);
     CHECK(in_sync(), "DISTRIBUTE receipts (if any) delivered; books in sync");
 
+    /* bound wants (an AIPI bounty owed to one executor) */
+    for (uint32_t i = 0; i < VNA_LINK_WANTS; i++) lkB.want[i].used = false;
+    vna_id_t other;
+    memset(other.b, 0x42, 32);
+    CHECK(vna_link_want_from(&lkB, 0, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 1, 5) == -1 &&
+              vna_link_want_from(&lkB, &(vna_id_t){{0}}, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 1, 5) ==
+                  -1,
+          "a bound want needs a peer");
+    int32_t wb = vna_link_want_from(&lkB, &other, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 1, 50);
+    CHECK(wb >= 0 && lkB.want[wb].bound, "a want bound to someone else");
+    uint32_t refb = lkB.refused, cfb = lkB.confirmed;
+    CHECK(vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 50, hk,
+                        g_now) == VNA_OK,
+          "the seller offers what the bound want describes");
+    pump(false, false);
+    CHECK(lkB.refused == refb + 1 && lkB.confirmed == cfb, "a want bound to another peer refuses it");
+    for (int k = 0; k < 4; k++) { /* let the refused offer be abandoned */
+        g_now += 100;
+        vna_link_tick(&lkS, g_now);
+        pump(false, false);
+    }
+    int32_t ws = vna_link_want_from(&lkB, &IS->id, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 1, 50);
+    CHECK(ws >= 0, "a want bound to the seller");
+    CHECK(vna_link_sell(&lkS, &IBu->id, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1, 50, hk,
+                        g_now) == VNA_OK,
+          "the seller offers again");
+    pump(false, false);
+    CHECK(lkB.confirmed == cfb + 1 && !lkB.want[ws].used && lkB.want[wb].used && in_sync(),
+          "only the want bound to that seller is filled");
+    lkB.want[wb].used = false;
+    CHECK(vna_link_want(&lkB, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 1000, 1000) >= 0,
+          "an open want again for what follows");
+
     /* end to end over two nodes */
     vna_contact_t dummy;
     uint8_t a50[4], a51[4];
@@ -3106,6 +3139,34 @@ static void test_nat_aipi(void)
           "aipi: a handler refusal is counted");
     vna_node_set_aipi_handler(&NT[2].node, 0, 0);
     vna_node_set_agreement(&NT[2].node, 0, 0, 0, 0);
+
+    /* a persisted identity restarting: its message seq must not go back */
+    {
+        vna_node_mem_t mem = {NT[1].pool, POOL, NT[1].kc, KC, NT[1].rp, RPW, NT[1].dd, DD,
+                              NT[1].store, ST};
+        uint8_t sd[32] = {9};
+        vna_node_cfg_t c2;
+        vna_node_cfg_default(&c2);
+        uint64_t before = NT[1].node.seq;
+        CHECK(vna_node_init(&NT[1].node, &NT[1].id, &c2, &mem, sd) == VNA_OK && NT[1].node.seq == 0,
+              "restart: the message counter starts again at 0");
+        uint8_t ra0[4];
+        memcpy(ra0, NPUB[0], 4);
+        uint32_t rp0 = NT[0].node.v.rej_replay;
+        (void) vna_node_bootstrap(&NT[1].node, ra0, 4, g_now, &g_ob);
+        nat_flush(1);
+        nat_run();
+        CHECK(NT[0].node.v.rej_replay == rp0 + 1, "a peer refuses the reused seq as a replay");
+        vna_node_resume_seq(&NT[1].node, before + 10);
+        vna_node_resume_seq(&NT[1].node, 5);
+        CHECK(NT[1].node.seq == before + 10, "resume raises the counter, never lowers it");
+        g_now += 10;
+        (void) vna_node_bootstrap(&NT[1].node, ra0, 4, g_now, &g_ob);
+        nat_flush(1);
+        nat_run();
+        CHECK(NT[0].node.v.rej_replay == rp0 + 1 && vna_rt_find(&NT[1].node.rt, &NT[0].id.id),
+              "after resuming, the peer answers again");
+    }
 
     /* a persisted identity restarting: its LAN record seq must not go back */
     static vna_lan_t lr, ls;

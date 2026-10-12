@@ -6,6 +6,8 @@
 #    include <winsock2.h>
 #    include <ws2tcpip.h>
 #    include <windows.h>
+#    include <direct.h>
+#    include <io.h>
 typedef SOCKET nsock_t;
 #    define NCLOSE    closesocket
 #    define NBAD_SOCK INVALID_SOCKET
@@ -18,8 +20,10 @@ typedef int nlen_t;
 #    include <sys/time.h>
 #    include <netinet/in.h>
 #    include <arpa/inet.h>
+#    include <sys/stat.h>
 #    include <errno.h>
 #    include <fcntl.h>
+#    include <sys/file.h>
 #    include <unistd.h>
 typedef int nsock_t;
 #    define NCLOSE    close
@@ -35,6 +39,7 @@ typedef socklen_t nlen_t;
 #include "zxv_http_guard.h" /* zxv_os_random */
 #include "vna_node.h"
 #include "vna_link.h"
+#include "vna_lan.h"
 
 #define POOL_CAP    256u
 #define KC_CAP      48u
@@ -52,6 +57,16 @@ typedef socklen_t nlen_t;
 #define USAGE_CAP   32u
 #define LEASE_CAP   8u
 #define QUOTA_MS    3600000u /* per-peer quota period of the owner's agreement */
+#define LAN_PORT    8724u    /* U10 */
+#define LAN_PEERS   64u
+#define CACHE_MAX   64u     /* U9: peers kept in the cache file */
+#define CACHE_PING  16u     /* U9: cached peers pinged at start */
+#define SAVE_MS     300000u /* U9: peer cache saved this often */
+#define KEEPALIVE_MS 25000u /* U11: NAT mappings commonly last 30 s or more */
+#define ID_MAGIC    "ZXVNID01"
+#define PC_MAGIC    "ZXVNPC01"
+#define ID_FILE_LEN (8u + 32u + 32u + 8u)
+static const uint8_t LAN_GROUP[4] = {239, 255, 90, 86};
 
 struct zxv_net {
     zxv_net_mode_t mode;
@@ -86,6 +101,35 @@ struct zxv_net {
     vna_usage_t us;
     vna_usage_ent_t ue[USAGE_CAP];
     vna_lease_t le[LEASE_CAP];
+    bool running; /* start completed (stop saves state only then) */
+    /* U9 */
+    char state_dir[512];
+    uint8_t seed[32]; /* the identity's seed while running */
+    bool persisted;
+    bool shared_dir; /* another process holds the folder: this start is fresh */
+#if defined(_WIN32)
+    HANDLE lockh;
+#else
+    int lockfd;
+#endif
+    uint32_t cached_peers;
+    uint64_t saved_lan_seq, last_save;
+    /* U10 */
+    bool lan_want;
+    uint16_t lan_port;
+    nsock_t ls;
+    bool lan_on;
+    uint8_t group[ADDR_LEN];
+    vna_lan_t lan;
+    vna_lan_peer_t lpeers[LAN_PEERS];
+    /* U11 */
+    uint64_t last_keepalive;
+    /* U12 */
+    aipi_ctx_t *ai;
+    aipi_vna_t av;
+    bool av_on;
+    bool aipi_serve;
+    uint64_t aipi_min_bounty, aipi_budget, aipi_escrow;
 };
 
 uint64_t zxv_net_wall_ms(void)
@@ -126,13 +170,41 @@ zxv_net_t *zxv_net_new(void)
     zxv_net_t *n = (zxv_net_t *) calloc(1, sizeof *n);
     if (!n) return NULL;
     n->s = NBAD_SOCK;
+    n->ls = NBAD_SOCK;
     n->mode = ZXV_NET_OFF;
+    n->lan_want = true;
+    n->lan_port = LAN_PORT;
+#if defined(_WIN32)
+    n->lockh = INVALID_HANDLE_VALUE;
+#else
+    n->lockfd = -1;
+#endif
     return n;
 }
+
+static void flush(zxv_net_t *n);
+static int save_identity(zxv_net_t *n);
+static void unlock_dir(zxv_net_t *n);
 
 void zxv_net_stop(zxv_net_t *n)
 {
     if (!n) return;
+    if (n->running) {
+        if (n->lan_on) { /* U10: a signed GOODBYE, then remember the seq it used */
+            (void) vna_lan_stop(&n->lan, zxv_net_wall_ms(), &n->ob);
+            flush(n);
+        }
+        (void) zxv_net_save_peers(n);
+        (void) save_identity(n);
+    }
+    unlock_dir(n);
+    n->running = false;
+    if (n->ai) memset(&n->ai->mesh, 0, sizeof n->ai->mesh); /* U12: local only while off */
+    n->av_on = false;
+    n->aipi_escrow = 0;
+    if (n->ls != NBAD_SOCK) NCLOSE(n->ls);
+    n->ls = NBAD_SOCK;
+    n->lan_on = false;
     if (n->s != NBAD_SOCK) NCLOSE(n->s);
     n->s = NBAD_SOCK;
     n->mode = ZXV_NET_OFF;
@@ -141,7 +213,9 @@ void zxv_net_stop(zxv_net_t *n)
     n->obuf = NULL;
     /* the secret key does not outlive the session */
     memset(&n->idn, 0, sizeof n->idn);
+    memset(n->seed, 0, sizeof n->seed);
     memset(&n->node, 0, sizeof n->node);
+    memset(&n->lan, 0, sizeof n->lan);
     memset(n->owner_secret, 0, sizeof n->owner_secret);
     memset(&n->book, 0, sizeof n->book);
     memset(&n->link, 0, sizeof n->link);
@@ -183,6 +257,20 @@ static void flush(zxv_net_t *n)
 {
     for (uint32_t i = 0; i < n->ob.n; i++) {
         const vna_out_ent_t *e = &n->ob.e[i];
+        if (e->addr_len == ADDR_LEN && !memcmp(e->addr, n->group, ADDR_LEN) && n->lan_on) {
+            struct sockaddr_in g; /* U10: the LAN discovery group (TTL 1) */
+            memset(&g, 0, sizeof g);
+            g.sin_family = AF_INET;
+            memcpy(&g.sin_addr.s_addr, e->addr, 4);
+            memcpy(&g.sin_port, e->addr + 4, 2);
+            int k = (int) sendto(n->ls, (const char *) n->ob.buf + e->off, (int) e->len, 0,
+                                 (const struct sockaddr *) &g, sizeof g);
+            if (k == (int) e->len)
+                n->out++;
+            else
+                n->send_err++;
+            continue;
+        }
         if (e->addr_len != ADDR_LEN || !allowed(n, e->addr)) {
             n->policy++;
             continue;
@@ -275,6 +363,493 @@ static int fail(zxv_net_t *n, const char *why)
     return -1;
 }
 
+/* ---- U9: the state folder ---- */
+static int state_path(const zxv_net_t *n, const char *name, char *out, size_t cap)
+{
+    int k = snprintf(out, cap, "%s/%s", n->state_dir, name);
+    return k > 0 && (size_t) k < cap ? 0 : -1;
+}
+
+/* The folder exists (created 0700 if not) and only its owner can write it. */
+static int ensure_dir(const char *dir)
+{
+#if defined(_WIN32)
+    if (_mkdir(dir) != 0 && errno != EEXIST) return -1;
+    return 0;
+#else
+    struct stat st;
+    if (mkdir(dir, 0700) != 0 && errno != EEXIST) return -1;
+    if (lstat(dir, &st) != 0 || !S_ISDIR(st.st_mode)) return -1;
+    if ((st.st_mode & 022) || st.st_uid != geteuid()) return -1;
+    return 0;
+#endif
+}
+
+/* 1 missing, 0 read, -1 error, -2 readable or writable by others (POSIX). */
+static int read_file(const char *path, uint8_t *buf, size_t cap, size_t *len, bool secret)
+{
+    *len = 0;
+#if defined(_WIN32)
+    (void) secret;
+    FILE *f = fopen(path, "rb");
+    if (!f) return errno == ENOENT ? 1 : -1;
+    *len = fread(buf, 1, cap, f);
+    int bad = ferror(f);
+    fclose(f);
+    return bad ? -1 : 0;
+#else
+    int fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return errno == ENOENT ? 1 : -1;
+    struct stat st;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+        close(fd);
+        return -1;
+    }
+    if (secret && ((st.st_mode & 077) || st.st_uid != geteuid())) {
+        close(fd);
+        return -2;
+    }
+    while (*len < cap) {
+        ssize_t k = read(fd, buf + *len, cap - *len);
+        if (k < 0 && errno == EINTR) continue;
+        if (k <= 0) break;
+        *len += (size_t) k;
+    }
+    close(fd);
+    return 0;
+#endif
+}
+
+/* Write to path.tmp (0600), sync, rename over path. */
+static int write_file(const char *path, const uint8_t *buf, size_t len)
+{
+    char tmp[600];
+    if (snprintf(tmp, sizeof tmp, "%s.tmp", path) >= (int) sizeof tmp) return -1;
+#if defined(_WIN32)
+    FILE *f = fopen(tmp, "wb");
+    if (!f) return -1;
+    size_t w = fwrite(buf, 1, len, f);
+    int bad = fflush(f) != 0 || w != len;
+    if (fclose(f) != 0) bad = 1;
+    if (bad || !MoveFileExA(tmp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        remove(tmp);
+        return -1;
+    }
+    return 0;
+#else
+    (void) unlink(tmp);
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return -1;
+    size_t off = 0;
+    while (off < len) {
+        ssize_t k = write(fd, buf + off, len - off);
+        if (k < 0 && errno == EINTR) continue;
+        if (k <= 0) break;
+        off += (size_t) k;
+    }
+    int bad = off != len || fsync(fd) != 0;
+    if (close(fd) != 0) bad = 1;
+    if (bad || rename(tmp, path) != 0) {
+        (void) unlink(tmp);
+        return -1;
+    }
+    return 0;
+#endif
+}
+
+static void put64(uint8_t *p, uint64_t v)
+{
+    for (int i = 0; i < 8; i++) p[i] = (uint8_t) (v >> (8 * i));
+}
+static uint64_t get64(const uint8_t *p)
+{
+    uint64_t v = 0;
+    for (int i = 7; i >= 0; i--) v = (v << 8) | p[i];
+    return v;
+}
+
+static int save_identity(zxv_net_t *n)
+{
+    if (!n->persisted || !n->state_dir[0]) return 0;
+    uint64_t seq = n->lan_on ? vna_lan_seq(&n->lan) : 0;
+    if (seq < n->saved_lan_seq) seq = n->saved_lan_seq;
+    uint8_t f[ID_FILE_LEN];
+    char path[560];
+    memcpy(f, ID_MAGIC, 8);
+    memcpy(f + 8, n->seed, 32);
+    memcpy(f + 40, n->idn.id.b, 32);
+    put64(f + 72, seq);
+    int r = state_path(n, "vinea_identity", path, sizeof path) == 0 ? write_file(path, f, sizeof f)
+                                                                      : -1;
+    memset(f, 0, sizeof f);
+    if (r == 0) n->saved_lan_seq = seq;
+    return r;
+}
+
+/* U9: one process at a time owns the state folder (two instances must not
+ * share a NodeID or a message seq). 0 held, 1 held by another, -1 error. */
+static int lock_dir(zxv_net_t *n)
+{
+    char path[560];
+    if (state_path(n, "vinea.lock", path, sizeof path) != 0) return -1;
+#if defined(_WIN32)
+    HANDLE h = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+    if (h == INVALID_HANDLE_VALUE)
+        return GetLastError() == ERROR_SHARING_VIOLATION ? 1 : -1;
+    n->lockh = h;
+#else
+    int fd = open(path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return -1;
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        int busy = errno == EWOULDBLOCK;
+        close(fd);
+        return busy ? 1 : -1;
+    }
+    n->lockfd = fd;
+#endif
+    return 0;
+}
+
+static void unlock_dir(zxv_net_t *n)
+{
+#if defined(_WIN32)
+    if (n->lockh != INVALID_HANDLE_VALUE) CloseHandle(n->lockh);
+    n->lockh = INVALID_HANDLE_VALUE;
+#else
+    if (n->lockfd >= 0) close(n->lockfd); /* releases the lock */
+    n->lockfd = -1;
+#endif
+}
+
+/* U5 + U9: this start's identity: from the state folder, or new. NULL on
+ * success, else the reason. */
+static const char *load_identity(zxv_net_t *n)
+{
+    n->persisted = false;
+    n->shared_dir = false;
+    n->saved_lan_seq = 0;
+    int lk = 0;
+    if (n->state_dir[0]) {
+        if (ensure_dir(n->state_dir) != 0) return "state folder missing or writable by others";
+        lk = lock_dir(n);
+        if (lk < 0) return "state folder cannot be locked";
+        n->shared_dir = lk == 1;
+    }
+    if (!n->state_dir[0] || n->shared_dir) {
+        if (zxv_os_random(n->seed, sizeof n->seed) != 0) return "no secure random source";
+        return vna_identity_create(&n->idn, n->seed, 0, 1) == VNA_OK ? NULL
+                                                                     : "identity creation failed";
+    }
+    char path[560];
+    uint8_t f[ID_FILE_LEN + 1];
+    size_t len;
+    if (state_path(n, "vinea_identity", path, sizeof path) != 0) return "state folder path too long";
+    int r = read_file(path, f, sizeof f, &len, true);
+    if (r == -2) return "identity file is readable by others (chmod 600 it)";
+    if (r < 0) return "identity file unreadable";
+    if (r == 1) { /* first start: make one and keep it */
+        if (zxv_os_random(n->seed, sizeof n->seed) != 0) return "no secure random source";
+        if (vna_identity_create(&n->idn, n->seed, 0, 1) != VNA_OK) return "identity creation failed";
+        n->persisted = true;
+        if (save_identity(n) != 0) {
+            n->persisted = false;
+            return "could not write the identity file";
+        }
+        return NULL;
+    }
+    if (len != ID_FILE_LEN || memcmp(f, ID_MAGIC, 8) != 0) {
+        memset(f, 0, sizeof f);
+        return "identity file is damaged";
+    }
+    memcpy(n->seed, f + 8, 32);
+    vna_status_t st = vna_identity_create(&n->idn, n->seed, 0, 1);
+    bool match = st == VNA_OK && memcmp(n->idn.id.b, f + 40, 32) == 0;
+    n->saved_lan_seq = get64(f + 72);
+    memset(f, 0, sizeof f);
+    if (!match) return "identity file does not give the NodeID it records";
+    n->persisted = true;
+    return NULL;
+}
+
+int zxv_net_set_state_dir(zxv_net_t *n, const char *dir)
+{
+    if (!n) return -1;
+    if (!dir || !dir[0]) {
+        n->state_dir[0] = 0;
+        return 0;
+    }
+    if (strlen(dir) >= sizeof n->state_dir - 32) return -1;
+    snprintf(n->state_dir, sizeof n->state_dir, "%s", dir);
+    return 0;
+}
+
+int zxv_net_save_peers(zxv_net_t *n)
+{
+    if (!n || !n->state_dir[0] || !n->persisted || n->s == NBAD_SOCK) return 0;
+    static vna_contact_t c[POOL_CAP];
+    static uint8_t f[12 + CACHE_MAX * (32 + ADDR_LEN)];
+    uint32_t k = vna_node_contacts(&n->node, c, POOL_CAP), m = 0;
+    memcpy(f, PC_MAGIC, 8);
+    for (uint32_t i = 0; i < k && m < CACHE_MAX; i++) {
+        if (c[i].addr_len != ADDR_LEN) continue;
+        uint8_t *e = f + 12 + m * (32 + ADDR_LEN);
+        memcpy(e, c[i].id.b, 32);
+        memcpy(e + 32, c[i].addr, ADDR_LEN);
+        m++;
+    }
+    for (int i = 0; i < 4; i++) f[8 + i] = (uint8_t) (m >> (8 * i));
+    char path[560];
+    if (state_path(n, "vinea_peers", path, sizeof path) != 0) return -1;
+    return write_file(path, f, 12 + (size_t) m * (32 + ADDR_LEN));
+}
+
+/* U9: ping the cached peers (their PONG proves who answers). */
+static void load_peers(zxv_net_t *n, uint64_t now_ms)
+{
+    static uint8_t f[12 + CACHE_MAX * (32 + ADDR_LEN)];
+    char path[560];
+    size_t len;
+    n->cached_peers = 0;
+    if (!n->persisted || state_path(n, "vinea_peers", path, sizeof path) != 0 ||
+        read_file(path, f, sizeof f, &len, false) != 0 || len < 12 || memcmp(f, PC_MAGIC, 8) != 0)
+        return;
+    uint32_t m = (uint32_t) f[8] | (uint32_t) f[9] << 8 | (uint32_t) f[10] << 16 |
+                 (uint32_t) f[11] << 24;
+    if (m > CACHE_MAX || len != 12 + (size_t) m * (32 + ADDR_LEN)) return;
+    for (uint32_t i = 0; i < m && n->cached_peers < CACHE_PING; i++) {
+        const uint8_t *a = f + 12 + i * (32 + ADDR_LEN) + 32;
+        if (!allowed(n, a) || (a[4] == 0 && a[5] == 0)) continue;
+        if (vna_node_bootstrap(&n->node, a, ADDR_LEN, now_ms, &n->ob) == VNA_OK) n->cached_peers++;
+        flush(n);
+    }
+}
+
+/* ---- U10: LAN discovery ---- */
+static void lan_open(zxv_net_t *n, uint64_t now_ms)
+{
+    struct in_addr ifa;
+    bool specific = strcmp(n->bind_ip, "0.0.0.0") != 0;
+    if (inet_pton(AF_INET, specific ? n->bind_ip : "0.0.0.0", &ifa) != 1) return;
+    /* this node's LAN address for its record */
+    uint8_t self[4];
+    memcpy(self, &ifa.s_addr, 4);
+    if (!specific) { /* the interface the OS would send to the group from */
+        nsock_t t = socket(AF_INET, SOCK_DGRAM, 0);
+        struct sockaddr_in g, me;
+        memset(&g, 0, sizeof g);
+        g.sin_family = AF_INET;
+        memcpy(&g.sin_addr.s_addr, LAN_GROUP, 4);
+        g.sin_port = htons(n->lan_port);
+        nlen_t ml = sizeof me;
+        bool ok = t != NBAD_SOCK && connect(t, (struct sockaddr *) &g, sizeof g) == 0 &&
+                  getsockname(t, (struct sockaddr *) &me, &ml) == 0;
+        if (t != NBAD_SOCK) NCLOSE(t);
+        if (!ok) return;
+        memcpy(self, &me.sin_addr.s_addr, 4);
+    }
+    if ((self[0] | self[1] | self[2] | self[3]) == 0) return;
+
+    nsock_t s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s == NBAD_SOCK) return;
+    int one = 1;
+    (void) setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *) &one, sizeof one);
+#if defined(SO_REUSEPORT) && !defined(_WIN32)
+    (void) setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (const char *) &one, sizeof one);
+#endif
+    struct sockaddr_in sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sin_family = AF_INET;
+    sa.sin_port = htons(n->lan_port);
+    sa.sin_addr.s_addr = htonl(INADDR_ANY);
+    struct ip_mreq mr;
+    memset(&mr, 0, sizeof mr);
+    memcpy(&mr.imr_multiaddr.s_addr, LAN_GROUP, 4);
+    mr.imr_interface = specific ? ifa : (struct in_addr){0};
+#if defined(_WIN32)
+    DWORD ttl = 1, loop = 1;
+#else
+    unsigned char ttl = 1, loop = 1;
+#endif
+    if (set_nonblocking(s) != 0 || bind(s, (struct sockaddr *) &sa, sizeof sa) != 0 ||
+        setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *) &mr, sizeof mr) != 0) {
+        NCLOSE(s);
+        return;
+    }
+    (void) setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (const char *) &ttl, sizeof ttl);
+    (void) setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP, (const char *) &loop, sizeof loop);
+    if (specific)
+        (void) setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, (const char *) &ifa, sizeof ifa);
+
+    vna_lan_cfg_t cfg;
+    vna_lan_cfg_default(&cfg);
+    vna_addr_el_t me;
+    me.len = ADDR_LEN;
+    memcpy(me.a, self, 4);
+    me.a[4] = (uint8_t) (n->port >> 8);
+    me.a[5] = (uint8_t) n->port;
+    memcpy(n->group, LAN_GROUP, 4);
+    n->group[4] = (uint8_t) (n->lan_port >> 8);
+    n->group[5] = (uint8_t) n->lan_port;
+    uint8_t lseed[32];
+    if (zxv_os_random(lseed, sizeof lseed) != 0 ||
+        vna_lan_init(&n->lan, &n->node, &cfg, n->group, ADDR_LEN, &me, 1, n->lpeers, LAN_PEERS,
+                     lseed) != VNA_OK) {
+        NCLOSE(s);
+        return;
+    }
+    memset(lseed, 0, sizeof lseed);
+    /* never reuse a record seq a peer may still hold (wall clock as the floor) */
+    vna_lan_resume_seq(&n->lan, n->saved_lan_seq > now_ms ? n->saved_lan_seq : now_ms);
+    n->ls = s;
+    n->lan_on = true;
+    (void) vna_lan_start(&n->lan, now_ms, &n->ob);
+    flush(n);
+}
+
+static void drain_lan(zxv_net_t *n, uint64_t now_ms)
+{
+    if (!n->lan_on) return;
+    for (uint32_t i = 0; i < READ_BURST; i++) {
+        struct sockaddr_in from;
+        nlen_t fl = sizeof from;
+        int k = (int) recvfrom(n->ls, (char *) n->rbuf, (int) sizeof n->rbuf, 0,
+                               (struct sockaddr *) &from, &fl);
+        if (k < 0) {
+#if defined(_WIN32)
+            int e = WSAGetLastError();
+            if (e == WSAECONNRESET || e == WSAEMSGSIZE) continue;
+#else
+            if (errno == EINTR || errno == ECONNREFUSED) continue;
+#endif
+            return;
+        }
+        uint8_t a[ADDR_LEN];
+        if (fl < (nlen_t) sizeof from || from.sin_family != AF_INET) continue;
+        to_addr6(&from, a);
+        if (!allowed(n, a) || (size_t) k > VNA_LAN_MSG_MAX) {
+            n->policy++;
+            continue;
+        }
+        n->in++;
+        (void) vna_lan_handle(&n->lan, n->rbuf, (uint32_t) k, now_ms, &n->ob);
+        flush(n);
+    }
+}
+
+void zxv_net_set_lan_discovery(zxv_net_t *n, bool on, uint16_t port)
+{
+    if (!n) return;
+    n->lan_want = on;
+    n->lan_port = port ? port : LAN_PORT;
+}
+
+intptr_t zxv_net_lan_fd(const zxv_net_t *n)
+{
+    return (n && n->lan_on) ? (intptr_t) n->ls : (intptr_t) -1;
+}
+
+/* ---- U12: AIPI bounties on the mesh economy ---- */
+static int av_reserve(void *ctx, uint64_t amount)
+{
+    zxv_net_t *n = (zxv_net_t *) ctx;
+    if (amount > n->aipi_budget || n->aipi_escrow > n->aipi_budget - amount) return -1;
+    n->aipi_escrow += amount;
+    return 0;
+}
+
+static void av_refund(void *ctx, uint64_t amount)
+{
+    zxv_net_t *n = (zxv_net_t *) ctx;
+    n->aipi_escrow = amount > n->aipi_escrow ? 0 : n->aipi_escrow - amount;
+}
+
+static int av_pay(void *ctx, const vna_id_t *executor, uint64_t amount, const ipfsn_cid_t *call)
+{
+    zxv_net_t *n = (zxv_net_t *) ctx;
+    (void) call;
+    av_refund(ctx, amount); /* leaves escrow: owed to the executor now */
+    if (!book_learn(n, executor)) return -1;
+    return vna_link_want_from(&n->link, executor, VNA_RES_COMPUTE, SWARM_CAP_SYSTEM, 1, amount) >= 0
+               ? 0
+               : -1;
+}
+
+static void av_paid(void *ctx, const vna_id_t *caller, uint64_t amount, const ipfsn_cid_t *call)
+{
+    zxv_net_t *n = (zxv_net_t *) ctx;
+    (void) call;
+    if (!n->share_compute || amount == 0 || !book_learn(n, caller)) return;
+    (void) vna_link_sell(&n->link, caller, VNA_TR_CREDIT, SWARM_CAP_SYSTEM, VNA_RES_COMPUTE, 1,
+                         amount, "offer(compute, units: 1)", n->av.now);
+}
+
+static void bind_aipi(zxv_net_t *n)
+{
+    n->av_on = false;
+    if (!n->ai || n->s == NBAD_SOCK) return;
+    aipi_vna_econ_t ec = {n, av_reserve, av_pay, av_refund, av_paid};
+    if (aipi_vna_init(&n->av, n->ai, &n->node, &n->ob, &ec) != AIPI_OK) return;
+    aipi_vna_serve(&n->av, n->aipi_serve, n->aipi_min_bounty);
+    n->av_on = true;
+}
+
+int zxv_net_attach_aipi(zxv_net_t *n, aipi_ctx_t *ai)
+{
+    if (!n) return -1;
+    if (n->ai && n->ai != ai) memset(&n->ai->mesh, 0, sizeof n->ai->mesh);
+    if (n->av_on) vna_node_set_aipi_handler(&n->node, NULL, NULL);
+    n->ai = ai;
+    n->av_on = false;
+    bind_aipi(n);
+    return 0;
+}
+
+aipi_vna_t *zxv_net_aipi(zxv_net_t *n)
+{
+    return (n && n->av_on) ? &n->av : NULL;
+}
+
+void zxv_net_aipi_budget(zxv_net_t *n, uint64_t max_escrow)
+{
+    if (n) n->aipi_budget = max_escrow;
+}
+
+void zxv_net_aipi_serve(zxv_net_t *n, bool on, uint64_t min_bounty)
+{
+    if (!n) return;
+    n->aipi_serve = on;
+    n->aipi_min_bounty = min_bounty;
+    if (n->av_on) aipi_vna_serve(&n->av, on, min_bounty);
+}
+
+int zxv_net_aipi_execute(zxv_net_t *n, const ipfsn_cid_t *fn_cid, const uint8_t *in,
+                         uint32_t in_len, bool input_private, uint64_t bounty, uint64_t ttl_ms,
+                         uint64_t now_ms, uint32_t *job)
+{
+    if (!n || !n->ai) return AIPI_ERR_ARG;
+    if (!n->av_on) /* off: the context has no mesh, so this runs locally or not at all */
+        return aipi_execute(n->ai, fn_cid, in, in_len, input_private, bounty, now_ms, ttl_ms, job);
+    int r = aipi_vna_execute(&n->av, fn_cid, in, in_len, input_private, bounty, now_ms, ttl_ms, job);
+    drain_link(n, now_ms);
+    flush(n);
+    return r;
+}
+
+/* ---- U11 ---- */
+int zxv_net_punch(zxv_net_t *n, const uint8_t target[32], uint64_t now_ms)
+{
+    if (!n || n->s == NBAD_SOCK || !target) return 0;
+    vna_id_t t;
+    memcpy(t.b, target, 32);
+    static vna_contact_t c[POOL_CAP];
+    uint32_t k = vna_rt_closest(&n->node.rt, &t, 4, &t, c), asked = 0;
+    for (uint32_t i = 0; i < k && asked < 3; i++)
+        if (vna_node_punch(&n->node, &t, &c[i].id, now_ms, &n->ob) == VNA_OK) asked++;
+    flush(n);
+    return (int) asked;
+}
+
 int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16_t port,
                   uint64_t now_ms)
 {
@@ -291,13 +866,12 @@ int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16
     sa.sin_port = htons(port);
     if (inet_pton(AF_INET, ip, &sa.sin_addr) != 1) return fail(n, "bad bind address");
 
-    /* U5: identity and node */
-    uint8_t seed[32], dseed[32];
-    if (zxv_os_random(seed, sizeof seed) != 0 || zxv_os_random(dseed, sizeof dseed) != 0)
-        return fail(n, "no secure random source");
-    vna_status_t st = vna_identity_create(&n->idn, seed, 0, 1);
-    memset(seed, 0, sizeof seed);
-    if (st != VNA_OK) return fail(n, "identity creation failed");
+    /* U5 + U9: identity and node */
+    uint8_t dseed[32];
+    const char *why = load_identity(n);
+    if (why) return fail(n, why);
+    if (zxv_os_random(dseed, sizeof dseed) != 0) return fail(n, "no secure random source");
+    vna_status_t st;
     vna_node_cfg_t cfg;
     vna_node_cfg_default(&cfg);
     cfg.degree = VNA_DEG_ROUTE;
@@ -306,6 +880,10 @@ int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16
     st = vna_node_init(&n->node, &n->idn, &cfg, &mem, dseed);
     memset(dseed, 0, sizeof dseed);
     if (st != VNA_OK) return fail(n, "node init failed");
+    /* U9: a kept identity must never reuse a message seq (peers' replay
+     * windows remember it); the wall clock gives a floor above every seq it
+     * sent before (ms x 1024) */
+    vna_node_resume_seq(&n->node, zxv_net_wall_ms() << 10);
     vna_node_set_agreement(&n->node, NULL, NULL, NULL, NULL);
 
     /* U6: the book, the owner gate and the trade loop. Until the owner
@@ -321,6 +899,10 @@ int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16
     if (vna_gate_begin_cycle(&n->gate, n->owner_secret) != VNA_OK) return fail(n, "gate failed");
     vna_usage_init(&n->us, n->ue, USAGE_CAP, n->le, LEASE_CAP);
     vna_link_init(&n->link, &n->book, build_agreement(n), &n->us, lseed, 1000, 8);
+    /* U12: the same agreement decides which AIPI calls the node takes (one
+     * compute unit each, from the same usage table); DHT requests stay at
+     * the node's degree ROUTE */
+    vna_node_set_agreement(&n->node, n->link.agr, &n->us, NULL, NULL);
     memset(lseed, 0, sizeof lseed);
     vna_link_on_done(&n->link, n->trade_fn, n->trade_ctx);
     vna_node_set_rcpt_handler(&n->node, on_rcpt, n);
@@ -343,13 +925,18 @@ int zxv_net_start(zxv_net_t *n, zxv_net_mode_t mode, const char *bind_ip, uint16
     n->port = port;
     snprintf(n->bind_ip, sizeof n->bind_ip, "%s", ip);
     n->mode = mode;
-    n->last_tick = n->last_refresh = now_ms;
+    n->last_tick = n->last_refresh = n->last_save = n->last_keepalive = now_ms;
+    n->running = true;
+    if (n->lan_want) lan_open(n, now_ms); /* U10: best effort; the node runs without it */
+    load_peers(n, now_ms);                 /* U9 */
+    bind_aipi(n);                          /* U12 */
     return 0;
 }
 
 void zxv_net_on_readable(zxv_net_t *n, uint64_t now_ms)
 {
     if (!n || n->s == NBAD_SOCK) return;
+    drain_lan(n, now_ms);
     for (uint32_t i = 0; i < READ_BURST; i++) {
         struct sockaddr_in from;
         nlen_t fl = sizeof from;
@@ -388,9 +975,21 @@ void zxv_net_tick(zxv_net_t *n, uint64_t now_ms)
     if (!n || n->s == NBAD_SOCK) return;
     if (now_ms < n->last_tick + TICK_MS) return;
     n->last_tick = now_ms;
+    drain_lan(n, now_ms);
     vna_node_tick(&n->node, now_ms, &n->ob);
+    if (n->lan_on) vna_lan_tick(&n->lan, now_ms, &n->ob);
+    if (n->av_on) aipi_vna_tick(&n->av, now_ms);
     vna_link_tick(&n->link, now_ms);
     drain_link(n, now_ms);
+    if (n->mode == ZXV_NET_ONLINE && now_ms >= n->last_keepalive + KEEPALIVE_MS) {
+        n->last_keepalive = now_ms; /* U11: keep NAT mappings open */
+        (void) vna_node_keepalive(&n->node, now_ms, KEEPALIVE_MS, 16, &n->ob);
+    }
+    if (now_ms >= n->last_save + SAVE_MS) {
+        n->last_save = now_ms; /* U9 */
+        (void) zxv_net_save_peers(n);
+        if (n->lan_on && vna_lan_seq(&n->lan) > n->saved_lan_seq) (void) save_identity(n);
+    }
     if (now_ms >= n->last_refresh + REFRESH_MS) {
         n->last_refresh = now_ms;
         vna_node_refresh(&n->node, now_ms, REFRESH_MS * 15u, 2, &n->ob);
@@ -529,7 +1128,10 @@ int zxv_net_share(zxv_net_t *n, uint64_t compute_per_cycle, uint64_t storage_byt
     if (!n) return -1;
     n->share_compute = compute_per_cycle;
     n->share_storage = storage_bytes;
-    if (n->s != NBAD_SOCK) n->link.agr = build_agreement(n);
+    if (n->s != NBAD_SOCK) {
+        n->link.agr = build_agreement(n);
+        vna_node_set_agreement(&n->node, n->link.agr, &n->us, NULL, NULL);
+    }
     return 0;
 }
 
@@ -597,4 +1199,31 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
     for (uint32_t i = 0; i < VNA_LINK_WANTS; i++) st->wants += n->link.want[i].used;
     static vna_contact_t c[POOL_CAP];
     st->peers = vna_node_contacts(&n->node, c, POOL_CAP);
+    st->persisted = n->persisted;
+    st->state_busy = n->shared_dir;
+    st->cached_peers = n->cached_peers;
+    st->lan_discovery = n->lan_on;
+    if (n->lan_on) {
+        st->lan_peers = vna_lan_peer_count(&n->lan, zxv_net_wall_ms());
+        st->lan_announces = n->lan.sent_announce;
+        st->lan_accepted = n->lan.accepted;
+        st->lan_refused = n->lan.rej_parse + n->lan.rej_record + n->lan.rej_xform; /* not re-announcements */
+    }
+    uint8_t ra[VNA_ADDR_MAX], rl = 0;
+    st->public_votes = vna_node_reflexive(&n->node, ra, &rl);
+    if (st->public_votes >= 2 && rl == ADDR_LEN)
+        snprintf(st->public_addr, sizeof st->public_addr, "%u.%u.%u.%u:%u", ra[0], ra[1], ra[2],
+                 ra[3], (unsigned) (ra[4] << 8 | ra[5]));
+    st->punch_asked = n->node.punch_asked;
+    st->punch_relayed = n->node.punch_relayed;
+    st->punch_ok = n->node.punch_ok;
+    st->aipi = n->av_on;
+    st->aipi_budget = n->aipi_budget;
+    st->aipi_escrow = n->aipi_escrow;
+    if (n->av_on) {
+        st->aipi_calls_out = n->av.calls_out;
+        st->aipi_served = n->av.served;
+        st->aipi_claims_in = n->av.claims_in;
+        st->aipi_claims_refused = n->av.claims_refused;
+    }
 }

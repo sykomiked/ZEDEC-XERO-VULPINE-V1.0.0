@@ -172,7 +172,15 @@ def main(binary):
               'every datagram verified (in %d / %d)' % (sa['net']['in'], sb['net']['in']))
         check(sa['net']['node_id'] != sb['net']['node_id'], 'distinct node ids')
         n = udp_sockets(a.p.pid)
-        check(n in (1, None), 'A holds exactly one UDP socket (%s)' % n)
+        check(n in (2, None), 'A holds its UDP socket and the LAN discovery socket (%s)' % n)
+        idf = os.path.join(home, 'xdg', 'zxv', 'net', 'vinea_identity')
+        if sys.platform != 'darwin':
+            check(sa['net']['persisted'] and os.path.exists(idf) and
+                  (os.stat(idf).st_mode & 0o777) == 0o600,
+                  'A keeps its identity in the per-user folder, mode 600')
+        check(sb['net']['state_busy'] and not sb['net']['persisted'],
+              'B, on the same folder, runs with a fresh identity (the folder is locked to A)')
+        check(sa['net']['lan_discovery'], 'LAN discovery is on by default')
 
         # --- the owners trade compute (zxv_net_host.h U8)
         bid = sb['net']['id']

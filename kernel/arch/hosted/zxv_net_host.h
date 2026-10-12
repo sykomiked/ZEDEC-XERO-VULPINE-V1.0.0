@@ -20,11 +20,13 @@
  *      (9216 bytes by default) and a signed receipt is larger.
  *   U4 ADDRESSES. The Vinea transport address is 6 bytes: IPv4, then the
  *      port, both big-endian.
- *   U5 IDENTITY. A fresh ML-DSA-87 identity per start, seeded from the OS
- *      CSPRNG (no key is written to disk yet, so the NodeID changes at each
- *      start). The node runs at degree ROUTE with no sharing agreement: it
- *      answers PING / FIND_NODE / FIND_VALUE and refuses STORE and every
- *      Hackronomicon request.
+ *   U5 IDENTITY. With a state folder (zxv_net_set_state_dir; the app passes
+ *      its own, see U9) the ML-DSA-87 identity is created once from the OS
+ *      CSPRNG and kept, so the NodeID survives restarts. Without one, a
+ *      fresh identity per start (the old behaviour; tests use it). The node
+ *      runs at degree ROUTE with no sharing agreement: it answers PING /
+ *      FIND_NODE / FIND_VALUE and refuses STORE and every Hackronomicon
+ *      request.
  *
  *   U6 ECONOMY. Each start opens a mesh book (vna_econ.h), an owner gate and
  *      the trade loop (vna_link.h); the node hands every trade receipt to
@@ -47,10 +49,46 @@
  *      zxv_net_sell offers a named peer the node has heard from (its key
  *      was verified) a trade on CREDIT (T1). Wants do not survive a
  *      restart. The node itself stays at degree ROUTE for DHT requests.
- * HONEST LIMITS: no LAN multicast discovery yet (vna_lan.h needs a multicast
- * socket; peers are added by address with --peer or POST /api/net), no NAT
- * traversal, no IPv6, frames up to about 17.6 KB rely on IP fragmentation off
- * the loopback, no persisted peers or identity. Single-threaded.
+ *   U9 STATE FOLDER. Holds `vinea_identity` (the 32-byte seed the key pair
+ *      is derived from, the NodeID it must give, and the last LAN record
+ *      sequence) and `vinea_peers` (NodeID + address of up to 64 contacts).
+ *      The folder is created 0700; on POSIX it is refused if group or others
+ *      can write it, and the identity file if anyone but the owner can read
+ *      it (like an SSH key). Files are written to a temporary name, synced
+ *      and renamed, so a crash leaves the old file. A file whose seed does
+ *      not give the NodeID it records is refused (the node does not start)
+ *      rather than silently replaced. The seed is not encrypted at rest:
+ *      anyone who can read the file can act as this node (Keychain storage is
+ *      a follow-up). On start the cached peers are pinged (the reply proves
+ *      who answers); on stop and every 5 minutes the table is saved. One
+ *      process at a time holds the folder (a lock on `vinea.lock`); a second
+ *      instance on the same folder runs with a fresh identity and keeps
+ *      nothing (status state_busy), so two never share a NodeID.
+ *   U10 LAN DISCOVERY. In LAN and ONLINE modes (unless turned off) a second
+ *      UDP socket joins the administratively scoped group 239.255.90.86 on
+ *      port 8724 (TTL 1, never routed) and runs vna_lan.h: signed node
+ *      records announced and answered, so nodes on one link find each other
+ *      with no address typed. The record carries this node's LAN address and
+ *      Vinea port. A persisted identity resumes its record sequence, so
+ *      peers never refuse its records as replays after a restart.
+ *   U11 NAT (basic). Every PONG reports the sender's address as the peer saw
+ *      it; the status shows the public address two or more peers agree on.
+ *      zxv_net_punch asks contacts to introduce this node to a NodeID behind
+ *      another NAT (UDP hole punching, vna_node.h N2). In ONLINE mode contacts
+ *      idle for 25 s are pinged so NAT mappings stay open. No port mapping
+ *      (NAT-PMP / PCP / UPnP) yet, and a symmetric NAT on both sides still
+ *      cannot be traversed without a relay.
+ *   U12 AIPI. zxv_net_attach_aipi binds an AIPI context (src/aipi) to the
+ *      node through aipi_vna.h: calls and claims travel as signed Vinea
+ *      messages. Bounties: the owner sets an escrow budget
+ *      (zxv_net_aipi_budget, default 0: only free calls); an accepted claim's
+ *      bounty becomes a want for one compute receipt on credit bound to that
+ *      executor (vna_link_want_from), and when an executor is told it was
+ *      paid, it offers that receipt (only if the owner shares compute). Both
+ *      books then apply it through the trade loop (U6).
+ * HONEST LIMITS: no IPv6; frames up to about 17.6 KB rely on IP
+ * fragmentation off the loopback; TCP sessions (zxv_peer_host.h) are not
+ * hole-punched. Single-threaded.
  */
 #ifndef ZXV_NET_HOST_H
 #define ZXV_NET_HOST_H
@@ -59,6 +97,7 @@
 #include <stdint.h>
 #include "swarm_budget.h"
 #include "vna_link.h"
+#include "aipi_vna.h"
 
 typedef enum { ZXV_NET_OFF = 0, ZXV_NET_LAN, ZXV_NET_ONLINE } zxv_net_mode_t;
 
@@ -84,6 +123,22 @@ typedef struct {
     char node_id_full[65]; /* the whole NodeID, hex; "" when off */
     uint64_t share_compute, share_storage;
     uint32_t wants; /* open wants */
+    /* U9 */
+    bool persisted;          /* the identity came from (or went to) the state folder */
+    bool state_busy;         /* another process holds the state folder: fresh identity */
+    uint32_t cached_peers;   /* peers loaded from the cache at start */
+    /* U10 */
+    bool lan_discovery;      /* the multicast socket is open */
+    uint32_t lan_peers;      /* peers heard on the LAN, not expired */
+    uint32_t lan_announces, lan_accepted, lan_refused; /* refused: malformed or forged */
+    /* U11 */
+    char public_addr[22];    /* "a.b.c.d:port" two or more peers agree on, or "" */
+    uint32_t public_votes;
+    uint32_t punch_asked, punch_relayed, punch_ok;
+    /* U12 */
+    bool aipi;
+    uint32_t aipi_calls_out, aipi_served, aipi_claims_in, aipi_claims_refused;
+    uint64_t aipi_escrow, aipi_budget;
 } zxv_net_status_t;
 
 /* A new, stopped (OFF) host; NULL if out of memory. */
@@ -158,5 +213,37 @@ int32_t zxv_net_want(zxv_net_t *n, uint8_t resource, uint64_t units, uint64_t ma
  * accepts), -1 when off, unknown peer, or refused (agreement, L1). */
 int zxv_net_sell(zxv_net_t *n, const uint8_t buyer[32], uint8_t resource, uint64_t units,
                  uint64_t price, uint64_t now_ms);
+
+/* U9: the folder for the identity and the peer cache; NULL or "" keeps
+ * nothing (a fresh identity per start). Takes effect at the next start. */
+int zxv_net_set_state_dir(zxv_net_t *n, const char *dir);
+/* U9: write the peer cache now (also done on stop and every 5 minutes). */
+int zxv_net_save_peers(zxv_net_t *n);
+
+/* U10: LAN discovery on (default) or off; port 0 = 8724. Next start. */
+void zxv_net_set_lan_discovery(zxv_net_t *n, bool on, uint16_t port);
+/* U10: the discovery socket for select()'s read set, or -1. It is also
+ * drained on every zxv_net_on_readable and zxv_net_tick. */
+intptr_t zxv_net_lan_fd(const zxv_net_t *n);
+
+/* U11: ask up to three contacts to introduce this node to `target`.
+ * Returns how many were asked (0: off, or no contact to ask). */
+int zxv_net_punch(zxv_net_t *n, const uint8_t target[32], uint64_t now_ms);
+
+/* U12: bind an AIPI context to the node (NULL detaches). Kept across
+ * restarts; while the node is off the context has no mesh (local only). */
+int zxv_net_attach_aipi(zxv_net_t *n, aipi_ctx_t *ai);
+/* U12: the adapter (executors, serving, announce), or NULL when off or
+ * nothing is attached. */
+aipi_vna_t *zxv_net_aipi(zxv_net_t *n);
+/* U12: the most this node keeps in escrow for bounties at once (0: only
+ * free calls). Kept across restarts. */
+void zxv_net_aipi_budget(zxv_net_t *n, uint64_t max_escrow);
+/* U12: serve calls from peers (needs zxv_net_share compute > 0 too). */
+void zxv_net_aipi_serve(zxv_net_t *n, bool on, uint64_t min_bounty);
+/* U12: aipi_vna_execute, then send what it queued. */
+int zxv_net_aipi_execute(zxv_net_t *n, const ipfsn_cid_t *fn_cid, const uint8_t *in,
+                         uint32_t in_len, bool input_private, uint64_t bounty, uint64_t ttl_ms,
+                         uint64_t now_ms, uint32_t *job);
 
 #endif /* ZXV_NET_HOST_H */

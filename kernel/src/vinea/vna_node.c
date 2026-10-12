@@ -77,6 +77,11 @@ vna_status_t vna_node_init(vna_node_t *n, const vna_identity_t *idn, const vna_n
     return VNA_OK;
 }
 
+void vna_node_resume_seq(vna_node_t *n, uint64_t floor)
+{
+    if (n && floor > n->seq) n->seq = floor;
+}
+
 void vna_node_set_agreement(vna_node_t *n, const vna_agreement_t *a, vna_usage_t *us,
                             vna_trust_fn trust, void *ctx)
 {

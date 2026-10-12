@@ -35,9 +35,23 @@ int32_t vna_link_want(vna_link_t *l, uint8_t resource, uint8_t form, uint64_t un
         w->form = form;
         w->units_left = units;
         w->max_price = max_price;
+        w->bound = false;
+        vna_zero(&w->peer, sizeof w->peer);
         return (int32_t) i;
     }
     return -1;
+}
+
+int32_t vna_link_want_from(vna_link_t *l, const vna_id_t *peer, uint8_t resource, uint8_t form,
+                           uint64_t units, uint64_t max_price)
+{
+    if (!peer || vna_id_is_zero(peer)) return -1;
+    int32_t w = vna_link_want(l, resource, form, units, max_price);
+    if (w >= 0) {
+        l->want[w].bound = true;
+        l->want[w].peer = *peer;
+    }
+    return w;
 }
 
 static bool queue_out(vna_link_t *l, const vna_id_t *dst, const uint8_t *b, uint32_t len)
@@ -163,12 +177,14 @@ static vna_status_t on_offer(vna_link_t *l, const vna_receipt_t *r, const vna_id
     if (!a) return VNA_ERR_ARG;
     if (r->pair_seq != a->pair_seq + 1u || !vna_eq(r->prev, a->pair_prev, 32)) return VNA_ERR_FORK;
     int32_t w = -1;
-    for (uint32_t i = 0; i < VNA_LINK_WANTS && w < 0; i++) {
-        const vna_link_want_t *x = &l->want[i];
-        if (x->used && x->resource == r->resource && x->form == r->form &&
-            x->units_left >= r->units && x->max_price >= r->price)
-            w = (int32_t) i;
-    }
+    for (int pass = 0; pass < 2 && w < 0; pass++) /* wants bound to this seller first */
+        for (uint32_t i = 0; i < VNA_LINK_WANTS && w < 0; i++) {
+            const vna_link_want_t *x = &l->want[i];
+            if (x->used && x->bound == (pass == 0) &&
+                (!x->bound || vna_id_eq(&x->peer, peer)) && x->resource == r->resource &&
+                x->form == r->form && x->units_left >= r->units && x->max_price >= r->price)
+                w = (int32_t) i;
+        }
     if (w < 0) return VNA_ERR_DENIED; /* not asked for, or over the ceiling */
     if (r->mode == VNA_TR_PAY && a->held[r->form] < r->price) return VNA_ERR_FUNDS;
     vna_link_pend_t *q = pend_new(l, VNA_LINK_BUY, peer, r->pair_seq, r->units, w, now);
