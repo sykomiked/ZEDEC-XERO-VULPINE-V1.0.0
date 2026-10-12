@@ -74,6 +74,17 @@ static void prof_default(void)
     P.box[1].kind = MFG_BOX_KEEPOUT;
 }
 
+/* Append s to dst (capacity cap, current length *len, kept NUL-terminated).
+ * Returns 0 and leaves dst untouched if it would not fit. */
+static int append(char *dst, size_t cap, size_t *len, const char *s)
+{
+    size_t k = strlen(s);
+    if (*len >= cap || k >= cap - *len) return 0;
+    memcpy(dst + *len, s, k + 1);
+    *len += k;
+    return 1;
+}
+
 static int run(const char *prog)
 {
     return mfg_gc_check(prog, strlen(prog), &P, &R);
@@ -618,15 +629,15 @@ static void test_limits_and_errors(void)
     /* issue overflow: stored up to capacity, rest counted, verdict kept */
     {
         static char prog[200 * 4];
-        int n = 0;
-        for (i = 0; i < 100; i++) n += snprintf(prog + n, sizeof prog - (size_t) n, "T1\n");
+        size_t n = 0;
+        for (i = 0; i < 100; i++) CHECK(append(prog, sizeof prog, &n, "T1\n"));
         CHECK(run(prog) == MFG_OK && R.nissue == MFG_GC_MAX_ISSUES &&
               R.dropped == 100 - MFG_GC_MAX_ISSUES + 1 && R.verdict == MFG_REJECT);
     }
     {
         static char prog[64 * 24 + 32];
-        int n = 0;
-        for (i = 0; i < 64; i++) n += snprintf(prog + n, sizeof prog - (size_t) n, HDR "G0 Z200\n");
+        size_t n = 0;
+        for (i = 0; i < 64; i++) CHECK(append(prog, sizeof prog, &n, HDR "G0 Z200\n"));
         /* 64 envelope REJECTs fill the list; NO_END HOLD is dropped */
         CHECK(run(prog) == MFG_OK && R.nissue == 64 && R.dropped == 1 && R.verdict == MFG_REJECT);
     }
