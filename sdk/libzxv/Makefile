@@ -14,7 +14,7 @@
 # Options:
 #   ZXV_NO_PQC=1      leave out ML-KEM / ML-DSA / Ed25519 (calls return NOTIMPL)
 #   ZXV_NO_TENSOR=1   leave out the inference engine
-#   ZXV_NO_CBANK=1    leave out the ISO 4217 table (see src/zxv_api.c)
+#   ZXV_NO_CBANK=1    leave out the ISO 4217 table and netting cycles (see src/zxv_api.c)
 #   SANITIZE=1        build with -fsanitize=address,undefined (tests)
 #
 # Optional kernel modules are detected by header presence, so this Makefile
@@ -128,6 +128,11 @@ ifneq ($(wildcard $(K)/src/cbank/cb_ccy.h),)
   KSRC += $(K)/src/cbank/cb_ccy.c $(K)/src/cbank/cb_ccy_tbl.c $(K)/src/cbank/cb_util.c
   ifneq ($(ZXV_NO_TENSOR),)
     KSRC += $(K)/src/tensor/zt.c
+  endif
+  # netting cycles (zxv_netting_*) on the cbank engine
+  ifneq ($(wildcard $(K)/src/cbank/cb_net.h),)
+    DEFS += -DZXV_HAVE_CBANK_NET
+    KSRC += $(K)/src/cbank/cb_net.c $(K)/src/cbank/cb_config.c $(K)/src/cbank/cb_usury.c
   endif
 endif
 endif

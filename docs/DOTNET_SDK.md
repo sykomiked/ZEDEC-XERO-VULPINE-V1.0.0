@@ -341,7 +341,7 @@ if (zxv.Supports(ZxvFeatures.Netting)) { /* ... */ }
 | ISO 4217 table, AU membership | live | cbank/cb_ccy |
 | PAN check digits (Damm, Luhn, Verhoeff) | live | cardnet/cn_check |
 | pacs.002, pacs.004, pacs.009, camt.056, camt.029 | pending, `ZxvFeatureNotAvailableException` | cbank/cb_mx |
-| Netting cycles | pending | cbank/cb_net |
+| Netting cycles (net of the obligations; no liquidity limit, no screening, in memory) | live | cbank/cb_net |
 | Card issue, reissue, authorize | pending | cardnet |
 | VSS conformance checks | pending | cbank/cb_vss |
 
@@ -475,7 +475,7 @@ AddressSanitizer and UndefinedBehaviorSanitizer.
 - **Licensing and regulation.** Operating a ledger for other people's money
   requires the licences of your jurisdiction; nothing here substitutes for
   them.
-- **Pending modules.** Netting, card lifecycle, VSS checks and the
+- **Pending modules.** Card lifecycle, VSS checks and the
   pacs.002/004/009 and camt.056/029 messages are pending (see the table
   above).
 - **Platforms.** Linux x64 is built and tested. macOS should build with the

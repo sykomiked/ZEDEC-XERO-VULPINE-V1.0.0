@@ -38,6 +38,91 @@ static void *worker(void *arg)
     return NULL;
 }
 
+/* Netting cycles (cb_net): idempotent obligations, nets that sum to zero,
+ * every refusal by its status, and fail-closed on a halted context. */
+static void test_netting(void)
+{
+    zxv_netting *nc = NULL;
+    char name[64];
+    size_t len = 0;
+    int64_t net = 0;
+    uint32_t n = 0;
+    CHECK(zxv_netting_open(g_ctx, "C1", "VFV", &nc) == ZXV_E_CURRENCY && nc == NULL, "VFV is no netting currency");
+    CHECK(zxv_netting_open(g_ctx, "C1", "ngn", &nc) == ZXV_E_CURRENCY, "lower case refused");
+    CHECK(zxv_netting_open(g_ctx, "", "NGN", &nc) == ZXV_E_ARG, "empty cycle id");
+    CHECK(zxv_netting_open(g_ctx, "123456789012345678901234567890123456", "NGN", &nc) == ZXV_E_TOO_LONG,
+          "cycle id over 35 bytes");
+    CHECK(zxv_netting_open(g_ctx, "C1", "NGN", NULL) == ZXV_E_ARG, "NULL out");
+    CHECK(zxv_netting_open(g_ctx, "C1", "NGN", &nc) == ZXV_OK && nc, "open NGN");
+    CHECK(zxv_netting_add_participant(nc, "BANK-A") == ZXV_OK, "add A");
+    CHECK(zxv_netting_add_participant(nc, "BANK-B") == ZXV_OK, "add B");
+    CHECK(zxv_netting_add_participant(nc, "BANK-C") == ZXV_OK, "add C");
+    CHECK(zxv_netting_add_participant(nc, "BANK-D") == ZXV_OK, "add D (no obligations)");
+    CHECK(zxv_netting_add_participant(nc, "BANK-A") == ZXV_E_DUPLICATE, "a participant once");
+    CHECK(zxv_netting_add_participant(nc, "") == ZXV_E_ARG, "empty participant");
+    CHECK(zxv_netting_add_participant(nc, "\xff") == ZXV_E_UTF8, "participant not UTF-8");
+    CHECK(zxv_netting_position_count(nc, &n) == ZXV_E_STATE, "no positions while open");
+    CHECK(zxv_netting_submit(nc, "P1", "BANK-A", "BANK-B", 10000) == ZXV_OK, "A pays B 100.00");
+    CHECK(zxv_netting_submit(nc, "P2", "BANK-B", "BANK-C", 7000) == ZXV_OK, "B pays C 70.00");
+    CHECK(zxv_netting_submit(nc, "P3", "BANK-C", "BANK-A", 2500) == ZXV_OK, "C pays A 25.00");
+    CHECK(zxv_netting_submit(nc, "P1", "BANK-A", "BANK-B", 10000) == ZXV_OK, "the same obligation again: idempotent");
+    CHECK(zxv_netting_submit(nc, "P1", "BANK-A", "BANK-B", 10001) == ZXV_E_DUPLICATE, "same id, other amount");
+    CHECK(zxv_netting_submit(nc, "P1", "BANK-B", "BANK-A", 10000) == ZXV_E_DUPLICATE, "same id, other parties");
+    CHECK(zxv_netting_submit(nc, "P4", "BANK-A", "BANK-X", 1) == ZXV_E_NOT_FOUND, "unknown creditor");
+    CHECK(zxv_netting_submit(nc, "P4", "BANK-X", "BANK-A", 1) == ZXV_E_NOT_FOUND, "unknown debtor");
+    CHECK(zxv_netting_submit(nc, "P4", "BANK-A", "BANK-A", 1) == ZXV_E_ARG, "to itself");
+    CHECK(zxv_netting_submit(nc, "P4", "BANK-A", "BANK-B", 0) == ZXV_E_RANGE, "zero amount");
+    CHECK(zxv_netting_submit(nc, "P4", "BANK-A", "BANK-B", -5) == ZXV_E_RANGE, "negative amount");
+    CHECK(zxv_netting_submit(nc, "P4", "BANK-A", "BANK-B", 1000000000000001LL) == ZXV_E_RANGE,
+          "above 10^15 minor units");
+    CHECK(zxv_netting_submit(nc, "P4", "BANK-A", "BANK-B", 1000000000000000LL) == ZXV_OK, "10^15 itself");
+    CHECK(zxv_netting_submit(nc, "", "BANK-A", "BANK-B", 1) == ZXV_E_ARG, "empty payment id");
+    CHECK(zxv_netting_close(nc) == ZXV_OK, "close");
+    CHECK(zxv_netting_close(nc) == ZXV_E_STATE, "close once");
+    CHECK(zxv_netting_submit(nc, "P5", "BANK-A", "BANK-B", 1) == ZXV_E_STATE, "no submit after close");
+    CHECK(zxv_netting_add_participant(nc, "BANK-E") == ZXV_E_STATE, "no participant after close");
+    CHECK(zxv_netting_position_count(nc, &n) == ZXV_OK && n == 4, "4 positions");
+    static const char *const WANT_P[] = {"BANK-A", "BANK-B", "BANK-C", "BANK-D"};
+    static const int64_t WANT_N[] = {-10000 + 2500 - 1000000000000000LL, 10000 - 7000 + 1000000000000000LL,
+                                     7000 - 2500, 0};
+    int64_t sum = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        CHECK(zxv_netting_position_at(nc, i, name, sizeof name, &len, &net) == ZXV_OK &&
+                  !strcmp(name, WANT_P[i]) && len == strlen(WANT_P[i]) && net == WANT_N[i],
+              "position by participant, in the order added");
+        sum += net;
+    }
+    CHECK(sum == 0, "the positions sum to zero");
+    CHECK(zxv_netting_position_at(nc, 4, name, sizeof name, &len, &net) == ZXV_E_NOT_FOUND, "index past the end");
+    CHECK(zxv_netting_position_at(nc, 0, NULL, 0, &len, &net) == ZXV_E_BUFFER && len == 6, "R4 size query");
+    CHECK(zxv_netting_position_at(nc, 0, name, sizeof name, NULL, &net) == ZXV_E_ARG, "NULL out_len");
+    CHECK(zxv_netting_position_count(NULL, &n) == ZXV_E_ARG, "NULL cycle");
+    zxv_netting_destroy(nc);
+
+    /* a cycle with no obligations nets every participant to zero */
+    CHECK(zxv_netting_open(g_ctx, "C2", "XOF", &nc) == ZXV_OK, "open XOF");
+    CHECK(zxv_netting_add_participant(nc, "SOLO") == ZXV_OK && zxv_netting_close(nc) == ZXV_OK &&
+              zxv_netting_position_count(nc, &n) == ZXV_OK && n == 1 &&
+              zxv_netting_position_at(nc, 0, name, sizeof name, &len, &net) == ZXV_OK && net == 0,
+          "an empty cycle");
+    zxv_netting_destroy(nc);
+
+    /* fail-closed: a cycle of a halted context refuses every call */
+    zxv_ctx *x = NULL;
+    CHECK(zxv_ctx_create(&x) == ZXV_OK && zxv_netting_open(x, "C3", "GHS", &nc) == ZXV_OK, "open GHS");
+    CHECK(zxv_netting_add_participant(nc, "A") == ZXV_OK && zxv_netting_add_participant(nc, "B") == ZXV_OK,
+          "two participants");
+    CHECK(zxv_ctx_halt(x, "test") == ZXV_OK, "halt");
+    CHECK(zxv_netting_add_participant(nc, "C") == ZXV_E_POISONED, "add refused when halted");
+    CHECK(zxv_netting_submit(nc, "P", "A", "B", 1) == ZXV_E_POISONED, "submit refused when halted");
+    CHECK(zxv_netting_close(nc) == ZXV_E_POISONED, "close refused when halted");
+    CHECK(zxv_netting_position_count(nc, &n) == ZXV_E_POISONED, "count refused when halted");
+    CHECK(zxv_netting_position_at(nc, 0, name, sizeof name, &len, &net) == ZXV_E_POISONED,
+          "position refused when halted");
+    zxv_netting_destroy(nc);
+    zxv_ctx_destroy(x);
+}
+
 int main(void)
 {
     uint32_t maj = 0, min = 0, pat = 0, feat = 0;
@@ -220,7 +305,10 @@ int main(void)
     /* Stubs */
     CHECK(zxv_msg_create(g_ctx, ZXV_MX_PACS002, &m) == ZXV_E_NOTIMPL, "pacs002 pending");
     zxv_netting *nc = NULL;
-    CHECK(zxv_netting_open(g_ctx, "C1", "NGN", &nc) == ZXV_E_NOTIMPL && nc == NULL, "netting pending");
+    if (feat & ZXV_FEAT_NETTING)
+        test_netting();
+    else
+        CHECK(zxv_netting_open(g_ctx, "C1", "NGN", &nc) == ZXV_E_NOTIMPL && nc == NULL, "netting pending");
     uint64_t card = 0;
     CHECK(zxv_card_issue(g_ctx, ZXV_NET_DRAGON, a, 1000, &card, buf, sizeof buf, &len) == ZXV_E_NOTIMPL, "cards pending");
     int32_t passed = 0;

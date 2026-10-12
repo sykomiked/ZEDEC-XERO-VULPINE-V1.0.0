@@ -432,17 +432,30 @@ ZXV_API int32_t zxv_msg_add_entry(zxv_msg *msg, int64_t units, uint8_t frac_digi
  * ZXV_E_FIELD (USAGE), and the context is not halted (ABI 1.1.1). */
 ZXV_API int32_t zxv_msg_render(zxv_msg *msg, char *buf, size_t cap, size_t *out_len);
 
-/* ===== Netting cycles (kernel/src/cbank — pending) ===== */
+/* ===== Netting cycles (kernel/src/cbank cb_net, ZXV_FEAT_NETTING) =====
+ * A cycle nets the obligations submitted to it: no liquidity limit, no
+ * prefunding, no sanctions screening (the caller screens), nothing
+ * persisted and no settlement instruction sent anywhere. Ids, participant
+ * codes and payment ids are 1..35 bytes of UTF-8 (Max35Text); at most 64
+ * participants and 512 obligations per cycle (ZXV_E_CAPACITY); an amount
+ * is 1..10^15 minor units (ZXV_E_RANGE). After close the cycle takes no
+ * more participants or obligations (ZXV_E_STATE), and positions are read
+ * only after close (ZXV_E_STATE before). */
 
-/* Open a multilateral netting cycle in one settlement currency. */
+/* Open a multilateral netting cycle in one ISO 4217 settlement currency
+ * (ZXV_E_CURRENCY for a private unit such as VFV). */
 ZXV_API int32_t zxv_netting_open(zxv_ctx *ctx, const char *cycle_id, const char *ccy,
                                  zxv_netting **out_cycle);
 ZXV_API void zxv_netting_destroy(zxv_netting *cycle);
 
-/* Add a participant (e.g. a BIC or PAPSS participant code). */
+/* Add a participant (e.g. a BIC or PAPSS participant code); a code once
+ * per cycle (ZXV_E_DUPLICATE). */
 ZXV_API int32_t zxv_netting_add_participant(zxv_netting *cycle, const char *participant);
 
-/* Submit one obligation debtor -> creditor, idempotent on `payment_id`. */
+/* Submit one obligation debtor -> creditor, idempotent on `payment_id`:
+ * the same obligation again is ZXV_OK and books nothing; the same id with
+ * other parties or another amount is ZXV_E_DUPLICATE. Unknown debtor or
+ * creditor: ZXV_E_NOT_FOUND; debtor == creditor: ZXV_E_ARG. */
 ZXV_API int32_t zxv_netting_submit(zxv_netting *cycle, const char *payment_id,
                                    const char *debtor, const char *creditor,
                                    int64_t amount_minor);
@@ -450,7 +463,9 @@ ZXV_API int32_t zxv_netting_submit(zxv_netting *cycle, const char *payment_id,
 /* Close the cycle and compute net positions. */
 ZXV_API int32_t zxv_netting_close(zxv_netting *cycle);
 
-/* Net positions after close: + receives, - pays. Sum is always zero. */
+/* Net positions after close, one per participant in the order added:
+ * + receives, - pays. Sum is always zero (a cycle that did not net to zero
+ * would poison the context: ZXV_E_INVARIANT). */
 ZXV_API int32_t zxv_netting_position_count(zxv_netting *cycle, uint32_t *out_count);
 ZXV_API int32_t zxv_netting_position_at(zxv_netting *cycle, uint32_t index, char *buf,
                                         size_t cap, size_t *out_len, int64_t *out_net_minor);
