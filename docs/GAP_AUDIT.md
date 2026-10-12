@@ -2,6 +2,14 @@
 
 This audit was measured on commit f909145, the clean breaking point: all 17 CI jobs and CodeQL green on PR #1.
 
+> **Update 2026-10-12.** The tables below are the audit as measured on
+> f909145. Much of section C has been built since. Section C now has a
+> "State on main, 2026-10-12" column, and the Progress table at the end
+> records what section A has wired. "Built and host-tested" means the
+> module exists and `make -C kernel verify-all` runs its tests in CI. It
+> does **not** mean the app or `zxvd` calls it: most of the new economy
+> modules are not yet linked into anything a user runs.
+
 The architecture map is in [ARCHITECTURE_AND_STATUS.md](ARCHITECTURE_AND_STATUS.md), and per-module status is in [SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md). This file lists only what is missing or disconnected.
 
 ## How it was measured
@@ -47,22 +55,22 @@ ZXV currently ships as three products that do not share a runtime:
 | B4 | **Duplicate primitives.** | SHA-256 has 3 implementations (robin_debanks, crypto_wallet, event_envelope). GCD has 3 (rational, rmag, m5_types.h). Keccak has 7 (one in mlkem, plus vendored copies in pqsec). | Keep one SHA-256 and one GCD, with the others calling them. The vendored Keccak copies stay, because they are upstream code pinned by KATs. |
 | B5 | **No self-healing framework.** Only ad hoc recovery exists, in `sdk_bridge`, `tripartite_fs` and `event_space`. | grep finds 9 files. | Build the designed recovery from the harness notes: refuse / roll back to a checkpoint / isolate. Each recovery emits a signed RepairProof, and hard invariants stay fail-closed. Never auto-patch state. |
 | B6 | **`i18n` (35k lines) builds only in its own tests.** | 0 objects in the image, not in the app. | Generate the app's UI strings from it (the CLDR tables are already there). |
-| B7 | **Test ratio is 0.36:1 against the 13:1 target.** | Measured on c971139. | The 13-tier suites, counted only where they kill mutants. |
+| B7 | **Test ratio is 0.36:1 against the 13:1 target.** | Measured on c971139. No later measurement is recorded, so the gap should be read as still open. | The 13-tier suites, counted only where they kill mutants. |
 
 ### C. Specced but not built
 
-| # | Spec | State |
-|---|---|---|
-| C1 | Zenny chips / compression minting (minter picks κ; chip claim == deposited value at mint and at each rebalance) | Not in code. |
-| C2 | Dutch-auction V-Bill issuance, backed only (reserve stays at or above the floor, per-epoch cap) | Not in code. `cbank` has a descending sweep, but no issuance. |
-| C3 | Custodian dual-key warehouse receipts (ML-DSA), haircuts, signed median price feed | No haircut, price feed or receipt code in the economy modules. |
-| C4 | Solvency vault funded by a third of the reserve share (16.67% of the fee), capped at 1/3 of V-Bills, excluded from the Vino floor | `pay_assure` has the 4-bucket split, but no vault sub-split or cap. V-Bills are "future work" there. |
-| C5 | V-Bills (perpetual musharakah equity, dividend pool payout, redemption at the backing floor) | Named pool account only. |
-| C6 | Account recovery (3-of-5 guardians, veto, timelock, staged thaw) and estate succession (faraid, forced heirship, escrow) | `ident` mentions guardians. There is no estate code. |
-| C7 | Sutra and COBOL copybooks compiling to the same AST, rejecting weight ≠ 1 or claim > deposit | `sutra` exists (compiles to vino) with no caller. COBOL appears only in `legacy`. |
-| C8 | Cycle-cancellation netting for the 13-tier suite and 50M-op fuzz | Lives only in `cbank` (not linked). The property fuzz covers vino, pay, count house and triple ledger. |
-| C9 | Sicily Account / Player Card tiers | Partial in `pay`. |
-| C10 | AI end to end with real weights | Blocked on huggingface.co access in Project settings. |
+| # | Spec | State on f909145 | State on main, 2026-10-12 |
+|---|---|---|---|
+| C1 | Zenny chips / compression minting (minter picks κ; chip claim == deposited value at mint and at each rebalance) | Not in code. | Built and host-tested: `kernel/src/zenny` (`make -C kernel test-zenny`). Not called by the app. |
+| C2 | Dutch-auction V-Bill issuance, backed only (reserve stays at or above the floor, per-epoch cap) | Not in code. `cbank` has a descending sweep, but no issuance. | Built and host-tested: `kernel/src/vauction` (`test-vauction`). Not called by the app. |
+| C3 | Custodian dual-key warehouse receipts (ML-DSA), haircuts, signed median price feed | No haircut, price feed or receipt code in the economy modules. | Built and host-tested inside `kernel/src/vauction`: receipts checked through a signature hook, per-custodian haircut, signed median feed with a staleness limit, quarantine of disputed receipts. Not called by the app. |
+| C4 | Solvency vault funded by a third of the reserve share (16.67% of the fee), capped at 1/3 of V-Bills, excluded from the Vino floor | `pay_assure` has the 4-bucket split, but no vault sub-split or cap. V-Bills are "future work" there. | Built and host-tested: `kernel/src/svault` (`test-svault`). Not called by the app. |
+| C5 | V-Bills (perpetual musharakah equity, dividend pool payout, redemption at the backing floor) | Named pool account only. | Built and host-tested: dividend distribution in `kernel/src/vswap`, redemption floor in `kernel/src/svault`, fixed-term V-Bonds in `kernel/src/vbond`. Not called by the app. |
+| C6 | Account recovery (3-of-5 guardians, veto, timelock, staged thaw) and estate succession (faraid, forced heirship, escrow) | `ident` mentions guardians. There is no estate code. | Built and host-tested: `kernel/src/estate` (`recovery.c`, `estate.c`, `faraid.c`; `test-recovery`, `test-estate`). Not called by the app. |
+| C7 | Sutra and COBOL copybooks compiling to the same AST, rejecting weight ≠ 1 or claim > deposit | `sutra` exists (compiles to vino) with no caller. COBOL appears only in `legacy`. | Built and tested: `kernel/src/treaty` parses COBOL copybook records and Sutra text into one `zxt_treaty_t`, enforcing rules R1 (weights) and R2 (claim ≤ deposit) in `zxt.h`; fuzzed by `fuzz_zxt.c`. Packaged with libzxv (`packages/Makefile`). |
+| C8 | Cycle-cancellation netting for the 13-tier suite and 50M-op fuzz | Lives only in `cbank` (not linked). The property fuzz covers vino, pay, count house and triple ledger. | Unchanged. `cb_net` is still not bound into libzxv (`sdk/libzxv/src/zxv_api.c`, "Bind cb_net_init … once it is stable"). |
+| C9 | Sicily Account / Player Card tiers | Partial in `pay`. | Built and host-tested: `kernel/src/sicily` (`test-sicily`). The app links it, and its `zxvd` RPC V3 returns the owner's Player Card (`kernel/arch/hosted/zxv_host.c`, `rpc_player_card`), with only credibility measured so far. |
+| C10 | AI end to end with real weights | Blocked on huggingface.co access in Project settings. | Done: Qwen2.5-1.5B-Instruct runs on the engine and matches llama.cpp's greedy answers on 8 of 8 prompts (`bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md`). |
 
 ## Progress
 

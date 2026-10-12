@@ -20,10 +20,13 @@ each tick can have an exact work budget.
 |---|---|---|
 | [emu-state](emu-state/) | The engine-neutral C11 library: fixed-step tick driver, rational and hexagram state slots, an input queue per player per tick, a SHA3-256 state hash per tick, rollback to a kept tick, desync detection, per-tick budgets and state transfer. | 1,138 unit checks, a fuzz target (2,000 programs in `make test`, 100,000 under ASan + UBSan), gcc and clang |
 | [godot-zxv](godot-zxv/) | A Godot 4.3 GDExtension: `ZxvRational`, `ZxvHexagram`, `ZxvLockstep`, and a demo project. | 1,010 checks of the C++ layer without Godot; the extension built against godot-cpp `godot-4.3-stable` and 542 checks run inside Godot 4.3 headless on Linux |
+| [unreal-zxv](unreal-zxv/) | An Unreal Engine 5 plugin, `ZxvUnreal`: a `UGameInstanceSubsystem` owning named sims, `UZxvLockstep`, Blueprint types `FZxvRational` (int64 `Num`/`Den`) and `FZxvHexagram`, and the engine-neutral C++ layer they call. Other plugins (e.g. a checkout plugin) layer on it; it has no payment features. | 3,653 checks of the C++ layer and 3,385 cross-checks against the header-only C++ SDK, gcc and clang, also under ASan + UBSan; the Unreal wrapper is only checked structurally, **not yet compiled inside Unreal** |
 | [unity-zxv](unity-zxv/) | A Unity package, `com.zedec.zxv`: a `ZxvLockstep` core (no MonoBehaviour), a serializable exact `Rational` that stores `num` and `den`, a `Hexagram`, and inspector drawers. | 27 xunit tests of the Runtime code built as netstandard2.1 with .NET 8; not run inside Unity |
+| [z-vfx](z-vfx/) | A Python package for VFX pipelines (Maya and Houdini): frame rates, frame times and SMPTE timecode as exact rationals, rational 4x4 transforms, SHA3-256 procedural seeds that re-run identically anywhere, and a render-farm budget on libzxv `rmag`. Lazy `zxv_vfx.maya` / `zxv_vfx.houdini` adapters convert to floats only when writing to the DCC (marked lossy, never read back). | 99 pytest tests against libzxv and the Python SDK, with fake `maya.cmds` and `hou`; an AST check that the core has no float; not run inside Maya or Houdini |
 
 Start with [emu-state](emu-state/) to see the model, then open the kit for
-your engine.
+your engine. [z-vfx](z-vfx/) is the odd one out: not lockstep, but the same
+idea (exact values, floats only at the edge) for film and TV pipelines.
 
 ## The rules every kit follows
 
@@ -32,12 +35,12 @@ your engine.
   time, C++ and C# at compile time). Values come from integers or exact
   text ("12.75", "3/4").
 - **Floats only at the very edge, for drawing.** `to_float_lossy()`
-  (Godot) and `ToFloatLossy()` (Unity) give the nearest float for a
+  (Godot) and `ToFloatLossy()` (Unity, Unreal) give the nearest float for a
   Transform or a label. That value is lossy and must never go back into
   the simulation or over the network.
 - **Time is an integer.** Feed the fixed-step clock integer microseconds
-  (Godot `Time.get_ticks_usec()`, .NET `Stopwatch`), never the engine's
-  float `delta`.
+  (Godot `Time.get_ticks_usec()`, .NET `Stopwatch`, the Unreal kit's
+  monotonic `PumpClock()`), never the engine's float `delta` / `DeltaTime`.
 - **The step is a pure function** of the state and the inputs: no wall
   clock, no host random numbers, no reading of engine physics.
 

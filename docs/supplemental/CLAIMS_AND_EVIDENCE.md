@@ -123,11 +123,15 @@ locally with `scripts/verify-local.sh --all` (or `--docker --all`).
   TLC is required to find that counterexample (P10/P11 there).
 - In the triple ledger, "trial balance always zero" is false; the model
   requires the counterexample (`docs/FORMAL_INVARIANTS.md` §2).
-- V-Bill issuance, the solvency vault, custodian receipts and estate
-  succession are now implemented and host-tested in CI (`kernel/src/vauction`,
-  `kernel/src/svault`, `kernel/src/estate`; `make -C kernel test-econ`), but
-  the app does not call them yet. `docs/GAP_AUDIT.md` C2 to C6 predate this
-  code and still call them design intent.
+- Zenny chips, V-Bill issuance and dividends, the solvency vault, custodian
+  receipts, account recovery and estate succession are implemented and
+  host-tested in CI (`kernel/src/zenny`, `vauction`, `vswap`, `svault`,
+  `estate`; `make -C kernel test-econ`), but neither the app nor `zxvd` calls
+  them yet. Read them as tested library code, not as running features.
+  `docs/GAP_AUDIT.md` section C has a 2026-10-12 column with the state of
+  each item.
+- Cycle-cancellation netting (`kernel/src/cbank/cb_net.c`) is tested on its
+  own but is not yet bound into libzxv (`docs/GAP_AUDIT.md` C8).
 - `docs/GAP_AUDIT.md` found the economy modules were "not in the app" on the
   audited commit; its Progress table records which links have since been made.
 
@@ -141,6 +145,19 @@ locally with `scripts/verify-local.sh --all` (or `--docker --all`).
 | A mutation gate fails if a target's score drops below its baseline. | Tested in CI | `tests/MUTATION_REPORT.md`; baselines in `tests/harness/mutator/targets.json`; `docs/ARCHITECTURE.md` gives scores such as 89.6% for the settlement spine | `python3 tests/harness/mutator/mutate.py` (see `tests/MUTATION_REPORT.md`) |
 | The audit fixed every critical and high finding it raised. | Measured (by audit) | `docs/AUDIT_REPORT.md`: 15 CRIT and 41 HIGH fixed, 0 open; 74 MED and 53 LOW not fixed | read the report; each finding names the file and line |
 | libzxv keeps a stable C ABI that can only grow. | Tested in CI | `sdk/libzxv/tools/abi_check.py`, run in `.github/workflows/sdk-release.yml` | `python3 sdk/libzxv/tools/abi_check.py check ...` as in that workflow |
+| Exact rational arithmetic refuses overflow instead of wrapping, with the same results on targets without 128-bit integers (32-bit arm and riscv). | Tested in CI (the 32-bit path is forced on a 64-bit host with `-DRAT_NO_WIDE`, not run on 32-bit hardware) | `kernel/src/rational/test_rational_narrow.c` checks that path against an `__int128` oracle; the tier 1 and tier 3 rational suites run on both paths (`tests/harness/tiers.py`) | `make -C kernel verify-all` |
+
+### Negative results for the quality process
+
+- **The test ratio is far from its target.** The owner's goal is 13:1
+  (tests to code, counted only where tests kill mutants). The only recorded
+  measurement is 0.36:1, on commit c971139 (`docs/GAP_AUDIT.md` B7,
+  `docs/ARCHITECTURE.md`). No later measurement exists.
+- Mutation scores cover a fixed subset of files (`tests/harness/mutator/targets.json`),
+  not the whole kernel.
+- Until 2026-10-12 the rational type had no overflow check on targets
+  without `__int128`; `rational.h` promised one regardless. That is fixed,
+  and `test_rational_narrow.c` keeps it fixed.
 
 ## 6. Design intent, not yet built
 
@@ -165,8 +182,6 @@ reader is not misled:
 - `README.md` lists the bare-metal discs (#25) and the two-node demo (#31) as
   "landing", while this checkout already has the CI jobs that test them
   (`uefi-disc` in `ci.yml`, the demo check in `zxvd.yml`).
-- `docs/GAP_AUDIT.md` C1 says Zenny chips are "not in code"; the module
-  `kernel/src/zenny/` now exists with a test.
 - `docs/AUDIT_REPORT.md` has two lines on Fibonacci-only coins: one says the
   question is answered for VFV coins, the next says it is still open for them.
   The first (2026-10-11, `vino_mint` refuses other faces) is the later one.
