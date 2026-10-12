@@ -133,6 +133,8 @@ SRCS := \
     kernel/src/hwdrv/xhci.c \
     kernel/src/hwdrv/e1000.c \
     kernel/src/hwdrv/hda.c \
+    kernel/src/hwdrv/igb.c \
+    kernel/src/hwdrv/r8169.c \
     kernel/src/abacus/abacus.c \
     kernel/src/ai_layer/ai_layer.c \
     kernel/src/alloc/alloc.c \
