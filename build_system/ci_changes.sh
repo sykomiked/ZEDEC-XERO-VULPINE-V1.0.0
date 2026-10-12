@@ -15,6 +15,9 @@
 # Environment (all optional):
 #   EVENT  GitHub event name: push, pull_request, schedule, workflow_dispatch
 #   DRAFT  "true" when the pull request is a draft
+#   REF    the pushed ref (github.ref); a push to refs/heads/main runs the
+#          slow tier so a regression on main is caught at merge, not by the
+#          next unrelated pull request
 #   WORKTREE  "1" to diff the working tree (uncommitted and untracked files
 #          included) instead of HEAD; scripts/verify-local.sh sets it
 #
@@ -24,10 +27,11 @@
 #   sdk     kernel, sdk/ or a bindings/<language>/ directory changed
 #   mac     kernel, macos/ or docs/MAC_APP.md (bundled into the app) changed
 #   proofs  proofs/ changed
-#   heavy   run the slow tier: nightly, manual runs, and pull requests that
-#           are ready for review (not drafts). Draft pushes and pushes to a
-#           branch run the fast tier only; nothing is merged without the slow
-#           tier, because a draft has to be marked ready first.
+#   heavy   run the slow tier: nightly, manual runs, pushes to main, and pull
+#           requests that are ready for review (not drafts). Draft pushes and
+#           pushes to other branches run the fast tier only. Merging needs the
+#           ci-gate check, which only a ready pull request's run reports and
+#           only after the slow tier passed (docs/CI.md, "Merge gate").
 #
 # Only documentation is skipped: *.md outside docs/MAC_APP.md, docs/, LICENSE,
 # NOTICE, FUNDING.yml, CITATION.cff, issue templates, dependabot and CodeQL
@@ -37,6 +41,7 @@ set -euo pipefail
 BASE=${1:-}
 EVENT=${EVENT:-push}
 DRAFT=${DRAFT:-false}
+REF=${REF:-}
 
 kernel=false dotnet=false sdk=false mac=false proofs=false all=false
 
@@ -86,6 +91,7 @@ heavy=false
 case "$EVENT" in
     schedule|workflow_dispatch) heavy=true ;;
     pull_request) [ "$DRAFT" = true ] || heavy=true ;;
+    push) [ "$REF" = refs/heads/main ] && heavy=true ;;
 esac
 
 out="kernel=$kernel
