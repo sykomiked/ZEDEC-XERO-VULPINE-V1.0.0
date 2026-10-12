@@ -196,6 +196,11 @@ jobs:
           name: kernel-riscv64
           path: kernel_riscv.elf
           if-no-files-found: error
+      - name: RISC-V 64-bit refuses a failed boot check
+        # Roadmap 2.14: each injected boot-check failure must stop the boot
+        # before [BOOT_OK]. Runs after the upload, and rebuilds the normal image.
+        if: ${{ !cancelled() }}
+        run: build_system/test_boot_fail_closed.sh riscv64 build_system/Makefile.riscv 20
       - name: Build RISC-V 32-bit
         if: ${{ !cancelled() }}
         run: |
@@ -229,6 +234,9 @@ jobs:
         with:
           name: kernel-riscv32
           path: kernel_riscv32.elf
+      - name: RISC-V 32-bit refuses a failed boot check
+        if: ${{ !cancelled() }}
+        run: ZXV_RV32_SBI="$RUNNER_TEMP/opensbi-fw/fw_dynamic.bin" build_system/test_boot_fail_closed.sh riscv32 build_system/Makefile.riscv32 20
       - name: Build ARM32
         if: ${{ !cancelled() }}
         run: |
@@ -244,6 +252,9 @@ jobs:
           name: kernel-arm32
           path: zedec_xero_arm32.elf
           if-no-files-found: error
+      - name: ARM32 refuses a failed boot check
+        if: ${{ !cancelled() }}
+        run: build_system/test_boot_fail_closed.sh arm32 build_system/Makefile.arm32 20
       - run: ccache -s
 
   uefi-disc:

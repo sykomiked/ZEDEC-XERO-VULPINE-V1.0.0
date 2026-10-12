@@ -66,6 +66,10 @@ filtered out because vendored code stays identical to its upstream release.
   fails the job. All five were booted that way locally. CI fixes: riscv64 installed a package that
   does not exist on Ubuntu (`qemu-system-riscv64`, now `qemu-system-misc`); riscv32 had no rv32
   SBI firmware (CI now builds OpenSBI v1.3.1 for rv32); two artifact paths were wrong.
+  The kernels themselves now fail closed too (roadmap 2.14, 2026-10-12): on riscv64, riscv32 and
+  arm32 a failed declaration gate or MegaROM registration prints `[BOOT_FAIL] <check>` and halts
+  before `[BOOT_OK]` (it used to print and carry on). `build_system/test_boot_fail_closed.sh`
+  boots each of those refusals in QEMU in the slow CI tier.
 
 ### Decisions only the owner can make
 
