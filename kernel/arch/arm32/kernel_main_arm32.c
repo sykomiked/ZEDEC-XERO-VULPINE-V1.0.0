@@ -198,8 +198,7 @@ void kernel_main_arm32(void) {
     {
         uint32_t gate_faults = zxv_decl_boot_gate(uart_puts);
         if (ZXV_BOOT_INJECT == 1) gate_faults++;
-        if (gate_faults != 0u)
-            arm32_boot_refuse("declaration gate: the module graph is not sound");
+        if (gate_faults != 0u) arm32_boot_refuse("declaration gate: the module graph is not sound");
     }
 
     /* ==== TOL VOVINA UPAAH LOT — the MegaROM container registers at boot =====
