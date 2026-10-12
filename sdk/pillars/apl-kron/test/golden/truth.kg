@@ -1,0 +1,88 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# Comparisons give four-valued truth (ZXV_LP_*), never 0/1; and, or and
+# not use the kernel's tables (sdk/conformance/vectors.json "lpres").
+
+=== less
+apl: 1 2 3<2
+k: 1 2 3<2
+py: tvec(T, Fa, Fa)
+
+=== compare-all
+apl: 1r3 (≤,≥,=,≠) 1r3
+refuse: KR_E_SYNTAX
+
+=== le-ge-ne
+apl: (1 2 3≤2),(1 2 3≥2),1 2 3≠2
+k: (1 2 3 le 2),(1 2 3 ge 2),1 2 3 ne 2
+py: tvec(T, T, Fa, Fa, T, T, T, Fa, T)
+
+=== equal-exact
+apl: 0.1 1r3=1r10 0.333
+k: 0.1 1r3=1r10 0.333
+py: tvec(T, Fa)
+
+=== and-table
+apl: true false neither both∧both
+py: tvec(*[Truth_and(x, B) for x in (T, Fa, N, B)])
+
+=== or-table
+apl: true false neither both∨neither
+py: tvec(*[Truth_or(x, N) for x in (T, Fa, N, B)])
+
+=== not
+apl: ~true false neither both
+k: ~true false neither both
+py: tvec(Fa, T, N, B)
+
+=== min-is-and-on-truth
+k: true false neither both&both
+py: tvec(*[Truth_and(x, B) for x in (T, Fa, N, B)])
+
+=== max-is-or-on-truth
+k: true false neither both|neither
+py: tvec(*[Truth_or(x, N) for x in (T, Fa, N, B)])
+
+=== truth-equal
+apl: both neither=both both
+py: tvec(T, Fa)
+
+=== truth-is-not-a-number
+apl: +/1 2 3>1
+k: +/1 2 3>1
+refuse: KR_E_DOMAIN
+
+=== truth-less
+apl: true<false
+refuse: KR_E_DOMAIN
+
+=== and-on-numbers
+apl: 6∧4
+refuse: KR_E_DOMAIN
+
+=== not-on-numbers
+apl: ~0
+k: ~0
+refuse: KR_E_DOMAIN
+
+=== match
+apl: (⍳3)≡0 1 2
+k: (!3)~0 1 2
+py: T
+
+=== match-shape
+apl: (⍳4)≡2 2⍴⍳4
+py: Fa
+
+=== nomatch
+apl: (⍳3)≢0 1 2
+canon: (not (match (iota 3) (vec 0 1 2)))
+py: Fa
+
+=== match-kinds
+apl: (0⍴0)≡0⍴true
+py: Fa
+
+=== comparison-matrix
+apl: (2 2⍴1 2 3 4)>2
+py: mat([[Fa, Fa], [T, T]])

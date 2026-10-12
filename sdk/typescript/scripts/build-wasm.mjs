@@ -61,7 +61,7 @@ const incDirs = [
   join(lib, 'include'), join(lib, 'src'),
   ...['iso20022', 'finance', 'vino_stores', 'vino', 'surplus', 'edp_risk', 'onepolicy', 'rational', 'lpres',
     'event_space', 'rmag', 'phase_coord', 'harmonic', 'swarm', 'mlkem', 'e8', 'modbind', 'trispace', 'pqsec',
-    'tensor', 'cbank', 'cardnet'].map((d) => join(kernel, 'src', d)),
+    'tensor', 'cbank', 'cardnet', 'hwemu', 'robin_debanks'].map((d) => join(kernel, 'src', d)),
   join(kernel, 'include'), join(kernel, 'third_party', 'ed25519', 'src'),
 ].filter((d) => existsSync(d));
 const inc = incDirs.flatMap((d) => ['-I', d]);
@@ -70,7 +70,7 @@ const common = ['-std=c11', '-O2', '-DTEST_HOST', '-DZXV_HAVE_ARC4RANDOM=1', '-i
 if (noTensor && !defs.includes('-DZXV_NO_TENSOR')) common.push('-DZXV_NO_TENSOR');
 
 const units = [
-  ...['zxv_api', 'zxv_core', 'zxv_econ', 'zxv_crypto', 'zxv_tensor', 'zxv_evm', 'zxv_hex'].map((n) => ({
+  ...['zxv_api', 'zxv_core', 'zxv_econ', 'zxv_crypto', 'zxv_tensor', 'zxv_evm', 'zxv_hex', 'zxv_hw'].map((n) => ({
     src: join(lib, 'src', `${n}.c`), flags: ['-fvisibility=hidden', '-DZXV_BUILD_SHARED', '-Wall', '-Wno-unused-function'],
   })),
   ...ksrc.map((src) => ({ src, flags: ['-fvisibility=hidden', '-w'] })),

@@ -1091,6 +1091,415 @@ void test_quarantine_log()
     }
 }
 
+
+// ------------------------------------------------- ABI 1.4: hardware (hw::)
+// Mirrors sdk/libzxv/test/test_zxv_abi14.c.
+
+#define CHECK_STATUS(expr, want)                                                       \
+    do {                                                                               \
+        ++g_checks;                                                                    \
+        std::int32_t got_ = 0;                                                         \
+        try {                                                                          \
+            (void) (expr);                                                             \
+        } catch (const zxv::Exception& e) {                                            \
+            got_ = e.status();                                                         \
+        } catch (const zxv::FatalError& e) {                                           \
+            got_ = e.status();                                                         \
+        }                                                                              \
+        if (got_ != (want)) {                                                          \
+            ++g_failures;                                                              \
+            std::cout << "FAIL " << __FILE__ << ":" << __LINE__ << ": " #expr " -> "   \
+                      << zxv::status_name(got_) << ", want " #want "\n";               \
+        }                                                                              \
+    } while (0)
+
+std::span<const std::uint8_t> sv(std::string_view s) { return {reinterpret_cast<const std::uint8_t*>(s.data()), s.size()}; }
+
+void test_hw_version_and_statuses()
+{
+    CHECK(zxv::version().minor >= 4);
+    CHECK(zxv::has_feature(zxv::feature::hw));
+    CHECK(zxv::status_name(ZXV_E_QUARANTINED) == "ZXV_E_QUARANTINED");
+    CHECK(zxv::status_class(ZXV_E_DISPUTE) == zxv::StatusClass::refused);
+    CHECK(zxv::status_class(ZXV_E_TARGET) == zxv::StatusClass::usage);
+    CHECK(zxv::caps::all_1_4 == (std::uint64_t{1} << 12) - 1);
+    CHECK((zxv::caps::all & zxv::caps::hw_matrix) == 0);
+    CHECK_THROWS_AS(zxv::detail::check(ZXV_E_NOPROVIDER), zxv::NoProvider);
+    CHECK_THROWS_AS(zxv::detail::check(ZXV_E_DISPUTE), zxv::Disputed);
+    CHECK_THROWS_AS(zxv::detail::check(ZXV_E_QUARANTINED), zxv::Quarantined);
+    CHECK_THROWS_AS(zxv::detail::check(ZXV_E_ROLLBACK), zxv::RollbackRefused);
+    CHECK_THROWS_AS(zxv::detail::check(ZXV_E_BLOCKED), zxv::ImageBlocked);
+    CHECK_THROWS_AS(zxv::detail::check(ZXV_E_POLICY), zxv::PolicyDenied);
+    CHECK_THROWS_AS(zxv::detail::check(ZXV_E_TARGET), zxv::TargetMismatch);
+    CHECK_THROWS_AS(zxv::detail::check(ZXV_E_TARGET), zxv::UsageError);
+    zxv::Context ctx;
+    CHECK_STATUS(ctx.root_capability(zxv::caps::all_1_4 + 1), ZXV_E_ARG);
+}
+
+void test_hw_profiles()
+{
+    namespace hw = zxv::hw;
+    const auto host = hw::Profile::probe_host();
+    const auto r1 = hw::Profile::reference();
+    CHECK(r1.node_count() == 16);
+    CHECK(host.node_count() >= 2);
+    CHECK(host.cap(2, hw::cap::word_bits) == sizeof(void*) * 8);
+    CHECK(host.cap(2, hw::cap::count) >= 1);
+    const auto m = hw::Profile::match(host, r1);
+    CHECK(m.native >= 1 && m.native + m.emulated == 14);
+    auto p = hw::Profile::pair(host, r1, 1);
+    CHECK(p.need_id == 2 && p.kind == hw::Pairing::group);
+    p = hw::Profile::pair(host, r1, 2);
+    CHECK(p.need_id == 3 && p.kind == hw::Pairing::native && p.host_id == 2);
+    CHECK(hw::Profile::pair(host, r1, 7).kind == hw::Pairing::emulate);
+    CHECK_STATUS(hw::Profile::pair(host, r1, 99), ZXV_E_NOT_FOUND);
+    CHECK(r1.cap(6, hw::cap::contract_id) == hw::fn_tensor);
+    const auto pres = hw::Profile::present(host, r1);
+    CHECK(pres.cap(3, hw::cap::kind) == static_cast<std::uint64_t>(hw::Kind::hard));
+    CHECK(pres.cap(8, hw::cap::kind) == static_cast<std::uint64_t>(hw::Kind::soft));
+    CHECK(!pres.find_cap(1, hw::cap::kind).has_value());
+    CHECK_STATUS(pres.cap(1, hw::cap::kind), ZXV_E_NOT_FOUND);
+
+    auto enc = r1.encode();
+    const auto copy = hw::Profile::decode(enc);
+    CHECK(copy.digest() == r1.digest());
+    CHECK(r1.clone().digest() == r1.digest());
+    enc.pop_back();
+    CHECK_STATUS(hw::Profile::decode(enc), ZXV_E_FORMAT);
+
+    hw::Profile mine;
+    mine.add_node(1, hw::root, hw::cls::machine);
+    mine.add_node(2, 1, hw::cls::ternary_unit);
+    mine.set_cap(2, hw::cap::radix, 3);
+    CHECK_STATUS(mine.add_node(2, 1, hw::cls::cache), ZXV_E_ARG);
+    CHECK_STATUS(mine.set_cap(9, hw::cap::radix, 3), ZXV_E_NOT_FOUND);
+    mine.add_node(3, 1, hw::cls::private_ | 1u);
+    p = hw::Profile::pair(mine, r1, 7);
+    CHECK(p.kind == hw::Pairing::native && p.host_id == 2);
+    const auto d1 = mine.digest();
+    const std::vector<std::uint8_t> ext{0xA5, 0x00, 0x5A};
+    mine.set_ext(3, ext);
+    CHECK(mine.digest() != d1);
+    CHECK(mine.ext(3) == ext);
+    CHECK_STATUS(mine.set_ext(3, std::vector<std::uint8_t>(hw::ext_max + 1)), ZXV_E_RANGE);
+    const auto nodes = mine.nodes();
+    CHECK(nodes.size() == 3 && nodes[2].cls == (hw::cls::private_ | 1u) && nodes[1].caps == 1);
+}
+
+void test_hw_engines()
+{
+    namespace hw = zxv::hw;
+    zxv::Context ctx;
+    const zxv::Capability cap = ctx.root_capability(zxv::caps::all_1_4);
+    const zxv::Capability nohw = cap.attenuate(zxv::caps::all);
+    CHECK_THROWS_AS(hw::Matrix{nohw}, zxv::CapabilityDenied);
+    hw::Matrix mx(cap);
+    CHECK(zxv::to_hex(mx.call(hw::fn_sha256, 0, sv("abc"))) ==
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    std::vector<std::uint8_t> mac_in{4, 0};
+    for (char c : std::string_view("Jefewhat do ya want for nothing?")) mac_in.push_back(static_cast<std::uint8_t>(c));
+    const auto mac = mx.call(hw::fn_mac, 0, mac_in);
+    CHECK(zxv::to_hex(mac) == "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+    std::vector<std::uint8_t> g(16);
+    g[0] = 12;
+    g[8] = 18;
+    const auto gcd = mx.call(hw::fn_gcd, 0, g);
+    CHECK(gcd.size() == 8 && gcd[0] == 6);
+
+    const auto all = mx.providers();
+    CHECK(all.size() >= 5);
+    for (const auto& pi : all)
+        CHECK(pi.kind == hw::Kind::soft && pi.proof == zxv::Truth::true_ && pi.contract == 1 &&
+              !(pi.flags & hw::pf::fault));
+    const auto mac_pv = mx.find_provider(hw::fn_mac);
+    CHECK(mac_pv.has_value());
+    CHECK_STATUS(mx.provider_info(static_cast<std::uint32_t>(all.size())), ZXV_E_NOT_FOUND);
+    const auto fi = mx.function_info(hw::fn_mac);
+    CHECK(fi.contract == 1 && (fi.policy & hw::policy::key_bearing) && fi.vectors >= 1);
+
+    // Key-bearing: a cheaper REMOTE implementation never serves it.
+    mx.add_resource(7);
+    const auto prem = mx.add_provider(hw::fn_mac, 7, hw::Kind::remote, 1, [](std::uint32_t, auto, auto) -> std::size_t {
+        throw zxv::RefusedError(ZXV_E_STATE, "must never serve");
+    });
+    (void) mx.attest(prem);
+    CHECK(mx.call(hw::fn_mac, 0, mac_in) == mac);
+    CHECK(mac_pv && mx.bound(hw::fn_mac) == *mac_pv);
+    CHECK(mx.provider_info(prem).flags & hw::pf::policy);
+    CHECK_THROWS_AS(mx.set_policy(hw::fn_mac, 0), zxv::PolicyDenied);
+    CHECK_STATUS(mx.memo(hw::fn_mac, 16), ZXV_E_POLICY);
+    CHECK_STATUS(mx.set_policy(hw::fn_mac, 0x80), ZXV_E_ARG);
+
+    // A power budget: undeclared traits never qualify, declared ones do.
+    mx.set_policy(hw::fn_gcd, 0, 0, 500);
+    CHECK_THROWS_AS(mx.call(hw::fn_gcd, 0, g), zxv::NoProvider);
+    const std::uint32_t gcd_pv = mx.find_provider(hw::fn_gcd).value_or(0);
+    mx.set_traits(gcd_pv, 2000, 300, 4);
+    CHECK_STATUS(mx.set_traits(gcd_pv, 2000, 300, 16), ZXV_E_RANGE);
+    (void) mx.call(hw::fn_gcd, 0, g);
+    const auto gi = mx.provider_info(gcd_pv);
+    CHECK(gi.throughput_class == 4 && gi.power == hw::Power::w1);
+    mx.set_policy(hw::fn_gcd, hw::policy::local_only, 1000, 0);
+    CHECK_STATUS(mx.call(hw::fn_gcd, 0, g), ZXV_E_NOPROVIDER);
+    mx.set_policy(hw::fn_gcd, 0);
+}
+
+struct Adder {
+    std::uint8_t k;
+    std::atomic<int> bad{0};
+    std::size_t operator()(std::uint32_t, std::span<const std::uint8_t> in, std::span<std::uint8_t> out) const
+    {
+        if (bad == 2) throw zxv::SystemError(ZXV_E_IO, "device error");
+        if (in.size() > out.size()) throw zxv::UsageError(ZXV_E_BUFFER, "");
+        for (std::size_t i = 0; i < in.size(); ++i)
+            out[i] = static_cast<std::uint8_t>(in[i] + k + (bad == 1 && in[i] == 9 ? 1 : 0));
+        return in.size();
+    }
+};
+
+void test_hw_matrix()
+{
+    namespace hw = zxv::hw;
+    zxv::Context ctx;
+    const zxv::Capability cap = ctx.root_capability(zxv::caps::all_1_4);
+    hw::Matrix mx(cap);
+    mx.add_function(0x100, "add8");
+    mx.add_function(0x101, "add16");
+    CHECK_STATUS(mx.add_function(0x100, "again"), ZXV_E_DUPLICATE);
+    mx.add_resource(1);
+    mx.add_resource(2);
+    const std::vector<std::uint8_t> in{0, 1, 9, 200}, ex8{8, 9, 17, 208}, ex16{16, 17, 25, 216};
+    mx.add_vector(0x100, 0, in, ex8);
+    mx.add_vector(0x101, 0, in, ex16);
+    auto fx = std::make_shared<Adder>(8), sw = std::make_shared<Adder>(8);
+    const auto pfx = mx.add_provider(0x100, 2, hw::Kind::hard, 1, [fx](auto op, auto i, auto o) { return (*fx)(op, i, o); });
+    const auto psw = mx.add_provider(0x100, 1, hw::Kind::soft, 10, [sw](auto op, auto i, auto o) { return (*sw)(op, i, o); });
+    // add16 through two calls back into the matrix (a declared dependency).
+    hw::Matrix* self = &mx;
+    const auto p16 = mx.add_provider(0x101, 1, hw::Kind::soft, 20, [self](std::uint32_t op, auto i, auto o) {
+        const auto tmp = self->call(0x100, op, i);
+        return self->call_into(0x100, op, tmp, o);
+    });
+    const auto bad = mx.add_provider(0x100, 1, hw::Kind::soft, 30, [](std::uint32_t, auto, auto) -> std::size_t {
+        throw std::logic_error("not a zxv error");
+    });
+    CHECK_STATUS(mx.call(0x100, 0, in), ZXV_E_NOPROVIDER);
+    CHECK(mx.attest(pfx) == zxv::Truth::true_);
+    CHECK(mx.attest(psw) == zxv::Truth::true_);
+    CHECK(mx.attest(bad) == zxv::Truth::false_);
+    CHECK(mx.attest(p16) == zxv::Truth::false_); // undeclared dependency
+    mx.add_dependency(p16, 0x100);
+    CHECK(mx.attest(p16) == zxv::Truth::true_);
+    CHECK(mx.call(0x101, 0, in) == ex16);
+    CHECK(mx.bound(0x100) == pfx);
+    mx.set_resource(2, hw::ResourceState::faulted);
+    CHECK(mx.call(0x100, 0, in) == ex8 && mx.bound(0x100) == psw);
+    mx.set_resource(2, hw::ResourceState::ok);
+    fx->bad = 2;
+    CHECK_STATUS(mx.call(0x100, 0, in), ZXV_E_IO);
+    fx->bad = 0;
+
+    bool checked = false;
+    CHECK(mx.shadow(0x100, 0, in, &checked) == ex8 && checked);
+    sw->bad = 1;
+    CHECK_THROWS_AS(mx.shadow(0x100, 0, in), zxv::Disputed);
+    CHECK_STATUS(mx.call(0x100, 0, in), ZXV_E_NOPROVIDER);
+    CHECK(mx.attest(pfx) == zxv::Truth::true_ && mx.attest(psw) == zxv::Truth::false_);
+
+    CHECK_STATUS(mx.memo(0x100, 6), ZXV_E_ARG);
+    (void) mx.memo(0x100, 16);
+    const auto calls0 = mx.provider_info(pfx).calls;
+    (void) mx.call(0x100, 0, in);
+    CHECK(mx.call(0x100, 0, in) == ex8);
+    CHECK(mx.provider_info(pfx).calls == calls0 + 1);
+    const auto [hits, misses] = mx.memo(0x100, 16);
+    CHECK(hits == 1 && misses == 1);
+
+    auto fi = mx.function_info(0x100);
+    CHECK(fi.contract == 0 && fi.policy == 0 && fi.vectors == 1);
+    mx.set_contract(0x100, 2);
+    CHECK_THROWS_AS(mx.set_contract(0x100, 2), zxv::RollbackRefused);
+    mx.add_vector(0x100, 0, in, ex8);
+    (void) mx.attest(pfx);
+    const auto pi = mx.provider_info(pfx);
+    CHECK(pi.proof == zxv::Truth::true_ && pi.contract == 2);
+    CHECK(mx.provider_info(psw).flags & hw::pf::unproven);
+    mx.enable(pfx, false);
+    CHECK(mx.provider_info(pfx).flags & hw::pf::disabled);
+}
+
+/// A two-slot device whose active slot is a byte lookup table; read-back
+/// digests come from the SHA-256 engine of a separate matrix.
+struct Sim {
+    std::mutex m;
+    std::array<std::vector<std::uint8_t>, 2> slot;
+    int active = -1;
+};
+
+void test_hw_regions()
+{
+    namespace hw = zxv::hw;
+    zxv::Context ctx;
+    const zxv::Capability cap = ctx.root_capability(zxv::caps::all_1_4);
+    const zxv::Capability nohw = cap.attenuate(zxv::caps::all);
+    const hw::Release rel(cap);
+    const hw::ReleaseKey key = rel.keygen();
+    CHECK(key.public_key.size() == hw::pk_bytes && key.mldsa.size() == hw::mldsa_sk_bytes &&
+          key.slhdsa.size() == hw::slhdsa_sk_bytes);
+    auto oracle = std::make_shared<hw::Matrix>(cap);
+    hw::Matrix mx(cap);
+    mx.add_function(0x200, "inc");
+    mx.add_resource(1);
+    mx.add_resource(2);
+    std::vector<std::uint8_t> vin(256), inc(256);
+    for (std::size_t i = 0; i < 256; ++i) {
+        vin[i] = static_cast<std::uint8_t>(i);
+        inc[i] = static_cast<std::uint8_t>(i + 1);
+    }
+    auto wrong = inc;
+    wrong[77] = 0;
+    mx.add_vector(0x200, 0, vin, inc);
+    auto sim = std::make_shared<Sim>();
+    auto one = std::make_shared<Adder>(1);
+    const auto psoft = mx.add_provider(0x200, 1, hw::Kind::soft, 50, [one](auto op, auto i, auto o) { return (*one)(op, i, o); });
+    const auto preg = mx.add_provider(0x200, 2, hw::Kind::fabric, 1, [sim](std::uint32_t, auto i, auto o) {
+        std::lock_guard lk(sim->m);
+        if (sim->active < 0 || i.size() > o.size() || sim->slot[static_cast<std::size_t>(sim->active)].size() < 256)
+            throw zxv::RefusedError(ZXV_E_STATE, "empty");
+        const auto& t = sim->slot[static_cast<std::size_t>(sim->active)];
+        for (std::size_t k = 0; k < i.size(); ++k) o[k] = t[i[k]];
+        return i.size();
+    });
+    CHECK(mx.attest(psoft) == zxv::Truth::true_);
+    auto device = [&] {
+        return hw::Device{
+            [sim](std::uint32_t s, std::span<const std::uint8_t> p) {
+                if (s > 1 || p.size() > 256) throw zxv::UsageError(ZXV_E_RANGE, "slot");
+                std::lock_guard lk(sim->m);
+                sim->slot[s].assign(p.begin(), p.end());
+            },
+            [sim, oracle](std::uint32_t s) {
+                std::vector<std::uint8_t> b;
+                {
+                    std::lock_guard lk(sim->m);
+                    b = sim->slot[s];
+                }
+                const auto d = oracle->call(hw::fn_sha256, 0, b);
+                hw::Digest out{};
+                std::copy(d.begin(), d.end(), out.begin());
+                return out;
+            },
+            [sim](std::uint32_t s) {
+                std::lock_guard lk(sim->m);
+                sim->active = static_cast<int>(s);
+            }};
+    };
+    CHECK_THROWS_AS(hw::Region(nohw, &mx, preg, 1, 0xD0, std::nullopt, device(), 12), zxv::CapabilityDenied);
+    CHECK_STATUS(hw::Region(cap, &mx, psoft, 1, 0xD0, std::nullopt, device(), 12), ZXV_E_ARG);
+    hw::Region rg(cap, &mx, preg, 1, 0xD0, std::nullopt, device(), 12);
+    rg.trust_key(key.public_key);
+    auto events = std::make_shared<std::vector<hw::Event>>();
+    auto ev_m = std::make_shared<std::mutex>();
+    rg.on_event([events, ev_m](const hw::Event& e) {
+        std::lock_guard lk(*ev_m);
+        events->push_back(e);
+    });
+
+    // Image build 1 of 3: the good update.
+    hw::ImageSpec spec;
+    spec.kind = hw::ImageKind::partial;
+    spec.target_class = 0xD0;
+    spec.fn_id = 0x200;
+    spec.version = 1;
+    spec.svn = 1;
+    const auto good = rel.build(spec, inc, key);
+    CHECK(good.size() == hw::Release::package_len(256));
+    // One of the two signatures broken: refused, recorded.
+    auto img = good;
+    img.back() ^= 1;
+    CHECK_THROWS_AS(rg.stage(img), zxv::VerificationFailed);
+    // Wrong hardware (the class is checked before the signature).
+    img = good;
+    img[12] = 0xD1;
+    CHECK_THROWS_AS(rg.stage(img), zxv::TargetMismatch);
+
+    rg.stage(good);
+    CHECK_STATUS(rg.commit(), ZXV_E_STATE);
+    rg.trial(5);
+    CHECK(mx.bound(0x200) == preg);
+    rg.commit();
+    auto info = rg.info();
+    CHECK(info.state == hw::RegionState::active && info.version == 1 && info.floor == 1);
+    {
+        std::lock_guard lk(*ev_m);
+        CHECK(events->size() == 4);
+        if (events->size() == 4) {
+            CHECK((*events)[0].kind == hw::EventKind::rejected && (*events)[1].kind == hw::EventKind::staged &&
+                  (*events)[2].kind == hw::EventKind::tested && (*events)[3].kind == hw::EventKind::activated &&
+                  (*events)[3].version == 1 && (*events)[3].region_id == 1);
+        }
+    }
+    CHECK_THROWS_AS(rg.stage(good), zxv::RollbackRefused);
+
+    // Image build 2 of 3: signed, wrong gate. Quarantined, then blocked.
+    auto spec2 = spec;
+    spec2.version = 2;
+    const auto bad = rel.build(spec2, wrong, key);
+    rg.stage(bad);
+    CHECK_THROWS_AS(rg.trial(5), zxv::Quarantined);
+    info = rg.info();
+    CHECK(info.state == hw::RegionState::active && info.version == 1);
+    CHECK(mx.bound(0x200) == preg);
+    img = bad;
+    img[20] = 3;
+    CHECK_THROWS_AS(rg.stage(img), zxv::ImageBlocked);
+
+    const auto lg = rg.log();
+    const auto entries = rg.log_entries();
+    CHECK(entries.size() == lg.count);
+    {
+        std::lock_guard lk(*ev_m);
+        CHECK(events->size() == lg.count);
+    }
+    if (!entries.empty()) {
+        const auto& last = entries.back();
+        CHECK(last.event == hw::EventKind::quarantined && last.id == 1 && last.version == 2 && last.hash == lg.head &&
+              last.tag.is_forbidden());
+    }
+    CHECK_STATUS(rg.log_entry(lg.count), ZXV_E_NOT_FOUND);
+
+    // Image build 3 of 3: a newer golden-vector contract for "inc".
+    std::vector<std::uint8_t> pay{0, 0, 0, 0, 2, 0, 0, 0, 5, 250, 2, 0, 0, 0, 6, 251};
+    hw::ImageSpec cspec;
+    cspec.kind = hw::ImageKind::vectors;
+    cspec.fn_id = 0x200;
+    cspec.version = 7;
+    cspec.svn = 3;
+    const auto pkg = rel.build(cspec, pay, key);
+    CHECK_STATUS(mx.apply_contract(pkg), ZXV_E_VERIFY); // no key trusted yet
+    CHECK_STATUS(mx.trust_key(std::span(key.public_key).subspan(1)), ZXV_E_ARG);
+    mx.trust_key(key.public_key);
+    CHECK_STATUS(mx.apply_contract(good), ZXV_E_FORMAT);
+    CHECK_STATUS(rg.stage(pkg), ZXV_E_FORMAT);
+    CHECK(mx.apply_contract(pkg) == 2);
+    const auto fi = mx.function_info(0x200);
+    CHECK(fi.contract == 7 && fi.vectors == 1);
+    CHECK_THROWS_AS(mx.apply_contract(pkg), zxv::RollbackRefused);
+    bool found = false;
+    for (const auto& e : mx.log_entries())
+        if (e.event == hw::EventKind::contract && e.id == 0x200 && e.version == 7) found = true;
+    CHECK(found);
+
+    // Fill the log (12) with refusals; the next one halts the region and
+    // poisons the context: fail closed.
+    auto tampered = good;
+    tampered.back() ^= 1;
+    const std::uint32_t left = 12 - rg.log().count;
+    for (std::uint32_t i = 0; i < left; ++i) CHECK_STATUS(rg.stage(tampered), ZXV_E_VERIFY);
+    CHECK_THROWS_AS(rg.stage(tampered), zxv::FatalError);
+    CHECK_THROWS_AS(mx.call(0x200, 0, std::span(vin).first(4)), zxv::FatalError);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -1117,6 +1526,11 @@ int main(int argc, char** argv)
         {"stop_tokens", test_stop_tokens},
         {"hexagram", test_hexagram},
         {"quarantine_log", test_quarantine_log},
+        {"hw_version_and_statuses", test_hw_version_and_statuses},
+        {"hw_profiles", test_hw_profiles},
+        {"hw_engines", test_hw_engines},
+        {"hw_matrix", test_hw_matrix},
+        {"hw_regions", test_hw_regions},
     };
     for (const auto& [name, fn] : tests) {
         const int before = g_failures;

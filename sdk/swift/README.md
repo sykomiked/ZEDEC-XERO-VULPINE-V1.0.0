@@ -44,8 +44,8 @@ To depend on the package from another package:
 ```
 
 When you create the first `ZxvContext`, it checks the library's `zxv_version`. It refuses a
-library whose major version is not 1 or whose minor version is below 3 (ABI 1.3 added the
-hexagram tag, 1.2 the capability-gated `*_cap` forms the SDK calls).
+library whose major version is not 1 or whose minor version is below 4 (ABI 1.4 added the
+hardware group, 1.3 the hexagram tag, 1.2 the capability-gated `*_cap` forms the SDK calls).
 
 ## Quickstart
 
@@ -109,6 +109,62 @@ try log.verify()
 
 `Hexagram` is a `Hashable`, `Sendable` value with `&`, `|` and prefix `~`.
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+Three parts, documented in [HW_EMULATION.md](../docs/HW_EMULATION.md):
+
+- `HwProfile`: ZHP-1 machine profiles (plain data, no capability).
+  `probeHost()` describes this machine, `reference()` is the public
+  reference machine R1 (16 nodes), `present(host:target:)` marks each node
+  HARD or SOFT, `match` / `pair` say what runs natively and what is
+  emulated; `encode`, `decode`, `digest`, `cap`, `setCap`, `ext`,
+  `setExtension`.
+- `HwMatrix` (needs `.hwMatrix`): functions served by interchangeable
+  implementations that serve only after reproducing the golden vectors.
+  Every matrix starts with the standard engines (`HwEngine.sha256`,
+  `keccak`, `mac`, `gcd`, `logic64`, `tensor`), so `call` works on any
+  device. `providers()` lists every implementation (`HwProviderInfo`: kind,
+  proof, contract, flags, power class, calls); `setPolicy` states placement
+  (`.keyBearing`, `.localOnly`, latency, power), never an implementation.
+  `addProvider(_:resource:kind:cost:) { op, input in ... }` registers a
+  Swift implementation. Contract packages (`trustKey`, `applyContract`)
+  need `.hwReconf`.
+- `HwRegion` (needs `.hwReconf`): hardware updates as images signed with
+  ML-DSA-87 AND SLH-DSA-SHAKE-256s (`Hw.keygen`, `Hw.buildImage`, both
+  need `.cryptoSign`; signing takes seconds), staged, tested, committed or
+  rolled back on an `HwDevice` you supply (`load`, `readback`, `activate`).
+  Every step is an `onEvent` callback and a record in a hash-chained audit
+  log (`log`, `logEntry`).
+
+`CapabilitySet.all` stays the ABI 1.1 bits (`ZXV_CAP_ALL` never changes);
+ask for `.all1_4` or add `.hwMatrix` / `.hwReconf`.
+
+```swift
+let cap = try ctx.rootCapability(.all1_4)
+let mx = try HwMatrix(cap)
+let digest = try mx.call(HwEngine.sha256, Array("abc".utf8))   // any machine
+for p in try mx.providers() { print(p.fnId, p.kind as Any, p.proof) }
+
+let key = try Hw.keygen(cap)                                 // secrets wiped on release
+let img = try Hw.buildImage(cap, kind: .partial, targetClass: 0xD0, fnId: 0x200,
+                            version: 1, svn: 1, payload: bitstream, key: key)
+let rg = try HwRegion(cap, matrix: mx, provider: fabricIndex, regionId: 1,
+                      targetClass: 0xD0, device: myDevice)
+try rg.trustKey(key.publicKey)
+try rg.onEvent { event, reason, version in audit(event, reason, version) }
+try rg.stage(img); try rg.trial(ticks: 5); try rg.commit()
+```
+
+Callbacks (implementations, the device, events) run on the calling thread
+inside libzxv; an error never crosses into C: a `ZxvError` returns its
+status, any other error `ZXV_E_IO`. A matrix keeps its implementations
+alive and a region keeps its matrix and device alive; capture the matrix
+`unowned` inside its own implementations. `ZXV_E_NOPROVIDER`,
+`E_DISPUTE`, `E_QUARANTINED`, `E_ROLLBACK`, `E_BLOCKED` and `E_POLICY` are
+`.refused` (reason `.other`), `E_TARGET` is `.usage`; a full audit log
+poisons the context (`.fatal`), since a change that cannot be recorded is
+not made.
+
 ## API overview
 
 | Type | Main members | Needs |
@@ -130,6 +186,10 @@ try log.verify()
 | `MlDsa87` | `keygen()`, `keygen(seed:)`, `sign(_:with:context:deterministic:)`, `verify` | `.cryptoSign` |
 | `Ed25519` | `keygen`, `publicKey(of:)`, `sign`, `verify` | `.cryptoSign` |
 | `Model` / `Session` | `init(_:path:tokenizer:)`, `init(_:modelBytes:)`, `info`, `tokenize`, `detokenize`, `newSession`, `loadLora`; `generate`, `generateAsync`, `stream`, `reset`, `position`, `bindBudget` | `.aiInference` |
+| `HwProfile` | `probeHost`, `reference`, `present(host:target:)`, `decode`, `encode`, `digest`, `addNode`, `setCap`, `cap`, `setExtension`, `ext`, `nodes`, `match`, `pair` | - |
+| `HwMatrix` | `call`, `shadow`, `providers`, `providerInfo`, `functionInfo`, `bound`, `setPolicy`, `addProvider`, `setTraits`, `addDependency`, `attest`, `memo`, `log`, `logEntry`; `trustKey`, `applyContract` | `.hwMatrix`; `.hwReconf` for contracts |
+| `HwRegion` | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `onEvent`, `log`, `logEntry` | `.hwReconf` |
+| `Hw` | `keygen`, `buildImage`, `vectorList` | `.cryptoSign` |
 | `StateChannel` | `encodeState`, `ledgerState` | `.evm` (+ `.ledgerRead`) |
 
 ## Examples
@@ -232,7 +292,7 @@ cd sdk/swift && swift test          # macOS CI and Linux alike
 ASAN_OPTIONS=detect_leaks=0 swift test --sanitize=address
 ```
 
-`--sanitize=address` passes all 30 tests. LeakSanitizer reports only
+`--sanitize=address` passes all 36 tests. LeakSanitizer reports only
 allocations made by the XCTest runner and the Swift runtime. None of them
 come from `Sources/Zxv` or libzxv, which is why `detect_leaks=0` is set above.
 `--sanitize=thread` is not supported here: ThreadSanitizer and the fork in the
@@ -256,6 +316,12 @@ The XCTest suite (`Tests/ZxvTests`) runs against the real library and reads
 - phase deferral with the manual and real-time drivers
 - the fatal path through `zxv_ctx_halt`, including `.abort` in a forked child
 - two-instance lockstep determinism
+- the hardware group (ABI 1.4): profiles (R1, the host, presentation, the
+  canonical round trip, extensions), the standard engines (SHA-256, HMAC,
+  gcd), placement policy (key-bearing MAC never goes REMOTE), Swift
+  implementations with proof, failover, shadow disputes, the memo and
+  versioned contracts, and a signed region update (stage, trial, commit,
+  replay refusal, audit log, contract package, fail closed on a full log)
 
 If you keep the conformance files elsewhere, set `ZXV_CONFORMANCE_DIR` to their directory.
 

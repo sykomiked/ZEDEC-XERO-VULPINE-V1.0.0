@@ -24,7 +24,7 @@ cd sdk/typescript
 npm install            # also builds the addon with node-gyp (a failure falls back to wasm)
 npm run build:wasm     # needs `python3 -m pip install ziglang` (zig ships wasi-libc), or ZXV_WASM_CC
 npm run build:ts
-npm test               # 102 tests, both backends
+npm test               # 120 tests, both backends
 ```
 
 `sdk/libzxv/build/libzxv.so` must exist (built by `make -C sdk/libzxv`).
@@ -32,7 +32,7 @@ The addon finds the library in the order of SDK_DESIGN.md §1: the
 `libraryPath` you pass, `ZXV_LIBRARY_PATH`, the bundled copy (the
 repository build `../libzxv/build` when run from this tree, otherwise `lib/`
 of the published package, staged by `npm pack`), then the system loader. A library whose ABI major is not 1, or whose minor
-is below 3, is refused (the SDK calls the `zxv_hex_*` functions added in ABI 1.3 and the `_cap` functions added in 1.2).
+is below 4, is refused (the SDK calls the `zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*` functions added in 1.3 and the `_cap` functions added in 1.2).
 
 In a published package, `import '@zedec/zxv'` resolves to the Node entry
 (`node` condition) or the browser entry (`browser` condition, wasm only, no
@@ -190,6 +190,60 @@ compare every result with `zxv_hex_*` on both backends. `valueOf()` throws,
 so `h + 1` or `h < g` never coerce silently. `QuarantineLog` uses the
 native or wasm backend.
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+`src/hardware.ts` wraps the 55 `zxv_hw_*` functions on both backends; the
+concepts are in [HW_EMULATION.md](../docs/HW_EMULATION.md) and the profile
+format in [HW_PROFILE.md](../docs/HW_PROFILE.md).
+
+- **Profiles** (`HwProfile`, plain data, no capability):
+  `HwProfile.probeHost(zxv)`, `HwProfile.reference(zxv)` (R1, 16 nodes),
+  `HwProfile.present(host, r1)`, `match`, `pair`, `encode` / `decode` /
+  `digest`, and an opaque per-node extension (`setExt` / `getExt`). Under
+  wasm the "host" is a wasm32 machine, so R1's CPU is emulated too.
+- **The matrix** (`HwMatrix.create(cap)`, needs `Cap.HW_MATRIX`): the
+  standard engines (`HwFn.SHA256`, `KECCAK`, `MAC`, `GCD`, `LOGIC64`,
+  `TENSOR`) answer on any device; `providers()`, `functionInfo()` and
+  `bound()` are discovery; `setPolicy` states placement (`KEY_BEARING`
+  work never leaves the machine and is never memoized). `addProvider(fn,
+  res, kind, cost, (op, input) => output)` adds a JS implementation that
+  serves only after `attest()` reproduces the golden vectors.
+- **Packages** (`HwReleaseKey.generate(cap)`, needs `Cap.CRYPTO_SIGN`):
+  ML-DSA-87 **and** SLH-DSA-SHAKE-256s signatures; both secret halves are
+  off-heap `SecretKey`s wiped on `close()` / `using`. `key.build(...)`
+  signs (seconds: a release step). `encodeVectors` builds a VECTORS
+  payload for `HwMatrix.applyContract` (needs `Cap.HW_RECONF`).
+- **Regions** (`HwRegion.create(cap, device, options)`, needs
+  `Cap.HW_RECONF`): a JS `device` (`load`, `readback` -> SHA-256 of the
+  slot, `activate`) receives images through `stage` -> `trial` -> `commit`
+  (or `rollback`, `tick`); every step is an event (`onEvent`) and a record
+  in a hash-chained audit log (`log`, `logEntry`). A full log poisons the
+  context (fail closed).
+
+`Cap.ALL` keeps its 1.1 value; use `Cap.ALL_1_4` (or add `Cap.HW_MATRIX |
+Cap.HW_RECONF`). JS implementations and devices are called synchronously
+on the calling thread through C trampolines (the addon's `zxvjs_hw_*`
+entry points; the shim's under wasm). Throwing a `ZxvError` (or returning
+a negative status) fails the C step with that status; any other exception
+fails it with `ZXV_E_IO` and is re-thrown from the SDK call. The new
+statuses are `Status.E_NOPROVIDER` (-25) through `Status.E_POLICY` (-31).
+
+```ts
+import { Cap, HwFn, HwImageKind, HwMatrix, HwProfile, HwRegion, HwReleaseKey } from '@zedec/zxv';
+
+using r1 = HwProfile.reference(zxv);
+const [native, emulated] = HwProfile.match(HwProfile.probeHost(zxv), r1);
+const cap = ctx.rootCapability({ caps: Cap.ALL_1_4 });
+using mx = HwMatrix.create(cap);
+mx.call(HwFn.SHA256, new TextEncoder().encode('abc'));   // the proven SOFT engine
+using key = HwReleaseKey.generate(cap);
+const image = key.build(cap, HwImageKind.PARTIAL, { targetClass: 0xd0, fnId: 0x200, version: 1, svn: 1, payload });
+const region = HwRegion.create(cap, device, { regionId: 1, targetClass: 0xd0, matrix: mx, provider: fabric });
+region.onEvent((e) => console.log(e));
+region.trustKey(key.publicKey);
+region.stage(image); region.trial(5); region.commit();
+```
+
 ## API overview
 
 | Area | API |
@@ -209,6 +263,7 @@ native or wasm backend.
 | Engine | `Model.open/fromBytes`, `info`, `tokenize`, `detokenize`, `newSession`, `loadLora`; `Session.generate/stream/reset/position/bindBudget` |
 | EVM | `new StateChannel(cap, channelId)`: `encodeState`, `ledgerState` |
 | Wire | `Ubh168Frame`, `WireTruth` |
+| Hardware | `HwProfile`, `HwMatrix.create(cap)`: `call`, `shadow`, `memo`, `addProvider`, `attest`, `providers`, `setPolicy`, `applyContract`; `HwReleaseKey.generate/build`; `HwRegion.create(cap, device, options)`: `stage`, `trial`, `commit`, `rollback`, `log` |
 
 ## Examples
 
@@ -257,8 +312,11 @@ and never writes into `sdk/libzxv`. The compiler is `python3 -m ziglang cc
 -target wasm32-wasi` or `$ZXV_WASM_CC` (e.g. wasi-sdk's clang). The full
 engine is included (2.2 MB module); `ZXV_WASM_NO_TENSOR=1` leaves it out.
 This SDK adds one C file, `wasm/zxv_wasm_shim.c`: single-threaded pthread
-mutex stubs, `arc4random_buf` over WASI `random_get`, and a
-`zxvjs_generate` that forwards tokens to JavaScript. The JS host provides a
+mutex stubs, `arc4random_buf` over WASI `random_get`, a
+`zxvjs_generate` that forwards tokens to JavaScript, and
+`zxvjs_hw_provider_add` / `zxvjs_hw_region_create` / `zxvjs_hw_region_events`,
+whose C trampolines forward hardware implementations and region devices to
+the `zxv.hw_*` imports. The JS host provides a
 minimal WASI: `random_get` is `crypto.getRandomValues`, stdout/stderr go to
 the console, and there is no file system and no clock.
 

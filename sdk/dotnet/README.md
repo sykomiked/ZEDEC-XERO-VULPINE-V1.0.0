@@ -5,7 +5,7 @@
 
 The .NET 8 SDK for the ZXV platform core. It wraps `libzxv`, the one C
 library every ZXV SDK shares (`sdk/libzxv/include/zxv_api.h`), and covers
-every group of ABI 1.3:
+every group of ABI 1.4:
 
 - **finance**: exact-minor-unit ledger, ISO 4217, ISO 20022 (pacs.008,
   camt.053), payments, statements, netting, cards, conformance;
@@ -17,7 +17,9 @@ every group of ABI 1.3:
 - **security**: SHA3, SHAKE256, Keccak, Ed25519, ML-DSA-87, ML-KEM-1024 with
   off-heap secret keys;
 - **engine**: deterministic integer GGUF inference, sync, async and streamed;
-- **wire and chain**: UBH-168 frames in pure managed code, EVM state channels.
+- **wire and chain**: UBH-168 frames in pure managed code, EVM state channels;
+- **hardware**: ZHP-1 machine profiles, the emulation matrix with the
+  standard engines, and signed hardware updates for reconfigurable regions.
 
 The finance groups (`ZxvPlatform` and its services) are described in depth in
 [`docs/DOTNET_SDK.md`](../../docs/DOTNET_SDK.md). This README is the map of
@@ -44,8 +46,9 @@ The library is found in this order: `ZxvLibrary.UseLibraryPath(path)`, the
 `ZXV_LIBRARY_PATH` environment variable (or the older `ZXV_NATIVE_LIBRARY`),
 the copy next to the application, then the system loader path
 (`LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, `PATH`). A library whose ABI is not
-1.3 or a later 1.x is refused on first use (the SDK calls the `zxv_hex_*`
-functions added in 1.3 and the `_cap` functions added in 1.2).
+1.4 or a later 1.x is refused on first use (the SDK calls the `zxv_hw_*`
+functions added in 1.4, the `zxv_hex_*` functions added in 1.3 and the
+`_cap` functions added in 1.2).
 
 ## Quick start
 
@@ -89,6 +92,7 @@ Since ABI 1.2 the ledger and currency surface take a capability too:
 | `Ledger.WithCapability(cap).GetAccount`, `.ListAccounts`, `.GetEntryCount`, `.GetEntries`, `.GetBalances`, `.GetAvailable`, `.Verify` | `LedgerRead` |
 | `Messages.BuildPacs008(cap, msg)`, `Messages.BuildCamt053(cap, msg)` (re-checked on every field) | `LedgerRead` |
 | `CreateBudgets`, `CreatePhaseClock`, `CreateAttestations`, `CreateSwarm` | `Budget`, `Phase`, `Attest`, `Swarm` |
+| `CreateHwMatrix` and every `HwMatrix` call; `HwMatrix.TrustKey`, `ApplyContract`, `CreateHwRegion` and every `HwRegion` call; `HwPackageSigner` | `HwMatrix`; `HwReconf`; `CryptoSign` |
 
 A capability of another platform is refused with `ArgumentException`. The
 1.0 forms without a capability (`Currencies.Enable(code)`,
@@ -206,12 +210,70 @@ log.Verify();
 `Hexagram` is a `readonly struct` (`Zxv.Sdk.Exact`) with `&`, `|` and `~`;
 `default(Hexagram)` is tag 0. `QuarantineLog` is in `Zxv.Sdk.Security`.
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+Namespace `Zxv.Hardware` wraps the 55 `zxv_hw_*` functions
+([HW_EMULATION.md](../docs/HW_EMULATION.md), [HW_PROFILE.md](../docs/HW_PROFILE.md)).
+Everything is integer.
+
+- **Profiles** (`HwProfile`, plain data, no capability): `ProbeHost()`, the
+  reference machine R1 (`Reference()`, 16 nodes), `Present(host, r1)`,
+  `Match`/`Pair`, `Encode`/`Decode`/`Digest`, nodes, capabilities
+  (`HwCapKeys`, `HwClasses`) and the opaque per-node extension.
+- **Matrix** (`platform.CreateHwMatrix(cap)`, needs the new
+  `CapabilityRights.HwMatrix`): every matrix starts with the standard
+  engines (`HwFunctions.Sha256`, `Keccak`, `Mac`, `Gcd`, `Logic64`,
+  `Tensor`), each served by a proven SOFT implementation. Discovery
+  (`GetProviders`, `GetFunctionInfo`, `Bound`), placement (`SetPolicy`,
+  `SetTraits`; key-bearing work never goes REMOTE), `Call`/`Shadow`/`Memo`,
+  versioned contracts, and your own implementations as `HwImplementation`
+  delegates (`AddProvider`, proven by `Attest`).
+- **Signed packages** (`HwPackageSigner`, needs `CryptoSign`): release keys
+  (`GenerateKey()` returns an `HwReleaseKey` whose two secret keys are
+  off-heap `SecretKey`s, wiped on dispose) and images or contract packages
+  signed with ML-DSA-87 **and** SLH-DSA-SHAKE-256s. SLH-DSA signing takes
+  about two seconds: it is a release step.
+- **Regions** (`platform.CreateHwRegion(...)`, needs the new
+  `CapabilityRights.HwReconf`): `Stage`, `Trial`, `Commit`, `Rollback`,
+  `Tick`, `GetInfo`; every step raises `StepRecorded` and appends a record
+  to a hash-chained audit log (`GetLog`, `GetLogEntry`, also on the matrix
+  for contract changes). The device is an `IHwRegionDevice` (load, read
+  back, activate).
+
+```csharp
+using Capability cap = platform.CreateRootCapability(CapabilityRights.AllAbi14);
+using HwMatrix mx = platform.CreateHwMatrix(cap);
+byte[] d = mx.Call(HwFunctions.Sha256, 0, "abc"u8);             // ba7816bf...
+uint fabric = mx.AddProvider(fnId, resId, HwKind.Fabric, 1, (op, input, output) => device.Run(input, output));
+var signer = new HwPackageSigner(cap);
+using HwReleaseKey key = signer.GenerateKey();
+using HwRegion rg = platform.CreateHwRegion(cap, mx, fabric, 1, 0xD0, default, device, 64);
+rg.TrustKey(key.PublicKey.Span);
+rg.StepRecorded += (_, e) => Console.WriteLine($"{e.Kind} v{e.Version}");
+rg.Stage(signer.BuildImage(HwImageKind.PartialBitstream, 0xD0, default, fnId, 1, 1, bitstream, key));
+rg.Trial(5);                                                    // proven against the golden vectors
+rg.Commit();                                                    // permanent; floor raised
+```
+
+Callbacks are `UnmanagedCallersOnly` function pointers whose `user`
+argument is a `GCHandle` owned by the matrix or region handle and freed only
+after the native object is destroyed. They run on the calling thread inside
+the native call. An exception never unwinds into native code: a
+`ZxvException` thrown by an implementation or device becomes its status (so
+a device can report `ZxvStatus.IOError`), anything else is rethrown from the
+call that ran it, and a `StepRecorded` handler's exception is traced and
+dropped. New statuses (`NoProvider` -25 through `PolicyRefused` -31) map by
+class like every other: `WrongTarget` is USAGE, the rest REFUSED.
+`CapabilityRights.All` keeps its ABI 1.1 value (as `ZXV_CAP_ALL` does), so
+`CreateRootCapability()` without arguments holds no hardware right; pass
+`CapabilityRights.AllAbi14`.
+
 ## API overview
 
 | Area | Types | Key members |
 |---|---|---|
 | Library | `ZxvLibrary` | `AbiVersion`, `Features`, `Supports`, `ClassOf`, `GetStatusName`, `FatalPolicy`, `UseLibraryPath` |
-| Platform | `ZxvPlatform` | `Create`, `CreateRootCapability`, `CreateAttestations`, `CreateBudgets`, `CreatePhaseClock`, `CreateSwarm`, `Halt`, `IsHalted` |
+| Platform | `ZxvPlatform` | `Create`, `CreateRootCapability`, `CreateAttestations`, `CreateBudgets`, `CreatePhaseClock`, `CreateSwarm`, `CreateHwMatrix`, `CreateHwRegion`, `Halt`, `IsHalted` |
 | Finance | `LedgerService`, `CurrencyService`, `MessageService`, `PaymentService`, `StatementService`, `NettingService`, `CardService`, `ConformanceService`, `Money` | see `docs/DOTNET_SDK.md` |
 | Gated ledger | `CapabilityLedger` | `Post`, `GetBalances`, `Verify` |
 | Capabilities | `Capability`, `CapabilityRights`, `CapabilityInfo` | `Attenuate`, `Revoke`, `SetAttestation`, `Allows`, `Demand` |
@@ -226,6 +288,7 @@ log.Verify();
 | Crypto | `Ed25519`, `MlDsa87`, `MlKem1024`, `SecretKey`, `KeyPair`, `KemEncapsulation` | `GenerateKey`, `Sign`, `SignDeterministic`, `Verify`, `Encapsulate`, `Decapsulate` |
 | Engine | `Zxv.Engine.Model`, `Session`, `GenerateOptions`, `GenerationResult`, `GeneratedToken` | `Open`, `OpenMemory`, `Tokenize`, `Detokenize`, `NewSession`, `Generate`, `GenerateAsync`, `StreamAsync`, `BindBudget`, `LoadLora` |
 | EVM | `Zxv.Evm.StateChannel`, `EvmState` | `EncodeState`, `LedgerState` |
+| Hardware | `Zxv.Hardware.HwProfile`, `HwMatrix`, `HwRegion`, `HwPackageSigner`, `HwReleaseKey`, `HwVector`, `HwFunctions`, `HwClasses`, `HwCapKeys` | `ProbeHost`, `Reference`, `Present`, `Match`, `Call`, `Shadow`, `Memo`, `AddProvider`, `Attest`, `GetProviders`, `SetPolicy`, `ApplyContract`, `Stage`, `Trial`, `Commit`, `Rollback`, `GetLog`, event `StepRecorded` |
 | DI | `ZxvServiceCollectionExtensions` | `AddZxv`, `AddZxvCapability` |
 | Native | `Zxv.Interop` | `ZxvStatus`, `ZxvStatusClass`, `ZxvFeatures`, SafeHandles (internal P/Invoke) |
 
@@ -297,6 +360,13 @@ idle pilots, SHA3/SHAKE/Keccak digests, Ed25519, ML-DSA-87 and ML-KEM-1024
 digests, swarm allotments, greedy and seeded generation tokens, and the EVM
 encoding and digest; plus capability denial and revocation, the fatal path
 through `Halt` (and `FailFast` in a child process), budget exhaustion and
+async waiting, and phase deferral with both drivers. `Abi14/HwTests` covers
+ABI 1.4: R1, the standard engines (SHA-256 of "abc", HMAC RFC 4231),
+key-bearing MAC refusing a REMOTE implementation, power and latency
+placement, managed implementations with failover, nested calls, shadow
+disputes and the memo, and a signed update staged, tried and committed on a
+simulated two-slot device with its events, audit log and a contract package
+(three SLH-DSA signatures, about five seconds).
 async waiting, phase deferral with both drivers, platform disposal while
 children are alive, and the platform services on the `*_cap` forms.
 

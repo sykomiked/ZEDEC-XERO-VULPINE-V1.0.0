@@ -87,6 +87,27 @@ public enum ZxvStatus
     /// <summary>NaN or infinity refused at the float boundary (<c>ZXV_E_FLOAT</c>, ABI 1.1).</summary>
     FloatRejected = -24,
 
+    /// <summary>No proven implementation may serve the call (<c>ZXV_E_NOPROVIDER</c>, ABI 1.4).</summary>
+    NoProvider = -25,
+
+    /// <summary>A shadow check found two implementations disagree; both stop serving (<c>ZXV_E_DISPUTE</c>, ABI 1.4).</summary>
+    Dispute = -26,
+
+    /// <summary>A hardware image failed in hardware: rolled back and logged (<c>ZXV_E_QUARANTINED</c>, ABI 1.4).</summary>
+    Quarantined = -27,
+
+    /// <summary>An image or contract is not newer, or below the anti-rollback floor (<c>ZXV_E_ROLLBACK</c>, ABI 1.4).</summary>
+    Rollback = -28,
+
+    /// <summary>The image was already quarantined and is never reloaded (<c>ZXV_E_BLOCKED</c>, ABI 1.4).</summary>
+    Blocked = -29,
+
+    /// <summary>The image is for other hardware (<c>ZXV_E_TARGET</c>, ABI 1.4).</summary>
+    WrongTarget = -30,
+
+    /// <summary>Refused by the function's placement policy (<c>ZXV_E_POLICY</c>, ABI 1.4).</summary>
+    PolicyRefused = -31,
+
     /// <summary>Unexpected kernel status (<c>ZXV_E_INTERNAL</c>).</summary>
     Internal = -99,
 }

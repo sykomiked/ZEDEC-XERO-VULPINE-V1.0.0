@@ -3,7 +3,7 @@
 
 # ZXV for Python (`zxv-sdk`)
 
-The Python SDK for the ZXV platform core. It wraps `libzxv` (C ABI 1.3,
+The Python SDK for the ZXV platform core. It wraps `libzxv` (C ABI 1.4,
 `sdk/libzxv/include/zxv_api.h`) with [cffi](https://cffi.readthedocs.io) in
 ABI mode, so there is nothing to compile. It gives you:
 
@@ -39,8 +39,9 @@ pip install build && python -m build --wheel       # -> dist/zxv_sdk-1.1.0-py3-n
 
 The library is found in this order: a path passed to `zxv.load_library()`,
 then `ZXV_LIBRARY_PATH`, then the copy bundled in the wheel, then the system
-loader path. The SDK refuses a library whose ABI is not 1.x with x >= 3 (it calls the
-`zxv_hex_*` functions added in 1.3 and the `_cap` functions added in 1.2).
+loader path. The SDK refuses a library whose ABI is not 1.x with x >= 4 (it calls the
+`zxv_hw_*` functions added in 1.4, the `zxv_hex_*` functions added in 1.3
+and the `_cap` functions added in 1.2).
 `import zxv` never loads the library; the first call that needs it does, so
 the pure-Python parts (`Ubh168Frame`, `Truth`) work without it.
 
@@ -191,6 +192,65 @@ log.verify()
 
 `bool(h)` raises: a tag has no truth value of its own.
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+`zxv.hardware` wraps the 55 `zxv_hw_*` functions; the concepts are in
+[HW_EMULATION.md](../docs/HW_EMULATION.md) and the profile format in
+[HW_PROFILE.md](../docs/HW_PROFILE.md).
+
+* **Profiles** (`HwProfile`, plain data, no capability): `probe_host()`
+  describes this machine, `reference()` is the VULPINE-class reference
+  machine R1 (16 nodes), `present(host, r1)` marks each R1 component HARD or
+  SOFT, `match` / `pair` say what runs natively, and `encode` / `decode` /
+  `digest` give the canonical ZHP-1 bytes and identity. `set_ext` /
+  `get_ext` carry an opaque per-node extension that is digested but never
+  interpreted.
+* **The matrix** (`HwMatrix(cap)`, needs `Cap.HW_MATRIX`): starts with the
+  standard engines (`HwFn.SHA256`, `KECCAK`, `MAC`, `GCD`, `LOGIC64`,
+  `TENSOR`), each a proven SOFT implementation. `providers()` /
+  `function_info()` / `bound()` are discovery; `set_policy` states placement
+  constraints (`HwPolicy.KEY_BEARING` work never leaves the machine and is
+  never memoized; clearing it raises `ZXV_E_POLICY`). `add_provider(fn, res,
+  kind, cost, impl)` adds a Python implementation `impl(op, data) -> bytes`
+  that serves only after `attest()` reproduces the golden vectors.
+* **Packages** (`HwReleaseKey.generate(cap)`, needs `Cap.CRYPTO_SIGN`): every
+  image and contract package is signed with ML-DSA-87 **and**
+  SLH-DSA-SHAKE-256s. The secret halves are `SecretKey`s wiped on `close()`.
+  `key.build(...)` signs a package; SLH-DSA signing takes seconds, so it is
+  a release step. `encode_vectors` builds a `HwImageKind.VECTORS` payload
+  for `HwMatrix.apply_contract` (needs `Cap.HW_RECONF`).
+* **Regions** (`HwRegion(cap, device, ...)`, needs `Cap.HW_RECONF`): a
+  Python `device` (`load`, `readback` -> SHA-256 of the slot, `activate`)
+  receives signed images through `stage` -> `trial` -> `commit` (or
+  `rollback`, `tick`). Every step is an event (`on_event`) and a record in a
+  hash-chained audit log (`log`, `log_entry`); a failing image is rolled
+  back and quarantined, and a full log halts the context (fail closed).
+
+`Cap.ALL` keeps its 1.1 value forever; use `Cap.ALL_1_4` (or add
+`Cap.HW_MATRIX | Cap.HW_RECONF`) for a capability that can use this module.
+Implementations and devices run synchronously on the calling thread; a
+`ZxvError` raised there becomes that status in C, and any other exception
+fails the C call with `ZXV_E_IO` and is re-raised from the SDK call. The
+new statuses (`ZXV_E_NOPROVIDER` -25 through `ZXV_E_POLICY` -31) map
+through `zxv_status_class` like every other.
+
+```python
+from zxv import Cap, HwFn, HwImageKind, HwKind, HwMatrix, HwProfile, HwRegion, HwReleaseKey
+
+r1 = HwProfile.reference()
+native, emulated = HwProfile.match(HwProfile.probe_host(), r1)
+cap = ctx.root_capability(Cap.ALL_1_4)
+mx = HwMatrix(cap)
+digest = mx.call(HwFn.SHA256, b"abc")           # served by the proven SOFT engine
+with HwReleaseKey.generate(cap) as key:          # secrets wiped on exit
+    image = key.build(cap, HwImageKind.PARTIAL, target_class=0xD0, fn_id=0x200,
+                      version=1, svn=1, payload=table)
+region = HwRegion(cap, device, region_id=1, target_class=0xD0, matrix=mx, provider=fabric)
+region.on_event(print)
+region.trust_key(key.public_key)
+region.stage(image); region.trial(5); region.commit()
+```
+
 ## API overview
 
 | Area | Python | Notes |
@@ -212,6 +272,7 @@ log.verify()
 | Crypto | `Ed25519(cap)`, `MlDsa87(cap)`, `MlKem1024(cap)`, `SecretKey`, `KeyPair`, `Encapsulation` | `verify` returns bool |
 | Engine | `Model.open/from_bytes`, `Model.tokenize/detokenize/new_session/load_lora`, `Session.generate/stream/stream_async/generate_async/bind_budget/reset`, `GenerateOptions`, `StopReason` | GIL released |
 | EVM | `StateChannel(cap, channel_id).encode_state/ledger_state`, `EvmState` | Keccak digest |
+| Hardware | `HwProfile`, `HwMatrix(cap).call/shadow/memo/add_provider/attest/providers/set_policy/apply_contract`, `HwReleaseKey.generate/build`, `HwRegion(cap, device).stage/trial/commit/rollback/log` | needs `HW_MATRIX` / `HW_RECONF` |
 
 Every public class and method has a docstring: `help(zxv.Session)`.
 
@@ -250,6 +311,9 @@ The tests run against the real library and check `sdk/conformance/vectors.json`
 (status classes, rationals, IEEE-754 boundary, Q16, logic tables, UBH-168
 frames byte for byte, hashes, Ed25519, ML-DSA/ML-KEM digests, swarm
 allotments, greedy and seeded generation tokens, EVM encoding and digest),
+the hardware layer (R1, the standard engines, placement policy, Python
+implementations, a signed image staged, tested and committed on a simulated
+device with its events and audit log, a contract package),
 plus the fatal path via `zxv_ctx_halt` (including `FatalPolicy.ABORT` in a
 subprocess), capability denial, budget exhaustion and async waiting, phase
 deferral, the GIL release, and `test_cdef_drift.py`, which fails if any

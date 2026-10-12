@@ -52,6 +52,21 @@ export interface GenerateJob {
   cancel(): void;
 }
 
+/**
+ * Receives the calls libzxv makes into JS hardware implementations and
+ * region devices (ABI 1.4), identified by the uint32 id the caller passed
+ * as `user`. Called synchronously on the calling thread; it must not throw.
+ */
+export interface HwHandler {
+  /** An implementation: the output bytes, or a negative status. */
+  call(id: number, op: number, input: Uint8Array, outCap: number): number | Uint8Array;
+  load(id: number, slot: number, payload: Uint8Array): number;
+  /** The SHA-256 of what the slot holds (32 bytes), or a negative status. */
+  readback(id: number, slot: number): number | Uint8Array;
+  activate(id: number, slot: number): number;
+  event(id: number, regionId: number, event: number, reason: number, version: number): void;
+}
+
 export interface Backend {
   readonly kind: 'native' | 'wasm';
   /** Where the library came from (a file path, or "wasm"). */
@@ -87,6 +102,12 @@ export interface Backend {
   generate(call: GenerateCall, onToken: (id: number, piece: Uint8Array) => boolean): GenerateJob;
   /** True if `ptr` is this backend's NULL. */
   isNull(ptr: Ptr): boolean;
+  /**
+   * Install the receiver of hardware callbacks (one per backend), used by
+   * the zxvjs_hw_provider_add / zxvjs_hw_region_create /
+   * zxvjs_hw_region_events entry points.
+   */
+  setHwHandler(h: HwHandler): void;
 }
 
 const enc = new TextEncoder();

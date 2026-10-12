@@ -37,7 +37,13 @@ pub const ZXV_CAP_ATTEST: u64 = 1 << 7;
 pub const ZXV_CAP_SWARM: u64 = 1 << 8;
 /// EVM state-channel encoding.
 pub const ZXV_CAP_EVM: u64 = 1 << 9;
-/// Every capability bit.
+/// Every capability bit of ABI 1.1 (kept at this value forever).
 pub const ZXV_CAP_ALL: u64 = (1 << 10) - 1;
+/// Build and call the emulation matrix (ABI 1.4).
+pub const ZXV_CAP_HW_MATRIX: u64 = 1 << 10;
+/// Load hardware images and contracts (ABI 1.4).
+pub const ZXV_CAP_HW_RECONF: u64 = 1 << 11;
+/// Every capability bit as of ABI 1.4.
+pub const ZXV_CAP_ALL_1_4: u64 = (1 << 12) - 1;
 /// Largest amount in one posting (2^53 - 1).
 pub const ZXV_AMOUNT_MAX: i64 = 9007199254740991;

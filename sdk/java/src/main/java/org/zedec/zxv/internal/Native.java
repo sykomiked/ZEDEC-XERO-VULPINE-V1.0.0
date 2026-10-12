@@ -263,20 +263,76 @@ public final class Native {
     public static final MethodHandle hexlog_head = fn("zxv_hexlog_head", I, A, A);
     public static final MethodHandle hexlog_at = fn("zxv_hexlog_at", I, A, I, A, A, A, A, A, A, A);
     public static final MethodHandle hexlog_verify = fn("zxv_hexlog_verify", I, A);
+    // ---- ABI 1.4: hardware emulation (ZHP-1 profiles, the matrix) and hardware updates
+    public static final MethodHandle hw_profile_create = fn("zxv_hw_profile_create", I, A);
+    public static final MethodHandle hw_profile_destroy = fn("zxv_hw_profile_destroy", null, A);
+    public static final MethodHandle hw_profile_probe_host = fn("zxv_hw_profile_probe_host", I, A);
+    public static final MethodHandle hw_profile_reference = fn("zxv_hw_profile_reference", I, A);
+    public static final MethodHandle hw_profile_present = fn("zxv_hw_profile_present", I, A, A, A);
+    public static final MethodHandle hw_profile_decode = fn("zxv_hw_profile_decode", I, A, L, A);
+    public static final MethodHandle hw_profile_encode = fn("zxv_hw_profile_encode", I, A, A, L, A);
+    public static final MethodHandle hw_profile_digest = fn("zxv_hw_profile_digest", I, A, A);
+    public static final MethodHandle hw_profile_node_add = fn("zxv_hw_profile_node_add", I, A, I, I, I);
+    public static final MethodHandle hw_profile_cap_set = fn("zxv_hw_profile_cap_set", I, A, I, I, L);
+    public static final MethodHandle hw_profile_cap_get = fn("zxv_hw_profile_cap_get", I, A, I, I, A);
+    public static final MethodHandle hw_profile_ext_set = fn("zxv_hw_profile_ext_set", I, A, I, A, L);
+    public static final MethodHandle hw_profile_ext_get = fn("zxv_hw_profile_ext_get", I, A, I, A, L, A);
+    public static final MethodHandle hw_profile_count = fn("zxv_hw_profile_count", I, A, A);
+    public static final MethodHandle hw_profile_node = fn("zxv_hw_profile_node", I, A, I, A, A, A, A);
+    public static final MethodHandle hw_profile_match = fn("zxv_hw_profile_match", I, A, A, A, A);
+    public static final MethodHandle hw_profile_pair = fn("zxv_hw_profile_pair", I, A, A, I, A, A, A, A);
+    public static final MethodHandle hw_matrix_create_cap = fn("zxv_hw_matrix_create_cap", I, A, A);
+    public static final MethodHandle hw_matrix_destroy = fn("zxv_hw_matrix_destroy", null, A);
+    public static final MethodHandle hw_function_add = fn("zxv_hw_function_add", I, A, A, I, A);
+    public static final MethodHandle hw_vector_add = fn("zxv_hw_vector_add", I, A, A, I, I, A, L, A, L);
+    public static final MethodHandle hw_function_contract = fn("zxv_hw_function_contract", I, A, A, I, I);
+    public static final MethodHandle hw_policy_set = fn("zxv_hw_policy_set", I, A, A, I, I, I, I);
+    public static final MethodHandle hw_function_info = fn("zxv_hw_function_info", I, A, A, I, A, A, A);
+    public static final MethodHandle hw_resource_add = fn("zxv_hw_resource_add", I, A, A, I);
+    public static final MethodHandle hw_resource_set = fn("zxv_hw_resource_set", I, A, A, I, I);
+    public static final MethodHandle hw_provider_add = fn("zxv_hw_provider_add", I, A, A, I, I, I, I, A, A, A);
+    public static final MethodHandle hw_provider_traits = fn("zxv_hw_provider_traits", I, A, A, I, I, I, I);
+    public static final MethodHandle hw_provider_dep = fn("zxv_hw_provider_dep", I, A, A, I, I);
+    public static final MethodHandle hw_provider_enable = fn("zxv_hw_provider_enable", I, A, A, I, I);
+    public static final MethodHandle hw_attest = fn("zxv_hw_attest", I, A, A, I, A);
+    public static final MethodHandle hw_provider_count = fn("zxv_hw_provider_count", I, A, A, A);
+    public static final MethodHandle hw_provider_info = fn("zxv_hw_provider_info", I, A, A, I, A, A, A, A, A, A, A, A, A);
+    public static final MethodHandle hw_bound = fn("zxv_hw_bound", I, A, A, I, A);
+    public static final MethodHandle hw_call = fn("zxv_hw_call", I, A, A, I, I, A, L, A, L, A);
+    public static final MethodHandle hw_shadow = fn("zxv_hw_shadow", I, A, A, I, I, A, L, A, L, A, A);
+    public static final MethodHandle hw_memo = fn("zxv_hw_memo", I, A, A, I, I, A, A);
+    public static final MethodHandle hw_keygen = fn("zxv_hw_keygen", I, A, A, A, A);
+    public static final MethodHandle hw_image_build = fn("zxv_hw_image_build", I, A, I, I, A, I, I, I, A, L, A, A, A, L, A);
+    public static final MethodHandle hw_matrix_trust_key = fn("zxv_hw_matrix_trust_key", I, A, A, A);
+    public static final MethodHandle hw_contract_apply = fn("zxv_hw_contract_apply", I, A, A, A, L, A);
+    public static final MethodHandle hw_region_create_cap = fn("zxv_hw_region_create_cap", I, A, A, I, I, I, A, A, A, A, A, I, A);
+    public static final MethodHandle hw_region_destroy = fn("zxv_hw_region_destroy", null, A);
+    public static final MethodHandle hw_region_events = fn("zxv_hw_region_events", I, A, A, A, A);
+    public static final MethodHandle hw_region_trust_key = fn("zxv_hw_region_trust_key", I, A, A, A);
+    public static final MethodHandle hw_region_stage = fn("zxv_hw_region_stage", I, A, A, A, L);
+    public static final MethodHandle hw_region_trial = fn("zxv_hw_region_trial", I, A, A, I);
+    public static final MethodHandle hw_region_commit = fn("zxv_hw_region_commit", I, A, A);
+    public static final MethodHandle hw_region_rollback = fn("zxv_hw_region_rollback", I, A, A);
+    public static final MethodHandle hw_region_tick = fn("zxv_hw_region_tick", I, A, A);
+    public static final MethodHandle hw_region_info = fn("zxv_hw_region_info", I, A, A, A, A, A, A);
+    public static final MethodHandle hw_region_log = fn("zxv_hw_region_log", I, A, A, A, A);
+    public static final MethodHandle hw_region_log_entry = fn("zxv_hw_region_log_entry", I, A, A, I, A, A, A, A, A, A, A);
+    public static final MethodHandle hw_matrix_log = fn("zxv_hw_matrix_log", I, A, A, A, A);
+    public static final MethodHandle hw_matrix_log_entry = fn("zxv_hw_matrix_log_entry", I, A, A, I, A, A, A, A, A, A, A);
     // ---- EVM
     public static final MethodHandle evm_encode_state = fn("zxv_evm_encode_state", I, A, A, L, A, A, I, A, L, A, A);
     public static final MethodHandle evm_ledger_state = fn("zxv_evm_ledger_state", I, A, A, L, A, A, A, I, A, L, A, A);
 
     static {
-        // The version gate of SDK_DESIGN section 1: same major, minor >= 3 (the _cap forms of
-        // ABI 1.2 and the hexagram tag of ABI 1.3).
+        // The version gate of SDK_DESIGN section 1: same major, minor >= 4 (the _cap forms of
+        // ABI 1.2, the hexagram tag of ABI 1.3 and the hardware emulation of ABI 1.4).
         try (var arena = java.lang.foreign.Arena.ofConfined()) {
             MemorySegment ma = arena.allocate(JAVA_INT), mi = arena.allocate(JAVA_INT), pa = arena.allocate(JAVA_INT);
             int st = (int) version.invokeExact(ma, mi, pa);
             int major = ma.get(JAVA_INT, 0), minor = mi.get(JAVA_INT, 0);
-            if (st != 0 || major != 1 || minor < 3) {
+            if (st != 0 || major != 1 || minor < 4) {
                 throw new UnsatisfiedLinkError("libzxv at " + NativeLoader.loadedFrom() + " reports ABI "
-                        + major + "." + minor + "; this SDK needs ABI 1.x with x >= 3");
+                        + major + "." + minor + "; this SDK needs ABI 1.x with x >= 4");
             }
         } catch (UnsatisfiedLinkError e) {
             throw e;

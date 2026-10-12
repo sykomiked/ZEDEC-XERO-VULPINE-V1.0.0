@@ -28,6 +28,8 @@ final class Context
     /** @var array<int, array{0:string,1:CData}> */
     private array $children = [];
     private int $nextChild = 0;
+    /** @var list<\Closure> FFI callbacks native handles hold */
+    private array $retained = [];
 
     public function __construct()
     {
@@ -42,7 +44,8 @@ final class Context
     }
 
     /**
-     * A root capability. $caps: Capability::ALL (default) or an OR of
+     * A root capability. $caps: Capability::ALL (default; the ABI 1.1 bits),
+     * Capability::ALL_1_4 (adds HW_MATRIX and HW_RECONF) or an OR of
      * Capability::LEDGER_READ etc. $identity: 21 bytes or null (zeros).
      */
     public function rootCapability(int $caps = Capability::ALL, ?int $processId = null, ?string $identity = null): Capability
@@ -85,6 +88,7 @@ final class Context
         $this->children = [];
         Native::ffi()->zxv_ctx_destroy($this->ptr);
         $this->ptr = null;
+        $this->retained = [];
     }
 
     public function isClosed(): bool
@@ -178,6 +182,16 @@ final class Context
     public function markDead(): void
     {
         $this->dead = true;
+    }
+
+    /**
+     * @internal keep an FFI callback referenced until the context closes, so
+     * libzxv never calls a freed closure.
+     */
+    public function retain(\Closure $fn): \Closure
+    {
+        $this->retained[] = $fn;
+        return $fn;
     }
 
     /** @internal register a child handle; returns its id */

@@ -1,0 +1,7 @@
+; broken.gmap -- refused: floating point has no exact value (R11).
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+GLOBAL ^ZXBAD
+NODE ^ZXBAD(ID)
+  KEY   ID           INTEGER(9)
+  PIECE 1 RATE       FLOAT

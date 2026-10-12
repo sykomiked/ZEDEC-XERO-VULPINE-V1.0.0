@@ -38,6 +38,12 @@ from .errors import (BudgetExhaustedError, CapabilityDeniedError, FatalPolicy, F
                      ZxvLibraryError, ZxvNotImplementedError, ZxvRefusedError, ZxvSystemError,
                      ZxvUsageError)
 from .evm import EvmState, StateChannel
+from .hardware import (HW_CLASS_PRIVATE, HW_EXT_MAX, HW_HEADER_BYTES, HW_MLDSA_SK_BYTES, HW_PK_BYTES,
+                       HW_RES_HOST, HW_ROOT, HW_SIG_BYTES, HW_SLHDSA_SK_BYTES, FunctionInfo, HwCapKey,
+                       HwClass, HwDevice, HwEvent, HwFn, HwImageKind, HwIsa, HwKind, HwLogEntry, HwMatrix,
+                       HwPairing, HwPolicy, HwPower, HwProfile, HwProviderFlag, HwRegion, HwRegionState,
+                       HwReleaseKey, HwResourceState, ProfileNode, ProfilePairing, ProviderInfo,
+                       RegionEvent, RegionInfo, encode_vectors)
 from .hexagram import (QUARANTINE_MAX_RECORDS, HexAction, HexBase, Hexagram, HexPhase, HexPolarity,
                        QuarantineLog, QuarantineRecord)
 from .ledger import (AMOUNT_MAX, AccountKind, Balance, Currencies, CurrencyFlag, EnabledCurrency,
@@ -51,7 +57,7 @@ from .swarm import Allotment, EmotionProfile, Grant, Swarm
 from .truth import Truth, UncertainTruthError
 from .wire import FRAME_BYTES, Ubh168Frame, WireTruth, tag_of
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 """Version of this Python SDK (tracks the C ABI it wraps)."""
 
 
@@ -89,6 +95,8 @@ class Feature(enum.IntFlag):
     EVM = 0x04000000
     HEX = 0x08000000
     """The 64-state hexagram tag and quarantine log (ABI 1.3)."""
+    HW = 0x10000000
+    """Hardware emulation matrix, ZHP-1 profiles and hardware updates (ABI 1.4)."""
 
 
 def abi_version() -> Tuple[int, int, int]:
@@ -138,6 +146,13 @@ __all__ = [
     # hexagram tags
     "Hexagram", "HexBase", "HexPolarity", "HexPhase", "HexAction", "QuarantineLog", "QuarantineRecord",
     "QUARANTINE_MAX_RECORDS",
+    # hardware emulation and updates
+    "HwProfile", "ProfileNode", "ProfilePairing", "HwMatrix", "FunctionInfo", "ProviderInfo", "HwLogEntry",
+    "HwReleaseKey", "HwDevice", "HwRegion", "RegionInfo", "RegionEvent", "encode_vectors", "HwKind",
+    "HwClass", "HwCapKey", "HwIsa", "HwPairing", "HwResourceState", "HwFn", "HwPolicy", "HwProviderFlag",
+    "HwPower", "HwImageKind", "HwRegionState", "HwEvent", "HW_RES_HOST", "HW_ROOT", "HW_EXT_MAX",
+    "HW_CLASS_PRIVATE", "HW_PK_BYTES", "HW_MLDSA_SK_BYTES", "HW_SLHDSA_SK_BYTES", "HW_SIG_BYTES",
+    "HW_HEADER_BYTES",
     # context
     "Context", "Capability", "CapabilityInfo", "Cap", "IDENTITY_BYTES",
     # ledger

@@ -4,7 +4,7 @@
 # ZXV SDK for the JVM
 
 Java bindings for `libzxv`, the one C surface of the ZXV platform
-(`sdk/libzxv/include/zxv_api.h`, ABI 1.3). It is built on the Java
+(`sdk/libzxv/include/zxv_api.h`, ABI 1.4). It is built on the Java
 **Foreign Function & Memory API** (`java.lang.foreign`, final since Java 22),
 not JNI: there is no glue library to compile, and downcalls, upcalls and
 off-heap memory are plain Java. Kotlin and Scala use it directly.
@@ -55,9 +55,9 @@ On first use the SDK loads `libzxv` from the first of:
 4. the copy bundled in the jar under `/native/<os>-<arch>/`, extracted to a temp file;
 5. `System.mapLibraryName("zxv")` (`libzxv.so`, `libzxv.dylib`, `zxv.dll`) on the system loader path.
 
-It refuses a library whose ABI major is not 1 or whose minor is below 3
-(it calls the `zxv_hex_*` functions added in ABI 1.3 and the `_cap`
-functions added in 1.2).
+It refuses a library whose ABI major is not 1 or whose minor is below 4
+(it calls the `zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*`
+functions added in 1.3 and the `_cap` functions added in 1.2).
 `Zxv.libraryLocation()` tells you which one won.
 
 ## Quickstart
@@ -211,6 +211,60 @@ try (QuarantineLog log = QuarantineLog.create(cap, 1024)) {   // needs ATTEST
 `org.zedec.zxv.trust.QuarantineLog`; `Hexagram`, `HexBase`, `HexPolarity`,
 `HexPhase` and `HexAction` are in `org.zedec.zxv`.
 
+## Hardware emulation and hardware updates (ABI 1.4)
+
+Package `org.zedec.zxv.hw` wraps the 55 `zxv_hw_*` functions
+([HW_EMULATION.md](../docs/HW_EMULATION.md), [HW_PROFILE.md](../docs/HW_PROFILE.md)).
+Everything is integer; uint32 values travel as `int` bits.
+
+- **Profiles** (`HwProfile`, plain data, no capability): `probeHost()`, the
+  reference machine R1 (`reference()`, 16 nodes), `present(host, r1)`,
+  `match`/`pair`, `encode`/`decode`/`digest`, nodes, capabilities
+  (`HwCapKey`, `HwClass`) and the opaque per-node extension.
+- **Matrix** (`HwMatrix`, needs the new `HW_MATRIX` permission): every
+  matrix starts with the standard engines (`HwFunction.SHA256`, `KECCAK`,
+  `MAC`, `GCD`, `LOGIC64`, `TENSOR`), each served by a proven SOFT
+  implementation. Discovery (`providers()`, `functionInfo`, `bound`),
+  placement (`setPolicy`, `setTraits`; key-bearing work never goes
+  REMOTE), `call`/`shadow`/`memo`, versioned contracts, and your own
+  implementations as Java lambdas (`addProvider`, proven by `attest`).
+- **Signed packages** (`crypto.HwPackageSigner`, needs `CRYPTO_SIGN`):
+  release keys (`generateKeyPair()`; both secret keys are off-heap
+  `SecretKey`s, wiped on close) and images or contract packages signed with
+  ML-DSA-87 **and** SLH-DSA-SHAKE-256s. SLH-DSA signing takes about two
+  seconds: it is a release step.
+- **Regions** (`HwRegion`, needs the new `HW_RECONF` permission): stage,
+  trial, commit, rollback, tick, info; every step is an `HwEvent` sent to
+  your listener and a record in a hash-chained audit log (`log()`,
+  `logEntry(i)`, also on the matrix for contract changes). The device is
+  three callbacks (`HwRegion.Device`: load, read back, activate).
+
+```java
+try (HwMatrix mx = HwMatrix.create(cap)) {                       // HW_MATRIX
+    byte[] d = mx.call(HwFunction.SHA256, 0, "abc".getBytes(UTF_8)); // ba7816bf...
+    int fabric = mx.addProvider(fnId, resId, HwKind.FABRIC, 1, (op, in) -> device.run(in));
+    HwPackageSigner signer = HwPackageSigner.with(cap);            // CRYPTO_SIGN
+    try (HwPackageSigner.KeyPair key = signer.generateKeyPair();
+         HwRegion rg = HwRegion.create(cap, mx, fabric, 1, 0xD0, null, device, 64)) { // HW_RECONF
+        rg.trustKey(key.publicKey());
+        rg.onEvent((region, event, reason, version) -> log.info(event + " v" + version));
+        rg.stage(signer.buildImage(HwPackageSigner.ImageKind.PARTIAL, 0xD0, null, fnId, 1, 1, bitstream, key));
+        rg.trial(5);                                                // proven against the golden vectors
+        rg.commit();                                                // permanent; floor raised
+    }
+}
+```
+
+Callbacks (implementations, the device, the event listener) are FFM upcall
+stubs owned by the matrix or region and freed after it; they run on the
+calling thread inside the native call. An exception never crosses into C:
+a `ZxvException` thrown by an implementation or device becomes its status
+(so a device can report `ZXV_E_IO`), anything else is rethrown from the
+call that ran it, and a listener's exception goes to the thread's
+uncaught-exception handler. New statuses (`ZXV_E_NOPROVIDER` -25 through
+`ZXV_E_POLICY` -31) map by class like every other: `ZXV_E_TARGET` is
+USAGE, the rest REFUSED. `Permission.all()` now includes the two 1.4 bits.
+
 ## API overview
 
 | Type | Package | What it does |
@@ -231,6 +285,10 @@ try (QuarantineLog log = QuarantineLog.create(cap, 1024)) {   // needs ATTEST
 | `Ed25519`, `MlDsa87`, `MlKem1024`, `SecretKey` | `crypto` | key generation (random and deterministic), sign/verify, encapsulate/decapsulate |
 | `Model`, `Session`, `GenerateOptions`, `GenerateResult`, `Token` | `engine` | `open`, `tokenize`, `newSession`, `generate`/`stream`/`publisher`/`generateAsync`, `bindBudget`, `loadLora` |
 | `StateChannel`, `Party`, `EvmState` | `evm` | `encodeState`, `ledgerState` (ABI encoding and keccak digest) |
+| `HwProfile`, `HwClass`, `HwCapKey` | `hw` | ZHP-1 `probeHost`, `reference`, `present`, `match`, `pair`, `encode`/`decode`/`digest`, caps, extensions |
+| `HwMatrix`, `HwFunction`, `HwKind`, `HwVector` | `hw` | standard engines, `call`, `shadow`, `memo`, `addProvider`, `attest`, `providers`, `setPolicy`, `setTraits`, `applyContract`, `log` |
+| `HwRegion`, `HwEvent`, `HwAuditRecord` | `hw` | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `onEvent`, `log`, `logEntry` |
+| `HwPackageSigner` | `crypto` | release keys, `buildImage`, `buildContract` (ML-DSA-87 + SLH-DSA) |
 
 ## Examples
 
@@ -350,7 +408,7 @@ import org.zedec.zxv.ledger.*
 
 ```sh
 export JAVA_HOME=/opt/tools/jdk-25.0.4.1+1    # any JDK 22+
-mvn test        # 48 tests against the real libzxv and sdk/conformance/vectors.json
+mvn test        # 53 tests against the real libzxv and sdk/conformance/vectors.json
 ```
 
 Surefire runs the tests on the class path with
@@ -363,7 +421,13 @@ digest), and the behaviour around them: capability denial and revocation,
 contradictory attestations, budget exhaustion, `consumeAsync` waking,
 timing out and cancelling, phase deferral (manual and real time), every
 streaming form, budget-bound generation, LoRA's `NotImplementedException`,
-the fatal path through `zxv_ctx_halt`, and `FatalPolicy.ABORT` in a child JVM.
+the fatal path through `zxv_ctx_halt`, `FatalPolicy.ABORT` in a child JVM,
+and ABI 1.4 (`HwTest`): R1, the standard engines (SHA-256 of "abc", HMAC
+RFC 4231), key-bearing MAC refusing a REMOTE implementation, power and
+latency placement, Java implementations with failover, nested calls,
+shadow disputes and the memo, and a signed update staged, tried and
+committed on a simulated two-slot device with its events, audit log and a
+contract package (three SLH-DSA signatures, about six seconds).
 
 ## Honest limits
 

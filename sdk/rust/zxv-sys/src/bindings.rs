@@ -6,7 +6,7 @@
 // Regenerate: cargo build -p zxv-sys --features regenerate
 
 pub const ZXV_ABI_VERSION_MAJOR: u32 = 1;
-pub const ZXV_ABI_VERSION_MINOR: u32 = 3;
+pub const ZXV_ABI_VERSION_MINOR: u32 = 4;
 pub const ZXV_ABI_VERSION_PATCH: u32 = 0;
 pub const ZXV_OK: i32 = 0;
 pub const ZXV_E_ARG: i32 = -1;
@@ -157,6 +157,137 @@ pub const ZXV_HEX_ACT_ROLLBACK: i32 = 4;
 pub const ZXV_HEXLOG_HASH_BYTES: u32 = 32;
 pub const ZXV_HEXLOG_SUBJECT_BYTES: u32 = 32;
 pub const ZXV_HEXLOG_MAX_RECORDS: u32 = 65536;
+pub const ZXV_FEAT_HW: u32 = 268435456;
+pub const ZXV_E_NOPROVIDER: i32 = -25;
+pub const ZXV_E_DISPUTE: i32 = -26;
+pub const ZXV_E_QUARANTINED: i32 = -27;
+pub const ZXV_E_ROLLBACK: i32 = -28;
+pub const ZXV_E_BLOCKED: i32 = -29;
+pub const ZXV_E_TARGET: i32 = -30;
+pub const ZXV_E_POLICY: i32 = -31;
+pub const ZXV_HW_CLASS_MACHINE: u32 = 1;
+pub const ZXV_HW_CLASS_CPU_CLUSTER: u32 = 2;
+pub const ZXV_HW_CLASS_CPU_CORE: u32 = 3;
+pub const ZXV_HW_CLASS_CACHE: u32 = 4;
+pub const ZXV_HW_CLASS_MEMORY: u32 = 5;
+pub const ZXV_HW_CLASS_INTERCONNECT: u32 = 6;
+pub const ZXV_HW_CLASS_MATRIX_UNIT: u32 = 7;
+pub const ZXV_HW_CLASS_VECTOR_UNIT: u32 = 8;
+pub const ZXV_HW_CLASS_TERNARY_UNIT: u32 = 9;
+pub const ZXV_HW_CLASS_HASH_UNIT: u32 = 10;
+pub const ZXV_HW_CLASS_CRYPTO_UNIT: u32 = 11;
+pub const ZXV_HW_CLASS_CODEC_UNIT: u32 = 12;
+pub const ZXV_HW_CLASS_RECONF_FABRIC: u32 = 13;
+pub const ZXV_HW_CLASS_STORAGE: u32 = 14;
+pub const ZXV_HW_CLASS_NETWORK: u32 = 15;
+pub const ZXV_HW_CLASS_RADIO: u32 = 16;
+pub const ZXV_HW_CLASS_SENSOR: u32 = 17;
+pub const ZXV_HW_CLASS_ACTUATOR: u32 = 18;
+pub const ZXV_HW_CLASS_CLOCK: u32 = 19;
+pub const ZXV_HW_CLASS_POWER: u32 = 20;
+pub const ZXV_HW_CLASS_SECURE_ELEMENT: u32 = 21;
+pub const ZXV_HW_CLASS_DISPLAY: u32 = 22;
+pub const ZXV_HW_CLASS_AUDIO: u32 = 23;
+pub const ZXV_HW_CLASS_WIRE: u32 = 24;
+pub const ZXV_HW_CLASS_GPU: u32 = 25;
+pub const ZXV_HW_CLASS_PACKAGE: u32 = 26;
+pub const ZXV_HW_CLASS_LANE: u32 = 27;
+pub const ZXV_HW_CLASS_LOGIC_UNIT: u32 = 28;
+pub const ZXV_HW_CLASS_NTT_UNIT: u32 = 29;
+pub const ZXV_HW_CLASS_FRAME_UNIT: u32 = 30;
+pub const ZXV_HW_CLASS_GCD_UNIT: u32 = 31;
+pub const ZXV_HW_CLASS_MEM_CHANNEL: u32 = 32;
+pub const ZXV_HW_CLASS_SECURE_ISLAND: u32 = 33;
+pub const ZXV_HW_CLASS_IO: u32 = 34;
+pub const ZXV_HW_CLASS_PRIVATE: u32 = 2147483648;
+pub const ZXV_HW_CAP_WORD_BITS: u32 = 1;
+pub const ZXV_HW_CAP_COUNT: u32 = 2;
+pub const ZXV_HW_CAP_FREQ_KHZ: u32 = 24579;
+pub const ZXV_HW_CAP_BYTES: u32 = 4;
+pub const ZXV_HW_CAP_LINE_BYTES: u32 = 24581;
+pub const ZXV_HW_CAP_ISA: u32 = 8198;
+pub const ZXV_HW_CAP_INT_WIDTHS: u32 = 16391;
+pub const ZXV_HW_CAP_RADIX: u32 = 8200;
+pub const ZXV_HW_CAP_MACS_PER_CYCLE: u32 = 9;
+pub const ZXV_HW_CAP_SIMD: u32 = 16394;
+pub const ZXV_HW_CAP_TICK_NS: u32 = 24587;
+pub const ZXV_HW_CAP_REGIONS: u32 = 12;
+pub const ZXV_HW_CAP_BANDWIDTH_MBPS: u32 = 13;
+pub const ZXV_HW_CAP_LATENCY_NS: u32 = 24590;
+pub const ZXV_HW_CAP_PQ_ALGS: u32 = 16399;
+pub const ZXV_HW_CAP_HASH_ALGS: u32 = 16400;
+pub const ZXV_HW_CAP_WIRE_BITS: u32 = 8209;
+pub const ZXV_HW_CAP_PEAK_OPS_MHZ: u32 = 24594;
+pub const ZXV_HW_CAP_CONTRACT_ID: u32 = 8211;
+pub const ZXV_HW_CAP_CONTRACT_VER: u32 = 20;
+pub const ZXV_HW_CAP_KIND: u32 = 24597;
+pub const ZXV_HW_CAP_CAPACITY_CLASS: u32 = 22;
+pub const ZXV_HW_CAP_PERF_BUCKET: u32 = 23;
+pub const ZXV_HW_CAP_POWER_BUCKET: u32 = 24600;
+pub const ZXV_HW_ISA_X86_64: u32 = 1;
+pub const ZXV_HW_ISA_ARM64: u32 = 2;
+pub const ZXV_HW_ISA_RISCV64: u32 = 3;
+pub const ZXV_HW_ISA_WASM32: u32 = 4;
+pub const ZXV_HW_ROOT: u32 = 65535;
+pub const ZXV_HW_EXT_MAX: u32 = 256;
+pub const ZXV_HW_NATIVE: i32 = 0;
+pub const ZXV_HW_EMULATE: i32 = 1;
+pub const ZXV_HW_GROUP: i32 = 2;
+pub const ZXV_HW_KIND_HARD: i32 = 0;
+pub const ZXV_HW_KIND_FABRIC: i32 = 1;
+pub const ZXV_HW_KIND_MICRO: i32 = 2;
+pub const ZXV_HW_KIND_PEER: i32 = 3;
+pub const ZXV_HW_KIND_SOFT: i32 = 4;
+pub const ZXV_HW_KIND_REMOTE: i32 = 5;
+pub const ZXV_HW_RES_OK: i32 = 0;
+pub const ZXV_HW_RES_FAULTED: i32 = 1;
+pub const ZXV_HW_RES_RECONFIGURING: i32 = 2;
+pub const ZXV_HW_RES_OFFLINE: i32 = 3;
+pub const ZXV_HW_RES_HOST: u32 = 4294967280;
+pub const ZXV_HW_FN_SHA256: u32 = 1514471425;
+pub const ZXV_HW_FN_KECCAK: u32 = 1514471426;
+pub const ZXV_HW_FN_MAC: u32 = 1514471427;
+pub const ZXV_HW_FN_GCD: u32 = 1514471428;
+pub const ZXV_HW_FN_LOGIC64: u32 = 1514471429;
+pub const ZXV_HW_FN_TENSOR: u32 = 1514471430;
+pub const ZXV_HW_POLICY_KEY_BEARING: u32 = 1;
+pub const ZXV_HW_POLICY_LOCAL_ONLY: u32 = 2;
+pub const ZXV_HW_PF_FAULT: u32 = 1;
+pub const ZXV_HW_PF_DISPUTED: u32 = 2;
+pub const ZXV_HW_PF_FAILED: u32 = 4;
+pub const ZXV_HW_PF_UNPROVEN: u32 = 8;
+pub const ZXV_HW_PF_DISABLED: u32 = 16;
+pub const ZXV_HW_PF_POLICY: u32 = 32;
+pub const ZXV_HW_PF_SERVING: u32 = 64;
+pub const ZXV_HW_POWER_UNKNOWN: u32 = 0;
+pub const ZXV_HW_POWER_10MW: u32 = 1;
+pub const ZXV_HW_POWER_100MW: u32 = 2;
+pub const ZXV_HW_POWER_1W: u32 = 3;
+pub const ZXV_HW_POWER_10W: u32 = 4;
+pub const ZXV_HW_POWER_100W: u32 = 5;
+pub const ZXV_HW_POWER_MORE: u32 = 6;
+pub const ZXV_HW_IMG_BITSTREAM: u32 = 1;
+pub const ZXV_HW_IMG_PARTIAL: u32 = 2;
+pub const ZXV_HW_IMG_MICROCODE: u32 = 3;
+pub const ZXV_HW_IMG_FIRMWARE: u32 = 4;
+pub const ZXV_HW_IMG_VECTORS: u32 = 5;
+pub const ZXV_HW_PK_BYTES: u32 = 2656;
+pub const ZXV_HW_MLDSA_SK_BYTES: u32 = 4896;
+pub const ZXV_HW_SLHDSA_SK_BYTES: u32 = 128;
+pub const ZXV_HW_SIG_BYTES: u32 = 34419;
+pub const ZXV_HW_HEADER_BYTES: u32 = 96;
+pub const ZXV_HW_REGION_EMPTY: i32 = 0;
+pub const ZXV_HW_REGION_ACTIVE: i32 = 1;
+pub const ZXV_HW_REGION_STAGED: i32 = 2;
+pub const ZXV_HW_REGION_PROBATION: i32 = 3;
+pub const ZXV_HW_REGION_HALTED: i32 = 4;
+pub const ZXV_HW_EV_STAGED: i32 = 1;
+pub const ZXV_HW_EV_TESTED: i32 = 2;
+pub const ZXV_HW_EV_ACTIVATED: i32 = 3;
+pub const ZXV_HW_EV_ROLLED_BACK: i32 = 4;
+pub const ZXV_HW_EV_REJECTED: i32 = 5;
+pub const ZXV_HW_EV_QUARANTINED: i32 = 6;
+pub const ZXV_HW_EV_CONTRACT: i32 = 7;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct zxv_ctx {
@@ -1473,4 +1604,483 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zxv_hexlog_verify(log: *mut zxv_hexlog) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_hw_matrix {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_hw_profile {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_hw_region {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_create(out: *mut *mut zxv_hw_profile) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_destroy(p: *mut zxv_hw_profile);
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_probe_host(out: *mut *mut zxv_hw_profile) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_reference(out: *mut *mut zxv_hw_profile) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_present(
+        host: *const zxv_hw_profile,
+        target: *const zxv_hw_profile,
+        out: *mut *mut zxv_hw_profile,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_decode(buf: *const u8, len: usize, out: *mut *mut zxv_hw_profile) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_encode(
+        p: *const zxv_hw_profile,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_digest(p: *const zxv_hw_profile, out: *mut u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_node_add(p: *mut zxv_hw_profile, id: u32, parent: u32, cls: u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_cap_set(
+        p: *mut zxv_hw_profile,
+        node_id: u32,
+        key: u32,
+        value: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_cap_get(
+        p: *const zxv_hw_profile,
+        node_id: u32,
+        key: u32,
+        out_value: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_ext_set(
+        p: *mut zxv_hw_profile,
+        node_id: u32,
+        ext: *const u8,
+        len: usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_ext_get(
+        p: *const zxv_hw_profile,
+        node_id: u32,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_count(p: *const zxv_hw_profile, out_nodes: *mut u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_node(
+        p: *const zxv_hw_profile,
+        index: u32,
+        out_id: *mut u32,
+        out_parent: *mut u32,
+        out_cls: *mut u32,
+        out_ncaps: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_match(
+        host: *const zxv_hw_profile,
+        target: *const zxv_hw_profile,
+        out_native: *mut u32,
+        out_emulated: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_profile_pair(
+        host: *const zxv_hw_profile,
+        target: *const zxv_hw_profile,
+        index: u32,
+        out_need_id: *mut u32,
+        out_kind: *mut i32,
+        out_have_id: *mut u32,
+        out_unmet_key: *mut u32,
+    ) -> i32;
+}
+pub type zxv_hw_call_fn = ::core::option::Option<
+    unsafe extern "C" fn(
+        user: *mut ::core::ffi::c_void,
+        op: u32,
+        in_: *const u8,
+        in_len: usize,
+        out: *mut u8,
+        out_cap: usize,
+        out_len: *mut usize,
+    ) -> i32,
+>;
+unsafe extern "C" {
+    pub fn zxv_hw_matrix_create_cap(cap: *const zxv_cap, out: *mut *mut zxv_hw_matrix) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_matrix_destroy(mx: *mut zxv_hw_matrix);
+}
+unsafe extern "C" {
+    pub fn zxv_hw_function_add(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        name: *const ::core::ffi::c_char,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_vector_add(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        op: u32,
+        in_: *const u8,
+        in_len: usize,
+        expect: *const u8,
+        expect_len: usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_function_contract(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        version: u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_policy_set(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        flags: u32,
+        max_latency_ns: u32,
+        power_budget_mw: u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_function_info(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        out_contract: *mut u32,
+        out_policy: *mut u32,
+        out_vectors: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_resource_add(cap: *const zxv_cap, mx: *mut zxv_hw_matrix, res_id: u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_resource_set(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        res_id: u32,
+        state: i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_provider_add(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        res_id: u32,
+        kind: i32,
+        cost: u32,
+        call: zxv_hw_call_fn,
+        user: *mut ::core::ffi::c_void,
+        out_provider: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_provider_traits(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        provider: u32,
+        latency_ns: u32,
+        power_mw: u32,
+        throughput_class: u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_provider_dep(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        provider: u32,
+        dep_fn_id: u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_provider_enable(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        provider: u32,
+        on: i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_attest(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        provider: u32,
+        out_lp: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_provider_count(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        out_count: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_provider_info(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        provider: u32,
+        out_fn_id: *mut u32,
+        out_kind: *mut i32,
+        out_lp: *mut i32,
+        out_contract: *mut u32,
+        out_flags: *mut u32,
+        out_throughput_class: *mut u32,
+        out_power_class: *mut u32,
+        out_calls: *mut u64,
+        out_cost_spent: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_bound(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        out_provider: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_call(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        op: u32,
+        in_: *const u8,
+        in_len: usize,
+        out: *mut u8,
+        out_cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_shadow(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        op: u32,
+        in_: *const u8,
+        in_len: usize,
+        out: *mut u8,
+        out_cap: usize,
+        out_len: *mut usize,
+        out_checked: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_memo(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        fn_id: u32,
+        entries: u32,
+        out_hits: *mut u64,
+        out_misses: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_keygen(
+        cap: *const zxv_cap,
+        pk: *mut u8,
+        mldsa_sk: *mut u8,
+        slhdsa_sk: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_image_build(
+        cap: *const zxv_cap,
+        kind: u32,
+        target_class: u32,
+        target_digest: *const u8,
+        fn_id: u32,
+        version: u32,
+        svn: u32,
+        payload: *const u8,
+        payload_len: usize,
+        mldsa_sk: *const u8,
+        slhdsa_sk: *const u8,
+        buf: *mut u8,
+        cap_bytes: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_matrix_trust_key(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        pk: *const u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_contract_apply(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        pkg: *const u8,
+        len: usize,
+        out_proven: *mut u32,
+    ) -> i32;
+}
+pub type zxv_hw_load_fn = ::core::option::Option<
+    unsafe extern "C" fn(
+        user: *mut ::core::ffi::c_void,
+        slot: u32,
+        payload: *const u8,
+        len: usize,
+    ) -> i32,
+>;
+pub type zxv_hw_readback_fn = ::core::option::Option<
+    unsafe extern "C" fn(user: *mut ::core::ffi::c_void, slot: u32, digest: *mut u8) -> i32,
+>;
+pub type zxv_hw_activate_fn =
+    ::core::option::Option<unsafe extern "C" fn(user: *mut ::core::ffi::c_void, slot: u32) -> i32>;
+pub type zxv_hw_event_fn = ::core::option::Option<
+    unsafe extern "C" fn(
+        user: *mut ::core::ffi::c_void,
+        region_id: u32,
+        event: i32,
+        reason: u32,
+        version: u32,
+    ),
+>;
+unsafe extern "C" {
+    pub fn zxv_hw_region_create_cap(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        provider: u32,
+        region_id: u32,
+        target_class: u32,
+        target_digest: *const u8,
+        load: zxv_hw_load_fn,
+        readback: zxv_hw_readback_fn,
+        activate: zxv_hw_activate_fn,
+        user: *mut ::core::ffi::c_void,
+        log_cap: u32,
+        out: *mut *mut zxv_hw_region,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_destroy(rg: *mut zxv_hw_region);
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_events(
+        cap: *const zxv_cap,
+        rg: *mut zxv_hw_region,
+        fn_: zxv_hw_event_fn,
+        user: *mut ::core::ffi::c_void,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_trust_key(
+        cap: *const zxv_cap,
+        rg: *mut zxv_hw_region,
+        pk: *const u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_stage(
+        cap: *const zxv_cap,
+        rg: *mut zxv_hw_region,
+        image: *const u8,
+        len: usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_trial(cap: *const zxv_cap, rg: *mut zxv_hw_region, ticks: u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_commit(cap: *const zxv_cap, rg: *mut zxv_hw_region) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_rollback(cap: *const zxv_cap, rg: *mut zxv_hw_region) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_tick(cap: *const zxv_cap, rg: *mut zxv_hw_region) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_info(
+        cap: *const zxv_cap,
+        rg: *mut zxv_hw_region,
+        out_state: *mut i32,
+        out_version: *mut u32,
+        out_floor: *mut u32,
+        out_quarantined: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_log(
+        cap: *const zxv_cap,
+        rg: *mut zxv_hw_region,
+        head: *mut u8,
+        out_count: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_region_log_entry(
+        cap: *const zxv_cap,
+        rg: *mut zxv_hw_region,
+        index: u32,
+        out_event: *mut i32,
+        out_reason: *mut u32,
+        out_id: *mut u32,
+        out_version: *mut u32,
+        out_tag: *mut u32,
+        subject: *mut u8,
+        hash: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_matrix_log(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        head: *mut u8,
+        out_count: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_hw_matrix_log_entry(
+        cap: *const zxv_cap,
+        mx: *mut zxv_hw_matrix,
+        index: u32,
+        out_event: *mut i32,
+        out_reason: *mut u32,
+        out_id: *mut u32,
+        out_version: *mut u32,
+        out_tag: *mut u32,
+        subject: *mut u8,
+        hash: *mut u8,
+    ) -> i32;
 }

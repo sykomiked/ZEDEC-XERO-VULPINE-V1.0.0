@@ -1,0 +1,6 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# must be refused: a type is declared before it is used, as in Ada.
+eve refuse_order
+pair { a, b: amount }
+amount = 0 .. 9

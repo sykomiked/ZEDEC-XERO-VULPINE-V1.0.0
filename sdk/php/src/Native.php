@@ -80,8 +80,8 @@ final class Native
             $maj = $ffi->new("uint32_t");
             $min = $ffi->new("uint32_t");
             $ffi->zxv_version(FFI::addr($maj), FFI::addr($min), null);
-            if ($maj->cdata !== 1 || $min->cdata < 3) {
-                $errors[] = $c . ": ABI " . $maj->cdata . "." . $min->cdata . " is not 1.x (x >= 3)";
+            if ($maj->cdata !== 1 || $min->cdata < 4) {
+                $errors[] = $c . ": ABI " . $maj->cdata . "." . $min->cdata . " is not 1.x (x >= 4)";
                 continue;
             }
             self::$ffi = $ffi;

@@ -63,7 +63,7 @@ pub struct SecretKey {
 }
 
 impl SecretKey {
-    fn zeroed(len: usize) -> SecretKey {
+    pub(crate) fn zeroed(len: usize) -> SecretKey {
         SecretKey {
             buf: vec![0u8; len].into_boxed_slice(),
         }
@@ -112,7 +112,7 @@ impl SecretKey {
         self.buf.as_mut_ptr()
     }
 
-    fn require_len(&self, n: usize, what: &str) -> Result<()> {
+    pub(crate) fn require_len(&self, n: usize, what: &str) -> Result<()> {
         if self.buf.len() != n {
             return Err(Error::with_detail(
                 sys::ZXV_E_ARG,

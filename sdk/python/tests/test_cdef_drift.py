@@ -52,8 +52,11 @@ def test_abi_constants_match_header() -> None:
         if flag.name not in ("NONE",):
             assert int(defines[f"ZXV_FEAT_{flag.name}"], 0) == flag.value, flag
     for c in zxv.Cap:
-        if c.name not in ("NONE", "ALL"):
+        if c.name not in ("NONE", "ALL", "ALL_1_4"):
             m = re.search(rf"#define ZXV_CAP_{c.name}\s+\(UINT64_C\(1\) << (\d+)\)", text)
             assert m and (1 << int(m.group(1))) == c.value, c
+    assert zxv.Cap.ALL == (1 << 10) - 1  # ZXV_CAP_ALL keeps its 1.1 value forever
+    assert re.search(r"#define ZXV_CAP_ALL_1_4 \(\(UINT64_C\(1\) << 12\) - 1\)", text)
+    assert zxv.Cap.ALL_1_4 == (1 << 12) - 1
     assert int(defines["ZXV_PHASE_CYCLE"]) == zxv.PHASE_CYCLE
     assert ffi.sizeof("int64_t") == 8

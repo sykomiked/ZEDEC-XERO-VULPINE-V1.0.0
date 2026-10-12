@@ -45,6 +45,8 @@ public struct Features: OptionSet, Sendable {
     public static let evm = Features(rawValue: ZXV_FEAT_EVM)
     /// The hexagram tag and quarantine log (ABI 1.3).
     public static let hex = Features(rawValue: ZXV_FEAT_HEX)
+    /// The emulation matrix, ZHP-1 profiles and hardware updates (ABI 1.4).
+    public static let hw = Features(rawValue: ZXV_FEAT_HW)
 }
 
 /// The library entry point: version, features and process-wide policy.
@@ -75,16 +77,16 @@ public enum ZxvLibrary {
 
     private static let compatibility: Result<Void, ZxvError> = {
         let v = version
-        if v.major != UInt32(ZXV_ABI_VERSION_MAJOR) || v.minor < 3 {
+        if v.major != UInt32(ZXV_ABI_VERSION_MAJOR) || v.minor < 4 {
             return .failure(.system(ZxvSystemError(
                 status: ZXV_E_INTERNAL,
-                detail: "libzxv ABI \(v) is not compatible with this SDK (needs 1.3 or later 1.x)")))
+                detail: "libzxv ABI \(v) is not compatible with this SDK (needs 1.4 or later 1.x)")))
         }
         return .success(())
     }()
 
     /// Refuse a library whose major version differs or whose minor is below
-    /// 3 (SDK_DESIGN.md section 1; ABI 1.3 added the hexagram tag, 1.2 the `*_cap` forms). Called once by `ZxvContext.init`.
+    /// 4 (SDK_DESIGN.md section 1; ABI 1.4 added the hardware group, 1.3 the hexagram tag, 1.2 the `*_cap` forms). Called once by `ZxvContext.init`.
     public static func ensureCompatible() throws(ZxvError) {
         if case .failure(let e) = compatibility { throw e }
     }

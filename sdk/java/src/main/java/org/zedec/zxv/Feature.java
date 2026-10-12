@@ -63,7 +63,9 @@ public enum Feature {
     /** EVM state-channel encoding. */
     EVM(0x04000000),
     /** The 64-state hexagram tag and quarantine log (ABI 1.3). */
-    HEX(0x08000000);
+    HEX(0x08000000),
+    /** The hardware emulation matrix, ZHP-1 profiles and hardware updates (ABI 1.4). */
+    HW(0x10000000);
 
     private final int bit;
 
