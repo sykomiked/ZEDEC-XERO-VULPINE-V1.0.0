@@ -294,8 +294,11 @@ void el0_sync_handler_c(void *frame, uint64_t type, uint64_t esr,
                     return;
                 }
             }
-            /* No ready processes — return to kernel idle */
-            uart_puts("[EL0] No ready processes after fault — kernel idle\n");
+            /* No process is READY right now (the shell is usually
+             * asleep). Idle until one wakes instead of falling into the
+             * fatal halt below: one app's fault must never stop the
+             * machine. Does not return. */
+            proc_run_next_or_idle(g_el0_sched);
         }
     }
 

@@ -83,7 +83,7 @@ with the evidence.
 | 25 | Audio ring to the mixer and launch sound sequences | partial | M | desktop_devices #11 |
 | 26 | ACPI AML (battery, thermal, lid, sleep, backlight, I2C-HID) | missing | L | desktop_devices #12 |
 | 27 | Secure Boot signing, measured boot, TPM, disk encryption | missing | L | boot_storage #18-19 |
-| 28 | No-code builder, typed inputs, block catalogue by CID; L2 and L3 tier contents | partial / owner | L-XL | userland_apps #13-15 |
+| 28 | No-code builder, typed inputs, block catalogue by CID; building the 407 catalogued apps | partial | L-XL | userland_apps #13-15 |
 | 29 | Hypervisor and Linux driver VM (Wi-Fi, GPU long tail) | missing | XL | desktop_devices #14 |
 
 ## 3. Design rules: where the paraconsistent logic changes behaviour
@@ -140,13 +140,16 @@ languages. The design that gets there with the least new code:
   through the existing `sdk/embedded/port` layer, which already builds it
   unmodified. WebAssembly is the portable block format; convention is right
   there.
-- **Tiers.** The only definition in the repo is the owner's note in
-  `make_tier_icons.py`: L1 (001-144) base modules, L2 (145-271) modules on L1,
-  L3 (272-407) apps compiled from modules. Mapped onto the existing model: L1
-  are signed native system blocks precompiled into the system image; L2 are
-  apps that export entries other apps can use; L3 are assembled from blocks
-  with a generated screen. L2 and L3 exist only as icons today, so their
-  contents are an owner task.
+- **Tiers.** L1 (001-144) are base modules, L2 (145-271) compose 2-5 L1
+  apps, L3 (272-407) are apps compiled from L2 modules plus L1. Composition
+  only goes down, each L2/L3 app uses all five pillars, and every app uses
+  `use <block>` by content id (the project's `zxv-ui/APP_CATALOG_407.csv` and
+  `APP_STACK_L1_L2_L3.md` define all 407; the Built-in apps and toolbox thread
+  builds them). On bare metal this maps to: L1 precompiled as signed native
+  blocks in the system image; L2 and L3 shipped as `.zxa` containers whose
+  blocks resolve by CID against L1. Nothing in the container format changes
+  per tier; the tier only sets the Immigration visa and which blocks may be
+  `use`d.
 - **No-code.** `zxapp` already composes blocks and joins two languages with
   lpres. Missing: a builder app, `flow` lines that feed one block into
   another, typed inputs beyond whole numbers, triggers, and one CID catalogue

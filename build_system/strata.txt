@@ -71,6 +71,7 @@ keyboard                         kernel
 license                          kernel
 mbcomp                           kernel
 mm                               kernel
+pmm                              kernel     # four-state physical frame allocator; el0_userspace takes user pages from it
 modbind                          kernel
 mouse                            kernel
 oseq                             kernel
