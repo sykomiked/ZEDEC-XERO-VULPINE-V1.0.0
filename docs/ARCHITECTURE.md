@@ -288,6 +288,7 @@ Small, pure building blocks that every stratum may use.
 | Grammar-constrained decoding for the shorthands, plus attestation tags | Stops malformed commands, not wrong facts |
 | Ternary and quaternary experiments | BitNet b1.58 (MIT) packed 5 trits per byte; 2-bit packing for T/F/B/U states; low-bit weights only work on models trained for them |
 | Several models at once, LoRA per agent | 💭 |
+| The model design: derived, fitted and learned weights; compiled specialists; build order | [AI_MODEL.md](AI_MODEL.md), design only |
 | Model-collapse experiment (invariant filter on synthetic training data) | Offered as a fair test; no "cure" claimed |
 
 ## 11. Stratum 6: settlement and economy
