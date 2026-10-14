@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-/// The ZXV SDK for Dart and Flutter, over libzxv (ABI 1.5) with dart:ffi.
+/// The ZXV SDK for Dart and Flutter, over libzxv (ABI 1.6) with dart:ffi.
 ///
 /// ```dart
 /// final ctx = ZxvContext.create();
@@ -105,6 +105,19 @@ export 'src/treaty.dart'
         TreatyResult;
 export 'src/truth.dart' show Truth;
 export 'src/vhub.dart' show VHubCurrency, VHubBalance, VHubQuote, VHubSwap, VHub;
+export 'src/vino.dart'
+    show
+        Vino,
+        VinoRail,
+        VinoLane,
+        VoucherState,
+        PlayVoucher,
+        PlayAccount,
+        PlaySandbox,
+        PaymentRequest,
+        VinoReceipt,
+        Admission,
+        SpendMeter;
 export 'src/web4.dart'
     show
         Web4,

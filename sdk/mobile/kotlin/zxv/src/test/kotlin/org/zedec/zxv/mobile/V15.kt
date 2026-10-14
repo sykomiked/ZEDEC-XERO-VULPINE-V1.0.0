@@ -39,7 +39,7 @@ object V15 {
     fun fill(value: Int, n: Int): ByteArray = ByteArray(n) { value.toByte() }
 
     private val codes: Map<String, Int> by lazy {
-        listOf("status", "status_abi15").flatMap { t -> Vectors[t].arr().map { it.obj("name").s() to it.obj("code").i() } }.toMap()
+        listOf("status", "status_abi15", "status_abi16").flatMap { t -> Vectors[t].arr().map { it.obj("name").s() to it.obj("code").i() } }.toMap()
     }
 
     /** The code of a status name, from the vectors' status tables. */
