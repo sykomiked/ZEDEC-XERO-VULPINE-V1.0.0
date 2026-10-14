@@ -13,6 +13,9 @@ S="$(cd "$Z/.." && pwd)"
 K="$(cd "$S/.." && pwd)"
 # what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
 RPCDEPS="$(sh "$K/arch/hosted/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
+# zxvd_rpc.c falls back to the module methods (zxvd_rpc_modules.c): their
+# archive goes last on the link line, after every object (zxvd_mod_archive.sh)
+MODA="$(sh "$K/arch/hosted/zxvd_mod_archive.sh")" || exit 3
 RPCINC="$(sh "$K/arch/hosted/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
 R="$(cd "$K/.." && pwd)"
 H="$K/arch/hosted"
@@ -35,5 +38,5 @@ RP="-Wl,-rpath,$R/sdk/libzxv/build"
     "$H/zxvd_rpc.c" $RPCINC $RPCDEPS "$S/web4/web4_json.c" "$S/web4/web4_util.c" \
     "$S/mlkem/keccak.c" "$S/robin_debanks/sha256.c" \
     "$R/sdk/pillars/apl-kron/build/libzkron.a" "$R/sdk/pillars/ada-eve/build/libzeve.a" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lpthread -lm \
-    -o "$T/test_views" || exit 3
+    "$MODA" -o "$T/test_views" || exit 3
 "$T/test_views" "$S"

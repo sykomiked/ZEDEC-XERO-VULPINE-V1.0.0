@@ -482,6 +482,23 @@ static bool pal_read_link(const char *file, char *url, size_t cap)
     if (ok) url[strcspn(url, "\r\n")] = 0;
     return ok && url[0];
 }
+
+/* A running zxvd writes its window link a moment after its socket starts
+ * answering (the link needs the window's port). A second launch in that
+ * moment waits for the link, up to 3 s, instead of reporting an error. */
+static bool pal_wait_link(const char *file, char *url, size_t cap)
+{
+    for (int i = 0; i < 30; i++) {
+        if (pal_read_link(file, url, cap)) return true;
+#    if defined(_WIN32)
+        Sleep(100);
+#    else
+        struct timespec ts = {0, 100L * 1000L * 1000L};
+        nanosleep(&ts, NULL);
+#    endif
+    }
+    return pal_read_link(file, url, cap);
+}
 #endif
 
 /* ===================== the swarm ===================== */
@@ -2555,7 +2572,7 @@ int main(int argc, char **argv)
         snprintf(link_path, sizeof link_path, "%s.url", rpc_path);
         char running[200];
         if (pal_rpc_live(rpc_path)) {
-            if (open_window && pal_read_link(link_path, running, sizeof running)) {
+            if (open_window && pal_wait_link(link_path, running, sizeof running)) {
                 printf("ZXV is already running: opening its window\n");
                 pal_open_window(running);
                 return 0;
