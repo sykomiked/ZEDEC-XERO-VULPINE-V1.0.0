@@ -108,7 +108,7 @@ static void ledger(void)
     rsv = open_acct(vno, 5, 0);
     other = open_acct(vbl, 6, 0);
     for (int i = 0; i < NU; i++) {
-        u[i] = open_acct(vno, 100 + (uint32_t) i, 0);
+        u[i] = open_acct(vno, 40 + (uint32_t) i, 0); /* owner id == signing key */
         fund(u[i], FUND);
     }
 }

@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id trade-corridor
+title Settle a trade corridor treaty
+lang treaty
+audience banks, trade finance, cooperatives, central banks
+safety settlement
+summary Three trading partners net what they owe each other and settle once, with the 0.08889% assurance fee, on a scratch engine.
+step settle treaty corridor.treaty
+draft corridor.treaty Write a ZXV treaty for the trade described by the user. Keep every party's claim at or below its deposit and make the weights add up to exactly 1.

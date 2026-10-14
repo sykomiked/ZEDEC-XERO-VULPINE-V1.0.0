@@ -1,0 +1,10 @@
+; pharmacy-record.txt -- the pharmacy's record for the same patient, as ZWRITE prints ^PAT.
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+; INVENTED SAMPLE DATA: no real person. Dates are $H day counts.
+; Corrected: the pharmacy now records the allergy as severe too.
+^PAT(1001)="SAMPLE^ALEX^50903"
+^PAT(1001,"allergy",1)="penicillin^severe^hives and swelling"
+^PAT(1001,"allergy",2)="latex^mild^skin rash"
+^PAT(1001,"med",1)="metformin^500^mg^oral^2^67814"
+^PAT(1001,"med",2)="levothyroxine^.075^mg^oral^1^67833"

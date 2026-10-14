@@ -12,6 +12,10 @@
 #   incs    include directories (relative to kernel/), one per line
 #   vinea   the Vinea node and what it needs (also used by the net test)
 #   update  the update checker and what it needs
+#   groups  zxvd only: the method groups (zxvd_ext.h) and the engines they
+#           serve, after zxvd_groups.c; groupincs: their include directories
+#   rpcdeps what zxvd_rpc.c links beyond web4, keccak and sha256, for the
+#           unit tests that build it on its own; rpcincs: their includes
 set -eu
 K="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$K"
@@ -30,6 +34,15 @@ vinea() {
     echo src/ubh/ubh.c
     echo src/event_space/event_envelope.c
     echo src/zcapital/zcapital.c
+    # AIPI over Vinea (zxv_net_host.h U12): the core, its adapter, the IPFS
+    # node it fetches blocks through and the 64-state job tag
+    echo src/aipi/aipi.c
+    echo src/aipi/aipi_vna.c
+    for f in ipfsn_multiformats ipfsn_unixfs ipfsn_store ipfsn_net ipfsn_ubh ipfsn_fidx; do
+        echo "src/ipfs_node/$f.c"
+    done
+    echo src/lpres/lpres.c
+    echo src/lpres/lpres_hex.c
 }
 
 update() {
@@ -57,15 +70,17 @@ case "${1:-srcs}" in
         for f in src/tensor/zt*.c; do echo "$f"; done
         # the settlement spine: swarm money on the ledger of record
         echo src/settle/settle.c
-        # the 64-state tag on each answer and its quarantine log
-        echo src/lpres/lpres.c
-        echo src/lpres/lpres_hex.c
+        # the 64-state tag on each answer and its quarantine log: src/lpres,
+        # listed with the Vinea sources below (AIPI uses it too)
         # the node's self-audit of every posting (peer_audit layer 1)
         echo src/peer_audit/peer_audit.c
         echo src/peer_audit/pa_runtime.c
         # the owner's verified contributions from trades (quest)
         for f in quest quest_coop quest_guard; do echo "src/quest/$f.c"; done
         for f in pay_ledger pay_util pay_assure; do echo "src/pay/$f.c"; done
+        # zxvd's jurisdiction host (zxvd_rpc.h J5) and the accounting names it reads
+        echo src/juris/juris.c
+        echo src/acct/acct.c
         # the Player Card's tiers (zxvd's player.card)
         echo src/sicily/sicily.c
         # one copy of each file: vinea and update share sha256, aead, hkdf, ubh,
@@ -74,13 +89,63 @@ case "${1:-srcs}" in
         ;;
     incs)
         # the last five are kernel/Makefile's CPATH
-        for d in arch/hosted src/swarm src/tensor src/settle src/peer_audit src/quest src/pay src/sicily src/zcapital src/social src/vinea src/lpres src/robin_debanks \
+        for d in arch/hosted src/swarm src/tensor src/settle src/peer_audit src/quest src/pay src/sicily src/zcapital src/social src/vinea src/lpres src/robin_debanks src/juris \
                  src/edp_risk src/update src/ipfs_node src/pqsec src/mlkem include src/modbind \
-                 src/e8 src/event_space src/surplus; do
+                 src/e8 src/event_space src/surplus src/aipi; do
             echo "$d"
         done
         ;;
     vinea) vinea ;;
     update) update ;;
-    *) echo "usage: $0 [srcs|incs|vinea|update]" >&2; exit 2 ;;
+    groups)
+        echo arch/hosted/zxvd_groups.c
+        # cards.*: the charge-card issuer (its ML-DSA-65, keccak and sha256
+        # are already in srcs)
+        echo arch/hosted/zxvd_cards.c
+        for f in cardnet cn_check cn_iso8583 cn_emv; do echo "src/cardnet/$f.c"; done
+        # passkeys.*: ident's passkeys (id_core, id_passkey and the
+        # post-quantum code they link are built for zxvd_pay in build_zxvd.sh)
+        echo arch/hosted/zxvd_ident.c
+        # the economy modules (zxvd_econ.c); zstats also reads grants and
+        # vbond, which link but are not served. pay, sha256 and keccak are in srcs.
+        echo arch/hosted/zxvd_econ.c
+        for f in svault vswap vauction zenny zstats grants vbond; do echo "src/$f/$f.c"; done
+        # economy groups (zxvd_sandbox.h): bonds, derivatives, grants, estate
+        for f in zxvd_sandbox zxvd_instruments zxvd_estate; do echo "arch/hosted/$f.c"; done
+        echo src/vderiv/vderiv.c
+        for f in estate faraid recovery; do echo "src/estate/$f.c"; done
+        # companion.*: the swarm's own DNA and emotion code is already in srcs
+        echo arch/hosted/zxvd_companion.c
+        # web4.*: the Web4 envelope feed on web4_agent (its ML-DSA-65, keccak,
+        # sha256 and web4_json/web4_util are already linked) and freight
+        echo arch/hosted/zxvd_web4.c
+        echo src/web4/web4_agent.c
+        for f in freight freight_ops; do echo "src/freight/$f.c"; done
+        # seats.*: the people on this device and the login after boot; its
+        # Argon2id (id_argon2.c) is added with ident in build_zxvd.sh
+        echo arch/hosted/zxvd_seats.c
+        echo src/seats/seats.c
+        # power.*: the energy ledger and this machine's readers (docs/POWER.md)
+        echo arch/hosted/zxvd_power.c
+        echo arch/hosted/zxv_power_host.c
+        echo src/power/power_ledger.c
+        ;;
+    groupincs)
+        echo src/cardnet
+        echo src/ident
+        for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power; do echo "$d"; done
+        ;;
+    rpcdeps)
+        # the owner's files and spaces (zxvd_rpc.h F/S), the jurisdiction
+        # host (J5) with the accounting names and the 64-state log it uses
+        echo arch/hosted/zxv_files.c
+        echo arch/hosted/zxv_spaces.c
+        echo src/juris/juris.c
+        echo src/acct/acct.c
+        echo src/lpres/lpres_hex.c
+        echo src/lpres/lpres.c
+        ;;
+    rpcincs) echo src/juris ;;
+    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs]" >&2; exit 2 ;;
 esac

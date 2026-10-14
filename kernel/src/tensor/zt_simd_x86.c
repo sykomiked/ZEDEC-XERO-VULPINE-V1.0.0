@@ -1013,13 +1013,15 @@ static AVX512 void att_wv_512(const int32_t *w, const int32_t *v, uint64_t vstri
     if (j0 < hd) att_wv_avx2(w, v + j0, vstride, n, hd - j0, acc + j0);
 }
 
-static const zt_kern_t K_AVX2 = {"avx2",       dot_raw_avx2, dot_q8_avx2, 0,           0,
-                                 dot_q4k_avx2, dot_q6k_avx2, mmb_avx2,    att_qk_avx2, att_wv_avx2};
-static const zt_kern_t K_AVX512 = {"avx512",    dot_raw_512, dot_q8_512, 0,          0,
-                                   dot_q4k_512, dot_q6k_512, mmb_512,    att_qk_512, att_wv_512};
+static const zt_kern_t K_AVX2 = {
+    "avx2",       dot_raw_avx2, dot_q8_avx2, 0,           0, dot_q4k_avx2,
+    dot_q6k_avx2, mmb_avx2,     att_qk_avx2, att_wv_avx2, 0, 0};
+static const zt_kern_t K_AVX512 = {"avx512",    dot_raw_512, dot_q8_512, 0,          0, dot_q4k_512,
+                                   dot_q6k_512, mmb_512,     att_qk_512, att_wv_512, 0, 0};
 /* the same with the AVX512-VNNI tile */
-static const zt_kern_t K_AVX512V = {"avx512vnni", dot_raw_512, dot_q8_512, 0,          0,
-                                    dot_q4k_512,  dot_q6k_512, mmb_vnni,   att_qk_512, att_wv_512};
+static const zt_kern_t K_AVX512V = {
+    "avx512vnni", dot_raw_512, dot_q8_512, 0,          0, dot_q4k_512,
+    dot_q6k_512,  mmb_vnni,    att_qk_512, att_wv_512, 0, 0};
 
 const zt_kern_t *zt_simd_x86_avx2(void)
 {

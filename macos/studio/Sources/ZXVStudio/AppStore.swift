@@ -93,12 +93,26 @@ final class AppStore: ObservableObject {
     @Published var booksCheckedAt: Date?
     @Published var chat: [ChatLine] = []
     @Published var asking = false
+    @Published var chatMe: ChatMe?
+    @Published var chatFeed: [ChatRecord] = []
     @Published var netLog: [LogLine] = []
     @Published var currenciesEnabled: [String] = []
     @Published var peers: Peers?
     @Published var offers: Offers?
     @Published var card: PlayerCard?
     @Published var jurisdiction: Jurisdiction?
+    @Published var holds: Holds?
+    /// ledger.hold answered that the escrow feature is switched off (-32012).
+    @Published var escrowOff = false
+
+    /// phone.list, when this zxvd has a phone link (kernel/arch/hosted/zxvd_phone.h)
+    @Published var phones: PhoneList?
+
+    /// The owner let phones in: turn zxvd's phone link back on whenever it restarts.
+    var phonesAllowed: Bool {
+        get { UserDefaults.standard.bool(forKey: "ZXVPhonesAllowed") }
+        set { UserDefaults.standard.set(newValue, forKey: "ZXVPhonesAllowed") }
+    }
 
     let socketPath: String
     private var client: ZXVDClient
@@ -149,6 +163,7 @@ final class AppStore: ObservableObject {
             model = try? await client.request("model.info", as: ModelInfo.self)
             link = .connected
             await refreshLedger()
+            await refreshPhones(restore: true)
         } catch {
             link = .down(String(describing: error))
         }
@@ -164,6 +179,7 @@ final class AppStore: ObservableObject {
             let n = try await client.request("notes.list", as: Notes.self)
             notes = n.notes
             unread = n.unread
+            if has("phone.list") { phones = try? await client.request("phone.list", as: PhoneList.self) }
             NSApp?.dockTile.badgeLabel = n.unread > 0 ? String(n.unread) : nil
             postSystemNotifications(n.notes)
             await refreshViews()
@@ -179,6 +195,8 @@ final class AppStore: ObservableObject {
         if has("net.peers"), let v = try? await client.request("net.peers", as: Peers.self) { peers = v }
         if has("net.offers"), let v = try? await client.request("net.offers", as: Offers.self) { offers = v }
         if has("player.card"), let v = try? await client.request("player.card", as: PlayerCard.self) { card = v }
+        await refreshHolds()
+        await refreshChat()
         if has("jurisdiction.get"), let v = try? await client.request("jurisdiction.get", as: Jurisdiction.self) {
             jurisdiction = v
         }
@@ -198,6 +216,122 @@ final class AppStore: ObservableObject {
         } catch {
             return (false, "Refused: \(error)")
         }
+    }
+
+    // MARK: Escrow (ledger.hold, ledger.release, ledger.refund, ledger.holds)
+
+    func refreshHolds() async {
+        guard has("ledger.holds") else { return }
+        if let v = try? await client.request("ledger.holds", as: Holds.self) { holds = v }
+    }
+
+    /// Holds `amount` of the payer's currency for the payee. Returns the line shown under the form.
+    func hold(from: Int, to: Int, amount: String) async -> (Bool, String) {
+        guard let payer = accounts.first(where: { $0.account == from }) else {
+            return (false, "Pick the account that pays.")
+        }
+        guard from != to else { return (false, "The payer and the payee must differ.") }
+        let minor: Int64
+        switch Money.parse(amount, currency: payer.currency) {
+        case .success(let v): minor = v
+        case .failure(.fraction(let n)):
+            return (false, "Refused: \(payer.currency) has \(n) decimal places. zxvd never rounds.")
+        case .failure(.zero): return (false, "The amount must be at least one minor unit.")
+        case .failure(.tooLarge): return (false, "That amount is too large.")
+        case .failure: return (false, "Enter an amount like 125.00.")
+        }
+        do {
+            let h = try await client.request("ledger.hold", [
+                "from": .int(Int64(from)), "to": .int(Int64(to)), "amount_minor": Money.param(minor),
+            ], as: Hold.self)
+            await refreshHolds()
+            await refreshLedger()
+            escrowOff = false
+            return (true, "Hold \(h.hold): \(Money.format(minor, currency: h.currency)) is in escrow until you release or refund it.")
+        } catch ZXVDError.rpc(let e) where e.code == Self.featureOff {
+            escrowOff = true
+            return (false, "Escrow is switched off. Turn it on below to hold funds.")
+        } catch {
+            return (false, "Refused: \(error)")
+        }
+    }
+
+    /// zxvd's answer for a method whose feature is switched off.
+    static let featureOff = -32012
+
+    /// Switches escrow on (features.set; saved in the books). Returns why it was refused, or nil.
+    func enableEscrow() async -> String? {
+        do {
+            _ = try await client.request("features.set", ["feature": .string("escrow"), "enabled": .bool(true)])
+            escrowOff = false
+            await refreshHolds()
+            return nil
+        } catch {
+            return "\(error)"
+        }
+    }
+
+    /// Releases a hold to its payee, or refunds it to its payer. Returns why it was refused, or nil.
+    func settle(_ hold: Int, release: Bool) async -> String? {
+        do {
+            _ = try await client.request(release ? "ledger.release" : "ledger.refund", ["hold": .int(Int64(hold))],
+                                         as: Hold.self)
+            await refreshHolds()
+            await refreshLedger()
+            return nil
+        } catch {
+            return "\(error)"
+        }
+    }
+
+    // MARK: Commons (chat.*)
+
+    func refreshChat() async {
+        guard has("chat.feed") else { return }
+        if let v = try? await client.request("chat.me", as: ChatMe.self) { chatMe = v }
+        if let v = try? await client.request("chat.feed", as: ChatFeed.self) { chatFeed = v.posts }
+    }
+
+    /// Posts, or replies when replyTo is set. Returns nil, or why it was refused.
+    func chatPost(_ text: String, replyTo: String? = nil) async -> String? {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return "Write something first." }
+        guard t.utf8.count <= 1024 else { return "At most 1024 bytes (\(t.utf8.count) now)." }
+        var p: [String: JSON] = ["text": .string(t)]
+        if let r = replyTo { p["reply_to"] = .string(r) }
+        do {
+            _ = try await client.request("chat.post", p, as: ChatRecord.self)
+            await refreshChat()
+            return nil
+        } catch {
+            return "Not posted: \(error)"
+        }
+    }
+
+    func chatReact(_ to: String, _ emoji: String) async {
+        _ = try? await client.request("chat.react", ["to": .string(to), "emoji": .string(emoji)],
+                                      as: ChatRecord.self)
+        await refreshChat()
+    }
+
+    /// Returns nil, or why it was refused.
+    func chatFollow(_ nodeId: String, _ on: Bool) async -> String? {
+        let id = nodeId.trimmingCharacters(in: .whitespaces).lowercased()
+        guard id.count == 64, id.allSatisfy({ $0.isHexDigit }) else {
+            return "A NodeID is 64 hex digits."
+        }
+        do {
+            _ = try await client.request("chat.follow", ["node_id": .string(id), "follow": .bool(on)],
+                                         as: ChatFollow.self)
+            await refreshChat()
+            return nil
+        } catch {
+            return "Refused: \(error)"
+        }
+    }
+
+    func chatThread(_ id: String) async -> ChatThread? {
+        try? await client.request("chat.thread", ["id": .string(id)], as: ChatThread.self)
     }
 
     func stopDaemonIfOurs() {
@@ -369,6 +503,51 @@ final class AppStore: ObservableObject {
         daemon = nil
         stoppedByOwner = true
         link = .down("zxvd stopped")
+    }
+
+    // MARK: Phones (ZXV Companion)
+
+    func refreshPhones(restore: Bool = false) async {
+        guard has("phone.list") else {
+            phones = nil
+            return
+        }
+        var l = try? await client.request("phone.list", as: PhoneList.self)
+        if restore, phonesAllowed, l?.on == false {
+            _ = try? await client.request("phone.link", ["on": true], as: PhoneLink.self)
+            l = try? await client.request("phone.list", as: PhoneList.self)
+        }
+        phones = l
+    }
+
+    /// Turns the phone link on or off; the line to show when it fails.
+    func setPhones(allowed: Bool) async -> String? {
+        defer { Task { await refreshPhones() } }
+        do {
+            _ = try await client.request("phone.link", ["on": .bool(allowed)], as: PhoneLink.self)
+            phonesAllowed = allowed
+            return nil
+        } catch {
+            return "zxvd refused: \(error)"
+        }
+    }
+
+    func pairPhone(name: String, allowPost: Bool) async -> Result<PhonePairing, Error> {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        do {
+            let p = try await client.request("phone.pair", ["name": .string(String(n.prefix(32))),
+                                                            "allow_post": .bool(allowPost)],
+                                             as: PhonePairing.self)
+            await refreshPhones()
+            return .success(p)
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    func revokePhone(_ id: String) async {
+        _ = try? await client.request("phone.revoke", ["phone_id": .string(id)], as: Revoked.self)
+        await refreshPhones()
     }
 
     // MARK: macOS notifications

@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One payment message. Each name is a field of the payment record.
+ref = INV-2026-0042
+amount = 1234.56
+ccy = eur
+debtor = 104233
+creditor = 220871
+value_date = 20261013

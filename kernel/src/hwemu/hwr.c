@@ -186,7 +186,15 @@ static int quarantine(hwr_region_t *r, const uint8_t *header, uint8_t phase, hwr
         phase == LPX_PH_EMERGING && !block_digest ? HWA_EV_REJECTED : HWA_EV_QUARANTINED;
     if (!record(r, header, tag, ev, (uint8_t) why, hdr_version(header))) return HWR_E_HALTED;
     r->n_quarantined++;
-    if (block_digest && r->nbad < HWR_MAX_BAD) cp32(r->bad[r->nbad++], block_digest);
+    if (block_digest) {
+        /* R6: a known-bad payload that cannot be blocked could be loaded
+         * again; a full blocklist halts the region, like a full log. */
+        if (r->nbad >= HWR_MAX_BAD) {
+            r->state = HWR_ST_HALTED;
+            return HWR_E_HALTED;
+        }
+        cp32(r->bad[r->nbad++], block_digest);
+    }
     return HWR_OK;
 }
 
@@ -229,7 +237,7 @@ int hwr_stage(hwr_region_t *r, const uint8_t *img, uint32_t len)
     }
     /* R3 */
     if ((r->active != HWR_NO_SLOT && im.version <= r->slot[r->active].version) ||
-        im.svn < r->floor) {
+        (r->vset && im.version <= r->vfloor) || im.svn < r->floor) {
         rc = quarantine(r, im.header, LPX_PH_EMERGING, HWR_Q_ROLLBACK, 0);
         return rc == HWR_OK ? HWR_E_ROLLBACK : rc;
     }
@@ -359,6 +367,8 @@ int hwr_commit(hwr_region_t *r)
     r->active = r->staged;
     r->staged = HWR_NO_SLOT;
     if (r->slot[r->active].svn > r->floor) r->floor = r->slot[r->active].svn;
+    if (!r->vset || r->slot[r->active].version > r->vfloor) r->vfloor = r->slot[r->active].version;
+    r->vset = true;
     r->state = HWR_ST_ACTIVE;
     r->probation_left = 0;
     r->n_committed++;

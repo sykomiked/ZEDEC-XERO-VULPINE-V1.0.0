@@ -1,0 +1,8 @@
+; stock.myra -- stock per site and item as one M global, ^STK, in MYRA.
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; an item at a site: description, units on hand, the unit, the reorder point
+^STK(site:t8, item:i9) = desc:t40! ^ on-hand:i9! ^ unit:t6! ^ reorder:i9
+; a lot of that item: units in the lot and its expiry date
+^STK(site:t8, item:i9, "lot", lot:t12) = qty:i9! ^ expires:d

@@ -15,6 +15,25 @@ swarm_evo_verdict_t swarm_evo_judge(const swarm_model_state_t *champion,
     return SWARM_EVO_ACCEPT;
 }
 
+static uint32_t clamp32(uint64_t v)
+{
+    return v > UINT32_MAX ? UINT32_MAX : (uint32_t) v;
+}
+
+bool swarm_evo_companion(swarm_dna_t *companion, uint64_t companion_fit, const swarm_dna_t *donor,
+                         uint64_t donor_fit, uint64_t nonce)
+{
+    if (!companion || !donor) return false;
+    swarm_model_state_t champ = {0}, cand = {0};
+    champ.dna = *companion;
+    champ.score_milli = clamp32(companion_fit);
+    cand.dna = swarm_dna_combine(companion, donor, nonce);
+    cand.score_milli = clamp32(donor_fit);
+    if (swarm_evo_judge(&champ, &cand, 0) != SWARM_EVO_ACCEPT) return false;
+    *companion = cand.dna;
+    return true;
+}
+
 uint64_t swarm_evo_outlier_share(uint64_t total_tokens)
 {
     uint64_t rem;

@@ -1,0 +1,25 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# September's statement for one account. Line 5 is left empty.
+st-account = 4400012345
+st-year = 2026
+st-month = 9
+st-opening = 10000.00
+st-closing = 10884.75
+st-line-count = 4
+st-line-date(1) = 20260901
+st-line-amount(1) = 1500.00
+st-line-text(1) = Salary
+st-line-date(2) = 20260903
+st-line-amount(2) = -600.00
+st-line-text(2) = Rent for September, flat 4B
+st-line-date(3) = 20260930
+st-line-amount(3) = 12.50
+st-line-rate(3) = 0.0125
+st-line-text(3) = Interest
+st-line-date(4) = 20260930
+st-line-amount(4) = -27.75
+st-line-text(4) = Card payment
+# The label the balance check uses in its notes.
+checks = closing-balance

@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id account-statement
+title Check an account statement adds up
+lang sutra
+audience banks, credit unions, auditors
+safety none
+summary A COBOL statement record with a table of lines is built and read back exactly, then KRON checks to the cent that opening plus the lines equals the stated closing balance; a mismatch is held for a person.
+inputs inputs.txt
+step statement sutra statement.sutra same=statement.cpy export=st-opening:open,st-closing:close,st-line-amount:lines
+step balance kron balance.k gate out=balanced evidence labels=checks
+draft statement.sutra Write a Sutra record layout for the statement the user describes, with exact PICTURE clauses (s9(n)v99 for money) and a table of lines (name[n]:).

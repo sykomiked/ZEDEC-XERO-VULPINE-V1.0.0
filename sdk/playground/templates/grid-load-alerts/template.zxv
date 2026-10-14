@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id grid-load-alerts
+title Grid load alerts from two meters
+lang kron
+audience grid operators, utilities, regulators
+safety advisory
+summary Hourly feeder load from SCADA and from smart meters. Overloads both agree on become alerts for an operator; hours where they disagree are held, not guessed.
+inputs inputs.txt
+step peak kron peak.k out=peak
+step overload kron overload.k out=overload evidence labels=hours advisory
+draft overload.k Write a KRON (K spelling) program over the inputs scada, meters and limit that returns a 2-row matrix: row 0 counts the sources that say each hour is over the limit, row 1 the sources that say it is not.

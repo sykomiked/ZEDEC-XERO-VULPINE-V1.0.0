@@ -1,0 +1,14 @@
+# 2 ranks over TCP on 127.0.0.1 (zt_bench --tcp RANK 127.0.0.1,127.0.0.1 41000), 2 threads each,
+# same prompt and -n 64 as tp_bench.sh. Rank 0's output:
+zt.prefill_tps=50.410
+zt.gen_tps=13.443
+zt.logits_fnv=f0e7ad334d4b4051
+zt.ranks=2
+zt.transport=tcp
+zt.rank0.macs=82804211712
+zt.rank0.maxrss_mb=515.4
+zt.rank0.sent_mb=177.775
+# Rank 1's output:
+zt.logits_fnv=f0e7ad334d4b4051
+# Generated text (first 300 bytes):
+The sky is blue because the sun's light hits the Earth and the atmosphere, and the blue light is scattered more than other colors. This is why the sky looks blue during the day. When the sun sets, the light has to travel through more of the Earth's atmosphere, so the blue light is scattered more and

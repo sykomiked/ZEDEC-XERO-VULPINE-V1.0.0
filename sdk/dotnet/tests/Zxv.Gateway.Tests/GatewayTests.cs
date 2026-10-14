@@ -125,9 +125,20 @@ public sealed class GatewayTests : IClassFixture<DevelopmentGatewayFactory>
     }
 
     [Fact]
+    public async Task Netting_cycle_nets_to_zero()
+    {
+        Assert.Equal(HttpStatusCode.Created, (await _http.PostAsJsonAsync("/v1/netting-cycles", new { cycleId = "C1", currency = "NGN", participants = new[] { "A", "B" } })).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await _http.PostAsJsonAsync("/v1/netting-cycles/C1/obligations", new { paymentId = "P1", debtor = "A", creditor = "B", minorUnits = 10000 })).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await _http.PostAsJsonAsync("/v1/netting-cycles/C1/obligations", new { paymentId = "P2", debtor = "B", creditor = "A", minorUnits = 2500 })).StatusCode);
+        JsonElement pos = await (await _http.PostAsync("/v1/netting-cycles/C1/close", null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(2, pos.GetArrayLength());
+        Assert.Equal(-7500, pos[0].GetProperty("net").GetProperty("minorUnits").GetInt64());
+        Assert.Equal(7500, pos[1].GetProperty("net").GetProperty("minorUnits").GetInt64());
+    }
+
+    [Fact]
     public async Task Pending_features_answer_501()
     {
-        await ProblemAsync(await _http.PostAsJsonAsync("/v1/netting-cycles", new { cycleId = "C1", currency = "NGN", participants = new[] { "A", "B" } }), HttpStatusCode.NotImplemented, "ZXV_E_NOTIMPL");
         uint a = await OpenAsync("Card", "NGN");
         await ProblemAsync(await _http.PostAsJsonAsync("/v1/cards", new { network = "Dragon", account = a, limitMinorUnits = 1000 }), HttpStatusCode.NotImplemented, "ZXV_E_NOTIMPL");
         JsonElement cd = await (await _http.PostAsJsonAsync("/v1/cards/check-digit", new { network = "Dragon", pan = "79927398713" })).Content.ReadFromJsonAsync<JsonElement>();

@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id relief-allocation
+title Share a relief fund exactly
+lang trebago
+audience public agencies, central banks, cooperatives, aid funds
+safety none
+summary A relief fund is shared across districts: a floor for each, the rest by population, in exact fractions and then whole cents that add up to the fund to the cent.
+inputs inputs.txt
+step allocate trebago relief.tb counts=fund,floor,pop nonneg=rest labels=districts

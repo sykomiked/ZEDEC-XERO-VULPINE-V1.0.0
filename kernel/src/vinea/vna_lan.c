@@ -64,6 +64,16 @@ void vna_lan_set_xform(vna_lan_t *l, const vna_xform_t *x)
     l->xform = x;
 }
 
+void vna_lan_resume_seq(vna_lan_t *l, uint64_t last_seq)
+{
+    if (l && last_seq > l->rec_seq) l->rec_seq = last_seq;
+}
+
+uint64_t vna_lan_seq(const vna_lan_t *l)
+{
+    return l ? l->rec_seq : 0;
+}
+
 /* Sign a fresh record (seq + 1). */
 static vna_status_t make_record(vna_lan_t *l, uint64_t now, bool goodbye)
 {

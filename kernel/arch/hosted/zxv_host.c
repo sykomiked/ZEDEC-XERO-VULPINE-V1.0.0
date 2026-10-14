@@ -15,8 +15,10 @@
  *                       holds the other end, so the engine never outlives it)
  *   zxv-host --net lan|online   turn on the Vinea peer network (default OFF:
  *                       no socket, nothing leaves the machine; see
- *                       zxv_net_host.h). --net-port N, --net-bind IP and
- *                       --peer IP:PORT (repeatable) go with it.
+ *                       zxv_net_host.h). --net-port N, --net-bind IP,
+ *                       --peer IP:PORT (repeatable), --state-dir DIR (the
+ *                       kept NodeID and peer cache) and --no-lan-discovery
+ *                       go with it.
  *   zxv-host --peer-serve PRICE   answer other nodes' prompts over TCP in a
  *                       post-quantum session for PRICE VFV minor units each
  *                       (zxv_peer_host.h; needs --net). --peer-float MINOR
@@ -62,6 +64,7 @@ typedef SOCKET sock_t;
 #    include <sys/time.h>
 #    include <netinet/in.h>
 #    include <arpa/inet.h>
+#    include <sys/stat.h>
 #    include <unistd.h>
 #    include <signal.h>
 typedef int sock_t;
@@ -88,6 +91,7 @@ typedef int sock_t;
 #include "swarm_hk.h"
 #include "swarm_governor.h"
 #include "swarm_dna.h"
+#include "swarm_evolve.h"
 #include "settle.h"
 #include "pa_runtime.h"
 #include "quest.h"
@@ -104,8 +108,17 @@ typedef int sock_t;
 #include "zxv_update_host.h"
 #include "zx_notify.h"
 #include "zx_upcheck.h"
+#if defined(ZXV_HAVE_PLAY)
+#    include "zxvplay.h" /* sdk/playground: templates and the language runner */
+#endif
 #if defined(ZXVD)
-#    include "zxvd_rpc.h" /* zxvd: the JSON-RPC socket and the libzxv books */
+#    include "zxvd_rpc.h"       /* zxvd: the JSON-RPC socket and the libzxv books */
+#    include "zxvd_chat.h"      /* zxvd: the owner's social chat (chat.*) */
+#    include "zxvd_pay.h"       /* zxvd: ISO 20022, cards, netting, passkeys, escrow */
+#    include "zxvd_groups.h"    /* netting, cards, ...: method groups behind switches */
+#    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
+#    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
+#    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -219,6 +232,40 @@ static void pal_open_window(const char *url)
     snprintf(cmd, sizeof cmd, "xdg-open '%s' >/dev/null 2>&1 &", url);
 #    endif
     if (system(cmd) != 0) fprintf(stderr, "open the window at %s\n", url);
+#endif
+}
+
+/* Where the Vinea identity and peer cache live (zxv_net_host.h U9) when no
+ * --state-dir is given: the per-user app folder, parents made 0700. */
+static void pal_state_dir(char *out, size_t cap)
+{
+    out[0] = 0;
+#if defined(_WIN32)
+    const char *app = getenv("APPDATA");
+    if (!app) return;
+    snprintf(out, cap, "%s\\ZXV", app);
+    CreateDirectoryA(out, NULL);
+    snprintf(out, cap, "%s\\ZXV\\net", app);
+#else
+    const char *home = getenv("HOME");
+#    if defined(__APPLE__)
+    if (!home || home[0] != '/') return;
+    snprintf(out, cap, "%s/Library/Application Support/ZXV/net", home);
+#    else
+    const char *xdg = getenv("XDG_DATA_HOME");
+    if (xdg && xdg[0] == '/')
+        snprintf(out, cap, "%s/zxv/net", xdg);
+    else if (home && home[0] == '/')
+        snprintf(out, cap, "%s/.local/share/zxv/net", home);
+    else
+        return;
+#    endif
+    for (char *p = out + 1; *p; p++)
+        if (*p == '/') {
+            *p = 0;
+            (void) mkdir(out, S_IRWXU);
+            *p = '/';
+        }
 #endif
 }
 
@@ -474,10 +521,13 @@ static struct {
     uint32_t due_mask;
     uint64_t rng;
     uint64_t instance_seed;
+    /* the companion's own steps (swarm_evolve.h V7) */
+    uint64_t companion_steps, companion_last_step;
     bool quit;
     /* the companion's model answers under the budget (zxv_budget_gate.h) */
     zxv_gate_t last_gate;
     bool have_gate;
+    bool power_wait; /* zxvd_power.h W4: the last ask waited on an energy budget */
     /* the 64-state tag on the last model answer (zxv_answer_tag.h) and the
      * quarantine log of forbidden answers (lpres_hex.h X6) */
     bool have_tag;
@@ -622,11 +672,22 @@ static void quest_trade(void *ctx, uint8_t role, const vna_id_t *peer, uint8_t r
     if (qst_record(&S.quest, &ev) < 0) S.quest_refused++;
 }
 
+/* The governor's tokens per cycle, scaled in zxvd by the battery posture
+ * (zxvd_power.h W5: x1 on mains, 0.618 on battery, 0.382 at 20%, 0 at 5%). */
+static uint64_t cycle_rate(void)
+{
+#if defined(ZXVD)
+    return S.gov.tokens_per_cycle * zxvd_power_token_scale() / 1000u;
+#else
+    return S.gov.tokens_per_cycle;
+#endif
+}
+
 /* Build (or rebuild) the swarm to the governor's size. */
 static void build_swarm(void)
 {
     uint32_t levels = S.gov.num_levels ? S.gov.num_levels : 1;
-    uint64_t T = S.gov.tokens_per_cycle;
+    uint64_t T = cycle_rate();
     swarm_budget_init(&S.b, levels, T);
     swarm_market_init(&S.m);
     swarm_emotion_init(&S.e);
@@ -648,6 +709,10 @@ static void build_swarm(void)
     /* audited from the first transfer (settle_join's endowments are issues,
      * which peer_audit does not replay) */
     if (S.audit_on) settle_set_audit(&S.spine, audit_posting, NULL);
+    /* the companion keeps its DNA when the swarm is rebuilt (its seat is
+     * not contested, swarm_evolve.h V4) */
+    bool keep = S.num_agents > 0;
+    swarm_dna_t kept = keep ? S.agent[0].dna : swarm_dna_from_seed(0);
     S.num_agents = 0;
     uint32_t id = 1;
     for (uint32_t d = 0; d < levels; d++) {
@@ -655,6 +720,7 @@ static void build_swarm(void)
             agent_t *a = &S.agent[S.num_agents++];
             a->id = id;
             a->dna = swarm_dna_from_seed(S.instance_seed ^ ((uint64_t) id * 0x9E3779B97F4A7C15ull));
+            if (id == 1 && keep) a->dna = kept;
             a->gated_value = 0;
             name_agent(a, d);
             swarm_budget_register(&S.b, id, d);
@@ -710,8 +776,7 @@ static void close_cycle(void)
     swarm_budget_end_cycle(&S.b);
     /* The ouroboros loop (zxv_net_host.h U6): verified remote compute this
      * cycle raises the next cycle's budget rate; the mesh book settles. */
-    if (S.net &&
-        zxv_net_econ_cycle(S.net, &S.b, S.gov.tokens_per_cycle, zxv_net_wall_ms(), NULL) != 0)
+    if (S.net && zxv_net_econ_cycle(S.net, &S.b, cycle_rate(), zxv_net_wall_ms(), NULL) != 0)
         fprintf(stderr, "zxv: mesh economy cycle refused\n");
     /* The fee loop (settle.h F1-F3): last cycle's node bounties return to
      * the pot, then the assurance fee comes off it into the four buckets. */
@@ -771,8 +836,38 @@ static void market_cycle(void)
     open_cycle();
 }
 
+static uint64_t agent_fitness(uint32_t i)
+{
+    const swarm_trader_t *tr = swarm_market_trader(&S.m, S.agent[i].id);
+    return swarm_dna_fitness(S.agent[i].gated_value, tr ? tr->cap[SWARM_CAP_SOCIAL] : 0);
+}
+
+/* swarm_evolve.h V7: the companion (agent 0) takes one ratchet step toward
+ * the fittest other agent, before the levels breed. */
+static void evolve_companion(void)
+{
+    if (S.num_agents < 2) return;
+    uint32_t best = 1;
+    uint64_t best_fit = agent_fitness(1);
+    for (uint32_t i = 2; i < S.num_agents; i++) {
+        uint64_t f = agent_fitness(i);
+        if (f > best_fit) {
+            best = i;
+            best_fit = f;
+        }
+    }
+    agent_t *c = &S.agent[0];
+    if (!swarm_evo_companion(&c->dna, agent_fitness(0), &S.agent[best].dna, best_fit,
+                             S.fundamentals))
+        return;
+    S.companion_steps++;
+    S.companion_last_step = S.fundamentals;
+    swarm_emotion_set_feeling(&S.e, c->id, swarm_dna_express(&c->dna, NUM_SPECIALTIES).home);
+}
+
 static void evolve(void)
 {
+    evolve_companion();
     /* Digital DNA: within each level of 3 or more, the fittest pair breeds
      * and the child takes the least fit agent's place. */
     for (uint32_t d = 1; d < S.b.num_levels; d++) {
@@ -780,8 +875,7 @@ static void evolve(void)
         uint64_t fit[SWARM_MAX_MODELS];
         for (uint32_t i = 0; i < S.num_agents; i++) {
             if (S.b.slots[i].level != d) continue;
-            const swarm_trader_t *tr = swarm_market_trader(&S.m, S.agent[i].id);
-            fit[n] = swarm_dna_fitness(S.agent[i].gated_value, tr ? tr->cap[SWARM_CAP_SOCIAL] : 0);
+            fit[n] = agent_fitness(i);
             idx[n++] = i;
         }
         uint32_t pa, pb, w;
@@ -814,7 +908,7 @@ static void step(void)
                 build_swarm(); /* grow or shrink by levels */
                 open_cycle();
             } else {
-                swarm_budget_set_rate(&S.b, S.gov.tokens_per_cycle);
+                swarm_budget_set_rate(&S.b, cycle_rate());
             }
         }
     }
@@ -827,10 +921,21 @@ static int32_t run_under_budget(void *rctx, zxv_gen_fn gen, void *gctx)
 {
     (void) rctx;
     uint32_t companion = S.num_agents ? S.agent[0].id : 0;
+#if defined(ZXVD)
+    /* zxvd_power.h W4: a spent energy budget makes the companion wait; the
+     * model does not run (gen is never called) */
+    S.power_wait = !zxvd_power_admit(companion);
+    if (S.power_wait) return -1;
+    uint64_t cpu0 = zxvd_power_cpu_ns();
+#endif
     /* B5: the prompt's tokens are paid from the same allotment */
     int32_t r = zxv_budget_gate_ex(&S.b, companion, zxv_model_prompt_tokens(), ZXV_MODEL_MAX_NEW,
                                    gen, gctx, &S.last_gate);
     S.have_gate = true;
+#if defined(ZXVD)
+    /* W3: the call's CPU time (the engine's worker threads included) */
+    zxvd_power_note_agent(companion, "companion", zxvd_power_cpu_ns() - cpu0, 0);
+#endif
     return r;
 }
 
@@ -841,12 +946,16 @@ static void note_task(bool ok, const char *summary)
                       "chat");
 }
 
+/* True when the last answer() came from a real model (not a stand-in). */
+static bool LAST_ANSWER_MODEL;
+
 static void answer(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
     char reading[512];
     char model_note[400];
     S.asks++;
+    S.power_wait = false;
     if (S.qlog.n >= S.qlog.cap) { /* X6: a full quarantine log halts answers */
         snprintf(out, cap,
                  "The model is stopped: its quarantine log is full (%u withheld answers). "
@@ -855,6 +964,7 @@ static void answer(const char *q, char *out, size_t cap)
         return;
     }
     int m = zxv_model_answer_ex(q, run_under_budget, NULL, out, cap);
+    LAST_ANSWER_MODEL = m == 1;
 #if defined(ZXV_HAVE_ZT_GLUE)
     if (m == 1 || m == 0) {
         zxv_zt_last_verdict(&S.last_verdict);
@@ -888,6 +998,17 @@ static void answer(const char *q, char *out, size_t cap)
         note_task(true, sum);
         return;
     }
+#if defined(ZXVD)
+    if (m == ZXV_MODEL_BUDGET_EXHAUSTED && S.power_wait) {
+        S.power_wait = false;
+        snprintf(out, cap,
+                 "Energy budget reached: an energy budget on the companion is spent for this "
+                 "window (or is strict and this machine measures no energy), so the model did "
+                 "not run. It can answer again when the window renews; power.budget sets or "
+                 "clears budgets.");
+        return;
+    }
+#endif
     if (m == ZXV_MODEL_BUDGET_EXHAUSTED) {
         S.exhausted_asks++;
         if (S.last_gate.remaining_before > 0) { /* B5: tokens left, but not enough to read it */
@@ -1122,6 +1243,21 @@ static void state_json(buf_t *b)
          ns.send_errors, ns.trades, ns.receipts_refused, (unsigned long long) ns.imported,
          (!ns.bound || ns.conserved) ? "true" : "false");
     json_str(b, ns.error);
+    bput(b,
+         ",\"persisted\":%s,\"state_busy\":%s,\"cached_peers\":%u,\"lan_discovery\":%s,"
+         "\"lan_peers\":%u,\"lan_announces\":%u,\"lan_accepted\":%u,\"lan_refused\":%u,"
+         "\"public_votes\":%u,\"public_addr\":",
+         ns.persisted ? "true" : "false", ns.state_busy ? "true" : "false", ns.cached_peers,
+         ns.lan_discovery ? "true" : "false", ns.lan_peers, ns.lan_announces, ns.lan_accepted,
+         ns.lan_refused, ns.public_votes);
+    json_str(b, ns.public_addr);
+    bput(b,
+         ",\"punch_asked\":%u,\"punch_relayed\":%u,\"punch_ok\":%u,\"aipi\":%s,"
+         "\"aipi_calls_out\":%u,\"aipi_served\":%u,\"aipi_claims_in\":%u,"
+         "\"aipi_claims_refused\":%u,\"aipi_escrow\":%llu,\"aipi_budget\":%llu",
+         ns.punch_asked, ns.punch_relayed, ns.punch_ok, ns.aipi ? "true" : "false",
+         ns.aipi_calls_out, ns.aipi_served, ns.aipi_claims_in, ns.aipi_claims_refused,
+         (unsigned long long) ns.aipi_escrow, (unsigned long long) ns.aipi_budget);
     zxv_update_status_t us;
     zxv_update_status(&us);
     bput(b, "},\"update\":{\"checked\":%s,\"installable\":%s,\"auto\":%s,\"status\":",
@@ -1292,7 +1428,8 @@ static const char TOKEN_SCRIPT[] =
 
 static const char PAGE_CSP[] =
     "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; "
-    "style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+    "style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src blob:; font-src 'self'; "
+    "connect-src 'self'; "
     "frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n";
 
 static void send_page(sock_t c)
@@ -1312,11 +1449,197 @@ static void send_page(sock_t c)
     send_all(c, html + cut, total - cut);
 }
 
+/* ASCW Golden, the window's font (assets/fonts/ascw-golden; the page's
+ * @font-face block asks for /fonts/<file>). The folder is --fonts-dir, else
+ * $ZXV_FONTS_DIR, else beside the program: fonts/, ../Resources/Fonts (the
+ * Mac app), ../share/zxv/fonts (Linux). Without it the page uses the
+ * system's fonts. Only ASCW-*.ttf/.otf names are served, never a path. */
+static char FONTS_DIR[1024];
+
+static bool fonts_dir_ok(const char *dir)
+{
+    char probe[1100];
+    if (!dir || !dir[0] || strlen(dir) >= sizeof FONTS_DIR) return false;
+    snprintf(probe, sizeof probe, "%s/ASCW-Golden-Latin2.ttf", dir);
+    FILE *fp = fopen(probe, "rb");
+    if (!fp) return false;
+    fclose(fp);
+    return true;
+}
+
+static void pal_find_fonts(const char *flag, const char *argv0)
+{
+    if (flag) {
+        if (fonts_dir_ok(flag))
+            snprintf(FONTS_DIR, sizeof FONTS_DIR, "%s", flag);
+        else
+            fprintf(stderr, "zxv-host: --fonts-dir %s has no ASCW Golden fonts\n", flag);
+        return;
+    }
+    const char *env = getenv("ZXV_FONTS_DIR");
+    if (fonts_dir_ok(env)) {
+        snprintf(FONTS_DIR, sizeof FONTS_DIR, "%s", env);
+        return;
+    }
+    char base[900];
+    snprintf(base, sizeof base, "%s", argv0 ? argv0 : "");
+    char *cut = NULL;
+    for (char *q = base; *q; q++)
+        if (*q == '/' || *q == '\\') cut = q;
+    if (cut)
+        *cut = 0;
+    else
+        snprintf(base, sizeof base, ".");
+    static const char *const REL[] = {"/fonts", "/../Resources/Fonts", "/../share/zxv/fonts"};
+    for (size_t i = 0; i < sizeof REL / sizeof REL[0]; i++) {
+        char d[1024];
+        snprintf(d, sizeof d, "%s%s", base, REL[i]);
+        if (fonts_dir_ok(d)) {
+            snprintf(FONTS_DIR, sizeof FONTS_DIR, "%s", d);
+            return;
+        }
+    }
+}
+
+/* "ASCW-<letters, digits, '-'>.ttf" or ".otf", nothing else */
+static bool font_name_ok(const char *p, size_t n)
+{
+    if (n < 10 || n > 80 || memcmp(p, "ASCW-", 5) != 0) return false;
+    if (memcmp(p + n - 4, ".ttf", 4) != 0 && memcmp(p + n - 4, ".otf", 4) != 0) return false;
+    for (size_t i = 5; i < n - 4; i++) {
+        char ch = p[i];
+        if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
+              ch == '-'))
+            return false;
+    }
+    return true;
+}
+
+static void send_font(sock_t c, const char *name, size_t n)
+{
+    char path[1200];
+    FILE *fp = NULL;
+    if (FONTS_DIR[0] && font_name_ok(name, n)) {
+        snprintf(path, sizeof path, "%s/%.*s", FONTS_DIR, (int) n, name);
+        fp = fopen(path, "rb");
+    }
+    if (!fp) {
+        reply(c, "404 Not Found", "text/plain", "no such font", 12);
+        return;
+    }
+    fseek(fp, 0, SEEK_END);
+    long len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    if (len <= 0 || len > 64L * 1024 * 1024) {
+        fclose(fp);
+        reply(c, "404 Not Found", "text/plain", "no such font", 12);
+        return;
+    }
+    /* fonts may be cached: they are the same files at every launch */
+    char head[512];
+    int h = snprintf(head, sizeof head,
+                     "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\n"
+                     "Cache-Control: private, max-age=86400\r\nX-Content-Type-Options: nosniff\r\n"
+                     "Cross-Origin-Resource-Policy: same-origin\r\nConnection: close\r\n\r\n",
+                     memcmp(name + n - 4, ".otf", 4) ? "font/ttf" : "font/otf", len);
+    send_all(c, head, (size_t) h);
+    char buf[65536];
+    size_t k;
+    while ((k = fread(buf, 1, sizeof buf, fp)) > 0) send_all(c, buf, k);
+    fclose(fp);
+}
+
 static zxv_guard_t G;
+
+/* A request: the headers and the largest body a route takes, with room for
+ * the headers: a whole Playground template (zxvplay.h zp_request), else one
+ * zxvd RPC line (the window's /api/rpc, used by the staple apps). */
+#if defined(ZXV_HAVE_PLAY)
+#    define REQ_MAX (320u * 1024u)
+#elif defined(ZXVD)
+#    define REQ_MAX (ZXVD_RPC_MAX_LINE + 8192)
+#else
+#    define REQ_MAX 8192
+#endif
+
+#if defined(ZXV_HAVE_PLAY)
+/* POST /api/play/run and /api/play/draft. The page sends the template id
+ * and the files the user edited; nothing here touches the books. */
+static void play_reply(sock_t c, int32_t st, char *json, size_t n)
+{
+    if (st == ZP_OK && json)
+        reply(c, "200 OK", "application/json", json, n);
+    else
+        reply(c, "500 Internal Server Error", "text/plain", "playground failed", 17);
+    free(json);
+}
+
+static void play_run(sock_t c, const char *body, size_t len)
+{
+    static zp_request r;
+    char *out = NULL;
+    size_t n = 0;
+    const zp_template *t;
+    if (zp_request_parse(body, len, &r) != ZP_OK) {
+        reply(c, "400 Bad Request", "text/plain", "bad playground request", 22);
+        return;
+    }
+    t = zp_template_find(r.template_id);
+    if (!t && !r.n_files) {
+        reply(c, "404 Not Found", "text/plain", "no such template", 16);
+        return;
+    }
+    int32_t st = zp_run(t, r.files, r.n_files, &out, &n); /* fills out, n first */
+    play_reply(c, st, out, n);
+}
+
+/* The local swarm drafts one file. Its text is returned to the page as an
+ * untrusted draft: the page shows it beside the editor and nothing runs
+ * until the person accepts it and presses Run. */
+static void play_draft(sock_t c, const char *body, size_t len)
+{
+    static zp_request r;
+    static char ans[16384];
+    char req[1024];
+    char *prompt = NULL;
+    const zp_template *t;
+    int32_t st;
+    if (zp_request_parse(body, len, &r) != ZP_OK || !(t = zp_template_find(r.template_id))) {
+        reply(c, "400 Bad Request", "text/plain", "bad playground request", 22);
+        return;
+    }
+    snprintf(req, sizeof req, "%.*s",
+             (int) (r.request_len < sizeof req ? r.request_len : sizeof req - 1),
+             r.request ? r.request : "");
+    st = zp_draft_prompt(t, r.files, r.n_files, req, &prompt, NULL);
+    if (st == ZP_E_NOTFOUND) {
+        reply(c, "404 Not Found", "text/plain", "this template has no AI draft", 29);
+        return;
+    }
+    if (st != ZP_OK) {
+        reply(c, "500 Internal Server Error", "text/plain", "playground failed", 17);
+        return;
+    }
+    answer(prompt, ans, sizeof ans);
+    free(prompt);
+    {
+        buf_t b = {malloc(4096), 0, 4096};
+        if (!b.p) {
+            reply(c, "500 Internal Server Error", "text/plain", "playground failed", 17);
+            return;
+        }
+        bput(&b, "{\"model\":%s,\"draft\":", LAST_ANSWER_MODEL ? "true" : "false");
+        json_str(&b, ans);
+        bput(&b, "}");
+        reply(c, "200 OK", "application/json", b.p, b.len);
+        free(b.p);
+    }
+}
+#endif
 
 static void handle(sock_t c)
 {
-    char req[8192];
+    static char req[REQ_MAX];
     int n = 0, k;
     char *hdr_end = NULL;
     long want = 0;
@@ -1381,6 +1704,11 @@ static void handle(sock_t c)
             send_page(c);
         else
             reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
+    } else if (plen > 7 && !memcmp(path, "/fonts/", 7)) {
+        if (is_get)
+            send_font(c, path + 7, plen - 7);
+        else
+            reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
     } else if (PATH_IS("/api/state") && is_get) {
         buf_t b = {malloc(4096), 0, 4096};
         if (!b.p) return;
@@ -1417,6 +1745,31 @@ static void handle(sock_t c)
         else
             reply(c, "400 Bad Request", "text/plain", "off, lan, online, peer, share, want or sell",
                   43);
+#if defined(ZXVD)
+    } else if (PATH_IS("/api/rpc") && !is_get) {
+        /* the window's way to zxvd's methods (the staple apps): one JSON-RPC
+         * request in, its response out, the same as a line on the socket */
+        zxvd_buf_t o = {0};
+        if (!zxvd_rpc_handle_line(body, (size_t) want, &o)) zxvd_buf_raw(&o, "{}", 2);
+        if (o.oom || !o.p)
+            reply(c, "500 Internal Server Error", "text/plain", "out of memory", 13);
+        else
+            reply(c, "200 OK", "application/json", o.p, o.len);
+        free(o.p);
+    } else if (PATH_IS("/api/rpc")) {
+        reply(c, "405 Method Not Allowed", "text/plain", "wrong method", 12);
+#endif
+#if defined(ZXV_HAVE_PLAY)
+    } else if (PATH_IS("/api/play/catalogue") && is_get) {
+        char *js = NULL;
+        size_t jn = 0;
+        int32_t st = zp_catalogue_json(&js, &jn); /* fills js, jn first */
+        play_reply(c, st, js, jn);
+    } else if (PATH_IS("/api/play/run") && !is_get) {
+        play_run(c, body, (size_t) want);
+    } else if (PATH_IS("/api/play/draft") && !is_get) {
+        play_draft(c, body, (size_t) want);
+#endif
     } else if (PATH_IS("/api/state") || PATH_IS("/api/ask") || PATH_IS("/api/quit") ||
                PATH_IS("/api/notes") || PATH_IS("/api/notes/read") || PATH_IS("/api/update") ||
                PATH_IS("/api/net")) {
@@ -1445,6 +1798,70 @@ static void rpc_ask(const char *q, zxvd_buf_t *o)
     answer(q, ans, sizeof ans);
     zxvd_buf_json_str(o, ans);
 }
+
+#    if defined(ZXV_HAVE_PLAY)
+/* play.* (zxvd_rpc.h P1-P3) over sdk/playground. */
+static void to_zp(const zxvd_play_file_t *f, uint32_t n, zp_file *z)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        z[i].name = f[i].name;
+        z[i].text = f[i].text;
+        z[i].len = f[i].len;
+    }
+}
+
+static const char *rpc_play_catalogue(zxvd_buf_t *o)
+{
+    char *js = NULL;
+    size_t n = 0;
+    if (zp_catalogue_json(&js, &n) != ZP_OK) return "the playground could not list its templates";
+    while (n && js[n - 1] == '\n') n--;
+    zxvd_buf_raw(o, js, n);
+    free(js);
+    return NULL;
+}
+
+static const char *rpc_play_run(const char *tid, const zxvd_play_file_t *f, uint32_t n,
+                                zxvd_buf_t *o)
+{
+    zp_file z[ZP_MAX_FILES];
+    char *js = NULL;
+    size_t len = 0;
+    const zp_template *t = zp_template_find(tid);
+    if (n > ZP_MAX_FILES) return "too many files";
+    if (!t) return "no such template (see play.catalogue)";
+    to_zp(f, n, z);
+    if (zp_run(t, z, n, &js, &len) != ZP_OK) return "the playground could not run the template";
+    while (len && js[len - 1] == '\n') len--;
+    zxvd_buf_raw(o, js, len);
+    free(js);
+    return NULL;
+}
+
+static const char *rpc_play_draft(const char *tid, const zxvd_play_file_t *f, uint32_t n,
+                                  const char *request, zxvd_buf_t *o)
+{
+    static char ans[16384];
+    zp_file z[ZP_MAX_FILES];
+    char *prompt = NULL;
+    const zp_template *t = zp_template_find(tid);
+    int32_t st;
+    if (n > ZP_MAX_FILES) return "too many files";
+    if (!t) return "no such template (see play.catalogue)";
+    to_zp(f, n, z);
+    st = zp_draft_prompt(t, z, n, request, &prompt, NULL);
+    if (st == ZP_E_NOTFOUND) return "this template has no AI draft";
+    if (st != ZP_OK) return "the playground could not build the prompt";
+    answer(prompt, ans, sizeof ans);
+    free(prompt);
+    zxvd_buf_printf(o, "{\"model\":%s,\"draft\":", LAST_ANSWER_MODEL ? "true" : "false");
+    zxvd_buf_json_str(o, ans);
+    zxvd_buf_raw(o, "}", 1);
+    return NULL;
+}
+
+static const zxvd_play_ops_t PLAY_OPS = {rpc_play_catalogue, rpc_play_run, rpc_play_draft};
+#    endif
 
 static void rpc_model(zxvd_buf_t *o)
 {
@@ -1742,6 +2159,25 @@ static void rpc_player_card(zxvd_buf_t *o)
 
 static const zxvd_view_ops_t VIEW_OPS = {rpc_net_peers, rpc_net_offers, rpc_player_card};
 
+/* zxvd_companion.h H2: the companion (agent 0) as the swarm holds it now */
+static bool rpc_companion(zxvd_companion_t *k)
+{
+    if (!S.num_agents) return false;
+    const agent_t *a = &S.agent[0];
+    k->agent_id = a->id;
+    k->dna = a->dna;
+    k->feeling = swarm_dna_express(&a->dna, NUM_SPECIALTIES).home;
+    for (uint32_t i = 0; i < S.e.num; i++)
+        if (S.e.model_id[i] == a->id) k->feeling = S.e.feeling[i];
+    k->mood = S.e.mood;
+    k->specialty = SPECIALTY;
+    k->num_specialties = NUM_SPECIALTIES;
+    k->steps = S.companion_steps;
+    k->growths = S.fundamentals;
+    k->last_step = S.companion_last_step;
+    return true;
+}
+
 /* zxvd_rpc.h S1-S4: every request the peer book settled goes into the
  * owner's books once. The book's history keeps the last ZXV_PEER_HISTORY;
  * more than that between two looks are counted as missed, not guessed. */
@@ -1776,7 +2212,8 @@ int main(int argc, char **argv)
 {
     bool server = false, open_window = true, exit_with_parent = false;
     int port = 8722;
-    const char *model = NULL, *models_dir = NULL;
+    const char *model = NULL, *models_dir = NULL, *fonts_dir = NULL, *state_dir = NULL;
+    bool lan_discovery = true;
     const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
     int npeers = 0;
     uint64_t peer_float = 0;
@@ -1786,8 +2223,11 @@ int main(int argc, char **argv)
     const char *books_path = NULL; /* zxvd_rpc.h F1; "-" keeps them in memory */
     char books_buf[512];
     const char *earn_ccy = "VFV";
+    const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
-    bool desktop = false;
+    bool desktop = false, phone_link = false;
+    int phone_port = ZXVD_PHONE_PORT;
+    const char *phone_bind = NULL;
     char rpc_buf[512], link_path[560];
     link_path[0] = 0;
     open_window = false; /* a daemon: the UI and SDKs come in over --rpc */
@@ -1809,6 +2249,8 @@ int main(int argc, char **argv)
             model = argv[++i];
         else if (!strcmp(argv[i], "--models-dir") && i + 1 < argc)
             models_dir = argv[++i];
+        else if (!strcmp(argv[i], "--fonts-dir") && i + 1 < argc)
+            fonts_dir = argv[++i];
         else if (!strcmp(argv[i], "--net") && i + 1 < argc) {
             if (zxv_net_mode_parse(argv[++i], &S.net_want) != 0) {
                 fprintf(stderr, "zxv-host: --net takes off, lan or online\n");
@@ -1823,6 +2265,10 @@ int main(int argc, char **argv)
             S.net_port = (uint16_t) np;
         } else if (!strcmp(argv[i], "--net-bind") && i + 1 < argc)
             S.net_bind = argv[++i];
+        else if (!strcmp(argv[i], "--state-dir") && i + 1 < argc)
+            state_dir = argv[++i];
+        else if (!strcmp(argv[i], "--no-lan-discovery"))
+            lan_discovery = false;
         else if (!strcmp(argv[i], "--peer") && i + 1 < argc) {
             if (npeers < MAX_PEERS_ARG)
                 peers[npeers++] = argv[++i];
@@ -1859,6 +2305,18 @@ int main(int argc, char **argv)
             earn_rate = strtoull(argv[++i], NULL, 10);
         else if (!strcmp(argv[i], "--desktop"))
             desktop = true;
+        else if (!strcmp(argv[i], "--enable") && i + 1 < argc)
+            enable_list = argv[++i];
+        else if (!strcmp(argv[i], "--phone-link"))
+            phone_link = true;
+        else if (!strcmp(argv[i], "--phone-port") && i + 1 < argc) {
+            phone_port = atoi(argv[++i]);
+            if (phone_port < 0 || phone_port > 65535) {
+                fprintf(stderr, "zxvd: --phone-port takes 0..65535\n");
+                return 2;
+            }
+        } else if (!strcmp(argv[i], "--phone-bind") && i + 1 < argc)
+            phone_bind = argv[++i];
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
@@ -1873,10 +2331,17 @@ int main(int argc, char **argv)
                    "                      data folder; \"-\" keeps them in memory)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
+                   "  --enable LIST       turn on features, comma-separated or \"all\"\n"
+                   "                      (all are off by default; features.get lists them)\n"
                    "  --desktop           the desktop app: the socket in the per-user\n"
                    "                      folder (unless --rpc), and the window opened in\n"
                    "                      the default browser; a second launch opens the\n"
                    "                      running one's window\n"
+                   "  --phone-link        let paired phones in on the local network from\n"
+                   "                      the start (else phone.link over --rpc turns it\n"
+                   "                      on; phone.pair makes a pairing link)\n"
+                   "  --phone-port N      its TCP port (default 47410; 0 = any free port)\n"
+                   "  --phone-bind IP     its private IPv4 address (default all)\n"
 #endif
                    "  --server            run headless; open the window remotely "
                    "over SSH\n"
@@ -1885,11 +2350,15 @@ int main(int argc, char **argv)
                    "  --port N            port (default 8722; 0 = any free port)\n"
                    "  --model FILE        GGUF model to use\n"
                    "  --models-dir DIR    where to look for *.gguf models\n"
+                   "  --fonts-dir DIR     ASCW Golden fonts for the window\n"
                    "  --exit-with-parent  stop when stdin closes\n"
                    "  --net MODE          off (default), lan or online: the Vinea peer network\n"
                    "  --net-port N        its UDP port (default 8723; 0 = any free port)\n"
                    "  --net-bind IP       its address (default 0.0.0.0)\n"
                    "  --peer IP:PORT      ping this peer at start (repeatable)\n"
+                   "  --state-dir DIR     keep the node identity and peer cache here\n"
+                   "                      (default: the per-user app folder; \"\" = keep none)\n"
+                   "  --no-lan-discovery  don't announce or listen on the LAN multicast group\n"
                    "  --peer-serve PRICE  answer peers over TCP for PRICE VFV minor units\n"
                    "  --peer-float MINOR  demo VFV for the peer wallet (tests, demos)\n"
                    "  --notify MODE       auto (OS notifier if present), print or off\n"
@@ -1971,6 +2440,18 @@ int main(int argc, char **argv)
     qst_init(&S.quest, NULL, NULL, &S.bus); /* single-user desktop: no age policy */
     qst_enrol(&S.quest, QUEST_OWNER);
     zxv_net_on_trade(S.net, quest_trade, NULL);
+    {
+        char sdir[1024];
+        if (!state_dir) {
+            pal_state_dir(sdir, sizeof sdir);
+            state_dir = sdir;
+        }
+        if (zxv_net_set_state_dir(S.net, state_dir) != 0) {
+            fprintf(stderr, "zxv-host: --state-dir path too long\n");
+            return 2;
+        }
+    }
+    zxv_net_set_lan_discovery(S.net, lan_discovery, 0);
     if (!(S.peer = zxv_peer_new()) || (peer_float && zxv_peer_fund(S.peer, peer_float) != 0)) {
         fprintf(stderr, "zxv-host: out of memory\n");
         return 1;
@@ -1978,7 +2459,10 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
     zxvd_rpc_set_peer_ops(&PEER_OPS);
     zxvd_rpc_set_view_ops(&VIEW_OPS);
+    zxvd_companion_set_source(rpc_companion);
 #endif
+
+    pal_find_fonts(fonts_dir, argc > 0 ? argv[0] : NULL);
 
     /* the model slot: an explicit file, else the first *.gguf in the
      * models folder, else none (the swarm runs without one) */
@@ -2042,11 +2526,95 @@ int main(int argc, char **argv)
                         "a whole number from 1\n");
         return 2;
     }
+    if (zxvd_groups_register() != 0) {
+        fprintf(stderr, "zxvd: a method group clashes with another (a build error)\n");
+        return 1;
+    }
+    /* zxvd_pay.h P6: its groups must be known before --enable and the books */
+    if (zxvd_pay_open() != 0) {
+        zxvd_rpc_groups_reset();
+        return 1;
+    }
+    if (zxvd_rpc_enable(enable_list) != 0) {
+        fprintf(stderr, "zxvd: --enable names an unknown feature (try features.get)\n");
+        zxvd_pay_close();
+        zxvd_rpc_groups_reset();
+        return 2;
+    }
 #    if defined(ZXV_HAVE_AIPI)
     /* without it zxvd still runs; aipi.* then answer "not available" */
     zxvd_rpc_set_aipi_ops(zxvd_aipi_open());
 #    endif
-    if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) return 1;
+#    if defined(ZXV_HAVE_PLAY)
+    zxvd_rpc_set_play_ops(&PLAY_OPS);
+#    endif
+    if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) {
+        zxvd_pay_close();
+        zxvd_rpc_groups_reset();
+        return 1;
+    }
+    /* zxvd_chat.h C1-C3: the chat keeps its key and log beside the books */
+    char chat_prefix[1100];
+    chat_prefix[0] = 0;
+    if (books_path) {
+        const char *slash = strrchr(books_path, '/');
+#    if defined(_WIN32)
+        const char *bs = strrchr(books_path, '\\');
+        if (bs && (!slash || bs > slash)) slash = bs;
+#    endif
+        int dl = slash ? (int) (slash - books_path + 1) : 0;
+        snprintf(chat_prefix, sizeof chat_prefix, "%.*ssocial", dl, books_path);
+    }
+    zxvd_chat_set_clock(zxv_net_wall_ms);
+    if (zxvd_chat_open(chat_prefix) != 0) {
+        zxvd_pay_close();
+        zxvd_rpc_close();
+        zxvd_rpc_groups_reset();
+        return 1;
+    }
+    /* seats.* (zxvd_seats.c L8): the roster in "seats" beside the books */
+    char seats_path[1100];
+    seats_path[0] = 0;
+    if (chat_prefix[0])
+        snprintf(seats_path, sizeof seats_path, "%.*sseats", (int) (strlen(chat_prefix) - 6),
+                 chat_prefix);
+    if (zxvd_seats_open(seats_path) != 0) {
+        zxvd_pay_close();
+        zxvd_chat_close();
+        zxvd_rpc_close();
+        zxvd_rpc_groups_reset();
+        return 1;
+    }
+    /* power.* (zxvd_power.h W2): without it zxvd still runs; power.status
+     * and power.top then answer that tracking is not running */
+    if (zxvd_power_open(NULL) != 0) fprintf(stderr, "zxvd: power tracking is unavailable\n");
+    {
+        /* the pairings live beside the socket, in the folder zxvd_rpc_open checked */
+        char pdir[sizeof rpc_buf];
+        snprintf(pdir, sizeof pdir, "%s", rpc_path);
+        char *sl = strrchr(pdir, '/');
+#    if defined(_WIN32)
+        char *bs = strrchr(pdir, '\\');
+        if (bs && (!sl || bs > sl)) sl = bs;
+#    endif
+        if (sl == pdir)
+            sl[1] = 0;
+        else if (sl)
+            *sl = 0;
+        else
+            snprintf(pdir, sizeof pdir, ".");
+        const char *why = NULL;
+        if (zxvd_phone_init(pdir) != 0 ||
+            (phone_link && (why = zxvd_phone_listen(phone_bind, (uint16_t) phone_port)))) {
+            if (why) fprintf(stderr, "zxvd: phone link: %s\n", why);
+            zxvd_power_close();
+            zxvd_pay_close();
+            zxvd_chat_close();
+            zxvd_rpc_close();
+            zxvd_rpc_groups_reset();
+            return 1;
+        }
+    }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
     if (ls == BAD_SOCK) {
@@ -2112,6 +2680,8 @@ int main(int argc, char **argv)
                port, port);
     printf("ZXV-URL: %s\n", url_tok);
 #if defined(ZXVD)
+    if (zxvd_phone_port())
+        printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());
     printf("ZXVD-RPC: %s\n", rpc_path);
     if (link_path[0]) pal_write_link(link_path, url_tok);
 #endif
@@ -2129,6 +2699,11 @@ int main(int argc, char **argv)
             FD_SET((sock_t) nfd, &rd);
             if ((int) nfd > maxfd) maxfd = (int) nfd;
         }
+        intptr_t lfd = zxv_net_lan_fd(S.net); /* U10: drained by on_readable too */
+        if (lfd >= 0) {
+            FD_SET((sock_t) lfd, &rd);
+            if ((int) lfd > maxfd) maxfd = (int) lfd;
+        }
         intptr_t pfd = zxv_peer_fd(S.peer);
         if (pfd >= 0) {
             FD_SET((sock_t) pfd, &rd);
@@ -2142,6 +2717,8 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
         int rfd = zxvd_rpc_fds(&rd);
         if (rfd > maxfd) maxfd = rfd;
+        int phfd = zxvd_phone_fds(&rd);
+        if (phfd > maxfd) maxfd = phfd;
 #endif
         struct timeval tv = {0, STEP_MS * 1000};
         int r = select(maxfd + 1, &rd, NULL, NULL, &tv);
@@ -2168,13 +2745,16 @@ int main(int argc, char **argv)
                 CLOSESOCK(c);
             }
         }
-        if (r > 0 && nfd >= 0 && FD_ISSET((sock_t) nfd, &rd))
+        if (r > 0 && ((nfd >= 0 && FD_ISSET((sock_t) nfd, &rd)) ||
+                      (lfd >= 0 && FD_ISSET((sock_t) lfd, &rd))))
             zxv_net_on_readable(S.net, zxv_net_wall_ms());
         if (r > 0 && pfd >= 0 && FD_ISSET((sock_t) pfd, &rd))
             zxv_peer_on_readable(S.peer, zxv_net_wall_ms());
 #if defined(ZXVD)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
         mesh_books_sync();
+        zxvd_power_tick(false); /* zxvd_power.h W2: at most once a second */
+        if (r >= 0) zxvd_phone_service(&rd, pal_now_ms());
 #endif
         zxv_net_tick(S.net, zxv_net_wall_ms());
         zxv_update_tick((uint64_t) time(NULL),
@@ -2188,7 +2768,11 @@ int main(int argc, char **argv)
     CLOSESOCK(ls);
 #if defined(ZXVD)
     if (link_path[0]) remove(link_path);
+    zxvd_pay_close();
+    zxvd_chat_close();
+    zxvd_phone_close();
     zxvd_rpc_close();
+    zxvd_rpc_groups_reset();
 #    if defined(ZXV_HAVE_AIPI)
     zxvd_rpc_set_aipi_ops(NULL);
     zxvd_aipi_close();

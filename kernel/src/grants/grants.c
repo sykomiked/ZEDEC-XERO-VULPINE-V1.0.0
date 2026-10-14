@@ -127,7 +127,9 @@ static pay_status_t post(grant_t *g, pay_posting_req_t *r, uint8_t kind, const c
 
 grant_status_t grant_pool_credit(grant_t *g, uint32_t from, uint64_t amount, uint64_t tick)
 {
-    if (!g || !g->L || amount == 0) return GRANT_ERR_ARG;
+    /* the pool cannot feed itself, and the reserve (redemption backing) is
+     * not inflow: either would count inflow for money that did not land */
+    if (!g || !g->L || amount == 0 || from == g->pool || from == g->reserve) return GRANT_ERR_ARG;
     grant_epoch_t *e = cur(g);
     uint64_t in;
     if (!pay_add_ok(e->inflow, amount, &in)) return GRANT_ERR_OVERFLOW;
@@ -520,7 +522,11 @@ grant_status_t grant_redeem(grant_t *g, uint32_t holder, uint32_t holder_vino, u
     grant_hold_t *h = find_hold(g, holder, lot);
     if (!h || h->count < n) return GRANT_ERR_FUNDS;
     const pay_account_t *v = pay_ledger_account(g->L, holder_vino);
-    if (!v || v->asset != g->vino) return GRANT_ERR_ARG;
+    const pay_account_t *ha = pay_ledger_account(g->L, holder);
+    /* the Vino goes to the barrels' owner, never to another owner's account */
+    if (!v || !ha || v->asset != g->vino || v->owner != ha->owner || holder_vino == g->pool ||
+        holder_vino == g->reserve)
+        return GRANT_ERR_ARG;
     uint64_t pay;
     if (__builtin_mul_overflow(n, price, &pay) || pay > LINE_LIMIT) return GRANT_ERR_OVERFLOW;
     pay_posting_req_t q;
