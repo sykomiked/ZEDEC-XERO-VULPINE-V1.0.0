@@ -121,9 +121,17 @@ require. It passes only when:
   request, every slow-tier job actually ran and passed (a skipped job
   counts as passing for a required check, so this is checked here).
 
-On a draft the same job is named `ci-gate (draft: fast tier only)`. That is a
-different check, so a draft's green fast tier can never satisfy the rule,
-even in the seconds between "Ready for review" and the new run starting.
+`ci-gate` always reports, under that one name:
+
+- On a draft it fails at once and says to mark the pull request ready for
+  review. A draft runs the fast tier only, so it can never satisfy the
+  rule; marking it ready starts the full run, whose `ci-gate` replaces the
+  draft's. (It used to report as `ci-gate (draft: fast tier only)`, a
+  different check, which left the required `ci-gate` at "Expected - waiting
+  for status to be reported" with no explanation.)
+- Every job in `ci.yml` has a `timeout-minutes` limit, about twice its
+  usual time. A hung job fails within that limit and `ci-gate` reports the
+  failure, instead of the gate waiting out GitHub's six-hour default.
 
 Branch protection is a repository setting, so the owner turns it on once:
 Settings > Rules > Rulesets > New branch ruleset, target `main`, enable

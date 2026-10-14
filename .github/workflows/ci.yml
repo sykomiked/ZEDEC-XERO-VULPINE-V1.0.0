@@ -41,6 +41,7 @@ jobs:
   # Every other job reads its outputs; a lint failure does not hide them.
   quick-checks:
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
     outputs:
       kernel: ${{ steps.changes.outputs.kernel }}
       dotnet: ${{ steps.changes.outputs.dotnet }}
@@ -115,6 +116,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -140,6 +142,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install ARM64 and x86_64 toolchains
@@ -189,6 +192,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     env:
       OPENSBI_TAG: v1.3.1
     steps:
@@ -437,6 +441,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.dotnet == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: sdk/dotnet
@@ -470,6 +475,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.proofs == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     env:
       TLA_VERSION: '1.7.4'
       TLA_SHA256: 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
@@ -522,6 +528,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - name: Install cross toolchains, qemu-user and valgrind
@@ -548,6 +555,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -580,6 +588,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -605,6 +614,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -631,6 +641,8 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    # 35 min on batch 2; the tensor tests (#124) run long under MSan
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -654,6 +666,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -676,6 +689,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -704,11 +718,14 @@ jobs:
   # skipped job counts as passing for a required check, so requiring the
   # individual jobs could let a run that skipped everything through; this
   # job checks the skips against what the change needs.
-  # On a draft it is named "ci-gate (draft: fast tier only)", a different
-  # check, so a draft's green fast tier can never satisfy the merge rule,
-  # even in the seconds between "Ready for review" and the new run starting.
+  # It always reports under the one name ci-gate, so the required check
+  # never sits at "Expected - waiting for status". On a draft it fails at
+  # once with "mark it ready for review": a draft runs the fast tier only,
+  # so its green fast tier can never satisfy the merge rule. Every job above
+  # has a time limit, so a hung job fails the gate within that limit instead
+  # of holding it for GitHub's six-hour default.
   ci-gate:
-    name: "${{ (github.event_name == 'pull_request' && github.event.pull_request.draft) && 'ci-gate (draft: fast tier only)' || 'ci-gate' }}"
+    name: ci-gate
     needs: [ quick-checks, host-tests, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
@@ -719,9 +736,14 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           KERNEL: ${{ needs.quick-checks.outputs.kernel }}
           HEAVY: ${{ needs.quick-checks.outputs.heavy }}
+          DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
         run: |
           python3 - <<'PY'
           import json, os, sys
+          if os.environ.get("DRAFT") == "true":
+              print("ci-gate: this pull request is a draft, which runs the fast tier only.")
+              print("Mark it ready for review: the full checks start then and this gate reports again.")
+              sys.exit(1)
           needs = json.loads(os.environ["NEEDS"])
           kernel = os.environ.get("KERNEL") == "true"
           heavy = os.environ.get("HEAVY") == "true"
