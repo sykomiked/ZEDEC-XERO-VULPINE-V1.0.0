@@ -99,6 +99,11 @@ lpres_state_t lpres_disjoin(lpres_state_t a, lpres_state_t b) {
     return LPRES_STATE_NEITHER;
 }
 
+lpres_state_t lpres_kjoin(lpres_state_t a, lpres_state_t b)
+{
+    return (lpres_state_t) (((unsigned) a | (unsigned) b) & 3u);
+}
+
 bool lpres_is_certain(lpres_state_t s) {
     return s == LPRES_STATE_TRUE || s == LPRES_STATE_FALSE;
 }
