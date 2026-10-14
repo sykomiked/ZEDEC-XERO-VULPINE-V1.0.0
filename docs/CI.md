@@ -133,6 +133,15 @@ require. It passes only when:
   usual time. A hung job fails within that limit and `ci-gate` reports the
   failure, instead of the gate waiting out GitHub's six-hour default.
 
+The SDK workflows (`sdk*.yml`) start only when something libzxv is built
+from changes: `sdk/libzxv`, `kernel/include`, `kernel/third_party` and the
+38 `kernel/src` directories the compiler reports for libzxv
+(`build_system/sdk_kernel_deps.py`, which also writes their path filters).
+They used to start on any `kernel/src/**` change, about 170 jobs for every
+kernel pull request, and CI's own jobs, `ci-gate` among them, waited behind
+them for the 20 runners. quick-checks runs `sdk_kernel_deps.py --check`, so
+the filters cannot drift from what libzxv actually compiles.
+
 Branch protection is a repository setting, so the owner turns it on once:
 Settings > Rules > Rulesets > New branch ruleset, target `main`, enable
 "Require status checks to pass", add `ci-gate` (source: GitHub Actions),

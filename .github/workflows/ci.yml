@@ -84,6 +84,11 @@ jobs:
         run: pip install clang-format==18.1.8 pyyaml
       - name: Every pull request workflow keeps drafts on the fast tier
         run: python3 build_system/check_workflow_tiers.py
+      - name: The SDK workflows start on exactly what libzxv is built from
+        # build_system/sdk_kernel_deps.py: the compiler's list of libzxv's
+        # kernel inputs must match the sdk*.yml path filters, so an SDK
+        # workflow neither misses a change nor starts on unrelated modules.
+        run: python3 build_system/sdk_kernel_deps.py --check
       - name: The mutation config parses and is consistent
         # A merge that keeps both sides of a targets.json entry used to pass
         # every fast job and then fail all three mutation shards on a ready
