@@ -1,6 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* paradox.h — the paradox engine (roadmap 6.6b, steps P0.1-P0.4).
+/* paradox.h — the paradox engine (roadmap 6.6b, steps P0.1-P0.4, and the
+ * P2.1 bridge from the AI evidence head: pdx_classify_answer).
  *
  * A paradox is a unit of work whose lpres state is Both (or Neither). This
  * module handles it one level up: it never decides whether the claim is
@@ -197,6 +198,22 @@ uint8_t pdx_kind_of_tag(lpx_t t);
  * neutral and special neutral); a forbidden input stays forbidden (X4). */
 pdx_class_t pdx_classify(lpx_t tag, const pdx_evidence_t *ev, const pdx_registry_t *reg,
                          const uint8_t sig[PDX_HASH]);
+
+/* ---- P2.1: an AI answer's evidence ---- */
+
+/* The evidence head's summary of an answer or span (tensor/zt_evh.h:
+ * zt_evh_summary gives base, n and the four counts; saturated goes in
+ * ev->stale) as a paradox class. base is an LPX_B_* code (the head uses
+ * the same numbers). The tag's phase is POTENTIAL with no tokens, EMERGING
+ * while the answer is still being written and MANIFEST once finished; its
+ * polarity comes from ev (NULL: neutral), as for any evidence. So a BOTH
+ * answer is constructive, destructive, neutral or special by its trend
+ * (or by a registered signature), a NEITHER answer is neutral (missing
+ * information), and TRUE and FALSE are not paradoxes (NONE). lpx_action of
+ * the class's tag is what to do with the answer. */
+pdx_class_t pdx_classify_answer(uint8_t base, uint32_t n_tokens, const pdx_evidence_t *ev,
+                                bool finished, const pdx_registry_t *reg,
+                                const uint8_t sig[PDX_HASH]);
 
 /* ---- P0.2 constructive: bounded parameter update ---- */
 typedef struct {

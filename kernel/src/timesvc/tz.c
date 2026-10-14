@@ -194,6 +194,15 @@ static bool parse_rule(cur_t *c, tz_rule_t *r)
     return true;
 }
 
+/* Every accepted zone keeps both offsets within 25 hours, whichever way
+ * the string ends: a DST zone with no rules takes std + 1 h by default,
+ * which can pass the limit even when std alone does not. */
+static bool offsets_ok(const tz_posix_t *z)
+{
+    return z->std.utoff >= -MAX_OFFSET_S && z->std.utoff <= MAX_OFFSET_S &&
+           z->dst.utoff >= -MAX_OFFSET_S && z->dst.utoff <= MAX_OFFSET_S;
+}
+
 bool tz_posix_parse(tz_posix_t *z, const char *s, uint32_t len)
 {
     cur_t c = {s, len, 0};
@@ -205,7 +214,7 @@ bool tz_posix_parse(tz_posix_t *z, const char *s, uint32_t len)
     z->dst.abbr[0] = 0;
     z->dst.utoff = z->std.utoff;
     z->dst.is_dst = false;
-    if (c.i == c.n) return true;
+    if (c.i == c.n) return offsets_ok(z);
 
     if (!parse_name(&c, z->dst.abbr)) return false;
     z->has_dst = true;
@@ -221,15 +230,14 @@ bool tz_posix_parse(tz_posix_t *z, const char *s, uint32_t len)
         parse_rule(&d, &z->start);
         d.i++;
         parse_rule(&d, &z->end);
-        return true;
+        return offsets_ok(z);
     }
     if (peek(&c) != ',') return false;
     c.i++;
     if (!parse_rule(&c, &z->start) || peek(&c) != ',') return false;
     c.i++;
     if (!parse_rule(&c, &z->end)) return false;
-    return c.i == c.n && z->std.utoff >= -MAX_OFFSET_S && z->std.utoff <= MAX_OFFSET_S &&
-           z->dst.utoff >= -MAX_OFFSET_S && z->dst.utoff <= MAX_OFFSET_S;
+    return c.i == c.n && offsets_ok(z);
 }
 
 /* The rule's moment in year y, as seconds since the epoch on the local

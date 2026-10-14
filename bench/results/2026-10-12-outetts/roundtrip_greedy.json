@@ -1,0 +1,240 @@
+{
+ "rows": [
+  {
+   "text": "Hello world, it is 3 pm.",
+   "ref_words": "hello world it is three pm",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "869",
+    "zt.prefill_s": "16.340",
+    "zt.prefill_tps": "53.2",
+    "zt.n_gen": "197",
+    "zt.gen_s": "11.242",
+    "zt.gen_tps": "17.44",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "173",
+    "zt.codes_fnv": "8056057ce9a8756d",
+    "zt.dec_load_s": "2.423",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "2.307",
+    "zt.dec_s": "1.125",
+    "zt.dec_rtf": "0.4879",
+    "zt.pcm_fnv": "c391c26bd08cd059",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 32.69086742401123,
+    "transcript": "Hello World, it is 3pm.",
+    "wer": 0.0
+   },
+   "llama": {
+    "wall_s": 19.541417360305786,
+    "prefill_s": 2.49639,
+    "n_prompt": 869,
+    "gen_s": 10.51754,
+    "n_gen": 349,
+    "vocoder_s": 0.67463,
+    "spectral_s": 3.508256,
+    "n_codes": 323,
+    "transcript": "Hello world. It is 3pm.",
+    "wer": 0.0,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 60.04373871917367,
+     "max_abs": 27.0,
+     "rms": 1.4099729887795442
+    }
+   }
+  },
+  {
+   "text": "The quick brown fox jumps over the lazy dog.",
+   "ref_words": "the quick brown fox jumps over the lazy dog",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "876",
+    "zt.prefill_s": "15.704",
+    "zt.prefill_tps": "55.8",
+    "zt.n_gen": "346",
+    "zt.gen_s": "30.665",
+    "zt.gen_tps": "11.25",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "309",
+    "zt.codes_fnv": "31eb7276282c1c93",
+    "zt.dec_load_s": "2.598",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "4.120",
+    "zt.dec_s": "1.989",
+    "zt.dec_rtf": "0.4828",
+    "zt.pcm_fnv": "d95d82ad6558bfb4",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 53.332897901535034,
+    "transcript": "The quick brown fox jumps over the lazy dog.",
+    "wer": 0.0
+   },
+   "llama": {
+    "wall_s": 17.851523399353027,
+    "prefill_s": 2.3086599999999997,
+    "n_prompt": 876,
+    "gen_s": 9.664879999999998,
+    "n_gen": 338,
+    "vocoder_s": 0.5584439999999999,
+    "spectral_s": 3.0690410000000004,
+    "n_codes": 299,
+    "transcript": "The quick brown fox jumps over the lazy door.",
+    "wer": 0.1111111111111111,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 64.46698758191542,
+     "max_abs": 32.0,
+     "rms": 1.8463141670821472
+    }
+   }
+  },
+  {
+   "text": "I bought 12 apples and 7 oranges for 5.50 dollars.",
+   "ref_words": "i bought twelve apples and seven oranges for five fifty dollars",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "888",
+    "zt.prefill_s": "16.458",
+    "zt.prefill_tps": "54.0",
+    "zt.n_gen": "405",
+    "zt.gen_s": "23.118",
+    "zt.gen_tps": "17.48",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "348",
+    "zt.codes_fnv": "e2e4764f30b25809",
+    "zt.dec_load_s": "2.386",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "4.640",
+    "zt.dec_s": "2.183",
+    "zt.dec_rtf": "0.4704",
+    "zt.pcm_fnv": "b1ce4702c9a022ae",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 46.68887376785278,
+    "transcript": "I bought 12 apples and 7 oranges for $5.50.",
+    "wer": 0.0
+   },
+   "llama": {
+    "wall_s": 22.564987182617188,
+    "prefill_s": 2.3991100000000003,
+    "n_prompt": 888,
+    "gen_s": 13.11626,
+    "n_gen": 415,
+    "vocoder_s": 0.705545,
+    "spectral_s": 4.161772,
+    "n_codes": 356,
+    "transcript": "I bought 12 apples and 7 oranges for $5.50.",
+    "wer": 0.0,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 62.560565023310744,
+     "max_abs": 48.0,
+     "rms": 2.4494859599013608
+    }
+   }
+  },
+  {
+   "text": "Please call me back at 9, or send a short message!",
+   "ref_words": "please call me back at nine or send a short message",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "879",
+    "zt.prefill_s": "17.150",
+    "zt.prefill_tps": "51.3",
+    "zt.n_gen": "298",
+    "zt.gen_s": "18.708",
+    "zt.gen_tps": "15.88",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "254",
+    "zt.codes_fnv": "13e7139bd3dc6e1e",
+    "zt.dec_load_s": "2.373",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "3.387",
+    "zt.dec_s": "1.586",
+    "zt.dec_rtf": "0.4684",
+    "zt.pcm_fnv": "42749b40cb6f82cc",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 41.78875756263733,
+    "transcript": "Please call me back at 9 or send a short message.",
+    "wer": 0.0
+   },
+   "llama": {
+    "wall_s": 16.6853129863739,
+    "prefill_s": 2.58445,
+    "n_prompt": 879,
+    "gen_s": 9.62843,
+    "n_gen": 315,
+    "vocoder_s": 0.498107,
+    "spectral_s": 2.944852,
+    "n_codes": 269,
+    "transcript": "Please call me back at 9 or send a short message.",
+    "wer": 0.0,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 61.44185089821036,
+     "max_abs": 70.0,
+     "rms": 2.1020748752646234
+    }
+   }
+  },
+  {
+   "text": "Is the meeting on Monday at 10:30, or on Tuesday?",
+   "ref_words": "is the meeting on monday at ten thirty or on tuesday",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "881",
+    "zt.prefill_s": "17.053",
+    "zt.prefill_tps": "51.7",
+    "zt.n_gen": "316",
+    "zt.gen_s": "17.371",
+    "zt.gen_tps": "18.13",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "272",
+    "zt.codes_fnv": "d39ecc180be5104b",
+    "zt.dec_load_s": "2.658",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "3.627",
+    "zt.dec_s": "1.714",
+    "zt.dec_rtf": "0.4725",
+    "zt.pcm_fnv": "10b058418e33c371",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 40.86611843109131,
+    "transcript": "Is the meeting on Monday at 1030 or on Tuesday?",
+    "wer": 0.18181818181818182
+   },
+   "llama": {
+    "wall_s": 17.974138736724854,
+    "prefill_s": 2.28303,
+    "n_prompt": 881,
+    "gen_s": 10.96139,
+    "n_gen": 339,
+    "vocoder_s": 0.561039,
+    "spectral_s": 3.1343330000000003,
+    "n_codes": 293,
+    "transcript": "Is the meeting on Monday at 10.30 or on Tuesday?",
+    "wer": 0.0,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 64.82105152321927,
+     "max_abs": 50.0,
+     "rms": 2.217736883042387
+    }
+   }
+  }
+ ],
+ "summary": {
+  "zxv_mean_wer": 0.03636363636363636,
+  "llama_mean_wer": 0.02222222222222222
+ },
+ "top_k": 1,
+ "seed": 42
+}
