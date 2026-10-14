@@ -29,6 +29,7 @@ bool ttf_parse(ttf_font_t *f, const uint8_t *data, uint32_t len) {
     uint32_t num_tables = rd16(data, len, 4);
     if (num_tables > 64u) return false;             /* absurd */
     uint32_t head=0, maxp=0, cmap=0, hlen_head=0, hlen_maxp=0, hlen_cmap=0;
+    uint32_t hhea=0, hlen_hhea=0;
 
     for (uint32_t i = 0; i < num_tables; i++) {
         uint32_t rec = 12u + i * 16u;
@@ -42,6 +43,8 @@ bool ttf_parse(ttf_font_t *f, const uint8_t *data, uint32_t len) {
         else if (tg == tag4('c','m','a','p')) { cmap = off; hlen_cmap = tl; }
         else if (tg == tag4('l','o','c','a')) { f->loca_off = off; f->loca_len = tl; }
         else if (tg == tag4('g','l','y','f')) { f->glyf_off = off; f->glyf_len = tl; }
+        else if (tg == tag4('h','h','e','a')) { hhea = off; hlen_hhea = tl; }
+        else if (tg == tag4('h','m','t','x')) { f->hmtx_off = off; f->hmtx_len = tl; }
     }
     if (!head || !maxp || !cmap || !f->loca_off || !f->glyf_off) return false;
     if (hlen_head < 54u || hlen_maxp < 6u) return false;
@@ -51,6 +54,17 @@ bool ttf_parse(ttf_font_t *f, const uint8_t *data, uint32_t len) {
     f->loca_long = rd16s(data, len, head + 50) != 0;
     f->num_glyphs = rd16(data, len, maxp + 4);
     if (f->num_glyphs == 0) return false;
+
+    /* horizontal metrics are optional: without them only advances are lost */
+    if (hhea && hlen_hhea >= 36u && f->hmtx_off) {
+        f->ascender  = rd16s(data, len, hhea + 4);
+        f->descender = rd16s(data, len, hhea + 6);
+        f->line_gap  = rd16s(data, len, hhea + 8);
+        f->num_hmetrics = rd16(data, len, hhea + 34);
+        if (f->num_hmetrics * 4u > f->hmtx_len) f->num_hmetrics = f->hmtx_len / 4u;
+    } else {
+        f->hmtx_off = 0; f->hmtx_len = 0;
+    }
 
     /* pick a Unicode format-4 cmap subtable */
     uint32_t nsub = rd16(data, len, cmap + 2);
@@ -197,24 +211,18 @@ static void quad_flatten(int32_t *sx,int32_t *sy,int32_t *ex,int32_t *ey,uint32_
     }
 }
 
-bool ttf_render(const ttf_font_t *f, uint32_t gid, uint32_t size,
-                uint8_t *bitmap, uint32_t w, uint32_t h) {
-    if (!f || !f->valid || !bitmap || w == 0 || h == 0 || size == 0) return false;
-    for (uint32_t i = 0; i < w*h; i++) bitmap[i] = 0;
-
-    uint32_t goff, gend;
-    if (!glyph_range(f, gid, &goff, &gend)) return false;
-    if (gend == goff) return false;                  /* empty glyph (e.g. space) */
-
+/* Flatten one SIMPLE glyph's contours, offset by (dx, dy) font units, into
+ * the edge list. Returns false for empty / composite / malformed. */
+static bool simple_edges(const ttf_font_t *f, uint32_t goff, uint32_t glen,
+                         int32_t dx, int32_t dy,
+                         int32_t *sx, int32_t *sy, int32_t *ex, int32_t *ey,
+                         uint32_t *ns) {
     static tt_pt pts[TT_MAX_PTS];
     static uint16_t ends[64];
     uint32_t nc = 0;
-    uint32_t npts = parse_simple(f, goff, gend - goff, pts, ends, &nc);
-    if (npts == 0) return false;                      /* composite / malformed */
-
-    /* build edge list in FONT UNITS by flattening each contour */
-    static int32_t sx[TT_MAX_SEG], sy[TT_MAX_SEG], ex[TT_MAX_SEG], ey[TT_MAX_SEG];
-    uint32_t ns = 0;
+    uint32_t npts = parse_simple(f, goff, glen, pts, ends, &nc);
+    if (npts == 0) return false;
+    for (uint32_t i = 0; i < npts; i++) { pts[i].x += dx; pts[i].y += dy; }
     uint32_t start = 0;
     for (uint32_t c = 0; c < nc; c++) {
         uint32_t last = ends[c];
@@ -238,13 +246,13 @@ bool ttf_render(const ttf_font_t *f, uint32_t gid, uint32_t size,
             tt_pt p = pts[idx];
             if (k == n) p = begin;                    /* close the contour */
             if (p.on) {
-                if (have_ctrl) { quad_flatten(sx,sy,ex,ey,&ns, cur.x,cur.y, ctrlx,ctrly, p.x,p.y); have_ctrl=false; }
-                else seg_add(sx,sy,ex,ey,&ns, cur.x,cur.y, p.x,p.y);
+                if (have_ctrl) { quad_flatten(sx,sy,ex,ey,ns, cur.x,cur.y, ctrlx,ctrly, p.x,p.y); have_ctrl=false; }
+                else seg_add(sx,sy,ex,ey,ns, cur.x,cur.y, p.x,p.y);
                 cur = p;
             } else {
                 if (have_ctrl) { /* two off-curve: implied on-curve midpoint */
                     int32_t mx=(ctrlx+p.x)/2, my=(ctrly+p.y)/2;
-                    quad_flatten(sx,sy,ex,ey,&ns, cur.x,cur.y, ctrlx,ctrly, mx,my);
+                    quad_flatten(sx,sy,ex,ey,ns, cur.x,cur.y, ctrlx,ctrly, mx,my);
                     cur.x=mx; cur.y=my; cur.on=1;
                 }
                 ctrlx = p.x; ctrly = p.y; have_ctrl = true;
@@ -252,6 +260,67 @@ bool ttf_render(const ttf_font_t *f, uint32_t gid, uint32_t size,
         }
         start = last + 1u;
     }
+    return true;
+}
+
+/* Collect a glyph's edges. A COMPOSITE glyph is a list of component glyphs,
+ * each placed by an x/y offset; components are drawn recursively (bounded
+ * depth, so a self-referencing font cannot loop). Point-matched placement and
+ * scaled components are declined rather than drawn wrongly. */
+#define TT_MAX_DEPTH 4
+static bool glyph_edges(const ttf_font_t *f, uint32_t gid, int32_t dx, int32_t dy,
+                        uint32_t depth, int32_t *sx, int32_t *sy, int32_t *ex,
+                        int32_t *ey, uint32_t *ns) {
+    uint32_t goff, gend;
+    if (depth > TT_MAX_DEPTH) return false;
+    if (!glyph_range(f, gid, &goff, &gend)) return false;
+    if (gend == goff) return false;                  /* empty glyph (e.g. space) */
+    uint32_t glen = gend - goff;
+    if (glen < 10u) return false;
+    const uint8_t *d = f->data; uint32_t len = f->len;
+    uint32_t g = f->glyf_off + goff;
+    if (rd16s(d, len, g) >= 0)
+        return simple_edges(f, goff, glen, dx, dy, sx, sy, ex, ey, ns);
+
+    uint32_t at = g + 10u, gl_end = g + glen;
+    bool any = false;
+    for (uint32_t comp = 0; comp < 64u; comp++) {
+        if (at + 4u > gl_end) return false;
+        uint32_t fl = rd16(d, len, at), sub = rd16(d, len, at + 2u);
+        at += 4u;
+        int32_t ax, ay;
+        if (fl & 0x0001u) { ax = rd16s(d, len, at); ay = rd16s(d, len, at + 2u); at += 4u; }
+        else { ax = (int8_t)rd8(d, len, at); ay = (int8_t)rd8(d, len, at + 1u); at += 2u; }
+        if (!(fl & 0x0002u)) return false;           /* point matching: declined */
+        if (fl & (0x0008u | 0x0040u | 0x0080u)) return false; /* scaled: declined */
+        if (glyph_edges(f, sub, dx + ax, dy + ay, depth + 1u, sx, sy, ex, ey, ns))
+            any = true;
+        if (!(fl & 0x0020u)) break;                  /* MORE_COMPONENTS */
+    }
+    return any;
+}
+
+uint32_t ttf_advance(const ttf_font_t *f, uint32_t gid) {
+    if (!f || !f->valid || !f->hmtx_off || f->num_hmetrics == 0) return 0;
+    /* glyphs past numberOfHMetrics share the last advance (monospace tails) */
+    uint32_t i = gid < f->num_hmetrics ? gid : f->num_hmetrics - 1u;
+    return rd16(f->data, f->len, f->hmtx_off + i * 4u);
+}
+
+bool ttf_render(const ttf_font_t *f, uint32_t gid, uint32_t size,
+                uint8_t *bitmap, uint32_t w, uint32_t h) {
+    return ttf_render_at(f, gid, size, bitmap, w, h, 0, (int32_t)h);
+}
+
+bool ttf_render_at(const ttf_font_t *f, uint32_t gid, uint32_t size,
+                   uint8_t *bitmap, uint32_t w, uint32_t h,
+                   int32_t origin_x_q8, int32_t baseline_y) {
+    if (!f || !f->valid || !bitmap || w == 0 || h == 0 || size == 0) return false;
+    for (uint32_t i = 0; i < w*h; i++) bitmap[i] = 0;
+
+    static int32_t sx[TT_MAX_SEG], sy[TT_MAX_SEG], ex[TT_MAX_SEG], ey[TT_MAX_SEG];
+    uint32_t ns = 0;
+    if (!glyph_edges(f, gid, 0, 0, 0, sx, sy, ex, ey, &ns)) return false;
     if (ns == 0) return false;
 
     /* supersampled non-zero-winding fill. Map each sub-sample pixel back to
@@ -269,8 +338,9 @@ bool ttf_render(const ttf_font_t *f, uint32_t gid, uint32_t size,
                     int64_t bxp = (int64_t)ox*2*S + sxi*2 + 1;   /* *2S scale */
                     int64_t byp = (int64_t)oy*2*S + syi*2 + 1;
                     /* -> font units: fx = bxp/(2S) * E/size ; fy flipped */
-                    int64_t fx = bxp * (int64_t)E / (2LL*S*size);
-                    int64_t fy = ((int64_t)h*2*S - byp) * (int64_t)E / (2LL*S*size);
+                    int64_t fx = (bxp * 256 - (int64_t)origin_x_q8 * 2 * S)
+                                 * (int64_t)E / (2LL*S*size*256);
+                    int64_t fy = ((int64_t)baseline_y*2*S - byp) * (int64_t)E / (2LL*S*size);
                     int32_t wind = 0;
                     for (uint32_t e = 0; e < ns; e++) {
                         int32_t ay=sy[e], by=ey[e];
