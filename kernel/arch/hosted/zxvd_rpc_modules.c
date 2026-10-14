@@ -675,8 +675,7 @@ static void run(zxvd_call_t *zc, void (*fn)(mc_t *))
     int32_t params = zxvd_param_json(zc, NULL, &v) ? v.at : -1;
     int err = 0;
     char msg[256] = "";
-    mc_t c = {v.js, (const w4_jtok_t *) v.tok, v.n, params, zxvd_result(zc), &err, msg,
-              sizeof msg};
+    mc_t c = {v.js, (const w4_jtok_t *) v.tok, v.n, params, zxvd_result(zc), &err, msg, sizeof msg};
     fn(&c);
     if (err) zxvd_fail(zc, err, "%s", msg);
 }
