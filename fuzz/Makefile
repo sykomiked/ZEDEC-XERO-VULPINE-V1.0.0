@@ -220,15 +220,13 @@ INC_fuzz_zxvd_rpc := -I$(K)/arch/hosted -I$(S)/web4 -I$(S)/robin_debanks -I$(S)/
                      -I$(S)/modbind -I$(S)/e8 -I$(S)/event_space -I$(S)/surplus -I$(S)/lpres -I$(S)/juris \
                      -I$(S)/freight -I$(S)/harmonic -I$(S)/stream -I$(S)/ehop -I$(S)/ipfs_node -I$(S)/pqsec \
                      -I$(S)/edp_risk -I$(K)/../sdk/libzxv/include
-# zxvd_rpc.c falls back to the module methods (zxvd_rpc_modules.c): the same
-# sources kernel/arch/hosted/zxvd_mod_archive.sh puts in the tests' archive
-ZXVD_MOD_SRC := $(K)/arch/hosted/zxvd_rpc_modules.c $(S)/freight/freight.c $(S)/freight/freight_ops.c \
-                $(S)/harmonic/zt_harmonic_wire.c $(S)/stream/stream_seg.c $(S)/ipfs_node/ipfsn_multiformats.c \
-                $(S)/ehop/ehop_sched.c $(S)/ehop/ehop_frame.c $(S)/tls/aead.c $(S)/web4/web4_cid.c \
-                $(S)/web4/web4_agent.c $(S)/pqsec/pq_mldsa65.c $(sort $(wildcard $(S)/pqsec/mldsa/[a-z]*.c))
-SRC_fuzz_zxvd_rpc := $(K)/arch/hosted/zxvd_rpc.c $(K)/arch/hosted/zxv_files.c $(K)/arch/hosted/zxv_spaces.c \
-                     $(S)/web4/web4_json.c $(S)/web4/web4_util.c $(S)/mlkem/keccak.c $(S)/robin_debanks/sha256.c \
-                     $(S)/juris/juris.c $(S)/acct/acct.c $(S)/lpres/lpres_hex.c $(S)/lpres/lpres.c $(ZXVD_MOD_SRC) \
+# zxvd_rpc.c's own dependencies and the module methods it falls back to, from
+# the one list the tests and the daemon build read (app_sources.sh rpcdeps,
+# modules)
+ZXVD_RPC_DEPS := $(addprefix $(K)/,$(shell sh $(K)/arch/hosted/app_sources.sh rpcdeps))
+ZXVD_MOD_SRC := $(addprefix $(K)/,$(shell sh $(K)/arch/hosted/app_sources.sh modules))
+SRC_fuzz_zxvd_rpc := $(K)/arch/hosted/zxvd_rpc.c $(S)/web4/web4_json.c $(S)/web4/web4_util.c \
+                     $(S)/mlkem/keccak.c $(S)/robin_debanks/sha256.c $(ZXVD_RPC_DEPS) $(ZXVD_MOD_SRC) \
                      $(LIBZXV_SAN)
 DEF_fuzz_zxvd_rpc := -U_DEFAULT_SOURCE -DTEST_HOST
 # The libFuzzer build links its own copy compiled by $(CC_FUZZ): gcc and clang

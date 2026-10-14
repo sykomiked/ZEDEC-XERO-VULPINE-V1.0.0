@@ -26,14 +26,11 @@ cc_() {
         -I"$K/src/ipfs_node" -I"$K/src/pqsec" -I"$K/src/lpres" -I"$K/src/edp_risk" \
         -I"$R/sdk/libzxv/include" "$@"
 }
-set -- "$HERE/zxvd_rpc_modules.c"
-for f in web4/web4_json.c web4/web4_util.c mlkem/keccak.c robin_debanks/sha256.c freight/freight.c \
-         freight/freight_ops.c harmonic/zt_harmonic_wire.c stream/stream_seg.c \
-         ipfs_node/ipfsn_multiformats.c ehop/ehop_sched.c ehop/ehop_frame.c tls/aead.c \
-         web4/web4_cid.c web4/web4_agent.c pqsec/pq_mldsa65.c; do
-    set -- "$@" "$K/src/$f"
+set --
+for f in src/web4/web4_json.c src/web4/web4_util.c src/mlkem/keccak.c src/robin_debanks/sha256.c \
+         $(sh "$HERE/app_sources.sh" modules); do
+    set -- "$@" "$K/$f"
 done
-for f in "$K"/src/pqsec/mldsa/[a-z]*.c; do set -- "$@" "$f"; done
 SUM="$({ "$CC" --version 2>&1; cat "$@" "$HERE"/*.h "$K"/include/*.h "$K"/src/*/*.h \
     "$K"/src/pqsec/mldsa/*.h "$R"/sdk/libzxv/include/*.h; } | cksum | cut -d' ' -f1)"
 A="${ZXV_TMP:-${TMPDIR:-/tmp}}/zxvd-rpc-modules.$SUM.a"

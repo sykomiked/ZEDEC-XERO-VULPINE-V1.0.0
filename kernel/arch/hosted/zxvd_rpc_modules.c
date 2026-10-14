@@ -695,6 +695,13 @@ int zxvd_mod_find(const char *js, const w4_jtok_t *name)
     return -1;
 }
 
+bool zxvd_mod_has(const char *name)
+{
+    for (int i = 0; name && i < N_MM; i++)
+        if (!strcmp(name, MM[i].name)) return true;
+    return false;
+}
+
 void zxvd_mod_names(zxvd_buf_t *out)
 {
     for (int i = 0; i < N_MM; i++) {

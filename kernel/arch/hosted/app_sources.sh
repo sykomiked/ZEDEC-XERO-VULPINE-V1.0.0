@@ -2,7 +2,7 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# app_sources.sh [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs|people|people_deps|people_incs] — the hosted app's C sources, one
+# app_sources.sh [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs|modules|people|people_deps|people_incs] — the hosted app's C sources, one
 # path per line, relative to kernel/. build_system/build_desktop.sh and
 # kernel/arch/hosted/test_hosted.sh both read this list, so the shipped app
 # and the tested app are built from the same files.
@@ -16,6 +16,10 @@
 #           serve, after zxvd_groups.c; groupincs: their include directories
 #   rpcdeps what zxvd_rpc.c links beyond web4, keccak and sha256, for the
 #           unit tests that build it on its own; rpcincs: their includes
+#   modules the module methods zxvd_rpc.c falls back to (zxvd_rpc_modules.c)
+#           and what they link beyond web4_json, web4_util, keccak and
+#           sha256: the one list zxvd_mod_archive.sh, build_zxvd.sh and
+#           fuzz/Makefile read
 #   people  zxvd's people features (zxvd_people.c: social, calls, translation,
 #           device mesh) and what they need beyond srcs; zxvd only
 #   people_deps  what they use from srcs (tests that build without srcs)
@@ -197,5 +201,14 @@ case "${1:-srcs}" in
         echo src/lpres/lpres.c
         ;;
     rpcincs) echo src/juris ;;
-    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs|people|people_deps|people_incs]" >&2; exit 2 ;;
+    modules)
+        echo arch/hosted/zxvd_rpc_modules.c
+        for f in freight/freight.c freight/freight_ops.c harmonic/zt_harmonic_wire.c \
+                 stream/stream_seg.c ipfs_node/ipfsn_multiformats.c ehop/ehop_sched.c \
+                 ehop/ehop_frame.c tls/aead.c web4/web4_cid.c web4/web4_agent.c pqsec/pq_mldsa65.c; do
+            echo "src/$f"
+        done
+        for f in src/pqsec/mldsa/[a-z]*.c; do echo "$f"; done
+        ;;
+    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs|modules|people|people_deps|people_incs]" >&2; exit 2 ;;
 esac

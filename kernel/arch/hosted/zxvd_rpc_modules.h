@@ -29,6 +29,7 @@
 #ifndef ZXVD_RPC_MODULES_H
 #define ZXVD_RPC_MODULES_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -39,6 +40,9 @@
 
 /* Index of the module method named by string token `name`, or -1. */
 int zxvd_mod_find(const char *js, const w4_jtok_t *name);
+/* Is `name` a module method? zxvd_rpc_add_group refuses a group that would
+ * take one of these names (zxvd_ext.h: a method name must be new). */
+bool zxvd_mod_has(const char *name);
 /* Append ,"name" for every module method (rpc.discover's tail). */
 void zxvd_mod_names(zxvd_buf_t *out);
 /* Run method `i` with params object token `params` (-1: none). On success

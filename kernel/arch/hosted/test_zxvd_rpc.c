@@ -3510,6 +3510,7 @@ static const zxvd_group_method_t G_A[] = {
 static const zxvd_group_method_t G_B[] = {{"gb.status", g_status, false}};
 static const zxvd_group_method_t G_DUP_CORE[] = {{"ledger.post", g_status, false}};
 static const zxvd_group_method_t G_DUP_GRP[] = {{"ga.echo", g_status, false}};
+static const zxvd_group_method_t G_DUP_MOD[] = {{"freight.pack", g_status, false}};
 static const zxvd_group_method_t G_DUP_SELF[] = {{"gc.x", g_status, false},
                                                  {"gc.x", g_status, false}};
 static const zxvd_group_method_t G_NULLFN[] = {{"gc.y", NULL, false}};
@@ -3526,6 +3527,7 @@ static void test_groups(void)
     const zxvd_group_t bad[] = {
         {"alpha", false, "", G_DUP_CORE, 1, NULL},
         {"alpha", false, "", G_DUP_GRP, 1, NULL},
+        {"alpha", false, "", G_DUP_MOD, 1, NULL}, /* a module method's name */
         {"alpha", false, "", G_DUP_SELF, 2, NULL},
         {"alpha", false, "", G_NULLFN, 1, NULL},
         {"alpha", false, "", G_EMPTY, 1, NULL},

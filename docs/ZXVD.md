@@ -278,15 +278,18 @@ an AIPI call refused or failed (the `AIPI_ERR_*` name and what it means),
 -32017 a module method refused well-formed input (see "Module methods"),
 -32020 a payment step refused (netting, passkey or escrow; the message says
 why), -32040 a card operation the issuer refused, -32041 a passkey ceremony
-refused (the message says why), -32050 an economy engine refused (the message is its status name, e.g.
+refused (the message says why), -32050 a vault, swap, auction, Zenny or
+stats engine refused (the message is its status name, e.g.
 `VSWAP_ERR_DISABLED`, or `VAUC_ERR_LEDGER (PAY_ERR_FUNDS)`),
--32060 an economy engine refused (the message is `<STATUS>: why`, see
-"Bonds, derivatives, grants and estates" below), -32070 no companion yet
+-32060 a bond, derivative, grant or estate engine refused (the message is
+`<STATUS>: why`, see "Bonds, derivatives, grants and estates" below),
+-32070 no companion yet
 (`companion.*` before the swarm has an agent),
 -32090 a Web4 feed operation refused (the message says why, see "The Web4
 envelope feed" below),
 -32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
-below),
+below), -32095 power tracking is not running or a budget's target is
+unknown (see "Power" below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
 -32015 a method a phone may not call (see below), -32016 a play.* call
 refused or failed (the message says why), -32030 a people method
@@ -943,7 +946,7 @@ window is spent, or a strict budget has nothing measured to judge by, the
 model does not run and the answer says "Energy budget reached". Nothing
 buys past a budget. The battery posture scales the swarm's tokens per
 cycle: x1 on mains or without a battery, x0.618 on battery, x0.382 at 20%
-or below, x0 at 5% or below. Error -32100 means power tracking is not
+or below, x0 at 5% or below. Error -32095 means power tracking is not
 running in this zxvd or the budget's target is unknown.
 
 Limits: the stand-in agents (levels 1 and up) run no model, so only the

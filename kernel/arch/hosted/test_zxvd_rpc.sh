@@ -25,10 +25,11 @@ cc_() {
         -I"$R/sdk/libzxv/include" "$@"
 }
 A="$(sh "$HERE/zxvd_mod_archive.sh")" || exit 3
+# what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
+RPCDEPS="$(sh "$HERE/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
 for t in test_zxvd_rpc test_zxvd_rpc_modules; do
-    cc_ "$HERE/$t.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" \
-        "$K/src/juris/juris.c" "$K/src/acct/acct.c" "$K/src/lpres/lpres_hex.c" "$K/src/lpres/lpres.c" \
-        "$A" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/$t" ||
+    # shellcheck disable=SC2086 # RPCDEPS is a list of paths without spaces
+    cc_ "$HERE/$t.c" "$HERE/zxvd_rpc.c" $RPCDEPS "$A" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/$t" ||
         exit 3
 done
 "$T/test_zxvd_rpc"

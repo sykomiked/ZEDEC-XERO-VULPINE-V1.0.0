@@ -703,7 +703,7 @@ def power_checks(c, generates):
     check(c.ok('power.budget', {'target': 'device', 'window_ms': 0, 'max_uj': 0}) == {'ok': True},
           'power.budget: the device budget cleared')
     r = c.call('power.budget', {'target': 'agent', 'agent': 99999, 'window_ms': 1, 'max_uj': 1})
-    check(r.get('error', {}).get('code') == -32100, 'power.budget: an unknown agent is refused')
+    check(r.get('error', {}).get('code') == -32095, 'power.budget: an unknown agent is refused')
     if not generates or not me:
         return
     # the companion's model call was noted; it shows after the next settle

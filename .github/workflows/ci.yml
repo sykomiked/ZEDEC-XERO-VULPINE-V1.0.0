@@ -89,6 +89,10 @@ jobs:
         # kernel inputs must match the sdk*.yml path filters, so an SDK
         # workflow neither misses a change nor starts on unrelated modules.
         run: python3 build_system/sdk_kernel_deps.py --check
+      - name: zxvd's error codes are one registry
+        # build_system/check_zxvd_errors.py: every ZXVD_E_* in range, unique,
+        # and listed in zxvd_rpc.h X4, docs/ZXVD.md and the OpenRPC spec.
+        run: python3 build_system/check_zxvd_errors.py
       - name: The mutation config parses and is consistent
         # A merge that keeps both sides of a targets.json entry used to pass
         # every fast job and then fail all three mutation shards on a ready

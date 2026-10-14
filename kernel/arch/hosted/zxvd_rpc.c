@@ -2508,7 +2508,7 @@ int zxvd_rpc_add_group(const zxvd_group_t *g)
         return -1;
     for (uint32_t i = 0; i < g->n_methods; i++) {
         const char *m = g->methods[i].name;
-        if (!m || !*m || !g->methods[i].fn || group_method(m, NULL)) return -1;
+        if (!m || !*m || !g->methods[i].fn || group_method(m, NULL) || zxvd_mod_has(m)) return -1;
         for (size_t k = 0; k < N_METHODS; k++)
             if (!strcmp(METHODS[k].name, m)) return -1;
         for (uint32_t k = 0; k < N_EXT; k++)
