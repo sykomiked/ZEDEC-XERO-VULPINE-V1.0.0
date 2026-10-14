@@ -314,6 +314,14 @@ int32_t zxvd_books_account(const char *name, const char *ccy, int32_t kind, uint
 int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
                         const char *ref, uint64_t *entry);
 
+/* files.* (zxv_files.h F1-F6): the ZXV folder behind the Burrow, Quillon
+ * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text.
+ */
+#define ZXVD_E_FILES (-32012)
+/* spaces.* and the "space" parameter of files.* (zxv_spaces.h): a missing
+ * space, or a role that may not do what was asked. */
+#define ZXVD_E_SPACE (-32013)
+
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */
 int zxvd_rpc_open(const char *path, const zxvd_host_ops_t *ops);
