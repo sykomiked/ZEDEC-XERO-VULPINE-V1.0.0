@@ -94,9 +94,20 @@ fi
 PLAY_LIBS=""
 if [ -z "$EXE" ] && [ "${ZXVD_PLAY:-1}" != 0 ]; then
     P="$OUT/play-build"
+    # The Playground's deps (libzxv, the pillars, libzxv-econ) build into
+    # fixed folders, and make does not see a compiler change: a universal
+    # macOS build runs this once per arch. Build them again when CC changed.
+    STAMP="$R/sdk/libzxv/build/.play-deps-cc"
+    if [ "$(cat "$STAMP" 2>/dev/null)" != "$CC" ]; then
+        rm -rf "$R/sdk/libzxv/build" "$R/packages/build/libzxv-econ"
+        for p in cobol-sutra fortran-trebago ada-eve apl-kron mumps-myra; do
+            rm -rf "$R/sdk/pillars/$p/build"
+        done
+    fi
     make -C "$R/sdk/playground" CC="$CC" OUT="$P" ${SANITIZE:+SANITIZE=1} deps "$P/libzxvplay.a" \
         >"$OUT/play-build.log" 2>&1 ||
         { tail -30 "$OUT/play-build.log"; echo "[FAIL] playground build"; exit 1; }
+    printf '%s\n' "$CC" >"$STAMP"
     PL="$R/sdk/pillars"
     PLAY_LIBS="$P/libzxvplay.a $PL/cobol-sutra/build/libzsutra.a $PL/fortran-trebago/build/libztrebago.a"
     PLAY_LIBS="$PLAY_LIBS $PL/ada-eve/build/libzeve.a $PL/apl-kron/build/libzkron.a $PL/mumps-myra/build/libzmyra.a"
