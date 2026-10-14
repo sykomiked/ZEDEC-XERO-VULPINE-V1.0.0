@@ -83,6 +83,11 @@ jobs:
         run: pip install clang-format==18.1.8 pyyaml
       - name: Every pull request workflow keeps drafts on the fast tier
         run: python3 build_system/check_workflow_tiers.py
+      - name: The mutation config parses and is consistent
+        # A merge that keeps both sides of a targets.json entry used to pass
+        # every fast job and then fail all three mutation shards on a ready
+        # pull request (#89, #110). Checking it here fails in seconds instead.
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --check-config
       - name: Check formatting of the C files this change touches
         # Style is in .clang-format. Older files predate it, so only the lines
         # a pull request or push changes are checked. Nightly and manual runs

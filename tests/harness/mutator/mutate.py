@@ -406,6 +406,21 @@ int f(int a, int b) {
 """
 
 
+HOST_SRC = """#include <stdio.h>
+int f(int a) {
+#if defined(_WIN32)
+    return a + 1;
+#else
+    int b = a;
+    (void) b;
+#if !defined(_WIN32)
+    return a - 1;
+#endif
+#endif
+}
+"""
+
+
 def selftest():
     """Check the scanner and the operators on a fixed snippet (no compiler)."""
     ok = True
@@ -440,13 +455,80 @@ def selftest():
     d = [x for x in ms if x["op"] == "delchk"][0]
     expect("if (a < 0)" not in apply(SELFTEST_SRC, d) and "int s = a - b" in apply(SELFTEST_SRC, d),
            "apply() replaces exactly the mutated span")
+    if shutil.which(os.environ.get("CC", "cc")):  # "host" lines need a C preprocessor
+        fd, path = tempfile.mkstemp(suffix=".c")
+        with os.fdopen(fd, "w") as f:
+            f.write(HOST_SRC)
+        try:
+            got = host_active_lines(path)
+        finally:
+            os.unlink(path)
+        # On the Linux and macOS hosts this runs on, only line 4 (the _WIN32
+        # branch) is out; the nested #if inside the #else is in.
+        out = [i for i in range(1, 12) if not any(a <= i <= b for a, b in got)]
+        expect(out == [4], "host lines leave out only the untaken branch: %r" % got)
     print("mutate.py selftest: %d mutants on the snippet, %s" % (len(ms), "ok" if ok else "FAILED"))
     return 0 if ok else 1
 
 
-def parse_lines(s):
+def host_active_lines(path):
+    """The line ranges of a C file that this host compiles: lines inside an
+    #if/#elif/#else branch the compiler does not take (a Windows-only or
+    macOS-only block on the Linux runner) are left out.
+
+    The file's own conditionals are evaluated against the compiler's
+    predefined macros, with its #include lines blanked, so no include path is
+    needed. That fits files whose conditionals test platform macros
+    (_WIN32, __APPLE__, __linux__), which is what "lines": "host" is for.
+    Hand-written ranges had to be edited by every change to the file and went
+    stale when they were not; this is recomputed on every run."""
+    with open(path) as f:
+        src = f.read().split("\n")
+    body = "\n".join("" if re.match(r"\s*#\s*include\b", ln) else ln for ln in src)
+    fd, tmp = tempfile.mkstemp(suffix=".c")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(body)
+        cc = os.environ.get("CC", "cc")
+        out = subprocess.run([cc, "-E", "-std=c11", tmp], capture_output=True, text=True,
+                             check=True).stdout
+    finally:
+        os.unlink(tmp)
+    kept, here, ln = set(), False, 0
+    for row in out.split("\n"):
+        m = re.match(r'# (\d+) "([^"]*)"', row)
+        if m:
+            ln, here = int(m.group(1)), m.group(2) == tmp
+            continue
+        if here and row.strip():
+            kept.add(ln)
+        ln += 1
+
+    def code(i):  # a line the preprocessor would print if its branch were taken
+        t = src[i - 1].strip()
+        return t and not t.startswith(("#", "//", "/*", "*"))
+
+    n = len(src) - (1 if src and src[-1] == "" else 0)
+    out_ranges, start = [], None
+    for i in range(1, n + 1):
+        if i in kept or not code(i):
+            if start is None:
+                start = i
+        elif start is not None:
+            out_ranges.append((start, i - 1))
+            start = None
+    if start is not None:
+        out_ranges.append((start, n))
+    return out_ranges
+
+
+def parse_lines(s, target=None):
+    """A "lines" value: "a-b,c-d", a list of [a, b] pairs, or "host" (the
+    lines this host compiles, see host_active_lines; needs the target)."""
     if not s:
         return None
+    if s == "host":
+        return host_active_lines(os.path.join(ROOT, target))
     if isinstance(s, list):
         return [tuple(x) for x in s]
     out = []
@@ -467,7 +549,8 @@ def shard_names(cfg, names, spec, ops):
     for name in names:
         t = by_name[name]
         with open(os.path.join(ROOT, t["target"])) as f:
-            sizes.append((len(gen_mutants(f.read(), ops, parse_lines(t.get("lines")))), name))
+            sizes.append((len(gen_mutants(f.read(), ops, parse_lines(t.get("lines"), t["target"]))),
+                          name))
     load = [0] * n
     shards = [[] for _ in range(n)]
     for size, name in sorted(sizes, key=lambda x: (-x[0], x[1])):
@@ -478,11 +561,40 @@ def shard_names(cfg, names, spec, ops):
     return shards[i - 1]
 
 
+def check_config(cfg, path):
+    """Fail fast (quick-checks) on a config the mutation jobs would choke on:
+    duplicate names, missing target files, unknown CI targets, a bad "lines"
+    value, or a CI target with no baseline."""
+    bad, seen = [], set()
+    for t in cfg.get("targets", []):
+        n = t.get("name")
+        if n in seen:
+            bad.append("duplicate target name %r (a merge kept both sides?)" % n)
+        seen.add(n)
+        if not os.path.isfile(os.path.join(ROOT, t.get("target", ""))):
+            bad.append("%s: target %s does not exist" % (n, t.get("target")))
+            continue
+        try:
+            parse_lines(t.get("lines"), t["target"])
+        except (ValueError, OSError, subprocess.CalledProcessError) as e:
+            bad.append("%s: bad lines %r: %s" % (n, t.get("lines"), e))
+    ci = cfg.get("ci", {})
+    for n in ci.get("targets", []):
+        if n not in seen:
+            bad.append("ci target %r is not in targets" % n)
+        if n not in ci.get("baseline", {}):
+            bad.append("ci target %r has no baseline" % n)
+    for b in bad:
+        print("%s: %s" % (path, b))
+    print("%s: %d targets, %s" % (path, len(seen), "FAILED" if bad else "ok"))
+    return 1 if bad else 0
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="deterministic C source mutation harness")
     ap.add_argument("--target")
     ap.add_argument("--test", help="build+run command, run from the tree root")
-    ap.add_argument("--lines", help="only mutate these line ranges, e.g. 10-40,55-60")
+    ap.add_argument("--lines", help="only mutate these line ranges, e.g. 10-40,55-60, or 'host'")
     ap.add_argument("--ops", default=",".join(OPS_ALL))
     ap.add_argument("--config")
     ap.add_argument("--only", help="comma-separated target names from the config")
@@ -499,6 +611,8 @@ def main(argv):
     ap.add_argument("--out", default=None, help="results directory")
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--selftest", action="store_true", help="check the mutation operators")
+    ap.add_argument("--check-config", action="store_true",
+                    help="with --config: check the config parses and is consistent, then exit")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
@@ -508,7 +622,14 @@ def main(argv):
     cfg = None
     if a.config:
         with open(a.config) as f:
-            cfg = json.load(f)
+            try:
+                cfg = json.load(f)
+            except ValueError as e:
+                # Usually a merge that kept both sides of a conflicting entry.
+                print("%s is not valid JSON: %s" % (a.config, e))
+                return 1
+        if a.check_config:
+            return check_config(cfg, a.config)
         names = None
         if a.ci:
             names = cfg["ci"]["targets"]
@@ -529,10 +650,11 @@ def main(argv):
                 if not t.get(ph):
                     print("[skip] %s/%s: %s" % (t["name"], ph, t.get(ph + "_note", "no command")))
                     continue
-                jobs.append((t["name"], t["target"], parse_lines(t.get("lines")), ph, t[ph]))
+                jobs.append((t["name"], t["target"], parse_lines(t.get("lines"), t["target"]), ph,
+                             t[ph]))
     elif a.target and a.test:
         jobs.append((os.path.splitext(os.path.basename(a.target))[0], a.target,
-                     parse_lines(a.lines), "run", a.test))
+                     parse_lines(a.lines, a.target), "run", a.test))
     else:
         ap.error("give --target and --test, or --config")
 
