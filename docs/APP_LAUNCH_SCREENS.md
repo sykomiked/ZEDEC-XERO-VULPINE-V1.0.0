@@ -3,8 +3,8 @@
 Every ZXV app opens with the boot screen itself, played inside the window the person opened for that app. The big
 top-centre logo is the app's icon instead of the OS fox, the boot's same five logos (36N9, ACOTO, the ASCW crest,
 SMIC, CIS) stay on the tiles underneath, and the vault opens inside the window onto the app. Each app keeps its own
-beginning, middle and end sound and a faint motion of its own behind the tiles. One screen, a theme per app, so 144
-apps do not mean 144 bespoke screens.
+beginning, middle and end sound and a faint motion of its own behind the tiles. One screen, a theme per app, so 407
+apps do not mean 407 bespoke screens.
 
 It is an OS feature: an app maker picks a sound sequence and gives an icon, and the system does the rest. System apps'
 icons are held to the palette (gold #F2C230 on #002911); an app a person makes may colour its icon however it likes.
@@ -116,7 +116,7 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
 ```sh
 python3 tools/launch/launch_sounds.py out/sounds          # begin / middle / end WAVs per app
 python3 tools/launch/launch_mock.py out [burrow flint ...] # MP4 with sound + stills (needs ffmpeg)
-python3 tools/launch/launch_catalogue.py render APP_LIST_144.csv out --new   # every app; only new icons on re-runs
+python3 tools/launch/launch_catalogue.py render APP_CATALOG_407.csv out --new   # every app; only new icons on re-runs
 # ZXV_APP_ICONS=<dir of NNN-name.png>  ZXV_DESKTOP=<desktop png behind the window>  ZXV_FONT=<ttf>
 ```
 
