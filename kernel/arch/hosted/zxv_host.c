@@ -119,9 +119,9 @@ typedef int sock_t;
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
 #    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
-#    include "zxv_journal.h"     /* zxvd: its events kept across restarts */
-#    include "zxv_screen.h"      /* zxvd: screen time for Shepherd */
-#    include "zxv_place.h"       /* zxvd: location and places for Waymark */
+#    include "zxv_journal.h"    /* zxvd: its events kept across restarts */
+#    include "zxv_screen.h"     /* zxvd: screen time for Shepherd */
+#    include "zxv_place.h"      /* zxvd: location and places for Waymark */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif

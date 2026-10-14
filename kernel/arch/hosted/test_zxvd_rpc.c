@@ -564,13 +564,13 @@ static void test_host_methods(void)
 /* rpc.discover's names after play.draft: the utilities, Wake, Shepherd,
  * Waymark, Scent, Platen and Keepsake */
 #define ZXVD_MINE_TAIL                                                                             \
-    "\"sys.info\",\"sys.disk\",\"sys.net\",\"log.tail\",\"journal.query\",\"journal.verify\","    \
-    "\"screen.tick\",\"screen.check\",\"screen.status\",\"screen.set_limit\","                 \
-    "\"screen.clear_limit\",\"screen.grant\",\"screen.lock\",\"place.here\",\"place.set_here\","  \
-    "\"place.forget_here\",\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\","        \
-    "\"place.add\",\"place.remove\",\"search.refresh\",\"search.query\",\"print.status\","       \
-    "\"print.submit\",\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\","            \
-    "\"backup.run\",\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","    \
+    "\"sys.info\",\"sys.disk\",\"sys.net\",\"log.tail\",\"journal.query\",\"journal.verify\","     \
+    "\"screen.tick\",\"screen.check\",\"screen.status\",\"screen.set_limit\","                     \
+    "\"screen.clear_limit\",\"screen.grant\",\"screen.lock\",\"place.here\",\"place.set_here\","   \
+    "\"place.forget_here\",\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\","          \
+    "\"place.add\",\"place.remove\",\"search.refresh\",\"search.query\",\"print.status\","         \
+    "\"print.submit\",\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\","              \
+    "\"backup.run\",\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","     \
     "\"backup.prune\","
 #define FERR(id, msg) ERR(id, "-32014", msg)
 #define SERR(id, msg) ERR(id, "-32013", msg)
@@ -2897,8 +2897,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," ZXVD_MINE_TAIL
-              "\"x."
+              "\"play.draft\"," ZXVD_MINE_TAIL "\"x."
               "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
               "\"zxvd.version\"]}"),
           "X1: listed after the built-ins: %s", OUT.p);
@@ -2931,8 +2930,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," ZXVD_MINE_TAIL
-              "\"x.echo\"]}") &&
+              "\"play.draft\"," ZXVD_MINE_TAIL "\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
           "X1: the count is the new one: %s", OUT.p);
     CHECK(zxvd_rpc_add_methods(TAB, 0) == -1 && zxvd_rpc_add_methods(NULL, 3) == -1,
@@ -2944,8 +2942,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," ZXVD_MINE_TAIL
-              "\"x.echo\"]}"),
+              "\"play.draft\"," ZXVD_MINE_TAIL "\"x.echo\"]}"),
           "X1: a refused add leaves the tables as they were: %s", OUT.p);
 
     /* several tables: each add appends; the first added wins a shared name */
@@ -2968,8 +2965,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," ZXVD_MINE_TAIL
-              "\"x.echo\",\"x.num\",\"x.json\","
+              "\"play.draft\"," ZXVD_MINE_TAIL "\"x.echo\",\"x.num\",\"x.json\","
               "\"x.echo\",\"x.zok\",\"x.books\","
               "\"y.one\",\"y.two\"]}"),
           "X1: every table's names, in the order added: %s", OUT.p);
@@ -2985,8 +2981,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," ZXVD_MINE_TAIL
-              "\"x.num\",\"x.json\",\"x.echo\","
+              "\"play.draft\"," ZXVD_MINE_TAIL "\"x.num\",\"x.json\",\"x.echo\","
               "\"x.zok\",\"x.books\",\"y.one\","
               "\"y.two\"]}"),
           "X1: removing one keeps the others in order: %s", OUT.p);
@@ -3479,8 +3474,7 @@ static void test_groups(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," ZXVD_MINE_TAIL
-              "\"ga.echo\",\"ga.hex\",\"ga.list\","
+              "\"play.draft\"," ZXVD_MINE_TAIL "\"ga.echo\",\"ga.hex\",\"ga.list\","
               "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
           "X2: discover lists group methods after the core, on or off");
 
