@@ -78,6 +78,7 @@ pci                              kernel
 phase_coord                      kernel
 power                            kernel     # energy ledger per app and agent, battery, budgets; RAPL reader
 pic                              kernel
+qeq                              kernel # exact circuit equivalence checker over qsim
 quantum                          kernel
 qsim                             kernel     # exact float-free circuit simulator (#83 research track Q.1/Q.2), beside quantum
 recon                            kernel
@@ -149,6 +150,7 @@ dharma                           logic
 panopticon                       logic
 peer_audit                       logic
 predictive                       logic
+qubo                             logic # QUBO/Ising workbench with proven gap certificates
 situation                        logic
 paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
 spatial                          logic      # exact geometry, four-valued sensor fusion, advisory fleet plans (#83 S.1/S.2/S.4)
@@ -173,6 +175,7 @@ aipi                             ai         # AI pinning index; stores model blo
 abacus                           settlement
 battering_ram                    settlement
 capmkt                           settlement
+gridlock                         settlement # RTGS gridlock resolution, exact
 qnet                             settlement # netting optimiser: greedy cycles, min-cost circulation, annealer (#83 Q.6)
 cardnet                          settlement
 cbank                            settlement
@@ -205,6 +208,7 @@ vauction                         settlement
 vbond                            settlement
 vderiv                           settlement
 vswap                            settlement
+xrisk                            settlement # exact discrete loss distributions (VaR, ES)
 zenny                            settlement
 zstats                           settlement # the stats feed reads the other finance modules
 cred                             settlement # Player Card tiers through sicily
