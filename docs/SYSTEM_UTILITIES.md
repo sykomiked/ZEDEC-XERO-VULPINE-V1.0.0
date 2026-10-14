@@ -24,13 +24,15 @@ needed before release.
 | **Platen** | Printers and scanners on the local network: adds a printer by its address and shows its state, what it takes and why it stopped; prints a file of the space and follows or cancels the job; scans pages from the glass or the feeder into a folder; AI explains a printer's trouble in plain words | Printers & Scanners, CUPS, SANE | `print.status`, `print.submit`, `print.job`, `print.cancel`, `scan.status`, `scan.start` | `platen_model.h` |
 | **Keepsake** | Backups with versions: backs a space up to a folder on another disk, lists the backups, shows every version a file has had, checks that a backup reads back whole, brings a file or folder back as a new item (never over what is there), lets old backups go; AI explains a failed check | Time Machine, Déjà Dup, `restic` | `backup.run`, `backup.list`, `backup.versions`, `backup.verify`, `backup.restore`, `backup.prune` | `keepsake_model.h` |
 | **Shepherd** | Family and screen time: minutes per app each day of the week, limits a guardian sets (minutes a day, the hours an app may be used, more time for today), locked with a passphrase; the desktop reports the app in front once a minute and says when time runs out; AI suggests a fair plan, changed only by the guardian | Screen Time, Family Safety, Digital Wellbeing | `screen.tick`, `screen.check`, `screen.status`, `screen.set_limit`, `screen.clear_limit`, `screen.grant`, `screen.lock` | `shepherd_model.h` |
+| **Waymark** | Places and location: where the machine is and how sure, the places the owner keeps (nearest first), and which apps may know the location, with each app's ask waiting for the owner's answer; AI plans a day around kept places | Maps, Find My, location settings | `place.here`, `place.set_here`, `place.forget_here`, `place.ask`, `place.permit`, `place.apps`, `place.list`, `place.add`, `place.remove` | `waymark_model.h` |
 | **Spindle** | Developer console: any zxvd call by hand | Script Editor, `curl` | `rpc.discover` + any | `spindle_model.h` |
 
-Only Platen, Keepsake and Shepherd change anything. Platen sends a document
+Only Platen, Keepsake, Shepherd and Waymark change anything. Platen sends a document
 to a printer and saves scanned pages as new files. Keepsake writes backups to
 the destination the owner picks, restores as new items, and removes old
 backups only when the owner asks. Shepherd counts minutes and keeps the
-guardian's limits. `sys.*`, `log.tail`, `journal.*` and `search.*` are read only.
+guardian's limits. Waymark keeps places and each app's answer about the
+location. `sys.*`, `log.tail`, `journal.*` and `search.*` are read only.
 All of them are local to the owner's control socket and never sent to peers. The log keeps what
 happened (a method, an outcome, how long it took), never parameters or
 content.
@@ -91,6 +93,17 @@ stays true. On Linux, macOS and Windows the account that runs zxvd can delete
 the file or stop the reports, so limits there are an agreement, not a wall;
 seats on ZXV's own OS will enforce them. A damaged file is moved aside and
 Shepherd tells the guardian that screen time started over.
+
+Waymark's location (`kernel/arch/hosted/zxv_place.h`) is in whole
+millionths of a degree, with no floating point, and distances come from a
+fixed-point sum that is within about 1% for places under 500 km apart. An app
+learns the location only after the owner answers its ask with once or
+always; until then the ask waits in Waymark. The location is never written to
+disk; saved places and lasting answers are, in a file only the owner can
+read. For now the owner sets the location by hand: bridges to CoreLocation on
+the Mac, GeoClue on Linux and the Windows location service come next, and
+maps need a tile source. An app's name is what the app says it is; seats on
+ZXV's own OS will check it.
 
 ## Still to build
 

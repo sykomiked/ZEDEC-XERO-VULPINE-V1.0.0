@@ -143,6 +143,13 @@ void zxm_p_u64(zxm_link_t *l, const char *k, uint64_t v)
     put_u64(l, v);
 }
 
+void zxm_p_i64(zxm_link_t *l, const char *k, int64_t v)
+{
+    key(l, k);
+    if (v < 0) puts_(l, "-");
+    put_u64(l, v < 0 ? 0u - (uint64_t) v : (uint64_t) v);
+}
+
 void zxm_p_bool(zxm_link_t *l, const char *k, bool v)
 {
     key(l, k);

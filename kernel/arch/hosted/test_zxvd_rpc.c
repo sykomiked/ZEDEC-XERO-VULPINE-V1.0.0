@@ -41,6 +41,7 @@
 #include "zxv_keepsake.h"
 #include "zxv_journal.h"
 #include "zxv_screen.h"
+#include "zxv_place.h"
 #include "test_fake_device.h"
 #include "web4_web2.h"
 
@@ -475,7 +476,9 @@ static void test_host_methods(void)
            "\"spaces.propose\",\"spaces.vote\",\"sys.info\",\"sys.disk\",\"sys.net\","
            "\"log.tail\",\"journal.query\",\"journal.verify\",\"screen.tick\",\"screen.check\","
            "\"screen.status\",\"screen.set_limit\",\"screen.clear_limit\",\"screen.grant\","
-           "\"screen.lock\",\"search.refresh\",\"search.query\","
+           "\"screen.lock\",\"place.here\",\"place.set_here\",\"place.forget_here\","
+           "\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\",\"place.add\","
+           "\"place.remove\",\"search.refresh\",\"search.query\","
            "\"print.status\",\"print.submit\","
            "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\",\"backup.run\","
            "\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","
@@ -5030,6 +5033,290 @@ static void test_screen(void)
     CHECK(rm_tree(dir) == 0, "cleanup");
 }
 
+/* ---------------- location (zxv_place.h) ---------------- */
+
+static int64_t PNOW;
+static int64_t pnow(void)
+{
+    return PNOW;
+}
+
+static void test_place(void)
+{
+    zpl_set_clock(pnow);
+    PNOW = 1791799200;
+    zpl_here_t h;
+    const zpl_point_t paris = {48856600, 2352200}, london = {51507400, -127800};
+    CHECK(zpl_open(NULL) == 0 && !zpl_here()->known && !zpl_stale() && zpl_count() == 0,
+          "in memory");
+
+    /* P4 */
+    uint64_t d = zpl_distance_m(paris, london);
+    CHECK(d > 340000 && d < 347000, "Paris to London: %llu m", (unsigned long long) d);
+    CHECK(zpl_distance_m(london, paris) == d && zpl_distance_m(paris, paris) == 0, "symmetric");
+    CHECK(zpl_distance_m((zpl_point_t){0, 0}, (zpl_point_t){0, 1000000}) == 111320 &&
+              zpl_distance_m((zpl_point_t){0, 0}, (zpl_point_t){1000000, 0}) == 111132,
+          "a degree at the equator");
+    d = zpl_distance_m((zpl_point_t){0, 179900000}, (zpl_point_t){0, -179900000});
+    CHECK(d == 22264, "across the date line: %llu", (unsigned long long) d);
+    d = zpl_distance_m((zpl_point_t){0, -179900000}, (zpl_point_t){0, 179900000});
+    CHECK(d == 22264, "and back: %llu", (unsigned long long) d);
+    d = zpl_distance_m((zpl_point_t){60000000, 0}, (zpl_point_t){60000000, 1000000});
+    CHECK(d == 55660, "a degree at 60 north: %llu", (unsigned long long) d);
+    d = zpl_distance_m((zpl_point_t){-60500000, 0}, (zpl_point_t){-60500000, 1000000});
+    CHECK(d > 54700 && d < 54900, "between table rows, south: %llu", (unsigned long long) d);
+    CHECK(zpl_distance_m((zpl_point_t){90000000, 0}, (zpl_point_t){90000000, 90000000}) == 0,
+          "at the pole");
+    CHECK(zpl_valid((zpl_point_t){90000000, 180000000}) &&
+              zpl_valid((zpl_point_t){-90000000, -180000000}) &&
+              !zpl_valid((zpl_point_t){90000001, 0}) && !zpl_valid((zpl_point_t){-90000001, 0}) &&
+              !zpl_valid((zpl_point_t){0, 180000001}) && !zpl_valid((zpl_point_t){0, -180000001}),
+          "valid points");
+
+    /* P1 */
+    CHECK(zpl_set_here(paris, 0, "owner") == ZPL_E_ARG &&
+              zpl_set_here(paris, 1000001, "owner") == ZPL_E_ARG &&
+              zpl_set_here(paris, 5, "") == ZPL_E_ARG &&
+              zpl_set_here(paris, 5, NULL) == ZPL_E_ARG &&
+              zpl_set_here(paris, 5, "sixteen-bytes-xx") == ZPL_E_ARG &&
+              zpl_set_here((zpl_point_t){0, 180000001}, 5, "owner") == ZPL_E_ARG &&
+              !zpl_here()->known,
+          "bad locations");
+    CHECK(zpl_set_here(paris, 1000000, "fifteen-bytes-x") == 0 &&
+              zpl_set_here(paris, 5, "owner") == 0 && zpl_here()->known &&
+              zpl_here()->accuracy_m == 5 && !strcmp(zpl_here()->source, "owner") &&
+              zpl_here()->time == PNOW && !zpl_stale(),
+          "here");
+    PNOW += ZPL_STALE_S;
+    CHECK(!zpl_stale(), "ten minutes is fresh");
+    PNOW += 1;
+    CHECK(zpl_stale(), "then stale");
+
+    /* P2 */
+    CHECK(zpl_ask("glint", &h) == ZPL_E_PENDING && !h.known && zpl_app_count() == 1 &&
+              zpl_app(0)->pending && zpl_app(0)->asked == PNOW && zpl_app(0)->mode == ZPL_ASK,
+          "asks: pending");
+    CHECK(zpl_ask("glint", &h) == ZPL_E_PENDING && zpl_app_count() == 1, "one entry per app");
+    CHECK(zpl_permit("glint", ZPL_ONCE) == 0 && !zpl_app(0)->pending && zpl_ask("glint", &h) == 0 &&
+              h.known && h.at.lat == paris.lat && zpl_ask("glint", &h) == ZPL_E_PENDING,
+          "once is once");
+    CHECK(zpl_permit("glint", ZPL_ALWAYS) == 0 && zpl_ask("glint", &h) == 0 &&
+              zpl_ask("glint", &h) == 0,
+          "always");
+    zpl_forget_here();
+    CHECK(zpl_ask("glint", &h) == ZPL_E_NONE && !h.known, "allowed, not known");
+    CHECK(zpl_permit("quillon", ZPL_NEVER) == 0 && zpl_ask("quillon", &h) == ZPL_E_DENIED, "never");
+    CHECK(zpl_ask("a b", &h) == ZPL_E_ARG && zpl_ask("", &h) == ZPL_E_ARG &&
+              zpl_permit("glint", (zpl_mode_t) 4) == ZPL_E_ARG &&
+              zpl_permit("abcdefghijklmnopqrstuvwxyz123456", ZPL_NEVER) == ZPL_E_ARG,
+          "bad asks");
+    CHECK(zpl_mode_parse("always") == ZPL_ALWAYS && zpl_mode_parse("ask") == ZPL_ASK &&
+              zpl_mode_parse("never") == ZPL_NEVER && zpl_mode_parse("once") == ZPL_ONCE &&
+              zpl_mode_parse("Always") == -1 && zpl_mode_parse(NULL) == -1 &&
+              !strcmp(zpl_mode_name(ZPL_ONCE), "once") &&
+              !strcmp(zpl_mode_name((zpl_mode_t) 9), "ask"),
+          "modes");
+    for (uint32_t i = zpl_app_count(); i < ZPL_APPS; i++) {
+        char app[16];
+        snprintf(app, sizeof app, "app%u", i);
+        CHECK(zpl_ask(app, &h) == ZPL_E_PENDING, "app %u", i);
+    }
+    CHECK(zpl_ask("one-more", &h) == ZPL_E_FULL && zpl_permit("one-more", ZPL_NEVER) == ZPL_E_FULL,
+          "64 apps");
+
+    /* P3 */
+    CHECK(zpl_add("Home", paris, "the flat") == 0 && zpl_add("home", london, "") == ZPL_E_EXISTS &&
+              zpl_add("Office", london, NULL) == 0 && zpl_count() == 2 &&
+              !strcmp(zpl_find("OFFICE")->name, "Office") && !zpl_find("Offic") &&
+              !zpl_find(NULL) && !strcmp(zpl_place(1)->note, ""),
+          "places");
+    CHECK(zpl_add("", paris, "") == ZPL_E_ARG && zpl_add(" lead", paris, "") == ZPL_E_ARG &&
+              zpl_add("tab\there", paris, "") == ZPL_E_ARG &&
+              zpl_add("x", paris, "line\nbreak") == ZPL_E_ARG &&
+              zpl_add("del\x7f", paris, "") == ZPL_E_ARG &&
+              zpl_add("x", (zpl_point_t){90000001, 0}, "") == ZPL_E_ARG &&
+              zpl_add(NULL, paris, "") == ZPL_E_ARG,
+          "bad places");
+    static char longname[ZPL_NAME_MAX + 2], longnote[ZPL_NOTE_MAX + 2];
+    memset(longname, 'n', ZPL_NAME_MAX + 1);
+    memset(longnote, 'o', ZPL_NOTE_MAX + 1);
+    CHECK(zpl_add(longname, paris, "") == ZPL_E_ARG && zpl_add("n", paris, longnote) == ZPL_E_ARG,
+          "too long");
+    longname[ZPL_NAME_MAX] = longnote[ZPL_NOTE_MAX] = 0;
+    CHECK(zpl_add(longname, paris, longnote) == 0 && zpl_remove(longname) == 0, "at the limit");
+    CHECK(zpl_remove("home") == 0 && zpl_count() == 1 && !strcmp(zpl_place(0)->name, "Office") &&
+              !zpl_place(1) && zpl_remove("home") == ZPL_E_NOTFOUND &&
+              zpl_remove(NULL) == ZPL_E_ARG,
+          "removed");
+    for (uint32_t i = zpl_count(); i < ZPL_PLACES; i++) {
+        char name[16];
+        snprintf(name, sizeof name, "p%u", i);
+        CHECK(zpl_add(name, paris, "") == 0, "place %u", i);
+    }
+    CHECK(zpl_add("one-more", paris, "") == ZPL_E_FULL, "200 places");
+
+    /* P5 */
+    char dir[256], path[300], aside[320];
+    snprintf(dir, sizeof dir, "%s/zxv-place-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(dir) != NULL, "a folder");
+    snprintf(path, sizeof path, "%s/places.zxpl", dir);
+    snprintf(aside, sizeof aside, "%s.damaged", path);
+    CHECK(zpl_open(path) == 0 && zpl_count() == 0 && zpl_app_count() == 0 && bk_exists(path) &&
+              !zpl_was_reset(),
+          "a new file");
+    struct stat st;
+    CHECK(stat(path, &st) == 0 && (st.st_mode & 0777) == 0600, "0600");
+    CHECK(zpl_set_here(london, 20, "owner") == 0 && zpl_add("Home", paris, "the flat") == 0 &&
+              zpl_add("Café Ω", london, "with a note") == 0 &&
+              zpl_permit("glint", ZPL_ALWAYS) == 0 && zpl_permit("quillon", ZPL_NEVER) == 0 &&
+              zpl_permit("burrow", ZPL_ONCE) == 0 && zpl_ask("scent", &h) == ZPL_E_PENDING,
+          "changes");
+    zpl_close();
+    CHECK(zpl_open(path) == 0 && !zpl_was_reset() && zpl_count() == 2 &&
+              !strcmp(zpl_place(1)->name, "Café Ω") && zpl_place(1)->at.lon == london.lon &&
+              !strcmp(zpl_place(0)->note, "the flat") && zpl_app_count() == 2 &&
+              zpl_app(0)->mode == ZPL_ALWAYS && zpl_app(1)->mode == ZPL_NEVER && !zpl_here()->known,
+          "reloaded: lasting answers only, never the location");
+    CHECK(zpl_permit("glint", ZPL_ASK) == 0 && zpl_permit("burrow", ZPL_ONCE) == 0, "changed");
+    zpl_close();
+    CHECK(zpl_open(path) == 0 && zpl_app_count() == 1 && !strcmp(zpl_app(0)->app, "quillon"),
+          "ask again is not kept");
+    zpl_close();
+    static char text[1 << 16];
+    CHECK(jread(path, text, sizeof text) > 0 &&
+              strstr(text, "\nplace\t48856600\t2352200\tHome\tthe flat\n") &&
+              strstr(text, "\napp\tquillon\tnever\n") && !strstr(text, "owner"),
+          "the file: %s", text);
+    const char *bodies[] = {
+        "place\t1\t2\tA\tx\nplace\t1\t2\ta\ty\n",
+        "place\t90000001\t0\tA\t\n",
+        "place\t0\t180000001\tA\t\n",
+        "place\tx\t0\tA\t\n",
+        "place\t0\t0\t\t\n",
+        "place\t0\t0\tA\n",
+        "place\t0\t0\tA\tb\tc\n",
+        "app\tglint\tonce\n",
+        "app\tglint\task\n",
+        "app\tglint\tsometimes\n",
+        "app\ta b\tnever\n",
+        "app\tglint\tnever\napp\tglint\talways\n",
+        "app\tglint\n",
+        "else\n",
+        "place\t\t0\tA\t\n",
+    };
+    for (size_t i = 0; i < sizeof bodies / sizeof *bodies; i++) {
+        uint8_t hh[32];
+        char body[1024], hex[65];
+        int n = snprintf(body, sizeof body, "zxv-places 1\n%s", bodies[i]);
+        sha256((const uint8_t *) body, (size_t) n, hh);
+        for (int k = 0; k < 32; k++) snprintf(hex + 2 * k, 3, "%02x", hh[k]);
+        snprintf(body + n, sizeof body - (size_t) n, "end %s\n", hex);
+        remove(aside);
+        CHECK(jwrite(path, body) && zpl_open(path) == 0 && zpl_was_reset() && bk_exists(aside) &&
+                  zpl_count() == 0 && zpl_app_count() == 0,
+              "a bad line %zu", i);
+        zpl_close();
+    }
+    const char *edits[][2] = {
+        {"Home", "Hope"}, {"zxv-places 1", "zxv-places 2"}, {"\nend ", "\nEnd "}};
+    for (size_t i = 0; i < sizeof edits / sizeof *edits; i++) {
+        CHECK(zpl_open(path) == 0 && zpl_add("Home", paris, "") == 0, "fresh %zu", i);
+        zpl_close();
+        CHECK(jread(path, text, sizeof text) > 0, "read");
+        char *at = strstr(text, edits[i][0]);
+        CHECK(at != NULL, "find %zu", i);
+        if (at) memcpy(at, edits[i][1], strlen(edits[i][1]));
+        remove(aside);
+        CHECK(jwrite(path, text) && zpl_open(path) == 0 && zpl_was_reset() && zpl_count() == 0,
+              "damaged %zu", i);
+        zpl_close();
+        remove(path);
+    }
+    CHECK(jwrite(path, "short\n") && zpl_open(path) == 0 && zpl_was_reset(), "too short");
+    zpl_close();
+    char nodir[320];
+    snprintf(nodir, sizeof nodir, "%s/no/such/places.zxpl", dir);
+    CHECK(zpl_open(nodir) == ZPL_E_IO && zpl_add("x", paris, "") == 0, "no folder: memory only");
+    static char longpath[ZPL_PATH_MAX + 2];
+    memset(longpath, 'x', ZPL_PATH_MAX + 1);
+    CHECK(zpl_open(longpath) == ZPL_E_ARG, "too long a path");
+    for (int i = -1; i >= -8; i--) CHECK(zpl_strerror(i)[0], "strerror %d", i);
+    CHECK(strcmp(zpl_strerror(-99), zpl_strerror(ZPL_E_ARG)), "unknown");
+
+    /* over JSON-RPC */
+    zpl_close();
+    CHECK(zpl_open(NULL) == 0, "memory");
+    EXPECT(REQ("1", "place.here", ""), OK("1", "{\"known\":false}"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":48856600,\"lon\":2352200}"),
+           OK("1", "{\"known\":true,\"lat\":48856600,\"lon\":2352200,\"accuracy_m\":50,\"source\":"
+                   "\"owner\",\"time\":1791799801,\"stale\":false}"));
+    EXPECT(REQ("1", "place.set_here",
+               ",\"params\":{\"lat\":-1,\"lon\":-2,\"accuracy_m\":9,"
+               "\"source\":\"corelocation\"}"),
+           OK("1", "{\"known\":true,\"lat\":-1,\"lon\":-2,\"accuracy_m\":9,\"source\":"
+                   "\"corelocation\",\"time\":1791799801,\"stale\":false}"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":90000001,\"lon\":0}"),
+           ERR("1", "-32602",
+               "\\\"lat\\\" and \\\"lon\\\" are millionths of a degree: lat within 90, "
+               "lon within 180 degrees"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":-180000001}"),
+           ERR("1", "-32602",
+               "\\\"lat\\\" and \\\"lon\\\" are millionths of a degree: lat within 90, "
+               "lon within 180 degrees"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"accuracy_m\":0}"),
+           ERR("1", "-32602", "\\\"accuracy_m\\\" must be 1 to 1000000"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"source\":\"a b\"}"),
+           ERR("1", "-32602", "a bad name, app or coordinate"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0}"),
+           ERR("1", "-32602", "missing integer parameter \\\"lon\\\""));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"glint\"}"),
+           OK("1", "{\"app\":\"glint\",\"answer\":\"pending\"}"));
+    EXPECT(REQ("1", "place.apps", ""),
+           OK("1", "{\"apps\":[{\"app\":\"glint\",\"mode\":\"ask\",\"pending\":true,\"asked\":"
+                   "1791799801}]}"));
+    EXPECT(REQ("1", "place.permit", ",\"params\":{\"app\":\"glint\",\"mode\":\"once\"}"),
+           OK("1", "{\"app\":\"glint\",\"mode\":\"once\"}"));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"glint\"}"),
+           OK("1",
+              "{\"app\":\"glint\",\"answer\":\"allowed\",\"lat\":-1,\"lon\":-2,\"accuracy_m\":9,"
+              "\"source\":\"corelocation\",\"time\":1791799801}"));
+    EXPECT(REQ("1", "place.permit", ",\"params\":{\"app\":\"glint\",\"mode\":\"never\"}"),
+           OK("1", "{\"app\":\"glint\",\"mode\":\"never\"}"));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"glint\"}"),
+           OK("1", "{\"app\":\"glint\",\"answer\":\"never\"}"));
+    EXPECT(REQ("1", "place.permit", ",\"params\":{\"app\":\"glint\",\"mode\":\"always\"}"),
+           OK("1", "{\"app\":\"glint\",\"mode\":\"always\"}"));
+    EXPECT(REQ("1", "place.forget_here", ""), OK("1", "{\"known\":false}"));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"glint\"}"),
+           OK("1", "{\"app\":\"glint\",\"answer\":\"unknown\"}"));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"a b\"}"),
+           ERR("1", "-32602", "a bad name, app or coordinate"));
+    EXPECT(REQ("1", "place.permit", ",\"params\":{\"app\":\"glint\",\"mode\":\"maybe\"}"),
+           ERR("1", "-32602", "\\\"mode\\\" must be ask, once, always or never"));
+    EXPECT(REQ("1", "place.list", ""), OK("1", "{\"reset\":false,\"places\":[]}"));
+    EXPECT(REQ("1", "place.add",
+               ",\"params\":{\"name\":\"Home\",\"lat\":48856600,\"lon\":2352200,"
+               "\"note\":\"the flat\"}"),
+           OK("1", "{\"name\":\"Home\",\"added\":true}"));
+    EXPECT(REQ("1", "place.add", ",\"params\":{\"name\":\"home\",\"lat\":0,\"lon\":0}"),
+           ERR("1", "-32017", "a place has that name"));
+    EXPECT(REQ("1", "place.add", ",\"params\":{\"name\":\"\",\"lat\":0,\"lon\":0}"),
+           ERR("1", "-32602", "a bad name, app or coordinate"));
+    EXPECT(REQ("1", "place.list", ""),
+           OK("1",
+              "{\"reset\":false,\"places\":[{\"name\":\"Home\",\"lat\":48856600,\"lon\":2352200,"
+              "\"note\":\"the flat\",\"distance_m\":null}]}"));
+    rpc(REQ("1", "place.set_here", ",\"params\":{\"lat\":51507400,\"lon\":-127800}"));
+    CHECK(has(REQ("1", "place.list", ""), "\"distance_m\":34"), "a distance: %s", OUT.p);
+    EXPECT(REQ("1", "place.remove", ",\"params\":{\"name\":\"HOME\"}"),
+           OK("1", "{\"name\":\"HOME\",\"removed\":true}"));
+    EXPECT(REQ("1", "place.remove", ",\"params\":{\"name\":\"HOME\"}"),
+           ERR("1", "-32017", "no such place"));
+    zpl_close();
+    zpl_set_clock(NULL);
+    CHECK(rm_tree(dir) == 0, "cleanup");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -5047,6 +5334,7 @@ int main(void)
     test_backup();
     test_journal();
     test_screen();
+    test_place();
     test_books_closed();
     test_books();
     test_earnings();

@@ -254,6 +254,9 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  * too many wrong tries, no such limit, no room, or the file could not be
  * written; the message says which. */
 #define ZXVD_E_SCREEN (-32016)
+/* place.* (zxv_place.h): no such place, a name taken, no room, or the file
+ * could not be written; the message says which. */
+#define ZXVD_E_PLACE (-32017)
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */

@@ -47,10 +47,11 @@ enum Connector {
             let support = (books as NSString).deletingLastPathComponent as NSString
             let journal = support.appendingPathComponent("journal")
             let screen = support.appendingPathComponent("screen.zxst")
+            let places = support.appendingPathComponent("places.zxpl") // Waymark (zxv_place.h)
             let d = try DaemonProcess.start(binary: bin, socketPath: socket,
                                             modelsDir: ZXVDLocation.defaultModelsDir,
                                             extraArguments: ["--books", books, "--journal", journal,
-                                                             "--screen", screen],
+                                                             "--screen", screen, "--places", places],
                                             logURL: logURL)
             return (client, d, try client.call("rpc.discover", as: Discovery.self))
         }

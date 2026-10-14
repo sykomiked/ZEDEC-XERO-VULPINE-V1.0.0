@@ -90,6 +90,7 @@ void zxm_begin(zxm_link_t *l, const char *method);
 void zxm_p_str(zxm_link_t *l, const char *key, const char *val);
 void zxm_p_strn(zxm_link_t *l, const char *key, const char *val, uint32_t n);
 void zxm_p_u64(zxm_link_t *l, const char *key, uint64_t v);
+void zxm_p_i64(zxm_link_t *l, const char *key, int64_t v);
 void zxm_p_bool(zxm_link_t *l, const char *key, bool v);
 /* params given as a ready JSON object (Spindle), instead of zxm_p_* */
 void zxm_p_raw(zxm_link_t *l, const char *json_obj, uint32_t n);

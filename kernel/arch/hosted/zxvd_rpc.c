@@ -43,6 +43,7 @@
 #include "zxv_keepsake.h"   /* backup.*: Keepsake's backups and versions */
 #include "zxv_journal.h"    /* journal.*: Wake's history across restarts */
 #include "zxv_screen.h"     /* screen.*: Shepherd's screen time */
+#include "zxv_place.h"      /* place.*: Waymark's location and places */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -2440,6 +2441,163 @@ static void m_screen_lock(call_t *c)
     zxvd_buf_printf(c->res, "{\"locked\":%s}", zsc_locked() ? "true" : "false");
 }
 
+/* ----- place.* (zxv_place.h): Waymark ----- */
+
+static bool place_done(call_t *c, int rc)
+{
+    if (rc == 0) return true;
+    fail(c, rc == ZPL_E_ARG ? E_PARAMS : ZXVD_E_PLACE, "%s", zpl_strerror(rc));
+    return false;
+}
+
+static void here_json(zxvd_buf_t *b, const zpl_here_t *h)
+{
+    zxvd_buf_printf(b, "\"lat\":%ld,\"lon\":%ld,\"accuracy_m\":%u,\"source\":", (long) h->at.lat,
+                    (long) h->at.lon, h->accuracy_m);
+    zxvd_buf_json_str(b, h->source);
+    zxvd_buf_printf(b, ",\"time\":%lld", (long long) h->time);
+}
+
+static void m_place_here(call_t *c)
+{
+    const zpl_here_t *h = zpl_here();
+    if (!h->known) {
+        LIT(c->res, "{\"known\":false}");
+        return;
+    }
+    LIT(c->res, "{\"known\":true,");
+    here_json(c->res, h);
+    zxvd_buf_printf(c->res, ",\"stale\":%s}", zpl_stale() ? "true" : "false");
+}
+
+static bool p_point(call_t *c, zpl_point_t *at)
+{
+    int64_t lat, lon;
+    if (!p_i64(c, "lat", &lat) || !p_i64(c, "lon", &lon)) return false;
+    if (lat < -ZPL_LAT_MAX || lat > ZPL_LAT_MAX || lon < -ZPL_LON_MAX || lon > ZPL_LON_MAX) {
+        fail(c, E_PARAMS,
+             "\"lat\" and \"lon\" are millionths of a degree: lat within 90, lon "
+             "within 180 degrees");
+        return false;
+    }
+    at->lat = (int32_t) lat;
+    at->lon = (int32_t) lon;
+    return true;
+}
+
+static void m_place_set_here(call_t *c)
+{
+    zpl_point_t at;
+    uint64_t acc;
+    char src[ZPL_SRC_MAX + 1];
+    if (!p_point(c, &at) || !p_opt_u64(c, "accuracy_m", 50, &acc) ||
+        !p_str(c, "source", src, sizeof src, false))
+        return;
+    if (acc < 1 || acc > 1000000) return fail(c, E_PARAMS, "\"accuracy_m\" must be 1 to 1000000");
+    if (!place_done(c, zpl_set_here(at, (uint32_t) acc, src[0] ? src : "owner"))) return;
+    m_place_here(c);
+}
+
+static void m_place_forget_here(call_t *c)
+{
+    zpl_forget_here();
+    LIT(c->res, "{\"known\":false}");
+}
+
+static void m_place_ask(call_t *c)
+{
+    char app[ZPL_APP_MAX + 1];
+    zpl_here_t h;
+    if (!p_str(c, "app", app, sizeof app, true)) return;
+    int rc = zpl_ask(app, &h);
+    if (rc == ZPL_E_ARG || rc == ZPL_E_FULL) {
+        place_done(c, rc);
+        return;
+    }
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    if (rc == 0) {
+        LIT(c->res, ",\"answer\":\"allowed\",");
+        here_json(c->res, &h);
+        LIT(c->res, "}");
+        return;
+    }
+    zxvd_buf_printf(c->res, ",\"answer\":\"%s\"}",
+                    rc == ZPL_E_PENDING  ? "pending"
+                    : rc == ZPL_E_DENIED ? "never"
+                                         : "unknown");
+}
+
+static void m_place_permit(call_t *c)
+{
+    char app[ZPL_APP_MAX + 1], mode[8];
+    if (!p_str(c, "app", app, sizeof app, true) || !p_str(c, "mode", mode, sizeof mode, true))
+        return;
+    int m = zpl_mode_parse(mode);
+    if (m < 0) return fail(c, E_PARAMS, "\"mode\" must be ask, once, always or never");
+    if (!place_done(c, zpl_permit(app, (zpl_mode_t) m))) return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    zxvd_buf_printf(c->res, ",\"mode\":\"%s\"}", zpl_mode_name((zpl_mode_t) m));
+}
+
+static void m_place_apps(call_t *c)
+{
+    LIT(c->res, "{\"apps\":[");
+    for (uint32_t i = 0; i < zpl_app_count(); i++) {
+        const zpl_app_t *a = zpl_app(i);
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"app\":");
+        zxvd_buf_json_str(c->res, a->app);
+        zxvd_buf_printf(c->res, ",\"mode\":\"%s\",\"pending\":%s,\"asked\":%lld}",
+                        zpl_mode_name((zpl_mode_t) a->mode), a->pending ? "true" : "false",
+                        (long long) a->asked);
+    }
+    LIT(c->res, "]}");
+}
+
+static void m_place_list(call_t *c)
+{
+    const zpl_here_t *h = zpl_here();
+    zxvd_buf_printf(c->res, "{\"reset\":%s,\"places\":[", zpl_was_reset() ? "true" : "false");
+    for (uint32_t i = 0; i < zpl_count(); i++) {
+        const zpl_place_t *p = zpl_place(i);
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"name\":");
+        zxvd_buf_json_str(c->res, p->name);
+        zxvd_buf_printf(c->res, ",\"lat\":%ld,\"lon\":%ld,\"note\":", (long) p->at.lat,
+                        (long) p->at.lon);
+        zxvd_buf_json_str(c->res, p->note);
+        if (h->known)
+            zxvd_buf_printf(c->res, ",\"distance_m\":%llu}",
+                            (unsigned long long) zpl_distance_m(h->at, p->at));
+        else
+            LIT(c->res, ",\"distance_m\":null}");
+    }
+    LIT(c->res, "]}");
+}
+
+static void m_place_add(call_t *c)
+{
+    char name[ZPL_NAME_MAX + 1], note[ZPL_NOTE_MAX + 1];
+    zpl_point_t at;
+    if (!p_str(c, "name", name, sizeof name, true) || !p_point(c, &at) ||
+        !p_str(c, "note", note, sizeof note, false) || !place_done(c, zpl_add(name, at, note)))
+        return;
+    LIT(c->res, "{\"name\":");
+    zxvd_buf_json_str(c->res, name);
+    LIT(c->res, ",\"added\":true}");
+}
+
+static void m_place_remove(call_t *c)
+{
+    char name[ZPL_NAME_MAX + 1];
+    if (!p_str(c, "name", name, sizeof name, true) || !place_done(c, zpl_remove(name))) return;
+    LIT(c->res, "{\"name\":");
+    zxvd_buf_json_str(c->res, name);
+    LIT(c->res, ",\"removed\":true}");
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2769,6 +2927,15 @@ static const method_t METHODS[] = {
     {"screen.clear_limit", m_screen_clear_limit},
     {"screen.grant", m_screen_grant},
     {"screen.lock", m_screen_lock},
+    {"place.here", m_place_here},
+    {"place.set_here", m_place_set_here},
+    {"place.forget_here", m_place_forget_here},
+    {"place.ask", m_place_ask},
+    {"place.permit", m_place_permit},
+    {"place.apps", m_place_apps},
+    {"place.list", m_place_list},
+    {"place.add", m_place_add},
+    {"place.remove", m_place_remove},
     {"search.refresh", m_search_refresh},
     {"search.query", m_search_query},
     {"print.status", m_print_status},
@@ -2851,7 +3018,8 @@ static bool quiet(const char *m)
         "sys.info",        "sys.disk",         "sys.net",       "log.tail",       "update.check",
         "search.query",    "search.refresh",   "print.status",  "print.job",      "scan.status",
         "backup.list",     "backup.versions",  "backup.verify", "journal.query",  "journal.verify",
-        "screen.tick",     "screen.check",     "screen.status"};
+        "screen.tick",     "screen.check",     "screen.status", "place.here",     "place.ask",
+        "place.apps",      "place.list"};
     for (size_t i = 0; i < sizeof Q / sizeof *Q; i++)
         if (!strcmp(m, Q[i])) return true;
     return false;

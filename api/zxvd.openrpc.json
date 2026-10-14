@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). -32014 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32015 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which. -32016 screen time refused (screen.*; kernel/arch/hosted/zxv_screen.h): the guardian's passphrase is wrong or missing, too many wrong tries, no such limit, no room, or the file could not be written; the message says which.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32012 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). -32014 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32015 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which. -32016 screen time refused (screen.*; kernel/arch/hosted/zxv_screen.h): the guardian's passphrase is wrong or missing, too many wrong tries, no such limit, no room, or the file could not be written; the message says which. -32017 place refused (place.*; kernel/arch/hosted/zxv_place.h): no such place, a name taken, no room, or the file could not be written; the message says which.",
     "license": {
       "name": "Apache-2.0"
     }
@@ -4881,6 +4881,421 @@
           "type": "object",
           "properties": {
             "locked": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.here",
+      "summary": "Where this machine is, as last set (zxv_place.h P1); only known is present when it is not known. Read only.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "known": {
+              "type": "boolean"
+            },
+            "lat": {
+              "type": "integer"
+            },
+            "lon": {
+              "type": "integer"
+            },
+            "accuracy_m": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "source": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            },
+            "stale": {
+              "type": "boolean",
+              "description": "set more than ten minutes ago"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.set_here",
+      "summary": "Set the location: from a bridge to the system's location service, or typed by the owner. Never written to disk.",
+      "params": [
+        {
+          "name": "lat",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": -90000000,
+            "maximum": 90000000,
+            "description": "millionths of a degree"
+          }
+        },
+        {
+          "name": "lon",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": -180000000,
+            "maximum": 180000000,
+            "description": "millionths of a degree"
+          }
+        },
+        {
+          "name": "accuracy_m",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "default": 50
+          }
+        },
+        {
+          "name": "source",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 15,
+            "default": "owner"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "known": {
+              "type": "boolean"
+            },
+            "lat": {
+              "type": "integer"
+            },
+            "lon": {
+              "type": "integer"
+            },
+            "accuracy_m": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "source": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            },
+            "stale": {
+              "type": "boolean",
+              "description": "set more than ten minutes ago"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.forget_here",
+      "summary": "Forget the location.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "known": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.ask",
+      "summary": "An app asks for the location (P2): answer allowed (with the location), pending (the owner has not answered; the ask is listed), never, or unknown (allowed, but no location is set). A once answer is used up.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "answer": {
+              "type": "string",
+              "enum": [
+                "allowed",
+                "pending",
+                "never",
+                "unknown"
+              ]
+            },
+            "lat": {
+              "type": "integer"
+            },
+            "lon": {
+              "type": "integer"
+            },
+            "accuracy_m": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "source": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.permit",
+      "summary": "The owner's answer for an app: ask (again), once, always or never.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        },
+        {
+          "name": "mode",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "once",
+              "always",
+              "never"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "ask",
+                "once",
+                "always",
+                "never"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.apps",
+      "summary": "Every app that asked or was answered, with its answer and whether an ask waits. Read only.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "apps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "ask",
+                      "once",
+                      "always",
+                      "never"
+                    ]
+                  },
+                  "pending": {
+                    "type": "boolean"
+                  },
+                  "asked": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.list",
+      "summary": "The places kept, with metres from here when the location is known (P4). Read only.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "reset": {
+              "type": "boolean",
+              "description": "the places file was damaged when zxvd started and was moved aside (P5)"
+            },
+            "places": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "lat": {
+                    "type": "integer"
+                  },
+                  "lon": {
+                    "type": "integer"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "distance_m": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.add",
+      "summary": "Keep a place (P3).",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "description": "unique, ignoring ASCII case; no tabs or line breaks"
+          }
+        },
+        {
+          "name": "lat",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": -90000000,
+            "maximum": 90000000,
+            "description": "millionths of a degree"
+          }
+        },
+        {
+          "name": "lon",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": -180000000,
+            "maximum": 180000000,
+            "description": "millionths of a degree"
+          }
+        },
+        {
+          "name": "note",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 255
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "added": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.remove",
+      "summary": "Let a place go; the name matches ignoring ASCII case.",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "description": "unique, ignoring ASCII case; no tabs or line breaks"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "removed": {
               "type": "boolean"
             }
           }

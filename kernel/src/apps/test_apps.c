@@ -28,11 +28,13 @@
 #include "platen_model.h"
 #include "keepsake_model.h"
 #include "shepherd_model.h"
+#include "waymark_model.h"
 #include "zxv_print_host.h"
 #include "test_fake_device.h"
 #include "zxvd_log.h"
 #include "zxv_journal.h"
 #include "zxv_screen.h"
+#include "zxv_place.h"
 #include "sha256.h"
 
 /* remove a scratch tree without a shell (no links followed) */
@@ -1870,6 +1872,109 @@ static void test_shepherd(void)
           "unlock: %s", last_req);
 }
 
+static waymark_t WM;
+
+static void test_waymark(void)
+{
+    CHECK(zpl_open(NULL) == 0, "places in memory");
+    waymark_init(&WM, &LINK);
+    CHECK(waymark_refresh(&WM) == ZXM_OK && !WM.here.known && WM.nplaces == 0 && WM.napps == 0 &&
+              !WM.reset,
+          "empty: %s", LINK.err);
+    CHECK(waymark_add_here(&WM, "Home", "") == ZXM_E_STATE, "no location to keep");
+    CHECK(waymark_ai(&WM, WAYMARK_AI_PLAN) == ZXM_E_STATE, "no places to plan");
+    CHECK(waymark_add(&WM, "Far", -33868800, 151209300, "Sydney") == ZXM_OK &&
+              waymark_add(&WM, "Near", 51500000, -120000, NULL) == ZXM_OK && WM.nplaces == 2 &&
+              WM.place[0].distance_m == -1 && !strcmp(WM.place[0].name, "Far"),
+          "kept, in order while here is unknown: %s", LINK.err);
+    CHECK(waymark_set_here(&WM, 51507400, -127800, 25) == ZXM_OK && WM.here.known &&
+              !WM.here.stale && WM.here.accuracy_m == 25 && !strcmp(WM.here.source, "owner") &&
+              WM.here.lat == 51507400 && WM.here.lon == -127800,
+          "here: %s", LINK.err);
+    CHECK(!strcmp(WM.place[0].name, "Near") && WM.place[0].distance_m < 2000 &&
+              WM.place[1].distance_m > 10000000,
+          "nearest first: %lld", (long long) WM.place[0].distance_m);
+    CHECK(waymark_add_here(&WM, "Office", "desk by the window") == ZXM_OK &&
+              waymark_find(&WM, "Office")->distance_m == 0 && !strcmp(WM.place[0].name, "Office"),
+          "kept here");
+    CHECK(waymark_add(&WM, "office", 0, 0, "") == ZXM_E_REMOTE && LINK.err_code == ZXVD_E_PLACE &&
+              WM.nplaces == 3,
+          "a name taken: %s", LINK.err);
+    CHECK(waymark_remove(&WM, "Far") == ZXM_OK && WM.nplaces == 2 && !waymark_find(&WM, "Far") &&
+              !waymark_find(&WM, NULL),
+          "removed");
+    CHECK(raw_call("place.ask", "{\"app\":\"glint\"}") == ZXM_OK &&
+              waymark_refresh(&WM) == ZXM_OK && WM.npending == 1 && WM.app[0].pending &&
+              WM.app[0].mode == WAYMARK_ASK,
+          "an ask waits");
+    CHECK(waymark_permit(&WM, "glint", WAYMARK_ALWAYS) == ZXM_OK && WM.npending == 0 &&
+              WM.app[0].mode == WAYMARK_ALWAYS,
+          "answered");
+    CHECK(waymark_forget_here(&WM) == ZXM_OK && !WM.here.known && WM.place[0].distance_m == -1,
+          "forgotten");
+    CHECK(
+        waymark_set_here(&WM, 90000001, 0, 5) == ZXM_E_ARG &&
+            waymark_set_here(&WM, 0, -180000001, 5) == ZXM_E_ARG &&
+            waymark_set_here(&WM, 0, 0, 0) == ZXM_E_ARG &&
+            waymark_set_here(&WM, 0, 0, 1000001) == ZXM_E_ARG &&
+            waymark_add(&WM, "", 0, 0, "") == ZXM_E_ARG &&
+            waymark_add(&WM, NULL, 0, 0, "") == ZXM_E_ARG && waymark_remove(&WM, "") == ZXM_E_ARG &&
+            waymark_permit(&WM, "glint", 4) == ZXM_E_ARG && waymark_permit(&WM, "", 0) == ZXM_E_ARG,
+        "refused before sending");
+    asked = 0;
+    CHECK(waymark_ai(&WM, WAYMARK_AI_PLAN) == ZXM_OK && asked == 1 &&
+              strstr(last_prompt, "Office: desk by the window\n") &&
+              strstr(last_prompt, "Do not invent places"),
+          "plan: %s", last_prompt);
+    CHECK(waymark_ai_reject(&WM) == ZXM_OK && waymark_ai_accept(&WM) == ZXM_E_STATE &&
+              waymark_ai(&WM, 1) == ZXM_E_ARG,
+          "held");
+    CHECK(waymark_set_here(&WM, 51507400, -127800, 25) == ZXM_OK && waymark_ai(&WM, 0) == ZXM_OK &&
+              strstr(last_prompt, "Office, 0 m away: desk by the window\n") &&
+              waymark_ai_accept(&WM) == ZXM_OK,
+          "with distances: %s", last_prompt);
+    zpl_close();
+
+    /* made up replies: each of the three reads */
+    waymark_init(&WM, &FAKE);
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"known\":true,\"lat\":1,\"lon\":2,"
+             "\"accuracy_m\":0,\"source\":\"x\",\"time\":1,\"stale\":false}}";
+    CHECK(waymark_refresh(&WM) == ZXM_E_PROTOCOL && !WM.here.known, "accuracy 0");
+    const char *heres[] = {
+        "{\"known\":true,\"lat\":90000001,\"lon\":2,\"accuracy_m\":1,\"source\":\"x\",\"time\":1,"
+        "\"stale\":false}",
+        "{\"known\":true,\"lat\":1,\"lon\":180000001,\"accuracy_m\":1,\"source\":\"x\",\"time\":1,"
+        "\"stale\":false}",
+        "{\"known\":true,\"lat\":1,\"lon\":2,\"accuracy_m\":1000001,\"source\":\"x\",\"time\":1,"
+        "\"stale\":false}",
+        "{\"known\":true,\"lat\":1,\"lon\":2,\"accuracy_m\":1,\"source\":\"\",\"time\":1,\"stale\":"
+        "false}",
+        "{\"known\":true,\"lat\":1,\"lon\":2,\"accuracy_m\":1,\"source\":\"x\",\"stale\":false}",
+        "{\"known\":true,\"lat\":1,\"lon\":2,\"accuracy_m\":1,\"source\":\"x\",\"time\":1}",
+        "{\"lat\":1}",
+    };
+    for (size_t i = 0; i < sizeof heres / sizeof *heres; i++) {
+        static char canned[512];
+        snprintf(canned, sizeof canned, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":%s}", heres[i]);
+        CANNED = canned;
+        CHECK(waymark_refresh(&WM) == ZXM_E_PROTOCOL, "bad here %zu", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"known\":false}}";
+    CHECK(waymark_refresh(&WM) == ZXM_E_PROTOCOL && strstr(last_req, "\"method\":\"place.list\""),
+          "a list that is not one");
+    CANNED = NULL;
+    CHECK(waymark_set_here(&WM, -5, -6, 7) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"lat\":-5,\"lon\":-6,\"accuracy_m\":7}"),
+          "negative numbers: %s", last_req);
+    CHECK(waymark_add(&WM, "A", -90000000, 180000000, "n") == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"name\":\"A\",\"lat\":-90000000,\"lon\":180000000,"
+                               "\"note\":\"n\"}"),
+          "add: %s", last_req);
+    CHECK(waymark_permit(&WM, "g", WAYMARK_NEVER) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"app\":\"g\",\"mode\":\"never\"}"),
+          "permit: %s", last_req);
+}
+
 static keepsake_t KS;
 
 static void test_keepsake(void)
@@ -2248,6 +2353,7 @@ int main(void)
     test_platen();
     test_keepsake();
     test_shepherd();
+    test_waymark();
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {

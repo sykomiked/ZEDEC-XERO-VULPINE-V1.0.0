@@ -108,6 +108,7 @@ typedef int sock_t;
 #    include "zxvd_rpc.h" /* zxvd: the JSON-RPC socket and the libzxv books */
 #    include "zxv_journal.h" /* zxvd: its events kept across restarts */
 #    include "zxv_screen.h"  /* zxvd: screen time for Shepherd */
+#    include "zxv_place.h"   /* zxvd: location and places for Waymark */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -1828,6 +1829,8 @@ int main(int argc, char **argv)
     char journal_buf[520];
     const char *screen_path = NULL; /* zxv_screen.h; "-" keeps it in memory */
     char screen_buf[520];
+    const char *places_path = NULL; /* zxv_place.h; "-" keeps them in memory */
+    char places_buf[520];
     const char *earn_ccy = "VFV";
     uint64_t earn_rate = 1;
     bool desktop = false;
@@ -1900,6 +1903,8 @@ int main(int argc, char **argv)
             journal_path = argv[++i];
         else if (!strcmp(argv[i], "--screen") && i + 1 < argc)
             screen_path = argv[++i];
+        else if (!strcmp(argv[i], "--places") && i + 1 < argc)
+            places_path = argv[++i];
         else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
@@ -1924,6 +1929,9 @@ int main(int argc, char **argv)
                    "  --screen FILE       keep screen time and its limits in FILE\n"
                    "                      (default with --desktop: \"screen.zxst\" beside\n"
                    "                      the books; \"-\" keeps it in memory)\n"
+                   "  --places FILE       keep saved places and location permissions in\n"
+                   "                      FILE (default with --desktop: \"places.zxpl\"\n"
+                   "                      beside the books; \"-\" keeps them in memory)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
                    "  --desktop           the desktop app: the socket in the per-user\n"
@@ -2091,6 +2099,9 @@ int main(int argc, char **argv)
     if (desktop && !screen_path &&
         pal_beside_books(screen_buf, sizeof screen_buf, "screen.zxst") == 0)
         screen_path = screen_buf;
+    if (desktop && !places_path &&
+        pal_beside_books(places_buf, sizeof places_buf, "places.zxpl") == 0)
+        places_path = places_buf;
     if (journal_path && strcmp(journal_path, "-") && zjr_open(journal_path) != 0)
         fprintf(stderr, "zxvd: cannot write the journal in %s; going on without it\n",
                 journal_path);
@@ -2101,6 +2112,13 @@ int main(int argc, char **argv)
         else if (zsc_was_reset())
             fprintf(stderr, "zxvd: %s was damaged; moved aside, screen time starts empty\n",
                     screen_path);
+    }
+    if (places_path && strcmp(places_path, "-")) {
+        if (zpl_open(places_path) != 0)
+            fprintf(stderr, "zxvd: cannot write places to %s; keeping them in memory\n",
+                    places_path);
+        else if (zpl_was_reset())
+            fprintf(stderr, "zxvd: %s was damaged; moved aside, places start empty\n", places_path);
     }
     if (books_path && !strcmp(books_path, "-")) books_path = NULL;
     if (zxvd_rpc_books_file(books_path) != 0) {

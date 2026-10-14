@@ -310,6 +310,10 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
         [args addObjectsFromArray:@[
             @"--screen", [self.supportDir stringByAppendingPathComponent:@"screen.zxst"]
         ]];
+        /* Waymark's saved places and location permissions (zxv_place.h) */
+        [args addObjectsFromArray:@[
+            @"--places", [self.supportDir stringByAppendingPathComponent:@"places.zxpl"]
+        ]];
     }
     NSString *model = [self currentModel];
     if (model) {
