@@ -1072,6 +1072,11 @@ verify-all: test
 		src/quantum/test_quantum_device.c src/quantum/quantum_device.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
 		-o /tmp/test_quantum_device -lm && \
 		/tmp/test_quantum_device && echo "[PASS] test_quantum_device" || { echo "[FAIL] test_quantum_device"; exit 1; }; \
+	echo "=== Quantum device model, kernel Q32.32 build (nm/fs/eV units; hbar no longer rounds to 0) ==="; \
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc -Isrc/event_space -Isrc/surplus -Isrc/quantum -Isrc/hardware -Isrc/edp_risk -Isrc/lpres \
+		src/quantum/test_quantum_fixed.c src/quantum/quantum_device.c src/surplus/surplus.c \
+		-o $(ZXV_TMP)/test_quantum_fixed -lm && \
+		$(ZXV_TMP)/test_quantum_fixed && echo "[PASS] test_quantum_fixed" || { echo "[FAIL] test_quantum_fixed"; exit 1; }; \
 	echo "=== DLP projector (hardware model) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/event_space -Isrc/robin_debanks -Isrc/surplus -Isrc/rational -Isrc/crit168 -Isrc/chiglet -Isrc/trispace -Isrc/porter_house -Isrc/vino -Isrc/vena -Isrc/count_house -Isrc/mesh_token -Isrc/community_chest -Isrc/telemetry -Isrc/finance -Isrc/identity -Isrc/license -Isrc/net -Isrc/quantum -Isrc/hardware -Isrc/mesh_net -Isrc/immigration -Isrc/ai_layer -Isrc/prism_break -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/iphase -Isrc/choice -Isrc/phase_coord -Isrc/axiom_matrix -Isrc/dual_space -Isrc/lattice \
 		src/hardware/test_dlp_projector.c src/hardware/dlp_projector.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c src/robin_debanks/crypto_verify.c src/edp_risk/edp_risk.c src/surplus/surplus.c src/porter_house/porter_house.c src/lpres/lpres.c \
@@ -1375,6 +1380,7 @@ verify-all: test
 	python3 ../tests/harness/tiers.py -q tier2 && echo "[PASS] tier2 integration (tests/02_integration)" || { echo "[FAIL] tier2 integration"; exit 1; }; \
 	python3 ../tests/harness/tiers.py -q tier3 && echo "[PASS] tier3 metamorphic (tests/03_metamorphic)" || { echo "[FAIL] tier3 metamorphic"; exit 1; }; \
 	python3 ../tests/harness/mutator/mutate.py --selftest && echo "[PASS] mutation harness self-test" || { echo "[FAIL] mutation harness self-test"; exit 1; }; \
+	$(MAKE) --no-print-directory test-orphans || exit 1; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="
 
 # Adversarial parser fuzzers under ASan+UBSan (untrusted-input gate).
@@ -1920,3 +1926,22 @@ test-research:
 	$(MAKE) --no-print-directory test-spatial
 	$(MAKE) --no-print-directory test-mfg
 # ==== end research tracks ====
+
+# Host tests that no target used to build (docs/AUDIT_REPORT.md): the holographic
+# data system, the native apps launcher, the M5 "new modules" suite, the NES
+# NROM machine (embedded hand-assembled ROM) and the Notes app.
+ORPHAN_CC := gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude
+# apps.c / notes_app.c pull in most of the kernel's headers through apps.h.
+# apps.c is minified onto long lines that trip -Wmisleading-indentation (style
+# only; every flagged statement is correctly guarded).
+APPS_TEST_INC := -Isrc/oseq -Isrc/rmag -Isrc/lpres -Isrc/vfs -Isrc/vino -Isrc/apps -Isrc/edp_risk -Isrc/zcapital -I../gui -Isrc/ipfs -Isrc/update -Isrc/bridge -Isrc -Isrc/onepolicy -Isrc/constellation
+NEWMOD_TEST_INC := -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/finance -Isrc/identity -Isrc/quantum -Isrc/hardware -Isrc/net -Isrc/synthesis -Isrc/crypto_wallet -Isrc/nlb -Isrc/pterm -Isrc/xedit -Isrc/lattice -Isrc/pungent -Isrc/ascent -Isrc/plnp -Isrc/smap -Isrc/decent -Isrc/recon -Isrc/hdcm -Isrc/gematria -Isrc/dualtrack -Isrc/superpos -Isrc/vino
+NEWMOD_TEST_SRCS := src/surplus/surplus.c src/edp_risk/edp_risk.c src/predictive/predictive_model.c src/situation/situation_model.c src/finance/triple_ledger.c src/finance/financial.c src/finance/rails.c src/finance/crypto_bridge.c src/identity/identity.c src/quantum/quantum_device.c src/hardware/rtl_device.c src/net/jdr_piratenet.c src/synthesis/synthesis_engine.c src/crypto_wallet/crypto_wallet.c src/nlb/nlb.c src/pterm/pterm.c src/pterm/pterm_commands.c src/xedit/xedit.c src/lattice/lattice.c src/pungent/pungent.c src/ascent/ascent.c src/plnp/plnp.c src/smap/smap.c src/decent/decent.c src/recon/recon.c src/hdcm/hdcm.c src/gematria/gematria.c src/dualtrack/dualtrack.c src/superpos/superpos.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c src/event_space/event_envelope.c
+
+.PHONY: test-orphans
+test-orphans:
+	$(ORPHAN_CC) -Isrc/holographic ../tests/test_holo.c src/holographic/holo.c src/phase_coord/phase_coordinator.c -o $(ZXV_TMP)/test_holo && $(ZXV_TMP)/test_holo > $(ZXV_TMP)/test_holo.log 2>&1 && echo "[PASS] test_holo ($$(tail -1 $(ZXV_TMP)/test_holo.log))" || { cat $(ZXV_TMP)/test_holo.log; echo "[FAIL] test_holo"; exit 1; }
+	$(ORPHAN_CC) -Wno-misleading-indentation $(APPS_TEST_INC) -Isrc/zab ../tests/test_apps.c ../tests/test_apps_stubs.c src/apps/apps.c src/apps/vfs_stub.c ../gui/gui.c src/vbe/vbe.c src/vino/vino.c src/vena/vena.c src/net/m5route.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/choice/choice_core.c src/zab/zab.c src/zab/zab_exec.c -o $(ZXV_TMP)/test_apps && $(ZXV_TMP)/test_apps > $(ZXV_TMP)/test_apps.log 2>&1 && echo "[PASS] test_apps ($$(tail -1 $(ZXV_TMP)/test_apps.log))" || { cat $(ZXV_TMP)/test_apps.log; echo "[FAIL] test_apps"; exit 1; }
+	$(ORPHAN_CC) $(NEWMOD_TEST_INC) ../tests/test_new_modules.c $(NEWMOD_TEST_SRCS) -o $(ZXV_TMP)/test_new_modules -lm && $(ZXV_TMP)/test_new_modules > $(ZXV_TMP)/test_new_modules.log 2>&1 && echo "[PASS] test_new_modules ($$(tail -1 $(ZXV_TMP)/test_new_modules.log))" || { tail -30 $(ZXV_TMP)/test_new_modules.log; echo "[FAIL] test_new_modules"; exit 1; }
+	$(ORPHAN_CC) -Isrc/emu src/emu/test_nes.c src/emu/nes.c src/emu/cpu6502.c -o $(ZXV_TMP)/test_nes && $(ZXV_TMP)/test_nes > $(ZXV_TMP)/test_nes.log 2>&1 && echo "[PASS] test_nes ($$(tail -1 $(ZXV_TMP)/test_nes.log))" || { cat $(ZXV_TMP)/test_nes.log; echo "[FAIL] test_nes"; exit 1; }
+	$(ORPHAN_CC) $(APPS_TEST_INC) -include ../tests/notes_app_shim.h src/apps/test_notes.c src/apps/notes_app.c src/apps/vfs_stub.c src/oseq/oseq_core.c -o $(ZXV_TMP)/test_notes && $(ZXV_TMP)/test_notes > $(ZXV_TMP)/test_notes.log 2>&1 && echo "[PASS] test_notes ($$(grep -c '^PASS' $(ZXV_TMP)/test_notes.log) checks)" || { cat $(ZXV_TMP)/test_notes.log; echo "[FAIL] test_notes"; exit 1; }

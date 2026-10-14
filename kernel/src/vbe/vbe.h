@@ -4,6 +4,7 @@
 #ifndef VBE_H
 #define VBE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define VBE_DEFAULT_WIDTH  1024

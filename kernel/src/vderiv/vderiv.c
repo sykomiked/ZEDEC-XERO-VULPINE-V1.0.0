@@ -193,12 +193,15 @@ static vderiv_status_t post(vderiv_t *s, const pay_line_t *ln, uint32_t n, uint8
     return s->last_ledger == PAY_ERR_FUNDS ? VDERIV_ERR_FUNDS : VDERIV_ERR_LEDGER;
 }
 
-/* two distinct, signing parties with usable accounts */
+/* two distinct, signing parties with usable accounts; each key is the
+ * ledger owner id of the account it commits (V6), so a signer can only
+ * move value out of its own accounts */
 static vderiv_status_t parties(const vderiv_t *s, uint64_t nonce, uint32_t ka, uint32_t a,
                                uint32_t kb, uint32_t b)
 {
     if (!of(s, a) || !of(s, b) || own(s, a) || own(s, b) || a == b || ka == kb)
         return VDERIV_ERR_ARG;
+    if (of(s, a)->owner != ka || of(s, b)->owner != kb) return VDERIV_ERR_SIG;
     if (nonce != s->nonce) return VDERIV_ERR_NONCE;
     return VDERIV_OK;
 }

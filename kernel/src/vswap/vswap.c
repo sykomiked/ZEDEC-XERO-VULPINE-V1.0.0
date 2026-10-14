@@ -123,6 +123,11 @@ vswap_status_t vswap_rate(const vswap_t *s, vswap_quote_t *q)
     pay_memset(q, 0, sizeof *q);
     vswap_status_t st = base(s, &R, &B);
     if (st != VSWAP_OK) return st;
+    /* B == 0 with R > 0: no outside holder, yet the reserve holds value.
+     * Any price lets the first buyer redeem the whole reserve (W4 pays
+     * floor(v * R / B) with B == v); the ratio claim a' * B >= v * R is
+     * false. Fail closed. */
+    if (B == 0 && R > 0) return VSWAP_ERR_STATE;
     q->par = (B == 0 || R == 0);
     q->num = q->par ? s->cfg.par_num : R;
     q->den = q->par ? s->cfg.par_den : B;
@@ -324,8 +329,9 @@ static vswap_status_t div_check(const vswap_t *s, uint32_t pool, const vswap_hol
         for (uint32_t j = 0; j < i; j++)
             if (h[j].vbill == h[i].vbill) return VSWAP_ERR_ARG;
     }
-    for (uint32_t i = 0; i < VSWAP_MAX_POS; i++)
-        if (s->pos[i].used && s->pos[i].payee == pool) return VSWAP_ERR_ARG;
+    /* A position whose payee is this pool is NOT a reason to refuse: anyone
+     * may open one (vswap_lock does not know the pool), and refusing here let
+     * one locked V-Bill block every dividend. It gets weight 0 instead. */
     *P = pa->debit;
     if (*P == 0) return VSWAP_ERR_EMPTY;
     if (*P > VSWAP_LINE_MAX) return VSWAP_ERR_OVERFLOW;
@@ -352,7 +358,7 @@ vswap_status_t vswap_dividend(vswap_t *s, uint32_t pool, const vswap_holder_t *h
         if (i < n) {
             bal = of(s, h[i].vbill, s->cfg.vbill)->debit;
             w = (exclude_vault && h[i].vbill == s->cfg.vault) ? 0 : s->cfg.weight[LOW];
-        } else if (s->pos[i - n].used) {
+        } else if (s->pos[i - n].used && s->pos[i - n].payee != pool) {
             bal = s->pos[i - n].vbills;
             w = s->cfg.weight[s->pos[i - n].tier];
         }
