@@ -3988,7 +3988,9 @@ ZXV_API int32_t zxv_vino_receipt_msg(const uint8_t request_id[32], const uint8_t
                                      uint64_t approved_at, uint8_t out[88]);
 /* Wallet side: approve a request (bytes as encoded) at approved_at, which
  * must be within [created_at, expires_at]; sign with the wallet's
- * ML-DSA-87 key. Needs CRYPTO_SIGN. ZXV_E_EXPIRED, the decode codes,
+ * ML-DSA-87 key (hedged: randomized like zxv_mldsa87_sign, so two calls
+ * give different signatures that both verify). Needs CRYPTO_SIGN.
+ * ZXV_E_EXPIRED, the decode codes,
  * ZXV_E_NOTIMPL (ZXV_NO_PQC), ZXV_E_CAP, ZXV_E_ARG. */
 ZXV_API int32_t zxv_vino_receipt_sign(const zxv_cap *cap, const uint8_t request[160],
                                       const uint8_t wallet_sk[4896], const uint8_t wallet_pk[2592],
