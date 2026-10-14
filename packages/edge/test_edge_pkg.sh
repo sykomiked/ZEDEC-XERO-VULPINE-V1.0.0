@@ -120,8 +120,12 @@ for p in rpi5 jetson minipc; do
     if command -v systemd-analyze >/dev/null 2>&1; then
         sed "s|/opt/zxv-edge/bin/zxv-edge-run|$RUNP|" "$U" >"$T/units/v-$p.service"
         chmod +x "$RUNP" 2>/dev/null || true
+        # verify also loads the host's own units and reports their problems
+        # (a GitHub runner's netplan and snapd units, say); only the lines
+        # about this unit or its program are this package's.
         out="$(systemd-analyze verify "$T/units/v-$p.service" 2>&1)" || bad "systemd-analyze verify $p: $out"
-        [ -z "$out" ] || bad "systemd-analyze verify $p warns: $out"
+        own="$(printf '%s\n' "$out" | grep -F -e "v-$p.service" -e "$RUNP" || true)"
+        [ -z "$own" ] || bad "systemd-analyze verify $p warns: $own"
         ok "systemd-analyze verify $p: no errors, no warnings"
         sc="$(systemd-analyze security --offline=yes "$U" 2>/dev/null | sed -n 's/.*Overall exposure level for [^:]*: \([0-9.]*\).*/\1/p')"
         case "$sc" in 0.*|1.*) ok "systemd-analyze security $p: exposure $sc (below 2.0)" ;;
