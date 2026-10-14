@@ -112,9 +112,10 @@ typedef struct {
 } zxl_theme_t;
 
 #define ZXL_MOTIFS 12  /* begin/end phrase shapes (tools/launch/launch_sounds.py) */
-#define ZXL_APPS   144 /* every app on the list has its own entry       */
+#define ZXL_APPS   407 /* every app in the catalogue has its own entry   */
+#define ZXL_TIER1  144 /* the first tier: twelve groups of twelve        */
 
-/* The theme for an app: its own entry (every app on the 144-app list has one,
+/* The theme for an app: its own entry (every app in the 407-app catalogue has one,
  * each with its own sound sequence; case-sensitive name), otherwise its
  * group's default (an app a person made that picked none). A group outside 1..12 gets group 1's.
  * Never returns NULL. */

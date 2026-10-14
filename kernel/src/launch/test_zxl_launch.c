@@ -52,7 +52,7 @@ static void test_themes(void)
           "media group has water behind it");
 
     /* every app on the list has its own entry, in list order */
-    CHECK(zxl_curated_count() == ZXL_APPS, "all 144 apps have their own entry");
+    CHECK(zxl_curated_count() == ZXL_APPS, "all 407 apps have their own entry");
     CHECK(zxl_curated(ZXL_APPS) == 0, "past the end is NULL");
     static const struct {
         uint32_t at;
@@ -69,7 +69,7 @@ static void test_themes(void)
     for (uint32_t i = 0; i < ZXL_APPS; i++) {
         const zxl_theme_t *a = zxl_curated(i), *g = zxl_group_theme(a->group);
         CHECK(g != 0, "each app is in a real group");
-        CHECK(a->group == 1 + i / 12, "twelve apps a group, in order");
+        if (i < ZXL_TIER1) CHECK(a->group == 1 + i / 12, "tier 1: twelve apps a group, in order");
         CHECK(g && a->timbre == g->timbre && a->ambient == g->ambient,
               "an app sounds and moves like its group");
         CHECK(a->reveal == ZXL_REVEAL_VAULT, "every app opens with the boot's vault");
@@ -83,12 +83,18 @@ static void test_themes(void)
             if (a->key == b->key && a->octave == b->octave && a->timbre == b->timbre &&
                 a->motif == b->motif)
                 CHECK(0, "no two apps share a sound sequence");
-            if (a->group == b->group && a->key == b->key && a->octave == b->octave)
-                CHECK(0, "no two apps in a group share a scale");
+            if (j < ZXL_TIER1 && a->group == b->group && a->key == b->key && a->octave == b->octave)
+                CHECK(0, "no two tier-1 apps in a group share a scale");
             if (strcmp(a->app, b->app) == 0) CHECK(0, "names are unique");
         }
     }
     CHECK(in_e == 1, "only the swarm is in the boot's key");
+    CHECK(strcmp(zxl_curated(ZXL_TIER1)->app, "Cartulary") == 0, "tier 2 follows tier 1");
+    CHECK(strcmp(zxl_curated(ZXL_APPS - 1)->app, "Chorale") == 0, "the catalogue ends on app 407");
+    uint32_t per[ZXL_GROUPS + 1] = {0};
+    for (uint32_t i = 0; i < ZXL_APPS; i++) per[zxl_curated(i)->group]++;
+    for (uint32_t g = 1; g <= ZXL_GROUPS; g++)
+        CHECK(per[g] >= 12, "every family has its twelve and more");
     CHECK(zxl_theme_for("burrow", 1) == zxl_group_theme(1), "names are case-sensitive");
     CHECK(zxl_theme_for("Burrowx", 6) == zxl_group_theme(6), "no prefix match");
     CHECK(zxl_theme_for("Burro", 6) == zxl_group_theme(6), "no short match");
