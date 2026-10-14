@@ -19,7 +19,8 @@
  *
  * Usage: zt_bench MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B]
  *                 [--kv q16|q8] [--text FILE] [--kern NAME] [--threads T]
- *                 [--special] [--convert] [--mmap] [--gpu] [--gpu-decode]
+ *                 [--special] [--convert] [--mmap] [--gpu] [--gpu-decode] [--gpu-resident]
+ *                 [--gpu-sim]
  *                 [--ranks P | --tcp RANK HOST0,HOST1,... PORT]
  * --special parses special-token text in the prompt (a chat template such as
  * "<|im_start|>user\n...<|im_end|>\n<|im_start|>assistant\n").
@@ -50,6 +51,14 @@
  * for one token at a time; --gpu-decode puts every product on the GPU. The ids and
  * zt.logits_fnv do not change. It prints zt.gpu=<name> and the GPU's share
  * (zt.gpu_products, zt.gpu_declined, zt.gpu_s, zt.gpu_wall_s).
+ * --gpu-resident runs the whole forward pass on the GPU (zt_gpu.h): every
+ * layer's norms, RoPE, attention, SiLU and residual as well as the products,
+ * one command buffer per pass, the state's memory (KV cache) shared in place.
+ * It adds zt.gpu_passes, zt.gpu_passes_declined and zt.gpu_pass_ops; the ids
+ * and zt.logits_fnv still do not change.
+ * --gpu-sim runs the same whole-pass op list through zt_gpu.h's C backend
+ * (one output at a time, slow) on any host: a check that the list a GPU
+ * would run gives this model's exact logits (zt.gpu_sim_passes=<n>).
  * With --ranks or --tcp the model is distributed, and --gpu's whole-matrix
  * products are not used (each rank computes only its own rows).
  * Exit: 0 ok, 2 usage, 3 cannot read file, 4 model or tokenizer not loadable,
@@ -68,6 +77,7 @@
 #include <unistd.h>
 
 #include "zt_dist.h"
+#include "zt_gpu.h"
 #include "zt_gguf.h"
 #include "zt_model.h"
 #include "zt_simd.h"
@@ -167,7 +177,7 @@ int main(int argc, char **argv)
     uint32_t n_ranks = 1, tcp_rank = 0, tcp_port = 0;
     bool use_mmap = false;
     const char *tcp_hosts = NULL;
-    bool gpu = false, gpu_decode = false;
+    bool gpu = false, gpu_decode = false, gpu_resident = false, gpu_sim = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         const char *v = i + 1 < argc ? argv[i + 1] : NULL;
@@ -204,6 +214,10 @@ int main(int argc, char **argv)
             gpu = true;
         else if (!strcmp(a, "--gpu-decode"))
             gpu = gpu_decode = true;
+        else if (!strcmp(a, "--gpu-resident"))
+            gpu = gpu_decode = gpu_resident = true;
+        else if (!strcmp(a, "--gpu-sim"))
+            gpu_sim = true;
         else if (a[0] != '-' && !path)
             path = a;
         else {
@@ -211,7 +225,7 @@ int main(int argc, char **argv)
                 stderr,
                 "usage: %s MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B] "
                 "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T] [--special] [--convert] "
-                "[--mmap] [--gpu] [--gpu-decode] [--ranks P | --tcp RANK HOST0,HOST1,... PORT]\n",
+                "[--mmap] [--gpu] [--gpu-decode] [--gpu-resident] [--gpu-sim] [--ranks P | --tcp RANK HOST0,HOST1,... PORT]\n",
                 argv[0]);
             return 2;
         }
@@ -319,7 +333,10 @@ int main(int argc, char **argv)
             return 2;
         }
         if (!gpu_decode) zt_metal_set_min_tokens(mt, 2); /* decode stays on the CPU */
-        zt_kern_metal(&gkern, &kern, mt);
+        if (gpu_resident)
+            zt_kern_metal_resident(&gkern, &kern, mt);
+        else
+            zt_kern_metal(&gkern, &kern, mt);
         m.kern = &gkern;
         printf("zt.gpu=%s\n", zt_metal_name(mt));
     }
@@ -329,6 +346,16 @@ int main(int argc, char **argv)
         return 2;
     }
 #endif
+    zt_kern_t skern;
+    zg_sim_t *gsim = NULL;
+    if (gpu_sim) {
+        gsim = zg_sim_new();
+        skern = *m.kern;
+        skern.fwd_full = zg_sim_fwd;
+        skern.fctx = gsim;
+        m.kern = &skern;
+        if (!zg_supported(&m)) printf("zt.gpu_sim=unsupported (passes run on the CPU)\n");
+    }
     uint64_t tbytes = zt_tok_arena_bytes(&g);
     void *tarena = tbytes ? alloc64(tbytes) : NULL;
     zt_tok_t tok;
@@ -356,12 +383,25 @@ int main(int argc, char **argv)
 
     if (n_ctx == 0) n_ctx = (uint32_t) n_ids + n_gen + 1;
     uint64_t sbytes = zt_model_state_bytes(&m, n_ctx, n_batch, kv);
-    void *smem = alloc64(sbytes);
+    void *smem = NULL;
+    if (gpu_resident) { /* whole pages, shared with the GPU in place (the KV cache) */
+        uint64_t pg = (uint64_t) sysconf(_SC_PAGESIZE);
+        sbytes = (sbytes + pg - 1) / pg * pg;
+        if (posix_memalign(&smem, (size_t) pg, (size_t) sbytes) != 0) smem = NULL;
+    } else {
+        smem = alloc64(sbytes);
+    }
     zt_model_state_t st;
     if (!smem || zt_model_state_init(&st, &m, n_ctx, n_batch, kv, smem, sbytes) != 0) {
         fprintf(stderr, "zt_bench: cannot set up a %u-token context\n", n_ctx);
         return 5;
     }
+#ifdef ZT_HAVE_METAL
+    if (gpu_resident && zt_metal_map(mt, smem, sbytes)) {
+        fprintf(stderr, "zt_bench: --gpu-resident: cannot share the model state with the GPU\n");
+        return 2;
+    }
+#endif
     uint32_t nv = m.cfg.n_vocab;
     zt_fx *logits = malloc((size_t) nv * sizeof(zt_fx));
     if (!logits) return 5;
@@ -402,8 +442,13 @@ int main(int argc, char **argv)
         printf("zt.gpu_products=%llu\nzt.gpu_declined=%llu\nzt.gpu_s=%.6f\nzt.gpu_wall_s=%.6f\n",
                (unsigned long long) gs.products, (unsigned long long) gs.declined,
                (double) gs.gpu_ns * 1e-9, (double) gs.wall_ns * 1e-9);
+        if (gpu_resident)
+            printf("zt.gpu_passes=%llu\nzt.gpu_passes_declined=%llu\nzt.gpu_pass_ops=%llu\n",
+                   (unsigned long long) gs.passes, (unsigned long long) gs.passes_declined,
+                   (unsigned long long) gs.pass_ops);
     }
 #endif
+    if (gsim) printf("zt.gpu_sim_ops=%u\n", zg_last_ops());
     printf("zt.n_prompt=%llu\n", (unsigned long long) n_ids);
     printf("zt.prefill_s=%.6f\nzt.prefill_tps=%.3f\n", t1 - t0,
            (t1 - t0) > 0 ? (double) n_ids / (t1 - t0) : 0.0);

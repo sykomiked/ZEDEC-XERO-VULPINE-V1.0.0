@@ -4,7 +4,7 @@
  * C reference, bit for bit, on the GPU. macOS only:
  *
  *   clang -std=c11 -O2 -Wall -Wextra -Werror -DTEST_HOST -fno-objc-arc -Isrc/tensor \
- *       src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_simd.c \
+ *       src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_gpu.c src/tensor/zt_simd.c \
  *       src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c \
  *       src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c \
  *       -framework Metal -framework Foundation -lpthread -o /tmp/test_zt_metal
@@ -19,7 +19,12 @@
  * 3. Qwen2.5-1.5B's shapes (1536 x 1536, 8960 x 1536, 1536 x 8960) at model
  *    scale, 1 and 37 tokens;
  * 4. whole forward passes of the fixture models with the GPU on: all logits
- *    identical to the C reference, with the file mapped by copy and without.
+ *    identical to the C reference, with the file mapped by copy and without;
+ * 5. the whole pass resident on the GPU (zt_kern_metal_resident, zt_gpu.h):
+ *    every layer and the logits in one command buffer, the state shared in
+ *    place: logits, cache, hidden state and saturation count identical to
+ *    the C reference, also with gains that saturate; with the state not
+ *    mapped, every pass is declined and the products path gives the same.
  * With no Metal device it prints SKIP and passes, unless ZT_METAL_REQUIRE=1. */
 #define _POSIX_C_SOURCE 200112L
 #include <stdint.h>
@@ -249,6 +254,103 @@ static void test_models(zt_metal_t *mt_unused)
     zt_pool_free(pool);
 }
 
+/* the fixture sequence (4-token batches, all logits; then 8 greedy steps)
+ * with the state in page-aligned memory, mapped for the GPU when map */
+static zt_fx *run_resident(zt_metal_t *mt, const zt_model_t *m, const mf_variant_t *v, bool map,
+                           uint64_t *n_out, int32_t **kv_out, uint32_t *nsat)
+{
+    uint32_t V = v->n_vocab, n0 = v->seq_len[0], steps = 8;
+    uint64_t need = (zt_model_state_bytes(m, 64, 4, ZT_KV_Q16) + 65535) / 65536 * 65536;
+    void *mem = NULL;
+    if (posix_memalign(&mem, 65536, need)) return NULL;
+    memset(mem, 0, need);
+    if (map && zt_metal_map(mt, mem, need)) return NULL;
+    zt_model_state_t s;
+    zt_fx *out = malloc((size_t) V * (n0 + steps) * 4);
+    zt_model_state_init(&s, m, 64, 4, ZT_KV_Q16, mem, need);
+    zt_model_eval(m, &s, v->seq, n0, out, ZT_EVAL_ALL_LOGITS);
+    zt_fx *lg = out + (uint64_t) (n0 - 1) * V;
+    for (uint32_t i = 0; i < steps; i++) {
+        int32_t id = zt_argmax(lg, V);
+        lg += V;
+        zt_model_decode(m, &s, id, lg);
+    }
+    uint64_t kvn = (uint64_t) m->cfg.n_layer * 64 * m->kv_dim;
+    *kv_out = malloc(kvn * 8);
+    memcpy(*kv_out, s.k16, kvn * 4);
+    memcpy(*kv_out + kvn, s.v16, kvn * 4);
+    *nsat = s.n_sat;
+    *n_out = (uint64_t) V * (n0 + steps);
+    /* the memory stays mapped in mt until it is freed: not freed here */
+    return out;
+}
+
+static void test_resident(void)
+{
+    zt_pool_t *pool = zt_pool_new(3);
+    for (uint32_t vi = 0; vi < MF_N_VARIANTS; vi++) {
+        const mf_variant_t *v = &MF_VARIANTS[vi];
+        uint8_t *heap = fx_rebuild(v), *file = NULL;
+        if (posix_memalign((void **) &file, 65536, (v->file_len + 65535) / 65536 * 65536)) continue;
+        memcpy(file, heap, v->file_len);
+        for (uint32_t hot = 0; hot < 2; hot++)
+            for (uint32_t map = 0; map < 2; map++) {
+                zt_metal_t *mt = zt_metal_new(NULL, 0);
+                zt_gguf_t g;
+                zt_model_t m;
+                zt_model_err_t err;
+                if (!mt || zt_metal_map(mt, file, v->file_len) ||
+                    zt_gguf_open(&g, file, v->file_len)) {
+                    CHECK(0, "%s: fixture opens and maps", v->name);
+                    zt_metal_free(mt);
+                    continue;
+                }
+                uint64_t ab = zt_model_arena_bytes(&g);
+                void *marena = malloc(ab);
+                if (zt_model_load(&m, &g, marena, ab, &err)) {
+                    CHECK(0, "%s: fixture loads", v->name);
+                    continue;
+                }
+                if (hot) /* gains near 2^30: products and residuals saturate */
+                    for (uint32_t l = 0; l < m.cfg.n_layer; l++)
+                        for (uint32_t i = 0; i < m.cfg.n_embd; i++) {
+                            int32_t gv = (i % 3 ? 1 : -1) * (int32_t) (0x3FFFFFFF - i * 977);
+                            ((int32_t *) m.layers[l].attn_norm.g)[i] = gv;
+                            ((int32_t *) m.layers[l].ffn_norm.g)[i] = gv;
+                        }
+                bool want = m.layers[0].wg.raw != 0 && map; /* Llama's FFN is zt_q8_t rows */
+                uint64_t n = 0, n2 = 0;
+                int32_t *kv_ref = NULL, *kv_got = NULL;
+                uint32_t sat_ref = 0, sat_got = 0;
+                m.kern = 0;
+                zt_fx *ref = run_resident(mt, &m, v, false, &n, &kv_ref, &sat_ref);
+                zt_kern_t cpu, k;
+                zt_kern_threaded(&cpu, zt_simd_best(), pool);
+                zt_kern_metal_resident(&k, &cpu, mt);
+                m.kern = &k;
+                zt_fx *got = run_resident(mt, &m, v, map, &n2, &kv_got, &sat_got);
+                zt_metal_stats_t ms;
+                zt_metal_stats(mt, &ms);
+                uint64_t kvn = (uint64_t) m.cfg.n_layer * 64 * m.kv_dim;
+                CHECK(ref && got && n2 == n && !memcmp(ref, got, n * 4) &&
+                          !memcmp(kv_ref, kv_got, kvn * 8) && sat_ref == sat_got &&
+                          (want ? ms.passes > 0 && ms.passes_declined == 0 : ms.passes == 0),
+                      "%s%s, state %s: whole pass resident on the GPU: %llu logits, the cache "
+                      "and the saturation count (%u) identical to the C reference (%llu passes, "
+                      "%llu ops, %llu declined)",
+                      v->name, hot ? ", gains near 2^30" : "", map ? "mapped" : "not mapped",
+                      (unsigned long long) n, sat_got, (unsigned long long) ms.passes,
+                      (unsigned long long) ms.pass_ops, (unsigned long long) ms.passes_declined);
+                free(ref), free(got), free(kv_ref), free(kv_got);
+                free(marena);
+                zt_metal_free(mt);
+            }
+        free(heap);
+        free(file);
+    }
+    zt_pool_free(pool);
+}
+
 int main(void)
 {
     printf("=== zt_metal: GPU matrix products vs the C reference, bit for bit ===\n");
@@ -272,6 +374,7 @@ int main(void)
     test_decline(mt);
     test_shapes(mt);
     test_models(mt);
+    test_resident();
     zt_metal_free(mt);
     free(arena);
     printf("%d/%d checks passed\n", checks - failures, checks);
