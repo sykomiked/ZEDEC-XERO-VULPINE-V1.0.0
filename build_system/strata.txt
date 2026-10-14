@@ -140,6 +140,7 @@ robin_debanks                    trust
 tls                              trust
 update                           trust
 vinea                            trust      # the DHT's wire carries PQ identities (vna_id.h includes vna_pq.h), so the protocol sits in trust
+aproto                           trust      # protocol twins: records over vinea sessions, audit chain (docs/P2P_PROTOCOL_TWINS.md)
 zab                              trust
 zxvfs/zxvfs_tri                  trust      # capability-gated storage: calls zab to decide who may execute a triad
 

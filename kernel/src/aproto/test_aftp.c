@@ -664,7 +664,7 @@ static void test_get(void)
         if (l <= 0) break;
         vna_chunk_req_t x;
         vna_schema_unpack(&vna_chunk_req_schema, req, (uint32_t) l, &x, 0);
-        CHECK(!(x.index & 1u) == 0, "only missing chunks are asked (%u)", x.index);
+        CHECK((x.index & 1u) == 1u, "only missing chunks are asked (%u)", x.index);
         asked++;
         int32_t rl = serve_as(&C, &B.id, req, (uint32_t) l, now, rec, sizeof rec);
         aftp_get_on_chunk(&g2, &to, rec, (uint32_t) rl, now, &g_rc);
