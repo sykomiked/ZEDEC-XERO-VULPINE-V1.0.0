@@ -13,8 +13,9 @@
  * Optional, switched on by the Makefile when the header is present:
  *   ZXV_HAVE_CBANK_CCY      kernel/src/cbank/cb_ccy.h  ISO 4217 + AU tables
  *   ZXV_HAVE_CN_CHECK       kernel/src/cardnet/cn_check.h  PAN check digits
+ *   ZXV_HAVE_CBANK_NET      kernel/src/cbank/cb_net.h  netting cycles
  * Stubbed (ZXV_E_NOTIMPL), marked "TODO(kernel-...)":
- *   netting cycles, VSS conformance (cbank cb_net.h / cb_vss.h),
+ *   VSS conformance (cbank cb_vss.h),
  *   pacs.002/004/009, camt.056/029 (cbank cb_mx.h),
  *   card issue/reissue/authorize (cardnet cardnet.h).
  *
@@ -45,6 +46,9 @@
 #endif
 #ifdef ZXV_HAVE_CN_CHECK
 #    include "cn_check.h"
+#endif
+#ifdef ZXV_HAVE_CBANK_NET
+#    include "cb_net.h"
 #endif
 
 /* The rail numerics are duplicated in iso20022.h and vino_stores.h on
@@ -176,6 +180,9 @@ int32_t zxv_features(uint32_t *out_mask)
 #ifdef ZXV_HAVE_CN_CHECK
     m |= ZXV_FEAT_CARD_CHECK;
 #endif
+#ifdef ZXV_HAVE_CBANK_NET
+    m |= ZXV_FEAT_NETTING;
+#endif
     m |= zxvi_features_11();
     *out_mask = m;
     return zxvi_ok();
@@ -216,6 +223,15 @@ const char *zxv_status_name(int32_t status)
     case ZXV_E_BLOCKED: return "ZXV_E_BLOCKED";
     case ZXV_E_TARGET: return "ZXV_E_TARGET";
     case ZXV_E_POLICY: return "ZXV_E_POLICY";
+    case ZXV_E_DENOM: return "ZXV_E_DENOM";
+    case ZXV_E_TREATY: return "ZXV_E_TREATY";
+    case ZXV_E_CID: return "ZXV_E_CID";
+    case ZXV_E_CONSENT: return "ZXV_E_CONSENT";
+    case ZXV_E_ERASURE: return "ZXV_E_ERASURE";
+    case ZXV_E_PEG: return "ZXV_E_PEG";
+    case ZXV_E_LIMIT: return "ZXV_E_LIMIT";
+    case ZXV_E_PARADOX_STEP: return "ZXV_E_PARADOX_STEP";
+    case ZXV_E_PARADOX_OWNER: return "ZXV_E_PARADOX_OWNER";
     case ZXV_E_INTERNAL: return "ZXV_E_INTERNAL";
     default: return "ZXV_E_UNKNOWN";
     }
@@ -237,7 +253,9 @@ int32_t zxv_status_class(int32_t status)
     case ZXV_E_RMAG_INVALID:
     case ZXV_E_FORMAT:
     case ZXV_E_FLOAT:
-    case ZXV_E_TARGET: return ZXV_CLASS_USAGE;
+    case ZXV_E_TARGET:
+    case ZXV_E_DENOM:
+    case ZXV_E_TREATY: return ZXV_CLASS_USAGE;
     case ZXV_E_NOTIMPL:
     case ZXV_E_CAPACITY:
     case ZXV_E_FUNDS:
@@ -251,7 +269,14 @@ int32_t zxv_status_class(int32_t status)
     case ZXV_E_QUARANTINED:
     case ZXV_E_ROLLBACK:
     case ZXV_E_BLOCKED:
-    case ZXV_E_POLICY: return ZXV_CLASS_REFUSED;
+    case ZXV_E_POLICY:
+    case ZXV_E_CID:
+    case ZXV_E_CONSENT:
+    case ZXV_E_ERASURE:
+    case ZXV_E_PEG:
+    case ZXV_E_LIMIT:
+    case ZXV_E_PARADOX_STEP:
+    case ZXV_E_PARADOX_OWNER: return ZXV_CLASS_REFUSED;
     case ZXV_E_INVARIANT:
     case ZXV_E_POISONED: return ZXV_CLASS_FATAL;
     default: return ZXV_CLASS_SYSTEM;
@@ -1452,16 +1477,218 @@ int32_t zxv_msg_render(zxv_msg *msg, char *buf, size_t cap, size_t *out_len)
 }
 
 /* ===================================================================== */
-/* Netting cycles — TODO(kernel-cbank)                                   */
-/* Bind cb_net_init / cb_net_add_participant / cb_net_submit /           */
-/* cb_net_close_cycle from kernel/src/cbank/cb_net.h once it is stable.  */
+/* Netting cycles (kernel/src/cbank/cb_net.h)                            */
 /* ===================================================================== */
+/* One cycle is one cb_net engine with a configuration of its own: one
+ * currency, every participant a direct participant in it, no liquidity
+ * limit (a pure net of the obligations submitted: each participant gets an
+ * interest-free debit cap above anything CB_NET_MAX_PAY payments can reach),
+ * the window open at every minute of every day, and no sanctions screening
+ * (the caller screens before it submits). cb_net wants BICs, so each
+ * participant code gets a synthetic BIC ZXVPZZ<n> inside the cycle; the
+ * code is what the positions report. Nothing here is persisted and no
+ * settlement instruction leaves the cycle: close reports the nets. */
+
+#ifdef ZXV_HAVE_CBANK_NET
+
+#define NET_ID_MAX 35u /* Max35Text, as cb_net's ids */
+#define NET_NOW    0u  /* the window is open at every minute: any time will do */
+
+struct zxv_netting {
+    zxv_ctx *ctx;
+    bool closed;
+    char ccy[4];
+    char names[CB_NET_MAX_PART][NET_ID_MAX + 1];
+    int64_t nets[CB_NET_MAX_PART];
+    cb_settle_instr out;
+    cb_config cfg;
+    cb_net net;
+};
+
+/* A country that uses `alpha` (the placeholder issuer's; legal tender is
+ * not claimed, so nothing rests on it). NULL if none does. */
+static const char *net_country(const char *alpha)
+{
+    for (size_t i = 0; i < CB_CTRY_CCY_COUNT; i++)
+        if (!strcmp(cb_ccy_tbl[cb_ctry_ccy_tbl[i].ccy].alpha, alpha)) return cb_ctry_ccy_tbl[i].a2;
+    return NULL;
+}
+
+static void net_bic(uint32_t i, char out[CB_BIC_LEN])
+{
+    static const char D[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    memcpy(out, "ZXVPZZ", 6);
+    out[6] = D[(i / 36u) % 36u];
+    out[7] = D[i % 36u];
+    out[8] = 0;
+}
+
+static int32_t net_check(zxv_netting *c, const char *what)
+{
+    if (!c) return zxvi_fail(ZXV_E_ARG, "%s: cycle is NULL", what);
+    return zxvi_ctx_check(c->ctx, what);
+}
+
+static int net_find(const zxv_netting *c, const char *name)
+{
+    for (uint32_t i = 0; i < c->net.n_part; i++)
+        if (!strcmp(c->names[i], name)) return (int) i;
+    return -1;
+}
+
+int32_t zxv_netting_open(zxv_ctx *ctx, const char *cycle_id, const char *ccy, zxv_netting **out_cycle)
+{
+    if (out_cycle) *out_cycle = NULL;
+    int32_t rc = zxvi_ctx_check(ctx, "netting_open");
+    if (rc) return rc;
+    if (!out_cycle || !ccy) return zxvi_fail(ZXV_E_ARG, "NULL argument");
+    if ((rc = zxvi_check_str(cycle_id, NET_ID_MAX, "cycle_id", false))) return rc;
+    uint8_t minor;
+    if ((rc = wire_ccy_check(ctx, ccy, &minor))) return rc;
+    const char *cc = net_country(ccy);
+    if (!cc) return zxvi_fail(ZXV_E_CURRENCY, "'%s' is used by no country in the ISO 4217 table", ccy);
+    zxv_netting *c = calloc(1, sizeof *c);
+    if (!c) return zxvi_fail(ZXV_E_NOMEM, "cycle allocation failed");
+    c->ctx = ctx;
+    memcpy(c->ccy, ccy, 4);
+    cb_config *f = &c->cfg;
+    int r = cb_config_init(f, CB_ROLE_COMMERCIAL_BANK, "libzxv netting cycle", "ZXVNZZ00", cc);
+    if (r == CB_OK) r = cb_config_add_ccy(f, ccy, "netting cycle settlement agent", "ZXVCZZ00", cc, false);
+    if (r == CB_OK) {
+        cb_ccy_profile *k = &f->ccy[0];
+        k->cal.open_min = 0;
+        k->cal.cutoff_min = 1440;
+        k->cal.close_min = 1440;
+        k->cal.weekend_mask = 0;
+        k->prefund_required = false;
+        k->net_debit_cap = CB_AMT_MAX * 1000u; /* above CB_NET_MAX_PAY * CB_AMT_MAX */
+        f->rp.screening_required = false;
+        memcpy(f->settle_unit, k->alpha, 4);
+        r = cb_net_init(&c->net, f);
+    }
+    if (r == CB_OK) r = cb_net_open_cycle(&c->net, NET_NOW);
+    if (r != CB_OK) {
+        free(c);
+        return zxvi_fail(ZXV_E_CURRENCY, "'%s' cannot settle a netting cycle (cbank status %d)", ccy, r);
+    }
+    *out_cycle = c;
+    return zxvi_ok();
+}
+
+void zxv_netting_destroy(zxv_netting *cycle)
+{
+    free(cycle);
+}
+
+int32_t zxv_netting_add_participant(zxv_netting *cycle, const char *participant)
+{
+    int32_t rc = net_check(cycle, "netting_add_participant");
+    if (rc) return rc;
+    if ((rc = zxvi_check_str(participant, NET_ID_MAX, "participant", false))) return rc;
+    if (cycle->closed) return zxvi_fail(ZXV_E_STATE, "the cycle is closed");
+    if (net_find(cycle, participant) >= 0)
+        return zxvi_fail(ZXV_E_DUPLICATE, "participant '%s' is already in the cycle", participant);
+    if (cycle->net.n_part >= CB_NET_MAX_PART)
+        return zxvi_fail(ZXV_E_CAPACITY, "a cycle holds at most %u participants", CB_NET_MAX_PART);
+    char bic[CB_BIC_LEN];
+    uint32_t i = cycle->net.n_part;
+    net_bic(i, bic);
+    int r = cb_net_add_participant(&cycle->net, bic, cycle->cfg.ccy[0].issuer_country, cycle->ccy,
+                                   CB_ROLE_COMMERCIAL_BANK, 0);
+    if (r < 0) return zxvi_fail(ZXV_E_INTERNAL, "cb_net_add_participant returned %d", r);
+    memcpy(cycle->names[i], participant, strlen(participant) + 1);
+    return zxvi_ok();
+}
+
+int32_t zxv_netting_submit(zxv_netting *cycle, const char *payment_id, const char *debtor,
+                           const char *creditor, int64_t amount_minor)
+{
+    int32_t rc = net_check(cycle, "netting_submit");
+    if (rc) return rc;
+    if ((rc = zxvi_check_str(payment_id, NET_ID_MAX, "payment_id", false)) ||
+        (rc = zxvi_check_str(debtor, NET_ID_MAX, "debtor", false)) ||
+        (rc = zxvi_check_str(creditor, NET_ID_MAX, "creditor", false)))
+        return rc;
+    if (cycle->closed) return zxvi_fail(ZXV_E_STATE, "the cycle is closed");
+    if (amount_minor <= 0 || (uint64_t) amount_minor > CB_AMT_MAX)
+        return zxvi_fail(ZXV_E_RANGE, "amount must be 1..%llu minor units", (unsigned long long) CB_AMT_MAX);
+    int d = net_find(cycle, debtor), k = net_find(cycle, creditor);
+    if (d < 0) return zxvi_fail(ZXV_E_NOT_FOUND, "debtor '%s' is not in the cycle", debtor);
+    if (k < 0) return zxvi_fail(ZXV_E_NOT_FOUND, "creditor '%s' is not in the cycle", creditor);
+    if (d == k) return zxvi_fail(ZXV_E_ARG, "debtor and creditor are the same participant");
+    cb_pay_req q;
+    memset(&q, 0, sizeof q);
+    memcpy(q.msg_id, payment_id, strlen(payment_id) + 1);
+    memcpy(q.e2e_id, payment_id, strlen(payment_id) + 1);
+    q.dbtr_agt = (uint16_t) d;
+    q.cdtr_agt = (uint16_t) k;
+    q.amount = (uint64_t) amount_minor;
+    cb_pay_result res;
+    int r = cb_net_submit(&cycle->net, &q, NET_NOW, &res);
+    if (r == CB_E_FULL)
+        return zxvi_fail(ZXV_E_CAPACITY, "a cycle holds at most %u payments", CB_NET_MAX_PAY);
+    if (r != CB_OK) return zxvi_fail(ZXV_E_INTERNAL, "cb_net_submit returned %d", r);
+    if (res.status == CB_PS_ACCEPTED) return zxvi_ok(); /* new, or the same obligation again */
+    if (!strcmp(res.reason, "DUPL"))
+        return zxvi_fail(ZXV_E_DUPLICATE, "payment_id '%s' was submitted with other content", payment_id);
+    return zxvi_fail(ZXV_E_INTERNAL, "cb_net refused the obligation (%s)", res.reason);
+}
+
+int32_t zxv_netting_close(zxv_netting *cycle)
+{
+    int32_t rc = net_check(cycle, "netting_close");
+    if (rc) return rc;
+    if (cycle->closed) return zxvi_fail(ZXV_E_STATE, "the cycle is already closed");
+    uint32_t n = 0;
+    int r = cb_net_close_cycle(&cycle->net, NET_NOW, &cycle->out, 1, &n);
+    int64_t sum = 0;
+    bool ok = r == CB_OK && n == 1 && cycle->out.n_lines == cycle->net.n_part;
+    for (uint32_t i = 0; ok && i < cycle->out.n_lines; i++) {
+        cycle->nets[cycle->out.lines[i].part] = cycle->out.lines[i].net;
+        sum += cycle->out.lines[i].net;
+    }
+    if (!ok || sum != 0) {
+        rc = zxvi_ctx_enter(cycle->ctx);
+        if (rc) return rc;
+        rc = zxvi_ctx_poison(cycle->ctx, "a netting cycle did not net to zero");
+        zxvi_ctx_leave(cycle->ctx);
+        return rc;
+    }
+    cycle->closed = true;
+    return zxvi_ok();
+}
+
+int32_t zxv_netting_position_count(zxv_netting *cycle, uint32_t *out_count)
+{
+    int32_t rc = net_check(cycle, "netting_position_count");
+    if (rc) return rc;
+    if (!out_count) return zxvi_fail(ZXV_E_ARG, "out_count is NULL");
+    if (!cycle->closed) return zxvi_fail(ZXV_E_STATE, "the cycle is still open: close it first");
+    *out_count = cycle->net.n_part;
+    return zxvi_ok();
+}
+
+int32_t zxv_netting_position_at(zxv_netting *cycle, uint32_t index, char *buf, size_t cap,
+                                size_t *out_len, int64_t *out_net_minor)
+{
+    int32_t rc = net_check(cycle, "netting_position_at");
+    if (rc) return rc;
+    if (!out_len || !out_net_minor) return zxvi_fail(ZXV_E_ARG, "NULL argument");
+    if (!cycle->closed) return zxvi_fail(ZXV_E_STATE, "the cycle is still open: close it first");
+    if (index >= cycle->net.n_part)
+        return zxvi_fail(ZXV_E_NOT_FOUND, "position %u of %u", index, (unsigned) cycle->net.n_part);
+    if ((rc = zxvi_out_text(cycle->names[index], buf, cap, out_len))) return rc;
+    *out_net_minor = cycle->nets[index];
+    return ZXV_OK;
+}
+
+#else /* no kernel/src/cbank/cb_net.h in this build */
 
 struct zxv_netting {
     int unused;
 };
 
-#define NETTING_TODO "netting cycles not built in yet (kernel/src/cbank cb_net.h)"
+#define NETTING_TODO "netting cycles not built in (kernel/src/cbank cb_net.h)"
 
 int32_t zxv_netting_open(zxv_ctx *ctx, const char *cycle_id, const char *ccy, zxv_netting **out_cycle)
 {
@@ -1507,6 +1734,8 @@ int32_t zxv_netting_position_at(zxv_netting *cycle, uint32_t index, char *buf, s
     (void) cycle; (void) index; (void) buf; (void) cap; (void) out_len; (void) out_net_minor;
     return zxvi_fail(ZXV_E_NOTIMPL, NETTING_TODO);
 }
+
+#endif /* ZXV_HAVE_CBANK_NET */
 
 /* ===================================================================== */
 /* Cards                                                                 */

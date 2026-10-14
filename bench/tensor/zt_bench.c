@@ -19,7 +19,8 @@
  *
  * Usage: zt_bench MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B]
  *                 [--kv q16|q8] [--text FILE] [--kern NAME] [--threads T]
- *                 [--special] [--convert]
+ *                 [--special] [--convert] [--mmap] [--gpu] [--gpu-decode]
+ *                 [--ranks P | --tcp RANK HOST0,HOST1,... PORT]
  * --special parses special-token text in the prompt (a chat template such as
  * "<|im_start|>user\n...<|im_end|>\n<|im_start|>assistant\n").
  * zt.logits_fnv lets two machines check they computed the same bits, not
@@ -33,6 +34,24 @@
  * --convert loads Q4_K/Q6_K matrices the older way, re-quantized to 8-bit
  * blocks (ZT_LOAD_CONVERT), instead of using them in place; it prints
  * zt.load=convert|native and the load time zt.load_s.
+ * TENSOR PARALLEL (kernel/src/tensor/zt_model.h T23, tensor/dist/zt_dist.h). --ranks P
+ * forks P processes on this machine joined in a ring by socketpairs; --tcp
+ * runs this process as rank RANK of a ring of hosts (one per comma-separated
+ * HOST, rank i listening on PORT + i): start the same command on every host,
+ * changing only RANK. --threads is per rank. Both map the file (--mmap)
+ * instead of reading it, so each rank's resident memory holds the weight rows
+ * it reads. Rank 0 prints the usual lines (the token ids and zt.logits_fnv
+ * must equal a one-process run) plus, per rank,
+ *   zt.rank<r>.macs=<multiply-adds in matrix products>
+ *   zt.rank<r>.maxrss_mb=<peak resident memory>  zt.rank<r>.sent_mb=<bytes sent>
+ * (with --tcp each rank prints only its own).
+ * --gpu runs the prompt's matrix products on the GPU (zt_metal.h; macOS builds
+ * with ZT_HAVE_METAL only), and decoding on --kern/--threads, which is faster
+ * for one token at a time; --gpu-decode puts every product on the GPU. The ids and
+ * zt.logits_fnv do not change. It prints zt.gpu=<name> and the GPU's share
+ * (zt.gpu_products, zt.gpu_declined, zt.gpu_s, zt.gpu_wall_s).
+ * With --ranks or --tcp the model is distributed, and --gpu's whole-matrix
+ * products are not used (each rank computes only its own rows).
  * Exit: 0 ok, 2 usage, 3 cannot read file, 4 model or tokenizer not loadable,
  *       5 run failed. */
 #define _POSIX_C_SOURCE 200809L
@@ -40,12 +59,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 
+#include "zt_dist.h"
 #include "zt_gguf.h"
 #include "zt_model.h"
 #include "zt_simd.h"
 #include "zt_tok.h"
+#ifdef ZT_HAVE_METAL
+#    include "zt_metal.h"
+#endif
 
 static double now_s(void)
 {
@@ -67,7 +96,10 @@ static uint8_t *read_file(const char *path, uint64_t *size)
         fclose(f);
         return NULL;
     }
-    uint8_t *buf = malloc((size_t) n);
+    /* page aligned and whole pages, so a GPU can read the weights in place */
+    uint8_t *buf = NULL;
+    size_t cap = ((size_t) n + 65535) / 65536 * 65536;
+    if (posix_memalign((void **) &buf, 65536, cap) != 0) buf = NULL;
     if (buf && fread(buf, 1, (size_t) n, f) != (size_t) n) {
         free(buf);
         buf = NULL;
@@ -76,6 +108,39 @@ static uint8_t *read_file(const char *path, uint64_t *size)
     *size = (uint64_t) n;
     return buf;
 }
+
+static uint8_t *map_file(const char *path, uint64_t *size)
+{
+    int fd = open(path, O_RDONLY);
+    struct stat st;
+    if (fd < 0) return NULL;
+    if (fstat(fd, &st) || st.st_size <= 0) {
+        close(fd);
+        return NULL;
+    }
+    void *p = mmap(NULL, (size_t) st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    close(fd);
+    if (p == MAP_FAILED) return NULL;
+    *size = (uint64_t) st.st_size;
+    return p;
+}
+
+static double maxrss_mb(void)
+{
+    struct rusage ru;
+    getrusage(RUSAGE_SELF, &ru);
+#ifdef __APPLE__
+    return (double) ru.ru_maxrss / (1024.0 * 1024.0); /* bytes */
+#else
+    return (double) ru.ru_maxrss / 1024.0; /* KiB */
+#endif
+}
+
+typedef struct {
+    uint32_t rank;
+    uint64_t macs, sent;
+    double rss_mb;
+} rank_report_t;
 
 static void *alloc64(uint64_t bytes)
 {
@@ -99,6 +164,10 @@ int main(int argc, char **argv)
     const char *path = NULL, *prompt = "The capital of France is", *text_out = NULL;
     const char *kern_name = NULL;
     uint32_t n_gen = 32, n_ctx = 0, n_batch = 128, kv = ZT_KV_Q16, n_threads = 1, lflags = 0;
+    uint32_t n_ranks = 1, tcp_rank = 0, tcp_port = 0;
+    bool use_mmap = false;
+    const char *tcp_hosts = NULL;
+    bool gpu = false, gpu_decode = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         const char *v = i + 1 < argc ? argv[i + 1] : NULL;
@@ -122,13 +191,27 @@ int main(int argc, char **argv)
             special = true;
         else if (!strcmp(a, "--convert"))
             lflags = ZT_LOAD_CONVERT;
+        else if (!strcmp(a, "--mmap"))
+            use_mmap = true;
+        else if (!strcmp(a, "--ranks") && v)
+            n_ranks = (uint32_t) strtoul(argv[++i], NULL, 10);
+        else if (!strcmp(a, "--tcp") && i + 3 < argc) {
+            tcp_rank = (uint32_t) strtoul(argv[++i], NULL, 10);
+            tcp_hosts = argv[++i];
+            tcp_port = (uint32_t) strtoul(argv[++i], NULL, 10);
+        }
+        else if (!strcmp(a, "--gpu"))
+            gpu = true;
+        else if (!strcmp(a, "--gpu-decode"))
+            gpu = gpu_decode = true;
         else if (a[0] != '-' && !path)
             path = a;
         else {
             fprintf(
                 stderr,
                 "usage: %s MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B] "
-                "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T] [--special] [--convert]\n",
+                "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T] [--special] [--convert] "
+                "[--mmap] [--gpu] [--gpu-decode] [--ranks P | --tcp RANK HOST0,HOST1,... PORT]\n",
                 argv[0]);
             return 2;
         }
@@ -138,8 +221,49 @@ int main(int argc, char **argv)
         return 2;
     }
 
+    /* tensor parallel: join the ring before touching the file */
+    int fd_next = -1, fd_prev = -1, rep_pipe[2] = {-1, -1};
+    uint32_t rank = 0;
+    pid_t pids[256];
+    const char *hosts[256];
+    if (tcp_hosts) {
+        static char hbuf[4096];
+        snprintf(hbuf, sizeof hbuf, "%s", tcp_hosts);
+        n_ranks = 0;
+        for (char *h = strtok(hbuf, ","); h && n_ranks < 256; h = strtok(NULL, ","))
+            hosts[n_ranks++] = h;
+        if (n_ranks < 2 || tcp_rank >= n_ranks || !tcp_port || tcp_port + n_ranks > 65535) {
+            fprintf(stderr, "zt_bench: --tcp needs RANK < hosts (at least 2) and a PORT\n");
+            return 2;
+        }
+        rank = tcp_rank;
+        if (zt_dist_tcp_ring(rank, n_ranks, hosts, (uint16_t) tcp_port, 120000, &fd_next,
+                             &fd_prev)) {
+            fprintf(stderr, "zt_bench: rank %u could not join the TCP ring\n", rank);
+            return 5;
+        }
+    } else if (n_ranks > 1) {
+        if (n_ranks > 256 || pipe(rep_pipe)) return 2;
+        fflush(stdout);
+        int rr = zt_dist_fork_ring(n_ranks, &fd_next, &fd_prev, pids);
+        if (rr < 0) {
+            fprintf(stderr, "zt_bench: could not start %u ranks\n", n_ranks);
+            return 5;
+        }
+        rank = (uint32_t) rr;
+        if (rank) {
+            close(rep_pipe[0]);
+            if (!freopen("/dev/null", "w", stdout)) return 5; /* rank 0 reports */
+            text_out = NULL;
+        } else {
+            close(rep_pipe[1]);
+        }
+    }
+    if (n_ranks == 0) n_ranks = 1;
+    if (n_ranks > 1) use_mmap = true;
+
     uint64_t size = 0;
-    uint8_t *file = read_file(path, &size);
+    uint8_t *file = use_mmap ? map_file(path, &size) : read_file(path, &size);
     if (!file) {
         fprintf(stderr, "zt_bench: cannot read %s\n", path);
         return 3;
@@ -178,6 +302,33 @@ int main(int argc, char **argv)
     zt_kern_t kern;
     zt_kern_threaded(&kern, kb, pool);
     m.kern = &kern;
+    zt_dist_ring_t *ring = NULL;
+    if (n_ranks > 1) {
+        ring = zt_dist_ring_new(rank, n_ranks, fd_next, fd_prev, 120000);
+        if (!ring) return 5;
+        m.dist = zt_dist_ring_dist(ring);
+    }
+#ifdef ZT_HAVE_METAL
+    zt_kern_t gkern;
+    zt_metal_t *mt = NULL;
+    if (gpu) {
+        char gerr[256] = "";
+        mt = zt_metal_new(gerr, sizeof gerr);
+        if (!mt || zt_metal_map(mt, file, size)) {
+            fprintf(stderr, "zt_bench: --gpu: %s\n", mt ? "cannot map the model file" : gerr);
+            return 2;
+        }
+        if (!gpu_decode) zt_metal_set_min_tokens(mt, 2); /* decode stays on the CPU */
+        zt_kern_metal(&gkern, &kern, mt);
+        m.kern = &gkern;
+        printf("zt.gpu=%s\n", zt_metal_name(mt));
+    }
+#else
+    if (gpu) {
+        fprintf(stderr, "zt_bench: --gpu: this build has no GPU backend (macOS: ZT_HAVE_METAL)\n");
+        return 2;
+    }
+#endif
     uint64_t tbytes = zt_tok_arena_bytes(&g);
     void *tarena = tbytes ? alloc64(tbytes) : NULL;
     zt_tok_t tok;
@@ -244,6 +395,15 @@ int main(int argc, char **argv)
     double t2 = now_s();
 
     printf("zt.kern=%s\nzt.threads=%u\n", kb->name, pool ? n_threads : 1);
+#ifdef ZT_HAVE_METAL
+    if (mt) {
+        zt_metal_stats_t gs;
+        zt_metal_stats(mt, &gs);
+        printf("zt.gpu_products=%llu\nzt.gpu_declined=%llu\nzt.gpu_s=%.6f\nzt.gpu_wall_s=%.6f\n",
+               (unsigned long long) gs.products, (unsigned long long) gs.declined,
+               (double) gs.gpu_ns * 1e-9, (double) gs.wall_ns * 1e-9);
+    }
+#endif
     printf("zt.n_prompt=%llu\n", (unsigned long long) n_ids);
     printf("zt.prefill_s=%.6f\nzt.prefill_tps=%.3f\n", t1 - t0,
            (t1 - t0) > 0 ? (double) n_ids / (t1 - t0) : 0.0);
@@ -253,6 +413,21 @@ int main(int argc, char **argv)
     for (uint32_t i = 0; i < n_out; i++) printf(i ? ",%d" : "%d", gen[i]);
     printf("\n");
     printf("zt.logits_fnv=%016llx\nzt.n_sat=%u\n", (unsigned long long) lh, st.n_sat);
+    if (n_ranks > 1) {
+        rank_report_t me = {rank, st.dist_macs, zt_dist_ring_bytes_sent(ring), maxrss_mb()};
+        printf("zt.ranks=%u\nzt.transport=%s\n", n_ranks, tcp_hosts ? "tcp" : "socketpair");
+        if (rank && rep_pipe[1] >= 0) {
+            if (write(rep_pipe[1], &me, sizeof me) != (ssize_t) sizeof me) return 5;
+        }
+        for (uint32_t q = 0; q < (tcp_hosts ? 1u : n_ranks); q++) {
+            rank_report_t o = me;
+            if (q && read(rep_pipe[0], &o, sizeof o) != (ssize_t) sizeof o) break;
+            printf("zt.rank%u.macs=%llu\nzt.rank%u.maxrss_mb=%.1f\nzt.rank%u.sent_mb=%.3f\n", o.rank,
+                   (unsigned long long) o.macs, o.rank, o.rss_mb, o.rank, (double) o.sent / 1e6);
+        }
+    } else {
+        printf("zt.maxrss_mb=%.1f\n", maxrss_mb());
+    }
 
     if (text_out) {
         uint64_t tcap = (uint64_t) n_out * 64 + 16, n_txt = 0;
@@ -267,6 +442,9 @@ int main(int argc, char **argv)
         fclose(f);
         free(txt);
     }
+    zt_dist_ring_free(ring);
+    if (!tcp_hosts && n_ranks > 1 && rank == 0)
+        for (uint32_t c = 1; c < n_ranks; c++) waitpid(pids[c - 1], NULL, 0);
     zt_pool_free(pool);
     free(logits);
     free(smem);
@@ -274,6 +452,9 @@ int main(int argc, char **argv)
     free(ids);
     free(tarena);
     free(marena);
-    free(file);
+    if (use_mmap)
+        munmap(file, (size_t) size);
+    else
+        free(file);
     return 0;
 }

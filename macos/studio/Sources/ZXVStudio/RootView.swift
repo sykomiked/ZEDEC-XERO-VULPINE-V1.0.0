@@ -4,12 +4,13 @@ import SwiftUI
 import ZXVRPC
 
 enum Screen: String, CaseIterable, Identifiable, Hashable {
-    case studio, ledger, mesh, storefront, settings
+    case studio, commons, ledger, mesh, storefront, settings
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .studio: return "Local AI Studio"
+        case .commons: return "Commons"
         case .ledger: return "Sicily Ledger"
         case .mesh: return "P2P Mesh"
         case .storefront: return "Storefront & Escrow"
@@ -20,6 +21,7 @@ enum Screen: String, CaseIterable, Identifiable, Hashable {
     var icon: String {
         switch self {
         case .studio: return "bubble.left"
+        case .commons: return "text.bubble"
         case .ledger: return "building.columns"
         case .mesh: return "point.3.connected.trianglepath.dotted"
         case .storefront: return "storefront"
@@ -37,9 +39,9 @@ struct RootView: View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("ZXV SWARM").font(.system(size: 16, weight: .bold)).kerning(0.6)
+                    Text("ZXV SWARM").font(Theme.ui(16)).kerning(0.6)
                     Text("\(store.version?.app ?? "zxvd") on this Mac")
-                        .font(.caption).foregroundStyle(Theme.muted)
+                        .font(Theme.caption).foregroundStyle(Theme.muted)
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 16)
@@ -76,6 +78,7 @@ struct RootView: View {
     @ViewBuilder private var content: some View {
         switch screen ?? .studio {
         case .studio: StudioView()
+        case .commons: CommonsView()
         case .ledger: LedgerView()
         case .mesh: MeshView()
         case .storefront: StorefrontView()
@@ -93,7 +96,7 @@ struct DaemonBadge: View {
             HStack(spacing: 8) {
                 Circle().fill(store.link == .connected ? Theme.good : Theme.warn).frame(width: 8, height: 8)
                 Text(store.link == .connected ? "zxvd connected" : "zxvd not connected")
-                    .font(.callout)
+                    .font(Theme.callout)
             }
             if let v = store.version {
                 Text("\(v.protocol) · libzxv \(v.libzxv)")
@@ -102,7 +105,7 @@ struct DaemonBadge: View {
             }
             if let ok = store.booksOK {
                 Text(ok ? "Books balanced" : "Books check failed")
-                    .font(.caption)
+                    .font(Theme.caption)
                     .foregroundStyle(ok ? Theme.muted : Theme.warn)
             }
         }
@@ -120,7 +123,7 @@ struct NotConnected: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "bolt.horizontal.circle").font(.system(size: 40)).foregroundStyle(Theme.muted)
-            Text("zxvd is not running").font(.title2.weight(.semibold))
+            Text("zxvd is not running").font(Theme.ui(17))
             Text(reason).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             Text("ZXV Studio talks to zxvd at\n\(store.socketPath)")
                 .font(.system(.caption, design: .monospaced))

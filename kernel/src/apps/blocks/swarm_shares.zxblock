@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# swarm_shares, a block: how a swarm's cycle is shared out, and whether
+# anyone is over the limits. Any app that shows or checks a swarm uses it
+# ("use swarm_shares 1") and calls swarm_shares.cycle_share and so on.
+# Two languages: the numbers are KRON (exact, never rounded up), the
+# limits are Eve.
+zxblock 1
+id       swarm_shares
+name     Swarm shares
+version  1.0.0
+# Each agent's share of this cycle's tokens, per mille. t is each agent's
+# allotment (murmuration_model.h A1: re + mk + im).
+provides cycle_share num t
+logic    kron cycle_share apps/blocks/swarm_shares/cycle_share.kron
+# The (up to) three agents with the most tokens this cycle, as indexes.
+provides busiest num t
+logic    kron busiest apps/blocks/swarm_shares/busiest.kron
+# Which agents are inside the swarm's limits (no agent over half a cycle,
+# no monopoly), TRUE or FALSE for each.
+provides within_limits truth share intensity
+logic    eve  within_limits apps/blocks/swarm_shares/limits.eve

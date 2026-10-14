@@ -90,7 +90,7 @@ struct StudioView: View {
             KV(key: "Turned away, budget spent", value: grouped(c?.exhaustedAsks ?? 0))
             if c?.exhausted == true {
                 Text("Budget spent for this cycle. The next cycle opens a fresh allotment.")
-                    .font(.callout).foregroundStyle(Theme.gold)
+                    .font(Theme.callout).foregroundStyle(Theme.gold)
             }
         }
     }
@@ -105,7 +105,7 @@ struct StudioView: View {
                 KV(key: "Vocabulary", value: grouped(m.vocab))
                 KV(key: "Context", value: grouped(m.context))
             }
-            Text(m?.status ?? "").font(.caption).foregroundStyle(Theme.muted)
+            Text(m?.status ?? "").font(Theme.caption).foregroundStyle(Theme.muted)
         }
     }
 
@@ -136,7 +136,7 @@ struct ModelChip: View {
             Circle().fill(model?.canGenerate == true ? Theme.good : Theme.muted).frame(width: 8, height: 8)
             Text(model?.loaded == true ? "\(model!.name) ready" : "No model")
         }
-        .font(.callout)
+        .font(Theme.callout)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .overlay(Capsule().strokeBorder(Theme.border))
@@ -151,7 +151,7 @@ struct ChatBubble: View {
         HStack {
             if line.mine { Spacer(minLength: 60) }
             VStack(alignment: .leading, spacing: 6) {
-                Text(line.mine ? "You" : "Companion").font(.caption).foregroundStyle(Theme.muted)
+                Text(line.mine ? "You" : "Companion").font(Theme.caption).foregroundStyle(Theme.muted)
                 Text(line.text).textSelection(.enabled).lineSpacing(3)
                 if let t = line.tag {
                     HStack(spacing: 6) {
@@ -201,7 +201,7 @@ struct SwarmTable: View {
                     Text("Tokens").gridColumnAlignment(.trailing)
                     Text("Split"); Text("Witness")
                 }
-                .font(.caption).foregroundStyle(Theme.muted)
+                .font(Theme.caption).foregroundStyle(Theme.muted)
                 Divider().gridCellUnsizedAxes(.horizontal)
                 ForEach(state?.agents ?? []) { a in
                     GridRow {
@@ -213,7 +213,7 @@ struct SwarmTable: View {
                         Text(a.witness == 1 ? "true, by \(a.witnessBy)" : "not verified, by \(a.witnessBy)")
                             .foregroundStyle(a.witness == 1 ? Theme.good : Theme.warn)
                     }
-                    .font(.callout)
+                    .font(Theme.callout)
                 }
             }
             HStack(spacing: 18) {
@@ -221,7 +221,7 @@ struct SwarmTable: View {
                 Legend(color: Theme.gold, text: "Market")
                 Legend(color: Theme.emotional, text: "Emotional (imaginary)")
             }
-            .font(.caption)
+            .font(Theme.caption)
         }
     }
 }

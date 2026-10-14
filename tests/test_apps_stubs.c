@@ -1,35 +1,45 @@
-/* test_apps_stubs.c — Stubs for host testing of apps
- * Provides empty implementations of VFS and GUI functions
- * that have x86 or FAT32 dependencies.
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+/* test_apps_stubs.c — link stubs for host testing of kernel/src/apps/apps.c
+ *
+ * apps.c's launcher dispatches APP_EXCHANGE / APP_BANK / APP_CUSTOM to the
+ * derivatives, assurance and treaty apps, whose sources
+ * (derivatives_app.c, assurance_app.c, treaty_app.c) do not compile
+ * (docs/AUDIT_REPORT.md). test_apps.c never opens those three apps, so
+ * these stubs exist only to satisfy the linker; reaching any stub here means
+ * the test exercised code that has no real implementation, and it aborts.
  */
-#include <stdint.h>
-#include <stdbool.h>
-#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-/* VFS stubs */
-typedef struct vfs_state vfs_state_t;
-typedef struct vfs_node vfs_node_t;
+#include "../kernel/src/apps/apps.h"
 
-void vfs_init(void *vfs) { (void)vfs; }
-int32_t vfs_mount(void *vfs, const char *path, uint32_t type, void *data) { (void)vfs;(void)path;(void)type;(void)data; return 0; }
-int32_t vfs_unmount(void *vfs, const char *path) { (void)vfs;(void)path; return 0; }
-int32_t vfs_open(void *vfs, const char *path) { (void)vfs;(void)path; return -1; }
-int32_t vfs_close(void *vfs, int32_t fd) { (void)vfs;(void)fd; return 0; }
-int32_t vfs_read(void *vfs, int32_t fd, void *buf, uint32_t len) { (void)vfs;(void)fd;(void)buf;(void)len; return 0; }
-int32_t vfs_write(void *vfs, int32_t fd, const void *buf, uint32_t len) { (void)vfs;(void)fd;(void)buf;(void)len; return 0; }
-int32_t vfs_list_dir(void *vfs, const char *path, void *out, uint32_t max) { (void)vfs;(void)path;(void)out;(void)max; return 0; }
-int32_t vfs_mkdir(void *vfs, const char *path) { (void)vfs;(void)path; return 0; }
-int32_t vfs_chdir(void *vfs, const char *path) { (void)vfs;(void)path; return 0; }
-int32_t vfs_stat(void *vfs, const char *path, void *out) { (void)vfs;(void)path;(void)out; return -1; }
-const char *vfs_get_cwd(void *vfs) { (void)vfs; return "/"; }
-
-/* GUI stubs */
-typedef struct gui_desktop gui_desktop_t;
-void gui_init(void *gui, void *vbe) { (void)gui;(void)vbe; }
-uint32_t gui_create_window(void *gui, const char *title, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t bg) {
-    (void)gui;(void)title;(void)x;(void)y;(void)w;(void)h;(void)bg; return 0;
+static void stub_hit(const char *fn) {
+    fprintf(stderr, "FAIL: unimplemented app entry point %s reached\n", fn);
+    abort();
 }
-void gui_render(void *gui) { (void)gui; }
-void gui_set_status(void *gui, const char *text) { (void)gui;(void)text; }
-void gui_close_window(void *gui, uint32_t win) { (void)gui;(void)win; }
-void gui_bring_to_front(void *gui, uint32_t win) { (void)gui;(void)win; }
+
+void derivatives_init(derivatives_app_t *a, uint32_t w, vino_ledger_t *v, vena_runtime_t *e) { (void)a; (void)w; (void)v; (void)e; stub_hit(__func__); }
+void derivatives_handle_key(derivatives_app_t *a, char c) { (void)a; (void)c; stub_hit(__func__); }
+void derivatives_handle_special(derivatives_app_t *a, uint8_t s) { (void)a; (void)s; stub_hit(__func__); }
+void derivatives_render(derivatives_app_t *a, gui_desktop_t *g) { (void)a; (void)g; stub_hit(__func__); }
+void derivatives_tick(derivatives_app_t *a) { (void)a; stub_hit(__func__); }
+
+void assurance_init(assurance_app_t *a, uint32_t w, vino_ledger_t *v, vena_runtime_t *e) { (void)a; (void)w; (void)v; (void)e; stub_hit(__func__); }
+void assurance_handle_key(assurance_app_t *a, char c) { (void)a; (void)c; stub_hit(__func__); }
+void assurance_handle_special(assurance_app_t *a, uint8_t s) { (void)a; (void)s; stub_hit(__func__); }
+void assurance_render(assurance_app_t *a, gui_desktop_t *g) { (void)a; (void)g; stub_hit(__func__); }
+void assurance_tick(assurance_app_t *a) { (void)a; stub_hit(__func__); }
+
+void treaty_init(treaty_app_t *a, uint32_t w, vino_ledger_t *v, vena_runtime_t *e) { (void)a; (void)w; (void)v; (void)e; stub_hit(__func__); }
+void treaty_handle_key(treaty_app_t *a, char c) { (void)a; (void)c; stub_hit(__func__); }
+void treaty_handle_special(treaty_app_t *a, uint8_t s) { (void)a; (void)s; stub_hit(__func__); }
+void treaty_render(treaty_app_t *a, gui_desktop_t *g) { (void)a; (void)g; stub_hit(__func__); }
+void treaty_tick(treaty_app_t *a) { (void)a; stub_hit(__func__); }
+
+/* Directory operations: src/apps/vfs_stub.c (the in-repo single-directory
+ * VFS stub this test links for open/read/write/close) has none, and
+ * test_apps.c only drives the shell/file manager with no VFS attached. */
+int32_t vfs_list_dir(vfs_state_t *v, const char *p, vfs_node_t *o, uint32_t m) { (void)v; (void)p; (void)o; (void)m; stub_hit(__func__); return -1; }
+int32_t vfs_chdir(vfs_state_t *v, const char *p) { (void)v; (void)p; stub_hit(__func__); return -1; }
+const char *vfs_get_cwd(vfs_state_t *v) { (void)v; stub_hit(__func__); return "/"; }

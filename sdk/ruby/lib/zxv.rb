@@ -23,6 +23,16 @@ require_relative "zxv/engine"
 require_relative "zxv/state_channel"
 require_relative "zxv/hexagram"
 require_relative "zxv/hw"
+require_relative "zxv/pure_handle"
+require_relative "zxv/treaty"
+require_relative "zxv/cid"
+require_relative "zxv/aipi"
+require_relative "zxv/coin"
+require_relative "zxv/fee"
+require_relative "zxv/vhub"
+require_relative "zxv/freight"
+require_relative "zxv/web4"
+require_relative "zxv/paradox"
 
 # Ruby SDK for ZXV: a thin, idiomatic wrapper of libzxv (zxv_api.h).
 #
@@ -43,6 +53,13 @@ module Zxv
     swarm: 0x80000, hash: 0x100000, mlkem1024: 0x200000, mldsa87: 0x400000, ed25519: 0x800000,
     tensor: 0x1000000, lora: 0x2000000, evm: 0x4000000, hex: 0x8000000,
     hw: 0x10000000
+  }.freeze
+
+  # ABI 1.5 feature bits (zxv_features2), by name. A group whose bit is
+  # clear is not built into the loaded library: every call in it raises
+  # Zxv::NotImplementedError (ZXV_E_NOTIMPL).
+  FEATURES2 = {
+    treaty: 0x01, aipi: 0x02, coin: 0x04, fee: 0x08, vhub: 0x10, freight: 0x20, web4: 0x40, paradox: 0x80
   }.freeze
 
   @fatal_policy = :raise
@@ -81,8 +98,21 @@ module Zxv
       FEATURES.select { |_, bit| mask & bit != 0 }.keys
     end
 
+    # The ABI 1.5 groups live in this build (zxv_features2). Empty against
+    # a library older than 1.5.
+    # @return [Array<Symbol>] keys of {FEATURES2}
+    def features2
+      m = Call.out(:uint32)
+      return [] unless Native.lib.zxv_features2(m) == Status::OK
+
+      mask = m.read_uint32
+      FEATURES2.select { |_, bit| mask & bit != 0 }.keys
+    end
+
+    # Whether feature group +name+ is live: a key of {FEATURES} or of
+    # {FEATURES2} (e.g. :hex, :treaty, :web4).
     # @return [Boolean]
-    def feature?(name) = features.include?(name)
+    def feature?(name) = features.include?(name) || features2.include?(name)
 
     # Bytes from the OS CSPRNG.
     # @return [String]

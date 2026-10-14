@@ -96,7 +96,9 @@ static void close_group(call_cc_rx_t *rx)
     if (rx->p_valid) {
         int32_t da = (int32_t) (rx->g_last_arrival - rx->p_arrival);
         int32_t ds = (int32_t) (rx->g_last_send - rx->p_send);
-        int32_t d = clamp_i32(da - ds, -D_LIMIT_US, D_LIMIT_US);
+        int64_t d64 = (int64_t) da - (int64_t) ds; /* cannot overflow; no division */
+        int32_t d =
+            d64 < -D_LIMIT_US ? -D_LIMIT_US : (d64 > D_LIMIT_US ? D_LIMIT_US : (int32_t) d64);
         rx->acc_us = clamp_i32(rx->acc_us + d, -ACC_LIMIT_US, ACC_LIMIT_US);
         rx->smooth_us += (rx->acc_us - rx->smooth_us) / 8;
         push_window(rx, rx->smooth_us, rx->g_last_arrival / 1000u);

@@ -1,0 +1,2 @@
+template payment-message-check
+expect FALSE

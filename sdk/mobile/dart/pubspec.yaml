@@ -4,8 +4,9 @@ name: zxv
 description: >-
   Dart and Flutter SDK for libzxv: exact rationals, four-valued logic, the
   ABI 1.3 hexagram tag and quarantine log, capability-checked ledger,
-  budgets and Ed25519, over dart:ffi.
-version: 1.3.0
+  budgets, Ed25519 and ML-DSA-87, and the ABI 1.5 groups (treaty, AIPI,
+  coin, fee, V-Bill hub, freight, Web 4, paradox), over dart:ffi.
+version: 1.5.0
 publish_to: none
 
 environment:

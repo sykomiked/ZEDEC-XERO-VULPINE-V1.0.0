@@ -8,11 +8,20 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import org.zedec.zxv.mobile.BudgetExhaustedException
 import org.zedec.zxv.mobile.CapabilityDeniedException
+import org.zedec.zxv.mobile.CidException
+import org.zedec.zxv.mobile.ConsentException
+import org.zedec.zxv.mobile.ErasureException
 import org.zedec.zxv.mobile.FatalPolicy
 import org.zedec.zxv.mobile.FloatRejectedException
 import org.zedec.zxv.mobile.InsufficientFundsException
+import org.zedec.zxv.mobile.LimitException
+import org.zedec.zxv.mobile.NotADenominationException
 import org.zedec.zxv.mobile.NotImplementedException
+import org.zedec.zxv.mobile.OwnerApprovalRequiredException
+import org.zedec.zxv.mobile.PegException
 import org.zedec.zxv.mobile.StatusClass
+import org.zedec.zxv.mobile.StepLimitException
+import org.zedec.zxv.mobile.TreatyException
 import org.zedec.zxv.mobile.VerificationFailedException
 import org.zedec.zxv.mobile.ZxvFatalError
 import org.zedec.zxv.mobile.ZxvRefusedException
@@ -22,9 +31,13 @@ import org.zedec.zxv.mobile.ZxvUsageException
 internal const val OK = 0
 internal const val E_ARG = -1
 internal const val E_BUFFER = -2
+internal const val E_NOT_FOUND = -4
 internal const val E_RANGE = -8
 internal const val E_CAP = -17
 internal const val E_POISONED = -18
+internal const val E_TREATY = -33
+internal const val E_CID = -34
+internal const val CID_MAX = 80
 internal const val UINT32_MAX = 0xFFFF_FFFFL
 
 /**
@@ -57,14 +70,26 @@ internal object Status {
         val name = name(status)
         return when (cls(status)) {
             StatusClass.FATAL -> fatal(status, name, detail, ctx)
-            StatusClass.USAGE ->
-                if (status == -24) FloatRejectedException(detail) else ZxvUsageException(status, name, detail)
+            StatusClass.USAGE -> when (status) {
+                -24 -> FloatRejectedException(detail)
+                -32 -> NotADenominationException(status, name, detail)
+                -33 -> TreatyException(status, name, detail)
+                else -> ZxvUsageException(status, name, detail)
+            }
             StatusClass.REFUSED -> when (status) {
                 -17 -> CapabilityDeniedException(status, name, detail)
                 -19 -> BudgetExhaustedException(status, name, detail)
                 -6 -> InsufficientFundsException(status, name, detail)
                 -21 -> VerificationFailedException(status, name, detail)
                 -3 -> NotImplementedException(status, name, detail)
+                // ABI 1.5
+                -34 -> CidException(status, name, detail)
+                -35 -> ConsentException(status, name, detail)
+                -36 -> ErasureException(status, name, detail)
+                -37 -> PegException(status, name, detail)
+                -38 -> LimitException(status, name, detail)
+                -39 -> StepLimitException(status, name, detail)
+                -40 -> OwnerApprovalRequiredException(status, name, detail)
                 else -> ZxvRefusedException(status, name, detail)
             }
             else -> ZxvSystemException(status, name, detail)
@@ -99,6 +124,28 @@ internal object Status {
         return Result.success(String(buf, 0, len[0].toInt(), Charsets.UTF_8))
     }
 
+    /**
+     * The R4 two-call pattern for bytes: the first call (null buffer) asks
+     * for the size, the second fills an exact buffer. Throws on failure.
+     */
+    inline fun bytes(ctx: ContextState?, call: (ByteArray?, LongArray) -> Int): ByteArray {
+        val len = LongArray(1)
+        val st = call(null, len)
+        if (st == OK) return ByteArray(0)
+        if (st != E_BUFFER) check(st, ctx)
+        val buf = ByteArray(Math.toIntExact(len[0]))
+        check(call(buf, len), ctx)
+        return if (len[0].toInt() == buf.size) buf else buf.copyOf(len[0].toInt())
+    }
+
+    /** A CID out (`ByteArray(ZXV_CID_MAX)` + length), throwing on failure. */
+    inline fun cid(ctx: ContextState?, call: (ByteArray, LongArray) -> Int): ByteArray {
+        val buf = ByteArray(CID_MAX)
+        val len = LongArray(1)
+        check(call(buf, len), ctx)
+        return buf.copyOf(len[0].toInt())
+    }
+
     /** [text], throwing the mapped exception on failure. */
     inline fun checkedText(ctx: ContextState?, call: (ByteArray?, LongArray) -> Int): String =
         text(call).getOrElse { e ->
@@ -124,6 +171,11 @@ internal fun requireU8(v: Int, what: String): Int {
 internal fun requireU32(v: Long, what: String): Long {
     if (v !in 0..UINT32_MAX) throw Status.usage(E_RANGE, "$what $v is not a uint32")
     return v
+}
+
+internal fun requireIndex(v: Int, what: String): Long {
+    if (v < 0) throw Status.usage(E_ARG, "$what $v is negative")
+    return v.toLong()
 }
 
 internal fun requireLength(b: ByteArray, n: Int, what: String) {

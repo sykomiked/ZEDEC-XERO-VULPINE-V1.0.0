@@ -1,13 +1,19 @@
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* test_apps.c — Host-testable tests for ZEDEC pqOS native apps
  * Author: H.M. Michael-Laurence: Curzi (c)
  */
-#include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 #include "../kernel/src/apps/apps.h"
+
+static int g_checks;
+#define assert(c) do { g_checks++; if (!(c)) { \
+    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); abort(); } } while (0)
 
 static void test_shell(void) {
     printf("=== Shell App Tests ===\n");
@@ -191,8 +197,15 @@ static void test_wallet(void) {
 
 static void test_app_launcher(void) {
     printf("=== App Launcher Tests ===\n");
+    /* app_launcher_open creates a GUI window for every app it opens and
+     * dereferences the desktop, so the launcher needs a real one. */
+    static vbe_state_t vbe;
+    static gui_desktop_t gui;
+    vbe.width = 640;
+    vbe.height = 480;
+    gui_init(&gui, &vbe);
     static app_launcher_t al;
-    app_launcher_init(&al, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    app_launcher_init(&al, &gui, NULL, NULL, NULL, NULL, NULL, NULL);
     assert(al.num_windows == 0);
     assert(al.active_app == 0xFFFFFFFF);
     printf("  [PASS] App launcher initialized\n");
@@ -218,6 +231,8 @@ static void test_app_launcher(void) {
     r = app_launcher_open(&al, APP_WALLET);
     assert(r == 0);
     assert(al.num_windows == 4);
+    assert(gui.num_windows == 4);
+    assert(gui.windows[3].w == 400 && gui.windows[3].h == 350);
     printf("  [PASS] Opened Wallet app\n");
 
     r = app_launcher_close(&al, APP_EDITOR);
@@ -247,5 +262,6 @@ int main(void) {
     test_wallet();
     test_app_launcher();
     printf("=== All ZEDEC pqOS native apps tests passed ===\n");
+    printf("%d checks passed\n", g_checks);
     return 0;
 }

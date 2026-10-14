@@ -47,8 +47,11 @@ merged, and every night on `main`.
    every other workflow (`desktop`, `macos-studio`, `sdk*`, the rest of
    `zxvd`) skips its jobs on a draft and starts when the pull request is
    marked ready. The slow tier runs when a pull request is opened ready or
-   marked ready for review, on every push after that, on every push to
-   `main`, nightly at 03:23 UTC and on manual runs. To run the full set on a
+   marked ready for review, on every push after that, nightly at 03:23 UTC
+   and on manual runs. Pushes to `main` run the fast tier only: every merge
+   already passed the slow tier as a ready pull request, and a full rerun
+   on `main` after each merge held the 20-job limit away from open pull
+   requests. To run the full set on a
    draft, start CI by hand from the Actions tab (Run workflow, pick the
    branch).
 
@@ -118,21 +121,53 @@ require. It passes only when:
   request, every slow-tier job actually ran and passed (a skipped job
   counts as passing for a required check, so this is checked here).
 
-On a draft the same job is named `ci-gate (draft: fast tier only)`. That is a
-different check, so a draft's green fast tier can never satisfy the rule,
-even in the seconds between "Ready for review" and the new run starting.
+`ci-gate` always reports, under that one name:
+
+- On a draft it fails at once and says to mark the pull request ready for
+  review. A draft runs the fast tier only, so it can never satisfy the
+  rule; marking it ready starts the full run, whose `ci-gate` replaces the
+  draft's. (It used to report as `ci-gate (draft: fast tier only)`, a
+  different check, which left the required `ci-gate` at "Expected - waiting
+  for status to be reported" with no explanation.)
+- Every job in `ci.yml` has a `timeout-minutes` limit, about twice its
+  usual time. A hung job fails within that limit and `ci-gate` reports the
+  failure, instead of the gate waiting out GitHub's six-hour default.
+
+The SDK workflows (`sdk*.yml`) start only when something libzxv is built
+from changes: `sdk/libzxv`, `kernel/include`, `kernel/third_party` and the
+38 `kernel/src` directories the compiler reports for libzxv
+(`build_system/sdk_kernel_deps.py`, which also writes their path filters).
+They used to start on any `kernel/src/**` change, about 170 jobs for every
+kernel pull request, and CI's own jobs, `ci-gate` among them, waited behind
+them for the 20 runners. quick-checks runs `sdk_kernel_deps.py --check`, so
+the filters cannot drift from what libzxv actually compiles.
 
 Branch protection is a repository setting, so the owner turns it on once:
 Settings > Rules > Rulesets > New branch ruleset, target `main`, enable
 "Require status checks to pass", add `ci-gate` (source: GitHub Actions),
 and enable "Block force pushes". Leave "Require branches to be up to date"
 off: with a 20-job limit it would re-run every open pull request after each
-merge. The slow-tier run on every push to `main` covers what it would catch.
+merge. The fast tier on every push to `main` and the nightly slow tier
+cover what it would catch.
 
 Not covered by `ci-gate`: the path-filtered workflows (`desktop`,
 `macos-studio`, `sdk*`, `zxvd`). They only run when their paths change, so
 GitHub cannot require them. Their checks must still be green before a merge
 (the ready rule the project already follows).
+
+### The mutation config
+
+`tests/harness/mutator/targets.json` is shared by every pull request that adds
+a mutation target. Two rules keep it from blocking merges:
+
+- quick-checks runs `mutate.py --check-config`, so an entry duplicated by a
+  merge, invalid JSON, a missing target file or a CI target without a
+  baseline fails in seconds, not in the slow tier's mutation shards.
+- A target whose file has platform-only blocks uses `"lines": "host"`
+  instead of hand-written line numbers. The harness works out which lines this
+  host compiles on every run, so changing the file never needs an edit here.
+  Hand-written ranges are for picking part of a file, and must be kept up to
+  date by the change that moves the code.
 
 ## Run the checks before you push
 

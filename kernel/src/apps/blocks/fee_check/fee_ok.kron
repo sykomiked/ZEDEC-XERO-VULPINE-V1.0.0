@@ -1,0 +1,1 @@
+(amount>0)&(amount<1000001)&(fee>-1)&fee<2501

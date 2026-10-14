@@ -45,6 +45,24 @@ export const Status = Object.freeze({
   E_TARGET: -30,
   /** Refused by the function's placement policy (ABI 1.4). */
   E_POLICY: -31,
+  /** Not a face of the Fibonacci coin or token ladder (ABI 1.5; class USAGE). */
+  E_DENOM: -32,
+  /** A treaty fails validation; the fault and offset say why (ABI 1.5; class USAGE). */
+  E_TREATY: -33,
+  /** Content does not match its CID, or the CID bytes are bad (ABI 1.5; class REFUSED). */
+  E_CID: -34,
+  /** No valid consent token for this agent action (ABI 1.5; class REFUSED). */
+  E_CONSENT: -35,
+  /** Too few freight rows arrived to rebuild the payload (ABI 1.5; class REFUSED). */
+  E_ERASURE: -36,
+  /** No valid signed peg for this currency (unset, stale or replayed epoch) (ABI 1.5; class REFUSED). */
+  E_PEG: -37,
+  /** A V-Bill hub limit rule refused the swap; not a fault (ABI 1.5; class REFUSED). */
+  E_LIMIT: -38,
+  /** A paradox graph reached its step limit and goes to the owner (ABI 1.5; class REFUSED). */
+  E_PARADOX_STEP: -39,
+  /** The change touches money or devices and needs the owner's approval (ABI 1.5; class REFUSED). */
+  E_PARADOX_OWNER: -40,
   E_INTERNAL: -99,
 } as const);
 
@@ -118,6 +136,55 @@ export class VerificationFailedError extends ZxvRefusedError {}
 /** The feature is not built into this library (see Zxv.features). */
 export class NotImplementedError extends ZxvRefusedError {}
 
+/**
+ * `ZXV_E_DENOM` (ABI 1.5, class USAGE): the amount is not one of the coin
+ * ladder's faces (1, 2, 3, 5, 8, 13, ...) or of the 64 token tiers. Split an
+ * arbitrary amount with `zxv.coins.split` instead.
+ */
+export class DenominationError extends ZxvUsageError {}
+
+/**
+ * `ZXV_E_TREATY` (ABI 1.5, class USAGE): a treaty broke a validation rule.
+ * {@link TreatyError.fault} is the `TreatyFault` reason and
+ * {@link TreatyError.offset} the byte offset of the first fault in the
+ * parsed text or record; both are `undefined` when the call that failed
+ * does not report them (emitting, running).
+ */
+export class TreatyError extends ZxvUsageError {
+  /** The `TreatyFault` value, when the call reported one. */
+  readonly fault: number | undefined;
+  /** Byte offset of the first fault in the parsed input, when the call reported one. */
+  readonly offset: number | undefined;
+
+  /**
+   * @param status - always `ZXV_E_TREATY` (-33)
+   * @param statusName - "ZXV_E_TREATY"
+   * @param detail - zxv_last_error text (diagnostic only)
+   * @param fault - the `TreatyFault` reason, if known
+   * @param offset - byte offset of the first fault, if known
+   */
+  constructor(status: number, statusName: string, detail: string, fault?: number, offset?: number) {
+    super(status, statusName, detail);
+    this.fault = fault;
+    this.offset = offset;
+  }
+}
+
+/** `ZXV_E_CID` (ABI 1.5): bytes do not match their CID, or the CID itself is malformed. */
+export class CidMismatchError extends ZxvRefusedError {}
+/** `ZXV_E_CONSENT` (ABI 1.5): no valid, unused consent token covers this agent action. */
+export class ConsentDeniedError extends ZxvRefusedError {}
+/** `ZXV_E_ERASURE` (ABI 1.5): fewer freight rows than the code needs; wait for more rows and decode again. */
+export class ErasureError extends ZxvRefusedError {}
+/** `ZXV_E_PEG` (ABI 1.5): the currency has no valid signed peg (unset, or a stale or replayed epoch). */
+export class PegError extends ZxvRefusedError {}
+/** `ZXV_E_LIMIT` (ABI 1.5): a hub limit rule refused the swap. A decision, not a fault. */
+export class LimitExceededError extends ZxvRefusedError {}
+/** `ZXV_E_PARADOX_STEP` (ABI 1.5): a paradox graph reached its step limit; it now goes to the owner. */
+export class ParadoxStepLimitError extends ZxvRefusedError {}
+/** `ZXV_E_PARADOX_OWNER` (ABI 1.5): the change touches money or devices, so the owner must approve it. */
+export class OwnerApprovalRequiredError extends ZxvRefusedError {}
+
 /** SYSTEM class: out of memory, I/O, internal. */
 export class ZxvSystemError extends ZxvError {}
 
@@ -158,6 +225,8 @@ export function errorFor(status: number, cls: number, name: string, detail: stri
   if (cls === StatusClass.FATAL) return new ZxvFatalError(status, name, detail);
   if (cls === StatusClass.USAGE) {
     if (status === Status.E_FLOAT) return new FloatRejectedError(detail);
+    if (status === Status.E_DENOM) return new DenominationError(status, name, detail);
+    if (status === Status.E_TREATY) return new TreatyError(status, name, detail);
     return new ZxvUsageError(status, name, detail);
   }
   if (cls === StatusClass.REFUSED) {
@@ -167,6 +236,13 @@ export function errorFor(status: number, cls: number, name: string, detail: stri
       case Status.E_FUNDS: return new InsufficientFundsError(status, name, detail);
       case Status.E_VERIFY: return new VerificationFailedError(status, name, detail);
       case Status.E_NOTIMPL: return new NotImplementedError(status, name, detail);
+      case Status.E_CID: return new CidMismatchError(status, name, detail);
+      case Status.E_CONSENT: return new ConsentDeniedError(status, name, detail);
+      case Status.E_ERASURE: return new ErasureError(status, name, detail);
+      case Status.E_PEG: return new PegError(status, name, detail);
+      case Status.E_LIMIT: return new LimitExceededError(status, name, detail);
+      case Status.E_PARADOX_STEP: return new ParadoxStepLimitError(status, name, detail);
+      case Status.E_PARADOX_OWNER: return new OwnerApprovalRequiredError(status, name, detail);
       default: return new ZxvRefusedError(status, name, detail);
     }
   }
@@ -191,6 +267,7 @@ export function usage(detail: string, status: number = Status.E_ARG): ZxvUsageEr
     [Status.E_ARG]: 'ZXV_E_ARG',
     [Status.E_RANGE]: 'ZXV_E_RANGE',
     [Status.E_FORMAT]: 'ZXV_E_FORMAT',
+    [Status.E_TOO_LONG]: 'ZXV_E_TOO_LONG',
   };
   return new ZxvUsageError(status, names[status] ?? 'ZXV_E_ARG', detail);
 }
