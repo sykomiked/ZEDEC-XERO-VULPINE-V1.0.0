@@ -215,6 +215,8 @@ int32_t zt_model_load_ex(zt_model_t *m, const zt_gguf_t *g, void *arena, uint64_
 
 /* Per-sequence state: the KV cache and the activation scratch for batches of
  * up to n_batch tokens. */
+#define ZT_LORA_MAX_RANK 256u
+
 typedef struct {
     uint32_t kv_type, n_ctx, n_batch, pos; /* pos = tokens in the cache */
     uint32_t nbh;                          /* KV blocks per head (ZT_KV_Q8) */
@@ -253,6 +255,14 @@ typedef struct {
      * residual stream of each eval's last token is copied to tap. */
     zt_fx *tap;
     int32_t tap_layer;
+    /* T23: the LoRA adapter this sequence runs with (null: the base model
+     * alone), set by zt_model_state_set_lora, and its scratch: the rank-sized
+     * intermediate of each of n_batch tokens, quantised as act_quant does. */
+    const struct zt_lora *lora;
+    zt_fx *lt;      /* [n_batch][ZT_LORA_MAX_RANK] */
+    int16_t *la16;  /* [n_batch][ZT_LORA_MAX_RANK] */
+    uint8_t *lash;  /* [n_batch][ZT_LORA_MAX_RANK / 32] */
+    int32_t *lasum; /* [n_batch][ZT_LORA_MAX_RANK / 32] */
 } zt_model_state_t;
 
 uint64_t zt_model_state_bytes(const zt_model_t *m, uint32_t n_ctx, uint32_t n_batch,
@@ -277,6 +287,70 @@ int32_t zt_model_set_tap(zt_model_state_t *s, const zt_model_t *m, int32_t layer
 int32_t zt_model_eval(const zt_model_t *m, zt_model_state_t *s, const int32_t *tokens, uint32_t n,
                       zt_fx *logits, uint32_t flags);
 int32_t zt_model_decode(const zt_model_t *m, zt_model_state_t *s, int32_t token, zt_fx *logits);
+
+/* ---- T23 LoRA adapters: one shared base, a different adapter per sequence ----
+ *
+ * A LoRA adapter adds scale * B (A x) to the output of a base matrix W
+ * (y = W x + scale * B A x), A of rank rows by W's columns, B of W's rows by
+ * rank. zt_lora_load reads llama.cpp's adapter GGUF (convert_lora_to_gguf.py:
+ * general.type "adapter", adapter.type "lora", adapter.lora.alpha, tensors
+ * "blk.<l>.<matrix>.weight.lora_a" and ".lora_b" of ggml shapes
+ * [cols, rank] and [rank, rows]) for any of the seven per-layer matrices
+ * (attn_q, attn_k, attn_v, attn_output, ffn_gate, ffn_up, ffn_down). The
+ * scale is alpha / rank times the caller's scale (llama.cpp's
+ * adapter_scale), or the caller's scale alone when alpha is 0 or absent.
+ *   WEIGHTS.  F32, F16, BF16 and Q8_0 adapters are read exactly into 48
+ *       fraction bits (the scale is folded into B there), then stored as
+ *       zt_q8_t blocks with the same 25-bit scales as converted base
+ *       weights; small adapter values keep their relative precision because
+ *       each block carries its own shift. B's rank is padded with zeros to
+ *       a multiple of 32. The adapter's memory is the caller's arena; the
+ *       adapter file is not used after zt_lora_load.
+ *   APPLY.  After each base product, for each token: t = A x with the same
+ *       16-bit activation blocks the base product read (Q16 result), t is
+ *       quantised to 16-bit blocks again, then B t is added to y in Q16 and
+ *       saturated (counted in n_sat). Every step is zt_kern.h's integer dot
+ *       (C reference, or the model's kernel set, which gives the same bits),
+ *       so the logits are the same on every machine, thread count and
+ *       batching, as for the base model.
+ *   SHARING.  The base zt_model_t is read-only; any number of sequences
+ *       (zt_model_state_t, one per agent) can use it at once, each with its
+ *       own adapter or none. An adapter is read-only too and can be shared.
+ *   LIMITS.  Rank 1..ZT_LORA_MAX_RANK. No adapters on token_embd or output
+ *       (refused, not ignored), no DoRA or other variants, no merging into
+ *       the base weights. Changing a sequence's adapter does not recompute
+ *       its KV cache: set it on an empty state (or seek to 0 after). Adapter
+ *       weights are rounded to 8 bits per block of 32, like converted base
+ *       weights; on the tiny test models that alone moves the logits by up
+ *       to 0.11 against a float64 forward pass of the merged weights (numpy
+ *       simulation), and the engine measures 0.04 to 0.15 (test_zt_lora).
+ *       No real adapter on a real model has been run yet. */
+typedef struct {
+    const zt_q8_t *a; /* rank rows of cols / 32 blocks */
+    const zt_q8_t *b; /* rows rows of rpad / 32 blocks, the scale folded in */
+    uint32_t rank, rpad, rows, cols;
+} zt_lora_mat_t;
+
+#define ZT_LORA_MATS 7u /* per layer: wq wk wv wo wg wu wd */
+
+typedef struct zt_lora {
+    uint32_t n_layer;    /* the base model's */
+    uint32_t n_mats;     /* matrices with an adapter */
+    uint32_t max_rank;   /* largest rank */
+    zt_lora_mat_t *mats; /* [n_layer][ZT_LORA_MATS] in the arena; rank 0 = none */
+    uint32_t alpha_f32;  /* f32 bits of adapter.lora.alpha (0 when absent) */
+    uint32_t scale_q16;  /* the caller's scale */
+} zt_lora_t;
+
+/* Arena bytes zt_lora_load needs for this adapter on this base, or 0 when it
+ * cannot be applied (zt_lora_load says why). */
+uint64_t zt_lora_arena_bytes(const zt_model_t *m, const zt_gguf_t *ad);
+/* scale_q16: the caller's scale (65536 = 1.0); 0 is refused. */
+int32_t zt_lora_load(zt_lora_t *lo, const zt_model_t *m, const zt_gguf_t *ad, uint32_t scale_q16,
+                     void *arena, uint64_t arena_bytes, zt_model_err_t *err);
+/* Run this sequence with lo (null: the base alone). lo must have been loaded
+ * for the same base model. Returns ZT_MODEL_EARG on a mismatch. */
+int32_t zt_model_state_set_lora(zt_model_state_t *s, const zt_model_t *m, const zt_lora_t *lo);
 
 /* ---- sampling ---- */
 typedef struct {

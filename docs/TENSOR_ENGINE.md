@@ -45,6 +45,20 @@
   - The E8 roots are the shared tables of `src/e8/e8_lattice.h` (see "One E8" below).
   - At 1.875 bits per weight, E8 measures 9.89 dB SNR, against 9.59 dB for a tuned 2-bit scalar quantiser.
 
+## Several models at once: one base, a LoRA adapter per agent (T23)
+
+- **Shared base.** A loaded model (`zt_model_t`) is read-only. Any number of sequences (`zt_model_state_t`, one per agent) run on it, each with its own KV cache.
+- **Adapters (`zt_lora_load`).** It reads llama.cpp's LoRA adapter GGUF, the file `convert_lora_to_gguf.py` writes, for any of the seven per-layer matrices. Adapter weights may be F32, F16, BF16 or Q8_0. The scale is alpha / rank times the caller's scale, as in llama.cpp.
+  - Weights are read exactly into 48 fraction bits, the scale is folded into B there, then each block of 32 is stored as 8-bit values with its own 25-bit scale.
+  - `zt_model_state_set_lora` gives one sequence its adapter, or none. After each base matrix product the engine adds scale · B (A x) in integers, using the same 16-bit activation blocks the base product read.
+- **Tested (`test_zt_lora.c`, 40 checks).** Three tiny models with adapters written by gguf-py (rank 8 F16, rank 32 Q8_0, rank 4 F32 + BF16) are run against a float64 forward pass of the merged weights W + scale · B A.
+  - Logits are within 0.04 to 0.15 of that reference. A numpy simulation shows the 8-bit storage of the adapter alone accounts for about 0.1.
+  - Top-1 agrees at every position whose top two logits are more than 0.05 apart.
+  - The logits are the same bits with no adapter or an all-zero adapter as for the base alone, for every batch size, for every SIMD kernel set with one or four threads, and on x86_64 and arm64 (NEON, under qemu).
+  - Three agents on one base, one with the adapter, one without and one at half scale, can decode in turns and each gets exactly the logits it gets alone.
+- **In the app (`zxv_model_host.h` M6).** There are 4 model slots and 16 agents. Each agent runs on a slot with its own adapter file or none, and agents share their slot's weights. An agent costs its KV cache, about 117 MB for Qwen2.5-1.5B at a 2048-token context, plus its adapter.
+- **Limits.** No real adapter has been run on a real model yet. Adapters on `token_embd` or `output` are refused rather than ignored. DoRA and other variants are not supported. Changing a sequence's adapter does not recompute its KV cache.
+
 ## One E8 (the tensor engine and `src/e8`)
 
 The engine's lattice quantisers (`zt_lattice.c`) and the icosian E8 in `kernel/src/e8` now read one set of tables, `kernel/src/e8/e8_lattice.h`. The header holds no physics. It holds the following facts, and `test_zt_e8.c` checks each one from the tables:
