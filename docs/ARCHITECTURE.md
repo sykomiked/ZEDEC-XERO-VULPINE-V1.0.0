@@ -294,6 +294,8 @@ Small, pure building blocks that every stratum may use.
 | The Cage: quarantine and clearance for anything from outside, with desks per kind of item | [CAGE.md](CAGE.md), design only |
 | The Pit Boss: deterministic rulebook that enforces, advisor model that only proposes | [PIT_BOSS.md](PIT_BOSS.md), design only |
 | The registry: 407 slots in three layers (L1 Foundation = the 144 apps, L2 Concourse, L3 Apparatus) and their crossing rules | [REGISTRY.md](REGISTRY.md), design only |
+| Trade routes: typed one-way channels (local rings with exact backpressure, Vinea frames between nodes) | [TRADE_ROUTES.md](TRADE_ROUTES.md), design only |
+| The lexicon: Firmament, Pit Boss, Registrar, Tally, Cage, Desks, Floor, Strongbox, Hoard, trade routes, Rosetta Shell, mapped to code | [LEXICON.md](LEXICON.md) |
 | Model-collapse experiment (invariant filter on synthetic training data) | Offered as a fair test; no "cure" claimed |
 
 ## 11. Stratum 6: settlement and economy
