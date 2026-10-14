@@ -40,9 +40,21 @@ enum Permission {
   MINT,
 
   /// Paradox operators and policies (ABI 1.5; bit 14).
-  PARADOX;
+  PARADOX,
+
+  /// Play-lane vouchers and the spend meter (`PlaySandbox`, `SpendMeter`;
+  /// ABI 1.6; bit 15). Building payment requests and verifying receipts need
+  /// no permission; signing a receipt needs [CRYPTO_SIGN] (the wallet's call).
+  VINO;
 
   int get bit => 1 << index;
+
+  /// `ZXV_CAP_ALL_1_5`: every bit defined as of ABI 1.5 (bits 0..14). Kept
+  /// as it was: the ABI only adds bits.
+  static const int all1_5 = (1 << 15) - 1;
+
+  /// `ZXV_CAP_ALL_1_6`: every bit defined as of ABI 1.6 (bits 0..15, adds [VINO]).
+  static const int all1_6 = (1 << 16) - 1;
 
   static Set<Permission> get all => values.toSet();
   static int mask(Iterable<Permission> ps) => ps.fold(0, (m, p) => m | p.bit);
