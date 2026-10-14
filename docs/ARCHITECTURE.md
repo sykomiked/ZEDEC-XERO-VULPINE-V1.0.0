@@ -251,7 +251,7 @@ Small, pure building blocks that every stratum may use.
 | Double spends | ✅ | First valid spend wins; slashing only on signed equivocation proof, only of posted bonds |
 | TLA+/Lean proofs of ledger, headroom and rational code | ✅ | Models of the C, not proof of the binary |
 | Forecasting (shadow state, headroom, cycle detection) | 📋 | `bombsquad` and `predictive` exist; `bombsquad` connects to nothing yet |
-| Designed recovery framework | 📋 gap B5 | Refuse / roll back / isolate, each with a signed RepairProof |
+| Designed recovery framework (`recover`) | 🧩 gap B5 | Refuse / roll back to a caller's A/B checkpoint / isolate, each with a RecoveryProof around paradox's RepairProof, ML-DSA-87 signed; hard invariants fail closed and state is never patched. `tripartite_fs` uses it (itself not yet in a product); `sdk_bridge` and `event_space` still recover ad hoc. It decides and proves recoveries; it detects only what the caller's tag and invariants report |
 | Defensive sinks | 📋 | Stateless cookies or small proof-of-work; inbound-only tarpit |
 | Four-valued deliberation with deterministic settlement | 📋 | Disputes stay in escrow |
 | Exact float-free circuit simulator; quantum-inspired netting optimiser | 📋 | Labelled classical simulator; benchmarked against cycle cancellation |

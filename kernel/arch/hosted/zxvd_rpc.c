@@ -35,9 +35,10 @@
 #include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
 #include "web4_util.h" /* hex */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
-#include "zxv_files.h" /* files.*: the ZXV folder */
-#include "zxv_spaces.h" /* spaces.*: who may see and change each place */
-#include "juris.h"      /* J5: the jurisdiction host (kernel/src/juris) */
+#include "zxvd_rpc_modules.h" /* freight, harmonic, stream, ehop, web4 */
+#include "zxv_files.h"        /* files.*: the ZXV folder */
+#include "zxv_spaces.h"       /* spaces.*: who may see and change each place */
+#include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -2397,6 +2398,7 @@ static void m_discover(call_t *c)
         if (i) zxvd_buf_raw(c->res, ",", 1);
         zxvd_buf_json_str(c->res, METHODS[i].name);
     }
+    zxvd_mod_names(c->res); /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
     for (uint32_t i = 0; i < N_EXT; i++)
         for (uint32_t j = 0; j < EXT[i].n; j++) {
             zxvd_buf_raw(c->res, ",", 1);
@@ -2781,7 +2783,8 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
                 grp = GROUPS[g];
                 break;
             }
-    if (!fn && !ext && !gm) {
+    int mod = fn || ext || gm ? -1 : zxvd_mod_find(line, &t[m]); /* zxvd_rpc_modules.h */
+    if (!fn && !ext && !gm && mod < 0) {
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
     }
@@ -2800,6 +2803,8 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
         fn->fn(&c);
     else if (ext)
         ext(&c);
+    else if (mod >= 0)
+        zxvd_mod_call(mod, line, t, n, p, &res, &c.err, c.msg, sizeof c.msg);
     else if (!gm->always && !zxvd_rpc_enabled(grp->feature)) /* X4 */
         fail(&c, ZXVD_E_OFF, "%s is off: start zxvd with --enable %s, or call features.set%s",
              grp->feature, grp->feature,

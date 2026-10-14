@@ -268,6 +268,10 @@ typedef struct {
     uint64_t qseq;  /* the quarantine record */
 } pdx_repair_t;
 
+/* SHA-256 of "zxv/pdx-state/v1" || len (u32 LE) || state: the digest the
+ * RepairProof's before and after carry (state may be NULL only when len is 0). */
+void pdx_state_hash(const uint8_t *state, uint32_t len, uint8_t out[PDX_HASH]);
+
 /* Which checks trip. */
 uint32_t pdx_detect(const pdx_watch_t *w, const uint8_t *state, uint32_t len);
 

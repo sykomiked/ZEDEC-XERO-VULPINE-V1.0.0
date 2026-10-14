@@ -317,13 +317,13 @@ uint32_t pdx_detect(const pdx_watch_t *w, const uint8_t *state, uint32_t len)
     return t;
 }
 
-static void state_hash(const uint8_t *s, uint32_t len, uint8_t out[PDX_HASH])
+void pdx_state_hash(const uint8_t *s, uint32_t len, uint8_t out[PDX_HASH])
 {
     sha256_ctx_t c;
     sha256_init(&c);
     h_str(&c, "zxv/pdx-state/v1");
     h_u32(&c, len);
-    sha256_update(&c, s, len);
+    if (s && len) sha256_update(&c, s, len);
     sha256_final(&c, out);
 }
 
@@ -343,9 +343,9 @@ pdx_out_t pdx_destructive(const pdx_class_t *c, const pdx_watch_t *w, uint8_t *s
             return PDX_OUT_LOG_FULL;
         return PDX_OUT_REFUSED;
     }
-    state_hash(state, len, proof->before);
+    pdx_state_hash(state, len, proof->before);
     for (uint32_t i = 0; i < len; i++) state[i] = checkpoint[i];
-    state_hash(state, len, proof->after);
+    pdx_state_hash(state, len, proof->after);
     pdx_signature(pattern, pattern_len, proof->sig);
     proof->steps = w ? w->steps : 0;
     proof->trips = trips;

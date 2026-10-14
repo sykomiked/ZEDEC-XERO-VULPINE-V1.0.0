@@ -286,7 +286,7 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *      built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010 to -32016;
+ *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010 to -32017;
  *      -32012 is the code of a method whose feature switch is off, zxvd_ext.h X4).
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
