@@ -212,12 +212,8 @@ table.ft td.acts button:hover{color:var(--text)}
 #cparams{width:100%;min-height:90px;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit;min-width:0;max-width:100%}
 .drop{outline:2px dashed var(--accent);outline-offset:-6px}
-nav.tabs{display:flex;gap:4px;margin-left:12px}
-nav.tabs button{background:transparent;color:var(--muted);border:1px solid transparent;border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit}
-nav.tabs button.on{color:var(--text);border-color:var(--line);background:var(--panel)}
 #play{display:grid;grid-template-columns:minmax(0,15rem) minmax(0,3fr) minmax(0,2fr);gap:12px;padding:12px 16px}
 @media (max-width:1100px){#play{grid-template-columns:minmax(0,1fr)}}
-#play[hidden],#swarm[hidden]{display:none}
 .tpl{display:block;width:100%;text-align:left;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:6px;cursor:pointer;font:inherit}
 .tpl.on{border-color:var(--accent)}
 .tpl b{display:block;font-weight:600}
@@ -250,7 +246,6 @@ a.go{color:var(--accent);cursor:pointer;text-decoration:underline}
 <body>
 <header>
   <h1>ZXV SWARM</h1>
-  <nav class="tabs"><button id="tab-swarm" class="on">Swarm</button><button id="tab-play">Playground</button></nav>
   <span class="sub" id="mode">connecting…</span>
   <button id="quit" title="Stop the ZXV swarm">Quit</button>
 </header>
@@ -263,6 +258,7 @@ a.go{color:var(--accent);cursor:pointer;text-decoration:underline}
   <button data-app="photos"><i>▣</i>Glint</button>
   <div class="grp">Toolbox</div>
   <button data-app="console"><i>›_</i>Spindle</button>
+  <button data-app="playground"><i>▷</i>Playground</button>
 </nav>
 <div class="views">
 <div class="view" id="v-swarm">
@@ -339,11 +335,8 @@ a.go{color:var(--accent);cursor:pointer;text-decoration:underline}
     <div id="cout"></div>
   </section>
 </div></div>
-</div>
-</div>
-<div id="viewer"><div class="vb"><span id="vname"></span><span class="sp"></span><button class="btn" id="vprev">‹</button><button class="btn" id="vnext">›</button><button class="btn" id="vclose">Close</button></div><div class="stage" id="vstage"></div></div>
-<div id="modal"><div class="box"><h3 id="mtitle"></h3><p id="mtext"></p><input id="minput" autocomplete="off"><div class="row"><button class="btn" id="mno">Cancel</button><button class="btn primary" id="myes">OK</button></div></div></div>
-<div id="play" hidden>
+<div class="view" id="v-playground">
+<div id="play">
   <section>
     <h2>Templates</h2>
     <div id="tpls">Loading…</div>
@@ -371,6 +364,11 @@ a.go{color:var(--accent);cursor:pointer;text-decoration:underline}
     <div class="small" style="margin-top:10px;border-top:1px solid var(--line);padding-top:6px">Four answers, never forced into yes or no: <span class="cTRUE">TRUE</span> passed · <span class="cFALSE">FALSE</span> refused, with the line · <span class="cBOTH">BOTH</span> contradictory evidence, held for a person · <span class="cNEITHER">NEITHER</span> not enough to decide yet.</div>
   </section>
 </div>
+</div>
+</div>
+</div>
+<div id="viewer"><div class="vb"><span id="vname"></span><span class="sp"></span><button class="btn" id="vprev">‹</button><button class="btn" id="vnext">›</button><button class="btn" id="vclose">Close</button></div><div class="stage" id="vstage"></div></div>
+<div id="modal"><div class="box"><h3 id="mtitle"></h3><p id="mtext"></p><input id="minput" autocomplete="off"><div class="row"><button class="btn" id="mno">Cancel</button><button class="btn primary" id="myes">OK</button></div></div></div>
 <script>
 const $=id=>document.getElementById(id);
 const verdict=["✗ false","✓ true","⊥̸ contested"];
@@ -406,8 +404,6 @@ $('quit').onclick=async()=>{try{await fetch('/api/quit',{method:'POST'})}catch(e
 
 /* ---------------- Playground ---------------- */
 const PL={cat:[],cur:null,file:null,edits:{},loaded:false,last:null};
-function tab(which){$('swarm').hidden=which!=='swarm';$('play').hidden=which!=='play';$('tab-swarm').classList.toggle('on',which==='swarm');$('tab-play').classList.toggle('on',which==='play');if(which==='play'&&!PL.loaded)plLoad()}
-$('tab-swarm').onclick=()=>tab('swarm');$('tab-play').onclick=()=>tab('play');
 async function plLoad(){
   try{const r=await fetch('/api/play/catalogue');if(!r.ok)throw 0;PL.cat=await r.json();PL.loaded=true}
   catch(e){$('tpls').textContent='The Playground is not part of this build.';return}
@@ -549,6 +545,7 @@ function show(app){
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+app));
   try{sessionStorage.setItem('zxv-app',app)}catch(e){}
   if(app==='files')F.load();if(app==='photos')P.load();if(app==='console')C.load();if(app==='text')$('ed').focus();
+  if(app==='playground'&&!PL.loaded)plLoad();
 }
 document.querySelectorAll('#dock button').forEach(b=>b.onclick=()=>show(b.dataset.app));
 
