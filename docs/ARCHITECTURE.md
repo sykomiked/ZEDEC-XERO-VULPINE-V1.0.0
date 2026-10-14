@@ -291,6 +291,8 @@ Small, pure building blocks that every stratum may use.
 | The model design: derived, fitted and learned weights; compiled specialists; build order | [AI_MODEL.md](AI_MODEL.md), design only |
 | Rosetta Shell: POSIX, PowerShell and cmd.exe lines compiled to one typed CLI-IR on top of zxsh | [ROSETTA_SHELL.md](ROSETTA_SHELL.md), design only |
 | The Banker: files as hashed, journaled holdings with T/F/B/N states and transactional moves | [BANKER.md](BANKER.md), design only |
+| The Cage: quarantine and clearance for anything from outside, with desks per kind of item | [CAGE.md](CAGE.md), design only |
+| The Pit Boss: deterministic rulebook that enforces, advisor model that only proposes | [PIT_BOSS.md](PIT_BOSS.md), design only |
 | Model-collapse experiment (invariant filter on synthetic training data) | Offered as a fair test; no "cure" claimed |
 
 ## 11. Stratum 6: settlement and economy
