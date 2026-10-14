@@ -60,6 +60,7 @@ fs                               kernel
 gdt                              kernel
 hardware                         kernel
 holographic                      kernel
+hwdrv                            kernel     # standard class drivers: NVMe, AHCI, xHCI + USB, e1000, HDA
 idt                              kernel
 keyboard                         kernel
 license                          kernel
