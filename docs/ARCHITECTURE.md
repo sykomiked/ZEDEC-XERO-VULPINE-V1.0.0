@@ -266,7 +266,7 @@ Small, pure building blocks that every stratum may use.
 | Integer tensor engine, GGUF reader, tokenizer, RoPE, E8/Leech quantisers | ✅ | |
 | SIMD (NEON, AVX2, AVX-512) + row-parallel thread pool | ✅ | Bit-identical to the plain C path |
 | GPU: matrix products on Apple GPUs (Metal), bit-exact | ✅ | Prompt reading 1.8× on an M3 Max; one round trip per product, so generation stays on the CPU |
-| GPU: the whole forward pass in one command buffer (every layer, then the logits) | 🧩 | Proven bit-exact through its C backend, also on Qwen2.5-1.5B; GPU speed not yet measured. [GPU_STRATEGY.md](GPU_STRATEGY.md) |
+| GPU: the whole forward pass in one command buffer (every layer, then the logits) | 🧩 | Bit-exact on an M3 Max; prompt reading 2.3× the CPU (289 vs 126 tok/s), generation 38 vs 60 tok/s, so decode still needs fused kernels. [GPU_STRATEGY.md](GPU_STRATEGY.md) |
 | Swarm economy: Fibonacci tokens-per-cycle, emotional economy, cooperative market, governor, DNA | ✅ | |
 | Budget gate on prompt and generated tokens | ✅ in the app | One budget token per prompt token and per written token |
 

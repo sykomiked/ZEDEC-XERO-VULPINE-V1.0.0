@@ -39,7 +39,7 @@ backends are hosted code (the Mac app, bench, servers).
 | Part | Status | Where |
 |---|---|---|
 | Matrix products on an Apple GPU, bit-exact | ✅ merged (#85) | `kernel/src/tensor/zt_metal.m`, `zt_kern_t.mm_full` |
-| The whole forward pass on the GPU: every layer's RMS norm, activation quantiser, products and bias, RoPE, KV store, attention, residual and SiLU, then the output norm and logits, in one command buffer | 🧩 built, proven in C; Metal run pending on the M3 Max | `zt_gpu.h`, `zt_gpu.c`, `zt_kern_metal_resident`, `zt_bench --gpu-resident` |
+| The whole forward pass on the GPU: every layer's RMS norm, activation quantiser, products and bias, RoPE, KV store, attention, residual and SiLU, then the output norm and logits, in one command buffer | 🧩 built; bit-exact on the M3 Max; prompt reading 2.3× the CPU, generation not yet faster | `zt_gpu.h`, `zt_gpu.c`, `zt_kern_metal_resident`, `zt_bench --gpu-resident` |
 | The same op list through a C backend | ✅ in CI | `test_zt_gpu` (fixtures, edge cases, saturating runs); `zt_bench --gpu-sim` on a real model |
 | Blocks kept in VRAM under their IPFS CIDs | 🧩 data layer only, simulated GPU | [VRAM_BLOCKS.md](VRAM_BLOCKS.md) |
 | Accelerator tier between two integer tiers | 🧩 design and integer tiers; no GPU behind tier 2 yet | [COPROCESSOR_TIERS.md](COPROCESSOR_TIERS.md) |
@@ -53,11 +53,23 @@ reading 120 → 217 tokens/s, but token-by-token generation all on the GPU was
 needs was its own round trip (~110 µs of encode, commit and wait). That is the
 bus shuttle G3 forbids, and it is why generation was left on the CPU.
 
-The whole-pass op list for the same model is 957 kernel launches in one
-command buffer per token: one hand-off instead of ~197. Run through the C
-backend on Linux it gives the CPU's exact logits (`zt.logits_fnv` identical,
-6- and 30-token prompts, batches of 8). Its speed on the GPU has not been
-measured yet.
+The whole pass (draft #138), measured on the same M3 Max, Qwen2.5-1.5B
+Q4_K_M, a 462-token prompt and 64 generated tokens, 8 threads. All four
+modes gave the same tokens and the same `zt.logits_fnv` (7e55278052c5dd8a):
+
+| Mode | Prompt reading (tok/s) | Generation (tok/s) |
+|---|---|---|
+| CPU (NEON) | 126 | 60 |
+| `--gpu` (products on the GPU for prompts) | 242 | 61 |
+| `--gpu-decode` (every product on the GPU) | 235 | 31 |
+| `--gpu-resident` (the whole pass, one command buffer) | 289 | 38 |
+
+The resident pass is the fastest way to read a prompt (2.3× the CPU) and
+beats per-product GPU generation, but generation is still slower than the
+CPU: 957 launches a token, and the norm, softmax and single-token product
+kernels are naive (one thread loops over a whole row). Section 4 is the plan.
+`make -C kernel test-metal` passes 30/30 on the GPU, including the resident
+passes with forced saturation.
 
 ## 3. How the whole pass works
 
@@ -81,8 +93,7 @@ adapter, a hidden-state tap, a distributed model or weights converted to
 
 ## 4. Next steps, in order
 
-1. Run `make -C kernel test-metal` and `zt_bench --gpu-resident` on the M3 Max:
-   bit-exactness on the GPU, then tokens per second against the CPU.
+1. Done: bit-exact on the M3 Max (table above).
 2. Fewer launches: fuse norm + quantise, bias into the product, the six
    attention steps into two; one threadgroup per row with simd reductions
    instead of one thread per row for norms and softmax.

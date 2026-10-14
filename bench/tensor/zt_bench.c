@@ -64,6 +64,9 @@
  * Exit: 0 ok, 2 usage, 3 cannot read file, 4 model or tokenizer not loadable,
  *       5 run failed. */
 #define _POSIX_C_SOURCE 200809L
+#ifdef __APPLE__
+#    define _DARWIN_C_SOURCE /* struct rusage's ru_maxrss, which POSIX mode hides */
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
