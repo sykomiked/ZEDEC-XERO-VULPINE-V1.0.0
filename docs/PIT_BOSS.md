@@ -1,7 +1,7 @@
 # The Pit Boss: the supervisor of the floor
 
 The Pit Boss watches everything that runs: the Cage (`docs/CAGE.md`), the
-desks, the file custodian (`docs/BANKER.md`), the Rosetta Shell
+desks, the Registrar (`docs/REGISTRAR.md`), the Rosetta Shell
 (`docs/ROSETTA_SHELL.md`) and the node's swarm relations. It enforces the
 house rules, routes work to the right desk, and escalates what needs a
 person.
@@ -60,7 +60,7 @@ the denominator's size each step.
 
 ## 4. Reports
 
-Every action the Pit Boss takes writes one record to the custodian's
+Every action the Pit Boss takes writes one record to the Registrar's
 journal. A record names:
 - the rule that fired;
 - the evidence: hashes, the check's verdict, fuel used;

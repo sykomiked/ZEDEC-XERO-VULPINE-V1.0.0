@@ -5,7 +5,7 @@ kind: a file, a program, a legacy batch job, a model weight, a swarm peer's
 result, a circuit the user has just drawn. In the Cage it runs or is checked
 with no access to the disk, the network or live state. It leaves only when
 it is **cleared**, and the clearance records exactly which checks it passed.
-Until then it is *uncleared*, and the file custodian (`docs/BANKER.md`)
+Until then it is *uncleared*, and the Registrar (`docs/REGISTRAR.md`)
 keeps it out of the permanent store.
 
 Status: design, not built. Section 6 gives the build order. Much of the
@@ -16,7 +16,7 @@ machinery already exists (section 2).
 ```
 intake  ->  the Cage: a desk runs the checks for this kind of item  ->  cleared / held / refused
                                                                          |        |        |
-                                                     custodian admits it   B or N   F: quarantine log
+                                                     Registrar admits it   B or N   F: quarantine log
 ```
 
 Each check gives a four-valued verdict, and the item's clearance is their
@@ -88,7 +88,7 @@ decided in general. The Cage's checks:
 | A machine-checked proof, where the repository has one (`proofs` job) | Anything the proof covers | — |
 
 The clearance record lists the checks, their verdicts, the fuel used, the
-inputs' hashes and the checker's version. It is written to the custodian's
+inputs' hashes and the checker's version. It is written to the Registrar's
 journal, so "why was this admitted?" always has an exact answer.
 
 ## 5. The desks
@@ -113,7 +113,7 @@ work, not any financial activity:
 | 2 | Operations Desk: dry-run circuits and Z-Wasm with fuel, run twice for determinism | A looping program ends NEITHER (fuel); a nondeterministic one ends BOTH |
 | 3 | Archives Desk: COBOL/Fortran through the interpreters with bounded runs and copybook checks | A legacy job's output digest is identical across two CPUs |
 | 4 | Protocol Desk: model weights (GGUF validation, pinned digests as in `golden.models`) and peer results (AIPI quorum) | A tampered weight file is refused; two disagreeing peers give BOTH |
-| 5 | The custodian admits only cleared items; uncleared ones are visible but marked | No uncleared item reaches the permanent store (fault-injected test) |
+| 5 | The Registrar admits only cleared items; uncleared ones are visible but marked | No uncleared item reaches the permanent store (fault-injected test) |
 | 6 | The Cage window: the user watches a dry run's trace (steps, memory, verdicts) | The trace replays to the same verdicts |
 | 7 | Emulated native binaries (optional, slow) | An x86 test binary runs observed under the emulator, or is refused |
 
@@ -125,5 +125,5 @@ work, not any financial activity:
   outside ZXV's guarantees, marked uncleared.
 - On a hosted system (macOS, Linux, Windows), the Cage isolates what it
   interprets. It cannot stop another program on the same machine from
-  touching the disk directly. The custodian's audit detects such changes
+  touching the disk directly. The Registrar's audit detects such changes
   afterwards (FALSE).
