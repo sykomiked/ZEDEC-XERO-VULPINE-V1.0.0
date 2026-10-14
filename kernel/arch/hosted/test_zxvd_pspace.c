@@ -166,6 +166,36 @@ static void test_params(void)
     got = rpc(call("pspace.create", "{\"kind\":\"rooms\",\"gov\":\"owner\",\"name\":\"x\"}"));
     CHECK(strstr(got, "-32602") != NULL, "a kind too long for its buffer: %s", got);
 
+    /* the name and topic buffers: 48 and 24 bytes */
+    {
+        char nm[60], tp[40];
+        memset(nm, 'n', 49);
+        nm[48] = 0;
+        memset(tp, 't', 25);
+        tp[24] = 0;
+        NET_OFF(call("pspace.create",
+                     "{\"kind\":\"room\",\"gov\":\"owner\",\"name\":\"%s\","
+                     "\"topic\":\"%s\"}",
+                     nm, tp));
+        NET_OFF(call("pspace.find", "{\"topic\":\"%s\"}", tp));
+        nm[48] = 'n';
+        nm[49] = 0;
+        got =
+            rpc(call("pspace.create", "{\"kind\":\"room\",\"gov\":\"owner\",\"name\":\"%s\"}", nm));
+        CHECK(strstr(got, "-32602") && strstr(got, "name"), "a 49-byte name: %s", got);
+        nm[48] = 0;
+        tp[24] = 't';
+        tp[25] = 0;
+        got = rpc(call("pspace.create",
+                       "{\"kind\":\"room\",\"gov\":\"owner\",\"name\":\"%s\","
+                       "\"topic\":\"%s\"}",
+                       nm, tp));
+        CHECK(strstr(got, "-32602") && strstr(got, "topic"), "a 25-byte topic: %s", got);
+        got = rpc(call("pspace.find", "{\"topic\":\"%s\"}", tp));
+        CHECK(strstr(got, "-32602") && strstr(got, "topic"), "find: a 25-byte topic: %s", got);
+        NET_OFF(call("pspace.create", "{\"kind\":\"hall\",\"gov\":\"quorum\",\"name\":\"x\"}"));
+    }
+
     /* pspace.find and the CID-only methods */
     NET_OFF(call("pspace.find", "{\"topic\":\"film\"}"));
     got = rpc(call("pspace.find", "{}"));
@@ -321,7 +351,7 @@ static void test_hosts(void)
     snprintf(piece, sizeof piece, "\"creator\":\"%s\"", eid);
     HOLDS(call("pspace.list", "{}"), "\"online\":true", cid, "\"phase\":\"in\"",
           "\"name\":\"Movie \\\"night\\\"\"", "\"topic\":\"film\"", "\"kind\":\"hall\"",
-          "\"gov\":\"owner\"", "\"quorum_pct\":", piece,
+          "\"gov\":\"owner\"", "\"quorum_pct\":0,", piece,
           "\"hall\":{\"set\":false,\"state\":\"stop\",\"media\":\"\",\"pos_ms\":0,",
           "\"rate_q16\":65536", "\"viewers\":1,\"may_control\":true}", "\"members\":1}]}");
     EXPECT(call("pspace.create", "{\"kind\":\"room\",\"gov\":\"owner\",\"name\":\"\"}"),
@@ -403,16 +433,15 @@ static void test_hosts(void)
            "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"members\":[],\"count\":1}}");
 
     /* a room is not a hall */
-    got = rpc(call("pspace.create", "{\"kind\":\"room\",\"gov\":\"quorum\",\"quorum_pct\":67,"
-                                    "\"name\":\"Lobby\"}"));
+    got = rpc(call("pspace.create", "{\"kind\":\"room\",\"gov\":\"quorum\",\"name\":\"Lobby\"}"));
     CHECK(cid_of(got, room, sizeof room) && strcmp(room, cid) != 0, "a room: %s", got);
     EXPECT(call("hall.status", "{\"cid\":\"%s\"}", room),
            err(ZXVD_E_PSPACE, "that space is a room, not a watch hall"));
     EXPECT(call("hall.load", "{\"cid\":\"%s\",\"media\":\"m\"}", room),
            err(ZXVD_E_PSPACE, "that space is a room, not a watch hall"));
     got = rpc(call("pspace.list", "{}"));
-    CHECK(holds(got, "\"kind\":\"room\",\"gov\":\"quorum\",\"quorum_pct\":67", "\"name\":\"Lobby\"",
-                "\"name\":\"Movie", NULL),
+    CHECK(holds(got, "\"kind\":\"room\",\"gov\":\"quorum\",\"quorum_pct\":51,",
+                "\"name\":\"Lobby\"", "\"name\":\"Movie", NULL),
           "both spaces listed: %.600s", got);
     {
         /* only the hall carries a "hall" object */
@@ -468,11 +497,20 @@ static void test_hosts(void)
         uint8_t raw[VNA_CID_RAW_LEN];
         CHECK(vna_cid_from_string(cid, (uint32_t) strlen(cid), raw) == VNA_OK, "the raw CID");
         CHECK(zxv_net_space_post(f, raw, junk, sizeof junk, zxv_net_wall_ms()) == 0, "F posts");
+        /* the edges of every rule: control and printable ASCII, each lead
+         * byte's first and last valid form, overlongs, surrogates' borders,
+         * U+10FFFF, a bad lead with a continuation after it, a cut sequence */
+        static const uint8_t edge[] = {0x1f, 0x20, 0x7e, 0xc1, 0x80, 0xc2, 0x80, 0xdf, 0xbf, 0xe0,
+                                       0xa0, 0x80, 0xe0, 0x9f, 0xbf, 0xed, 0x9f, 0xbf, 0xee, 0x80,
+                                       0x80, 0xef, 0xbf, 0xbd, 0xf0, 0x90, 0x80, 0x80, 0xf0, 0x8f,
+                                       0xbf, 0xbf, 0xf4, 0x8f, 0xbf, 0xbf, 0xf5, 'A',  0xe2, 0x82};
+        CHECK(zxv_net_space_post(f, raw, edge, sizeof edge, zxv_net_wall_ms()) == 0,
+              "F posts the edges");
     }
     zxvd_pspace_bind(e);
     for (int i = 0; i < 200; i++) {
         got = rpc(call("pspace.events", "{\"cid\":\"%s\",\"since\":%lld}", cid, next));
-        if (strstr(got, "\"kind\":\"post\"")) break;
+        if (strstr(got, "\"text\":\"\\u001f")) break;
         pump(e, f, 20);
     }
     snprintf(piece, sizeof piece, "\"author\":\"%s\"", fid);
@@ -481,6 +519,12 @@ static void test_hosts(void)
                 "\\ufffd\\ufffd\\ufffd\\ufffd\xf0\x9f\x98\x80\\u007f\\ufffd\"",
                 NULL),
           "F's post at E, invalid UTF-8 replaced: %.600s", got);
+    CHECK(holds(got,
+                "\"text\":\"\\u001f ~\\ufffd\\ufffd\xc2\x80\xdf\xbf\xe0\xa0\x80\\ufffd\\ufffd"
+                "\\ufffd\xed\x9f\xbf\xee\x80\x80\xef\xbf\xbd\xf0\x90\x80\x80\\ufffd\\ufffd"
+                "\\ufffd\\ufffd\xf4\x8f\xbf\xbf\\ufffdA\\ufffd\\ufffd\"}",
+                NULL),
+          "the edges of UTF-8: %.900s", got);
     HOLDS(call("pspace.list", "{}"), "\"may_control\":true", "\"viewers\":2,");
 
     /* W5: the directory */
