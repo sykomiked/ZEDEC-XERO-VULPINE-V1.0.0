@@ -196,3 +196,8 @@ void zui_foil_rect(zui_surface_t *s, const zui_depth_t *d, zui_rect_t r, int32_t
         zui_blend_px(s, r.x + r.w - 1 + o, y, second, a);
     }
 }
+
+void zui_foil_rise(zui_surface_t *s, const void *d, zui_rect_t r, int32_t radius, int32_t z)
+{
+    zui_foil_rect(s, (const zui_depth_t *) d, r, radius, z);
+}

@@ -111,6 +111,8 @@ uint32_t zui_chroma_px(const zui_depth_t *d, uint32_t rgb, int32_t z);
  * and its colour / anti-colour fringe. Strength grows with |z| up to 24 px;
  * z == 0 (held, at the glass) is left untouched, as is every other mode. */
 void zui_foil_rect(zui_surface_t *s, const zui_depth_t *d, zui_rect_t r, int32_t radius, int32_t z);
+/* The same with the depth as an untyped ctx, to plug into zui_rise_t. */
+void zui_foil_rise(zui_surface_t *s, const void *d, zui_rect_t r, int32_t radius, int32_t z);
 
 /* One pixel of the sheen: rgb at sheen phase t (0..255 around the cycle) and
  * strength k (0..256). Saturated colours swing toward their anti-colour; a

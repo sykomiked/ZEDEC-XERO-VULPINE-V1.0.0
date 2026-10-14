@@ -45,7 +45,14 @@
 
 #include <stdint.h>
 #include "zui_canvas.h"
-#include "zui_depth.h"
+
+/* How a lit thing rises (the foil sheen, a depth plane stamp, ...). The
+ * renderer supplies it, so this module links with nothing but the canvas:
+ * zui_depth.h's zui_foil_rise with ctx = a zui_depth_t is the usual one. */
+typedef struct {
+    void (*fn)(zui_surface_t *s, const void *ctx, zui_rect_t r, int32_t radius, int32_t z);
+    const void *ctx;
+} zui_rise_t;
 
 typedef enum { ZUI_BAR_GATHER = 0, ZUI_BAR_RELEASE } zui_bar_mode_t;
 
@@ -74,7 +81,7 @@ typedef struct {
     zui_part_fn parts[ZUI_LAUNCH_MAX_PARTS]; /* the row; the middle is centre */
     void *ctx[ZUI_LAUNCH_MAX_PARTS + 1];     /* ctx[0] mark, ctx[1+i] part i  */
     uint32_t n;                              /* odd is best: a true centre    */
-    const zui_depth_t *depth;                /* FOIL: tiles and mark shimmer; may be NULL */
+    const zui_rise_t *rise;                  /* lit tiles and the mark rise; may be NULL */
 } zui_launch_t;
 
 /* Phases of one launch, each 0..256:

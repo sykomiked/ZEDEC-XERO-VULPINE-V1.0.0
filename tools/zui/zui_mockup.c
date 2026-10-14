@@ -1748,12 +1748,13 @@ static void launch_screen(ctx_t *c)
     LC = c;
     layer(c, 0);
     c->bg = ZUI_PANEL;
+    zui_rise_t rise = {zui_foil_rise, &c->d};
     zui_launch_t l = {
         paint_mark,
         {paint_part, paint_part, paint_part, paint_part, paint_part},
         {0, (void *) &P[0], (void *) &P[1], (void *) &P[2], (void *) &P[3], (void *) &P[4]},
         5,
-        &c->d};
+        &rise};
     zui_rect_t a = c->p.main;
     if (c->p.list.w) {
         a.x = c->p.list.x;

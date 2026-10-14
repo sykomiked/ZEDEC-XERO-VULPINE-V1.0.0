@@ -69,6 +69,11 @@ static int32_t S(int32_t scale_q8, int32_t pt)
     return (pt * scale_q8 + 128) / 256;
 }
 
+static void rise(const zui_launch_t *l, zui_surface_t *s, zui_rect_t r, int32_t radius, int32_t z)
+{
+    if (l->rise && l->rise->fn) l->rise->fn(s, l->rise->ctx, r, radius, z);
+}
+
 static void draw_row(zui_surface_t *s, int32_t sc, const zui_launch_t *l, zui_launch_state_t st,
                      uint32_t tick, int32_t mid, int32_t y, uint32_t n, int32_t tile, int32_t gap,
                      int32_t thick)
@@ -93,8 +98,7 @@ static void draw_row(zui_surface_t *s, int32_t sc, const zui_launch_t *l, zui_la
             l->parts[i](s, (zui_rect_t){t.x + in, t.y + in, tile - 2 * in, tile - 2 * in}, lit,
                         l->ctx[1 + i]);
         }
-        if (lit)
-            zui_foil_rect(s, l->depth, t, r, S(sc, 14) * (int32_t) lit / 256); /* lit tiles rise */
+        if (lit) rise(l, s, t, r, S(sc, 14) * (int32_t) lit / 256); /* lit tiles rise */
     }
 }
 
@@ -169,7 +173,7 @@ void zui_launch_draw(zui_surface_t *s, zui_rect_t a, int32_t sc, const zui_launc
             s, (zui_rect_t){mb.x - mark / 10, mb.y - mark / 10, mark * 12 / 10, mark * 12 / 10},
             mark / 3, ZUI_GOLD_GLOW, flash * 36u / 256u);
     if (l->mark) l->mark(s, mb, lt * 2u > 256u ? 256u : lt * 2u, l->ctx[0]);
-    if (lt) zui_foil_rect(s, l->depth, mb, 0, S(sc, 24) * (int32_t) lt / 256);
+    if (lt) rise(l, s, mb, 0, S(sc, 24) * (int32_t) lt / 256);
     y += mark + S(sc, 26);
 
     /* the bar under the mark: releases once the mark is lit */
