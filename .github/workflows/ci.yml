@@ -47,6 +47,7 @@ jobs:
       dotnet: ${{ steps.changes.outputs.dotnet }}
       mac: ${{ steps.changes.outputs.mac }}
       proofs: ${{ steps.changes.outputs.proofs }}
+      zxvd: ${{ steps.changes.outputs.zxvd }}
       heavy: ${{ steps.changes.outputs.heavy }}
     steps:
       - uses: actions/checkout@v7
@@ -143,6 +144,22 @@ jobs:
         run: |
           cd kernel
           make verify-all
+
+  # zxvd's unit tests (every kernel/arch/hosted/test_zxvd_*.sh), the app and
+  # zui tests, then the daemon built and driven end to end. zxvd.yml runs the
+  # same per platform and sanitizer; this copy is what puts zxvd under
+  # ci-gate. One script, so the two cannot list different tests.
+  zxvd:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.zxvd == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: zxvd unit tests and end to end (kernel/arch/hosted/zxvd_checks.sh)
+        env:
+          CC: gcc
+        run: sh kernel/arch/hosted/zxvd_checks.sh "$RUNNER_TEMP/zxvd-checks"
 
   # QEMU boots of the two shipping targets (Apple Silicon/ARM PCs and x86_64
   # PCs) on every push. Each arch is its own step and every step runs even
@@ -749,7 +766,7 @@ jobs:
   # of holding it for GitHub's six-hour default.
   ci-gate:
     name: ci-gate
-    needs: [ quick-checks, host-tests, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
+    needs: [ quick-checks, host-tests, zxvd, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -759,6 +776,7 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           KERNEL: ${{ needs.quick-checks.outputs.kernel }}
           HEAVY: ${{ needs.quick-checks.outputs.heavy }}
+          ZXVD: ${{ needs.quick-checks.outputs.zxvd }}
           DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
         run: |
           python3 - <<'PY'
@@ -770,6 +788,7 @@ jobs:
           needs = json.loads(os.environ["NEEDS"])
           kernel = os.environ.get("KERNEL") == "true"
           heavy = os.environ.get("HEAVY") == "true"
+          zxvd = os.environ.get("ZXVD") == "true"
           slow = ["boot-extra", "uefi-disc", "kat-cross", "mutation-subset",
                   "sanitize-integer", "sanitize-msan", "fuzz-smoke", "coverage"]
           fast = ["host-tests", "boot", "sanitize-asan-ubsan"]
@@ -786,6 +805,8 @@ jobs:
               for job in must:
                   if needs[job]["result"] != "success":
                       bad.append(f"{job}: {needs[job]['result']} but this change needs it")
+          if zxvd and needs["zxvd"]["result"] != "success":
+              bad.append(f"zxvd: {needs['zxvd']['result']} but this change needs it")
           if not heavy:
               print("fast tier only: this run cannot satisfy the merge gate")
           if bad:

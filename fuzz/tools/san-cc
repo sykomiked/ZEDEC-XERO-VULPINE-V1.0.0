@@ -76,6 +76,17 @@ if [ "${SANCC_STRIP_SAN:-0}" = 1 ]; then
         i=$((i + 1))
     done
 fi
+# A shared library linked under a sanitizer leaves the runtime's symbols to
+# the program that loads it: clang links the runtime into executables only.
+# A library that links with -z defs (libzxv) would refuse those symbols, so
+# a -shared link here takes -z undefs last, which wins. Test builds only;
+# libzxv's own build keeps -z defs.
+for a in "$@"; do
+    if [ "$a" = -shared ]; then
+        set -- "$@" -Wl,-z,undefs
+        break
+    fi
+done
 if [ -z "${SANCC_COV_DIR:-}" ]; then
     # shellcheck disable=SC2086
     exec "$SAN_CC" "$@" $SANCC_FLAGS

@@ -27,7 +27,9 @@ merged, and every night on `main`.
    | `sdk/dotnet/**` | quick-checks, dotnet-sdk |
    | other `sdk/**`, `bindings/<language>/**` | quick-checks and ci-gate here; the `sdk*.yml` workflows test the SDKs |
    | `sdk/libzxv/**`, `sdk/conformance/**` | every job (libzxv is linked into the engine and zxvd) |
-   | `macos/**`, `docs/MAC_APP.md` | quick-checks, macos-app |
+   | `macos/**` | quick-checks, macos-app, zxvd |
+   | `docs/MAC_APP.md` | quick-checks, macos-app |
+   | `sdk/pillars/**`, `sdk/kits/{aipi,z-wasm,z-contract}/**` | quick-checks, zxvd |
    | `proofs/**` | quick-checks, proofs |
    | anything else (kernel, tests, fuzz, bench, build_system, packages, `bindings/*.c`) | every job |
    | `.github/workflows/ci.yml` or `ci_changes.sh` itself | every job |
@@ -70,6 +72,7 @@ merged, and every night on `main`.
    |---|---|
    | quick-checks: change detection, Apache-2.0 check, clang-format | mutation-subset, three shards |
    | host-tests: `make -C kernel verify-all` | fuzz-smoke |
+   | zxvd: `kernel/arch/hosted/zxvd_checks.sh` (every zxvd unit test, the app and zui tests, zxvd end to end) | |
    | boot: arm64 and x86_64 QEMU boots | coverage |
    | sanitize-asan-ubsan | kat-cross |
    | macos-app, dotnet-sdk, proofs (when their inputs changed) | sanitize-integer, sanitize-msan |
@@ -119,7 +122,10 @@ require. It passes only when:
 - no job failed or was cancelled;
 - when the change touches code, every fast-tier job and, on a ready pull
   request, every slow-tier job actually ran and passed (a skipped job
-  counts as passing for a required check, so this is checked here).
+  counts as passing for a required check, so this is checked here);
+- when the change touches anything zxvd links or its tests drive (the
+  `zxvd` flag of `ci_changes.sh`: code, `macos/`, `sdk/pillars/`, the AIPI,
+  Z-Wasm and Z-Contract kits), the `zxvd` job ran and passed.
 
 `ci-gate` always reports, under that one name:
 
@@ -153,7 +159,10 @@ cover what it would catch.
 Not covered by `ci-gate`: the path-filtered workflows (`desktop`,
 `macos-studio`, `sdk*`, `zxvd`). They only run when their paths change, so
 GitHub cannot require them. Their checks must still be green before a merge
-(the ready rule the project already follows).
+(the ready rule the project already follows). zxvd's tests are the
+exception: ci.yml's `zxvd` job runs them on Linux with gcc through the same
+`zxvd_checks.sh`, so the gate covers them; `zxvd.yml` adds the other
+platforms, clang, the sanitizer build and the display layers.
 
 ### The mutation config
 
