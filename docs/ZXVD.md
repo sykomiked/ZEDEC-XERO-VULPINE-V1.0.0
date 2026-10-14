@@ -287,7 +287,8 @@ envelope feed" below),
 -32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
 below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
--32015 a method a phone may not call (see below), -32000 a
+-32015 a method a phone may not call (see below), -32016 a play.* call
+refused or failed (the message says why), -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are

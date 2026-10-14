@@ -1981,6 +1981,160 @@ static bool ju_parse(const char *req, juris_settings_t *s)
     return n > 1 && juris_settings_parse(r, n - 1, s) == JURIS_OK; /* drop the closing } */
 }
 
+/* ---------------- play.* (P1-P3) ---------------- */
+
+/* what the stub saw: the template, the files (copied: zxvd frees them) and
+ * the draft request; each call fails with `play_why` when it is set */
+static char play_tid[64], play_req[1100];
+static char play_name[20][24], play_text[20][24];
+static size_t play_len[20];
+static uint32_t play_n, play_calls;
+static const char *play_why;
+
+static void play_seen(const char *tid, const zxvd_play_file_t *f, uint32_t n)
+{
+    play_calls++;
+    snprintf(play_tid, sizeof play_tid, "%s", tid);
+    play_n = n;
+    for (uint32_t i = 0; i < n && i < 20; i++) {
+        snprintf(play_name[i], sizeof play_name[i], "%s", f[i].name);
+        memset(play_text[i], 0, sizeof play_text[i]);
+        memcpy(play_text[i], f[i].text, f[i].len < 23 ? f[i].len : 23);
+        play_len[i] = f[i].len;
+    }
+}
+
+static const char *play_cat(zxvd_buf_t *out)
+{
+    play_calls++;
+    zxvd_buf_raw(out, "[{\"id\":\"t\"}]", 12);
+    return play_why;
+}
+
+static const char *play_run(const char *tid, const zxvd_play_file_t *f, uint32_t n, zxvd_buf_t *out)
+{
+    play_seen(tid, f, n);
+    zxvd_buf_raw(out, "{\"verdict\":\"TRUE\"}", 18);
+    return play_why;
+}
+
+static const char *play_draft(const char *tid, const zxvd_play_file_t *f, uint32_t n,
+                              const char *request, zxvd_buf_t *out)
+{
+    play_seen(tid, f, n);
+    snprintf(play_req, sizeof play_req, "%s", request);
+    zxvd_buf_raw(out, "{\"model\":false,\"draft\":\"x\"}", 27);
+    return play_why;
+}
+
+static void test_play(void)
+{
+    static const zxvd_play_ops_t ALL = {play_cat, play_run, play_draft};
+    static const zxvd_play_ops_t CAT_ONLY = {play_cat, NULL, NULL};
+    char req[1400], big[1100];
+
+    /* P1-P3: no ops, or an op left unset, is "not available" */
+    zxvd_rpc_set_play_ops(NULL);
+    EXPECT(REQ("1", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_play_ops(&CAT_ONLY);
+    EXPECT(REQ("1", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "play.draft", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_play_ops(&ALL);
+    play_why = NULL;
+    play_calls = 0;
+
+    /* P1 */
+    EXPECT(REQ("1", "play.catalogue", ""), OK("1", "[{\"id\":\"t\"}]"));
+    play_why = "no templates";
+    EXPECT(REQ("2", "play.catalogue", ""), ERR("2", "-32016", "no templates"));
+    CHECK(play_calls == 2, "the catalogue was asked twice");
+
+    /* P2: a failure discards what the call wrote and answers -32016 */
+    EXPECT(REQ("3", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("3", "-32016", "no templates"));
+    play_why = NULL;
+    play_calls = 0;
+    EXPECT(REQ("4", "play.run", ",\"params\":{\"template\":\"cobol-hello\"}"),
+           OK("4", "{\"verdict\":\"TRUE\"}"));
+    CHECK(play_calls == 1 && !strcmp(play_tid, "cobol-hello") && play_n == 0,
+          "play.run without files: template %s, %u files", play_tid, play_n);
+    EXPECT(REQ("5", "play.run",
+               ",\"params\":{\"template\":\"t\",\"files\":{\"a.cob\":\"X\\nY\",\"b\":\"\"}}"),
+           OK("5", "{\"verdict\":\"TRUE\"}"));
+    CHECK(play_n == 2 && !strcmp(play_name[0], "a.cob") && !strcmp(play_text[0], "X\nY") &&
+              play_len[0] == 3 && !strcmp(play_name[1], "b") && play_len[1] == 0,
+          "two files decoded in order with their lengths (%u)", play_n);
+    play_calls = 0;
+    CHECK(has(REQ("6", "play.run", ""), "\"code\":-32602") && play_calls == 0,
+          "play.run needs a template");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":[\"x\"]}"),
+              "must be an object of name: text") &&
+              play_calls == 0,
+          "files must be an object");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":{\"a\":1}}"),
+              "at most 16 entries, each a string") &&
+              play_calls == 0,
+          "a file's text must be a string");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":{\"\":\"x\"}}"),
+              "a bad name or text") &&
+              play_calls == 0,
+          "a file needs a name");
+    /* sixteen files are fine, seventeen are refused */
+    for (int k = 16; k <= 17; k++) {
+        size_t o = (size_t) snprintf(req, sizeof req,
+                                     "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"play.run\","
+                                     "\"params\":{\"template\":\"t\",\"files\":{");
+        for (int i = 0; i < k; i++)
+            o += (size_t) snprintf(req + o, sizeof req - o, "%s\"f%d\":\"%d\"", i ? "," : "", i, i);
+        snprintf(req + o, sizeof req - o, "}}}");
+        play_calls = 0;
+        const char *r = rpc(req);
+        if (k == 16)
+            CHECK(strstr(r, "\"result\"") && play_n == 16 && !strcmp(play_name[15], "f15") &&
+                      !strcmp(play_text[15], "15"),
+                  "16 files reach the Playground: %s", r);
+        else
+            CHECK(strstr(r, "at most 16 entries") && play_calls == 0, "17 files are refused: %s",
+                  r);
+    }
+
+    /* P3 */
+    EXPECT(REQ("8", "play.draft",
+               ",\"params\":{\"template\":\"relief\",\"request\":\"fair shares\","
+               "\"files\":{\"x\":\"1\"}}"),
+           OK("8", "{\"model\":false,\"draft\":\"x\"}"));
+    CHECK(!strcmp(play_tid, "relief") && !strcmp(play_req, "fair shares") && play_n == 1 &&
+              !strcmp(play_text[0], "1"),
+          "play.draft passes the template, the request and the files");
+    EXPECT(REQ("9", "play.draft", ",\"params\":{\"template\":\"relief\"}"),
+           OK("9", "{\"model\":false,\"draft\":\"x\"}"));
+    CHECK(play_req[0] == 0 && play_n == 0, "the request and the files are optional");
+    play_calls = 0;
+    CHECK(has(REQ("9", "play.draft", ",\"params\":{\"request\":\"r\"}"), "\"code\":-32602") &&
+              play_calls == 0,
+          "play.draft needs a template");
+    memset(big, 'a', 1024);
+    big[1024] = 0;
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"play.draft\",\"params\":{\"template\":"
+             "\"t\",\"request\":\"%s\"}}",
+             big);
+    CHECK(strstr(rpc(req), "at most 1023 bytes") && play_calls == 0,
+          "a request over 1023 bytes is refused");
+    CHECK(has(REQ("9", "play.draft", ",\"params\":{\"template\":\"t\",\"files\":{\"a\":true}}"),
+              "at most 16 entries") &&
+              play_calls == 0,
+          "play.draft checks its files too");
+    play_why = "the model is busy";
+    EXPECT(REQ("9", "play.draft", ",\"params\":{\"template\":\"t\"}"),
+           ERR("9", "-32016", "the model is busy"));
+    play_why = NULL;
+    zxvd_rpc_set_play_ops(NULL);
+}
+
 static void test_jurisdiction(void)
 {
     char tmpl[] = "/tmp/zxvdjuris.XXXXXX", path[200];
@@ -3722,6 +3876,7 @@ int main(void)
     test_books_file();
     test_mesh();
     test_views();
+    test_play();
     test_jurisdiction();
     test_groups();
     test_feature_save();

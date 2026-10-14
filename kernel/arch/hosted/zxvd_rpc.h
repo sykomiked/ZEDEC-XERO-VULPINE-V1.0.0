@@ -229,7 +229,7 @@ void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
  *   P3 play.draft      {"template", "files"?, "request"?} -> {"model": bool,
  *                      "draft": text}: the local swarm's draft of the
  *                      template's draft file. Untrusted text: it is not run. */
-#define ZXVD_E_PLAY (-32012)
+#define ZXVD_E_PLAY (-32016)
 typedef struct {
     const char *name;
     const char *text;
@@ -286,7 +286,7 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *      built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010 to -32015;
+ *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010 to -32016;
  *      -32012 is the code of a method whose feature switch is off, zxvd_ext.h X4).
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).

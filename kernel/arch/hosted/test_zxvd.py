@@ -221,7 +221,7 @@ def play_checks(c):
     e = r['steps'][0].get('error', {})
     check(r['verdict'] == 'FALSE' and e.get('name') == 'ZXT_E_CLAIM' and e.get('line') == 5,
           'play.run: a claim above its deposit is refused at line 5')
-    check(err('play.run', {'template': 'no-such'}).get('code') == -32012, 'play.run: unknown template')
+    check(err('play.run', {'template': 'no-such'}).get('code') == -32016, 'play.run: unknown template')
     r = c.call('play.run', {'template': 'trade-corridor', 'files': {'../x': 'y'}})
     check(r.get('result', {}).get('verdict') == 'FALSE' or 'error' in r,
           'play.run: a file name with a directory is refused')
@@ -230,7 +230,7 @@ def play_checks(c):
     d = c.ok('play.draft', {'template': 'trade-corridor', 'request': 'Acme owes Beta 12000 dollars'})
     check(isinstance(d['draft'], str) and isinstance(d['model'], bool),
           'play.draft returns the swarm\'s draft as untrusted text (model=%s)' % d['model'])
-    check(err('play.draft', {'template': 'relief-allocation'}).get('code') == -32012,
+    check(err('play.draft', {'template': 'relief-allocation'}).get('code') == -32016,
           'play.draft: a template without a draft line')
     play_http_checks()
 
